@@ -31,32 +31,85 @@
 
 (* Pretty printer *)
 
-let debug = false
+let debug =  false
 let aman           = false
 let mode           = try Sys.getenv "Mode" with Not_found -> "" (* I hope ocamlopt realizes that this is dead if aman = false *)
 let aman_no_layout = (aman && (mode = "SkipLayout"))            (* Constant-foldable if aman = false? *)
 let aman_no_output = (aman && (mode = "SkipOutput"))
 let aman_no_fit    = (aman && (mode = "SkipFit"))
 
-let george = true
+(* use getenv("ALGO") to decide which algorithm to use
+   ALGO=old    : old pretty printer (not george)
+   ALGO=george
+   ALGO=aman   (default)
+*)
+let envAlgo = let s = (try Sys.getenv ("ALGO") with Not_found -> "aman") in if (s <> "george") && (s <> "old") then "aman" else s
+
+let use_old_version = (envAlgo = "old") || (envAlgo = "george")
+let use_Qversion = (not use_old_version) && (envAlgo = "aman")
+let george = true && (envAlgo = "george")
+
+let _ = if debug then Printf.fprintf stderr "********** ALGO = %s *************\n" (if use_Qversion then "Aman" else if george then "George" else "Old")
+
 let george_no_scan = george && false
 let george_no_emit = george && (george_no_scan || false)
 let george_no_out  = george && (george_no_scan || george_no_emit || false)
+
 
 let noBreaks = ref false  (* Replace all soft breaks with space *)
 let noAligns = ref false (* Whether to obey align/unalign *)
 
 let fprintf x = Printf.fprintf stderr x
 
+
+
+type status = 
+    Open                                (* We have not yet decided whether to 
+                                         * take this break or not. Both the 
+                                         * col field and   *)
+  | Taken                               (* We are definitely taking this one *)
+  | NotTaken                            (* We are definitely not talking this 
+                                         * one *)
+
+(* We need a parametric type because of the mutual recursion in the definitions of brk and doc *)
+type 'd dbrk = {      id    : int;
+             mutable col    : int;
+                   align    : int ref;
+             mutable status : status; 
+	            (* pdoc    : 'd; *)
+	   } 
+
+type 'd dqbrkData = {
+    mutable qstatus : status;
+    mutable nextAlign : 'd;
+  } 
+
+type qalignData = {
+    alignId : int;
+    mutable size : int;
+  } 
+
+type qunalignData = unit
+
 type doc = 
     Nil
   | Text     of string
+(*  | Spaces   of int *)
   | Concat   of doc * doc
   | CText    of doc * string
-  | Line     
-  | Break    
+  | Break
+  | Line 
   | Align
-  | Unalign
+  | Unalign  
+
+
+type qbrkData = doc dqbrkData
+
+type brk = doc dbrk
+
+type breakData = 
+    Brk  of brk
+  | Algn of int ref
 
 
 let nil  = Nil
@@ -65,20 +118,66 @@ let nil  = Nil
  * that if you have a long list of ++ then the whole thing is very unbalanced 
  * towards the left side. This is the worst possible case since scanning the 
  * left side of a Concat is the non-tail recursive case. *)
+
 let (++) d1 d2 = Concat (d1, d2)
 
 let text s     = Text s
 let num  i     = text (string_of_int i)
 let chr  c     = text (String.make 1 c) 
+(* let align      = let count = ref 0 in function () -> count := !count +1 ; Align {alignId = !count;size=0}*)
 let align      = Align
 let unalign    = Unalign
 let line       = Line
 let break      = Break  (* Line *) (* Aman's benchmarking goo *)
 
 
+
+(* Some debugging stuff *)
+
+let nest n d   = text (String.make 1 ' ') ++ align ++ d ++ unalign
+
+
+
+let dbgPrintStatus = function
+    Open -> fprintf "Open"
+  | Taken -> fprintf "Taken"
+  | NotTaken -> fprintf "NotTaken"
+
+let rec dbgPrintBrk (b : brk) = begin
+  fprintf "(Brk: id=%d col=%d !align=%d status=" b.id b.col !(b.align);
+  dbgPrintStatus b.status;
+  fprintf ")\n"      
+end    
+
+let rec dbgPrintDoc (* recurseBreaks : bool *) = function
+    Nil -> fprintf "(Nil)"
+  | Text s -> fprintf "(Text %s)" s
+(*  | Spaces n -> fprintf "(Spaces %d)" n *)
+  | Concat (d1,d2) -> fprintf ""; dbgPrintDoc  d1; fprintf " ++\n "; 
+      dbgPrintDoc  d2; fprintf ""
+  | CText (d,s) -> dbgPrintDoc  d; fprintf " ++ \"%s\"" s; 
+  | Break -> 
+      fprintf "(Break)" (* (Obj.magic d : int); dbgPrintStatus qb.qstatus; *)
+      (* fprintf " nextAlign=%d)" (match qb.nextAlign with Align a -> a.alignId | Nil -> -1 | _ -> 0) *)
+  | Line -> fprintf "(Line)"
+  | Align -> fprintf "(Align)"
+  | Unalign -> fprintf "(Unalign)"
+(*
+  | Break b when recurseBreaks -> fprintf "(Break "; dbgPrintBrk !b; fprintf ")"
+  | Break b when not recurseBreaks -> fprintf "(Break %d)" (!b).id
+  | Line b when recurseBreaks -> fprintf "(Line "; dbgPrintBrk !b; fprintf ")"
+  | Line b when not recurseBreaks -> fprintf "(Line %d)" (!b).id
+  | Align _ -> fprintf "Align"
+  | Unalign _ -> fprintf "Unalign"
+  | _ -> fprintf "Whats this??"
+*)
+	
+
+(* let nest n d   = (if n > 0 then Spaces n else nil) ++ align ++ d ++ unalign*)
 let nest n d   = text (String.make 1 ' ') ++ align ++ d ++ unalign
 
 (* Rewrite seq to be tail recursive *)
+
 let  seq sep f dl = 
   let rec loop (acc: doc) = function
       []     -> acc
@@ -116,23 +215,6 @@ let insert () d = d
 
 (************* LAYOUT functions ********************)
 
-type status = 
-    Open                                (* We have not yet decided whether to 
-                                         * take this break or not. Both the 
-                                         * col field and   *)
-  | Taken                               (* We are definitely taking this one *)
-  | NotTaken                            (* We are definitely not talking this 
-                                         * one *)
-type brk = {         id     : int;
-             mutable col    : int;
-                   align    : int ref;
-             mutable status : status; } 
-
-type breakData = 
-    Brk  of brk
-  | Algn of int ref
-
-
 let printData breaks = 
   let lastCol = ref 99999 in
   let printOne = function
@@ -152,7 +234,6 @@ let printData breaks =
   List.iter printOne breaks
 
 
-
 let fit (start: 'a) 
         (accString: 'a -> string -> int -> 'a) (* accumulate a number of 
                                                 * copies of a string *)
@@ -169,10 +250,11 @@ let fit (start: 'a)
                                          * align that we are taking 
                                          * (starting at the most recent 
                                          * break)  *)
-  let rec markNotTaken align = function
-      Brk ({status=Open;} as b) :: rest ->
+  let rec markNotTaken (align : int ref)  = function
+      Brk ({status=Open;} as b) :: rest -> begin
         b.status <- NotTaken;
         markNotTaken align rest
+      end
     | Algn ar :: rest -> 
         if align == ar then () else markNotTaken align rest
     | _ :: rest -> markNotTaken align rest
@@ -182,7 +264,7 @@ let fit (start: 'a)
                                          * Takes a stack of breaks in scope, 
                                          * the width and the current column. 
                                          * Marks some breaks and returns the 
-                                         * new column *)
+                                         * new column *) 
   let performBreaks breaks col =
     let oneBrk col = 
       let _ = 
@@ -194,7 +276,7 @@ let fit (start: 'a)
           () in
       let maxDelta = ref 0 in
       let maxCol   = ref 0 in
-      let maxBrk   : brk ref = ref {id=0;col=0;align=ref 0;status=Open;} in
+      let maxBrk   : brk ref = ref {id=0;col=0;align=ref 0;status=Open} in
       let rec findMaxDelta = function
           [] -> ()
         | Brk b :: rest when b.status = Open ->
@@ -283,6 +365,7 @@ let fit (start: 'a)
      (* Scan the document and initialize the allBreaks data structure. Carry 
       * a stack of aligns and a stack of breakData that are in scope for the 
       * current line. Also carry the current column and a continuation. *)
+
   let rec scan aligns breaks col cont = function 
       Nil -> cont aligns breaks col
     | Concat(d1,d2) -> 
@@ -296,42 +379,42 @@ let fit (start: 'a)
           (fun a b c -> cont a b (c + tl)) d
     | Break when !noBreaks -> 
         (* Pretend we have seen a space *)
-        cont aligns breaks (col + 1)
+            cont aligns breaks (col + 1)
 
-    | Line when !noBreaks ->
-        let ar =                        (* Find the matching align. There 
-                                         * must always be one because we 
-                                         * start with an align in the column 
-                                         * 0  *)
-          match aligns with
-            ar :: _ -> ar
-          | _ -> failwith "Bug. Missing align"
-        in
-        cont aligns breaks !ar
+	| Line when !noBreaks ->
+            let ar =                        (* Find the matching align. There 
+                                             * must always be one because we 
+                                             * start with an align in the column 
+                                             * 0  *)
+              match aligns with
+		ar :: _ -> ar
+              | _ -> failwith "Bug. Missing align"
+            in
+            cont aligns breaks !ar
 
-    | (Break | Line) as doc ->            
-        let ar =                        (* Find the matching align. There 
-                                         * must always be one because we 
-                                         * start with an align in the column 
-                                         * 0  *)
-          match aligns with
-            ar :: _ -> ar
-          | _ -> failwith "Bug. Missing align"
-        in
+	| (Break | Line) as doc ->            
+            let ar =                        (* Find the matching align. There 
+                                             * must always be one because we 
+                                             * start with an align in the column 
+                                             * 0  *)
+              match aligns with
+		ar :: _ -> ar
+              | _ -> failwith "Bug. Missing align"
+            in
                                         (* See if it's time to switch 
                                          * breakAllMode off *)
-        let _ = 
-          if !breakAllMode && col < width - 20 then
-            breakAllMode := false else () in
-          
+            let _ = 
+              if !breakAllMode && col < width - 20 then
+		breakAllMode := false else () in
+            
                                         (* See if we need to perform some 
                                          * breaks on what we have so far  *)
-        let newCol = 
-          if !breakAllMode then col else
-          performBreaks breaks col  in
+            let newCol = 
+              if !breakAllMode then col else
+              performBreaks breaks col  in
                                         (* Maybe we need to switch breakAll 
                                          * mode on *)
-        let _ = if newCol > width then breakAllMode := true else () in
+            let _ = if newCol > width then breakAllMode := true else () in
 
                                         (* Create a new breakData *)
         let bid    = incr breakId; !breakId in
@@ -346,24 +429,24 @@ let fit (start: 'a)
             end
         in
                                         (* Memorize it *)
-        let _ = allBreaks := bdata :: (!allBreaks) in
-        cont aligns (Brk bdata :: breaks) bdata.col
+            let _ = allBreaks := bdata :: (!allBreaks) in
+            cont aligns (Brk bdata :: breaks) bdata.col
 
-    | Align -> 
-        if !noAligns then 
-          cont aligns breaks col
-        else
-          let adata = ref col in
-          cont (adata :: aligns) (Algn adata :: breaks) col
+	| Align -> 
+            if !noAligns then 
+              cont aligns breaks col
+            else
+              let adata = ref col in
+              cont (adata :: aligns) (Algn adata :: breaks) col
 
 
-    | Unalign -> 
-        if !noAligns then 
-          cont aligns breaks col
-        else
-          match aligns with
-            _ :: t when t != [] -> cont t breaks col
-          | _ -> failwith "Unmatched unalign\n"
+	| Unalign -> 
+            if !noAligns then 
+              cont aligns breaks col
+            else
+              match aligns with
+		_ :: t when t != [] -> cont t breaks col
+              | _ -> failwith "Unmatched unalign\n"
 
   (* scan *)
   in
@@ -374,12 +457,12 @@ let fit (start: 'a)
       if ind > 0 then begin
         indentLen := 0; 
         accString acc " " ind
-    end else 
+      end else 
         acc 
     in
     accString acc' s nrcopies
   in
-  let rec layout acc = function
+  let rec layout (acc : 'a) : doc -> 'a = function
       Nil -> acc
     | Align -> acc
     | Unalign -> acc
@@ -392,11 +475,19 @@ let fit (start: 'a)
     | Line when !noBreaks -> 
         accString acc "\n" 1
         
-    | Break | Line -> 
-        let b = 
-          match !allBreaks with
-            b :: t -> allBreaks := t; b
-          | [] -> failwith "Pretty: allbreaks list is too short"
+    | (Break  | Line) as brkDoc -> 
+        let b =  
+          (match !allBreaks with
+            b :: t -> begin 
+	      (*
+	      (if debug then fprintf "(%d = %d)"  b.id (!brkRef).id); 
+	      (if !brkRef == b || true then allBreaks := t else fprintf "*SKIPPED*");
+	      (if debug && !brkRef == dummyBrk then fprintf "*DUMMY*\n");
+	      *)
+	      allBreaks := t;
+	      (* !brkRef; *) b (* Aman *) 
+	    end	      
+          | [] -> failwith "Pretty: allbreaks list is too short";)
         in
         if b.status = Taken then begin
           let _ = if debug then 
@@ -408,7 +499,8 @@ let fit (start: 'a)
   in
   function doc -> 
     let scanCont _ _ _ =  
-      allBreaks := List.rev (!allBreaks); 
+       allBreaks := List.rev (!allBreaks);  
+      (if debug then dbgPrintDoc doc);
       layout start doc
     in
     if !noBreaks && !noAligns then begin
@@ -711,7 +803,7 @@ let emitDoc
 let flushOften = ref false
 
 (* Aman's benchmarking goo *)
-let fprint = 
+let fprint_old = 
   if aman_no_output then 
     fun chn width doc -> fit () (fun _ _ _ -> ()) width doc
   else if aman_no_fit then
@@ -750,7 +842,7 @@ let fprint =
           if !flushOften then flush chn) 
         width doc
 
-let sprint width doc =
+let sprint_old width doc =
   fit "" 
     (fun acc s nrcopies -> 
       let acc' = 
@@ -766,7 +858,13 @@ let sprint width doc =
       acc')
     width doc
 
-let gprint = fit
+let gprint = fit						 
+
+
+let flushOften = ref false
+
+
+
 
                                         (* The rest is based on printf.ml *)
 external format_int: string -> int -> string = "format_int"
@@ -899,9 +997,9 @@ let gprintf (finish : doc -> doc)
               in
               collect newacc (i + 2)
           | '!' ->                        (* hard-line break *)
-              collect (dconcat acc line) (i + 2)
+              collect (dconcat acc (line)) (i + 2)
           | '?' ->                        (* soft line break *)
-              collect (dconcat acc break) (i + 2)
+              collect (dconcat acc (break)) (i + 2)
           | '@' -> 
               collect (dctext1 acc "@") (i + 2)
           | c ->
@@ -912,7 +1010,7 @@ let gprintf (finish : doc -> doc)
         if i + 1 < flen then begin
           match fget (succ i) with
             'n' ->                      
-              collect (dconcat acc line) (i + 2)
+              collect (dconcat acc (line)) (i + 2)
           | _ -> literal acc i
         end else
           invalid_arg "dprintf: incomplete escape \\"
@@ -927,6 +1025,172 @@ let gprintf (finish : doc -> doc)
 
   in
   collect Nil 0
+
+let withPrintDepth dp thunk = 
+  let opd = !printDepth in
+  printDepth := dp;
+  thunk ();
+  printDepth := opd
+
+
+
+
+
+
+
+
+
+
+
+(****************************************************************************************)
+(* qprint *)
+(* Prints a document with indentation, without backtracking *)
+
+(* Abstraction for qprint-channels *)
+type qprintChannel =
+    QOut_channel of out_channel
+  | QBuffer of Buffer.t
+
+let writeString (s : string) = function
+    QOut_channel chn -> output_string chn s
+  | QBuffer buf -> Buffer.add_string buf s
+
+let writeChar (c : char) = function 
+    QOut_channel chn -> output_char chn c
+  | QBuffer buf -> Buffer.add_char buf c
+
+
+(* Calculate qalignData.sizes *)
+type docStream = unit -> doc
+let makeDocStream doc =
+  let stack = ref [doc] in
+  let rec getNext = function () -> match !stack with
+    doc :: rest -> begin 
+      stack := rest;
+      match doc with
+	Nil -> getNext ()
+      | Text _ | (* Spaces _ | *) Line | Break | Align | Unalign -> doc
+      |	Concat (d1,d2) -> 
+	  stack := d1 :: (d2 :: !stack);
+	  getNext ()
+      |	CText (d,s) ->
+	  stack := d :: (Text s :: !stack);
+	  getNext ()
+    end
+  | _ -> nil
+  in getNext
+
+let qPreprocess doc width =
+  let docstr = makeDocStream doc in
+  let breakList : int ref list ref = ref [] in
+  let updateBreakList = ref false in
+  (* let prevBrk : qbrkData ref = ref nil in *)
+  let rec getSize (acc : int) : int  =
+    match docstr () with
+      Nil -> acc
+    | Text s -> getSize (acc + String.length s)
+(*     | Spaces n -> getSize (acc + n) *)
+    | Line -> 
+	if (!updateBreakList) then breakList := (ref (-1)) :: !breakList;
+	updateBreakList := false; 
+	getSize 0
+    | Break -> 
+	if (!updateBreakList) then breakList := (ref (-1)) :: !breakList 
+	else updateBreakList := true; 
+	getSize (acc + 1)
+    | Align -> 
+	let x = ref (-2) in
+	if !updateBreakList then begin
+	  updateBreakList := false;
+	  breakList := x :: !breakList;
+	end;
+	   x := getSize 0;	
+	getSize (acc + !x)
+    | Unalign -> 
+	(*if !updateBreakList then breakList := (ref (-1)) :: !breakList;
+	updateBreakList := false; *)
+	acc
+    | _ -> raise (Failure "docStream returned nonleaf")
+  in 
+  let _ = getSize 0 in begin
+    if !updateBreakList then breakList := (ref (-1)) :: !breakList;
+    List.rev !breakList
+  end
+   
+
+
+let qprint qchn width doc = 
+  let curPos = ref 0 in
+  let alignStack  = ref [0] in
+  let breakList :  int ref list ref = ref (qPreprocess doc width) in
+  let breakLine () = begin
+    writeChar '\n' qchn;
+    for i=1 to (List.hd !alignStack) do writeChar ' ' qchn done;
+    curPos := List.hd !alignStack 
+  end in
+  let decide2break () = begin
+    match !breakList with
+      size :: rest -> 
+	breakList := rest;
+	(!curPos > width) || 
+	if (!size <= 0) then false
+	else (width <= !curPos + !size)
+    | _ -> raise (Failure "breakList contains too few breaks")
+  end  in
+  let rec qprintLoop = function
+      Nil -> ()
+    | Text s -> 
+	let len = String.length s in 
+	curPos := !curPos + len;
+	writeString s qchn
+(*    | Spaces n -> 
+	curPos := !curPos + n;
+	for i=1 to n do writeChar ' ' qchn done *)
+    | Concat (d1, d2) -> qprintLoop d1; qprintLoop d2
+    | CText (d,s) -> qprintLoop d; qprintLoop (Text s)
+    | Break -> 
+	(* if (!curPos + 10 >= width) then begin *)
+	if decide2break () then begin
+	  (* fprintf "*TAKEN*";*)
+	  breakLine()
+	end
+	else begin
+	  (* fprintf "*OPEN*"; *)
+	  curPos := !curPos + 1;
+	  writeChar ' ' qchn
+	end	  
+    | Line -> 
+	(* writeChar '/' qchn; *)
+	breakLine ()
+    | Align -> 
+	alignStack := !curPos :: !alignStack
+    | Unalign -> alignStack := List.tl !alignStack
+  in 
+  qprintLoop doc
+  
+
+
+let qprintf format doc =
+  qprint (QOut_channel stdout) 80 doc
+
+let qfprint chn width doc =
+  qprint (QOut_channel chn) width doc
+
+let qsprint width doc =
+  let buf = Buffer.create 1024 in
+  qprint (QBuffer buf) width doc;
+  Buffer.contents buf
+
+
+
+
+let fprint = if use_Qversion then qfprint else fprint_old
+let sprint = if use_Qversion then qsprint else sprint_old
+
+(*
+let fprint = qfprint
+let sprint = qsprint
+*)
 
 let dprintf format     = gprintf (fun x -> x) format
 let fprintf chn format = 
@@ -943,14 +1207,10 @@ let fprintf chn format =
 let printf format = fprintf stdout format
 let eprintf format = fprintf stderr format
 
+
 (*
 let sprintf format = gprintf (fun x -> sprint 80 x) format
 let printf  format = gprintf (fun x -> fprint stdout 80 x) format
 *)
 
-let withPrintDepth dp thunk = 
-  let opd = !printDepth in
-  printDepth := dp;
-  thunk ();
-  printDepth := opd
 
