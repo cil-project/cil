@@ -133,12 +133,12 @@ $TEST->newTest(
 
 $TEST->newTest(
     Name => "apache!1setup",
-    Dir => "..",
+    Dir => ".",
     Group => ["apache", "slow"],
     Cmd => "make apachesetup");
 $TEST->newTest(
     Name => "apache!2setup",
-    Dir => "..",
+    Dir => ".",
     Group => ["apache", "slow"],
     Cmd => "make apachesetup _GNUCC=1");
     
@@ -689,7 +689,8 @@ smAddTest("wes-hashtest $box $iters");
 smAddTest("testpcc/parseobject EXTRAARGS=--no-idashi");
 
 # apache modules; set is needed for next one
-$TEST->setField(smAddTest("!apachesetup"), 'Cmd', "make apachesetup");
+$TEST->setField(smAddTest("apache!1setup"), 'Cmd', "make apachesetup");
+$TEST->setField(smAddTest("apache!2setup"), 'Cmd', "make apachesetup");
 smAddTest("apache/gzip");
 
 # does not work: complains of many incompatible type redefinitions
@@ -965,7 +966,7 @@ sub addTests {
         }
         my $tst =
             $self->newTest(Name => $name . "-" . $kind,
-                           Dir => "..",
+                           Dir => ".",
                            Cmd => "make " . $name . $thisargs,
                            Group => [$kind],
                            Patterns => \%patterns);
