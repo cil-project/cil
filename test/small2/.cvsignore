@@ -56,3 +56,6 @@ baddef.rept
 litstruct
 cmpzero
 a.out
+ioctl
+stralloc
+

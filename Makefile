@@ -1017,7 +1017,7 @@ PWDIR=test/olden/power
 ifdef _GNUCC
 PWEXTRA += -lm
 endif
-power : defaulttarget mustbegcc
+power: defaulttarget mustbegcc
 	cd $(PWDIR); \
                make PLAIN=1 clean defaulttarget \
                     CC="$(COMBINESAFECC) \
@@ -1048,7 +1048,7 @@ PERIMDIR=test/olden/perimeter
 ifdef _MSVC
 PERIMARGS = _MSVC=1
 endif
-perimeter : defaulttarget
+perimeter: defaulttarget
 	cd $(PERIMDIR); \
                make PLAIN=1 clean defaulttarget \
                     $(PERIMARGS) \
@@ -1078,7 +1078,7 @@ endif
 ifdef _GNUCC
 TSPEXTRA += -lm
 endif
-tsp : defaulttarget
+tsp: defaulttarget
 	cd $(TSPDIR); \
                make PLAIN=1 clean defaulttarget \
                     $(TSPARGS) \
@@ -1316,15 +1316,15 @@ ijpeg: defaulttarget mustbegcc
 	cd $(IJPEGDIR)/src; \
             make clean build CC="$(IJPEGSAFECC) $(CONLY)" \
                              LD="$(IJPEGSAFECC)"
-	sh -c "time $(IJPEGDIR)/exe/base/ijpeg.ultra \
+	sh -c "time $(IJPEGDIR)/src/ijpeg \
             -image_file $(IJPEGDIR)/data/ref/input/penguin.ppm \
             -GO"
 
 ijpeg-combined: defaulttarget mustbegcc
-	cd $(IJPEGDIR)/exe/base; \
-            $(SAFECC) ijpeg.ultra_all.c $(IJPEGEXTRA) \
-                $(EXEOUT)ijpeg.ultra
-	sh -c "time $(IJPEGDIR)/exe/base/ijpeg.ultra \
+	cd $(IJPEGDIR)/src; \
+            $(SAFECC) ijpeg_all.c $(IJPEGEXTRA) \
+                $(EXEOUT)ijpeg
+	sh -c "time $(IJPEGDIR)/src/ijpeg \
             -image_file $(IJPEGDIR)/data/ref/input/penguin.ppm \
             -GO"
 
@@ -1333,7 +1333,7 @@ ijpeg-noclean: defaulttarget mustbegcc
             make       build CC="$(IJPEGSAFECC) $(CONLY)" \
                              LD="$(IJPEGSAFECC)" \
                              EXTRA_LIBS=$(IJPEGEXTRA)
-	sh -c "time $(IJPEGDIR)/exe/base/ijpeg.ultra \
+	sh -c "time $(IJPEGDIR)/src/ijpeg \
             -image_file $(IJPEGDIR)/data/ref/input/penguin.ppm \
             -GO"
 
