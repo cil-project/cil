@@ -256,6 +256,10 @@ $(OBJDIR)/%.cmi: %.mli
          # copy to $(OBJDIR) the .cmi and the result of compilation.
 $(OBJDIR)/%.$(CMO): %.ml
 	@$(NARRATIVE) "Compiling           $< to $(COMPILETOWHAT)"
+	$(ECHO)#if test $(OBJDIR) != $(<D) -a -f $(OBJDIR)/$(basename $(<F)).cmi ;then \
+           $(COMMAND) mv -f $(OBJDIR)/$(basename $(<F)).cmi $(<D); \
+           mv -f $(OBJDIR)/$(basename $(<F)).cmi $(<D); \
+        fi
 	@$(COMMAND) $(CAMLC) $(CAMLFLAGS) -c $<
 	$(ECHO)$(CAMLC) $(CAMLFLAGS) -c $< ; res=$$?; \
 	   if test $(OBJDIR) != $(<D) ;then \
