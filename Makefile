@@ -645,6 +645,12 @@ apache/rewrite: $(EXECUTABLE)$(EXE)
 
 
 
+
+# Barnes-Hut
+BHDIR=test/bh
+bh : defaulttarget
+	cd $(BHDIR); make
+
 # SPEC95
 SPECDIR=test/spec95
 
@@ -663,3 +669,5 @@ li: defaulttarget
 	$(LIDIR)/src/trial_li \
             <$(LIDIR)/data/train/input/train.lsp \
             >$(LIDIR)/data/train/input/train.out
+
+
