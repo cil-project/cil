@@ -1726,7 +1726,8 @@ let rec offsetOfFieldAcc (fi: fieldinfo)
         
 (* The size of a type, in bits. If struct or array then trailing padding is 
  * added *)
-and bitsSizeOf = function
+and bitsSizeOf t = 
+	match t with 
     TInt((IChar|ISChar|IUChar), _) -> 8
   | TInt((IShort|IUShort), _) -> 16
   | TInt((IInt|IUInt), _) -> 32
@@ -1776,7 +1777,7 @@ and bitsSizeOf = function
   | TArray(t, None, _) -> raise Not_found
         
   | TArray _ -> 
-      E.s (E.unimp "sizeOfInt for non-constant length array")
+      E.s (E.unimp "sizeOfInt for non-constant length array:@!%a" d_type t)
   | (TVoid _ | TFun _) -> E.s (E.bug "bitsSizeOf")
 
 
