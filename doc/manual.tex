@@ -535,6 +535,9 @@ recognizes this attribute and it considers it equivalent with the
 \t{boxvararg\_printf} from above. Note that the second argument in the
 \t{format} attribute is ignored. 
 
+ Note that CCured does not currently like passing pointers to \t{printf} with
+the intention of printing the pointer value. You should manually cast those
+pointers to \t{long} when passing them to \t{printf}-like functions.
 
     \subsection{Scanf-like functions}
 

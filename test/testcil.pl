@@ -66,7 +66,7 @@ my %commonerrors =
 
          );
 
-my $inferbox = 4;
+my $inferbox = "infer";
 
 # Start with a few tests that must be run first
 $TEST->newTest(
