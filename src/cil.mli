@@ -1553,6 +1553,10 @@ val visitCilAttributes: cilVisitor -> attribute list -> attribute list
    Default is GCC. After you set this function you should call {!Cil.initCIL}. *)
 val msvcMode: bool ref               
 
+(** Whether we should try to parse C++. The support for C++ is _extremely_ 
+ * preliminary *)
+val cxxMode: bool ref
+
 (** Whether to print line numbers *)
 val printLn: bool ref
 

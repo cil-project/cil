@@ -50,6 +50,8 @@ let msvcMode = ref false              (* Whether the pretty printer should
                                        * print output for the MS VC 
                                        * compiler. Default is GCC *)
 
+let cxxMode = ref false
+
 let printLn= ref true                 (* Whether to print line numbers *)
 let printLnComment= ref false
  
@@ -2116,18 +2118,24 @@ class defaultCilPrinterClass : cilPrinter = object (self)
   method pGlobal () (g:global) : doc =       (* global (vars, types, etc.) *)
     match g with 
     | GFun (fundec, l) ->
-        (* If the function has attributes then print a prototype because GCC 
-         * cannot accept function attributes in a definition  *)
+        (* If the function has attributes then print a prototype because 
+        * GCC cannot accept function attributes in a definition *)
         let oldattr = fundec.svar.vattr in
         let proto = 
           if oldattr <> [] then 
-            (self#pLineDirective l) ++ (self#pVDecl () fundec.svar) ++ chr ';' ++ line 
+            (self#pLineDirective l) ++ (self#pVDecl () fundec.svar) 
+              ++ chr ';' ++ line 
           else nil in
         (* Temporarily remove the function attributes *)
         fundec.svar.vattr <- [];
         let body = (self#pLineDirective l) ++ (self#pFunDecl () fundec) in
         fundec.svar.vattr <- oldattr;
-        proto ++ body
+        (* If we have the clinkage attribute then print the linkage *)
+        if !cxxMode && hasAttribute "clinkage" fundec.svar.vattr then
+          text "ext" ++ align ++ text "ern \"C\" {" ++ line 
+            ++ proto ++ body ++ unalign ++ line ++ text "}"
+        else 
+          proto ++ body
           
     | GType (typ, l) ->
         self#pLineDirective l ++
@@ -2391,6 +2399,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     | "volatile", [] -> text "volatile", false
     | "restrict", [] -> text "__restrict", false
     | "missingproto", [] -> text "/* missing proto */", false
+    | "clinkage", [] when !cxxMode -> nil, false
     | "cdecl", [] when !msvcMode -> text "__cdecl", false
     | "stdcall", [] when !msvcMode -> text "__stdcall", false
     | "declspec", args when !msvcMode -> 

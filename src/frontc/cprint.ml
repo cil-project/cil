@@ -32,6 +32,8 @@ let cabslu = {lineno = -10; filename = "cabs loc unknown";}
 let curLoc = ref cabslu
 
 let msvcMode = ref false
+let cxxMode  = ref false
+
 let printLn = ref true
 let printLnComment = ref false
 
@@ -43,7 +45,7 @@ let printComments = ref false
 *)
 let out = ref stdout
 let width = ref 80
-let tab = ref 8
+let tab = ref 2
 let max_indent = ref 60
 
 let line = ref ""
@@ -920,6 +922,15 @@ and print_def def =
       print_expression destexpr 1;
       print " }";
       force_new_line()
+
+  | LINKAGE (what, defs, loc) -> 
+      setLoc loc;
+      print "extern "; print_string what; print " {"; 
+         force_new_line(); indent ();
+         List.iter print_def defs;
+         unindent ();
+      print "} "; print_string ("/* extern " ^ what ^ " */");
+      force_new_line ()
 
 (* sm: print a comment if the printComments flag is set *)
 and comprint (str : string) : unit =

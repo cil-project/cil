@@ -69,6 +69,9 @@ sub collectOneArgument {
     if($arg =~ m|--transval=(.+)$|)  {
         $self->{TRANSVAL} = $1; return 1;
     }
+    if($arg eq '--cabsonly') {
+        $self->{CABSONLY} = 1; return 1;
+    }
     # See if the super class understands this
     return $self->SUPER::collectOneArgument($arg, $pargs);
 }
@@ -96,7 +99,14 @@ sub CillyCommand {
     my ($self, $ppsrc, $dir, $base) = @_;
 
     my $aftercil = "$dir$base" . "cil.c";
-    return ($CilCompiler::compiler . " --out $aftercil", $aftercil);
+    my $cmd = $CilCompiler::compiler;
+    if($::docxx) { 
+        $cmd .= " --docxx";
+    }
+    if($self->{CABSONLY}) {
+        $cmd .= " --cabsonly $dir$base" . "cabs.c";
+    }
+    return ($cmd . " --out $aftercil", $aftercil);
 }
 
 sub MergeCommand {

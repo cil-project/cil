@@ -130,6 +130,8 @@ and definition =
  (* expression transformer: source and destination *)
  | EXPRTRANSFORMER of expression * expression * cabsloc
 
+ | LINKAGE of string * definition list * cabsloc
+
 and file = string * definition list
 
 
@@ -305,6 +307,7 @@ begin
   | PRAGMA(_, l) -> l
   | TRANSFORMER(_, _, l) -> l
   | EXPRTRANSFORMER(_, _, l) -> l
+  | LINKAGE(_, _, l) -> l
 end
 
 open Pretty

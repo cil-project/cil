@@ -31,6 +31,10 @@ fi
 # the ./configure script will expect $CC to be set right
 AC_PROG_CC
 
+# And look for a C++ compiler
+# This sets CXX
+AC_PROG_CXX
+
 
 # find system type (using this macro means we must include
 # the files install-sh, config.sub, and config.guess (all from
@@ -351,5 +355,6 @@ CCured/CIL configuration:
   source tree root:           CCUREDHOME         $CCUREDHOME
   (optional) cl.exe found:    HAS_MSVC           $HAS_MSVC
   gcc to use                  CC                 $CC
+  C++ compiler to use         CXX                $CXX
   default compiler            DEFAULT_COMPILER   $DEFAULT_COMPILER
 EOF

@@ -35,6 +35,8 @@
 # arguments of gcc and Microsoft Visual C (along with some arguments for the
 # script itself) and gives hooks into preprocessing, compilation and linking.
 
+$::docxx = 0; # Whether to do C++. Default is not
+
 package Cilly;
 @ISA = ();
 
@@ -77,20 +79,20 @@ sub new {
         exit 0;
     }
     # Look for the --mode argument first. If not found it is GCC
-    my $mode;
+    # Also look for the --cxx argument (C++)
+    my $mode = 'GNUCC';
     {
         my @args1 = ();
         foreach my $arg (@args) {
             if($arg =~ m|--mode=(.+)$|) {
                 $mode = $1;
+            } elsif($arg eq '--cxx') {
+                $::docxx = 1;
             } else {
                 push @args1, $arg;
             }
         }
         @args = @args1; # These are the argument after we extracted the --mode
-    }
-    if(! defined($mode)) {
-        $mode = 'GNUCC'; # Default is GCC
     }
     if(defined $self->{MODENAME} && $self->{MODENAME} ne $mode) {
         die "Cannot re-specify the compiler";
@@ -121,6 +123,8 @@ sub new {
     
     # Scan and process the arguments
     collectArgumentList($self, @args);
+
+#    print Dumper($self);
 
     return $self;
 }
@@ -418,7 +422,7 @@ sub linktolib {
 sub preprocess_compile {
     my ($self, $src, $dest, $ppargs, $ccargs) = @_;
     my ($base, $dir, $ext) = fileparse($src, "\\.[^.]+");
-    if($ext eq ".c" || $ext eq ".cpp") {
+    if($ext eq ".c" || $ext eq ".cpp" || $ext eq ".cc") {
         if($self->leaveAlone($src)) {
             # We leave this alone. So just compile as usual
             return $self->straight_compile($src, $dest, $ppargs, $ccargs);
@@ -1393,10 +1397,10 @@ sub new {
       MODENAME => 'GNUCC',  # do not change this since it is used in code
       # sm: added -O since it's needed for inlines to be merged instead of causing link errors
       # sm: removed -O to ease debugging; will address "inline extern" elsewhere
-      CC => "$::cc -D_GNUCC -c",
-      LD => "$::cc -D_GNUCC ",
+      CC => ($::docxx ? $::cxx : $::cc) . " -D_GNUCC -c",
+      LD => ($::docxx ? $::cxx : $::cc) . " -D_GNUCC ",
       LDLIB => "ld -r -o ",
-      CPP => "$::cc -D_GNUCC -E ",
+      CPP => ($::docxx ? $::cc : $::cxx) . " -D_GNUCC -E ",
       DEFARG  => "-D",
       INCARG => "-I",
       DEBUGARG => "-g",
