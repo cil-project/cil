@@ -1,5 +1,5 @@
 # .gdbinit
 
-file string1.exe
+file strloop.exe
 break main
 run
