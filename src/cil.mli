@@ -2109,7 +2109,7 @@ type undoAlphaElement
  * suffix is 1 when only the version without suffix has been used. This 
  * function updates the table with the new largest suffix generated. The 
  * "undolist" argument, when present, will be used by the function to record 
- * information that can be used by {!Cil.undoAlphaTable} to undo those 
+ * information that can be used by {!Cil.undoAlphaChanges} to undo those 
  * changes. Note that the undo information will be in reverse order in which 
  * the action occurred. *)
 val newAlphaName: alphaTable:(string, int ref) Hashtbl.t ->
