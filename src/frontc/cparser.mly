@@ -313,8 +313,10 @@ let doOldParDecl (names: string list)
   let findOneName n = 
     (* Search in pardefs for the definition for this parameter *)
     let rec loopGroups = function
-        [] -> parse_error ("Cannot find definition of parameter " ^
-                           n ^ " in old style prototype\n")
+        [] -> (* parse_error ("Cannot find definition of parameter " ^
+                              n ^ " in old style prototype\n")*)
+               (INT(NO_SIZE,NO_SIGN), NO_STORAGE, 
+                (n, INT(NO_SIZE,NO_SIGN), [], NOTHING))
       | (bt, st, names) :: restgroups -> 
           let rec loopNames = function
               [] -> loopGroups restgroups
@@ -374,6 +376,8 @@ let doOldParDecl (names: string list)
 %nonassoc 	IF
 %nonassoc 	ELSE
 
+
+%left   EXTENSION
 %left	COMMA
 %right	EQ PLUS_EQ MINUS_EQ STAR_EQ SLASH_EQ PERCENT_EQ
 		AND_EQ PIPE_EQ CIRC_EQ INF_INF_EQ SUP_SUP_EQ
@@ -406,8 +410,8 @@ let doOldParDecl (names: string list)
 %type <Cabs.statement> statement
 %type <Cabs.constant> constant
 %type <Cabs.expression> expression opt_expression 
-%type <Cabs.expression> init_expression opt_init_expression
-%type <Cabs.expression list> comma_expression init_comma_expression
+%type <Cabs.expression> init_expression
+%type <Cabs.expression list> comma_expression
 %type <string> string_list
 
 %type <Cabs.init * Cabs.expression> initializer
@@ -463,128 +467,11 @@ maybecomma:
 
 /*** Expressions ****/
 
-/* We cannot add compound initializers to expressions because it conflicts 
- * with the GNU BODY expression. Thus we duplicate the entire expression 
- * language, except for the body and with the compound initializer added */
+
 init_expression:
-    LBRACE initializer_list RBRACE
+     expression                                 { $1 }
+|    LBRACE initializer_list RBRACE
 			{CONSTANT (CONST_COMPOUND $2)}
-|   constant
-			{CONSTANT $1}		
-|   IDENT
-			{VARIABLE $1}
-|   SIZEOF expression
-			{EXPR_SIZEOF $2}
-|   SIZEOF LPAREN type_name RPAREN              
-			{TYPE_SIZEOF $3}
-|   PLUS init_expression
-			{UNARY (PLUS, $2)}
-|   MINUS init_expression
-			{UNARY (MINUS, $2)}
-|   STAR init_expression
-			{UNARY (MEMOF, $2)}
-|   AND init_expression				%prec ADDROF
-			{UNARY (ADDROF, $2)}
-|   EXCLAM init_expression
-			{UNARY (NOT, $2)}
-|   TILDE init_expression
-			{UNARY (BNOT, $2)}
-|   PLUS_PLUS init_expression %prec CAST
-			{UNARY (PREINCR, $2)}
-|   init_expression PLUS_PLUS
-			{UNARY (POSINCR, $1)}
-|   MINUS_MINUS init_expression %prec CAST
-			{UNARY (PREDECR, $2)}
-|   init_expression MINUS_MINUS
-			{UNARY (POSDECR, $1)}
-|   init_expression ARROW IDENT
-			{MEMBEROFPTR ($1, $3)}
-|   init_expression ARROW NAMED_TYPE
-			{MEMBEROFPTR ($1, $3)}
-|   init_expression DOT IDENT
-			{MEMBEROF ($1, $3)}
-|   init_expression DOT NAMED_TYPE
-			{MEMBEROF ($1, $3)}
-|   LPAREN init_comma_expression RPAREN
-			{(smooth_expression $2)}
-|   LPAREN type_name RPAREN init_expression %prec CAST  
-			{CAST ($2, $4)}
-|   init_expression LPAREN opt_expression RPAREN
-			{CALL ($1, list_expression $3)}
-|   init_expression LBRACKET comma_expression RBRACKET
-			{INDEX ($1, smooth_expression $3)}
-|   init_expression QUEST opt_init_expression COLON init_expression
-			{QUESTION ($1, $3, $5)}
-|   init_expression PLUS init_expression
-			{BINARY(ADD ,$1 , $3)}
-|   init_expression MINUS init_expression
-			{BINARY(SUB ,$1 , $3)}
-|   init_expression STAR init_expression
-			{BINARY(MUL ,$1 , $3)}
-|   init_expression SLASH init_expression
-			{BINARY(DIV ,$1 , $3)}
-|   init_expression PERCENT init_expression
-			{BINARY(MOD ,$1 , $3)}
-|   init_expression AND_AND init_expression
-			{BINARY(AND ,$1 , $3)}
-|   init_expression PIPE_PIPE init_expression
-			{BINARY(OR ,$1 , $3)}
-|   init_expression AND init_expression
-			{BINARY(BAND ,$1 , $3)}
-|   init_expression PIPE init_expression
-			{BINARY(BOR ,$1 , $3)}
-|   init_expression CIRC init_expression
-			{BINARY(XOR ,$1 , $3)}
-|   init_expression EQ_EQ init_expression
-			{BINARY(EQ ,$1 , $3)}
-|   init_expression EXCLAM_EQ init_expression
-			{BINARY(NE ,$1 , $3)}
-|   init_expression INF init_expression
-			{BINARY(LT ,$1 , $3)}	
-|   init_expression SUP init_expression
-			{BINARY(GT ,$1 , $3)}
-|   init_expression INF_EQ init_expression
-			{BINARY(LE ,$1 , $3)}
-|   init_expression SUP_EQ init_expression
-			{BINARY(GE ,$1 , $3)}
-|   init_expression  INF_INF init_expression
-			{BINARY(SHL ,$1 , $3)}
-|   init_expression  SUP_SUP init_expression
-			{BINARY(SHR ,$1 , $3)}		
-|   init_expression EQ init_expression
-			{BINARY(ASSIGN ,$1 , $3)}			
-|   init_expression PLUS_EQ init_expression
-			{BINARY(ADD_ASSIGN ,$1 , $3)}		
-|   init_expression MINUS_EQ init_expression		
-			{BINARY(SUB_ASSIGN ,$1 , $3)}
-|   init_expression STAR_EQ init_expression		
-			{BINARY(MUL_ASSIGN ,$1 , $3)}
-|   init_expression SLASH_EQ init_expression		
-			{BINARY(DIV_ASSIGN ,$1 , $3)}
-|   init_expression PERCENT_EQ init_expression	
-			{BINARY(MOD_ASSIGN ,$1 , $3)}
-|   init_expression AND_EQ init_expression		
-			{BINARY(BAND_ASSIGN ,$1 , $3)}
-|   init_expression PIPE_EQ init_expression		
-			{BINARY(BOR_ASSIGN ,$1 , $3)}
-|   init_expression CIRC_EQ init_expression		
-			{BINARY(XOR_ASSIGN ,$1 , $3)}
-|   init_expression INF_INF_EQ init_expression	
-			{BINARY(SHL_ASSIGN ,$1 , $3)}
-|   init_expression SUP_SUP_EQ init_expression
-			{BINARY(SHR_ASSIGN ,$1 , $3)}
-;
-opt_init_expression:
-    /* empty */                                   { NOTHING }
-|   init_expression                               { $1 }
-; 
-
-init_comma_expression:
-    init_expression	                          {[$1]}
-|   init_comma_expression COMMA init_expression	  {$3::$1}
-|   init_comma_expression COMMA			  {$1}
-;
-
 
 initializer_list:    /* ISO 6.7.8. Allow a trailing COMMA */
     initializer                             { [$1] }
@@ -729,6 +616,7 @@ expression:
 			{BINARY(SHL_ASSIGN ,$1 , $3)}
 |		expression SUP_SUP_EQ expression
 			{BINARY(SHR_ASSIGN ,$1 , $3)}
+|               EXTENSION expression  { $2 } 
 ;
 constant:
     CST_INT				{CONST_INT $1}
@@ -821,7 +709,6 @@ decl_spec_list:                         /* ISO 6.7 */
                                         /* ISO 6.7.1 */
 |   TYPEDEF decl_spec_list_opt          { applyTypedef $2 }
 /* weimer: gcc allows "__extension__ typedef unsigned long yada ..." */
-|   EXTENSION TYPEDEF decl_spec_list_opt          { applyTypedef $3 }
 |   EXTERN decl_spec_list_opt           { applyStorage (EXTERN false) $2 }
 |   STATIC  decl_spec_list_opt          { applyStorage (STATIC false) $2 }
 |   AUTO   decl_spec_list_opt           { applyStorage AUTO $2 }
@@ -830,11 +717,12 @@ decl_spec_list:                         /* ISO 6.7 */
 |   type_spec decl_spec_list_opt_no_named { applyTypeSpec $1 $2 }
                                         /* ISO 6.7.3 */
 |   CONST decl_spec_list_opt            { applyAttribute ("const",[]) $2 }
-|   RESTRICT decl_spec_list_opt         { (* applyAttribute ("restrict",[]) $2 *) $2 }
+|   RESTRICT decl_spec_list_opt         { $2 }
 |   VOLATILE decl_spec_list_opt         { applyAttribute ("volatile",[]) $2 }
                                         /* ISO 6.7.4 */
 |   INLINE decl_spec_list_opt           { applyInline $2 }
 |   attribute decl_spec_list_opt        { applyAttributes $1 $2 }
+|   EXTENSION decl_spec_list            { $2 }
 ;
 /* In most cases if we see a NAMED_TYPE we must shift it. Thus we declare 
  * NAMED_TYPE to have right associativity */
@@ -981,7 +869,7 @@ old_proto_decl:
 | pointer direct_old_proto_decl           { applyPointer $1 $2 }
 ;
 direct_old_proto_decl:
-  direct_decl LPAREN old_parameter_list RPAREN old_pardef_list_ne
+  direct_decl LPAREN old_parameter_list RPAREN old_pardef_list
                                    { let par_decl = doOldParDecl $3 $5 in
                                      doFunctionDecl $1 par_decl false  
                                    }
@@ -1054,7 +942,7 @@ function_def:  /* (* ISO 6.9.1 *) */
   decl_spec_list declarator block { doFunctionDef $1 $2 $3 }
 /* (* Old-style function prototype *) */
 | decl_spec_list old_proto_decl block  { doFunctionDef $1 $2 $3 } 
-/* (* Old-style function that does not have a return type *) */
+/* (* New-style function that does not have a return type *) */
 |          IDENT LPAREN parameter_list RPAREN block
                            { let name = nameOfIdent $1 [] in
                              let fdec = doFunctionDecl name $3 false in
@@ -1062,7 +950,7 @@ function_def:  /* (* ISO 6.9.1 *) */
                              let defSpec = applyTypeSpec Tint emptySpec in
                              doFunctionDef defSpec fdec $5 }
 /* (* No return type and old-style parameter list *) */
-|          IDENT LPAREN old_parameter_list RPAREN old_pardef_list_ne block
+|          IDENT LPAREN old_parameter_list RPAREN old_pardef_list block
                            { let name = nameOfIdent $1 [] in
                              (* Convert pardecl to new style *)
                              let pardecl = doOldParDecl $3 $5 in

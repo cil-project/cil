@@ -342,10 +342,14 @@ and instr =
                           * indication that a cast is necessary (the declared 
                           * type of the function is not the same as that of 
                           * the result), the function value, argument list, 
-                          * location. Casts are inserted for arguments. If 
+                          * location. If the function is declared then casts 
+                          * are inserted for those arguments that correspond 
+                          * to declared formals. (The actual number of 
+                          * arguments might be smaller or larger than the 
+                          * declared number of arguments. C allows this.) If 
                           * the type of the result variable is not the same 
                           * as the declared type of the function result then 
-                          * an implicit cast exists. *)
+                          * an implicit cast exists.  *)
 
                          (* See the GCC specification for the meaning of ASM. 
                           * If the source is MS VC then only the templates 

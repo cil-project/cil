@@ -646,10 +646,8 @@ let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) =
   | TInt _, TEnum _ -> (nt, e)
   | TEnum _, TEnum _ -> (nt, e)
 
-(*  | TFun _, TPtr(TFun _, _) -> (nt, e) *)
-
-  | TBitfield _, TInt _ -> (nt, e)
-  | TInt _, TBitfield _ -> (nt, e)
+  | TBitfield _, (TInt _ | TEnum _)-> (nt, e)
+  | (TInt _ | TEnum _), TBitfield _ -> (nt, e)
 
 
   | _ -> E.s (E.unimp "cabs2cil: castTo %a -> %a@!" d_type ot d_type nt)
@@ -701,6 +699,13 @@ let makeGlobalVarinfo (vi: varinfo) =
         | TSArray(_, Some _, _), TSArray(_, None, _) -> ()
         | TSArray(_, _, _), TSArray(_, Some _, _) 
           -> oldvi.vtype <- vi.vtype
+         (* If one is a function with no arguments and the other has some 
+          * arguments, believe the one with the arguments *)
+        | TSFun(r1, [], va1, _), TSFun(r2, _ :: _, va2, a2)
+               when va1 = va2 && r1 = r2 -> 
+            oldvi.vtype <- vi.vtype
+        | TSFun(r1, _ :: _ , va1, _), TSFun(r2, [], va2, a2)
+               when va1 = va2 && r1 = r2 -> ()
         | _, _ -> E.s (E.unimp "Redefinition of %s with different types" 
                          vi.vname)
     in
@@ -1608,9 +1613,11 @@ and doExp (isconst: bool)    (* In a constant *)
                 ignore (E.log 
                           "Warning: Calling function %s without prototype\n"
                           n);
-                let ftype = TFun(intType, [], true, []) in
-                (* Add a prototype *)
-                let proto = makeGlobalVar n ftype in 
+                let ftype = TFun(intType, [], false, []) in
+                (* Add a prototype to the environment *)
+                let proto, _ = makeGlobalVarinfo (makeGlobalVar n ftype) in 
+                (* Add it to the file as well *)
+                theFile := GDecl (proto, lu) :: !theFile;
                 (empty, Lval(var proto), ftype)
               end
             end
@@ -1639,20 +1646,28 @@ and doExp (isconst: bool)    (* In a constant *)
         let rec loopArgs 
             : varinfo list * A.expression list 
           -> (chunk * exp list) = function
-            | ([], []) -> (empty, [])
+            | (args, []) -> 
+                if args <> [] then
+                  ignore (E.warn "Too few arguments in call to %a" d_exp f');
+                (empty, [])
+
             | (varg :: atypes, a :: args) -> 
                 let (ss, args') = loopArgs (atypes, args) in
                 let (sa, a', att) = doExp false a (AExp (Some varg.vtype)) in
                 let (at'', a'') = castTo att varg.vtype a' in
                 (ss @@ sa, a'' :: args')
                   
-            | ([], a :: args) when isvar -> (* No more types *)
-                let (ss, args') = loopArgs ([], args) in
-                let (sa, a', at) = doExp false a (AExp None) in
-                (ss @@ sa, a' :: args')
-            | _ -> E.s (E.unimp 
-                          "Too few or too many arguments in call to %a" 
-                          d_exp f')
+            | ([], args) -> (* No more types *)
+                if not isvar then 
+                  ignore (E.warn "Too many arguments in call to %a" d_exp f');
+                let rec loop = function
+                    [] -> (empty, [])
+                  | a :: args -> 
+                      let (ss, args') = loop args in
+                      let (sa, a', at) = doExp false a (AExp None) in
+                      (ss @@ sa, a' :: args')
+                in
+                loop args
         in
         let (sargs, args') = loopArgs (argTypes, args) in
         begin

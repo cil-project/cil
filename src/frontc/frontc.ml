@@ -40,6 +40,7 @@ exception ParseError of string
 let parse_to_cabs fname = 
   try
     ignore (E.log "Frontc is parsing %s\n" fname);
+    flush !E.logChannel;
     let file = open_in fname in
     Clexer.init (false, file, "", "", 0, 0, stderr, fname);
     let cabs = 

@@ -29,3 +29,8 @@ static norettype_old3(a)
 {
   return **a;
 }
+
+
+noretnoarg(x) {
+  return x;
+}

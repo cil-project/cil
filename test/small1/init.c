@@ -31,11 +31,11 @@ typedef struct {
   struct {
     char * a1[10];
     char * a2;
-    char   strbuff[20] NULLTERM;
+    char   strbuff[20] __NULLTERM;
   } f1;
   struct {
     int * i1;
-  } f2[5] SIZED;
+  } f2[5] __SIZED;
 } NESTED;
 
 NESTED glob1;
@@ -45,8 +45,8 @@ int * glob2 = & glob3;
 
 int afunc(void) {
   NESTED loc1;
-  char   locbuff[30] NULLTERM;
-  char   indexbuff[10] SIZED;
+  char   locbuff[30] __NULLTERM;
+  char   indexbuff[10] __SIZED;
 
   loc1.f1.a2 = glob1.f1.a2;
   

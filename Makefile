@@ -840,3 +840,6 @@ gcc: defaulttarget mustbegcc
                        LD="$(GCCSAFECC)" 
 	$(GCCDIR)/exe/base/vortex_ultra \
             <$(GCCDIR)/data/train/input/2stone9.in
+
+allcc1: defaulttarget mustbegcc
+	cd $(GCCDIR)/exe/base; $(SAFECC) $(DOOPT) cc1.v8_all.c

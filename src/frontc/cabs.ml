@@ -45,10 +45,6 @@ and base_type =
  | PROTO of proto
  | NAMED_TYPE of string
  | ATTRTYPE of base_type * attribute list(* Type with attributes *)
-(*
- | CONST of base_type * attributes
- | VOLATILE of base_type
-*)
  | TYPEOF of expression                 (* GCC __typeof__ *)
 
 and name = string * base_type * attribute list * expression
