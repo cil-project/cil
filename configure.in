@@ -123,7 +123,7 @@ reqMin=04
 # latest known-good major/minor; all versions between 'req'
 # and 'known' are expected to be ok
 knownMaj=3
-knownMin=06
+knownMin=07
 
 AC_MSG_CHECKING(ocaml version is at least $reqMaj.$reqMin)
 if binaryExists ocamlc; then
