@@ -75,7 +75,7 @@ $TEST->add3Tests("test/init");
 $TEST->add3Tests("test/sizeof");
 $TEST->add3Tests("test/alloc");
 $TEST->add1Test("test/alloc-manualinferbox",
-                "test/alloc BOX=1 INFERBOX=1 MANUALBOX=1 $debug",
+                "test/alloc INFERBOX=1 MANUALBOX=1 $debug",
                 %commonerrors);
 
 # $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug
@@ -185,7 +185,7 @@ sub add3Tests {
 
     $self->newTest(Name => $name . "-inferbox",
                    Dir => "..",
-                   Cmd => "make " . $name . " BOX=1 INFERBOX=1 " . $theargs,
+                   Cmd => "make " . $name . " INFERBOX=1 " . $theargs,
                    Group => ["box", "infer"], 
                    Patterns => \%patterns);
 }

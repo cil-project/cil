@@ -226,7 +226,7 @@ SAFECC+= --box
 endif
 ifdef INFERBOX
 EXTRAARGS+= $(DEF)INFERBOX
-SAFECC+= --inferbox
+SAFECC+= --inferbox --box
 else
 ifndef MANUALBOX
 SAFECC+= --safec=-boxdefaultwild
