@@ -1,7 +1,5 @@
 PCC
 linux
-safec.log
-safec.log.?
 
 optstats.results
 optstats.results.?
@@ -32,3 +30,4 @@ __log*
 testsafec.smlog
 Makefile
 __scalar2pointer.txt
+safec.*
