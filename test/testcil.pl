@@ -336,7 +336,7 @@ $TEST->add3Tests("compress", "_GNUCC=1");
   $TEST->add3Group("compress", "slow");
 
 $TEST->add3Tests("go", "_GNUCC=1");
-   $TEST->add3Group("go", "slow");
+   $TEST->add3Group("go", "vslow");
 
 $TEST->add2Tests("ijpeg", "_GNUCC=1");
   $TEST->add2Group("ijpeg", "slow");
@@ -350,7 +350,7 @@ $TEST->add2Tests("m88k", "_GNUCC=1");
   $TEST->addBadComment("m88k-inferbox", "missing wrappers");
 
 $TEST->add2Tests("vortex", "_GNUCC=1 OPTIM= ");
-  $TEST->add2Group("vortex", "slow");
+  $TEST->add2Group("vortex", "vslow");
   $TEST->addBadComment("vortex-inferbox", "bug in resetSScanf");
 
 

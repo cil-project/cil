@@ -206,7 +206,7 @@ texdoc:
 	cp doc/ccuredheader.html doc/html/ccured
 
 CCUREDHTMLDEST := /usr/local/apache-1.3.22/htdocs/ccured
-doc: texdoc odoc
+doc: texdoc
 	if test -d $(CCUREDHTMLDEST); then \
            cp -rf doc/html/ccured/* $(CCUREDHTMLDEST); fi
 

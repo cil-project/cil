@@ -77,7 +77,7 @@ testcil: $(EXECUTABLE)$(EXE)
 odoc:
 	-rm -rf doc/html/cil/api
 	-mkdir doc/html/cil/api
-	odoc -d doc/html/cil/api \
+	-odoc -d doc/html/cil/api \
              -g $(ODOC_DIR)/odoc_fhtml.cmo \
              -t "CIL API Documentation" \
 	     -I obj src/cil.mli src/errormsg.mli src/clist.mli \
@@ -92,6 +92,8 @@ texdoc:
 	cd doc/html/cil; hacha -o ciltoc.html cil.html
 	cp doc/cilindex.html doc/html/cil/index.html
 	cp doc/cilheader.html doc/html/cil
+
+doc: texdoc odoc
 
 #----------------------------------------------------------------------
 # Generate the CIL distribution
@@ -120,7 +122,7 @@ DISTRIB_SRC_FRONTC = cabs.ml cprint.ml clexer.mli clexer.mll \
 
 DISTRIB_LIB = CompilerStub.pm Merger.pm cilly.pl patcher.pl
 
-distrib: texdoc odoc
+distrib: doc
 
         # Create the distribution from scratch
 	rm -rf $(TEMP_DIR)
