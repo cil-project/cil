@@ -904,7 +904,7 @@ external parse : string -> file = "cil_main"
 
 (* Some error reporting functions *)
 let d_loc (_: unit) (loc: location) : doc =  
-  dprintf "%s:%d" loc.file loc.line
+  text loc.file ++ chr ':' ++ num loc.line
 
 let d_thisloc (_: unit) : doc = d_loc () !currentLoc
 
@@ -1050,10 +1050,10 @@ let d_const () c =
         text ("0x" ^ Int32.format "%x" i ^ suffix ik)
       else
         text (Int32.to_string i ^ suffix ik)
-  | CStr(s) -> dprintf "\"%s\"" (escape_string s)
-  | CChr(c) -> dprintf "'%s'" (escape_char c)
+  | CStr(s) -> text ("\"" ^ escape_string s ^ "\"")
+  | CChr(c) -> text ("'" ^ escape_char c ^ "'")
   | CReal(_, _, Some s) -> text s
-  | CReal(f, _, None) -> dprintf "%f" f
+  | CReal(f, _, None) -> text (string_of_float f)
 
 (* Parentheses level. An expression "a op b" is printed parenthesized if its 
  * parentheses level is >= that that of its context. Identifiers have the 
@@ -1176,29 +1176,63 @@ let rec d_decl (docName: unit -> doc) (dnwhat: docNameWhat) () this =
       docName ()
     else if dnwhat = DNNothing then
       (* Cannot print the attributes in this case *)
-      dprintf "/*(%a)*/" d_attrlistpre a
+      text "/*(" 
+        ++ d_attrlistpre () a
+        ++ text ")*/"
     else begin
-      dprintf "(%a%t)" d_attrlistpre a docName
+      text "(" 
+        ++ d_attrlistpre () a
+        ++ docName ()
+        ++ text ")"
     end
   in
   match this with 
-    TVoid a -> dprintf "void%a %t" d_attrlistpost a docName
-  | TInt (ikind,a) -> dprintf "%a%a %t" d_ikind ikind d_attrlistpost a docName
+    TVoid a -> (* dprintf "void%a %t" d_attrlistpost a docName *)
+      text "void"
+       ++ d_attrlistpost () a 
+        ++ text " " 
+        ++ docName ()
+
+  | TInt (ikind,a) -> 
+      (* dprintf "%a%a %t" d_ikind ikind d_attrlistpost a docName *)
+      d_ikind () ikind 
+        ++ d_attrlistpost () a 
+        ++ text " "
+        ++ docName ()
+
   | TBitfield(ikind,i,a) -> 
-      dprintf "%a%a %t : %d" d_ikind ikind d_attrlistpost a docName i
-  | TFloat(fkind, a) -> dprintf "%a%a %t" d_fkind fkind 
-        d_attrlistpost a docName
+      (* dprintf "%a%a %t : %d" d_ikind ikind d_attrlistpost a docName i *)
+     d_ikind () ikind 
+        ++ d_attrlistpost () a 
+        ++ text " " 
+        ++ docName () 
+        ++ text " : " 
+        ++ num i
+ 
+  | TFloat(fkind, a) -> 
+     (* dprintf "%a%a %t" d_fkind fkind d_attrlistpost a docName *)
+    d_fkind () fkind 
+        ++ d_attrlistpost () a 
+        ++ text " " 
+        ++ docName ()
+
   | TComp (comp, a) -> (* A reference to a struct *)
       let su = if comp.cstruct then "struct" else "union" in
-      dprintf "%s %s %a%t" su comp.cname d_attrlistpre a docName
+(*      dprintf "%s %s %a%t" su comp.cname d_attrlistpre a docName *)
+    text (su ^ " " ^ comp.cname ^ " ") 
+        ++ d_attrlistpre () a 
+        ++ docName()
 
   | TEnum (enum, a) -> 
-        dprintf "enum %s %a%t" enum.ename d_attrlistpre a docName
+(*        dprintf "enum %s %a%t" enum.ename d_attrlistpre a docName *)
+     text ("enum " ^ enum.ename ^ " ")
+        ++ d_attrlistpre () a 
+        ++ docName ()
 
   | TPtr (bt, a)  -> 
       d_decl 
         (fun _ -> 
-          dprintf "* %a%t" d_attrlistpre a docName )
+          text "* " ++ d_attrlistpre () a ++ docName ())
         DNStuff
         () 
         bt
@@ -1206,26 +1240,30 @@ let rec d_decl (docName: unit -> doc) (dnwhat: docNameWhat) () this =
   | TArray (elemt, lo, a) -> 
       d_decl 
         (fun _ ->
-          dprintf "%a[%t]" 
-            parenthname a
-            (fun _ -> 
-              (match lo with None -> nil
-              | Some e -> d_exp () e)))
+            parenthname () a
+            ++ text "[" 
+            ++ (match lo with None -> nil | Some e -> d_exp () e)
+            ++ text "]")
         DNStuff
         ()
         elemt
+
   | TFun (restyp, args, isvararg, a) -> 
       d_decl 
         (fun _ -> 
-          dprintf "%a(@[%a%t@])" 
-            parenthname a
-            (docList (chr ',' ++ break) (d_videcl ())) args
-            (fun _ -> if isvararg then text ", ..." else nil))
+            parenthname () a
+            ++ text "("
+            ++ (align 
+                  ++ (docList (chr ',' ++ break) (d_videcl ()) () args)
+                  ++ (if isvararg then text ", ..." else nil)
+                  ++ unalign)
+            ++ text ")")
         DNStuff
         ()
         restyp
 
-  | TNamed (n, _, a) -> dprintf "%s%a %t" n d_attrlistpost a docName
+  | TNamed (n, _, a) ->
+        text n ++ d_attrlistpost () a ++ text " " ++ docName ()
 
 
 (* Only a type (such as for a cast). There seems to be a problem with 
@@ -1273,15 +1311,15 @@ and d_expprec contextprec () e =
                                  (* This is to quite down GCC warnings *)
   if thisLevel >= contextprec || (thisLevel = additiveLevel &&
                                   contextprec = bitwiseLevel) then
-    dprintf "(%a)" d_exp e
+    text "(" ++ d_exp () e ++ text ")"
   else
     d_exp () e
 
 and d_exp () e = 
   let level = getParenthLevel e in
   match e with
-    Const(c) -> dprintf "%a" d_const c
-  | Lval(l) -> dprintf "%a" d_lval l
+    Const(c) -> d_const () c
+  | Lval(l) -> d_lval () l
   | UnOp(u,e1,_) -> 
       let d_unop () u =
         match u with
@@ -1289,19 +1327,39 @@ and d_exp () e =
         | BNot -> text "~"
         | LNot -> text "!"
       in
-      dprintf "%a %a" d_unop u (d_expprec level) e1
+      (d_unop () u) ++ chr ' ' ++ (d_expprec level () e1)
 
   | BinOp(b,e1,e2,_) -> 
+(*
       dprintf "@[%a %a@?%a@]" 
         (d_expprec level) e1 d_binop b (d_expprec level) e2
-  | Question (e1, e2, e3) -> 
-      dprintf "%a ? %a : %a"
-        (d_expprec level) e1 (d_expprec level) e2 (d_expprec level) e3
-  | CastE(t,e) -> dprintf "(%a)%a" d_type t (d_expprec level) e
-  | SizeOf (t) -> dprintf "sizeof(%a)" d_type t
-  | SizeOfE (e) -> dprintf "sizeof(%a)" d_exp e
+*)
+      align 
+        ++ (d_expprec level () e1)
+        ++ chr ' ' 
+        ++ (d_binop () b)
+        ++ break 
+        ++ (d_expprec level () e2)
+        ++ unalign
+
+  | Question (e1, e2, e3) ->
+      (d_expprec level () e1)
+        ++ text " ? "
+        ++ (d_expprec level () e2)
+        ++ (d_expprec level () e3)
+
+  | CastE(t,e) -> 
+      text "(" 
+        ++ d_type () t
+        ++ text ")"
+        ++ d_expprec level () e
+
+  | SizeOf (t) -> 
+      text "sizeof(" ++ d_type () t ++ chr ')'
+  | SizeOfE (e) -> 
+      text "sizeof(" ++ d_exp () e ++ chr ')'
   | AddrOf(lv) -> 
-      dprintf "& %a" (d_lvalprec addrOfLevel) lv
+      text "& " ++ (d_lvalprec addrOfLevel () lv)
 
   | StartOf(lv) -> d_lval () lv
 
@@ -1309,9 +1367,15 @@ and d_init () = function
     SingleInit e -> d_exp () e
   | CompoundInit (t, initl) -> 
       (* We do not print the type of the Compound *)
+(*
       let dinit e = d_init () e in
       dprintf "{@[%a@]}"
         (docList (chr ',' ++ break) dinit) initl
+*)
+      chr '{' ++ (align 
+                    ++ ((docList (chr ',' ++ break) (d_init ())) () initl) 
+                    ++ unalign)
+        ++ chr '}'
 
 and d_binop () b =
   match b with
@@ -1339,16 +1403,19 @@ and d_attr () (Attr(an, args): attribute) =
   if args = [] then 
     text an'
   else
-    dprintf "%s(%a)" an'
-      (docList (chr ',') (d_attrarg ())) args
+    text (an' ^ "(") 
+      ++(docList (chr ',') (d_attrarg ()) () args)
+      ++ text ")"
 
 and d_attrarg () = function
     AId s -> text s
   | AInt n -> num n
-  | AStr s -> dprintf "\"%s\"" (escape_string s)
+  | AStr s -> text ("\"" ^ escape_string s ^ "\"")
   | AVar vi -> text vi.vname
-  | ACons(s,al) -> dprintf "%s(%a)" s
-        (docList (chr ',') (d_attrarg ())) al
+  | ACons(s,al) ->
+      text (s ^ "(")
+        ++ (docList (chr ',') (d_attrarg ()) () al)
+        ++ text ")"
           
 and d_attrlist pre () al = (* Whether it comes before or after stuff *)
   (* Take out the special attributes *)
@@ -1356,13 +1423,15 @@ and d_attrlist pre () al = (* Whether it comes before or after stuff *)
       [] -> begin
         match remaining with
           [] -> nil
-        | _ -> dprintf "__attribute__((%a)) "
-              (docList (chr ',' ++ break) 
-                 (fun a -> dprintf "%a" d_attr a)) remaining 
+        | _ -> 
+            text "__attribute__((" 
+              ++ (docList (chr ',' ++ break) 
+                    (fun a -> d_attr () a) () remaining)
+              ++ text "))"
       end
     | x :: rest -> begin
         match !d_attrcustom x with
-          Some xd -> dprintf "%a %a" insert xd insert (loop remaining rest)
+          Some xd -> xd ++ text "  " ++ loop remaining rest
         | None -> loop (x :: remaining) rest
     end
   in
@@ -1378,7 +1447,7 @@ and d_attrlistpost () al = d_attrlist false () al
 (* lvalue *)
 and d_lvalprec contextprec () lv = 
   if getParenthLevel (Lval(lv)) >= contextprec then
-    dprintf "(%a)" d_lval lv
+    text "(" ++ d_lval () lv ++ text ")"
   else
     d_lval () lv
   
@@ -1386,20 +1455,21 @@ and d_lval () lv =
   let rec d_offset dobase = function
     | NoOffset -> dobase ()
     | Field (fi, o) -> 
-        d_offset (fun _ -> dprintf "%t.%s" dobase fi.fname) o
+        d_offset (fun _ -> dobase () ++ text "." ++ text fi.fname) o
     | Index (Const(CInt32(z,_,_)), NoOffset) when z = Int32.zero -> 
-        dprintf "(*%t)" dobase
+        text "(*" ++ dobase () ++ text ")"
     | Index (e, o) ->
-        d_offset (fun _ -> dprintf "%t[%a]" dobase d_exp e) o
+        d_offset (fun _ -> dobase () ++ text "[" ++ d_exp () e ++ text "]") o
   in
   match lv with
     Var vi, o -> d_offset (fun _ -> text vi.vname) o
   | Mem e, Field(fi, o) ->
       d_offset (fun _ ->
-        dprintf "%a->%s" (d_expprec arrowLevel) e fi.fname) o
+        (d_expprec arrowLevel () e) ++ text ("->" ^ fi.fname)) o
 (*  | Mem e, NoOffset -> dprintf "(*%a)" (d_expprec derefStarLevel) e *)
   | Mem e, o ->
-      d_offset (fun _ -> dprintf "(*%a)" (d_expprec derefStarLevel) e) o
+      d_offset (fun _ -> 
+        text "(*" ++ d_expprec derefStarLevel () e ++ text ")") o
 
 and d_instr () i =
   match i with
@@ -1408,17 +1478,47 @@ and d_instr () i =
       match e with
         BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt32(one,_,_)),_)
           when lv == lv' && one = Int32.one ->
-          dprintf "\n%s@!%a ++;" (printLine l) d_lval lv
+          (* dprintf "\n%s@!%a ++;" (printLine l) d_lval lv *)
+          d_line l 
+           ++ d_lval () lv
+           ++ text " ++;"
+
       | BinOp((MinusA|MinusPI),Lval(lv'),
               Const(CInt32(one,_,_)), _) when lv == lv' && one = Int32.one ->
+(*
           dprintf "\n%s@!%a --;" (printLine l) d_lval lv
+*)
+         d_line l
+          ++ d_lval () lv
+          ++ text " --;"
+
       | BinOp((PlusA|PlusPI|IndexPI|MinusA|MinusPP|MinusPI|BAnd|BOr|BXor|
                Mult|Div|Mod|Shiftlt|Shiftrt) as bop,
               Lval(lv'),e,_) when lv == lv' ->
-          dprintf "\n%s@!%a %a= %a;" (printLine l) d_lval lv d_binop bop d_exp e
-      | _ -> dprintf "\n%s@!%a = %a;" (printLine l) d_lval lv d_exp e
+(*
+          dprintf "\n%s@!%a %a= %a;" 
+          (printLine l) d_lval lv d_binop bop d_exp e
+*)
+          d_line l
+            ++ d_lval () lv
+            ++ text " " ++ d_binop () bop
+            ++ text "= " 
+            ++ d_exp () e
+            ++ text ";"
+
+      | _ -> 
+(* dprintf "\n%s@!%a = %a;" 
+          (printLine l) d_lval lv d_exp e
+*)
+          d_line l
+            ++ d_lval () lv
+            ++ text " = " 
+            ++ d_exp () e
+            ++ text ";"
+          
   end
   | Call(vio,e,args,l) ->
+(* 
       dprintf "\n%s@!%t%t(@[%a@]);" (printLine l)
         (fun _ -> match vio with
           None -> nil |
@@ -1430,15 +1530,41 @@ and d_instr () i =
         (fun _ -> match e with Lval(Var _, _) -> d_exp () e
         | _ -> dprintf "(%a)" d_exp e)
         (docList (chr ',' ++ break) (d_exp ())) args
+*)
+       d_line l 
+         ++ (match vio with
+               None -> nil 
+             | Some (vi, iscast) ->
+                if iscast then
+              text (vi.vname ^ " = (") ++ d_type () vi.vtype ++ text ")"
+            else
+              text (vi.vname ^ " = "))
+        (* Now the function name *)
+        ++ (match e with Lval(Var _, _) -> d_exp () e
+                       | _ -> text "(" ++ d_exp () e ++ text ")")
+        ++ text "(" ++ (align
+                          (* Now the arguments *)
+                          ++ (docList (chr ',' ++ break) (d_exp ()) () args)
+                          ++ unalign)
+        ++ text ");"
 
   | Asm(tmpls, isvol, outs, ins, clobs, l) ->
       if !msvcMode then
+(*
         dprintf "\n%s@!__asm {@[%a@]};@!" (printLine l) (docList line text) tmpls
+*)
+        d_line l 
+          ++ text "__asm {" 
+          ++ (align 
+                ++ (docList line text () tmpls)
+                ++ unalign)
+          ++ text "};"
       else
+(*
         dprintf "\n%s@!__asm__ %s(@[%a%a%a%a@]);@!" (printLine l)
           (if isvol then "__volatile__" else "")
           (docList line
-             (fun x -> dprintf "\"%s\"" (escape_string x))) tmpls
+             (fun x -> text ("\"" ^ escape_string x ^ "\""))) tmpls
           insert
           (if outs = [] && ins = [] && clobs = [] then
             nil
@@ -1459,26 +1585,62 @@ and d_instr () i =
             dprintf ": %a" (docList (chr ',' ++ break)
                               (fun x -> dprintf "\"%s\"" (escape_string x)))
               clobs)
-
+*)
+        d_line l
+          ++ text ("__asm__ " ^ 
+                   (if isvol then "__volatile__(" else "("))
+          ++ (align
+                ++ (docList line
+                      (fun x -> text ("\"" ^ escape_string x ^ "\"")) 
+                      () tmpls)
+                ++ 
+                (if outs = [] && ins = [] && clobs = [] then
+                  nil
+                else
+                  (text ": " 
+                     ++ (docList (chr ',' ++ break)
+                           (fun (c, lv) -> 
+                             text ("\"" ^ escape_string c ^ "\" (")
+                               ++ d_lval () lv
+                               ++ text ")") () outs)))
+                ++
+                (if ins = [] && clobs = [] then
+                  nil
+                else
+                  (text ": " 
+                     ++ (docList (chr ',' ++ break)
+                           (fun (c, e) -> 
+                             text ("\"" ^ escape_string c ^ "\" (")
+                               ++ d_exp () e
+                               ++ text ")") () ins)))
+                ++ 
+                (if clobs = [] then nil
+                else
+                  (text ": " 
+                     ++ (docList (chr ',' ++ break)
+                           (fun c -> text ("\"" ^ escape_string c ^ "\" ("))
+                           ()
+                           clobs)))
+                ++ unalign)
+          ++ text ");"
 
 and d_stmt_next (next: stmt) () (s: stmt) =
-  dprintf "%a%t"
-    (* print the labels *)
-    (docList line (fun l -> d_label () l)) s.labels
+  (* print the labels *)
+  ((docList line (fun l -> d_label () l)) () s.labels)
+    ++
     (* print the statement itself. If the labels are non-empty and the 
-     * statement is empty, print a semicolon  *)
-    (fun _ ->
-      if s.skind = Instr [] && s.labels <> [] then
-        text ";"
-      else
-        d_stmtkind next () s.skind)
-
+    * statement is empty, print a semicolon  *)
+    (if s.skind = Instr [] && s.labels <> [] then
+      text ";"
+    else
+      d_stmtkind next () s.skind)
+    
 and d_stmt () (s: stmt) = (* A version that is easier to call *)
   d_stmt_next invalidStmt () s
 
 and d_label () = function
-    Label (s, _) -> dprintf "%s: " s
-  | Case (e, _) -> dprintf "case %a: " d_exp e
+    Label (s, _) -> text (s ^ ": ")
+  | Case (e, _) -> text "case " ++ d_exp () e ++ text ": "
   | Default _ -> text "default: "
 
 and d_block () blk = 
@@ -1492,34 +1654,131 @@ and d_block () blk =
         dorest (acc ++ (d_stmt_next x () prev) ++ line)
                   x rest
   in
+  align 
+    ++ text "{ " ++ (align ++ line 
+                       ++ (dofirst () blk) ++ unalign)
+    ++ line ++ text "}" ++ unalign
+(*
   dprintf "@[{ @[@!%a@]@!}@]" dofirst blk
+*)
+
+and d_line l = text ("\n" ^ printLine l) ++ line
 
 and d_stmtkind (next: stmt) () = function
-    Return(None, l) -> dprintf "\n%s@!return;" (printLine l)
-  | Return(Some e, l) -> dprintf "\n%s@!return (%a);" (printLine l) d_exp e
+    Return(None, l) -> 
+      d_line l 
+        ++ text "return;"
+  | Return(Some e, l) -> 
+      (* dprintf "\n%s@!return (%a);" (printLine l) d_exp e *)
+      d_line l 
+        ++ text "return ("
+        ++ d_exp () e
+        ++ text ");"
+
   | Goto (sref, l) -> d_goto !sref
-  | Break l -> dprintf "\n%s@!break;" (printLine l)
-  | Continue l -> dprintf "\n%s@!continue;" (printLine l)
+  | Break l -> (* dprintf "\n%s@!break;" (printLine l) *)
+      d_line l
+        ++ text "break;"
+  | Continue l -> (* dprintf "\n%s@!continue;" (printLine l) *)
+      d_line l
+        ++ text "continue;"
+
 (*  | Instr [] -> text "/* empty block */" *)
   | Instr il ->
+(*
       dprintf "@[%a@]"
         (docList line (fun i -> d_instr () i)) il
+*)
+      align 
+        ++ (docList line (fun i -> d_instr () i) () il)
+        ++ unalign
+
   | If(be,t,[],l) ->
-      dprintf "\n%s@!if@[ (%a)@!%a@]" (printLine l) d_exp be d_block t
+(*      dprintf "\n%s@!if@[ (%a)@!%a@]" (printLine l) d_exp be d_block t *)
+      d_line l 
+        ++ text "if"
+        ++ (align 
+              ++ text " (" 
+              ++ d_exp () be
+              ++ text ")"
+              ++ line 
+              ++ d_block () t
+              ++ unalign)
+
   | If(be,t,[{skind=Goto(gref,_);labels=[]} as s],l)
       when !gref == next ->
-      dprintf "\n%s@!if@[ (%a)@!%a@]" (printLine l) d_exp be d_block t
+(*      dprintf "\n%s@!if@[ (%a)@!%a@]" (printLine l) d_exp be d_block t *)
+        d_line l 
+          ++ text "if"
+          ++ (align 
+                ++ text " (" 
+                ++ d_exp () be
+                ++ text ")"
+                ++ line
+                ++ d_block () t
+                ++ unalign)
+                
   | If(be,[],e,l) ->
+(*
       dprintf "\n%s@!if@[ (%a)@!%a@]" (printLine l) d_exp (UnOp(LNot,be,intType)) d_block e
+
+*)
+      d_line l 
+        ++ text "if"
+        ++ (align 
+              ++ text " ("
+              ++ d_exp () (UnOp(LNot,be,intType))
+              ++ text ")"
+              ++ d_block () e
+              ++ unalign)
+
   | If(be,[{skind=Goto(gref,_);labels=[]} as s],e,l)
       when !gref == next ->
-      dprintf "\n%s@!if@[ (%a)@!%a@]" (printLine l) d_exp  (UnOp(LNot,be,intType))
-          d_block e
+(*      dprintf "\n%s@!if@[ (%a)@!%a@]" (printLine l) d_exp  
+                  (UnOp(LNot,be,intType)) d_block e
+*)
+      d_line l 
+        ++ text "if"
+        ++ (align 
+              ++ text " ("
+              ++ d_exp () (UnOp(LNot,be,intType))
+              ++ text ")"
+              ++ d_block () e
+              ++ unalign)
+        
   | If(be,t,e,l) ->
-      dprintf "\n%s@!@[if@[ (%a)@!%a@]@!el@[se@!%a@]@]" (printLine l)
+(*      dprintf "\n%s@!@[if@[ (%a)@!%a@]@!el@[se@!%a@]@]" (printLine l)
         d_exp be d_block t d_block e
+*)
+      d_line l 
+        ++ (align 
+              ++ text "if"
+              ++ (align 
+                    ++ text " ("
+                    ++ d_exp () be
+                    ++ text ")"
+                    ++ d_block () t
+                    ++ unalign)
+              ++ line
+              ++ text "el" 
+              ++ (align 
+                    ++ text "se" 
+                    ++ line
+                    ++ d_block () e
+                    ++ unalign)
+              ++ unalign)
+
   | Switch(e,b,_,l) ->
-      dprintf "\n%s@!@[switch (%a)@!%a@]" (printLine l) d_exp e d_block b
+(*      dprintf "\n%s@!@[switch (%a)@!%a@]" (printLine l) d_exp e d_block b
+*)
+      d_line l 
+        ++ (align
+              ++ text "switch ("
+              ++ d_exp () e
+              ++ text ")"
+              ++ line 
+              ++ d_block () b
+              ++ unalign)
 (*
   | Loop(b, l) ->
       See if the first thing in the block is a "if e then skip else break"
@@ -1546,10 +1805,29 @@ and d_stmtkind (next: stmt) () = function
             end
           | _ -> raise Not_found
         in
-        dprintf "\n%s@!wh@[ile (%a)@!%a@]" (printLine l) d_exp term d_block body
-      with Not_found ->
-        dprintf "\n%s@!wh@[ile (1)@!%a@]" (printLine l) d_block b
+(*
+        dprintf "\n%s@!wh@[ile (%a)@!%a@]" (printLine l) d_exp 
+                  term d_block body *)
+        d_line l
+          ++ text "wh" 
+          ++ (align 
+                ++ text "ile ("
+                ++ d_exp () term 
+                ++ text ")" 
+                ++ line
+                ++ d_block () body
+                ++ unalign)
 
+    with Not_found ->
+(*        dprintf "\n%s@!wh@[ile (1)@!%a@]" (printLine l) d_block b *)
+      d_line l
+        ++ text "wh" 
+        ++ (align 
+              ++ text "ile (1)"
+              ++ line
+              ++ d_block () b
+              ++ unalign)
+      
         
 
 and d_goto (s: stmt) = 
@@ -1567,6 +1845,7 @@ and d_goto (s: stmt) =
 
 and d_fun_decl () f = 
   let stom, rest = separateStorageModifiers f.svar.vattr in
+(*
   dprintf "%s%a@!{ @[%a@!@!%a@]@!}" 
     (if f.sinline then "__inline " else "")
     d_videcl f.svar
@@ -1574,17 +1853,40 @@ and d_fun_decl () f =
     (docList line (fun vi -> d_videcl () vi ++ text ";")) f.slocals
     (* the body *)
     d_block f.sbody
-
+*)
+    text (if f.sinline then "__inline " else "")
+    ++ d_videcl () f.svar
+    ++ line
+    ++ text "{ "
+    ++ (align
+          (* locals. *)
+          ++ (docList line (fun vi -> d_videcl () vi ++ text ";") () f.slocals)
+          ++ line ++ line
+          (* the body *)
+          ++ d_block () f.sbody
+          ++ unalign)
+    ++ line
+    ++ text "}"
+    
 and d_videcl () vi = 
   let stom, rest = separateStorageModifiers vi.vattr in
+(*
   dprintf "%a%a%a %a"
     (* First the storage modifiers *)
     d_attrlistpre stom
     d_storage vi.vstorage
     (d_decl (fun _ -> dprintf "%s" vi.vname) DNString) vi.vtype
     d_attrlistpost rest
-    
+*)    
+    (* First the storage modifiers *)
+    (d_attrlistpre () stom)
+    ++ d_storage () vi.vstorage
+    ++ (d_decl (fun _ -> dprintf "%s" vi.vname) DNString () vi.vtype)
+    ++ text " "
+    ++ d_attrlistpost () rest
+
 and d_fielddecl () fi = 
+(*
   dprintf "%a %a;"
     (d_decl 
        (fun _ -> 
@@ -1592,13 +1894,27 @@ and d_fielddecl () fi =
        DNString) 
     fi.ftype
     d_attrlistpost fi.fattr
-       
+*)       
+  (d_decl 
+     (fun _ -> 
+       text (if fi.fname = "___missing_field_name" then "" else fi.fname))
+     DNString () fi.ftype)
+    ++ text " " 
+    ++ d_attrlistpost () fi.fattr
+    ++ text ";"
 
    (* Some plain pretty-printers. Unlike the above these expose all the 
     * details of the internal representation *)
 let rec d_plainexp () = function
-    Const(c) -> dprintf "Const(%a)" d_const c
-  | Lval(lv) -> dprintf "Lval(@[%a@])" d_plainlval lv
+    Const(c) -> 
+      text "Const(" ++ d_const () c ++ text ")"
+  | Lval(lv) -> 
+      text "Lval(" 
+        ++ (align
+              ++ d_plainlval () lv
+              ++ unalign)
+        ++ text ")"
+        
   | CastE(t,e) -> dprintf "CastE(@[%a,@?%a@])" d_plaintype t d_plainexp e
   | StartOf lv -> dprintf "StartOf(%a)" d_plainlval lv
   | AddrOf (lv) -> dprintf "AddrOf(%a)" d_plainlval lv
@@ -2059,17 +2375,21 @@ let mapGlobals (fl: file)
 
 (* wes: I want to see this at the top level *)
 let d_global () = function
-    GFun (fundec, _) -> d_fun_decl () fundec ++ line
+    GFun (fundec, _) -> d_fun_decl () fundec
   | GType (str, typ, _) -> 
       if str = "" then
-        dprintf "%a;@!" (d_decl (fun _ -> nil) DNNothing) typ
+        ((d_decl (fun _ -> nil) DNNothing) () typ) ++ chr ';'
       else 
-        dprintf "typedef %a;@!" (d_decl (fun _ -> text str) DNString) typ
+        text "typedef " 
+          ++ ((d_decl (fun _ -> text str) DNString) () typ)
+          ++ chr ';'
 
   | GEnumTag (enum, _) -> 
-      dprintf "enum@[ %s%a {%a@]@?};" enum.ename d_attrlistpost enum.eattr
-        (docList line (fun (n,i) -> dprintf "%s = %a,@?" n d_exp i)) 
-        enum.eitems
+      text "enum" ++ align ++ text (" " ^ enum.ename) ++ 
+        d_attrlistpost () enum.eattr ++ text " {"
+        ++ ((docList line (fun (n,i) -> dprintf "%s = %a,@?" n d_exp i))
+              () enum.eitems)
+        ++ unalign ++ break ++ text "};"
 
   | GCompTag (comp, _) -> (* This is a definition of a tag *)      
       let n = comp.cname in
@@ -2077,18 +2397,40 @@ let d_global () = function
         if comp.cstruct then "struct", "str", "uct"
                         else "union",  "uni", "on"
       in
-      dprintf "%s@[%s %s%a {@!%a@]@!};" su1 su2 n 
+(*      dprintf "%s@[%s %s%a {@!%a@]@!};" su1 su2 n 
         d_attrlistpost comp.cattr
         (docList line (d_fielddecl ())) comp.cfields 
+*)
+      text su1 ++ (align ++ text su2 ++ chr ' ' ++ text n
+                     ++ (d_attrlistpost () comp.cattr)
+                     ++ text " {" ++ line 
+                     ++ ((docList line (d_fielddecl ())) () comp.cfields)
+                     ++ unalign)
+        ++ line ++ text "};"
           
   | GVar (vi, io, _) -> 
+(*
       dprintf "%a %t;"
         d_videcl vi 
         (fun _ -> match io with None -> nil 
         | Some i -> dprintf " = %a" d_init i)
+*)
+        (d_videcl () vi) 
+        ++ chr ' ' 
+        ++ (match io with 
+              None -> nil 
+            | Some i -> text " = " ++ (d_init () i))
+        ++ chr ';'
+
   | GDecl (vi, _) -> 
+(*
       dprintf "%a;" d_videcl vi 
+*)
+      (d_videcl () vi) 
+        ++ chr ';'
+
   | GAsm (s, _) -> dprintf "__asm__(\"%s\");@!" (escape_string s)
+
   | GPragma (Attr(an, args), _) -> 
       let d = 
         if args = [] then 

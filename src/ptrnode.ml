@@ -301,6 +301,7 @@ let d_whykind () = function
   | PrintfArg -> text "printf_arg"
 
 let d_node () n = 
+(*
   dprintf "%d : %a (%s%s%s%s%s%s%s%s%s%s%s) (@[%a@])@! K=%a/%a T=%a@!  S=@[%a@]@!  P=@[%a@]@!" 
     n.id d_placeidx n.where
     (if n.onStack || hasFlag n pkOnStack then "stack," else "")
@@ -329,8 +330,67 @@ let d_node () n =
            d_ekind e.ekind
            insert (if e.ecallid >= 0 then dprintf "(%d)" e.ecallid else nil)))
     n.pred
-    
-
+*)    
+    num n.id 
+     ++ text " : " 
+     ++ d_placeidx () n.where
+     ++ text " ("
+     ++ text ((if n.onStack || hasFlag n pkOnStack then "stack," else "") ^
+              (if n.updated || hasFlag n pkUpdated then "upd," else "") ^
+              (if n.posarith || hasFlag n pkPosArith 
+              then "posarith," else "") ^
+              (if n.arith || hasFlag n pkArith then "arith," else "") ^
+              (if n.null || hasFlag n pkNull then "null," else "") ^
+              (if n.intcast || hasFlag n pkIntCast then "int," else "") ^
+              (if n.interface || hasFlag n pkInterface 
+              then "interf," else "") ^
+              (if n.sized  then "sized," else "") ^
+              (if n.can_reach_string || hasFlag n pkReachString 
+              then "reach_s," else "") ^
+              (if n.can_reach_seq    || hasFlag n pkReachSeq    
+              then "reach_q," else "") ^
+              (if n.can_reach_index  || hasFlag n pkReachIndex  
+              then "reach_i," else ""))
+    ++ text ") ("
+    ++ (align 
+          ++ (docList (chr ',' ++ break)
+                (fun n -> num n.id) () n.pointsto)
+          ++ unalign)
+    ++ text ")"
+    ++ line
+    ++ text " K="
+    ++ d_opointerkind () n.kind
+    ++ text "/"
+    ++ d_whykind () n.why_kind
+    ++ text " T="
+    ++ d_type () n.btype 
+    ++ line
+    ++ text "  S="
+    ++ (align 
+          ++ (docList (chr ',' ++ break)
+                (fun e ->
+                    num e.eto.id
+                    ++ text ":"
+                    ++ d_ekind () e.ekind
+                    ++ (if e.ecallid >= 0 then 
+                      text "(" ++ num e.ecallid ++ text ")" else nil))
+                ()
+                n.succ)
+          ++ unalign)
+    ++ line
+    ++ text "  P="
+    ++ (align 
+          ++ (docList (chr ',' ++ break)
+                (fun e ->
+                    num e.efrom.id
+                    ++ text ":"
+                    ++ d_ekind () e.ekind
+                    ++ (if e.ecallid >= 0 
+                    then text "(" ++ num e.ecallid ++ text ")" else nil))
+                ()
+                n.pred)
+          ++ unalign)
+    ++ line
 
 (* Convert the old kind into the new kind *)    
 (*

@@ -62,7 +62,12 @@ type doc =
 
 let nil  = Nil
 
+(* Note that all infix operators in Ocaml are left-associative. This means 
+ * that if you have a long list of ++ then the whole thing is very unbalanced 
+ * towards the left side. This is the worst possible case since scanning the 
+ * left side of a Concat is the non-tail recursive case. *)
 let (++) d1 d2 = Concat (d1, d2)
+
 let text s     = Text s
 let num  i     = text (string_of_int i)
 let chr  c     = text (String.make 1 c) 
@@ -74,30 +79,32 @@ let break      = Break  (* Line *) (* Aman's benchmarking goo *)
 
 let nest n d   = (if n > 0 then Spaces n else nil) ++ align ++ d ++ unalign
 
+(* Rewrite seq to be tail recursive *)
 let  seq sep f dl = 
-  let rec loop = function
-      []     -> nil
+  let rec loop (acc: doc) = function
+      []     -> acc
     | h :: t -> 
         let fh = f h in  (* Make sure this is done first *)
-        sep ++ fh ++ loop t
+        loop (acc ++ sep ++ fh) t
   in
   (match dl with
     [] -> nil
   | h :: t -> 
-      let fh = f h in fh ++ loop t)
+      let fh = f h in loop fh t)
 
 let docArray f () a = 
   let len = Array.length a in
   if len = 0 then 
     nil
   else
-    let rec loop i =
-      if i >= len then nil else
+    (* make it tail-recursive *)
+    let rec loop (acc: doc) i =
+      if i >= len then acc else
       let fi = f i a.(i) in (* Make sure this is done first *)
-      fi ++ loop (i + 1)
+      loop (acc ++ fi) (i + 1)
     in
     let f0 = f 0 a.(0) in
-    f0  ++ loop 1
+    loop f0 1
       
 let docOpt delem () = function
     None -> text "None"
@@ -654,7 +661,9 @@ let fprint =
           ignore (scan 0 doc);
           if george_no_emit then ()
           else begin
+(*            Printf.fprintf stderr "Right before rev\n"; flush stderr; *)
             breaks := List.rev !breaks;
+(*            Printf.fprintf stderr "Right after rev\n"; flush stderr; *)
             ignore (emitDoc 
                       (fun s nrcopies -> 
                         if george_no_out then () else
