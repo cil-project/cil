@@ -60,7 +60,8 @@ let epicenterHops = ref 0
 let feature : featureDescr = 
   { fd_name = "epicenter";
     fd_enabled = doEpicenter;
-    fd_description = "generation of code to log function calls";
+    fd_description = "remove all functions except those within some number " ^
+                     "of hops (in the call graph) from a given function";
     fd_extraopt = 
     [
     ("--epicenter-name", 
