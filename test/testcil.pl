@@ -166,6 +166,7 @@ $TEST->add3Tests("test/array1");
 $TEST->add3Tests("test/array2");
 $TEST->add3Tests("test/matrix");
 $TEST->add3Tests("testrun/switch");
+$TEST->add3Tests("testrun/strloop");
 $TEST->add3Tests("testrun/caserange", "_GNUCC=1");
 if (!$egcs) {
   $TEST->add3Tests("test/attr");
