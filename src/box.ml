@@ -692,7 +692,7 @@ let makeTagAssignInit (iter: varinfo) vi : stmt list =
 (****** the CHECKERS ****)
 
 (* Define WILD away *)
-let _ = theFile := GText("#define WILD") :: !theFile
+let _ = theFile := GText("#define WILD\n#define FSEQ") :: !theFile
 
 (* First create some types for the libraries *)
 let fatWildVoidPtr     = fixupType (TPtr(TVoid [], [AId("wild")]))
@@ -700,7 +700,7 @@ let fatVoidPtr  =
   match fatWildVoidPtr with
     TNamed(_, x, _) -> x
   | _ -> E.s (E.bug "fatVoidPtr")
-
+let fseqChrPtrType     = fixupType (TPtr(TInt(IChar, []), [AId("fseq")]))
 
 let checkSafeRetFatFun = 
   let fdec = emptyFunction "CHECK_SAFERETFAT" in
@@ -1192,7 +1192,7 @@ let checkWrite e = checkMem (Some e)
 
 (* A major hack for MSVC *)
 let getIOBFunction = 
-  let fdec = emptyFunction "__get_iob_fp" in
+  let fdec = emptyFunction "__get_iob_s" in
   let argn = makeLocalVar fdec "n" intType in
   fdec.svar.vtype <- TFun(fatVoidPtr, [ argn ], false, []);
   theFile := GDecl fdec.svar :: !theFile;
@@ -1551,12 +1551,11 @@ and boxexpf (e: exp) : stmt list * fexp =
     end
     | Const (CStr s, cloc) -> 
        (* Make a global variable that stores this one, so that we can attach 
-        * a tag to it  *)
+        * a tag to it  *
         let l = 1 + String.length s in 
         let newt = tagType (TArray(charType, Some (integer l), [])) in
         let gvar = makeGlobalVar (newStringName ()) newt in
         gvar.vstorage <- Static;
-        (* Build an initializer *)
         let varinit, dfield = 
           makeTagCompoundInit newt (Some (Const(CStr s, cloc))) in
         theFile := GVar (gvar, Some varinit) :: !theFile;
@@ -1565,6 +1564,16 @@ and boxexpf (e: exp) : stmt list * fexp =
         ([], FM (fatChrPtrType, P.Wild,
                  result, 
                  doCast result (typeOf result) voidPtrType, zero))
+          *)
+        (* For now all string constants are transformed into FSEQ pointers *)
+        let l = ((1 + String.length s) + 3) land (lnot 3) in
+        let tmp = makeTempVar !currentFunction charPtrType in
+        ([mkSet (var tmp) (Const (CStr s, cloc))], 
+         FM(fseqChrPtrType, P.FSeq,
+            Lval (var tmp), 
+            BinOp(PlusPI, Lval (var tmp), integer l, charPtrType, lu), 
+            zero))
+                
           
           
     | UnOp (uop, e, restyp, l) -> 
@@ -1612,7 +1621,7 @@ and boxexpf (e: exp) : stmt list * fexp =
    (* Intercept references of _iob. A major hack !!!!! *)
     | AddrOf ((Var vi,
                Index(Const(CInt _, _) as n, NoOffset)) as lv, 
-              _) when !msvcMode && vi.vname = "_iob_fp_" 
+              _) when !msvcMode && vi.vname = "_iob_l" && false
       -> 
         let (lvt, _, _, _, _, _) = boxlval lv in  (* Just to get the type*)
         let tres = fixupType (TPtr(lvt, [])) in
@@ -1636,9 +1645,10 @@ and boxexpf (e: exp) : stmt list * fexp =
         let res = 
           match lvkind with
             P.Safe -> mkFexp1 ptrtype (AddrOf(lv', l))
-          | (P.Index | P.Wild) -> mkFexp2 ptrtype (AddrOf(lv', l)) baseaddr
+          | (P.Index | P.Wild | P.FSeq) -> 
+              mkFexp2 ptrtype (AddrOf(lv', l)) baseaddr
           | P.Seq ->  mkFexp3 ptrtype (AddrOf(lv', l)) baseaddr bend
-          | _ -> E.s (E.bug "boxexp: AddrOf")
+          | _ -> E.s (E.bug "boxexp: AddrOf(%a)" P.d_pointerkind lvkind)
         in
         (dolv, res)
           
@@ -2223,3 +2233,239 @@ let boxFile file =
       
 let customAttrPrint a = 
   Ptrnode.ptrAttrCustom false a
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   sh_bucket_data");
+  }
+  return 0;
+}
+
+int     preallocateHashes(void) {
+  int i;
+  nextFreeBucket = 0; /* So that acquire does not steal our buckets  */
+  _ASSERT(BUCKET_CACHE_PREALLOC <= BUCKET_CACHE_SIZE);
+  for(i=0;i<BUCKET_CACHE_PREALLOC;i++) {
+    bucketCache[i] = acquireHashBucket();
+  }
+  nextFreeBucket = i;
+  return 0;
+}
+
+int   releaseHashes(void) {
+  int i;
+  for(i=0;i<nextFreeBucket;i++) {
+    FREE(free_safe, bucketCache[i], "hash_bucket_data");
+  }
+  nextFreeBucket = 0;
+  return 0;
+}
+
+/**************** NewHash *******************/
+PHASH NewHash(void) {
+  /* Allocate a hash */
+  PHASH res;
+  CALLOC(calloc_fseq, res, NULL, NR_HASH_BUCKETS, sizeof(HASH_BUCKET), PHASH,
+         "hash_table");
+  return (PHASH)res;
+}
+
+void FreeHash(PHASH hin) {
+  int i;
+  HASH_BUCKET * FSEQ h = (HASH_BUCKET * FSEQ)hin;
+  for(i=0;i<NR_HASH_BUCKETS;i++) {
+    HASH_BUCKET * SAFE buck = & h[i];
+    BUCKET_DATA * SAFE bdata = buck->data;
+    while(bdata != NULL) {
+      BUCKET_DATA * SAFE t_bdata = bdata;
+      bdata = bdata->next;
+      releaseHashBucket(t_bdata);
+    }
+  }
+  FREE(free_safe, h, "hash_table");
+}
+
+typedef enum {SET, LOOKUP, DELETE} HashOper;
+
+static void *  WILD ProcessHash(PHASH hin, HASH_KEY key, void * WILD data,
+                                int * SAFE found, HashOper oper) {
+  int bucket_no, i, k;
+  BUCKET_DATA * SAFE buck = NULL;
+  BUCKET_DATA * SAFE * SAFE next = NULL;
+  HASH_ENTRY *target = NULL;
+  HASH_BUCKET * FSEQ h = (HASH_BUCKET * FSEQ)hin;
+  
+  if(key == EMPTY_ENTRY) { key ++; }
+  
+  _ASSERT(h);
+
+  HashKeyToBucket(key, bucket_no);	/* Get the bucket number */
+  next = & h[bucket_no].data;
+
+  i = BUCKET_SIZE;
+  for(k=h[bucket_no].size;k > 0;) { /* Look for the data */
+    HASH_ENTRY * SAFE e;
+    buck = *next;             /* Get the next cluster */ 
+    next = &(buck->next);     /* Move one to next cluster */
+    e = buck->entries;        /* This is the current entry */
+    for(i=0;i < BUCKET_SIZE && k > 0; k--, i++, e++) {
+      if(!target && e->key == EMPTY_ENTRY) target = e;
+      if(e->key == key) {
+	*found = 1;
+        switch(oper) {
+        case SET: e->data = data; return e->data;
+        case LOOKUP: return e->data;
+        case DELETE: e->data = NULL; e->key = EMPTY_ENTRY; return NULL; 
+	}
+      }
+    }
+    if(k == 0)  /* Not in the bucket, hence not in table */
+      break;
+    _ASSERT(i == BUCKET_SIZE);
+  }
+  _ASSERT(k == 0);
+  *found = 0;		      /* Here if not found */
+  if(oper != SET) {
+    return NULL;
+  }
+  if(! target) {
+			      /* Must create a new entry */
+    if(i == BUCKET_SIZE) {		     
+      if(! next) {
+        next = &(h[bucket_no].data);
+      }
+      _ASSERT(*next == NULL);
+      buck = acquireHashBucket();
+      *next = buck;
+      buck->next = NULL;
+      i = 0;
+    }
+    target = &buck->entries[i];
+    h[bucket_no].size ++;
+  }
+  target->key = key;
+  target->data = data;
+  return NULL;
+}
+
+			      /* Lookup a hash key. Put the result in *data */
+int HashLookup(PHASH h, HASH_KEY key, void * WILD * SAFE data) {
+  int found;
+  *data = ProcessHash(h, key, NULL, &found, LOOKUP);
+  return found;
+}
+
+			      /* Extend the hash. If the data already exists 
+                               * then replace it*/
+int AddToHash(PHASH h, HASH_KEY key, void* WILD data) {
+  int found;
+  ProcessHash(h, key, data, &found, SET);
+  return found;
+}
+
+int DeleteFromHash(PHASH h, HASH_KEY key) {
+  int found;
+  ProcessHash(h, key, NULL, &found, DELETE);
+  return 0;
+}
+
+int MapHash(PHASH h, void* WILD (* SAFE f)(HASH_KEY, void* WILD, UPOINT),
+            UPOINT closure) {
+  int i;
+  HASH_BUCKET * FSEQ pBucket = (HASH_BUCKET* FSEQ )h;
+
+  for(i=0;i<NR_HASH_BUCKETS;i++, pBucket ++) {
+    int sz = pBucket->size;
+    BUCKET_DATA * SAFE pData = pBucket->data;
+    HASH_ENTRY * FSEQ pEntry = pData->entries;
+    int k = 0;
+    for(;sz > 0;sz --, k++, pEntry++) {
+      if(k == BUCKET_SIZE) {
+        k = 0;
+        pData  = pData->next;
+        pEntry = pData->entries;
+      }
+      if(pEntry->key == EMPTY_ENTRY)
+        continue;
+      pEntry->data = (*f)(pEntry->key, pEntry->data, closure);
+    }
+  }
+  return 0;
+}
+
+
+
+
+
+
+
+
+/* Some globals that PCC needs */
+int error_level, anerror;
+void myexit(int n) {
+  exit(n);
+}
+#ifdef _MSVC
+#define random rand
+#else
+/* extern int random(void); -- Weimer: not needed! */
+#endif
+int __mmId;
+int debugMM;
+int debug;
+
+
+
+
+int main() {
+  /* Test hash tables */
+  PHASH h = NewHash();
+  int i;
+  double clk;
+  int count = 0;
+  int sz;
+  
+  /* Add and delete random numbers from the hash table */
+  TIMESTART(clk);
+  for(i=0;i<500000;i++) {
+    int k = random() & 0x7FFFL;
+    AddToHash(h, k, (void* WILD)k);
+  }
+  for(i=0;i<500000;i++) {
+    int k = random() & 0x7FFFL;
+    void *data = NULL;
+    if(HashLookup(h, k, & data)) {
+      count ++;
+    }
+  }
+  sz = SizeHash(h);
+  FreeHash(h);
+  TIMESTOP(clk);
+  printf("Hash has %d elements. Found %d times\n",
+          sz, count);
+  printf("Run hashtest in %8.3lfms\n", clk / 1000.0);
+  printf("Hello\n");
+  exit (0);
+}
+
+
+                                                                                                                                                                                                                                                                                                                                                                                                                                                     @AY O‘A   $   öL!ƒ}zAA!f°ÀÀ
+¹iF{%G@@ N   $   õ”!ŠvÈ@A°°°!h°[$fdec@ °•°•°•°•°•°•
+ÞZ)Z(ùZ(öZ(ìZ(â[(à@°\$argb@ °•°•°²Ò@@Z) Z(é[(å@°]$argp@ °•°•
+Z(ó[(ï@°ÀÀÀÀÀ95ÀÀÀ@6@A° I@À@° J@@AB6CD#gEÀÀÀ@@ABDFîÀÀáÀàÞÀ@ÝÀ@°5 H@@ABCDÜÀÀØÀÀ@Ö@AÕÀ@Ð@ABCÈ¡DEG»Àe ÀÀÀŸ›À@™@AC•yDŽEFH@@ J@   $   õd!Îv@AD! J@   $   õP!Ðv|@AF# J@   $   õ!Òv:@AH% J‘A   $   õ?            ?      @       ?               ?      @       ?      A             T            T   ·       C      D      E   
+   F         
+   2   "   
+   D      E      F            2   "   
+   D      E      F                     >            	   
+               >            
+         
+         >         A             T   v       C      D   
+   V   Y       C   
+   D      D   
+   V   H       C   
+   D      D   
+   V   )       C   
+   D      D   
+   V            T   B                  
+      !   V         
+   
+   A       T            T   -               T            !   V   
+   7                A       T            T            T            T   
+         T            T            T         8       :   6       

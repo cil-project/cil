@@ -1,13 +1,20 @@
-/* 
- * Copyright (c) 1999 Cedilla Systems Incorporated.  All Rights Reserved.
- *
- * This software is the confidential and proprietary information of
- * Cedilla Systems Incorporated. ("Confidential Information").  You shall
- * not disclose such Confidential Information and shall use it only in
- * accordance with the terms of the license agreement you entered into
- * with Cedilla Systems.
- * 
- *****************************************************************************/
+#if 0
+#define WILD
+#define SAFE
+#define TAGGED
+#define INDEX
+#define SIZED
+#define SEQ
+#define FSEQ
+#else
+#define WILD   __attribute__((wild))
+#define SAFE   __attribute__((safe))
+#define TAGGED __attribute__((tagged))
+#define INDEX  __attribute__((index))
+#define SIZED  __attribute__((sized))
+#define SEQ    __attribute__((seq))
+#define FSEQ   __attribute__((fseq))
+#endif
 
 //#include "main.h"
 /****** Data sizes *******
@@ -117,12 +124,14 @@ typedef long clock_t;
 #define TIMESTART(clk) {clk=(double)clock();}
 #define TIMESTOP(clk)  {clk=1000000.0 * ((double)clock()-(clk))/CLOCKS_PER_SEC;}
 
-void*   malloc(unsigned int);
- void * __cdecl calloc(unsigned int, unsigned int);
- void   __cdecl free(void *);
+void * SAFE  malloc_safe(unsigned int);
+void * SAFE  __cdecl calloc_safe(unsigned int, unsigned int);
+void * FSEQ  __cdecl calloc_fseq(unsigned int, unsigned int);
+void   __cdecl free_safe(void * SAFE);
+
 int __cdecl dup(int);
 int __cdecl dup2(int, int);
- int __cdecl close(int);
+int __cdecl close(int);
 
 struct _iobuf {
         char *_ptr;
@@ -136,12 +145,12 @@ struct _iobuf {
         };
 typedef struct _iobuf FILE;
 
- int __cdecl printf(const char *, ...);
-int __cdecl fprintf(FILE *, const char *, ...);
-  void   __cdecl exit(int);
- int __cdecl fflush(FILE *);
+int   __cdecl printf(const char * SAFE, ...);
+int   __cdecl fprintf(FILE * SAFE, const char * SAFE, ...);
+void  __cdecl exit(int);
+int   __cdecl fflush(FILE * SAFE);
 #define NULL (void*)0
- extern FILE _iob[];
+extern FILE _iob[] SIZED;
 #define stdout &_iob[1]
 #define stderr &_iob[2]
 
@@ -161,23 +170,23 @@ extern  int   __mmId;
 #define STACK_INIT { char __probe;\
                      __stackInit = & __probe; __mmId = 0; }
 
-#define MALLOC(res, err, sz, type, category) {\
+#define MALLOC(mallocfun, res, err, sz, type, category) {\
        long _sz = (sz);\
-       (res) = (type)malloc(_sz);\
+       (res) = (type)mallocfun(_sz);\
        if(! (res)) {\
            ERROR0(err, "Cannot malloc\n"); \
        }\
        __MM_REPORT("malloc", (res), _sz, category);}
 
-#define FREE(res, category) {\
+#define FREE(freefun, res, category) {\
        if(res) {\
         __MM_REPORT("free", (res), 0, category);\
-        free(res); }}
+        freefun(res); }}
 
-#define CALLOC(res, err, nrelem, sz, type, category) {\
+#define CALLOC(callocfun, res, err, nrelem, sz, type, category) {\
        int _nrelem = (nrelem);\
        long _sz = (sz);\
-       (res) = (type)calloc(_nrelem, _sz);\
+       (res) = (type)callocfun(_nrelem, _sz);\
        if(! (res)) {\
            ERROR0(err, "Cannot calloc\n"); \
        }\
@@ -216,36 +225,6 @@ extern  int   __mmId;
 
 //#include "hash.h"
 typedef int HASH_KEY;
-typedef void *PHASH;          /* Poor's man abstraction */
-
-
-
-
-PHASH NewHash(void);
-void  FreeHash(PHASH);
-
-			      /* The following functions return TRUE if the 
-                               * particular data was already in the hash */
-int   HashLookup(PHASH, HASH_KEY, void** data);
-			      /* If data already exists, then replace it */
-int   AddToHash(PHASH, HASH_KEY, void*);
-
-                              /* Nothing happens if the key does not exits */
-int   DeleteFromHash(PHASH, HASH_KEY);
-
-                              /* Maps a function to a hash table. The last 
-                               * element is a closure. The data is 
-                               * overwritten but not placed into another 
-                               * bucket ! */
-int   MapHash(PHASH, void* (*)(HASH_KEY, void*, UPOINT), UPOINT);
-
-                              /* Returns the number of elements in the table */
-unsigned int   SizeHash(PHASH);
-                              /* Preallocates some hashes */
-int   preallocateHashes(void);
-                              /* And release them */
-int   releaseHashes(void);
-// End hash.h
 
 #ifdef SMALLMEM
 #define  BUCKETS_SHIFT 5
@@ -265,7 +244,7 @@ int   releaseHashes(void);
 typedef struct HashEntry {
   int key;                    /* The key EMPTY_ENTRY is reserved for empty 
                                * entries  */
-  void *data;
+  void * WILD data;
 } HASH_ENTRY;
 
 			      /* A bucket is a list of clusters of 
@@ -273,19 +252,51 @@ typedef struct HashEntry {
                                * entries but it is optimized by allocating 
                                * a cluster of entries at a time */
 typedef struct BucketData {
-  struct BucketData *next;
+  struct BucketData * SAFE next;
   HASH_ENTRY entries[BUCKET_SIZE];
 } BUCKET_DATA;
 
 
 typedef struct {
   int size;
-  BUCKET_DATA *data;
+  BUCKET_DATA * SAFE data;
 } HASH_BUCKET;
+
+
+typedef HASH_BUCKET * FSEQ PHASH;
+
+
+PHASH NewHash(void);
+void  FreeHash(PHASH);
+
+			      /* The following functions return TRUE if the 
+                               * particular data was already in the hash */
+int   HashLookup(PHASH, HASH_KEY, void * WILD * SAFE data);
+			      /* If data already exists, then replace it */
+int   AddToHash(PHASH, HASH_KEY, void * WILD);
+
+                              /* Nothing happens if the key does not exits */
+int   DeleteFromHash(PHASH, HASH_KEY);
+
+                              /* Maps a function to a hash table. The last 
+                               * element is a closure. The data is 
+                               * overwritten but not placed into another 
+                               * bucket ! */
+int   MapHash(PHASH, void * WILD (* SAFE)(HASH_KEY, void * WILD, UPOINT),
+              UPOINT);
+
+                              /* Returns the number of elements in the table */
+unsigned int   SizeHash(PHASH);
+                              /* Preallocates some hashes */
+int   preallocateHashes(void);
+                              /* And release them */
+int   releaseHashes(void);
+// End hash.h
+
 
 unsigned SizeHash(PHASH hash) {
   int i;
-  HASH_BUCKET *pBucket = (HASH_BUCKET*)hash;
+  HASH_BUCKET * FSEQ pBucket = (HASH_BUCKET * FSEQ)hash;
   unsigned res = 0;
   for(i=0;i<NR_HASH_BUCKETS;i++, pBucket++) {
     res += pBucket->size;
@@ -312,25 +323,26 @@ unsigned SizeHash(PHASH hash) {
 #define BUCKET_CACHE_PREALLOC  BUCKET_CACHE_SIZE
 #endif
 
-static  BUCKET_DATA *bucketCache[BUCKET_CACHE_SIZE];
+static  BUCKET_DATA * SAFE bucketCache[BUCKET_CACHE_SIZE];
 static  int nextFreeBucket = 0;
 
 
-static  BUCKET_DATA *acquireHashBucket(void) {
+static  BUCKET_DATA * SAFE acquireHashBucket(void) {
   if(nextFreeBucket == 0) {
-    BUCKET_DATA *buck;
-    MALLOC(buck, NULL, sizeof(BUCKET_DATA), BUCKET_DATA*, "hash_bucket_data");
+    BUCKET_DATA * SAFE buck;
+    MALLOC(malloc_safe, buck, NULL, sizeof(BUCKET_DATA), BUCKET_DATA*,
+           "hash_bucket_data");
     return buck;
   } else {
     return bucketCache[-- nextFreeBucket];
   }
 }
 
-static int releaseHashBucket(BUCKET_DATA *buck) {
+static int releaseHashBucket(BUCKET_DATA * SAFE buck) {
   if(nextFreeBucket < BUCKET_CACHE_SIZE) {
     bucketCache[nextFreeBucket ++] = buck;
   } else {
-    FREE(buck, "hash_bucket_data");
+    FREE(free_safe, buck, "hash_bucket_data");
   }
   return 0;
 }
@@ -349,7 +361,7 @@ int     preallocateHashes(void) {
 int   releaseHashes(void) {
   int i;
   for(i=0;i<nextFreeBucket;i++) {
-    FREE(bucketCache[i], "hash_bucket_data");
+    FREE(free_safe, bucketCache[i], "hash_bucket_data");
   }
   nextFreeBucket = 0;
   return 0;
@@ -359,34 +371,35 @@ int   releaseHashes(void) {
 PHASH NewHash(void) {
   /* Allocate a hash */
   PHASH res;
-  CALLOC(res, NULL, NR_HASH_BUCKETS, sizeof(HASH_BUCKET), PHASH, "hash_table");
+  CALLOC(calloc_fseq, res, NULL, NR_HASH_BUCKETS, sizeof(HASH_BUCKET), PHASH,
+         "hash_table");
   return (PHASH)res;
 }
 
 void FreeHash(PHASH hin) {
   int i;
-  HASH_BUCKET *h = (HASH_BUCKET*)hin;
+  HASH_BUCKET * FSEQ h = (HASH_BUCKET * FSEQ)hin;
   for(i=0;i<NR_HASH_BUCKETS;i++) {
-    HASH_BUCKET *buck = & h[i];
-    BUCKET_DATA *bdata = buck->data;
+    HASH_BUCKET * SAFE buck = & h[i];
+    BUCKET_DATA * SAFE bdata = buck->data;
     while(bdata != NULL) {
-      BUCKET_DATA *t_bdata = bdata;
+      BUCKET_DATA * SAFE t_bdata = bdata;
       bdata = bdata->next;
       releaseHashBucket(t_bdata);
     }
   }
-  FREE(h, "hash_table");
+  FREE(free_safe, h, "hash_table");
 }
 
 typedef enum {SET, LOOKUP, DELETE} HashOper;
 
-static void* ProcessHash(PHASH hin, HASH_KEY key, void *data,
-			 int *found, HashOper oper) {
+static void *  WILD ProcessHash(PHASH hin, HASH_KEY key, void * WILD data,
+                                int * SAFE found, HashOper oper) {
   int bucket_no, i, k;
-  BUCKET_DATA *buck = NULL;
-  BUCKET_DATA **next = NULL;
+  BUCKET_DATA * SAFE buck = NULL;
+  BUCKET_DATA * SAFE * SAFE next = NULL;
   HASH_ENTRY *target = NULL;
-  HASH_BUCKET *h = (HASH_BUCKET*)hin;
+  HASH_BUCKET * FSEQ h = (HASH_BUCKET * FSEQ)hin;
   
   if(key == EMPTY_ENTRY) { key ++; }
   
@@ -397,7 +410,7 @@ static void* ProcessHash(PHASH hin, HASH_KEY key, void *data,
 
   i = BUCKET_SIZE;
   for(k=h[bucket_no].size;k > 0;) { /* Look for the data */
-    HASH_ENTRY *e;
+    HASH_ENTRY * FSEQ e;
     buck = *next;             /* Get the next cluster */ 
     next = &(buck->next);     /* Move one to next cluster */
     e = buck->entries;        /* This is the current entry */
@@ -442,7 +455,7 @@ static void* ProcessHash(PHASH hin, HASH_KEY key, void *data,
 }
 
 			      /* Lookup a hash key. Put the result in *data */
-int HashLookup(PHASH h, HASH_KEY key, void **data) {
+int HashLookup(PHASH h, HASH_KEY key, void * WILD * SAFE data) {
   int found;
   *data = ProcessHash(h, key, NULL, &found, LOOKUP);
   return found;
@@ -450,7 +463,7 @@ int HashLookup(PHASH h, HASH_KEY key, void **data) {
 
 			      /* Extend the hash. If the data already exists 
                                * then replace it*/
-int AddToHash(PHASH h, HASH_KEY key, void* data) {
+int AddToHash(PHASH h, HASH_KEY key, void* WILD data) {
   int found;
   ProcessHash(h, key, data, &found, SET);
   return found;
@@ -462,14 +475,15 @@ int DeleteFromHash(PHASH h, HASH_KEY key) {
   return 0;
 }
 
-int MapHash(PHASH h, void* (*f)(HASH_KEY, void*, UPOINT), UPOINT closure) {
+int MapHash(PHASH h, void* WILD (* SAFE f)(HASH_KEY, void* WILD, UPOINT),
+            UPOINT closure) {
   int i;
-  HASH_BUCKET *pBucket = (HASH_BUCKET*)h;
+  HASH_BUCKET * FSEQ pBucket = (HASH_BUCKET* FSEQ )h;
 
   for(i=0;i<NR_HASH_BUCKETS;i++, pBucket ++) {
     int sz = pBucket->size;
-    BUCKET_DATA *pData = pBucket->data;
-    HASH_ENTRY *pEntry = pData->entries;
+    BUCKET_DATA * SAFE pData = pBucket->data;
+    HASH_ENTRY * FSEQ pEntry = pData->entries;
     int k = 0;
     for(;sz > 0;sz --, k++, pEntry++) {
       if(k == BUCKET_SIZE) {
@@ -521,7 +535,7 @@ int main() {
   TIMESTART(clk);
   for(i=0;i<500000;i++) {
     int k = random() & 0x7FFFL;
-    AddToHash(h, k, (void*)k);
+    AddToHash(h, k, (void* WILD)k);
   }
   for(i=0;i<500000;i++) {
     int k = random() & 0x7FFFL;
@@ -533,7 +547,7 @@ int main() {
   sz = SizeHash(h);
   FreeHash(h);
   TIMESTOP(clk);
-  printf( "Hash has %d elements. Found %d times\n",
+  printf("Hash has %d elements. Found %d times\n",
           sz, count);
   printf("Run hashtest in %8.3lfms\n", clk / 1000.0);
   printf("Hello\n");
