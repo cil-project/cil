@@ -93,9 +93,9 @@ ifndef ARCHOS
 endif
 ifeq ($(ARCHOS), x86_WIN32)
   EXE		= $(EXEEXT).exe
-  OBJ   	= obj
+  OBJ   	= o
   ifdef CAMLUSEUNIX
-    UNIXLIBS	+= unix.$(CMXA) wsock32.lib
+    UNIXLIBS	+= unix.$(CMXA) -cclib -lunix
   endif
 endif
 ifeq ($(ARCHOS), x86_LINUX)
@@ -198,7 +198,7 @@ $(EXECUTABLE)$(EXE) : $(MODULES:%=$(OBJDIR)/%.$(CMO))
 
 #	Phonies should be "remade" even if someone mistakenly creates them
 .PHONY: clean realclean
-clean:
+cleancaml:
 # AB: The profiler junk must be cleared too (gmon.sum, gmon.out)
 	-find $(OBJDIR)/../test -name "gmon.?u?" -exec rm {} \;
 	-rm -f $(foreach ext, cmi cmo cmx cmxa exe sum, $(OBJDIR)/*.$(ext))
@@ -213,7 +213,7 @@ clean:
 # killing my builds; the reminder would have made 'make realclean' the 2nd
 # thing to try, thus saving 20 minutes
 
-realclean: clean
+realcleancaml: clean
 	-rm -f $(DEPENDDIR)/*.d $(DEPENDDIR)/*.di
 	-rm -f $(MLLS:%.mll=$(OBJDIR)/%.ml) \
                $(MLLS:%.mll=$(OBJDIR)/%.mli) \
