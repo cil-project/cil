@@ -878,8 +878,8 @@ smAddTest("scott/arrayexpand INFERBOX=infer");
 smAddTest("scott/byteprintf INFERBOX=infer");
 smAddTest("scott/bufferlinegetter INFERBOX=infer");
 smAddTest("scott/null_pointer_field INFERBOX=infer");
-smFailTest("strange errors when using a simple function pointer",
-           "scott/closefunc INFERBOX=infer");
+smAddTest("scott/closefunc INFERBOX=infer");
+smAddTest("scott/sockunion INFERBOX=infer");
 
 # tests of things implemented for EDG compatibility
 smAddTest("mergestruct");
