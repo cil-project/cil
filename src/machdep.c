@@ -72,17 +72,6 @@ int main() {
   printf("\t version_major    = %d;\n", VERSION_MAJOR);
   printf("\t version_minor    = %d;\n", VERSION_MINOR);
   printf("\t version          = \"%s\";\n", VERSION);
-  // If the assembly uses underscore in names
-  printf("\t underscore_name  = %s;\n",
-#if defined(_MSVC)
-  "true"
-#elif defined(__GNUC__) && __GNUC__  >= 3 && __GNUC_MINOR__ < 3
- "true"
-#else
-// It seems that 3.3.2 does not put _ !
- "false"
-#endif
-         );
   // Size of certain types
   printf("\t sizeof_int       = %d;\n", sizeof(int));
   printf("\t sizeof_short     = %d;\n", sizeof(short));

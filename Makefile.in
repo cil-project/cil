@@ -142,6 +142,7 @@ $(OBJDIR)/machdep.ml : src/machdep.c configure.in Makefile.cil.in
         ;fi 
 	echo "let gcc = {" >>$@
 	$(OBJDIR)/machdep.exe >>$@
+	echo "	 underscore_name = @UNDERSCORE_NAME@ ;" >> $@
 	echo "}"          >>$@
 	if cl /D_MSVC $< /Fe$(OBJDIR)/machdep.exe ;then \
            echo "let hasMSVC = true" >>$@ \
@@ -149,6 +150,7 @@ $(OBJDIR)/machdep.ml : src/machdep.c configure.in Makefile.cil.in
            echo "let hasMSVC = false" >>$@ ;fi
 	echo "let msvc = {" >>$@
 	$(OBJDIR)/machdep.exe >>$@
+	echo "	 underscore_name = true ;" >> $@
 	echo "}"          >>$@
 	echo "let gccHas__builtin_va_list = @HAVE_BUILTIN_VA_LIST@" >>$@
 	echo "let __thread_is_keyword = @THREAD_IS_KEYWORD@"  >>$@

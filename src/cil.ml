@@ -71,6 +71,7 @@ let theMachine : M.mach ref = ref M.gcc
 
 let little_endian = ref true
 let char_is_unsigned = ref false
+let underscore_name = ref false
 
 type lineDirectiveStyle =
   | LineComment
@@ -5729,6 +5730,7 @@ let initCIL () =
   wcharType := TInt(!wcharKind, []);
   char_is_unsigned := !theMachine.M.char_is_unsigned;
   little_endian := !theMachine.M.little_endian;
+  underscore_name := !theMachine.M.underscore_name;
   nextGlobalVID := 1;
   nextCompinfoKey := 1
     

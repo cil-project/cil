@@ -362,6 +362,14 @@ AC_COMPILE_IFELSE([int main(int __thread) { return 0; }],
                   THREAD_IS_KEYWORD=true)
 AC_MSG_RESULT($THREAD_IS_KEYWORD)
 
+# Does gcc add underscores to identifiers to make assembly labels?
+# (I think MSVC always does)
+AC_MSG_CHECKING([if gcc adds underscores to assembly labels.])
+AC_LINK_IFELSE([int main() { __asm__("jmp _main"); }],
+                  UNDERSCORE_NAME=true,
+                  UNDERSCORE_NAME=false)
+AC_MSG_RESULT($UNDERSCORE_NAME)
+
 # ----------- some stuff 'autoscan' put here --------------
 # (autoscan is part of the autoconf distribution)
 
@@ -499,6 +507,7 @@ AC_SUBST(CYCLES_PER_USEC)
 AC_SUBST(HAS_PERFCOUNT)
 AC_SUBST(HAVE_BUILTIN_VA_LIST)
 AC_SUBST(THREAD_IS_KEYWORD)
+AC_SUBST(UNDERSCORE_NAME)
 
 # finish the configure script and generate various files; ./configure
 # will apply variable substitutions to <filename>.in to generate <filename>;

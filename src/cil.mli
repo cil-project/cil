@@ -2277,6 +2277,11 @@ val char_is_unsigned: bool ref
 (** Whether the machine is little endian. Set after you call {!Cil.initCIL} *)
 val little_endian: bool ref
 
+(** Whether the compiler generates assembly labels by prepending "_" to the 
+    identifier. That is, will function foo() have the label "foo", or "_foo"?
+    Set after you call {!Cil.initCIL} *)
+val underscore_name: bool ref
+
 (** Represents a location that cannot be determined *)
 val locUnknown: location
 
