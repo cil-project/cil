@@ -195,7 +195,7 @@ ifdef ANNOT
   CCURED+= --annotate
 endif
 ifdef OPTIM
-  CCURED += --optimize --newoptim
+  CCURED += --optimize
 endif
 ifdef ANN
   CCURED+= --annotate

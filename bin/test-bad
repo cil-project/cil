@@ -1,39 +1,56 @@
 #!/bin/sh
 # run a regression test containing one or more intentional failures
 #
-# To create a source file to be processed by this script do:
+# To create a source file to be processed by this script do the following:
 # - the file should be a standalone program with main without any arguments
 #   You can add other files as part of the CFLAGS variable
 # - add a comment
 #    // NUMERRORS n
 #   where n is the number of errors to be tested by this file
-# - at the end of certain lines in your file comments (1 <= k <= n)
-#    // ERROR(k)
-# - first all ERROR-lines are removed and the program must succeed.
-# - to test for error k all ERROR lines except those with label ERROR(k)
-#   are removed from the file, and the program is expected to fail
-# - If you add after the ERROR(k) label a ":" then the failure is considered
-#   expected only if everything that follows the 
-#   colon in that line appears in the output of the program 
-# Simple example:
-#   // simple.c
-#   // NUMERRORS 2
-#   int main()
-#   {
-#     char *p = (char*)0;   // ERROR(1)
-#     *p = 0;               // ERROR(1) - segfault
-#     return 2;             // ERROR(2) - returning failure code
-#     return 0;             // non-error case
+#
+#   This file is processed n+1 times. The first time, it should succeed (main returns or 
+#   exits with code 0) and the other n times it should fail. 
+#   For each run the preprocessor variable ERROR is defined to be
+#   be k (0 <= k <= n). 
+#   You can mark certain lines in your program so that they are used ONLY in a certain run: put the 
+#   following comment after a line to make it appear only in the run with ERROR == 3
+#   
+#    some_code; // ERROR(3)
+#
+#
+#   Furthermore, for each run that is intended to fail you can specify a string that 
+#   must appear in the output.
+#
+#    some_code; // ERROR(3):this string must appear in output
+#
+#   Do not put any spaces around the : 
+#
+#   Simple example:
+#
+#   #define E(n) {printf("Error %d\n", n); exit(n); }
+#   #define SUCCESS {printf("Success\n"); exit(0); }
+#
+#   // NUMERRORS 3
+#   int main() {
+#
+#     char char x; // ERROR(1):invalid type specifier
+#     int  y;
+#     int  z = ++y;
+#     // This conditional should be true
+#     if(z == y) E(2); // ERROR(2):Error 2
+#
+#     #if ERROR == 3
+#        z = (++y, y--);
+#        if(z == y + 1) E(3); // ERROR(3):Error 3
+#     #endif
+#
+#     SUCCESS;
 #   }
+#
 #
 # set RUNONLY=n to run only the test case n
 #
-# For each run the ERROR macro is also defined to 0, 1, .../. Thus you can
-# use preprocessor conditionals to exclude portions of code:
-#
-# #if ERROR >= 2
-#  ...
-# #endif
+
 if [ "$1" = "" ]; then
   # most parameters are passed by name, instead of as positional
   # arguments, for better impedance match with Makefile; but it's

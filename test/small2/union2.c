@@ -87,8 +87,7 @@ int main() {
 #if ERROR == 10
     // Since aa is longer, the bb will have to be FSEQ to be able to check the
     // length
-    aa = bb; 
-    if(HAS_KIND(bb, FSEQ_KIND)) E(10); //ERROR(10):Error 10
+    aa = bb; //ERROR(10):Failure UBOUND
 #endif
 #if ERROR == 11
     bb = aa; 
