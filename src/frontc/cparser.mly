@@ -642,7 +642,7 @@ decl_spec_list:                         /* ISO 6.7 */
                                         /* ISO 6.7.2 */
 |   type_spec decl_spec_list_opt_no_named { SpecType $1 :: $2 }
                                         /* ISO 6.7.4 */
-|   INLINE decl_spec_list_opt           { SpecInline :: $2 }
+|   INLINE decl_spec_list_opt           { SpecFunspec INLINE :: $2 }
 |   attribute decl_spec_list_opt        { SpecAttr $1 :: $2 }  
 /* specifier pattern variable (must be last in spec list) */
 |   AT_SPECIFIER LPAREN IDENT RPAREN    { [ SpecPattern($3) ] }

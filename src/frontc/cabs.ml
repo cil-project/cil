@@ -42,8 +42,10 @@ type typeSpecifier = (* Merge all specifiers into one type *)
   | TtypeofT of specifier * decl_type       (* GCC __typeof__ *)
 
 and storage =
-    NO_STORAGE | AUTO | STATIC | EXTERN | REGISTER
+    NO_STORAGE | AUTO | STATIC | EXTERN | REGISTER | MUTABLE
 
+and funspec = 
+    INLINE | VIRTUAL | EXPLICIT
 
 (* Type specifier elements. These appear at the start of a declaration *)
 (* Everywhere they appear in this file, they appear as a 'spec_elem list', *)
@@ -52,12 +54,22 @@ and storage =
 (* though the compiler will of course choke. *)
 and spec_elem =
     SpecTypedef
-  | SpecInline
   | SpecAttr of attribute
   | SpecStorage of storage
   | SpecType of typeSpecifier
   | SpecPattern of string       (* specifier pattern variable *)
 
+    (* The rest of part of the experimental front-end for C++ *)
+  | SpecFunspec of funspec
+  | SpecArray of expression      (* Print as "[e]" *)
+  | SpecParen of spec_elem list  (* Print as ( se1, ..., sen ) *)
+  | SpecInit  of init_expression (* Print as "= e" *)
+  | SpecEllipsis                 (* Print as "..." *)
+  | SpecPtr                      (* Print as "*" *)
+  | SpecReference                (* Print as "&" *) 
+  | SpecName of string           (* Print as "name". Can be a name of a type 
+                                  * or an identifier *)
+  | SpecExc of (spec_elem list * decl_type) list  (* Print as "throw (...)" *)
 (* decided to go ahead and replace 'spec_elem list' with specifier *)
 and specifier = spec_elem list
 
@@ -86,7 +98,6 @@ and decl_type =
                                            * decl is never a PTR. The last 
                                            * one is the C++ exception 
                                            * specification *)
-
 
 (* The base type and the storage are common to all names. Each name might
  * contain type or storage modifiers *)
@@ -266,7 +277,7 @@ let rec isExtern = function
 
 let rec isInline = function
     [] -> false
-  | SpecInline :: _ -> true
+  | SpecFunspec INLINE :: _ -> true
   | _ :: rest -> isInline rest
 
 let rec isTypedef = function

@@ -32,7 +32,9 @@ let smooth_expression lst =
 
 let currentFunctionName = ref "<outside any function>"
     
-let announceFunctionName ((n, decl, _):name) =
+let announceFunctionName _ =
+  let n = "<announce function name>" in
+  let decl = JUSTBASE in
   Cxxlexer.add_identifier n;
   (* Start a context that includes the parameter names and the whole body. 
    * Will pop when we finish parsing the function body *)
@@ -68,6 +70,9 @@ let applyPointer (ptspecs: attribute list list) (dt: decl_type)
   in
   loop ptspecs
 
+let dummyName = 
+  ("<this is a dummy name>", JUSTBASE, [])
+
 let doDeclaration (loc: cabsloc) (specs: spec_elem list) 
     (nl: init_name list) : definition = 
   (* In C++ we must also take the names of structs and unions and make them 
@@ -95,9 +100,8 @@ let doDeclaration (loc: cabsloc) (specs: spec_elem list)
 
 let doFunctionDef (loc: cabsloc)
                   (specs: spec_elem list) 
-                  (n: name) 
                   (b: block) : definition = 
-  let fname = (specs, n) in
+  let fname = (specs, dummyName) in
   FUNDEF (fname, b, loc)
 
 
@@ -144,6 +148,7 @@ end
 %token <string> NAMED_TYPE
 %token <string> NAMED_CLASS
 %token <string> NAMED_NAMESPACE
+%token <string> NAMED_ENUM
 
 %token EOF
 %token CHAR INT DOUBLE FLOAT VOID INT64 INT32
@@ -214,7 +219,11 @@ end
 %left	DOT ARROW LPAREN LBRACE
 %right  NAMED_TYPE     /* We'll use this to handle redefinitions of
                         * NAMED_TYPE as variables */
+%right  NAMED_CLASS    /* So that it shifts always */
 %left   IDENT
+%right  COLON_COLON /* (* Give this a high precedence and right-associativity 
+                        * to ensure that it is shifted always as part of a 
+                        * nested_namespace *) */
 
 /* Non-terminals informations */
 %start interpret file
@@ -223,7 +232,7 @@ end
 %type <Cabs.definition> global
 
 
-%type <Cabs.attribute list> attributes attributes_with_asm asmattr
+%type <Cabs.attribute list> asmattr
 %type <Cabs.statement> statement
 %type <Cabs.constant> constant
 %type <Cabs.expression> expression opt_expression
@@ -236,36 +245,24 @@ end
 %type <(Cabs.initwhat * Cabs.init_expression) list> initializer_list
 %type <Cabs.initwhat> init_designators init_designators_opt
 
-%type <spec_elem list> decl_spec_list
-%type <typeSpecifier> type_spec
-%type <Cabs.field_group list> struct_decl_list
 
-
-%type <Cabs.name> old_proto_decl
-%type <Cabs.single_name> parameter_decl
 %type <Cabs.enum_item> enumerator
 %type <Cabs.enum_item list> enum_list
 %type <Cabs.definition> declaration function_def
-%type <cabsloc * spec_elem list * name> function_def_start
+%type <cabsloc * spec_elem list> function_def_start
 %type <Cabs.spec_elem list * Cabs.decl_type> type_name
 %type <Cabs.block> block
 %type <string list> local_labels local_label_names
-%type <string list> old_parameter_list_ne
 
-%type <Cabs.init_name> init_declarator
-%type <Cabs.init_name list> init_declarator_list
-%type <Cabs.name> declarator
-%type <Cabs.name * expression option> field_decl
-%type <(Cabs.name * expression option) list> field_decl_list
-%type <string * Cabs.decl_type> direct_decl
-%type <Cabs.decl_type> abs_direct_decl abs_direct_decl_opt
-%type <Cabs.decl_type * Cabs.attribute list> abstract_decl
-%type <attribute list list> pointer pointer_opt /* Each element is a "* <type_quals_opt>" */
 %type <Cabs.cabsloc> location
 
 
 %type <(Cabs.spec_elem list * Cabs.decl_type) list> type_id_list
-%type <(Cabs.spec_elem list * Cabs.decl_type) list option> exc_spec_opt
+
+%type <Cabs.spec_elem list list> decldef decl_list
+%type <Cabs.spec_elem list> decl_rest
+%type <Cabs.spec_elem> decl_spec decl_spec_start
+
 %%
 
 interpret:
@@ -285,29 +282,13 @@ location:
 
 /*** Global Definition ***/
 global:
-  declaration                           { $1 }
-| function_def                          { $1 }
+| location decldef SEMICOLON            { PRAGMA(VARIABLE "decl", $1) }
+| function_def                          { $1 } 
+/*
 | location ASM LPAREN string_list RPAREN SEMICOLON
                                         { GLOBASM ($4, $1) }
+*/
 | location PRAGMA attr                  { PRAGMA ($3, $1) }
-/* (* Old-style function prototype. This should be somewhere else, like in
-    * "declaration". For now we keep it at global scope only because in local
-    * scope it looks too much like a function call  *) */
-| location  IDENT LPAREN old_parameter_list_ne RPAREN old_pardef_list SEMICOLON
-                           { (* Convert pardecl to new style *)
-                             let pardecl, isva = doOldParDecl $4 $6 in
-                             (* Make the function declarator *)
-                             doDeclaration $1 []
-                               [(($2, PROTO(JUSTBASE, pardecl,isva, None), []),
-                                 NO_INIT)]
-                            }
-/* (* Old style function prototype, but without any arguments *) */
-| location  IDENT LPAREN RPAREN  SEMICOLON
-                           { (* Make the function declarator *)
-                             doDeclaration $1 []
-                               [(($2, PROTO(JUSTBASE,[],false, None), []),
-                                 NO_INIT)]
-                            }
 /* transformer for a toplevel construct */
 | location AT_TRANSFORM LBRACE global RBRACE  IDENT/*to*/  LBRACE globals RBRACE {
     checkConnective($6);
@@ -328,6 +309,7 @@ global:
 id_or_typename:
     IDENT				{$1}
 |   NAMED_TYPE				{$1}
+|   NAMED_CLASS                         {$1}
 |   AT_NAME LPAREN IDENT RPAREN         { "@name(" ^ $3 ^ ")" }     /* pattern variable name */
 ;
 
@@ -647,107 +629,7 @@ for_clause:
 ;
 
 declaration:                                /* ISO 6.7.*/
-    location decl_spec_list init_declarator_list SEMICOLON
-                                       { doDeclaration $1 $2 $3 }
-|   location decl_spec_list SEMICOLON  { doDeclaration $1 $2 [] }
-;
-init_declarator_list:                       /* ISO 6.7 */
-    init_declarator                              { [$1] }
-|   init_declarator COMMA init_declarator_list   { $1 :: $3 }
-
-;
-init_declarator:                             /* ISO 6.7 */
-    declarator                          { ($1, NO_INIT) }
-|   declarator EQ init_expression
-                                        { ($1, $3) }
-;
-
-decl_spec_list:                         /* ISO 6.7 */
-                                        /* ISO 6.7.1 */
-|   TYPEDEF decl_spec_list_opt          { SpecTypedef :: $2  }    
-|   EXTERN decl_spec_list_opt           { SpecStorage EXTERN :: $2 }
-|   STATIC  decl_spec_list_opt          { SpecStorage STATIC :: $2 }
-|   AUTO   decl_spec_list_opt           { SpecStorage AUTO :: $2 }
-|   REGISTER decl_spec_list_opt         { SpecStorage REGISTER :: $2}
-                                        /* ISO 6.7.2 */
-|   type_spec decl_spec_list_opt_no_named { SpecType $1 :: $2 }
-                                        /* ISO 6.7.4 */
-|   INLINE decl_spec_list_opt           { SpecInline :: $2 }
-|   attribute decl_spec_list_opt        { SpecAttr $1 :: $2 }  
-/* specifier pattern variable (must be last in spec list) */
-|   AT_SPECIFIER LPAREN IDENT RPAREN    { [ SpecPattern($3) ] }
-;
-/* (* In most cases if we see a NAMED_TYPE we must shift it. Thus we declare 
-    * NAMED_TYPE to have right associativity  *) */
-decl_spec_list_opt: 
-    /* empty */                         { [] } %prec NAMED_TYPE
-|   decl_spec_list                      { $1 }
-;
-/* (* We add this separate rule to handle the special case when an appearance 
-    * of NAMED_TYPE should not be considered as part of the specifiers but as 
-    * part of the declarator. IDENT has higher precedence than NAMED_TYPE  *)
- */
-decl_spec_list_opt_no_named: 
-    /* empty */                         { [] } %prec IDENT
-|   decl_spec_list                      { $1 }
-;
-type_spec:   /* ISO 6.7.2 */
-    VOID            { Tvoid}
-|   CHAR            { Tchar }
-|   SHORT           { Tshort }
-|   INT             { Tint }
-|   LONG            { Tlong }
-|   INT64           { Tint64 }
-|   FLOAT           { Tfloat }
-|   DOUBLE          { Tdouble }
-|   SIGNED          { Tsigned }
-|   UNSIGNED        { Tunsigned }
-/*
-|   STRUCT id_or_typename 
-                    { Tstruct ($2, None) }
-|   STRUCT id_or_typename LBRACE struct_decl_list RBRACE
-                    { Tstruct ($2, Some $4) }
-|   STRUCT           LBRACE struct_decl_list RBRACE
-                    { Tstruct ("", Some $3) }
-|   UNION id_or_typename 
-                    { Tunion ($2, None) }
-|   UNION id_or_typename LBRACE struct_decl_list RBRACE
-                    { Tunion ($2, Some $4) }
-|   UNION          LBRACE struct_decl_list RBRACE
-                    { Tunion ("", Some $3) }
-*/
-|   ENUM id_or_typename   { Tenum ($2, None) }
-|   ENUM id_or_typename LBRACE enum_list maybecomma RBRACE
-                    { Tenum ($2, Some $4) }
-|   ENUM          LBRACE enum_list maybecomma RBRACE
-                    { Tenum ("", Some $3) }
-|   NAMED_TYPE      { Tnamed $1 }
-|   TYPEOF LPAREN expression RPAREN     { TtypeofE $3 } 
-|   TYPEOF LPAREN type_name RPAREN      { let s, d = $3 in
-                                          TtypeofT (s, d) } 
-|   class_spec                          { Tvoid }
-;
-struct_decl_list: /* (* ISO 6.7.2. Except that we allow empty structs. We 
-                      * also allow missing field names. *)
-                   */
-   /* empty */                           { [] }
-|  decl_spec_list                 SEMICOLON struct_decl_list
-                                         { ($1, 
-                                            [(missingFieldDecl, None)]) :: $3 }
-|  decl_spec_list field_decl_list SEMICOLON struct_decl_list
-                                          { ($1, $2) 
-                                            :: $4 }
-|  error                          SEMICOLON struct_decl_list
-                                          { $3 } 
-;
-field_decl_list: /* (* ISO 6.7.2 *) */
-    field_decl                           { [$1] }
-|   field_decl COMMA field_decl_list     { $1 :: $3 }
-;
-field_decl: /* (* ISO 6.7.2. Except that we allow unnamed fields. *) */
-|   declarator                           { ($1, None) }
-|   declarator COLON expression          { ($1, Some $3) }    
-|              COLON expression          { (missingFieldDecl, Some $2) }
+  location decldef SEMICOLON     { PRAGMA(VARIABLE("declaration"), $1) } 
 ;
 
 enum_list: /* (* ISO 6.7.2.2 *) */
@@ -761,219 +643,27 @@ enumerator:
 ;
 
 
-declarator:  /* (* ISO 6.7.5. Plus Microsoft declarators.*) */
-   pointer_opt direct_decl attributes_with_asm
-                                         { let (n, decl) = $2 in
-                                           (n, applyPointer $1 decl, $3) }
-;
 
-direct_decl: /* (* ISO 6.7.5 *) */
-                                   /* (* We want to be able to redefine named
-                                    * types as variable names *) */
-|   namespace_id_or_typename       { ($1, JUSTBASE) }
-|   LPAREN attributes declarator RPAREN
-                                   { let (n,decl,al) = $3 in
-                                     (n, PARENTYPE($2,decl,al)) }
-|   direct_decl bracket_comma_expression
-                                   { let (n, decl) = $1 in
-                                     (n, ARRAY(decl, smooth_expression $2)) }
-|   direct_decl LBRACKET RBRACKET  { let (n, decl) = $1 in
-                                     (n, ARRAY(decl, NOTHING)) }
-|   direct_decl parameter_list_startscope rest_par_list RPAREN exc_spec_opt
-                                   { let (n, decl) = $1 in
-                                     let (params, isva) = $3 in
-                                     Cxxlexer.pop_context ();
-                                     (n, PROTO(decl, params, isva, $5))
-                                   }
-;
-parameter_list_startscope: 
-    LPAREN                         { Cxxlexer.push_context () }
-;
-rest_par_list:
-|   /* empty */                    { ([], false) }
-|   parameter_decl rest_par_list1  { let (params, isva) = $2 in 
-                                     ($1 :: params, isva) 
-                                   }
-;
-rest_par_list1: 
-    /* empty */                         { ([], false) }
-|   COMMA ELLIPSIS                      { ([], true) }
-|   COMMA parameter_decl rest_par_list1 { let (params, isva) = $3 in 
-                                          ($2 :: params, isva)
-                                        }  
-;    
-
-
-parameter_decl: /* (* ISO 6.7.5 *) */
-   decl_spec_list declarator              { ($1, $2) }
-|  decl_spec_list abstract_decl           { let d, a = $2 in
-                                            ($1, ("", d, a)) }
-|  decl_spec_list                         { ($1, ("", JUSTBASE, [])) }
-|  LPAREN parameter_decl RPAREN           { $2 } 
-;
-
-/* (* Old style prototypes. Like a declarator *) */
-old_proto_decl:
-  pointer_opt direct_old_proto_decl       { let (n, decl, a) = $2 in
-                                            (n, applyPointer $1 decl, a) }
-;
-direct_old_proto_decl:
-  direct_decl LPAREN old_parameter_list_ne RPAREN old_pardef_list
-                                   { let par_decl, isva = doOldParDecl $3 $5 in
-                                     let n, decl = $1 in
-                                     (n, PROTO(decl, par_decl, isva, None), 
-                                      [])
-                                   }
-| direct_decl LPAREN                       RPAREN
-                                   { let n, decl = $1 in
-                                     (n, PROTO(decl, [], false, None), [])
-                                   }
-;
-
-old_parameter_list_ne:
-|  IDENT                                       { [$1] }
-|  IDENT COMMA old_parameter_list_ne           { let rest = $3 in
-                                                 ($1 :: rest) }
-;
-
-old_pardef_list: 
-   /* empty */                            { ([], false) }
-|  decl_spec_list old_pardef SEMICOLON ELLIPSIS
-                                          { ([($1, $2)], true) }  
-|  decl_spec_list old_pardef SEMICOLON old_pardef_list  
-                                          { let rest, isva = $4 in
-                                            (($1, $2) :: rest, isva) 
-                                          }
-;
-
-old_pardef: 
-   declarator                             { [$1] }
-|  declarator COMMA old_pardef            { $1 :: $3 }
-|  error                                  { [] }
-;
-
-
-pointer: /* (* ISO 6.7.5 *) */ 
-   STAR attributes pointer_opt  { $2 :: $3 }
-;
-pointer_opt:
-                                     { [] }
-|  pointer                           { $1 }
-;
-
-type_name: /* (* ISO 6.7.6 *) */
-  decl_spec_list abstract_decl { let d, a = $2 in
-                                 if a <> [] then begin
-                                   parse_error "attributes in type name";
-                                   raise Parsing.Parse_error
-                                 end;
-                                 ($1, d) 
-                               }
-| decl_spec_list               { ($1, JUSTBASE) }
-;
-abstract_decl: /* (* ISO 6.7.6. *) */
-  pointer_opt abs_direct_decl attributes  { applyPointer $1 $2, $3 }
-| pointer                                 { applyPointer $1 JUSTBASE, [] }
-;
-
-abs_direct_decl: /* (* ISO 6.7.6. We do not support optional declarator for 
-                     * functions. Plus Microsoft attributes. See the 
-                     * discussion for declarator. *) */
-|   LPAREN attributes abstract_decl RPAREN
-                                   { let d, a = $3 in
-                                     PARENTYPE ($2, d, a)
-                                   }
-            
-|   LPAREN error RPAREN
-                                   { JUSTBASE } 
-            
-|   abs_direct_decl_opt bracket_comma_expression
-                                   { ARRAY($1, smooth_expression $2) }
-|   abs_direct_decl_opt LBRACKET RBRACKET  { ARRAY($1, NOTHING) }
-|   abs_direct_decl parameter_list_startscope rest_par_list RPAREN exc_spec_opt
-                                   { let (params, isva) = $3 in
-                                     Cxxlexer.pop_context ();
-                                     PROTO ($1, params, isva, $5)
-                                   } 
-;
-abs_direct_decl_opt:
-    abs_direct_decl                 { $1 }
-|   /* empty */                     { JUSTBASE }
-;
 function_def:  /* (* ISO 6.9.1 *) */
   function_def_start block   
-          { let (loc, specs, decl) = $1 in
+          { let (loc, specs) = $1 in
             currentFunctionName := "<__FUNCTION__ used outside any functions>";
             Cxxlexer.pop_context (); (* The context pushed by 
                                       * announceFunctionName *)
-            doFunctionDef loc specs decl $2
+            doFunctionDef loc specs $2
           } 
 
 
 function_def_start:  /* (* ISO 6.9.1 *) */
-  location decl_spec_list declarator   
-                            { announceFunctionName $3;
-                              ($1, $2, $3)
+  location decldef   
+                            { match $2 with 
+                                 [x] -> announceFunctionName x;
+                                        ($1, x)
+                               | _ -> E.s (E.bug "COMMA not allowed in function definition") 
                             } 
-
-/* (* Old-style function prototype *) 
-| location decl_spec_list old_proto_decl 
-                            { announceFunctionName $3;
-                              ($1, $2, $3) 
-                            } */
-/* (* New-style function that does not have a return type *) */
-| location    IDENT  
-              parameter_list_startscope rest_par_list RPAREN 
-                    exc_spec_opt
-                           { let (params, isva) = $4 in
-                             let fdec = 
-                               ($2, PROTO(JUSTBASE, params, isva, None), []) in
-                             announceFunctionName fdec;
-                             (* Default is int type *)
-                             let defSpec = [SpecType Tint] in
-                             ($1, defSpec, fdec) 
-                           }
-
-/* (* No return type and old-style parameter list *) 
-| location        IDENT LPAREN old_parameter_list_ne RPAREN old_pardef_list
-                           { (* Convert pardecl to new style *)
-                             let pardecl, isva = doOldParDecl $4 $6 in
-                             (* Make the function declarator *)
-                             let fdec = ($2, 
-                                         PROTO(JUSTBASE, pardecl,isva, None), 
-                                         []) in
-                             announceFunctionName fdec;
-                             (* Default is int type *)
-                             let defSpec = [SpecType Tint] in
-                             ($1, defSpec, fdec)
-                            }   */
-/* (* No return type and no parameters *) 
-| location        IDENT LPAREN                      RPAREN exc_spec_opt
-                           { (* Make the function declarator *)
-                             let fdec = ($2, 
-                                         PROTO(JUSTBASE, [], false, $5), []) in
-                             announceFunctionName fdec;
-                             (* Default is int type *)
-                             let defSpec = [SpecType Tint] in
-                             ($1, defSpec, fdec) 
-                            } */
 ;
 
 /*** GCC attributes ***/
-attributes:
-    /* empty */				{ []}	
-|   attribute attributes	        { $1 :: $2 }
-;
-
-/* (* In some contexts we can have an inline assembly to specify the name to 
-    * be used for a global. We treat this as a name attribute *) */
-attributes_with_asm:
-    /* empty */                         { [] }
-|   attribute attributes_with_asm       { $1 :: $2 }
-|   ASM LPAREN string_list RPAREN attributes        
-                                        { ("__asm__", 
-                                           [CONSTANT(CONST_STRING $3)]) :: $5 }
-;
  
 attribute:
     ATTRIBUTE LPAREN paren_attr_list_ne RPAREN	
@@ -984,6 +674,11 @@ attribute:
 |   CONST                               { ("const", []) }
 |   RESTRICT                            { ("restrict",[]) }
 |   VOLATILE                            { ("volatile",[]) }
+/* (* In some contexts we can have an inline assembly to specify the name to 
+    * be used for a global. We treat this as a name attribute *) */
+|   ASM LPAREN string_list RPAREN        
+                                        { ("__asm__", 
+                                           [CONSTANT(CONST_STRING $3)]) }
 ;
 
 /** (* PRAGMAS and ATTRIBUTES *) ***/
@@ -1091,31 +786,14 @@ asmcloberlst_ne:
 
 
 /* (********************** C++ stuff **************************) */  
-exc_spec_opt: 
-    /* nothing */                       { None }
-| THROW LPAREN type_id_list RPAREN      { Some $3 }
-;
-
-/* (* Allow a trailing comma *) */
-type_id_list: 
-   /* nothing */                         { [] }
-| type_name COMMA type_id_list           { $1 :: $3 }
-;
-
 
 class_spec: 
-  class_head                             { () }  %prec COMMA /* (* Use a 
-                                                              * lower 
-                                                              * precedence 
-                                                              * than COLON *)*/ 
-| class_head  base_clause_opt LBRACE member_spec_opt RBRACE %prec COLON
+  class_head  base_clause_opt LBRACE member_spec_opt RBRACE
                                          { () }
 ;
 
 class_head: 
-    class_key id_or_typename             { Cxxlexer.add_class $2;
-                                           ()
-                                          }
+    class_key ns_id_or_typename          { Cxxlexer.add_class $2 }
 ;
 
 class_key: 
@@ -1125,75 +803,161 @@ class_key:
 ;
 
 base_clause_opt:
-  /* nothing */                           { [] }
+  /* nothing */                           { [] } %prec COMMA
 | COLON base_specifier_list               { $2 }
 ;
 base_specifier_list:
-  base_specifier                            { [ $1 ] }
-| base_specifier COMMA base_specifier_list  { $1 :: $3 }
-;
-base_specifier: 
-  namespace_typename                         { $1 }
+  ns_classname                            { [ $1 ] }
+| ns_classname COMMA base_specifier_list  { $1 :: $3 }
 ;
 
 member_spec_opt:
-  /* nothing */                             { [] }
-| member_declaration member_spec_opt        { () :: $2 }
-| access_specifier COLON member_spec_opt    { $1 :: $3 }
-;
-member_declaration:
-|  NAMED_TYPE LPAREN RPAREN       SEMICOLON { ([], []) }
-|  decl_spec_list                 SEMICOLON 
-                                           { ($1, 
-                                               [(missingFieldDecl, None)]) }
-|  decl_spec_list member_decl_list SEMICOLON
-                                            { ($1, $2) }
+  /* nothing */                                    { [] }
+| location decldef SEMICOLON member_spec_opt       { () :: $4 }
+| function_def     member_spec_opt                 { () :: $2 }
+| location access_specifier COLON member_spec_opt  { $2 :: $4 }
 ;
 
-member_decl_list:
-    member_decl                            { [$1] }
-|   member_decl COMMA member_decl_list     { $1 :: $3 }
-;
-member_decl: 
-|   declarator member_init               { ($1, None) }
-|   declarator COLON expression          { ($1, Some $3) }    
-|              COLON expression          { (missingFieldDecl, Some $2) }
-;
-member_init:
-    /* nothing */                        { () }
-|  EQ expression                         { () }
-;
 access_specifier:
   PRIVATE                                    { () }
 | PROTECTED                                  { () }
 | PUBLIC                                     { () }
 ;
 
-namespace_ident:
+ns_id_or_typename: 
+  ns_id                                      { $1 }
+| nested_name_spec NAMED_TYPE                { $1 ^ $2 }
+| nested_name_spec NAMED_ENUM                { $1 ^ $2 }
+| ns_classname                               { $1 }
+;
+
+ns_classname: 
+  NAMED_CLASS                                { $1 }
+| NAMED_CLASS COLON_COLON ns_classname       { $1 ^ "::" ^ $3 }
+| NAMED_NAMESPACE COLON_COLON ns_classname   { $1 ^ "::" ^ $3 }
+;
+
+ns_id: 
   nested_name_spec IDENT                     { $1 ^ $2 }
 ;
 
-namespace_id_or_typename:
-  id_or_typename                             { $1 }
-| NAMED_TYPE COLON_COLON namespace_typename  { $1 ^ "::" ^ $3 }
+ns_typename: 
+| nested_name_spec NAMED_TYPE                { $1 ^ $2 }
+| nested_name_spec NAMED_ENUM                { $1 ^ $2 }
+| ns_classname                               { $1 }
 ;
 
-namespace_typename:
-  NAMED_TYPE                                 { $1 }
-| NAMED_TYPE COLON_COLON namespace_typename  { $1 ^ "::" ^ $3 }
-;
 
 nested_name_spec:
-| COLON_COLON nested_name_spec_nocol   { "::" ^ $2 }
+| COLON_COLON nested_name_spec_nocol   { "::" ^ $2 } 
 |             nested_name_spec_nocol   {        $1 }
 ;
+/* (* There is a conflict here when we expect the possibly qualified name of a 
+    * class. We see a NAMED_CLASS and we do not know if it is part of the 
+    * namespace or not. Do not use this before a NAMED_CLASS *) */
 nested_name_spec_nocol:
-    /* empty */                                       { "" }
-|   NAMED_TYPE COLON_COLON nested_name_spec_nocol     { $1 ^ "::" ^ $3 }
+    /* empty */                                         { "" }
+|   NAMED_CLASS     COLON_COLON nested_name_spec_nocol  { $1 ^ "::" ^ $3 }
+|   NAMED_NAMESPACE COLON_COLON nested_name_spec_nocol  { $1 ^ "::" ^ $3 }
 ;
-named_type: 
-  NAMED_TYPE                    { $1 }
+
+/* (* Parse declarations as word-soup and let the downstream sort it out. 
+    * Declarations always start with a specifier or a type name. Then follows 
+    * a comma-separated list of declarators, each being a list of specifiers. 
+    * The first in the list contains some specifiers that apply to all 
+    * declarators. *)*/
+decldef: decl_spec_start decl_list           
+                           { match $2 with 
+                               h :: rest -> ($1 :: h) :: rest
+                             | _ -> E.s (E.bug "decldef") }
+;
+decl_spec_start: 
+|  TYPEDEF       { SpecTypedef }
+|  AUTO          { SpecStorage AUTO }                            
+|  REGISTER      { SpecStorage REGISTER }
+|  STATIC        { SpecStorage STATIC }
+|  EXTERN        { SpecStorage EXTERN }
+|  MUTABLE       { SpecStorage MUTABLE }
+|  INLINE        { SpecFunspec INLINE }
+|  VIRTUAL       { SpecFunspec VIRTUAL }
+|  EXPLICIT      { SpecFunspec EXPLICIT }
+|  attribute     { SpecAttr $1 }
+
+|  VOID          { SpecType Tvoid }
+|  CHAR          { SpecType Tchar }
+|  SHORT         { SpecType Tshort }
+|  INT           { SpecType Tint }
+|  LONG          { SpecType Tlong }
+|  INT64         { SpecType Tint64 }
+|  FLOAT         { SpecType Tfloat }
+|  DOUBLE        { SpecType Tdouble }
+|  SIGNED        { SpecType Tsigned }
+|  UNSIGNED      { SpecType Tunsigned }
+/* (* There is a conflict here because we don't know whether the LBRACE that 
+    * follows is part of the definition of the ENUM or CLASS or is the end of 
+    * the declaration part and starts the body of a function. So give these 
+    * productions a very low precedence so that the LBRACE is shifted. *) */
+|  ENUM ns_id_or_typename               { SpecType 
+                                            (Tenum ($2, None))}  %prec COMMA
+|  class_head                           { SpecType Tvoid }  %prec COMMA
+
+|  ns_typename                          { SpecType (Tnamed $1) }
+|  TYPEOF LPAREN expression RPAREN      { SpecType (TtypeofE $3) } 
+|  TYPEOF LPAREN type_name RPAREN       { let s, d = $3 in
+                                          SpecType (TtypeofT (s, d)) }
+
+|  ENUM ns_id_or_typename LBRACE enum_list maybecomma RBRACE
+                                        { SpecType (Tenum ($2, Some $4)) }
+|  ENUM                   LBRACE enum_list maybecomma RBRACE
+                                        { SpecType (Tenum ("", Some $3)) }
+|  class_spec                           { SpecType Tvoid }
+;
+
+decl_spec: 
+  decl_spec_start                         { $1 }
+| ns_id                                   { SpecName $1 }
+| STAR                                    { SpecPtr }
+;
+ 
+/* (* Comma-separated list of declarators. Each declarator is a list of 
+    * specifiers.  *) */
+decl_list: 
+  decl_rest                                 { [ $1 ] }
+| decl_rest COMMA decl_list                 { $1 :: $3 }
+| decl_rest COMMA ELLIPSIS                  { $1 :: [[SpecEllipsis]] }
+; 
+decl_rest: 
+| decl_spec decl_rest                       { $1 :: $2 }
+| LPAREN RPAREN decl_rest                   { SpecParen [] :: $3 }
+| parameter_list_start_scope decldef parameter_list_end_scope decl_rest
+                                            { SpecParen [] :: $4 }
+| bracket_comma_expression decl_rest        { SpecArray (smooth_expression $1)
+                                                :: $2 }
+| LBRACKET RBRACKET decl_rest               { SpecArray NOTHING :: $3 }
+| EQ init_expression                        { [SpecInit $2] }
+| THROW LPAREN type_id_list RPAREN          { [SpecExc $3] }
+| /* done */                                { [] }
+;
+
+parameter_list_start_scope:
+  LPAREN                                    { Cxxlexer.push_context () }
+;
+parameter_list_end_scope:
+  RPAREN                                    { Cxxlexer.pop_context () }
+;
+type_id_list: 
+   /* nothing */                         { [] }
+| type_name COMMA type_id_list           { $1 :: $3 }
+;
+
+type_name: 
+    decldef                              { match $1 with
+                                              [x] -> (x, JUSTBASE)
+                                           | _ -> E.s (E.bug "COMMA declarations as a type name") }
+;
+
 %%
+
 
 
 

@@ -1775,7 +1775,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
                   : A.typeSpecifier list = 
     match se with 
       A.SpecTypedef -> acc
-    | A.SpecInline -> isinline := true; acc
+    | A.SpecFunspec INLINE -> isinline := true; acc
     | A.SpecStorage st ->
         if !storage <> NoStorage then 
           E.s (error "Multiple storage specifiers");

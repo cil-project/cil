@@ -1351,6 +1351,36 @@ ignored).
 which is substituted with the pattern that matched. 
 
 
+\section{Debugging support}\label{sec-debugger}
+
+ Most of the time we debug our code using the Errormsg module along with the
+pretty printer. But if you want to use the Ocaml debugger here is an easy way
+to do it. Say that you want to debug the invocation of cilly that arises out
+of the following command:
+\begin{verbatim}
+cilly -c hello.c 
+\end{verbatim}
+
+ You must follow the installation \ahref{../ccured/setup.html}{instructions}
+to install the Elist support files for ocaml and to extend your .emacs
+appropriately. Then from within Emacs you do
+\begin{verbatim}
+ALT-X my-camldebug
+\end{verbatim}
+
+ This will ask you for the command to use for running the Ocaml debugger
+(initially the default will be ``ocamldebug'' or the last command you
+introduced). You use the following command:
+\begin{verbatim}
+cilly --ocamldebug -c hello.c 
+\end{verbatim}
+
+ This will run \t{cilly} as usual and invoke the Ocaml debugger when the cilly
+engine starts. The advantage of this way of invoking the debugger is that the
+directory search paths are set automatically and the right set or arguments is
+passed to the debugger. 
+
+
 \section{Who Says C is Simple?}\label{sec-simplec}
 
  When I (George) started to write CIL I thought it was going to take two weeks.
