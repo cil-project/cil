@@ -35,6 +35,6 @@ LIBOUT:=/OUT:
 
 # The system include files to be patched
 PATCH_SYSINCLUDES:=stdio.h ctype.h string.h io.h stdarg.h crtdbg.h \
-                   varargs.h stdlib.h
+                   varargs.h stdlib.h time.h
 
 
