@@ -445,7 +445,10 @@ type latticeType =
 			 the live value of the CHECK, for non-void CHECK 
 			 functions. 
 			 The assumption here is that these temp. variables are
-			 not assigned any other value later *)			 
+			 not assigned any other value later 
+			 Another assumption is that the return value of CHECKs 
+			 is only stored in named unoffsetted variables
+		      *)			 
   | Needed 
 
 (* I dont want to rely on the numbers that the compiler assigns to the types. *)
@@ -496,6 +499,8 @@ let printLatVal n = Printf.printf " %s" (getLatValDescription n)
 (******************************************************************************)
 (* Produce debugging output with a REDDBG: prefix *)
 let pr s = flush stdout;Printf.printf  "REDDBG: "; Printf.printf s
+
+exception PeepholeRemovable
 
 (* Returns the name of a function in a Call *)
 let getCallName = function
@@ -611,15 +616,14 @@ let rec eliminateRedundancy (f : fundec) : fundec =
 	  ignore (printf "\n");
 	end;    
 
+
+        (* Reset cin, cout *)
+	Array.iteri (fun i _ -> cin.(i) <- latUnknown ; cout.(i) <- latUnknown) cin;
+
         (* Flag the similar CHECKs. Skip ahead if there is nothing redundant *)
-	if (markSimilar i) <= 1 then 
-	  stats_kept := !stats_kept + 1
-	else begin
+	if (markSimilar i) > 1 then begin
 	  (* Mark all the similar ones as "processed" *)
 	  Array.iteri (fun i a -> !checkProcessed.(i) <- !checkProcessed.(i) || a) !checkFlags;
-	  
-	  (* Reset cin, cout *)
-	  Array.iteri (fun i _ -> cin.(i) <- latUnknown ; cout.(i) <- latUnknown) cin;
 	  
 	  (* Set the cin for the entry point. We do need a check at this point *)
 	  (match f.sbody with
@@ -660,16 +664,17 @@ let rec eliminateRedundancy (f : fundec) : fundec =
 	  
 	  if amandebug then pr "Reached fixed point in %d iterations\n" !nIter;
 
-	  (* Now, actually remove the redundant CHECKs *)
-	  for i=0 to (!numNodes - 1) do
-	    match !nodes.(i).skind with
-	      Instr instList -> (* CHECKs are only contained in instr lists *)
-		!nodes.(i).skind <- 
-		  Instr (removeRedundancies cin.(i) instList i)
-	    | _ -> ()
-	  done; (* for *)
-	  
-	end (* if markSimilar .. else ... *)
+	end; (* if markSimilar .. else ... *)
+
+	(* Now, actually remove the redundant CHECKs *)
+	for i=0 to (!numNodes - 1) do
+	  match !nodes.(i).skind with
+	    Instr instList -> (* CHECKs are only contained in instr lists *)
+	      !nodes.(i).skind <- 
+		Instr (removeRedundancies cin.(i) instList i)
+	  | _ -> ()
+	done; (* for *)
+	
       end (* if not checkProcessed *)
       else
 	if amandebug then begin
@@ -758,7 +763,7 @@ and removeRedundancies (cin_start : lattice) instList node_number =
 		    removeRedundanciesLoop latCheckNotNeeded t (h2 :: filteredList)
 		| _ -> raise (Failure "non-Call in checkInstrs array"))
 
-	      with Exit ->		  
+	      with PeepholeRemovable ->		  
 		if amandebug then pr "%s removed by peephole \n" (getCallName h2) ;
 		stats_removed := !stats_removed + 1;
 		removeRedundanciesLoop cin_local t filteredList
@@ -773,14 +778,49 @@ and removeRedundancies (cin_start : lattice) instList node_number =
 
 (* peepholeReplace:
    Returns a peephole-optimized replacement for a given CHECK.
-   Raises Exit if this check can be removed
+   Raises PeepholeRemovable if this check can be removed
 *)
 and peepholeReplace (chk : instr) : instr =
   match chk with
+
     Call (_, Lval(Var{vname="CHECK_POSITIVE"},_), [Const (CInt32 (c,_,_))],_) 
-    when c >= Int32.zero ->
-      raise Exit
+    when c >= Int32.zero -> raise PeepholeRemovable
+
+  | Call (_, Lval(Var{vname="CHECK_LBOUND"},_),
+	  [CastE (_,StartOf (a, aoff)); CastE (_, AddrOf(b,Index(zero,boff))) ] ,_) 
+    when a=b && aoff=boff -> raise PeepholeRemovable
+
+  | Call (_, Lval(Var{vname="CHECK_FATSTACKPOINTER"},_), [a;b],_)
+      when a = b -> raise PeepholeRemovable
+
+  | Call (_, Lval(Var{vname="CHECK_BOUNDS"},_), [lo;hi;mid;_],_) 
+      when intervalContainsExp lo hi mid -> raise PeepholeRemovable
+
   | _ -> chk
+
+
+(* intervalContainsExp:
+   Returns whether mid is in the closed interval [lo,hi]
+   This may be adapted to using the result of an interval analysis
+   
+   TODO: Ah.. doesn't quite work 
+*)
+and intervalContainsExp (lo:exp) (hi:exp) (mid:exp) : bool =
+  match lo,hi with
+    CastE (_, StartOf (a,NoOffset)), 
+    CastE (_, BinOp (IndexPI,StartOf (b,NoOffset), Const n,_)) 
+      when a = b
+    -> (match mid with 
+      CastE(_, StartOf(c,Index(Const m,NoOffset)))
+      when a=c && m<n -> 
+	(* pr "!!!! "; *)
+	true
+    | CastE(_, StartOf _)
+      -> (* pr "#$#$ "; *)
+	false
+    | _ -> (* pr "Nope :-(  "; *) false)
+  | _ -> (* pr "No "; *) false
+
 
 
 (* minLatticeValue:
