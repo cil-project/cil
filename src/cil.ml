@@ -1132,21 +1132,21 @@ let rec d_decl (docName: unit -> doc) (dnwhat: docNameWhat) () this =
   | TArray (elemt, lo, a) -> 
       d_decl 
         (fun _ ->
-          dprintf "%a[%a]" 
+          dprintf "%a[%t]" 
             parenthname a
-            insert 
-            (match lo with None -> nil
-            | Some e -> d_exp () e))
+            (fun _ -> 
+              (match lo with None -> nil
+              | Some e -> d_exp () e)))
         DNStuff
         ()
         elemt
   | TFun (restyp, args, isvararg, a) -> 
       d_decl 
         (fun _ -> 
-          dprintf "%a(@[%a%a@])" 
+          dprintf "%a(@[%a%t@])" 
             parenthname a
             (docList (chr ',' ++ break) (d_videcl ())) args
-            insert (if isvararg then text ", ..." else nil))
+            (fun _ -> if isvararg then text ", ..." else nil))
         DNStuff
         ()
         restyp
@@ -1339,17 +1339,15 @@ and d_instr () i =
       | _ -> dprintf "%a = %a;" d_lval lv d_exp e
   end
   | Call(vio,e,args,l) ->
-      dprintf "%a%a(@[%a@]);" 
-        insert 
-        (match vio with 
+      dprintf "%t%t(@[%a@]);" 
+        (fun _ -> match vio with 
           None -> nil | 
           Some (vi, iscast) -> 
             if iscast then
               dprintf "%s = (%a)" vi.vname d_type vi.vtype 
             else 
               dprintf "%s = " vi.vname)
-        insert 
-        (match e with Lval(Var _, _) -> d_exp () e 
+        (fun _ -> match e with Lval(Var _, _) -> d_exp () e 
         | _ -> dprintf "(%a)" d_exp e)
 	(docList (chr ',' ++ break) (d_exp ())) args
 
@@ -1357,8 +1355,8 @@ and d_instr () i =
       if !msvcMode then
         dprintf "__asm {@[%a@]};@!"  (docList line text) tmpls
       else
-        dprintf "__asm__ %a(@[%a%a%a%a@]);@!"
-          insert (if isvol then text "__volatile__" else nil)
+        dprintf "__asm__ %s(@[%a%a%a%a@]);@!"
+          (if isvol then "__volatile__" else "")
           (docList line 
              (fun x -> dprintf "\"%s\"" (escape_string x))) tmpls
           insert 

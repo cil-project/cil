@@ -824,8 +824,11 @@ apache/rewrite: defaulttarget
 
 COMBINESAFECC = $(SAFECC) --combine $(DOOPT)
 
+#
+# OLDEN benchmarks
+#
 # Barnes-Hut
-BHDIR=test/bh
+BHDIR=test/olden/bh
 ifdef BOX
 BHEXTRA=$(CILDIR)/$(SAFEMAINLIB)
 else
@@ -849,6 +852,40 @@ bh : defaulttarget mustbegcc
 	echo  >>$(BHDIR)/data.in
 	echo  >>$(BHDIR)/data.in
 	cd $(BHDIR);sh -c "time code < data.in > data.out"
+
+
+
+# Power pricing
+PWDIR=test/olden/power
+ifdef BOX
+PWEXTRA=$(CILDIR)/$(SAFEMAINLIB)
+else
+PWEXTRA=
+endif
+power : defaulttarget mustbegcc
+	cd $(PWDIR); \
+               make PLAIN=1 clean defaulttarget \
+                    EXTRA_LIBS=$(PWEXTRA) \
+                    CC="$(COMBINESAFECC) \
+			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
+	cd $(PWDIR); ./power.exe
+
+
+# Health care simulation
+HEALTHDIR=test/olden/health
+ifdef BOX
+HEALTHEXTRA=$(CILDIR)/$(SAFEMAINLIB)
+else
+HEALTHEXTRA=
+endif
+health : defaulttarget mustbegcc
+	cd $(HEALTHDIR); \
+               make PLAIN=1 clean defaulttarget \
+                    EXTRA_LIBS=$(HEALTHEXTRA) \
+                    CC="$(COMBINESAFECC) \
+			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
+	cd $(HEALTHDIR); ./health.exe 10 10 10 1
+
 
 
 # SPEC95

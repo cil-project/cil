@@ -152,10 +152,24 @@ $TEST->add1Test("test/alloc-manualinferbox",
                 "test/alloc INFERBOX=$inferbox MANUALBOX=1",
                 %commonerrors);
 
+#
+# OLDEN benchmarks
+#
 $TEST->add3Tests("bh", "_GNUCC=1");
    $TEST->add3Group("bh", "slow");
    $TEST->addBadComment("bh-box", "CRASHES");
 
+$TEST->add3Tests("power", "_GNUCC=1");
+   $TEST->add3Group("power", "slow");
+   $TEST->addBadComment("power-box", "Bug in BOX");
+
+$TEST->add3Tests("health", "_GNUCC=1");
+   $TEST->add3Group("health", "slow");
+   $TEST->addBadComment("health-box", "Bug in BOX");
+
+#
+# SPEC95
+#
 $TEST->add3Tests("li", "_GNUCC=1");
   $TEST->add3Group("li", "slow");
   $TEST->addBadComment("li-box", "bug in box.ml");
