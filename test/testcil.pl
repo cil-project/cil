@@ -392,6 +392,7 @@ $TEST->addTests("test/linuxcombine1_1", "", ['cil']);
 
 $TEST->addTests("arcombine", "_GNUCC=1", ['cil']);
 $TEST->add2Tests("testrun/funptr1");
+$TEST->addTests("testrun/funptr2", "", ['inferbox']);
 $TEST->addTests("testrun/typespec1", "_GNUCC=1", ['cil']);
    $TEST->addBadComment("testrun/typespec1-cil", 
                         "Must emulate bug in GCC?");
