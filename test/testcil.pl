@@ -585,9 +585,6 @@ $TEST->add2Tests("perf/perfrtti");
 #  $TEST->addGroups("linux-cil", 'vslow');
 #$TEST->addTests("linux-merge3", "", ['cil']);
 #  $TEST->addGroups("linux-merge3-cil", 'vslow');
-#$TEST->addTests("sendmail", "", ['cil', 'inferbox']);
-#  $TEST->addGroups("sendmail-cil", 'vslow');
-#  $TEST->addGroups("sendmail-inferbox", 'vslow');
 #$TEST->newTest(
 #    Name => "emacs",
 #    Dir => ".",
@@ -1258,7 +1255,7 @@ sub testCommandExtras {
     # Turn on the verbose flag
     $theargs .= " STATS=1 PRINTSTAGES=1 ";
     # Turn off the strings
-#    $theargs .= " EXTRAARGS=--noStrings ";
+    $theargs .= " EXTRAARGS=--noStrings ";
 
     return $theargs;
 }
