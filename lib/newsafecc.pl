@@ -581,7 +581,7 @@ sub patchFile {
     my $interm = "$dir$base" . "_ppp.c";
     my $out = $in;
     my  $linePattern = $compiler->{LINEPATTERN};
-    print "Patching $in\n";
+    if($::verbose) { print "Patching $in\n"; }
     if(1) {
         # Make a copy of the input file
         &File::Copy::copy($in, "$dir$base.origi");
