@@ -1,7 +1,7 @@
 Cil Makefile Structure
 ----------------------
 
-(Originally written by Scott, updated 11/19/01 01:45.)
+(Originally written by Scott, updated 11/19/01.)
 
 The build rules are spread out among several Makefiles:
 
