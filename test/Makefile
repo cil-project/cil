@@ -265,11 +265,13 @@ endif
 # when TAGALLFNS is defined, and the WILD solver is being used,
 # functions are *always* tagged
 ifdef TAGALLFNS
-  ifdef UNTAGGEDFNS
-    # catch old settings
-    $(error you cannot say TAGALLFNS and UNTAGGEDFNS)
-  endif
   CCURED+= --wildTagAllFns
+endif
+
+# when TAGFILE is defined, it names a file that lists, one per
+# line, the functions which should be tagged
+ifdef TAGFILE
+  CCURED+= --wildTagTheseFns=$(TAGFILE)
 endif
 
 
@@ -766,9 +768,10 @@ doThrowFv:
 
 # sm: compile two files separately, then link them using a tagfile
 # (the tagfile is called tagfile.txt)
+# update: run this with TAGFILE=tagfile.txt
 test-tagfile:
 	cd $(TESTDIR)/small2; $(CCURED) --separate -o tagfile \
-	  `echo --wildTagTheseFns=tagfile.txt` tagfile1.c tagfile2.c && ./tagfile
+	  tagfile1.c tagfile2.c && ./tagfile
 
 # cfrac: a memory benchmark which factorizes into products of primes
 CFRACDIR := $(CCUREDHOME)/../bench/cfrac

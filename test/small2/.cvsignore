@@ -83,7 +83,8 @@ fmtstr
 bisonerror
 errorinfn
 globalprob
-invalredef*
+invalredef
+invalredef2
 kernel?
 main
 memberofptr
@@ -139,3 +140,5 @@ dblarg.int
 wildfun2
 gdb.log
 decl_inl
+tagfile
+.gdbinit
