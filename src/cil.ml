@@ -866,6 +866,15 @@ class nopCilVisitor : cilVisitor = object
 
 end
 
+let assertEmptyQueue vis =
+  if vis#unqueueInstr () <> [] then 
+    (* Either a visitor inserted an instruction somewhere that it shouldn't
+       have (i.e. at the top level rather than inside of a statement), or
+       there's a bug in the visitor engine. *)
+    E.s (E.bug "Visitor's instruction queue is not empty\n");
+  ()
+
+
 let lu = locUnknown
 
 (* sm: utility *)
@@ -3595,8 +3604,7 @@ and visitCilInitOffset (vis: cilVisitor) (off: offset) : offset =
 and visitCilInstr (vis: cilVisitor) (i: instr) : instr list =
   let oldloc = !currentLoc in
   currentLoc := (get_instrLoc i);
-  if vis#unqueueInstr () <> [] then 
-    ignore (warn "visitCilInstr: losing some accumInstr\n");
+  assertEmptyQueue vis;
   let res = doVisitList vis vis#vinst childrenInstr i in
   currentLoc := oldloc;
   (* See if we have accumulated some instructions *)
@@ -3633,21 +3641,21 @@ and childrenInstr (vis: cilVisitor) (i: instr) : instr =
 and visitCilStmt (vis: cilVisitor) (s: stmt) : stmt =
   let oldloc = !currentLoc in
   currentLoc := (get_stmtLoc s.skind) ;
-  if vis#unqueueInstr () <> [] then 
-    ignore (warn "visitCilStmt: losing some accumInstr\n");
-  let res = doVisit vis vis#vstmt childrenStmt s in
+  assertEmptyQueue vis;
+  let toPrepend : instr list ref = ref [] in (* childrenStmt may add to this *)
+  let res = doVisit vis vis#vstmt (childrenStmt toPrepend) s in
   (* Now see if we have saved some instructions *)
-  let toPrepend = vis#unqueueInstr () in
-  (match toPrepend with 
+  toPrepend := !toPrepend @ vis#unqueueInstr ();
+  (match !toPrepend with 
     [] -> () (* Return the same statement *)
   | _ -> 
       (* Make our statement contain the instructions to prepend *)
-      res.skind <- Block { battrs = []; bstmts = [ mkStmt (Instr toPrepend);
+      res.skind <- Block { battrs = []; bstmts = [ mkStmt (Instr !toPrepend);
                                                    mkStmt res.skind ] });
   currentLoc := oldloc;
   res
   
-and childrenStmt (vis: cilVisitor) (s: stmt) : stmt =
+and childrenStmt (toPrepend: instr list ref) (vis:cilVisitor) (s:stmt): stmt =
   let fExp e = (visitCilExpr vis e) in
   let fLval lv = (visitCilLval vis lv) in
   let fOff o = (visitCilOffset vis o) in
@@ -3665,12 +3673,20 @@ and childrenStmt (vis: cilVisitor) (s: stmt) : stmt =
         if b' != b then Loop (b', l, s1, s2) else s.skind
     | If(e, s1, s2, l) -> 
         let e' = fExp e in 
+        (*if e queued any instructions, pop them here and remember them so that
+          they are inserted them before the If stmt, not in the then block. *)
+        toPrepend := vis#unqueueInstr (); 
         let s1'= fBlock s1 in let s2'= fBlock s2 in
+        (* the stmts in the blocks should have cleaned up after themselves.*)
+        assertEmptyQueue vis;
         if e' != e || s1' != s1 || s2' != s2 then 
           If(e', s1', s2', l) else s.skind
     | Switch (e, b, stmts, l) -> 
         let e' = fExp e in 
+        toPrepend := vis#unqueueInstr (); (* insert these before the switch *)
         let b' = fBlock b in
+        (* the stmts in b should have cleaned up after themselves.*)
+        assertEmptyQueue vis;
         (* Don't do stmts, but we better not change those *)
         if e' != e || b' != b then Switch (e', b', stmts, l) else s.skind
     | Instr il -> 
