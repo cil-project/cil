@@ -1508,16 +1508,19 @@ begin
   if (vis#vexpr e) then
 
   (* and visit its subexpressions *)
-  let fExp e = (visitCilExpr vis e) in
+  let fExp e = visitCilExpr vis e in
+  let fTyp t = visitCilType vis t in
   match e with
-    (Const _|SizeOf _) -> ()
+    Const _ -> ()
+  | SizeOf t -> fTyp t
   | SizeOfE e -> fExp e
   | Lval lv -> (visitCilLval vis lv)
-  | UnOp(_,e,_) -> fExp e
-  | BinOp(_,e1,e2,_) -> fExp e1; fExp e2
+  | UnOp(_,e,t) -> fExp e; fTyp t
+  | BinOp(_,e1,e2,t) -> fExp e1; fExp e2; fTyp t
   | Question (e1, e2, e3) -> fExp e1; fExp e2; fExp e3
-  | CastE(_, e) -> fExp e
-  | Compound (_, initl) ->
+  | CastE(t, e) -> fTyp t; fExp e
+  | Compound (t, initl) ->
+      fTyp t;
       List.iter
         (function
             (None, e) -> fExp e
