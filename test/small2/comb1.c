@@ -7,4 +7,11 @@ int foo_com1(int x)
 {
   return x + global_com1;
 }
+  
+int *globalPtr;
 
+void hpfy()
+{
+  int local __HEAPIFY;
+  globalPtr = &local;
+}

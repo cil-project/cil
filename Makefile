@@ -236,6 +236,7 @@ DOOPT=-O3
 else
 DOOPT=-g
 endif
+OPT_O2=-O2
 CONLY=-c
 OBJOUT=-o
 OBJ=o
@@ -329,7 +330,7 @@ ifdef USER_SCOTT
 
   # currently the #line directives are inaccurate, so
   # they are counterproductive
-  NOPRINTLN= --safec=-noPrintLn
+  SAFECC+= --safec=-noPrintLn
 endif
 
 
@@ -416,6 +417,11 @@ ifdef OPTIM
 SAFECC += --optim
 endif
 
+# sm: can't figure out why passing this via EXTRAARGS screws
+# up other things (e.g. -DMANUALBOX)
+ifdef LOGCALLS
+SAFECC+= --safec=-logcalls
+endif
 
 # sm: user-specific configuration; the leading '-' means it's ok
 # if this file doesn't exist; this file is *not* checked in to
@@ -730,7 +736,7 @@ scott/%: test/small2/%.c defaulttarget
 	cd test/small2; $(CC) $(CONLY) $(WARNALL) $(DEF)$(ARCHOS) $*.c
 	cd test/small2; $(SAFECC) --verbose --keep=. $(DEF)$(ARCHOS) \
                  `$(PATCHECHO) --patch=../../lib/$(PATCHFILE)` \
-                 $(DOOPT) $(WARNALL) $(NOPRINTLN) \
+                 $(DOOPT) `true $(WARNALL)` $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*
 	test/small2/$*
@@ -776,7 +782,7 @@ bad/%: test/bad/%.c defaulttarget
 
 
 # sm: trivial test of combiner
-MYSAFECC = $(SAFECC) --keep=. $(DEF)$(ARCHOS)
+MYSAFECC = $(SAFECC) --keep=. $(DEF)$(ARCHOS) --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)
 comb: test/small2/comb1.c test/small2/comb2.c defaulttarget
 	rm -f test/small2/comb
 	cd test/small2; \
@@ -786,7 +792,6 @@ comb: test/small2/comb1.c test/small2/comb2.c defaulttarget
 	test/small2/comb
 
 # sm: test of combiner's ability to report inconsistencies
-MYSAFECC = $(SAFECC) --keep=. $(DEF)$(ARCHOS)
 baddef: test/small2/baddef1.c test/small2/baddef2.c defaulttarget
 	cd test/small2; $(CCL) baddef1.c baddef2.c -o baddef && ./baddef
 	rm -f test/small2/baddef
@@ -986,7 +991,7 @@ COMBINESAFECC = $(SAFECC) --combine $(DOOPT)
 #
 # Barnes-Hut
 BHDIR=test/olden/bh
-bh : defaulttarget mustbegcc
+bh: defaulttarget mustbegcc
 	cd $(BHDIR); rm code.exe *.o; \
                make CC="$(COMBINESAFECC) --nobox=bhbox \
 			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
@@ -1103,10 +1108,7 @@ SPECDIR=test/spec95
 COMPRESSDIR=$(SPECDIR)/129.compress
 spec-compress : defaulttarget
 	cd $(COMPRESSDIR)/src; make build
-	echo "1400000 q 2231" >$(COMPRESSDIR)/exe/base/input.data 
-	$(COMPRESSDIR)/exe/base/compress95.v8 \
-              <$(COMPRESSDIR)/exe/base/input.data \
-              >$(COMPRESSDIR)/exe/base/output.txt
+	cd $(COMPRESSDIR)/src; ./compress < input.data > output.txt
 
 old-compress : defaulttarget $(COMPRESSDIR)/src/combine-compress.c
 	rm -f $(COMPRESSDIR)/combine-compress.exe
@@ -1114,18 +1116,18 @@ old-compress : defaulttarget $(COMPRESSDIR)/src/combine-compress.c
                  $(DOOPT) \
                  combine-compress.c \
                  $(EXEOUT)combine-compress.exe
-	sh -c "time $(COMPRESSDIR)/src/combine-compress.exe < $(COMPRESSDIR)/src/input.data > $(COMPRESSDIR)/src/combine-compress.out"
+	cd $(COMPRESSDIR)/src; sh -c "time ./combine-compress.exe < input.data > combine-compress.out"
 
 compress-noclean: defaulttarget mustbegcc
 	cd $(COMPRESSDIR)/src; make CC="$(COMBINESAFECC)" build
-	echo "14000000 q 2231" >$(COMPRESSDIR)/exe/base/input.data 
-	sh -c "time $(COMPRESSDIR)/exe/base/compress95.v8 < $(COMPRESSDIR)/exe/base/input.data > $(COMPRESSDIR)/src/combine-compress.out"
+	cd $(COMPRESSDIR)/src; sh -c "time ./compress < input.data > combine-compress.out"
 
+# sm: removed this because it's now just a cvs'd file: 
+#   echo "1400000 q 2231" >$(COMPRESSDIR)/exe/base/input.data 
 compress: defaulttarget mustbegcc
 	cd $(COMPRESSDIR)/src; \
                make CC="$(COMBINESAFECC) --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)" clean build
-	echo "1400000 q 2231" >$(COMPRESSDIR)/exe/base/input.data 
-	sh -c "time $(COMPRESSDIR)/exe/base/compress95.v8 < $(COMPRESSDIR)/exe/base/input.data > $(COMPRESSDIR)/src/combine-compress.out"
+	cd $(COMPRESSDIR)/src; sh -c "time ./compress < input.data > combine-compress.out"
 
 LIDIR=$(SPECDIR)/130.li
 LISAFECC=$(SAFECC) --combine --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) \
@@ -1165,7 +1167,7 @@ liinfer: li
 ### SPEC95 GO
 GODIR=$(SPECDIR)/099.go
 GOSAFECC=$(SAFECC) --combine  --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) \
-                   --keep=safeccout $(NOPRINTLN)
+                   --keep=safeccout $(NOPRINTLN) $(OPT_O2)
 
 goclean: 	
 	cd $(GODIR)/src; make clean
@@ -1270,8 +1272,8 @@ vortex-tv:
 ### SPEC95 m88ksim
 M88DIR=$(SPECDIR)/124.m88ksim
 M88SAFECC=$(SAFECC) --combine --keep=safeccout \
-                    --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) 
-
+                    --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) \
+                    --nobox=m88k_trusted
 m88kclean: 	
 	cd $(M88DIR)/src; make clean
 	cd $(M88DIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
@@ -1280,18 +1282,23 @@ m88k: defaulttarget mustbegcc m88kclean
 	cd $(M88DIR)/src; \
             make    build CC="$(M88SAFECC) $(CONLY)" \
                           LD="$(M88SAFECC)" 
-#	sh -c "time $(M88DIR)/exe/base/m88ksim.ultra"
+	cd $(M88DIR)/src; sh -c "time ./m88k -c < ctl.in > out"
+	cd $(M88DIR)/src; diff correct.output out >/dev/null
 
 m88k-noclean: defaulttarget mustbegcc
 	cd $(M88DIR)/src; \
             make       build CC="$(M88SAFECC) $(CONLY)" \
                              LD="$(M88SAFECC)" \
                              EXTRA_LIBS=$(M88EXTRA) 
-#	sh -c "time $(M88DIR)/exe/base/m88ksim.ultra"
+	cd $(M88DIR)/src; sh -c "time ./m88k -c < ctl.in > out"
+	cd $(M88DIR)/src; diff correct.output out >/dev/null
 
+# sm: changed the target below to correspond with not putting the
+# executable in exe/base, but didn't test it (don't know what
+# it is for)
 m88k-combined: defaulttarget mustbegcc
-	cd $(M88DIR)/exe/base; \
-            $(SAFECC) m88ksim.ultra_all.c $(CONLY)
+	cd $(M88DIR)src; \
+            $(SAFECC) m88k_all.c $(CONLY)
 
 ### SPEC95 ijpeg
 IJPEGDIR=$(SPECDIR)/132.ijpeg
