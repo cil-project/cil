@@ -359,27 +359,7 @@ let rec doStmt (s: stmt) =
             let a' = doExpAndCastCall a fo.vtype !callId in
             a' :: loopArgs formals args
         | _, _ -> E.s (E.bug "Not enough arguments")
-      in
-      (* weimer: to handle the return value we must intercept malloc and
-   * friends *)
-      let multi_node_functions = [ "malloc" ; "calloc" ; "realloc" ] in
-      match func with
-  Lval((Var(v)),(NoOffset)) when List.mem v.vname multi_node_functions ->
-    begin
-           (* Associate a node with the variable itself. Use index = 0 For 
-            * malloc() and friends, we need a new node for each callsite.  *)
-      let place = N.PGlob (v.vname ^ "_" ^ (string_of_int(!callId))) in
-      let n = N.getNode place 0 v.vtype [] in
-    (* Add this to the variable attributes *)
-      (match reso with
-        Some destvi -> 
-    N.addEdge n (nodeOfType destvi.vtype) N.ECast !callId;
-      | _ -> ignore (E.warn "Call to %s is not assigned" v.vname)) ;
-      let attr = addAttribute (ACons("_ptrnode", [AInt n.N.id])) [] in
-      let cast_fun = CastE(TPtr(TVoid([]),attr) ,func',locUnknown) in
-      Instr (Call(reso, cast_fun, loopArgs formals args, l))
-    end
-      | _ -> begin
+      in begin
           begin
           (* Now check the return value*)
       match reso, unrollType rt with
@@ -391,11 +371,8 @@ let rec doStmt (s: stmt) =
           N.addEdge (nodeOfType rt) (nodeOfType destvi.vtype) 
                   N.ECast !callId
           end;
-    Instr (Call(reso, func', loopArgs formals args, l))
+          Instr (Call(reso, func', loopArgs formals args, l))
       end
-      
-     
-  
       
 (* Now do the globals *)
 let doGlobal (g: global) : global = 
@@ -443,14 +420,13 @@ let printFile (c: out_channel) fl =
   d_attrcustom := N.ptrAttrCustom !d_attrcustom;
   Cil.printFile c fl;
   output_string c "/* Now the graph\n";
-  N.gc ();  
+  (*N.gc ();   *)
+  N.simplify (); 
   N.printGraph c;
   output_string c " End of graph*/\n";
-  N.simplify ();
   N.printGraph c;
   output_string c "/* Now the solved graph (simplesolve)\n";
   Stats.time "simple solver" Simplesolve.solve N.idNode ; 
   N.printGraph c;
   output_string c " End of solved graph*/\n"; 
   d_attrcustom := ocustom
-    

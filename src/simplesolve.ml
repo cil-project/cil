@@ -151,12 +151,20 @@ let q_predicate (n1 : node) (n2 : node) = true
     ((not n1.null) || (n2.null)) && 
     ((not n1.intcast) || (n2.intcast)) *)
 
+let is_malloc n = match n.where with
+    PGlob("malloc"),_ -> true
+  | PGlob("calloc"),_ -> true
+  | PGlob("realloc"),_ -> true
+  | _ -> false
+
 (* returns a pair of pointerkinds p1,p2 such that if we assign the
  * qualifiers t1=p1 and t2=p2, the cast is legal *)
 let can_cast (n1 : node) (n2 : node) = begin
   let t1 = n1.btype in
   let t2 = n2.btype in 
-  if not (q_predicate n1 n2) then 
+  if is_malloc n2 then
+    (Safe,Safe)
+  else if not (q_predicate n1 n2) then 
     (Wild,Wild)
   else if subtype t1 t2 then 
     (Safe,Safe)
