@@ -67,13 +67,13 @@ let init_lexicon _ =
 		("union", UNION);
 		("break", BREAK);
 		("continue", CONTINUE);
-		("goto", GOTO);
+		("goto", GOTO); 
 		("return", RETURN);
 		("switch", SWITCH);
-		("case", CASE);
+		("case", CASE); 
 		("default", DEFAULT);
-		("while", WHILE);
-		("do", DO);
+		("while", WHILE);  
+		("do", DO);  
 		("for", FOR);
 		("if", IF);
 		("else", ELSE);
