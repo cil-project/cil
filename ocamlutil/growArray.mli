@@ -110,4 +110,6 @@ val restoreGA: ?deepCopy:('a -> 'a) -> 'a t -> unit -> unit
 (** Given a growable array, produce a thunk that later restores it to its
     current value *)
 
-
+val find: 'a t -> ('a -> bool) -> int option
+(** Returns the index of the first element in the array that satisfies the
+    predicate, or None if there is no such element *)

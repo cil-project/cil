@@ -145,3 +145,10 @@ let restoreGA ?deepCopy (ga: 'a t) : (unit -> unit) =
        set ga i (getg old i)
      done)
 
+let find (ga: 'a t) (fn: 'a -> bool) : int option = 
+  let rec loop (i:int) : int option = 
+    if i > ga.gaMaxInitIndex then None
+    else if fn (get ga i) then Some i
+    else loop (i + 1)
+  in
+  loop 0
