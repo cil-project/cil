@@ -3037,16 +3037,18 @@ let fixupGlobName vi =
     not (H.mem mangledNames vi.vname) then
     begin
       let quals = qualNames [] vi.vtype in
-      let rec allSafe = function (* Only default qualifiers *)
-          [] -> true
-        | "s" :: rest -> allSafe rest
-        | _ -> false
-      in
-      let newname =
-        if allSafe quals then vi.vname
+      let suffix =
+        let rec allSafe = function (* Only default qualifiers *)
+            [] -> true
+          | "s" :: rest -> allSafe rest
+          | _ -> false
+        in
+        if allSafe quals then ""
         else
-          vi.vname ^ "_" ^ (List.fold_left (fun acc x -> x ^ acc) "" quals)
+          (List.fold_left (fun acc x -> x ^ acc) "" quals)
       in
+      let suffix = if mustBeTagged vi then "t" ^ suffix else suffix in
+      let newname =if suffix = "" then vi.vname else vi.vname ^ "_" ^ suffix in
       H.add mangledNames newname ();
       if vi.vname = "main" && vi.vstorage <> Static then 
         begin

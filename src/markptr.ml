@@ -811,6 +811,7 @@ let isMemcpy
         (* Now repackage the args with the right casts *)
         Some [dst'; src'; len]
       end
+    | _ -> raise Not_found
   with _ -> None
     
 

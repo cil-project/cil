@@ -119,6 +119,10 @@ val noBreaks  : bool ref  (* If true then replaces all optional breaks with
                            * space *)
 val noAligns  : bool ref  (* If true then does not indent *)
 
+val fastMode  : bool ref  (* If true the it takes breaks only when has 
+                           * surpassed the given width. Used only for the 
+                           * "george" algorithm. *)
+
 val flushOften   : bool ref  (* If true the it flushes after every print *)
 
 val withPrintDepth : int -> (unit -> unit) -> unit

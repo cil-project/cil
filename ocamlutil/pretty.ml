@@ -56,6 +56,7 @@ let _ = if debug then Printf.fprintf stderr "********** ALGO = %s *************\
 let george_no_scan = george && false
 let george_no_emit = george && (george_no_scan || false)
 let george_no_out  = george && (george_no_scan || george_no_emit || false)
+let fastMode       = ref false
 
 (* use MARSHALWRITE=filename to marshal the document to the specified file *)
 let marshalFilename = (try Sys.getenv ("MARSHALWRITE") with Not_found -> "")
@@ -630,7 +631,7 @@ let movingRight (abscol: int) : int =
       if debug then
         fprintf "Looking for a break to take in column %d\n" abscol;
       (* Find the best gain there is out there *)
-      match chooseBestGain () with 
+      match if !fastMode then None else chooseBestGain () with 
         None -> begin
           (* No breaks are available. Take all breaks from now on *)
           breakAllMode := true;
