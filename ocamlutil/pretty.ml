@@ -32,10 +32,11 @@
 (* Pretty printer *)
 
 let debug = false
-let aman           = false
-let aman_no_layout = aman && false
-let aman_no_output = aman && false
-let aman_no_fit    = aman && false
+let aman           = true
+let mode           = try Sys.getenv "Mode" with Not_found -> "" (* I hope ocamlopt realizes that this is dead if aman = false *)
+let aman_no_layout = (aman && (mode = "SkipLayout"))            (* Constant-foldable if aman = false? *)
+let aman_no_output = (aman && (mode = "SkipOutput"))
+let aman_no_fit    = (aman && (mode = "SkipFit"))
 
 
 
@@ -65,7 +66,7 @@ let chr  c     = text (String.make 1 c)
 let align      = Align
 let unalign    = Unalign
 let line       = Line
-let break      = Break (* Break *) (* Aman's benchmarking goo *)
+let break      = Break (* Line *) (* Aman's benchmarking goo *)
 
 
 let nest n d   = Spaces n ++ align ++ d ++ unalign
