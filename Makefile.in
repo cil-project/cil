@@ -236,7 +236,7 @@ $(OBJDIR)/cil.$(CMXA): $(OCAML_CIL_LIB_CMODULES:%=$(OBJDIR)/lib%.a) \
                $(OCAML_CIL_LIB_CMODULES:%=-cclib -l%) \
                $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
 
-$(OBJDIR)/libperfcount.a: %: %($(OBJDIR)/perfcount.o)
+$(OBJDIR)/libperfcount.a: %: %($(OBJDIR)/perfcount.$(CMC))
 	ranlib $@
 
 # sm: for Simon: build a library of CIL functions which can
