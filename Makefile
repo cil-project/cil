@@ -529,7 +529,7 @@ APACHECFLAGS=/nologo /MDd /W3 /GX /Zi /Od \
          $(DEF)"_DEBUG" $(DEF)"WIN32" $(DEF)"_WINDOWS" \
          $(DEF)"NO_DBM_REWRITEMAP" $(DEF)"SHARED_MODULE" \
          $(DEF)"WIN32_LEAN_AND_MEAN"
-APATCH=
+APATCH=--patch=apache_msvc.patch
 else
 APACHECFLAGS=-Wall -D_GNUCC -D__need_siginfo_t -g \
          $(INC)"$(APACHEBASE)/include" $(INC)"$(APACHEBASE)/os/unix" \
