@@ -279,9 +279,15 @@ CCURED+= --tr="$(TRACE)"
 endif
 
 ifdef OPTIM
-CCURED += --optimize
+CCURED+= --optimize
 endif
 
+# This is a way to disable the stats, allowing the command line to override it
+# Do STATS= to disable the stats.
+STATS=1
+ifdef STATS
+CCURED+= --stats
+endif
 
 # sm: can't figure out why passing this via EXTRAARGS screws
 # up other things (e.g. -DMANUALBOX)
