@@ -194,6 +194,7 @@ $TEST->add1Test("test/alloc-manualinferbox",
                 %commonerrors);
 $TEST->add2TestFail("testrun/failubound1", "Failure: Ubound");
 $TEST->add2TestFail("testrun/failnull1", "Failure: Non-pointer");
+$TEST->add1Test("testrun/addr-array");
     
 #
 # OLDEN benchmarks
@@ -470,7 +471,7 @@ sub add1Test {
 
     $self->newTest(Name => $name,
                    Dir => "..",
-                   Cmd => "make $theargs",
+                   Cmd => "make " . $name . $theargs,
                    Group => ["cil"],
                    Patterns => \%patterns);
 }
