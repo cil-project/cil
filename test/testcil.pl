@@ -188,6 +188,7 @@ $TEST->addTests("testrun/init9", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/init10", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/init11", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/cond1", "_GNUCC=1", ['cil']);
+$TEST->addTests("testrun/cond2", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/initial", "_GNUCC=1", ['cil']);
 $TEST->add3Tests("test/jmp_buf");
 $TEST->add3Tests("test/linux_atomic", "_GNUCC=1");
