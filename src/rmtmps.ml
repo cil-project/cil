@@ -38,6 +38,7 @@ open Trace
 open Cil
 module H = Hashtbl
 module E = Errormsg
+module U = Util
 
 
 (* Keep a list of names that we don't want removed. These are either names of 
@@ -262,6 +263,7 @@ begin
 
         (* now examine the head *)
         let retainHead = match hd with
+          (* global function definition *)
           | GFun(f,_) -> (
               let keepIt = ref false in
               let reason = ref "not needed" in
@@ -270,25 +272,32 @@ begin
                 keepIt := true;
                 reason := "vreferenced flag is set"
               )
-              else if (H.mem globalDecls f.svar.vname) then (
-                (* sm: this isn't entirely ideal; we keep all inlines that *)
-                (* have prototypes.  under normal situations it is very *)
-                (* unusual to forward-declare an inline, but our combiner *)
-                (* emits prototypes for some (most? all?) inlines... *)
-                keepIt := true;
-                reason := "saw a prototype"
-              )
-              else if (not (isInlineFunc f)) then (
-                keepIt := true;
-                reason := "not an inline function"
-              )
               else if (H.mem forceToKeep f.svar.vname) then (
                 keepIt := true;
                 reason := "of noremove pragma"
+              )
+              else if (not !U.sliceGlobal) then (
+                (* if we're not slicing, then functions which the linker makes *)
+                (* visible are part of the root set*)
+                if (H.mem globalDecls f.svar.vname) then (
+                  (* sm: this isn't entirely ideal; we keep all inlines that *)
+                  (* have prototypes.  under normal situations it is very *)
+                  (* unusual to forward-declare an inline, but our combiner *)
+                  (* emits prototypes for some (most? all?) inlines... *)
+                  keepIt := true;
+                  reason := "saw a prototype"
+                )
+                else if (not (isInlineFunc f)) then (
+                  keepIt := true;
+                  reason := "not an inline function"
+                )
+              )
+              else (
+                (* if we *are* slicing, then no spontaneous roots *)
               );
-              
+
               if (!keepIt) then (
-                (trace "usedVar" (dprintf "keeping func: %s because %s\n" 
+                (trace "usedVar" (dprintf "keeping func: %s because %s\n"
                                           f.svar.vname !reason));
                 ignore (visitCilFunction vis f);    (* root: trace it *)
                 true
@@ -300,6 +309,7 @@ begin
               )
             )
 
+          (* enum declaration *)
           | GEnumTag(e, _) -> (
               if e.ereferenced ||
                  H.mem forceToKeep ("enum " ^ e.ename) then (
@@ -312,6 +322,7 @@ begin
               )
             )
 
+          (* structure declaration *)
           | GCompTag(c, _) -> (
               let kind = if (c.cstruct) then "struct" else "union" in
               if c.creferenced || H.mem forceToKeep (kind ^ " " ^ c.cname)
@@ -325,25 +336,28 @@ begin
               )
             )
 
-          | GCompTagDecl (ci, _) -> 
+          (* forward structure declaration *)
+          | GCompTagDecl (ci, _) ->
               if (ci.creferenced) then begin
                 (trace "usedType" (dprintf "keeping fwd decl of %s\n"
                                      ci.cname));
 
-                (* should not have to trace from here *) 
+                (* should not have to trace from here *)
                 (* retain this type definition *)
                 true
-              end else begin 
+              end else begin
                 (trace "usedType" (dprintf "removing fwd decl of %s\n"
                                      ci.cname));
                 false
               end
-          | GEnumTagDecl (ei, _) -> 
+
+          (* forward enum declaration *)
+          | GEnumTagDecl (ei, _) ->
               if (ei.ereferenced) then begin
                 (trace "usedType" (dprintf "keeping fwd decl of enum %s\n"
                                      ei.ename));
-                
-                (* should not have to trace from here *) 
+
+                (* should not have to trace from here *)
                 (* retain this type definition *)
                 true
               end else begin
@@ -352,9 +366,9 @@ begin
                 false
               end
 
+          (* typedef *)
           | GType(t, _) -> (
-              (* this is a typedef *)
-              if t.treferenced  || H.mem forceToKeep ("type " ^ t.tname) 
+              if t.treferenced  || H.mem forceToKeep ("type " ^ t.tname)
               then (
                 (trace "usedType" (dprintf "keeping typedef %s\n" t.tname));
                 (* I think we don't need to trace again during sweep, because *)
@@ -369,9 +383,10 @@ begin
                   )
               )
 
+          (* global variable 'extern' declaration *)
           | GVarDecl(v, _) -> (
               if v.vreferenced || H.mem forceToKeep v.vname then begin
-                trace "usedVar" (dprintf "keeping global: %s\n" v.vname);
+                trace "usedVar" (dprintf "keeping global decl: %s\n" v.vname);
 
                 (* since it's referenced, use it as a root for the type dependency *)
                 ignore (visitCilVarDecl vis v);
@@ -379,7 +394,25 @@ begin
                 (* it's referenced: keep it *)
                 true
               end else (
-                (trace "usedVar" (dprintf "removing global: %s\n" v.vname));
+                (trace "usedVar" (dprintf "removing global decl: %s\n" v.vname));
+                false
+              )
+            )
+
+          (* global variable definition, i.e. no 'extern' *)
+          | GVar(v, _, _) -> (
+              if (v.vreferenced ||                 (* referenced *)
+                  H.mem forceToKeep v.vname ||     (* explicitly asked for it *)
+                  (not !U.sliceGlobal)) then (     (* not slicing: keep all globals *)
+                (* keep it *)
+                ignore (visitCilGlobal vis hd);
+                true
+              )
+              else (
+                (* when slicing, only keep things which the user asked for or *)
+                (* are referenced, which isn't this one *)
+                (trace "usedVar" (dprintf "slicing: removing global var: %s\n"
+                                          v.vname));
                 false
               )
             )

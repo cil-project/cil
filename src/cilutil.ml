@@ -40,6 +40,11 @@ let logWrites = ref false (* Whether to produce a log with all the mem
 
 let printStats = ref false
 
+(* when 'sliceGlobal' is set, then when 'rmtmps' runs, only globals*)
+(* marked with #pragma cilnoremove(whatever) are kept; when used with *)
+(* cilly.asm.exe, the effect is to slice the input on the noremove symbols *)
+let sliceGlobal = ref false
+
 
 let printStages = ref false
 

@@ -30,6 +30,12 @@
  *
  *)
 
+(* maincil *)
+(* this module is the program entry point for the 'cilly' program, *)
+(* which reads a C program file, parses it, translates it to the CIL *)
+(* intermediate language, and then renders that back into C *)
+
+
 module F = Frontc
 module C = Cil
 module CK = Check
@@ -58,7 +64,7 @@ let parseOneFile (fname: string) : C.file =
   (Rmtmps.removeUnusedTemps cil);
   cil
 
-      
+
 let rec processOneFile (cil: C.file) =
   try begin
 
@@ -149,7 +155,7 @@ let rec theMain () =
       raise (Arg.Bad ("Cannot open " ^ what ^ " file")))
   in
   let outName = ref "" in
-  let setDebugFlag v name = 
+  let setDebugFlag v name =
     E.debugFlag := v;
     if v then Pretty.flushOften := true
   in
@@ -160,7 +166,7 @@ let rec theMain () =
   (*********** COMMAND LINE ARGUMENTS *****************)
   let argDescr = [
     "--verbose", Arg.Unit (fun _ -> E.verboseFlag := true),
-                "turn of verbose mode";
+                "turn on verbose mode";
     "--debug", Arg.String (setDebugFlag true),
                      "<xxx> turns on debugging flag xxx";
     "--flush", Arg.Unit (fun _ -> Pretty.flushOften := true),
@@ -177,13 +183,13 @@ let rec theMain () =
 					"apply the `heapify' transformation";
     "--stackguard", Arg.Unit (fun _ -> stackguard := true),
 					"apply the `stackguard' transformation";
-    "--nodebug", Arg.String (setDebugFlag false), 
+    "--nodebug", Arg.String (setDebugFlag false),
                       "<xxx> turns off debugging flag xxx";
-    "--testcil", Arg.String (fun s -> testcil := s), 
+    "--testcil", Arg.String (fun s -> testcil := s),
           "test CIL using the give compiler";
     "--nocil", Arg.Int (fun n -> Cabs2cil.nocil := n),
-                      "Do not compile to CIL the global with the given index"; 
-    "--log", Arg.String (openFile "log" (fun oc -> E.logChannel := oc)), 
+                      "Do not compile to CIL the global with the given index";
+    "--log", Arg.String (openFile "log" (fun oc -> E.logChannel := oc)),
              "the name of the log file";
     "--out", Arg.String (openFile "output" (fun oc -> outChannel := Some oc)),
              "the name of the output CIL file";
@@ -193,17 +199,16 @@ let rec theMain () =
     "--MSVC", Arg.Unit (fun _ -> if Machdep.hasMSVC then begin
                                    C.msvcMode := true;
                                    F.setMSVCMode ()
-                                  end else 
+                                  end else
                                      E.s (E.error "MSVC mode is not supported on this build\n")
         ),
              "Produce MSVC output. Default is GNU";
     "--stages", Arg.Unit (fun _ -> Util.printStages := true),
                "print the stages of the algorithm as they happen";
-    (* sm: the next two lines appeared twice?! *)
     "--keepunused", Arg.Unit (fun _ -> Rmtmps.keepUnused := true),
                 "do not remove the unused variables and types";
 
-    "--mergedout", Arg.String (openFile "merged output" 
+    "--mergedout", Arg.String (openFile "merged output"
                                    (fun oc -> mergedChannel := Some oc)),
                 "specify the name of the merged file";
     "--noPrintLn", Arg.Unit (fun _ -> Cil.printLn := false;
@@ -212,6 +217,8 @@ let rec theMain () =
     "--commPrintLn", Arg.Unit (fun _ -> Cil.printLnComment := true;
                                        Cprint.printLnComment := true),
                "output #line directives in comments";
+    "--sliceGlobal", Arg.Unit (fun _ -> Util.sliceGlobal := true),
+               "output is the slice of #pragma cilnoremove(sym) symbols";
     (* sm: some more debugging options *)
     "--tr",         Arg.String Trace.traceAddMulti,
                      "<sys>: subsystem to show debug printfs for";
@@ -222,35 +229,46 @@ let rec theMain () =
     "<filename>: the name of a file that contains a list of additional files to process, separated by whitespace of newlines";
   ] @ F.args in
   begin
+    (* this point in the code is the program entry point *)
+
     Stats.reset ();
+
+    (* parse the command-line arguments *)
     Arg.parse argDescr recordFile usageMsg;
     fileNames := List.rev !fileNames;
+
     if !testcil <> "" then begin
       Testcil.doit !testcil
-    end else 
+    end else
+      (* parse each of the files named on the command line, to CIL *)
       let files = List.map parseOneFile !fileNames in
-      let one = 
-        match files with 
+
+      (* if there's more than one source file, merge them together; *)
+      (* now we have just one CIL "file" to deal with *)
+      let one =
+        match files with
           [one] -> one
         | [] -> E.s (E.error "No arguments\n")
-        | _ -> 
-            let merged = 
+        | _ ->
+            let merged =
               Stats.time "merge" (Mergecil.merge files)
                 (if !outName = "" then "stdout" else !outName) in
-            if !E.hadErrors then 
+            if !E.hadErrors then
               E.s (E.error "There were errors during merging\n");
             (* See if we must save the merged file *)
-            (match !mergedChannel with 
+            (match !mergedChannel with
               None -> ()
             | Some mc -> begin
                 let oldpci = !C.print_CIL_Input in
                 C.print_CIL_Input := true;
-                Stats.time "printMerged" 
+                Stats.time "printMerged"
                   (C.printFile C.defaultCilPrinter mc) merged;
                 C.print_CIL_Input := oldpci
             end);
             merged
       in
+
+      (* process the CIL file (merged if necessary) *)
       processOneFile one
   end
 ;;
