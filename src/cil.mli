@@ -87,7 +87,6 @@ type varinfo = {
 and storage = 
     NoStorage |                         (* The default storage *)
     Static | 
-    StaticInitializer of exp | 
     Register | 
     Extern
 

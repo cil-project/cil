@@ -92,7 +92,6 @@ type varinfo = {
 and storage = 
     NoStorage |                         (* The default storage *)
     Static | 
-    StaticInitializer of exp |          (* static with an initializer *)
     Register | 
     Extern
 
@@ -767,7 +766,6 @@ let d_fkind () = function
 let d_storage () = function
     NoStorage -> nil
   | Static -> text "static "
-  | StaticInitializer e -> text "static "
   | Extern -> text "extern "
   | Register -> text "register "
 
@@ -880,11 +878,7 @@ let setCustomPrint custom f =
 
 let printShortTypes = ref false
 
-let rec d_storage_initializer () = function
-    StaticInitializer e -> dprintf "= %a" d_exp e
-  | _ -> nil
-        
-and d_decl (docName: unit -> doc) () this = 
+let rec d_decl (docName: unit -> doc) () this = 
   let parenth outer_t doc = 
     let typ_strength = function         (* binding strength of type 
                                          * constructors  *)
@@ -1254,14 +1248,13 @@ and d_videcl () vi =
       [], _ -> false, pre
     | _, pre' -> true, pre'
   in
-  dprintf "%s%a%a %a %a"
+  dprintf "%s%a%a %a"
     (if isinline then 
       if !msvcMode then "__inline " else "inline " 
      else "")
     d_storage vi.vstorage
     (d_decl (fun _ -> dprintf "%a %s" d_attrlistpre pre' vi.vname)) vi.vtype
     d_attrlistpost post
-    d_storage_initializer vi.vstorage
     
 and d_fielddecl () fi = 
   dprintf "%a %a;"
