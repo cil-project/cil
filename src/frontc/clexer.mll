@@ -286,7 +286,7 @@ rule initial =
 |		blank			{initial lexbuf}
 |               '\n'                    { newline (); initial lexbuf }
 |		'#'			{ hash lexbuf}
-	
+|               "_Pragma" 	        { PRAGMA }
 |		'\''			{ CST_CHAR (chr lexbuf)}
 |		'"'			{ (* '"' *)
                                           try CST_STRING (str lexbuf)
