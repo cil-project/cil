@@ -1255,7 +1255,6 @@ let oneFilePass2 (f: file) =
   let repeatPass2 = ref false in
   (* Keep a pointer to the contents of the file so far *)
   let savedTheFile = !theFile in
-  let savedTheFileTypes = !theFileTypes in
 
   let processOneGlobal (g: global) : unit = 
       (* Process a varinfo. Reuse an old one, or rename it if necessary *)
