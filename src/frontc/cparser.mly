@@ -14,7 +14,10 @@ let parse_error msg : 'a =
 
 let print = print_string
 
-
+let currentLoc () = 
+  {line = (Clexer.lineno !Clexer.current_handle); 
+    col = -1;                        
+    file = (Clexer.file_name !Clexer.current_handle);}
 (*
 ** Expression building 
 *)
@@ -414,10 +417,15 @@ block_item_list:
 |   statement block_item_list            { BSTM $1 :: $2 }
 ;
 
-statement:
-    SEMICOLON		{NOP {line = (Clexer.lineno !Clexer.current_handle); 
-    			 col = -1;                        
-    			 file = (Clexer.file_name !Clexer.current_handle);}}
+statement: 
+    startstatement thestatement          { (* set_statement_loc *) $2 (* $1 *) }
+;
+startstatement:
+    /* empty */        %prec EXTENSION { (!Clexer.currentFile, !Clexer.currentLine) }
+;
+
+thestatement:
+    SEMICOLON		{NOP (currentLoc ())}
 |   comma_expression SEMICOLON
 			{COMPUTATION ((smooth_expression $1),
 			 	      {line = (Clexer.lineno !Clexer.current_handle); col = -1;

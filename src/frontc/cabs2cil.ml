@@ -10,7 +10,6 @@ open Trace
 
 (* ---------- source error message handling ------------- *)
 let lu = locUnknown
-let currentLoc : Cil.location ref = ref lu
 
 (* these return 'a (alpha) because they throw exceptions, so can be used in any context *)
 let sourceErrorLoc (loc : Cil.location) (s : string) : 'a =
@@ -61,7 +60,7 @@ end
 
 let sourceUnimpLoc (loc : Cil.location) (s : string) : 'a =
 begin
-  (E.s (E.unimp "%s[%d]:%s" loc.file loc.line s))
+  (E.s (E.unimp "%s:%d :%s" loc.file loc.line s))
 end
 
 
@@ -69,6 +68,8 @@ let sourceUnimp (s : string) : 'a =
 begin
   (sourceUnimpLoc !currentLoc s)
 end
+
+
 
 
 (*** EXPRESSIONS *************)
@@ -365,7 +366,7 @@ let findCompType kind n a =
      * struct already or because we want to create a version with different 
      * attributes  *)
     let iss =  (* is struct or union *)
-      if kind = "enum" then E.s (E.unimp "Forward reference for enum %s" n)
+      if kind = "enum" then E.s (error "Forward reference for enum %s" n)
       else if kind = "struct" then true else false
     in
     let self = createCompInfo iss n in
@@ -1787,7 +1788,7 @@ and doExp (isconst: bool)    (* In a constant *)
           
     | A.CALL(f, args) -> 
         if isconst then
-          E.s (E.unimp "CALL in constant");
+          E.s (error "CALL in constant");
         let (sf, f', ft') = 
           match f with                  (* Treat the VARIABLE case separate 
                                          * becase we might be calling a 
@@ -1801,9 +1802,7 @@ and doExp (isconst: bool)    (* In a constant *)
                                                  * finishExp. Simulate what = 
                                                  * AExp None  *)
               with Not_found -> begin
-                ignore (E.log 
-                          "Warning: Calling function %s without prototype\n"
-                          n);
+                ignore (warn "Calling function %s without prototype\n" n);
                 let ftype = TFun(intType, [], false, []) in
                 (* Add a prototype to the environment *)
                 let proto, _ = makeGlobalVarinfo (makeGlobalVar n ftype) in 

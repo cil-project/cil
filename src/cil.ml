@@ -61,6 +61,50 @@ type location = {
 }
 
 let locUnknown = { line = -1; col = -1; file = ""; }
+(* A reference to the current location *)
+let currentLoc : location ref = ref locUnknown
+
+
+(* Some error reporting functions *)
+let d_loc (_: unit) (loc: location) : doc = 
+  dprintf "%s:%d" loc.file loc.line
+
+let d_thisloc (_: unit) : doc = d_loc () !currentLoc
+
+let error (fmt : ('a,unit,doc) format) : 'a = 
+  let f d = 
+    E.hadErrors := true; 
+    ignore (eprintf "@!%t: Error: %a@!" 
+              d_thisloc insert d);
+    raise E.Error
+  in
+  Pretty.gprintf f fmt
+
+let errorLoc (loc: location) (fmt : ('a,unit,doc) format) : 'a = 
+  let f d = 
+    E.hadErrors := true; 
+    ignore (eprintf "@!%a: Error: %a@!" 
+              d_loc loc insert d);
+    raise E.Error
+  in
+  Pretty.gprintf f fmt
+
+let warn (fmt : ('a,unit,doc) format) : 'a = 
+  let f d =
+    ignore (eprintf "@!%t: Warning: %a@!" 
+              d_thisloc insert d);
+    nil
+  in
+  Pretty.gprintf f fmt
+
+let warnLoc (loc: location) (fmt : ('a,unit,doc) format) : 'a = 
+  let f d =
+    ignore (eprintf "@!%a: Warning: %a@!" 
+              d_loc loc insert d);
+    nil
+  in
+  Pretty.gprintf f fmt
+
 
 (* Information about a variable. Use one of the makeLocalVar, makeTempVar or 
  * makeGlobalVar to create instances of this data structure. These structures a

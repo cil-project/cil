@@ -55,7 +55,17 @@ type location = {
     file: string; 
 }
 
-val locUnknown : location
+val locUnknown: location
+(* A reference to the current location *)
+val currentLoc: location ref
+
+val d_loc: unit -> location -> Pretty.doc
+val d_thisloc: unit -> Pretty.doc  (* the currentLoc *)
+
+val error: ('a,unit,Pretty.doc) format -> 'a
+val errorLoc: location -> ('a,unit,Pretty.doc) format -> 'a  
+val warn: ('a,unit,Pretty.doc) format -> 'a
+val warnLoc: location -> ('a,unit,Pretty.doc) format -> 'a  
 
 (* Information about a variable. Use one of the makeLocalVar, makeTempVar or 
  * makeGlobalVar to create instances of this data structure. These structures a

@@ -93,7 +93,7 @@ and enum_item = string * expression
 ** Declaration definition
 *)
 and definition = 
-   FUNDEF of single_name * body
+   FUNDEF of single_name * body 
  | DECDEF of init_name_group
  | TYPEDEF of name_group
  | ONLYTYPEDEF of spec_elem list
