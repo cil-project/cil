@@ -559,12 +559,15 @@ hola: test/small2/hola.c $(EXECUTABLE)$(EXE) \
 	test/small2/hola
 
 
-HUFFCOMPILE=$(SAFECC) --combine --keep=. 
+HUFFCOMPILE=$(SAFECC) $(DEF)NOVARARG --combine --keep=. 
 # HUFFCOMPILE=cl /MLd
 ifdef BOX
 HUFFOTHERS=$(CILDIR)/$(SAFEMAINLIB) 
 else
 HUFFOTHERS=
+endif
+ifdef _GNUCC
+HUFFOTHERS += -lm
 endif
 hufftest: test/small2/hufftest.c $(EXECUTABLE)$(EXE) \
                                  $(SAFECLIB) $(SAFEMAINLIB) $(TVEXE)
@@ -578,7 +581,7 @@ hufftest: test/small2/hufftest.c $(EXECUTABLE)$(EXE) \
                  $(PCCDIR)/src/huffman.c \
                  $(PCCDIR)/src/hash.c \
                  ../small2/hufftest.c \
-                 $(HUFFOTHERS) -lm \
+                 $(HUFFOTHERS) \
                  $(EXEOUT)hufftest.exe
 	cd $(PCCTEST); ./hufftest.exe \
                              $(CILDIR)/src/frontc/cparser.output
