@@ -350,8 +350,7 @@ sub collectArguments {
         if($operation eq "TOEXE") {
             push @sources, 
             "$bindir/../obj/safec" . 
-                ($useRelease ? $compiler->{LIBEXT} : 
-                               "debug$compiler->{LIBEXT}");
+                ($useRelease ? "" : "debug") . ".$compiler->{LIBEXT}";
         }
         push @ccargs, $compiler->{INCARG} . $bindir;
         push @ccargs, $useRelease ? $compiler->{OPTIM} : $compiler->{DEBUG};
@@ -891,7 +890,7 @@ sub new {
       DEBUGARG => "/Zi /MLd /DEBUG",
       OPTIMARG => "/Ox /G6",
       OBJEXT => "obj",
-      LIBEXT => ".lib",   # Library extension (without the .)
+      LIBEXT => "lib",   # Library extension (without the .)
       EXEEXT => ".exe",  # Executable extension (with the .)
       LINEPATTERN => "^#line\\s+(\\d+)\\s+\"(.+)\"",
 
@@ -1020,7 +1019,7 @@ sub linkOutputFile {
 
 #########################################################################
 ###
-###  MS LINK speciific code
+###  MS LINK specific code
 ###
 ####
 package MSLINK;
@@ -1041,7 +1040,7 @@ sub new {
       DEBUGARG => "/DEBUG",
       OPTIMARG => "",
       OBJEXT => "obj",
-      LIBEXT => ".lib",   # Library extension (without the .)
+      LIBEXT => "lib",   # Library extension (without the .)
       EXEEXT => ".exe",  # Executable extension (with the .)
       LINEPATTERN => "", 
 
@@ -1135,6 +1134,9 @@ sub new {
             "-S" => { RUN => sub { $operation = "TOOBJ";
                                    push @ccargs, $_[0]; }},
             "-o" => { ONEMORE => 1, TYPE => 'OUT' },
+            "-W" => { TYPE => 'CC' },
+            "-g" => { RUN => sub { push @ccargs, $_[0];
+                                   push @linkargs, $_[0]; }},
             "-" => { RUN => sub { print "Unimplemented GCC arg: $_[0]\n";
                                   push @ccargs, $_[0]; }}
             ],
@@ -1143,37 +1145,6 @@ sub new {
     bless $self, $class;
     return $self;
 }
-#    # GCC
-#    if($compiler eq "gcc") {
-#        if($arg =~ m|^-|) {
-#            if($arg eq "-P") {
-#                $operation = "PREPROC";
-#                next;
-#            }
-#            if ($arg eq "-S") {
-#                $operation = "TOASM";
-#                next;
-#            }
-#            if ($arg eq "-c") {
-#                $operation = "TOOBJ";
-#                next;
-#            }
-#            if($arg eq "-o") {
-#                $arg = shift @ARGV;
-#                $output = $arg;
-#                next;
-#            }
-#            if($arg =~ m|^-o(.+)$|) {
-#                $output = $1;
-#                next;
-#            }
-#            push @ppargs, &quoteIfNecessary($arg);
-#            next;
-#        } 
-#        push @sources, &quoteIfNecessary($arg);
-#        next;
-#    }
-#}
 
 sub forceIncludeArg { 
     my($self, $what) = @_;
@@ -1206,6 +1177,29 @@ sub link {
 sub lineDirective {
     my ($self, $fileName, $lineno) = @_;
     return "# $lineno \"$fileName\"\n";
+}
+
+# The name of the output file
+sub compileOutputFile {
+    my($self, $src) = @_;
+    if($outarg =~ m|-o (.+)|) {
+        return $1;
+    }
+    my ($base, $dir, $ext) = fileparse($src, 
+                                       "(\\.c)|(\\.cc)|(\\.cpp)|(\\.i)");
+    if(! defined($ext) || $ext eq "") { # Not a C source
+        die "objectOutputFile: not a C source file\n";
+    }
+    return "$dir/$base.o";
+}
+
+sub linkOutputFile {
+    my($self, $src) = @_;
+    if($outarg =~ m|-o (.+)|) {
+        return $1;
+    }
+    return "a.out";
+    die "I do not know what is the link output file\n";
 }
 
 1;

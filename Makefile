@@ -132,14 +132,6 @@ _GNUCC=$(HMM)
 endif
 
 
-######################
-.PHONY : spec
-spec : $(EXECUTABLE)$(EXE)
-
-.PHONY: trval
-trval: $(TVDIR)/obj/transval.asm.exe
-	make -C $(TVDIR) RELEASE=1
-
 export EXTRAARGS
 export BOX
 ifndef _GNUCC
@@ -155,6 +147,7 @@ DOOPT=-O3
 CONLY=-c
 OBJOUT=-o
 OBJ=o
+LIBEXT=a
 EXEOUT=-o
 DEF=-D
 ASMONLY=-S -o 
@@ -179,6 +172,7 @@ endif
 CONLY=/c
 OBJOUT=/Fo
 OBJ=obj
+LIBEXT=lib
 EXEOUT=/Fe
 DEF=/D
 ASMONLY=/Fa
@@ -198,12 +192,33 @@ CCL=$(DEBUGCCL)
 endif
 CC=$(CCL) $(CONLY)
 
+
+ifdef RELEASE
+SAFECLIB=obj/safec.$(LIBEXT)
+else
+SAFECLIB=obj/safecdebug.$(LIBEXT)
+endif
+SAFEMAINLIB=obj/safecmain.$(LIBEXT)
+
+
+
+######################
+.PHONY : defaulttarget
+defaulttarget : $(EXECUTABLE)$(EXE) $(SAFECLIB) $(SAFEMAINLIB)
+
+.PHONY: trval
+trval: $(TVDIR)/obj/transval.asm.exe
+	make -C $(TVDIR) RELEASE=1
+
+
+
+
 #
 # On some machines start using the new Perl driver
 ifeq ($(COMPUTERNAME), FETA)
 SAFECC=perl $(CILDIR)/lib/newsafecc.pl
 else
-ifeq ($(COMPUTERNAME), brooksie)
+ifeq ($(COMPUTERNAME), brooksie_george)
 SAFECC=perl $(CILDIR)/lib/newsafecc.pl
 else
 ifeq ($(COMPUTERNAME), RAW)
@@ -265,18 +280,12 @@ SAFECC+= $(EXTRAARGS)
 ###
 ###
 ifdef _MSVC
-ifdef RELEASE
-SAFECLIB=obj/safec.lib
-else
-SAFECLIB=obj/safecdebug.lib
 SAFECLIBARG=$(DEF)_DEBUG
-endif
 $(SAFECLIB) : lib/safec.c lib/safec.h lib/safeccheck.h
 	cl /Ox /Zi /I./lib /c $(DEF)_MSVC $(SAFECLIBARG) \
                                           $(OBJOUT)obj/safec.o $<
 	lib /OUT:$@ obj/safec.o 
 
-SAFEMAINLIB=obj/safecmain.lib
 $(SAFEMAINLIB) : lib/safecmain.c lib/safec.h lib/safeccheck.h
 	cl /Ox /Zi /I./lib /c $(DEF)_MSVC $(OBJOUT)obj/safecmain.o $<
 	lib /OUT:$@ obj/safecmain.o 
@@ -284,16 +293,10 @@ endif
 
 # Libraries on GCC
 ifdef _GNUCC
-ifdef RELEASE
-SAFECLIB=obj/safeclib.a
-else
-SAFECLIB=obj/safecdebuglib.a
-endif
 $(SAFECLIB) : lib/safec.c
 	$(CC) $(OBJOUT)obj/safec.o $<
 	ar -r $@ obj/safec.o
 
-SAFEMAINLIB=obj/safecmain.a
 $(SAFEMAINLIB) : lib/safecmain.c lib/safec.h lib/safeccheck.h
 	$(CC) $(OBJOUT)obj/safecmain.o $<
 	ar -r $@ obj/safecmain.o
@@ -337,7 +340,7 @@ testallspj: $(EXECUTABLE)$(EXE) $(TVEXE) $(SAFECLIB) $(SAFEMAINLIB)
 ifdef _MSVC
 MSLINK=--mode=mslink
 endif
-combinepcc: $(EXECUTABLE)$(EXE) $(TVEXE) $(SAFECLIB) $(SAFEMAINLIB) 
+combinepcc: defaulttarget
 	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.o
 	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.exe
 	make -C $(PCCDIR) \
@@ -439,7 +442,7 @@ hashtest: test/small2/hashtest.c $(EXECUTABLE)$(EXE) \
                  $(EXEOUT)hashtest.exe
 	$(PCCTEST)/hashtest.exe
 
-combinehashtest: $(EXECUTABLE)$(EXE)
+combinehashtest: defaulttarget
 	rm -f $(PCCTEST)/hashtest.exe
 	cd $(PCCTEST); \
           $(HASHTESTCC) $(CONLY) --combine $(PCCDIR)/src/hash.c \

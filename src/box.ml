@@ -653,6 +653,7 @@ let checkFatPointerRead =
   let argp  = makeLocalVar fdec "p" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argb; arglen; argp; ], false, []);
   checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
+  fdec.svar.vstorage <- Static;
   
   fun base where len -> 
     call None (Lval(var fdec.svar))
@@ -668,6 +669,7 @@ let checkFatPointerWrite =
   fdec.svar.vtype <- 
      TFun(voidType, [ argb; arglen; argp; argwb; argwp; ], false, []);
   checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
+  fdec.svar.vstorage <- Static;
   
   fun base where whatbase whatp len -> 
     call None (Lval(var fdec.svar))
