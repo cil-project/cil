@@ -209,6 +209,7 @@ $TEST->add2TestsFail("testrun/failsprintf2", "", "Failure: Ubound");
 $TEST->add2TestsFail("testrun/failsprintf3", "", "Failure: Non-pointer");
 
 $TEST->add2TestsFail("testrun/failsscanf1", "", "Failure: Ubound");
+$TEST->add2TestsFail("testrun/simon6", "", "Failure: Non-pointer");
     
 #
 # OLDEN benchmarks
