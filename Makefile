@@ -1525,11 +1525,12 @@ yacr-optimvariant.%: mustbegcc
 ################# LINUX
 LINUX_INCLUDES := $(CCUREDHOME)/test/linux/include
 LINUX_TOPATCH := asm/uaccess.h asm/atomic.h asm/bitops.h \
-	         asm/current.h asm/string.h \
+	         asm/current.h asm/string.h asm/semaphore.h \
                  linux/config.h linux/list.h linux/skbuff.h \
 		 linux/etherdevice.h linux/irq_cpustat.h \
 		 linux/netdevice.h linux/ide.h linux/cdrom.h \
-		 linux/blkdev.h linux/fs.h
+		 linux/blkdev.h linux/fs.h linux/reiserfs_fs.h \
+                 linux/tqueue.h
 
 linuxsetup: mustbelinux
 	$(PATCHER)  -D MODULE -D __KERNEL__ -I /usr/src/linux/include \
@@ -1572,6 +1573,14 @@ reiserfs: mustbegcc mustbelinux $(LINUXMODULELIB)
            make CC="$(CCURED) --combine \
                        $(LINUXPATCH) --entryPoint='init_reiserfs_fs'" ) ;
 	cd $(LINUXMODULELIBDIR) ; make reiserfs_cured.o
+
+reiserfs-combined: mustbegcc mustbelinux \
+                        $(LINUXMODULELIB) $(REISERFSDIR)/reiserfs.o_comb.c
+	cd $(REISERFSDIR); \
+           make fromcomb CC="$(CCURED) \
+                            $(LINUXPATCH) --entryPoint='init_reiserfs_fs'"
+	cd $(LINUXMODULELIBDIR) ; make reiserfs_cured.o
+
 
 ################# THE LINUX KERNEL
 mustbemanju: 

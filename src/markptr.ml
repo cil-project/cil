@@ -1474,17 +1474,21 @@ let doGlobal (g: global) : global =
   | GPragma (a, l) as g -> begin
       currentLoc := l;
       (match a with
-        Attr("boxpoly", [ AStr(s) ]) -> 
-          if not (H.mem polyFunc s) then begin
-            if H.mem calledFunctions s then 
-              ignore (warn "#pragma boxpoly appears after call to %s\n"
-                        s);
-            if alreadyDefinedFunction s then
-              ignore (warn "#pragma boxpoly appears after the definition of %s\n" s);
-            if !E.verboseFlag then 
-              ignore (E.log "Will treat %s as polymorphic\n" s); 
-            H.add polyFunc s (ref None)
-          end
+        Attr("boxpoly", funcs ) -> 
+          List.iter 
+            (function (AStr s) -> 
+              if not (H.mem polyFunc s) then begin
+                if H.mem calledFunctions s then 
+                  ignore (warn "#pragma boxpoly appears after call to %s\n"
+                            s);
+                if alreadyDefinedFunction s then
+                  ignore (warn "#pragma boxpoly appears after the definition of %s\n" s);
+                if !E.verboseFlag then 
+                  ignore (E.log "Will treat %s as polymorphic\n" s); 
+                H.add polyFunc s (ref None)
+              end
+              | _ -> ignore (warn "Invalid #pragma boxpoly"))
+            funcs
 
       | Attr("boxalloc", AStr(s) :: _) -> 
 (*
@@ -1508,15 +1512,19 @@ let doGlobal (g: global) : global =
 
       | Attr("box", [AId("on")]) -> boxing := true
       | Attr("box", [AId("off")]) -> boxing := false
-      | Attr("nobox", [AStr s]) ->
-          if alreadyDefinedFunction s then
-            ignore (warn "#pragma nobox appears after definition of %s\n" s)
-          else begin
-            applyToFunction s
-              (fun vi -> vi.vattr <- addAttribute (Attr("nobox",[])) vi.vattr);
-            (* Make nobox functions polymorphic *)
-            H.add polyFunc s (ref None)
-          end
+      | Attr("nobox", funcs) ->
+          List.iter 
+            (function (AStr s) -> 
+              if alreadyDefinedFunction s then
+                ignore (warn "#pragma nobox appears after definition of %s\n" s)
+              else begin
+                applyToFunction s
+                  (fun vi -> vi.vattr <- addAttribute (Attr("nobox",[])) vi.vattr);
+                (* Make nobox functions polymorphic *)
+                H.add polyFunc s (ref None)
+              end
+              | _ -> ignore (warn "Invalid #pragma nobox"))
+            funcs
             
       | Attr("boxvararg", [AStr s; ASizeOf t]) -> 
 (*
@@ -1724,9 +1732,11 @@ let markFile fl =
             Defined x -> 
               if hasAttribute "nobox" x.svar.vattr then
                 x.svar
-              else
-                E.s (E.bug "Function %s is both defined and has models!\n" 
-                       fname)
+              else begin
+                ignore (warn "Function %s is both defined and has models!\n" 
+                          fname);
+                raise Not_found (* As if there is no model *)
+              end
 
           | Declared x -> x
         in
