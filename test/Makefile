@@ -2239,16 +2239,16 @@ bind: mustbegcc mustbelinux bindclean
 	cd $(BINDSRC) ; make -e \
               CC="$(CCURED) --noWILD --assumePrintf " \
               MAKE="make -e" \
-                LD="$(CILLY) --merge --verbose --commPrintLn " \
-                AR="$(CILLY) --mode=AR --merge --verbose " \
+                LD="$(CCURED) --merge --verbose --commPrintLn " \
+                AR="$(CCURED) --mode=AR --merge --verbose " \
                 RANLIB="echo" | tee bind.log
 
 bind-noclean: mustbegcc mustbelinux 
 	cd $(BINDSRC) ; make -e \
               CC="$(CCURED) --noWILD --assumePrintf " \
               MAKE="make -e" \
-                LD="$(CILLY) --merge --verbose --commPrintLn " \
-                AR="$(CILLY) --mode=AR --merge --verbose " \
+                LD="$(CCURED) --merge --verbose --commPrintLn " \
+                AR="$(CCURED) --mode=AR --merge --verbose " \
                 RANLIB="echo" | tee bind-noclean.log
 
 bind-gcc: mustbegcc mustbelinux bindclean
