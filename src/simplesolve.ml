@@ -210,9 +210,9 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       Wild -> false
     | Safe | Unknown -> true
     | ROString -> not (k2 = Safe)
-    | String -> not (k2 = Safe) 
-    | FSeq | FSeqN -> not (k2 = Safe)
-    | Seq | SeqN -> not (k2 = Safe || k2 = FSeq || k2 = FSeqN) 
+    | String -> not (k2 = Safe) && not (k2 = ROString)
+    | FSeq | FSeqN -> not (k2 = Safe) && not (k2 = ROString)
+    | Seq | SeqN -> not (k2 = Safe || k2 = FSeq || k2 = FSeqN) && not (k2 = ROString)
     | Index -> k2 = Wild
     | Scalar -> E.s (E.bug "cannot handle scalars in simplesolve")
   in

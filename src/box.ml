@@ -1629,6 +1629,8 @@ let castTo (fe: fexp) (newt: typ)
           doe, FM(newt, newkind, castP p, b, b)
       | N.FSeqN, (N.Seq|N.SeqN) ->
           doe, FM(newt, newkind, castP p, b, b)
+      | N.FSeqN, N.FSeq -> 
+          (doe, FM (newt, newkind, castP p, b, bend))
 
       (* SeqN -> SEQ *)
       | N.SeqN, N.Seq -> 
@@ -1954,7 +1956,7 @@ let pkAllocate (ai:  allocinfo) (* Information about the allocation function *)
       N.Wild | N.Seq | N.FSeq | N.SeqN | N.FSeqN | N.Index -> 
         let fptr, fbase, fendo = getFieldsOfFat vtype in 
         fptr.ftype, Field(fptr, NoOffset)
-    | N.Safe -> vtype, NoOffset
+    | N.Safe | N.String -> vtype, NoOffset
     | _ -> E.s (E.unimp "pkAllocate: ptrtype (%a)" N.d_pointerkind k)
   in
   (* Get the base type *)
