@@ -45,6 +45,9 @@ sub preprocess {
     my ($self, $src, $dest, $ppargs) = @_;
     my @newppargs = @{$ppargs};
     push @newppargs, " $self->{DEFARG}CIL ";
+#    if($src !~ m|main|) {
+#        die "Not the file I was looking for: $src\n";
+#    }
     return $self->SUPER::preprocess($src, $dest, \@newppargs);
 }
 
@@ -71,6 +74,7 @@ sub compile {
         if($self->{VERBOSE}) {
             $cmd .= " --verbose ";
         }
+        $cmd .= join(' ', @{$self->{CILLYARGS}});
         # Make a name for the CIL file
         my $cilfile = "$dir$base" . "cil.c";
         $self->runShell("$cmd $src -o $cilfile");
@@ -90,6 +94,15 @@ sub collectOneArgument {
     if($self->SUPER::collectOneArgument($arg, $pargs)) { return 1; }
     if($arg =~ m|--nofail|)  {
         $self->{NOFAIL} = 1; return 1;
+    }
+        # All other arguments starting with -- are passed to cilly
+    if($arg =~ m|^--|) {
+        # Split the ==
+        if($arg =~ m|^(--\S+)=(.+)$|) {
+            push @{$self->{CILLYARGS}}, $1, $2; return 1;
+        } else {
+            push @{$self->{CILLYARGS}}, $arg; return 1;
+        }
     }
     return 0;
 }

@@ -1500,7 +1500,8 @@ let rec d_decl (docName: unit -> doc) (dnwhat: docNameWhat) () this =
             parenthname () a
             ++ text "("
             ++ (align 
-                  ++ (docList (chr ',' ++ break) (d_videcl ()) () args)
+                  ++ (if args = [] then text "void" 
+                      else (docList (chr ',' ++ break) (d_videcl ()) () args))
                   ++ (if isvararg then break ++ text ", ..." else nil)
                   ++ unalign)
             ++ text ")")

@@ -1649,6 +1649,18 @@ mustbemanju:
                 echo You dont have the Linux sources; exit 3; fi
 
 CILLY := perl $(CCUREDHOME)/lib/cilly.pl --verbose
+ifdef NOLINES
+  CILLY+= --noPrintLn
+endif
+ifdef COMMLINES
+  CILLY+= --commPrintLn
+endif
+ifdef VERBOSE
+  CILLY+= --verbose
+endif
+ifdef PRINTSTAGES
+  CILLY+= --stages
+endif
 
 linuxclean: 
 	cd $(LINUXSRC); make clean
