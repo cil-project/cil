@@ -373,6 +373,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       ignore (update_kind cur Seq BoolFlag)
     end ;
     (* being the target of an EIndex edge can as well *)
+    if (cur.kind <> FSeq) then 
     List.iter (fun e -> 
       if e.ekind = EIndex then ignore
         (update_kind cur Seq (SpreadFromEdge(e.efrom)))

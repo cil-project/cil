@@ -387,7 +387,8 @@ SMALL1=test/small1
 test/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
 	cd $(SMALL1); $(SAFECC)   \
                --patch=../../lib/$(PATCHFILE) \
-	       $*.c $(CONLY) $(DOOPT) $(ASMONLY)$*.s
+	       $*.c $(DOOPT) $(ASMONLY)$*.s
+#	       $*.c $(CONLY) $(DOOPT) $(ASMONLY)$*.s
 
 SMALL2=test/small2
 
