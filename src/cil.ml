@@ -4912,9 +4912,20 @@ let get_switch_count () =
 let rec xform_switch_stmt s break_dest cont_dest label_index = begin
   s.labels <- List.map (fun lab -> match lab with
     Label _ -> lab
-  | Case(e,l) -> let str = Pretty.sprint 80 
-									(Pretty.dprintf "switch_%d_%a" label_index d_exp e) in 
-                 (Label(str,l,false))
+  | Case(e,l) ->
+      let suffix =
+	match isInteger e with
+	| Some value ->
+	    if value < Int64.zero then
+	      "neg_" ^ Int64.to_string (Int64.neg value)
+	    else
+	      Int64.to_string value
+	| None ->
+	    E.s (bug "case label has not been folded down to an integer")
+      in
+      let str = Pretty.sprint 80 
+	  (Pretty.dprintf "switch_%d_%s" label_index suffix) in 
+      (Label(str,l,false))
   | Default(l) -> (Label(Printf.sprintf 
                   "switch_%d_default" label_index,l,false))
   ) s.labels ; 
