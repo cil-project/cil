@@ -127,6 +127,7 @@ int main(int argc, char **argv) {
          nrSource, written, (double)nrSource / (double)written);
   printf("Run hashtest in %8.3lfms\n", clk / 1000.0);
   exit (0);
+  return 0;
 }
 
 

@@ -1605,6 +1605,7 @@ let boxFile file =
   H.clear taggedTypes;
   (* Create the preamble *)
   theFile := preamble;
+  interceptCasts := false;
   (* Now the orgininal file *)
   List.iter doGlobal file.globals;
   (* See if we must append the initializer *)

@@ -111,7 +111,7 @@ endif
 ifdef _MSVC
 DEBUGCCL=cl /TC /O0 /Zi /MLd /I./lib /DEBUG
 RELEASECCL=cl /TC /ML /I./lib
-DOOPT=/O2
+DOOPT=/Ox /Ob2
 CONLY=/c
 OBJOUT=/Fo
 EXEOUT=/Fe
@@ -168,7 +168,7 @@ endif
 $(SAFECLIB) : $(SAFECCDIR)/cil/lib/safec.c \
               $(SAFECCDIR)/cil/lib/safec.h \
               $(SAFECCDIR)/cil/lib/safeccheck.h
-	cl /O2 /Zi /I./lib /c $(DEF)_MSVC $(SAFECLIBARG) \
+	cl /Ox /Zi /I./lib /c $(DEF)_MSVC $(SAFECLIBARG) \
                                           $(OBJOUT)$(OBJDIR)/safec.o $<
 	lib /OUT:$(SAFECLIB) $(OBJDIR)/safec.o 
 
@@ -176,7 +176,7 @@ SAFEMAINLIB=/Necula/SafeC/cil/obj/safecmain.lib
 $(SAFEMAINLIB) : $(SAFECCDIR)/cil/lib/safecmain.c \
                  $(SAFECCDIR)/cil/lib/safec.h \
                  $(SAFECCDIR)/cil/lib/safeccheck.h
-	cl /O2 /Zi /I./lib /c $(DEF)_MSVC $(OBJOUT)$(OBJDIR)/safecmain.o $<
+	cl /Ox /Zi /I./lib /c $(DEF)_MSVC $(OBJOUT)$(OBJDIR)/safecmain.o $<
 	lib /OUT:$(SAFEMAINLIB) $(OBJDIR)/safecmain.o 
 endif
 ifdef _GNUCC
