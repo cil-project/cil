@@ -341,32 +341,32 @@ if($^O eq 'MSWin32') {
 }
 
 # Tests that are expected to fail
-$TEST->add2TestsFail("testrun/failubound1", "", "Failure .+: Ubound");
-$TEST->add2TestsFail("testrun/failnull1", "", "Failure .+: Non-pointer");
-$TEST->add2TestsFail("testrun/failprintf1", "", "Failure .+: Non-pointer");
-$TEST->add2TestsFail("testrun/failprintf2", "", "Failure .+: Non-pointer");
-$TEST->add2TestsFail("testrun/failprintf3", "", "Failure .+: type mismatch");
-$TEST->add2TestsFail("testrun/failprintf4", "", "Failure .+: type mismatch");
+$TEST->add2TestsFail("testrun/failubound1", "", "Failure: Ubound");
+$TEST->add2TestsFail("testrun/failnull1", "", "Failure: Null pointer");
+$TEST->add2TestsFail("testrun/failprintf1", "", "Failure: Non-pointer");
+$TEST->add2TestsFail("testrun/failprintf2", "", "Failure: Non-pointer");
+$TEST->add2TestsFail("testrun/failprintf3", "", "Failure: type mismatch");
+$TEST->add2TestsFail("testrun/failprintf4", "", "Failure: type mismatch");
 $TEST->add2TestsFail("testrun/failprintf5", "", 
-                     "Failure .+: Non-terminated string");
-$TEST->add2TestsFail("testrun/failprintf6", "", "Failure .+: type mismatch");
+                     "Failure: Non-terminated string");
+$TEST->add2TestsFail("testrun/failprintf6", "", "Failure: type mismatch");
 
 # sm: worksforme: $TEST->add2TestsFail("testrun/failsprintf1", "", "Failure .+: Ubound");
 $TEST->add2Tests("testrun/failsprintf1", "");
-$TEST->add2TestsFail("testrun/failsprintf2", "", "Failure .+: ");
-$TEST->add2TestsFail("testrun/failsprintf3", "", "Failure .+: Non-pointer");
+$TEST->add2TestsFail("testrun/failsprintf2", "", "Failure: ");
+$TEST->add2TestsFail("testrun/failsprintf3", "", "Failure: Non-pointer");
 
-$TEST->add2TestsFail("testrun/failsscanf1", "", "Failure .+: Ubound");
+$TEST->add2TestsFail("testrun/failsscanf1", "", "Failure: Ubound");
     $TEST->addBadComment("testrun/failsscanf1-box", "Missing wrappers");
-$TEST->add2TestsFail("testrun/simon6", "", "Failure .+: Non-pointer");
+$TEST->add2TestsFail("testrun/simon6", "", "Failure: Non-pointer");
     
-$TEST->add2TestsFail("testrun/infer1", "", "Failure .+: ");
-$TEST->addTestsFail("testrun/fseq1", "", "Failure .+: Decrement FSEQ", 
+$TEST->add2TestsFail("testrun/infer1", "", "Failure: ");
+$TEST->addTestsFail("testrun/fseq1", "", "Failure: Decrement FSEQ", 
                     ['inferbox']);
-$TEST->addTestsFail("testrun/fseq1", "", "Failure .+: Lbound", 
+$TEST->addTestsFail("testrun/fseq1", "", "Failure: Lbound", 
                     ['box']);
-$TEST->addTestsFail("testrun/string1", "", "Failure .+: Ubound", ['inferbox']);
-$TEST->addTestsFail("testrun/fseq3", "", "Failure .+: ", ['inferbox']);
+$TEST->addTestsFail("testrun/string1", "", "Failure: Ubound", ['inferbox']);
+$TEST->addTestsFail("testrun/fseq3", "", "Failure: ", ['inferbox']);
 
 #
 # OLDEN benchmarks

@@ -284,9 +284,6 @@ sub link {
     # And finally link
     $self->link_aftercil(\@othersources, $dest, $ppargs, $ccargs, $ldargs);
 
-    if($self->{SHOWSTAGES}) {
-        print STDERR "Linked the cil program\n";
-    }
 }
 
 # Customize the linking into libraries
