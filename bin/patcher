@@ -61,8 +61,6 @@ options:
 
   --dest=xxx   The destination directory. Will make one if it does not exist
   --patch=xxx  Patch file (can be specified multiple times)
-  --ppargs=xxx An argument to be passed to the preprocessor (can be specified
-               multiple times)
 
   --ufile=xxx  A user-include file to be patched (treated as \#include "xxx")
   --sfile=xxx  A system-include file to be patched (treated as \#include <xxx>)
