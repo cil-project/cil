@@ -156,21 +156,23 @@ $TEST->add1Test("test/alloc-manualinferbox",
 # OLDEN benchmarks
 #
 $TEST->add3Tests("bh", "_GNUCC=1");
-   $TEST->add3Group("bh", "slow");
+   $TEST->add3Group("bh", "slow", "olden");
    $TEST->addBadComment("bh-box", "CRASHES");
 
 $TEST->add3Tests("power", "_GNUCC=1");
-   $TEST->add3Group("power", "slow");
+   $TEST->add3Group("power", "slow", "olden");
    $TEST->addBadComment("power-box", "Bug in BOX");
 
 $TEST->add3Tests("health", "_GNUCC=1");
-   $TEST->add3Group("health", "slow");
+   $TEST->add3Group("health", "olden");
    $TEST->addBadComment("health-inferbox", "Crashes");
-   $TEST->addBadComment("health-cil", "don't know how to run");
+#   $TEST->addBadComment("health-cil", "don't know how to run");
    $TEST->addBadComment("health-box", "Bug in BOX");
 
 $TEST->add3Tests("perimeter");
+   $TEST->add3Group("perimeter", "olden");
 $TEST->add3Tests("tsp");
+   $TEST->add3Group("tsp", "olden");
 
 #
 # SPEC95
