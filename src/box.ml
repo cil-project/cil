@@ -166,7 +166,7 @@ type allocInfo = {
 let allocFunctions : (string, allocInfo) H.t = H.create 13 
 
 (* Now a constructor of allocation information from boxalloc pragmas *)
-let boxallocPragma (name: string) (args: attrarg list) : unit =
+let boxallocPragma (name: string) (args: attrparam list) : unit =
   let getArg n args = 
     try List.nth args n 
     with _ -> E.s (bug "no size arguments in call to allocator %s\n" name) 
@@ -188,8 +188,8 @@ let boxallocPragma (name: string) (args: attrarg list) : unit =
   in
   let rec loop = function
       [] -> ()
-    | AId("nozero") :: rest -> ai.aiZeros <- false; loop rest
-    | AId("zero") :: rest -> ai.aiZeros <- true; loop rest
+    | ACons("nozero", _) :: rest -> ai.aiZeros <- false; loop rest
+    | ACons("zero", _) :: rest -> ai.aiZeros <- true; loop rest
     | ACons("sizein", [AInt n]) :: rest -> 
         ai.aiGetSize <- getArg (n - 1); ai.aiNewSize <- replaceArg (n - 1);
         loop rest
@@ -204,7 +204,7 @@ let boxallocPragma (name: string) (args: attrarg list) : unit =
         loop rest
     | a :: rest -> 
         (ignore (E.warn "Don't understand boxalloc atrtibute: %a@!"
-                   d_attrarg a));
+                   d_attrparam a));
         loop rest
   in
   loop args;
@@ -4027,16 +4027,18 @@ let boxFile file =
        * structure fields  *)
       GPragma (a, _) -> begin
         (match a with
-          Attr("interceptCasts", [ AId("on") ]) -> interceptCasts := true
-        | Attr("interceptCasts", [ AId("off") ]) -> interceptCasts := false
+          Attr("interceptCasts", [ ACons("on", _) ]) -> 
+            interceptCasts := true
+        | Attr("interceptCasts", [ ACons("off", _) ]) -> 
+            interceptCasts := false
         | Attr("boxalloc",  AStr(s) :: rest) -> 
             if not (H.mem allocFunctions s) then begin
               if !E.verboseFlag then
                 ignore (E.log "Will treat %s as an allocation function\n" s);
               boxallocPragma s rest
             end
-        | Attr("box", [AId("on")]) -> boxing := true
-        | Attr("box", [AId("off")]) -> boxing := false
+        | Attr("box", [ACons("on", _)]) -> boxing := true
+        | Attr("box", [ACons("off", _)]) -> boxing := false
         | Attr("boxtext", [AStr s]) ->
             theFile := consGlobal (GText s) !theFile
         | _ -> ());

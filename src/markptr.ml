@@ -119,7 +119,7 @@ let registerFunction (fi: funinfo) =
                           (getFunctionTypeAttributes (Lval (var fvi))) with
     [Attr(_, [printf; AInt format_idx; AInt _]) as a] 
       when (match printf with 
-                AId("printf") -> true 
+                ACons("printf",[]) -> true 
               | AVar vi when vi.vname = "printf" -> true
               | _ -> false) ->  begin
       let t = 
@@ -1585,8 +1585,8 @@ let doGlobal (g: global) : global =
           end
 
 
-      | Attr("box", [AId("on")]) -> boxing := true
-      | Attr("box", [AId("off")]) -> boxing := false
+      | Attr("box", [ACons("on", _)]) -> boxing := true
+      | Attr("box", [ACons("off", _)]) -> boxing := false
       | Attr("nobox", funcs) ->
           List.iter 
             (function (AStr s) -> 

@@ -1861,14 +1861,14 @@ and doAttr (a: A.attribute) : attribute list =
 (*    ("restrict", []) -> [] *)
   | (s, []) -> [Attr (stripUnderscore s, [])]
   | (s, el) -> 
-      let rec attrOfExp (strip: bool) (a: A.expression) : attrarg =
+      let rec attrOfExp (strip: bool) (a: A.expression) : attrparam =
         match a with
           A.VARIABLE n -> begin
             try 
               let vi, _ = lookupVar n in
               AVar vi
             with Not_found -> 
-              AId (if strip then stripUnderscore n else n)
+              ACons ((if strip then stripUnderscore n else n), [])
           end
         | A.CONSTANT (A.CONST_STRING s) -> AStr s
         | A.CONSTANT (A.CONST_INT str) -> AInt (int_of_string str)
@@ -1888,7 +1888,6 @@ and doAttr (a: A.attribute) : attribute list =
       in
       (* Sometimes we need to convert attrarg into attr *)
       let arg2attr = function
-          AId s -> Attr (s, [])
         | ACons (s, args) -> Attr (s, args)
         | _ -> E.s (error "Invalid form of attribute")
       in
@@ -4089,7 +4088,6 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
         [Attr("dummy", [a'])] ->
           let a'' =
             match a' with
-              AId s -> Attr (s, [])
             | ACons (s, args) -> Attr (s, args)
             | _ -> E.s (error "Unexpected attribute in #pragma")
           in

@@ -205,23 +205,22 @@ and fkind =
   | FDouble     (** double *)
   | FLongDouble (** long double *)
 
+(** An attribute has a name and some optional arguments *)
+and attribute = Attr of string * attrparam list
+
 (** Attributes are lists sorted by the attribute name *)
 and attributes = attribute list
 
-(** An attribute has a name and some optional arguments *)
-and attribute = Attr of string * attrarg list
-
 (** The type of information contained in an attributes *)
-and attrarg = 
-    AId of string  
+and attrparam = 
   | AInt of int    
   | AStr of string 
   | AVar of varinfo 
-  | ACons of string * attrarg list       (** Constructed attributes *)
+  | ACons of string * attrparam list       (** Constructed attributes *)
   | ASizeOf of typ                       (** A way to talk about types *)
-  | ASizeOfE of attrarg
-  | AUnOp of unop * attrarg
-  | ABinOp of binop * attrarg * attrarg
+  | ASizeOfE of attrparam
+  | AUnOp of unop * attrparam
+  | ABinOp of binop * attrparam * attrparam
 
 
 (** Information about a composite type (a struct or a union). Use mkCompInfo 
@@ -1343,9 +1342,8 @@ let separateStorageModifiers (al: attribute list) =
     (* Put back the declspec. Put it without the leading __ since these will 
      * be added later *)
     let stom' = 
-      List.map (fun (Attr(an, args)) -> Attr("declspec", 
-                                             if args = [] then [AId(an)] else
-                                             [ACons(an, args)])) stom in
+      List.map (fun (Attr(an, args)) -> 
+        Attr("declspec", [ACons(an, args)])) stom in
     stom', rest
 
 
@@ -1790,19 +1788,19 @@ and d_attr () (Attr(an, args): attribute) =
     text an'
   else
     text (an' ^ "(") 
-      ++(docList (chr ',') (d_attrarg ()) () args)
+      ++(docList (chr ',') (d_attrparam ()) () args)
       ++ text ")"
 
-and d_attrarg () = function
-    AId s -> text s
+and d_attrparam () = function
   | AInt n -> num n
   | AStr s -> text ("\"" ^ escape_string s ^ "\"")
   | AVar vi -> text vi.vname
+  | ACons(s, []) -> text s
   | ACons(s,al) ->
       text (s ^ "(")
-        ++ (docList (chr ',') (d_attrarg ()) () al)
+        ++ (docList (chr ',') (d_attrparam ()) () al)
         ++ text ")"
-  | ASizeOfE a -> text "sizeof(" ++ d_attrarg () a ++ text ")"
+  | ASizeOfE a -> text "sizeof(" ++ d_attrparam () a ++ text ")"
   | ASizeOf t -> text "sizeof(" ++ d_type () t ++ text ")"
   | AUnOp(u,a1) -> 
       let d_unop () u =
@@ -1811,16 +1809,16 @@ and d_attrarg () = function
         | BNot -> text "~"
         | LNot -> text "!"
       in
-      (d_unop () u) ++ text " (" ++ (d_attrarg () a1) ++ text ")"
+      (d_unop () u) ++ text " (" ++ (d_attrparam () a1) ++ text ")"
 
   | ABinOp(b,a1,a2) -> 
       align 
         ++ text "(" 
-        ++ (d_attrarg () a1)
+        ++ (d_attrparam () a1)
         ++ text ") "
         ++ (d_binop () b)
         ++ break 
-        ++ text " (" ++ (d_attrarg () a2) ++ text ") "
+        ++ text " (" ++ (d_attrparam () a2) ++ text ") "
         ++ unalign
       
           
@@ -2332,17 +2330,18 @@ let _ =
     | Attr("stdcall", []) when !msvcMode -> Some (text "__stdcall")
     | Attr("declspec", args) when !msvcMode -> 
         Some (text "__declspec(" 
-                ++ docList (chr ',') (d_attrarg ()) () args
+                ++ docList (chr ',') (d_attrparam ()) () args
                 ++ text ")")
     | Attr("asm", args) -> 
         Some (text "__asm__(" 
-                ++ docList (chr ',') (d_attrarg ()) () args
+                ++ docList (chr ',') (d_attrparam ()) () args
                 ++ text ")")
     (* we suppress printing mode(__si__) because it triggers an *)
     (* internal compiler error in all current gcc versions *)
     (* sm: I've now encountered a problem with mode(__hi__)... *)
     (* I don't know what's going on, but let's try disabling all "mode"..*)
-    | Attr("mode", [AId tag]) -> Some ((text "/* mode(") ++ (text tag) ++ (text ") */"))
+    | Attr("mode", [ACons(tag,[])]) -> 
+        Some ((text "/* mode(") ++ (text tag) ++ (text ") */"))
     (* sm: also suppress "format" because we seem to print it in *)
     (* a way gcc does not like *)
     | Attr("format", _) -> Some (text "/* format attribute */")
@@ -2802,9 +2801,9 @@ and visitCilAttributes (vis: cilVisitor) (al: attribute list) : attribute list=
      al
 and childrenAttribute (vis: cilVisitor) (a: attribute) : attribute = 
   let fTyp t  = visitCilType vis t in
-  let rec doarg (aa: attrarg) = 
+  let rec doarg (aa: attrparam) = 
     match aa with 
-      AId _ | AInt _ | AStr _ -> aa
+      AInt _ | AStr _ -> aa
     | AVar v -> 
         let v' = doVisit vis vis#vvrbl (fun _ x -> x) v in
         if v' != v then AVar v' else aa
@@ -3043,7 +3042,7 @@ let d_global () = function
           text an
         else
           text (an ^ "(")
-            ++ docList (chr ',') (d_attrarg ()) () args
+            ++ docList (chr ',') (d_attrparam ()) () args
             ++ text ")"
       in
       d_line l 

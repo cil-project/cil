@@ -161,23 +161,26 @@ and fkind =
   | FDouble     (** double *)
   | FLongDouble (** long double *)
 
+(** An attribute has a name and some optional parameters *)
+and attribute = Attr of string * attrparam list
+
 (** Attributes are lists sorted by the attribute name *)
 and attributes = attribute list
 
-(** An attribute has a name and some optional arguments *)
-and attribute = Attr of string * attrarg list
-
-(** The type of information contained in an attributes *)
-and attrarg = 
-    AId of string  
-  | AInt of int    
-  | AStr of string 
-  | AVar of varinfo 
-  | ACons of string * attrarg list       (** Constructed attributes *)
+(** The type of parameters in attributes *)
+and attrparam = 
+  | AInt of int                          (** An integer constant *)
+  | AStr of string                       (** A string constant *)
+  | AVar of varinfo                      (** A reference to a variable *)
+  | ACons of string * attrparam list       (** Constructed attributes. These 
+                                             are printed foo(a1,a2,...,an). 
+                                             The list of parameters can be 
+                                             empty and in that case the 
+                                             parentheses are not printed. *)
   | ASizeOf of typ                       (** A way to talk about types *)
-  | ASizeOfE of attrarg
-  | AUnOp of unop * attrarg
-  | ABinOp of binop * attrarg * attrarg
+  | ASizeOfE of attrparam
+  | AUnOp of unop * attrparam
+  | ABinOp of binop * attrparam * attrparam
 
 
 (** Information about a composite type (a struct or a union). Use mkCompInfo 
@@ -1190,7 +1193,7 @@ val d_binop: unit -> binop -> Pretty.doc
 val d_attr: unit -> attribute -> Pretty.doc
 
 (** Pretty-print an argument of an attribute *)
-val d_attrarg: unit -> attrarg -> Pretty.doc
+val d_attrparam: unit -> attrparam -> Pretty.doc
 
 (** Pretty-print a list of attributes *)
 val d_attrlist: unit -> attributes -> Pretty.doc 
@@ -1337,9 +1340,9 @@ type offsetAcc =
 val offsetOfFieldAcc: fi: fieldinfo ->
                       sofar: offsetAcc -> offsetAcc 
 (** Raised when one of the bitsSizeOf functions cannot compute the size of a 
- * type. This can happen because the type contains array-length expressions 
- * that we don't know how to compute or because it is a type whose size is 
- * not defined (e.g. TVoid or TFun)  *)        
+    type. This can happen because the type contains array-length expressions 
+    that we don't know how to compute or because it is a type whose size is 
+    not defined (e.g. TVoid or TFun)  *)        
 exception SizeOfError of typ
 
 (** The size of a type, in bits. Trailing padding is added for structs and

@@ -432,7 +432,9 @@ to write your analysis and transformation.
 \section{CIL API Documentation}\label{sec-api} 
 
  The CIL API is documented in the file \t{src/cil.mli}. We also have an
-\ahref{api/index.html}{online documentation}.  
+\ahref{api/index.html}{online documentation} extracted from \t{cil.mli}. In
+the rest of this section we give an overview of the essential parts of the API
+and we provice pointers to the online documentation. 
 
  The parser for both the GCC and MSVC front-ends can be invoked as
 \t{Frontc.parse: string -> unit -> Cil.file}. This function must be given the
@@ -461,13 +463,14 @@ CIL stores the source location where it appears (using the type
 before the first use in the file. Similarly, the definition or the declaration
 of a variable or function must appear before its use in a file. 
 
- CIL supports pragmas only at the top level. 
+ CIL supports pragmas only at the top level and pragmas share the rich
+language of attributes (described in \secref{attrib}).  
 
  \subsection{Types}
 
  A C type is represented in CIL using the type \ciltyperef{typ}. Among types we
-differentiate the integral types, with different kinds denoting the sign and
-precision, floating point types, enumeration types, array and pointer type,
+differentiate the integral types (with different kinds denoting the sign and
+precision), floating point types, enumeration types, array and pointer types,
 and function types. 
 
  CIL exports a number of useful constants that denote common types:
@@ -476,12 +479,24 @@ and function types.
  \cilvalref{charConstPtrType} (pointer to a constant character), 
  \cilvalref{voidPtrType}, \cilvalref{intPtrType}, \cilvalref{doubleType}.
 
- At the moment CIL assumes that \t{char} is 1 byte, \t{short} is 2 bytes,
- \t{int} and \t{long} are 4 bytes and \t{long long} is 8 bytes. A pointer is 4
- bytes. 
+ Using the TNamed constructor you can refer to type names. All uses of type
+names must be preceeded by a GType global that defines the name. If you want
+to examine a type you should use the \cilvalref{unrollType} function to make
+sure that all uses of TNamed are removed.
 
-All uses of type names (through the TNamed constructor) must be preceeded by
-a GType global that defines the name. If you want to 
+ At the moment CIL assumes that \t{char} is 1 byte, \t{short} is 2 bytes,
+\t{int} and \t{long} are 4 bytes and \t{long long} is 8 bytes. A pointer is 4
+bytes. CIL contains functions that can compute the size of a type (in bits)
+\cilvalref{bitsSizeOf}, the alignment of a type (in bytes)
+\cilvalref{alignOff_int}, and can convert an offset into a start and width
+(both in bits) using the function \cilvalref{bitsOffset}. At the moment these
+functions do not take into account the \t{packed} attributes and pragmas. 
+
+ compinfo 
+
+
+ enuminfo
+
 
  \subsection{Attributes}
 

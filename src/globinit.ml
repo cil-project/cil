@@ -75,8 +75,8 @@ let doFile (fl: file) : file =
         (* Leave alone all other globals *)
     | GPragma (a, _) as g -> begin
         (match a with
-        | Attr("box", [AId("on")]) -> boxing := true
-        | Attr("box", [AId("off")]) -> boxing := false
+        | Attr("box", [ACons("on",[])]) -> boxing := true
+        | Attr("box", [ACons("off",[])]) -> boxing := false
         | _ -> ());
         g
     end

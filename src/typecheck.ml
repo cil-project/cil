@@ -388,8 +388,8 @@ class typecheck = object
     | GAsm(_) -> DoChildren
     | GPragma(a, _) -> begin
         match a with
-          | Attr("box", [AId("on")]) -> checking := true
-          | Attr("box", [AId("off")]) -> checking := false
+          | Attr("box", [ACons("on",_)]) -> checking := true
+          | Attr("box", [ACons("off",_)]) -> checking := false
           | _ -> () 
       end ; DoChildren
     | GText(_) -> DoChildren
