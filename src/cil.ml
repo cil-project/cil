@@ -1110,9 +1110,10 @@ let uintType = TInt(IUInt,[])
 let longType = TInt(ILong,[])
 let ulongType = TInt(IULong,[])
 let charType = TInt(IChar, [])
-let charPtrType = TPtr(charType,[])
 
-let charConstPtrType = TPtr(charType,[Attr("const", [])])
+let charPtrType = TPtr(charType,[])
+let charConstPtrType = TPtr(TInt(IChar, [Attr("const", [])]),[])
+
 let voidPtrType = TPtr(voidType, [])
 let intPtrType = TPtr(intType, [])
 let uintPtrType = TPtr(uintType, [])
