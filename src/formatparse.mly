@@ -620,7 +620,7 @@ lval:
                      | _ -> E.s (bug "Expecting a pointer for field %s\n" $3)
                    in
                    let fi = getField baset $3 in
-                   mkMem e (Field(fi, (fst $4) baset args))),
+                   mkMem e (Field(fi, (fst $4) fi.ftype args))),
 
                 (fun l -> match l with 
                    Mem e, Field(fi, off) when fi.fname = $3 -> begin
