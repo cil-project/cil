@@ -717,8 +717,10 @@ smAddTest("combine_sbumpB MERGEINLINES=1");
 smAddTest("combine_allocate");
 smAddTest("combine_allocate MERGEINLINES=1");
 smAddTest("combine_theFunc");
-smFailTest("still more merger problems",
-           "combine_theFunc MERGEINLINES=1");
+smAddTest("combine_theFunc MERGEINLINES=1");
+smAddTest("combine_syserr");
+smFailTest("globals are reordered improperly",
+           "combine_syserr MERGEINLINES=1");
 
 # tests of things implemented for EDG compatibility
 smAddTest("mergestruct");
