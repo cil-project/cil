@@ -2016,6 +2016,15 @@ val bitsOffset: typ -> offset -> int * int
 (** Represents a location that cannot be determined *)
 val locUnknown: location
 
+(** Return the location of an instruction *)
+val get_instrLoc: instr -> location 
+
+(** Return the location of a global, or locUnknown *)
+val get_globalLoc: global -> location 
+
+(** Return the location of a statement, or locUnknown *)
+val get_stmtLoc: stmtkind -> location 
+
 
 (** Generate an {!Cil.exp} to be used in case of errors. *)
 val dExp: Pretty.doc -> exp 
