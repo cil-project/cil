@@ -2044,10 +2044,13 @@ class defaultCilPrinterClass : cilPrinter = object (self)
               ++ text ";"
               
     end
-    | Call(Some lv, Lval(Var vi, NoOffset), [dest; SizeOf t], l) 
+    | Call(result, Lval(Var vi, NoOffset), [dest; SizeOf t], l) 
         when vi.vname = "__builtin_va_arg" -> 
           self#pLineDirective l
-            ++ (self#pLval () lv ++ text " = ")
+	    ++ (match result with
+	      None -> nil
+	    | Some lv ->
+		self#pLval () lv ++ text " = ")
                    
             (* Now the function name *)
             ++ text "__builtin_va_arg"
