@@ -1894,6 +1894,10 @@ openssh-gcc: mustbelinux mustbemanju opensshclean
 
 #website: www.apache.org
 
+## It is configured to install binaries under 
+## /usr/local/src/apache_1.3.22/bin/bin
+## To change, run ./configure --prefix=DIRECTORY_YOU_WANT_TO_PUT_BINARIES
+
 APACHESRC := /usr/local/src/apache_1.3.22
 
 apacheclean:
@@ -1909,13 +1913,13 @@ apacheclean:
 	      	\) -exec rm -f {} \;
 
 apache: mustbegcc mustbelinux mustbemanju apacheclean
-	cd $(APACHESRC) ; make CC="$(CILLY)"
+	cd $(APACHESRC) ; make CC="$(CILLY)" ; make install
 
 apache-noclean: mustbegcc mustbelinux mustbemanju
-	cd$(APACHESRC) ; make CC="$(CILLY)"
+	cd $(APACHESRC) ; make CC="$(CILLY)" ; make install
 
 apache-gcc: mustbelinux mustbemanju apacheclean
-	cd $(APACHESRC) ; make CC=gcc
+	cd $(APACHESRC) ; make CC=gcc ; make install
 
 #### ------------- GIMP AND FRIENDS ----------------
 
