@@ -200,10 +200,10 @@ CC=$(CCL) $(CONLY)
 
 
 SAFECC=perl $(CILDIR)/lib/safecc.pl
-ifndef NOCABS
+ifdef SHOWCABS
 SAFECC+= --cabs
 endif
-ifndef NOCIL
+ifdef SHOWCIL
 SAFECC+= --cil
 endif	
 ifdef BOX
