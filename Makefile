@@ -446,7 +446,8 @@ wes-rbtest: test/small2/wes-rbtest.c $(EXECUTABLE)$(EXE) $(TVEXE)
                  $(EXEOUT)wes-rbtest.exe
 	$(PCCTEST)/wes-rbtest.exe
 
-wes-hashtest: test/small2/wes-hashtest.c $(EXECUTABLE)$(EXE) $(TVEXE)
+wes-hashtest: test/small2/wes-hashtest.c $(EXECUTABLE)$(EXE) $(TVEXE) \
+              $(SAFECLIB)
 	rm -f $(PCCTEST)/wes-hashtest.exe
 	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  $(DOOPT) \

@@ -6,6 +6,9 @@
 #define SIZED
 #define SEQ
 #define FSEQ
+#define malloc_safe malloc
+#define calloc_fseq calloc
+#define free_safe   free
 #else
 #define WILD   __attribute__((wild))
 #define SAFE   __attribute__((safe))

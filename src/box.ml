@@ -1192,9 +1192,9 @@ let checkWrite e = checkMem (Some e)
 
 (* A major hack for MSVC *)
 let getIOBFunction = 
-  let fdec = emptyFunction "__get_iob_s" in
+  let fdec = emptyFunction "__get_iob" in
   let argn = makeLocalVar fdec "n" intType in
-  fdec.svar.vtype <- TFun(fatVoidPtr, [ argn ], false, []);
+  fdec.svar.vtype <- TFun(voidPtrType, [ argn ], false, []);
   theFile := GDecl fdec.svar :: !theFile;
   fdec
 
@@ -1621,16 +1621,15 @@ and boxexpf (e: exp) : stmt list * fexp =
    (* Intercept references of _iob. A major hack !!!!! *)
     | AddrOf ((Var vi,
                Index(Const(CInt _, _) as n, NoOffset)) as lv, 
-              _) when !msvcMode && vi.vname = "_iob_l" && false
-      -> 
+              _) when !msvcMode && vi.vname = "_iob_l" -> 
         let (lvt, _, _, _, _, _) = boxlval lv in  (* Just to get the type*)
-        let tres = fixupType (TPtr(lvt, [])) in
-        let tmp1 = makeTempVar !currentFunction fatVoidPtr in
+        let tres = TPtr(lvt, [AId("safe")]) in
+        let tmp1 = makeTempVar !currentFunction voidPtrType in
         let tmp2 = makeTempVar !currentFunction tres in
         let seq  = 
           [ boxstmt (call (Some tmp1) (Lval(var getIOBFunction.svar)) [ n ]);
             boxstmt (assign tmp2 (CastE(tres, Lval(var tmp1), lu))) ] in
-        (seq, FS(tres, P.Wild, Lval(var tmp2)))
+        (seq, FS(tres, P.Safe, Lval(var tmp2)))
           
     | AddrOf (lv, l) ->
         let (lvt, lvkind, lv', baseaddr, bend, dolv) = boxlval lv in
@@ -1879,6 +1878,10 @@ and castTo (fe: fexp) (newt: typ)
       | P.FSeq, P.Safe ->
           let p', _, _, acc' = fseqToSafe p newPointerType b bend [] in
           finishDoe acc', L(newt, newkind, castP p')      
+
+       (* FSEQ -> SEQ. *)
+      | P.FSeq, P.Seq ->
+          doe, FM(newt, newkind, castP p, b, b)
 
        (******* UNIMPLEMENTED ********)
       | _, _ -> 
