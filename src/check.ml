@@ -412,6 +412,10 @@ and checkExp (isconst: bool) (e: exp) : typ =
           | _ ->());
           uintType
       end
+      | SizeOfE(e) ->
+          let te = checkExp isconst e in
+          checkExp isconst (SizeOf(te))
+
       | UnOp (Neg, e, tres) -> 
           checkArithmeticType tres; checkExpType isconst e tres; tres
 

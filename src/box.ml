@@ -2108,9 +2108,24 @@ and boxexpf (e: exp) : stmt list * fexp =
     end
           
     | SizeOf (t) -> 
+        let containsExposedPointers t = 
+          existsType 
+            (function 
+                TPtr _ -> ExistsTrue
+                    (* Pointers inside named structures are not exposed *)
+              | TComp comp when (String.length comp.cname > 1 &&
+                                 String.get comp.cname 0 <> '@') -> ExistsFalse
+              | _ -> ExistsMaybe) t 
+        in
+        if containsExposedPointers t then 
+          ignore (E.warn "Boxing sizeof(%a) when type contains pointers. Use sizeof expression\n" d_type t);
         let t' = fixupType t in
-        ([], L(intType, N.Scalar, SizeOf(t')))
-          
+        ([], L(uintType, N.Scalar, SizeOf(t')))
+
+    | SizeOfE (e) -> 
+        let (et, doe, e') = boxexp e in
+        (doe, L(uintType, N.Scalar, SizeOfE(e')))
+        
           
     | AddrOf (lv) ->
         let (lvt, lvkind, lv', baseaddr, bend, dolv) = boxlval lv in

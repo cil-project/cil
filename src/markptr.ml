@@ -267,6 +267,10 @@ let rec doExp (e: exp) =
       let t', _ = doType t (N.anonPlace()) 0 in
       SizeOf (t'), uintType, N.dummyNode
 
+  | SizeOfE (e) -> 
+      let e', et', en' = doExp e in
+      SizeOfE(e'), uintType, N.dummyNode
+
         (* arithmetic binop *)
   | BinOp (((PlusA|MinusA|Mult|Div|Mod|Shiftlt|Shiftrt|
     Lt|Gt|Le|Ge|Eq|Ne|BAnd|BXor|BOr|LtP|GtP|LeP|GeP|EqP|NeP|MinusPP) as bop), 

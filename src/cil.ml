@@ -235,12 +235,14 @@ and binop =
 and exp =
     Const      of constant
   | Lval       of lval                  (* l-values *)
-  | SizeOf     of typ                   (* Has UInt type ! (ISO 6.5.3.4). 
+  | SizeOf    of typ                   (* Has UInt type ! (ISO 6.5.3.4). 
                                          * Only sizeof for types is 
                                          * available. This is not turned into 
                                          * a constant because some 
                                          * transformations might want to 
                                          * change types *) 
+
+  | SizeOfE   of exp                    (* Like SizeOf *)
 
                                         (* Give the type of the result *)
   | UnOp       of unop * exp * typ
@@ -798,7 +800,7 @@ let getParenthLevel = function
                                         (* Lvals *)
   | Lval(Mem _ , _) -> 20                   
   | Lval(Var _, (Field _|Index _)) -> 20
-  | SizeOf _ -> 20
+  | SizeOf _ | SizeOfE _ -> 20
 
   | Lval(Var _, NoOffset) -> 0        (* Plain variables *)
   | Const _ -> 0                        (* Constants *)
@@ -1002,6 +1004,7 @@ and d_exp () e =
         (d_expprec level) e1 (d_expprec level) e2 (d_expprec level) e3
   | CastE(t,e) -> dprintf "(%a)%a" d_type t (d_expprec level) e
   | SizeOf (t) -> dprintf "sizeof(%a)" d_type t
+  | SizeOfE (e) -> dprintf "sizeof(%a)" d_exp e
   | Compound (t, initl) -> 
       (* We do not print the type of the Compound *)
       let dinit = function
@@ -1477,7 +1480,7 @@ let printFileWithCustom (out: out_channel)
 let iterExp (f: exp -> unit) (body: stmt) : unit =
   let rec fExp e = f e; fExp' e
   and fExp' = function
-      (Const _|SizeOf _) -> ()
+      (Const _|SizeOf _|SizeOfE _) -> ()
     | Lval lv -> fLval lv
     | UnOp(_,e,_) -> fExp e
     | BinOp(_,e1,e2,_) -> fExp e1; fExp e2
@@ -1519,7 +1522,7 @@ begin
 
   let rec fExp e = (vis#vexpr e); fExp' e
   and fExp' = function
-      (Const _|SizeOf _) -> ()
+      (Const _|SizeOf _|SizeOfE _) -> ()
     | Lval lv -> fLval lv
     | UnOp(_,e,_) -> fExp e
     | BinOp(_,e1,e2,_) -> fExp e1; fExp e2
@@ -1603,7 +1606,7 @@ let rec typeOf (e: exp) : typ =
   | Const(CStr _) -> charPtrType 
   | Const(CReal (_, fk, _)) -> TFloat(fk, [])
   | Lval(lv) -> typeOfLval lv
-  | SizeOf _ -> uintType
+  | SizeOf _ | SizeOfE _ -> uintType
   | UnOp (_, _, t) -> t
   | BinOp (_, _, _, t) -> t
   | Question (_, e2, _) -> typeOf e2

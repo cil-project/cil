@@ -1064,13 +1064,13 @@ and doExp (isconst: bool)    (* In a constant *)
            * drop the potential size-effects *)
         if se <> [] then 
           ignore (E.log "Warning: Dropping side-effect in EXPR_SIZEOF\n");
-        let t' = 
+        let e'' = 
           match e' with                 (* If we are taking the sizeof an 
                                          * array we must drop the StartOf  *)
-            StartOf(lv) -> typeOfLval lv
-          | _ -> t
+            StartOf(lv) -> Lval(lv)
+          | _ -> e'
         in
-        finishExp [] (SizeOf(t')) uintType
+        finishExp [] (SizeOfE(e'')) uintType
           
     | A.CAST (bt, e) -> 
         let se1, typ = 

@@ -239,6 +239,8 @@ and exp =
                                          * transformations might want to
                                          * change types *)
 
+  | SizeOfE    of exp                   (* Like SizeOf but for expressions *)
+
                                         (* Give the type of the result *)
   | UnOp       of unop * exp * typ
 
