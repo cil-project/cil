@@ -74,7 +74,7 @@ MODULES     += $(CILLY_MODULES) libmaincil
 
 
     # Include now the common set of rules for OCAML
-include Makefile.ocaml
+include ocamlutil/Makefile.ocaml
 
 
    # Now the rule to make cilly
@@ -84,7 +84,7 @@ PROJECT_MODULES    = $(CILLY_MODULES)
 PROJECT_CMODULES   = perfcount $(CILLY_CMODULES)
 PROJECT_LIBS       = $(CILLY_LIBS)
 cilly: $(PROJECT_EXECUTABLE)
-include Makefile.ocaml.build
+include ocamlutil/Makefile.ocaml.build
 
 
 quickbuild: cilversion machdep cilly
@@ -285,8 +285,7 @@ TEMP_DIR = TEMP_cil-distrib
 TOP_DIR = $(TEMP_DIR)/cil
 
 DISTRIB_ROOT = README LICENSE INSTALL Makefile.cil.in  \
-               Makefile.ocaml Makefile.ocaml.build \
-	       config.h.in Makefile.gcc Makefile.msvc \
+               config.h.in Makefile.gcc Makefile.msvc \
 	       configure configure.in install-sh config.guess config.sub \
 	       cil.spec cil.spec.in
 
@@ -299,7 +298,9 @@ DISTRIB_SRC = util.ml clist.ml clist.mli \
 	      escape.ml escape.mli
 
 DISTRIB_OCAMLUTIL = pretty.ml pretty.mli errormsg.ml errormsg.mli \
-                    trace.ml trace.mli stats.ml stats.mli 
+                    trace.ml trace.mli stats.ml stats.mli \
+                    perfcount.c.in Makefile.ocaml Makefile.ocaml.build
+
 
 DISTRIB_SRC_FRONTC = cabs.ml cprint.ml clexer.mli clexer.mll \
 		     cparser.mly \
