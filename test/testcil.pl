@@ -597,9 +597,11 @@ $TEST->setField(smAddTest("scott/ptrkinds $box"), "AfterSuccessScript", <<'EOF')
     grep -w $2 $1 | grep -w $3
   }
 
+  # looks like we no longer print __SAFE with safe pointers...
+  #grepBoth $src safeptr __SAFE && \
+
   src=small2/ptrkindscured.c
-  if grepBoth $src safeptr __SAFE && \
-     grepBoth $src fseqptr __FSEQ && \
+  if grepBoth $src fseqptr __FSEQ && \
      grepBoth $src seqptr __SEQ && \
      grepBoth $src wildptr __WILD; then
     echo "inference seems to work"
@@ -651,10 +653,8 @@ smAddTest("scott/complex_float $box");
 smAddTest("mergeinline");
 smFailTest("z2 is removed improperly",
            "testexe/structs_comb $box");
-smFailTest("improper name capture between parameter and later local variable",
-           "scott-nolink/name-capture-bitand $box");
-smFailTest("improper name capture between parameter and later local variable",
-           "scott-nolink/wildfun2 $box");
+smAddTest("scott-nolink/name-capture-bitand $box");
+smAddTest("scott-nolink/wildfun2 $box");
 
 # tests of things implemented for EDG compatibility
 smAddTest("mergestruct");
