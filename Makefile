@@ -967,10 +967,19 @@ apache/gzip : defaulttarget
 	rm -f $(APACHETEST)/mod_gzip.$(OBJ)
 	cd $(APACHETEST); $(CCURED) \
                        --keep=. $(APATCH) \
-                        --usecil --cilout=this.cil $(DOOPT) \
+                        $(DOOPT) \
                         $(APACHECFLAGS) \
                         $(CONLY) $(OBJOUT)./mod_gzip.$(OBJ) \
                         mod_gzip.c
+
+apache/gzipsmall : defaulttarget
+	rm -f $(APACHETEST)/mod_gzipsmall.$(OBJ)
+	cd $(APACHETEST); $(CCURED) \
+                       --keep=. $(APATCH) \
+                        $(DOOPT) \
+                        $(APACHECFLAGS) \
+                        $(CONLY) $(OBJOUT)./mod_gzipsmall.$(OBJ) \
+                        mod_gzipsmall.c
 
 apache/t : defaulttarget
 	rm -f $(APACHETEST)/t.obj

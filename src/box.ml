@@ -2061,6 +2061,7 @@ let rec checkBounds
     let lv', lv't = getHostIfBitfield lv lvt in
     (* Do not check the bounds when we access variables without array 
      * indexing  *)
+    ignore (E.log "Check bounds: pkind=%a\n" N.d_opointerkind pkind);
     match pkind with
     | N.Wild -> (* We'll need to read the length anyway since we need it for 
                    * working with the tags *)
@@ -2379,7 +2380,7 @@ type checkLvWhy =
 let rec checkMem (why: checkLvWhy) 
                  (lv: lval) (base: exp) (bend: exp)
                  (lvt: typ) (pkind: N.opointerkind) : stmt clist = 
-  (* ignore (E.log "checkMem: lvt: %a\n" d_plaintype lvt); *)
+  ignore (E.log "checkMem: lv=%a@!  lvt: %a\n" d_plainlval lv d_plaintype lvt);
   (* Maybe it is a table. In that case, get the true base and end *)
   (* See if a table pointer *)
   let newk = N.stripT pkind in 

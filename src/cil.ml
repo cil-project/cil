@@ -676,7 +676,7 @@ let printLine (l : location) : string =
       str := !str ^ "#";
       if !msvcMode then str := !str ^ "line";
       if l.line > 0 then str := !str ^ " " ^ string_of_int(l.line);
-      if true (* l.file <> !lastFileName *) then begin
+      if l.file <> !lastFileName then begin
         lastFileName := l.file;
         str := !str ^ " \"" ^ l.file ^ "\""
       end

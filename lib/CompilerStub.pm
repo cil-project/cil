@@ -91,7 +91,11 @@ sub collectOneArgument {
         $self->{VERBOSE} = 1; return 1;
     }
     if($arg =~ m|--keep=(.+)$|) {
-        $self->{KEEPDIR} = $1; return 1;
+        $self->{KEEPDIR} = $1; 
+        if(! -d $self->{KEEPDIR}) {
+            die "Cannot find directory $self->{KEEPDIR}";
+        }
+        return 1;
     }
     return 0;
 }
@@ -166,7 +170,7 @@ sub preprocessOutputFile {
     my($self, $src) = @_;
     my ($base, $dir, $ext) = fileparse($src, "\\.[^.]+");
     my $idir = $dir;
-    if(defined $self->{KEEPDIR}) { $idir = $self->{KEEPDIR}; }
+    if(defined $self->{KEEPDIR}) { $idir = $self->{KEEPDIR} . "/"; }
     return "$idir$base.i";
 }
 
