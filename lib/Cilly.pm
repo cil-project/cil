@@ -65,6 +65,7 @@ sub new {
       IDASHI => 1,     # if true, pass "-I-" to gcc's preprocessor
       IDASHDOT => 1,   # if true, pass "-I." to gcc's preprocessor
       VERBOSE => 0,    # when true, print extra detail
+      SEPARATE => ! $::default_is_merge,
       OPERATION => 'TOEXE', # This is the default for all compilers
     };
     my $self = bless $ref, $class;
@@ -179,6 +180,10 @@ sub collectOneArgument {
         $self->{SEPARATE} = 1;
         return 1;
     }
+    if($arg =~ m|--merge|) {
+        $self->{SEPARATE} = 0;
+        return 1;
+    }
     if($arg eq '--keepmerged') {
         $self->{KEEPMERGED} = 1;
         return 1;
@@ -234,6 +239,7 @@ Options:
   --keep=xxx   Keep temporary files in the given directory
   --separate   Apply CIL separately to each source file as they are compiled. 
                By default CIL is applied to the whole program during linking.
+  --merge      Apply CIL to the merged program.
   --keepmerged  Save the merged file. Only useful if --separate is not given.
   --trueobj          Do not write preprocessed sources in .obj files but
                      create some other files.
@@ -398,7 +404,7 @@ sub preprocess_after_cil {
 # You should not override this method
 sub straight_preprocess {
     my ($self, $src, $dest, $ppargs) = @_;
-    if($self->{VERBOSE}) { print "Preprocessing $src\n"; }
+    if($self->{VERBOSE}) { print STDERR "Preprocessing $src\n"; }
     if($self->{MODENAME} eq "MSVC") {
         $self->MSVC::msvc_preprocess($src, $dest, $ppargs);
     } else {
@@ -462,7 +468,7 @@ sub compile {
 # override this 
 sub straight_compile {
     my ($self, $src, $dest, $ppargs, $ccargs) = @_;
-    if($self->{VERBOSE}) { print "Compiling $src into $dest\n"; }
+    if($self->{VERBOSE}) { print STDERR "Compiling $src into $dest\n"; }
     $dest = $dest eq "" ? "" : $self->{OUTOBJ} . $dest;
     my $forcec = $self->{FORCECSOURCE};
     my $cmd = $self->{CC} . " " . join(' ', @{$ppargs}, @{$ccargs}) .  

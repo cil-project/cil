@@ -15,7 +15,7 @@ my $tmpdir  = "cilcode.tmp";
 my $htmloutdir = "examples";
 my $outdir  = "html/cil/$htmloutdir";
 
-my $cilly = "perl ../bin/cilly";
+my $cilly = "perl ../bin/cilly --verbose";
 
 my $preambleLocal = <<EOF;
 int main(void) {
@@ -66,7 +66,9 @@ while(<>) {
         print "See the \\ahref{$htmloutdir/ex$testnr.txt}{CIL output} for this
 code fragment\n";
         # Now run cilly
-        system("$cilly -c $tmpdir/ex$testnr.c -o $tmpdir/ex$testnr.o");
+        my $cmd = "$cilly -c $tmpdir/ex$testnr.c -o $tmpdir/ex$testnr.o";
+        # print "$cmd\n";
+        system($cmd);
         # Now repackage the CIL file
         my $cilfile = "$tmpdir/ex$testnr" . "cil.c";
         open(CIL, "<$cilfile") || die "Cannot find CIL file for $testnr";

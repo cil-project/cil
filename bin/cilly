@@ -40,10 +40,10 @@ use CilConfig;
 
 use Cilly;
 
+$::default_is_merge = 0;
 my $stub = CilCompiler->new(@ARGV);
 
 # print Dumper($stub);
-
 $stub->doit();
 
 
@@ -93,7 +93,7 @@ EOF
 
 
 sub CillyCommand {
-    my ($self, $dir, $base) = @_;
+    my ($self, $ppsrc, $dir, $base) = @_;
 
     my $aftercil = "$dir$base" . "cil.c";
     return ($CilCompiler::compiler . " --out $aftercil", $aftercil);
