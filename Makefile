@@ -699,6 +699,9 @@ newcompress: defaulttarget mustbegcc
 	echo "14000000 q 2231" >$(COMPRESSDIR)/exe/base/input.data 
 	sh -c "time $(COMPRESSDIR)/exe/base/compress95.v8 < $(COMPRESSDIR)/exe/base/input.data > $(COMPRESSDIR)/src/combine-compress.out"
 
+cleancompress: defaulttarget mustbegcc
+	cd $(COMPRESSDIR)/src; make clean
+
 LIDIR=$(SPECDIR)/130.li
 li: defaulttarget
 	cd $(LIDIR)/src; make build CC="$(SAFECC) --combine --keep=combine $(CONLY)" \ LD="$(SAFECC) --combine --keep=combine" 

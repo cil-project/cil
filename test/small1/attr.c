@@ -1,7 +1,7 @@
 
 /* Various ways to place attributes */
-char * __cdecl asctime(const struct tm *);
-char * __stdcall asctime(const struct tm *);
+char * __cdecl asctime1(const struct tm *);
+char * __stdcall asctime2(const struct tm *);
 unsigned long __cdecl _exception_code(void);
 
 unsigned long 
@@ -16,7 +16,7 @@ typedef struct {
   int (__stdcall *foo)();
 } T1;
 
-typedef int (_cdecl *BAR)();
+typedef int (__cdecl *BAR)();
 
 void __stdcall foo(int x) {
   return;
@@ -24,6 +24,8 @@ void __stdcall foo(int x) {
 
 void main() {
   struct tm thetime;
-  char *t = asctime(& thetime);
+  BAR bar;
+  char *t1 = asctime1(& thetime);
+  char *t2 = asctime2(& thetime);
   unsigned long l = Int64ShllMod32( & foo );
 }

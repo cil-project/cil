@@ -1387,6 +1387,8 @@ let dummyFile =
     globinit = None}
 
 
+(* Take the name of a file and make a valid symbol name out of it. There are 
+ * a few chanracters that are not valid in symbols *)
 let makeValidSymbolName (s: string) = 
   let s = String.copy s in (* So that we can update in place *)
   let l = String.length s in
@@ -1394,7 +1396,7 @@ let makeValidSymbolName (s: string) =
     let c = String.get s i in
     let isinvalid = 
       match c with
-        '-' -> true
+        '-' | '.' -> true
       | _ -> false
     in
     if isinvalid then 

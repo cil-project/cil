@@ -199,6 +199,14 @@ let strncpyFun =
   fdec.svar.vtype <- TFun(charPtrType, [ argd; args; arglen ], false, []);
   fdec
 
+let explodeString (nullterm: bool) (s: string) : char list =  
+  let rec allChars i acc = 
+    if i < 0 then acc
+    else allChars (i - 1) ((String.get s i) :: acc)
+  in
+  allChars (-1 + String.length s) 
+    (if nullterm then [Char.chr 0] else [])
+    
 (*** In order to process GNU_BODY expressions we must record that a given 
  *** COMPUTATION is interesting *)
 let gnu_body_result : (A.statement * ((exp * typ) option ref)) ref 
@@ -973,10 +981,29 @@ and doExp (isconst: bool)    (* In a constant *)
               
         | A.CONST_CHAR s ->
             let chr = 
-              if String.length s = 0 then
-                Char.chr 0
-              else
-                String.get s 0
+              (* Convert the characted into the ASCII code *)
+              match explodeString false s with
+                [ c ] -> c
+              | ['\\'; 'n'] -> '\n'
+              | ['\\'; 't'] -> '\t'
+              | ['\\'; 'r'] -> '\r'
+              | ['\\'; 'b'] -> '\b'
+              | ['\\'; '\\'] -> '\\'
+              | ['\\'; '\''] -> '\''
+              | ['\\'; '\034'] -> '\034'  (* The double quote *)
+              | ['\\'; c ] when c >= '0' && c <= '9' -> 
+                  Char.chr (Char.code c - Char.code '0')
+              | ['\\'; c2; c1 ] when 
+                c1 >= '0' && c1 <= '9' && c2 >= '0' && c2 <= '9' -> 
+                  Char.chr ((Char.code c1 - Char.code '0') +
+                            (Char.code c2 - Char.code '0') * 8)  
+              | ['\\'; c3; c2; c1 ] when 
+                c1 >= '0' && c1 <= '9' && c2 >= '0' && c2 <= '9'  
+                  && c3 >= '0' && c3 <= '9' -> 
+                  Char.chr ((Char.code c1 - Char.code '0') +
+                            (Char.code c2 - Char.code '0') * 8 + 
+                            (Char.code c3 - Char.code '0') * 64)  
+              | _ -> E.s (E.unimp "Cannot transform \"%s\" into a char\n" s)
             in
             finishCt (CChr(chr)) (TInt(IChar,[]))
               
@@ -1085,23 +1112,39 @@ and doExp (isconst: bool)    (* In a constant *)
               in
               match initl with
                 [] -> [], nextidx
-              | (i, ie) :: restinitl ->
-                  let nextidx', thisoffset, thisexpt = 
-                    match i with
-                      A.NO_INIT -> 
-                        incrementIdx nextidx, None, elt
-                    | A.FIELD_INIT _ -> 
-                        E.s (E.unimp "FIELD designator for array")
-                    | A.INDEX_INIT (idxe, i') -> 
-                        let idxe' = doPureExp intType idxe in
-                        let off, t = initToOffset elt i' in
-                        incrementIdx idxe', Some (Index(idxe', off)), t
-                  in
-                  (* Now do the initializer *)
-                  let ie'= doPureExp thisexpt ie in
-                  let restoffinits, nextidx''  = 
-                              initArray elt nextidx' restinitl in
-                  (thisoffset, ie') :: restoffinits, nextidx''
+              | (i, ie) :: restinitl -> begin
+                  (* If the element type is Char and the initializer is a 
+                   * string literal, split the string into characters, 
+                   * including the terminal 0 *)
+                  match unrollType elt, ie with 
+                    TInt((IChar|ISChar|IUChar), _), 
+                    A.CONSTANT (A.CONST_STRING s) when i = A.NO_INIT ->
+                      let chars = explodeString true s in
+                      let inits' = 
+                        List.map 
+                          (fun c -> 
+                            let cs = String.make 1 c in
+                            let cs = Cprint.escape_string cs in 
+                            (A.NO_INIT, A.CONSTANT (A.CONST_CHAR cs))) chars in
+                      initArray elt nextidx (inits' @ restinitl)
+                  | _ ->   
+                      let nextidx', thisoffset, thisexpt = 
+                        match i with
+                          A.NO_INIT -> 
+                            incrementIdx nextidx, None, elt
+                        | A.FIELD_INIT _ -> 
+                            E.s (E.unimp "FIELD designator for array")
+                        | A.INDEX_INIT (idxe, i') -> 
+                            let idxe' = doPureExp intType idxe in
+                            let off, t = initToOffset elt i' in
+                            incrementIdx idxe', Some (Index(idxe', off)), t
+                      in
+                      (* Now do the initializer *)
+                      let ie'= doPureExp thisexpt ie in
+                      let restoffinits, nextidx''  = 
+                        initArray elt nextidx' restinitl in
+                      (thisoffset, ie') :: restoffinits, nextidx''
+              end
             in
             match what with (* Peek at the expected return type *)
               AExp (Some typ) -> begin
@@ -1764,7 +1807,7 @@ and createGlobal ((_,_,(n,nbt,a,e)) as sname : A.single_name) =
           TArray(TInt((IChar|IUChar|ISChar), _) as bt, oldl, a),
           Const(CStr s), _ -> 
                     (* Change arrays initialized with strings into array 
-                       * initializers *)
+                     * initializers  *)
             (match oldl with 
               None ->  (* See if we have a length now *)
                 vi.vtype <- TArray(bt, 
@@ -1772,20 +1815,14 @@ and createGlobal ((_,_,(n,nbt,a,e)) as sname : A.single_name) =
                                            (String.length s + 1)),
                                    a)
             | _ -> ());
-            let addOne c acc = 
-              (None, 
-               Const(CInt(c, IChar, 
-                          Some ("'" ^ Char.escaped (Char.chr c) 
-                                ^ "'")))) :: acc
+            let chars = explodeString true s in
+            let inits = 
+              List.map (fun c -> 
+                (None, 
+                 Const(CInt(Char.code c, IChar, 
+                            Some ("'" ^ Char.escaped c ^ "'"))))) chars
             in
-            let rec allChars i acc = 
-              if i < 0 then acc
-              else allChars (i - 1) 
-                  (addOne (Char.code (String.get s i)) acc)
-            in
-            Some (Compound(vi.vtype, 
-                           allChars (String.length s - 1) 
-                             (addOne 0 [])))
+            Some (Compound(vi.vtype, inits))
               
         | TArray(bt, None, a), _, TArray(_, Some _, _) -> 
             vi.vtype <- et;

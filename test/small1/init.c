@@ -5,6 +5,8 @@ static char usageescape = 'C';
 char *usagep = "Usage non-local";
 char usages[] = "Usage string";
 
+char strange[] = { 'a', 'b', "several", 'c', "a quote\"" };
+
 char *null = (void*)0;
 
 

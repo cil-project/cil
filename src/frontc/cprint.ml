@@ -132,30 +132,33 @@ let print_commas nl fct lst =
 	
 
 let escape_string str =
-	let lng = String.length str in
-	let conv value = String.make 1 (Char.chr (value + 
-			(if value < 10 then (Char.code '0') else (Char.code 'a' - 10)))) in
-	let rec build idx =
-		if idx >= lng then ""
-		else
-			let sub = String.sub str idx 1 in
-			let res = match sub with
-				"\n" -> "\\n"
-				| "\"" -> "\\\""
-				| "'" -> "\\'"
-				| "\r" -> "\\r"
-				| "\t" -> "\\t"
-				| "\b" -> "\\b"
-				| "\000" -> "\\0"
-				| _ -> if sub = (Char.escaped (String.get sub 0))
-					then sub
-					else let code = Char.code (String.get sub 0) in
-						"\\"
-						^ (conv (code / 64))
-						^ (conv ((code mod 64) / 8))
-						^ (conv (code mod 8)) in
-			res ^ (build (idx + 1)) in
-	build 0	
+  let lng = String.length str in
+  let conv value = 
+    String.make 1 
+      (Char.chr (value + 
+		   (if value < 10 then (Char.code '0') 
+                   else (Char.code 'a' - 10)))) in
+  let rec build idx =
+    if idx >= lng then ""
+    else
+      let sub = String.sub str idx 1 in
+      let res = match sub with
+	"\n" -> "\\n"
+      | "\"" -> "\\\""
+      | "'" -> "\\'"
+      | "\r" -> "\\r"
+      | "\t" -> "\\t"
+      | "\b" -> "\\b"
+      | "\000" -> "\\0"
+      | _ -> if sub = (Char.escaped (String.get sub 0))
+      then sub
+      else let code = Char.code (String.get sub 0) in
+      "\\"
+      ^ (conv (code / 64))
+      ^ (conv ((code mod 64) / 8))
+      ^ (conv (code mod 8)) in
+      res ^ (build (idx + 1)) in
+  build 0	
 	
 let print_string s = 
   print ("\"" ^ escape_string s ^ "\"")
