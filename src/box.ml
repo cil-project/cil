@@ -415,24 +415,21 @@ and boxoffset (off: offset) (basety: typ) : offsetRes =
   match off with 
   | NoOffset ->
       (basety, [], NoOffset)
-(*
-  | Advance (e, resto) when isFatType basety ->
+
+  | Index (e, resto) when isFatType basety ->
       let fptr = getPtrFieldOfFat basety in
       let (rest, doo, off') = boxoffset off fptr.ftype in
       (rest, doo, Field(fptr, off'))
-*)
-(*
-  | Advance (e, resto) -> 
+  | Index (e, resto) -> 
       let rest =                   
-        match basety with
+        match unrollType basety with
           TPtr (t, _) -> t
         | TArray (t, _, _) -> t
-        | _ -> E.s (E.bug "Advance for type %a" d_type basety)
-      in
+        | _ -> E.s (E.bug "Index for type %a" d_type basety)
+      in 
       let (_, doe, e') = boxexp e in
       let (rest', doresto, off') = boxoffset resto basety in
-      (rest', doe @ doresto, Advance(e', off'))
-*)
+      (rest', doe @ doresto, Index(e', off'))
 
   | Field (fi, resto) ->
       let fi' = {fi with ftype = fixupType fi.ftype} in
@@ -544,7 +541,11 @@ and boxexp (e : exp) : expRes =
       if not vi.vaddrof then 
         E.s (E.bug "addrof not set for %s" vi.vname);
       let (rest, dooff, off') = boxoffset off vi.vtype in
-      let tres = fixupType (TPtr(rest, [])) in
+      let ptrtype = 
+        match rest with
+          TArray(t, _, a) -> TPtr(t, a)
+        | _ -> TPtr(rest, []) in
+      let tres = fixupType ptrtype in
       let (doset, reslv) = 
         setFatPointer tres 
           (fun _ -> AddrOf(Var(vi,off',l), l))
@@ -563,13 +564,22 @@ and boxexp (e : exp) : expRes =
                       d_plaintype addrt)
       in
       let (rest, dooff, off') = boxoffset off addrt' in
-      let tres = fixupType (TPtr(rest, [])) in
+      let ptrtype = 
+        match rest with
+          TArray(t, _, a) -> TPtr(t, a)
+        | _ -> TPtr(rest, []) in
+      let tres = fixupType ptrtype in
       let (doset, reslv) = 
         setFatPointer tres 
           (fun _ -> AddrOf(Mem(addr',off',l), l))
           addr'base in
       (tres, doaddr @ dooff @ doset, Lval(reslv))
         
+
+    (* StartOf is like an AddrOf except for typing issues. Fix these issues 
+     * in AddrOf by looking for array arguments *)
+  | StartOf (lv) -> boxexp (AddrOf(addOffset (Index(zero,NoOffset)) lv, lu))
+      
   | _ -> begin
       ignore (E.log "boxexp: %a\n" d_exp e);
       (charPtrType, [], dExp (dprintf "booo expression(%a)" d_exp e))
@@ -589,13 +599,9 @@ and readPtrBaseField e et =
       | Field(fi, o) -> 
           let po, bo = compOffsets o in
           Field(fi, po), Field(fi, bo)
-(*      | Index(e, o) ->
+      | Index(e, o) ->
           let po, bo = compOffsets o in
           Index(e, po), Index(e, bo)
-*)
-      | CastO(t, o) ->
-          let po, bo = compOffsets o in
-          CastO(t, po), CastO(t, bo)
     in
     let ptre, basee = 
       match e with
@@ -691,7 +697,7 @@ and fromPtrToBase e =
           let bfield = getBaseFieldOfFat fat in
           Field(bfield, NoOffset)
         with Not_found -> 
-          E.s (E.unimp "Field %s is not a compmonent of a fat type" fip.fname)
+          E.s (E.unimp "Field %s is not a component of a fat type" fip.fname)
       end
     | Field(f', o) -> Field(f',replacePtrBase o)
     | _ -> E.s (E.unimp "Cannot find the _p field to replace in %a\n"

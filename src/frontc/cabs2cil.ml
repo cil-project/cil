@@ -479,8 +479,9 @@ and doType (a : attribute list) = function
 and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) = 
   (* A subexpression of array type is automatically turned into StartOf(e) *)
   let processArray e t = 
-    match t with
-      TArray(t, _, a) -> StartOf e, TPtr(t, AId("const") :: a)
+    match e, t with
+      Lval(lv), TArray(t, _, a) -> StartOf lv, TPtr(t, AId("const") :: a)
+    | _, TArray _ -> E.s (E.unimp "Array expression is not lval")
     | _ -> e, t
   in
   (* Before we return we call finishExp *)
@@ -501,9 +502,10 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
             (se @ [mkSet lv e''], integer 0, intType)
     end
   in
-  let wrapLval e = 
-    let (se, lv, t) = doLval e in
-    finishExp se (Lval(lv)) t
+  let findField strname n fidlist = 
+    try
+      List.find (fun fid -> n = fid.fname) fidlist
+    with Not_found -> E.s (E.unimp "Cannot find field %s in %s" n strname)
   in
   try
     match e with
@@ -511,18 +513,85 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
     | A.NOTHING ->
         ignore (E.log "doExp nothing\n");
         finishExp [] (Const(CStr("exp_nothing"),lu)) (TPtr(TInt(IChar,[]),[]))
-          
+
+    (* Do the potential lvalues first *)          
     | A.VARIABLE n -> begin
         (* See if this is an enum field *)
         try 
           let (idx, typ) = lookupEnumField n in
           finishExp [] (integer idx) typ    (* It is *)
-        with Not_found -> wrapLval e
+        with Not_found -> 
+          try                           (* It must be a real variable *)
+            let vi = lookup n in
+            finishExp [] (Lval(Var(vi,NoOffset,lu))) vi.vtype
+          with Not_found -> begin 
+            ignore (E.log "Cannot resolve variable %s\n" n);
+            raise Not_found
+          end
     end
-    | A.MEMBEROFPTR _ -> wrapLval e
-    | A.MEMBEROF _ -> wrapLval e
-    | A.UNARY(A.MEMOF, _) -> wrapLval e
-    | A.INDEX _ -> wrapLval e
+    | A.INDEX (e1, e2) -> begin
+      (* Recall that doExp turns arrays into StartOf pointers *)
+        let (se1, e1', t1) = doExp e1 (AExp None) in
+        let (se2, e2', t2) = doExp e2 (AExp None) in
+        let se = se1 @ se2 in
+        let (e1'', e2'', tresult) = 
+          match unrollType t1, unrollType t2 with
+            TPtr(t1e,_), TInt _ -> e1', e2', t1e
+          | TInt _, TPtr(t2e,_) -> e2', e1', t2e
+          | _ -> E.s (E.unimp "Expecting a pointer type in index")
+        in
+        (* Do some optimization of StartOf *)
+        finishExp se (mkMem e1'' (Index(e2'',NoOffset))) tresult
+
+    end      
+    | A.UNARY (A.MEMOF, e) -> 
+        let (se, e', t) = doExp e (AExp None) in
+        let tresult = 
+          match unrollType t with
+            TPtr(te, _) -> te
+          | _ -> E.s (E.unimp "Expecting a pointer type in * ")
+        in
+        finishExp se 
+                  (mkMem e' NoOffset) 
+                  tresult
+
+           (* e.str = (& e + off(str)). If e = (be + beoff) then e.str = (be 
+            * + beoff + off(str))  *)
+    | A.MEMBEROF (e, str) -> 
+        let (se, e', t') = doExp e (AExp None) in
+        let lv = 
+          match e' with Lval x -> x 
+          | _ -> E.s (E.unimp "Expected an lval in MEMDEROF")
+        in
+        let fid = 
+          match unrollType t' with
+            TStruct (n, fil, _) -> findField n str fil
+          | TUnion (n, fil, _) -> findField n str fil
+          | _ -> E.s (E.unimp "expecting a struct with field %s" str)
+        in
+        let lv' = Lval(addOffset (Field(fid, NoOffset)) lv) in
+        finishExp se lv' fid.ftype
+          
+       (* e->str = * (e + off(str)) *)
+    | A.MEMBEROFPTR (e, str) -> 
+        let (se, e', t') = doExp e (AExp None) in
+        let pointedt = 
+          match unrollType t' with
+            TPtr(t1, _) -> t1
+          | TArray(t1,_,_) -> t1
+          | _ -> E.s (E.unimp "expecting a pointer to a struct")
+        in
+        let fid = 
+          match unrollType pointedt with 
+            TStruct (n, fil, _) -> findField n str fil
+          | TUnion (n, fil, _) -> findField n str fil
+          | x -> 
+              E.s (E.unimp 
+                     "expecting a struct with field %s. Found %a. t1 is %a" 
+                     str d_type x d_type t')
+        in
+        finishExp se (mkMem e' (Field(fid, NoOffset))) fid.ftype
+          
           
     | A.CONSTANT ct -> begin
         let finishCt c t = finishExp [] (Const(c, lu)) t in
@@ -675,12 +744,20 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
           
           
     | A.UNARY(A.ADDROF, e) -> 
-        let (se, lv, t) = doLval e in
+        let (se, e', t) = doExp e (AExp None) in
+        let lv = 
+          match e' with Lval x -> x
+          | _ -> E.s (E.unimp "Expected lval for ADDROF")
+        in
         finishExp se (AddrOf(lv, lu)) (TPtr(t, []))
           
     | A.UNARY((A.PREINCR|A.PREDECR) as uop, e) -> 
         let uop' = if uop = A.PREINCR then Plus else Minus in
-        let (se, lv, t) = doLval e in
+        let (se, e', t) = doExp e (AExp None) in
+        let lv = 
+          match e' with Lval x -> x
+          | _ -> E.s (E.unimp "Expected lval for ++ or --")
+        in
         let tres = checkTypeAdd t intType in
         finishExp (se @ [mkSet lv (BinOp(uop', 
                                          Lval(lv), integer 1, tres, lu))])
@@ -690,7 +767,11 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
     | A.UNARY((A.POSINCR|A.POSDECR) as uop, e) -> 
       (* If we do not drop the result then we must save the value *)
         let uop' = if uop = A.POSINCR then Plus else Minus in
-        let (se, lv, t) = doLval e in
+        let (se, e', t) = doExp e (AExp None) in
+        let lv = 
+          match e' with Lval x -> x
+          | _ -> E.s (E.unimp "Expected lval for ++ or --")
+        in
         let tres = checkTypeAdd t intType in
         let se', result = 
           if what <> ADrop then 
@@ -705,7 +786,11 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
           tres
           
     | A.BINARY(A.ASSIGN, e1, e2) -> 
-        let (se1, lv, lvt) = doLval e1 in
+        let (se1, e1', lvt) = doExp e1 (AExp None) in
+        let lv = 
+          match e1' with Lval x -> x
+          | _ -> E.s (E.unimp "Expected lval for assignment")
+        in
         let (se2, e'', t'') = doExp e2 (ASet(lv, lvt)) in
         finishExp (se1 @ se2) (Lval(lv)) lvt
           
@@ -793,7 +878,11 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         | A.SHR_ASSIGN -> Shiftrt
         | _ -> E.s (E.bug "binary +=")
         in
-        let (se1, lv1, t1) = doLval e1 in
+        let (se1, e1', t1) = doExp e1 (AExp None) in
+        let lv1 = 
+          match e1' with Lval x -> x
+          | _ -> E.s (E.unimp "Expected lval for assignment")
+        in
         let (se2, e2', t2) = doExp e2 (AExp None) in
         let tresult = intType in (* !!!! this is temporary *)
         finishExp (se1 @ [mkSet lv1 (BinOp(bop',Lval(lv1),e2',tresult,lu))])
@@ -803,15 +892,15 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
     | A.BINARY((A.AND|A.OR), e1, e2) ->
         let tmp = var (newTempVar intType) in
         finishExp (doCondition e [mkSet tmp (integer 1)] 
-                     [mkSet tmp (integer 0)]) 
-          Lval(tmp) 
+                                 [mkSet tmp (integer 0)]) 
+          (Lval tmp)
           intType
           
     | A.UNARY(A.NOT, e) -> 
         let tmp = var (newTempVar intType) in
         finishExp 
           (doCondition e [mkSet tmp (integer 0)] [mkSet tmp (integer 1)])
-          Lval(tmp)
+          (Lval tmp)
           intType
           
     | A.CALL(f, args) -> 
@@ -923,7 +1012,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         match stats, what with
           [Instruction(Set(lv', e', _))], AExp _ when lv' == lv -> 
             finishExp [] e' tlv
-        | _, _ -> finishExp stats, (Lval(lv)), tlv)
+        | _, _ -> finishExp stats (Lval(lv)) tlv
     end
     | A.GNU_BODY ((_, s) as b) -> begin
         (* Find the last A.COMPUTATION *)
@@ -949,105 +1038,6 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
     ([Instruction(Asm(["booo_exp"], false, [], [], []))], integer 0, intType)
   end
     
-
-
-    (* Process expressions that should be l-values *)
-and doLval (e : A.expression) : (stmt list * lval * typ) = 
-  let lu = locUnknown in
-  let findField strname n fidlist = 
-    try
-      List.find (fun fid -> n = fid.fname) fidlist
-    with Not_found -> E.s (E.unimp "Cannot find field %s in %s" n strname)
-  in
-  let addOffset addit lv =
-    let rec loop = function
-        NoOffset -> addit
-      | Field(fid', offset) -> Field(fid', loop offset)
-      | CastO(t, offset) -> CastO(t, loop offset)
-    in
-    match lv with 
-      Var(vi,offset,l) -> Var(vi,loop offset,l)
-    | Mem(e,offset,l) -> Mem(e,loop offset,l)
-  in
-  match e with
-    A.VARIABLE n -> begin               
-      try
-        let vi = lookup n in
-        ([], Var(vi,NoOffset,lu), vi.vtype) (* v = * ( & v + 0) *)
-      with Not_found -> begin 
-        ignore (E.log "Cannot resolve variable %s\n" n);
-        raise Not_found
-      end
-    end
-  | A.INDEX (e1, e2) -> begin
-      let (se1, e1', t1) = doExp e1 (AExp None) in
-      let (se2, e2', t2) = doExp e2 (AExp None) in
-      let se = se1 @ se2 in
-      let (tresult, swap) = 
-        match unrollType t1, unrollType t2 with
-          TPtr(t1e,_), TInt _ -> t1e, false
-        | TArray (t1e,_,_), TInt _ -> t1e, false
-        | TInt _, TPtr(t2e,_) -> t2e, true
-        | TInt _, TArray (t2e, _, _) -> t2e, true
-        | _ -> E.s (E.unimp "Expecting a pointer type in index")
-      in
-      if swap then 
-        (se, Mem(BinOp(Advance,e2',e1',t2,lu),NoOffset,lu), tresult)
-      else
-        (se, Mem(BinOp(Advance,e1',e2',t1,lu),NoOffset,lu), tresult)
-  end      
-  | A.UNARY (A.MEMOF, e) -> 
-      let (se, e', t) = doExp e (AExp None) in
-      let tresult = 
-        match unrollType t with
-          TPtr(te, _) -> te
-        | TArray (te,_,_) -> te
-        | _ -> E.s (E.unimp "Expecting a pointer type in * ")
-      in
-      (se, Mem(e',NoOffset,lu), tresult)
-
-           (* e.str = (& e + off(str)). If e = (be + beoff) then e.str = (be 
-            * + beoff + off(str))  *)
-  | A.MEMBEROF (e, str) -> 
-      let (se, lv, t') = doLval e in
-      let fid = 
-        match unrollType t' with
-          TStruct (n, fil, _) -> findField n str fil
-        | TUnion (n, fil, _) -> findField n str fil
-        | _ -> E.s (E.unimp "expecting a struct with field %s" str)
-      in
-      let lv' = addOffset (Field(fid, NoOffset)) lv in
-      (se, lv', fid.ftype)
-
-       (* e->str = * (e + off(str)) *)
-  | A.MEMBEROFPTR (e, str) -> 
-      let (se, e', t') = doExp e (AExp None) in begin
-        let pointedt = 
-          match unrollType t' with
-            TPtr(t1, _) -> t1
-          | TArray(t1,_,_) -> t1
-          | _ -> E.s (E.unimp "expecting a pointer to a struct")
-        in
-        let fid = 
-          match unrollType pointedt with 
-            TStruct (n, fil, _) -> findField n str fil
-          | TUnion (n, fil, _) -> findField n str fil
-          | x -> 
-              E.s (E.unimp 
-                     "expecting a struct with field %s. Found %a. t1 is %a" 
-                     str d_type x d_type t')
-        in
-        (se, Mem(e', Field(fid, NoOffset), lu), fid.ftype)
-      end
-
-  | A.CAST (bt, e) -> 
-      let t = doType [] bt in
-      let (se, lv, t1) = doLval e in
-      (se, addOffset (CastO(t, NoOffset)) lv, t)
-
-  | e ->
-      let (_, e', _) = doExp e (AExp None) in
-      E.s (E.unimp "lval. The exp is: %a\n" d_exp e')
 
 
 (* A special case for conditionals *)
@@ -1144,128 +1134,132 @@ and doDecl : A.definition -> stmt list = function
   
   (* Now define the processors for body and statement *)
 and doBody (decls, s) : stmt list = 
-    startBlock ();
+  startBlock ();
     (* Do the declarations and the initializers *)
-          let init = List.concat (List.map doDecl decls) in
-          let s' = doStatement s in
-    endBlock ();
-    init @ s'
+  let init = List.concat (List.map doDecl decls) in
+  let s' = doStatement s in
+  endBlock ();
+  init @ s'
       
-        and doStatement (s : A.statement) : stmt list = 
-    try
-      match s with 
-        A.NOP -> [Skip]
-      | A.COMPUTATION e -> 
-          let (lasts, data) = !gnu_body_result in
-          if lasts == s then begin      (* This is the last in a GNU_BODY *)
-            let (s', e', t') = doExp e (AExp None) in
-            data := Some (e', t');      (* Record the result *)
-            s'
-          end else
-            let (s', _, _) = doExp e ADrop in
+and doStatement (s : A.statement) : stmt list = 
+  try
+    match s with 
+      A.NOP -> [Skip]
+    | A.COMPUTATION e -> 
+        let (lasts, data) = !gnu_body_result in
+        if lasts == s then begin      (* This is the last in a GNU_BODY *)
+          let (s', e', t') = doExp e (AExp None) in
+          data := Some (e', t');      (* Record the result *)
+          s'
+        end else
+          let (s', _, _) = doExp e ADrop in
             (* drop the side-effect free expression *)
-            s'
-
-      | A.BLOCK b -> doBody b
-      | A.SEQUENCE (s1, s2) -> 
-          (doStatement s1) @ (doStatement s2)
-      | A.IF(e,st,sf) -> 
-          doCondition e (doStatement st) (doStatement sf)
-      | A.WHILE(e,s) ->  
-          startLoop true;
-          let s' = doStatement s in
-          exitLoop ();
-          [Loop(mkSeq ((doCondition e [Skip] [Break]) @ s'))]
+          s'
             
-      | A.DOWHILE(e,s) -> 
-          startLoop false;
-          let s' = doStatement s in
-          let s'' = labContinue () :: (doCondition e [Skip] [Break])
-          in
-          exitLoop ();
-          [Loop(mkSeq (s' @ s''))]
-            
-      | A.FOR(e1,e2,e3,s) ->
-          let (se1, _, _) = doExp e1 ADrop in
-          let (se3, _, _) = doExp e3 ADrop in
-          startLoop false;
-          let s' = doStatement s in
-          let s'' = labContinue () :: se3 in
-          exitLoop ();
-          se1 @ [Loop(mkSeq ((doCondition e2 [Skip] [Break])
-                              @ s' @ s''))]
-                  
-      | A.BREAK -> [Break]
-            
-      | A.CONTINUE -> [doContinue ()]
-            
-      | A.RETURN A.NOTHING -> [Return None]
-      | A.RETURN e -> 
-          let (se, e', et) = doExp e (AExp None) in
-          let (et'', e'') = castTo et (!currentReturnType) e' in
-          se @ [Return (Some e'')]
-                 
-      | A.SWITCH (e, s) -> 
-          let (se, e', et) = doExp e (AExp None) in
-          let (et'', e'') = castTo et (TInt(IInt,[])) e' in
-          let s' = doStatement s in
-          se @ [Switch (e'', mkSeq s')]
-                 
-      | A.CASE (e, s) -> 
-          let (se, e', et) = doExp e (AExp None) in
+    | A.BLOCK b -> doBody b
+    | A.SEQUENCE (s1, s2) -> 
+        (doStatement s1) @ (doStatement s2)
+    | A.IF(e,st,sf) -> 
+        doCondition e (doStatement st) (doStatement sf)
+    | A.WHILE(e,s) ->  
+        startLoop true;
+        let s' = doStatement s in
+        exitLoop ();
+        [Loop(mkSeq ((doCondition e [Skip] [Break]) @ s'))]
+          
+    | A.DOWHILE(e,s) -> 
+        startLoop false;
+        let s' = doStatement s in
+        let s'' = labContinue () :: (doCondition e [Skip] [Break])
+        in
+        exitLoop ();
+        [Loop(mkSeq (s' @ s''))]
+          
+    | A.FOR(e1,e2,e3,s) ->
+        let (se1, _, _) = doExp e1 ADrop in
+        let (se3, _, _) = doExp e3 ADrop in
+        startLoop false;
+        let s' = doStatement s in
+        let s'' = labContinue () :: se3 in
+        exitLoop ();
+        se1 @ [Loop(mkSeq ((doCondition e2 [Skip] [Break])
+                           @ s' @ s''))]
+                
+    | A.BREAK -> [Break]
+          
+    | A.CONTINUE -> [doContinue ()]
+          
+    | A.RETURN A.NOTHING -> [Return None]
+    | A.RETURN e -> 
+        let (se, e', et) = doExp e (AExp None) in
+        let (et'', e'') = castTo et (!currentReturnType) e' in
+        se @ [Return (Some e'')]
+               
+    | A.SWITCH (e, s) -> 
+        let (se, e', et) = doExp e (AExp None) in
+        let (et'', e'') = castTo et (TInt(IInt,[])) e' in
+        let s' = doStatement s in
+        se @ [Switch (e'', mkSeq s')]
+               
+    | A.CASE (e, s) -> 
+        let (se, e', et) = doExp e (AExp None) in
           (* let (et'', e'') = castTo et (TInt(IInt,[])) e' in *)
-          let i = 
-            match se, e' with
-              [], Const (CInt (i, _), _) -> i
-            | [], Const (CChr c, _) -> Char.code c
-            | _ -> E.s (E.unimp "non-int case")
-          in
-          Case i :: (doStatement s)
-                      
-      | A.DEFAULT s -> 
-          Default :: (doStatement s)
-                       
-      | A.LABEL (l, s) -> 
-          Label l :: (doStatement s)
-                       
-      | A.GOTO l -> 
-          [Goto l]
-            
-      | A.ASM (tmpls, isvol, outs, ins, clobs) -> 
+        let i = 
+          match se, e' with
+            [], Const (CInt (i, _), _) -> i
+          | [], Const (CChr c, _) -> Char.code c
+          | _ -> E.s (E.unimp "non-int case")
+        in
+        Case i :: (doStatement s)
+                    
+    | A.DEFAULT s -> 
+        Default :: (doStatement s)
+                     
+    | A.LABEL (l, s) -> 
+        Label l :: (doStatement s)
+                     
+    | A.GOTO l -> 
+        [Goto l]
+          
+    | A.ASM (tmpls, isvol, outs, ins, clobs) -> 
       (* Make sure all the outs are variables *)
-          let temps : (lval * varinfo) list ref = ref [] in
-          let stmts : stmt list list ref = ref [] in
-          let outs' = 
-            List.map 
-              (fun (c, e) -> 
-                let (se, lv, t) = doLval e in
-                stmts := se :: !stmts;
-                match lv with 
-                  Var(vi, NoOffset, _) -> (c, vi)(* already var *)
-                | _ -> begin
-                    let tmp = newTempVar t in
+        let temps : (lval * varinfo) list ref = ref [] in
+        let stmts : stmt list list ref = ref [] in
+        let outs' = 
+          List.map 
+            (fun (c, e) -> 
+              let (se, e', t) = doExp e (AExp None) in
+              let lv = 
+                match e' with Lval x -> x
+                | _ -> E.s (E.unimp "Expected lval for ASM outputs")
+              in
+              stmts := se :: !stmts;
+              match lv with 
+                Var(vi, NoOffset, _) -> (c, vi)(* already var *)
+              | _ -> begin
+                  let tmp = newTempVar t in
                     temps := (lv, tmp) :: !temps;
-                    (c, tmp)
-                end)
-              outs
-          in
+                  (c, tmp)
+              end)
+            outs
+        in
       (* Get the side-effects out of expressions *)
-          let ins' = 
-            List.map 
-              (fun (c, e) -> 
-                let (se, e', et) = doExp e (AExp None) in
-                stmts := se :: !stmts;
-                (c, e'))
-              ins
-          in
-          List.concat (List.rev !stmts) @ 
-          (Instruction(Asm(tmpls, isvol, outs', ins', clobs)) ::
-           (List.map (fun (lv, vi) -> 
-             Instruction(Set(lv,Lval(var vi),locUnknown))) !temps))
-    with e -> begin
-      (ignore (E.log "Error in doStatement (%s)\n" (Printexc.to_string e)));
-      [Label "booo_statement"]
-    end
+        let ins' = 
+          List.map 
+            (fun (c, e) -> 
+              let (se, e', et) = doExp e (AExp None) in
+              stmts := se :: !stmts;
+              (c, e'))
+            ins
+        in
+        List.concat (List.rev !stmts) @ 
+        (Instruction(Asm(tmpls, isvol, outs', ins', clobs)) ::
+         (List.map (fun (lv, vi) -> 
+           Instruction(Set(lv,Lval(var vi),locUnknown))) !temps))
+  with e -> begin
+    (ignore (E.log "Error in doStatement (%s)\n" (Printexc.to_string e)));
+    [Label "booo_statement"]
+  end
 
 
     
@@ -1412,6 +1406,7 @@ let convFile dl =
             (* Fix the vaddrof flag *)
             let fixAddrExp = function
                 AddrOf (Var(vi, _, _), _) -> vi.vaddrof <- true
+              | StartOf (Var(vi, _, _)) -> vi.vaddrof <- true
               | _ -> ()
             in
             iterExp fixAddrExp fdec.sbody;

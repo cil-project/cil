@@ -158,20 +158,23 @@ and exp =
   | Compound   of typ * exp list        (* Used for initializers of *)
   | AddrOf     of lval * location
   | StartOf    of lval                  (* To be used for lval's that denote 
-                                         * array. The expression denotes the 
-                                         * address of the first element *)
+                                         * arrays. The expression denotes the 
+                                         * address of the first element
+                                         * of the array *)
 
-                                         * structured types *)
 (* L-Values denote contents of memory addresses *)
 and lval =
   | Var        of varinfo * offset * location (* denotes * (& v + offset) *)
   | Mem        of exp * offset * location     (* denotes * (e + offset) *)
 
 and offset = 
-  | NoOffset
-  | Field      of fieldinfo * offset    (* l.f + offset *)
-  | Index      of exp * offset          (* l + e + offset *)
-  | CastO      of typ * offset          (* ((t)l) + offset *)
+  | NoOffset                            (* l *)
+  | Field      of fieldinfo * offset    (* l.f + offset. l must be a struct 
+                                         * or an union and l.f is the element 
+                                         * type *)
+  | Index      of exp * offset          (* l + e + offset. l must be a 
+                                         * pointer or an array and l + e is 
+                                         * the element type *)
 
 (**** INSTRUCTIONS. May cause effects directly but may not have control flow.*)
 and instr =
@@ -480,12 +483,13 @@ and getParenthLevel = function
 
                                         (* Unary *)
   | AddrOf(_,_) -> 3
+  | StartOf(_) -> 3
   | UnOp((Neg|BNot),_,_,_) -> 3
   | CastE(_,_,_) -> 3
 
                                         (* Lvals *)
   | Lval(Mem(_,_,_)) -> 2                   
-  | Lval(Var(_,(Field _|CastO _),_)) -> 2
+  | Lval(Var(_,(Field _|Index _),_)) -> 2
   | SizeOf _ -> 2
 
   | Lval(Var(_,NoOffset,_)) -> 1        (* Plain variables *)
@@ -523,7 +527,7 @@ and d_exp () e =
   | Compound (t, el) -> dprintf "(%a) {@[%a@]}" d_type t
         (docList (chr ',' ++ break) (d_exp ())) el
   | AddrOf(lv,lo) -> dprintf "& %a" (d_lvalprec 2) lv
-  
+  | StartOf(lv) -> d_lval () lv
 
 and d_binop () b =
   match b with
@@ -574,59 +578,6 @@ and d_attrlist () al =
   loop [] al
     
 
-and d_plainexp () = function
-    Const(c,l) -> dprintf "Const(%a)" d_const c
-  | Lval(lv) -> dprintf "Lval(@[%a@])" d_plainlval lv
-  | e -> d_exp () e
-
-and d_plainlval () = function
-  | Var(vi,o,l) -> dprintf "Var(@[%s,@?%a@])" vi.vname d_plainoffset o
-  | Mem(BinOp(Advance,e1,e2,_,_),o,l) -> 
-      dprintf "Mem(@[Idx(@[%a,@?%a@],@?%a@])" 
-        d_plainexp e1 d_plainexp e2 d_plainoffset o
-  | Mem(e,o,l) -> dprintf "Mem(@[%a,@?%a@])" d_plainexp e d_plainoffset o
-
-and d_plainoffset () = function
-    NoOffset -> text "NoOffset"
-  | Field(fi,o) -> 
-      dprintf "Field(@[%s:%a,@?%a@])" 
-        fi.fname d_plaintype fi.ftype d_plainoffset o
-  | CastO(t, o) -> dprintf "CastO(@[%a,@?%a@])" d_plaintype t d_plainoffset o
-
-and d_plaintype () = function
-    TVoid a -> dprintf "TVoid(@[%a@])" d_attrlist a
-  | TInt(ikind, a) -> dprintf "TInt(@[%a,@?%a@])" d_ikind ikind d_attrlist a
-  | TFloat(fkind, a) -> 
-      dprintf "TFloat(@[%a,@?%a@])" d_fkind fkind d_attrlist a
-  | TBitfield(ikind,i,a) -> 
-      dprintf "TBitfield(@[%a,@?%d,@?%a@])" d_ikind ikind i d_attrlist a
-  | TNamed (n, t) ->
-      dprintf "TNamed(@[%s,@?%a@])" n d_plaintype t
-  | TForward n -> dprintf "TForward(%s)" n
-  | TPtr(t, a) -> dprintf "TPtr(@[%a,@?%a@])" d_plaintype t d_attrlist a
-  | TArray(t,l,a) -> 
-      let dl = match l with 
-        None -> text "None" | Some l -> dprintf "Some(@[%a@])" d_plainexp l in
-      dprintf "TArray(@[%a,@?%a,@?%a@])" 
-        d_plaintype t insert dl d_attrlist a
-  | TEnum(n,_,a) -> dprintf "Enum(%s,@[%a@])" n d_attrlist a
-  | TFun(tr,args,isva,a) -> 
-      dprintf "TFun(@[%a,@?%a%s,@?%a@])"
-        d_plaintype tr 
-        (docList (chr ',' ++ break) 
-           (fun a -> dprintf "%s: %a" a.vname d_plaintype a.vtype)) args
-        (if isva then "..." else "") d_attrlist a
-  | TStruct(n,flds,a) -> 
-      dprintf "TStruct(@[%s,@?%a,@?%a@])" n
-        (docList (chr ',' ++ break) 
-           (fun f -> dprintf "%s : %a" f.fname d_plaintype f.ftype)) flds
-        d_attrlist a
-  | TUnion(n,flds,a) -> 
-      dprintf "TUnion(@[%s,@?%a,@?%a@])" n
-        (docList (chr ',' ++ break) 
-           (fun f -> dprintf "%s : %a" f.fname d_plaintype f.ftype)) flds
-        d_attrlist a
-
 
 (* lvalue *)
 and d_lvalprec contextprec () lv = 
@@ -636,29 +587,25 @@ and d_lvalprec contextprec () lv =
     d_lval () lv
   
 and d_lval () lv = 
-  let rec d_offset dobase = function
-    | NoOffset -> dprintf "%t" dobase
-    | Field (fi, o) -> 
-        d_offset (fun () -> dprintf "%t.%s" dobase fi.fname) o
-    | CastO (t, o) ->
-        d_offset (fun () -> dprintf "((%a)%t)" d_type t dobase) o
+  let rec d_offset () = function
+    | NoOffset -> nil
+    | Field (fi, o) -> dprintf ".%s%a" fi.fname d_offset o
+    | Index (e, o) -> dprintf "[%a]%a" d_exp e d_offset o
   in
   match lv with
-    Var(vi,o,_) -> d_offset (fun _ -> text vi.vname) o
-  | Mem(BinOp(Advance,e1,e2,_,_),o,_) -> 
-      d_offset (fun _ -> dprintf "%a[%a]" (d_expprec 3) e1 d_exp e2) o
+    Var(vi,o,_) -> dprintf "%s%a" vi.vname d_offset o
   | Mem(e,Field(fi, o),_) -> 
-      d_offset (fun _ -> dprintf "%a->%s" (d_expprec 3) e fi.fname) o
+      dprintf "%a->%s%a" (d_expprec 3) e fi.fname d_offset o
   | Mem(e,NoOffset,_) -> dprintf "*%a" (d_expprec 3) e
-
-  | Mem(e,o,_) -> d_offset (fun _ -> d_exp () e) o
+  | Mem(e,o,_) -> dprintf "%a%a" d_exp e d_offset o
         
 and d_instr () i =
   match i with
   | Set(lv,e,lo) -> begin
       (* Be nice to some special cases *)
       match e with
-        BinOp((Plus|Advance),Lval(lv'),Const(CInt(1,_),_),_,_) when lv == lv' -> 
+        BinOp((Plus|Advance),Lval(lv'),Const(CInt(1,_),_),_,_) 
+          when lv == lv' -> 
           dprintf "%a ++;" d_lval lv
       | BinOp(Minus,Lval(lv'),Const(CInt(1,_),_),_,_) when lv == lv' -> 
           dprintf "%a --;" d_lval lv
@@ -723,6 +670,62 @@ and d_stmt () s =
   | Switch(e,s) -> dprintf "@[switch (%a)@!%a@]" d_exp e d_stmt s
   | Default -> dprintf "default:"
   | Instruction(i) -> d_instr () i
+
+and d_plainexp () = function
+    Const(c,_) -> dprintf "Const(%a)" d_const c
+  | Lval(lv) -> dprintf "Lval(@[%a@])" d_plainlval lv
+  | CastE(t,e,_) -> dprintf "CastE(@[%a,@?%a@])" d_plaintype t d_plainexp e
+  | StartOf lv -> dprintf "StartOf(%a)" d_plainlval lv
+  | e -> d_exp () e
+
+and d_plainlval () = function
+  | Var(vi,o,l) -> dprintf "Var(@[%s,@?%a@])" vi.vname d_plainoffset o
+  | Mem(BinOp(Advance,e1,e2,_,_),o,l) -> 
+      dprintf "Mem(@[Idx(@[%a,@?%a@],@?%a@])" 
+        d_plainexp e1 d_plainexp e2 d_plainoffset o
+  | Mem(e,o,l) -> dprintf "Mem(@[%a,@?%a@])" d_plainexp e d_plainoffset o
+
+and d_plainoffset () = function
+    NoOffset -> text "NoOffset"
+  | Field(fi,o) -> 
+      dprintf "Field(@[%s:%a,@?%a@])" 
+        fi.fname d_plaintype fi.ftype d_plainoffset o
+  | Index(e, o) -> dprintf "Index(@[%a,@?%a@])" d_plainexp e d_plainoffset o
+
+and d_plaintype () = function
+    TVoid a -> dprintf "TVoid(@[%a@])" d_attrlist a
+  | TInt(ikind, a) -> dprintf "TInt(@[%a,@?%a@])" d_ikind ikind d_attrlist a
+  | TFloat(fkind, a) -> 
+      dprintf "TFloat(@[%a,@?%a@])" d_fkind fkind d_attrlist a
+  | TBitfield(ikind,i,a) -> 
+      dprintf "TBitfield(@[%a,@?%d,@?%a@])" d_ikind ikind i d_attrlist a
+  | TNamed (n, t) ->
+      dprintf "TNamed(@[%s,@?%a@])" n d_plaintype t
+  | TForward n -> dprintf "TForward(%s)" n
+  | TPtr(t, a) -> dprintf "TPtr(@[%a,@?%a@])" d_plaintype t d_attrlist a
+  | TArray(t,l,a) -> 
+      let dl = match l with 
+        None -> text "None" | Some l -> dprintf "Some(@[%a@])" d_plainexp l in
+      dprintf "TArray(@[%a,@?%a,@?%a@])" 
+        d_plaintype t insert dl d_attrlist a
+  | TEnum(n,_,a) -> dprintf "Enum(%s,@[%a@])" n d_attrlist a
+  | TFun(tr,args,isva,a) -> 
+      dprintf "TFun(@[%a,@?%a%s,@?%a@])"
+        d_plaintype tr 
+        (docList (chr ',' ++ break) 
+           (fun a -> dprintf "%s: %a" a.vname d_plaintype a.vtype)) args
+        (if isva then "..." else "") d_attrlist a
+  | TStruct(n,flds,a) -> 
+      dprintf "TStruct(@[%s,@?%a,@?%a@])" n
+        (docList (chr ',' ++ break) 
+           (fun f -> dprintf "%s : %a" f.fname d_plaintype f.ftype)) flds
+        d_attrlist a
+  | TUnion(n,flds,a) -> 
+      dprintf "TUnion(@[%s,@?%a,@?%a@])" n
+        (docList (chr ',' ++ break) 
+           (fun f -> dprintf "%s : %a" f.fname d_plaintype f.ftype)) flds
+        d_attrlist a
+
         
 and d_fun_decl () f = 
   dprintf "%a%a %a@!{ @[%a@!%a@]@!}" 
@@ -851,13 +854,14 @@ let iterExp (f: exp -> unit) (body: stmt) : unit =
     | CastE(_, e,_) -> fExp e
     | Compound (_, el) -> List.iter fExp el
     | AddrOf (lv,_) -> fLval lv
+    | StartOf (lv) -> fLval lv
 
   and fLval = function
       Var(_,off,_) -> fOff off
     | Mem(e,off,_) -> fExp e; fOff off
   and fOff = function
       Field (_, o) -> fOff o
-    | CastO (_, o) -> fOff o
+    | Index (e, o) -> fExp e; fOff o
     | NoOffset -> ()
   and fStmt = function
       (Skip|Break|Continue|Label _|Goto _|Case _|Default|Return None) -> ()
@@ -1008,3 +1012,26 @@ let dExp : doc -> exp =
 let dStmt : doc -> stmt = 
   function d -> Instruction(Asm([sprint 80 d], false, [], [], []))
 
+
+ (* Add an offset at the end of an lv *)      
+let addOffset toadd lv =
+ let rec loop = function
+     NoOffset -> toadd
+   | Field(fid', offset) -> Field(fid', loop offset)
+   | Index(e, offset) -> Index(e, loop offset)
+ in
+ match lv with 
+   Var(vi,offset,l) -> Var(vi,loop offset,l)
+ | Mem(e,offset,l) -> Mem(e,loop offset,l)
+
+
+
+  (* Make a Mem, while optimizing StartOf *)
+let mkMem addr off =  
+  match addr with
+    StartOf(lv) -> begin
+      match off with 
+        Field _ -> Lval(addOffset (Index(zero, off)) lv)
+      | _ -> Lval(addOffset off lv)
+    end
+  | _ -> Lval(Mem(addr, off, lu))
