@@ -51,4 +51,6 @@ argv
 ctype
 heapify
 xlsubr
+baddef
+baddef.rept
 

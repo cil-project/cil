@@ -764,6 +764,24 @@ comb: test/small2/comb1.c test/small2/comb2.c defaulttarget
           $(MYSAFECC) --combine comb1.o comb2.o $(EXEOUT)comb
 	test/small2/comb
 
+# sm: test of combiner's ability to report inconsistencies
+MYSAFECC = $(SAFECC) --keep=. $(DEF)$(ARCHOS)
+baddef: test/small2/baddef1.c test/small2/baddef2.c defaulttarget
+	cd test/small2; $(CCL) baddef1.c baddef2.c -o baddef && ./baddef
+	rm -f test/small2/baddef
+	cd test/small2; \
+	  $(MYSAFECC) --combine baddef1.c $(CONLY) $(OBJOUT) baddef1.o; \
+	  $(MYSAFECC) --combine baddef2.c $(CONLY) $(OBJOUT) baddef2.o; \
+          $(MYSAFECC) --combine baddef1.o baddef2.o $(EXEOUT)baddef \
+	  > baddef.rept 2>&1
+	cat test/small2/baddef.rept
+	test/small2/baddef
+	if grep conflicting test/small2/baddef.rept >/dev/null; then \
+	  echo "OK: conflict detected"; \
+	else \
+	  echo "FAIL: missed the conflict!"; exit 1; \
+	fi
+
 # cfrac: a memory benchmark which factorizes into products of primes
 CFRACDIR = $(CILDIR)/../bench/cfrac
 cfrac: defaulttarget
@@ -1165,15 +1183,13 @@ vortex: defaulttarget mustbegcc
 	cd $(VORDIR)/src; \
             make clean build CC="$(VORSAFECC) $(CONLY)" \
                              LD="$(VORSAFECC)"
-	sh -c "time $(VORDIR)/exe/base/vortex.ultra \
-            <$(VORDIR)/data/test/input/vortex.raw"
+	cd $(VORDIR)/src; ./testit vortex
 
 vortex-noclean: defaulttarget mustbegcc
 	cd $(VORDIR)/src; \
             make build CC="$(VORSAFECC) $(CONLY)" \
                        LD="$(VORSAFECC)"
-	sh -c "time $(VORDIR)/exe/base/vortex.ultra \
-            <$(VORDIR)/data/test/input/vortex.raw"
+	cd $(VORDIR)/src; ./testit vortex
 
 vortex-combined: defaulttarget mustbegcc
 	cd $(VORDIR)/exe/base; \

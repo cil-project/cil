@@ -16,6 +16,8 @@
 *)
 
 open Cabs
+open Trace
+open Pretty
 module E = Errormsg
 module H = Hashtbl
 
@@ -287,24 +289,25 @@ and combine_substatement stat =
 (*
 ** Combine and rename declarations
 *)
-and combine_defs defs global = begin
+and combine_defs (defs : definition list) global = begin
   (* clear file scope tables *)
   H.clear fDefTable;
   H.clear fMap;
-  H.clear fTag; 
+  H.clear fTag;
 
   let rec reform_defs = function
       [] -> []
-    | def :: rest -> 
+    | def :: rest ->
       begin
-        if global && already_declared def then 
-          reform_defs rest (*skip this def *) 
+        if global && already_declared def then (
+          reform_defs rest (*skip this def *)
+        )
         else
           let combined_def = combine_def def global in
           combined_def :: reform_defs rest
       end
-  in 
-  reform_defs defs 
+  in
+  reform_defs defs
 end
 
 and tag_defined (s: spec_elem) = 
@@ -313,19 +316,49 @@ and tag_defined (s: spec_elem) =
       match t with
         Tstruct (id, Some _) ->
           id <> "" &&
-          (H.mem structTag id || (H.add structTag id id; false))
+          (tag_defined_same id s structTag) || 
+            (H.add structTag id s; false)
       | Tunion (id, Some _) ->
           id <> "" &&
-          (H.mem unionTag id || (H.add unionTag id id; false))
-      | Tenum (id, Some _) -> 
+          (tag_defined_same id s unionTag) ||
+            (H.add unionTag id s; false)
+      | Tenum (id, Some _) ->
           id <> "" &&
-          (H.mem enumTag id || (H.add enumTag id id; false))
+          (tag_defined_same id s enumTag) ||
+            (H.add enumTag id s; false)
       | _ -> false
     end
   | _ -> false
+                     
+(* sm: given the name of a struct/enum/union 'id', and its specifier
+ * 'newspec', if it's already in 'table', and return a bool
+ * accordingly; and if it's in the table, also verify that it
+ * has the same definition there as 'newspec' *)
+and tag_defined_same (id : string) (newspec : spec_elem)
+                     (table : (string, spec_elem) H.t) : bool =
+begin
+  (* is it in the table?  if not then bail *)
+  if (not (H.mem table id)) then false else
 
-(* returns true check if def is not declared. Could make another function to 
- * clean this code up. Strip the location from definitions before hashing 
+  (* get the original definition *)
+  let orig : spec_elem = (H.find table id) in
+
+  (* compare them *)
+  if (not (equal_specs newspec orig)) then (
+    (Printf.printf "WARNING: conflicting redefinitions; orig:\n");
+    (Cprint.print_specifiers [orig]);
+    (Cprint.new_line ());
+    (Printf.printf "new specifier:\n");
+    (Cprint.print_specifiers [newspec]);
+    (Cprint.new_line ())
+  );
+
+  (* regardless, the original code said true here *)
+  true
+end
+
+(* returns true if def is already declared. Could make another function to
+ * clean this code up. Strip the location from definitions before hashing
  * them. *)
 and already_declared def =
   match def with
@@ -334,30 +367,53 @@ and already_declared def =
       if isStatic s then
         H.mem fDefTable def' || (H.add fDefTable def' 1; false)
       else
-        H.mem gDefTable def' || (H.add gDefTable def' 1; false)
+        check_exists_same def' || (H.add gDefTable def' def'; false)
 
   | DECDEF ((s, names), loc) ->
       let def' = DECDEF ((s, names), noloc) in
       if isStatic s then
           H.mem fDefTable def' || (H.add fDefTable def' 1; false)
       else
-        H.mem gDefTable def' || (H.add gDefTable def' 1; false)
+        check_exists_same def' || (H.add gDefTable def' def'; false)
 
   | TYPEDEF ((s, names), loc) ->
       let def' = TYPEDEF ((s, names), noloc) in
       if List.exists tag_defined s then
         true
       else
-        H.mem gDefTable def' || (H.add gDefTable def' 1; false)
+        check_exists_same def' || (H.add gDefTable def' def'; false)
 
   | ONLYTYPEDEF (s, loc) ->
       let def' = ONLYTYPEDEF (s, noloc) in
       if List.exists tag_defined s then
         true
       else
-        H.mem gDefTable def' || (H.add gDefTable def' 1; false)
+        check_exists_same def' || (H.add gDefTable def' def'; false)
 
   | _ -> false (* ASM and others are always considered to be false *)
+
+
+(* sm: given a definition without location information (so it can be
+ * hashed), if it already exists in the hash table return true and
+ * if not return false; but if return true, also check to make sure
+ * the existing definition matches the new one *)
+and check_exists_same (def : definition) : bool =
+begin
+  (* does it exist in the hash table?  if not, bail *)
+  if (not (H.mem gDefTable def)) then false 
+  else (
+    if (traceActive "sm") then (
+      (* it's in there; go get the existing defn *)
+      let existing : definition = (H.find gDefTable def) in
+
+      (* print both *)
+      (Cprint.print_def def);
+      (Cprint.print_def existing)
+    );
+
+    true
+  )
+end
 
 
 (* Find a id name that hasn't been used *)
@@ -463,19 +519,157 @@ and lookup_id (kind: string) id = begin
           (*prerr_endline ("Undeclared id: " ^ id);*)
           id'
   in
-  if kind = "" then 
+  if kind = "" then
     newid'
   else
     let lk = String.length kind in
     let lnew = String.length newid' in
-    if lnew <= lk + 1 then 
+    if lnew <= lk + 1 then
       E.s (E.bug "lookup_id: %s" id');
     String.sub newid' (lk + 1) (lnew - lk - 1)
 end
-        
+
+
+(* --------------------- equality functions -------------------- *)
+(* sm: fairly detailed (though still not complete) comparison of
+ * declarations for the purpose of detecting inconsistency between
+ * different source files; I'm sure this kind of comparison must
+ * have already been written by someone somewhere, but I can't
+ * find it *)
+and equal_specs (s1 : spec_elem) (s2 : spec_elem) : bool =
+begin
+  match (s1,s2) with
+  | SpecTypedef, SpecTypedef -> true
+  | SpecInline, SpecInline -> true
+  | SpecAttr _, SpecAttr _ -> true               (* good enough for now *)
+  | SpecStorage _, SpecStorage _ -> true         (* don't care right now *)
+  | SpecType(t1), SpecType(t2) -> (equal_typespecs t1 t2)   (* the point of this exercise *)
+  | _, _ -> false                                (* mismatching kinds *)
+end
+
+and equal_typespecs (t1 : typeSpecifier) (t2 : typeSpecifier) : bool =
+begin
+  match (t1,t2) with
+  | Tvoid, Tvoid -> true
+  | Tchar, Tchar -> true
+  | Tshort, Tshort -> true
+  | Tint, Tint -> true
+  | Tlong, Tlong -> true
+  | Tint64, Tint64 -> true
+  | Tfloat, Tfloat -> true
+  | Tdouble, Tdouble -> true
+  | Tsigned, Tsigned -> true
+  | Tunsigned, Tunsigned -> true
+  | Tnamed(n1), Tnamed(n2) -> (n1 = n2)
+  | Tstruct(n1, None), Tstruct(n2, None) -> (n1 = n2)
+  | Tstruct(n1, Some fields1), Tstruct(n2, Some fields2) -> (
+      n1 = n2 &&
+      (equal_name_group_lists fields1 fields2)
+    )
+  | Tunion(n1, None), Tunion(n2, None) -> (n1 = n2)
+  | Tunion(n1, Some fields1), Tunion(n2, Some fields2) -> (
+      n1 = n2 &&
+      (equal_name_group_lists fields1 fields2)
+    )
+  | Tenum(n1, None), Tenum(n2, None) -> (n1 = n2)
+  | Tenum(n1, Some fields1), Tenum(n2, Some fields2) -> (
+      n1 = n2 &&
+      (equal_enum_item_lists fields1 fields2)
+    )
+  (* yikes because we need to compare a bunch more details, and
+   * yikes because one type might be written explicitly and
+   * another as the type itself, so resolving names is needed.. *)
+  | TtypeofE(_), TtypeofE(_) -> true       (* yikes *)
+  | TtypeofT(_,_), TtypeofT(_,_) -> true   (* more yikes *)
+
+  | _,_ -> false
+end
+
+and equal_enum_item_lists (fields1 : enum_item list)
+                          (fields2 : enum_item list) : bool =
+begin
+  match fields1, fields2 with
+  | [], [] -> true
+  | (tag1, _) :: rest1, (tag2, _) :: rest2 ->
+      (* continuing to avoid comparing expressions *)
+      (tag1 = tag2) &&
+      (equal_enum_item_lists rest1 rest2)
+
+  | _, _ -> false
+end
+
+and equal_name_group_lists (fields1 : name_group list)
+                           (fields2 : name_group list) : bool =
+begin
+  match (fields1, fields2) with
+  | [], [] -> true
+  | (specs1, names1) :: rest1, (specs2, names2) :: rest2 -> (
+      (equal_spec_lists specs1 specs2) &&
+      (equal_name_lists names1 names2) &&
+      (equal_name_group_lists rest1 rest2)
+    )          
+  | _, _ -> false
+end
+
+and equal_spec_lists (specs1 : spec_elem list)
+                     (specs2 : spec_elem list) : bool =
+begin
+  match (specs1, specs2) with
+  | [], [] -> true
+  | s1 :: rest1, s2 :: rest2 -> (
+      (equal_specs s1 s2) &&
+      (equal_spec_lists rest1 rest2)
+    )
+  | _, _ -> false
+end
+
+and equal_name_lists (names1 : name list) 
+                     (names2 : name list) : bool =
+begin
+  match (names1, names2) with
+  | [], [] -> true
+  | n1 :: rest1, n2 :: rest2 -> (
+      (equal_names n1 n2) &&
+      (equal_name_lists rest1 rest2)
+    )
+  | _, _ -> false
+end
+
+and equal_names (n1 : name) (n2 : name) : bool =
+begin
+  let (id1, dtype1, _) = n1 in
+  let (id2, dtype2, _) = n2 in
+
+  id1 = id2 &&      (* names equal *)
+  (equal_decltypes dtype1 dtype2)
+
+  (* don't check attributes... *)
+end
+
+and equal_decltypes (t1 : decl_type) (t2 : decl_type) : bool =
+begin
+  match t1,t2 with
+  | JUSTBASE, JUSTBASE -> true
+  | PARENTYPE(_, p1, _), PARENTYPE(_, p2, _) ->
+      (* continuing to ignore attributes.. *)
+      (equal_decltypes p1 p2)
+  | BITFIELD _, BITFIELD _ -> true     (* hmm... *)
+  | ARRAY(elt1, _), ARRAY(elt2, _) ->
+      (* ignoring sizes........ ! *)
+      (equal_decltypes elt1 elt2)
+  | PTR(_, base1), PTR(_, base2) ->
+      (equal_decltypes base1 base2)
+  | PROTO(_,_,_), PROTO(_,_,_) ->
+      (* too lazy to check for function ptr type equality *)
+      true
+
+  | _, _ -> false
+end
+(* ----- end of equality stuff ------ *)
+
 let combine (files : Cabs.file list) : Cabs.file =
 begin
-   List.flatten (List.map 
+   List.flatten (List.map
                   (fun defs' -> combine_defs defs' true) 
                   files)
 end

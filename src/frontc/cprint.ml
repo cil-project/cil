@@ -793,20 +793,20 @@ and print_def def =
   | DECDEF (names, loc) ->
       setLoc(loc);
       print_init_name_group names;
-      print ";";
+      print "; /*decdef*/";
       new_line ()
 
   | TYPEDEF (names, loc) ->
       setLoc(loc);
       print_name_group names;
-      print ";";
+      print "; /*typedef*/";
       new_line ();
       force_new_line ()
 
   | ONLYTYPEDEF (specs, loc) ->
       setLoc(loc);
       print_specifiers specs;
-      print ";";
+      print "; /*onlytypedef*/";
       new_line ();
       force_new_line ()
 
