@@ -382,6 +382,9 @@ and stmt =
   | Continue
   | Instr of instr * location
 
+  | Block of block                      (* Just a placeholder to allow us to 
+                                         * mix blocks and statements *)
+
 and block = {
     mutable nid: int;                   (* A >= 0 identifier that is unique 
                                          * in a function. *)

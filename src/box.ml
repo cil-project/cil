@@ -240,13 +240,6 @@ let extractPointerTypeAttribute al =
   k
           
 
-let kindOfType t = 
-  (* Since t was fixed up, it has a qualifier if it is a pointer *)
-  match extractPointerTypeAttribute (typeAttrs t) with
-    N.Unknown -> N.Scalar
-  | res -> res
-
-
 let extractArrayTypeAttribute al = 
   filterAttributes "sized" al <> []
 
@@ -449,6 +442,19 @@ let readPtrField (e: exp) (t: typ) : exp =
       
 let readBaseField (e: exp) (t: typ) : exp = 
   let (tptr, ptr, base, bend) = readFieldsOfFat e t in base
+
+let kindOfType t = 
+  (* Since t was fixed up, it has a qualifier if it is a pointer *)
+  match extractPointerTypeAttribute (typeAttrs t) with
+    N.Unknown -> begin
+      match unrollType t with
+        TPtr _ -> if !N.defaultIsWild then N.Wild else N.Safe
+      | t when isFatType t -> N.Wild
+      | _ -> N.Scalar
+    end
+  | res -> res
+
+
 
 (**** Pointer representation ****)
 let pkNrFields = function
@@ -2503,8 +2509,9 @@ and boxinstr (ins: instr) (l: location): stmt =
               | (tv, _, ((Var _, Field(dfld, NoOffset)) as newlv), _, _,[]) -> 
                   let tmp = makeTempVar !currentFunction dfld.ftype in
                   Some (tmp, iscast), 
-                  vi.vtype,
-                  [boxinstr (Set((Var vi, NoOffset), 
+                  dfld.ftype,
+                  (* Call boxinstr to add the necessary cast *)
+                  [boxinstr (Set((Var vi, NoOffset),
                                  Lval (var tmp))) l]
               | _ -> E.s (E.bug "Result of call is not a variable")
           end
@@ -2573,8 +2580,7 @@ and boxlval (b, off) : (typ * N.pointerkind * lval * exp * exp * stmt list) =
    * used to recreate the lval. *)
   let (btype, pkind, mklval, base, bend, stmts) as startinput = 
     match b with
-      Var vi -> 
-        varStartInput vi
+      Var vi -> varStartInput vi
     | Mem addr -> 
         let (addrt, doaddr, addr', addr'base, addr'len) = boxexpSplit addr in
         let addrt', pkind = 
@@ -2590,6 +2596,8 @@ and boxlval (b, off) : (typ * N.pointerkind * lval * exp * exp * stmt list) =
               d_lval (b, off) N.d_pointerkind pkind); 
   (* As we go along we need to go into tagged and sized types. *)
   let goIntoTypes ((btype, pkind, mklval, base, bend, stmts) as input) = 
+    if debuglval then
+        ignore (E.log "goIntoTypes: btype=%a\n" d_plaintype btype);
     match unrollType btype with
       TComp comp when comp.cstruct -> begin
         match comp.cfields with
@@ -2642,9 +2650,11 @@ and boxlval (b, off) : (typ * N.pointerkind * lval * exp * exp * stmt list) =
         doOffset (goIntoTypes next) resto
   in
   let (btype, pkind, mklval, base, bend, stmts) = doOffset startinput off in
+  let lvalres = mklval NoOffset in
   if debuglval then
-    ignore (E.log "Done lval: pkind=%a@!" N.d_pointerkind pkind);
-  (btype, pkind, mklval NoOffset, base, bend, stmts)
+    ignore (E.log "Done lval: pkind=%a@! lvalres=%a@!" 
+              N.d_pointerkind pkind d_plainlval lvalres);
+  (btype, pkind, lvalres, base, bend, stmts)
       
     (* Box an expression and return the fexp version of the result. If you do 
      * not care about an fexp, you can call the wrapper boxexp *)
