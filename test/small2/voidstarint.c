@@ -16,7 +16,7 @@
 
 // NUMERRORS 8
 
-int main() {
+int function() {
 #if ERROR == 1
   {
     int i1 = 5;
@@ -115,3 +115,7 @@ int deref(void *a) {
   int *b = a; 
   return *b; //ERROR(8):Non-pointer
 } 
+
+int main() {
+  function();
+}

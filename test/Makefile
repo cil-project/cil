@@ -78,8 +78,11 @@ ifdef RELEASE
   # use runtime library with minimal debugging checks
   export RELEASELIB := 1
   # turn on gcc's optimizer for the resulting executables
-  export FAILISTERSE := 1
-  export CCURED += -O2 --alwaysStopOnError
+  export CCURED += -O2
+  ifndef FAILISVERBOSE
+    export FAILISTERSE := 1
+    CCURED += --alwaysStopOnError
+  endif
 endif
 
 # By default we are on Linux

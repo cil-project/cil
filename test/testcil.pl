@@ -352,7 +352,7 @@ $TEST->addTests("test-bad/asm1",
                 "EXTRAARGS=--allowInlineAssembly", ['inferbox']);
 
 $TEST->addTests("test-bad-ln/handler1",
-    "CCURED_ERROR_HANDLERS=handler1.handlers", ['inferbox']);
+    "CCURED_ERROR_HANDLERS=handler1.handlers FAILISVERBOSE=1", ['inferbox']);
     
 $TEST->addTests("test-bad/fieldaddr", "", ['inferbox']);
 $TEST->add3Tests("testrun/label1");
