@@ -3055,7 +3055,7 @@ let rec newAlphaName (alphaTable: (string, int ref) H.t)
       prefix ^ sep ^ (string_of_int newsuffix)
     with Not_found -> begin (* First variable with this prefix *)
       H.add alphaTable prefix (ref suffix);
-      if debugAlpha ignore (E.log " First seen. ");
+      if debugAlpha then ignore (E.log " First seen. ");
       lookupname  (* Return the original name *)
     end
   in
