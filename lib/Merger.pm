@@ -44,6 +44,9 @@ sub collectOneArgument {
     if($arg eq "--no-idashi") {
         $self->{IDASHI} = 0; return 1;
     }
+    if($arg eq "--no-idashdot") {
+        $self->{IDASHDOT} = 0; return 1;
+    }
     if($arg =~ m|--leavealone=(.+)$|)  {
         push @{$self->{LEAVEALONE}}, $1; return 1;
     }
@@ -122,12 +125,14 @@ sub preprocess_beforecil {
     # See if we must force some includes
     if(defined $self->{INCLUDEDIR}) {
         # And force the other includes. Put them at the begining
-        if($self->{MODENAME} eq 'GNUCC') {
+        if(($self->{MODENAME} eq 'GNUCC') &&
+           # sm: m88k doesn't work if I pass -I.
+           $self->{IDASHDOT}) {
             unshift @args, "-I.";
         }
-        unshift @args, 
-            map { my $dir = $_; 
-                  $self->{INCARG} . $dir . "/" . $self->{VERSION} } 
+        unshift @args,
+            map { my $dir = $_;
+                  $self->{INCARG} . $dir . "/" . $self->{VERSION} }
             @{$self->{INCLUDEDIR}};
         if($self->{MODENAME} eq 'GNUCC') {
             # sm: this is incompatible with wu-ftpd, but is apparently needed

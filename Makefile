@@ -85,7 +85,7 @@ ifdef RELEASE
   # use runtime library with minimal debugging checks
   export RELEASELIB := 1
   # turn on gcc's optimizer for the resulting executables
-  export EXTRAARGS += -O2
+  export CCURED += -O2
 endif
 
 # By default we are on Linux
@@ -127,6 +127,9 @@ STANDARDPATCH := --includedir=$(CCUREDHOME)/include
 
 # CCURED contains arguments that are passed to ccured.pl
 # Pass such arguments in the command line as EXTRAARGS="..."
+# NOTE: you should *never* set EXTRAARGS within this Makefile,
+# because *any* such settings will be overridden if someone
+# specified EXTRAARGS on the command line
 CCURED+= $(EXTRAARGS)
 
 ifdef NEWOPTIM
@@ -193,9 +196,12 @@ endif
 ifdef PRINTSTAGES
   CCURED+= --stages
 endif
+
 # sm: pass tracing directives on 'make' command line like TRACE=usedVars
+# I don't quote $(TRACE) because it actually appears inside another quoted
+# string already when passed as CC="perl ...."
 ifdef TRACE
-  CCURED+= --tr="$(TRACE)"
+  CCURED+= --tr=$(TRACE)
 endif
 
 # This is a way to enable the stats, allowing the command line to override it
@@ -1305,8 +1311,11 @@ vortex-tv:
 
 ### SPEC95 m88ksim
 M88DIR := $(SPECDIR)/124.m88ksim
+
+# sm: 12/23/01: found that -I. and -I- don't work with m88k.. as usual I
+# have absolutely no idea why it hasn't been a problem until now ..
 M88SAFECC := $(CCURED) --merge $(PATCHARG) \
-               --leavealone=m88k_trusted
+               --leavealone=m88k_trusted --no-idashi --no-idashdot
 m88kclean: 	
 	cd $(M88DIR)/src; make clean
 	cd $(M88DIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
