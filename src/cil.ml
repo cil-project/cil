@@ -587,17 +587,21 @@ and d_lvalprec contextprec () lv =
     d_lval () lv
   
 and d_lval () lv = 
-  let rec d_offset () = function
-    | NoOffset -> nil
-    | Field (fi, o) -> dprintf ".%s%a" fi.fname d_offset o
-    | Index (e, o) -> dprintf "[%a]%a" d_exp e d_offset o
+  let rec d_offset dobase = function
+    | NoOffset -> dobase ()
+    | Field (fi, o) -> 
+        d_offset (fun _ -> dprintf "%t.%s" dobase fi.fname) o
+    | Index (Const(CInt(0,_),_), NoOffset) -> dprintf "*%t" dobase
+    | Index (e, o) -> 
+        d_offset (fun _ -> dprintf "%t[%a]" dobase d_exp e) o
   in
   match lv with
-    Var(vi,o,_) -> dprintf "%s%a" vi.vname d_offset o
+    Var(vi,o,_) -> 
+      d_offset (fun _ -> text vi.vname) o
   | Mem(e,Field(fi, o),_) -> 
-      dprintf "%a->%s%a" (d_expprec 3) e fi.fname d_offset o
-  | Mem(e,NoOffset,_) -> dprintf "*%a" (d_expprec 3) e
-  | Mem(e,o,_) -> dprintf "%a%a" d_exp e d_offset o
+      d_offset (fun _ -> dprintf "%a->%s" (d_expprec 3) e fi.fname) o
+  | Mem(e,o,_) -> 
+      d_offset (fun _ -> dprintf "%a" d_exp e) o
         
 and d_instr () i =
   match i with
