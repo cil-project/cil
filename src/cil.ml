@@ -892,7 +892,7 @@ let assertEmptyQueue vis =
     (* Either a visitor inserted an instruction somewhere that it shouldn't
        have (i.e. at the top level rather than inside of a statement), or
        there's a bug in the visitor engine. *)
-    E.s (E.bug "Visitor's instruction queue is not empty\n");
+    E.s (E.bug "Visitor's instruction queue is not empty\n. You should only use queueInstr inside a function body!");
   ()
 
 
@@ -3915,7 +3915,12 @@ let foldGlobals (fl: file)
 (* A visitor for the whole file that does not change the globals *)
 let visitCilFileSameGlobals (vis : cilVisitor) (f : file) : unit =
   let fGlob g = visitCilGlobal vis g in
-  iterGlobals f (fun g -> ignore (fGlob g)) 
+  iterGlobals f (fun g -> 
+    match fGlob g with 
+      [g'] when g' == g || g' = g -> () (* Try to do the pointer check first *)
+    | gl -> 
+        ignore (E.log "You used visitCilFilSameGlobals but the global got changed:\n %a\nchanged to %a\n" d_global g (docList line (d_global ())) gl);
+        ())
 
 (* Be careful with visiting the whole file because it might be huge. *)
 let visitCilFile (vis : cilVisitor) (f : file) : unit =

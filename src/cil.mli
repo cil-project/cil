@@ -1682,8 +1682,11 @@ class type cilVisitor = object
   method vattr: attribute -> attribute list visitAction 
     (** Attribute. Each attribute can be replaced by a list *)
 
-    (** Add here instructions while visiting to queue them to 
-     * preceede the current statement or instruction being processed *)
+    (** Add here instructions while visiting to queue them to preceede the 
+     * current statement or instruction being processed. Use this method only 
+     * when you are visiting an expression that is inside a function body, or 
+     * a statement, because otherwise there will no place for the visitor to 
+     * place your instructions. *)
   method queueInstr: instr list -> unit
 
     (** Gets the queue of instructions and resets the queue *)
