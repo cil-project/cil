@@ -140,6 +140,9 @@ class gwVisitorClass : cilVisitor = object (self)
       Set ((Var v, _), _, _) 
     | Call (Some (Var v, _), _, _, _) when v.vglob && considerVariable v -> 
         IH.replace !currentGlobalsWritten v.vid v;
+        (* When we write a global, we also consider that we are reading it. 
+         * This is useful if the global is not written on all paths *)
+        IH.replace !currentGlobalsRead v.vid v; 
         DoChildren
     | _ -> DoChildren
 end
