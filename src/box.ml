@@ -1317,12 +1317,7 @@ let mkPointerTypeKind (bt: typ) (k: N.opointerkind) =
 
 
 (***** Address of ******)
-let pkAddrOf (lv: curelval)
-(*
-             (lvt: typ)
-             (lvk: N.opointerkind)  (* The kind of the AddrOf pointer *)
-             (fb: exp)
-             (fe: exp) *) : (fexp * stmt clist) = 
+let pkAddrOf (lv: curelval) : (fexp * stmt clist) = 
   match unrollType lv.lvt with
   | TFun _ -> begin
       (* Taking the address of a function is a special case. Since fuctions 
@@ -1334,13 +1329,6 @@ let pkAddrOf (lv: curelval)
         N.Safe -> mkFexp3 thetype start zero zero, lv.lvstmts
       | N.Wild -> mkFexp3 thetype start lv.lvb zero, lv.lvstmts
       | _ -> E.s (bug "pkAddrOf function: %a" N.d_opointerkind lv.plvk) 
-(*
-      match lv with
-        Var vi, NoOffset when !N.defaultIsWild -> 
-          mkFexp3 (mkPointerTypeKind lvt N.Wild) start start zero, empty
-      | _ -> 
-          mkFexp3 (mkPointerTypeKind lvt lvk) start fb zero, empty
-*)
   end
   | _ -> begin      
       let ptrtype = mkPointerTypeKind lv.lvt lv.plvk in
@@ -2114,6 +2102,7 @@ let nullCheckAfterBoundsCheck (k: N.opointerkind) =
 
 
     (* Cast an fexp to another one. Accumulate necessary statements to doe *)
+(* To debug rename the next function !!! *)
 let rec castTo (fe: fexp) (newt: typ)
                (doe: stmt clist) : stmt clist * fexp =
   let newkind = kindOfType newt in
@@ -2175,12 +2164,15 @@ let rec castTo (fe: fexp) (newt: typ)
           (* If the pointer type is a void ptr then do not add one to get the 
            * end since that is illegal C *)
           let theend = 
-            match unrollType (typeOf p) with
-              TPtr(TVoid _, _) -> p
-            | _ -> BinOp(PlusPI, p, one, newPointerType)
+            let tp = typeOf p in
+            match unrollType tp with
+              TPtr(TVoid _, _) -> 
+                ignore (warn "Casting SAFE void* to FSEQ");
+                p
+            | _ -> BinOp(PlusPI, p, one, tp)
           in
           let p' = castP p in
-          (doe, FM (newt, newkind, p', p', theend))
+          (doe, FM (newt, newkind, p', p', castVoidStar theend))
 
         (* weimer: SAFE -> FSEQN only when the SAFE is 0 *)
       | N.Safe, N.FSeqN when is_zero fe  ->
@@ -2192,15 +2184,18 @@ let rec castTo (fe: fexp) (newt: typ)
 
         (* SAFE -> SEQ *)          
       | N.Safe, N.Seq -> 
-          let p' = castP p in
-          (* If the pointer type is a void ptr then do not add one to get the 
-           * end since that is illegal C *)
+          (* If the old pointer type is a void ptr then do not add one to get 
+           * the end since that is illegal C  *)
           let theend = 
-            match unrollType newPointerType with
-              TPtr(TVoid _, _) -> p'
-            | _ -> BinOp(PlusPI, p', one, newPointerType)
+            let tp = typeOf p in
+            match unrollType tp with
+              TPtr(TVoid _, _) -> 
+                ignore (warn "Casting SAFE void* to SEQ");
+                p
+            | _ -> BinOp(PlusPI, p, one, tp)
           in
-          (doe, FM (newt, newkind, p', p', theend))
+          let p' = castP p in
+          (doe, FM (newt, newkind, p', p', castVoidStar theend))
           
         (* SCALAR -> INDEX, WILD, SEQ, FSEQ *)
       | N.Scalar, (N.Index|N.Wild|N.Seq|N.FSeq|N.FSeqN|N.SeqN) ->
@@ -2324,8 +2319,8 @@ let rec castTo (fe: fexp) (newt: typ)
                  d_plaintype oldt d_plaintype newt)      
   end
 
-
-let rec castToDebug (fe: fexp) (newt: typ)
+(* Rename this as castTo *)
+let castToDebug (fe: fexp) (newt: typ)
                     (doe: stmt clist) : stmt clist * fexp =
   let (doe', fe') as res = castTo fe newt doe in
   ignore (E.log "castToDebug:\n  fe=%a\n  newt= %a\n fe'=%a\n\n"
@@ -3345,7 +3340,7 @@ and boxinstr (ins: instr) : stmt clist =
     match ins with
     | Set (lv, e, l) -> 
         currentLoc := l;
-        let blv (* (lvt, lvkind, lv', lvbase, lvend, dolv) *) = boxlval lv in
+        let blv = boxlval lv in
         let (doe, e') = boxexpf e in (* Assume et is the same as lvt *)
         (* Now do a cast, just in case some qualifiers are different *)
         let (doe', e2) = castTo e' blv.lvt doe in
@@ -3483,7 +3478,7 @@ and boxinstr (ins: instr) : stmt clist =
                     (* For allocation we make the temporary the same type as 
                      * the destination. The allocation routine will know what 
                      * to do with it. *)
-                    let bdestlv (* (destlvt, _, _, _, _, _) *) = boxlval destlv in
+                    let bdestlv = boxlval destlv in
                     bdestlv.lvt
                   else
                     (* If it is not allocation we make the temporary have the 
@@ -3510,7 +3505,7 @@ and boxinstr (ins: instr) : stmt clist =
         let rec doOutputs = function
             [] -> empty, []
           | (c, lv) :: rest -> 
-              let blv (* (lvt, lvkind, lv', lvbase, lvend, dolv) *) = boxlval lv in
+              let blv = boxlval lv in
               let check = 
                 match blv.lv with
                   Mem _, _ -> 
@@ -3860,6 +3855,7 @@ and boxexpf (e: exp) : stmt clist * fexp =
             E.s (bug "addrof not set for %s (addrof)" vi.vname)
         | _ -> ());
         let res, doaddrof = pkAddrOf blv in
+(*        ignore (E.log "%a -> %a\n" d_exp e d_fexp res); *)
         (doaddrof, res)
           
           (* StartOf is like an AddrOf except for typing issues. *)
