@@ -689,7 +689,8 @@ and doSpecs (isglobal: bool) (* Whether we are at global scope *)
         | t -> t
       in
       SpecType t' :: doSpecs isglobal rest
-  end
+    end
+  | SpecPattern _ :: _ -> (E.s (E.bug "SpecPattern in combiner source"))
 
 
 and alpha_decl_type = function
@@ -755,16 +756,16 @@ and alpha_expression (exp : expression) : expression =
     NOTHING | LABELADDR _ -> exp
 
   | UNARY (op, exp') ->
-      UNARY(op, alpha_expression exp')  
+      UNARY(op, alpha_expression exp')
   | BINARY (op, exp1, exp2) ->
-      BINARY(op, alpha_expression exp1, alpha_expression exp2)      
+      BINARY(op, alpha_expression exp1, alpha_expression exp2)
   | QUESTION (exp1, exp2, exp3) ->
-      QUESTION(alpha_expression exp1, 
-               alpha_expression exp2, alpha_expression exp3)    
+      QUESTION(alpha_expression exp1,
+               alpha_expression exp2, alpha_expression exp3)
   | CAST (typ, iexp) ->
-      CAST(alpha_only_type typ, alpha_init_expression iexp)     
+      CAST(alpha_only_type typ, alpha_init_expression iexp)
   | CALL (exp, args) ->
-      CALL(alpha_expression exp, alpha_exps args)   
+      CALL(alpha_expression exp, alpha_exps args)
   | COMMA exps ->
       COMMA(alpha_exps exps)
   | CONSTANT cst ->
@@ -775,7 +776,7 @@ and alpha_expression (exp : expression) : expression =
       | CONST_CHAR c -> CONST_CHAR c
       | CONST_STRING s -> CONST_STRING s))
 
-  | VARIABLE name -> 
+  | VARIABLE name ->
       VARIABLE(lookup "" name)
   | EXPR_SIZEOF exp ->
       EXPR_SIZEOF (alpha_expression exp)
@@ -793,6 +794,7 @@ and alpha_expression (exp : expression) : expression =
       MEMBEROFPTR(alpha_expression exp, fld)
   | GNU_BODY (blk) ->
       GNU_BODY (alpha_block blk)
+  | EXPR_PATTERN (_) -> (E.s (E.bug "EXPR_PATTERN in combiner source"))
 
 and alpha_block (labs, defs, stmts) = 
   enterScope ();
@@ -988,8 +990,12 @@ and doDefinition (isglobal: bool) (* Whether at global scope *)
   | GLOBASM (s, l) -> GLOBASM (s, l) :: acc
 
   | PRAGMA (e, l) -> PRAGMA (alpha_expression e, l) :: acc
-      
-    
+  
+  | TRANSFORMER (_, _, _) -> (E.s (E.bug "TRANSFORMER in combiner source"))
+  | EXPRTRANSFORMER (_, _, _) -> (E.s (E.bug "EXPRTRANSFORMER in combiner source"))
+
+
+
 let initialize () = 
       (* Clean up the alpha table *)
   H.clear alphaTable;

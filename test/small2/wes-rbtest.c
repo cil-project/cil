@@ -148,7 +148,9 @@ struct _iobuf {
         int   _bufsiz;
         char *_tmpfname;
         };
-typedef struct _iobuf FILE;
+  
+// sm: since we #include stdio.h above, this is bad!        
+//typedef struct _iobuf FILE;
 
 extern  int   debugMM;      
 

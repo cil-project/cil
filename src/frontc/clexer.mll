@@ -138,7 +138,7 @@ let add_identifier name =
 *)
 let rem_quotes str = String.sub str 1 ((String.length str) - 2)
 let scan_ident id = try StringHashtbl.find lexicon id
-	with Not_found -> IDENT id
+	with Not_found -> IDENT id  (* default to variable name, as opposed to type *)
 
 (* Change \ into / in file names. To avoid complications with escapes *)
 let cleanFileName str = 
@@ -363,8 +363,15 @@ rule initial =
 |		'.'				{DOT}
 |		"sizeof"		{SIZEOF}
 |               "__asm"                 { MSASM (msasm lexbuf) }
+      
+(* sm: tree transformation keywords *)
+|               "@transform"            {AT_TRANSFORM}
+|               "@transformExpr"        {AT_TRANSFORMEXPR}
+|               "@specifier"            {AT_SPECIFIER}
+|               "@expr"                 {AT_EXPR}
+|               "@name"                 {AT_NAME}
 
-(* __extension__ is a black. The parser runs into some conflicts if we let it 
+(* __extension__ is a black. The parser runs into some conflicts if we let it
  * pass *)
 |               "__extension__"         { initial lexbuf }
 |		ident			{scan_ident (Lexing.lexeme lexbuf)}

@@ -39,19 +39,28 @@ type typeSpecifier = (* Merge all specifiers into one type *)
   | Tunion of string * field_group list option   (* Some if a definition *)
   | Tenum of string * enum_item list option    (* Some if a definition *)
   | TtypeofE of expression                      (* GCC __typeof__ *)
-  | TtypeofT of spec_elem list * decl_type       (* GCC __typeof__ *)
+  | TtypeofT of specifier * decl_type       (* GCC __typeof__ *)
 
 and storage =
     NO_STORAGE | AUTO | STATIC | EXTERN | REGISTER
 
 
 (* Type specifier elements. These appear at the start of a declaration *)
+(* Everywhere they appear in this file, they appear as a 'spec_elem list', *)
+(* which is not interpreted by cabs -- rather, this "word soup" is passed *)
+(* on to the compiler.  Thus, we can represent e.g. 'int long float x' even *)
+(* though the compiler will of course choke. *)
 and spec_elem =
     SpecTypedef
   | SpecInline
   | SpecAttr of attribute
   | SpecStorage of storage
   | SpecType of typeSpecifier
+  | SpecPattern of string       (* specifier pattern variable *)
+
+(* decided to go ahead and replace 'spec_elem list' with specifier *)
+and specifier = spec_elem list
+
 
 (* Declarator type. They modify the base type given in the specifier. Keep
  * them in the order as they are printed (this means that the top level
@@ -75,39 +84,50 @@ and decl_type =
                                           (* Prints "decl (args[, ...])".
                                            * decl is never a PTR. *)
 
+
 (* The base type and the storage are common to all names. Each name might
  * contain type or storage modifiers *)
-and name_group = spec_elem list * name list
+(* e.g.: int x, y; *)
+and name_group = specifier * name list
 
-and field_group = spec_elem list * (name * expression option) list
+and field_group = specifier * (name * expression option) list
 
-and init_name_group = spec_elem list * init_name list
+(* like name_group, except the declared variables are allowed to have initializers *)
+(* e.g.: int x=1, y=2; *)
+and init_name_group = specifier * init_name list
 
 (* The decl_type is in the order in which they are printed. Only the name of
  * the declared identifier is pulled out. The attributes are those that are
  * printed after the declarator *)
+(* e.g: in "int *x", "*x" is the declarator; "x" will be pulled out as *)
+(* the string, and decl_type will be PTR([], JUSTBASE) *)
 and name = string * decl_type * attribute list
 
-(* A name with an initializer *)
+(* A variable declarator ("name") with an initializer *)
 and init_name = name * init_expression
 
 (* Single names are for declarations that cannot come in groups, like
  * function parameters and functions *)
-and single_name = spec_elem list * name
+and single_name = specifier * name
 
 
 and enum_item = string * expression
 
 (*
-** Declaration definition
+** Declaration definition (at toplevel)
 *)
 and definition =
    FUNDEF of single_name * block * cabsloc
- | DECDEF of init_name_group * cabsloc
+ | DECDEF of init_name_group * cabsloc        (* global variable(s), or function prototype *)
  | TYPEDEF of name_group * cabsloc
- | ONLYTYPEDEF of spec_elem list * cabsloc
+ | ONLYTYPEDEF of specifier * cabsloc
  | GLOBASM of string * cabsloc
  | PRAGMA of expression * cabsloc
+ (* toplevel form transformer, from the first definition to the *)
+ (* second group of definitions *)
+ | TRANSFORMER of definition * definition list * cabsloc
+ (* expression transformer: source and destination *)
+ | EXPRTRANSFORMER of expression * expression * cabsloc
 
 and file = definition list
 
@@ -168,19 +188,20 @@ and expression =
   | QUESTION of expression * expression * expression
 
    (* A CAST can actually be a constructor expression *)
-  | CAST of (spec_elem list * decl_type) * init_expression
+  | CAST of (specifier * decl_type) * init_expression
   | CALL of expression * expression list
   | COMMA of expression list
   | CONSTANT of constant
   | VARIABLE of string
   | EXPR_SIZEOF of expression
-  | TYPE_SIZEOF of spec_elem list * decl_type
+  | TYPE_SIZEOF of specifier * decl_type
   | EXPR_ALIGNOF of expression
-  | TYPE_ALIGNOF of spec_elem list * decl_type
+  | TYPE_ALIGNOF of specifier * decl_type
   | INDEX of expression * expression
   | MEMBEROF of expression * string
   | MEMBEROFPTR of expression * string
   | GNU_BODY of block
+  | EXPR_PATTERN of string     (* pattern variable, and name *)
 
 and constant =
   | CONST_INT of string   (* the textual representation *)
@@ -252,4 +273,17 @@ begin
   | GOTO(_,loc) -> loc
   | COMPGOTO (_, loc) -> loc
   | ASM(_,_,_,_,_,loc) -> loc
+end
+
+let get_definitionloc (d : definition) : cabsloc =
+begin
+  match d with
+  | FUNDEF(_, _, l) -> l
+  | DECDEF(_, l) -> l
+  | TYPEDEF(_, l) -> l
+  | ONLYTYPEDEF(_, l) -> l
+  | GLOBASM(_, l) -> l
+  | PRAGMA(_, l) -> l
+  | TRANSFORMER(_, _, l) -> l
+  | EXPRTRANSFORMER(_, _, l) -> l
 end

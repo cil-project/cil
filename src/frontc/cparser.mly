@@ -1,11 +1,11 @@
-/*(* NOTE: This parser is based on a parser written by Hugues Casse. Since 
-   * then I have changed it in numerous ways to the point where it probably 
+/*(* NOTE: This parser is based on a parser written by Hugues Casse. Since
+   * then I have changed it in numerous ways to the point where it probably
    * does not resemble Hugues's original one at all  *)*/
 %{
 open Cabs
 let version = "Cparser V3.0b 10.9.99 Hugues Cassé"
 
-let parse_error msg : 'a =
+let parse_error msg : 'a =           (* sm: c++-mode highlight hack: -> ' <- *)
   Errormsg.hadErrors := true;
   Clexer.display_error
     msg
@@ -121,6 +121,16 @@ let doOldParDecl (names: string list)
   in
   List.map findOneName names
 
+let checkConnective (s : string) : unit =
+begin
+  (* checking this means I could possibly have more connectives, with *)
+  (* different meaning *)
+  if (s <> "to") then (
+    parse_error "transformer connective must be 'to'";
+    raise Parsing.Parse_error
+  )
+  else ()
+end
 
 
 %}
@@ -163,6 +173,9 @@ let doOldParDecl (names: string list)
 %token DECLSPEC
 %token <string> MSASM MSATTR
 %token PRAGMA
+
+/* sm: cabs tree transformation specification keywords */
+%token AT_TRANSFORM AT_TRANSFORMEXPR AT_SPECIFIER AT_EXPR AT_NAME
 
 /* operator precedence */
 %nonassoc 	IF
@@ -257,25 +270,37 @@ location:
 global:
   declaration                           { $1 }
 | function_def                          { $1 }
-| location ASM LPAREN string_list RPAREN SEMICOLON 
+| location ASM LPAREN string_list RPAREN SEMICOLON
                                         { GLOBASM ($4, $1) }
 | location PRAGMA attr                  { PRAGMA ($3, $1) }
 | location error SEMICOLON { PRAGMA (CONSTANT(CONST_STRING "error"), $1) }
-/* (* Old-style function prototype. This should be somewhere else, like in 
-    * "declaration". For now we keep it at global scope only because in local 
+/* (* Old-style function prototype. This should be somewhere else, like in
+    * "declaration". For now we keep it at global scope only because in local
     * scope it looks too much like a function call  *) */
 | location   IDENT LPAREN old_parameter_list RPAREN old_pardef_list SEMICOLON
                            { (* Convert pardecl to new style *)
                              let pardecl = doOldParDecl $4 $6 in
                              (* Make the function declarator *)
-                             doDeclaration $1 [] 
+                             doDeclaration $1 []
                                [(($2, PROTO(JUSTBASE, pardecl,false), []),
                                  NO_INIT)]
-                            } 
+                            }
+/* transformer for a toplevel construct */
+| location AT_TRANSFORM LBRACE global RBRACE  IDENT/*to*/  LBRACE globals RBRACE {
+    checkConnective($6);
+    TRANSFORMER($4, $8, $1)
+  }
+/* transformer for an expression */
+| location AT_TRANSFORMEXPR LBRACE expression RBRACE  IDENT/*to*/  LBRACE expression RBRACE {
+    checkConnective($6);
+    EXPRTRANSFORMER($4, $8, $1)
+  }
 ;
+
 id_or_typename:
     IDENT				{$1}
 |   NAMED_TYPE				{$1}
+|   AT_NAME LPAREN IDENT RPAREN         { "@name(" ^ $3 ^ ")" }     /* pattern variable name */
 ;
 
 maybecomma:
@@ -283,7 +308,7 @@ maybecomma:
 |  COMMA                                { () }
 ;
 
-/*** Expressions ****/
+/* *** Expressions *** */
 
 
 expression:
@@ -358,7 +383,7 @@ expression:
 |		expression EXCLAM_EQ expression
 			{BINARY(NE ,$1 , $3)}
 |		expression INF expression
-			{BINARY(LT ,$1 , $3)}	
+			{BINARY(LT ,$1 , $3)}
 |		expression SUP expression
 			{BINARY(GT ,$1 , $3)}
 |		expression INF_EQ expression
@@ -368,24 +393,24 @@ expression:
 |		expression  INF_INF expression
 			{BINARY(SHL ,$1 , $3)}
 |		expression  SUP_SUP expression
-			{BINARY(SHR ,$1 , $3)}		
+			{BINARY(SHR ,$1 , $3)}
 |		expression EQ expression
-			{BINARY(ASSIGN ,$1 , $3)}			
+			{BINARY(ASSIGN ,$1 , $3)}
 |		expression PLUS_EQ expression
-			{BINARY(ADD_ASSIGN ,$1 , $3)}		
-|		expression MINUS_EQ expression		
+			{BINARY(ADD_ASSIGN ,$1 , $3)}
+|		expression MINUS_EQ expression
 			{BINARY(SUB_ASSIGN ,$1 , $3)}
-|		expression STAR_EQ expression		
+|		expression STAR_EQ expression
 			{BINARY(MUL_ASSIGN ,$1 , $3)}
-|		expression SLASH_EQ expression		
+|		expression SLASH_EQ expression
 			{BINARY(DIV_ASSIGN ,$1 , $3)}
-|		expression PERCENT_EQ expression	
+|		expression PERCENT_EQ expression
 			{BINARY(MOD_ASSIGN ,$1 , $3)}
-|		expression AND_EQ expression		
+|		expression AND_EQ expression
 			{BINARY(BAND_ASSIGN ,$1 , $3)}
-|		expression PIPE_EQ expression		
+|		expression PIPE_EQ expression
 			{BINARY(BOR_ASSIGN ,$1 , $3)}
-|		expression CIRC_EQ expression		
+|		expression CIRC_EQ expression
 			{BINARY(XOR_ASSIGN ,$1 , $3)}
 |		expression INF_INF_EQ expression	
 			{BINARY(SHL_ASSIGN ,$1 , $3)}
@@ -398,6 +423,8 @@ expression:
 		         { CAST($2, COMPOUND_INIT $5) }
 /* (* GCC's address of labels *)  */
 |               AND_AND IDENT  { LABELADDR $2 }
+|               AT_EXPR LPAREN IDENT RPAREN         /* expression pattern variable */
+                         { EXPR_PATTERN($3) }
 ;
 constant:
     CST_INT				{CONST_INT $1}
@@ -565,7 +592,9 @@ decl_spec_list:                         /* ISO 6.7 */
 |   type_spec decl_spec_list_opt_no_named { SpecType $1 :: $2 }
                                         /* ISO 6.7.4 */
 |   INLINE decl_spec_list_opt           { SpecInline :: $2 }
-|   attribute decl_spec_list_opt        { SpecAttr $1 :: $2 }
+|   attribute decl_spec_list_opt        { SpecAttr $1 :: $2 }  
+/* specifier pattern variable (must be last in spec list) */
+|   AT_SPECIFIER LPAREN IDENT RPAREN    { [ SpecPattern($3) ] }
 ;
 /* (* In most cases if we see a NAMED_TYPE we must shift it. Thus we declare 
     * NAMED_TYPE to have right associativity  *) */
@@ -649,19 +678,19 @@ enumerator:
 
 
 declarator:  /* (* ISO 6.7.5. Plus Microsoft declarators.*) */
-   pointer_opt direct_decl attributes_with_asm    
+   pointer_opt direct_decl attributes_with_asm
                                          { let (n, decl) = $2 in
                                            (n, applyPointer $1 decl, $3) }
 ;
 
 direct_decl: /* (* ISO 6.7.5 *) */
-                                   /* (* We want to be able to redefine named 
+                                   /* (* We want to be able to redefine named
                                     * types as variable names *) */
 |   id_or_typename                 { ($1, JUSTBASE) }
 
-|   LPAREN attributes declarator RPAREN       
+|   LPAREN attributes declarator RPAREN
                                    { let (n,decl,al) = $3 in
-                                     (n, PARENTYPE($2,decl,al)) } 
+                                     (n, PARENTYPE($2,decl,al)) }
 
 |   direct_decl LBRACKET comma_expression RBRACKET
                                    { let (n, decl) = $1 in
@@ -673,7 +702,7 @@ direct_decl: /* (* ISO 6.7.5 *) */
                                      let (params, isva) = $3 in
                                      Clexer.pop_context ();
                                      (n, PROTO(decl, params, isva))
-                                   } 
+                                   }
 ;
 parameter_list_startscope: 
     LPAREN                         { Clexer.push_context () }

@@ -36,6 +36,7 @@ let printLn = ref true
 let printLnComment = ref false
 
 let printCounters = ref false
+let printComments = ref false
 
 (*
 ** FrontC Pretty printer
@@ -206,30 +207,34 @@ let escape_string str =
       ^ (conv ((code mod 64) / 8))
       ^ (conv (code mod 8)) in
       res ^ (build (idx + 1)) in
-  build 0	
-	
-let print_string s = 
+  build 0
+
+let print_string s =
   print ("\"" ^ escape_string s ^ "\"")
 
-(* 
+(*
 ** Base Type Printing
 *)
 
-let rec print_specifiers (specs: spec_elem list) = 
+let rec print_specifiers (specs: spec_elem list) =
+  comprint "specifier(";
   let print_spec_elem = function
       SpecTypedef -> print "typedef "
     | SpecInline -> print "__inline "
-    | SpecStorage sto -> 
+    | SpecStorage sto ->
         print (match sto with
-          NO_STORAGE -> ""
+          NO_STORAGE -> (comstring "/*no storage*/")
         | AUTO -> "auto "
         | STATIC -> "static "
         | EXTERN -> "extern "
         | REGISTER -> "register ")
     | SpecAttr al -> print_attribute al; space ()
     | SpecType bt -> print_type_spec bt
+    | SpecPattern name -> print ("@specifier(" ^ name ^ ") ")
   in
   List.iter print_spec_elem specs
+  ;comprint ")"
+
 
 and print_type_spec = function
     Tvoid -> print "void "
@@ -242,10 +247,12 @@ and print_type_spec = function
   | Tdouble -> print "double "
   | Tsigned -> print "signed "
   | Tunsigned -> print "unsigned "
-  | Tnamed s -> print s; space ();
+  | Tnamed s -> comprint "tnamed"; print s; space ();
   | Tstruct (n, None) -> print ("struct " ^ n ^ " ")
-  | Tstruct (n, Some flds) -> 
-      if flds = [] then print "struct { } " 
+  | Tstruct (n, Some flds) ->
+      (* sm: why wasn't the name being printed?  I think that's a bug.. *)
+      (* previously: if flds = [] then print "struct { } " *)
+      if flds = [] then print ("struct " ^ n ^ " { } ")
       else print_fields ("struct " ^ n) flds
   | Tunion (n, None) -> print ("union " ^ n ^ " ")
   | Tunion (n, Some flds) -> 
@@ -260,26 +267,31 @@ and print_type_spec = function
 (* This is the main printer for declarations. It is easy bacause the 
  * declarations are laid out as they need to be printed. *)
 and print_decl (n: string) = function
-    JUSTBASE -> if n <> "___missing_field_name" then print n
-  | PARENTYPE (al1, d, al2) -> 
-      print "("; 
+    JUSTBASE -> if n <> "___missing_field_name" then 
+                  print n
+                else
+                  comprint "missing field name"
+  | PARENTYPE (al1, d, al2) ->
+      print "(";
       print_attributes al1; space ();
       print_decl n d; space ();
       print_attributes al2; print ")"
-  | PTR (al, d) -> 
+  | PTR (al, d) ->
       print "* ";
       print_attributes al; space ();
       print_decl n d
-  | ARRAY (d, e) -> 
+  | ARRAY (d, e) ->
       print_decl n d;
       print "[";
       if e <> NOTHING then print_expression e 1;
       print "]"
-  | PROTO(d, args, isva) -> 
+  | PROTO(d, args, isva) ->
+      comprint "proto(";
       print_decl n d;
       print "(";
       print_params args isva;
-      print ")"
+      print ")";
+      comprint ")"
 
 
 and print_fields  id (flds : field_group list) =
@@ -369,7 +381,7 @@ and print_old_params pars ell =
 (*
 ** Expression printing
 **		Priorities
-**		16	varaibles
+**		16	variables
 **		15	. -> [] call()
 **		14  ++, -- (post)
 **		13	++ -- (pre) ~ ! - + & *(cast)
@@ -448,7 +460,8 @@ and get_operator exp =
   | MEMBEROF (exp, fld) -> ("", 15)
   | MEMBEROFPTR (exp, fld) -> ("", 15)
   | GNU_BODY _ -> ("", 17)
-        
+  | EXPR_PATTERN _ -> ("", 16)     (* sm: not sure about this *)
+
 and print_comma_exps exps =
   print_commas false (fun exp -> print_expression exp 1) exps
     
@@ -542,6 +555,7 @@ and print_expression (exp : expression) (lvl : int) =
       | CONST_STRING s -> print_string s)
 
   | VARIABLE name ->
+      comprint "variable";
       print name
   | EXPR_SIZEOF exp ->
       print "sizeof(";
@@ -573,7 +587,10 @@ and print_expression (exp : expression) (lvl : int) =
   | GNU_BODY (blk) ->
       print "(";
       print_block blk;
-      print ")" in
+      print ")"
+  | EXPR_PATTERN (name) ->
+      print ("@expr(" ^ name ^ ") ")
+  in
   if lvl > lvl' then print ")" else ()
     
 
@@ -722,9 +739,9 @@ and print_statement stat =
         print ");"
       end
 
-and print_block ((labs: string list), 
-                 (defs: definition list), 
-                 (stmts: statement list)) = 
+and print_block ((labs: string list),
+                 (defs: definition list),
+                 (stmts: statement list)) =
   new_line();
   print "{";
   indent ();
@@ -796,14 +813,15 @@ and print_defs defs =
 and print_def def =
   match def with
     FUNDEF (proto, body, loc) ->
+      comprint "fundef";
       if !printCounters then begin
         try
-          let fname = 
-            match proto with 
+          let fname =
+            match proto with
               (_, (n, _, _)) -> n
           in
-          print_def (DECDEF (([SpecType Tint], 
-                              [(fname ^ "__counter", JUSTBASE, []), 
+          print_def (DECDEF (([SpecType Tint],
+                              [(fname ^ "__counter", JUSTBASE, []),
                                 NO_INIT]), loc));
         with Not_found -> print "/* can't print the counter */"
       end;
@@ -813,22 +831,25 @@ and print_def def =
       force_new_line ();
 
   | DECDEF (names, loc) ->
+      comprint "decdef";
       setLoc(loc);
       print_init_name_group names;
       print ";";
       new_line ()
 
   | TYPEDEF (names, loc) ->
+      comprint "typedef";
       setLoc(loc);
       print_name_group names;
-      print "; /*typedef*/";
+      print ";";
       new_line ();
       force_new_line ()
 
   | ONLYTYPEDEF (specs, loc) ->
+      comprint "onlytypedef";
       setLoc(loc);
       print_specifiers specs;
-      print "; /*onlytypedef*/";
+      print ";";
       new_line ();
       force_new_line ()
 
@@ -847,6 +868,55 @@ and print_def def =
       print_expression a 1;
       width := oldwidth;
       force_new_line ()
+
+  | TRANSFORMER(srcdef, destdeflist, loc) ->
+      setLoc(loc);
+      print "@transform {";
+      force_new_line();
+      print "{";
+        force_new_line();
+        indent ();
+        print_def srcdef;
+        unindent();
+      print "}";
+      force_new_line();
+      print "to {";
+        force_new_line();
+        indent();
+        List.iter print_def destdeflist;
+        unindent();
+      print "}";
+      force_new_line()
+
+  | EXPRTRANSFORMER(srcexpr, destexpr, loc) ->
+      setLoc(loc);
+      print "@transformExpr { ";
+      print_expression srcexpr 1;
+      print " } to { ";
+      print_expression destexpr 1;
+      print " }";
+      force_new_line()
+
+(* sm: print a comment if the printComments flag is set *)
+and comprint (str : string) : unit =
+begin
+  if (!printComments) then (
+    print "/*";
+    print str;
+    print "*/ "
+  )
+  else
+    ()
+end
+
+(* sm: yield either the given string, or "", depending on printComments *)
+and comstring (str : string) : string =
+begin
+  if (!printComments) then
+    str
+  else
+    ""
+end
 
 
 (*  print abstrac_syntax -> ()

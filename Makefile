@@ -44,7 +44,7 @@ ifdef USEFRONTC
 SOURCEDIRS += src/frontc
 MLLS       += clexer.mll
 MLYS       += cparser.mly
-MODULES    += cabs cprint combine clexer cparser cabs2cil frontc
+MODULES    += cabs cprint combine clexer cparser cabs2cil cabsvisit patch frontc
 endif
 
 # Add main late
@@ -247,9 +247,10 @@ LDEXT=
 DEF=-D
 ASMONLY=-S -o 
 WARNALL=-Wall
-CPPSTART=gcc -E %i -Dx86_LINUX -D_GNUCC -include fixup.h  -I/usr/include/sys
+# sm: shuffled around a couple things so I could use CPPSTART for patch2
+CPPSTART=gcc -E -x c -Dx86_LINUX -D_GNUCC  -I/usr/include/sys
 CPPOUT=-o %o
-CPP=$(CPPSTART) $(CPPOUT)
+CPP=$(CPPSTART) -include fixup.h %i $(CPPOUT)
 INC=-I
 PATCHFILE=safec_gcc.patch
 # sm: disable patching for now ('true' has no output)
@@ -278,9 +279,9 @@ LDEXT=.exe
 DEF=/D
 ASMONLY=/Fa
 INC=/I
-CPPSTART=cl /Dx86_WIN32 /D_MSVC /E /TC /I./lib /FI fixup.h /DBEFOREBOX
-CPPOUT= %i >%o
-CPP=$(CPPSTART) $(CPPOUT)
+CPPSTART=cl /Dx86_WIN32 /D_MSVC /E /TC /I./lib /DBEFOREBOX
+CPPOUT=  >%o
+CPP=$(CPPSTART) /FI fixup.h %i $(CPPOUT)
 SAFECC += --safec=-msvc
 PATCHFILE=safec_msvc.patch
 PATCHECHO=echo
@@ -308,21 +309,6 @@ ifdef INFERBOX
 MANUALBOX=1
 endif
 
-######################
-.PHONY : defaulttarget
-ifdef NOREMAKE
-defaulttarget : 
-else
-defaulttarget : $(EXECUTABLE)$(EXE) $(SAFECLIB) $(CILLIB)
-endif
-
-.PHONY: trval
-trval: 
-	make -C $(TVDIR)
-	make -C $(TVDIR) RELEASE=1
-
-
-
 
 SAFECC=perl $(CILDIR)/lib/safecc.pl
 
@@ -335,6 +321,10 @@ ifdef USER_SCOTT
   # currently the #line directives are inaccurate, so
   # they are counterproductive
   SAFECC+= --safec=-noPrintLn
+
+  # making my patch module the default for me
+  TRACE=patch
+  NEWPATCH=1
 endif
 
 
@@ -383,6 +373,7 @@ endif
 ifdef INFERBOX
 SAFECC+= $(DEF)INFERBOX
 SAFECC+= --inferbox --box
+PATCHDEFS= $(DEF)BEFOREBOX
 else
 ifndef MANUALBOX
 SAFECC+= --safec=-boxdefaultwild
@@ -428,6 +419,22 @@ ifdef NO_PERF_CHANGES
 SAFECC+= $(DEF)NO_PERF_CHANGES
 endif
 
+# enable the new tree-based patcher
+ifdef NEWPATCH
+  # at the moment, the new patcher is kinda shoehorned into this Makefile..
+  # perhaps safecc.pl is the right place to deal with telling safec.exe
+  # about this file
+
+  # hack: include PATCHDEFS in the name, so we get different versions
+  # for with and without BEFOREBOX; otherwise it would appear to be
+  # up-to-date but for the wrong way
+  PATCHFILE2=$(CILDIR)/lib/$(PATCHFILE)2.i$(PATCHDEFS)
+  SAFECC+= --safec=-patchFile --safec=$(PATCHFILE2)
+
+  # and turn off the other patcher
+  PATCHECHO=true
+endif
+
 # sm: user-specific configuration; the leading '-' means it's ok
 # if this file doesn't exist; this file is *not* checked in to
 # the CVS repository (please be careful to avoid putting things
@@ -438,6 +445,19 @@ endif
 # ----------- above here is configuration -------------------
 # ----------- below here are rules to build the translator ---------
 # (actually, mostly they're in the MODULES line above and in Makefile.ocaml)
+
+
+.PHONY : defaulttarget
+ifdef NOREMAKE
+defaulttarget: 
+else
+defaulttarget: $(EXECUTABLE)$(EXE) $(SAFECLIB) $(CILLIB) $(PATCHFILE2)
+endif
+
+.PHONY: trval
+trval: 
+	make -C $(TVDIR)
+	make -C $(TVDIR) RELEASE=1
 
 
 # garbage collector options
@@ -513,6 +533,11 @@ $(CILLIB) : lib/cillib.c
 
 endif
 
+# new patching specification wants to be run through preprocessor before use
+ifdef NEWPATCH
+$(PATCHFILE2): lib/$(PATCHFILE)2
+	$(CPPSTART) $(PATCHDEFS) lib/$(PATCHFILE)2 > $(PATCHFILE2)
+endif
 
 # ----------- above here are rules for building the translator ----------
 # ----------- below here are rules for building benchmarks --------
@@ -1024,6 +1049,9 @@ apache/rewrite: defaulttarget
 # take too long on -O3)
 COMBINESAFECC = $(SAFECC) --combine
 
+# sm: trying to collapse where are specifications are
+PATCHARG=`$(PATCHECHO) --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)`
+
 #
 # OLDEN benchmarks
 #
@@ -1031,8 +1059,7 @@ COMBINESAFECC = $(SAFECC) --combine
 BHDIR=test/olden/bh
 bh: defaulttarget mustbegcc
 	cd $(BHDIR); rm -f code.exe *.o; \
-               make CC="$(COMBINESAFECC) --nobox=bhbox \
-			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
+               make CC="$(COMBINESAFECC) --nobox=bhbox $(PATCHARG)"
 	echo  >$(BHDIR)/data.in
 	echo  >>$(BHDIR)/data.in
 	echo  >>$(BHDIR)/data.in
@@ -1058,8 +1085,7 @@ endif
 power: defaulttarget mustbegcc
 	cd $(PWDIR); \
                make PLAIN=1 clean defaulttarget \
-                    CC="$(COMBINESAFECC) \
-			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
+                    CC="$(COMBINESAFECC) $(PATCHARG)"
 	cd $(PWDIR); sh -c "time ./power.exe"
 
 power-combined : defaulttarget mustbegcc
@@ -1077,7 +1103,7 @@ health: defaulttarget
                     $(HEALTHARGS) \
                     CC="$(COMBINESAFECC) \
                         --nobox=trusted_health \
-			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
+			 $(PATCHARG)"
 	cd $(HEALTHDIR); sh -c "time ./health.exe 5 500 1 1"
 
 
@@ -1092,7 +1118,7 @@ perimeter: defaulttarget
                make PLAIN=1 clean defaulttarget \
                     $(PERIMARGS) \
                     CC="$(COMBINESAFECC) \
-			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
+			$(PATCHARG)"
 	cd $(PERIMDIR); sh -c "time ./perimeter.exe"
 
 
@@ -1107,7 +1133,7 @@ voronoi : defaulttarget
                     $(VORONARGS) \
                     CC="$(COMBINESAFECC) \
                         --nobox=trusted_voronoi \
-			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
+			$(PATCHARG)"
 	cd $(VORONDIR); sh -c "time ./voronoi.exe 60000 1"
 
 # Traveling salesman
@@ -1123,7 +1149,7 @@ tsp: defaulttarget
                make PLAIN=1 clean defaulttarget \
                     $(TSPARGS) \
                     CC="$(COMBINESAFECC) \
-			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
+			$(PATCHARG)"
 	cd $(TSPDIR); sh -c "time ./tsp.exe"
 
 
@@ -1138,7 +1164,7 @@ bisort : defaulttarget mustbegcc
                     $(BISORTARGS) \
                     CC="$(COMBINESAFECC) \
                         --nobox=trusted_bisort \
-			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
+			$(PATCHARG)"
 	cd $(BISORTDIR); sh -c "time ./bisort.exe 100 1"
 
 
@@ -1146,8 +1172,8 @@ bisort : defaulttarget mustbegcc
 
 OLDENMSTDIR=test/olden/mst
 OLDENMSTSAFECC=$(COMBINESAFECC) \
-                  --nobox=trusted_mst
-	          --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)
+                  --nobox=trusted_mst \
+	          $(PATCHARG)
 ifdef _MSVC
 OLDENMSTSAFECC += $(DEF)WIN32 $(DEF)MSDOS
 MSTARGS= _MSVC=1
@@ -1169,7 +1195,7 @@ mst: defaulttarget
 TREEADDIR=test/olden/treeadd
 TREEADDSAFECC=$(SAFECC) --combine --keep=safeccout  \
                   --nobox=ta_trusted \
-                  --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) \
+                  $(PATCHARG) \
                   $(NOPRINTLN)
 ifeq ($(ARCHOS), x86_WIN32)
 TREEADDSAFECC += $(DEF)WIN32 $(DEF)MSDOS
@@ -1187,7 +1213,7 @@ treeadd: defaulttarget mustbegcc
 NEWBISORTDIR=test/olden/newbisort
 NEWBISORTSAFECC=$(SAFECC) --combine --keep=safeccout  \
                    --nobox=ta_trusted \
-                  --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) \
+                  $(PATCHARG) \
                   $(NOPRINTLN)
 ifeq ($(ARCHOS), x86_WIN32)
 NEWBISORTSAFECC += $(DEF)WIN32 $(DEF)MSDOS
@@ -1207,7 +1233,7 @@ newbisort: defaulttarget mustbegcc
 
 EM3DDIR=test/olden/em3d
 EM3DDSAFECC=$(SAFECC) --combine --keep=safeccout  \
-                  --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) \
+                  $(PATCHARG) \
                   --nobox=trusted_em3d \
                   $(NOPRINTLN)
 ifeq ($(ARCHOS), x86_WIN32)
@@ -1250,12 +1276,11 @@ compress-noclean: defaulttarget mustbegcc
 #   echo "1400000 q 2231" >$(COMPRESSDIR)/exe/base/input.data 
 compress: defaulttarget mustbegcc
 	cd $(COMPRESSDIR)/src; \
-               make CC="$(COMBINESAFECC) --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)" clean build
+               make CC="$(COMBINESAFECC) $(PATCHARG)" clean build
 	cd $(COMPRESSDIR)/src; sh -c "time ./compress < input.data > combine-compress.out"
 
 LIDIR=$(SPECDIR)/130.li
-LISAFECC=$(SAFECC) --combine --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) \
-                   --keep=safeccout
+LISAFECC=$(SAFECC) --combine $(PATCHARG) --keep=safeccout
 li: defaulttarget mustbegcc
 	cd $(LIDIR)/src; \
             make clean build CC="$(LISAFECC) $(CONLY)" \
@@ -1290,7 +1315,7 @@ liinfer: li
 
 ### SPEC95 GO
 GODIR=$(SPECDIR)/099.go
-GOSAFECC=$(SAFECC) --combine  --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) \
+GOSAFECC=$(SAFECC) --combine  $(PATCHARG) \
                    --keep=safeccout $(NOPRINTLN) $(OPT_O2)
 
 goclean: 	
@@ -1320,8 +1345,8 @@ go-noclean: defaulttarget mustbegcc
 
 ### SPEC95 vortex
 VORDIR=$(SPECDIR)/147.vortex
-VORSAFECC=$(SAFECC) --combine   --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)
-#VORSAFECC=$(SAFECC)  --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)
+VORSAFECC=$(SAFECC) --combine   $(PATCHARG)
+#VORSAFECC=$(SAFECC)  $(PATCHARG)
 ifdef _GNUCC
 VOREXTRA=-lm
 endif
@@ -1396,7 +1421,7 @@ vortex-tv:
 ### SPEC95 m88ksim
 M88DIR=$(SPECDIR)/124.m88ksim
 M88SAFECC=$(SAFECC) --combine --keep=safeccout \
-                    --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) \
+                    $(PATCHARG) \
                     --nobox=m88k_trusted
 m88kclean: 	
 	cd $(M88DIR)/src; make clean
@@ -1427,7 +1452,7 @@ m88k-combined: defaulttarget mustbegcc
 ### SPEC95 ijpeg
 IJPEGDIR=$(SPECDIR)/132.ijpeg
 IJPEGSAFECC=$(SAFECC) --combine --keep=safeccout  \
-                  --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) \
+                  $(PATCHARG) \
                   --nobox=ijpeg_trusted $(NOPRINTLN)
 ifeq ($(ARCHOS), x86_WIN32)
 IJPEGSAFECC += -DWIN32 -DMSDOS
@@ -1464,7 +1489,7 @@ ijpeg-noclean: defaulttarget mustbegcc
 #### SPEC95 gcc
 GCCDIR=$(SPECDIR)/126.gcc
 GCCSAFECC=$(SAFECC) --combine --keep=safeccout \
-                    --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)
+                    $(PATCHARG)
 
 
 gccclean: 	
@@ -1530,7 +1555,7 @@ prettytest:  obj/prettytest.exe
 ### ftpd-BSD-0.3.2-5
 FTPDDIR=test/ftpd/ftpd
 FTPDSAFECC=$(SAFECC) --combine --keep=safeccout  \
-                  --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) \
+                  $(PATCHARG) \
                   $(NOPRINTLN)
 ifeq ($(ARCHOS), x86_WIN32)
 FTPDSAFECC += $(DEF)WIN32 $(DEF)MSDOS
