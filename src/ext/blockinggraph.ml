@@ -170,6 +170,7 @@ let endPt = { id = 0; point = mkEmptyStmt (); callfun = "end"; infun = "end";
 
 (* These values will be initialized for real in makeBlockingGraph. *)
 let curId : int ref = ref 1
+let startName = ref ""
 let blockingPoints = ref []
 let blockingPointsNew = ref []
 let blockingPointsHash = Hashtbl.create 117
@@ -273,6 +274,8 @@ let findBlockingPointEdges (bpt: blockpt) : unit =
                            worklist := Process (s, curNode) :: !worklist)
                       curStmt.Cil.succs
       end
+    | Return curNode when curNode.name = !startName ->
+        addBlockingPointEdge bpt endPt
     | Return curNode ->
         List.iter (fun (s, n) -> worklist := Next (s, n) :: !worklist)
                   curNode.predstmts;
@@ -288,6 +291,7 @@ let makeBlockingGraph (start: node) =
     | None -> E.s (bug "expected fundec")
   in
   curId := 1;
+  startName := start.name;
   blockingPoints := [endPt];
   blockingPointsNew := [];
   Hashtbl.clear blockingPointsHash;
