@@ -30,7 +30,9 @@ connection for this.
 cygwin} icon. Download \t{setup.exe} to the directory you just created.
 \item Run \t{setup.exe} and select ``Download to local directory''. Select all
 the packages. It is especially important to select all packages under
-``Devel'' category. This will take a while (~ 30 minutes)
+``Devel'' category. If you want to use OCaml for other projects as well, I
+also suggest that you select the XFree86-bin, XFree86-lib and XFree86-prog as
+well. This will take a while (~ 30 minutes)
 \item Run \t{setup.exe} again and now select to ``Install from local
 directory''. It is best to {\bf deselect} the \t{tetex} package since I found
 it to interfere with other installations of Latex.
@@ -44,6 +46,11 @@ c:/WinNT/system32. You can verify that you got it right if you get
 \t{/usr/bin/find} when you run \t{which find}. 
 \end{itemize}
 
+
+ If you get a compilation error in file ``cltkImg.c'' while you compile Ocaml
+v 3.06, then you should patch the Ocaml sources as explained at
+\ahrefurl{http://groups.google.com/groups?selm=fa.i2v96ov.1p7cmbc%40ifi.uio.no}
+(It is easy).
 
  \subsection{Customize \t{ssh}}\label{sec-win-ssh}
 

@@ -240,7 +240,14 @@ DISTRIB_SRC_EXT = logcalls.ml logcalls.mli \
                   logwrites.ml heapify.ml callgraph.ml callgraph.mli \
                   epicenter.ml epicenter.mli \
 	          stackoverflow.mli stackoverflow.ml \
-	          canonicalize.ml canonicalize.mli
+	          canonicalize.ml canonicalize.mli \
+	          blockinggraph.ml blockinggraph.mli \
+
+DISTRIB_SRC_EXT_PTA = setp.ml setp.mli dummy.ml golf.ml golf.mli \
+                      ptranal.ml ptranal.mli \
+	              steensgard.mli steensgard.ml \
+                      termhash.ml termhash.mli \
+                      uref.ml uref.mli
 
 DISTRIB_LIB = Cilly.pm
 
@@ -259,6 +266,7 @@ distrib-nocheck: doc
 	      $(TOP_DIR)/src \
               $(TOP_DIR)/src/frontc \
               $(TOP_DIR)/src/ext \
+              $(TOP_DIR)/src/ext/pta \
               $(TOP_DIR)/obj \
               $(TOP_DIR)/doc \
 	      $(TOP_DIR)/lib \
@@ -281,6 +289,8 @@ distrib-nocheck: doc
 
 	cp $(patsubst %,src/%,$(DISTRIB_SRC)) $(TOP_DIR)/src
 	cp $(patsubst %,src/ext/%,$(DISTRIB_SRC_EXT)) $(TOP_DIR)/src/ext
+	cp $(patsubst %,src/ext/pta/%,$(DISTRIB_SRC_EXT_PTA)) \
+                                      $(TOP_DIR)/src/ext/pta
 	cp $(patsubst %,src/frontc/%,$(DISTRIB_SRC_FRONTC)) \
 		$(TOP_DIR)/src/frontc
 	cp $(patsubst %,lib/%,$(DISTRIB_LIB)) $(TOP_DIR)/lib

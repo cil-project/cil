@@ -132,6 +132,10 @@ the places that cannot be guaranteed statically to be type safe.
  You can also use CIL to ``compile'' code that uses GCC extensions (e.g. the
 Linux kernel) into standard C code.
 
+ CIL also comes accompanies by a growing library of extensions (see
+\secref{Extension}). You can use these for your projects or as examples of
+using CIL. 
+
 \section{Installation}
 
 You will need OCaml release 3.04 or higher to build CIL (we have tested it
@@ -1433,7 +1437,18 @@ application. By default \t{stderr} is used.
 whitespace-separated named of additional files to process.
 \end{itemize}
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Library of CIL Modules}
 
+ We are developing a suite of module that use CIL for program analyses and
+transformations that we have found useful. You can use these modules directly
+on your code, or generally as insiration for writing similar modules. A
+particularly big and complex application written on top of CIL is CCured
+(\ahrefurl{../ccured/index.html}).
+
+ 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Controlling CIL}
 
  In the process of converting a C file to CIL we drop the unused prototypes
