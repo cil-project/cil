@@ -346,7 +346,7 @@ $TEST->addTests("combineinline2", "", ['cil']);
 $TEST->addTests("combineinline3", "", ['cil']);
 $TEST->addTests("combineinline4", "", ['cil']);
 $TEST->addTests("combinestruct1", "", ['cil']);
-$TEST->addTests("test/linux_combine1_1", "", ['cil']);
+$TEST->addTests("test/linuxcombine1_1", "", ['cil']);
 
 $TEST->addTests("arcombine", "_GNUCC=1", ['cil']);
 $TEST->add2Tests("testrun/funptr1");
@@ -661,8 +661,7 @@ smAddTest("scott/suppress_optim $box");
 # current problematic test cases
 smAddTest("scott/complex_float $box");
 smAddTest("mergeinline");
-smFailTest("z2 is removed improperly",
-           "test/addrofparam $box");
+smAddTest("test/addrofparam $box");
 smAddTest("scott-nolink/name-capture-bitand $box");
 smAddTest("scott-nolink/wildfun2 $box");
 smAddTest("scott/dblarg.int $box");      # this yields a warning that might be a problem
