@@ -170,7 +170,7 @@ PCCCOMP=_MSVC
 endif
 
 testpcc/% : $(PCCDIR)/src/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
-	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)x86_WIN32 \
+	cd $(SAFECCDIR)/cil/test/PCCout; $(SAFECC) --keep=. $(DEF)x86_WIN32 \
                   $(DEF)$(PCCTYPE) $(CONLY) \
                   $(PCCDIR)/src/$*.c \
                   $(OBJOUT)$(notdir $*).o
@@ -181,7 +181,7 @@ testallpcc: $(EXECUTABLE)$(EXE) $(TVEXE) $(SAFECLIB) $(SAFEMAINLIB)
 	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.exe
 	make -C $(PCCDIR) \
              CC="$(SAFECC) --keep=$(SAFECCDIR)/cil/test/PCCout $(CONLY)" \
-             USE_JAVA= USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
+             USE_JAVA= USE_JUMPTABLE= TYPE=$(PCCTYPE) \
              COMPILER=$(PCCCOMP) \
              ENGINE_OTHERS="C:$(SAFECLIB) C:$(SAFEMAINLIB)" \
              TRANSLF_OTHERS="C:$(SAFECLIB) C:$(SAFEMAINLIB)" \
