@@ -3048,7 +3048,9 @@ and doExp (isconst: bool)    (* In a constant *)
              in
              let (se2, e2', t2) = doExp false e2 (AExp None) in
              let tresult, result = doBinOp bop' e1' t1 e2' t2 in
-             let _, result' = castTo tresult t1 result in
+             (* We must cast the result to the type of the lv1, which may be 
+              * different than t1 if lv1 was a Cast *)
+             let _, result' = castTo tresult (typeOfLval lv1) result in
              (* The type of the result is the type of the left-hand side  *) 
              finishExp (se1 @@ se2 +++ 
                         (Set(lv1, result', !currentLoc)))
