@@ -152,7 +152,7 @@ _MSVC = 1			# Use the MSVC compiler by default
 endif
 
 ifdef _GNUCC
-DEBUGCCL=gcc -Wall -x c -O0 -g -ggdb -D_GNUCC 
+DEBUGCCL=gcc -Wall -x c -O3 -g -ggdb -D_GNUCC 
 RELEASECCL=gcc -x c -O3 -fomit-frame-pointer -D_RELEASE -D_GNUCC -Wall 
 #LIB=lib
 #LIBOUT=-o
