@@ -1,3 +1,9 @@
+# toplevel Makefile for cil project
+# author: George Necula
+#
+# 3/06/01 sm: made the rules depend on environment variable ARCHOS,
+#             so I can say x86_LINUX
+
 # Debugging. Set ECHO= to debug this Makefile 
 ECHO = @
 
@@ -68,9 +74,9 @@ CILDIR=$(BASEDIR)/cil
 _GNUCC=1
 endif
 ifeq ($(COMPUTERNAME), madrone) # scott's desktop
-BASEDIR=/home/scott/wrk
+BASEDIR=/home/scott/wrk/safec
 SAFECCDIR=$(BASEDIR)/safec
-PCCDIR=$(BASEDIR)/PCC
+PCCDIR=$(SAFECCDIR)/cil/test/PCC
 TVDIR=$(BASEDIR)/TransVal
 CILDIR=$(BASEDIR)/cil
 _GNUCC=1
@@ -91,7 +97,8 @@ _MSVC = 1			# Use the MSVC compiler by default
 endif
 
 ifdef _GNUCC
-DEBUGCCL=gcc -x c -O0 -g -Wall -I/usr/include/sys
+#DEBUGCCL=gcc -x c -O0 -g -Wall -I/usr/include/sys
+DEBUGCCL=gcc -x c -O0 -g -D_GNUCC 
 RELEASECCL=gcc -x c -O3 -Wall -I/usr/include/sys
 #LIB=lib
 #LIBOUT=-o
@@ -101,7 +108,8 @@ OBJOUT=-o
 EXEOUT=-o
 DEF=-D
 ASMONLY=-S -o 
-CPPSTART=gcc -E %i -Dx86_WIN32 -D_GNUCC  -I/usr/include/sys
+#CPPSTART=gcc -E %i -Dx86_WIN32 -D_GNUCC  -I/usr/include/sys
+CPPSTART=gcc -E %i -Dx86_LINUX -D_GNUCC  -I/usr/include/sys
 CPPOUT=-o %o
 CPP=$(CPPSTART) $(CPPOUT)
 INC=-I
@@ -125,9 +133,9 @@ EXTRAARGS += -msvc
 endif
 
 ifdef RELEASE
-CCL=RELEASECCL
+CCL=$(RELEASECCL)
 else
-CCL=DEBUGCCL
+CCL=$(DEBUGCCL)
 endif
 CC=$(CCL) $(CONLY)
 
@@ -186,7 +194,8 @@ ifdef _GNUCC
 SAFECLIB=$(OBJDIR)/safeclib.a
 $(SAFECLIB) : $(SAFECCDIR)/cil/lib/safec.c
 	$(CC) $(OBJOUT)$(OBJDIR)/safec.o $<
-	$(LIB) $(LIBOUT)$(SAFECLIB) $(OBJOUT)$(OBJDIR)/safec.o 
+	echo "bad: "$(LIB) $(LIBOUT)$(SAFECLIB) $(OBJOUT)$(OBJDIR)/safec.o 
+	ar -t $(SAFECLIB) $(OBJDIR)/safec.o
 endif
 
 
@@ -300,7 +309,7 @@ SMALL2=test/small2
 hashtest: test/small2/hashtest.c $(EXECUTABLE)$(EXE) \
                                  $(SAFECLIB) $(SAFEMAINLIB)  $(TVEXE)
 	rm -f $(PCCTEST)/hashtest.exe
-	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) \
+	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  $(DOOPT) \
                  $(INC)$(PCCDIR)/src \
                  $(PCCDIR)/src/hash.c \
@@ -311,7 +320,7 @@ hashtest: test/small2/hashtest.c $(EXECUTABLE)$(EXE) \
 rbtest: test/small2/rbtest.c $(EXECUTABLE)$(EXE) \
                                  $(SAFECLIB) $(SAFEMAINLIB)  $(TVEXE)
 	rm -f $(PCCTEST)/rbtest.exe
-	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) \
+	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  $(DOOPT) \
                  $(INC)$(PCCDIR)/src \
                  $(PCCDIR)/src/redblack.c \
