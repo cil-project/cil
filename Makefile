@@ -259,7 +259,11 @@ endif
 
 SAFECC+= $(EXTRAARGS)
 
-    # Now the rules to make the library
+###
+###
+###    # Now the rules to make the library
+###
+###
 ifdef _MSVC
 ifdef RELEASE
 SAFECLIB=/Necula/SafeC/cil/obj/safec.lib
@@ -281,21 +285,24 @@ $(SAFEMAINLIB) : $(SAFECCDIR)/cil/lib/safecmain.c \
 	cl /Ox /Zi /I./lib /c $(DEF)_MSVC $(OBJOUT)$(OBJDIR)/safecmain.o $<
 	lib /OUT:$(SAFEMAINLIB) $(OBJDIR)/safecmain.o 
 endif
+
+# Libraries on GCC
 ifdef _GNUCC
 ifdef RELEASE
-SAFECLIB=$(SAFECCDIR)/obj/safeclib.a
+SAFECLIB=$(CILDIR)/obj/safeclib.a
 else
-SAFECLIB=$(SAFECCDIR)/obj/safecdebuglib.a
+SAFECLIB=$(CILDIR)/obj/safecdebuglib.a
 endif
-$(SAFECLIB) : $(SAFECCDIR)/cil/lib/safec.c
-	$(CC) $(OBJOUT)$(OBJDIR)/safec.o $<
-	ar -r $(SAFECLIB) $(OBJDIR)/safec.o
-SAFEMAINLIB=$(OBJDIR)/safecmain.a
-$(SAFEMAINLIB) : $(SAFECCDIR)/cil/lib/safecmain.c \
-                 $(SAFECCDIR)/cil/lib/safec.h \
-                 $(SAFECCDIR)/cil/lib/safeccheck.h
-	$(CC) $(OBJOUT)$(OBJDIR)/safecmain.o $<
-	ar -r $(SAFEMAINLIB) $(OBJDIR)/safecmain.o
+$(SAFECLIB) : $(CILDIR)/lib/safec.c
+	$(CC) $(OBJOUT)$(CILDIR)/obj/safec.o $<
+	ar -r $@ $(CILDIR)/obj/safec.o
+
+SAFEMAINLIB=$(CILDIR)/obj/safecmain.a
+$(SAFEMAINLIB) : $(CILDIR)/lib/safecmain.c \
+                 $(CILDIR)/lib/safec.h \
+                 $(CILDIR)/lib/safeccheck.h
+	$(CC) $(OBJOUT)$(CILDIR)/obj/safecmain.o $<
+	ar -r $(SAFEMAINLIB) $(CILDIR)/obj/safecmain.o
 endif
 
 
