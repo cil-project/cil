@@ -57,7 +57,7 @@ let usePathCompression = false
 (* Try to merge definitions of inline functions. They can appear in multiple 
  * files and we would like them all to be the same. This can slow down the 
  * merger an order of magnitude !!! *)
-let mergeInlines = false
+let mergeInlines = true
 
 let mergeInlinesRepeat = mergeInlines && true
 
@@ -119,11 +119,17 @@ let mkSelfNode (eq: (int * string, 'a node) H.t) (* The equivalence table *)
     H.add syn name res; 
   res
 
+let debugFind = false
+
 (* Find the representative with or without path compression *)
 let rec find (pathcomp: bool) (nd: 'a node) = 
-  if nd.nrep == nd then 
+  if debugFind then
+    ignore (E.log "  find %s(%d)\n" nd.nname nd.nfidx);
+  if nd.nrep == nd then begin
+    if debugFind then
+      ignore (E.log "  = %s(%d)\n" nd.nname nd.nfidx);
     nd
-  else begin
+  end else begin
     let res = find pathcomp nd.nrep in
     if usePathCompression && pathcomp && nd.nrep != res then 
       nd.nrep <- res; (* Compress the paths *)
@@ -197,17 +203,26 @@ let findReplacement
     (eq: (int * string, 'a node) H.t)
     (fidx: int)
     (name: string) : ('a * int) option =
+  if debugFind then 
+    ignore (E.log "findReplacement for %s(%d)\n" name fidx);
   try
     let nd = H.find eq (fidx, name) in
-    if nd.nrep == nd then 
+    if nd.nrep == nd then begin
+      if debugFind then 
+        ignore (E.log "  is a representative\n");
       None (* No replacement if this is the representative of its class *)
-    else 
+    end else 
       let rep = find pathcomp nd in
       if rep != rep.nrep then 
         E.s (bug "find does not return the representative\n");
+      if debugFind then 
+        ignore (E.log "  RES = %s(%d)\n" rep.nname rep.nfidx);
       Some (rep.ndata, rep.nfidx)
-  with Not_found -> 
+  with Not_found -> begin
+    if debugFind then 
+      ignore (E.log "  not found in the map\n");
     None
+  end
 
 (* Make a node if one does not already exists. Otherwise return the 
  * representative *)
@@ -783,7 +798,7 @@ let rec oneFilePass1 (f:file) : unit =
             if fdec.svar.vinline && mergeInlines then 
               (* Just create the nodes for inline functions *)
               ignore (getNode iEq iSyn !currentFidx 
-                        fdec.svar.vname fdec.svar None)
+                        fdec.svar.vname fdec.svar (Some (l, !currentDeclIdx)))
           end
               (* Make nodes for the defined type and structure tags *)
       | GType (t, l) ->
@@ -914,7 +929,10 @@ class renameVisitorClass = object (self)
     end else begin
       match findReplacement true vEq !currentFidx vi.vname with
         None -> DoChildren
-      | Some (vi', _) -> 
+      | Some (vi', oldfidx) -> 
+          if debugMerge then 
+              ignore (E.log "Renaming var %s(%d) to %s(%d)\n"
+                        vi.vname !currentFidx vi'.vname oldfidx);
           vi'.vreferenced <- true; 
           H.add varUsedAlready vi'.vname ();
           ChangeTo vi'
@@ -1193,10 +1211,10 @@ let oneFilePass2 (f: file) =
   let processOneGlobal (g: global) : unit = 
       (* Process a varinfo. Reuse an old one, or rename it if necessary *)
     let processVarinfo (vi: varinfo) (vloc: location) : varinfo =  
-      (* Maybe it is static. Rename it then *)
       if vi.vreferenced then 
         vi (* Already done *)
       else begin
+        (* Maybe it is static. Rename it then *)
         if vi.vstorage = Static then begin
           let newName = newAlphaName vAlpha vi.vname in
           if debugMerge then ignore (E.log "renaming %s at %a to %s\n"
@@ -1220,6 +1238,7 @@ let oneFilePass2 (f: file) =
       match g with 
       | GVarDecl (vi, l) as g -> 
           currentLoc := l;
+          incr currentDeclIdx;
           let vi' = processVarinfo vi l in
           if vi != vi' then (* Drop this declaration *) ()
           else if H.mem emittedVarDecls vi'.vname then (* No need to keep it *)
@@ -1232,6 +1251,7 @@ let oneFilePass2 (f: file) =
 
       | GVar (vi, init, l) as g ->
           currentLoc := l;
+          incr currentDeclIdx;
           let vi' = processVarinfo vi l in
           (* We must keep this definition even if we reuse this varinfo,
            * because maybe the previous one was a declaration *)
@@ -1270,8 +1290,9 @@ let oneFilePass2 (f: file) =
             
       | GFun (fdec, l) as g -> 
           currentLoc := l;
+          incr currentDeclIdx;
           let origname = fdec.svar.vname in
-            (* We apply the renaming *)
+          (* We apply the renaming *)
           fdec.svar <- processVarinfo fdec.svar l;
           let fdec' = 
             match visitCilGlobal renameVisitor g with 
@@ -1348,11 +1369,10 @@ let oneFilePass2 (f: file) =
               end;
               res
             in
-            (* Make a node for this inline function using the new name. use 
-             * the new name because that one will be used to lookup the 
-             * replacement during renaming. *)
+            (* Make a node for this inline function using the original name. *)
             let inode = 
-              getNode vEq vSyn !currentFidx fdec'.svar.vname fdec'.svar None 
+              getNode vEq vSyn !currentFidx origname fdec'.svar 
+                (Some (l, !currentDeclIdx))
             in
             if debugInlines then begin
               ignore (E.log 
@@ -1376,56 +1396,59 @@ let oneFilePass2 (f: file) =
               end;
               let _ = union oldinode inode in
               (* Clean up the vreferenced bit in the new inline, so that we 
-               * can rename it *)
+               * can rename it. Reset the name to the original one so that 
+               * we can find the replacement name. *)
               fdec'.svar.vreferenced <- false;
+              fdec'.svar.vname <- origname;
               () (* Drop this definition *)
             with Not_found -> begin
               if debugInlines then ignore (E.log " Not found\n");
               H.add inlineBodies printout inode;
               mergePushGlobal g'
             end
-          end 
-          else (
-            (* either the function is not inline, or we're not attempting to
+          end else begin
+            (* either the function is not inline, or we're not attempting to 
              * merge inlines *)
             if (mergeGlobals &&
                 not fdec'.svar.vinline &&
-                fdec'.svar.vstorage <> Static) then (
-              (* sm: this is a non-inline, non-static function.  I want to
-               * consider dropping it if a same-named function has already
-               * been put into the merged file *)
-              let curSum = (functionChecksum fdec') in
-              (*(trace "mergeGlob" (P.dprintf "I see extern function %s, sum is %d\n"*)
+                fdec'.svar.vstorage <> Static) then 
+              begin
+                (* sm: this is a non-inline, non-static function.  I want to
+                * consider dropping it if a same-named function has already
+                * been put into the merged file *)
+                let curSum = (functionChecksum fdec') in
+                (*(trace "mergeGlob" (P.dprintf "I see extern function %s, sum is %d\n"*)
               (*                              fdec'.svar.vname curSum));*)
-              try
-                let prevFun, prevLoc, prevSum =
-                  (H.find emittedFunDefn fdec'.svar.vname) in
-                (* previous was found *)
-                if (curSum = prevSum) then
-                  (trace "mergeGlob"
-                    (P.dprintf "dropping duplicate def'n of func %s at %a in favor of that at %a\n"
-                               fdec'.svar.vname  d_loc l  d_loc prevLoc))
-                else (
-                  (* the checksums differ, so I'll keep both so as to get
-                   * a link error later *)
-                  (ignore (warn "def'n of func %s at %a (sum %d) conflicts with the one at %a (sum %d); keeping both\n"
-                                fdec'.svar.vname  d_loc l  curSum  d_loc prevLoc  prevSum));
-                  (mergePushGlobal g')
-                )
-              with Not_found -> (
-                (* there was no previous definition *)
-                (mergePushGlobal g');
-                (H.add emittedFunDefn fdec'.svar.vname (fdec', l, curSum))
-              )
-            )
-            else
-              (* not attempting to merge global functions, or it was static
-               * or inline *)
-              mergePushGlobal g'
-          )
+                try
+                  let prevFun, prevLoc, prevSum =
+                    (H.find emittedFunDefn fdec'.svar.vname) in
+                  (* previous was found *)
+                  if (curSum = prevSum) then
+                    (trace "mergeGlob"
+                       (P.dprintf "dropping duplicate def'n of func %s at %a in favor of that at %a\n"
+                          fdec'.svar.vname  d_loc l  d_loc prevLoc))
+                  else begin
+                    (* the checksums differ, so I'll keep both so as to get
+                    * a link error later *)
+                    (ignore (warn "def'n of func %s at %a (sum %d) conflicts with the one at %a (sum %d); keeping both\n"
+                               fdec'.svar.vname  d_loc l  curSum  d_loc prevLoc  prevSum));
+                    (mergePushGlobal g')
+                  end
+                with Not_found -> begin
+                  (* there was no previous definition *)
+                  (mergePushGlobal g');
+                  (H.add emittedFunDefn fdec'.svar.vname (fdec', l, curSum))
+                end
+              end else begin
+                (* not attempting to merge global functions, or it was static 
+                 * or inline *)
+                mergePushGlobal g'
+              end
+          end
               
       | GCompTag (ci, l) as g -> begin
           currentLoc := l;
+          incr currentDeclIdx;
           if ci.creferenced then 
             () 
           else begin
@@ -1458,6 +1481,7 @@ let oneFilePass2 (f: file) =
       end
       | GEnumTag (ei, l) as g -> begin
           currentLoc := l;
+          incr currentDeclIdx;
           if ei.ereferenced then 
             () 
           else begin
@@ -1481,6 +1505,7 @@ let oneFilePass2 (f: file) =
           currentLoc := l; (* This is here just to introduce an undefined 
                             * structure. But maybe the structure was defined 
                             * already.  *)
+          incr currentDeclIdx;
           if H.mem emittedCompDecls ci.cname then 
             () (* It was already declared *)
           else begin
@@ -1492,12 +1517,14 @@ let oneFilePass2 (f: file) =
 
       | GEnumTagDecl (ei, l) -> 
           currentLoc := l;
+          incr currentDeclIdx;
           (* Keep it as a declaration *)
           mergePushGlobal g
           
 
       | GType (ti, l) as g -> begin
           currentLoc := l;
+          incr currentDeclIdx;
           if ti.treferenced then 
             () 
           else begin
@@ -1517,7 +1544,7 @@ let oneFilePass2 (f: file) =
       "error when merging global %a: %s"
       d_global g  (Printexc.to_string e))) in
     ignore (E.log "%s\n" globStr);
-    (*"error when merging global: %s\n" (Printexc.to_string e));*)
+    (*"error when merging global: %s\n" (Printexc.to_string e);*)
     mergePushGlobal (GText (P.sprint 80 
                               (P.dprintf "/* error at %t:" d_thisloc)));
     mergePushGlobal g;
