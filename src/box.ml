@@ -639,7 +639,8 @@ let pkQualName (pk: N.opointerkind)
   
 (****** the CHECKERS ****)
 
-
+(* Use this as a NOP instruction *)
+let nop : stmt = mkEmptyStmt ()
 
 let mallocFun = 
   let fdec = emptyFunction "malloc" in
