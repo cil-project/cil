@@ -40,9 +40,11 @@ my @chunks = ();                # Once input, is read only.
 my @markers = ();               # Delimits a dynamic subsequence of @chunks being considered.
 my %test_cache = ();            # Cached test results.
 my $tmp_index = 0;              # Cache the last index used to make a tmp file.
+my $tmpdir_index = 0;           # Cache the last index used to make a tmp directory.
 
-my $tmpdir = "tmp";             # Temporary directory for external programs.
+my $tmpdir;                     # Temporary directory for external programs.
 my $granularity = "line";       # What is the size of an input chunk?
+my $dump_input = 0;             # Dump out the input after reading it in.
 
 my $help_message = <<END
     Delta Debugging
@@ -52,6 +54,8 @@ my $help_message = <<END
       -help
     It can read input in line or C top-level form granularity.
       -granularity=line or -granularity=top_form
+    To dump the input after reading.
+      -dump_input
 END
 ;
 
@@ -59,40 +63,72 @@ END
 
 # Return true iff this input produces an error (which we want).
 sub test (\$) {
-    my $test_data_ref = shift; # NOTE: I'm careful to not copy the input.
+    my $test_data_ref = shift;  # NOTE: I'm careful to not copy the input.
     my $cached_result = $test_cache{$$test_data_ref}; # This has to be slow for big strings.
     if (defined $cached_result) {return $cached_result;}
 #    print "\nRunning test on data ****************\n", $$test_data_ref, "****************\n";
+    warn $tmp_index;
     my $filename = unused_tempfile();
     put_into_file($$test_data_ref, "${tmpdir}/$filename");
+    my $command_lines = "";
+    my @tmp_files = ();
+
+    # Test case.
     my $result = 0;
-    if (run("gcc ${tmpdir}/$filename &> ${tmpdir}/${filename}.cmp")) {    # Interesting if compiles
-        if (! run("./a.out &> ${tmpdir}/${filename}.run")) {      # But does not run.
+    my $input = "${tmpdir}/$filename"; push @tmp_files, $input;
+    my $cmp_output = "${tmpdir}/${filename}.cmp"; push @tmp_files, $cmp_output;
+    my $command = "gcc $input &> $cmp_output";
+    $command_lines .= $command;
+    if (run($command)) {        # Only interesting if it compiles
+        my $run_output = "${tmpdir}/${filename}.run"; push @tmp_files, $run_output;
+        $command = "./a.out &> $run_output";
+        $command_lines .= $command;
+        if (! run($command)) {  # But does not run.
             $result = 1;
         }
+    }
+
+    # Actual ccured run.
+#      my $command = <<END
+#  CILLY_DONT_LINK_AFTER_MERGE=1 CILLY_DONT_COMPILE_AFTER_MERGE=1 /home/dsw/cil/bin/ccured --curetype=infer -I/home/dsw/cil/include -I/home/dsw/cil/include/gcc_2.95.3 --commPrintLn --tr=sm --verbose -D_GNUCC ${tmpdir}/$filename -o structs-cured 2>&1 | tee ${tmpdir}/${filename}.run | grep 'Bug:'
+#  END
+#      ;
+#      my $result = run ($command);
+
+    print "\tresult: $result\n";
+    # Keep around info on successful runs.
+    if ($result) {
+        open LOG, ">>${tmpdir}/log" or die $!;
+        print LOG "$filename\n";
+        print LOG "$command_lines\n\n";
+        close LOG or die $!;
+    } else {
+        foreach my $file (@tmp_files) {unlink $file;}
     }
     $test_cache{$$test_data_ref} = $result;
     return $result;
 }
 
 sub parse_command_line {
-  my $str;
-  my @non_flags = ();
-  while(defined ($str = shift @ARGV)) {
-    if ($str=~/^-([^=]+)(=(.+))?/) {
-      my ($flag, $argument) = ($1, $3);
+    my $str;
+    my @non_flags = ();
+    while(defined ($str = shift @ARGV)) {
+        if ($str=~/^-([^=]+)(=(.+))?/) {
+            my ($flag, $argument) = ($1, $3);
 #      warn "\tflag:$flag\n";
-      if ($flag eq "help") {
-        print $help_message;
-        exit 0;
-      } elsif ($flag eq "granularity") {
-        if ($argument eq "line" || $argument eq "top_form") {
-          $granularity = $argument;
-        }
-      } else {die "Illegal flag: $flag \n"}
-    } else {push @non_flags, $str;}
-  }
-  push @ARGV, @non_flags;
+            if ($flag eq "help") {
+                print $help_message;
+                exit 0;
+            } elsif ($flag eq "dump_input") {
+                $dump_input++;
+            } elsif ($flag eq "granularity") {
+                if ($argument eq "line" || $argument eq "top_form") {
+                    $granularity = $argument;
+                }
+            } else {die "Illegal flag: $flag \n"}
+        } else {push @non_flags, $str;}
+    }
+    push @ARGV, @non_flags;
 }
 
 sub dump_settings {
@@ -117,16 +153,37 @@ sub run (\$) {
 }
 
 sub read_input_chunks {
-  if ($granularity eq "line") {
-    while (<>) {push @chunks, $_;} # Read one line at a time.
-  } elsif ($granularity eq "top_form") {
-    # Read chunks of C top-level forms.
-  } else {die "Illegal granularity setting: $granularity\n"}
+    if ($granularity eq "line") {
+        while (<>) {push @chunks, $_;} # Read one line at a time.
+    } elsif ($granularity eq "top_form") {
+        # Read chunks of C top-level forms.  I assume that any line
+        # starting with '//# ' followed by a line that does not start
+        # with a whitespace is a good boundary for a top-level form.
+        # I'm sure you could do this in one line with the proper
+        # setting to the regex that is the line seperator.
+        my $chunk = "";
+        my $a = <>;
+        while (<>) {
+            if ($a=~m|^//\# | and $_=~m|^\S|) {
+                push @chunks, $chunk;
+                $chunk = $a;
+            } else {
+                $chunk .= $a;
+            }
+            $a = $_;
+        }
+        $chunk .= $a;
+        push @chunks, $chunk;
+    } else {die "Illegal granularity setting: $granularity\n"}
 }
 
 sub dump_input {
   print "Dumping input ****************\n";
-  foreach my $chunk (@chunks) {print $chunk;}
+  if ($granularity eq "line") {
+      foreach my $chunk (@chunks) {print $chunk;}
+  } elsif ($granularity eq "top_form") {
+      foreach my $chunk (@chunks) {print "\t-----\n", $chunk}
+  } else {die "Illegal granularity setting: $granularity\n"}
   print "****************\n";
 }
 
@@ -139,16 +196,29 @@ sub dump_markers {
 }
 
 sub unused_tempfile {
-  my $filename;
-  for (; $filename = "tmp${tmp_index}.c", -f "${tmpdir}/$filename"; ++$tmp_index) {}
-  die if
-    -f "${tmpdir}/${filename}" || -f "${tmpdir}/${filename}.cmp" || -f "${tmpdir}/${filename}.run";
-  return $filename;
+    warn "$tmp_index";
+    die unless defined $tmpdir;
+    my $filename;
+    do {
+        $filename = "tmp${tmp_index}.c";
+        $tmp_index++;
+    } while -e "${tmpdir}/$filename";
+    # FIX: This should be generalized.
+    die if -f "${tmpdir}/${filename}";
+    die if -f "${tmpdir}/${filename}.cmp";
+    die if -f "${tmpdir}/${filename}.run";
+    return $filename;
+}
+
+sub unused_tempdir {
+  my $dirname;
+  for (; $dirname = "deltatmp.${tmpdir_index}", -e $dirname; ++$tmpdir_index) {}
+  return $dirname;
 }
 
 sub put_into_file {
   my ($data, $filename) = @_;
-  die if -f $filename;
+#  die if -f $filename;
   open F, ">$filename" or die $!;
   print F $data;
   close F or die $!;
@@ -192,10 +262,17 @@ sub append_marker ($\$) {
 parse_command_line();
 dump_settings();
 
-if (! -d $tmpdir) {mkdir $tmpdir, 0777}
+# Perhaps I'll let the user pick the tmpdir name, but it had better
+# not already exist.
+$tmpdir = unused_tempdir() unless defined $tmpdir;
+die if -e $tmpdir;
+mkdir $tmpdir, 0777;
+warn "Using as temporary directory : $tmpdir\n";
+
 read_input_chunks();
 die "The input must consist of at least one chunk." unless @chunks;
-# dump_input();
+dump_input() if $dump_input;
+
 $markers[0] = {start=>0, stop=>(scalar @chunks)}; # Initialize one marker.
 my $marked = "";
 append_marker($markers[0], $marked);
