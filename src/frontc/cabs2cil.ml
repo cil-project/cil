@@ -1091,8 +1091,12 @@ let rec castTo ?(fromsource=false)
     | TEnum _, TEnum _ -> result
 
     | TEnum _, TPtr _ -> result
-    | TBuiltin_va_list _, TInt _ -> result
-    | TInt _, TBuiltin_va_list _ -> result
+    | TBuiltin_va_list _, (TInt _ | TPtr _) -> 
+        result
+
+    | (TInt _ | TPtr _), TBuiltin_va_list _ ->
+        ignore (warnOpt "Casting %a to __builtin_va_list" d_type ot);
+        result
 
     | TPtr _, TEnum _ -> 
         ignore (warnOpt "Casting a pointer into an enumeration type");
