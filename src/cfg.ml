@@ -4,8 +4,7 @@
  *
  * The CIL file will not have break, default or continue statements. 
  * The "succs" and "preds" fields for every statement should be set
- * correctly. Note that the backedge from the end of a Loop(block) to the
- * beginning will not be in that list, however.
+ * correctly. 
  *
  * In addition, all statements are given unique IDs. 
  *)
@@ -140,45 +139,67 @@ let remove_switch_file f =
 	| _ -> ()
 	)
 
+let sid_counter = ref 0 
+	
+class clear = object
+	inherit nopCilVisitor
+	method vstmt s = begin
+		s.sid <- !sid_counter ;
+		incr sid_counter ;
+		s.succs <- [] ;
+		s.preds <- [] ;
+		DoChildren
+	end
+end
+
 let link source dest = begin
 	if not (List.mem dest source.succs) then
 		source.succs <- dest :: source.succs ;
 	if not (List.mem source dest.preds) then
 		dest.preds <- source :: dest.preds 
 end
+let trylink source dest_option = match dest_option with
+	None -> ()
+| Some(dest) -> link source dest 
 
-let sid_counter = ref 0 
-	
-class ensureEdges = object
-	inherit nopCilVisitor
-	method vstmt s = begin
-		s.sid <- !sid_counter ;
-		incr sid_counter ;
-		List.iter (fun dest -> link s dest) s.succs ;
-		List.iter (fun pred -> link pred s ) s.preds ;
-		let try_link_block blk = match blk.bstmts with
-			[] -> ()
-		| hd :: tl -> link s hd
-		in 
-		(match s.skind with
-			Instr _ -> ()
-		| Return _ -> ()
-		| Goto(dest,l) -> link s !dest 
-		| Break _ -> failwith "break"
-		| Continue _ -> failwith "continue"
-		| If(e,b1,b2,l) ->
-				try_link_block b1 ;
-				try_link_block b2 
-		| Switch _ -> failwith "switch" 
-		| Loop(b,l) -> try_link_block b
-		| Block(b) -> try_link_block b
-		) ; 
-		DoChildren
-	end
-end
+let rec succpred_block b fallthrough =
+	let rec handle sl = match sl with
+		[] -> ()
+	| [a] -> succpred_stmt a fallthrough 
+	| hd :: tl -> succpred_stmt hd (Some(List.hd tl)) ;
+							  handle tl 
+	in handle b.bstmts
+and succpred_stmt s fallthrough = 
+	match s.skind with
+		Instr _ -> trylink s fallthrough
+	| Return _ -> ()
+	| Goto(dest,l) -> link s !dest
+	| Break _ -> failwith "succpred: break"
+	| Continue _ -> failwith "succpred: continue"
+	| Switch _ -> failwith "succpred: switch"
+	| If(e1,b1,b2,l) -> 
+			(match b1.bstmts with
+				[] -> trylink s fallthrough
+			| hd :: tl -> (link s hd ; succpred_block b1 fallthrough )) ;
+			(match b2.bstmts with
+				[] -> trylink s fallthrough
+			| hd :: tl -> (link s hd ; succpred_block b2 fallthrough ))
+	| Loop(b,l) -> begin match b.bstmts with
+									 [] -> failwith "succpred: empty loop!?" 
+								 | hd :: tl -> 
+										link s hd ; 
+										succpred_block b (Some(hd))
+								 end
+	| Block(b) -> begin match b.bstmts with
+									[] -> trylink s fallthrough
+								| hd :: tl -> link s hd ;
+										succpred_block b fallthrough
+								end
 
 let make_cfg (f : file) = begin
 	remove_switch_file f ; 
-	ignore (visitCilFile (new ensureEdges) f) ;
-	()
+	ignore (visitCilFile (new clear) f) ;
+	iterGlobals f (fun glob -> match glob with 
+		GFun(fd,_) -> succpred_block fd.sbody (None)
+	| _ -> ())
 end
