@@ -1586,16 +1586,6 @@ val d_storage: unit -> storage -> Pretty.doc
 (** Pretty-print a constant *)
 val d_const: unit -> constant -> Pretty.doc
 
-(** When printing declarations or types we need to differentiate between 
- * different forms of the declared entity (mostly for proper parenthetization 
- * and printing of type attributes *)
-type declName = 
-    DNNothing                           (* This is the name of a type. 
-                                         * Nothing is declared *)
-  | DNString of string                  (* The declared entity is just a 
-                                         * string *)
-  | DNPtrStuff of Pretty.doc                   (* Some document that starts with * *)
-  | DNStuff of Pretty.doc               (* Anything else *)
 
 (** A printer interface for CIL trees. Create instantiations of 
  * this type by specializing the class {!Cil.defaultCilPrinter}. *)
@@ -1621,9 +1611,10 @@ class type cilPrinter = object
   method pGlobal: unit -> global -> Pretty.doc
     (** Global (vars, types, etc.) *)
 
-  method pType: declName -> unit -> typ -> Pretty.doc  
+  method pType: Pretty.doc option -> unit -> typ -> Pretty.doc  
   (* Use of some type in some declaration. The first argument is used to print 
-   * the declared element. Note that for structure/union and enumeration types 
+   * the declared element, or is None if we are just printing a type with no 
+   * name being decalred. Note that for structure/union and enumeration types 
    * the definition of the composite type is not visited. Use [vglob] to 
    * visit it.  *)
 

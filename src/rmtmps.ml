@@ -72,8 +72,16 @@ class clearRefBitsVis = object
         H.add forceToKeep s true;
         SkipChildren
 
+    | GCompTag (ci, _) -> ci.creferenced <- false; SkipChildren
+    | GEnumTag (ei, _) -> ei.ereferenced <- false; SkipChildren
+    | GType (ti, _) -> ti.treferenced <- false;  SkipChildren
+
     | _ -> DoChildren
 
+
+  method vblock b = SkipChildren (* Save time and do not go into blocks *)
+  method vinit i = SkipChildren
+  method vtype t = SkipChildren
 end
 
 

@@ -1615,835 +1615,7 @@ and d_binop () b =
   | BXor -> text "^"
   | BOr -> text "|"
 
-
-(* Print attributes in a custom way 
-let d_attrcustom : (attribute -> Pretty.doc option) ref = 
-  ref (fun a -> None)
-
-let setCustomPrintAttribute (pa: attribute -> doc option) : unit = 
-  d_attrcustom := pa
-
-let setCustomPrintAttributeScope custom f = 
-  let ocustom = !d_attrcustom in
-  let newPrint a = 
-    match custom a with
-      None -> ocustom a
-    | x -> x
-  in
-  d_attrcustom := newPrint;
-  fun x -> 
-    let res = f x in
-    d_attrcustom := ocustom;
-    res
-
-(* Print pragmas in a custom way *)
-let d_pragmacustom : (attribute -> Pretty.doc option) ref = 
-  ref (fun a -> None)
-
-let setCustomPrintPragma (pa: attribute -> doc option) : unit = 
-  d_pragmacustom := pa
-
-let setCustomPrintPragmaScope custom f = 
-  let ocustom = !d_pragmacustom in
-  let newPrint a = 
-    match custom a with
-      None -> ocustom a
-    | x -> x
-  in
-  d_pragmacustom := newPrint;
-  fun x -> 
-    let res = f x in
-    d_pragmacustom := ocustom;
-    res
-*)
-(* Make an statement that we'll use as an invalid statement during printing *)
-let invalidStmt = {dummyStmt with sid = -2}
-
-(* Print a declaration. Pass to this function a function that will print the 
- * declarator. It must be a function and not the document for the declarator 
- * because printing has a side-effect: we record whose structures we have 
- * printed the definition. Pass also an indication if the docName function 
- * returns just a name (this is used to avoid printing a lot of parentheses 
- * around names) 
-type docNameWhat = 
-    ODNNothing                           (* docName is nil *)
-  | ODNString                            (* docName is just a variable name *)
-  | ODNStuff                             (* Anything else *)
-let rec d_decl (docName: unit -> doc) (dnwhat: docNameWhat) () this = 
-  (* Print the docName with some attributes, maybe with parentheses *)
-  let parenthname () (a: attribute list) = 
-    if a = [] && dnwhat <> ODNStuff then
-      docName ()
-    else if dnwhat = ODNNothing then
-      (* Cannot print the attributes in this case *)
-      text "/*(" 
-        ++ d_attrlist_pre () a
-        ++ text ")*/"
-    else begin
-      text "(" 
-        ++ d_attrlist_pre () a
-        ++ docName ()
-        ++ text ")"
-    end
-  in
-  match this with 
-    TVoid a ->
-      text "void"
-       ++ d_attrlist () a 
-        ++ text " " 
-        ++ docName ()
-
-  | TInt (ikind,a) -> 
-      d_ikind () ikind 
-        ++ d_attrlist () a 
-        ++ text " "
-        ++ docName ()
-
-  | TFloat(fkind, a) -> 
-    d_fkind () fkind 
-        ++ d_attrlist () a 
-        ++ text " " 
-        ++ docName ()
-
-  | TComp (comp, a) -> (* A reference to a struct *)
-      let su = if comp.cstruct then "struct" else "union" in
-      text (su ^ " " ^ comp.cname ^ " ") 
-        ++ d_attrlist_pre () a 
-        ++ docName()
-
-  | TEnum (enum, a) -> 
-     text ("enum " ^ enum.ename ^ " ")
-        ++ d_attrlist_pre () a 
-        ++ docName ()
-
-  | TPtr (bt, a)  -> 
-      d_decl 
-        (fun _ -> 
-          text "* " ++ d_attrlist_pre () a ++ docName ())
-        ODNStuff
-        () 
-        bt
-
-  | TArray (elemt, lo, a) -> 
-      d_decl 
-        (fun _ ->
-            parenthname () a
-            ++ text "[" 
-            ++ (match lo with None -> nil | Some e -> d_exp () e)
-            ++ text "]")
-        ODNStuff
-        ()
-        elemt
-
-  | TFun (restyp, args, isvararg, a) -> 
-      d_decl 
-        (fun _ -> 
-            parenthname () a
-            ++ text "("
-            ++ (align 
-                  ++ (if args = Some [] && isvararg then 
-                         text "..."
-                      else
-                         (if args = None then nil 
-                          else if args = Some [] then text "void"
-                          else (docList (chr ',' ++ break) (d_videcl ()) () 
-                                 (argsToList args)))
-                      ++ (if isvararg then break ++ text ", ..." else nil))
-                  ++ unalign)
-            ++ text ")")
-        ODNStuff
-        ()
-        restyp
-
-  | TNamed (t, a) ->
-        text t.tname ++ d_attrlist () a ++ text " " ++ docName ()
-
-  | TBuiltin_va_list a -> 
-      text "__builtin_va_list"
-       ++ d_attrlist () a 
-        ++ text " " 
-        ++ docName ()
-
-(* Only a type (such as for a cast). There seems to be a problem with 
- * printing the top-level attribute (since it would come right before the 
- * missing name). So we strip it, but only if it is not printed in a custom 
- * way. This means that attributes such as const and volatile stay. *)        
-and d_type () t = 
-  let fixthem (ta: attribute list) = 
-    List.filter 
-      (fun a -> 
-        match !d_attrcustom a with
-          Some _ -> true
-        | _ -> false)
-      ta
-  in
-  let fixattrs = function
-      TVoid a -> TVoid (fixthem a)
-    | TInt (ik, a) -> TInt (ik, fixthem a)
-    | TFloat (fk, a) -> TFloat (fk, fixthem a)
-
-    | TNamed (t, a) -> TNamed (t, fixthem a)
-    | TPtr (bt, a) -> TPtr (bt, fixthem a)
-    | TArray (bt, lo, a) -> TArray (bt, lo, fixthem a)
-    | TComp (comp, a) -> TComp (comp, fixthem a)
-    | TEnum (enum, a) -> TEnum (enum, fixthem a)
-    | TFun (rt, args, isva, a) -> TFun (rt, args, isva, a)
-    | TBuiltin_va_list a -> TBuiltin_va_list (fixthem a)
-  in  
-  d_decl (fun _ -> nil) ODNNothing () (fixattrs t)
-
-
-(* exp *)
-
-                                        (* Rest *)
-
-(* Print an expression assuming a precedence for the context. Use a small 
- * number to parenthesize the printed expression. 0 guarantees parentheses. 1 
- * will parenthesize everything but identifiers. *)
-and d_expprec contextprec () e = 
-  let thisLevel = getParenthLevel e in
-                                 (* This is to quite down GCC warnings *)
-  if thisLevel >= contextprec || (thisLevel = additiveLevel &&
-                                  contextprec = bitwiseLevel) then
-    text "(" ++ d_exp () e ++ text ")"
-  else
-    d_exp () e
-
-and d_exp () e = 
-  let level = getParenthLevel e in
-  match e with
-    Const(c) -> d_const () c
-  | Lval(l) -> d_lval () l
-  | UnOp(u,e1,_) -> 
-      let d_unop () u =
-        match u with
-          Neg -> text "-"
-        | BNot -> text "~"
-        | LNot -> text "!"
-      in
-      (d_unop () u) ++ chr ' ' ++ (d_expprec level () e1)
-
-  | BinOp(b,e1,e2,_) -> 
-(*
-      dprintf "@[%a %a@?%a@]" 
-        (d_expprec level) e1 d_binop b (d_expprec level) e2
-*)
-      align 
-        ++ (d_expprec level () e1)
-        ++ chr ' ' 
-        ++ (d_binop () b)
-        ++ break 
-        ++ (d_expprec level () e2)
-        ++ unalign
-
-  | CastE(t,e) -> 
-      text "(" 
-        ++ d_type () t
-        ++ text ")"
-        ++ d_expprec level () e
-
-  | SizeOf (t) -> 
-      text "sizeof(" ++ d_type () t ++ chr ')'
-  | SizeOfE (e) -> 
-      text "sizeof(" ++ d_exp () e ++ chr ')'
-  | AlignOf (t) -> 
-      text "__alignof__(" ++ d_type () t ++ chr ')'
-  | AlignOfE (e) -> 
-      text "__alignof__(" ++ d_exp () e ++ chr ')'
-  | AddrOf(lv) -> 
-      text "& " ++ (d_lvalprec addrOfLevel () lv)
-
-  | StartOf(lv) -> d_lval () lv
-
-and d_init () = function
-    SingleInit e -> d_exp () e
-  | CompoundInit (t, initl) -> 
-      (* We do not print the type of the Compound *)
-(*
-      let dinit e = d_init () e in
-      dprintf "{@[%a@]}"
-        (docList (chr ',' ++ break) dinit) initl
-*)
-      let printDesignator = 
-        if not !msvcMode then begin
-          (* Print only for union when we do not initialize the first field *)
-          match unrollType t, initl with
-            TComp(ci, _), [(Field(f, NoOffset), _)] -> 
-              if ci.cfields != [] && (List.hd ci.cfields).fname = f.fname then
-                true
-              else
-                false
-          | _ -> false
-        end else 
-          false 
-      in
-      let d_oneInit = function
-          Field(f, NoOffset), i -> 
-            (if printDesignator then 
-              text ("." ^ f.fname ^ " = ") 
-            else nil) ++ d_init () i
-        | Index(e, NoOffset), i -> 
-            (if printDesignator then 
-              text "[" ++ d_exp () e ++ text "] = " else nil) ++ d_init () i
-        | _ -> E.s (unimp "Trying to print malformed initializer")
-      in
-      chr '{' ++ (align 
-                    ++ ((docList (chr ',' ++ break) d_oneInit) () initl) 
-                    ++ unalign)
-        ++ chr '}'
-
-        
-(* attributes *)
-and d_attr () (Attr(an, args): attribute) =
-  (* Add underscores to the name *)
-  let an' = if !msvcMode then "__" ^ an else "__" ^ an ^ "__" in
-  if args = [] then 
-    text an'
-  else
-    text (an' ^ "(") 
-      ++(docList (chr ',') (d_attrparam ()) () args)
-      ++ text ")"
-
-and d_attrparam () = function
-  | AInt n -> num n
-  | AStr s -> text ("\"" ^ escape_string s ^ "\"")
-  | ACons(s, []) -> text s
-  | ACons(s,al) ->
-      text (s ^ "(")
-        ++ (docList (chr ',') (d_attrparam ()) () al)
-        ++ text ")"
-  | ASizeOfE a -> text "sizeof(" ++ d_attrparam () a ++ text ")"
-  | ASizeOf t -> text "sizeof(" ++ d_type () t ++ text ")"
-  | AUnOp(u,a1) -> 
-      let d_unop () u =
-        match u with
-          Neg -> text "-"
-        | BNot -> text "~"
-        | LNot -> text "!"
-      in
-      (d_unop () u) ++ text " (" ++ (d_attrparam () a1) ++ text ")"
-
-  | ABinOp(b,a1,a2) -> 
-      align 
-        ++ text "(" 
-        ++ (d_attrparam () a1)
-        ++ text ") "
-        ++ (d_binop () b)
-        ++ break 
-        ++ text " (" ++ (d_attrparam () a2) ++ text ") "
-        ++ unalign
-      
-          
-and d_attrlistgen (block: bool) (pre: bool) () al = 
-                    (* Whether it comes before or after stuff *)
-  (* Take out the special attributes *)
-  let rec loop remaining = function
-      [] -> begin
-        match remaining with
-          [] -> nil
-        | Attr(str,args) :: _->
-            if (str = "dummydefn") then (
-              text "/*dummydefn*/" (* don't print this because gcc complains *)
-            )
-            else (
-              (if block then text " /* __block" else text "__") ++ 
-                text "attribute__(" 
-                ++ (if block then nil else text "(")
-                ++ (docList (chr ',' ++ break) 
-                      (fun a -> d_attr () a) () remaining)
-                ++ text ")"
-                ++ (if block then text "*/" else text ")")
-            )
-      end
-    | x :: rest -> begin
-        match !d_attrcustom x with
-          Some xd -> xd ++ text "  " ++ loop remaining rest
-        | None -> loop (x :: remaining) rest
-    end
-  in
-  let res = loop [] al in
-  if res = nil then
-    res
-  else
-    if pre then res ++ text " " else text " " ++ res
-    
-and d_attrlist_pos pre () al = d_attrlistgen false pre () al
-and d_attrlist () al = d_attrlist_pos false () al
-and d_attrlist_pre () al = d_attrlist_pos true () al
-
-(* lvalue *)
-and d_lvalprec contextprec () lv = 
-  if getParenthLevel (Lval(lv)) >= contextprec then
-    text "(" ++ d_lval () lv ++ text ")"
-  else
-    d_lval () lv
-  
-and d_lval () lv = 
-  let rec d_offset dobase = function
-    | NoOffset -> dobase ()
-    | Field (fi, o) -> 
-        d_offset (fun _ -> dobase () ++ text "." ++ text fi.fname) o
-    | Index (e, o) ->
-        d_offset (fun _ -> dobase () ++ text "[" ++ d_exp () e ++ text "]") o
-  in
-  match lv with
-    Var vi, o -> d_offset (fun _ -> text vi.vname) o
-  | Mem e, Field(fi, o) ->
-      d_offset (fun _ ->
-        (d_expprec arrowLevel () e) ++ text ("->" ^ fi.fname)) o
-  | Mem e, o ->
-      d_offset (fun _ -> 
-        text "(*" ++ d_expprec derefStarLevel () e ++ text ")") o
-
-and d_instr () i =
-  match i with
-  | Set(lv,e,l) -> begin
-      (* Be nice to some special cases *)
-      match e with
-        BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt64(one,_,_)),_)
-          when lv == lv' && one = Int64.one ->
-          d_line l
-           ++ d_lval () lv
-           ++ text " ++;"
-
-      | BinOp((MinusA|MinusPI),Lval(lv'),
-              Const(CInt64(one,_,_)), _) when lv == lv' && one = Int64.one ->
-         d_line l
-          ++ d_lval () lv
-          ++ text " --;"
-
-      | BinOp((PlusA|PlusPI|IndexPI|MinusA|MinusPP|MinusPI|BAnd|BOr|BXor|
-               Mult|Div|Mod|Shiftlt|Shiftrt) as bop,
-              Lval(lv'),e,_) when lv == lv' ->
-          d_line l
-            ++ d_lval () lv
-            ++ text " " ++ d_binop () bop
-            ++ text "= "
-            ++ d_exp () e
-            ++ text ";"
-
-      | _ ->
-          d_line l
-            ++ d_lval () lv
-            ++ text " = "
-            ++ d_exp () e
-            ++ text ";"
-
-  end
-  | Call(Some lv, Lval(Var vi, NoOffset), [dest; SizeOf t], l) 
-       when vi.vname = "__builtin_va_arg" -> 
-       d_line l
-         ++ (d_lval () lv ++ text " = ")
-                   
-        (* Now the function name *)
-        ++ text "__builtin_va_arg"
-        ++ text "(" ++ (align
-                          (* Now the arguments *)
-                          ++ d_exp () dest ++ chr ',' ++ break 
-                          ++ d_type () t
-                          ++ unalign)
-        ++ text ");"
-  | Call(dest,e,args,l) ->
-       d_line l
-         ++ (match dest with
-               None -> nil
-             | Some lv -> 
-                 d_lval () lv ++ text " = " ++
-                   (* Maybe we need to print a cast *)
-                   (let destt = typeOfLval lv in
-                   match unrollType (typeOf e) with
-                     TFun (rt, _, _, _) when typeSig rt <> typeSig destt ->
-                       text "(" ++ d_type () destt ++ text ")"
-                   | _ -> nil))
-        (* Now the function name *)
-        ++ (match e with Lval(Var _, _) -> d_exp () e
-                       | _ -> text "(" ++ d_exp () e ++ text ")")
-        ++ text "(" ++ (align
-                          (* Now the arguments *)
-                          ++ (docList (chr ',' ++ break) (d_exp ()) () args)
-                          ++ unalign)
-        ++ text ");"
-
-  | Asm(attrs, tmpls, outs, ins, clobs, l) ->
-      if !msvcMode then
-        d_line l
-          ++ text "__asm {"
-          ++ (align
-                ++ (docList line text () tmpls)
-                ++ unalign)
-          ++ text "};"
-      else
-        d_line l
-          ++ text ("__asm__ ") 
-          ++ d_attrlist () attrs 
-          ++ text " ("
-          ++ (align
-                ++ (docList line
-                      (fun x -> text ("\"" ^ escape_string x ^ "\""))
-                      () tmpls)
-                ++
-                (if outs = [] && ins = [] && clobs = [] then
-                  nil
-                else
-                  (text ": "
-                     ++ (docList (chr ',' ++ break)
-                           (fun (c, lv) ->
-                             text ("\"" ^ escape_string c ^ "\" (")
-                               ++ d_lval () lv
-                               ++ text ")") () outs)))
-                ++
-                (if ins = [] && clobs = [] then
-                  nil
-                else
-                  (text ": "
-                     ++ (docList (chr ',' ++ break)
-                           (fun (c, e) ->
-                             text ("\"" ^ escape_string c ^ "\" (")
-                               ++ d_exp () e
-                               ++ text ")") () ins)))
-                ++
-                (if clobs = [] then nil
-                else
-                  (text ": "
-                     ++ (docList (chr ',' ++ break)
-                           (fun c -> text ("\"" ^ escape_string c ^ "\""))
-                           ()
-                           clobs)))
-                ++ unalign)
-          ++ text ");"
-
-and d_stmt_next (next: stmt) () (s: stmt) =
-  (* print the labels *)
-  ((docList line (fun l -> d_label () l)) () s.labels)
-    (* print the statement itself. If the labels are non-empty and the
-    * statement is empty, print a semicolon  *)
-    ++ 
-    (if s.skind = Instr [] && s.labels <> [] then
-      text ";"
-    else
-      (if s.labels <> [] then line else nil) 
-        ++ d_stmtkind next () s.skind)
-    
-and d_stmt () (s: stmt) = (* A version that is easier to call *)
-  d_stmt_next invalidStmt () s
-
-and d_label () = function
-    Label (s, _, true) -> text (s ^ ": ")
-  | Label (s, _, false) -> text (s ^ ": /* CIL Label */ ")
-  | Case (e, _) -> text "case " ++ d_exp () e ++ text ": "
-  | Default _ -> text "default: "
-
-and d_block () (blk: block) =
-  let rec dofirst () = function
-      [] -> nil
-    | [x] -> d_stmt_next invalidStmt () x
-    | x :: rest -> dorest nil x rest
-  and dorest acc prev = function
-      [] -> acc ++ (d_stmt_next invalidStmt () prev)
-    | x :: rest -> 
-        dorest (acc ++ (d_stmt_next x () prev) ++ line)
-                  x rest
-  in
-(* Let the host of the block decide on the alignment. The d_block will pop 
- * the alignment as well *)
-  text "{" 
-    ++ (if blk.battrs <> [] then 
-           d_attrlistgen true true () blk.battrs
-        else nil)
-    ++ line
-    ++ (dofirst () blk.bstmts)
-    ++ unalign ++ line ++ text "}"
-(*
-  dprintf "@[{ @[@!%a@]@!}@]" dofirst blk
-*)
-
-(* Make sure that you only call d_line on an empty line *)
-and d_line l = 
-  let ls = printLine false l in
-  if ls <> "" then leftflush ++ text ls ++ line else nil
-   
-and d_stmtkind (next: stmt) () = function
-    Return(None, l) ->
-      d_line l
-        ++ text "return;"
-  | Return(Some e, l) ->
-      d_line l
-        ++ text "return ("
-        ++ d_exp () e
-        ++ text ");"
-
-  | Goto (sref, l) -> d_goto !sref
-  | Break l ->
-      d_line l
-        ++ text "break;"
-  | Continue l -> 
-      d_line l
-        ++ text "continue;"
-
-  | Instr il ->
-      align
-        ++ (docList line (fun i -> d_instr () i) () il)
-        ++ unalign
-
-  | If(be,t,{bstmts=[];battrs=[]},l) ->
-      d_line l
-        ++ text "if"
-        ++ (align
-              ++ text " ("
-              ++ d_exp () be
-              ++ text ") "
-              ++ d_block () t)
-
-  | If(be,t,{bstmts=[{skind=Goto(gref,_);labels=[]} as s];
-             battrs=[]},l)
-      when !gref == next ->
-        d_line l
-          ++ text "if"
-          ++ (align
-                ++ text " ("
-                ++ d_exp () be
-                ++ text ") "
-                ++ d_block () t)
-
-  | If(be,{bstmts=[];battrs=[]},e,l) ->
-      d_line l
-        ++ text "if"
-        ++ (align
-              ++ text " ("
-              ++ d_exp () (UnOp(LNot,be,intType))
-              ++ text ") "
-              ++ d_block () e)
-
-  | If(be,{bstmts=[{skind=Goto(gref,_);labels=[]} as s];
-           battrs=[]},e,l)
-      when !gref == next ->
-      d_line l
-        ++ text "if"
-        ++ (align
-              ++ text " ("
-              ++ d_exp () (UnOp(LNot,be,intType))
-              ++ text ") "
-              ++ d_block () e)
-
-  | If(be,t,e,l) ->
-      d_line l
-        ++ (align
-              ++ text "if"
-              ++ (align
-                    ++ text " ("
-                    ++ d_exp () be
-                    ++ text ") "
-                    ++ d_block () t)
-              ++ text " "   (* sm: indent next code 2 spaces (was 4) *)
-              ++ (align
-                    ++ text "else "
-                    ++ d_block () e)
-              ++ unalign)
-
-  | Switch(e,b,_,l) ->
-      d_line l
-        ++ (align
-              ++ text "switch ("
-              ++ d_exp () e
-              ++ text ") "
-              ++ d_block () b)
-  | Loop(b, l) -> begin
-      (* Maybe the first thing is a conditional. Turn it into a WHILE *)
-      try
-        let term, bodystmts =
-          let rec skipEmpty = function
-              [] -> []
-            | {skind=Instr [];labels=[]} :: rest -> skipEmpty rest
-            | x -> x
-          in
-          match skipEmpty b.bstmts with
-            {skind=If(e,tb,fb,_)} :: rest -> begin
-              match skipEmpty tb.bstmts, skipEmpty fb.bstmts with
-                [], {skind=Break _} :: _  -> e, rest
-              | {skind=Break _} :: _, [] -> UnOp(LNot, e, intType), rest
-              | _ -> raise Not_found
-            end
-          | _ -> raise Not_found
-        in
-        d_line l
-          ++ text "wh"
-          ++ (align
-                ++ text "ile ("
-                ++ d_exp () term
-                ++ text ") "
-                ++ d_block () {bstmts=bodystmts; battrs=b.battrs})
-
-    with Not_found ->
-      d_line l
-        ++ text "wh"
-        ++ (align
-              ++ text "ile (1) "
-              ++ d_block () b)
-  end
-  | Block b -> align ++ d_block () b
-      
-
-and d_goto (s: stmt) = 
-  (* Grab one of the labels *)
-  let rec pickLabel = function
-      [] -> None
-    | Label (l, _, _) :: _ -> Some l
-    | _ :: rest -> pickLabel rest
-  in
-  match pickLabel s.labels with
-    Some l -> text ("goto " ^ l ^ ";")
-  | None -> 
-      ignore (error "Cannot find label for target of goto\n");
-      text "goto __invalid_label;"
-
-and d_fun_decl () f = begin
-  text (if f.sinline then "__inline " else "")
-    ++ d_videcl () f.svar
-    ++ line
-    ++ text "{ "
-    ++ (align
-          (* locals. *)
-          ++ (docList line (fun vi -> d_videcl () vi ++ text ";") () f.slocals)
-          ++ line ++ line
-          (* the body *)
-          ++ d_block () f.sbody)
-    ++ line
-    ++ text "}"
-end
-
-and d_videcl () vi = 
-  let stom, rest = separateStorageModifiers vi.vattr in
-    (* First the storage modifiers *)
-    (d_attrlist_pre () stom)
-    ++ d_storage () vi.vstorage
-    ++ (d_decl (fun _ -> text vi.vname) ODNString () vi.vtype)
-    ++ text " "
-    ++ d_attrlist () rest
-
-and d_fielddecl () fi = 
-  (d_decl 
-     (fun _ -> 
-       text (if fi.fname = missingFieldName then "" else fi.fname))
-     ODNString () fi.ftype)
-    ++ text " "
-    ++ (match fi.fbitfield with None -> nil 
-                             | Some i -> text ": " ++ num i ++ text " ")
-    ++ d_attrlist () fi.fattr
-    ++ text ";"
-
-(* wes: I want to see this at the top level *)
-let d_global () = function
-  | GFun (fundec, l) ->
-      (* If the function has attributes then print a prototype because GCC 
-       * cannot accept function attributes in a definition  *)
-      let oldattr = fundec.svar.vattr in
-      let proto = 
-        if oldattr <> [] then 
-          (d_line l) ++ (d_videcl () fundec.svar) ++ chr ';' ++ line 
-        else nil in
-      (* Temporarily remove the function attributes *)
-      fundec.svar.vattr <- [];
-      let body = (d_line l) ++ (d_fun_decl () fundec) in
-      fundec.svar.vattr <- oldattr;
-      proto ++ body
-
-  | GType (typ, l) ->
-      d_line l ++
-      if typ.tname = "" then
-        ((d_decl (fun _ -> nil) ODNNothing) () typ.ttype) ++ chr ';'
-      else
-        text "typedef "
-          ++ ((d_decl (fun _ -> text typ.tname) ODNString) () typ.ttype)
-          ++ chr ';'
-
-  | GEnumTag (enum, l) ->
-     d_line l ++
-     text "enum" ++ align ++ text (" " ^ enum.ename) ++
-        d_attrlist () enum.eattr ++ text " {" ++ line
-        ++ (docList line 
-              (fun (n,i) -> 
-                text (n ^ " = ") 
-                  ++ d_exp () i
-                  ++ text "," ++ break)
-              () enum.eitems)
-        ++ unalign ++ break ++ text "};"
-
-  | GCompTag (comp, l) -> (* This is a definition of a tag *)
-      let n = comp.cname in
-      let su, su1, su2 =
-        if comp.cstruct then "struct", "str", "uct"
-                        else "union",  "uni", "on"
-      in
-      d_line l ++
-      text su1 ++ (align ++ text su2 ++ chr ' ' ++ text n
-                     ++ text " {" ++ line
-                     ++ ((docList line (d_fielddecl ())) () comp.cfields)
-                     ++ unalign)
-        ++ line ++ text "}" ++
-        (d_attrlist () comp.cattr) ++ text ";"
-
-  | GVar (vi, io, l) ->
-      d_line l ++
-        (d_videcl () vi)
-        ++ chr ' '
-        ++ (match io with
-              None -> nil
-            | Some i -> text " = " ++ (d_init () i))
-        ++ chr ';'
-
-  | GDecl (vi, l) -> (
-      (* sm: don't print boxmodels; avoids gcc warnings *)
-      if (hasAttribute "boxmodel" vi.vattr) then
-        (text ("// omitted boxmodel GDecl " ^ vi.vname ^ "\n"))
-      (* sm: also don't print declarations for gcc builtins *)
-      (* this doesn't do what I want, I don't know why *)
-      else if startsWith "__builtin_" vi.vname && not !print_CIL_Input then (
-        (text ("// omitted gcc builtin " ^ vi.vname ^ "\n"))
-      )
-      else (
-        d_line l ++
-        (d_videcl () vi)
-          ++ chr ';'
-      )
-    )
-  | GAsm (s, l) ->
-      d_line l ++
-        text ("__asm__(\"" ^ escape_string s ^ "\");")
-
-  | GPragma (Attr(an, args), l) ->
-      (* sm: suppress printing pragmas that gcc does not understand *)
-      (* assume anything starting with "box" or "ccured" is ours *)
-      (* also don't print the 'combiner' pragma *)
-      (* nor 'cilnoremove' *)
-      let suppress = 
-        not !print_CIL_Input && 
-        ((startsWith "box" an) ||
-         (startsWith "ccured" an) ||
-         (an = "merger") ||
-         (an = "cilnoremove")) in
-      let d =
-        if args = [] then
-          text an
-        else
-          text (an ^ "(")
-            ++ docList (chr ',') (d_attrparam ()) () args
-            ++ text ")"
-      in
-      d_line l 
-        ++ (if suppress then text "/* " else text "")
-        ++ (text "#pragma ")
-        ++ d
-        ++ (if suppress then text " */" else text "")
-
-  | GText s  -> text s
-
-*)
-
-type declName = 
-    DNNothing                           (* docName is nil *)
-  | DNString of string                  (* docName is just a variable name *)
-  | DNPtrStuff of doc                   (* Some document that starts with * *)
-  | DNStuff of doc                      (* Anything else *)
+let invalidStmt = mkStmt (Instr [])
 
 (** A printer interface for CIL trees. Create instantiations of 
  * this type by specializing the class {!Cil.defaultCilPrinter}. *)
@@ -2468,9 +1640,10 @@ class type cilPrinter = object
 
   method pGlobal: unit -> global -> doc       (** Global (vars, types, etc.) *)
 
-  method pType: declName -> unit -> typ -> doc  
+  method pType: doc option -> unit -> typ -> doc  
   (* Use of some type in some declaration. The first argument is used to print 
-   * the declared element. Note that for structure/union and enumeration types 
+   * the declared element, or is None if we are just printing a type with no 
+   * name being decalred. Note that for structure/union and enumeration types 
    * the definition of the composite type is not visited. Use [vglob] to 
    * visit it.  *)
 
@@ -2505,7 +1678,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     (* First the storage modifiers *)
     (self#pAttrs () stom)
       ++ d_storage () v.vstorage
-      ++ (self#pType (DNString v.vname) () v.vtype)
+      ++ (self#pType (Some (text v.vname)) () v.vtype)
       ++ text " "
       ++ self#pAttrs () rest
 
@@ -2559,16 +1732,16 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
     | CastE(t,e) -> 
         text "(" 
-          ++ self#pType DNNothing () t
+          ++ self#pType None () t
           ++ text ")"
           ++ self#pExpPrec level () e
 
     | SizeOf (t) -> 
-        text "sizeof(" ++ self#pType DNNothing () t ++ chr ')'
+        text "sizeof(" ++ self#pType None () t ++ chr ')'
     | SizeOfE (e) -> 
         text "sizeof(" ++ self#pExp () e ++ chr ')'
     | AlignOf (t) -> 
-        text "__alignof__(" ++ self#pType DNNothing () t ++ chr ')'
+        text "__alignof__(" ++ self#pType None () t ++ chr ')'
     | AlignOfE (e) -> 
         text "__alignof__(" ++ self#pExp () e ++ chr ')'
     | AddrOf(lv) -> 
@@ -2671,7 +1844,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                               (* Now the arguments *)
                               ++ self#pExp () dest 
                               ++ chr ',' ++ break 
-                              ++ self#pType DNNothing () t
+                              ++ self#pType None () t
                               ++ unalign)
             ++ text ");"
 
@@ -2685,7 +1858,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                 (let destt = typeOfLval lv in
                 match unrollType (typeOf e) with
                   TFun (rt, _, _, _) when typeSig rt <> typeSig destt ->
-                    text "(" ++ self#pType DNNothing () destt ++ text ")"
+                    text "(" ++ self#pType None () destt ++ text ")"
                 | _ -> nil))
           (* Now the function name *)
           ++ (let ed = self#pExp () e in
@@ -2750,7 +1923,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
             
 
   (**** STATEMENTS ****)
-  method pStmt () (s:stmt) =        (* constrol-flow statement *)
+  method pStmt () (s:stmt) =        (* control-flow statement *)
     self#pStmtNext invalidStmt () s
 
   method private pStmtNext (next: stmt) () (s: stmt) =
@@ -2975,10 +2148,10 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     | GType (typ, l) ->
         self#pLineDirective l ++
         if typ.tname = "" then
-          self#pType DNNothing () typ.ttype ++ chr ';'
+          self#pType None () typ.ttype ++ chr ';'
         else
           text "typedef "
-            ++ (self#pType (DNString typ.tname) () typ.ttype)
+            ++ (self#pType (Some (text typ.tname)) () typ.ttype)
             ++ chr ';'
 
     | GEnumTag (enum, l) ->
@@ -3066,7 +2239,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
    method private pFieldDecl () fi = 
      (self#pType
-        (DNString (if fi.fname = missingFieldName then "" else fi.fname))
+        (Some (text (if fi.fname = missingFieldName then "" else fi.fname)))
         () 
         fi.ftype)
        ++ text " "
@@ -3092,49 +2265,15 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
   (***** PRINTING DECLARATIONS and TYPES ****)
     
-  method pType (dnwhat: declName) (* What kind of name *)
-               () (t:typ) =         (* use of some type *)
-    let name = 
-      match dnwhat with 
-        DNNothing -> nil
-      | DNString s -> text s
-      | DNStuff d -> d
-      | DNPtrStuff d -> d
-    in
-    let kindOf (t: typ) = 
-      match t with
-        TPtr _ -> 1
-      | TArray _ -> 2
-      | TFun _ -> 3
-      | _ -> 0
-    in
-    (* Print the docName with some attributes preceedign it, maybe with 
-     * parentheses *)
-    let parenthname (a: attribute list) = 
-      match dnwhat, a with
-        DNStuff d, _ -> (* Must parenthesize whether or not we have attrs *)
-          text "(" ++ self#pAttrs () a ++ name  ++ text ")"
-      | DNPtrStuff d, _ -> 
-          if (match t with TPtr _ -> true | _ -> false) then (* We are in a 
-                                                              * Ptr. No need 
-                                                              * for 
-                                                              * parentheses *)
-            self#pAttrs () a ++ name
-          else
-            text "(" ++ self#pAttrs () a ++ name  ++ text ")"
-            
-          
-      | DNNothing, [] -> nil
-      | DNNothing, _ :: _ -> (* Cannot print the attributes in this case 
-                              * because gcc does not like them here *)
-          text "/*" ++ self#pAttrs () a ++ text "*/"
-      | DNString s, a -> self#pAttrs () a ++ text s
-    in
+  method pType (nameOpt: doc option) (* Whether we are declaring a name or 
+                                      * just a type *)
+               () (t:typ) =       (* use of some type *)
+    let name = match nameOpt with None -> nil | Some d -> d in
     let printAttributes (a: attributes) = 
-      match dnwhat, a with 
-        DNNothing, [] -> nil
-      | DNNothing, _ :: _ -> (* Cannot print the attributes in this case 
-                              * because gcc does not like them here *)
+      match nameOpt, a with 
+        None, [] -> nil
+      | None, _ :: _ -> (* Cannot print the attributes in this case because 
+                         * gcc does not like them here *)
           text "/*" ++ self#pAttrs () a ++ text "*/"
       | _, _ -> self#pAttrs () a
     in
@@ -3174,32 +2313,32 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         let name' = text "*" ++ printAttributes a ++ name in
         let name'' = if paren then text "(" ++ name' ++ text ")" else name' in
         self#pType 
-          (DNStuff name'')
+          (Some name'')
           () 
           bt
 
     | TArray (elemt, lo, a) -> 
         let name' = 
           if a == [] then name else
-          if dnwhat = DNNothing then printAttributes a else 
+          if nameOpt == None then printAttributes a else 
           text "(" ++ printAttributes a ++ name ++ text ")" 
         in
         self#pType 
-          (DNStuff (name'
-                      ++ text "[" 
-                      ++ (match lo with None -> nil | Some e -> self#pExp () e)
-                      ++ text "]"))
+          (Some (name'
+                   ++ text "[" 
+                   ++ (match lo with None -> nil | Some e -> self#pExp () e)
+                   ++ text "]"))
           ()
           elemt
           
     | TFun (restyp, args, isvararg, a) -> 
         let name' = 
           if a == [] then name else 
-          if dnwhat = DNNothing then printAttributes a else
+          if nameOpt == None then printAttributes a else
           text "(" ++ printAttributes a ++ name ++ text ")" 
         in
         self#pType 
-          (DNStuff 
+          (Some
              (name'
                 ++ text "("
                 ++ (align 
@@ -3283,7 +2422,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           ++ (docList (chr ',') (self#pAttrParam ()) () al)
           ++ text ")"
     | ASizeOfE a -> text "sizeof(" ++ self#pAttrParam () a ++ text ")"
-    | ASizeOf t -> text "sizeof(" ++ self#pType DNNothing () t ++ text ")"
+    | ASizeOf t -> text "sizeof(" ++ self#pType None () t ++ text ")"
     | AUnOp(u,a1) -> 
         let d_unop () u =
           match u with
@@ -3339,7 +2478,7 @@ let defaultCilPrinter = new defaultCilPrinterClass
 
 (* Top-level printing functions *)
 let printType (pp: cilPrinter) () (t: typ) : doc = 
-  pp#pType DNNothing () t
+  pp#pType None () t
   
 let printExp (pp: cilPrinter) () (e: exp) : doc = 
   pp#pExp () e
@@ -3387,11 +2526,10 @@ class plainCilPrinterClass =
   inherit defaultCilPrinterClass as super
   
   (*** PLAIN TYPES ***)
-  method pType (dn: declName) () (t: typ) = 
+  method pType (dn: doc option) () (t: typ) = 
     match dn with 
-      DNNothing -> self#pOnlyType () t
-    | DNString s -> text (s ^ " : ") ++ self#pOnlyType () t
-    | DNStuff d | DNPtrStuff d -> d ++ text " : " ++ self#pOnlyType () t
+      None -> self#pOnlyType () t
+    | Some d -> d ++ text " : " ++ self#pOnlyType () t
 
  method private pOnlyType () = function 
      TVoid a -> dprintf "TVoid(@[%a@])" self#pAttrs a
@@ -3484,7 +2622,7 @@ let plainCilPrinter = new plainCilPrinterClass
 
 (* And now some shortcuts *)
 let d_plainexp () e = plainCilPrinter#pExp () e
-let d_plaintype () t = plainCilPrinter#pType DNNothing () t
+let d_plaintype () t = plainCilPrinter#pType None () t
 let d_plaininit () i = plainCilPrinter#pInit () i
 let d_plainlval () l = plainCilPrinter#pLval () l
 
@@ -4101,10 +3239,15 @@ let getGlobInit (fl: file) =
   match fl.globinit with 
     Some f -> f
   | None -> begin
-      let f = emptyFunction 
-          (makeValidSymbolName ("__globinit_" ^ 
-                                (Filename.chop_extension
-                                   (Filename.basename fl.fileName))))
+      let base = Filename.basename fl.fileName in
+      let basenoext = 
+        try
+          Filename.chop_extension base
+        with _ -> base
+      in
+      let f = 
+        emptyFunction 
+          (makeValidSymbolName ("__globinit_" ^ basenoext))
       in
       fl.globinit <- Some f;
       f

@@ -39,11 +39,11 @@ open Trace
 
 
 let outChannel : out_channel option ref = ref None
+let mergedChannel : out_channel option ref = ref None
 let keepFiles = ref false
 let heapify = ref false
 let stackguard = ref false
 let testcil = ref ""
-let merge = ref false
 
 exception Done_Processing
 
@@ -140,17 +140,15 @@ let rec theMain () =
     with Sys_error _ -> E.s (E.error "Cannot find extra file: %s\n" s)
    |  End_of_file -> () 
   in
-  let merge = ref false in
-  let openLog lfile =
+  (* Processign of output file arguments *)
+  let openFile (what: string) (takeit: out_channel -> unit) (fl: string) = 
     if !E.verboseFlag then
-      ignore (Printf.printf "Setting log file to %s\n" lfile);
-    try E.logChannel := open_out lfile with _ ->
-      raise (Arg.Bad "Cannot open log file") in
+      ignore (Printf.printf "Setting %s to %s\n" what fl);
+    (try takeit (open_out fl)
+    with _ ->
+      raise (Arg.Bad ("Cannot open " ^ what ^ " file")))
+  in
   let outName = ref "" in
-  let outFile fname =
-    outName := fname;
-    try outChannel := Some (open_out fname) with _ ->
-      raise (Arg.Bad ("Cannot open output file" ^ fname)) in
   let setDebugFlag v name = 
     E.debugFlag := v;
     if v then Pretty.flushOften := true
@@ -185,10 +183,10 @@ let rec theMain () =
           "test CIL using the give compiler";
     "--nocil", Arg.Int (fun n -> Cabs2cil.nocil := n),
                       "Do not compile to CIL the global with the given index"; 
-    "--log", Arg.String openLog, "the name of the log file";
-    "--out", Arg.String outFile, "the name of the output CIL file";
-    "--merge", Arg.Unit (fun _ -> merge := true), 
-              "Merge all inputs into one file";
+    "--log", Arg.String (openFile "log" (fun oc -> E.logChannel := oc)), 
+             "the name of the log file";
+    "--out", Arg.String (openFile "output" (fun oc -> outChannel := Some oc)),
+             "the name of the output CIL file";
     "--warnall", Arg.Unit (fun _ -> E.warnFlag := true),
                  "Show all warnings";
     "--keep", Arg.Unit (fun _ -> keepFiles := true), "Keep intermediate files";
@@ -205,6 +203,9 @@ let rec theMain () =
     "--keepunused", Arg.Unit (fun _ -> Rmtmps.keepUnused := true),
                 "do not remove the unused variables and types";
 
+    "--mergerout", Arg.String (openFile "merged output" 
+                                   (fun oc -> mergedChannel := Some oc)),
+                "specify the name of the merged file";
     "--noPrintLn", Arg.Unit (fun _ -> Cil.printLn := false;
                                      Cprint.printLn := false),
                "don't output #line directives";
@@ -227,22 +228,30 @@ let rec theMain () =
     if !testcil <> "" then begin
       Testcil.doit !testcil
     end else 
-      if !merge then begin
-        let files = List.map parseOneFile !fileNames in
-        let one = 
-          Stats.time "merge" (Mergecil.merge files)
-            (if !outName = "" then "stdout" else !outName)
-        in
-        if !E.hadErrors then 
-          E.s (E.error "There were errors during merging\n");
-        let oldpci = !C.print_CIL_Input in
-        C.print_CIL_Input := true;
-        processOneFile one;
-        C.print_CIL_Input := oldpci
-      end else
-        List.iter (fun fname -> 
-                       let cil = parseOneFile fname in
-                       processOneFile cil) !fileNames
+      let files = List.map parseOneFile !fileNames in
+      let one = 
+        match files with 
+          [one] -> one
+        | [] -> E.s (E.error "No arguments\n")
+        | _ -> 
+            let merged = 
+              Stats.time "merge" (Mergecil.merge files)
+                (if !outName = "" then "stdout" else !outName) in
+            if !E.hadErrors then 
+              E.s (E.error "There were errors during merging\n");
+            (* See if we must save the merged file *)
+            (match !mergedChannel with 
+              None -> ()
+            | Some mc -> begin
+                let oldpci = !C.print_CIL_Input in
+                C.print_CIL_Input := true;
+                Stats.time "printMerged" 
+                  (C.printFile C.defaultCilPrinter mc) merged;
+                C.print_CIL_Input := oldpci
+            end);
+            merged
+      in
+      processOneFile one
   end
 ;;
                                         (* Define a wrapper for main to 

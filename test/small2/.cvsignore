@@ -125,4 +125,5 @@ test-bad.out
 qsort_wild
 regparm0
 unscomp
-
+*.preoptim.c
+*optim.c
