@@ -521,19 +521,20 @@ spr/% : $(EXECUTABLE)$(EXE)
 ################# Apache test cases
 APACHETEST=test/apache
 APACHEBASE=apache_1.3.19/src
+APATCH=--patch=apache.patch
 ifdef _MSVC
 APACHECFLAGS=/nologo /MDd /W3 /GX /Zi /Od \
          $(INC)"$(APACHEBASE)\include" $(INC)"$(APACHEBASE)\os\win32" \
          $(DEF)"_DEBUG" $(DEF)"WIN32" $(DEF)"_WINDOWS" \
          $(DEF)"NO_DBM_REWRITEMAP" $(DEF)"SHARED_MODULE" \
          $(DEF)"WIN32_LEAN_AND_MEAN"
-APATCH=--patch=apache_msvc.patch
+APATCH += --patch=apache_msvc.patch
 else
 APACHECFLAGS=-Wall -D_GNUCC -g \
          $(INC)"$(APACHEBASE)/include" $(INC)"$(APACHEBASE)/os/unix" \
          $(DEF)"_DEBUG" \
          $(DEF)"NO_DBM_REWRITEMAP" $(DEF)"SHARED_MODULE"
-APATCH=--patch=apache_gcc.patch
+APATCH += --patch=apache_gcc.patch
 endif
 
 apache/gzip : $(EXECUTABLE)$(EXE)

@@ -33,6 +33,8 @@
 #define SIZED
 #define SEQ
 #define FSEQ
+#define NULLTERM
+#define STRING
 #else
 #define WILD   __attribute__((wild))
 #define SAFE   __attribute__((safe))
@@ -41,6 +43,8 @@
 #define SIZED  __attribute__((sized))
 #define SEQ    __attribute__((seq))
 #define FSEQ   __attribute__((fseq))
+#define NULLTERM   __attribute__((nullterm))
+#define STRING  __attribute__((string))
 #endif
 
 #if ! defined(MANUALBOX) && ! defined(INFERBOX)
