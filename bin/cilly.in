@@ -1,0 +1,3 @@
+#!/bin/sh
+eval 'exec perl @CCUREDHOME@/bin/cilly.pl ${1+"$@"}'
+    if 0;
