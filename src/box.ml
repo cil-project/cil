@@ -2618,7 +2618,8 @@ and boxinstr (ins: instr) (l: location): stmt list =
              (* If the destination variable gets tags then we must put the 
               * result of the call into a temporary first  *)
              (* Compute the destination of the call and some code to use 
-              * after the call  *)
+              * after the call. Use boxinstr to get the code after the call 
+              * to ensure that we use all the proper checks.  *)
               let (vi1: varinfo), (setvi1: stmt list) = 
                 match boxlval (Var vi, NoOffset) with
                   (_, _, (Var _, NoOffset), _, _, _) -> 
@@ -2628,7 +2629,8 @@ and boxinstr (ins: instr) (l: location): stmt list =
                    ((Var vi', Field(dfld, NoOffset)) as newlv), _, _,[]) -> 
                      let tmp = makeTempVar !currentFunction dfld.ftype in
                      tmp, 
-                     [ mkSet newlv (Lval (var tmp)) ]
+                     boxinstr (Set ((Var vi, NoOffset), Lval (var tmp))) l
+(*                     [ mkSet newlv (Lval (var tmp)) ] *)
                 | _ ->  E.s (E.bug "Result of call is not a variable")
               in
               (* If the function is not an allocation function then we must 
@@ -2649,7 +2651,8 @@ and boxinstr (ins: instr) (l: location): stmt list =
                   if somecomp && iscast then 
                     let tmp = makeTempVar !currentFunction ftret in
                     call (Some(tmp,false)) f' args' ::
-                    (* Use boxinstr to do the proper cast *)
+                    (* Use boxinstr to do the proper cast and the proper 
+                     * checks *)
                     boxinstr (Set((Var vi1, NoOffset), 
                                   Lval (var tmp))) l @ setvi1
                   else
