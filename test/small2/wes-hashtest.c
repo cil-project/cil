@@ -1,3 +1,5 @@
+#include <stdio.h>
+#include <stdlib.h>
 //#include "main.h"
 /****** Data sizes *******
 * U8  must be an unsigned of 8 bits
@@ -113,50 +115,6 @@ typedef long clock_t;
 #define TIMESTART(clk) {clk=(double)clock();}
 #define TIMESTOP(clk)  {clk=1000000.0 * ((double)clock()-(clk))/CLOCKS_PER_SEC;}
 
-int __cdecl dup(int);
-int __cdecl dup2(int, int);
-int __cdecl close(int);
-
-struct _iobuf {
-        char *_ptr;
-        int   _cnt;
-        char *_base;
-        int   _flag;
-        int   _file;
-        int   _charbuf;
-        int   _bufsiz;
-        char *_tmpfname;
-        };
-typedef struct _iobuf FILE;
-
-int   __cdecl printf(const char * , ...);
-int   __cdecl fprintf(FILE * , const char * , ...);
-void  __cdecl exit(int);
-int   __cdecl fflush(FILE * );
-
-void  *   malloc(unsigned int);
-void  *   calloc(unsigned int, unsigned int);
-
-void          free(void * );
-
-#define NULL (void*)0
-
-#ifdef _MSVC
-#ifndef _CRTIMP
-#ifdef  _DLL
-#define _CRTIMP __declspec(dllimport)
-#else   /* ndef _DLL */
-#define _CRTIMP
-#endif  /* _DLL */
-#endif  /* _CRTIMP */
-_CRTIMP extern FILE _iob[];
-#define stdin  (&_iob[0])
-#define stdout (&_iob[1])
-#define stderr (&_iob[2])
-#else /* GNUCC */
-        extern FILE *stdout;
-        extern FILE *stderr;
-#endif
 
 extern  int   debugMM;      
 

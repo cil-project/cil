@@ -11,6 +11,8 @@
 #endif
 
 #include <stdio.h>
+#include <stdlib.h>
+
 /* A special purpose main */
 //#include "main.h"
 /****** Data sizes *******
@@ -130,27 +132,6 @@ typedef long clock_t;
 #define TIMESTART(clk) {clk=(double)clock();}
 #define TIMESTOP(clk)  {clk=1000000.0 * ((double)clock()-(clk))/CLOCKS_PER_SEC;}
 
-void * __SAFE  malloc(unsigned int);
-void * __FSEQ  calloc_fseq(unsigned int, unsigned int);
-void         free(void * __SAFE);
-
-int __cdecl dup(int);
-int __cdecl dup2(int, int);
-int __cdecl close(int);
-
-struct _iobuf {
-        char *_ptr;
-        int   _cnt;
-        char *_base;
-        int   _flag;
-        int   _file;
-        int   _charbuf;
-        int   _bufsiz;
-        char *_tmpfname;
-        };
-  
-// sm: since we #include stdio.h above, this is bad!        
-//typedef struct _iobuf FILE;
 
 extern  int   debugMM;      
 
