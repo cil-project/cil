@@ -65,7 +65,7 @@ my %commonerrors =
 
          );
 
-my $inferbox = 3;
+my $inferbox = 4;
 
 # Now add tests
 $TEST->add3Tests("btreetest", "", @runpattern);

@@ -9,7 +9,7 @@ open Cil
 open Ptrnode
 open Solveutil
 
-let show_steps = false 
+let show_steps = true 
 
 (*          
  * In this diagram, X <- Y means that Y can be cast to X. This may involve
@@ -281,6 +281,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       assert(n.why_kind <> UserSpec) ; (* shouldn't override those! *)
       n.kind <- k ; 
       n.why_kind <- w ;
+      ignore (E.warn "Update %d to %a" n.id d_opointerkind k) ;
       finished := false 
     end
   end in
@@ -329,12 +330,138 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
 
   (* Step 7
    * ~~~~~~
-   * Attempt to make FSEQ[N] nodes. 
+   * Attempt to SEQ-FSEQ-INDEX nodes in a unified fashion. 
    *)
   let can_reach_string n = hasFlag n pkReachString in
   let can_reach_seq n = hasFlag n pkReachSeq in
   let can_reach_index n = hasFlag n pkReachIndex in 
 
+  if show_steps then ignore (Pretty.printf "Solver: Step 7  (unified SEQ handling)\n") ;
+
+  (* this helper function picks the right kind of Sequence for a node *)
+  let pick_the_right_kind_of_seq n base why = begin
+    let final = match base, (can_reach_string n) with
+      Seq, true -> SeqN   (* does it need to be null-terminated? *)
+    | FSeq, true -> FSeqN
+    | _ -> base
+    in 
+    if (set_outside n && n.kind <> final) then begin
+      (* consistency check *)
+      E.s (E.bug "Solver: would override@!%a@!with %a %a"
+        d_node n d_opointerkind final d_whykind why)
+    end  ;
+    (* to prevent infinite loops in this portion of the show, we assume
+     * that INDEX wins over SEQ/FSEQ and SEQ wins over FSEQ. *)
+    if ((n.kind = Seq || n.kind = SeqN) &&
+        (final = FSeq || final = FSeqN)) || 
+        (n.kind = Index) then
+      () (* do nothing, we already have a more powerful kind *)
+    else 
+      update n final why
+  end in 
+
+  finished := false ; 
+  while not !finished do 
+    finished := true ;
+    (* consider every node in the graph! *)
+
+    Hashtbl.iter (fun id cur -> 
+      (* is this node "innately" Seq/FSeq/Index? *)
+      if (hasFlag cur pkPosArith || hasFlag cur pkIntCast ||
+          hasFlag cur pkArith) && cur.kind <> Wild &&
+          not (set_outside cur) then begin
+          let base = 
+            if can_reach_index cur then Index
+            else if can_reach_seq cur || hasFlag cur pkArith then Seq
+            else FSeq 
+          in 
+          pick_the_right_kind_of_seq cur base BoolFlag
+      end ;
+
+      (* consider all the successor edges of this node that might cause
+       * this node to be SEQ-ish *)
+      if not (set_outside cur) then 
+      List.iter (fun e ->
+        match e.ekind, e.eto.kind with
+          ECast, FSeqN 
+        | ECompat, FSeq
+        | ECompat, FSeqN -> 
+            (pick_the_right_kind_of_seq cur FSeq (SpreadFromEdge e.eto))
+        | ECast, String
+        | ECast, FSeqN
+        | ECast, SeqN ->
+            if is_array e.eto || e.eto.kind = SeqN then 
+              (pick_the_right_kind_of_seq cur Seq (SpreadFromEdge e.eto))
+        | ECompat, Seq
+        | ECompat, SeqN ->
+            (pick_the_right_kind_of_seq cur Seq (SpreadFromEdge e.eto))
+        | ECompat, Index
+        | ECast, Index ->
+            (pick_the_right_kind_of_seq cur Index (SpreadFromEdge e.eto))
+        | _ -> () 
+      ) cur.succ ;
+
+      (* also handle all ECast edges, apply the sequence_condition *)
+      if cur.kind <> Wild then 
+        List.iter (fun e -> 
+          let t_from, t_to = e.efrom.btype, e.eto.btype in 
+          if (not (subtype t_from Safe t_to Safe)) &&  
+             sequence_condition t_from t_to then begin
+              pick_the_right_kind_of_seq e.eto Seq (BadCast e) ;
+              pick_the_right_kind_of_seq e.efrom Seq (BadCast e)
+          end
+        ) (ecast_edges_only cur.succ) ;
+
+      (* consider all the predecessor edges *)
+      if not (set_outside cur) then 
+      List.iter (fun e -> 
+        match e.ekind, e.efrom.kind with 
+          (* ECast, FSeq  | ECast, FSeqN  *)
+          ENull, FSeq  | ENull, FSeqN
+        | EIndex, FSeq | EIndex, FSeqN -> 
+            if (cur.kind <> ROString) then 
+              (pick_the_right_kind_of_seq cur FSeq (SpreadFromEdge e.efrom))
+        | ESafe, FSeqN
+        | ESafe, String ->
+            if (not ((is_array e.efrom) || (hasFlag cur pkArith))) &&
+               (hasFlag cur pkPosArith || e.efrom.kind = FSeqN) &&
+               (cur.kind <> ROString) then 
+              (pick_the_right_kind_of_seq cur FSeq (SpreadFromEdge e.efrom))
+        | ECompat, Seq | ECompat, SeqN
+        | ECast, Seq   | ECast, SeqN 
+        | ENull, Seq   | ENull, SeqN -> 
+            if (cur.kind <> ROString) then 
+              (pick_the_right_kind_of_seq cur Seq (SpreadFromEdge e.efrom))
+        | EIndex, _ ->
+             if not (can_reach_index cur) && not (set_outside cur) && 
+                cur.kind <> Wild && cur.kind <> FSeq && cur.kind <> FSeqN then 
+              (pick_the_right_kind_of_seq cur Seq (SpreadFromEdge e.efrom))
+        | ECast, Index
+        | ECompat, Index
+        | ENull, Index
+        | EIndex, Index -> 
+              (pick_the_right_kind_of_seq cur Index (SpreadFromEdge e.efrom))
+        | _ -> () 
+      ) cur.pred ;
+
+      (* consider points-to information *)
+      (match cur.kind with
+        FSeqN | SeqN | Index -> 
+          begin
+          match nodeOfAttrlist (typeAttrs cur.btype) with
+            Some(n) -> 
+              if not (set_outside n) then 
+                pick_the_right_kind_of_seq n cur.kind (SpreadToArrayFrom cur) 
+          | None -> ()
+          end
+      | _ -> () 
+      );
+
+    ) node_ht ; 
+  done ;
+
+
+(*
   if show_steps then ignore (Pretty.printf "Solver: Step 7  (FSEQ[N] nodes)\n") ;
   finished := false ; 
   while not !finished do 
@@ -377,6 +504,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       List.iter (fun e -> 
         if (e.ekind = ECast || e.ekind = ENull || e.ekind = EIndex) &&
            (e.eto.kind = FSeq || e.eto.kind = FSeqN) && 
+           (* WEIMER: this line cannot possibly be correct! e.eto = cur *)
            not (set_outside cur) &&
            cur.kind <> ROString then begin
           assert(not(can_reach_seq cur)) ;
@@ -537,6 +665,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
         | None -> ()) 
     ) node_ht ;
   done ;
+  *)
 
   (* Step 9
    * ~~~~~~
@@ -561,6 +690,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
   ) node_ht ;
   done ;
 
+(*
   (* Step 10
    * ~~~~~~~
    * Note all index nodes.
@@ -623,6 +753,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       end ;
     ) node_ht
   done ;
+  *)
 
   (* Step 11
    * ~~~~~~~
