@@ -284,7 +284,7 @@ sub collectArguments {
             next;
         }
         if($arg eq "--verbose") {
-            $verbose = 1; next;
+            $::verbose = 1; next;
         }
         if($arg =~ m|^--keep=(.+)$|) { # Where to keep the outputs
             $keepDir = $1; next;
@@ -358,7 +358,9 @@ sub collectArguments {
     } else {
         $doCil = 1;
     }
-    print $compiler->{NAME}, " mode\n";
+    if($::verbose) {
+        print $compiler->{NAME}, " mode\n";
+    }
     
     if(defined $doTV) {
         if($doTV ne "") { $doTV .= " -debug"; }
@@ -492,7 +494,7 @@ sub runShell {
     # sm: I want this printed to stderr instead of stdout
     # because the rest of 'make' output goes there and this
     # way I can capture to a coherent file
-    print STDERR "Running $cmd\n";
+    print STDERR "$cmd\n";
 
     # weimer: let's have a sanity check
     if (system($cmd)) {
@@ -754,7 +756,9 @@ sub combineSourcesCompile {
         my $outfile = $compiler->compileOutputFile($src);
         open(OUT, ">$outfile") 
             || die "Cannot create $outfile";
-        print "Creating fake object file $outfile from $src\n";
+        if($::verbose) {
+            print "Creating fake object file $outfile from $src\n";
+        }
         print OUT "#pragma combiner(\"$src\", \"" . 
             join(' ', @ccargs), "\")\n";
         open(IN, "<$src") 
@@ -957,7 +961,9 @@ sub cpp {
     while($#st1 >= 0) {
         if(shift @st1 != shift @st2) {
 #                print "$msvcout is NOT the same as $afterpp\n";
-            print "Copying $msvcout to $afterpp\n";
+            if($::verbose) {
+                print "Copying $msvcout to $afterpp\n";
+            }
             unlink $afterpp;
             &File::Copy::copy($msvcout, $afterpp);
             unlink $msvcout;
