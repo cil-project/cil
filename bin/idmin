@@ -31,8 +31,8 @@ my $help_message = <<END
 $title_message
     -smoosh Smoosh underscores as much as possible.
     -ignore=<file> (multiple) Load identifiers to ignore.
-    -help Print this message.
     -verbose Be verbose about what is going on.
+    -help Print this message.
 END
     ;
 
@@ -151,6 +151,7 @@ sub render_using_abbreviations {
 sub load_ignore_files() {
     return unless @ignore_files;
     foreach my $file (@ignore_files) {
+        die "Not a proper file:$file" unless -f $file;
         open F, $file or die "Can't find ignore file $file:$!";
         my $line;
         while(defined ($line = <F>)) {

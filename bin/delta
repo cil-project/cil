@@ -6,6 +6,8 @@ use strict;
 
 # Features:
 
+# Should provide a quiet flag because this output is boreing anway.
+
 # Should probably start by throwing away things at the end rather than
 # at the start, since I think they are least likely to be relevant.
 
@@ -46,6 +48,7 @@ my $granularity = "line";       # What is the size of an input chunk?
 my $dump_input = 0;             # Dump out the input after reading it in.
 my $cp_minimal;                 # Copy the minimal successful test to the current dir.
 my $verbose = 0;                # Be more verbose.
+my $quiet = 0;                  # Prints go to /dev/null.
 my $suffix = ".c";              # For now, our input files are .c files.
 my $test = "test";              # The script to run as the test.
 
@@ -55,29 +58,35 @@ my $help_message = <<END
     delta implements the delta-debugging algorithm: http://www.st.cs.uni-sb.de/dd/
     Implemented by Daniel Wilkerson.
 
-    -help Get help
     -test=<testscript> Specify the test script, defaults to $test
     -dump_input Dump input after reading
-    -verbose Get more verbose output
     -cp_minimal=<filename> Copy the minimal successful test to the current directory
     -granularity=line Use lines as the granularity
     -granularity=top_form Use C top-level forms as the granularity
+    -log=<file> Log file for main events
+    -quiet Say nothing
+    -verbose Get more verbose output
+    -help Get help
 
 END
 ;
 
 # Functions ****************
 
+sub output(@) {
+    print @_ unless $quiet;
+}
+
 # Return true if the current_markers pass the interesting test.
 sub test {
     my $cached_result = $test_cache{$mark_signature};
     if (defined $cached_result) {
-        print "\tcached\n";
+        output "\tcached\n";
         return $cached_result;
     }
 
     render_tmpinput();
-    print " $tmpinput";
+    output " $tmpinput";
     my $arena = "$tmpdir/arena";
     die if system "rm -f $arena/*";
     my $input = "$tmpdir/$tmpinput";
@@ -88,11 +97,11 @@ sub test {
     # Keep around info only for successful runs.
     if ($result) {
         my $size = (split " ", `wc -l $input`)[0];
-        print "\tSUCCESS, lines: $size ****************\n";
+        output "\tSUCCESS, lines: $size ****************\n";
         log_msg_time("$tmpinput, lines: $size");
         $last_successful_tmpinput = $tmpinput;
     } else {
-        print "\n";
+        output "\n";
         unlink $input;
     }
     return $test_cache{$mark_signature} = $result;
@@ -133,7 +142,7 @@ sub mark {
 
 sub stop_marking {
     $mark_signature .= $last_mark_stop . "]" if defined $last_mark_stop;
-    print $mark_signature;
+    output $mark_signature;
 }
 
 sub unused_tempfile {
@@ -148,15 +157,15 @@ sub unused_tempfile {
 
 sub unused_tempdir {
   my $dirname;
-  for (; $dirname = "tmp.${tmpdir_index}", -e $dirname; ++$tmpdir_index) {}
+  for (; $dirname = "tmp${tmpdir_index}", -e $dirname; ++$tmpdir_index) {}
   return $dirname;
 }
 
 sub select_tmpdir {
     $tmpdir = unused_tempdir() unless defined $tmpdir;
     die if -e $tmpdir;
-    mkdir $tmpdir, 0777;
-    mkdir "${tmpdir}/arena", 0777;
+    mkdir $tmpdir, 0777 or die $!;
+    mkdir "${tmpdir}/arena", 0777 or die $!;
 }
 
 sub parse_command_line {
@@ -166,12 +175,14 @@ sub parse_command_line {
         if ($str=~/^-([^=]+)(=(.+))?/) {
             my ($flag, $argument) = ($1, $3);
             if ($flag eq "help") {
-                print $help_message;
+                output $help_message;
                 exit 0;
             } elsif ($flag eq "dump_input") {
                 $dump_input++;
             } elsif ($flag eq "verbose") {
                 $verbose++;
+            } elsif ($flag eq "quiet") {
+                $quiet++;
             } elsif ($flag eq "granularity") {
                 if ($argument eq "line" || $argument eq "top_form") {
                     $granularity = $argument;
@@ -180,14 +191,18 @@ sub parse_command_line {
                 $cp_minimal = $argument;
             } elsif ($flag eq "test") {
                 $test = $argument;
+            } elsif ($flag eq "log") {
+                $logfile = $argument;
             } else {die "Illegal flag: $flag \n"}
         } else {push @non_flags, $str;}
     }
+    # Cleaning up.
+    die "You specified both verbose and quiet." if $verbose && $quiet;
     push @ARGV, @non_flags;
 }
 
 sub render_settings {
-    my $out = "Settings:\n";
+    my $out = "delta settings:\n";
     $out .= "\ttemporary directory: $tmpdir\n";
     $out .= "\tgranularity: $granularity\n";
     my $input_str;
@@ -226,13 +241,13 @@ sub read_input_chunks {
 }
 
 sub dump_input {
-  print "Dumping input ****************\n";
+  output "Dumping input ****************\n";
   if ($granularity eq "line") {
-      foreach my $chunk (@chunks) {print $chunk;}
+      foreach my $chunk (@chunks) {output $chunk;}
   } elsif ($granularity eq "top_form") {
-      foreach my $chunk (@chunks) {print "\t-----\n", $chunk}
+      foreach my $chunk (@chunks) {output "\t-----\n", $chunk}
   } else {die "Illegal granularity setting: $granularity\n"}
-  print "****************\n";
+  output "****************\n";
 }
 
 sub check_initial_input {
@@ -247,14 +262,14 @@ sub check_initial_input {
 sub dump_markers {
   my $i = 0;
   foreach my $marker (@markers) {
-    print "\t$i [", $marker->{start}, ", ", $marker->{stop}, "]\n";
+    output "\t$i [", $marker->{start}, ", ", $marker->{stop}, "]\n";
     ++$i;
   }
 }
 
 sub increase_granularity {
-  print "\nIncrease granularity\n";
-  print "Before ";
+  output "\nIncrease granularity\n";
+  output "Before ";
   dump_markers();
   my @newmarkers = ();
   my $split_one = 0;
@@ -269,9 +284,9 @@ sub increase_granularity {
     }
   }
   @markers = @newmarkers;
-  print "After ";
+  output "After ";
   dump_markers();
-  print "\n";
+  output "\n";
   return $split_one;
 }
 
@@ -305,12 +320,12 @@ sub timestamp {
         $elapsed_dhms = $day_str . $elapsed_dhms;
     }
     my $timestr = scalar localtime($now); # Format as abolute.
-    return sprintf("%d, %s\t%s", $elapsed, $elapsed_dhms, $timestr);
+    return sprintf("%d sec/%s\t%s", $elapsed, $elapsed_dhms, $timestr);
 }
 
 sub log_msg {
     my ($message) = @_;
-    open LOG, ">>${tmpdir}/${logfile}" or die $!;
+    open LOG, ">>${logfile}" or die $!;
     print LOG $message, "\n";
     close LOG or die $!;
 }
@@ -321,13 +336,13 @@ sub log_msg_time {
 }
 
 sub done {
-    print "Could not increase granularity; we are done.\n";
-    print "A log of successful runs is in ${tmpdir}/${logfile}\n";
+    output "Could not increase granularity; we are done.\n";
+    output "A log of successful runs is in ${logfile}\n";
     if (defined $cp_minimal) {
-        print "Copying minimal run to $cp_minimal\n";
+        output "Copying minimal run to $cp_minimal\n";
         die "cp failed" if system "cp ${tmpdir}/${last_successful_tmpinput} $cp_minimal";
     }
-    log_msg_time("Done.");
+    log_msg_time("delta done");
     exit 0;
 }
 
@@ -335,13 +350,14 @@ sub done {
 
 parse_command_line();
 select_tmpdir();
+$logfile = "${tmpdir}/$logfile" if $logfile!~m|^/|; # Make absolute.
 my $settings = render_settings();
 log_msg($settings);
 if ($verbose) {
-    print "\nDelta debugging algorithm, implemented by Daniel Wilkerson.\n";
-    print $settings, "\n";
+    output "\nDelta debugging algorithm, implemented by Daniel Wilkerson.\n";
+    output $settings, "\n";
 }
-log_msg_time("Start.");
+log_msg_time("delta start");
 
 read_input_chunks();
 dump_input() if $dump_input;

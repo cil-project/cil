@@ -22,21 +22,20 @@ my @ignore_files = ();          # Files to ignore when checking for an unclean d
 my %num_runs = (top_form=>2, line=>3); # Num runs to try at each granularity.
 my $arg;                        # Argument to current external command.
 
-my $shortlogmsgsize = 39;       # Length of a "short" log message.
 my $starttime = time;           # The time we started.
 chomp (my $this_dir = `pwd`);   # The current directory.
 my $logfile = "log";            # Logging of main driver events.
+my $tmpdriverdir = "tmpdriver"; # For driver temporaries.
+my $suffix = "";                # Suffix to put on output file.
 
 # External programs.
+my $test = "test";              # The script to run as the test.
 my $diff = "diff";              # Program that returns 0 if args are identical files, 1 ow.
 my $indent = "indent";          # Pretty-printer filter.
 my $delta = "$FindBin::Bin/delta"; # Delta debugging.
 my $idmin = "$FindBin::Bin/idmin"; # Identifier minimizer.
-
 # Identifier minimizer's C/C++ reserved word file.
 my $idents_cxx = "$FindBin::Bin/../test/idmin/idents_cxx";
-
-my $test = "test";              # The script to run as the test.
 
 # Messages.
 my $title_line = <<END
@@ -111,6 +110,9 @@ sub parse_command_line {
     die "Do not yet support operating on more than one file." if 1<@ARGV;
     #  my $args = join (" ", @ARGV);
     $arg = $ARGV[0];
+    if ($arg=~/(\.[^.]*)$/) {
+        $suffix = $1;
+    }
 }
 
 sub check_dir_clean {
@@ -119,7 +121,7 @@ sub check_dir_clean {
     if ($logfile=~m|/([^/]*)$|) {
         push @ignore_files, $1;
     }
-    push @ignore_files, $test, $arg, "makefile", "Makefile", "RCS";
+    push @ignore_files, $test, $arg, "makefile", "Makefile", "RCS", "CVS";
     foreach (@ignore_files) {delete $list{$_}}
     die <<END if (scalar keys %list > 0 and ! $unclean_dir)
 
@@ -164,7 +166,7 @@ sub timestamp {
         $elapsed_dhms = $day_str . $elapsed_dhms;
     }
     my $timestr = scalar localtime($now); # Format as abolute.
-    return sprintf("%d, %s\t%s", $elapsed, $elapsed_dhms, $timestr);
+    return sprintf("%d sec/%s\t%s", $elapsed, $elapsed_dhms, $timestr);
 }
 
 sub log_msg {
@@ -176,12 +178,8 @@ sub log_msg {
 
 sub log_msg_time {
     my ($message) = @_;
-    if (length $message > $shortlogmsgsize or $message=~/\n$/) { # Long message.
-        log_msg("\n**** driver: ". timestamp());
-        log_msg($message);
-    } else {                    # Short message.
-        log_msg(sprintf("**** driver: %-${shortlogmsgsize}s %s", $message, timestamp()));
-    }
+    log_msg("\n**** driver ". timestamp(). ":");
+    log_msg($message);
 }
 
 sub minimize {
@@ -193,6 +191,7 @@ parse_command_line();
 #print "\n$title_line\n" if $verbose;
 output "\n$title_line" if $verbose;
 check_dir_clean();
+mkdir $tmpdriverdir, 0777 or die $!;
 
 # Reduce using delta.
 output "Minimizing using delta";
@@ -200,7 +199,7 @@ my $j=0;
 my $min;
 foreach my $granularity ("top_form", "line") {
     for(my $i=0; $i<$num_runs{$granularity}; ++$i) {
-        $min = "min${j}_${granularity}.c";
+        $min = "${tmpdriverdir}/min${j}_${granularity}.c";
         ++$j;
         run "$delta -granularity=$granularity -test=$test -cp_minimal=$min ".
             "-quiet -log=$logfile $arg";
@@ -220,17 +219,21 @@ foreach my $granularity ("top_form", "line") {
 }
 
 output "Minimizing identifiers using $idmin.";
-$min = "min${j}_id.c";
+$min = "${tmpdriverdir}/min${j}_id.c";
 ++$j;
 run "$idmin -ignore=$idents_cxx -smoosh $arg > $min";
 $arg = $min;                    # Use output from this time for next time.
 run "$test $arg";               # Check it still works.
 
 output "Pretty-printing using $indent.";
-$min = "min${j}_indent.c";
+$min = "${tmpdriverdir}/min${j}_indent.c";
 ++$j;
 run "$indent < $arg > $min";
 $arg = $min;                    # Use output from this time for next time.
 run "$test $arg";               # Check it still works.
 
-output "Done; final output is in $arg"; # Success.
+if (0==system "cp $arg min${suffix}") {
+    output "Done; final output is in min${suffix}";
+} else {
+    output "Done; cp $arg min${suffix} failed, so final output is in $arg";
+}
