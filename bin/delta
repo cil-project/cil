@@ -1,0 +1,223 @@
+#!/usr/bin/perl -w
+use strict;
+
+# Implementation of the delta debugging algorithm:
+# http://www.st.cs.uni-sb.de/dd/
+
+# by Daniel Wilkerson.
+
+# Global State ****************
+
+my @chunks = ();                # Once input, is read only.
+my @markers = ();               # Delimits a dynamic subsequence of @chunks being considered.
+
+my $tmpdir = "tmp";             # Temporary directory for external programs.
+my $granularity = "line";       # What is the size of an input chunk?
+
+my $help_message = <<END
+    Delta Debugging
+    delta.pl implements the delta-debugging algorithm: http://www.st.cs.uni-sb.de/dd/
+    Implemented by Daniel Wilkerson.
+    You can get help by specifying the help flag.
+      -help
+    It can read input in line or C top-level form granularity.
+      -granularity=line or -granularity=top_form
+END
+;
+
+# Functions ****************
+
+sub parse_command_line {
+  my $str;
+  my @non_flags = ();
+  while(defined ($str = shift @ARGV)) {
+    if ($str=~/^-([^=]+)(=(.+))?/) {
+      my ($flag, $argument) = ($1, $3);
+#      warn "\tflag:$flag\n";
+      if ($flag eq "help") {
+        print $help_message;
+        exit 0;
+      } elsif ($flag eq "granularity") {
+        if ($argument eq "line" || $argument eq "top_form") {
+          $granularity = $argument;
+        }
+      } else {die "Illegal flag: $flag \n"}
+    } else {push @non_flags, $str;}
+  }
+  push @ARGV, @non_flags;
+}
+
+sub dump_settings {
+  print "Settings:\n";
+  print "\tgranularity: $granularity\n";
+  print "\tinput: ", join (" ", @ARGV), "\n";
+  print "\n";
+}
+
+# Return true iff this input produces an error (which we want).
+my %test_cache = ();
+sub test {
+  my ($test_data) = @_;
+  my $cached_result = $test_cache{$test_data}; # This has to be slow for big strings.
+  if (defined $cached_result) {
+#    warn "Found a cached result.\n";
+    return $cached_result;
+  }
+#  print "\nRunning test on data ****************\n", $test_data, "****************\n";
+  my $filename = unused_tempfile();
+  put_into_file($test_data, "${tmpdir}/$filename");
+  my $result = 0;
+  if (run("gcc ${tmpdir}/$filename &> ${tmpdir}/${filename}.cmp")) {    # Interesting if compiles
+    if (! run("./a.out &> ${tmpdir}/${filename}.run")) {      # But does not run.
+      $result = 1;
+    }
+  }
+  $test_cache{$test_data} = $result;
+  return $result;
+}
+
+sub save_minimal_test {
+  my ($marked) = @_;
+  my $output_file = "minimal_test.c";
+  print "Minimal test saved in $output_file\n";
+  put_into_file($marked, $output_file);
+}
+
+sub run {
+  my ($line) = @_;
+  print "$line\n";
+  my $unix_ret_val = system $line;
+  return $unix_ret_val ? 0 : 1;
+}
+
+sub read_input_chunks {
+  if ($granularity eq "line") {
+    while (<>) {push @chunks, $_;} # Read one line at a time.
+  } elsif ($granularity eq "top_form") {
+    # Read chunks of C top-level forms.
+  } else {die "Illegal granularity setting: $granularity\n"}
+}
+
+sub dump_input {
+  print "Dumping input ****************\n";
+  foreach my $chunk (@chunks) {print $chunk;}
+  print "****************\n";
+}
+
+sub dump_markers {
+  my $i = 0;
+  foreach my $marker (@markers) {
+    print "\t$i [", $marker->{start}, ", ", $marker->{stop}, "]\n";
+    ++$i;
+  }
+}
+
+sub unused_tempfile {
+  my $filename;
+  for (my $i=0; $filename = "tmp${i}.c", -f "${tmpdir}/$filename"; ++$i) {}
+  die if
+    -f "${tmpdir}/$filename" || -f "${tmpdir}/${filename}.cmp" || -f "${tmpdir}/${filename}.run";
+  return $filename;
+}
+
+sub put_into_file {
+  my ($data, $filename) = @_;
+  die if -f $filename;
+  open F, ">$filename" or die $!;
+  print F $data;
+  close F or die $!;
+}
+
+sub increase_granularity {
+  print "Increase granularity\n";
+  print "Before ";
+  dump_markers();
+  my @newmarkers = ();
+  my $split_one = 0;
+  foreach my $marker (@markers) {
+    my $half = int (($marker->{start} + $marker->{stop}) / 2);
+    if ($half == $marker->{start} or $half == $marker->{stop}) {
+#      warn "Can't split\n";
+      push @newmarkers, $marker;
+    } else {
+      ++$split_one;
+      push @newmarkers, {start=>$marker->{start}, stop=>$half};
+      push @newmarkers, {start=>$half, stop=>$marker->{stop}};
+    }
+  }
+  @markers = @newmarkers;
+  print "After ";
+  dump_markers();
+  return $split_one;
+}
+
+# Append the marker-delimited data to the data string.  This modifies
+# it second argument.
+sub append_marker ($\$) {
+  my $marker = shift;
+  my $data_ref = shift;
+  for (my $i=$marker->{start}; $i<$marker->{stop}; ++$i) {
+    $$data_ref .= $chunks[$i];
+  }
+}
+
+
+# Main ****************
+
+parse_command_line();
+dump_settings();
+
+if (! -d $tmpdir) {mkdir $tmpdir, 0777}
+read_input_chunks();
+die "The input must consist of at least one chunk." unless @chunks;
+# dump_input();
+$markers[0] = {start=>0, stop=>(scalar @chunks)}; # Initialize one marker.
+my $marked = "";
+append_marker($markers[0], $marked);
+die "\n\t**************** FAIL: The initial input does not pass the test.\n\n"
+  unless test($marked);
+
+big_loop: {
+  # Test the single markers.
+  foreach my $test_marker (@markers) {
+    # Test this marker.
+    my $marked = "";
+    append_marker($test_marker, $marked);
+    if (test($marked)) {
+      @markers = ($test_marker); # Get rid of all markers but this one.
+      if (increase_granularity()) {redo big_loop;}
+      else {
+        print "Could not increase granularity; we are done.\n";
+        save_minimal_test($marked);
+        exit 0;
+      }
+    }
+  }
+
+  # Test the complements to single markers.
+  foreach my $anti_test_marker (@markers) {
+    # Test the complement to this marker.
+    my $marked = "";
+    my @newmarkers = ();        # Will become markers if we find something.
+    foreach my $marker (@markers) {
+      next if $marker eq $anti_test_marker;
+      push @newmarkers, $marker;
+      append_marker($marker, $marked);
+    }
+    if (test($marked)) {
+      @markers = @newmarkers;   # Get rid of this marker.
+      redo big_loop;
+    }
+  }
+
+  # None of them worked, increase the granularity.
+  if (increase_granularity()) {
+    redo big_loop;
+  } else {
+    print "Could not increase granularity; we are done.\n";
+    my $marked = "";
+    foreach my $marker (@markers) {append_marker($marker, $marked);}
+    save_minimal_test($marked);
+    exit 0;
+  }
+}
