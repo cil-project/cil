@@ -655,6 +655,7 @@ smFailTest("z2 is removed improperly",
            "testexe/structs_comb $box");
 smAddTest("scott-nolink/name-capture-bitand $box");
 smAddTest("scott-nolink/wildfun2 $box");
+smAddTest("scott/dblarg.int $box");      # this yields a warning that might be a problem
 
 # tests of things implemented for EDG compatibility
 smAddTest("mergestruct");
