@@ -28,10 +28,16 @@ type optionDescr = {
   } 
 
 and optionKind = 
-    OBool of bool ref            (** A boolean option *)
+  | OUnit                        
+  | OBool of bool ref            (** A boolean option *)
   | OInt  of int ref             (** An integer option *)
   | OString of string ref        (** A string option *)
+  | OStringList of char * string list ref 
+     (** A list of strings, with a separator. This means that the option can 
+      * also appear multiple times *)
 
 val optionToArgs: optionDescr -> (string * Arg.spec * string) list 
+
+val splitStringList: char -> string -> string list
 
 

@@ -25,18 +25,39 @@ type optionDescr = {
   } 
 
 and optionKind = 
-    OBool of bool ref            (** A boolean option *)
+  | OUnit                        
+  | OBool of bool ref            (** A boolean option *)
   | OInt  of int ref             (** An integer option *)
   | OString of string ref        (** A string option *)
+  | OStringList of char * string list ref 
+     (** A list of strings, with a separator. This means that the option can 
+      * also appear multiple times *)
 
-
+let splitStringList (sep: char) (str: string) : string list = 
+  let len = String.length str in
+  let rec loop (start: int) : string list = 
+    if start >= len then 
+      [] 
+    else begin
+      try 
+        let next_sep = String.index_from str start sep in
+        String.sub str start (next_sep - start) :: loop (next_sep + 1)
+      with Not_found -> (* The entire thing is a string *) 
+        [ String.sub str start (len - start) ]
+    end
+  in
+  loop 0
 
 let optionToArgs (od : optionDescr) : (string * Arg.spec * string) list = 
   let sp = 
     match od.optKind with 
       OBool oref -> Arg.Unit (fun _ -> oref := true; od.optExtra ())
+    | OUnit -> Arg.Unit (fun _ -> od.optExtra ())
     | OInt iref -> Arg.Int (fun i -> iref := i; od.optExtra ())
     | OString sref -> Arg.String (fun s -> sref := s; od.optExtra ())
+    | OStringList (sep, lref) -> 
+        Arg.String (fun s -> lref := !lref @ splitStringList sep s; 
+                             od.optExtra ())
   in
   if od.optCommandLine <> "" then begin 
     [(od.optCommandLine, sp, od.optHelp)] @
