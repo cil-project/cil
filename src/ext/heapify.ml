@@ -164,24 +164,32 @@ let default_stackguard (f : file) =
   let get_ra = expify (emptyFunction "stackguard_get_ra") in
   let set_ra = expify (emptyFunction "stackguard_set_ra") in
   let global_decl = 
-    "struct stackguard_stack {
-      void * data;
-struct stackguard_stack * next;
+"extern void * stackguard_get_ra();
+extern void stackguard_set_ra(void *new_ra);
+/* You must provide an implementation for functions that get and set the
+ * return address. Such code is unfortunately architecture specific.
+ */
+struct stackguard_stack {
+  void * data;
+  struct stackguard_stack * next;
 } * stackguard_stack;
-    void stackguard_push(void *ra) {
-    void * old = stackguard_stack;
-    stackguard_stack = malloc(sizeof(stackguard_stack));
-    stackguard_stack->data = ra;
-      stackguard_stack->next = old;
-  }
-      void * stackguard_pop() {
-    void * ret = stackguard_stack->data;
-      void * next = stackguard_stack->next;
-	free(stackguard_stack);
-	stackguard_stack->next = next;
-	  return ret;
-  }" in
-      f.globals <- GText(global_decl) :: f.globals ;
+
+void stackguard_push(void *ra) {
+  void * old = stackguard_stack;
+  stackguard_stack = (struct stackguard_stack *)
+    malloc(sizeof(stackguard_stack));
+  stackguard_stack->data = ra;
+  stackguard_stack->next = old;
+}
+
+void * stackguard_pop() {
+  void * ret = stackguard_stack->data;
+  void * next = stackguard_stack->next;
+  free(stackguard_stack);
+  stackguard_stack->next = next;
+  return ret;
+}" in
+    f.globals <- GText(global_decl) :: f.globals ;
     ignore (stackguard f push pop get_ra set_ra )
       
       
