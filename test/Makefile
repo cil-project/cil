@@ -987,7 +987,7 @@ bh-optimvariant.%: mustbegcc
 	cd $(BHDIR); rm -f code.exe
 	cd $(BHDIR); \
            $(OPTIMVARIANT) \
-                 code.exe_comb.$*.optimcured.c \
+                 code.exe_comboptimcured.$*.c \
                  trusted_bh.c -lm \
                  $(CCUREDLIB) \
                  $(EXEOUT)code.exe
@@ -1511,7 +1511,7 @@ ijpeg-optimvariant.%: mustbegcc
 	cd $(IJPEGDIR)/src; rm -f ijpeg.exe
 	cd $(IJPEGDIR)/src; \
            $(OPTIMVARIANT) \
-                ijpeg.exe_combcured.$*.optim.c \
+                ijpeg.exe_comboptimcured.$*.c \
                 $(CCUREDLIB) \
                 $(EXEOUT)ijpeg.exe
 	cd $(IJPEGDIR)/src; \
@@ -1725,7 +1725,7 @@ ks-optimvariant.%: mustbegcc
 	cd $(KSDIR); rm -f ks.exe
 	cd $(KSDIR); \
            $(OPTIMVARIANT) \
-                 ks_combcured.$*.optim.c \
+                 ks.exe_comboptimcured.$*.c \
                  $(CCUREDLIB) \
                  $(EXEOUT)ks.exe
 	cd $(KSDIR); sh -c "for i in $(ITERATION_ELEMS) ; \

@@ -1076,7 +1076,7 @@ sub testCommandExtras {
 
     # (sm: pulled this out of addTests so I could write my own addTests)
     my $theargs = defined($self->{option}->{safecdebug})
-        ? " " : " OPTIM=1 RELEASE=1 RELEASELIB=1 ";
+        ? " " : " OPTIM=1 NEWOPTIM=1 RELEASE=1 RELEASELIB=1 ";
     $theargs .= " $extraargs ";
     if(defined $self->{option}->{noremake}) {
         $theargs .= " NOREMAKE=1";
