@@ -1307,3 +1307,59 @@ ftpd: defaulttarget mustbegcc
 	cd $(FTPDDIR); \
             make CC="$(FTPDSAFECC)" \
                  LD="$(FTPDSAFECC)"
+
+
+
+OLDENMSTDIR=test/olden/mst
+OLDENMSTSAFECC=$(SAFECC) --combine --keep=safeccout  \
+                  --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) \
+                  $(NOPRINTLN)
+ifeq ($(ARCHOS), x86_WIN32)
+OLDENMSTSAFECC += $(DEF)WIN32 $(DEF)MSDOS
+endif
+mst-clean: 	
+	cd $(OLDENMSTDIR); make clean
+	cd $(OLDENMSTDIR); rm -f *cil.c *box.c *.i *_ppp.c *.origi *_all.c
+
+mst: defaulttarget mustbegcc
+	cd $(OLDENMSTDIR); \
+            make CC="$(OLDENMSTSAFECC)" \
+                 LD="$(OLDENMSTSAFECC)"
+
+
+
+
+TREEADDIR=test/olden/treeadd
+TREEADDSAFECC=$(SAFECC) --combine --keep=safeccout  \
+                  --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) \
+                  $(NOPRINTLN)
+ifeq ($(ARCHOS), x86_WIN32)
+TREEADDSAFECC += $(DEF)WIN32 $(DEF)MSDOS
+endif
+treeadd-clean: 	
+	cd $(TREEADDIR); make clean
+	cd $(TREEADDIR); rm -f *cil.c *box.c *.i *_ppp.c *.origi *_all.c
+
+treeadd: defaulttarget mustbegcc
+	cd $(TREEADDIR); \
+            make CC="$(TREEADDSAFECC)" \
+                 LD="$(TREEADDSAFECC)"
+
+
+
+
+EM3DDIR=test/olden/em3d
+EM3DDSAFECC=$(SAFECC) --combine --keep=safeccout  \
+                  --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) \
+                  $(NOPRINTLN)
+ifeq ($(ARCHOS), x86_WIN32)
+EM3DSAFECC += $(DEF)WIN32 $(DEF)MSDOS
+endif
+em3d-clean: 	
+	cd $(EM3DDIR); make clean
+	cd $(EM3DDIR); rm -f *cil.c *box.c *.i *_ppp.c *.origi *_all.c
+
+em3d: defaulttarget mustbegcc
+	cd $(EM3DDIR); \
+            make CC="$(EM3DDSAFECC)" \
+                 LD="$(EM3DDSAFECC)"
