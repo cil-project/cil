@@ -90,6 +90,11 @@ type node =
                                          * this pointer  *)
       mutable intcast: bool;            (* Some integer other than 0 is 
                                          * stored in this pointer *)
+
+      mutable noPrototype: bool;        (* Used as an argument in a function 
+                                         * without prototype or a function 
+                                         * what is invoked with more 
+                                         * arguments than it has declared *)
       mutable succ: edge list;          (* All edges with "from" = this node *)
       mutable pred: edge list;          (* All edges with "to" = this node *)
 
@@ -207,6 +212,8 @@ let pkArith = 64             (* subject to arbitrary pointer arithmetic *)
 let pkReachString = 128      (* can reach a String node *)
 let pkReachIndex = 256       (* can reach an Index node *)
 let pkReachSeq = 512         (* can reach a Seq node *)
+let pkNoPrototype = 1024     (* Used as actual argument in a function without 
+                              * prototype *)
 
 (* George may also want:
 let pkNullTerm   = of_int 8  (* Points to a null-terminated buffer *)
@@ -345,6 +352,8 @@ let d_node () n =
               (if n.arith || hasFlag n pkArith then "arith," else "") ^
               (if n.null || hasFlag n pkNull then "null," else "") ^
               (if n.intcast || hasFlag n pkIntCast then "int," else "") ^
+              (if n.noPrototype || hasFlag n pkNoPrototype 
+              then "noproto," else "") ^
               (if n.interface || hasFlag n pkInterface 
               then "interf," else "") ^
               (if n.sized  then "sized," else "") ^
@@ -474,10 +483,6 @@ let printGraph (c: out_channel) =
     (List.iter (fun n -> fprint c 80 (d_node () n))) allsorted;
   printShortTypes := false
        
-(* Add a new points-to to the node *)
-let addPointsTo n n' = 
-  n.pointsto <- n' :: n.pointsto
-
 let nodeOfAttrlist al = 
   let findnode n =
     try Some (H.find idNode n)
@@ -490,6 +495,16 @@ let nodeOfAttrlist al =
       ignore (E.warn "nodeOfAttrlist(%a)" (d_attrlist true) filtered);
       findnode n
   | _ -> E.s (E.bug "nodeOfAttrlist")
+
+(* Add a new points-to to the node *)
+let addPointsTo n n' = 
+  assert (n.id <> 0);
+  n.pointsto <- n' :: n.pointsto
+
+let addPointsToType (n: node) (t: typ) = 
+  match nodeOfAttrlist (typeAttrs t) with
+  | Some n' -> addPointsTo n n'
+  | _ -> ()
 
 let stripT = function
   | WildT -> Wild
@@ -674,6 +689,7 @@ let newNode (p: place) (idx: int) (bt: typ) (a: attribute list) : node =
             posarith= false;
             null    = false;
             intcast = false;
+            noPrototype = false;
             interface = false;
             locked = false;
             succ = [];
@@ -692,32 +708,28 @@ let newNode (p: place) (idx: int) (bt: typ) (a: attribute list) : node =
   (* Now set the pointsto nodes *)
   let _ =
     let doOneType = function
-        TPtr (_, a) as t -> 
-          (match nodeOfAttrlist a with
-            Some n' -> addPointsTo n n'
-          | None -> ());
-          ExistsFalse
+        (* This will add points to to pointers embedded in structures or in 
+         * functions (function return or arguments) *)
+        TPtr (_, a) as t -> addPointsToType n t; ExistsFalse
 
       | _ -> ExistsMaybe
     in
+    ignore (existsType doOneType n.btype);
+
+
     (* If a structure contains an array, a pointer to that structure also 
      * contains a pointer to the array. We need this information to
      * properly handle wild pointers. *)
     let lookForInternalArrays = function
-        TArray(bt,len,al) as t -> 
-          (match nodeOfAttrlist al with
-            Some n' -> addPointsTo n n'
-          | None -> ()) ;
-          ExistsFalse
+        TArray(bt,len,al) as t -> addPointsToType n t; ExistsFalse
         | _ -> ExistsMaybe
     in 
-    let _ = existsType doOneType n.btype in 
-    existsType lookForInternalArrays n.btype ; 
+    ignore (existsType lookForInternalArrays n.btype)
   in
   n
     
-  
 let dummyNode = newNode (PGlob "@dummy") 0 voidType []
+  
 
 (* Get a node for a place and an index. Give also the base type and the 
  * attributes *)

@@ -57,7 +57,7 @@ void main(void) {
     char * as[5];
     char * ad[5];
     // Make one of ad a FSEQ
-    ad[5] ++;
+    ad[4] ++;
     memcpy(ad, as, sizeof(as));
   }
   exit(0);

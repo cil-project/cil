@@ -319,7 +319,8 @@ let doVarinfo vi =
     
 (* Do an expression. Return an expression, a type and a node. The node is 
  * only meaningful if the type is a TPtr _. In that case the node is also 
- * refered to from the attributes of TPtr  *)
+ * refered to from the attributes of TPtr. Otherwise the node is N.dummyNode
+  *)
 let rec doExp (e: exp) : exp * typ * N.node= 
   match e with 
     Lval lv -> 
@@ -672,6 +673,7 @@ let isPrintf reso orig_func args = begin
         match remove_casts format_arg with (* find the format string *)
           Const(CStr(f)) -> 
             let argTypeList = parseFormatString f 0 in 
+            let num_arg_types = List.length argTypeList in
             (* insert an explicit cast to the right type for every argument *)
             let num_args = List.length args in 
             let new_args = ref [] in 
@@ -694,7 +696,13 @@ let isPrintf reso orig_func args = begin
                 new_args := cast_arg :: !new_args;
               end else begin
                 let temp_type, rostring = 
-                  match List.nth argTypeList (i-(o+1)) with
+                  let arg_type = 
+                    if i - (o + 1) >= num_arg_types then begin
+                      ignore (warn "More arguments than the format specifies");
+                      FormatInt
+                    end else List.nth argTypeList (i-(o+1))
+                  in
+                  match arg_type with
                     FormatInt -> (TInt(IInt,[])), false
                   | FormatDouble -> (TFloat(FDouble,[])), false
                   | FormatPointer -> (TPtr((TInt(IChar,[])),[])), true
@@ -712,7 +720,7 @@ let isPrintf reso orig_func args = begin
                       v.vname d_exp format_arg) ; 
             None (* cannot handle non-constant format strings *)
       end
-    with _ ->
+    with Not_found ->
       None (* we only handle declared printf-like functions *)
     end 
   | _ -> None
@@ -734,7 +742,7 @@ let isMemcpy
   try
     match f with
       (Lval(Var(v), NoOffset)) when matchPolyName "memcpy" v.vname -> begin
-        ignore (E.log "Found %s at %t\n" v.vname d_thisloc);
+(*        ignore (E.log "Found %s at %t\n" v.vname d_thisloc); *)
         let dst, src, len = 
           match args with 
             [dst; src; len] -> dst, src, len
@@ -855,28 +863,49 @@ and doInstr (i:instr) : instr =
             (Lval(Var(newvi), NoOffset)) 
         | _ -> orig_func
       in
+      let isprintf = isPrintf reso func args in
       let args = 
-        match isPrintf reso func args with
+        match isprintf with
           Some args' -> args'
         | None -> begin
             match isMemcpy reso func args with 
               Some args' -> args'
             | None -> args
         end
-      in 
-      let func', funct, funcn = doExp func in
+      in
+      (* Do the function as if we were to take its address *)
+      let pfunc, pfunct, pfuncn = 
+        match func with 
+          Lval lv -> doExp (StartOf lv)
+        | _ -> E.s (unimp "Called function is not an lvalue")
+      in
+      (* Now fetch out the real function and its type *)
+      let func', funct = 
+        match pfunc, pfunct with
+          StartOf lv, TPtr (bt, _) -> Lval lv, bt
+        | _ -> E.s (bug "Expected a StartOf here")
+      in
       let (rt, formals, isva) = 
         match unrollType funct with
           TFun(rt, formals, isva, _) -> rt, formals, isva
         | _ -> E.s (bug "Call to a non-function")
       in
+      (* If the function has more actual arguments than formals then mark the 
+       * function node as used without prototype *)
+      if List.length args <> List.length formals &&  not isva then begin
+           pfuncn.N.noPrototype <- true;
+      end;
       (* Now check the arguments *)
       let rec loopArgs formals args = 
         match formals, args with
           [], [] -> []
-        | [], a :: args -> 
+        | [], a :: args -> (* We ran out of formals. This is bad, so we make 
+                            * sure to mark that the argument is used in a 
+                            * function without prototypes *)
             (* Do the arguments because they might contain pointer types *)
-            let a', _, _ = doExp a in
+            let a', _, an = doExp a in
+            if an != N.dummyNode && not isva  then
+              an.N.noPrototype <- true;
             a' :: loopArgs [] args
 
         | fo :: formals, a :: args -> 

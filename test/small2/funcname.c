@@ -1,4 +1,4 @@
-
+extern void exit(int);
 extern int strcmp(const char*, const char*);
 extern int printf(const char*, ...);
 

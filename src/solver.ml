@@ -192,7 +192,9 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       if (set_outside n) then begin
         match n.kind with
           String | ROString -> ()
-        | _ -> ignore (E.warn "Solver: %a annotation on interface (char *)@!%a" d_opointerkind n.kind d_node n)
+        | _ -> ignore (E.warn 
+                         "Solver: %a annotation on interface (char *)@!%a" 
+                         d_opointerkind n.kind d_node n)
       end else begin
         assert(not(set_outside n)) ;
         if logUpdates then logNodeUpdate n String BoolFlag;
@@ -204,7 +206,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     if n.kind = String || n.kind = ROString || n.kind = FSeqN || 
        n.kind = SeqN then begin
        setFlag n pkReachString
-    end 
+    end  
 
     (* Now look for Sequence and Index nodes *)
     else if n.kind = Seq || n.kind = SeqN then begin
@@ -298,6 +300,8 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    *)
   if show_steps then ignore (E.log "Solver: Step 5  (bad casts)\n") ;
   Hashtbl.iter (fun id cur ->
+    if cur.noPrototype then 
+      update cur Wild BoolFlag;
     (* First, what should we do when we think something should be wild? *)
     let make_wild n e =
       if n.kind = ROString then begin (* WILD->ROSTRING is allowed ... *)

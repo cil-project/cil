@@ -22,7 +22,7 @@ MLYS        =
 # sm: trace: utility for debug-time printfs
 MODULES     = pretty trace errormsg stats util clist \
               cil logcalls check ptrnode \
-              solveutil simplesolve secondsolve thirdsolve solver globinit \
+              solveutil solver globinit \
               oneret box markptr \
               rmtmps optim
 EXECUTABLE  = $(OBJDIR)/safec
@@ -340,6 +340,9 @@ endif
 ifeq ($(TABLE), I)
     SAFECC+= --safec=-tableInterface
 endif
+ifdef NOLINES
+    SAFECC+= --safec=-noPrintLn
+endif
 
 ifdef INFERBOX
 BOX=1
@@ -441,7 +444,7 @@ SAFECLIBARG=$(DEF)_DEBUG
 endif
 
 $(SAFECLIB) : lib/safec.c lib/safec.h lib/safeccheck.h lib/splay.c 
-	cl $(DOOPT) /I./lib /Gy /c $(DEF)_MSVC $(SAFECLIBARG) \
+	cl $(DOOPT) /I./lib /c $(DEF)_MSVC $(SAFECLIBARG) \
                                            $(OBJOUT)obj/safec.o lib/safec.c
 	cl $(DOOPT) /I./lib /c $(DEF)_MSVC $(SAFECLIBARG) \
                                            $(OBJOUT)obj/splay.o lib/splay.c
@@ -1010,7 +1013,7 @@ SPECDIR=test/spec95
 COMPRESSDIR=$(SPECDIR)/129.compress
 spec-compress : defaulttarget
 	cd $(COMPRESSDIR)/src; make build
-	echo "14000000 q 2231" >$(COMPRESSDIR)/exe/base/input.data 
+	echo "1400000 q 2231" >$(COMPRESSDIR)/exe/base/input.data 
 	$(COMPRESSDIR)/exe/base/compress95.v8 \
               <$(COMPRESSDIR)/exe/base/input.data \
               >$(COMPRESSDIR)/exe/base/output.txt
@@ -1031,7 +1034,7 @@ compress-noclean: defaulttarget mustbegcc
 compress: defaulttarget mustbegcc
 	cd $(COMPRESSDIR)/src; \
                make CC="$(COMBINESAFECC) --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)" clean build
-	echo "14000000 q 2231" >$(COMPRESSDIR)/exe/base/input.data 
+	echo "1400000 q 2231" >$(COMPRESSDIR)/exe/base/input.data 
 	sh -c "time $(COMPRESSDIR)/exe/base/compress95.v8 < $(COMPRESSDIR)/exe/base/input.data > $(COMPRESSDIR)/src/combine-compress.out"
 
 LIDIR=$(SPECDIR)/130.li
@@ -1156,7 +1159,7 @@ m88k-combined: defaulttarget mustbegcc
 IJPEGDIR=$(SPECDIR)/132.ijpeg
 IJPEGSAFECC=$(SAFECC) --combine --keep=safeccout  \
                   --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) \
-                  --nobox=ijpegbox $(NOPRINTLN)
+                  --nobox=ijpeg_trusted $(NOPRINTLN)
 ifeq ($(ARCHOS), x86_WIN32)
 IJPEGSAFECC += -DWIN32 -DMSDOS
 endif

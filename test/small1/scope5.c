@@ -13,6 +13,8 @@ int foo(int *y) {
 }
 
 int *external(int *x) {
+  // Do something to prevent this on from being inlined. If it is inlined
+  // then the STACKPOINTER check will fail
   return x + 1;
 }
 
@@ -24,3 +26,4 @@ int main(void) {
   x[1] = 7;
   return !(foo(x) == 7);
 }
+

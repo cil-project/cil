@@ -58,7 +58,8 @@ let initGlobals () = theFile := []; theFileTypes := []
 let pushGlobal (g: global) = 
   if not pullTypesForward then theFile := g :: !theFile else
   match g with 
-    GType _ | GCompTag _ | GEnumTag _ -> theFileTypes := g :: !theFileTypes
+    GType _ | GCompTag _ | GEnumTag _ 
+  | GPragma (Attr("pack", _), _) -> theFileTypes := g :: !theFileTypes
   | _ -> theFile := g :: !theFile
     
 let popGlobals () = 

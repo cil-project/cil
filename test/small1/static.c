@@ -1,4 +1,5 @@
 #include <stdio.h>
+extern void exit(int);
 
 int counter() {
     static int counter = 18;

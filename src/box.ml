@@ -22,8 +22,7 @@ let compactBlocks = true
 let lu = locUnknown
 let isSome = function Some _ -> true | _ -> false
 
-let fatpVoidType = ref voidType
-
+let wildpVoidType = ref voidType
 
 (* Match two names, ignoring the polymorphic prefix *)
 let matchPolyName (lookingfor: string) (lookin: string) = 
@@ -92,6 +91,15 @@ let d_fexp () = function
         N.d_opointerkind k d_exp ep d_exp eb d_exp ee
   | FC(_, k, _, _, e) ->  dprintf "FC(%a, %a)" N.d_opointerkind k d_exp e
   
+
+let kindOfFexp (fe: fexp) : N.opointerkind = 
+  match fe with
+    L (_, k, _) -> k
+  | FS (_, k, _) -> k
+  | FM (_, k, _, _, _) -> k
+  | FC (_, k, _, _, _) -> k
+    
+
 let leaveAlone : (string, bool) H.t =
   let h = H.create 17 in
   List.iter (fun s -> H.add h s true)
@@ -595,10 +603,10 @@ let pkQualName (pk: N.opointerkind)
 
 let memcpyWWWFun =   
   let fdec = emptyFunction "memcpy_www" in
-  let argd  = makeLocalVar fdec "dest" !fatpVoidType in
-  let args  = makeLocalVar fdec "src" !fatpVoidType in
+  let argd  = makeLocalVar fdec "dest" !wildpVoidType in
+  let args  = makeLocalVar fdec "src" !wildpVoidType in
   let argl  = makeLocalVar fdec "len" uintType in
-  fdec.svar.vtype <- TFun(!fatpVoidType, [ argd; args; argl ], false, []);
+  fdec.svar.vtype <- TFun(!wildpVoidType, [ argd; args; argl ], false, []);
   (* Do not add this to the declarations because the type of the arguments 
    * does not make sense 
   checkFunctionDecls := 
@@ -641,6 +649,15 @@ let mainWrapper_qw =
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fdec
 
+let mainWrapper_fw =   
+  let fdec = emptyFunction "_mainWrapper_fw" in
+  let argc  = makeLocalVar fdec "argc" intType in
+  let argv  = makeLocalVar fdec "argv" (TPtr(charPtrType, [])) in
+  fdec.svar.vtype <- TFun(intType, [ argc; argv ], false, []);
+  checkFunctionDecls := 
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
+  fdec
+
 
 let checkNullFun =   
   let fdec = emptyFunction "CHECK_NULL" in
@@ -663,31 +680,21 @@ let checkSafeRetFatFun =
     
   
     
-    
-let checkSafeFatLeanCastFun = 
-  let fdec = emptyFunction "CHECK_SAFEFATLEANCAST" in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
-  fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
-  fdec.svar.vstorage <- Static;
-  checkFunctionDecls := 
-     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
-  fdec
-
 let checkFunctionPointer = 
   let fdec = emptyFunction "CHECK_FUNCTIONPOINTER" in
   let argp  = makeLocalVar fdec "p" voidPtrType in
   let argb  = makeLocalVar fdec "b" voidPtrType in
-  fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
+  let argnr  = makeLocalVar fdec "nr" intType in
+  fdec.svar.vtype <- TFun(voidType, [ argp; argb; argnr ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
-  fun whatp whatb whatkind -> 
+  fun whatp whatb whatkind nrargs -> 
     if whatkind = N.Safe then
       call None (Lval(var checkNullFun.svar)) [ castVoidStar whatp ]
     else
       call None (Lval(var fdec.svar)) [ castVoidStar whatp; 
-                                        castVoidStar whatb]
+                                        castVoidStar whatb; integer nrargs ]
 
 (* Compute the ptr corresponding to a base. This is used only to pass an 
  * argument to the intercept functionin the case when the base = 0 *)
@@ -965,6 +972,38 @@ let checkPositiveFun =
   fdec
 
 
+(* All functions of WILD type take only arguments of WILD pointer type. 
+ * Thus turn all other kinds of arguments into WILD pointers *)
+
+(* Keep track of the return values and formal arguments that have been 
+ * changed. A map indexed by a pair consisting of the function id and the 
+ * argument id (or -1 for the return value). *)
+let boxedArguments: (int * int, typ) H.t = H.create 15
+
+let rec fixupFunctionType (funcid: int) (fkind: N.opointerkind) (t: typ) = 
+  if fkind <> N.Wild then t else
+  match unrollType t with
+    TFun (rt, args, va, a) -> 
+      List.iter 
+        (fun a -> a.vtype <- fixupOneArgumentType (funcid, a.vid) a.vtype) 
+        args;
+      TFun(fixupOneArgumentType (funcid, -1) rt, args, va, a)
+
+  | _ -> t
+
+and fixupOneArgumentType (funcid, argid) (t: typ) : typ = 
+  match unrollType t with
+    TComp _ when kindOfType t = N.Wild -> t (* Already WILD pointer *)
+  | (TInt _ | TEnum _ | TFloat _) when bitsSizeOf t <= 32 -> 
+      if funcid >= 0 then 
+        H.add boxedArguments (funcid, argid) t;
+      !wildpVoidType 
+
+  | TVoid _ -> t (* This is a missing return or argument type *)
+
+  | _ -> E.s (unimp "fixupOneArgumentType: %a" d_type t)
+           
+
 (* Keep track of the fixed composite types. Index by full name *)
 let fixedComps : (int, unit) H.t = H.create 113
 
@@ -1009,10 +1048,13 @@ and fixit t =
           (TInt _|TEnum _|TFloat _|TVoid _|TBitfield _) -> t
               
         | TPtr (t', a) -> begin
-            (* Now do the base type *)
-            let fixed' = fixupType t' in
             (* Extract the boxing style attribute *)
             let pkind = kindOfType t in 
+            (* Now do the base type *)
+            let fixed' = fixupType t' in
+            (* Maybe it is a function with a WILD type. We must chage all 
+             * arguments to be WILD pointers *)
+            let fixed' = fixupFunctionType (-1) pkind fixed' in
             let newType = TPtr(fixed', a) in
             let fixed = 
               if pkNrFields pkind = 1 then newType 
@@ -1229,7 +1271,7 @@ let preamble () =
   (** Create some more fat types *)
   ignore (fixupType (TPtr(TInt(IChar, []), [Attr("wild",[])])));
 (*  ignore (fixupType (TPtr(TInt(IChar, [AId("const")]), [AId("wild")]))); *)
-  fatpVoidType := fixupType (TPtr(TVoid([]), [Attr("wild",[])]));
+  wildpVoidType := fixupType (TPtr(TVoid([]), [Attr("wild",[])]));
 (*  ignore (fixupType (TPtr(TVoid([AId("const")]), [AId("wild")]))); *)
   let startFile = !theFile in
   theFile := 
@@ -1748,8 +1790,65 @@ let rec beforeIndex ((btype, pkind, mklval, base, bend, stmts) as input) =
   | _ -> E.s (unimp "beforeIndex on unexpected pointer kind %a"
                 N.d_opointerkind pkind)
 
+
+
+(***** Create function descriptors ******)
+let functionDescriptors : (int, exp) H.t = H.create 13
+(* Memoize the type of a function descriptor *)
+let descriptorTypeInfo : compinfo option ref = ref None
+(* We store the decriptor definitions for the end of the file *)
+let descriptorDefinitions : global list ref = ref []
+let getFunctionDescriptor (vi: varinfo) : exp = 
+  try H.find functionDescriptors vi.vid 
+  with Not_found -> begin
+    let descrInfo = 
+      match !descriptorTypeInfo with
+        Some di -> di
+      | None -> begin
+          let descrInfo = 
+            mkCompInfo true "__functionDescriptor"
+              (fun _ -> 
+                [ ("_len", uintType, []);
+                  ("_pfun", TPtr(TFun(voidType,[],false, []), []), []);
+                  ("_nrargs", uintType, []) ]) 
+              []
+          in
+          (* Register the tag *)
+          theFile := consGlobal (GCompTag (descrInfo, !currentLoc)) !theFile;
+          descriptorTypeInfo := Some descrInfo;
+          descrInfo
+      end
+    in
+    (* Need to know the number of arguments *)
+    let nrformals = 
+      match vi.vtype with
+        TFun (_, formals, _, _) -> List.length formals
+      | _ -> E.s (bug "getFunctionDescriptor: %s not a function type" vi.vname)
+    in
+    let descr = makeGlobalVar (vi.vname ^ "__descriptor") 
+                              (TComp (descrInfo, [])) in
+    (* Register it *)
+    theFile := consGlobal (GDecl (descr, !currentLoc)) !theFile;
+    descriptorDefinitions :=
+      (GVar (descr,
+             Some (CompoundInit (TComp (descrInfo, []),
+                                 [ SingleInit zero;
+                                   SingleInit 
+                                     (doCast 
+                                        (StartOf (Var vi, 
+                                                  NoOffset))
+                                     (TPtr(TFun(voidType,[],false, []), [])));
+                                   SingleInit (integer nrformals) ])),
+             !currentLoc)) :: !descriptorDefinitions;
+    let pfunfld = List.nth descrInfo.cfields 1 in
+    let res = AddrOf (Var descr, Field(pfunfld, NoOffset)) in
+    H.add functionDescriptors vi.vid res;
+    res
+  end
+
 (******* Start of *******)
-let rec pkStartOf (lv: lval)
+let rec pkStartOf 
+              (lv: lval)
               (lvt: typ)
               (lvk: N.opointerkind)  (* The kind of the StartOf pointer *)
               (fb: exp)
@@ -1781,23 +1880,37 @@ let rec pkStartOf (lv: lval)
       | _ -> E.s (unimp "pkStartOf: %a" N.d_opointerkind lvk)
     end
   | TFun _ -> begin
-              (* Taking the address of a function is a special case. Since 
-               * fuctions are not tagged the type of the the pointer is Safe. 
-               * If we are in defaultIsWild then we must make a Wild pointer 
-               * out of it *)
+      (* Taking the address of a function is a special case. Since fuctions 
+       * are not tagged the type of the the pointer is Safe. If we are in 
+       * defaultIsWild then we must make a Wild pointer out of it  *)
       let start = StartOf lv in
+      let thetype = mkPointerTypeKind lvt lvk in
+      match lvk with
+        N.Safe -> mkFexp3 thetype start zero zero, empty
+      | N.Wild -> mkFexp3 thetype start fb zero, empty
+      | _ -> E.s (bug "pkStartOf function: %a" N.d_opointerkind lvk) 
+(*
       match lv with
         Var vi, NoOffset when !N.defaultIsWild -> 
           mkFexp3 (mkPointerTypeKind lvt N.Wild) start start zero, empty
       | _ -> 
           mkFexp3 (mkPointerTypeKind lvt lvk) start fb zero, empty
+*)
   end
         
   | _ -> E.s (unimp "pkStartOf on a non-array and non-function: %a"
                 d_plaintype lvt)
 
 let varStartInput (vi: varinfo) = 
-  vi.vtype, N.Safe, (fun o -> (Var vi, o)), zero, zero, empty
+  (* Look out for wild function pointers *)
+  match vi.vtype with
+    TFun _ when 
+      (match N.nodeOfAttrlist vi.vattr with
+        Some n when n.N.kind = N.Wild -> true | _ -> false) ->
+          let descr = getFunctionDescriptor vi in
+          vi.vtype, N.Wild, (fun o -> (Var vi, o)), descr, zero, empty
+  | _ -> 
+      vi.vtype, N.Safe, (fun o -> (Var vi, o)), zero, zero, empty
   
 
 
@@ -2332,15 +2445,15 @@ let checkWrite e = checkMem (ToWrite e)
 let rec checkReturnValue 
     (typ: typ) 
     (e: exp)
-    (acc: stmt clist) : 
+    (before: stmt clist) : 
 
     (* Return the accumulated statements *)
     stmt clist = 
   match unrollType typ with
-    TInt _ | TBitfield _ | TEnum _ | TFloat _ | TVoid _ -> acc
+    TInt _ | TBitfield _ | TEnum _ | TFloat _ | TVoid _ -> before
   | TPtr (t, _) -> 
       (* This is a lean pointer *) 
-      CConsL (checkNotBelowStackPointer e, acc)
+      CConsR (before, checkNotBelowStackPointer e)
 
   | TComp (comp, _) when isFatComp comp -> 
       let ptype, ptr, fb, fe = readFieldsOfFat e typ in
@@ -2351,7 +2464,7 @@ let rec checkReturnValue
         | N.FSeq|N.FSeqN -> fe
         | _ -> E.s (unimp "checkReturn: unexpected kind of fat type")
       in
-      CConsL (checkNotBelowStackPointerFat ptr nullIfInt,  acc)
+      CConsR (before, checkNotBelowStackPointerFat ptr nullIfInt)
 
     (* A regular struct *)                                          
   | TComp (comp, _) when comp.cstruct ->
@@ -2361,10 +2474,10 @@ let rec checkReturnValue
       | _ -> E.s (unimp "checkReturnValue: return comp not an lval")
       in
       List.fold_left 
-        (fun acc f -> 
+        (fun before f -> 
           checkReturnValue f.ftype 
-            (Lval (addOffsetLval (Field(f, NoOffset)) lv)) acc)
-        acc
+            (Lval (addOffsetLval (Field(f, NoOffset)) lv)) before)
+        before
         comp.cfields
         
   | _ -> E.s (unimp "checkReturnValue: unexpected return type\n")
@@ -3046,7 +3159,38 @@ and boxinstr (ins: instr) : stmt clist =
 
     | Call(vio, f, args, l) ->
         currentLoc := l;
-        let (ft, dof, f') = boxfunctionexp f in
+        let (ft, dof, f', fkind) = 
+          match f with
+            Lval(Var vi, NoOffset) -> begin
+              (* Sometimes it is possible that we have not seen this varinfo. 
+               * Maybe it was introduced by the type inferencer to mark an 
+               * independent copy of the function  *)
+              if not (H.mem leaveAlone vi.vname) &&
+                not (isAllocFunction vi.vname)
+              then begin
+                vi.vtype <- fixupType vi.vtype;
+                fixupGlobName vi
+              end;
+              let (ft, dof, f') = boxexp f in
+              let fkind = 
+                match N.nodeOfAttrlist vi.vattr with
+                  None -> E.s (bug "Function %s without node" vi.vname)
+                | Some n -> n.N.kind
+              in
+              (ft, dof, f', fkind)
+            end
+          | Lval(Mem base, NoOffset) -> 
+              let rest, lvkind, lv', lvbase, lvend, dolv = 
+                boxlval (Mem base, NoOffset) in
+              (rest, CConsR (dolv, 
+                             checkFunctionPointer 
+                               (AddrOf(lv')) 
+                               lvbase lvkind (List.length args)), 
+               Lval(lv'), 
+               lvkind)
+                
+          | _ -> E.s (unimp "Unexpected function expression")
+        in
         let (ftret, ftargs, isva) =
           match ft with 
             TFun(fret, fargs, isva, _) -> (fret, fargs, isva) 
@@ -3092,13 +3236,24 @@ and boxinstr (ins: instr) : stmt clist =
                   let (doresta, resta') = doArgs resta restt in
                 (append doa'' doresta,  a2 :: resta')
               | a :: resta, [] (* when isva *) -> 
+                  (* This is a case when we call with more args than the 
+                   * prototype has. We better be calling a WILD function *)
+                  if fkind <> N.Wild then 
+                    E.s (bug "Calling non-wild %a with too many args"
+                           d_exp f);
                   let (doa, fa') = boxexpf a in
-                  let (_, doa'', a2) = fexp2exp fa' doa in
+                  let (doa', fa'') = 
+                    (* Do not cast if already a WILD thing *)
+                    if kindOfFexp fa' = N.Wild then (doa, fa') 
+                    else castTo fa' !wildpVoidType doa 
+                  in
+                  let (_, doa'', a2) = fexp2exp fa'' doa' in
                   let (doresta, resta') = doArgs resta [] in
                   (append doa'' doresta, a2 :: resta')
               | _ -> E.s (unimp "too few arguments in call to %a" d_exp f)
             in
-            doArgs args ftargs  
+            doArgs args ftargs
+            
         in
         let finishcall = 
           match vio with 
@@ -3296,6 +3451,7 @@ and boxlval (b, off) : (typ * N.opointerkind * lval * exp * exp * stmt clist) =
 
         | _ -> input
       end 
+
     | _ -> input
   in
   (* Now do the offsets *)
@@ -3461,7 +3617,7 @@ and boxexpf (e: exp) : stmt clist * fexp =
         | _ -> ());
         let res, dostartof = pkStartOf lv' lvt lvkind baseaddr bend in
         (*        ignore (E.log "result of StartOf: %a@!" d_fexp res); *)
-        (dolv, res)
+        (append dolv dostartof, res)
     end
     | Question (e1, e2, e3) ->       
         let (_, doe1, e1') = boxexp (CastE(intType, e1)) in
@@ -3539,29 +3695,6 @@ and boxexpSplit (e: exp) =
       let (et, caste, e'') = fexp2exp fe' doe in
       let (tptr, ptr, base, bend) = readFieldsOfFat e'' et in
       (tptr, append doe caste, ptr, base, bend)
-
-
-and boxfunctionexp (f : exp) = 
-  match f with
-    Lval(Var vi, NoOffset) -> begin
-      (* Sometimes it is possible that we have not seen this varinfo. Maybe 
-       * it was introduced by the type inferencer to mark an independent copy 
-       * of the function *)
-      if not (H.mem leaveAlone vi.vname) &&
-         not (isAllocFunction vi.vname)
-      then begin
-        vi.vtype <- fixupType vi.vtype;
-        fixupGlobName vi
-      end;
-      boxexp f
-   end
-  | Lval(Mem base, NoOffset) -> 
-      let rest, lvkind, lv', lvbase, lvend, dolv = 
-        boxlval (Mem base, NoOffset) in
-      (rest, CConsR (dolv, checkFunctionPointer (AddrOf(lv')) lvbase lvkind), 
-       Lval(lv'))
-      
-  | _ -> E.s (unimp "Unexpected function expression")
 
 
 
@@ -3661,12 +3794,25 @@ let boxFile file =
             hasRegisteredAreas := false;
             (* Fixup the return type as well, except if it is a vararg *)
             f.svar.vtype <- fixupType f.svar.vtype;
+            (* Maybe we need to box some locals *)
+            (match N.nodeOfAttrlist f.svar.vattr with
+            | Some n when n.N.kind = N.Wild ->
+                f.svar.vtype <- 
+                   fixupFunctionType f.svar.vid N.Wild f.svar.vtype
+            | _ -> ());
             (* If the type has changed and this is a global function then we 
              * also change its name  *)
             fixupGlobName f.svar;
             (* Check that we do not take the address of a formal. If we 
              * actually do then we must make that formal a true local and 
              * create another formal  *)
+
+(*
+            ignore (E.log "The boxedFunctions:\n");
+            H.iter (fun (fid, aid) t -> 
+              ignore (E.log " f%d.%d -> %a\n" fid aid d_type t)) 
+              boxedArguments;
+*)
             let newformals, (newbody : stmt clist) =
               let rec loopFormals = function
                   [] -> [], fromList f.sbody
@@ -3683,7 +3829,21 @@ let boxFile file =
                     (* Now replace form with the temporary in the formals *)
                       tmp :: r1, CConsL(mkSet (var form) (Lval(var tmp)), r2)
                     end else
-                      form :: r1, r2
+                      try
+                        let origt = 
+                          H.find boxedArguments (f.svar.vid, form.vid) in
+                        (* Make a replacement in the formals *)
+                        let tmp = makeTempVar f form.vtype in
+                        (* Restore the type of the formal *)
+                        form.vtype <- origt;
+                        (* Add it to the locals *)
+                        f.slocals <-
+                           form ::
+                           (List.filter (fun x -> x.vid <> tmp.vid) f.slocals);
+                        let ptmp = readPtrField (Lval (var tmp)) form.vtype in
+                        tmp :: r1, CConsL(mkSet (var form) ptmp, r2)
+                      with Not_found ->
+                        form :: r1, r2
               in
               loopFormals f.sformals
             in
@@ -3755,9 +3915,14 @@ let boxFile file =
             (dropAttribute newa (Attr("__format__", [])))
             ;
       vi.vtype <- fixupType newt;
+      (* Now see if we must change the type of the function *)
+      (match N.nodeOfAttrlist vi.vattr with
+      | Some n when n.N.kind = N.Wild ->
+          vi.vtype <- fixupFunctionType vi.vid N.Wild vi.vtype
+      | _ -> ());
       if mustBeTagged vi then begin
         vi.vtype <- tagType vi.vtype
-      end
+      end;
     end;
     (* If the type has changed and this is a global variable then we also 
      * change its name  *)
@@ -3845,6 +4010,7 @@ let boxFile file =
       | "main_w" -> mainWrapper_w
       | "main_fs" -> mainWrapper_fs
       | "main_qw" -> mainWrapper_qw
+      | "main_fw" -> mainWrapper_fw
       | _ -> E.s (E.unimp "Din't expect to mangle the name of main to %s"
                     !mangledMainName)
     in
@@ -3865,8 +4031,10 @@ let boxFile file =
        mkStmt (Return (Some (Lval (var exitcode)), lu)) 
        ::
        [];
-    theFile := GFun (main, lu) :: !theFile
+    theFile := consGlobal (GFun (main, lu)) !theFile
   end;
+  (* Now add the function descriptor definitions *)
+  theFile := !descriptorDefinitions @ !theFile;
   let res = List.rev (!theFile) in
   (* Clean up global hashes to avoid retaining garbage *)
   H.clear hostsOfBitfields;
@@ -3875,6 +4043,7 @@ let boxFile file =
   H.clear fixedComps;
   H.clear taggedTypes;
   H.clear sizedArrayTypes;
+  H.clear boxedArguments;
   extraGlobInit := empty;
   theFile := [];
   let res = {file with globals = res; globinit = newglobinit} in

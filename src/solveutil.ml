@@ -86,9 +86,17 @@ let rec type_congruent (t1 : typ) (q1 : opointerkind)
   | TFloat _, TFloat _ -> true
   (* fails to unify bitfields *)
   | TEnum(_),TEnum(_) -> true
-  | TFun(_),TFun(_) -> true
-  | TPtr(_),TPtr(_) -> true
+  | TFun(rt1, args1,va1,_),TFun(rt2,args2,va2,_) -> 
+      not va1 && not va2 && List.length args1 = List.length args2 &&
+      type_congruent rt1 q1 rt2 q2 &&
+      (List.for_all2 (fun a1 a2 -> type_congruent a1.vtype q1 a2.vtype q2)
+         args1 args2)
 
+  | TPtr(_),TPtr(_) -> true
+(*
+  | TVoid _, _ -> true
+  | _, TVoid _ -> true
+*)
   | _ -> false
 end
 
@@ -103,7 +111,7 @@ end
 (* do we have t1,q1 <= t2,q2 (as in infer.tex)? *)
 (* t1 = from, t2 = to *)
 let rec subtype (t1 : typ) (q1 : opointerkind) 
-            (t2 : typ) (q2 : opointerkind) =
+                (t2 : typ) (q2 : opointerkind) =
   let t1 = unrollType t1 in
   let t2 = unrollType t2 in 
   if t1 == t2 || (type_congruent t1 q1 t2 q2) then
@@ -162,9 +170,21 @@ let rec is_p n other_n = match n.where with
 (* This "solver" turns almost all nodes WILD *)
 let wild_solve (node_ht : (int,node) Hashtbl.t) = begin
   Hashtbl.iter (fun id n -> 
-    if n.kind <> ROString || n.why_kind <> PrintfArg then begin
-      n.kind <- Wild ; 
-      n.why_kind <- Default 
+    if (n.kind <> ROString || n.why_kind <> PrintfArg) then begin
+      (* Do not make WILD those functions that are not cast and are not used 
+       * without prototype *)
+      if (match n.btype with TFun _ -> true | _ -> false) &&
+         (* Only functions, not functions embedded in pointers *)
+         (match n.where with PGlob _, 0 -> true 
+                          | PStatic _, 0 -> true 
+                          | _ -> false) &&
+         (not n.noPrototype && n.succ = [] && n.pred = []) then begin
+           n.kind <- Safe;
+           n.why_kind <- Default
+         end else begin
+           n.kind <- Wild ; 
+           n.why_kind <- Default 
+         end
     end
   ) node_ht 
 end
