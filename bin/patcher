@@ -259,15 +259,16 @@ sub patchOneFile {
     my $preproccmd = "";
     if($option{mode} eq "GNUCC") {
 	$preproccmd = "$::cc -E $ppargs $preprocfile.c >$preprocfile.i";
-	if ($^O eq 'MSWin32') {   # Windows has no /dev/null
-	} else {                  # ignore stderr (e.g. #error directives)
+	if ($^O ne 'MSWin32') {   # Windows has no /dev/null
+	                          # ignore stderr (e.g. #error directives)
 	    $preproccmd .= " 2>/dev/null";
 	}
     } elsif($option{mode} eq "MSVC") {
         $preproccmd = "cl /nologo /P $ppargs $preprocfile.c";
     } else { die "Invalid --mode"; }
 
-    if(system($preproccmd)) {
+    if(system($preproccmd) && $option{mode} eq "MSVC" ) {
+        # For some reason the gcc returns spurious error codes
         die "Error running preprocessor: $preproccmd"
     }
     
