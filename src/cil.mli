@@ -1856,6 +1856,10 @@ val d_stmt: unit -> stmt -> Pretty.doc
 val d_global: unit -> global -> Pretty.doc
 
 
+(** Pretty-print a short description of the global. This is useful for error 
+ * messages *)
+val d_shortglobal: unit -> global -> Pretty.doc
+
 (** Pretty-print a global. Here you give the channel where the printout
  * should be sent. *)
 val dumpGlobal: cilPrinter -> out_channel -> global -> unit

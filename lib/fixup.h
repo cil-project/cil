@@ -153,7 +153,14 @@ extern long double __builtin_fabsl(long double);
  * Use only when you know what you are doing. */
 #pragma boxpoly("trusted_cast")
 void * trusted_cast(void * p);
+
+/* Like a trusted cast but the input is an integer along with a size */
+#pragma boxpoly("trusted_cast_int")
+void * trusted_cast_int(unsigned long p, unsigned int size);
+
+
 #else
-#define trusted_cast(p)       (p)
+#define trusted_cast(p)             (p)
+#define trusted_cast_int(p, size)   ((void*)p)
 #endif
 

@@ -2820,6 +2820,19 @@ let d_attrparam () e = defaultCilPrinter#pAttrParam () e
 let d_stmt () s = printStmt defaultCilPrinter () s
 let d_instr () i = printInstr defaultCilPrinter () i
 
+let d_shortglobal () = function
+    GPragma (Attr(an, _), _) -> dprintf "#pragma %s" an
+  | GType (ti, _) -> dprintf "typedef %s" ti.tname
+  | GVarDecl (vi, _) -> dprintf "declaration of %s" vi.vname
+  | GVar (vi, _, _) -> dprintf "definition of %s" vi.vname
+  | GCompTag(ci,_) -> dprintf "definition of %s" (compFullName ci)
+  | GCompTagDecl(ci,_) -> dprintf "declaration of %s" (compFullName ci)
+  | GEnumTag(ei,_) -> dprintf "definition of enum %s" ei.ename
+  | GEnumTagDecl(ei,_) -> dprintf "declaration of enum %s" ei.ename
+  | GFun(fd, _) -> dprintf "definition of %s" fd.svar.vname
+  | GText _ -> text "GText"
+  | GAsm _ -> text "GAsm"
+
 (* Now define a cilPlainPrinter *)
 class plainCilPrinterClass =
   (* We keep track of the composite types that we have done to avoid 
