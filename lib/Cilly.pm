@@ -35,7 +35,6 @@
 # arguments of gcc and Microsoft Visual C (along with some arguments for the
 # script itself) and gives hooks into preprocessing, compilation and linking.
 
-$::docxx = 0; # Whether to do C++. Default is not
 
 $::cilbin = 'bin';
 
@@ -81,15 +80,12 @@ sub new {
         exit 0;
     }
     # Look for the --mode argument first. If not found it is GCC
-    # Also look for the --cxx argument (C++)
     my $mode = 'GNUCC';
     {
         my @args1 = ();
         foreach my $arg (@args) {
             if($arg =~ m|--mode=(.+)$|) {
                 $mode = $1;
-            } elsif($arg eq '--cxx') {
-                $::docxx = 1;
             } else {
                 push @args1, $arg;
             }
@@ -1448,10 +1444,10 @@ sub new {
       MODENAME => 'GNUCC',  # do not change this since it is used in code
       # sm: added -O since it's needed for inlines to be merged instead of causing link errors
       # sm: removed -O to ease debugging; will address "inline extern" elsewhere
-      CC => ($::docxx ? $::cxx : $::cc) . " -D_GNUCC -c",
-      LD => ($::docxx ? $::cxx : $::cc) . " -D_GNUCC ",
+      CC => $::cc . " -D_GNUCC -c",
+      LD => $::cc . " -D_GNUCC ",
       LDLIB => "ld -r -o ",
-      CPP => ($::docxx ? $::cxx : $::cc) . " -D_GNUCC -E ",
+      CPP =>  $::cc . " -D_GNUCC -E ",
       DEFARG  => "-D",
       INCARG => "-I",
       DEBUGARG => "-g -ggdb",
