@@ -282,6 +282,10 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
           (* All the fresh variables *)
     val mutable freshVars: string list = []
 
+          (* The uninitialized variables are those that are live on input but 
+           * not globals or formals. *)
+    val mutable uninitVars: string list = []
+
     method private initVarRenameState (b: S.cfgBlock) =
       IH.clear varRenameState;
       
@@ -296,18 +300,23 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
         (fun (rid, defblk) -> 
           let v = cfgi.S.regToVarinfo.(rid) in
           if defblk = b.S.bstmt.sid then
-            (* For the start block, use ID=0 for all variables, except the 
-             * locals that are not function formals. Those are fresh 
-             * variables. *)
-            let isUninitializedLocal = 
-              not v.vglob &&
-              (not (List.exists (fun v' -> v'.vid = v.vid) 
-                   currentFundec.sformals)) in
-            if defblk = cfgi.S.start && not isUninitializedLocal then 
-              IH.add varRenameState v.vid 0
-            else begin
+            (* Is a phi variable or a live variable at start *)
+            if defblk = cfgi.S.start then begin
+              (* For the start block, use ID=0 for all variables, except the 
+               * locals that are not function formals. Those are fresh 
+               * variables. *)
+              let isUninitializedLocal = 
+                not v.vglob &&
+                (not (List.exists (fun v' -> v'.vid = v.vid) 
+                        currentFundec.sformals)) in
+              IH.add varRenameState v.vid 0;
+              let vn = self#variableUse varRenameState v in
+              if isUninitializedLocal then 
+                uninitVars <- vn :: uninitVars;
+            end else begin
               IH.add varRenameState v.vid (freshVarId ());
-              freshVars <- (self#variableUse varRenameState v) :: freshVars
+              let vn = self#variableUse varRenameState v in
+              freshVars <- vn :: freshVars
             end
           else begin 
             let fid = 
@@ -530,6 +539,7 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
         GFun (fdec, l) -> 
           currentFundec <- fdec;
           freshVars <- [];
+          uninitVars <- [];
 
           (* Make sure we use one return at most *)
           Oneret.oneret fdec;
@@ -616,7 +626,7 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
         (* The header *)
         pd (self#pLineDirective ~forcefile:true l); 
 
-        ignore (p "<function %s\n  <formals %a>\n  <globalsreadtransitive %a>\n  <globalswrittentransitive %a>\n  <locals %a>\n  <globalsread %a>\n  <globalswritten %a>\n  <calls %a>\n  <calledby %a>\n  %a"
+        ignore (p "<function %s\n  <formals %a>\n  <globalsreadtransitive %a>\n  <globalswrittentransitive %a>\n  <locals %a>\n  <uninitlocals %a>\n  <globalsread %a>\n  <globalswritten %a>\n  <calls %a>\n  <calledby %a>\n  %a"
           fdec.svar.vname
           (docList (fun v -> text v.vname)) fdec.sformals
           (d_list "," (fun () v -> text v.vname)) 
@@ -624,6 +634,7 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
           (d_list "," (fun () v -> text v.vname)) 
                   (getGlobalsWrittenTransitive fdec.svar)
           (docList text) freshVars
+          (docList text) uninitVars
           (d_list "," (fun () (_, v) -> text v.vname)) (IH.tolist glob_read)
           (d_list "," (fun () (_, v) -> text v.vname)) (IH.tolist glob_written)
           (U.docHash (fun k _ -> text k)) cg_node.CG.cnCallees
