@@ -206,8 +206,6 @@ $TEST->add3Tests("test/globals");
 $TEST->add3Tests("testrun/float");
 $TEST->add3Tests("testrun/ptr1");
 $TEST->add3Tests("test/huff1");
-  $TEST->addBadComment("test/huff1-box", "pragma box misuse");
-  $TEST->addBadComment("test/huff1-inferbox", "pragma box misuse");
 $TEST->add3Tests("testrun/init");
 $TEST->add3Tests("testrun/init1");
 $TEST->addTests("testrun/init2", "_GNUCC=1", ['cil']);
@@ -323,7 +321,7 @@ $TEST->addTests("combine3", "", ['cil']);
 $TEST->addTests("combine5", "", ['cil']);
 $TEST->addTests("combine6", "", ['cil']);
 $TEST->addTests("combine8", "", ['cil']);
-$TEST->addTestsFail("combine9", "", "g does not match", ['cil']);
+$TEST->addTestsFail("combine9", "", "Incompatible declaration for g", ['cil']);
 $TEST->addTests("combine10", "", ['cil']);
 $TEST->addTests("combine11", "", ['cil']);
 $TEST->addTests("combine12", "", ['cil']);
@@ -653,7 +651,9 @@ smAddTest("mergeinline");
 smFailTest("z2 is removed improperly",
            "testexe/structs_comb $box");
 smFailTest("improper name capture between parameter and later local variable",
-           "scott/name-capture-bitand $box");
+           "scott-nolink/name-capture-bitand $box");
+smFailTest("improper name capture between parameter and later local variable",
+           "scott-nolink/wildfun2 $box");
 
 # tests of things implemented for EDG compatibility
 smAddTest("mergestruct");
@@ -682,7 +682,7 @@ if ($TEST->{option}->{safecdebug}) {
   smAddTest("scott/reply $box");
 }
 else {
-  smFailTest("problem with __extinline", "scott/reply $box");
+  smFailTest("problem with __extinline and varargs", "scott/reply $box");
 }
 
 # works on my machine; works on manju now too apparently

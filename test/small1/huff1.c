@@ -7,11 +7,8 @@ unsigned short read2Target(unsigned char * ptr )
     }
 }
 
-#pragma box(off)
 int  readStructTarget(unsigned char * filePtr ,
                       unsigned char * fileEnd , ...) {
     int x = read2Target(fileEnd);
     return x;
 }
-#pragma box(on)
-
