@@ -1947,7 +1947,7 @@ let rec castTo (fe: fexp) (newt: typ)
               TPtr(TVoid _, _) -> p'
             | _ -> BinOp(PlusPI, p', one, newPointerType)
           in
-          (doe, FM (newt, newkind, p', theend, zero))
+          (doe, FM (newt, newkind, p', p', theend))
 
         (* weimer: SAFE -> FSEQN only when the SAFE is 0 *)
       | N.Safe, N.FSeqN when is_zero fe  ->
@@ -2029,9 +2029,9 @@ let rec castTo (fe: fexp) (newt: typ)
 
        (* FSEQ -> SEQ. *)
       | (N.FSeq|N.FSeqN), N.Seq ->
-          doe, FM(newt, newkind, castP p, b, b)
+          doe, FM(newt, newkind, castP p, b, bend)
       | N.FSeqN, (N.Seq|N.SeqN) ->
-          doe, FM(newt, newkind, castP p, b, b)
+          doe, FM(newt, newkind, castP p, b, bend)
       | N.FSeqN, N.FSeq -> 
           (doe, FM (newt, newkind, castP p, b, bend))
 
@@ -2073,7 +2073,7 @@ let rec castTo (fe: fexp) (newt: typ)
                  d_fexp fe
                  d_plaintype oldt)       ;
           let p', b', bend', acc' = stringToFseq p b bend empty in
-          finishDoe acc', FM(newt, newkind, castP p', bend', zero) 
+          finishDoe acc', FM(newt, newkind, castP p', b', bend') 
 
 (*
       | N.Safe, N.SeqN -> 

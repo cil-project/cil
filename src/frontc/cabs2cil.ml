@@ -107,7 +107,10 @@ type envdata =
                                          * the name of the actual type might
                                          * be different from foo due to alpha
                                          * conversion *)
-
+  | EnvLabel of string                  (* The name refers to a label. This 
+                                         * is useful for GCC's locally 
+                                         * declared labels. The lookup name 
+                                         * for this category is "label foo" *)
 
 let env : (string, envdata * location) H.t = H.create 307
 
@@ -162,7 +165,15 @@ let kindPlusName (kind: string)
                  (origname: string) : string =
   if kind = "" then origname else
   kind ^ " " ^ origname
-                   
+                
+
+let stripKind (kind: string) (kindplusname: string) : string = 
+  let l = 1 + String.length kind in
+  if l > 1 then 
+    String.sub kindplusname l (String.length kindplusname - l)
+  else
+    kindplusname
+   
 let newAlphaName (globalscope: bool) (* The name should have global scope *)
                  (kind: string) 
                  (origname: string) : string = 
@@ -184,18 +195,10 @@ let newAlphaName (globalscope: bool) (* The name should have global scope *)
   in
   if not globalscope then 
     findEnclosingFun !scopes;
-
   let newname = Cil.newAlphaName alphaTable lookupname in
+  stripKind kind newname
 
-  let l = String.length lookupname in
-  let n' = 
-    let l = 1 + String.length kind in
-    if l > 1 then 
-      String.sub newname l (String.length newname - l)
-    else
-      newname
-  in
-  n'
+
   
 let structId = ref 0
 let anonStructName n = 
@@ -282,6 +285,7 @@ let docEnv () =
         dprintf "Var(%s,global=%b) (at %a)" vi.vname vi.vglob d_loc l
     | EnvEnum (tag, typ), l -> dprintf "Enum (at %a)" d_loc l
     | EnvTyp t, l -> text "typ"
+    | EnvLabel l, _ -> text ("label " ^ l)
   in
   H.iter (fun k d -> acc := (k, d) :: !acc) env;
   docList line (fun (k, d) -> dprintf "  %s -> %a" k doone d) () !acc
@@ -647,15 +651,16 @@ let continues : loopstate list ref = ref []
 let startLoop iswhile = 
   continues := (if iswhile then While else NotWhile (ref "")) :: !continues
 
-let labelId = ref 0
+(* Sometimes we need to create new label names *)
+let newLabelName (base: string) = newAlphaName false "label" base
+
 let continueOrLabelChunk (l: location) : chunk = 
   match !continues with
     [] -> E.s (error "continue not in a loop")
   | While :: _ -> continueChunk l
   | NotWhile lr :: _ -> 
       if !lr = "" then begin
-        incr labelId;
-        lr := "Cont" ^ (string_of_int !labelId)
+        lr := newLabelName "__Cont"
       end;
       gotoChunk !lr l
 
@@ -671,6 +676,23 @@ let exitLoop () =
   | _ :: rest -> continues := rest
       
 
+(* In GCC we can have locally declared labels. *)
+let genNewLocalLabel (l: string) = 
+  (* Call the newLabelName to register the label name in the alpha conversion 
+   * table. *)
+  let l' = newLabelName l in
+  (* Add it to the environment *)
+  addLocalToEnv (kindPlusName "label" l) (EnvLabel l');
+  l'
+
+let lookupLabel (l: string) = 
+  try 
+    match H.find env (kindPlusName "label" l) with
+      EnvLabel l', _ -> l'
+    | _ -> raise Not_found
+  with Not_found -> 
+    l
+  
 (**** EXP actions ***)
 type expAction = 
     ADrop                               (* Drop the result. Only the 
@@ -2069,12 +2091,16 @@ and doExp (isconst: bool)    (* In a constant *)
               finishExp (doCondition e1 se2 se3) (Lval(lv)) tresult
     end
 
-    | A.GNU_BODY b -> begin
-        (* Find the last A.COMPUTATION *)
+    | A.GNU_BODY (loclabs, b) -> begin
+        (* Find the last A.COMPUTATION and remember it. This one is invoked 
+         * on the reversed list of statements. *)
         let rec findLastComputation = function
             A.BSTM s :: _  -> 
               let rec findLast = function
                   A.SEQUENCE (_, s, loc) -> findLast s
+                | CASE (_, s, _) -> findLast s
+                | CASERANGE (_, _, s, _) -> findLast s
+                | LABEL (_, s, _) -> findLast s
                 | (A.COMPUTATION _) as s -> s
                 | _ -> raise Not_found
               in
@@ -2091,7 +2117,15 @@ and doExp (isconst: bool)    (* In a constant *)
         (* Prepare some data to be filled by doExp *)
         let data : (exp * typ) option ref = ref None in
         gnu_body_result := (lastComp, data);
+
+        (* Now setup the locally declared labels *)
+        (* setup a scope *)
+        enterScope ();
+        (* Rename the labels and add them to the environment *)
+        List.iter (fun l -> ignore (genNewLocalLabel l)) loclabs;
         let se = doBody b in
+        exitScope (); (* Close the label scope *)
+
         gnu_body_result := old_gnu;
         match !data with
           None when isvoidbody -> finishExp se zero voidType
@@ -2198,8 +2232,7 @@ and doCondition (e: A.expression)
         if canDuplicate sf then
           (sf, sf)
         else begin
-          incr labelId;
-          let lab = "L" ^ (string_of_int !labelId) in
+          let lab = newLabelName "_L" in
           (gotoChunk lab lu, consLabel lab sf !currentLoc)
         end
       in
@@ -2213,9 +2246,7 @@ and doCondition (e: A.expression)
         if canDuplicate st then
           (st, st)
         else begin
-
-          incr labelId;
-          let lab = "L" ^ (string_of_int !labelId) in
+          let lab = newLabelName "_L" in
           (gotoChunk lab lu, consLabel lab st !currentLoc)
         end
       in
@@ -2782,11 +2813,21 @@ and doStatement (s : A.statement) : chunk =
             se1 @@ loopChunk ((doCondition e2 skipChunk (breakChunk loc'))
                               @@ s' @@ s'')
     end
-    | A.BREAK loc -> breakChunk (convLoc loc)
+    | A.BREAK loc -> 
+        let loc' = convLoc loc in
+        currentLoc := loc';
+        breakChunk loc'
 
-    | A.CONTINUE loc -> continueOrLabelChunk (convLoc loc)
+    | A.CONTINUE loc -> 
+        let loc' = convLoc loc in
+        currentLoc := loc';
+        continueOrLabelChunk loc'
 
-    | A.RETURN (A.NOTHING, loc) -> returnChunk None (convLoc loc)
+    | A.RETURN (A.NOTHING, loc) -> 
+        let loc' = convLoc loc in
+        currentLoc := loc';
+        returnChunk None loc'
+
     | A.RETURN (e, loc) -> 
         let loc' = convLoc loc in
         currentLoc := loc';
@@ -2831,12 +2872,22 @@ and doStatement (s : A.statement) : chunk =
         caseRangeChunk (mkAll il) loc' (doStatement s)
         
 
-    | A.DEFAULT (s, loc) -> defaultChunk (convLoc loc) (doStatement s)
+    | A.DEFAULT (s, loc) -> 
+        let loc' = convLoc loc in
+        currentLoc := loc';
+        defaultChunk loc' (doStatement s)
                      
     | A.LABEL (l, s, loc) -> 
-        consLabel l (doStatement s) (convLoc loc)
+        let loc' = convLoc loc in
+        currentLoc := loc';
+        (* Lookup the label because it might have been locally defined *)
+        consLabel (lookupLabel l) (doStatement s) loc'
                      
-    | A.GOTO (l, loc) -> gotoChunk l (convLoc loc)
+    | A.GOTO (l, loc) -> 
+        let loc' = convLoc loc in
+        currentLoc := loc';
+        (* Maybe we need to rename this label *)
+        gotoChunk (lookupLabel l) loc'
           
     | A.ASM (tmpls, isvol, outs, ins, clobs, loc) -> 
         (* Make sure all the outs are variables *)
@@ -2925,7 +2976,7 @@ let convFile fname dl =
         E.withContext
           (fun _ -> dprintf "2cil: %s" n)
           (fun _ ->
-            try                    
+            try
              (* Reset the local identifier so that formals are created with 
               * the proper IDs  *)
               resetLocals ();

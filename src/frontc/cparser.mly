@@ -100,6 +100,12 @@ let doOldParDecl (names: string list)
   in
   List.map findOneName names
 
+
+let bodyOfBlock ((labels: string list), (body: body)) : body = 
+  if labels <> [] then
+    parse_error "Local labels declared outside of a statement expression";
+  body
+
 %}
 
 %token <string> IDENT
@@ -136,7 +142,7 @@ let doOldParDecl (names: string list)
 %token WHILE DO FOR
 %token IF ELSE
 
-%token ATTRIBUTE INLINE ASM TYPEOF FUNCTION__ PRETTY_FUNCTION__
+%token ATTRIBUTE INLINE ASM TYPEOF FUNCTION__ PRETTY_FUNCTION__ LABEL__
 /* weimer: gcc "__extension__" keyword */
 %token EXTENSION
 %token DECLSPEC
@@ -202,7 +208,9 @@ let doOldParDecl (names: string list)
 %type <Cabs.definition> declaration function_def
 %type <cabsloc * spec_elem list * name> function_def_start
 %type <Cabs.spec_elem list * Cabs.decl_type> type_name
-%type <Cabs.body> block block_item_list
+%type <Cabs.body> block_item_list
+%type <string list * Cabs.body> block
+%type <string list> local_labels local_label_names
 %type <string list> old_parameter_list
 
 %type <Cabs.init_name> init_declarator
@@ -291,7 +299,7 @@ expression:
 |		expression DOT NAMED_TYPE
 		        {MEMBEROF ($1, $3)}
 |		LPAREN block RPAREN
-		        {GNU_BODY $2}
+		        { let labels, body = $2 in GNU_BODY (labels, body) }
 |		LPAREN comma_expression RPAREN
 		        {(smooth_expression $2)}
 |		LPAREN type_name RPAREN expression %prec CAST
@@ -422,7 +430,8 @@ comma_expression:
 
 /*** statements ***/
 block: /* ISO 6.8.2 */
-    block_begin block_item_list RBRACE   {Clexer.pop_context(); $2}
+    block_begin local_labels block_item_list RBRACE   
+                                         {Clexer.pop_context(); ($2, $3) }
 ;
 block_begin:
     LBRACE      		         {Clexer.push_context ()}
@@ -434,7 +443,14 @@ block_item_list:
 |   statement block_item_list            {BSTM $1 :: $2 }
 ;
 
-
+local_labels: 
+   /* empty */                           { [] }
+|  LABEL__ local_label_names SEMICOLON   { $2 }
+;
+local_label_names: 
+   IDENT                                 { [ $1 ] }
+|  IDENT COMMA local_label_names         { $1 :: $3 }
+;
 
 
 
@@ -442,7 +458,7 @@ statement:
     location SEMICOLON		{NOP $1 }
 |   location comma_expression SEMICOLON
 	        	{COMPUTATION (smooth_expression $2, $1)}
-|   location block               {BLOCK ($2, $1)}
+|   location block               {BLOCK (bodyOfBlock $2, $1)}
 |   location IF LPAREN comma_expression RPAREN statement %prec IF
                 	{IF (smooth_expression $4, $6, NOP $1, $1)}
 |   location IF LPAREN comma_expression RPAREN statement ELSE statement
@@ -557,10 +573,8 @@ type_spec:   /* ISO 6.7.2 */
 |   ENUM          LBRACE enum_list maybecomma RBRACE
                     { Tenum ("", Some $3) }
 |   NAMED_TYPE      { Tnamed $1 }
-|   TYPEOF LPAREN expression RPAREN 
-                                        { TtypeofE $3 } 
-|   TYPEOF LPAREN type_name RPAREN    
-                                        { let s, d = $3 in
+|   TYPEOF LPAREN expression RPAREN     { TtypeofE $3 } 
+|   TYPEOF LPAREN type_name RPAREN      { let s, d = $3 in
                                           TtypeofT (s, d) } 
 ;
 struct_decl_list: /* (* ISO 6.7.2. Except that we allow empty structs. We 
@@ -731,7 +745,7 @@ function_def:  /* (* ISO 6.9.1 *) */
   function_def_start block    
           { let (loc, specs, decl) = $1 in
             currentFunctionName := "<__FUNCTION__ used outside any functions>";
-            doFunctionDef loc specs decl $2 
+            doFunctionDef loc specs decl (bodyOfBlock $2)
           } 
 
 function_def_start:  /* (* ISO 6.9.1 *) */

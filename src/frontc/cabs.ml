@@ -175,7 +175,8 @@ and expression =
   | INDEX of expression * expression
   | MEMBEROF of expression * string
   | MEMBEROFPTR of expression * string
-  | GNU_BODY of body
+    (* GCC's ({ __label__ l1, l2; ... }) *)
+  | GNU_BODY of string list * body
 
 and constant =
   | CONST_INT of string   (* the textual representation *)

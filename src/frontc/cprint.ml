@@ -144,7 +144,7 @@ let setLoc (l : cabsloc) =
         let oldspaces = !spaces in
 (*        spaces := 0;
         new_line(); *)
-        if !spaces <> 0 then print "\n#" else print "#";
+        print "#";
         if !msvcMode then print "line";
         print " ";
         print (string_of_int l.lineno);
@@ -534,9 +534,9 @@ and print_expression (exp : expression) (lvl : int) =
   | MEMBEROFPTR (exp, fld) ->
       print_expression exp 16;
       print ("->" ^ fld)
-  | GNU_BODY blk ->
+  | GNU_BODY (labs, blk) ->
       print "(";
-      print_statement (BLOCK (blk, cabslu));
+      print_block labs blk;
       print ")" in
   if lvl > lvl' then print ")" else ()
     
@@ -555,18 +555,8 @@ and print_statement stat =
       print_expression exp 0;
       print ";";
       new_line ()
-  | BLOCK (blk, loc) ->
-      new_line();
-      print "{";
-      indent ();
-      let printBlkElem = function
-          BDEF d -> print_def d
-        | BSTM s -> print_statement s
-      in
-      List.iter printBlkElem blk;
-      unindent ();
-      print "}";
-      new_line ();
+  | BLOCK (blk, loc) -> print_block [] blk
+
   | SEQUENCE (s1, s2, loc) ->
       setLoc(loc);
       print_statement s1;
@@ -688,6 +678,26 @@ and print_statement stat =
         end;                                
         print ");"
       end
+
+and print_block (labs: string list) (blk: body) = 
+  new_line();
+  print "{";
+  indent ();
+  if labs <> [] then begin
+    print "__label__ ";
+    print_commas false print labs;
+    print ";";
+    new_line ();
+  end;
+  let printBlkElem = function
+      BDEF d -> print_def d
+    | BSTM s -> print_statement s
+  in
+  List.iter printBlkElem blk;
+  unindent ();
+  print "}";
+  new_line ()
+  
 and print_substatement stat =
   match stat with
     IF _
@@ -746,7 +756,7 @@ and print_def def =
     FUNDEF (proto, body, loc) ->
       setLoc(loc);
       print_single_name proto;
-      print_statement (BLOCK (body, loc));
+      print_block [] body;
       force_new_line ();
 
   | DECDEF (names, loc) ->

@@ -81,10 +81,11 @@ let init_lexicon _ =
       ("__inline", INLINE); ("_inline", INLINE);
       ("__attribute__", ATTRIBUTE);
       ("__asm__", ASM); ("asm", ASM);
-      ("__typeof__", TYPEOF); ("__typeof", TYPEOF);     (* sm: for gcc *)
+      ("__typeof__", TYPEOF); ("__typeof", TYPEOF); ("typeof", TYPEOF); 
       ("__volatile__", VOLATILE);
       ("__FUNCTION__", FUNCTION__);
       ("__PRETTY_FUNCTION__", PRETTY_FUNCTION__);
+      ("__label__", LABEL__);
       (*** weimer: GCC arcana ***)
       ("__restrict", RESTRICT); ("restrict", RESTRICT);
       ("__extension__", EXTENSION);

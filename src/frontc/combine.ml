@@ -220,8 +220,8 @@ and combine_expression (exp : expression) : expression =
       MEMBEROF(combine_expression exp, fld)
   | MEMBEROFPTR (exp, fld) ->
       MEMBEROFPTR(combine_expression exp, fld)
-  | GNU_BODY blk ->
-      GNU_BODY (List.map combineBlkElem blk)
+  | GNU_BODY (l, blk) ->
+      GNU_BODY (l, List.map combineBlkElem blk)
 
 and combineBlkElem = function
       BDEF d -> BDEF(combine_def d false)
