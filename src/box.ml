@@ -3177,8 +3177,7 @@ let fixupGlobName vi =
           | _ -> false
         in
         if allSafe quals then ""
-        else
-          (List.fold_left (fun acc x -> x ^ acc) "" quals)
+        else (List.fold_left (fun acc x -> x ^ acc) "" quals)
       in
       let suffix = if mustBeTagged vi then "t" ^ suffix else suffix in
       let newname =if suffix = "" then vi.vname else vi.vname ^ "_" ^ suffix in

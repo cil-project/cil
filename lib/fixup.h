@@ -124,7 +124,13 @@
     void* e = __endof(buffer); // buffer ++ would do the same
     return 0;
   }
-  
+
+  #pragma boxpoly("CHECK_FORMATARGS")
+  extern int CHECK_FORMATARGS(char * __ROSTRING format);
+  // Use it so it does not go away 
+  static inline
+  void use_CHECK_FORMATARGS() { CHECK_FORMATARGS(" "); }
+
   #pragma boxpoly("memcpy")
   #pragma boxpoly("memset")
   #pragma boxpoly("memmove")

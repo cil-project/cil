@@ -65,6 +65,7 @@ my %commonerrors =
 
          );
 
+                                         
 my $inferbox = "infer";
 
 # Start with a few tests that must be run first
@@ -192,9 +193,16 @@ $TEST->add3Tests("wes-rbtest", "", @runpattern);
 $TEST->add1Test("test/alloc-manualinferbox",
                 "test/alloc INFERBOX=$inferbox MANUALBOX=1",
                 %commonerrors);
+$TEST->add1Test("testrun/addr-array");
+
+# Tests that are expected to fail
 $TEST->add2TestFail("testrun/failubound1", "Failure: Ubound");
 $TEST->add2TestFail("testrun/failnull1", "Failure: Non-pointer");
-$TEST->add1Test("testrun/addr-array");
+$TEST->add2TestFail("testrun/failprintf1", "Failure: Non-pointer");
+$TEST->add2TestFail("testrun/failprintf2", "Failure: Non-pointer");
+$TEST->add2TestFail("testrun/failprintf3", "Failure: type mismatch");
+$TEST->add2TestFail("testrun/failprintf4", "Failure: type mismatch");
+$TEST->add2TestFail("testrun/failprintf5", "Failure: non-terminated string");
     
 #
 # OLDEN benchmarks

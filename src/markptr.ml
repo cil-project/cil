@@ -89,6 +89,7 @@ let addFunctionTypeAttribute (a: attribute) (vi: varinfo)  =
 
 let registerFunction (fi: funinfo) = 
   let fvi = match fi with Declared fvi -> fvi | Defined fdec -> fdec.svar in
+(*  ignore (E.log "Registering function %s\n" fvi.vname); *)
   (* See if it has the format attribute *)
   (match filterAttributes "format" 
                           (getFunctionTypeAttributes (Lval (var fvi))) with
@@ -804,12 +805,10 @@ let rec parseFormatString f start = begin
   with _ -> []  (* no more % left in format string *)
 end
 
-(* Special handler for format strings *)
-let handleFormatString 
-    (func: exp)
-    (args: exp list) 
-    (argkinds: vaKind list) 
-    (indices: int list) : bool =
+
+(* See if a function has a boxformat argument and return it *)
+let getFormatArg (func: exp) 
+                 (args: exp list) : exp option = 
   try
     match filterAttributes "boxformat" (getFunctionTypeAttributes func) with
       [Attr(_, [AInt format_idx])] -> begin
@@ -820,23 +819,41 @@ let handleFormatString
             raise Not_found
           end
         in
-        match stripCasts format_arg with
-          Const(CStr(f)) -> 
-            let format_types = parseFormatString f 0 in (* May raise 
-                                                         * Not_found  *)
-            let format_indices = 
-              List.map (fun t -> 
-                let n, _, _, _ = findTypeIndex t argkinds in n) format_types in
-            if format_indices <> indices then begin
-              ignore (warn "Format string %s not compatible with arguments: %a\n" 
-                        f (docList (chr ',') num) format_indices);
-              raise Not_found
-            end;
-            true
-
-        | _ -> false
+        Some format_arg
       end
-    | _ -> false
+    | _ -> None
+  with Not_found -> None
+ 
+(* Special handler for format strings *)
+let checkFormatString 
+    (format_str: string)
+    (argkinds: vaKind list) 
+    (indices: int list) : bool =
+  try
+    let format_types = parseFormatString format_str 0 in (* May raise 
+    * Not_found  *)
+    let format_indices = 
+      List.map (fun t -> 
+        let n, _, _, _ = findTypeIndex t argkinds in n) format_types in
+    (* Now commpare the indices. Allow any kind of argument for an 
+    * index 0 in the format_indices (corresponds to int) *)
+    let intIndex, _, _, _ = 
+      try findTypeIndex intType argkinds 
+      with _ -> E.s (bug "handleFormatString")
+    in
+    let rec compare indices formats = 
+      match indices, formats with
+        [], [] -> ()
+      | i :: indices, f :: formats when (i = f || f = intIndex) -> 
+          compare indices formats
+      | _ -> begin
+          ignore (warn "Format string \"%s\" not compatible with arguments: %a\n" 
+                    format_str (docList (chr ',') num) format_indices);
+          raise Not_found
+      end
+    in
+    compare indices format_indices;
+    true
   with Not_found -> false
 
   
@@ -850,7 +867,7 @@ let prepareVarargArguments
     let argkinds = getVarargKinds descrt in
     if debugVararg then 
       ignore (E.log "Preparing args in call to %a\n" d_exp func);
-
+    let format_argo = getFormatArg func args in
     let nrargs = List.length args in
     let (_, indices, args') = 
       List.fold_right
@@ -860,11 +877,18 @@ let prepareVarargArguments
             (* Search for a compatible type in the kinds *)
             let k_idx, _, kt, _ = 
               try findTypeIndex t argkinds
-              with Not_found ->  
-                E.s (unimp "Argument %d (%a : %a) does not match any expected type for vararg function %a.@! Expected one of: %a" 
-                       arg_idx d_exp a d_type t d_exp func 
-                       (docList (chr ',' ++ break) 
-                          (fun (_,_,tau,_) -> d_type () tau)) argkinds )
+              with Not_found ->  begin
+                (* Maybe it is a format function. In that case cast to int *)
+                if format_argo != None then begin
+                  ignore (warn "Unexpected argument %d of format function %a. Turned into int.@!" arg_idx d_exp func);
+                  try findTypeIndex intType argkinds 
+                  with _ -> E.s (bug "prepareVarArgs")
+                end else
+                  E.s (unimp "Argument %d (%a : %a) does not match any expected type for vararg function %a.@! Expected one of: %a" 
+                         arg_idx d_exp a d_type t d_exp func 
+                         (docList (chr ',' ++ break) 
+                            (fun (_,_,tau,_) -> d_type () tau)) argkinds )
+              end
             in
             let a' = doCastT a t kt in
             (arg_idx - 1, k_idx :: indices, a' :: args)
@@ -903,10 +927,37 @@ let prepareVarargArguments
     (* Now check the special case of the format-functions with constant 
     * format strings *)
     let instr = 
-      if handleFormatString func args argkinds  indices then
-        [Set(ccured_va_count, integer (-1), !currentLoc)]
-      else
-        let _, instr = loopIndices 0 indices in instr
+      match format_argo with
+      | Some format_arg -> begin
+          match stripCasts format_arg with
+            (Const(CStr format_str))
+              when (checkFormatString format_str argkinds indices) -> 
+                [Set(ccured_va_count, integer (-1), !currentLoc)]
+          | _ -> 
+              (* format string not a constant or it cannot be checked 
+               * statically  *)
+              (* Generate code to fill in the indices *)
+              let _, instr = loopIndices 0 indices in 
+              (* Generate a call to a run-time function that checks the 
+               * indices  *)
+              let checkFormatFun = 
+                try 
+                  match H.find allFunctions "CHECK_FORMATARGS" with
+                    Declared vi -> vi
+                  | _ -> E.s (unimp "CHECK_FORMATARGS")
+                with Not_found -> 
+                  E.s (bug "Cannot find declaration of CHECK_FORMATARGS")
+              in
+              let call = Call(None, Lval(var checkFormatFun), 
+                              [ format_arg ],
+                              !currentLoc)
+              in
+              instr @ [call]
+      end
+
+      | None -> (* Not a printf function *)
+          let _, instr = loopIndices 0 indices in 
+          instr
     in
     instr, args'
       
@@ -1349,7 +1400,9 @@ and doFunctionCall
       | _ -> ()
     end
   | _ -> ());
-  preinstr @ [Call(reso, func', args'', l)]
+  (* We need to mark all instructions that we have generated *)
+  let preinstr' = mapNoCopyList doInstr preinstr in
+  preinstr' @ [Call(reso, func', args'', l)]
 
 
 let doFunctionBody (fdec: fundec) = 
