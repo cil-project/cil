@@ -849,15 +849,6 @@ asmoutputs:
                         { let (ins, clobs) = $3 in
                           ($2, ins, clobs) }
 ;
-asminputs: 
-  /* empty */                { ([], []) }
-| COLON asmoperands asmclobber
-                        { ($2, $3) }
-;
-asmclobber:
-    /* empty */                         { [] }
-| COLON asmtemplate                     { $2 }
-;
 asmoperands:
      /* empty */                        { [] }
 |    asmoperandsne                      { List.rev $1 }
@@ -869,7 +860,20 @@ asmoperandsne:
 asmoperand:
      string_list LPAREN expression RPAREN    { ($1, $3) }
 ; 
-
+asminputs: 
+  /* empty */                { ([], []) }
+| COLON asmoperands asmclobber
+                        { ($2, $3) }
+;
+asmclobber:
+    /* empty */                         { [] }
+| COLON asmcloberlst_ne                 { $2 }
+;
+asmcloberlst_ne:
+   CST_STRING                           { [$1] }
+|  CST_STRING COMMA asmcloberlst_ne     { $1 :: $3 }
+;
+  
 %%
 
 

@@ -1631,7 +1631,7 @@ and d_instr () i =
                 else
                   (text ": "
                      ++ (docList (chr ',' ++ break)
-                           (fun c -> text ("\"" ^ escape_string c ^ "\" ("))
+                           (fun c -> text ("\"" ^ escape_string c ^ "\""))
                            ()
                            clobs)))
                 ++ unalign)
