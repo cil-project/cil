@@ -11,6 +11,7 @@ void BuildWord(char * pchWord) {
 
     do {
       i = *pch;
+      // printf("i = '%c'\n",i); 
       pch++;
     } while (i != '\0'); 
 
@@ -19,6 +20,9 @@ void BuildWord(char * pchWord) {
 
 int main() {
   char *test = "foo"; 
+
+  test++;
+  test--;
 
   BuildWord(test);
 
