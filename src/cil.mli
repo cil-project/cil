@@ -1503,8 +1503,16 @@ class nopCilVisitor: cilVisitor
 
 (* other cil constructs *)
 
-(** Visit a file *)
-val visitCilFile: cilVisitor -> file -> file
+(** Visit a file. This will will re-cons all globals TWICE (so that it is 
+ * tail-recursive). Use {!Cil.visitCilFileSameGlobals} if your visitor will 
+ * not change the list of globals.  *)
+val visitCilFile: cilVisitor -> file -> unit
+
+(** A visitor for the whole file that does not change the globals (but maybe 
+ * changes things inside the globals. Use this function instead of 
+ * {!Cil.visitCilFile} whenever appropriate because it is more efficient for 
+ * long files. *)
+val visitCilFileSameGlobals: cilVisitor -> file -> unit
 
 (** Visit a global *)
 val visitCilGlobal: cilVisitor -> global -> global list
@@ -1673,20 +1681,33 @@ class defaultCilPrinterClass: cilPrinter
 val defaultCilPrinter: cilPrinter
 
 (* Top-level printing functions *)
-(** Print a {!Cil.typ} give a pretty printer *)
+(** Print a type given a pretty printer *)
 val printType: cilPrinter -> unit -> typ -> Pretty.doc
   
+(** Print an expression given a pretty printer *)
 val printExp: cilPrinter -> unit -> exp -> Pretty.doc
 
+(** Print an lvalue given a pretty printer *)
 val printLval: cilPrinter -> unit -> lval -> Pretty.doc
 
+(** Print a global given a pretty printer *)
 val printGlobal: cilPrinter -> unit -> global -> Pretty.doc 
 
+(** Print an attribute given a pretty printer *)
 val printAttr: cilPrinter -> unit -> attribute -> Pretty.doc 
+
+(** Print a set of attributes given a pretty printer *)
 val printAttrs: cilPrinter -> unit -> attributes -> Pretty.doc 
+
+(** Print an instruction given a pretty printer *)
 val printInstr: cilPrinter -> unit -> instr -> Pretty.doc 
+
+(** Print a statement given a pretty printer *)
 val printStmt: cilPrinter -> unit -> stmt -> Pretty.doc 
+
+(** Print an initializer give a pretty printer *)
 val printInit: cilPrinter -> unit -> init -> Pretty.doc 
+
 
 (** Pretty-print a type using {!Cil.defaultCilPrinter} *)
 val d_type: unit -> typ -> Pretty.doc
@@ -1722,19 +1743,7 @@ val d_stmt: unit -> stmt -> Pretty.doc
  * {!Cil.defaultCilPrinter} *)
 val d_global: unit -> global -> Pretty.doc
 
-(*
-(** Pretty-print a block using {!Cil.defaultCilPrinter}   *)
-val d_block: unit -> block -> Pretty.doc
-*)
 
-(*
-
-(** Pretty-print a function declaration using {!Cil.defaultCilPrinter}   *)
-val d_fun_decl: unit -> fundec -> Pretty.doc
-
-(** Pretty-print a variable declaration using {!Cil.defaultCilPrinter}   *)
-val d_videcl: unit -> varinfo -> Pretty.doc
-*)
 
 
 (** Pretty-print an entire file. Here you give the channel where the printout
@@ -1799,7 +1808,7 @@ val d_plaintype: unit -> typ -> Pretty.doc
 
 
 
-(** ALPHA conversion *)
+(** {b ALPHA conversion} *)
 (** Create a new name based on a given name. The new name is formed from a 
  * prefix (obtained from the given name by stripping a suffix consisting of _ 
  * followed by only digits), followed by a special separator and then by a 
@@ -1822,11 +1831,7 @@ val registerAlphaName: alphaTable:(string, int ref) Hashtbl.t ->
 val splitNameForAlpha: lookupname:string -> string * string * int
 val docAlphaTable: unit -> (string, int ref) Hashtbl.t -> Pretty.doc
 
-(**
- ***
- ***   Optimization Passes
- ***
- ***)
+(** {b Optimization Passes} *)
 
 (** A peephole optimizer that processes two adjacent statements and possibly 
     replaces them both. If some replacement happens, then the new statements 
@@ -1837,11 +1842,7 @@ val peepHole2: (instr * instr -> instr list option) -> stmt list -> unit
     one statement, not two *)
 val peepHole1: (instr -> instr list option) -> stmt list -> unit
 
-(**
- **
- ** MACHINE DEPENDENT PART
- **
- **)
+(** {b Machine dependency} *)
 
      
 (** Raised when one of the bitsSizeOf functions cannot compute the size of a 

@@ -7,6 +7,13 @@
 .PHONY: setup quickbuild doc distrib machdep
 ECHO = @
 
+all:  quickbuild cillib
+
+# look out for outdated Makefile; if it's out of date, this will automatically
+# re-run ./config.status, then re-exec make with the same arguments
+Makefile.cil: Makefile.cil.in
+	./config.status
+
 @DEFAULT_COMPILER@=1
 
 # Directory containing the *.cm[io] files for odoc.
@@ -86,7 +93,6 @@ $(OBJDIR)/machdep.ml : src/machdep.c
 	echo "end"          >>$@
 
 
-all:  quickbuild cillib
 # Build an OCAML library (CMA / CMXA) that exports our Cil stuff
 cillib: $(OBJDIR)/cil.$(CMXA)
 
@@ -114,8 +120,9 @@ odoc:
 	ocamldoc -d doc/html/cil/api -v -stars \
              -html \
              -t "CIL API Documentation" \
-	     -I obj src/cil.mli src/errormsg.mli src/clist.mli \
-	  	    src/pretty.mli src/stats.mli
+	     -I $(OBJDIR) \
+                    src/pretty.mli src/errormsg.mli src/clist.mli \
+	  	    src/stats.mli src/cil.mli 
 	if test -d $(CILHTMLDEST)/api; then \
            cp -rf doc/html/cil/api/* $(CILHTMLDEST)/api; fi
 

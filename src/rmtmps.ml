@@ -239,7 +239,7 @@ begin
   (* begin by clearing all the 'referenced' bits, and noting all *)
   (* those declarations that are marked 'cilnoremove' *)
   H.clear forceToKeep;
-  ignore (visitCilFile (new clearRefBitsVis) file);
+  visitCilFileSameGlobals (new clearRefBitsVis) file;
 
   (* create the visitor object *)
   let vis = (new removeTempsVis usedTypedefs) in
@@ -247,15 +247,16 @@ begin
   (* iterate over the list of globals in reverse, marking things *)
   (* as reachable if they are reachable from the roots, and *)
   (* removing ultimately unreachable toplevel constructs *)
-  let rec revLoop (lst : global list) : global list =
-    match lst with
-    | hd::tl -> (
-        (* process the tail first; going backwards is the key *)
-        (* to keeping this dependency analysis simple, since it *)
-        (* means we will always process all of the uses of a *)
-        (* variable or type, before we finally see the declaration *)
-        let processedTail = (revLoop tl) in
 
+  (* process the tail first; going backwards is the key *)
+  (* to keeping this dependency analysis simple, since it *)
+  (* means we will always process all of the uses of a *)
+  (* variable or type, before we finally see the declaration *)
+  let revGlobals = List.rev file.globals in
+
+  let rec revLoop (acc: global list) (revlst : global list) : global list =
+    match revlst with
+    | hd::tl -> (
         (* the 'trace' calls below are actually quite inexpensive *)
         (* (when the corresponding flag is off), because they are only *)
         (* encountered at once per toplevel construct; so, I leave *)
@@ -425,16 +426,16 @@ begin
         in
 
         if (retainHead) then
-          hd :: processedTail
+          revLoop (hd :: acc) tl
         else
-          processedTail
+          revLoop acc tl
       )
 
-    | [] -> []
+    | [] -> acc
   in
 
   (* print which original source variables were removed *)
-  file.globals <- (revLoop file.globals) ;
+  file.globals <- revLoop [] revGlobals ;
   if !removed_temps <> [] then begin
     let len = List.length !removed_temps in
     if len > 20 then 

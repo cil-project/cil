@@ -140,6 +140,7 @@ end
 (* Main entry point: apply the transformation to a file *)
 let simplemem (f : file) =
   try 
-    visitCilFile (new simpleVisitor) f
+    visitCilFileSameGlobals (new simpleVisitor) f;
+    f
   with e -> Printf.printf "Exception in Simplemem.simplemem: %s\n"
     (Printexc.to_string e) ; raise e

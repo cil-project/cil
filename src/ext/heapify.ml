@@ -106,7 +106,9 @@ class heapifyAnalyzeVisitor f alloc free = object
 end
     
 let heapify (f : file) (alloc : exp) (free : exp)  =
-  visitCilFile (new heapifyAnalyzeVisitor f alloc free) f
+  visitCilFileSameGlobals (new heapifyAnalyzeVisitor f alloc free) f;
+  f
+
 (* heapify code ends here *)
 
 let default_heapify (f : file) =
@@ -151,7 +153,8 @@ end
           
 let stackguard (f : file) (push : exp) (pop : exp) 
     (get_ra : exp) (set_ra : exp) = 
-  visitCilFile (new sgAnalyzeVisitor f push pop get_ra set_ra) f
+  visitCilFileSameGlobals (new sgAnalyzeVisitor f push pop get_ra set_ra) f;
+  f
     (* stackguard code ends *)
     
 let default_stackguard (f : file) =

@@ -80,4 +80,4 @@ end
 
 let logWrites (f: file) : unit = 
   let lwVisitor = new logWriteVisitor in
-  ignore (visitCilFile lwVisitor f)
+  visitCilFileSameGlobals lwVisitor f

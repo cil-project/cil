@@ -174,7 +174,8 @@ let annotate (f : Cil.file) ei = begin
   in
   let visitor = (new enumVisitor printfFun.svar ei.statements 
     ei.instructions) in 
-  visitCilFile visitor f 
+  visitCilFileSameGlobals visitor f;
+  f
 end 
 
 (**********************************************************************
@@ -406,7 +407,7 @@ let mark_file (f : Cil.file) (names : (string, mark) Hashtbl.t) =
   if !debug then  (Printf.printf "\nPerforming Transitive Closure\n\n" ); 
   while not !finished do
     finished := true ; 
-    ignore (visitCilFile visitor f )
+    visitCilFileSameGlobals visitor f
   done  ;
   if !debug then begin 
     Hashtbl.iter (fun k v -> 

@@ -3269,15 +3269,44 @@ and childrenGlobal (vis: cilVisitor) (g: global) : global =
   end
   | _ -> g
 
-let visitCilFile (vis : cilVisitor) (f : file) : file =
+
+(* Iterate over all globals, including the global initializer *)
+let iterGlobals (fl: file)
+                (doone: global -> unit) : unit =
+  List.iter doone fl.globals;
+  (match fl.globinit with
+    None -> ()
+  | Some g -> doone (GFun(g, locUnknown)))
+
+(* Fold over all globals, including the global initializer *)
+let foldGlobals (fl: file) 
+                (doone: 'a -> global -> 'a) 
+                (acc: 'a) : 'a = 
+  let acc' = List.fold_left doone acc fl.globals in
+  (match fl.globinit with
+    None -> acc'
+  | Some g -> doone acc' (GFun(g, locUnknown)))
+
+
+(* A visitor for the whole file that does not change the globals *)
+let visitCilFileSameGlobals (vis : cilVisitor) (f : file) : unit =
   let fGlob g = visitCilGlobal vis g in
-  (* primary list of globals *)
-  f.globals <- mapNoCopyList fGlob f.globals;
+  iterGlobals f (fun g -> ignore (fGlob g)) 
+
+(* Be careful with visiting the whole file because it might be huge. *)
+let visitCilFile (vis : cilVisitor) (f : file) : unit =
+  let fGlob g = visitCilGlobal vis g in
+  (* Scan the globals. Make sure this is tail recursive. *)
+  let rec loop (acc: global list) = function
+      [] -> f.globals <- List.rev acc
+    | g :: restg -> 
+        loop ((List.rev (fGlob g)) @ acc) restg
+  in
+  loop [] f.globals;
   (* the global initializer *)
   (match f.globinit with
     None -> ()
-  | Some g -> f.globinit <- Some (visitCilFunction vis g));
-  f
+  | Some g -> f.globinit <- Some (visitCilFunction vis g))
 
 
 
@@ -3314,23 +3343,6 @@ let getGlobInit (fl: file) =
       f
   end
   
-
-(* Iterate over all globals, including the global initializer *)
-let iterGlobals (fl: file)
-                (doone: global -> unit) : unit =
-  List.iter doone fl.globals;
-  (match fl.globinit with
-    None -> ()
-  | Some g -> doone (GFun(g, locUnknown)))
-
-(* Fold over all globals, including the global initializer *)
-let foldGlobals (fl: file) 
-                (doone: 'a -> global -> 'a) 
-                (acc: 'a) : 'a = 
-  let acc' = List.fold_left doone acc fl.globals in
-  (match fl.globinit with
-    None -> acc'
-  | Some g -> doone acc' (GFun(g, locUnknown)))
 
 
 (* Fold over all globals, including the global initializer *)

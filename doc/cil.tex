@@ -11,6 +11,7 @@
 \def\ciltyperef#1{\apiref{Cil}{TYPE}{#1}}
 \def\cilvalref#1{\apiref{Cil}{VAL}{#1}}
 \def\cilvisit#1{\apiref{Cil.cilVisitor}{#1}}
+\def\cilprinter#1{\apiref{Cil.cilPrinter}{#1}}
 
 % Use this to refer to a type/val in the Pretty module
 \def\ptyperef#1{\apiref{Pretty}{TYPE}{#1}}
@@ -95,7 +96,7 @@ these patched copies instead of the standard ones.
 benchmarks, the Linux kernel, GIMP and other open-source projects. All of
 these programs are compiled to the simple CIL and then passed to \t{gcc} and
 they still run! We consider the compilation of Linux a major feat especially
-since Linux contains many of the ugly GCC extensions (see \secref{ugly-ugly}).
+since Linux contains many of the ugly GCC extensions (see \secref{ugly-gcc}).
 This adds to about 1,000,000 lines of code that we tested it on. It is also
 able to process the few Microsoft NT device drivers that we have had access
 to. CIL was tested against GCC's c-torture testsuite and (except for the tests
@@ -564,20 +565,26 @@ index below the main types that are used to represent C programs in CIL:
 \item \ahref{api/index\_values.html}{An index of all values}
 \item \ciltyperef{file} is the representation of a file.
 \item \ciltyperef{global} is the representation of a global declaration or
-definitions. 
-\item \ciltyperef{typ} is the representation of a type.
+definitions. Values for \ahref{api/Cil.html\#VALemptyFunction}{operating on globals}.
+\item \ciltyperef{typ} is the representation of a type.  
+Values for \ahref{api/Cil.html\#VALvoidType}{operating on types}.
 \item \ciltyperef{compinfo} is the representation of a structure or a union
 type
 \item \ciltyperef{fieldinfo} is the representation of a field in a structure
 or a union
 \item \ciltyperef{enuminfo} is the representation of an enumeration type. 
 \item \ciltyperef{varinfo} is the representation of a variable 
-\item \ciltyperef{lval} is the representation of an lvalue
+\item \ciltyperef{lval} is the representation of an lvalue.
+Values for \ahref{api/Cil.html\#VALmakeVarInfo}{operating on lvalues}.
 \item \ciltyperef{exp} is the representation of an expression without
-side-effects
+side-effects. 
+Values for \ahref{api/Cil.html\#VALzero}{operating on expressions}.
 \item \ciltyperef{instr} is the representation of an instruction (with
 side-effects but without control-flow)
-\item \ciltyperef{stmt} is the representation of a control-flow statement
+\item \ciltyperef{stmt} is the representation of a control-flow statements. 
+Values for \ahref{api/Cil.html\#VALmkStmt}{operating on statements}.
+\item \ciltyperef{attribute} is the representation of attributes. 
+Values for \ahref{api/Cil.html\#TYPEattributeClass}{operating on attributes}.
 \end{itemize}
 
 
@@ -611,7 +618,7 @@ methods. Take a look for example at the visitor defined in the module
 
  Once you have defined a visitor you can invoke it with one of the functions:
 \begin{itemize}
-\item \cilvalref{visitCilFile} - visit a file
+\item \cilvalref{visitCilFile} or \cilvalref{visitCilFileSameGlobals} - visit a file
 \item \cilvalref{visitCilGlobal} - visit a global
 \item \cilvalref{visitCilFunction} - visit a function definition
 \item \cilvalref{visitCilExp} - visit an expression
@@ -630,8 +637,35 @@ utilities for pretty printing and reporting errors and provide a convenient
 \t{printf}-like interface. 
 
  Additionally, CIL defines for each major type a pretty-printing function that
-you can use in conjunction with the \moduleref{Pretty} interface. See
-\cilvalref{currentLoc} for details. 
+you can use in conjunction with the \moduleref{Pretty} interface. The
+following are some of the pretty-printing functions:
+\begin{itemize}
+\item \cilvalref{d_exp} - print an expression
+\item \cilvalref{d_type} - print a type
+\item \cilvalref{d_lval} - print an lvalue
+\item \cilvalref{d_global} - print a global
+\item \cilvalref{d_stmt} - print a statment
+\item \cilvalref{d_instr} - print an instruction
+\item \cilvalref{d_init} - print an initializer
+\item \cilvalref{d_attr} - print an attribute
+\item \cilvalref{d_attrlist} - print a set of attributes
+\end{itemize}
+
+ You can even customize the pretty-printer by creating instances of
+\cilprinter{}. Typically such an instance extends
+\cilvalref{defaultCilPrinter}. Once you have a customized pretty-printer you
+can use the following printing functions:
+\begin{itemize}
+\item \cilvalref{printExp} - print an expression
+\item \cilvalref{printType} - print a type
+\item \cilvalref{printLval} - print an lvalue
+\item \cilvalref{printGlobal} - print a global
+\item \cilvalref{printStmt} - print a statment
+\item \cilvalref{printInstr} - print an instruction
+\item \cilvalref{printInit} - print an initializer
+\item \cilvalref{printAttr} - print an attribute
+\item \cilvalref{printAttrs} - print a set of attributes
+\end{itemize}
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
@@ -1662,6 +1696,9 @@ Necula}.
 
 \section{Changes}
 \begin{itemize}
+\item {\bf May 4, 2002}: Added the function
+\cilvalref{visitCilFileSameGlobals} and changed \cilvalref{visitCilFile} to be
+tail recursive. This prevents stack overflow on huge files.
 \item {\bf February 28, 2002}: Changed the significance of the
 \t{CompoundInit} in \ciltyperef{init} to allow for missing initializers at the
 end of an array initializer. Added the API function
