@@ -1,5 +1,5 @@
 # .gdbinit
 
-file alloc3.exe
+file hostent.exe
 break main
 run

@@ -146,6 +146,7 @@ $TEST->newTest(
     
 # Now add tests
 $TEST->addTests("testrun/const-array-init", "WARNINGS_ARE_ERRORS=1", ['cil']);
+$TEST->addTests("testrun/hostent", "", ['inferbox']);
 $TEST->add3Tests("btreetest");
 $TEST->add3Tests("hashtest");
 $TEST->add3Tests("rbtest");
