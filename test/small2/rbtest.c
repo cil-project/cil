@@ -23,6 +23,9 @@ int debug;
 #define DATASIZE 16   // This is the size of the data that is reserved in
                       // each node
 
+#define ITERS 500000                      
+//#define ITERS 1
+
 int main() {
   /* Test hash tables */
   RBNode *t = NULL;
@@ -30,14 +33,16 @@ int main() {
   double clk;
   int count = 0;
   int sz;
-  
+
   /* Add and delete random numbers from the hash table */
   TIMESTART(clk);
-  for(i=0;i<500000;i++) {
+  printf("inserting...\n");
+  for(i=0;i<ITERS;i++) {
     int k = random() & 0x7FFFL;
     insertRB(& t, k, DATASIZE);
   }
-  for(i=0;i<500000;i++) {
+  printf("finding...\n");
+  for(i=0;i<ITERS;i++) {
     int k = random() & 0x7FFFL;
     void *data = NULL;
     if(findRB(t, k)) {
@@ -45,7 +50,9 @@ int main() {
     }
   }
   sz = 0;
+  printf("sz++...\n");
   FORALLRBNODES(t, { sz ++; });
+  printf("freeing...\n");
   freeRB(t, NULL);
   TIMESTOP(clk);
   fprintf(stderr, "Hash has %d elements. Found %d times\n",

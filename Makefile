@@ -233,6 +233,12 @@ trval: $(TVDIR)/obj/transval.asm.exe
 
 SAFECC=perl $(CILDIR)/lib/safecc.pl
 
+# sm: I like -g always
+ifdef _GNUCC
+  SAFECC+= -g
+endif
+
+
 
 # weimer: support for other solvers
 ifeq ($(INFERBOX), 2)
@@ -291,7 +297,7 @@ endif
 
 # garbage collector options
 ifdef _GNUCC
-  ifdef USE_GC
+  ifndef NO_GC
     # enable the garbage collector by default for gcc
     SAFECC+= $(DEF)USE_GC
     DEBUGCCL+= $(DEF)USE_GC
