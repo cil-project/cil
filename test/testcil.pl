@@ -700,6 +700,8 @@ smAddTest("test-tagfile $wildbox TAGFILE=tagfile.txt EXTRAARGS=-DSTATIC_FUNC");
 smAddTest("scott/monthname $box");
 smFailTest("problem with gcc coercions",
            "scott/floatarg INFERBOX=wild TAGALLFNS=1");
+smFailTest("problem with over-aggressive pointer checks?",
+           "scott/ptrarith INFERBOX=infer");           
 
 # tests of things implemented for EDG compatibility
 smAddTest("mergestruct");
