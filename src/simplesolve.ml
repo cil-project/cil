@@ -365,7 +365,10 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       let why = SpreadPointsTo(cur) in
       let f = (fun n -> if (update_kind n Wild why) then finished := false) in
       let contaminated_list = cur.pointsto in
-      List.iter f contaminated_list
+      List.iter f contaminated_list ;
+      match nodeOfAttrlist (typeAttrs cur.btype) with
+          Some(n) -> f n
+        | None -> ()
     end 
     ) node_ht
   done ;

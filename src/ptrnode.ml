@@ -442,7 +442,19 @@ let newNode (p: place) (idx: int) (bt: typ) (a: attribute list) : node =
 
       | _ -> ExistsMaybe
     in
-    existsType doOneType n.btype
+    (* If a structure contains an array, a pointer to that structure also 
+     * contains a pointer to the array. We need this information to
+     * properly handle wild pointers. *)
+    let lookForInternalArrays = function
+        TArray(bt,len,al) as t -> 
+          (match nodeOfAttrlist al with
+            Some n' -> addPointsTo n n'
+          | None -> ()) ;
+          ExistsFalse
+        | _ -> ExistsMaybe
+    in 
+    let _ = existsType doOneType n.btype in 
+    existsType lookForInternalArrays n.btype ; 
   in
   n
     
