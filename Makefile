@@ -446,7 +446,13 @@ ifdef NEWPATCH
   # hack: include PATCHDEFS in the name, so we get different versions
   # for with and without BEFOREBOX; otherwise it would appear to be
   # up-to-date but for the wrong way
-  PATCHFILE2=$(CILDIR)/lib/$(PATCHFILE)2.i$(PATCHDEFS)
+  ifdef PATCHDEFS
+    PATCHFILE2=$(CILDIR)/lib/$(PATCHFILE)2.id
+  else
+    PATCHFILE2=$(CILDIR)/lib/$(PATCHFILE)2.i
+  endif
+
+  # tell safec.byte.exe (via safecc.pl) where to find the patch file
   SAFECC+= --safec=-patchFile --safec=$(PATCHFILE2)
 
   # and turn off the other patcher
