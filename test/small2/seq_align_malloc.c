@@ -23,9 +23,9 @@ int main() {
     // In the CCURED version we have to play some tricks
     // Make sure h is not SEQ, so, don't do h + 1
 
-    // We want h to be SAFE. If header did not contain pointers we could do:"
-    // h = (struct header*)v;
-    // But since header contains pointers, it is not SAFE to char from a
+    // We want h to be SAFE. If header did not contain pointers we could do:
+    //                 h = (struct header*)v;
+    // But since header contains pointers, it is not SAFE to cast from a
     // char-ptr to a header-ptr. trusted_cast wants its both ends to have
     // the same kind, which would make h SEQ. We use __ptrof instead.
     // But be careful how you use h in the future, because if you make it
