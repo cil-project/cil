@@ -986,6 +986,8 @@ type typsig =
   | TSEnum of string * attribute list
   | TSBase of typ
 
+val d_typsig: unit -> typsig -> Pretty.doc
+
 (* Compute a type signature *)
 val typeSig: typ -> typsig
 (* Like typeSig but customize the incorporation of attributes *)
@@ -1080,3 +1082,4 @@ val mapNoCopy: ('a -> 'a) -> 'a list -> 'a list
 (* Like map but each call can return a list. Try not to make a copy of the 
  * list *)
 val mapNoCopyList: ('a -> 'a list) -> 'a list -> 'a list
+

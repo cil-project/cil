@@ -1265,7 +1265,9 @@ type typsig =
 let rec typeSigWithAttrs doattr t = 
   let typeSig = typeSigWithAttrs doattr in
   match t with 
-  | (TInt _ | TFloat _ | TVoid _) -> TSBase t
+  | TInt (ik, al) -> TSBase (TInt (ik, doattr al))
+  | TFloat (fk, al) -> TSBase (TFloat (fk, doattr al))
+  | TVoid al -> TSBase (TVoid (doattr al))
   | TEnum (enum, a) -> TSEnum (enum.ename, doattr a)
   | TPtr (t, a) -> TSPtr (typeSig t, doattr a)
   | TArray (t,l,a) -> TSArray(typeSig t, l, doattr a)
@@ -2170,6 +2172,29 @@ and d_plaintype () (t: typ) =
   in
   scanType () t
 
+let rec d_typsig () = function
+    TSArray (ts, eo, al) -> 
+      dprintf "TSArray(@[%a,@?%a,@?%a@])" 
+        d_typsig ts 
+        insert (match eo with None -> text "None" | Some e -> d_exp () e)
+        d_attrlistpre al
+  | TSPtr (ts, al) -> 
+      dprintf "TSPtr(@[%a,@?%a@])"
+        d_typsig ts d_attrlistpre al
+  | TSComp (iss, name, al) -> 
+      dprintf "TSComp(@[%s %s,@?%a@])"
+        (if iss then "struct" else "union") name
+        d_attrlistpre al
+  | TSFun (rt, args, isva, al) -> 
+      dprintf "TSFun(@[%a,@?%a,%b,@?%a@])"
+        d_typsig rt
+        (docList (chr ',' ++ break) (d_typsig ())) args isva
+        d_attrlistpre al
+  | TSEnum (n, al) -> 
+      dprintf "TSEnum(@[%s,@?%a@])"
+        n d_attrlistpre al
+  | TSBase t -> dprintf "TSBase(%a)" d_type t
+
 let _ = 
   let d_attrcustombase = function
     | Attr("const", []) -> Some (text "const")
@@ -2197,10 +2222,11 @@ let _ =
 
    (* Make a varinfo for use in argument part of a function type *)
 let makeVarinfo name typ =
+  (* Strip const from type *)
   { vname = name;
     vid   = 0;
     vglob = false;
-    vtype = typ;
+    vtype = typeRemoveAttributes [Attr("const",[])] typ;
     vdecl = lu;
     vattr = [];
     vstorage = NoStorage;

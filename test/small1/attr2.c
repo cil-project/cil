@@ -1,6 +1,4 @@
 
-#pragma boxvararg_printf("printk", 0)
-
 __attribute__ ((regparm(0)))
      int  printk   (const char * fmt, ...)
      __attribute__ ((format (printf, 1, 2)));
@@ -25,7 +23,7 @@ void ( * pexit)(int err)  __attribute__((noreturn)) ;
 extern int * functional(void) __attribute__((__const__));
 
 int main() {
-  printk("fooo");
+  printk("fooo %s", "bau");
   { int k = __module_parm_vidmem[3]; }
   functional();
   do_exit(5);

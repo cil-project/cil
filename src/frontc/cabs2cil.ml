@@ -1280,7 +1280,7 @@ and makeVarInfo
     vstorage = sto;
     vattr    = nattr;
     vdecl    = ldecl;
-    vtype    = vtype;
+    vtype    = typeRemoveAttributes [Attr("const", [])] vtype;
     vaddrof  = false;
     vreferenced = false;   (* sm *)
   }

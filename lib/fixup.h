@@ -107,11 +107,11 @@
     char * __ROSTRING f_string;
   };
 
-  #pragma boxvararg_printf("printf", 0)
-  #pragma boxvararg_printf("fprintf", 1)
-  #pragma boxvararg_printf("snprintf", 2)
-  #pragma boxvararg_printf("syslog", 1)
-  #pragma boxvararg_printf("sprintf", 1)
+  #pragma boxvararg_printf("printf", 1)
+  #pragma boxvararg_printf("fprintf", 2)
+  #pragma boxvararg_printf("snprintf", 3)
+  #pragma boxvararg_printf("syslog", 2)
+  #pragma boxvararg_printf("sprintf", 2)
 
   // We want to force sprintf to carry a length
   static inline

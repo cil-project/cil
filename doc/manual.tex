@@ -396,10 +396,10 @@ processed the calls to the polymorphic model lead to new instances of the
 model function. 
  
 
-    \section{Variable argument functions}
+       \section{Variable argument functions}
 
  CCured supports variable-argument functions written using the \t{<stdarg.h>}
- macros. There are two kinds of variable-argument functions in C: 
+macros. There are two kinds of variable-argument functions in C: 
 \begin{itemize}
 \item Those that take an arbitrary number of arguments following the last
 specified formal (their function type contains \t{...} after the last formal).
@@ -419,8 +419,9 @@ int vprintf(const char* format, va_list args)
  To allow CCured to process calls to and bodies of variable-argument functions
 the programmer must specify a comprehensive list of all the types of arguments
 that can be passed to each such function. This is done by defining a \t{union}
-data type whose fields have the types that can be passed to the function. For
-example, such a union for \t{printf} would be the following:
+data type whose fields have the types that can be passed to the function. The
+order and the names of the fields do not matter. For example, such a union for
+\t{printf} would be the following:
 \begin{verbatim}
 union printf_arguments {
    int      f_int;
@@ -486,7 +487,7 @@ implementations of \t{printf} and \t{sprintf}) and so far we have found that
 CCured accepts those functions without any change except for the specification
 of the \t{union} of the accepted argument types. 
 
-      \subsection{Implementation Issues}
+           \subsection{Implementation Issues}
 
  Almost all of the checking for variable-argument functions is done at
 run-time. At the time of a call each actual argument is compared with the
@@ -501,25 +502,39 @@ call to \t{va\_arg} checks that we are are not reading past the end of the
 actuals and also that the type of the fetched argument matches that of the
 actual argument. 
 
-      \subsection{Printf-like functions}
+         \subsection{Printf-like functions}
 
  Since the vast majority of uses of variable argument functions if for
-\t{printf}-like functions, CCured contains special support. Specifically if
-vararg function is declared to be a \t{printf}-like function then all of its
-invocations in which the format string is a constant will be checked
-statically. For the other invocations a wrapper for printf will be called that
-will check the types of the actuals agains the format string before calling
-the real \t{printf} function. 
+\t{printf}-like functions, CCured contains special support for them.
+Specifically if a vararg function is declared to be a \t{printf}-like function
+then all of its invocations in which the format string is a constant will be
+checked statically. For the other invocations a wrapper for printf will be
+called that will check the types of the actuals agains the format string
+before calling the real \t{printf} function.
 
  To declare a function to be \t{printf}-like use the following pragma:
 \begin{verbatim}
-#pragma boxvararg_printf("printf", 0)
+#pragma boxvararg_printf("myprintf", 1)
 \end{verbatim}
 
  where the last argument is the index of the format argument in the argument
-list. Note that you will get a run-time error if you try to use the
-\t{va\_arg} macro in the implemetation of such a function. You should invoke
-functions like \t{vprintf} and \t{vsprintf} instead. 
+list (starting with 1). Note that you will get a run-time error if you try to
+use the \t{va\_arg} macro in the implemetation of such a function. In those
+implementations you should invoke functions like \t{vprintf} and \t{vsprintf}
+instead.
+
+ GCC already has support for communicating to the compiler that a function is
+\t{printf}-like. This is done as follows:
+\begin{verbatim}
+int myprintf(const char* format, ...) __attribute__(format(printf, 1, 2))
+\end{verbatim}
+ 
+ where the ``1'' means that the first argument is the format string and the
+``2'' means that we should start checking with the second argument. CCured
+recognizes this attribute and it considers it equivalent with the
+\t{boxvararg\_printf} from above. Note that the second argument in the
+\t{format} attribute is ignored. 
+
 
     \subsection{Scanf-like functions}
 

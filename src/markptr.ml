@@ -74,9 +74,40 @@ let applyToFunction (n: string) (f: varinfo -> unit) =
     | Defined fdec -> f fdec.svar
   with Not_found -> H.add applyToFunctionMemory n f
 
+let printfFormatUnion : compinfo option ref = ref None
   
+let getFunctionTypeAttributes (e: exp) = 
+  match unrollType (typeOf e) with 
+    TFun(_, _, _, fa) -> fa
+  | _ ->  E.s (bug "getFunctionTypeAttribute: not a function type")
+
+let addFunctionTypeAttribute (a: attribute) (vi: varinfo)  = 
+  match vi.vtype with 
+    TFun(rt, args, isva, fa) -> vi.vtype <- TFun(rt, args, isva, 
+                                                addAttribute a fa)
+  | _ -> E.s (bug "addFunctionTypeAttribute: not a function type")
+
 let registerFunction (fi: funinfo) = 
   let fvi = match fi with Declared fvi -> fvi | Defined fdec -> fdec.svar in
+  (* See if it has the format attribute *)
+  (match filterAttributes "format" 
+                          (getFunctionTypeAttributes (Lval (var fvi))) with
+    [Attr(_, [AId "printf"; AInt format_idx; AInt _]) as a] -> begin
+      let t = 
+        match !printfFormatUnion with 
+          Some ci -> TComp(ci, [])
+        | None -> E.s (error "Have not yet seen the union printf_format")
+      in
+      if !E.verboseFlag then 
+        ignore (E.log "Will treat %s as a printf-like function\n" fvi.vname);
+      addFunctionTypeAttribute 
+        (Attr("boxvararg", [ASizeOf t])) fvi;
+      addFunctionTypeAttribute 
+        (Attr("boxformat", [AInt format_idx])) fvi
+    end
+  | [] -> ()
+  | al -> ignore (warn "Do not understand %a" (d_attrlist true) al));
+
   (try
     let f = H.find applyToFunctionMemory fvi.vname in
     f fvi;
@@ -84,16 +115,7 @@ let registerFunction (fi: funinfo) =
   with Not_found -> ());
   H.add allFunctions fvi.vname fi
   
-let addFunctionTypeAttribute (a: attribute) (vi: varinfo)  = 
-  match vi.vtype with 
-    TFun(rt, args, isva, fa) -> vi.vtype <- TFun(rt, args, isva, 
-                                                addAttribute a fa)
-  | _ -> E.s (bug "addFunctionTypeAttribute: not a function type")
 
-let getFunctionTypeAttributes (e: exp) = 
-  match unrollType (typeOf e) with 
-    TFun(_, _, _, fa) -> fa
-  | _ ->  E.s (bug "getFunctionTypeAttribute: not a function type")
 
 (* We keep track of the models to use *)
 let boxModels: (string, fundec) H.t = H.create 15 (* Map the name of the 
@@ -739,7 +761,6 @@ let fetchVarargGlobals () =
   in
   g1, g2
 
-let printfFormatUnion : compinfo option ref = ref None
 
 (* take apart a format string and return a list of int/pointer type choices *)
 let rec parseFormatString f start = begin
@@ -789,7 +810,7 @@ let handleFormatString
     match filterAttributes "boxformat" (getFunctionTypeAttributes func) with
       [Attr(_, [AInt format_idx])] -> begin
         let format_arg = 
-          try List.nth args format_idx 
+          try List.nth args (format_idx - 1)
           with _ -> begin
             ignore (warn "Call to format function with too few arguments");
             raise Not_found
@@ -832,14 +853,14 @@ let prepareVarargArguments
         (fun a (arg_idx, indices, args) -> 
           if arg_idx > nrformals then begin
             let t = typeOf a in
-            let ts = argumentTypeSig t in
             (* Search for a compatible type in the kinds *)
             let k_idx, _, kt, _ = 
               try findTypeIndex t argkinds
               with Not_found ->  
-                let tau = typeOf a in 
-                E.s (unimp "Argument %d (%a : %a) does not match any expected type for vararg function %a.@! Expected: %a" arg_idx d_exp a d_type tau d_exp func 
-                (docList (chr ',' ++ break) (fun (_,_,tau,_) -> d_type () tau)) argkinds )
+                E.s (unimp "Argument %d (%a : %a) does not match any expected type for vararg function %a.@! Expected one of: %a" 
+                       arg_idx d_exp a d_type t d_exp func 
+                       (docList (chr ',' ++ break) 
+                          (fun (_,_,tau,_) -> d_type () tau)) argkinds )
             in
             let a' = doCastT a t kt in
             (arg_idx - 1, k_idx :: indices, a' :: args)
@@ -1394,7 +1415,7 @@ let doGlobal (g: global) : global =
               Some ci -> TComp(ci, [])
             | None -> E.s (error "Have not yet seen the union printf_format")
           in
-          if debugVararg then 
+          if !E.verboseFlag then 
             ignore (E.log "Will treat %s as a printf-like function\n" s);
           applyToFunction s 
             (fun vi -> 
