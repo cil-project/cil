@@ -64,7 +64,7 @@ endif
 
 # matth: these files are not in Cygwin
 ifeq ($(ARCHOS), x86_LINUX)
-PATCH_SYSINCLUDES +=  nl_types.h bits/sigaction.h bits/select.h sys/prctl.h
+PATCH_SYSINCLUDES +=  nl_types.h bits/sigaction.h bits/select.h sys/prctl.h libgen.h
 endif
 
 
