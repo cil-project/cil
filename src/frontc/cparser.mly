@@ -158,6 +158,22 @@ begin
   else ()
 end
 
+let rec intlist_to_string (str: int64 list):string =
+  match str with
+    [] -> ""
+  | value::rest ->
+      let this_char = 
+	if (compare value (Int64.of_int 255) > 0) 
+           || (compare value Int64.zero < 0)
+	then begin
+	  let msg = Printf.sprintf "character 0x%Lx too big" value in
+	  parse_error msg;
+	  raise Parsing.Parse_error
+	end 
+	else 
+	  String.make 1 (Char.chr (Int64.to_int value))
+      in
+      this_char ^ (intlist_to_string rest)
 
 %}
 
@@ -165,10 +181,12 @@ end
 %token <string> CST_CHAR
 %token <string> CST_INT
 %token <string> CST_FLOAT
-%token <string> CST_STRING
-%token <int64 list> CST_WSTRING   /* Each character is its own list element.
-		           The terminating nul is not included in this list. */
 %token <string> NAMED_TYPE
+
+/* Each character is its own list element, and the terminating nul is not
+   included in this list. */
+%token <int64 list> CST_STRING   
+%token <int64 list> CST_WSTRING
 
 %token EOF
 %token CHAR INT DOUBLE FLOAT VOID INT64 INT32
@@ -247,7 +265,7 @@ end
 %type <Cabs.init_expression> init_expression
 %type <Cabs.expression list> comma_expression paren_comma_expression arguments
 %type <Cabs.expression list> bracket_comma_expression
-%type <string> string_list 
+%type <int64 list> string_list 
 %type <int64 list> wstring_list
 
 %type <Cabs.initwhat * Cabs.init_expression> initializer
@@ -301,7 +319,7 @@ location:
 global:
   declaration                           { $1 }
 | function_def                          { $1 }
-| location ASM LPAREN string_list RPAREN SEMICOLON
+| location ASM LPAREN string_constant RPAREN SEMICOLON
                                         { GLOBASM ($4, $1) }
 | location PRAGMA attr                  { PRAGMA ($3, $1) }
 /* (* Old-style function prototype. This should be somewhere else, like in
@@ -473,24 +491,37 @@ constant:
     CST_INT				{CONST_INT $1}
 |   CST_FLOAT				{CONST_FLOAT $1}
 |   CST_CHAR				{CONST_CHAR $1}
-|   string_list				{CONST_STRING $1}
-|   wstring_list			{CONST_WSTRING ($1 @ [Int64.zero])}/*add a nul*/
+|   string_constant			{CONST_STRING $1}
+/*add a nul to strings.  We do this here (rather than in the lexer) to make
+  concatenation easy below.*/
+|   wstring_list			{CONST_WSTRING ($1 @ [Int64.zero])}
+;
+string_constant:
+/* Now that we know this constant isn't part of a wstring, convert it
+   back to a string for easy viewing. */
+    string_list                         {intlist_to_string ($1 @[Int64.zero]) }
+;
+one_string_constant:
+/* Don't concat multiple strings.  For asm templates. */
+    CST_STRING                          {intlist_to_string ($1 @[Int64.zero]) }
 ;
 string_list:
     one_string                          { $1 }
-|   string_list one_string              { $1 ^ $2 }
+|   string_list one_string              { $1 @ $2 }
 ;
 wstring_list:
     CST_WSTRING                         { $1 }
-|   wstring_list one_string             { $1 @ (Cabs.explodeStringToInts $2) }
+|   wstring_list one_string             { $1 @ $2 }
 |   wstring_list CST_WSTRING            { $1 @ $2 }
 /* Only the first string in the list needs an L, so L"a" "b" is the same
  * as L"ab" or L"a" L"b". */
 
 one_string: 
     CST_STRING				{$1}
-|   FUNCTION__                          {!currentFunctionName}
-|   PRETTY_FUNCTION__                   {!currentFunctionName}
+|   FUNCTION__                          {(Cabs.explodeStringToInts 
+					    !currentFunctionName)}
+|   PRETTY_FUNCTION__                   {(Cabs.explodeStringToInts 
+					    !currentFunctionName)}
 ;    
 
 init_expression:
@@ -979,9 +1010,9 @@ attributes:
 attributes_with_asm:
     /* empty */                         { [] }
 |   attribute attributes_with_asm       { $1 :: $2 }
-|   ASM LPAREN string_list RPAREN attributes        
+|   ASM LPAREN string_constant RPAREN attributes        
                                         { ("__asm__", 
-                                           [CONSTANT(CONST_STRING $3)]) :: $5 }
+					   [CONSTANT(CONST_STRING $3)]) :: $5 }
 ;
  
 attribute:
@@ -1007,7 +1038,7 @@ attr:
 |   IDENT LPAREN  RPAREN                 { CALL(VARIABLE $1, [VARIABLE ""]) }
 |   IDENT paren_attr_list_ne             { CALL(VARIABLE $1, $2) }
 |   CST_INT                              { CONSTANT(CONST_INT $1) }
-|   string_list                          { CONSTANT(CONST_STRING $1) }
+|   string_constant                          { CONSTANT(CONST_STRING $1) }
                                            /*(* Const when it appears in 
                                             * attribute lists, is translated 
                                             * to aconst *)*/
@@ -1064,8 +1095,8 @@ asmattr:
 |    CONST asmattr                      { ("const", []) :: $2 } 
 ;
 asmtemplate: 
-    CST_STRING                          { [$1] }
-|   CST_STRING asmtemplate              { $1 :: $2 }
+    one_string_constant                          { [$1] }
+|   one_string_constant asmtemplate              { $1 :: $2 }
 ;
 asmoutputs: 
   /* empty */           { ([], [], []) }
@@ -1082,8 +1113,8 @@ asmoperandsne:
 |    asmoperandsne COMMA asmoperand     { $3 :: $1 }
 ;
 asmoperand:
-     string_list LPAREN expression RPAREN    { ($1, $3) }
-|    string_list LPAREN error RPAREN         { ($1, NOTHING ) } 
+     string_constant LPAREN expression RPAREN    { ($1, $3) }
+|    string_constant LPAREN error RPAREN         { ($1, NOTHING ) } 
 ; 
 asminputs: 
   /* empty */                { ([], []) }
@@ -1095,8 +1126,8 @@ asmclobber:
 | COLON asmcloberlst_ne                 { $2 }
 ;
 asmcloberlst_ne:
-   CST_STRING                           { [$1] }
-|  CST_STRING COMMA asmcloberlst_ne     { $1 :: $3 }
+   one_string_constant                           { [$1] }
+|  one_string_constant COMMA asmcloberlst_ne     { $1 :: $3 }
 ;
   
 %%

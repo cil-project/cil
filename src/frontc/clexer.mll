@@ -439,22 +439,19 @@ and pragma = parse
                           cur ^ (pragma lexbuf) }  
 
 and str = parse
-        '"'             {""} (* '"' *)
+        '"'             {[]} (* no nul terminiation in CST_STRING *)
 
 |	hex_escape	{let cur = scan_hex_escape(Lexing.lexeme lexbuf) in
-                         let cur': string = String.make 1 (make_char cur) in
-                                         cur' ^ (str lexbuf)}
+                                         cur :: (str lexbuf)}
 |	oct_escape	{let cur = scan_oct_escape (Lexing.lexeme lexbuf) in 
-                         let cur': string = String.make 1 (make_char cur) in
-                                        cur' ^ (str lexbuf)}
-|	"\\0"		{(String.make 1 (Char.chr 0)) ^ 
-                                         (str lexbuf)}
+                                         cur :: (str lexbuf)}
+|	"\\0"		{Int64.zero :: (str lexbuf)}
 |	escape		{let cur = scan_escape (String.sub
 					  (Lexing.lexeme lexbuf) 1 1) in 
-                         let cur': string = String.make 1 cur in
-                                            cur' ^ (str lexbuf)}
-|	_		{let cur = Lexing.lexeme lexbuf in 
-                         cur ^  (str lexbuf)} 
+                         Int64.of_int (Char.code cur) :: (str lexbuf)}
+|	_		{let cur: int64 list = Cabs.explodeStringToInts
+                                                (Lexing.lexeme lexbuf) in 
+                           cur @ (str lexbuf)} 
 
 and wstr = parse
         '"'             {[]} (* no nul terminiation in CST_WSTRING *)

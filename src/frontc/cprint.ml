@@ -250,7 +250,7 @@ let escape_string str =
       res ^ (build (idx + 1)) in
   build 0
 
-let print_string s =
+let print_string (s:string) =
   print ("\"" ^ escape_string s ^ "\"")
 
 let rec conv_to_hex (value:int64):string =
@@ -261,7 +261,8 @@ let rec conv_to_hex (value:int64):string =
     (conv_to_hex (Int64.div value sixteen))
     ^ (conv_digit (Int64.to_int (Int64.rem value sixteen)))
 
-let rec escape_wstring (str: int64 list):string =
+(* a string represented as a list of int64s *)
+let rec escape_string_intlist (str: int64 list):string =
   match str with
     [] -> ""
   | value::rest ->
@@ -269,13 +270,32 @@ let rec escape_wstring (str: int64 list):string =
 	let twofiftyfive = Int64.of_int 255 in
 	if (compare value twofiftyfive > 0) then 
 	  "\\x"^(conv_to_hex value)
-	else
-	  Char.escaped (Char.chr (Int64.to_int value))
+	else begin
+	  let code = Int64.to_int value in
+	  match code with
+	    7 -> "\\a"
+	  | 8 -> "\\b"
+	  | 9 -> "\\t"
+	  | 10 -> "\\n"
+	  | 13 -> "\\r"
+	  | 34 -> "\\\""
+	  | 39 -> "\\'"
+	  | 92 -> "\\\\"
+	  | 0 -> "\\0"
+	  | _ -> 
+	      if code >= 32 && code <= 126 then
+		String.make 1 (Char.chr code)
+	      else
+		"\\"
+		^ (conv_digit (code / 64))
+		^ (conv_digit ((code mod 64) / 8))
+		^ (conv_digit (code mod 8))
+	end
       in
-      this_char ^ (escape_wstring rest)
+      this_char ^ (escape_string_intlist rest)
 
-let print_wstring s =
-  print ("L\"" ^ escape_wstring s ^ "\"")
+let print_wstring (s: int64 list) =
+  print ("L\"" ^ escape_string_intlist s ^ "\"")
 
 (*
 ** Base Type Printing
@@ -626,8 +646,7 @@ and print_expression (exp : expression) (lvl : int) =
       | CONST_FLOAT r -> print r
       | CONST_CHAR c -> print ("'" ^ (escape_string c) ^ "'")
       | CONST_STRING s -> print_string s
-      | CONST_WSTRING s -> print_wstring s)
-
+      | CONST_WSTRING ws -> print_wstring ws)
   | VARIABLE name ->
       comprint "variable";
       print name

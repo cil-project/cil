@@ -15,6 +15,8 @@ int main(){
   //OK, because only the first three digits are part of the escape.
   unsigned char c4[] = "\1111"; 
 
+  //OK, because it's a wide string.
+  wchar_t c5[] = L"\777";
 
 #if defined _MSVC || defined __CYGWIN__
   // Assumes sizeof(wchar_t) == 16
