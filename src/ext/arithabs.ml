@@ -605,12 +605,14 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
           nil
       in
         
+      let succs = List.filter (fun s' -> cfgi.S.blocks.(s'.sid).S.reachable) s.succs in
+      let preds = List.filter (fun s' -> cfgi.S.blocks.(s'.sid).S.reachable) s.preds in
       ignore (p ~ind:ind
                 "%sstmt %d %a %ssuccs %a%s %spreds %a%s %sidom %a%s\n  @[%a@]\n"
                 prologue s.sid (** Statement id *)
                 insert headerstuff
-                prologue (d_list "," (fun _ s' -> num s'.sid)) s.succs epilogue
-                prologue (d_list "," (fun _ s' -> num s'.sid)) s.preds epilogue
+                prologue (d_list "," (fun _ s' -> num s'.sid)) succs epilogue
+                prologue (d_list "," (fun _ s' -> num s'.sid)) preds epilogue
                 prologue insert idom epilogue
                 (docList ~sep:line 
                    (fun pv -> 
