@@ -32,7 +32,7 @@
 (* Pretty printer *)
 
 let debug = false
-let aman           = false
+let aman           = true
 let aman_no_layout = aman && false
 let aman_no_output = aman && false
 let aman_no_fit    = aman && true
