@@ -219,7 +219,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
           if e.eto.kind = ROString then begin
             ()
           end else if e.eto.kind <> Wild && e.eto.why_kind = UserSpec then begin
-            E.s (E.bug "Solver: bad annotation (should be wild because of successor edge)@!%a" d_node e.eto)
+            E.s (E.bug "Solver: bad annotation (should be wild because of successor edge)@!%a@!%a" d_node e.eto d_node e.efrom)
           end else begin
             (if (e.eto.why_kind = UserSpec) then assert (e.eto.kind = Wild)) ;
             update e.eto Wild (SpreadFromEdge cur) ;
@@ -231,7 +231,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
           if e.efrom.kind = ROString then begin
             ()
           end else if e.efrom.kind <> Wild && e.efrom.why_kind = UserSpec then begin
-            E.s (E.bug "Solver: bad annotation (should be wild because of predecessor edge)@!%a" d_node e.efrom)
+            E.s (E.bug "Solver: bad annotation (should be wild because of predecessor edge)@!%a@!%a" d_node e.efrom d_node e.eto)
           end else begin
             (if (e.efrom.why_kind = UserSpec) then assert (e.efrom.kind = Wild)) ;
             update e.efrom Wild (SpreadFromEdge cur) ;
