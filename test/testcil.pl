@@ -178,6 +178,7 @@ $TEST->add3Tests("testrun/memcpy1");
 $TEST->add3Tests("testrun/label1");
 $TEST->add3Tests("testrun/label2");
 $TEST->add3Tests("testrun/label3");
+$TEST->add3Tests("testrun/tablebug", "TABLE=A");
 $TEST->add3Tests("testrun/addrof", "MANUALBOX=1");
 $TEST->add3Tests("testrun/addrof2", "MANUALBOX=1");
 $TEST->add3Tests("testrun/lval1", "_GNUCC=1");
