@@ -217,8 +217,11 @@ and exp =
                                               * in global initializers) *)
   | CastE      of typ * exp * location  (* Use doCast to make casts *)
 
-  | Compound   of typ * exp list        (* Used only for initializers of 
-                                         * structures and arrays *)
+                                        (* Used only for initializers of 
+                                         * structures and arrays. The offsets 
+                                         * are to support ISO designators in 
+                                         * initializers  *) 
+  | Compound   of typ * (offset option * exp) list
   | AddrOf     of lval * location
 
   | StartOf    of lval                  (* There is no C correspondent for 
@@ -227,6 +230,7 @@ and exp =
                                          * denotes the address of the first 
                                          * element of the array. Used only to 
                                          * simplify typechecking  *)
+
 
 (* L-Values denote contents of memory addresses. A memory address is 
  * expressed as a base plus an offset. The base address can be the start 
@@ -774,13 +778,23 @@ and d_exp () e =
         (d_expprec level) e1 (d_expprec level) e2 (d_expprec level) e3
   | CastE(t,e,l) -> dprintf "(%a)%a" d_type t (d_expprec level) e
   | SizeOf (t, l) -> dprintf "sizeof(%a)" d_type t
-  | Compound (t, el) -> 
-      let dcast = 
-        if !msvcMode then nil         (* MSVC does not list the cast *)
-        else dprintf "(%a) " d_type t
+  | Compound (t, initl) -> 
+      (* We do not print the type of the Compound *)
+      let dinit = function
+          None, e -> d_exp () e
+        | Some o, e -> 
+            if !msvcMode then
+              ignore (E.log "Warning: Printing designators in initializers. MS VC does not support them\n");
+            let rec d_offset () = function
+              | NoOffset -> dprintf "=%a" d_exp e
+              | Field (fi, o) -> dprintf ".%s%a" fi.fname d_offset o
+              | First (o) -> d_offset () o
+              | Index (e, o) -> dprintf "[%a]%a" d_exp e d_offset o
+            in
+            d_offset () o
       in
-      dprintf "%a{@[%a@]}" insert dcast
-        (docList (chr ',' ++ break) (d_exp ())) el
+      dprintf "{@[%a@]}"
+        (docList (chr ',' ++ break) dinit) initl
   | AddrOf(lv,lo) -> 
       dprintf "& %a" (d_lvalprec addrOfLevel) lv
 
@@ -1140,7 +1154,7 @@ let iterExp (f: exp -> unit) (body: stmt) : unit =
     | BinOp(_,e1,e2,_,_) -> fExp e1; fExp e2
     | Question (e1, e2, e3, _) -> fExp e1; fExp e2; fExp e3
     | CastE(_, e,_) -> fExp e
-    | Compound (_, el) -> List.iter fExp el
+    | Compound (_, initl) -> List.iter (fun (_, e) -> fExp e) initl
     | AddrOf (lv,_) -> fLval lv
     | StartOf (lv) -> fLval lv
 

@@ -153,7 +153,12 @@ and constant =
   | CONST_FLOAT of string
   | CONST_CHAR of string
   | CONST_STRING of string
-  | CONST_COMPOUND of expression list
+  | CONST_COMPOUND of (init * expression) list
+
+and init = 
+    NO_INIT
+  | FIELD_INIT of string * init
+  | INDEX_INIT of expression * init
 
                                         (* Each attribute has a name and some 
                                          * optional arguments *)

@@ -316,7 +316,6 @@ type expAction =
                                          * constants *)
 
 
-
 (******** CASTS *********)
 let integralPromotion (t : typ) : typ = (* c.f. ISO 6.3.1.1 *)
   match unrollType t with
@@ -881,7 +880,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         end
           (* This is not intended to be a constant. It can have expressions 
            * with side-effects inside *)
-        | A.CONST_COMPOUND el -> begin
+        | A.CONST_COMPOUND initl -> begin
             let slist : stmt list ref = ref [] in
             let doPureExp t e = 
               let (se, e', t') = doExp e (AExp(Some t)) in
@@ -889,30 +888,113 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
                 slist := !slist @ se;
               e'
             in
+            (* Now recurse to find the complete offset and the type  *)
+            let rec initToOffset (bt: typ) = function
+                A.NO_INIT -> NoOffset, bt
+              | A.INDEX_INIT (ei, i) -> 
+                  let elt = 
+                    match unrollType bt with 
+                      TArray(bt, _, _) -> bt
+                    | _ -> E.s (E.unimp "Index designator for a non-array")
+                  in
+                  let off, t = initToOffset elt i in
+                  First (Index (doPureExp intType ei, off)), t
+
+              | A.FIELD_INIT (fn, i) ->
+                  let fld = 
+                    match unrollType bt with 
+                      TStruct(_, flds, _) -> begin
+                        try
+                          List.find (fun f -> f.fname = fn) flds
+                        with Not_found ->
+                          E.s (E.unimp "Invalid field designator %s" fn)
+                      end
+                    | _ -> E.s (E.unimp "Field designator %s on a non-struct"
+                                  fn)
+                  in 
+                  let off, t = initToOffset fld.ftype i in
+                  Field (fld, off), t
+            in
+            let rec initFields (allflds: fieldinfo list) 
+                               (nextflds: fieldinfo list) 
+                               (initl: (A.init * A.expression) list) 
+                  : (offset option * exp) list = 
+              match initl with 
+                [] -> [] (* Leave remaining fields uninitialized *)
+              | (i, ie) :: restinitl ->
+                  let nextfields, thisoffset, thisexpt = 
+                    match i with
+                      A.NO_INIT -> begin
+                        match nextflds with
+                          [] -> E.s (E.unimp "Too many initializers")
+                        | x :: xs -> xs, None, x.ftype
+                      end
+                    | A.INDEX_INIT _ -> 
+                        E.s (E.unimp "INDEX designator for struct")
+                    | A.FIELD_INIT (fn, i') -> 
+                        let rec findField = function
+                            [] -> E.s 
+                                (E.unimp "Cannot find designated field %s"
+                                   fn)
+                          | f :: restf when f.fname = fn -> 
+                              let off, t = initToOffset f.ftype i' in
+                              restf, Some (Field(f, off)), t
+
+                          | _ :: restf -> findField restf
+                        in
+                        findField allflds
+                  in
+                  (* Now do the expression *)
+                  let ie' = doPureExp thisexpt ie in
+                  (thisoffset, ie') :: 
+                  initFields allflds nextfields restinitl
+            in
+            let rec initArray (elt: typ)   (* The element type *)
+                              (nextidx: exp) 
+                              (initl: (A.init * A.expression) list)
+                     (* Return also the nextidx *)
+                : (offset option * exp) list * exp = 
+              let incrementIdx = function
+                  Const(CInt(n, ik, _), l) -> Const(CInt(n + 1, ik, None), l)
+                | e -> BinOp(Plus, e, one, intType, lu)
+              in
+              match initl with
+                [] -> [], nextidx
+              | (i, ie) :: restinitl ->
+                  let nextidx', thisoffset, thisexpt = 
+                    match i with
+                      A.NO_INIT -> 
+                        incrementIdx nextidx, None, elt
+                    | A.FIELD_INIT _ -> 
+                        E.s (E.unimp "FIELD designator for array")
+                    | A.INDEX_INIT (idxe, i') -> 
+                        let idxe' = doPureExp intType idxe in
+                        let off, t = initToOffset elt i' in
+                        incrementIdx idxe', Some(First(Index(idxe', off))), t
+                  in
+                  (* Now do the initializer *)
+                  let ie'= doPureExp thisexpt ie in
+                  let restoffinits, nextidx''  = 
+                              initArray elt nextidx' restinitl in
+                  (thisoffset, ie') :: restoffinits, nextidx''
+            in
             match what with (* Peek at the expected return type *)
               AExp (Some typ) -> begin
                 match unrollType typ with 
                   TStruct(n,flds,_) -> 
-                    let rec loopFlds = function
-                        [], [] -> []
-                      | (f :: flds), (e :: el) -> 
-                          (doPureExp f.ftype e) :: loopFlds (flds, el)
-                      | (f :: flds), [] -> (* initialize with 0 *)
-                          (CastE(f.ftype, integer 0, lu)) :: loopFlds 
-                                                               (flds, [])
-                      | _ -> E.s (E.unimp 
-                                    "Too many initializers for struct %s"  n)
-                    in
-                    finishExp !slist (Compound(typ, loopFlds (flds, el))) typ
-                      
+                    let offinits = initFields flds flds initl in
+                    finishExp !slist
+                              (Compound(typ, offinits)) 
+                              typ
                 | TArray(elt,n,a) as oldt -> 
-                    let newt = 
+                    let offinits, nextidx = initArray elt zero initl in
+                    let newt = (* Maybe we have a length now *)
                       match n with 
-                        None -> TArray(elt, Some(integer (List.length el)),a)
+                        None -> TArray(elt, Some(nextidx), a)
                       | Some _ -> oldt 
                     in
                     finishExp !slist 
-                      (Compound(newt, List.map (doPureExp elt) el))
+                      (Compound(newt, offinits))
                       newt
                 | _ -> E.s (E.unimp "bad initializer type")
               end
@@ -1502,7 +1584,6 @@ and doPureExp (e : A.expression) : exp =
    E.s (E.unimp "doPureExp: not pure");
   e'
 
-
 and doDecl : A.definition -> stmt list = function
   | A.DECDEF ng ->
       let createLocal
@@ -1529,12 +1610,12 @@ and doDecl : A.definition -> stmt list = function
 and doAssign (lv: lval) : exp -> stmt list = function   
                              (* We must break the compound assignment into 
                               * atomic ones  *)
-  | Compound (t, el) -> begin
+  | Compound (t, initl) -> begin
       match unrollType t with 
         TArray(t, _, _) -> 
           let rec loop = function
               _, [] -> []
-            | i, e :: el -> 
+            | i, (None, e) :: el -> 
                 let res = loop ((i + 1), el) in
                 let newlv = mkMem (Lval(lv)) (Index(integer i, NoOffset)) in
                 let newlv = 
@@ -1542,18 +1623,19 @@ and doAssign (lv: lval) : exp -> stmt list = function
                     Lval x -> x | _ -> E.s (E.bug "doAssign: mem")
                 in
                 (doAssign newlv e) @ res
+            | _ -> E.s (E.unimp "doAssign. Compound")
           in
-          loop (0, el)
+          loop (0, initl)
 
       | TStruct(_, fil, _) ->  
           let rec loop = function
               [], [] -> []
-            | f :: fil, e :: el -> 
+            | f :: fil, (None, e) :: el -> 
                 let res = loop (fil, el) in
                 (doAssign (addOffset (Field(f, NoOffset)) lv) e) @ res
             | _, _ -> E.s (E.unimp "fields in doAssign")
           in
-          loop (fil, el)
+          loop (fil, initl)
       | _ -> E.s (E.bug "Unexpected type of Compound")
   end
 

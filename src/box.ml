@@ -323,46 +323,69 @@ let rec typeHasChanged t =
   end
   | TPtr (t, _) -> typeHasChanged t
   | _ -> false
- 
- (* Define tag structures, one for each size of tags, along with initializers
-  *)
-let tagTypes : (int, typ) H.t = H.create 17
-let tagTypeInit sz =                    (* sz is the sizeOf the data *)
-  let words = (sz + 3) lsr 2 in
-  let tagwords = (words + 15) lsr 4 in  (* 2 bits / word, rounded up *)
-  let tagtype = 
-    try
-      H.find tagTypes tagwords            (* Maybe we already made one *)
-    with Not_found -> begin
-      let tname = "tag_" ^ (string_of_int tagwords) in (* The name *)
-      let t = 
-        TStruct(tname, [ { fstruct = tname;
-                           fname   = "_t";
-                           ftype   = TArray(intType, 
-                                            Some (integer tagwords), []);
-                           fattr   = [];
-                         };
-                         { fstruct = tname;
-                           fname   = "_l";
-                           ftype   = intType;
-                           fattr   = [];
-                         }; ], []) in
-      let t' = TNamed(tname, t, []) in
-      H.add tagTypes tagwords t';
-      theFile := GType(tname, t) :: !theFile;
-      t'
-    end
-  in
-  let rec mkTags acc = function
-      0 -> acc
-    | n -> mkTags (zero :: acc) (n - 1)
-  in
-  (tagtype, 
-   Compound(tagtype, 
-            [ Compound(TArray(intType, Some (integer tagwords), []),
-                       mkTags [] tagwords);
-              integer words ]))
 
+
+(* Create tags for types along with the newly created fields and initializers 
+ * for tags and for the length  *)
+(* Check whether the type contains an embedded array *)
+let mustBeTagged v = 
+  let rec containsArray t = 
+    match unrollType t with 
+      TArray _ -> true
+    | TStruct(_, flds, _) -> 
+        List.exists (fun f -> containsArray f.ftype) flds
+    | TPtr _ -> false
+    | (TInt _ | TEnum _ | TFloat _ | TBitfield _ ) -> false
+    | _ -> E.s (E.unimp "containsArray: %a" d_plaintype t)
+  in
+  if v.vglob then 
+    match v.vtype with 
+      TFun _ -> false 
+    | TArray(_, None, _) -> false (* I don't know what to do with these *)
+    | _ -> true
+  else v.vaddrof || containsArray v.vtype
+    
+    
+(* We need to avoid generating multiple copies of the same tagged type 
+ * because we run into trouble if a variable is defined twice (once with 
+ * extern). *)
+let taggedTypes: (typsig, typ) H.t = H.create 123
+
+let tagType (t: typ) : (typ * fieldinfo * fieldinfo * fieldinfo * 
+                          (offset * exp) list * exp) = 
+  let bytes = intSizeOf t in   (* Maybe we should not compute sizeof here *)
+  let words = (bytes + 3) lsr 2 in
+  let tagwords = (words + 15) lsr 4 in
+  let newtype = 
+    let tsig = typeSig t in
+    try
+      H.find taggedTypes tsig
+    with Not_found -> 
+      let newt = 
+        mkCompType true ""
+          [ ("_tags", TArray(intType, 
+                             Some (integer tagwords), []));
+            ("_len", intType);
+            ("_data", t) ] [] in
+      let tname = "_tagged_" ^ typeName t in
+      let named = TNamed (tname, newt, []) in
+      theFile := GType (tname, newt) :: !theFile;
+      H.add taggedTypes tsig named;
+      named
+  in
+  let tfld, lfld, dfld = 
+    match unrollType newtype with
+      TStruct (_, [tfld; lfld; dfld], _) -> tfld, lfld, dfld
+    | _ -> E.s (E.bug "tagLocal")
+  in
+            (* Now create the initializer *)
+  let rec loopTags idx = 
+    if idx >= tagwords then [] else
+    ((Field(tfld, First (Index (integer idx, NoOffset)))), zero) :: 
+    loopTags (idx + 1)
+  in
+  newtype, tfld, lfld, dfld, (loopTags 0), (integer words)
+ 
 
 (****** the CHECKERS ****)
 let fatVoidPtr = fixupType voidPtrType
@@ -550,15 +573,6 @@ let getIOBFunction =
   fdec.svar.vtype <- TFun(fatVoidPtr, [ argn ], false, []);
   fdec
 
-(* Check whether the type contains an embedded array *)
-let rec containsArray t = 
-  match unrollType t with 
-    TArray _ -> true
-  | TStruct(_, flds, _) -> 
-      List.exists (fun f -> containsArray f.ftype) flds
-  | TPtr _ -> false
-  | (TInt _ | TEnum _ | TFloat _ | TBitfield _ ) -> false
-  | _ -> E.s (E.unimp "containsArray")
 
 (* Check if an offset contains a non-zero index *)
 let rec containsIndex = function
@@ -720,12 +734,12 @@ and boxlval (b, off) : (typ * stmt list * lval * exp) =
       Var vi -> 
         (* If the address of this variable is taken or if the variable 
          * contains an array, then we must have changed the type into a 
-         * structure type, with tags  *)
+         * structure type, with tags. All globals are also tagged since we 
+         * might take their address at any time.  *)
         let offbase, tbase, off' = 
-          if not vi.vglob && 
-            (vi.vaddrof || containsArray vi.vtype) then
+          if mustBeTagged vi then
             let dataf = 
-              match vi.vtype with
+              match unrollType vi.vtype with
                 TStruct(_, [_; _; df], _) -> df
               | _ -> E.s (E.bug "addrOf but no tagged type")
             in
@@ -803,27 +817,31 @@ and boxexpf (e: exp) : stmt list * fexp =
       castTo fe' t' doe
   end
         
-  | Const (CStr s, l) -> 
-      (* Make a global variable that stores this one *)
+  | Const (CStr s, cloc) -> 
+      (* Make a global variable that stores this one, so that we can attach a 
+       * tag to it *)
       let l = 1 + String.length s in 
-      let tres = TArray(charType, Some (integer l), []) in
-      let gvar = makeGlobalVar (makeNewTypeName "___string") tres in
+      let newt, tfld, _, dfld, initags, inilen = 
+        tagType (TArray(charType, Some (integer l), [])) in
+      let gvar = makeGlobalVar (makeNewTypeName "___string") newt in
       gvar.vstorage <- Static;
-      let (tagtype, taginit) = tagTypeInit l in
-      let tagvar = makeGlobalVar ("__tag_of_" ^ gvar.vname) tagtype in
-      tagvar.vstorage <- Static;
-      theFile := GVar (tagvar, Some (taginit)) :: !theFile;
-      (* Now the initializer *)
-      let rec loop i =
-        if i >= l - 1 then
-          [Const(CChr(Char.chr 0), lu)]
-        else
-          Const(CChr(String.get s i), lu) :: loop (i + 1)
-      in
-      theFile := GVar (gvar, Some (Compound(tres, loop 0))) :: !theFile;
-      (* Now create a new temporary variable *)
+      (* Build an initializer *)
+      let varinit = 
+        Compound (newt, 
+                  (* The tags. We could use designators but MSVC does not 
+                   * like them *)
+                  (None,
+                   Compound(tfld.ftype, 
+                            List.map (fun (_, itag) -> (None, itag)) initags))
+                  ::
+                  (* Now the length *)
+                  (None, inilen) 
+                  ::
+                  (* Now the real initializer *)
+                  (None, Const(CStr s, cloc)) :: []) in
+      theFile := GVar (gvar, Some varinit) :: !theFile;
       let fatChrPtrType = fixupType charPtrType in
-      let result = Lval(var gvar) in
+      let result = Lval(Var gvar, Field(dfld, NoOffset)) in
       ([], F2 (fatChrPtrType, result, CastE(voidPtrType, result, lu)))
 
 
@@ -1053,37 +1071,51 @@ let boxFile globals =
         if vi.vglob && vi.vstorage <> Static && typeHasChanged vi.vtype then
           begin
             let oldname = vi.vname in
-            vi.vname <- vi.vname ^ "_fp_";
-(*            if not isFuncType then
-              ignore (E.log "Warning: global variable %s changed to %s\n"
-                        oldname vi.vname) *)
+            vi.vname <- vi.vname ^ "_fp_"
           end;
-        if vi.vstorage <> Extern &&
-          (match vi.vtype with TFun _ -> false | _ -> true) then begin
-            let sz = intSizeOfNoExc vi.vtype in
-              let (tagtype, taginit) = tagTypeInit sz in
-              let tagvar = makeGlobalVar ("__tag_of_" ^ vi.vname) tagtype in
-              tagvar.vstorage <- Static;
-              theFile := GVar (tagvar, Some (taginit)) :: !theFile
-          end;
-        let init' = 
-          try
-            match init with
-                None -> None
-            | Some e -> 
-                let (et, doe, e', e'base) = 
-                  boxexpSplit (CastE(vi.vtype, e, lu)) in
-                if doe <> [] then
-                  E.s (E.unimp "Non-pure initializer %a\n"
-                         d_exp e);
+        (* Tag all globals, except function prototypes *)
+        if not (mustBeTagged vi) then
+          theFile := GVar(vi, None) :: !theFile
+        else begin
+          (* Make the initializer *)
+          (* tag the type *)
+          let newtyp, tfld, _, _, initags, inilen = tagType vi.vtype in
+          let init' = 
+            try
+              match init with
+                None -> []
+              | Some e -> 
+                  let (et, doe, e', e'base) = 
+                    boxexpSplit (CastE(vi.vtype, e, lu)) in
+                  if doe <> [] then
+                    E.s (E.unimp "Non-pure initializer %a\n"
+                           d_exp e);
                   if isFatType vi.vtype then
-                    Some (Compound(vi.vtype, [ e'; e'base]))
+                    [(None, Compound(vi.vtype, [ (None, e'); (None, e'base)]))]
                   else
-                    Some e'
-          with e -> Some (dExp (dprintf "booo_init(%s)"
-                                  (Printexc.to_string e)))
-        in
-        theFile := GVar(vi, init') :: !theFile
+                    [(None, e')]
+            with e -> [(None, dExp (dprintf "booo_init(%s)"
+                                           (Printexc.to_string e)))]
+          in
+          vi.vtype <- newtyp;
+          (* Add it to the tag initializer *)
+          let varinit = 
+            if vi.vstorage = Extern then None else
+            Some (Compound (newtyp, 
+                      (* The tags. We could use designators but MSVC does not 
+                       * like them  *)
+                      (None,
+                       Compound(tfld.ftype, 
+                                List.map (fun (_, itag) -> (None, itag)) 
+                                  initags))
+                      ::
+                      (* Now the length *)
+                      (None, inilen) 
+                      ::
+                      (* Now the real initializer *)
+                      init')) in
+          theFile := GVar(vi, varinit) :: !theFile
+        end
     end
     | GType (n, t) as g -> 
         if debug then
@@ -1108,32 +1140,15 @@ let boxFile globals =
         (* Now we must take all locals whose address is taken and turn their 
            types into structures with tags and length field *)
         let tagLocal stmacc l = 
-          if not l.vaddrof && not (containsArray l.vtype) then stmacc
+          if not (mustBeTagged l) then stmacc
           else
-            let bytes = intSizeOf l.vtype in
-            let words = (bytes + 3) lsr 2 in
-            let tagwords = (words + 15) lsr 4 in
-            let tagType = 
-              mkCompType true ""
-                         [ ("_tags", TArray(intType, 
-                                            Some (integer tagwords), []));
-                           ("_len", intType);
-                           ("_data", l.vtype) ] [] in
-            let tfld, lfld = 
-              match tagType with
-                TStruct (_, [tfld; lfld; _], _) -> tfld, lfld
-              | _ -> E.s (E.bug "tagLocal")
-            in
-            l.vtype <- tagType;
-            (* Now create the initializer *)
-            let rec loopTag idx = 
-              if idx >= tagwords then stmacc else
-              (mkSet (Var l, Field(tfld, First (Index (integer idx, 
-                                                       NoOffset))))
-                     zero) :: (loopTag (idx + 1))
-            in
-            (mkSet (Var l, Field(lfld, NoOffset)) (integer words))
-            :: loopTag 0 
+            let newtype, _, lfld, _, initags, inilen = tagType l.vtype in
+            l.vtype <- newtype;
+            (* Create the initializers *)
+            (List.map (fun (off, tv) ->
+              mkSet (Var l, off) tv) initags) 
+            @
+            (mkSet (Var l, Field(lfld, NoOffset)) inilen) :: stmacc
         in
         let inilocals = List.fold_left tagLocal [] f.slocals in
         f.sbody <- mkSeq (inilocals @ [boxstmt f.sbody]);
@@ -1143,6 +1158,13 @@ let boxFile globals =
   in
   if debug then
     ignore (E.log "Boxing file\n");
+  let doGlobal x = 
+    try doGlobal x with e -> begin
+      ignore (E.log "boxglobal (%s)\n" (Printexc.to_string e));
+      theFile := GAsm ("booo_global") :: !theFile
+    end 
+  in
+  H.clear taggedTypes;
   List.iter doGlobal globals;
   List.rev (!theFile)
       

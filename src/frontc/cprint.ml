@@ -515,10 +515,26 @@ and print_expression (exp : expression) (lvl : int) =
       | CONST_FLOAT r -> print r
       | CONST_CHAR c -> print ("'" ^ (escape_string c) ^ "'")
       | CONST_STRING s -> print_string s
-      | CONST_COMPOUND exps ->
+      | CONST_COMPOUND initexps ->
+          let doinitexp = function
+              NO_INIT, e -> print_expression e 1
+            | i, e -> 
+                let rec doinit = function
+                    NO_INIT -> ()
+                  | FIELD_INIT (fn, i) -> print ("." ^ fn); doinit i
+                  | INDEX_INIT (e, i) -> 
+                      print "[";
+                      print_expression e 1;
+                      print "]";
+                      doinit i
+                in
+                doinit i; print " = "; 
+                print_expression e 1
+          in
 	  print "{";
-	  print_comma_exps exps;
+          print_commas false doinitexp initexps;
 	  print "}")
+
   | VARIABLE name ->
       print name
   | EXPR_SIZEOF exp ->

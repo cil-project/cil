@@ -370,6 +370,10 @@ let doFunctionDef (spec: specifier) (n: name)
 %type <Cabs.expression list> comma_expression init_comma_expression
 %type <string> string_list
 
+%type <Cabs.init * Cabs.expression> initializer
+%type <(Cabs.init * Cabs.expression) list> initializer_list
+%type <Cabs.init> init_designators init_designators_opt
+
 %type <specifier> decl_spec_list
 %type <typeSpecifier> type_spec
 %type <Cabs.name_group list> struct_decl_list 
@@ -423,8 +427,8 @@ maybecomma:
  * with the GNU BODY expression. Thus we duplicate the entire expression 
  * language, except for the body and with the compound initializer added */
 init_expression:
-    LBRACE init_comma_expression RBRACE
-			{CONSTANT (CONST_COMPOUND (List.rev $2))}
+    LBRACE initializer_list RBRACE
+			{CONSTANT (CONST_COMPOUND $2)}
 |   constant
 			{CONSTANT $1}		
 |   IDENT
@@ -540,6 +544,32 @@ init_comma_expression:
 |   init_comma_expression COMMA init_expression	  {$3::$1}
 |   init_comma_expression COMMA			  {$1}
 ;
+
+
+initializer_list:    /* ISO 6.7.8. Allow a trailing COMMA */
+    initializer                             { [$1] }
+|   initializer COMMA initializer_list_opt  { $1 :: $3 }
+;
+initializer_list_opt:
+    /* empty */                             { [] }
+|   initializer_list                        { $1 }
+;
+initializer: 
+    init_designators EQ init_expression { ($1, $3) }
+|                       init_expression { (NO_INIT, $1) }
+;
+init_designators: 
+    DOT IDENT init_designators_opt      { FIELD_INIT($2, $3) }
+|   LBRACKET  init_expression RBRACKET init_designators_opt
+                                        { INDEX_INIT($2, $4) }
+;
+init_designators_opt:
+   /* empty */                          { NO_INIT }
+|  init_designators                     { $1 }
+;
+
+
+
 opt_expression:
 		/* empty */
 			{NOTHING}
