@@ -155,11 +155,11 @@ and cfgStmt (s: stmt) (next:stmt option) (break:stmt option) (cont:stmt option) 
       s.succs <- l; (* in order *)
 
       (* sfg: if there's no default, need to connect s->next *)
-      if (List.exists 
-            (fun stmt -> List.exists 
-               (function Default _ -> false | _ -> true)
-               stmt.labels) 
-            l) 
+      if not (List.exists 
+                (fun stmt -> List.exists 
+                   (function Default _ -> true | _ -> false)
+                   stmt.labels) 
+                l) 
       then 
         (match next with  
            | None -> ()
