@@ -31,7 +31,8 @@ union safeu2 {
 
 int main() {
   if(HAS_KIND(x->f1, WILD_KIND)) E(1); //ERROR(1):Error 1
-  if(HAS_KIND(x, WILD_KIND)) E(12); //ERROR(12):Error 12
+  // x will be SAFE because it is not used at all to access the fields
+  if(HAS_KIND(x, SAFE_KIND)) E(12); //ERROR(12):Error 12
   if(HAS_KIND(y->g1, WILD_KIND)) E(2); //ERROR(2):Error 2
   if(HAS_KIND(z, SAFE_KIND)) E(3); //ERROR(3):Error 3
 #if ERROR == 4
@@ -55,6 +56,7 @@ int main() {
   if(HAS_KIND(sptr, SAFE_KIND)) E(7); //ERROR(7):Error 7
 #endif
   {
+    // These two unions should be fine
     union { 
       struct { int a; int b; int c; } one;
       struct { int p; int q; int r; int *s; } two; 
@@ -73,6 +75,7 @@ int main() {
 #endif
   }
   {
+    // These two unions should be fine
     union { 
       struct { int a; int b; int c; } one;
       struct { int p; int q; int r; int s; } two; 
@@ -83,7 +86,7 @@ int main() {
     } *bb;
 #if ERROR == 10
     aa = bb; 
-    if(HAS_KIND(aa, WILD_KIND)) E(10); //ERROR(10):Error 10
+    if(! HAS_KIND(aa, SAFE_KIND)) E(10); //ERROR(10):Error 10
 #endif
 #if ERROR == 11
     bb = aa; 

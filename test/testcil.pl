@@ -345,6 +345,7 @@ $TEST->addTests("test-bad/globinit", "", ['inferbox']);
 $TEST->addTests("test-bad/index1", "", ['inferbox']);
 $TEST->addTests("test-bad/nonptr1", 
                 "EXTRAARGS=--logNonPointers", ['inferbox']);
+$TEST->addTests("test-bad/fieldaddr", "", ['inferbox']);
 $TEST->add3Tests("testrun/label1");
 $TEST->add3Tests("testrun/label2");
 $TEST->add3Tests("testrun/label3");
@@ -487,7 +488,7 @@ $TEST->add2TestsFail("testrun/failprintf5", "",
                      "Failure: Ubound");
 $TEST->add2TestsFail("testrun/failprintf6", "", "Failure: type mismatch");
 $TEST->add2TestsFail("testrun/demo1", "", "Failure: Ubound");
-$TEST->add2TestsFail("testrun/demo2", "", "Failure: Ubound");
+$TEST->add2TestsFail("testrun/demo2", "", "Failure: Lbound");
 $TEST->add2TestsFail("testrun/demo3", "", "Failure: Ubound");
 $TEST->add2TestsFail("testrun/demo4", "", "Failure: Lbound");
 
@@ -510,7 +511,7 @@ $TEST->addTestsFail("testrun/fseq1", "", "Failure: Decrement FSEQ",
 $TEST->addTestsFail("testrun/fseq1", "", "Failure: Lbound", 
                     ['box']);
 $TEST->addTestsFail("testrun/string1", "", "Failure: Ubound", ['inferbox']);
-$TEST->addTestsFail("testrun/fseq3", "", "Failure: Integer arithmetic overflow", ['inferbox']);
+$TEST->addTestsFail("testrun/fseq3", "", "Failure: Non-pointer", ['inferbox']);
 $TEST->addTests("test-bad/badpoly", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/polyfunptr", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/polylist", "_GNUCC=1", [ 'inferbox' ]);
@@ -526,6 +527,8 @@ $TEST->addTests("test-bad/override", "", [ 'inferbox' ]);
 $TEST->addTests("test-bad/wild1", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/union4", "", [ 'inferbox' ]);
 $TEST->addTests("test-bad/union6", "", [ 'inferbox' ]);
+  $TEST->addBadComment("test-bad/union6-inferbox", 
+                       "Unsoundness in tagged unions");
 $TEST->addTests("test-bad/malloc1", "", [ 'inferbox' ]);
 $TEST->addTests("scott/union5", "", ['inferbox']);
 $TEST->addTests("scott/funptr1", "", ['inferbox']);
