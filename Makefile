@@ -459,6 +459,13 @@ combine%:
 	            $(EXEOUT)combine$*.exe
 	cd $(SMALL1); ./combine$*.exe
 
+arcombine: mustbegcc
+	cd $(SMALL1); $(CCURED) --merge -c array1.c array2.c
+	cd $(SMALL1); perl $(CCUREDHOME)/lib/cilly.pl --merge \
+                           --mode=AR crv array.a array1.o array2.o
+	cd $(SMALL1); $(CCURED) --merge -o matrix.exe array.a matrix.c
+	cd $(SMALL1); ./matrix.exe
+
 # weimer: test, compile and run
 testc/% : $(SMALL1)/%.c  
 	cd $(SMALL1); $(CCURED)   \

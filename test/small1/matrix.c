@@ -20,3 +20,6 @@ void multiply(matrix a, matrix b) {
   }
 }
 
+int main() {
+  return 0;
+}

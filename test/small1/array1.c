@@ -28,7 +28,7 @@ typedef struct andnode {
 
 
 static ORNODE root;           /* The root of the tree */
-int main(ANDNODE *a) {
+int main_o(ANDNODE *a) {
   ORNODE b = a->u.args[1];
   return 0;
 }

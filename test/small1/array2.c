@@ -1,5 +1,5 @@
 typedef double real, *realptr;
-typedef real vector[3], matrix[3][4];
+typedef real vector[3], matrix1[3][4];
 
 
 static void testdata(void )

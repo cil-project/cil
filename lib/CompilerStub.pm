@@ -64,6 +64,9 @@ sub new {
         } elsif($mode eq "MSLINK") {
             unshift @CompilerStub::ISA, qw(MSLINK);
             $compiler = MSLINK->new($self);
+        } elsif($mode eq "AR") {
+            unshift @CompilerStub::ISA, qw(AR);
+            $compiler = AR->new($self);
         } else {
             die "Don't know about compiler $mode\n";
         }
@@ -140,9 +143,10 @@ sub printHelp {
     print <<EOF;
 Options:
   --mode=xxx   What tool to emulate:
-                GNUCC   - GNU CC
+                GNUCC   - GNU gcc
                 MSVC    - MS VC cl compiler
                 MSLINK  - MS VC link linker
+                AR      - GNU ar
                This option must be the first one! If it is not found there
                then GNUCC mode is assumed.
   --help (or -help) Prints this help message
@@ -243,6 +247,18 @@ sub link {
     return $self->runShell($cmd);
 }
 
+# LINKING into a library (with COMPILATION and PREPROCESSING)
+sub linktolib {
+    my ($self, $psrcs, $dest, $ppargs, $ccargs, $ldargs) = @_;
+    my @sources = ref($psrcs) ? @{$psrcs} : ($psrcs);
+    $dest = $dest eq "" ? "" : $self->{OUTLIB} . $dest;
+    # Pass the linkargs last because some libraries must be passed after
+    # the sources
+    my $cmd = $self->{LDLIB} . " $dest " . 
+        join(' ', @{$ppargs}, @{$ccargs}, @sources, @{$ldargs});
+    return $self->runShell($cmd);
+}
+
 
 # DO EVERYTHING
 sub doit {
@@ -259,6 +275,7 @@ sub doit {
                     $self->{LINKARGS});
         return;
     }
+    # Turn everything into OBJ files
     my @tolink = (@{$self->{OFILES}});
 
     foreach $file (@{$self->{IFILES}}, @{$self->{CFILES}}) {
@@ -279,10 +296,23 @@ sub doit {
         return;
     }
 
-    # Now link all of the files
-    $out = $self->linkOutputFile();
-    $self->link(\@tolink,  $out, 
-                $self->{PPARGS}, $self->{CCARGS}, $self->{LINKARGS});
+    # See if we must create a library only
+    if($self->{OPERATION} eq "TOLIB") {
+        $out = $self->linkOutputFile();
+        $self->linktolib(\@tolink,  $out, 
+                         $self->{PPARGS}, $self->{CCARGS}, 
+                         $self->{LINKARGS});
+        return;
+    }
+
+    # Now link all of the files into an executable
+    if($self->{OPERATION} eq "TOEXE") {
+        $out = $self->linkOutputFile();
+        $self->link(\@tolink,  $out, 
+                    $self->{PPARGS}, $self->{CCARGS}, $self->{LINKARGS});
+        return;
+    }
+    die "I don't understand OPERATION:$self->{OPERATION}\n";
 }
 
 sub classDebug {
@@ -319,7 +349,7 @@ sub compilerArgument {
           # Now see what action we must perform
           my $argument_done = 1;
           if(defined $action->{'RUN'}) {
-              &{$action->{'RUN'}}($fullarg, $onemore);
+              &{$action->{'RUN'}}($self, $fullarg, $onemore, $pargs);
               $argument_done = 1;
           }
           if(defined $action->{'TYPE'}) {
@@ -537,8 +567,8 @@ sub new {
 # "OSOURCE" in ofiles, "ISOURCE" in ifiles, "OUT" in outarg. 
 #
 # If the TYPE is not defined but the RUN => sub { ... } is defined then the
-# given subroutine is invoked with the argument and the (possibly empty)
-# additional word.
+# given subroutine is invoked with the self, the argument and the (possibly
+# empty) additional word and a pointer to the list of remaining arguments
 #
           ["[^/].*\\.(c|cpp|cc)\$" => { TYPE => 'CSOURCE' },
            "[^/].*\\.(asm)\$" => { TYPE => 'ASMSOURCE' },
@@ -556,17 +586,18 @@ sub new {
            "/F[dprR]" => { TYPE => "CC" },
            "/[CXu]" => { TYPE => "PREPROC" },
            "/U" => { ONEMORE => 1, TYPE => "PREPROC" },
-           "/(E|EP|P)" => { RUN => sub { push @{$stub->{PPARGS}}, $_[0]; 
+           "/(E|EP|P)" => { RUN => sub { push @{$stub->{PPARGS}}, $_[1]; 
                                          $stub->{OPERATION} = "PREPROC"; }},
            "/c" => { RUN => sub { $stub->{OPERATION} = "TOOBJ"; }},
            "/(Q|Z|J|nologo|TC|TP|w|W|Yd|Zm)" => { TYPE => "CC" },
            "/v(d|m)" => { TYPE => "CC" },
            "/F" => { TYPE => "CC" },
            "/M"   => { TYPE => 'LINKCC' },
-           "/link" => { RUN => sub { push @{$stub->{LINKARGS}}, "/link", @ARGV;
-                                     @ARGV = (); } },
+           "/link" => { RUN => sub { push @{$stub->{LINKARGS}}, "/link", 
+                                          @{$_[3]};
+                                     @{$_[3]} = (); } },
            "/"  => { RUN => 
-                         sub { print "Unimplemented MSVC argument $_[0]\n";}},
+                         sub { print "Unimplemented MSVC argument $_[1]\n";}},
            ],
       };
     bless $self, $class;
@@ -733,6 +764,80 @@ sub linkOutputFile {
     die "I do not know what is the link output file\n";
 }
 
+########################################################################
+##
+##  GNU ar specific code
+##
+###
+package AR;
+
+use strict;
+
+use File::Basename;
+
+sub new {
+    my ($proto, $stub) = @_;
+    my $class = ref($proto) || $proto;
+    # Create $self
+
+    my $self = 
+    { NAME => 'Archiver',
+      MODENAME => 'ar',
+      CC => 'no_compiler_in_ar_mode',
+      CPP => 'no_compiler_in_ar_mode',
+      LDLIB => 'ar crv',
+      DEFARG  => " ??DEFARG",
+      INCARG  => " ??INCARG",
+      DEBUGARG => "??DEBUGARG",
+      OPTIMARG => "",
+      OBJEXT => "o",
+      LIBEXT => "a",   # Library extension (without the .)
+      EXEEXT => "",  # Executable extension (with the .)
+      OUTOBJ => " ??OUTOBJ",
+      OUTLIB => "",  # But better be first
+      LINEPATTERN => "", 
+
+      OPTIONS => 
+          ["." => { RUN => \&arArguments } ]
+
+      };
+    bless $self, $class;
+    return $self;
+}
+
+# We handle arguments in a special way for AR
+sub arArguments {
+    my ($self, $arg, $onemore, $pargs) = @_;
+    # If the first argument starts with -- pass it on
+    if($arg =~ m|^--|) {
+        return 0;
+    }
+    # We got here for the first non -- argument. 
+    # Will handle all arguments at once
+#    print "AR called with $arg ", join(' ', @{$pargs}), "\n";
+    if($arg !~ m|c| || $arg !~ m|r| || $#{$pargs} < 0) {
+        die "AR implements only the cr operation";
+    }
+    # Get the name of the library
+    $self->{OUTARG} = shift @{$pargs};
+    unlink $self->{OUTARG};
+    # The rest must be object files
+    push @{$self->{OFILES}}, @{$pargs};
+    $self->{OPERATION} = 'TOLIB';
+    @{$pargs} = ();
+    return 1;
+}
+
+sub linkOutputFile {
+    my($self, $src) = @_;
+    if(defined $self->{OUTARG}) {
+        return $self->{OUTARG};
+    }
+    die "I do not know what is the link output file\n";
+}
+
+
+
 #########################################################################
 ##
 ## GNUCC specific code
@@ -783,12 +888,12 @@ sub new {
              # the -O2 to the preprocessor and the compiler
             "-O" => { TYPE => "PREPROC" },
             "-S" => { RUN => sub { $stub->{OPERATION} = "TOOBJ";
-                                   push @{$stub->{CCARGS}}, $_[0]; }},
+                                   push @{$stub->{CCARGS}}, $_[1]; }},
             "-o" => { ONEMORE => 1, TYPE => 'OUT' },
             "-p" => { TYPE => 'LINKCC' },
             "-W" => { TYPE => 'CC' },
-            "-g" => { RUN => sub { push @{$stub->{CCARGS}}, $_[0];
-                                   push @{$stub->{LINKARGS}}, $_[0]; }},
+            "-g" => { RUN => sub { push @{$stub->{CCARGS}}, $_[1];
+                                   push @{$stub->{LINKARGS}}, $_[1]; }},
             "-l" => { TYPE => 'LINK' },
             "-f" => { TYPE => 'LINKCC' },
             "-r" => { TYPE => 'LINK' },

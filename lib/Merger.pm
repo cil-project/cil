@@ -32,8 +32,6 @@ BEGIN {
 # We need to customize the collection of arguments
 sub collectOneArgument {
     my($self, $arg, $pargs) = @_;
-    # See if the super class understands this
-    if($self->SUPER::collectOneArgument($arg, $pargs)) { return 1; }
     if($arg =~ m|--merge|)  {
         $self->{MERGE} = 1; return 1;
     }
@@ -60,6 +58,8 @@ sub collectOneArgument {
         push @{$self->{CILARGS}}, $arg;
         return 1;
     }
+    # See if the super class understands this
+    if($self->SUPER::collectOneArgument($arg, $pargs)) { return 1; }
     # All other arguments starting with -- are passed to CIL
     if($arg =~ m|^--|) {
         # Split the ==
@@ -198,6 +198,33 @@ sub link {
     # Now collect the files to be merged
     my $src;
     my @sources = ref($psrcs) ? @{$psrcs} : ($psrcs);
+    # Go through the sources and replace all libraries with the files that
+    # they contain
+    my @sources1 = ();
+    while($#sources >= 0) {
+        my $src = shift @sources;
+#        print "Looking at $src\n";
+        # See if the source is a library. Then maybe we should get instead the 
+        # list of files
+        if($src =~ m|\.$self->{LIBEXT}$|) {
+            if(-f "$src.files") {
+                open(FILES, "<$src.files") || die "Cannot read $src.files";
+                while(<FILES>) {
+                    # Put them back in the sources to process them recursively
+                    if($_ =~ m|\n$|) {
+                        chop;
+                    }
+                    unshift @sources, $_;
+                }
+                close(FILES);
+                next;
+            }
+        }
+        push @sources1, $src;
+        next;
+    }
+    @sources = @sources1;
+#    print "Sources are @sources\n";
     my @tomerge = ();
     my @othersources = ();
     foreach $src (@sources) {
@@ -220,7 +247,8 @@ sub link {
         my $fstline = <IN>;
         if($fstline =~ m|\#pragma merger\((\d+)|) {
             if($1 == $mtime) { # It is ours
-                push @tomerge, $combsrc; next;
+                push @tomerge, $combsrc; 
+                next;
             }
         }
         push @othersources, $src;
@@ -249,6 +277,33 @@ sub link {
         print STDERR "Linked the cil program\n";
     }
 }
+
+# Customize the linking into libraries
+sub linktolib {
+    my($self, $psrcs, $dest, $ppargs, $ccargs, $ldargs) = @_;
+    if($self->{VERBOSE}) { print "Merger is linking into library $dest\n"; }
+    if(! $self->{MERGE}) {
+        # Not merging. Regular linking.
+        return $self->linktolib($psrcs, $dest, $ppargs, $ccargs, $ldargs);
+    }
+    # We are merging
+
+    # Now collect the files to be merged
+    my @sources = ref($psrcs) ? @{$psrcs} : ($psrcs);
+
+    # Write the names of the files into a file with the extension files
+    open(FILES, ">$dest.files") || die("Cannot open $dest.files");
+    print FILES join("\n", @sources);
+    if($self->{VERBOSE}) {
+        print "Saved to $dest.files the list of names: ",
+        join(" ", @sources);
+    }
+    close(FILES);
+
+    # Now link as usual, without calling CIL
+    return $self->SUPER::linktolib($psrcs, $dest, $ppargs, $ccargs, $ldargs);
+}
+
 
 sub applyCilAndCompile {
     my ($self, $ppsrc, $dest, $ppargs, $ccargs) = @_;
