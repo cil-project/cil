@@ -342,6 +342,15 @@ testallspj: $(EXECUTABLE)$(EXE) $(TVEXE) $(SAFECLIB) $(SAFEMAINLIB)
              TRANSLF_OTHERS="C:$(SAFECLIB) C:$(SAFEMAINLIB)" \
 	     defaulttarget 
 
+.PHONY : allpcc
+allpcc: $(EXECUTABLE)$(EXE) $(SAFEMAINLIB) $(SAFECLIB)
+	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
+                 $(DOOPT) \
+                 --patch=../../lib/$(PATCHFILE)\
+                 $(INC)$(PCCDIR)/src \
+                 ../PCC/all.c \
+                 $(EXEOUT)allengine.exe
+
 runpcc:
 ifdef _GNUCC
 	rm $(PCCDIR)/bin/*_MSVC*
