@@ -87,6 +87,9 @@ val warnOpt: ('a,unit,Pretty.doc) format -> 'a
 (** Print something to [logChannel] *)
 val log:           ('a,unit,Pretty.doc) format -> 'a
 
+(** same as {!Errormsg.log} but do not wrap lines *)
+val logg:          ('a,unit,Pretty.doc) format -> 'a
+
    (* All of the error and warning reporting functions can also print a 
     * context. To register a context printing function use "pushContext". To 
     * remove the last registered one use "popContext". If one of the error 

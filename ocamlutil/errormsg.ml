@@ -133,6 +133,10 @@ let log (fmt : ('a,unit,doc) format) : 'a =
   let f d = fprint !logChannel 80 d; flush !logChannel; d in
   Pretty.gprintf f fmt
 
+let logg (fmt : ('a,unit,doc) format) : 'a =
+  let f d = fprint !logChannel 10000000 d; flush !logChannel; d in
+  Pretty.gprintf f fmt
+
 let null (fmt : ('a,unit,doc) format) : 'a =
   let f d = Pretty.nil in
   Pretty.gprintf f fmt
