@@ -245,11 +245,15 @@ and exp =
   | AddrOf     of lval * location
 
   | StartOf    of lval                  (* There is no C correspondent for 
-                                         * this. To be used for lval's that 
-                                         * denote arrays. The expression 
-                                         * denotes the address of the first 
-                                         * element of the array. Used only to 
-                                         * simplify typechecking  *)
+                                         * this. C has implicit coercions 
+                                         * from an array to the address of 
+                                         * the first element and from a 
+                                         * function to the start address of 
+                                         * the function. StartOf is used in 
+                                         * CIL to simplify type checking and 
+                                         * is just an explicit form of the 
+                                         * above mentioned implicit 
+                                         * convertions *)
 
 
 (* L-Values denote contents of memory addresses. A memory address is 
@@ -307,8 +311,11 @@ and offset =
 
 (* the following equivalences hold *)
 (* Index(0, off) = off                                                 *)
-(* Mem(StartOf(Mem a, aoff)), off = Mem(a, aoff + First + off)         *)
-(* Mem(StartOf(Var v, aoff)), off = Var(a, aoff + First + off)         *)
+(* Mem(StartOf lv), NoOffset = StartOf (lv) if lv is a function *)
+(* Mem(StartOf(Mem a, aoff)), off = Mem(a, aoff + First + off)  if Mem a, aoff 
+ * is an array       *)
+(* Mem(StartOf(Var v, aoff)), off = Var(a, aoff + First + off)  if Var v, aoff 
+ * is an array      *)
 (* Mem(AddrOf(Mem a, aoff)), off   = Mem(a, aoff + off)                *)
 (* Mem(AddrOf(Var v, aoff)), off   = Var(v, aoff + off)                *)
 
@@ -1171,50 +1178,6 @@ and d_plaintype () = function
 
 
 
-  (* Compute some sizeOf to help with constant folding *)
-let rec intSizeOf = function            (* Might raise Not_found *)
-    TInt((IUChar|IChar|ISChar), _) -> 1
-  | TInt((IShort|IUShort), _) -> 2
-  | TInt((IInt|IUInt), _) -> 4
-  | TInt((ILong|IULong), _) -> 4
-  | TInt((ILongLong|IULongLong), _) ->  8
-  | TFloat(FFloat, _) ->  4
-  | TFloat(FDouble, _) ->  8
-  | TFloat(FLongDouble, _) ->  10
-  | TEnum _ ->  4
-  | TPtr _ ->  4
-  | TArray(t, Some (Const(CInt(l,_,_),_)),_) -> (intSizeOf t) * l
-  | TNamed(_, r, _) -> intSizeOf r
-  | TForward(_, _, rt, _) -> intSizeOf !rt
-  | TComp(true, _, flds, _, _) -> (* STRUCT *)
-      let rec loop = function
-          [] -> 0
-        | f :: flds -> align (intSizeOf f.ftype) + loop flds
-      in
-      loop flds
-  | TComp(false, _, flds, _, _) -> (* UNION *)
-      let max x y = if x > y then x else y in
-      let rec loop = function
-          [] -> 0
-        | f :: flds -> max (align (intSizeOf f.ftype)) (loop flds)
-      in
-      loop flds
-  | _ -> raise Not_found
-
-and intSizeOfNoExc t = 
-  try
-    intSizeOf t
-  with Not_found -> 
-    E.s (E.unimp "Cannot compute the sizeof(%a)\n" d_type t)
-
-and sizeOf t = 
-  try
-    integer (intSizeOf t) 
-  with Not_found -> SizeOf(t, lu)
-
-and align n = ((n + 3) lsr 2) lsl 2
-
-
  (* Scan all the expressions in a statement *)
 let iterExp (f: exp -> unit) (body: stmt) : unit = 
   let rec fExp e = f e; fExp' e
@@ -1273,7 +1236,8 @@ let makeTempVar fdec typ =
   makeLocalVar fdec name typ
 
 
-   (* Make a global variable *) 
+   (* Make a global variable. Your responsibility to make sure that the name 
+    * is unique *) 
 let makeGlobalVar name typ = 
   let vi = { vname = name; 
              vid   = H.hash name;
@@ -1301,38 +1265,6 @@ let dummyFunDec = emptyFunction "@dummy"
 
 
 
-let dExp : doc -> exp = 
-  function d -> Const(CStr(sprint 80 d),lu)
-
-let dStmt : doc -> stmt = 
-  function d -> Instr(Asm([sprint 80 d], false, [], [], []))
-
-
- (* Add an offset at the end of an lv *)      
-let addOffset toadd (b, off) : lval =
- let rec loop = function
-     NoOffset -> toadd
-   | Field(fid', offset) -> Field(fid', loop offset)
-   | First offset -> First (loop offset)
-   | Index(e, offset) -> Index(e, loop offset)
- in
- b, loop off
-
-
-
-  (* Make a Mem, while optimizing StartOf *)
-let mkMem (addr: exp) (off: offset) : exp =  
-  let res = 
-    match addr with
-      StartOf(lv) -> Lval(addOffset (First off) lv)
-    | _ -> Lval(Mem addr, off)
-  in
-(*
-  ignore (E.log "memof : %a\nresult = %a\n" 
-            d_plainexp addr d_plainexp res);
-*)
-  res
-          
 
 
 (**** Compute the type of an expression ****)
@@ -1354,7 +1286,8 @@ let rec typeOf (e: exp) : typ =
   | StartOf (lv) -> begin
       match typeOfLval lv with
         TArray (t,_, _) -> TPtr(t, [])
-      | _ -> E.s (E.bug "typeOf: StartOf on a non-array")
+      | TFun _ as t -> TPtr(t, [])
+     | _ -> E.s (E.bug "typeOf: StartOf on a non-array or non-function")
   end
       
 and typeOfLval = function
@@ -1376,6 +1309,43 @@ and typeOffset basetyp = function
   end
 
 
+
+let dExp : doc -> exp = 
+  function d -> Const(CStr(sprint 80 d),lu)
+
+let dStmt : doc -> stmt = 
+  function d -> Instr(Asm([sprint 80 d], false, [], [], []))
+
+
+ (* Add an offset at the end of an lv *)      
+let addOffset toadd (b, off) : lval =
+ let rec loop = function
+     NoOffset -> toadd
+   | Field(fid', offset) -> Field(fid', loop offset)
+   | First offset -> First (loop offset)
+   | Index(e, offset) -> Index(e, loop offset)
+ in
+ b, loop off
+
+
+
+  (* Make a Mem, while optimizing StartOf. The type of the addr must be 
+   * TPtr(t) and the type of the resulting expression is t *)
+let mkMem (addr: exp) (off: offset) : exp =  
+  let res = 
+    match addr with
+      StartOf(lv) -> begin
+        match unrollType (typeOfLval lv) with
+        | TArray _ -> Lval(addOffset (First off) lv)
+        | TFun _ when off == NoOffset -> Lval lv (* addr *)
+        | _ -> E.s (E.bug "mkMem: invalid use of StartOf")
+      end
+    | _ -> Lval(Mem addr, off)
+  in
+(*  ignore (E.log "memof : %a\nresult = %a\n" 
+            d_plainexp addr d_plainexp res); *)
+  res
+          
 
 let isIntegralType t = 
   match unrollType t with
@@ -1486,7 +1456,7 @@ let rec doCast (e: exp) (oldt: typ) (newt: typ) =
         CastE(newt, e,lu)
 
 
-
+  
 
 (*** Make a compound initializer for zeroe-ing a data type ***)
 let rec makeZeroCompoundInit t = 
@@ -1575,3 +1545,190 @@ let foldLeftCompound (doexp: offset option -> exp -> typ -> 'a -> 'a)
       foldFields flds flds initl acc
   | _ -> E.s (E.unimp "Type of Compound is not array or struct")
       
+
+
+(**
+ **
+ ** MACHINE DEPENDENT PART
+ **
+ **)
+
+     
+type offsetAcc = 
+    { oaFirstFree: int;   (* The first free bit *)
+      oaLastFieldStart: int;   (* Where the previous field started *)
+      oaLastFieldWidth: int;   (* The width of the previous field. Might not 
+                                * be same as FirstFree - FieldStart because 
+                                * of internal padding *)
+      oaPrevBitPack: (int * ikind * int) option; (* If the previous fields 
+                                                   * were packed bitfields, 
+                                                   * the bit where packing 
+                                                   * has started, the ikind 
+                                                   * of the bitfield and the 
+                                                   * width of the ikind *)
+    } 
+let rec offsetOfFieldAcc (fi: fieldinfo) 
+                         (sofar: offsetAcc) : offsetAcc = 
+  (* field type *)
+  let ftype = unrollType fi.ftype in
+  match ftype, sofar.oaPrevBitPack with (* Check for a bitfield that fits in 
+                                         * the current pack after some other 
+                                         * bitfields  *)
+    TBitfield(ikthis, wdthis, _), Some (packstart, ikprev, wdpack)
+      when ((not !msvcMode || ikthis = ikprev) && 
+            packstart + wdpack >= sofar.oaFirstFree + wdthis) ->
+              { oaFirstFree = sofar.oaFirstFree + wdthis;
+                oaLastFieldStart = sofar.oaFirstFree; 
+                oaLastFieldWidth = wdthis;
+                oaPrevBitPack = sofar.oaPrevBitPack
+              } 
+
+  | _, Some (packstart, _, wdpack) -> (* Finish up the bitfield pack and 
+                                       * restart *)
+      offsetOfFieldAcc fi
+        { oaFirstFree = packstart + wdpack;
+          oaLastFieldStart = sofar.oaLastFieldStart;
+          oaLastFieldWidth = sofar.oaLastFieldWidth;
+          oaPrevBitPack = None }
+  | _ -> 
+  (* no active bitfield pack. Compute the internalPadding. Returns the 
+   * alignment boundary for internal padding for the current field  *)
+  let rec internalPaddingAlign = function 
+      TInt((IChar|ISChar|IUChar), _) -> 1
+    | TInt((IShort|IUShort), _) -> 2
+    | TInt((IInt|IUInt), _) -> 4
+    | TInt((ILong|IULong), _) -> 4
+    | TInt((ILongLong|IULongLong), _) -> 4  (* !!! is this correct *)
+    | TEnum _ -> 4 (* !!! Is this correct? *)
+    | TBitfield(ik, _, a) -> internalPaddingAlign (TInt(ik, a)) (* Is this 
+                                                              * correct ? *)
+    | TFloat(FFloat, _) -> 4
+    | TFloat((FDouble|FLongDouble), _) -> 8
+    | TNamed (_, t, _) -> internalPaddingAlign t
+    | TForward (_, _, tr, _) -> internalPaddingAlign !tr
+    | TComp _ -> 4 (* Is this correct ? *)
+    | TArray _ -> 4 (* Is this correct ? *)
+    | TPtr _ -> 4
+    | (TVoid _ | TFun _) -> E.s (E.bug "internalPaddingAlign")
+  in
+  let internPad = (internalPaddingAlign ftype) lsl 3 in
+  let newStart = 
+    (sofar.oaFirstFree + internPad - 1) land (lnot (internPad - 1)) in
+  (* Now compute the width of this field *)
+  let mkRes thiswd btpack = 
+    { oaFirstFree = newStart + thiswd;
+      oaLastFieldStart = sofar.oaFirstFree;
+      oaLastFieldWidth = thiswd;
+      oaPrevBitPack = btpack }
+  in
+  match unrollType ftype with
+    TBitfield(ik, wd, a) -> 
+      let wdpack = bitsSizeOf (TInt(ik, a)) in
+      { oaFirstFree = newStart + wd;
+        oaLastFieldStart = newStart;
+        oaLastFieldWidth = wd;
+        oaPrevBitPack = Some (newStart, ik, wdpack); }
+  | _ ->
+      let wd = (bitsSizeOf ftype) lsl 3 in
+      { oaFirstFree = newStart + wd;
+        oaLastFieldStart = newStart;
+        oaLastFieldWidth = wd;
+        oaPrevBitPack = None;
+      } 
+        
+(* The size of a type, in bits. If struct or array then trailing padding is 
+ * added *)
+and bitsSizeOf = function
+    TInt((IChar|ISChar|IUChar), _) -> 8
+  | TInt((IShort|IUShort), _) -> 16
+  | TInt((IInt|IUInt), _) -> 32
+  | TInt((ILong|IULong), _) -> 32
+  | TInt((ILongLong|IULongLong), _) -> 64
+  | TEnum _ -> 32 (* !!! is this correct ? *)
+  | TBitfield(ik, wd, a) -> wd
+  | TFloat(FFloat, _) -> 32
+  | TFloat((FDouble|FLongDouble), _) -> 64
+  | TNamed (_, t, _) -> bitsSizeOf t
+  | TForward (_, _, tr, _) -> bitsSizeOf !tr
+  | TPtr _ -> 32
+  | TComp (true, _, flds, _, _) -> (* Struct *)
+        (* Go and get the last offset *)
+      let startAcc = 
+        { oaFirstFree = 0;
+          oaLastFieldStart = 0;
+          oaLastFieldWidth = 0;
+          oaPrevBitPack = None;
+        } in
+      let lastoff = 
+        List.fold_left (fun acc fi -> offsetOfFieldAcc fi acc) 
+          startAcc flds 
+      in
+      addTrailing lastoff.oaFirstFree
+        
+  | TComp (false, _, flds, _, _) -> 
+        (* Get the maximum of all fields *)
+      let startAcc = 
+        { oaFirstFree = 0;
+          oaLastFieldStart = 0;
+          oaLastFieldWidth = 0;
+          oaPrevBitPack = None;
+        } in
+      let max = 
+        List.fold_left (fun acc fi -> 
+          let lastoff = offsetOfFieldAcc fi startAcc in
+          if lastoff.oaFirstFree > acc then
+            lastoff.oaFirstFree else acc) 0 flds in
+        (* Add trailing by simulating adding an extra field *)
+      addTrailing max
+
+  | TArray(t, Some (Const(CInt(l,_,_),_)),_) -> 
+      addTrailing ((bitsSizeOf t) * l)
+
+  | TArray(t, None, _) -> raise Not_found
+        
+  | TArray _ -> 
+      E.s (E.unimp "sizeOfInt for non-constant length array")
+  | (TVoid _ | TFun _) -> E.s (E.bug "bitsSizeOf")
+
+
+and addTrailing nrbits = 
+    let roundto = 32 in
+    (nrbits + roundto - 1) land (lnot (roundto - 1))
+
+and sizeOf t = 
+    match unrollType t with
+      TBitfield _ -> E.s (E.bug "sizeOf(bitfield) not allowed")
+    | t' -> begin
+        try
+          integer ((bitsSizeOf t') lsr 3)
+        with Not_found -> SizeOf(t', lu)
+    end
+            
+
+ 
+let offsetOf (fi: fieldinfo) (startcomp: int) : int * int = 
+  (* Construct a list of fields preceeding and including this one *)
+  let prevflds = 
+    match unrollType !(fi.fcomp) with
+      TComp(true, _, flds, _, _) -> 
+        let rec loop = function
+            [] -> E.s (E.bug "Cannot find field %s\n" fi.fname)
+          | fi' :: _ when fi' == fi -> [fi']
+          | fi' :: rest -> fi' :: loop rest
+        in
+        loop flds
+    | _ -> E.s (E.unimp "offsetOf")
+  in
+  let lastoff = 
+    List.fold_left (fun acc fi' -> offsetOfFieldAcc fi' acc)
+      { oaFirstFree = startcomp;
+        oaLastFieldStart = 0;
+        oaLastFieldWidth = 0;
+        oaPrevBitPack = None } prevflds
+  in
+  (lastoff.oaLastFieldStart, lastoff.oaLastFieldWidth)
+      
+ 
+      
+      
+

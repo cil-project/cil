@@ -31,6 +31,9 @@ and fexp =
                                          * The inner expression is an F1 
                                          * whose type and value are given *)
 
+let leaveAlone = 
+  ["printf"; "fprintf"; "sprintf"; "snprintf";
+   "_CrtDbgReport"]
 
 
             (* Same for offsets *)
@@ -51,15 +54,23 @@ let prefix p s =
 let theFile : global list ref = ref []
 (**** Make new types ****)
 
-   (* Keep some global counters for anonymous types *)
-let anonTypeId = ref 0
-let makeNewTypeName base = 
-  incr anonTypeId;
-  base ^ (string_of_int !anonTypeId)
 
-   (* Make a type name, for use in type defs *)
-let rec typeName = function
-    TForward (_, _, self, _)  -> typeName !self
+    (* For each new type name, keep track of various versions, usually due 
+     * to varying attributes *)
+let typeNames : (string, int ref) H.t = H.create 17
+
+let rec newTypeName prefix t = 
+  let n = prefix ^ (baseTypeName t) in
+  try
+    let r = H.find typeNames n in
+    incr r;
+    n ^ (string_of_int !r)
+  with Not_found -> 
+    H.add typeNames n (ref 0);
+    n
+ (* Make a type name, for use in type defs *)
+and baseTypeName = function
+    TForward (_, _, self, _)  -> baseTypeName !self
   | TNamed (n, _, _) -> n
   | TVoid(_) -> "void"
   | TInt(IInt,_) -> "int"
@@ -77,32 +88,24 @@ let rec typeName = function
   | TFloat(FDouble,_) -> "double"
   | TFloat(FLongDouble,_) -> "ldouble"
   | TEnum (n, _, _) -> 
-      if String.sub n 0 1 = "@" then makeNewTypeName "enum"
+      if String.sub n 0 1 = "@" then "enum"
       else "enum_" ^ n
   | TComp (iss, n, _, _, _) -> 
       let su = if iss then "struct" else "union" in
-      if String.sub n 0 1 = "@" then makeNewTypeName su
+      if String.sub n 0 1 = "@" then su
       else su ^ "_" ^ n
-  | TFun _ -> makeNewTypeName "fun"
-  | _ -> makeNewTypeName "type"
+  | TFun _ -> "fun"
+  | _ -> "type"
 
 
+(**** Make new string names *)
+let stringId = ref 0 
+let newStringName () = 
+  incr stringId;
+  "__string" ^ (string_of_int !stringId)
 
 (**** FIXUP TYPE ***)
 let fixedTypes : (typsig, typ) H.t = H.create 17
-
-    (* For each fat pointer name, keep track of various versions, usually due 
-     * to varying attributes *)
-let fatPointerNames : (string, int ref) H.t = H.create 17
-let newFatPointerName t = 
-  let n = "fatp_" ^ (typeName t) in
-  try
-    let r = H.find fatPointerNames n in
-    incr r;
-    n ^ (string_of_int !r)
-  with Not_found -> 
-    H.add fatPointerNames n (ref 0);
-    n
 
 
 (***** Convert all pointers in types for fat pointers ************)
@@ -114,8 +117,8 @@ let rec fixupType t =
                                          * mainly because it is hard to write 
                                          * a wrapper for them. We'll check 
                                          * that we only pass lean pointers to 
-                                         * them *)
-  | TFun (_, _, true, _) -> t
+                                         * them 
+  | TFun (_, _, true, _) -> t            *)
     (* Sometimes we find a function type without arguments or with arguments 
      * with different names (a prototype that we have done before). Do the 
      * regular fixit and then put the argument names back.  *)
@@ -144,7 +147,7 @@ and fixit t =
       | TPtr (t', a) -> begin
         (* Now do the base type *)
           let fixed' = fixupType t' in
-          let tname  = newFatPointerName fixed' in (* The name *)
+          let tname  = newTypeName "fatp_" fixed' in (* The name *)
           let fixed = 
             mkCompType true tname 
               [ ("_p", TPtr(fixed', a)); ("_b", voidPtrType)] []
@@ -335,8 +338,8 @@ let tagType (t: typ) : typ =
   with Not_found -> begin
     let newtype = 
       try
-        let bytes = intSizeOf t in (* Might raise not-found for incomplete 
-                                      * types *)
+        let bytes = (bitsSizeOf t) lsl 3 in (* Might raise not-found for 
+                                             * incomplete types  *)
         let words = (bytes + 3) lsr 2 in
         let tagwords = (words + 15) lsr 4 in
         mkCompType true ""
@@ -351,7 +354,7 @@ let tagType (t: typ) : typ =
             ("_data", t); ] []
       end
     in
-    let tname = "_tagged_" ^ typeName t in
+    let tname = newTypeName "_tagged_" t in
     let named = TNamed (tname, newtype, []) in
     theFile := GType (tname, newtype) :: !theFile;
     H.add taggedTypes tsig named;
@@ -367,7 +370,7 @@ let splitTagType tagged =
     | _ -> E.s (E.bug "splitTagType. No tags: %a\n" d_plaintype tagged)
   in
   let bytes = 
-    try intSizeOf dfld.ftype 
+    try (bitsSizeOf dfld.ftype) lsr 3
     with _ -> E.s (E.bug "splitTagType: incomplete type") in
   let words = (bytes + 3) lsr 2 in
   let tagwords = (words + 15) lsr 4 in
@@ -416,6 +419,37 @@ let checkSafeFatLeanCast =
   let argb  = makeLocalVar fdec "b" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
   fdec
+
+let checkFetchLengthFun = 
+  let fdec = emptyFunction "CHECK_FETCHLENGTH" in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  fdec.svar.vtype <- TFun(intType, [ argb ], false, []);
+  fdec
+  
+let checkFetchLength tmplen base = 
+  call (Some tmplen) (Lval (var checkFetchLengthFun.svar))
+    [ base ]
+
+let checkBoundsFun = 
+  let fdec = emptyFunction "CHECK_CHECKBOUNDS" in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  let argl  = makeLocalVar fdec "l" intType in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argpl  = makeLocalVar fdec "pl" intType in
+  fdec.svar.vtype <- TFun(voidType, [ argp; argb; argp;argpl ], false, []);
+  fdec
+  
+let checkBounds tmplen base lv t = 
+  (* If we are accessing a bitfield then pretend that we access the entire 
+   * struct that contains it. We do this because we cannot take the address 
+   * of a bitfield *)
+  let addr, sz = 
+    match unrollType t with
+      TBitfield (ik, wd, a) -> 
+        
+  call None (Lval (var checkFetchLengthFun.svar))
+    [ base ]
+
 
 let doCheckFat which arg argt = 
   (* Take the argument and break it apart *)
@@ -483,101 +517,47 @@ let checkWritePointer =
   fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
   fdec
   
-
- (* Given a type compute a list of tags for its components *)
-
-let bitsForType iswrite t = 
-  (* Mask and value for the various kinds of data *)
-  let bLean = (if iswrite then 3 else 0), 0 in
-  let bPtr  = 3, 2 in
-  let bBase = 3, 1 in (* Leave this with 1 in LSB so we can recognize it 
-                         easily *)
-  let rec pushBit ((maskb, valueb) as b)
-                  (idx,currentmask,currentvalue,acc) = 
-    let newmask = currentmask lor (maskb lsl idx) in
-    let newvalue = currentvalue lor (valueb lsl idx) in
-    if idx = 28 then
-      (0, 0, 0, newvalue :: newmask :: acc)
-    else
-      (idx + 2, newmask, newvalue, acc)
-  in
-  let rec tagOfType acc = function
-    | (TInt _ | TFloat _ | TEnum _) as t -> 
-        let sz = intSizeOf t in
-        if      sz <= 4 then pushBit bLean acc
-        else if sz <= 8 then pushBit bLean (pushBit bLean acc)
-        else E.s (E.unimp "TagOfType: large scalar")
-    | TComp (true, _, [p;b], _, _) when p.fname = "_p" && b.fname = "_b" -> 
-        pushBit bBase (pushBit bPtr acc)
-    | TComp (true, _, flds, _, _) -> 
-        List.fold_left (fun acc f -> tagOfType acc f.ftype) acc flds
-    | TNamed (_, t, _) -> tagOfType acc t
-    | TForward (_, _, self, _) -> tagOfType acc !self
-    | t -> E.s (E.unimp "tagOfType: %a" d_plaintype t)
-  in
-  let finishAcc (idx, currentmask, currentvalue, acc) = 
-(*    ignore (E.log "Finish for %a@! idx=%d, current=%d@!" 
-              d_plaintype t idx current); *)
-    ((15 * (List.length acc) + idx) lsr 1,
-     List.rev (if idx = 0 then acc else currentvalue :: currentmask :: acc))
-  in
-  finishAcc (tagOfType (0,0,0,[]) t)
-
-    (* Check a read *)
 let checkMem (towrite: exp option) 
              (lv: lval) (base: exp) (t: typ) : stmt list = 
-  let iswrite, towrite = 
-    match towrite with
-      None -> false, zero
-    | Some e -> true, e
-  in
-  match unrollType t with 
-    TFun _ when not iswrite -> 
-        [call None (Lval(var checkSafeReadFun.svar))
-            (CastE(voidPtrType, AddrOf(lv, lu), lu) :: base :: [])]
-  | _ ->
-      (* For a write also verify that we do not write stack pointers to the 
-       * heap *)
-      let checkwrite = 
-        if iswrite then
-          let theCheck = Lval(var checkWritePointer.svar) in
-          let rec doCheckWrite (what: exp) (t: typ) acc = 
-            match unrollType t with 
-            | (TInt _ | TFloat _ | TEnum _ ) -> acc
-            | TComp(true, _, [p;b], _, _) 
-                when p.fname = "_p" && b.fname = "_b" -> 
-                  let (_, p, b) = readPtrBaseField what t in
-                  (call None theCheck [ p; b]) :: acc
-            | TComp(true, _, flds, _, _) -> 
-                let lv = 
-                  match what with 
-                    Lval x -> x
-                  | _ -> E.s (E.unimp "checkwrite on a non-lval")
-                in
-                let doField acc f = 
-                  doCheckWrite (Lval(addOffset (Field(f, NoOffset)) lv))
-                               f.ftype acc
-                in
-                List.fold_left doField acc flds
-            | _ -> E.s (E.unimp "unexpected type in checkwrite")
+  (* Fetch the length field in a temp variable *)
+  let len = makeTempVar !currentFunction intType in
+  (* And the start of tags in another temp variable *)
+  let tagStart = makeTempVar !currentFunction intPtrType in
+  (* Now the tag checking. We only care about pointers. We keep track of what 
+   * we write in each field and we check pointers in a special way. *)
+  let doCheckTags (towrite: exp option) (where: lval) t acc = 
+    match unrollType t with 
+    | (TInt _ | TFloat _ | TEnum _ | TBitfield _ ) -> acc
+    | TComp(true, _, [p;b], _, _) (* A fat pointer *)
+        when p.fname = "_p" && b.fname = "_b" -> begin
+          let wherep = readPtrField (Lval where) t in
+          match what with
+            None -> (* a read *)
+              checkFatPointerRead wherep tagstart acc
+          | Some towrite -> (* a write *)
+              let whatp = readPtrField towrite t in
+              checkFatPointerWrite wherep whatp tagstart acc
+        end 
+    | TComp(true, _, flds, _, _) -> 
+        let doOneField acc fi = 
+          let newwhere = addOffset (Field(fi, NoOffset)) where in
+          let newtowrite = 
+            match what with 
+              None -> None
+            | Some (Lval whatlv) -> 
+                Some (Lval (addOffset (Field(fi, NoOffset)) whatlv))
+            | _ -> E.s (E.unimp "doCheckTags")
           in
-          doCheckWrite towrite t []
-        else [] 
-      in
-      let (nrWords, tags) = bitsForType iswrite t in
-      let tlen = (List.length tags) lsr 1 in
-      if nrWords = 1 then (* A lean memory operation *)
-        let theCheck = 
-          if iswrite then checkSafeWriteLean else checkSafeReadLean in
-        (call None (Lval(var theCheck.svar))
-            (CastE(voidPtrType, AddrOf(lv, lu), lu) :: base :: [])) ::
-        checkwrite
-      else
-        let theCheck = checkSafeMemComp iswrite tlen in
-        (call None (Lval(var theCheck.svar)) 
-            (CastE(voidPtrType, AddrOf(lv, lu), lu) :: base ::
-             (integer nrWords) :: (List.map hexinteger tags))) ::
-        checkwrite
+          doCheckTags newtowrite newwhere fi.ftype acc
+        in
+        List.fold_left doOneField acc flds
+            
+    | _ -> E.s (E.unimp "unexpected type in doCheckTags")
+  in
+  (checkFetchLength len base) ::
+  (checkBounds len base lv t) ::
+  (checkFetchTag tagStart base len) ::
+  (doCheckTags towrite lv t [])
           
     (* Check a write *)
 let checkRead = checkMem None
@@ -670,9 +650,16 @@ and boxinstr (ins: instr) : stmt =
           | _ -> E.s (E.unimp "call of a non-function: %a @!: %a" 
                         d_plainexp f' d_plaintype ft) 
         in
+        let leavealone = 
+          match f' with
+            Lval(Var vf, NoOffset) 
+              when List.exists (fun s -> s = vf.vname) leaveAlone -> true
+          | _ -> false 
+        in
         let (doargs, args') =
-          if isva then (* We leave vararg functions alone. But we check all 
-                        * arguments and, if needed we pack the result *)
+          if leavealone then (* We leave some functions alone. But we check 
+                              * all arguments and, if needed we pack the 
+                              * result  *)
             let rec doArgs = function
               | [] -> ([], [])
               | a :: resta -> 
@@ -689,8 +676,7 @@ and boxinstr (ins: instr) : stmt =
             doArgs args
           else
             let rec doArgs restargs restargst = (* The types of functions 
-                                                 * have 
-                                                 * been fixed already  *) 
+                                                 * have been fixed already  *) 
               match restargs, restargst with
                 [], [] -> [], []
               | a :: resta, t :: restt -> 
@@ -699,6 +685,11 @@ and boxinstr (ins: instr) : stmt =
                   let (_, doa'', a2) = fexp2exp fa'' doa' in
                   let (doresta, resta') = doArgs resta restt in
                 (doa'' @ doresta,  a2 :: resta')
+              | a :: resta, [] when isva -> 
+                  let (doa, fa') = boxexpf a in
+                  let (_, doa'', a2) = fexp2exp fa' doa in
+                  let (doresta, resta') = doArgs resta [] in
+                  (doa'' @ doresta, a2 :: resta')
               | _ -> E.s (E.unimp "vararg in call to %a" d_exp f)
             in
             doArgs args ftargs  
@@ -788,10 +779,10 @@ and boxlval (b, off) : (typ * stmt list * lval * exp) =
     | Mem addr -> 
         let (addrt, doaddr, addr', addr'base) = boxexpSplit addr in
         let addrt' = 
-          match addrt with
+          match unrollType addrt with
             TPtr(t, _) -> t
-          | _ -> E.s (E.unimp "Reading from a non-pointer type: %a\n"
-                        d_plaintype addrt)
+          | _ -> E.s (E.unimp "Mem but no pointer type: %a@!addr= %a@!"
+                        d_plaintype addrt d_plainexp addr)
         in
         (Mem addr', doaddr, addrt', addr'base, off)
   in
@@ -856,7 +847,7 @@ and boxexpf (e: exp) : stmt list * fexp =
          * tag to it *)
         let l = 1 + String.length s in 
         let newt = tagType (TArray(charType, Some (integer l), [])) in
-        let gvar = makeGlobalVar (makeNewTypeName "___string") newt in
+        let gvar = makeGlobalVar (newStringName ()) newt in
         gvar.vstorage <- Static;
       (* Build an initializer *)
         let varinit, dfield = 
@@ -921,10 +912,11 @@ and boxexpf (e: exp) : stmt list * fexp =
           
     | AddrOf (lv, l) ->
         let (lvt, dolv, lv', baseaddr) = boxlval lv in
-      (* Check that variables whose address is taken are flagged *)
+      (* Check that variables whose address is taken are flagged as such, or 
+       * are globals *)
         (match lv' with
-          (Var vi, _) when not vi.vaddrof -> 
-            E.s (E.bug "addrof not set for %s" vi.vname)
+          (Var vi, _) when not vi.vaddrof && not vi.vglob -> 
+            E.s (E.bug "addrof not set for %s (addrof)" vi.vname)
         | _ -> ());
       (* The result type. *)
         let ptrtype = 
@@ -939,17 +931,21 @@ and boxexpf (e: exp) : stmt list * fexp =
         let (lvt, dolv, lv', baseaddr) = boxlval lv in
       (* Check that variables whose address is taken are flagged *)
         (match lv' with
-          (Var vi, _) when not vi.vaddrof -> 
-            E.s (E.bug "addrof not set for %s" vi.vname)
+          (Var vi, _) when not vi.vaddrof && not vi.vglob -> 
+            E.s (E.bug "addrof not set for %s (startof)" vi.vname)
         | _ -> ());
       (* The result type. *)
-        let ptrtype = 
+        let ptrtype, res = 
           match unrollType lvt with
-            TArray(t, _, _) -> fixupType (TPtr(t, [])) 
+            TArray(t, _, _) -> 
+              fixupType (TPtr(t, [])),
+              AddrOf(addOffset (Index(zero, NoOffset)) lv', lu) 
+          | TFun _ -> 
+              fixupType (TPtr(lvt, [])),
+              StartOf lv'
           | _ -> E.s (E.unimp "StartOf on a non-array")
         in
-        (dolv, F2 (ptrtype, AddrOf(addOffset (Index(zero, NoOffset)) lv', lu),
-                   baseaddr))
+        (dolv, F2 (ptrtype, res, baseaddr))
 
     | Question (e1, e2, e3, l) ->       
         let (_, doe1, e1') = boxexp (CastE(intType, e1, lu)) in
@@ -1094,7 +1090,9 @@ let boxFile globals =
     | GVar (vi, init) as g -> begin 
         if debug then
           ignore (E.log "Boxing GVar(%s)\n" vi.vname); 
-        vi.vtype <- fixupType vi.vtype;
+        (* Leave alone some functions *)
+        if not (List.exists (fun s -> s = vi.vname) leaveAlone) then
+          vi.vtype <- fixupType vi.vtype;
           (* If the type has changed and this is a global variable then we
            * also change its name *)
         if vi.vglob && vi.vstorage <> Static && typeHasChanged vi.vtype then
@@ -1135,7 +1133,7 @@ let boxFile globals =
     | GFun f -> 
         if debug then
           ignore (E.log "Boxing GFun(%s)\n" f.svar.vname);
-        (* Fixup the return type as well *)
+        (* Fixup the return type as well, except if it is a vararg *)
         f.svar.vtype <- fixupType f.svar.vtype;
           (* If the type has changed and this is a global function then we
            * also change its name *)
@@ -1144,15 +1142,34 @@ let boxFile globals =
           f.svar.vname <- f.svar.vname ^ "_fp_";
         (* Fixup the types of the locals  *)
         List.iter (fun l -> l.vtype <- fixupType l.vtype) f.slocals;
+        (* We fix the formals only if the function is not vararg *)
         List.iter (fun l -> l.vtype <- fixupType l.vtype) f.sformals;
         currentFunction := f;           (* so that maxid and locals can be 
                                          * updated in place *)
-        (* Check that we do not take the address of a formal *)
-        (match f.svar.vtype with
-          TFun (_, args, _, _) -> 
-            if List.exists (fun x -> x.vaddrof) args then
-              E.s (E.unimp "AddrOf on a formal")
-        | _ -> E.s (E.bug "type of %s is not a function" f.svar.vname));
+        (* Check that we do not take the address of a formal. If we actually 
+         * do then we must make that formal a true local and create another 
+         * formal *)
+        let newformals, newbody = 
+          let rec loopFormals = function
+              [] -> [], [f.sbody]
+            | form :: restf -> 
+                let r1, r2 = loopFormals restf in
+                if form.vaddrof then begin
+                  let tmp = makeTempVar f form.vtype in 
+                    (* Now take it out of the locals and replace it with the 
+                       * current formal. It is not worth optimizing this one *)
+                  f.slocals <- 
+                     form :: 
+                     (List.filter (fun x -> x.vid <> tmp.vid) f.slocals);
+                    (* Now replace form with the temporary in the formals *)
+                  tmp :: r1, (mkSet (var form) (Lval(var tmp)) :: r2)
+                end else
+                  form :: r1, r2
+          in
+          loopFormals f.sformals
+        in
+        f.sformals <- newformals;
+        f.sbody <- mkSeq newbody;
         (* Now we must take all locals whose address is taken and turn their 
            types into structures with tags and length field *)
         let tagLocal stmacc l = 

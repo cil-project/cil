@@ -716,12 +716,20 @@ and makeCompType (iss: bool)
      (* Process an expression and in the process do some type checking, 
       * extract the effects as separate statements  *)
 and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) = 
-  (* A subexpression of array type is automatically turned into StartOf(e) *)
-  let processArray e t = 
+  (* A subexpression of array type is automatically turned into StartOf(e). 
+   * Similarly an expression of function type is turned into StartOf *)
+  let processStartOf e t = 
     match e, unrollType t with
-      Lval(lv), TArray(t, _, a) -> StartOf lv, TPtr(t, AId("const") :: a)
+      Lval(lv), TArray(t, _, a) -> StartOf lv, TPtr(t, a)
+    | Lval(lv), TFun _  -> begin
+        match lv with 
+          Mem(addr), NoOffset -> addr, TPtr(t, [])
+        | _, _ -> StartOf(lv), TPtr(t, [])
+    end
     | Compound _, TArray(t', _, a) -> e, t
-    | _, TArray _ -> E.s (E.unimp "Array expression is not lval")
+    | _, (TArray _ | TFun _) -> 
+        E.s (E.unimp "Array or function expression is not lval: %a@!"
+               d_plainexp e)
     | _ -> e, t
   in
   (* Before we return we call finishExp *)
@@ -729,7 +737,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
     match what with 
       ADrop -> (se, e, t)
     | AExp _ -> 
-        let (e', t') = processArray e t in
+        let (e', t') = processStartOf e t in
         (se, e', t')
 
     | ASet (lv, lvt) -> begin
@@ -737,9 +745,9 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         match e with 
           Lval(lv') when lv == lv' -> (se, e, t)
         | _ -> 
-            let (e', t') = processArray e t in
+            let (e', t') = processStartOf e t in
             let (t'', e'') = castTo t' lvt e' in
-            (se @ [mkSet lv e''], e, t)
+            (se @ [mkSet lv e''], e'', t'')
     end
   in
   let findField n fidlist = 
@@ -791,8 +799,9 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         let (se, e', t) = doExp e (AExp None) in
         let tresult = 
           match unrollType t with
-            TPtr(te, _) -> te
-          | _ -> E.s (E.unimp "Expecting a pointer type in * ")
+          | TPtr(te, _) -> te
+          | _ -> E.s (E.unimp "Expecting a pointer type in *. Got %a@!"
+                        d_plaintype t)
         in
         finishExp se 
                   (mkMem e' NoOffset)
@@ -1287,8 +1296,13 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
           match unrollType ft' with
             TFun(rt,at,isvar,a) -> (rt,at,isvar,f')
           | TPtr(TFun(rt,at,isvar,a),_) -> (* Make the function pointer 
-                                              * explicit *)
-              (rt,at,isvar, mkMem f' NoOffset)
+                                            * explicit  *)
+              let f'' = 
+                match f' with
+                  StartOf lv -> Lval(lv)
+                | _ -> Lval(Mem(f'), NoOffset)
+              in
+              (rt,at,isvar, f'')
           | x -> E.s (E.unimp 
                         "Unexpected type of the called function %a: %a" 
                         d_exp f' d_type x)
@@ -1639,7 +1653,7 @@ and doAssign (lv: lval) : exp -> stmt list = function
               _, [] -> []
             | i, (None, e) :: el -> 
                 let res = loop ((i + 1), el) in
-                let newlv = mkMem (Lval(lv)) (Index(integer i, NoOffset)) in
+                let newlv = mkMem (StartOf(lv)) (Index(integer i, NoOffset)) in
                 let newlv = 
                   match newlv with 
                     Lval x -> x | _ -> E.s (E.bug "doAssign: mem")
