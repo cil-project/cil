@@ -9,7 +9,7 @@
 char* progname = "vararg3";
 int showmessages = 1;
 
-
+#pragma boxvararg_format("pm_error", sizeof(union printf_format), 0) 
 void pm_error( char* format, ... )     {
   va_list args;
 
@@ -19,7 +19,6 @@ void pm_error( char* format, ... )     {
   (void) vfprintf( stderr, format, args );
   fputc( '\n', stderr );
   va_end( args );
-  exit( 1 );
 }
 
 
@@ -28,6 +27,7 @@ void pm_error( char* format, ... )     {
 ** you might consider getting a new stdio library.
 */
 
+#pragma boxvararg_valist("vfprintf", sizeof(union printf_format)) 
 int vfprintf(FILE *stream, char const *format, va_list args ) {
     int n;
     char* ep;
@@ -152,3 +152,9 @@ int vfprintf(FILE *stream, char const *format, va_list args ) {
     return n;
     }
 
+
+
+int main() {
+  pm_error("Cucu %s", "Bau");
+  SUCCESS;
+}

@@ -36,6 +36,8 @@
   #define __BOXMODEL(fname)
   #define __NOBOXBLOCK
   #define __MODELLED
+  #define __BOXVARARG(x)
+  #define __BOXFORMAT(x)
 #else
   #define __WILD   __attribute__((wild))
   #define __SAFE   __attribute__((safe))
@@ -66,6 +68,8 @@
   #define __BOXMODEL(fname) __attribute__((boxmodel(fname)))
   #define __NOBOXBLOCK  __blockattribute__(nobox)
   #define __MODELLED
+  #define __BOXVARARG(x)
+  #define __BOXFORMAT(x)
 #endif
 
 //#if ! defined(MANUALBOX) && ! defined(INFERBOX)
@@ -91,19 +95,60 @@
 
 // Now specify some special pragmas
 #ifdef BEFOREBOX
-#pragma boxalloc("malloc", nozero, sizein(0))
-#pragma boxalloc("alloca", nozero, sizein(0))
-#pragma boxalloc("calloc", zero, sizemul(0,1))
+  #pragma boxalloc("malloc", nozero, sizein(0))
+  #pragma boxalloc("alloca", nozero, sizein(0))
+  #pragma boxalloc("calloc", zero, sizemul(0,1))
+  
+  union printf_format {
+    int             f_int;
+    double          f_double;
+    char * __ROSTRING f_string;
+  };
+  
+  #pragma boxvararg_format("printf", sizeof(union printf_format), 0)
+  #pragma boxvararg_format("fprintf", sizeof(union printf_format), 1)
+  #pragma boxvararg_format("snprintf", sizeof(union printf_format), 2)
+  #pragma boxvararg_format("syslog", sizeof(union printf_format), 1)
+  #pragma boxvararg_format("sprintf", sizeof(union printf_format), 1)
 
-#pragma boxprintf("printf", 0)
-#pragma boxprintf("fprintf", 1)
-#pragma boxprintf("sprintf", 1)
-#pragma boxprintf("snprintf", 2)
-#pragma boxprintf("syslog", 1)
+  // We want to force sprintf to carry a length
+  static inline
+  int sprintf_model(char *buffer, const char *format, ...)
+     __BOXMODEL("sprintf");
+  #pragma boxvararg("sprintf_model", sizeof(union printf_format))
+  static inline 
+  int sprintf_model(char *buffer, const char *format, ...) {
+    // Force buffer to carry a length
+    void* e = __endof(buffer); // buffer ++ would do the same
+    return 0;
+  }
+  
+  #pragma boxpoly("memcpy")
+  #pragma boxpoly("memset")
+  #pragma boxpoly("memmove")
 
-#pragma boxpoly("memcpy")
-#pragma boxpoly("memset")
-#pragma boxpoly("memmove")
+  #pragma boxpoly("memset_seq_model")
+  static inline
+  void* memset_seq_model(void* dest, int towrite, unsigned int size)
+     __BOXMODEL("memset");     
+  static inline
+  void* memset_seq_model(void* dest, int towrite, unsigned int size)
+  {
+    void *end = __endof(dest); // Make sure it has an end
+    return dest;
+  }
+
+  #pragma boxpoly("memcpy_seq_model")
+  static inline
+  void* memcpy_seq_model(void* dest, void *src, unsigned int size)
+       __BOXMODEL("memcpy") __BOXMODEL("memmove");
+  static inline 
+  void* memcpy_seq_model(void* dest, void *src, unsigned int size)
+  {
+    void *end = __endof(dest);
+    dest = src; // Make sure they are both have the same type
+    return dest;
+  }
 
 #pragma boxexported("main")
 #endif
@@ -131,28 +176,6 @@
     return fn;
   }
 
-  #pragma boxpoly("memset_seq_model")
-  static inline
-  void* memset_seq_model(void* dest, int towrite, unsigned int size)
-     __BOXMODEL("memset");     
-  static inline
-  void* memset_seq_model(void* dest, int towrite, unsigned int size)
-  {
-    void *end = __endof(dest); // Make sure it has an end
-    return dest;
-  }
-
-  #pragma boxpoly("memcpy_seq_model")
-  static inline
-  void* memcpy_seq_model(void* dest, void *src, unsigned int size)
-       __BOXMODEL("memcpy") __BOXMODEL("memmove");
-  static inline 
-  void* memcpy_seq_model(void* dest, void *src, unsigned int size)
-  {
-    void *end = __endof(dest);
-    dest = src; // Make sure they are both have the same type
-    return dest;
-  }
 
   static inline
   char *strpbrk_model(char const *s, char const *accept) __BOXMODEL("strpbrk");

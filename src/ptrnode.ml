@@ -759,6 +759,10 @@ let ptrAttrCustom printnode = function
     | Attr("boxmodel", [AStr fname]) -> 
         Some (text ("__BOXMODEL(" ^ fname ^ ")"))
     | Attr("modelledbody", _) -> Some (text "__MODELLED")
+    | Attr("boxvararg", [ASizeOf t]) -> Some (text "__BOXVARARG(" ++ 
+                                                d_type () t ++ text ")")
+    | Attr("boxformat", [AInt fidx]) -> Some (text "__BOXFORMAT(" ++
+                                                num fidx ++ text ")")
     | a -> None
 
 

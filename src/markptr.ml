@@ -21,7 +21,7 @@ let callId = ref (-1)  (* Each call site gets a new ID *)
 
 let polyId = ref (-1) 
 
-let stripCast (e: exp) = match e with CastE(_, e') -> e' | _ -> e
+let rec stripCast (e: exp) = match e with CastE(_, e') -> stripCast e' | _ -> e
 
 let matchSuffix (lookingfor: string) (lookin: string) = 
   let inl = String.length lookin in
@@ -58,13 +58,41 @@ let polyFunc : (string, typ option ref) H.t = H.create 7
 (* Remember the bodies of polymorphic functions *)
 let polyBodies : (string, fundec) H.t = H.create 7
 
-(* all of the printf-like format string functions. The integer is the
- * argument number of the format string. *)
-let printfFunc : (string, int ) H.t = H.create 15
 
-(* We keep track of all functions that are decalred or defined *)
+(* We keep track of all functions that are declared or defined *)
 type funinfo = Declared of varinfo | Defined of fundec
 let allFunctions: (string, funinfo) H.t = H.create 113
+
+(* Apply a function to a function declaration or definition *)
+let applyToFunctionMemory: (string, (varinfo -> unit)) H.t = H.create 13    
+let applyToFunction (n: string) (f: varinfo -> unit) = 
+  (* See if the function was already encountered *)
+  try
+    match H.find allFunctions n with
+      Declared fvi -> f fvi
+    | Defined fdec -> f fdec.svar
+  with Not_found -> H.add applyToFunctionMemory n f
+
+  
+let registerFunction (fi: funinfo) = 
+  let fvi = match fi with Declared fvi -> fvi | Defined fdec -> fdec.svar in
+  (try
+    let f = H.find applyToFunctionMemory fvi.vname in
+    f fvi;
+    H.remove applyToFunctionMemory fvi.vname
+  with Not_found -> ());
+  H.add allFunctions fvi.vname fi
+  
+let addFunctionTypeAttribute (a: attribute) (vi: varinfo)  = 
+  match vi.vtype with 
+    TFun(rt, args, isva, fa) -> vi.vtype <- TFun(rt, args, isva, 
+                                                addAttribute a fa)
+  | _ -> E.s (bug "addFunctionTypeAttribute: not a function type")
+
+let getFunctionTypeAttributes (e: exp) = 
+  match unrollType (typeOf e) with 
+    TFun(_, _, _, fa) -> fa
+  | _ ->  E.s (bug "getFunctionTypeAttribute: not a function type")
 
 (* We keep track of the models to use *)
 let boxModels: (string, fundec) H.t = H.create 15 (* Map the name of the 
@@ -165,7 +193,7 @@ let rec doType (t: typ) (p: N.place)
                               * varinfo for polymorphic functions *)
             i') i0 args 
       in
-      (* See if it is a printf function *)
+      (* See if it is a printf function 
       (try
         if isva then 
           match p with 
@@ -181,7 +209,7 @@ let rec doType (t: typ) (p: N.place)
               end
             end
           | _ -> ()
-      with _ -> ());
+      with _ -> ()); *)
       let newtp = TFun(restyp', args, isva, a) in
       newtp, i'
 
@@ -610,10 +638,6 @@ let instantiatePolyFunc (fvi: varinfo) : varinfo * bool =
 
 (*********************** VARARG ********************************)
 
-(* Keep track for each function name whether it is a vararg, and the 
- * alternatives, with an index, a field name, a type and a type signature *)
-let varargs: (string, (int * string * typ * typsig) list) H.t = H.create 15
-
 let debugVararg = true
 
 (* Compute the signature of a type for comparing arguments *)
@@ -623,44 +647,55 @@ let argumentTypeSig (t: typ) =
       (* We assume that an IInt can hold even an IUShort *)
       TInt ((IShort|IUShort|IChar|ISChar|IUChar), a) -> TInt(IInt, a)
     | TInt _ -> t
-          (* Treat floats as compatible with integers *)
-    | TFloat (FFloat, a) -> TInt (IInt, a)
+          (* floats are passed as double *)
+    | TFloat (FFloat, a) -> TFloat (FDouble, a)
     | TEnum (_, a) -> TInt(IInt, a)
     | t -> t
   in
   (* Ignore all attributes *)
   typeSigWithAttrs (fun x -> []) (argumentPromotion t)
 
-let prepareVararg (funname: string) (t: typ) : unit  = 
-  let kinds = 
-    match unrollType t with
-      TComp (ci, _) when not ci.cstruct -> 
-        let rec loop (idx: int) = function
-            [] -> []
-          | fi :: restfi -> 
-              (idx, fi.fname, fi.ftype, argumentTypeSig fi.ftype) 
-              :: loop (idx + 1) restfi
-        in
-        loop 0 ci.cfields
-    | t' -> [(0, "anon", t', argumentTypeSig t')]
-  in
-  (* Make sure that no two types are compatible *)
-  let _ = 
-    List.fold_left
-      (fun prev ((_, thisn, _, thiss) as this) -> 
-        List.iter
-          (fun (_, pn, pt, ps) -> 
-            if thiss = ps then 
-              E.s (error "Vararg type %a has compatible fields %s and %s\n"
-                     d_type t pn thisn)) prev;
-        this :: prev)
-      []
+(* Keep track for each function whether it is a vararg, and the 
+ * alternatives, with an index, a field name, a type and a type signature. 
+ * raises Not_found *)
+let getVarargKinds (func: exp) : (int * string * typ * typsig) list = 
+  match filterAttributes "boxvararg" (getFunctionTypeAttributes func) with
+    [Attr(_, [ASizeOf t])] -> 
+      let kinds = 
+        match unrollType t with
+          TComp (ci, _) when not ci.cstruct -> 
+            let rec loop (idx: int) = function
+                [] -> []
+              | fi :: restfi -> 
+                  (idx, fi.fname, fi.ftype, argumentTypeSig fi.ftype) 
+                  :: loop (idx + 1) restfi
+            in
+            loop 0 ci.cfields
+        | t' -> [(0, "anon", t', argumentTypeSig t')]
+      in
+      (* Make sure that no two types are compatible *)
+      let _ = 
+        List.fold_left
+          (fun prev ((_, thisn, _, thiss) as this) -> 
+            List.iter
+              (fun (_, pn, pt, ps) -> 
+                if thiss = ps then 
+                  E.s (error "Vararg type %a has compatible fields %s and %s\n"
+                         d_type t pn thisn)) prev;
+            this :: prev)
+          []
+          kinds
+      in
       kinds
-  in
-  if debugVararg then 
-    ignore (E.log "Will treat %s as a vararg function\n" funname);
-  H.add varargs funname kinds
+  | _ -> raise Not_found
 
+
+(* May raise Not_found *)
+let findTypeIndex (t: typ) 
+                  (argkinds: (int * string * typ * typsig) list)
+    : int * string * typ * typsig = 
+  let ts = argumentTypeSig t in
+  List.find (fun (_, _, _, ks) -> ks = ts) argkinds
 
 (* Fetch references to the Vararg globals *)
 let ccured_va_count_o : lval option ref = ref None
@@ -693,90 +728,151 @@ let fetchVarargGlobals () =
         g2lval
   in
   g1, g2
+
+(* take apart a format string and return a list of int/pointer type choices *)
+let rec parseFormatString f start = begin
+  (* interpret a conversion specifier: the stuff that comes after the % in a 
+   * printf format string  *)
+  let rec parseConversionSpec f start = begin
+    try 
+      match Char.lowercase f.[start] with
+        'e' | 'f' | 'g' |   (* double arg *)
+        'a' ->              (* double arg *)
+          [TFloat(FDouble, [])], (start+1)
+      | 'd' | 'i' |         (* signed int arg *)
+        'o' | 'u' | 'x' |   (* unsigned int arg *)
+        'c' |               (* unsigned char *)
+        'p' ->              (* void pointer treated as int *)
+          [intType], (start+1)
+      | '*' ->            (* integer *)
+          let a,b = parseConversionSpec f (start+1) in
+          intType :: a, b 
+      | 's' -> [charPtrType], (start+1) (* char pointer *)
+      | 'n' -> E.s (bug "Cannot handle 'n' character in format string [%s]" f)
+      | _ -> parseConversionSpec f (start+1)
+    with _ ->
+      ignore (warn "Malformed format string [%s]" f);
+      raise Not_found
+  end
+  in
+  try 
+    let i = String.index_from f start '%' in
+    if f.[i+1] = '%' then (* an escaped %, not a format char *) 
+      parseFormatString f (i+2)
+    else begin
+      (* look after the % to see if they want an Int or a Pointer *)
+      let t, next_start = parseConversionSpec f (i+1) in
+      t @ (parseFormatString f next_start) (* look for another % *)
+    end
+  with _ -> []  (* no more % left in format string *)
+end
+
+(* Special handler for format strings *)
+let handleFormatString 
+    (func: exp)
+    (args: exp list) 
+    (argkinds: (int * string * typ * typsig) list) 
+    (indices: int list) : bool =
+  try
+    match filterAttributes "boxformat" (getFunctionTypeAttributes func) with
+      [Attr(_, [AInt format_idx])] -> begin
+        let format_arg = 
+          try List.nth args format_idx 
+          with _ -> begin
+            ignore (warn "Call to format function with too few arguments");
+            raise Not_found
+          end
+        in
+        match stripCast format_arg with
+          Const(CStr(f)) -> 
+            let format_types = parseFormatString f 0 in (* May raise 
+                                                         * Not_found  *)
+            let format_indices = 
+              List.map (fun t -> 
+                let n, _, _, _ = findTypeIndex t argkinds in n) format_types in
+            if format_indices <> indices then begin
+              ignore (warn "Format string %s not compatible with arguments: %a\n" 
+                        f (docList (chr ',') num) format_indices);
+              raise Not_found
+            end;
+            true
+
+        | _ -> false
+      end
+    | _ -> false
+  with Not_found -> false
+
+
   
 (* Prepare the argument in a call to a vararg function *)
 let prepareVarargArguments
     (func: exp) 
     (nrformals: int)
     (args: exp list) : instr list * exp list = 
-  match func with 
-    Lval(Var fvi, NoOffset) -> begin
-      try
-        if debugVararg then 
-          ignore (E.log "Preparing args in call to %s\n" fvi.vname);
-        let argkinds = H.find varargs fvi.vname in
-        let nrargs = List.length args in
-        let (_, indices, args') = 
-          List.fold_right
-            (fun a (arg_idx, indices, args) -> 
-              if arg_idx > nrformals then begin
-                let t = typeOf a in
-                let ts = argumentTypeSig t in
-                (* Search for a compatible type in the kinds *)
-                let rec loop = function
-                    [] -> E.s (unimp "Argument %d does not match any expected type for vararg function %s" arg_idx fvi.vname)
-                  | (ki, kn, kt, ks) :: restk when ks = ts -> 
-                      (* We found a match *)
-                      ki, doCastT a t kt
-                  | _ :: restk -> loop restk
-                in
-                let k_idx, a' = loop argkinds in
-                (arg_idx - 1, k_idx :: indices, a' :: args)
-              end else
-                (arg_idx - 1, indices, a :: args))
-            args
-            (nrargs, [], [])
-        in
-        if debugVararg then 
-          ignore (E.log "Indices are: [%a]\n" (docList (chr ',') num) indices);
-        (* fetch the global variables *)
-        let ccured_va_count, ccured_va_tags = fetchVarargGlobals () in
-        (* Now construct the tag *)
-        let rec loopIndices (count: int) (indices: int list) 
-            : exp (* a partial word*) * instr list (* set the following words 
-                                                    * *) = 
-          match indices with 
-          | [] -> 
-              zero, [Set(ccured_va_count, integer count, !currentLoc)]
-          | i :: rest -> 
-              let p_rest, rest = loopIndices (count + 1) rest in
-              let amount = 8 * (count mod 4) in
-              let shifted = 
-                if amount = 0 then integer i else 
-                BinOp(Shiftlt, integer i, integer amount, intType) in
-              let bor_ed = 
-                if isZero p_rest then shifted else 
-                BinOp(BOr, shifted, p_rest, intType) in
-              if amount = 0 then (* time to put into rest *)
-                (zero,
-                 Set(addOffsetLval (Index(integer (count / 4), 
-                                          NoOffset)) ccured_va_tags,
-                     bor_ed, !currentLoc) :: rest) 
-              else
-                (bor_ed, rest)
-        in
-        let _, instr = loopIndices 0 indices in
-        instr, args'
-      with Not_found -> 
-        E.s (E.bug "Call to vararg function %s without a descriptor" 
-               fvi.vname)
-    end
-  | _ -> E.s (unimp "We do not handle pointers to varargs. Put such calls in a __NOBOXBLOCK")
-        
+  try
+    let argkinds = getVarargKinds func in
+    if debugVararg then 
+      ignore (E.log "Preparing args in call to %a\n" d_exp func);
 
-type varargBodyInfoType = 
-    { lastFormal: varinfo;  (* The last formal *)
-      mutable marker_variable: varinfo; (* The va_list variable. We want to 
-                                         * make sure that only one is used. 
-                                         * Otherwise we need to keep multiple 
-                                         * copies ourselves.  *)
-      localVarargInfo: lval;(* The way to get at the local vararg info *)
-    } 
-let varargBodyInfo : varargBodyInfoType option ref = ref None
-let findVarargBodyInfo () : varargBodyInfoType = 
-  match !varargBodyInfo with 
-    Some x -> x
-  | None -> raise Not_found
+    let nrargs = List.length args in
+    let (_, indices, args') = 
+      List.fold_right
+        (fun a (arg_idx, indices, args) -> 
+          if arg_idx > nrformals then begin
+            let t = typeOf a in
+            let ts = argumentTypeSig t in
+            (* Search for a compatible type in the kinds *)
+            let k_idx, _, kt, _ = 
+              try findTypeIndex t argkinds
+              with Not_found ->  
+                E.s (unimp "Argument %d does not match any expected type for vararg function %a" arg_idx d_exp func)
+            in
+            let a' = doCastT a t kt in
+            (arg_idx - 1, k_idx :: indices, a' :: args)
+          end else
+            (arg_idx - 1, indices, a :: args))
+        args
+        (nrargs, [], [])
+    in
+    if debugVararg then 
+      ignore (E.log "Indices are: [%a]\n" (docList (chr ',') num) indices);
+    (* fetch the global variables *)
+    let ccured_va_count, ccured_va_tags = fetchVarargGlobals () in
+    (* Now construct the tag *)
+    let rec loopIndices (count: int) (indices: int list) 
+        : exp (* a partial word*) * instr list (* set the following words 
+        * *) = 
+      match indices with 
+      | [] -> zero, [Set(ccured_va_count, integer count, !currentLoc)]
+      | i :: rest -> 
+          let p_rest, rest = loopIndices (count + 1) rest in
+          let amount = 8 * (count mod 4) in
+          let shifted = 
+            if amount = 0 then integer i else 
+            BinOp(Shiftlt, integer i, integer amount, intType) in
+          let bor_ed = 
+            if isZero p_rest then shifted else 
+            BinOp(BOr, shifted, p_rest, intType) in
+          if amount = 0 then (* time to put into rest *)
+            (zero,
+             Set(addOffsetLval (Index(integer (count / 4), 
+                                      NoOffset)) ccured_va_tags,
+                 bor_ed, !currentLoc) :: rest) 
+          else
+            (bor_ed, rest)
+    in
+    (* Now check the special case of the format-functions with constant 
+    * format strings *)
+    let instr = 
+      if handleFormatString func args argkinds  indices then
+        [Set(ccured_va_count, integer (-1), !currentLoc)]
+      else
+        let _, instr = loopIndices 0 indices in instr
+    in
+    instr, args'
+      
+  with Not_found -> [], args
+        
 
 (* Create the type for storing the vararg information *)
 let varargCompInfo: compinfo option ref = ref None
@@ -861,12 +957,7 @@ class processVarargClass (fdec: fundec) = object
           in
           let desiredts = argumentTypeSig desiredt in
           (* Find the index in the union type of a compatible type *)
-          let kinds = 
-            try H.find varargs fdec.svar.vname
-            with Not_found -> 
-              E.s (error "Vararg function %s does not have a descriptor" 
-                     fdec.svar.vname)
-          in
+          let kinds = getVarargKinds (Lval(Var fvi, NoOffset)) in
           let ki, kn, kt, ks = 
             match List.filter (fun (_, _, _, ks) -> ks = desiredts) kinds with 
               [x] -> x
@@ -931,50 +1022,8 @@ let d_printfArgType () at = begin
   | FormatPointer -> text "pointer"
 end
     
-(* interpret a conversion specifier: the stuff that comes after the % 
- * in a printf format string *)
-let rec parseConversionSpec f start = begin
-  try 
-  match Char.lowercase f.[start] with
-    'e' | 'f' | 'g' |   (* double arg *)
-    'a' ->              (* double arg *)
-      [FormatDouble], (start+1)
-    | 'd' | 'i' |         (* signed int arg *)
-    'o' | 'u' | 'x' |   (* unsigned int arg *)
-    'c' |               (* unsigned char *)
-    'p' ->              (* void pointer treated as int *)
-      [FormatInt], (start+1)
-    | '*' ->            (* integer *)
-      let a,b = parseConversionSpec f (start+1) in
-      FormatInt :: a, b 
-    | 's' -> [FormatPointer], (start+1) (* char pointer *)
-    | 'n' -> E.s (bug "Cannot handle 'n' character in format string [%s]" f)
-    | _ -> parseConversionSpec f (start+1)
-  with _ ->
-    ignore (warn "Malformed format string [%s], assuming int arg at end" f) ;
-    [FormatInt], (start+1)
-end
 
-(* take apart a format string and return a list of int/pointer choices *)
-let rec parseFormatString f start = begin
-  try 
-    let i = String.index_from f start '%' in
-    if f.[i+1] = '%' then (* an escaped %, not a format char *) 
-      parseFormatString f (i+2)
-    else begin
-      (* look after the % to see if they want an Int or a Pointer *)
-      let t, next_start = parseConversionSpec f (i+1) in
-      t @ (parseFormatString f next_start) (* look for another % *)
-    end
-  with _ -> []  (* no more % left in format string *)
-end
 
-(* remove casts *)
-let removeCasts e = begin
-  match e with 
-    CastE(t,e') -> e'
-  | _ -> e 
-end
 
 (* return the first few items of a list *)
 let rec list_first l n = begin
@@ -982,7 +1031,7 @@ let rec list_first l n = begin
   else []
 end
 
-(* Handle printf-like functions *)
+(* Handle printf-like functions 
 let isPrintf reso orig_func args = begin
   match orig_func with
     (Lval(Var(v),NoOffset)) -> begin try 
@@ -1048,6 +1097,7 @@ let isPrintf reso orig_func args = begin
     end 
   | _ -> None
 end
+*)
 
 (* Some utility functions for decomposing a function call so that we can 
  * process them in a special way *)
@@ -1211,7 +1261,7 @@ and doFunctionCall
       TFun(rt, formals, isva, _) -> rt, formals, isva
     | _ -> E.s (bug "Call to a non-function")
   in
-  let isprintf = isPrintf reso func args in
+  let isprintf = None in (* isPrintf reso func args in *)
   let preinstr, args' = 
     if isva then 
       match isprintf with
@@ -1349,17 +1399,21 @@ let doGlobal (g: global) : global =
             H.add polyFunc s (ref None)
           end
 
-      | Attr("boxprintf", AStr(s) :: AInt(id) :: []) -> 
-          if not (H.mem printfFunc s) then begin
-            ignore (E.log "Will treat %s as a printf function\n" s);
-            H.add printfFunc s id
-          end
 
       | Attr("box", [AId("on")]) -> boxing := true
       | Attr("box", [AId("off")]) -> boxing := false
 
       | Attr("boxvararg", [AStr s; ASizeOf t]) -> 
-          prepareVararg s t
+          applyToFunction s 
+            (addFunctionTypeAttribute (Attr("boxvararg", [ASizeOf t])))
+
+      | Attr("boxvararg_format", [AStr s; ASizeOf t; AInt format_idx]) -> 
+          applyToFunction s 
+            (fun vi -> 
+              addFunctionTypeAttribute 
+                (Attr("boxvararg", [ASizeOf t])) vi;
+              addFunctionTypeAttribute 
+                (Attr("boxformat", [AInt format_idx])) vi)
 
       | _ -> ());
       g
@@ -1395,9 +1449,7 @@ let doGlobal (g: global) : global =
                     d_plaintype vi.vtype); *)
           if not (H.mem polyFunc vi.vname) then doVarinfo vi; 
           (match vi.vtype with
-            TFun _ -> 
-              if not (H.mem allFunctions vi.vname) then
-                H.add allFunctions vi.vname (Declared vi)
+            TFun _ -> registerFunction (Declared vi)
           | _ -> ());
           g
 
@@ -1416,7 +1468,7 @@ let doGlobal (g: global) : global =
           currentLoc := l;
           (* See if it is a model for anybody *)
           if not !disableModelCheck then begin
-            H.add allFunctions fdec.svar.vname (Defined fdec);
+            registerFunction (Defined fdec);
             (* Scan the models *)
             let modelattrs = filterAttributes "boxmodel" fdec.svar.vattr in
             List.iter 
@@ -1451,9 +1503,9 @@ let markFile fl =
   H.clear polyFunc;
   H.clear polyBodies;
   H.clear allFunctions;
+  H.clear applyToFunctionMemory;
   H.clear boxModels;
   H.clear dontUnrollTypes;
-  H.clear varargs;
   instantiations := [];
   (* Some globals that are exported and must thus be considered part of the 
    * interface *)
@@ -1682,7 +1734,7 @@ let markFile fl =
   H.clear boxModels;
   H.clear allFunctions;
   H.clear dontUnrollTypes;
-  H.clear varargs;
+  H.clear applyToFunctionMemory;
   recursiveInstantiations := [];
   instantiations := [];
   currentFile := dummyFile;

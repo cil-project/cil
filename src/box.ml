@@ -117,10 +117,6 @@ let kindOfFexp (fe: fexp) : N.opointerkind =
 
 let leaveAlone : (string, bool) H.t =
   let h = H.create 17 in
-  List.iter (fun s -> H.add h s true)
-    [ "sscanf"; "scanf";
-      "fscanf"; "_CrtDbgReport"; 
-      "fprintf"; "printf"; "sprintf"; "vfprintf" ];
   h
 
 
@@ -3107,6 +3103,7 @@ let getFieldsOfSized (t: typ) : fieldinfo * fieldinfo =
   
 
 
+
 (* Remember names that we have already mangled *)
 let mangledNames : (string, unit) H.t = H.create 123
 (* Remeber if we mangled the name of main *)
@@ -3152,7 +3149,25 @@ let fixupGlobName vi =
     not (isAllocFunction vi.vname) &&
     not (H.mem mangledNames vi.vname) then
     begin
-      let quals = qualNames [] vi.vtype in
+      (* For vararg functions we pretend that the type also contains the 
+       * union elements *)
+      let vitype = 
+        match vi.vtype with 
+          TFun (rt, args, true, a) -> begin
+            match filterAttributes "boxvararg" a with 
+              [Attr(_, [ASizeOf t])] -> 
+                let types = 
+                  match t with
+                    TComp(ci, _) -> List.map (fun f -> f.ftype) ci.cfields
+                  | _ -> [t]
+                in
+                TFun(rt,args @ (List.map (fun t -> makeVarinfo "" t) types),
+                     true, a)
+            | _ -> vi.vtype
+          end
+        | _ -> vi.vtype
+      in
+      let quals = qualNames [] vitype in
       let suffix =
         let rec allSafe = function (* Only default qualifiers *)
             [] -> true
@@ -4055,8 +4070,6 @@ let boxFile file =
                 ignore (E.log "Will treat %s as an allocation function\n" s);
                 boxallocPragma s rest
             end
-        | Attr("boxprintf",  AStr(s) :: rest) -> 
-            H.add leaveAlone s true
         | Attr("box", [AId("on")]) -> boxing := true
         | Attr("box", [AId("off")]) -> boxing := false
         | Attr("boxtext", [AStr s]) ->
