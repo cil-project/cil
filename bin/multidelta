@@ -18,7 +18,7 @@ $undo           = 0;
 
 if (@ARGV == 0) {
   print(<<"EOF");
-usage: $0 test-script [options] file [file [...]]
+usage: $0 [options] test-script file [file [...]]
 
 The collection of input files is minimized as much as possible,
 such that the test-script continues to return true.
