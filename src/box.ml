@@ -466,7 +466,7 @@ and fixit t =
           List.iter 
             (fun fi -> 
               let newa, newt = moveAttrsFromDataToType  fi.fattr fi.ftype in
-              fi.fattr <- newa;
+              fi.fattr <- newa ; 
               fi.ftype <- fixupType newt) 
             comp.cfields;
           bitfieldCompinfo comp;
@@ -475,10 +475,11 @@ and fixit t =
       | TArray(t', l, a) -> 
           let sized = extractArrayTypeAttribute a in
           let newarray = TArray(fixupType t', l, a) in
-          if sized then
+          if sized then begin
             addArraySize newarray
-          else
+          end else begin
             newarray
+          end
             
             
       | TFun(rt,args,isva,a) ->
@@ -2249,7 +2250,8 @@ let boxFile file =
        * alone  *)
       let newa, newt = moveAttrsFromDataToType vi.vattr vi.vtype in
       vi.vattr <- P.replacePtrNodeAttrList P.AtVar 
-           (dropAttribute newa (ACons("__format__", [])));
+            (dropAttribute newa (ACons("__format__", [])))
+            ;
       vi.vtype <- fixupType newt;
     end;
           (* If the type has changed and this is a global variable then we

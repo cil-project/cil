@@ -361,7 +361,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     ) node_ht
   done ;
 
-  (* now take all of the posarith/intcast pointers and make them fseq *)
+  (* now take all of the posarith/intcast pointers and make them seq/fseq *)
   Hashtbl.iter (fun id cur ->
     (* arithmetic can make something an index *)
     if (cur.posarith || (cur.null && cur.intcast)) then begin
@@ -389,8 +389,11 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       let f = (fun n -> if (update_kind n cur.kind why) then 
                           finished := false) in
       let contaminated_list = 
-        (List.map (fun e -> e.efrom) (ecastandenull_edges_only cur.pred)) in
+        (List.map (fun e -> e.efrom) (ecastandenull_edges_only cur.pred)) @ 
+        (List.map (fun e -> e.eto) (ecast_edges_only cur.succ)) in
       List.iter f contaminated_list ;
+      (* mark all cast edges at least equal to this! *)
+
     end) node_ht
   done ;
 

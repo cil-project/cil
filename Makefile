@@ -21,7 +21,7 @@ MLYS        =
 # ast clex cparse
 # sm: trace: utility for debug-time printfs
 MODULES     = pretty trace errormsg stats cil check ptrnode \
-              simplesolve markptr box optim
+              simplesolve box markptr optim
 EXECUTABLE  = $(OBJDIR)/safec
 CAMLUSEUNIX = 1
 ifdef RELEASE

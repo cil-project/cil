@@ -487,10 +487,10 @@ and doAttr : A.attribute -> attribute = function
       ACons (s, List.map attrOfExp el)
 
 and doAttrList (al: A.attribute list) : attribute list = 
-  dropAttribute
+  dropAttribute (dropAttribute
   (List.fold_left (fun acc a -> addAttribute (doAttr a) acc) [] al)
 	(* weimer: I need to drop this attribute before it gets anywhere *)
-	(ACons("__mode__",[]))
+	(ACons("__mode__",[]))) (AId("__transparent_union__"))
 
 
 and doStorage = function

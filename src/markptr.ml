@@ -1,6 +1,3 @@
-(* A module that scans a CIL file and tags all TPtr with a unique attribute 
- * id. It also constructs a mapping from attributes id to places where they 
- * were introduced  *)
 open Cil
 open Pretty
 
@@ -16,6 +13,14 @@ let currentFunctionName = ref ""
 let currentResultType = ref voidType
 
 let callId = ref (-1)  (* Each call site gets a new ID *)
+
+(* if some enclosing context [like the attributes for a field] says that
+ * this array should be sized ... we do not want to forget it! *)
+let addArraySizedAttribute arrayType enclosingAttr =
+  if filterAttributes "sized" enclosingAttr <> [] then
+    typeAddAttributes [AId("sized")] arrayType
+  else
+    arrayType
 
 (* Grab the node from the attributs of a type. Returns dummyNode if no such 
  * node *)
@@ -52,6 +57,7 @@ let rec doType (t: typ) (p: N.place)
   | TArray(bt, len, a) -> begin
       (* wes: we want a node for the array, just like we have a node for
        * each pointer *)
+      let sized = filterAttributes "sized" a <> [] in 
       match N.nodeOfAttrlist a with
         Some n -> TArray (bt, len, a), nextidx (* Already done *)
       | None -> 
@@ -67,7 +73,8 @@ let rec doType (t: typ) (p: N.place)
         H.add doneComposites comp.ckey true; (* before we do the fields *)
         List.iter 
           (fun f -> 
-            let t', i' = doType f.ftype (N.PField f) 0 in
+            let fftype = addArraySizedAttribute f.ftype f.fattr in 
+            let t', i' = doType fftype (N.PField f) 0 in
             f.ftype <- t') comp.cfields;
         t, nextidx
       end
@@ -202,7 +209,8 @@ let doVarinfo vi =
       N.PLocal (!currentFileName, !currentFunctionName, vi.vname)
   in
   (* Do the type of the variable. Start the index at 1 *)
-  let t', _ = doType vi.vtype place 1 in
+  let vi_vtype = addArraySizedAttribute vi.vtype vi.vattr in 
+  let t', _ = doType vi_vtype place 1 in
   vi.vtype <- t';
   (* Associate a node with the variable itself. Use index = 0 *)
   let n = N.getNode place 0 vi.vtype vi.vattr in
