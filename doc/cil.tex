@@ -2619,6 +2619,9 @@ Necula}.
  
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf December 1, 2003}: Fixed a Makefile bug in the generation of the 
+Cil library (e.g., \t{cil.cma}) that was causing it to be unusable. Thanks
+to KEvin Millikin for pointing out this bug. 
 \item {\bf November 26, 2003}: Added support for linkage specifications
        (extern ``C''). 
 \item {\bf November 26, 2003}: Added the ocamlutil directory to contain some
@@ -2647,7 +2650,7 @@ utilities shared with other projects.
 arguments to match the prototype. 
 \item {\bf August 1, 2003}: A variety of fixes suggested by Steve Chamberlain:
 initializers for externs, prohibit float literals in enum, initializers for
-unsized arrays were not workign always, an overflow problem in Ocaml, changed
+unsized arrays were not working always, an overflow problem in Ocaml, changed
 the processing of attributes before struct specifiers
 
 \item {\bf July 14, 2003}: Add basic support for GCC's "\_\_thread" storage

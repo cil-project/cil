@@ -51,7 +51,7 @@ ifdef USE_RAND
 endif
 
     # Now rules to make cilly
-CILLY_MODULES = pretty errormsg trace stats util clist \
+CILLY_LIBRARY_MODULES = pretty errormsg trace stats util clist \
               escape \
               cabs cabsvisit cprint cparser clexer  \
               cilversion machdep cil formatparse formatlex formatcil cabs2cil \
@@ -61,8 +61,11 @@ CILLY_MODULES = pretty errormsg trace stats util clist \
               canonicalize heap oneret partial simplemem simplify \
               testcil \
 	      $(CILLY_FEATURES) \
-	      feature_config \
-              maincil
+	      feature_config
+# ww: we don't want "maincil" in an external cil library (cil.cma),
+# otherwise every program that links against that library will get
+# maincil's argument checking and whatnot ...
+CILLY_MODULES = $(CILLY_LIBRARY_MODULES) maincil
 CILLY_CMODULES =
 CILLY_LIBS     = unix str
 
@@ -185,14 +188,15 @@ endif
 
 
 
-OCAML_CIL_LIB_MODULES := $(CILLY_MODULES)
+OCAML_CIL_LIB_MODULES := $(CILLY_LIBRARY_MODULES) 
+OCAML_CIL_LIB_CMODULES := perfcount
 
 # list of modules to use for building a library; remove 'maincil'
 # and add 'libmaincil'
 OCAML_CIL_C_LIB_MODULES := $(CILLY_MODULES:maincil=) libmaincil
 
 # Build an OCAML library (CMA / CMXA) that exports our Cil stuff
-$(OBJDIR)/cil.$(CMXA): $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
+$(OBJDIR)/cil.$(CMXA): $(OCAML_CIL_LIB_CMODULES:%=$(OBJDIR)/%.$(OBJ)) $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO)) 
 	$(CAMLLINK) -a -o $@ $^
 
 # sm: for Simon: build a library of CIL functions which can
