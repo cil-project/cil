@@ -758,6 +758,9 @@ li: defaulttarget mustbegcc
             <$(LIDIR)/data/train/input/train.lsp \
             >$(LIDIR)/data/train/input/train.out
 
+licombined: defaulttarget mustbegcc
+	cd $(LIDIR)/src; $(SAFECC) trial_li_all.c $(EXEOUT)trial_li_all.exe
+
 li-noclean: defaulttarget mustbegcc
 	cd $(LIDIR)/src; \
             make build CC="$(LISAFECC) $(CONLY)" \

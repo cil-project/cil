@@ -920,7 +920,7 @@ and fixit t =
           let res = TFun(fixupType rt, args, isva, a) in
           res
     in
-    H.add fixedTypes ts fixed;
+(*    H.add fixedTypes ts fixed; *)
     H.add fixedTypes (typeSigBox fixed) fixed;
 (*    ignore (E.log "Id of %a\n is %s\n" d_plaintype t (N.typeIdentifier t));*)
     fixed
@@ -1136,6 +1136,7 @@ let containsArray t =
     (function 
         TArray _ -> ExistsTrue 
       | TPtr _ -> ExistsFalse
+      | TFun _ -> ExistsFalse
       | _ -> ExistsMaybe) t
 
 (* Create tags for types along with the newly created fields and initializers 
@@ -1948,6 +1949,7 @@ let checkMem (towrite: exp option)
                       (t: typ) (pkind: N.pointerkind) acc = 
     match unrollType t with 
     | (TInt _ | TFloat _ | TEnum _ | TBitfield _ ) -> acc
+(*    | TFun _ -> acc *)
     | TComp comp when isFatComp comp -> begin (* A fat pointer *)
         match towrite with
           None -> (* a read *)
@@ -3124,8 +3126,9 @@ let boxFile file =
                 let newa, newt = moveAttrsFromDataToType l.vattr l.vtype in
                 l.vattr <- N.replacePtrNodeAttrList N.AtVar newa;
                 l.vtype <- fixupType newt;
-                if mustBeTagged l then
+                if mustBeTagged l then begin
                   l.vtype <- tagType l.vtype;
+                end
                 (* ignore (E.log "Local %s: %a. A=%a\n" l.vname
                    d_plaintype l.vtype
                    (d_attrlist true) l.vattr); *)
@@ -3179,8 +3182,9 @@ let boxFile file =
             (dropAttribute newa (ACons("__format__", [])))
             ;
       vi.vtype <- fixupType newt;
-      if mustBeTagged vi then
+      if mustBeTagged vi then begin
         vi.vtype <- tagType vi.vtype
+      end
     end;
           (* If the type has changed and this is a global variable then we
            * also change its name *)

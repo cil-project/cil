@@ -564,7 +564,7 @@ let removePred n pid =
 let ptrAttrCustom printnode = function
       ACons("_ptrnode", [AInt n]) -> 
         if printnode then
-          Some (dprintf "NODE(%d)" n)
+          Some (dprintf "__NODE(%d)" n)
         else begin
           try
             let nd = H.find idNode n in
