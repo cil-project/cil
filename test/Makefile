@@ -781,6 +781,7 @@ test-bad1/%: $(TESTDIR)/small1/%.c $(TARGET_DEP)
 	  CCURED="$(CCURED) --separate --commPrintLn" \
 	  CFLAGS=""`$(PATCHECHO) $(STANDARDPATCH)`" $(CFLAGS) $(WARNALL)" \
           TESTBADONCE="$(TESTBADONCE)" \
+	  _MSVC="$(_MSVC)" \
 	  bash ../../bin/test-bad $*.c
 
 # sm: trivial test of combiner

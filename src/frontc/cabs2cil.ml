@@ -161,6 +161,8 @@ let rec scan_string lst = match lst with
   | '\\' :: c :: rest when c >= '0' && c <= '9' -> 
                   (Char.chr (Char.code c - Char.code '0'))
                   :: (scan_string rest)
+  | '\\' :: 'x' :: rest -> 
+      E.s (unimp "CONST_CHAR should not hold hex escapes.")
   | hd :: tl -> hd :: (scan_string tl)
   | [] -> [] 
 
@@ -2656,32 +2658,29 @@ and doExp (isconst: bool)    (* In a constant *)
           end
 
         | A.CONST_WSTRING wstr ->
-            let len = String.length wstr in 
+            let len = List.length wstr in 
             let wchar_t = !wcharType in
-            let wide_factor = (bitsSizeOf wchar_t) / 8 in
             (* We will make an array big enough to contain the wide 
              * characters and the wide-null terminator *)
-            let ws_t = TArray(wchar_t, Some (integer (1 + len)), []) in
+            let ws_t = TArray(wchar_t, Some (integer len), []) in
             let ws = 
               makeGlobalVar ("wide_string" ^ string_of_int !lastStructId)
                 ws_t
             in
             incr lastStructId;
             (* Make the initializer. Idx is a wide_char index.  *)
-            let rec loop (idx: int) = 
-              if idx > len then [] 
-              else begin
-                let this_chr = if idx = len then Char.chr 0 else wstr.[idx]
-                in
-                (Index(integer idx, NoOffset), 
-                 SingleInit (mkCast (Const(CChr this_chr)) wchar_t))
-                :: loop (idx + 1)
-              end
+            let rec loop (idx: int) (s: int list) = 
+	      match s with
+		[] -> []
+	      | wc::rest ->
+                  (Index(integer idx, NoOffset), 
+                   SingleInit (mkCast (integer wc) wchar_t))
+                  :: loop (idx + 1) rest
             in
             (* Add the definition for the array *)
             cabsPushGlobal (GVar(ws, 
                                  Some (CompoundInit(ws_t,
-                                                    loop 0)),
+                                                    loop 0 wstr)),
                                  !currentLoc));
             finishExp empty (StartOf(Var ws, NoOffset))
               (TPtr(wchar_t, []))
@@ -3789,10 +3788,13 @@ and doInit
          [(A.NEXT_INIT, 
            A.SINGLE_INIT(A.CONSTANT 
                            (A.CONST_STRING s)))])) :: restil
-     when (match unrollType bt 
-             with TInt((IChar|IUChar|ISChar), _) -> true
-                | _ -> false) 
     -> 
+      let isCharType = 
+        match unrollType bt with
+          TInt((IChar|IUChar|ISChar), _) -> true
+	| _ ->  false in
+      if not isCharType then 
+	E.s (error "Using a string literal to initialize something other than a character array.");
       let chars = explodeString true s in
       let charinits = 
         List.map 
@@ -3830,16 +3832,22 @@ and doInit
          [(A.NEXT_INIT, 
            A.SINGLE_INIT(A.CONSTANT 
                            (A.CONST_WSTRING s)))])) :: restil
-     when (unrollType bt = !wcharType) 
-      (* wcharType contains no looping, so this equality check is OK *) 
     -> 
-      let chars = explodeString true s in
+      let isWcharType = 
+        (* compare bt to wchar_t, ignoring signed vs. unsigned *)
+	let bt' = unrollType bt in
+        match bt' with TInt _ -> (alignOf_int bt') = (alignOf_int !wcharType)
+	| _ -> false in
+      if not isWcharType then 
+	E.s (error "Using a wide string literal to initialize something other than a wchar_t array.");
+      let maxWChar = (1 lsl (bitsSizeOf !wcharType)) - 1 in
       let charinits = 
         List.map 
           (fun c -> 
+	    if (c > maxWChar) then 
+	      E.s (error "character 0x%x too big." c);
             (A.NEXT_INIT, 
-             A.SINGLE_INIT(A.CONSTANT (A.CONST_INT 
-             (string_of_int (Char.code c)))))) chars in
+             A.SINGLE_INIT(A.CONSTANT (A.CONST_INT (string_of_int c))))) s in
       (* Create a separate object for the array *)
       let so' = makeSubobj so.host so.soTyp so.soOff in 
       (* Go inside the array *)

@@ -350,6 +350,11 @@ $TEST->add2Tests("testrun/label4", "_GNUCC=1");
 $TEST->add3Tests("testrun/wchar1");
 $TEST->add3Tests("testrun/wchar2");
 $TEST->add3Tests("testrun/wchar3");
+$TEST->add3Tests("testrun/wchar4");
+$TEST->addTests("testrun/wchar5", "", ['cil']);
+   $TEST->addBadComment("testrun/wchar5-cil", 
+                        "Lexer bugs for wide string literals.");
+$TEST->addTests("test-bad1/wchar-bad", "", ['cil']);
 $TEST->add3Tests("testrun/tablebug", "TABLE=A");
 $TEST->add3Tests("testrun/addrof", "MANUALBOX=1");
 $TEST->add3Tests("testrun/addrof2", "MANUALBOX=1");

@@ -190,15 +190,19 @@ let error msg =
 (*** escape character management ***)
 let scan_escape str =
   match str with
-    "n" -> "\n"
-  | "r" -> "\r"
-  | "t" -> "\t"
-  | "b" -> "\b"
-  | "f" -> "\012"  (* ASCII code 12 *)
-  | "v" -> "\011"  (* ASCII code 11 *)
-  | "a" -> "\007"  (* ASCII code 7 *)
-  | "e" -> "\027"  (* ASCII code 27. This is a GCC extension *)
-  | _ -> str
+    "n" -> '\n'
+  | "r" -> '\r'
+  | "t" -> '\t'
+  | "b" -> '\b'
+  | "f" -> '\012'  (* ASCII code 12 *)
+  | "v" -> '\011'  (* ASCII code 11 *)
+  | "a" -> '\007'  (* ASCII code 7 *)
+  | "e" -> '\027'  (* ASCII code 27. This is a GCC extension *)
+  | "'" -> '\''
+  | "\""-> '"'
+  | "?" -> '?'
+  | "\\" -> '\\' 
+  | _ -> error ("Unrecognized escape sequence: \\" ^ str)
 
 let get_value chr =
   match chr with
@@ -207,11 +211,24 @@ let get_value chr =
   | 'A'..'Z' -> (Char.code chr) - (Char.code 'A') + 10
   | _ -> 0
 let scan_hex_escape str =
-  String.make 1 (Char.chr (
-		 (get_value (String.get str 0)) * 16
-		   + (get_value (String.get str 1))
-	           ))
+  let the_value = ref 0 in
+  (* start at character 2 to skip the \x *)
+  for i = 2 to (String.length str) - 1 do
+    let thisDigit = get_value (String.get str i) in
+    the_value := !the_value * 16 + thisDigit
+  done;
+  !the_value
+
 let scan_oct_escape str =
+  let the_value = ref 0 in
+  (* start at character 1 to skip the \x *)
+  for i = 1 to (String.length str) - 1 do
+    let thisDigit = get_value (String.get str i) in
+    the_value := !the_value * 8 + thisDigit
+  done;
+  !the_value
+
+(*let scan_oct_escape str =
   (* weimer: wide-character constants like L'\400' may be bigger than
    * 256 (in fact, may be up to 511), so Char.chr cannot be used directly *)
   let the_value = (get_value (String.get str 0)) * 64
@@ -220,10 +237,20 @@ let scan_oct_escape str =
   if the_value < 256 then String.make 1 (Char.chr the_value )
   else (String.make 1 (Char.chr (the_value / 256))) ^
        (String.make 1 (Char.chr (the_value mod 256)))
+*)
+
+let make_char (i:int):char =
+  if (i < 0) || (i > 255) then begin
+    let msg = Printf.sprintf "character 0x%x too big" i in
+    error msg
+  end;
+  Char.chr i
+
 
 (* ISO standard locale-specific function to convert a wide character
  * into a sequence of normal characters. Here we work on strings. 
- * We convert L"Hi" to "H\000i\000" *)
+ * We convert L"Hi" to "H\000i\000" 
+  matth: this seems unused.
 let wbtowc wstr =
   let len = String.length wstr in 
   let dest = String.make (len * 2) '\000' in 
@@ -231,8 +258,10 @@ let wbtowc wstr =
     dest.[i*2] <- wstr.[i] ;
   done ;
   dest
+*)
 
-(* This function converst the "Hi" in L"Hi" to { L'H', L'i', L'\0' } *)
+(* This function converst the "Hi" in L"Hi" to { L'H', L'i', L'\0' }
+  matth: this seems unused.
 let wstr_to_warray wstr =
   let len = String.length wstr in
   let res = ref "{ " in
@@ -241,7 +270,7 @@ let wstr_to_warray wstr =
   done ;
   res := !res ^ "}" ;
   !res
-
+*)
 }
 
 let decdigit = ['0'-'9']
@@ -273,8 +302,8 @@ let ident = (letter|'_')(letter|decdigit|'_')*
 let attribident = (letter|'_')(letter|decdigit|'_'|':')
 let blank = [' ' '\t' '\012' '\r']
 let escape = '\\' _
-let hex_escape = '\\' ['x' 'X'] hexdigit hexdigit
-let oct_escape = '\\' octdigit  octdigit octdigit
+let hex_escape = '\\' ['x' 'X'] hexdigit+
+let oct_escape = '\\' octdigit octdigit? octdigit? 
 
 rule initial =
 	parse 	"/*"			{ let _ = comment lexbuf in 
@@ -289,14 +318,18 @@ rule initial =
                                           let wcc = chr lexbuf in 
                                           CST_CHAR wcc }
 |		'"'			{ (* '"' *)
+(* matth: BUG:  this could be either a regular string or a wide string.
+ *  e.g. if it's the "world" in 
+ *     L"Hello, " "world"
+ *  then it should be treated as wide even though there's no L immediately
+ *  preceding it.  See test/small1/wchar5.c for a failure case. *)
                                           try CST_STRING (str lexbuf)
                                           with e -> 
                                              raise (InternalError 
                                                      ("str: " ^ 
                                                       Printexc.to_string e))}
 |		"L\""			{ (* weimer: wchar_t string literal *)
-                                          try let wstr = str lexbuf in
-                                              CST_WSTRING(wstr)
+                                          try CST_WSTRING(wstr lexbuf)
                                           with e -> 
                                              raise (InternalError 
                                                      ("wide string: " ^ 
@@ -415,32 +448,54 @@ and pragma = parse
 |   _                   { let cur = Lexing.lexeme lexbuf in 
                           cur ^ (pragma lexbuf) }  
 
-and str = parse	
+and str = parse
         '"'             {""} (* '"' *)
 
-|	hex_escape	{let cur = scan_hex_escape (String.sub
-					 (Lexing.lexeme lexbuf) 2 2) in 
-                                        cur ^ (str lexbuf)}
-|	oct_escape	{let cur = scan_oct_escape (String.sub
-					(Lexing.lexeme lexbuf) 1 3) in 
-                                         cur ^ (str lexbuf)}
+|	hex_escape	{let cur = scan_hex_escape(Lexing.lexeme lexbuf) in
+                         let cur': string = String.make 1 (make_char cur) in
+                                         cur' ^ (str lexbuf)}
+|	oct_escape	{let cur = scan_oct_escape (Lexing.lexeme lexbuf) in 
+                         let cur': string = String.make 1 (make_char cur) in
+                                        cur' ^ (str lexbuf)}
 |	"\\0"		{(String.make 1 (Char.chr 0)) ^ 
                                          (str lexbuf)}
 |	escape		{let cur = scan_escape (String.sub
 					  (Lexing.lexeme lexbuf) 1 1) in 
-                                            cur ^ (str lexbuf)}
+                         let cur': string = String.make 1 cur in
+                                            cur' ^ (str lexbuf)}
 |	_		{let cur = Lexing.lexeme lexbuf in 
                          cur ^  (str lexbuf)} 
 
+and wstr = parse
+        '"'             {[]} (* no nul terminiation in CST_WSTRING *)
+
+|	hex_escape	{let cur = scan_hex_escape (Lexing.lexeme lexbuf) in 
+                                        cur :: (wstr lexbuf)}
+|	oct_escape	{let cur = scan_oct_escape (Lexing.lexeme lexbuf) in 
+                                         cur :: (wstr lexbuf)}
+|	"\\0"		{0 :: (wstr lexbuf)}
+|	escape		{let cur:char = scan_escape (String.sub
+					  (Lexing.lexeme lexbuf) 1 1) in 
+                                            (Char.code cur) :: (wstr lexbuf)}
+|	_		{let cur: int list = Cabs.explodeStringToInts
+                                              (Lexing.lexeme lexbuf) in 
+                           cur @ (wstr lexbuf)} 
+
 and chr =  parse
     '\''	        {""}
-|   hex_escape		{let cur = scan_hex_escape (String.sub
-			 (Lexing.lexeme lexbuf) 2 2) in cur ^ (chr lexbuf)}
-|   oct_escape		{let cur = scan_oct_escape (String.sub
-	 		 (Lexing.lexeme lexbuf) 1 3) in cur ^ (chr lexbuf)}
-|   "\\0"		{(String.make 1 (Char.chr 0)) ^ (chr lexbuf)}
-|   escape		{let cur = scan_escape (String.sub
-			 (Lexing.lexeme lexbuf) 1 1) in cur ^ (chr lexbuf)}
+(*matth: BUG: we throw an error on character constants that contain escape 
+  sequences whose value is greater than 255.  *)
+|	hex_escape	{let cur = scan_hex_escape(Lexing.lexeme lexbuf) in
+                         let cur': string = String.make 1 (make_char cur) in
+                                         cur' ^ (chr lexbuf)}
+|	oct_escape	{let cur = scan_oct_escape (Lexing.lexeme lexbuf) in 
+                         let cur': string = String.make 1 (make_char cur) in
+                                        cur' ^ (chr lexbuf)}
+|	"\\0"		{(String.make 1 (Char.chr 0)) ^ (chr lexbuf)}
+|	escape		{let cur = scan_escape (String.sub
+					  (Lexing.lexeme lexbuf) 1 1) in 
+                         let cur': string = String.make 1 cur in
+                                            cur' ^ (chr lexbuf)}
 |   _			{let cur = Lexing.lexeme lexbuf in cur ^ (chr lexbuf)} 
 	
 and msasm = parse

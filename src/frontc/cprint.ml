@@ -221,13 +221,13 @@ let print_commas nl fct lst =
   print_list (fun () -> print ","; if nl then new_line() else space()) fct lst
 	
 
+let conv_digit (value:int) = 
+  String.make 1 
+    (Char.chr (value + 
+		 (if value < 10 then (Char.code '0') 
+                 else ((Char.code 'a') - 10))))
 let escape_string str =
   let lng = String.length str in
-  let conv value = 
-    String.make 1 
-      (Char.chr (value + 
-		   (if value < 10 then (Char.code '0') 
-                   else (Char.code 'a' - 10)))) in
   let rec build idx =
     if idx >= lng then ""
     else
@@ -244,14 +244,35 @@ let escape_string str =
       then sub
       else let code = Char.code (String.get sub 0) in
       "\\"
-      ^ (conv (code / 64))
-      ^ (conv ((code mod 64) / 8))
-      ^ (conv (code mod 8)) in
+      ^ (conv_digit (code / 64))
+      ^ (conv_digit ((code mod 64) / 8))
+      ^ (conv_digit (code mod 8)) in
       res ^ (build (idx + 1)) in
   build 0
 
 let print_string s =
   print ("\"" ^ escape_string s ^ "\"")
+
+let rec conv_to_hex (value:int):string =
+  if value < 16 then 
+    conv_digit value
+  else
+    (conv_to_hex (value / 16)) ^ (conv_digit (value mod 16))
+
+let rec escape_wstring (str: int list):string =
+  match str with
+    [] -> ""
+  | value::rest ->
+      let this_char = 
+	if (value > 255) then 
+	  "\\x"^(conv_to_hex value)
+	else
+	  Char.escaped (Char.chr value)
+      in
+      this_char ^ (escape_wstring rest)
+
+let print_wstring s =
+  print ("L\"" ^ escape_wstring s ^ "\"")
 
 (*
 ** Base Type Printing
@@ -602,7 +623,7 @@ and print_expression (exp : expression) (lvl : int) =
       | CONST_FLOAT r -> print r
       | CONST_CHAR c -> print ("'" ^ (escape_string c) ^ "'")
       | CONST_STRING s -> print_string s
-      | CONST_WSTRING s -> print "W" ; print_string s)
+      | CONST_WSTRING s -> print_wstring s)
 
   | VARIABLE name ->
       comprint "variable";
