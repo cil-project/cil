@@ -1248,5 +1248,16 @@ spr/%:  test/spr/%.c
 
 
 
+######################### PTRDIST Benchmarks
+ANAGRAMDIR := test/ptrdist-1.1/anagram
+anagram: mustbegcc
+	cd $(ANAGRAMDIR); rm -f *.o; make CC="$(CCURED) --combine"
+	cd $(ANAGRAMDIR); make test
+
+
+BCDIR := test/ptrdist-1.1/bc
+bc: mustbegcc
+	cd $(BCDIR); rm -f *.o; make CC="$(CCURED) --combine"
+	cd $(BCDIR); make test
 
 
