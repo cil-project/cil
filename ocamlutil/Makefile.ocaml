@@ -181,7 +181,6 @@ ifdef NATIVECAML
  CMXA           = cmxa
  EXEEXT         = .asm
  MOVEAFTERCAMLC = cmi cmx $(OBJ)
- MOVEAFTERCAMLCF= cmi $(OBJ)
  COMPILETOWHAT  = native code
  # sm: by adding -native in native mode, we prevent spurious
  # dependencies on .cmo files which were causing lots of
@@ -196,7 +195,6 @@ else
  CMC            = o
  EXEEXT         = .byte
  MOVEAFTERCAMLC = cmi cmo
- MOVEAFTERCAMLCF= cmi        # sm: 'F' for failed -- cmo isn't created
  COMPILETOWHAT  = bytecode
 endif
 
@@ -254,35 +252,20 @@ $(OBJDIR)/%.cmi: %.mli
                    mv -f $(basename $<).cmi $(OBJDIR) \
         ;fi
 
-         # Compile an ML file. Before invoking CAMLC we copy to the source
-         # directory the .cmi file (if one exists). After compilation we 
+         # Compile an ML file. After compilation we 
          # copy to $(OBJDIR) the .cmi and the result of compilation.
 $(OBJDIR)/%.$(CMO): %.ml
 	@$(NARRATIVE) "Compiling           $< to $(COMPILETOWHAT)"
-	$(ECHO)if test $(OBJDIR) != $(<D) ;then \
-                 if test -f $(OBJDIR)/$(*F).cmi ;then \
-                      $(COMMAND) mv -f $(OBJDIR)/$(*F).cmi $(<D); \
-                      mv -f $(OBJDIR)/$(*F).cmi $(<D) \
-                 ;fi \
-        ;fi
 	@$(COMMAND) $(CAMLC) $(CAMLFLAGS) -c $<
-	$(ECHO)if $(CAMLC) $(CAMLFLAGS) -c $< ;then \
+	$(ECHO)$(CAMLC) $(CAMLFLAGS) -c $< ; res=$$?; \
 	   if test $(OBJDIR) != $(<D) ;then \
-              if test -f $(basename $<).cmi ;then \
-                $(COMMAND) mv -f $(foreach ext,$(MOVEAFTERCAMLC), $(basename $<).$(ext)) $(OBJDIR); \
-                mv -f $(foreach ext,$(MOVEAFTERCAMLC), $(basename $<).$(ext)) \
-                      $(OBJDIR) \
-              ;fi \
-           ;fi ; exit 0 \
-        ;else \
-	   if test $(OBJDIR) != $(<D) ;then \
-              if test -f $(basename $<).cmi ;then \
-                $(COMMAND) mv -f $(foreach ext,$(MOVEAFTERCAMLCF), $(basename $<).$(ext)) $(OBJDIR); \
-                mv -f $(foreach ext,$(MOVEAFTERCAMLCF), $(basename $<).$(ext)) \
-                      $(OBJDIR) \
-              ;fi \
-           ;fi ; exit 1 \
-        ;fi
+              for ext in $(MOVEAFTERCAMLC); do \
+                if test -f $(basename $<).$$ext ;then \
+                  $(COMMAND) mv -f $(basename $<).$$ext $(OBJDIR); \
+                  mv -f $(basename $<).$$ext $(OBJDIR); \
+                fi; \
+              done; \
+           fi; exit $$res
 
              # Compile C files
              # They appear to be left in the current directory as .o files
