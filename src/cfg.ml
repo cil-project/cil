@@ -6,6 +6,8 @@
  * The "succs" and "preds" fields for every statement should be set
  * correctly. Note that the backedge from the end of a Loop(block) to the
  * beginning will not be in that list, however.
+ *
+ * In addition, all statements are given unique IDs. 
  *)
 open Cil
 open Errormsg
@@ -144,12 +146,33 @@ let link source dest = begin
 	if not (List.mem source dest.preds) then
 		dest.preds <- source :: dest.preds 
 end
+
+let sid_counter = ref 0 
 	
 class ensureEdges = object
 	inherit nopCilVisitor
 	method vstmt s = begin
+		s.sid <- !sid_counter ;
+		incr sid_counter ;
 		List.iter (fun dest -> link s dest) s.succs ;
 		List.iter (fun pred -> link pred s ) s.preds ;
+		let try_link_block blk = match blk.bstmts with
+			[] -> ()
+		| hd :: tl -> link s hd
+		in 
+		(match s.skind with
+			Instr _ -> ()
+		| Return _ -> ()
+		| Goto(dest,l) -> link s !dest 
+		| Break _ -> failwith "break"
+		| Continue _ -> failwith "continue"
+		| If(e,b1,b2,l) ->
+				try_link_block b1 ;
+				try_link_block b2 
+		| Switch _ -> failwith "switch" 
+		| Loop(b,l) -> try_link_block b
+		| Block(b) -> try_link_block b
+		) ; 
 		DoChildren
 	end
 end

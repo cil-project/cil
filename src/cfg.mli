@@ -6,5 +6,7 @@
  * The "succs" and "preds" fields for every statement should be set
  * correctly. Note that the backedge from the end of a Loop(block) to the
  * beginning will not be in that list, however.
+ *
+ * In addition, all statements are given unique IDs. 
  *)
 val make_cfg : Cil.file -> unit
