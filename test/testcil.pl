@@ -860,7 +860,7 @@ smAddTest("scott/bsearch $box");
 smAddTest("scott/signal $box");
 smAddTest("scott/getaddrinfo $box");
 smAddTest("test-bad/sin_zero $box");
-smFailTest("optarg_F missing", "scott/getopt $box");
+smAddTest("scott/getopt $box");
 
 # current problematic test cases
 smAddTest("scott/complex_float $box");
