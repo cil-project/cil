@@ -18,5 +18,7 @@ int main() {
     printf("printf: chop 5: [%s]\n", s1);
     printf("printf: chop 5 more, print %d: [%.*s]\n",len,len,s2);
 
+    printf("printf: null = %s\n",(char*)0);
+
     return 0;
 }
