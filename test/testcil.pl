@@ -717,6 +717,7 @@ $TEST->addTests("testrun/seq1", "", ['inferbox']);
 $TEST->addTests("testrun/seq2", "", ['inferbox']);
 $TEST->addTests("testrun/builtin", "", ['cil']);
 $TEST->addTests("blockattr", "", ['cil']);
+$TEST->add2Tests("testrun/comparisons");
     
 # HERE
 

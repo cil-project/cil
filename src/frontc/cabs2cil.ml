@@ -983,7 +983,7 @@ let lookupLabel (l: string) =
 let allocaFun = 
   let fdec = emptyFunction "alloca" in
   fdec.svar.vtype <- 
-     TFun(voidPtrType, Some [ ("len", uintType, []) ], false, []);
+     TFun(voidPtrType, Some [ ("len", !typeOfSizeOf, []) ], false, []);
   fdec
   
 (* Maps local variables that are variable sized arrays to the expression that 
@@ -3873,9 +3873,9 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
   | (Le|Lt|Ge|Gt|Eq|Ne) when isPointerType t1 && isPointerType t2 ->
       pointerComparison e1 t1 e2 t2
   | (Eq|Ne) when isPointerType t1 && isZero e2 -> 
-      pointerComparison e1 t1 (mkCastT zero intType t1) t1
+      pointerComparison e1 t1 (mkCastT zero !upointType t1) t1
   | (Eq|Ne) when isPointerType t2 && isZero e1 -> 
-      pointerComparison (mkCastT zero intType t2) t2 e2 t2
+      pointerComparison (mkCastT zero !upointType t2) t2 e2 t2
 
 
   | (Eq|Ne|Le|Lt|Ge|Gt) when isPointerType t1 && isArithmeticType t2 ->
@@ -3958,7 +3958,10 @@ and doCondExp (isconst: bool)
           else
             CEExp (se1, zero)
       | CEExp (se1, e) when isEmpty se1 -> 
-          CEExp (empty, UnOp(LNot, mkCast e intType, intType))
+          let t = typeOf e in
+          if not ((isPointerType t) || (isArithmeticType t))then
+            E.s (error "Bad operand to !");
+          CEExp (empty, UnOp(LNot, e, intType))
 
       | ce1 -> CENot ce1
   end

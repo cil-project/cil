@@ -1,7 +1,9 @@
 #ifndef printf
   /* sm: this works with gcc-2.95 */
   extern int printf(const char * format, ...);
-  #pragma ccuredvararg("printf", printf(1))
+# ifdef CCURED
+   #pragma ccuredvararg("printf", printf(1))
+# endif
 #else
   /* but in gcc-3 headers it's a macro.. */
   #include <stdio.h>        /* printf */
