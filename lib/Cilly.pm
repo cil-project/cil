@@ -1597,7 +1597,7 @@ sub new {
             '-g' => { TYPE => 'ALLARGS' },
 	    "-save-temps" => { TYPE => 'ALLARGS',
 			       RUN => sub { $stub->{SAVE_TEMPS} = 1; } },
-	    '-print-' => { TYPE => 'SPECIAL' },
+	    '--?print-' => { TYPE => 'SPECIAL' },
 	    '-dump' => { TYPE => 'SPECIAL' },
             "-l" => { TYPE => 'LINK' },
             "-L" => { TYPE => 'LINK' },
