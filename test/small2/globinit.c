@@ -88,7 +88,7 @@ int main() {
     if(! *(x + 3)) E(12);//ERROR(12):Error 12
     // Now try to read outside of bounds
     { int y = * (x - 1); } //ERROR(13):Lbound
-    { int y = * (x + 4); } //ERROR(14):Lbound
+    { int y = * (x + 4); } //ERROR(14):Ubound
   }
 #endif
   

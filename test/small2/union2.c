@@ -1,37 +1,38 @@
 #include "../small1/testharness.h"
 #include "../small1/testkinds.h"
 
-// NUMERRORS 11
+// NUMERRORS 12
 
-union { 
+union unsafeu1 { 
     int *f1;
     int *f2[2];
     struct { int *a1, a2, *a3; } f3;
     /* unsafe union: a2 and f2[1] */
 } * x;
 
-union { 
+union unsafeu2 { 
     int *g1;
     struct { int *b1, b2; } g2; 
     struct { int *c1, *c2, *c3; } g3;
     /* unsafe union: c2 and b2 */
 } * y;
 
-union {
+union safeu {
   int a[2];
   char b[8]; 
   // safe union: all scalars
 } * z; 
 
-union {
+union safeu2 {
   struct { int a; int *b; } s1;
   struct { int c; int *d; } s2; 
 } same, *sptr; 
 
 
 int main() {
-  if(HAS_KIND(x, WILD_KIND)) E(1); //ERROR(1):Error 1
-  if(HAS_KIND(y, WILD_KIND)) E(2); //ERROR(2):Error 2
+  if(HAS_KIND(x->f1, WILD_KIND)) E(1); //ERROR(1):Error 1
+  if(HAS_KIND(x, WILD_KIND)) E(12); //ERROR(12):Error 12
+  if(HAS_KIND(y->g1, WILD_KIND)) E(2); //ERROR(2):Error 2
   if(HAS_KIND(z, SAFE_KIND)) E(3); //ERROR(3):Error 3
 #if ERROR == 4
   sptr = &same; 
