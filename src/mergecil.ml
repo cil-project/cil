@@ -57,7 +57,16 @@ let usePathCompression = false
 (* Try to merge definitions of inline functions. They can appear in multiple 
  * files and we would like them all to be the same. This can slow down the 
  * merger an order of magnitude !!! *)
-let mergeInlines = true
+let mergeInlines = (
+  (* sm: right now this still causes problems, so I want it to default
+   * to off until we've got the problem resolved *)
+  try
+    (ignore (Sys.getenv "MERGEINLINES"));
+    (Printf.printf "Cil.mergeInlines is enabled\n");
+    true
+  with Not_found ->
+    false
+)
 
 let mergeInlinesRepeat = mergeInlines && true
 
