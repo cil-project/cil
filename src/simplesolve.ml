@@ -159,7 +159,7 @@ let q_predicate (n1 : node) (n2 : node) = true
     ((not n1.null) || (n2.null)) && 
     ((not n1.intcast) || (n2.intcast)) *)
 
-let is_malloc n = match n.where with
+let is_polymorphic n = match n.where with
     PGlob(s),_ when String.contains s '*' -> true
   | _ -> false
 
@@ -168,7 +168,7 @@ let is_malloc n = match n.where with
 let can_cast (n1 : node) (n2 : node) = begin
   let t1 = n1.btype in
   let t2 = n2.btype in 
-  if is_malloc n1 then
+  if is_polymorphic n1 || is_polymorphic n2 then
     (Safe,Safe)
   else if subtype t1 Safe t2 Safe then
     (Safe,Safe)
@@ -347,13 +347,13 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     worklist := List.tl !worklist 
   done ;
 
-  (* now take all of the arith/posarith pointers and make them seq *)
+  (* now take all of the arith/posarith/intcast pointers and make them seq *)
   Hashtbl.iter (fun id n -> all := n :: !all) node_ht ;
   while (!worklist <> []) do
     (* pick out our current node *)
     let cur = List.hd !worklist in
     (* arithmetic can make something an index *)
-    if (cur.arith || cur.posarith) then begin
+    if (cur.arith || cur.posarith || cur.intcast) then begin
       ignore (update_kind cur Seq BoolFlag)
     end ;
     (* being the target of an EIndex edge can as well *)
@@ -376,17 +376,6 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       let contaminated_list = 
         (List.map (fun e -> e.efrom) (ecast_edges_only cur.pred)) in
       List.iter f contaminated_list ;
-    end ;
-    worklist := List.tl !worklist 
-  done ;
-
-  (* now take all of the intcast pointers and make them seq *)
-  Hashtbl.iter (fun id n -> all := n :: !all) node_ht ;
-  while (!worklist <> []) do
-    (* pick out our current node *)
-    let cur = List.hd !worklist in
-    if (cur.intcast) then begin
-      ignore (update_kind cur Seq BoolFlag)
     end ;
     worklist := List.tl !worklist 
   done ;

@@ -310,6 +310,10 @@ and expToType (e,et,en) t (callid: int) =
     | CastE(_, e, _) -> isZero e
     | _ -> false
   in
+  let isString = function
+      Const(CStr(_),_) -> true
+    | _ -> false
+  in
   let etn = nodeOfType et in
   let tn  = nodeOfType t in
   match etn == N.dummyNode, tn == N.dummyNode with
@@ -324,8 +328,9 @@ and expToType (e,et,en) t (callid: int) =
       (* Cast of non-pointer to a pointer. Check for zero *)
       (if isZero e then
         tn.N.null <- true
-      else
-        tn.N.intcast <- true);
+      else if not (isString e) then 
+        tn.N.intcast <- true
+        );
       e
     
 and doExpAndCast e t = 
@@ -356,6 +361,7 @@ let rec doStmt (s: stmt) =
 
   | Instr (Call (reso, orig_func, args, l)) -> 
       let is_polymorphic v =
+        v.vname = "free" ||
         v.vname = "malloc" ||
         v.vname = "calloc" ||
         v.vname = "realloc" in
@@ -366,7 +372,9 @@ let rec doStmt (s: stmt) =
              * function with all of the _ptrnode attributes stripped so 
              * that it will get a new node in the graph correctly *) 
             let strip a = dropAttribute a (ACons("_ptrnode",[])) in
-            let rec new_type t = begin match t with
+            let rec strip_va va = { va with vtype = new_type va.vtype ;
+                                        vattr = strip va.vattr } 
+            and new_type t = begin match t with
               TVoid(a) -> TVoid(strip a)
             | TInt(i,a) -> TInt(i, strip a)
             | TBitfield(i,j,a) -> TBitfield(i,j, strip a)
@@ -376,7 +384,7 @@ let rec doStmt (s: stmt) =
             | TArray(t,e,a) -> TArray(new_type t,e,strip a)
             | TComp(c) -> TComp({ c with cattr = strip c.cattr}) 
             | TForward(c,a) -> TForward({c with cattr = strip c.cattr}, strip a)
-            | TFun(t,v,b,a) -> TFun(new_type t,v,b,strip a)
+            | TFun(t,v,b,a) -> TFun(new_type t,List.map strip_va v,b,strip a)
             | TNamed(s,t,a) -> TNamed(s,new_type t,strip a)
             end in 
             let new_vtype = new_type v.vtype in
