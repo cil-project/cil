@@ -1,3 +1,5 @@
+extern void* malloc(unsigned int);
+
 typedef struct list {
   void* data;
   struct list * next;

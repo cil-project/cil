@@ -135,12 +135,7 @@ void  __cdecl exit(int);
 int   __cdecl fflush(FILE * );
 
 void  *   malloc(unsigned int);
-#if defined(INFERBOX) && ! defined(MANUALBOX)
-void  *  __attribute__((fseq))
-      calloc_fseq(unsigned int nrelem, unsigned int osize);
-#else
-void  *   calloc_fseq(unsigned int nrelem, unsigned int osize);
-#endif
+void  *   calloc(unsigned int, unsigned int);
 
 void          free(void * );
 
