@@ -365,7 +365,7 @@ expression:
 |		LPAREN type_name RPAREN expression
 		         { CAST($2, SINGLE_INIT $4) }
 /* (* We handle GCC constructor expressions *) */
-|		LPAREN type_name RPAREN LBRACE initializer_list RBRACE
+|		LPAREN type_name RPAREN LBRACE initializer_list_opt RBRACE
 		         { CAST($2, COMPOUND_INIT $5) }
 /* (* GCC's address of labels *)  */
 |               AND_AND IDENT  { LABELADDR $2 }
@@ -388,7 +388,7 @@ one_string:
 
 init_expression:
      expression         { SINGLE_INIT $1 }
-|    LBRACE initializer_list RBRACE
+|    LBRACE initializer_list_opt RBRACE
 			{ COMPOUND_INIT $2}
 
 initializer_list:    /* ISO 6.7.8. Allow a trailing COMMA */

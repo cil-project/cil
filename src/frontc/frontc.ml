@@ -77,9 +77,10 @@ let parse_to_cabs fname =
 let parse fname = 
   let cabs = parse_to_cabs fname in
   (* Now convert to CIL *)
-  let cil = Stats.time "conv" (Cabs2cil.convFile fname) cabs in
-  ignore (E.log "FrontC finished conversion to CIL\n");
-  cil
+  fun _ -> 
+    let cil = Stats.time "conv" (Cabs2cil.convFile fname) cabs in
+    ignore (E.log "FrontC finished conversion to CIL\n");
+    cil
   
 
 let docombine (files: string list) : Cabs.file = 
