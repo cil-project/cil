@@ -185,11 +185,6 @@ and fixit t =
     fixed
   end
 
-(** Create some fat types *)
-let _ = fixupType (voidPtrType) 
-let _ = fixupType (charPtrType)
-let _ = fixupType (TPtr(TInt(IChar, [AId("const")]), []))
-let _ = theFile := []   (* Remove them from the file *)
 
 (**** We know in what function we are ****)
 let currentFunction : fundec ref  = ref dummyFunDec
@@ -431,8 +426,10 @@ let castVoidStar e = doCast e (typeOf e) voidPtrType
 
 let checkSafeRetFatFun = 
   let fdec = emptyFunction "CHECK_SAFERETFAT" in
-  let arg  = makeLocalVar fdec "x" fatVoidPtr in
-  fdec.svar.vtype <- TFun(voidType, [ arg ], false, []);
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
+  theFile := GDecl fdec.svar :: !theFile;
   fdec
     
 let checkSafeFatLeanCastFun = 
@@ -440,6 +437,7 @@ let checkSafeFatLeanCastFun =
   let argp  = makeLocalVar fdec "p" voidPtrType in
   let argb  = makeLocalVar fdec "b" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
+  theFile := GDecl fdec.svar :: !theFile;
   fdec
 
 let checkFunctionPointer = 
@@ -447,6 +445,7 @@ let checkFunctionPointer =
   let argp  = makeLocalVar fdec "p" voidPtrType in
   let argb  = makeLocalVar fdec "b" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
+  theFile := GDecl fdec.svar :: !theFile;
   fun whatp whatb -> 
     call None (Lval(var fdec.svar)) [ castVoidStar whatp; 
                                       castVoidStar whatb]
@@ -455,6 +454,7 @@ let checkFetchLength =
   let fdec = emptyFunction "CHECK_FETCHLENGTH" in
   let argb  = makeLocalVar fdec "b" voidPtrType in
   fdec.svar.vtype <- TFun(uintType, [ argb ], false, []);
+  theFile := GDecl fdec.svar :: !theFile;
   fun tmplen base -> 
     call (Some tmplen) (Lval (var fdec.svar))
       [ castVoidStar base ]
@@ -464,6 +464,7 @@ let checkFetchTagStart =
   let argb  = makeLocalVar fdec "b" voidPtrType in
   let argl  = makeLocalVar fdec "l" uintType in
   fdec.svar.vtype <- TFun(voidPtrType, [ argb; argl ], false, []);
+  theFile := GDecl fdec.svar :: !theFile;
   fun tmplen base len -> 
     call (Some tmplen) (Lval (var fdec.svar))
       [ castVoidStar base; 
@@ -503,6 +504,7 @@ let checkBounds =
   let argp  = makeLocalVar fdec "p" voidPtrType in
   let argpl  = makeLocalVar fdec "pl" uintType in
   fdec.svar.vtype <- TFun(voidType, [ argb; argl; argp; argpl ], false, []);
+  theFile := GDecl fdec.svar :: !theFile;
   fun tmplen base lv t ->
     let lv', lv't = getHostIfBitfield lv t in
     call None (Lval (var fdec.svar))
@@ -519,6 +521,7 @@ let checkZeroTags =
   let argpl  = makeLocalVar fdec "pl" uintType in
   let argt  = makeLocalVar fdec "t" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argb; argp; argpl; argt ], false, []);
+  theFile := GDecl fdec.svar :: !theFile;
   fun base tagStart lv t ->
     let lv', lv't = getHostIfBitfield lv t in
     call None (Lval (var fdec.svar))
@@ -544,6 +547,7 @@ let checkFatPointerRead =
   let argp  = makeLocalVar fdec "p" voidPtrType in
   let argt  = makeLocalVar fdec "tags" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argb; argp; argt ], false, []);
+  theFile := GDecl fdec.svar :: !theFile;
   
   fun base where tagstart -> 
     call None (Lval(var fdec.svar))
@@ -558,6 +562,7 @@ let checkFatPointerWrite =
   let argt  = makeLocalVar fdec "tags" voidPtrType in
   fdec.svar.vtype <- 
      TFun(voidType, [ argb; argp; argwb; argwp; argt ], false, []);
+  theFile := GDecl fdec.svar :: !theFile;
   
   fun base where whatbase whatp tagstart -> 
     call None (Lval(var fdec.svar))
@@ -636,6 +641,7 @@ let getIOBFunction =
   let fdec = emptyFunction "__get_iob_fp" in
   let argn = makeLocalVar fdec "n" intType in
   fdec.svar.vtype <- TFun(fatVoidPtr, [ argn ], false, []);
+  theFile := GDecl fdec.svar :: !theFile;
   fdec
 
 
@@ -1162,6 +1168,17 @@ let fixupGlobName vi =
     if nlen <= 4 || String.sub vi.vname (nlen - 4) 4 <> "_fp_" then
       vi.vname <- vi.vname ^ "_fp_"
 
+
+(* Create the preamble (in reverse order) *)
+let preamble = 
+  (** Create some more fat types *)
+  ignore (fixupType (charPtrType));
+  ignore (fixupType (TPtr(TInt(IChar, [AId("const")]), [])));
+  let startFile = !theFile in
+  GPragma ("// Include the definition of the checkers\n") ::
+  GPragma ("#include \"safec.h\"\n") :: 
+  startFile
+  
 let boxFile globals =
   ignore (E.log "Boxing file\n");
   let rec doGlobal g = 
@@ -1278,6 +1295,9 @@ let boxFile globals =
     end 
   in
   H.clear taggedTypes;
+  (* Create the preamble *)
+  theFile := preamble;
+  (* Now the orgininal file *)
   List.iter doGlobal globals;
   List.rev (!theFile)
       

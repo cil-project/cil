@@ -173,11 +173,11 @@ endif
 	cd $(PCCDIR)/../test; pwd; spj --gory $(SPJARG) arith/Fact.java
 
 ############ Small tests
+SMALL1=test/small1
+test/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
+	cd $(SMALL1); $(SAFECC) $*.c $(CONLY) $(DOOPT) $(ASMONLY)$*.s
+
 SMALL2=test/small2
-test/% : $(SMALL2)/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
-	cd $(SMALL2); $(SAFECC) $*.c $(CONLY) $(DOOPT) $(ASMONLY)$*.s
-
-
 hashtest: test/small2/hashtest.c $(EXECUTABLE)$(EXE) $(TVEXE)
 	rm -f $(SMALL2)/hashtest.exe
 	cd $(SMALL2); $(SAFECC) --keep=. $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) \

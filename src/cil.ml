@@ -1147,7 +1147,7 @@ let printFile (out : out_channel) (globs : file) =
                 dprintf " = %a" d_exp e)
   | GDecl vi -> dprintf "%a;" d_videcl vi 
   | GAsm s -> dprintf "__asm__(\"%s\");@!" (escape_string s)
-  | GPragma s -> dprintf "#pragma %s@!" s
+  | GPragma s -> dprintf "%s@!" s
   in
   List.iter (fun g -> print (d_global () g ++ line)) globs;
   noRedefinitions := false;
