@@ -1999,6 +1999,7 @@ val errorLoc: location -> ('a,unit,Pretty.doc) format -> 'a
 (** Like {!Errormsg.warn} except that {!Cil.currentLoc} is also printed *)
 val warn: ('a,unit,Pretty.doc) format -> 'a
 
+
 (** Like {!Errormsg.warnOpt} except that {!Cil.currentLoc} is also printed. 
  * This warning is printed only of {!Errormsg.warnFlag} is set. *)
 val warnOpt: ('a,unit,Pretty.doc) format -> 'a

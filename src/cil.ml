@@ -973,6 +973,7 @@ let warn (fmt : ('a,unit,doc) format) : 'a =
   in
   Pretty.gprintf f fmt
 
+
 let warnOpt (fmt : ('a,unit,doc) format) : 'a = 
   let f d =
     if !E.warnFlag then 
