@@ -4,14 +4,15 @@ use strict;
 # Implementation by Daniel Wilkerson of the delta debugging algorithm:
 # http://www.st.cs.uni-sb.de/dd/
 
-# Features:
+# Bugs:
 
-# Should provide a quiet flag because this output is boreing anway.
+# The second loop that considers complement sets is restarting the big
+# loop as soon as it finds anything, which is sub-optimal.
+
+# Features:
 
 # Should probably start by throwing away things at the end rather than
 # at the start, since I think they are least likely to be relevant.
-
-# Could run at various increasing base granularities.
 
 # Note that 1-minimality does not imply idempotency, so we could
 # re-run once it is stuck, perhaps with some randomization.
