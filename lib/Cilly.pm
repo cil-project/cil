@@ -383,7 +383,7 @@ sub linktolib {
     my ($base, $dir, $ext) = fileparse($dest, "(\\.[^.]+)");
     
     # Now prepare the command line for invoking cilly
-    my ($cmd, $aftercil) = $self->MergeCommand ($psrcs, $dir, $base);
+    my ($cmd, $aftercil) = $self->CillyCommand ($psrcs, $dir, $base);
     $cmd .= " ";
 
     if($self->{MODENAME} eq "MSVC") {
