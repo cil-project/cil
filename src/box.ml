@@ -1256,7 +1256,7 @@ let makeTagCompoundInit (tagged: typ)
   let dfld, lfld, tfld, words, _ = splitTagType tagged in
   CompoundInit (tagged, 
                   (* Now the length *)
-                ScalarInit words ::
+                SingleInit words ::
                 (match datainit with 
                   None -> []
                 | Some e -> [e]))
@@ -2361,7 +2361,7 @@ let rec stringLiteral (s: string) (strt: typ) : stmt list * fexp =
       let gvar = makeGlobalVar (newStringName ()) newt in
       gvar.vstorage <- Static;
       let varinit, dfield = 
-        makeTagCompoundInit newt (Some (ScalarInit(Const(CStr s)))) in
+        makeTagCompoundInit newt (Some (SingleInit(Const(CStr s)))) in
       theFile := GVar (gvar, Some varinit, lu) :: !theFile;
       let result = StartOf (Var gvar, Field(dfield, NoOffset)) in
       let voidStarResult = castVoidStar result in
@@ -3134,11 +3134,11 @@ and boxexpf (e: exp) : stmt list * fexp =
 and boxinit (ei: init) : init =
   try
     match ei with
-      ScalarInit e ->
+      SingleInit e ->
         let e't, doe, e', e'base, e'len = boxexpSplit e in
         if doe <> [] then
           E.s (E.unimp "Non-pure initializer %a\n"  d_exp e);
-        ScalarInit e'
+        SingleInit e'
 
     | CompoundInit (t, initl) -> 
         let t' = fixupType t in
@@ -3152,7 +3152,7 @@ and boxinit (ei: init) : init =
   with exc -> begin
     ignore (E.log "boxinit (%s): %a in %s\n" 
               (Printexc.to_string exc) d_init ei !currentFunction.svar.vname);
-    ScalarInit (dExp (dprintf "booo_init: %a" d_init ei))
+    SingleInit (dExp (dprintf "booo_init: %a" d_init ei))
   end 
 
 (*    
@@ -3175,7 +3175,7 @@ and boxGlobalInit (ei: init) (et: typ) =
   match compoundtype with
     None -> e'
   | Some ct -> 
-      CompoundInit(ct, [ e'; ScalarInit(castVoidStar e'base)])
+      CompoundInit(ct, [ e'; SingleInit(castVoidStar e'base)])
 *)
 
 and fexp2exp (fe: fexp) (doe: stmt list) : expRes = 

@@ -147,7 +147,7 @@ and constant =
 
 and init_expression = 
   | NO_INIT
-  | SCALAR_INIT of expression
+  | SINGLE_INIT of expression
   | COMPOUND_INIT of (initwhat * init_expression) list
 
 and initwhat = 

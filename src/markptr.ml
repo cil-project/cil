@@ -376,11 +376,11 @@ let rec doExp (e: exp) : exp * typ * N.node=
 (* Do initializers. All the initliazers at this point better be non-pointers *)
 and doInit (i: init) : init * typ = 
   match i with 
-  | ScalarInit e -> 
+  | SingleInit e -> 
       let e', t, n = doExp e in
       if n != N.dummyNode then 
         E.s (E.bug "Found pointer initializer: %a\n" d_init i);
-      ScalarInit e', t
+      SingleInit e', t
           
   | CompoundInit (t, initl) -> 
       let t', _ = doType t (N.anonPlace ()) 0 in

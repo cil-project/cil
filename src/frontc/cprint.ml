@@ -530,7 +530,7 @@ and print_comma_exps exps =
 and print_init_expression (iexp: init_expression) : unit = 
   match iexp with 
     NO_INIT -> ()
-  | SCALAR_INIT e -> print_expression e 1
+  | SINGLE_INIT e -> print_expression e 1
   | COMPOUND_INIT  initexps ->
       let doinitexp = function
           NEXT_INIT, e -> print_init_expression e

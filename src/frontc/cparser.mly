@@ -605,7 +605,7 @@ string_list:
 ;
 
 init_expression:
-     expression         { SCALAR_INIT $1 }
+     expression         { SINGLE_INIT $1 }
 |    LBRACE initializer_list RBRACE
 			{ COMPOUND_INIT $2}
 

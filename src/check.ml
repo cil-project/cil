@@ -508,7 +508,7 @@ and checkInit  (i: init) : typ =
     (fun _ -> dprintf "checkInit: %a" d_init i)
     (fun _ ->
       match i with
-        ScalarInit e -> checkExp true e
+        SingleInit e -> checkExp true e
       | CompoundInit (t, initl) -> 
           checkType t CTSizeof;
           let checkOneInit (oo: offset) (ei: init) (et: typ) _ : unit = 

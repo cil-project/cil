@@ -276,7 +276,8 @@ and exp =
 
 (* Initializers for global variables *)
 and init = 
-  | ScalarInit   of exp                 (* A single initializer *)
+  | SingleInit   of exp                 (* A single initializer, might be of 
+                                         * compound type *)
                                         (* Used only for initializers of 
                                          * structures, unions and arrays. For 
                                          * a structure we have a list of 
@@ -666,6 +667,7 @@ val setCustomPrint: (attribute -> Pretty.doc option) -> ('a -> 'b) -> 'a -> 'b
    (* Some plain pretty-printers. Unlike the above these expose all the 
     * details of the internal representation *)
 val d_plainexp: unit -> exp -> Pretty.doc
+val d_plaininit: unit -> init -> Pretty.doc
 val d_plainlval: unit -> lval -> Pretty.doc
 val d_plainoffset: unit -> offset -> Pretty.doc
 val d_plaintype: unit -> typ -> Pretty.doc

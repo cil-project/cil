@@ -60,7 +60,7 @@ let doFile (fl: file) : file =
             match what with
               CompoundInit (t, initl) -> 
                 foldLeftCompound (initone off') t initl acc
-            | ScalarInit ei -> 
+            | SingleInit ei -> 
                 mkStmt (Instr [Set ((Var vi, off'), ei, locUnknown)]) 
                 :: acc
           in

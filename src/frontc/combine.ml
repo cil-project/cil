@@ -173,7 +173,7 @@ and combine_exps exps =
 and combine_init_expression (iexp: init_expression) : init_expression = 
   match iexp with
     NO_INIT -> NO_INIT
-  | SCALAR_INIT e -> SCALAR_INIT (combine_expression e)
+  | SINGLE_INIT e -> SINGLE_INIT (combine_expression e)
   | COMPOUND_INIT initexps ->
       let doinitexp = function
           NEXT_INIT, e -> (NEXT_INIT, combine_init_expression e)

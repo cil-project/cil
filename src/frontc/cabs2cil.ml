@@ -1989,10 +1989,10 @@ and doInitializer
                    * including the terminal 0 *)
             let isStringLiteral : string option = 
               match ie with
-                A.SCALAR_INIT(A.CONSTANT (A.CONST_STRING s)) -> Some s
+                A.SINGLE_INIT(A.CONSTANT (A.CONST_STRING s)) -> Some s
                  (* The string literal may be enclosed in braces *)
               | A.COMPOUND_INIT [(A.NEXT_INIT, 
-                                  A.SCALAR_INIT(A.CONSTANT 
+                                  A.SINGLE_INIT(A.CONSTANT 
                                                   (A.CONST_STRING s)))]
                 -> Some s
               | _ -> None
@@ -2006,7 +2006,7 @@ and doInitializer
                       let cs = String.make 1 c in
                       let cs = Cprint.escape_string cs in 
                       (A.NEXT_INIT, 
-                       A.SCALAR_INIT(A.CONSTANT 
+                       A.SINGLE_INIT(A.CONSTANT 
                                        (A.CONST_CHAR cs)))) chars in
                 initArray nextidx sofar acc (inits' @ restinitl)
             | _ ->   
@@ -2041,11 +2041,11 @@ and doInitializer
       in
       acc', CompoundInit(newt, inits), newt, restinitl
   (* STRUCT or UNION *)
-  | TComp comp ->  
+  | TComp comp ->  begin
       let rec initStructUnion
          (nextflds: fieldinfo list) (* Remaining fields *)
          (sofar: init list) (* The initializer expressions so far, in reverse 
-                          * order *)
+                             * order *)
          (acc: chunk)
          (initl: (A.initwhat * A.init_expression) list) 
        
@@ -2104,24 +2104,31 @@ and doInitializer
       in
       (* Maybe the first initializer is a compound, then that is the 
        * initializer for the entire array *)
-      let acc', inits, restinitl = 
         match initl with
           (A.NEXT_INIT, A.COMPOUND_INIT initl_e) :: restinitl -> 
             let acc', inits, rest' = 
               initStructUnion comp.cfields [] acc initl_e in
             if rest' <> [] then
               E.s (E.warn "Unused initializers\n");
-            acc', inits, restinitl
-        | _ -> initStructUnion comp.cfields [] acc initl 
-      in
-      acc', CompoundInit(typ, inits), typ, restinitl
+            acc', CompoundInit(typ, inits), typ, restinitl
 
+           (* Maybe it is a single initializer *)
+        | (A.NEXT_INIT, A.SINGLE_INIT oneinit) :: [] -> 
+            let se, init', t' = doExp isconst oneinit (AExp(Some typ)) in
+            (se @@ acc), SingleInit (doCastT init' t' typ), typ, []
+            
+        | _ -> 
+            let acc', inits, restinitl = 
+              initStructUnion comp.cfields [] acc initl 
+            in
+            acc', CompoundInit(typ, inits), typ, restinitl
+  end
    (* REGULAR TYPE *)
   | typ' -> begin
       match initl with 
-        (A.NEXT_INIT, A.SCALAR_INIT oneinit) :: restinitl -> 
+        (A.NEXT_INIT, A.SINGLE_INIT oneinit) :: restinitl -> 
           let se, init', t' = doExp isconst oneinit (AExp(Some typ')) in
-          (se @@ acc), ScalarInit (doCastT init' t' typ'), typ', restinitl
+          (se @@ acc), SingleInit (doCastT init' t' typ'), typ', restinitl
       | _ -> E.s (E.unimp "Cannot find the initializer\n")
   end
 
@@ -2230,11 +2237,12 @@ and createLocal = function
           TArray(_,None, _), _, TArray(_, Some _, _) -> vi.vtype <- et
             (* Initializing a local array *)
         | TArray(TInt((IChar|IUChar|ISChar), _) as bt, None, a),
-             ScalarInit(Const(CStr s)), _ -> 
+             SingleInit(Const(CStr s)), _ -> 
                vi.vtype <- TArray(bt, 
                                   Some (integer (String.length s + 1)),
                                   a)
         | _, _, _ -> ());
+        ignore (E.log "found init: %a\n" d_plaininit ie');
         (* Now create assignments instead of the initialization *)
         se @@ (assignInit (Var vi, NoOffset) ie' et empty)
       end
@@ -2287,7 +2295,7 @@ and assignInit (lv: lval)
                (iet: typ) 
                (acc: chunk) : chunk = 
   match ie with
-    ScalarInit e -> 
+    SingleInit e -> 
       let (_, e'') = castTo iet (typeOfLval lv) e in 
       acc +++ (Set(lv, e'', lu))
   | CompoundInit (t, initl) -> 

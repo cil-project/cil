@@ -274,7 +274,7 @@ and exp =
 
 (* Initializers for global variables *)
 and init = 
-  | ScalarInit   of exp                 (* A single initializer *)
+  | SingleInit   of exp                 (* A single initializer *)
                                         (* Used only for initializers of 
                                          * structures and arrays. For a 
                                          * structure we have a list of 
@@ -1131,7 +1131,7 @@ and d_exp () e =
   | StartOf(lv) -> d_lval () lv
 
 and d_init () = function
-    ScalarInit e -> d_exp () e
+    SingleInit e -> d_exp () e
   | CompoundInit (t, initl) -> 
       (* We do not print the type of the Compound *)
       let dinit e = d_init () e in
@@ -1438,6 +1438,12 @@ let rec d_plainexp () = function
   | AddrOf (lv) -> dprintf "AddrOf(%a)" d_plainlval lv
   | e -> d_exp () e
 
+and d_plaininit () = function
+    SingleInit e -> dprintf "SI(%a)" d_exp e
+  | CompoundInit (t, initl) -> 
+      dprintf "CI(@[%a,@?%a@])" d_plaintype t
+        (docList (chr ',' ++ break ) (d_plaininit ())) initl
+
 and d_plainlval () = function
   | Var vi, o -> dprintf "Var(@[%s,@?%a@])" vi.vname d_plainoffset o
   | Mem e, o -> dprintf "Mem(@[%a,@?%a@])" d_plainexp e d_plainoffset o
@@ -1519,7 +1525,7 @@ and visitCilInit (vis: cilVisitor) (i: init) : unit =
   let fInit i = visitCilInit vis i in
   let fTyp t = visitCilType vis t in
   match i with
-  | ScalarInit e -> fExp e
+  | SingleInit e -> fExp e
   | CompoundInit (t, initl) ->
       fTyp t;
       List.iter fInit initl
@@ -1998,7 +2004,7 @@ let rec typeOf (e: exp) : typ =
       
 and typeOfInit (i: init) : typ = 
   match i with 
-    ScalarInit e -> typeOf e
+    SingleInit e -> typeOf e
   | CompoundInit (t, _) -> t
 
 and typeOfLval = function
@@ -2325,9 +2331,9 @@ let increm (e: exp) (i: int) =
 (*** Make a initializer for zeroe-ing a data type ***)
 let rec makeZeroInit (t: typ) : init = 
   match unrollType t with
-    TInt (ik, _) -> ScalarInit(Const(CInt(0, ik, None)))
-  | TFloat(fk, _) -> ScalarInit(Const(CReal(0.0, fk, None)))
-  | (TEnum _ | TBitfield _) -> ScalarInit zero
+    TInt (ik, _) -> SingleInit(Const(CInt(0, ik, None)))
+  | TFloat(fk, _) -> SingleInit(Const(CReal(0.0, fk, None)))
+  | (TEnum _ | TBitfield _) -> SingleInit zero
   | TComp comp as t' when comp.cstruct -> 
       CompoundInit (t', 
                     List.map (fun f -> makeZeroInit f.ftype) 
@@ -2352,7 +2358,7 @@ let rec makeZeroInit (t: typ) : init =
         else loopElems (initbt :: acc) (i + 1) 
       in
       CompoundInit(t', loopElems [] 0)
-  | TPtr _ as t -> ScalarInit(CastE(t, zero))
+  | TPtr _ as t -> SingleInit(CastE(t, zero))
   | _ -> E.s (E.unimp "makeZeroCompoundInit: %a" d_plaintype t)
 
 
@@ -2380,28 +2386,40 @@ let foldLeftCompound (doinit: offset -> init -> typ -> 'a -> 'a)
       in
       foldArray zero initl acc
 
-  | TComp comp when comp.cstruct ->
-      let rec foldFields 
-          (allflds: fieldinfo list) 
-          (nextflds: fieldinfo list) 
-          (initl: init list)
-          (acc: 'a) : 'a = 
-        match initl with 
-          [] -> acc   (* We are done *)
-        | ie :: restinitl ->
-            let nextfields, thisoff, thisexpt = 
-              begin
-                match nextflds with
-                  [] -> E.s (E.unimp "Too many initializers")
-                | x :: xs -> xs, Field(x, NoOffset), x.ftype
-              end
-            in
-            (* Now do the initializer expression *)
-            let acc' = doinit thisoff ie thisexpt acc in
-            foldFields allflds nextfields restinitl acc'
-      in
-      foldFields comp.cfields comp.cfields initl acc
-  | _ -> E.s (E.unimp "Type of Compound is not array or struct")
+  | TComp comp -> 
+      if comp.cstruct then
+        let rec foldFields 
+            (allflds: fieldinfo list) 
+            (nextflds: fieldinfo list) 
+            (initl: init list)
+            (acc: 'a) : 'a = 
+          match initl with 
+            [] -> acc   (* We are done *)
+          | ie :: restinitl ->
+              let nextfields, thisfield = 
+                begin
+                  match nextflds with
+                    [] -> E.s (E.unimp "Too many initializers")
+                  | x :: xs -> xs, x
+                end
+              in
+              (* Now do the initializer expression *)
+              let acc' = 
+                doinit (Field(thisfield, NoOffset)) ie thisfield.ftype acc in
+              foldFields allflds nextfields restinitl acc'
+        in
+        foldFields comp.cfields comp.cfields initl acc
+      else
+        (* UNION *)
+        let oneinit, firstfield = 
+          match initl, comp.cfields with
+            [x], f :: _  -> x, f
+          | _ -> E.s (E.bug "Compound for union should have only one init")
+        in
+        doinit (Field(firstfield, NoOffset)) oneinit firstfield.ftype acc
+        
+
+  | _ -> E.s (E.unimp "Type of Compound is not array or struct or union")
 
 
 

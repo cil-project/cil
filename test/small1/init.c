@@ -77,7 +77,9 @@ union  {
 int z[4][3] =
 { { 1 }, { 2 }, { 3 }, { 4 } };
 
-struct { int a[3]; int b;} w[] =
+struct str1 { int a[3]; int b;};
+
+struct str1 w[] =
 { { 1 }, { 2 } };
 
 
@@ -114,6 +116,9 @@ char *nm[] = {
 // Test the initialization
 int main() {
   int i;
+
+  struct str1 astr = w[0];
+    
   if(strcmp(a[0].name, "first")) {
     ERROR(0);
   }
