@@ -613,6 +613,24 @@ $TEST->newTest(
     Group => ['vslow'],
     Patterns => []);
 
+#
+# Apache CIL-ified
+#
+$TEST->newTest(
+    Name => "apache-cil", # A CIL only test
+    Dir => ".",
+    Enabled => 0,
+    Cmd => "make apache-cil",
+    Group => ['vslow'],
+    Patterns => \%commonerrors);
+# Apache-CIL,  Modules-Cured
+$TEST->newTest(
+    Name => "apache-modules-cured", 
+    Dir => ".",
+    Enabled => 0,
+    Cmd => "make apache-modules-cured",
+    Group => ['vslow'],
+    Patterns => \%commonerrors);
 
 #
 # PING

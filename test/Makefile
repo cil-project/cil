@@ -942,6 +942,15 @@ spro/% : $(SPR-TESTDIR)/%.c
                $(STANDARDPATCH) \
 	       $(CONLY) $*.c 
 	echo SUCCESS
+################# New ( Thu Sep  5 18:49:56 PDT 2002 ) Apache Test Cases
+
+apache-cil:
+	$(MAKE) -C $(BIG_EXAMPLES_DIR) apacheclean
+	$(MAKE) -C $(BIG_EXAMPLES_DIR) apache-cil-test
+
+apache-modules-ccured:
+	$(MAKE) -C $(BIG_EXAMPLES_DIR) apache-modules-ccured
+
 ################# Apache test cases
 APACHETEST := $(TESTDIR)/apache
 APACHEBASE := apache_1.3.19/src
