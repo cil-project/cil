@@ -248,6 +248,17 @@ let scan_oct_escape str =
 		   + (get_value (String.get str 1)) * 8
 		   + (get_value (String.get str 2))
 	           ))
+
+(* ISO standard locale-specific function to convert a wide character
+ * into a sequence of normal characters. Here we work on strings. 
+ * We convert L"Hi" to "H\000i\000" *)
+let wbtowc wstr =
+  let len = String.length wstr in 
+  let dest = String.make (len * 2) '\000' in 
+  for i = 0 to len-1 do 
+    dest.[i*2] <- wstr.[i] ;
+  done ;
+  dest
 }
 
 let decdigit = ['0'-'9']
@@ -289,11 +300,21 @@ rule initial =
 |		'#'			{ hash lexbuf}
 |               "_Pragma" 	        { PRAGMA }
 |		'\''			{ CST_CHAR (chr lexbuf)}
+|		"L'"			{ (* weimer: wide character constant *)
+                                          let wcc = chr lexbuf in 
+                                          CST_STRING (wbtowc wcc) }
 |		'"'			{ (* '"' *)
                                           try CST_STRING (str lexbuf)
                                           with e -> 
                                              raise (InternalError 
                                                      ("str: " ^ 
+                                                      Printexc.to_string e))}
+|		"L\""			{ (* weimer: wchar_t string literal *)
+                                          try let wstr = str lexbuf in
+                                              CST_STRING(wbtowc wstr)
+                                          with e -> 
+                                             raise (InternalError 
+                                                     ("wide string: " ^ 
                                                       Printexc.to_string e))}
 |		floatnum		{CST_FLOAT (Lexing.lexeme lexbuf)}
 |		hexnum			{CST_INT (Lexing.lexeme lexbuf)}

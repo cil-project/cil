@@ -67,6 +67,69 @@ let convLoc (l : cabsloc) =
     ignore (E.log "convLoc at %s:%d\n" l.filename l.lineno);
   {line = l.lineno; file = l.filename;}
 
+(* Weimer
+ * multi-character character constants
+ * In MSCV, this code works:
+ *
+ * long l1 = 'abcd';  // note single quotes
+ * char * s = "dcba";
+ * long * lptr = ( long * )s;
+ * long l2 = *lptr;
+ * assert(l1 == l2);
+ *
+ * We need to change a multi-character character literal into the
+ * appropriate integer constant. However, the plot sickens: we
+ * must also be able to handle things like 'ab\nd' (value = * "d\nba")
+ * and 'abc' (vale = *"cba"). 
+ *
+ * First we convert 'AB\nD' into the list [ 65 ; 66 ; 10 ; 68 ], then we
+ * multiply and add to get the desired value. 
+ *)
+
+let rec scan_string lst = match lst with
+  | '\\' :: 'n' :: rest -> '\n' :: (scan_string rest) 
+  | '\\' :: 't' :: rest -> '\t' :: (scan_string rest) 
+  | '\\' :: 'r' :: rest -> '\r' :: (scan_string rest) 
+  | '\\' :: 'b' :: rest -> '\b' :: (scan_string rest) 
+  | '\\' :: '\\' :: rest -> '\\' :: (scan_string rest) 
+  | '\\' :: '\'' :: rest -> '\'' :: (scan_string rest) 
+  | '\\' :: '\034' :: rest -> '\034' :: (scan_string rest)  (* double-quote *)
+  | '\\' :: c3 :: c2 :: c1 :: rest when c1 >= '0' && c1 <= '9' && 
+                                  c2 >= '0' && c2 <= '9' &&
+                                  c3 >= '0' && c3 <= '9' -> 
+                  (Char.chr ((Char.code c1 - Char.code '0') +
+                            (Char.code c2 - Char.code '0') * 8 + 
+                            (Char.code c3 - Char.code '0') * 64))
+                  :: (scan_string rest)
+  | '\\' :: c2 :: c1 :: rest when c1 >= '0' && c1 <= '9' && 
+                                  c2 >= '0' && c2 <= '9' -> 
+                  (Char.chr ((Char.code c1 - Char.code '0') +
+                             (Char.code c2 - Char.code '0') * 8))
+                  :: (scan_string rest)
+  | '\\' :: c :: rest when c >= '0' && c <= '9' -> 
+                  (Char.chr (Char.code c - Char.code '0'))
+                  :: (scan_string rest)
+  | hd :: tl -> hd :: (scan_string tl)
+  | [] -> [] 
+
+(* Given a character constant (like 'a' or 'abc') both as a string
+ * and as a list of characters, turn it into a CIL constant. *)
+let interpret_character_constant str old_char_list =
+  let new_char_list = scan_string old_char_list in 
+  let value = List.fold_left (fun acc elt -> 
+    Int64.add (Int64.shift_left acc 8) 
+    (Int64.of_int (Char.code elt))) Int64.zero new_char_list in
+  if value < (Int64.of_int 256) then
+    (CChr(Char.chr (Int64.to_int value))),(TInt(IChar,[]))
+  else begin
+    let orig_rep = None (* Some("'" ^ (String.escaped str) ^ "'") *) in
+    if value < (Int64.of_int 65536) then
+      (CInt64(value,IUShort,orig_rep)),(TInt(IUShort,[]))
+    else if value <= (Int64.of_int32 Int32.max_int) then
+      (CInt64(value,IULong,orig_rep)),(TInt(IULong,[]))
+    else 
+      (CInt64(value,IULongLong,orig_rep)),(TInt(IULongLong,[]))
+  end
 
 (*** EXPRESSIONS *************)
 
@@ -2224,32 +2287,9 @@ and doExp (isconst: bool)    (* In a constant *)
             finishCt (CStr(s')) charPtrType
               
         | A.CONST_CHAR s ->
-            let chr = 
-              (* Convert the characted into the ASCII code *)
-              match explodeString false s with
-                [ c ] -> c
-              | ['\\'; 'n'] -> '\n'
-              | ['\\'; 't'] -> '\t'
-              | ['\\'; 'r'] -> '\r'
-              | ['\\'; 'b'] -> '\b'
-              | ['\\'; '\\'] -> '\\'
-              | ['\\'; '\''] -> '\''
-              | ['\\'; '\034'] -> '\034'  (* The double quote *)
-              | ['\\'; c ] when c >= '0' && c <= '9' -> 
-                  Char.chr (Char.code c - Char.code '0')
-              | ['\\'; c2; c1 ] when 
-                c1 >= '0' && c1 <= '9' && c2 >= '0' && c2 <= '9' -> 
-                  Char.chr ((Char.code c1 - Char.code '0') +
-                            (Char.code c2 - Char.code '0') * 8)  
-              | ['\\'; c3; c2; c1 ] when 
-                c1 >= '0' && c1 <= '9' && c2 >= '0' && c2 <= '9'  
-                  && c3 >= '0' && c3 <= '9' -> 
-                  Char.chr ((Char.code c1 - Char.code '0') +
-                            (Char.code c2 - Char.code '0') * 8 + 
-                            (Char.code c3 - Char.code '0') * 64)  
-              | _ -> E.s (error "Cannot transform \"%s\" into a char\n" s)
-            in
-            finishCt (CChr(chr)) (TInt(IChar,[]))
+            let char_list = explodeString false s in
+            let a,b = (interpret_character_constant s char_list) in 
+            finishCt a b 
               
         | A.CONST_FLOAT str -> begin
             (* Maybe it ends in U or UL. Strip those *)
