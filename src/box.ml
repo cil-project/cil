@@ -2792,11 +2792,11 @@ and boxinstr (ins: instr) : stmt list =
                   let (at, doa, a') = boxexp a in
                   let (doresta, resta') = doArgs resta in
                   let (checka, a'') = 
-                    (* Disable this check for now. 
-                    if false && isFatType at then 
-                      ([doCheckFatIfPtr checkSafeFatLeanCastFun a' at],
-                       readPtrField a' at)
-                    else *) ([], a')
+(* !!!! remove this *)         
+                    if isFatType at then 
+                      ([], readPtrField a' at)
+                    else  
+                      ([], a')
                   in
                   (doa @ checka @ doresta, a'' :: resta')
             in

@@ -281,7 +281,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       assert(n.why_kind <> UserSpec) ; (* shouldn't override those! *)
       n.kind <- k ; 
       n.why_kind <- w ;
-      ignore (E.warn "Update %d to %a" n.id d_opointerkind k) ;
+      (* ignore (E.warn "Update %d to %a" n.id d_opointerkind k) ; *)
       finished := false 
     end
   end in
