@@ -4,6 +4,11 @@
 \def\secref#1{Section~\ref{sec-#1}}
 \def\chref#1{Chapter~\ref{ch-#1}}
 
+% Use this to refer to a Cil type
+\def\apiref#1#2#3{\ahref{api/#1.html\##2#3}{#1.#3}}
+\def\ciltyperef#1{\apiref{Cil}{TYPE}{#1}}
+\def\cilvalref#1{\apiref{Cil}{VAL}{#1}}
+
 %----------------------------------------------------------------------
 % MACROS
 
@@ -44,7 +49,7 @@ reduced number of syntactic and conceptual forms. For example, all looping
 constructs are reduced to a single form, all function bodies are given
 explicit {\tt return} statements, syntactic sugar like {\tt "->"} is
 eliminated and function arguments with array types become pointers. (For an
-extensive list of how CIL simplifies C programs, see \sefrec{cabs2cil}.)
+extensive list of how CIL simplifies C programs, see \secref{cabs2cil}.)
 This reduces the number of cases that must be considered when manipulating a C
 program. CIL also separates type declarations from code and flattens scopes
 within function bodies. This structures the program in a manner more amenable
@@ -408,7 +413,7 @@ Assuming that you have written \t{logwrites.ml} here is how you use it:
  call the \t{Frontc.parse: string -> unit -> Cil.file} function with the name
  of a file containing the output of the preprocessor and then invoke your
  analysis function on the resulting \t{Cil.file} data structure. Then you can
- call the function \t{Cil.printFile: out_channel -> Cil.file -> unit} to print
+ call the function \t{Cil.printFile: out\_channel -> Cil.file -> unit} to print
  the file to a given output channel.
 
  \item In the \t{cil} directory run \t{make} to make the bytecode version of
@@ -429,7 +434,85 @@ to write your analysis and transformation.
  The CIL API is documented in the file \t{src/cil.mli}. We also have an
 \ahref{api/index.html}{online documentation}.  
 
-  
+ The parser for both the GCC and MSVC front-ends can be invoked as
+\t{Frontc.parse: string -> unit -> Cil.file}. This function must be given the
+name of a preprocessed C file and will return the top-level data structure
+that describes a whole source file. By default the parsing and elaboration
+into CIL is done as for GCC source. If you want to use MSVC source you must
+set the \t{Cil.msvcMode: bool ref} to \t{true} and must also invoke the
+function \t{Frontc.setMSVCMode: unit -> unit}. 
+
+ \subsection{Globals}
+
+ The result of the elaboration will return a \ciltyperef{file}. The main
+contents of a \ciltyperef{file} is a list of global declarations and
+definitions represented with the type \ciltyperef{global}.
+
+ There are several kinds of global declarations and definitions. You can
+declare type names (the \t{typedef} of C), structure, union and enumeration
+tags. You can have variable declarations and definitions (with optional
+initializers), function prototypes and function definitions. The other kinds
+of globals are pragmas, inline assembly statements that can appear at global
+scope and text to be printed verbatim in the output file. For each global item
+CIL stores the source location where it appears (using the type
+\ciltyperef{location}).
+
+ Generally the declaration of a type or a composite type tag must appear
+before the first use in the file. Similarly, the definition or the declaration
+of a variable or function must appear before its use in a file. 
+
+ CIL supports pragmas only at the top level. 
+
+ \subsection{Types}
+
+ A C type is represented in CIL using the type \ciltyperef{typ}. Among types we
+differentiate the integral types, with different kinds denoting the sign and
+precision, floating point types, enumeration types, array and pointer type,
+and function types. 
+
+ CIL exports a number of useful constants that denote common types:
+ \cilvalref{voidType}, \cilvalref{intType}, \cilvalref{uintType}, 
+\cilvalref{longType}, \cilvalref{charType}, \cilvalref{charPtrType}, 
+ \cilvalref{charConstPtrType} (pointer to a constant character), 
+ \cilvalref{voidPtrType}, \cilvalref{intPtrType}, \cilvalref{doubleType}.
+
+ At the moment CIL assumes that \t{char} is 1 byte, \t{short} is 2 bytes,
+ \t{int} and \t{long} are 4 bytes and \t{long long} is 8 bytes. A pointer is 4
+ bytes. 
+
+All uses of type names (through the TNamed constructor) must be preceeded by
+a GType global that defines the name. If you want to 
+
+ \subsection{Attributes}
+
+ Each type can have a set of attributes (described in \secref{attrib}). They
+are represented using the type \ciltypref{attribute}. An attribute consists of
+a name and a number of arguments (represented using the type
+\ciltyperef{attrarg}). Almost any expression can be used as an attribute
+argument. Attributes are stored in lists sorted by the name of the attribute.
+Use the function \cilvalref{typeAttrs} to retrieve the attributes of a type
+and the functions \cilvalref{addAttribute} and \cilvalref{addAttributes} to
+add attributes. Alternatively you can use \cilvalref{typeAddAttributes} to add
+an attribute to a type (and return the new type).
+
+
+ \subsection{Variables}  
+
+ 
+
+ \subsection{Expressions}
+
+
+ \subsection{Functions}
+
+
+ \subsection{Statements}
+
+
+ \subsection{Debugging and Printing Support}
+ 
+
+ \subsection{Using the visitor}
 
 \section{The CIL Driver}\label{sec-driver}
 

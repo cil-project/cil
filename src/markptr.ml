@@ -619,7 +619,7 @@ let recursiveInstantiations: (string * varinfo) list ref = ref []
 let instantiatePolyFunc (fvi: varinfo) : varinfo * bool = 
   (* The args might be shared with other declarations and with formals for 
    * defined functions. Make shallow copies of all of them  *)
-  let dropNodeAttrs a = dropAttribute a (Attr("_ptrnode", [])) in
+  let dropNodeAttrs a = dropAttribute "_ptrnode" a in
   (* Copy a type but drop the existing nodes *)
   let rec copyTypeNoNodes (t: typ) = 
     match t with
@@ -676,10 +676,10 @@ let instantiatePolyFunc (fvi: varinfo) : varinfo * bool =
                                          * fix it  *)
               vname = newPolyName fvi.vname;
               vattr = dropAttribute  
-                           (dropNodeAttrs fvi.vattr)
-                           (Attr("nobox", [])) }  in
+                           "nobox" 
+                            (dropNodeAttrs fvi.vattr) }  in
           (* Drop the modelledbody from the fvi *)
-          fvi.vattr <- dropAttribute fvi.vattr (Attr("modeledbody",[]));
+          fvi.vattr <- dropAttribute "modeledbody" fvi.vattr;
           theFile := GDecl (newvi, locUnknown) :: !theFile;
           instantiations := (old_name, newvi) :: !instantiations;
           newvi, true

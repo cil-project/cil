@@ -489,7 +489,7 @@ let newTempVar typ =
     "const" variable *)
   let stripConst t =
     let a = typeAttrs t in
-    let a1 = dropAttribute a (Attr("const", [])) in
+    let a1 = dropAttribute "const" a in
 (*    let a1 = dropAttribute a1 (Attr("restrict", [])) in *)
     setTypeAttrs t a1
   in
@@ -1821,7 +1821,7 @@ and makeVarInfo
     (* Remove the const qualifier from local variables because they are 
        initialized through assignments *)
     vtype    = if not isglob then 
-                  typeRemoveAttributes [Attr("const", [])] vtype
+                  typeRemoveAttributes ["const"] vtype
                else vtype;
     vaddrof  = false;
     vreferenced = false;   (* sm *)

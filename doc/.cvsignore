@@ -13,3 +13,5 @@
 *.out
 *.xyc
 *.xyd
+cilpp.tex
+cilcode.tmp

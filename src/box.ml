@@ -339,7 +339,7 @@ let fixedTypes : (typsig, typ) H.t = H.create 17
 let getNodeAttributes t =
   let dropit where a = 
     N.replacePtrNodeAttrList where 
-      (dropAttribute a (Attr("const", [])))
+      (dropAttribute "const" a)
   in
   let rec loop t = 
     match t with 
@@ -2025,7 +2025,8 @@ let pkArithmetic (ep: exp)
           TPtr((TInt((IChar|ISChar|IUChar), _) as bt), ptra) -> 
             TPtr(bt, 
                  addAttribute (N.k2attr N.SeqN)
-                   (dropAttribute ptra (N.k2attr N.String)))
+                   (dropAttribute (match N.k2attr N.String with 
+                                      Attr (n, _) -> n) ptra))
         | _ -> E.s (bug "String pointer kind but base type is not char")
       in
       (* And recompute the right type for the result *)
@@ -4338,7 +4339,7 @@ let boxFile file =
        * alone  *)
       let newa, newt = moveAttrsFromDataToType vi.vattr vi.vtype in
       vi.vattr <- N.replacePtrNodeAttrList N.AtVar 
-            (dropAttribute newa (Attr("__format__", [])));
+            (dropAttribute "__format__" newa);
       vi.vtype <- fixupType newt;
       (* Now see if we must change the type of the function *)
       (match N.nodeOfAttrlist vi.vattr with

@@ -5,30 +5,6 @@
  *
  *)
 
-
-(* CIL is intended to be an IL for source-to-source transformations of C 
- * programs. In the process of converting preprocessed C source to CIL most 
- * of the syntactic sugar is removed and type checking is performed. CIL has 
- * the following properties:
-
- - has a pretty printer that should print valid source. There is also a 
- * pretty printer that prints abstract syntax (for debugging)
-
- - all local variables are pulled to the start of a function. Their names are 
- * changed to be unique and to avoid conflicts with global variables
-
- - all forms of source-level loops are changed into a single Loop construct 
- * that loops forever except if a break, return or goto is encountered. In 
- * many cases the continue statement is turned into a goto. 
-
- - all implicit integer promotions, argument promotions and arithmetic 
- * conversions are turned into explicit casts.
-
- - all integer constants have the proper type attached to them
-
- - the function arguments with array type are changed into pointers.
-*)
-
 (* The constraints specified in this file are checked in the module Check. 
  * Take a look there for a precise specification of the invariants that a 
  * Cil.file must satisfy *)
@@ -43,21 +19,227 @@
 (** The Abstract Syntax of CIL *)
 
 
-(** Describes a location in a source file *)
-type location = { 
-    line: int;		   (** The line number. -1 means "do not know" *)
-    file: string;          (** The name of the source file*)
+(** The top-level representation of a CIL source file. Its main contents is 
+    the list of global declarations and definitions. *)
+type file = 
+    { mutable fileName: string;   (** The complete file name *)
+      mutable globals: global list; (** List of globals as they will appear 
+                                        in the printed file *)
+      mutable globinit: fundec option;  
+      (** An optional global initializer function. This is a function where 
+          you can put stuff that must be executed before the program is 
+          started. This function, is conceptually at the end of the file, 
+          although it is not part of the globals list. Use getGlobInit to 
+          create/get one. *)
+      mutable globinitcalled: bool;     
+      (** Whether the global initialization function is called in main. This 
+          should always be false if there is no global initializer. When 
+          you create a global initialization CIL will try to insert code in 
+          main to call it. *)
+    } 
+
+
+(** The main type for representing global declarations and definitions. A list 
+    of these form a CIL file. The order of globals in the file is generally 
+    important. *)
+and global =
+  | GType of string * typ * location    
+    (** A typedef. All uses of type names (through the TNamed constructor) 
+        must be preceeded in the file by a definition of the name. The string 
+        is the defined name. If the string is empty then this global is 
+        printed as a type-only declaration, useful for introducing 
+        declarations of structure tags. In turn this is useful only when your 
+        file refers to pointers to such undefined structures or unions. *)
+
+  | GCompTag of compinfo * location     
+    (** Defines a struct/union tag with some fields. There must be one of 
+        these for each struct/union tag that you use (through the TComp 
+        constructor) since this is the only context in which the fields are 
+        printed. Consequently nested structure tag definitions must be 
+        broken into individual definitions with the innermost structure 
+        defined first. *)
+
+  | GEnumTag of enuminfo * location
+   (** Declares an enumeration tag with some fields. There must be one of 
+      these for each enumeration tag that you use (through the TEnum 
+      constructor) since this is the only context in which the items are 
+      printed. *)
+
+  | GDecl of varinfo * location
+   (** A variable declaration (not a definition). If the variable has a 
+       function type then this is a prototype. There can be at most one 
+       declaration and at most one definition for a given variable. If both 
+       forms appear then they must share the same varinfo structure. A 
+       prototype shares the varinfo with the fundec of the definition. Either 
+       has storage Extern or there must be a definition in this file *)
+
+  | GVar  of varinfo * init option * location
+     (** A variable definition. Can have an initializer. There can be at most 
+         one definition for a variable in an entire program. Cannot have 
+         storage Extern or function type.  *)
+
+  | GFun of fundec * location           
+     (** A function definition. *)
+
+  | GAsm of string * location           (** Global asm statement. These ones 
+                                            can contain only a template *)
+  | GPragma of attribute * location     (** Pragmas at top level. Use the same 
+                                            syntax as attributes *)
+  | GText of string                     (** Some text (printed verbatim) at 
+                                            top level. E.g., this way you can 
+                                            put comments in the output.  *)
+
+
+(** The various types available. Every type is associated with a list of
+    attributes, which are always kept in sorted order. Use addAttribute and
+    addAttributes to construct list of attributes. If you want to inspect a 
+    type, you should use unrollType to see through the uses of named types. *)
+and typ =
+    TVoid of attributes   (** Void type *)
+  | TInt of ikind * attributes (** An integer type. The kind specifies 
+                                       the sign and width. *)
+  | TFloat of fkind * attributes (** A floating-point type. The kind 
+                                         specifies the precision. *)
+
+  | TPtr of typ * attributes  
+           (** Pointer type. *)
+
+  | TArray of typ * exp option * attributes
+           (** Array type. It indicates the base type and the array length. *)
+
+  | TFun of typ * varinfo list option * bool * attributes
+          (** Function type. Indicates the type of the result, the 
+              formal arguments (None if no arguments were specified, as in a
+              function whose definition or prototype we have not seen; 
+              Some [] means void). Use argsToList to obtain a list of 
+              arguments. The boolean indicates if it is a variable-argument 
+              function *)
+
+  | TNamed of string * typ * attributes 
+          (* The use of a named type. Each such type name must be preceeded 
+             in the file by a GType global. This is printed as just the type 
+             name. The actual referred type is not printed here and is 
+             carried only to simplify processing. To see through a sequence 
+             of named type references, use unrollType. The attributes are in 
+             addition to those given when the type name was defined. *)
+
+  | TComp of compinfo * attributes
+          (** A reference to a struct or a union type. All references to the 
+             same struct or union must share the same compinfo among them and 
+             with a GCompTag global that preceeds all uses (except maybe 
+             those that are pointers to the composite type). The attributes 
+             given are those pertaining to this use of the type and are in 
+             addition to the attributes that were given at the definition of 
+             the type and which are stored in the compinfo.  *)
+
+  | TEnum of enuminfo * attributes
+           (** A reference to an enumeration type. All such references must
+               share the enuminfo among them and with a GEnumTag global that 
+               preceeds all uses. The attributes refer to this use of the 
+               enumeration and are in addition to the attributes of the 
+               enumeration itself, which are stored inside the enuminfo  *)
+
+
+(** Various kinds of integers *)
+and ikind = 
+    IChar       (** char *)
+  | ISChar      (** signed char *)
+  | IUChar      (** unsigned char *)
+  | IInt        (** int *)
+  | IUInt       (** unsigned int *)
+  | IShort      (** short *)
+  | IUShort     (** unsigned short *)
+  | ILong       (** long *)
+  | IULong      (** unsigned long *)
+  | ILongLong   (** long long (or _int64 on Microsoft Visual C) *)
+  | IULongLong  (** unsigned long long (or unsigned _int64 on Microsoft 
+                    Visual C) *)
+
+(** Various kinds of floating-point numbers*)
+and fkind = 
+    FFloat      (** float *)
+  | FDouble     (** double *)
+  | FLongDouble (** long double *)
+
+(** Attributes are lists sorted by the attribute name *)
+and attributes = attribute list
+
+(** An attribute has a name and some optional arguments *)
+and attribute = Attr of string * attrarg list
+
+(** The type of information contained in an attributes *)
+and attrarg = 
+    AId of string  
+  | AInt of int    
+  | AStr of string 
+  | AVar of varinfo 
+  | ACons of string * attrarg list       (** Constructed attributes *)
+  | ASizeOf of typ                       (** A way to talk about types *)
+  | ASizeOfE of attrarg
+  | AUnOp of unop * attrarg
+  | ABinOp of binop * attrarg * attrarg
+
+
+(** Information about a composite type (a struct or a union). Use mkCompInfo 
+    to create non-recursive or (potentially) recursive versions of this. Make 
+    sure you have a GCompTag for each one of these.  *)
+and compinfo = {
+    mutable cstruct: bool;              (** True if struct, False if union *)
+    mutable cname: string;              (** The name. Always non-empty. Use 
+                                            compSetName to set the name and 
+                                            the key. Use compFullName to get 
+                                            the full name of a comp  *)
+    mutable ckey: int;                  (** A unique integer. Use Hashtbl.hash 
+                                            on the string returned by
+                                            compFullName. All compinfo for a
+                                            given key are shared.  *)
+    mutable cfields: fieldinfo list;    (** Information about the fields *) 
+    mutable cattr:   attributes;        (** The attributes that are defined at
+                                            the same time as the composite
+                                            type *)
+    mutable creferenced: bool;          (** True if used. Initially set to false *)
+  }
+
+(** Information about a struct/union field *)
+and fieldinfo = { 
+    mutable fcomp: compinfo;            (** The compinfo of the host. Note 
+                                            that this must be shared with the 
+                                            host since there can be only one 
+                                            compinfo for a given id *)
+    mutable fname: string;              (** The name of the field. Might be 
+                                            the value of missingFieldName 
+                                            in which 
+                                            case it is not printed *)
+    mutable ftype: typ;                 (** The type *)
+    mutable fbitfield: int option;      (** If a bitfield then ftype should be 
+                                            an integer type *)
+    mutable fattr: attributes;      
 }
+
+
+
+(** Information about an enumeration. This is shared by all references to an
+    enumeration. Make sure you have a GEnumTag for each of of these.   *)
+and enuminfo = {
+    mutable ename: string;              (** The name. Always non-empty *)
+    mutable eitems: (string * exp) list;(** Items with names and values. This
+                                            list should be non-empty. The item
+                                            values must be compile-time
+                                            constants. *)
+    mutable eattr: attributes;         (** Attributes *)
+    mutable ereferenced: bool;         (** True if used. Initially set to false*)
+}
+
 
 
 (** Information about a variable. These structures are shared by all 
     references to the variable. So, you can change the name easily, for 
     example. Use one of the makeLocalVar, makeTempVar or makeGlobalVar to 
     create instances of this data structure. *)
-type varinfo = { 
+and varinfo = { 
     mutable vname: string;		(** The name of the variable *)
     mutable vtype: typ;                 (** The declared type *)
-    mutable vattr: attribute list;      (** A list of attributes *)
+    mutable vattr: attributes;          (** A list of attributes *)
     mutable vstorage: storage;          (** The storage-class*)
     (* The other fields are not used in varinfo as they appear in the formal 
      * argument list in a TFun type *)
@@ -92,193 +274,167 @@ and storage =
     Register |                          
     Extern                              
 
-(** Information about a struct/union field *)
-and fieldinfo = { 
-    mutable fcomp: compinfo;            (** The compinfo of the host. Note 
-                                            that this must be shared with the 
-                                            host since there can be only one 
-                                            compinfo for a given id *)
-    mutable fname: string;              (** The name of the field. Might be 
-                                            the value of missingFieldName 
-                                            in which 
-                                            case it is not printed *)
-    mutable ftype: typ;                 (** The type *)
-    mutable fbitfield: int option;      (** If a bitfield then ftype should be 
-                                            an integer type *)
-    mutable fattr: attribute list;      
-}
+
+(** Initializers for global variables *)
+and init = 
+  | SingleInit   of exp                 (** A single initializer, might be of 
+                                            compound type *)
+  | CompoundInit   of typ * (offset * init) list
+            (** Used only for initializers of structures, unions and arrays. 
+             The offsets are all of the form Field(f, NoOffset) or Index(i, 
+             NoOffset) and specify the field or the index being 
+             initialized. For structures and arrays all fields (indices) 
+             must have an initializer (except the unnamed bitfields), in 
+             the proper order. This is necessary since the offsets are not 
+             printed. For unions there must be exactly one initializer. If 
+             the initializer is not for the first field then a field 
+             designator is printed, so you better be on GCC since MSVC does 
+             not understand this. *)
+
+(** Function Declarations *)
+and fundec =
+    { mutable svar:     varinfo;        (** Holds the name and type as a
+                                            variable, so we can refer to it
+                                            easily from the program *)
+      mutable sformals: varinfo list;   (** Formals. These must 
+                                            be shared with the formals that 
+                                            appear in the type of the 
+                                            function. Use setFormals or 
+                                            makeFormalVar or setFunctionType 
+                                            to set these formals and ensure 
+                                            that they are reflected in the 
+                                            function type. Do not make copies 
+                                            of these because the body refers 
+                                            to them. *)
+      mutable slocals: varinfo list;    (** Locals. Does not include the
+                                            sformals. Do not make copies of
+                                            these because the body refers to
+                                            them  *)
+      mutable smaxid: int;              (** Max local id. Starts at 0 *)
+      mutable sbody: block;             (** Body *)
+      mutable sinline: bool;            (** Whether the function is inline*)
+      mutable smaxstmtid: int option;  (** max id of a (reachable) statement
+                                            in this function, if we have 
+                                            computed it. 
+                                            range = 0 ... (smaxstmtid-1) *)
+    }
 
 
-(** Information about a composite type (a struct or a union). Use mkCompInfo 
-    to create non-recursive or (potentially) recursive versions of this. Make 
-    sure you have a GCompTag for each one of these.  *)
-and compinfo = {
-    mutable cstruct: bool;              (** True if struct, False if union *)
-    mutable cname: string;              (** The name. Always non-empty. Use 
-                                            compSetName to set the name and 
-                                            the key. Use compFullName to get 
-                                            the full name of a comp  *)
-    mutable ckey: int;                  (** A unique integer. Use Hashtbl.hash 
-                                            on the string returned by
-                                            compFullName. All compinfo for a
-                                            given key are shared.  *)
-    mutable cfields: fieldinfo list;    (** Information about the fields *) 
-    mutable cattr:   attribute list;    (** The attributes that are defined at
-                                            the same time as the composite
-                                            type *)
-    mutable creferenced: bool;          (** True if used. Initially set to false *)
-  }
-
-(** Information about an enumeration. This is shared by all references to an
-    enumeration. Make sure you have a GEnumTag for each of of these.   *)
-and enuminfo = {
-    mutable ename: string;              (** The name. Always non-empty *)
-    mutable eitems: (string * exp) list;(** Items with names and values. This
-                                            list should be non-empty. The item
-                                            values must be compile-time
-                                            constants. *)
-    mutable eattr: attribute list;     (** Attributes *)
-    mutable ereferenced: bool;         (** True if used. Initially set to false*)
-}
-
-(** The various types available. Every type is associated with a list of *
-    attributes, which are always kept in sorted order. Use addAttribute and
-    addAttributes to construct list of attributes. *)
-
-and typ =
-    TVoid of attribute list   (** Void type *)
-  | TInt of ikind * attribute list (** An integer type *)
-  | TFloat of fkind * attribute list (** A floating-point type *)
-
-  | TEnum of enuminfo * attribute list
-           (** A reference to an enumeration type. All such references must
-               share the enuminfo. Make sure you have a GEnumTag for each one
-               of these. The attributes refer to this use of the enumeration.
-               The attributes of the enumeration itself are stored inside the 
-               enumeration  *)
-
-  | TPtr of typ * attribute list        (** Pointer type. The attributes refer 
-                                            to the  *)
-
-  | TArray of typ * exp option * attribute list (** Array type. It indicates 
-                                                    the base type and the 
-                                                    array length *)
-
-  | TComp of compinfo * attribute list
-               (** A reference to a struct or a union type. All references to 
-                   the same struct or union must share the same compinfo. Make
-                   sure you have a GCompTag for each compinfo that you use. 
-                   The attributes given are those pertaining to this use of 
-                   the type. The attributes that were given at the definition 
-                   of the type are stored in the compinfo. Always make sure 
-                   there is a GCompTag for each structure or union that 
-                   you use. *)
-
-  | TFun of typ * varinfo list option * bool * attribute list
-               (** Function type. Indicates the type of the result, the 
-                   arguments (None is no arguments were specified 
-                   (Some [] means void). Use argsToList to obtain a list of 
-                   arguments.
-                   Also indicates if it is a variable-argument function *)
-
-  | TNamed of string * typ * attribute list (* From a typedef. The attributes 
-                                             * are in addition to the 
-                                             * attributes of the named type  *)
+(** A block is a sequence of statements with the control falling through from 
+    one element to the next *)
+and block = 
+   { mutable battrs: attributes;      (** Attributes for the block *)
+     mutable bstmts: stmt list;       (** The statements comprising the block*)
+   } 
 
 
-(** Various kinds of integers *)
-and ikind = 
-    IChar       (** char *)
-  | ISChar      (** signed char *)
-  | IUChar      (** unsigned char *)
-  | IInt        (** int *)
-  | IUInt       (** unsigned int *)
-  | IShort      (** short *)
-  | IUShort     (** unsigned short *)
-  | ILong       (** long *)
-  | IULong      (** unsigned long *)
-  | ILongLong   (** long long (or _int64 on Microsoft Visual C) *)
-  | IULongLong  (** unsigned long long (or unsigned_int64 on Microsoft 
-                    Visual C) *)
+(** Statements. 
+    The statement is the structural unit in the control flow graph. Use mkStmt 
+    to make a statement and then fill in the fields. *)
+and stmt = {
+    mutable labels: label list;        (** Whether the statement starts with 
+                                           some labels, case statements or 
+                                           default statement *)
+    mutable skind: stmtkind;           (** The kind of statement *)
 
-(** Various kinds of floating-point numbers*)
-and fkind = 
-    FFloat      (** float *)
-  | FDouble     (** double *)
-  | FLongDouble (** long double *)
+    (* Now some additional control flow information. Initially this is not 
+     * filled in. *)
+    mutable sid: int;                  (** A number (>= 0) that is unique 
+                                           in a function. *)
+    mutable succs: stmt list;          (** The successor statements. They can 
+                                           always be computed from the skind 
+                                           and the context in which this 
+                                           statement appears *)
+    mutable preds: stmt list;          (** The inverse of the succs function*)
+  } 
 
-(** An attribute has a name and some optional arguments *)
-and attribute = Attr of string * attrarg list
-
-(** The type of information contained in an attributes *)
-and attrarg = 
-    AId of string  
-  | AInt of int    
-  | AStr of string 
-  | AVar of varinfo 
-  | ACons of string * attrarg list       (** Constructed attributes *)
-  | ASizeOf of typ                       (** A way to talk about types *)
-  | ASizeOfE of attrarg
-  | AUnOp of unop * attrarg
-  | ABinOp of binop * attrarg * attrarg
+(** Labels *)
+and label = 
+    Label of string * location * bool   (* A real label.*)
+		(** If the bool is "true", the label is from the input source program.
+		 * If the bool is "false", the label was created by CIL or some
+		 * other transformation *)
+  | Case of exp * location              (** A case statement *)
+  | Default of location                 (** A default statement *)
 
 
-(** Literal constants *)
-and constant =
-  | CInt64 of int64 * ikind * string option 
-                 (** Integer constant. Give the ikind (see ISO9899 6.1.3.2) and
-                     the textual representation, if available. Use "integer" or
-                     "kinteger" to create these. Watch out for integers that
-                     cannot be represented on 64 bits. OCAML does not give
-                     Overflow exceptions. *)
-  | CStr of string (** String constant *)
-  | CChr of char   (** Character constant *)
-  | CReal of float * fkind * string option (** Floating point constant. Give
-                                               the fkind (see ISO 6.4.4.2) and
-                                               also the textual representation,
-                                               if available *)
 
-(** Unary operations *)
-and unop =
-    Neg                                 (** Unary minus *)
-  | BNot                                (** Bitwise complement (~) *)
-  | LNot                                (** Logical Not (!) *)
+(* The various kinds of statements *)
+and stmtkind = 
+  | Instr  of instr list               (** A group of instructions that do not 
+                                           contain control flow. Control
+                                           implicitly falls through. *)
+  | Return of exp option * location     (** The return statement. This is a 
+                                            leaf in the CFG. *)
 
-(** Binary operations *)
-and binop =
-    PlusA                               (** arithmetic + *)
-  | PlusPI                              (** pointer + integer *)
-  | IndexPI                             (** pointer[integer]. The difference 
-                                           form PlusPI is that in this case 
-                                           the integer is very likely 
-                                           positive *)
-  | MinusA                              (** arithemtic - *)
-  | MinusPI                             (** pointer - integer *)
-  | MinusPP                             (** pointer - pointer *)
-  | Mult                                (** * *)
-  | Div                                 (** / *)
-  | Mod                                 (** % *)
-  | Shiftlt                             (** shift left *)
-  | Shiftrt                             (** shift right *)
+  | Goto of stmt ref * location         (** A goto statement. Appears from 
+                                            actual goto's in the code. *)
+  | Break of location                   (** A break to the end of the nearest 
+                                             enclosing Loop or Switch *)
+  | Continue of location                (** A continue to the start of the 
+                                            nearest enclosing Loop *)
+  | If of exp * block * block * location (** A conditional. 
+                                             Two successors, the "then" and 
+                                             the "else" branches. Both 
+                                             branches  fall-through to the 
+                                             successor of the If statement *)
+  | Switch of exp * block * (stmt list) * location  
+                                       (** A switch statement. The block 
+                                           contains within all of the cases. 
+                                           We also have direct pointers to the 
+                                           statements that implement the 
+                                           cases. Which cases they implement 
+                                           you can get from the labels of the 
+                                           statement *)
 
-  | Lt                                  (** <  (arithmetic comparison) *)
-  | Gt                                  (** >  (arithmetic comparison) *)  
-  | Le                                  (** <= (arithmetic comparison) *)
-  | Ge                                  (** >  (arithmetic comparison) *)
-  | Eq                                  (** == (arithmetic comparison) *)
-  | Ne                                  (** != (arithmetic comparison) *)            
+  | Loop of block * location            (** A "while(1)" loop *)
 
-  | LtP                                 (** <  (pointer comparison) *)
-  | GtP                                 (** >  (pointer comparison) *)
-  | LeP                                 (** <= (pointer comparison) *)
-  | GeP                                 (** >= (pointer comparison) *)
-  | EqP                                 (** == (pointer comparison) *)
-  | NeP                                 (** != (pointer comparison) *)
+  | Block of block                      (** Just a block of statements. Use it 
+                                            as a way to keep some attributes 
+                                            local *)
+    
 
-  | BAnd                                (** bitwise and *)
-  | BXor                                (** exclusive-or *)
-  | BOr                                 (** inclusive-or *)
+(** Instructions. They may cause effects directly but may not have control
+    flow.*)
+and instr =
+    Set        of lval * exp * location  (** An assignment. A cast is present 
+                                             if the exp has different type 
+                                             from lval *)
+  | Call       of lval option * exp * exp list * location
+ 			 (** optional: result is an lval. A cast might be 
+                             necessary if the declared result type of the 
+                             function is not the same as that of the 
+                             destination. If the function is declared then 
+                             casts are inserted for those arguments that 
+                             correspond to declared formals. (The actual 
+                             number of arguments might be smaller or larger 
+                             than the declared number of arguments. C allows 
+                             this.) If the type of the result variable is not 
+                             the same as the declared type of the function 
+                             result then an implicit cast exists.  *)
 
+                         (* See the GCC specification for the meaning of ASM. 
+                          * If the source is MS VC then only the templates 
+                          * are used *)
+                         (* sm: I've added a notes.txt file which contains more
+                          * information on interpreting Asm instructions *)
+  | Asm        of attributes * (* Really only const and volatile can appear 
+                               * here *)
+                  string list *         (* templates (CR-separated) *)
+                  (string * lval) list * (* outputs must be lvals with 
+                                          * constraints. I would like these 
+                                          * to be actually variables, but I 
+                                          * run into some trouble with ASMs 
+                                          * in the Linux sources  *)
+                  (string * exp) list * (* inputs with constraints *)
+                  string list *         (* register clobbers *)
+                  location
+        (** An inline assembly instruction. The arguments are (1) a list of 
+            attributes (only const and volatile can appear here and only for 
+            GCC), (2) templates (CR-separated), (3) a list of 
+            outputs, each of which is an lvalue with a constraint, (4) a list 
+            of input expressions along with constraints, (5) clobbered 
+            registers, and (5) location information *)
 
 (** Expressions (Side-effect free)*)
 and exp =
@@ -322,6 +478,21 @@ and exp =
                                             produces an expression of type 
                                             TPtr(T). *)
 
+
+(** Literal constants *)
+and constant =
+  | CInt64 of int64 * ikind * string option 
+                 (** Integer constant. Give the ikind (see ISO9899 6.1.3.2) and
+                     the textual representation, if available. Use "integer" or
+                     "kinteger" to create these. Watch out for integers that
+                     cannot be represented on 64 bits. OCAML does not give
+                     Overflow exceptions. *)
+  | CStr of string (** String constant *)
+  | CChr of char   (** Character constant *)
+  | CReal of float * fkind * string option (** Floating point constant. Give
+                                               the fkind (see ISO 6.4.4.2) and
+                                               also the textual representation,
+                                               if available *)
 
 (* L-Values denote contents of memory addresses. A memory address is 
  * expressed as a base plus an offset. The base address can be the start 
@@ -374,228 +545,62 @@ and offset =
     (* [Index(e, off)](a, array(T)) = [off](a + e * sizeof(T), T) *)
 
 
+(** Unary operations *)
+and unop =
+    Neg                                 (** Unary minus *)
+  | BNot                                (** Bitwise complement (~) *)
+  | LNot                                (** Logical Not (!) *)
+
+(** Binary operations *)
+and binop =
+    PlusA                               (** arithmetic + *)
+  | PlusPI                              (** pointer + integer *)
+  | IndexPI                             (** pointer[integer]. The difference 
+                                           form PlusPI is that in this case 
+                                           the integer is very likely 
+                                           positive *)
+  | MinusA                              (** arithemtic - *)
+  | MinusPI                             (** pointer - integer *)
+  | MinusPP                             (** pointer - pointer *)
+  | Mult                                (** * *)
+  | Div                                 (** / *)
+  | Mod                                 (** % *)
+  | Shiftlt                             (** shift left *)
+  | Shiftrt                             (** shift right *)
+
+  | Lt                                  (** <  (arithmetic comparison) *)
+  | Gt                                  (** >  (arithmetic comparison) *)  
+  | Le                                  (** <= (arithmetic comparison) *)
+  | Ge                                  (** >  (arithmetic comparison) *)
+  | Eq                                  (** == (arithmetic comparison) *)
+  | Ne                                  (** != (arithmetic comparison) *)            
+
+  | LtP                                 (** <  (pointer comparison) *)
+  | GtP                                 (** >  (pointer comparison) *)
+  | LeP                                 (** <= (pointer comparison) *)
+  | GeP                                 (** >= (pointer comparison) *)
+  | EqP                                 (** == (pointer comparison) *)
+  | NeP                                 (** != (pointer comparison) *)
+
+  | BAnd                                (** bitwise and *)
+  | BXor                                (** exclusive-or *)
+  | BOr                                 (** inclusive-or *)
+
+
+
+
+
 (* The following equivalences hold *)
 (* Mem(AddrOf(Mem a, aoff)), off   = Mem a, aoff + off                *)
 (* Mem(AddrOf(Var v, aoff)), off   = Var v, aoff + off                *)
 (* AddrOf (Mem a, NoOffset)        = a                                *)
 
-(** Instructions. They may cause effects directly but may not have control
-    flow.*)
-and instr =
-    Set        of lval * exp * location  (** An assignment. A cast is present 
-                                             if the exp has different type 
-                                             from lval *)
-  | Call       of lval option * exp * exp list * location
- 			 (** optional: result is an lval. A cast might be 
-                             necessary if the declared result type of the 
-                             function is not the same as that of the 
-                             destination. If the function is declared then 
-                             casts are inserted for those arguments that 
-                             correspond to declared formals. (The actual 
-                             number of arguments might be smaller or larger 
-                             than the declared number of arguments. C allows 
-                             this.) If the type of the result variable is not 
-                             the same as the declared type of the function 
-                             result then an implicit cast exists.  *)
 
-                         (* See the GCC specification for the meaning of ASM. 
-                          * If the source is MS VC then only the templates 
-                          * are used *)
-                         (* sm: I've added a notes.txt file which contains more
-                          * information on interpreting Asm instructions *)
-  | Asm        of attribute list * (* Really only const and volatile can appear 
-                               * here *)
-                  string list *         (* templates (CR-separated) *)
-                  (string * lval) list * (* outputs must be lvals with 
-                                          * constraints. I would like these 
-                                          * to be actually variables, but I 
-                                          * run into some trouble with ASMs 
-                                          * in the Linux sources  *)
-                  (string * exp) list * (* inputs with constraints *)
-                  string list *         (* register clobbers *)
-                  location
-        (** An inline assembly instruction. The arguments are (1) a list of 
-            attributes (only const and volatile can appear here and only for 
-            GCC), (2) templates (CR-separated), (3) a list of 
-            outputs, each of which is an lvalue with a constraint, (4) a list 
-            of input expressions along with constraints, (5) clobbered 
-            registers, and (5) location information *)
-
-(** Statements. 
-    The statement is the structural unit in the control flow graph. Use mkStmt 
-    to make a statement and then fill in the fields. *)
-and stmt = {
-    mutable labels: label list;        (** Whether the statement starts with 
-                                           some labels, case statements or 
-                                           default statement *)
-    mutable skind: stmtkind;           (** The kind of statement *)
-
-    (* Now some additional control flow information. Initially this is not 
-     * filled in. *)
-    mutable sid: int;                  (** A number (>= 0) that is unique 
-                                           in a function. *)
-    mutable succs: stmt list;          (** The successor statements. They can 
-                                           always be computed from the skind 
-                                           and the context in which this 
-                                           statement appears *)
-    mutable preds: stmt list;          (** The inverse of the succs function*)
-  } 
-
-(* The various kinds of statements *)
-and stmtkind = 
-  | Instr  of instr list               (** A group of instructions that do not 
-                                           contain control flow. Control
-                                           implicitly falls through. *)
-  | Return of exp option * location     (** The return statement. This is a 
-                                            leaf in the CFG. *)
-
-  | Goto of stmt ref * location         (** A goto statement. Appears from 
-                                            actual goto's in the code. *)
-  | Break of location                   (** A break to the end of the nearest 
-                                             enclosing Loop or Switch *)
-  | Continue of location                (** A continue to the start of the 
-                                            nearest enclosing Loop *)
-  | If of exp * block * block * location (** A conditional. 
-                                             Two successors, the "then" and 
-                                             the "else" branches. Both 
-                                             branches  fall-through to the 
-                                             successor of the If statement *)
-  | Switch of exp * block * (stmt list) * location  
-                                       (** A switch statement. The block 
-                                           contains within all of the cases. 
-                                           We also have direct pointers to the 
-                                           statements that implement the 
-                                           cases. Which cases they implement 
-                                           you can get from the labels of the 
-                                           statement *)
-
-  | Loop of block * location            (** A "while(1)" loop *)
-
-  | Block of block                      (** Just a block of statements. Use it 
-                                            as a way to keep some attributes 
-                                            local *)
-
-(** A block is a sequence of statements with the control falling through from 
-    one element to the next *)
-and block = 
-   { mutable battrs: attribute list;  (** Attributes for the block *)
-     mutable bstmts: stmt list;       (** The statements comprising the block*)
-   } 
-
-(** Labels *)
-and label = 
-    Label of string * location * bool   (* A real label.*)
-		(** If the bool is "true", the label is from the input source program.
-		 * If the bool is "false", the label was created by CIL or some
-		 * other transformation *)
-  | Case of exp * location              (** A case statement *)
-  | Default of location                 (** A default statement *)
-
-
-(** Function Declarations *)
-type fundec =
-    { mutable svar:     varinfo;        (** Holds the name and type as a
-                                            variable, so we can refer to it
-                                            easily from the program *)
-      mutable sformals: varinfo list;   (** Formals. These must 
-                                            be shared with the formals that 
-                                            appear in the type of the 
-                                            function. Use setFormals or 
-                                            makeFormalVar or setFunctionType 
-                                            to set these formals and ensure 
-                                            that they are reflected in the 
-                                            function type. Do not make copies 
-                                            of these because the body refers 
-                                            to them. *)
-      mutable slocals: varinfo list;    (** Locals. Does not include the
-                                            sformals. Do not make copies of
-                                            these because the body refers to
-                                            them  *)
-      mutable smaxid: int;              (** Max local id. Starts at 0 *)
-      mutable sbody: block;             (** Body *)
-      mutable sinline: bool;            (** Whether the function is inline*)
-      mutable smaxstmtid: int option;  (** max id of a (reachable) statement
-                                            in this function, if we have 
-                                            computed it. 
-                                            range = 0 ... (smaxstmtid-1) *)
-    }
-
-(* Globals *)
-type global =
-    GFun of fundec * location           (** A function definition. Cannot have 
-                                            storage Extern *)
-  | GType of string * typ * location    (** A typedef. If the string is empty 
-                                            then this is printed as a 
-                                            type-only declaration, useful for 
-                                            introducing structure tags *)
-  | GEnumTag of enuminfo * location     (** Declares an enumeration tag with 
-                                            some fields. There must be one of 
-                                            these for each enumeration tag 
-                                            that you use since this is the 
-                                            only context in which the items 
-                                            are printed. *)
-
-  | GCompTag of compinfo * location     (** Declares a struct/union tag with 
-                                            some fields. There must be one of 
-                                            these for each struct/union tag 
-                                            that you use since this is the 
-                                            only context in which the fields 
-                                            are printed. *)
-
-  | GDecl of varinfo * location         (** A variable declaration. Might be a 
-                                            prototype. There might be at most 
-                                            one declaration and at most one 
-                                            definition for a given variable. 
-                                            If both forms appear then they 
-                                            must share the same varinfo. A 
-                                            prototype shares the varinfo with 
-                                            the fundec of the definition. 
-                                            Either has storage Extern or 
-                                            there must be a definition (GVar 
-                                            or GFun) in this file  *)
-  | GVar  of varinfo * init option * location
-                                        (** A variable definition. Might have 
-                                            an initializer. There must be at 
-                                            most one definition for a variable 
-                                            in an entire program. Cannot have 
-                                            storage Extern *)
-  | GAsm of string * location           (** Global asm statement. These ones 
-                                            can contain only a template *)
-  | GPragma of attribute * location     (** Pragmas at top level. Use the same 
-                                            syntax as attributes *)
-  | GText of string                     (** Some text (printed verbatim) at 
-                                            top level. E.g., this way you can 
-                                            put comments in the output.  *)
-
-
-(** Initializers for global variables *)
-and init = 
-  | SingleInit   of exp                 (** A single initializer, might be of 
-                                            compound type *)
-  | CompoundInit   of typ * (offset * init) list
-            (** Used only for initializers of structures, unions and arrays. 
-             The offsets are all of the form Field(f, NoOffset) or Index(i, 
-             NoOffset) and specify the field or the index being 
-             initialized. For structures and arrays all fields (indices) 
-             must have an initializer (except the unnamed bitfields), in 
-             the proper order. This is necessary since the offsets are not 
-             printed. For unions there must be exactly one initializer. If 
-             the initializer is not for the first field then a field 
-             designator is printed, so you better be on GCC since MSVC does 
-             not understand this. *)
-    
-(** Files *)
-type file = 
-    { mutable fileName: string;   (** The complete file name *)
-      mutable globals: global list; (** List of globals *)
-      mutable globinit: fundec option;  (** A global initializer. It 
-                                            is not part of globals 
-                                            and it is printed last. 
-                                            Use getGlobInit to 
-                                            create/get one.  *)
-      mutable globinitcalled: bool;     (** Whether the global initialization 
-                                            function is called in main *)
-    } 
+(** Describes a location in a source file *)
+and location = { 
+    line: int;		   (** The line number. -1 means "do not know" *)
+    file: string;          (** The name of the source file*)
+}
 
 
 (***** TYPES *****)
@@ -648,15 +653,16 @@ val upointType: typ
     fields recursive type, and (4) a list of attributes *)
 val mkCompInfo: bool ->      (* whether it is a struct or a union *)
                string ->     (* empty for anonymous structures *)
-               (typ -> (string * typ * int option * attribute list) list) ->
+               (typ -> (string * typ * int option * attributes) list) ->
                (* a function that when given a forward 
                   representation of the structure type constructs the type of 
                   the fields. The function can ignore this argument if not 
                   constructing a recursive type.  *)
-               attribute list -> compinfo
+               attributes -> compinfo
 
 
-(* This is a constant used as the name of a missing field *)
+(** This is a constant used as the name of an unnamed bitfield. These fields
+    do not participate in initialization and their name si not printed. *)
 val missingFieldName: string 
 
 (** Get the full name of a comp *)
@@ -702,11 +708,11 @@ val getCompField: compinfo -> string -> fieldinfo
 (** Type signatures. Two types are identical iff they have identical 
     signatures *)
 type typsig = 
-    TSArray of typsig * exp option * attribute list
-  | TSPtr of typsig * attribute list
-  | TSComp of bool * string * attribute list
-  | TSFun of typsig * typsig list * bool * attribute list
-  | TSEnum of string * attribute list
+    TSArray of typsig * exp option * attributes
+  | TSPtr of typsig * attributes
+  | TSComp of bool * string * attributes
+  | TSFun of typsig * typsig list * bool * attributes
+  | TSEnum of string * attributes
   | TSBase of typ
 
 (** Print a type signature *)
@@ -716,13 +722,13 @@ val d_typsig: unit -> typsig -> Pretty.doc
 val typeSig: typ -> typsig
 
 (** Like typeSig but customize the incorporation of attributes *)
-val typeSigWithAttrs: (attribute list -> attribute list) -> typ -> typsig
+val typeSigWithAttrs: (attributes -> attributes) -> typ -> typsig
 
 (** Replace the attributes of a signature (only at top level) *)
-val setTypeSigAttrs: attribute list -> typsig -> typsig 
+val setTypeSigAttrs: attributes -> typsig -> typsig 
 
 (** Get the top-level attributes of a signature *)
-val typeSigAttrs: typsig -> attribute list
+val typeSigAttrs: typsig -> attributes
 
 (** Compute the type of an expression *)
 val typeOf: exp -> typ
@@ -947,34 +953,43 @@ val attributeHash: (string, attributeClass) Hashtbl.t
 
 (** Partition the attributes into classes *)
 val partitionAttributes:  default:attributeClass -> 
-                         attribute list -> attribute list * (* AttrName *)
-                                           attribute list * (* AttrFunType *)
+                         attributes -> attribute list * (* AttrName *)
+                                       attribute list * (* AttrFunType *)
                                            attribute list   (* AttrType *)
 
-(** Add an attribute. Maintains the attributes in sorted order *)
-val addAttribute: attribute -> attribute list -> attribute list
+(** Add an attribute. Maintains the attributes in sorted order or the second 
+    argument *)
+val addAttribute: attribute -> attributes -> attributes
 
-(** Add a list of attributes. Maintains the attributes in sorted order *)
-val addAttributes: attribute list -> attribute list -> attribute list
+(** Add a list of attributes. Maintains the attributes in sorted order. The 
+    second argument must be sorted, but not necessarily the first *)
+val addAttributes: attribute list -> attributes -> attributes
 
-(** Remove an attribute. Maintains the attributes in sorted order *)
-val dropAttribute: attribute list -> attribute -> attribute list
+(** Remove all attributes with the given name. Maintains the attributes in 
+    sorted order.  *)
+val dropAttribute: string -> attributes -> attributes
 
-(** Retains attributes AId or ACons with the named constructor *)
-val filterAttributes: string -> attribute list -> attribute list
+(** Retains attributes with the given name *)
+val filterAttributes: string -> attributes -> attributes
 
-(** True if the named attribute appears in the attribute list *)
-val hasAttribute: string -> attribute list -> bool
+(** True if the named attribute appears in the attribute list. The list of
+    attributes must be sorted.  *)
+val hasAttribute: string -> attributes -> bool
 
 (** Returns all the attributes contained in a type. This requires a traversal 
     of the type structure, in case of composite, enumeration and named types *)
 val typeAttrs: typ -> attribute list
 
-val setTypeAttrs: typ -> attribute list -> typ (* Resets the attributes *)
+val setTypeAttrs: typ -> attributes -> typ (* Resets the attributes *)
 
 
+(** Add some attributes to a type *)
 val typeAddAttributes: attribute list -> typ -> typ
-val typeRemoveAttributes: attribute list -> typ -> typ
+
+(** Remove all attributes with the given names from a type. Note that this
+    does not remove attributes from typedef and tag definitions, just from 
+    their uses *)
+val typeRemoveAttributes: string list -> typ -> typ
 
              
 
@@ -1178,11 +1193,11 @@ val d_attr: unit -> attribute -> Pretty.doc
 val d_attrarg: unit -> attrarg -> Pretty.doc
 
 (** Pretty-print a list of attributes *)
-val d_attrlist: unit -> attribute list -> Pretty.doc 
+val d_attrlist: unit -> attributes -> Pretty.doc 
 
 (** Like d_attrlist but when attribute comes before the  
   * qualified entity. The only difference is in how spaces are printed *)
-val d_attrlist_pre: unit -> attribute list -> Pretty.doc  
+val d_attrlist_pre: unit -> attributes -> Pretty.doc  
 
 (** Pretty-print a statement *)
 val d_stmt: unit -> stmt -> Pretty.doc

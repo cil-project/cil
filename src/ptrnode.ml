@@ -1123,7 +1123,7 @@ let copySubgraph (f: fundec) (newfname: string) : (int, node) H.t =
         let replacePtrNodeAttr (a: attribute list) (newid: int) = 
           addAttribute 
             (Attr("_ptrnode", [AInt newid])) 
-            (dropAttribute a (Attr("_ptrnode", [])))
+            (dropAttribute "_ptrnode" a)
         in
         (* First we must do the nodes that appear in the base type of this 
          * node *)
