@@ -2,7 +2,6 @@
 // tiny program for scott's testing purposes
 
 
-
 #if 1
 // this is a pointer in the global area
 int *globalPtr;

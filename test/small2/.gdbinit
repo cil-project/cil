@@ -1,5 +1,4 @@
 # .gdbinit
 
-file simplewild
-break main
+file ptrinint
 run

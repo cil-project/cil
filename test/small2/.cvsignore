@@ -22,3 +22,4 @@ multiplestatics
 __scalar2pointer.txt
 ptrtolocal
 tprintf
+ptrinint
