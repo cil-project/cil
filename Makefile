@@ -1444,8 +1444,7 @@ constrainttest:
 
 ### ftpd-BSD-0.3.2-5
 FTPDDIR := test/ftpd/ftpd
-FTPDSAFECC := $(CCURED) --combine $(PATCHARG) \
-                $(NOPRINTLN)
+FTPDSAFECC := $(CCURED) --combine $(PATCHARG)
 ifeq ($(ARCHOS), x86_WIN32)
   FTPDSAFECC += $(DEF)WIN32 $(DEF)MSDOS
 endif
@@ -1458,6 +1457,20 @@ ftpd: ftpd-clean mustbegcc
             make CC="$(FTPDSAFECC)" \
                  LD="$(FTPDSAFECC)"
 
+### wu-ftpd-2.6.1
+WUFTPDDIR := test/wu-ftpd-2.6.1
+WUFTPDSAFECC := $(CCURED) --combine $(PATCHARG)
+ifeq ($(ARCHOS), x86_WIN32)
+  WUFTPDSAFECC += $(DEF)WIN32 $(DEF)MSDOS
+endif
+wuftpd-clean: 	
+	cd $(WUFTPDDIR); make clean; ./configure
+	cd $(WUFTPDDIR); rm -f *cil.c *box.c *.i *_ppp.c *.origi *_all.c
+
+wuftpd: mustbegcc
+	cd $(WUFTPDDIR); \
+            make CC="$(WUFTPDSAFECC)" \
+                 LD="$(WUFTPDSAFECC)"
 
 ######################################################################
 # Rahul's test cases

@@ -160,6 +160,20 @@
   #pragma boxmodelof("vsprintf_model", "vsprintf")
   #pragma cilnoremove("vsprintf_model")   
 
+  // sm: adding this for wu-ftpd, where there are lots of calls
+  // to {s,f}scanf, but in all cases it's a simple type being read,
+  // not a string, so we should be ok letting things go unchecked
+  union scanf_format {
+    int *p_int;
+    double *p_double;
+    long *p_long;
+    unsigned int *p_uint;
+    // sm: if someone wants to add char* here, a wrapper should
+    // be written, I think
+  };
+
+  #pragma boxvararg("sscanf", sizeof(union scanf_format))
+  #pragma boxvararg("fscanf", sizeof(union scanf_format))
 
   // sm: taking a stab at strchr's model
   static inline

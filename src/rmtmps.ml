@@ -256,23 +256,28 @@ begin
 
           | GType(s, t, _) -> (
               if (s = "") then (
-                (* comments in cil.mli say this can't happen.. *)
-                (* can I ignore it if it does? *)
+                (* it should be forward structure declaration *)
+                match t with
+                | TComp(c, _) -> (
+                    if (c.creferenced) then (
+                      (trace "usedType" (dprintf "keeping fwd decl of %s\n"
+                                                 c.cname));
 
-                (* it's a normal type declaration *)
-                if (false (*H.mem usedTypes t*)) then (
-                  (trace "usedType" (dprintf "keeping type %a\n"
-                                             d_type t));
+                      (* should not have to trace from here *)
+                      (*ignore (visitCilType vis t);*)
 
-                  (* also trace from here *)
-                  ignore (visitCilType vis t);
-
-                  (* and retain this type definition *)
-                  true
-                )
-                else (
-                  (* not used, remove it *)
-                  (trace "usedType" 
+                      (* retain this type definition *)
+                      true
+                    )                        
+                    else (
+                      (trace "usedType" (dprintf "removing fwd decl of %s\n"
+                                                 c.cname));
+                      false
+                    )
+                  )
+                | _ -> (
+                  (* don't know what this is.. *)
+                  (trace "usedType"
                     (dprintf "removing/ignoring bad GType %a\n" d_type t));
                   false
                 )
