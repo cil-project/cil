@@ -233,8 +233,8 @@ odoc:
              -html \
              -t "CIL API Documentation (version @CIL_VERSION@)" \
 	     -I $(OBJDIR) \
-                    src/pretty.mli src/errormsg.mli src/clist.mli \
-	  	    src/stats.mli src/cil.mli src/formatcil.mli
+                    ocamlutil/pretty.mli ocamlutil/errormsg.mli src/clist.mli \
+	  	    ocamlutil/stats.mli src/cil.mli src/formatcil.mli
 
 doc/cilpp.tex: doc/cilcode.pl doc/cil.tex 
 	-rm -rf doc/html/cil
@@ -264,8 +264,8 @@ pdfdoc: doc/cilpp.tex
              -latex \
              -t "CIL API Documentation (version @CIL_VERSION@)" \
 	     -I $(OBJDIR) \
-                    src/pretty.mli src/errormsg.mli src/clist.mli \
-	  	    src/stats.mli src/cil.mli src/formatcil.mli
+                    ocamlutil/pretty.mli ocamlutil/errormsg.mli src/clist.mli \
+	  	    ocamlutil/stats.mli src/cil.mli src/formatcil.mli
 	cd doc ; TEXINPUTS="$$TEXINPUTS:/usr/local/lib/ocaml/ocamldoc:/usr/lib/ocaml/ocamldoc" pdflatex cil-api.tex
 	cd doc ; mv cil-api.pdf html/cil/CIL-API.pdf
 
@@ -293,8 +293,8 @@ DISTRIB_ROOT = README LICENSE INSTALL Makefile.cil.in  \
 	       configure configure.in install-sh config.guess config.sub \
 	       cil.spec cil.spec.in
 
-DISTRIB_SRC = util.ml clist.ml clist.mli \
-	      cil.ml cil.mli check.ml check.mli \
+DISTRIB_SRC = clist.ml clist.mli \
+	      cilutil.ml cil.ml cil.mli check.ml check.mli \
 	      rmtmps.ml rmtmps.mli formatlex.mll formatparse.mly \
 	      formatcil.mli formatcil.ml testcil.ml \
 	      mergecil.ml mergecil.mli maincil.ml machdep.c \
@@ -302,12 +302,12 @@ DISTRIB_SRC = util.ml clist.ml clist.mli \
 	      escape.ml escape.mli
 
 DISTRIB_OCAMLUTIL = pretty.ml pretty.mli errormsg.ml errormsg.mli \
-                    trace.ml trace.mli stats.ml stats.mli \
+                    trace.ml trace.mli stats.ml stats.mli util.ml util.mli \
                     perfcount.c.in Makefile.ocaml Makefile.ocaml.build
 
 
 DISTRIB_SRC_FRONTC = cabs.ml cprint.ml clexer.mli clexer.mll \
-		     cparser.mly \
+		     cparser.mly lexerhack.ml \
 		     cabs2cil.ml cabs2cil.mli frontc.ml frontc.mli \
 	             cabsvisit.mli cabsvisit.ml patch.mli patch.ml
 

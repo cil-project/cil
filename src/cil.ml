@@ -5141,7 +5141,7 @@ let rec isCompleteType t =
 
 
 
-let debugAlpha (prefix: string) = prefix = "jiffies"
+let debugAlpha (prefix: string) = false
 (*** Alpha conversion ***)
 let alphaSeparator = "___"
 let alphaSeparatorLen = String.length alphaSeparator

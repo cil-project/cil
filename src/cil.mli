@@ -929,10 +929,10 @@ and stmtkind =
 
     (** On MSVC we support structured exception handling. The try/except 
      * statement is a bit tricky: 
-         __try { blk } 
+         [__try { blk } 
          __except (e) {
             handler
-         }
+         }]
 
          The argument to __except  must be an expression. However, we keep a 
          list of instructions AND an expression in case you need to make 

@@ -204,6 +204,12 @@ let alreadyDefined: (string, location) H.t = H.create 117
  * see a global with conflicting name later in the file. *)
 let staticLocals: (string, varinfo) H.t = H.create 13
 
+
+(* Typedefs. We chose their names to be distinct from any global encounterd 
+ * at the time. But we might see a global with conflicting name later in the 
+ * file *)
+let typedefs: (string, typeinfo) H.t = H.create 13
+
 let popGlobals () = 
   let rec revonto (tail: global list) = function
       [] -> tail
@@ -449,9 +455,20 @@ let alphaConvertVarAndAddToEnv (addtoenv: bool) (vi: varinfo) : varinfo =
           static_local_vi.vname <- newname;
           (* And continue using the last one *)
           vi
-        with Not_found -> 
-          E.s (E.error "It seems that we would need to rename global %s (to %s) because of previous occurrence at %a" 
-                 vi.vname newname d_loc oldloc);
+        with Not_found -> begin
+          (* Or perhaps we have seen a typedef which stole our name. This is 
+           possible because typedefs use the same name space *)
+          try
+            let typedef_ti = H.find typedefs vi.vname in 
+            H.remove typedefs vi.vname;
+            (* Use the new name for the typedef instead *)
+            typedef_ti.tname <- newname;
+            (* And continue using the last name *)
+            vi
+          with Not_found -> 
+            E.s (E.error "It seems that we would need to rename global %s (to %s) because of previous occurrence at %a" 
+                   vi.vname newname d_loc oldloc);
+        end
       end else
         copyVarinfo vi newname
     end
@@ -5120,6 +5137,11 @@ and doTypedef ((specs, nl): A.name_group) =
         * is actually necessary in some cases.  *)
         let n', _  = newAlphaName true "" n in
         let ti = { tname = n'; ttype = newTyp'; treferenced = false } in
+        (* Since we use the same name space, we might later hit a global with 
+         * the same name and we would want to change the name of the global. 
+         * It is better to change the name of the type instead. So, remember 
+         * all types whose names have changed *)              
+        H.add typedefs n' ti;              
         let namedTyp = TNamed(ti, []) in
         (* Register the type. register it as local because we might be in a
         * local context  *)
@@ -5519,6 +5541,7 @@ let convFile ((fname : string), (dl : Cabs.definition list)) : Cil.file =
   H.clear mustTurnIntoDef;
   H.clear alreadyDefined;
   H.clear staticLocals;
+  H.clear typedefs;                      
   H.clear isomorphicStructs;
   annonCompFieldNameId := 0;
   if !E.verboseFlag || !Cilutil.printStages then 
@@ -5583,6 +5606,7 @@ let convFile ((fname : string), (dl : Cabs.definition list)) : Cil.file =
   H.clear enumInfoNameEnv;
   H.clear isomorphicStructs;
   H.clear staticLocals;
+  H.clear typedefs;
   H.clear env;
   H.clear genv;
   if false then ignore (E.log "Cabs2cil converted %d globals\n" !globalidx);
