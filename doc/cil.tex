@@ -1,20 +1,20 @@
 \documentclass{article}
 \usepackage{hevea}
 
+\def\secref#1{Section~\ref{sec-#1}}
+\def\chref#1{Chapter~\ref{ch-#1}}
+
 %----------------------------------------------------------------------
 % MACROS
 
 \newcommand{\hsp}{\hspace{0.5in}}
-\newcommand{\t}[1]{{\tt #1}}
+\def\t#1{{\tt #1}}
 
-% A few commands for describing the api
-
-% Use for declaring a new ``val''. Syntax: \apival{name : type}
-\def\apival#1:#2{\t{#1} : \t{#2}}
-% \apiref{name} use to refer to an API value
-\def\apiref#1{#1}
 %----------------------------------------------------------------------
 \title{CIL}
+
+% Make sure that all documents show up in the main frame
+%HEVEA \AtBeginDocument{\@print{<base target="main">}}
 
 \begin{document}
 \maketitle
@@ -54,6 +54,94 @@ Every statement can be annotated with successor and predecessor
 information. Thus CIL provides an integrated program representation that can
 be used with routines that require an AST (e.g. type-based analyses and
 pretty-printers), as well as with routines that require a CFG (e.g., dataflow analyses).
+
+\section{GCC Extensions}
+
+ The CIL parser handles most of the \t{gcc}
+\ahref{http://gcc.gnu.org/onlinedocs/gcc-3.0.2/gcc_5.html#SEC67}{extensions}
+and compiles them to CIL. The following extensions are not handled (note that
+we are able to compile a large number of programs, including the Linux kernel,
+without encountering these):
+
+\begin{enumerate}
+\item Nested function definitions.
+\item Construcing function calls.
+\item Naming an expression's type.
+\item Complex numbers
+\item Hex floats
+\item Subscripts on non-lvalue arrays.
+\end{enumerate}
+
+ The following extensions are handled, typically by compiling them away:
+\begin{enumerate}
+\item Attributes for functions, variables and types. In fact, we have a clear
+specification (see \secref{attrib}) of how attributes are interpreted. The
+specification extends that of \t{gcc}.
+\item Old-style function definitions and prototypes. These are translated to
+new-style. 
+\item Locally-declared labels. As part of the translation to CIL, we generate
+new labels as needed. 
+\item Labels as values and computed goto. This allows a program to take the
+address of a label and to manipulate it as any value and also to perform a
+computed goto. We compile this by assigning each label whose address is taken
+a small integer that acts as its address. Every computed \t{goto} in the body
+of the function is replaced with a \t{switch} statement. If you want to invoke
+the label from another function, you are on your own (the \t{gcc}
+documentation says the same.)
+\item Generalized lvalues. You can write code like \t{(a, b) += 5} and it gets
+translated to CIL. 
+\item Conditionals with omitted operands. Things like \t{x ? : y} are
+translated to CIL.
+\item Double word integers. The type \t{long long} and the \t{LL} suffix on
+constants is understood. This is currently interpreted as 64-bit integers.
+\item Local arrays of variable length. These are converted to uses of
+\t{alloca}, the array variable is replaced with a pointer to the allocated
+array and the instances of \t{sizeof(a)} are adjusted to return the size of
+the array and not the size of the pointer. 
+\item Non-constant local initializers. Like all local initializers these are
+compiled into assignments. 
+\item Compound literals. These are also turned into assignments.
+\item Designated initializers. The CIL parser actually supports the full ISO
+syntax for initializers, which is more than both \t{gcc} and \t{MSVC}. I
+(George) think that this is the most complicated part of the C language and
+whoever designed it should be banned from ever designing languages again.
+\item Case ranges. These are commpiled into separate cases. There is no code
+duplication, just a larger number of \t{case} statements.
+\item Transparent unions. This is a strange feature that allows you to define
+a function whose formal argument has a (tranparent) union type, but the
+argument is called as if it were the first element of the union. This is
+compiled away by saying that the type of the formal argument is that of the
+first field, and the first thing in the function body we copy the formal into
+a union. 
+
+\item Inline assembly-language. The full syntax is supported and it is carried
+as such in CIL.
+
+\item Function names as strings. The identifiers \t{\_\_FUNCTION\_\_} and
+\t{\_\_PRETTY\_FUNCTION\_\_} are replaced with string literals. 
+
+\item Keywords \t{typeof}, \t{alignof}, \t{inline} are supported. 
+\end{enumerate}
+
+
+ 
+\section{Known Bugs}
+
+\begin{itemize}
+
+\item The implementation of \t{bitsSizeOf} does not take into account the
+packing pragmas. Also, it appears that in some cases involving bitfields it is
+not accurate on Linux. It was tested to be accurate on cygwin/gcc-2.95.3 and
+on Windows/MSVC. 
+
+\item We do not support tri-graph sequences (ISO 5.2.1.1).
+
+\end{itemize}
+
+ And some limitations that are not really bugs:
+\begin{itemize}
+\item \t{long} and \t{int} are 32-bit, \t{short} is 16 bits. 
+\end{itemize}
 
 \section{Distribution}
 
@@ -99,8 +187,7 @@ to getting the Win32 native-code version of OCaml).
 \begin{enumerate}
 \item Unzip and untar the source distribution. This will create a directory
       called \t{cil}. \\
-      \hsp\verb!gzip -d cil.tar.gz!\\
-      \hsp\verb!tar xvf cil.tar!
+      \hsp\verb!tar xvfz cil.taz!
 \item Create an environment variable \t{ARCHOS} and set it to either
       \t{X86\_LINUX} or \t{x86\_WIN32}.
 \item Enter the \t{cil} directory and run GNU make to build the 
@@ -138,6 +225,350 @@ structure \t{bar}):
 #pragma cilnoremove("func1", "var2", "type foo", "struct bar")
 \end{verbatim}
 
+    \section{Using the patcher}\label{ch-patcher}
+
+ Occasionally for the purposes of CCured we have needed to modify slightly the
+standard include files. So, we developed a simple mechanism that allows us to
+create modified copies of the include files and use them instead of the
+standard ones. For this purpose we specify a patch file and we run a program
+caller that Patcher which makes modified copies of include files and applies
+the patch. 
+
+ The patcher is invoked as follows: 
+\begin{verbatim}
+perl lib/patcher.pl [options]
+
+Options:
+  --help       Prints this help message
+  --verbose    Prints a lot of information about what is being done
+  --mode=xxx   What tool to emulate: 
+                gcc     - GNU CC
+                mscl    - MS VC cl compiler
+
+  --dest=xxx   The destination directory. Will make one if it does not exist
+  --patch=xxx  Patch file (can be specified multiple times)
+  --ppargs=xxx An argument to be passed to the preprocessor (can be specified
+               multiple times)
+
+  --ufile=xxx  A user-include file to be patched (treated as \#include "xxx")
+  --sfile=xxx  A system-include file to be patched (treated as \#include <xxx>)
+ 
+  --clean       Remove all files in the destination directory
+  --dumpversion Print the version name used for the current compiler
+
+ All of the other arguments are passed to the preprocessor.
+\end{verbatim}
+
+ Based on the given \t{mode} and the current version of the compiler (which
+the patcher can print when given the \t{dumpversion} argument) the patcher
+will create a subdirectory of the \t{dest} directory (say \t{/usr/home/necula/cil/include}), such as:
+\begin{verbatim}
+/usr/home/necula/cil/include/gcc_2.95.3-5
+\end{verbatim}
+
+ In that file the patcher will copy the modified versions of the include files
+specified with the \t{ufile} and \t{sfile} options. Each of these options can
+be specified multiple times. 
+
+ The patch file (specified with the \t{patch} option) has a format inspired by
+the Unix \t{patch} tool. The file has the following grammar:
+
+\begin{verbatim}
+<<<
+patterns
+===
+replacement
+>>>
+\end{verbatim}
+
+ The patterns can consist of several groups of lines separated by the \t{|||}
+marker. Each of these group of lines is a multi-line pattern that if found in
+the file will be replaced with the text given at the end of the block. 
+
+ The matching is space-insenstive.
+
+ All of the markers \t{<<<}, \t{|||}, \t{===} and \t{>>>} must appear at the
+beginning of a line but they can be followed by arbitrary text (which is
+ignored).
+
+ The replacement text can contain the special keyword \t{@\_\_pattern\_\_@},
+which is substituted with the pattern that matched. 
+
+  \section{Using the combiner}\label{ch-combiner}
+
+ The easiest way to use CCured is when you want to process a whole program and
+thus allow the inferencer to see all of the uses of all defined functions and
+variables. This way CCured is able to infer the best representation for such
+globals. There are many other program analyses that are more effective when
+done on the whole program.
+
+ The combiner is a tool that combines all of the C source files in a project
+into a single C file. There are two tasks that a combiner must solve:
+\begin{enumerate}
+\item Detect what are all the sources that make a project and with what
+compiler arguments they are compiled.
+
+\item Combine all of the source files into a single file. 
+\end{enumerate}
+
+ For the first task the combiner impersonates a compiler and a linker (both a
+GCC and a Microsoft Visual C mode are supported) and it expect to be invoked
+(from a build script or a Makefile) on all sources of the project. When
+invoked to compile a source the combiner just preprocesses the source and
+saves using the name of the requested object file. By preprocessing this early
+the combiner is able to take into account variations in the command line
+arguments that affect preprocessing of different source files. 
+
+ When the combiner is invoked in the place of the linker it collects the
+preprocessed sources that were stored with the names of the object files, and
+invoked the second part of the combiner. Note that arguments that affect the
+compilation or linking must be the same for all source files.
+
+ For the second task, the combiner essentially concatenates the preprocessed
+sources with care to rename conflicting file-local declarations (we call this
+process alpha-conversion or a file). The combiner also attempts to remove
+duplicate global declarations and definitions. Specifically the following
+actions are taken: 
+
+\begin{itemize}
+\item File-scope names (\t{static} globals, names of types defined with
+\t{typedef}, and structure/union/enumeration tags) are given new names if they
+conflict with declarations from previously processed sources. The new name is
+formed by appending the suffix \t{\_\_\_n}, where \t{n} is a unique integer
+identifier. Then the new names are applied to their occurences in the file. 
+
+\item Non-static declarations of globals are never renamed. But we try to
+remove duplicate ones. The equality check is done on the whole structure of
+the declaration (including the line-number information) after the body of the
+declaration has been alpha-converted. This process is intended to remove those
+declarations that originate from the same include file. Similarly, we try to
+eliminate duplicate definitions of \t{inline} functions, since these
+occasionally appear in include files.
+
+\item Names of types and tags of structures or unions or enumerations are
+considered to have file scope and thus are candidate for renaming. However, if
+we detect an existing declaration with the same body from a previously
+processed file, we reuse it.
+
+\item In rare situations, it can happen that a file-local global in
+encountered first and it is not renamed, only to discover later when
+processing another file that there is an external symbol with the same name.
+In this case, a second pass is made over the combined file to rename the
+file-local symbol. 
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
+\section{Using attributes with CIL}\label{sec-attrib}
+
+ In CIL you can attach attributes to types and to names (variables, functions
+and fields). The following syntax of attributes is currently supported: 
+
+\begin{verbatim}
+ attribute ::= IDENT | IDENT ( [attrarg ,]+ )
+ attrarg   ::= IDENT | IDENT ( [attrarg ,]+) | "STRING" | INT
+             | attrarg binop attrarg | unop attrarg
+             | sizeof attrarg | sizeof type
+\end{verbatim}
+
+ The attribute names (IDENT above) must start with a letter and should not
+start or end with underscore.
+
+ The attributes are specified in declarations. This is unfortunate since the C
+syntax for declarations is already quite complicated and after writing the
+parser and elaborator for declarations I am convinced that few C programmers
+understand it completely. Anyway, this seems to be the easiest way to support
+attributes. 
+
+ Name attributes must be specified at the very end of the declaration, just
+before the = for the initializer or before the , the separates a declaration
+in a group of declarations or just before the ; that terminates the
+declaration. A name attribute for a function being defined can be specified
+just before the brace that starts the function body. 
+
+ For example (in the following examples A1,...,An are type attributes and N
+  is a name attribute. We'll talk soon about how these attributes can be
+  written in the source program): 
+
+\begin{verbatim}
+ int x N1;
+ int x Nx, * y Ny = 0, z[] Nz;
+ extern void exit() N;
+ int fact(int x) N { ... }
+\end{verbatim}
+
+
+ Type attributes can be specified along with the type using the following
+ rules: 
+\begin{enumerate}
+ \item The type attributes for a base type (int, float, named type, reference
+    to struct or union or enum) must be specified immediately following the
+    type (actually it is Ok to mix attributes with the specification of the
+    type, in between unsigned and int for example).
+
+  For example:
+\begin{verbatim}
+  int A1 x N1;  /* A1 applies to the type int. An example is an attribute
+                   "even" restricting the type int to even values. */
+  struct foo A1 A2 x; // Both A1 and A2 apply to the struct foo type
+\end{verbatim}
+ 
+ \item The type attributes for a pointer type must be specified immediately
+ after the * symbol.
+\begin{verbatim}
+ /* A pointer (A1) to an int (A2) */
+ int A2 * A1 x;
+ /* A pointer (A1) to a pointer (A2) to a float (A3) */
+ float A3 * A2 * A1 x;
+\end{verbatim}
+
+
+ Note: The attributes for base types and for pointer types are a strict
+ extension of the ANSI C type qualifiers (const, volatile and restrict). In
+ fact the is special support to parse these qualifiers as attributes. 
+
+  \item The attributes for a function type or for an array type can be
+     specified using parenthesized declarators.
+
+   For example:
+\begin{verbatim}
+   /* A function (A1) from int (A2) to float (A3) */
+   float A3 (A1 f)(int A2);
+
+   /* An array (A1) of int (A2) */
+   int A2 (A1 x0)[]
+
+   /* Array (A1) of pointers (A2) to functions (A3) that take an int (A4) and 
+    * return a pointer (A5) to int (A6)  */
+   int A6 * A5 (A3 * A2 (A1 x1)[5])(int A4);
+
+
+   /* A function (A4) that takes a float (A5) and returns a pointer (A6) to an 
+    * int (A7) */
+   extern int A7 * A6 (A4 x2)(float A5 x);
+
+   /* A function (A1) that takes a int (A2) and that returns a pointer (A3) to 
+    * a function (A4) that takes a float (A5) and returns a pointer (A6) to an 
+    * int (A7) */
+   int A7 * A6 (A4 * A3 (A1 x3)(int A2 x))(float A5) {
+      return & x2;
+   }
+\end{verbatim}
+
+\end{enumerate}
+
+ Note: ANSI C does not allow the specification of type qualifiers for function
+and array types, although it allows for the parenthesized declarator. With
+just a bit of thought (looking at the first few examples above) I hope that
+the placement of attributes for function and array types will seem intuitive.
+
+ This extension is not without problems however. If you want to refer just to
+a type (in a cast for example) then you leave the name out. But this leads to
+strange conflicts due to the parentheses that we introduce to scope the
+attributes. Take for example the type of x0 from above. It should be written
+as: 
+ 
+\begin{verbatim}
+        int A2 (A1 )[]
+\end{verbatim}
+
+ But this will lead most C parsers into deep confusion because the parentheses
+around A1 will be confused for parentheses of a function designator. To push
+this problem around (I don't know a solution) whenever we are about to print a
+parenthesized declarator with no name but with attributes, we comment out the
+attributes so you can see them (for whatever is worth) without confusing the
+compiler. For example, here is how we would print the above type:
+
+\begin{verbatim}
+        int A2 /*(A1 )*/[]
+\end{verbatim}
+
+ 
+ \subsection{Source-level representation of attributes}
+
+ GCC already has extensive support for attributes, so we are going to extend
+it to handle arbitrary attributes. A GCC attribute has the syntax:
+ 
+\begin{verbatim}
+ gccattribute ::= __attribute__((attribute))    (Note the double parentheses)
+\end{verbatim}
+
+ Since GCC and MSVC both support various flavors of each attribute (with or
+without leading or trailing \_) we first strip ALL leading and trailing \_ from
+the attribute name (the IDENT in the non-terminal "attribute", but not the
+IDENT in the attribute arguments "attrarg"). When we print attributes, for GCC
+we add two leading and two trailing \_; for MSVC we add just two leading \_.
+ 
+ There is support in CIL so that you can control the printing of attributes.
+This custom-printing support is now used to print the "const" qualifier as
+"\t{const}" and not "\t{\_\_attribute\_\_((const))}". 
+
+
+ \subsection{Handling of predefined GCC attributes}
+
+ GCC already supports attributes in a lot of places in declarations. The only
+place where we support attributes and GCC does not is right before the \{ that
+starts a function body. 
+
+ GCC classifies its attributes in attributes for functions, for variables and
+for types, although the latter category is only usable in definition of struct
+or union types and is not nearly as powerful as the CIL type attributes. We
+have made an effort to reclassify GCC attributes in name and type attributes
+(they only apply for function types). Here is what we came up with:
+
+\begin{itemize}
+  \item GCC name attributes:
+   
+   section, constructor, destructor, unused, weak, no\_instrument\_function,
+   noreturn, alias, no\_check\_memory\_usage, dllinport, dllexport, exception,
+   model
+
+      Note: the "noreturn" attribute would be more appropriately qualified as a
+      function type attribute. But we classify it as a name attribute to make
+      it easier to support a similarly named MSVC attribute. 
+  
+  \item GCC function type attributes:
+
+    fconst (printed as "const"), format, regparm, stdcall,
+    cdecl, longcall
+
+  I was not able to completely decipher the position in which these attributes
+  must go. So, the CIL elaborator knows these names and applies the following
+  rules: 
+  \begin{itemize}
+  \item All of the name attributes that appear anywhere in the declaration are
+  collected and associated with the declared name. This was easy since each
+  declaration declares exactly one name.
+
+  \item More complicated is the handling of the function type attributes, since
+     there can be more than one function in a single declaration (a function
+     returning a pointer to a function). Lacking any real understanding of how
+     GCC handles this, I attach the function type attribute to the "nearest"
+     function. This means that if a pointer to a function is "nearby" the
+     attribute will be correctly associated with the function. In truth I pray
+     that nobody uses declarations as that of x3 above. 
+  \end{itemize}
+\end{itemize}
+
+\subsection{Handling of predefined MSVC attributes}
+
+  MSVC has two kinds of attributes, declaration modifiers to be printed before
+  the storage specifier using the notation "\t{\_\_declspec(...)}" and a few
+  function type attributes, printed almost as our CIL function type
+  attributes. 
+
+   The following are the name attributes that are printed using
+   \t{\_\_declspec} right before the storage designator of the declaration:
+   thread, naked, dllimport, dllexport, noreturn
+
+
+   The following are the function type attributes supported by MSVC: 
+   fastcall, cdecl, stdcall
+
+   It is not worth going into the obscure details of where MSVC accepts these
+   type attributes. The parser thinks it knows these details and it pulls
+   these attributes from whereever they might be placed. The important thing
+   is that MSVC will accept if we print them according to the rules of the CIL
+   attributes ! 
 
 \section{Credits}
 
