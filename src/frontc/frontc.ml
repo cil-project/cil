@@ -102,7 +102,9 @@ begin
   (* parse the patch file if it isn't parsed already *)
   if ((!patchFileName <> "") && (isNone !patchFile)) then (
     (* parse the patch file *)
-    patchFile := Some(parse_to_cabs_inner !patchFileName)
+    patchFile := Some(parse_to_cabs_inner !patchFileName);
+    if !E.hadErrors then
+      (failwith "There were parsing errors in the patch file")
   );
 
   (* now parse the file we came here to parse *)

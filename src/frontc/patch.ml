@@ -66,16 +66,21 @@ begin
   )
 end
 
+(* why isn't this in the core Ocaml library? *)
+let identity x = x
+
 
 let isPatternVar (s : string) : bool =
+begin
   ((String.length s) >= 1) && ((String.get s 0) = '@')
+end
 
 (* 's' is actually "@name(blah)"; extract the 'blah' *)
 let extractPatternVar (s : string) : string =
   (*(trace "patch" (dprintf "extractPatternVar %s\n" s));*)
   (String.sub s 6 ((String.length s) - 7))
 
-  
+
 (* a few debugging printers.. *)
 let printExpr (e : expression) =
 begin
@@ -221,6 +226,22 @@ class substitutor (bindings : binding list) = object(self)
       (* none of the specifiers in specList are patterns *)
       DoChildren
   end
+
+  method vtypespec (tspec: typeSpecifier) : typeSpecifier visitAction =
+  begin
+    match tspec with
+    | Tnamed(str) when (isPatternVar str) ->
+        ChangeTo(Tnamed(self#vvar str))
+    | Tstruct(str, fields) when (isPatternVar str) -> (
+        (trace "patchDebug" (dprintf "substituting %s\n" str));
+        ChangeDoChildrenPost(Tstruct((self#vvar str), fields), identity)
+      )
+    | Tunion(str, fields) when (isPatternVar str) ->
+        (trace "patchDebug" (dprintf "substituting %s\n" str));
+        ChangeDoChildrenPost(Tunion((self#vvar str), fields), identity)
+    | _ -> DoChildren
+  end
+
 end
 
 
@@ -272,6 +293,32 @@ class exprTransformer (srcpattern : expression) (destpattern : expression)
   end
 
   (* other constructs left unchanged *)
+end
+
+
+let unifyList (pat : 'a list) (tgt : 'a list)
+              (unifyElement : 'a -> 'a -> binding list) : binding list =
+begin
+  if verbose then
+    (trace "patchDebug" (dprintf "unifyList (pat len %d, tgt len %d)\n"
+                                 (List.length pat) (List.length tgt)));
+
+  (* walk down the lists *)
+  let rec loop pat tgt : binding list =
+    match pat, tgt with
+    | [], [] -> []
+    | (pelt :: prest), (telt :: trest) ->
+         (unifyElement pelt telt) @
+         (loop prest trest)
+    | _,_ -> (
+        (* no match *)
+        if verbose then (
+          (trace "patchDebug" (dprintf "mismatching list length\n"));
+        );
+        raise NoMatch
+     )
+  in
+  (loop pat tgt)
 end
 
 
@@ -347,9 +394,7 @@ begin
       )
     | [] -> (
         (* reached the end of the patch file with no match *)
-        let ret : definition list =
         [d]     (* have to wrap it in a list ... *)
-        in ret
       )
   end in
 
@@ -406,6 +451,34 @@ begin
     )
 end
 
+and unifySpecifier (pat : spec_elem) (tgt : spec_elem) : binding list =
+begin
+  if verbose then
+    (trace "patchDebug" (dprintf "unifySpecifier\n"));
+  (printSpecs [pat] [tgt]);
+
+  match pat, tgt with
+  | SpecTypedef, SpecTypedef -> []
+  | SpecAttr(attr1), SpecAttr(attr2) ->
+      (mustEq attr1 attr2);
+      []
+  | SpecInline, SpecInline -> []
+  | SpecType(tspec1), SpecType(tspec2) ->
+      (unifyTypeSpecifier tspec1 tspec2)
+  | SpecPattern(name), _ ->
+      (* record that future occurrances of @specifier(name) will yield this specifier *)
+      if verbose then
+        (trace "patchDebug" (dprintf "found specifier match for %s\n" name));
+      [BSpecifier(name, [tgt])]
+  | _,_ -> (
+      (* no match *)
+      if verbose then (
+        (trace "patchDebug" (dprintf "mismatching specifiers\n"));
+      );
+      raise NoMatch
+   )
+end
+
 and unifySpecifiers (pat : spec_elem list) (tgt : spec_elem list) : binding list =
 begin
   if verbose then
@@ -419,25 +492,91 @@ begin
   (* if they are equal, they match with no further checking *)
   if (pat' = tgt') then [] else
 
-  (* walk down the (unsorted..) lists *)
-  let rec loop pat tgt =
+  (* walk down the lists; don't walk the sorted lists because the *)
+  (* pattern must always be last, if it occurs *)
+  let rec loop pat tgt : binding list =
     match pat, tgt with
     | [], [] -> []
-    | (pspec :: prest), (tspec :: trest) when pspec = tspec ->
-         (loop prest trest)
     | [SpecPattern(name)], _ ->
-        (* record that future occurrances of @specifier(name) will yield this specifier *)
+        (* final SpecPattern matches anything which comes after *)
+        (* record that future occurrences of @specifier(name) will yield this specifier *)
         if verbose then
           (trace "patchDebug" (dprintf "found specifier match for %s\n" name));
         [BSpecifier(name, tgt)]
+    | (pspec :: prest), (tspec :: trest) ->
+         (unifySpecifier pspec tspec) @
+         (loop prest trest)
     | _,_ -> (
         (* no match *)
-        if verbose then
-          (trace "patchDebug" (dprintf "mismatching specifiers\n"));
+        if verbose then (
+          (trace "patchDebug" (dprintf "mismatching specifier list length\n"));
+        );
         raise NoMatch
      )
   in
   (loop pat tgt)
+end
+
+and unifyTypeSpecifier (pat: typeSpecifier) (tgt: typeSpecifier) : binding list =
+begin
+  if verbose then
+    (trace "patchDebug" (dprintf "unifyTypeSpecifier\n"));
+
+  if (pat = tgt) then [] else
+
+  match pat, tgt with
+  | Tnamed(s1), Tnamed(s2) -> (unifyString s1 s2)
+  | Tstruct(name1, None), Tstruct(name2, None) ->
+      (unifyString name1 name2)
+  | Tstruct(name1, Some(fields1)), Tstruct(name2, Some(fields2)) ->
+      (unifyString name1 name2) @
+      (unifyList fields1 fields2 unifyField)
+  | Tunion(name1, None), Tstruct(name2, None) ->
+      (unifyString name1 name2)
+  | Tunion(name1, Some(fields1)), Tunion(name2, Some(fields2)) ->
+      (unifyString name1 name2) @
+      (unifyList fields1 fields2 unifyField)
+  | Tenum(name1, None), Tstruct(name2, None) ->
+      (unifyString name1 name2)
+  | Tenum(name1, Some(items1)), Tenum(name2, Some(items2)) ->
+      (mustEq items1 items2);    (* enum items *)
+      (unifyString name1 name2)
+  | TtypeofE(exp1), TtypeofE(exp2) ->
+      (unifyExpr exp1 exp2)
+  | TtypeofT(spec1, dtype1), TtypeofT(spec2, dtype2) ->
+      (unifySpecifiers spec1 spec2) @
+      (unifyDeclType dtype1 dtype2)
+  | _ -> (
+      if verbose then (trace "patchDebug" (dprintf "mismatching typeSpecifiers\n"));
+      raise NoMatch
+    )
+end
+
+and unifyField (pat : field_group) (tgt : field_group) : binding list =
+begin
+  match pat,tgt with (spec1, list1), (spec2, list2) -> (
+    (unifySpecifiers spec1 spec2) @
+    (unifyList list1 list2 unifyNameExprOpt)
+  )
+end
+
+and unifyNameExprOpt (pat : name * expression option)
+                     (tgt : name * expression option) : binding list =
+begin
+  match pat,tgt with
+  | (name1, None), (name2, None) -> (unifyName name1 name2)
+  | (name1, Some(exp1)), (name2, Some(exp2)) ->
+      (unifyName name1 name2) @
+      (unifyExpr exp1 exp2)
+  | _,_ -> []
+end
+
+and unifyName (pat : name) (tgt : name) : binding list =
+begin
+  match pat,tgt with (pstr, pdtype, pattrs), (tstr, tdtype, tattrs) ->
+    (mustEq pattrs tattrs);
+    (unifyString pstr tstr) @
+    (unifyDeclType pdtype tdtype)
 end
 
 and unifyInitDeclarators (pat : init_name list) (tgt : init_name list) : binding list =
@@ -463,24 +602,7 @@ begin
 end
 
 and unifyDeclarators (pat : name list) (tgt : name list) : binding list =
-begin
-  if verbose then
-    (trace "patchDebug" (dprintf "unifyDeclarators (pat len %d, tgt len %d\n"
-                                 (List.length pat) (List.length tgt)));
-
-  match pat, tgt with
-  | (pdecl :: prest),
-    (tdecl :: trest) ->
-      (unifyDeclarator pdecl tdecl) @
-      (unifyDeclarators prest trest)
-
-  | [], [] -> []
-  | _, _ -> (
-      if verbose then
-        (trace "patchDebug" (dprintf "mismatching declarators\n"));
-      raise NoMatch
-    )
-end
+  (unifyList pat tgt unifyDeclarator)
 
 and unifyDeclarator (pat : name) (tgt : name) : binding list =
 begin
@@ -493,7 +615,7 @@ begin
     (tname, tdtype, tattr) ->
       (mustEq pattr tattr);
       (unifyDeclType pdtype tdtype) @
-      (unifyName pname tname)
+      (unifyString pname tname)
 end
 
 and unifyDeclType (pat : decl_type) (tgt : decl_type) : binding list =
@@ -550,7 +672,7 @@ begin
     )
 end
 
-and unifyName (pat : string) (tgt : string) : binding list =
+and unifyString (pat : string) (tgt : string) : binding list =
 begin
   (* equal? match with no further ado *)
   if (pat = tgt) then [] else
@@ -690,18 +812,8 @@ begin
 end
 
 and unifyExprs (pat : expression list) (tgt : expression list) : binding list =
-begin
-  match pat, tgt with
-  | (pexpr :: prest), (texpr :: trest) ->
-      (unifyExpr pexpr texpr) @
-      (unifyExprs prest trest)
-  | [], [] -> []
-  | _, _ -> (
-      if verbose then
-        (trace "patchDebug" (dprintf "mismatching expression lists\n"));
-      raise NoMatch
-    )
-end
+  (unifyList pat tgt unifyExpr)
+
 
 (* given the list of bindings 'b', substitute them into 'd' to yield a new definition *)
 and substDefn (bindings : binding list) (defn : definition) : definition =

@@ -1,0 +1,16 @@
+#!/bin/sh
+# apply my CABS transformer to a file
+
+if [ "$3" = "" ]; then
+  echo "usage: $0 [-debug] input.c patch.xform output.c"
+  exit 0
+fi
+  
+args=""
+if [ "$1" = "-debug" ]; then
+  args="--tr sm,patch,patchDebug,patchTime"
+  shift
+fi
+
+exec `dirname $0`/../obj/x86_LINUX/cilly.byte.exe $args \
+  --cabsonly "$3" --patchFile "$2" "$1"
