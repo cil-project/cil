@@ -15,7 +15,8 @@ module E = Errormsg
 let defaultIsWild  = ref false
 
 
-let leanInterface = ref false
+(* A marker that the solver places, if we use lean fats *)
+let useLeanFats = ref false
 
 (* If allPoly is true then all un-defined functions are treated 
  * polymorphically *)
@@ -532,20 +533,7 @@ let replacePtrNodeAttrList where al =
                   ignore (E.warn "Found node %d with kind Unkown\n" n);
                   ""
                 end else 
-                  let knd = 
-                    if !leanInterface && nd.interface then 
-                      match nd.kind with
-                        Wild -> WildT
-                      | FSeq -> FSeqT
-                      | FSeqN -> FSeqNT
-                      | Seq -> SeqT
-                      | SeqN -> SeqNT
-                      | Index -> IndexT
-                      | k -> k
-                    else
-                      nd.kind
-                  in
-                  match k2attr knd with
+                  match k2attr nd.kind with
                     AId s -> s
                   | _ -> E.s (E.bug "replacePtrNodeAttrList")
               in

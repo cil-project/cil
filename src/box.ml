@@ -1220,9 +1220,12 @@ let hasRegisteredAreas = ref true
  * the area *)
 let registerArea (args: exp list) 
                  (acc: stmt list) : stmt list = 
-  hasRegisteredAreas := true;
-  let reg = call None (Lval(var registerAreaFun.svar)) args in
-  reg :: acc
+  if !N.useLeanFats then begin
+    hasRegisteredAreas := true;
+    let reg = call None (Lval(var registerAreaFun.svar)) args in
+    reg :: acc
+  end else
+    acc
 
 let unregisterStmt () = 
   if !hasRegisteredAreas then 
@@ -1444,6 +1447,10 @@ let fromTable (oldk: N.opointerkind)
               (p: exp) 
   (* Returns a base, and an end *) 
   : exp * exp * stmt list =
+  let checkAreas () = 
+    if not !N.useLeanFats then 
+      E.s (E.bug "I thought that we weren't using lean fats\n")
+  in
   let fetchHomeEnd (kind: int) (p: exp) : varinfo * varinfo * stmt = 
     let tmpb = makeTempVar !currentFunction voidPtrType in
     let tmpe = makeTempVar !currentFunction voidPtrType in
@@ -2360,11 +2367,11 @@ let rec stringLiteral (s: string) (strt: typ) : stmt list * fexp =
       let voidStarResult = castVoidStar result in
       (* Register the area *)
       let regarea = 
-        call None (Lval (var registerAreaFun.svar))
+        registerArea
           [ integer registerAreaTaggedInt;
-            voidStarResult; zero ] 
+            voidStarResult; zero ] [] 
       in
-      ([regarea], FM (fixChrPtrType, N.Wild,
+      (regarea, FM (fixChrPtrType, N.Wild,
                       result, 
                       castVoidStar result, zero))
   | N.Seq | N.Safe | N.FSeq | N.String | N.ROString | N.SeqN | N.FSeqN -> 
@@ -2374,10 +2381,11 @@ let rec stringLiteral (s: string) (strt: typ) : stmt list * fexp =
       let theend = BinOp(IndexPI, Lval (var tmp), integer l, charPtrType) in
       (* Register the area *)
       let regarea = 
-        call None (Lval (var registerAreaFun.svar))
+        registerArea
           [ integer registerAreaSeqInt;
             castVoidStar (Lval (var tmp)); 
-            castVoidStar theend ] in
+            castVoidStar theend ] []
+      in
       let res = 
         match k with 
           N.Safe | N.String | N.ROString -> 
@@ -2390,7 +2398,7 @@ let rec stringLiteral (s: string) (strt: typ) : stmt list * fexp =
 
         | _ -> E.s (E.bug "stringLiteral")
       in
-      ([mkSet (var tmp) (Const (CStr s)); regarea ], res)
+      (mkSet (var tmp) (Const (CStr s)) :: regarea, res)
         
   | N.WildT | N.SeqT | N.FSeqT | N.SeqNT | N.FSeqNT -> 
       let kno_t = N.stripT k in
