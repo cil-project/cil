@@ -43,7 +43,7 @@ open Cil
 open Trace
 
 
-let debugGlobal = false
+let debugGlobal = true
 
 
 
@@ -1291,7 +1291,7 @@ let conditionalConversion (t2: typ) (t3: typ) : typ =
 
 (* Some utilitites for doing initializers *)
 
-let debugInit = false
+let debugInit = true
 
 type preInit = 
   | NoInitPre
@@ -3571,7 +3571,7 @@ and doPureExp (e : A.expression) : exp =
 and doInitializer
     (vi: varinfo)
     (inite: A.init_expression) 
-   (* Return the accumulated chunk, the intializer and the new type (might be 
+   (* Return the accumulated chunk, the initializer and the new type (might be 
     * different for arrays) *)
   : chunk * init * typ = 
 
@@ -3643,10 +3643,10 @@ and doInit
   let allinitl = initl2 in
 
   if debugInit then begin
-    ignore (E.log "doOneInit for %t %s (current %a). Looking at: " whoami
+    ignore (E.log "doInit for %t %s (current %a). Looking at: " whoami
               (if so.eof then "(eof)" else "")
               d_lval (Var so.host, so.curOff));
-    (match initl with 
+    (match allinitl with 
       [] -> ignore (E.log "[]")
     | (what, ie) :: _ -> 
         Cprint.commit (); Cprint.flush ();
@@ -3658,7 +3658,8 @@ and doInit
         Cprint.out := old);
     ignore (E.log "\n");
   end;
-
+  ignore (E.log "length(allinitl) = %d\n"
+            (List.length allinitl));
   match unrollType so.soTyp, allinitl with 
     _, [] -> acc, [] (* No more initializers return *)
 
@@ -3701,7 +3702,8 @@ and doInit
       (* Advance past the array *)
       advanceSubobj so;
       (* Continue *)
-      doInit isconst setone so acc' restil
+      let res = doInit isconst setone so acc' restil in
+      res
 
         (* If we are at an array of WIDE characters and the initializer is a 
          * WIDE string literal (optionally enclosed in braces) then explore
@@ -3783,6 +3785,7 @@ and doInit
       * array elements *)
   | TArray (bt, leno, _), (A.NEXT_INIT, A.COMPOUND_INIT initl) :: restil -> 
       (* Create a separate object for the array *)
+      ignore (E.log "array with compound initializer\n");
       let so' = makeSubobj so.host so.soTyp so.soOff in 
       (* Go inside the array *)
       let leno = integerArrayLength leno in
@@ -3792,9 +3795,13 @@ and doInit
       if initl' <> [] then 
         ignore (warn "Too many initializers for array %t" whoami);
       (* Advance past the array *)
+      ignore (E.log "advance past array\n");
       advanceSubobj so;
       (* Continue *)
-      doInit isconst setone so acc' restil
+      ignore (E.log "continue after array\n");
+      let res = doInit isconst setone so acc' restil in
+      ignore (E.log "finish continue after array\n");
+      res
 
    (* We have a designator that tells us to select the matching union field. 
     * This is to support a GCC extension *)
@@ -3961,6 +3968,8 @@ and createGlobal (specs : (typ * storage * bool * A.attribute list))
         );
     end;
     let vi, alreadyInEnv = makeGlobalVarinfo (inite != A.NO_INIT) vi in
+    ignore (E.log "createGlobal: before initializer. %s : %a\n"
+              vi.vname d_type vi.vtype);
             (* Do the initializer and complete the array type if necessary *)
     let init : init option = 
       if inite = A.NO_INIT then 
@@ -4021,10 +4030,14 @@ and createGlobal (specs : (typ * storage * bool * A.attribute list))
       end
     end
   with e -> begin
-    ignore (E.log "error in CollectGlobal (%s)\n" n);
+    raise e
+(*
+    ignore (E.log "error in createGlobal(%s): %s\n" n
+              (Printexc.to_string e));
     pushGlobal (dGlobal (dprintf "booo - error in global %s (%t)" 
                            n d_thisloc) !currentLoc);
     dummyFunDec.svar
+*)
   end
 (*
           ignore (E.log "Env after processing global %s is:@!%t@!" 
