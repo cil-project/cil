@@ -663,6 +663,8 @@ smAddTest("scott/complex_float $box");
 smAddTest("mergeinline");
 smFailTest("z2 is removed improperly",
            "testexe/structs_comb $box");
+smFailTest("z2 is removed improperly",
+           "test/addrofparam $box");
 smAddTest("scott-nolink/name-capture-bitand $box");
 smAddTest("scott-nolink/wildfun2 $box");
 smAddTest("scott/dblarg.int $box");      # this yields a warning that might be a problem

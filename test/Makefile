@@ -439,13 +439,13 @@ testnopatch/% : $(SMALL1)/%.c
                $(CONLY) $(CFLAGS) $(ASMONLY)$*.s $*.c 
 
 testexe/% : $(SMALL1)/%.c  
-	cd $(SMALL1); $(CCURED)   \
+	cd $(SMALL1); $(CCURED) --separate  \
                $(STANDARDPATCH) \
 	       $(CFLAGS) $(EXEOUT)$*.exe $*.c 
 
 
 testrun/% : $(SMALL1)/%.c  
-	cd $(SMALL1); $(CCURED)   \
+	cd $(SMALL1); $(CCURED) --separate  \
                $(STANDARDPATCH) \
 	       $(CFLAGS) $(EXEOUT)$*.exe $*.c
 	cd $(SMALL1); ./$*.exe

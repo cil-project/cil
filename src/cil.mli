@@ -732,7 +732,7 @@ and fundec =
          * formals and ensure that they are reflected in the function type. 
          * Do not make copies of these because the body refers to them. *)
       mutable slocals: varinfo list;    
-        (** Locals. Does not include the sformals. Do not make copies of 
+        (** Locals. Does NOT include the sformals. Do not make copies of 
          * these because the body refers to them. *)
       mutable smaxid: int;           (** Max local id. Starts at 0 *)
       mutable sbody: block;          (** The function body. *)
