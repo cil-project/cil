@@ -72,7 +72,7 @@ endif
 ifeq ($(COMPUTERNAME), tenshi) # Wes's laptop
 BASEDIR=/home/weimer/cvs/
 SAFECCDIR=$(BASEDIR)/safeC
-PCCDIR=$(BASEDIR)/PCC
+PCCDIR=$(BASEDIR)/cil/test/PCC
 TVDIR=$(BASEDIR)/TransVal
 CILDIR=$(BASEDIR)/cil
 _GNUCC=1

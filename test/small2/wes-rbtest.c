@@ -1,6 +1,24 @@
 
 /* A special purpose main */
 //#include "main.h"
+#ifndef MANUALBOX
+#define WILD
+#define SAFE
+#define TAGGED
+#define INDEX
+#define SIZED
+#define SEQ
+#define FSEQ
+#define calloc_fseq calloc
+#else
+#define WILD   __attribute__((wild))
+#define SAFE   __attribute__((safe))
+#define TAGGED __attribute__((tagged))
+#define INDEX  __attribute__((index))
+#define SIZED  __attribute__((sized))
+#define SEQ    __attribute__((seq))
+#define FSEQ   __attribute__((fseq))
+#endif
 /****** Data sizes *******
 * U8  must be an unsigned of 8 bits
 * U16 must be an unsigned of 16 bits *
@@ -107,7 +125,11 @@ typedef int BOOL;
 typedef long clock_t;
  clock_t __cdecl clock(void);
  int    __cdecl rand(void);
-#define CLOCKS_PER_SEC 1000
+#ifdef _MSVC
+#       define CLOCKS_PER_SEC 1000
+#else
+#       define CLOCKS_PER_SEC  1000000
+#endif
 
 #define TIMESTART(clk) {clk=(double)clock();}
 #define TIMESTOP(clk)  {clk=1000000.0 * ((double)clock()-(clk))/CLOCKS_PER_SEC;}
@@ -153,6 +175,14 @@ _CRTIMP extern FILE _iob[];
 #define stdin  (&_iob[0])
 #define stdout (&_iob[1])
 #define stderr (&_iob[2])
+#else /* GNUCC */
+#       ifdef BEFOREBOX
+#       define stdout (get_stdout())
+#       define stderr (get_stderr())
+#       else
+        extern FILE *stdout;
+        extern FILE *stderr;
+#       endif
 #endif
 
 extern  int   debugMM;      

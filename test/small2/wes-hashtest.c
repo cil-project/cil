@@ -121,7 +121,12 @@ typedef int BOOL;
 typedef long clock_t;
  clock_t __cdecl clock(void);
  int    __cdecl rand(void);
-#define CLOCKS_PER_SEC 1000
+#ifdef _MSVC
+#       define CLOCKS_PER_SEC 1000
+#else
+#       define CLOCKS_PER_SEC  1000000
+#endif
+
 
 #define TIMESTART(clk) {clk=(double)clock();}
 #define TIMESTOP(clk)  {clk=1000000.0 * ((double)clock()-(clk))/CLOCKS_PER_SEC;}
