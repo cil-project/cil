@@ -812,31 +812,21 @@ let getHostIfBitfield lv t =
     end
   | _ -> lv, t
 
-(* Pass a thunk for computing the length expression *)
-type checkWhat = 
-    CheckNull of exp
-  | CheckBoundsIndex
-  | CheckBoundsSeq
-  | CheckBoundsFSeq
-  | CheckNothing
-
-let checkBoundsLenFun = 
-  let fdec = emptyFunction "CHECK_BOUNDS_LEN" in
+let checkLBoundFun = 
+  let fdec = emptyFunction "CHECK_LBOUND" in
   let argb  = makeLocalVar fdec "b" voidPtrType in
-  let argbl  = makeLocalVar fdec "bl" uintType in
   let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argpl  = makeLocalVar fdec "pl" uintType in
-  fdec.svar.vtype <- TFun(voidType, [ argb; argbl; argp; argpl ], false, []);
+  fdec.svar.vtype <- TFun(voidType, [ argb; argp; ], false, []);
   fdec.svar.vstorage <- Static;
   theFile := GDecl fdec.svar :: !theFile;
   fdec
 
-let checkBoundsIndexFun = 
-  let fdec = emptyFunction "CHECK_BOUNDS_INDEX" in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
+let checkUBoundFun = 
+  let fdec = emptyFunction "CHECK_UBOUND" in
+  let argbend  = makeLocalVar fdec "bend" voidPtrType in
   let argp  = makeLocalVar fdec "p" voidPtrType in
   let argpl  = makeLocalVar fdec "pl" uintType in
-  fdec.svar.vtype <- TFun(voidType, [ argb; argp; argpl ], false, []);
+  fdec.svar.vtype <- TFun(voidType, [ argbend; argp; argpl ], false, []);
   fdec.svar.vstorage <- Static;
   theFile := GDecl fdec.svar :: !theFile;
   fdec
@@ -852,25 +842,18 @@ let checkBoundsFun =
   theFile := GDecl fdec.svar :: !theFile;
   fdec
 
-
-let checkUBoundFun = 
-  let fdec = emptyFunction "CHECK_UBOUND" in
-  let argbend  = makeLocalVar fdec "bend" voidPtrType in
+let checkBoundsLenFun = 
+  let fdec = emptyFunction "CHECK_BOUNDS_LEN" in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  let argbl  = makeLocalVar fdec "bl" uintType in
   let argp  = makeLocalVar fdec "p" voidPtrType in
   let argpl  = makeLocalVar fdec "pl" uintType in
-  fdec.svar.vtype <- TFun(voidType, [ argbend; argp; argpl ], false, []);
+  fdec.svar.vtype <- TFun(voidType, [ argb; argbl; argp; argpl ], false, []);
   fdec.svar.vstorage <- Static;
   theFile := GDecl fdec.svar :: !theFile;
   fdec
 
-let checkLBoundFun = 
-  let fdec = emptyFunction "CHECK_LBOUND" in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  fdec.svar.vtype <- TFun(voidType, [ argb; argp; ], false, []);
-  fdec.svar.vstorage <- Static;
-  theFile := GDecl fdec.svar :: !theFile;
-  fdec
+
 
 (****** CONVERSION FUNCTIONS *******)
 
@@ -903,17 +886,40 @@ let fseqToSafe (p: exp) (desttyp: typ) (b: exp) (bend: exp) (acc: stmt list)
     [ castVoidStar b;  
       castVoidStar p; SizeOf (baset, lu)] :: acc
     
-let indexToSafe (p: exp) (desttyp: typ) (b: exp) (bend: exp) (acc: stmt list) 
-    : exp * exp * exp * stmt list =
-  let p', b', bend', acc' = indexToFSeq p b bend acc in
-  fseqToSafe p' desttyp b' bend' acc'
-    
 let seqToSafe (p: exp) (desttyp: typ) (b: exp) (bend: exp) (acc: stmt list) 
     : exp * exp * exp * stmt list =
+(*
   let p', b', bend', acc' = seqToFSeq p b bend acc in
   fseqToSafe p' desttyp b' bend' acc'
+*)
+  (* An alternative way that collapses the two bounds checks *)
+  let baset =
+      match unrollType desttyp with
+        TPtr(x, _) -> x
+      | _ -> E.s (E.bug "seqToSafe: expected pointer type")
+  in
+  p, zero, zero,
+  call None (Lval (var checkBoundsFun.svar))
+    [ castVoidStar b;  castVoidStar bend;
+      castVoidStar p; SizeOf (baset, lu)] :: acc
+  
 
+let indexToSafe (p: exp) (desttyp: typ) (b: exp) (bend: exp) (acc: stmt list) 
+    : exp * exp * exp * stmt list =
+  let p', b', bend', acc' = indexToSeq p b bend acc in
+  seqToSafe p' desttyp b' bend' acc'
+    
+  
 
+let checkWild (p: exp) (basetyp: typ) (b: exp) (blen: exp) : stmt = 
+  (* This is almost like indexToSafe, except that we have the length already 
+   * fetched *)
+  call None (Lval (var checkBoundsLenFun.svar))
+    [ castVoidStar b; blen;
+      castVoidStar p; SizeOf (basetyp, lu)]
+      
+    
+  
 let checkBounds : (unit -> exp) -> exp -> exp -> lval -> typ 
                   -> P.pointerkind -> stmt list = 
 
@@ -930,7 +936,13 @@ let checkBounds : (unit -> exp) -> exp -> exp -> lval -> typ
     (* Do not check the bounds when we access variables without array 
      * indexing  *)
     match pkind with
-      (P.Wild|P.Index) -> 
+    | P.Wild -> (* We'll need to read the length anyway since we need it for 
+                 * working with the tags *)
+        let docheck = 
+          checkWild (AddrOf(lv', lu)) lv't base (mktmplen ()) in
+        [docheck]
+
+    | P.Index -> 
         let _, _, _, docheck = 
           indexToSafe (AddrOf(lv', lu)) (TPtr(lv't, [])) base bend [] in
         List.rev docheck
