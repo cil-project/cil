@@ -168,11 +168,11 @@ all: combiner cilly $(EXECUTABLE)$(EXE) libraries
 
 setup:
 	$(MAKE) -f Makefile.ccured all $(MAKEOVERRIDES) RELEASE= 
-	$(MAKE) -f Makefile.ccured all $(MAKEOVERRIDES) RELEASE=1
+	$(MAKE) -f Makefile.ccured all $(MAKEOVERRIDES) RELEASE=1 RELEASELIB=1
 ifdef _MSVC
 	$(MAKE) -f Makefile.ccured libraries _GNUCC=1 RELEASE= \
                                              $(MAKEOVERRIDES) 
-	$(MAKE) -f Makefile.ccured libraries _GNUCC=1 RELEASE=1 \
+	$(MAKE) -f Makefile.ccured libraries _GNUCC=1 RELEASE=1 RELEASELIB=1 \
                                              $(MAKEOVERRIDES) 
 endif
 
