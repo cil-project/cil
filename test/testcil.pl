@@ -632,6 +632,7 @@ smAddTest("scott-nolink/brlock $gcc");
 smAddTest("scott/qsort_wild $box");
 smAddTest("scott/regparm0 $gcc");         # this works, unfortunately..
 smAddTest("scott/unscomp");    # kernel/fs/buffer.c
+smFailTest("Can't handle returing structures containing arrays.", "scott/complex_float $box");
 
 # test of strings (need more!)
 smFailTest("unsound user annotation RWSTRING", "badd/ovwrnull $box");
