@@ -4042,6 +4042,7 @@ let rec visitCilFunction (vis : cilVisitor) (f : fundec) : fundec =
   doVisit vis vis#vfunc childrenFunction f
 
 and childrenFunction (vis : cilVisitor) (f : fundec) : fundec =
+  assertEmptyQueue vis;
   f.svar <- visitCilVarDecl vis f.svar; (* hit the function name *)
   (* visit local declarations *)
   f.slocals <- mapNoCopy (visitCilVarDecl vis) f.slocals;
@@ -4049,7 +4050,13 @@ and childrenFunction (vis : cilVisitor) (f : fundec) : fundec =
   let newformals = mapNoCopy (visitCilVarDecl vis) f.sformals in
   (* Make sure the type reflects the formals *)
   setFormals f newformals;
+  (* Remember any new instructions that were generated while visiting
+     variable declarations. *)
+  let toPrepend = vis#unqueueInstr () in
+
   f.sbody <- visitCilBlock vis f.sbody;        (* visit the body *)
+  if toPrepend <> [] then 
+    f.sbody.bstmts <- mkStmt (Instr toPrepend) :: f.sbody.bstmts;
   f
 
 let rec visitCilGlobal (vis: cilVisitor) (g: global) : global list =
