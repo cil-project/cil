@@ -1254,8 +1254,8 @@ sub testCommandExtras {
     }
     # Turn on the verbose flag
     $theargs .= " STATS=1 PRINTSTAGES=1 ";
-    # Turn off the strings
-    $theargs .= " EXTRAARGS=--noStrings ";
+    # Turn on the strings
+    # $theargs .= " EXTRAARGS=--useStrings ";
 
     return $theargs;
 }
