@@ -1113,6 +1113,11 @@ val pushGlobal: global -> types: global list ref
   * argument types *)
 val gccBuiltins: (string, typ * typ list) Hashtbl.t
 
+
+(** A list of the MSVC built-in functions. Maps the name to the result and 
+ * argument types *)
+val msvcBuiltins: (string, typ * typ list) Hashtbl.t
+
 (** {b Values for manipulating initializers} *)
 
 

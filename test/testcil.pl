@@ -294,6 +294,7 @@ $TEST->add2Tests("testrun/vararg1");
 $TEST->add2Tests("testrun/vararg2");
 $TEST->add2Tests("testrun/vararg3");
 $TEST->add2Tests("testrun/vararg4");
+$TEST->add2Tests("testrun/vararg11", "_MSVC=1");
 $TEST->add2Tests("testrun/varargauto1");
 $TEST->add2Tests("testrun/vararg5", "_GNUCC=1");
 $TEST->add2Tests("testrun/vararg-tagged1");

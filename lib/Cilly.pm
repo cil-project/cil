@@ -563,7 +563,8 @@ sub straight_preprocess {
 	my $srcname = ref $src ? $src->filename : $src;
 	print STDERR "Preprocessing $srcname\n";
     }
-    if($self->{MODENAME} eq "MSVC") {
+    if($self->{MODENAME} eq "MSVC" ||
+       $self->{MODENAME} eq "MSLINK") {
         $self->MSVC::msvc_preprocess($src, $dest, $ppargs);
     } else {
 #        print Dumper($self);
@@ -613,12 +614,14 @@ sub compile {
     # that by default you should be able to see every file getting written
     # during a build (otherwise you don't know who to ask to be --verbose)
     # update: and then someone reverted it to conditional... why?
-    if($self->{VERBOSE}) { print STDERR "Saving source $src into $outfile\n"; }
+    if($self->{VERBOSE}) { 
+        print STDERR "Saving source $src->{filename} into $outfile\n";
+    }
     open(OUT, ">$outfile") || die "Cannot create $outfile";
-    my $toprintsrc = $src; $toprintsrc =~ s|\\|/|g;
+    my $toprintsrc = $src->{filename}; $toprintsrc =~ s|\\|/|g;
     print OUT "#pragma merger($mtime, \"$toprintsrc\", \"" . 
         join(' ', @{$ccargs}), "\")\n";
-    open(IN, '<', $src->filename) || die "Cannot read $src";
+    open(IN, '<', $src->{filename}) || die "Cannot read $src->{filename}";
     while(<IN>) {
         print OUT $_;
     }
@@ -723,6 +726,9 @@ sub expandLibraries {
     $self->{OFILES} = \@tolink1;
 }
 
+# Go over a list of object files and separate them into those that are
+# actually sources to be merged, and the true object files
+#
 sub separateTrueObjects {
     my ($self, $psrcs) = @_;
 
@@ -731,14 +737,17 @@ sub separateTrueObjects {
     my @tomerge = ();
     my @othersources = ();
     foreach my $src (@sources) {
-        my ($combsrc, $mtime);
+        my ($combsrc, $combsrcname, $mtime);
 	my $srcname = ref $src ? $src->filename : $src;
         if(! $self->{TRUEOBJ}) {
-            $combsrc = $srcname;
+            # We are using the object file itself to save the sources
+            $combsrcname = $srcname;
+            $combsrc = $src;
             $mtime = 0;
         } else {
-            $combsrc = $srcname . $Cilly::savedSourceExt;
-            if(-f $combsrc) { 
+            $combsrcname = $srcname . $Cilly::savedSourceExt;
+            $combsrc = $combsrcname;
+            if(-f $combsrcname) { 
                 my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
                     $atime,$mtime_1,$ctime,$blksize,$blocks) = stat($srcname);
                 $mtime = $mtime_1;
@@ -747,16 +756,17 @@ sub separateTrueObjects {
             }
         }
         # Look inside and see if it is one of the files created by us
-        open(IN, "<$combsrc") || die "Cannot read $combsrc";
+        open(IN, "<$combsrcname") || die "Cannot read $combsrcname";
         my $fstline = <IN>;
+        close(IN);
         if($fstline =~ m|\#pragma merger\((\d+)| || $fstline =~ m|CIL|) {
             if($1 == $mtime) { # It is ours
                 # See if we have this already
                 if(! grep { $_ eq $srcname } @tomerge) { # It is ours
                     push @tomerge, $combsrc; 
                     # See if there is a a trueobjs file also
-                    my $trueobjs = $combsrc . "_trueobjs";
-                    if(-f "$trueobjs") {
+                    my $trueobjs = $combsrcname . "_trueobjs";
+                    if(-f $trueobjs) {
                         open(TRUEOBJS, "<$trueobjs") 
                             || die "Cannot read $trueobjs";
                         while(<TRUEOBJS>) {
@@ -769,7 +779,7 @@ sub separateTrueObjects {
                 next;
             }
         }
-        push @othersources, $srcname;
+        push @othersources, $combsrc;
     }
     return (\@tomerge, \@othersources);
 }
@@ -790,21 +800,27 @@ sub link {
           return 0;   # sm: is this value used??
         }
     }
-    # We must merging
-    if($self->{VERBOSE}) { print STDERR "Merging saved sources into $destname\n"; }
+    my $mergedobj = new OutputFile($destname, 
+                                   "${destname}_comb.$self->{OBJEXT}");
+
+    # We must merge
+    if($self->{VERBOSE}) { 
+        print STDERR "Merging saved sources into $mergedobj->{filename} (in process of linking $destname)\n"; 
+    }
     
     # Now collect the files to be merged
 
     my ($tomerge, $trueobjs) = $self->separateTrueObjects($psrcs);
 
-    my $mergedobj = new OutputFile($destname, "${destname}_comb.$self->{OBJEXT}");
     
     # Check the modification times and see if we can just use the combined
     # file instead of merging all over again
     if(@{$tomerge} > 1 && $self->{KEEPMERGED}) {
         my $canReuse = 1;
-        my $combFile = $destname . "_comb.c";
-        my @tmp = stat($combFile); my $combFileMtime = $tmp[9] || 0;
+        my $combFile = new OutputFile($destname,
+                                      "${destname}_comb.c");
+        my @tmp = stat($combFile); 
+        my $combFileMtime = $tmp[9] || 0;
         foreach my $mrg (@{$tomerge}) {
             my @tmp = stat($mrg); my $mtime = $tmp[9];
             if($mtime >= $combFileMtime) { goto DoMerge; }
@@ -841,7 +857,7 @@ sub applyCil {
     Carp::confess "$self produced bad output file: $aftercil" 
         unless $aftercil->isa('OutputFile');
 
-    if($self->{MODENAME} eq "MSVC") {
+    if($self->{MODENAME} eq "MSVC" || $self->{MODENAME} eq "MSLINK") {
         push @cmd, '--MSVC';
     }
     if($self->{VERBOSE}) {
@@ -1408,24 +1424,31 @@ use Data::Dumper;
 sub new {
     my ($proto, $stub) = @_;
     my $class = ref($proto) || $proto;
+
+    # Create a MSVC compiler object
+    my $msvc = MSVC->new($stub);
+
     # Create $self
 
     my $self = 
     { NAME => 'Microsoft linker',
       MODENAME => 'MSLINK',
-      CC => ['no_compiler_in_mslink_mode'],
-      CPP => ['no_compiler_in_mslink_mode'],
+      CC => $msvc->{CC},
+      CPP => $msvc->{CPP},
       LD => ['link'],
-      DEFARG  => "??DEFARG",
-      INCARG  => "??INCARG",
+      DEFARG  => $msvc->{DEFARG},
+      INCARG  => $msvc->{INCARG},
       DEBUGARG => ['/DEBUG'],
       OPTIMARG => [],
       OBJEXT => "obj",
       LIBEXT => "lib",   # Library extension (without the .)
       EXEEXT => ".exe",  # Executable extension (with the .)
-      OUTOBJ => "??OUTOBJ",
+      OUTOBJ => $msvc->{OUTOBJ},
       OUTEXE => "-out:", # Keep this form because build.exe looks for it
       LINEPATTERN => "", 
+      FORCECSOURCE => $msvc->{FORCECSOURCE},
+
+      MSVC => $msvc,
 
       OPTIONS => 
           ["[^/\\-@]" => { TYPE => 'OSOURCE' },

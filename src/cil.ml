@@ -1890,6 +1890,13 @@ let gccBuiltins : (string, typ * typ list) H.t =
   end;
   h
 
+(** Construct a hash with the builtins *)
+let msvcBuiltins : (string, typ * typ list) H.t = 
+  (* These are empty for now but can be added to depending on the application*)
+  let h = H.create 17 in
+  h
+
+
 (** A printer interface for CIL trees. Create instantiations of 
  * this type by specializing the class {!Cil.defaultCilPrinter}. *)
 class type cilPrinter = object
