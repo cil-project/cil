@@ -431,7 +431,7 @@ hola: scott/hola
 scott/%: test/small2/%.c 
 	rm -f test/small2/$*
 	cd test/small2; $(CC) $(CONLY) $(WARNALL) $(DEF)$(ARCHOS) $*.c
-	cd test/small2; $(CCURED) --verbose --keep=. $(DEF)$(ARCHOS) \
+	cd test/small2; $(CCURED) --keep=. $(DEF)$(ARCHOS) \
                  `$(PATCHECHO) $(STANDARDPATCH)` \
                  $(CFLAGS) `true $(WARNALL)` $(NOPRINTLN) \
                  $*.c \
@@ -441,7 +441,7 @@ scott/%: test/small2/%.c
 scott-nolink/%: test/small2/%.c 
 	rm -f test/small2/$*
 	cd test/small2; $(CC) $(CONLY) $(WARNALL) $(DEF)$(ARCHOS) $*.c
-	cd test/small2; $(CCURED) $(CONLY) --verbose --keep=. $(DEF)$(ARCHOS) \
+	cd test/small2; $(CCURED) $(CONLY) --keep=. $(DEF)$(ARCHOS) \
                  `$(PATCHECHO) $(STANDARDPATCH)` \
                  $(CFLAGS) $(WARNALL) $(NOPRINTLN) \
                  $*.c \
@@ -454,7 +454,7 @@ bad/%: test/bad/%.c
 	rm -f test/bad/$*
 	cd test/bad; $(CC) $(CONLY) $(WARNALL) $(DEF)$(ARCHOS) $*.c
 	@true "first try the succeed case"
-	cd test/bad; $(CCURED) --verbose --keep=. $(DEF)$(ARCHOS) \
+	cd test/bad; $(CCURED) --keep=. $(DEF)$(ARCHOS) \
                  `$(PATCHECHO) $(STANDARDPATCH)` \
                  $(CFLAGS) $(WARNALL) $(NOPRINTLN) \
                  $*.c \
@@ -465,7 +465,7 @@ bad/%: test/bad/%.c
 		echo "That should have worked; FAIL was not defined!"; exit 2; \
 	fi
 	@true "now try the failure case"
-	cd test/bad; $(CCURED) --verbose --keep=. $(DEF)$(ARCHOS) \
+	cd test/bad; $(CCURED) --keep=. $(DEF)$(ARCHOS) \
                  `$(PATCHECHO) $(STANDARDPATCH)` \
                  $(CFLAGS) $(WARNALL) $(NOPRINTLN) -DFAIL \
                  $*.c \
@@ -482,7 +482,7 @@ bads/%: test/small2/%.c
 	rm -f test/small2/$*
 	cd test/small2; $(CC) $(CONLY) $(WARNALL) $(DEF)$(ARCHOS) $*.c
 	@true "first try the succeed case"
-	cd test/small2; $(CCURED) --verbose --keep=. $(DEF)$(ARCHOS) \
+	cd test/small2; $(CCURED) --keep=. $(DEF)$(ARCHOS) \
                  `$(PATCHECHO) $(STANDARDPATCH)` \
                  $(CFLAGS) $(WARNALL) $(NOPRINTLN) \
                  $*.c \
@@ -493,7 +493,7 @@ bads/%: test/small2/%.c
 		echo "That should have worked; FAIL was not defined!"; exit 2; \
 	fi
 	@true "now try the failure case"
-	cd test/small2; $(CCURED) --verbose --keep=. $(DEF)$(ARCHOS) \
+	cd test/small2; $(CCURED) --keep=. $(DEF)$(ARCHOS) \
                  `$(PATCHECHO) $(STANDARDPATCH)` \
                  $(CFLAGS) $(WARNALL) $(NOPRINTLN) -DFAIL \
                  $*.c \
@@ -1235,7 +1235,7 @@ ftpd:  mustbegcc
 spr/%:  test/spr/%.c 
 	rm -f test/spr/$*
 	cd test/spr; $(CC) $(CONLY) $(WARNALL) $(DEF)$(ARCHOS) $*.c
-	cd test/spr; $(SAFECC) --verbose --keep=. $(DEF)$(ARCHOS) \
+	cd test/spr; $(SAFECC) --keep=. $(DEF)$(ARCHOS) \
                  `$(PATCHECHO) $(STANDARDPATCH)` \
                  $(CFLAGS) `true $(WARNALL)` $(NOPRINTLN) \
                  $*.c \
