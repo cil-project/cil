@@ -1631,14 +1631,15 @@ and d_instr () i =
 and d_stmt_next (next: stmt) () (s: stmt) =
   (* print the labels *)
   ((docList line (fun l -> d_label () l)) () s.labels)
-    ++
     (* print the statement itself. If the labels are non-empty and the
     * statement is empty, print a semicolon  *)
+    ++ 
     (if s.skind = Instr [] && s.labels <> [] then
       text ";"
     else
-      d_stmtkind next () s.skind)
-
+      (if s.labels <> [] then line else nil) 
+        ++ d_stmtkind next () s.skind)
+    
 and d_stmt () (s: stmt) = (* A version that is easier to call *)
   d_stmt_next invalidStmt () s
 
@@ -1668,9 +1669,10 @@ and d_block () blk =
   dprintf "@[{ @[@!%a@]@!}@]" dofirst blk
 *)
 
+(* Make sure that you only call d_line on an empty line *)
 and d_line l = 
   let ls = printLine l in
-  if ls <> "" then text ("\n" ^ printLine l) ++ line else nil
+  if ls <> "" then text (printLine l) ++ line else nil
 
 and d_stmtkind (next: stmt) () = function
     Return(None, l) ->
