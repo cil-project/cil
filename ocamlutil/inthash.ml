@@ -167,3 +167,5 @@ let memoize (h: 'a t) (key: int) (f: int -> 'a) : 'a =
   find_in_bucket key h.data.(i)
                   
   
+let tolist (h: 'a t) : (int * 'a) list = 
+  fold (fun k d acc -> (k, d) :: acc) h []
