@@ -295,7 +295,7 @@ extern long double __builtin_fabsl(long double);
   }
   #pragma cilnoremove("strdup_model")
   #pragma boxmodelof("strdup_model", "strdup")
-*/
+
   // sm: I cannot force return value to be fseq if 's' is ...
   static inline char *strpbrk_model(const char *s, const char *accept)
   {
@@ -305,7 +305,7 @@ extern long double __builtin_fabsl(long double);
   }
   #pragma cilnoremove("strpbrk_model")
   #pragma boxmodelof("strpbrk_model", "strpbrk")
-
+*/
   static inline char *strtok_model(char *s, char const *delim)
   {
     __endof(s);
@@ -315,10 +315,10 @@ extern long double __builtin_fabsl(long double);
   #pragma cilnoremove("strtok_model")
   #pragma boxmodelof("strtok_model", "strtok")
 
-  #pragma boxpoly("memcpy")
+/*  #pragma boxpoly("memcpy")
   #pragma boxpoly("memset", "__builtin_memset")
   #pragma boxpoly("memmove")
-  #pragma boxpoly("memcmp")
+  #pragma boxpoly("memcmp")*/
   #pragma boxpoly("write")
   #pragma boxpoly("read")
   #pragma boxpoly("fread")
@@ -326,6 +326,7 @@ extern long double __builtin_fabsl(long double);
   #pragma boxpoly("mmap")      // sm: for ftpd
   #pragma boxpoly("munmap")    // sm: for ftpd
 
+/*
   #pragma boxpoly("memset_seq_model")
   static inline
   void* memset_seq_model(void* dest, int towrite, unsigned int size)
@@ -335,7 +336,6 @@ extern long double __builtin_fabsl(long double);
   }
   #pragma boxmodelof("memset_seq_model", "memset", "__builtin_memset")
   #pragma cilnoremove("memset_seq_model")
-
 
 
   #pragma boxpoly("memcpy_seq_model")
@@ -349,7 +349,7 @@ extern long double __builtin_fabsl(long double);
   #pragma boxmodelof("memcpy_seq_model", "memcpy", "memmove",
                      "__builtin_memcpy")
   #pragma cilnoremove("memcpy_seq_model")
-
+*/
 
 
   // like for allocators, we have __builtin_blah for str*...
