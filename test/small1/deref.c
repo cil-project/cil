@@ -1,5 +1,5 @@
 //this case illustrates an "invalid type argument of '->' (tries to 
-dereference something that is not a pointer) when INFERBOX=infer
+//dereference something that is not a pointer) when INFERBOX=infer
 
 #define __FD_SETSIZE 1024
 

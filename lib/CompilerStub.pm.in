@@ -840,6 +840,7 @@ sub new {
             "-E"   => { RUN => sub { $stub->{OPERATION} = "TOI"; }},
             "-[DI]" => { ONEMORE => 1, TYPE => "PREPROC" },
             "-include" => { ONEMORE => 1, TYPE => "PREPROC" },  # sm
+            "-ansi" => { TYPE => "PREPROC" },
             "-c" => { RUN => sub { $stub->{OPERATION} = "TOOBJ"; }},
             "-x" => { ONEMORE => 1, TYPE => "CC" },
              # GCC defines some more macros if the optimization is On so pass
