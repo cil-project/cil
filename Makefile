@@ -1266,3 +1266,15 @@ ft: mustbegcc
 	cd $(FTDIR); make test
 
 
+KSDIR := test/ptrdist-1.1/ks
+ks: mustbegcc
+	cd $(KSDIR); rm -f *.o; make CC="$(CCURED) --combine"
+	cd $(KSDIR); make test
+
+
+YACRDIR := test/ptrdist-1.1/yacr2
+yacr: mustbegcc
+	cd $(YACRDIR); rm -f *.o; make CC="$(CCURED) --combine"
+	cd $(YACRDIR); make test
+
+
