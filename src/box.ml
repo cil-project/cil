@@ -888,11 +888,13 @@ and fixit t =
                 let tres = TNamed(tname, tstruct, [N.k2attr pkind]) in
                 (* Add this to ensure that we do not try to box it twice *)
                 H.add fixedTypes (typeSigBox tstruct) tres;
+                (* And to make sure that for all identical pointer types we 
+                 * create identical structure *)
+                H.add fixedTypes (typeSigBox newType) tres;
                 tres
             in
             (* We add fixed ourselves. The TNamed will be added after doit  *)
             (* H.add fixedTypes (typeSigBox fixed) fixed; *)
-            (* H.add fixedTypes (typeSigBox (TPtr(fixed', a))) fixed; *)
             fixed
         end
               

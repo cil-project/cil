@@ -167,10 +167,10 @@ _CRTIMP extern FILE _iob[];
 #define stdout (&_iob[1])
 #define stderr (&_iob[2])
 #else /* GNUCC */
-#pragma box(off)
+
         extern FILE *stdout;
         extern FILE *stderr;
-#pragma box(on)
+
 #endif
 
 extern  int   debugMM;      
