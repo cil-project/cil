@@ -3260,13 +3260,15 @@ let boxFile file =
   in
   let res = List.rev (!theFile) in
   (* Clean up global hashes to avoid retaining garbage *)
-  H.clear hostsOfBitfields;
-  H.clear typeNames;
-  H.clear fixedTypes;
-  H.clear taggedTypes;
-  H.clear sizedArrayTypes;
-  extraGlobInit := [];
-  {file with globals = res; globinit = newglobinit}
+   H.clear hostsOfBitfields;
+   H.clear typeNames;
+   H.clear fixedTypes;
+   H.clear taggedTypes;
+   H.clear sizedArrayTypes;
+   extraGlobInit := [];
+   let res = {file with globals = res; globinit = newglobinit} in
+   Globinit.insertGlobInit res;
+   res
 
   
       

@@ -9,6 +9,38 @@ module H = Hashtbl
 module E = Errormsg
 
 
+(* Insert the global initializer in the main *)
+let insertGlobInit (file: file) : unit = 
+  match file.globinit with 
+  | Some gi when not file.globinitcalled -> 
+      let theFile : global list ref = ref [] in
+      let inserted = ref false in
+      List.iter 
+        begin
+          fun g ->
+            (match g with
+              GFun(m, lm) when m.svar.vname = "main" ->
+                (* Prepend a prototype *)
+                theFile := GDecl (gi.svar, lm) :: !theFile;
+                m.sbody <- 
+                   compactBlock (mkStmt (Instr [(Call(None, 
+                                                      Lval(var gi.svar), 
+                                                      []), locUnknown)]) 
+                                 :: m.sbody);
+                inserted := true;
+                ignore (E.log "Inserted the globinit\n");
+                file.globinitcalled <- true;
+            | _ -> ());
+            theFile := g :: !theFile (* Now put the global back *)
+        end
+        file.globals;
+      if not !inserted then 
+        ignore (E.warn "Cannot find main to add global initializer %s" 
+                  gi.svar.vname);
+      file.globals <- List.rev !theFile
+  | _ -> ()
+
+
 let doFile (fl: file) : file = 
   let boxing = ref true in
   let rec doGlobal = function
@@ -53,6 +85,8 @@ let doFile (fl: file) : file =
     ignore (E.log "Checking after globinit\n");
     Check.checkFile [] newfile
   end;
+  insertGlobInit newfile;
   newfile
   
+
 
