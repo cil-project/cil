@@ -1,4 +1,6 @@
 (* Type check and elaborate ABS to CIL *)
+
+(* The references to ISO means ANSI/ISO 9899-1999 *)
 module A = Cabs
 module E = Errormsg
 module H = Hashtbl
@@ -1130,7 +1132,7 @@ let rec doSpecList (specs: A.spec_elem list)
     in
     List.sort (fun ts1 ts2 -> compare (order ts1) (order ts2)) tspecs 
   in
-  (* And now try to make sense of it. See ISO 6.5.2 *)
+  (* And now try to make sense of it. See ISO 6.7.2 *)
   let bt = 
     match sortedspecs with
       [A.Tvoid] -> TVoid []
@@ -1147,8 +1149,8 @@ let rec doSpecList (specs: A.spec_elem list)
     | [A.Tunsigned; A.Tshort; A.Tint] -> TInt(IUShort, [])
 
     | [] -> TInt(IInt, [])
-    | [A.Tsigned] -> TInt(IInt, [])
     | [A.Tint] -> TInt(IInt, [])
+    | [A.Tsigned] -> TInt(IInt, [])
     | [A.Tsigned; A.Tint] -> TInt(IInt, [])
 
     | [A.Tunsigned] -> TInt(IUInt, [])
@@ -1162,10 +1164,9 @@ let rec doSpecList (specs: A.spec_elem list)
     | [A.Tunsigned; A.Tlong] -> TInt(IULong, [])
     | [A.Tunsigned; A.Tlong; A.Tint] -> TInt(IULong, [])
 
-    (* long long seems to have disappeared from the ISO standard *)
     | [A.Tlong; A.Tlong] -> TInt(ILongLong, [])
-    | [A.Tlong; A.Tlong; A.Tint] -> TInt(ILongLong, [])
     | [A.Tsigned; A.Tlong; A.Tlong] -> TInt(ILongLong, [])
+    | [A.Tlong; A.Tlong; A.Tint] -> TInt(ILongLong, [])
     | [A.Tsigned; A.Tlong; A.Tlong; A.Tint] -> TInt(ILongLong, [])
 
     | [A.Tunsigned; A.Tlong; A.Tlong] -> TInt(IULongLong, [])

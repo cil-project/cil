@@ -3571,7 +3571,8 @@ and boxlval1 (b, off) : (typ * N.opointerkind * lval * exp * exp * stmt clist)=
         let (_, doe, e') = boxexp e in
         (* Prepare for the rest of the offset *)
         let next = 
-          (btype, pkind, (fun o -> mklval (Index(e', o))), base, bend, stmts) 
+          (btype, pkind, (fun o -> mklval (Index(e', o))), base, bend, 
+           append stmts doe) 
         in
         doOffset (goIntoTypes next) resto
   in
