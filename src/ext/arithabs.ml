@@ -79,6 +79,25 @@ let currentGlobalsRead: (varinfo IH.t) ref = ref (IH.create 13)
 
 let globalsReadTransitive: (varinfo IH.t) IH.t = IH.create 13
 
+
+let getGlobalsWrittenTransitive (f: varinfo) = 
+  let glob_written_trans = 
+    (try IH.find globalsWrittenTransitive f.vid
+    with Not_found -> assert false) in 
+  IH.fold
+    (fun _ g acc -> g :: acc)
+    glob_written_trans
+    []
+
+let getGlobalsReadTransitive (f: varinfo) = 
+  let glob_read_trans = 
+    (try IH.find globalsReadTransitive f.vid
+    with Not_found -> assert false) in 
+  IH.fold
+    (fun _ g acc -> g :: acc)
+    glob_read_trans
+    []
+  
 let considerVariable (v: varinfo) : bool = 
   not v.vaddrof && isIntegralType v.vtype
 
@@ -338,11 +357,18 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
           text (self#variableDef varRenameState v) 
             ++ text "=" ++ self#pExp () e ++ text ";"
             
-      | Call (Some (Var v, NoOffset), f, args, _)  when considerVariable v -> 
-          text (self#variableDef varRenameState v) ++ text "=" ++ 
-            dprintf "(%a @[%a@]);" 
-            self#pExp f
-            (docList ~sep:break (self#pExp ())) args
+      | Call (Some (Var v, NoOffset), 
+              Lval (Var f, NoOffset), args, _)  when considerVariable v -> 
+          let gwt: varinfo list = getGlobalsWrittenTransitive f in
+          let grt: varinfo list = getGlobalsReadTransitive f in
+          dprintf "%a = (%s @[%a@]);"
+            (docList 
+               (fun v -> 
+                 text (self#variableDef varRenameState v)))
+            (v :: gwt)
+            f.vname
+            (docList ~sep:break (self#pExp ())) 
+            (args @ (List.map (fun v -> Lval (Var v, NoOffset)) grt))
             
       | Call (None, f, args, _) -> 
           dprintf "(%a @[%a@]);" 
@@ -437,25 +463,22 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
       | Goto (s, _) -> ignore (p ~ind:ind "<goto %d>\n" !s.sid)
       | Return (what, _) -> begin
 
-          let glob_written_trans = 
-            (try IH.find globalsWrittenTransitive currentFundec.svar.vid
-            with Not_found -> assert false) in 
-          IH.iter
-            (fun _ g -> 
-              ignore (p ~ind:ind "%s = %s;\n" g.vname
-                        (self#variableUse varRenameState g)))
-            glob_written_trans;
-
-          (* Check that what is __retres *)
-          let _ = 
-            (match what with
-              None -> ()
-            | Some (Lval (Var v, NoOffset)) when v.vname = "__retres" -> 
-                ignore (p ~ind:ind "%s = %s;\n" v.vname
-                          (self#variableUse varRenameState v))
-            |  _ -> E.s (E.bug "Found return with no __retres"))
+          let gwt: varinfo list = 
+            getGlobalsWrittenTransitive currentFundec.svar
           in
-          ignore (p ~ind:ind "return;");
+          let res: varinfo list = 
+            match what with 
+              None -> gwt
+            | Some (Lval (Var v, NoOffset)) when v.vname = "__retres" -> 
+                v :: gwt
+            | Some _ -> E.s (E.bug "Return with no __retres")
+          in
+          ignore (p ~ind:ind
+                    "return %a;"
+                    (docList 
+                       (fun v -> 
+                         text (self#variableUse varRenameState v)))
+                 res);
       end
 
       | If(e, b1, b2, _) -> 
