@@ -63,7 +63,7 @@ type 'a node =
 let mkSelfNode (eq: (int * string, 'a node) H.t)
                (fidx: int) (name: string) (data: 'a) (l: location) = 
   let res = { nname = name; nfidx = fidx; ndata = data; nloc = l;
-              nrep = Obj.magic 0 } in
+              nrep  = Obj.magic 1} in
   res.nrep <- res; (* Make the self cycle *)
   H.add eq (fidx, name) res; (* Add it to the proper table *)
   res
@@ -289,14 +289,14 @@ let rec combineTypes (what: combineWhat)
       let oldcinode = getNode eqH oldfidx oldci.cname oldci lu in
       let    cinode = getNode eqH    fidx    ci.cname    ci lu in 
       if oldcinode == cinode then (* We already know they are the same *)
-        TComp (oldci, addAttributes olda a) 
+        TComp (origoldci, addAttributes olda a) 
       else begin
         (* Replace with the representative data *)
         let oldci = oldcinode.ndata in
         let oldfidx = oldcinode.nfidx in
         let ci = cinode.ndata in
         let fidx = cinode.nfidx in
-        (* We do not have a mapping. They better be defined in the same way *)
+
         let old_len = List.length oldci.cfields in
         let len = List.length ci.cfields in
         (* It is easy to catch here the case when the new structure is 
@@ -306,7 +306,9 @@ let rec combineTypes (what: combineWhat)
          * defining it later with the new fields. *)
         if len <> 0 && old_len <> 0 && old_len <> len then 
           raise (Failure "(different number of structure fields)");
-
+        ignore (E.log "Comparing %s(%d) with %s(%d)\n"
+                  (compFullName oldci) oldfidx
+                  (compFullName ci) fidx);
         (* We check that they are defined in the same way. While doing this 
          * there might be recursion and we have to watch for going into an 
          * infinite loop. So we add the assumption that they are equal *)
@@ -514,6 +516,7 @@ let rec oneFilePass1 (f:file) : unit =
    * with the same name have been encountered before and we merge those types 
    * *)
   let matchVarinfo (vi: varinfo) (l: location) = 
+    ignore (E.log "matchVarinfo %s\n" vi.vname);
     ignore (registerAlphaName vAlpha vi.vname);
     (* Make a node for it and put it in vEq *)
     let vinode = mkSelfNode vEq !currentFidx vi.vname vi l in
@@ -574,7 +577,7 @@ let rec oneFilePass1 (f:file) : unit =
    * keep. We also scan the entire body and we replace references to the 
    * representative types or variables *)
 let oneFilePass2 (f: file) = 
-  if debugMerge then 
+  if debugMerge || !E.verboseFlag then 
     ignore (E.log "Final merging phase (%d): %s\n" 
               !currentFidx f.fileName);
   let processOneGlobal (g: global) : unit = 
