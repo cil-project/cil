@@ -97,10 +97,15 @@ let oneret (f: Cil.fundec) : unit =
 
     | [] -> []
     | ({skind=Return (None, l)} as s) :: rests -> 
-        if mainbody && rests == [] then 
+        let sgref = ref (getRetStmt ()) in
+        if mainbody && rests == [] then begin 
+          (* This is the last statement in the function. If it has labels, 
+           * add the labels to the replacement return statement. Then drop 
+           * this statement. *)
+          if s.labels <> [] then 
+            !sgref.labels <- s.labels @ !sgref.labels;
           scanStmts mainbody rests
-        else begin
-          let sgref = ref (getRetStmt ()) in
+        end else begin
           s.skind <- Goto (sgref, l);
           haveGoto := true;
           s :: (scanStmts mainbody rests)
