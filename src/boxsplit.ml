@@ -32,8 +32,61 @@ let getVarComponent (vname: string)
     [ (_, compvar) ] -> compvar
   | _ -> E.s (E.bug "Cannot find component %s of %s\n" fname vname)
 
-let doprint = ref false
-class splitVarVisitorClass = object (self)
+
+
+
+(* A visitor that finds all locals that appear in a call or have their 
+ * address taken *)
+
+let dontSplit : (string, bool) H.t = H.create 111
+class findVarsToSplitClass : cilVisitor = object (self) 
+  inherit nopCilVisitor
+        
+        (* expressions, to see the address being taken *)
+  method vexpr (e: exp) : exp visitAction =
+    match e with 
+      AddrOf (Var v, NoOffset) -> H.add dontSplit v.vname true; SkipChildren
+    | _ -> DoChildren
+
+          (* Sometimes the addrof is taken gratuituously 
+  method vlval (lv: lval) : lval visitAction = 
+    match lv with 
+      (* Do just the offsets *)
+      Mem (AddrOf (Var v, off1)), off2 -> 
+        ignore (visitCilOffset (self :> cilVisitor) off1);
+        ignore (visitCilOffset (self :> cilVisitor) off2);
+        SkipChildren
+    | _ -> DoChildren
+        *)
+          (* variables involved in call instructions *)
+  method vinst (i: instr) : instr list visitAction = 
+    match i with 
+      Call (res, f, args, _) -> 
+        (match res with 
+          Some (Var v, NoOffset) -> H.add dontSplit v.vname true
+        | _ -> ());
+        List.iter (fun a -> 
+          match a with
+            Lval (Var v, NoOffset) -> H.add dontSplit v.vname true
+          | _ -> ()) args;
+        (* Now continue the visit *)
+        DoChildren
+    | _ -> DoChildren
+
+          (* Variables used in return should not be split *)
+  method vstmt (s: stmt) : stmt visitAction = 
+    match s.skind with 
+      Return (Some (Lval (Var v, NoOffset)), _) -> 
+        H.add dontSplit v.vname true; DoChildren
+    | Return (Some e, _) -> 
+        DoChildren
+    | _ -> DoChildren
+
+end
+let findVarsToSplit = new findVarsToSplitClass
+
+
+class splitVarVisitorClass : cilVisitor = object (self)
   inherit nopCilVisitor
 
       (* Whenever we see a variable with a field access we try to replace it 
@@ -42,8 +95,6 @@ class splitVarVisitorClass = object (self)
     try
       match b, off with
         Var v, Field (fi, restoff) -> 
-          if !doprint then 
-            ignore (E.log "**vlval v=%s, fi=%s\n" v.vname fi.fname);
           ChangeTo (Var (getVarComponent v.vname fi.fname), restoff)
       | _ -> DoChildren
     with Not_found -> DoChildren
@@ -57,11 +108,9 @@ class splitVarVisitorClass = object (self)
         ChangeTo 
           (List.map 
              (fun (fld, newv) -> 
-               doprint := true;
                let lv' = 
                  visitCilLval (self :> cilVisitor)
                    (addOffsetLval (Field(fld, NoOffset)) lv) in
-               doprint := false;
                Set((Var newv, NoOffset), Lval lv', l))
              (H.find newvars v.vname))
 
@@ -82,13 +131,14 @@ end
 let splitVarVisitor = new splitVarVisitorClass
 
 let splitLocals (func: fundec) : unit = 
-  ignore (E.log "***Splitting locals in %s\n" func.svar.vname);
   (* Go over the locals and find the candidates *)
+  ignore (visitCilBlock findVarsToSplit func.sbody);
+  (* Now go over the locals and create the splits *)
   List.iter 
     (fun loc -> 
-      if not loc.vaddrof then begin
+      if not (H.mem dontSplit loc.vname) then begin
         match unrollType loc.vtype with
-          TComp (comp, _) when comp.cstruct -> begin
+          TComp (comp, _) when comp.cstruct -> begin 
             match comp.cfields with
               ({fname="_p"} as fstfld) :: restflds -> begin
                 splitVar func loc fstfld restflds
@@ -100,6 +150,7 @@ let splitLocals (func: fundec) : unit =
     func.slocals;
   (* Now visit the body and change references to these variables *)
   visitCilFunction splitVarVisitor func;
-  H.clear newvars
+  H.clear newvars;
+  H.clear dontSplit
   
 

@@ -2848,7 +2848,7 @@ let addOffsetLval toadd (b, off) : lval =
 
   (* Make a Mem, while optimizing StartOf. The type of the addr must be 
    * TPtr(t) and the type of the resulting expression is t *)
-let mkMem (addr: exp) (off: offset) : exp =  
+let mkMem (addr: exp) (off: offset) : lval =  
   let isarray = (* Maybe the addr is the start of an array *)
     match addr with 
       StartOf(lv) when 
@@ -2859,13 +2859,16 @@ let mkMem (addr: exp) (off: offset) : exp =
   let res = 
     match isarray, off with
       Some lv, Index _ -> (* index on an array *)
-        Lval(addOffsetLval off lv)
+        addOffsetLval off lv
     | Some lv, _ -> (* non-index on an array *)
-        Lval(addOffsetLval (Index(zero, off)) lv)
+        addOffsetLval (Index(zero, off)) lv
     | None, Index(ei, resto) -> (* index on a non-array *)
-        Lval(Mem (BinOp(IndexPI, addr, ei, typeOf addr)), resto) 
-    | None, _ -> (* non-index on a non-array *)
-        Lval(Mem addr, off)
+        Mem (BinOp(IndexPI, addr, ei, typeOf addr)), resto 
+    | None, _ -> begin (* non-index on a non-array *)
+        match addr with
+          AddrOf (b, addroff) -> b, addOffset off addroff
+        | _ -> Mem addr, off
+    end
   in
 (*  ignore (E.log "memof : %a:%a\nresult = %a\n" 
             d_plainexp addr d_plainoffset off d_plainexp res); *)

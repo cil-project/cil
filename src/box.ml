@@ -1633,7 +1633,7 @@ let offsetOfFirstScalar (t: typ) : exp =
     None -> raise Not_found
   | Some NoOffset -> kinteger IUInt 0 
   | Some off -> 
-      let scalar = Mem (doCastT zero intType (TPtr (t, []))), off in
+      let scalar = mkMem (doCastT zero intType (TPtr (t, []))) off in
       let addrof = mkAddrOf scalar in
       doCast addrof uintType
 
@@ -2960,7 +2960,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
   let init = 
     (* Put nullterm *)
     let putnullterm (theend: exp) = 
-      mkSet (Mem(doCast theend charPtrType), NoOffset)
+      mkSet (mkMem (doCast theend charPtrType) NoOffset)
         (doCast zero charType)
     in
     match kno_t with
@@ -2988,7 +2988,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
         (* Now initialize. *)
         let inits = 
           initializeType basetype withIterVar mustZero
-            (Some theend) (Mem tmpvar, NoOffset) empty
+            (Some theend) (mkMem tmpvar NoOffset) empty
         in
         CConsL (check_enough, inits)
 
@@ -3005,7 +3005,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
          * copies  *)
         let initone = 
           initializeType basetype withIterVar mustZero None
-            (Mem tmpvar, NoOffset) empty
+            (mkMem tmpvar NoOffset) empty
             
         in
         let initializeAll = 
@@ -3207,7 +3207,7 @@ class unsafeVisitorClass = object
           let lv0 = fixLastOffset (Var v, NoOffset) in
           fixOffsets lv0 off
       | Mem e, off -> 
-          let lv0 = fixLastOffset (Mem e, NoOffset) in
+          let lv0 = fixLastOffset (mkMem e NoOffset) in
           fixOffsets lv0 off
     in
     ChangeDoChildrenPost (lv, doafter)
@@ -3372,7 +3372,7 @@ and boxinstr (ins: instr) : stmt clist =
                 boxlval (Mem base, NoOffset) in
               (rest, CConsR (dolv, 
                              checkFunctionPointer 
-                               (mkAddrOf(lv')) 
+                               (mkAddrOf lv') 
                                lvbase lvkind (List.length args)), 
                Lval(lv'), 
                lvkind)
@@ -3474,7 +3474,8 @@ and boxinstr (ins: instr) : stmt clist =
                       begin
                         match structValue with
                         | Lval(lv) ->
-                            (mkMem (CastE(TPtr(structType,[]), mkAddrOf(lv))) NoOffset)
+                            Lval (mkMem (CastE(TPtr(structType,[]), 
+                                               mkAddrOf(lv))) NoOffset)
                         | _ -> E.s (unimp "Call to memcpy with wild non-lval")
                       end in
                       let args'' =
@@ -3710,7 +3711,7 @@ and boxlval1 (b, off) : (typ * N.opointerkind * lval * exp * exp * stmt clist)=
           | _ -> E.s (unimp "Mem but no pointer type: %a@!addr= %a@!"
                         d_plaintype addrt d_plainexp addr)
         in
-        (addrt1, addrkind, (fun o -> (Mem addr', o)), 
+        (addrt1, addrkind, (fun o -> (mkMem addr' o)), 
          addrbase1, addrend1, doaddr1)
   in
   if debuglval then
@@ -3998,8 +3999,8 @@ and fexp2exp (fe: fexp) (doe: stmt clist) : expRes =
       in
       (newt,
        append doe caste, 
-       Lval(Mem (doCast (mkAddrOf tmp) (TPtr(newt, []))), 
-            NoOffset))
+       Lval(mkMem (doCast (mkAddrOf tmp) (TPtr(newt, []))) 
+              NoOffset))
 
     (* Box an expression and resolve the fexp into statements *)
 and boxexp (e : exp) : expRes = 
@@ -4225,14 +4226,14 @@ let boxFile file =
                   let callmalloc = 
                     call (Some (var heapVar)) 
                       (Lval(var mallocFun.svar)) 
-                      [ SizeOfE (Lval (Mem (Lval (var heapVar)), NoOffset)) ] 
+                      [ SizeOfE (Lval (mkMem (Lval (var heapVar)) NoOffset)) ] 
                   in
                   (* Now go over all the fields and register their names in a 
                   * hash table *)
                   List.iter (fun fi -> 
                     H.add heapifiedLocals 
-                      fi.fname (Mem (Lval (var heapVar)), 
-                                Field(fi, NoOffset))) 
+                      fi.fname (mkMem (Lval (var heapVar))
+                                  (Field(fi, NoOffset)))) 
                     hCompInfo.cfields;
                   (* Initialize the things to free *)
                   heapifiedFree :=
@@ -4302,14 +4303,14 @@ let boxFile file =
                toList (append inilocals (fromList f.sbody.bstmts));
             H.clear heapifiedLocals;
             heapifiedFree := [];
-            (* Split the local variables *)
-(*            Boxsplit.splitLocals f; *)
+            (* Split the fat local variables *)
+            Boxsplit.splitLocals f; 
             (* Drop it if it is just a model *)
             if not (hasAttribute "boxmodel" f.svar.vattr) then 
               theFile := consGlobal (GFun (f, l)) !theFile
                                         
         | (GAsm _ | GText _ | GPragma _ | GEnumTag _ ) as g -> 
-            theFile := consGlobal g !theFile
+            theFile := consGlobal g !theFile 
     end
 
   and boxglobal vi isdef init (l: location) =

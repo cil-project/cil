@@ -1619,7 +1619,7 @@ and doExp (isconst: bool)    (* In a constant *)
                      d_plaintype t1 d_plaintype t2)
         in
         (* Do some optimization of StartOf *)
-        finishExp se (mkMem e1'' (Index(e2'', NoOffset))) tresult
+        finishExp se (Lval (mkMem e1'' (Index(e2'', NoOffset)))) tresult
 
     end      
     | A.UNARY (A.MEMOF, e) -> 
@@ -1633,7 +1633,7 @@ and doExp (isconst: bool)    (* In a constant *)
                         d_plaintype t)
         in
         finishExp se 
-                  (mkMem e' NoOffset)
+                  (Lval (mkMem e' NoOffset))
                   tresult
 
            (* e.str = (& e + off(str)). If e = (be + beoff) then e.str = (be 
@@ -1674,7 +1674,7 @@ and doExp (isconst: bool)    (* In a constant *)
                      "expecting a struct with field %s. Found %a. t1 is %a" 
                      str d_type x d_type t')
         in
-        finishExp se (mkMem e' (Field(fid, NoOffset))) fid.ftype
+        finishExp se (Lval (mkMem e' (Field(fid, NoOffset)))) fid.ftype
           
           
     | A.CONSTANT ct -> begin

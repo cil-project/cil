@@ -883,7 +883,7 @@ val addOffset:     offset -> offset -> offset
 
   (* Make a Mem, while optimizing StartOf. The type of the addr must be 
    * TPtr(t) and the type of the resulting expression is t *)
-val mkMem: addr:exp -> off:offset -> exp
+val mkMem: addr:exp -> off:offset -> lval
 
 
 val isIntegralType: typ -> bool
