@@ -132,49 +132,55 @@ let rec doType (t: typ) (p: N.place)
           
 
 (* For each node corresponding to a struct or union or array type we will 
- * create successor node corresponding to various offsets. We cache these 
- * nodes indexed by the start node id and the name of the field. In the 
+ * create successor node corresponding to various offsets. In the 
  * particular case of an array, we use the field name "@field" to refer to 
  * the first element *)
-let offsetNodes : (int * string, N.node) H.t = H.create 111
-
 (* Create a new offset node *)
 let newOffsetNode (n: N.node)  (fname: string) 
                   (btype: typ) (battr: attribute list) = 
-  let next = N.newNode (N.POffset(n.N.id, fname)) 0 btype battr in
+  let mkNext () = N.newNode (N.POffset(n.N.id, fname)) 0 btype battr in
+  (* ignore (E.log "newOffsetNode: n=%d, fname=%s\n" n.N.id fname); *)
   (* Add edges between n and next *)
-  (match unrollType n.N.btype with
-    TComp c when not c.cstruct -> (* A union *)
-      N.addEdge n next N.ECast (-1);
-      N.addEdge n next N.ESafe (-1)
-
-  | TArray _ -> (* An index *)
-      N.addEdge n next N.EIndex (-1)
-
-  | TComp c when c.cstruct -> (* A struct *)
-      N.addEdge n next N.ESafe (-1)
-
-  | _ -> E.s (E.bug "Unexpected offset"));
+  let next = 
+    match unrollType n.N.btype with
+      TComp c when not c.cstruct -> (* A union *)
+        let next = mkNext () in
+        N.addEdge n next N.ECast (-1);
+        N.addEdge n next N.ESafe (-1);
+        next
+          
+    | TArray (bt, l, a) -> (* An index *)
+      (* Maybe the array already has a node *)
+        let next = 
+          match N.nodeOfAttrlist a with
+            Some oldn -> 
+              (* ignore (E.log "Reusing node %d\n" oldn.N.id); *)
+              oldn
+          | _ -> 
+              (* ignore (E.log "Creating a node for array\n"); *)
+              mkNext () (* Shouldn't there always be a node here ? *)
+        in
+        N.addEdge n next N.EIndex (-1);
+        next
+          
+    | TComp c when c.cstruct -> (* A struct *)
+        let next = mkNext () in
+        N.addEdge n next N.ESafe (-1);
+        next
+          
+    | _ -> E.s (E.bug "Unexpected offset")
+  in
   next
 
 (* Create a field successor *)
-let fieldOfNode (n: N.node) (fi: fieldinfo) = 
-  try
-    H.find offsetNodes (n.N.id, fi.fname)
-  with Not_found -> 
-    newOffsetNode n fi.fname fi.ftype []
+let fieldOfNode (n: N.node) (fi: fieldinfo) : N.node =
+  newOffsetNode n fi.fname fi.ftype []
 
-let startOfNode (n: N.node) = 
-  try
-    H.find offsetNodes (n.N.id, "@first")
-  with Not_found -> begin
-    match unrollType n.N.btype with
-      TArray (bt, _, _) ->
-        let next = N.newNode (N.POffset(n.N.id, "@first")) 0 bt [] in
-        N.addEdge n next N.EIndex (-1);
-        next
-    | _ -> n (* It is a function *)
-  end
+let startOfNode (n: N.node) : N.node =
+  match unrollType n.N.btype with
+    TArray (bt, _, a) -> newOffsetNode n "@first" bt a
+  | _ -> n (* It is a function *)
+  
     
 
 (* Compute the sign of an expression. Extend this to a real constant folding 
