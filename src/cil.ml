@@ -440,14 +440,6 @@ and binop =
   | Ge                                  (** >  (arithmetic comparison) *)
   | Eq                                  (** == (arithmetic comparison) *)
   | Ne                                  (** != (arithmetic comparison) *)            
-(*
-  | LtP                                 (** <  (pointer comparison) *)
-  | GtP                                 (** >  (pointer comparison) *)
-  | LeP                                 (** <= (pointer comparison) *)
-  | GeP                                 (** >= (pointer comparison) *)
-  | EqP                                 (** == (pointer comparison) *)
-  | NeP                                 (** != (pointer comparison) *)
-*)
   | BAnd                                (** bitwise and *)
   | BXor                                (** exclusive-or *)
   | BOr                                 (** inclusive-or *)
@@ -1013,22 +1005,8 @@ let uintPtrType = TPtr(uintType, [])
 let doubleType = TFloat(FDouble, [])
 
 
-(* An integer type that fits pointers. *)
-let upointType () = 
-  let szptr, szlong, szint = 
-    if !msvcMode then 
-      M.MSVC.sizeof_ptr,M.MSVC.sizeof_long,M.MSVC.sizeof_int
-    else
-      M.GCC.sizeof_ptr,M.GCC.sizeof_long,M.GCC.sizeof_int 
-  in
-  if szlong = szptr then 
-    TInt(IULong, []) 
-  else if szint = szptr then 
-    TInt(IUInt, [])
-  else
-    E.s (E.unimp "Cannot find the size of the integer as wide as a pointer")
-
-
+(* An integer type that fits pointers. Initialized by initCIL *)
+let upointType = ref voidType 
 
 let mkStmt (sk: stmtkind) : stmt = 
   { skind = sk;
@@ -1395,7 +1373,7 @@ let getParenthLevel = function
   | BinOp((BOr|BXor|BAnd),_,_,_) -> bitwiseLevel (* 75 *)
 
                                         (* Comparisons *)
-  | BinOp((Eq|Ne|Gt|Lt|Ge|Le(*|EqP|NeP|GtP|LtP|GeP|LeP*)),_,_,_) -> 70
+  | BinOp((Eq|Ne|Gt|Lt|Ge|Le),_,_,_) -> 70
                                         (* Additive. Shifts can have higher 
                                          * level but I want parentheses 
                                          * around them *)
@@ -1627,12 +1605,12 @@ and d_binop () b =
   | Mod -> text "%"
   | Shiftlt -> text "<<"
   | Shiftrt -> text ">>"
-  | Lt (* | LtP *) -> text "<"
-  | Gt (*| GtP *) -> text ">"
-  | Le (*| LeP  *)-> text "<="
-  | Ge (*| GeP  *)-> text ">="
-  | Eq (*| EqP  *)-> text "=="
-  | Ne (*| NeP  *)-> text "!="
+  | Lt -> text "<"
+  | Gt -> text ">"
+  | Le -> text "<="
+  | Ge -> text ">="
+  | Eq -> text "=="
+  | Ne -> text "!="
   | BAnd -> text "&"
   | BXor -> text "^"
   | BOr -> text "|"
@@ -4529,3 +4507,21 @@ let computeCFGInfo (f : fundec) : stmt list =
   let res = !statements in
   statements := [];
   res
+
+let initCIL () = 
+  let szptr, szlong, szint = 
+    if !msvcMode then 
+      M.MSVC.sizeof_ptr,M.MSVC.sizeof_long,M.MSVC.sizeof_int
+    else
+      M.GCC.sizeof_ptr,M.GCC.sizeof_long,M.GCC.sizeof_int 
+  in
+  upointType := 
+     if szlong = szptr then 
+       TInt(IULong, []) 
+     else if szint = szptr then 
+       TInt(IUInt, [])
+     else
+       E.s (E.unimp "Cannot find the size of the integer as wide as a pointer")
+
+
+  

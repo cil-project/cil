@@ -40,6 +40,10 @@
 (** CIL API Documentation. An html version of this document can be found at 
  * http://manju.cs.berkeley.edu/cil. *)
 
+(** Call this function to perform some initialization. Call if after you have 
+ * set {!Cil.msvcMode}.  *)
+val initCIL: unit -> unit
+
 (** This module defines the abstract syntax of CIL. It also provides utility 
  * functions for traversing the CIL data structures, and pretty-printing 
  * them. The parser for both the GCC and MSVC front-ends can be invoked as 
@@ -587,14 +591,6 @@ and binop =
   | Ge                                  (** >  (arithmetic comparison) *)
   | Eq                                  (** == (arithmetic comparison) *)
   | Ne                                  (** != (arithmetic comparison) *)            
-(*
-  | LtP                                 (** <  (pointer comparison) *)
-  | GtP                                 (** >  (pointer comparison) *)
-  | LeP                                 (** <= (pointer comparison) *)
-  | GeP                                 (** >= (pointer comparison) *)
-  | EqP                                 (** == (pointer comparison) *)
-  | NeP                                 (** != (pointer comparison) *)
-*)
   | BAnd                                (** bitwise and *)
   | BXor                                (** exclusive-or *)
   | BOr                                 (** inclusive-or *)
@@ -1043,8 +1039,9 @@ val uintPtrType: typ
 (** double *)
 val doubleType: typ
 
-(** An integer type that fits pointers. Depends on {!Cil.msvcMode} *)
-val upointType: unit -> typ
+(** An integer type that fits pointers. Depends on {!Cil.msvcMode} 
+    and is set when CIL starts. *)
+val upointType: typ ref
 
 
 (** Creates a a (potentially recursive) composite type. The arguments are: 
@@ -1539,7 +1536,7 @@ val visitCilAttributes: cilVisitor -> attribute list -> attribute list
 (** {b Utility functions} *)
 
 (** Whether the pretty printer should print output for the MS VC compiler.
-   Default is GCC *)
+   Default is GCC. After you set this function you should call {!Cil.initCIL}. *)
 val msvcMode: bool ref               
 
 (** Whether to print line numbers *)

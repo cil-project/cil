@@ -498,23 +498,12 @@ and checkExp (isconst: bool) (e: exp) : typ =
               typeMatch t1 tres;
               checkIntegralType t2;
               tres
-          | (MinusPP(* | EqP | NeP | LtP | LeP | GeP | GtP*))  -> 
+          | MinusPP  -> 
               checkPointerType t1; checkPointerType t2;
               typeMatch t1 t2;
               typeMatch tres intType;
               tres
       end
-(*
-      | Question (eb, et, ef) -> 
-          if not isconst then
-            ignore (warn "Question operator not in a constant\n");
-          let tb = checkExp isconst eb in
-          checkBooleanType tb;
-          let tt = checkExp isconst et in
-          let tf = checkExp isconst ef in
-          typeMatch tt tf;
-          tt
-*)
       | AddrOf (lv) -> begin
           let tlv = checkLval isconst lv in
           (* Only certain types can be in AddrOf *)

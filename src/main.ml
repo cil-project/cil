@@ -235,6 +235,8 @@ let rec theMain () =
 
     (* parse the command-line arguments *)
     Arg.parse argDescr recordFile usageMsg;
+    Cil.initCIL ();
+
     fileNames := List.rev !fileNames;
 
     if !testcil <> "" then begin

@@ -650,8 +650,6 @@ let currentReturnType : typ ref = ref (TVoid([]))
 let currentFunctionVI : varinfo ref = ref dummyFunDec.svar
 
 
-let upointType = ref intType
-
 (* A simple visitor that searchs a statement for labels *)
 class canDropStmtClass pRes = object
   inherit nopCilVisitor
@@ -3534,13 +3532,6 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
         constFoldBinOp false bop (mkCastT e1 t1 tres) (mkCastT e2 t2 tres) tres
     | _ -> E.s (error "%a operator on a non-integer type" d_binop bop)
   in
-(*
-  let bop2point = function
-      MinusA -> MinusPP
-    | Eq -> EqP | Ge -> GeP | Ne -> NeP | Gt -> GtP | Le -> LeP | Lt -> LtP
-    | _ -> E.s (error "bop2point")
-  in
-*)
   let pointerComparison e1 t1 e2 t2 = 
     (* Cast both sides to an integer *)
     let commontype = !upointType in
@@ -3577,7 +3568,12 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
   | MinusA when isPointerType t1 && isIntegralType t2 -> 
       t1, 
       constFoldBinOp false MinusPI e1 (mkCastT e2 t2 (integralPromotion t2)) t1
-  | (MinusA|Le|Lt|Ge|Gt|Eq|Ne) when isPointerType t1 && isPointerType t2 ->
+  | MinusA when isPointerType t1 && isPointerType t2 ->
+      let commontype = t1 in
+      intType,
+      constFoldBinOp false MinusPP (mkCastT e1 t1 commontype) 
+                                   (mkCastT e2 t2 commontype) intType
+  | (Le|Lt|Ge|Gt|Eq|Ne) when isPointerType t1 && isPointerType t2 ->
       pointerComparison e1 t1 e2 t2
   | (Eq|Ne) when isPointerType t1 && isZero e2 -> 
       pointerComparison e1 t1 (mkCastT zero intType t1) t1
@@ -5043,7 +5039,6 @@ let convFile ((fname : string), (dl : Cabs.definition list)) : Cil.file =
   E.hadErrors := false;
   initGlobals();
   startFile ();
-  upointType := Cil.upointType ();
   H.clear compInfoNameEnv;
   H.clear enumInfoNameEnv;
   H.clear mustTurnIntoDef;
