@@ -273,7 +273,6 @@ SAFECLIB=obj/safec.$(LIBEXT)
 else
 SAFECLIB=obj/safecdebug.$(LIBEXT)
 endif
-SAFEMAINLIB=obj/safecmain.$(LIBEXT)
 
 
 # By default take manual box definitions into consideration
@@ -286,7 +285,7 @@ endif
 ifdef NOREMAKE
 defaulttarget : 
 else
-defaulttarget : $(EXECUTABLE)$(EXE) $(SAFECLIB) $(SAFEMAINLIB)
+defaulttarget : $(EXECUTABLE)$(EXE) $(SAFECLIB)
 endif
 
 .PHONY: trval
@@ -445,10 +444,6 @@ $(SAFECLIB) : lib/safec.c lib/safec.h lib/safeccheck.h lib/splay.c
 	cl $(DOOPT) /I./lib /c $(DEF)_MSVC $(SAFECLIBARG) \
                                            $(OBJOUT)obj/splay.o lib/splay.c
 	lib /OUT:$@ obj/safec.o obj/splay.o 
-
-$(SAFEMAINLIB) : lib/safecmain.c lib/safec.h lib/safeccheck.h
-	cl $(DOOPT) /I./lib /c $(DEF)_MSVC $(OBJOUT)obj/safecmain.o $<
-	lib /OUT:$@ obj/safecmain.o 
 endif
 
 # Libraries on GCC
@@ -464,9 +459,6 @@ $(SAFECLIB) : lib/safec.c $(GCLIB) lib/splay.o
 	fi
 	ar -r $@ obj/safec.o lib/splay.o
 
-$(SAFEMAINLIB) : lib/safecmain.c lib/safec.h lib/safeccheck.h
-	$(CC) $(OBJOUT)obj/safecmain.o $<
-	ar -r $@ obj/safecmain.o
 endif
 
 
@@ -501,12 +493,6 @@ testpcc/% : $(PCCDIR)/src/%.c defaulttarget
 ifdef _MSVC
 MSLINK=--mode=mscl
 endif
-ifdef BOX
-ifndef INFERBOX
-ENGINE_OTHERS="$(CILDIR)/$(SAFEMAINLIB)"
-TRANSLF_OTHERS="$(CILDIR)/$(SAFEMAINLIB)"
-endif
-endif
 PCCSAFECC=$(SAFECC) --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) --combine \
                     --keep=$(CILDIR)/test/PCCout \
                     --nobox=pccbox
@@ -519,8 +505,6 @@ pcc : defaulttarget
              LD="$(SAFECC) $(MSLINK) --combine --keep=$(CILDIR)/test/PCCout" \
              USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
              COMPILER=$(PCCCOMP) \
-             ENGINE_OTHERS=$(ENGINE_OTHERS) \
-             TRANSLF_OTHERS=$(TRANSLF_OTHERS) \
 	     clean defaulttarget 
 
 pcc-combined: defaulttarget
@@ -747,11 +731,6 @@ espresso: defaulttarget
 
 HUFFCOMPILE=$(SAFECC) $(DEF)NOVARARG --combine --keep=. 
 # HUFFCOMPILE=cl /MLd
-ifdef BOX
-HUFFOTHERS=$(CILDIR)/$(SAFEMAINLIB) 
-else
-HUFFOTHERS=
-endif
 ifdef _GNUCC
 HUFFOTHERS += -lm
 endif
@@ -902,15 +881,9 @@ COMBINESAFECC = $(SAFECC) --combine $(DOOPT)
 #
 # Barnes-Hut
 BHDIR=test/olden/bh
-ifdef BOX
-BHEXTRA=$(CILDIR)/$(SAFEMAINLIB)
-else
-BHEXTRA=
-endif
 bh : defaulttarget mustbegcc
 	cd $(BHDIR); rm code.exe *.o; \
-               make EXTRA_LIBS=$(BHEXTRA) \
-                    CC="$(COMBINESAFECC) --nobox=bhbox \
+               make CC="$(COMBINESAFECC) --nobox=bhbox \
 			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
 	echo  >$(BHDIR)/data.in
 	echo  >>$(BHDIR)/data.in
@@ -931,18 +904,12 @@ bh : defaulttarget mustbegcc
 
 # Power pricing
 PWDIR=test/olden/power
-ifdef BOX
-PWEXTRA=$(CILDIR)/$(SAFEMAINLIB)
-else
-PWEXTRA=
-endif
 ifdef _GNUCC
 PWEXTRA += -lm
 endif
 power : defaulttarget mustbegcc
 	cd $(PWDIR); \
                make PLAIN=1 clean defaulttarget \
-                    EXTRA_LIBS="$(PWEXTRA)" \
                     CC="$(COMBINESAFECC) \
 			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
 	cd $(PWDIR); ./power.exe
@@ -953,19 +920,13 @@ power-combined : defaulttarget mustbegcc
 
 # Health care simulation
 HEALTHDIR=test/olden/health
-ifdef BOX
-HEALTHEXTRA=$(CILDIR)/$(SAFEMAINLIB)
-else
-HEALTHEXTRA=
-endif
 ifdef _MSVC
 HEALTHARGS = _MSVC=1
 endif
 health : defaulttarget
 	cd $(HEALTHDIR); \
                make PLAIN=1 clean defaulttarget \
-                    EXTRA_LIBS=$(HEALTHEXTRA) \
-	            $(HEALTHARGS) \
+                    $(HEALTHARGS) \
                     CC="$(COMBINESAFECC) \
 			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
 	cd $(HEALTHDIR); ./health.exe
@@ -974,19 +935,13 @@ health : defaulttarget
 
 # Perimeter of regions in images
 PERIMDIR=test/olden/perimeter
-ifdef BOX
-PERIMEXTRA=$(CILDIR)/$(SAFEMAINLIB)
-else
-PERIMEXTRA=
-endif
 ifdef _MSVC
 PERIMARGS = _MSVC=1
 endif
 perimeter : defaulttarget
 	cd $(PERIMDIR); \
                make PLAIN=1 clean defaulttarget \
-                    EXTRA_LIBS=$(PERIMEXTRA) \
-	            $(PERIMARGS) \
+                    $(PERIMARGS) \
                     CC="$(COMBINESAFECC) \
 			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
 	cd $(PERIMDIR); ./perimeter.exe
@@ -994,30 +949,19 @@ perimeter : defaulttarget
 
 # Voronoi diagrams
 VORONDIR=test/olden/voronoi
-ifdef BOX
-VORONEXTRA=$(CILDIR)/$(SAFEMAINLIB)
-else
-VORONEXTRA=
-endif
 ifdef _MSVC
 VORONARGS = _MSVC=1
 endif
 voronoi : defaulttarget
 	cd $(VORONDIR); \
                make PLAIN=1 clean defaulttarget \
-                    EXTRA_LIBS=$(VORONEXTRA) \
-	            $(VORONARGS) \
+                    $(VORONARGS) \
                     CC="$(COMBINESAFECC) \
 			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
 	cd $(VORONDIR); ./voronoi.exe
 
 # Traveling salesman
 TSPDIR=test/olden/tsp
-ifdef BOX
-TSPEXTRA=$(CILDIR)/$(SAFEMAINLIB)
-else
-TSPEXTRA=
-endif
 ifdef _MSVC
 TSPARGS = _MSVC=1
 endif
@@ -1027,8 +971,7 @@ endif
 tsp : defaulttarget
 	cd $(TSPDIR); \
                make PLAIN=1 clean defaulttarget \
-                    EXTRA_LIBS="$(TSPEXTRA)" \
-	            $(TSPARGS) \
+                    $(TSPARGS) \
                     CC="$(COMBINESAFECC) \
 			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
 	cd $(TSPDIR); ./tsp.exe
@@ -1036,19 +979,13 @@ tsp : defaulttarget
 
 # Bitonic sort
 BISORTDIR=test/olden/bisort
-ifdef BOX
-BISORTEXTRA=$(CILDIR)/$(SAFEMAINLIB)
-else
-BISORTEXTRA=
-endif
 ifdef _MSVC
 BISORTARGS = _MSVC=1
 endif
 bisort : defaulttarget
 	cd $(BISORTDIR); \
                make PLAIN=1 clean defaulttarget \
-                    EXTRA_LIBS=$(BISORTEXTRA) \
-	            $(BISORTARGS) \
+                    $(BISORTARGS) \
                     CC="$(COMBINESAFECC) \
 			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
 
@@ -1079,31 +1016,19 @@ compress-noclean: defaulttarget mustbegcc
 	echo "14000000 q 2231" >$(COMPRESSDIR)/exe/base/input.data 
 	sh -c "time $(COMPRESSDIR)/exe/base/compress95.v8 < $(COMPRESSDIR)/exe/base/input.data > $(COMPRESSDIR)/src/combine-compress.out"
 
-ifdef BOX
-COMPRESSEXTRA=$(CILDIR)/$(SAFEMAINLIB) 
-else
-COMPRESSEXTRA=
-endif
 compress: defaulttarget mustbegcc
 	cd $(COMPRESSDIR)/src; \
-               make EXTRA_LIBS=$(COMPRESSEXTRA) \
-                    CC="$(COMBINESAFECC) --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)" clean build
+               make CC="$(COMBINESAFECC) --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)" clean build
 	echo "14000000 q 2231" >$(COMPRESSDIR)/exe/base/input.data 
 	sh -c "time $(COMPRESSDIR)/exe/base/compress95.v8 < $(COMPRESSDIR)/exe/base/input.data > $(COMPRESSDIR)/src/combine-compress.out"
 
 LIDIR=$(SPECDIR)/130.li
 LISAFECC=$(SAFECC) --combine --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) \
                    --keep=safeccout $(NOPRINTLN)
-ifdef BOX
-LIEXTRA=$(CILDIR)/$(SAFEMAINLIB)
-else
-LIEXTRA=
-endif
 li: defaulttarget mustbegcc
 	cd $(LIDIR)/src; \
             make clean build CC="$(LISAFECC) $(CONLY)" \
-                             LD="$(LISAFECC)" \
-                             EXTRA_LIBS=$(LIEXTRA)
+                             LD="$(LISAFECC)"
 	sh -c "time $(LIDIR)/src/trial_li \
             <$(LIDIR)/data/train/input/train.lsp \
             >$(LIDIR)/data/train/input/train.out"
@@ -1136,11 +1061,6 @@ liinfer: li
 GODIR=$(SPECDIR)/099.go
 GOSAFECC=$(SAFECC) --combine  --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) \
                    --keep=safeccout $(NOPRINTLN)
-ifdef BOX
-GOEXTRA=$(CILDIR)/$(SAFEMAINLIB)
-else
-GOEXTRA=
-endif
 
 goclean: 	
 	cd $(GODIR)/src; make clean
@@ -1150,8 +1070,7 @@ goclean:
 go: defaulttarget mustbegcc
 	cd $(GODIR)/src; \
             make clean build CC="$(GOSAFECC) $(CONLY)" \
-                             LD="$(GOSAFECC)" \
-                             EXTRA_LIBS=$(GOEXTRA)
+                             LD="$(GOSAFECC)"
 	$(GODIR)/src/go 50 9
 
 go-combined: defaulttarget mustbegcc
@@ -1171,11 +1090,6 @@ go-noclean: defaulttarget mustbegcc
 ### SPEC95 vortex
 VORDIR=$(SPECDIR)/147.vortex
 VORSAFECC=$(SAFECC) --combine   --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) --keep=safeccout
-ifdef BOX
-VOREXTRA=$(CILDIR)/$(SAFEMAINLIB)
-else
-VOREXTRA=
-endif
 
 vortexclean: 	
 	cd $(VORDIR)/src; make clean
@@ -1184,16 +1098,14 @@ vortexclean:
 vortex: defaulttarget mustbegcc
 	cd $(VORDIR)/src; \
             make clean build CC="$(VORSAFECC) $(CONLY)" \
-                             LD="$(VORSAFECC)" \
-                             EXTRA_LIBS=$(VOREXTRA)
+                             LD="$(VORSAFECC)"
 	sh -c "time $(VORDIR)/exe/base/vortex.ultra \
             <$(VORDIR)/data/test/input/vortex.raw"
 
 vortex-noclean: defaulttarget mustbegcc
 	cd $(VORDIR)/src; \
             make build CC="$(VORSAFECC) $(CONLY)" \
-                       LD="$(VORSAFECC)" \
-                       EXTRA_LIBS=$(VOREXTRA) 
+                       LD="$(VORSAFECC)"
 	sh -c "time $(VORDIR)/exe/base/vortex.ultra \
             <$(VORDIR)/data/test/input/vortex.raw"
 
@@ -1206,11 +1118,6 @@ vortex-combined: defaulttarget mustbegcc
 M88DIR=$(SPECDIR)/124.m88ksim
 M88SAFECC=$(SAFECC) --combine --keep=safeccout \
                     --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) 
-ifdef BOX
-M88EXTRA=$(CILDIR)/$(SAFEMAINLIB)
-else
-M88EXTRA=
-endif
 
 m88kclean: 	
 	cd $(M88DIR)/src; make clean
@@ -1219,8 +1126,7 @@ m88kclean:
 m88k: defaulttarget mustbegcc m88kclean
 	cd $(M88DIR)/src; \
             make    build CC="$(M88SAFECC) $(CONLY)" \
-                          LD="$(M88SAFECC)" \
-                          EXTRA_LIBS=$(M88EXTRA) 
+                          LD="$(M88SAFECC)" 
 #	sh -c "time $(M88DIR)/exe/base/m88ksim.ultra"
 
 m88k-noclean: defaulttarget mustbegcc
@@ -1239,11 +1145,6 @@ IJPEGDIR=$(SPECDIR)/132.ijpeg
 IJPEGSAFECC=$(SAFECC) --combine --keep=safeccout  \
                   --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) \
                   --nobox=ijpegbox $(NOPRINTLN)
-ifdef BOX
-IJPEGEXTRA=$(CILDIR)/$(SAFEMAINLIB)
-else
-IJPEGEXTRA=
-endif
 ifeq ($(ARCHOS), x86_WIN32)
 IJPEGSAFECC += -DWIN32 -DMSDOS
 endif
@@ -1254,8 +1155,7 @@ ijpegclean:
 ijpeg: defaulttarget mustbegcc
 	cd $(IJPEGDIR)/src; \
             make clean build CC="$(IJPEGSAFECC) $(CONLY)" \
-                             LD="$(IJPEGSAFECC)" \
-                             EXTRA_LIBS=$(IJPEGEXTRA)
+                             LD="$(IJPEGSAFECC)"
 	sh -c "time $(IJPEGDIR)/exe/base/ijpeg.ultra \
             -image_file $(IJPEGDIR)/data/ref/input/penguin.ppm \
             -GO"

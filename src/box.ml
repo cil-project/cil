@@ -403,7 +403,8 @@ let getFieldsOfFat (t: typ)
       | _ -> E.s (bug "getFieldsOfFat")
     end
   | _ -> E.s (bug "getFieldsOfFat %a\n" d_type t)
-        
+     
+
 (* Given an expression of a fat type, return three expressions, encoding the 
  * pointer, the base and the end. Also return the type of the first 
  * expression *)
@@ -602,6 +603,42 @@ let memcpyWWWFun =
    * does not make sense 
   checkFunctionDecls := 
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls; *)
+  fdec
+
+let mainWrapper =   
+  let fdec = emptyFunction "_mainWrapper" in
+  let argc  = makeLocalVar fdec "argc" intType in
+  let argv  = makeLocalVar fdec "argv" (TPtr(charPtrType, [])) in
+  fdec.svar.vtype <- TFun(intType, [ argc; argv ], false, []);
+  checkFunctionDecls := 
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
+  fdec
+
+let mainWrapper_w =   
+  let fdec = emptyFunction "_mainWrapper_w" in
+  let argc  = makeLocalVar fdec "argc" intType in
+  let argv  = makeLocalVar fdec "argv" (TPtr(charPtrType, [])) in
+  fdec.svar.vtype <- TFun(intType, [ argc; argv ], false, []);
+  checkFunctionDecls := 
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
+  fdec
+
+let mainWrapper_fs =   
+  let fdec = emptyFunction "_mainWrapper_fs" in
+  let argc  = makeLocalVar fdec "argc" intType in
+  let argv  = makeLocalVar fdec "argv" (TPtr(charPtrType, [])) in
+  fdec.svar.vtype <- TFun(intType, [ argc; argv ], false, []);
+  checkFunctionDecls := 
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
+  fdec
+
+let mainWrapper_qw =   
+  let fdec = emptyFunction "_mainWrapper_qw" in
+  let argc  = makeLocalVar fdec "argc" intType in
+  let argv  = makeLocalVar fdec "argv" (TPtr(charPtrType, [])) in
+  fdec.svar.vtype <- TFun(intType, [ argc; argv ], false, []);
+  checkFunctionDecls := 
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fdec
 
 
@@ -2844,7 +2881,8 @@ let getFieldsOfSized (t: typ) : fieldinfo * fieldinfo =
 (* Remember names that we have already mangled *)
 let mangledNames : (string, unit) H.t = H.create 123
 (* Remeber if we mangled the name of main *)
-let mangledMainName : string ref = ref "main"
+let mangledMainName : string ref = ref "" (* We'll set this to the mangled 
+                                           * name for main, if we see one *)
 let fixupGlobName vi =
   (* Scan a type and compute a list of qualifiers that distinguish the
    * various possible combinations of qualifiers *)
@@ -2867,18 +2905,15 @@ let fixupGlobName vi =
 
     (* We only go into struct that we created as part of "sized" or "seq" or 
      * "fatp" *)
-    | TComp (comp, _) -> begin
-        try
-          let data_type = 
-            match comp.cfields with
-              [p;b] when p.fname = "_p" && b.fname = "_b" -> p.ftype
-            | [p;b;e] when p.fname = "_p" && b.fname = "_b" && e.fname = "_e" 
-              -> p.ftype
-            | [s;a] when s.fname = "_size" && a.fname = "_array" -> a.ftype
-            | _ -> raise Not_found
-          in
-          qualNames acc data_type
-        with Not_found -> acc
+    | (TComp (comp, _) as t) -> begin
+        if isFatComp comp then 
+          let pf, _, _ = getFieldsOfFat t in
+          qualNames acc pf.ftype
+        else 
+          match comp.cfields with
+          | [s;a] when s.fname = "_size" && a.fname = "_array" -> 
+              qualNames acc a.ftype
+          | _ -> acc
     end
   in
   (* weimer: static things too! *)
@@ -2900,9 +2935,13 @@ let fixupGlobName vi =
           vi.vname ^ "_" ^ (List.fold_left (fun acc x -> x ^ acc) "" quals)
       in
       H.add mangledNames newname ();
-      if vi.vname = "main" && vi.vstorage <> Static then
-        mangledMainName := newname;
-      vi.vname <- newname
+      if vi.vname = "main" && vi.vstorage <> Static then 
+        begin
+          (* Change the name of "main" to "trueMain" *)
+          mangledMainName := newname;
+          vi.vname <- "trueMain";
+        end else
+        vi.vname <- newname
     end
 
 (*** Intercept some function calls *****)
@@ -3535,6 +3574,7 @@ let boxFile file =
   ignore (E.log "Boxing file\n");
   E.hadErrors := false;
   currentFile := file;
+  mangledMainName := ""; (* We have not yet seen main *)
   let boxing = ref true in
   (* Compute a small file ID *)
   let _ = 
@@ -3796,6 +3836,37 @@ let boxFile file =
         | _ -> E.s (bug "box: Cannot find global initializer")
     end
   in
+  (* Now if we have mangled the "main" we must add a dummy main that goes 
+   * into a library function *)
+  if !mangledMainName <> "" then begin
+    let mainWrapperFun = 
+      match !mangledMainName with
+      | "main" -> mainWrapper
+      | "main_w" -> mainWrapper_w
+      | "main_fs" -> mainWrapper_fs
+      | "main_qw" -> mainWrapper_qw
+      | _ -> E.s (E.unimp "Din't expect to mangle the name of main to %s"
+                    !mangledMainName)
+    in
+    let main = emptyFunction "main" in
+    let argc  = makeLocalVar main "argc" intType in
+    let argv  = makeLocalVar main "argv" (TPtr(charPtrType, [])) in
+    main.svar.vtype <- TFun(intType, [ argc; argv ], false, []);
+    setFormals main [argc; argv];
+    (* And remove them from the locals *)
+    main.slocals <- [];
+    let exitcode = makeLocalVar main "exitcode" intType in
+    (* Now build a body that calls the wrapper *)
+    main.sbody <- 
+       mkStmtOneInstr 
+         (Call (Some (exitcode, false), Lval (var mainWrapperFun.svar),
+                [ Lval (var argc); Lval (var argv) ], lu))
+       ::
+       mkStmt (Return (Some (Lval (var exitcode)), lu)) 
+       ::
+       [];
+    theFile := GFun (main, lu) :: !theFile
+  end;
   let res = List.rev (!theFile) in
   (* Clean up global hashes to avoid retaining garbage *)
   H.clear hostsOfBitfields;
@@ -3807,7 +3878,7 @@ let boxFile file =
   extraGlobInit := empty;
   theFile := [];
   let res = {file with globals = res; globinit = newglobinit} in
-  Globinit.insertGlobInit ~mainname:!mangledMainName res ;
+  Globinit.insertGlobInit res ;
   if showGlobals then ignore (E.log "Finished boxing file\n");
   res
 
