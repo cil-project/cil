@@ -94,7 +94,7 @@ GCLIB := $(CCUREDHOME)/lib/gc/$(COMPILERNAME)/gc.$(LIBEXT)
 ifdef _MSVC 
   GCMAKE := make -f Makefile.msvc srcdir=..
 else
-  GCMAKE := make -f ../Makefile srcdir=..
+  GCMAKE := env MAKEFLAGS= make -f ../Makefile srcdir=..
 endif
 # pretend it's only dependent on one file; that's not true of course,
 # but we rarely (ever?) modify the gc's sources, and one dependency
