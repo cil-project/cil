@@ -60,19 +60,19 @@ let rec type_congruent (t1 : typ) (q1 : pointerkind)
         (fields_match c1.cfields c2.cfields) &&
         (fields_match c2.cfields c1.cfields)
     end
-
-    (* a structure with one element is equal to that element *)
-  | TComp(c1),_ when ((List.length c1.cfields) = 1) ->
-    let f1 = List.hd c1.cfields in type_congruent f1.ftype q1 t2 q2 
-  | _,TComp(c2) when ((List.length c2.cfields) = 1) ->
-    let f2 = List.hd c2.cfields in type_congruent t1 q1 f2.ftype q2
-
     (* structures match if all of their fields match in order *)
   | TComp(c1),TComp(c2) when (c1.cstruct) && (c2.cstruct) -> 
     (c1.cname = c2.cname) || 
     (((List.length c1.cfields) = (List.length c2.cfields)) && 
     List.for_all2 (fun f1 f2 -> type_congruent f1.ftype q1 f2.ftype q2) 
       c1.cfields c2.cfields)
+
+
+    (* a structure with one element is equal to that element *)
+  | TComp(c1),_ when ((List.length c1.cfields) = 1) ->
+    let f1 = List.hd c1.cfields in type_congruent f1.ftype q1 t2 q2 
+  | _,TComp(c2) when ((List.length c2.cfields) = 1) ->
+    let f2 = List.hd c2.cfields in type_congruent t1 q1 f2.ftype q2
 
     (* t and t[1] are the same *)
   | (x,TArray(t,eo,al)) when (type_congruent x q1 t q2) -> begin
