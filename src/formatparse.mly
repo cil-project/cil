@@ -42,8 +42,8 @@ open Pretty
 module E = Errormsg
 
 let parse_error msg : 'a =           (* sm: c++-mode highlight hack: -> ' <- *)
-  Errormsg.hadErrors := true;
-  Formatlex.display_error
+  E.hadErrors := true;
+  E.parse_error
     msg
     (Parsing.symbol_start ()) (Parsing.symbol_end ())
 
@@ -57,7 +57,7 @@ let getArg (argno: int) (args: formatArg list) =
     List.nth args argno
   with _ -> 
     E.s (bug "Pattern string %s does not have enough arguments\n"
-           !Formatlex.currentPattern)
+           !E.currentPattern)
 
 let wrongArgType (which: int) (expected: string) (found: formatArg) = 
   E.s (bug "Expecting %s argument (%d) and found %a\n" 

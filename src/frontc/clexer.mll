@@ -43,23 +43,17 @@
 open Cparser
 exception Eof
 exception InternalError of string
-
+module E = Errormsg
+module H = Hashtbl
 
 (*
 ** Keyword hashtable
 *)
-module HashString =
-struct
-	type t = string
-	let equal (s1 : t) (s2 : t) = s1 = s2
-	let hash (s : t) = Hashtbl.hash s
-end
-module StringHashtbl = Hashtbl.Make(HashString)
-let lexicon = StringHashtbl.create 211
+let lexicon = H.create 211
 let init_lexicon _ =
-  StringHashtbl.clear lexicon;
+  H.clear lexicon;
   List.iter 
-    (fun (key, token) -> StringHashtbl.add lexicon key token)
+    (fun (key, token) -> H.add lexicon key token)
     [ ("auto", AUTO);
       ("const", CONST); ("__const", CONST); ("__const__", CONST);
       ("static", STATIC);
@@ -132,7 +126,7 @@ let init_lexicon _ =
  * be reinstated when we exit this context *)
 let add_type name =
    (* ignore (print_string ("adding type name " ^ name ^ "\n"));  *)
-   StringHashtbl.add lexicon name (NAMED_TYPE name)
+   H.add lexicon name (NAMED_TYPE name)
 
 let context : string list list ref = ref []
 
@@ -141,11 +135,11 @@ let push_context _ = context := []::!context
 let pop_context _ = 
   match !context with
     [] -> raise (InternalError "Empty context stack")
-	| con::sub ->
+  | con::sub ->
 		(context := sub;
 		List.iter (fun name -> 
                            (* ignore (print_string ("removing lexicon for " ^ name ^ "\n")); *)
-                            StringHashtbl.remove lexicon name) con)
+                            H.remove lexicon name) con)
 
 (* Mark an identifier as a variable name. The old mapping is preserved and 
  * will be reinstated when we exit this context  *)
@@ -155,122 +149,41 @@ let add_identifier name =
   | con::sub ->
       (context := (name::con)::sub;
        (*                print_string ("adding IDENT for " ^ name ^ "\n"); *)
-       StringHashtbl.add lexicon name (IDENT name))
+       H.add lexicon name (IDENT name))
 
 
 (*
 ** Useful primitives
 *)
-let rem_quotes str = String.sub str 1 ((String.length str) - 2)
-let scan_ident id = try StringHashtbl.find lexicon id
+let scan_ident id = try H.find lexicon id
 	with Not_found -> IDENT id  (* default to variable name, as opposed to type *)
-
-(* Change \ into / in file names. To avoid complications with escapes *)
-let cleanFileName str = 
-  let str1 = if str <> "" && String.get str 0 = '"' (* '"' *) 
-        then rem_quotes str else str in
-  let l = String.length str1 in
-  let rec loop (copyto: int) (i: int) = 
-     if i >= l then 
-         String.sub str1 0 copyto
-     else 
-       let c = String.get str1 i in
-       if c <> '\\' then begin
-          String.set str1 copyto c; loop (copyto + 1) (i + 1)
-       end else begin
-          String.set str1 copyto '/';
-          if i < l - 2 && String.get str1 (i + 1) = '\\' then
-              loop (copyto + 1) (i + 2)
-          else 
-              loop (copyto + 1) (i + 1)
-       end
-  in
-  loop 0 0
 
 
 (*
 ** Buffer processor
 *)
  
-(*** input handle ***)
-let currentLine = ref 0 (* the index of the current line *)
-
-let currentFile = ref "" (* The file in which we are *)
-
-let startLine = ref 0 (* the position in the buffer where the current line 
-                       * starts *)
-
 let attribDepth = ref 0 (* Remembers the nesting level when parsing 
                          * attributes *)
-(* The current lexing buffer *)
-let currentLexBuf = ref (Lexing.from_string "")
 
-let getCurrentByte () =
-  Lexing.lexeme_start !currentLexBuf
 
-let newline () = 
-  incr currentLine;
-  startLine := Lexing.lexeme_start !currentLexBuf
-
-(*** syntax error building
-let underline_error (buffer : string) (start : int) (stop : int) =
-  let len = String.length buffer in
-  let start' = min (max 0 start) (len - 1) in
-  let stop' = min (max start' stop) (len - 1) in
-  (
-  (if start' > 0 then (String.sub buffer 0 start') else "")
-  ^ "\027[4m"
-  ^ (if (stop' - start') <> 0
-  then (String.sub buffer start' (stop' - start' ) )
-  else ""
-      )
-  ^ "\027[0m"
-  ^ (if stop' < len then (String.sub buffer stop' (len - stop') ) else "")
-      )
-*)
-    
-(* Weimer: Sun Dec  9 18:13:58  2001
- * Rupak reports that scrolling too many errors can lock up his
- * terminal. *)
-let num_errors = ref 0
-let max_errors = ref 20 
-
-let display_error msg token_start token_end =
-  let adjStart = 
-    if token_start < !startLine then 0 else token_start - !startLine in
-  let adjEnd = 
-    if token_end < !startLine then 0 else token_end - !startLine in
-  output_string 
-    stderr
-    (!currentFile ^ "[" ^ (string_of_int !currentLine) ^ ":" 
-                        ^ (string_of_int adjStart) ^ "-" 
-                        ^ (string_of_int adjEnd) 
-                  ^ "]"
-     ^ " : " ^ msg);
-  output_string stderr "\n";
-  flush stderr ;
-  incr num_errors ;
-  if !num_errors > !max_errors then begin
-    output_string stderr "Too many errors. Aborting.\n" ;
-    exit 1 
-  end
-
-let init ~(filename: string) 
-         ~(inchannel: in_channel) : Lexing.lexbuf =
-  num_errors := 0;
-  currentLine := 1;
-  startLine := 0;
-  currentFile := cleanFileName filename;
+let init ~(filename: string) : Lexing.lexbuf =
   attribDepth := 0;
   init_lexicon ();
-  let lexbuf = Lexing.from_channel inchannel in
-  currentLexBuf := lexbuf;
-  lexbuf
+  (* Inititialize the pointer in Errormsg *)
+  E.add_type := add_type;
+  E.push_context := push_context;
+  E.pop_context := pop_context;
+  E.add_identifier := add_identifier;
+  E.startParsing (E.ParseFile filename)
 
+
+let finish () = 
+  E.finishParsing ()
 
 (*** Error handling ***)
 let error msg =
-  display_error msg (Parsing.symbol_start ()) (Parsing.symbol_end ());
+  E.parse_error msg (Parsing.symbol_start ()) (Parsing.symbol_end ());
   raise Parsing.Parse_error
 
 
@@ -368,7 +281,7 @@ rule initial =
                                           initial lexbuf}
 |               "//"                    { endline lexbuf }
 |		blank			{initial lexbuf}
-|               '\n'                    { newline (); initial lexbuf }
+|               '\n'                    { E.newline (); initial lexbuf }
 |		'#'			{ hash lexbuf}
 |               "_Pragma" 	        { PRAGMA }
 |		'\''			{ CST_CHAR (chr lexbuf)}
@@ -457,7 +370,7 @@ rule initial =
 |               "__extension__"         {initial lexbuf }
 |		ident			{scan_ident (Lexing.lexeme lexbuf)}
 |		eof			{EOF}
-|		_			{display_error
+|		_			{E.parse_error
 						"Invalid symbol"
 						(Lexing.lexeme_start lexbuf)
 						(Lexing.lexeme_end lexbuf);
@@ -465,16 +378,16 @@ rule initial =
 and comment =
     parse 	
       "*/"			        { () }
-|     '\n'                              { newline (); comment lexbuf }
+|     '\n'                              { E.newline (); comment lexbuf }
 | 		_ 			{ comment lexbuf }
 
 (* # <line number> <file name> ... *)
 and hash = parse
-  '\n'		{ newline (); initial lexbuf}
+  '\n'		{ E.newline (); initial lexbuf}
 | blank		{ hash lexbuf}
 | intnum	{ (* We are seeing a line number. This is the number for the 
                    * next line *)
-                  currentLine := int_of_string (Lexing.lexeme lexbuf) - 1;
+                  E.setCurrentLine (int_of_string (Lexing.lexeme lexbuf) - 1);
                   (* A file name must follow *)
 		  file lexbuf }
 | "line"        { hash lexbuf } (* MSVC line number info *)
@@ -482,11 +395,10 @@ and hash = parse
 | _	        { endline lexbuf}
 
 and file =  parse 
-        '\n'		        {newline (); initial lexbuf}
+        '\n'		        {E.newline (); initial lexbuf}
 |	blank			{file lexbuf}
 |	'"' [^ '\012' '\t' '"']* '"' 	{ (* '"' *)
-                                 currentFile := 
-                                     cleanFileName (Lexing.lexeme lexbuf);
+                                 E.setCurrentFile (Lexing.lexeme lexbuf);
 (*
                                  print_string ("Found "^ !currentFile ^".\n");
 
@@ -494,11 +406,11 @@ and file =  parse
 |	_			{endline lexbuf}
 
 and endline = parse 
-        '\n' 			{ newline (); initial lexbuf}
+        '\n' 			{ E.newline (); initial lexbuf}
 |	_			{ endline lexbuf}
 
 and pragma = parse
-   '\n'                 { newline (); "" }
+   '\n'                 { E.newline (); "" }
 |   _                   { let cur = Lexing.lexeme lexbuf in 
                           cur ^ (pragma lexbuf) }  
 
@@ -552,7 +464,7 @@ and msasmnobrace = parse
                           cur ^ (msasmnobrace lexbuf) }
 
 and attribute = parse
-   '\n'                 { newline (); attribute lexbuf }
+   '\n'                 { E.newline (); attribute lexbuf }
 |  blank                { attribute lexbuf }
 |  '('                  { incr attribDepth; LPAREN }
 |  ')'                  { decr attribDepth;

@@ -1,4 +1,4 @@
-/*
+/*(*
  *
  * Copyright (c) 2001-2002, 
  *  George C. Necula    <necula@cs.berkeley.edu>
@@ -33,26 +33,26 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
- */
+ **)/
 /*(* NOTE: This parser is based on a parser written by Hugues Casse. Since
    * then I have changed it in numerous ways to the point where it probably
    * does not resemble Hugues's original one at all  *)*/
 %{
 open Cabs
-let version = "Cparser V3.0b 10.9.99 Hugues Cassé"
+module E = Errormsg
 
-let parse_error msg : 'a =           (* sm: c++-mode highlight hack: -> ' <- *)
-  Errormsg.hadErrors := true;
-  Clexer.display_error
+let parse_error msg : unit =       (* sm: c++-mode highlight hack: -> ' <- *)
+  E.hadErrors := true;
+  E.parse_error
     msg
     (Parsing.symbol_start ()) (Parsing.symbol_end ())
 
 let print = print_string
 
 
-let currentLoc () = { lineno = !Clexer.currentLine; 
-                      filename = !Clexer.currentFile;
-                      byteno = Clexer.getCurrentByte(); } 
+let currentLoc () = 
+  let l, f, c = E.getPosition () in
+  { lineno   = l; filename = f; byteno   = c; }
 
 let cabslu = {lineno = -10; filename = "cabs loc unknown"; byteno = -10;}
 
@@ -69,14 +69,14 @@ let smooth_expression lst =
 let currentFunctionName = ref "<outside any function>"
     
 let announceFunctionName ((n, decl, _, _):name) =
-  Clexer.add_identifier n;
+  !E.add_identifier n;
   (* Start a context that includes the parameter names and the whole body. 
    * Will pop when we finish parsing the function body *)
-  Clexer.push_context ();
+  !E.push_context ();
   (* Go through all the parameter names and mark them as identifiers *)
   let rec findProto = function
       PROTO (d, args, _) when isJUSTBASE d -> 
-        List.iter (fun (_, (an, _, _, _)) -> Clexer.add_identifier an) args
+        List.iter (fun (_, (an, _, _, _)) -> !E.add_identifier an) args
 
     | PROTO (d, _, _) -> findProto d
     | PARENTYPE (_, d, _) -> findProto d
@@ -107,14 +107,14 @@ let applyPointer (ptspecs: attribute list list) (dt: decl_type)
 let doDeclaration (loc: cabsloc) (specs: spec_elem list) (nl: init_name list) : definition = 
   if isTypedef specs then begin
     (* Tell the lexer about the new type names *)
-    List.iter (fun ((n, _, _, _), _) -> Clexer.add_type n) nl;
+    List.iter (fun ((n, _, _, _), _) -> !E.add_type n) nl;
     TYPEDEF ((specs, List.map (fun (n, _) -> n) nl), loc)
   end else
     if nl = [] then
       ONLYTYPEDEF (specs, loc)
     else begin
       (* Tell the lexer about the new variable names *)
-      List.iter (fun ((n, _, _, _), _) -> Clexer.add_identifier n) nl;
+      List.iter (fun ((n, _, _, _), _) -> !E.add_identifier n) nl;
       DECDEF ((specs, nl), loc)  
     end
 
@@ -561,7 +561,7 @@ bracket_comma_expression:
 /*** statements ***/
 block: /* ISO 6.8.2 */
     block_begin local_labels block_attrs declaration_list statement_list RBRACE   
-                                         {Clexer.pop_context(); 
+                                         {!E.pop_context(); 
                                           { blabels = $2;
                                             battrs = $3;
                                             bdefs = $4;
@@ -574,7 +574,7 @@ block: /* ISO 6.8.2 */
                                          } 
 ;
 block_begin:
-    LBRACE      		         {Clexer.push_context ()}
+    LBRACE      		         {!E.push_context ()}
 ;
 
 block_attrs:
@@ -790,12 +790,12 @@ direct_decl: /* (* ISO 6.7.5 *) */
 |   direct_decl parameter_list_startscope rest_par_list RPAREN
                                    { let (n, decl) = $1 in
                                      let (params, isva) = $3 in
-                                     Clexer.pop_context ();
+                                     !E.pop_context ();
                                      (n, PROTO(decl, params, isva))
                                    }
 ;
 parameter_list_startscope: 
-    LPAREN                         { Clexer.push_context () }
+    LPAREN                         { !E.push_context () }
 ;
 rest_par_list:
 |   /* empty */                    { ([], false) }
@@ -900,7 +900,7 @@ abs_direct_decl: /* (* ISO 6.7.6. We do not support optional declarator for
 /*(* The next shoudl be abs_direct_decl_opt but we get conflicts *)*/
 |   abs_direct_decl  parameter_list_startscope rest_par_list RPAREN
                                    { let (params, isva) = $3 in
-                                     Clexer.pop_context ();
+                                     !E.pop_context ();
                                      PROTO ($1, params, isva)
                                    } 
 ;
@@ -912,7 +912,7 @@ function_def:  /* (* ISO 6.9.1 *) */
   function_def_start block   
           { let (loc, specs, decl) = $1 in
             currentFunctionName := "<__FUNCTION__ used outside any functions>";
-            Clexer.pop_context (); (* The context pushed by 
+            !E.pop_context (); (* The context pushed by 
                                     * announceFunctionName *)
             doFunctionDef loc specs decl $2
           } 

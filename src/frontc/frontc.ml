@@ -173,14 +173,10 @@ and parse_to_cabs_inner (fname : string) =
   try
     if !E.verboseFlag then ignore (E.log "Frontc is parsing %s\n" fname);
     flush !E.logChannel;
-    let file = open_in fname in
     E.hadErrors := false;
-    let initparser, theparser = 
-      Clexer.init, Cparser.file Clexer.initial 
-    in
-    let lexbuf: Lexing.lexbuf = initparser fname file in
-    let cabs = Stats.time "parse" theparser lexbuf in
-    close_in file;
+    let lexbuf = Clexer.init fname in
+    let cabs = Stats.time "parse" (Cparser.file Clexer.initial) lexbuf in
+    Clexer.finish ();
     (fname, cabs)
   with (Sys_error msg) -> begin
     ignore (E.log "Cannot open %s : %s\n" fname msg);

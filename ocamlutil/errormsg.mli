@@ -37,23 +37,47 @@
 
 (** Utilities for error reporting. *)
 
-(** An element of this type records the pertinent information about an error, 
-    such as its location in the source file *)
-type info
+(* The parsing info *)
+type parseinfo
 
-(** Information about the current error *)
-val current      : info ref
+val newline: unit -> unit  (* Call this function to announce a new line *)
 
-(* Record the start of a new file *)
-val startFile    : string -> unit
 
-(* Record a newline at a given position *)
-val startNewline : int -> unit
+val parse_error: string -> (* A message *) 
+                 int -> (* token_start *)
+                 int -> (* token_end *)
+                 unit
 
-val getLineCol : info -> int -> string
+type parseWhat = 
+    ParseString of string
+  | ParseFile of string
 
-(** Get the source file corresponding to an error *)
-val fileName   : info -> string
+val startParsing: parseWhat -> Lexing.lexbuf (* Call this function to start 
+                                              * parsing  *)
+val finishParsing: unit -> unit (* Call this function to finish parsing and 
+                                 * close the input channel *)
+
+val setCurrentLine: int -> unit
+val setCurrentFile: string -> unit
+
+(* Will keep here the pattern for the Formatlex *)
+val currentPattern: string ref
+
+
+val getPosition: unit -> int * string * int (* Line number, file name, 
+                                               current byte count in file *)
+
+
+
+(* The parser needs to access functions in the lexer. But since the lexer 
+ * depends on the parser module we store here the pointers *)
+val push_context: (unit -> unit) ref (* Start a context *)
+val add_type: (string -> unit) ref (* Add a new string as a type name *)
+val add_identifier: (string -> unit) ref (* Add a new string as a variable 
+                                          * name  *)
+val pop_context: (unit -> unit) ref (* Remove all names added in this context 
+                                     * *)
+
 
 (** A channel for printing log messages *)
 val logChannel : out_channel ref

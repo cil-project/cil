@@ -164,3 +164,141 @@ let theLexbuf = ref (Lexing.from_string "")
 
 let fail format = Pretty.gprintf (fun x -> Pretty.fprint stderr 80 x; 
                                            raise (Failure "")) format
+
+(***** Handling parsing errors ********)
+type parseinfo =
+    { mutable  linenum: int      ; (* Current line *)
+      mutable  linestart: int    ; (* The position in the buffer where the 
+                                    * current line starts *)
+      mutable fileName  : string   ; (* Current file *)
+      lexbuf          : Lexing.lexbuf;
+      inchan          : in_channel option;
+      mutable   num_errors : int;  (* Errors so far *)
+    }
+      
+let dummyinfo = 
+    { linenum   = 1;
+      linestart = 0;
+      fileName  = "" ;
+      lexbuf    = Lexing.from_string "";
+      inchan    = None;
+      num_errors    = 0;
+    }
+
+type parseWhat = 
+    ParseString of string
+  | ParseFile of string
+
+let current = ref dummyinfo
+
+
+let rem_quotes str = String.sub str 1 ((String.length str) - 2)
+
+(* Change \ into / in file names. To avoid complications with escapes *)
+let cleanFileName str = 
+  let str1 = if str <> "" && String.get str 0 = '"' (* '"' *) 
+        then rem_quotes str else str in
+  let l = String.length str1 in
+  let rec loop (copyto: int) (i: int) = 
+     if i >= l then 
+         String.sub str1 0 copyto
+     else 
+       let c = String.get str1 i in
+       if c <> '\\' then begin
+          String.set str1 copyto c; loop (copyto + 1) (i + 1)
+       end else begin
+          String.set str1 copyto '/';
+          if i < l - 2 && String.get str1 (i + 1) = '\\' then
+              loop (copyto + 1) (i + 2)
+          else 
+              loop (copyto + 1) (i + 1)
+       end
+  in
+  loop 0 0
+
+let startParsing (fname: parseWhat) = 
+  let inchan, fileName, lexbuf = 
+    match fname with 
+      ParseString s ->
+        None, "<string>", Lexing.from_string s
+    | ParseFile fname ->  
+        let inchan = 
+          try open_in fname with 
+            _ -> s (error "Cannot find input file %s" fname) in
+        let lexbuf = Lexing.from_channel inchan in
+        Some inchan, cleanFileName (Filename.basename fname), lexbuf
+  in
+  let i = 
+    { linenum = 1; linestart = 0; 
+      fileName = fileName;
+      lexbuf = lexbuf; inchan = inchan;
+      num_errors = 0 } in
+  current := i;
+  lexbuf
+
+let finishParsing () = 
+  let i = !current in
+  (match i.inchan with 
+    Some inch -> close_in inch | _ -> ());
+  current := dummyinfo
+
+
+(* Call this function to announce a new line *)
+let newline () = 
+  let i = !current in
+  i.linenum <- 1 + i.linenum;
+  i.linestart <- Lexing.lexeme_start i.lexbuf
+
+
+let setCurrentLine (i: int) = 
+  !current.linenum <- i
+
+let setCurrentFile (n: string) = 
+  !current.fileName <- cleanFileName (Filename.basename n)
+
+
+let max_errors = 20  (* Stop after 20 errors *)
+
+let parse_error (msg: string) 
+                (token_start: int) 
+                (token_end: int) : unit =
+  let i = !current in
+  let adjStart = 
+    if token_start < i.linestart then 0 else token_start - i.linestart in
+  let adjEnd = 
+    if token_end < i.linestart then 0 else token_end - i.linestart in
+  output_string 
+    stderr
+    (i.fileName ^ "[" ^ (string_of_int i.linenum) ^ ":" 
+                        ^ (string_of_int adjStart) ^ "-" 
+                        ^ (string_of_int adjEnd) 
+                  ^ "]"
+     ^ " : " ^ msg);
+  output_string stderr "\n";
+  flush stderr ;
+  i.num_errors <- i.num_errors + 1;
+  if i.num_errors > max_errors then begin
+    output_string stderr "Too many errors. Aborting.\n" ;
+    exit 1 
+  end
+
+
+(* Keep here the current pattern for formatparse *)
+let currentPattern = ref ""
+
+
+(* More parsing support functions: line, file, char count *)
+let getPosition () : int * string * int = 
+  let i = !current in 
+  i.linenum, i.fileName, Lexing.lexeme_start i.lexbuf
+
+
+(* Keep here some pointers to lexer functions *)
+let push_context = 
+    ref (fun _ -> raise (Failure "Errormsg.push_context not set"))
+let add_type = 
+    ref (fun _ -> raise (Failure "Errormsg.add_type not set"))
+let add_identifier = 
+    ref (fun _ -> raise (Failure "Errormsg.add_identifier not set"))
+let pop_context = 
+    ref (fun _ -> raise (Failure "Errormsg.pop_context not set"))

@@ -40,7 +40,7 @@ open Formatparse
 exception Eof
 exception InternalError of string
 module H = Hashtbl
-
+module E = Errormsg
 (*
 ** Keyword hashtable
 *)
@@ -57,44 +57,10 @@ let scan_ident id =
 ** Buffer processor
 *)
  
-(*** input handle ***)
-let currentLine = ref 0 (* the index of the current line *)
-
-let currentFile = ref "" (* The file in which we are *)
-
-let startLine = ref 0 (* the position in the buffer where the current line 
-                       * starts *)
-
-(* The current lexing buffer *)
-let currentLexBuf = ref (Lexing.from_string "")
-    
-let currentPattern = ref ""
-
-(* Weimer: Sun Dec  9 18:13:58  2001
- * Rupak reports that scrolling too many errors can lock up his
- * terminal. *)
-let num_errors = ref 0
-let max_errors = ref 20 
-
-let display_error msg token_start token_end =
-  let adjStart = 
-    if token_start < !startLine then 0 else token_start - !startLine in
-  let adjEnd = 
-    if token_end < !startLine then 0 else token_end - !startLine in
-  output_string 
-    stderr
-    (!currentFile ^ "[" ^ (string_of_int !currentLine) ^ ":" 
-                        ^ (string_of_int adjStart) ^ "-" 
-                        ^ (string_of_int adjEnd) 
-                  ^ "]"
-     ^ " : " ^ msg ^ " : " ^ 
-     String.sub !currentPattern token_start (token_end - token_start + 1));
-  output_string stderr "\n";
-  flush stderr
 
 let init ~(prog: string) : Lexing.lexbuf =
   H.clear keywords;
-  currentPattern := prog;
+  E.currentPattern := prog;
   List.iter 
     (fun (key, token) -> H.add keywords key token)
     [ ("const", CONST); ("__const", CONST); ("__const__", CONST);
@@ -130,14 +96,14 @@ let init ~(prog: string) : Lexing.lexbuf =
       ("__int64", INT64);
       ("__builtin_va_arg", BUILTIN_VA_ARG);
     ];
-  let lexbuf = Lexing.from_string prog in
-  currentLexBuf := lexbuf;
-  lexbuf
+  E.startParsing (E.ParseString prog)
 
+let finish () = 
+  E.finishParsing ()
 
 (*** Error handling ***)
 let error msg =
-  display_error msg (Parsing.symbol_start ()) (Parsing.symbol_end ());
+  E.parse_error msg (Parsing.symbol_start ()) (Parsing.symbol_end ());
   raise Parsing.Parse_error
 
 
@@ -300,7 +266,7 @@ rule initial =
 |		'%'			{PERCENT}
 |		ident			{scan_ident (Lexing.lexeme lexbuf)}
 |		eof			{EOF}
-|		_			{display_error
+|		_			{E.parse_error
 						"Formatlex: Invalid symbol"
 						(Lexing.lexeme_start lexbuf)
 						(Lexing.lexeme_end lexbuf);

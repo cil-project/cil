@@ -38,8 +38,8 @@ DEPENDDIR   := obj/.depend
 
     # Now rules to make cilly
 CILLY_MODULES = pretty errormsg trace stats util clist \
-              cabs cabsvisit cprint clexer cparser \
-              cilversion machdep cil formatlex formatparse formatcil cabs2cil \
+              cabs cabsvisit cprint cparser clexer  \
+              cilversion machdep cil formatparse formatlex formatcil cabs2cil \
               patch frontc check mergecil logcalls logwrites rmtmps \
 	      callgraph epicenter heapify stackoverflow \
               canonicalize testcil maincil
