@@ -2707,6 +2707,12 @@ done
 # names of the variables that get substituted in files; for example,
 # write @ARCHOS@ somewhere in a written file to get it substituted
 
+# demo: multi-line substitution
+# NOTE: this probably only works with GNU sed!
+PCC_FEATURES='export a=a\
+export b=b\
+export c=c'
+
 # finish the configure script and generate various files; ./configure
 # will apply variable substitutions to <filename>.in to generate <filename>;
 # I find it useful to mark generated files as read-only so I don't
@@ -2890,7 +2896,7 @@ rm -f confdef2opt.sed
 : ${CONFIG_STATUS=./config.status}
 ac_clean_files_save=$ac_clean_files
 ac_clean_files="$ac_clean_files $CONFIG_STATUS"
-{ echo "$as_me:2893: creating $CONFIG_STATUS" >&5
+{ echo "$as_me:2899: creating $CONFIG_STATUS" >&5
 echo "$as_me: creating $CONFIG_STATUS" >&6;}
 cat >$CONFIG_STATUS <<_ACEOF
 #! $SHELL
@@ -3057,7 +3063,7 @@ cat >>$CONFIG_STATUS <<\EOF
     echo "$ac_cs_version"; exit 0 ;;
   --he | --h)
     # Conflict between --help and --header
-    { { echo "$as_me:3060: error: ambiguous option: $1
+    { { echo "$as_me:3066: error: ambiguous option: $1
 Try \`$0 --help' for more information." >&5
 echo "$as_me: error: ambiguous option: $1
 Try \`$0 --help' for more information." >&2;}
@@ -3085,12 +3091,12 @@ Try \`$0 --help' for more information." >&2;}
   'lib/scaninfer.bat' ) CONFIG_FILES="$CONFIG_FILES lib/scaninfer.bat" ;;
 
   # This is an error.
-  -*) { { echo "$as_me:3088: error: unrecognized option: $1
+  -*) { { echo "$as_me:3094: error: unrecognized option: $1
 Try \`$0 --help' for more information." >&5
 echo "$as_me: error: unrecognized option: $1
 Try \`$0 --help' for more information." >&2;}
    { (exit 1); exit 1; }; } ;;
-  *) { { echo "$as_me:3093: error: invalid argument: $1" >&5
+  *) { { echo "$as_me:3099: error: invalid argument: $1" >&5
 echo "$as_me: error: invalid argument: $1" >&2;}
    { (exit 1); exit 1; }; };;
   esac
@@ -3209,6 +3215,7 @@ s,@CCUREDHOME@,$CCUREDHOME,;t t
 s,@CILHOME@,$CILHOME,;t t
 s,@do_not_edit@,$do_not_edit,;t t
 s,@HAS_MSVC@,$HAS_MSVC,;t t
+s,@PCC_FEATURES@,$PCC_FEATURES,;t t
 CEOF
 
 EOF
@@ -3318,7 +3325,7 @@ done; }
   esac
 
   if test x"$ac_file" != x-; then
-    { echo "$as_me:3321: creating $ac_file" >&5
+    { echo "$as_me:3328: creating $ac_file" >&5
 echo "$as_me: creating $ac_file" >&6;}
     rm -f "$ac_file"
   fi
@@ -3336,7 +3343,7 @@ echo "$as_me: creating $ac_file" >&6;}
       -) echo $tmp/stdin ;;
       [\\/$]*)
          # Absolute (can't be DOS-style, as IFS=:)
-         test -f "$f" || { { echo "$as_me:3339: error: cannot find input file: $f" >&5
+         test -f "$f" || { { echo "$as_me:3346: error: cannot find input file: $f" >&5
 echo "$as_me: error: cannot find input file: $f" >&2;}
    { (exit 1); exit 1; }; }
          echo $f;;
@@ -3349,7 +3356,7 @@ echo "$as_me: error: cannot find input file: $f" >&2;}
            echo $srcdir/$f
          else
            # /dev/null tree
-           { { echo "$as_me:3352: error: cannot find input file: $f" >&5
+           { { echo "$as_me:3359: error: cannot find input file: $f" >&5
 echo "$as_me: error: cannot find input file: $f" >&2;}
    { (exit 1); exit 1; }; }
          fi;;

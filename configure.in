@@ -229,6 +229,13 @@ AC_SUBST(CILHOME)
 AC_SUBST(do_not_edit)
 AC_SUBST(HAS_MSVC)
 
+# demo: multi-line substitution
+# NOTE: this probably only works with GNU sed!
+PCC_FEATURES='export a=a\
+export b=b\
+export c=c'
+AC_SUBST(PCC_FEATURES)
+
 # finish the configure script and generate various files; ./configure
 # will apply variable substitutions to <filename>.in to generate <filename>;
 # I find it useful to mark generated files as read-only so I don't
@@ -239,9 +246,9 @@ AC_SUBST(HAS_MSVC)
 # MY_AC_CONFIG_FILES(filename)
 # do AC_CONFIG_FILES(filename, chmod a-w filename)
 define([MY_AC_CONFIG_FILES],
-[{ 
+[{
   if test -f [$1].in; then
-    AC_CONFIG_FILES([$1], chmod a-w [$1]) 
+    AC_CONFIG_FILES([$1], chmod a-w [$1])
   else
     true
     #echo "skipping [$1] because it's not in this distribution"
