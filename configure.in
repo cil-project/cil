@@ -364,6 +364,7 @@ define([MY_AC_CONFIG_EXE_FILES],
 }])
 
 MY_AC_CONFIG_FILES(Makefile)
+MY_AC_CONFIG_FILES(lib/gc/GNUCC/Makefile)
 MY_AC_CONFIG_FILES(test/Makefile)
 MY_AC_CONFIG_FILES(Makefile.cil)
 MY_AC_CONFIG_EXE_FILES(bin/cilly.bat)
