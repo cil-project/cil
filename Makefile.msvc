@@ -5,7 +5,9 @@ COMPILERNAME=MSVC
 
 CC:=cl /nologo
 ifdef RELEASELIB
-  CFLAGS:=/DRELEASE /D_MSVC /Ox /Ob2 /G6
+#matth:  we need the frame pointer for CHECK_GETFRAME, so
+# use /Oy- to prevent that optimization.
+  CFLAGS:=/DRELEASE /D_MSVC /Ox /Ob2 /G6 /Oy-
 else
   CFLAGS:=/D_DEBUG /D_MSVC /Zi /MLd
 endif

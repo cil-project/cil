@@ -7,7 +7,8 @@ COMPILERNAME := GNUCC
 CC := gcc
 ifdef RELEASELIB
   # sm: I'll leave this here, but only use it for compiling our runtime lib
-  CFLAGS := -D_GNUCC -Wall -O3 -fomit-frame-pointer
+  # matth:  we need the frame pointer for CHECK_GETFRAME in ccuredcheck.h
+  CFLAGS := -D_GNUCC -Wall -O3 -fno-omit-frame-pointer
 else
   CFLAGS := -D_GNUCC -Wall  -g -ggdb -D_DEBUG
 endif
