@@ -55,6 +55,9 @@ val chr          : char   -> doc
 (* a hard line break *)
 val line         : doc
 
+(* keep left flushed .. should be preceded by a line *)
+val leftflushline : doc
+
 
 (* a soft line break. Such a break will be taken only if necessary to fit the 
  * document in a given width. If the break is not taken a space is printed  *)
@@ -140,8 +143,5 @@ val docOpt       : (unit -> 'a -> doc) -> unit -> 'a option -> doc
 (* for a list *)
 val docList      : doc -> ('a -> doc) -> unit -> 'a list -> doc
 
-
-
-
-
-
+(* A descrptive string with version, flags etc. *)
+val getAboutString : unit -> string
