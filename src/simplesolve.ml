@@ -142,13 +142,11 @@ let rec subtype (t1 : typ) (q1 : pointerkind)
     end
     (* x <= a + b  iff x <= a && x <= b *)
    | _,TComp(c2) when not c2.cstruct -> begin
-      (* E.warn "special forall case!\n" ;  *)
       List.for_all (fun elt -> subtype t1 q1 elt.ftype q2) c2.cfields 
    end
     (* a+b <= x    iff a <= x || b <= x *)
    | TComp(c1),_ when not c1.cstruct -> begin
-      (* E.warn "special exist case!\n" ;  *)
-      List.exists (fun elt -> subtype elt.ftype q1 t2 q2) c1.cfields 
+      List.for_all (fun elt -> subtype elt.ftype q1 t2 q2) c1.cfields 
    end
 
   | _,_ -> false

@@ -475,5 +475,9 @@ let printFile (c: out_channel) fl =
       output_string c "/* Now the solved graph (simplesolve) */\n";
       Stats.time "simple solver" Simplesolve.solve N.idNode ; 
       N.printGraph c;
-      output_string c "/* End of solved graph*/\n#endif\n";)
-    fl
+      output_string c "/* End of solved graph*/\n#endif\n";
+      ) 
+    fl ;
+  Cil.setCustomPrint (N.ptrAttrCustom false)
+    (fun fl -> Cil.printFile c fl) fl 
+
