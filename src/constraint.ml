@@ -72,13 +72,11 @@ let fringe_add (x : t) : fringe_t =
   fr
 
 (* The constraints and all the limit values for a given run of the solver *)
-let sconstraints : set ref = ref []
 let slimits : limit list ref = ref []
 
 (* Initialize the fringe and the values for one run of the solver *)
 let initSolver constraints = 
   fringe := [];
-  sconstraints := constraints;
   slimits := [Infinity;NegInfinity];
   let add_to_slimits lim =
     if not (List.mem lim !slimits) then
@@ -87,9 +85,11 @@ let initSolver constraints =
       | (Int _) as lim -> slimits := lim :: !slimits
       | _ -> ()
   in					   
-  List.iter (function 
+  List.iter (function c ->
+    fringe := {fval=c; fsolution=Some true} :: !fringe;
+    match c with
     | LT (a,b) -> add_to_slimits a; add_to_slimits b;
-    | LTE (a,b) -> add_to_slimits a; add_to_slimits b;)
+    | LTE (a,b) ->add_to_slimits a; add_to_slimits b;)
     constraints
 
 
@@ -103,13 +103,12 @@ let rec rsolveLT (ca : limit) (cb : limit) : bool =
   | Int ia, Int ib -> ia < ib
   | _,_ ->
       let lt = (LT (ca,cb)) in
-      if fringe_contains lt then match fringe_find lt with
+      try match fringe_find lt with
       | {fsolution = None} as fr -> fr.fsolution <- Some false; false
       | {fsolution = Some sol}   -> sol
-      else 
+      with _ -> 
 	let fr = fringe_add lt in
 	let sol =
-	  set_contains lt !sconstraints ||
 	  List.exists
 	    (fun lim -> 
 	      ((rsolveLT ca lim) && (rsolveLTE lim cb)) ||
@@ -136,13 +135,12 @@ and rsolveLTE (ca : limit) (cb : limit) : bool =
   | Int ia, Int ib -> ia <= ib
   | _,_ ->
       let lt = (LTE (ca,cb)) in
-      if fringe_contains lt then match fringe_find lt with
+      try match fringe_find lt with
       | {fsolution = None} as fr -> fr.fsolution <- Some false; false
       | {fsolution = Some sol}   -> sol
-      else 
+      with _ -> 
 	let fr = fringe_add lt in
 	let sol =
-	  set_contains lt !sconstraints ||
 	  rsolveLT ca cb ||
 	  ca = cb ||
 	  List.exists
