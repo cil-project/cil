@@ -61,6 +61,8 @@ let init_lexicon _ =
       ("__inline__", INLINE); ("inline", INLINE); 
       ("__inline", INLINE); ("_inline", INLINE);
       ("__attribute__", ATTRIBUTE); ("__attribute", ATTRIBUTE);
+      ("__blockattribute__", BLOCKATTRIBUTE);
+      ("__blockattribute", BLOCKATTRIBUTE);
       ("__asm__", ASM); ("asm", ASM);
       ("__typeof__", TYPEOF); ("__typeof", TYPEOF); ("typeof", TYPEOF); 
       ("__alignof__", ALIGNOF);

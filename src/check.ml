@@ -522,6 +522,7 @@ and checkStmt (s: stmt) =
           | Some re', rt' -> checkExpType false re' rt'
         end
       | Loop (b, l) -> checkBlock b
+      | Block b -> checkBlock b
       | If (e, bt, bf,_) -> 
           let te = checkExp false e in
           checkBooleanType te;
@@ -536,7 +537,7 @@ and checkStmt (s: stmt) =
     () (* argument of withContext *)
 
 and checkBlock (b: block) : unit = 
-  List.iter checkStmt b
+  List.iter checkStmt b.bstmts
 
 
 and checkInstr (i: instr) = 

@@ -139,7 +139,12 @@ and file = definition list
 
 (* A block contains a list of local label declarations ( GCC's ({ __label__ 
  * l1, l2; ... }) ) , a list of definitions and a list of statements  *)
-and block = string list * definition list * statement list 
+and block = 
+    { blabels: string list;
+      battrs: attribute list;
+      bdefs: definition list;
+      bstmts: statement list 
+    } 
 
 and statement =
    NOP of cabsloc

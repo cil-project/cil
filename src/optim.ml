@@ -52,13 +52,18 @@ let stats_removed    = ref 0 (* removed by the redundancy eliminator *)
    - numNodes = total number of CFG nodes 
    - length(nodeList) = numNodes
 *)
-let rec cfgBlock (blk: block) (next:stmt option) (break:stmt option) (cont:stmt option) =
-  match blk with
+let rec cfgStmts (ss: stmt list) 
+                 (next:stmt option) (break:stmt option) (cont:stmt option) =
+  match ss with
     [] -> ();
   | [s] -> cfgStmt s next break cont
   | hd::tl ->
       cfgStmt hd (Some (List.hd tl))  break cont;
-      cfgBlock tl next break cont
+      cfgStmts tl next break cont
+
+and cfgBlock  (blk: block) 
+              (next:stmt option) (break:stmt option) (cont:stmt option) = 
+   cfgStmts blk.bstmts next break cont
 
 (* Fill in the CFG info for a stmt
    Meaning of next, break, cont should be clear from earlier comment
@@ -84,36 +89,44 @@ and cfgStmt (s: stmt) (next:stmt option) (break:stmt option) (cont:stmt option) 
       | Some c -> s.succs <- [c]; c.preds <- s::c.preds)
   | If (_, blk1, blk2, _) ->
       (* The succs of If is [true branch;false branch] *)
-      (match blk2 with
+      (match blk2.bstmts with
         [] -> (match next with
           None -> ()
         | Some n -> s.succs <- n::s.succs; n.preds <- s::n.preds)
       | (hd::tl) -> s.succs <- hd::s.succs; hd.preds <- s::hd.preds);
-      (match blk1 with
+      (match blk1.bstmts with
         [] -> (match next with
           None -> ()
         | Some n -> s.succs <- n::s.succs; n.preds <- s::n.preds)
       | (hd::tl) -> s.succs <- hd::s.succs; hd.preds <- s::hd.preds);
       cfgBlock blk1 next break cont;
       cfgBlock blk2 next break cont
+  | Block b -> 
+      (match b.bstmts with
+        [] -> 
+          (match next with
+             None -> ()
+           | Some n -> s.succs <- n::s.succs; n.preds <- s::n.preds)
+      | (hd::tl) -> s.succs <- hd::s.succs; hd.preds <- s::hd.preds);
+      cfgBlock b next break cont
+
   | Switch(_,blk,l,_) ->
       s.succs <- l; (* in order *)
       List.iter (function br -> br.preds <- s::br.preds) l;
       cfgBlock blk next next cont
   | Loop(blk,_) ->
-      if (blk <> []) then begin
-        s.succs <- [List.hd blk];
-        (List.hd blk).preds <- s::(List.hd blk).preds
+      if (blk.bstmts <> []) then begin
+        s.succs <- [List.hd blk.bstmts];
+        (List.hd blk.bstmts).preds <- s::(List.hd blk.bstmts).preds
       end;
       cfgBlock blk (Some s) next (Some s)
       (* Since all loops have terminating condition true, we don't put
          any direct successor to stmt following the loop *)
 
-
 let rec printCfgBlock ?(showGruesomeDetails = true) blk =
   List.iter (function s ->
     printCfgStmt ~showGruesomeDetails:showGruesomeDetails s)
-    blk;
+    blk.bstmts;
   
 
 and printCfgStmt ?(showGruesomeDetails = true) s =
@@ -211,7 +224,7 @@ let isCheckCall_instr : instr -> bool = function
    For debugging purposes *)
 
 let rec printChecksBlock blk =
-  List.iter printChecksStmt blk
+  List.iter printChecksStmt blk.bstmts
 
 and printChecksStmt s =
   match s.skind with
@@ -220,6 +233,7 @@ and printChecksStmt s =
   | If (e,blk1,blk2,_) -> printChecksBlock blk1; printChecksBlock blk2;
   | Switch (e,blk,_,_) -> printChecksBlock blk
   | Loop (blk,_) -> printChecksBlock blk
+  | Block b -> printChecksBlock b
 
 and printChecksInstr i =
   match i with
@@ -360,7 +374,7 @@ let nullChecksOptim f =
   (* Order nodes by reverse depth-first postorder *)
   sCount := !numNodes-1;
   nodes := Array.create !numNodes dummyStmt; (* allocate space *)
-  orderBlock f.sbody; (* assign sid *)
+  orderBlock f.sbody.bstmts; (* assign sid *)
 
   (* Create gen and kill for all nodes *)
   gen := Array.create !numNodes [];  (* allocate space *)
@@ -841,7 +855,7 @@ and eliminateRedundancy (f : fundec) : fundec =
 	  Array.iteri (fun i a -> !checkProcessed.(i) <- !checkProcessed.(i) || a) !checkFlags;
 	  
 	  (* Set the cin for the entry point. We do need a check at this point *)
-	  (match f.sbody with
+	  (match f.sbody.bstmts with
 	    h :: t -> cin.(h.sid) <- latCheckNeeded; 
 	      if amandebug then pr "Entry node = %d\n" h.sid
 	  | _ -> ());

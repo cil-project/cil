@@ -462,10 +462,16 @@ and stmtkind =
 
   | Loop of block * location            (* A "while(1)" loop *)
 
+  | Block of block                      (* Just a block of statements. Use it 
+                                         * as a way to keep some attributes 
+                                         * local *)
 
 (* A block is a sequence of statements with the control falling through from 
  * one element to the next *)
-and block = stmt list
+and block = 
+   { mutable battrs: attribute list;   (* Attributes for the block *)
+     mutable bstmts: stmt list;
+   } 
 
 and label = 
     Label of string * location          (* A real label *)
@@ -603,10 +609,12 @@ val isInteger: exp -> int32 option
 val isZero: exp -> bool
 
 val mkStmt: stmtkind -> stmt
+val mkBlock: stmt list -> block
+
 val mkStmtOneInstr: instr -> stmt
 
 (* use this instead of List.@ because you get fewer basic blocks *)
-val compactBlock: block -> block
+val compactStmts: stmt list -> stmt list
 
 val mkEmptyStmt: unit -> stmt
 val dummyInstr: instr
@@ -663,7 +671,7 @@ val mkString: string -> exp
 
 
     (* Make a while loop. Can contain Break or Continue *)
-val mkWhile: guard:exp -> body:block -> block
+val mkWhile: guard:exp -> body:stmt list -> stmt list
 
     (* Make a for loop for(i=start; i<past; i += incr) { ... }. The body 
      * can contain Break but not Continue !!!. Can be used with i a pointer 
@@ -674,7 +682,8 @@ val mkForIncr:  iter:varinfo -> first:exp -> stopat:exp -> incr:exp
 
     (* Make a for loop for(start; guard; next) { ... }. The body can 
      * contain Break but not Continue !!! *) 
-val mkFor: start:block -> guard:exp -> next:block -> body: block -> block
+val mkFor: start:stmt list -> guard:exp -> next: stmt list -> 
+                                       body: stmt list -> stmt list
  
 
 
@@ -756,7 +765,6 @@ val d_global: unit -> global -> Pretty.doc
 (* sm: cil visitor interface for traversing Cil trees. *)
 (* There is no provision for modifying trees at this time. *)
 (* Use visitCilStmt and/or visitCilFile to use this. *)
-(* I'd like to export cil.ml's default nopCilVisitor, but I don't know how. *)
 (* The methods return true to continue recursing deeper into this *)
 (* construct, false to stop recursing (but siblings are visited). *)
 class type cilVisitor = object
@@ -793,7 +801,12 @@ val visitCilFunction: cilVisitor -> fundec -> unit
 val visitCilGlobal: cilVisitor -> global -> unit
 val visitCilInit: cilVisitor -> init -> unit
 val visitCilStmt: cilVisitor -> stmt -> unit
-val visitCompFields : cilVisitor -> compinfo -> unit
+val visitCompFields: cilVisitor -> compinfo -> unit
+
+
+
+
+
 
    (* Make a local variable and add it to a function *)
 val makeLocalVar: fundec -> string -> typ -> varinfo
@@ -963,8 +976,8 @@ val docAlphaTable: alphaTable:(string, int ref) Hashtbl.t -> Pretty.doc
     (* Process all two adjacent statements and possibly replace them both. If 
      * some replacement happens then the new statements are themselves 
      * subject to optimization  *)
-val peepHole2: (instr * instr -> instr list option) -> block -> unit
-val peepHole1: (instr -> instr list option) -> block -> unit
+val peepHole2: (instr * instr -> instr list option) -> stmt list -> unit
+val peepHole1: (instr -> instr list option) -> stmt list -> unit
 
 (**
  **

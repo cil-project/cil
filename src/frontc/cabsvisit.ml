@@ -145,9 +145,13 @@ begin
     | _ -> d
   end
 
-  and vblock ((labels : string list), (defns : definition list), (stmts : statement list)) : block =
+  and vblock blk : block =
   begin
-    (labels, (List.map vdefn defns), (List.map vstmt stmts))
+    { blabels = blk.blabels;
+      battrs = vattrlist blk.battrs;
+      bdefs = List.map vdefn blk.bdefs;
+      bstmts = List.map vstmt blk.bstmts;
+    } 
   end
 
   and vstmt (s : statement) : statement =

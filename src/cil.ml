@@ -460,10 +460,17 @@ and stmtkind =
 
   | Loop of block * location            (* A "while(1)" loop *)
 
+  | Block of block                      (* Just a block of statements. Use it 
+                                         * as a way to keep some attributes 
+                                         * local *)
+
 
 (* A block is a sequence of statements with the control falling through from 
  * one element to the next *)
-and block = stmt list
+and block = 
+   { mutable battrs: attribute list;   (* Attributes for the block *)
+     mutable bstmts: stmt list;
+   } 
 
 and label = 
     Label of string * location          (* A real label *)
@@ -611,6 +618,34 @@ class cilExprVisitor (ve : exp -> unit) = object
 end
 
 
+(* GN: a visitor that can transform the CIL *)
+class type cilMaper = object
+  method mvrbl : varinfo -> varinfo  (* variable *)
+  method mexpr : exp -> exp          (* expression *)
+  method mlval : lval -> lval        (* lval (base is 1st field) *)
+  method moffs : offset -> offset    (* lval offset *)
+  method minst : instr -> instr      (* imperative instruction *)
+  method mstmt : stmt -> stmt        (* constrol-flow statement *)
+  method mtype : typ -> typ          (* use of some type *)
+end
+
+(* the default maper does nothing at each node, but does *)
+class nopCilMaperr = object
+  method mvrbl (v:varinfo) = v       (* variable *)
+  method mexpr (e:exp) = true         (* expression *)
+  method vlval (l:lval) = true        (* lval (base is 1st field) *)
+  method voffs (o:offset) = true      (* lval offset *)
+  method vinst (i:instr) = true       (* imperative instruction *)
+  method vstmt (s:stmt) = true        (* constrol-flow statement *)
+  method vfunc (f:fundec) = true      (* function definition *)
+  method vfuncPost (f:fundec) = true  (*   postorder version *)
+  method vglob (g:global) = true      (* global (vars, types, etc.) *)
+  method vinit (i:init) = true        (* global initializers *)
+  method vtype (t:typ) = true         (* use of some type *)
+  method vtdec (s:string) (t:typ) = true    (* typedef *)
+  method venum (e:enuminfo) = true
+  method vcomp (c:compinfo) = true
+end
 
 
 let lu = locUnknown
@@ -623,7 +658,7 @@ let get_instrLoc (inst : instr) =
     | Asm(_, _, _, _, _, loc) -> loc
 
 
-let get_stmtLoc (statement : stmtkind) =
+let rec get_stmtLoc (statement : stmtkind) =
   match statement with 
       Instr([]) -> lu
     | Instr(hd::tl) -> get_instrLoc(hd)
@@ -632,8 +667,10 @@ let get_stmtLoc (statement : stmtkind) =
     | Break(loc) -> loc
     | Continue(loc) -> loc
     | If(_, _, _, loc) -> loc
-    | Switch(_, _, _, loc) -> loc
-    | Loop(_, loc) -> loc
+    | Switch (_, _, _, loc) -> loc
+    | Loop (_, loc) -> loc
+    | Block b -> if b.bstmts = [] then lu 
+                 else get_stmtLoc ((List.hd b.bstmts).skind)
 
 
 
@@ -721,27 +758,30 @@ let mkStmt (sk: stmtkind) : stmt =
     labels = [];
     sid = -1; succs = []; preds = [] }
 
+let mkBlock (slst: stmt list) : block = 
+  { battrs = []; bstmts = slst; }
+
 let mkEmptyStmt () = mkStmt (Instr [])
 let mkStmtOneInstr (i: instr) = mkStmt (Instr [i])
 
 let dummyInstr = (Asm(["dummy statement!!"], false, [], [], [], lu))
 let dummyStmt =  mkStmt (Instr [dummyInstr])
 
-let compactBlock (b: block) : block =  
+let compactStmts (b: stmt list) : stmt list =  
       (* Try to compress statements. Scan the list of statements and remember 
        * the last instrunction statement encountered, along with a Clist of 
        * instructions in it. *)
   let rec compress (lastinstrstmt: stmt) (* Might be dummStmt *)
                    (lastinstrs: instr Clist.clist) 
-                   (b: block) =
-    let finishLast (tail: block) : block = 
+                   (body: stmt list) =
+    let finishLast (tail: stmt list) : stmt list = 
       if lastinstrstmt == dummyStmt then tail
       else begin
         lastinstrstmt.skind <- Instr (Clist.toList lastinstrs);
         lastinstrstmt :: tail
       end
     in
-    match b with 
+    match body with 
       [] -> finishLast []
     | ({skind=Instr il} as s) :: rest ->
         let ils = Clist.fromList il in
@@ -755,13 +795,6 @@ let compactBlock (b: block) : block =
         finishLast res
   in
   compress dummyStmt Clist.empty b
-
-(*
-let structId = ref 0 (* Find a better way to generate new names *)
-let newTypeName n = 
-  incr structId;
-  "__anon" ^ n ^ (string_of_int (!structId))
-*)
 
 
 (** Construct sorted lists of attributes ***)
@@ -905,10 +938,10 @@ let mkString s = Const(CStr s)
 
 let mkWhile (guard:exp) (body: stmt list) : stmt list = 
   (* Do it like this so that the pretty printer recognizes it *)
-  [ mkStmt (Loop (mkStmt (If(guard, 
-                             [ mkEmptyStmt () ], 
-                             [ mkStmt (Break lu)], lu)) ::
-                  body, lu)) ]
+  [ mkStmt (Loop (mkBlock (mkStmt (If(guard, 
+                                      mkBlock [ mkEmptyStmt () ], 
+                                      mkBlock [ mkStmt (Break lu)], lu)) ::
+                           body), lu)) ]
 
 
 
@@ -1617,7 +1650,8 @@ and d_attrarg () = function
         ++ (docList (chr ',') (d_attrarg ()) () al)
         ++ text ")"
           
-and d_attrlist pre () al = (* Whether it comes before or after stuff *)
+and d_attrlistgen (block: bool) (pre: bool) () al = 
+                    (* Whether it comes before or after stuff *)
   (* Take out the special attributes *)
   let rec loop remaining = function
       [] -> begin
@@ -1625,13 +1659,16 @@ and d_attrlist pre () al = (* Whether it comes before or after stuff *)
           [] -> nil
         | Attr(str,args) :: _->
             if (str = "dummydefn") then (
-              text "/*dummydefn*/"    (* don't print this because gcc complains *)
+              text "/*dummydefn*/" (* don't print this because gcc complains *)
             )
             else (
-              text "__attribute__(("
+              (if block then text " /* __block" else text "__") ++ 
+                text "attribute__(" 
+                ++ (if block then nil else text "(")
                 ++ (docList (chr ',' ++ break) 
                       (fun a -> d_attr () a) () remaining)
-                ++ text "))"
+                ++ text ")"
+                ++ (if block then text "*/" else text ")")
             )
       end
     | x :: rest -> begin
@@ -1646,6 +1683,7 @@ and d_attrlist pre () al = (* Whether it comes before or after stuff *)
   else
     if pre then res ++ text " " else text " " ++ res
     
+and d_attrlist pre () al = d_attrlistgen false pre () al
 and d_attrlistpre () al = d_attrlist true () al
 and d_attrlistpost () al = d_attrlist false () al
 
@@ -1826,7 +1864,7 @@ and d_label () = function
   | Case (e, _) -> text "case " ++ d_exp () e ++ text ": "
   | Default _ -> text "default: "
 
-and d_block () blk =
+and d_block () (blk: block) =
   let rec dofirst () = function
       [] -> nil
     | [x] -> d_stmt_next invalidStmt () x
@@ -1840,8 +1878,11 @@ and d_block () blk =
 (* Let the host of the block decide on the alignment. The d_block will pop 
  * the alignment as well *)
   text "{" 
+    ++ (if blk.battrs <> [] then 
+           d_attrlistgen true true () blk.battrs
+        else nil)
     ++ line
-    ++ (dofirst () blk)
+    ++ (dofirst () blk.bstmts)
     ++ unalign ++ line ++ text "}"
 (*
   dprintf "@[{ @[@!%a@]@!}@]" dofirst blk
@@ -1881,7 +1922,7 @@ and d_stmtkind (next: stmt) () = function
         ++ (docList line (fun i -> d_instr () i) () il)
         ++ unalign
 
-  | If(be,t,[],l) ->
+  | If(be,t,{bstmts=[];battrs=[]},l) ->
 (*      dprintf "\n%s@!if@[ (%a)@!%a@]" (printLine l) d_exp be d_block t *)
       d_line l
         ++ text "if"
@@ -1891,7 +1932,8 @@ and d_stmtkind (next: stmt) () = function
               ++ text ") "
               ++ d_block () t)
 
-  | If(be,t,[{skind=Goto(gref,_);labels=[]} as s],l)
+  | If(be,t,{bstmts=[{skind=Goto(gref,_);labels=[]} as s];
+             battrs=[]},l)
       when !gref == next ->
 (*      dprintf "\n%s@!if@[ (%a)@!%a@]" (printLine l) d_exp be d_block t *)
         d_line l
@@ -1902,7 +1944,7 @@ and d_stmtkind (next: stmt) () = function
                 ++ text ") "
                 ++ d_block () t)
 
-  | If(be,[],e,l) ->
+  | If(be,{bstmts=[];battrs=[]},e,l) ->
 (*
       dprintf "\n%s@!if@[ (%a)@!%a@]" (printLine l) d_exp (UnOp(LNot,be,intType)) d_block e
 
@@ -1915,7 +1957,8 @@ and d_stmtkind (next: stmt) () = function
               ++ text ") "
               ++ d_block () e)
 
-  | If(be,[{skind=Goto(gref,_);labels=[]} as s],e,l)
+  | If(be,{bstmts=[{skind=Goto(gref,_);labels=[]} as s];
+           battrs=[]},e,l)
       when !gref == next ->
 (*      dprintf "\n%s@!if@[ (%a)@!%a@]" (printLine l) d_exp
                   (UnOp(LNot,be,intType)) d_block e
@@ -1963,18 +2006,18 @@ and d_stmtkind (next: stmt) () = function
     when !gref == next && brk.labels == [] ->
       dprintf "wh@[ile (%a)@!%a@]" d_exp e d_block rest
 *)
-  | Loop(b, l) ->
-      (* Maybe the first thing is a conditional *)
+  | Loop(b, l) -> begin
+      (* Maybe the first thing is a conditional. Turn it into a WHILE *)
       try
-        let term, body =
+        let term, bodystmts =
           let rec skipEmpty = function
               [] -> []
             | {skind=Instr [];labels=[]} :: rest -> skipEmpty rest
             | x -> x
           in
-          match skipEmpty b with
+          match skipEmpty b.bstmts with
             {skind=If(e,tb,fb,_)} :: rest -> begin
-              match skipEmpty tb, skipEmpty fb with
+              match skipEmpty tb.bstmts, skipEmpty fb.bstmts with
                 [], {skind=Break _} :: _  -> e, rest
               | {skind=Break _} :: _, [] -> UnOp(LNot, e, intType), rest
               | _ -> raise Not_found
@@ -1990,7 +2033,7 @@ and d_stmtkind (next: stmt) () = function
                 ++ text "ile ("
                 ++ d_exp () term
                 ++ text ") "
-                ++ d_block () body)
+                ++ d_block () {bstmts=bodystmts; battrs=b.battrs})
 
     with Not_found ->
 (*        dprintf "\n%s@!wh@[ile (1)@!%a@]" (printLine l) d_block b *)
@@ -1999,8 +2042,9 @@ and d_stmtkind (next: stmt) () = function
         ++ (align
               ++ text "ile (1) "
               ++ d_block () b)
-
-        
+  end
+  | Block b -> align ++ d_block () b
+      
 
 and d_goto (s: stmt) = 
   (* Grab one of the labels *)
@@ -2272,6 +2316,7 @@ and visitCilStmt (vis: cilVisitor) (s: stmt) : unit =
     | If(e, s1, s2, _) -> fExp e; fBlock s1; fBlock s2
     | Switch (e, b, _, _) -> fExp e; fBlock b
     | Instr il -> List.iter fInst il
+    | Block b -> fBlock b
   in
   (* Visit the labels *)
   List.iter (function Case (e, _) -> fExp e | _ -> ()) s.labels;
@@ -2280,7 +2325,7 @@ and visitCilStmt (vis: cilVisitor) (s: stmt) : unit =
  
 and visitCilBlock (vis: cilVisitor) (b: block) : unit = 
   let fStmt s = (visitCilStmt vis s) in
-  List.iter fStmt b
+  List.iter fStmt b.bstmts
 
 (* this is pulled out because all circularity will go through *)
 (* a compinfo, so I won't recurse by default, but I want the *)
@@ -2458,7 +2503,7 @@ let emptyFunction name =
     smaxid = 0;
     slocals = [];
     sformals = [];
-    sbody = [];
+    sbody = mkBlock [];
     sinline = false;
   } 
 
@@ -2670,7 +2715,7 @@ let printFileWithCustom (out: out_channel)
 let rec peepHole1 (* Process one statement and possibly replace it *)
                   (doone: instr -> instr list option)
                   (* Scan a block and recurse inside nested blocks *)
-                  (b: block) : unit = 
+                  (ss: stmt list) : unit = 
   List.iter 
     (fun s -> 
       match s.skind with
@@ -2685,16 +2730,17 @@ let rec peepHole1 (* Process one statement and possibly replace it *)
           in
           s.skind <- Instr (loop il)
       | If (e, tb, eb, _) -> 
-          peepHole1 doone tb;
-          peepHole1 doone eb
-      | Switch (e, b, _, _) -> peepHole1 doone b
-      | Loop (b, l) -> peepHole1 doone b
+          peepHole1 doone tb.bstmts;
+          peepHole1 doone eb.bstmts
+      | Switch (e, b, _, _) -> peepHole1 doone b.bstmts
+      | Loop (b, l) -> peepHole1 doone b.bstmts
+      | Block b -> peepHole1 doone b.bstmts
       | Return _ | Goto _ | Break _ | Continue _ -> ())
-    b
+    ss
 
 let rec peepHole2  (* Process two statements and possibly replace them both *)
                    (dotwo: instr * instr -> instr list option)
-                   (b: block) : unit = 
+                   (ss: stmt list) : unit = 
   List.iter 
     (fun s -> 
       match s.skind with
@@ -2711,12 +2757,13 @@ let rec peepHole2  (* Process two statements and possibly replace them both *)
           in
           s.skind <- Instr (loop il)
       | If (e, tb, eb, _) -> 
-          peepHole2 dotwo tb;
-          peepHole2 dotwo eb
-      | Switch (e, b, _, _) -> peepHole2 dotwo b
-      | Loop (b, l) -> peepHole2 dotwo b
+          peepHole2 dotwo tb.bstmts;
+          peepHole2 dotwo eb.bstmts
+      | Switch (e, b, _, _) -> peepHole2 dotwo b.bstmts
+      | Loop (b, l) -> peepHole2 dotwo b.bstmts
+      | Block b -> peepHole2 dotwo b.bstmts
       | Return _ | Goto _ | Break _ | Continue _ -> ())
-    b
+    ss
 
 
 
@@ -3330,7 +3377,7 @@ begin
     (doBlock f.sbody)
 
   and doBlock (b : block) : unit =
-    (List.iter doStmt b)
+    (List.iter doStmt b.bstmts)
 
   and doStmt (s : stmt) : unit =
     (s.skind <- (doStmtkind s.skind))
@@ -3345,7 +3392,7 @@ begin
         If(doExp e, b1, b2, loc)
     | Switch(e, b1, b2, loc) ->
         doBlock b1;
-        doBlock b2;
+        (* doBlock b2; Don't do these. They are just shortcuts *)
         Switch(doExp e, b1, b2, loc)
     | Loop(b, loc) ->
         doBlock b;

@@ -31,11 +31,11 @@ let logCalls (f: file) : unit =
             ([], ")\n")
             fdec.sformals
         in
-        fdec.sbody <- 
-           mkStmt (Instr [Call (None, Lval(var printfFun.svar),
+        fdec.sbody.bstmts <- 
+              mkStmt (Instr [Call (None, Lval(var printfFun.svar),
                                 ( Const(CStr("call to " ^ fdec.svar.vname ^ 
                                              "(" ^ formatstr)) :: actargs),
-                                loc)]) :: fdec.sbody
+                                loc)]) :: fdec.sbody.bstmts
 
     | _ -> ()
   in

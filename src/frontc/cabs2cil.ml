@@ -495,8 +495,13 @@ module BlockChunk =
 
           | a :: rest -> a :: toLast rest
         in
-        compactBlock (toLast c.stmts)
+        compactStmts (toLast c.stmts)
 
+
+    let c2block (c: chunk) : block = 
+      { battrs = [];
+        bstmts = pushPostIns c;
+      } 
 
     (* Add an instruction at the end. Never refer to this instruction again 
      * after you call this *)
@@ -506,7 +511,7 @@ module BlockChunk =
     (* Append two chunks. Never refer to the original chunks after you call 
      * this. And especially never share c2 with somebody else *)
     let (@@) (c1: chunk) (c2: chunk) = 
-      { stmts = compactBlock (pushPostIns c1 @ c2.stmts);
+      { stmts = compactStmts (pushPostIns c1 @ c2.stmts);
         postins = c2.postins;
         cases = c1.cases @ c2.cases;
       } 
@@ -521,7 +526,7 @@ module BlockChunk =
 
     let ifChunk (be: exp) (l: location) (t: chunk) (e: chunk) : chunk = 
       
-      { stmts = [ mkStmt(If(be, pushPostIns t, pushPostIns e, l))];
+      { stmts = [ mkStmt(If(be, c2block t, c2block e, l))];
         postins = [];
         cases = t.cases @ e.cases;
       } 
@@ -549,7 +554,7 @@ module BlockChunk =
 
     let loopChunk (body: chunk) : chunk = 
       (* Make the statement *)
-      let loop = mkStmt (Loop (pushPostIns body, !currentLoc)) in
+      let loop = mkStmt (Loop (c2block body, !currentLoc)) in
       { stmts = [ loop (* ; n *) ];
         postins = [];
         cases = body.cases;
@@ -600,7 +605,7 @@ module BlockChunk =
 
         (* Get the first statement in a chunk. Might need to change the 
          * statements in the chunk *)
-    let getFirstInChunk (c: chunk) : stmt * block = 
+    let getFirstInChunk (c: chunk) : stmt * stmt list = 
       (* Get the first statement and add the label to it *)
       match c.stmts with
         s :: _ -> s, c.stmts
@@ -646,7 +651,7 @@ module BlockChunk =
         
     let switchChunk (e: exp) (body: chunk) (l: location) =
       (* Make the statement *)
-      let switch = mkStmt (Switch (e, pushPostIns body, 
+      let switch = mkStmt (Switch (e, c2block body, 
                                    List.map (fun (_, s) -> s) body.cases, 
                                    l)) in
       { stmts = [ switch (* ; n *) ];
@@ -658,7 +663,7 @@ module BlockChunk =
       resolveGotos (); initLabels ();
       if c.cases <> [] then
         E.s (error "Switch cases not inside a switch statement\n");
-      pushPostIns c
+      c2block c
       
   end
 
@@ -1316,6 +1321,8 @@ and doAttr (a: A.attribute) : attribute list =
         | _ -> E.s (error "Invalid form of attribute")
       in
       if s = "__attribute__" then (* Just a wrapper for many attributes*)
+        List.map (fun e -> arg2attr (attrOfExp true e)) el
+      else if s = "__blockattribute__" then (* Another wrapper *)
         List.map (fun e -> arg2attr (attrOfExp true e)) el
       else if s = "__declspec" then
         List.map (fun e -> arg2attr (attrOfExp false e)) el
@@ -2375,7 +2382,7 @@ and doExp (isconst: bool)    (* In a constant *)
         end
     end
 
-    | A.GNU_BODY ((_, _, bstmts) as b) -> begin
+    | A.GNU_BODY b -> begin
         (* Find the last A.COMPUTATION and remember it. This one is invoked 
          * on the reversed list of statements. *)
         let rec findLastComputation = function
@@ -2394,7 +2401,7 @@ and doExp (isconst: bool)    (* In a constant *)
         (* Save the previous data *)
         let old_gnu = ! gnu_body_result in
         let lastComp, isvoidbody = 
-          try findLastComputation (List.rev bstmts), false    
+          try findLastComputation (List.rev b.A.bstmts), false    
           with Not_found -> A.NOP cabslu, true
         in
         (* Prepare some data to be filled by doExp *)
@@ -3105,36 +3112,31 @@ and assignInit (lv: lval)
         acc
 
   (* Now define the processors for body and statement *)
-and doBody ((loclabs: string list), 
-            (bdefs: A.definition list),
-            (bstmts: A.statement list)) : chunk = 
+and doBody (blk: A.block) : chunk = 
   enterScope ();
   (* Rename the labels and add them to the environment *)
-  List.iter (fun l -> ignore (genNewLocalLabel l)) loclabs;
+  List.iter (fun l -> ignore (genNewLocalLabel l)) blk.blabels;
+  (* See if we have some attributes *)
+  let battrs = doAttributes blk.A.battrs in
 
-            (* Do the declarations and the initializers and the statements.
-  let rec loopDefs = function
-      [] -> empty
-    | A.BDEF d :: rest -> 
-        let res = doDecl d in 
-        res @@ loop rest
-    | A.BSTM s :: rest -> 
-        let res = doStatement s in
-        res @@ loop rest
-  in  *)
-  let res = 
+  let bodychunk = 
     afterConversion
       (List.fold_left   (* !!! @ evaluates its arguments backwards *)
          (fun prev s -> let res = doStatement s in prev @@ res)
          (List.fold_left 
             (fun prev d -> let res = doDecl d in prev @@ res) 
             empty 
-            bdefs)
-         bstmts)
+            blk.bdefs)
+         blk.A.bstmts)
   in
-(*  let res = afterConversion (loop belems) in *)
   exitScope ();
-  res
+  if battrs = [] then
+    bodychunk
+  else begin
+    let b = c2block bodychunk in
+    b.battrs <- battrs;
+    s2c (mkStmt (Block b))
+  end
       
 and doStatement (s : A.statement) : chunk = 
   try
@@ -3305,7 +3307,8 @@ and doStatement (s : A.statement) : chunk =
             in
             (* Make a switch statement. We'll fill in the statements at the 
             * end of the function *)
-            let switch = mkStmt (Switch (Lval(var switchv), [], [], loc')) in
+            let switch = mkStmt (Switch (Lval(var switchv), 
+                                         mkBlock [], [], loc')) in
             (* And make a label for it since we'll goto it *)
             switch.labels <- [Label ("__docompgoto", loc')];
             gotoTargetData := Some (switchv, switch);
@@ -3552,9 +3555,9 @@ let convFile fname dl =
                                              Lval (var shadow),
                                              !currentLoc)]) :: accbody))
                   formals'
-                  ([], fdec.sbody)
+                  ([], fdec.sbody.bstmts)
               in
-              fdec.sbody <- newbody;
+              fdec.sbody.bstmts <- newbody;
               setFormals fdec newformals; (* To make sure sharing with the
                                            * type is proper *)
 

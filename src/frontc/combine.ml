@@ -796,13 +796,16 @@ and alpha_expression (exp : expression) : expression =
       GNU_BODY (alpha_block blk)
   | EXPR_PATTERN (_) -> (E.s (E.bug "EXPR_PATTERN in combiner source"))
 
-and alpha_block (labs, defs, stmts) = 
+and alpha_block blk = 
   enterScope ();
   let res = 
     (* make sure we do the definitions first *)
-    let defs' = doDefinitions false defs in
-    (labs, defs',
-     List.map alpha_statement stmts) in
+    let defs' = doDefinitions false blk.bdefs in
+    { bdefs = defs'; 
+      blabels = blk.blabels;
+      bstmts = List.map alpha_statement blk.bstmts;
+      battrs = alpha_attrs blk.battrs} 
+  in
   exitScope ();
   res
 

@@ -7,31 +7,10 @@ open Cil
 module H = Hashtbl
 module E = Errormsg
 
-(* COPIED FROM cil.ml *)
-(* the default visitor does nothing at each node, but does *)
-(* not stop; hence they return true *)
-class nopCilVisitor = object
-  method vvrbl (v:varinfo) = true     (* variable *)
-  method vvdec (v:varinfo) = true     (* variable declaration *)
-  method vexpr (e:exp) = true         (* expression *)
-  method vlval (l:lval) = true        (* lval (base is 1st field) *)
-  method voffs (o:offset) = true      (* lval offset *)
-  method vinst (i:instr) = true       (* imperative instruction *)
-  method vstmt (s:stmt) = true        (* constrol-flow statement *)
-  method vfunc (f:fundec) = true      (* function definition *)
-  method vfuncPost (f:fundec) = true  (*   postorder version *)
-  method vglob (g:global) = true      (* global (vars, types, etc.) *)
-  method vinit (i:init) = true        (* global initializer *)
-  method vtype (t:typ) = true         (* use of some type *)
-  method vtdec (s:string) (t:typ) = true    (* typedef *)
-  method venum (e:enuminfo) = true
-  method vcomp (c:compinfo) = true
-end
-
 
 (* simple visitor to clear the 'referenced' bits *)
 class clearRefBitsVis = object
-  inherit nopCilVisitor
+  inherit nopCilVisitor (* in CIL *)
 
   method vvdec (v: varinfo) = begin
     (* declared variables: clear the 'referenced' bits *)

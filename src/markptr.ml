@@ -812,7 +812,10 @@ let isMemcpy
 
     
 let rec doBlock blk = 
-    List.map doStmt blk
+  if hasAttribute "nobox" blk.battrs then 
+    blk
+  else 
+    { bstmts = List.map doStmt blk.bstmts; battrs = blk.battrs }
 
 and doStmt (s: stmt) : stmt = 
   (match s.skind with 
@@ -826,6 +829,7 @@ and doStmt (s: stmt) : stmt =
   | Loop (b, l) -> 
       currentLoc := l;
       s.skind <- Loop (doBlock b, l)
+  | Block b -> s.skind <- Block (doBlock b)
   | If(e, b1, b2, l) -> 
       currentLoc := l;
       s.skind <- If (doExpAndCast e intType, doBlock b1, doBlock b2, l)

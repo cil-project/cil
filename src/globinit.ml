@@ -22,11 +22,11 @@ let insertGlobInit ?(mainname="main") (file: file) : unit =
               GFun(m, lm) when m.svar.vname = mainname ->
                 (* Prepend a prototype *)
                 theFile := GDecl (gi.svar, lm) :: !theFile;
-                m.sbody <- 
-                   compactBlock (mkStmt (Instr [Call(None, 
+                m.sbody.bstmts <- 
+                   compactStmts (mkStmt (Instr [Call(None, 
                                                      Lval(var gi.svar), 
                                                      [], locUnknown)]) 
-                                 :: m.sbody);
+                                 :: m.sbody.bstmts);
                 inserted := true;
                 ignore (E.log "Inserted the globinit\n");
                 file.globinitcalled <- true;
@@ -64,8 +64,9 @@ let doFile (fl: file) : file =
                 mkStmt (Instr [Set ((Var vi, off'), ei, locUnknown)]) 
                 :: acc
           in
-          let inits = initone NoOffset NoOffset init vi.vtype finit.sbody in 
-          finit.sbody <- compactBlock (List.rev inits);
+          let inits = 
+            initone NoOffset NoOffset init vi.vtype finit.sbody.bstmts in 
+          finit.sbody.bstmts <- compactStmts (List.rev inits);
           GVar (vi, None, l)
         else g
           

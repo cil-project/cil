@@ -742,20 +742,22 @@ and print_statement stat =
         print ");"
       end
 
-and print_block ((labs: string list),
-                 (defs: definition list),
-                 (stmts: statement list)) =
+and print_block blk = 
   new_line();
   print "{";
   indent ();
-  if labs <> [] then begin
+  if blk.blabels <> [] then begin
     print "__label__ ";
-    print_commas false print labs;
+    print_commas false print blk.blabels;
     print ";";
     new_line ();
   end;
-  List.iter print_def defs;
-  List.iter print_statement stmts;
+  if blk.battrs <> [] then begin
+    List.iter print_attribute blk.battrs;
+    new_line ();
+  end;
+  List.iter print_def blk.bdefs;
+  List.iter print_statement blk.bstmts;
   unindent ();
   print "}";
   new_line ()

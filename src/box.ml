@@ -3166,6 +3166,19 @@ let fixupGlobName vi =
         vi.vname <- newname
     end
 
+
+class unsafeVisitorClass = object
+  inherit nopCilVisitor
+
+  method vvdec (v: varinfo) = begin
+    (* declared variables: clear the 'referenced' bits *)
+    (* assume declaration preceed all uses *)
+    v.vreferenced <- false;
+    true
+  end
+end
+let unsafeVisitor = new unsafeVisitorClass
+
 (*** Intercept some function calls *****)
 let interceptCall 
     (reso: lval option)
@@ -3176,13 +3189,20 @@ let interceptCall
 
 
     (************* STATEMENTS **************)
-let rec boxblock (b: stmt list) : stmt list = 
-  let res = 
-    toList 
-       (List.fold_left 
-          (fun acc s -> append acc (boxstmt s)) empty b)
-  in
-  if compactBlocks then compactBlock res else res
+let rec boxblock (b: block) : block = 
+  if hasAttribute "nobox" b.battrs then
+    { bstmts = boxUnsafeStmts b.bstmts;
+      battrs = b.battrs }
+  else begin
+    let res = 
+      toList 
+        (List.fold_left 
+           (fun acc s -> append acc (boxstmt s)) empty b.bstmts)
+    in
+    { bstmts = if compactBlocks then compactStmts res else res;
+      battrs = b.battrs
+    } 
+  end
 
 and boxstmt (s: Cil.stmt) : stmt clist = 
    (* Keep the original statement, but maybe modify its kind. This way we 
@@ -3217,7 +3237,11 @@ and boxstmt (s: Cil.stmt) : stmt clist =
         currentLoc := l;
         s.skind <- Loop (boxblock b, l);
         single s
-          
+   
+    | Block b -> 
+        s.skind <- Block (boxblock b);
+        single s
+
     | If(be, t, e, l) -> 
         currentLoc := l;
         let (_, doe, e') = boxexp (CastE(intType, be)) in
@@ -3961,7 +3985,11 @@ and boxexpSplit (e: exp) =
       (tptr, append doe caste, ptr, base, bend)
 
 
-
+(************ UNSAFE *************)
+and boxUnsafeStmts (ss: stmt list) : stmt list = 
+  (* simple visitor to clear the 'referenced' bits *)
+  List.iter (visitCilStmt unsafeVisitor) ss;
+  ss
 
 
 (* a hashtable of functions that we have already made wrappers for *)
@@ -4082,7 +4110,7 @@ let boxFile file =
 *)
             let newformals, (newbody : stmt clist) =
               let rec loopFormals = function
-                  [] -> [], fromList f.sbody
+                  [] -> [], fromList f.sbody.bstmts
                 | form :: restf ->
                     let r1, r2 = loopFormals restf in
                     if form.vaddrof then begin
@@ -4221,7 +4249,7 @@ let boxFile file =
             (* Clean up the iterator variables *)
             iterVars := [];
 
-            f.sbody <- toList newbody;
+            f.sbody.bstmts <- toList newbody;
 
             (* Initialize and register the locals. Since we do this before 
              * boxing we will not initialize the temporaries created during 
@@ -4241,8 +4269,9 @@ let boxFile file =
             );
 
             (* Do the body now *)
-            let boxbody : stmt list = boxblock f.sbody in
-            f.sbody <- toList (append inilocals (fromList boxbody));
+            f.sbody <- boxblock f.sbody;
+            f.sbody.bstmts <- 
+               toList (append inilocals (fromList f.sbody.bstmts));
             H.clear heapifiedLocals;
             heapifiedFree := [];
             (* Drop it if it is just a model *)
@@ -4348,7 +4377,7 @@ let boxFile file =
       None -> 
         if !extraGlobInit <> empty then
           let gi = getGlobInit file in
-          gi.sbody <- toList !extraGlobInit;
+          gi.sbody.bstmts <- toList !extraGlobInit;
           Some gi
         else
           None
@@ -4357,8 +4386,9 @@ let boxFile file =
           GFun(gi, _) :: rest -> 
             theFile := rest; (* Take out the global initializer (last thing 
                               * added)  *)
-            let res = toList (append !extraGlobInit (fromList gi.sbody)) in
-            gi.sbody <- if compactBlocks then compactBlock res else res;
+            let res = 
+              toList (append !extraGlobInit (fromList gi.sbody.bstmts)) in
+            gi.sbody.bstmts <- if compactBlocks then compactStmts res else res;
             Some gi
         | _ -> E.s (bug "box: Cannot find global initializer")
     end
@@ -4386,14 +4416,14 @@ let boxFile file =
     main.slocals <- [];
     let exitcode = makeLocalVar main "exitcode" intType in
     (* Now build a body that calls the wrapper *)
-    main.sbody <- 
-       mkStmtOneInstr 
+    main.sbody <-  
+       mkBlock (mkStmtOneInstr 
          (Call (Some (var exitcode), Lval (var mainWrapperFun.svar),
                 [ Lval (var argc); Lval (var argv) ], lu))
        ::
        mkStmt (Return (Some (Lval (var exitcode)), lu)) 
        ::
-       [];
+       []);
     theFile := consGlobal (GFun (main, lu)) !theFile
   end;
   (* Now add the function descriptor definitions *)

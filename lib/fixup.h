@@ -34,6 +34,7 @@
   #define __HEAPIFY
   #define __DUMMYDEFN
   #define __BOXMODEL(fname)
+  #define __NOBOX(block)
 #else
   #define __WILD   __attribute__((wild))
   #define __SAFE   __attribute__((safe))
@@ -62,6 +63,7 @@
   #endif
   #define __DUMMYDEFN __attribute__((dummydefn))
   #define __BOXMODEL(fname) __attribute__((boxmodel(fname)))
+  #define __NOBOX(block)    { __blockattribute__(nobox) block }
 #endif
 
 //#if ! defined(MANUALBOX) && ! defined(INFERBOX)
@@ -109,7 +111,7 @@
 // sm: I think it's a bad idea to try to match signal's declaration since it's
 // such an unusual type; and it doesn't use any types that aren't built-in
 
-// gn: commented out because of multiple definitions
+// gn: disabled this since everythign in BOX mode fails due to redefin.
 //#ifdef BEFOREBOX
 //  typedef void (*_box_sig_fn)(int);
 //  _box_sig_fn signal_model(int signum, _box_sig_fn fn) __BOXMODEL("signal");

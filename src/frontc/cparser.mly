@@ -170,6 +170,7 @@ end
 %token IF ELSE
 
 %token ATTRIBUTE INLINE ASM TYPEOF FUNCTION__ PRETTY_FUNCTION__ LABEL__
+%token BLOCKATTRIBUTE
 %token DECLSPEC
 %token <string> MSASM MSATTR
 %token PRAGMA
@@ -492,11 +493,22 @@ comma_expression:
 
 /*** statements ***/
 block: /* ISO 6.8.2 */
-    block_begin local_labels declaration_list statement_list RBRACE   
-                                         {Clexer.pop_context(); ($2, $3, $4) }
+    block_begin local_labels block_attrs declaration_list statement_list RBRACE   
+                                         {Clexer.pop_context(); 
+                                          { blabels = $2;
+                                            battrs = $3;
+                                            bdefs = $4;
+                                            bstmts = $5; }
+                                         } 
 ;
 block_begin:
     LBRACE      		         {Clexer.push_context ()}
+;
+
+block_attrs:
+   /* empty */                                              { [] }
+|  BLOCKATTRIBUTE LPAREN attr_list_ne RPAREN 
+                                        { [("__blockattribute__", $3)] }
 ;
 
 declaration_list: 
