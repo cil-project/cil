@@ -17,13 +17,19 @@
 *)
 
 open Cabs
+open Pretty
+
+module H = Hashtbl
+module E = Errormsg
 
 (* Hash tables for combiner *)
 
 (* Tables that used to keep track of re-definitions 
  - store definitions in tables *)
-let gDefTable = Hashtbl.create 307 (* global definition *)
-let fDefTable = Hashtbl.create 107 (* static global definition (file scope) *)
+let gDefTable : (string, bool) H.t = Hashtbl.create 307 
+(* global definition *)
+let fDefTable : (string, bool) H.t = Hashtbl.create 107 
+(* static global definition (file scope) *)
 
 let gAlphaTable = Hashtbl.create 307 (* id names that have been used *)
 
@@ -39,6 +45,8 @@ let gTag = Hashtbl.create 107 (* tags that have appeared in ALL files *)
 let structTag = Hashtbl.create 107
 let unionTag = Hashtbl.create 107
 
+let hasAttribute (n: string) (al: attribute list) : bool = 
+  List.exists (fun (an,_) -> an = n) al
 
 let rec combine_type typ =
   match typ with
@@ -55,13 +63,10 @@ let rec combine_type typ =
   | STRUCTDEF (id, flds) -> STRUCTDEF (lookup_tag id, combine_fields flds)
   | UNION id -> UNION(lookup_tag id)
   | UNIONDEF (id, flds) -> UNIONDEF(lookup_tag id, combine_fields flds) 
-  | PROTO (typ, pars, ell, x) -> PROTO(combine_type typ, combine_params pars, ell, x)
+  | PROTO (typ, pars, ell, x) -> 
+      PROTO(combine_type typ, combine_params pars, ell, x)
   | PTR typ -> PTR(combine_type typ)
   | ARRAY (typ, dim) -> ARRAY(combine_type typ, combine_expression dim)
-(*
-  | CONST typ -> CONST(combine_type typ)
-  | VOLATILE typ -> VOLATILE(combine_type typ)
-*)
   | ATTRTYPE (typ, a) -> 
       let combineOne (s, el) =
         (s, List.map combine_expression el)
@@ -286,7 +291,7 @@ and combine_defs defs global = begin
           (reform_defs rest) (*skip this def *) 
         else
           let combined_def = combine_def def global in
-            combined_def :: (reform_defs rest)
+          combined_def :: (reform_defs rest)
       end
   in 
   reform_defs defs 
@@ -326,10 +331,6 @@ and remove_anon_type typ = begin
       PTR(remove_anon_type typ')
   | ARRAY (typ', dim) -> 
       ARRAY(remove_anon_type typ', dim)
-(*
-  | CONST typ' -> CONST (remove_anon_type typ')
-  | VOLATILE typ' -> VOLATILE (remove_anon_type typ')
-*)
   | ATTRTYPE (typ', a) -> ATTRTYPE(remove_anon_type typ', a)
   | _ -> typ
 end    
@@ -348,7 +349,7 @@ and remove_anon def = begin
  
 end        
 
-and tag_defined (typ, sto, names) = begin
+and tag_defined typ = begin
   match typ with
     STRUCTDEF (id, _) ->
       begin
@@ -375,66 +376,52 @@ end
 
 (* returns true check if def is not declared
    Could make another function to clean this code up *)
-and already_declared def = begin
-  match def with
-    FUNDEF ((typ, sto, name), body) ->
-      (match sto with
-        STATIC i ->
-          (try 
-            Hashtbl.find fDefTable def;
-            true
-          with Not_found ->
-              (Hashtbl.add fDefTable def 1;
-              false))            
-      | _ -> 
-          (try
-            Hashtbl.find gDefTable def;
-            true
-          with Not_found -> 
-              (Hashtbl.add gDefTable def 1;
-              false)))
-              
-  | DECDEF (typ, sto, names) ->
-      (match sto with
-        STATIC i ->
-          (try 
-            ignore(Hashtbl.find fDefTable def);
-            true
-          with Not_found ->
-              (Hashtbl.add fDefTable def 1;
-              false))
-      | _ -> 
-          (try
-            ignore(Hashtbl.find gDefTable def);
-            true
-          with Not_found -> 
-              (Hashtbl.add gDefTable def 1;
-              false)))
-              
-  | TYPEDEF names ->
-      if tag_defined names then
-        true
+and already_declared def =
+  let doOneName (isdef: name -> bool) (* Say whether it is a definition *)
+                (sto:storage) 
+                (((n, _, _, _) as nm): name) : bool = 
+    if not (isdef nm) then false
+    else
+      if sto = STATIC then
+        H.mem fDefTable n || (H.add fDefTable n true; false)
       else
-        (try
-          ignore(Hashtbl.find gDefTable def);
-          true
-        with Not_found ->
-            (Hashtbl.add gDefTable def 1;
-            false))
+        H.mem gDefTable n || (H.add gDefTable n true; false)
+  in
+  let doNames (isdef: name -> bool)
+              (sto: storage) (nl: name list) : bool = 
+      (* compute the list of results *)
+    let res = List.map (fun n -> doOneName isdef sto n) nl in
+      (* Right now we support only the case when all results are true or all 
+       * are false *)
+    match res with
+      [] -> false
+    | true :: rest -> 
+        if List.for_all (fun x -> x) rest then true else
+        E.s (E.unimp "A mix of already implemented and new stuff")
+    | false :: rest -> 
+        if List.for_all (fun x -> not x) rest then false else
+        E.s (E.unimp "A mix of already implemented and new stuff")
+  in
+  match def with
+    FUNDEF ((typ, sto, name), body) -> 
+      doOneName (fun _ -> true) sto name
+              
+  | DECDEF (typ, sto, names) -> 
+    (* See if it is a declaration or a definition *)
+    let isdef (_, bt, _, ei) : bool = 
+      if sto = EXTERN then false
+      else (match bt with PROTO _ -> false | _ -> true)
+    in
+    doNames isdef sto names
+              
+  | TYPEDEF (typ, sto, names) ->
+      tag_defined typ || doNames (fun _ -> true) EXTERN names
           
-  | ONLYTYPEDEF names ->
-      if tag_defined names then
-        true
-      else 
-        (try
-          ignore(Hashtbl.find gDefTable def);
-          true
-        with Not_found ->
-            (Hashtbl.add gDefTable def 1;
-            false))
+  | ONLYTYPEDEF (typ, sto, names) ->
+      tag_defined typ || doNames (fun _ -> true) EXTERN names
       
   | _ -> false (* ASM and others are always considered to be false *)
-end
+
 
 (* Find a id name that hasn't been used *)
 and find_newId id = begin
@@ -458,7 +445,7 @@ and declare_id (typ, sto, (id, typ', attr, exp)) global = begin
   if global then 
     begin
       match sto with
-        STATIC i ->
+        STATIC ->
           (try
              Hashtbl.find fMap id; ();
            with Not_found -> (* new declaration *)
@@ -536,11 +523,11 @@ and combine_def def global = begin
       DECDEF(combine_name_group names))
        
   | TYPEDEF (typ, sto, names) ->
-      (declare_ids (typ, STATIC true, names) global;
+      (declare_ids (typ, STATIC, names) global;
       TYPEDEF(combine_name_group (typ, sto, names)))
       
   | ONLYTYPEDEF (typ, sto, names) ->
-      (declare_ids (typ, STATIC true, names) global;
+      (declare_ids (typ, STATIC, names) global;
       ONLYTYPEDEF(combine_name_group (typ, sto, names)))
         
   | GLOBASM asm -> 

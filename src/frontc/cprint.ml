@@ -358,9 +358,8 @@ and get_storage sto =
   match sto with
     NO_STORAGE -> ""
   | AUTO -> "auto"
-  | STATIC i -> "static" ^ (if i then " __inline__" else "")
-  | EXTERN i -> "extern" ^ (if i then " __inline__" else "")
-  | INLINE -> "__inline__"
+  | STATIC -> "static"
+  | EXTERN -> "extern"
   | REGISTER -> "register"
         
 and print_name_group (typ, sto, names) =

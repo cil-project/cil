@@ -853,3 +853,8 @@ gcc: defaulttarget mustbegcc
 
 allcc1: defaulttarget mustbegcc
 	cd $(GCCDIR)/exe/base; $(SAFECC) $(DOOPT) cc1.v8_all.c
+
+
+
+combinetest: defaulttarget
+	cd test/small1; $(SAFECC) --combine /Fet.exe t.c t1.c

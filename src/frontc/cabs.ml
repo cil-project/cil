@@ -19,8 +19,7 @@ let version = "Cabs 2.1 4.7.99 Hugues Cassé"
 type size = NO_SIZE | CHAR | SHORT | LONG | LONG_LONG
 and sign = NO_SIGN | SIGNED | UNSIGNED
 and storage = 
-    (* bool = whether it is inline *)
-    NO_STORAGE | AUTO | STATIC of bool | EXTERN of bool | REGISTER | INLINE 
+    NO_STORAGE | AUTO | STATIC | EXTERN | REGISTER
 
 and base_type =
    NO_TYPE

@@ -722,8 +722,8 @@ decl_spec_list:                         /* ISO 6.7 */
                                         /* ISO 6.7.1 */
 |   TYPEDEF decl_spec_list_opt          { applyTypedef $2 }
 /* weimer: gcc allows "__extension__ typedef unsigned long yada ..." */
-|   EXTERN decl_spec_list_opt           { applyStorage (EXTERN false) $2 }
-|   STATIC  decl_spec_list_opt          { applyStorage (STATIC false) $2 }
+|   EXTERN decl_spec_list_opt           { applyStorage EXTERN $2 }
+|   STATIC  decl_spec_list_opt          { applyStorage STATIC $2 }
 |   AUTO   decl_spec_list_opt           { applyStorage AUTO $2 }
 |   REGISTER decl_spec_list_opt         { applyStorage REGISTER $2} 
                                         /* ISO 6.7.2 */

@@ -817,9 +817,8 @@ and doStorage = function
     A.NO_STORAGE -> NoStorage
   | A.AUTO -> NoStorage
   | A.REGISTER -> Register
-  | A.INLINE -> NoStorage
-  | A.STATIC _ -> Static
-  | A.EXTERN _ -> Extern
+  | A.STATIC -> Static
+  | A.EXTERN -> Extern
 
 and doType (a : attribute list) = function
     A.NO_TYPE -> intType
@@ -2090,7 +2089,7 @@ and createGlobal ((_,_,(n,nbt,a,e)) as sname : A.single_name) =
 
 (* Must catch the Static local variables.Make them global *)
 and createLocal = function
-    ((bt,A.STATIC _,(n,nbt,a,e)) as sname : A.single_name) -> 
+    ((bt,A.STATIC,(n,nbt,a,e)) as sname : A.single_name) -> 
       let vi = makeVarInfo true locUnknown sname in (* Make it global *)
       (* Now alpha convert it to make sure that it does not conflict with 
        * existing globals or locals from this function. Make it local 
