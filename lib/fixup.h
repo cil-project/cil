@@ -423,6 +423,15 @@ extern long double __builtin_fabsl(long double);
   }
   #pragma boxmodelof("getopt_model", "getopt")
 
+  // for EDG-generated code, which uses this function purely to fool gcc's
+  // optimizer: the address of certain variables is passed to this thing,
+  // which simply ignores them
+  //void __suppress_optim_on_vars_in_try(void *foo, ...);
+  union suppress_optim_format {
+    void *anyPtr;
+  };
+  #pragma boxvararg("__suppress_optim_on_vars_in_try", sizeof(union suppress_optim_format))
+
 #endif
 
 

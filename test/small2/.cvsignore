@@ -133,3 +133,4 @@ complex_float
 mergeinline
 ehstack
 setjmp
+suppress_optim
