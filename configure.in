@@ -148,23 +148,23 @@ fi
 #
 # -------------------- GCC --------------
 #
-AC_ARG_VAR(gccdir, [The directory containing the gcc executable])
-AC_MSG_CHECKING([for gcc directory])
-if test "x${gccdir}" = "x" ;then
-  # sm: is there a reason the next line used to use 'type' explicitly,
-  # instead of calling binaryExists?  if so it should be commented...
-  if binaryExists "gcc" ;then
-    # Grab the directory they are in
-    gccdir=`dirname \`which gcc\``
-  else
-    AC_MSG_ERROR([Cannot find gcc in your PATH])
-  fi
-fi
-if ! binaryExists "${gccdir}/gcc" ;then
- AC_MSG_ERROR([Cannot find gcc in ${gccdir}])
-fi
-AC_MSG_RESULT(found in $gccdir)
-GCCDIR="$gccdir"
+#AC_ARG_VAR(gccdir, [The directory containing the gcc executable])
+#AC_MSG_CHECKING([for gcc directory])
+#if test "x${gccdir}" = "x" ;then
+#  # sm: is there a reason the next line used to use 'type' explicitly,
+#  # instead of calling binaryExists?  if so it should be commented...
+#  if binaryExists "gcc" ;then
+#    # Grab the directory they are in
+#    gccdir=`dirname \`which gcc\``
+#  else
+#    AC_MSG_ERROR([Cannot find gcc in your PATH])
+#  fi
+#fi
+#if ! binaryExists "${gccdir}/gcc" ;then
+# AC_MSG_ERROR([Cannot find gcc in ${gccdir}])
+#fi
+#AC_MSG_RESULT(found in $gccdir)
+#GCCDIR="$gccdir"
 
 
 # ----------- platform-specific code -------------
@@ -187,7 +187,7 @@ case "$target" in
     # sm: Ifolded this into what I hope will be the only
     # case-analysis of machine type
     CCUREDHOME=`cygpath -wa $CCUREDHOME  | sed -e "s/\\\\\/\\//g"`
-    GCCDIR=`cygpath -wa $GCCDIR  | sed -e "s/\\\\\/\\//g"`
+    CC=`cygpath -wa $CC  | sed -e "s/\\\\\/\\//g"`
     ;;
 
   *)
@@ -225,7 +225,6 @@ AC_SUBST(CCUREDHOME)
 AC_SUBST(CILHOME)
 AC_SUBST(do_not_edit)
 AC_SUBST(HAS_MSVC)
-AC_SUBST(GCCDIR)
 
 # finish the configure script and generate various files; ./configure
 # will apply variable substitutions to <filename>.in to generate <filename>;
@@ -245,15 +244,25 @@ define([MY_AC_CONFIG_FILES],
     #echo "skipping [$1] because it's not in this distribution"
   fi
 }])
+define([MY_AC_CONFIG_EXE_FILES],
+[{
+  if test -f [$1].in; then
+    AC_CONFIG_FILES([$1], [chmod a-w,a+x $1])
+  else
+    true
+    #echo "skipping [$1] because it's not in this distribution"
+  fi
+}])
 
 MY_AC_CONFIG_FILES(Makefile)
 MY_AC_CONFIG_FILES(test/Makefile)
 MY_AC_CONFIG_FILES(Makefile.cil)
-MY_AC_CONFIG_FILES(bin/cilly.pl)
-MY_AC_CONFIG_FILES(bin/ccured.pl)
-MY_AC_CONFIG_FILES(bin/scaninfer)
-MY_AC_CONFIG_FILES(bin/scaninfer.bat)
+MY_AC_CONFIG_EXE_FILES(bin/cilly.pl)
+MY_AC_CONFIG_EXE_FILES(bin/ccured.pl)
+MY_AC_CONFIG_EXE_FILES(bin/scaninfer)
+MY_AC_CONFIG_EXE_FILES(bin/scaninfer.bat)
 MY_AC_CONFIG_FILES(lib/CompilerStub.pm)
+MY_AC_CONFIG_EXE_FILES(bin/patcher.pl)
 
 AC_OUTPUT()
 
@@ -264,5 +273,5 @@ CCured/CIL configuration:
   architecture/OS:            ARCHOS       $ARCHOS
   source tree root:           CCUREDHOME   $CCUREDHOME
   (optional) cl.exe found:    HAS_MSVC     $HAS_MSVC
-  gcc directory               GCCDIR       $GCCDIR
+  gcc to use                  CC           $CC
 EOF

@@ -34,9 +34,10 @@
 use strict;
 use File::Basename;
 use File::Copy;
-use FindBin;
 use Getopt::Long;           # Command-line option processing
 use Data::Dumper;
+
+my $gcc = "C:/Programs/cygwin/bin/gcc";
 
 if($^O eq 'MSWin32') {
     require Win32;
@@ -186,7 +187,8 @@ sub findCompilerVersion {
     $cversion = 0;
     if($option{mode} eq "GNUCC") {
         $cname = "GNU CC";
-        open(VER, "gcc -dumpversion $ppargs|") || die "Cannot start $cname";
+        open(VER, "$gcc -dumpversion $ppargs|") 
+            || die "Cannot start $cname";
         while(<VER>) {
             # sm: had to modify this to match "egcs-2.91.66", which is
             # how egcs responds to the -dumpversion request
@@ -239,7 +241,7 @@ sub patchOneFile {
     print TOPREPROC "#include $fname1\n";
     close(TOPREPROC);
     if($option{mode} eq "GNUCC") {
-        (!system("gcc -E $ppargs $preprocfile.c >$preprocfile.i")) 
+        (!system("$gcc -E $ppargs $preprocfile.c >$preprocfile.i")) 
             || die "Cannot run the GCC preprocessor";
     } elsif($option{mode} eq "MSVC") {
         (!system("cl /nologo /P $ppargs $preprocfile.c"))
