@@ -274,8 +274,12 @@ and attrparam =
                                              parentheses are not printed. *)
   | ASizeOf of typ                       (** A way to talk about types *)
   | ASizeOfE of attrparam
+  | ASizeOfS of typsig                   (** Replacement for ASizeOf in type
+                                             signatures.  Only used for
+                                             attributes inside typsigs.*)
   | AAlignOf of typ
   | AAlignOfE of attrparam
+  | AAlignOfS of typsig
   | AUnOp of unop * attrparam
   | ABinOp of binop * attrparam * attrparam
   | ADot of attrparam * string           (** a.foo **)
@@ -771,6 +775,16 @@ and location = {
     byte: int;             (** The byte position in the source file *)
 }
 
+(* Type signatures. Two types are identical iff they have identical 
+ * signatures *)
+and typsig = 
+    TSArray of typsig * exp option * attribute list
+  | TSPtr of typsig * attribute list
+  | TSComp of bool * string * attribute list
+  | TSFun of typsig * typsig list * bool * attribute list
+  | TSEnum of string * attribute list
+  | TSBase of typ
+
 
 
 (** To be able to add/remove features easily, each feature should be package 
@@ -905,6 +919,8 @@ class type cilVisitor = object
                                                  * visit it.  *)
   method vattr: attribute -> attribute list visitAction 
     (** Attribute. Each attribute can be replaced by a list *)
+  method vattrparam: attrparam -> attrparam visitAction 
+    (** Attribute parameters. *)
 
     (** Add here instructions while visiting to queue them to 
      * preceede the current statement or instruction being processed *)
@@ -934,6 +950,7 @@ class nopCilVisitor : cilVisitor = object
   method vinit (i:init) = DoChildren        (* global initializers *)
   method vtype (t:typ) = DoChildren         (* use of some type *)
   method vattr (a: attribute) = DoChildren
+  method vattrparam (a: attrparam) = DoChildren
 
   val mutable instrQueue = []
       
@@ -1800,17 +1817,6 @@ let typeRemoveAttributes (anl: string list) t =
   | TNamed (t, a) -> TNamed (t, drop a)
   | TBuiltin_va_list a -> TBuiltin_va_list (drop a)
 
-
-     (* Type signatures. Two types are identical iff they have identical 
-      * signatures *)
-type typsig = 
-    TSArray of typsig * exp option * attribute list
-  | TSPtr of typsig * attribute list
-  | TSComp of bool * string * attribute list
-  | TSFun of typsig * typsig list * bool * attribute list
-  | TSEnum of string * attribute list
-  | TSBase of typ
-
 (* Compute a type signature *)
 let rec typeSigWithAttrs doattr t = 
   let typeSig = typeSigWithAttrs doattr in
@@ -1840,7 +1846,6 @@ and typeSigAddAttrs a0 t =
   | TSFun(ts, tsargs, isva, a) -> TSFun(ts, tsargs, isva, addAttributes a0 a)
 
 
-let typeSig t = typeSigWithAttrs (fun al -> al) t
 
 (* Remove the attribute from the top-level of the type signature *)
 let setTypeSigAttrs (a: attribute list) = function
@@ -2370,8 +2375,12 @@ class defaultCilPrinterClass : cilPrinter = object (self)
               self#pLval () lv ++ text " = " ++
                 (* Maybe we need to print a cast *)
                 (let destt = typeOfLval lv in
+                 let typeSigNoAttrs t = typeSigWithAttrs (fun al -> []) t in
+                 (* typeSigNoAttrs stands in for typeSig, which hasn't been 
+                    defined yet. *)
                 match unrollType (typeOf e) with
-                  TFun (rt, _, _, _) when typeSig rt <> typeSig destt ->
+                  TFun (rt, _, _, _) 
+                      when typeSigNoAttrs rt <> typeSigNoAttrs destt ->
                     text "(" ++ self#pType None () destt ++ text ")"
                 | _ -> nil))
           (* Now the function name *)
@@ -3079,8 +3088,10 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           ++ text ")"
     | ASizeOfE a -> text "sizeof(" ++ self#pAttrParam () a ++ text ")"
     | ASizeOf t -> text "sizeof(" ++ self#pType None () t ++ text ")"
+    | ASizeOfS ts -> text "sizeof(<typsig>)"
     | AAlignOfE a -> text "__alignof__(" ++ self#pAttrParam () a ++ text ")"
     | AAlignOf t -> text "__alignof__(" ++ self#pType None () t ++ text ")"
+    | AAlignOfS ts -> text "__alignof__(<typsig>)"
     | AUnOp(u,a1) -> 
         let d_unop () u =
           match u with
@@ -3982,43 +3993,49 @@ and visitCilAttributes (vis: cilVisitor) (al: attribute list) : attribute list=
    else
      al
 and childrenAttribute (vis: cilVisitor) (a: attribute) : attribute = 
+  let fAttrP a = visitCilAttrParams vis a in
+  match a with 
+    Attr (n, args) -> 
+      let args' = mapNoCopy fAttrP args in
+      if args' != args then Attr(n, args') else a
+      
+
+and visitCilAttrParams (vis: cilVisitor) (a: attrparam) : attrparam =
+   doVisit vis vis#vattrparam childrenAttrparam a
+and childrenAttrparam (vis: cilVisitor) (aa: attrparam) : attrparam = 
   let fTyp t  = visitCilType vis t in
-  let rec doarg (aa: attrparam) = 
-    match aa with 
+  let fAttrP a = visitCilAttrParams vis a in
+  match aa with 
       AInt _ | AStr _ -> aa
     | ACons(n, args) -> 
-        let args' = mapNoCopy doarg args in
+        let args' = mapNoCopy fAttrP args in
         if args' != args then ACons(n, args') else aa
     | ASizeOf t -> 
         let t' = fTyp t in
         if t' != t then ASizeOf t' else aa
     | ASizeOfE e -> 
-        let e' = doarg e in
+        let e' = fAttrP e in
         if e' != e then ASizeOfE e' else aa
     | AAlignOf t -> 
         let t' = fTyp t in
         if t' != t then AAlignOf t' else aa
     | AAlignOfE e -> 
-        let e' = doarg e in
+        let e' = fAttrP e in
         if e' != e then AAlignOfE e' else aa
+    | ASizeOfS _ | AAlignOfS _ ->
+        ignore (warn "Visitor inside of a type signature.");
+        aa
     | AUnOp (uo, e1) -> 
-        let e1' = doarg e1 in
+        let e1' = fAttrP e1 in
         if e1' != e1 then AUnOp (uo, e1') else aa
     | ABinOp (bo, e1, e2) -> 
-        let e1' = doarg e1 in
-        let e2' = doarg e2 in
+        let e1' = fAttrP e1 in
+        let e2' = fAttrP e2 in
         if e1' != e1 || e2' != e2 then ABinOp (bo, e1', e2') else aa
     | ADot (ap, s) ->
-        let ap' = doarg ap in
+        let ap' = fAttrP ap in
         if ap' != ap then ADot (ap', s) else aa
-        
-  in
-  match a with 
-    Attr (n, args) -> 
-      let args' = mapNoCopy doarg args in
-      if args' != args then Attr(n, args') else a
-      
-
+ 
 
 let rec visitCilFunction (vis : cilVisitor) (f : fundec) : fundec =
   if debugVisit then ignore (E.log "Visiting function %s\n" f.svar.vname);
@@ -4324,6 +4341,25 @@ let rec peepHole2  (* Process two statements and possibly replace them both *)
 
 
 
+(*** Type signatures ***)
+
+(* Helper class for typeSig: replace any types in attributes with typsigs *)
+class typeSigVisitor(typeSigConverter: typ->typsig) = object 
+  inherit nopCilVisitor 
+  method vattrparam ap =
+    match ap with
+      | ASizeOf t -> ChangeTo (ASizeOfS (typeSigConverter t))
+      | AAlignOf t -> ChangeTo (AAlignOfS (typeSigConverter t))
+      | _ -> DoChildren
+end
+
+(* We need to remove any types that might appear in attributes, since CIL.typs
+   are cyclic and hard to compare.  So search for types and replace them with
+   type signatures. *)
+let rec typeSig t = 
+  let attrVisitor = new typeSigVisitor(typeSig) in
+  typeSigWithAttrs (visitCilAttributes attrVisitor) t
+
 
 
 let dExp: doc -> exp = 
@@ -4463,7 +4499,7 @@ let getCompField (cinfo:compinfo) (fieldName:string) : fieldinfo =
 
 let rec mkCastT ~(e: exp) ~(oldt: typ) ~(newt: typ) = 
   (* Do not remove old casts because they are conversions !!! *)
-  if Util.equals (typeSig oldt) (typeSig newt) then begin
+  if typeSig oldt = typeSig newt then begin
     e
   end else begin
     (* Watch out for constants *)

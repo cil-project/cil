@@ -312,8 +312,12 @@ and attrparam =
                                              parentheses are not printed. *)
   | ASizeOf of typ                       (** A way to talk about types *)
   | ASizeOfE of attrparam
+  | ASizeOfS of typsig                   (** Replacement for ASizeOf in type
+                                             signatures.  Only used for
+                                             attributes inside typsigs.*)
   | AAlignOf of typ
   | AAlignOfE of attrparam
+  | AAlignOfS of typsig
   | AUnOp of unop * attrparam
   | ABinOp of binop * attrparam * attrparam
   | ADot of attrparam * string           (** a.foo **)
@@ -1029,6 +1033,19 @@ and location = {
 }
 
 
+(** Type signatures. Two types are identical iff they have identical 
+ * signatures. These contain the same information as types but canonicalized. 
+ * For example, two function types that are identical except for the name of 
+ * the formal arguments are given the same signature. Also, [TNamed] 
+ * constructors are unrolled. *)
+and typsig = 
+    TSArray of typsig * exp option * attribute list
+  | TSPtr of typsig * attribute list
+  | TSComp of bool * string * attribute list
+  | TSFun of typsig * typsig list * bool * attribute list
+  | TSEnum of string * attribute list
+  | TSBase of typ
+
 
 (** To be able to add/remove features easily, each feature should be package 
    * as an interface with the following interface. These features should be *)
@@ -1359,13 +1376,6 @@ val splitFunctionTypeVI:
  * For example, two function types that are identical except for the name of 
  * the formal arguments are given the same signature. Also, [TNamed] 
  * constructors are unrolled. *)
-type typsig = 
-    TSArray of typsig * exp option * attributes
-  | TSPtr of typsig * attributes
-  | TSComp of bool * string * attributes
-  | TSFun of typsig * typsig list * bool * attributes
-  | TSEnum of string * attributes
-  | TSBase of typ
 
 (** Print a type signature *)
 val d_typsig: unit -> typsig -> Pretty.doc
@@ -1738,6 +1748,8 @@ class type cilVisitor = object
                                                  * visit it.  *)
   method vattr: attribute -> attribute list visitAction 
     (** Attribute. Each attribute can be replaced by a list *)
+  method vattrparam: attrparam -> attrparam visitAction 
+    (** Attribute parameters. *)
 
     (** Add here instructions while visiting to queue them to preceede the 
      * current statement or instruction being processed. Use this method only 
