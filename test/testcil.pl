@@ -180,6 +180,7 @@ $TEST->addTests("testrun/question", "", ['cil']);
 $TEST->add3Tests("test/argcast");
 $TEST->add3Tests("test/array1");
 $TEST->add3Tests("test/array2");
+$TEST->addTests("testrun/array3", "", ['inferbox']);
 $TEST->add3Tests("test/matrix");
 $TEST->add3Tests("testrun/switch");
 $TEST->add3Tests("testrun/strloop");
@@ -203,6 +204,7 @@ $TEST->add3Tests("testrun/bitfield3");
      
 $TEST->add3Tests("testrun/bitfield2");
 $TEST->add3Tests("test/box1");
+$TEST->addTests("testrun/call1", "", ['inferbox']);
 $TEST->add3Tests("test/cast1");
 $TEST->add3Tests("test/cast2");
 $TEST->add2Tests("test/cast4", "_GNUCC=1");
@@ -225,6 +227,7 @@ $TEST->add3Tests("testrun/func4");
 $TEST->add3Tests("testrun/func5");
 $TEST->add3Tests("testrun/func6");
 $TEST->add3Tests("testrun/func7");
+$TEST->addTests("testrun/func8", "", ['inferbox']);
 $TEST->add3Tests("test/globals");
 $TEST->add3Tests("testrun/float");
 $TEST->add3Tests("testrun/ptr1");
@@ -350,6 +353,7 @@ $TEST->add3Tests("testrun/tablebug", "TABLE=A");
 $TEST->add3Tests("testrun/addrof", "MANUALBOX=1");
 $TEST->add3Tests("testrun/addrof2", "MANUALBOX=1");
 $TEST->addTests("testrun/addrof3", "_GNUCC=1", ['cil']);
+$TEST->addTests("testrun/addrof4", "", ['inferbox']);
 $TEST->add3Tests("testrun/lval1", "_GNUCC=1");
 $TEST->add3Tests("testrun/bind1", "EXTRAARGS=--assumePrintf");
 $TEST->add3Tests("test/bind2");
@@ -495,6 +499,7 @@ $TEST->addTests("test-bad/override", "", [ 'inferbox' ]);
 $TEST->addTests("test-bad/wild1", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/union4", "", [ 'inferbox' ]);
 $TEST->addTests("test-bad/union6", "", [ 'inferbox' ]);
+$TEST->addTests("test-bad/malloc1", "", [ 'inferbox' ]);
 $TEST->addTests("scott/union5", "", ['inferbox']);
 $TEST->addTests("scott/funptr1", "", ['inferbox']);
 $TEST->addTests("testrun/unrolltype", "", ['inferbox']);
@@ -502,6 +507,9 @@ $TEST->addTests("testrun/wrapper2", "", ['cil', 'inferbox', 'box']);
 $TEST->addTests("testrun/fseqn1", "", ['inferbox']);
 $TEST->addTests("testrun/ubound1", "", ['inferbox']);
 $TEST->addTests("test/longunion", "", ['inferbox']);
+$TEST->addTests("testrun/fseq5", "", ['inferbox']);
+$TEST->addTests("testrun/recur1", "", ['inferbox']);
+$TEST->addTests("testrun/recur2", "", ['inferbox']);
 # $TEST->addTests("testrun/seqn1", "", ['inferbox']);
 
 #
@@ -589,6 +597,7 @@ $TEST->add2Tests("apache/gzip");
 
 $TEST->add2Tests("testrun/sizeof1");
 $TEST->addTests("testrun/seq1", "", ['inferbox']);
+$TEST->addTests("testrun/seq2", "", ['inferbox']);
 $TEST->addTests("testrun/builtin", "", ['cil']);
 $TEST->addTests("blockattr", "", ['cil']);
     
@@ -1025,6 +1034,8 @@ smAddTest("hashtest $wildbox $iters");
 
 smAddTest("wes-hashtest $iters");
 smAddTest("wes-hashtest $box $iters");
+
+smAddTest("hashtest $box $iters MAXCOMPAT=1");
 
 # some piece of PCC
 smAddTest("testpcc/parseobject EXTRAARGS=--no-idashi");
