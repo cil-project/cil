@@ -545,10 +545,50 @@ end
 
 let lu = locUnknown
 
+
+let get_instrLoc (inst : instr) =
+  match inst with
+      Set(_, _, loc) -> loc
+    | Call(_, _, _, loc) -> loc
+    | Asm(_, _, _, _, _, loc) -> loc
+
+
+let get_stmtLoc (statement : stmtkind) =
+  match statement with 
+      Instr([]) -> lu
+    | Instr(hd::tl) -> get_instrLoc(hd)
+    | Return(_, loc) -> loc
+    | Goto(_, loc) -> loc
+    | Break(loc) -> loc
+    | Continue(loc) -> loc
+    | If(_, _, _, loc) -> loc
+    | Switch(_, _, _, loc) -> loc
+    | Loop(_, loc) -> loc
+
+
+
+
     (* A special location that we use to mark that a BinOp was created from 
      * an index *)
 let luindex = { line = -1000; file = ""; }
 
+
+let printLn = ref true
+
+
+let str = ref ""
+
+let printLine (l : location) : string =
+  str := "";
+  if !printLn then begin
+    str := "#";
+    if !msvcMode then str := !str ^ "line";
+    str := !str ^ " " ^ string_of_int(l.line);
+    if l.file <> !currentLoc.file then
+      str := !str ^ " \"" ^ l.file ^ "\"";
+  end;
+  currentLoc := l;
+  !str
 
 (* Construct an integer of a given kind. *)
 let kinteger (k: ikind) (i: int) = Const (CInt32(Int32.of_int i, k,  None))
