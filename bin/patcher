@@ -256,7 +256,12 @@ sub patchOneFile {
     # Do not test for error while running the preprocessor because the 
     # error might be due to an #error directive
     if($option{mode} eq "GNUCC") {
-        system("$::cc -E $ppargs $preprocfile.c >$preprocfile.i 2>/dev/null");
+	my $preproccmd = "$::cc -E $ppargs $preprocfile.c >$preprocfile.i";
+	if ($^O eq 'MSWin32') {   # Windows has no /dev/null
+	    system($preproccmd);
+	} else {                  # ignore stderr (e.g. #error directives)
+	    system($preproccmd . " 2>/dev/null");
+	}
     } elsif($option{mode} eq "MSVC") {
         (!system("cl /nologo /P $ppargs $preprocfile.c"))
             || die "Cannot run the CL preprocessor";
