@@ -9,7 +9,9 @@
  * pointer via a void*.
  *
  * Note that derefing such a pointer sometimes gives "ubound" and sometimes
- * gives "reading a pointer that has been tampered with". 
+ * gives "reading a pointer that has been tampered with".
+ *
+ * GN: adjusted to expect Non-pointer error messages.
  */
 
 // NUMERRORS 8
@@ -21,7 +23,7 @@ int main() {
     void **vi5 = &i1;
     void *vi6 = vi5;
     int * * pi2 = vi5;
-    return * * pi2; //ERROR(1):Ubound
+    return * * pi2; //ERROR(1):Non-pointer
   }
 #endif
 #if ERROR == 2
@@ -41,7 +43,7 @@ int main() {
     void *v2 = v1;
     int **p = v2;
     c.b = 5; 
-    return **p; //ERROR(3):Ubound
+    return **p; //ERROR(3):Non-pointer
   }
 #endif
 #if ERROR == 4
@@ -81,7 +83,7 @@ int main() {
     **v1 = &i; 
     v2 = v1;
     v3 = v2; 
-    return ****v3; //ERROR(6):Ubound
+    return ****v3; //ERROR(6):Non-pointer
   }
 #endif
 #if ERROR == 7
@@ -96,7 +98,7 @@ int main() {
     ***v1 = &i; 
     v2 = v1;
     v3 = v2; 
-    return *****v3; //ERROR(7):Ubound
+    return *****v3; //ERROR(7):Non-pointer
   }
 #endif
 #if ERROR == 8
@@ -111,5 +113,5 @@ int main() {
 
 int deref(void *a) {
   int *b = a; 
-  return *b; //ERROR(8):Ubound
+  return *b; //ERROR(8):Non-pointer
 } 
