@@ -233,6 +233,7 @@ let anonStructName n =
   "__anon" ^ n ^ (string_of_int (!structId))
 
 
+let constrExprId = ref 0
 
 
 let localId = ref (-1)   (* All locals get id's starting at 0 *)
@@ -2279,32 +2280,35 @@ and doExp (isconst: bool)    (* In a constant *)
               | _ -> AExp None
           end
         in
-        let (se, e', t) = 
+        let (se, e', t') = 
           match ie with
             A.SINGLE_INIT e -> doExp isconst e what'
           | A.NO_INIT -> E.s (error "missing expression in cast")
           | A.COMPOUND_INIT il -> begin
               (* Pretend that we are declaring and initializing a local *)
-              let se1 = createLocal specs (("__constr_expr", dt, []), ie) in
+              let local = "__constr_expr_" ^ string_of_int (!constrExprId) in
+              incr constrExprId;
+              let se1 = createLocal specs ((local, dt, []), ie) in
               (* Now pretend that e is just a reference to the newly created 
-               * varible *)
-              let se, e', t = 
-                doExp isconst (A.VARIABLE "__constr_expr") what' in
+               * variable *)
+              let se, e', t' = 
+                doExp isconst (A.VARIABLE local) what' in
               (* If typ is an array then the doExp above has already added a 
                * StartOf. We must undo that now so that it is done once by 
                * the finishExp at the end of this case *)
               let e2, t2 = 
                 match unrollType typ, e' with
                   TArray _, StartOf lv -> Lval lv, typ
-                | _, _ -> e', t
+                | _, _ -> e', t'
               in
               se1 @@ se, e2, t2
           end
         in
         let (t'', e'') = 
           match typ with
-            TVoid _ when what = ADrop -> (t, e') (* strange GNU thing *)
-          |  _ -> castTo t typ e'
+            TVoid _ when what = ADrop -> (t', e') (* strange GNU thing *)
+          |  _ -> 
+              castTo t' typ e'
         in
         finishExp se e'' t''
           
@@ -3848,6 +3852,7 @@ let convFile fname dl =
              (* Reset the local identifier so that formals are created with
               * the proper IDs  *)
               resetLocals ();
+              constrExprId := 0;
               (* Setup the environment. Add the formals to the locals. Maybe
                * they need alpha-conv  *)
               enterScope ();  (* Start the scope *)
