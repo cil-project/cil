@@ -113,11 +113,17 @@ let iter (f: 'a -> unit) (l: 'a clist) : unit =
   loop l
     
         
-let rec rev = function
-    CList l -> CList (List.rev l)
-  | CConsL (x, l) -> CConsR (rev l, x)
-  | CConsR (l, x) -> CConsL (x, rev l)
-  | CSeq (l1, l2) -> CSeq (rev l2, rev l1)
+let rec rev (revelem: 'a -> 'a) = function
+    CList l -> 
+      let rec revonto (tail: 'a list) = function
+          [] -> tail
+        | x :: rest -> revonto (revelem x :: tail) rest
+      in
+      CList (revonto [] l)
+
+  | CConsL (x, l) -> CConsR (rev revelem l, x)
+  | CConsR (l, x) -> CConsL (x, rev revelem l)
+  | CSeq (l1, l2) -> CSeq (rev revelem l2, rev revelem l1)
 
 
 let docCList (sep: doc) (doone: 'a -> doc) () (dl: 'a clist) = 
