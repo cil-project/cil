@@ -1868,14 +1868,14 @@ tiff: mustbegcc $(TIFFSRC)/Makefile mustbelinux tiffclean
 	cd $(TIFFSRC); make CC="$(CILLY)"
 	cd $(TIFFSRC); \
           if [ -d pics ]; then \
-            make test; \
+            PATH=$$PATH:. make test; \
           fi
 
 tiff-gcc: mustbegcc $(TIFFSRC)/Makefile mustbelinux tiffclean
 	cd $(TIFFSRC); make CC="gcc"
 	cd $(TIFFSRC); \
           if [ -d pics ]; then \
-            make test; \
+            PATH=$$PATH:. make test; \
           fi
 
 tiff-install:
@@ -2133,7 +2133,7 @@ gimp-data-world: gimp-data-configure gimp-data-install
 gimpall: zlib tiff libpng jpeg mpeg glib gtk gimp
 
 # go from just-unpacked to completely installed
-gimpall-world:
+gimpall-world: checkgimplib
 	$(MAKE) glib-world
 	$(MAKE) gtk-world
 	$(MAKE) jpeg-world
