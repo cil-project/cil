@@ -1,5 +1,3 @@
-#include <stdio.h>
-#include <stdlib.h>
 
 void g();
 void h();

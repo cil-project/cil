@@ -4042,12 +4042,20 @@ and doStatement (s : A.statement) : chunk =
         currentLoc := loc';
         returnChunk None loc'
 
-    | A.RETURN (e, loc) -> 
+    | A.RETURN (e, loc) -> begin
         let loc' = convLoc loc in
         currentLoc := loc';
-        let (se, e', et) = doExp false e (AExp (Some !currentReturnType)) in
-        let (et'', e'') = castTo et (!currentReturnType) e' in
-        se @@ (returnChunk (Some e'') loc')
+        (* Sometimes we return the result of a void function call *)
+        match !currentReturnType with
+          TVoid _ -> 
+            let (se, _, _) = doExp false e ADrop in
+            se @@ returnChunk None loc'
+        | _ ->  
+            let (se, e', et) = 
+              doExp false e (AExp (Some !currentReturnType)) in
+            let (et'', e'') = castTo et (!currentReturnType) e' in
+            se @@ (returnChunk (Some e'') loc')
+    end
                
     | A.SWITCH (e, s, loc) -> 
         let loc' = convLoc loc in

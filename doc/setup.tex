@@ -40,6 +40,8 @@ PATH. You must put it first in the ``System Variables'' PATH (In Control Panel/S
 Variables'' and {\bf put it first} so that it comes before the default
 c:/WinNT/system32. You can verify that you got it right if you get
 \t{/usr/bin/find} when you run \t{which find}. 
+\item If you are on a Win NT/2k/XP you might want to set "CYGWIN=ntsec" so
+that cygwin knows how to work with NTFS's file permissions.
 \end{itemize}
 
 
@@ -120,30 +122,63 @@ update -d
 
  Set the environment variable \t{CVS\_RSH} to \t{ssh}. 
 
+ Now you can use cvs with ssh but you will have to type the remote password
+ everytime you run cvs. 
+
  If you want to be able to use \t{ssh} without typing a password everytime
- here is what you can do:
+here is what you can do. There are two cases based on the version of the SSH
+protocol that your \t{ssh} uses. Note that the version of \t{ssh} that comes
+with cygwin uses protocol 2.  
 
-\begin{itemize}
-\item If you have an RSA private key that is already authorized on the server,
-copy it to \t{\home{}/.ssh/identity} and you should be done.
-\item Otherwise
-   \begin{enumerate}
-     \item Run \t{ssh-keygen} to create a private key. Choose a passphrase and
-      remember it. If you do not have a passphrase then anybody who gets
-      access to your machine will also be able to log in to the server.
-     \item Copy the public key to the server (say manju.cs.berkeley.edu)
-\begin{verbatim}
-cd ~
-scp .ssh/identity.pub manju:~/.ssh/newpublicid
-ssh manju
-cd .ssh
-cat newpublicid >> authorized_keys
-\end{verbatim}
+\begin{enumerate}
+\item For SSH protocol 1
+  \begin{itemize}
+  \item If you have an RSA private key that is already authorized on 
+        the server, copy it to \t{\home{}/.ssh/identity} and you 
+        should be done.
+  \item Otherwise
+     \begin{enumerate}
+       \item Run \t{ssh-keygen} to create a private key. 
+        Choose a passphrase and
+        remember it. If you do not have a passphrase then anybody who gets
+        access to your machine will also be able to log in to the server.
+       \item Copy the public key to the server (say manju.cs.berkeley.edu)
+  \begin{verbatim}
+  cd ~
+  scp .ssh/identity.pub manju:~/.ssh/newpublicid
+  ssh manju
+  cd .ssh
+  cat newpublicid >> authorized_keys
+  \end{verbatim}
 
-   \end{enumerate}
+\item For SSH protocol 2
+
+  \begin{itemize}
+  \item If you have an RSA private key that is already authorized on 
+        the server, copy it to \t{\home{}/.ssh/id_dsa} and you 
+        should be done.
+  \item Otherwise
+     \begin{enumerate}
+       \item Run \t{ssh-keygen -t dsa} to create a private key. 
+        Choose a passphrase and
+        remember it. If you do not have a passphrase then anybody who gets
+        access to your machine will also be able to log in to the server.
+       \item Copy the public key to the server (say manju.cs.berkeley.edu)
+             \begin{verbatim}
+             cd ~
+             scp .ssh/id_dsa.pub manju:~/.ssh/newpublicid
+             ssh manju
+             cd .ssh
+             cat newpublicid >> authorized_keys2
+             \end{verbatim}
+     \end{enumerate}
+  \end{itemize}
+\end{enumerate}
+
 
 \item If you want you can even start an agent to do the authentication for
-you. Documentation to come.
+you. Essentially you must run \t{ssh-agent} followed by \t{ssh-add}. More
+detailed documentation to come.
 \end{itemize}
 
  You should read the rest only if you have not used CVS before. 
