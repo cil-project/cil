@@ -2303,24 +2303,24 @@ let rec castTo (fe: fexp) (newt: typ)
 
 
 
-(* For each function cache some iterator variables. *)
-let iterVars : (int, varinfo list ref) H.t = H.create 13
-let withIterVar (f: fundec) (doit: varinfo -> 'a) : 'a = 
-  let avail = 
-    try  H.find iterVars f.svar.vid
-    with Not_found -> begin
-      let iters = ref [] in
-      H.add iterVars f.svar.vid iters; 
-      iters
-    end
-  in
+(* Cache some iterator variables for the current function. *)
+let iterVars: varinfo list ref = ref [] (* Clean this when you start a new 
+                                         * function *)
+let globInitIterVars: varinfo list ref = ref [] (* A special list of iterator 
+                                                 * variables for the global 
+                                                 * initializer *)
+let withIterVar (doit: varinfo -> 'a) : 'a = 
   let newv = 
-    match !avail with
-      v :: resta -> avail := resta; v
-    | [] -> makeTempVar f ~name:"iter" intType
+    match !iterVars with
+      v :: resta -> 
+        iterVars := resta; 
+        v
+
+    | [] -> makeTempVar !currentFunction ~name:"iter" intType
   in
   let res = doit newv in
-  avail := newv :: !avail;
+  (* Make it available again *)
+  iterVars := newv :: !iterVars;
   res
   
 
@@ -2414,7 +2414,7 @@ let rec checkMem (why: checkLvWhy)
                 match lo with Some len -> len 
                 | _ -> E.s (unimp "Reading or writing an incomplete type") in
             (* Make an interator variable for this function *)
-              withIterVar !currentFunction
+              withIterVar
                 (fun it -> 
                   let itvar = Lval (var it) in
                 (* make the body to initialize one element *)
@@ -2940,7 +2940,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
                            nrdatabytes, uintType) in
         (* Now initialize. *)
         let inits = 
-          initializeType basetype (withIterVar !currentFunction) mustZero
+          initializeType basetype withIterVar mustZero
             (Some theend) (Mem tmpvar, NoOffset) empty
         in
         CConsL (check_enough, inits)
@@ -2957,8 +2957,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
         (* Now initialize. Use the tmp variable to iterate over a number of 
          * copies  *)
         let initone = 
-          initializeType basetype
-            (withIterVar !currentFunction) mustZero None
+          initializeType basetype withIterVar mustZero None
             (Mem tmpvar, NoOffset) empty
             
         in
@@ -4072,6 +4071,9 @@ let boxFile file =
               f.slocals;
             currentFunction := f;           (* so that maxid and locals can 
                                              * be updated in place *)
+            (* Clean up the iterator variables *)
+            iterVars := [];
+
             f.sbody <- toList newbody;
 
             (* Initialize and register the locals. Since we do this before 
@@ -4081,9 +4083,7 @@ let boxFile file =
              * because the initialization produces the code for unregistering 
              * the locals, which we need when we encounter the Return  *)
             let inilocals = 
-              List.fold_left 
-                (initializeVar (withIterVar f)) 
-                empty f.slocals in
+              List.fold_left (initializeVar withIterVar) empty f.slocals in
 
             (* sm/gn: for testing the removeTemps module: add some extra temps *)
             if (traceActive "gratuitousTemps") then (
@@ -4145,7 +4145,14 @@ let boxFile file =
          initializeVar 
            (fun x ->
              let gi = getGlobInit file in
-             withIterVar gi x) !extraGlobInit vi;
+             let oldCurrentFunction = !currentFunction in
+             currentFunction := gi;
+             let oldIterVars = !iterVars in
+             iterVars := !globInitIterVars;
+             let res = withIterVar x in
+             iterVars := oldIterVars;
+             currentFunction := oldCurrentFunction;
+             res) !extraGlobInit vi;
     end;
     (* Tag some globals. We should probably move this code into the 
      * initializeVar but for now we keep it here *)
@@ -4252,6 +4259,8 @@ let boxFile file =
   H.clear sizedArrayTypes;
   H.clear boxedArguments;
   extraGlobInit := empty;
+  globInitIterVars := [];
+  iterVars := [];
   theFile := [];
   let res = {file with globals = res; globinit = newglobinit} in
   Globinit.insertGlobInit res ;

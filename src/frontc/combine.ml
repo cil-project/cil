@@ -511,6 +511,10 @@ let checkTypeDefinition
  * ones *)
 let declarations: (init_name_group, bool) H.t = H.create 1111
 
+(* Remeber the inline functions that we have seen so that we could eliminate 
+ * duplicates *)
+let functions: (definition , bool) H.t = H.create 1111
+
 (*********************************
  *********************************
  *********************************
@@ -846,12 +850,26 @@ and doDefinition (isglobal: bool) (* Whether at global scope *)
       in
       let specs2 = doSpecs isglobal specs1 in
       let n' = processDeclName isglobal (isStatic specs2) n in
+      let decl' = alpha_decl_type decl in
+      let attrs' = alpha_attrs attrs in
+      let body' = alpha_block body in
       let res = 
         FUNDEF ((specs2, 
-                 (n', alpha_decl_type decl, alpha_attrs attrs)),
-                alpha_block body, loc) 
+                 (n', decl', attrs')), body', loc) 
       in
-      res :: acc
+      if isInline specs2 then 
+        (* For inline functions we might see the same definition multiple 
+         * times. Keep only one. Index everything, including the location. 
+         * There is no point in throwing the location away unless we rewrite 
+         * the body to throw all the locations it containts *)
+        if H.mem functions res then 
+          acc (* Duplicate *)
+        else begin
+          H.add functions res true;
+          res :: acc
+        end
+      else
+        res :: acc
     end
                
   | DECDEF ((specs, inl), loc) -> begin
@@ -934,7 +952,8 @@ let initialize () =
   H.clear registeredGlobals;
   H.clear definedTags;
   H.clear definedTypes;
-  H.clear declarations
+  H.clear declarations;
+  H.clear functions
 
   
 (* The MAIN COMBINER *)
