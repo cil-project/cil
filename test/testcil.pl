@@ -587,8 +587,7 @@ smAddTest("bad/nullfield $manualbox");
 smAddTest("scott/constfold");
 
 # test of strings (need more!)
-smFailTest("arbitrary string writes being allowed",
-           "bad/ovwrnull $box");
+smAddTest("bad/ovwrnull $box");
 smAddTest("test-bad/strloop2 $box");
 
 # tests of function models
