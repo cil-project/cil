@@ -56,7 +56,6 @@ let rec combine_type typ =
   | UNION id -> UNION(lookup_tag id)
   | UNIONDEF (id, flds) -> UNIONDEF(lookup_tag id, combine_fields flds) 
   | PROTO (typ, pars, ell, x) -> PROTO(combine_type typ, combine_params pars, ell, x)
-  | OLD_PROTO (typ, pars, ell, x) -> OLD_PROTO(combine_type typ, combine_old_params pars, ell, x)
   | PTR typ -> PTR(combine_type typ)
   | ARRAY (typ, dim) -> ARRAY(combine_type typ, combine_expression dim)
 (*
@@ -323,8 +322,6 @@ and remove_anon_type typ = begin
       ENUMDEF (remove_anon_id id, items)
   | PROTO (typ', pars, ell, x) -> 
       PROTO(remove_anon_type typ', pars, ell, x)
-  | OLD_PROTO (typ', pars, ell, x) -> 
-      OLD_PROTO(remove_anon_type typ', pars, ell, x)
   | PTR typ' -> 
       PTR(remove_anon_type typ')
   | ARRAY (typ', dim) -> 
@@ -397,23 +394,6 @@ and already_declared def = begin
               (Hashtbl.add gDefTable def 1;
               false)))
               
-  | OLDFUNDEF ((typ, sto, name), decs, body) ->
-      (match sto with
-        STATIC i ->
-          (try 
-            ignore(Hashtbl.find fDefTable def);
-            true
-          with Not_found ->
-              (Hashtbl.add fDefTable def 1;
-              false))
-      | _ -> 
-          (try
-            ignore(Hashtbl.find gDefTable def);
-            true
-          with Not_found ->
-              (Hashtbl.add gDefTable def 1;
-              false)))
-  
   | DECDEF (typ, sto, names) ->
       (match sto with
         STATIC i ->
@@ -550,12 +530,6 @@ and combine_def def global = begin
       (declare_id name global;
       FUNDEF(combine_single_name name, List.map combineBlkElem body))
                
-  | OLDFUNDEF (name, decs, body) ->
-      (declare_id name global;
-      OLDFUNDEF(combine_single_name name, 
-                List.map (fun dec -> combine_name_group dec) decs, 
-                List.map combineBlkElem body))
-       
   | DECDEF names ->
       (declare_ids names global;
       DECDEF(combine_name_group names))

@@ -206,7 +206,6 @@ let rec print_base_type  typ =
       else print_fields ("union " ^ id) flds
 
   | PROTO (typ, _, _, _) -> print_base_type typ
-  | OLD_PROTO (typ, _, _, _) -> print_base_type typ
   | PTR typ -> print_base_type  typ
   | ARRAY (typ, _) -> print_base_type  typ
 (*
@@ -333,18 +332,6 @@ and print_type (fct : unit -> unit) (typ : base_type ) =
 	  if p then print ")";
 	  print "(";
 	  print_params pars ell;
-	  print ")")
-	typ'
-  | OLD_PROTO (typ', pars, ell, _) ->
-      print_type
-	(fun _ ->
-	  if base <> typ then print "(";
-	  print_pointer typ;
-	  fct ();
-	  print_array typ;
-	  if base <> typ then print ")";
-	  print "(";
-	  print_old_params pars ell;
 	  print ")")
 	typ'
   | _ -> print_pointer typ; fct (); print_array typ
@@ -793,15 +780,6 @@ and print_def def =
   match def with
     FUNDEF (proto, body) ->
       print_single_name proto;
-      print_statement (BLOCK body);
-      force_new_line ();
-      
-  | OLDFUNDEF (proto, decs, body) ->
-      print_single_name proto;
-      force_new_line ();
-      List.iter
-	(fun dec -> print_name_group dec; print ";"; new_line ())
-	decs;
       print_statement (BLOCK body);
       force_new_line ();
       

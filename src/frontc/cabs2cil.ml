@@ -618,7 +618,6 @@ and doType (a : attribute list) = function
       let tres = arrayToPtr (doType [] bt') in
       TFun (tres, targs, isvararg, a')
 
-  | A.OLD_PROTO _ -> E.s (E.unimp "oldproto")
   | A.ENUM n ->
       if n = "" then E.s (E.bug "Missing enum tag");
       findCompType "enum" n a
@@ -2164,7 +2163,6 @@ let convFile fname dl =
             theFile := GAsm("error in function ", lu) :: !theFile
           end
         end
-    | A.OLDFUNDEF _ -> E.s (E.unimp "OLDFUNDEF")
   in
   List.iter doOneGlobal dl;
   (* We are done *)

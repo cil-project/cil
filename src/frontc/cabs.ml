@@ -43,7 +43,6 @@ and base_type =
 
 
  | PROTO of proto
- | OLD_PROTO of old_proto	
  | NAMED_TYPE of string
  | ATTRTYPE of base_type * attribute list(* Type with attributes *)
 (*
@@ -63,8 +62,6 @@ and enum_item = string * expression
 and proto = 
     base_type * single_name list * bool (* isvar arg*) * bool (* inline *)
 
-and old_proto = 
-    base_type * string list * bool (* isvar arg*) * bool (* inline *)
  
 
 (*
@@ -72,7 +69,6 @@ and old_proto =
 *)
 and definition = 
    FUNDEF of single_name * body
- | OLDFUNDEF of single_name * name_group list * body
  | DECDEF of name_group
  | TYPEDEF of name_group
  | ONLYTYPEDEF of name_group

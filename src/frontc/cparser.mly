@@ -296,6 +296,26 @@ let doFunctionDef (spec: specifier) (n: name)
   let fname = (spec.styp, spec.ssto, injectTypeName innert n') in
   FUNDEF (fname, b)
 
+
+let doOldParDecl (names: string list) 
+                 (pardefs: name_group list) : single_name list = 
+  let findOneName n = 
+    (* Search in pardefs for the definition for this parameter *)
+    let rec loopGroups = function
+        [] -> parse_error ("Cannot find definition of parameter " ^
+                           n ^ " in old style prototype\n")
+      | (bt, st, names) :: restgroups -> 
+          let rec loopNames = function
+              [] -> loopGroups restgroups
+            | ((n',_,_,_) as sn) :: _ when n' = n -> (bt, st, sn)
+            | _ :: restnames -> loopNames restnames
+          in
+          loopNames names
+    in
+    loopGroups pardefs
+  in
+  List.map findOneName names
+
 %}
 
 %token <string> IDENT
@@ -387,7 +407,7 @@ let doFunctionDef (spec: specifier) (n: name)
 %type <typeSpecifier> type_spec
 %type <Cabs.name_group list> struct_decl_list 
 %type <Cabs.name list> field_decl_list init_declarator_list
-%type <Cabs.name> declarator init_declarator direct_decl 
+%type <Cabs.name> declarator init_declarator direct_decl old_proto_decl
 %type <Cabs.name> abs_direct_decl abstract_decl 
 %type <specifier list> pointer  /* Each element is a "* <type_quals_opt>" */
 %type <Cabs.single_name list> parameter_list
@@ -397,6 +417,7 @@ let doFunctionDef (spec: specifier) (n: name)
 %type <Cabs.definition> declaration function_def
 %type <Cabs.base_type> type_name
 %type <Cabs.body> block block_item_list
+%type <string list> old_parameter_list
 %%
 
 interpret:
@@ -810,9 +831,10 @@ decl_spec_list_opt:
     /* empty */                         { emptySpec } %prec NAMED_TYPE
 |   decl_spec_list                      { $1 }
 ;
-/* We add this separate rule to handle the special case when an appearance of 
- * NAMED_TYPE should not be considered as part of the specifiers but as part 
- * of the declarator. IDENT has higher precedence than NAMED_TYPE */
+/* (* We add this separate rule to handle the special case when an appearance 
+    * of NAMED_TYPE should not be considered as part of the specifiers but as 
+    * part of the declarator. IDENT has higher precedence than NAMED_TYPE  *)
+ */
 decl_spec_list_opt_no_named: 
     /* empty */                         { emptySpec } %prec IDENT
 |   decl_spec_list                      { $1 }
@@ -846,10 +868,11 @@ type_spec:   /* ISO 6.7.2 */
                     { Tenum (anonStructName "enum", Some $3) }
 |   NAMED_TYPE      { Tnamed $1 }
 ;
-struct_decl_list: /* ISO 6.7.2. Except that we allow empty structs. We also 
-                   * allow missing field names 
-                   * GCC attributes apply to all declarands. Put them in the 
-                   * specifier and makeNameGroup will move them to the names */
+struct_decl_list: /* (* ISO 6.7.2. Except that we allow empty structs. We 
+                      * also allow missing field names. GCC attributes apply 
+                      * to all declarands. Put them in the specifier and 
+                      * makeNameGroup will move them to the names  *)
+                   */
    /* empty */                           { [] }
 |  decl_spec_list                 SEMICOLON struct_decl_list
                                          { (makeNameGroup $1 
@@ -859,11 +882,11 @@ struct_decl_list: /* ISO 6.7.2. Except that we allow empty structs. We also
                                                (applyAttributes $3 $1) $2) 
                                             :: $5 }
 ;
-field_decl_list: /* ISO 6.7.2 */
+field_decl_list: /* (* ISO 6.7.2 *) */
     field_decl                           { [$1] }
 |   field_decl COMMA field_decl_list     { $1 :: $3 }
 ;
-field_decl: /* ISO 6.7.2. Except that we allow unnamed fields. */
+field_decl: /* (* ISO 6.7.2. Except that we allow unnamed fields. *) */
 |   declarator                             { $1 } 
 |   declarator COLON expression            {  (match $1 with
                                                (n, t, [], NOTHING) -> 
@@ -879,7 +902,7 @@ field_decl: /* ISO 6.7.2. Except that we allow unnamed fields. */
                                            }
 ;
 
-enum_list: /* ISO 6.7.2.2 */
+enum_list: /* (* ISO 6.7.2.2 *) */
     enumerator				{[$1]}
 |   enum_list COMMA enumerator	        {$1 @ [$3]}
 ;
@@ -889,23 +912,24 @@ enumerator:
 ;
 
 
-declarator:  /* ISO 6.7.5. Plus Microsoft declarators. The specification says 
-              * that they are specifiers but in practice they appear to be 
-              * part of the declarator. Right now we allow them only right 
+declarator:  /* (* ISO 6.7.5. Plus Microsoft declarators. The specification 
+                says that they are specifiers but in practice they appear to 
+                be part of the declarator. Right now we allow them only right 
                before an indentifier (e.g. int __cdecl foo()) or in pointers 
                to functions (e.g. int (__cdecl *foo)(). But they should 
                always be part of the function type attributes not of the 
-               declared name's attributes */
+               declared name's attributes *) */
             direct_decl            { $1 }
 |   pointer direct_decl            { applyPointer $1 $2 }
 ;
-direct_decl: /* ISO 6.7.5 */
+
+direct_decl: /* (* ISO 6.7.5 *) */
     msqual_list_opt IDENT          { ($2, 
                                       (if $1 = [] then NO_TYPE
                                        else ATTRTYPE (NO_TYPE, $1)), 
                                       [], NOTHING) }
-                                   /* We want to be able to redefine named 
-                                    * types as variable names */
+                                   /* (* We want to be able to redefine named 
+                                    * types as variable names *) */
 |   msqual_list_opt NAMED_TYPE     {Clexer.add_identifier $2;
                                      ($2, 
                                       (if $1 = [] then NO_TYPE
@@ -935,27 +959,62 @@ direct_decl: /* ISO 6.7.5 */
                                                        false)) 
                                                 $1 }
 ;
-parameter_list: /* ISO 6.7.5 */
+parameter_list: /* (* ISO 6.7.5 *) */
 |   parameter_decl                        { [$1] }
 |   parameter_list COMMA parameter_decl   { $1 @ [$3] }
 ;
-parameter_decl: /* ISO 6.7.5 */
+parameter_decl: /* (* ISO 6.7.5 *) */
    decl_spec_list declarator              { makeSingleName $1 $2 }
 |  decl_spec_list abstract_decl           { makeSingleName $1 $2 }
 |  decl_spec_list                         { makeSingleName $1 emptyName }
 ;
-pointer: /* ISO 6.7.5 */ 
+
+/* (* Old style prototypes. Like a declarator *) */
+old_proto_decl:
+|         direct_old_proto_decl           { $1 } 
+| pointer direct_old_proto_decl           { applyPointer $1 $2 }
+;
+direct_old_proto_decl:
+  direct_decl LPAREN old_parameter_list RPAREN old_pardef_list_ne
+                                   { let par_decl = doOldParDecl $3 $5 in
+                                     injectTypeName (PROTO(NO_TYPE, par_decl, 
+                                                           false, false))
+                                       $1 }
+;
+
+old_parameter_list: 
+|  IDENT                                       { [$1] }
+|  old_parameter_list COMMA IDENT              { $1 @ [$3]} 
+;
+
+old_pardef_list_ne: 
+|  decl_spec_list old_pardef SEMICOLON old_pardef_list   
+                                     {(makeNameGroup $1 $2) :: $4 }
+;
+
+old_pardef_list: 
+   /* empty */                            { [] }
+|  old_pardef_list_ne                     { $1 }
+;
+
+old_pardef: 
+   declarator                             { [$1] }
+|  declarator COMMA old_pardef            { $1 :: $3 }
+;
+
+
+pointer: /* (* ISO 6.7.5 *) */ 
    STAR decl_spec_list_opt_no_named          { [$2] }
 |  STAR decl_spec_list_opt_no_named pointer  { $2 :: $3 }
 ;
 
-type_name: /* ISO 6.7.6 */
+type_name: /* (* ISO 6.7.6 *) */
   decl_spec_list abstract_decl { typeOfSingleName (makeSingleName $1 $2) }
 | decl_spec_list               { typeOfSingleName 
                                            (makeSingleName $1 emptyName) }
 | TYPEOF expression            {TYPEOF $2} 
 ;
-abstract_decl: /* ISO 6.7.6. */
+abstract_decl: /* (* ISO 6.7.6. *) */
   pointer abs_direct_decl_opt        { applyPointer $1 $2 }
 |         abs_direct_decl            { $1 }
 ;
@@ -993,9 +1052,20 @@ abs_direct_decl_opt:
     abs_direct_decl                 { $1 }
 |   /* empty */                     { emptyName }
 ;
-function_def:  /* ISO 6.9.1 */
+function_def:  /* (* ISO 6.9.1 *) */
   decl_spec_list declarator block { doFunctionDef $1 $2 $3 }
+/* (* Old-style function prototype *) */
+| decl_spec_list old_proto_decl block  { doFunctionDef $1 $2 $3 } 
+/* (* Old-style function that does not have a return type *) 
+|               IDENT LPAREN parameter_list RPAREN block
+                                   { FUNDEF ((INT(NO_SIZE, NO_SIGN),
+                                              NO_STORAGE,
+                                              ($1, INT(NO_SIZE, NO_SIGN),
+                                               [], NOTHING)),
+                                             $5) }
+*/
 ;
+
 
 /* Microsoft specific qualifiers */
 msqual:
