@@ -1,4 +1,5 @@
 # .gdbinit
 
-file ptrmanip
+file regthenprintf
+break main
 run

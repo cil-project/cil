@@ -16,7 +16,7 @@ use RegTest;
 
 print "Test infrastructure for SafeC\n";
 
-# Create out customized test harness
+# Create our customized test harness
 my $TEST = SafecRegTest->new(AvailParams => {"run" => 1, 
                                              "parse" => 1, 
                                              "solve" => 1, 

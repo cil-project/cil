@@ -24,3 +24,6 @@ ptrtolocal
 tprintf
 ptrinint
 ptrmanip
+twoprintfs
+regthenprintf
+
