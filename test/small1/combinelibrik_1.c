@@ -29,13 +29,12 @@ struct chunk_struct {
 typedef struct chunk_struct chunk;
 
 
-int chunk1(char *s)
-{
+int chunk1(char *s) {
 
-chunk c;
-
-strcpy(s, c.c_tab);
-
-return c.c_tab[0];
+  chunk c;
+  
+  strcpy(s, c.c_tab);
+  
+  return c.c_tab[0];
 }
 
