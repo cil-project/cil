@@ -31,6 +31,12 @@ struct __attribute__((packed)) D {
 //    int x;
 //  };
 
+// 8/31/03: also need it to work with anonymous structs
+struct __attribute__((__packed__)) {
+    int i;
+    char c;
+} e;
+
 
 typedef unsigned long ULONG;
 typedef int WCHAR;
