@@ -2415,8 +2415,11 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
           | _ -> 
               let len' = doPureExp len in
               let _, len'' = castTo (typeOf len') intType len' in
-              let elsz = try (bitsSizeOf bt + 7) / 8
-                         with _ -> E.s (error "Cannot compute array length") 
+              let elsz = 
+                try (bitsSizeOf bt + 7) / 8
+                with _ -> 1 (** We get this if we cannot compute the size of 
+                             * one element. This can happen, when we define 
+                             * an extern, for example. We use 1 for now *)
               in 
               (match constFold true len' with 
                 Const(CInt64(i, _, _)) ->

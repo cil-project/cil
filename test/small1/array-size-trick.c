@@ -8,6 +8,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+// This should be allowed !
+extern struct foo udp_stats_in6[2 * 2];
+
+
 
 /* Answer the number of elements in an array. */
 #define numberof(m_array) (sizeof(m_array) / sizeof(m_array[0]))

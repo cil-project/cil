@@ -2318,7 +2318,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     | Set(lv,e,l) -> begin
         (* Be nice to some special cases *)
         match e with
-          BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt64(one,_,_)),_)
+          BinOp((PlusA|PlusPI|IndexPI),Lval(lv'), Const(CInt64(one,_,_)),_)
             when lv == lv' && one = Int64.one && not !printCilAsIs ->
               self#pLineDirective l
                 ++ self#pLval () lv
