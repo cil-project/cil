@@ -452,7 +452,7 @@ initializer_list_opt:
 ;
 initializer: 
     init_designators EQ init_expression { ($1, $3) }
-|   alt_init_designators COLON init_expression { ($1, $3) }
+|   gcc_init_designators COLON init_expression { ($1, $3) }
 |                       init_expression { (NEXT_INIT, $1) }
 ;
 init_designators: 
@@ -466,7 +466,8 @@ init_designators_opt:
    /* empty */                          { NEXT_INIT }
 |  init_designators                     { $1 }
 ;
-alt_init_designators:  /*(* GCC supports these strange things *)*/
+
+gcc_init_designators:  /*(* GCC supports these strange things *)*/
    IDENT                                { INFIELD_INIT($1, NEXT_INIT) }
 ;
 

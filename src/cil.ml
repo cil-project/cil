@@ -3596,9 +3596,17 @@ let rec makeZeroInit (t: typ) : init =
   | TFloat(fk, _) -> SingleInit(Const(CReal(0.0, fk, None)))
   | TEnum _ -> SingleInit zero
   | TComp (comp, _) as t' when comp.cstruct -> 
-      CompoundInit (t', 
-                    List.map (fun f -> makeZeroInit f.ftype) 
-                      comp.cfields)
+      let inits = 
+        List.fold_right
+          (fun f acc -> 
+            if f.fname <> missingFieldName then 
+              makeZeroInit f.ftype :: acc
+            else
+              acc)
+          comp.cfields []
+      in
+      CompoundInit (t', inits)
+
   | TComp (comp, _) as t' when not comp.cstruct -> 
       let fstfield = 
         match comp.cfields with
@@ -3651,7 +3659,6 @@ let foldLeftCompound
   | TComp (comp, _) -> 
       if comp.cstruct then
         let rec foldFields 
-            (allflds: fieldinfo list) 
             (nextflds: fieldinfo list) 
             (initl: init list)
             (acc: 'a) : 'a = 
@@ -3667,10 +3674,13 @@ let foldLeftCompound
               in
               (* Now do the initializer expression *)
               let acc' = 
-                doinit (Field(thisfield, NoOffset)) ie thisfield.ftype acc in
-              foldFields allflds nextfields restinitl acc'
+                doinit (Field(thisfield, NoOffset)) ie thisfield.ftype acc 
+              in
+              foldFields nextfields restinitl acc'
         in
-        foldFields comp.cfields comp.cfields initl acc
+        foldFields 
+          (List.filter (fun f -> f.fname <> missingFieldName) comp.cfields) 
+          initl acc
       else
         (* UNION *)
         let oneinit, firstfield = 
