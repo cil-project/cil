@@ -236,10 +236,10 @@ AC_SUBST(HAS_MSVC)
 # runs again); I had originally done the chmod after AC_OUTPUT, but
 # the problem is then the chmod doesn't run inside ./config.status
 
-AC_CONFIG_FILES(Makefile test/Makefile Makefile.cil lib/cilly.pl 
+AC_CONFIG_FILES(Makefile test/Makefile Makefile.cil lib/cilly.pl \
                 lib/ccured.pl lib/scaninfer lib/scaninfer.bat, 
-                chmod a-w $config_files Makefile test/Makefile 
-                    Makefile.cil lib/cilly.pl lib/ccured.pl
+                chmod a-w $config_files Makefile test/Makefile \
+                    Makefile.cil lib/cilly.pl lib/ccured.pl \
                     lib/scaninfer lib/scaninfer.bat)
 AC_OUTPUT()
 

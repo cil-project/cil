@@ -3381,26 +3381,26 @@ s,@top_srcdir@,$ac_top_srcdir,;t t
 
   # Run the commands associated with the file.
   case $ac_file in
-    Makefile ) chmod a-w $config_files Makefile test/Makefile
-                    Makefile.cil lib/cilly.pl lib/ccured.pl
+    Makefile ) chmod a-w $config_files Makefile test/Makefile \
+                    Makefile.cil lib/cilly.pl lib/ccured.pl \
                     lib/scaninfer lib/scaninfer.bat ;;
-    test/Makefile ) chmod a-w $config_files Makefile test/Makefile
-                    Makefile.cil lib/cilly.pl lib/ccured.pl
+    test/Makefile ) chmod a-w $config_files Makefile test/Makefile \
+                    Makefile.cil lib/cilly.pl lib/ccured.pl \
                     lib/scaninfer lib/scaninfer.bat ;;
-    Makefile.cil ) chmod a-w $config_files Makefile test/Makefile
-                    Makefile.cil lib/cilly.pl lib/ccured.pl
+    Makefile.cil ) chmod a-w $config_files Makefile test/Makefile \
+                    Makefile.cil lib/cilly.pl lib/ccured.pl \
                     lib/scaninfer lib/scaninfer.bat ;;
-    lib/cilly.pl ) chmod a-w $config_files Makefile test/Makefile
-                    Makefile.cil lib/cilly.pl lib/ccured.pl
+    lib/cilly.pl ) chmod a-w $config_files Makefile test/Makefile \
+                    Makefile.cil lib/cilly.pl lib/ccured.pl \
                     lib/scaninfer lib/scaninfer.bat ;;
-    lib/ccured.pl ) chmod a-w $config_files Makefile test/Makefile
-                    Makefile.cil lib/cilly.pl lib/ccured.pl
+    lib/ccured.pl ) chmod a-w $config_files Makefile test/Makefile \
+                    Makefile.cil lib/cilly.pl lib/ccured.pl \
                     lib/scaninfer lib/scaninfer.bat ;;
-    lib/scaninfer ) chmod a-w $config_files Makefile test/Makefile
-                    Makefile.cil lib/cilly.pl lib/ccured.pl
+    lib/scaninfer ) chmod a-w $config_files Makefile test/Makefile \
+                    Makefile.cil lib/cilly.pl lib/ccured.pl \
                     lib/scaninfer lib/scaninfer.bat ;;
-    lib/scaninfer.bat ) chmod a-w $config_files Makefile test/Makefile
-                    Makefile.cil lib/cilly.pl lib/ccured.pl
+    lib/scaninfer.bat ) chmod a-w $config_files Makefile test/Makefile \
+                    Makefile.cil lib/cilly.pl lib/ccured.pl \
                     lib/scaninfer lib/scaninfer.bat ;;
   esac
 done

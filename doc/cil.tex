@@ -955,7 +955,7 @@ structure \t{bar}):
 
 \section{Installation}
 
-You will need OCaml release 3.02 or higher to build CIL. CIL has been tested
+You will need OCaml release 3.04 or higher to build CIL. CIL has been tested
 on Linux and on Windows (where it can behave at either Microsoft Visual C or
 gcc). 
 
@@ -963,8 +963,8 @@ gcc).
 of \t{cygwin} and the source-code OCaml distribution and compile it yourself
 using the cygwin tools (as opposed to getting the Win32 native-code version of
 OCaml). If you have not done this before then take a look
-\ahref{../ccured/setup.html}{here}. (Don't need to worry about \t{cvs} and \t{ssh}
-since you won't be using those.)
+\ahref{../ccured/setup.html}{here}. (Don't need to worry about \t{cvs} and
+\t{ssh} unless you will need to use the master CVS repository for CIL.)
 
 \begin{enumerate}
 \item Unzip and untar the source distribution. This will create a directory
@@ -972,13 +972,15 @@ since you won't be using those.)
       \hsp\verb!tar xvfz cil.tar.gz!
 \item Create an environment variable \t{ARCHOS} and set it to either
       \t{X86\_LINUX} or \t{x86\_WIN32}.
-\item Enter the \t{cil} directory and run GNU make to build the 
-      distribution.\\
+\item Enter the \t{cil} directory and run the \t{configure} script and then 
+      GNU make to build the distribution. If you are on Windows, at least the
+      \t{configure} step must be run from within \t{bash}. \\
       \hsp\verb!cd cil!\\
-      \hsp\verb!make!\\
-      \hsp\verb!make NATIVECAML=1!\\
+      \hsp\verb!./configure!\\
+      \hsp\verb!make setup!\\
 
-\item You should now find \t{obj/cilly.asm.exe} and \t{obj/merger.asm.exe}
+\item You should now find \t{cilly.asm.exe} and \t{merger.asm.exe} in a
+subdirectory of \t{obj}. 
 \end{enumerate}
 
 The file \ahref{cil.tar.gz}{cil.tar.gz} contains the complete source CIL
@@ -986,12 +988,19 @@ distribution, consisting of the following files:
 
 \begin{tabular}{ll}
 Filename   & Description \\
-\t{Makefile}                    & Makefile for building CIL \\
+\t{Makefile.in}                 & \t{configure} source for the 
+                                  Makefile for building CIL \\
+\t{configure}                   & The configure script \\
+\t{configure.in}                & The \t{autoconf} source for \t{configure} \\
+\t{config.guess}, \t{config.sub}, \t{install-sh} & stuff required by
+                                \t{configure} \\
 \t{Makefile.ocaml}              & A file that is included by \t{Makefile} \\
+\t{Makefile.ocaml.build}        & A file that is included by \t{Makefile} \\
 \t{doc/}                        & HTML documentation of the CIL API \\
 \t{obj/}                        & Directory that will contain the compiled
                                    CIL modules and executables\\
-\t{lib/cilly.pl}                & A Perl script that can be invoked with the 
+\t{lib/cilly.pl.in}             & The \t{configure} source for a Perl script 
+                                  that can be invoked with the 
                                   same arguments as either \t{gcc} or
                                   Microsoft Visual C and will convert the
                                   program to CIL, perform some simple
@@ -1026,11 +1035,11 @@ Filename   & Description \\
 \t{src/maincil.ml}                 & A test application called \t{cilly} \\
 \t{src/pretty.ml,mli}           & Utilities for pretty printing \\
 \t{src/rmtmps.ml,mli}           & A CIL tranformation that removes unused
-types, variables and inlined functions \\
+                                  types, variables and inlined functions \\
 \t{src/stats.ml,mli}            & Utilities for maintaining timing statistics
 \\
-\t{src/testcil.ml}              & A random test of CIL (against the resident C
-compiler)\\
+\t{src/testcil.ml}              & A random test of CIL (against the resident 
+                                  C compiler)\\
 \t{src/trace.ml,mli}            & Utilities useful for printing debugging
                                    information\\
 \t{src/util.ml}                 & Miscellaneous functions and global variables

@@ -182,7 +182,7 @@ DISTRIB_SRC_FRONTC = cabs.ml cprint.ml clexer.mli clexer.mll \
 DISTRIB_SRC_EXT = logcalls.ml logcalls.mli \
                   logwrites.ml heapify.ml 
 
-DISTRIB_LIB = CompilerStub.pm Merger.pm cilly.pl patcher.pl
+DISTRIB_LIB = CompilerStub.pm Merger.pm cilly.pl.in patcher.pl
 
 distrib: doc
         # Create the distribution from scratch
@@ -214,13 +214,14 @@ distrib: doc
 
 	cp -r doc/html/cil/* $(TOP_DIR)/doc
 # Delete all CVS directories
-	if find $(DISTRIB_DIR) -name CVS -print >cvss.txt ; then \
-            echo `cat cvss.txt` ;fi
+	if find $(TEMP_DIR) -name CVS -print >cvss.txt ; then \
+            rm -rf `cat cvss.txt` ;fi
 # Now make the TAR ball
-	cd $(TEMP_DIR); tar cfz cil.tar.gz cil; cp cil.tar.gz ..
+	cd $(TEMP_DIR); tar cfz cil.tar.gz cil
+	mv $(TEMP_DIR)/cil.tar.gz .
 
 	if test -d $(CILHTMLDEST); then \
-                cp -f $(TEMP_DIR)/cil.tar.gz $(CILHTMLDEST); fi
+                cp -f cil.tar.gz $(CILHTMLDEST); fi
 	rm -rf $(TEMP_DIR)
 
 clean: cleancaml

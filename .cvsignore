@@ -22,3 +22,5 @@ make.out*
 odoc
 Makefile
 config.status
+Makefile.cil
+*.tar.gz
