@@ -1,5 +1,5 @@
 
-val doFile: Cil.file -> Cil.file
+val doFile: ?mainname:string -> Cil.file -> Cil.file
 
 
 (* Insert the global initializer in the main. Optionally you can specify the 

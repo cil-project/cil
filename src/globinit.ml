@@ -42,7 +42,7 @@ let insertGlobInit ?(mainname="main") (file: file) : unit =
   | _ -> ()
 
 
-let doFile (fl: file) : file = 
+let doFile ?(mainname="main") (fl: file) : file = 
   let boxing = ref true in
   let rec doGlobal = function
       GVar (vi, Some init, l) as g -> 
@@ -87,7 +87,7 @@ let doFile (fl: file) : file =
     ignore (E.log "Checking after globinit\n");
     Check.checkFile [] newfile
   end;
-  insertGlobInit newfile;
+  insertGlobInit ~mainname:mainname newfile;
   newfile
   
 

@@ -1394,4 +1394,4 @@ LINUXPATCH := $(STANDARDPATCH) --includedir=$(LINUX_INCLUDES)
 SBULLDIR := test/sbull
 sbull: mustbegcc mustbelinux
 	cd $(SBULLDIR); rm -f *.o; \
-           make CC="$(CCURED) $(LINUXPATCH)"
+           make CC="$(CCURED) $(LINUXPATCH) --entryPoint='sbull_init'"
