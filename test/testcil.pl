@@ -117,6 +117,7 @@ $TEST->add3Tests("test/huff1");
   $TEST->addBadComment("test/huff1-box", "pragma box misuse");
   $TEST->addBadComment("test/huff1-inferbox", "pragma box misuse");
 $TEST->add3Tests("testrun/init");
+$TEST->add3Tests("testrun/init");
 $TEST->add3Tests("test/initial", "_GNUCC=1");
 $TEST->add3Tests("test/jmp_buf");
 $TEST->add3Tests("test/linux_atomic", "_GNUCC=1");

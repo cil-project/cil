@@ -2203,10 +2203,11 @@ and doPureExp (e : A.expression) : exp =
 (* Process an initializer. *)
 and doInitializer 
   (isconst: bool)
+  (inaggregate: bool) (* Are we inside of an aggregate ? *)
   (typ: typ) (* expected type *)
   (acc: chunk) (* Accumulate here the chunk so far *)
   (initl: (A.initwhat * A.init_expression) list) (* Some initializers, might 
-                                              * consume one or more  *)
+                                                  * consume one or more  *)
 
     (* Return some statements, the initializer expression with the new type 
      * (might be different for arrays), and the residual initializers *)
@@ -2298,7 +2299,8 @@ and doInitializer
                 (* Recurse and consume some initializers for the purpose of 
                  * initializing one element *)
 (*                ignore (E.log "Do the array init for %d\n" nextidx); *)
-                let acc', ie', _, initl' = doInitializer false elt acc initl in
+                let acc', ie', _, initl' = 
+                  doInitializer false true elt acc initl in
                 (* And continue with the array *)
                 initArray (nextidx + 1) 
                   (ie' :: sofar) 
@@ -2317,6 +2319,8 @@ and doInitializer
             if rest' <> [] then
               E.s (warn "Unused initializers\n");
             acc', inits, nextidx, restinitl
+              (* Otherwise it is the initializer for some elements, starting 
+               * with the first one *)
         | _ -> initArray 0 [] acc initl 
       in
       let newt = (* Maybe we have a length now *)
@@ -2378,7 +2382,7 @@ and doInitializer
              (* Now do the expression. Give it a chance to consume some 
               * initializers  *)
             let acc', ie', _, initl' = 
-              doInitializer isconst thisexpt acc initl in
+              doInitializer isconst true thisexpt acc initl in
              (* And continue with the remaining fields *)
             initStructUnion nextflds' (ie' :: sofar) acc' initl'
 
@@ -2397,11 +2401,13 @@ and doInitializer
               E.s (warn "Unused initializers\n");
             acc', CompoundInit(typ, inits), typ, restinitl
 
-           (* Maybe it is a single initializer *)
-        | (A.NEXT_INIT, A.SINGLE_INIT oneinit) :: [] -> 
+           (* Maybe it is a single initializer. If we are not inside an 
+            * aggregate then that is the initializer for the whole thing *)
+        | (A.NEXT_INIT, A.SINGLE_INIT oneinit) :: [] when not inaggregate -> 
             let se, init', t' = doExp isconst oneinit (AExp(Some typ)) in
             (se @@ acc), SingleInit (doCastT init' t' typ), typ, []
             
+           (* Otherwise, we start initializing fields *)
         | _ -> 
             let acc', inits, restinitl = 
               initStructUnion comp.cfields [] acc initl 
@@ -2441,7 +2447,7 @@ and createGlobal (specs: A.spec_elem list)
         None
       else 
         let se, ie', et, restinitl = 
-          doInitializer true vi.vtype empty [ (A.NEXT_INIT, e) ] in
+          doInitializer true false vi.vtype empty [ (A.NEXT_INIT, e) ] in
         if restinitl <> [] then
           E.s (error "Unused initializer in createGlobal\n");
         (* Maybe we now have a better type *)
@@ -2509,7 +2515,7 @@ and createLocal (specs: A.spec_elem list)
           None
         else begin 
           let se, ie', et, restinitl = 
-            doInitializer true vi.vtype empty [ (A.NEXT_INIT, e) ] in
+            doInitializer true false vi.vtype empty [ (A.NEXT_INIT, e) ] in
           if restinitl <> [] then
             E.s (error "Unused initializer in createGlobal\n");
           (* Maybe we now have a better type *)
@@ -2539,7 +2545,7 @@ and createLocal (specs: A.spec_elem list)
         skipChunk
       else begin
         let se, ie', et, _ = 
-          doInitializer false vi.vtype empty [ (A.NEXT_INIT, e) ] in
+          doInitializer false false vi.vtype empty [ (A.NEXT_INIT, e) ] in
         (match vi.vtype, ie', et with 
             (* We have a length now *)
           TArray(_,None, _), _, TArray(_, Some _, _) -> vi.vtype <- et

@@ -655,7 +655,6 @@ val d_const: unit -> constant -> Pretty.doc
 
   (* When we print types for consumption by another compiler we must be 
    * careful to avoid printing multiple type definitions *)
-val noRedefinitions: bool ref
 val printShortTypes: bool ref (* Prints "struct n" instead of the fields *)
 val d_type: unit -> typ -> Pretty.doc
 
