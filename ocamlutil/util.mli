@@ -59,6 +59,11 @@ val mapNoCopyList: ('a -> 'a list) -> 'a list -> 'a list
 
 val filterNoCopy: ('a -> bool) -> 'a list -> 'a list
 
+
+(** Join a list of strings *)
+val joinStrings: string -> string list -> string
+
+
 (**** Now in growArray.mli
 
 (** Growable arrays *)

@@ -213,9 +213,14 @@ let cleanFileName str =
   loop 0 0
 
 let startParsing (fname: string) = 
+  (* We only support one open file at a time *)
+  if !current != dummyinfo then begin
+     s (error "Errormsg.startParsing supports only one open file: You want to open %s and %s is still open\n" fname !current.fileName); 
+  end; 
   let inchan = 
-    try open_in fname with 
-      _ -> s (error "Cannot find input file %s" fname) in
+    try open_in fname 
+    with e -> s (error "Cannot find input file %s (exception %s" 
+                    fname (Printexc.to_string e)) in
   let lexbuf = Lexing.from_channel inchan in
   let i = 
     { linenum = 1; linestart = 0; 

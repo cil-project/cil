@@ -514,6 +514,13 @@ let rec filterNoCopy (f: 'a -> bool) (l: 'a list) : 'a list =
       let rest' = filterNoCopy f rest in
       if rest == rest' then l else h :: rest'
 
+(** Join a list of strings *)
+let rec joinStrings (sep: string) (sl: string list) = 
+  match sl with 
+    [] -> ""
+  | [s1] -> s1
+  | s1 :: ((_ :: _) as rest) -> s1 ^ sep ^ joinStrings sep rest
+
 
 (************************************************************************
 
