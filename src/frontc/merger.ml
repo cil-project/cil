@@ -25,6 +25,10 @@ type envKind =
   | EVar                                (* A variable or enumeration item *)
 
 let env: (envKind * string, string) H.t = H.create 111
+
+(* The fresh names that we created *)
+let fresh: (envKind * string, string) H.t = H.create 111
+
 (* A list of things to do when you exit a scope *)
 type undoElement = 
     UndoScope (* To mark the begining of a scope *)
@@ -75,7 +79,7 @@ let changeName
     DoChildren
   end
 
-class renameClass : cabsVisitor = object (self)
+class renameKeepDefsClass : cabsVisitor = object (self)
   inherit nopCabsVisitor
 
       (* Use of a variable. Always try to rename *)
@@ -106,8 +110,8 @@ class renameClass : cabsVisitor = object (self)
       | _ -> DoChildren
     with Not_found -> DoChildren
 end
-let renameVisitor : cabsVisitor = new renameClass
-
+let renameKeepDefsVisitor : cabsVisitor = new renameKeepDefsClass
+let renameVisitor = renameKeepDefsVisitor
 
 (************** ALPHA CONVERSION ********************)
 (* Global names are split into a prefix, a ___ (3 underscores) separator and 
@@ -265,8 +269,6 @@ let findTypeTagNames (f: Cabs.file) =
   (ignore (E.log "typeTags= ");
    List.iter (fun (k, n, _, _) -> ignore (E.log "%s," n)) tt_list;
    ignore (E.log "\n"));
-  (* We keep track of those names for which we assigned fresh names *)
-  let typeTagAssignedFresh : (envKind * string, string) H.t = H.create 111 in
 
   (* Rename a type tag but leave the defined name alone *)
   let renameTT (defk, defn, defspec, defname) = 
@@ -274,8 +276,8 @@ let findTypeTagNames (f: Cabs.file) =
     H.add env defnk defn; (* Leave the defined name alone *)
     let tt' = 
       let nk = match defk with EType -> NType | _ -> NVar in
-      let defspec' = visitCabsSpecifier renameVisitor defspec in
-      let defname' = visitCabsName renameVisitor nk defspec' defname in
+      let defspec' = visitCabsSpecifier renameKeepDefsVisitor defspec in
+      let defname' = visitCabsName renameKeepDefsVisitor nk defspec' defname in
       (defk, defn, defspec', defname')
     in
     H.remove env defnk; (* Undo the last change *)
@@ -291,7 +293,7 @@ let findTypeTagNames (f: Cabs.file) =
         let defnk = (defk, defn) in
         (* Leave this one alone if we have already decided to assign a fresh 
          * name to it *)
-        if not (H.mem typeTagAssignedFresh defnk) then begin
+        if not (H.mem fresh defnk) then begin
           (* See if it is renamed or not *)
           let renamed_o = try Some (H.find env defnk) with Not_found -> None
           in 
@@ -302,7 +304,7 @@ let findTypeTagNames (f: Cabs.file) =
               [] -> (* No definition matches. Make a new name for this one *)
                 ignore (E.log "No matches for %s\n" defn);
                 let n' = newAlphaName defk defn in
-                H.add typeTagAssignedFresh defnk n';
+                H.add fresh defnk n';
                 H.add env defnk n';
                 renameTableChanged := true
 
@@ -334,7 +336,7 @@ let findTypeTagNames (f: Cabs.file) =
     (fun ((defk, defn, defspec, defname) as tt) -> 
       let defnk = (defk, defn) in
       try
-        let n' = H.find typeTagAssignedFresh defnk in
+        let n' = H.find fresh defnk in
         let tt' = renameTT tt in 
         H.add globalTypeTags defnk (tt', n')
       with Not_found -> ())
@@ -378,12 +380,58 @@ let merge (files : Cabs.file list) : Cabs.file =
   theProgram := [];
   let doOneFile (f: Cabs.file) = 
     H.clear env; (* Start with a brand new environment *)
+    H.clear fresh;
     (* Find the new names for type and tags *)
     findTypeTagNames f;
     (* Now apply the new names and while doing that remove some global 
      * declarations *)
-    let f' = visitCabsFile renameVisitor f in
-    List.iter (fun d -> theProgram := d :: !theProgram) f'
+    let doOneDefinition = function
+        DECDEF ((s, inl), l) as d -> 
+          theProgram := (visitCabsDefinition renameVisitor d) @ !theProgram
+
+      | FUNDEF ((s, (n, dt, a)), b, l) -> 
+         (* On MSVC force inline functions to be static. Otherwise the 
+          * compiler might complain that the function is declared with 
+          * multiple bodies  *)
+          let s' = 
+            if !Cprint.msvcMode && isInline s && not (isStatic s) then
+              SpecStorage STATIC :: s else s
+          in
+          let s' = visitCabsSpecifier renameVisitor s' in
+          let dt' = visitCabsDeclType renameVisitor dt in
+          let a' = visitCabsAttributes renameVisitor a in
+          (* See if we must change the name *)
+          let n' = 
+            if isStatic s then 
+              try
+                H.find env (EVar, n) 
+              with Not_found -> begin
+                let n' = newAlphaName EVar n in
+                addLocalToEnv EVar n n';
+                n'
+              end
+            else
+              n
+          in
+          (* Now visit the block *)
+          let b' = visitCabsBlock renameVisitor b in 
+          theProgram := FUNDEF ((s', (n', dt', a')), b', l) :: !theProgram
+
+      | TYPEDEF ((s, nl), l) ->
+          let s' = visitCabsSpecifier renameVisitor s in
+          let rec loop = function
+              [] -> []
+            | ((n, dt, a) as nm) :: rest -> 
+                let n' = lookup EType n in 
+                if n = n' then loop rest
+                else visitCabsName renameVisitor NType s' nm :: loop rest
+          in
+          let nl' = loop nl in
+          theProgram := TYPEDEF ((s', nl'), l) :: !theProgram
+                  
+      | d -> theProgram := (visitCabsDefinition renameVisitor d) @ !theProgram
+    in
+    List.iter doOneDefinition f
   in
   List.iter doOneFile files;
   let res = List.rev !theProgram in
@@ -392,5 +440,6 @@ let merge (files : Cabs.file list) : Cabs.file =
   theProgram := [];
   H.clear globals;
   H.clear env;
+  H.clear fresh;
   res
 

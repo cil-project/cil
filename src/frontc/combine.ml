@@ -888,7 +888,7 @@ and doDefinition (isglobal: bool) (* Whether at global scope *)
          * times. Keep only one. Index everything, including the location, 
          * but index using the original name of the function. There is no 
          * point in throwing the location away unless we rewrite the body to 
-         * throw all the locations it containts  *)
+         * throw all the locations it contains  *)
         try
           let oldname = H.find functions res_oldname in
           reuseOldName (n, oldname);
@@ -921,6 +921,7 @@ and doDefinition (isglobal: bool) (* Whether at global scope *)
                     | PARENTYPE (_, dt, _) -> isFunctionType dt
                     | ARRAY (dt, _) -> isFunctionType dt
                     | PTR (_, dt) -> isFunctionType dt
+                    | JUSTBASE -> false
                   in
                   if not (isFunctionType decl') then 
                     canreuse := false;

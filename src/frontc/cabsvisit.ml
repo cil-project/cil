@@ -469,7 +469,8 @@ and childrenAttribute vis ((n, el) as input) =
   let el' = mapNoCopy (visitCabsExpression vis) el in
   if el' != el then (n, el') else input
     
-
+and visitCabsAttributes vis (al: attribute list) : attribute list = 
+  mapNoCopyList (visitCabsAttribute vis) al
 
 let visitCabsFile (vis: cabsVisitor) (f: file) : file =  
   mapNoCopyList (visitCabsDefinition vis) f

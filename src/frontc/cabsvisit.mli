@@ -60,7 +60,8 @@ val visitCabsDefinition: cabsVisitor -> Cabs.definition -> Cabs.definition list
 val visitCabsBlock: cabsVisitor -> Cabs.block -> Cabs.block
 val visitCabsStatement: cabsVisitor -> Cabs.statement -> Cabs.statement list
 val visitCabsExpression: cabsVisitor -> Cabs.expression -> Cabs.expression
-val visitCabsAttribute: cabsVisitor -> Cabs.attribute -> Cabs.attribute list
+val visitCabsAttributes: cabsVisitor -> Cabs.attribute list 
+                                     -> Cabs.attribute list
 val visitCabsName: cabsVisitor -> nameKind 
                    -> Cabs.specifier -> Cabs.name -> Cabs.name
 val visitCabsFile: cabsVisitor -> Cabs.file -> Cabs.file
