@@ -9,6 +9,9 @@ open Cil
 
 
 (*** EXPRESSIONS *************)
+                                        (* We collect here the program *)
+let theFile : global list ref = ref []
+
 (*** As we translate expressions we need an environment ***)
 type enventry = 
   | EBlock                              (* start of a block *)
@@ -60,7 +63,8 @@ let addNewVar vi =
   let (isnew, newvi) = 
     try begin
       let oldvi = lookup vi.vname in
-      (* The variable already exists *)
+      (* The variable already exists in the environment. Certainly it exists 
+       * in locals *)
       if vi.vglob && oldvi.vglob then
         if oldvi.vstorage = Extern  && vi.vstorage = NoStorage then begin
           (* Remove the old version from the environment *)
@@ -80,15 +84,30 @@ let addNewVar vi =
                                         (* function prototypes are not 
                                          * definitions *)
               TFun _, TFun _ -> (false, oldvi)
+            | TPtr (TFun _, _), TPtr (TFun _, _) -> (false, oldvi)
             | _ -> E.s (E.unimp "Variable redefinition: %s\n" vi.vname)
       else begin
         incr alphaId;
         let newname = origname ^ (string_of_int (!alphaId)) in
-        ignore (E.log "Warning: Alpha-converting %s to %s\n" 
+(*        ignore (E.log "Warning: Alpha-converting %s to %s\n" 
                   origname newname);
+*)
         (true, {vi with vname = newname})
       end
-    end with Not_found -> (true, vi)
+    end with Not_found -> begin
+      (* Not in the env. But maybe it is already in the locals *)
+      if List.exists (fun x -> x.vname = origname) !locals then begin
+        (* Generate another one *)
+        incr alphaId;
+        let newname = origname ^ (string_of_int (!alphaId)) in
+(*
+        ignore (E.log "Warning: Alpha-converting %s to %s\n" 
+                  origname newname);
+*)
+        (true, {vi with vname = newname})
+      end else 
+        (true, vi)
+    end
   in
   if isnew then begin
     env := EVar (origname, newvi) :: !env;
@@ -269,7 +288,7 @@ let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) =
 
   | TArray(t1,_,_), TArray(t2,None,_) when typeSig t1 = typeSig t2 -> (nt, e)
 
-  | TPtr _, TArray(_,None,_) -> (nt, e)
+  | TPtr _, TArray(_,_,_) -> (nt, e)
 
   | TEnum _, TInt _ -> (nt, e)
   | TFloat _, TInt _ -> (nt, (CastE(nt,e,lu)))
@@ -282,6 +301,7 @@ let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) =
 
 
   | TBitfield _, TInt _ -> (nt, e)
+  | TInt _, TBitfield _ -> (nt, e)
 
 
   | _ -> E.s (E.unimp "castTo %a -> %a@!" d_type ot d_type nt)
@@ -292,6 +312,7 @@ let checkBool (ot : typ) (e : exp) : bool =
     TInt _ -> true
   | TPtr _ -> true
   | TEnum _ -> true
+  | TBitfield _ -> true
   |  _ -> E.s (E.unimp "castToBool %a" d_type ot)
 
 
@@ -374,11 +395,12 @@ and doType (a : attribute list) = function
         | A.LONG_LONG, A.UNSIGNED -> IULongLong
       in
       TInt (ikind, a)
-  | A.BITFIELD (sgn, e) -> 
+  | A.BITFIELD (bt, e) -> 
+      let bt' = doType [] bt in
       let ikind = 
-        match sgn with
-          (A.NO_SIGN | A.SIGNED) -> IInt
-        | A.UNSIGNED -> IUInt
+        match unrollType bt' with 
+          TInt (ikind, _) -> ikind
+        | _ -> E.s (E.unimp "Base type for bitfield is not an integer type")
       in
       let width = match doExp e (AExp None) with
         ([], Const(CInt(i,_),_), _) -> i
@@ -479,8 +501,9 @@ and doType (a : attribute list) = function
 and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) = 
   (* A subexpression of array type is automatically turned into StartOf(e) *)
   let processArray e t = 
-    match e, t with
+    match e, unrollType t with
       Lval(lv), TArray(t, _, a) -> StartOf lv, TPtr(t, AId("const") :: a)
+    | Compound _, TArray(t', _, a) -> e, t
     | _, TArray _ -> E.s (E.unimp "Array expression is not lval")
     | _ -> e, t
   in
@@ -536,9 +559,12 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         let se = se1 @ se2 in
         let (e1'', e2'', tresult) = 
           match unrollType t1, unrollType t2 with
-            TPtr(t1e,_), TInt _ -> e1', e2', t1e
-          | TInt _, TPtr(t2e,_) -> e2', e1', t2e
-          | _ -> E.s (E.unimp "Expecting a pointer type in index")
+            TPtr(t1e,_), (TInt _|TEnum _ |TBitfield _) -> e1', e2', t1e
+          | (TInt _|TEnum _|TBitfield _), TPtr(t2e,_) -> e2', e1', t2e
+          | _ -> 
+              E.s (E.unimp 
+                     "Expecting a pointer type in index:@! t1=%a@!t2=%a@!"
+                     d_plaintype t1 d_plaintype t2)
         in
         (* Do some optimization of StartOf *)
         finishExp se (mkMem e1'' (Index(e2'',NoOffset))) tresult
@@ -743,19 +769,23 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
     | A.UNARY(A.PLUS, e) -> doExp e what 
           
           
-    | A.UNARY(A.ADDROF, e) -> 
+    | A.UNARY(A.ADDROF, e) -> begin
         let (se, e', t) = doExp e (AExp None) in
-        let lv = 
-          match e' with Lval x -> x
-          | _ -> E.s (E.unimp "Expected lval for ADDROF")
-        in
-        finishExp se (AddrOf(lv, lu)) (TPtr(t, []))
-          
+        match e' with 
+          Lval x -> finishExp se (AddrOf(x, lu)) (TPtr(t, []))
+        | CastE (t', Lval x, _) -> 
+            finishExp se (CastE(TPtr(t', []),
+                                AddrOf(x, lu), lu)) (TPtr(t', []))
+        | _ -> E.s (E.unimp "Expected lval for ADDROF. Got %a@!"
+                      d_plainexp e')
+    end
     | A.UNARY((A.PREINCR|A.PREDECR) as uop, e) -> 
         let uop' = if uop = A.PREINCR then Plus else Minus in
         let (se, e', t) = doExp e (AExp None) in
         let lv = 
-          match e' with Lval x -> x
+          match e' with 
+            Lval x -> x
+          | CastE (_, Lval x, _) -> x
           | _ -> E.s (E.unimp "Expected lval for ++ or --")
         in
         let tres = checkTypeAdd t intType in
@@ -769,7 +799,9 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         let uop' = if uop = A.POSINCR then Plus else Minus in
         let (se, e', t) = doExp e (AExp None) in
         let lv = 
-          match e' with Lval x -> x
+          match e' with 
+            Lval x -> x
+          | CastE (_, Lval x, _) -> x
           | _ -> E.s (E.unimp "Expected lval for ++ or --")
         in
         let tres = checkTypeAdd t intType in
@@ -787,12 +819,15 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
           
     | A.BINARY(A.ASSIGN, e1, e2) -> 
         let (se1, e1', lvt) = doExp e1 (AExp None) in
-        let lv = 
-          match e1' with Lval x -> x
-          | _ -> E.s (E.unimp "Expected lval for assignment")
+        let lv, lvt' = 
+          match e1' with 
+            Lval x -> x, lvt
+          | CastE (_, Lval x, _) -> x, typeOfLval x
+          | _ -> E.s (E.unimp "Expected lval for assignment. Got %a\n"
+                        d_plainexp e1')
         in
-        let (se2, e'', t'') = doExp e2 (ASet(lv, lvt)) in
-        finishExp (se1 @ se2) (Lval(lv)) lvt
+        let (se2, e'', t'') = doExp e2 (ASet(lv, lvt')) in
+        finishExp (se1 @ se2) (Lval(lv)) lvt'
           
     | A.BINARY((A.ADD|A.SUB|A.MUL|A.DIV|A.MOD|A.BAND|A.BOR|A.XOR|
       A.SHL|A.SHR|A.EQ|A.NE|A.LT|A.GT|A.GE|A.LE) as bop, e1, e2) -> 
@@ -818,11 +853,14 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         let (se1, e1', t1) = doExp e1 (AExp None) in
         let (se2, e2', t2) = doExp e2 (AExp None) in
         let tresult, e1'', e2'' = 
-          match bop', t1, t2 with
+          match bop', unrollType t1, unrollType t2 with
                                         (* ignore sizes for now *)
           | (Plus|Minus|Mult|Div|Mod|BAnd|BOr|BXor|Shiftlt|Shiftrt), 
-                 TInt _, TInt _ -> t1, e1', e2'
-          | (Eq|Ne|Ge|Gt|Le|Lt), TInt _, TInt _ -> intType, e1', e2'
+                 (TInt _|TEnum _|TBitfield _), 
+                 (TInt _|TEnum _|TBitfield _) -> intType, e1', e2'
+          | (Eq|Ne|Ge|Gt|Le|Lt), 
+                 (TInt _|TEnum _|TBitfield _), 
+                 (TInt _|TEnum _|TBitfield _) -> intType, e1', e2'
           | (Plus|Minus|Mult|Div|Mod), TFloat _, TFloat _ -> t1, e1', e2'
           | (Eq|Ne|Ge|Gt|Le|Lt), TFloat _, TFloat _ -> intType, e1', e2'
           | Plus, TPtr _, TInt _ -> t1, e1', e2'
@@ -836,8 +874,9 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
               (match e1' with Const(CInt(0,_),_) -> true | _ -> false) 
               -> intType, CastE(t1, zero, lu), e2'
           | _ -> 
-              ignore (E.log "Warning: untyped %a\n" 
-                        d_exp (BinOp(bop',e1',e2',intType, lu)));
+              ignore (E.log "Warning: untyped %a. t1=%a and t2=%a\n" 
+                        d_exp (BinOp(bop',e1',e2',intType, lu))
+                        d_type t1 d_type t2);
               intType, e1', e2'   (*** !!! this is only temporary *)
         in
         let result = 
@@ -919,7 +958,43 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
           intType
           
     | A.CALL(f, args) -> 
-        let (sf, f', ft') = doExp f (AExp None) in
+        let (sf, f', ft') = 
+          match f with                  (* Treat the VARIABLE case separate 
+                                         * becase we might be calling a 
+                                         * function that does not have a 
+                                         * prototype. In that case assume it 
+                                         * takes INTs as arguments  *)
+            A.VARIABLE n -> begin
+              try
+                let vi = lookup n in
+                ([], Lval(var vi), vi.vtype) (* Found. Do not use finishExp. 
+                                              * Simulate what = AExp None *)
+              with Not_found -> begin
+                ignore (E.log 
+                          "Warning: Calling function %s without prototype\n"
+                          n);
+                let ftype = TFun(intType,
+                                 (let rec mkn n = 
+                                   if n = List.length args then [] else 
+                                   { vname = "";
+                                     vglob = false;
+                                     vtype = intType;
+                                     vid   = n;
+                                     vattr = [];
+                                     vdecl = lu;
+                                     vaddrof = false;
+                                     vstorage = NoStorage; } :: mkn (n + 1)
+                                 in mkn 0), 
+                                 false, []) in
+                (* Add a prototype *)
+                let proto = makeGlobalVar n ftype in 
+                let proto = addNewVar proto in
+                theFile := GVar (proto, None) :: !theFile;
+                ([], Lval(var proto), ftype)
+              end
+            end
+          | _ -> doExp f (AExp None) 
+        in
       (* Get the result type and the argument types *)
         let (resType, argTypes, isvar, f'') = 
           match unrollType ft' with
@@ -1050,7 +1125,8 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
     end
   with e -> begin
     ignore (E.log "error in doExp (%s)@!" (Printexc.to_string e));
-    ([Instruction(Asm(["booo_exp"], false, [], [], []))], integer 0, intType)
+    ([dStmt (dprintf "booo_exp(%s)" (Printexc.to_string e))], 
+     integer 0, intType)
   end
     
 
@@ -1059,12 +1135,25 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
 and doCondition (e: A.expression) 
                 (st: stmt list)
                 (sf: stmt list) : stmt list = 
+  let canDuplicate sl = (* We can duplicate a statement if it is small and 
+                        * does not contain label definitions  *)
+    let rec costOne = function
+        Skip -> 0
+      | Sequence sl -> costMany sl
+      | Loop stmt -> 100
+      | IfThenElse (_, _, _) -> 100
+      | Label _ -> 10000
+      | Switch _ -> 100
+      | (Goto _|Return _|Case _|Default|Break|Continue|Instruction _) -> 1
+    and costMany sl = List.fold_left (fun acc s -> acc + costOne s) 0 sl
+    in
+    costMany sl <= 3
+  in 
   match e with 
   | A.BINARY(A.AND, e1, e2) ->
       let (sf1, sf2) = 
         (* If sf is small then will copy it *)
-        let szf = List.length sf in
-        if szf <= 3 then
+        if canDuplicate sf then
           (sf, sf)
         else begin
           incr labelId;
@@ -1079,8 +1168,7 @@ and doCondition (e: A.expression)
   | A.BINARY(A.OR, e1, e2) ->
       let (st1, st2) = 
         (* If st is small then will copy it *)
-        let szt = List.length st in
-        if szt <= 3 then
+        if canDuplicate st then
           (st, st)
         else begin
           incr labelId;
@@ -1130,23 +1218,56 @@ and doDecl : A.definition -> stmt list = function
           ((bt,st,(n,nbt,a,e)) as sname : A.single_name) 
           : stmt list = 
         let vi = makeVarInfo false locUnknown sname in
-        let vi' = addNewVar vi in
+        let vi = addNewVar vi in        (* Replace vi *)
         if e = A.NOTHING then
           [Skip]
         else
           let (se, e', et) = doExp e (AExp (Some vi.vtype)) in
-          (match vi'.vtype, et with (* We have a length now *)
-            TArray(_,None, _), TArray(_, Some _, _) -> vi'.vtype <- et
+          (match vi.vtype, et with (* We have a length now *)
+            TArray(_,None, _), TArray(_, Some _, _) -> vi.vtype <- et
           | _, _ -> ());
-          let (_, e'') = castTo et vi'.vtype e' in
-          se @ [assign vi' e'']
+          let (_, e'') = castTo et vi.vtype e' in
+          se @ (doAssign (Var vi, NoOffset) e'')
       in
       let stmts = doNameGroup createLocal ng in
       List.concat stmts
 
   | _ -> E.s (E.unimp "doDecl")
     
-  
+
+and doAssign (lv: lval) : exp -> stmt list = function   
+                             (* We must break the compound assignment into 
+                              * atomic ones  *)
+  | Compound (t, el) -> begin
+      match unrollType t with 
+        TArray(t, _, _) -> 
+          let rec loop = function
+              _, [] -> []
+            | i, e :: el -> 
+                let res = loop ((i + 1), el) in
+                let newlv = mkMem (Lval(lv)) (Index(integer i, NoOffset)) in
+                let newlv = 
+                  match newlv with 
+                    Lval x -> x | _ -> E.s (E.bug "doAssign: mem")
+                in
+                (doAssign newlv e) @ res
+          in
+          loop (0, el)
+
+      | TStruct(_, fil, _) ->  
+          let rec loop = function
+              [], [] -> []
+            | f :: fil, e :: el -> 
+                let res = loop (fil, el) in
+                (doAssign (addOffset (Field(f, NoOffset)) lv) e) @ res
+            | _, _ -> E.s (E.unimp "fields in doAssign")
+          in
+          loop (fil, el)
+      | _ -> E.s (E.bug "Unexpected type of Compound")
+  end
+
+  | e -> [Instruction(Set(lv, e, lu))]
+
   (* Now define the processors for body and statement *)
 and doBody (decls, s) : stmt list = 
   startBlock ();
@@ -1281,9 +1402,8 @@ and doStatement (s : A.statement) : stmt list =
 (* Translate a file *)
 let convFile dl = 
   ignore (E.log "Cabs2cil conversion\n");
-                                        (* We collect here the program *)
-  let theFile : global list ref = ref [] in
   (* Clean up the global types *)
+  theFile := [];
   H.clear typedefs;
   H.clear enumFields;
   (* Setup the built-ints *)
@@ -1339,21 +1459,21 @@ let convFile dl =
         let createGlobal ((_,_,(n,nbt,a,e)) as sname : A.single_name) =
           try
             let vi = makeVarInfo true locUnknown sname in
-            let vi' = addNewVar vi in
-            let init, vi'' = 
+            let vi = addNewVar vi in    (* Overwrite vi *)
+            let init, vi' = 
               if e = A.NOTHING then 
-                None, vi'
+                None, vi
               else 
                 let (se, e', et) = doExp e (AExp (Some vi.vtype)) in
-                let (_, e'') = castTo et vi'.vtype e' in
+                let (_, e'') = castTo et vi.vtype e' in
                 (match et with (* We have a length now *)
-                  TArray(_, Some _, _) -> vi'.vtype <- et
+                  TArray(_, Some _, _) -> vi.vtype <- et
                 | _ -> ());
                 if se <> [] then 
                   E.s (E.unimp "global initializer");
-                Some e'', vi'
+                Some e'', vi
             in
-            theFile := GVar(vi'', init) :: !theFile
+            theFile := GVar(vi', init) :: !theFile
           with e -> begin
             ignore (E.log "error in CollectGlobal (%s)\n" 
                       (Printexc.to_string e));

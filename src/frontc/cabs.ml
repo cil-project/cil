@@ -26,7 +26,7 @@ and base_type =
    NO_TYPE
  | VOID
  | INT of size * sign
- | BITFIELD of sign * expression
+ | BITFIELD of base_type * expression  
  | FLOAT of bool					(* is long ? *)
  | DOUBLE of bool					(* is long ? *)
  | PTR of base_type					(* is const ? *)

@@ -81,7 +81,8 @@ let apply_mod (typ, sto) modi =
     | (INT (NO_SIZE, sign), BASE_SIZE size) -> INT (size, sign)
     | (INT (LONG, sign), BASE_SIZE LONG) -> INT (LONG_LONG, sign)
     | (INT (size, NO_SIGN), BASE_SIGN sign) -> INT (size, sign)
-    | (BITFIELD (NO_SIGN, exp), BASE_SIGN sign) -> BITFIELD (sign, exp)
+    | (BITFIELD (NO_TYPE, exp), BASE_SIGN sign) -> 
+        BITFIELD (INT(NO_SIZE, sign), exp)
     | (FLOAT false, BASE_SIZE LONG) -> FLOAT true
     | (DOUBLE false, BASE_SIZE LONG) -> DOUBLE true
     | (PTR typ, _) -> PTR (mod_root typ)
@@ -132,10 +133,7 @@ let set_type tst tin =
     | OLD_PROTO (typ, pars, ell) -> OLD_PROTO (set typ, pars, ell)
     | CONST typ -> CONST (set typ)
     | VOLATILE typ -> VOLATILE (set typ)
-    | BITFIELD (NO_SIGN, exp) ->
-	(match tst with
-	  INT (_, sign) -> BITFIELD (sign, exp)
-	| _ -> badType tst "1")
+    | BITFIELD (NO_TYPE, exp) -> BITFIELD(tst, exp)
     | _ -> badType typ "2" in
   set tin
     
@@ -211,6 +209,7 @@ let apply_qual ((t1, q1) : base_type * modifier list)
 %token IF ELSE
 
 %token ATTRIBUTE INLINE ASM TYPEOF
+%token <string> MSASM
 
 /* operator precedence */
 %nonassoc 	IF
@@ -555,6 +554,7 @@ typedef_def:
 ;
 typedef_dec:
     IDENT		{($1, NO_TYPE)}
+|   NAMED_TYPE          {($1, NO_TYPE)}  /* undo what the lexer did */
 |   STAR typedef_dec	{(fst $2, set_type (PTR NO_TYPE) (snd $2))}
 |   STAR CONST typedef_dec   
                         {(fst $3, set_type (CONST (PTR NO_TYPE)) (snd $3))}
@@ -616,6 +616,8 @@ field_defs:
 ;
 field_def:
     field_dec gcc_attributes	{(fst $1, snd $1, $2, NOTHING)}
+|   /* empty */                 {("___missing_field_name", NO_TYPE, 
+                                  [], NOTHING)};
 ;
 field_dec:
     IDENT			{($1, NO_TYPE)}
@@ -640,10 +642,9 @@ field_dec:
                                   set_type (PROTO (NO_TYPE, fst $5, snd $5)) 
                                     (snd $2))}
 |  LPAREN field_dec RPAREN	{$2}
-|  IDENT COLON expression	{($1, BITFIELD (NO_SIGN, $3))}
+|  IDENT COLON expression	{($1, BITFIELD (NO_TYPE, $3))}
 |  COLON expression             {("___missing_field_name", 
-                                  BITFIELD (NO_SIGN, $2))}
-;
+                                  BITFIELD (NO_TYPE, $2))}
 
 
 /*** Parameter Definition ***/
@@ -1021,6 +1022,7 @@ statement:
 |   GOTO IDENT SEMICOLON
 			{GOTO $2}				
 |   gnuasm  SEMICOLON   { $1 } 
+|   MSASM               { ASM ([$1], false, [], [], []) }
 ;
 
 

@@ -245,7 +245,7 @@ rule initial =
 	parse 	"/*"			{let _ = comment lexbuf in 
                                          initial lexbuf}
 |		blank			{initial lexbuf}
-|		'#'				{line lexbuf}
+|		'#'			{line lexbuf}
 	
 |		'\''			{ CST_CHAR (chr lexbuf)}
 |		'"'			
@@ -305,9 +305,10 @@ rule initial =
 |		','				{COMMA}
 |		'.'				{DOT}
 |		"sizeof"		{SIZEOF}
+|               "__asm"                 { MSASM (msasm lexbuf) }
+
 |		ident			{scan_ident (Lexing.lexeme lexbuf)}
-	
-|		eof				{EOF}
+|		eof			{EOF}
 |		_			{display_error
 						"Invalid symbol"
 						(Lexing.lexeme_start lexbuf)
@@ -319,14 +320,16 @@ and comment =
 
 (* # <line number> <file name> ... *)
 and line =
-	parse	'\n'			{initial lexbuf}
-	|	blank				{line lexbuf}
-	|	intnum				{ set_line (int_of_string (Lexing.lexeme lexbuf));
-							file lexbuf }
-	|	_					{endline lexbuf}
+	parse	'\n'		{initial lexbuf}
+	|	blank		{line lexbuf}
+	|	intnum		{ set_line 
+                                      (int_of_string (Lexing.lexeme lexbuf));
+						file lexbuf }
+	|	_		{endline lexbuf}
+
 and file =
-	parse '\n'				{initial lexbuf}
-|	blank				{file lexbuf}
+	parse '\n'		{initial lexbuf}
+|	blank			{file lexbuf}
 |	'"' [^ '"']* '"' 	        
                                 {set_name (rem_quotes (Lexing.lexeme lexbuf));
 							endline lexbuf}
@@ -362,6 +365,25 @@ and chr =
 			 (Lexing.lexeme lexbuf) 1 1) in cur ^ (chr lexbuf)}
 |   _			{let cur = Lexing.lexeme lexbuf in cur ^ (chr lexbuf)} 
 	
+and msasm = parse
+    blank               { msasm lexbuf }
+|   '{'                 { msasminbrace lexbuf }
+|   _                   { let cur = Lexing.lexeme lexbuf in 
+                          cur ^ (msasmnobrace lexbuf) }
+
+and msasminbrace = parse
+    '}'                 { "" }
+|   _                   { let cur = Lexing.lexeme lexbuf in 
+                          cur ^ (msasminbrace lexbuf) }  
+and msasmnobrace = parse
+   ['}' ';' '\n']       { lexbuf.Lexing.lex_curr_pos <- 
+                               lexbuf.Lexing.lex_curr_pos - 1;
+                          "" }
+|  "__asm"              { lexbuf.Lexing.lex_curr_pos <- 
+                               lexbuf.Lexing.lex_curr_pos - 5;
+                          "" }
+|  _                    { let cur = Lexing.lexeme lexbuf in 
+                          cur ^ (msasmnobrace lexbuf) }
 {
 
 (*** get_buffer ***)

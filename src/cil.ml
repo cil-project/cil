@@ -151,6 +151,10 @@ and exp =
   | UnOp       of unop * exp * typ * location
   | BinOp      of binop * exp * exp * typ * location (* also have the type of 
                                                       * the result *)
+  | Question   of exp * exp * exp * location (* e1 ? e2 : e3. Sometimes we 
+                                              * cannot turn this into a 
+                                              * conditional statement (e.g. 
+                                              * in global initializers) *)
   | CastE      of typ * exp * location
   | Compound   of typ * exp list        (* Used for initializers of *)
   | AddrOf     of lval * location
@@ -176,6 +180,8 @@ and offset =
   | Field      of fieldinfo * offset    (* l.f + offset. l must be a struct 
                                          * or an union and l.f is the element 
                                          * type *)
+  | First      of offset                (* An explicit cast from arrays to 
+                                         * the first element *)
   | Index      of exp * offset          (* l + e + offset. *)
 
 (**** INSTRUCTIONS. May cause effects directly but may not have control flow.*)
@@ -230,32 +236,6 @@ type global =
 type file = global list
 	(* global function decls, global variable decls *)
 
-
-let forwardTypeMap : (string, typ) H.t = H.create 113
-let clearForwardMap () = H.clear forwardTypeMap
-let resolveForwardType n = 
-  try
-    H.find forwardTypeMap n
-  with Not_found -> 
-    E.s (E.unimp "Cannot resolve forward type %s\n" n)
-let addForwardType key t = 
-  H.add forwardTypeMap key t
-
-    (* Use this every time you redefine a struct or a union, to make sure all 
-     * the TForward see the change *)
-let replaceForwardType key t = 
-  try
-    H.remove forwardTypeMap key;
-    H.add forwardTypeMap key t
-  with Not_found -> ()                  (* Do nothing if not already in *)
-
-
-(**** Utility functions ******)
-let rec unrollType = function
-    TNamed (_, r) -> unrollType r
-  | TForward n -> unrollType (resolveForwardType n)
-  | x -> x
-
 let lu = locUnknown
 let integer i = Const (CInt(i, None), lu)
 let zero = integer 0
@@ -285,6 +265,36 @@ let mkSeq sl =
     [] -> Skip
   | [s] -> s
   | sl' -> Sequence(sl')
+
+
+let forwardTypeMap : (string, typ) H.t = H.create 113
+let clearForwardMap () = H.clear forwardTypeMap
+let resolveForwardType n = 
+  try
+    H.find forwardTypeMap n
+  with Not_found -> begin
+    ignore (E.log "Warning: Cannot resolve forward type %s\n" n);
+    voidType
+  end
+
+let addForwardType key t = 
+  H.add forwardTypeMap key t
+
+    (* Use this every time you redefine a struct or a union, to make sure all 
+     * the TForward see the change *)
+let replaceForwardType key t = 
+  try
+    H.remove forwardTypeMap key;
+    H.add forwardTypeMap key t
+  with Not_found -> ()                  (* Do nothing if not already in *)
+
+
+(**** Utility functions ******)
+let rec unrollType = function
+    TNamed (_, r) -> unrollType r
+  | TForward n -> unrollType (resolveForwardType n)
+  | x -> x
+
 
 
 
@@ -368,8 +378,61 @@ let d_const () c =
   | CReal(f, None) -> dprintf "%f" f
   | _ -> E.s (E.unimp "constant")
 
+(* Parentheses level. An expression "a op b" is printed parenthesized if its 
+ * parentheses level is >= that that of its context. Identifiers have the 
+ * lowest level and weakly binding operators (e.g. |) have the largest level 
+ *)
+let getParenthLevel = function
+  | Compound _ -> 100
+
+                                        (* Comparisons *)
+  | BinOp((Eq|Ne|Gt|Lt|Ge|Le),_,_,_,_) -> 80
+  | Question _ -> 80
+                                        (* Bit operations. Technically, they 
+                                         * could have level 9,but I like 
+                                         * parentheses around them in 
+                                         * comparisons  *)
+  | BinOp((BOr|BXor|BAnd|Shiftlt|Shiftrt),_,_,_,_) -> 70
+                                        (* Additive *)
+  | BinOp((Minus|Plus),_,_,_,_)  -> 60
+                                        (* Multiplicative *)
+  | BinOp((Div|Mod|Mult),_,_,_,_) -> 40
+
+                                        (* Unary *)
+  | CastE(_,_,_) -> 30
+  | AddrOf(_,_) -> 30
+  | StartOf(_) -> 30
+  | UnOp((Neg|BNot),_,_,_) -> 30
+
+                                        (* Lvals *)
+  | Lval(Mem _ , _) -> 20                   
+  | Lval(Var _, (Field _|Index _|First _)) -> 20
+  | SizeOf _ -> 20
+
+  | Lval(Var _, NoOffset) -> 0        (* Plain variables *)
+  | Const _ -> 0                        (* Constants *)
+
+let derefStarLevel = 20
+let indexLevel = 20
+let arrowLevel = 20
+let addrOfLevel = 30
+
 (* types. Call with a function that when invoked will fill-in the declared name *)
-let rec d_decl (fulltype: bool) (docName: unit -> doc) () this = 
+
+  (* When we print types for consumption by another compiler we must be 
+   * careful to avoid printing multiple type definitions *)
+let noRedefinitions = ref false
+let definedTypes : (string, bool) H.t = H.create 17
+let canPrintName n =
+  (not !noRedefinitions) || 
+  (try begin
+    ignore (H.find definedTypes n); false
+  end with Not_found -> begin
+    H.add definedTypes n true;
+    true
+  end)
+
+let rec d_decl (docName: unit -> doc) () this = 
   let parenth outer_t doc = 
     let typ_strength = function         (* binding strength of type 
                                          * constructors  *)
@@ -391,7 +454,7 @@ let rec d_decl (fulltype: bool) (docName: unit -> doc) () this =
   | TStruct (n,fi,a) -> 
       let n' = 
         if String.length n >= 5 && String.sub n 0 5 = "@anon" then "" else n in
-      if fulltype || n' = "" then
+      if n' = "" || canPrintName ("struct " ^ n') then
         dprintf "str@[uct %s%a {@!%a@]@!} %t" n' d_attrlist a
           (docList line (d_fielddecl ())) fi docName
       else
@@ -399,7 +462,7 @@ let rec d_decl (fulltype: bool) (docName: unit -> doc) () this =
   | TUnion (n,fi,a) -> 
       let n' = 
         if String.length n >= 5 && String.sub n 0 5 = "@anon" then "" else n in
-      if fulltype || n' = "" then
+      if n' = "" || canPrintName ("union " ^ n') then
         dprintf "uni@[on %s%a {@!%a@]@!} %t" n' d_attrlist a
           (docList line (d_fielddecl ())) fi docName
       else
@@ -410,26 +473,24 @@ let rec d_decl (fulltype: bool) (docName: unit -> doc) () this =
   | TEnum (n, kinds, a) -> 
       let n' = 
         if String.length n >= 5 && String.sub n 0 5 = "@anon" then "" else n in
-      if fulltype || n' = "" then
+      if n' = "" || canPrintName ("enum " ^ n') then
         dprintf "enum@[ %s%a {%a@]@?} %t" n' d_attrlist a
           (docList line (fun (n,i) -> dprintf "%s = %d,@?" n i)) kinds
           docName
       else
-        dprintf "enum %s" n'
+        dprintf "enum %s %t" n' docName
 
   | TPtr (t, a)  -> 
-      d_decl fulltype 
-             (fun _ -> parenth t (dprintf "*%a %t" d_attrlist a docName )) 
+      d_decl (fun _ -> parenth t (dprintf "*%a %t" d_attrlist a docName )) 
              () t
 
   | TArray (t, lo, a) -> 
-      d_decl fulltype
-        (fun _ -> parenth t
-                    (dprintf "%t[%a]%a" 
-                       docName
-                       insert (match lo with None -> nil 
-                                          | Some e -> d_exp () e)
-                       d_attrlist a))
+      d_decl (fun _ -> parenth t
+          (dprintf "%t[%a]%a" 
+             docName
+             insert (match lo with None -> nil 
+             | Some e -> d_exp () e)
+             d_attrlist a))
         ()
         t
   | TFun (restyp, args, isvararg, a) -> 
@@ -445,13 +506,12 @@ let rec d_decl (fulltype: bool) (docName: unit -> doc) () this =
                       vstorage = NoStorage; } ] 
         | _ -> args
       in
-      d_decl fulltype
-        (fun _ -> 
-          parenth restyp 
-            (dprintf "%t(@[%a%a@])" 
-               docName
-               (docList (chr ',' ++ break) (d_videcl ())) args'
-               insert (if isvararg then text ", ..." else nil)))
+      d_decl (fun _ -> 
+        parenth restyp 
+          (dprintf "%t(@[%a%a@])" 
+             docName
+             (docList (chr ',' ++ break) (d_videcl ())) args'
+             insert (if isvararg then text ", ..." else nil)))
         ()
         restyp
 
@@ -459,46 +519,13 @@ let rec d_decl (fulltype: bool) (docName: unit -> doc) () this =
 
 
 (* Only a type (such as for a cast) *)        
-and d_type () t = d_decl false (fun _ -> nil) () t
+and d_type () t = d_decl (fun _ -> nil) () t
 
 and d_fieldinfo () f =
   dprintf "/* %s:%s:%a */" f.fstruct f.fname d_type f.ftype
     
 
 (* exp *)
-
-(* Parentheses level. An expression "a op b" is printed parenthesized if its 
- * parentheses level is >= that that of its context. Identifiers have the 
- * lowest level and weakly binding operators (e.g. |) have the largest level 
- *)
-and getParenthLevel = function
-  | Compound _ -> 10
-
-                                        (* Comparisons *)
-  | BinOp((Eq|Ne|Gt|Lt|Ge|Le),_,_,_,_) -> 8
-                                        (* Bit operations. Technically, they 
-                                         * could have level 9,but I like 
-                                         * parentheses around them in 
-                                         * comparisons  *)
-  | BinOp((BOr|BXor|BAnd|Shiftlt|Shiftrt),_,_,_,_) -> 7
-                                        (* Additive *)
-  | BinOp((Minus|Plus),_,_,_,_)  -> 6
-                                        (* Multiplicative *)
-  | BinOp((Div|Mod|Mult),_,_,_,_) -> 4
-
-                                        (* Unary *)
-  | AddrOf(_,_) -> 3
-  | StartOf(_) -> 3
-  | UnOp((Neg|BNot),_,_,_) -> 3
-  | CastE(_,_,_) -> 3
-
-                                        (* Lvals *)
-  | Lval(Mem _ , _) -> 2                   
-  | Lval(Var _, (Field _|Index _)) -> 2
-  | SizeOf _ -> 2
-
-  | Lval(Var _, NoOffset) -> 0        (* Plain variables *)
-  | Const _ -> 0                        (* Constants *)
 
                                         (* Rest *)
 
@@ -527,6 +554,9 @@ and d_exp () e =
   | BinOp(b,e1,e2,_,l) -> 
       dprintf "@[%a %a@?%a@]" 
         (d_expprec level) e1 d_binop b (d_expprec level) e2
+  | Question (e1, e2, e3, _) -> 
+      dprintf "%a ? %a : %a"
+        (d_expprec level) e1 (d_expprec level) e2 (d_expprec level) e3
   | CastE(t,e,l) -> dprintf "(%a)%a" d_type t (d_expprec level) e
   | SizeOf (t, l) -> dprintf "sizeof(%a)" d_type t
   | Compound (t, el) -> 
@@ -536,7 +566,9 @@ and d_exp () e =
       in
       dprintf "%a{@[%a@]}" insert dcast
         (docList (chr ',' ++ break) (d_exp ())) el
-  | AddrOf(lv,lo) -> dprintf "& %a" (d_lvalprec 2) lv
+  | AddrOf(lv,lo) -> 
+      dprintf "& %a" (d_lvalprec addrOfLevel) lv
+
   | StartOf(lv) -> d_lval () lv
 
 and d_binop () b =
@@ -601,17 +633,20 @@ and d_lval () lv =
     | Field (fi, o) -> 
         d_offset (fun _ -> dprintf "%t.%s" dobase fi.fname) o
     | Index (Const(CInt(0,_),_), NoOffset) -> dprintf "*%t" dobase
+    | First (NoOffset) -> dprintf "*%t" dobase
+    | First (Index _ as o) -> d_offset dobase o
+    | First o -> d_offset (fun _ -> dprintf "%t[0]" dobase) o
     | Index (e, o) -> 
         d_offset (fun _ -> dprintf "%t[%a]" dobase d_exp e) o
   in
   match lv with
-    Var vi, o -> 
-      d_offset (fun _ -> text vi.vname) o
+    Var vi, o -> d_offset (fun _ -> text vi.vname) o
   | Mem e, Field(fi, o) -> 
-      d_offset (fun _ -> dprintf "%a->%s" (d_expprec 2) e fi.fname) o
-  | Mem e, NoOffset -> dprintf "*%a" (d_expprec 2) e
+      d_offset (fun _ -> 
+        dprintf "%a->%s" (d_expprec arrowLevel) e fi.fname) o
+  | Mem e, NoOffset -> dprintf "*%a" (d_expprec derefStarLevel) e
   | Mem e, o -> 
-      d_offset (fun _ -> dprintf "%a" d_exp e) o
+      d_offset (fun _ -> dprintf "%a" (d_expprec indexLevel) e) o
         
 and d_instr () i =
   match i with
@@ -636,30 +671,33 @@ and d_instr () i =
                              | _ -> dprintf "(%a)" d_exp e)
 	(docList (chr ',' ++ break) (d_exp ())) args
   | Asm(tmpls, isvol, outs, ins, clobs) ->
-      dprintf "__asm__ %a(@[%a%a%a%a@]);@!"
-        insert (if isvol then text "__volatile__" else nil)
-        (docList (chr ',' ++ line) 
-           (fun x -> dprintf "\"%s\"" (escape_string x))) tmpls
-        insert 
-        (if outs = [] && ins = [] && clobs = [] then 
-          nil
-        else 
-          dprintf ": %a" (docList (chr ',' ++ break) 
-                            (fun (c, vi) -> dprintf "\"%s\" (%s)"
-                                (escape_string c) vi.vname)) outs)
-        insert
-        (if ins = [] && clobs = [] then
-          nil
-        else
-          dprintf ": %a" (docList (chr ',' ++ break) 
-                            (fun (c, e) -> dprintf "\"%s\" (%a)"
-                                (escape_string c) d_exp e)) ins)
-        insert 
-        (if clobs = [] then nil
-        else
-          dprintf ": %a" (docList (chr ',' ++ break) 
-                            (fun x -> dprintf "\"%s\"" (escape_string x))) 
-            clobs)
+      if !msvcOutput then
+        dprintf "__asm {@[%a@]};@!"  (docList line text) tmpls
+      else
+        dprintf "__asm__ %a(@[%a%a%a%a@]);@!"
+          insert (if isvol then text "__volatile__" else nil)
+          (docList (chr ',' ++ line) 
+             (fun x -> dprintf "\"%s\"" (escape_string x))) tmpls
+          insert 
+          (if outs = [] && ins = [] && clobs = [] then 
+            nil
+          else 
+            dprintf ": %a" (docList (chr ',' ++ break) 
+                              (fun (c, vi) -> dprintf "\"%s\" (%s)"
+                                  (escape_string c) vi.vname)) outs)
+          insert
+          (if ins = [] && clobs = [] then
+            nil
+          else
+            dprintf ": %a" (docList (chr ',' ++ break) 
+                              (fun (c, e) -> dprintf "\"%s\" (%a)"
+                                  (escape_string c) d_exp e)) ins)
+          insert 
+          (if clobs = [] then nil
+          else
+            dprintf ": %a" (docList (chr ',' ++ break) 
+                              (fun x -> dprintf "\"%s\"" (escape_string x))) 
+              clobs)
        
 and d_stmt () s =
   match s with
@@ -667,13 +705,13 @@ and d_stmt () s =
   | Sequence(lst) -> dprintf "@[{ @[@!%a@]@!}@]" 
         (docList line (d_stmt ())) lst
   | Loop(Sequence(IfThenElse(e,Skip,Break) :: rest)) -> 
-      dprintf "whi@[le (%a)@!%a@]" d_exp e d_stmt (Sequence rest)
+      dprintf "wh@[ile (%a)@!%a@]" d_exp e d_stmt (Sequence rest)
   | Loop(stmt) -> 
-      dprintf "whi@[le (1)@!%a@]" d_stmt stmt
+      dprintf "wh@[ile (1)@!%a@]" d_stmt stmt
   | IfThenElse(e,a,(Skip|Sequence([Skip]))) -> 
-      dprintf "if @[(%a)@!%a@]" d_exp e d_stmt a
+      dprintf "if@[ (%a)@!%a@]" d_exp e d_stmt a
   | IfThenElse(e,a,b) -> 
-      dprintf "@[if @[(%a)@!%a@]@!els@[e@!%a@]@]" d_exp e d_stmt a d_stmt b
+      dprintf "@[if@[ (%a)@!%a@]@!els@[e@!%a@]@]" d_exp e d_stmt a d_stmt b
   | Label(s) -> dprintf "%s:" s
   | Case(i) -> dprintf "case %d: " i
   | Goto(s) -> dprintf "goto %s;" s
@@ -701,6 +739,7 @@ and d_plainoffset () = function
   | Field(fi,o) -> 
       dprintf "Field(@[%s:%a,@?%a@])" 
         fi.fname d_plaintype fi.ftype d_plainoffset o
+  | First o -> dprintf "First(%a)" d_plainoffset o
   | Index(e, o) -> dprintf "Index(@[%a,@?%a@])" d_plainexp e d_plainoffset o
 
 and d_plaintype () = function
@@ -742,7 +781,7 @@ and d_fun_decl () f =
   dprintf "%a%a %a@!{ @[%a@!%a@]@!}" 
     d_storage f.svar.vstorage
     (* the prototype *)
-    (d_decl false (fun _ -> text f.svar.vname)) f.svar.vtype
+    (d_decl (fun _ -> text f.svar.vname)) f.svar.vtype
     (* attributes *)
     d_attrlist f.svar.vattr
     (* locals. But eliminate first the formal arguments *)
@@ -763,42 +802,28 @@ and d_fun_decl () f =
 
 and d_videcl () vi = 
   dprintf "%a%a %a" d_storage vi.vstorage
-    (d_decl false (fun _ -> text vi.vname)) vi.vtype
+    (d_decl (fun _ -> text vi.vname)) vi.vtype
     d_attrlist vi.vattr
     
 and d_fielddecl () fi = 
   dprintf "%a %a;"
-    (d_decl false (fun _ -> text fi.fname)) fi.ftype
+    (d_decl (fun _ -> 
+      text (if fi.fname = "___missing_field_name" then "" else fi.fname))) 
+    fi.ftype
     d_attrlist fi.fattr
-
+       
 let printFile (out : out_channel) (globs : file) = 
   let print x = fprint out 80 x in
   print (text "/* Generated by safecc */\n\n");
-  let definedTypes : (string, bool) H.t = H.create 17 in
+  H.clear definedTypes;
+  noRedefinitions := true;
   let d_global () = function
       GFun fundec -> d_fun_decl () fundec ++ line
     | GType (str, typ) -> 
-        let doName n = 
-          try begin
-            ignore (H.find definedTypes n); false
-          end with Not_found -> begin
-            H.add definedTypes n true;
-            true
-          end
-        in
-        let fulltype = 
-          match typ with
-            TStruct(n, _, _) -> doName ("struct " ^ n)
-          | TUnion(n,_,_) -> doName ("union " ^ n)
-          | _ -> true
-        in
         if str = "" then
-          if fulltype then
-            dprintf "%a;@!" (d_decl fulltype (fun _ -> nil)) typ
-          else
-            nil                         (* Already defined *)
+          dprintf "%a;@!" (d_decl (fun _ -> nil)) typ
         else 
-          dprintf "typedef %a;@!" (d_decl fulltype (fun _ -> text str)) typ
+          dprintf "typedef %a;@!" (d_decl (fun _ -> text str)) typ
 
   | GVar (vi, eo) -> dprintf "%a %a;"
         d_videcl vi 
@@ -806,7 +831,9 @@ let printFile (out : out_channel) (globs : file) =
                 dprintf " = %a" d_exp e)
   | GAsm s -> dprintf "__asm__(\"%s\")@!" (escape_string s)
   in
-  List.iter (fun g -> print (d_global () g ++ line)) globs
+  List.iter (fun g -> print (d_global () g ++ line)) globs;
+  noRedefinitions := false;
+  H.clear definedTypes
 
     
 
@@ -862,6 +889,7 @@ let iterExp (f: exp -> unit) (body: stmt) : unit =
     | Lval lv -> fLval lv
     | UnOp(_,e,_,_) -> fExp e
     | BinOp(_,e1,e2,_,_) -> fExp e1; fExp e2
+    | Question (e1, e2, e3, _) -> fExp e1; fExp e2; fExp e3
     | CastE(_, e,_) -> fExp e
     | Compound (_, el) -> List.iter fExp el
     | AddrOf (lv,_) -> fLval lv
@@ -873,6 +901,7 @@ let iterExp (f: exp -> unit) (body: stmt) : unit =
   and fOff = function
       Field (_, o) -> fOff o
     | Index (e, o) -> fExp e; fOff o
+    | First o -> fOff o
     | NoOffset -> ()
   and fStmt = function
       (Skip|Break|Continue|Label _|Goto _|Case _|Default|Return None) -> ()
@@ -1025,10 +1054,11 @@ let dStmt : doc -> stmt =
 
 
  (* Add an offset at the end of an lv *)      
-let addOffset toadd (b, off) =
+let addOffset toadd (b, off) : lval =
  let rec loop = function
      NoOffset -> toadd
    | Field(fid', offset) -> Field(fid', loop offset)
+   | First offset -> First (loop offset)
    | Index(e, offset) -> Index(e, loop offset)
  in
  b, loop off
@@ -1037,11 +1067,53 @@ let addOffset toadd (b, off) =
 
   (* Make a Mem, while optimizing StartOf *)
 let mkMem (addr: exp) (off: offset) : exp =  
-  match addr with
-    StartOf(lv) -> begin
-      match off with (* An index 0 does not change anything but makes 
-                      * printing easier *)
-        Field _ -> Lval(addOffset (Index(zero, off)) lv)
-      | _ -> Lval(addOffset off lv)
-    end
-  | _ -> Lval(Mem addr, off)
+  let res = 
+    match addr with
+      StartOf(lv) -> Lval(addOffset (First off) lv)
+    | _ -> Lval(Mem addr, off)
+  in
+(*
+  ignore (E.log "memof : %a\nresult = %a\n" 
+            d_plainexp addr d_plainexp res);
+*)
+  res
+          
+
+let rec typeOf (e: exp) : typ = 
+  match e with
+    Const(CInt _, _) -> intType
+  | Const(CChr _, _) -> charType
+  | Const(CStr _, _) -> charPtrType 
+  | Const(CLInt _, _) -> intType
+  | Const(CReal _, _) -> doubleType
+  | Lval(lv) -> typeOfLval lv
+  | SizeOf _ -> intType
+  | UnOp (_, _, t, _) -> t
+  | BinOp (_, _, _, t, _) -> t
+  | Question (_, e2, _, _) -> typeOf e2
+  | CastE (t, _, _) -> t
+  | Compound (t, _) -> t
+  | AddrOf (lv, _) -> TPtr(typeOfLval lv, [])
+  | StartOf (lv) -> begin
+      match typeOfLval lv with
+        TArray (t,_, _) -> TPtr(t, [])
+      | _ -> E.s (E.bug "typeOf: StartOf on a non-array")
+  end
+      
+and typeOfLval = function
+    Var vi, off -> typeOffset vi.vtype off
+  | Mem addr, off -> begin
+      match typeOf addr with
+        TPtr (t, _) -> typeOffset t off
+      | _ -> E.s (E.bug "typeOfLval: Mem on a non-pointer")
+  end
+
+and typeOffset basetyp = function
+    NoOffset -> basetyp
+  | Index (_, o) -> typeOffset basetyp o
+  | Field (fi, o) -> typeOffset fi.ftype o
+  | First o -> begin
+      match basetyp with
+        TArray (t, _, _) -> typeOffset t o
+      | _ -> E.s (E.bug "typeOfLval: First on a non-array")
+  end

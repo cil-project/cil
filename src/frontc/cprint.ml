@@ -183,7 +183,7 @@ let rec print_base_type  typ =
   | INT (size, sign) -> 
       print ((get_sign sign) ^ (get_size size) ^ 
              (if size <> CHAR then "int" else ""))
-  | BITFIELD (sign, _) -> print ((get_sign sign) ^ "int")
+  | BITFIELD (bt, _) -> print_base_type bt
   | FLOAT size -> print ((if size then "long " else "") ^ "float")
   | DOUBLE size -> print ((if size then "long " else "") ^ "double")
   | NAMED_TYPE id -> print id
