@@ -258,6 +258,13 @@ $TEST->add3Tests("treeadd", "_GNUCC=1");
 #$TEST->add3Tests("voronoi", "_GNUCC=1");
 #   $TEST->add3Group("voronoi", "olden", "bad");
 
+# PTR INTENSIVE BENCHMARKS
+$TEST->add2Tests("anagram", "_GNUCC=1");
+$TEST->add2Tests("bc", "_GNUCC=1");
+$TEST->add2Tests("ft", "_GNUCC=1");
+$TEST->add2Tests("ks", "_GNUCC=1");
+$TEST->add2Tests("yacr", "_GNUCC=1");
+
 #
 # SPEC95
 #

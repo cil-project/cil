@@ -394,19 +394,22 @@ let rec doExp (e: exp) : exp * typ * N.node=
           (match bop with PlusPI|IndexPI -> e2 | _ -> UnOp(Neg, e2, intType)) 
       in
       (match sign with
-        SLiteral z when z = Int64.zero -> ()
+        SLiteral z -> 
+          if z < Int64.zero then setArith e1n else
+          if z > Int64.zero then setPosArith e1n else
+          ()
+
       | SPos -> setPosArith e1n
 
-      | SLiteral n when n > Int64.zero -> setPosArith e1n
       | _ -> 
           if bop = IndexPI then (*  Was created from p[e] *)
              setPosArith e1n
           else 
              setArith e1n);
       if sign = SLiteral Int64.zero then
-          e1', e1t, e1n
-        else
-          BinOp (bop, e1', doExpAndCast e2 intType, e1t), e1t, e1n
+        e1', e1t, e1n
+      else
+        BinOp (bop, e1', doExpAndCast e2 intType, e1t), e1t, e1n
       
       
   | CastE (newt, e) -> 
