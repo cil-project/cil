@@ -41,9 +41,9 @@ CILLY_MODULES = pretty errormsg trace stats util clist \
               cabs cabsvisit cprint cparser clexer  \
               cilversion machdep cil formatparse formatlex formatcil cabs2cil \
               patch frontc check mergecil logcalls logwrites rmtmps \
-	      callgraph epicenter heapify stackoverflow \
+	      callgraph epicenter heapify blockinggraph \
               setp uref steensgaard golf dummy ptranal \
-	      canonicalize testcil maincil
+              canonicalize heap partial testcil maincil
 CILLY_CMODULES =
 CILLY_LIBS     = unix str
 

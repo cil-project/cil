@@ -55,6 +55,8 @@ let keepFiles = ref false
 let heapify = ref false
 let stackguard = ref false
 let doCallGraph = ref false
+let dumpFCG = ref false
+let makeCFG = ref false
 let testcil = ref ""
 
 let ptrAnalysis = ref false
@@ -84,9 +86,22 @@ let parseOneFile (fname: string) : C.file =
 let rec processOneFile (cil: C.file) =
   try begin
 
+    if !makeCFG then (
+      ignore (Partial.calls_end_basic_blocks cil) ; 
+      ignore (Partial.globally_unique_vids cil) ; 
+      Cil.iterGlobals cil (fun glob -> match glob with
+        Cil.GFun(fd,_) -> Cil.prepareCFG fd ;
+                      ignore (Cil.computeCFGInfo fd true)
+      | _ -> ()) ;
+    );
+
     if !doCallGraph then (
       let graph:Callgraph.callgraph = (Callgraph.computeGraph cil) in
       (Callgraph.printGraph stdout graph)
+    );
+    
+    if !dumpFCG then (
+      (Blockinggraph.makeAndDumpFunctionCallGraph cil)
     );
     
     if !doEpicenter then (
@@ -271,6 +286,10 @@ let rec theMain () =
                "output is the slice of #pragma cilnoremove(sym) symbols";
     "--doCallGraph", Arg.Unit (fun _ -> doCallGraph := true),
                "compute and print a static call graph" ;
+    "--dumpFCG", Arg.Unit (fun _ -> dumpFCG := true),
+               "compute and print a static call graph, George style" ;
+    "--makeCFG", Arg.Unit (fun _ -> makeCFG := true),
+          "make the file look more like a CFG";
     "--epicenter", Arg.String (fun s -> doEpicenter := true; epicenterName := s),
                "<name>: do an epicenter slice starting from function <name>";
     "--hops", Arg.Int (fun n -> epicenterHops := n),
