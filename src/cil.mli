@@ -637,6 +637,9 @@ and binop =
   | BXor                                (** exclusive-or *)
   | BOr                                 (** inclusive-or *)
 
+  | LAnd                                (** logical and *)
+  | LOr                                 (** logical or *)
+
 (** {b Lvalues.} Lvalues are the sublanguage of expressions that can appear at the left of an assignment or as operand to the address-of operator. 
 In C the syntax for lvalues is not always a good indication of the meaning 
 of the lvalue. For example the C value

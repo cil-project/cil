@@ -482,6 +482,9 @@ and binop =
   | BXor                                (** exclusive-or *)
   | BOr                                 (** inclusive-or *)
 
+  | LAnd                                (** logical and *)
+  | LOr                                 (** logical or *)
+
 
 
 
