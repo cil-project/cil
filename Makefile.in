@@ -69,6 +69,7 @@ quickbuild: cilversion machdep cilly
 setup: cilversion machdep
 	$(MAKE) -r -f Makefile.cil cilly $(MAKEOVERRIDES) NATIVECAML= 
 	$(MAKE) -r -f Makefile.cil cilly $(MAKEOVERRIDES) NATIVECAML=1
+	$(MAKE) -r -f Makefile.cil cillib $(MAKEOVERRIDES)
 
 # Create the machine dependency module
 # If the cl command cannot be run then the MSVC part will be identical to GCC
@@ -76,7 +77,7 @@ setup: cilversion machdep
 machdep: $(OBJDIR)/machdep.ml 
 $(OBJDIR)/machdep.ml : src/machdep.c
 	rm -f $@
-	echo "(* This module was generated automatically by code in Makefile and machdep.c *)" >$@
+	echo "(* This module was generated automatically by code in Makefile.cil and machdep.c *)" >$@
 # Now generate the type definition
 	echo "type mach = {" >> $@
 	echo "  sizeof_short: int;      (* Size of \"short\" *)"       >> $@
@@ -121,12 +122,20 @@ $(OBJDIR)/cilversion.ml: configure.in
 	echo "let cilVersionRev   = @CIL_VERSION_REV@"   >>$@
 	echo "let cilVersion      = \"@CIL_VERSION@\""  >>$@ 
 
-# Build an OCAML library (CMA / CMXA) that exports our Cil stuff
-cillib: $(OBJDIR)/cil.$(CMXA)
+# build two libraries
+.PHONY: cillib
+cillib: $(OBJDIR)/cil.$(CMXA) $(OBJDIR)/libcil.a
 
+# Build an OCAML library (CMA / CMXA) that exports our Cil stuff
 OCAML_CIL_LIB_MODULES = $(MODULES:main=)
 $(OBJDIR)/cil.$(CMXA): $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
 	$(CAMLLINK) -a -o $@ $^
+
+# sm: for Simon: build a library of CIL functions which can
+# be called from C code; this is like the target above, except
+# it is callable from C instead of from Ocaml
+$(OBJDIR)/libcil.a: $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.cmx)
+	ocamlopt -output-obj -o $@ unix.cmxa str.cmxa $^
 
 # Test cil
 ifdef _MSVC
