@@ -62,36 +62,6 @@ let sliceGlobal = ref false
 
 let printStages = ref false
 
-(* A tryFinally function *)
-let tryFinally 
-    (main: 'a -> 'b) (* The function to run *)
-    (final: 'b option -> unit)  (* Something to run at the end *)
-    (arg: 'a) : 'b = 
-  let res =
-    try
-      main arg
-    with e -> begin
-      final None;
-      raise e
-    end
-  in
-  final (Some res)
-
-
-(* Memoize *)
-let memoize (h: ('a, 'b) Hashtbl.t) 
-            (arg: 'a) 
-            (f: 'a -> 'b) : 'b = 
-  try
-    Hashtbl.find h arg
-  with Not_found -> begin
-    let res = f arg in
-    Hashtbl.add h arg res;
-    res
-  end
-
-(* Just another name for memoize *)
-let findOrAdd h arg f = memoize h arg f
 
 let doCxxPP = ref false
 

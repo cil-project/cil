@@ -705,7 +705,7 @@ let rec removeUnusedTemps ?(isRoot : rootsFilter = isDefaultRoot) file =
       let keepers = categorizePragmas file in
 
       (* if slicing, remove the bodies of non-kept functions *)
-      if !Util.sliceGlobal then
+      if !Cilutil.sliceGlobal then
 	amputateFunctionBodies keepers.defines file;
 
       (* build up the root set *)

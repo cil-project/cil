@@ -124,7 +124,7 @@ let simplemem (f : file) =
 
 let feature : featureDescr = 
   { fd_name = "simpleMem";
-    fd_enabled = Util.doSimpleMem;
+    fd_enabled = Cilutil.doSimpleMem;
     fd_description = "simplify all memory expressions" ;
     fd_extraopt = [];
     fd_doit = (function (f: file) -> ignore (simplemem f)) ;

@@ -5486,7 +5486,7 @@ let convFile ((fname : string), (dl : Cabs.definition list)) : Cil.file =
   H.clear staticLocals;
   H.clear isomorphicStructs;
   annonCompFieldNameId := 0;
-  if !E.verboseFlag || !Util.printStages then 
+  if !E.verboseFlag || !Cilutil.printStages then 
     ignore (E.log "Converting CABS->CIL\n");
   (* Setup the built-ins, but do not add their prototypes to the file *)
   let setupBuiltin name (resTyp, argTypes, isva) = 

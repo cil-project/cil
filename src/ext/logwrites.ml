@@ -126,7 +126,7 @@ end
 
 let feature : featureDescr = 
   { fd_name = "logwrites";
-    fd_enabled = Util.logWrites;
+    fd_enabled = Cilutil.logWrites;
     fd_description = "generation of code to log memory writes";
     fd_extraopt = [];
     fd_doit = 

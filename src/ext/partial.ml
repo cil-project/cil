@@ -800,11 +800,11 @@ let partial (f : Cil.file) (assumptions : (Cil.lval * Cil.exp) list) =
 
 let feature : featureDescr = 
   { fd_name = "partial";
-    fd_enabled = Util.doPartial;
+    fd_enabled = Cilutil.doPartial;
     fd_description = "interprocedural partial evaluation and constant folding" ;
     fd_extraopt = [];
     fd_doit = (function (f: file) -> 
-      if not !Util.makeCFG then begin
+      if not !Cilutil.makeCFG then begin
         Errormsg.s (Errormsg.error "--dopartial: you must also specify --domakeCFG\n")
       end ; 
       partial f [] ) ;

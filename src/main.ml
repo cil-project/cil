@@ -59,7 +59,7 @@ exception Done_Processing
 
 let parseOneFile (fname: string) : C.file =
   (* PARSE and convert to CIL *)
-  if !Util.printStages then ignore (E.log "Parsing %s\n" fname);
+  if !Cilutil.printStages then ignore (E.log "Parsing %s\n" fname);
   let cil = F.parse fname () in
   
   if (not !Epicenter.doEpicenter) then (
@@ -75,7 +75,7 @@ let parseOneFile (fname: string) : C.file =
   
 let makeCFGFeature : C.featureDescr = 
   { C.fd_name = "makeCFG";
-    C.fd_enabled = Util.makeCFG;
+    C.fd_enabled = Cilutil.makeCFG;
     C.fd_description = "make the program look more like a CFG" ;
     C.fd_extraopt = [];
     C.fd_doit = (fun f -> 
@@ -110,7 +110,7 @@ let features : C.featureDescr list =
 let rec processOneFile (cil: C.file) =
   try begin
 
-    if !Util.doCheck then begin
+    if !Cilutil.doCheck then begin
       ignore (E.log "First CIL check\n");
       ignore (CK.checkFile [] cil);
     end;
@@ -125,7 +125,7 @@ let rec processOneFile (cil: C.file) =
                       fdesc.C.fd_name fdesc.C.fd_description);
           fdesc.C.fd_doit cil;
           (* See if we need to do some checking *)
-          if !Util.doCheck && fdesc.C.fd_post_check then begin
+          if !Cilutil.doCheck && fdesc.C.fd_post_check then begin
             ignore (E.log "CIL check after %s\n" fdesc.C.fd_name);
             ignore (CK.checkFile [] cil);
           end
@@ -243,13 +243,13 @@ let rec theMain () =
                      "<xxx> turns on debugging flag xxx";
     "--flush", Arg.Unit (fun _ -> Pretty.flushOften := true),
                      "Flush the output streams often (aids debugging)" ;
-    "--check", Arg.Unit (fun _ -> Util.doCheck := true),
+    "--check", Arg.Unit (fun _ -> Cilutil.doCheck := true),
                      "turns on consistency checking of CIL";
-    "--nocheck", Arg.Unit (fun _ -> Util.doCheck := false),
+    "--nocheck", Arg.Unit (fun _ -> Cilutil.doCheck := false),
                      "turns off consistency checking of CIL";
     "--nodebug", Arg.String (setDebugFlag false),
                       "<xxx> turns off debugging flag xxx";
-    "--stats", Arg.Unit (fun _ -> Util.printStats := true),
+    "--stats", Arg.Unit (fun _ -> Cilutil.printStats := true),
                "print some statistics";
     "--testcil", Arg.String (fun s -> testcil := s),
           "test CIL using the give compiler";
@@ -268,7 +268,7 @@ let rec theMain () =
                                    if not Machdep.hasMSVC then
                                      ignore (E.warn "Will work in MSVC mode but will be using machine-dependent parameters for GCC since you do not have the MSVC compiler installed\n")
                        ), "Produce MSVC output. Default is GNU";
-    "--stages", Arg.Unit (fun _ -> Util.printStages := true),
+    "--stages", Arg.Unit (fun _ -> Cilutil.printStages := true),
                "print the stages of the algorithm as they happen";
     "--keepunused", Arg.Unit (fun _ -> Rmtmps.keepUnused := true),
                 "do not remove the unused variables and types";
@@ -284,7 +284,7 @@ let rec theMain () =
                "output #line directives as comments";
     "--printCilAsIs", Arg.Unit (fun _ -> Cil.printCilAsIs := true),
                "do not try to simplify the CIL when printing";
-    "--sliceGlobal", Arg.Unit (fun _ -> Util.sliceGlobal := true),
+    "--sliceGlobal", Arg.Unit (fun _ -> Cilutil.sliceGlobal := true),
                "output is the slice of #pragma cilnoremove(sym) symbols";
     (* sm: some more debugging options *)
     "--tr",         Arg.String Trace.traceAddMulti,
@@ -346,7 +346,7 @@ let rec theMain () =
 let failed = ref false 
 
 let cleanup () = 
-  if !E.verboseFlag || !Util.printStats then
+  if !E.verboseFlag || !Cilutil.printStats then
     Stats.print stderr "Timings:\n";
   if !E.logChannel != stderr then 
     close_out (! E.logChannel);  

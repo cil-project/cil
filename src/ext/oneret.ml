@@ -146,7 +146,7 @@ let oneret (f: Cil.fundec) : unit =
       
 let feature : featureDescr = 
   { fd_name = "oneRet";
-    fd_enabled = Util.doOneRet;
+    fd_enabled = Cilutil.doOneRet;
     fd_description = "make each function have at most one 'return'" ;
     fd_extraopt = [];
     fd_doit = (function (f: file) -> 

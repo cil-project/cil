@@ -219,7 +219,7 @@ void * stackguard_pop() {
       
 let feature1 : featureDescr = 
   { fd_name = "stackGuard";
-    fd_enabled = Util.doStackGuard;
+    fd_enabled = Cilutil.doStackGuard;
     fd_description = "instrument function calls and returns to maintain a separate stack for return addresses" ;
     fd_extraopt = [];
     fd_doit = (function (f: file) -> default_stackguard f);
@@ -227,7 +227,7 @@ let feature1 : featureDescr =
   } 
 let feature2 : featureDescr = 
   { fd_name = "heapify";
-    fd_enabled = Util.doHeapify;
+    fd_enabled = Cilutil.doHeapify;
     fd_description = "move stack-allocated arrays to the heap" ;
     fd_extraopt = [];
     fd_doit = (function (f: file) -> default_heapify f);

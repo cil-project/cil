@@ -77,3 +77,20 @@ val restoreArray: 'a array -> unit -> unit
 
 (** Given a list of thunks, produce a thunk that runs them all *)
 val runThunks: (unit -> unit) list -> unit -> unit
+
+
+val memoize: ('a, 'b) Hashtbl.t ->
+            'a ->
+            ('a -> 'b) -> 'b
+
+(** Just another name for memoize *)
+val findOrAdd: ('a, 'b) Hashtbl.t ->
+            'a ->
+            ('a -> 'b) -> 'b
+
+val tryFinally: 
+    ('a -> 'b) -> (* The function to run *)
+    ('b option -> unit) -> (* Something to run at the end. The None case is 
+                          * used when an exception is thrown *)
+    'a -> 'b
+

@@ -50,7 +50,7 @@ let sliceFile (f:file) (epicenter:string) (maxHops:int) : unit =
   dfs (Hashtbl.find graph epicenter) maxHops;
 
   (* finally, throw away anything we haven't decided to keep *)
-  Util.sliceGlobal := true;
+  Cilutil.sliceGlobal := true;
   Rmtmps.removeUnusedTemps ~isRoot:isRoot f
 
 let doEpicenter = ref false

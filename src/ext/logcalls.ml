@@ -192,7 +192,7 @@ let logCalls (f: file) : unit =
 
 let feature : featureDescr = 
   { fd_name = "logcalls";
-    fd_enabled = Util.logCalls;
+    fd_enabled = Cilutil.logCalls;
     fd_description = "generation of code to log function calls";
     fd_extraopt = 
     [("--logstyle", Arg.Int (fun i -> setStyle i), styleHelp);];

@@ -247,3 +247,35 @@ let restoreArray (a: 'a array) : (unit -> unit) =
 
 let runThunks (l: (unit -> unit) list) : (unit -> unit) = 
   fun () -> List.iter (fun f -> f ()) l
+
+
+
+(* Memoize *)
+let memoize (h: ('a, 'b) Hashtbl.t) 
+            (arg: 'a) 
+            (f: 'a -> 'b) : 'b = 
+  try
+    Hashtbl.find h arg
+  with Not_found -> begin
+    let res = f arg in
+    Hashtbl.add h arg res;
+    res
+  end
+
+(* Just another name for memoize *)
+let findOrAdd h arg f = memoize h arg f
+
+(* A tryFinally function *)
+let tryFinally 
+    (main: 'a -> 'b) (* The function to run *)
+    (final: 'b option -> unit)  (* Something to run at the end *)
+    (arg: 'a) : 'b = 
+  try
+    let res: 'b = main arg in
+    final (Some res);
+    res
+  with e -> begin
+    final None;
+    raise e
+  end
+

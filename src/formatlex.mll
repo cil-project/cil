@@ -96,7 +96,7 @@ let init ~(prog: string) : Lexing.lexbuf =
       ("__int64", INT64);
       ("__builtin_va_arg", BUILTIN_VA_ARG);
     ];
-  E.startParsing prog
+  E.startParsingFromString prog
 
 let finish () = 
   E.finishParsing ()
