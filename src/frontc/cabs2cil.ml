@@ -1380,17 +1380,19 @@ let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
     let oldvi, oldloc = lookupGlobalVar vi.vname in
     (* It was already defined. We must reuse the varinfo. But clean up the 
      * storage.  *)
-    let newstorage = 
-      if vi.vstorage = oldvi.vstorage || vi.vstorage = Extern then 
-        oldvi.vstorage 
-      else if oldvi.vstorage = Extern then 
-        vi.vstorage 
-      else begin
-        ignore (warn
-                  "Inconsistent storage specification for %s. Previous declaration: %a" 
-               vi.vname d_loc oldloc);
-        vi.vstorage
-      end
+    let newstorage =
+      match oldvi.vstorage, vi.vstorage with
+      | Extern, other
+      | NoStorage, other
+      | other, Extern
+      | other, NoStorage ->
+	  other
+      | _ ->
+	  if vi.vstorage != oldvi.vstorage then
+            ignore (warn
+		      "Inconsistent storage specification for %s. Previous declaration: %a" 
+		      vi.vname d_loc oldloc);
+          vi.vstorage
     in
     oldvi.vinline <- oldvi.vinline || vi.vinline;
     oldvi.vstorage <- newstorage;
