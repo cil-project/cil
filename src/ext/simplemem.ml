@@ -32,7 +32,7 @@
 
 (*
  * Simplemem: Transform a program so that all memory expressions are
- * "simple". Introduce well-type temporaries to hold intermediate values
+ * "simple". Introduce well-typed temporaries to hold intermediate values
  * for expressions that would normally involve more than one memory
  * reference. 
  *

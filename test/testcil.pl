@@ -236,6 +236,7 @@ $TEST->add3Tests("test/pointers");
 $TEST->add3Tests("test/printf", "", @runpattern);
 $TEST->add3Tests("test/printf_const", "", @runpattern);
 $TEST->add3Tests("testrun/printf2");
+$TEST->addTests("testrun/safeunion", "", ['inferbox']);
 $TEST->add2Tests("test/unimplemented");
 $TEST->add2Tests("testrun/vararg1");
 $TEST->add2Tests("testrun/vararg2");
