@@ -110,7 +110,8 @@ $TEST->add3Tests("test/alloc");
 $TEST->add3Tests("test/apachebits");
 $TEST->add3Tests("testrun/apachebuf");
 $TEST->add3Tests("testrun/apachefptr");
-$TEST->add3Tests("testrun/asm1");
+$TEST->add2Tests("testrun/asm1");
+   $TEST->addBadComment("testrun/asm1-inferbox", "Unimplemented inline asm");
 $TEST->add3Tests("testrun/offsetof");
 $TEST->addTests("testrun/question", "", ['cil']);
 $TEST->add3Tests("test/argcast");
@@ -121,10 +122,13 @@ $TEST->add3Tests("testrun/switch");
 $TEST->add3Tests("testrun/caserange", "_GNUCC=1");
 $TEST->add3Tests("test/attr");
 $TEST->add3Tests("test/attr2", "_GNUCC=1");
+    $TEST->addBadComment("test/attr2-box", "Format is not a string");
 $TEST->add3Tests("test/attr3", "_GNUCC=1");
 $TEST->add3Tests("testrun/attr4", "_GNUCC=1");
 $TEST->add3Tests("test/bh1");
 $TEST->add3Tests("test/bitfield");
+    $TEST->addBadComment("test/bitfield-box", "Unimplemented & bitfield");
+     
 $TEST->add3Tests("testrun/bitfield2");
 $TEST->add3Tests("test/box1");
 $TEST->add3Tests("test/cast1");
@@ -155,6 +159,7 @@ $TEST->add3Tests("test/li");
 $TEST->add3Tests("test/li1", "_GNUCC=1");
 $TEST->add3Tests("test/list");
 $TEST->add3Tests("test/pointers");
+    $TEST->addBadComment("test/pointers-box", "Unimplemented & bitfield");
 $TEST->add3Tests("test/printf", "", @runpattern);
 $TEST->add3Tests("test/printf_const", "", @runpattern);
 $TEST->add3Tests("testrun/printf2");
@@ -224,6 +229,7 @@ $TEST->add2TestsFail("testrun/failsprintf2", "", "Failure .+: Ubound");
 $TEST->add2TestsFail("testrun/failsprintf3", "", "Failure .+: Non-pointer");
 
 $TEST->add2TestsFail("testrun/failsscanf1", "", "Failure .+: Ubound");
+    $TEST->addBadComment("testrun/failsscanf1-box", "Missing wrappers");
 $TEST->add2TestsFail("testrun/simon6", "", "Failure .+: Non-pointer");
     
 $TEST->add2TestsFail("testrun/infer1", "", "Failure .+: ");
@@ -271,33 +277,29 @@ $TEST->add2Tests("yacr", "_GNUCC=1");
 #
 # SPEC95
 #
-$TEST->add3Tests("li", "_GNUCC=1");
-  $TEST->add3Group("li", "slow");
-  $TEST->addBadComment("li-box", "bug in box.ml");
-  $TEST->addBadComment("li-inferbox", "bug in box.ml");
+$TEST->add2Tests("li", "_GNUCC=1");
+  $TEST->add2Group("li", "slow");
 
 $TEST->add3Tests("compress", "_GNUCC=1");
   $TEST->add3Group("compress", "slow");
 
 $TEST->add3Tests("go", "_GNUCC=1");
    $TEST->add3Group("go", "slow");
-   $TEST->addComment("go-box", "CRASHES (only on Win)");
-#   $TEST->addBadComment("go-inferbox", "CRASHES with LBound");
 
 $TEST->add2Tests("ijpeg", "_GNUCC=1");
   $TEST->add2Group("ijpeg", "slow");
 #  $TEST->addBadComment("ijpeg-cil", "EOF / read error?? (only on Win)");
-  $TEST->addBadComment("ijpeg-inferbox", "missing wrappers");
+  $TEST->addBadComment("ijpeg-cil", "strange failure on MANJU.");
 
 $TEST->add2Tests("m88k", "_GNUCC=1");
   $TEST->add2Group("m88k", "slow");
-  $TEST->addBadComment("m88k-cil", "Don't know how to run");
+  $TEST->addBadComment("m88k-cil", "Don't know how to build");
   $TEST->enable("m88k-inferbox", 0); # Infinite loop
   $TEST->addBadComment("m88k-inferbox", "missing wrappers");
 
 $TEST->add2Tests("vortex", "_GNUCC=1");
   $TEST->add2Group("vortex", "slow");
-  $TEST->addBadComment("vortex-inferbox", "function pointers");
+  $TEST->addBadComment("vortex-inferbox", "bug in resetSScanf");
 
 
 $TEST->add2Tests("apache/gzip");

@@ -1525,6 +1525,7 @@ and makeCompType (isstruct: bool)
       | Some w -> begin
           (match unrollType ftype with
             TInt (ikind, a) -> ()
+          | TEnum _ -> ()
           | _ -> E.s (error "Base type for bitfield is not an integer type"));
           match doExp true w (AExp None) with
             (c, Const(CInt64(i,_,_)),_) when isEmpty c -> 

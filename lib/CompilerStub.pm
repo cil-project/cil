@@ -158,7 +158,7 @@ sub preprocess {
 }
 
 
-# COMPILATION (with PREPROCESSING)
+# COMPILATION
 sub compile {
     my ($self, $src, $dest, $ppargs, $ccargs) = @_;
     if($self->{VERBOSE}) { print "Compiling $src\n"; }
