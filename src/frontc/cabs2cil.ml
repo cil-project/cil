@@ -1971,7 +1971,7 @@ let convFile fname dl =
         ignore (doNameGroup createGlobal ng)
           
     | A.GLOBASM s -> theFile := GAsm s :: !theFile
-    | A.PRAGMA s -> theFile := GPragma ("#pragma " ^ s) :: !theFile
+    | A.PRAGMA a -> theFile := GPragma (doAttr a) :: !theFile
 
     | A.FUNDEF (((bt,st,(n,bt',funattr,_)) : A.single_name), 
                  (body : A.body)) -> 

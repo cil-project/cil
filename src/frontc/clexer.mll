@@ -339,7 +339,7 @@ and line = parse
 | blank		{ line lexbuf}
 | intnum	{ set_line (int_of_string (Lexing.lexeme lexbuf));
 		  file lexbuf }
-| "pragma"      { PRAGMA (pragma lexbuf) }
+| "pragma"      { PRAGMA }
 | _	        { endline lexbuf}
 
 and file =

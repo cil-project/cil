@@ -77,7 +77,7 @@ and definition =
  | TYPEDEF of name_group
  | ONLYTYPEDEF of name_group
  | GLOBASM of string
- | PRAGMA of string
+ | PRAGMA of attribute
 
 and file = definition list				
 

@@ -572,6 +572,7 @@ and checkStmt (s: stmt) =
 let rec checkGlobal = function
     GAsm _ -> ()
   | GPragma _ -> ()
+  | GText _ -> ()
   | GType (n, t) -> 
       E.withContext (fun _ -> dprintf "GType(%s)" n)
         (fun _ ->

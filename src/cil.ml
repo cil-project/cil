@@ -417,7 +417,11 @@ type global =
                                          * storage Extern *)
   | GAsm of string                      (* Global asm statement. These ones 
                                          * can contain only a template *)
-  | GPragma of string                   (* Pragmas at top level. Unparsed *)
+  | GPragma of attribute                (* Pragmas at top level. Use the same 
+                                         * syntax as attributes *)
+  | GText of string                     (* Some text (printed verbatim) at 
+                                         * top level. E.g., this way you can 
+                                         * put comments in the output.  *)
     
 
 type file = 
@@ -1194,7 +1198,8 @@ let printFile (out : out_channel) file =
                 dprintf " = %a" d_exp e)
   | GDecl vi -> dprintf "%a;" d_videcl vi 
   | GAsm s -> dprintf "__asm__(\"%s\");@!" (escape_string s)
-  | GPragma s -> dprintf "%s@!" s
+  | GPragma a -> dprintf "#pragma %a@!" d_attr a
+  | GText s  -> text s
   in
   List.iter (fun g -> print (d_global () g ++ line)) file.globals;
   noRedefinitions := false;

@@ -702,18 +702,18 @@ and print_substatement stat =
 (*
 ** GCC Attributes
 *)
+and print_attribute (name,args) = 
+  if args = [] then print name
+  else begin
+    print name;
+    print "(";
+    print_commas false (fun e -> print_expression e 1) args;
+    print ")"
+  end
+
 and print_attributes attrs = 
   if attrs = [] then ()
   else
-    let print_attribute (name,args) = 
-      if args = [] then print name
-      else begin
-        print name;
-        print "(";
-        print_commas false (fun e -> print_expression e 1) args;
-        print ")"
-      end
-    in
     begin
       space (); print "__attribute__((";
       print_commas false print_attribute attrs;
@@ -785,9 +785,10 @@ and print_def def =
       end;
       force_new_line ()
 *)
-  | PRAGMA s -> 
+  | PRAGMA a -> 
       force_new_line ();
-      print "#pragma "; print s;
+      (* print "#pragma "; print s; *)
+      print_attribute a;
       force_new_line ()
       
 

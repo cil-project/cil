@@ -9,9 +9,9 @@ let debug = false
 
 let checkReturn = true
 
-let coerceScalars = true   (* If true it will insert calls to 
-                            * __scalar2pointer when casting scalars to 
-                            * pointers. *)
+let coerceScalars = ref false   (* If true it will insert calls to 
+                                 * __scalar2pointer when casting scalars to 
+                                 * pointers.  *)
 
 let lu = locUnknown
 
@@ -695,9 +695,24 @@ let checkFatPointerWrite =
   
 let checkMem (towrite: exp option) 
              (lv: lval) (base: exp) (t: typ) : stmt list = 
-  (* Fetch the length field in a temp variable *)
-  let len = makeTempVar !currentFunction ~name:"_tlen" uintType in
-  let lenExp = Lval(var len) in
+  (* Fetch the length field in a temp variable. But do not create the 
+   * variable until certain that it is needed *)
+  let lenExp : exp option ref = ref None in
+  let getLenExp () = 
+    match !lenExp with
+      Some x -> x
+    | None -> begin
+        let len = makeTempVar !currentFunction ~name:"_tlen" uintType in
+        let x = Lval(var len) in
+        lenExp := Some x;
+        x
+    end
+  in
+  let getLen () = 
+    match getLenExp () with
+      LVal(Var vi, NoOffset) -> vi
+    | _ -> E.s (E.bug "getLen");
+  in
   (* And the start of tags in another temp variable *)
   let tagStart = makeTempVar !currentFunction ~name:"_ttags" voidPtrType in
   let tagStartExp = Lval(var tagStart) in
@@ -748,7 +763,7 @@ let checkMem (towrite: exp option)
     let zeroTags = 
       match towrite with 
         None -> Skip
-      | Some _ -> checkZeroTags base lenExp lv t
+      | Some _ -> checkZeroTags base (getLenExp ()) lv t
     in
     zeroTags :: 
     (doCheckTags towrite lv t [])
@@ -757,13 +772,14 @@ let checkMem (towrite: exp option)
   let check_1 = 
     match zeroAndCheckTags with
       [] | [Skip] -> []
-    | _ -> (checkFetchTagStart tagStart base lenExp) :: zeroAndCheckTags
+    | _ -> 
+        (checkFetchTagStart tagStart base (getLenExp ())) :: zeroAndCheckTags
   in
   (* Now see if we need to do bounds checking *)
   let check_0 = 
     match checkBounds lenExp base lv t, check_1 with
       Skip, [] -> []  (* Don't even fetch the length *)
-    | cb, _ -> (checkFetchLength len base) :: cb :: check_1
+    | cb, _ -> (checkFetchLength (getLen ()) base) :: cb :: check_1
   in
   check_0
   
@@ -1277,7 +1293,7 @@ and castTo (fe: fexp) (newt: typ) (doe: stmt list) : stmt list * fexp =
       let newp = 
         if typeSig lt = typeSig ptype then e else CastE (ptype, e, lu) in
       let newbase, doe' = 
-        if coerceScalars && not (isInteger e) then
+        if !coerceScalars && not (isInteger e) then
           let tmp = makeTempVar !currentFunction voidPtrType in
            Lval(var tmp),
           doe @
@@ -1351,8 +1367,8 @@ let preamble =
   ignore (fixupType (TPtr(TInt(IChar, [AId("const")]), [])));
   ignore (fixupType (TPtr(TVoid([AId("const")]), [])));
   let startFile = !theFile in
-  GPragma ("#include \"safec.h\"\n") :: 
-  GPragma ("// Include the definition of the checkers\n") ::
+  GText ("#include \"safec.h\"\n") :: 
+  GText ("// Include the definition of the checkers\n") ::
   startFile
 
 (* In some cases we might need to create a function to initialize some 
@@ -1422,10 +1438,18 @@ let boxFile file =
                                         (* We ought to look at pragmas to see 
                                          * if they talk about alignment of 
                                          * structure fields *)
-    | GPragma s -> theFile := g :: !theFile
-    | GDecl vi as g -> boxglobal vi false None
+    | GPragma a -> begin
+        (match a with
+          ACons("coerceScalars", [ AId("on") ]) -> coerceScalars := true
+        | ACons("coerceScalars", [ AId("off") ]) -> coerceScalars := false
+        | _ -> ());
+        theFile := g :: !theFile
+    end
+
+    | GText _  -> theFile := g :: !theFile
+    | GDecl vi -> boxglobal vi false None
     | GVar (vi, init) -> boxglobal vi true init
-    | GType (n, t) as g -> 
+    | GType (n, t) -> 
         if debug then
           ignore (E.log "Boxing GType(%s)\n" n);
         let tnew = fixupType t in

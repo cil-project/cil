@@ -418,7 +418,10 @@ type global =
                                          * storage Extern *)
   | GAsm of string                      (* Global asm statement. These ones 
                                          * can contain only a template *)
-  | GPragma of string                   (* Pragmas at top level. Unparsed *)
+  | GPragma of attribute                (* Pragmas at top level. Use the same 
+                                         * syntax as attributes *)
+  | GText of string                     (* Some text (printed verbatim) at 
+                                         * top level *)
     
 
 type file = 

@@ -241,11 +241,26 @@ SPJDIR=C:/Necula/Source/Touchstone/test
 ifndef RELEASE
 SPJARG += --pccdebug
 endif
-runspj:
+
+runspj.fact :
 ifdef _GNUCC
 	rm $(PCCDIR)/bin/*_MSVC*
 endif
 	cd $(SPJDIR); spj Arith/Fact.java --gory $(SPJARG) --pcchome=$(PCCDIR)
+
+runspj.linpack :
+ifdef _GNUCC
+	rm $(PCCDIR)/bin/*_MSVC*
+endif
+	cd $(SPJDIR); spj linpack/Linpack.java --gory \
+                      $(SPJARG) --pcchome=$(PCCDIR)
+
+runspj.quicksort :
+ifdef _GNUCC
+	rm $(PCCDIR)/bin/*_MSVC*
+endif
+	cd $(SPJDIR); spj arrays/QuickSort.java --gory -WC,"-T,1000" \
+                      $(SPJARG) --pcchome=$(PCCDIR)
 
 ############ Small tests
 SMALL1=test/small1

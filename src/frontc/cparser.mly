@@ -336,7 +336,7 @@ let doFunctionDef (spec: specifier) (n: name)
 %token EXTENSION
 %token STDCALL CDECL
 %token <string> MSASM
-%token <string> PRAGMA
+%token PRAGMA
 
 /* operator precedence */
 %nonassoc 	IF
@@ -417,7 +417,7 @@ global:
 | function_def          { $1 }
 | ASM LPAREN CST_STRING RPAREN SEMICOLON
                         { GLOBASM $3 }
-| PRAGMA                { PRAGMA $1 }
+| PRAGMA attr           { PRAGMA $2 }
 ;
 typename:
     IDENT				{$1}
@@ -1029,11 +1029,14 @@ attrs:
 ;
 attr:
     IDENT				{ ($1,[]) }
+|   IDENT COLON CST_INT                 { ($1 ^ ":" ^ $3, []) }
 |   IDENT LPAREN args RPAREN		{ ($1, $3) }
 ;
 
 args:
     expression                           { [$1] }
+|   IDENT COLON CST_INT                  { [VARIABLE ($1 ^ ":" ^ $3)] }
+|   DEFAULT COLON CST_INT                { [VARIABLE ("default:" ^ $3)] }
 |   expression COMMA args                { $1 :: $3 }
 ;
 
