@@ -437,7 +437,7 @@ pkglibdir = $(libdir)/cil
 datadir = @datadir@
 pkgdatadir = $(datadir)/cil
 
-all_mli := $(filter %.mli, $(DISTRIB_SRC) $(DISTRIB_SRC_FRONTC) $(DISTRIB_SRC_EXT) $(DISTRIB_SRC_EXT_PTA))
+all_mli := $(filter %.mli, $(DISTRIB_OCAMLUTIL) $(DISTRIB_SRC) $(DISTRIB_SRC_FRONTC) $(DISTRIB_SRC_EXT) $(DISTRIB_SRC_EXT_PTA))
 install_mli := $(filter $(OCAML_CIL_LIB_MODULES:=.mli), $(all_mli))
 install_cmi := $(install_mli:%.mli=$(OBJDIR)/%.cmi)
 install_cma := $(addprefix $(OBJDIR)/cil., cma cmxa a)
