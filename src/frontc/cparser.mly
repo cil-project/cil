@@ -184,7 +184,7 @@ let apply_qual ((t1, q1) : base_type * modifier list)
 %token <string> NAMED_TYPE
 
 %token EOF
-%token CHAR INT DOUBLE FLOAT VOID
+%token CHAR INT DOUBLE FLOAT VOID INT64
 %token ENUM STRUCT TYPEDEF UNION
 %token SIGNED UNSIGNED LONG SHORT
 %token VOLATILE EXTERN STATIC CONST AUTO REGISTER
@@ -768,6 +768,7 @@ qual_type:
     VOID				{(VOID, [])}
 |   CHAR				{(NO_TYPE, [BASE_SIZE CHAR])}
 |   INT					{(INT (NO_SIZE, NO_SIGN), [])}
+|   INT64                               {(NO_TYPE, [BASE_SIZE LONG_LONG])}
 |   FLOAT				{(FLOAT false, [])}
 |   DOUBLE				{(DOUBLE false, [])}
 |   LONG				{(NO_TYPE, [BASE_SIZE LONG])}

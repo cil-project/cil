@@ -1,2 +1,6 @@
 camlprim0.obj
 *.a
+*.o
+*.obj
+*.i
+

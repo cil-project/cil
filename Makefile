@@ -45,6 +45,7 @@ spec : $(EXECUTABLE)$(EXE)
 
 export EXTRAARGS
 export BOX
+_MSVC = 1			# Use the MSVC compiler
 
 ifdef BOX
 SRCEXT=box
@@ -52,41 +53,73 @@ else
 SRCEXT=cil
 endif
 
+ifdef _GNUCC
+CCL=gcc -x c -O3 -Wall
+CC=$(CC) -c
+CONLY=-c
+OUT=-o
+EXEOUT=-o
+DEF=-D
+ASMONLY=-S -o
+CPPSTART=gcc -E %i -Dx86_WIN32 -D_GNUCC
+CPPOUT=-o %o
+CPP=$(CPPSTART) $(CPPOUT)
+INC=-I
+endif
+
+
+ifdef _MSVC
+CCL=cl /TC /O2 /Zi /MLd /I./lib /DEBUG
+CC=$(CCL) /c
+CONLY=/c
+OUT=/Fo
+EXEOUT=/Fe
+DEF=/D
+ASMOUT=/Fa
+INC=/I
+CPPSTART=cl /Dx86_WIN32 /D_MSVC /E /TC /I./lib /FI fixup.h /DBEFOREBOX
+CPPOUT= %i >%o
+CPP=$(CPPSTART) $(CPPOUT)
+EXTRAARGS += -msvc
+endif
+
+ifdef BOX
+CPPSTART += /FI safec.h
+CCL += /FI safec.h
+endif
+
+SAFECC=perl /Necula/SafeC/cil/lib/safecc.pl --cabs --cil
+ifdef BOX
+SAFECC+= --box
+endif
+
 ####### Test with PCC sources
 PCCSOURCES = hash lf huffman x86/x86SE extensions/javaclasses
-ifdef BOX
-PCCBOX=-boxout ../test/PCC/$(notdir $*).box
-endif
 PCCTEST=../test/PCC
 testpcc: $(PCCSOURCES:%=testpcc/%)
 testpcc/% : ../../Source/Touchstone/PCC/src/%.c $(EXECUTABLE)$(EXE) 
-	$(EXECUTABLE)$(EXE) $(EXTRAARGS) -verbose \
-           -p "gcc -E %i -Dx86_WIN32 -D_GNUCC -o %o" -cabsindent 2 \
-           -cabsout $(PCCTEST)/$(notdir $*).cabs \
-           -cilout $(PCCTEST)/$(notdir $*).cil \
-           $(PCCBOX) \
-           ../../Source/Touchstone/PCC/src/$*.c
+	$(SAFECC) --keep=$(PCCTEST) /Dx86_WIN32 /c \
+                  ../../Source/Touchstone/PCC/src/$*.c \
+                  /Fo$(PCCTEST)/$(notdir $*).o
 
-testhash: testpcc/hash $(EXECUTABLE)$(EXE)
-	make testfile/$(PCCTEST)/main.c \
-            TESTARGS="-p \"gcc -Dx86_WIN32 -D_GNUCC -I../../Source/Touchstone/PCC/src -E %i -o %o\""
-	gcc -x c -O3 -o $(PCCTEST)/hashtest.exe \
-               $(PCCTEST)/hash.$(SRCEXT) \
-               $(PCCTEST)/main.$(SRCEXT)
+testhash: $(PCCTEST)/main.c $(EXECUTABLE)$(EXE)
+	$(SAFECC) --keep=$(PCCTEST) /Dx86_WIN32 \
+                 /I../../Source/Touchstone/PCC/src \
+                 ../../Source/Touchstone/PCC/src/hash.c \
+                 ../../Source/Touchstone/PCC/src/redblack.c \
+                 $(PCCTEST)/main.c \
+                 /Fe$(PCCTEST)/hashtest.exe
+
+testallpcc:
+	make -C ../../Source/Touchstone/PCC \
+             CC="$(SAFECC) --keep=D:/Necula/SafeC/test/PCC /c" \
+             USE_JAVA=1 USE_JUMPTABLE=1 TYPE=_DEBUG \
+	     defaulttarget
 
 ############ Small tests
-ifdef BOX
-SMALL1BOX=-boxout ../test/small1/$(notdir $*).box
-endif
-test/% : ../test/small1/$* $(EXECUTABLE)$(EXE)
-	$(EXECUTABLE)$(EXE) $(EXTRAARGS) -verbose \
-           -p "gcc -E %i -o %o" -cabsindent 2 \
-           -cabsout ../test/small1/$(notdir $*).cabs \
-	   -cilout ../test/small1/$(notdir $*).cil \
-           $(SMALL1BOX) \
-           ../test/small1/$*.c
-	gcc -x c -c -O3 -S ../test/small1/$(notdir $*).$(SRCEXT) \
-             -o ../test/small1/$(notdir $*).s
+SMALL1=../test/small1
+test/% : $(SMALL1)/$* $(EXECUTABLE)$(EXE)
+	$(SAFECC) $(SMALL1)/$*.c $(EXEOUT)$(SMALL1)/$*.exe
 
 
 ### Generic test
@@ -108,16 +141,9 @@ testdir/% : $(EXECUTABLE)$(EXE)
 
 
 ################## Linux device drivers
-ifdef BOX
-LINUXBOX=-boxout ../test/linux/$(notdir $*).box
-endif
 testlinux/% : $(EXECUTABLE)$(EXE) ../test/linux/%.cpp
-	$(EXECUTABLE)$(EXE) $(EXTRAARGS) -verbose \
-           -P -cabsindent 2 \
-	   -cabsout ../test/linux/$(notdir $*).cabs \
-           -cilout ../test/linux/$(notdir $*).cil \
-	   $(LINUXBOX) \
-           ../test/linux/$*.cpp
+	$(SAFECC) -o ../test/linux/$*.o \
+                  ../test/linux/$*.cpp 
 
 testqp : testlinux/qpmouse
 

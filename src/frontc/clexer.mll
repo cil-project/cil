@@ -84,6 +84,8 @@ let init_lexicon _ =
                 ("__asm__", ASM); ("asm", ASM);
                 ("__typeof__", TYPEOF);
                 ("__volatile__", VOLATILE);
+                (**** MS VC ***)
+                ("__int64", INT64);
 	]
 
 let add_type name =

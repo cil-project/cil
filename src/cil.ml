@@ -9,6 +9,8 @@ open Pretty
 module E = Errormsg
 module H = Hashtbl
 
+let msvcOutput = ref false
+
 (*
  * CIL: An intermediate language for analyzing C progams.
  *
@@ -327,22 +329,25 @@ let escape_string str =
   build 0	
 
 let d_ikind () = function
-    IChar -> dprintf "char"
-  | ISChar -> dprintf "signed char"
-  | IUChar -> dprintf "unsigned char"
-  | IInt -> dprintf "int"
-  | IUInt -> dprintf "unsigned int"
-  | IShort -> dprintf "short"
-  | IUShort -> dprintf "unsigned short"
-  | ILong -> dprintf "long"
-  | IULong -> dprintf "unsigned long"
-  | ILongLong -> dprintf "long long"
-  | IULongLong -> dprintf "unsigned long"
+    IChar -> text "char"
+  | ISChar -> text "signed char"
+  | IUChar -> text "unsigned char"
+  | IInt -> text "int"
+  | IUInt -> text "unsigned int"
+  | IShort -> text "short"
+  | IUShort -> text "unsigned short"
+  | ILong -> text "long"
+  | IULong -> text "unsigned long"
+  | ILongLong -> 
+      if !msvcOutput then text "__int64" else text "long long"
+  | IULongLong -> 
+      if !msvcOutput then text "unsigned __int64" 
+      else text "unsigned long long"
 
 let d_fkind () = function
-    FFloat -> dprintf "float"
-  | FDouble -> dprintf "double"
-  | FLongDouble -> dprintf "long double"
+    FFloat -> text "float"
+  | FDouble -> text "double"
+  | FLongDouble -> text "long double"
 
 let d_storage () = function
     NoStorage -> nil
@@ -524,7 +529,12 @@ and d_exp () e =
         (d_expprec level) e1 d_binop b (d_expprec level) e2
   | CastE(t,e,l) -> dprintf "(%a)%a" d_type t (d_expprec level) e
   | SizeOf (t, l) -> dprintf "sizeof(%a)" d_type t
-  | Compound (t, el) -> dprintf "(%a) {@[%a@]}" d_type t
+  | Compound (t, el) -> 
+      let dcast = 
+        if !msvcOutput then nil         (* MSVC does not list the cast *)
+        else dprintf "(%a) " d_type t
+      in
+      dprintf "%a{@[%a@]}" insert dcast
         (docList (chr ',' ++ break) (d_exp ())) el
   | AddrOf(lv,lo) -> dprintf "& %a" (d_lvalprec 2) lv
   | StartOf(lv) -> d_lval () lv

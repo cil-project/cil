@@ -1,0 +1,21 @@
+/*** Macros to fixup some things that the parser does not understand ***/
+
+#ifdef _MSVC   /************* MICROSOFT VISUAL C *************/
+/* Drop some things on the floor */
+#define __cdecl
+#define __declspec(a)
+
+/* Define some types */
+#define __int64 long long
+
+
+#define random rand
+
+#include <time.h>
+#define TIMESTART(clk) {clk=(double)clock();}
+#define TIMESTOP(clk)  {clk=1000000.0 * \
+                           ((double)clock()-(clk))/CLOCKS_PER_SEC;}
+
+#endif
+
+

@@ -699,7 +699,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
           
     | A.TYPE_SIZEOF bt -> 
         let typ = doType [] bt in
-        finishExp [] (sizeOf typ) intType
+        finishExp [] (SizeOf(typ, lu)) intType
           
     | A.EXPR_SIZEOF e -> 
         let (se, e', t) = doExp e (AExp None) in
@@ -707,7 +707,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
            * drop the potential size-effects *)
         if se <> [] then 
           ignore (E.log "Warning: Dropping side-effect in EXPR_SIZEOF\n");
-        finishExp [] (sizeOf t) intType
+        finishExp [] (SizeOf(t, lu)) intType
           
     | A.CAST (bt, e) -> 
         let se1, typ = 
@@ -817,20 +817,35 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         in
         let (se1, e1', t1) = doExp e1 (AExp None) in
         let (se2, e2', t2) = doExp e2 (AExp None) in
-        let tresult = 
+        let tresult, e1'', e2'' = 
           match bop', t1, t2 with
-            Plus, TPtr _, TInt _ -> t1
-          | Plus, TInt _, TPtr _ -> t2
-          | Minus, TPtr _, TInt _ -> t1
-          | Minus, TPtr _, TPtr _ -> intType
-          | _ -> intType   (*** !!! this is only temporary *)
+                                        (* ignore sizes for now *)
+          | (Plus|Minus|Mult|Div|Mod|BAnd|BOr|BXor|Shiftlt|Shiftrt), 
+                 TInt _, TInt _ -> t1, e1', e2'
+          | (Eq|Ne|Ge|Gt|Le|Lt), TInt _, TInt _ -> intType, e1', e2'
+          | (Plus|Minus|Mult|Div|Mod), TFloat _, TFloat _ -> t1, e1', e2'
+          | (Eq|Ne|Ge|Gt|Le|Lt), TFloat _, TFloat _ -> intType, e1', e2'
+          | Plus, TPtr _, TInt _ -> t1, e1', e2'
+          | Plus, TInt _, TPtr _ -> t2, e1', e2'
+          | Minus, TPtr _, TInt _ -> t1, e1', e2'
+          | (Eq|Ne|Le|Ge|Lt|Gt|Minus), TPtr _, TPtr _ -> intType, e1', e2'
+          | (Eq|Ne|Le|Ge|Lt|Gt), TPtr _, TInt _ when 
+              (match e2' with Const(CInt(0,_),_) -> true | _ -> false) 
+              -> intType, e1', CastE(t1, zero, lu)
+          | (Eq|Ne|Le|Ge|Lt|Gt), TInt _, TPtr _ when 
+              (match e1' with Const(CInt(0,_),_) -> true | _ -> false) 
+              -> intType, CastE(t1, zero, lu), e2'
+          | _ -> 
+              ignore (E.log "Warning: untyped %a\n" 
+                        d_exp (BinOp(bop',e1',e2',intType, lu)));
+              intType, e1', e2'   (*** !!! this is only temporary *)
         in
         let result = 
           let mkInt = function
               Const(CChr c, _) -> Const(CInt(Char.code c, None),lu)
             | e -> e
           in
-          match bop', mkInt e1', mkInt e2' with
+          match bop', mkInt e1'', mkInt e2'' with
             Plus, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> integer (i1 + i2)
           | Minus, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> integer (i1 - i2)
           | Mult, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> integer (i1 * i2)
@@ -858,7 +873,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
               integer (if i1 < i2 then 1 else 0)
           | Gt, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
               integer (if i1 > i2 then 1 else 0)
-          | _ -> BinOp(bop', e1', e2', tresult, lu)
+          | _ -> BinOp(bop', e1'', e2'', tresult, lu)
         in
         finishExp (se1 @ se2) result tresult
           

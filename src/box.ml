@@ -6,6 +6,7 @@ module H = Hashtbl
 let debugType = false
 let debug = false
 
+let checkReturn = false
            (* After processing an expression, we create its type, a list of 
             * instructions that should be executed before this exp is used, 
             * and a replacement exp *)
@@ -29,7 +30,9 @@ let prefix p s =
 let theFile : global list ref = ref []
 (**** Make new types ****)
 
-
+(* A list of functions to be left alone *)
+let leaveAlone = 
+  [ "printf"; "fprintf"; ]
 
    (* Keep some global counters for anonymous types *)
 let anonTypeId = ref 0
@@ -109,6 +112,69 @@ and fixit t =
   try
     H.find fixedTypes ts 
   with Not_found -> begin
+<<<<<<< box.ml
+    let doit t =
+      match t with 
+        (TInt _|TEnum _|TFloat _|TVoid _|TBitfield _) -> t
+      | TPtr ((TFun _) as t', a) -> 
+          TPtr (fixupType t', a)        (* Pointers to functions are lean *)
+
+      | TPtr (t', a) -> begin
+        (* Now do the base type *)
+          let fixed' = fixupType t' in
+          let tname  = newFatPointerName fixed' in (* The name *)
+          let fixed = 
+            TStruct(tname, [ { fstruct = tname;
+                               fname   = "_p";
+                               ftype   = TPtr(fixed', a);
+                               fattr   = [];
+                             };
+                             { fstruct = tname;
+                               fname   = "_b";
+                               ftype   = TPtr(TVoid ([]), a);
+                               fattr   = [];
+                             }; ], []) 
+          in
+          let tres = TNamed(tname, fixed) in
+          H.add fixedTypes (typeSig fixed) fixed; (* We add fixed ourselves. 
+                                                   * The TNamed will be added 
+                                                   * after doit  *)
+          H.add fixedTypes (typeSig (TPtr(fixed',a))) fixed;
+          theFile := GType(tname, fixed) :: !theFile;
+          tres
+      end
+            
+      | TForward _ ->  t              (* Don't follow TForward *)
+      | TNamed (n, t') -> TNamed (n, fixupType t')
+            
+      | TStruct(n, flds, a) -> begin
+          let r = 
+            TStruct(n, 
+                    List.map 
+                      (fun fi -> 
+                        {fi with ftype = fixupType fi.ftype}) flds,
+                    a) in
+          replaceForwardType ("struct " ^ n) r;
+          r
+      end
+      | TUnion (n, flds, a) -> 
+          let r = 
+            TUnion(n, 
+                   List.map (fun fi -> 
+                     {fi with ftype = fixupType fi.ftype}) flds,
+                   a) in
+          replaceForwardType ("union " ^ n) r;
+          r
+            
+      | TArray(t', l, a) -> TArray(fixupType t', l, a)
+            
+      | TFun(rt,args,isva,a) ->
+          let args' = 
+            List.map
+              (fun argvi -> {argvi with vtype = fixupType argvi.vtype}) args in
+          let res = TFun(fixupType rt, args', isva, a) in
+          res
+=======
     let doit t =
       match t with 
         (TInt _|TEnum _|TFloat _|TVoid _|TBitfield _) -> t
@@ -167,6 +233,7 @@ and fixit t =
               (fun argvi -> {argvi with vtype = fixupType argvi.vtype}) args in
           let res = TFun(fixupType rt, args', isva, a) in
           res
+>>>>>>> 1.8
     in
     let fixed = doit t in
     H.add fixedTypes ts fixed;
@@ -174,6 +241,15 @@ and fixit t =
     fixed
   end
 
+<<<<<<< box.ml
+(** Create some fat types *)
+let _ = fixupType (voidPtrType) 
+let _ = fixupType (charPtrType)
+let _ = fixupType (TPtr(TInt(IChar, [AId("const")]), []))
+let _ = theFile := []   (* Remove them from the file *)
+
+=======
+>>>>>>> 1.8
 (**** We know in what function we are ****)
 let currentFunction : fundec ref  = ref dummyFunDec
 
@@ -196,6 +272,7 @@ let getBaseFieldOfFat t =
   
    (* Test if we must check the return value *)
 let mustCheckReturn tret =
+  checkReturn &&
   match unrollType tret with
     TPtr _ -> true
   | TArray _ -> true
@@ -303,24 +380,28 @@ let rec boxstmt (s : stmt) : stmt =
         mkSeq (doe @ [Switch (e', boxstmt s)])
 
     | Return (Some e) -> 
-        let (_, doe, e') = boxexp e in
-        let doe' = 
+        let retType = (* Already fixed *)
           match !currentFunction.svar.vtype with 
-            TFun(tRes, _, _, _) when mustCheckReturn tRes -> 
-              if isFatType tRes then begin
+            TFun(tRes, _, _, _) -> tRes
+          | _ -> E.s (E.bug "Current function's type is not TFun")
+        in 
+        let (_, doe, e') = boxexp e in
+        let doe' = (* Add the check *)
+          if mustCheckReturn retType then
+            if isFatType retType then begin
                 (* Cast e' to fat_voidptr *)
-                let fatptr = fixupType voidPtrType in
-                let (caste, rese) = castTo e' tRes fatptr in
-                doe @ caste @ 
-                [call None (Lval(var checkSafeRetFat.svar)) [rese]]
-              end else begin
-                doe @ 
-                [call None (Lval(var checkSafeRetLean.svar)) [ e' ]]
-              end
-          | _ -> doe
+              let fatptr = fixupType voidPtrType in
+              let (caste, rese) = castTo e' retType fatptr in
+              doe @ caste @ 
+              [call None (Lval(var checkSafeRetFat.svar)) [rese]]
+            end else begin
+              doe @ 
+              [call None (Lval(var checkSafeRetLean.svar)) [ e' ]]
+            end
+          else
+            doe
         in
         mkSeq (doe' @ [Return (Some e')])
-          
     | Instruction i -> boxinstr i
   with e -> begin
     ignore (E.log "boxstmt (%s)\n" (Printexc.to_string e));
@@ -333,7 +414,12 @@ and boxinstr (ins: instr) =
   try
     match ins with 
     | Set(Var(vi, off, l), e, l') ->
-        let (rest, dooff, off') = boxoffset off vi.vtype in
+        let tbase = 
+          match vi.vtype with
+            TArray(t, _, _) -> t
+          | x -> x
+        in
+        let (rest, dooff, off') = boxoffset off tbase in
         let (_, doe, e') = boxexp e in
         mkSeq (dooff @ doe @ [Instruction(Set(Var(vi, off', l), e', l'))])
 
@@ -360,13 +446,15 @@ and boxinstr (ins: instr) =
           | _ -> E.s (E.unimp "call of a non-function: %a @!: %a" 
                         d_plainexp f' d_plaintype ft) 
         in
-        let rec doArgs restargs restargst = 
+        let rec doArgs restargs restargst = (* The types of functions have 
+                                             * been fixed already  *) 
           match restargs, restargst with
             [], [] -> [], []
-          | a :: resta, _ :: restt -> 
-              let (_, doa, a') = boxexp a in
+          | a :: resta, t :: restt -> 
+              let (at, doa, a') = boxexp a in
+              let (doa', a'') = castTo a' at t.vtype in
               let (doresta, resta') = doArgs resta restt in
-              (doa @ doresta,  a' :: resta')
+              (doa @ doa' @ doresta,  a'' :: resta')
           | a :: resta, [] when isva -> 
               let (at, doa, a') = boxexp a in
               let (doresta, resta') = doArgs resta [] in
@@ -412,22 +500,17 @@ and boxinstr (ins: instr) =
 
 
 and boxoffset (off: offset) (basety: typ) : offsetRes = 
+(*
+  if !currentFunction.svar.vname = "releaseHashes" then
+    ignore (E.log "boxoffset %a@!of %a\n"
+              d_plainlval (Mem(zero,off,lu))
+              d_plaintype basety);
+*)
   match off with 
   | NoOffset ->
       (basety, [], NoOffset)
 
-  | Index (e, resto) when isFatType basety ->
-      let fptr = getPtrFieldOfFat basety in
-      let (rest, doo, off') = boxoffset off fptr.ftype in
-      (rest, doo, Field(fptr, off'))
-
   | Index (e, resto) -> 
-      let _ =        (* Just checking *)           
-        match unrollType basety with
-          TPtr (t, _) -> t
-        | TArray (t, _, _) -> t
-        | _ -> E.s (E.bug "Index for type %a" d_type basety)
-      in 
       let (_, doe, e') = boxexp e in
       let (rest', doresto, off') = boxoffset resto basety in
       (rest', doe @ doresto, Index(e', off'))
@@ -442,7 +525,12 @@ and boxoffset (off: offset) (basety: typ) : offsetRes =
 and boxexp (e : exp) : expRes = 
   match e with
   | Lval (Var(vi, off, l)) ->       (* Reading a variable *)
-      let (rest, dooff, off') = boxoffset off vi.vtype in
+      let tbase = 
+        match vi.vtype with
+          TArray(t, _, _) -> t
+        | x -> x
+      in
+      let (rest, dooff, off') = boxoffset off tbase in
       (rest, dooff, Lval(Var(vi, off', l)))
 
                                         (* Reading a memory address *)
@@ -533,11 +621,20 @@ and boxexp (e : exp) : expRes =
 
       | _, _, _ -> E.s (E.unimp "boxBinOp")
   end
-        
+
+  | SizeOf (t, l) -> 
+      let t' = fixupType t in
+      (intType, [], SizeOf(t', l))
+
   | AddrOf (Var(vi,off,l), l') -> 
       if not vi.vaddrof then 
         E.s (E.bug "addrof not set for %s" vi.vname);
-      let (rest, dooff, off') = boxoffset off vi.vtype in
+      let tbase = 
+        match vi.vtype with
+          TArray(t, _, _) -> t
+        | x -> x
+      in
+      let (rest, dooff, off') = boxoffset off tbase in
       let ptrtype = 
         match rest with
           TArray(t, _, a) -> TPtr(t, a)
@@ -578,7 +675,12 @@ and boxexp (e : exp) : expRes =
   | StartOf (Var(vi,off,l)) -> 
       if not vi.vaddrof then 
         E.s (E.bug "addrof not set for %s" vi.vname);
-      let (rest, dooff, off')= boxoffset off vi.vtype in
+      let tbase = 
+        match vi.vtype with
+          TArray(t, _, _) -> t
+        | x -> x
+      in
+      let (rest, dooff, off') = boxoffset off tbase in
       let ptrtype = 
         match rest with
           TArray(t, _, a) -> TPtr(t, a)
@@ -596,6 +698,29 @@ and boxexp (e : exp) : expRes =
                  lu)) in
       (tres, dooff @ doset, Lval(reslv))
       
+  | StartOf (Mem(addr, off, l)) -> 
+      let (addrt, doaddr, addr', addr'base) = boxexpSplit addr in
+      let addrt' = 
+        match addrt with
+          TPtr(t, _) -> t
+        | TArray(t, _, _) -> t
+        | _ -> E.s (E.unimp "Reading from a non-pointer type: %a\n"
+                      d_plaintype addrt)
+      in
+      let (rest, dooff, off') = boxoffset off addrt' in
+      let ptrtype = 
+        match rest with
+          TArray(t, _, a) -> TPtr(t, a)
+        | _ -> E.s (E.bug "StartOf on a non-array")
+      in
+      let tres = fixupType ptrtype in
+      let (doset, reslv) = 
+        setFatPointer tres 
+          (fun _ -> Lval(Mem(addr',off',l)))
+          addr'base 
+      in
+      (tres, doaddr @ dooff @ doset, Lval(reslv))
+        
       
   | _ -> begin
       ignore (E.log "boxexp: %a\n" d_exp e);
@@ -636,7 +761,7 @@ and readPtrBaseField e et =
 
 and castTo e et newt = 
 (*
-  if !currentFunction.svar.vname = "MapHash" then
+  if !currentFunction.svar.vname = "releaseHashes" then
     ignore (E.log "cast %a@!from %a@! to %a\n" 
               d_plainexp e d_plaintype et d_plaintype newt);
 *)
@@ -657,35 +782,22 @@ and castTo e et newt =
 
   | true, false -> ([], CastE(newt, readPtrField e et, lu))
 
-  | false, false -> ([], CastE(newt, e, lu))
+  | false, false -> 
+      if typeSig et = typeSig newt then 
+        ([], e)
+      else
+        ([], CastE(newt, e, lu))
 
   | false, true -> begin 
+(*
       if !currentFunction.svar.vname = "MapHash" then
         ignore (E.log "Casting %a@!from %a@!to %a\n" 
                   d_plainexp e d_plaintype et d_plaintype newt);
-      (* Sometimes we cast from arrays to fat pointers. *)
-      match et with
-        TArray(telem,_,_) -> begin (* Treat this as an implicit AddrOf *)
-          match e with
-            Lval(Var(vi,o,l)) ->
-              let docast, reslv = 
-                setFatPointer newt
-                  (fun t -> CastE(t, e, lu))
-                  (CastE(voidPtrType, AddrOf(Var(vi,NoOffset,l), lu), lu)) in
-              (docast, Lval(reslv))
-          | Lval(Mem(addr, o, l)) -> (* addr is already done *)
-              let docast, reslv = 
-                setFatPointer newt
-                  (fun t -> CastE(t, e, lu))
-                  (CastE(voidPtrType, fromPtrToBase addr, lu)) in
-              (docast, Lval(reslv))
-          | _ -> E.s (E.unimp "casting an array that is not an lval")
-        end
-      | _ -> 
-          let docast, reslv = setFatPointer newt 
-              (fun t -> CastE(t, e, lu))
-              (CastE(voidPtrType, zero, lu)) in
-          (docast, Lval(reslv))
+*)
+      let docast, reslv = setFatPointer newt 
+          (fun t -> CastE(t, e, lu))
+          (CastE(voidPtrType, zero, lu)) in
+      (docast, Lval(reslv))
   end
 
     (* Create a new temporary of a fat type and set its pointer and base 
@@ -734,17 +846,36 @@ let boxFile globals =
     match g with
     | GVar (vi, init) as g -> begin
         if debug then
-          ignore (E.log "Boxing GVar(%s)\n" vi.vname);
-        vi.vtype <- fixupType vi.vtype;
-        if vi.vstorage <> Extern &&
-          (match vi.vtype with TFun _ -> false | _ -> true) then begin
-            let sz = intSizeOfNoExc vi.vtype in
-            let (tagtype, taginit) = tagTypeInit sz in
-            let tagvar = makeGlobalVar ("__tag_of_" ^ vi.vname) tagtype in
-            tagvar.vstorage <- Static;
-            theFile := GVar (tagvar, Some (taginit)) :: !theFile
-          end;
-        theFile := g :: !theFile
+          ignore (E.log "Boxing GVar(%s)\n" vi.vname); 
+        if (match vi.vtype with TFun _ -> true | _ -> false) &&
+           List.exists (fun x -> x = vi.vname) leaveAlone then begin
+             (* Leave alone these functions *)
+             theFile := g :: !theFile
+        end else begin
+          vi.vtype <- fixupType vi.vtype;
+          if vi.vstorage <> Extern &&
+            (match vi.vtype with TFun _ -> false | _ -> true) then begin
+              let sz = intSizeOfNoExc vi.vtype in
+              let (tagtype, taginit) = tagTypeInit sz in
+              let tagvar = makeGlobalVar ("__tag_of_" ^ vi.vname) tagtype in
+              tagvar.vstorage <- Static;
+              theFile := GVar (tagvar, Some (taginit)) :: !theFile
+            end;
+          let init' = 
+            match init with
+              None -> None
+            | Some e -> 
+                let (et, doe, e', e'base) = boxexpSplit e in
+                if doe <> [] then
+                  E.s (E.unimp "Non-pure initializer %a\n"
+                         d_exp e);
+                if isFatType vi.vtype then
+                  Some (Compound(vi.vtype, [ e'; e'base]))
+                else
+                  Some e'
+          in
+          theFile := GVar(vi, init') :: !theFile
+        end
     end
     | GType (n, t) as g -> 
         if debug then
