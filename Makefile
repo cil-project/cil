@@ -316,7 +316,7 @@ PCCCOMP=_MSVC
 endif
 
 testpcc/% : $(PCCDIR)/src/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
-	cd $(SAFECCDIR)/cil/test/PCCout; $(SAFECC) --keep=. $(DEF)$(ARCHOS) \
+	cd $(CILDIR)/test/PCCout; $(SAFECC) --keep=. $(DEF)$(ARCHOS) \
                   $(DEF)$(PCCTYPE) $(CONLY) \
                   $(PCCDIR)/src/$*.c \
                   $(OBJOUT)$(notdir $*).o
@@ -330,8 +330,8 @@ testallspj: $(EXECUTABLE)$(EXE) $(TVEXE) $(SAFECLIB) $(SAFEMAINLIB)
              CC="$(SAFECC) --keep=$(CILDIR)/test/PCCout $(CONLY)" \
              USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
              COMPILER=$(PCCCOMP) \
-             ENGINE_OTHERS="C:$(SAFECLIB) C:$(SAFEMAINLIB)" \
-             TRANSLF_OTHERS="C:$(SAFECLIB) C:$(SAFEMAINLIB)" \
+             ENGINE_OTHERS="$(CILDIR)/$(SAFECLIB) $(CILDIR)/$(SAFEMAINLIB)" \
+             TRANSLF_OTHERS="$(CILDIR)/$(SAFECLIB) $(CILDIR)/$(SAFEMAINLIB)" \
 	     defaulttarget 
 
 ifdef _MSVC
@@ -421,11 +421,6 @@ test/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
                --patch=../../lib/$(PATCHFILE) \
 	       $(CONLY) $(DOOPT) $(ASMONLY)$*.s $*.c 
 
-testc/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
-	cd $(SMALL1); $(SAFECC)   \
-               --patch=../../lib/$(PATCHFILE) \
-	       $*.c $(DOOPT) $(EXEOUT)$*.exe
-	$(SMALL1)/$*.exe
 
 HASHTESTCC = $(SAFECC) --keep=.  --patch=../../lib/$(PATCHFILE) \
               $(DOOPT) $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
@@ -494,7 +489,7 @@ hola: test/small2/hola.c $(EXECUTABLE)$(EXE) \
 HUFFCOMPILE=$(SAFECC) --keep=. 
 # HUFFCOMPILE=cl /MLd
 ifdef BOX
-HUFFOTHERS="C:$(SAFEMAINLIB)" 
+HUFFOTHERS=$(CILDIR)/$(SAFEMAINLIB) 
 else
 HUFFOTHERS=
 endif
@@ -513,7 +508,7 @@ hufftest: test/small2/hufftest.c $(EXECUTABLE)$(EXE) \
                  $(HUFFOTHERS) \
                  $(EXEOUT)hufftest.exe
 	cd $(PCCTEST); ./hufftest.exe \
-                             $(SAFECCDIR)/cil/src/frontc/cparser.output
+                             $(CILDIR)/src/frontc/cparser.output
 
 wes-rbtest: test/small2/wes-rbtest.c $(EXECUTABLE)$(EXE) $(TVEXE)\
             $(SAFECLIB)
