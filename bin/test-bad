@@ -33,7 +33,8 @@ if [ "$1" = "" ]; then
   exit 0
 fi
 srcfile="$1"
-
+srcfilenoext=`echo $srcfile | sed s/.c\$//`
+tmpname="$srcfilenoext-tmp"
 cd "$CCUREDHOME/test/small2" || exit
 
 # read how many failure cases are in the file; expect line of form
@@ -45,6 +46,7 @@ if [ -z "$numcases" ]; then
 fi
 echo "there are $numcases failure cases in this file"
 
+
 # iterate through the cases; first case (0) is where no errors are present
 i=0
 while [ $i -le $numcases ]; do
@@ -53,21 +55,33 @@ while [ $i -le $numcases ]; do
   # (syntax for errors has parentheses so if I have >=10 cases I don't
   # run into problems where e.g. ERROR1 is a substring of ERROR10)
   echo "generating test $i"
-  rm -f test-bad-tmp.c 2>/dev/null
-  cat "$srcfile" | sed "s/ERROR($i)/(selected: $i)/" | grep -v ERROR > test-bad-tmp.c
-  chmod a-w test-bad-tmp.c
+  rm -f $tmpname.c 2>/dev/null
+  cat "$srcfile" | sed "s/ERROR($i)/(selected: $i)/" | grep -v ERROR > $tmpname.c
+  chmod a-w $tmpname.c
 
   # compile this with our tool
-  echo $CCURED $CFLAGS test-bad-tmp.c -o test-bad-tmp
-  $CCURED $CFLAGS test-bad-tmp.c -o test-bad-tmp
+  echo
+  echo
+  echo "********************** Iteration $i"
+  echo
+  echo
+  echo $CCURED $CFLAGS $tmpname.c -o $tmpname
+  $CCURED $CFLAGS $tmpname.c -o $tmpname
   status=$?
   if [ $status != 0 ]; then
-    exit $status
+    if [ $i = 0 ] ;then
+      echo "The 0th iteration failed to CURE! It is supposed to succeed."
+      exit $status
+    else
+      echo "The ${i}th iteration failed to CURE!  It is supposed to fail."
+      i=`expr $i + 1`
+      continue
+    fi
   fi
 
   # run it
-  echo ./test-bad-tmp
-  if ./test-bad-tmp; then
+  echo ./$tmpname
+  if ./$tmpname; then
     if [ $i = 0 ]; then
       # expected success on 0th iteration
       echo "(succeeded as expected)"
@@ -80,7 +94,7 @@ while [ $i -le $numcases ]; do
     if [ $i = 0 ]; then
       # unexpected failure on 0th iteration
       echo "The 0th iteration failed! It is supposed to succeed."
-      #cat test-bad-tmp.c
+      #cat $tmpname.c
       exit 2
     else
       # expected failure on >0th iteration
