@@ -401,7 +401,7 @@ let pkQualName (pk: N.pointerkind)
   match pk with
     N.Safe -> dobasetype ("s" :: acc)
   | N.String -> 
-    E.warn "Using 's' for String qualifier name" ;
+    (* Wes: E.warn "Using 's' for String qualifier name" ; *)
     dobasetype ("s" :: acc) (* Wes: is this OK? *)
   | N.Wild -> "w" :: acc (* Don't care about what it points to *)
   | N.Index -> dobasetype ("i" :: acc)
@@ -640,14 +640,14 @@ let mkPointerTypeKind (bt: typ) (k: N.pointerkind) =
 let mkFexp1 (t: typ) (e: exp) = 
   let k = kindOfType t in
   match k with
-    (N.Safe|N.Scalar) -> L  (t, k, e)
+    (N.Safe|N.Scalar|N.String) -> L  (t, k, e)
   | (N.Index|N.Wild|N.FSeq|N.Seq) -> FS (t, k, e)
   | _ -> E.s (E.bug "mkFexp1")
 
 let mkFexp2 (t: typ) (ep: exp) (eb: exp) = 
   let k = kindOfType t in
   match k with
-    (N.Safe|N.Scalar) -> L  (t, k, ep)
+    (N.Safe|N.Scalar|N.String) -> L  (t, k, ep)
   | (N.Index|N.Wild|N.FSeq) -> FM (t, k, ep, eb, zero)
   | _ -> E.s (E.bug "mkFexp2")
 
@@ -1352,6 +1352,10 @@ let castTo (fe: fexp) (newt: typ)
 
       | N.Seq, N.String ->
         ignore (E.warn "Warning: unsafe cast from SEQ -> STRING") ;
+          (doe, L(newt, N.Scalar, castP p))
+
+      | N.Wild, N.String -> 
+        ignore (E.warn "Warning: wishful thinking cast from WILD -> STRING") ;
           (doe, L(newt, N.Scalar, castP p))
 
        (******* UNIMPLEMENTED ********)

@@ -401,9 +401,18 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     end) node_ht
   done ;
 
+  let is_char_pointer n =
+    match n.btype with
+      TInt(IChar,_) -> true
+    | TInt(ISChar,_) -> true
+    | TInt(IUChar,_) -> true
+    | _ -> false
+  in
+
   (* mark all interface char * nodes with no arith as string *)
   Hashtbl.iter (fun id n -> 
-    if n.interface && not (n.arith || n.posarith) then begin
+    if n.interface && not (n.arith || n.posarith) && 
+       is_char_pointer n then begin
       ignore (update_kind n String BoolFlag)
     end) node_ht ;
 
@@ -418,8 +427,8 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       let f = (fun n -> if (update_kind n cur.kind why) then 
                           finished := false) in
       let contaminated_list = 
-        (List.map (fun e -> e.efrom) (cur.pred)) (* @ 
-        (List.map (fun e -> e.eto) (cur.succ))  *)
+        (List.map (fun e -> e.efrom) (ecast_edges_only cur.pred))  @ 
+        (List.map (fun e -> e.eto) (ecast_edges_only cur.succ))  
         in
       List.iter f contaminated_list ;
       (* mark all cast edges at least equal to this! *)
