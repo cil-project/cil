@@ -44,10 +44,12 @@ $(OBJDIR)/cil.$(CMXA): $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
 
 
 # Test cil
+# sm: was the purpose of "-c ./" to work around the fact that
+# the script isn't executable?  they don't have that effect..
 ifdef _MSVC
-TESTCILARG=--MSVC -testcil "bash -c ./msvctestcil"
+TESTCILARG=--MSVC -testcil "bash msvctestcil"
 else
-TESTCILARG=       -testcil "bash -c ./gcctestcil"
+TESTCILARG=       -testcil "bash gcctestcil"
 endif
 
 testcil: $(EXECUTABLE)$(EXE)	
