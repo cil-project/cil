@@ -1758,11 +1758,17 @@ linux-noclean:  mustbegcc mustbelinux mustbemanju
 linux-gcc: mustbelinux mustbemanju linuxclean
 	cd $(LINUXSRC); make CC=gcc HOSTCC=gcc
 
-# sm: attempt to get linux to work with merger
-linux-merge: mustbegcc mustbelinux mustbemanju linuxclean
-	cd $(LINUXSRC) ; make CC="$(CILLY) "  \
-                              HOSTCC="$(CILLY) " \
-                              LD="$(CILLY) " bzImage
+# ww: merge all of the key files in the linux kernel
+# "linux-merge" tries to merge the *cil.c versions of the files 
+# "linux-merge2" tries to merge the *.i versions of the files
+# in the end, both should work 
+LINUX_MERGE_SRC = /home/weimer/linux
+linux-merge: mustbegcc mustbelinux mustbemanju 
+	cd $(LINUX_MERGE_SRC)/merger ; \
+        $(CCURED) --curetype=none `cat merge-file-list`
+linux-merge2: mustbegcc mustbelinux mustbemanju 
+	cd $(LINUX_MERGE_SRC)/merger ; \
+        $(CCURED) --curetype=none `cat merge-file-list2`
 
 
 ######################## SENDMAIL
