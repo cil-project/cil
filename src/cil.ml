@@ -1742,7 +1742,7 @@ let offsetOf (fi: fieldinfo) (startcomp: int) : int * int =
       
  
 (**************** CHECKING ********************)      
-(* qA consistency checker for CIL programs. All invariants that should always 
+(* A consistency checker for CIL programs. All invariants that should always 
  * hold are checked. *)
 let check (fl: file) = 
   (* Attributes must be sorted *)
@@ -1759,10 +1759,12 @@ let check (fl: file) =
     in
     loop "" attrs
   in
-  (* Keep track of defined type names, by name *)
+  (* Keep track of defined type names, by name. We assume that these types 
+   * are already checked. We also add in here types with names like "struct 
+   * n" or "union n" to make sure they are not redefined *)
   let typeDefs : (string, typ) H.t = H.create 117 in
   (* Check a type *)
-  let checkType (t: typ) = 
+  let rec checkType (t: typ) = 
     match t with
       TVoid a -> checkAttributes a
     | TInt (ik, a) -> checkAttributes a
@@ -1771,6 +1773,63 @@ let check (fl: file) =
         checkAttributes a &&
         w >= 0 &&
         w <= bitsSizeOf (TInt(ik, a))
+    | TNamed (n, t, a) -> 
+        (* The name must be already defined. The t must be identical to the 
+         * one used in the definition *)
+        (try t == H.find typeDefs n with Not_found -> false) &&
+        checkAttributes a
+    | TForward (iss, n, tr, a) -> 
+        checkAttributes a &&
+        (match !tr with 
+          TComp (iss', n', _, _, tr') as t' -> 
+            tr == tr' && (* They must share the ref cell *)
+            iss' = iss &&
+            n = n' &&
+            checkType t'
+        | _ -> E.s (E.bug "TForward does not point to TComp"))
+    | TComp(iss, n, fields, a, tr) -> begin
+        !tr == t &&  (* Make sure the self pointer is set *)
+        n <> "" && (* Name cannot be empty *)
+        (* Now add to the list of checked types, to avoid looping *)
+        let n' = (if iss then "struct " else "union ") ^ n in
+        try
+          let t' = H.find typeDefs n' in
+          t == t' (* If we have seen one with the same name then it must be 
+                   * the same one *)
+        with Not_found -> 
+          let rec checkFields = function
+              [] -> true
+            | f :: rest -> 
+                (f.fcomp == tr &&  (* Each field must share the self cell of 
+                                      * the host *)
+                 f.fname <> "" &&
+                 checkType f.ftype &&
+                 checkAttributes f.fattr &&
+                 checkFields rest)
+          in
+          (* Add the type to the typeDefs before we check the fields *)
+          H.add typeDefs n' t;
+          checkFields fields
+    end
+    | TPtr (t, a) -> 
+        checkAttributes a && checkType t
+    | TEnum (n, tags, a) -> begin
+        checkAttributes a &&
+        n <> "" &&
+        let n' = "enum " ^ n in
+        try
+          let t' = H.find typeDefs n' in
+          t == t' (* If we have seen one with the same name then it must be 
+                   * the same one *)
+        with Not_found -> 
+          let rec checkTags x = true in
+          (* Add the type to the typeDefs before we check the tags *)
+          H.add typeDefs n' t;
+          checkTags tags
+    end
+        
+        
+        
   in
   let checkGlobal = function
       GAsm _ -> true
