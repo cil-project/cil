@@ -1715,7 +1715,7 @@ linuxclean:
 	      	\) -exec rm -f {} \;
 
 linux: mustbegcc mustbelinux mustbemanju linuxclean
-	cd $(LINUXSRC) ; make -k CC="$(CILLY)" HOSTCC="$(CILLY)"
+	cd $(LINUXSRC) ; make -k CC="$(CILLY)" HOSTCC="$(CILLY)" bzImage
 
 linux-noclean:  mustbegcc mustbelinux mustbemanju
 	cd $(LINUXSRC) ; make -k CC="$(CILLY)" HOSTCC="$(CILLY)"
