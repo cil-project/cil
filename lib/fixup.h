@@ -183,6 +183,7 @@ extern long double __builtin_fabsl(long double);
   void *        __mkptr(void * __SAFE ptr, void *phome);
   int __strlen(void *ptr);      //calls fp_fail if not nul-terminated
   int __noninteger(void *ptr);  //returns 0 if ptr does not point to a real memory location.
+  void __copytags(void *dest, void*src, unsigned int len);  
 
   #pragma boxpoly("__startof")
   #pragma boxpoly("__endof")
@@ -190,6 +191,7 @@ extern long double __builtin_fabsl(long double);
   #pragma boxpoly("__mkptr")
   #pragma boxpoly("__strlen")
   #pragma boxpoly("__noninteger")
+  #pragma boxpoly("__copytags")
 
   //Helper routine:
   static inline

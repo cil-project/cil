@@ -370,6 +370,11 @@ sub preprocess_before_cil {
             map { my $dir = $_;
                   $self->{INCARG} . $dir . "/" . $self->{VERSION} }
             @{$self->{INCLUDEDIR}};
+        #matth: include the main include dir as well as the compiler-specific directory
+        unshift @args,
+            map { my $dir = $_;
+                  $self->{INCARG} . $dir }
+            @{$self->{INCLUDEDIR}};
         if($self->{MODENAME} eq 'GNUCC') {
             # sm: this is incompatible with wu-ftpd, but is apparently needed
             # for apache.. more investigation is needed

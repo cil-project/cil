@@ -307,6 +307,8 @@ $TEST->addTests("testrun/addrof3", "_GNUCC=1", ['cil']);
 $TEST->add3Tests("testrun/lval1", "_GNUCC=1");
 $TEST->add3Tests("testmodel/model1");
 $TEST->add3Tests("testmodel/modelpoly");
+$TEST->add3Tests("testwrapper/wrapper1");
+$TEST->add3Tests("testwrapper/wrapperpoly");
 $TEST->addTests("testrun/decl1", "_GNUCC=1", ['cil']);
 $TEST->add3Tests("wes-hashtest", "");
 $TEST->add3Tests("wes-rbtest", "");
