@@ -154,11 +154,7 @@ extern long double __builtin_fabsl(long double);
   #pragma boxpoly("__ptrof")
   #pragma boxpoly("__mkptr")
   #pragma boxpoly("__strlen")
-/*  #pragma boxpoly("__startof_model")
-  #pragma boxpoly("__endof_model")
-  #pragma boxpoly("__mkptr_model")
-  #pragma boxpoly("__strlen_model")
-*/
+
 
 /*  static inline
   void * __SAFE __startof_model(void *ptr)
@@ -185,13 +181,15 @@ extern long double __builtin_fabsl(long double);
   #pragma boxmodelof("__strlen_model", "__strlen")
 */
 
-  #pragma boxpoly("__mkptr")
+
   static inline
-  void *__mkptr(void * __SAFE ptr, void *phome)
+  void *__mkptr_model(void * __SAFE ptr, void *phome)
   {
-    return ((char*)phome) + ( ((char*)ptr) - ((char*)phome) );    
+    //    return ((char*)phome) + ( ((char*)ptr) - ((char*)phome) );    
+    return phome;    
   }
-  //#pragma boxmodelof("__mkptr_model", "__mkptr")
+  #pragma boxmodelof("__mkptr_model", "__mkptr")
+  #pragma boxpoly("__mkptr_model")
 
 
 
