@@ -32,35 +32,43 @@
 
 open Pretty
 open Trace      (* sm: 'trace' function *)
+open Cil
 module E = Errormsg
 module H = Hashtbl
 
 let debugMerge = true
 
-(** Merge a number of CIL files *)
 
-(** A number of name spaces *)
-type nameSpace = NType | NStruct | NUnion | NEnum | NVar
+(** For each name in the new file we map it to a corresponding name in the 
+  * previously combined files, if there is such an isomorphic name *)
+let vReuse: (string, varinfo) H.t = H.create 111
+let sReuse: (string, compinfo) H.t = H.create 111
+let uReuse: (string, compinfo) H.t = H.create 111
+let eReuse: (string, enuminfo) H.t = H.create 111
+let tReuse: (string, string * typ) H.t = H.create 111
+        
 
-let ns2string = function
-    NType -> "NType"
-  | NStruct -> "NStruct"
-  | NUnion -> "NUnion"
-  | NEnum -> "NEnum"
-  | NVar -> "NVar"
+(** A global environment for variables. Put in here only the non-static 
+  * variables *)
+let vEnv : (string, varinfo * location) H.t = H.create 111
 
-(** A number of global environments *)
-  (* Types *)
-let tEnv : (string, typ * location) H.t = H.create 111
-  (* Structures and unions *)
-let cEnv : (string, compinfo * location) H.t = H.create 111
-let eEnv : (string, enuminfo * location) H.t = H.create 111 (* enumerations *)
-let vEnv : (string, varinfo * location) H.t = H.create 111 (* variables and functions *)
+(* A file-local environment for type names *)
+let tEnv : (string, string * typ)  H.t = H.create 111
 
-let env : (nameSpace * string, global) = H.create
+
 (** A number of alpha conversion tables *)
-let tAlpha : (string, int ref) H.t = H.create 57 (* Types *)
+let vAlpha : (string, int ref) H.t = H.create 57 (* Variables *)
+let sAlpha : (string, int ref) H.t = H.create 57 (* Structures *)
+let uAlpha : (string, int ref) H.t = H.create 57 (* Unions *)
+let eAlpha : (string, int ref) H.t = H.create 57 (* Enumerations *)
+let tAlpha : (string, int ref) H.t = H.create 57 (* Type names *)
 
+  (* Accumulate here the globals in the merged file *)
+let theFileTypes = ref [] 
+let theFile      = ref []
+
+
+(* Initialize the module *)
 let init () = 
   H.clear tAlpha;
   H.clear sAlpha;
@@ -68,11 +76,422 @@ let init () =
   H.clear eAlpha;
   H.clear vAlpha;
 
+  H.clear vEnv;
+
+  theFile := [];
+  theFileTypes := []
+
+(* Initialize before processing one file *)
+let initOneFile () =
+  H.clear vReuse;
+  H.clear sReuse;
+  H.clear uReuse;
+  H.clear eReuse;
+  H.clear tReuse;
+
   H.clear tEnv;
-  H.clear sEnv;
-  H.clear uEnv;
-  H.clear eEnv;
-  H.clear vEnv
+      
+
+
+    (* Combine the types. Raises the Failure exception with an error message. 
+     * isdef says whether the new type is for a definition *)
+type combineWhat = 
+    CombineFundef (* The new definition is for a function definition. The old 
+                   * is for a prototype *)
+  | CombineFunarg (* Comparing a function argument type with an old prototype 
+                   * arg *)
+  | CombineFunret (* Comparing the return of a function with that from an old 
+                   * prototype *)
+  | CombineOther
+
+
+let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ = 
+  match oldt, t with
+  | TVoid olda, TVoid a -> TVoid (addAttributes olda a)
+  | TInt (oldik, olda), TInt (ik, a) -> 
+      let combineIK oldk k = 
+        if oldk == k then oldk else
+        (* GCC allows a function definition to have a more precise integer 
+         * type than a prototype that says "int" *)
+        if not !msvcMode && oldk = IInt && bitsSizeOf t <= 32 then 
+          k
+        else
+          raise (Failure "different integer types")
+      in
+      TInt (combineIK oldik ik, addAttributes olda a)
+  | TFloat (oldfk, olda), TFloat (fk, a) -> 
+      let combineFK oldk k = 
+        if oldk == k then oldk else
+        (* GCC allows a function definition to have a more precise integer 
+         * type than a prototype that says "double" *)
+        if not !msvcMode && oldk = FDouble && k = FFloat then 
+          k
+        else
+          raise (Failure "different floating point types")
+      in
+      TFloat (combineFK oldfk fk, addAttributes olda a)
+  | TEnum (oldei, olda), TEnum (ei, a) -> begin
+      (* See if we have a mapping already *)
+      try
+        let ei' = H.find eReuse ei.ename in 
+        if oldei.ename = ei'.ename then 
+          TEnum (oldei, addAttributes olda a) 
+        else
+          raise (Failure "different enumeration tags")
+      with Not_found -> begin
+        (* We do not have a mapping. They better be defined in the same way *)
+        if List.length oldei.eitems <> List.length ei.eitems then 
+          raise (Failure "different number of enumeration elements");
+        (* We check that they are defined in the same way. This is a fairly 
+         * conservative check. *)
+        List.iter2 
+          (fun (old_iname, old_iv) (iname, iv) -> 
+            if old_iname <> iname then 
+              raise (Failure "different names for enumeration items");
+            if old_iv <> iv then 
+              raise (Failure "different values for enumeration items"))
+          oldei.eitems ei.eitems;
+        (* We get here if the enumerations match *)
+        oldei.eattr <- addAttributes oldei.eattr ei.eattr;
+        H.add eReuse ei.ename oldei;
+        if debugMerge then 
+          ignore (E.log " Renaming enum %s to %s\n" ei.ename  oldei.ename);
+        TEnum (oldei, addAttributes olda a)
+      end
+  end
+        (* Strange one. But seems to be handled by GCC *)
+  | TEnum (oldei, olda) , TInt(IInt, a) -> TEnum(oldei, 
+                                                 addAttributes olda a)
+        (* Strange one. But seems to be handled by GCC *)
+  | TInt(IInt, olda), TEnum (ei, a) -> TEnum(ei, addAttributes olda a)
+        
+        
+  | TComp (oldci, olda) , TComp (ci, a) -> begin
+      if oldci.cstruct <> ci.cstruct then 
+        raise (Failure "different struct/union types");
+      (* See if we have a mapping already *)
+      let reuseH = if ci.cstruct then sReuse else uReuse in
+      try
+        let ci' = H.find reuseH ci.cname in 
+        if oldci.cname = ci'.cname then 
+          TComp (oldci, addAttributes olda a) 
+        else
+          raise (Failure "different structure tags")
+      with Not_found -> begin
+        (* We do not have a mapping. They better be defined in the same way *)
+        let old_len = List.length oldci.cfields in
+        let len = List.length ci.cfields in
+        if old_len <> len then 
+          raise (Failure "different number of structure fields");
+        (* We check that they are defined in the same way. While doing this 
+         * there might be recursion and we have to watch for going into an 
+         * infinite loop. So we add the assumption that they are equal *)
+        H.add reuseH ci.cname oldci;
+        (* We check the fields but watch for Failure *)
+        (try
+          List.iter2 (fun oldf f -> 
+            if oldf.fbitfield <> f.fbitfield then 
+              raise (Failure "different structs(bitfield info)");
+            if oldf.fattr <> f.fattr then 
+              raise (Failure "different structs(field attributes)");
+            (* Make sure the types are compatible *)
+            ignore (combineTypes CombineOther oldf.ftype f.ftype);
+            ) oldci.cfields ci.cfields
+        with Failure reason -> begin 
+          (* Our assumption was wrong. Forget the isomorphism *)
+          H.remove reuseH ci.cname;
+          let msg = 
+            sprint ~width:80
+              (dprintf
+                 "\n\tFailed in our assumption that %s and %s are isomorphic%s"
+                 (compFullName oldci) (compFullName ci) reason) in
+          raise (Failure msg)
+        end);
+        (* We get here when we succeeded checking that they are equal *)
+        oldci.cattr <- addAttributes oldci.cattr ci.cattr;
+        if debugMerge then 
+          ignore (E.log " Renaming %s to %s\n" (compFullName ci) oldci.cname);
+        TComp (oldci, addAttributes olda a) 
+      end
+  end
+
+  | TArray (oldbt, oldsz, olda), TArray (bt, sz, a) -> 
+      let newbt = combineTypes CombineOther oldbt bt in
+      let newsz = 
+        if oldsz = sz then sz else
+        match oldsz, sz with
+          None, Some _ -> sz
+        | Some _, None -> oldsz
+        | _ -> raise (Failure "different array lengths")
+      in
+      TArray (newbt, newsz, addAttributes olda a)
+        
+  | TPtr (oldbt, olda), TPtr (bt, a) -> 
+      TPtr (combineTypes CombineOther oldbt bt, addAttributes olda a)
+        
+  | TFun (_, _, _, [Attr("missingproto",_)]), TFun _ -> t
+        
+  | TFun (oldrt, oldargs, oldva, olda), TFun (rt, args, va, a) ->
+      let newrt = combineTypes 
+          (if what = CombineFundef then CombineFunret else CombineOther) 
+          oldrt rt 
+      in
+      if oldva != va then 
+        raise (Failure "diferent vararg specifiers");
+      (* If one does not have arguments, believe the one with the 
+      * arguments *)
+      let newargs = 
+        if oldargs = None then args else
+        if args = None then oldargs else
+        let oldargslist = argsToList oldargs in
+        let argslist = argsToList args in
+        if List.length oldargslist <> List.length argslist then 
+          raise (Failure "different number of arguments")
+        else begin
+          (* Go over the arguments and update the old ones with the 
+          * adjusted types *)
+          List.iter2 
+            (fun oldarg arg -> 
+              (* Update the names. Always prefer the new name. This is very 
+               * important if the prototype uses different names than the 
+               * function definition. *)
+              if arg.vname <> "" then oldarg.vname <- arg.vname;
+              oldarg.vattr <- addAttributes oldarg.vattr arg.vattr;
+              oldarg.vtype <- 
+                 combineTypes 
+                   (if what = CombineFundef then 
+                     CombineFunarg else CombineOther) 
+                   oldarg.vtype arg.vtype)
+            oldargslist argslist;
+          oldargs
+        end
+      in
+      TFun (newrt, newargs, oldva, addAttributes olda a)
+        
+  | TNamed (oldn, oldt, olda), TNamed (n, t, a) -> begin
+      (* See if there is already a known match *)
+      try
+        let tn', _ = H.find tReuse n in
+        if tn' <> oldn then 
+          raise (Failure "different type names");
+        TNamed (oldn, oldt, addAttributes olda a)
+      with Not_found -> begin
+        (* Check that they are the same *)
+        (try
+          ignore (combineTypes CombineOther oldt t);
+        with Failure reason -> begin
+          let msg = 
+            sprint ~width:80
+              (dprintf
+                 "\n\tFailed in our assumption that %s and %s are isomorphic%s"
+                 oldn n reason) in
+          raise (Failure msg)
+        end);
+        H.add tReuse n (oldn, oldt);
+        if debugMerge then 
+          ignore (E.log " Renaming type name %s to %s\n" n oldn);
+        TNamed (oldn, oldt, addAttributes olda a)
+      end
+  end
+        
+        (* Unroll first the new type *)
+  | _, TNamed (n, t, a) -> 
+      let res = combineTypes what oldt t in
+      typeAddAttributes a res
+        
+        (* And unroll the old type as well if necessary *)
+  | TNamed (oldn, oldt, a), _ -> 
+      let res = combineTypes what oldt t in
+      typeAddAttributes a res
+        
+  | _ -> raise (Failure "different type constructors")
+
+
+(** A visitor the renames uses of variables and types *)      
+class renameVisitorClass = object (self)
+  inherit nopCilVisitor 
+      
+      (* This is either a global variable which we took care of, or a local 
+       * variable. Must do its type and attributes. *)
+  method vvdec (vi: varinfo) = DoChildren
+
+      (* This is a variable use. See if we must change it *)
+  method vvrbl (vi: varinfo) : varinfo visitAction = 
+    if not vi.vglob then DoChildren else
+    try
+      let vi' = H.find vReuse vi.vname in
+      ChangeTo vi'
+    with Not_found -> DoChildren
+
+
+        (* The use of a type *)
+  method vtype (t: typ) = 
+    match t with 
+      TComp (ci, a) -> begin
+        let reuseH = if ci.cstruct then sReuse else uReuse in
+        try 
+          let ci' = H.find reuseH ci.cname in
+          ChangeTo (TComp (ci', visitCilAttributes (self :> cilVisitor) a))
+        with Not_found -> DoChildren
+      end
+    | TEnum (ei, a) -> begin
+        try 
+          let ei' = H.find eReuse ei.ename in
+          ChangeTo (TEnum (ei', visitCilAttributes (self :> cilVisitor) a))
+        with Not_found -> DoChildren
+      end
+
+    | TNamed (tn, typ, a) -> begin
+        try
+          let tn', typ' = H.find tEnv tn in
+          let a' = visitCilAttributes (self :> cilVisitor) a in
+          if tn = tn' && typ == typ' && a = a' then SkipChildren else
+          ChangeTo (TNamed(tn', typ', a'))
+        with Not_found -> 
+          E.s (bug "Seen TNamed(%s) without a typedef\n" tn)
+    end 
+        
+    | _ -> DoChildren
+end
+
+let renameVisitor = new renameVisitorClass
+
+(* Here is the processing of one new file *)
+let rec doOneFile (f:file) : unit = 
+  if debugMerge || !E.verboseFlag then 
+    ignore (E.log "Merging %s\n" f.fileName);
+
+  (* Initialize the reuse maps *)
+  initOneFile ();
+
+  (* Scan the file and find all global varinfo's. If they are for globals that 
+   * we have seen already then try to merge the type into the old one and 
+   * discard this definition *)
+
+  (* We scan each file and we look at all global varinfo. We see if globals 
+   * with the same name have been encountered before and we merge those types 
+   * *)
+  let matchVarinfo (vi: varinfo) (l: location) = 
+    (* Do nothing here for static variables  *)
+    if vi.vstorage = Static then () else
+    try
+      let oldvi, oldloc = H.find vEnv vi.vname in 
+      (* There is an old definition. We must combine the types. Do this first 
+      * because it might fail  *)
+      (try
+        oldvi.vtype <- 
+           combineTypes CombineOther oldvi.vtype vi.vtype;
+      with (Failure reason) -> begin
+        ignore (error "Incompatible declaration for %s: %s\n. Previous at %a." 
+                  vi.vname reason d_loc oldloc);
+        raise Not_found
+      end);
+      (* Combine the attributes as well *)
+      oldvi.vattr <- addAttributes oldvi.vattr vi.vattr;
+      (* clean up the storage.  *)
+      let newstorage = 
+        if vi.vstorage = oldvi.vstorage || vi.vstorage = Extern then 
+          oldvi.vstorage 
+        else if oldvi.vstorage = Extern then vi.vstorage 
+        else begin
+          ignore (warn "Inconsistent storage specification for %s. Previous declaration: %a" 
+                    vi.vname d_loc oldloc);
+          vi.vstorage
+        end
+      in
+      oldvi.vstorage <- newstorage;
+      H.add vReuse vi.vname oldvi;
+    with Not_found -> () (* Not present in the previous files *)
+  in
+  List.iter
+    (function 
+      | GDecl (vi, l) | GVar (vi, _, l) -> 
+          if vi.vstorage = Static then 
+            matchVarinfo vi l
+      | GFun (fdec, l) -> 
+          (* Force inline functions to be static *) 
+          if fdec.sinline && fdec.svar.vstorage = NoStorage then 
+            fdec.svar.vstorage <- Static;
+          if fdec.svar.vstorage = Static then 
+            matchVarinfo fdec.svar l
+      | _ -> ())
+    f.globals;
+  
+  (* Now we go once more through the file and we rename the globals that we 
+   * keep. We also scan the entire body and we replace references to the 
+   * representative types or variables *)
+
+  (* Process a varinfo. Reuse an old one, or rename it if necessary and 
+   * return an indication if we used an old one *)
+  let processVarinfo (vi: varinfo) (vloc: location) : varinfo * bool= 
+    try
+      let oldvi = H.find vReuse vi.vname in
+      oldvi, true
+    with Not_found -> begin
+      (* Not replacing. Maybe it is static *)
+      if vi.vstorage = Static then begin
+        (* Maybe we need to alphaConvert it *)
+        vi.vname <- newAlphaName vAlpha vi.vname;
+        vi.vid <- H.hash vi.vname
+      end else begin
+        (* Add it to the environment to have it for future files *)
+        H.add vEnv vi.vname (vi,vloc)
+      end;
+      vi, false
+    end
+  in
+  List.iter
+    (function 
+      | GDecl (vi, l) as g -> 
+          let vi', isold = processVarinfo vi l in
+          if isold then (* Drop this declaration *) () else
+          theFile := (visitCilGlobal renameVisitor g) @ !theFile;
+
+      | GVar (vi, init, l) as g -> 
+          let vi', _= processVarinfo vi l in
+          (* We must keep this definition even if we reuse this varinfo, 
+           * because maybe the previous one was a declaration *)
+          theFile := 
+             (visitCilGlobal renameVisitor (GVar(vi', init, l))) @ !theFile;
+      | GFun (fdec, l) as g -> 
+          let vi', isold = processVarinfo fdec.svar l in
+          theFile := (visitCilGlobal renameVisitor g) @ !theFile
+
+      | GCompTag (ci, l) as g -> 
+          let reuseH, alphaH = 
+            if ci.cstruct then sReuse, sAlpha else uReuse, uAlpha 
+          in
+          if H.mem reuseH ci.cname then
+            () (* Drop this since we are reusing it from before *)
+          else begin
+            (* We must rename it *)
+            ci.cname <- newAlphaName alphaH ci.cname;
+            ci.ckey <- H.hash (compFullName ci);
+            theFileTypes := (visitCilGlobal renameVisitor g) @ !theFileTypes;
+          end
+            
+      | GEnumTag (ei, _) as g -> 
+          if H.mem eReuse ei.ename then
+            () (* Drop this since we are reusing it from before *)
+          else begin
+            (* We must rename it *)
+            ei.ename <- newAlphaName eAlpha ei.ename;
+            theFileTypes := (visitCilGlobal renameVisitor g) @ !theFileTypes;
+          end
+
+      | GType (n, t, l) as g -> 
+          if H.mem tReuse n then
+            () (* Drop this since we are reusing it from before *)
+          else begin
+            (* We must rename it *)
+            theFileTypes := 
+               (visitCilGlobal renameVisitor 
+                  (GType (newAlphaName tAlpha n, t, l))) 
+                @ !theFileTypes;
+          end
+      | g -> theFile := (visitCilGlobal renameVisitor g) @ !theFile)
+    f.globals
+
 
 let merge (files: file list) (newname: string) : file = 
   init ();
@@ -80,45 +499,28 @@ let merge (files: file list) (newname: string) : file =
    * so that when we rename later we do not generate new names *)
   List.iter 
     (fun fl -> 
+      if fl.globinitcalled || fl.globinit <> None then
+        E.s (E.warn "Merging file %s has global initializer" fl.fileName);
       List.iter 
         (function 
-            GType (n, _, _) -> 
-              if not (H.mem tAlpha n) then 
-                H.add tAlpha n (ref -1)
-          | GDecl (vi, _) | GVar (vi, _, _) ->
-              if not (H.mem vAlpha vi.vname) then 
-                H.add vAlpha vi.vname (ref -1)
-          | GFun (fdec, _) ->
-              if not (H.mem vAlpha fdec.svar.vname) then 
-                H.add vAlpha fdec.svar.vname (ref -1)
+            GType (n, _, _) -> ignore (newAlphaName tAlpha n)
+          | GDecl (vi, _) | GVar (vi, _, _) -> 
+              ignore (newAlphaName tAlpha vi.vname)
+          | GFun (fdec, _) -> ignore (newAlphaName vAlpha fdec.svar.vname)
           | GCompTag (ci, _) -> 
               if ci.cstruct then begin
-                if not (H.mem sAlpha ci.cname) then 
-                  H.add sAlpha ci.cname (ref -1)
+                ignore (newAlphaName sAlpha ci.cname)
               end else begin 
-                if not (H.mem uAlpha ci.cname) then 
-                  H.add uAlpha ci.cname (ref -1)
+                ignore (newAlphaName uAlpha ci.cname)
               end
-          | GEnumTag (ei, _) ->
-              if not (H.mem eAlpha ci.cname) then 
-                H.add eAlpha ci.cname (ref -1)
+          | GEnumTag (ei, _) -> ignore (newAlphaName eAlpha ei.ename)
           | _ -> ())
         fl.globals)
     files;
 
-  (* Do one file at a time *)
 
-  (* Accumulate here the globals in the merged file *)
-  let theFileTypes = ref [] in
-  let theFile      = ref [] in
-  
-  let rec doOneFile (f:file) : unit = 
-    if f.globinitcalled || f.globinit <> None then
-      E.s (E.warn "Merging file %s has global initializer" f.fileName);
-    (* First scan the file and see for what globals we can reuse their name *)
-    ()
-  in
   List.iter doOneFile files;
+
   (* Now reverse the result and return the resulting file *)
   let rec revonto acc = function
       [] -> acc
@@ -129,8 +531,9 @@ let merge (files: file list) (newname: string) : file =
       globals  = revonto (revonto [] !theFile) !theFileTypes;
       globinit = None;
       globinitcalled = false } in
-  init (); (* Make the GC happy *)
+  init (); initOneFile (); (* Make the GC happy *)
   res
+
 
 
 

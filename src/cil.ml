@@ -4059,6 +4059,7 @@ let rec newAlphaName ~(alphaTable: (string, int ref) H.t)
     ignore (E.log " Res=: %s\n" newname);
   newname
   
+
 (* Strip the suffix. Return the prefix, the separator (empty or _) and a 
  * numeric suffix (-1 if the separator is empty or if _ is the last thing in 
  * the name) *)

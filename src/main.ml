@@ -43,15 +43,18 @@ let keepFiles = ref false
 let heapify = ref false
 let stackguard = ref false
 let testcil = ref ""
+let merge = ref false
 
 exception Done_Processing
 
+
+let parseOneFile (fname: string) : C.file = 
+  (* PARSE and convert to CIL *)
+  if !Util.printStages then ignore (E.log "Parsing %s\n" fname);
+  F.parse fname ()
       
-let rec processOneFile fname =
+let rec processOneFile (cil: C.file) =
   try begin
-    (* PARSE and convert to CIL *)
-    if !Util.printStages then ignore (E.log "Parsing %s\n" fname);
-    let cil = F.parse fname () in
 
     if !Util.doCheck then begin
       ignore (E.log "First CIL check\n");
@@ -96,9 +99,9 @@ let rec processOneFile fname =
 let rec theMain () =
   let doCombine = ref "" in 
   let usageMsg = "Usage: cilly [options] source-files" in
-  let files : string list ref = ref [] in
+  let fileNames : string list ref = ref [] in
   let recordFile fname = 
-    files := fname :: (!files) 
+    fileNames := fname :: (!fileNames) 
   in
   (* Parsing of files with additional names *)
   let parseExtraFile (s: string) = 
@@ -136,12 +139,15 @@ let rec theMain () =
     with Sys_error _ -> E.s (E.error "Cannot find extra file: %s\n" s)
    |  End_of_file -> () 
   in
+  let merge = ref false in
   let openLog lfile =
     if !E.verboseFlag then
       ignore (Printf.printf "Setting log file to %s\n" lfile);
     try E.logChannel := open_out lfile with _ ->
       raise (Arg.Bad "Cannot open log file") in
+  let outName = ref "" in
   let outFile fname =
+    outName := fname;
     try outChannel := Some (open_out fname) with _ ->
       raise (Arg.Bad ("Cannot open output file" ^ fname)) in
   let setDebugFlag v name = 
@@ -180,7 +186,8 @@ let rec theMain () =
                       "Do not compile to CIL the global with the given index"; 
     "--log", Arg.String openLog, "the name of the log file";
     "--out", Arg.String outFile, "the name of the output CIL file";
-
+    "--merge", Arg.Unit (fun _ -> merge := true), 
+              "Merge all inputs into one file";
     "--keep", Arg.Unit (fun _ -> keepFiles := true), "Keep intermediate files";
     "--MSVC", Arg.Unit (fun _ -> if Machdep.hasMSVC then begin
                                    C.msvcMode := true;
@@ -213,11 +220,18 @@ let rec theMain () =
   begin
     Stats.reset ();
     Arg.parse argDescr recordFile usageMsg;
-    files := List.rev !files;
+    fileNames := List.rev !fileNames;
     if !testcil <> "" then begin
       Testcil.doit !testcil
     end else 
-      List.iter processOneFile !files;
+      let files = List.map parseOneFile !fileNames in
+      if !merge then 
+        let one = 
+          Mergecil.merge files (if !outName = "" then "stdout" else !outName)
+        in
+        processOneFile one
+      else
+        List.iter processOneFile files
   end
 ;;
                                         (* Define a wrapper for main to 

@@ -29,7 +29,7 @@ DEPENDDIR   := obj/.depend
 CILLY_MODULES = pretty errormsg trace stats util clist \
               cabs cprint clexer cparser cabsvisit \
               machdep cil cabs2cil \
-              frontc check logcalls logwrites rmtmps \
+              frontc check mergecil logcalls logwrites rmtmps \
 	      heapify testcil maincil
 CILLY_CMODULES =
 CILLY_LIBS     = unix

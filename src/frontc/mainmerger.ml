@@ -146,7 +146,7 @@ let rec theMain () =
     "--flush", Arg.Unit (fun _ -> Pretty.flushOften := true),
                      "Flush the output streams often (aids debugging)" ;
     "--log", Arg.String openLog, "the name of the log file";
-    "--o", Arg.String (fun s -> outputFile := s),
+    "--out", Arg.String (fun s -> outputFile := s),
                      "output file for the merger";
     "--MSVC", Arg.Unit (fun _ -> Cprint.msvcMode := true),
              "Produce MSVC output. Default is GNU";

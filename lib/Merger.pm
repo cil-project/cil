@@ -61,10 +61,6 @@ BEGIN {
              ? ".asm.exe" : ".byte.exe");
     # For some strange reason on Windows the bytecode versions must be passed
     # as an argument to themselves
-#    if($::iswin32 && ($Merger::mtime_asm < $Merger::mtime_byte)) {
-#        $Merger::merger .= " " . $Merger::merger;
-#    }
-#    print "asm: $Merger::mtime_asm, byte: $Merger::mtime_byte. Choose: $Merger::merger\n";
 }
 
 
@@ -84,6 +80,18 @@ sub collectOneArgument {
     }
     if($arg =~ m|--trueobj|) {
         $self->{TRUEOBJ} = 1; return 1;
+    }
+    if($arg eq "--cilmerger") {
+        $Merger::combbase =~ s|merger|cilly|g;
+        # Pick the most recent merger
+        $Merger::mtime_asm = int((stat("$Merger::combbase.asm.exe"))[9]);
+        $Merger::mtime_byte = int((stat("$Merger::combbase.byte.exe"))[9]);
+        $Merger::merger = 
+            $Merger::combbase . 
+                ($Merger::mtime_asm >= $Merger::mtime_byte 
+                 ? ".asm.exe" : ".byte.exe");
+        $self->{CILMERGER} = 1;
+        return 1;
     }
     if($arg eq "--bytecode") {
         $self->{NATIVECAML} = 0; return 1;
@@ -138,7 +146,7 @@ sub helpMessage {
 Merger specific options:
   --merge            Use in merge mode. Applies the cure after the 
                      source files (except the nocure ones) have been
-                     merge
+                     merged
   --trueobj          Do not write preprocessed sources in .obj files but
                      create some other files.
  
@@ -307,12 +315,15 @@ sub link {
     }
     # Now invoke the merger
     my $merged = $dest . $Merger::combext;
-    my $cmd = "$Merger::merger --o $merged ";
+    my $cmd = "$Merger::merger --out $merged ";
     if($self->{MODENAME} eq "MSVC") {
         $cmd .= " --MSVC ";
     }
     if($self->{VERBOSE}) {
         $cmd .= " --verbose ";
+    }
+    if($self->{CILMERGER}) {
+        $cmd .= " --merge ";
     }
     if(defined $self->{MERGE_ARGS}) {
         $cmd .= " " . join(' ', @{$self->{MERGE_ARGS}}) . " ";
