@@ -461,7 +461,7 @@ eq_opt:
 |  /*(* empty *)*/               { () }
 ;
 init_designators: 
-    DOT IDENT init_designators_opt      { INFIELD_INIT($2, $3) }
+    DOT id_or_typename init_designators_opt      { INFIELD_INIT($2, $3) }
 |   LBRACKET  expression RBRACKET init_designators_opt
                                         { ATINDEX_INIT($2, $4) }
 |   LBRACKET  expression ELLIPSIS expression RBRACKET
@@ -473,7 +473,7 @@ init_designators_opt:
 ;
 
 gcc_init_designators:  /*(* GCC supports these strange things *)*/
-   IDENT COLON                          { INFIELD_INIT($1, NEXT_INIT) }
+   id_or_typename COLON                 { INFIELD_INIT($1, NEXT_INIT) }
 ;
 
 
