@@ -398,11 +398,12 @@ and file =  parse
         '\n'		        {E.newline (); initial lexbuf}
 |	blank			{file lexbuf}
 |	'"' [^ '\012' '\t' '"']* '"' 	{ (* '"' *)
-                                 E.setCurrentFile (Lexing.lexeme lexbuf);
-(*
-                                 print_string ("Found "^ !currentFile ^".\n");
+                                   let n = Lexing.lexeme lexbuf in
+                                   let n1 = String.sub n 1 
+                                       ((String.length n) - 2) in
+                                   E.setCurrentFile n1;
+				 endline lexbuf}
 
-*)				 endline lexbuf}
 |	_			{endline lexbuf}
 
 and endline = parse 

@@ -192,23 +192,21 @@ type parseWhat =
 let current = ref dummyinfo
 
 
-let rem_quotes str = String.sub str 1 ((String.length str) - 2)
 
 (* Change \ into / in file names. To avoid complications with escapes *)
 let cleanFileName str = 
-  let str1 = if str <> "" && String.get str 0 = '"' (* '"' *) 
-        then rem_quotes str else str in
-  let l = String.length str1 in
+  (* ignore (log "cleanFilename(%s)\n" str);  *)
+  let l = String.length str in
   let rec loop (copyto: int) (i: int) = 
      if i >= l then 
-         String.sub str1 0 copyto
+         String.sub str 0 copyto
      else 
-       let c = String.get str1 i in
+       let c = String.get str i in
        if c <> '\\' then begin
-          String.set str1 copyto c; loop (copyto + 1) (i + 1)
+          String.set str copyto c; loop (copyto + 1) (i + 1)
        end else begin
-          String.set str1 copyto '/';
-          if i < l - 2 && String.get str1 (i + 1) = '\\' then
+          String.set str copyto '/';
+          if i < l - 2 && String.get str (i + 1) = '\\' then
               loop (copyto + 1) (i + 2)
           else 
               loop (copyto + 1) (i + 1)
@@ -226,7 +224,7 @@ let startParsing (fname: parseWhat) =
           try open_in fname with 
             _ -> s (error "Cannot find input file %s" fname) in
         let lexbuf = Lexing.from_channel inchan in
-        Some inchan, cleanFileName (Filename.basename fname), lexbuf
+        Some inchan, cleanFileName fname, lexbuf
   in
   let i = 
     { linenum = 1; linestart = 0; 
@@ -254,7 +252,7 @@ let setCurrentLine (i: int) =
   !current.linenum <- i
 
 let setCurrentFile (n: string) = 
-  !current.fileName <- cleanFileName (Filename.basename n)
+  !current.fileName <- cleanFileName n
 
 
 let max_errors = 20  (* Stop after 20 errors *)

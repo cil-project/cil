@@ -1013,6 +1013,7 @@ attr:
 |   SIZEOF expression                     {EXPR_SIZEOF $2}
 |   SIZEOF LPAREN type_name RPAREN
 		                         {let b, d = $3 in TYPE_SIZEOF (b, d)}
+
 |   ALIGNOF expression                   {EXPR_ALIGNOF $2}
 |   ALIGNOF LPAREN type_name RPAREN      {let b, d = $3 in TYPE_ALIGNOF (b, d)}
 |   PLUS expression    	                 {UNARY (PLUS, $2)}
