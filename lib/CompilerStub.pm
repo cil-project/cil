@@ -753,13 +753,13 @@ sub lineDirective {
 # The name of the output file
 sub compileOutputFile {
     my($self, $src) = @_;
-    if($self->{OUTARG} =~ m|-o\s*(\S+)| && $self->{OPERATION} eq 'TOOBJ') {
+    if($self->{OUTARG} =~ m|^-o\s*(\S.+)$| && $self->{OPERATION} eq 'TOOBJ') {
         return $1;
     }
     my ($base, $dir, $ext) = fileparse($src, 
                                        "(\\.c)|(\\.cc)|(\\.cpp)|(\\.i)");
     if(! defined($ext) || $ext eq "") { # Not a C source
-        die "objectOutputFile: not a C source file\n";
+        die "objectOutputFile: not a C source file. Extension: $ext\n";
     }
     return "$base.o"; # In the current directory
 }
