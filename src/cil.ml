@@ -860,10 +860,29 @@ let warn (fmt : ('a,unit,doc) format) : 'a =
   in
   Pretty.gprintf f fmt
 
+let warnOpt (fmt : ('a,unit,doc) format) : 'a = 
+  let f d =
+    if !E.warnFlag then 
+      ignore (eprintf "@!%t: Warning: %a@!" 
+                d_thisloc insert d);
+    nil
+  in
+  Pretty.gprintf f fmt
+
 let warnContext (fmt : ('a,unit,doc) format) : 'a = 
   let f d =
     ignore (eprintf "@!%t: Warning: %a@!" 
               d_thisloc insert d);
+    E.showContext ();
+    nil
+  in
+  Pretty.gprintf f fmt
+
+let warnContextOpt (fmt : ('a,unit,doc) format) : 'a = 
+  let f d =
+    if !E.warnFlag then 
+      ignore (eprintf "@!%t: Warning: %a@!" 
+                d_thisloc insert d);
     E.showContext ();
     nil
   in
@@ -930,7 +949,7 @@ let truncateInteger64 (k: ikind) (i: int64) =
 let kinteger64 (k: ikind) (i: int64) : exp = 
   let i' = truncateInteger64 k i in
   if i' <> i then 
-    ignore (warn "Truncating integer %s to %s\n" 
+    ignore (warnOpt "Truncating integer %s to %s\n" 
               (Int64.format "0x%x" i) (Int64.format "0x%x" i'));
   Const (CInt64(i', k,  None))
 
@@ -2270,7 +2289,7 @@ and d_goto (s: stmt) =
   match pickLabel s.labels with
     Some l -> text ("goto " ^ l ^ ";")
   | None -> 
-      ignore (E.warn "Cannot find label for target of goto\n");
+      ignore (error "Cannot find label for target of goto\n");
       text "goto __invalid_label;"
 
 and d_fun_decl () f = begin

@@ -58,6 +58,9 @@ val debugFlag  : bool ref
 
 val verboseFlag : bool ref
 
+(** Set to true if you want to see all warnings. *)
+val warnFlag: bool ref
+
 val theLexbuf     : Lexing.lexbuf ref
 
 (** Error reporting functions raise this exception *)
@@ -88,9 +91,13 @@ val s             : Pretty.doc -> 'a
     be cleared manually *)
 val hadErrors : bool ref  
 
-(** Like [error] but does not raise the [Error] exception. Use: [ignore (E.warn
-    ...)] *)
-val warn         : ('a,unit,Pretty.doc) format -> 'a
+(** Like {!Errormsg.error} but does not raise the {!Errormsg.Error} 
+ * exception. Use: [ignore (E.warn ...)] *)
+val warn:    ('a,unit,Pretty.doc) format -> 'a
+
+(** Like {!Errormsg.warn} but optional. Printed only if the 
+ * {!Errormsg.warnFlag} is set *)
+val warnOpt: ('a,unit,Pretty.doc) format -> 'a
 
 (** Print something to [logChannel] *)
 val log           : ('a,unit,Pretty.doc) format -> 'a

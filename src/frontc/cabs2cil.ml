@@ -1073,7 +1073,7 @@ let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) =
 
   | TEnum _, TPtr _ -> (nt, mkCastT e ot nt)
   | TPtr _, TEnum _ -> 
-      ignore (warn "Casting a pointer into an enumeration type");
+      ignore (warnOpt "Casting a pointer into an enumeration type");
       (nt, mkCastT e ot nt)
 
     (* The expression is evaluated for its side-effects *)
@@ -1106,7 +1106,8 @@ let cabsAddAttributes al0 (al: attributes) : attributes =
       | a' :: _ -> 
           if a = a' then acc (* Already in *)
           else begin
-            ignore (warn "Duplicate attribute %a overrides existing attribute %a"
+            ignore (warnOpt 
+                      "Duplicate attribute %a overrides existing attribute %a"
                       d_attr a d_attr a');
             addAttribute a (dropAttribute an acc)
           end)
@@ -1382,7 +1383,8 @@ let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
       else if oldvi.vstorage = Extern then 
         vi.vstorage 
       else begin
-        ignore (warn "Inconsistent storage specification for %s. Previous declaration: %a" 
+        ignore (warn
+                  "Inconsistent storage specification for %s. Previous declaration: %a" 
                vi.vname d_loc oldloc);
         vi.vstorage
       end
@@ -2027,7 +2029,7 @@ and makeVarInfo
   let vtype, nattr = 
     doType (AttrName false) bt (A.PARENTYPE(attrs, ndt, a)) in
   if inline && not (isFunctionType vtype) then
-    ignore (warn "inline for a non-function: %s" n);
+    ignore (error "inline for a non-function: %s" n);
   { vname    = n;
     vid      = newVarId n isglob;
     vglob    = isglob;
@@ -2381,7 +2383,7 @@ and makeCompType (isstruct: bool)
     * for A *)
     let fieldsSig fs = List.map (fun f -> typeSig f.ftype) fs in 
     if fieldsSig comp.cfields <> fieldsSig flds then
-      ignore (warn "%s seems to be multiply defined" (compFullName comp))
+      ignore (error "%s seems to be multiply defined" (compFullName comp))
   end else 
     comp.cfields <- flds;
 
@@ -3187,7 +3189,7 @@ and doExp (isconst: bool)    (* In a constant *)
                                                  * finishExp. Simulate what = 
                                                  * AExp None  *)
               with Not_found -> begin
-                if false then ignore (warn "Calling function %s without prototype." n);
+                ignore (warnOpt "Calling function %s without prototype." n);
                 let ftype = TFun(intType, None, false, 
                                  [Attr("missingproto",[])]) in
                 (* Add a prototype to the environment *)
@@ -3235,7 +3237,8 @@ and doExp (isconst: bool)    (* In a constant *)
             | ([], []) -> (empty, [])
 
             | args, [] -> 
-                ignore (warn "Too few arguments in call to %a. Filling with 0."
+                ignore (warnOpt 
+                          "Too few arguments in call to %a. Filling with 0."
                           d_exp f');
                 (* Pretend we have a few NULL arguments *)
                 let makeOneArg (a: varinfo) = 
@@ -3254,7 +3257,7 @@ and doExp (isconst: bool)    (* In a constant *)
             | ([], args) -> (* No more types *)
                 if not isvar && argTypes != None then 
                   (* Do not give a warning for functions without a prototype*)
-                  ignore (warn "Too many arguments in call to %a" d_exp f');
+                  ignore (warnOpt "Too many arguments in call to %a" d_exp f');
                 let rec loop = function
                     [] -> (empty, [])
                   | a :: args -> 
@@ -3577,12 +3580,12 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
 
 
   | (Eq|Ne|Le|Lt|Ge|Gt|Eq|Ne) when isPointerType t1 && isArithmeticType t2 ->
-      ignore (warn "Comparison of pointer and non-pointer");
+      ignore (warnOpt "Comparison of pointer and non-pointer");
       (* Cast both values to upointType *)
       doBinOp bop (mkCastT e1 t1 upointType) upointType 
                   (mkCastT e2 t2 upointType) upointType
   | (Eq|Ne|Le|Lt|Ge|Gt|Eq|Ne) when isArithmeticType t1 && isPointerType t2 ->
-      ignore (warn "Comparison of pointer and non-pointer");
+      ignore (warnOpt "Comparison of pointer and non-pointer");
       (* Cast both values to upointType *)
       doBinOp bop (mkCastT e1 t1 upointType) upointType 
                   (mkCastT e2 t2 upointType) upointType
@@ -5085,7 +5088,7 @@ let convFile ((fname : string), (dl : Cabs.definition list)) : Cil.file =
   H.iter 
     (fun key ci -> 
       if ci.cfields = [] then begin
-        if !E.verboseFlag then ignore (E.warn "%s empty or not defined" key);
+        ignore (E.warnOpt "%s empty or not defined" key);
         globals := GType("", TComp(ci, []), locUnknown) :: !globals
       end) compInfoNameEnv;
 

@@ -189,6 +189,8 @@ let rec theMain () =
     "--out", Arg.String outFile, "the name of the output CIL file";
     "--merge", Arg.Unit (fun _ -> merge := true), 
               "Merge all inputs into one file";
+    "--warnall", Arg.Unit (fun _ -> E.warnFlag := true),
+                 "Show all warnings";
     "--keep", Arg.Unit (fun _ -> keepFiles := true), "Keep intermediate files";
     "--MSVC", Arg.Unit (fun _ -> if Machdep.hasMSVC then begin
                                    C.msvcMode := true;

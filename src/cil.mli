@@ -1648,9 +1648,17 @@ val errorLoc: location -> ('a,unit,Pretty.doc) format -> 'a
 (** Like {!Errormsg.warn} except that {!Cil.currentLoc} is also printed *)
 val warn: ('a,unit,Pretty.doc) format -> 'a
 
+(** Like {!Errormsg.warnOpt} except that {!Cil.currentLoc} is also printed. 
+ * This warning is printed only of {!Errormsg.warnFlag} is set. *)
+val warnOpt: ('a,unit,Pretty.doc) format -> 'a
+
 (** Like {!Errormsg.warn} except that {!Cil.currentLoc} and context 
     is also printed *)
 val warnContext: ('a,unit,Pretty.doc) format -> 'a
+
+(** Like {!Errormsg.warn} except that {!Cil.currentLoc} and context is also 
+ * printed. This warning is printed only of {!Errormsg.warnFlag} is set. *)
+val warnContextOpt: ('a,unit,Pretty.doc) format -> 'a
 
 (** Like {!Cil.warn} except that it explicitly takes a location argument, 
  * instead of using the {!Cil.currentLoc} *)

@@ -122,6 +122,7 @@ let contextMessage name d =
   ignore (eprintf "@!%s: %a@!" name insert d);
   showContext ()
 
+let warnFlag = ref false
 
 let bug (fmt : ('a,unit,doc) format) : 'a = 
   let f d =  hadErrors := true; contextMessage "Bug" d; raise Error in
@@ -137,6 +138,12 @@ let unimp (fmt : ('a,unit,doc) format) : 'a =
 
 let warn (fmt : ('a,unit,doc) format) : 'a = 
   let f d = contextMessage "Warning" d; nil in
+  Pretty.gprintf f fmt
+
+let warnOpt (fmt : ('a,unit,doc) format) : 'a = 
+  let f d = 
+    if !warnFlag then contextMessage "Warning" d; 
+    nil in
   Pretty.gprintf f fmt
 
 
