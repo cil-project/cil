@@ -390,6 +390,7 @@ let add_dom_def_info (f: cfgInfo): unit =
 
 let prune_cfg (f: cfgInfo): cfgInfo = 
  let size = f.size in 
+ if size = 0 then f else
  let reachable = Array.make size false in
  let worklist = ref([f.start]) in
  while (!worklist != []) do 
