@@ -17,8 +17,13 @@ BEGIN {
     $Combiner::mtime_byte = int((stat("$Combiner::combbase.byte.exe"))[9]);
     $Combiner::combiner = 
         $Combiner::combbase . 
-            ($Combiner::mtime_asm > $Combiner::mtime_byte 
+            ($Combiner::mtime_asm >= $Combiner::mtime_byte 
              ? ".asm.exe" : ".byte.exe");
+    # For some strange reason on Windows the bytecode versions must be passed
+    # as an argument to themselves
+    if($^O eq 'MSWin32' && ($Combiner::mtime_asm < $Combiner::mtime_byte)) {
+        $Combiner::combiner .= " " . $Combiner::combiner;
+    }
 #    print "asm: $Combiner::mtime_asm, byte: $Combiner::mtime_byte. Choose: $Combiner::combiner\n";
 }
 

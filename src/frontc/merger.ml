@@ -6,7 +6,7 @@ open Pretty
 module E = Errormsg
 module H = Hashtbl
 
-
+let debugTypes = false
 
 (* Keep track of the current location *)
 let currentLoc: cabsloc ref = ref { lineno = -1; filename = "<no file>" }
@@ -24,6 +24,13 @@ type envKind =
   | EUnion
   | EEnum                               (* An enumeration tags *)
   | EVar                                (* A variable or enumeration item *)
+
+let ek2text = function
+    EType -> "EType"
+  | EStruct -> "EStruct"
+  | EUnion -> "EUnion"
+  | EEnum -> "EEnum"
+  | EVar -> "EVar"
 
 let env: (envKind * string, string) H.t = H.create 111
 
@@ -85,13 +92,11 @@ let changeName
     ChangeDoChildrenPost (mkitem n', fun x -> x)
   end
 
-let renameReuse = ref false (* If true then while renaming it will replace 
-                             * the tag definitions for reused names with tag 
-                             * references *)
+let changeDefsIntoRefs = ref false
 let reuseDefs (k: envKind) 
               (n: string) 
               (defs: 'a option) : 'a option = 
-  if !scopeDepth = 0 && !renameReuse && H.mem reused (k, n) then begin
+  if !scopeDepth = 0 && !changeDefsIntoRefs && H.mem reused (k, n) then begin
     None
   end else
     defs
@@ -138,6 +143,12 @@ class renameClass : cabsVisitor = object (self)
     with Not_found -> DoChildren
 end
 let renameVisitor = new renameClass
+let renameDefinition (d: Cabs.definition) : Cabs.definition = 
+  let d' = visitCabsDefinition renameVisitor d in
+  match d' with 
+    [x] -> x
+  | _ -> E.s (E.bug "renameVisitor returns multiple definitions")
+  
 
 (************** ALPHA CONVERSION ********************)
 (* Global names are split into a prefix, a ___ (3 underscores) separator and 
@@ -226,45 +237,6 @@ and splitNameForAlpha (lookupname: string) : (string * string * int) =
 
 (** Handling of types and tag definitions *)
 
-(* We keep for the already merged file a list of tag definitions indexed by 
- * the original name. *)
-let globalTags : (string, typeSpecifier) H.t = H.create 111
-
-type eqConstraint = envKind * string * string
-let rec compareSpecs 
-     (s1: specifier) 
-     (s2: specifier) (acc: eqConstraint list) : eqConstraint list = 
-  (* filter out the type specifiers *)
-  let ts1, rest1 = 
-    List.partition (function SpecType _ -> true | _ -> false) s1 in
-  let ts2, rest2 = 
-    List.partition (function SpecType _ -> true | _ -> false) s2 in
-  if rest1 <> rest2 then raise Not_found;
-  match ts1, ts2 with 
-    [SpecType ts1], [SpecType ts2] -> begin
-      (* We don't go into the definition of a struct here *)
-      match ts1, ts2 with 
-        Tstruct (s1, fg1), Tstruct (s2, fg2) -> 
-          (EStruct, s1, s2) :: acc
-      | Tunion (s1, fg1), Tunion (s2, fg2) -> 
-          (EUnion, s1, s2) :: acc
-      | Tenum (s1, el1), Tenum (s2, el2) -> 
-          (EEnum, s1, s2) :: acc
-      | Tnamed t1, Tnamed t2 -> 
-          (EType, t1, t2) :: acc
-      | TtypeofT (s1, dt1), TtypeofT (s2, dt2) -> 
-          if dt1 <> dt2 then raise Not_found;
-          compareSpecs s1 s2 acc
-          
-      | _ -> if ts1 = ts2 then acc else raise Not_found
-    end
-  | _ -> if ts1 = ts2 then acc else raise Not_found
-  
-let compareFieldGroups (s1, fg1) (s2, fg2) acc = 
-  if fg1 <> fg2 then raise Not_found;
-  compareSpecs s1 s2 acc
-
-
 
 (* Collect the type and tag definitions in a file. For each definition, keep 
  * its kind, its original name, a specifier and a name. If the kind is EType 
@@ -315,99 +287,202 @@ end
 let collectTypeTagDefs = new collectTypeTagDefsClass
 
 
+(* Equality constraints *)
+type eqConstraint = envKind * string * string
+let rec compareSpecs 
+     (s1: specifier) 
+     (s2: specifier) (acc: eqConstraint list) : eqConstraint list = 
+  (* filter out the type specifiers *)
+  let ts1, rest1 = 
+    List.partition (function SpecType _ -> true | _ -> false) s1 in
+  let ts2, rest2 = 
+    List.partition (function SpecType _ -> true | _ -> false) s2 in
+  if rest1 <> rest2 then raise Not_found;
+  match ts1, ts2 with 
+    [SpecType ts1], [SpecType ts2] -> begin
+      (* We don't go into the definition of a struct here *)
+      match ts1, ts2 with 
+        Tstruct (s1, fg1), Tstruct (s2, fg2) -> 
+          (EStruct, s1, s2) :: acc
+      | Tunion (s1, fg1), Tunion (s2, fg2) -> 
+          (EUnion, s1, s2) :: acc
+      | Tenum (s1, el1), Tenum (s2, el2) -> 
+          (EEnum, s1, s2) :: acc
+      | Tnamed t1, Tnamed t2 -> 
+          (EType, t1, t2) :: acc
+      | TtypeofT (s1, dt1), TtypeofT (s2, dt2) -> 
+          if dt1 <> dt2 then raise Not_found;
+          compareSpecs s1 s2 acc
+          
+      | _ -> if ts1 = ts2 then acc else raise Not_found
+    end
+  | _ -> if ts1 = ts2 then acc else raise Not_found
+  
+let compareFieldGroups acc (s1, fg1) (s2, fg2) = 
+  if fg1 <> fg2 then raise Not_found;
+  compareSpecs s1 s2 acc
+
       
 
-(* Store some global definitions for typeTags. For each name we store the 
- * list of all defitions for that name that were encountered in the whole 
- * progra. Each such definition uses the _original_ name for the defined 
- * entity. And each such definition is accompanied by the name with which the 
- * definition actually appears *)
-let globalTypeTags : (envKind * string, typeTagDef * string) H.t = H.create 111
+(* Store some global definitions for typeTags. For each orignal name and kind 
+ * we store the list of all defintions for that name that were encountered in 
+ * the whole program. *)
+let globalTypeTags : (envKind * string, typeTagDef) H.t = H.create 111
+
+let dumpGlobalTypeTags (msg: string) = 
+  Cprint.out := stderr;
+  Cprint.print msg;
+  H.iter (fun (k, n) (_, n', specs, nm) -> 
+    Cprint.print ("Node(" ^ ek2text k ^ "," ^ n ^ ") -> " ^ n' ^ ",");
+    Cprint.print_specifiers specs;
+    Cprint.print ",";
+    Cprint.print_name nm;
+    Cprint.print ")\n")
+    globalTypeTags
+
+(* We keep a graph of equality constraints *)
+type eqNode = { 
+            id: int;            (* For debugging only *)
+    mutable eq: bool;           (* Whether they can be equal *)
+    mutable succs: eqNode list; (* All the nodes that cannot be equal if this 
+                                 * node is not equal *)
+  } 
+  
+let constraintGraph: (envKind * string * string, eqNode) H.t = H.create 111
+let nodeId = ref 0
+let getNode (key: eqConstraint) = 
+  try
+    H.find constraintGraph key
+  with Not_found -> begin
+    (* New nodes are made not eq *)
+    let node = { id = !nodeId; eq = false; succs = [] } in
+    incr nodeId;
+    H.add constraintGraph key node;
+    node
+  end
+let dumpGraph (msg: string) = 
+  ignore (E.log " constraint graph(%s):\n" msg);
+  H.iter (fun (k, on, nn) n -> 
+    ignore (E.log " %d (old=%s, new=%s, eq=%b) -> %a\n"
+              n.id on nn n.eq
+              (docList (chr ',') (fun succ -> num succ.id)) n.succs))
+    constraintGraph
+    
+let constructConstraintGraph (tt: typeTagDef list) = 
+  H.clear constraintGraph; nodeId := 0;
+  let doOne (defk, defn, defspec, ((_, def_dt, def_a) as defname)) = 
+    (* All previous typeTagDefs for the same original name *)
+    let old = H.find_all globalTypeTags (defk, defn)  in
+    List.iter
+      (fun (_, oldn, oldspec, ((_, old_dt, old_a) as oldname)) -> 
+        (* Make a node *)
+        let node = getNode (defk, oldn, defn) in
+        (* This node must be made eq *)
+        node.eq <- true;
+        (* Find the equality constraints that must all hold for defn to be 
+        * compatible with oldn. Watch out for Not_found *)
+        try
+          (* Compare the name as well, except the string part *)
+          let constr = 
+            match defk with 
+              EType -> 
+                if old_dt <> def_dt || old_a <> def_a then raise Not_found;
+                compareSpecs oldspec defspec []
+            | EStruct -> begin
+                match oldspec, defspec with 
+                  [SpecType (Tstruct (_, Some ofg))], 
+                  [SpecType (Tstruct (_, Some nfg))] -> 
+                    List.fold_left2 compareFieldGroups [] ofg nfg
+                | _ -> E.s (E.bug "compareTypeTags(struct)")
+            end
+            | EUnion -> begin
+                match oldspec, defspec with 
+                  [SpecType (Tunion (_, Some ofg))], 
+                  [SpecType (Tunion (_, Some nfg))] -> 
+                    List.fold_left2 compareFieldGroups [] ofg nfg
+                | _ -> E.s (E.bug "compareTypeTags(union)")
+            end
+            | EEnum -> begin
+                match oldspec, defspec with 
+                  [SpecType (Tenum (_, Some el1))], 
+                  [SpecType (Tenum (_, Some el2))] -> 
+                    if el1 = el2 then [] else raise Not_found
+                | _ -> E.s (E.bug "compareTypeTags(enum)")
+            end
+            | _ -> E.s (E.bug "compareTypeTags(other)")
+          in
+          (* Add an edge in the graph for each constraint *)
+          List.iter (fun ckey ->
+            let node1 = getNode ckey in (* Make the node not eq if it does 
+                                         * not exist already *)
+            node1.succs <- node :: node1.succs) constr
+        with _ -> (* This node cannot possibly match *)
+          node.eq <- false)
+      old
+  in
+  List.iter doOne tt;
+  if debugTypes then dumpGraph " before pushing";
+  (* Push eq = false to successors *)
+  let rec push (n: eqNode) = 
+    if n.eq then begin n.eq <- false; List.iter push n.succs end in
+  H.iter (fun key node -> 
+    if not node.eq then List.iter push node.succs) constraintGraph;
+  if debugTypes then dumpGraph " after pushing"
+          
 
 (* Extend the environment with mappings for the type names and tags defined 
  * in this file *)
 let findTypeTagNames (f: Cabs.file) = 
   fileTypeTags := [];
+  (* Collect the type and tags in this file *)
   ignore (visitCabsFile collectTypeTagDefs f);
   let tt_list = List.rev !fileTypeTags in
-(*  (ignore (E.log "typeTags= ");
-   List.iter (fun (k, n, _, _) -> ignore (E.log "%s," n)) tt_list;
-   ignore (E.log "\n")); *)
-
-  (* Rename a type tag but leave the defined name alone *)
-  let renameTT (defk, defn, defspec, defname) = 
-    let defnk = (defk, defn) in
-    H.add env defnk defn; (* Leave the defined name alone *)
-    let tt' = 
-      let nk = match defk with EType -> NType | _ -> NVar in
-      let defspec' = visitCabsSpecifier renameVisitor defspec in
-      let defname' = visitCabsName renameVisitor nk defspec' defname in
-      (defk, defn, defspec', defname')
-    in
-    H.remove env defnk; (* Undo the last change *)
-    tt'
-  in
-  (* Keep track if we have changed the rename table *)
-  let renameTableChanged = ref true in
-  (* Iterate until fixed point *)
-  while !renameTableChanged do
-    renameTableChanged := false;
-    List.iter 
-      (fun ((defk, defn, defspec, defname) as tt) -> 
-        let defnk = (defk, defn) in
-        (* Leave this one alone if we have already decided to assign a fresh 
-         * name to it *)
-
-        (* See if it is already named or not *)
-        let oldname_o = try Some (H.find env defnk) with Not_found -> None in
-
-        (* Skip those that have a name that is not reused *)
-        if oldname_o == None || H.mem reused defnk then begin
-          let tt' = renameTT tt in
-          let rec loop = function
-              [] -> (* No definition matches. Make a new name for this one *)
-(*                ignore (E.log "No matches for %s\n" defn); *)
-                let n' = newAlphaName defk defn in
-                H.remove reused defnk;
-                H.add env defnk n';
-                renameTableChanged := true
-
-            | (ttold, oldname) :: rest when ttold = tt' -> 
-                (* We found a match *)
-                (match oldname_o with
-                  None -> (* Not already renamed *)
-(*                    ignore (E.log "Found a match for %s\n" defn); *)
-                    H.add reused defnk oldname;
-                    H.add env defnk oldname;
-                    renameTableChanged := true
-
-                | Some renamed -> 
-                    (* If this is already renamed, accept only matches with 
-                     * the same name *)
-                    if renamed = oldname then 
-                      (* Put it back. No change to the rename table *)
-                      H.add env defnk renamed
-                    else begin
-                      loop rest
-                    end)
-            | _ :: rest -> loop rest
-          in
-          loop (H.find_all globalTypeTags defnk)
-        end)
-      tt_list
-  done;
-  (* Now add to the globalTypeTags what we found *)
+  (* Now collect and solve the constraint graph *)
+  constructConstraintGraph tt_list;
+  (* Now assign names to types and tags *)
   List.iter 
-    (fun ((defk, defn, defspec, defname) as tt) -> 
-      let defnk = (defk, defn) in
-      if not (H.mem reused defnk) then begin
-        try
-          let n' = H.find env defnk in
-          let tt' = renameTT tt in 
-          H.add globalTypeTags defnk (tt', n')
-        with Not_found -> E.s (E.bug "non-reused name is not fresh: %s" defn)
+    (fun (defk, defn, defspec, defname) -> 
+      begin
+        let defkn = (defk, defn) in
+        (* Find the first old name that matches *)
+        let matches = 
+          List.filter 
+            (fun (_, on, _, _) -> let n = getNode (defk, on, defn) in n.eq)
+            (H.find_all globalTypeTags defkn) in
+        match matches with
+          [] -> (* No match. Use a new name *)
+            let defn' = newAlphaName defk defn in
+            H.add env defkn defn';
+            if debugTypes then 
+              ignore (E.log "fresh name for %s -> %s\n" defn defn')
+              
+
+        | (_, on, _, _) :: rest -> 
+            if debugTypes then
+              ignore (E.log "reusing name for %s -> %s\n" defn on);
+            if rest <> [] then 
+              ignore (E.warn " more than one old name found!\n");
+            H.add reused defkn on
       end)
-    tt_list
+    tt_list;
+  (* Clean the graph *)
+  H.clear constraintGraph;
+  (* Add new new names to globalTypeTags. Must do it this late because we 
+   * must rename the typeTags and only now we have the whole renaming *)
+  List.iter 
+    (fun (defk, defn, defspec, defname) -> 
+      let defkn = (defk, defn) in
+      if not (H.mem reused defkn) then begin
+        let defn' = lookup defk defn in
+        let defspec' = visitCabsSpecifier renameVisitor defspec in
+        let nk = match defk with EType -> NType | _ -> NVar in
+        let defname' = visitCabsName renameVisitor nk defspec' defname in
+        H.add globalTypeTags defkn (defk, defn', defspec', defname')
+      end)
+    tt_list;
+  if debugTypes then dumpGlobalTypeTags "globalTypeTags"
+  
+
 
 (*********** COLLECT GLOBALS **********************)
 let globals : (string, bool) H.t = H.create 1111
@@ -438,27 +513,70 @@ let collectGlobals (fl: file list) =
   List.iter (fun f -> List.iter collectOneGlobal f) fl
 
 
-let theProgram : Cabs.definition list ref = ref []
+(* Remember some definitions so that we can drop duplicates *)
+let globalDefinitions: (Cabs.definition, bool) H.t = H.create 113
+
+
+let theProgram: Cabs.definition list ref = ref []
 
 (* The MAIN MERGER *)
 let merge (files : Cabs.file list) : Cabs.file = 
   resetAlpha (); (* Clear the alpha tables *)
+  H.clear globalDefinitions;
+  H.clear globalTypeTags;
   collectGlobals files; (* Collect all the globals *)
   theProgram := [];
   let doOneFile (f: Cabs.file) = 
     H.clear env; (* Start with a brand new environment *)
     H.clear reused;
-    renameReuse := false;
     (* Find the new names for type and tags *)
+    if debugTypes then 
+      ignore (E.log "Combining a file\n");
+    changeDefsIntoRefs := false;
     findTypeTagNames f;
-    renameReuse := true;
+    changeDefsIntoRefs := true;
     (* Now apply the new names and while doing that remove some global 
      * declarations *)
     let doOneDefinition = function
         DECDEF ((s, inl), l) as d -> 
-          theProgram := (visitCabsDefinition renameVisitor d) @ !theProgram
+          currentLoc := l;
+          if isStatic s then begin
+            (* We rename all static declarations. No attempt to share them *)
+            List.iter (fun ((n, _,_), _) -> 
+              if not (H.mem env (EVar, n)) then begin
+                let n' = newAlphaName EVar n in
+                H.add env (EVar, n) n'
+              end) inl;
+            theProgram := renameDefinition d :: !theProgram
+          end else begin
+            (* We apply the renaming to the declaration *)
+            let d' = renameDefinition d in
+            (* We try to reuse function prototypes for non-static decls *)
+            if List.for_all 
+                (fun ((_, dt, _), _) -> 
+                  (* See if this is a function type *)
+                  let rec isFunctionType = function
+                      PROTO (JUSTBASE, _, _) -> true
+                    | PROTO (dt, _, _) -> isFunctionType dt
+                    | PARENTYPE (_, dt, _) -> isFunctionType dt
+                    | ARRAY (dt, _) -> isFunctionType dt
+                    | PTR (_, dt) -> isFunctionType dt
+                    | JUSTBASE -> false
+                  in
+                  isFunctionType dt) inl then
+              if H.mem globalDefinitions d' then 
+                () (* Drop it *)
+              else begin
+                H.add globalDefinitions d' true;
+                theProgram := d' :: !theProgram
+              end
+                
+            else
+              theProgram := d' :: !theProgram
+          end
+            
 
-      | FUNDEF ((s, (n, dt, a)), b, l) -> 
+      | FUNDEF ((s, (n, dt, a)), b, l) as d -> 
          (* On MSVC force inline functions to be static. Otherwise the 
           * compiler might complain that the function is declared with 
           * multiple bodies  *)
@@ -466,25 +584,24 @@ let merge (files : Cabs.file list) : Cabs.file =
             if !Cprint.msvcMode && isInline s && not (isStatic s) then
               SpecStorage STATIC :: s else s
           in
-          let s' = visitCabsSpecifier renameVisitor s' in
-          let dt' = visitCabsDeclType renameVisitor dt in
-          let a' = visitCabsAttributes renameVisitor a in
-          (* See if we must change the name *)
-          let n' = 
-            if isStatic s then 
-              try
-                H.find env (EVar, n) 
-              with Not_found -> begin
-                let n' = newAlphaName EVar n in
-                addLocalToEnv EVar n n';
-                n'
-              end
-            else
-              n
-          in
-          (* Now visit the block *)
-          let b' = visitCabsBlock renameVisitor b in 
-          theProgram := FUNDEF ((s', (n', dt', a')), b', l) :: !theProgram
+          if isStatic s' then begin
+            (* We must change the name *)
+            if not (H.mem env (EVar, n)) then
+              let n' = newAlphaName EVar n in
+              H.add env (EVar, n) n'
+          end;
+          let d' = renameDefinition d in
+          (* Try to drop duplicate inline functions *)
+          if isInline s' then 
+            if H.mem globalDefinitions d' then 
+              () (* Drop it *)
+            else begin
+              H.add globalDefinitions d' true;
+              theProgram := d' :: !theProgram
+            end
+          else
+            theProgram := d' :: !theProgram
+
 
       | TYPEDEF ((s, nl), l) ->
           let s' = visitCabsSpecifier renameVisitor s in
@@ -513,5 +630,7 @@ let merge (files : Cabs.file list) : Cabs.file =
   H.clear globals;
   H.clear env;
   H.clear reused;
+  H.clear globalDefinitions;
+  H.clear globalTypeTags;
   res
 

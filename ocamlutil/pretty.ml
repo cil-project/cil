@@ -74,7 +74,7 @@ let break         = Break
 
 let (++) d1 d2 = Concat (d1, d2)
 
-let nest n d   = text " " ++ align ++ d ++ unalign
+let indent n d   = text " " ++ align ++ d ++ unalign
 
 
 (* Format a sequence. The first argument is a separator *)
@@ -91,7 +91,7 @@ let  seq sep f dl =
       let fh = f h in loop fh t)
 
 
-let docArray f () a = 
+let docArray sep f () a = 
   let len = Array.length a in
   if len = 0 then 
     nil
@@ -99,7 +99,7 @@ let docArray f () a =
     let rec loop (acc: doc) i =
       if i >= len then acc else
       let fi = f i a.(i) in (* Make sure this is done first *)
-      loop (acc ++ fi) (i + 1)
+      loop (acc ++ sep ++ fi) (i + 1)
     in
     let f0 = f 0 a.(0) in
     loop f0 1

@@ -1,5 +1,4 @@
 (*
- * Description:
  *
  * Copyright (c) 2000 by
  *  George C. Necula	necula@cs.berkeley.edu
@@ -22,128 +21,223 @@
  * IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY DIRECT, INDIRECT, 
  * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, 
  * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS 
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY 
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+ * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON 
+ * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF 
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  *)
 
-(* George Necula. 8/1/99. *)
+(** Utility functions for pretty-printing. The major features provided by 
+  * this module are
+- An [fprintf]-style interface with support for user-defined printers
+- The printout is fit to a width by selecting some of the optional newlines
+- Constructs for alignment and indentation
+- Print ellipsis starting at a certain nesting depth
+- Constructs for printing lists and arrays
 
-(* Pretty printer. Works by first constructing a "doc" from the data 
- * structure to print and then issueing the formatting command. The "doc" 
- * contains all the strings, integers to be printed along with indications of 
- * hard line breaks and optional line breaks. The formatter decided which of 
- * the optional line breaks to take. It uses a greedy algorithm that is fast 
- * but not always optimal. A previous version used a better algorithm but it 
- * was not scaling up to large priting jobs. *)
 
+ Pretty-printing occurs in two tages
+{ol
+- Construct a [doc] object that encodes all of the elements to be printed 
+  along with alignment specifiers and optional and mandatory newlines
+- Format the [doc] to a certain width and emit it as a string, to an output 
+  stream or pass it to a user-defined function
+}
+
+ The formating algorithm is not optimal but it does a pretty good job while 
+ still operating in linear time. The original version was based on a pretty 
+ printer by Philip Wadler which turned out to not scale to large jobs. 
+*)
+
+(** The type of unformated documents. Elements of this type can be 
+  * constructed in two ways. Either with a number of constructor shown below, 
+  * or using the [dprintf] function with a [printf]-like interface. The 
+  * [dprintf] method is slightly slower so we do not use it for large jobs 
+  * such as the output routines for a compiler. But we use it for small jobs 
+  * such as logging and error messages. *)
 type doc
 
-(* empty document *)
+
+(** Next are constructors for the [doc] type. *)
+
+(** Constructs an empty document *)
 val nil          : doc
 
-(* concatenate two documents *)
-val (++)         : doc -> doc -> doc    (* infix operator *)
+(** Concatenates two documents. This is an infix operator that associates to 
+  * the left. *)
+val (++)         : doc -> doc -> doc 
 
+(** A document that prints the given string *)
 val text         : string -> doc
+
+(** A document that prints an integer in decimal form *)
 val num          : int    -> doc
+
+(** A document that prints a character. This is just like [text] 
+  * with a one-character string. *)
 val chr          : char   -> doc
 
 
-(* a hard line break *)
+(** A document that consists of a mandatory newline. This is just like [text 
+  * "\n"]. The new line will be indented to the current indentation level, 
+  * unless you use [leftflush] right after this. *)
 val line         : doc
 
-(* keep left flushed .. should be preceded by a line *)
+(** Use after a [line] to prevent the indentation. Whatever follows next will 
+  * be flushed left. Indentation resumes on the next line. *)
 val leftflush    : doc
 
 
-(* a soft line break. Such a break will be taken only if necessary to fit the 
- * document in a given width. If the break is not taken a space is printed  *)
-val break        : doc
+(** A document that consists of either a space or a line break. Also called 
+  * an optional line break. Such a break will be 
+   taken only if necessary to fit the document in a given width. If the break 
+   is not taken a space is printed instead. *)
+val break: doc
 
-(* all taken line breaks between an align and a matching unalign are indented 
- * to the column of the align. Align and unalign do not take any space.  *)
-val align        : doc
-val unalign      : doc
+(** Mark the current column as the current indentation level. Does not print 
+  * anything. All taken line breaks will align to this column. The previous 
+  * alignment level is saved on a stack. *)
+val align: doc
+
+(** Reverts to the last saved indentation level. *)
+val unalign: doc
 
 
 
 (************** Now some syntactic sugar *****************)
 
-(* indents the document. Same as text "  " ++ align ++ doc ++ unalign *)
-val nest         : int -> doc -> doc
+(** Indents the document. Same as [text "  " ++ align ++ doc ++ unalign], 
+  * with the specified number of spaces. *)
+val indent: int -> doc -> doc
 
-(* formats a sequence. The first argument is a separator *)
-val seq          : doc -> ('a ->doc) -> 'a list ->doc
+(** Formats a sequence
 
-
-(************** The output functions *********************)
-val fprint       : out_channel -> int -> doc -> unit
-val sprint       :                int -> doc -> string
-
-
-
-(* sprintf-like function. It supports everything that the Printf.printf 
- * function does and in addition: 
- *     @[ : inserts an align. Every format string must have matching 
- *          align/unaligns. See printDepth below. 
- *     @] : inserts an unalign
- *     @! : inserts a line (hard line break)
- *     @< : inserts a leftflushline (keep cursor at column 0 and do not indent)
- *          @< should be used immediately after @!
- *     @? : inserts a break (soft line break)
- *     @@ : inserts a @
- *
- * Produces a doc. The %a arguments take an unit as the first argument 
- * For example, if dExp : exp -> doc then define
- *    dExpU () = dExpU 
- * and write
- *    dprintf "%a" dExpU e
- * to produce a document obtained from applying dExp to e
- * This unit business is because I want to use the predefined "format" type. 
- * Such a type cannot be defined by the user in Caml.
+   @param sep A separator
+   @param doit A function that converts an element to a document 
+   @param elements The list to be converted to a document
  *)
+val seq: sep:doc -> doit:('a ->doc) -> elements:'a list -> doc
 
-val dprintf      : ('a, unit, doc) format -> 'a  
 
-(* Like dprintf but more general. It also has a function that is invoked 
- * after the formating was done. *)
-val gprintf      : (doc -> doc) -> ('a, unit, doc) format -> 'a
+(** An alternative function for printing a list. The [unit] argument is there 
+    to make this function more easily usable with the [dprintf] interface.
 
-(* Keep track of nested align in gprintf. (Each gprintf format string must 
- * have properly nested align/unalign pairs. When the nesting depth surpasses 
- * !printDepth then we print ... and we skip until the matching unalign *)
+   @param sep A separator
+   @param doit A function that converts an element to a document 
+   @param elements The list to be converted to a document
+*)
+val docList: sep:doc -> doit:('a -> doc) -> unit -> elements:'a list -> doc
+
+(** Formats an array. 
+
+   @param sep A separator
+   @param doit A function that converts an element to a document 
+   @param elements The array to be converted to a document
+*)
+val docArray: sep:doc -> doit:(int -> 'a -> doc) -> unit -> 
+              elements:'a array -> doc
+ 
+(** Prints an ['a option] with [None] or [Some] *)
+val docOpt: (unit -> 'a -> doc) -> unit -> 'a option -> doc
+
+
+(** A function that is useful with the [printf]-like interface *)
+val insert       : unit -> doc -> doc
+
+(** The next few functions provinde an alternative method for constructing 
+  * [doc] objects. In each of these functions there is a format string 
+  * argument (of type [('a, unit, doc) format]; if you insist on 
+  * understanding what that means see the module [Printf]). The format string 
+  * is like that for the [printf] function in C, except that it understands a 
+  * few more formating controls, all starting with the \@ character. 
+
+ The following special formatting characters are understood (these do not 
+  * correspond to arguments of the function):
+-  \@\[ Inserts an [align]. Every format string must have matching 
+        [align] and [unalign]. 
+-  \@\] Inserts an [unalign].
+-  \@!  Inserts a [line]. Just like "\n"
+-  \@?  Inserts a [break].
+-  \@<  Inserts a [leftflush]. Should be used immediately after \@! or "\n"
+-  \@\@ : inserts a \@ character
+
+ In addition to the usual [printf] % formating characters the following two 
+ new characters are supported:
+- %t Corresponds to an argument of type [unit -> doc]. This argument is 
+     invoked to produce a document
+- %a Corresponds to {b two} arguments. The first of type [unit -> 'a -> doc] 
+     and the second of type {'a}. (The extra [unit] is do to the 
+     peculiarities of the built-in support for format strings in Ocaml. It 
+     turns out that it is not a major problem.) Here is an example of how 
+     you use this:
+{v
+ 
+ dprintf "if %a then %a else %a" d_exp e1 d_stmt s2 d_stmt s3
+}
+
+ with the following types: {v
+e1: expression
+d_exp: unit -> expression -> doc
+s2: statement
+s3: statement
+d_stmt: unit -> statement -> doc
+}
+
+ Note how the [unit] argument must be accounted for in the user-defined 
+ printing functions. 
+*)
+
+
+
+(** The basic function for constructing a [doc] using format strings
+
+ Example: {v
+ dprintf "Name=%s, SSN=%7d, Children=\@\[%a\@\]\n"
+             pers.name pers.ssn (docList (chr ',' ++ break) text)
+             pers.children
+}
+*)
+val dprintf: ('a, unit, doc) format -> 'a  
+
+
+(** Next come functions that perform the formating and emit the result *)
+
+(** Format the document to the given width and emit it to the given channel *)
+val fprint: out_channel -> width:int -> doc -> unit
+
+(** Format the document to the given width and emit it as a string *)
+val sprint: width:int -> doc -> string
+
+(** Formats the [doc] and prints it to the given channel *)
+val fprintf: out_channel -> ('a, unit, doc) format -> 'a  
+
+(** Like [fprintf stdout] *)
+val printf: ('a, unit, doc) format -> 'a 
+
+(** Like [fprintf stderr] *)
+val eprintf: ('a, unit, doc) format -> 'a 
+
+(** Like [dprintf] but more general. It also has a function that is invoked 
+  * on the constructed document but before any formating is done. *) 
+val gprintf: (doc -> doc) -> ('a, unit, doc) format -> 'a
+
+
+(** Next few values can be used to control the operation of the printer *)
+
+(** Specifies the nesting depth of the [align]/[unalign] pairs at which 
+    everything is replaced with ellipsis *)
 val printDepth   : int ref
 
 
-val fastMode  : bool ref  (* If true the it takes breaks only when has 
-                           * surpassed the given width. *)
+(** If set to [true] then optional breaks are taken only when the document 
+  * has exceeded the given width. This means that the printout will looked 
+  * more ragged but it will be faster *)
+val fastMode  : bool ref 
 
 val flushOften   : bool ref  (* If true the it flushes after every print *)
 
 val withPrintDepth : int -> (unit -> unit) -> unit
-
-(* And some instances of gprintf. Use with ignore because they return doc. *)
-val fprintf      : out_channel -> ('a, unit, doc) format -> 'a  
-val printf        : ('a, unit, doc) format -> 'a   (* to stdout *)
-val eprintf       : ('a, unit, doc) format -> 'a  (* to stderr *)
-
-(* We have a few handy functions that can be used with %a specifier in 
- * dprintf *)
-val insert       : unit -> doc -> doc
-
-(* formats an array. *)
-val docArray     : (int -> 'a -> doc) -> unit -> 'a array -> doc
- 
-
-
-(* for an option *)
-val docOpt       : (unit -> 'a -> doc) -> unit -> 'a option -> doc
-
-(* for a list *)
-val docList      : doc -> ('a -> doc) -> unit -> 'a list -> doc
 
 (* A descrptive string with version, flags etc. *)
 val getAboutString : unit -> string

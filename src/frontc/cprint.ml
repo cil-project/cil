@@ -927,7 +927,7 @@ end
 (*  print abstrac_syntax -> ()
 **		Pretty printing the given abstract syntax program.
 *)
-let print (result : out_channel) (defs : file) =
+let printFile (result : out_channel) (defs : file) =
   out := result;
   print_defs defs
 
