@@ -179,18 +179,9 @@ let wild_safe_solve (node_ht : (int,node) Hashtbl.t) = begin
 end
 
 (* turn a pointer kind into its table equivalent *) 
-let table_this_node n = 
-  let newkind = 
-    match n.kind with
-      Seq -> SeqT
-    | FSeq -> FSeqT
-    | SeqN -> SeqNT
-    | FSeqN -> FSeqNT
-    | Index -> IndexT
-    | Wild -> WildT
-    | x -> x
-  in n.kind <- newkind
+let table_this_node n = n.kind <- addT n.kind 
 
+    
 (* table every node in the graph *)
 let table_it_all (node_ht : (int,node) Hashtbl.t) = begin
   Hashtbl.iter (fun id n -> 
@@ -207,19 +198,19 @@ let table_interface (node_ht : (int,node) Hashtbl.t) = begin
       if n.interface then begin
         table_this_node n ;
       end ;
-      if (is_table_kind n.kind) then begin
+      if isT n.kind then begin
         List.iter (fun e ->
-          if e.ekind = ECompat && not (is_table_kind e.eto.kind) then begin
-            table_this_node e.eto; 
+          if e.ekind = ECompat && addT e.eto.kind <> e.eto.kind then begin
+            table_this_node e.eto;
             finished := false 
           end) n.succ ;
         List.iter (fun e ->
-          if e.ekind = ECompat && not (is_table_kind e.efrom.kind) then begin
+          if e.ekind = ECompat && addT e.efrom.kind <> e.efrom.kind then begin
             table_this_node e.efrom; 
             finished := false 
           end) n.pred ;
       end
     ) node_ht ; 
-  done
+  done;
 end
 

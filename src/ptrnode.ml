@@ -188,9 +188,6 @@ and edgekind =
                               * int * 1 * 2 x; 
                               * int * 3 * 4 y;
                               * We will connect 1 and 3 with ECompat. *)
-let is_table_kind = function
-    IndexT | WildT | SeqT | SeqNT | FSeqT | FSeqNT -> true
-  | _ -> false
 
 
 (* set a boolean bitflag *)
@@ -265,7 +262,7 @@ let d_opointerkind () = function
   | FSeqT -> text "FSEQT" 
   | SeqNT -> text "SEQNT" 
   | FSeqNT -> text "FSEQNT" 
-  | IndexT -> text "INDEX"
+  | IndexT -> text "INDEXT"
   | Unknown -> text "UNKNOWN" 
 
 let d_pkind () = function
@@ -438,6 +435,19 @@ let stripT = function
   | FSeqNT -> FSeqN
   | IndexT -> Index
   | x -> x
+
+
+let addT = function
+  | Wild -> WildT
+  | Seq -> SeqT
+  | FSeq -> FSeqT
+  | SeqN -> SeqNT
+  | FSeqN -> FSeqNT
+  | Index -> IndexT
+  | x -> x
+
+
+let isT k = stripT k <> k
 
 
 let k2attr = function
