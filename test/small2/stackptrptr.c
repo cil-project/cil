@@ -1,7 +1,10 @@
-// stackptrptr.c
+// stackptrptr.c  
+// NUMERRORS(1)
 // demonstrate problem with stack ptr to stack ptr
 
-#if 0
+#define MESS_UP      // ERROR(1)
+
+#ifndef MESS_UP
   int main()
   {
     int x = 0;
