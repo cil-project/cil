@@ -739,6 +739,7 @@ let rec isInteger = function
   | _ -> None
         
 
+
 let rec isZero (e: exp) : bool = isInteger e = Some Int64.zero
 
 let voidType = TVoid([])
@@ -3098,6 +3099,29 @@ let isArrayType t =
   match unrollType t with
     TArray _ -> true
   | _ -> false
+
+
+let rec isConstant = function
+  | Const _ -> true
+  | UnOp (_, e, _) -> isConstant e
+  | BinOp (_, e1, e2, _) -> isConstant e1 && isConstant e2
+  | Lval (Var vi, NoOffset) -> 
+      (vi.vglob && isArrayType vi.vtype || isFunctionType vi.vtype)
+  | Lval _ -> false
+  | SizeOf _ | SizeOfE _ | AlignOf _ | AlignOfE _ -> true
+  | CastE (_, e) -> isConstant e
+  | AddrOf (Var vi, off) | StartOf (Var vi, off)
+        -> vi.vglob && isConstantOff off
+  | AddrOf (Mem e, off) | StartOf(Mem e, off) 
+        -> isConstant e && isConstantOff off
+  | Question (e1, e2, e3) -> 
+      isConstant e1 && isConstant e2 && isConstant e3
+
+and isConstantOff = function
+    NoOffset -> true
+  | Field(fi, off) -> isConstantOff off
+  | Index(e, off) -> isConstant e && isConstantOff off
+
 
 let getCompField (cinfo:compinfo) (fieldName:string) : fieldinfo =
   (List.find (fun fi -> fi.fname = fieldName) cinfo.cfields)

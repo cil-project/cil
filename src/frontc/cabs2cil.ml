@@ -191,6 +191,9 @@ type undoScope =
 
 let scopes :  undoScope list ref list ref = ref []
 
+let isAtTopLevel () = 
+  !scopes = []
+
 
 (* When you add to env, you also add it to the current scope *)
 let addLocalToEnv (n: string) (d: envdata) = 
@@ -1643,14 +1646,14 @@ and makeVarInfo
 (* Process a local variable declaration and allow variable-sized arrays *)
 and makeVarSizeVarInfo (ldecl: location) 
                        ((s,(n,ndt,a)) : A.single_name) 
-   : varinfo * chunk * exp = 
+   : varinfo * chunk * exp * bool = 
   if not !msvcMode then 
     match isVariableSizedArray ndt with
-      None -> makeVarInfo false ldecl (s,(n,ndt,a)), empty, zero
+      None -> makeVarInfo false ldecl (s,(n,ndt,a)), empty, zero, false
     | Some (ndt', se, len) -> 
-        makeVarInfo false ldecl (s,(n,ndt',a)), se, len
+        makeVarInfo false ldecl (s,(n,ndt',a)), se, len, true
   else
-    makeVarInfo false ldecl (s,(n,ndt,a)), empty, zero
+    makeVarInfo false ldecl (s,(n,ndt,a)), empty, zero, false
 
 and doAttr (a: A.attribute) : attribute list = 
   (* Strip the leading and trailing underscore *)
@@ -1856,10 +1859,11 @@ and isVariableSizedArray (dt: A.decl_type)
     ARRAY (JUSTBASE, lo) when lo != A.NOTHING -> 
       (* Allow non-constant expressions *)
       let (se, e', _) = doExp false lo (AExp (Some intType)) in
-      if isNotEmpty se then begin
+      if isNotEmpty se || not (isConstant e') then begin
         res := Some (se, e');
         PTR ([], JUSTBASE)
-      end else ARRAY (JUSTBASE, lo)
+      end else 
+        ARRAY (JUSTBASE, lo)
     | ARRAY (dt, lo) -> ARRAY (findArray dt, lo)
     | PTR (al, dt) -> PTR (al, findArray dt)
     | JUSTBASE -> JUSTBASE
@@ -3454,10 +3458,11 @@ and createLocal (specs: A.spec_elem list)
   | _ -> 
       (* Make a variable of potentially variable size. If se0 <> empty then 
        * it is a variable size variable *)
-      let vi,se0,len = makeVarSizeVarInfo !currentLoc (specs, (n, ndt, a)) in
+      let vi,se0,len,isvarsize = 
+        makeVarSizeVarInfo !currentLoc (specs, (n, ndt, a)) in
       let vi = alphaConvertVarAndAddToEnv true vi in        (* Replace vi *)
       let se1 = 
-        if isNotEmpty se0 then begin (* Variable-sized array *) 
+        if isvarsize then begin (* Variable-sized array *) 
           ignore (warn "Variable-sized local variable %s" vi.vname);
           (* Make a local variable to keep the length *)
           let savelen = 
@@ -3473,7 +3478,7 @@ and createLocal (specs: A.spec_elem list)
                   SizeOfE (Lval(Mem(Lval(var vi)), NoOffset)),
                   Lval (var savelen), uintType) in
           (* Register the length *)
-          H.add varSizeArrays vi.vid len;
+          H.add varSizeArrays vi.vid sizeof;
           (* There can be no initializer for this *)
           if e != A.NO_INIT then 
             E.s (error "Variable-sized array cannot have initializer");

@@ -796,6 +796,9 @@ val integer: int -> exp
     character or an integer constant *)
 val isInteger: exp -> int64 option
 
+(** True if the expression is a compile-time constant *)
+val isConstant: exp -> bool
+
 (** True if the given expression is a (possibly cast'ed) integer or character 
     constant with value zero *)
 val isZero: exp -> bool
