@@ -9,20 +9,19 @@ let name = ref ""
 (* instrument every instruction! aie! *)
 class verboseLogVisitor printfFun funstr = object
   inherit nopCilVisitor 
-  (*
   method vinst (inst  : instr) = begin
-    let str = Printf.sprintf "%s::%d\n" !name !i in
+    let str = Printf.sprintf "<5> %s::%d\n" !name !i in
     incr i ; 
     let newinst = ((Call (None, Lval(var printfFun.svar),
-                                ( [ one ; Const(CStr(str)) ]),
+                                ( [ (* one ; *) Const(CStr(str)) ]),
                                 locUnknown)) : instr )in
     let ilist = ([ inst ; newinst ] : instr list) in
     (ChangeTo(ilist))
-  end *)
+  end 
   method vinst i = begin
     match i with
       Call(lo,e,al,l) -> 
-      let str1 = Pretty.sprint 800 ( Pretty.dprintf "Calling %a(%a)\n" d_exp e
+      let str1 = Pretty.sprint 800 ( Pretty.dprintf "<5>Calling %a(%a)\n" d_exp e
         (docList (chr ',' ++ break ) (fun arg -> 
           try
             match unrollType (typeOf arg) with
@@ -36,11 +35,11 @@ class verboseLogVisitor printfFun funstr = object
         match unrollType (typeOf arg) with
           TVoid _ | TComp _ -> false
         | _ -> true) al in 
-      let str2 = Pretty.sprint 800 ( Pretty.dprintf "Returned from %a\n" d_exp e) in
+      let str2 = Pretty.sprint 800 ( Pretty.dprintf "<5>Returned from %a\n" d_exp e) in
       let newinst str args = ((Call (None, Lval(var printfFun.svar),
-                                ( [ one ; Const(CStr(str)) ] @ log_args),
+                                ( [ (* one ; *) Const(CStr(str)) ] @ args),
                                 locUnknown)) : instr )in
-      let ilist = ([ (newinst str1 al) ; i ; (newinst str2 []) ] : instr list) in
+      let ilist = ([ (newinst str1 log_args) ; i ; (newinst str2 []) ] : instr list) in
     (ChangeTo(ilist))
     | _ -> DoChildren 
   end
@@ -48,18 +47,18 @@ class verboseLogVisitor printfFun funstr = object
     match s.skind with
       Return(Some(e),l) ->
       let str = Pretty.sprint 800 ( Pretty.dprintf
-        "Return(%%p) from %s\n" funstr ) in
+        "<5>Return(%%p) from %s\n" funstr ) in
       let newinst = ((Call (None, Lval(var printfFun.svar),
-                                ( [ one ; Const(CStr(str)) ; e ]),
+                                ( [ (* one ; *) Const(CStr(str)) ; e ]),
                                 locUnknown)) : instr )in
       let new_stmt = mkStmtOneInstr newinst in 
       let slist = [ new_stmt ; s ] in 
       (ChangeTo(mkStmt(Block(mkBlock slist))))
     | Return(None,l) ->
       let str = Pretty.sprint 800 ( Pretty.dprintf
-        "Return void from %s\n" funstr ) in
+        "<5>Return void from %s\n" funstr ) in
       let newinst = ((Call (None, Lval(var printfFun.svar),
-                                ( [ one ; Const(CStr(str)) ]),
+                                ( [ (* one ; *) Const(CStr(str)) ]),
                                 locUnknown)) : instr )in
       let new_stmt = mkStmtOneInstr newinst in 
       let slist = [ new_stmt ; s ] in 
@@ -72,10 +71,10 @@ end
 let logCalls (f: file) : unit = 
   (* Create a prototype for the logging function *)
   let printfFun =   
-    let fdec = emptyFunction "syslog" in
-    let argi  = makeLocalVar fdec "prio" intType in
+    let fdec = emptyFunction "printk" in
+    (* let argi  = makeLocalVar fdec "prio" intType in *)
     let argf  = makeLocalVar fdec "format" charConstPtrType in
-    fdec.svar.vtype <- TFun(intType, [ argi ; argf ], true, []);
+    fdec.svar.vtype <- TFun(intType, [ (* argi ; *) argf ], true, []);
     fdec
   in
   
@@ -88,7 +87,7 @@ let logCalls (f: file) : unit =
             TVoid _ | TComp _ -> false 
             | _ -> true) fdec.sformals) in
         let formatstr = Pretty.sprint 60
-          (dprintf "entering %s(%a)\n" fdec.svar.vname
+          (dprintf "<5>entering %s(%a)\n" fdec.svar.vname
             (docList (chr ',' ++ break) 
             (fun vi -> match unrollType vi.vtype with
               TInt _ | TEnum _ -> dprintf "%s = %%d" vi.vname
@@ -99,10 +98,10 @@ let logCalls (f: file) : unit =
         i := 0 ;
         name := fdec.svar.vname ; 
         let thisVisitor = new verboseLogVisitor printfFun !name in 
-        (* fdec.sbody <- visitCilBlock thisVisitor fdec.sbody; *)
+        fdec.sbody <- visitCilBlock thisVisitor fdec.sbody; 
         fdec.sbody.bstmts <- 
               mkStmt (Instr [Call (None, Lval(var printfFun.svar),
-                                ( one :: Const(CStr(formatstr)) :: actargs),
+                                ( (* one :: *) Const(CStr(formatstr)) :: actargs),
                                 loc)]) :: fdec.sbody.bstmts
 
     | _ -> ()
