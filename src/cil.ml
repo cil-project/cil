@@ -3858,7 +3858,15 @@ and childrenGlobal (vis: cilVisitor) (g: global) : global =
       t.ttype <- visitCilType vis t.ttype;
       g
 
-  | GEnumTag _ | GEnumTagDecl _ | GCompTagDecl _ -> g (* Nothing to visit *)
+  | GEnumTagDecl _ | GCompTagDecl _ -> g (* Nothing to visit *)
+  | GEnumTag (enum, _) ->
+      (trace "visit" (dprintf "visiting global enum %s\n" enum.ename));
+      (* Do the values and attributes of the enumerated items *)
+      let itemVisit (name, exp, loc) = (name, visitCilExpr vis exp, loc) in
+      enum.eitems <- mapNoCopy itemVisit enum.eitems;
+      enum.eattr <- visitCilAttributes vis enum.eattr;
+      g
+
   | GCompTag (comp, _) ->
       (trace "visit" (dprintf "visiting global comp %s\n" comp.cname));
       (* Do the types and attirbutes of the fields *)
