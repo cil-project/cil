@@ -182,6 +182,9 @@ testallpcc: $(EXECUTABLE)$(EXE) $(TVEXE)
 	     defaulttarget
 
 runpcc:
+ifdef _GNUCC
+	rm $(PCCDIR)/bin/*_MSVC*
+endif
 	cd $(PCCDIR)/../test; pwd; spj --gory $(SPJARG) arith/Fact.java
 
 ############ Small tests
