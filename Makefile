@@ -154,6 +154,7 @@ RELEASECCL=gcc -x c -O3 -Wall -I/usr/include/sys
 DOOPT=-O3
 CONLY=-c
 OBJOUT=-o
+OBJ=.o
 EXEOUT=-o
 DEF=-D
 ASMONLY=-S -o 
@@ -177,6 +178,7 @@ DOOPT=
 endif
 CONLY=/c
 OBJOUT=/Fo
+OBJ=.obj
 EXEOUT=/Fe
 DEF=/D
 ASMONLY=/Fa
@@ -528,11 +530,11 @@ APATCH=--patch=apache_gcc.patch
 endif
 
 apache/gzip : $(EXECUTABLE)$(EXE)
-	rm -f $(APACHETEST)/mod_gzip.obj
+	rm -f $(APACHETEST)/mod_gzip$(OBJ)
 	cd $(APACHETEST); $(SAFECC) \
                        --keep=. $(APATCH) \
                         $(APACHECFLAGS) \
-                        $(OBJOUT)./mod_gzip.obj \
+                        $(CONLY) $(OBJOUT)./mod_gzip$(OBJ) \
                         mod_gzip.c
 
 apache/t : $(EXECUTABLE)$(EXE)
@@ -544,10 +546,10 @@ apache/t : $(EXECUTABLE)$(EXE)
                         t.c
 
 apache/rewrite: $(EXECUTABLE)$(EXE)
-	rm -f $(APACHETEST)/mod_gzip.obj
+	rm -f $(APACHETEST)/mod_gzip$(OBJ)
 	cd $(APACHETEST); $(SAFECC) \
                        --keep=. $(APATCH) \
                         $(APACHECFLAGS) \
-                        $(OBJOUT)./mod_rewrite.obj \
+                        $(OBJOUT)./mod_rewrite$(OBJ) \
                         $(APACHEBASE)/modules/standard/mod_rewrite.c
 

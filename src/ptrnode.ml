@@ -78,7 +78,8 @@ type node =
                                          * this pointer  *)
       mutable intcast: bool;            (* Some integer other than 0 is 
                                          * stored in this pointer *)
-
+      mutable interface : bool;         (* this node is part of the
+                                         * interface in the user program *)
       mutable succ: edge list;          (* All edges with "from" = this node *)
       mutable pred: edge list;          (* All edges with "to" = this node *)
 
@@ -109,7 +110,7 @@ and pointerkind =
             * pointer itself *)
   | FSeq
   | BSeq
-  | String
+  | String (* fseq <= string <= fseq *)
   | Index
   | Wild
   | Unknown

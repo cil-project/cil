@@ -70,6 +70,7 @@ typedef int BOOL;
 #define ALSHIFT 2
 #define ALIGN   MASK(ALSHIFT)
 #define UALIGN  U32
+#define __cdecl
 
 #define U8     unsigned char
 #define S8     char
