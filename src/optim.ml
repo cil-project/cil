@@ -107,12 +107,13 @@ and cfgStmt (s: stmt) (next:stmt option) (break:stmt option) (cont:stmt option) 
          any direct successor to stmt following the loop *)
 
 
-let rec printCfgBlock blk =
+let rec printCfgBlock ?(showGruesomeDetails = true) blk =
   List.iter (function s ->
-    printCfgStmt s)
-    blk
+    printCfgStmt ~showGruesomeDetails:showGruesomeDetails s)
+    blk;
+  
 
-and printCfgStmt s =
+and printCfgStmt ?(showGruesomeDetails = true) s =
   ignore (printf "-------------------------------------------------\n");
   ignore (printf "Id: %d\n" s.sid);
   ignore (printf "Succs: ");
@@ -121,18 +122,19 @@ and printCfgStmt s =
   ignore (printf "Preds: ");
   List.iter (function s -> ignore (printf "%d " s.sid)) s.preds;
   ignore (printf "\n");
-  ignore (printf "Gen:\n ");
-  List.iter (function e -> ignore (printf "%a\n" d_exp e)) (!gen).(s.sid);
-  ignore (printf "\n");
-  ignore (printf "Kill: ");
-  if (!kill).(s.sid) then ignore (printf "true\n") else ignore(printf "false\n");
-  ignore (printf "In:\n ");
-  List.iter (function e -> ignore (printf "%a\n" d_exp e)) (!inNode).(s.sid);
-  ignore (printf "\n");
-  ignore (printf "Out:\n ");
-  List.iter (function e -> ignore (printf "%a\n" d_exp e)) (!outNode).(s.sid);
-  ignore (printf "\n");
-
+  if showGruesomeDetails then begin
+    ignore (printf "Gen:\n ");
+    List.iter (function e -> ignore (printf "%a\n" d_exp e)) (!gen).(s.sid);
+    ignore (printf "\n");
+    ignore (printf "Kill: ");
+    if (!kill).(s.sid) then ignore (printf "true\n") else ignore(printf "false\n");
+    ignore (printf "In:\n ");
+    List.iter (function e -> ignore (printf "%a\n" d_exp e)) (!inNode).(s.sid);
+    ignore (printf "\n");
+    ignore (printf "Out:\n ");
+    List.iter (function e -> ignore (printf "%a\n" d_exp e)) (!outNode).(s.sid);
+    ignore (printf "\n");
+  end;
   match s.skind  with
   | If (test, blk1, blk2, _) ->
       ignore (printf "Cond: %a\n" d_plainexp test);
@@ -421,21 +423,23 @@ let latCheckNotNeeded = 1
 let latCheckNeeded    = 2
 
 let amandebug = false
-let amanDontRemove = false
+let amanDontRemove = amandebug && true
 
 let stats_removed = ref 0
 let stats_kept    = ref 0
 
-let pr s = Printf.printf "REDDBG: "; flush stdout; Printf.printf s
+let pr s = Printf.printf  "REDDBG: "; Printf.printf s
 
 let rec eliminateRedundancy (f : fundec) : fundec =      (* Using let rec because I couldn't find let*  *)
   if useRedundancyElimination then begin
     let _ = numberNodes () in
+    if amandebug then  printCfgBlock ~showGruesomeDetails:false f.sbody;
+    flush stdout;
     let cin = Array.make !numNodes latUnknown in
     let cout = Array.make !numNodes latUnknown in
     let checkInstrs : instr array  = filterChecks !nodeList in 
     let countCheckInstrs = Array.length checkInstrs in
-    if amandebug then pr "------- Function %s contains %d CHECKS\n" f.svar.vname countCheckInstrs;
+    if amandebug then pr "------- Function %s contains %d nodes and %d CHECKS\n" f.svar.vname !numNodes countCheckInstrs;
     let checkFlags : bool  array = Array.make countCheckInstrs false in
     let checkProcessed : bool array = Array.make countCheckInstrs false in
     for i=0 to (countCheckInstrs - 1) do
@@ -450,7 +454,8 @@ let rec eliminateRedundancy (f : fundec) : fundec =      (* Using let rec becaus
 
 	(* Set the entry point cin *)
 	(match f.sbody with
-	  h :: t -> cin.(h.sid) <- latCheckNeeded
+	  h :: t -> cin.(h.sid) <- latCheckNeeded; 
+	    if amandebug then pr "Entry node = %d\n" h.sid
 	| _ -> ());
 
 	(* Find cin,cout, till fixed-point *)
@@ -461,20 +466,29 @@ let rec eliminateRedundancy (f : fundec) : fundec =      (* Using let rec becaus
 	  nIter := !nIter + 1;
 	  reachedFixedPoint := true;
 	  for i=0 to (!numNodes - 1) do
-	    let newCin = evalCin !nodes.(i) cout in
-	    let newCout = evalCout !nodes.(i) (max cin.(i) cout.(i)) checkInstrs checkFlags in
-	    if (newCin != cin.(i)) || (newCout != cout.(i)) then reachedFixedPoint := false;
+	    let newCin = evalCin !nodes.(i) cout cin.(i) in
+	    if newCin != cin.(i) then reachedFixedPoint := false;
 	    cin.(i) <- newCin;
-	    cout.(i) <- newCout;
+	    let newCout = evalCout !nodes.(i) (max cin.(i) cout.(i)) checkInstrs checkFlags in
+	    if newCout != cout.(i) then reachedFixedPoint := false;
+	    cout.(i) <- newCout;	    
 	  done
 	done;
 
-	if amandebug then pr "Reached fixed point in %d iterations\n" !nIter;
-	
+	if amandebug then begin
+	  pr "Reached fixed point in %d iterations\n" !nIter;
+	  pr "Cin  = [";
+	  Array.iter (fun n -> Printf.printf " %d" n) cin;
+	  Printf.printf " ]\n";
+	  pr "Cout = [";
+	  Array.iter (fun n -> Printf.printf " %d" n) cout;
+	  Printf.printf " ]\n";
+	end;
+
 	(* Remove redundant CHECKs *)
 	for i=0 to (!numNodes - 1) do
 	  match !nodes.(i).skind with
-	    Instr instList -> !nodes.(i).skind <- Instr (removeRedundancies cin.(i) instList checkInstrs checkFlags)
+	    Instr instList -> !nodes.(i).skind <- Instr (removeRedundancies cin.(i) instList checkInstrs checkFlags i)
 	  | _ -> ()
 	done
 	
@@ -486,9 +500,8 @@ let rec eliminateRedundancy (f : fundec) : fundec =      (* Using let rec becaus
   end;
   f
 
-(* TODO: This function contains redundant code with evalCout ... *)
-and removeRedundancies acc instList checkInstrs checkFlags =
-  let rec removeRedundanciesRec acc instList filteredList =
+and removeRedundancies at_least instList checkInstrs checkFlags node_number =
+  let rec removeRedundanciesRec at_least instList filteredList =
     match instList with
       [] -> List.rev filteredList
     | h :: t -> 
@@ -499,10 +512,12 @@ and removeRedundancies acc instList checkInstrs checkFlags =
 	      Call (p1,(Lval(Var f,p2)) ,p3,loc) when amandebug -> 
 	      (* THIS LINE MUST BE REMOVED. Its not standard ocaml and may not compile in the future *)
 		Call (p1,Lval (Var f, p2),p3, 
-		      {loc with file = loc.file ^ "_$" ^ (string_of_int index) ^  [| " ?" ; " XXXX" ; " @" |].(acc) })
+		      {loc with file = loc.file ^ "_$" ^ 
+			(string_of_int node_number) ^ "_" ^
+			(string_of_int index) ^  [| " ?" ; " XXXX" ; " @" |].(at_least) })
 	    | _ -> h
 	  in
-	  if acc == latCheckNotNeeded then begin
+	  if at_least == latCheckNotNeeded then begin
 	    if amandebug then pr "CHECK %d removed!\n" index;	  
 	    stats_removed := !stats_removed + 1;
 	    if amanDontRemove then
@@ -511,55 +526,45 @@ and removeRedundancies acc instList checkInstrs checkFlags =
 	      removeRedundanciesRec latCheckNotNeeded t (filteredList) 
 	  end
 	  else begin
-	    if amandebug then pr "CHECK %d kept (lattice = %d)\n" index acc;
+	    if amandebug then pr "CHECK %d kept (lattice = %d)\n" index at_least;
 	    stats_kept := !stats_kept + 1;
 	    removeRedundanciesRec latCheckNotNeeded t (h2 :: filteredList) ;
 	  end
 	end
-	else match h with	
-	  Set (lval,exp,_) -> removeRedundanciesRec (max acc latCheckNeeded) t (h :: filteredList) 
-	| Call (None,Lval(Var f,_),args,_) -> 	
-	    if (isCheckCall_str f.vname) 
-	    then removeRedundanciesRec (max acc latCheckNotNeeded) t (h :: filteredList) 
-	    else removeRedundanciesRec (max acc latCheckNeeded) t (h :: filteredList) 
-	| Call (Some (var, varp),Lval(Var f,_),args,_) -> 
-	    if (isCheckCall_str f.vname) 
-	    then removeRedundanciesRec (max acc latCheckNotNeeded) t (h :: filteredList) 
-	    else removeRedundanciesRec (max acc latCheckNeeded) t (h :: filteredList) 
-	| Call (None,func,args,_) -> removeRedundanciesRec (max acc latCheckNeeded) t (h :: filteredList) 
-	| Call (Some (var, varp),func,args,_) -> removeRedundanciesRec (max acc latCheckNeeded) t (h :: filteredList) 
-	| Asm _ -> removeRedundanciesRec (max acc latCheckNeeded) t (h :: filteredList) 
+	else 
+	  removeRedundanciesRec (max at_least (minLatticeValue h)) t (h :: filteredList) 
   in
-  removeRedundanciesRec acc instList []
+  removeRedundanciesRec at_least instList []
 
-
-and evalCin (nd : stmt) cout =
-  List.fold_right (fun a b -> max (cout.(a.sid)) b) nd.preds latUnknown
+and minLatticeValue (inst : instr) : int =
+  match inst with
+    Set (lval,exp,_) -> latCheckNeeded
+  | Call (None,Lval(Var f,_),args,_) -> 	
+      if (isCheckCall_str f.vname) 
+      then  latCheckNotNeeded
+      else  latCheckNeeded
+  | Call (Some (var, varp),Lval(Var f,_),args,_) -> 
+      if (isCheckCall_str f.vname) 
+      then  latCheckNotNeeded
+      else  latCheckNeeded
+  | Call (None,func,args,_) ->  latCheckNeeded 
+  | Call (Some (var, varp),func,args,_) ->  latCheckNeeded
+  | Asm _ -> latCheckNeeded
+ 
+and evalCin (nd : stmt) cout at_least =
+  List.fold_right (fun a b -> max (cout.(a.sid)) b) nd.preds at_least
 
 and evalCout (nd : stmt) at_least checkInstrs checkFlags = (* TODO: Look at the args of the check *)
-  let rec evalCoutLoop (acc : int) (instList : instr list)  = 
-    match instList with
-      [] -> acc
+  let rec evalCoutLoop (at_least : int) (instList : instr list)  = match instList with
+      [] -> at_least
     | h :: t -> 
 	let index = find_in_array checkInstrs h in
-	if index >= 0 && checkFlags.(index) then evalCoutLoop latCheckNotNeeded t
-	else match h with	
-	  Set (lval,exp,_) -> latCheckNeeded
-	| Call (None,Lval(Var f,_),args,_) -> 	
-	    if (isCheckCall_str f.vname) 
-	    then evalCoutLoop (max acc latCheckNotNeeded) t
-	    else latCheckNeeded
-	| Call (Some (var, varp),Lval(Var f,_),args,_) -> 
-	    if (isCheckCall_str f.vname) 
-	    then evalCoutLoop (max acc latCheckNotNeeded) t
-	    else latCheckNeeded (* TODO: Check this assumption *)
-	| Call (None,func,args,_) -> latCheckNeeded
-	| Call (Some (var, varp),func,args,_) -> latCheckNeeded
-	| Asm _ -> latCheckNeeded
+	if index >= 0 && checkFlags.(index) then evalCoutLoop (max at_least latCheckNotNeeded) t
+	else evalCoutLoop (max at_least (minLatticeValue h)) t
   in
   match nd.skind with
     Instr instList -> evalCoutLoop at_least instList
-  | _ -> latUnknown	
+  | _ -> at_least	
 
 and numberNodes () =
   let rec numberNodesRec (i : int) = function
@@ -567,6 +572,7 @@ and numberNodes () =
     | node :: rest -> 
 	node.sid <- i; 
 	!nodes.(i) <- node;
+	
 	numberNodesRec (i - 1) rest
   in 
   nodes := Array.make !numNodes dummyStmt;
