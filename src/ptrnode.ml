@@ -68,9 +68,6 @@ type node =
 
       mutable flags: int; 
 
-      mutable mustHaveEnd: bool;        (* If this is SAFE at the very end, 
-                                         * make it FSEQ *)
-
       mutable succ: edge list;          (* All edges with "from" = this node *)
       mutable pred: edge list;          (* All edges with "to" = this node *)
 
@@ -190,6 +187,7 @@ let pkNoPrototype = 1024     (* Used as actual argument in a function without
                               * prototype *)
 let pkEscape = 2048          (* value may be assigned thru a pointer and escape
 							  * to the heap *)
+let pkNotSafe = 4096 (* constraint used by solvers: node must not be Safe *)
 
 
 (* George may also want:
@@ -302,7 +300,6 @@ let d_node () n =
               (if hasFlag n pkArith then "arith," else "") ^
               (if hasFlag n pkNull then "null," else "") ^
               (if hasFlag n pkIntCast then "int," else "") ^
-              (if n.mustHaveEnd then "mustend," else "") ^
               (if hasFlag n pkNoPrototype then "noproto," else "") ^
               (if hasFlag n pkInterface then "interf," else "") ^
               (if n.sized  then "sized," else "") ^
@@ -670,7 +667,6 @@ let newNode (p: place) (idx: int) (bt: typ) (al: attribute list) : node =
             attr    = addAttribute (Attr("_ptrnode", [AInt !nextId])) al;
             where   = where;
             flags   = 0 ;
-            mustHaveEnd = false;
             locked = false;
             succ = [];
             kind = kind;

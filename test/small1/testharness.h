@@ -1,4 +1,4 @@
-extern int printf(char *, ...);
+extern int printf(const char *, ...);
 extern void exit(int);
 #ifndef strcmp
 extern int strcmp(const char*, const char*);

@@ -2204,8 +2204,8 @@ let rec castTo (fe: fexp) (newt: typ)
           
         (* SCALAR -> INDEX, WILD, SEQ, FSEQ *)
       | N.Scalar, (N.Index|N.Wild|N.Seq|N.FSeq|N.FSeqN|N.SeqN) ->
-          if not (isZero p) then
-            ignore (warn "Casting scalar (%a) to pointer in %s!"
+          if not (isZero p) && newkind <> N.Wild then
+            ignore (warn "Casting scalar (%a) to non-WILD pointer in %s!"
                       d_exp p !currentFunction.svar.vname);
           let newbase, doe' = 
             if !interceptCasts && (isInteger p = None) then begin
@@ -2902,7 +2902,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
       N.Wild | N.Seq | N.FSeq | N.SeqN | N.FSeqN | N.Index -> 
         let fptr, fbase, fendo = getFieldsOfFat destt in 
         fptr.ftype, addOffsetLval (Field(fptr, NoOffset)) dest
-    | N.Safe | N.String 
+    | N.Safe | N.String | N.ROString
     | N.WildT | N.SeqT | N.FSeqT | N.SeqNT | N.FSeqNT | N.IndexT 
       -> destt, dest
     | _ -> E.s (unimp "pkAllocate: ptrtype (%a)" N.d_opointerkind k)
@@ -3044,7 +3044,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
                         (doCast zero charType))
                  else empty))
 
-    | N.String -> (* Allocate this as SeqN, with a null term *)
+    | N.String | N.ROString -> (* Allocate this as SeqN, with a null term *)
         ignore (warn "Allocation of string. Use FSEQN instead. (%a)"
                   d_lval dest);
         single (mkSet (Mem(BinOp(PlusPI,
@@ -3082,7 +3082,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
         registerArea [ integer areaKind;
                        castVoidStar (Lval dest_ptr);
                        zero ] empty
-    | N.Seq | N.SeqN | N.FSeq | N.FSeqN -> 
+    | N.Seq | N.SeqN | N.FSeq | N.FSeqN | N.String | N.ROString -> 
         registerArea [ integer registerAreaSeqInt;
                        castVoidStar (Lval dest_ptr);
                        castVoidStar tmpvar ] empty

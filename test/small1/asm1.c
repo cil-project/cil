@@ -1,4 +1,5 @@
 #include "testharness.h"
+#include <string.h>
 char a[10];
 
 __inline static char * __wes_memset_generic(char *s, char c, unsigned int count)

@@ -15,7 +15,7 @@ MODULES     := pretty trace errormsg stats util clist \
                cil cfg logcalls logwrites check ptrnode \
                solveutil solver globinit \
                oneret boxsplit boxstats box markptr \
-               unionfind type typecheck rmtmps optim seoptim
+               unionfind type typecheck papersolve rmtmps optim seoptim
 EXECUTABLE  := $(OBJDIR)/ccured
 ifdef NATIVECAML
   UNSAFE    := 1

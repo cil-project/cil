@@ -96,7 +96,7 @@ my %commonerrors =
     );
 
                                          
-my $inferbox = "infer";
+my $inferbox = "infer";	# weimer: "paper"
 
 # Start with a few tests that must be run first
 $TEST->newTest(
@@ -557,7 +557,7 @@ sub addTests {
     foreach $kind (@{$pkinds}) {
         my $thisargs = $theargs;
         if($kind eq 'inferbox') {
-            $thisargs .= "  INFERBOX=$inferbox ";
+            $thisargs .= "  INFERBOX=$inferbox"; #ww: "EXTRAARGS=--typecheck";
         }
         if($kind eq 'box') {
             $thisargs .= "  INFERBOX=wild ";

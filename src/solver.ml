@@ -638,10 +638,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
   Hashtbl.iter (fun id n -> 
     if n.kind = Unknown then begin
       assert(n.why_kind <> UserSpec) ;
-      if n.mustHaveEnd then 
-        update n FSeq Unconstrained
-      else
-        update n Safe Unconstrained
+			update n Safe Unconstrained
     end
   ) node_ht ;
 

@@ -48,9 +48,6 @@ type node =
 
       mutable flags: int; 
 
-      mutable mustHaveEnd: bool;        (* If this is SAFE at the very end, 
-                                         * make it FSEQ *)
-
       mutable succ: edge list;          (* All edges with "from" = this node *)
       mutable pred: edge list;          (* All edges with "to" = this node *)
 
@@ -164,6 +161,7 @@ val pkReachSeq : int (* can reach a Seq node *)
 val pkNoPrototype : int (* Used as actual argument in a function without 
                               * prototype *)
 val pkEscape : int (* can "escape" i.e. be assigned to heap memory *)
+val pkNotSafe : int (* constraint used by solvers: node must not be Safe *)
 
 (* The main graph *)
 val idNode: (int, node) Hashtbl.t

@@ -55,6 +55,7 @@ let stripPoly (name: string) : string =
 
 (* weimer: utility function to ease the transition between our flag formats *)
 let setPosArith n = begin N.setFlag n N.pkPosArith end
+let setReachSeq n = begin N.setFlag n N.pkReachSeq end
 let setArith n = begin N.setFlag n N.pkArith end
 let setNull n = begin N.setFlag n N.pkNull  end
 let setUpdated n = begin N.setFlag n N.pkUpdated end
@@ -1498,12 +1499,14 @@ and doFunctionCall
             let n = nodeOfType (typeOf a) in
             if n == N.dummyNode then
               E.s (error "Call to __endof on a non pointer: %a" d_plainexp a);
-            setPosArith n (* To make sure we have an end *)
+            setPosArith n (* To make sure we have an end *) ;
+						setReachSeq n 
           end else if "__startof" = stripPoly v.vname then begin
             let n = nodeOfType (typeOf a) in
             if n == N.dummyNode then
               E.s (error "Call to __startof on a non pointer");
-            setArith n (* To make sure we have a start and an end *)
+            setArith n (* To make sure we have a start and an end *) ;
+						setReachSeq n 
           end 
       | _ -> ()
     end
