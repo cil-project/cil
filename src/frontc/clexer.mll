@@ -483,8 +483,8 @@ and str = parse
 
 and chr =  parse
     '\''	        {""}
-|	hex_escape	{let cur = Lexing.lexeme lexbuf in cur ^ (chr lexbuf)}
-|	oct_escape	{let cur = Lexing.lexeme lexbuf in cur ^ (chr lexbuf)}
+|	hex_escape	{let cur = String.make 1 (Char.chr (Int64.to_int (scan_hex_escape (Lexing.lexeme lexbuf)))) in cur ^ (chr lexbuf)}
+|	oct_escape	{let cur = String.make 1 (Char.chr (Int64.to_int (scan_oct_escape (Lexing.lexeme lexbuf)))) in cur ^ (chr lexbuf)}
 |	escape		{let cur = scan_escape (Lexing.lexeme_char lexbuf 1) in 
                          let cur': string = String.make 1 cur in
                                             cur' ^ (chr lexbuf)}
