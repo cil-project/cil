@@ -4,33 +4,19 @@
    Struct tag --- Since it is diffcult to rename struct tag without
                   scanning ahead, I am not renaming struct tag at all
    *)
-
-(* cprint -- pretty printer of C program from abstract syntax
+(* :: is tricky.  For (a :: b), eval b and then a *)
+(* combine --- combine C source files into one.
 **
 ** Project: FrontC
-** File:  cprint.ml
-** Version: 2.1e
-** Date:  9.1.99
-** Author:  Hugues Cassé
+** File:  combine.ml
+** Version: 1.0 (CABS To CABS)
+** Date:  4.10.01
+** Author:  Raymond To
 **
-**  1.0   2.22.99 Hugues Cassé  First version.
-**  2.0   3.18.99 Hugues Cassé  Compatible with Frontc 2.1, use of CAML
-**                  pretty printer.
-**  2.1   3.22.99 Hugues Cassé  More efficient custom pretty printer used.
-**  2.1a  4.12.99 Hugues Cassé  Correctly handle:
-**                  char *m, *m, *p; m + (n - p)
-**  2.1b  4.15.99 Hugues Cassé  x + (y + z) stays x + (y + z) for
-**                  keeping computation order.
-**  2.1c  7.23.99 Hugues Cassé  Improvement of case and default display.
-**  2.1d  8.25.99 Hugues Cassé  Rebuild escape sequences in string and
-**                  characters.
-**  2.1e  9.1.99  Hugues Cassé  Fix, recognize and correctly display '\0'.
+**  1.0   4.10.01 Raymond To First version.
 *)
 
-module E = Errormsg
-
 open Cabs
-let version = "Cprint 2.1e 9.1.99 Hugues Cassé"
 
 (* Hash tables for combiner *)
 
@@ -53,193 +39,55 @@ let gTag = Hashtbl.create 107 (* tags that have appeared in ALL files *)
 let structTag = Hashtbl.create 107
 let unionTag = Hashtbl.create 107
 
-(*
-** FrontC Pretty printer
-*)
-let out = ref stdout
-let width = ref 80
-let tab = ref 8
-let max_indent = ref 60
 
-let line = ref ""
-let line_len = ref 0
-let current = ref ""
-let current_len = ref 0
-let spaces = ref 0
-let follow = ref 0
-let roll = ref 0
-
-let print_tab size =
-  for i = 1 to size / 8 do
-    output_char !out '\t'
-  done;
-  for i  = 1 to size mod 8 do
-    output_char !out ' '
-  done
-
-let flush _ =
-  if !line <> "" then begin
-    print_tab (!spaces + !follow);
-    output_string !out !line;
-    line := "";
-    line_len := 0
-  end
-
-let commit _ =
-  if !current <> "" then begin
-    if !line = "" then begin
-      line := !current;
-      line_len := !current_len
-    end else begin
-      line := (!line ^ " " ^ !current);
-      line_len := !line_len + 1 + !current_len
-    end;
-    current := "";
-    current_len := 0
-  end
-
-let new_line _ =
-  commit ();
-  if !line <> "" then begin
-    flush ();
-    output_char !out '\n'
-  end;
-  follow := 0
-
-let force_new_line _ =
-  commit ();
-  flush ();
-  output_char !out '\n';
-  follow := 0
-
-let indent _ =
-  new_line ();
-  spaces := !spaces + !tab;
-  if !spaces >= !max_indent then begin
-    spaces := !tab;
-    roll := !roll + 1
-  end
-  
-let unindent _ =
-  new_line ();
-  spaces := !spaces - !tab;
-  if (!spaces <= 0) && (!roll > 0) then begin
-    spaces := ((!max_indent - 1) / !tab) * !tab;
-    roll := !roll - 1
-  end
-      
-let space _ = commit ()
-
-let print str =
-  current := !current ^ str;
-  current_len := !current_len + (String.length str);
-  if (!spaces + !follow + !line_len + 1 + !current_len) > !width
-  then begin
-    if !line_len = 0 then commit ();
-    flush ();
-    output_char !out '\n';
-    if !follow = 0 then follow := !tab
-  end 
-
-
-(*
-** Useful primitives
-*)
-let print_list print_sep print_elt lst = 
-  let _ = List.fold_left
-      (fun com elt ->
-  if com then print_sep ();
-  print_elt elt;
-  true)
-      false
-      lst in
-  ()
-
-let print_commas nl fct lst =
-  print_list (fun () -> print ","; if nl then new_line() else space()) fct lst
-  
-
-let escape_string str =
-  let lng = String.length str in
-  let conv value = String.make 1 (Char.chr (value + 
-      (if value < 10 then (Char.code '0') else (Char.code 'a' - 10)))) in
-  let rec build idx =
-    if idx >= lng then ""
-    else
-      let sub = String.sub str idx 1 in
-      let res = match sub with
-        "\n" -> "\\n"
-        | "\"" -> "\\\""
-        | "'" -> "\\'"
-        | "\r" -> "\\r"
-        | "\t" -> "\\t"
-        | "\b" -> "\\b"
-        | "\000" -> "\\0"
-        | _ -> if sub = (Char.escaped (String.get sub 0))
-          then sub
-          else let code = Char.code (String.get sub 0) in
-            "\\"
-            ^ (conv (code / 64))
-            ^ (conv ((code mod 64) / 8))
-            ^ (conv (code mod 8)) in
-      res ^ (build (idx + 1)) in
-  build 0 
-  
-let print_string s = 
-  print ("\"" ^ escape_string s ^ "\"")
-
-(* 
-** Base Type Printing
-*)
-let get_sign si =
-  match si with
-  NO_SIGN -> ""
-  | SIGNED -> "signed "
-  | UNSIGNED -> "unsigned "
-
-let get_size siz =
-  match siz with
-      NO_SIZE -> ""
-        | CHAR -> "char "
-  | SHORT -> "short "
-  | LONG -> "long "
-  | LONG_LONG -> "long long "
-
-let rec print_base_type  typ =
+let rec combine_type typ =
   match typ with
-    NO_TYPE -> ()
-  | VOID -> print "void"
-  | INT (size, sign) -> 
-      print ((get_sign sign) ^ (get_size size) ^ 
-             (if size <> CHAR then "int" else ""))
-  | BITFIELD (bt, _) -> print_base_type bt
-  | FLOAT size -> print ((if size then "long " else "") ^ "float")
-  | DOUBLE size -> print ((if size then "long " else "") ^ "double")
-  | NAMED_TYPE id -> print (lookup_id id)
-  | ENUM id -> print ("enum " ^ (lookup_tag id))
-  | ENUMDEF (id, items) -> print_enum (lookup_tag id) items
-
-  | STRUCT id -> print ("struct " ^ (lookup_tag id))
-  | STRUCTDEF (id, flds) ->
-      if flds = [] then print "struct { }" 
-      else print_fields ("struct " ^ (lookup_tag id)) flds
-
-  | UNION id -> print ("union " ^ (lookup_tag id))
-  | UNIONDEF (id, flds) -> 
-      if flds = [] then print "union { }" 
-      else print_fields ("union " ^ (lookup_tag id)) flds
-
-  | PROTO (typ, _, _, _) -> print_base_type typ
-  | OLD_PROTO (typ, _, _, _) -> print_base_type typ
-  | PTR typ -> print_base_type  typ
-  | ARRAY (typ, _) -> print_base_type  typ
+    NO_TYPE -> NO_TYPE
+  | VOID -> VOID
+  | INT (size, sign) -> INT(size, sign)
+  | BITFIELD (bt, exp) -> BITFIELD(combine_type bt, combine_expression exp)
+  | FLOAT size -> FLOAT size
+  | DOUBLE size -> DOUBLE size
+  | NAMED_TYPE id -> NAMED_TYPE (lookup_id id)
+  | ENUM id -> ENUM (lookup_tag id)
+  | ENUMDEF (id, items) -> ENUMDEF (lookup_tag id, items)
+  | STRUCT id -> STRUCT (lookup_tag id)
+  | STRUCTDEF (id, flds) -> STRUCTDEF (lookup_tag id, combine_fields flds)
+  | UNION id -> UNION(lookup_tag id)
+  | UNIONDEF (id, flds) -> UNIONDEF(lookup_tag id, combine_fields flds) 
+  | PROTO (typ, pars, ell, x) -> PROTO(combine_type typ, combine_params pars, ell, x)
+  | OLD_PROTO (typ, pars, ell, x) -> OLD_PROTO(combine_type typ, combine_old_params pars, ell, x)
+  | PTR typ -> PTR(combine_type typ)
+  | ARRAY (typ, dim) -> ARRAY(combine_type typ, combine_expression dim)
 (*
-  | CONST typ -> print_base_type  typ
-  | VOLATILE typ -> print_base_type  typ
+  | CONST typ -> CONST(combine_type typ)
+  | VOLATILE typ -> VOLATILE(combine_type typ)
 *)
-  | ATTRTYPE (typ, _) -> print_base_type typ
+  | ATTRTYPE (typ, a) -> 
+      let combineOne (s, el) =
+        (s, List.map combine_expression el)
+      in 
+      let rec doconstvol = function
+          [] -> []
+        | ("const", []) :: rest -> ("const", []) :: doconstvol rest
+        | ("volatile", []) :: rest -> ("volatile", []) :: doconstvol rest
+        | a :: rest -> combineOne a :: doconstvol rest
+      in
+      ATTRTYPE(combine_type typ, doconstvol a)
 
-  | TYPEOF e -> print "__typeof__("; print_expression e 1; print ")"
+  | TYPEOF e -> TYPEOF(combine_expression e)
+
+and combine_fields flds = begin
+  let ids = List.flatten (List.map (fun name_group -> 
+                match name_group with (typ, sto, names) -> 
+                (List.map (fun (id, typ, attr, exp) -> id) names)) flds) in
+  begin
+    List.iter (fun id -> Hashtbl.add lMap id id) ids;
+    let flds' = List.map (fun fld -> combine_name_group fld) flds in 
+    List.iter (fun id -> Hashtbl.remove lMap id) ids;
+    flds'
+  end
+end
 
 (* keep adding "_" until we find one that has not been used *)
 and find_newTag tag = begin
@@ -288,549 +136,162 @@ and declare_tag tag = begin
      end     
 end
 
-(* We dont want to rename fields, so add them to local and remove them right away. 
-   We need to rename TAG if necessary *)  
-and print_fields  id (flds : name_group list) = begin
-  (*declare_tag id;*)
- 
-  print id;
-  if flds = [] then ()
-  else begin
-    print " {";
-    indent ();
-    let ids = List.flatten (List.map (fun name_group -> 
-                match name_group with (typ, sto, names) -> 
-                (List.map (fun (id, typ, attr, exp) -> id) names)) flds) in
-    begin
-      List.iter (fun id -> Hashtbl.add lMap id id) ids;
-      List.iter (fun fld -> print_name_group fld; print ";"; new_line ())
-      flds;
-      List.iter (fun id -> Hashtbl.remove lMap id) ids;
-    end;
-    unindent ();
-    print "}"
-  end
+        
+and combine_onlytype typ =
+  combine_type typ
+
+(* NOTE: REMOVE ATTRIBUTE *)    
+and combine_name ((id, typ, attr, exp) : name) = begin
+ if id = "___missing_field_name"
+  then
+    (id, combine_type typ, [], combine_expression exp)
+  else
+    (lookup_id id, combine_type typ, [], combine_expression exp)
 end
-
-and print_enum id items =
-  print ("enum " ^ id);
-  if items = []
-  then ()
-  else begin
-    print " {";
-    indent ();
-    print_commas
-      true
-      (fun (id, exp) -> print id;
-  if exp = NOTHING then ()
-  else begin
-    space ();
-    print "= ";
-    print_expression exp 1
-  end)
-      items;
-    unindent ();
-    print "}";
-  end
-
-
-(*
-** Declaration Printing 
-*)
-and get_base_type typ =
-  match typ with
-    PTR typ -> get_base_type typ
-(*
-  | CONST typ -> get_base_type typ
-  | VOLATILE typ -> get_base_type typ
-*)
-  | ATTRTYPE (typ, _) -> get_base_type typ
-  | ARRAY (typ, _) -> get_base_type typ
-  | _ -> typ
-  
-and print_pointer typ =
-  match typ with
-    PTR typ -> print_pointer typ; print "*"
-(*
-  | CONST typ -> print_pointer typ; print " const "
-  | VOLATILE typ -> print_pointer typ; print " volatile "
-*)
-  | ATTRTYPE (typ, a) -> begin 
-      print_pointer typ;
-        (* Extract the const and volatile attributes *)
-      let rec doconstvol = function
-          [] -> []
-        | ("const", []) :: rest -> print " const "; doconstvol rest
-        | ("volatile", []) :: rest -> print " volatile "; doconstvol rest
-        | a :: rest -> a :: doconstvol rest
-      in
-      let rest = doconstvol a in
-      if rest <> [] then begin
-        print " __attribute__((";
-        let printOne (s, el) =
-          print s;
-          if el <> [] then
-            print_commas false (fun e -> print_expression e 1) el
-        in
-        print_commas false printOne rest;
-        print ")) "
-      end
-  end
-
-  | ARRAY (typ, _) -> print_pointer typ
-  | _ -> ()
         
-and print_array typ =
-  match typ with
-    ARRAY (typ, dim) ->
-      print_array typ; 
-      print "[";
-      print_expression dim 0;
-      print "]"
-  | _ -> ()
-
-and print_type (fct : unit -> unit) (typ : base_type ) =
-  let base = get_base_type typ in
-  match base with
-    BITFIELD (_, exp) -> fct (); print " : "; print_expression exp 1
-  | PROTO (typ', pars, ell, _) ->
-      print_type
-  (fun _ ->
-    if base <> typ then print "(";
-    print_pointer typ;
-    fct ();
-    print_array typ;
-    if base <> typ then print ")";
-    print "(";
-    print_params pars ell;
-    print ")")
-  typ'
-  
-  | OLD_PROTO (typ', pars, ell, _) ->
-      print_type
-  (fun _ ->
-    if base <> typ then print "(";
-    print_pointer typ;
-    fct ();
-    print_array typ;
-    if base <> typ then print ")";
-    print "(";
-    print_old_params pars ell;
-    print ")")
-  typ'
-  | _ -> print_pointer typ; fct (); print_array typ
-        
-and print_onlytype typ =
-  print_base_type typ;
-  print_type (fun _ -> ()) typ
-
-(* Raymond added lookup_id here *)    
-and print_name ((id, typ, attr, exp) : name) =
-  if id = "___missing_field_name" then () 
-  else begin
-    print_type (fun _ -> print (lookup_id id)) typ;
-    print_attributes attr;
-    if exp <> NOTHING then begin
-      space ();
-      print "= ";
-      print_expression exp 1
-    end else ()
-  end
-      
-and get_storage sto =
-  match sto with
-    NO_STORAGE -> ""
-  | AUTO -> "auto"
-  | STATIC i -> "static" ^ (if i then " __inline__" else "")
-  | EXTERN i -> "extern" ^ (if i then " __inline__" else "")
-  | INLINE -> "__inline__"
-  | REGISTER -> "register"
-        
-and print_name_group (typ, sto, names) =
-  if sto <> NO_STORAGE then begin
-    print (get_storage sto);
-    space ()
-  end;
-  print_base_type typ;
-  space ();
-  print_commas false print_name names
+and combine_name_group (typ, sto, names) =
+  (combine_type typ, sto, List.map combine_name names)
     
-and print_single_name (typ, sto, name) =
-  if sto <> NO_STORAGE then begin
-    print (get_storage sto);
-    space ()
-  end;
-  print_base_type typ;
-  space ();
-  print_name name
+and combine_single_name (typ, sto, name) =
+  (combine_type typ, sto, combine_name name) 
 
 (* Raymond added declare_id lookup_id *)
-and print_params (pars : single_name list) (ell : bool) =
+and combine_params (pars : single_name list) = begin
   List.iter (fun name -> declare_id name false) pars;
-  print_commas false print_single_name pars;
-  if ell then print (if pars = [] then "..." else ", ...") else ()
+  List.map (fun single_name -> combine_single_name single_name) pars
+end
 
 (* Raymond added declare_id and lookup_id here *)    
-and print_old_params pars ell =
+and combine_old_params pars = begin
   List.iter (fun id -> declare_id (NO_TYPE, NO_STORAGE, (id, NO_TYPE, [], NOTHING)) false) pars;
-  print_commas false (fun id -> print (lookup_id id)) pars;
-  if ell then print (if pars = [] then "..." else ", ...") else ()
-    
-
-(*
-** Expression printing
-**    Priorities
-**    16  varaibles
-**    15  . -> [] call()
-**    14  ++, -- (post)
-**    13  ++ -- (pre) ~ ! - + & *(cast)
-**    12  * / %
-**    11  + -
-**    10  << >>
-**    9 < <= > >=
-**    8 == !=
-**    7 &
-**    6 ^
-**    5 |
-**    4 &&
-**    3 ||
-**    2 ? :
-**    1 = ?=
-**    0 ,       
-*)
-and get_operator exp =
-  match exp with
-    NOTHING -> ("", 16)
-  | UNARY (op, _) ->
-      (match op with
-  MINUS -> ("-", 13)
-      | PLUS -> ("+", 13)
-      | NOT -> ("!", 13)
-      | BNOT -> ("~", 13)
-      | MEMOF -> ("*", 13)
-      | ADDROF -> ("&", 13)
-      | PREINCR -> ("++", 13)
-      | PREDECR -> ("--", 13)
-      | POSINCR -> ("++", 14)
-      | POSDECR -> ("--", 14))
-  | BINARY (op, _, _) ->
-      (match op with
-  MUL -> ("*", 12)
-      | DIV -> ("/", 12)
-      | MOD -> ("%", 12)
-      | ADD -> ("+", 11)
-      | SUB -> ("-", 11)
-      | SHL -> ("<<", 10)
-      | SHR -> (">>", 10)
-      | LT -> ("<", 9)
-      | LE -> ("<=", 9)
-      | GT -> (">", 9)
-      | GE -> (">=", 9)
-      | EQ -> ("==", 8)
-      | NE -> ("!=", 8)
-      | BAND -> ("&", 7)
-      | XOR -> ("^", 6)
-      | BOR -> ("|", 5)
-      | AND -> ("&&", 4)
-      | OR -> ("||", 3)
-      | ASSIGN -> ("=", 1)
-      | ADD_ASSIGN -> ("+=", 1)
-      | SUB_ASSIGN -> ("-=", 1)
-      | MUL_ASSIGN -> ("*=", 1)
-      | DIV_ASSIGN -> ("/=", 1)
-      | MOD_ASSIGN -> ("%=", 1)
-      | BAND_ASSIGN -> ("&=", 1)
-      | BOR_ASSIGN -> ("|=", 1)
-      | XOR_ASSIGN -> ("^=", 1)
-      | SHL_ASSIGN -> ("<<=", 1)
-      | SHR_ASSIGN -> (">>=", 1))
-  | QUESTION _ -> ("", 2)
-  | CAST _ -> ("", 13)
-  | CALL _ -> ("", 15)
-  | COMMA _ -> ("", 0)
-  | CONSTANT _ -> ("", 16)
-  | VARIABLE name -> ("", 16)
-  | EXPR_SIZEOF exp -> ("", 16)
-  | TYPE_SIZEOF typ -> ("", 16)
-  | INDEX (exp, idx) -> ("", 15)
-  | MEMBEROF (exp, fld) -> ("", 15)
-  | MEMBEROFPTR (exp, fld) -> ("", 15)
-  | GNU_BODY _ -> ("", 17)
+  List.map lookup_id pars
+end
         
-and print_comma_exps exps =
-  print_commas false (fun exp -> print_expression exp 1) exps
-    
-and print_expression (exp : expression) (lvl : int) =
-  let (txt, lvl') = get_operator exp in
-  let _ = if lvl > lvl' then print "(" else () in
-  let _ = match exp with
-    NOTHING -> ()
+and combine_exps exps =
+  List.map combine_expression exps
+
+(* No need to rename fields *)    
+and combine_expression (exp : expression) =
+  match exp with
+    NOTHING ->
+      NOTHING
   | UNARY (op, exp') ->
-      (match op with
-  POSINCR | POSDECR ->
-    print_expression exp' lvl';
-    print txt
-      | _ ->
-    print txt;
-    print_expression exp' lvl')
+      UNARY(op, combine_expression exp')  
   | BINARY (op, exp1, exp2) ->
-      (*if (op = SUB) && (lvl <= lvl') then print "(";*)
-      print_expression exp1 lvl';
-      space ();
-      print txt;
-      space ();
-      (*print_expression exp2 (if op = SUB then (lvl' + 1) else lvl');*)
-      print_expression exp2 (lvl' + 1)
-      (*if (op = SUB) && (lvl <= lvl') then print ")"*)
+      BINARY(op, combine_expression exp1, combine_expression exp2)      
   | QUESTION (exp1, exp2, exp3) ->
-      print_expression exp1 2;
-      space ();
-      print "? ";
-      print_expression exp2 2;
-      space ();
-      print ": ";
-      print_expression exp3 2;
+      QUESTION(combine_expression exp1, combine_expression exp2, combine_expression exp3)    
   | CAST (typ, exp) ->
-      print "(";
-      print_onlytype typ;
-      print ")";
-      print_expression exp 15
+      CAST(combine_type typ, combine_expression exp)     
   | CALL (exp, args) ->
-      print_expression exp 16;
-      print "(";
-      print_comma_exps args;
-      print ")"
+      CALL(combine_expression exp, combine_exps args)   
   | COMMA exps ->
-      print_comma_exps exps
+      COMMA(combine_exps exps)
   | CONSTANT cst ->
-      (match cst with
-  CONST_INT i -> print i
-      | CONST_FLOAT r -> print r
-      | CONST_CHAR c -> print ("'" ^ (escape_string c) ^ "'")
-      | CONST_STRING s -> print_string s
+      CONSTANT(
+        (match cst with
+        CONST_INT i -> CONST_INT i
+      | CONST_FLOAT r -> CONST_FLOAT r
+      | CONST_CHAR c -> CONST_CHAR c
+      | CONST_STRING s -> CONST_STRING s
       | CONST_COMPOUND initexps ->
           let doinitexp = function
-              NO_INIT, e -> print_expression e 1
+              NO_INIT, e -> (NO_INIT, combine_expression e)
             | i, e -> 
                 let rec doinit = function
-                    NO_INIT -> ()
-                  | FIELD_INIT (fn, i) -> print ("." ^ fn); doinit i
+                    NO_INIT -> NO_INIT
+                  | FIELD_INIT (fn, i) -> FIELD_INIT(fn, doinit i)
                   | INDEX_INIT (e, i) -> 
-                      print "[";
-                      print_expression e 1;
-                      print "]";
-                      doinit i
-                in
-                doinit i; print " = "; 
-                print_expression e 1
+                      INDEX_INIT(combine_expression e, doinit i)                              in
+                (doinit i, combine_expression e)
           in
-    print "{";
-          print_commas false doinitexp initexps;
-    print "}")
+          CONST_COMPOUND(List.map doinitexp initexps)
+        ))
 
-  | VARIABLE name -> (* Raymond changed the code to lookup_id *)
-      print (lookup_id name)
+  | VARIABLE name -> 
+      VARIABLE(lookup_id name)
   | EXPR_SIZEOF exp ->
-      print "sizeof(";
-      print_expression exp 0;
-      print ")"
+      EXPR_SIZEOF (combine_expression exp)
   | TYPE_SIZEOF typ ->
-      print "sizeof(";
-      print_onlytype typ;
-      print ")"
+      TYPE_SIZEOF(combine_type typ)
   | INDEX (exp, idx) ->
-      print_expression exp 16;
-      print "[";
-      print_expression idx 0;
-      print "]"
+      INDEX(combine_expression exp, combine_expression idx)
   | MEMBEROF (exp, fld) ->
-      print_expression exp 16;
-      print ("." ^ fld)
+      MEMBEROF(combine_expression exp, fld)
   | MEMBEROFPTR (exp, fld) ->
-      print_expression exp 16;
-      print ("->" ^ fld)
+      MEMBEROFPTR(combine_expression exp, fld)
   | GNU_BODY blk ->
-      print "(";
-      print_statement (BLOCK blk);
-      print ")" in
-  if lvl > lvl' then print ")" else ()
-    
+      GNU_BODY (List.map combineBlkElem blk)
+
+and combineBlkElem = function
+      BDEF d -> BDEF(combine_def d false)
+    | BSTM s -> BSTM(combine_statement s)
 
 (*
-** Statement printing
+** Statement combining
 *)
-and print_statement stat =
+and combine_statement stat =
   match stat with
     NOP ->
-      print ";";
-      new_line ()
+      NOP
   | COMPUTATION exp ->
-      print_expression exp 0;
-      print ";";
-      new_line ()
+      COMPUTATION(combine_expression exp)  
   | BLOCK blk ->
-      new_line ();
-      print "{";
-      indent ();
-      let printBlkElem = function
-          BDEF d -> print_def d false
-        | BSTM s -> print_statement s
-      in
-      List.iter printBlkElem blk;
-      unindent ();
-      print "}";
-      new_line ();
+      BLOCK(List.map combineBlkElem blk)
   | SEQUENCE (s1, s2) ->
-      print_statement s1;
-      print_statement s2;
+      SEQUENCE(combine_statement s1, combine_statement s2)
   | IF (exp, s1, s2) ->
-      print "if(";
-      print_expression exp 0;
-      print ")";
-      print_substatement s1;
-      if s2 = NOP
-      then ()
-      else begin
-  print "else";
-  print_substatement s2;
-      end
+      IF(combine_expression exp, combine_substatement s1, combine_substatement s2)
   | WHILE (exp, stat) ->
-      print "while(";
-      print_expression exp 0;
-      print ")";
-      print_substatement stat
+      WHILE(combine_expression exp, combine_substatement stat)
   | DOWHILE (exp, stat) ->
-      print "do";
-      print_substatement stat;
-      print "while(";
-      print_expression exp 0;
-      print ");";
-      new_line ();
+      DOWHILE(combine_expression exp, combine_substatement stat)
   | FOR (exp1, exp2, exp3, stat) ->
-      print "for(";
-      print_expression exp1 0;
-      print ";";
-      space ();
-      print_expression exp2 0;
-      print ";";
-      space ();
-      print_expression exp3 0;
-      print ")";
-      print_substatement stat
+      FOR(combine_expression exp1, combine_expression exp2, combine_expression exp3, combine_substatement stat)
   | BREAK ->
-      print "break;"; new_line ()
+      BREAK
   | CONTINUE ->
-      print "continue;"; new_line ()
+      CONTINUE
   | RETURN exp ->
-      print "return";
-      if exp = NOTHING
-      then ()
-      else begin
-  print " ";
-  print_expression exp 1
-      end;
-      print ";";
-      new_line ()
+      RETURN (combine_expression exp) 
   | SWITCH (exp, stat) ->
-      print "switch(";
-      print_expression exp 0;
-      print ")";
-      print_substatement stat
+      SWITCH(combine_expression exp, combine_substatement stat)
   | CASE (exp, stat) ->
-      unindent ();
-      print "case ";
-      print_expression exp 1;
-      print ":";
-      indent ();
-      print_substatement stat
+      CASE(combine_expression exp, combine_substatement stat)
   | DEFAULT stat ->
-      unindent ();
-      print "default :";
-      indent ();
-      print_substatement stat
+      DEFAULT(combine_substatement stat)
   | LABEL (name, stat) ->
-      print (name ^ ":");
-      space ();
-      print_substatement stat
+      LABEL(name, combine_substatement stat)
   | GOTO name ->
-      print ("goto " ^ name ^ ";");
-      new_line ()
+      GOTO(name)    
   | ASM (tlist, isvol, outs, ins, clobs) ->
-      let print_asm_operand (cnstr, e) = 
-        print_string cnstr; space (); print_expression e 100
-      in
-      print "__asm__ "; if isvol then print "__volatile__ ";
-      print "("; 
-      print_list (fun () -> new_line()) print_string tlist;(* templates *)
-      print ":"; space ();
-      print_commas false print_asm_operand outs;
-      print ":"; space ();
-      print_commas false print_asm_operand ins;
-      if clobs <> [] then begin
-        print ":"; space ();
-        print_commas false print_string clobs
-      end;
-      print ");"
-        
-and print_substatement stat =
-  match stat with
-    IF _
-  | SEQUENCE _
-  | DOWHILE _ ->
-      new_line ();
-      print "{";
-      indent ();
-      print_statement stat;
-      unindent ();
-      print "}";
-      new_line ();
-  | BLOCK _ ->
-      print_statement stat
-  | _ ->
-      indent ();
-      print_statement stat;
-      unindent ()
-
+      ASM(tlist, isvol, outs, ins, clobs)   
+           
+and combine_substatement stat =
+  combine_statement stat
+  
 
 (*
-** GCC Attributes
+** Combine and rename declarations
 *)
-and print_attribute (name,args) = 
-  if args = [] then print name
-  else begin
-    print name;
-    print "(";
-    print_commas false (fun e -> print_expression e 1) args;
-    print ")"
-  end
+and combine_defs defs global = begin
+  (* clear file scope tables *)
+  Hashtbl.clear fDefTable;
+  Hashtbl.clear fMap;
+  Hashtbl.clear fTag; 
 
-(* DO NOT PRINT OUT ANY ATTRIBUTE FOR NOW *)
-and print_attributes attrs = 
-  ();  
-(*  if attrs = [] then ()
-  else
-    begin
-      space (); print "__attribute__((";
-      print_commas false print_attribute attrs;
-      print "))"
-    end
-*)
-
-(*
-** Declaration printing
-*)
-and print_defs defs global = begin
-
-  let prev = ref false in
-  List.iter
-    (fun def ->
-      (match def with
-  DECDEF _ -> prev := false
-      | _ ->
-    if not !prev then force_new_line ();
-    prev := true);
-      print_def def global)
-    defs
+  let rec reform_defs = function
+      [] -> []
+    | def :: rest -> 
+      begin
+        if global && (already_declared (remove_anon def)) then 
+          (reform_defs rest) (*skip this def *) 
+        else
+          let combined_def = combine_def def global in
+            combined_def :: (reform_defs rest)
+      end
+  in 
+  reform_defs defs 
 end
 
 (* A set of remove_anon functions to remove _anon from 
@@ -1064,79 +525,42 @@ end
 
 (* if global, we do a check on duplicate definition.
    Also, declare id (variable, function, and type) *)
-and print_def def global = begin
+and combine_def def global = begin
   
   (* clear function scope mapping table if this is a global def *)
   if global then 
-    Hashtbl.clear lMap; 
-  
-  if global && (already_declared (remove_anon def)) then 
     begin
-      ()
-    end
-  else
-    begin
-  
-    match def with
-      FUNDEF (name, body) ->
-        declare_id name global;
-        print_single_name name;
-        print_statement (BLOCK body);
-        force_new_line ();
-        
-    | OLDFUNDEF (name, decs, body) ->
-        declare_id name global;
-        print_single_name name;
-        force_new_line ();
-        List.iter (fun dec -> print_name_group dec; print ";";
-        new_line ()) decs;
-        print_statement (BLOCK body);
-        force_new_line ();
-       
-    | DECDEF names ->
-        declare_ids names global;
-        print_name_group names;
-        print ";";
-        new_line ()
-       
-    | TYPEDEF (typ, sto, names) ->
-        declare_ids (typ, STATIC true, names) global;
-        print "typedef ";
-        print_name_group (typ, sto, names);
-        print ";";
-        new_line ();
-        force_new_line ()
-      
-    | ONLYTYPEDEF (typ, sto, names) ->
-        declare_ids (typ, STATIC true, names) global;
-        print_name_group (typ, sto, names);
-        print ";";
-        new_line ();
-        force_new_line ()
-        
-    | GLOBASM asm -> 
-        print "__asm__ (";  print_string asm; print ");";
-        new_line ();
-        force_new_line ()
-(*
-    | PRAGMA (s, el) -> 
-        force_new_line ();
-        print "#pragma "; print_string s;
-        if el <> [] then begin
-          print "("; 
-          print_commas false (fun e -> print_expression e 1) el;
-          print ")"
-        end;
-        force_new_line ()
-*)
-    | PRAGMA a -> 
-        force_new_line ();
-        print "#pragma ";
-        print_attribute a;
-        force_new_line ()
-end
-end
+      Hashtbl.clear lMap; 
+    end;
 
+  match def with
+    FUNDEF (name, body) ->
+      (declare_id name global;
+      FUNDEF(combine_single_name name, List.map combineBlkElem body))
+               
+  | OLDFUNDEF (name, decs, body) ->
+      (declare_id name global;
+      OLDFUNDEF(combine_single_name name, List.map (fun dec -> combine_name_group dec) decs, List.map combineBlkElem body))
+       
+  | DECDEF names ->
+      (declare_ids names global;
+      DECDEF(combine_name_group names))
+       
+  | TYPEDEF (typ, sto, names) ->
+      (declare_ids (typ, STATIC true, names) global;
+      TYPEDEF(combine_name_group (typ, sto, names)))
+      
+  | ONLYTYPEDEF (typ, sto, names) ->
+      (declare_ids (typ, STATIC true, names) global;
+      ONLYTYPEDEF(combine_name_group (typ, sto, names)))
+        
+  | GLOBASM asm -> 
+      GLOBASM asm 
+
+  | PRAGMA a -> 
+      PRAGMA a
+end
+  
 (* look up id from Mapping tables *)
 and lookup_id id = begin
   try
@@ -1152,37 +576,10 @@ and lookup_id id = begin
         id
 end
         
-(*  print abstrac_syntax -> ()
-**    Pretty printing the given abstract syntax program.
-*)
-let print (result : out_channel) (defs : file) = begin
-
-  (* clear file scope tables *)
-  Hashtbl.clear fDefTable;
-  Hashtbl.clear fMap;
-  Hashtbl.clear fTag; 
-
-  out := result;
-  print_defs defs true (* global definition *)
+let combine (files : string list) = begin
+    let list_of_parsed_files =
+      List.map (fun file_name -> Frontc.parse_to_cabs file_name)  files in
+        let defs = List.flatten (List.map (fun defs' -> combine_defs defs' true) list_of_parsed_files) in
+        Cprint.print stdout defs
 end
 
-let set_tab t = tab := t
-let set_width w = width := w
-
-let combine (files: string list) 
-            (out: string) =
-  Hashtbl.add gAlphaTable "" "";
-  Hashtbl.add gMap "" "";
-  Hashtbl.add fMap "" "";
-  Hashtbl.add lMap "" "";
-  
-  let list_of_parsed_files =
-    List.map (fun file_name -> Frontc.parse_to_cabs file_name) files in
-  
-  let outchan = 
-    try open_out out with e -> E.s (E.error "Cannot open output file %s" out)
-  in
-  List.iter (fun file -> print outchan file) list_of_parsed_files;
-  close_out outchan
-
-      
