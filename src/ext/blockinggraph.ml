@@ -84,9 +84,9 @@ let getFreshNodeNum () : int =
   num
 
 (* Initialize a node. *)
-let newNode (name: string) (fptr: bool) : node =
+let newNode (name: string) (fptr: bool) (mangle: bool) : node =
   let id = getFreshNodeNum () in
-  { nodeid = id; name = if fptr then name ^ (string_of_int id) else name;
+  { nodeid = id; name = if mangle then name ^ (string_of_int id) else name;
     scanned = false; expand = false;
     fptr = fptr; stacksize = 0; fds = None;
     bkind = NoBlock; origkind = NoBlock;
@@ -121,7 +121,7 @@ let getFunctionNode (n: string) : node =
   Util.memoize 
     functionNodes
     n
-    (fun _ -> newNode n false)
+    (fun _ -> newNode n false false)
 
 (* We map types to nodes for function pointers *)
 let functionPtrNodes: (typsig, node) Hashtbl.t = Hashtbl.create 113
@@ -129,7 +129,9 @@ let getFunctionPtrNode (t: typ) : node =
   Util.memoize
     functionPtrNodes
     (myTypeSig t)
-    (fun _ -> newNode functionPointerName true)
+    (fun _ -> newNode functionPointerName true true)
+
+let startNode: node = newNode "@@startNode@@" true false
 
 
 (*
@@ -184,6 +186,7 @@ let dumpFunctionCallGraphToFile () =
     List.iter dumpSucc n.succs;
     output_string channel "\n";
   in
+  dumpNode () startNode;
   Hashtbl.iter dumpNode functionNodes;
   Hashtbl.iter dumpNode functionPtrNodes;
   close_out channel
@@ -550,6 +553,10 @@ let makeFunctionCallGraph (f: Cil.file) : unit =
       | _ -> ())
     f.globals
 
+let makeStartNodeLinks () : unit =
+  addCall startNode (getFunctionNode "main") None;
+  List.iter (fun n -> addCall startNode n None) !startNodes
+
 let funType (ret_t: typ) (args: (string * typ) list) = 
   TFun(ret_t, 
       Some (List.map (fun (n,t) -> (n, t, [])) args),
@@ -749,6 +756,7 @@ let feature : featureDescr =
       Random.init 0; (* Use the same seed so that results are predictable. *)
       gatherPragmas f;
       makeFunctionCallGraph f;
+      makeStartNodeLinks ();
       markBlockingFunctions ();
       (* makeAndDumpBlockingGraphs (); *)
       instrumentProgram f;
