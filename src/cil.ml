@@ -2517,7 +2517,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
          * on the Poly module, I have to copy that code here!  This is
          * clearly a design mistake. *)
 
-        (* --------- END code copied from ccured/Poly.ml --------- *)
+        (* --------- BEGIN code copied from ccured/Poly.ml --------- *)
         (* Split a name into a polymorphic prefix and a base name. The polymorphic
          * prefix is the empty string if this is not a polymorphic name *)
         let splitPolyName (name: string) : string * string =
