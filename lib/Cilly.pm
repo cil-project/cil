@@ -1383,8 +1383,8 @@ sub arArguments {
     if($arg !~ m|r| || $#{$pargs} < 0) {
 	die "Error: CCured's AR mode implements only the r and cr operations.";
     }
-    if($arg =~ /[^crv]/) {
-	warn "Error: CCured's AR mode supports only the c, r, and v flags.";
+    if($arg =~ /[^crvu]/) {
+	die "Error: CCured's AR mode supports only the c, r, and v flags.";
     }
     if($arg =~ /v/) {
 	$self->{VERBOSE} = 1;
