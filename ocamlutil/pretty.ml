@@ -58,6 +58,11 @@ let george_no_out  = george && (george_no_scan || george_no_emit || false)
 (* use MARSHALWRITE=filename to marshal the document to the specified file *)
 let marshalFilename = (try Sys.getenv ("MARSHALWRITE") with Not_found -> "")
 
+(* Options for Aman's algorithm *)
+let qdontthink = false
+let useGapAlgo = false
+
+
 
 
 let noBreaks = ref false  (* Replace all soft breaks with space *)
@@ -133,7 +138,6 @@ let align      = Align
 let unalign    = Unalign
 let line       = Line
 let break      = Break  (* Line *) (* Aman's benchmarking goo *)
-
 
 
 (* Some debugging stuff *)
@@ -1103,27 +1107,7 @@ let qPreprocess doc width =
       |	Nil -> getNext ()
       | Text _ | Line | Break | Align | Unalign -> doc
     end
-  | _ -> nil
-  (*
-     let rec getNext  () = 
-     let rec processStackElement doc = 
-     match doc with
-     Nil -> getNext ()
-     |	Text _ | Line | Break | Align | Unalign -> doc
-     |	Concat (d1,d2) ->
-     stack := d2 :: !stack;
-     processStackElement d1
-     |	CText (d,s) ->
-     stack := Text s :: !stack;
-     processStackElement d
-     in
-     match !stack with
-     doc :: rest -> begin 
-     stack := rest;
-     processStackElement doc
-     end
-     | _ -> nil
-  *)
+  | [] -> nil
   in
   let docstr = getNext in
   let breakList : int ref list ref = ref [] in
@@ -1144,43 +1128,80 @@ let qPreprocess doc width =
 	   x := getSize 0;	
 	getSize (acc + !x)
     | Unalign -> 
-	(*if !updateBreakList then breakList := (ref (-1)) :: !breakList;
-	updateBreakList := false; *)
+	if !updateBreakList then breakList := (ref (-1)) :: !breakList;
+	updateBreakList := false; 
 	acc
     | Line -> 
 	if (!updateBreakList) then breakList := (ref (-1)) :: !breakList;
 	updateBreakList := false; 
 	getSize 0
     | Nil -> acc
-    | _ -> raise (Failure "docStream returned nonleaf")
+    | Concat _ | CText _ -> raise (Failure "docStream returned nonleaf")
   in 
-  let _ = getSize 0 in begin
-    if !updateBreakList then breakList := (ref (-1)) :: !breakList;
-    List.rev !breakList
-  end
+
+  (* *** * The gap-algo *** *)
+  let breaks    = ref [] in
+  let dummybreak = ref (-9999) in
+  let rec getGap 
+      (acc : int) 
+      (lastBreak : int ref)
+      (lastBreakStack : int ref list)
+      : int =
+    match docstr () with
+      Text s -> getGap (acc + String.length s) lastBreak lastBreakStack
+    | Break ->
+	let newBrk = ref (-acc-1) in
+	lastBreak := (!lastBreak) + acc;
+	breaks     := newBrk :: !breaks;
+	getGap (succ acc) newBrk lastBreakStack
+    | Line ->
+	getGap 0 lastBreak lastBreakStack
+    | Align ->
+	let x = getGap 0 dummybreak (lastBreak :: lastBreakStack) in
+	lastBreak := !lastBreak + x ;
+	getGap (acc + x) lastBreak lastBreakStack
+    | Unalign ->
+	acc
+    | Nil -> acc   
+    | Concat _ | CText _ -> raise (Failure "docStream returned nonleaf")
+  in
+
+  if useGapAlgo then
+    let x = getGap 0 dummybreak [] in begin
+    (* !lastBreak := !(!lastBreak) + x;*)
+      List.rev !breaks;
+    end
+  else
+    let _ = getSize 0 in begin
+      if !updateBreakList then breakList := (ref (-1)) :: !breakList;
+      List.rev !breakList
+    end
+
    
-
-let qdontthink = false
-
 let qprint qchn width doc = 
   (* let curPos = ref 0 in *)
   let alignStack  = ref [0] in
   let breakList :  int ref list ref = if qdontthink then ref [] else ref (qPreprocess doc width) in
-  let spaceBuf = String.make width ' ' in
+  let spaceBuf = String.make (width*2) ' ' in
   let breakLine () = begin
     writeChar '\n' qchn;
     (* for i=1 to (List.hd !alignStack) do writeChar ' ' qchn done;*)
-    writeIndent (List.hd !alignStack) spaceBuf qchn; (* AB: Why doesn't this make it faster ? *)
+    writeIndent (List.hd !alignStack) spaceBuf qchn;
     List.hd !alignStack 
   end in
   let decide2break curPos = begin
+    (*
+    writeString "\027[1;33m" qchn;
+    writeChar (char_of_int (33+(curPos mod 25))) qchn;
+    writeString "\027[0;0m" qchn;
+    *)
     match !breakList with
       size :: rest -> 
 	breakList := rest;
+	(* fprintf "%c c=%d s=%d\n" (char_of_int (33 + (curPos mod 25))) curPos !size; *)
 	(curPos > width) || 
-	if (!size <= 0) then false
-	else (width <= curPos + !size)
-    | _ -> raise (Failure "breakList contains too few breaks")
+	((!size > 0) && (width < curPos + !size ))
+    | [] -> raise (Failure "breakList contains too few breaks")
   end  in
   let qprintText curPos (s : string) =
     writeString s qchn;
@@ -1194,7 +1215,7 @@ let qprint qchn width doc =
     | CText (d,s) -> qprintText (qprintLoop curPos d) s
     | Break -> 
 	if qdontthink then
-	  if (curPos + 10 >= width) then  (breakLine())
+	  if (curPos + 10 >= width)  then  (breakLine())
 	  else begin writeChar ' ' qchn; curPos + 1 end
 	else
 	  if (decide2break curPos) then (breakLine())
@@ -1293,3 +1314,5 @@ let printf  format = gprintf (fun x -> fprint stdout 80 x) format
 *)
 
 
+let getAboutString () : string =
+  "(Pretty: ALGO=" ^ envAlgo ^ ")"
