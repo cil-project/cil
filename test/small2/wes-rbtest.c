@@ -1,24 +1,7 @@
 
 /* A special purpose main */
 //#include "main.h"
-#ifndef MANUALBOX
-#define WILD
-#define SAFE
-#define TAGGED
-#define INDEX
-#define SIZED
-#define SEQ
-#define FSEQ
-#define calloc_fseq calloc
-#else
-#define WILD   __attribute__((wild))
-#define SAFE   __attribute__((safe))
-#define TAGGED __attribute__((tagged))
-#define INDEX  __attribute__((index))
-#define SIZED  __attribute__((sized))
-#define SEQ    __attribute__((seq))
-#define FSEQ   __attribute__((fseq))
-#endif
+
 /****** Data sizes *******
 * U8  must be an unsigned of 8 bits
 * U16 must be an unsigned of 16 bits *
