@@ -65,6 +65,9 @@ sub new {
     # Scan and process the arguments
     while($#args >= 0) {
         my $arg = $self->fetchEscapedArg(\@args);
+        if(! defined($arg)) {
+            last;
+        }
 #
 #        my $arg = shift @args; # Grab the next one
         if(! $self->collectOneArgument($arg, \@args)) {
@@ -81,7 +84,13 @@ sub fetchEscapedArg {
     my ($self, $pargs) = @_;
     my $arg = shift @{$pargs};
         # Drop the empty arguments
-    if($arg =~ m|^\s*$|) { return $self->fetchEscapedArgs($pargs); }
+    if($arg =~ m|^\s*$|) { 
+        if($#{$pargs} > 0) {
+            return $self->fetchEscapedArg($pargs); 
+        } else {
+            return undef;
+        }
+    }
         # See if it contains spaces
     $arg =~ s|(\s)|\\$1|g;
     $arg =~ s|(\")|\\\"|g;
@@ -504,7 +513,7 @@ sub new {
 
       OPTIONS => 
 # Describe the compiler options as a list of patterns and associated actions. 
-# The patterns are matched in order against the begining of the argument.
+# The patterns are matched in order against the _begining_ of the argument.
 #
 # If the action contains ONEMORE => 1 then the argument is expected to be
 # parameterized by a following word. The word can be attached immediately to
@@ -520,9 +529,9 @@ sub new {
 # given subroutine is invoked with the argument and the (possibly empty)
 # additional word.
 #
-          ["[^/].*\\.(c|cpp|cc)" => { TYPE => 'CSOURCE' },
-           "[^/].*\\.(asm)" => { TYPE => 'ASMSOURCE' },
-           "[^/].*\\.i" => { TYPE => 'ISOURCE' },
+          ["[^/].*\\.(c|cpp|cc)\$" => { TYPE => 'CSOURCE' },
+           "[^/].*\\.(asm)\$" => { TYPE => 'ASMSOURCE' },
+           "[^/].*\\.i\$" => { TYPE => 'ISOURCE' },
            "[^/-]" => { TYPE => "OSOURCE" },
            "/O" => { TYPE => "CC" },
            "/G" => { TYPE => "CC" },
@@ -751,9 +760,9 @@ sub new {
       LINEPATTERN => "^#\\s+(\\d+)\\s+\"(.+)\"",
       
       OPTIONS => 
-          [ "[^-].*\\.(c|cpp|cc)" => { TYPE => 'CSOURCE' },
-            "[^-].*\\.(s|S)" => { TYPE => 'ASMSOURCE' },
-            "[^-].*\\.i" => { TYPE => 'ISOURCE' },
+          [ "[^-].*\\.(c|cpp|cc)\$" => { TYPE => 'CSOURCE' },
+            "[^-].*\\.(s|S)\$" => { TYPE => 'ASMSOURCE' },
+            "[^-].*\\.i\$" => { TYPE => 'ISOURCE' },
             "[^-]" => { TYPE => 'OSOURCE' },
             "-[DI]" => { ONEMORE => 1, TYPE => "PREPROC" },
             "-include" => { ONEMORE => 1, TYPE => "PREPROC" },  # sm
