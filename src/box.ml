@@ -372,6 +372,7 @@ let readBaseField (e: exp) (t: typ) : exp =
 (**** Pointer representation ****)
 let pkNrFields = function
     N.Safe -> 1
+  | N.String -> 1
   | N.Wild | N.FSeq | N.Index -> 2
   | N.Seq -> 3
   | _ -> E.s (E.bug "pkNrFields")
@@ -399,6 +400,9 @@ let pkQualName (pk: N.pointerkind)
                (dobasetype: string list -> string list) : string list = 
   match pk with
     N.Safe -> dobasetype ("s" :: acc)
+  | N.String -> 
+    E.warn "Using 's' for String qualifier name" ;
+    dobasetype ("s" :: acc) (* Wes: is this OK? *)
   | N.Wild -> "w" :: acc (* Don't care about what it points to *)
   | N.Index -> dobasetype ("i" :: acc)
   | N.Seq -> dobasetype ("q" :: acc)
@@ -650,7 +654,7 @@ let mkFexp2 (t: typ) (ep: exp) (eb: exp) =
 let mkFexp3 (t: typ) (ep: exp) (eb: exp) (ee: exp) = 
   let k = kindOfType t in
   match k with
-  | (N.Safe|N.Scalar) -> L (t, k, ep)
+  | (N.Safe|N.Scalar|N.String) -> L (t, k, ep)
   | (N.Index|N.Wild|N.FSeq) -> FM (t, k, ep, eb, zero)
   | N.Seq -> FM (t, k, ep, eb, ee)
   | _ -> E.s (E.bug "mkFexp3(%a): ep=%a\nt=%a" 
@@ -1166,7 +1170,7 @@ let stringLiteral (s: string) (strt: typ) =
       ([], FM (fixChrPtrType, N.Wild,
                result, 
                doCast result (typeOf result) voidPtrType, zero))
-  | N.Seq | N.Safe | N.FSeq -> 
+  | N.Seq | N.Safe | N.FSeq | N.String -> 
       let l = ((1 + String.length s) + 3) land (lnot 3) in
       let tmp = makeTempVar !currentFunction charPtrType in
             (* Make it a SEQ for now *)
@@ -1255,7 +1259,7 @@ let castTo (fe: fexp) (newt: typ)
        * pointers  *)
       let newPointerType =
         match newkind with
-          N.Safe | N.Scalar -> newt
+          N.Safe | N.Scalar | N.String -> newt
         | _ -> 
             let pfield, _, _ = getFieldsOfFat newt in
             pfield.ftype 
@@ -1277,7 +1281,7 @@ let castTo (fe: fexp) (newt: typ)
       in
       match oldk, newkind with
         (* SCALAR, SAFE -> SCALAR, SAFE *)
-        (N.Scalar|N.Safe), (N.Scalar|N.Safe) -> 
+        (N.Scalar|N.Safe|N.String), (N.Scalar|N.Safe|N.String) -> 
           (doe, L(newt, N.Scalar, castP p))
 
         (* SAFE -> WILD. Only allowed for function pointers because we do not 
@@ -1345,6 +1349,10 @@ let castTo (fe: fexp) (newt: typ)
        (* FSEQ -> SEQ. *)
       | N.FSeq, N.Seq ->
           doe, FM(newt, newkind, castP p, b, b)
+
+      | N.Seq, N.String ->
+        ignore (E.warn "Warning: unsafe cast from SEQ -> STRING") ;
+          (doe, L(newt, N.Scalar, castP p))
 
        (******* UNIMPLEMENTED ********)
       | _, _ -> 

@@ -207,9 +207,9 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     else match k1 with
       Unknown -> true
     | Safe -> true
-    | FSeq -> k2 = Seq || k2 = Index || k2 = Wild
+    | FSeq -> k2 = Seq || k2 = Index || k2 = Wild || k2 = String
     | BSeq -> k2 = Seq || k2 = Index || k2 = Wild
-    | Seq -> k2 = Index || k2 = Wild
+    | Seq -> k2 = Index || k2 = Wild || k2 = String
     | Index -> k2 = Seq || k2 = Wild
     | String -> k2 = Wild || k2 = Seq || k2 = Index
     | Wild -> false
@@ -402,6 +402,30 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
   done ;
 
   (* mark all interface char * nodes with no arith as string *)
+  Hashtbl.iter (fun id n -> 
+    if n.interface && not (n.arith || n.posarith) then begin
+      ignore (update_kind n String BoolFlag)
+    end) node_ht ;
+
+  (* push the String type backward so that it reaches buffers *)
+  finished := false ; 
+  while not !finished do 
+    finished := true ; 
+    Hashtbl.iter (fun id cur ->
+    if (cur.kind = String) then begin
+      (* mark all of the predecessors of y along ECast with "String" *)
+      let why = SpreadFromEdge(cur) in
+      let f = (fun n -> if (update_kind n cur.kind why) then 
+                          finished := false) in
+      let contaminated_list = 
+        (List.map (fun e -> e.efrom) (cur.pred)) (* @ 
+        (List.map (fun e -> e.eto) (cur.succ))  *)
+        in
+      List.iter f contaminated_list ;
+      (* mark all cast edges at least equal to this! *)
+
+    end) node_ht
+  done ;
 
 
   (* all otherwise unconstrained nodes become safe *)

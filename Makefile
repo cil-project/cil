@@ -392,6 +392,13 @@ test/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
 	       $*.c $(DOOPT) $(ASMONLY)$*.s
 #	       $*.c $(CONLY) $(DOOPT) $(ASMONLY)$*.s
 
+testc/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
+	cd $(SMALL1); $(SAFECC)   \
+               --patch=../../lib/$(PATCHFILE) \
+	       $*.c $(DOOPT) $(EXEOUT)$*.exe
+	$(SMALL1)/$*.exe
+
+
 SMALL2=test/small2
 
 hashtest: test/small2/hashtest.c $(EXECUTABLE)$(EXE) \
