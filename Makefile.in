@@ -29,7 +29,7 @@ DEPENDDIR   := obj/.depend
 
     # Now rules to make cilly
 CILLY_MODULES = pretty errormsg trace stats util clist \
-              cabs cprint clexer cparser cabsvisit \
+              cabs cprint clexer cparser \
               machdep cil cabs2cil \
               frontc check mergecil logcalls logwrites rmtmps \
 	      heapify testcil maincil
@@ -161,7 +161,7 @@ DISTRIB_SRC = pretty.ml pretty.mli errormsg.ml errormsg.mli \
 	      testcil.ml mergecil.ml mergecil.mli maincil.ml machdep.c
 
 DISTRIB_SRC_FRONTC = cabs.ml cprint.ml clexer.mli clexer.mll \
-		     cparser.mly cabsvisit.ml cabsvisit.mli \
+		     cparser.mly \
 		     cabs2cil.ml cabs2cil.mli frontc.ml frontc.mli
 
 DISTRIB_SRC_EXT = logcalls.ml logcalls.mli \
@@ -169,7 +169,7 @@ DISTRIB_SRC_EXT = logcalls.ml logcalls.mli \
 
 DISTRIB_LIB = Cilly.pm
 
-DISTRIB_BIN = cilly cilly.bat.in \
+DISTRIB_BIN = CilConfig.pm.in cilly cilly.bat.in \
               patcher patcher.bat.in
 
 DISTRIB_SMALL1=hello.c func.c init.c init1.c wchar1.c vararg1.c testharness.h 

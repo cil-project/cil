@@ -428,6 +428,7 @@ $TEST->addTests("test-bad/checkret", "_GNUCC=1 RELEASE=", [ 'inferbox' ]);
 $TEST->addTests("test-bad/checkstore", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/checkinit", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/union2", "_GNUCC=1", [ 'inferbox' ]);
+$TEST->addTests("test-bad/wild1", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("scott/union5", "", ['inferbox']);
 $TEST->addTests("testrun/unrolltype", "", ['inferbox']);
 

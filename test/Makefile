@@ -675,7 +675,7 @@ bads/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 # sm: yet another failure-test target, this time utilizing a separate
 # script capable of testing multiple failures per file
 test-bad/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
-	CCUREDHOME="$(CCUREDHOME)" CCURED="$(CCURED) --separate --noPrintLn" \
+	CCUREDHOME="$(CCUREDHOME)" CCURED="$(CCURED) --separate --commPrintLn" \
 	  CFLAGS=""`$(PATCHECHO) $(STANDARDPATCH)`" $(CFLAGS) $(WARNALL)" \
           TESTBADONCE="$(TESTBADONCE)" \
 	  bash ../bin/test-bad $*.c

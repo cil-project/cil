@@ -73,10 +73,15 @@ while [ $i -le $numcases ]; do
   # the current test, then remove all remaining ERROR lines
   # (syntax for errors has parentheses so if I have >=10 cases I don't
   # run into problems wherep e.g. ERROR1 is a substring of ERROR10)
+  # use the little perl script to put line number directives where we remove 
+  # lines 
   echo "generating test $i"
   rm -f $tmpname.c 2>/dev/null
-  cat "$srcfile" | sed "s|ERROR($i)|(selected: $i)|" \
-                 | grep -v "ERROR(" > "$tmpname.c"
+  (echo "# 1 \"$srcfile\""; cat "$srcfile") | \
+       sed "s|ERROR($i)|(selected: $i)|" | \
+       perl -e 'my $ln = 0; while(<>) { $ln ++; if($_ =~ m|ERROR\(|) { print "# $ln\n"; } else { print $_; }}' \
+         > "$tmpname.c"
+#    | grep -v "ERROR(" 
   chmod a-w "$tmpname.c"
 
   # Grab the errorline for this test case
