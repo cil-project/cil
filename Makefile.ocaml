@@ -167,6 +167,8 @@ ifdef PROFILE
  EXEEXT         = .asm
  MOVEAFTERCAMLC = cmi cmx $(OBJ)
  MOVEAFTERCAMLCF= cmi $(OBJ)
+ COMPILETOWHAT  = native code with profiling
+ CAMLDEP        = ocamldep -native
 else
 ifdef NATIVECAML
  #foo := $(shell echo "I am in NATIVECAML mode" >&2; echo whatever)
