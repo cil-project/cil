@@ -1461,10 +1461,21 @@ linuxsetup:
 LINUXPATCH := $(STANDARDPATCH) --includedir=$(LINUX_INCLUDES) \
 	-D FP_FAIL_IS_VERBOSE=1
 
-SBULLDIR := test/sbull
-sbull: mustbegcc mustbelinux
+# CCured support library for linux modules. Holds wrappers and definitions
+# for things like fp_fail(). 
+LINUXMODULELIBDIR := $(CCUREDHOME)/test/linux/
+LINUXMODULELIB := $(LINUXMODULELIBDIR)/ccured_LinuxModule_release.o
+$(LINUXMODULELIB) : 
+	cd $(CCUREDHOME)/test/linux ; make
+
+SBULLDIR := test/linux/sbull
+sbull: mustbegcc mustbelinux $(LINUXMODULELIB)
 	cd $(SBULLDIR); ( make clean && make .depend && \
-           make CC="$(CCURED) $(LINUXPATCH) --entryPoint='sbull_init'" && \
-	   make sbull_wrappers.o && \
-	   ld -i -o sbull_cured.o sbull_wrappers.o sbull.o && \
-	   size sbull_cured.o )
+           make CC="$(CCURED) $(LINUXPATCH) --entryPoint='sbull_init'" ) ;
+	cd $(LINUXMODULELIBDIR) ; make sbull_cured.o
+
+PCNET32DIR := test/linux/pcnet32
+pcnet32: mustbegcc mustbelinux $(LINUXMODULELIB)
+	cd $(PCNET32DIR); ( make clean && \
+           make CC="$(CCURED) $(LINUXPATCH) --entryPoint='pcnet32_init_module'" ) ;
+	cd $(LINUXMODULELIBDIR) ; make pcnet32_cured.o
