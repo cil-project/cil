@@ -116,22 +116,23 @@ sub applyCil {
       $fqsrc =~ s,/\./,/,;           # remove "/./" arising from src beginning with "./"
     }
 
-    # when defined, CILIFY_MODULES is the name of a file containing
-    # the names of all the files process with cilly.asm.exe; the
-    # rest just get the .i filed copied to the cil.c file
-    if (defined($ENV{CILIFY_MODULES}) &&
-        # the ^ and $ are anchors for the regexp; they're needed because
-        # the filename contains dots, which grep interprets as matching
-        # anything; the anchors make sure that ".i" only matches ".i" as
-        # an extension
-        0!=system("grep '^$fqsrc\$' $ENV{CILIFY_MODULES} >/dev/null")) {
-      # sm: this is to help isolate the problem with linux
-      print("skipping cilly for $fqsrc...\n");
-      $self->runShell("cp $src $outfile");
-      return $outfile;
-    }
-    else {
-      print("NOT skipping cilly for $fqsrc\n");
+    # sm: this is to help isolate the problem with linux; when
+    # defined, CILIFY_MODULES is the name of a file containing the
+    # names of all the files process with cilly.asm.exe; the rest just
+    # get the .i filed copied to the cil.c file
+    if (defined($ENV{CILIFY_MODULES})) {
+      # the ^ and $ are anchors for the regexp; they're needed because
+      # the filename contains dots, which grep interprets as matching
+      # anything; the anchors make sure that ".i" only matches ".i" as
+      # an extension
+      if (0!=system("grep '^$fqsrc\$' $ENV{CILIFY_MODULES} >/dev/null")) {
+        print("skipping cilly for $fqsrc...\n");
+        $self->runShell("cp $src $outfile");
+        return $outfile;
+      }
+      else {
+        print("NOT skipping cilly for $fqsrc\n");
+      }
     }
 
     if($self->{VERBOSE}) { print "Cilly compiling $src to $outfile\n"; }

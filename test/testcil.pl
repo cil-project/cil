@@ -605,6 +605,7 @@ smAddTest("scott/constfold");
 smAddTest("scott/mode_sizes");       # mode(__QI__) stuff
 smAddTest("scott-nolink/brlock");
 smAddTest("scott/qsort_wild $box");
+smAddTest("scott/regparm0");         # this works, unfortunately..
 
 # test of strings (need more!)
 smFailTest("unsound user annotation RWSTRING", "badd/ovwrnull $box");
