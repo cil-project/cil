@@ -2610,7 +2610,7 @@ and doExp (isconst: bool)    (* In a constant *)
                     TFun(_, Some args, _, _) -> args
                   | _ -> E.s (bug "cabs2cil: ADDROF")) 
               in
-              let res = mkAddrOf (var last) in
+              let res = mkAddrOfAndMark (var last) in
               let tres = typeOf res in
               let tres', res' = castTo tres charPtrType res in
               (* Now we must add to this address to point to the next 

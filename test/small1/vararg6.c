@@ -5,6 +5,11 @@
 
 typedef double TYPE;
 
+union vararg_vafunction {
+  TYPE d;
+};
+#pragma boxvararg("vafunction", sizeof(union vararg_vafunction))
+
 void vafunction (dummy1, dummy2, va_alist)
   TYPE dummy1, dummy2;
   va_dcl
