@@ -921,7 +921,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
               let (se, e', t') = doExp e (AExp(Some t)) in
               if se <> [] then
                 slist := !slist @ se;
-              e'
+              doCast e' t' t
             in
             (* Now recurse to find the complete offset and the type  *)
             let rec initToOffset (bt: typ) = function
@@ -1073,7 +1073,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         let (t'', e'') = 
           match typ with
             TVoid _ when what = ADrop -> (t, e') (* strange GNU thing *)
-          |  _ -> castTo t typ e' 
+          |  _ -> castTo t typ e'
         in
         finishExp (se1 @ se) e'' t''
           

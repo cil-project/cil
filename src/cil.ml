@@ -239,9 +239,7 @@ and exp =
   | CastE      of typ * exp * location  (* Use doCast to make casts *)
 
                                         (* Used only for initializers of 
-                                         * structures and arrays. The offsets 
-                                         * are to support ISO designators in 
-                                         * initializers  *) 
+                                         * structures and arrays.  *) 
   | Compound   of typ * (offset option * exp) list
   | AddrOf     of lval * location
 
@@ -1372,7 +1370,7 @@ let rec typeOf (e: exp) : typ =
 and typeOfLval = function
     Var vi, off -> typeOffset vi.vtype off
   | Mem addr, off -> begin
-      match typeOf addr with
+      match unrollType (typeOf addr) with
         TPtr (t, _) -> typeOffset t off
       | _ -> E.s (E.bug "typeOfLval: Mem on a non-pointer")
   end
@@ -1382,9 +1380,9 @@ and typeOffset basetyp = function
   | Index (_, o) -> typeOffset basetyp o
   | Field (fi, o) -> typeOffset fi.ftype o
   | First o -> begin
-      match basetyp with
+      match unrollType basetyp with
         TArray (t, _, _) -> typeOffset t o
-      | _ -> E.s (E.bug "typeOfLval: First on a non-array")
+      | t -> E.s (E.bug "typeOffset: First on a non-array: %a" d_plaintype t)
   end
 
 
@@ -1497,3 +1495,93 @@ let rec doCast (e: exp) (oldt: typ) (newt: typ) =
       else
         CastE(newt, e,lu)
 
+
+
+
+(*** Make a compound initializer for zeroe-ing a data type ***)
+let rec makeZeroCompoundInit t = 
+  match unrollType t with
+    TInt (ik, _) -> Const(CInt(0, ik, None), lu)
+  | TFloat(fk, _) -> Const(CReal(0.0, fk, None), lu)
+  | (TEnum _ | TBitfield _) -> zero
+  | TComp(true, _, flds, _, _) as t' -> 
+      Compound (t', 
+                List.map (fun f -> None, makeZeroCompoundInit f.ftype) flds)
+  | TArray(bt, Some (Const(CInt(n, _, _), _)), _) as t' -> 
+      let initbt = makeZeroCompoundInit bt in
+      let rec loopElems acc i = 
+        if i >= n then acc
+        else loopElems ((None, initbt) :: acc) (i + 1) 
+      in
+      Compound(t', loopElems [] 0)
+  | TPtr _ as t -> CastE(t, zero, lu)
+  | _ -> E.s (E.unimp "makeZeroCompoundInit")
+
+
+(**** Fold over the list of initializers in a Compound ****)
+let foldLeftCompound (doexp: offset option -> exp -> typ -> 'a -> 'a)
+    (ct: typ) 
+    (initl: (offset option * exp) list)
+    (acc: 'a) : 'a = 
+  match unrollType ct with
+    TArray(bt, _, _) -> 
+      let rec foldArray  
+          (nextidx: exp) 
+          (initl: (offset option * exp) list)
+          (acc: 'a) : 'a  =
+        let incrementIdx = function
+            Const(CInt(n, ik, _), l) -> Const(CInt(n + 1, ik, None), l)
+          | e -> BinOp(Plus, e, one, intType, lu)
+        in
+        match initl with
+          [] -> acc
+        | (io, ie) :: restinitl ->
+            let nextidx', thisexpt = 
+              match io with
+                None -> incrementIdx nextidx, bt
+              | Some (First(Index(idxe, restof))) -> 
+                  let t = typeOffset bt restof in
+                  incrementIdx idxe, t
+              | _ -> E.s (E.unimp "Unexpected offset in array initializer")
+            in
+            (* Now do the initializer expression *)
+            let acc' = doexp io ie thisexpt acc in
+            foldArray nextidx' restinitl acc'
+      in
+      foldArray zero initl acc
+
+  | TComp(true, _, flds, _, _) ->
+      let rec foldFields 
+          (allflds: fieldinfo list) 
+          (nextflds: fieldinfo list) 
+          (initl: (offset option * exp) list)
+          (acc: 'a) : 'a = 
+        match initl with 
+          [] -> acc   (* We are done *)
+        | (io, ie) :: restinitl ->
+            let nextfields, thisexpt = 
+              match io with
+                None -> begin
+                  match nextflds with
+                    [] -> E.s (E.unimp "Too many initializers")
+                  | x :: xs -> xs, x.ftype
+                end
+              | Some (Field(fld, restof)) -> 
+                  let rec findField = function
+                      [] -> E.s 
+                          (E.unimp "Cannot find designated field %s" fld.fname)
+                    | f :: restf when f.fname = fld.fname -> 
+                        let t = typeOffset fld.ftype restof in
+                        restf, t
+                    | _ :: restf -> findField restf
+                  in
+                  findField allflds
+              | _ -> E.s (E.unimp "Unexpected offset in structure initializer")
+            in
+            (* Now do the initializer expression *)
+            let acc' = doexp io ie thisexpt acc in
+            foldFields allflds nextfields restinitl acc'
+      in
+      foldFields flds flds initl acc
+  | _ -> E.s (E.unimp "Type of Compound is not array or struct")
+      
