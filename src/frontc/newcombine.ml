@@ -1,0 +1,794 @@
+(* Things may need to be changed
+   ATTRIBUTE --- Raymond ADDED them back
+   Struct tag --- Since it is diffcult to rename struct tag without
+                  scanning ahead, I am not renaming struct tag at all
+   *)
+(* :: is tricky.  For (a :: b), eval b and then a *)
+(* combine --- combine C source files into one.
+**
+** Project: FrontC
+** File:  combine.ml
+** Version: 1.0 (CABS To CABS)
+** Date:  4.10.01
+** Author:  Raymond To
+**
+**  1.0   4.10.01 Raymond To First version.
+**  2.0   7.1.01 George Necula. Reimplemented with proper handling of scope 
+**        and alpha-conversion
+
+*)
+
+open Cabs
+open Trace
+open Pretty
+module E = Errormsg
+module H = Hashtbl
+
+
+(* We get from the parser a list of files. We concatenate them together being 
+ * carefule to rename file-scope symbols (static, typedef, 
+ * structure/union/enum tags appearing at file scope) and then we make one 
+ * pass over the entiere AST to apply the new names. We also eliminate 
+ * duplicate file-scope definitions. *)
+
+(* Global names are split into a prefix, a ___ (3 underscores) separator and 
+ * an integer suffix. For each prefix we keep the maximum integer suffix with 
+ * which the prefix was encountered. This suffix is -1 when only the version 
+ * without the suffix was encountered.  *)
+let alphaTable: (string, int ref) H.t = H.create 511
+
+
+(* To keep different name scopes different, we add prefixes to names 
+ * specifying the kind of name: the kind can be one of "" for variables or 
+ * enum tags, "struct" for structures, "enum" for enumerations, "union" for 
+ * union types, or "type" for types *)
+let kindPlusName (kind: string)
+                 (origname: string) : string =
+  if kind = "" then origname else
+  kind ^ " " ^ origname
+                
+
+let stripKind (kind: string) (kindplusname: string) : string = 
+  let l = 1 + String.length kind in
+  if l > 1 then 
+    String.sub kindplusname l (String.length kindplusname - l)
+  else
+    kindplusname
+
+(* Keep track of the current location *)
+let currentLoc: cabsloc ref = ref { lineno = -1; filename = "<no file>" }
+
+(* Keep an environment that maps a name to the current alpha-converted name 
+ * in the current scope. This gets flushed at the end of each file. If an 
+ * string is not present in the environment then it is an external 
+ * and we leave it alone. *)
+let env: (string, string) H.t = H.create 511
+
+
+(* A list of things to do when you exit a scope *)
+type undoElement = 
+    UndoScope (* To mark the begining of a scope *)
+  | UndoThis of (unit -> unit)
+
+let undo: undoElement list ref = ref []
+
+let enterScope () = 
+  undo := UndoScope :: !undo
+
+let exitScope () = 
+  let rec loop = function
+      [] -> E.s (E.bug "Empty scope")
+    | UndoScope :: rest -> undo := rest
+    | UndoThis f :: rest -> f(); loop rest
+  in
+  loop !undo
+
+
+(* Add a local to the environment and push an undo entry *)
+let addLocalToEnv (orig: string) (newname: string) = 
+  H.add env orig newname;
+  undo := UndoThis (fun _ -> H.remove env orig) :: !undo
+
+
+let lookup (kind: string) (origname: string) : string = 
+  let lookupname = kindPlusName kind origname in
+  try
+    H.find env lookupname 
+  with Not_found -> origname
+
+
+
+
+(* The main alpha conversion routine *)
+let rec newAlphaName (kind: string) 
+                     (origname: string) : string = 
+  let lookupname = kindPlusName kind origname in
+  (* Copied from CIL *)
+  let prefix, _, suffix = splitNameForAlpha lookupname in
+  (* ignore (E.log "newAlphaName(%s). P=%s, S=%d\n" lookupname prefix suffix);
+     *)
+  let newname = 
+    try
+      let rc = H.find alphaTable prefix in
+      let newsuffix = if suffix > !rc then suffix else !rc + 1 in
+      rc := newsuffix;
+      prefix ^ "___" ^ (string_of_int newsuffix)
+    with Not_found -> begin (* First variable with this prefix *)
+      H.add alphaTable prefix (ref suffix);
+      lookupname  (* Return the original name *)
+    end
+  in
+  let n' = stripKind kind newname in
+  n'
+
+
+
+
+(* Strip the suffix. Return the prefix, the separator (empty or ___) and a 
+ * numeric suffix (-1 if the separator is empty or if ____ is the last thing 
+ * in the name)  *)
+and splitNameForAlpha (lookupname: string) : (string * string * int) = 
+  (* Split the lookup name into a prefix, a separator (empty or ___) and a 
+   * suffix. The suffix is numberic and is separated by ___ from the prefix  *)
+  try
+    let under_idx = String.rindex lookupname '_' in
+    let l = String.length lookupname in
+    (* Check that we have two more underscores preceeding it *)
+    if under_idx < 3 then raise Not_found;
+    if String.get lookupname (under_idx - 1) != '_' ||
+       String.get lookupname (under_idx - 2) != '_' then 
+      raise Not_found;
+    (* Check that we have only digits following the underscore *)
+    if under_idx = l - 1 then raise Not_found;
+    (* If we have a 0 right after the _ and more characters after that then 
+     * we consider that we do not have a suffix *)
+    if String.get lookupname (under_idx + 1) = '0' &&
+       under_idx < l - 2 then raise Not_found;
+    let rec collectSuffix (acc: int) (i: int) = 
+      if i = l then 
+        (String.sub lookupname 0 (under_idx - 2), "___", acc)
+      else
+        let c = Char.code (String.get lookupname i) - Char.code '0' in
+        if c >= 0 && c < 9 then 
+          collectSuffix (10 * acc + c) (i + 1)
+        else
+          raise Not_found
+    in
+    collectSuffix 0 (under_idx + 1)
+  with Not_found -> (* No suffix in the name *)
+    (lookupname, "", -1)
+
+(* Sometimes we have names that we do not want to change. We need to register 
+ * them however for two reasons. First, they might be in conflict with some 
+ * local names already registered. In that case we must add them to the 
+ * conflicts list to be fixed in a second pass over the files. Another reason 
+ * is that we want to register them into the alphaTable so that new locals 
+ * that we create don't inadvertedly reuse the name *)
+let conflicts: string list ref = ref []
+let registeredGlobals: (string, bool) H.t = H.create 511
+let registerGlobalName (n: string) = 
+  if not (H.mem registeredGlobals n) then begin
+    H.add registeredGlobals n true;
+    (* Put it through the alpha converter to register its prefix and to see 
+     * if there is already somebody else with this name *)
+    let n' = newAlphaName "" n in
+    if n <> n' then begin
+      ignore (E.warn 
+                "File-scope identifier %s conflicts with global identifier"
+                n);
+      conflicts := n :: !conflicts
+    end
+  end
+
+let processDeclName 
+    (isglobal: bool)
+    (isstatic: bool)
+    (orig: string) : string = 
+  if isglobal then 
+    if isstatic then begin (* Can change name *)
+      let n' = newAlphaName "" orig in
+      (* Add it to the env *)
+      addLocalToEnv orig n';
+      n'
+    end else (* Not static. Register the name *) begin
+      registerGlobalName orig;
+      orig
+    end
+  else begin (* local name. Add it to the env *)
+    addLocalToEnv orig orig;
+    orig
+  end
+
+(* --------------------- equality functions -------------------- *)
+(* sm: fairly detailed (though still not complete) comparison of
+ * declarations for the purpose of detecting inconsistency between
+ * different source files; I'm sure this kind of comparison must
+ * have already been written by someone somewhere, but I can't
+ * find it *)
+let rec equal_specs (s1 : spec_elem) (s2 : spec_elem) : bool =
+begin
+  match (s1,s2) with
+  | SpecTypedef, SpecTypedef -> true
+  | SpecInline, SpecInline -> true
+  | SpecAttr _, SpecAttr _ -> true               (* good enough for now *)
+  | SpecStorage _, SpecStorage _ -> true         (* don't care right now *)
+  | SpecType(t1), SpecType(t2) -> (equal_typespecs t1 t2) (* the point of 
+                                                           * this exercise  *)
+  | _, _ -> false                                (* mismatching kinds *)
+end
+
+and equal_typespecs (t1 : typeSpecifier) (t2 : typeSpecifier) : bool =
+begin
+  match (t1,t2) with
+  | Tvoid, Tvoid -> true
+  | Tchar, Tchar -> true
+  | Tshort, Tshort -> true
+  | Tint, Tint -> true
+  | Tlong, Tlong -> true
+  | Tint64, Tint64 -> true
+  | Tfloat, Tfloat -> true
+  | Tdouble, Tdouble -> true
+  | Tsigned, Tsigned -> true
+  | Tunsigned, Tunsigned -> true
+  | Tnamed(n1), Tnamed(n2) -> (n1 = n2)
+  | Tstruct(n1, None), Tstruct(n2, None) -> (n1 = n2)
+  | Tstruct(n1, Some fields1), Tstruct(n2, Some fields2) -> (
+      n1 = n2 &&
+      (equal_name_group_lists fields1 fields2)
+    )
+  | Tunion(n1, None), Tunion(n2, None) -> (n1 = n2)
+  | Tunion(n1, Some fields1), Tunion(n2, Some fields2) -> (
+      n1 = n2 &&
+      (equal_name_group_lists fields1 fields2)
+    )
+  | Tenum(n1, None), Tenum(n2, None) -> (n1 = n2)
+  | Tenum(n1, Some fields1), Tenum(n2, Some fields2) -> (
+      n1 = n2 &&
+      (equal_enum_item_lists fields1 fields2)
+    )
+  (* yikes because we need to compare a bunch more details, and
+   * yikes because one type might be written explicitly and
+   * another as the type itself, so resolving names is needed.. *)
+  | TtypeofE(_), TtypeofE(_) -> true       (* yikes *)
+  | TtypeofT(_,_), TtypeofT(_,_) -> true   (* more yikes *)
+
+  | _,_ -> false
+end
+
+and equal_enum_item_lists (fields1 : enum_item list)
+                          (fields2 : enum_item list) : bool =
+begin
+  match fields1, fields2 with
+  | [], [] -> true
+  | (tag1, _) :: rest1, (tag2, _) :: rest2 ->
+      (* continuing to avoid comparing expressions *)
+      (tag1 = tag2) &&
+      (equal_enum_item_lists rest1 rest2)
+
+  | _, _ -> false
+end
+
+and equal_name_group_lists (fields1 : name_group list)
+                           (fields2 : name_group list) : bool =
+begin
+  match (fields1, fields2) with
+  | [], [] -> true
+  | (specs1, names1) :: rest1, (specs2, names2) :: rest2 -> (
+      (equal_spec_lists specs1 specs2) &&
+      (equal_name_lists names1 names2) &&
+      (equal_name_group_lists rest1 rest2)
+    )          
+  | _, _ -> false
+end
+
+and equal_spec_lists (specs1 : spec_elem list)
+                     (specs2 : spec_elem list) : bool =
+begin
+  match (specs1, specs2) with
+  | [], [] -> true
+  | s1 :: rest1, s2 :: rest2 -> (
+      (equal_specs s1 s2) &&
+      (equal_spec_lists rest1 rest2)
+    )
+  | _, _ -> false
+end
+
+and equal_name_lists (names1 : name list) 
+                     (names2 : name list) : bool =
+begin
+  match (names1, names2) with
+  | [], [] -> true
+  | n1 :: rest1, n2 :: rest2 -> (
+      (equal_names n1 n2) &&
+      (equal_name_lists rest1 rest2)
+    )
+  | _, _ -> false
+end
+
+and equal_names (n1 : name) (n2 : name) : bool =
+begin
+  let (id1, dtype1, _) = n1 in
+  let (id2, dtype2, _) = n2 in
+
+  id1 = id2 &&      (* names equal *)
+  (equal_decltypes dtype1 dtype2)
+
+  (* don't check attributes... *)
+end
+
+and equal_decltypes (t1 : decl_type) (t2 : decl_type) : bool =
+begin
+  match t1,t2 with
+  | JUSTBASE, JUSTBASE -> true
+  | PARENTYPE(_, p1, _), PARENTYPE(_, p2, _) ->
+      (* continuing to ignore attributes.. *)
+      (equal_decltypes p1 p2)
+  | BITFIELD _, BITFIELD _ -> true     (* hmm... *)
+  | ARRAY(elt1, _), ARRAY(elt2, _) ->
+      (* ignoring sizes........ ! *)
+      (equal_decltypes elt1 elt2)
+  | PTR(_, base1), PTR(_, base2) ->
+      (equal_decltypes base1 base2)
+  | PROTO(_,_,_), PROTO(_,_,_) ->
+      (* too lazy to check for function ptr type equality *)
+      true
+
+  | _, _ -> false
+end
+(* ----- end of equality stuff ------ *)
+
+(* We want to eliminate duplicate definitions of struct/union/enum tags, 
+ * function, typedef and decdefs. We keep a few hash tables. *)
+
+(* Indexed by "struct foo", etc. We keep multiple mappings for each original 
+ * name tag. The mapping contains the new name, the type specifier of the old 
+ * one and the location *)
+let definedTags: (string, string * typeSpecifier * cabsloc) H.t = H.create 113
+
+type conflict = 
+    FirstDef (* The first definition *)
+  | Duplicate of string (* Not the first definition but another one just like 
+                         * that is present. Give the name of that one *)
+  | Conflict of string  (* There is a conflict with another declaration. 
+                         * Return a name that can be used for the new one *)
+let checkTagDefinition
+    (kind: string) 
+    (t: string) 
+    (ts: typeSpecifier) 
+    (l: cabsloc) : conflict = 
+  let lookupname = kindPlusName kind t in
+  let olds = H.find_all definedTags lookupname in
+  if olds = [] then begin
+    (* Put it through the alpha converted *)
+    let t' = newAlphaName kind t in
+    if t <> t' then 
+      E.s (E.bug "First definition, yet the alpha converter changed the name");
+    H.add definedTags lookupname (t, ts, l);
+    addLocalToEnv lookupname t;
+    FirstDef
+  end else 
+    (* Go through the list and find one that matches *)
+    let rec loop = function
+        [] -> (* None matches. We have a conflict *)
+          (Printf.printf "WARNING: conflicting redefinitions; orig\n");
+          List.iter 
+            (fun (_, oldts, oldloc) -> 
+              (Printf.printf "at %s:%d: \n\t" oldloc.filename oldloc.lineno);
+              (Cprint.print_specifiers [SpecType oldts]);
+              (Cprint.new_line ())) olds;
+            (Printf.printf "new specifier (at %s:%d): \n\t" 
+               l.filename l.lineno);
+          (Cprint.print_specifiers [SpecType ts]);
+          (Cprint.new_line ());
+          (* Pick a new name *)
+          let t' = newAlphaName kind t in
+          (* Remember the new mapping *)
+          H.add definedTags lookupname (t', ts, l);
+          (* Add it to the environment, but only for this file *)
+          addLocalToEnv lookupname t';
+          Conflict t'
+            
+      | (t', oldts, oldl) :: rest  when equal_typespecs ts oldts -> 
+          (* We found a matching one *)
+            Duplicate t'
+            
+      | _ :: rest -> loop rest
+    in
+    loop olds
+
+  
+
+(*********************************
+ *********************************
+ *********************************
+ *)
+
+(* ALPHA-CONVERSION *)
+
+(* Scan various AST elements and apply the new names *)
+
+
+let rec alpha_attr (s, el) = 
+  (s, List.map alpha_expression el)
+
+and alpha_attrs al = 
+  List.map alpha_attr al
+
+
+(* Process the specifiers. Be careful about the definitions of the 
+ * struct/union/enum tags and about the enum items *)
+and doSpecs (isglobal: bool) (* Whether we are at global scope *)
+            (se: spec_elem list) : spec_elem list =
+  let doFields (ngl: name_group list) = 
+    let doOneField ((id, typ, al): name) =
+      (id, alpha_decl_type typ, alpha_attrs al)
+    in
+    let doNameGroup (specs, ng) = 
+      (doSpecs false specs, List.map doOneField ng)
+    in
+    List.map doNameGroup ngl
+  in
+  match se with
+  | [] -> []
+  | SpecTypedef :: rest -> SpecTypedef :: doSpecs isglobal rest
+  | SpecInline :: rest -> SpecInline :: doSpecs isglobal rest
+  | SpecStorage s :: rest -> SpecStorage s :: doSpecs isglobal rest
+  | SpecAttr a :: rest -> SpecAttr (alpha_attr a) :: doSpecs isglobal rest
+  | SpecType t :: rest -> begin
+      let t' = 
+        match t with 
+          Tnamed n -> Tnamed (lookup "" n)
+        | Tstruct (s, None) -> (* Just a reference *)
+            Tstruct(lookup "struct" s, None)
+        | Tstruct (s, Some flds) -> begin (* A def *)
+            let flds' = doFields flds in
+            if not isglobal then begin (* Just add to the env *)
+              addLocalToEnv "struct" s; (* Do not change the name *)
+              Tstruct (s, Some flds')
+            end else begin
+              (* Prepare the result *)
+              match checkTagDefinition "struct" s 
+                    (Tstruct ("", Some flds')) !currentLoc with 
+                FirstDef -> Tstruct (s, Some flds')
+              | Duplicate s2 -> Tstruct (s2, None) (* Turn it into a 
+                                                    * reference to some 
+                                                    * already defined struct 
+                                                    *) 
+              | Conflict s2 -> Tstruct (s2, Some flds') 
+            end
+        end
+        | Tunion (s, None) -> (* Just a reference *)
+            Tunion(lookup "union" s, None)
+        | Tunion (s, Some flds) -> begin (* A def *)
+            let flds' = doFields flds in
+            if not isglobal then begin (* Just add to the env *)
+              addLocalToEnv "union" s; (* Do not change the name *)
+              Tunion (s, Some flds')
+            end else begin
+              (* Prepare the result *)
+              match checkTagDefinition "union" s 
+                    (Tunion ("", Some flds')) !currentLoc with 
+                FirstDef -> Tunion (s, Some flds')
+              | Duplicate s2 -> Tunion (s2, None) (* Turn it into a 
+                                                    * reference to some 
+                                                    * already defined union 
+                                                    *) 
+              | Conflict s2 -> Tunion (s2, Some flds') 
+            end
+        end
+        | Tenum (s, None) -> (* Just a reference *)
+            Tenum (lookup "enum" s, None)
+        | Tenum (s, Some flds) -> begin (* A def *)
+            if not isglobal then begin
+              addLocalToEnv "enum" s; (* Do not change the name *)
+              let flds' = 
+                List.map (fun (n, e) -> (processDeclName isglobal true n, 
+                                         alpha_expression e)) flds in
+              Tenum (s, Some flds')
+            end else begin
+              (* First process the fields as if for a local environment *)
+              enterScope ();
+              let flds' = 
+                List.map (fun (n, e) -> (processDeclName false false n, 
+                                         alpha_expression e)) flds in
+              exitScope (); (* Undo the things we added to the environment 
+                             * for the processing of the fields *)
+              (* We use this set of fields to check for previous definitions 
+               * of this enum *)
+              match checkTagDefinition "enum" s
+                  (Tenum ("", Some flds')) !currentLoc with
+                FirstDef -> Tenum (s, 
+                                   (* Now process the items for real *)
+                                   Some 
+                                     (List.map 
+                                        (fun (n, e) -> 
+                                          (processDeclName isglobal true n,
+                                           alpha_expression e))
+                                        flds))
+              | Duplicate s2 -> Tenum (s2, None) (* Just a reference *)
+              | Conflict s2 -> 
+                  Tenum (s2, 
+                         (* Now process the items for real *)
+                         Some 
+                           (List.map 
+                              (fun (n, e) -> 
+                                (processDeclName isglobal true n,
+                                 alpha_expression e))
+                              flds))
+            end
+        end                           
+
+        | TtypeofE e -> TtypeofE (alpha_expression e)
+
+        | TtypeofT (specs, decl) -> (* Does never define tags *)
+            TtypeofT(doSpecs false specs, alpha_decl_type decl)
+        | t -> t
+      in
+      SpecType t' :: doSpecs isglobal rest
+  end
+
+
+and alpha_decl_type = function
+  | JUSTBASE -> JUSTBASE
+  | BITFIELD exp -> BITFIELD (alpha_expression exp)
+  | PROTO (typ, pars, ell) -> 
+      PROTO(alpha_decl_type typ, alpha_params pars, ell)
+  | PTR (attrs, typ) -> PTR(alpha_attrs attrs, alpha_decl_type typ)
+  | ARRAY (typ, dim) -> ARRAY(alpha_decl_type typ, alpha_expression dim)
+  | PARENTYPE (al1, typ, al2) -> 
+      PARENTYPE (alpha_attrs al1, alpha_decl_type typ,
+                 alpha_attrs al2)
+
+and alpha_only_type (specs, dt) =
+  (doSpecs true specs, alpha_decl_type dt)
+
+(* ATTRIBUTES ARE ADDED BACK *)    
+and alpha_name (kind: string) ((id, typ, al) : name) = begin
+ if id = "___missing_field_name" then
+   (id, alpha_decl_type typ, alpha_attrs al)
+ else
+   (lookup kind id, alpha_decl_type typ, alpha_attrs al)
+end
+        
+and alpha_name_group (kind: string) (specs, names) =
+  (doSpecs false specs, List.map (alpha_name kind) names)
+    
+and alpha_single_name (kind: string) (specs, name) =
+  (doSpecs false specs, alpha_name kind name) 
+
+(* Raymond added declare_id lookup_id *)
+and alpha_params (pars : single_name list) = begin
+  List.map (fun single_name -> alpha_single_name "" single_name) pars
+end
+
+        
+and alpha_exps exps =
+  List.map alpha_expression exps
+
+and alpha_init_expression (iexp: init_expression) : init_expression = 
+  match iexp with
+    NO_INIT -> NO_INIT
+  | SINGLE_INIT e -> SINGLE_INIT (alpha_expression e)
+  | COMPOUND_INIT initexps ->
+      let doinitexp = function
+          NEXT_INIT, e -> (NEXT_INIT, alpha_init_expression e)
+        | i, e -> 
+            let rec doinit = function
+                NEXT_INIT -> NEXT_INIT
+              | INFIELD_INIT (fn, i) -> INFIELD_INIT(fn, doinit i)
+              | ATINDEX_INIT (e, i) -> 
+                  ATINDEX_INIT(alpha_expression e, doinit i)
+              | ATINDEXRANGE_INIT (s, e) ->
+                  ATINDEXRANGE_INIT(alpha_expression s, 
+                                    alpha_expression e)
+            in
+            (doinit i, alpha_init_expression e)
+      in
+      COMPOUND_INIT (List.map doinitexp initexps)
+        
+(* No need to rename fields *)    
+and alpha_expression (exp : expression) : expression =
+  match exp with
+    NOTHING | LABELADDR _ -> exp
+
+  | UNARY (op, exp') ->
+      UNARY(op, alpha_expression exp')  
+  | BINARY (op, exp1, exp2) ->
+      BINARY(op, alpha_expression exp1, alpha_expression exp2)      
+  | QUESTION (exp1, exp2, exp3) ->
+      QUESTION(alpha_expression exp1, 
+               alpha_expression exp2, alpha_expression exp3)    
+  | CAST (typ, iexp) ->
+      CAST(alpha_only_type typ, alpha_init_expression iexp)     
+  | CALL (exp, args) ->
+      CALL(alpha_expression exp, alpha_exps args)   
+  | COMMA exps ->
+      COMMA(alpha_exps exps)
+  | CONSTANT cst ->
+      CONSTANT(
+        (match cst with
+        CONST_INT i -> CONST_INT i
+      | CONST_FLOAT r -> CONST_FLOAT r
+      | CONST_CHAR c -> CONST_CHAR c
+      | CONST_STRING s -> CONST_STRING s))
+
+  | VARIABLE name -> 
+      VARIABLE(lookup "" name)
+  | EXPR_SIZEOF exp ->
+      EXPR_SIZEOF (alpha_expression exp)
+  | TYPE_SIZEOF (specs, dt) ->
+      TYPE_SIZEOF(doSpecs false specs, alpha_decl_type dt)
+  | EXPR_ALIGNOF exp ->
+      EXPR_ALIGNOF (alpha_expression exp)
+  | TYPE_ALIGNOF (specs, dt) ->
+      TYPE_ALIGNOF(doSpecs false specs, alpha_decl_type dt)
+  | INDEX (exp, idx) ->
+      INDEX(alpha_expression exp, alpha_expression idx)
+  | MEMBEROF (exp, fld) ->
+      MEMBEROF(alpha_expression exp, fld)
+  | MEMBEROFPTR (exp, fld) ->
+      MEMBEROFPTR(alpha_expression exp, fld)
+  | GNU_BODY (blk) ->
+      GNU_BODY (alpha_block blk)
+
+and alpha_block (labs, defs, stmts) = 
+  enterScope ();
+  let res = 
+    (labs, 
+     doDefinitions false defs,
+     List.map alpha_statement stmts) in
+  exitScope ();
+  res
+
+(*
+** Statement combining
+*)
+and alpha_statement stat =
+  match stat with
+    NOP loc ->
+      currentLoc := loc;
+      NOP loc
+
+  | COMPUTATION (exp, loc) ->
+      currentLoc := loc;
+      COMPUTATION(alpha_expression exp, loc)
+  | BLOCK (blk, loc) ->
+      currentLoc := loc;
+      BLOCK(alpha_block blk, loc)
+  | SEQUENCE (s1, s2, loc) ->
+      currentLoc := loc;
+      SEQUENCE(alpha_statement s1, alpha_statement s2, loc)
+  | IF (exp, s1, s2, loc) ->
+      currentLoc := loc;
+      IF(alpha_expression exp, alpha_substatement s1, 
+         alpha_substatement s2, loc)
+  | WHILE (exp, stat, loc) ->
+      currentLoc := loc;
+      WHILE(alpha_expression exp, alpha_substatement stat, loc)
+  | DOWHILE (exp, stat, loc) ->
+      currentLoc := loc;
+      DOWHILE(alpha_expression exp, alpha_substatement stat, loc)
+  | FOR (exp1, exp2, exp3, stat, loc) ->
+      currentLoc := loc;
+      FOR(alpha_expression exp1, 
+          alpha_expression exp2, alpha_expression exp3, 
+          alpha_substatement stat, loc)
+  | BREAK(loc) ->
+      currentLoc := loc;
+      BREAK(loc) 
+  | CONTINUE (loc)->
+      currentLoc := loc;
+      CONTINUE (loc)
+  | RETURN (exp, loc) ->
+      currentLoc := loc;
+      RETURN (alpha_expression exp, loc)
+  | SWITCH (exp, stat, loc) ->
+      currentLoc := loc;
+      SWITCH(alpha_expression exp, alpha_substatement stat, loc)
+  | CASE (exp, stat, loc) ->
+      currentLoc := loc;
+      CASE(alpha_expression exp, alpha_substatement stat, loc)
+  | CASERANGE (expl, exph, stat, loc) ->
+      currentLoc := loc;
+      CASERANGE(alpha_expression expl, alpha_expression exph, 
+                alpha_substatement stat, loc)
+  | DEFAULT (stat, loc) ->
+      currentLoc := loc;
+      DEFAULT(alpha_substatement stat, loc)
+  | LABEL (name, stat, loc) ->
+      currentLoc := loc;
+      LABEL(name, alpha_substatement stat, loc)
+  | GOTO (name, loc) ->
+      currentLoc := loc;
+      GOTO(name, loc)
+  | COMPGOTO (exp, loc) -> 
+      currentLoc := loc;
+      COMPGOTO (alpha_expression exp, loc)
+  | ASM (tlist, isvol, outs, ins, clobs, loc) ->
+      currentLoc := loc;
+      ASM(tlist, isvol, outs, ins, clobs, loc)   
+           
+and alpha_substatement stat =
+  alpha_statement stat
+
+and doDefinitions (isglobal: bool) (* Whether at global scope *)
+                  (defs: definition list) =
+  let res = List.fold_left (doDefinition isglobal) [] defs in
+  List.rev res
+
+  
+and doDefinition (isglobal: bool) (* Whether at global scope *)
+                 (acc: definition list) (* Accumulate the definitions in 
+                                         * reverse order *) = function
+    FUNDEF ((specs, (n, decl, attrs)), body, loc) -> begin
+      currentLoc := loc;
+      (* On MSVC force inline functions to be static. Otherwise the compiler
+       * might complain that the function is declared with multiple bodies *)
+      let specs1 = 
+        if !Cprint.msvcMode && isInline specs && not (isStatic specs) then
+          SpecStorage STATIC :: specs else specs
+      in
+      let specs2 = doSpecs isglobal specs1 in
+      let n' = processDeclName isglobal (isStatic specs2) n in
+      let res = 
+        FUNDEF ((specs2, 
+                 (n', alpha_decl_type decl, alpha_attrs attrs)),
+                alpha_block body, loc) 
+      in
+      res :: acc
+    end
+               
+  | DECDEF ((specs, inl), loc) -> begin
+      currentLoc := loc;
+      let specs1 = doSpecs isglobal specs in
+      let static = isStatic specs1 in
+      let res = DECDEF ((specs1,
+                         List.map 
+                           (fun ((n, decl, attrs), ie) -> 
+                             ((processDeclName isglobal static n, 
+                               alpha_decl_type decl, 
+                               alpha_attrs attrs),
+                              alpha_init_expression ie)) inl), 
+                        loc) in
+      res :: acc
+    end
+      
+
+  | TYPEDEF ((specs, ng), loc) -> begin
+      currentLoc := loc;
+      let specs1 = doSpecs isglobal specs in
+      let static = true in (* Treat TYPEDEF as a static one *)
+      let res = TYPEDEF ((specs1,
+                          List.map 
+                            (fun (n, decl, attrs) -> 
+                              ((processDeclName isglobal static n, 
+                                alpha_decl_type decl, alpha_attrs attrs)))
+                            ng), loc) in
+      res :: acc
+  end
+      
+  | ONLYTYPEDEF (specs, loc) -> begin
+      currentLoc := loc;
+      let specs1 = doSpecs isglobal specs in
+      let res = ONLYTYPEDEF (specs1, loc) in
+      res :: acc
+  end
+      
+  | GLOBASM (s, l) -> GLOBASM (s, l) :: acc
+
+  | PRAGMA (e, l) -> PRAGMA (alpha_expression e, l) :: acc
+      
+    
+(* The MAIN COMBINER *)
+let combine (files : Cabs.file list) : Cabs.file = 
+  (* Do a first pass *)
+  let files1 = List.map (doDefinitions true) files in
+  (* See if some globals are shadowed by some previously defined locals *)
+  let files2 = 
+    if !conflicts == [] then files1 else begin
+      E.s (E.unimp "Found conflicts while combining\n")
+    end
+  in
+  List.flatten files2
+  
+

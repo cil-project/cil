@@ -32,6 +32,8 @@ let args : (string * Arg.spec * string) list =
   "-cabsout", Arg.String set_output, "Output file";
   "-cabsindent", Arg.Int Cprint.set_tab, "Identation step";
   "-cabswidth", Arg.Int Cprint.set_width, "Page width";
+  "-cabscounters", Arg.Unit (fun _ -> Cprint.printCounters := true), 
+                   "Print invocation counters for functions";
 ]
 
 exception ParseError of string

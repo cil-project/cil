@@ -44,7 +44,7 @@ ifdef USEFRONTC
 SOURCEDIRS += src/frontc
 MLLS       += clexer.mll
 MLYS       += cparser.mly
-MODULES    += cabs cprint combine clexer cparser cabs2cil frontc
+MODULES    += cabs cprint combine newcombine clexer cparser cabs2cil frontc
 endif
 
 # Add main late
@@ -648,6 +648,15 @@ testrun/% : $(SMALL1)/%.c  defaulttarget
 	       $(DOOPT) $(EXEOUT)$*.exe $*.c
 	cd $(SMALL1); ./$*.exe
 
+combine%_3: defaulttarget
+	cd $(SMALL1); \
+          $(SAFECC) $(DOOPT) \
+                    combine$*_1.c combine$*_2.c combine$*_3.c \
+                    --combine  \
+                    --patch=../../lib/$(PATCHFILE) \
+	            $(EXEOUT)combine$*.exe
+	cd $(SMALL1); ./combine$*.exe
+
 # weimer: test, compile and run
 testc/% : $(SMALL1)/%.c  defaulttarget
 	cd $(SMALL1); $(SAFECC)   \
@@ -1196,6 +1205,17 @@ vortex-gcc: defaulttarget mustbegcc
                              LD="gcc"
 	cd $(VORDIR)/src; sh -c "./testit vortex.exe"
 
+vortex-cabs:  defaulttarget mustbegcc
+	cd $(VORDIR)/src; \
+            make clean build CC="$(SAFECC) --mode=gcc --cabs $(CONLY)" \
+                             LD="gcc"
+	cd $(VORDIR)/src; sh -c "./testit vortex.exe"
+
+vortex-cil:  defaulttarget mustbegcc
+	cd $(VORDIR)/src; \
+            make clean build CC="$(SAFECC) --cil $(CONLY)" \
+                             LD="gcc"
+	cd $(VORDIR)/src; sh -c "./testit vortex.exe"
 vortex-run:
 	cd $(VORDIR)/src; sh -c "./testit vortex.exe"
 

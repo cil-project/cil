@@ -25,6 +25,7 @@ open Cil
 open Cabs
 let version = "Cprint 2.1e 9.1.99 Hugues Cassé"
 
+
 let lu = {line = -1; file = "loc unknown";}
 let cabslu = {lineno = -10; filename = "cabs loc unknown";}
 
@@ -33,6 +34,9 @@ let curLoc = ref cabslu
 let msvcMode = ref false
 let printLn = ref true
 let printLnComment = ref false
+
+let printCounters = ref false
+
 (*
 ** FrontC Pretty printer
 *)
@@ -785,6 +789,17 @@ and print_defs defs =
 and print_def def =
   match def with
     FUNDEF (proto, body, loc) ->
+      if !printCounters then begin
+        try
+          let fname = 
+            match proto with 
+              (_, (n, _, _)) -> n
+          in
+          print_def (DECDEF (([SpecType Tint], 
+                              [(fname ^ "__counter", JUSTBASE, []), 
+                                NO_INIT]), loc));
+        with Not_found -> print "/* can't print the counter */"
+      end;
       setLoc(loc);
       print_single_name proto;
       print_block body;
@@ -793,7 +808,7 @@ and print_def def =
   | DECDEF (names, loc) ->
       setLoc(loc);
       print_init_name_group names;
-      print "; /*decdef*/";
+      print ";";
       new_line ()
 
   | TYPEDEF (names, loc) ->
