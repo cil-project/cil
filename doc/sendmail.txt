@@ -138,5 +138,5 @@ the examples above, my mailbox directory was /home/winston/mailbox, so I would
 go to /home/winston now) and go to the var/spool/mqueue directory. Inside there 
 should be file with gibberish names on them. "cat" the ones starting with "dff."
 One of those should be the body of your email. Wow, it worked! Sendmail just 
-places the files here so the SMTP can pick them up for delivery. That's it!
+places the files here so the MTA can pick them up for delivery. That's it!
 
