@@ -57,7 +57,7 @@ pretty-printers), as well as with routines that require a CFG (e.g., dataflow an
 
 \section{Distribution}
 
-The file \ahref{cil-distrib.tar.gz}{cil-distrib.tar.gz} contains the complete source CIL
+The file \ahref{cil.tar.gz}{cil.tar.gz} contains the complete source CIL
 distribution, consisting of the following files:
 
 \begin{tabbing}
@@ -98,16 +98,16 @@ to getting the Win32 native-code version of OCaml).
 
 \begin{enumerate}
 \item Unzip and untar the source distribution. This will create a directory
-      called \t{cil-distrib}. \\
-      \hsp\verb!gzip -d cil-distrib.tar.gz!\\
-      \hsp\verb!tar xvf cil.distrib.tar!
+      called \t{cil}. \\
+      \hsp\verb!gzip -d cil.tar.gz!\\
+      \hsp\verb!tar xvf cil.tar!
 \item Create an environment variable \t{ARCHOS} and set it to either
       \t{X86\_LINUX} or \t{x86\_WIN32}.
-\item Enter the \t{cil-distrib} directory and run GNU make to build the 
+\item Enter the \t{cil} directory and run GNU make to build the 
       distribution.\\
-      \hsp\verb!cd cil-distrib!\\
+      \hsp\verb!cd cil!\\
       \hsp\verb!make!\\
-      \hsp\verb!make RELEASE=1!\\
+      \hsp\verb!make NATIVECAML=1!\\
 
 \item You can now run either the bytecode or native code version of the
       \t{cilly} test application on a preprocessed C source file. For example,
