@@ -38,12 +38,15 @@ let elimOne (name: string) =
  * list of arguments *)
 let checks : (string * exp list, bool) H.t = H.create 29
 
+let resetChecks () = H.clear checks
+
+
 (* Register file. Maps identifiers of local variables to expressions. We also 
  * remember if the expression depends on memory or depends on variables that 
  * depend on memory *)
 let regFile : (int, exp * bool) H.t = H.create 29
 
-let resetRegisterFile () = H.clear regFile; H.clear checks
+let resetRegisterFile () = H.clear regFile
 
 let setRegister (id: int) (v: exp * bool) : unit = 
   H.remove regFile id;
@@ -136,9 +139,9 @@ let doOneInstr (acc: instr clist) (i: instr) : instr clist =
       end
 
   | Call (Some (Var v, _), _, _, _) -> 
-      (* This call might have set the memory *)
-      setMemory ();
-      (* Must discard all register file entries that depend on this value *)
+      (* Must discard all register file entries that depend on this value or 
+       * on memory. Be conservative and discard everything for now *)
+      resetRegisterFile ();
       CConsR (acc, i)
 
   | Call (Some (Mem _, _), _, _, _) -> setMemory (); CConsR (acc, i)
@@ -152,9 +155,9 @@ class basicBlockOptimClass : cilVisitor = object
     method vstmt (s: stmt) = 
       match s.skind with 
         Instr il -> 
-          resetRegisterFile ();
+          resetRegisterFile (); resetChecks ();
           let il' = toList (List.fold_left doOneInstr empty il) in
-          resetRegisterFile (); (* To make the GC happy *)
+          resetRegisterFile (); resetChecks (); (* To make the GC happy *)
           s.skind <- Instr il';
           SkipChildren
 
