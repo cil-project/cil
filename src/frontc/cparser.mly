@@ -451,9 +451,14 @@ initializer_list_opt:
 |   initializer_list                        { $1 }
 ;
 initializer: 
-    init_designators EQ init_expression { ($1, $3) }
+    init_designators eq_opt init_expression { ($1, $3) }
 |   gcc_init_designators init_expression { ($1, $2) }
 |                       init_expression { (NEXT_INIT, $1) }
+;
+eq_opt: 
+   EQ                        { () }
+   /*(* GCC allows missing = *)*/
+|  /*(* empty *)*/               { () }
 ;
 init_designators: 
     DOT IDENT init_designators_opt      { INFIELD_INIT($2, $3) }
@@ -469,7 +474,6 @@ init_designators_opt:
 
 gcc_init_designators:  /*(* GCC supports these strange things *)*/
    IDENT COLON                          { INFIELD_INIT($1, NEXT_INIT) }
-|  LBRACKET expression RBRACKET         { ATINDEX_INIT($2, NEXT_INIT) }
 ;
 
 
