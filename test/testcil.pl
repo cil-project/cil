@@ -434,6 +434,7 @@ $TEST->addTests("test/linuxcombine1_1", "", ['cil']);
 $TEST->addTests("arcombine", "_GNUCC=1", ['cil']);
 $TEST->add2Tests("testrun/funptr1");
 $TEST->addTests("testrun/funptr2", "", ['inferbox']);
+$TEST->addTests("testrun/funptralloc1", "", ['inferbox']);
 $TEST->addTests("testrun/typespec1", "_GNUCC=1", ['cil']);
    $TEST->addBadComment("testrun/typespec1-cil", 
                         "Must emulate bug in GCC?");
@@ -471,6 +472,7 @@ $TEST->addTests("testrun/rtti5", "", ['inferbox']);
 $TEST->addTests("testrun/rtti6", "", ['inferbox']);
 $TEST->addTests("testrun/rtti7", "", ['inferbox']);
 $TEST->addTests("testrun/rtti8", "", ['inferbox']);
+$TEST->addTests("test/rtti10", "", ['inferbox']);
 $TEST->addTests("testrun/rttioo", "", ['inferbox']);
 $TEST->addTests("testrun/rttioo2", "", ['inferbox']);
 $TEST->addTests("test/bind-cannot-convert", "", ['inferbox']);
