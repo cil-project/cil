@@ -198,12 +198,16 @@ let categorizePragmas file =
       | GPragma (Attr("ccuredvararg" as directive, funcname :: (ASizeOf t) :: _), location) ->
 	  begin
 	    match t with
-	    | TComp(c,_) when c.cstruct ->
-		H.add keepers.structs c.cname ();
+	    | TComp(c,_) when c.cstruct -> (* struct *)
+		H.add keepers.structs c.cname ()
 	    | TComp(c,_) -> (* union *)
-		H.add keepers.unions c.cname ();
+		H.add keepers.unions c.cname ()
+	    | TNamed(ti,_) ->
+		H.add keepers.typedefs ti.tname ()
+	    | TEnum(ei, _) ->
+		H.add keepers.enums ei.ename ()
 	    | _ ->
-		badPragma location directive
+		()
 	  end
       | GPragma (Attr(directive, _ :: _ :: attribute :: _), location)
            when String.length directive > ccureddeepcopystring_length
