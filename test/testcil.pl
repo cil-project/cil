@@ -734,6 +734,8 @@ smAddTest("combine_copyptrs WARNINGS_ARE_ERRORS=1 MERGEINLINES=1");
 smAddTest("merge-twice");
 smAddTest("scott/arrayexpand INFERBOX=infer");
 smAddTest("scott/byteprintf INFERBOX=infer");
+smFailTest("inference bug with function pointers",
+           "scott/bufferlinegetter INFERBOX=infer");
 
 # tests of things implemented for EDG compatibility
 smAddTest("mergestruct");
