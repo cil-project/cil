@@ -247,7 +247,7 @@ endif
 # enable the new tree-based patcher
 ifdef NEWPATCH
   # at the moment, the new patcher is kinda shoehorned into this Makefile..
-  # perhaps safecc.pl is the right place to deal with telling safec.exe
+  # perhaps ccured.pl is the right place to deal with telling ccured.exe
   # about this file
 
   # hack: possible append 'd' to the name, so we get different versions
@@ -259,7 +259,7 @@ ifdef NEWPATCH
     PATCHFILE2=$(CCUREDHOME)/lib/$(PATCHFILE)2.i
   endif
 
-  # tell safec.byte.exe (via safecc.pl) where to find the patch file
+  # tell ccured.byte.exe (via ccured.pl) where to find the patch file
   CCURED+= --patchFile=$(PATCHFILE2)
 
   # and turn off the other patcher
@@ -782,7 +782,7 @@ testfile/% :
 	$(CCURED) /TC $*
 
 testdir/% : 
-	make -C CC="perl safecc.pl" $*
+	make -C CC="perl ccured.pl" $*
 
 
 ################## Linux device drivers
@@ -1464,7 +1464,7 @@ linuxstandard:
 	$(MAKE) -C $(LINUXDIR) clean vmlinux \
               MY-CC="gcc"
 
-LINUXCC := perl $(CCUREDHOME)/lib/safecc.pl --mode=gcc
+LINUXCC := perl $(CCUREDHOME)/lib/ccured.pl --mode=gcc
 ifdef NOLINES
   LINUXCC+= --noPrintLn
 endif

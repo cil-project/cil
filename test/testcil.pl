@@ -587,7 +587,7 @@ smAddTest("bad/nullfield $manualbox");
 smAddTest("scott/constfold");
 
 # test of strings (need more!)
-smAddTest("bad/ovwrnull $box");
+smFailTest("unsound user annotation RWSTRING", "bad/ovwrnull $box");
 smAddTest("test-bad/strloop2 $box");
 
 # tests of function models
@@ -600,11 +600,12 @@ smAddTest("scott/models $box");
 smAddTest("scott/qsort $box");
 smAddTest("scott/strpbrk $box");
 smAddTest("scott/fgets $box");
-smAddTest("test-bad/sockets $box");
+smFailTest("problem inferring FSEQ where WILD is expected; problem with FSEQ too?",
+           "test-bad/sockets $box");
 
 # more stuff, mostly from ftpd
 if ($TEST->{option}->{safecdebug}) {
-  smAddTest("scott/reply $box");
+  smFailTest("need vprintf_sw wrapper", "scott/reply $box");
 }
 else {
   smFailTest("problem with __extinline", "scott/reply $box");

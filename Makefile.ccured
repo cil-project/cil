@@ -130,7 +130,7 @@ ifndef RELEASELIB
   CCUREDLIBARG+= $(DEF)_DEBUG
 endif
 
-# NO_FPFAIL_SYSLOG means the syslog(2) call in safec.c will be omitted
+# NO_FPFAIL_SYSLOG means the syslog(2) call in ccuredlib.c will be omitted
 ifdef NO_FPFAIL_SYSLOG
   CCUREDLIBARG+= $(DEF)NO_FPFAIL_SYSLOG
 endif
@@ -146,19 +146,19 @@ endif
 
 # we build the library from source each time, so that we don't end up
 # with .o files built with Makefile arguments that have changed
-$(CCUREDLIB): lib/safec.c lib/safec.h lib/safeccheck.h lib/splay.c $(GCLIB) 
+$(CCUREDLIB): lib/ccuredlib.c lib/ccured.h lib/ccuredcheck.h lib/splay.c $(GCLIB) 
 	@echo "Trying to build $(CCUREDLIB)"
 	@true "CCUREDLIBARG is $(CCUREDLIBARG)"
 	@true "CFLAGS is $(CFLAGS)"
 	$(CC) $(CFLAGS) $(INC)./lib $(CONLY) $(CCUREDLIBARG) \
-                    $(OBJOUT)obj/safec.$(OBJEXT) lib/safec.c
+                    $(OBJOUT)obj/ccuredlib.$(OBJEXT) lib/ccuredlib.c
 	$(CC) $(CFLAGS) $(INC)./lib $(CONLY) $(CCUREDLIBARG) \
                     $(OBJOUT)obj/splay.$(OBJEXT) lib/splay.c
 ifdef _GNUCC
 	cp -f $(GCLIB) $@
-	ar -rs $@                  obj/safec.$(OBJEXT) obj/splay.$(OBJEXT) 
+	ar -rs $@                  obj/ccuredlib.$(OBJEXT) obj/splay.$(OBJEXT) 
 else
-	$(AR) $(LIBOUT)$@ $(GCLIB) obj/safec.$(OBJEXT) obj/splay.$(OBJEXT) 
+	$(AR) $(LIBOUT)$@ $(GCLIB) obj/ccuredlib.$(OBJEXT) obj/splay.$(OBJEXT) 
 endif
 
 # we need to know what the patcher will think the compiler's version is

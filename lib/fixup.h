@@ -80,7 +80,7 @@
 
 #if !defined(CCURED)
   // if some code calls explicit_gc, but we're not boxing, then
-  // we won't link safec{debug,}lib.a either; so let's provide
+  // we won't link ccured{debug,}lib.a either; so let's provide
   // a dummy definition of this fn
 
   /* But we cannot put it here since this will end up being included several 
