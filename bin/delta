@@ -4,15 +4,15 @@ use strict;
 # Implementation by Daniel Wilkerson of the delta debugging algorithm:
 # http://www.st.cs.uni-sb.de/dd/
 
-# FIX: What is the deal with this pass where we try every marker
-# individually?  Does this ever find anything?  It seems very
-# unlikely.  Take stats on this.  I think we can just remove it.
+# Features:
 
-# FIX: It should probably start by throwing away things at the end
-# rather than at the start, since I think they are least likely to be
-# relevant.
+# Should probably start by throwing away things at the end rather than
+# at the start, since I think they are least likely to be relevant.
 
-# FIX: Could have running at various increasing base granularities.
+# Could run at various increasing base granularities.
+
+# Note that 1-minimality does not imply idempotency, so we could
+# re-run once it is stuck, perhaps with some randomization.
 
 
 # Global State ****************
@@ -297,7 +297,7 @@ sub timestamp {
     my $now = time;             # Get a timestamp in seconds.
     my $elapsed = $now - $starttime; # Make relative to start time.
     my ($d,$h,$m,$s) = dhms_from_seconds($elapsed); # Convert to more familiar format.
-    my $elapsed_dhms = "$h:$m:$s"; # Format.
+    my $elapsed_dhms = sprintf("%02d:%02d:%02d", $h, $m, $s); # Format.
     if ($d > 0) {
         my $day_str = "$d day";
         $day_str .= "s" if $d > 1;
