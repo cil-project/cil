@@ -5,6 +5,7 @@
 *.cmo
 *.cmx
 *.cma
+*.cmxa
 safecc
 clexer.ml
 cparser.ml
