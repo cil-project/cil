@@ -5098,6 +5098,8 @@ let pushGlobal (g: global)
       None -> variables := g :: !variables
     | Some (vl, loc) -> 
         types := 
+           (* insert declarations for referred variables ('vl'), before
+            * the type definition 'g' itself *)
            g :: (List.fold_left (fun acc v -> GVarDecl(v, loc) :: acc) 
                                 !types vl) 
   end

@@ -227,10 +227,11 @@ end
 
 
 let parse fname =
-  (trace "sm" (dprintf "beginning parsing to Cabs\n"));
+  (trace "sm" (dprintf "parsing %s to Cabs\n" fname));
   let cabs = parse_to_cabs fname in
-  (* Now convert to CIL *)
+  (* Now (return a function that will) convert to CIL *)
   fun _ ->
+    (trace "sm" (dprintf "converting %s from Cabs to CIL\n" fname));
     let cil = Stats.time "conv" Cabs2cil.convFile cabs in
     if !doPrintProtos then (printPrototypes cabs);
     cil

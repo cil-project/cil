@@ -1,13 +1,14 @@
 // combine_samefn_1.c
 // test merging two source files, each of which contain a definition
-// of a given function, but those definitions are identical
+// of a given function, but those definitions are identical (up to
+// alpha renaming of locals/params)
 
 // repeated function
-int foo(int x)
+int foo(int xxx)
 {
-  int y = x + 3;    // 8
-  int z = y + x;    // 13
-  return z + x;     // 18
+  int yyy = xxx + 3;    // 8
+  int z = yyy + xxx;    // 13
+  return z + xxx;       // 18
 }
 
 

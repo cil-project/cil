@@ -63,6 +63,12 @@ let mergeInlinesRepeat = mergeInlines && true
 
 let mergeInlinesWithAlphaConvert = mergeInlines && true
 
+(* when true, merge duplicate definitions of externally-visible functions;
+ * this uses a mechanism which is faster than the one for inline functions,
+ * but only probabilistically accurate *)
+let mergeGlobalFuncs = true
+
+
 (* Return true if 's' starts with the prefix 'p' *)
 let prefix p s = 
   let lp = String.length p in
@@ -270,26 +276,32 @@ let tAlpha : (string, int ref) H.t = H.create 57 (* Type names *)
 let formalNames: (int * string, string list) H.t = H.create 111
 
 
-  (* Accumulate here the globals in the merged file *)
-let theFileTypes = ref [] 
+(* Accumulate here the globals in the merged file *)
+let theFileTypes = ref []
 let theFile      = ref []
 
-
-(* The idnex of the current file being scanned *)
-let currentFidx = ref 0 
-
-let currentDeclIdx = ref 0 (* The index of the definition in a file *)
-
+(* add 'g' to the merged file *)
 let mergePushGlobal (g: global) : unit = 
   pushGlobal g ~types:theFileTypes ~variables:theFile
     
 let mergePushGlobals gl = List.iter mergePushGlobal gl
-    
+
+
+(* The index of the current file being scanned *)
+let currentFidx = ref 0
+
+let currentDeclIdx = ref 0 (* The index of the definition in a file *)
+
+
 
 (* Remember the composite types that we have already declared *)
 let emittedCompDecls: (string, bool) H.t = H.create 113
 (* Remember the variables also *)
 let emittedVarDecls: (string, bool) H.t = H.create 113
+
+(* also keep track of externally-visible function definitions;
+ * name maps to declaration, location, and semantic checksum *)
+let emittedFunDefn: (string, fundec * location * int) H.t = H.create 113
 
 (* Initialize the module *)
 let init () = 
@@ -991,6 +1003,47 @@ class renameInlineVisitorClass = object (self)
 end
 let renameInlinesVisitor = new renameInlineVisitorClass
 
+
+(* sm: First attempt at a semantic checksum for function bodies.
+ * Ideally, two function's checksums would be equal only when their
+ * bodies were provably equivalent; but I'm using a much simpler and
+ * less accurate heuristic here.  It should be good enough for the
+ * purpose I have in mind, which is doing duplicate removal of
+ * multiply-instantiated template functions. *)
+let functionChecksum (dec: fundec) : int =
+begin
+  (* checksum the structure of the statements (only) *)
+  let rec stmtListSum (lst : stmt list) : int =
+    (List.fold_left (fun acc s -> acc + (stmtSum s)) 0 lst)
+  and stmtSum (s: stmt) : int =
+    (* strategy is to just throw a lot of prime numbers into the
+     * computation in hopes of avoiding accidental collision.. *)
+    match s.skind with
+    | Instr(l) -> 13 + 67*(List.length l)
+    | Return(_) -> 17
+    | Goto(_) -> 19
+    | Break(_) -> 23
+    | Continue(_) -> 29
+    | If(_,b1,b2,_) -> 31 + 37*(stmtListSum b1.bstmts) 
+                          + 41*(stmtListSum b2.bstmts)
+    | Switch(_,b,_,_) -> 43 + 47*(stmtListSum b.bstmts)
+                            (* don't look at stmt list b/c is not part of tree *)
+    | Loop(b,_) -> 49 + 53*(stmtListSum b.bstmts)
+    | Block(b) -> 59 + 61*(stmtListSum b.bstmts)
+  in
+
+  let a,b,c,d,e =
+    (List.length dec.sformals),        (* # formals *)
+    (List.length dec.slocals),         (* # locals *)
+    dec.smaxid,                        (* estimate of internal statement count *)
+    (List.length dec.sbody.bstmts),    (* number of statements at outer level *)
+    (stmtListSum dec.sbody.bstmts) in  (* checksum of statement structure *)
+  (*   (trace "sm" (P.dprintf "sum: %s is %d %d %d %d %d\n"*)
+  (*                          dec.svar.vname a b c d e));*)
+  2*a + 3*b + 5*c + 7*d + 11*e
+end
+
+
   (* Now we go once more through the file and we rename the globals that we 
    * keep. We also scan the entire body and we replace references to the 
    * representative types or variables. We set the referenced flags once we 
@@ -1172,8 +1225,46 @@ let oneFilePass2 (f: file) =
               H.add inlineBodies printout inode;
               mergePushGlobal g'
             end
-          end else
-            mergePushGlobal g'
+          end 
+          else (
+            (* either the function is not inline, or we're not attempting to
+             * merge inlines *)
+            if (mergeGlobalFuncs &&
+                not fdec'.svar.vinline &&
+                fdec'.svar.vstorage <> Static) then (
+              (* sm: this is a non-inline, non-static function.  I want to
+               * consider dropping it if a same-named function has already
+               * been put into the merged file *)
+              let curSum = (functionChecksum fdec') in
+              (trace "mergeFunc" (P.dprintf "I see extern function %s, sum is %d\n"
+                                            fdec'.svar.vname curSum));
+              try
+                let prevFun, prevLoc, prevSum =
+                  (H.find emittedFunDefn fdec'.svar.vname) in
+                (* previous was found *)
+                if (curSum = prevSum) then
+                  (trace "mergeFunc"
+                    (P.dprintf "dropping duplicate definition of %s at %a in favor of that at %a\n"
+                               fdec'.svar.vname  d_loc prevLoc  d_loc l))
+                else (
+                  (* the checksums differ, so I'll keep both so as to get
+                   * a link error later *)
+                  (trace "mergeFunc"
+                    (P.dprintf "definition of %s at %a conflicts with the one at %a; keeping both\n"
+                               fdec'.svar.vname  d_loc prevLoc  d_loc l));
+                  (mergePushGlobal g')
+                )
+              with Not_found -> (
+                (* there was no previous definition *)
+                (mergePushGlobal g');
+                (H.add emittedFunDefn fdec'.svar.vname (fdec', l, curSum))
+              )
+            )
+            else
+              (* not attempting to merge global functions, or it was static
+               * or inline *)
+              mergePushGlobal g'
+          )
               
       | GCompTag (ci, l) as g -> begin
           currentLoc := l;
