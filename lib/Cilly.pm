@@ -551,7 +551,7 @@ sub compile {
     my($self, $src, $dest, $ppargs, $ccargs) = @_;
     &mydebug("Cilly.compile(src=$src, dest=$dest)\n");
     confess "bad dest: $dest" unless $dest->isa('OutputFile');
-
+    
     if($self->{SEPARATE}) {
         # Now invoke CIL and compile afterwards
         return $self->applyCilAndCompile([$src], $dest, $ppargs, $ccargs); 
@@ -761,7 +761,7 @@ sub link {
             print STDERR "Reusing merged file $combFile\n";
         }
         $self->applyCilAndCompile([$combFile], $mergedobj, $ppargs, $ccargs); 
-    } else {
+    } else { 
       DoMerge:
         $self->applyCilAndCompile($tomerge, $mergedobj, $ppargs, $ccargs);
     }
@@ -1270,6 +1270,7 @@ sub compileOutputFile {
     die "objectOutputFile: not a C source file: $src\n"
 	unless $src =~ /\.($::cilbin|c|cc|cpp|i|asm)$/;
 
+    confess ("compileOutputFile: $self->{OPERATION}, $self->{OUTARG}");
     if ($self->{OPERATION} eq 'TOOBJ') {
 	if(defined $self->{OUTARG} && "@{$self->{OUTARG}}" =~ m|/Fo(.+)|) {
 	    return new OutputFile($src, $1);
@@ -1277,6 +1278,7 @@ sub compileOutputFile {
 	    return new KeptFile($src, $self->{OBJEXT}, '.');
 	}
     } else {
+        die "compileOutputfile";
 	return $self->outputFile($src, $self->{OBJEXT});
     }
 }
