@@ -691,11 +691,12 @@ and instr =
 and location = { 
     line: int;		   (** The line number. -1 means "do not know" *)
     file: string;          (** The name of the source file*)
+    byte: int;             (** The byte position in the source file *)
 }
 
 
 
-let locUnknown = { line = -1; file = ""; }
+let locUnknown = { line = -1; file = ""; byte = -1; }
 (* A reference to the current location *)
 let currentLoc : location ref = ref locUnknown
 

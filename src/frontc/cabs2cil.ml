@@ -50,7 +50,7 @@ let nocil: int ref = ref (-1)
 
 (* ---------- source error message handling ------------- *)
 let lu = locUnknown
-let cabslu = {lineno = -10; filename = "cabs lu";}
+let cabslu = {lineno = -10; filename = "cabs lu"; byteno = -10;}
 
 
 (* Keep a list of functions that were called without a prototype. *)
@@ -102,8 +102,8 @@ let transparentUnionArgs : (int * typ) list ref = ref []
 let debugLoc = false
 let convLoc (l : cabsloc) =
   if debugLoc then 
-    ignore (E.log "convLoc at %s:%d\n" l.filename l.lineno);
-  {line = l.lineno; file = l.filename;}
+    ignore (E.log "convLoc at %s: line %d, btye %d\n" l.filename l.lineno l.byteno);
+  {line = l.lineno; file = l.filename; byte = l.byteno}
 
 
 let isOldStyleVarArgName n = 

@@ -46,6 +46,7 @@ val display_error: string -> int -> int -> unit
 
 val currentFile: string ref
 val currentLine: int ref 
+val getCurrentByte: unit -> int
 
 val push_context: unit -> unit (* Start a context *)
 val add_type: string -> unit (* Add a new string as a type name *)

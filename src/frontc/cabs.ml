@@ -20,6 +20,7 @@ let version = "Cabs 2.1 4.7.99 Hugues Cassé"
 type cabsloc = {
  lineno : int;
  filename: string;
+ byteno: int;
 
 }                                                                     
 

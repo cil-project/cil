@@ -168,10 +168,12 @@ let attribDepth = ref 0 (* Remembers the nesting level when parsing
 (* The current lexing buffer *)
 let currentLexBuf = ref (Lexing.from_string "")
 
+let getCurrentByte () =
+  Lexing.lexeme_start !currentLexBuf
+
 let newline () = 
   incr currentLine;
   startLine := Lexing.lexeme_start !currentLexBuf
-
 
 (*** syntax error building
 let underline_error (buffer : string) (start : int) (stop : int) =
@@ -404,7 +406,7 @@ rule initial =
 |		"sizeof"		{SIZEOF}
 |               "__asm"                 { if !Cprint.msvcMode then 
                                              MSASM (msasm lexbuf) 
-                                          else ASM }
+                                          else (ASM) }
       
 (* sm: tree transformation keywords *)
 |               "@transform"            {AT_TRANSFORM}
@@ -415,7 +417,7 @@ rule initial =
 
 (* __extension__ is a black. The parser runs into some conflicts if we let it
  * pass *)
-|               "__extension__"         { initial lexbuf }
+|               "__extension__"         {initial lexbuf }
 |		ident			{scan_ident (Lexing.lexeme lexbuf)}
 |		eof			{EOF}
 |		_			{display_error

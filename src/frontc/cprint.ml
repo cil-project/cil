@@ -27,7 +27,7 @@ let version = "Cprint 2.1e 9.1.99 Hugues Cassé"
 type loc = { line : int; file : string }
 
 let lu = {line = -1; file = "loc unknown";}
-let cabslu = {lineno = -10; filename = "cabs loc unknown";}
+let cabslu = {lineno = -10; filename = "cabs loc unknown"; byteno = -10;}
 
 let curLoc = ref cabslu
 
@@ -87,7 +87,8 @@ let commit _ =
 
 let addline () =
   curLoc := {lineno = !curLoc.lineno+1;
-              filename = !curLoc.filename}
+              filename = !curLoc.filename;
+              byteno = -1; (*sfg: can we do better than this?*) }
        
        
 let new_line _ =

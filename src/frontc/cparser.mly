@@ -15,7 +15,8 @@ let print = print_string
 
 
 let currentLoc () = { lineno = !Clexer.currentLine; 
-                      filename = !Clexer.currentFile;}
+                      filename = !Clexer.currentFile;
+                      byteno = Clexer.getCurrentByte(); } 
 
 
 (*
