@@ -210,7 +210,7 @@ let currentReturnType : typ ref = ref (TVoid([]))
 let currentFunctionName : string ref = ref "no_function"
 
 (******** GLOBAL TYPES **************)
-let typedefs : (string, typ) H.t = H.create 113
+let typedefs : (string, typ) H.t = H.create 113 
 
    (* Keep a list of unresolved types. Maybe they are forward references *)
 let forwardTypes : string list ref = ref []
@@ -394,8 +394,8 @@ let conditionalConversion (e2: exp) (t2: typ) (e3: exp) (t3: typ) : typ =
 let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) = 
   if typeSig ot = typeSig nt then (ot, e) else
   match ot, nt with
-    TNamed(_,r), _ -> castTo r nt e
-  | _, TNamed(_,r) -> castTo ot r e
+    TNamed(_,r, _), _ -> castTo r nt e
+  | _, TNamed(_,r, _) -> castTo ot r e
   | TForward(rt), _ -> castTo (resolveForwardType rt) nt e
   | _, TForward(rt) -> castTo ot (resolveForwardType rt) e
   | TInt(ikindo,_), TInt(ikindn,_) -> 
@@ -455,7 +455,7 @@ let doNameGroup (sng: A.single_name -> 'a)
 let rec makeFieldInfo (host: string) 
                      ((bt,st,(n,nbt,a,e)) : A.single_name) : fieldinfo = 
   let rec removeNamed = function
-      TNamed (_, t) -> removeNamed t
+      TNamed (_, t, _) -> removeNamed t
     | TPtr(t,a) -> TPtr(removeNamed t, a)
     | t -> t
   in
@@ -623,6 +623,10 @@ and doType (a : attribute list) = function
       let res = TEnum (n, loop 0 eil, a) in
       List.iter (fun (n,fieldidx) -> recordEnumField n fieldidx res) fields;
       res
+(*
+  | A.CONST bt -> doType (AId("const") :: a) bt
+  | A.VOLATILE bt -> doType (AId("volatile") :: a) bt
+*)
   | A.ATTRTYPE (bt, a') -> 
       let rec doAttribute = function
           (s, []) -> AId s
@@ -647,15 +651,11 @@ and doType (a : attribute list) = function
   | A.NAMED_TYPE n -> begin
       match findTypeName n with
         (TNamed _) as x -> x
-      | typ -> 
-          if typeAttrs typ <> a then 
-            E.s (E.unimp "Named type does nto have the attributes expected")
-          else
-            TNamed(n, typ)
+      | typ -> TNamed(n, typ, a)
   end
   | A.TYPEOF e -> 
       let (se, _, t) = doExp e (AExp None) in
-      if se <> [] || a <> [] then
+      if se <> [] then
         E.s (E.unimp "typeof for a non-pure expression\n");
       t
 
@@ -1100,7 +1100,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
           tresult   (* Should this be t instead ??? *)
           
     | A.UNARY((A.POSINCR|A.POSDECR) as uop, e) -> 
-        (* If we do not drop the result then we must save the value *)
+      (* If we do not drop the result then we must save the value *)
         let uop' = if uop = A.POSINCR then Plus else Minus in
         let (se, e', t) = doExp e (AExp None) in
         let lv = 
@@ -1110,7 +1110,6 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
           | _ -> E.s (E.unimp "Expected lval for ++ or --")
         in
         let tresult, opresult = doBinOp uop' (Lval(lv)) t one intType in
-        (* The actual ++ must occur after the current statement !!! *)
         let se', result = 
           if what <> ADrop then 
             let tmp = newTempVar t in
