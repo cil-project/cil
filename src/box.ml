@@ -18,6 +18,9 @@ let interceptCasts = ref false  (* If true it will insert calls to
 let lu = locUnknown
 let isSome = function Some _ -> true | _ -> false
 
+let mkSet  lv e = Instr(Set(lv, e), lu)
+let call lvo f args = Instr(Call(lvo,f,args), lu)
+
 (**** We know in what function we are ****)
 let currentFunction : fundec ref  = ref dummyFunDec
 let currentFile     : file ref = ref dummyFile
@@ -431,11 +434,12 @@ let setFatPointer (t: typ) (p: typ -> exp) (b: exp) (e: exp)
   let setend = 
     match fendo with
       None -> []
-    | Some fend -> [mkSet (Var tmp, Field(fend,NoOffset)) (castVoidStar e)]
+    | Some fend -> [Instr(Set ((Var tmp, Field(fend,NoOffset)), 
+                               castVoidStar e), lu)]
   in
   ( mkSet (Var tmp, Field(fptr,NoOffset)) p' ::
-   mkSet (Var tmp, Field(fbase,NoOffset)) (castVoidStar b)  :: setend, 
-   (Var tmp, NoOffset))
+    mkSet (Var tmp, Field(fbase,NoOffset)) (castVoidStar b)  :: setend, 
+    (Var tmp, NoOffset))
       
 let readPtrField (e: exp) (t: typ) : exp = 
   let (tptr, ptr, base, bend) = readFieldsOfFat e t in ptr
@@ -2358,10 +2362,10 @@ let rec boxstmt (s : stmt) : stmt =
     match s with 
       Sequence sl -> mkSeq (List.map boxstmt sl)
           
-    | (Label _ | Goto _ | Case _ | Default | Skip |
+    | (Label _ | Gotos _ | Case _ | Default | Skip |
       Returns (None, _) | Break | Continue) -> s
           
-    | Loop s -> Loop (boxstmt s)
+    | Loops s -> Loops (boxstmt s)
           
     | IfThenElse (e, st, sf, l) -> 
         (* Signal that we have to do a cast *)
@@ -2393,7 +2397,7 @@ let rec boxstmt (s : stmt) : stmt =
   with e -> begin
     ignore (E.log "boxstmt (%s) in %s\n" 
               (Printexc.to_string e) !currentFunction.svar.vname);
-    dStmt (dprintf "booo_statement(%a)" d_stmt s)
+    Instr(dInstr (dprintf "booo_statement(%a)" d_stmt s), lu)
   end
 
   
@@ -2564,7 +2568,7 @@ and boxinstr (ins: instr) (l: location): stmt =
   with e -> begin
     ignore (E.log "boxinstr (%s):%a (in %s)\n" 
               (Printexc.to_string e) d_instr ins !currentFunction.svar.vname);
-    dStmt (dprintf "booo_instruction(%a)" d_instr ins)
+    Instr(dInstr (dprintf "booo_instruction(%a)" d_instr ins), lu)
   end
 
 (* Given an lvalue, generate all the stuff needed to construct a pointer to 

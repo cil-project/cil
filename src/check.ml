@@ -520,19 +520,19 @@ and checkStmt (s: stmt) =
     (fun _ -> 
       (* Print context only for certain small statements *)
       match s with 
-        Sequence _ | Loop _ | IfThenElse _ | Switchs _  -> nil
+        Sequence _ | Loops _ | IfThenElse _ | Switchs _  -> nil
       | _ -> dprintf "checkStmt: %a" d_stmt s)
     (fun _ -> 
       match s with
         Skip | Break | Continue | Default | Case _ -> ()
       | Sequence ss -> List.iter checkStmt ss
-      | Loop s -> checkStmt s
+      | Loops s -> checkStmt s
       | Label l -> begin
           if H.mem labels l then
             ignore (E.warn "Multiply defined label %s" l);
           H.add labels l ()
       end
-      | Goto l -> H.add gotos l ()
+      | Gotos l -> H.add gotos l ()
       | IfThenElse (e, st, sf,_) -> 
           let te = checkExp false e in
           checkBooleanType te;

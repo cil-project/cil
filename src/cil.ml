@@ -357,23 +357,24 @@ and instr =
                   (string * exp) list * (* inputs with constraints *)
                   string list           (* register clobbers *)
 
+
 (**** STATEMENTS. Mostly structural information ****)
 and stmt = 
   | Skip                                (* empty statement *)
   | Sequence of stmt list               (* Use mkSeq to make a Sequence. This 
                                          * will optimize the result and will 
                                          * make sure that there are no 
-                                         * trailing Default or Label or Case *)
-  | Loop of stmt                        (* A loop. When stmt is done the 
+                                         * trailing Default of Label or Case *)
+  | Loops of stmt                       (* A loop. When stmt is done the 
                                          * control starts back with stmt. 
                                          * Ends with break or a Goto outside.*)
   | IfThenElse of exp * stmt * stmt * location    (* if *)
   | Label of string 
-  | Goto of string
+  | Gotos of string
   | Returns of exp option * location
   | Switchs of exp * stmt * location    (* no work done to break this appart *)
   | Case of int * location              (* The case expressions are resolved *)
-  | Default 
+  | Default
   | Break
   | Continue
   | Instr of instr * location
@@ -381,20 +382,58 @@ and stmt =
   | Block of block                      (* Just a placeholder to allow us to 
                                          * mix blocks and statements *)
 
-and block = {
-    mutable nid: int;
-    mutable label: string option;
-    mutable ins: (instr * location) list;
-    mutable skind: succkind;
-    mutable succs: block list;
-    mutable preds: block list;
+and block = 
+    BB of bblock                        (* A basic block *)
+  | Seq of block list                   (* A sequence of blocks. Possibly 
+                                         * empty in which case we have a 
+                                         * fall-through *)
+  | Loop of block                       (* A loop block *)
+
+(* A basic block is a block what has some place for attaching information *)
+and bblock = {
+    mutable label: string option;       (* Whether the block starts with a 
+                                         * label *)
+    mutable ins: (instr * location) list;(* The instructions, except maybe 
+                                          * the final one in the block, which 
+                                          * goes into skind *)
+    mutable skind: succkind;            (* The kind of successsor, and 
+                                         * implicitly the form of the last 
+                                         * statement in the block *)
+
+    (* Now some additional control flow information *)
+    mutable nid: int;                   (* A >= 0 identifier that is unique 
+                                         * in a function. *)
+    mutable succs: bblock list;         (* The successor blocks. They can 
+                                         * always be computed from the skind *)
+    mutable preds: bblock list;
   } 
 
 and succkind = 
-    Jump
-  | If of exp * location
-  | Switch of exp list list * location
-  | Return of exp option * location
+  | Return of exp option * location     (* The optional return *)
+
+  | Fall                                (* Fall-through. The successor is 
+                                         * dependent on the context *)
+  | Goto of bblock ref * location       (* One successor, the target of an 
+                                         * explicit goto or a break or a 
+                                         * continue statement. *)
+  | If of exp * block * block * location (* Two successors, the "then" and the 
+                                          * "else" branches. Both branches 
+                                          * fall-through to the successor of 
+                                          * the If statement *)
+  | Switch of (exp list * block) list * location  
+                                        (* A switch statement. "Switch cases" 
+                                         * is a switch statement with a 
+                                         * number of cases equal to 
+                                         * "List.length cases" (including the 
+                                         * default case). Each case 
+                                         * contains a list of values for 
+                                         * which it is taken. The list of 
+                                         * values is empty for the default 
+                                         * case. All cases fall-through to 
+                                         * the successors of the Switch. If 
+                                         * we have cases that fall-through to 
+                                         * other cases, we replace that with 
+                                         * explicit goto's *)
 
 
         
@@ -657,9 +696,7 @@ let rec unrollType = function   (* Might drop some attributes !! *)
 
                                    
 let var vi : lval = (Var vi, NoOffset)
-let mkSet lv e = Instr(Set(lv,e), lu)
-let assign vi e = mkSet (var vi) e
-let call res f args = Instr(Call(res,f,args), lu)
+let assign vi e = Instr(Set (var vi, e), lu)
 
 let mkString s = Const(CStr s)
 
@@ -686,7 +723,7 @@ let mkSeq sl =
 
 let mkWhile (guard:exp) (body: stmt list) : stmt = 
   (* Do it like this so that the pretty printer recognizes it *)
-  Loop (Sequence (IfThenElse(guard, Skip, Break, lu) :: body))
+  Loops (Sequence (IfThenElse(guard, Skip, Break, lu) :: body))
 
 let mkFor (start: stmt) (guard: exp) (next: stmt) (body: stmt list) : stmt = 
   mkSeq 
@@ -702,10 +739,10 @@ let mkForIncr (iter: varinfo) (first: exp) (past: exp) (incr: exp)
           TPtr _ -> LtP, PlusPI
         | _ -> Lt, PlusA
       in
-      mkFor (mkSet (var iter) first)
+      mkFor (Instr(Set (var iter, first), lu))
         (BinOp(compop, Lval(var iter), past, intType))
-        (mkSet (var iter) 
-           (BinOp(nextop, Lval(var iter), incr, iter.vtype)))
+        (Instr(Set (var iter, 
+                    (BinOp(nextop, Lval(var iter), incr, iter.vtype))), lu))
         body
   
 
@@ -1208,7 +1245,7 @@ and d_stmt () s =
                   dangling elses. ASM gives some problems with MSVC so 
                   bracket them as well  *) 
     match a with
-      IfThenElse _ | Loop _ | Instr(Asm _, _) | Switchs _ -> 
+      IfThenElse _ | Loops _ | Instr(Asm _, _) | Switchs _ -> 
         Sequence [a]
     | _ -> a
   in
@@ -1216,9 +1253,9 @@ and d_stmt () s =
     Skip -> dprintf ";"
   | Sequence(lst) -> dprintf "@[{ @[@!%a@]@!}@]" 
         (docList line (d_stmt ())) lst
-  | Loop(Sequence(IfThenElse(e,Skip,Break,_) :: rest)) -> 
+  | Loops(Sequence(IfThenElse(e,Skip,Break,_) :: rest)) -> 
       dprintf "wh@[ile (%a)@!%a@]" d_exp e d_stmt (Sequence rest)
-  | Loop(stmt) -> 
+  | Loops(stmt) -> 
       dprintf "wh@[ile (1)@!%a@]" d_stmt stmt
   | IfThenElse(e,a,(Skip|Sequence([Skip])),_) -> 
       dprintf "if@[ (%a)@!%a@]" d_exp e d_stmt (doThen a)
@@ -1227,7 +1264,7 @@ and d_stmt () s =
         d_exp e d_stmt (doThen a) d_stmt b
   | Label(s) -> dprintf "%s:" s
   | Case(i,_) -> dprintf "case %d: " i
-  | Goto(s) -> dprintf "goto %s;" s
+  | Gotos(s) -> dprintf "goto %s;" s
   | Break  -> dprintf "break;"
   | Continue -> dprintf "continue;"
   | Returns(None,_) -> text "return;"
@@ -1606,9 +1643,10 @@ begin
 
   and fStmt s = if (vis#vstmt s) then fStmt' s
   and fStmt' = begin function
-      (Skip|Break|Continue|Label _|Goto _|Case _|Default|Returns (None,_)) -> ()
+      (Skip|Break|Continue|Label _|Gotos _
+       |Case _|Default|Returns (None,_)) -> ()
     | Sequence s -> List.iter fStmt s
-    | Loop s -> fStmt s
+    | Loops s -> fStmt s
     | IfThenElse (e, s1, s2, _) -> fExp e; fStmt s1; fStmt s2
     | Returns(Some e, _) -> fExp e
     | Switchs (e, s, _) -> fExp e; fStmt s
@@ -1736,11 +1774,10 @@ end
 
 (******************** OPTIMIZATIONS *****)
 let peepHole1     (* Process one statement and possibly replace it *)
-                    (doone: stmt -> stmt list option)
-                    (ss: stmt list) : stmt list = 
+                    (doone: instr -> instr list option)
+                    (ss: instr list) : instr list = 
   let rec loop = function
       [] -> []
-    | Sequence sl :: rest -> loop (sl @ rest)
     | s :: rest -> begin
         match doone s with
           None -> s :: loop rest
@@ -1750,11 +1787,10 @@ let peepHole1     (* Process one statement and possibly replace it *)
   loop ss
 
 let peepHole2     (* Process two statements and possibly replace them both *)
-                    (dotwo: stmt * stmt -> stmt list option)
-                    (ss: stmt list) : stmt list = 
+                    (dotwo: instr * instr -> instr list option)
+                    (ss: instr list) : instr list = 
   let rec loop = function
       [] -> []
-    | Sequence sl :: rest -> loop (sl @ rest)
     | [s] -> [s]
     | s1 :: ((s2 :: rest) as rest2) -> begin
         match dotwo (s1,s2) with
@@ -1810,8 +1846,8 @@ and typeOffset basetyp = function
 let dExp : doc -> exp = 
   function d -> Const(CStr(sprint 80 d))
 
-let dStmt : doc -> stmt = 
-  function d -> Instr(Asm([sprint 80 d], false, [], [], []), lu)
+let dInstr : doc -> instr = 
+  function d -> Asm([sprint 80 d], false, [], [], [])
 
 
 let rec addOffset toadd (off: offset) : offset =

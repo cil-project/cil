@@ -28,7 +28,7 @@ let doFile (fl: file) : file =
             match what with
               Compound (t, initl) -> 
                 foldLeftCompound (initone off') t initl acc
-            | _ -> mkSet (Var vi, off') what :: acc
+            | _ -> Instr(Set ((Var vi, off'), what), locUnknown) :: acc
           in
           let inits = initone NoOffset NoOffset init vi.vtype [finit.sbody] in 
           finit.sbody <- mkSeq (List.rev inits);

@@ -650,9 +650,9 @@ end
 (* Do a statement *)
 let rec doStmt (s: stmt) = 
   match s with 
-    (Skip | Label _ | Case _ | Default | Break | Continue | Goto _) -> s
+    (Skip | Label _ | Case _ | Default | Break | Continue | Gotos _) -> s
   | Sequence sl -> Sequence (List.map doStmt sl)
-  | Loop s -> Loop (doStmt s)
+  | Loops s -> Loops (doStmt s)
   | IfThenElse (e, s1, s2, l) -> 
       IfThenElse (doExpAndCast e intType, doStmt s1, doStmt s2, l)
   | Switchs (e, s, l) -> Switchs (doExpAndCast e intType, doStmt s, l)

@@ -291,61 +291,121 @@ let lookupEnumField n =
 (***************************)
 (* Each conversion of an AST statement produces a "chunk". chunks can be 
  * concatenated and converted to statements *)
-type chunk = float * stmt list
-let  c2s (_, s) = s
-let  s2c s = (0.0, s)
-let  i2c i l = (0.0, [Instr(i, l)])
+module StatementChunk = 
+  struct
+    type chunk = float * stmt list
+    let  c2s (_, s) = s
+    let  s2c s = (0.0, s)
+    let  i2c i l = (0.0, [Instr(i, l)])
+        
+    (* An empty chunk *)
+    let empty : chunk = s2c []
+        
+    (* Adding an instruction to the front of a chunk *)
+    let (++) (i: instr) (c: chunk) : chunk = 
+      s2c (Instr(i, lu) :: c2s c)
 
-(* An empty chunk *)
-let empty : chunk = s2c []
-
-(* Adding an instruction to the front of a chunk *)
-let (++) (i: instr) (c: chunk) : chunk = 
-  s2c (Instr(i, lu) :: c2s c)
-
-(* Chunk concatenation *)
-let (@@) (c1: chunk) (c2: chunk) : chunk = s2c ((c2s c1) @ (c2s c2))
-let chunkConcat (cl : chunk list) = 
-  s2c (List.concat (List.map c2s cl))
-
-(* Check if a chunk is empty *)
-let isEmpty (c: chunk) : bool = (c2s c) == []
-let isNotEmpty (c: chunk) : bool = (c2s c) != []
+    (* Adding an instruction to the end of a chunk *)
+    let (+++) (c: chunk) ((i, l): instr * location) : chunk = 
+      s2c (c2s c @ [Instr (i, l)])
 
 
-(* Add a label to the beginning of a chunk *)
-let consLabel l c = s2c (Label l :: c2s c)
+    (* Chunk concatenation *)
+    let (@@) (c1: chunk) (c2: chunk) : chunk = s2c ((c2s c1) @ (c2s c2))
+    let chunkConcat (cl : chunk list) = 
+      s2c (List.concat (List.map c2s cl))
+        
+    (* Check if a chunk is empty *)
+    let isEmpty (c: chunk) : bool = (c2s c) == []
+    let isNotEmpty (c: chunk) : bool = (c2s c) != []
+        
 
-let mkStatement (c: chunk) : stmt = mkSeq (c2s c)
+    (* Add a label to the beginning of a chunk *)
+    let consLabel l c = s2c (Label l :: c2s c)
+        
+    let mkStatement (c: chunk) : stmt = mkSeq (c2s c)
+        
+    let mkFunctionBody (c: chunk) : stmt = mkSeq (c2s c)
+
+    (* A skip *)
+    let skipChunk : chunk = s2c [Skip]
+
+    (* A break *)
+    let breakChunk : chunk = s2c [Break]
+
+    (* A loop *)
+    let loopChunk (body: chunk) : chunk = 
+      s2c [Loops (mkStatement body)]
 
 
-(* A skip *)
-let skipChunk : chunk = s2c [Skip]
+    let gotoChunk (l: string) : chunk = 
+      s2c [Gotos l]
 
-(* A break *)
-let breakChunk : chunk = s2c [Break]
+    let returnChunk (what: exp option) (l: location) : chunk = 
+      s2c [Returns (what, l)]
+        
+    let ifChunk (b: exp) (l: location) (t: chunk) (e: chunk) : chunk = 
+      s2c [IfThenElse(b, mkStatement t, mkStatement e, l)]
+        
+    let caseChunk (i: int) (l: location) (next: chunk) = 
+      s2c (Case (i,lu) :: (c2s next))
+        
+    let defaultChunk (next: chunk) = 
+      s2c (Default :: c2s next)
+        
+    let switchChunk (e: exp) (body: chunk) (l: location) = 
+      (s2c [Switchs (e, mkStatement body, l)])
+
+    let canDuplicate (c: chunk) = 
+                        (* We can duplicate a statement if it is small and 
+                         * does not contain label definitions  *)
+      let rec costOne = function
+          Skip -> 0
+        | Sequence sl -> costMany sl
+        | Loops stmt -> 100
+        | IfThenElse (_, _, _, _) | Block _ -> 100
+        | Label _ -> 10000
+        | Switchs _ -> 100
+        | (Gotos _|Returns _|Case _|Default|Break|Continue|Instr _) -> 1
+      and costMany sl = List.fold_left (fun acc s -> acc + costOne s) 0 sl
+      in
+      costMany (c2s c) <= 3
+        
+    let canDrop (c: chunk) = (* We can drop a statement only if it does not 
+                                * contain label definitions  *)
+      let rec dropOne = function
+          (Skip | Gotos _ | Returns _| Case _ | Default | 
+          Break | Continue | Instr _) -> true
+        | Sequence sl -> List.for_all dropOne sl
+        | _ -> false
+      in
+      List.for_all dropOne (c2s c)
+
+  end
+
+module BlockChunk = 
+  struct
+    type chunk = 
+        { first: block;  (* The starting block of the chunk *)
+          last: block; (* The last block of the chunk. Might be the same as 
+                        * first. The skind is always Jump and the succs 
+                        * contains just the dummy block. We assume that each 
+                        * chunk has only one fall-through exit. *)
+
+                       (* A function to connect all of the break and continue 
+                        * points to other chunks *)
+          connect: break:chunk -> cont:chunk -> unit;
+
+                       (* If the chunk is the body of a switch statement, it 
+                        * is actually a list of cases *)
+          cases: unit -> (int * location * chunk) list list
+        } 
+              
+  end
+
+open StatementChunk
 
 
-(* A loop *)
-let loopChunk (body: chunk) : chunk = 
-  s2c [Loop (mkStatement body)]
-
-
-let gotoChunk (l: string) : chunk = 
-  s2c [Goto l]
-
-let returnChunk (what: exp option) (l: location) : chunk = 
-  s2c [Returns (what, l)]
-
-
-let caseChunk (i: int) (l: location) (next: chunk) = 
-    s2c (Case (i,lu) :: (c2s next))
-
-let defaultChunk (next: chunk) = 
-  s2c (Default :: c2s next)
-
-let switchChunk (e: exp) (body: chunk) (l: location) = 
-  (s2c [Switchs (e, mkStatement body, l)])
 
 (************ Labels ***********)
 (* Since we turn dowhile and for loops into while we need to take care in 
@@ -371,8 +431,11 @@ let doContinue () : stmt =
         incr labelId;
         lr := "Cont" ^ (string_of_int !labelId)
       end;
-      Goto !lr
+      Gotos !lr
   
+let continueChunk : unit -> chunk = 
+  fun () -> s2c [doContinue ()]
+
 let consLabContinue (c: chunk) = 
   match !continues with
     [] -> E.s (E.bug "labContinue not in a loop")
@@ -587,20 +650,21 @@ let makeGlobalVarinfo (vi: varinfo) =
 
 (**** PEEP-HOLE optimizations ***)
 let afterConversion (s: chunk) : chunk = 
-
+(*
   let collapseCallCast = function
-      Instr(Call(Some(vi, false), f, args), loc1),
-      Instr(Set((Var destv, NoOffset), 
-                CastE (newt, Lval(Var vi', NoOffset))), loc2) 
+      Call(Some(vi, false), f, args),
+      Set((Var destv, NoOffset), 
+                CastE (newt, Lval(Var vi', NoOffset))) 
       when (not vi.vglob && 
             String.length vi.vname >= 3 &&
             String.sub vi.vname 0 3 = "tmp" &&
             vi' == vi) 
-      -> Some [Instr(Call(Some(destv, true), f, args), loc1)]
+      -> Some [Call(Some(destv, true), f, args)]
     | _ -> None
   in
-  s2c (peepHole2 collapseCallCast (c2s s))
-
+  s2c (peepHole2 collapseCallCast s)
+*)
+  s
 
 let rec makeVarInfo (isglob: bool) 
                 (ldecl: location)
@@ -873,7 +937,7 @@ and doExp (isconst: bool)    (* In a constant *)
         | _ -> 
             let (e', t') = processStartOf e t in
             let (t'', e'') = castTo t' lvt e' in
-            (se @@ s2c [mkSet lv e''], e'', t'')
+            (se +++ (Set(lv, e''), lu), e'', t'')
     end
   in
   let findField n fidlist = 
@@ -1329,7 +1393,7 @@ and doExp (isconst: bool)    (* In a constant *)
           | _ -> E.s (E.unimp "Expected lval for ++ or --")
         in
         let tresult, result = doBinOp uop' (Lval(lv)) t one intType in
-        finishExp (se @@ (s2c [mkSet lv (doCastT result tresult t)]))
+        finishExp (se +++ (Set(lv, doCastT result tresult t), lu))
           (Lval(lv))
           tresult   (* Should this be t instead ??? *)
           
@@ -1349,11 +1413,11 @@ and doExp (isconst: bool)    (* In a constant *)
         let se', result = 
           if what <> ADrop then 
             let tmp = newTempVar t in
-            se @@ (s2c [mkSet (var tmp) (Lval(lv))]), Lval(var tmp)
+            se +++ (Set(var tmp, Lval(lv)), lu), Lval(var tmp)
           else
             se, Lval(lv)
         in
-        finishExp (se' @@ (s2c [mkSet lv (doCastT opresult tresult t)]))
+        finishExp (se' +++ (Set(lv, doCastT opresult tresult t), lu))
           result
           tresult   (* Should this be t instead ??? *)
           
@@ -1422,14 +1486,14 @@ and doExp (isconst: bool)    (* In a constant *)
         in
         let (se2, e2', t2) = doExp false e2 (AExp None) in
         let tresult, result = doBinOp bop' e1' t1 e2' t2 in
-        finishExp (se1 @@ se2 @@ (s2c [mkSet lv1 result]))
+        finishExp (se1 @@ se2 +++ (Set(lv1, result), lu))
           (Lval(lv1))
           tresult
           
     | A.BINARY((A.AND|A.OR), e1, e2) ->
         let tmp = var (newTempVar intType) in
-        finishExp (doCondition e (s2c [mkSet tmp (integer 1)])
-                                 (s2c [mkSet tmp (integer 0)]))
+        finishExp (doCondition e (empty +++ (Set(tmp, integer 1), lu))
+                                 (empty +++ (Set(tmp, integer 0), lu)))
           (Lval tmp)
           intType
           
@@ -1515,14 +1579,14 @@ and doExp (isconst: bool)    (* In a constant *)
           match what with 
             ADrop -> 
               finishExp 
-                (sf @@ sargs @@ (i2c (Call(None,f'',args')) lu))
+                (sf @@ sargs +++ (Call(None,f'',args'), lu))
                 (integer 0) intType
               (* Set to a variable of corresponding type *)
           | ASet((Var vi, NoOffset) as lv, vtype) -> 
               let mustCast = typeSig resType' <> typeSig vtype in
               finishExp 
                 (sf @@ sargs 
-                 @@ (i2c (Call(Some (vi, mustCast),f'',args')) lu))
+                 +++ (Call(Some (vi, mustCast),f'',args'), lu))
                 (Lval(lv))
                 vtype
 
@@ -1541,7 +1605,7 @@ and doExp (isconst: bool)    (* In a constant *)
                     | _ -> newTempVar resType', resType', false
                   in
                   let i = Call(Some (tmp, iscast),f'',args') in
-                  finishExp (sf @@ sargs @@ (i2c i lu)) (Lval(var tmp)) restyp'
+                  finishExp (sf @@ sargs +++ (i, lu)) (Lval(var tmp)) restyp'
           end
         end
           
@@ -1584,8 +1648,8 @@ and doExp (isconst: bool)    (* In a constant *)
               let tmp = var (newTempVar tresult) in
               let (se1, _, _) = doExp isconst e1 (ASet(tmp, tresult)) in
               let (se3, _, _) = doExp isconst e3 (ASet(tmp, tresult)) in
-              finishExp (se1 @@ (s2c [IfThenElse(Lval(tmp), Skip, 
-                                                 mkStatement se3, lu)]))
+              finishExp (se1 @@ ifChunk (Lval(tmp)) lu
+                                  skipChunk se3)
                 (Lval(tmp))
                 tresult
         | _ -> 
@@ -1643,7 +1707,7 @@ and doExp (isconst: bool)    (* In a constant *)
     end
   with e -> begin
     ignore (E.log "error in doExp (%s)@!" (Printexc.to_string e));
-    (s2c [dStmt (dprintf "booo_exp(%s)" (Printexc.to_string e))], 
+    (i2c (dInstr (dprintf "booo_exp(%s)" (Printexc.to_string e))) lu, 
      integer 0, intType)
   end
     
@@ -1778,40 +1842,16 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
 and doCondition (e: A.expression) 
                 (st: chunk)
                 (sf: chunk) : chunk = 
-  let canDuplicate sl = (* We can duplicate a statement if it is small and 
-                         * does not contain label definitions  *)
-    let rec costOne = function
-        Skip -> 0
-      | Sequence sl -> costMany sl
-      | Loop stmt -> 100
-      | IfThenElse (_, _, _, _) | Block _ -> 100
-      | Label _ -> 10000
-      | Switchs _ -> 100
-      | (Goto _|Returns _|Case _|Default|Break|Continue|Instr _) -> 1
-    and costMany sl = List.fold_left (fun acc s -> acc + costOne s) 0 sl
-    in
-    costMany sl <= 3
-  in 
-  let canDrop sl = (* We can drop a statement only if it does not contain 
-                    * label definitions *)
-    let rec dropOne = function
-        (Skip | Goto _ | Returns _| Case _ | Default | 
-        Break | Continue | Instr _) -> true
-      | Sequence sl -> List.for_all dropOne sl
-      | _ -> false
-    in
-    List.for_all dropOne sl
-  in
   match e with 
   | A.BINARY(A.AND, e1, e2) ->
       let (sf1, sf2) = 
         (* If sf is small then will copy it *)
-        if canDuplicate (c2s sf) then
+        if canDuplicate sf then
           (sf, sf)
         else begin
           incr labelId;
           let lab = "L" ^ (string_of_int !labelId) in
-          (s2c [Goto lab], consLabel lab sf)
+          (gotoChunk lab, consLabel lab sf)
         end
       in
       let st' = doCondition e2 st sf1 in
@@ -1821,12 +1861,12 @@ and doCondition (e: A.expression)
   | A.BINARY(A.OR, e1, e2) ->
       let (st1, st2) = 
         (* If st is small then will copy it *)
-        if canDuplicate (c2s st) then
+        if canDuplicate st then
           (st, st)
         else begin
           incr labelId;
           let lab = "L" ^ (string_of_int !labelId) in
-          (s2c [Goto lab], consLabel lab st)
+          (gotoChunk lab, consLabel lab st)
         end
       in
       let st' = st1 in
@@ -1839,9 +1879,9 @@ and doCondition (e: A.expression)
       let (se, e, t) as rese = doExp false e (AExp None) in
       ignore (checkBool t e);
       match e with 
-        Const(CInt(i,_,_)) when i <> 0 && canDrop (c2s sf) -> se @@ st
-      | Const(CInt(0,_,_)) when canDrop (c2s st) -> se @@ sf
-      | _ -> se @@ (s2c [IfThenElse(e, mkStatement st, mkStatement sf, lu)])
+        Const(CInt(i,_,_)) when i <> 0 && canDrop sf -> se @@ st
+      | Const(CInt(0,_,_)) when canDrop st -> se @@ sf
+      | _ -> se @@ ifChunk e lu st sf
   end
 
 and doPureExp (e : A.expression) : exp = 
@@ -2100,7 +2140,7 @@ and doStatement (s : A.statement) : chunk =
     end
     | A.BREAK -> breakChunk
           
-    | A.CONTINUE -> s2c [doContinue ()]
+    | A.CONTINUE -> continueChunk () 
           
     | A.RETURN A.NOTHING -> returnChunk None lu
     | A.RETURN e -> 
@@ -2160,7 +2200,7 @@ and doStatement (s : A.statement) : chunk =
         (i2c (Asm(tmpls, isvol, outs', ins', clobs)) lu)
   with e -> begin
     (ignore (E.log "Error in doStatement (%s)\n" (Printexc.to_string e)));
-    s2c [Label "booo_statement"]
+    consLabel "booo_statement" empty
   end
 
 
@@ -2266,7 +2306,7 @@ let convFile fname dl =
                          slocals  = locals;
                          sformals = formals';
                          smaxid   = maxid;
-                         sbody    = mkStatement s; (*
+                         sbody    = mkFunctionBody s; (*
                          s2c (match mkSeq s with (Sequence _) as x -> x 
                          | x -> Sequence [x]); *)
                        } 

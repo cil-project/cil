@@ -368,12 +368,12 @@ and stmt =
                                          * will optimize the result and will 
                                          * make sure that there are no 
                                          * trailing Default of Label or Case *)
-  | Loop of stmt                        (* A loop. When stmt is done the 
+  | Loops of stmt                       (* A loop. When stmt is done the 
                                          * control starts back with stmt. 
                                          * Ends with break or a Goto outside.*)
   | IfThenElse of exp * stmt * stmt * location    (* if *)
   | Label of string 
-  | Goto of string
+  | Gotos of string
   | Returns of exp option * location
   | Switchs of exp * stmt * location    (* no work done to break this appart *)
   | Case of int * location              (* The case expressions are resolved *)
@@ -385,39 +385,58 @@ and stmt =
   | Block of block                      (* Just a placeholder to allow us to 
                                          * mix blocks and statements *)
 
-and block = {
-    mutable nid: int;                   (* A >= 0 identifier that is unique 
-                                         * in a function. *)
+and block = 
+    BB of bblock                        (* A basic block *)
+  | Seq of block list                   (* A sequence of blocks. Possibly 
+                                         * empty in which case we have a 
+                                         * fall-through *)
+  | Loop of block                       (* A loop block *)
+
+(* A basic block is a block what has some place for attaching information *)
+and bblock = {
     mutable label: string option;       (* Whether the block starts with a 
                                          * label *)
     mutable ins: (instr * location) list;(* The instructions, except maybe 
-                                          * the final one in the block *)
+                                          * the final one in the block, which 
+                                          * goes into skind *)
     mutable skind: succkind;            (* The kind of successsor, and 
                                          * implicitly the form of the last 
-                                         * statementin the block *)
-    mutable succs: block list;          (* The successor blocks. Their number 
-                                         * and meaning depends on skind.  *)
-    mutable preds: block list;
+                                         * statement in the block *)
+
+    (* Now some additional control flow information *)
+    mutable nid: int;                   (* A >= 0 identifier that is unique 
+                                         * in a function. *)
+    mutable succs: bblock list;         (* The successor blocks. They can 
+                                         * always be computed from the skind *)
+    mutable preds: bblock list;
   } 
 
 and succkind = 
-    Jump                                (* One successor, the target of a 
-                                         * goto or a fall-through. *)
-  | If of exp * location                (* Two successors, the "then" and the 
-                                         * "else" branches *)
-  | Switch of exp list list * location  (* The beginning of a switch 
-                                         * statement. "Switch cases" is a 
-                                         * switch statement with a number of 
-                                         * cases equal to "List.length cases" 
-                                         * (including the default case). The 
-                                         * number of successors is the same 
-                                         * as the number of cases. Each case 
+  | Return of exp option * location     (* The optional return *)
+
+  | Fall                                (* Fall-through. The successor is 
+                                         * dependent on the context *)
+  | Goto of bblock ref * location       (* One successor, the target of an 
+                                         * explicit goto or a break or a 
+                                         * continue statement. *)
+  | If of exp * block * block * location (* Two successors, the "then" and the 
+                                          * "else" branches. Both branches 
+                                          * fall-through to the successor of 
+                                          * the If statement *)
+  | Switch of (exp list * block) list * location  
+                                        (* A switch statement. "Switch cases" 
+                                         * is a switch statement with a 
+                                         * number of cases equal to 
+                                         * "List.length cases" (including the 
+                                         * default case). Each case 
                                          * contains a list of values for 
                                          * which it is taken. The list of 
                                          * values is empty for the default 
-                                         * case. *)
-  | Return of exp option * location     (* The optional return *)
-
+                                         * case. All cases fall-through to 
+                                         * the successors of the Switch. If 
+                                         * we have cases that fall-through to 
+                                         * other cases, we replace that with 
+                                         * explicit goto's *)
 
 type fundec =
     { mutable svar:     varinfo;        (* Holds the name and type as a
@@ -549,12 +568,10 @@ type existsAction =
 val existsType: (typ -> existsAction) -> typ -> bool
 
 val var: varinfo -> lval
-val mkSet: lval -> exp -> stmt
 val mkAddrOf: lval -> exp               (* Works for both arrays (in which 
                                          * case it construct a StartOf) and 
                                          * for scalars. *)
 val assign: varinfo -> exp -> stmt
-val call: (varinfo * bool) option -> exp -> exp list -> stmt
 
 val mkString: string -> exp
 
@@ -724,7 +741,7 @@ val typeOffset: typ -> offset -> typ  (* Give the base type *)
 
 (* Some expressions to be used in case of errors *)
 val dExp: Pretty.doc -> exp 
-val dStmt: Pretty.doc -> stmt
+val dInstr: Pretty.doc -> instr
 
  (* Add an offset at the end of an lv *)      
 val addOffsetLval: offset -> lval -> lval 
@@ -802,8 +819,8 @@ val foldLeftCompound:
     (* Process all two adjacent statements and possibly replace them both. If 
      * some replacement happens then the new statements are themselves 
      * subject to optimization  *)
-val peepHole2: (stmt * stmt -> stmt list option) -> stmt list -> stmt list
-val peepHole1: (stmt -> stmt list option) -> stmt list -> stmt list
+val peepHole2: (instr * instr -> instr list option) -> instr list -> instr list
+val peepHole1: (instr -> instr list option) -> instr list -> instr list
 
 (**
  **
