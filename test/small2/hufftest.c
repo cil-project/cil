@@ -102,7 +102,7 @@ int main(int argc, char **argv) {
   finishIOFile(&srcFile);
 
   /* Now decompress and compare */
-  for(count=0;count<100;count++) {
+  for(count=0;count<30;count++) {
     initLFIOFile(&compFile, "huffman.compressed");
     initLFIOFile(&srcFile, argv[1]);
     startDecompress();

@@ -1232,6 +1232,14 @@ and castTo (fe: fexp) (newt: typ) (doe: stmt list) : stmt list * fexp =
       (doe, L(newt, doCast e lt newt))
   | L(lt, e), true -> (* LEAN -> FAT *)
       let ptype = (getPtrFieldOfFat newt).ftype in
+      let rec isZero = function
+          Const(CInt(0, _, _), _) -> true
+        | CastE(_, e, _) -> isZero e
+        | _ -> false
+      in
+      if not (isZero e) then
+        ignore (E.warn "Casting scalar (%a) to pointer (in %s)!" 
+                  d_exp e !currentFunction.svar.vname);
       let newp = 
         if typeSig lt = typeSig ptype then e else CastE (ptype, e, lu) in
       (doe, F2 (newt, newp, CastE(voidPtrType, zero, lu)))
