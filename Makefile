@@ -13,7 +13,7 @@ MLLS        =
 MLYS        = 
 # ast clex cparse
 MODULES     = pretty errormsg stats cil check box
-EXECUTABLE  = $(OBJDIR)/spec
+EXECUTABLE  = $(OBJDIR)/safec
 CAMLUSEUNIX = 1
 ifdef RELEASE
 UNSAFE      = 1
@@ -38,6 +38,7 @@ endif
 # Add main late
 MODULES    += main
     # Include now the common set of rules for OCAML
+    # This file will add the rules to make $(EXECUTABLE).$(EXE)
 include Makefile.ocaml
 
 
@@ -60,8 +61,8 @@ endif
 
 
 #####################3
-.PHONY : spec
-spec : $(EXECUTABLE)$(EXE)
+.PHONY : safec
+safec : $(EXECUTABLE)$(EXE)
 
 .PHONE: trval
 trval: $(TVDIR)/obj/transval.asm.exe
@@ -74,11 +75,13 @@ _MSVC = 1			# Use the MSVC compiler by default
 endif
 
 ifdef _GNUCC
-CCL=gcc -x c -O3 -Wall
+DEBUGCCL=gcc -x c -O0 -g -Wall
+RELEASECCL=gcc -x c -O3 -Wall
+#LIB=lib
+#LIBOUT=-o
 DOOPT=-O3
-CC=$(CC) -c
 CONLY=-c
-OUT=-o
+OBJOUT=-o
 EXEOUT=-o
 DEF=-D
 ASMONLY=-S -o 
@@ -90,11 +93,11 @@ endif
 
 
 ifdef _MSVC
-CCL=cl /TC /O2 /Zi /MLd /I./lib /DEBUG
+DEBUGCCL=cl /TC /O0 /Zi /MLd /I./lib /DEBUG
+RELEASECCL=cl /TC /ML /I./lib
 DOOPT=/O2
-CC=$(CCL) /c
 CONLY=/c
-OUT=/Fo
+OBJOUT=/Fo
 EXEOUT=/Fe
 DEF=/D
 ASMONLY=/Fa
@@ -105,11 +108,12 @@ CPP=$(CPPSTART) $(CPPOUT)
 EXTRAARGS += -msvc
 endif
 
-ifdef BOX
-CPPSTART += /FI safec.h
-CCL += /FI safec.h
+ifdef RELEASE
+CCL=RELEASECCL
+else
+CCL=DEBUGCCL
 endif
-
+CC=$(CCL) $(CONLY)
 
 SAFECC=perl $(SAFECCDIR)/cil/lib/safecc.pl
 ifndef NOCABS
@@ -133,6 +137,23 @@ TVEXE=trval
 endif
 SAFECC+= $(EXTRAARGS:%= --safec=%)
 
+    # Now the rules to make the library
+ifdef _MSVC
+SAFECLIB=/Necula/SafeC/cil/obj/safec.lib
+$(SAFECLIB) : $(SAFECCDIR)/cil/lib/safec.c
+	cl /O2 /Zi /I./lib /c $(DEF)_MSVC $(OBJOUT)$(OBJDIR)/safec.o $<
+	lib /OUT:$(SAFECLIB) $(OBJDIR)/safec.o 
+SAFEMAINLIB=/Necula/SafeC/cil/obj/safecmain.lib
+$(SAFEMAINLIB) : $(SAFECCDIR)/cil/lib/safecmain.c
+	cl /O2 /Zi /I./lib /c $(DEF)_MSVC $(OBJOUT)$(OBJDIR)/safecmain.o $<
+	lib /OUT:$(SAFEMAINLIB) $(OBJDIR)/safecmain.o 
+endif
+ifdef _GNUCC
+SAFECLIB=$(OBJDIR)/safeclib.a
+$(SAFECLIBRARY) : $(SAFECCDIR)/cil/lib/safec.c
+	$(CC) $(OBJOUT)$(OBJDIR)/safec.o $<
+	$(LIB) $(LIBOUT)$(SAFECLIB) $(OBJOUT)$(OBJDIR)/safec.o 
+endif
 
 
 ####### Test with PCC sources
@@ -154,17 +175,19 @@ testpcc/% : $(PCCDIR)/src/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
 	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)x86_WIN32 \
                   $(DEF)$(PCCTYPE) $(CONLY) \
                   $(PCCDIR)/src/$*.c \
-                  $(OUT)$(notdir $*).o
+                  $(OBJOUT)$(notdir $*).o
 
 
-testallpcc: $(EXECUTABLE)$(EXE) $(TVEXE)
+testallpcc: $(EXECUTABLE)$(EXE) $(TVEXE) $(SAFECLIB) $(SAFEMAINLIB) 
 	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.o
 	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.exe
 	make -C $(PCCDIR) \
              CC="$(SAFECC) --keep=$(SAFECCDIR)/cil/test/PCC $(CONLY)" \
              USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
              COMPILER=$(PCCCOMP) \
-	     defaulttarget
+             ENGINE_OTHERS="C:$(SAFECLIB) C:$(SAFEMAINLIB)" \
+             TRANSLF_OTHERS="C:$(SAFECLIB) C:$(SAFEMAINLIB)" \
+	     defaulttarget 
 
 runpcc:
 ifdef _GNUCC
@@ -178,7 +201,8 @@ test/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
 	cd $(SMALL1); $(SAFECC) $*.c $(CONLY) $(DOOPT) $(ASMONLY)$*.s
 
 SMALL2=test/small2
-hashtest: test/small2/hashtest.c $(EXECUTABLE)$(EXE) $(TVEXE)
+hashtest: test/small2/hashtest.c $(EXECUTABLE)$(EXE) \
+                    $(SAFECLIB) $(SAFEMAINLIB) $(TVEXE)
 	rm -f $(SMALL2)/hashtest.exe
 	cd $(SMALL2); $(SAFECC) --keep=. $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) \
                  $(DOOPT) \

@@ -36,8 +36,8 @@ and fexp =
                                          * whose type and value are given *)
 
 let leaveAlone = 
-  ["printf"; "fprintf"; "sprintf"; "snprintf";
-   "_CrtDbgReport"]
+  ["printf"; "fprintf"; "sprintf"; "snprintf"; "sscanf"; "_snprintf";
+   "_CrtDbgReport"; ]
 
 
             (* Same for offsets *)
@@ -1255,6 +1255,7 @@ let preamble =
   (** Create some more fat types *)
   ignore (fixupType (charPtrType));
   ignore (fixupType (TPtr(TInt(IChar, [AId("const")]), [])));
+  ignore (fixupType (TPtr(TVoid([AId("const")]), [])));
   let startFile = !theFile in
   GPragma ("#include \"safec.h\"\n") :: 
   GPragma ("// Include the definition of the checkers\n") ::

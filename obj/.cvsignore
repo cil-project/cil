@@ -1,5 +1,6 @@
 *.obj
 *.exe
+*.lib
 *.cmi
 *.cmo
 *.cmx
@@ -8,3 +9,4 @@ safecc
 clexer.ml
 cparser.ml
 cparser.mli
+Debug
