@@ -1022,7 +1022,15 @@ let rec fixupFunctionType (funcid: int) (fkind: N.opointerkind) (t: typ) =
       List.iter 
         (fun a -> a.vtype <- fixupOneArgumentType (funcid, a.vid) a.vtype) 
         args;
-      TFun(fixupOneArgumentType (funcid, -1) rt, args, va, a)
+      (* Leave alone the return type if it is not a pointer type since it 
+       * creates more problems than we need (due to the restrictions on 
+       * representing function calls in CIL)  *)
+      let rt' = 
+        if isPointerType rt then 
+          fixupOneArgumentType (funcid, -1) rt
+        else rt
+      in
+      TFun(rt', args, va, a)
 
   | _ -> t
 
@@ -3291,17 +3299,20 @@ and boxinstr (ins: instr) : stmt clist =
                   let (_, doa'', a2) = fexp2exp fa'' doa' in
                   let (doresta, resta') = doArgs resta restt in
                 (append doa'' doresta,  a2 :: resta')
-              | a :: resta, [] (* when isva *) -> 
+              | a :: resta, [] -> 
                   (* This is a case when we call with more args than the 
                    * prototype has. We better be calling a WILD function *)
-                  if fkind <> N.Wild then 
+                  if fkind <> N.Wild && not isva then 
                     E.s (bug "Calling non-wild %a with too many args"
                            d_exp f);
                   let (doa, fa') = boxexpf a in
                   let (doa', fa'') = 
-                    (* Do not cast if already a WILD thing *)
-                    if kindOfFexp fa' = N.Wild then (doa, fa') 
-                    else castTo fa' !wildpVoidType doa 
+                    if isva then 
+                      castTo fa' intType doa
+                    else (* A WILD function *)
+                      (* Do not cast if already a WILD thing *)
+                      if kindOfFexp fa' = N.Wild then (doa, fa') 
+                      else castTo fa' !wildpVoidType doa 
                   in
                   let (_, doa'', a2) = fexp2exp fa'' doa' in
                   let (doresta, resta') = doArgs resta [] in

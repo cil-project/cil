@@ -861,7 +861,7 @@ and doInstr (i:instr) : instr =
             (* And add a declaration for it *)
             if ispoly then
               theFile := GDecl (newvi, l) :: !theFile;
-            (Lval(Var(newvi), NoOffset)), true 
+            (Lval(Var(newvi), NoOffset)), ispoly 
         | _ -> orig_func, false
       in
       let isprintf = isPrintf reso func args in
@@ -893,11 +893,11 @@ and doInstr (i:instr) : instr =
       in
       (* If the function has more actual arguments than formals then mark the 
        * function node as used without prototype *)
-      if List.length args <> List.length formals &&  not isva then begin
+      if List.length args <> List.length formals && not isva then begin
         (* Bark if it is polymorphic. No prototype + polymorphism (or 
          * allocation) do not work together *)
         if ispoly then 
-          E.s (error "Calling ploymorphic (or allocation) function %a without proper prototype" d_exp func);
+          E.s (error "Calling polymorphic (or allocation) function %a without proper prototype" d_exp func);
         pfuncn.N.noPrototype <- true;
       end;
       (* Now check the arguments *)
