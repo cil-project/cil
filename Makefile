@@ -147,8 +147,15 @@ ifdef CHECK
   CCURED += --check
 endif
 ifndef RELEASE
-  CCURED+= --debug --optimize
-# weimer: RELEASE=1 implies OPTIM=1
+  CCURED+= --debug
+else
+  # weimer: RELEASE=1 implies OPTIM=1
+  ifndef NOOPTIM
+     CCURED+= --optimize
+  endif
+endif
+ifdef OPTIM
+  CCURED+= --optimize
 endif
 ifdef RELEASELIB
   CCURED+= --releaselib
@@ -164,9 +171,6 @@ ifdef TRACE
   CCURED+= --tr="$(TRACE)"
 endif
 
-ifdef OPTIM
-  CCURED+= --optimize
-endif
 
 # This is a way to enable the stats, allowing the command line to override it
 # Do STATS= to disable the stats.
