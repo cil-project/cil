@@ -13,4 +13,5 @@ for loop = 1 to 25000 do
 done;
 
 let statement = mkStmt (Instr !instructions) in
-dumpStmt defaultCilPrinter stdout 0 statement
+let sink = open_out "/dev/null" in
+dumpStmt defaultCilPrinter sink 0 statement
