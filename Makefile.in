@@ -211,7 +211,7 @@ distrib: doc
 	echo "%: " >>$(TOP_DIR)/Makefile
 # note that we have a TAB in the next line
 	echo '	if ! test -f Makefile.cil ;then echo Run configure first ;fi'>>$(TOP_DIR)/Makefile
-	echo '	make -f Makefile.cil $$*' >>$(TOP_DIR)/Makefile
+	echo '	$(MAKE) -f Makefile.cil $$*' >>$(TOP_DIR)/Makefile
 
 	cp $(patsubst %,src/%,$(DISTRIB_SRC)) $(TOP_DIR)/src
 	cp $(patsubst %,src/ext/%,$(DISTRIB_SRC_EXT)) $(TOP_DIR)/src/ext
@@ -235,7 +235,7 @@ distrib: doc
 
 ## Check a distribution
 checkdistrib:
-	cd $(TOP_DIR) && ./configure && make && make quicktest
+	cd $(TOP_DIR) && ./configure && $(MAKE) && $(MAKE) quicktest
 
 clean: cleancaml
 	rm -f $(OBJDIR)/machdep.ml
