@@ -147,7 +147,8 @@ ifdef CHECK
   CCURED += --check
 endif
 ifndef RELEASE
-  CCURED+= --debug
+  CCURED+= --debug --optimize
+# weimer: RELEASE=1 implies OPTIM=1
 endif
 ifdef RELEASELIB
   CCURED+= --releaselib
