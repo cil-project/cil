@@ -783,7 +783,7 @@ let printFile (c: out_channel) fl =
     (fun fl ->
       let opi = !printIndent in
       printIndent := false;
-      Cil.printFile c fl;
+      Stats.time "printMarkedfile" (Cil.printFile c) fl;
       output_string c "#if 0\n/* Now the graph */\n";
       (* N.gc ();   *)
       (* N.simplify ();   *)
@@ -791,7 +791,7 @@ let printFile (c: out_channel) fl =
       output_string c "/* End of graph */\n"; *)
       output_string c "/* Now the solved graph (simplesolve) */\n";
       Stats.time "simple solver" Simplesolve.solve N.idNode ; 
-      N.printGraph c;
+      Stats.time "printgraph" N.printGraph c;
       printIndent := opi;
       output_string c "/* End of solved graph*/\n#endif\n";
       ) 

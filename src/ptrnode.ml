@@ -245,12 +245,16 @@ let initialize () =
 
 let printGraph (c: out_channel) = 
   (* Get the nodes ordered by ID *)
-  let all : node list ref = ref [] in
-  H.iter (fun id n -> all := n :: !all) idNode;
   let allsorted = 
-    List.sort (fun n1 n2 -> compare n1.id n2.id) !all in
+    Stats.time "sortgraph"
+      (fun () -> 
+        let all : node list ref = ref [] in
+        H.iter (fun id n -> all := n :: !all) idNode;
+        List.sort (fun n1 n2 -> compare n1.id n2.id) !all) ()
+  in
   printShortTypes := true;
-  List.iter (fun n -> fprint c 80 (d_node () n)) allsorted;
+  Stats.time "printnodes" 
+    (List.iter (fun n -> fprint c 80 (d_node () n))) allsorted;
   printShortTypes := false
        
 (* Add a new points-to to the node *)

@@ -1534,7 +1534,11 @@ let castTo (fe: fexp) (newt: typ)
 
       | N.Wild, N.String -> 
         ignore (E.warn "Warning: wishful thinking cast from WILD -> STRING") ;
-          (doe, L(newt, N.String, castP p))
+          (doe, L(newt, newkind, castP p))
+
+      | N.Safe, N.SeqN -> 
+          ignore (E.warn "Warning: wishful thinking cast from SAFE -> SEQN");
+          (doe, FM(newt, newkind, castP p, zero, zero))
 
        (******* UNIMPLEMENTED ********)
       | _, _ -> 

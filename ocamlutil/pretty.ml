@@ -214,7 +214,6 @@ let fit start accString width =
             | _ -> failwith "Pretty: cannot find the break"
           in
           if debug then fprintf "Adjusting for break at %d\n" (!maxCol) else();
-          flush stderr;
           adjustColumns breaks
         else
           ()
@@ -364,9 +363,11 @@ let fit start accString width =
     scan [ref 0] [] 0 scanCont doc
 
 
+let flushOften = ref false
 
 let fprint chn width doc = 
-  fit () (fun _ s -> output_string chn s; flush chn) width doc
+  fit () (fun _ s -> output_string chn s;
+                     if !flushOften then flush chn) width doc
 
 let sprint width doc =
   fit "" (fun acc s -> acc ^ s) width doc
@@ -390,7 +391,7 @@ let gprintf (finish : doc -> doc)
   
   (* Record the starting align depth *)
   let startAlignDepth = !alignDepth in
-  (* Special concatenation functios *)
+  (* Special concatenation functions *)
   let dconcat acc thunk = 
     if !alignDepth > !printDepth then acc else Concat(acc, thunk()) in
   let dctext acc thunk = 
@@ -534,10 +535,12 @@ let dprintf format     = gprintf (fun x -> x) format
 let fprintf chn format = 
   let f d = fprint chn 80 d; d in
 	(* weimeric hack begins -- flush output to streams *)
-	let res = gprintf f format in
-	(* save the value we would have returned, flush the channel and then
-	 * return it -- this allows us to see debug input near infinite loops *)
-	ignore (flush chn) ; res
+  let res = gprintf f format in
+	(* save the value we would have returned, flush the channel and then 
+         * return it -- this allows us to see debug input near infinite loops 
+         * *)
+  if !flushOften then flush chn;
+  res
 	(* weimeric hack ends *)
 	
 

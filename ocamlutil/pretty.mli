@@ -119,6 +119,8 @@ val printDepth   : int ref
 
 val printIndent  : bool ref  (* If false then does not indent *)
 
+val flushOften   : bool ref  (* If true the it flushes after every print *)
+
 val withPrintDepth : int -> (unit -> unit) -> unit
 
 (* And some instances of gprintf. Use with ignore because they return doc. *)
