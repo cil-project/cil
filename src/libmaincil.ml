@@ -38,32 +38,66 @@
 
 
 module F = Frontc
-module C = Cil
 module E = Errormsg
 
+open Cil
+
+
 (* print a Cil 'file' to stdout *)
-let unparseToStdout (cil : C.file) : unit =
+let unparseToStdout (cil : file) : unit =
 begin
-  C.dumpFile C.defaultCilPrinter stdout cil
+  dumpFile defaultCilPrinter stdout cil
 end;;
 
-(* open and parse a C file into a Cil 'file' *)
-let parseOneFile (fname: string) : C.file =
-begin
-  Frontc.parse fname ()
-end;;
+(* a visitor to unroll all types - may need to do some magic to keep attributes *)
+class unrollVisitorClass = object (self)
+  inherit nopCilVisitor
 
-let getDummyTypes () : C.typ * C.typ =
-  ( C.TPtr(C.TVoid [], []), C.TInt(C.IInt, []) )
+  (* variable declaration *)
+  method vvdec (vi : varinfo) : varinfo visitAction = 
+    begin
+      vi.vtype <- unrollTypeDeep vi.vtype;
+(*      ChangeTo vi *)
+      SkipChildren
+    end
+    
+  (* global: need to unroll fields of compinfo *)
+  method vglob (g : global) : global list visitAction =
+    begin
+      match g with
+          GCompTag(ci, loc) as g ->
+            let doFieldinfo (fi : fieldinfo) : unit = 
+              fi.ftype <- unrollTypeDeep fi.ftype 
+            in begin                
+                ignore(List.map doFieldinfo ci.cfields);
+                (*ChangeTo [g]*)
+                SkipChildren
+              end              
+        | _ -> SkipChildren
+    end
+end;;
+let unrollVisitor = new unrollVisitorClass;;
+
+(* open and parse a C file into a Cil 'file', unroll all typedefs *)
+let parseOneFile (fname: string) : file =
+  let ast = Frontc.parse fname () in
+    begin
+      visitCilFile unrollVisitor ast;
+      ast
+    end
+;;
+
+let getDummyTypes () : typ * typ =
+  ( TPtr(TVoid [], []), TInt(IInt, []) )
 ;;
 
 (* register some functions - these may be called form C code *)
 Callback.register "cil_parse" parseOneFile;
 Callback.register "cil_unparse" unparseToStdout;
-Callback.register "unroll_type_deep" C.unrollTypeDeep;
+Callback.register "unroll_type_deep" unrollTypeDeep;
 Callback.register "get_dummy_types" getDummyTypes;
 
 (* initalize CIL *)
-C.initCIL ();
+initCIL ();
 
 
