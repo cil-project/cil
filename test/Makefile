@@ -1709,6 +1709,9 @@ endif
 ifdef NOCIL
   CILLY+= --nocil=$(NOCIL)
 endif
+ifdef CILLYMERGE
+  CILLY+= --merge
+endif
 
 linuxclean: 
 	cd $(LINUXSRC); make clean
@@ -1733,6 +1736,13 @@ linux-noclean:  mustbegcc mustbelinux mustbemanju
 
 linux-gcc: mustbelinux mustbemanju linuxclean
 	cd $(LINUXSRC); make CC=gcc HOSTCC=gcc
+
+# sm: attempt to get linux to work with merger
+linux-merge: mustbegcc mustbelinux mustbemanju linuxclean
+	cd $(LINUXSRC) ; make CC="$(CILLY) --merge" \
+                              HOSTCC="$(CILLY) --merge" \
+                              LD="$(CILLY) --merge" bzImage
+
 
 ######################## SENDMAIL
 # source available at www.sendmail.org
