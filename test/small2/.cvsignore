@@ -159,3 +159,4 @@ arrayexpand
 byteprintf
 null_pointer_field
 bufferlinegetter
+checkinit

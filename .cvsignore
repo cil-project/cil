@@ -25,3 +25,5 @@ Makefile.cil
 *.tar.gz
 .ccuredrc
 allsrcs
+TEMP_cil-distrib
+TEMP_ccured_distrib
