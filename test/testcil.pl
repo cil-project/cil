@@ -612,13 +612,8 @@ else {
   smFailTest("problem with __extinline", "scott/reply $box");
 }
 
-if ($manju) {
-  smFailTest("some problem with stdout", "scott/getpwnam $box");
-}
-else {
-  # works on my machine
-  smAddTest("scott/getpwnam $box");
-}
+# works on my machine; works on manju now too apparently
+smAddTest("scott/getpwnam $box");
 
 smAddTest("test-bad/execv $box");
 $TEST->setField(smAddTest("scott/popen $box"),
