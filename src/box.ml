@@ -3656,6 +3656,37 @@ and boxexpf (e: exp) : stmt clist * fexp =
         (empty, L(uintType, N.Scalar, SizeOfE(e')))
     end
 
+    | AlignOf (t) -> 
+        let containsExposedPointers t = 
+          existsType 
+            (function 
+                TPtr _ -> ExistsTrue
+                    (* Pointers inside named structures are not exposed *)
+              | TComp (comp, _) 
+                  when (String.length comp.cname > 1 &&
+                        String.get comp.cname 0 <> '@') -> ExistsFalse
+              | _ -> ExistsMaybe) t 
+        in
+        if containsExposedPointers t then 
+          ignore (warn "Boxing __alignof__(%a) when type contains pointers. Use __alignof__ expression." d_type t);
+        let t' = fixupType t in
+        (empty, L(uintType, N.Scalar, AlignOf(t')))
+
+          
+    | AlignOfE (Lval lv) -> 
+        (* Intercept the case when we do sizeof an lvalue. This way we can 
+         * avoid trying to check the safety of reads that might be triggered 
+         * if we view the lvalue as an expression  *)
+        (* ignore (E.log "boxexpf: %a\n" d_plainlval lv); *)
+        let lvt, lvkind, lv', baseaddr, len, dolv = boxlval lv in
+        (empty, L(uintType, N.Scalar, AlignOfE(Lval lv')))
+
+    | AlignOfE (e) -> begin
+        let (et, doe, e') = boxexp e in
+        (* Drop all size-effects from this SizeOf *)
+        (empty, L(uintType, N.Scalar, AlignOfE(e')))
+    end
+
     | AddrOf (lv) ->
         let (lvt, lvkind, lv', baseaddr, bend, dolv) = boxlval lv in
         (* Check that variables whose address is taken are flagged as such, 

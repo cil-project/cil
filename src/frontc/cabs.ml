@@ -176,6 +176,8 @@ and expression =
   | VARIABLE of string
   | EXPR_SIZEOF of expression
   | TYPE_SIZEOF of spec_elem list * decl_type
+  | EXPR_ALIGNOF of expression
+  | TYPE_ALIGNOF of spec_elem list * decl_type
   | INDEX of expression * expression
   | MEMBEROF of expression * string
   | MEMBEROFPTR of expression * string

@@ -366,6 +366,19 @@ and checkExp (isconst: bool) (e: exp) : typ =
           let te = checkExp isconst e in
           checkExp isconst (SizeOf(te))
 
+      | AlignOf(t) -> begin
+          (* Sizeof cannot be applied to certain types *)
+          checkType t CTSizeof;
+          (match unrollType t with
+            (TFun _ | TVoid _ | TBitfield _) -> 
+              ignore (E.warn "Invalid operand for sizeof")
+          | _ ->());
+          uintType
+      end
+      | AlignOfE(e) ->
+          let te = checkExp isconst e in
+          checkExp isconst (AlignOf(te))
+
       | UnOp (Neg, e, tres) -> 
           checkArithmeticType tres; checkExpType isconst e tres; tres
 

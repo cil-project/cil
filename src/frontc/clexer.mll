@@ -82,6 +82,7 @@ let init_lexicon _ =
       ("__attribute__", ATTRIBUTE);
       ("__asm__", ASM); ("asm", ASM);
       ("__typeof__", TYPEOF); ("__typeof", TYPEOF); ("typeof", TYPEOF); 
+      ("__alignof__", ALIGNOF);
       ("__volatile__", VOLATILE);
       ("__FUNCTION__", FUNCTION__);
       ("__PRETTY_FUNCTION__", PRETTY_FUNCTION__);

@@ -164,6 +164,7 @@ $TEST->add3Tests("testrun/label2");
 $TEST->add3Tests("testrun/label3");
 $TEST->add3Tests("testrun/addrof", "MANUALBOX=1");
 $TEST->add3Tests("testrun/addrof2", "MANUALBOX=1");
+$TEST->add3Tests("testrun/lval1", "_GNUCC=1");
 $TEST->add3Tests("wes-hashtest", "", @runpattern);
 $TEST->add3Tests("wes-rbtest", "", @runpattern);
 $TEST->add1Test("test/alloc-manualinferbox",

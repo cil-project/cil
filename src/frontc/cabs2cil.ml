@@ -910,6 +910,17 @@ let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
     alphaConvertVarAndAddToEnv true vi, false
   end 
 
+
+(* Utility ***)
+let rec replaceLastInList 
+    (lst: A.expression list) 
+    (how: A.expression -> A.expression) : A.expression list= 
+  match lst with
+    [] -> []
+  | [e] -> [how e]
+  | h :: t -> h :: replaceLastInList t how
+
+
 (**** PEEP-HOLE optimizations ***)
 let afterConversion (c: chunk) : chunk = 
   (* Now scan the statements and find Instr blocks *)
@@ -1463,7 +1474,6 @@ and doExp (isconst: bool)    (* In a constant *)
     match e with
     | A.NOTHING when what = ADrop -> finishExp empty (integer 0) intType
     | A.NOTHING ->
-        ignore (E.log "doExp nothing\n");
         finishExp empty 
           (Const(CStr("exp_nothing"))) (TPtr(TInt(IChar,[]),[]))
 
@@ -1720,7 +1730,7 @@ and doExp (isconst: bool)    (* In a constant *)
     | A.EXPR_SIZEOF e -> 
         let (se, e', t) = doExp isconst e (AExp None) in
         (* !!!! The book says that the expression is not evaluated, so we 
-           * drop the potential size-effects *)
+           * drop the potential side-effects *)
         if isNotEmpty se then 
           ignore (E.log "Warning: Dropping side-effect in EXPR_SIZEOF\n");
         let e'' = 
@@ -1730,6 +1740,24 @@ and doExp (isconst: bool)    (* In a constant *)
           | _ -> e'
         in
         finishExp empty (SizeOfE(e'')) uintType
+
+    | A.TYPE_ALIGNOF (bt, dt) -> 
+        let typ = doOnlyType bt dt in
+        finishExp empty (AlignOf(typ)) uintType
+          
+    | A.EXPR_ALIGNOF e -> 
+        let (se, e', t) = doExp isconst e (AExp None) in
+        (* !!!! The book says that the expression is not evaluated, so we 
+           * drop the potential side-effects *)
+        if isNotEmpty se then 
+          ignore (E.log "Warning: Dropping side-effect in EXPR_SIZEOF\n");
+        let e'' = 
+          match e' with                 (* If we are taking the sizeof an 
+                                         * array we must drop the StartOf  *)
+            StartOf(lv) -> Lval(lv)
+          | _ -> e'
+        in
+        finishExp empty (AlignOfE(e'')) uintType
 
     | A.CAST ((specs, dt), ie) -> 
         let typ = doOnlyType specs dt in
@@ -1802,72 +1830,152 @@ and doExp (isconst: bool)    (* In a constant *)
           
           
     | A.UNARY(A.ADDROF, e) -> begin
-        let (se, e', t) = doExp isconst e (AExp None) in
-        match e' with 
-          Lval x -> finishExp se (mkAddrOfAndMark x) (TPtr(t, []))
-        | CastE (t', Lval x) -> 
-            finishExp se (CastE(TPtr(t', []),
-                                (mkAddrOfAndMark x))) (TPtr(t', []))
-        | StartOf (lv) -> (* !!! is this correct ? *)
-            let tres = TPtr(typeOfLval lv, []) in
-            finishExp se (mkAddrOfAndMark lv) tres
-
-            
-        | _ -> E.s (error "Expected lval for ADDROF. Got %a@!"
-                      d_plainexp e')
+        match e with 
+          A.COMMA el -> (* GCC extension *)
+            doExp isconst 
+              (A.COMMA (replaceLastInList el (fun e -> A.UNARY(A.ADDROF, e))))
+              what
+        | A.QUESTION (e1, e2, e3) -> (* GCC extension *)
+            doExp isconst 
+              (A.QUESTION (e1, A.UNARY(A.ADDROF, e2), A.UNARY(A.ADDROF, e3)))
+              what
+        | (A.VARIABLE _ | A.UNARY (A.MEMOF, _) | (* Regular lvalues *)
+           A.INDEX _ | A.MEMBEROF _ | A.MEMBEROFPTR _ ) -> begin
+            let (se, e', t) = doExp isconst e (AExp None) in
+            match e' with 
+              Lval x -> finishExp se (mkAddrOfAndMark x) (TPtr(t, []))
+(*
+            | CastE (t', Lval x) -> 
+                finishExp se (CastE(TPtr(t', []),
+                                    (mkAddrOfAndMark x))) (TPtr(t', []))
+*)
+            | StartOf (lv) -> (* !!! is this correct ? *)
+                let tres = TPtr(typeOfLval lv, []) in
+                finishExp se (mkAddrOfAndMark lv) tres
+                  
+                  
+            | _ -> E.s (error "Expected lval for ADDROF. Got %a@!"
+                          d_plainexp e')
+        end
+        | _ -> E.s (error "Unexpected operand for addrof")
     end
-    | A.UNARY((A.PREINCR|A.PREDECR) as uop, e) -> 
-        let uop' = if uop = A.PREINCR then PlusA else MinusA in
-        if isconst then
-          E.s (error "PREINCR or PREDECR in constant");
-        let (se, e', t) = doExp false e (AExp None) in
-        let lv = 
-          match e' with 
-            Lval x -> x
-          | CastE (_, Lval x) -> x
-          | _ -> E.s (error "Expected lval for ++ or --")
-        in
-        let tresult, result = doBinOp uop' (Lval(lv)) t one intType in
-        finishExp (se +++ (Set(lv, doCastT result tresult t, !currentLoc)))
-          (Lval(lv))
-          tresult   (* Should this be t instead ??? *)
+    | A.UNARY((A.PREINCR|A.PREDECR) as uop, e) -> begin
+        match e with 
+          A.COMMA el -> (* GCC extension *)
+            doExp isconst 
+              (A.COMMA (replaceLastInList el 
+                          (fun e -> A.UNARY(uop, e))))
+              what
+        | A.QUESTION (e1, e2q, e3q) -> (* GCC extension *)
+            doExp isconst 
+              (A.QUESTION (e1, A.UNARY(uop, e2q), 
+                           A.UNARY(uop, e3q)))
+              what
+
+        | (A.VARIABLE _ | A.UNARY (A.MEMOF, _) | (* Regular lvalues *)
+           A.INDEX _ | A.MEMBEROF _ | A.MEMBEROFPTR _ |
+           A.CAST _ (* A GCC extension *)) -> begin
+             let uop' = if uop = A.PREINCR then PlusA else MinusA in
+             if isconst then
+               E.s (error "PREINCR or PREDECR in constant");
+             let (se, e', t) = doExp false e (AExp None) in
+             let lv = 
+               match e' with 
+                 Lval x -> x
+               | CastE (_, Lval x) -> x (* A GCC extension. The operation is 
+                                         * done at the cast type. The result 
+                                         * is also of the cast type *)
+               | _ -> E.s (error "Expected lval for ++ or --")
+             in
+             let tresult, result = doBinOp uop' e' t one intType in
+             finishExp (se +++ (Set(lv, doCastT result tresult t, 
+                                    !currentLoc)))
+               e'
+               tresult   (* Should this be t instead ??? *)
+           end
+        | _ -> E.s (error "Unexpected operand for prefix -- or ++")
+    end
           
-    | A.UNARY((A.POSINCR|A.POSDECR) as uop, e) -> 
-        if isconst then
-          E.s (error "POSTINCR or POSTDECR in constant");
-        (* If we do not drop the result then we must save the value *)
-        let uop' = if uop = A.POSINCR then PlusA else MinusA in
-        let (se, e', t) = doExp false e (AExp None) in
-        let lv = 
-          match e' with 
-            Lval x -> x
-          | CastE (_, Lval x) -> x
-          | _ -> E.s (error "Expected lval for ++ or --")
-        in
-        let tresult, opresult = doBinOp uop' (Lval(lv)) t one intType in
-        let se', result = 
-          if what <> ADrop then 
-            let tmp = newTempVar t in
-            se +++ (Set(var tmp, Lval(lv), !currentLoc)), Lval(var tmp)
-          else
-            se, Lval(lv)
-        in
-        finishExp (se' +++ (Set(lv, doCastT opresult tresult t, !currentLoc)))
-          result
-          tresult   (* Should this be t instead ??? *)
+    | A.UNARY((A.POSINCR|A.POSDECR) as uop, e) -> begin
+        match e with 
+          A.COMMA el -> (* GCC extension *)
+            doExp isconst 
+              (A.COMMA (replaceLastInList el 
+                          (fun e -> A.UNARY(uop, e))))
+              what
+        | A.QUESTION (e1, e2q, e3q) -> (* GCC extension *)
+            doExp isconst 
+              (A.QUESTION (e1, A.UNARY(uop, e2q), A.UNARY(uop, e3q)))
+              what
+
+        | (A.VARIABLE _ | A.UNARY (A.MEMOF, _) | (* Regular lvalues *)
+           A.INDEX _ | A.MEMBEROF _ | A.MEMBEROFPTR _ | 
+           A.CAST _ (* A GCC extension *) ) -> begin
+             if isconst then
+               E.s (error "POSTINCR or POSTDECR in constant");
+             (* If we do not drop the result then we must save the value *)
+             let uop' = if uop = A.POSINCR then PlusA else MinusA in
+             let (se, e', t) = doExp false e (AExp None) in
+             let lv = 
+               match e' with 
+                 Lval x -> x
+               | CastE (_, Lval x) -> x (* GCC extension. The addition must 
+                                         * be be done at the cast type. The 
+                                         * result of this is also of the cast 
+                                         * type *)
+               | _ -> E.s (error "Expected lval for ++ or --")
+             in
+             let tresult, opresult = doBinOp uop' e' t one intType in
+             let se', result = 
+               if what <> ADrop then 
+                 let tmp = newTempVar t in
+                 se +++ (Set(var tmp, e', !currentLoc)), Lval(var tmp)
+               else
+                 se, e'
+             in
+             finishExp 
+               (se' +++ (Set(lv, doCastT opresult tresult t, 
+                             !currentLoc)))
+               result
+               tresult   (* Should this be t instead ??? *)
+           end
+        | _ -> E.s (error "Unexpected operand for suffix ++ or --")
+    end
           
-    | A.BINARY(A.ASSIGN, e1, e2) -> 
-        if isconst then E.s (error "ASSIGN in constant");
-        let (se1, e1', lvt) = doExp false e1 (AExp None) in
-        let lv, lvt' = 
-          match e1' with 
-            Lval x -> x, lvt
-          | CastE (_, Lval x) -> x, typeOfLval x
-          | _ -> E.s (error "Expected lval for assignment. Got %a\n"
-                        d_plainexp e1')
-        in
-        let (se2, e'', t'') = doExp false e2 (ASet(lv, lvt')) in
-        finishExp (se1 @@ se2) (Lval(lv)) lvt'
+    | A.BINARY(A.ASSIGN, e1, e2) -> begin
+        match e1 with 
+          A.COMMA el -> (* GCC extension *)
+            doExp isconst 
+              (A.COMMA (replaceLastInList el 
+                          (fun e -> A.BINARY(A.ASSIGN, e, e2))))
+              what
+        | A.QUESTION (e1, e2q, e3q) -> (* GCC extension *)
+            doExp isconst 
+              (A.QUESTION (e1, A.BINARY(A.ASSIGN, e2q, e2), 
+                           A.BINARY(A.ASSIGN, e3q, e2)))
+              what
+        | A.CAST (t, A.SINGLE_INIT e) -> (* GCC extension *)
+            doExp isconst
+              (A.CAST (t, 
+                       A.SINGLE_INIT (A.BINARY(A.ASSIGN, e, 
+                                               A.CAST (t, A.SINGLE_INIT e2)))))
+              what
+
+        | (A.VARIABLE _ | A.UNARY (A.MEMOF, _) | (* Regular lvalues *)
+           A.INDEX _ | A.MEMBEROF _ | A.MEMBEROFPTR _ ) -> begin
+             if isconst then E.s (error "ASSIGN in constant");
+             let (se1, e1', lvt) = doExp false e1 (AExp None) in
+             let lv = 
+               match e1' with 
+                 Lval x -> x
+               | _ -> E.s (error "Expected lval for assignment. Got %a\n"
+                             d_plainexp e1')
+             in
+             let (se2, e'', t'') = doExp false e2 (ASet(lv, lvt)) in
+             finishExp (se1 @@ se2) e1' lvt
+           end
+        | _ -> E.s (error "Invalid left operand for ASSIGN")
+    end
           
     | A.BINARY((A.ADD|A.SUB|A.MUL|A.DIV|A.MOD|A.BAND|A.BOR|A.XOR|
       A.SHL|A.SHR|A.EQ|A.NE|A.LT|A.GT|A.GE|A.LE) as bop, e1, e2) -> 
@@ -1897,37 +2005,61 @@ and doExp (isconst: bool)    (* In a constant *)
           
     | A.BINARY((A.ADD_ASSIGN|A.SUB_ASSIGN|A.MUL_ASSIGN|A.DIV_ASSIGN|
       A.MOD_ASSIGN|A.BAND_ASSIGN|A.BOR_ASSIGN|A.SHL_ASSIGN|
-      A.SHR_ASSIGN|A.XOR_ASSIGN) as bop, e1, e2) -> 
-        if isconst then
-          E.s (error "op_ASSIGN in constant");
-        let bop' = match bop with          
-          A.ADD_ASSIGN -> PlusA
-        | A.SUB_ASSIGN -> MinusA
-        | A.MUL_ASSIGN -> Mult
-        | A.DIV_ASSIGN -> Div
-        | A.MOD_ASSIGN -> Mod
-        | A.BAND_ASSIGN -> BAnd
-        | A.BOR_ASSIGN -> BOr
-        | A.XOR_ASSIGN -> BXor
-        | A.SHL_ASSIGN -> Shiftlt
-        | A.SHR_ASSIGN -> Shiftrt
-        | _ -> E.s (error "binary +=")
-        in
-        let (se1, e1', t1) = doExp false e1 (AExp None) in
-        let lv1 = 
-          match e1' with Lval x -> x
-          | _ -> E.s (error "Expected lval for assignment")
-        in
-        let (se2, e2', t2) = doExp false e2 (AExp None) in
-        let tresult, result = doBinOp bop' e1' t1 e2' t2 in
-        finishExp (se1 @@ se2 +++ (Set(lv1, result, !currentLoc)))
-          (Lval(lv1))
-          tresult
+      A.SHR_ASSIGN|A.XOR_ASSIGN) as bop, e1, e2) -> begin
+        match e1 with 
+          A.COMMA el -> (* GCC extension *)
+            doExp isconst 
+              (A.COMMA (replaceLastInList el 
+                          (fun e -> A.BINARY(bop, e, e2))))
+              what
+        | A.QUESTION (e1, e2q, e3q) -> (* GCC extension *)
+            doExp isconst 
+              (A.QUESTION (e1, A.BINARY(bop, e2q, e2), 
+                           A.BINARY(bop, e3q, e2)))
+              what
+
+        | (A.VARIABLE _ | A.UNARY (A.MEMOF, _) | (* Regular lvalues *)
+           A.INDEX _ | A.MEMBEROF _ | A.MEMBEROFPTR _ |
+           A.CAST _ (* GCC extension *) ) -> begin
+             if isconst then
+               E.s (error "op_ASSIGN in constant");
+             let bop' = match bop with          
+               A.ADD_ASSIGN -> PlusA
+             | A.SUB_ASSIGN -> MinusA
+             | A.MUL_ASSIGN -> Mult
+             | A.DIV_ASSIGN -> Div
+             | A.MOD_ASSIGN -> Mod
+             | A.BAND_ASSIGN -> BAnd
+             | A.BOR_ASSIGN -> BOr
+             | A.XOR_ASSIGN -> BXor
+             | A.SHL_ASSIGN -> Shiftlt
+             | A.SHR_ASSIGN -> Shiftrt
+             | _ -> E.s (error "binary +=")
+             in
+             let (se1, e1', t1) = doExp false e1 (AExp None) in
+             let lv1 = 
+               match e1' with 
+                 Lval x -> x
+               | CastE (_, Lval x) -> x (* GCC extension. The operation and 
+                                         * the result are at the cast type  *)
+               | _ -> E.s (error "Expected lval for assignment with arith")
+             in
+             let (se2, e2', t2) = doExp false e2 (AExp None) in
+             let tresult, result = doBinOp bop' e1' t1 e2' t2 in
+             finishExp (se1 @@ se2 +++ (Set(lv1, result, !currentLoc)))
+               e1'
+               tresult
+           end
+        | _ -> E.s (error "Unexpected left operand for assignment with arith")
+      end
+               
           
     | A.BINARY((A.AND|A.OR), e1, e2) ->
         let tmp = var (newTempVar intType) in
-        finishExp (doCondition e (empty +++ (Set(tmp, integer 1, !currentLoc)))
-                                 (empty +++ (Set(tmp, integer 0, !currentLoc))))     
+        finishExp (doCondition e (empty +++ (Set(tmp, integer 1, 
+                                                 !currentLoc)))
+                                 (empty +++ (Set(tmp, integer 0, 
+                                                 !currentLoc))))     
           (Lval tmp)
           intType
           

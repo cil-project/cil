@@ -269,6 +269,9 @@ and exp =
 
   | SizeOfE    of exp                   (* Like SizeOf but for expressions *)
 
+  | AlignOf    of typ                   (* Has UInt type *)
+  | AlignOfE   of exp 
+
                                         (* Give the type of the result *)
   | UnOp       of unop * exp * typ
 
@@ -1104,6 +1107,7 @@ let getParenthLevel = function
   | Lval(Mem _ , _) -> 20                   
   | Lval(Var _, (Field _|Index _)) -> 20
   | SizeOf _ | SizeOfE _ -> 20
+  | AlignOf _ | AlignOfE _ -> 20
 
   | Lval(Var _, NoOffset) -> 0        (* Plain variables *)
   | Const _ -> 0                        (* Constants *)
@@ -1371,6 +1375,10 @@ and d_exp () e =
       text "sizeof(" ++ d_type () t ++ chr ')'
   | SizeOfE (e) -> 
       text "sizeof(" ++ d_exp () e ++ chr ')'
+  | AlignOf (t) -> 
+      text "__alignof__(" ++ d_type () t ++ chr ')'
+  | AlignOfE (e) -> 
+      text "__alignof__(" ++ d_exp () e ++ chr ')'
   | AddrOf(lv) -> 
       text "& " ++ (d_lvalprec addrOfLevel () lv)
 
@@ -2011,6 +2019,8 @@ begin
     Const _ -> ()
   | SizeOf t -> fTyp t
   | SizeOfE e -> fExp e
+  | AlignOf t -> fTyp t
+  | AlignOfE e -> fExp e
   | Lval lv -> (visitCilLval vis lv)
   | UnOp(_,e,t) -> fExp e; fTyp t
   | BinOp(_,e1,e2,t) -> fExp e1; fExp e2; fTyp t
@@ -2556,6 +2566,7 @@ let rec typeOf (e: exp) : typ =
   | Const(CReal (_, fk, _)) -> TFloat(fk, [])
   | Lval(lv) -> typeOfLval lv
   | SizeOf _ | SizeOfE _ -> uintType
+  | AlignOf _ | AlignOfE _ -> uintType
   | UnOp (_, _, t) -> t
   | BinOp (_, _, _, t) -> t
   | Question (_, e2, _) -> typeOf e2

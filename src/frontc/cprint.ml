@@ -138,7 +138,7 @@ let print str =
 
 let setLoc (l : cabsloc) =
   let tempcur = current in
-  if !printLines then 
+  if !printLines then  
     if (l.lineno <> !curLoc.lineno) || l.filename <> !curLoc.filename then 
       begin
         let oldspaces = !spaces in
@@ -432,6 +432,8 @@ and get_operator exp =
   | VARIABLE name -> ("", 16)
   | EXPR_SIZEOF exp -> ("", 16)
   | TYPE_SIZEOF _ -> ("", 16)
+  | EXPR_ALIGNOF exp -> ("", 16)
+  | TYPE_ALIGNOF _ -> ("", 16)
   | INDEX (exp, idx) -> ("", 15)
   | MEMBEROF (exp, fld) -> ("", 15)
   | MEMBEROFPTR (exp, fld) -> ("", 15)
@@ -529,6 +531,14 @@ and print_expression (exp : expression) (lvl : int) =
       print ")"
   | TYPE_SIZEOF (bt,dt) ->
       print "sizeof(";
+      print_onlytype (bt, dt);
+      print ")"
+  | EXPR_ALIGNOF exp ->
+      print "__alignof__(";
+      print_expression exp 0;
+      print ")"
+  | TYPE_ALIGNOF (bt,dt) ->
+      print "__alignof__(";
       print_onlytype (bt, dt);
       print ")"
   | INDEX (exp, idx) ->

@@ -214,6 +214,10 @@ and combine_expression (exp : expression) : expression =
       EXPR_SIZEOF (combine_expression exp)
   | TYPE_SIZEOF (specs, dt) ->
       TYPE_SIZEOF(combine_specs specs, combine_decl_type dt)
+  | EXPR_ALIGNOF exp ->
+      EXPR_ALIGNOF (combine_expression exp)
+  | TYPE_ALIGNOF (specs, dt) ->
+      TYPE_ALIGNOF(combine_specs specs, combine_decl_type dt)
   | INDEX (exp, idx) ->
       INDEX(combine_expression exp, combine_expression idx)
   | MEMBEROF (exp, fld) ->

@@ -121,7 +121,7 @@ let bodyOfBlock ((labels: string list), (body: body)) : body =
 %token SIGNED UNSIGNED LONG SHORT
 %token VOLATILE EXTERN STATIC CONST RESTRICT AUTO REGISTER
 
-%token SIZEOF
+%token SIZEOF ALIGNOF
 
 %token EQ PLUS_EQ MINUS_EQ STAR_EQ SLASH_EQ PERCENT_EQ
 %token AND_EQ PIPE_EQ CIRC_EQ INF_INF_EQ SUP_SUP_EQ
@@ -169,7 +169,7 @@ let bodyOfBlock ((labels: string list), (body: body)) : body =
 %left	INF_INF SUP_SUP
 %left	PLUS MINUS
 %left	STAR SLASH PERCENT CONST RESTRICT VOLATILE
-%right	EXCLAM TILDE PLUS_PLUS MINUS_MINUS CAST RPAREN ADDROF SIZEOF
+%right	EXCLAM TILDE PLUS_PLUS MINUS_MINUS CAST RPAREN ADDROF SIZEOF ALIGNOF
 %left 	LBRACKET
 %left	DOT ARROW LPAREN LBRACE
 %right  NAMED_TYPE     /* We'll use this to handle redefinitions of
@@ -270,6 +270,10 @@ expression:
 		        {EXPR_SIZEOF $2}
 |	 	SIZEOF LPAREN type_name RPAREN
 		        {let b, d = $3 in TYPE_SIZEOF (b, d)}
+|		ALIGNOF expression
+		        {EXPR_ALIGNOF $2}
+|	 	ALIGNOF LPAREN type_name RPAREN
+		        {let b, d = $3 in TYPE_ALIGNOF (b, d)}
 |		PLUS expression
 		        {UNARY (PLUS, $2)}
 |		MINUS expression

@@ -266,13 +266,15 @@ and exp =
     Const      of constant
   | Lval       of lval                  (* l-values *)
   | SizeOf     of typ                   (* Has UInt type ! (ISO 6.5.3.4).
-                                         * Only sizeof for types is
-                                         * available. This is not turned into
+                                         * This is not turned into
                                          * a constant because some
                                          * transformations might want to
                                          * change types *)
 
   | SizeOfE    of exp                   (* Like SizeOf but for expressions *)
+
+  | AlignOf    of typ                   (* Has UInt type *)
+  | AlignOfE   of exp 
 
                                         (* Give the type of the result *)
   | UnOp       of unop * exp * typ
