@@ -561,6 +561,10 @@ and filterAttributes s al =
   in
   List.filter amatch al
 
+(* sm: *)
+let hasAttribute s al =
+  (filterAttributes s al <> []);;
+
 (* Get the full name of a comp *)
 let compFullName comp = 
   (if comp.cstruct then "struct " else "union ") ^ comp.cname

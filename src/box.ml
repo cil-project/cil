@@ -1,5 +1,6 @@
 open Cil
 open Pretty 
+open Trace
 
 module H = Hashtbl
 module E = Errormsg
@@ -58,9 +59,22 @@ let d_fexp () = function
       dprintf "FM(%a, %a, %a, %a)" P.d_pointerkind k d_exp ep d_exp eb d_exp ee
   | FC(_, k, _, _, e) ->  dprintf "FC(%a, %a)" P.d_pointerkind k d_exp e
   
-let leaveAlone = 
+let leaveAlone =
   ["printf"; "fprintf"; "sprintf"; "snprintf"; "sscanf"; "_snprintf";
-   "_CrtDbgReport"; ]
+   "_CrtDbgReport" (*; "_IO_2_1_stdin_"*) ]
+
+(* sm: the above appears to be for functions only *)
+let leaveAloneGlobVars = [
+  (* linux libc 2.1: the three standard FILE* *)
+  "_IO_2_1_stdin_"; "_IO_2_1_stdout_"; "_IO_2_1_stderr_";
+
+  (* sm: linux libc also declares simple FILE* globals stdout, stderr,
+   * and stdin.  the problem essentially is that they live in a
+   * library that we never get to see.  might it be possible to
+   * find a more general solution?  some way to know, in advance,
+   * that a given symbol lives in an unseen library? *)
+  "stdin"; "stdout"; "stderr"
+];;
 
 
             (* Same for offsets *)
@@ -160,19 +174,24 @@ let newStringName () =
   "__string" ^ (string_of_int !stringId)
 
 
+(* sm: scan a list of strings for one element
+ * (never know where to put this kind of stuff in ML *)
+let stringListContains (str:string) (sl:string list) : bool =
+  (List.exists (fun s -> s = str) sl);;
 
-(* Since we cannot take the address of a bitfield we will do bounds checking 
- * and tag zeroeing for an access to a bitfield as if the access were to the 
- * entire struct that contains the field. But this might lead to problems if 
- * the same struct contains both pointers and bitfields. In that case we 
+
+(* Since we cannot take the address of a bitfield we will do bounds checking
+ * and tag zeroeing for an access to a bitfield as if the access were to the
+ * entire struct that contains the field. But this might lead to problems if
+ * the same struct contains both pointers and bitfields. In that case we
  * coalesce all consecutive bitfields into a substructure *)
 
-(* For each bitfield that was coalesced we map (the id of the host and the 
- * field name) to the fieldinfo for the host and the fieldinfo inside the 
+(* For each bitfield that was coalesced we map (the id of the host and the
+ * field name) to the fieldinfo for the host and the fieldinfo inside the
  * host *)
 let hostsOfBitfields : (int * string, fieldinfo * fieldinfo) H.t = H.create 17
 let bundleid = ref 0
-let bitfieldCompinfo comp = 
+let bitfieldCompinfo comp =
   let containsPointer t = 
     existsType (function TPtr _ -> ExistsTrue | _ -> ExistsMaybe) t in
   if comp.cstruct &&
@@ -701,7 +720,13 @@ let rec typeContainsFats t =
 (* Create tags for types along with the newly created fields and initializers 
  * for tags and for the length  *)
 (* Check whether the type contains an embedded array *)
-let mustBeTagged v = 
+let mustBeTagged v =
+  (* sm: if it is a global (locals get passed to this fn too), and
+   * is among the special list of untagged globals, leave it alone *)
+  if (v.vglob &&
+      (stringListContains v.vname leaveAloneGlobVars)) then
+    false else     (* return false *)
+
   if !defaultIsWild then
     let rec containsArray t =
       existsType 
@@ -1871,7 +1896,7 @@ and castTo (fe: fexp) (newt: typ)
         (* SCALAR -> INDEX, WILD, SEQ *)
       | P.Scalar, (P.Index|P.Wild|P.Seq) ->
           if not (isZero p) then
-            ignore (E.warn "Casting scalar (%a) to pointer (in %s)!" 
+            ignore (E.warn "Casting scalar (%a) to pointer in %s!"
                       d_exp p !currentFunction.svar.vname);
           let newbase, doe' = 
             if !interceptCasts && not (isInteger p) then begin
@@ -1940,23 +1965,27 @@ and castTo (fe: fexp) (newt: typ)
       
 
 let mangledNames : (string, unit) H.t = H.create 123
-let fixupGlobName vi = 
-  (* Scan a type and compute a list of qualifiers that distinguish the 
+let fixupGlobName vi =
+  (* sm: don't touch some globals *)
+  if (stringListContains vi.vname leaveAloneGlobVars) then
+    () else    (* return *)
+
+  (* Scan a type and compute a list of qualifiers that distinguish the
    * various possible combinations of qualifiers *)
   let rec qualNames acc = function
       TInt _ | TFloat _ | TBitfield _ | TVoid _ | TEnum _ -> acc
     | TPtr(t', _) as t -> begin
         match kindOfType t with
-          P.Safe -> qualNames ("s" :: acc) t' 
+          P.Safe -> qualNames ("s" :: acc) t'
         | P.Wild -> "w" :: acc (* Don't care about what it points to *)
-        | P.Index -> qualNames ("i" :: acc) t' 
-        | P.Seq -> qualNames ("q" :: acc) t' 
-        | P.FSeq -> qualNames ("f" :: acc) t' 
+        | P.Index -> qualNames ("i" :: acc) t'
+        | P.Seq -> qualNames ("q" :: acc) t'
+        | P.FSeq -> qualNames ("f" :: acc) t'
         | P.Scalar -> acc
         | _ -> E.s (E.bug "qualNames")
     end
-    | TArray(t', _, a) -> 
-        let acc' = 
+    | TArray(t', _, a) ->
+        let acc' =
           (* Choose the attributes so that "s" is always the C represent *)
           if filterAttributes "sized" a <> [] then "l" :: acc else "s" :: acc
         in
@@ -1984,9 +2013,9 @@ let fixupGlobName vi =
     end
     | TForward _ -> acc (* Do not go into recursive structs *)
   in
-  if vi.vglob && vi.vstorage <> Static && 
+  if vi.vglob && vi.vstorage <> Static &&
     not (List.exists (fun la -> la = vi.vname) leaveAlone) &&
-    not (H.mem mangledNames vi.vname) then 
+    not (H.mem mangledNames vi.vname) then
     begin
       let quals = qualNames [] vi.vtype in
       let rec allSafe = function (* Only default qualifiers *)
@@ -1994,9 +2023,9 @@ let fixupGlobName vi =
         | "s" :: rest -> allSafe rest
         | _ -> false
       in
-      let newname = 
-        if allSafe quals then vi.vname 
-        else 
+      let newname =
+        if allSafe quals then vi.vname
+        else
           vi.vname ^ "_" ^ (List.fold_left (fun acc x -> x ^ acc) "" quals)
       in
       H.add mangledNames newname ();
@@ -2125,25 +2154,44 @@ let boxFile file =
           (fun l -> 
             let newa, newt = moveAttrsFromDataToType l.vattr l.vtype in
             l.vattr <- newa;
-            l.vtype <- fixupType newt) f.slocals;
+            l.vtype <- fixupType newt;
+
+            (* sm: eliminate the annoying warnings about taking the address
+             * of a 'register' variable, by removing the 'register' storage
+             * class for any variable with 'wild' attribute and 'named' type *)
+            begin
+              if (l.vstorage = Register) then
+                match l.vtype with
+                  TNamed(_,_,al) ->
+                    if (hasAttribute "wild" al) then begin
+                      (trace "reg-remove"
+                        (dprintf "removing register keyword from %s\n"
+                                 l.vname));
+                      l.vstorage <- NoStorage
+                    end
+                |
+                  _ -> ()
+            end;
+          )
+          f.slocals;
         (* We fix the formals only if the function is not vararg *)
         List.iter (fun l -> l.vtype <- fixupType l.vtype) f.sformals;
-        currentFunction := f;           (* so that maxid and locals can be 
+        currentFunction := f;           (* so that maxid and locals can be
                                          * updated in place *)
-        (* Check that we do not take the address of a formal. If we actually 
-         * do then we must make that formal a true local and create another 
+        (* Check that we do not take the address of a formal. If we actually
+         * do then we must make that formal a true local and create another
          * formal *)
-        let newformals, newbody = 
+        let newformals, newbody =
           let rec loopFormals = function
               [] -> [], [f.sbody]
-            | form :: restf -> 
+            | form :: restf ->
                 let r1, r2 = loopFormals restf in
                 if form.vaddrof then begin
-                  let tmp = makeTempVar f form.vtype in 
-                    (* Now take it out of the locals and replace it with the 
+                  let tmp = makeTempVar f form.vtype in
+                    (* Now take it out of the locals and replace it with the
                        * current formal. It is not worth optimizing this one *)
-                  f.slocals <- 
-                     form :: 
+                  f.slocals <-
+                     form ::
                      (List.filter (fun x -> x.vid <> tmp.vid) f.slocals);
                     (* Now replace form with the temporary in the formals *)
                   tmp :: r1, (mkSet (var form) (Lval(var tmp)) :: r2)
@@ -2160,7 +2208,7 @@ let boxFile file =
         let tagLocal stmacc l = 
           if not (mustBeTagged l) then stmacc
           else
-            let iter = 
+            let iter =
               match !tagIterator with
                 Some i -> i
               | None -> begin
@@ -2179,13 +2227,13 @@ let boxFile file =
 
     | (GAsm s) as g -> theFile := g :: !theFile
 
-  and boxglobal vi isdef init = 
+  and boxglobal vi isdef init =
     if debug then
-      ignore (E.log "Boxing GVar(%s)\n" vi.vname); 
+      ignore (E.log "Boxing GVar(%s)\n" vi.vname);
         (* Leave alone some functions *)
     let origType = vi.vtype in
     if not (List.exists (fun s -> s = vi.vname) leaveAlone) then begin
-      (* Remove the format attribute from functions that we do not leave 
+      (* Remove the format attribute from functions that we do not leave
        * alone  *)
       let newa, newt = moveAttrsFromDataToType vi.vattr vi.vtype in
       vi.vattr <- dropAttribute newa (ACons("__format__", []));

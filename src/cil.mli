@@ -668,6 +668,9 @@ val dropAttribute: attribute list -> attribute -> attribute list
 (* Retains attributes AId or ACons with the named constructor *)
 val filterAttributes: string -> attribute list -> attribute list
 
+(* true if the named attribute appears in the attribute list *)
+val hasAttribute: string -> attribute list -> bool;;
+
 val typeAttrs: typ -> attribute list
 
 val setTypeAttrs: typ -> attribute list -> typ (* Resets the attributes *)

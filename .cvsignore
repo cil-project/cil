@@ -10,3 +10,5 @@ camlprim0.obj
 allheaders
 allcfiles
 allmlfiles
+.emacs.desktop
+

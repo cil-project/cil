@@ -51,7 +51,7 @@ int main() {
   fprintf(stderr, "Hash has %d elements. Found %d times\n",
           sz, count);
   printf("Run hashtest in %8.3lfms\n", clk / 1000.0);
-  fprintf(stderr, "Hello\n");
+  fprintf(stderr, "But this is 'rbtest'.. why are we talking about 'hash'??\n");
   exit (0);
   return 0;
 }

@@ -147,7 +147,6 @@ _MSVC = 1			# Use the MSVC compiler by default
 endif
 
 ifdef _GNUCC
-#DEBUGCCL=gcc -x c -O0 -g -Wall -I/usr/include/sys
 DEBUGCCL=gcc -x c -O0 -g -D_GNUCC 
 RELEASECCL=gcc -x c -O3 -Wall -I/usr/include/sys
 #LIB=lib
@@ -158,12 +157,13 @@ OBJOUT=-o
 EXEOUT=-o
 DEF=-D
 ASMONLY=-S -o 
-#CPPSTART=gcc -E %i -Dx86_WIN32 -D_GNUCC  -I/usr/include/sys
 CPPSTART=gcc -E %i -Dx86_LINUX -D_GNUCC  -I/usr/include/sys
 CPPOUT=-o %o
 CPP=$(CPPSTART) $(CPPOUT)
 INC=-I
 PATCHFILE=safec_gcc.patch
+# sm: disable patching for now ('true' has no output)
+PATCHECHO=true
 endif
 
 
@@ -186,6 +186,7 @@ CPPOUT= %i >%o
 CPP=$(CPPSTART) $(CPPOUT)
 EXTRAARGS += --safec=-msvc
 PATCHFILE=safec_msvc.patch
+PATCHECHO=echo
 endif
 
 ifdef RELEASE
@@ -394,7 +395,7 @@ hashtest: test/small2/hashtest.c $(EXECUTABLE)$(EXE) \
 	rm -f $(PCCTEST)/hashtest.exe
 	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  $(DOOPT) \
-                 --patch=../../lib/$(PATCHFILE) \
+                 `$(PATCHECHO) --patch=../../lib/$(PATCHFILE)` \
                  $(INC)$(PCCDIR)/src \
                  $(PCCDIR)/src/hash.c \
                  ../small2/hashtest.c \
@@ -405,7 +406,7 @@ rbtest: test/small2/rbtest.c $(EXECUTABLE)$(EXE) \
                                  $(SAFECLIB) $(SAFEMAINLIB)  $(TVEXE)
 	rm -f $(PCCTEST)/rbtest.exe
 	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
-                 --patch=../../lib/$(PATCHFILE) \
+                 `$(PATCHECHO) --patch=../../lib/$(PATCHFILE)` \
                  $(DOOPT) \
                  $(INC)$(PCCDIR)/src \
                  $(PCCDIR)/src/redblack.c \
@@ -428,29 +429,15 @@ btreetest: test/small2/testbtree.c \
 
 # sm: this is my little test program
 hola: test/small2/hola.c $(EXECUTABLE)$(EXE) \
-                                 $(SAFECLIB) $(SAFEMAINLIB)  $(TVEXE)
-	@true "sm: just trying to figure this thing out"
-	@true "EXECUTABLE = "$(EXECUTABLE)
-	@true "EXE = "$(EXE)
-	@true "SAFECLIB = "$(SAFECLIB)
-	@true "SAFEMAINLIB = "$(SAFEMAINLIB)
-	@true "TVEXE = "$(TVEXE)
-	@true "PCCTEST = "$(PCCTEST)
-	@true "SAFECC = "$(SAFECC)
-	@true "DEF = "$(DEF)
-	@true "ARCHOS = "$(ARCHOS)
-	@true "PCCTYPE = "$(PCCTYPE)
-	@true "DOOPT = "$(DOOPT)
-	@true "INC = "$(INC)
-	@true "PCCDIR = "$(PCCDIR)
-	@true "EXEOUT = "$(EXEOUT)
-	rm -f $(PCCTEST)/hola.exe
-	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
+                                 $(SAFECLIB) $(SAFEMAINLIB)
+	rm -f test/small2/hola
+	cd test/small2; $(SAFECC) --keep=. $(DEF)$(ARCHOS) \
+                 `$(PATCHECHO) --patch=../../lib/$(PATCHFILE)` \
                  $(DOOPT) \
-                 $(INC)$(PCCDIR)/src \
-                 ../small2/hola.c \
-                 $(EXEOUT)hola.exe
-	$(PCCTEST)/hola.exe
+                 hola.c \
+                 $(EXEOUT)hola
+	test/small2/hola
+
 
 HUFFCOMPILE=$(SAFECC) --keep=. 
 # HUFFCOMPILE=cl /MLd
