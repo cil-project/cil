@@ -4,6 +4,7 @@
 
 open Cil
 open Ptrnode
+open Solveutil
 
 let warn = ref false  
 
@@ -53,6 +54,7 @@ let height k =
   | Wild -> 8
   | ROString -> 9
   | Scalar -> 10
+  | _ -> E.s (E.bug "Cannot handle %a in Secondsolve" d_opointerkind k)
 
 let solve (node_ht : (int,node) Hashtbl.t) = begin
   (* _(1)_ Set all of the little boolean flags correctly. Use whatever
@@ -159,14 +161,14 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     List.iter (fun e -> 
       let n_from, n_to = e.efrom, e.eto in
       let t_from, t_to = e.efrom.btype, e.eto.btype in 
-      if Simplesolve.subtype t_from Safe t_to Safe then begin
+      if subtype t_from Safe t_to Safe then begin
         ()
-      end else if Simplesolve.subtype t_from Safe 
+      end else if subtype t_from Safe 
           (TArray(t_to,(Some(Const(CInt(1024,ILong,None)))),[])) Safe then begin
         (update e.efrom Seq (BadCast e));
         (update e.eto Seq (BadCast e));
-      end else if Simplesolve.is_p n_from n_to ||
-         Simplesolve.is_p n_to n_from then begin
+      end else if is_p n_from n_to ||
+         is_p n_to n_from then begin
         ()
       end else begin
         (* must be wild! *)

@@ -7,9 +7,9 @@
 
 open Cil
 open Ptrnode
+open Solveutil
 
-let warn = ref false  
-let show_steps = ref true 
+let show_steps = true 
 
 (*          
  * In this diagram, X <- Y means that Y can be cast to X. This may involve
@@ -22,6 +22,9 @@ let show_steps = ref true
  *                                                     Seq <- SeqN         
  *
  * Scalar <- AnyPointerKind <- Unknown
+ *
+ * String -> FSeqN is also allowed but is not represented in this figure or
+ * the function below. 
  *)
 
 (* returns one step casts from this kind *)
@@ -68,8 +71,7 @@ let set_outside n =
  * Loosely, this implements "\Exists K. t_from = t_to[K]" by picking
  * a big K and checking t_from <= t_to[K]. *)
 let sequence_condition t_from t_to = 
-  Simplesolve.subtype t_from Safe 
-          (TArray(t_to,(Some(Const(CInt(1024,ILong,None)))),[])) Safe 
+  subtype t_from Safe (TArray(t_to,(Some(Const(CInt(1024,ILong,None)))),[])) Safe 
 
 (*
  * The Heart of the Solver
@@ -79,7 +81,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    * ~~~~~~
    * Add ECompat edges.
    *)
-  if !show_steps then ignore (Pretty.printf "Solver: Step 1  (ECompat)\n") ;
+  if show_steps then ignore (Pretty.printf "Solver: Step 1  (ECompat)\n") ;
   (* loop over all the nodes ... *)
   let finished = ref false in 
   while (not !finished) do 
@@ -113,7 +115,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    * Our second pass over the set of nodes. 
    * Set all of the flag starting conditions that we know about.  
    *)
-  if !show_steps then ignore (Pretty.printf "Solver: Step 2  (Base Case)\n") ;
+  if show_steps then ignore (Pretty.printf "Solver: Step 2  (Base Case)\n") ;
   (* loop over all the nodes ... *)
   Hashtbl.iter (fun id n -> 
     (* Add in starting flag conditions. For example, we can identify
@@ -147,7 +149,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
      * result in a sequence inference later on: we'll mark those now. *)
     List.iter (fun e -> 
       let t_from, t_to = e.efrom.btype, e.eto.btype in 
-      if Simplesolve.subtype t_from Safe t_to Safe then begin
+      if subtype t_from Safe t_to Safe then begin
         () (* no sequence-ness here *)
       end else if sequence_condition t_from t_to then begin
           setFlag e.efrom pkReachSeq ;
@@ -161,7 +163,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    * ~~~~~~
    * Push all of the boolean flags around. 
    *)
-  if !show_steps then ignore (Pretty.printf "Solver: Step 3  (Data-Flow)\n") ;
+  if show_steps then ignore (Pretty.printf "Solver: Step 3  (Data-Flow)\n") ;
   (* loop over all the nodes ... *)
   finished := false ; 
   while (not !finished) do 
@@ -203,7 +205,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    * after boolean flags (otherwise we cannot tell the "read-only" part)
    * but before we do WILDs (because they interact with read-only strings). 
    *)
-  if !show_steps then ignore (Pretty.printf "Solver: Step 4  (read-only strings)\n") ;
+  if show_steps then ignore (Pretty.printf "Solver: Step 4  (read-only strings)\n") ;
   Hashtbl.iter (fun id n ->
     (* If a string is never updated and it never goes anywhere then
      * we can give it the special terminating "ro-string" status. *)
@@ -223,7 +225,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    * Turn all bad casts into Wild Pointers. There is a small amount of
    * black magic in this step. 
    *)
-  if !show_steps then ignore (Pretty.printf "Solver: Step 5  (bad casts)\n") ;
+  if show_steps then ignore (Pretty.printf "Solver: Step 5  (bad casts)\n") ;
   Hashtbl.iter (fun id cur ->
     (* First, what should we do when we think something should be wild? *)
     let make_wild n e =
@@ -240,12 +242,12 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     List.iter (fun e -> 
       let n_from, n_to = e.efrom, e.eto in
       let t_from, t_to = e.efrom.btype, e.eto.btype in 
-      if Simplesolve.subtype t_from Safe t_to Safe then begin
+      if subtype t_from Safe t_to Safe then begin
         () (* safe cast *)
       end else if sequence_condition t_from t_to then begin
         () (* sequence cast *)
-      end else if Simplesolve.is_p n_from n_to || (* polymorphic function *)
-         Simplesolve.is_p n_to n_from then begin (* argument or retval *)
+      end else if is_p n_from n_to || (* polymorphic function *)
+         is_p n_to n_from then begin (* argument or retval *)
         ()
       end else begin
         (* If you fail all of the other cases, you must be wild! *)
@@ -257,7 +259,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     * type or be wild! *)
     List.iter (fun e ->
       let n_from, n_to = e.efrom, e.eto in
-      if not (Simplesolve.type_congruent n_from.btype n_from.kind 
+      if not (type_congruent n_from.btype n_from.kind 
                                      n_to.btype n_to.kind) then begin
         (* must make both WILD! *)
         make_wild n_from e ;
@@ -270,7 +272,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    * ~~~~~~
    * Spread wild pointers.
    *)
-  if !show_steps then ignore (Pretty.printf "Solver: Step 6  (spread WILD)\n") ;
+  if show_steps then ignore (Pretty.printf "Solver: Step 6  (spread WILD)\n") ;
   (* Now "update" becomes more complicated because we can do some
    * consistency checks. A successful update also tells us to loop again.
    * A more efficient algorithm would use a true worklist. *)
@@ -333,7 +335,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
   let can_reach_seq n = hasFlag n pkReachSeq in
   let can_reach_index n = hasFlag n pkReachIndex in 
 
-  if !show_steps then ignore (Pretty.printf "Solver: Step 7  (FSEQ[N] nodes)\n") ;
+  if show_steps then ignore (Pretty.printf "Solver: Step 7  (FSEQ[N] nodes)\n") ;
   finished := false ; 
   while not !finished do 
     finished := true ; 
@@ -420,7 +422,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    * ~~~~~~
    * Attempt to make SEQ[N] nodes. 
    *)
-  if !show_steps then ignore (Pretty.printf "Solver: Step 8  (SEQ[N])\n") ;
+  if show_steps then ignore (Pretty.printf "Solver: Step 8  (SEQ[N])\n") ;
   finished := false ; 
   while not !finished do 
     finished := true ; 
@@ -477,7 +479,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       List.iter (fun e -> 
         let n_from, n_to = e.efrom, e.eto in
         let t_from, t_to = e.efrom.btype, e.eto.btype in 
-        if Simplesolve.subtype t_from Safe t_to Safe then begin
+        if subtype t_from Safe t_to Safe then begin
           ()
         end else if sequence_condition t_from t_to then begin
             (* the magic seq-making cast *)
@@ -541,7 +543,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    * Change certain FSeqNs to ROStrings. An FSeqN with only one successor
    * becomes an ROString if that successor is an ROString. 
    *)
-  if !show_steps then ignore (Pretty.printf "Solver: Step 9  (FSEQN->ROSTRING)\n") ;
+  if show_steps then ignore (Pretty.printf "Solver: Step 9  (FSEQN->ROSTRING)\n") ;
   finished := false ; 
   while not !finished do 
     finished := true ; 
@@ -563,7 +565,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    * ~~~~~~~
    * Note all index nodes.
    *)
-  if !show_steps then ignore (Pretty.printf "Solver: Step 10 (INDEX)\n") ;
+  if show_steps then ignore (Pretty.printf "Solver: Step 10 (INDEX)\n") ;
   finished := false ; 
   while not !finished do 
     finished := true ; 
@@ -626,7 +628,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    * ~~~~~~~
    * All other nodes are safe. 
    *)
-  if !show_steps then ignore (Pretty.printf "Solver: Step 11 (SAFE)\n") ;
+  if show_steps then ignore (Pretty.printf "Solver: Step 11 (SAFE)\n") ;
   Hashtbl.iter (fun id n -> 
     if n.kind = Unknown then begin
       assert(n.why_kind <> UserSpec) ;

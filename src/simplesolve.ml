@@ -17,142 +17,7 @@
  *)
 open Cil
 open Ptrnode
-
-(* are the given two types congurent? see infer.tex 
- * also remember that two wild pointers are always considered congruent *)
-let rec type_congruent (t1 : typ) (q1 : opointerkind) 
-                       (t2 : typ) (q2 : opointerkind) = begin
-  (* t[n] and struct { t ; t[n-1] ; } are congruent *)
-  let t1 = unrollType t1 in
-  let t2 = unrollType t2 in 
-  let array_helper_function t eo al x = begin
-    match eo with
-      Some(Const(CInt(n,a,b))) when n > 1 -> begin
-        let our_compinfo = {
-          cstruct = true ;
-          cname = "" ;
-          ckey = -1;
-          cfields = [] ;
-          cattr = [] ;
-        } in
-        our_compinfo.cfields <- 
-          [ { fcomp = our_compinfo ; fname = "" ;
-              ftype = t ;
-              fattr = [] ; } ;
-            { fcomp = our_compinfo ; fname = "" ;
-              ftype = TArray(t,(Some(Const(CInt(n-1,a,b)))),[]) ;
-              fattr = [] ; } ] ; 
-        type_congruent t q1 (TComp(our_compinfo)) q2
-      end
-    | _ -> false
-  end in 
-  if (q1 = Wild && q2 = Wild) then 
-    true
-  else match (t1,t2) with
-    (* unions can be reordered without loss *)
-  | TComp(c1),TComp(c2) when (not c1.cstruct) && (not c2.cstruct) -> begin
-      let fields_match l1 l2 = 
-        List.for_all (fun l1_elt ->
-          List.exists (fun l2_elt -> type_congruent l1_elt.ftype q1 
-                                                    l2_elt.ftype q2)
-            l2) l1
-      in
-        (fields_match c1.cfields c2.cfields) &&
-        (fields_match c2.cfields c1.cfields)
-    end
-    (* structures match if all of their fields match in order *)
-  | TComp(c1),TComp(c2) when (c1.cstruct) && (c2.cstruct) -> 
-    (c1.cname = c2.cname) || 
-    (((List.length c1.cfields) = (List.length c2.cfields)) && 
-    List.for_all2 (fun f1 f2 -> type_congruent f1.ftype q1 f2.ftype q2) 
-      c1.cfields c2.cfields)
-
-
-    (* a structure with one element is equal to that element *)
-  | TComp(c1),_ when ((List.length c1.cfields) = 1) ->
-    let f1 = List.hd c1.cfields in type_congruent f1.ftype q1 t2 q2 
-  | _,TComp(c2) when ((List.length c2.cfields) = 1) ->
-    let f2 = List.hd c2.cfields in type_congruent t1 q1 f2.ftype q2
-
-    (* t and t[1] are the same *)
-  | (x,TArray(t,eo,al)) when (type_congruent x q1 t q2) -> begin
-    match eo with
-      Some(Const(CInt(1,_,_))) -> true
-    | _ -> false
-  end
-  | (TArray(t,eo,al),x) when (type_congruent x q2 t q1) -> begin
-    match eo with
-      Some(Const(CInt(1,_,_))) -> true
-    | _ -> false
-  end
-
-    (* t[n] and struct { t ; t[n-1] ; } are congruent *)
-  | (x,TArray(t,eo,al)) -> array_helper_function t eo al x
-  | (TArray(t,eo,al),x) -> array_helper_function t eo al x
-
-  | TVoid(_),TVoid(_) -> true
-  | TInt(_),TInt(_) -> true
-  | TFloat _, TFloat _ -> true
-  (* fails to unify bitfields *)
-  | TEnum(_),TEnum(_) -> true
-  | TFun(_),TFun(_) -> true
-  | TPtr(_),TPtr(_) -> true
-
-  | _ -> false
-end
-
-(* returns the first n elements of l *)
-let rec sublist l n = begin
-  if n <= 0 then [] 
-  else match l with
-      [] -> []
-  | hd :: tl -> hd :: (sublist tl (n-1))
-end
-
-(* do we have t1,q1 <= t2,q2 (as in infer.tex)? *)
-(* t1 = from, t2 = to *)
-let rec subtype (t1 : typ) (q1 : opointerkind) 
-            (t2 : typ) (q2 : opointerkind) =
-  let t1 = unrollType t1 in
-  let t2 = unrollType t2 in 
-  if t1 == t2 || (type_congruent t1 q1 t2 q2) then
-    true
-  else match (t1,t2) with 
-    (* t1 x t2 x t3 ... <= t1 x t2, general case  *)
-    TComp(c1),TComp(c2) when c1.cstruct && c2.cstruct -> begin
-      (* is t2 congruent to a prefix of t1? *)
-      (* we'll do it the expensive way: try all prefices of t1 *)
-      let found_one = ref false in 
-      for l = 1 to (List.length c1.cfields) do 
-        if (not (!found_one)) then begin
-          let prefix_struct_c1 = { c1 with cfields = (sublist c1.cfields l) } in
-          if (type_congruent t2 q2 (TComp(prefix_struct_c1)) q1) then
-            found_one := true
-        end
-      done ; !found_one
-    end
-    (* t1 x t2 <= t1 *)
-  | TComp(c1),_ when c1.cstruct -> begin
-    (* this is true if t2 is congruent to some prefix of c1, as above *)
-      let found_one = ref false in 
-      for l = 1 to (List.length c1.cfields) do 
-        if (not (!found_one)) then begin
-          let prefix_struct_c1 = { c1 with cfields = (sublist c1.cfields l) } in
-          if (type_congruent (TComp(prefix_struct_c1)) q1) t2 q2 then
-            found_one := true
-        end
-      done ; !found_one
-    end
-    (* x <= a + b  iff x <= a && x <= b *)
-   | _,TComp(c2) when not c2.cstruct -> begin
-      List.for_all (fun elt -> subtype t1 q1 elt.ftype q2) c2.cfields 
-   end
-    (* a+b <= x    iff a <= x || b <= x *)
-   | TComp(c1),_ when not c1.cstruct -> begin
-      List.exists (fun elt -> subtype elt.ftype q1 t2 q2) c1.cfields 
-   end
-
-  | _,_ -> false
+open Solveutil
 
 (* see infer.tex : this predicate checks to see if the little attributes
  * match when casting *)
@@ -161,20 +26,6 @@ let q_predicate (n1 : node) (n2 : node) = true
     ((n1.updated) || (not n2.updated)) && 
     ((not n1.null) || (n2.null)) && 
     ((not n1.intcast) || (n2.intcast)) *)
-
-(* a predicate to determine if a polymorphic function call is involved *)
-let rec is_p n other_n = match n.where with
-    PGlob(s),_ when String.contains s '*' -> true
-  | (PAnon(_),0) |
-    (PLocal(_,_,_),1) -> 
-      if ((List.length n.succ) = 1) &&
-         ((List.length n.pred) = 1) then begin
-         if (List.hd n.succ).eto = other_n then
-           is_p (List.hd n.pred).efrom n
-         else
-           is_p (List.hd n.succ).eto n
-      end else false
-  | _ -> false
 
 (* returns a pair of opointerkinds p1,p2 such that if we assign the
  * qualifiers t1=p1 and t2=p2, the cast is legal *)
@@ -309,7 +160,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     | FSeq | FSeqN -> not (k2 = Safe) && not (k2 = ROString)
     | Seq | SeqN -> not (k2 = Safe || k2 = FSeq || k2 = FSeqN) && not (k2 = ROString)
     | Index -> k2 = Wild
-    | Scalar -> E.s (E.bug "cannot handle scalars in simplesolve")
+    | _ -> E.s (E.bug "cannot handle %a in simplesolve" d_opointerkind k1)
   in
 
   (* filters an edgelist so that it contains only ECast edges *)

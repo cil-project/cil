@@ -21,7 +21,7 @@ MLYS        =
 # ast clex cparse
 # sm: trace: utility for debug-time printfs
 MODULES     = pretty trace errormsg stats util cil check ptrnode \
-              simplesolve secondsolve thirdsolve wildsolve solver globinit \
+              solveutil simplesolve secondsolve thirdsolve solver globinit \
               oneret box markptr \
               rmtmps optim
 EXECUTABLE  = $(OBJDIR)/safec
@@ -249,6 +249,9 @@ SAFECC=perl $(CILDIR)/lib/safecc.pl
 
 
 # weimer: support for other solvers
+ifeq ($(INFERBOX), 1)
+    SAFECC+= --safec=-solver --safec=first
+endif
 ifeq ($(INFERBOX), 2)
     SAFECC+= --safec=-solver --safec=second
 endif
