@@ -525,6 +525,11 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
             if flow_seq_forward then
               if (cur.kind <> ROString) then
                 (pick_the_right_kind_of_seq cur Seq (SpreadFromEdge e.efrom))
+
+        | ECompat, FSeq | ECompat, FSeqN -> 
+            if (cur.kind <> ROString) then
+              (pick_the_right_kind_of_seq cur FSeq (SpreadFromEdge e.efrom))
+
         | ECompat, Seq | ECompat, SeqN
         | ENull, Seq   | ENull, SeqN ->
             if (cur.kind <> ROString) then

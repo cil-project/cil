@@ -23,7 +23,13 @@ class verboseLogVisitor printfFun funstr = object
     match i with
       Call(lo,e,al,l) -> 
       let str1 = Pretty.sprint 800 ( Pretty.dprintf "Calling %a(%a)\n" d_exp e
-        (docList (chr ',') (fun _ -> text "%p")) al) in
+        (docList (chr ',') (fun arg -> 
+          try
+            match typeOf arg with
+                TInt _ | TEnum _ -> dprintf "%a = %%d" d_exp arg
+              | TFloat _ -> dprintf "%a = %%g" d_exp arg
+              | _ -> dprintf "%a = %%p" d_exp arg
+          with  _ -> dprintf "%a = %%p" d_exp arg)) al) in
       let str2 = Pretty.sprint 800 ( Pretty.dprintf "Returned from %a\n" d_exp e) in
       let newinst str args = ((Call (None, Lval(var printfFun.svar),
                                 ( [ one ; Const(CStr(str)) ] @ args),
@@ -71,29 +77,21 @@ let logCalls (f: file) : unit =
       GFun (fdec, loc) -> 
         (* Collect expressions that denote the actual arguments, and a format 
          * string for printing them *)
-        let actargs, formatstr = 
-          List.fold_left
-            (fun (accargs, formatstr) f -> 
-              match unrollType f.vtype with
-                (* Log only the integer and floating point arguments *)
-                TInt _ | TEnum _ -> 
-                  (Lval (var f) :: accargs, "%d, " ^ formatstr)
-              | TFloat _ -> 
-                  (Lval (var f) :: accargs, "%f, " ^ formatstr)
-              | _ -> 
-                  (Lval (var f) :: accargs, "%p, " ^ formatstr))
-            ([], ")\n")
-            fdec.sformals
-        in
+        let actargs = List.map (fun vi -> Lval(var vi)) fdec.sformals in
+        let formatstr = Pretty.sprint 60
+          (dprintf "entering %s(%a)\n" fdec.svar.vname
+            (docList (chr ',' ++ break) 
+            (fun vi -> match vi.vtype with
+              TInt _ | TEnum _ -> dprintf "%s = %%d" vi.vname
+            | TFloat _ -> dprintf "%s = %%g" vi.vname
+            | _ -> dprintf "%s = %%p" vi.vname)) fdec.sformals) in
         i := 0 ;
         name := fdec.svar.vname ; 
         let thisVisitor = new verboseLogVisitor printfFun !name in 
         fdec.sbody <- visitCilBlock thisVisitor fdec.sbody; 
         fdec.sbody.bstmts <- 
               mkStmt (Instr [Call (None, Lval(var printfFun.svar),
-                                ( one :: Const(CStr("call to " ^
-                                fdec.svar.vname ^ "(" ^ formatstr)) ::
-                                actargs),
+                                ( one :: Const(CStr(formatstr)) :: actargs),
                                 loc)]) :: fdec.sbody.bstmts
 
     | _ -> ()
