@@ -671,6 +671,18 @@ comb: $(TESTDIR)/small2/comb1.c $(TESTDIR)/small2/comb2.c
           $(MYSAFECC)  comb1.o comb2.o $(EXEOUT)comb
 	$(TESTDIR)/small2/comb
 
+# sm: another merger test
+mergestruct: $(TESTDIR)/small2/mergestruct1.c $(TESTDIR)/small2/mergestruct2.c
+	cd $(TESTDIR)/small2; \
+	  $(CCURED) mergestruct1.c mergestruct2.c -o mergestruct
+	$(TESTDIR)/small2/mergestruct
+
+# sm: yet another merger test (I know there's a target somewhere)
+mergeinline: $(TESTDIR)/small2/mergeinline1.c $(TESTDIR)/small2/mergeinline2.c
+	cd $(TESTDIR)/small2; \
+	  $(CCURED) mergeinline1.c mergeinline2.c -o mergeinline
+	$(TESTDIR)/small2/mergeinline
+
 # sm: test of combiner's ability to report inconsistencies
 baddef: $(TESTDIR)/small2/baddef1.c $(TESTDIR)/small2/baddef2.c 
 	cd $(TESTDIR)/small2; $(CC) baddef1.c baddef2.c -o baddef && ./baddef
