@@ -1415,7 +1415,7 @@ and doExp (isconst: bool)    (* In a constant *)
     | _ -> e, t
   in
   (* Before we return we call finishExp *)
-  let finishExp se e t = 
+  let finishExp (se: chunk) (e: exp) (t: typ) : chunk * exp * typ = 
     match what with 
       ADrop -> (se, e, t)
     | AExp _ -> 
@@ -1708,7 +1708,7 @@ and doExp (isconst: bool)    (* In a constant *)
         in
         finishExp empty (SizeOfE(e'')) uintType
 
-    | A.CAST ((specs, dt), e) -> 
+    | A.CAST ((specs, dt), ie) -> 
         let typ = doOnlyType specs dt in
         let what' = 
           match e with 
@@ -1721,7 +1721,28 @@ and doExp (isconst: bool)    (* In a constant *)
               | _ -> AExp None
           end
         in
-        let (se, e', t) = doExp isconst e what' in
+        let (se, e', t) = 
+          match ie with
+            A.SINGLE_INIT e -> doExp isconst e what'
+          | A.NO_INIT -> E.s (error "missing expression in cast")
+          | A.COMPOUND_INIT il -> begin
+              (* Pretend that we are declaring and initializing a local *)
+              let se1 = createLocal specs (("__constr_expr", dt, []), ie) in
+              (* Now pretend that e is just a reference to the newly created 
+               * varible *)
+              let se, e', t = 
+                doExp isconst (A.VARIABLE "__constr_expr") what' in
+              (* If typ is an array then the doExp above has already added a 
+               * StartOf. We must undo that now so that it is done once by 
+               * the finishExp at the end of this case *)
+              let e2, t2 = 
+                match unrollType typ, e' with
+                  TArray _, StartOf lv -> Lval lv, typ
+                | _, _ -> e', t
+              in
+              se1 @@ se, e2, t2
+          end
+        in
         let (t'', e'') = 
           match typ with
             TVoid _ when what = ADrop -> (t, e') (* strange GNU thing *)

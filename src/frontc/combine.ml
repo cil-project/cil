@@ -194,8 +194,8 @@ and combine_expression (exp : expression) : expression =
   | QUESTION (exp1, exp2, exp3) ->
       QUESTION(combine_expression exp1, 
                combine_expression exp2, combine_expression exp3)    
-  | CAST (typ, exp) ->
-      CAST(combine_only_type typ, combine_expression exp)     
+  | CAST (typ, iexp) ->
+      CAST(combine_only_type typ, combine_init_expression iexp)     
   | CALL (exp, args) ->
       CALL(combine_expression exp, combine_exps args)   
   | COMMA exps ->

@@ -494,11 +494,11 @@ and print_expression (exp : expression) (lvl : int) =
       space ();
       print ": ";
       print_expression exp3 2;
-  | CAST (typ, exp) ->
+  | CAST (typ, iexp) ->
       print "(";
       print_onlytype typ;
       print ")";
-      print_expression exp 15
+      print_init_expression iexp (* 15 *)
   | CALL (exp, args) ->
       print_expression exp 16;
       print "(";

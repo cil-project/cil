@@ -302,8 +302,10 @@ expression:
 		        { let labels, body = $2 in GNU_BODY (labels, body) }
 |		LPAREN comma_expression RPAREN
 		        {(smooth_expression $2)}
+/*
 |		LPAREN type_name RPAREN expression %prec CAST
 		        {CAST ($2, $4)}
+*/
 |		expression LPAREN opt_expression RPAREN
 			{CALL ($1, list_expression $3)}
 |		expression LBRACKET comma_expression RBRACKET
@@ -369,6 +371,8 @@ expression:
 |		expression SUP_SUP_EQ expression
 			{BINARY(SHR_ASSIGN ,$1 , $3)}
 |               EXTENSION expression  { $2 } 
+|		LPAREN type_name RPAREN init_expression
+		         { CAST($2, $4) }
 ;
 constant:
     CST_INT				{CONST_INT $1}
@@ -385,8 +389,11 @@ one_string:
 |   FUNCTION__                          {!currentFunctionName}
 |   PRETTY_FUNCTION__                   {!currentFunctionName}
 ;    
+
+/* (* Use the CAST precedence in the initializer expression to handle the 
+    * case when the init_expression is used in a CAST *) */
 init_expression:
-     expression         { SINGLE_INIT $1 }
+     expression         { SINGLE_INIT $1 } %prec CAST
 |    LBRACE initializer_list RBRACE
 			{ COMPOUND_INIT $2}
 

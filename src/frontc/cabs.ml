@@ -165,7 +165,9 @@ and expression =
   | UNARY of unary_operator * expression
   | BINARY of binary_operator * expression * expression
   | QUESTION of expression * expression * expression
-  | CAST of (spec_elem list * decl_type) * expression
+
+   (* A CAST can actually be a constructor expression *)
+  | CAST of (spec_elem list * decl_type) * init_expression
   | CALL of expression * expression list
   | COMMA of expression list
   | CONSTANT of constant
