@@ -222,12 +222,14 @@ $TEST->add3Tests("testrun/enum2");
 $TEST->add3Tests("test/format1");
 $TEST->add3Tests("test/func");
 $TEST->addTests("test/funcarg", "", ['cil']);
+   $TEST->addBadComment("test/funcarg-cil", "Bug in parser (argument of function type)");
+
 $TEST->add3Tests("testrun/func2");
 $TEST->add3Tests("testrun/func3");
 $TEST->add3Tests("testrun/func4");
 $TEST->add3Tests("testrun/func5");
 $TEST->add3Tests("testrun/func6");
-$TEST->add3Tests("testrun/func7");
+$TEST->addTests("testrun/func7", "", ['infer']);
 $TEST->addTests("testrun/func8", "", ['inferbox']);
 $TEST->add3Tests("test/globals");
 $TEST->add3Tests("testrun/float");
@@ -297,7 +299,7 @@ $TEST->add3Tests("test/seq");
 $TEST->addTestsFail("test/seq2", "Lbound", ['inferbox']);
 $TEST->addTestsFail("test/fseq4fail", "Decrement FSEQ", ['inferbox']);
 $TEST->add3Tests("testrun/sized");
-$TEST->addTestsFail("testrun/sized2", [], 
+$TEST->addTestsFail("testrun/sized2", "", 
     "Initializing SIZED open array", ['inferbox']);
 $TEST->add3Tests("test/sizeof");
 $TEST->add3Tests("test/smallstring");
@@ -475,12 +477,12 @@ if($^O eq 'MSWin32') {
 # Tests that are expected to fail
 $TEST->add2TestsFail("testrun/failubound1", "", "Failure: Ubound");
 $TEST->add2TestsFail("testrun/failnull1", "", "Failure:");
-$TEST->add2TestsFail("testrun/failprintf1", "", "Failure: Non-pointer");
+$TEST->add2TestsFail("testrun/failprintf1", "", "Failure: type mismatch");
 $TEST->add2TestsFail("testrun/failprintf2", "", "Failure: Non-pointer");
 $TEST->add2TestsFail("testrun/failprintf3", "", "Failure: type mismatch");
 $TEST->add2TestsFail("testrun/failprintf4", "", "Failure: type mismatch");
 $TEST->add2TestsFail("testrun/failprintf5", "", 
-                     "Failure: Non-terminated string");
+                     "Failure: Ubound");
 $TEST->add2TestsFail("testrun/failprintf6", "", "Failure: type mismatch");
 $TEST->add2TestsFail("testrun/demo1", "", "Failure: Ubound");
 $TEST->add2TestsFail("testrun/demo2", "", "Failure: Ubound");

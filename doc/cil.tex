@@ -121,7 +121,8 @@ the CIL sources.
  CIL is relatively independent on the underlying machine and compiler. When
 you build it CIL will configure itself according to the underlying compiler.
 However, CIL has only been tested on Intel x86 using the gcc compiler on Linux
-and cygwin and using the MS Visual C compiler. 
+and cygwin and using the MS Visual C compiler. (See below for specific
+versions of these compilers that we have used CIL for.)
 
  The largest application we have used CIL for is
 \ahref{../ccured/index.html}{CCured}, a compiler that compiles C code into
@@ -175,15 +176,25 @@ You can control its actions by passing the following arguments:
 whichever version is in the PATH is used.
 \end{itemize}
 
- CIL requires an underlying C compiler and preprocessor. It has been tested
-with Microsoft Visual C and the GNU C compilers versions 2.95.3 and 3.0. The
-installation procedure for CIL queries the underlying compiler for architecture
-and compiler dependent configuration parameters, such as the size of a pointer
-or the particular alignment rules for structure fields. CIL is also dependent
-on the way the compiler implements variable argument functions. The version
-2.96 of the GNU C compiler uses an implementation of variable argument
-functions that is not supported in CIL (and we do not plan to support it since
-it has been superseded by the scheme used by GNU C version 3.0).
+ CIL requires an underlying C compiler and preprocessor. CIL depends on the
+underlying compiler and machine for the sizes and alignment of types.The
+installation procedure for CIL queries the underlying compiler for
+architecture and compiler dependent configuration parameters, such as the size
+of a pointer or the particular alignment rules for structure fields. (This
+means, of course, that you should re-run \t{./configure} when you move CIL to
+another machine.)
+
+ CIL also depends on how the compiler implements the variable argument
+functions. Most notably, {\bf Note: CIL does not work with gcc version 2.96
+because of the way in which it implements varargs.}. We have tested CIL on the
+following compilers:
+
+\begin{itemize}
+\item On Windows, \t{cl} compiler version 12.00.8168 and 13.00.9466. 
+Run \t{cl} with no arguments to get the compiler version. 
+\item On Windows, using \t{cygwin} and \t{gcc} version 2.95.3 and 3.0.4.
+\item On Linux, using \t{gcc} version 2.95.3, 3.0 and 3.2.
+\end{itemize}
 
 The file \ahrefurl{distrib/cil-\cilversion.tar.gz} 
 contains the complete source CIL distribution, 

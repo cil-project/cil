@@ -256,13 +256,15 @@ let markPragmaRoots keepers file =
 	    trace "usedType" (dprintf "marking root (pragma): typedef %s\n" name);
 	    info.treferenced <- true
 	  end
-    | GEnumTag ({ename = name} as info, _) ->
+    | GEnumTag ({ename = name} as info, _)
+    | GEnumTagDecl ({ename = name} as info, _) ->
 	if H.mem keepers.enums name then
 	  begin
 	    trace "usedType" (dprintf "marking root (pragma): enum %s\n" name);
 	    info.ereferenced <- true
 	  end
-    | GCompTag ({cname = name; cstruct = structure} as info, _) ->
+    | GCompTag ({cname = name; cstruct = structure} as info, _)
+    | GCompTagDecl ({cname = name; cstruct = structure} as info, _) ->
 	let collection = if structure then keepers.structs else keepers.unions in
 	if H.mem collection name then
 	  begin
@@ -270,6 +272,7 @@ let markPragmaRoots keepers file =
 	    info.creferenced <- true
 	  end
     | GVar ({vname = name} as info, _, _)
+    | GVarDecl ({vname = name} as info, _)
     | GFun ({svar = {vname = name} as info}, _) ->
 	if H.mem keepers.defines name then
 	  begin
