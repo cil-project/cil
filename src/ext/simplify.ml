@@ -229,7 +229,7 @@ and simplifyOffset (setTemp: taExp -> bExp) = function
       Index(ei', simplifyOffset setTemp off)
 
 
-      
+
 
 (** This is a visitor that will turn all expressions into three address code *)
 class threeAddressVisitor (fi: fundec) = object (self)
@@ -423,8 +423,6 @@ class splitStructVisitor (fi: fundec) = object (self)
 end
 *)
 
-let dontSplit = ref false
-
 (* Whether to split the arguments of functions *)
 let splitArguments = true
 
@@ -545,11 +543,25 @@ class findVarsCantSplitClass : cilVisitor = object (self)
 end
 let findVarsCantSplit = new findVarsCantSplitClass
 
+let isVar lv =
+  match lv with 
+      (Var v, NoOffset) -> true
+    | _ -> false
 
 
-
-class splitVarVisitorClass : cilVisitor = object (self)
+class splitVarVisitorClass(func:fundec option) : cilVisitor = object (self)
   inherit nopCilVisitor
+
+  method private makeTemp (e1: exp) : exp = 
+    let fi:fundec = match func with
+        Some f -> f
+      | None -> 
+          E.s (bug "You can't create a temporary if you're not in a function.")
+    in
+    let t = makeTempVar fi (typeOf e1) in
+    (* Add this instruction before the current statement *)
+    self#queueInstr [Set(var t, e1, !currentLoc)];
+    Lval(var t)
 
 
   (* We must process the function types *)
@@ -631,38 +643,51 @@ class splitVarVisitorClass : cilVisitor = object (self)
          * assign it to something *)
   method vinst (i: instr) : instr list visitAction = 
     match i with
-      (* Split into two instructions and then do children. Howver, v._p might 
-       * appear in the lv and if we duplicate the instruction we might get 
-       * bad results. To fix this problem we make sure that the update to _p 
-       * happens last. Other fields of v should not appear in lv. *)
+      (* Split into several instructions and then do children inside
+       * the rhs.  Howver, v might appear in the rhs and if we
+       * duplicate the instruction we might get bad
+       * results. (e.g. test/small1/simplify_Structs2.c). So first copy
+       * the rhs to temp variables, then to v. 
+       *
+       * Optimization: if the rhs is a variable, skip the temporary vars.
+       * Either the rhs = lhs, in which case this is all a nop, or it's not, 
+       * in which case the rhs and lhs don't overlap.*)
+
       Set ((Var v, NoOffset), Lval lv, l) when H.mem newvars v.vname -> begin
-        match H.find newvars v.vname with
-          fst :: rest -> 
-            ChangeTo 
-              (List.map 
-                 (fun (off, newv) ->  
-                   let lv' = 
-                     visitCilLval (self :> cilVisitor)
-                       (addOffsetLval off lv) in
-                   Set((Var newv, NoOffset), Lval lv', l))
-                 (rest @ [fst]))
-        | _ -> E.s (errorLoc l "No first field (in splitFats)")
+        let needTemps = not (isVar lv) in
+        let vars4v = H.find newvars v.vname in
+        if vars4v = [] then E.s (errorLoc l "No fields in split struct");
+        ChangeTo 
+          (List.map 
+             (fun (off, newv) ->  
+                let lv' = 
+                  visitCilLval (self :> cilVisitor)
+                    (addOffsetLval off lv) in
+                (* makeTemp creates a temp var and puts (Lval lv') in it,
+                   before any instructions in this ChangeTo list are handled.*)
+                let lv_tmp = if needTemps then
+                               self#makeTemp (Lval lv') 
+                             else 
+                               (Lval lv')
+                in
+                Set((Var newv, NoOffset), lv_tmp, l))
+             vars4v)
       end 
  
-      | Set (lv, Lval (Var v, NoOffset), l) when H.mem newvars v.vname ->
-          begin
-            match H.find newvars v.vname with
-              fst :: rest -> 
-                ChangeTo  
-                  (List.map 
-                     (fun (off, newv) -> 
-                       let lv' = 
-                         visitCilLval (self :> cilVisitor)
-                           (addOffsetLval off lv) in
-                       Set(lv', Lval (Var newv, NoOffset), l))
-                     (rest @ [fst]))
-            | _ -> E.s (errorLoc l "No first field (in splitFats)")
-          end 
+      | Set (lv, Lval (Var v, NoOffset), l) when H.mem newvars v.vname -> begin
+          (* Split->NonSplit assignment.  no overlap between lhs and rhs 
+             is possible*)
+          let vars4v = H.find newvars v.vname in
+          if vars4v = [] then E.s (errorLoc l "No fields in split struct");
+          ChangeTo  
+            (List.map 
+               (fun (off, newv) -> 
+                  let lv' = 
+                    visitCilLval (self :> cilVisitor)
+                      (addOffsetLval off lv) in
+                  Set(lv', Lval (Var newv, NoOffset), l))
+               vars4v)
+        end 
 
         (* Split all function arguments in calls *)
       | Call (ret, f, args, l) when splitArguments ->
@@ -774,8 +799,6 @@ class splitVarVisitorClass : cilVisitor = object (self)
     | _ -> DoChildren
 end
 
-let splitVarVisitor = new splitVarVisitorClass
-    
 let doGlobal = function 
     GFun(fi, _) ->  
       (* Visit the body and change all expressions into three address code *)
@@ -783,17 +806,15 @@ let doGlobal = function
       fi.sbody <- visitCilBlock v fi.sbody;
       if !splitStructs then begin
         H.clear dontSplitLocals;
-        if not !dontSplit then begin
-          ignore (visitCilFunction splitVarVisitor fi);
-        end;
+        let splitVarVisitor = new splitVarVisitorClass (Some fi) in    
+        ignore (visitCilFunction splitVarVisitor fi);
       end
   | GVarDecl(vi, _) when isFunctionType vi.vtype ->
       (* we might need to split the args/return value in the function type. *)
       if !splitStructs then begin
         H.clear dontSplitLocals;
-        if not !dontSplit then begin
-          ignore (visitCilVarDecl splitVarVisitor vi);
-        end;
+        let splitVarVisitor = new splitVarVisitorClass None in    
+        ignore (visitCilVarDecl splitVarVisitor vi);
       end
   | _ -> ()
       

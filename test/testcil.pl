@@ -628,8 +628,11 @@ $TEST->add2Tests("testrun/stringsize");
 #fixed:    $TEST->addBadComment("testrun/stringsize-cil", "CIL doesn't handle sizeof( \"string literal\" ) correcly.");
 #fixed:    $TEST->addBadComment("testrun/stringsize-inferbox", "CIL doesn't handle sizeof( \"string literal\" ) correcly.");
 
-$TEST->addTests("test/simplify_structs1", "USECILLY=1 EXTRAARGS=--dosimplify",
-                ['cil']);
+$TEST->addTests("test/simplify_structs1", 
+                "USECILLY=1 EXTRAARGS=--dosimplify",  ['cil']);
+$TEST->addTests("testrun/simplify_structs2", 
+                "USECILLY=1 EXTRAARGS=--dosimplify",  ['cil']);
+
 $TEST->addTests("testrun/typeof1", "", ['cil']);
 $TEST->addTests("testrun/semicolon", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/oom", "", ['inferbox']);
