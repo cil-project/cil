@@ -174,8 +174,10 @@ $TEST->addTests("test/compat1", "", ['inferbox']);
 $TEST->addTests("testrun/compat2", "", ['inferbox']);
 $TEST->addTests("testrun/pointsto", "", ['inferbox']);
 $TEST->addTests("testrun/trusted1", "", ['inferbox']);
-$TEST->addTests("testrun/hostent", "", ['inferbox', 'slow']);
-$TEST->addTests("testrun/hostent2", "", ['inferbox', 'slow']);
+$TEST->addTests("testrun/hostent", "", ['inferbox'],
+                Group => [ 'slow' ]);
+$TEST->addTests("testrun/hostent2", "", ['inferbox'],
+                Group => [ 'slow' ] );
 $TEST->add3Tests("btreetest");
    $TEST->add3Group("btreetest", "slow");
 $TEST->add3Tests("hashtest");
@@ -307,7 +309,9 @@ $TEST->add2Tests("testrun/perror");
 $TEST->add2Tests("testrun/perror1");
 $TEST->add2Tests("test/pure");
 $TEST->add3Tests("test/pointers");
-$TEST->add3Tests("testrun/post-assign");
+$TEST->addTests("testrun/post-assign", "", ['cil']);
+   $TEST->addBadComment("testrun/post-assign-cil", 
+                        "CIL does not have the same evaluation order for ++ as gcc");
 $TEST->add3Tests("test/printf", "", @runpattern);
 $TEST->add3Tests("test/printf_const", "", @runpattern);
 $TEST->add3Tests("testrun/printf2");
@@ -370,7 +374,8 @@ $TEST->addTests("testrun/scope11", "", ['cil']);
 $TEST->add3Tests("test/voidstar");
 $TEST->add3Tests("testrun/memcpy1");
 $TEST->add3Tests("testrun/memset1");
-$TEST->addTests("testrun/memcpy2", "", ['inferbox', 'slow']);
+$TEST->addTests("testrun/memcpy2", "", ['inferbox'],
+                Group => [ 'slow' ]);
 $TEST->add3Tests("testrun/poly1");
 $TEST->add3Tests("testrun/poly2");
 $TEST->add3Tests("testrun/poly3");
@@ -437,7 +442,8 @@ $TEST->addTests("test-bad-wrapper/wrapper1", "", ['inferbox']);
 $TEST->addTests("test-bad-wrapper/wrapper2", "", ['inferbox']);
 $TEST->addTests("test-bad-crypt/crypt", "", ['inferbox']);
 $TEST->addTests("testrun/decl1", "_GNUCC=1", ['cil']);
-$TEST->addTests("wes-hashtest", "", ['cil', 'inferbox', 'slow']);
+$TEST->addTests("wes-hashtest", "", ['cil', 'inferbox'], 
+                Group => [ 'slow' ]);
 $TEST->add3Tests("wes-rbtest", "");
   $TEST->add3Group("wes-rbtest", "slow");
 $TEST->addTests("test/alloc", "MANUALBOX=1", ['inferbox']);
@@ -532,9 +538,11 @@ $TEST->addTests("testrun/rmtmps-attr", "", ['cil']);
  
 $TEST->add3Tests("testrun/vsp");
 $TEST->addTests("testrun/vsp1", "", ['inferbox']);
-$TEST->addTests("testrun/strtoul", "", ['inferbox', 'slow']);
+$TEST->addTests("testrun/strtoul", "", ['inferbox'], Group => [ 'slow']);
+
 $TEST->addTests("test/bind-formatstring", "EXTRAARGS=--assumePrintf",
-                ['inferbox', "slow"]);
+                ['inferbox'],
+                Group => [ 'slow' ]);
 $TEST->addTests("test/bind-empty-chain", "", ['inferbox']);
 $TEST->addTests("test/bind-safe-wild", "EXTRAARGS=--assumePrintf", ['inferbox']);
 $TEST->addTests("test/bind-zero", "EXTRAARGS=--assumePrintf", ['inferbox']);
