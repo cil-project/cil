@@ -151,7 +151,8 @@ let fundecToCFGInfo (fdec: fundec) : S.cfgInfo =
   
   
   let ci = 
-    { S.start = start.sid;
+    { S.name  = fdec.svar.vname;
+      S.start = start.sid;
       S.size  = !count;
       S.successors = Array.make !count [];
       S.predecessors = Array.make !count [];
@@ -319,7 +320,8 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
       let freshId = 
         try IH.find state v.vid
         with Not_found -> 
-          E.s (E.bug "varRenameState does not know anything about %s" v.vname)
+          E.s (E.bug "%a: varUse: varRenameState does not know anything about %s" 
+                 d_loc !currentLoc v.vname )
       in
       if freshId = 0 then 
         v.vname
@@ -361,26 +363,36 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
               Lval (Var f, NoOffset), args, _)  when considerVariable v -> 
           let gwt: varinfo list = getGlobalsWrittenTransitive f in
           let grt: varinfo list = getGlobalsReadTransitive f in
+          (* Prepare the arguments first *)
+          let argdoc: doc = 
+            (docList ~sep:break (self#pExp ())) 
+              ()
+              (args @ (List.map (fun v -> Lval (Var v, NoOffset)) grt))
+          in 
           dprintf "%a = (%s @[%a@]);"
             (docList 
                (fun v -> 
                  text (self#variableDef varRenameState v)))
-            (v :: gwt)
+            (gwt @ [v])
             f.vname
-            (docList ~sep:break (self#pExp ())) 
-            (args @ (List.map (fun v -> Lval (Var v, NoOffset)) grt))
+            insert argdoc
             
       | Call (None, Lval (Var f, NoOffset), args, _) -> 
           let gwt: varinfo list = getGlobalsWrittenTransitive f in
           let grt: varinfo list = getGlobalsReadTransitive f in
+          (* Prepare the arguments first *)
+          let argdoc: doc = 
+            (docList ~sep:break (self#pExp ())) 
+              ()
+              (args @ (List.map (fun v -> Lval (Var v, NoOffset)) grt))
+          in 
           dprintf "%a = (%s @[%a@]);"
             (docList 
                (fun v -> 
                  text (self#variableDef varRenameState v)))
             gwt
             f.vname
-            (docList ~sep:break (self#pExp ())) 
-            (args @ (List.map (fun v -> Lval (Var v, NoOffset)) grt))
+            insert argdoc
             
       | _ -> nil (* Ignore the other instructions *)        
             
@@ -477,7 +489,7 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
             match what with 
               None -> gwt
             | Some (Lval (Var v, NoOffset)) when v.vname = "__retres" -> 
-                v :: gwt
+                gwt @ [ v ]
             | Some _ -> E.s (E.bug "Return with no __retres")
           in
           ignore (p ~ind:ind
@@ -598,15 +610,16 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
         (* The header *)
         pd (self#pLineDirective ~forcefile:true l); 
 
-        ignore (p "<function %s\n  <formals %a>\n  <globalsreadtransitive %a>\n  <locals %a>\n  <globalsread %a>\n  <globalswritten %a>\n  <globalswrittentransitive %a>\n  <calls %a>\n  <calledby %a>\n  %a"
+        ignore (p "<function %s\n  <formals %a>\n  <globalsreadtransitive %a>\n  <globalswrittentransitive %a>\n  <locals %a>\n  <globalsread %a>\n  <globalswritten %a>\n  <calls %a>\n  <calledby %a>\n  %a"
           fdec.svar.vname
           (docList (fun v -> text v.vname)) fdec.sformals
-          (d_list "," (fun () (_, v) -> text v.vname)) 
-                  (IH.tolist glob_read_trans)
+          (d_list "," (fun () v -> text v.vname)) 
+                  (getGlobalsReadTransitive fdec.svar)
+          (d_list "," (fun () v -> text v.vname)) 
+                  (getGlobalsWrittenTransitive fdec.svar)
           (docList text) freshVars
           (d_list "," (fun () (_, v) -> text v.vname)) (IH.tolist glob_read)
           (d_list "," (fun () (_, v) -> text v.vname)) (IH.tolist glob_written)
-          (d_list "," (fun () (_, v) -> text v.vname)) (IH.tolist glob_written_trans)
           (U.docHash (fun k _ -> text k)) cg_node.CG.cnCallees
           (U.docHash (fun k _ -> text k)) cg_node.CG.cnCallers
           (docList ~sep:line
@@ -806,7 +819,8 @@ let feature : featureDescr =
           incr nrNodes) graph;
 
       let ci: S.cfgInfo = 
-        { S.start = !mainNode;
+        { S.name = "call-graph";
+          S.start = !mainNode;
           S.size = !nrNodes;
           S.successors = Array.make !nrNodes [];
           S.predecessors = Array.make !nrNodes [];

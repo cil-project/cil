@@ -30,6 +30,7 @@ module IntSet = Set.Make (IntOrder)
 
 
 type cfgInfo = {
+    name: string; (* The function name *)
     start   : int;          
     size    : int;    
     blocks: cfgBlock array; (** Dominating blocks must come first *)
@@ -381,7 +382,7 @@ let add_ssa_info (f: cfgInfo): unit =
     dprintf "%s(%d)" f.regToVarinfo.(r).vname r
   in
   if debug then begin
-    ignore (E.log "Doing SSA. Initial data:\n");
+    ignore (E.log "Doing SSA for %s. Initial data:\n" f.name);
     Array.iteri (fun i b -> 
       ignore (E.log " block %d:\n    succs=@[%a@]\n    preds=@[%a@]\n   instr=@[%a@]\n"
                 i

@@ -35,7 +35,12 @@ class useDefVisitorClass : cilVisitor = object (self)
   (* For function calls, do the transitive variable read/defs *)
   method vinst = function
       Call (_, f, _, _) -> begin
-
+        (* we will call DoChildren to compute the use and def that appear in 
+         * this instruction. We also add in the stuff computed by 
+         * getUseDefFunctionRef *)
+        let use, def = !getUseDefFunctionRef f in
+        varUsed := VS.union !varUsed use;
+        varDefs := VS.union !varDefs def;
         DoChildren;
       end
     | _ -> DoChildren

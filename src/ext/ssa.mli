@@ -1,4 +1,5 @@
 type cfgInfo = {
+    name: string; (* The function name *)
     start   : int;          
     size    : int;    
     blocks: cfgBlock array; (** Dominating blocks must come first *)
