@@ -5375,7 +5375,8 @@ let rec xform_switch_stmt s break_dest cont_dest label_index = begin
               out this might confuse someone down the line who doesn't have
               special handling for if(1) into thinking that there are two
               paths here. The simpler 'goto label' is what we want. *) 
-              Goto(ref stmt_hd,dl)
+              Block(mkBlock [ mkStmt (Goto(ref stmt_hd,dl)) ;
+                              mkStmt (handle_labels lab_tl) ])
           | Label(_,_,_) :: lab_tl -> handle_labels lab_tl
         end in
         handle_labels stmt_hd.labels
