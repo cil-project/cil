@@ -122,6 +122,7 @@ $TEST->add3Tests("test/format1");
 $TEST->add3Tests("test/func");
 $TEST->add3Tests("testrun/func2");
 $TEST->add3Tests("testrun/func3");
+$TEST->add3Tests("testrun/func4");
 $TEST->add3Tests("test/globals");
 $TEST->add3Tests("test/huff1");
   $TEST->addBadComment("test/huff1-box", "pragma box misuse");
@@ -196,6 +197,16 @@ $TEST->add3Tests("perimeter");
    $TEST->add3Group("perimeter", "olden");
 $TEST->add3Tests("tsp");
    $TEST->add3Group("tsp", "olden");
+$TEST->add3Tests("bisort");
+   $TEST->add3Group("bisort", "olden", "bad");
+$TEST->add3Tests("mst");
+   $TEST->add3Group("mst", "olden");
+   $TEST->addBadComment("mst-inferbox", "UBOUND");
+   $TEST->addBadComment("mst-box", "UBOUND");
+$TEST->add3Tests("em3d");
+   $TEST->add3Group("em3d", "olden", "bad");
+$TEST->add3Tests("treeadd");
+   $TEST->add3Group("treeadd", "olden");
 
 #
 # SPEC95

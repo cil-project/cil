@@ -1342,13 +1342,15 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
         in
         exitScope ();
         (* Turn [] types into pointers in the arguments and the result type. 
-         * This simplifies our life a lot  *)
+         * Turn function types into pointers to respective. This simplifies 
+         * our life a lot *)
         let rec fixupArgumentTypes (argidx: int) (args: varinfo list) : unit = 
           match args with
             [] -> ()
           | a :: args' -> 
               (match unrollType a.vtype with
                 TArray(t,_,attr) -> a.vtype <- TPtr(t, attr)
+              | TFun _ -> a.vtype <- TPtr(a.vtype, [])
               | TComp (comp, _) as t -> begin
                   match isTransparentUnion a.vtype with
                     None ->  ()
