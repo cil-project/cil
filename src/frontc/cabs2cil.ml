@@ -296,11 +296,6 @@ module BlockChunk =
         postins: (instr * location) list; (* Some instructions to append at 
                                            * the ends of statements (in 
                                            * reverse order)  *)
-(*
-        fixbreak: stmt -> unit;         * A function that will fix all the 
-                                         * Goto due to Break statements *
-        fixcont: stmt -> unit;          * Same for Continue statements *
-*)
                                         (* A list of case statements at the 
                                          * outer level *)
         cases: (label * stmt) list
@@ -331,7 +326,7 @@ module BlockChunk =
 
           | a :: rest -> a :: toLast rest
         in
-        toLast c.stmts
+        compactBlock (toLast c.stmts)
 
 
     (* Add an instruction at the end. Never refer to this instruction again 
@@ -344,10 +339,6 @@ module BlockChunk =
     let (@@) (c1: chunk) (c2: chunk) = 
       { stmts = compactBlock (pushPostIns c1 @ c2.stmts);
         postins = c2.postins;
-(*
-        fixbreak = (fun b -> c1.fixbreak b; c2.fixbreak b);
-        fixcont = (fun b -> c1.fixcont b; c2.fixcont b); 
-*)
         cases = c1.cases @ c2.cases;
       } 
 
@@ -356,10 +347,6 @@ module BlockChunk =
     let returnChunk (e: exp option) (l: location) : chunk = 
       { stmts = [ mkStmt (Return(e, l)) ];
         postins = [];
-(*
-        fixcont = (fun _ -> ());
-        fixbreak = (fun _ -> ());
-*)
         cases = []
       }
 
@@ -367,10 +354,6 @@ module BlockChunk =
       
       { stmts = [ mkStmt(If(be, pushPostIns t, pushPostIns e, l))];
         postins = [];
-(*
-        fixbreak = (fun b -> t.fixbreak b; e.fixbreak b);
-        fixcont = (fun b -> t.fixcont b; e.fixcont b);
-*)
         cases = t.cases @ e.cases;
       } 
 
@@ -396,41 +379,18 @@ module BlockChunk =
     let loopChunk (body: chunk) : chunk = 
       (* Make the statement *)
       let loop = mkStmt (Loop (pushPostIns body, lu)) in
-      (* Fix the continue statements 
-      body.fixcont loop; *)
-      (* Now add a new statement at the end as the target of break 
-      let n = mkEmptyStmt () in
-      body.fixbreak n; *)
       { stmts = [ loop (* ; n *) ];
         postins = [];
-(*        fixbreak = (fun b -> ());
-        fixcont = (fun b -> ()); *)
         cases = body.cases;
       } 
       
     let breakChunk (l: location) : chunk = 
-      (* Make a statement reference
-      let bref = ref dummyStmt in
-      { stmts = [ mkStmt (Goto (bref, l)) ];
-        postins = [];
-        fixbreak = (fun b -> bref := b);
-        fixcont  = (fun c -> ());
-        cases = [];
-      }  *)
       { stmts = [ mkStmt (Break l) ];
         postins = [];
         cases = [];
       } 
       
     let continueChunk (l: location) : chunk = 
-      (* Make a statement reference 
-      let bref = ref dummyStmt in
-      { stmts = [ mkStmt (Goto (bref, l)) ];
-        postins = [];
-        fixcont = (fun b -> bref := b);
-        fixbreak  = (fun c -> ());
-        cases = [];
-      } *)
       { stmts = [ mkStmt (Continue l) ];
         postins = [];
         cases = []
@@ -490,10 +450,6 @@ module BlockChunk =
       addGoto ln gref;
       { stmts = [ mkStmt (Goto (gref, l)) ];
         postins = [];
-(*
-        fixbreak = (fun b -> ());
-        fixcont = (fun b -> ());
-*)
         cases = [];
       }
 
@@ -515,15 +471,8 @@ module BlockChunk =
       let switch = mkStmt (Switch (e, pushPostIns body, 
                                    List.map (fun (_, s) -> s) body.cases, 
                                    l)) in
-      (* Now add a new statement at the end as the target of break
-      let n = mkEmptyStmt () in
-      body.fixbreak n; *)
       { stmts = [ switch (* ; n *) ];
         postins = [];
-(*
-        fixbreak = (fun b -> ());
-        fixcont = body.fixcont;
-*)
         cases = [];
       } 
 
@@ -777,8 +726,8 @@ let makeGlobalVarinfo (vi: varinfo) =
 
 
 (**** PEEP-HOLE optimizations ***)
-let afterConversion (s: chunk) : chunk = 
-(*
+let afterConversion (c: chunk) : chunk = 
+  (* Now scan the statements and find Instr blocks *)
   let collapseCallCast = function
       Call(Some(vi, false), f, args),
       Set((Var destv, NoOffset), 
@@ -790,9 +739,10 @@ let afterConversion (s: chunk) : chunk =
       -> Some [Call(Some(destv, true), f, args)]
     | _ -> None
   in
-  s2c (peepHole2 collapseCallCast s)
-*)
-  s
+  (* First add in the postins *)
+  let sl = pushPostIns c in
+  peepHole2 collapseCallCast sl;
+  { c with stmts = sl; postins = [] }
 
 let rec makeVarInfo (isglob: bool) 
                 (ldecl: location)

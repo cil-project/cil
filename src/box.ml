@@ -195,15 +195,6 @@ let prefix p s =
   let ls = String.length s in
   lp <= ls && String.sub s 0 lp = p
 
-let rec isZero = function
-    Const(CInt(0, _, _)) -> true
-  | CastE(_, e) -> isZero e
-  | _ -> false
-
-let rec isInteger = function
-  | Const(CInt _) -> true
-  | CastE(_, e) -> isInteger e
-  | _ -> false
 
   (* We collect here the new file *)
 let theFile : global list ref = ref []
@@ -928,6 +919,8 @@ and addArraySize t =
         match unrollType t with
 	  TArray(bt, None, a) -> TArray(bt, Some zero, 
                                         addAttribute (AId("sized")) a)
+        | TArray(bt, Some z, a) when isZero z -> 
+            TArray(bt, Some z, addAttribute (AId("sized")) a)
         | TComp ci when ci.cfields = [] -> TArray(charType, Some zero, 
                                                   [AId("sized")])
         | _ -> 
@@ -980,9 +973,10 @@ and tagType (t: typ) : typ =
 	let complt = 
 	  match unrollType t with
 	    TArray(bt, None, a) -> TArray(bt, Some zero, a)
+	  | TArray(bt, Some z, a) when isZero z -> t
 	  | TComp ci when ci.cfields = [] -> TArray(charType, Some zero, [])
-	  | _ -> E.s (E.unimp "Don't know how to tag incomplete type %a" 
-                        d_plaintype t)
+	  | _ -> t (* E.s (E.unimp "Don't know how to tag incomplete type %a" 
+                        d_plaintype t) *)
 	in
         TComp 
           (mkCompInfo true ""
@@ -1476,12 +1470,23 @@ let stringLiteral (s: string) (strt: typ) =
   | N.Seq | N.Safe | N.FSeq | N.String | N.ROString | N.SeqN | N.FSeqN -> 
       let l = (if k = N.FSeqN || k = N.SeqN then 0 else 1) + String.length s in
       let tmp = makeTempVar !currentFunction charPtrType in
-            (* Make it a SEQ for now *)
+      (* Make it a SEQ for now *)
+      let theend = BinOp(IndexPI, Lval (var tmp), integer l, charPtrType) in
       let res = 
-        mkFexp3  fixChrPtrType 
-          (Lval (var tmp))
-          (BinOp(IndexPI, Lval (var tmp), integer l, charPtrType)) 
-          (Lval (var tmp))
+        match k with 
+          N.Safe | N.String | N.ROString -> 
+            mkFexp1 fixChrPtrType (Lval (var tmp))
+        | N.FSeq | N.FSeqN -> 
+            mkFexp2  fixChrPtrType 
+              (Lval (var tmp))
+              theend 
+        | N.Seq | N.SeqN -> 
+            mkFexp3  fixChrPtrType 
+              (Lval (var tmp))
+              (Lval (var tmp))
+              theend 
+
+        | _ -> E.s (E.bug "stringLiteral")
       in
       ([mkSet (var tmp) (Const (CStr s))], res)
         
@@ -1679,7 +1684,7 @@ let castTo (fe: fexp) (newt: typ)
             ignore (E.warn "Casting scalar (%a) to pointer in %s!"
                       d_exp p !currentFunction.svar.vname);
           let newbase, doe' = 
-            if !interceptCasts && not (isInteger p) then begin
+            if !interceptCasts && (isInteger p = None) then begin
               incr interceptId;
               let tmp = makeTempVar !currentFunction voidPtrType in
               Lval(var tmp),
@@ -2716,7 +2721,7 @@ and boxexpf (e: exp) : stmt list * fexp =
     | Const ((CChr _)) -> ([], L(charType, N.Scalar, e))
     | Const (CReal (_, fk, _)) -> ([], L(TFloat(fk, []), N.Scalar, e))
 
-     (* All strings appear behing a CastE. The pointer node in the CastE 
+     (* All strings appear behind a CastE. The pointer node in the CastE 
       * tells us how to represent the string *)
     | CastE ((TPtr(TInt(IChar, _), a) as strt), 
              Const (CStr s)) -> stringLiteral s strt

@@ -544,7 +544,13 @@ let zero      = integer 0
 let one       = integer 1
 let mone      = integer (-1)
 
+let rec isInteger = function
+  | Const(CInt (n,_,_)) -> Some n
+  | CastE(_, e) -> isInteger e
+  | _ -> None
         
+
+let rec isZero (e: exp) : bool = isInteger e = Some 0
 
 let voidType = TVoid([])
 let intType = TInt(IInt,[])
@@ -1868,32 +1874,60 @@ end
 
 
 (******************** OPTIMIZATIONS *****)
-let peepHole1     (* Process one statement and possibly replace it *)
-                    (doone: instr -> instr list option)
-                    (ss: instr list) : instr list = 
-  let rec loop = function
-      [] -> []
-    | s :: rest -> begin
-        match doone s with
-          None -> s :: loop rest
-        | Some sl -> loop (sl @ rest)
-    end
-  in
-  loop ss
+let rec peepHole1 (* Process one statement and possibly replace it *)
+                  (doone: instr -> instr list option)
+                  (* Scan a block and recurse inside nested blocks *)
+                  (b: block) : unit = 
+  List.iter 
+    (fun s -> 
+      match s.skind with
+        Instr il -> 
+          let rec loop = function
+              [] -> []
+            | (i,l) :: rest -> begin
+                match doone i with
+                  None -> (i,l) :: loop rest
+                | Some sl -> 
+                    let sl' = List.map (fun i -> (i, l)) sl in
+                    loop sl' @ rest
+            end
+          in
+          s.skind <- Instr (loop il)
+      | If (e, tb, eb, _) -> 
+          peepHole1 doone tb;
+          peepHole1 doone eb
+      | Switch (e, b, _, _) -> peepHole1 doone b
+      | Loop (b, l) -> peepHole1 doone b
+      | Return _ | Goto _ | Break _ | Continue _ -> ())
+    b
 
-let peepHole2     (* Process two statements and possibly replace them both *)
-                    (dotwo: instr * instr -> instr list option)
-                    (ss: instr list) : instr list = 
-  let rec loop = function
-      [] -> []
-    | [s] -> [s]
-    | s1 :: ((s2 :: rest) as rest2) -> begin
-        match dotwo (s1,s2) with
-          None -> s1 :: loop rest2
-          | Some sl -> loop (sl @ rest)
-    end
-  in
-  loop ss
+let rec peepHole2  (* Process two statements and possibly replace them both *)
+                   (dotwo: instr * instr -> instr list option)
+                   (b: block) : unit = 
+  List.iter 
+    (fun s -> 
+      match s.skind with
+        Instr il -> 
+          let rec loop = function
+              [] -> []
+            | [i] -> [i]
+            | ((i1, l1) as s1) :: ((((i2, l2) as s2) :: rest) as rest2) -> 
+                begin
+                  match dotwo (i1,i2) with
+                    None -> s1 :: loop rest2
+                  | Some sl -> 
+                      let sl' = List.map (fun i -> (i, l1)) sl in
+                      loop (sl' @ rest)
+                end
+          in
+          s.skind <- Instr (loop il)
+      | If (e, tb, eb, _) -> 
+          peepHole2 dotwo tb;
+          peepHole2 dotwo eb
+      | Switch (e, b, _, _) -> peepHole2 dotwo b
+      | Loop (b, l) -> peepHole2 dotwo b
+      | Return _ | Goto _ | Break _ | Continue _ -> ())
+    b
 
 
 
@@ -2293,6 +2327,7 @@ let foldLeftCompound (doexp: offset -> exp -> typ -> 'a -> 'a)
 let rec isCompleteType t =
   match unrollType t with
   | TArray(t, None, _) -> false
+  | TArray(t, Some z, _) when isZero z -> false
   | TComp comp -> (* Struct or union *)
       List.for_all (fun fi -> isCompleteType fi.ftype) comp.cfields
   | _ -> true

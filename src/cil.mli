@@ -512,6 +512,8 @@ val intPtrType: typ
 val uintPtrType: typ
 val doubleType: typ
 
+val isInteger: exp -> int option
+val isZero: exp -> bool
 
 val mkStmt: stmtkind -> stmt
 
@@ -808,8 +810,8 @@ val foldLeftCompound:
     (* Process all two adjacent statements and possibly replace them both. If 
      * some replacement happens then the new statements are themselves 
      * subject to optimization  *)
-val peepHole2: (instr * instr -> instr list option) -> instr list -> instr list
-val peepHole1: (instr -> instr list option) -> instr list -> instr list
+val peepHole2: (instr * instr -> instr list option) -> block -> unit
+val peepHole1: (instr -> instr list option) -> block -> unit
 
 (**
  **
