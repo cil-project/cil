@@ -782,6 +782,7 @@ type typsig =
   | TSPtr of typsig * attribute list
   | TSComp of bool * string * attribute list
   | TSFun of typsig * (typsig * attribute list) list * bool * attribute list
+  | TSEnum of string * attribute list
   | TSBase of typ
 
 (* Compute a type signature *)

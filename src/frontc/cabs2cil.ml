@@ -727,8 +727,8 @@ let makeGlobalVarinfo (vi: varinfo) =
         | TSFun(r1, _ , va1, _), 
           TSFun(_, [], va2, a2)
                when va1 = va2 -> ()
-        | _, _ -> E.s (E.unimp "Redefinition of %s with different types" 
-                         vi.vname)
+        | _, _ -> E.s (E.unimp "Redefinition of %s with different types.@!Before=%a@!After= %a@!" 
+                         vi.vname d_plaintype oldvi.vtype d_plaintype vi.vtype)
     in
     let rec alreadyDef = ref false in
     let rec loop = function
@@ -900,6 +900,8 @@ and doType (a : attribute list) = function
           A.ATTRTYPE (bt', ["stdcall", []]) -> 
             bt', (* addAttribute (AId("stdcall")) *) a
         | A.ATTRTYPE (bt', ["cdecl", []]) -> 
+            bt', a (* addAttribute (AId("cdecl")) *)
+        | A.ATTRTYPE (bt', ["__cdecl__", []]) -> 
             bt', a (* addAttribute (AId("cdecl")) *)
         | _ -> bt, a
       in

@@ -2145,13 +2145,15 @@ type typsig =
   | TSPtr of typsig * attribute list
   | TSComp of bool * string * attribute list
   | TSFun of typsig * (typsig * attribute list) list * bool * attribute list
+  | TSEnum of string * attribute list
   | TSBase of typ
 
 (* Compute a type signature *)
 let rec typeSigAttrs doattr t = 
   let typeSig = typeSigAttrs doattr in
   match t with 
-  | (TInt _ | TFloat _ | TEnum _ | TBitfield _ | TVoid _) -> TSBase t
+  | (TInt _ | TFloat _ | TBitfield _ | TVoid _) -> TSBase t
+  | TEnum (n, flds, a) -> TSEnum (n, doattr a)
   | TPtr (t, a) -> TSPtr (typeSig t, doattr a)
   | TArray (t,l,a) -> TSArray(typeSig t, l, doattr a)
   | TComp comp -> TSComp (comp.cstruct, comp.cname, doattr comp.cattr)
@@ -2170,6 +2172,7 @@ and typeSigAddAttrs a0 t =
   | TSPtr (ts, a) -> TSPtr (ts, addAttributes a0 a)
   | TSArray (ts, l, a) -> TSArray(ts, l, addAttributes a0 a)
   | TSComp (iss, n, a) -> TSComp (iss, n, addAttributes a0 a)
+  | TSEnum (n, a) -> TSEnum (n, addAttributes a0 a)
   | TSFun(ts, tsargs, isva, a) -> TSFun(ts, tsargs, isva, addAttributes a0 a)
 
 

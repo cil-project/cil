@@ -1,6 +1,4 @@
-#pragma box(off)
 #include <stdio.h>
-#pragma box(on)
 
 int main() {
     int x = 100 ,y = 200 ,z = 300, len = 6;

@@ -336,9 +336,9 @@ let taggedTypes: (typsig, typ) H.t = H.create 123
 (**** FIXUP TYPE ***)
 let fixedTypes : (typsig, typ) H.t = H.create 17
 
-(* Get rid of all Const attributes. In the process also replaces the ptrnode 
- * attributes with their corresponding pointer kind attributes *)
-let dropConst t =
+(* Search in the type attributes for the node and get from the node the type 
+ * qualifier. In the process also get rid of the const attributes. *)
+let getNodeAttributes t =
   let dropit where a = 
     N.replacePtrNodeAttrList where 
       (dropAttribute a (AId("const")))
@@ -838,12 +838,12 @@ let checkPositiveFun =
 let rec fixupType t = 
   match t with
     TForward _ -> t
-    (* Keep the Named types *)
+    (* Keep the Named types
   | TNamed _ -> begin
-     match dropConst t with
+     match getNodeAttributes t with
        TNamed(n, t', a) -> TNamed(n, fixupType t', a)
       | _ -> E.s (E.bug "fixupType")
-   end
+   end  *)
 
     (* Sometimes when we do a function, we might find a similar done function 
      * type but with different argument names (since such function types have 
@@ -861,7 +861,7 @@ let rec fixupType t =
 
 and fixit t = 
   (* First drop the Const attribute and replace the _ptrnode attribute *)
-  let t = dropConst t in
+  let t = getNodeAttributes t in
   let ts = typeSigBox t in
   try
     H.find fixedTypes ts 
@@ -975,22 +975,28 @@ and addArraySize t =
                    d_plaintype t)
       end
     in
-    let arrayAttr = 
-      if !msvcMode then [] else [AId("packed")]
-    in
+    let packAttr = if !msvcMode then [] else [AId("packed")] in
     let newtype = 
       TComp 
         (mkCompInfo true ""
            (fun _ -> 
-             [ ("_size", uintType, arrayAttr);
-               ("_array", complt, arrayAttr); ]) [])
+             [ ("_size", uintType, packAttr);
+               ("_array", complt, packAttr); ]) [])
     in
     let tname = newTypeName "_sized_" t in
     let named = TNamed (tname, newtype, [AId("sized")]) in
     theFile := GType (tname, newtype, lu) :: !theFile;
     H.add sizedArrayTypes tsig named;
+    (* Since maybe we added a zero length when there was no length, we should 
+     * compute the new signature
+    (match tsig with
+      TSArray(t,None,al) -> 
+        H.add sizedArrayTypes (TSArray(t,Some zero,al)) named
+    | _ -> ());  *)
+    (* Maybe we are adding too many types here *)
     H.add sizedArrayTypes (typeSigBox named) named;
-    H.add sizedArrayTypes (typeSigBox newtype) named;
+    H.add sizedArrayTypes (typeSigBox newtype) named;  
+    H.add sizedArrayTypes (typeSigBox complt) named;  
     named
   end
   
@@ -3073,8 +3079,7 @@ let boxFile file =
         if not !boxing then theFile := g :: !theFile else
         match g with
 
-        | GDecl (vi, l) -> 
-          boxglobal vi false None l
+        | GDecl (vi, l) -> boxglobal vi false None l
         | GVar (vi, init, l) -> boxglobal vi true init l
         | GType (n, t, l) -> 
             if debug then
@@ -3263,6 +3268,7 @@ let boxFile file =
   H.clear typeNames;
   H.clear fixedTypes;
   H.clear taggedTypes;
+  H.clear sizedArrayTypes;
   extraGlobInit := [];
   {file with globals = res; globinit = newglobinit}
 

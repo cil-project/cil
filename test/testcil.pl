@@ -72,8 +72,6 @@ $TEST->add3Tests("btreetest", "", @runpattern);
 $TEST->add3Tests("hashtest", "", @runpattern);
 $TEST->add3Tests("rbtest", "", @runpattern);
 $TEST->add3Tests("hufftest", "", @runpattern);
-  $TEST->addComment("hufftest-box", "pragma box misuse");
-  $TEST->addComment("hufftest-inferbox", "pragma box misuse");
 $TEST->add3Tests("test/alloc");
 $TEST->add3Tests("test/argcast", "", @runpattern);
 $TEST->add3Tests("test/array1");
