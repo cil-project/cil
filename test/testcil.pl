@@ -145,6 +145,7 @@ $TEST->newTest(
     Cmd => "make apachesetup _GNUCC=1");
     
 # Now add tests
+$TEST->addTests("testrun/const-array-init", "WARNINGS_ARE_ERRORS=1", ['cil']);
 $TEST->add3Tests("btreetest");
 $TEST->add3Tests("hashtest");
 $TEST->add3Tests("rbtest");
