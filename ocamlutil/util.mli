@@ -135,6 +135,13 @@ type registerInfo = {
 (** Get the value of an option.  Raises Failure if None *)
 val valOf : 'a option -> 'a
 
+(**
+ * An accumulating for loop.
+ *
+ * Initialize the accumulator with init.  The current index and accumulator
+ * from the previous iteration is passed to f.
+ *)
+val fold_for : init:'a -> lo:int -> hi:int -> (int -> 'a -> 'a) -> 'a
 
 (************************************************************************)
 
@@ -146,7 +153,7 @@ module type STACK = sig
   (** Raised when {!Stack.pop} or {!Stack.top} is applied to an empty stack. *)
 
   val create : unit -> 'a t
-  (** Return a new stack, initially empty. *)
+
 
   val push : 'a -> 'a t -> unit
   (** [push x s] adds the element [x] at the top of stack [s]. *)
@@ -226,3 +233,4 @@ val findConfigurationList: string -> configData list
 val useConfigurationList: string -> (configData list -> unit) -> unit
 
 
+(************************************************************************)

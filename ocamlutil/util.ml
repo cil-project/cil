@@ -348,7 +348,18 @@ let valOf : 'a option -> 'a = function
     None -> raise (Failure "Util.valOf")
   | Some x -> x
 
-
+(**
+ * An accumulating for loop.
+ *
+ * Initialize the accumulator with init.  The current index and accumulator
+ * from the previous iteration is passed to f.
+ *)
+let fold_for ~(init: 'a) ~(lo: int) ~(hi: int) (f: int -> 'a -> 'a) =
+  let rec forloop i acc =
+    if i >= hi then acc
+    else forloop (i+1) (f i acc)
+  in
+  forloop lo init
 
 (************************************************************************)
 
@@ -428,6 +439,8 @@ module Stack = struct
     Stack.iter f s.stack
 
 end
+
+(************************************************************************)
 
 let absoluteFilename (fname: string) = 
   if Filename.is_relative fname then 
@@ -655,3 +668,4 @@ let loadConfiguration (fname: string) : unit =
 
    
  
+(************************************************************************)
