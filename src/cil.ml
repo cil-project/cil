@@ -51,6 +51,9 @@ let msvcMode = ref false              (* Whether the pretty printer should
                                        * compiler. Default is GCC *)
 
 
+(* Cil.initCil will set this to the current machine description *)
+let theMachine : M.mach ref = ref M.gcc
+
 let printLn= ref true                 (* Whether to print line numbers *)
 let printLnComment= ref false
  
@@ -4082,25 +4085,18 @@ exception SizeOfError of typ
 (* Get the minimum aligment in bytes for a given type *)
 let rec alignOf_int = function
   | TInt((IChar|ISChar|IUChar), _) -> 1
-  | TInt((IShort|IUShort), _) -> 
-      if !msvcMode then M.MSVC.sizeof_short else M.GCC.sizeof_short
-  | TInt((IInt|IUInt), _) ->
-      if !msvcMode then M.MSVC.sizeof_int else M.GCC.sizeof_int
-  | TInt((ILong|IULong), _) ->
-      if !msvcMode then M.MSVC.sizeof_long else M.GCC.sizeof_long
-  | TInt((ILongLong|IULongLong), _) -> 
-      if !msvcMode then M.MSVC.alignof_longlong else M.GCC.alignof_longlong
-  | TEnum _ -> 
-      if !msvcMode then M.MSVC.sizeof_enum else M.GCC.sizeof_enum
+  | TInt((IShort|IUShort), _) -> !theMachine.M.sizeof_short
+  | TInt((IInt|IUInt), _) -> !theMachine.M.sizeof_int
+  | TInt((ILong|IULong), _) -> !theMachine.M.sizeof_long
+  | TInt((ILongLong|IULongLong), _) -> !theMachine.M.alignof_longlong
+  | TEnum _ -> !theMachine.M.sizeof_enum
   | TFloat(FFloat, _) -> 4
-  | TFloat(FDouble, _) ->
-      if !msvcMode then M.MSVC.alignof_double else M.GCC.alignof_double
-  | TFloat(FLongDouble, _) -> 
-      if !msvcMode then M.MSVC.alignof_longdouble else M.GCC.alignof_longdouble
+  | TFloat(FDouble, _) -> !theMachine.M.alignof_double
+  | TFloat(FLongDouble, _) -> !theMachine.M.alignof_longdouble
   | TNamed (t, _) -> alignOf_int t.ttype
   | TArray (t, _, _) -> alignOf_int t
-  | TPtr _ | TBuiltin_va_list _ ->
-      if !msvcMode then M.MSVC.sizeof_ptr else M.GCC.sizeof_ptr
+  | TPtr _ | TBuiltin_va_list _ -> !theMachine.M.sizeof_ptr
+
         (* For composite types get the maximum alignment of any field inside *)
   | TComp (c, _) ->
       (* On GCC the zero-width fields do not contribute to the alignment. On 
@@ -4326,12 +4322,9 @@ and offsetOfFieldAcc ~(fi: fieldinfo)
 and bitsSizeOf t = 
   match t with 
     (* For long long sometimes the alignof and sizeof are different *)
-  | TInt((ILongLong|IULongLong), _) -> 
-      8 * (if !msvcMode then M.MSVC.sizeof_longlong else M.GCC.sizeof_longlong)
+  | TInt((ILongLong|IULongLong), _) -> 8 * !theMachine.M.sizeof_longlong
   | TFloat(FDouble, _) -> 8 * 8
-  | TFloat(FLongDouble, _) ->
-      8 * (if !msvcMode then M.MSVC.sizeof_longdouble 
-                        else M.GCC.sizeof_longdouble)
+  | TFloat(FLongDouble, _) -> 8 * !theMachine.M.sizeof_longdouble
   | TInt _ | TFloat _ | TEnum _ | TPtr _ | TBuiltin_va_list _ 
     -> 8 * alignOf_int t
   | TNamed (t, _) -> bitsSizeOf t.ttype
@@ -4514,8 +4507,7 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
       (* See if the result is unsigned *)
       let isunsigned = function
           (IUInt | IUChar | IUShort | IULong | IULongLong) -> true
-        | IChar when (if !msvcMode then M.MSVC.char_is_unsigned 
-                                   else M.GCC.char_is_unsigned) -> true
+        | IChar -> !theMachine.M.char_is_unsigned
         | _ -> false
       in
       let ge (unsigned: bool) (i1: int64) (i2: int64) : bool = 
@@ -5142,43 +5134,26 @@ let computeCFGInfo (f : fundec) (global_numbering : bool) : stmt list =
   res
 
 let initCIL () = 
-  let sz_ptr, sz_long, sz_longlong, sz_int, sz_short, 
-      sz_sizeof, sz_wchar  = 
-    if !msvcMode then 
-      M.MSVC.sizeof_ptr,
-      M.MSVC.sizeof_long,
-      M.MSVC.sizeof_longlong,
-      M.MSVC.sizeof_int,
-      M.MSVC.sizeof_short,
-      M.MSVC.sizeof_sizeof,
-      M.MSVC.sizeof_wchar
-    else
-      M.GCC.sizeof_ptr,
-      M.GCC.sizeof_long,
-      M.GCC.sizeof_longlong,
-      M.GCC.sizeof_int,
-      M.GCC.sizeof_short,
-      M.GCC.sizeof_sizeof,
-      M.GCC.sizeof_wchar 
-  in
+  (* Set the machine *)
+  theMachine := if !msvcMode then M.msvc else M.gcc;
   (* Find the right ikind given the size *)
   let findIkind (unsigned: bool) (sz: int) : ikind = 
-    if sz = sz_longlong then
+    if sz = !theMachine.M.sizeof_longlong then
       if unsigned then IULongLong else ILongLong
-    else if sz = sz_long then 
+    else if sz = !theMachine.M.sizeof_long then 
       if unsigned then IULong else ILong
-    else if sz = sz_int then 
+    else if sz = !theMachine.M.sizeof_int then 
       if unsigned then IUInt else IInt 
-    else if sz = sz_short then
+    else if sz = !theMachine.M.sizeof_short then
       if unsigned then IUShort else IShort
     else if sz = 1 then 
       if unsigned then IUChar else IChar 
     else 
       E.s(E.unimp "initCIL: cannot find the right ikind for size %d\n" sz)
   in      
-  upointType := TInt(findIkind true sz_ptr, []);
-  typeOfSizeOf := TInt(findIkind true sz_sizeof, []);
-  wcharType := TInt(findIkind false sz_wchar, [])
+  upointType := TInt(findIkind true !theMachine.M.sizeof_ptr, []);
+  typeOfSizeOf := TInt(findIkind true !theMachine.M.sizeof_sizeof, []);
+  wcharType := TInt(findIkind false !theMachine.M.sizeof_wchar, [])
     
 
 (* We want to bring all type declarations before the data declarations. This 
