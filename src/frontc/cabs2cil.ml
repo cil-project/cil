@@ -572,6 +572,28 @@ let gnu_body_result : (A.statement * ((exp * typ) option ref)) ref
 let currentReturnType : typ ref = ref (TVoid([]))
 let currentFunctionVI : varinfo ref = ref dummyFunDec.svar
 
+
+
+(* A simple visitor that searchs a statement for labels *)
+class canDropStmtClass pRes = object
+  inherit nopCilVisitor
+        
+  method vstmt s = 
+    if s.labels != [] then 
+      (pRes := false; SkipChildren)
+    else 
+      if !pRes then DoChildren else SkipChildren
+
+  method vinst _ = SkipChildren
+  method vexpr _ = SkipChildren
+      
+end
+let canDropStatement (s: stmt) : bool = 
+  let pRes = ref true in
+  let vis = new canDropStmtClass pRes in
+  ignore (visitCilStmt vis s);
+  !pRes
+
 (**** Occasionally we see structs with no name and no fields *)
 
 
@@ -582,7 +604,7 @@ module BlockChunk =
         postins: instr list;              (* Some instructions to append at 
                                            * the ends of statements (in 
                                            * reverse order)  *)
-                                        (* A list of case statements at the 
+                                        (* A list of case statements visible at the 
                                          * outer level *)
         cases: (label * stmt) list
       } 
@@ -648,9 +670,28 @@ module BlockChunk =
         cases = t.cases @ e.cases;
       } 
 
-    let canDuplicate (c: chunk) = false
+        (* We can duplicate a chunk if it has a few simple statements, and if 
+         * it does not have cases *)
+    let canDuplicate (c: chunk) =
+      let oneStmt (count: int) (s: stmt) : int = 
+        if s.labels != [] then 
+          1000
+        else
+          match s.skind with 
+            If _ | Switch _ | Loop _ | Block _ -> 
+              1000
+          | Instr il -> 
+              count + List.length il
+          | _ -> count + 1
+      in
+      c.cases == [] &&
+      5 >= ((List.fold_left oneStmt 0 c.stmts) + 
+              List.length c.postins)
+      
 
-    let canDrop (c: chunk) = false
+    (* We can drop a chunk if it does not have labels inside *)
+    let canDrop (c: chunk) = 
+      List.for_all canDropStatement c.stmts
 
     let loopChunk (body: chunk) : chunk = 
       (* Make the statement *)
@@ -849,6 +890,13 @@ type expAction =
                                          * expected type. This is useful for 
                                          * constants *)
 
+
+(*** Result of compiling conditional expressions *)
+type condExpRes = 
+    CEExp of chunk * exp (* Do a chunk and then an expression *)
+  | CEAnd of condExpRes * condExpRes
+  | CEOr  of condExpRes * condExpRes
+  | CENot of condExpRes
 
 (******** CASTS *********)
 let integralPromotion (t : typ) : typ = (* c.f. ISO 6.3.1.1 *)
@@ -2702,7 +2750,8 @@ and doExp (isconst: bool)    (* In a constant *)
           
     | A.BINARY((A.AND|A.OR), e1, e2) ->
         let tmp = var (newTempVar intType) in
-        finishExp (doCondition e (empty +++ (Set(tmp, integer 1, 
+        finishExp (doCondition isconst 
+                               e (empty +++ (Set(tmp, integer 1, 
                                                  !currentLoc)))
                                  (empty +++ (Set(tmp, integer 0, 
                                                  !currentLoc))))     
@@ -2861,7 +2910,7 @@ and doExp (isconst: bool)    (* In a constant *)
             A.NOTHING -> skipChunk
           | _ -> let (se2,_,_) = doExp false e2 ADrop in se2
         in
-        finishExp (doCondition e1 se2 se3) (integer 0) intType
+        finishExp (doCondition isconst e1 se2 se3) (integer 0) intType
           
     | A.QUESTION (e1, e2, e3) -> begin (* what is not ADrop *)
         (* Do these only to collect the types  *)
@@ -2914,7 +2963,7 @@ and doExp (isconst: bool)    (* In a constant *)
               (* Now do e2 and e3 for real *)
               let (se2, _, _) = doExp isconst e2 (ASet(lv, lvt)) in
               let (se3, _, _) = doExp isconst e3 (ASet(lv, lvt)) in
-              finishExp (doCondition e1 se2 se3) (Lval(lv)) tresult
+              finishExp (doCondition isconst e1 se2 se3) (Lval(lv)) tresult
         end
     end
 
@@ -3068,8 +3117,55 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
 
   | _ -> E.s (error "doBinOp: %a\n" d_plainexp (BinOp(bop,e1,e2,intType)))
 
+(* Constant fold a conditional. This is because we want to avoid having 
+ * conditionals in the initializers *)
+and doCondExp (isconst: bool) 
+              (e: A.expression) : condExpRes = 
+  match e with 
+    A.BINARY (A.AND, e1, e2) -> begin
+      match doCondExp isconst e1, doCondExp isconst e2 with
+        (CEExp (se1, ci1) as ce1), 
+        (CEExp (se2, ci2) as ce2) -> begin
+          if not (isZero ci1) then 
+            CEExp (se1 @@ se2, ci2)
+          else
+            (* se2 might contain labels so we cannot drop it *)
+            if canDrop se2 then ce1 else 
+            CEAnd (ce1, ce2)
+        end
+      | ce1, ce2 -> CEAnd (ce1, ce2)
+    end
+  | A.BINARY (A.OR, e1, e2) -> begin
+      match doCondExp isconst e1, doCondExp isconst e2 with
+        (CEExp (se1, ci1) as ce1), 
+        (CEExp (se2, ci2) as ce2) -> begin
+          if isZero ci1 then 
+            CEExp (se1 @@ se2, ci2)
+          else
+            (* se2 might contain labels so we cannot drop it *)
+            if canDrop se2 then ce1 else 
+            CEOr (ce1, ce2)
+        end
+      | ce1, ce2 -> CEOr (ce1, ce2)
+    end
+  | A.UNARY(A.NOT, e1) -> begin
+      match doCondExp isconst e1 with 
+        CEExp (se1, ci1) -> 
+          if isZero ci1 then 
+            CEExp (se1, one) 
+          else
+            CEExp (se1, zero)
+      | ce1 -> CENot ce1
+  end
+  | _ -> 
+      let (se, e, t) as rese = doExp isconst e (AExp None) in
+      ignore (checkBool t e);
+      CEExp (se, constFold isconst e)
+
 (* A special case for conditionals *)
-and doCondition (e: A.expression) 
+and doCondition (isconst: bool) (* If we are in constants, we do our best to 
+                                 * eliminate the conditional *)
+                (e: A.expression) 
                 (st: chunk)
                 (sf: chunk) : chunk = 
   match e with 
@@ -3083,9 +3179,9 @@ and doCondition (e: A.expression)
           (gotoChunk lab lu, consLabel lab sf !currentLoc)
         end
       in
-      let st' = doCondition e2 st sf1 in
+      let st' = doCondition isconst e2 st sf1 in
       let sf' = sf2 in
-      doCondition e1 st' sf'
+      doCondition isconst e1 st' sf'
 
   | A.BINARY(A.OR, e1, e2) ->
       let (st1, st2) = 
@@ -3098,15 +3194,15 @@ and doCondition (e: A.expression)
         end
       in
       let st' = st1 in
-      let sf' = doCondition e2 st2 sf in
-      doCondition e1 st' sf'
+      let sf' = doCondition isconst e2 st2 sf in
+      doCondition isconst e1 st' sf'
 
-  | A.UNARY(A.NOT, e) -> doCondition e sf st
+  | A.UNARY(A.NOT, e) -> doCondition isconst e sf st
 
   | _ -> begin
-      let (se, e, t) as rese = doExp false e (AExp None) in
+      let (se, e, t) as rese = doExp isconst e (AExp None) in
       ignore (checkBool t e);
-      match e with 
+      match constFold isconst e with 
         Const(CInt64(i,_,_)) when i <> Int64.zero && canDrop sf -> se @@ st
       | Const(CInt64(z,_,_)) when z = Int64.zero && canDrop st -> se @@ sf
       | _ -> se @@ ifChunk e !currentLoc st sf
@@ -3776,7 +3872,7 @@ and doStatement (s : A.statement) : chunk =
         let st' = doStatement st in
         let sf' = doStatement sf in
         currentLoc := convLoc loc;
-        doCondition e st' sf'
+        doCondition false e st' sf'
 
     | A.WHILE(e,s,loc) ->
         startLoop true;
@@ -3784,7 +3880,7 @@ and doStatement (s : A.statement) : chunk =
         exitLoop ();
         let loc' = convLoc loc in
         currentLoc := loc';
-        loopChunk ((doCondition e skipChunk
+        loopChunk ((doCondition false e skipChunk
                       (breakChunk loc'))
                    @@ s')
           
@@ -3793,7 +3889,7 @@ and doStatement (s : A.statement) : chunk =
         let s' = doStatement s in
         let loc' = convLoc loc in
         currentLoc := loc';
-        let s'' = consLabContinue (doCondition e skipChunk (breakChunk loc'))
+        let s'' = consLabContinue (doCondition false e skipChunk (breakChunk loc'))
         in
         exitLoop ();
         loopChunk (s' @@ s'')
@@ -3818,7 +3914,7 @@ and doStatement (s : A.statement) : chunk =
             A.NOTHING -> (* This means true *)
               se1 @@ loopChunk (s' @@ s'')
           | _ -> 
-              se1 @@ loopChunk ((doCondition e2 skipChunk (breakChunk loc'))
+              se1 @@ loopChunk ((doCondition false e2 skipChunk (breakChunk loc'))
                                 @@ s' @@ s'')
         in
         exitScope ();
