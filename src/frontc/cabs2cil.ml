@@ -3925,14 +3925,18 @@ and doInit
           | _ ->  false (* OK, this is probably an array of strings. Handle *)
          )              (* it with the other arrays below.*)
     ->
-      let chars = explodeString true s in
-      let charinits = 
-        List.map 
-          (fun c -> 
-            let cs = String.make 1 c in
-            (A.NEXT_INIT, 
-             A.SINGLE_INIT(A.CONSTANT 
-                             (A.CONST_CHAR cs)))) chars in
+      let charinits =
+	let init c =
+	  A.NEXT_INIT, 
+          A.SINGLE_INIT(A.CONSTANT 
+                          (A.CONST_CHAR (String.make 1 c)))
+	in
+	let collector = ref [init '\000'] in
+	for pos = String.length s - 1 downto 0 do
+	  collector := init s.[pos] :: !collector
+	done;
+	!collector
+      in
       (* Create a separate object for the array *)
       let so' = makeSubobj so.host so.soTyp so.soOff in 
       (* Go inside the array *)
