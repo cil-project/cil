@@ -319,6 +319,8 @@ $TEST->addTests("combine5", "", ['cil']);
 $TEST->addTests("combine6", "", ['cil']);
 $TEST->addTests("combine8", "", ['cil']);
 $TEST->addTestsFail("combine9", "", "g does not match", ['cil']);
+$TEST->addTests("combine10", "", ['cil']);
+$TEST->addTests("combine11", "", ['cil']);
 
 $TEST->addTests("arcombine", "_GNUCC=1", ['cil']);
 $TEST->add2Tests("testrun/funptr1");

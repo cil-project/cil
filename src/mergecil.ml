@@ -395,7 +395,7 @@ let rec doOneFile (f:file) : unit =
         oldvi.vtype <- 
            combineTypes CombineOther oldvi.vtype vi.vtype;
       with (Failure reason) -> begin
-        ignore (error "Incompatible declaration for %s: %s\n. Previous at %a." 
+        ignore (warn "Incompatible declaration for %s: %s.\n Previous was at %a." 
                   vi.vname reason d_loc oldloc);
         raise Not_found
       end);
@@ -420,14 +420,14 @@ let rec doOneFile (f:file) : unit =
     (function 
       | GDecl (vi, l) | GVar (vi, _, l) -> 
           currentLoc := l;
-          if vi.vstorage = Static then 
+          if vi.vstorage <> Static then 
             matchVarinfo vi l
       | GFun (fdec, l) -> 
           currentLoc := l;
           (* Force inline functions to be static *) 
           if fdec.sinline && fdec.svar.vstorage = NoStorage then 
             fdec.svar.vstorage <- Static;
-          if fdec.svar.vstorage = Static then 
+          if fdec.svar.vstorage <> Static then 
             matchVarinfo fdec.svar l
       | _ -> ())
     f.globals;
