@@ -19,7 +19,7 @@ void myexit(int n) {
 #endif
 int __mmId;
 int debugMM;
-int debug;
+int debug = 0;  // Make this 1 to debug the compressor
 
 
 /* Callback for writing to the compressed file */
@@ -47,13 +47,14 @@ static int writeByte(U8 b) {
   return 0;
 }
 
+#define TIMES 10
 int main(int argc, char **argv) {
   PHASH freq = NewHash();
   int freqfid, codefid;
   int nrSource, delta;
   double clk;
   int count = 0;
-  int sz;
+
   INDATA srcFile, compFile;
   
   /* Must be passed the name of a file to compress */
@@ -83,6 +84,7 @@ int main(int argc, char **argv) {
   }
   createCompressTables(freq, freqfid, codefid);
   close(freqfid); close(codefid);
+  FreeHash(freq);
   
   /* Now read again and compress */
   initCompressor("huffman.code");
@@ -100,21 +102,23 @@ int main(int argc, char **argv) {
   finishIOFile(&srcFile);
 
   /* Now decompress and compare */
-  initLFIOFile(&compFile, "huffman.compressed");
-  initLFIOFile(&srcFile, argv[1]);
-  startDecompress();
-  delta = nrSource;
-  while(delta > 1562) {
-    int comp = fetchCompressedSymbol(&compFile);
-    int src  = fetchWordLE(&srcFile);
-    if(src != comp) {
-      ERROR3(-1, "Src(%04x) != Comp(%04x) (at offset %d)\n",
-             src, comp, nrSource - delta);
+  for(count=0;count<100;count++) {
+    initLFIOFile(&compFile, "huffman.compressed");
+    initLFIOFile(&srcFile, argv[1]);
+    startDecompress();
+    delta = nrSource;
+    while(delta > 0) {
+      int comp = fetchCompressedSymbol(&compFile);
+      int src  = fetchWordLE(&srcFile);
+      if(src != comp) {
+        ERROR3(-1, "Src(%04x) != Comp(%04x) (at offset %d)\n",
+               src, comp, nrSource - delta);
+      }
+      delta -= 2;
     }
-    delta -= 2;
+    endDecompress(&compFile);
+    finishIOFile(&srcFile); finishIOFile(&compFile);
   }
-  endDecompress(&compFile);
-  finishIOFile(&srcFile); finishIOFile(&compFile);
   finalizeCompressor();
 
 

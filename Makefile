@@ -252,14 +252,15 @@ rbtest: test/small2/rbtest.c $(EXECUTABLE)$(EXE) $(TVEXE)
                  $(EXEOUT)rbtest.exe
 	$(PCCTEST)/rbtest.exe
 
-# HUFFCOMPILE=$(SAFECC) --keep=. 
-HUFFCOMPILE=cl /MLd
+HUFFCOMPILE=$(SAFECC) --keep=. 
+# HUFFCOMPILE=cl /MLd
 ifdef BOX
 HUFFOTHERS="C:$(SAFEMAINLIB)" 
 else
 HUFFOTHERS=
 endif
-hufftest: test/small2/hufftest.c $(EXECUTABLE)$(EXE) $(TVEXE)
+hufftest: test/small2/hufftest.c $(EXECUTABLE)$(EXE) \
+                                 $(SAFECLIB) $(SAFEMAINLIB) $(TVEXE)
 	rm -f $(PCCTEST)/hufftest.exe
 	cd $(PCCTEST); $(HUFFCOMPILE) \
                  $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) $(DEF)$(PCCCOMP) \

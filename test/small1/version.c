@@ -19,8 +19,6 @@
 
 */
 
-#ifndef lint
 static char *rcsid = "@(#)$Id$";
-#endif /* not lint */
 
 char version_string[] = "GNU ed version 0.2";

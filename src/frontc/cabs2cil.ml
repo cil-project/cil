@@ -1934,8 +1934,14 @@ let convFile dl =
               else 
                 let (se, e', et) = doExp true e (AExp (Some vi.vtype)) in
                 let (_, e'') = castTo et vi.vtype e' in
-                (match et with (* We have a length now *)
-                  TArray(_, Some _, _) -> vi.vtype <- et
+                (match vi.vtype, e', et with (* See if we have a length now *)
+                  TArray(TInt((IChar|IUChar|ISChar), _) as bt, None, a),
+                  Const(CStr s, _), _ -> 
+                    vi.vtype <- TArray(bt, 
+                                       Some (integer (String.length s + 1)),
+                                       a)
+                | TArray(bt, None, a), _, TArray(_, Some _, _) -> 
+                    vi.vtype <- et
                 | _ -> ());
                 if se <> [] then 
                   E.s (E.unimp "global initializer");

@@ -390,20 +390,15 @@ let mustBeTagged v =
         | TPtr _ -> ExistsFalse
         | _ -> ExistsMaybe) t
   in
-(*
-    match unrollType t with 
-      TArray _ -> true
-    | TComp comp -> 
-        List.exists (fun f -> containsArray f.ftype) comp.cfields
-    | TPtr _ -> false
-    | (TInt _ | TEnum _ | TFloat _ | TBitfield _ ) -> false
-    | _ -> E.s (E.unimp "containsArray: %a" d_plaintype t)
-  in
-*)
   if v.vglob then 
     match v.vtype with 
-      TFun _ -> false 
-    | _ -> true
+      TFun _ -> false  (* Do not tag functions!! Mainly because we don't know 
+                        * how to put the tag. Plus, function pointers should 
+                        * have a length = 0 so we cannot write there *)
+    | _ -> 
+        if v.vstorage = Static then v.vaddrof || containsArray v.vtype
+        else true (* We tag all externals because we might 
+                     take their address somewhere else *)
   else v.vaddrof || containsArray v.vtype
     
     
@@ -1393,18 +1388,34 @@ let boxFile globals =
     if debug then
       ignore (E.log "Boxing GVar(%s)\n" vi.vname); 
         (* Leave alone some functions *)
+    let origType = vi.vtype in
     if not (List.exists (fun s -> s = vi.vname) leaveAlone) then begin
-      (* REmove the format attribute from functions that we do not leave alone *)
+      (* Remove the format attribute from functions that we do not leave 
+       * alone  *)
       vi.vtype <- fixupType vi.vtype;
       vi.vattr <- dropAttribute vi.vattr (ACons("__format__", []));
     end;
           (* If the type has changed and this is a global variable then we
            * also change its name *)
     fixupGlobName vi;
-      (* Tag all globals, except function prototypes *)
+    (* Prepare the data initializer. Catch the case when we are initialing an 
+     * array of char with a string  *)
+    let init' = 
+      match init with
+        None -> None
+      | Some e -> begin
+          match e with
+            Const(CStr _, _) when 
+            (match unrollType origType with 
+              TArray(TInt((IUChar|ISChar|IChar), _), _, _) -> true 
+            | _ -> false) -> Some e
+          | _ -> Some (boxGlobalInit e)
+      end
+    in
+    (* Tag some globals *)
     if not (mustBeTagged vi) then
       if isdef then
-        theFile := GVar(vi, init) :: !theFile
+        theFile := GVar(vi, init') :: !theFile
       else
         theFile := GDecl vi :: !theFile
     else begin
@@ -1417,24 +1428,6 @@ let boxFile globals =
         let varinit = 
           if vi.vstorage = Extern then None 
           else
-              (* prepare the data initializer. Catch the case when we are 
-               * initialing an array of char with a string *)
-            let init' = 
-              match init with
-                None -> None
-              | Some e -> begin
-                  match e with
-                    Const(CStr _, _) -> begin
-                      let dfld, lfld, tfld, _, _ = 
-                        splitTagType vi.vtype in
-                      match dfld.ftype with
-                        TArray(TInt((IUChar|ISChar|IChar), _), _, _)  
-                        -> Some e
-                      | _ -> Some (boxGlobalInit e)
-                    end
-                  | _ -> Some (boxGlobalInit e)
-              end
-            in
             let (x, _) = makeTagCompoundInit vi.vtype init' in
             Some x
         in
