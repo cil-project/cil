@@ -523,13 +523,14 @@ testrun/% : $(SMALL1)/%.c
 	cd $(SMALL1); ./$*.exe
 	echo SUCCESS
 
-CAMLC := ocamlc
 ARCHOS := @ARCHOS@
 OBJDIR := ../obj/$(ARCHOS)
 ifdef NATIVECAML
  CMXA := cmxa
+ CAMLC := ocamlopt
 else
  CMXA := cma
+ CAMLC := ocamlc
 endif
 
 testrun/% : $(SMALL1)/%.ml
