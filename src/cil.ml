@@ -2390,9 +2390,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
       let str = ref "" in
       if !printLn && l.line > 0 then begin
         if !printLnComment then str := "//";
-        str := !str ^ "#";
-        if !msvcMode then str := !str ^ "line";
-        str := !str ^ " " ^ string_of_int(l.line);
+        str := !str ^ "#line " ^ string_of_int(l.line);
         if forcefile || l.file <> lastFileName then begin
           lastFileName <- l.file;
           str := !str ^ " \"" ^ l.file ^ "\""
