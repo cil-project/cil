@@ -1960,9 +1960,11 @@ and doExp (isconst: bool)    (* In a constant *)
           let envdata = H.find env n in
           match envdata with
             EnvVar vi, _ ->
+              if isconst && not (isFunctionType vi.vtype) then
+                E.s (error "variable appears in constant");
               finishExp empty (Lval(var vi)) vi.vtype
           | EnvEnum (tag, typ), _ ->
-            finishExp empty tag typ
+              finishExp empty tag typ
           | _ -> raise Not_found
         with Not_found ->
           E.s (error "Cannot resolve variable %s.\n" n)
@@ -2991,10 +2993,6 @@ and doInitializer
   let acc, restl = 
       let so = makeSubobj vi vi.vtype NoOffset in
       doInit vi.vglob topSetupInit so empty [ (A.NEXT_INIT, inite) ] 
-(*    end else
-      doOneInit vi.vglob DoNotHandle topSetupInit 
-        (fun o -> d_lval () (Var vi, o)) 
-        vi.vtype empty [ (A.NEXT_INIT, inite) ] *)
   in
   if restl <> [] then 
     ignore (warn "Ignoring some initializers");
@@ -3389,9 +3387,14 @@ and createLocal (specs: A.spec_elem list)
           vi.vtype <- et;
           if isNotEmpty se then 
             E.s (error "global static initializer");
+          (* Maybe the initializer refers to the function itself. 
+             Push a prototype for the function, just in case. Hopefully,
+             if does not refer to the locals *)
+          pushGlobal (GDecl (!currentFunctionVI, !currentLoc));
           Some ie'
         end
       in
+      (* It is possible that the initializer refers to the *)
       pushGlobal (GVar(vi, init, !currentLoc));
       empty
 
