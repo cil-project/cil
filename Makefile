@@ -48,9 +48,11 @@ MODULES    += cabs cprint combine clexer cparser cabs2cil cabsvisit patch frontc
 endif
 
 # Add main late
-OCAML_CIL_LIB_MODULES = $(MODULES)
 MODULES    += main
 
+# What should we put into the OCAML CIL library? 
+# everything by main.cl, basically
+OCAML_CIL_LIB_MODULES = $(MODULES:main=)
 
 # Additional things to clean
 EXTRACLEAN += $(OBJDIR)/*.obj $(OBJDIR)/*.a $(OBJDIR)/*.o
