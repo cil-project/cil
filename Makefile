@@ -194,17 +194,6 @@ TVDIR=$(BASEDIR)/TransVal
 CILDIR=$(BASEDIR)/cil
 _GNUCC=1
 endif
-ifeq ($(COMPUTERNAME), peecy_amanb_win2k) # Aman's desktop
-ifndef BASEDIR
-BASEDIR=/home/amanb/safec
-endif
-SAFECCDIR=$(BASEDIR)
-PCCDIR=$(SAFECCDIR)/cil/test/PCC
-TVDIR=$(BASEDIR)/TransVal
-CILDIR=$(BASEDIR)/cil
-# _GNUCC=1
-# USE_GC=1
-endif
 ifeq ($(COMPUTERNAME), madrone_amanb) # Aman's *top
 ifndef BASEDIR
 BASEDIR=/home/amanb/safec
@@ -214,7 +203,7 @@ PCCDIR=$(SAFECCDIR)/cil/test/PCC
 TVDIR=$(BASEDIR)/TransVal
 CILDIR=$(BASEDIR)/cil
 _GNUCC=1
- USE_GC=1
+USE_GC=1
 endif
 
 # sm: I keep getting bit by this
@@ -270,9 +259,8 @@ endif
 
 
 ifdef _MSVC
-# ab: Added /nologo to suppress visual noise
-DEBUGCCL=cl /nologo /TC /O0 /Zi /MLd /I./lib /DEBUG
-RELEASECCL=cl /nologo /TC /ML /I./lib
+DEBUGCCL=cl /TC /O0 /Zi /MLd /I./lib /DEBUG
+RELEASECCL=cl /TC /ML /I./lib
 ifdef RELEASE
 DOOPT=/Ox /Ob2 /G6
 else
@@ -286,7 +274,7 @@ EXEOUT=/Fe
 DEF=/D
 ASMONLY=/Fa
 INC=/I
-CPPSTART=cl /nologo /Dx86_WIN32 /D_MSVC /E /TC /I./lib /FI fixup.h /DBEFOREBOX
+CPPSTART=cl /Dx86_WIN32 /D_MSVC /E /TC /I./lib /FI fixup.h /DBEFOREBOX
 CPPOUT= %i >%o
 CPP=$(CPPSTART) $(CPPOUT)
 SAFECC += --safec=-msvc
@@ -1112,9 +1100,8 @@ bisort : defaulttarget
                make PLAIN=1 clean defaulttarget \
                     $(BISORTARGS) \
                     CC="$(COMBINESAFECC) \
-                        --nobox=trusted_bisort \
 			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
-	cd $(BISORTDIR); sh -c "time ./bisort.exe 250000 0"
+	cd $(BISORTDIR); ./bisort.exe 100 1
 
 
 
@@ -1157,6 +1144,24 @@ treeadd: defaulttarget mustbegcc
             make clean treeadd CC="$(TREEADDSAFECC)" \
                        LD="$(TREEADDSAFECC)"
 	cd $(TREEADDIR); ./treeadd.exe 21 1
+
+NEWBISORTDIR=test/olden/newbisort
+NEWBISORTSAFECC=$(SAFECC) --combine --keep=safeccout  \
+                   --nobox=ta_trusted \
+                  --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) \
+                  $(NOPRINTLN)
+ifeq ($(ARCHOS), x86_WIN32)
+NEWBISORTSAFECC += $(DEF)WIN32 $(DEF)MSDOS
+endif
+newbisort-clean: 	
+	cd $(NEWBISORTDIR); make clean
+	cd $(NEWBISORTDIR); rm -f *cil.c *box.c *.i *_ppp.c *.origi *_all.c
+
+newbisort: defaulttarget mustbegcc
+	cd $(NEWBISORTDIR); \
+            make clean bisort CC="$(NEWBISORTSAFECC)" \
+                       LD="$(NEWBISORTSAFECC)"
+	cd $(NEWBISORTDIR); ./bisort 21 1
 
 
 
