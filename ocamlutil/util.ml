@@ -59,6 +59,18 @@ let hash_to_list (h: ('a, 'b) Hashtbl.t) : ('a * 'b) list =
 let anticompare a b = compare b a
 ;;
 
+
+let rec list_drop (n : int) (xs : 'a list) : 'a list =
+  if n < 0
+  then invalid_arg "Util.list_drop"
+  else if n = 0
+  then xs
+  else begin match xs with
+  | [] -> invalid_arg "Util.list_drop"
+  | y::ys -> list_drop (n-1) ys
+  end
+
+
 let rec list_span (p : 'a -> bool) (xs : 'a list) : 'a list * 'a list = 
   begin match xs with
   | [] -> ([],[])

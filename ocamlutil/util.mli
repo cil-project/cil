@@ -17,6 +17,8 @@ val hash_to_list: ('a, 'b) Hashtbl.t -> ('a * 'b) list
 (** First, a few utility functions I wish were in the standard prelude *)
 
 val anticompare: 'a -> 'a -> int
+
+val list_drop : int -> 'a list -> 'a list
 val list_span: ('a -> bool) -> ('a list) -> 'a list * 'a list
 val list_insert_by: ('a -> 'a -> int) -> 'a -> 'a list -> 'a list
 val list_head_default: 'a -> 'a list -> 'a
