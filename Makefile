@@ -287,6 +287,7 @@ trval: $(TVDIR)/obj/transval.asm.exe
 
 SAFECC=perl $(CILDIR)/lib/safecc.pl
 
+
 # sm: I like -g always
 ifdef USER_SCOTT
   SAFECC+= -g
@@ -481,7 +482,7 @@ testpcc/% : $(PCCDIR)/src/%.c defaulttarget
 
 
 ifdef _MSVC
-MSLINK=--mode=mslink
+MSLINK=--mode=mscl
 endif
 pcc : defaulttarget
 	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.o
