@@ -283,9 +283,9 @@ $(SAFEMAINLIB) : $(SAFECCDIR)/cil/lib/safecmain.c \
 endif
 ifdef _GNUCC
 ifdef RELEASE
-SAFECLIB=$(OBJDIR)/safeclib.a
+SAFECLIB=$(SAFECCDIR)/obj/safeclib.a
 else
-SAFECLIB=$(OBJDIR)/safecdebuglib.a
+SAFECLIB=$(SAFECCDIR)/obj/safecdebuglib.a
 endif
 $(SAFECLIB) : $(SAFECCDIR)/cil/lib/safec.c
 	$(CC) $(OBJOUT)$(OBJDIR)/safec.o $<
@@ -344,8 +344,8 @@ combinepcc: $(EXECUTABLE)$(EXE) $(TVEXE) $(SAFECLIB) $(SAFEMAINLIB)
              LD="$(SAFECC) $(MSLINK) --combine --keep=$(CILDIR)/test/PCCout" \
              USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
              COMPILER=$(PCCCOMP) \
-             ENGINE_OTHERS="C:$(SAFECLIB) C:$(SAFEMAINLIB)" \
-             TRANSLF_OTHERS="C:$(SAFECLIB) C:$(SAFEMAINLIB)" \
+             ENGINE_OTHERS="$(SAFECLIB) $(SAFEMAINLIB)" \
+             TRANSLF_OTHERS="$(SAFECLIB) $(SAFEMAINLIB)" \
 	     defaulttarget 
 
 .PHONY : allpcc
