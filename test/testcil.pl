@@ -59,7 +59,7 @@ my %commonerrors =
 
          );
 
-my $inferbox = 3;
+my $inferbox = 2;
 
 # Now add tests
 $TEST->add3Tests("apache/gzip");
