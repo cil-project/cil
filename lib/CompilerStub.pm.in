@@ -300,6 +300,15 @@ sub doit {
     my $file;
     my $out;
 
+    # Maybe we must preprocess only
+    if($self->{OPERATION} eq "TOI") {
+        # Then we do not do anything
+        my $cmd = $self->{CPP} . " " . 
+            join(' ', @{$self->{PPARGS}}, @{$self->{CCARGS}}, 
+                      @{$self->{CFILES}}, @{$self->{SFILES}},
+                      $self->{OUTARG});
+        return $self->runShell($cmd);
+    }
     if($self->{OPERATION} eq "UNKNOWN") {
         print "Warning: CompilerStub does not understand the operation\n";
         my @allfiles = (@{$self->{CFILES}}, @{$self->{SFILES}}, 
@@ -828,6 +837,7 @@ sub new {
             "[^-].*\\.(s|S)\$" => { TYPE => 'ASMSOURCE' },
             "[^-].*\\.i\$" => { TYPE => 'ISOURCE' },
             "[^-]" => { TYPE => 'OSOURCE' },
+            "-E"   => { RUN => sub { $stub->{OPERATION} = "TOI"; }},
             "-[DI]" => { ONEMORE => 1, TYPE => "PREPROC" },
             "-include" => { ONEMORE => 1, TYPE => "PREPROC" },  # sm
             "-c" => { RUN => sub { $stub->{OPERATION} = "TOOBJ"; }},
