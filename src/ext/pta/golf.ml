@@ -283,7 +283,7 @@ let no_flow = ref false
 let no_sub = ref false
 
 (** If true, treat indexed edges as regular subtyping *)
-let analyze_mono = ref false
+let analyze_mono = ref true
 
 (** A counter for generating unique integers. *)
 let counter : int ref = ref 0
