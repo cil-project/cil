@@ -144,7 +144,6 @@ let rec doType (t: typ) (p: N.place)
             N.PGlob s -> begin
               let formatidx = H.find printfFunc s in
               let formatarg = List.nth args formatidx in
-              ignore (E.log "doing %s arg %d\n" s formatidx);
               let nd = nodeOfType formatarg.vtype in
               if nd == N.dummyNode then
                 ignore (E.log "no node found\n")
