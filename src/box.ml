@@ -190,7 +190,7 @@ let boxallocPragma (name: string) (args: attrarg list) : unit =
     | AId("nozero") :: rest -> ai.aiZeros <- false; loop rest
     | AId("zero") :: rest -> ai.aiZeros <- true; loop rest
     | ACons("sizein", [AInt n]) :: rest -> 
-        ai.aiGetSize <- getArg (n - 1); ai.aiNewSize <- replaceArg n;
+        ai.aiGetSize <- getArg (n - 1); ai.aiNewSize <- replaceArg (n - 1);
         loop rest
     | ACons("sizemul", [AInt n1; AInt n2]) :: rest -> 
         ai.aiGetSize <-

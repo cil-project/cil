@@ -758,6 +758,7 @@ let ptrAttrCustom printnode = function
     | Attr("nullterm", []) -> Some (text "__NULLTERM")
     | Attr("safeunion", []) -> Some (text "__SAFEUNION")
     | Attr("heapify", []) -> Some (text "__HEAPIFY")
+    | Attr("nobox", []) -> Some (text "__NOBOX")
     | Attr("boxmodel", [AStr fname]) -> 
         Some (text ("__BOXMODEL(" ^ fname ^ ")"))
     | Attr("modelledbody", _) -> Some (text "__MODELLED")

@@ -35,6 +35,7 @@
   #define __DUMMYDEFN
   #define __BOXMODEL(fname)
   #define __NOBOXBLOCK
+  #define __NOBOX
   #define __MODELLED
   #define __BOXVARARG(x)
   #define __BOXFORMAT(x)
@@ -67,6 +68,7 @@
   #define __DUMMYDEFN __attribute__((dummydefn))
   #define __BOXMODEL(fname) __attribute__((boxmodel(fname)))
   #define __NOBOXBLOCK  __blockattribute__(nobox)
+  #define __NOBOX __attribute__((nobox))
   #define __MODELLED
   #define __BOXVARARG(x)
   #define __BOXFORMAT(x)
@@ -119,6 +121,7 @@
   int sprintf_model(char *buffer, const char *format, ...)
      __BOXMODEL("sprintf");
   #pragma boxvararg("sprintf_model", sizeof(union printf_format))
+  #pragma cilnoremove("sprintf_model")   
   static inline 
   int sprintf_model(char *buffer, const char *format, ...) {
     // Force buffer to carry a length
@@ -132,6 +135,7 @@
                      struct __ccured_va_list *args)
      __BOXMODEL("vsprintf");
   #pragma boxvararg("vsprintf_model", sizeof(union printf_format))
+  #pragma cilnoremove("vsprintf_model")   
   static inline 
   int vsprintf_model(char *buffer, const char *format,
                      struct __ccured_va_list *args) {
@@ -140,11 +144,6 @@
     return 0;
   }
 
-  #pragma boxpoly("CHECK_FORMATARGS")
-  extern int CHECK_FORMATARGS(char * __ROSTRING format);
-  // Use it so it does not go away 
-  static inline
-  void use_CHECK_FORMATARGS() { CHECK_FORMATARGS(" "); }
 
   #pragma boxpoly("memcpy")
   #pragma boxpoly("memset")
@@ -177,6 +176,8 @@
     dest = src; // Make sure they are both have the same type
     return dest;
   }
+  #pragma cilnoremove("memset_seq_model", "memcpy_seq_model")
+
 
   #pragma boxpoly("qsort")
   static inline
@@ -190,7 +191,11 @@
       void *end = __endof(base);
       return;
   }
+  #pragma cilnoremove("qsort_seq_model")
 
+// Whenever you use MAKE_QSORT(foosort, ...) also add
+// #pragma cilnoremove("foosort_seq_model")
+//
   #define MAKE_QSORT(name,namestr,elt_type) \
   static inline\
   void name (elt_type *base, unsigned int nmemb, unsigned int size,\
@@ -205,7 +210,7 @@
   {\
       elt_type *end = __endof(base);\
       return;\
-  }
+  } 
 
 
 #pragma boxexported("main")

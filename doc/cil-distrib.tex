@@ -117,6 +117,22 @@ Online documentation of the CIL API is available~\ahref{cil-api}{here}. This
 documentation is also included in the distribution, in the \t{doc}
 subdirectory. 
 
+\section{Controlling CIL}
+
+ In the process of converting a C file to CIL we drop the unused prototypes
+and even inline function definitions. This results in much smaller files. If
+you do not want this behavior then you must pass the \t{--keepunused} argument
+to the CIL application. 
+
+ Alternatively you can put the following pragma in the code (instructing CIL
+to specifically keep the declarations and definitions of the function
+\t{func1} and variable \t{var2}, the definition of type \t{foo} and of
+structure \t{bar}):
+\begin{verbatim}
+#pragma cilnoremove("func1", "var2", "type foo", "struct bar")
+\end{verbatim}
+
+
 \section{Credits}
 
  CIL was develped starting from Hugues Casse's \t{frontc} front-end for C

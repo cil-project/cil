@@ -8,6 +8,11 @@ module H = Hashtbl
 module E = Errormsg
 
 
+(* Keep a list of names that we don't want removes. These are either names of 
+ * variables or functions, or names of types (preceeded by "type ") or 
+ * struct/union (preceeded by "struct " or "union ") *)
+let forceToKeep : (string, bool) H.t = H.create 111
+
 (* simple visitor to clear the 'referenced' bits *)
 class clearRefBitsVis = object
   inherit nopCilVisitor (* in CIL *)
@@ -18,6 +23,17 @@ class clearRefBitsVis = object
     v.vreferenced <- false;
     DoChildren
   end
+
+  method vglob = function
+      GPragma (Attr("cilnoremove", args), _) -> 
+        List.iter 
+          (function AStr s -> H.add forceToKeep s true
+            | _ -> ignore (warn "Invalid argument to pragma cilnoremove"))
+          args;
+        SkipChildren
+
+    | _ -> DoChildren
+
 end
 
 
@@ -127,6 +143,7 @@ class removeTempsVis (*(usedTypes : (typ,bool) H.t)*)
       f
     in
     ChangeDoChildrenPost (f, doafter)
+
 end
 
 
@@ -145,6 +162,7 @@ begin
     (trace "disableTmpRemoval" (dprintf "trace removal disabled\n"))
   else
 
+
   (* associate with every 'typ' whether it is referred-to *)
   (* by a global variable or function *)
   (*let usedTypes : (typ, bool) H.t = H.create 17 in*)
@@ -155,6 +173,8 @@ begin
   if (traceActive "printCilTree") then (
     (printFile stdout file)
   );
+
+  H.clear forceToKeep;
 
   (* begin by clearing all the 'referenced' bits *)
   ignore (visitCilFile (new clearRefBitsVis) file);
@@ -192,7 +212,8 @@ begin
         let retainHead = match hd with
           | GFun(f,_) -> (
               if (f.svar.vreferenced ||
-                  (not (isInlineFunc f))) then (
+                  (not (isInlineFunc f)) ||
+                  H.mem forceToKeep f.svar.vname) then (
                 (trace "usedVar" (dprintf "keeping func: %s\n" f.svar.vname));
                 ignore (visitCilFunction vis f);    (* root: trace it *)
                 true
@@ -205,7 +226,8 @@ begin
             )
 
           | GEnumTag(e, _) -> (
-              if (e.ereferenced) then (
+              if e.ereferenced ||
+                 H.mem forceToKeep ("enum " ^ e.ename) then (
                 (trace "usedType" (dprintf "keeping enum %s\n" e.ename));
                 true
               )
@@ -217,7 +239,8 @@ begin
 
           | GCompTag(c, _) -> (
               let kind = if (c.cstruct) then "struct" else "union" in
-              if (c.creferenced) then (
+              if c.creferenced || H.mem forceToKeep (kind ^ " " ^ c.cname) 
+              then (
                 (trace "usedType" (dprintf "keeping %s %s\n" kind c.cname));
                 true
               )
@@ -252,7 +275,9 @@ begin
               )
               else (
                 (* this is a typedef *)
-                if (H.mem usedTypedefs s) then (
+                if H.mem usedTypedefs s ||
+                   H.mem forceToKeep ("type " ^ s) 
+                then (
                   (trace "usedType" (dprintf "keeping typedef %s\n" s));
                   (* I think we don't need to trace again during sweep, because *)
                   (* all tracing of types should have finished during mark phase *)
@@ -268,18 +293,17 @@ begin
             )
 
           | GDecl(v, _) -> (
-              if (not v.vreferenced) then (
-                (trace "usedVar" (dprintf "removing global: %s\n" v.vname));
-                false
-              )
-              else (
-                (trace "usedVar" (dprintf "keeping global: %s\n" v.vname));
-
+              if v.vreferenced || H.mem forceToKeep v.vname then begin
+                trace "usedVar" (dprintf "keeping global: %s\n" v.vname);
+                
                 (* since it's referenced, use it as a root for the type dependency *)
                 ignore (visitCilVarDecl vis v);
 
                 (* it's referenced: keep it *)
                 true
+              end else (
+                (trace "usedVar" (dprintf "removing global: %s\n" v.vname));
+                false
               )
             )
 

@@ -682,6 +682,10 @@ variable number of arguments each having one of the types of the fields of
 \item \t{#pragma boxvararg\_printf("myprintf", 2)} - Declares \t{myprintf} to
 be a printf-like function whose format string is in the second argument.
  See \secref{vararg}.
+\item \t{#pragma cilnoremove("func1", "var2", "type foo", "struct bar")} -
+Instructs CIL to keep the declarations and definitions of the function
+\t{func1} and variable \t{var2}, the definition of type \t{foo} and of
+structure \t{bar}.
 \end{enumerate}
 
  
