@@ -679,6 +679,7 @@ let feature : featureDescr =
     fd_doit = 
     (function (f : file) ->
       (* Call the simplify *)
+      Simplify.onlyVariableBasics := true;
       Simplify.feature.fd_doit f;
       (* Compute the call graph *)
       let graph = CG.computeGraph f in 

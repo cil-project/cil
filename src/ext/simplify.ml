@@ -80,6 +80,8 @@ let debug = true
 (* Whether to split structs *)
 let splitStructs = ref true
 
+let onlyVariableBasics = ref false
+
 (* Turn an expression into a three address expression (and queue some 
  * instructions in the process) *)
 let rec makeThreeAddress 
@@ -114,8 +116,9 @@ and makeBasic (setTemp: taExp -> bExp) (e: exp) : bExp =
   let e' = makeThreeAddress setTemp e in
   (* See if it is a basic one *)
   match e' with 
-    Const _ | Lval (Var _, _) 
-  | AddrOf (Var _, NoOffset) | StartOf (Var _, NoOffset) -> e'
+  | Lval (Var _, _) -> e'
+  | Const _ | AddrOf (Var _, NoOffset) | StartOf (Var _, NoOffset) 
+    when not !onlyVariableBasics -> e'
   | SizeOf _ | SizeOfE _ | AlignOf _ |  AlignOfE _ | SizeOfStr _ -> 
       E.s (bug "Simplify: makeBasic found SizeOf")
   | _ -> setTemp e' (* Put it into a temporary otherwise *)
