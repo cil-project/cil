@@ -2599,8 +2599,9 @@ and doExp (isconst: bool)    (* In a constant *)
 
         | A.CONST_WSTRING wstr ->
             let len = String.length wstr in 
-            let wide_factor = (bitsSizeOf (wcharType)) / 8 in
-            let dest = String.make (len * wide_factor) '\000' in 
+            let wide_factor = (bitsSizeOf (wcharType ())) / 8 in
+            (* the +1 here is for the trailing wide-null *) 
+            let dest = String.make ((len + 1)* wide_factor) '\000' in 
             for i = 0 to len-1 do 
               dest.[i*wide_factor] <- wstr.[i] ;
             done ; 
@@ -2608,7 +2609,8 @@ and doExp (isconst: bool)    (* In a constant *)
              * make sure that L"Hi"[1] is the same as L'i', we must
              * cast the result to a wchar_t pointer (so that the pointer
              * artimetic correctly moves over wide characters) *)
-            finishExp empty (CastE(wcharPtrType,Const(CStr(dest)))) wcharPtrType
+            finishExp empty (CastE(wcharPtrType (),Const(CStr(dest)))) 
+              (wcharPtrType ())
 
         | A.CONST_STRING s -> 
             (* Maybe we burried __FUNCTION__ in there *)
@@ -3742,7 +3744,8 @@ and doInit
          [(A.NEXT_INIT, 
            A.SINGLE_INIT(A.CONSTANT 
                            (A.CONST_WSTRING s)))])) :: restil
-     when (match unrollType bt with wcharType -> true | _ -> false) 
+     when (unrollType bt = (wcharType ())) 
+      (* wcharType contains no looping, so this equality check is OK *) 
     -> 
       let chars = explodeString true s in
       let charinits = 

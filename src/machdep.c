@@ -52,6 +52,7 @@ int main() {
   printf("\tlet sizeof_ptr       = %d\n", sizeof(int *));
   printf("\tlet sizeof_enum      = %d\n", sizeof(enum { ONE, TWO }));
   printf("\tlet sizeof_longdouble  = %d\n", sizeof(long double));
+  printf("\tlet sizeof_wchar_t   = %d\n", sizeof(wchar_t));
 
   // The alignment of long long
   {
@@ -82,6 +83,17 @@ int main() {
     printf("\tlet alignof_longdouble = %d\n",
            (int)(&((struct s1*)0)->ld));
   }    
+
+  // The alignment of wchar_t 
+  {
+    struct s1 {
+      char c;
+      wchar_t w;
+    };
+    printf("\tlet alignof_wchar_t = %d\n",
+           (int)(&((struct s1*)0)->w));
+  }    
+
 
   // The type of sizeof
   printf("\tlet ikind_sizeof_is_long = %s\n",

@@ -1082,10 +1082,10 @@ val charType: typ
 val charPtrType: typ
 
 (** wchar_t *)
-val wcharType: typ
+val wcharType: unit -> typ
 
 (** wchar_t * *)
-val wcharPtrType: typ
+val wcharPtrType: unit -> typ
 
 (** char const * *)
 val charConstPtrType: typ
