@@ -958,6 +958,7 @@ attr:
 |   attr SUP_SUP attr			{BINARY(SHR ,$1 , $3)}
 |   attr ARROW id_or_typename           {MEMBEROFPTR ($1, $3)} 
 |   attr DOT id_or_typename             {MEMBEROF ($1, $3)}  
+|   LPAREN attr RPAREN                  { $2 } 
 ;
 
 attr_list_ne:

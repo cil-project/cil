@@ -48,7 +48,11 @@ my @allcases =
     ('original', 'ccured', 'CHECKS', 'NULL', 'ADVANCE',
      'UBOUNDNULL', 'BOUNDS', 'UBOUND', 'LBOUND', 'FETCHLEN', 'STOREPTR', 
      'RETURNPTR', 'STOREFATPTR', 'RETURNFATPTR');
-     
+  
+my @defaultcases = 
+    ('original', 'ccured', 'CHECKS', 'NULL', 'ADVANCE',
+     'UBOUNDNULL', 'BOUNDS' );
+    
 
 my @alltests =  
     ( "perimeter",
@@ -87,7 +91,7 @@ my @cases; # Construct cases by as the intersection of allcaseskeys and
                # but maintain the order from allcaseskeys
 
 if(grep { $_ eq 'all'} @optcases) {
-    @optcases = @allcases;
+    push @optcases, @defaultcases;
 } else {
     if($#optcases > 1) { # At least a check was requested
         # Make sure that nochecks is run
@@ -193,7 +197,7 @@ foreach my $tst (@tests) {
         print LOG     $msg;
         print RESULTS $msg;
         $count ++;
-        open(RUN, "$cmd 2>&1 |") || die "Cannot run $cmd";
+        open(RUN, "$cmd 2>&1 |") || { warn "Cannot run $cmd"; next; }
         while(<RUN>) {
             print LOG $_;
             if($_ =~ m/$matchtime/) { 
@@ -204,7 +208,7 @@ foreach my $tst (@tests) {
                 $results{"perc$1"}  = $3;
             }
         }
-        close(RUN) || die "Cannot run $cmd";
+        close(RUN) || { warn "Cannot run $cmd"; next; }
         &processInterrupt();
         if(! defined($results{$case})) {
             print "Cannot find the time for $cmd\n";

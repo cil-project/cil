@@ -1035,6 +1035,26 @@ let rec replaceLastInList
   | h :: t -> h :: replaceLastInList t how
 
 
+let convBinOp (bop: A.binary_operator) : binop =
+  match bop with
+    A.ADD -> PlusA
+  | A.SUB -> MinusA
+  | A.MUL -> Mult
+  | A.DIV -> Div
+  | A.MOD -> Mod
+  | A.BAND -> BAnd
+  | A.BOR -> BOr
+  | A.XOR -> BXor
+  | A.SHL -> Shiftlt
+  | A.SHR -> Shiftrt
+  | A.EQ -> Eq
+  | A.NE -> Ne
+  | A.LT -> Lt
+  | A.LE -> Le
+  | A.GT -> Gt
+  | A.GE -> Ge
+  | _ -> E.s (error "convBinOp")
+
 (**** PEEP-HOLE optimizations ***)
 let afterConversion (c: chunk) : chunk = 
   (* Now scan the statements and find Instr blocks *)
@@ -1311,6 +1331,12 @@ and doAttr (a: A.attribute) : attribute list =
                    List.map ae args)
         | A.EXPR_SIZEOF e -> ASizeOfE (ae e)
         | A.TYPE_SIZEOF (bt, dt) -> ASizeOf (doOnlyType bt dt)
+        | A.BINARY(abop, aa1, aa2) -> 
+            ABinOp (convBinOp abop, ae aa1, ae aa2)
+        | A.UNARY(A.PLUS, aa) -> ae aa
+        | A.UNARY(A.MINUS, aa) -> AUnOp (Neg, ae aa)
+        | A.UNARY(A.BNOT, aa) -> AUnOp(BNot, ae aa)
+        | A.UNARY(A.NOT, aa) -> AUnOp(LNot, ae aa)
         | _ -> E.s (error "Invalid expression in attribute")
       and ae (e: A.expression) = attrOfExp false e
       in
@@ -2093,25 +2119,7 @@ and doExp (isconst: bool)    (* In a constant *)
           
     | A.BINARY((A.ADD|A.SUB|A.MUL|A.DIV|A.MOD|A.BAND|A.BOR|A.XOR|
       A.SHL|A.SHR|A.EQ|A.NE|A.LT|A.GT|A.GE|A.LE) as bop, e1, e2) -> 
-        let bop' = match bop with
-          A.ADD -> PlusA
-        | A.SUB -> MinusA
-        | A.MUL -> Mult
-        | A.DIV -> Div
-        | A.MOD -> Mod
-        | A.BAND -> BAnd
-        | A.BOR -> BOr
-        | A.XOR -> BXor
-        | A.SHL -> Shiftlt
-        | A.SHR -> Shiftrt
-        | A.EQ -> Eq
-        | A.NE -> Ne
-        | A.LT -> Lt
-        | A.LE -> Le
-        | A.GT -> Gt
-        | A.GE -> Ge
-        | _ -> E.s (error "binary +")
-        in
+        let bop' = convBinOp bop in
         let (se1, e1', t1) = doExp isconst e1 (AExp None) in
         let (se2, e2', t2) = doExp isconst e2 (AExp None) in
         let tresult, result = doBinOp bop' e1' t1 e2' t2 in
