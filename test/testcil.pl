@@ -127,12 +127,7 @@ $TEST->add3Tests("test/attr3", "_GNUCC=1");
 $TEST->add3Tests("testrun/attr4", "_GNUCC=1");
 $TEST->add3Tests("test/bh1");
 $TEST->add3Tests("test/bitfield");
-    $TEST->addBadComment("test/bitfield-box", "Unimplemented & bitfield");
-$TEST->add3Tests("test/bitfield3");
-    $TEST->addBadComment("test/bitfield3-inferbox", 
-                         "Unimplemented & bitfield");
-    $TEST->addBadComment("test/bitfield3-box", 
-                         "Unimplemented & bitfield");
+$TEST->add3Tests("testrun/bitfield3");
      
 $TEST->add3Tests("testrun/bitfield2");
 $TEST->add3Tests("test/box1");
@@ -167,7 +162,6 @@ $TEST->add3Tests("test/li");
 $TEST->add3Tests("test/li1", "_GNUCC=1");
 $TEST->add3Tests("test/list");
 $TEST->add3Tests("test/pointers");
-    $TEST->addBadComment("test/pointers-box", "Unimplemented & bitfield");
 $TEST->add3Tests("test/printf", "", @runpattern);
 $TEST->add3Tests("test/printf_const", "", @runpattern);
 $TEST->add3Tests("testrun/printf2");
@@ -225,8 +219,6 @@ $TEST->addTests("testrun/typespec1", "_GNUCC=1", ['cil']);
    $TEST->addBadComment("testrun/typespec1-cil", 
                         "Must emulate bug in GCC?");
 $TEST->add2Tests("testrun/wild2", "_GNUCC=1");
-   $TEST->addBadComment("testrun/wild2-inferbox", 
-                        "Bug in box.ml");
    
 # Tests that are expected to fail
 $TEST->add2TestsFail("testrun/failubound1", "", "Failure .+: Ubound");
