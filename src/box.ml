@@ -51,7 +51,7 @@ and fexp =
                                          * Seq  *)
   | W3 of typ * P.pointerkind * exp * exp * exp
                                         (* A three-word expression that is 
-                                         * makde out of three parts. The 
+                                         * made out of three parts. The 
                                          * pointerkind is Seq *)
   | WC of typ * P.pointerkind * typ * P.pointerkind * exp 
                                         (* Like W1 but after a cast *)
@@ -311,7 +311,7 @@ and fixit t =
                     (mkCompInfo true tname 
                        (fun _ -> [ ("_p", TPtr(fixed', a), []); 
                                    ("_b", voidPtrType, []);
-                                   ("_l", uintType, []) ]) 
+                                   ("_e", voidPtrType, []) ]) 
                        [])
                 in
                 theFile := GType(tname, fixed) :: !theFile;
@@ -482,6 +482,7 @@ let mkPointerTypeKind (bt: typ) (k: P.pointerkind) =
     | P.Index -> AId("index")
     | P.Wild -> AId("wild")
     | P.Seq -> AId("seq")
+    | P.FSeq -> AId("fseq")
     | _ -> E.s (E.unimp "mkPointerKind")
   in
   fixupType (TPtr(bt, [k2attr k]))
@@ -492,7 +493,7 @@ let mkFexp1 (t: typ) (e: exp) =
   let k = kindOfType t in
   match k with
     (P.Safe|P.Scalar) -> L  (t, k, e)
-  | (P.Index|P.Wild) -> F1 (t, k, e)
+  | (P.Index|P.Wild|P.FSeq) -> F1 (t, k, e)
   | P.Seq -> W1(t, k, e)
   | _ -> E.s (E.bug "mkFexp1")
 
@@ -500,7 +501,7 @@ let mkFexp2 (t: typ) (ep: exp) (eb: exp) =
   let k = kindOfType t in
   match k with
     (P.Safe|P.Scalar) -> L  (t, k, ep)
-  | (P.Index|P.Wild) -> F2 (t, k, ep, eb)
+  | (P.Index|P.Wild|P.FSeq) -> F2 (t, k, ep, eb)
   | _ -> E.s (E.bug "mkFexp2")
 
 let mkFexp3 (t: typ) (ep: exp) (eb: exp) (el: exp) = 
@@ -520,7 +521,7 @@ let isFatComp (comp: compinfo) =
      p :: b :: rest when p.fname = "_p" && b.fname = "_b" -> 
        (match rest with
          [] -> true (* A two word pointer *)
-       | [l] when l.fname = "_l" -> true
+       | [e] when e.fname = "_e" -> true
        | _ -> false)
    | _ -> false))
 
@@ -532,12 +533,12 @@ let isFatType t =
   | _ -> false
 
 (* Given a fat type, return the three fieldinfo corresponding to the ptr, 
- * base and (optional) len *)
+ * base and (optional) end *)
 let getFieldsOfFat (t: typ) : fieldinfo * fieldinfo * (fieldinfo option) = 
   match unrollType t with
     TComp comp when isFatComp comp -> begin
       match comp.cfields with 
-        p :: b :: l :: _ -> p, b, Some l
+        p :: b :: e :: _ -> p, b, Some e
       | p :: b :: [] -> p, b, None
       | _ -> E.s (E.bug "getFieldsOfFat")
     end
@@ -547,11 +548,11 @@ let getFieldsOfFat (t: typ) : fieldinfo * fieldinfo * (fieldinfo option) =
 
 let rec readFieldsOfFat (e: exp) et =     
   if isFatType et then
-    let fptr, fbase, fleno = getFieldsOfFat et in
+    let fptr, fbase, fendo = getFieldsOfFat et in
     let rec compOffsets = function
         NoOffset -> 
           Field(fptr, NoOffset), Field(fbase, NoOffset), 
-          (match fleno with Some x -> Field(x, NoOffset) | _ -> NoOffset)
+          (match fendo with Some x -> Field(x, NoOffset) | _ -> NoOffset)
 
       | Field(fi, o) -> 
           let po, bo, lo = compOffsets o in
@@ -561,54 +562,51 @@ let rec readFieldsOfFat (e: exp) et =
           let po, bo, lo = compOffsets o in
           Index(e, po), Index(e, bo), Index(e, lo)
     in
-    let ptre, basee, lene = 
+    let ptre, basee, ende = 
       match e with
         Lval(Var vi, o) -> 
-          let po, bo, lo = compOffsets o in
-          Lval(Var vi, po), Lval(Var vi, bo), Lval(Var vi, lo)
+          let po, bo, eo = compOffsets o in
+          Lval(Var vi, po), Lval(Var vi, bo), Lval(Var vi, eo)
       | Lval(Mem e'', o) -> 
-          let po, bo, lo = compOffsets o in
-          Lval(Mem e'', po), Lval(Mem e'', bo), Lval(Mem e'', lo)
+          let po, bo, eo = compOffsets o in
+          Lval(Mem e'', po), Lval(Mem e'', bo), Lval(Mem e'', eo)
       | Question (e1, e2, e3, lq) ->
-          let e2t, e2', e2'', e2l = readFieldsOfFat e2 et in
-          let   _, e3', e3'', e3l = readFieldsOfFat e3 et in
+          let e2t, e2', e2'', e2e = readFieldsOfFat e2 et in
+          let   _, e3', e3'', e3e = readFieldsOfFat e3 et in
           (Question(e1,e2',e3', lq), 
            Question(e1,e2'',e3'', lq), 
-           Question(e1, e2l,e3l, lq))
+           Question(e1, e2e,e3e, lq))
       | Compound (t, [_, p; _, b]) when isFatType t -> 
           p, b, zero
-      | Compound (t, [_, p; _, b; _, l]) when isFatType t -> 
-          p, b, l
+      | Compound (t, [_, p; _, b; _, e]) when isFatType t -> 
+          p, b, e
       | _ -> E.s (E.unimp "split _p field offset: %a" d_plainexp e)
     in
-    (fptr.ftype, ptre, basee, lene)
+    (fptr.ftype, ptre, basee, ende)
   else
     (et, e, zero, zero)
 
     (* Create a new temporary of a fat type and set its pointer and base 
      * fields *)
-let setFatPointer (t: typ) (p: typ -> exp) (b: exp) (l: exp)
+let setFatPointer (t: typ) (p: typ -> exp) (b: exp) (e: exp)
     : stmt list * lval = 
   let tmp = makeTempVar !currentFunction t in
-  let fptr, fbase, fleno = getFieldsOfFat t in
+  let fptr, fbase, fendo = getFieldsOfFat t in
   let p' = p fptr.ftype in
-  let setlen = 
-    match fleno with
+  let setend = 
+    match fendo with
       None -> []
-    | Some flen -> [mkSet (Var tmp, Field(flen,NoOffset)) l]
+    | Some fend -> [mkSet (Var tmp, Field(fend,NoOffset)) e]
   in
   ( mkSet (Var tmp, Field(fptr,NoOffset)) p' ::
-   mkSet (Var tmp, Field(fbase,NoOffset)) b  :: setlen, 
+   mkSet (Var tmp, Field(fbase,NoOffset)) b  :: setend, 
    (Var tmp, NoOffset))
       
 let readPtrField (e: exp) (t: typ) : exp = 
-  let (tptr, ptr, base, len) = readFieldsOfFat e t in ptr
+  let (tptr, ptr, base, bend) = readFieldsOfFat e t in ptr
       
 let readBaseField (e: exp) (t: typ) : exp = 
-  let (tptr, ptr, base, len) = readFieldsOfFat e t in base
-
-let readLenField (e: exp) (t: typ) : exp = 
-  let (tptr, ptr, base, len) = readFieldsOfFat e t in len
+  let (tptr, ptr, base, bend) = readFieldsOfFat e t in base
 
 
 
@@ -729,8 +727,8 @@ let checkIndexFun =
   let fdec = emptyFunction "CHECK_INDEX" in
   let argp  = makeLocalVar fdec "p" voidPtrType in
   let argb  = makeLocalVar fdec "b" voidPtrType in
-  let argl  = makeLocalVar fdec "l" uintType in
-  fdec.svar.vtype <- TFun(voidType, [ argp; argb; argl ], false, []);
+  let arge  = makeLocalVar fdec "e" uintType in
+  fdec.svar.vtype <- TFun(voidType, [ argp; argb; arge ], false, []);
   fdec.svar.vstorage <- Static;
   theFile := GDecl fdec.svar :: !theFile;
   fdec
@@ -756,7 +754,25 @@ let checkFunctionPointer =
   fun whatp whatb -> 
     call None (Lval(var fdec.svar)) [ castVoidStar whatp; 
                                       castVoidStar whatb]
-  
+
+(* Compute the ptr corresponding to a base. This is used only to pass an 
+ * argument to the intercept functionin the case when the base = 0 *)
+let ptrOfBase (base: exp) =  
+  let rec replaceBasePtr = function
+      Field(fip, NoOffset) when fip.fname = "_b" ->
+             (* Find the fat type that this belongs to *)
+        let pfield, _, _ = getFieldsOfFat (TComp(fip.fcomp)) in
+        Field(pfield, NoOffset)
+          
+    | Field(f', o) -> Field(f',replaceBasePtr o)
+    | _ -> raise Not_found
+  in
+  match base with
+    Lval (b, off) -> 
+      begin try Lval(b, replaceBasePtr off) with Not_found -> base end
+  | _ -> base
+
+
 let checkFetchLength = 
   let fdec = emptyFunction "CHECK_FETCHLENGTH" in
   let argp  = makeLocalVar fdec "p" voidPtrType in
@@ -765,24 +781,24 @@ let checkFetchLength =
   fdec.svar.vstorage <- Static;
   theFile := GDecl fdec.svar :: !theFile;
   fun tmplen base -> 
-    let ptr = 
-      let rec replaceBasePtr = function
-          Field(fip, NoOffset) when fip.fname = "_b" ->
-             (* Find the fat type that this belongs to *)
-            let pfield, _, _ = getFieldsOfFat (TComp(fip.fcomp)) in
-            Field(pfield, NoOffset)
-
-        | Field(f', o) -> Field(f',replaceBasePtr o)
-        | _ -> raise Not_found
-      in
-      match base with
-        Lval (b, off) -> 
-          begin try Lval(b, replaceBasePtr off) with Not_found -> base end
-      | _ -> base
-    in
+    let ptr = ptrOfBase base in
     call (Some tmplen) (Lval (var fdec.svar))
       [ castVoidStar ptr; 
         castVoidStar base ]
+
+let checkFetchEnd = 
+  let fdec = emptyFunction "CHECK_FETCHEND" in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  fdec.svar.vtype <- TFun(voidPtrType, [ argp; argb ], false, []);
+  fdec.svar.vstorage <- Static;
+  theFile := GDecl fdec.svar :: !theFile;
+  fun tmplen base -> 
+    let ptr = ptrOfBase base in
+    call (Some tmplen) (Lval (var fdec.svar))
+      [ castVoidStar ptr; 
+        castVoidStar base ]
+
 
 (* Since we cannot take the address of a bitfield we treat accesses to a 
  * bitfield like an access to the entire host that contains it (for the 
@@ -993,7 +1009,7 @@ let checkLeanStackPointer =
   
   
 let checkMem (towrite: exp option) 
-             (lv: lval) (base: exp) (blen: exp)
+             (lv: lval) (base: exp) (bend: exp)
              (lvt: typ) (pkind: P.pointerkind) : stmt list = 
   (* Fetch the length field in a temp variable. But do not create the 
    * variable until certain that it is needed *)
@@ -1084,7 +1100,7 @@ let checkMem (towrite: exp option)
   in
   (* Now see if we need to do bounds checking *)
   let checkb = 
-    (checkBounds getLenExp base blen lv lvt pkind) :: zeroAndCheckTags in
+    (checkBounds getLenExp base bend lv lvt pkind) :: zeroAndCheckTags in
   (* See if we need to generate the length *)
   (match !lenExp with
     None -> checkb
@@ -1172,7 +1188,7 @@ and boxinstr (ins: instr) : stmt =
   try
     match ins with
     | Set (lv, e, l) -> 
-        let (lvt, lvkind, lv', lvbase, lvlen, dolv) = boxlval lv in
+        let (lvt, lvkind, lv', lvbase, lvend, dolv) = boxlval lv in
         let (doe, e') = boxexpf e in (* Assume et is the same as lvt *)
         (* Now do a cast, just in case some qualifiers are different *)
         let (doe', e2) = castTo e' lvt doe in
@@ -1180,9 +1196,9 @@ and boxinstr (ins: instr) : stmt =
         let check = 
           match lv' with
             Mem _, _ -> 
-              checkWrite e3 lv' lvbase lvlen lvt lvkind
+              checkWrite e3 lv' lvbase lvend lvt lvkind
           | Var vi, off when (vi.vglob || lvkind != P.Safe) -> 
-              checkWrite e3 lv' lvbase lvlen lvt lvkind
+              checkWrite e3 lv' lvbase lvend lvt lvkind
           | _ -> []
         in
         mkSeq (dolv @ doe3 @ check @ [Instr(Set(lv', e3, l))])
@@ -1260,11 +1276,11 @@ and boxinstr (ins: instr) : stmt =
         let rec doOutputs = function
             [] -> [], []
           | (c, lv) :: rest -> 
-              let (lvt, lvkind, lv', lvbase, lvlen, dolv) = boxlval lv in
+              let (lvt, lvkind, lv', lvbase, lvend, dolv) = boxlval lv in
               let check = 
                 match lv' with
                   Mem _, _ -> 
-                    checkWrite (integer 0) lv' lvbase lvlen lvt lvkind
+                    checkWrite (integer 0) lv' lvbase lvend lvt lvkind
                 | _ -> []
               in
               if isFatType lvt then
@@ -1304,7 +1320,7 @@ and boxlval (b, off) : (typ * P.pointerkind * lval * exp * exp * stmt list) =
   (* As we go along the offset we keep track of the basetype and the pointer 
    * kind, along with the current base expression and a function that can be 
    * used to recreate the lval. *)
-  let (btype, pkind, mklval, base, blen, stmts) as startinput = 
+  let (btype, pkind, mklval, base, bend, stmts) as startinput = 
     match b with
       Var vi -> vi.vtype, P.Safe, (fun o -> (Var vi, o)), zero, zero, []
     | Mem addr -> 
@@ -1320,7 +1336,7 @@ and boxlval (b, off) : (typ * P.pointerkind * lval * exp * exp * stmt list) =
 (*  ignore (E.log "Lval=%a@!startinput=%a\n" 
             d_lval (b, off) P.d_pointerkind pkind); *)
   (* Check index when we switch from Index to Safe *)
-  let toSafe ((btype, pkind, mklval, base, blen, stmts) as input) = 
+  let toSafe ((btype, pkind, mklval, base, bend, stmts) as input) = 
     match pkind with
       P.Wild -> input (* No change if we are in a tagged area *)
     | P.Safe -> input (* No change if already safe *)
@@ -1334,27 +1350,27 @@ and boxlval (b, off) : (typ * P.pointerkind * lval * exp * exp * stmt list) =
         (btype, P.Safe, mklval, zero, zero,
          stmts @ [call None (Lval (var checkBoundsFun.svar))
                      [ castVoidStar base;
-                       blen;
+                       bend;
                        castVoidStar (mkAddrOf (mklval NoOffset));
                        SizeOf (btype, lu)]])
 
     | _ -> E.s (E.unimp "toSafe on unexpected pointer kind %a"
                   P.d_pointerkind pkind)
   in
-  let toIndexSeq ((btype, pkind, mklval, base, blen, stmts) as input) = 
+  let toIndexSeq ((btype, pkind, mklval, base, bend, stmts) as input) = 
     match pkind with
       P.Wild -> input (* No change if we are in a tagged area *)
 
     | P.Safe -> 
-        let (elemtype, pkind, base, blen) = arrayPointerToIndex btype mklval in
-        (elemtype, pkind, mklval, base, blen, stmts)
+        let (elemtype, pkind, base, bend) = arrayPointerToIndex btype mklval in
+        (elemtype, pkind, mklval, base, bend, stmts)
 
     | _ -> E.s (E.unimp "toIndex on unexpected pointer kind %a"
                   P.d_pointerkind pkind)
   in
   (* As we go along we need to go into tagged and sized types. Never call 
    * this on an Index pointer *)
-  let goIntoTypes ((btype, pkind, mklval, base, blen, stmts) as input) = 
+  let goIntoTypes ((btype, pkind, mklval, base, bend, stmts) as input) = 
     if pkind = P.Index then
       E.s (E.bug "goIntoTypes is called on an Index pointer");
     match 
@@ -1383,29 +1399,29 @@ and boxlval (b, off) : (typ * P.pointerkind * lval * exp * exp * stmt list) =
       NoOffset -> goIntoTypes input
 
     | Field (f, resto) -> 
-        let (_, pkind, mklval, base, blen, stmts) = 
+        let (_, pkind, mklval, base, bend, stmts) = 
           toSafe (goIntoTypes input) in
         (* Prepare for the rest of the offset *)
         let next = 
-          (f.ftype, pkind, (fun o -> mklval (Field(f, o))), base, blen, 
+          (f.ftype, pkind, (fun o -> mklval (Field(f, o))), base, bend, 
            stmts) in
         doOffset next resto
 
     | Index (e, resto) -> 
-        let (btype, pkind, mklval, base, blen, stmts) = 
+        let (btype, pkind, mklval, base, bend, stmts) = 
           toIndexSeq (goIntoTypes input) in
         (* Do the index *)
         let (_, doe, e') = boxexp e in
         (* Grab the result type *)
         (* Prepare for the rest of the offset *)
         let next = 
-          (btype, pkind, (fun o -> mklval (Index(e', o))), base, blen, stmts) 
+          (btype, pkind, (fun o -> mklval (Index(e', o))), base, bend, stmts) 
         in
         next
   in
-  let (btype, pkind, mklval, base, blen, stmts) = doOffset startinput off in
+  let (btype, pkind, mklval, base, bend, stmts) = doOffset startinput off in
 (*  ignore (E.log "Done lval: pkind=%a@!" P.d_pointerkind pkind); *)
-  (btype, pkind, mklval NoOffset, base, blen, stmts)
+  (btype, pkind, mklval NoOffset, base, bend, stmts)
       
 and arrayPointerToIndex (t: typ) (mklval: offset -> lval) = 
   match unrollType t with
@@ -1482,10 +1498,10 @@ and boxexpf (e: exp) : stmt list * fexp =
                               BinOp(bop, readPtrField e1' et1, e2', p.ftype,l),
                               readBaseField e1' et1))
         | (PlusPI|MinusPI), P.Seq, P.Scalar -> 
-            let ptype, ptr, base, blen = readFieldsOfFat e1' et1 in
+            let ptype, ptr, base, bend = readFieldsOfFat e1' et1 in
             (doe1 @ doe2, W3 (restyp', P.Seq,
                               BinOp(bop, ptr, e2', ptype, l),
-                              base, blen))
+                              base, bend))
         | (MinusPP|EqP|NeP|LeP|LtP|GeP|GtP), _, _ -> 
             (doe1 @ doe2, 
              L(restyp', P.Scalar,
@@ -1518,7 +1534,7 @@ and boxexpf (e: exp) : stmt list * fexp =
         (seq, F1(tres, P.Wild, Lval(var tmp2)))
           
     | AddrOf (lv, l) ->
-        let (lvt, lvkind, lv', baseaddr, blen, dolv) = boxlval lv in
+        let (lvt, lvkind, lv', baseaddr, bend, dolv) = boxlval lv in
         (* Check that variables whose address is taken are flagged as such, 
          * or are globals  *)
         (match lv' with
@@ -1531,7 +1547,7 @@ and boxexpf (e: exp) : stmt list * fexp =
           match lvkind with
             P.Safe -> mkFexp1 ptrtype (AddrOf(lv', l))
           | (P.Index | P.Wild) -> mkFexp2 ptrtype (AddrOf(lv', l)) baseaddr
-          | P.Seq ->  mkFexp3 ptrtype (AddrOf(lv', l)) baseaddr blen
+          | P.Seq ->  mkFexp3 ptrtype (AddrOf(lv', l)) baseaddr bend
           | _ -> E.s (E.bug "boxexp: AddrOf")
         in
         (dolv, res)
@@ -1551,12 +1567,12 @@ and boxexpf (e: exp) : stmt list * fexp =
                 AddrOf(addOffsetLval (Index(zero, NoOffset)) lv', lu) in
               match lvkind with
                 P.Safe -> 
-                  let (_, pkind, base, blen) = 
+                  let (_, pkind, base, bend) = 
                     arrayPointerToIndex lvt (fun o -> addOffsetLval o lv')
                   in
                   let pres = mkPointerTypeKind t pkind in
                   if pkind = P.Seq then
-                    mkFexp3 pres newp base blen
+                    mkFexp3 pres newp base bend
                   else
                     mkFexp2 pres newp base
               | P.Wild -> 
@@ -1670,15 +1686,15 @@ and boxexpSplit (e: exp) =
       (pfield.ftype, doe, p, b, zero)
   | (F1 _ | FC _ | W1 _ | WC _ | W3 _) ->
       let (et, caste, e'') = fexp2exp fe' doe in
-      let (tptr, ptr, base, blen) = readFieldsOfFat e'' et in
-      (tptr, doe @ caste, ptr, base, blen)
+      let (tptr, ptr, base, bend) = readFieldsOfFat e'' et in
+      (tptr, doe @ caste, ptr, base, bend)
 
 
 and boxfunctionexp (f : exp) = 
   match f with
     Lval(Var vi, NoOffset) -> boxexp f
   | Lval(Mem base, NoOffset) -> 
-      let rest, lvkind, lv', lvbase, lvlen, dolv = 
+      let rest, lvkind, lv', lvbase, lvend, dolv = 
         boxlval (Mem base, NoOffset) in
       (rest, dolv @ [checkFunctionPointer (AddrOf(lv', lu)) lvbase], 
        Lval(lv'))
@@ -1690,8 +1706,8 @@ and castTo (fe: fexp) (newt: typ)
            (doe: stmt list) : stmt list * fexp =
   let newkind = kindOfType newt in
   let indexToSeq (ep: exp) (eb: exp) = 
-    let tmp = makeTempVar !currentFunction uintType in
-    doe @ [checkFetchLength tmp eb], 
+    let tmp = makeTempVar !currentFunction voidPtrType in
+    doe @ [checkFetchEnd tmp eb], 
     W3(newt, P.Seq, ep, eb, Lval(var tmp))
   in
     
