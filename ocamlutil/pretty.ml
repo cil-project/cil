@@ -1075,9 +1075,13 @@ let rec writeIndent_buf n buf =
     Buffer.add_char buf ' ';
     writeIndent_buf (n - 1) buf
   end
-let writeIndent (n : int) = function
+let writeIndent_old (n : int)  = function
     QOut_channel chn -> writeIndent_out n chn     
   | QBuffer buf -> writeIndent_buf n buf
+
+let writeIndent (n : int) (spaceBuf : string) = function
+    QOut_channel chn -> output chn spaceBuf 0 n (* AB: Must put a try here for safety *)
+  | QBuffer buf -> Buffer.add_substring buf spaceBuf 0 n
 
 
 (* Calculate qalignData.sizes *)
@@ -1156,15 +1160,17 @@ let qPreprocess doc width =
   end
    
 
+let qdontthink = false
 
 let qprint qchn width doc = 
   (* let curPos = ref 0 in *)
   let alignStack  = ref [0] in
-  let breakList :  int ref list ref = ref (qPreprocess doc width) in
+  let breakList :  int ref list ref = if qdontthink then ref [] else ref (qPreprocess doc width) in
+  let spaceBuf = String.make width ' ' in
   let breakLine () = begin
     writeChar '\n' qchn;
     (* for i=1 to (List.hd !alignStack) do writeChar ' ' qchn done;*)
-    writeIndent (List.hd !alignStack) qchn; (* AB: Why doesn't this make it faster ? *)
+    writeIndent (List.hd !alignStack) spaceBuf qchn; (* AB: Why doesn't this make it faster ? *)
     List.hd !alignStack 
   end in
   let decide2break curPos = begin
@@ -1176,22 +1182,26 @@ let qprint qchn width doc =
 	else (width <= curPos + !size)
     | _ -> raise (Failure "breakList contains too few breaks")
   end  in
+  let qprintText curPos (s : string) =
+    writeString s qchn;
+    curPos + String.length s in
   let rec qprintLoop curPos = function
       Nil -> curPos
     | Text s -> 
 	writeString s qchn;
 	curPos + String.length s
     | Concat (d1, d2) -> qprintLoop (qprintLoop curPos d1) d2
-    | CText (d,s) -> qprintLoop (qprintLoop curPos d) (Text s)
+    | CText (d,s) -> qprintText (qprintLoop curPos d) s
     | Break -> 
-	(* if (!curPos + 10 >= width) then begin *)
-	if (decide2break curPos) then begin
-	  breakLine()
-	end
-	else begin
-	  writeChar ' ' qchn;
-	  curPos + 1	    
-	end	  
+	if qdontthink then
+	  if (curPos + 10 >= width) then  (breakLine())
+	  else begin writeChar ' ' qchn; curPos + 1 end
+	else
+	  if (decide2break curPos) then (breakLine())
+	  else begin
+	    writeChar ' ' qchn;
+	    curPos + 1	    
+	  end	  
     | Line -> 
 	breakLine ()
     | Align -> 
