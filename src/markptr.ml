@@ -92,7 +92,11 @@ let registerFunction (fi: funinfo) =
   (* See if it has the format attribute *)
   (match filterAttributes "format" 
                           (getFunctionTypeAttributes (Lval (var fvi))) with
-    [Attr(_, [AId "printf"; AInt format_idx; AInt _]) as a] -> begin
+    [Attr(_, [printf; AInt format_idx; AInt _]) as a] 
+      when (match printf with 
+                AId("printf") -> true 
+              | AVar vi when vi.vname = "printf" -> true
+              | _ -> false) ->  begin
       let t = 
         match !printfFormatUnion with 
           Some ci -> TComp(ci, [])
