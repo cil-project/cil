@@ -48,6 +48,7 @@ MODULES    += cabs cprint combine clexer cparser cabs2cil cabsvisit patch frontc
 endif
 
 # Add main late
+OCAML_CIL_LIB_MODULES = $(MODULES)
 MODULES    += main
 
 
@@ -495,6 +496,11 @@ trval:
 	make -C $(TVDIR)
 	make -C $(TVDIR) RELEASE=1
 
+# ww: build an OCAML library (CMA / CMXA) that exports our Cil stuff
+# kudos to George for this lovely patsubst code ...
+obj/cil.$(CMXA): $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
+	$(CAMLLINK) -a -o $@ $^
+	
 
 # garbage collector options
 ifneq ($(COMPUTERNAME), RAW)   # George's workstation
