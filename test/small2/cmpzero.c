@@ -11,7 +11,8 @@ int main()
   printf("c: %d\n", (int)c);
 
   if (i == '\0') {
-    printf("yes\n");          // cil'd code does this!
+    printf("yes. This is not correct!!\n");          // cil'd code does this!
+    return 1;
   }
   else {
     printf("no\n");           // ordinary gcc does this
@@ -23,6 +24,6 @@ int main()
   else {
     printf("2nd no\n");
   }
-  
+  printf("Success\n");
   return 0;
 }

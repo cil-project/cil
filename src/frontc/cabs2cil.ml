@@ -2413,10 +2413,14 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
 
   | (Eq|Ne|Le|Lt|Ge|Gt|Eq|Ne) when isPointerType t1 && isArithmeticType t2 ->
       ignore (warn "Comparison of pointer and non-pointer");
-      doBinOp bop (doCastT e1 t1 t2) t2 e2 t2
+      (* Cast both values to upointType *)
+      doBinOp bop (doCastT e1 t1 upointType) upointType 
+                  (doCastT e2 t2 upointType) upointType
   | (Eq|Ne|Le|Lt|Ge|Gt|Eq|Ne) when isArithmeticType t1 && isPointerType t2 ->
       ignore (warn "Comparison of pointer and non-pointer");
-      doBinOp bop e1 t1 (doCastT e2 t2 t1) t1
+      (* Cast both values to upointType *)
+      doBinOp bop (doCastT e1 t1 upointType) upointType 
+                  (doCastT e2 t2 upointType) upointType
 
   | _ -> E.s (error "doBinOp: %a\n" d_plainexp (BinOp(bop,e1,e2,intType)))
 

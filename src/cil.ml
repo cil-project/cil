@@ -52,6 +52,7 @@ let charIsUnsigned = ref false        (* Whether CHAR is unsigned. Default
 let ilongFitsUInt = ref false         (* Whether a signed long can fit an 
                                        * unsigned integer. True only if a 
                                        * long uses more bits than an int  *)
+
 let newCil = ref true
 
 let printLn= ref true                 (* Whether to print line numbers *)
@@ -692,6 +693,9 @@ let voidPtrType = TPtr(voidType, [])
 let intPtrType = TPtr(intType, [])
 let uintPtrType = TPtr(uintType, [])
 let doubleType = TFloat(FDouble, [])
+
+(* An integer type that fits pointers. We hardwire to unsigned long for now *)
+let upointType = TInt(IULong, []) 
 
 
 let mkStmt (sk: stmtkind) : stmt = 

@@ -592,6 +592,9 @@ val intPtrType: typ
 val uintPtrType: typ
 val doubleType: typ
 
+(* An integer type that fits pointers. We hardwire to unsigned long for now *)
+val upointType: typ
+
 val isInteger: exp -> int32 option
 val isZero: exp -> bool
 
