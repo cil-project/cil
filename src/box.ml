@@ -631,7 +631,9 @@ let mkFexp2 (t: typ) (ep: exp) (eb: exp) =
 let mkFexp3 (t: typ) (ep: exp) (eb: exp) (ee: exp) = 
   let k = kindOfType t in
   match k with
-    P.Seq -> FM (t, k, ep, eb, ee)
+  | (P.Safe|P.Scalar) -> L (t, k, ep)
+  | (P.Index|P.Wild|P.FSeq) -> FM (t, k, ep, eb, zero)
+  | P.Seq -> FM (t, k, ep, eb, ee)
   | _ -> E.s (E.bug "mkFexp3(%a): ep=%a\nt=%a" 
                 P.d_pointerkind k d_plainexp ep d_plaintype t)
 
@@ -1711,18 +1713,20 @@ and boxexpf (e: exp) : stmt list * fexp =
             let tmp = makeTempVar !currentFunction charPtrType in
             (* Make it a SEQ for now *)
             let res = 
-              FM(fixChrPtrType, k,
-                 Lval (var tmp), 
-                 BinOp(IndexPI, Lval (var tmp), integer l, charPtrType), 
-                 Lval (var tmp))
+              mkFexp3  fixChrPtrType 
+                (Lval (var tmp))
+                (BinOp(IndexPI, Lval (var tmp), integer l, charPtrType)) 
+                (Lval (var tmp))
             in
             ([mkSet (var tmp) (Const (CStr s))], res)
 
         | _ -> E.s (E.unimp "String literal to %a" P.d_pointerkind k)
     end
     | Const (CStr _) -> 
-        (* Behave as if it is a FSeq *)
-        boxexpf (CastE (TPtr(TInt(IChar, []), [AId("fseq")]), 
+        (* means that we have not yet run markptr. *)
+        boxexpf (CastE (TPtr(TInt(IChar, []), 
+                             if !P.defaultIsWild then 
+                               [AId("wild")] else [AId("fseq")]), 
                         e))
 
 
@@ -2252,8 +2256,6 @@ let boxFile file =
   H.clear typeNames;
   H.clear fixedTypes;
   H.clear taggedTypes;
-  if !E.hadErrors then
-    E.s (E.error "Boxing");
   {file with globals = res}
 
   

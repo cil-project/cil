@@ -34,6 +34,9 @@ $TEST->addTest("rbtest", @runpattern);
 $TEST->addTest("wes-rbtest", @runpattern);
 $TEST->addTest("btreetest", @runpattern);
 $TEST->addTest("apache/gzip");
+$TEST->addTest("apache/rewrite");
+$TEST->addTest("test/box1");
+
 # $TEST->addTest("test/t");
 
 # print Dumper($TEST);
@@ -97,12 +100,14 @@ EOF
 
 sub errorHeading {
     my($self, $err) = @_;
+    return "Not executed" if $err == -1;
     return "Success" if $err == 0;
     return "Parse error" if $err == 1000;
     return "Cabs2cil error" if $err == 1001;
     return "Collecting constraints error" if $err == 1002;
     return "Constraint solving error" if $err == 1003;
     return "Boxing error" if $err == 1004;
+    return "Compilation error" if $err == 1005;
     return "Error $err";
 }
 
@@ -144,7 +149,9 @@ sub addTest {
     "^Error: Boxing" => sub { $_[1]->{ErrorCode} = 1004; },
 
          # Collect some more parameters
-    "^parse\\s+([\\.\\d]+) s" => sub { $_[1]->{parse} = $_[2];},
+    "^parse\\s+([\\.\\d]+) s" => sub { $_[1]->{instage} = 1005; # If here we
+                                                     # terminated successfully
+                                     $_[1]->{parse} = $_[2];},
     "^print.+\\s+([\\.\\d]+) s" => sub { $_[1]->{print} += $_[2];},
     "^box\\s+([\\.\\d]+) s" => sub { $_[1]->{box} += $_[2];},
     "^\\s+simple solver\\s+([\\.\\d]+) s" => sub { $_[1]->{solve} += $_[2];},

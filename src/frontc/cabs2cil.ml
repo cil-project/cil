@@ -137,19 +137,22 @@ let docAlphaTable () =
 
 
 (* Add a new variable. Do alpha-conversion if necessary *)
-let alphaConvertAndAddToEnv vi = 
+let alphaConvertAndAddToEnv (addtoenv: bool) vi = 
   let newname = newVarName vi.vname in
   let newvi = 
     if vi.vname = newname then vi else 
     {vi with vname = newname; 
              vid = if vi.vglob then H.hash newname else vi.vid} in
-  H.add env vi.vname newvi; 
+  if addtoenv then H.add env vi.vname newvi; 
   if not vi.vglob then begin
     locals := newvi :: !locals;
-    (match !scopes with
-      [] -> E.s (E.bug "Adding a local %s but not in a scope" vi.vname)
-    | s :: _ -> s := vi.vname :: !s)
+    if addtoenv then
+      (match !scopes with
+        [] -> E.s (E.bug "Adding a local %s but not in a scope" vi.vname)
+      | s :: _ -> s := vi.vname :: !s)
   end;
+  (* ignore (E.log "After adding %s alpha table is: %t\n"
+            newvi.vname docAlphaTable); *)
   newvi
 
   
@@ -163,10 +166,10 @@ let newTempVar typ =
   let stripConst t =
     let a = typeAttrs t in
     setTypeAttrs t 
-		  (dropAttribute (dropAttribute a (AId("const")))
-																									 (AId("restrict")))
+      (dropAttribute (dropAttribute a (AId("const")))
+         (AId("restrict")))
   in
-  alphaConvertAndAddToEnv 
+  alphaConvertAndAddToEnv false  (* Do not add to the environment *)
     { vname = "tmp";  (* addNewVar will make the name fresh *)
       vid   = newVarId "tmp" false;
       vglob = false;
@@ -755,7 +758,7 @@ and doExp (isconst: bool)    (* In a constant *)
             let vi = lookup n in
             finishExp [] (Lval(var vi)) vi.vtype
           with Not_found -> begin 
-            ignore (E.log "Cannot resolve variable %s\n" n);
+            ignore (E.log "Cannot resolve variable %s.\n" n);
             raise Not_found
           end
     end
@@ -1652,7 +1655,7 @@ and doDecl : A.definition -> stmt list = function
           ((bt,st,(n,nbt,a,e)) as sname : A.single_name) 
           : stmt list = 
         let vi = makeVarInfo false locUnknown sname in
-        let vi = alphaConvertAndAddToEnv vi in        (* Replace vi *)
+        let vi = alphaConvertAndAddToEnv true vi in        (* Replace vi *)
         if e = A.NOTHING then
           [Skip]
         else
@@ -1759,10 +1762,15 @@ and doStatement (s : A.statement) : stmt list =
           s'
             
     | A.BLOCK b -> doBody b
+
     | A.SEQUENCE (s1, s2) -> 
         (doStatement s1) @ (doStatement s2)
+
     | A.IF(e,st,sf) -> 
-        doCondition e (doStatement st) (doStatement sf)
+        let st' = doStatement st in
+        let sf' = doStatement sf in
+        doCondition e st' sf'
+
     | A.WHILE(e,s) ->  
         startLoop true;
         let s' = doStatement s in
@@ -1909,7 +1917,7 @@ let makeGlobalVarinfo (vi: varinfo) =
   with Not_found -> begin (* A new one. It is a definition unless it is 
                            * Extern  *)
 
-    alphaConvertAndAddToEnv vi, false
+    alphaConvertAndAddToEnv true vi, false
   end
 
     
@@ -1927,7 +1935,7 @@ let convFile fname dl =
     let fdec = emptyFunction "__builtin_constant_p" in
     let argp  = makeLocalVar fdec "x" intType in
     fdec.svar.vtype <- TFun(intType, [ argp ], false, []);
-    alphaConvertAndAddToEnv fdec.svar
+    alphaConvertAndAddToEnv true fdec.svar
   in
   (* Now do the globals *)
   let doOneGlobal = function
@@ -2052,7 +2060,7 @@ let convFile fname dl =
             (* Setup the environment. Add the formals to the locals. Maybe 
              * they need alpha-conv *)
             startScope ();
-            let formals' = List.map alphaConvertAndAddToEnv formals in
+            let formals' = List.map (alphaConvertAndAddToEnv true) formals in
             let ftype = TFun(returnType, formals', isvararg, a) in
             (* Add the function itself to the environment. Just in case we 
              * have recursion and no prototype.  *)
@@ -2097,8 +2105,6 @@ let convFile fname dl =
   in
   List.iter doOneGlobal dl;
   (* We are done *)
-  if !E.hadErrors then 
-    E.s (E.error "Cabs2cil");
   { fileName = fname;
     globals  = List.rev (! theFile);
   } 
