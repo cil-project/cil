@@ -152,10 +152,16 @@ else
 endif
 
 
+# sm: people might not have done the "make opt.opt" necessary
+# to make the optimized versions of some of the tools, so detect
+# now whether they're installed, and if so, set OPT to ".opt"
+# (otherwise set it to "")
+OPT := $(shell which ocamlopt.opt ocamlc.opt >/dev/null 2>&1 && echo .opt)
+
 ifdef PROFILE
 # NATIVECAML	= 1
- CAMLC          = ocamlopt.opt -p $(COMPILEFLAGS)
- CAMLLINK       = ocamlopt.opt -p $(LINKFLAGS)
+ CAMLC          = ocamlopt$(OPT) -p $(COMPILEFLAGS)
+ CAMLLINK       = ocamlopt$(OPT) -p $(LINKFLAGS)
  CMO            = cmx
  CMXA           = cmxa
  EXEEXT         = .asm
@@ -164,8 +170,8 @@ ifdef PROFILE
 else
 ifdef NATIVECAML
  #foo := $(shell echo "I am in NATIVECAML mode" >&2; echo whatever)
- CAMLC          = ocamlopt.opt $(COMPILEFLAGS)
- CAMLLINK       = ocamlopt.opt $(LINKFLAGS)
+ CAMLC          = ocamlopt$(OPT) $(COMPILEFLAGS)
+ CAMLLINK       = ocamlopt$(OPT) $(LINKFLAGS)
  CMO            = cmx
  CMXA           = cmxa
  EXEEXT         = .asm
@@ -177,8 +183,8 @@ ifdef NATIVECAML
  # extra recompilation
  CAMLDEP        = ocamldep -native
 else 
- CAMLC          = ocamlc.opt -g $(COMPILEFLAGS)
- CAMLLINK       = ocamlc.opt -custom -g $(LINKFLAGS)
+ CAMLC          = ocamlc$(OPT) -g $(COMPILEFLAGS)
+ CAMLLINK       = ocamlc$(OPT) -custom -g $(LINKFLAGS)
  CMO            = cmo
  CMXA           = cma
  EXEEXT         = .byte
