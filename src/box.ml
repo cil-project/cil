@@ -16,7 +16,7 @@ let interceptCasts = ref false  (* If true it will insert calls to
                                  * pointers.  *)
 
 let lu = locUnknown
-
+let isSome = function Some _ -> true | _ -> false
 
 (**** We know in what function we are ****)
 let currentFunction : fundec ref  = ref dummyFunDec
@@ -124,7 +124,8 @@ let getAllocInfo fname =
     Some (H.find allocFunctions fname') 
   with _ -> None
     
-
+let isAllocFunction name =
+  isSome (getAllocInfo name)
 
 
 
@@ -1917,8 +1918,9 @@ let pkAllocate (ai:  allocinfo) (* Information about the allocation function *)
                (f:  exp)        (* The allocation function *)
                (args: exp list) (* The arguments passed to the allocation *) 
     : stmt list = 
-(*  ignore (E.log "Allocation call of %a. type(vi) = %a\n" 
-    d_exp f d_plaintype vtype); *)
+(*  ignore (E.log "Allocation call of %a. type(vi) = %a@! vtype = %a@!" 
+            d_exp f d_plaintype vi.vtype
+            d_plaintype vtype);  *)
   let k = kindOfType vi.vtype in
   (* Get the size *)
   let sz = allocInfoGetSize ai args in
@@ -2117,7 +2119,7 @@ let fixupGlobName vi =
   (* weimer: static things too! *)
   if vi.vglob && (* vi.vstorage <> Static &&  *)
     not (H.mem leaveAlone vi.vname) &&
-    not (match getAllocInfo vi.vname with Some _ -> true | None -> false) &&
+    not (isAllocFunction vi.vname) &&
     not (H.mem mangledNames vi.vname) then
     begin
       let quals = qualNames [] vi.vtype in
@@ -2269,6 +2271,7 @@ and boxinstr (ins: instr) (l: location): stmt =
                    * function return type then we must split the call *)
                   if iscast &&
                      typeSig(ftret) <> typeSig (vi.vtype) &&
+                     (not (isSome isallocate)) && 
                     (match unrollType vi.vtype with
                       TComp _ -> true | _ -> false) then
                     let tmp = makeTempVar !currentFunction ftret in
@@ -2622,7 +2625,9 @@ and boxfunctionexp (f : exp) =
       (* Sometimes it is possible that we have not seen this varinfo. Maybe 
        * it was introduced by the type inferencer to mark an independent copy 
        * of the function *)
-      if not (H.mem leaveAlone vi.vname) then begin
+      if not (H.mem leaveAlone vi.vname) &&
+         not (isAllocFunction vi.vname)
+      then begin
         vi.vtype <- fixupType vi.vtype;
         fixupGlobName vi
       end;
@@ -2860,9 +2865,9 @@ let boxFile file =
       ignore (E.log "Boxing GVar(%s)\n" vi.vname);
         (* Leave alone some functions *)
     let origType = vi.vtype in
-    if not (H.mem leaveAlone vi.vname) (* &&
-       * Leave alone the allocation functions !!!
-       not (match getAllocInfo vi.vname with Some _ -> true | _ -> false) *)
+    if not (H.mem leaveAlone vi.vname) &&
+        (* Leave alone the allocation functions !!!*)
+       not (isAllocFunction vi.vname)
     then begin
       (* Remove the format attribute from functions that we do not leave
        * alone  *)
