@@ -599,7 +599,12 @@ let isPrintf reso orig_func args = begin
     (Lval(Var(v),NoOffset)) -> begin try 
     let o = Hashtbl.find printfFunc v.vname in begin
     let format_arg = removeCasts (List.nth args o) in 
-    match format_arg with (* find the format string *)
+    let rec remove_casts l =
+      match l with
+        CastE(_,e) -> remove_casts e
+      | _ -> l
+    in 
+    match remove_casts format_arg with (* find the format string *)
       Const(CStr(f)) -> 
         let argTypeList = parseFormatString f 0 in 
         (* insert an explicit cast to the right type for every argument *)
