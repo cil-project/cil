@@ -169,9 +169,7 @@ let interpret_character_constant char_list =
     (CChr(Char.chr (Int64.to_int value))), intType
   else begin
     let orig_rep = None (* Some("'" ^ (String.escaped str) ^ "'") *) in
-    if value < (Int64.of_int 65536) then
-      (CInt64(value,IUShort,orig_rep)),(TInt(IUShort,[]))
-    else if value <= (Int64.of_int32 Int32.max_int) then
+    if value <= (Int64.of_int32 Int32.max_int) then
       (CInt64(value,IULong,orig_rep)),(TInt(IULong,[]))
     else 
       (CInt64(value,IULongLong,orig_rep)),(TInt(IULongLong,[]))
@@ -2610,7 +2608,7 @@ and isIntConstExp (aexp) : exp option =
     | (c, (Const (CInt64 (i,_,_)) as p),_) when isEmpty c ->
         Some p
     | (c, (Const (CChr i) as p),_) when isEmpty c ->
-        Some p
+        Some (Const(charConstToInt i))
     (* other Const expressions are not ok *)
     | (_, (Const _), _) -> 
         None
@@ -2630,10 +2628,11 @@ and isIntConstExp (aexp) : exp option =
  * anyway (since that's where this function is used) *)
 and isIntegerConstant (aexp) : int option =
   match doExp true aexp (AExp None) with
-      (c, (Const (CInt64 (i,_,_)) as p),_) when isEmpty c ->
-	Some (Int64.to_int i)
-    | (c, (Const (CChr i) as p),_) when isEmpty c ->
-	Some (Char.code i)
+      (c, e, _) when isEmpty c -> begin
+        match isInteger e with 
+            Some i64 -> Some (Int64.to_int i64)
+          | _ -> None
+      end
     | _ -> None
 
      (* Process an expression and in the process do some type checking,

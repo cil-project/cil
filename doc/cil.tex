@@ -2718,11 +2718,12 @@ Necula}.
  
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf July 2, 2004}:  Character constants such as \t{'c'} should
+  have type \t{int}, not \t{char}.  Added a utility function
+  \t{Cil.charConstToInt} that sign-extends chars greater than 128, if needed.
 \item {\bf July 2, 2004}: Fixed a bug that was casting values to int
   before applying the logical negation operator !.  This caused
   problems for floats, and for integer types bigger than \t{int}.
-  Also fixed the type of character constants such as \t{'c'}: this should
-  be \t{int}, not \t{char}.
 \item {\bf June 13, 2004}: Added the field \t{sallstmts} to a function
   description, to hold all statements in the function.
 \item {\bf June 13, 2004}: Added new extensions for data flow analyses, and

@@ -457,7 +457,9 @@ and constant =
                   * OCAML does not give Overflow exceptions. *)
   | CStr of string (** String constant (of pointer type) *)
   | CWStr of int64 list (** Wide string constant (of type "wchar_t *") *)
-  | CChr of char   (** Character constant *)
+  | CChr of char (** Character constant.  This has type int, so use
+                  *  charConstToInt to read the value in case
+                  *  sign-extension is needed. *)
   | CReal of float * fkind * string option (** Floating point constant. Give
                                                the fkind (see ISO 6.4.4.2) and
                                                also the textual representation,
@@ -1142,9 +1144,23 @@ let zero      = integer 0
 let one       = integer 1
 let mone      = integer (-1)
 
+(** Given the character c in a (CChr c), sign-extend it to 32 bits.
+  (This is the official way of interpreting character constants, according to
+  ISO C 6.4.4.4.10, which says that character constants are chars cast to ints)
+  Returns CInt64(sign-extened c, IInt, None) *)
+let charConstToInt (c: char) : constant =
+  let c' = Char.code c in
+  let value = 
+    if c' < 128 
+    then Int64.of_int c'
+    else Int64.of_int (c' - 256)
+  in
+  CInt64(value, IInt, None)
+  
+  
 let rec isInteger = function
   | Const(CInt64 (n,_,_)) -> Some n
-  | Const(CChr c) -> Some (Int64.of_int (Char.code c))
+  | Const(CChr c) -> isInteger (Const (charConstToInt c))  (* sign-extend *) 
   | CastE(_, e) -> isInteger e
   | _ -> None
         
@@ -4540,7 +4556,7 @@ let rec alignOf_int = function
       
   | (TFun _ | TVoid _) as t -> raise (SizeOfError t)
       
-  
+
      
 type offsetAcc = 
     { oaFirstFree: int;        (* The first free bit *)
@@ -4891,8 +4907,7 @@ and constFold (machdep: bool) (e: exp) : exp =
       with Not_found -> e
   end
         (* Characters are integers *)
-  | Const(CChr c) -> Const(CInt64(Int64.of_int (Char.code c), 
-                                  IInt, None))
+  | Const(CChr c) -> Const(charConstToInt c)
   | SizeOf t when machdep -> begin
       try
         let bs = bitsSizeOf t in
@@ -4929,8 +4944,7 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
   if isIntegralType tres then begin
     let newe = 
       let rec mkInt = function
-          Const(CChr c) -> Const(CInt64(Int64.of_int (Char.code c), 
-                                        IInt, None))
+          Const(CChr c) -> Const(charConstToInt c)
         | CastE(TInt (ik, ta), e) -> begin
             match mkInt e with
               Const(CInt64(i, _, _)) -> 

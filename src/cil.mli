@@ -607,7 +607,8 @@ and constant =
      * 43981. That "interpretation" depends on the underlying wide
      * character type. *)
   | CChr of char   
-    (** Character constant *)
+    (** Character constant.  This has type int, so use charConstToInt
+     * to read the value in case sign-extension is needed. *)
   | CReal of float * fkind * string option 
      (** Floating point constant. Give the fkind (see ISO 6.4.4.2) and also 
       * the textual representation, if available. *)
@@ -1482,6 +1483,12 @@ val isConstant: exp -> bool
 (** True if the given expression is a (possibly cast'ed) integer or character 
     constant with value zero *)
 val isZero: exp -> bool
+
+(** Given the character c in a (CChr c), sign-extend it to 32 bits.
+  (This is the official way of interpreting character constants, according to
+  ISO C 6.4.4.4.10, which says that character constants are chars cast to ints)
+  Returns CInt64(sign-extened c, IInt, None) *)
+val charConstToInt: char -> constant
 
 (** Do constant folding on an expression. If the first argument is true then 
     will also compute compiler-dependent expressions such as sizeof *)    
