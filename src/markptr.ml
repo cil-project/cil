@@ -1383,30 +1383,35 @@ and doFunctionCall
         let a' = doExpAndCastCall a fo.vtype !callId in
         a' :: loopArgs formals args
                 
-    | _, _ -> E.s (E.unimp "Markptr: not enough arguments in call to %a" d_exp orig_func)
+    | _, _ -> E.s (E.unimp "Markptr: not enough arguments in call to %a" 
+                     d_exp orig_func)
   in  
   let polyRet = 
     match ispoly, unrollType rt with 
       true, TPtr(TVoid _, _) -> true
     | _, _ -> false
   in
-  begin
+  let reso' = 
     (* Now check the return value*)
     match reso, unrollType rt with
-      None, TVoid _ -> ()
+      None, TVoid _ -> None
     | Some _, TVoid _ -> 
-        ignore (warn "Call of subroutine is assigned")
-    | None, _ -> () (* "Call of function is not assigned" *)
+        ignore (warn "Call of subroutine is assigned");
+        None
+
+    | None, _ -> None (* "Call of function is not assigned" *)
     | Some dest, _ -> begin
         (* Do the lvalue, just so that the type is done *)
         let dest', _ = doLvalue dest true in
-        (* Add the cast. Make up a phony expression and a node so that we 
-        * can call expToType. *)
+        (* Add the cast from the return type to the destination of the call. 
+         * Make up a phony expression and a node so that we can call 
+         * expToType.  *)
         ignore (expToType (Const(CStr("a call return")),
                            rt, N.dummyNode) (typeOfLval dest') 
-                  !callId)
+                  !callId);
+        Some dest'
     end 
-  end;
+  in
   (* Now do the arguments *)
   let args'' = loopArgs formals args' in
   (* Take a look at a few special functions *)
@@ -1430,7 +1435,7 @@ and doFunctionCall
   | _ -> ());
   (* We need to mark all instructions that we have generated *)
   let preinstr' = mapNoCopyList doInstr preinstr in
-  preinstr' @ [Call(reso, func', args'', l)]
+  preinstr' @ [Call(reso', func', args'', l)]
 
 
 let doFunctionBody (fdec: fundec) = 
