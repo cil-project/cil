@@ -1,0 +1,23 @@
+
+ (For more complete installation instructions see the documentation in
+  doc/html. If you do not see anything in there then you must have downloaded
+  the sources from the CVS repository and must run "make doc" to creat the
+  documentation. To perform this step you will need to install hevea
+  (http://pauillac.inria.fr/~maranget/hevea) first)
+
+
+ 1. If you use Windows, you must first install cygwin. 
+
+ 2. You must install OCaml version 3.06 or higher (see instructions at
+    http://caml.inria.fr/ocaml). Build from sources even on Windows.
+
+ 3. Download and unpack the distribution. 
+
+ 4. Run ./configure (from within bash if on Windows)
+
+ 5. Run make
+
+ 6. Run make check
+
+ Now you can start using bin/cilly and bin/ccured as explained in the
+ documentation (in doc/html). 
