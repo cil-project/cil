@@ -5,9 +5,9 @@
 COMPILERNAME := GNUCC
 
 CC := gcc
-ifdef RELEASE
+ifdef RELEASELIB
   # sm: I'll leave this here, but only use it for compiling our runtime lib
-  CFLAGS := -D_GNUCC -Wall -O3 -fomit-frame-pointer -DRELEASE
+  CFLAGS := -D_GNUCC -Wall -O3 -fomit-frame-pointer
 else
   CFLAGS := -D_GNUCC -Wall  -g -ggdb -D_DEBUG
 endif

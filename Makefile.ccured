@@ -132,6 +132,8 @@ endif
 # with .o files built with Makefile arguments that have changed
 $(CCUREDLIB): lib/safec.c lib/safec.h lib/safeccheck.h lib/splay.c $(GCLIB) 
 	@echo "Trying to build $(CCUREDLIB)"
+	@true "CCUREDLIBARG is $(CCUREDLIBARG)"
+	@true "CFLAGS is $(CFLAGS)"
 	$(CC) $(CFLAGS) $(INC)./lib $(CONLY) $(CCUREDLIBARG) \
                     $(OBJOUT)obj/safec.$(OBJEXT) lib/safec.c
 	$(CC) $(CFLAGS) $(INC)./lib $(CONLY) $(CCUREDLIBARG) \
