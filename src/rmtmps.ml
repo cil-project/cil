@@ -297,13 +297,13 @@ let mark info =
   info.vreferenced <- true
 
 
-let hasExportingAttribute fundec =
+let hasExportingAttribute funvar =
   let rec isExportingAttribute = function
     | Attr ("constructor", []) -> true
     | Attr ("destructor", []) -> true
     | _ -> false
   in
-  List.exists isExportingAttribute fundec.svar.vattr
+  List.exists isExportingAttribute funvar.vattr
 
 
 (***********************************************************************
@@ -327,12 +327,21 @@ let markExportedRoots file =
     | GVar ({vstorage = storage} as info, _, _)
       when storage != Static ->
 	mark info
-    | GFun ({svar = {vinline = true; vstorage = Extern} as info}, _)
-    | GFun ({svar = {vinline = false; vstorage = NoStorage} as info}, _) ->
-	mark info
-    | GFun (fundec, _)
-      when hasExportingAttribute fundec ->
-	mark fundec.svar
+    | GFun ({svar = v} as fundec, _) ->
+        let keep = 
+          if hasExportingAttribute v then
+            true
+          else if v.vstorage = Extern then (* Keep all extern functions *)
+            true
+          else if v.vstorage = Static then (* Do not keep static functions *)
+            false
+          else if v.vinline then (* Do not keep inline functions, unless they 
+                                  * are Extern also *)
+            false
+          else
+            true (* Keep the others *)
+        in
+        if keep then mark v
     | _ ->
 	()
   in
@@ -354,10 +363,10 @@ let markExportedRoots file =
 
 let markCompleteProgramRoots file =
   let considerGlobal = function
-    | GFun ({svar = {vname = "main"; vstorage = NoStorage} as info}, _) ->
-	mark info
+    | GFun ({svar = {vname = "main"; vstorage = vstorage} as info}, _) ->
+	if vstorage <> Static then mark info
     | GFun (fundec, _)
-      when hasExportingAttribute fundec ->
+      when hasExportingAttribute fundec.svar ->
 	mark fundec.svar
     | _ ->
 	()

@@ -482,6 +482,7 @@ $TEST->addTestsFail("testrun/struct3", "", "Non-pointer", ['inferbox']);
 if($^O eq 'MSWin32') {
     $TEST->addTests("testrun/extern_init", "_MSVC=1", ['cil']);   
 }
+$TEST->addTests("testrun/extern1", "", ['cil']);
 
 # Tests that are expected to fail
 $TEST->add2TestsFail("testrun/failubound1", "", "Failure: Ubound");
