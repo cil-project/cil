@@ -84,6 +84,25 @@ TVDIR=$(BASEDIR)/TransVal
 CILDIR=$(BASEDIR)/cil
 _GNUCC=1
 endif
+ifeq ($(COMPUTERNAME), galvatron) # jlee's 
+BASEDIR=/home/jlee/summer
+SAFECCDIR=$(BASEDIR)
+PCCDIR=$(SAFECCDIR)/cil/test/PCC
+TVDIR=$(BASEDIR)/TransVal
+CILDIR=$(BASEDIR)/cil
+_GNUCC=1
+USE_GC=1
+endif
+ifeq ($(COMPUTERNAME), madroneprime) # jlee on madrone
+BASEDIR=/home/jlee/research
+SAFECCDIR=$(BASEDIR)
+PCCDIR=$(SAFECCDIR)/cil/test/PCC
+TVDIR=$(BASEDIR)/TransVal
+CILDIR=$(BASEDIR)/cil
+_GNUCC=1
+USE_GC=1
+USER_SCOTT=1
+endif
 ifeq ($(COMPUTERNAME), madrone) # scott's desktop
 BASEDIR=/home/scott/wrk/safec
 SAFECCDIR=$(BASEDIR)
