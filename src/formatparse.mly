@@ -688,7 +688,7 @@ offset:
                      let bt = 
                        match unrollType t with 
                          TArray(bt, _, _) -> bt 
-                       | _ -> E.s (bug "Expecting an array for index")
+                       | _ -> E.s (error "Formatcil: expecting an array for index")
                      in
                      let e = (fst $2) args in 
                      Index(e, (fst $4) bt args)),
