@@ -1,12 +1,16 @@
+//All three of these cases work in gcc, but fail in CIL.  The first case was
+//a problem for OpenSSH, which uses something like the declaration of tmp
+//below to initialize a string buffer
+
 
 #include "testharness.h"
 
-#define A_STRING "a string literal for testing"
+#define A_STRING "a string literal for testing."
 int main()
 {
   char tmp[sizeof(A_STRING)] = A_STRING;
 
-  //This fails because cabs2CIL gets the wrong value for sizeof(A_STRING)
+  //This fails because cabs2CIL thinks sizeof(A_STRING) == 4
   if( sizeof(tmp) != 30 )  E(1);
 
   //This fails on CCured only because markptr inserts a cast to char*
