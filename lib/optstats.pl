@@ -136,7 +136,7 @@ sub printHelp {
 EOF
     print "Tests available:\n\t" , join("\n\t", @alltests), "\n";
     print "Cases available:\n\t", join("\n\t",  grep { $_ ne 'original' &&
-                                                       $- ne 'ccured'} @allcases), "\n";
+                                                       $_ ne 'ccured'} @allcases), "\n";
     &printCasesExplanation();
     exit 0;
 }
@@ -197,7 +197,7 @@ foreach my $tst (@tests) {
         print LOG     $msg;
         print RESULTS $msg;
         $count ++;
-        open(RUN, "$cmd 2>&1 |") || { warn "Cannot run $cmd"; next; }
+        if(! open(RUN, "$cmd 2>&1 |")) { warn "Cannot run $cmd"; next; }
         while(<RUN>) {
             print LOG $_;
             if($_ =~ m/$matchtime/) { 
@@ -208,7 +208,7 @@ foreach my $tst (@tests) {
                 $results{"perc$1"}  = $3;
             }
         }
-        close(RUN) || { warn "Cannot run $cmd"; next; }
+        if(! close(RUN)) { warn "Cannot run $cmd"; next; }
         &processInterrupt();
         if(! defined($results{$case})) {
             print "Cannot find the time for $cmd\n";
