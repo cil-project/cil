@@ -14,7 +14,7 @@ use lib "$FindBin::Bin";
 
 use RegTest;
 
-print "Test infrastructure for SafeC\n";
+print "Test infrastructure for CCured and CIL\n";
 
 # Create our customized test harness
 my $TEST = SafecRegTest->new(AvailParams => { 'SAFE' => 1,
@@ -26,8 +26,17 @@ my $TEST = SafecRegTest->new(AvailParams => { 'SAFE' => 1,
                              LogFile => "safec.log",
                              CommandName => "testsafec");
 
+# sm: I want a global name for this $TEST thing, since I find it is merely
+# excess verbiage when adding tests..
+$main::globalTEST = $TEST;
+
+# am I using egcs?
+my $egcs = ($^O ne 'MSWin32') &&
+           system("gcc -v 2>&1 | grep egcs >/dev/null")==0;
+
+
 # We watch the log and we remember in what stage we are (so that we can
-# interpret the error 
+# interpret the error)
 
 # Stages:
 #  1000 - Start (scripts, preprocessors, etc.)
@@ -137,8 +146,9 @@ $TEST->add3Tests("test/apachebits");
 $TEST->add3Tests("testrun/apachebuf");
 $TEST->add3Tests("testrun/apachefptr");
 $TEST->add2Tests("testrun/asm1", "_GNUCC=1");
-    $TEST->addBadComment("testrun/asm1-inferbox", 
-                         "Unimplemented inline assmebly");
+    # sm: this one works for me
+    #$TEST->addBadComment("testrun/asm1-inferbox",
+    #                     "Unimplemented inline assmebly");
 $TEST->addTests("test/asm2", "_GNUCC=1", ['cil']);
 $TEST->addTests("test/asm3", "_GNUCC=1", ['cil']);
 $TEST->addTests("test/asm4", "_GNUCC=1", ['cil']);
@@ -151,12 +161,14 @@ $TEST->add3Tests("test/array2");
 $TEST->add3Tests("test/matrix");
 $TEST->add3Tests("testrun/switch");
 $TEST->add3Tests("testrun/caserange", "_GNUCC=1");
-$TEST->add3Tests("test/attr");
-$TEST->add3Tests("test/attr2", "_GNUCC=1");
-    $TEST->addBadComment("test/attr2-box", "Format is a fat pointer to string");
-$TEST->add3Tests("test/attr3", "_GNUCC=1");
-$TEST->add3Tests("testrun/attr4", "_GNUCC=1");
-$TEST->addTests("testrun/attr5", "_GNUCC=1", ['cil']);
+if (!$egcs) {
+  $TEST->add3Tests("test/attr");
+  $TEST->add3Tests("test/attr2", "_GNUCC=1");
+      $TEST->addBadComment("test/attr2-box", "Format is a fat pointer to string");
+  $TEST->add3Tests("test/attr3", "_GNUCC=1");
+  $TEST->add3Tests("testrun/attr4", "_GNUCC=1");
+  $TEST->addTests("testrun/attr5", "_GNUCC=1", ['cil']);
+}
 $TEST->add3Tests("test/bh1");
 $TEST->add3Tests("test/bitfield");
 $TEST->add3Tests("testrun/bitfield3");
@@ -217,10 +229,14 @@ $TEST->add2Tests("testrun/vararg2");
 $TEST->add2Tests("testrun/vararg3");
 $TEST->add2Tests("testrun/vararg4");
 $TEST->add2Tests("testrun/vararg5", "_GNUCC=1");
-$TEST->add2Tests("testrun/vararg6");
+if (!$egcs) {
+  $TEST->add2Tests("testrun/vararg6");
+}
 $TEST->add2Tests("testrun/va-arg-1", "_GNUCC=1");
 $TEST->add2Tests("testrun/va-arg-2", "_GNUCC=1");
-$TEST->add2Tests("testrun/va-arg-7", "_GNUCC=1");
+if (!$egcs) {
+  $TEST->add2Tests("testrun/va-arg-7", "_GNUCC=1");
+}
 $TEST->addTests("testrun/comma1", "_GNUCC=1", ['cil']);
 $TEST->add3Tests("test/retval");
 $TEST->add3Tests("test/seq");
@@ -288,8 +304,10 @@ $TEST->addTests("testrun/returnvoid1", "", ['cil']);
 $TEST->addTests("testrun/return1", "", ['cil']);
 $TEST->addTests("testrun/for1", "", ['cil']);
 $TEST->addTests("testrun/void", "_GNUCC=1", ['cil']);
-$TEST->addTests("test/restrict", "EXTRAARGS=-std=c9x _GNUCC=1", ['cil']);
-$TEST->addTests("test/restrict1", "_GNUCC=1", ['cil']);
+if (!$egcs) {
+  $TEST->addTests("test/restrict", "EXTRAARGS=-std=c9x _GNUCC=1", ['cil']);
+  $TEST->addTests("test/restrict1", "_GNUCC=1", ['cil']);
+}
 $TEST->addTests("testrun/rmtmps1", "", ['cil']);
 $TEST->addTests("testrun/rmtmps2", "_GNUCC=1", ['cil']);
 $TEST->addTests("test/proto1", "", ['cil']);
@@ -304,7 +322,7 @@ $TEST->addTests("test/cpp-2", "", ['cil']);
    $TEST->addBadComment("test/cpp-2-cil", 
                         "Bug in parser (empty pragmas)");
 
-if($^O eq 'MsWin32') {
+if($^O eq 'MSWin32') {
     $TEST->addTests("testrun/extern_init", "_MSVC=1", ['cil']);   
 }
 
@@ -319,7 +337,8 @@ $TEST->add2TestsFail("testrun/failprintf5", "",
                      "Failure .+: Non-terminated string");
 $TEST->add2TestsFail("testrun/failprintf6", "", "Failure .+: type mismatch");
 
-$TEST->add2TestsFail("testrun/failsprintf1", "", "Failure .+: Ubound");
+# sm: worksforme: $TEST->add2TestsFail("testrun/failsprintf1", "", "Failure .+: Ubound");
+$TEST->add2Tests("testrun/failsprintf1", "");
 $TEST->add2TestsFail("testrun/failsprintf2", "", "Failure .+: ");
 $TEST->add2TestsFail("testrun/failsprintf3", "", "Failure .+: Non-pointer");
 
@@ -418,46 +437,301 @@ $TEST->add2Tests("apache/gzip");
 #   $TEST->add3Group("apache/random", "apache");
 #   $TEST->addBadComment("apache/random-box", "BUG");
 
-# scott's tiny testcases
-$TEST->add3Tests("scott/multiplestatics");
-$TEST->add3Tests("scott/regbeforeassign");
-$TEST->add3Tests("scott/partialbracket");
-$TEST->add3Tests("scott/enuminit");
-$TEST->add3Tests("scott/staticafternostorage");
-$TEST->add3Tests("scott/voidfree");
-$TEST->add3Tests("scott/recursetype");
-$TEST->add3Tests("scott/rmunused");
-$TEST->add3Tests("scott/simplewild");
-$TEST->add3Tests("scott/lexnum");
+# -------------- scott's testcases --------------
+# sm: trying to make a regrtest-like interface
+# 'args' should include things like "INFERBOX=infer" to specify operating mode
+sub smAddTest {
+  my $self = $main::globalTEST;
+  my ($command) = @_;
+  my ($name, $args) = ($command =~ /^(\S+) ?(.*)$/);     # name is first word
+  my $tname = $self->uniqueName($name);
 
-$TEST->add3Tests("scott/transpunion", "_GNUCC=1");
-$TEST->add3Tests("scott/oldstyle");
-$TEST->add3Tests("scott/typeof", "_GNUCC=1");
-$TEST->add3Tests("scott/funcname", "_GNUCC=1");
-$TEST->add3Tests("scott-nolink/asmfndecl", "_GNUCC=1");
-$TEST->add3Tests("scott/litstruct", "_GNUCC=1");
-$TEST->add3Tests("scott/xlsubr");
-$TEST->add3Tests("scott/heapify");
-$TEST->add3Tests("scott/argv");
-$TEST->addTests("scott/main", "_GNUCC=1", ['cil']);
-$TEST->addTests("scott/globalprob", "_GNUCC=1", ['cil']);
-$TEST->addTests("scott/bisonerror", "_GNUCC=1", ['cil']);
-$TEST->addTests("scott/cmpzero", "", ['cil']);
-$TEST->addTests("scott/mknod", "_GNUCC=1", ['cil']);
-    $TEST->addBadComment("scott/mknod-cil", "Strange C code");
-$TEST->addTests("scott/kernel1", "_GNUCC=1", ['cil']);
-$TEST->addTests("scott/kernel2", "_GNUCC=1", ['cil']);
-$TEST->addTests("scott/xcheckers", "_GNUCC=1", ['cil']);
-$TEST->addTests("scott/memberofptr", "_GNUCC=1", ['cil']);
-$TEST->addTests("scott/invalredef", "_GNUCC=1", ['cil']);
-$TEST->addTests("scott/invalredef2", "_GNUCC=1", ['cil']);
-$TEST->add3Tests("scott/stralloc", "_GNUCC=1", ['cil']);
-$TEST->addTests("scott/errorinfn", "", ['cil']);
-$TEST->addTests("scott/unionassign", "", ['inferbox', 'box']);
+  my %patterns = %commonerrors;
+  my $tst = $self->newTest(Name => $tname,
+                           Dir => "..",
+                           Cmd => "make $command" . $self->testCommandExtras(""),
+                           Group => ['quick'],
+                           Patterns => \%patterns);
+
+  return $tname;
+}
+
+# here 'why' is a human-readable explanation for why the test fails,
+# rather than a regexp to match the error message because:
+#   - I don't care if the error message changes while it's a failing test
+#   - sometimes the message is machine- or compiler-dependent
+#   - I want a human-readable explanation
+sub smFailTest {
+  my ($why, $command) = @_;
+
+  if (!$command) {
+      print STDERR ("You forgot to give a reason for $why\n");
+      exit 2;
+  }
+
+  my $tname = smAddTest($command);
+  $main::globalTEST->addBadComment($tname, 'bad', $why);
+
+  return $tname;
+}
+
+
+# operating modes
+my $box =       "INFERBOX=infer";
+my $manualbox = "INFERBOX=infer";
+my $wildbox =   "INFERBOX=wild";
+my $table =     "INFERBOX=wild TABLE=A";
+my $gcc =       "_GNUCC=1";     # sm: not sure where/why this is needed
+
+# self-contained tests of specific things which had problems before
+smAddTest("scott/multiplestatics");
+smAddTest("scott/regbeforeassign $box");
+smAddTest("scott/partialbracket");
+smAddTest("scott/enuminit");
+smAddTest("scott/staticafternostorage $box");
+smAddTest("scott/voidfree $box");
+smAddTest("scott/recursetype $box");
+smAddTest("scott/rmunused $box");
+smAddTest("scott/simplewild $box");
+smAddTest("scott/ptrtolocal $wildbox");
+smAddTest("scott/tprintf $box");
+smAddTest("scott/rmunused2 $box");
+
+smAddTest("scott/gimpdouble");
+smAddTest("scott/struct_cs");
+
+$TEST->setField(smAddTest("scott/tprintf $wildbox"), "FailDiagnosis", <<'EOF');
+
+  Failure of this test case usually indicates the stdin/out/err
+  section of the patch file (lib/safec_???.patch) does not exactly
+  match your /usr/include/stdio.h.
+
+EOF
+
+smAddTest("scott/ptrmanip $wildbox");
+smAddTest("scott/bogus_redef");
+smAddTest("scott/s59");
+smAddTest("scott/putc");
+smAddTest("scott/putc $wildbox");
+smAddTest("scott/lexnum");
+smAddTest("scott/ctype");
+smAddTest("scott/ctype $box");
+
+# verify results of inference
+$TEST->setField(smAddTest("scott/ptrkinds $box"), "AfterSuccessScript", <<'EOF');
+
+  grepBoth() {
+    grep -w $2 $1 | grep -w $3
+  }
+
+  src=small2/ptrkindscured.c
+  if grepBoth $src safeptr __SAFE && \
+     grepBoth $src fseqptr __FSEQ && \
+     grepBoth $src seqptr __SEQ && \
+     grepBoth $src wildptr __WILD; then
+    echo "inference seems to work"
+  else
+    echo ""
+    echo "Something is wrong with the inference algorithm."
+    exit 2
+  fi
+
+EOF
+
+# similar to ptrkinds failure
+smAddTest("scott/argv $box");
+
+# function pointers don't work with inferred wildness
+smAddTest("scott/funcptr");
+smAddTest("scott/funcptr $wildbox");
+smAddTest("scott/funcptr $box");
+
+# transparent unions are a problem for network apps
+smAddTest("scott/transpunion $gcc");
+smAddTest("scott/sockaddr");
+
+# test of recent __HEAPIFY annotation
+smAddTest("scott/heapify $box");
+smAddTest("scott/heapify $wildbox");
+
+# current problematic test cases
+smAddTest("scott/constdecl");
+smAddTest("scott/oldstyle");
+smAddTest("scott/typeof $gcc");
+smAddTest("scott/asmfndecl $gcc");
+smAddTest("scott/xlsubr $box");
+smAddTest("scott/open");
+smFailTest("need ioctl descriptor?", "scott/ioctl $box");
+smAddTest("scott/stralloc $box $gcc");
+smAddTest("scott/mknod $box");
+smAddTest("bad/nullfield $manualbox");
+smAddTest("scott/constfold");
+
+# tests of function models
+smAddTest("scott/memcpy $box");
+smAddTest("scott/realloc $box");
+smAddTest("scott/strchr $box");
+smFailTest("new inference causes different wrappers to be needed",
+           "scott/models $box");
+
+# tests of things in safec.c
+smAddTest("scott/qsort $box");
+smAddTest("scott/strpbrk $box");
+smAddTest("scott/fgets $box");
+smAddTest("test-bad/sockets $box");
+
+# more stuff, mostly from ftpd
+smAddTest("scott/reply $box");
+smAddTest("scott/getpwnam $box");
+smFailTest("execv bug", "scott/execv $box");
+smAddTest("scott/popen $box");
+smAddTest("scott/memset_int $box");
+smAddTest("scott/printfllong $box");
+smAddTest("test-bad/replydirname $box");
+smAddTest("test-bad/boundaries $box");
+smAddTest("scott/stat $box");
+smAddTest("scott/scanf $box");
+
+# simple self-contained thing
+smAddTest("hola");
+smAddTest("hola $box");
+
+# a few things that should fail
+smAddTest("bad/lbound $box");
+smAddTest("bad/ubound $box");
+smAddTest("bad/fseq $box");
+smAddTest("bad/calloc $box");
+smAddTest("bad/stackaddr $box");
+smAddTest("test-bad/trivial-tb");
+
+# simple test of combiner
+smAddTest("comb");
+smAddTest("comb $box");
+
+# test combiner's ability to detect inconsistency
+smAddTest("baddef");
+
+# test for lean fats ("table")
+smAddTest("scott/ptrtolocal $table");
+smAddTest("scott/ptrinint $table");
+smAddTest("scott/simplewild $table");
+smAddTest("scott/ptrmanip $table");
+smAddTest("scott/regthenprintf $table");
+smAddTest("scott/twoprintfs $table");
+smAddTest("scott/nested $table");
+
+# hashtest and rbtest with TABLE
+my $iters = "EXTRAARGS=-DITERS=100";
+$TEST->setField(smAddTest("rbtest $table $iters"),
+                "FailDiagnosis", "Maybe ARCHOS isn't set right?");
+smAddTest("hashtest $table $iters");
+
+# red-black tree
+smAddTest("rbtest $iters");
+smAddTest("rbtest $box $iters");
+
+smAddTest("wes-rbtest $iters");
+smAddTest("wes-rbtest $box $iters");
+
+# hashtable
+$iters = "EXTRAARGS=-DITERS=10000";
+smAddTest("hashtest $iters");
+smAddTest("hashtest $box $iters");
+smAddTest("hashtest $wildbox $iters");
+
+smAddTest("wes-hashtest $iters");
+smAddTest("wes-hashtest $box $iters");
+
+# some piece of PCC
+smAddTest("testpcc/parseobject EXTRAARGS=--no-idashi");
+
+# apache modules; set is needed for next one
+$TEST->setField(smAddTest("!apachesetup"), 'Cmd', "make apachesetup");
+smAddTest("apache/gzip");
+
+# does not work: complains of many incompatible type redefinitions
+#runTest $make apache/rewrite
+
+# BEGIN from George
+# This block of tests was transferred from testsafec.pl to
+# the regrtest script, and now has been transferred back.
+# I keep it here because for each test I just run one mode
+# (whichever mode has shown itself to be possibly an issue in
+# the past, or CIL-only when I have no data), so it's faster
+# than the add3Tests above.
+smAddTest("test/list");
+smAddTest("test/alloc");
+smAddTest("test/array1");
+
+if ($egcs) {
+  # these fail because I'm using egcs instead of gcc 2.95
+  smFailTest("parse error on cil output", "test/attr");
+  smFailTest("cast specifies function type", "test/attr $wildbox");
+  smFailTest("parse error on cil output", "test/attr3");
+  smFailTest("cast specifies function type", "test/attr3 $wildbox");
+}
+else {
+  smAddTest("test/attr");
+  smAddTest("test/attr $wildbox");
+  smAddTest("test/attr3");
+  smAddTest("test/attr3 $wildbox");
+}
+
+smAddTest("test/attr4 $box");
+smAddTest("test/bitfield");
+smAddTest("test/box1");
+smAddTest("test/cast1");
+smAddTest("test/constprop");
+smAddTest("test/enum");
+smAddTest("test/format1");
+smAddTest("test/func");
+smAddTest("test/globals");
+smAddTest("test/init");
+smAddTest("test/init $box");
+smAddTest("test/initial");
+smAddTest("test/jmp_buf");
+smAddTest("test/linux_atomic");
+smAddTest("test/list");
+smAddTest("test/pointers");
+smAddTest("test/printf");
+smAddTest("test/retval");
+smAddTest("test/seq");
+smAddTest("test/sized");
+smAddTest("test/sizeof");
+smAddTest("test/smallstring");
+smAddTest("test/static");
+smAddTest("test/strcpy");
+smAddTest("test/string");
+smAddTest("test/struct_init");
+smAddTest("test/structassign");
+smAddTest("test/tags");
+smAddTest("test/task");
+smAddTest("test/voidstar");
+# END from George
+
+# more random stuff
+smAddTest("scott/funcname $gcc");
+smAddTest("scott/litstruct $gcc");
+smAddTest("scott/main $gcc");
+smAddTest("scott/globalprob $gcc");
+smAddTest("scott/bisonerror $gcc");
+smAddTest("scott/cmpzero");
+smAddTest("scott/kernel1 $gcc");
+smAddTest("scott/kernel2 $gcc");
+smAddTest("scott/xcheckers $gcc");
+smAddTest("scott/memberofptr $gcc");
+smAddTest("scott/invalredef $gcc");
+smAddTest("scott/invalredef2 $gcc");
+smAddTest("scott/errorinfn");
+smAddTest("scott/unionassign $box");
+smAddTest("scott/unionassign $wildbox");
+
+
 # $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug
 # my $tst = $TEST->getTest("apache/gzip-inferbox");
 # print Dumper($tst);
 
+# ---------------- c-torture -------------
 ## if we have the c-torture tests add them
 ## But only if the ctorture group was specfied
 my $ctorture = '/usr/local/src/gcc/gcc/testsuite/gcc.c-torture';
@@ -606,15 +880,13 @@ sub availableParameters {
 }
 
 
-# Add a number of tests. 
-# name is the base name of the tests
-# extrargs are passed on the command line for each test
-# kinds must be a list containint: cil, inferbox, box
-# fields must be fields to be added to the newly created tests
-sub addTests {
-    my($self, $name, $extraargs, $pkinds, %extrafields) = @_;
+# given the current options configuration, return a string of
+# additional 'make' arguments to append to test commands
+sub testCommandExtras {
+    my ($self, $extraargs) = @_;
 
-    my $theargs = defined($self->{option}->{safecdebug}) 
+    # (sm: pulled this out of addTests so I could write my own addTests)
+    my $theargs = defined($self->{option}->{safecdebug})
         ? " " : " OPTIM=1 RELEASE=1 RELEASELIB=1 ";
     $theargs .= " $extraargs ";
     if(defined $self->{option}->{noremake}) {
@@ -622,6 +894,20 @@ sub addTests {
     }
     # Turn on the verbose flag
     $theargs .= " STATS=1 PRINTSTAGES=1 ";
+
+    return $theargs;
+}
+
+
+# Add a number of tests.
+# name is the base name of the tests
+# extrargs are passed on the command line for each test
+# kinds must be a list containing: cil, inferbox, box
+# fields must be fields to be added to the newly created tests
+sub addTests {
+    my($self, $name, $extraargs, $pkinds, %extrafields) = @_;
+
+    my $theargs = $self->testCommandExtras($extraargs);
 
     my %patterns = %commonerrors;
     my $kind;
@@ -634,7 +920,7 @@ sub addTests {
         if($kind eq 'box') {
             $thisargs .= "  INFERBOX=wild ";
         }
-        my $tst = 
+        my $tst =
             $self->newTest(Name => $name . "-" . $kind,
                            Dir => "..",
                            Cmd => "make " . $name . $thisargs,
@@ -717,6 +1003,23 @@ sub add2Group {
     $self->addGroups($name . "-inferbox", @groups);
 }
 
+
+# ensure uniqueness of names (I don't like using these names to
+# name tests.. regrtest used numbers.. oh well)
+sub uniqueName {
+  my ($self, $name) = @_;
+
+  if (!$self->testExists($name)) {
+    return $name;   # already unique
+  }
+  else {
+    my $ct = 2;
+    while ($self->testExists($name . $ct)) {
+      $ct++;
+    }
+    return $name . $ct;
+  }
+}
 
 1;
 

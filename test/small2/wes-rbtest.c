@@ -246,7 +246,9 @@ int debug;
 #define DATASIZE 16   // This is the size of the data that is reserved in
                       // each node
 
-#define ITERS 100000                      
+#ifndef ITERS
+  #define ITERS 100000
+#endif
 
 int main() {
   /* Test hash tables */

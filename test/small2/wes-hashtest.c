@@ -495,7 +495,9 @@ int debugMM;
 int debug;
 
 
-#define ITERS 50000
+#ifndef ITERS
+  #define ITERS 50000
+#endif
 
 
 

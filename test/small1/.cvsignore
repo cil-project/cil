@@ -32,5 +32,6 @@ __scalar2pointer.txt
 sscanf.out
 *.stackdump
 a.out
-
 vararg.out
+array.a.files
+

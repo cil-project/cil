@@ -14,7 +14,12 @@ __extension__  typedef unsigned long long guint64;
 
 typedef char   gchar;
 
-#define g_log(domain, level, format, ...) printf(format, __VA_ARGS__)
+// sm: I think the intent here was just to use printf in an ordinary way,
+// not test macros; egcs doens't like this one
+//#define g_log(domain, level, format, ...) printf(format, __VA_ARGS__)
+
+// it prefers no comma, and no __VA_ARGS__
+#define g_log(domain, level, format, args...) printf(format, ## args)
 
 #endif
 
