@@ -48,8 +48,7 @@ let version = "Cparser V3.0b 10.9.99 Hugues Cassé"
 let parse_error msg : 'a =
   Clexer.display_error 
     ("Syntax error (" ^ msg ^")") 
-    (Parsing.symbol_start ()) (Parsing.symbol_end ());
-  raise Parsing.Parse_error
+    (Parsing.symbol_start ()) (Parsing.symbol_end ())
 
 let print = print_string
 
@@ -157,18 +156,23 @@ let applyInline spec = {spec with sinline = true}
 let applyStorage s spec = 
   match spec.ssto with
     NO_STORAGE -> {spec with ssto = s}
-  | _ -> parse_error "Multiple storage specifiers"
+  | _ -> parse_error "Multiple storage specifiers"; 
+      raise Parsing.Parse_error
   
 (* Apply typedef *)
 let applyTypedef spec = 
   match spec.ssto, spec.stypedef with
     NO_STORAGE, false -> {spec with stypedef = true}
-  | _, _ -> parse_error "Typedef along with storage specifier"
+  | _, _ -> 
+      parse_error "Typedef along with storage specifier"; 
+      raise Parsing.Parse_error
 
 let applyInitializer i' ((n,bt,a,i) as name) = 
   match i with 
     NOTHING -> (n, bt, a, i')
-  | _ -> parse_error "Multiple initializers"
+  | _ -> parse_error "Multiple initializers"; 
+      raise Parsing.Parse_error 
+      
 
 (* Apply a type specifier. We start with NO_TYPE. ISO 6.7.2 *)
 let applyTypeSpec ts spec = 
@@ -209,7 +213,9 @@ let applyTypeSpec ts spec =
         | Some fs -> UNIONDEF (n, fs)
      end
     | NO_TYPE, Tnamed n -> NAMED_TYPE n         
-    | _, _ -> parse_error "Bad combination of type specifiers"
+    | _, _ -> 
+        parse_error "Bad combination of type specifiers"; 
+        raise Parsing.Parse_error
   in
   {spec with styp = typ}
 
@@ -225,7 +231,8 @@ let rec injectType inner = function
   | PTR bt -> PTR (injectType inner bt)
   | PROTO (bt, args, va, inl) -> PROTO (injectType inner bt, args, va, inl)
   | BITFIELD (bt, e) -> BITFIELD (injectType inner bt, e)
-  | _ -> parse_error "Unexpectted wrap type in injectType"
+  | _ -> parse_error "Unexpectted wrap type in injectType"; 
+      raise Parsing.Parse_error
   
 let injectTypeName (inner: base_type) ((n,bt,a,i) : name) : name = 
   (n, injectType inner bt, a, i)
@@ -242,8 +249,10 @@ let applyPointer (ptspecs: specifier list) ((n,bt,a,i) : name) : name =
       [] -> acc
     | s :: rest -> begin
         if s.styp <> NO_TYPE || s.ssto <> NO_STORAGE ||
-           s.stypedef || s.sinline then 
-          parse_error "Only qualifiers allowed in pointer";
+           s.stypedef || s.sinline then begin
+             parse_error "Only qualifiers allowed in pointer"; 
+             raise Parsing.Parse_error;
+           end;
         loop (makeAttrType (PTR acc) s.sattr) rest
     end
   in
@@ -274,7 +283,8 @@ let makeSingleName (spec: specifier) (n : name) : single_name =
   let (bt, sto, ns) = makeNameGroup spec [n] in
   match ns with 
     [n'] -> (bt, sto, n')
-  | _ -> parse_error "makeSingleName: impossible"
+  | _ -> parse_error "makeSingleName: impossible"; 
+      raise Parsing.Parse_error
 
 
 let doDeclaration (spec: specifier) (nl: name list) : definition = 
@@ -297,7 +307,8 @@ let doFunctionDef (spec: specifier) (n: name)
                   (b: body) : definition = 
   (match n with 
     (_, _, _, NOTHING) -> ()
-  | _ -> parse_error "Initializer in function definition");
+  | _ -> parse_error "Initializer in function definition"; 
+      raise Parsing.Parse_error);
   let n' = (* Associate the inline attribute with the function itself *)
     if spec.sinline then
       addAttributeName ("inline", []) n
@@ -455,6 +466,7 @@ global:
 | ASM LPAREN CST_STRING RPAREN SEMICOLON
                         { GLOBASM $3 }
 | PRAGMA attr           { PRAGMA $2 }
+| error SEMICOLON       { PRAGMA("error", []) }
 ;
 typename:
     IDENT				{$1}
@@ -468,47 +480,6 @@ maybecomma:
 /*** Expressions ****/
 
 
-init_expression:
-     expression                                 { $1 }
-|    LBRACE initializer_list RBRACE
-			{CONSTANT (CONST_COMPOUND $2)}
-
-initializer_list:    /* ISO 6.7.8. Allow a trailing COMMA */
-    initializer                             { [$1] }
-|   initializer COMMA initializer_list_opt  { $1 :: $3 }
-;
-initializer_list_opt:
-    /* empty */                             { [] }
-|   initializer_list                        { $1 }
-;
-initializer: 
-    init_designators EQ init_expression { ($1, $3) }
-|                       init_expression { (NO_INIT, $1) }
-;
-init_designators: 
-    DOT IDENT init_designators_opt      { FIELD_INIT($2, $3) }
-|   LBRACKET  init_expression RBRACKET init_designators_opt
-                                        { INDEX_INIT($2, $4) }
-;
-init_designators_opt:
-   /* empty */                          { NO_INIT }
-|  init_designators                     { $1 }
-;
-
-
-
-opt_expression:
-		/* empty */
-			{NOTHING}
-|		comma_expression
-			{smooth_expression $1}
-;
-comma_expression:
-		expression
-			{[$1]}
-|		comma_expression COMMA expression
-			{$3::$1}
-;
 expression:
 		constant
 			{CONSTANT $1}		
@@ -629,6 +600,47 @@ string_list:
 |   string_list CST_STRING		{$1 ^ $2}
 |   string_list FUNCTION__              {$1 ^ __functionString}
 ;
+init_expression:
+     expression                                 { $1 }
+|    LBRACE initializer_list RBRACE
+			{CONSTANT (CONST_COMPOUND $2)}
+
+initializer_list:    /* ISO 6.7.8. Allow a trailing COMMA */
+    initializer                             { [$1] }
+|   initializer COMMA initializer_list_opt  { $1 :: $3 }
+;
+initializer_list_opt:
+    /* empty */                             { [] }
+|   initializer_list                        { $1 }
+;
+initializer: 
+    init_designators EQ init_expression { ($1, $3) }
+|                       init_expression { (NO_INIT, $1) }
+;
+init_designators: 
+    DOT IDENT init_designators_opt      { FIELD_INIT($2, $3) }
+|   LBRACKET  init_expression RBRACKET init_designators_opt
+                                        { INDEX_INIT($2, $4) }
+;
+init_designators_opt:
+   /* empty */                          { NO_INIT }
+|  init_designators                     { $1 }
+;
+
+
+
+opt_expression:
+		/* empty */
+			{NOTHING}
+|		comma_expression
+			{smooth_expression $1}
+;
+comma_expression:
+		expression
+			{[$1]}
+|		comma_expression COMMA expression
+			{$3::$1}
+;
 
 
 /*** statements ***/
@@ -677,6 +689,7 @@ statement:
 			{GOTO $2}				
 |   gnuasm  SEMICOLON   { $1 } 
 |   MSASM               { ASM ([$1], false, [], [], []) }
+|   error   SEMICOLON   { NOP }
 ;
 
 
@@ -693,7 +706,7 @@ declaration:                                /* ISO 6.7. GCC attributes apply
     decl_spec_list init_declarator_list gcc_attributes SEMICOLON 
                                        { doDeclaration 
                                            (applyAttributes $3 $1) $2 }
-|   decl_spec_list SEMICOLON { doDeclaration $1 [] }
+|   decl_spec_list SEMICOLON           { doDeclaration $1 [] }
 ;
 init_declarator_list:                       /* ISO 6.7 */
     init_declarator                              { [$1] }
@@ -781,6 +794,8 @@ struct_decl_list: /* (* ISO 6.7.2. Except that we allow empty structs. We
                                           { (makeNameGroup 
                                                (applyAttributes $3 $1) $2) 
                                             :: $5 }
+|  error                          SEMICOLON struct_decl_list
+                                          { $3 } 
 ;
 field_decl_list: /* (* ISO 6.7.2 *) */
     field_decl                           { [$1] }
@@ -792,19 +807,22 @@ field_decl: /* (* ISO 6.7.2. Except that we allow unnamed fields. *) */
                                                (n, t, [], NOTHING) -> 
                                                 ( n, BITFIELD (t, $3), 
                                                      [], NOTHING)
-                                               | _ -> parse_error "bitfield") 
+                                               | _ -> parse_error "bitfield"; 
+                                                   raise Parsing.Parse_error) 
                                            } 
 |              COLON expression            {  (match missingFieldDecl with
                                                (n, t, [], NOTHING) -> 
                                                 ( n, BITFIELD (t, $2), 
                                                      [], NOTHING)
-                                               | _ -> parse_error "bitfield") 
+                                               | _ -> parse_error "bitfield"; 
+                                                   raise Parsing.Parse_error) 
                                            }
 ;
 
 enum_list: /* (* ISO 6.7.2.2 *) */
     enumerator				{[$1]}
 |   enum_list COMMA enumerator	        {$1 @ [$3]}
+|   enum_list COMMA error               { $1 } 
 ;
 enumerator:	
     IDENT				{($1, NOTHING)}
@@ -877,6 +895,7 @@ direct_old_proto_decl:
 
 old_parameter_list: 
 |  IDENT                                       { [$1] }
+|  error                                       { [] }
 |  old_parameter_list COMMA IDENT              { $1 @ [$3]} 
 ;
 
@@ -892,6 +911,7 @@ old_pardef_list:
 
 old_pardef: 
    declarator                             { [$1] }
+|  error                                  { [] }
 |  declarator COMMA old_pardef            { $1 :: $3 }
 ;
 
