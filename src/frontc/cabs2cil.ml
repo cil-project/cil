@@ -529,9 +529,9 @@ let rec stripConstLocalType (t: typ) : typ =
       let bt' = stripConstLocalType bt in
       if bt' != bt then TArray(bt', leno, a) else t
 
-  | TComp(ci, a) -> (* Again, no need to change the a. But we must change the 
-                     * fields. *)
-      List.iter 
+  | TComp(ci, a) ->
+      (* Must change both this structure as well as its fields *)
+      List.iter
         (fun f -> 
           let t' = stripConstLocalType f.ftype in
           if t' != f.ftype then begin
@@ -540,7 +540,7 @@ let rec stripConstLocalType (t: typ) : typ =
             f.ftype <- t'
           end)
         ci.cfields;
-      t
+      let a' = dc a in if a != a' then TComp(ci, a') else t
 
     (* We never assign functions either *)
   | TFun(rt, args, va, a) -> t
