@@ -74,7 +74,7 @@ $TEST->add3Tests("hashtest", "", @runpattern);
 $TEST->add3Tests("rbtest", "", @runpattern);
 $TEST->add3Tests("hufftest", "", @runpattern);
    $TEST->addComment("hufftest-inferbox", "bug in solver");
-#   $TEST->addComment("hufftest-box", "missing wrappers");
+   $TEST->addComment("hufftest-box", "missing wrappers");
    $TEST->addComment("hufftest-cil", "bug running the test???");
 $TEST->add3Tests("test/alloc");
 $TEST->add3Tests("test/argcast", "", @runpattern);
@@ -246,16 +246,16 @@ sub add3Tests {
                    Group => ["cil"],
                    Patterns => \%patterns);
 
-#    $self->newTest(Name => $name . "-box",
-#                   Dir => "..",
-#                   Cmd => "make " . $name . " INFERBOX=wild MANUALBOX= " . $theargs,
-#                   Group => ["box"],
-#                   Patterns => \%patterns);
+    $self->newTest(Name => $name . "-box",
+                   Dir => "..",
+                   Cmd => "make " . $name . " INFERBOX=wild MANUALBOX= " . $theargs,
+                   Group => ["box"],
+                   Patterns => \%patterns);
 
     $self->newTest(Name => $name . "-inferbox",
                    Dir => "..",
                    Cmd => "make " . $name . " INFERBOX=$inferbox " . $theargs,
-                   Group => ["box", "infer"], 
+                   Group => ["infer"], 
                    Patterns => \%patterns);
 }
 
@@ -280,7 +280,7 @@ sub add1Test {
 sub add3Comment {
     my ($self, $name, $comm) = @_;
     $self->addComment($name . "-cil", $comm);
-#    $self->addComment($name . "-box", $comm);
+    $self->addComment($name . "-box", $comm);
     $self->addComment($name . "-inferbox", $comm);
 }
 
