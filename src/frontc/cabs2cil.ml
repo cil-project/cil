@@ -982,11 +982,17 @@ type expAction =
     ADrop                               (* Drop the result. Only the 
                                          * side-effect is interesting *)
   | ASet of lval * typ                  (* Put the result in a given lval, 
-                                         * provided it matches the type  *)
+                                         * provided it matches the type. The 
+                                         * type is the type of the lval. *)
   | AExp of typ option                  (* Return the exp as usual. 
                                          * Optionally we can specify an 
                                          * expected type. This is useful for 
-                                         * constants *)
+                                         * constants. The expected type is 
+                                         * informational only, we do not 
+                                         * guarantee that the converted 
+                                         * expression has that type.You must 
+                                         * use a doCast afterwards to make 
+                                         * sure. *)
 
 
 (*** Result of compiling conditional expressions *)
@@ -2825,8 +2831,15 @@ and doExp (isconst: bool)    (* In a constant *)
         let what' =
           match what with
             AExp (Some _) -> AExp (Some typ)
-          | ADrop -> ADrop
-          | _ -> AExp None
+          | AExp None -> what
+          | ADrop -> what
+          | ASet (lv, lvt) -> 
+              (* If the cast from typ to lvt would be dropped, then we 
+               * continue with a Set *)
+              if typeSig typ = typeSig lvt then 
+                what
+              else
+                AExp None (* We'll create a temporary *)
         in
         let (se, e', t') = 
           match ie' with
@@ -4210,7 +4223,8 @@ and createGlobal (specs : (typ * storage * bool * A.attribute list))
 
 (* Must catch the Static local variables. Make them global *)
 and createLocal ((_, sto, _, _) as specs)
-                ((((n, ndt, a, cloc) : A.name), (e: A.init_expression)) as init_name) 
+                ((((n, ndt, a, cloc) : A.name), 
+                  (e: A.init_expression)) as init_name) 
   : chunk =
   let loc = convLoc cloc in
   (* Check if we are declaring a function *)

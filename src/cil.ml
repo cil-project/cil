@@ -2564,6 +2564,9 @@ class defaultCilPrinterClass : cilPrinter = object (self)
          * on the Poly module, I have to copy that code here!  This is
          * clearly a design mistake. *)
 
+        (* GN: you should not be using this printed to print the result of 
+         * CCured. Use the one from Ptrnode.ml *)
+
         (* --------- BEGIN code copied from ccured/Poly.ml --------- *)
         (* Split a name into a polymorphic prefix and a base name. The polymorphic
          * prefix is the empty string if this is not a polymorphic name *)
@@ -2720,8 +2723,9 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     let printAttributes (a: attributes) = 
       let pa = self#pAttrs () a in
       match nameOpt with 
-      | None -> (* Cannot print the attributes in this case because gcc does 
-                 * not like them here  *)
+      | None when not !print_CIL_Input -> 
+          (* Cannot print the attributes in this case because gcc does not 
+           * like them here, except if we are printing for CIL *)
           if pa = nil then nil else 
           text "/*" ++ pa ++ text "*/"
       | _ -> pa

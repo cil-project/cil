@@ -165,7 +165,7 @@ $TEST->add3Tests("testrun/apachebuf");
 $TEST->add3Tests("testrun/alloc2");
 $TEST->addTests("testrun/alloc3", "", ['inferbox']);
 $TEST->add3Tests("testrun/apachefptr");
-$TEST->add2Tests("testrun/asm1", "_GNUCC=1");
+$TEST->add2Tests("testrun/asm1", "EXTRAARGS=--allowInlineAssembly _GNUCC=1");
     # sm: this one works for me
     #$TEST->addBadComment("testrun/asm1-inferbox",
     #                     "Unimplemented inline assmebly");
@@ -562,10 +562,10 @@ $TEST->add2Tests("testrun/stringsize");
 #
 # OLDEN benchmarks
 #
-$TEST->add2Tests("bh", "_GNUCC=1");
+$TEST->add2Tests("bh", "EXTRAARGS=--allowInlineAssembly _GNUCC=1");
    $TEST->add2Group("bh", "slow", "olden");
 
-$TEST->add2Tests("power", "_GNUCC=1");
+$TEST->add2Tests("power", "EXTRAARGS=--allowInlineAssembly _GNUCC=1");
    $TEST->add2Group("power", "olden");
 
 $TEST->add2Tests("health", "_GNUCC=1");
@@ -599,7 +599,7 @@ $TEST->add2Tests("yacr", "_GNUCC=1");
 #
 # SPEC95
 #
-$TEST->add2Tests("li", "_GNUCC=1");
+$TEST->add2Tests("li", "EXTRAARGS=--allowInlineAssembly _GNUCC=1");
   $TEST->add2Group("li", "slow", "spec");
 
 $TEST->add2Tests("compress", "_GNUCC=1");

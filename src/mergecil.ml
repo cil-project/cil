@@ -1718,7 +1718,7 @@ let merge (files: file list) (newname: string) : file =
   init (); (* Make the GC happy *)
   (* We have made many renaming changes and sometimes we have just guessed a 
    * name wrong. Make sure now that the local names are unique. *)
-  uniqueVarNames res;
+  uniqueVarNames res; 
   res
 
 
