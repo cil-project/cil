@@ -12,7 +12,7 @@ type layout =
   | Array of (layout list) * int
   | Union of ((layout list) list) * int (* total union size in bytes *)
   | Pointer of typ (* original CIL pointer type
-							      * either TPtr or TFun *)
+										* either TPtr or TFun *)
 	| Anything of int (* length in bytes, matches anything *)
 
 let bytesSizeOf tau = 

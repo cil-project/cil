@@ -31,10 +31,10 @@
  * How does the solver work? 
  *
  * (1) We examine every CAST in the program. While scanning the
- * 			types to see if the cast is valid we add ECompat edges between
- * 			inner types that must be equal and mark as Wild types that
- * 			do not match up. We also mark nodes as Not Safe in casts where
- * 			the sizes are wrong. 
+ *			types to see if the cast is valid we add ECompat edges between
+ *			inner types that must be equal and mark as Wild types that
+ *			do not match up. We also mark nodes as Not Safe in casts where
+ *			the sizes are wrong. 
  * (2) We assign base-case flags. For example, we assign
  *      "pkReachString" to nodes that are of type string.
  * (3) We push those flags around using standard data-flow tricks. Nodes
@@ -112,7 +112,7 @@ let solve (node_ht : (int, node) Hashtbl.t) : unit = begin
   let update n k w = begin
     if (k <> n.kind) then begin
 			if n.why_kind = UserSpec && not (is_string n.kind) && 
-			   not (is_string k) then ignore (E.warn 
+				 not (is_string k) then ignore (E.warn 
 				"Solver: changing User Specified %a node %d to %a because %a" 
 				d_opointerkind n.kind 
 				n.id d_opointerkind k d_whykind w);
@@ -155,14 +155,14 @@ let solve (node_ht : (int, node) Hashtbl.t) : unit = begin
       match (node_of_type tau1),(node_of_type tau2) with
         Some(n1),Some(n2) -> 
 					if List.exists (fun e -> e.ekind = ECompat && e.eto = n2) n1.succ ||
-					   List.exists (fun e -> e.ekind = ECompat && e.eto = n1) n2.succ then
+						 List.exists (fun e -> e.ekind = ECompat && e.eto = n1) n2.succ then
 						(* avoid duplicate ECompat edges *) ()
 					else begin
 						addEdge n1 n2 ECompat (-1) ;
 						node_eq := NodeUF.make_equal (!node_eq) n1 n2 
 					end
       | _ -> (* in this unfortunate case, we don't know how to get
-			        * to the nodes of these types *)
+							* to the nodes of these types *)
 				E.s (E.warn "Solver: cannot link inner pointers %a, %a"
 					d_type tau1 d_type tau2) 
     end with _ -> ()
@@ -177,7 +177,7 @@ let solve (node_ht : (int, node) Hashtbl.t) : unit = begin
         Some(n1) -> update n1 Wild (BadCast(e))
       | None -> 
 					if (tau = unrollType e.eto.btype || 
-					    tau = unrollType e.efrom.btype) then begin
+							tau = unrollType e.efrom.btype) then begin
 						update e.eto   Wild (BadCast(e)) ;
 						update e.efrom Wild (BadCast(e)) ;
 					end else ignore (E.s (E.bug "Solver: unknown failure case %a"
@@ -251,19 +251,19 @@ let solve (node_ht : (int, node) Hashtbl.t) : unit = begin
 
 		(* Set initial flags based on the pointer kind *)
 		match n.kind with
-	  |	String
+		|	String
 		| ROString -> setFlag n pkReachString
 
 		| Seq
 		| Seq			 -> setFlag n pkReachSeq
 
 		| FSeqN
-		| SeqN 		 -> setFlag n pkReachString ;
-								  setFlag n pkReachSeq
+		| SeqN		 -> setFlag n pkReachString ;
+									setFlag n pkReachSeq
 
 		| Index    -> setFlag n pkReachIndex
 
-		| _		     -> () 
+		| _				 -> () 
 
   ) node_ht ; 
 
@@ -348,29 +348,29 @@ let solve (node_ht : (int, node) Hashtbl.t) : unit = begin
 				 hasFlag cur pkIntCast) then 
 		begin
 			let new_kind = 
-				if	   (hasFlag cur pkReachIndex) 	then Index
+				if		 (hasFlag cur pkReachIndex)		then Index
 				else if 
-				       (hasFlag cur pkReachString)  &&
-					 not (hasFlag cur pkReachSeq) 		&&
-					 not (hasFlag cur pkIntCast)	  	&&
-					 not (hasFlag cur pkArith) 				&&
-					 not (cur.kind = ROString) 		    then String
+							 (hasFlag cur pkReachString)  &&
+					 not (hasFlag cur pkReachSeq)			&&
+					 not (hasFlag cur pkIntCast)			&&
+					 not (hasFlag cur pkArith)				&&
+					 not (cur.kind = ROString)				then String
 				else if 
-				       (hasFlag cur pkReachString)  &&
-					 not (hasFlag cur pkReachSeq) 		&&
-					 not (hasFlag cur pkIntCast)	  	&&
-					 not (hasFlag cur pkArith) 				&&
-					     (cur.kind = ROString) 		    then ROString
+							 (hasFlag cur pkReachString)  &&
+					 not (hasFlag cur pkReachSeq)			&&
+					 not (hasFlag cur pkIntCast)			&&
+					 not (hasFlag cur pkArith)				&&
+							 (cur.kind = ROString)				then ROString
 				else if 
-					     (hasFlag cur pkReachString)  &&
-							 (hasFlag cur pkArith) 				then SeqN
+							 (hasFlag cur pkReachString)  &&
+							 (hasFlag cur pkArith)				then SeqN
 				else if 
 					 not (hasFlag cur pkReachString)  &&
-							 (hasFlag cur pkArith) 				then Seq
+							 (hasFlag cur pkArith)				then Seq
 				else if 
-					     (hasFlag cur pkReachString)  then FSeqN
+							 (hasFlag cur pkReachString)  then FSeqN
 
-				else 																		 FSeq
+				else																		 FSeq
 			in 
 			update cur new_kind BoolFlag 
     end
@@ -393,7 +393,7 @@ let solve (node_ht : (int, node) Hashtbl.t) : unit = begin
 		List.length cur.succ > 0 &&
 		List.fold_left (fun acc e ->     
 			acc && ( (e.ekind = ECompat) ||
-			         (e.ekind = ECast && e.eto.kind = ROString))) true cur.succ 
+							 (e.ekind = ECast && e.eto.kind = ROString))) true cur.succ 
 	in 
   finished := false ; 
   while not !finished do 
@@ -418,7 +418,7 @@ let solve (node_ht : (int, node) Hashtbl.t) : unit = begin
 		List.iter (fun ecompat_node_list ->
 			(* if every node in this list is ready, move every node in this
 			 * list to ROString *)
-		  let all_are_ready = 
+			let all_are_ready = 
 				List.fold_left (fun acc cur -> acc &&
 					 ready_for_rostring cur && 
 					 (cur.why_kind <> UserSpec || cur.kind = ROString)) 
@@ -474,7 +474,7 @@ let solve (node_ht : (int, node) Hashtbl.t) : unit = begin
 
 		(* Sanity Check! Typecheck.ml does much more than this. *)
 		if n.kind = Safe &&
-		  (hasFlag n pkNotSafe || 
+			(hasFlag n pkNotSafe || 
 			 hasFlag n pkReachString ||
 			 hasFlag n pkReachSeq || 
 			 hasFlag n pkReachIndex || 
