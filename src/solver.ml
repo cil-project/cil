@@ -252,9 +252,26 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     finished := true ; 
     Hashtbl.iter (fun id cur -> 
 
+      (* Really first consider all ECompat edges:
+       * flags should be equal across them. This is motivated by
+       * test/small1/apachebuf.c. Merely making ECompate-linked nodes
+       * have the same Kind does not suffice: a pred of an ecompat-linked
+       * node may need to be made FSEQ because of a posarith on the
+       * other side of the ecompat link. *)
+      List.iter (fun e ->
+        if e.ekind = ECompat then begin
+          let old_flags = e.efrom.flags in 
+          setFlag e.efrom (e.eto.flags ) ;
+          finished := !finished && (old_flags = e.efrom.flags) ;
+          let old_flags = e.eto.flags in 
+          setFlag e.eto (e.efrom.flags ) ;
+          finished := !finished && (old_flags = e.eto.flags)
+        end
+      ) (cur.pred @ cur.succ) ;
+
       (* first consider all Predecessor Cast edges *)
       List.iter (fun e -> 
-        if e.ekind = ECast || e.ekind = ECompat then begin
+        if e.ekind = ECast (* || e.ekind = ECompat *) then begin
           let old_flags = e.efrom.flags in 
             setFlag e.efrom (cur.flags land pkCastPredFlags) ;
             finished := !finished && (old_flags = e.efrom.flags)
@@ -263,7 +280,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
 
       (* now consider all Successor Cast edges *)
       List.iter (fun e -> 
-        if e.ekind = ECast || e.ekind = ECompat then begin
+        if e.ekind = ECast (* || e.ekind = ECompat *) then begin
           let old_flags = e.eto.flags in 
             setFlag e.eto (cur.flags land pkCastSuccFlags) ;
             finished := !finished && (old_flags = e.eto.flags)
@@ -272,7 +289,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
 
       (* now consider all Predecessor Cast/Null/Index edges *)
       List.iter (fun e -> 
-        if e.ekind = ECast || e.ekind = ENull || e.ekind = EIndex || e.ekind = ECompat then begin
+        if e.ekind = ECast || e.ekind = ENull || e.ekind = EIndex (* || e.ekind = ECompat *) then begin
           let old_flags = e.efrom.flags in 
             setFlag e.efrom (cur.flags land pkCNIPredFlags) ;
             finished := !finished && (old_flags = e.efrom.flags)

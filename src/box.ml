@@ -3432,8 +3432,9 @@ and boxinstr (ins: instr) : stmt clist =
                 [], [] -> empty, []
               | a :: resta, t :: restt -> 
                   let (doa, fa') = boxexpf a in
-(*                  ignore (E.log "boxCall: a=%a\n  fa'=%a\n\n"
-                            d_plainexp a d_fexp fa'); *)
+(*                  ignore (E.log "boxCall: (fun = %a) a=%a\n  fa'=%a\n\n"
+                            d_exp f
+                            d_plainexp a d_fexp fa');  *)
                   let (doa', fa'') = castTo fa' t.vtype doa in
                   let (_, doa'', a2) = fexp2exp fa'' doa' in
                   let (doresta, resta') = doArgs resta restt in
