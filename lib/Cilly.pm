@@ -508,9 +508,9 @@ sub straight_link {
 #
 # See if some libraries are actually lists of files
 sub expandLibraries {
-    my ($self, $psrcs) = @_;
+    my ($self) = @_;
 
-    my @tolink = @{$psrcs};
+    my @tolink = @{$self->{OFILES}};
 
     # Go through the sources and replace all libraries with the files that
     # they contain
@@ -536,28 +536,17 @@ sub expandLibraries {
         push @tolink1, $src;
         next;
     }
-    $psrcs = \@tolink1;
+    $self->{OFILES} = \@tolink1;
 }
 
-# Customize the linking
-sub link {
-    my($self, $psrcs, $dest, $ppargs, $ccargs, $ldargs) = @_;
-    if($self->{SEPARATE}) {
-        if($self->{VERBOSE}) { print "Linking into $dest\n"; }
-        # Not merging. Regular linking.
-        return $self->link_after_cil($psrcs, $dest, $ppargs, $ccargs, $ldargs);
-    }
-    # We must merging
-    if($self->{VERBOSE}) { print "Merging saved sources into $dest\n"; }
-    
-    # Now collect the files to be merged
-    my $src;
-    my @sources = ref($psrcs) ? @{$psrcs} : ($psrcs);
+sub separateTrueObjects {
+    my ($self, $psrcs) = @_;
 
+    my @sources = @{$psrcs};
 #    print "Sources are @sources\n";
     my @tomerge = ();
     my @othersources = ();
-    foreach $src (@sources) {
+    foreach my $src (@sources) {
         my ($combsrc, $mtime);
         if(! $self->{TRUEOBJ}) {
             $combsrc = $src;
@@ -583,15 +572,33 @@ sub link {
         }
         push @othersources, $src;
     }
+    return (\@tomerge, \@othersources);
+}
+
+
+# Customize the linking
+sub link {
+    my($self, $psrcs, $dest, $ppargs, $ccargs, $ldargs) = @_;
+    if($self->{SEPARATE}) {
+        if($self->{VERBOSE}) { print "Linking into $dest\n"; }
+        # Not merging. Regular linking.
+        return $self->link_after_cil($psrcs, $dest, $ppargs, $ccargs, $ldargs);
+    }
+    # We must merging
+    if($self->{VERBOSE}) { print "Merging saved sources into $dest\n"; }
+    
+    # Now collect the files to be merged
+
+    my ($tomerge, $trueobjs) = $self->separateTrueObjects($psrcs);
 
     my $mergedobj = $dest . "_comb.$self->{OBJEXT}";
-    $self->applyCilAndCompile(\@tomerge, $mergedobj, $ppargs, $ccargs); 
-    push @othersources, $mergedobj;
+    $self->applyCilAndCompile($tomerge, $mergedobj, $ppargs, $ccargs); 
+    push @{$trueobjs}, $mergedobj;
 
     # And finally link
     # sm: hack: made this conditional for dsw
     if (!defined($ENV{CILLY_DONT_LINK_AFTER_MERGE})) {
-      $self->link_after_cil(\@othersources, $dest, $ppargs, $ccargs, $ldargs);
+      $self->link_after_cil($trueobjs, $dest, $ppargs, $ccargs, $ldargs);
     }
 
 }
@@ -680,17 +687,30 @@ sub doit {
     }
     # We expand some libraries names. Maybe they just contain some 
     # new object files
-    $self->expandLibraries($self->{OFILES});
+    $self->expandLibraries();
 
     # Try to guess whether to run in the separate mode. In that case 
     # we can go ahead with the compilation, without having to save 
     # files
-    if($self->{OPERATION} eq "TOEXE" && # We are linking to an executable
-        # Not more than one source including object files since they may 
-        # be disguised sources
-       @{$self->{CFILES}} + @{$self->{IFILES}} + @{$self->{OFILES}} == 1) {
-        # But maybe we have some object files that are actually saved sources
-        $self->{SEPARATE} = 1; 
+    if(! $self->{SEPARATE} && # Not already separate mode
+       $self->{OPERATION} eq "TOEXE" &&  # We are linking to an executable
+       @{$self->{CFILES}} + @{$self->{IFILES}} <= 1) { # At most one source
+        # If we have object files, we should keep merging if at least one 
+        # object file is a disguised source
+        my $turnOffMerging = 0;
+        if(@{$self->{OFILES}}) {
+            my ($tomerge, $trueobjs) = 
+                $self->separateTrueObjects($self->{OFILES});
+            $turnOffMerging = (@{$tomerge} == 0);
+        } else {
+            $turnOffMerging = 1;
+        }
+        if($turnOffMerging) {
+            if($self->{VERBOSE}) {
+                print "Turn off merging because the program contains one file\n";
+            }
+            $self->{SEPARATE} = 1; 
+        }
     }
 
     # Turn everything into OBJ files
