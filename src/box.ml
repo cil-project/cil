@@ -2363,7 +2363,7 @@ let rec stringLiteral (s: string) (strt: typ) : stmt list * fexp =
 
         | _ -> E.s (E.bug "stringLiteral")
       in
-      ([regarea; mkSet (var tmp) (Const (CStr s))], res)
+      ([mkSet (var tmp) (Const (CStr s)); regarea ], res)
         
   | N.WildT | N.SeqT | N.FSeqT | N.SeqNT | N.FSeqNT -> 
       let kno_t = N.stripT k in
