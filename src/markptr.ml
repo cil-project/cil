@@ -8,7 +8,7 @@ module N = Ptrnode
 
 let lu = locUnknown
 
-let currentFileName = ref ""
+let currentFile = ref dummyFile
 let currentFunctionName = ref ""
 let currentResultType = ref voidType
 
@@ -20,6 +20,8 @@ let genericId   = ref 0
 let callId = ref (-1)  (* Each call site gets a new ID *)
 
 let polyId = ref (-1) 
+
+let stripCast (e: exp) = match e with CastE(_, e') -> e' | _ -> e
 
 let matchSuffix (lookingfor: string) (lookin: string) = 
   let inl = String.length lookin in
@@ -278,88 +280,6 @@ let rec signOf = function
   end
   | _ -> SAny
 
-(*********************** VARARG ********************************)
-
-(* Keep track for each function name whether it is a vararg, and the 
- * alternatives, with a field name, a type and a type signature *)
-let varargs: (string, (string * typ * typsig) list) H.t = H.create 15
-
-(* Compute the signature of a type for comparing arguments *)
-let argumentTypeSig (t: typ) = 
-  let argumentPromotion (t : typ) : typ =
-    match unrollType t with
-      (* We assume that an IInt can hold even an IUShort *)
-      TInt ((IShort|IUShort|IChar|ISChar|IUChar), a) -> TInt(IInt, a)
-    | TInt _ -> t
-          (* Treat floats as compatible with integers *)
-    | TFloat (FFloat, a) -> TInt (IInt, a)
-    | TEnum (_, a) -> TInt(IInt, a)
-    | t -> t
-  in
-  (* Ignore all attributes *)
-  typeSigWithAttrs (fun x -> []) (argumentPromotion t)
-
-let prepareVararg (funname: string) (t: typ) : unit  = 
-  let kinds = 
-    match unrollType t with
-      TComp (ci, _) when not ci.cstruct -> 
-        List.map (fun fi -> fi.fname, fi.ftype, argumentTypeSig fi.ftype)
-          ci.cfields
-    | t' -> [("anon", t', argumentTypeSig t')]
-  in
-  (* Make sure that no two types are compatible *)
-  let _ = 
-    List.fold_left
-      (fun prev ((thisn, thist, thiss) as this) -> 
-        List.iter
-          (fun (pn, pt, ps) -> 
-            if thiss = ps then 
-              E.s (error "Vararg type %a has compatible fields %s and %s\n"
-                     d_type t pn thisn)) prev;
-        this :: prev)
-      []
-      kinds
-  in
-  ignore (E.log "Will treat %s as a vararg function\n" funname);
-  H.add varargs funname kinds
-
-
-(* Prepare the argument in a call to a vararg function *)
-let prepareVarargArguments
-    (func: exp) 
-    (args: exp list) : stmt list * exp list = 
-  match func with 
-    Lval(Var fvi, NoOffset) -> begin
-      try
-        let argkinds = H.find varargs fvi.vname in
-        let (_, indices, args') = 
-          List.fold_right
-            (fun a (arg_idx, indices, args) -> 
-              let t = typeOf a in
-              let ts = argumentTypeSig t in
-              (* Search for a compatible type in the kinds *)
-              let rec loop (idx: int) = function
-                  [] -> E.s (unimp "Argument %d does not match any expected type for vararg function %s" arg_idx fvi.vname)
-                | (kn, kt, ks) :: restk when ks = ts -> 
-                    (* We found a match *)
-                    idx, doCastT a t kt
-                | _ :: restk -> loop (idx + 1) restk
-              in
-              let k_idx, a' = loop 0 argkinds in
-              (arg_idx - 1, k_idx :: indices, a' :: args))
-            args
-            (List.length args, [], [])
-        in
-        ignore (E.log "Indices are: [%a]\n"
-                  (docList (chr ',') num) indices);
-        [], args'
-      with Not_found -> 
-        E.s (E.bug "Call to vararg function %s without a descriptor" 
-               fvi.vname)
-    end
-  | _ -> E.s (unimp "We do not handle pointers to varargs")
-        
-
 
 (* Do varinfo. We do the type and for all variables we also generate a node 
  * that will be used when we take the address of the variable (or if the 
@@ -369,11 +289,11 @@ let doVarinfo vi =
   let place = 
     if vi.vglob then
       if vi.vstorage = Static then 
-        N.PStatic (!currentFileName, vi.vname)
+        N.PStatic (!currentFile.fileName, vi.vname)
       else
         N.PGlob vi.vname
     else
-      N.PLocal (!currentFileName, !currentFunctionName, vi.vname)
+      N.PLocal (!currentFile.fileName, !currentFunctionName, vi.vname)
   in
   let vi_vtype = addArraySizedAttribute vi.vtype vi.vattr in 
   (* Do the type of the variable. Start the index at 1 *)
@@ -685,6 +605,322 @@ let instantiatePolyFunc (fvi: varinfo) : varinfo * bool =
   end;
   newvi, ispoly
 
+
+
+
+(*********************** VARARG ********************************)
+
+(* Keep track for each function name whether it is a vararg, and the 
+ * alternatives, with an index, a field name, a type and a type signature *)
+let varargs: (string, (int * string * typ * typsig) list) H.t = H.create 15
+
+let debugVararg = true
+
+(* Compute the signature of a type for comparing arguments *)
+let argumentTypeSig (t: typ) = 
+  let argumentPromotion (t : typ) : typ =
+    match unrollType t with
+      (* We assume that an IInt can hold even an IUShort *)
+      TInt ((IShort|IUShort|IChar|ISChar|IUChar), a) -> TInt(IInt, a)
+    | TInt _ -> t
+          (* Treat floats as compatible with integers *)
+    | TFloat (FFloat, a) -> TInt (IInt, a)
+    | TEnum (_, a) -> TInt(IInt, a)
+    | t -> t
+  in
+  (* Ignore all attributes *)
+  typeSigWithAttrs (fun x -> []) (argumentPromotion t)
+
+let prepareVararg (funname: string) (t: typ) : unit  = 
+  let kinds = 
+    match unrollType t with
+      TComp (ci, _) when not ci.cstruct -> 
+        let rec loop (idx: int) = function
+            [] -> []
+          | fi :: restfi -> 
+              (idx, fi.fname, fi.ftype, argumentTypeSig fi.ftype) 
+              :: loop (idx + 1) restfi
+        in
+        loop 0 ci.cfields
+    | t' -> [(0, "anon", t', argumentTypeSig t')]
+  in
+  (* Make sure that no two types are compatible *)
+  let _ = 
+    List.fold_left
+      (fun prev ((_, thisn, _, thiss) as this) -> 
+        List.iter
+          (fun (_, pn, pt, ps) -> 
+            if thiss = ps then 
+              E.s (error "Vararg type %a has compatible fields %s and %s\n"
+                     d_type t pn thisn)) prev;
+        this :: prev)
+      []
+      kinds
+  in
+  if debugVararg then 
+    ignore (E.log "Will treat %s as a vararg function\n" funname);
+  H.add varargs funname kinds
+
+
+(* Fetch references to the Vararg globals *)
+let ccured_va_count_o : lval option ref = ref None
+let ccured_va_tags_o : lval option ref = ref None
+let ccured_va_count_max = 32
+let fetchVarargGlobals () =
+  let g1 = 
+    match !ccured_va_count_o with 
+      Some lv -> lv
+    | None -> 
+        let g1 = makeGlobalVar "__ccured_va_count" intType in
+        g1.vstorage <- Extern;
+        g1.vdecl <- !currentLoc;
+        theFile := GDecl(g1, g1.vdecl) :: !theFile;
+        let g1lval = var g1 in
+        ccured_va_count_o := Some g1lval;
+        g1lval
+  in
+  let g2 = 
+    match !ccured_va_tags_o with 
+      Some lv -> lv
+    | None -> 
+        let g2 = makeGlobalVar "__ccured_va_tags" 
+            (TArray(intType, Some (integer ccured_va_count_max), [])) in
+        g2.vstorage <- Extern;
+        g2.vdecl <- !currentLoc;
+        theFile := GDecl(g2, g2.vdecl) :: !theFile;
+        let g2lval = var g2  in
+        ccured_va_tags_o := Some g2lval;
+        g2lval
+  in
+  g1, g2
+  
+(* Prepare the argument in a call to a vararg function *)
+let prepareVarargArguments
+    (func: exp) 
+    (nrformals: int)
+    (args: exp list) : instr list * exp list = 
+  match func with 
+    Lval(Var fvi, NoOffset) -> begin
+      try
+        if debugVararg then 
+          ignore (E.log "Preparing args in call to %s\n" fvi.vname);
+        let argkinds = H.find varargs fvi.vname in
+        let nrargs = List.length args in
+        let (_, indices, args') = 
+          List.fold_right
+            (fun a (arg_idx, indices, args) -> 
+              if arg_idx > nrformals then begin
+                let t = typeOf a in
+                let ts = argumentTypeSig t in
+                (* Search for a compatible type in the kinds *)
+                let rec loop = function
+                    [] -> E.s (unimp "Argument %d does not match any expected type for vararg function %s" arg_idx fvi.vname)
+                  | (ki, kn, kt, ks) :: restk when ks = ts -> 
+                      (* We found a match *)
+                      ki, doCastT a t kt
+                  | _ :: restk -> loop restk
+                in
+                let k_idx, a' = loop argkinds in
+                (arg_idx - 1, k_idx :: indices, a' :: args)
+              end else
+                (arg_idx - 1, indices, a :: args))
+            args
+            (nrargs, [], [])
+        in
+        if debugVararg then 
+          ignore (E.log "Indices are: [%a]\n" (docList (chr ',') num) indices);
+        (* fetch the global variables *)
+        let ccured_va_count, ccured_va_tags = fetchVarargGlobals () in
+        (* Now construct the tag *)
+        let rec loopIndices (count: int) (indices: int list) 
+            : exp (* a partial word*) * instr list (* set the following words 
+                                                    * *) = 
+          match indices with 
+          | [] -> 
+              zero, [Set(ccured_va_count, integer count, !currentLoc)]
+          | i :: rest -> 
+              let p_rest, rest = loopIndices (count + 1) rest in
+              let amount = 8 * (count mod 4) in
+              let shifted = 
+                if amount = 0 then integer i else 
+                BinOp(Shiftlt, integer i, integer amount, intType) in
+              let bor_ed = 
+                if isZero p_rest then shifted else 
+                BinOp(BOr, shifted, p_rest, intType) in
+              if amount = 0 then (* time to put into rest *)
+                (zero,
+                 Set(addOffsetLval (Index(integer (count / 4), 
+                                          NoOffset)) ccured_va_tags,
+                     bor_ed, !currentLoc) :: rest) 
+              else
+                (bor_ed, rest)
+        in
+        let _, instr = loopIndices 0 indices in
+        instr, args'
+      with Not_found -> 
+        E.s (E.bug "Call to vararg function %s without a descriptor" 
+               fvi.vname)
+    end
+  | _ -> E.s (unimp "We do not handle pointers to varargs. Put such calls in a __NOBOXBLOCK")
+        
+
+type varargBodyInfoType = 
+    { lastFormal: varinfo;  (* The last formal *)
+      mutable marker_variable: varinfo; (* The va_list variable. We want to 
+                                         * make sure that only one is used. 
+                                         * Otherwise we need to keep multiple 
+                                         * copies ourselves.  *)
+      localVarargInfo: lval;(* The way to get at the local vararg info *)
+    } 
+let varargBodyInfo : varargBodyInfoType option ref = ref None
+let findVarargBodyInfo () : varargBodyInfoType = 
+  match !varargBodyInfo with 
+    Some x -> x
+  | None -> raise Not_found
+
+(* Create the type for storing the vararg information *)
+let varargCompInfo: compinfo option ref = ref None
+let getVarArgCompInfo () : compinfo  =  
+  let ci = 
+    match !varargCompInfo with 
+      Some x -> x
+    | None -> 
+        let ci = 
+          mkCompInfo true "__ccured_va_localinfo"
+            (fun _ ->
+              [ ("next", intType, None, []);
+                ("count", intType, None, []);
+                ("tags", TArray(intType, 
+                                Some (integer ccured_va_count_max), []),
+                 None, []);
+                ("nextp", voidPtrType, None, []);
+              ])
+            [] in
+        theFile := GCompTag(ci, !currentLoc) :: !theFile;
+        varargCompInfo := Some ci;
+        ci
+  in
+  ci
+                
+let getNextField (vainfo: varinfo) : lval = 
+  let ci = getVarArgCompInfo () in
+  match ci.cfields with
+    n :: _ -> 
+      addOffsetLval (Field(n, NoOffset)) (var vainfo)
+  | _ -> E.s (E.bug "getNextField: can't find it")
+    
+    (* We keep a list of the marker variables and their mapping to vainfo 
+     * variables *)
+let markers: (string, varinfo) H.t = H.create 13
+    (* The last formal in this body *)
+let lastformal : varinfo ref = ref dummyFunDec.svar
+
+(** Now the handling of the body of vararg functions **)
+class processVarargClass (fdec: fundec) = object
+  inherit nopCilVisitor
+
+    (* Change all call instructions to use the marker *)
+  method vinst (i: instr) : instr list visitAction = 
+    match i with 
+      Call(reso, (Lval(Var fvi, NoOffset) as f), args, l) -> 
+        let replaceMarker (args: exp list) : exp list = 
+          let marker, restargs = 
+            match args with 
+              marker :: restargs -> marker, restargs
+          | _ -> E.s (E.bug "va_macro must have at least one arg")
+          in
+          let newmarkervi = 
+            match marker with 
+              Lval (Var markervi, NoOffset) -> begin
+                try
+                  H.find markers markervi.vname
+                with Not_found -> begin
+                  let ci = getVarArgCompInfo () in
+                  (* Now create a local of that type *)
+                  let vainfo = 
+                    makeLocalVar 
+                      fdec ~insert:true "__ccured_va_local" (TComp(ci, [])) in
+                  H.add markers markervi.vname vainfo;
+                  vainfo.vaddrof <- true;
+                  vainfo
+                end
+              end
+            | _ -> 
+                E.s (unimp "We support only va_macros with variable marker")
+          in
+          AddrOf (Var newmarkervi, NoOffset) :: restargs
+        in        
+        if fvi.vname = "__ccured_va_start" then 
+          ChangeTo ([Call(reso, f, replaceMarker args, l)])
+        else if fvi.vname = "__ccured_va_arg" then begin
+          (* Find the type of the desired argument *)
+          let marker, desiredt = 
+            match args with 
+              marker :: SizeOf t :: _ :: [] -> marker, t
+            | _ -> E.s (error "Call to va_start does not have a type")
+          in
+          let desiredts = argumentTypeSig desiredt in
+          (* Find the index in the union type of a compatible type *)
+          let kinds = 
+            try H.find varargs fdec.svar.vname
+            with Not_found -> 
+              E.s (error "Vararg function %s does not have a descriptor" 
+                     fdec.svar.vname)
+          in
+          let ki, kn, kt, ks = 
+            match List.filter (fun (_, _, _, ks) -> ks = desiredts) kinds with 
+              [x] -> x
+            | _ -> E.s (error "Cannot match any of the descriptor type for call to va_arg")
+          in
+          (* Now change the type of the temporary variable that takes this 
+           * result *)
+          (match reso with 
+            Some (Var tmpvi, NoOffset) -> tmpvi.vtype <- TPtr(kt,[])
+          | None -> ignore (warn "Call to va_arg is not assigned")
+          | _ -> E.s (unimp "Result of va_arg does not go into a variable"));
+          ChangeTo ([Call(reso, f, 
+                          replaceMarker [ marker; 
+                                          SizeOf kt; 
+                                          integer ki ], l)])
+        end else if fvi.vname = "__ccured_va_end" then 
+          ChangeTo ([Call(reso, f, replaceMarker args, l)])
+        else SkipChildren
+    | _ -> SkipChildren
+end
+
+
+let processVarargBody (fdec: fundec) : unit = 
+  let formals, isva = 
+    match fdec.svar.vtype with
+      TFun(_, formals, isva, _) -> formals, isva
+    | _ -> E.s (E.bug "Function does not have function type")
+  in
+  if isva then begin
+    (* Get the last formal *)
+    lastformal := 
+       (let rec getlast = function 
+           [] -> E.s (E.bug "Vararg function %s does not have formals" 
+                        fdec.svar.vname)
+         | [l] -> l
+         | _ :: rest -> getlast rest
+       in getlast formals);
+    (* Now scan the body *)
+    H.clear markers;
+    let va_visit = new processVarargClass(fdec) in
+    fdec.sbody <- visitCilBlock va_visit fdec.sbody;
+    (* Now insert code to initialize the next fields *)
+    fdec.sbody.bstmts <- 
+       mkStmt 
+         (Instr 
+            (H.fold (fun _ vainfo acc -> 
+              Set(getNextField vainfo, integer (-1), !currentLoc) :: acc) 
+               markers
+               [])) ::
+       fdec.sbody.bstmts;
+    H.clear markers;
+  end
+
+
 (* possible printf arguments *)
 type printfArgType = FormatInt | FormatDouble | FormatPointer
 
@@ -855,7 +1091,6 @@ let decomposeCall
       (fun a f ->
         (* Get the types of the arguments. But be prepared to strip the top 
          * level cast since it could have been added by cabs2cil *)
-        let stripCast (e: exp) = match e with CastE(_, e') -> e' | _ -> e in
         let orig = stripCast a in
         let origt = typeOf orig in
         let orig_bt, orig_a, orig_n = splitPtrType origt in
@@ -903,7 +1138,7 @@ and doStmt (s: stmt) : stmt =
       currentLoc := l;
       s.skind <- Return (Some (doExpAndCast e !currentResultType), l)
   | Instr il -> 
-      s.skind <- Instr (List.map doInstr il)
+      s.skind <- Instr (mapNoCopyList doInstr il)
   | Loop (b, l) -> 
       currentLoc := l;
       s.skind <- Loop (doBlock b, l)
@@ -916,9 +1151,9 @@ and doStmt (s: stmt) : stmt =
       s.skind <- Switch(doExpAndCast e intType, doBlock b, cases, l));
   s
 
-and doInstr (i:instr) : instr = 
+and doInstr (i:instr) : instr list = 
   match i with
-  | Asm _ -> i
+  | Asm _ -> [i]
   | Set (lv, e,l) -> 
       currentLoc := l;
       let lv', lvn = doLvalue lv true in
@@ -926,131 +1161,144 @@ and doInstr (i:instr) : instr =
 (*      ignore (E.log "Setting lv=%a\n lvt=%a (ND=%d)" 
                 d_plainlval lv d_plaintype (typeOfLval lv) lvn.N.id); *)
       let e' = doExpAndCast e lvn.N.btype in
-      Set (lv', e', l)
+      [Set (lv', e', l)]
 
-  | Call (reso, orig_func, args, l) as i -> 
+  | Call (reso, orig_func, args, l) as i -> begin
       currentLoc := l;
-      incr callId; (* A new call id *)
-(*      ignore (E.log "Call %a args: %a\n" 
+      match interceptFunctionCalls i with
+        Some il -> mapNoCopyList doInstr il
+      | None -> doFunctionCall reso orig_func args l
+  end
+
+and interceptFunctionCalls = function
+  | i -> None
+      
+and doFunctionCall 
+    (reso: lval option)
+    (orig_func: exp)
+    (args: exp list) 
+    (l: location) = 
+  incr callId; (* A new call id *)
+  (*      ignore (E.log "Call %a args: %a\n" 
                 d_plainexp orig_func
                 (docList (chr ',') (fun a -> d_plaintype () (typeOf a)))
-                args); *)
-      let func, ispoly = (* check and see if it is polymorphic *)
-        match orig_func with
-          (Lval(Var(v),NoOffset)) -> 
-            let newvi, ispoly = instantiatePolyFunc v in
-            doVarinfo newvi;
-            if ispoly then begin
-              Lval (Var newvi, NoOffset), true
-            end else (* Not polymorphic *) orig_func, false
-        | _ -> orig_func, false
-      in
-      (* Do the function as if we were to take its address *)
-      let pfunc, pfunct, pfuncn = 
-        match func with 
-          Lval lv -> doExp (mkAddrOf lv)
-        | _ -> E.s (unimp "Called function is not an lvalue")
-      in
-      (* Now fetch out the real function and its type *)
-      let func' = Lval (mkMem pfunc NoOffset) in
-      let funct =
-        match pfunct with
-          TPtr ((TFun _ as funct), _) -> funct
-        | _ -> E.s (bug "Expected a function pointer here")
-      in
-      let (rt, formals, isva) = 
-        match unrollType funct with
-          TFun(rt, formals, isva, _) -> rt, formals, isva
-        | _ -> E.s (bug "Call to a non-function")
-      in
-      let isprintf = isPrintf reso func args in
-      let args' = 
-        if isva then 
-          match isprintf with
-            Some args'  -> args'
-          | None -> let _, x = prepareVarargArguments func' args in x
-        else
-          args
-      in
-      (* If the function has more actual arguments than formals then mark the 
-       * function node as used without prototype *)
-      if List.length args' <> List.length formals && not isva then begin
-        (* Bark if it is polymorphic. No prototype + polymorphism (or 
-         * allocation) do not work together *)
-        if ispoly || isprintf != None then 
-          E.s (error "Calling polymorphic (or allocation) function %a without proper prototype" d_exp func);
-        N.setFlag pfuncn N.pkNoPrototype ; 
-      end;
-      (* Now check the arguments *)
-      let rec loopArgs formals args = 
-        match formals, args with
-          [], [] -> []
-        | [], a :: args -> (* We ran out of formals. This is bad, so we make 
-                            * sure to mark that the argument is used in a 
-                            * function without prototypes *)
-            (* Do the arguments because they might contain pointer types *)
-            let a', _, an = doExp a in
-            if an != N.dummyNode && not isva  then
-							N.setFlag an N.pkNoPrototype ; 
-            a' :: loopArgs [] args
-
-        | fo :: formals, a :: args -> 
-            (* See if this is a polymorphic argument *)
-            let ispolyarg = 
-              match ispoly, unrollType fo.vtype with
-                true, TPtr(TVoid _, _) -> true
-              | _, _ -> false
-            in
-(*            ignore (E.log "Call arg %a: %a -> %s\n" 
+  args); *)
+  let func, ispoly = (* check and see if it is polymorphic *)
+    match orig_func with
+      (Lval(Var(v),NoOffset)) -> 
+        let newvi, ispoly = instantiatePolyFunc v in
+        doVarinfo newvi;
+        if ispoly then begin
+          Lval (Var newvi, NoOffset), true
+        end else (* Not polymorphic *) orig_func, false
+    | _ -> orig_func, false
+  in
+  (* Do the function as if we were to take its address *)
+  let pfunc, pfunct, pfuncn = 
+    match func with 
+      Lval lv -> doExp (mkAddrOf lv)
+    | _ -> E.s (unimp "Called function is not an lvalue")
+  in
+  (* Now fetch out the real function and its type *)
+  let func' = Lval (mkMem pfunc NoOffset) in
+  let funct =
+    match pfunct with
+      TPtr ((TFun _ as funct), _) -> funct
+    | _ -> E.s (bug "Expected a function pointer here")
+  in
+  let (rt, formals, isva) = 
+    match unrollType funct with
+      TFun(rt, formals, isva, _) -> rt, formals, isva
+    | _ -> E.s (bug "Call to a non-function")
+  in
+  let isprintf = isPrintf reso func args in
+  let preinstr, args' = 
+    if isva then 
+      match isprintf with
+        Some args'  -> [], args'
+      | None -> prepareVarargArguments func' (List.length formals) args
+    else
+      [], args
+  in
+  (* If the function has more actual arguments than formals then mark 
+  * the function node as used without prototype  *)
+  if List.length args' <> List.length formals && not isva then begin
+    (* Bark if it is polymorphic. No prototype + polymorphism (or 
+    * allocation) do not work together *)
+    if ispoly || isprintf != None then 
+      E.s (error "Calling polymorphic (or allocation) function %a without proper prototype" d_exp func);
+    N.setFlag pfuncn N.pkNoPrototype ; 
+  end;
+  (* Now check the arguments *)
+  let rec loopArgs formals args = 
+    match formals, args with
+      [], [] -> []
+    | [], a :: args -> (* We ran out of formals. This is bad, so we 
+        * make sure to mark that the argument is used 
+        * in a function without prototypes  *)
+        (* Do the arguments because they might contain pointer types *)
+        let a', _, an = doExp a in
+        if an != N.dummyNode && not isva  then
+	  N.setFlag an N.pkNoPrototype ; 
+        a' :: loopArgs [] args
+                
+    | fo :: formals, a :: args -> 
+        (* See if this is a polymorphic argument *)
+        let ispolyarg = 
+          match ispoly, unrollType fo.vtype with
+            true, TPtr(TVoid _, _) -> true
+          | _, _ -> false
+        in
+        (*            ignore (E.log "Call arg %a: %a -> %s\n" 
                       d_exp a' d_plaintype (typeOf a') fo.vname); *)
-            let a' = doExpAndCastCall a fo.vtype !callId ispolyarg in
-            a' :: loopArgs formals args
-
-        | _, _ -> E.s (E.unimp "Markptr: not enough arguments in call to %a"
-                         d_exp orig_func)
-      in  
-      let polyRet = 
-        match ispoly, unrollType rt with 
-          true, TPtr(TVoid _, _) -> true
-        | _, _ -> false
-      in
-      begin
-          (* Now check the return value*)
-        match reso, unrollType rt with
-          None, TVoid _ -> ()
-        | Some _, TVoid _ -> 
-            ignore (warn "Call of subroutine is assigned")
-        | None, _ -> () (* "Call of function is not assigned" *)
-        | Some dest, _ -> begin
-            (* Do the lvalue, just so that the type is done *)
-            let dest', _ = doLvalue dest true in
-            (* Add the cast. Make up a phony expression and a node so that we 
-             * can call expToType. *)
-            ignore (expToType (Const(CStr("a call return")),
-                               rt, N.dummyNode) (typeOfLval dest') 
-                      !callId polyRet)
-	end 
-      end;
-      (* Take a look at a few special function *)
-      (match func' with 
-        Lval(Var v, NoOffset) -> begin
-          match args' with
-            [a] -> 
-              if matchPolyName "__endof" v.vname then begin
-                let n = nodeOfType (typeOf a) in
-                if n == N.dummyNode then
-                  E.s (error "Call to __endof on a non pointer");
-                setPosArith n (* To make sure we have an end *)
-              end else if matchPolyName "__startof" v.vname then begin
-                let n = nodeOfType (typeOf a) in
-                if n == N.dummyNode then
-                  E.s (error "Call to __startof on a non pointer");
-                setArith n (* To make sure we have a start and an end *)
-              end 
-          | _ -> ()
-        end
-      | _ -> ());
-      Call(reso, func', loopArgs formals args', l)
+        let a' = doExpAndCastCall a fo.vtype !callId ispolyarg in
+        a' :: loopArgs formals args
+                
+    | _, _ -> E.s (E.unimp "Markptr: not enough arguments in call to %a"
+                     d_exp orig_func)
+  in  
+  let polyRet = 
+    match ispoly, unrollType rt with 
+      true, TPtr(TVoid _, _) -> true
+    | _, _ -> false
+  in
+  begin
+    (* Now check the return value*)
+    match reso, unrollType rt with
+      None, TVoid _ -> ()
+    | Some _, TVoid _ -> 
+        ignore (warn "Call of subroutine is assigned")
+    | None, _ -> () (* "Call of function is not assigned" *)
+    | Some dest, _ -> begin
+        (* Do the lvalue, just so that the type is done *)
+        let dest', _ = doLvalue dest true in
+        (* Add the cast. Make up a phony expression and a node so that we 
+        * can call expToType. *)
+        ignore (expToType (Const(CStr("a call return")),
+                           rt, N.dummyNode) (typeOfLval dest') 
+                  !callId polyRet)
+    end 
+  end;
+  (* Take a look at a few special functions *)
+  (match func' with 
+    Lval(Var v, NoOffset) -> begin
+      match args' with
+        [a] -> 
+          if matchPolyName "__endof" v.vname then begin
+            let n = nodeOfType (typeOf a) in
+            if n == N.dummyNode then
+              E.s (error "Call to __endof on a non pointer");
+            setPosArith n (* To make sure we have an end *)
+          end else if matchPolyName "__startof" v.vname then begin
+            let n = nodeOfType (typeOf a) in
+            if n == N.dummyNode then
+              E.s (error "Call to __startof on a non pointer");
+            setArith n (* To make sure we have a start and an end *)
+          end 
+      | _ -> ()
+    end
+  | _ -> ());
+  preinstr @ [Call(reso, func', loopArgs formals args', l)]
 
 
 let doFunctionBody (fdec: fundec) = 
@@ -1076,6 +1324,8 @@ let doFunctionBody (fdec: fundec) =
   | _ -> E.s (bug "Not a function")); 
   (* Do the other locals *)
   List.iter doVarinfo fdec.slocals;
+  (* See if this is a vararg function *)
+  processVarargBody fdec;
   (* Do the body *)
   fdec.sbody <- doBlock fdec.sbody
 
@@ -1194,7 +1444,7 @@ let doGlobal (g: global) : global =
       
 (* Now do the file *)      
 let markFile fl = 
-  currentFileName := fl.fileName;
+  currentFile := fl;
   boxing := true;
   disableModelCheck := false;
   E.hadErrors := false;
@@ -1435,6 +1685,7 @@ let markFile fl =
   H.clear varargs;
   recursiveInstantiations := [];
   instantiations := [];
+  currentFile := dummyFile;
   newfile
 
         

@@ -1,38 +1,49 @@
 
-/* VA.C: The program below illustrates passing a variable
- * number of arguments using the following macros:
- *      va_start            va_arg              va_end
- *      va_list             va_dcl (UNIX only)
- */
-
 #include <stdio.h>
 #include <stdarg.h>
-#include <varargs.h>
-int average( va_list );
+
+union vararg_sum {
+  int ints;                   /* We only pass ints to this one */
+  int *pints;
+};
+#pragma boxvararg("sum", sizeof(union vararg_sum))
+
+int sum( int descriptor, ... );
+
 #include "testharness.h"
 
 int main( void )
 {
-   /* Call with 3 integers (-1 is used as terminator). */
-  if(average( 2, 3, 4, -1 ) != 3) E(1);
-  if(average( 5, 7, 9, 11, -1 ) != 8) E(2);
-  if(average( -1 ) != 0) E(3);
+  int i1 = 5;
+  int i2 = 7;
 
-   SUCCESS;
+  /* Call with 3 integers (-1 is used as terminator). */
+  if(sum(0xA, 3, &i1, 7, &i2, 0) != 22) E(1);
+
+  SUCCESS;
 }
 
-/* Returns the average of a variable list of integers. */
-int average( va_alist )
-va_dcl
+
+
+/* Returns the average of a variable list of integers and pointers to 
+ * integers. Each bit in the descriptor says what type is the corresponding 
+ * argument (1 for pointer). 0 is used as a terminator. */
+int sum( int descriptor, ... )
 {
-   int i, count, sum;
+   int sum = 0;
    va_list marker;
 
-   va_start( marker );            /* Initialize variable arguments. */
-   for( sum = count = 0; (i = va_arg( marker, int)) != -1; count++ )
-      sum += i;
-   va_end( marker );              /* Reset variable arguments.      */
-   return( sum ? (sum / count) : 0 );
+   va_start( marker, descriptor );     /* Initialize variable arguments. */
+   while(1) {
+     int next;
+     if (descriptor & 1) {
+       next = * va_arg (marker, int*);
+     } else {
+       next = va_arg(marker, int);
+     }
+     if(!next) return sum;
+     sum += next;
+     descriptor >>=1;
+   }
+   va_end(marker);
 }
-
-

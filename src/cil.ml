@@ -613,6 +613,7 @@ class type cilVisitor = object
   method vglob : global -> global visitAction    (* global (vars, types,etc.)*)
   method vinit : init -> init visitAction        (* initializers for globals *)
   method vtype : typ -> typ visitAction          (* use of some type *)
+  method vattr : attribute -> attribute list visitAction (* An attribute *)
 end
 
 (* the default visitor does nothing at each node, but does *)
@@ -632,6 +633,7 @@ class nopCilVisitor : cilVisitor = object
   method vglob (g:global) = DoChildren      (* global (vars, types, etc.) *)
   method vinit (i:init) = DoChildren        (* global initializers *)
   method vtype (t:typ) = DoChildren         (* use of some type *)
+  method vattr (a: attribute) = DoChildren
 end
 
 let lu = locUnknown
@@ -2573,32 +2575,40 @@ and visitCilType (vis : cilVisitor) (t : typ) : typ =
   doVisit vis vis#vtype childrenType t
 and childrenType (vis : cilVisitor) (t : typ) : typ =
   (* look for types referred to inside t's definition *)
-  let fTyp t = visitCilType vis t in
+  let fTyp t  = visitCilType vis t in
+  let fAttr a = visitCilAttributes vis a in
   match t with
     TPtr(t1, a) -> 
       let t1' = fTyp t1 in
-      if t1' != t then TPtr(t1', a) else t
+      let a' = fAttr a in
+      if t1' != t || a' != a then TPtr(t1', a') else t
   | TArray(t1, None, a) -> 
       let t1' = fTyp t1 in
-      if t1' != t then TArray(t1', None, a) else t
+      let a' = fAttr a in
+      if t1' != t || a' != a  then TArray(t1', None, a') else t
   | TArray(t1, Some e, a) -> 
       let t1' = fTyp t1 in
       let e' = visitCilExpr vis e in
-      if t1' != t || e' != e then TArray(t1', Some e', a) else t
+      let a' = fAttr a in
+      if t1' != t || e' != e  || a' != a then TArray(t1', Some e', a') else t
 
       (* DON'T recurse automatically; user can call visitCompFields *)
-  | TComp(cinfo, _) -> t
+  | TComp(cinfo, a) ->
+      let a' = fAttr a in
+      if a != a' then TComp(cinfo, a') else t
 
   | TFun(rettype, args, isva, a) -> 
       let rettype' = visitCilType vis rettype in
       (* iterate over formals, as variable declarations *)
       let args' = mapNoCopy (visitCilVarDecl vis) args in
-      if rettype' != rettype || args' != args then 
-        TFun(rettype', args', isva, a) else t
+      let a' = fAttr a in
+      if rettype' != rettype || args' != args || a' != a  then 
+        TFun(rettype', args', isva, a') else t
 
   | TNamed(s, t1, a) -> 
       let t1' = fTyp t1 in 
-      if t1' != t1 then TNamed (s, t1', a) else t
+      let a' = fAttr a in
+      if t1' != t1 || a' != a  then TNamed (s, t1', a') else t
 
   | _ -> t       (* other types don't contain types *)
 
@@ -2608,7 +2618,48 @@ and visitCilVarDecl (vis : cilVisitor) (v : varinfo) : varinfo =
   doVisit vis vis#vvdec childrenVarDecl v 
 and childrenVarDecl (vis : cilVisitor) (v : varinfo) : varinfo =
   v.vtype <- visitCilType vis v.vtype;
+  v.vattr <- visitCilAttributes vis v.vattr;  
   v
+
+and visitCilAttributes (vis: cilVisitor) (al: attribute list) : attribute list=
+   let al' = 
+     mapNoCopyList (doVisitList vis vis#vattr childrenAttribute) al in
+   if al' != al then 
+     (* Must re-sort *)
+     addAttributes al' []
+   else
+     al
+and childrenAttribute (vis: cilVisitor) (a: attribute) : attribute = 
+  let fTyp t  = visitCilType vis t in
+  let rec doarg (aa: attrarg) = 
+    match aa with 
+      AId _ | AInt _ | AStr _ -> aa
+    | AVar v -> 
+        let v' = doVisit vis vis#vvrbl (fun _ x -> x) v in
+        if v' != v then AVar v' else aa
+    | ACons(n, args) -> 
+        let args' = mapNoCopy doarg args in
+        if args' != args then ACons(n, args') else aa
+    | ASizeOf t -> 
+        let t' = fTyp t in
+        if t' != t then ASizeOf t' else aa
+    | ASizeOfE e -> 
+        let e' = doarg e in
+        if e' != e then ASizeOfE e' else aa
+    | AUnOp (uo, e1) -> 
+        let e1' = doarg e1 in
+        if e1' != e1 then AUnOp (uo, e1') else aa
+    | ABinOp (bo, e1, e2) -> 
+        let e1' = doarg e1 in
+        let e2' = doarg e2 in
+        if e1' != e1 || e2' != e2 then ABinOp (bo, e1', e2') else aa
+  in
+  match a with 
+    Attr (n, args) -> 
+      let args' = mapNoCopy doarg args in
+      if args' != args then Attr(n, args') else a
+      
+
 
 let rec visitCilFunction (vis : cilVisitor) (f : fundec) : fundec =
   if debugVisit then ignore (E.log "Visiting function %s\n" f.svar.vname);
@@ -2655,6 +2706,11 @@ and childrenGlobal (vis: cilVisitor) (g: global) : global =
           if i' != i then Some i' else inito
       in
       if v' != v || inito' != inito then GVar (v', inito', l) else g
+  | GPragma (a, l) -> begin
+      match visitCilAttributes vis [a] with
+        [a'] -> if a' != a then GPragma (a', l) else g
+      | _ -> E.s (E.unimp "visitCilAttributes returns more than one attribute")
+  end
   | _ -> g
 
 let visitCilFile (vis : cilVisitor) (f : file) : file =

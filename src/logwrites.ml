@@ -4,6 +4,7 @@ module E = Errormsg
 module H = Hashtbl
 
 class logWriteVisitor = object
+  inherit nopVisitor
   (* Create a prototype for the logging function, but don't put it in the 
    * file *)
   val printfFun =   
@@ -25,9 +26,6 @@ class logWriteVisitor = object
       end 
     | _ -> SkipChildren
 
-          (* Don't need to scan expressions and types *)
-  method vexpr (e: exp) : exp visitAction = SkipChildren
-  method vtype (t: typ) : typ visitAction = SkipChildren
 end
 
 let logWrites (f: file) : file = 

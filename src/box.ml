@@ -4120,10 +4120,12 @@ let boxFile file =
                    !theFile;
               raise DeepExit
             end;
-
-            (match f.svar.vtype with
-              TFun (_, _, true, _) -> E.s (unimp "Cannot box vararg function %s. Put it ina nobox module" f.svar.vname)
-            | _ -> ());
+            (* See if is a vararg function *)
+            let isva = 
+              match f.svar.vtype with
+              TFun (_, _, isva, _) -> isva
+              | _ -> false
+            in
             (* Run the oneret first so that we have always a single return 
              * where to place the finalizers  *)
             Oneret.oneret f;
@@ -4152,9 +4154,6 @@ let boxFile file =
               raise DeepExit
              with Not_found -> 
                H.add definedFunctions stripname f.svar.vname);
-            (* Check that we do not take the address of a formal. If we 
-             * actually do then we must make that formal a true local and 
-             * create another formal  *)
 
 (*
             ignore (E.log "The boxedFunctions:\n");
@@ -4162,12 +4161,20 @@ let boxFile file =
               ignore (E.log " f%d.%d -> %a\n" fid aid d_type t)) 
               boxedArguments;
 *)
+
+            (* Check that we do not take the address of a formal. If we 
+             * actually do then we must make that formal a true local and 
+             * create another formal  *)
+
             let newformals, (newbody : stmt clist) =
+              let islastva = ref isva in (* To detect last argument in va 
+                                        * functions *)
               let rec loopFormals = function
                   [] -> [], fromList f.sbody.bstmts
                 | form :: restf ->
                     let r1, r2 = loopFormals restf in
-                    if form.vaddrof then begin
+                    let islastva = !islastva && (islastva := false; true) in
+                    if form.vaddrof && (not islastva) then begin
                       let tmp = makeTempVar f form.vtype in
                       (* Now take it out of the locals and replace it with 
                        * the current formal. It is not worth optimizing this 

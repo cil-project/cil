@@ -398,17 +398,17 @@ and instr =
                                           * if the exp has different type 
                                           * from lval *)
   | Call       of lval option * exp * exp list * location
- 			 (* optional: result is an lval. A cast might 
-                          * be necessary if the declared result type of the 
+ 			 (* optional: result is an lval. A cast might be 
+                          * necessary if the declared result type of the 
                           * function is not the same as that of the 
-                          * destination. If the function is declared then casts 
-                          * are inserted for those arguments that correspond 
-                          * to declared formals. (The actual number of 
-                          * arguments might be smaller or larger than the 
-                          * declared number of arguments. C allows this.) If 
-                          * the type of the result variable is not the same 
-                          * as the declared type of the function result then 
-                          * an implicit cast exists.  *)
+                          * destination. If the function is declared then 
+                          * casts are inserted for those arguments that 
+                          * correspond to declared formals. (The actual 
+                          * number of arguments might be smaller or larger 
+                          * than the declared number of arguments. C allows 
+                          * this.) If the type of the result variable is not 
+                          * the same as the declared type of the function 
+                          * result then an implicit cast exists.  *)
 
                          (* See the GCC specification for the meaning of ASM. 
                           * If the source is MS VC then only the templates 
@@ -827,6 +827,7 @@ class type cilVisitor = object
   method vglob: global -> global visitAction    (* global (vars, types,etc.)*)
   method vinit: init -> init visitAction        (* initializers for globals *)
   method vtype: typ -> typ visitAction          (* use of some type *)
+  method vattr: attribute -> attribute list visitAction (* An attribute *)
 end
 
 class nopCilVisitor: cilVisitor
@@ -845,6 +846,7 @@ val visitCilGlobal: cilVisitor -> global -> global
 val visitCilInit: cilVisitor -> init -> init
 val visitCilStmt: cilVisitor -> stmt -> stmt
 val visitCilBlock: cilVisitor -> block -> block
+val visitCilAttributes: cilVisitor -> attribute list -> attribute list
 
 (* And some generic visitors. The above are built with these *)
 val doVisit: vis: cilVisitor ->
@@ -1073,8 +1075,8 @@ val sizeOf: typ -> exp
 
 val offsetOf: fi:fieldinfo -> startcomp: int -> int * int
 
-
-(* sm: a little optimization of my own.. 
-val rewriteExprs: file -> (exp -> exp) -> (lval -> lval) -> unit
-val simplifyExprs: file -> unit
-*)
+(* Like map but try not to make a copy of the list *)
+val mapNoCopy: ('a -> 'a) -> 'a list -> 'a list
+(* Like map but each call can return a list. Try not to make a copy of the 
+ * list *)
+val mapNoCopyList: ('a -> 'a list) -> 'a list -> 'a list

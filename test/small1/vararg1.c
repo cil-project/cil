@@ -16,7 +16,7 @@ int main( void )
 {
    /* Call with 3 integers (-1 is used as terminator). */
   if(average( 2, 3, 4, -1 ) != 3) E(1);
-  if(average( 5, 7, 9, 11, -1 ) != 8) E(2);
+  if(average( 5, 7, 9, 11, 13, -1 ) != 9) E(2);
   if(average( -1 ) != 0) E(3);
 
    SUCCESS;
