@@ -357,6 +357,7 @@ DISTRIB_SRC_EXT = logcalls.ml logcalls.mli \
 	          oneret.ml oneret.mli \
 	          simplemem.ml simplify.ml \
 	          blockinggraph.ml blockinggraph.mli \
+		  dataslicing.ml dataslicing.mli
 
 DISTRIB_SRC_EXT_PTA = setp.ml setp.mli dummy.ml golf.ml golf.mli \
                       ptranal.ml ptranal.mli \
