@@ -53,7 +53,6 @@ $Cilly::savedSourceExt = "_saved.c";
 sub new {
     my ($proto, @args) = @_;
 
-
     my $class = ref($proto) || $proto;
 
     my $ref =
@@ -532,6 +531,7 @@ sub straight_preprocess {
 sub compile {
     my($self, $src, $dest, $ppargs, $ccargs) = @_;
     &mydebug("Cilly.compile(src=$src, dest=$dest)\n");
+    print Dumper($self);
     if($self->{SEPARATE}) {
         # Now invoke CIL and compile afterwards
         return $self->applyCilAndCompile([$src], $dest, $ppargs, $ccargs); 
@@ -804,6 +804,7 @@ sub applyCilAndCompile {
 
     # The input files
     my @srcs = @{$ppsrc};
+    &mydebug("Cilly.PM.applyCilAndCompile(srcs=[",join(',',@{$ppsrc}),"])\n");
 
     # Prepare the name of the CIL output file based on dest
     my ($base, $dir, $ext) = fileparse($dest, "(\\.[^.]+)");
