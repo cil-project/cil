@@ -46,10 +46,14 @@ endif
 
 # Add main late
 MODULES    += main
+
+
+# Additional things to clean
+EXTRACLEAN += $(OBJDIR)/*.obj $(OBJDIR)/*.a $(OBJDIR)/*.o
+
     # Include now the common set of rules for OCAML
     # This file will add the rules to make $(EXECUTABLE).$(EXE)
 include Makefile.ocaml
-
 
 
 
@@ -280,7 +284,10 @@ SAFECC+= $(EXTRAARGS)
 ###
 ###
 ifdef _MSVC
+ifndef RELEASE
 SAFECLIBARG=$(DEF)_DEBUG
+endif
+
 $(SAFECLIB) : lib/safec.c lib/safec.h lib/safeccheck.h
 	cl /Ox /Zi /I./lib /c $(DEF)_MSVC $(SAFECLIBARG) \
                                           $(OBJOUT)obj/safec.o $<

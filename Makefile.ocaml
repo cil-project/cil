@@ -47,6 +47,7 @@
   #              must be linked
   # EXECUTABLE - the name of the executable to create
   #
+  # EXTRACLEAN - additional things to pass to "rm" for the "clean" target
 CAMLLEX = ocamllex
 CAMLYACC= ocamlyacc -v
 CAMLDEP = ocamldep
@@ -186,7 +187,7 @@ clean:
 	-rm -f $(foreach ext, cmi cmo cmx cmxa exe, $(OBJDIR)/*.$(ext))
 	-rm -f $(OBJDIR)/*.$(OBJ)
 	-rm -f $(EXECUTABLE)$(EXE)
-	-rm -f camlprim0.obj        
+	-rm -f camlprim0.obj  $(EXTRACLEAN)      
 
 realclean: clean
 	-rm -f $(DEPENDDIR)/*.d $(DEPENDDIR)/*.di

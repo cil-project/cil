@@ -65,48 +65,73 @@ let leaveAlone : (string, bool) H.t =
       "_CrtDbgReport" ];
   h
 
-(* sm: the above appears to be for functions only *)
-let leaveAloneGlobVars = [
-  (* linux libc 2.1: the three standard FILE* *)
-  "_IO_2_1_stdin_"; "_IO_2_1_stdout_"; "_IO_2_1_stderr_";
-
-  (* sm: linux libc also declares simple FILE* globals stdout, stderr,
-   * and stdin.  the problem essentially is that they live in a
-   * library that we never get to see.  might it be possible to
-   * find a more general solution?  some way to know, in advance,
-   * that a given symbol lives in an unseen library? *)
-  "stdin"; "stdout"; "stderr"
-]
     
 
+type allocInfo = {
+  mutable aiZeros: bool;              (* Whether the allocator initializes the 
+                                      * memory it allocates *)
+  mutable aiGetSize: exp list -> exp; (* Extract the size argument out of a 
+                                     * list of arguments *)
+  mutable aiNewSize: exp -> exp list -> exp list;
+                                    (* Rewrite the argument list with a new 
+                                     * size *)
+  } 
 
-type allocinfo = 
-    { aiZeros: bool; (* Whether zeros memory *)
-      aiGetSize: exp list -> exp (* Get the size out of args *)
+let allocFunctions : (string, allocInfo) H.t = H.create 13 
+
+(* Now a constructor of allocation information from boxalloc pragmas *)
+let boxallocPragma (name: string) (args: attribute list) : unit =
+  let getArg n args = 
+    try List.nth args n 
+    with _ -> E.s (E.bug "no size arguments in call to allocator %s\n" name) 
+  in
+  let replaceArg n what args = 
+    let rec loop n = function
+        _ :: rest when n = 0 -> what :: rest
+      | a :: rest when n > 0 -> a :: loop (n - 1) rest
+      | _ -> E.s (E.bug "cannot replace size argument for allocator %s\n" name)
+    in
+    loop n args
+  in
+  (* Initialize like for malloc *)
+  let ai = 
+    { aiZeros = false; 
+      aiGetSize = getArg 0;
+      aiNewSize = replaceArg 0;
     } 
-      
-let allocInfoGetSize (ai: allocinfo) (args: exp list) = 
-  ai.aiGetSize args
-let allocInfoZeros (ai: allocinfo) (args: exp list) = 
-  ai.aiZeros
-
-let mallocAI = 
-  let fstArg = function
-      a :: _ -> a
-    | _ -> E.s (E.bug "fstArg: not enough arguments")
   in
-  { aiZeros = false; aiGetSize = fstArg}
-
-let allocFunctions : (string, allocinfo) H.t = 
-  let mulTwoArgs = function
-      a :: b :: _ -> BinOp(Mult, doCast a uintType, 
-                           doCast b uintType, uintType)
-    | _ -> E.s (E.bug "mulTwoArgs: not enough arguments")
+  let rec loop = function
+      [] -> ()
+    | AId("nozero") :: rest -> ai.aiZeros <- false; loop rest
+    | AId("zero") :: rest -> ai.aiZeros <- true; loop rest
+    | ACons("sizein", [AInt n]) :: rest -> 
+        ai.aiGetSize <- getArg n; ai.aiNewSize <- replaceArg n;
+        loop rest
+    | ACons("sizemul", [AInt n1; AInt n2]) :: rest -> 
+        ai.aiGetSize <-
+           (fun args -> BinOp(Mult, getArg n1 args, getArg n2 args,
+                              intType));
+        ai.aiNewSize <-
+           (fun what args -> 
+             (replaceArg n1 one 
+                (replaceArg n2 what args)));
+        loop rest
+    | a :: rest -> 
+        (ignore (E.warn "Don't understand boxalloc atrtibute: %a@!"
+                   d_attr a));
+        loop rest
   in
-  let h = H.create 17 in
-  List.iter (fun (s, ai) -> H.add h s ai)
-    [ ("malloc", mallocAI); ];
-  h
+  loop args;
+  (* Add to the hash *)
+  H.add allocFunctions name ai
+
+
+(* Add malloc and calloc *)
+let _ = boxallocPragma "malloc" [ AId("nozero"); 
+                                  ACons("sizein", [AInt 0])] 
+let _ = boxallocPragma "calloc" [ AId("zero"); 
+                                  ACons("sizemul", [AInt 0; AInt 1])] 
+  
 
 let getAllocInfo fname = 
   try
@@ -2017,7 +2042,7 @@ let initializeVar (withivar: (varinfo -> 'a) -> 'a) (* Allocate an iteration
 
 
 (*************** Handle Allocation ***********)
-let pkAllocate (ai:  allocinfo) (* Information about the allocation function *)
+let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
                (vi:  varinfo)   (* Where to put the result *)
                (vtype: typ)     (* The type of the result *)
                (f:  exp)        (* The allocation function *)
@@ -2028,9 +2053,9 @@ let pkAllocate (ai:  allocinfo) (* Information about the allocation function *)
             d_plaintype vtype);  *)
   let k = kindOfType vi.vtype in
   (* Get the size *)
-  let sz = allocInfoGetSize ai args in
+  let sz = ai.aiGetSize args in
   (* See if we must zero *)
-  let mustZero = not (allocInfoZeros ai args) in
+  let mustZero = not ai.aiZeros in
   (* Round up the size to be allocated *)
   let nrdatawords, nrtagwords = tagLength sz in
   (* Words to bytes converter *)
@@ -2068,7 +2093,7 @@ let pkAllocate (ai:  allocinfo) (* Information about the allocation function *)
       (* Call the allocation function and put the result in a temporary *)
   let tmpp = makeTempVar !currentFunction ptrtype in
   let tmpvar = Lval(var tmpp) in
-  let alloc = call (Some (tmpp, true)) f [ allocsz ] in
+  let alloc = call (Some (tmpp, true)) f (ai.aiNewSize allocsz args) in
   (* Adjust the allocation pointer *)
   let adjust_ptr = 
     match k with
@@ -2832,9 +2857,9 @@ let boxFile file =
         (match a with
           ACons("interceptCasts", [ AId("on") ]) -> interceptCasts := true
         | ACons("interceptCasts", [ AId("off") ]) -> interceptCasts := false
-        | ACons("boxalloc",  [ AStr(s) ]) -> 
-          ignore (E.log "Will treat %s as an allocation function\n" s); 
-          H.add allocFunctions s mallocAI
+        | ACons("boxalloc",  AStr(s) :: rest) -> 
+            ignore (E.log "Will treat %s as an allocation function\n" s);
+            boxallocPragma s rest
         | ACons("box", [AId("on")]) -> boxing := true
         | ACons("box", [AId("off")]) -> boxing := false
         | _ -> ());

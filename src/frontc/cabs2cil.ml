@@ -501,18 +501,19 @@ let rec makeVarInfo (isglob: bool)
 and doAttr : A.attribute -> attribute = function
     (s, []) -> AId s
   | (s, el) -> 
-      let attrOfExp = function
-          A.VARIABLE n -> begin
-            try 
-              let vi = lookup n in
-              AVar vi
-            with Not_found -> 
-              AId n
-          end
+      let attrOfVar n = 
+        try 
+          let vi = lookup n in
+          AVar vi
+        with Not_found -> 
+          AId n
+      in
+      let rec attrOfExp = function
+          A.VARIABLE n -> attrOfVar n
         | A.CONSTANT (A.CONST_STRING s) -> AStr s
-
         | A.CONSTANT (A.CONST_INT str) -> AInt (int_of_string str)
-        | _ -> E.s (E.unimp "ACons")
+        | A.CALL(A.VARIABLE n, args) -> ACons (n, List.map attrOfExp args)
+        | _ -> E.s (E.unimp "attrOfExp")
       in
       ACons (s, List.map attrOfExp el)
 
