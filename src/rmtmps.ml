@@ -695,6 +695,9 @@ let rec removeUnusedTemps ?(isRoot : rootsFilter = isDefaultRoot) file =
     Trace.trace "disableTmpRemoval" (dprintf "temp removal disabled\n")
   else
     begin
+      if !E.verboseFlag then 
+        ignore (E.log "Removing unused temporaries\n" );
+
       if Trace.traceActive "printCilTree" then
 	dumpFile defaultCilPrinter stdout file;
 

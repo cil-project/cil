@@ -120,6 +120,9 @@ let rec processOneFile (cil: C.file) =
     List.iter 
       (fun fdesc -> 
         if ! (fdesc.C.fd_enabled) then begin
+          if !E.verboseFlag then 
+            ignore (E.log "Running CIL feature %s (%s)\n" 
+                      fdesc.C.fd_name fdesc.C.fd_description);
           fdesc.C.fd_doit cil;
           (* See if we need to do some checking *)
           if !Util.doCheck && fdesc.C.fd_post_check then begin
@@ -341,26 +344,23 @@ let rec theMain () =
                                         (* Define a wrapper for main to 
                                          * intercept the exit *)
 let failed = ref false 
-let main () = 
-  let term = 
-    try 
-      theMain (); 
-      fun () -> exit (if !failed then 1 else 0)
-    with F.CabsOnly -> (* This is Ok *) fun () -> exit 0
-    | e ->  
-      (fun () -> 
-        print_string ("Uncaught exception: " ^ (Printexc.to_string e)
-                      ^ "\n");
-        exit 2)
-  in
-  begin
-    if !E.verboseFlag || !Util.printStats then
-      Stats.print stderr "Timings:\n";
+
+let cleanup () = 
+  if !E.verboseFlag || !Util.printStats then
+    Stats.print stderr "Timings:\n";
+  if !E.logChannel != stderr then 
     close_out (! E.logChannel);  
-    (match ! outChannel with Some c -> close_out c | _ -> ());
-    term ()
-  end
+  (match ! outChannel with Some c -> close_out c | _ -> ())
+
 ;;
 
-Printexc.catch main ()
+try 
+  theMain (); 
+  cleanup ();
+  exit (if !failed then 1 else 0)
+with F.CabsOnly -> (* This is Ok *) fun () -> exit 0
+
+cleanup ();
+
 ;;
+

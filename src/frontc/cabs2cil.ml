@@ -1034,12 +1034,19 @@ let rec castTo ?(fromsource=false)
     (ot, e) 
   else begin
     let result = (nt, mkCastT e ot nt) in
+(*
+    ignore (E.log "castTo: ot=%a nt=%a\n  result is %a\n" 
+              d_type ot d_type nt
+              d_plainexp (snd result));
+*)
     (* Now see if we can have a cast here *)
     match ot, nt with
       TNamed(r, _), _ -> castTo r.ttype nt e
     | _, TNamed(r, _) -> castTo ot r.ttype e
     | TInt(ikindo,_), TInt(ikindn,_) -> 
-        if ikindo = ikindn then (nt, e) else result
+        (* We used to ignore attributes on integer-integer casts. Not anymore *)
+        (* if ikindo = ikindn then (nt, e) else *) 
+        result
 
     | TPtr (told, _), TPtr(tnew, _) -> result
           
@@ -2549,7 +2556,7 @@ and isIntegerConstant (aexp) : int option =
      (* Process an expression and in the process do some type checking,
       * extract the effects as separate statements  *)
 and doExp (isconst: bool)    (* In a constant *)
-          (e : A.expression) 
+          (e: A.expression) 
           (what: expAction) : (chunk * exp * typ) = 
   (* A subexpression of array type is automatically turned into StartOf(e). 
    * Similarly an expression of function type is turned into AddrOf. So 
@@ -2586,6 +2593,9 @@ and doExp (isconst: bool)    (* In a constant *)
         | _ -> 
             let (e', t') = processArrayFun e t in
             let (t'', e'') = castTo t' lvt e' in
+(*
+            ignore (E.log "finishExp: e = %a\n  e'' = %a\n" d_plainexp e d_plainexp e'');
+*)
             (se +++ (Set(lv, e'', !currentLoc)), e'', t'')
     end
   in
