@@ -87,7 +87,7 @@ endif
 PATCHER +=--mode=$(COMPILERNAME)
 
 
-CCUREDLIB := obj/ccured_$(COMPILEREXT).$(LIBEXT)
+CCUREDLIB := $(OBJDIR)/ccured_$(COMPILEREXT).$(LIBEXT)
 
 # garbage collector options
 #ifdef _MSVC
@@ -151,14 +151,14 @@ $(CCUREDLIB): lib/ccuredlib.c lib/ccured.h lib/ccuredcheck.h lib/splay.c $(GCLIB
 	@true "CCUREDLIBARG is $(CCUREDLIBARG)"
 	@true "CFLAGS is $(CFLAGS)"
 	$(CC) $(CFLAGS) $(INC)./lib $(CONLY) $(CCUREDLIBARG) \
-                    $(OBJOUT)obj/ccuredlib.$(OBJEXT) lib/ccuredlib.c
+                    $(OBJOUT)$(OBJDIR)/ccuredlib.$(OBJEXT) lib/ccuredlib.c
 	$(CC) $(CFLAGS) $(INC)./lib $(CONLY) $(CCUREDLIBARG) \
-                    $(OBJOUT)obj/splay.$(OBJEXT) lib/splay.c
+                    $(OBJOUT)$(OBJDIR)/splay.$(OBJEXT) lib/splay.c
 ifdef _GNUCC
 	cp -f $(GCLIB) $@
-	ar -rs $@                  obj/ccuredlib.$(OBJEXT) obj/splay.$(OBJEXT) 
+	ar -rs $@                  $(OBJDIR)/ccuredlib.$(OBJEXT) $(OBJDIR)/splay.$(OBJEXT) 
 else
-	$(AR) $(LIBOUT)$@ $(GCLIB) obj/ccuredlib.$(OBJEXT) obj/splay.$(OBJEXT) 
+	$(AR) $(LIBOUT)$@ $(GCLIB) $(OBJDIR)/ccuredlib.$(OBJEXT) $(OBJDIR)/splay.$(OBJEXT) 
 endif
 
 # we need to know what the patcher will think the compiler's version is
