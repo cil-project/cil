@@ -11,6 +11,26 @@
 * ALSHIFT is log2(ALIGN + 1)
 * UALIGN is the integer whose size if ALIGN + 1.
 *************************/
+#ifndef MANUALBOX
+#define WILD
+#define SAFE
+#define TAGGED
+#define INDEX
+#define SIZED
+#define SEQ
+#define FSEQ
+#define calloc_fseq calloc
+#else
+#define WILD   __attribute__((wild))
+#define SAFE   __attribute__((safe))
+#define TAGGED __attribute__((tagged))
+#define INDEX  __attribute__((index))
+#define SIZED  __attribute__((sized))
+#define SEQ    __attribute__((seq))
+#define FSEQ   __attribute__((fseq))
+#endif
+
+
 typedef unsigned long UL;
 typedef unsigned char UC;
 typedef int BOOL;
@@ -146,8 +166,13 @@ _CRTIMP extern FILE _iob[];
 #define stdout (&_iob[1])
 #define stderr (&_iob[2])
 #else /* GNUCC */
-extern FILE * stdout;
-extern FILE * stderr;
+#       ifdef BEFOREBOX
+#       define stdout (get_stdout())
+#       define stderr (get_stderr())
+#       else
+        extern FILE *stdout;
+        extern FILE *stderr;
+#       endif
 #endif
 
 extern  int   debugMM;      
