@@ -58,9 +58,7 @@ let rec containsArray (t:typ) : bool =  (* does this type contain an array? *)
   match unrollType t with
     TArray _ -> true
   | TComp(ci, _) -> (* look at the types of the fields *)
-      let fieldContainsArray acc fi = 
-	acc || (containsArray fi.ftype) in
-      List.fold_left fieldContainsArray false ci.cfields
+      List.exists (fun fi -> containsArray fi.ftype) ci.cfields
   | _ -> 
     (* Ignore other types, including TInt and TPtr.  We don't care whether
        there are arrays in the base types of pointers; only about whether
