@@ -186,7 +186,7 @@ ifdef RELEASELIB
   CCURED+= --releaselib -DRELEASELIB
 endif
 ifdef VERBOSE
-  CCURED+= --verbose
+  CCURED+= --verbose --warnall
 endif
 ifdef KEEPMERGED
   CCURED+= --keepmerged
