@@ -724,7 +724,6 @@ smAddTest("combine_syserr");
 smAddTest("combine_syserr MERGEINLINES=1");
 smAddTest("combine_copyptrs WARNINGS_ARE_ERRORS=1");
 smAddTest("combine_copyptrs WARNINGS_ARE_ERRORS=1 MERGEINLINES=1");
-smFailTest("problem with __fatten_*", "merge-twice");
 
 # tests of things implemented for EDG compatibility
 smAddTest("mergestruct");

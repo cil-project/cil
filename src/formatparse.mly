@@ -1289,17 +1289,17 @@ arguments_ne:
 
 /*(******** STATEMENTS *********)*/
 stmt: 
-    IF LPAREN expression RPAREN THEN stmt SEMICOLON  
+    IF LPAREN expression RPAREN stmt 
                   { (fun loc args -> 
                          mkStmt (If((fst $3) args, 
-                                    mkBlock [ $6 loc args ],
+                                    mkBlock [ $5 loc args ],
                                     mkBlock [], loc)))
                   }
-|   IF LPAREN expression RPAREN THEN stmt ELSE stmt SEMICOLON  
+|   IF LPAREN expression RPAREN stmt ELSE stmt 
                   { (fun loc args -> 
                          mkStmt (If((fst $3) args, 
-                                    mkBlock [ $6 loc args ],
-                                    mkBlock [ $8 loc args], loc)))
+                                    mkBlock [ $5 loc args ],
+                                    mkBlock [ $7 loc args], loc)))
                   }
 |   RETURN exp_opt SEMICOLON  
                   { (fun loc args -> 

@@ -257,6 +257,8 @@ rule initial =
 |		'~'			{TILDE}
 |		'['			{LBRACKET}
 |		']'			{RBRACKET}
+|		'{'			{LBRACE}
+|		'}'			{RBRACE}
 |		'('			{LPAREN}
 |		')'			{RPAREN}
 |		';'			{SEMICOLON}
