@@ -38,7 +38,7 @@ my $last_successful_tmpinput;   # Last one to past the test.
 my $tmp_index = 0;              # Cache the last index used to make a tmp file.
 my $tmpdir_index = 0;           # Cache the last index used to make a tmp directory.
 my $tmpdir;                     # Temporary directory for external programs.
-my $logfile = "Log";            # File in $tmpdir where log of successful runs is written.
+my $logfile = "log";            # File in $tmpdir where log of successful runs is written.
 chomp (my $this_dir = `pwd`);   # The current directory.
 my $starttime = time;           # The time we started.
 
@@ -52,7 +52,7 @@ my $test = "test";              # The script to run as the test.
 my $help_message = <<END
 
     Delta Debugging
-    delta.pl implements the delta-debugging algorithm: http://www.st.cs.uni-sb.de/dd/
+    delta implements the delta-debugging algorithm: http://www.st.cs.uni-sb.de/dd/
     Implemented by Daniel Wilkerson.
 
     -help Get help
