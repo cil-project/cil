@@ -91,7 +91,6 @@ let leaveAlone : (string, bool) H.t =
       "_CrtDbgReport" ];
   h
 
-    
 
 type allocInfo = {
   mutable aiZeros: bool;              (* Whether the allocator initializes the 
@@ -474,10 +473,21 @@ let kindOfType t =
   | res -> res
 
 
+let breakFexp (fe: fexp) : typ * N.pointerkind * exp * exp * exp = 
+  match fe with
+    L(oldt, oldk, e) -> oldt, oldk, e, zero, zero
+  | FS(oldt, oldk, e) -> 
+      let (_, p, b, bend) = readFieldsOfFat e oldt in
+      oldt, oldk, p, b, bend
+  | FM(oldt, oldk, p, b, e) -> oldt, oldk, p, b, e
+  | FC(oldt, oldk, prevt, prevk, e) -> 
+      let (_, p, b, bend) = readFieldsOfFat e prevt in
+      oldt, oldk, p, b, bend (* Drop the cast *)
+    
 
 (**** Pointer representation ****)
 let pkNrFields = function
-    N.Safe -> 1
+    N.Safe | N.WildT | N.SeqT | N.FSeqT | N.SeqNT | N.FSeqNT | N.IndexT -> 1
   | N.String | N.ROString -> 1
   | N.Wild | N.FSeq | N.FSeqN | N.Index -> 2
   | N.Seq | N.SeqN -> 3
@@ -494,24 +504,27 @@ let pkFields (pk: N.pointerkind) : (string * (typ -> typ)) list =
         ("_e", fun _ -> voidPtrType) ]
   | _ -> E.s (E.bug "pkFields")
   
-let mkFexp1 (t: typ) (e: exp) = 
+let mkFexp1 (t: typ) (e: exp) : fexp  = 
   let k = kindOfType t in
   match k with
-    (N.Safe|N.Scalar|N.String|N.ROString) -> L  (t, k, e)
+    (N.Safe|N.Scalar|N.String|N.ROString|
+    N.WildT|N.FSeqT|N.SeqT|N.FSeqNT|N.SeqNT|N.IndexT) -> L  (t, k, e)
   | (N.Index|N.Wild|N.FSeq|N.FSeqN|N.Seq|N.SeqN) -> FS (t, k, e)
   | _ -> E.s (E.bug "mkFexp1(%a)" N.d_pointerkind k)
 
-let mkFexp2 (t: typ) (ep: exp) (eb: exp) = 
+let mkFexp2 (t: typ) (ep: exp) (eb: exp) : fexp = 
   let k = kindOfType t in
   match k with
-    (N.Safe|N.Scalar|N.String|N.ROString) -> L  (t, k, ep)
+    (N.Safe|N.Scalar|N.String|N.ROString|
+    N.WildT|N.FSeqT|N.SeqT|N.FSeqNT|N.SeqNT|N.IndexT) -> L  (t, k, ep)
   | (N.Index|N.Wild|N.FSeq|N.FSeqN) -> FM (t, k, ep, eb, zero)
   | _ -> E.s (E.bug "mkFexp2(%a)" N.d_pointerkind k)
 
-let mkFexp3 (t: typ) (ep: exp) (eb: exp) (ee: exp) = 
+let mkFexp3 (t: typ) (ep: exp) (eb: exp) (ee: exp) : fexp  = 
   let k = kindOfType t in
   match k with
-  | (N.Safe|N.Scalar|N.String|N.ROString) -> L (t, k, ep)
+  | (N.Safe|N.Scalar|N.String|N.ROString|
+    N.WildT|N.FSeqT|N.SeqT|N.FSeqNT|N.SeqNT|N.IndexT) -> L (t, k, ep)
   | (N.Index|N.Wild|N.FSeq|N.FSeqN) -> FM (t, k, ep, eb, zero)
   | (N.Seq|N.SeqN) -> FM (t, k, ep, eb, ee)
   | _ -> E.s (E.bug "mkFexp3(%a): ep=%a\nt=%a" 
@@ -528,7 +541,8 @@ let pkQualName (pk: N.pointerkind)
                (acc: string list) 
                (dobasetype: string list -> string list) : string list = 
   match pk with
-    N.Safe -> dobasetype ("s" :: acc)
+    N.Safe |
+    N.WildT|N.FSeqT|N.SeqT|N.FSeqNT|N.SeqNT|N.IndexT -> dobasetype ("s" :: acc)
   | N.String | N.ROString -> dobasetype ("s" :: acc)
   | N.Wild -> "w" :: acc (* Don't care about what it points to *)
   | N.Index -> dobasetype ("i" :: acc)
@@ -767,6 +781,37 @@ let checkZeroTagsFun =
   checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
   fdec.svar.vstorage <- Static;
   fdec
+
+let checkNewHomeFun =
+  let fdec = emptyFunction "CHECK_NEWHOME" in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  let arge  = makeLocalVar fdec "e" voidPtrType in
+  fdec.svar.vtype <- 
+     TFun(voidType, [ argb; arge ], false, []);
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
+  fdec.svar.vstorage <- Static;
+  fdec
+
+let checkFindHomeFun =
+  let fdec = emptyFunction "CHECK_FINDHOME" in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  fdec.svar.vtype <- 
+     TFun(voidPtrType, [ argp ], false, []);
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
+  fdec.svar.vstorage <- Static;
+  fdec
+
+
+let checkFindHomeEndFun =
+  let fdec = emptyFunction "CHECK_FINDHOMEEND" in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argea  = makeLocalVar fdec "ea" (TPtr(voidPtrType,[])) in
+  fdec.svar.vtype <- 
+     TFun(voidPtrType, [ argp; argea ], false, []);
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
+  fdec.svar.vstorage <- Static;
+  fdec
+
 
 (* When we compute attributes we ignore the ptrnode attribute *)
 let ignorePtrNode al = 
@@ -1343,6 +1388,40 @@ let indexToROString (p: exp) (b: exp) (bend: exp) (acc: stmt list)
   call None (Lval (var checkStringMax.svar))
     [ castVoidStar p; b ] :: acc
 
+
+(* from table *)
+let fromTable (fe: fexp) : stmt list * fexp =
+  let oldt, oldk, p, b, bend = breakFexp fe in
+  let bt = 
+    match unrollType oldt with
+      TPtr(bt, _) -> bt
+    | _ -> voidType
+  in
+  let newt newkind = mkPointerTypeKind bt newkind in
+  let fetchHomeEnd (p: exp) : varinfo * varinfo * stmt = 
+    let tmpb = makeTempVar !currentFunction voidPtrType in
+    let tmpe = makeTempVar !currentFunction voidPtrType in
+    tmpb, tmpe,
+    call (Some (tmpb, false)) (Lval (var checkFindHomeEndFun.svar))
+      [ castVoidStar p; mkAddrOf (var tmpe) ]
+  in
+  let fetchHome (p: exp) : varinfo * stmt = 
+    let tmpb = makeTempVar !currentFunction voidPtrType in
+    tmpb,
+    call (Some (tmpb, false)) (Lval (var checkFindHomeFun.svar))
+      [ castVoidStar p ]
+  in
+  match oldk with
+    N.WildT -> 
+      let b, s = fetchHome p in
+      [s], mkFexp2 (newt N.Wild) p (Lval(var b))
+  | N.SeqT -> 
+      let b, e, s = fetchHomeEnd p in
+      [s], mkFexp3 (newt N.Seq) p (Lval(var b)) (Lval(var e))
+  | N.FSeqT | N.FSeqNT | N.SeqNT | N.IndexT -> E.s (E.unimp "fromTable")
+  | _ -> [], fe
+      
+
 let checkWild (p: exp) (basetyp: typ) (b: exp) (blen: exp) : stmt = 
   (* This is almost like indexToSafe, except that we have the length already 
    * fetched *)
@@ -1602,8 +1681,8 @@ let checkBounds (iswrite: bool)
 
 
     (* Cast an fexp to another one. Accumulate necessary statements to doe *)
-let castTo (fe: fexp) (newt: typ)
-           (doe: stmt list) : stmt list * fexp =
+let rec castTo (fe: fexp) (newt: typ)
+               (doe: stmt list) : stmt list * fexp =
   let newkind = kindOfType newt in
   match fe, newkind with
   (***** Catch the simple casts **********)
@@ -1617,26 +1696,20 @@ let castTo (fe: fexp) (newt: typ)
        * pointers  *)
       let newPointerType =
         match newkind with
-          N.Safe | N.Scalar | N.String | N.ROString -> newt
+          N.Safe | N.Scalar | N.String | N.ROString |
+          N.WildT | N.SeqT | N.FSeqT | N.SeqNT | N.FSeqNT | N.IndexT -> newt
         | _ -> 
             let pfield, _, _ = getFieldsOfFat newt in
             pfield.ftype 
       in
+      (* Conver the tables to normal *)
+      let doe1, fe = fromTable fe in
+      let doe = doe @ doe1 in
       (* Cast the pointer expression to the new pointer type *)
       let castP (p: exp) = doCast p newPointerType in
       (* Converts a reversed accumulator to doe *)
       let finishDoe (acc: stmt list) = doe @ (List.rev acc) in
-      let oldt, oldk, p, b, bend = 
-        match fe with
-          L(oldt, oldk, e) -> oldt, oldk, e, zero, zero
-        | FS(oldt, oldk, e) -> 
-            let (_, p, b, bend) = readFieldsOfFat e oldt in
-            oldt, oldk, p, b, bend
-        | FM(oldt, oldk, p, b, e) -> oldt, oldk, p, b, e
-        | FC(oldt, oldk, prevt, prevk, e) -> 
-            let (_, p, b, bend) = readFieldsOfFat e prevt in
-            oldt, oldk, p, b, bend (* Drop the cast *)
-      in
+      let oldt, oldk, p, b, bend = breakFexp fe in
       let is_zero fexp = 
         let rec is_zero_exp e = match e with
           Const(CInt(0,_,_)) -> true
@@ -1648,8 +1721,20 @@ let castTo (fe: fexp) (newt: typ)
         | _ -> false
       in
       match oldk, newkind with
+        (* Catch the cases when the destination is a table *)
+      | _, (N.WildT|N.SeqT|N.FSeqT|N.SeqNT|N.FSeqNT|N.IndexT) ->
+          let newk' = N.stripT newkind in
+          let newt' = 
+            match unrollType newt with
+              TPtr(bt, _) -> mkPointerTypeKind bt newk'
+            | _ -> E.s (E.bug "castTo: strip table")
+          in
+          let doe', fe' = castTo fe newt' doe in
+          let _, _, p', _, _ = breakFexp fe in
+          (doe', mkFexp1 newt p')
+          
         (* SCALAR, SAFE -> SCALAR, SAFE *)
-        (N.Scalar|N.Safe|N.String|N.ROString), 
+      | (N.Scalar|N.Safe|N.String|N.ROString), 
         (N.Scalar|N.Safe|N.String|N.ROString) -> 
           (doe, L(newt, newkind, castP p))
 
@@ -2320,8 +2405,16 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
         mkSet (Var vi, Field(fbase, NoOffset)) tmpvar
     | _ -> mkEmptyStmt ()
   in
+  (* Now add the home area to the table *)
+  let add_table = 
+    if k <> N.stripT k then
+      call None (Lval (var checkNewHomeFun.svar))
+        [Lval (Var vi, ptroff) ; tmpvar ]
+    else
+      mkEmptyStmt ()
+  in
   alloc :: adjust_ptr :: assign_p :: 
-  assign_base :: setsz :: (init @ [assign_end])
+  assign_base :: setsz :: (init @ [assign_end] @ [add_table])
 
 (* Given a sized array type, return the size and the array field *)
 let getFieldsOfSized (t: typ) : fieldinfo * fieldinfo = 

@@ -120,6 +120,14 @@ and pointerkind =
 
   | Index
   | Wild
+
+  | WildT
+  | SeqT
+  | FSeqT
+  | SeqNT
+  | FSeqNT
+  | IndexT
+
   | Unknown
 
 and whykind = (* why did we give it this kind? *)
@@ -186,6 +194,12 @@ let d_pointerkind () = function
   | Seq -> text "SEQ"
   | SeqN -> text "SEQN"
   | Wild -> text "WILD" 
+  | WildT -> text "WILDT" 
+  | SeqT -> text "SEQT" 
+  | FSeqT -> text "FSEQT" 
+  | SeqNT -> text "SEQNT" 
+  | FSeqNT -> text "FSEQNT" 
+  | IndexT -> text "INDEX"
   | Unknown -> text "UNKNOWN" 
 
 let d_ekind () = function
@@ -293,6 +307,14 @@ let nodeOfAttrlist al =
       findnode n
   | _ -> E.s (E.bug "nodeOfAttrlist")
 
+let stripT = function
+  | WildT -> Wild
+  | SeqT -> Seq
+  | FSeqT -> FSeq
+  | SeqNT -> SeqN
+  | FSeqNT -> FSeqN
+  | IndexT -> Index
+  | x -> x
 
 
 let k2attr = function
@@ -303,6 +325,12 @@ let k2attr = function
   | FSeq -> AId("fseq")
   | SeqN -> AId("seqn")
   | FSeqN -> AId("fseqn")
+  | IndexT -> AId("indext")
+  | WildT -> AId("wildt")
+  | SeqT -> AId("seqt")
+  | FSeqT -> AId("fseqt")
+  | SeqNT -> AId("seqnt")
+  | FSeqNT -> AId("fseqnt")
   | String -> AId("string")
   | ROString -> AId("rostring") 
   | _ -> E.s (E.unimp "k2attr")
@@ -315,6 +343,12 @@ let attr2k = function
   | AId("seq") -> Seq
   | AId("fseqn") -> FSeqN
   | AId("seqn") -> SeqN
+  | AId("wildt") -> WildT
+  | AId("indext") -> IndexT
+  | AId("fseqt") -> FSeqT
+  | AId("seqt") -> SeqT
+  | AId("fseqnt") -> FSeqNT
+  | AId("seqnt") -> SeqNT
   | AId("string") -> String
   | AId("rostring") -> ROString
   | _ -> Unknown
@@ -332,6 +366,11 @@ let kindOfAttrlist al =
         | AId "seqn" -> SeqN, UserSpec
         | AId "fseqn" -> FSeqN, UserSpec
         | AId "wild" -> Wild, UserSpec
+        | AId "wildt" -> WildT, UserSpec
+        | AId "seqt" -> SeqT, UserSpec
+        | AId "fseqt" -> FSeqT, UserSpec
+        | AId "seqnt" -> SeqNT, UserSpec
+        | AId "fseqnt" -> FSeqNT, UserSpec
         | AId "sized" -> Index, UserSpec
         | AId "tagged" -> Wild, UserSpec
         | AId "string" -> String, UserSpec
@@ -386,6 +425,12 @@ let replacePtrNodeAttrList where al =
         | AId "seqn" -> foundNode := "seqn"; loop al
         | AId "fseqn" -> foundNode := "fseqn"; loop al
         | AId "wild" -> foundNode := "wild"; loop al
+        | AId "indext" -> foundNode := "indext"; loop al
+        | AId "seqt" -> foundNode := "seqt"; loop al
+        | AId "fseqt" -> foundNode := "fseqt"; loop al
+        | AId "seqnt" -> foundNode := "seqnt"; loop al
+        | AId "fseqnt" -> foundNode := "fseqnt"; loop al
+        | AId "wildt" -> foundNode := "wildt"; loop al
         | AId "sized" -> foundNode := "sized"; loop al
         | AId "tagged" -> foundNode := "tagged"; loop al
         | AId "string" -> foundNode := "string"; loop al
@@ -401,16 +446,21 @@ let replacePtrNodeAttrList where al =
         else if !defaultIsWild then "wild" else "safe" 
     | (AtArray | AtOpenArray) -> 
         if !foundNode = "index" then "sized" 
+        else if !foundNode = "indext" then "sized" 
         else if !foundNode = "seqn" then "nullterm" 
         else if !foundNode = "fseqn" then "nullterm" 
+        else if !foundNode = "seqnt" then "nullterm" 
+        else if !foundNode = "fseqnt" then "nullterm" 
         else if !foundNode = "string" then "nullterm" 
         else if !foundNode = "rostring" then "nullterm" 
         else if !foundNode = "wild" then "wild" 
+(*        else if !foundNode = "wildt" then "wild" *)
         else if where = AtOpenArray then 
           if !defaultIsWild then "wild" else "sized" 
         else !foundNode
     | AtVar ->
         if !foundNode = "wild" then "tagged" 
+(*        else if !foundNode = "wildt" then "tagged" *)
         else !foundNode
     | AtOther -> !foundNode
   in
@@ -531,9 +581,15 @@ let ptrAttrCustom printnode = function
     | AId("seqn") -> Some (text "__SEQN")
     | AId("fseqn") -> Some (text "__FSEQN")
     | AId("index") -> Some (text "__INDEX")
+    | AId("wild") -> Some (text "__WILD")
+    | AId("seqt") -> Some (text "__SEQT")
+    | AId("fseqt") -> Some (text "__FSEQT")
+    | AId("seqnt") -> Some (text "__SEQNT")
+    | AId("fseqnt") -> Some (text "__FSEQNT")
+    | AId("indext") -> Some (text "__INDEXT")
+    | AId("wildt") -> Some (text "__WILDT")
     | AId("stack") -> Some (text "__STACK")
     | AId("opt") -> Some (text "__OPT")
-    | AId("wild") -> Some (text "__WILD")
     | AId("string") -> Some (text "__STRING")
     | AId("rostring") -> Some (text "__ROSTRING")
     | AId("sized") -> Some (text "__SIZED")

@@ -31,18 +31,25 @@
 #endif
 
 #ifndef MANUALBOX
-#define __WILD
 #define __SAFE
-#define __TAGGED
 #define __INDEX
-#define __SIZED
-#define __SEQ
+#define __TAGGED
 #define __FSEQ
+#define __SEQ
+#define __WILD
+#define __SIZED
+#define __STRING
+#define __ROSTRING
+#define __NULLTERM
 #define __SEQN
 #define __FSEQN
-#define __NULLTERM
-#define __STRING
 #define __SAFEUNION
+#define __WILDT
+#define __FSEQT
+#define __SEQT
+#define __FSEQNT
+#define __SEQNT
+#define __INDEXT
 #else
 #define __WILD   __attribute__((wild))
 #define __SAFE   __attribute__((safe))
@@ -56,6 +63,12 @@
 #define __NULLTERM   __attribute__((nullterm))
 #define __STRING  __attribute__((string))
 #define __SAFEUNION __attribute__((safeunion))
+#define __INDEXT   __attribute__((indext))
+#define __WILDT   __attribute__((wildt))
+#define __SEQT   __attribute__((seqt))
+#define __SEQNT   __attribute__((seqnt))
+#define __FSEQT   __attribute__((fseqt))
+#define __FSEQNT   __attribute__((fseqnt))
 #endif
 
 #if ! defined(MANUALBOX) && ! defined(INFERBOX)
