@@ -165,9 +165,11 @@ $TEST->add3Tests("power", "_GNUCC=1");
 
 $TEST->add3Tests("health", "_GNUCC=1");
    $TEST->add3Group("health", "slow");
+   $TEST->addBadComment("health-inferbox", "Crashes");
    $TEST->addBadComment("health-box", "Bug in BOX");
 
-$TEST->add3Tests("perimeter", "_GNUCC=1");
+$TEST->add3Tests("perimeter");
+$TEST->add3Tests("tsp");
 
 #
 # SPEC95

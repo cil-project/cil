@@ -951,6 +951,26 @@ tsp : defaulttarget
 	cd $(TSPDIR); ./tsp.exe
 
 
+# Bitonic sort
+BISORTDIR=test/olden/bisort
+ifdef BOX
+BISORTEXTRA=$(CILDIR)/$(SAFEMAINLIB)
+else
+BISORTEXTRA=
+endif
+ifdef _MSVC
+BISORTARGS = _MSVC=1
+endif
+bisort : defaulttarget
+	cd $(BISORTDIR); \
+               make PLAIN=1 clean defaulttarget \
+                    EXTRA_LIBS=$(BISORTEXTRA) \
+	            $(BISORTARGS) \
+                    CC="$(COMBINESAFECC) \
+			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
+
+
+
 
 # SPEC95
 SPECDIR=test/spec95
