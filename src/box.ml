@@ -1482,7 +1482,7 @@ and boxlval (b, off) : (typ * P.pointerkind * lval * exp * exp * stmt list) =
         let next = 
           (btype, pkind, (fun o -> mklval (Index(e', o))), base, bend, stmts) 
         in
-        next
+        doOffset next resto
   in
   let (btype, pkind, mklval, base, bend, stmts) = doOffset startinput off in
 (*  ignore (E.log "Done lval: pkind=%a@!" P.d_pointerkind pkind); *)
@@ -1666,8 +1666,18 @@ and boxexpf (e: exp) : stmt list * fexp =
                   mkFexp2 (mkPointerTypeKind t lvkind) newp baseaddr
               | _ -> E.s (E.unimp "StartOf")
             end
-          | TFun _ -> 
-              mkFexp2 (mkPointerTypeKind lvt lvkind) (StartOf lv') baseaddr
+          | TFun _ -> begin
+              (* Taking the address of a function is a special case. Since 
+               * fuctions are not tagged the type of the the pointer is Safe. 
+               * If we are in defaultIsWild then we must make a Wild pointer 
+               * out of it *)
+              let start = StartOf lv' in
+              match lv' with
+                Var vi, NoOffset when !defaultIsWild -> 
+                  mkFexp2 (mkPointerTypeKind lvt P.Wild) start start
+              | _ -> 
+                  mkFexp2 (mkPointerTypeKind lvt lvkind) start baseaddr
+          end
 
           | _ -> E.s (E.unimp "StartOf on a non-array and non-function: %a"
                         d_plaintype lvt)
