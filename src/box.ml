@@ -6,7 +6,7 @@ module H = Hashtbl
 let debugType = false
 let debug = false
 
-let checkReturn = false
+let checkReturn = true
            (* After processing an expression, we create its type, a list of 
             * instructions that should be executed before this exp is used, 
             * and a replacement exp *)
@@ -44,6 +44,7 @@ let prefix p s =
   let lp = String.length p in
   let ls = String.length s in
   lp <= ls && String.sub s 0 lp = p
+
 
 
   (* We collect here the new file *)
@@ -371,43 +372,13 @@ let checkSafeRetFat =
   fdec.svar.vtype <- TFun(voidType, [ arg ], false, []);
   fdec
     
-let checkSafeRetLean = 
-  let fdec = emptyFunction "CHECK_SAFERETLEAN" in
-  let arg  = makeLocalVar fdec "x" voidPtrType in
-  fdec.svar.vtype <- TFun(voidType, [ arg ], false, []);
-  fdec
-    
-let checkSafeRdLean = 
-  let fdec = emptyFunction "CHECK_SAFERDLEAN" in
-  let arg  = makeLocalVar fdec "x" voidPtrType in
-  fdec.svar.vtype <- TFun(voidType, [ arg ], false, []);
-  fdec
-    
-let checkSafeRdFat = 
-  let fdec = emptyFunction "CHECK_SAFERDFAT" in
-  let arg  = makeLocalVar fdec "x" voidPtrType in
-  fdec.svar.vtype <- TFun(voidType, [ arg ], false, []);
-  fdec
-    
-let checkSafeWrLean = 
-  let fdec = emptyFunction "CHECK_SAFEWRLEAN" in
-  let arg  = makeLocalVar fdec "x" voidPtrType in
-  fdec.svar.vtype <- TFun(voidType, [ arg ], false, []);
-  fdec
-    
-let checkSafeWrFat = 
-  let fdec = emptyFunction "CHECK_SAFEWRFAT" in
-  let arg  = makeLocalVar fdec "x" voidPtrType in
-  fdec.svar.vtype <- TFun(voidType, [ arg ], false, []);
-  fdec
-    
 let checkSafeFatLeanCast = 
   let fdec = emptyFunction "CHECK_SAFEFATLEANCAST" in
   let argp  = makeLocalVar fdec "p" voidPtrType in
   let argb  = makeLocalVar fdec "b" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
   fdec
-  
+
 let doCheckFat which arg argt = 
   (* Take the argument and break it apart *)
   let (_, ptr, base) = readPtrBaseField arg argt in 
@@ -417,6 +388,120 @@ let doCheckFat which arg argt =
 let doCheckLean which arg  = 
   call None (Lval(var which.svar)) [ CastE(voidPtrType, arg, lu)]
 
+
+(* Make a bunch of read safety checks *)
+let checkSafeMemComp = 
+  let mkCheck name words =
+    let fdec = emptyFunction (name ^ (string_of_int words)) in
+    let p  = makeLocalVar fdec "p" voidPtrType in
+    let b  = makeLocalVar fdec "b" voidPtrType in
+    let wrds = makeLocalVar fdec "len" intType in
+    let rec loop idx = 
+      if idx >= words then [] 
+      else (makeLocalVar fdec "t" intType) :: loop (idx + 1) 
+    in
+    fdec.svar.vtype <- TFun(voidType, p :: b :: loop 0, false, []);
+    fdec
+  in
+  let readChecks = [| mkCheck "CHECK_SAFEREADCOMP" 1; 
+                      mkCheck "CHECK_SAFEREADCOMP" 2; |] in
+  let writeChecks = [| mkCheck "CHECK_SAFEWRITECOMP" 1; 
+                       mkCheck "CHECK_SAFEWRITECOMP" 2; |] in
+  fun isread words -> 
+    if words > 2 || words < 1 then
+      E.s (E.unimp "checkSafeReadComp not available for %d words\n" words)
+    else
+      if isread then
+        readChecks.(words - 1)
+      else
+        writeChecks.(words - 1)
+          
+let checkSafeReadLean = 
+  let fdec = emptyFunction "CHECK_SAFEREADLEAN" in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
+  fdec
+  
+let checkSafeReadFun = 
+  let fdec = emptyFunction "CHECK_SAFEREADFUN" in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
+  fdec
+  
+let checkSafeWriteLean = 
+  let fdec = emptyFunction "CHECK_SAFEWRITELEAN" in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
+  fdec
+  
+
+ (* Given a type compute a list of tags for its components *)
+
+let bitsForType t = 
+  let bLean = 0 in
+  let bPtr  = 1 in
+  let bBase = 2 in
+  let rec pushBit b (idx,current,acc) = 
+    if idx = 30 then 
+      pushBit b (0,0,current :: acc)  (* Make a new word *)
+    else
+      (idx + 2, current lor (b lsl idx), acc)
+  in
+  let rec tagOfType acc = function
+    | (TInt _ | TFloat _ | TEnum _) as t -> 
+        let sz = intSizeOf t in
+        if      sz <= 4 then pushBit bLean acc
+        else if sz <= 8 then pushBit bLean (pushBit bLean acc)
+        else E.s (E.unimp "TagOfType: large scalar")
+    | TStruct (_, [p;b], _) when p.fname = "_p" && b.fname = "_b" -> 
+        pushBit bBase (pushBit bPtr acc)
+    | TStruct (_, flds, _) -> 
+        List.fold_left (fun acc f -> tagOfType acc f.ftype) acc flds
+    | TNamed (_, t, _) -> tagOfType acc t
+    | t -> E.s (E.unimp "tagOfType: %a" d_plaintype t)
+  in
+  let finishAcc (idx, current, acc) = 
+(*    ignore (E.log "Finish for %a@! idx=%d, current=%d@!" 
+              d_plaintype t idx current); *)
+    (15 * (List.length acc) + (idx lsr 1),
+     List.rev (if idx = 0 then acc else current :: acc))
+  in
+  finishAcc (tagOfType (0,0,[]) t)
+
+    (* Check a read *)
+let checkMem (isread: bool) (lv: lval) (base: exp) (t: typ) : stmt list = 
+  match unrollType t with 
+    TFun _ when isread -> 
+        [call None (Lval(var checkSafeReadFun.svar))
+            (CastE(voidPtrType, AddrOf(lv, lu), lu) :: base :: [])]
+  | _ ->
+      let (nrWords, tags) = bitsForType t in
+      let tlen = List.length tags in
+      if nrWords = 1 then (* A lean memory operation *)
+        let theCheck = 
+          if isread then checkSafeReadLean else checkSafeWriteLean in
+        [call None (Lval(var theCheck.svar))
+            (CastE(voidPtrType, AddrOf(lv, lu), lu) :: base :: [])]
+      else
+        let theCheck = checkSafeMemComp isread tlen in
+        [call None (Lval(var theCheck.svar)) 
+            (CastE(voidPtrType, AddrOf(lv, lu), lu) :: base ::
+             integer (nrWords) :: (List.map integer tags))]
+          
+    (* Check a write *)
+let checkRead = checkMem true 
+let checkWrite = checkMem false
+
+(* A major hack for MSVC *)
+let getIOBFunction = 
+  let fdec = emptyFunction "__get_iob_fp" in
+  let argn = makeLocalVar fdec "n" intType in
+  fdec.svar.vtype <- TFun(fatVoidPtr, [ argn ], false, []);
+  fdec
+  
     (************* STATEMENTS **************)
 let rec boxstmt (s : stmt) : stmt = 
   try
@@ -450,8 +535,7 @@ let rec boxstmt (s : stmt) : stmt =
                 (* Cast e' to fat_voidptr *)
               doe @ [doCheckFat checkSafeRetFat e' et]
             end else begin
-              doe @ 
-              [doCheckLean checkSafeRetLean e']
+              doe
             end
           else
             doe
@@ -465,15 +549,20 @@ let rec boxstmt (s : stmt) : stmt =
 
   
 
-and boxinstr (ins: instr) = 
+and boxinstr (ins: instr) : stmt = 
   if debug then
     ignore (E.log "Boxing %a\n" d_instr ins);
   try
     match ins with
     | Set (lv, e, l) -> 
-        let (rest, dolv, lv', _) = boxlval lv in
+        let (rest, dolv, lv', lvbase) = boxlval lv in
         let (_, doe, e') = boxexp e in
-        mkSeq (dolv @ doe @ [Instr(Set(lv', e', l))])
+        let check = 
+          match lv' with
+            Mem _, _ -> checkWrite lv' lvbase rest
+          | _ -> []
+        in
+        mkSeq (dolv @ doe @ check @ [Instr(Set(lv', e', l))])
 
     | Call(vi, f, args, l) ->
         let (ft, dof, f') = boxexp f in
@@ -522,12 +611,17 @@ and boxinstr (ins: instr) =
         let rec doOutputs = function
             [] -> [], []
           | (c, lv) :: rest -> 
-              let (lvt, dolv, lv', _) = boxlval lv in
+              let (lvt, dolv, lv', lvbase) = boxlval lv in
+              let check = 
+                match lv' with
+                  Mem _, _ -> checkRead lv' lvbase lvt
+                | _ -> []
+              in
               if isFatType lvt then
                 ignore (E.log "Warning: fat output in %a\n"
                           d_instr ins);
               let (doouts, outs) = doOutputs rest in
-              (dolv @ doouts, (c, lv') :: outs)
+              (dolv @ check @ doouts, (c, lv') :: outs)
         in
         let (doouts, outputs') = doOutputs outputs in
         let rec doInputs = function
@@ -557,11 +651,7 @@ and boxlval (b, off) : (typ * stmt list * lval * exp) =
   let (b', dob, tbase, baseaddr) = 
     match b with
       Var vi -> 
-        let tbase = vi.vtype (*
-          match vi.vtype with
-            TArray(t, _, _) -> t
-          | t -> t*) 
-        in
+        let tbase = vi.vtype in
         let baseaddr = 
           match vi.vtype with
             TArray _ -> StartOf(Var vi, NoOffset)
@@ -573,7 +663,6 @@ and boxlval (b, off) : (typ * stmt list * lval * exp) =
         let addrt' = 
           match addrt with
             TPtr(t, _) -> t
-(*          | TArray(t, _, _) -> t *)
           | _ -> E.s (E.unimp "Reading from a non-pointer type: %a\n"
                         d_plaintype addrt)
         in
@@ -584,12 +673,6 @@ and boxlval (b, off) : (typ * stmt list * lval * exp) =
 
 
 and boxoffset (off: offset) (basety: typ) : offsetRes = 
-(*
-  if !currentFunction.svar.vname = "releaseHashes" then
-    ignore (E.log "boxoffset %a@!of %a\n"
-              d_plainlval (Mem(zero,off,lu))
-              d_plaintype basety);
-*)
   match off with 
   | NoOffset ->
       (basety, [], NoOffset)
@@ -607,8 +690,7 @@ and boxoffset (off: offset) (basety: typ) : offsetRes =
       let etype = 
         match unrollType basety with
           TArray (x, _, _) -> x
-        | _ -> E.s (E.bug "First on a non-array.@!T=%a\n" 
-                      d_plaintype basety)
+        | _ -> E.s (E.bug "First on a non-array.@!T=%a\n" d_plaintype basety)
       in
       let (rest, doresto, off') = boxoffset o etype in
       (rest, doresto, First off')
@@ -618,11 +700,16 @@ and boxoffset (off: offset) (basety: typ) : offsetRes =
 and boxexpf (e: exp) : stmt list * fexp = 
   match e with
   | Lval (lv) -> 
-      let rest, dolv, lv', _ = boxlval lv in
+      let rest, dolv, lv', lvbase = boxlval lv in
+      let check = 
+        match lv' with
+          Mem _, _ -> checkRead lv' lvbase rest
+        | _ -> []
+      in
       if isFatType rest then
-        (dolv, F1(rest, Lval(lv')))
+        (dolv @ check, F1(rest, Lval(lv')))
       else
-        (dolv, L(rest, Lval(lv')))
+        (dolv @ check, L(rest, Lval(lv')))
 
   | Const ((CInt _ | CChr _), _) -> ([], L(intType, e))
   | Const (CReal _, _) -> ([], L(doubleType, e))
@@ -693,6 +780,19 @@ and boxexpf (e: exp) : stmt list * fexp =
   | SizeOf (t, l) -> 
       let t' = fixupType t in
       ([], L(intType, SizeOf(t', l)))
+
+   (* Intercept references of _iob. A major hack *)
+  | AddrOf ((Var vi,
+             First(Index(Const(CInt _, _) as n, NoOffset))) as lv, 
+            _) when !msvcMode && vi.vname = "_iob_fp_" 
+    -> 
+      let tres = fixupType (typeOf e) in
+      let tmp1 = makeTempVar !currentFunction fatVoidPtr in
+      let tmp2 = makeTempVar !currentFunction tres in
+      let seq  = 
+        [ boxstmt (call (Some tmp1) (Lval(var getIOBFunction.svar)) [ n ]);
+          boxstmt (assign tmp2 (CastE(tres, Lval(var tmp1), lu))) ] in
+      (seq, F1(tres, Lval(var tmp2)))
 
   | AddrOf (lv, l) ->
       let (lvt, dolv, lv', baseaddr) = boxlval lv in
@@ -810,6 +910,42 @@ and castTo (fe: fexp) (newt: typ) (doe: stmt list) : stmt list * fexp =
       (doe, FC(newt, prevt, e))
       
 
+    (* Create a new temporary of a fat type and set its pointer and base 
+     * fields *)
+and setFatPointer (t: typ) (p: typ -> exp) (b: exp) : stmt list * lval = 
+  let tmp = makeTempVar !currentFunction t in
+  let fptr = getPtrFieldOfFat t in
+  let fbase = getBaseFieldOfFat t in
+  let p' = p fptr.ftype in
+  ([ mkSet (Var tmp, Field(fptr,NoOffset)) p';
+     mkSet (Var tmp, Field(fbase,NoOffset)) b ], 
+     (Var tmp, NoOffset))
+      
+and readPtrField e t = 
+  let (tptr, ptr, base) = readPtrBaseField e t in ptr
+      
+and readBaseField e t = 
+  let (tptr, ptr, base) = readPtrBaseField e t in base
+
+and fromPtrToBase e = 
+  let rec replacePtrBase = function
+      Field(fip, NoOffset) when fip.fname = "_p" -> begin
+        (* Find the fat type that this belongs to *)
+        try
+          let fat = 
+            H.find fixedTypes (typeSig (TForward ("struct " ^ fip.fstruct))) in
+          let bfield = getBaseFieldOfFat fat in
+          Field(bfield, NoOffset)
+        with Not_found -> 
+          E.s (E.unimp "Field %s is not a component of a fat type" fip.fname)
+      end
+    | Field(f', o) -> Field(f',replacePtrBase o)
+    | _ -> E.s (E.unimp "Cannot find the _p field to replace in %a\n"
+                  d_plainexp e)
+  in
+  match e with
+    Lval (b, off) -> Lval(b, replacePtrBase off)
+  | _ -> E.s (E.unimp "replacing _p with _b in a non-lval")
 
 let boxFile globals =
   ignore (E.log "Boxing file\n");

@@ -139,12 +139,14 @@ testpcc/% : $(PCCDIR)/src/%.c $(EXECUTABLE)$(EXE)
 
 HASHTESTMAIN=test/small1/hashtest.c
 testhash: $(HASHTESTMAIN) $(EXECUTABLE)$(EXE)
+	rm -f $(PCCTEST)/hashtest.exe
 	$(SAFECC) --keep=$(PCCTEST) $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) \
                  $(INC)$(PCCDIR)/src \
                  $(PCCDIR)/src/hash.c \
                  $(PCCDIR)/src/redblack.c \
                  $(HASHTESTMAIN) \
                  $(EXEOUT)$(PCCTEST)/hashtest.exe
+	$(PCCTEST)/hashtest.exe
 
 testallpcc: $(EXECUTABLE)$(EXE)
 	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.o

@@ -351,9 +351,9 @@ type file = global list
 
 
 let lu = locUnknown
-let msvcOutput = ref false              (* Whether the pretty printer should 
-                                         * print output for the MS VC 
-                                         * compiler. Default is GCC *)
+let msvcMode = ref false              (* Whether the pretty printer should 
+                                       * print output for the MS VC 
+                                       * compiler. Default is GCC *)
 
 let integerFits (i: int) (k: ikind) =  true (* We know that i is less than 31 
                                              * bits so it fits even in an 
@@ -503,9 +503,9 @@ let d_ikind () = function
   | ILong -> text "long"
   | IULong -> text "unsigned long"
   | ILongLong -> 
-      if !msvcOutput then text "__int64" else text "long long"
+      if !msvcMode then text "__int64" else text "long long"
   | IULongLong -> 
-      if !msvcOutput then text "unsigned __int64" 
+      if !msvcMode then text "unsigned __int64" 
       else text "unsigned long long"
 
 let d_fkind () = function
@@ -650,7 +650,7 @@ let rec d_decl (docName: unit -> doc) () this =
       else
         dprintf "enum %s %t" n' docName
 
-  | TPtr (TFun(tres, args, isva, af) as t, ap) when !msvcOutput ->  (* !!! *)
+  | TPtr (TFun(tres, args, isva, af) as t, ap) when !msvcMode ->  (* !!! *)
       let rec stripCallAttr (call, notcall) = function
           [] -> call, notcall
         | ((AId("cdecl")|AId("stdcall")) as a) :: rest ->
@@ -748,7 +748,7 @@ and d_exp () e =
   | SizeOf (t, l) -> dprintf "sizeof(%a)" d_type t
   | Compound (t, el) -> 
       let dcast = 
-        if !msvcOutput then nil         (* MSVC does not list the cast *)
+        if !msvcMode then nil         (* MSVC does not list the cast *)
         else dprintf "(%a) " d_type t
       in
       dprintf "%a{@[%a@]}" insert dcast
@@ -803,9 +803,9 @@ and d_attrlist pre al = (* Whether it comes before or after stuff *)
         dprintf "inline %a" insert (loop remaining rest)
     | (AId("volatile")) :: rest -> 
         dprintf "volatile %a" insert (loop remaining rest)
-    | (AId("cdecl")) :: rest when !msvcOutput -> 
+    | (AId("cdecl")) :: rest when !msvcMode -> 
         dprintf "__cdecl %a" insert (loop remaining rest)
-    | (AId("stdcall")) :: rest when !msvcOutput -> 
+    | (AId("stdcall")) :: rest when !msvcMode -> 
         dprintf "__stdcall %a" insert (loop remaining rest)
     | x :: rest -> loop (x :: remaining) rest
   in
@@ -869,7 +869,7 @@ and d_instr () i =
                              | _ -> dprintf "(%a)" d_exp e)
 	(docList (chr ',' ++ break) (d_exp ())) args
   | Asm(tmpls, isvol, outs, ins, clobs) ->
-      if !msvcOutput then
+      if !msvcMode then
         dprintf "__asm {@[%a@]};@!"  (docList line text) tmpls
       else
         dprintf "__asm__ %a(@[%a%a%a%a@]);@!"
@@ -942,7 +942,7 @@ and d_fun_decl () f =
   in
   dprintf "%s%a%a %a@!{ @[%a@!%a@]@!}" 
     (if isinline then 
-      if !msvcOutput then "__inline " else "inline " else "")
+      if !msvcMode then "__inline " else "inline " else "")
     d_storage f.svar.vstorage
     (* the prototype *)
     (d_decl (fun _ -> dprintf "%a%s" d_attrlistpre pre' f.svar.vname)) 
@@ -1010,6 +1010,7 @@ let rec d_plainexp () = function
   | Lval(lv) -> dprintf "Lval(@[%a@])" d_plainlval lv
   | CastE(t,e,_) -> dprintf "CastE(@[%a,@?%a@])" d_plaintype t d_plainexp e
   | StartOf lv -> dprintf "StartOf(%a)" d_plainlval lv
+  | AddrOf (lv, _) -> dprintf "AddrOf(%a)" d_plainlval lv
   | e -> d_exp () e
 
 and d_plainlval () = function
@@ -1032,7 +1033,7 @@ and d_plaintype () = function
   | TBitfield(ikind,i,a) -> 
       dprintf "TBitfield(@[%a,@?%d,@?%a@])" d_ikind ikind i d_attrlistpost a
   | TNamed (n, t, a) ->
-      dprintf "TNamed(@[%s,@?%a,@?%a@@])" n d_plaintype t d_attrlistpost a
+      dprintf "TNamed(@[%s,@?%a,@?%a@])" n d_plaintype t d_attrlistpost a
   | TForward n -> dprintf "TForward(%s)" n
   | TPtr(t, a) -> dprintf "TPtr(@[%a,@?%a@])" d_plaintype t d_attrlistpost a
   | TArray(t,l,a) -> 

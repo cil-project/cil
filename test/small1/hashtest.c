@@ -35,5 +35,8 @@ int main() {
   }
   TIMESTOP(clk);
   printf("Run hashtest in %8.3lfms\n", clk / 1000.0);
-    
+  fprintf(stderr, "Hello\n");
+  exit (0);
 }
+
+
