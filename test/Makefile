@@ -2865,5 +2865,5 @@ TILEDIR:=$(TESTDIR)/tile
 .PHONY: tile
 tile: 	
 	cd $(TILEDIR); rm -f tile.exe *.o; \
-               make CC="$(COMBINECCURED)"
+               make CC="$(COMBINECCURED) --allowInlineAssembly"
 	cd $(TILEDIR); make run
