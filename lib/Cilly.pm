@@ -1277,8 +1277,15 @@ sub new {
            "/(E|EP|P)" => { RUN => sub { push @{$stub->{PPARGS}}, $_[1]; 
                                          $stub->{OPERATION} = "PREPROC"; }},
            "/c" => { RUN => sub { $stub->{OPERATION} = "TOOBJ"; }},
-           "[/\\-](Q|Z|J|nologo|w|W|Yd|Zm)" => { TYPE => "CC" },
-           "[/\\-](TC|TP)" => { TYPE => "PREPROC" },
+           "[/\\-](Q|Z|J|nologo|w|W|Zm)" => { TYPE => "CC" },
+           "[/\\-]Y(u|c|d|l|X)" => { TYPE => "CC" },
+           "[/\\-]T(C|P)" => { TYPE => "PREPROC" },
+           "[/\\-]Tc(.+)\$" => 
+                { RUN => sub { 
+                    my $arg = $_[1];
+                    my ($fname) = ($arg =~ m|[/\\-]Tc(.+)$|);
+                    push @{$stub->{CFILES}}, $fname;
+                }},
            "/v(d|m)" => { TYPE => "CC" },
            "/F" => { TYPE => "CC" },
            "/M"   => { TYPE => 'LINKCC' },
