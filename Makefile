@@ -21,7 +21,7 @@ MLYS        =
 # ast clex cparse
 # sm: trace: utility for debug-time printfs
 MODULES     = pretty trace errormsg stats cil check ptrnode \
-              simplesolve markptr box 
+              simplesolve markptr box optim
 EXECUTABLE  = $(OBJDIR)/safec
 CAMLUSEUNIX = 1
 ifdef RELEASE
@@ -95,7 +95,7 @@ _GNUCC=1
 endif
 ifeq ($(COMPUTERNAME), fuji) # Rahul's laptop
 BASEDIR=/home/sprahul/research
-SAFECCDIR=$(BASEDIR)/safec
+SAFECCDIR=$(BASEDIR)
 PCCDIR=$(BASEDIR)/PCC
 TVDIR=$(BASEDIR)/TransVal
 CILDIR=$(BASEDIR)/cil
@@ -103,7 +103,7 @@ _GNUCC=1
 endif
 ifeq ($(COMPUTERNAME), brooksie) # Rahul's desktop
 BASEDIR=/home/sprahul/research
-SAFECCDIR=$(BASEDIR)/safec
+SAFECCDIR=$(BASEDIR)
 PCCDIR=$(BASEDIR)/PCC
 TVDIR=$(BASEDIR)/TransVal
 CILDIR=$(BASEDIR)/cil
@@ -212,6 +212,11 @@ endif
 ifdef TRACE
 SAFECC+= --tr="$(TRACE)"
 endif
+
+ifdef OPTIM
+SAFECC += --optim
+endif
+
 SAFECC+= $(EXTRAARGS:%= --safec=%)
 
     # Now the rules to make the library
