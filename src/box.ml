@@ -1661,8 +1661,14 @@ let castTo (fe: fexp) (newt: typ)
         (* SAFE -> FSEQ *)          
       | N.Safe, N.FSeq -> 
           let p' = castP p in
-          (doe, FM (newt, newkind, p', BinOp(PlusPI, p', one, newPointerType),
-                    zero))
+          (* If the pointer type is a void ptr then do not add one to get the 
+           * end since that is illegal C *)
+          let theend = 
+            match unrollType newPointerType with
+              TPtr(TVoid _, _) -> p'
+            | _ -> BinOp(PlusPI, p', one, newPointerType)
+          in
+          (doe, FM (newt, newkind, p', theend, zero))
 
         (* weimer: SAFE -> FSEQN only when the SAFE is 0 *)
       | N.Safe, N.FSeqN when is_zero fe  ->
@@ -1675,8 +1681,14 @@ let castTo (fe: fexp) (newt: typ)
         (* SAFE -> SEQ *)          
       | N.Safe, N.Seq -> 
           let p' = castP p in
-          (doe, FM (newt, newkind, p', p', 
-                    BinOp(PlusPI, p', one, newPointerType)))
+          (* If the pointer type is a void ptr then do not add one to get the 
+           * end since that is illegal C *)
+          let theend = 
+            match unrollType newPointerType with
+              TPtr(TVoid _, _) -> p'
+            | _ -> BinOp(PlusPI, p', one, newPointerType)
+          in
+          (doe, FM (newt, newkind, p', p', theend))
           
         (* SCALAR -> INDEX, WILD, SEQ, FSEQ *)
       | N.Scalar, (N.Index|N.Wild|N.Seq|N.FSeq|N.FSeqN|N.SeqN) ->
