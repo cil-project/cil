@@ -160,7 +160,7 @@ $TEST->add2Tests("testrun/vararg1");
 $TEST->add2Tests("testrun/vararg2");
 $TEST->add2Tests("testrun/vararg3");
 $TEST->add2Tests("testrun/vararg4");
-$TEST->add2Tests("testrun/vararg5");
+$TEST->add2Tests("testrun/vararg5", "_GNUCC=1");
 $TEST->add3Tests("test/retval");
 $TEST->add3Tests("test/seq");
 $TEST->add3Tests("test/sized");

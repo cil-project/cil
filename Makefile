@@ -41,11 +41,8 @@ clean:
 # build ocamldoc documentation tree
 odoc:
 	make -f Makefile.ccured odoc $(MAKEOVERRIDES)
+	make -f Makefile.cil odoc $(MAKEOVERRIDES)
 
-cil-doc:
-	odoc -d doc/cil -g odoc_fhtml.cmo -t "CIL Documentation" \
-	     -I obj src/cil.mli src/errormsg.mli src/clist.mli \
-	  	    src/pretty.mli src/stats.mli
 
 # don't be confused by presence of odoc/ directory
 .PHONY: cil-doc

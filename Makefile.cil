@@ -52,8 +52,13 @@ else
 TESTCILARG=       -testcil "bash gcctestcil"
 endif
 
+.PHONY: testcil
 testcil: $(EXECUTABLE)$(EXE)	
 	       cd test; ../$(EXECUTABLE)$(EXE) $(TESTCILARG)
 
-
+.PHONY: odoc
+odoc:
+	odoc -d doc/cil -g odoc_fhtml.cmo -t "CIL Documentation" \
+	     -I obj src/cil.mli src/errormsg.mli src/clist.mli \
+	  	    src/pretty.mli src/stats.mli
 

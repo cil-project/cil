@@ -12,7 +12,7 @@ int main() {
     printf("p1 = %s\n",p1);
     fprintf(stdout,"p2 = %s\n",p2); 
     printf("p3 = %p\n",(long)p3);
-    fprintf(stdout,"p4 = %p\n",(long)p4); 
+    fprintf(stdout,"p4 = %s\n",(long)p4); 
     printf("x = %d\n",x);
     printf("d = %g\n",d);
 
