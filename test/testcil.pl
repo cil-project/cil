@@ -125,6 +125,7 @@ $TEST->add3Tests("test/attr2", "_GNUCC=1");
     $TEST->addBadComment("test/attr2-box", "Format is a fat pointer to string");
 $TEST->add3Tests("test/attr3", "_GNUCC=1");
 $TEST->add3Tests("testrun/attr4", "_GNUCC=1");
+$TEST->addTests("testrun/attr5", "_GNUCC=1", ['cil']);
 $TEST->add3Tests("test/bh1");
 $TEST->add3Tests("test/bitfield");
 $TEST->add3Tests("testrun/bitfield3");

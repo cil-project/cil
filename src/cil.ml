@@ -2037,7 +2037,6 @@ and d_goto (s: stmt) =
       text "goto __invalid_label;"
 
 and d_fun_decl () f = begin
-  (*let stom, rest = separateStorageModifiers f.svar.vattr in*)
   text (if f.sinline then "__inline " else "")
     ++ d_videcl () f.svar
     ++ line
@@ -2798,7 +2797,19 @@ let startsWith (prefix: string) (s: string) : bool =
 (* wes: I want to see this at the top level *)
 let d_global () = function
   | GFun (fundec, l) ->
-      (d_line l) ++ (d_fun_decl () fundec)
+      (* If the function has attributes then print a prototype because GCC 
+       * cannot accept function attributes in a definition  *)
+      let oldattr = fundec.svar.vattr in
+      let proto = 
+        if oldattr <> [] then 
+          (d_line l) ++ (d_videcl () fundec.svar) ++ chr ';' ++ line 
+        else nil in
+      (* Temporarily remove the function attributes *)
+      fundec.svar.vattr <- [];
+      let body = (d_line l) ++ (d_fun_decl () fundec) in
+      fundec.svar.vattr <- oldattr;
+      proto ++ body
+
   | GType (str, typ, l) ->
       d_line l ++
       if str = "" then
