@@ -13,7 +13,7 @@ OBJDIR      = obj
 MLLS        = clexer.mll
 MLYS        = cparser.mly
 MODULES     = pretty errormsg trace stats util clist \
-              cabs cprint clexer cparser cabsvisit patch \
+              cabs cprint clexer cparser cabsvisit \
               cil cabs2cil frontc check logcalls rmtmps \
 	      heapify maincil
 

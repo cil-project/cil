@@ -7,249 +7,459 @@ open Pretty
 module E = Errormsg
 
 (* basic interface for a visitor object *)
-(* Each method is given an entity to work on, and the returned thing then *)
-(* replaces the original in the tree. *)
-(* All visit methods are called in postorder. *)
+
+(* Different visiting actions. 'a will be instantiated with exp, instr, etc. *)
+type 'a visitAction = 
+    SkipChildren                        (* Do not visit the children. Return 
+                                         * the node as it is *)
+  | ChangeTo of 'a                      (* Replace the expression with the 
+                                         * given one *)
+  | DoChildren                          (* Continue with the children of this 
+                                         * node. Rebuild the node on return 
+                                         * if any of the children changes 
+                                         * (use == test) *)
+  | ChangeDoChildrenPost of 'a * ('a -> 'a) (* First consider that the entire 
+                                          * exp is replaced by the first 
+                                          * paramenter. Then continue with 
+                                          * the children. On return rebuild 
+                                          * the node if any of the children 
+                                          * has changed and then apply the 
+                                          * function on the node *)
+
+(* All visit methods are called in preorder! (but you can use 
+ * ChangeDoChildrenPost to change the order) *)
 class type cabsVisitor = object
-  method vexpr : expression -> expression         (* expressions *)
-  method vvname : string -> string                (* variable names *)
-  method vspec : specifier -> specifier           (* specifier *)
+  method vexpr: expression -> expression visitAction   (* expressions *)
+  method vinitexpr: init_expression -> init_expression visitAction   
+  method vstmt: statement -> statement list visitAction
+  method vblock: block -> block visitAction
+  method vvar: string -> string                  (* use of a variable 
+                                                        * names *)
+  method vdef: definition -> definition list visitAction
+  method vtypespec: typeSpecifier -> typeSpecifier visitAction
+  method vdecltype: decl_type -> decl_type visitAction
+  method vname: specifier -> name -> name visitAction
+  method vspec: specifier -> specifier visitAction     (* specifier *)
+  method vattr: attribute -> attribute list visitAction
 
-  (* I'll add others as I find need for them *)
+  method vEnterScope: unit -> unit
+  method vExitScope: unit -> unit
 end
-
-(* a default visitor which does nothing to the tree *)
-class nopCabsVisitor = object
-  method vexpr (e:expression) = e
-  method vvname (s:string) = s
-  method vspec (s:specifier) = s
+        
+        (* a default visitor which does nothing to the tree *)
+class nopCabsVisitor : cabsVisitor = object
+  method vexpr (e:expression) = DoChildren
+  method vinitexpr (e:init_expression) = DoChildren
+  method vstmt (s: statement) = DoChildren
+  method vblock (b: block) = DoChildren
+  method vvar (s: string) = s
+  method vdef (d: definition) = DoChildren
+  method vtypespec (ts: typeSpecifier) = DoChildren
+  method vdecltype (dt: decl_type) = DoChildren
+  method vname (s:specifier) (n: name) = DoChildren
+  method vspec (s:specifier) = DoChildren
+  method vattr (a: attribute) = DoChildren
+      
+  method vEnterScope () = ()
+  method vExitScope () = ()
 end
+        
+        (* Map but try not to copy the list unless necessary *)
+let rec mapNoCopy (f: 'a -> 'a) = function
+    [] -> []
+  | (i :: resti) as li -> 
+      let i' = f i in
+      let resti' = mapNoCopy f resti in
+      if i' != i || resti' != resti then i' :: resti' else li 
+        
+let rec mapNoCopyList (f: 'a -> 'a list) = function
+    [] -> []
+  | (i :: resti) as li -> 
+      let il' = f i in
+      let resti' = mapNoCopyList f resti in
+      match il' with
+        [i'] when i' == i && resti' == resti -> li
+      | _ -> il' @ resti'
+                     
+let doVisit (vis: cabsVisitor)
+    (startvisit: 'a -> 'a visitAction) 
+    (children: cabsVisitor -> 'a -> 'a) 
+    (node: 'a) : 'a = 
+  let action = startvisit node in
+  match action with
+    SkipChildren -> node
+  | ChangeTo node' -> node'
+  | _ ->  
+      let nodepre = match action with
+        ChangeDoChildrenPost (node', _) -> node'
+      | _ -> node
+      in
+      let nodepost = children vis nodepre in
+      match action with
+        ChangeDoChildrenPost (_, f) -> f nodepost
+      | _ -> nodepost
+            
+(* A visitor for lists *)
+let doVisitList (vis: cabsVisitor)
+                (startvisit: 'a -> 'a list visitAction)
+                (children: cabsVisitor -> 'a -> 'a)
+                (node: 'a) : 'a list = 
+  let action = startvisit node in
+  match action with
+    SkipChildren -> [node]
+  | ChangeTo nodes' -> nodes'
+  | _ -> 
+      let nodespre = match action with
+        ChangeDoChildrenPost (nodespre, _) -> nodespre
+      | _ -> [node]
+      in
+      let nodespost = mapNoCopy (children vis) nodespre in
+      match action with
+        ChangeDoChildrenPost (_, f) -> f nodespost
+      | _ -> nodespost
 
-
-(* currently the only entry point is at the definition level *)
-let visitCabsDefn (src : definition) (vis : cabsVisitor) : definition =
-begin
-  let rec vtypeSpec (tspec : typeSpecifier) : typeSpecifier =
-  begin
-    match tspec with
-    | Tstruct(sname, Some(fields)) -> Tstruct(sname, Some(vfields fields))
-    | Tunion(uname, Some(fields)) -> Tunion(uname, Some(vfields fields))
-    | TtypeofE(expr) -> TtypeofE(vexpr expr)
-    | TtypeofT(spec, decltype) -> TtypeofT(vspec spec, vdecltype decltype)
-    | _ -> tspec          (* no recursive structure *)
-  end
-
-  (* nothing for 'storage' *)
-
-  and vspec (s : specifier) : specifier =
-  begin
-    let s' = 
-      match s with
-      | elem :: rest -> (
-          let e =
-            match elem with
-            | SpecType(tspec) -> SpecType(vtypeSpec tspec)
-            | _ -> elem
-          in
-          (vis#vspec (e :: vspec rest))
-        )
-      | [] -> []
+            
+let rec visitCabsTypeSpecifier (vis: cabsVisitor) (ts: typeSpecifier) = 
+  doVisit vis vis#vtypespec childrenTypeSpecifier ts
+    
+and childrenTypeSpecifier vis ts = 
+  let childrenFieldGroup ((s, nel) as input) = 
+    let s' = visitCabsSpecifier vis s in
+    let doOneField ((n, eo) as input) = 
+      let n' = visitCabsName vis s' n in
+      let eo' = 
+        match eo with
+          None -> None
+        | Some e -> let e' = visitCabsExpression vis e in
+          if e' != e then Some e' else eo
+      in
+      if n' != n || eo' != eo then (n', eo') else input
     in
-
-    (vis#vspec s')     (* call user's function *)
-  end
-
-  and vdecltype (d : decl_type) : decl_type =
-  begin
-    match d with
-    | PARENTYPE(attrs1, decltype, attrs2) ->
-        PARENTYPE(vattrlist attrs1, vdecltype decltype, vattrlist attrs2)
-    | ARRAY(decltype, e) ->
-        ARRAY(vdecltype decltype, vexpr e)
-    | PTR(attrs, decltype) ->
-        PTR(vattrlist attrs, vdecltype decltype)
-    | PROTO(decltype, args, isva) ->
-        PROTO(vdecltype decltype, vsinglenames args, isva)
-    | _ -> d
-  end
-
-  (* name_group always unrolled where found *)
-
-  and vdecllist (d : name list) : name list =
-  begin
-    match d with
-    | [] -> []
-    | decl :: rest -> (vdeclarator decl) :: (vdecllist rest)
-  end
-
-  and vfields (f : field_group list) : field_group list =
-  begin
-    match f with
-    | [] -> []
-    | (spec, decllist) :: rest -> (
-        (vspec spec,
-         List.map (fun elt ->
-                     match elt with
-                     | (fielddecl, Some(expr)) ->
-                         (vdeclarator fielddecl, Some(vexpr expr))
-                     | (fielddecl, None) ->
-                         (vdeclarator fielddecl, None)
-                  ) decllist) ::
-        (vfields rest)
-      )
-  end
-
-  (* init_name_group is always unrolled *)
-
-  and vdeclarator (d : name) : name =
-  begin
-    match d with
-    | (varname, decltype, attrs) ->
-        (vis#vvname varname, vdecltype decltype, vattrlist attrs)
-  end
-
-  (* init_name is always unrolled *)
-
-  and vinitdecllist (decllist : init_name list) : init_name list =
-  begin
-    match decllist with
-    | [] -> []
-    | (name, iexpr) :: rest ->
-        (vdeclarator name, vinitexpr iexpr) :: vinitdecllist rest
-  end
-
-  (* single_name is always unrolled *)
-
-  and vsinglenames (sn : single_name list) : single_name list =
-  begin
-    match sn with
-    | [] -> []
-    | (spec, decl) :: rest ->
-        (vspec spec, vdeclarator decl) :: (vsinglenames rest)
-  end
-
-  (* enum_item is always unrolled *)
-
-  and vdefn (d : definition) : definition =
-  begin
-    match d with
-    | FUNDEF((fspec, fdecl), b, l) -> 
-        FUNDEF((vspec fspec, vdeclarator fdecl), vblock b, l)
-    | DECDEF((spec, decl), l) -> DECDEF((vspec spec, vinitdecllist decl), l)
-    | TYPEDEF((spec, decl), l) -> TYPEDEF((vspec spec, vdecllist decl), l)
-    | PRAGMA(e, l) -> PRAGMA(vexpr e, l)
-    | TRANSFORMER(src, destlist, l) ->
-        TRANSFORMER(vdefn src, List.map vdefn destlist, l)
-    | EXPRTRANSFORMER(src, dest, l) ->
-        EXPRTRANSFORMER(vexpr src, vexpr dest, l)
-    | _ -> d
-  end
-
-  and vblock blk : block =
-  begin
-    { blabels = blk.blabels;
-      battrs = vattrlist blk.battrs;
-      bdefs = List.map vdefn blk.bdefs;
-      bstmts = List.map vstmt blk.bstmts;
-    } 
-  end
-
-  and vstmt (s : statement) : statement =
-  begin
-    match s with
-    | COMPUTATION(e, l) -> COMPUTATION(vexpr e, l)
-    | BLOCK(b, l) -> BLOCK(vblock b, l)
-    | SEQUENCE(s1, s2, l) -> SEQUENCE(vstmt s1, vstmt s2, l)
-    | IF(e, s1, s2, l) -> IF(vexpr e, vstmt s1, vstmt s2, l)
-    | WHILE(e, s, l) -> WHILE(vexpr e, vstmt s, l)
-    | DOWHILE(e, s, l) -> DOWHILE(vexpr e, vstmt s, l)
-    | FOR(e1, e2, e3, s, l) -> FOR(vexpr e1, vexpr e2, vexpr e3, vstmt s, l)
-    | RETURN(e, l) -> RETURN(vexpr e, l)
-    | SWITCH(e, s, l) -> SWITCH(vexpr e, vstmt s, l)
-    | CASE(e, s, l) -> CASE(vexpr e, vstmt s, l)
-    | CASERANGE(e1, e2, s, l) -> CASERANGE(vexpr e1, vexpr e2, vstmt s, l)
-    | DEFAULT(s, l) -> DEFAULT(vstmt s, l)
-    | LABEL(str, s, l) -> LABEL(str, vstmt s, l)
-    | COMPGOTO(e, l) -> COMPGOTO(vexpr e, l)
-    | ASM(templ, voltl, constraints, outputs, inputs, loc) ->
-        ASM(templ,
-            voltl,
-            List.map (fun (s,e) -> (s, vexpr e)) constraints,
-            List.map (fun (s,e) -> (s, vexpr e)) outputs,
-            inputs,
-            loc)
-    | _ -> s        (* doesn't contain expressions *)
-  end
-
-  and vexpr (e : expression) : expression =
-  begin
-    if (traceActive "visitCabsExpr") then (
-      (trace "visitCabsExpr" (dprintf "visiting expression:\n"));
-      Cprint.print_expression e 1; Cprint.force_new_line (); Cprint.flush ();
-    );
-
-    let transformed = 
-      match e with
-      | UNARY(o, e) -> UNARY(o, vexpr e)
-      | BINARY(o, e1, e2) -> BINARY(o, vexpr e1, vexpr e2)
-      | QUESTION(e1, e2, e3) -> QUESTION(vexpr e1, vexpr e2, vexpr e3)
-      | CAST((spec, decl), iexpr) -> CAST((spec, vdecltype decl), vinitexpr iexpr)
-      | CALL(f, args) -> CALL(vexpr f, (List.map vexpr args))
-      | COMMA(exprs) -> COMMA(List.map vexpr exprs)
-      | EXPR_SIZEOF(e) -> EXPR_SIZEOF(vexpr e)
-      | EXPR_ALIGNOF(e) -> EXPR_ALIGNOF(vexpr e)
-      | INDEX(a, i) -> INDEX(vexpr a, vexpr i)
-      | MEMBEROF(e, field) -> MEMBEROF(vexpr e, field)
-      | MEMBEROFPTR(e, field) -> MEMBEROFPTR(vexpr e, field)
-      | GNU_BODY(b) -> GNU_BODY(vblock b)
-      | _ -> e        (* no subexpressions *)
-    in
-
-    (* call the user's function *)
-    (vis#vexpr transformed)
-  end
-
-  and vinitexpr (iexpr : init_expression) : init_expression =
-  begin
-    match iexpr with
-    | NO_INIT -> iexpr
-    | SINGLE_INIT(expr) -> SINGLE_INIT(vexpr expr)
-    | COMPOUND_INIT(cinitlist) -> COMPOUND_INIT(
-        List.map (fun (what, iexpr) -> (vinitwhat what, vinitexpr iexpr)) cinitlist
-      )
-  end
-
-  and vinitwhat (what : initwhat) : initwhat =
-  begin
-    match what with
-    | NEXT_INIT -> NEXT_INIT
-    | INFIELD_INIT(field, w) -> INFIELD_INIT(field, vinitwhat w)
-    | ATINDEX_INIT(expr, w) -> ATINDEX_INIT(vexpr expr, vinitwhat w)
-    | ATINDEXRANGE_INIT(e1, e2) -> ATINDEXRANGE_INIT(vexpr e1, vexpr e2)
-  end
-
-  and vattrlist (attrs : attribute list) : attribute list =
-  begin
-    match attrs with
-    | [] -> []
-    | (str, exprs) :: rest ->
-        (str, List.map vexpr exprs) :: (vattrlist rest)
-  end
-  
+    let nel' = mapNoCopy doOneField nel in
+    if s' != s || nel' != nel then (s', nel) else input
   in
-  (vdefn src)
-end
+  match ts with
+    Tstruct (n, Some fg) -> 
+      let fg' = mapNoCopy childrenFieldGroup fg in
+      if fg' != fg then Tstruct( n, Some fg') else ts
+  | Tunion (n, Some fg) -> 
+      let fg' = mapNoCopy childrenFieldGroup fg in
+      if fg' != fg then Tunion( n, Some fg') else ts
+  | Tenum (n, Some ei) -> 
+      let doOneEnumItem ((s, e) as ei) = 
+        let e' = visitCabsExpression vis e in
+        if e' != e then (s, e') else ei
+      in
+      let ei' = mapNoCopy doOneEnumItem ei in
+      if ei' != ei then Tenum( n, Some ei') else ts
+  | TtypeofE e -> 
+      let e' = visitCabsExpression vis e in   
+      if e' != e then TtypeofE e' else ts
+  | TtypeofT (s, dt) -> 
+      let s' = visitCabsSpecifier vis s in
+      let dt' = visitCabsDeclType vis dt in
+      if s != s' || dt != dt' then TtypeofT (s', dt') else ts
+  | ts -> ts
+        
+and childrenSpecElem (vis: cabsVisitor) (se: spec_elem) : spec_elem = 
+  match se with
+    SpecTypedef | SpecInline | SpecStorage _ | SpecPattern _ -> se
+  | SpecAttr a -> begin
+      let al' = visitCabsAttribute vis a in
+      match al' with
+        [a''] when a'' == a -> se
+      | [a''] -> SpecAttr a''
+      | _ -> E.s (E.unimp "childrenSpecElem: visitCabsAttribute returned a list")
+  end
+  | SpecType ts -> 
+      let ts' = childrenTypeSpecifier vis ts in
+      if ts' != ts then SpecType ts' else se
+        
+and visitCabsSpecifier (vis: cabsVisitor) (s: specifier) : specifier = 
+  doVisit vis vis#vspec childrenSpec s
+and childrenSpec vis s = mapNoCopy (childrenSpecElem vis) s 
+    
 
+and visitCabsDeclType vis (dt: decl_type) : decl_type = 
+  doVisit vis vis#vdecltype childrenDeclType dt
+and childrenDeclType vis dt = 
+  match dt with
+    JUSTBASE -> dt
+  | PARENTYPE (prea, dt1, posta) -> 
+      let prea' = mapNoCopyList (visitCabsAttribute vis)  prea in
+      let dt1' = visitCabsDeclType vis dt1 in
+      let posta'= mapNoCopyList (visitCabsAttribute vis)  posta in
+      if prea' != prea || dt1' != dt1 || posta' != posta then 
+        PARENTYPE (prea', dt1', posta') else dt
+  | ARRAY (dt1, e) -> 
+      let dt1' = visitCabsDeclType vis dt1 in
+      let e'= visitCabsExpression vis e in
+      if dt1' != dt1 || e' != e then ARRAY(dt1', e') else dt
+  | PTR (al, dt1) -> 
+      let al' = mapNoCopy (childrenAttribute vis) al in
+      let dt1' = visitCabsDeclType vis dt1 in
+      if al' != al || dt1' != dt1 then PTR(al', dt1') else dt
+  | PROTO (dt1, snl, b) -> 
+      let dt1' = visitCabsDeclType vis dt1 in
+      let _ = vis#vEnterScope () in
+      let snl' = mapNoCopy (childrenSingleName vis) snl in
+      let _ = vis#vExitScope () in
+      if dt1' != dt1 || snl' != snl then PROTO(dt1', snl', b) else dt
+         
 
-(* I need an entry point for expressions too *)
-let visitCabsExpr (src : expression) (vis : cabsVisitor) : expression =
-begin
-  (* major hack: wrap it in a pragma so I can use my definition entry point *)
-  let prgma = PRAGMA(src, { lineno=0; filename=""; }) in
-  match (visitCabsDefn prgma vis) with
-  | PRAGMA(retval, _) -> retval
-  | _ -> E.s (E.bug "what the?")
-end
+and childrenNameGroup vis ((s, nl) as input) = 
+  let s' = visitCabsSpecifier vis s in
+  let nl' = mapNoCopy (visitCabsName vis s') nl in
+  if s' != s || nl' != nl then (s', nl') else input
 
+    
+and childrenInitNameGroup vis ((s, inl) as input) = 
+  let s' = visitCabsSpecifier vis s in
+  let inl' = mapNoCopy (childrenInitName vis s') inl in
+  if s' != s || inl' != inl then (s', inl') else input
+    
+and visitCabsName vis (s: specifier) (n: name) : name = 
+  doVisit vis (vis#vname s) (childrenName s) n
+and childrenName (s: specifier) vis (n: name) : name = 
+  let (sn, dt, al) = n in
+  let dt' = visitCabsDeclType vis dt in
+  let al' = mapNoCopy (childrenAttribute vis) al in
+  if dt' != dt || al' != al then (sn, dt', al') else n
+    
+and childrenInitName vis (s: specifier) (inn: init_name) : init_name = 
+  let (n, ie) = inn in
+  let n' = visitCabsName vis s n in
+  let ie' = visitCabsInitExpression vis ie in
+  if n' != n || ie' != ie then (n', ie') else inn
+    
+and childrenSingleName vis (sn: single_name) : single_name =
+  let s, n = sn in
+  let s' = visitCabsSpecifier vis s in
+  let n' = visitCabsName vis s' n in
+  if s' != s || n' != n then (s', n') else sn
+    
+    
+and visitCabsDefinition vis (d: definition) : definition list = 
+  doVisitList vis vis#vdef childrenDefinition d
+and childrenDefinition vis d = 
+  match d with 
+    FUNDEF (sn, b, l) -> 
+      let sn' = childrenSingleName vis sn in
+      let b' = visitCabsBlock vis b in
+      if sn' != sn || b' != b then FUNDEF (sn', b', l) else d
+  | DECDEF ((s, inl), l) -> 
+      let s' = visitCabsSpecifier vis s in
+      let inl' = mapNoCopy (childrenInitName vis s') inl in
+      if s' != s || inl' != inl then DECDEF ((s', inl'), l) else d
+  | TYPEDEF (ng, l) -> 
+      let ng' = childrenNameGroup vis ng in
+      if ng' != ng then TYPEDEF (ng', l) else d
+  | ONLYTYPEDEF (s, l) -> 
+      let s' = visitCabsSpecifier vis s in
+      if s' != s then ONLYTYPEDEF (s', l) else d
+  | GLOBASM _ -> d
+  | PRAGMA (e, l) -> 
+      let e' = visitCabsExpression vis e in
+      if e' != e then PRAGMA (e', l) else d
+  | TRANSFORMER _ -> d
+  | EXPRTRANSFORMER _ -> d
+        
+and visitCabsBlock vis (b: block) : block = 
+  doVisit vis vis#vblock childrenBlock b
 
-(* end of file *)
+and childrenBlock vis (b: block) : block = 
+  let _ = vis#vEnterScope () in
+  let battrs' = mapNoCopyList (visitCabsAttribute vis) b.battrs in
+  let bdefs' = mapNoCopyList (visitCabsDefinition vis) b.bdefs in
+  let bstmts' = mapNoCopyList (visitCabsStatement vis) b.bstmts in
+  let _ = vis#vExitScope () in
+  if battrs' != b.battrs || bdefs' != b.bdefs || bstmts' != b.bstmts then 
+    { blabels = b.blabels; battrs = battrs'; bdefs = bdefs'; bstmts = bstmts' }
+  else
+    b
+    
+and visitCabsStatement vis (s: statement) : statement list = 
+  doVisitList vis vis#vstmt childrenStatement s
+and childrenStatement vis s = 
+  let ve e = visitCabsExpression vis e in
+  let vs l s = 
+    match visitCabsStatement vis s with
+      [s'] -> s'
+    | sl -> BLOCK ({blabels = []; battrs = []; bdefs = []; bstmts = sl }, l)
+  in
+  match s with
+    NOP _ -> s
+  | COMPUTATION (e, l) ->
+      let e' = ve e in
+      if e' != e then COMPUTATION (e', l) else s
+  | BLOCK (b, l) -> 
+      let b' = visitCabsBlock vis b in
+      if b' != b then BLOCK (b', l) else s
+  | SEQUENCE (s1, s2, l) -> 
+      let s1' = vs l s1 in
+      let s2' = vs l s2 in
+      if s1' != s1 || s2' != s2 then SEQUENCE (s1', s2', l) else s
+  | IF (e, s1, s2, l) -> 
+      let e' = ve e in
+      let s1' = vs l s1 in
+      let s2' = vs l s2 in
+      if e' != e || s1' != s1 || s2' != s2 then IF (e', s1', s2', l) else s
+  | WHILE (e, s1, l) -> 
+      let e' = ve e in
+      let s1' = vs l s1 in
+      if e' != e || s1' != s1 then WHILE (e', s1', l) else s
+  | DOWHILE (e, s1, l) -> 
+      let e' = ve e in
+      let s1' = vs l s1 in
+      if e' != e || s1' != s1 then DOWHILE (e', s1', l) else s
+  | FOR (e1, e2, e3, s4, l) -> 
+      let e1' = ve e1 in
+      let e2' = ve e2 in
+      let e3' = ve e3 in
+      let s4' = vs l s4 in
+      if e1' != e1 || e2' != e2 || e3' != e3 || s4' != s4 
+      then FOR (e1', e2', e3', s4', l) else s
+  | BREAK _ | CONTINUE _ | GOTO _ -> s
+  | RETURN (e, l) ->
+      let e' = ve e in
+      if e' != e then RETURN (e', l) else s
+  | SWITCH (e, s1, l) -> 
+      let e' = ve e in
+      let s1' = vs l s1 in
+      if e' != e || s1' != s1 then SWITCH (e', s1', l) else s
+  | CASE (e, s1, l) -> 
+      let e' = ve e in
+      let s1' = vs l s1 in
+      if e' != e || s1' != s1 then CASE (e', s1', l) else s
+  | CASERANGE (e1, e2, s3, l) -> 
+      let e1' = ve e1 in
+      let e2' = ve e2 in
+      let s3' = vs l s3 in
+      if e1' != e1 || e2' != e2 || s3' != s3 then 
+        CASERANGE (e1', e2', s3', l) else s
+  | DEFAULT (s1, l) ->
+      let s1' = vs l s1 in
+      if s1' != s1 then DEFAULT (s1', l) else s
+  | LABEL (n, s1, l) ->
+      let s1' = vs l s1 in
+      if s1' != s1 then LABEL (n, s1', l) else s
+  | COMPGOTO (e, l) -> 
+      let e' = ve e in
+      if e' != e then COMPGOTO (e', l) else s
+  | ASM (sl, b, inl, outl, clobs, l) -> 
+      let childrenStringExp ((s, e) as input) = 
+        let e' = ve e in
+        if e' != e then (s, e') else input
+      in
+      let inl' = mapNoCopy childrenStringExp inl in
+      let outl' = mapNoCopy childrenStringExp outl in
+      if inl' != inl || outl' != outl then 
+        ASM (sl, b, inl', outl', clobs, l) else s
+          
+and visitCabsExpression vis (e: expression) : expression = 
+  doVisit vis vis#vexpr childrenExpression e
+and childrenExpression vis e = 
+  let ve e = visitCabsExpression vis e in
+  match e with 
+    NOTHING | LABELADDR _ -> e
+  | UNARY (uo, e1) -> 
+      let e1' = ve e1 in
+      if e1' != e1 then UNARY (uo, e1') else e
+  | BINARY (bo, e1, e2) -> 
+      let e1' = ve e1 in
+      let e2' = ve e2 in
+      if e1' != e1 || e2' != e2 then BINARY (bo, e1', e2') else e
+  | QUESTION (e1, e2, e3) -> 
+      let e1' = ve e1 in
+      let e2' = ve e2 in
+      let e3' = ve e3 in
+      if e1' != e1 || e2' != e2 || e3' != e3 then 
+        QUESTION (e1', e2', e3') else e
+  | CAST ((s, dt), ie) -> 
+      let s' = visitCabsSpecifier vis s in
+      let dt' = visitCabsDeclType vis dt in
+      let ie' = visitCabsInitExpression vis ie in
+      if s' != s || dt' != dt || ie' != ie then CAST ((s', dt'), ie') else e
+  | CALL (f, el) -> 
+      let f' = ve f in
+      let el' = mapNoCopy ve el in
+      if f' != f || el' != el then CALL (f', el') else e
+  | COMMA el -> 
+      let el' = mapNoCopy ve el in
+      if el' != el then COMMA (el') else e
+  | CONSTANT _ -> e
+  | VARIABLE s -> 
+      let s' = vis#vvar s in
+      if s' != s then VARIABLE s' else e
+  | EXPR_SIZEOF (e1) -> 
+      let e1' = ve e1 in
+      if e1' != e1 then EXPR_SIZEOF (e1') else e
+  | TYPE_SIZEOF (s, dt) -> 
+      let s' = visitCabsSpecifier vis s in
+      let dt' = visitCabsDeclType vis dt in
+      if s' != s || dt' != dt then TYPE_SIZEOF (s' ,dt') else e
+  | EXPR_ALIGNOF (e1) -> 
+      let e1' = ve e1 in
+      if e1' != e1 then EXPR_ALIGNOF (e1') else e
+  | TYPE_ALIGNOF (s, dt) -> 
+      let s' = visitCabsSpecifier vis s in
+      let dt' = visitCabsDeclType vis dt in
+      if s' != s || dt' != dt then TYPE_ALIGNOF (s' ,dt') else e
+  | INDEX (e1, e2) -> 
+      let e1' = ve e1 in
+      let e2' = ve e2 in
+      if e1' != e1 || e2' != e2 then INDEX (e1', e2') else e
+  | MEMBEROF (e1, n) -> 
+      let e1' = ve e1 in
+      if e1' != e1 then MEMBEROF (e1', n) else e
+  | MEMBEROFPTR (e1, n) -> 
+      let e1' = ve e1 in
+      if e1' != e1 then MEMBEROFPTR (e1', n) else e
+  | GNU_BODY b -> 
+      let b' = visitCabsBlock vis b in
+      if b' != b then GNU_BODY b' else e
+  | EXPR_PATTERN _ -> e
+        
+and visitCabsInitExpression vis (ie: init_expression) : init_expression = 
+  doVisit vis vis#vinitexpr childrenInitExpression ie
+and childrenInitExpression vis ie = 
+  let rec childrenInitWhat iw = 
+    match iw with
+      NEXT_INIT -> iw
+    | INFIELD_INIT (n, iw1) -> 
+        let iw1' = childrenInitWhat iw1 in
+        if iw1' != iw1 then INFIELD_INIT (n, iw1') else iw
+    | ATINDEX_INIT (e, iw1) -> 
+        let e' = visitCabsExpression vis e in
+        let iw1' = childrenInitWhat iw1 in
+        if e' != e || iw1' != iw1 then ATINDEX_INIT (e', iw1') else iw
+    | ATINDEXRANGE_INIT (e1, e2) -> 
+        let e1' = visitCabsExpression vis e1 in
+        let e2' = visitCabsExpression vis e2 in
+        if e1' != e1 || e2' != e2 then ATINDEXRANGE_INIT (e1, e2) else iw
+  in
+  match ie with 
+    NO_INIT -> ie
+  | SINGLE_INIT e -> 
+      let e' = visitCabsExpression vis e in
+      if e' != e then SINGLE_INIT e' else ie
+  | COMPOUND_INIT il -> 
+      let childrenOne ((iw, ie) as input) = 
+        let iw' = childrenInitWhat iw in
+        let ie' = visitCabsInitExpression vis ie in
+        if iw' != iw || ie' != ie then (iw', ie') else input
+      in
+      let il' = mapNoCopy childrenOne il in
+      if il' != il then COMPOUND_INIT il' else ie
+        
+
+and visitCabsAttribute vis (a: attribute) : attribute list = 
+  doVisitList vis vis#vattr childrenAttribute a
+
+and childrenAttribute vis ((n, el) as input) = 
+  let el' = mapNoCopy (visitCabsExpression vis) el in
+  if el' != el then (n, el') else input
+    
+    
+    (* end of file *)
+    

@@ -45,7 +45,7 @@ SOURCEDIRS += src/frontc
 MLLS       += clexer.mll
 MLYS       += cparser.mly
 MODULES    += cabs cprint clexer cparser cabs2cil cabsvisit \
-              patch frontc
+              frontc
 endif
 
 # Add main late

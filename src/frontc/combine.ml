@@ -231,7 +231,6 @@ let processDeclName
   end
 
 (* --------------------- equality functions -------------------- *)
-
 (* Generic comparison of lists *)
 let rec equal_lists (eqone: 'a -> 'a -> bool) 
                 (l1: 'a list)

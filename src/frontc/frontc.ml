@@ -77,7 +77,8 @@ begin
   let cabs = parse_to_cabs_inner fname in
 
   (* and apply the patch file, return transformed file *)
-  let patched = match !patchFile with
+  let patched = (* match !patchFile with
+
     | Some(pf) -> (
         (* save old value of out so I can use it for debugging during patching *)
         let oldOut = !out in
@@ -94,7 +95,7 @@ begin
 
         result
       )
-    | None -> cabs
+    | None -> *) cabs
   in
 
   (* print it ... *)
