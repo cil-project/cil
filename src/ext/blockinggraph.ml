@@ -419,6 +419,22 @@ let fingerprintVar =
   vi.vstorage <- Extern;
   vi
 
+let startNodeAddrs =
+  let vi = makeGlobalVar "start_node_addrs" (TPtr (voidPtrType, [])) in
+  vi.vstorage <- Extern;
+  vi
+
+let startNodeStacks =
+  let vi = makeGlobalVar "start_node_stacks" (TPtr (intType, [])) in
+  vi.vstorage <- Extern;
+  vi
+
+let startNodeAddrsArray =
+  makeGlobalVar "start_node_addrs_array" (TArray (voidPtrType, None, [])) 
+
+let startNodeStacksArray =
+  makeGlobalVar "start_node_stacks_array" (TArray (intType, None, [])) 
+
 let insertInstr (newInstr: instr) (s: stmt) : unit =
   match s.skind with
     Instr instrs ->
@@ -641,8 +657,52 @@ class instrumentClass = object
   end
 end
 
+let makeStartNodeTable (globs: global list) : global list =
+  if List.length !startNodes = 0 then
+    globs
+  else
+    let addrInitInfo = { init = None } in
+    let stackInitInfo = { init = None } in
+    let rec processNode (nodes: node list) (i: int) =
+      match nodes with
+        node :: rest ->
+          let curGlobs, addrInit, stackInit = processNode rest (i + 1) in
+          let fd =
+            match node.fds with
+              Some fd -> fd
+            | None -> E.s (bug "expected fundec")
+          in
+          let stack =
+            makeGlobalVar ("NODE_STACK_" ^ (string_of_int node.nodeid)) intType
+          in
+          GVarDecl (fd.svar, locUnknown) :: curGlobs,
+          ((Index (integer i, NoOffset), SingleInit (mkAddrOf (var fd.svar))) ::
+           addrInit),
+          ((Index (integer i, NoOffset), SingleInit (Lval (var stack))) ::
+           stackInit)
+      | [] -> (GVarDecl (startNodeAddrs, locUnknown) ::
+               GVarDecl (startNodeStacks, locUnknown) ::
+               GVar (startNodeAddrsArray, addrInitInfo, locUnknown) ::
+               GVar (startNodeStacksArray, stackInitInfo, locUnknown) ::
+               []),
+              [Index (integer i, NoOffset), SingleInit zero],
+              [Index (integer i, NoOffset), SingleInit zero]
+    in
+    let newGlobs, addrInit, stackInit = processNode !startNodes 0 in
+    addrInitInfo.init <-
+      Some (CompoundInit (TArray (voidPtrType, None, []), addrInit));
+    stackInitInfo.init <-
+      Some (CompoundInit (TArray (intType, None, []), stackInit));
+    let file = { fileName = "startnode.h"; globals = newGlobs;
+                 globinit = None; globinitcalled = false; } in
+    let channel = open_out file.fileName in
+    dumpFile defaultCilPrinter channel file;
+    close_out channel;
+    GText ("#include \"" ^ file.fileName ^ "\"") :: globs
+
 let instrumentProgram (f: file) : unit =
   (* Add function prototypes. *)
+  f.globals <- makeStartNodeTable f.globals;
   f.globals <- GText ("#include \"stack.h\"") ::
                GVarDecl (initFun, locUnknown) ::
                GVarDecl (beforeFun, locUnknown) ::
@@ -657,9 +717,16 @@ let instrumentProgram (f: file) : unit =
   match mainNode.fds with
     Some fdec ->
       let arg1 = integer (List.length !blockingPoints) in
-      let newStmt =
-        mkStmtOneInstr (Call (None, Lval (var initFun), [arg1], locUnknown))
+      let initInstr = Call (None, Lval (var initFun), [arg1], locUnknown) in
+      let addrsInstr =
+        Set (var startNodeAddrs, StartOf (var startNodeAddrsArray),
+             locUnknown)
       in
+      let stacksInstr =
+        Set (var startNodeStacks, StartOf (var startNodeStacksArray),
+             locUnknown)
+      in
+      let newStmt = mkStmt (Instr [addrsInstr; stacksInstr; initInstr]) in
       fdec.sbody.bstmts <- newStmt :: fdec.sbody.bstmts;
       addCall mainNode (getFunctionNode initFun.vname) None
   | None ->
@@ -678,7 +745,7 @@ let feature : featureDescr =
       gatherPragmas f;
       makeFunctionCallGraph f;
       markBlockingFunctions ();
-      makeAndDumpBlockingGraphs ();
+      (* makeAndDumpBlockingGraphs (); *)
       instrumentProgram f;
       dumpFunctionCallGraphToFile ());
     fd_post_check = true;
