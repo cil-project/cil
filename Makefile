@@ -219,11 +219,33 @@ testallpcc: $(EXECUTABLE)$(EXE) $(TVEXE) $(SAFECLIB) $(SAFEMAINLIB)
              TRANSLF_OTHERS="C:$(SAFECLIB) C:$(SAFEMAINLIB)" \
 	     defaulttarget 
 
+testallspj: $(EXECUTABLE)$(EXE) $(TVEXE) $(SAFECLIB) $(SAFEMAINLIB) 
+	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.o
+	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.exe
+	make -C $(PCCDIR) \
+             CC="$(SAFECC) --keep=$(CILDIR)/test/PCCout $(CONLY)" \
+             USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
+             COMPILER=$(PCCCOMP) \
+             ENGINE_OTHERS="C:$(SAFECLIB) C:$(SAFEMAINLIB)" \
+             TRANSLF_OTHERS="C:$(SAFECLIB) C:$(SAFEMAINLIB)" \
+	     defaulttarget 
+
 runpcc:
 ifdef _GNUCC
 	rm $(PCCDIR)/bin/*_MSVC*
 endif
 	cd $(PCCDIR)/test; test.cmd fact --save-temps=pccout --gory
+
+
+SPJDIR=C:/Necula/Source/Touchstone/test
+ifndef RELEASE
+SPJARG += --pccdebug
+endif
+runspj:
+ifdef _GNUCC
+	rm $(PCCDIR)/bin/*_MSVC*
+endif
+	cd $(SPJDIR); spj Arith/Fact.java --gory $(SPJARG) --pcchome=$(PCCDIR)
 
 ############ Small tests
 SMALL1=test/small1
