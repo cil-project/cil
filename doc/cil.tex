@@ -1760,11 +1760,12 @@ should be easy.)
   return x == (1 && x);
 \end{cilcode}
 
-\item Why does the following code return 0? (Answer: because \t{sizeof} is
-unsigned, thus the result of the subtraction is unsigned, thus the shift is logical.)
+\item Why does the following code return 0 and not -1? (Answer: because
+\t{sizeof} is unsigned, thus the result of the subtraction is unsigned, thus
+the shift is logical.)
 
 \begin{cilcode}[local]
- return ((1 - sizeof(int)) >> 4);
+ return ((1 - sizeof(int)) >> 32);
 \end{cilcode}
 
 \item Scoping rules can be tricky. This function returns 5.
@@ -1958,7 +1959,7 @@ int __attribute__ ((__mode__ (  __DI__ ))) i64;
 \begin{enumerate}
 \item Why does the following code return 0 and not -1? (Answer: because of a
 bug in Microsoft Visual C. It thinks that the shift is unsigned just because
-the second operator is unsigned. CIL reproduces this bug for MSVC.)
+the second operator is unsigned. CIL reproduces this bug when in MSVC mode.)
 
 \begin{verbatim}
  return -3 >> (8 * sizeof(int));
@@ -1987,11 +1988,12 @@ return a.x + a.y + a.z + a.u + a.v;
 
 \section{Authors}
 
- CIL was developed starting from Hugues Casse's \t{frontc} front-end for C
-although all the files from the \t{frontc} distribution have been changed very
-extensively. The main author is \ahref{mailto:necula@cs.berkeley.edu}{George
-Necula}, with significant contributions from
-\ahref{mailto:smcpeak@cs.berkeley.edu}{Scott McPeak},
+ The CIL parser was developed starting from Hugues Casse's \t{frontc}
+front-end for C although all the files from the \t{frontc} distribution have
+been changed very extensively. The intermediate language and the elaboration
+stage are all written from scratch. The main author is
+\ahref{mailto:necula@cs.berkeley.edu}{George Necula}, with significant
+contributions from \ahref{mailto:smcpeak@cs.berkeley.edu}{Scott McPeak},
 \ahref{mailto:weimer@cs.berkeley.edu}{Westley Weimer}, Raymond To and Aman
 Bhargava.
 

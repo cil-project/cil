@@ -482,6 +482,10 @@ $TEST->add2TestsFail("testrun/failprintf4", "", "Failure: type mismatch");
 $TEST->add2TestsFail("testrun/failprintf5", "", 
                      "Failure: Non-terminated string");
 $TEST->add2TestsFail("testrun/failprintf6", "", "Failure: type mismatch");
+$TEST->add2TestsFail("testrun/demo1", "", "Failure: Ubound");
+$TEST->add2TestsFail("testrun/demo2", "", "Failure: Ubound");
+$TEST->add2TestsFail("testrun/demo3", "", "Failure: Ubound");
+$TEST->add2TestsFail("testrun/demo4", "", "Failure: Lbound");
 
 $TEST->add2TestsFail("testmodel/noproto1", "", "Function pointer");
 $TEST->add2TestsFail("testmodel/noproto2", "", "Failure: Non-pointer");
