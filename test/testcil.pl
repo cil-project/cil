@@ -147,6 +147,7 @@ $TEST->add3Tests("test/li1", "_GNUCC=1");
 $TEST->add3Tests("test/list");
 $TEST->add3Tests("test/pointers");
 $TEST->add3Tests("test/printf", "", @runpattern);
+$TEST->add3Tests("test/printf_const", "", @runpattern);
 $TEST->add3Tests("testrun/vararg1");
 $TEST->add3Tests("testrun/vararg2");
 $TEST->add3Tests("testrun/vararg3");
