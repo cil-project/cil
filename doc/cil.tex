@@ -1669,9 +1669,9 @@ message is generated for all groups for whom no member patch was used. We use
 this mechanism to receive notice when the patch triggers are out-dated with
 respect to the new include files. 
 \item \t{system=sysname} - will only consider this pattern on a given
-operating system. The ``sysname'' is are reported by the ``\$\^O'' variable in
-Perl. For Windows use ``cygwin'' and for Linux use ``linux'' (capitalization
-matters).
+operating system. The ``sysname'' is reported by the ``\$\^O'' variable in
+Perl, except that Windows is always considered to have sysname
+``cygwin.'' For Linux use ``linux'' (capitalization matters).
 \item \t{ateof} - In this case the patterns are ignored and the replacement
 text is placed at the end of the patched file. Use the \t{file} flag if you
 want to restrict the files in which this replacement is performed. 
@@ -2045,6 +2045,14 @@ Necula}.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf December 8, 2002}: Fixed a few bugs in the lexer and parser
+  relating to hex and octal escapes in string literals.  Also fixed
+  the dependencies between the lexer and parser.
+\item {\bf December 5, 2002}: Fixed visitor bugs that were causing
+  some attributes not to be visited and some queued instructions to be
+  dropped.
+\item {\bf December 3, 2002}: Added a transformation to catch stack
+  overflows.  Fixed the heapify transformation.
 \item {\bf October 14, 2002}: CIL is now available under the BSD license
 (see the License section or the file LICENSE).  {\bf Released version 1.0.4}
 \item {\bf October 9, 2002}: More FreeBSD configuration changes, support

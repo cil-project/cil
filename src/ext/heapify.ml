@@ -66,7 +66,8 @@ let rec containsArray (t:typ) : bool =  (* does this type contain an array? *)
    false
 
 
-class heapifyModifyVisitor big_struct big_struct_fields varlist free = object
+class heapifyModifyVisitor big_struct big_struct_fields varlist free 
+    (currentFunction: fundec) = object(self)
   inherit nopCilVisitor  (* visit lvalues and statements *)
   method vlval l = match l with (* should we change this one? *)
     Var(vi),vi_offset when List.mem_assoc vi varlist -> (* check list *)
@@ -77,10 +78,20 @@ class heapifyModifyVisitor big_struct big_struct_fields varlist free = object
       ChangeTo(new_lval)
   | _ -> DoChildren (* ignore other lvalues *)
   method vstmt s = match s.skind with (* also rewrite the return *)
-    Return(_,loc) -> let free_stmt = mkStmt 
-	(Instr [Call(None,free,[Lval(big_struct,NoOffset)],loc)]) in
-    let new_block = mkBlock [free_stmt ; s] in (* call free, then return *)
-    ChangeTo(mkStmt (Block(new_block)))  
+    Return(None,loc) -> 
+      let free_instr = Call(None,free,[Lval(big_struct,NoOffset)],loc) in
+      self#queueInstr [free_instr]; (* insert free_instr before the return *)
+      DoChildren
+  | Return(Some exp ,loc) ->
+      (* exp may depend on big_struct, so evaluate it before calling free. 
+       * This becomes:  tmp = exp; free(big_struct); return tmp; *)
+      let exp_new = visitCilExpr (self :> cilVisitor) exp in
+      let ret_tmp = makeTempVar currentFunction (typeOf exp_new) in
+      let eval_ret_instr = Set(var ret_tmp, exp_new, loc) in
+      let free_instr = Call(None,free,[Lval(big_struct,NoOffset)],loc) in
+      (* insert the instructions before the return *)
+      self#queueInstr [eval_ret_instr; free_instr];
+      ChangeTo (mkStmt (Return(Some(Lval(var ret_tmp)), loc)))
   | _ -> DoChildren (* ignore other statements *)
 end
     
@@ -103,8 +114,8 @@ class heapifyAnalyzeVisitor f alloc free = object
                 (* each local var becomes a field *)
 		(fun (vi,i) -> vi.vname,vi.vtype,None,[],locUnknown) !varlist) [] in
         let vi = makeLocalVar fundec name (TPtr(TComp(ci,[]),[])) in
-        let modify = new heapifyModifyVisitor (Var(vi)) 
-	    ci.cfields !varlist free in (* rewrite accesses to local vars *)
+        let modify = new heapifyModifyVisitor (Var(vi)) ci.cfields
+	    !varlist free fundec in (* rewrite accesses to local vars *)
         fundec.sbody <- visitCilBlock modify fundec.sbody ;
         let alloc_stmt = mkStmt (* allocate the big struct on the heap *)
             (Instr [Call(Some(Var(vi),NoOffset), alloc, 
