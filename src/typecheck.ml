@@ -76,7 +76,7 @@ and kind_of_ptr_offset o (a,b,c) =
   | Index(e,o') -> begin
       match a with
         Some(tau) -> let a',b',_ = kind_of_ptr_type tau in 
-										 kind_of_ptr_offset o' (a',b',b)
+                     kind_of_ptr_offset o' (a',b',b)
       | None -> kind_of_ptr_offset o' (None,Unknown,Unknown)
       end
 
@@ -157,9 +157,9 @@ let checking = ref true
 (* Euclid's algorithm for the GCD *)
 let rec gcd a b = 
   if b > a then gcd b a 
-	else match a mod b with
-		0 -> b
-	| r -> gcd b r 
+  else match a mod b with
+    0 -> b
+  | r -> gcd b r 
 
 (* Make sure casts/assignments work correctly. 
  * 
@@ -173,17 +173,17 @@ let check_cast (context : Pretty.doc) to_type from_exp = begin
   try begin
     let to_target, to_kind, _ = kind_of_ptr_type to_type in
     let from_target, from_kind, _ = kind_of_ptr_exp from_exp in 
-		let check_compat p1 p2 =
-			let _,p1kind,_ = kind_of_ptr_type p1 in
-			let _,p2kind,_ = kind_of_ptr_type p2 in
-			if p1kind <> p2kind then begin
-				ignore (warn 
-			("typecheck:@?inner pointer kind mismatch@!%a ptr %a@!%a ptr %a@!%a")
+    let check_compat p1 p2 =
+      let _,p1kind,_ = kind_of_ptr_type p1 in
+      let _,p2kind,_ = kind_of_ptr_type p2 in
+      if p1kind <> p2kind then begin
+        ignore (warn 
+      ("typecheck:@?inner pointer kind mismatch@!%a ptr %a@!%a ptr %a@!%a")
             d_opointerkind p1kind d_type p1
             d_opointerkind p2kind d_type p2
             Pretty.insert context) ;
-			end
-		in 
+      end
+    in 
     let to_target, from_target = (match to_target, from_target with
       Some(a),Some(b) -> unrollType a,unrollType b
     | Some(a),None    -> unrollType a,(TVoid([]))
@@ -192,8 +192,8 @@ let check_cast (context : Pretty.doc) to_type from_exp = begin
     in 
     (* check a cast from one pointer to another *)
     let okay = 
-		Stats.time "typecheck switch" (fun () -> 
-		match from_kind, to_kind with
+    Stats.time "typecheck switch" (fun () -> 
+    match from_kind, to_kind with
       Safe, Safe ->
         Type.subtype ~compat:check_compat to_target from_target
 
@@ -210,7 +210,7 @@ let check_cast (context : Pretty.doc) to_type from_exp = begin
     | FSeqN, Safe 
     | String, Safe
     | ROString, Safe 
-		| Ptrnode.Index, Safe -> 
+    | Ptrnode.Index, Safe -> 
         let n = (Type.bytesSizeOf(to_target) / 
                  Type.bytesSizeOf(from_target)) + 1 in
         Type.subtype ~compat:check_compat to_target 
@@ -222,12 +222,12 @@ let check_cast (context : Pretty.doc) to_type from_exp = begin
     | Seq, FSeq  
     | FSeq, Seq 
 
-		| Ptrnode.Index, Ptrnode.Index	(* Index involved *)
-		| Ptrnode.Index, Seq
-		| Ptrnode.Index, FSeq
-		| Ptrnode.Index, SeqN
-		| Ptrnode.Index, FSeqN
-		| Ptrnode.Index, String
+    | Ptrnode.Index, Ptrnode.Index  (* Index involved *)
+    | Ptrnode.Index, Seq
+    | Ptrnode.Index, FSeq
+    | Ptrnode.Index, SeqN
+    | Ptrnode.Index, FSeqN
+    | Ptrnode.Index, String
 
     | SeqN, Seq    (* cast away the N *)
     | FSeqN, FSeq 
@@ -244,10 +244,10 @@ let check_cast (context : Pretty.doc) to_type from_exp = begin
     | String, SeqN 
     | String, FSeqN 
 
-		| SeqN, String	(* string dest *)
-		| FSeqN, String	
-		| SeqN, ROString	
-		| FSeqN, ROString	
+    | SeqN, String  (* string dest *)
+    | FSeqN, String 
+    | SeqN, ROString  
+    | FSeqN, ROString 
 
     | ROString, ROString (* string-string cast *)
     | String, String 
@@ -256,9 +256,9 @@ let check_cast (context : Pretty.doc) to_type from_exp = begin
           (match to_target with TVoid _ -> true | _ -> false) ||  
           let from_size = Type.bytesSizeOf(from_target) in
           let to_size = Type.bytesSizeOf(to_target) in
-					let the_gcd = gcd from_size to_size in 
-					let from_factor = to_size / the_gcd in 
-					let to_factor = from_size / the_gcd in 
+          let the_gcd = gcd from_size to_size in 
+          let from_factor = to_size / the_gcd in 
+          let to_factor = from_size / the_gcd in 
           Type.equal ~compat:check_compat
             (TArray(from_target, Some(integer from_factor), []))
             (TArray(to_target, Some(integer to_factor), [])) 
@@ -269,18 +269,18 @@ let check_cast (context : Pretty.doc) to_type from_exp = begin
     | SeqN, ROString
     | FSeqN, ROString -> true (* always OK *)
 
-		| String, Wild -> begin (* constant strings like "hello" are OK *)
-												match from_exp with
-													Const(CStr(_)) -> true
-												| _ -> false
-												end
+    | String, Wild -> begin (* constant strings like "hello" are OK *)
+                        match from_exp with
+                          Const(CStr(_)) -> true
+                        | _ -> false
+                        end
 
     | Unknown, _ when isArithmeticType from_type &&
                  not (isArithmeticType to_type) -> 
         if not (isZero from_exp) && 
-					(to_kind = Safe || to_kind = String || to_kind = ROString) then 
+          (to_kind = Safe || to_kind = String || to_kind = ROString) then 
           ignore (warn 
-					("typecheck:@?non-zero value %a of type %a cast into %a type %a@!%a")
+          ("typecheck:@?non-zero value %a of type %a cast into %a type %a@!%a")
             d_exp from_exp d_type from_type 
             d_opointerkind to_kind 
             d_type to_type Pretty.insert context) ;

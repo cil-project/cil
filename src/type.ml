@@ -12,8 +12,8 @@ type layout =
   | Array of (layout list) * int
   | Union of ((layout list) list) * int (* total union size in bytes *)
   | Pointer of typ (* original CIL pointer type
-										* either TPtr or TFun *)
-	| Anything of int (* length in bytes, matches anything *)
+                    * either TPtr or TFun *)
+  | Anything of int (* length in bytes, matches anything *)
 
 let bytesSizeOf tau = 
   try
@@ -43,17 +43,17 @@ let rec convert_type_to_layout_list (t : typ) =
   | TArray(tau,Some(e),_) when e = one -> convert_type_to_layout_list tau 
   | TArray(tau,Some(e),_) -> 
       let ll = convert_type_to_layout_list tau in
-			let e = constFold true e in 
+      let e = constFold true e in 
       let len = begin match isInteger e with
         Some(i64) -> Int64.to_int i64
       | None -> 
           E.s (E.unimp 
-						"type: convert_type_to_layout_list: non-const length %a" 
-						d_type t)
+            "type: convert_type_to_layout_list: non-const length %a" 
+            d_type t)
       end in [Array(ll,len)]
   | TArray(tau,None,_) -> 
       E.s (E.unimp "type: convert_type_to_layout_list: empty array %a"
-						d_type t)
+            d_type t)
   | TComp(ci,al) when ci.cstruct ->
       let total_size = (bytesSizeOf t) in
       let seen_size = ref 0 in 
@@ -102,10 +102,10 @@ let rec strip_scalar_prefix (ll : layout list) i =
     [] -> false, [] 
   | Scalar(j) :: tl -> (strip_scalar_prefix tl (i - j))
   | Anything(j) :: tl -> 
-			if (i >= j) then (* eat up the entire "Anything" *)
-				(strip_scalar_prefix tl (i - j))
-			else
-				true, (Anything(j - i) :: tl)
+      if (i >= j) then (* eat up the entire "Anything" *)
+        (strip_scalar_prefix tl (i - j))
+      else
+        true, (Anything(j - i) :: tl)
   | Array(inner_ll,0) :: tl -> (strip_scalar_prefix tl i)
   | Array(inner_ll,1) :: tl -> (strip_scalar_prefix (inner_ll @ tl) i)
   | Array(inner_ll,j) :: tl -> 
@@ -204,11 +204,11 @@ and subtype ?(compat=(fun _ _ -> ())) ?(failure=(fun _ _ -> ())) small big =
         global_eq := new_eq_classes ;
         Hashtbl.add global_subtype (small,big) true
       end else begin
-			(*
+      (*
         Pretty.printf "subtype: %a %a failed because@!--> %a@!--> %a@!"
           d_type small d_type big 
           d_layout_list l1 d_layout_list l2 ; 
-					*)
+          *)
         () 
       end ; 
       answer || (big = small) (* fall back on ML equality *) 
@@ -218,8 +218,8 @@ and subtype ?(compat=(fun _ _ -> ())) ?(failure=(fun _ _ -> ())) small big =
       (big = small) (* fall back on ML equality *) 
   end
 and equal_types tau1 tau2 (assumed_eq_classes : TypeUF.t) compat failure f1 f2=
-	let tau1 = unrollType tau1 in
-	let tau2 = unrollType tau2 in
+  let tau1 = unrollType tau1 in
+  let tau2 = unrollType tau2 in
   let l1 = convert_type_to_layout_list tau1 in
   let l2 = convert_type_to_layout_list tau2 in
   let new_eq_classes = TypeUF.make_equal assumed_eq_classes tau1 tau2 in
@@ -233,13 +233,13 @@ and equal_types tau1 tau2 (assumed_eq_classes : TypeUF.t) compat failure f1 f2=
  *   failure f1 f2 // call 'failure f1 f2' if they are not equal
  *)
 and equal_ll l1 l2 (aec : TypeUF.t) subtyping compat failure f1 f2 =
-	let final_answer, aec = 
+  let final_answer, aec = 
   match l1, l2 with
     [], [] -> (true,aec)
   | [], _ when subtyping = LeftCanEndEarly -> (true, aec)
   | _, [] when subtyping = RightCanEndEarly -> (true, aec)
-	| [], _ 
-	| _, [] -> failure f1 f2 ; (false, aec)
+  | [], _ 
+  | _, [] -> failure f1 f2 ; (false, aec)
 
   | (Scalar(i) :: tl), _ -> 
       let new_lhs = tl in
@@ -252,19 +252,19 @@ and equal_ll l1 l2 (aec : TypeUF.t) subtyping compat failure f1 f2 =
   | (Anything(i) :: tl), _ -> 
       let new_lhs = tl in
       let _, new_rhs = strip_scalar_prefix l2 i in
-			equal_ll new_lhs new_rhs aec subtyping compat failure f1 f2 
+      equal_ll new_lhs new_rhs aec subtyping compat failure f1 f2 
 
   (* array on left *)
   | (Array(inner_ll1,i1) :: tl1) , _ ->
-			let new_lhs = 
-				if i1 = 0 then
-					tl1 
-				else if i1 = 1 then 
-					inner_ll1 @ tl1 
-				else 
-					inner_ll1 @ (Array(inner_ll1,i1-1) :: tl1)
-			in 
-			equal_ll new_lhs l2 aec subtyping compat failure f1 f2 
+      let new_lhs = 
+        if i1 = 0 then
+          tl1 
+        else if i1 = 1 then 
+          inner_ll1 @ tl1 
+        else 
+          inner_ll1 @ (Array(inner_ll1,i1-1) :: tl1)
+      in 
+      equal_ll new_lhs l2 aec subtyping compat failure f1 f2 
 
   (* union on left *)
   | (Union(lll,ts) :: tl1) , _ -> 
@@ -286,58 +286,58 @@ and equal_ll l1 l2 (aec : TypeUF.t) subtyping compat failure f1 f2 =
       equal_ll l2 l1 aec (flip_subtyping subtyping) compat failure f1 f2
 
   | (Pointer(tau1) :: tl1) , (Pointer(tau2) :: tl2) -> 
-			(* already unrolled *)
+      (* already unrolled *)
       if tau1 = tau2 || TypeUF.check_equal aec tau1 tau2 then begin
-				compat tau1 tau2 ; 
+        compat tau1 tau2 ; 
         equal_ll tl1 tl2 aec subtyping compat failure f1 f2 
       end else begin
         (* first, check under the pointers *)
-				match tau1, tau2 with
+        match tau1, tau2 with
 
-				| TPtr(TFun(t1,vlo1,_,_),_), 
-					TPtr(TFun(t2,vlo2,_,_),_)  (* two fun ptrs *)
-				| TFun(t1,vlo1,_,_), TFun(t2,vlo2,_,_) -> (* two fun ptrs *)
-						let aec = ref aec in 
-						let a1, nec1 = equal_types t1 t2 !aec compat failure tau1 tau2 in
-						aec := nec1 ; 
-						let al1 = argsToList vlo1 in
-						let al2 = argsToList vlo2 in
-						let a2 = 
-							if List.length al1 <> List.length al2 then begin (* failure *)
-								failure tau1 tau2 ;
-								false
-							end else begin
-								(* check every argument *)
-								let answer = ref true in
-								List.iter2 (fun arg1 arg2 ->
-									let ans, nec2 = equal_types arg1.vtype arg2.vtype 
-										!aec compat failure tau1 tau2 in
-									aec := nec2 ;
-									answer := ans && !answer ;
-								) al1 al2 ; 
-								!answer
-							end
-						in (a1 && a2),!aec
+        | TPtr(TFun(t1,vlo1,_,_),_), 
+          TPtr(TFun(t2,vlo2,_,_),_)  (* two fun ptrs *)
+        | TFun(t1,vlo1,_,_), TFun(t2,vlo2,_,_) -> (* two fun ptrs *)
+            let aec = ref aec in 
+            let a1, nec1 = equal_types t1 t2 !aec compat failure tau1 tau2 in
+            aec := nec1 ; 
+            let al1 = argsToList vlo1 in
+            let al2 = argsToList vlo2 in
+            let a2 = 
+              if List.length al1 <> List.length al2 then begin (* failure *)
+                failure tau1 tau2 ;
+                false
+              end else begin
+                (* check every argument *)
+                let answer = ref true in
+                List.iter2 (fun arg1 arg2 ->
+                  let ans, nec2 = equal_types arg1.vtype arg2.vtype 
+                    !aec compat failure tau1 tau2 in
+                  aec := nec2 ;
+                  answer := ans && !answer ;
+                ) al1 al2 ; 
+                !answer
+              end
+            in (a1 && a2),!aec
 
-				| TFun _ , _  (* function pointer and non-function ptr *)
-				| _, TFun _ -> begin
-										failure f1 f2 ;
-										let _, nec = (* check the rest anyway *)
-											equal_ll tl1 tl2 aec subtyping compat failure f1 f2 in
-										(false, nec)
-										end
+        | TFun _ , _  (* function pointer and non-function ptr *)
+        | _, TFun _ -> begin
+                    failure f1 f2 ;
+                    let _, nec = (* check the rest anyway *)
+                      equal_ll tl1 tl2 aec subtyping compat failure f1 f2 in
+                    (false, nec)
+                    end
 
-				| TPtr(inner1,_), TPtr(inner2,_) -> begin (* two non-fun pointers *)
-										compat tau1 tau2 ; 
-										let answer, nec = equal_types tau1 tau2 
-											aec compat failure inner1 inner2 in
-										let answer', nec' = (* check the rest anyway *)
-											equal_ll tl1 tl2 nec subtyping compat failure f1 f2 in
-										((answer' && answer),nec')
-									end
+        | TPtr(inner1,_), TPtr(inner2,_) -> begin (* two non-fun pointers *)
+                    compat tau1 tau2 ; 
+                    let answer, nec = equal_types tau1 tau2 
+                      aec compat failure inner1 inner2 in
+                    let answer', nec' = (* check the rest anyway *)
+                      equal_ll tl1 tl2 nec subtyping compat failure f1 f2 in
+                    ((answer' && answer),nec')
+                  end
 
-				| _, _ -> E.s (E.bug "type: unexpected pointers %a and %a"
-					d_type tau1 d_type tau2) 
+        | _, _ -> E.s (E.bug "type: unexpected pointers %a and %a"
+          d_type tau1 d_type tau2) 
       end
 
   | (_ :: tl1), (_ :: tl2) -> (* NOT EQUAL *)
@@ -346,10 +346,10 @@ and equal_ll l1 l2 (aec : TypeUF.t) subtyping compat failure f1 f2 =
       let answer, new_aec = 
         equal_ll tl1 tl2 aec subtyping compat failure f1 f2 in
       (false, new_aec) 
-	in
-	(* ignore (E.warn "subtype: %b@!%a@!%a"
-		final_answer d_layout_list l1 d_layout_list l2) ;*)
-	(final_answer, aec)
+  in
+  (* ignore (E.warn "subtype: %b@!%a@!%a"
+    final_answer d_layout_list l1 d_layout_list l2) ;*)
+  (final_answer, aec)
 
 (* Debugging Information *)
 let global_eq_classes () = 
