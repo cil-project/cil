@@ -151,18 +151,20 @@ fi
 AC_ARG_VAR(gccdir, [The directory containing the gcc executable])
 AC_MSG_CHECKING([for gcc directory])
 if test "x${gccdir}" = "x" ;then
-  if type "gcc" >/dev/null 2>&1 ;then
+  # sm: is there a reason the next line used to use 'type' explicitly,
+  # instead of calling binaryExists?  if so it should be commented...
+  if binaryExists "gcc" ;then
     # Grab the directory they are in
     gccdir=`dirname \`which gcc\``
   else
     AC_MSG_ERROR([Cannot find gcc in your PATH])
   fi
 fi
-if ! type "${gccdir}/gcc"  >/dev/null 2>&1 ;then
+if ! binaryExists "${gccdir}/gcc" ;then
  AC_MSG_ERROR([Cannot find gcc in ${gccdir}])
 fi
 AC_MSG_RESULT(found in $gccdir)
-GCCDIR=$gccdir
+GCCDIR="$gccdir"
 
 
 # ----------- platform-specific code -------------
