@@ -565,7 +565,6 @@ let sprint ~(width : int)  doc : string =
   activeMarkups := [];
   Buffer.contents buf
 
-let a =3    
 
                                         (* The rest is based on printf.ml *)
 external format_int: string -> int -> string = "format_int"

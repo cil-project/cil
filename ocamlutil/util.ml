@@ -193,19 +193,21 @@ type 'a growArray = {
     mutable gaData: 'a array;
   } 
 
-let growTheArray (ga: 'a growArray) (toidx: int) (why: string) : unit = 
-  let len = Array.length ga.gaData in
+let growTheArray (ga: 'a growArray) (len: int) 
+                 (toidx: int) (why: string) : unit = 
   if toidx >= len then begin
+    (* Grow the array by 50% *)
+    let newlen = toidx + 1 + len  / 2 in
 (*
     ignore (E.log "growing an array to idx=%d (%s)\n" toidx why);
 *)
     let data' = begin match ga.gaFill with
       Elem x ->
 
-	let data'' = Array.create (toidx + 1) x in
+	let data'' = Array.create newlen x in
 	Array.blit ga.gaData 0 data'' 0 len;
 	data''
-    | Susp f -> Array.init (toidx + 1)
+    | Susp f -> Array.init newlen
 	  (fun i -> if i < len then ga.gaData.(i) else f i)
     end
     in
@@ -213,11 +215,16 @@ let growTheArray (ga: 'a growArray) (toidx: int) (why: string) : unit =
   end
 
 let getReg (ga: 'a growArray) (r: int) : 'a = 
-  growTheArray ga r "get";
+  let len = Array.length ga.gaData in
+  if r >= len then 
+    growTheArray ga len r "get";
+
   ga.gaData.(r)
 
 let setReg (ga: 'a growArray) (r: int) (what: 'a) : unit = 
-  growTheArray ga r "set";
+  let len = Array.length ga.gaData in
+  if r >= len then 
+    growTheArray ga len r "set";
   if r > ga.gaMaxInitIndex then ga.gaMaxInitIndex <- r;
   ga.gaData.(r) <- what
 
