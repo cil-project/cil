@@ -53,6 +53,9 @@ let debugGlobal = false
 (* Leave a certain global alone. Use a negative number to disable. *)
 let nocil: int ref = ref (-1)
 
+(* Indicates whether we're allowed to duplicate small chunks. *)
+let allowDuplication: bool ref = ref true
+
 (* ---------- source error message handling ------------- *)
 let lu = locUnknown
 let cabslu = {lineno = -10; filename = "cabs lu"; byteno = -10;}
@@ -760,6 +763,8 @@ module BlockChunk =
          * it does not have cases *)
     let duplicateChunk (c: chunk) = (* raises Failure if you should not 
                                      * duplicate this chunk *)
+      if not !allowDuplication then
+        raise (Failure "cannot duplicate: disallowed by user");
       if c.cases != [] then raise (Failure "cannot duplicate: has cases") else
       let pCount = ref (List.length c.postins) in
       { stmts = 

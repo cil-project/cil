@@ -50,6 +50,7 @@ type blockkind =
 (* For each function we have a node *)
 type node =
 {
+  nodeid: int;
   name: string;
   mutable scanned: bool;
   mutable expand: bool;
@@ -70,11 +71,39 @@ type blockpt =
   mutable leadsto: blockpt list;
 }
 
+
+(* Fresh ids for each node. *)
+let curNodeNum : int ref = ref 0
+let getFreshNodeNum () : int =
+  let num = !curNodeNum in
+  incr curNodeNum;
+  num
+
 (* Initialize a node. *)
-let newNode (name: string) : node =
-  { name = name; fds = None; scanned = false; expand = false;
+let newNode (name: string) (appendNum: bool) : node =
+  let id = getFreshNodeNum () in
+  { nodeid = id; name = if appendNum then name ^ (string_of_int id) else name;
+    fds = None; scanned = false; expand = false;
     bkind = NoBlock; origkind = NoBlock;
     preds = []; succs = []; predstmts = []; }
+
+
+(* My type signature ignores attributes and function pointers. *)
+let myTypeSig (t: typ) : typsig =
+  let rec removeFunPtrs (ts: typsig) : typsig =
+    match ts with
+      TSPtr (TSFun _, a) ->
+        TSPtr (TSBase voidType, a)
+    | TSPtr (base, a) ->
+        TSPtr (removeFunPtrs base, a)
+    | TSArray (base, e, a) ->
+        TSArray (removeFunPtrs base, e, a)
+    | TSFun (ret, args, v, a) ->
+        TSFun (removeFunPtrs ret, List.map removeFunPtrs args, v, a)
+    | _ -> ts
+  in
+  removeFunPtrs (typeSigWithAttrs (fun _ -> []) t)
+
 
 (* We add a dummy function whose name is "@@functionPointer@@" that is called 
  * at all invocations of function pointers and itself calls all functions 
@@ -87,19 +116,19 @@ let getFunctionNode (n: string) : node =
   Util.memoize 
     functionNodes
     n
-    (fun _ -> newNode n)
+    (fun _ -> newNode n false)
 
 (* We map types to nodes for function pointers *)
 let functionPtrNodes: (typsig, node) Hashtbl.t = Hashtbl.create 113
 let getFunctionPtrNode (t: typ) : node =
   Util.memoize
     functionPtrNodes
-    (typeSig t)
-    (fun _ -> newNode functionPointerName)
+    (myTypeSig t)
+    (fun _ -> newNode functionPointerName true)
 
 
+(*
 (** Dump the function call graph. *)
-let dumpGraph = true
 let dumpFunctionCallGraph (start: node) = 
   Hashtbl.iter (fun _ x -> x.scanned <- false) functionNodes;
   let rec dumpOneNode (ind: int) (n: node) : unit = 
@@ -125,6 +154,29 @@ let dumpFunctionCallGraph (start: node) =
   in
   dumpOneNode 0 start;
   output_string !E.logChannel "\n\n"
+*)
+
+let dumpFunctionCallGraphToFile () = 
+  let channel = open_out "graph" in
+  let dumpNode _ (n: node) : unit =
+    let first = ref true in
+    let dumpSucc (n: node) : unit =
+      if !first then
+        first := false
+      else
+        output_string channel ",";
+      output_string channel n.name
+    in
+    output_string channel (string_of_int n.nodeid);
+    output_string channel ":";
+    output_string channel n.name;
+    output_string channel ":";
+    List.iter dumpSucc n.succs;
+    output_string channel "\n";
+  in
+  Hashtbl.iter dumpNode functionNodes;
+  Hashtbl.iter dumpNode functionPtrNodes;
+  close_out channel
   
 
 let addCall (callerNode: node) (calleeNode: node) (sopt: stmt option) =
@@ -229,7 +281,7 @@ let findBlockingPointEdges (bpt: blockpt) : unit =
   let seenStmts = Hashtbl.create 117 in
   let worklist = Queue.create () in
   Queue.add (Next (bpt.point, getFunctionNode bpt.infun)) worklist;
-  while not (Queue.is_empty worklist) do
+  while Queue.length worklist > 0 do
     let act = Queue.take worklist in
     match act with
       Process (curStmt, curNode) -> begin
@@ -323,7 +375,7 @@ let makeBlockingGraph (start: node) =
   Queue.clear blockingPointsNew;
   Hashtbl.clear blockingPointsHash;
   ignore (getBlockPt startStmt start.name start.name);
-  while not (Queue.is_empty blockingPointsNew) do
+  while Queue.length blockingPointsNew > 0 do
     let bpt = Queue.take blockingPointsNew in
     findBlockingPointEdges bpt;
   done
@@ -373,20 +425,22 @@ let instrumentBlockingPoints () =
        let arg2 = integer (List.length bpt.leadsto) in
        let call = Call (None, Lval (var beforeFun),
                         [arg1; arg2], locUnknown) in
-       insertInstr call bpt.point)
+       insertInstr call bpt.point;
+       addCall (getFunctionNode bpt.infun)
+               (getFunctionNode beforeFun.vname) None)
     !blockingPoints
 
 
 let startNodes : node list ref = ref []
 
 let makeAndDumpBlockingGraphs () : unit =
-  if List.length !startNodes <> 1 then
-    E.s (unimp "We can only handle exactly one start node right now.\n");
+  if List.length !startNodes > 1 then
+    E.s (unimp "We can't handle more than one start node right now.\n");
   List.iter
     (fun n ->
        markYieldPoints n;
+       (*dumpFunctionCallGraph n;*)
        makeBlockingGraph n;
-       dumpFunctionCallGraph n;
        dumpBlockingGraph ();
        instrumentBlockingPoints ())
     !startNodes
@@ -437,28 +491,113 @@ let makeFunctionCallGraph (f: Cil.file) : unit =
           let vis = new findCallsVisitor curNode in
           ignore (visitCilBlock vis fdec.sbody)
 
-      | GVarDecl(vi, _) ->
+      | GVarDecl(vi, _) when isFunctionType vi.vtype ->
           (* TODO: what if we take the addr of an extern? *)
           markVar vi
 
       | _ -> ())
     f.globals
 
+let funType (ret_t: typ) (args: (string * typ) list) = 
+  TFun(ret_t, 
+      Some (List.map (fun (n,t) -> (n, t, [])) args),
+      false, [])
+
+class instrumentClass = object
+  inherit nopCilVisitor
+
+  val mutable curNode : node ref = ref (getFunctionNode "main")
+
+  method vfunc (fdec: fundec) : fundec visitAction = begin
+    (* Remember the current function. *)
+    curNode := getFunctionNode fdec.svar.vname;
+    (* Add useful locals. *)
+    ignore (makeLocalVar fdec "savesp" voidPtrType);
+    ignore (makeLocalVar fdec "savechunk" voidPtrType);
+    ignore (makeLocalVar fdec "savecurchunk" voidPtrType);
+    (* Add macro for function entry when we're done. *)
+    let addEntryNode (fdec: fundec) : fundec =
+      let node = getFunctionNode fdec.svar.vname in
+      let nodeFun = emptyFunction ("NODE_CALL_"^(string_of_int node.nodeid)) in
+      let nodeCall = Call (None, Lval (var nodeFun.svar), [], locUnknown) in
+      nodeFun.svar.vtype <- funType voidType [];
+      nodeFun.svar.vstorage <- Static;
+      fdec.sbody.bstmts <- mkStmtOneInstr nodeCall :: fdec.sbody.bstmts;
+      fdec
+    in
+    ChangeDoChildrenPost (fdec, addEntryNode)
+  end
+
+  method vstmt (s: stmt) : stmt visitAction = begin
+    begin
+      match s.skind with
+        Instr instrs -> begin
+          let instrumentNode (callNode: node) : unit =
+            (* Make calls to macros. *)
+            let suffix = "_" ^ (string_of_int !curNode.nodeid) ^
+                         "_" ^ (string_of_int callNode.nodeid)
+            in
+            let beforeFun = emptyFunction ("BEFORE_CALL" ^ suffix) in
+            let beforeCall = Call (None, Lval (var beforeFun.svar),
+                                   [], locUnknown) in
+            beforeFun.svar.vtype <- funType voidType [];
+            beforeFun.svar.vstorage <- Static;
+            let afterFun = emptyFunction ("AFTER_CALL" ^ suffix) in
+            let afterCall = Call (None, Lval (var afterFun.svar),
+                                  [], locUnknown) in
+            afterFun.svar.vtype <- funType voidType [];
+            afterFun.svar.vstorage <- Static;
+            (* Insert instrumentation around call site. *)
+            let rec addCalls (is: instr list) : instr list =
+              match is with
+                [call] -> [beforeCall; call; afterCall]
+              | cur :: rest -> cur :: addCalls rest
+              | [] -> E.s (bug "expected list of non-zero length")
+            in
+            s.skind <- Instr (addCalls instrs)
+          in
+          (* If there's a call site here, instrument it. *)
+          let len = List.length instrs in
+          if len > 0 then
+            match List.nth instrs (len - 1) with
+              Call (_, Lval (Var vi, NoOffset), _, _) ->
+              (*
+                if (try String.sub vi.vname 0 10 <> "NODE_CALL_"
+                    with Invalid_argument _ -> true) then
+*)
+                  instrumentNode (getFunctionNode vi.vname)
+            | Call (_, e, _, _) -> (* Calling a function pointer *)
+                instrumentNode (getFunctionPtrNode (typeOf e))
+            | _ -> ()
+          end
+      | _ -> ()
+    end;
+    DoChildren
+  end
+end
+
 let instrumentProgram (f: file) : unit =
   (* Add function prototypes. *)
-  f.globals <- GVarDecl (initFun, locUnknown) ::
+  f.globals <- GText ("#include \"stack.h\"") ::
+               GVarDecl (initFun, locUnknown) ::
                GVarDecl (beforeFun, locUnknown) :: f.globals;
+  (* Add instrumentation to call sites. *)
+  visitCilFile ((new instrumentClass) :> cilVisitor) f;
+  (* Force creation of this node. *)
+  ignore (getFunctionNode beforeFun.vname);
   (* Add initialization call to main(). *)
-  List.iter
-    (function
-       GFun (fdec, _) when fdec.svar.vname = "main" ->
-         let arg1 = integer (List.length !blockingPoints) in
-         let newStmt =
-           mkStmtOneInstr (Call (None, Lval (var initFun), [arg1], locUnknown))
-         in
-         fdec.sbody.bstmts <- newStmt :: fdec.sbody.bstmts
-     | _ -> ())
-    f.globals
+  let mainNode = getFunctionNode "main" in
+  match mainNode.fds with
+    Some fdec ->
+      let arg1 = integer (List.length !blockingPoints) in
+      let newStmt =
+        mkStmtOneInstr (Call (None, Lval (var initFun), [arg1], locUnknown))
+      in
+      fdec.sbody.bstmts <- newStmt :: fdec.sbody.bstmts;
+      addCall mainNode (getFunctionNode initFun.vname) None
+  | None ->
+      E.s (bug "expected main fundec")
+
 
 
 let feature : featureDescr = 
@@ -471,5 +610,6 @@ let feature : featureDescr =
       makeFunctionCallGraph f;
       markBlockingFunctions ();
       makeAndDumpBlockingGraphs ();
-      instrumentProgram f)
+      instrumentProgram f;
+      dumpFunctionCallGraphToFile ())
   } 

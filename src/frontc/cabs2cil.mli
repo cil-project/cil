@@ -40,3 +40,6 @@ val convFile: Cabs.file -> Cil.file
 (* Set this integer to the index of the global to be left in CABS form. Use 
  * -1 to disable *)
 val nocil: int ref
+
+(* Indicates whether we're allowed to duplicate small chunks of code. *)
+val allowDuplication: bool ref

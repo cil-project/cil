@@ -276,6 +276,8 @@ let rec theMain () =
           "test CIL using the give compiler";
     "--nocil", Arg.Int (fun n -> Cabs2cil.nocil := n),
                       "Do not compile to CIL the global with the given index";
+    "--disallowDuplication", Arg.Unit (fun n -> Cabs2cil.allowDuplication := false),
+                      "Prevent small chunks of code from being duplicated";
     "--log", Arg.String (openFile "log" (fun oc -> E.logChannel := oc)),
              "the name of the log file";
     "--out", Arg.String (openFile "output" (fun oc -> outChannel := Some oc)),
