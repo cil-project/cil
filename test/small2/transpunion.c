@@ -9,7 +9,7 @@ typedef union {
   struct BoxedInt *boxedPtr;
 } CompatArgUnion __attribute__((__transparent_union__));
 
-// extern int compatFunc(int, CompatArgUnion); // This does not yet work
+extern int compatFunc(int, CompatArgUnion); // This does not yet work
 
 int compatFunc(int firstArg, CompatArgUnion secondArg)
 {

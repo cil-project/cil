@@ -878,13 +878,58 @@ HEALTHEXTRA=$(CILDIR)/$(SAFEMAINLIB)
 else
 HEALTHEXTRA=
 endif
-health : defaulttarget mustbegcc
+ifdef _MSVC
+HEALTHARGS = _MSVC=1
+endif
+health : defaulttarget
 	cd $(HEALTHDIR); \
                make PLAIN=1 clean defaulttarget \
                     EXTRA_LIBS=$(HEALTHEXTRA) \
+	            $(HEALTHARGS) \
                     CC="$(COMBINESAFECC) \
 			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
 	cd $(HEALTHDIR); ./health.exe 10 10 10 1
+
+
+
+# Perimeter of regions in images
+PERIMDIR=test/olden/perimeter
+ifdef BOX
+PERIMEXTRA=$(CILDIR)/$(SAFEMAINLIB)
+else
+PERIMEXTRA=
+endif
+ifdef _MSVC
+PERIMARGS = _MSVC=1
+endif
+perimeter : defaulttarget
+	cd $(PERIMDIR); \
+               make PLAIN=1 clean defaulttarget \
+                    EXTRA_LIBS=$(PERIMEXTRA) \
+	            $(PERIMARGS) \
+                    CC="$(COMBINESAFECC) \
+			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
+	cd $(PERIMDIR); ./perimeter.exe
+
+
+# Voronoi diagrams
+VORONDIR=test/olden/voronoi
+ifdef BOX
+VORONEXTRA=$(CILDIR)/$(SAFEMAINLIB)
+else
+VORONEXTRA=
+endif
+ifdef _MSVC
+VORONARGS = _MSVC=1
+endif
+voronoi : defaulttarget
+	cd $(VORONDIR); \
+               make PLAIN=1 clean defaulttarget \
+                    EXTRA_LIBS=$(VORONEXTRA) \
+	            $(VORONARGS) \
+                    CC="$(COMBINESAFECC) \
+			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
+	cd $(VORONDIR); ./voronoi.exe
 
 
 

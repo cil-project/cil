@@ -19,15 +19,12 @@ let noProtoFunctions : (int, bool) H.t = H.create 13
 
 
 
-(* When doing function definitions we want to postpone the processing of 
- * transparent unions *)
-let doTransparentUnions = ref true
 
 (* Check if a type is a transparent union, and return the first field if it 
  * is *)
 let isTransparentUnion (t: typ) : fieldinfo option = 
   match unrollType t with 
-    TComp (_, comp, _) when not comp.cstruct && !doTransparentUnions -> 
+    TComp (_, comp, _) when not comp.cstruct -> 
       (* Turn transparent unions into the type of their first field *)
       if hasAttribute "transparent_union" (typeAttrs t) then begin
         match comp.cfields with
@@ -37,6 +34,10 @@ let isTransparentUnion (t: typ) : fieldinfo option =
         None
   | _ -> None
 
+(* When we process an argument list, remember the argument index which has a 
+ * transparent union type, along with the original type. We need this to 
+ * process function definitions *)
+let transparentUnionArgs : (int * typ) list ref = ref []
 
 
 let convLoc (l : cabsloc) =
@@ -195,7 +196,8 @@ let endFunction (formals: varinfo list) : (int * varinfo list) =
       [], l -> l
     | f :: formals, l :: locals -> 
         if f != l then 
-          E.s (error "formals are not in locals");
+          E.s (error "formal %s is not in locals (found instead %s)" 
+                 f.vname l.vname);
         drop formals locals
     | _ -> E.s (error "Too few locals")
   in
@@ -1222,23 +1224,6 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
         doDecl (TArray(bt, lo, [])) acc d
 
     | A.PROTO (d, args, isva) -> 
-        (* Turn [] types into pointers in the arguments and the result type. 
-         * This simplifies our life a lot  *)
-        let fixupArgumentType arg = 
-          match unrollType arg.vtype with
-            TArray(t,_,attr) -> arg.vtype <- TPtr(t, attr)
-          | TComp (_, comp, _) as t -> begin
-              match isTransparentUnion arg.vtype with
-                None -> ()
-              | Some fstfield -> arg.vtype <- fstfield.ftype
-          end
-          | _ -> ()
-        in
-        let fixupResultType t = 
-          match unrollType t with
-            TArray(t,_,attr) -> TPtr(t, attr)
-          | _ -> t
-        in
         (* Start a scope for the parameter names *)
         enterScope ();
         let targs = 
@@ -1247,8 +1232,31 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
           | l -> l
         in
         exitScope ();
-        List.iter fixupArgumentType targs;
-        let tres = fixupResultType bt in
+        (* Turn [] types into pointers in the arguments and the result type. 
+         * This simplifies our life a lot  *)
+        let rec fixupArgumentTypes (argidx: int) (args: varinfo list) : unit = 
+          match args with
+            [] -> ()
+          | a :: args' -> 
+              (match unrollType a.vtype with
+                TArray(t,_,attr) -> a.vtype <- TPtr(t, attr)
+              | TComp (_, comp, _) as t -> begin
+                  match isTransparentUnion a.vtype with
+                    None ->  ()
+                  | Some fstfield -> 
+                      transparentUnionArgs := 
+                         (argidx, a.vtype) :: !transparentUnionArgs;
+                      a.vtype <- fstfield.ftype;
+              end
+              | _ -> ());
+              fixupArgumentTypes (argidx + 1) args'
+        in
+        fixupArgumentTypes 0 targs;
+        let tres = 
+          match unrollType bt with
+            TArray(t,_,attr) -> TPtr(t, attr)
+          | _ -> bt
+        in
         doDecl (TFun (tres, targs, isva, [])) acc d
 
   in
@@ -2837,11 +2845,10 @@ let convFile fname dl =
               let bt,sto,inl,attrs = doSpecList specs in
               (* Do not process transparent unions in function definitions. 
                * We'll do it later *)
-              doTransparentUnions := false;
+              transparentUnionArgs := [];
               let ftyp, funattr = doType (AttrName false) bt 
                                          (A.PARENTYPE(attrs, dt, a)) in
-                                        (* Do the type *)
-              doTransparentUnions := true;
+              (* Extra the information from the type *)
               let (returnType, formals, isvararg, funta) = 
                 match unrollType ftyp with 
                   TFun(rType, formals, isvararg, a) -> 
@@ -2850,9 +2857,9 @@ let convFile fname dl =
               in
               (* Record the returnType for doStatement *)
               currentReturnType   := returnType;
+              (* Add the formals to the environment *)
               let formals' = 
-                List.map (alphaConvertVarAndAddToEnv true) formals
-              in
+                List.map (alphaConvertVarAndAddToEnv true) formals in
               let ftype = TFun(returnType, formals', isvararg, funta) in
               (* Add the function itself to the environment. Just in case we 
                * have recursion and no prototype.  *)
@@ -2875,6 +2882,25 @@ let convFile fname dl =
               if alreadyDef then
                 E.s (error "There is a definition already for %s" n);
               currentFunctionVI := thisFunctionVI;
+              (* Now change the type of transparent union args back to what 
+               * it was so that the body type checks. We must do it this late 
+               * because makeGlobalVarinfo from above might choke if we give 
+               * the function a type containing transparent unions *)
+              let _ = 
+                let rec fixbackFormals (idx: int) (args: varinfo list) : unit= 
+                  match args with
+                    [] -> ()
+                  | a :: args' -> 
+                      (* Fix the type back to a transparent union type *)
+                      (try
+                        let origtype = List.assq idx !transparentUnionArgs in
+                        a.vtype <- origtype;
+                      with Not_found -> ());
+                      fixbackFormals (idx + 1) args'
+                in
+                fixbackFormals 0 formals';
+                transparentUnionArgs := [];
+              in
               (* Now do the body *)
               let stm = doBody body in
               (* Finish everything *)
