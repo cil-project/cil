@@ -107,6 +107,7 @@ type doc =
   | CText    of doc * string
   | Break
   | Line 
+  | LeftFlushLine
   | Align
   | Unalign  
 
@@ -136,6 +137,7 @@ let chr  c     = text (String.make 1 c)
 let align      = Align
 let unalign    = Unalign
 let line       = Line
+let leftflushline = LeftFlushLine
 let break      = Break  (* Line *) (* Aman's benchmarking goo *)
 
 
@@ -167,17 +169,9 @@ let rec dbgPrintDoc (* recurseBreaks : bool *) = function
       fprintf "(Break)" (* (Obj.magic d : int); dbgPrintStatus qb.qstatus; *)
       (* fprintf " nextAlign=%d)" (match qb.nextAlign with Align a -> a.alignId | Nil -> -1 | _ -> 0) *)
   | Line -> fprintf "(Line)"
+  | LeftFlushLine -> fprintf "(LeftFlushLine)"
   | Align -> fprintf "(Align)"
   | Unalign -> fprintf "(Unalign)"
-(*
-  | Break b when recurseBreaks -> fprintf "(Break "; dbgPrintBrk !b; fprintf ")"
-  | Break b when not recurseBreaks -> fprintf "(Break %d)" (!b).id
-  | Line b when recurseBreaks -> fprintf "(Line "; dbgPrintBrk !b; fprintf ")"
-  | Line b when not recurseBreaks -> fprintf "(Line %d)" (!b).id
-  | Align _ -> fprintf "Align"
-  | Unalign _ -> fprintf "Unalign"
-  | _ -> fprintf "Whats this??"
-*)
 	
 
 (* let nest n d   = (if n > 0 then Spaces n else nil) ++ align ++ d ++ unalign*)
@@ -374,7 +368,7 @@ let fit (start: 'a)
       * current line. Also carry the current column and a continuation. *)
 
   let rec scan aligns breaks col cont = function 
-      Nil -> cont aligns breaks col
+      Nil | LeftFlushLine -> cont aligns breaks col
     | Concat(d1,d2) -> 
         scan aligns breaks col (fun a b c -> scan a b c cont d2) d1
     | Text s -> 
@@ -388,40 +382,40 @@ let fit (start: 'a)
         (* Pretend we have seen a space *)
             cont aligns breaks (col + 1)
 
-	| Line when !noBreaks ->
-            let ar =                        (* Find the matching align. There 
-                                             * must always be one because we 
-                                             * start with an align in the column 
-                                             * 0  *)
-              match aligns with
-		ar :: _ -> ar
-              | _ -> failwith "Bug. Missing align"
-            in
-            cont aligns breaks !ar
+    | Line when !noBreaks ->
+        let ar =                        (* Find the matching align. There 
+                                         * must always be one because we 
+                                         * start with an align in the column 
+                                         * 0  *)
+          match aligns with
+	    ar :: _ -> ar
+          | _ -> failwith "Bug. Missing align"
+        in
+        cont aligns breaks !ar
 
-	| (Break | Line) as doc ->            
-            let ar =                        (* Find the matching align. There 
-                                             * must always be one because we 
-                                             * start with an align in the column 
-                                             * 0  *)
-              match aligns with
-		ar :: _ -> ar
-              | _ -> failwith "Bug. Missing align"
-            in
+    | (Break | Line) as doc ->            
+        let ar =                        (* Find the matching align. There 
+                                         * must always be one because we 
+                                         * start with an align in the column 
+                                         * 0  *)
+          match aligns with
+	    ar :: _ -> ar
+          | _ -> failwith "Bug. Missing align"
+        in
                                         (* See if it's time to switch 
                                          * breakAllMode off *)
-            let _ = 
-              if !breakAllMode && col < width - 20 then
-		breakAllMode := false else () in
-            
+        let _ = 
+          if !breakAllMode && col < width - 20 then
+	    breakAllMode := false else () in
+        
                                         (* See if we need to perform some 
                                          * breaks on what we have so far  *)
-            let newCol = 
-              if !breakAllMode then col else
-              performBreaks breaks col  in
+        let newCol = 
+          if !breakAllMode then col else
+          performBreaks breaks col  in
                                         (* Maybe we need to switch breakAll 
                                          * mode on *)
-            let _ = if newCol > width then breakAllMode := true else () in
+        let _ = if newCol > width then breakAllMode := true else () in
 
                                         (* Create a new breakData *)
         let bid    = incr breakId; !breakId in
@@ -436,24 +430,24 @@ let fit (start: 'a)
             end
         in
                                         (* Memorize it *)
-            let _ = allBreaks := bdata :: (!allBreaks) in
-            cont aligns (Brk bdata :: breaks) bdata.col
+        let _ = allBreaks := bdata :: (!allBreaks) in
+        cont aligns (Brk bdata :: breaks) bdata.col
 
-	| Align -> 
-            if !noAligns then 
-              cont aligns breaks col
-            else
-              let adata = ref col in
-              cont (adata :: aligns) (Algn adata :: breaks) col
+    | Align -> 
+        if !noAligns then 
+          cont aligns breaks col
+        else
+          let adata = ref col in
+          cont (adata :: aligns) (Algn adata :: breaks) col
 
 
-	| Unalign -> 
-            if !noAligns then 
-              cont aligns breaks col
-            else
-              match aligns with
-		_ :: t when t != [] -> cont t breaks col
-              | _ -> failwith "Unmatched unalign\n"
+    | Unalign -> 
+        if !noAligns then 
+          cont aligns breaks col
+        else
+          match aligns with
+	    _ :: t when t != [] -> cont t breaks col
+          | _ -> failwith "Unmatched unalign\n"
 
   (* scan *)
   in
@@ -470,7 +464,7 @@ let fit (start: 'a)
     accString acc' s nrcopies
   in
   let rec layout (acc : 'a) : doc -> 'a = function
-      Nil -> acc
+      Nil | LeftFlushLine -> acc
     | Align -> acc
     | Unalign -> acc
     | Text s -> doString acc s 1
@@ -683,7 +677,7 @@ let rec scan (abscol: int) (d: doc) : int =
   | Align -> pushAlign abscol; abscol
   | Unalign -> popAlign (); abscol 
   | Line -> (* A forced line break *) newline ()
- 
+  | LeftFlushLine -> 0
 
   | Break -> (* An optional line break. Always a space followed by an 
               * optional line break  *)
@@ -713,6 +707,7 @@ let emitDoc
   let aligns: int list ref = ref [0] in (* A stack of alignment columns *)
 
   (* Use this function to take a newline *)
+  (*
   let newline () = 
     match !aligns with
       [] -> failwith "Ran out of aligns"
@@ -721,7 +716,25 @@ let emitDoc
         if x > 0 then emitString " "  x;
         x
   in
-    
+  *)
+  let wantIndent = ref false in
+  let newline () =
+    match !aligns with
+      [] -> failwith "Ran out of aligns"
+    | x :: _ ->
+	emitString "\n" 1;
+	wantIndent := true;
+	x
+  in
+  let indentIfNeeded () =
+    if !wantIndent then ignore (
+      match !aligns with
+	[] -> failwith "Ran out of aligns"
+      | x :: _ -> 
+          if x > 0 then emitString " "  x;
+          x);
+    wantIndent := false	  
+  in
   (* A continuation passing style loop *)
   let rec loopCont (abscol: int) (d: doc) (cont: int -> unit) : unit 
       (* the new column *) =
@@ -732,6 +745,7 @@ let emitDoc
 
     | Text s -> 
         let sl = String.length s in
+	indentIfNeeded ();
         emitString s 1;
         cont (abscol + sl)
 
@@ -739,6 +753,7 @@ let emitDoc
         loopCont abscol d 
           (fun abscol' -> 
             let sl = String.length s in
+	    indentIfNeeded ();
             emitString s 1; 
             cont (abscol' + sl))
 
@@ -752,6 +767,7 @@ let emitDoc
         | _ :: rest -> aligns := rest; cont abscol
     end
     | Line -> cont (newline ())
+    | LeftFlushLine -> wantIndent := false;  cont (0)
     | Break -> begin
         match !breaks with
           [] -> failwith "Break without a takenref"
@@ -759,6 +775,7 @@ let emitDoc
             breaks := rest; (* Consume the break *)
             if !istaken then cont (newline ())
             else begin
+	      indentIfNeeded ();
               emitString " " 1; 
               cont (abscol + 1)
             end
@@ -773,12 +790,14 @@ let emitDoc
 
     | Text s -> 
         let sl = String.length s in
+	indentIfNeeded ();
         emitString s 1;
         abscol + sl
 
     | CText (d, s) -> 
         let abscol' = loop abscol d in
         let sl = String.length s in
+	indentIfNeeded ();
         emitString s 1; 
         abscol' + sl
 
@@ -792,6 +811,7 @@ let emitDoc
         | _ :: rest -> aligns := rest; abscol
     end
     | Line -> newline ()
+    | LeftFlushLine -> wantIndent := false; 0
     | Break -> begin
         match !breaks with
           [] -> failwith "Break without a takenref"
@@ -799,13 +819,14 @@ let emitDoc
             breaks := rest; (* Consume the break *)
             if !istaken then newline ()
             else begin
+	      indentIfNeeded ();
               emitString " " 1; 
               abscol + 1
             end
     end
   in
-(*  loopCont 0 d (fun x -> ()) *)
-  loop 0 d
+  loopCont 0 d (fun x -> ()) 
+(*  loop 0 d *)
 
 let flushOften = ref false
 
@@ -1007,6 +1028,8 @@ let gprintf (finish : doc -> doc)
               collect (dconcat acc (line)) (i + 2)
           | '?' ->                        (* soft line break *)
               collect (dconcat acc (break)) (i + 2)
+	  | '<' ->                        (* left-flushed *)
+	      collect (dconcat acc (leftflushline)) (i + 2)
           | '@' -> 
               collect (dctext1 acc "@") (i + 2)
           | c ->
@@ -1091,8 +1114,7 @@ let writeIndent (n : int) (spaceBuf : string) = function
 type docStream = unit -> doc
 
 let qPreprocess doc width =
-  let stack = ref [doc] in
-  
+  let stack = ref [doc] in  
   let rec getNext  () = match !stack with
     doc :: rest -> begin 
       stack := rest;
@@ -1104,7 +1126,7 @@ let qPreprocess doc width =
 	  stack := d :: (Text s :: !stack);
 	  getNext ()
       |	Nil -> getNext ()
-      | Text _ | Line | Break | Align | Unalign -> doc
+      | Text _ | Line | LeftFlushLine | Break | Align | Unalign -> doc
     end
   | [] -> nil
   in
@@ -1130,7 +1152,7 @@ let qPreprocess doc width =
 	if !updateBreakList then breakList := (ref (-1)) :: !breakList;
 	updateBreakList := false; 
 	acc
-    | Line -> 
+    | Line | LeftFlushLine -> 
 	if (!updateBreakList) then breakList := (ref (-1)) :: !breakList;
 	updateBreakList := false; 
 	getSize 0
@@ -1153,7 +1175,7 @@ let qPreprocess doc width =
 	lastBreak := lastBreakPos + acc;
 	breaks    := newBrk :: !breaks;
 	getGap (succ acc) newBrk !newBrk
-    | Line ->
+    | Line | LeftFlushLine->
 	getGap 0 lastBreak lastBreakPos
     | Align ->
 	let x = getGap 0 dummybreak !dummybreak in
@@ -1183,13 +1205,8 @@ let qprint qchn width doc =
   (* let curPos = ref 0 in *)
   let alignStack  = ref [0] in
   let breakList :  int ref list ref = if qdontthink then ref [] else ref (qPreprocess doc width) in
-  let spaceBuf = String.make (width*2) ' ' in
-  let breakLine () = begin
-    writeChar '\n' qchn;
-    (* for i=1 to (List.hd !alignStack) do writeChar ' ' qchn done;*)
-    writeIndent (List.hd !alignStack) spaceBuf qchn;
-    List.hd !alignStack 
-  end in
+  let spaceBuf = String.make (1024+width) ' ' in
+  let wantIndent = ref false in
   let debugSoftBreaks = false in
   let decide2break curPos = begin
     if debugSoftBreaks then begin
@@ -1208,14 +1225,30 @@ let qprint qchn width doc =
   let qprintText curPos (s : string) =
     writeString s qchn;
     curPos + String.length s in
+  let breakLine () = begin
+    writeChar '\n' qchn;
+    (* for i=1 to (List.hd !alignStack) do writeChar ' ' qchn done;*)
+    (* writeIndent (List.hd !alignStack) spaceBuf qchn; *)
+    wantIndent := true;
+    List.hd !alignStack 
+  end in
+  let indentIfNeeded () =
+    if !wantIndent then  writeIndent (List.hd !alignStack) spaceBuf qchn;
+    wantIndent := false;
+  in
   let rec qprintLoop curPos = function
       Nil -> curPos
     | Text s -> 
+	indentIfNeeded ();
 	writeString s qchn;
 	curPos + String.length s
     | Concat (d1, d2) -> qprintLoop (qprintLoop curPos d1) d2
-    | CText (d,s) -> qprintText (qprintLoop curPos d) s
+    | CText (d,s) -> 
+	let m = qprintLoop curPos d in
+	indentIfNeeded ();
+	qprintText m s
     | Break -> 
+	indentIfNeeded ();
 	if qdontthink then
 	  if (curPos + 10 >= width)  then  (breakLine())
 	  else begin writeChar ' ' qchn; curPos + 1 end
@@ -1226,7 +1259,10 @@ let qprint qchn width doc =
 	    curPos + 1	    
 	  end	  
     | Line -> 
-	breakLine ()
+	breakLine ();
+    | LeftFlushLine ->
+	wantIndent := false;
+	curPos
     | Align -> 
 	alignStack := curPos :: !alignStack;
 	curPos
