@@ -1971,10 +1971,12 @@ let rec checkMem (towrite: exp option)
   (* Maybe it is a table. In that case, get the true base and end *)
   (* See if a table pointer *)
   let newk = N.stripT pkind in 
-  if newk <> pkind then (* A table pointer *)
+  ignore (E.log "checkMem on %a : %a. pokind=%a\n"
+            d_lval lv d_type lvt N.d_opointerkind pkind);
+  if newk <> pkind then begin (* A table pointer *)
     let base, bend, stmts = fromTable pkind (mkAddrOf lv) in
     stmts @ (checkMem towrite lv base bend lvt newk)
-  else begin
+  end else begin
     (* Fetch the length field in a temp variable. But do not create the 
      * variable until certain that it is needed  *)
     let lenExp : exp option ref = ref None in
@@ -2926,16 +2928,23 @@ and boxlval (b, off) : (typ * N.opointerkind * lval * exp * exp * stmt list) =
     match b with
       Var vi -> varStartInput vi
     | Mem addr -> 
-        let (addrt, doaddr, addr', addr'base, addr'len) = boxexpSplit addr in
-        let addrt', pkind = 
+        let (addrt, doaddr, addr', addr'base, addr'end) = boxexpSplit addr in
+        let (addrt1, doaddr1, addrbase1, addrend1, addrkind) = 
           match unrollType addrt with
             TPtr(t, a) -> 
+              let ptrk = kindOfType addrt in
+              let newk = N.stripT ptrk in
+              if newk <> ptrk then 
+                let addrbase1, addrend1, doaddr2 = fromTable ptrk addr' in
+                t, doaddr @ doaddr2, addrbase1, addrend1, newk
+              else
                (* Make sure it is not a table type *)
-              t, N.stripT (kindOfType addrt)
+                t, doaddr, addr'base, addr'end, newk
           | _ -> E.s (E.unimp "Mem but no pointer type: %a@!addr= %a@!"
                         d_plaintype addrt d_plainexp addr)
         in
-        (addrt', pkind, (fun o -> (Mem addr', o)), addr'base, addr'len, doaddr)
+        (addrt1, addrkind, (fun o -> (Mem addr', o)), 
+         addrbase1, addrend1, doaddr1)
   in
   if debuglval then
     ignore (E.log "Lval=%a@!startinput=%a\n" 

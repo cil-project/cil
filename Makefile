@@ -239,7 +239,11 @@ endif
 
 ######################
 .PHONY : defaulttarget
+ifdef NOREMAKE
+defaulttarget : 
+else
 defaulttarget : $(EXECUTABLE)$(EXE) $(SAFECLIB) $(SAFEMAINLIB)
+endif
 
 .PHONY: trval
 trval: $(TVDIR)/obj/transval.asm.exe
@@ -432,7 +436,7 @@ else
 PCCCOMP=_MSVC
 endif
 
-testpcc/% : $(PCCDIR)/src/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
+testpcc/% : $(PCCDIR)/src/%.c defaulttarget
 	cd $(CILDIR)/test/PCCout; $(SAFECC) --keep=. $(DEF)$(ARCHOS) \
                   $(DEF)$(PCCTYPE) $(CONLY) \
                   $(PCCDIR)/src/$*.c \
@@ -440,7 +444,7 @@ testpcc/% : $(PCCDIR)/src/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
 
 
 
-testallspj: $(EXECUTABLE)$(EXE) $(TVEXE) $(SAFECLIB) $(SAFEMAINLIB) 
+testallspj: defaulttarget
 	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.o
 	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.exe
 	make -C $(PCCDIR) \
@@ -467,7 +471,7 @@ combinepcc: defaulttarget
 	     defaulttarget 
 
 .PHONY : allpcc
-allpcc: $(EXECUTABLE)$(EXE) $(SAFEMAINLIB) $(SAFECLIB)
+allpcc: defaulttarget
 	cd $(PCCTEST); \
            $(SAFECC) --keep=. \
                  $(DOOPT) \
@@ -533,33 +537,32 @@ endif
 
 ############ Small tests
 SMALL1=test/small1
-test/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
+test/% : $(SMALL1)/%.c defaulttarget
 	cd $(SMALL1); $(SAFECC)   \
                --patch=../../lib/$(PATCHFILE) \
 	       $(CONLY) $(DOOPT) $(ASMONLY)$*.s $*.c 
 
-testexe/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
+testexe/% : $(SMALL1)/%.c  defaulttarget
 	cd $(SMALL1); $(SAFECC)   \
                --patch=../../lib/$(PATCHFILE) \
 	       $(DOOPT) $(EXEOUT)$*.exe $*.c 
 
 
-testrun/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
+testrun/% : $(SMALL1)/%.c  defaulttarget
 	cd $(SMALL1); $(SAFECC)   \
                --patch=../../lib/$(PATCHFILE) \
 	       $(DOOPT) $(EXEOUT)$*.exe $*.c
 	cd $(SMALL1); $*.exe
 
 # weimer: test, compile and run
-testc/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
+testc/% : $(SMALL1)/%.c  defaulttarget
 	cd $(SMALL1); $(SAFECC)   \
                --patch=../../lib/$(PATCHFILE) \
 	       $(DOOPT) $(EXEOUT)$*.exe $*.c ; ./$*.exe
 
 
 
-hashtest: test/small2/hashtest.c $(EXECUTABLE)$(EXE) \
-                                 $(SAFECLIB) $(SAFEMAINLIB)  $(TVEXE)
+hashtest: test/small2/hashtest.c defaulttarget
 	rm -f $(PCCTEST)/hashtest.exe
 	cd $(PCCTEST); $(SAFECC) --combine \
                                  --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
@@ -571,8 +574,7 @@ hashtest: test/small2/hashtest.c $(EXECUTABLE)$(EXE) \
                  $(EXEOUT)hashtest.exe
 	$(PCCTEST)/hashtest.exe
 
-rbtest: test/small2/rbtest.c $(EXECUTABLE)$(EXE) \
-                                 $(SAFECLIB) $(SAFEMAINLIB)  $(TVEXE)
+rbtest: test/small2/rbtest.c defaulttarget
 	rm -f $(PCCTEST)/rbtest.exe
 	@true "compile with gcc for better error diagnostics (ha!)"
 	cd $(PCCTEST); $(DEBUGCCL) $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) $(CONLY) \
@@ -588,9 +590,7 @@ rbtest: test/small2/rbtest.c $(EXECUTABLE)$(EXE) \
 	$(PCCTEST)/rbtest.exe letGcFree
 
 btreetest: test/small2/testbtree.c \
-           test/small2/btree.c \
-                                 $(EXECUTABLE)$(EXE) \
-                                 $(SAFECLIB) $(SAFEMAINLIB)  $(TVEXE)
+           test/small2/btree.c defaulttarget
 	rm -f test/small2/btreetest.exe
 	cd test/small2; $(SAFECC) --combine --keep=. \
                  $(DOOPT) \
@@ -604,8 +604,7 @@ btreetest: test/small2/testbtree.c \
 hola: scott/hola
 
 # sm: attempt at a single rule for my testing purposes
-scott/%: test/small2/%.c $(EXECUTABLE)$(EXE) \
-                                 $(SAFECLIB) $(SAFEMAINLIB)
+scott/%: test/small2/%.c defaulttarget
 	rm -f test/small2/$*
 	cd test/small2; $(CC) $(CONLY) $(DEF)$(ARCHOS) $*.c
 	cd test/small2; $(SAFECC) --keep=. $(DEF)$(ARCHOS) \
@@ -617,8 +616,7 @@ scott/%: test/small2/%.c $(EXECUTABLE)$(EXE) \
 
 # sm: trivial test of combiner
 MYSAFECC = $(SAFECC) --keep=. $(DEF)$(ARCHOS)
-comb: test/small2/comb1.c test/small2/comb2.c $(EXECUTABLE)$(EXE) \
-                                 $(SAFECLIB) $(SAFEMAINLIB)
+comb: test/small2/comb1.c test/small2/comb2.c defaulttarget
 	rm -f test/small2/comb
 	cd test/small2; \
 	  $(MYSAFECC) --combine comb1.c $(CONLY) $(OBJOUT) comb1.o; \
@@ -628,7 +626,7 @@ comb: test/small2/comb1.c test/small2/comb2.c $(EXECUTABLE)$(EXE) \
 
 # cfrac: a memory benchmark which factorizes into products of primes
 CFRACDIR = $(CILDIR)/../bench/cfrac
-cfrac: $(EXECUTABLE)$(EXE) $(SAFECLIB) $(SAFECMAINLIB)
+cfrac: defaulttarget
 	-rm $(CFRACDIR)/*.o
 	-rm $(CFRACDIR)/cfrac
 	make -C $(CFRACDIR) \
@@ -636,7 +634,7 @@ cfrac: $(EXECUTABLE)$(EXE) $(SAFECLIB) $(SAFECMAINLIB)
 	  LD="$(SAFECC) --keep=$(CFRACDIR)"
 	csh -c "time $(CFRACDIR)/cfrac 327905606740421458831903"
 
-comcfrac: $(EXECUTABLE)$(EXE) $(SAFECLIB) $(SAFECMAINLIB)
+comcfrac: defaulttarget
 	-rm $(CFRACDIR)/*.o
 	-rm $(CFRACDIR)/cfrac
 	make -C $(CFRACDIR) \
@@ -646,7 +644,7 @@ comcfrac: $(EXECUTABLE)$(EXE) $(SAFECLIB) $(SAFECMAINLIB)
 
 # espresso: memory benchmark that does logic minimization
 ESPRESSODIR = $(CILDIR)/../bench/espresso
-espresso: $(EXECUTABLE)$(EXE) $(SAFECLIB) $(SAFECMAINLIB)
+espresso: defaulttarget
 	@true -rm $(ESPRESSODIR)/*.o
 	@true -rm $(ESPRESSODIR)/espresso
 	make -C $(ESPRESSODIR) \
@@ -667,8 +665,7 @@ endif
 ifdef _GNUCC
 HUFFOTHERS += -lm
 endif
-hufftest: test/small2/hufftest.c $(EXECUTABLE)$(EXE) \
-                                 $(SAFECLIB) $(SAFEMAINLIB) $(TVEXE)
+hufftest: test/small2/hufftest.c defaulttarget
 	rm -f $(PCCTEST)/hufftest.exe
 	cd $(PCCTEST); $(HUFFCOMPILE) \
                  $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) $(DEF)$(PCCCOMP) \
@@ -685,8 +682,7 @@ hufftest: test/small2/hufftest.c $(EXECUTABLE)$(EXE) \
                              $(CILDIR)/src/frontc/cparser.output
 
 
-wes-rbtest: test/small2/wes-rbtest.c $(EXECUTABLE)$(EXE) $(TVEXE)\
-            $(SAFECLIB)
+wes-rbtest: test/small2/wes-rbtest.c defaulttarget
 	rm -f $(PCCTEST)/wes-rbtest.exe
 	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  $(DOOPT) \
@@ -696,8 +692,7 @@ wes-rbtest: test/small2/wes-rbtest.c $(EXECUTABLE)$(EXE) $(TVEXE)\
                  $(EXEOUT)wes-rbtest.exe
 	$(PCCTEST)/wes-rbtest.exe
 
-wes-hashtest: test/small2/wes-hashtest.c $(EXECUTABLE)$(EXE) $(TVEXE) \
-              $(SAFECLIB)
+wes-hashtest: test/small2/wes-hashtest.c defaulttarget
 	rm -f $(PCCTEST)/wes-hashtest.exe
 	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  $(DOOPT) \
@@ -709,15 +704,15 @@ wes-hashtest: test/small2/wes-hashtest.c $(EXECUTABLE)$(EXE) $(TVEXE) \
 
 
 ### Generic test
-testfile/% : $(EXECUTABLE)$(EXE) %  $(TVEXE)
+testfile/% : defaulttarget
 	$(SAFECC) /TC $*
 
-testdir/% : $(EXECUTABLE)$(EXE)
+testdir/% : defaulttarget
 	make -C CC="perl safecc.pl" $*
 
 
 ################## Linux device drivers
-testlinux/% : $(EXECUTABLE)$(EXE) test/linux/%.cpp
+testlinux/% : test/linux/%.cpp defaulttarget
 	cd test/linux; $(SAFECC) -o $*.o $*.cpp 
 
 testqp : testlinux/qpmouse
@@ -725,7 +720,7 @@ testserial: testlinux/generic_serial
 
 ################## Rahul's test cases
 SPR-TESTDIR = test/spr
-spr/% : $(EXECUTABLE)$(EXE)
+spr/% : defaulttarget
 	cd $(SPR-TESTDIR); $(SAFECC) $*.c $(CONLY) $(DOOPT) $(ASMONLY)$*.s
 
 
@@ -748,7 +743,7 @@ APACHECFLAGS=-Wall -D_GNUCC -g \
 APATCH += --patch=apache_gcc.patch
 endif
 
-apache/urlcount : $(EXECUTABLE)$(EXE)
+apache/urlcount : defaulttarget
 	rm -f $(APACHETEST)/mod_urlcount.$(OBJ)
 	cd $(APACHETEST); $(SAFECC) \
                        --keep=. $(APATCH) \
@@ -757,7 +752,7 @@ apache/urlcount : $(EXECUTABLE)$(EXE)
                         $(CONLY) $(OBJOUT)./mod_urlcount.$(OBJ) \
                         mod_urlcount.c
 
-apache/layout : $(EXECUTABLE)$(EXE)
+apache/layout : defaulttarget
 	rm -f $(APACHETEST)/mod_layout.$(OBJ)
 	cd $(APACHETEST); $(SAFECC) \
                        --keep=. $(APATCH) \
@@ -766,7 +761,7 @@ apache/layout : $(EXECUTABLE)$(EXE)
                         $(CONLY) $(OBJOUT)./mod_layout.$(OBJ) \
                         mod_layout.c
 
-apache/random : $(EXECUTABLE)$(EXE)
+apache/random : defaulttarget
 	rm -f $(APACHETEST)/mod_random.$(OBJ)
 	cd $(APACHETEST); $(SAFECC) \
                        --keep=. $(APATCH) \
@@ -775,7 +770,7 @@ apache/random : $(EXECUTABLE)$(EXE)
                         $(CONLY) $(OBJOUT)./mod_random.$(OBJ) \
                         mod_random.c
 
-apache/gzip : $(EXECUTABLE)$(EXE)
+apache/gzip : defaulttarget
 	rm -f $(APACHETEST)/mod_gzip.$(OBJ)
 	cd $(APACHETEST); $(SAFECC) \
                        --keep=. $(APATCH) \
@@ -784,7 +779,7 @@ apache/gzip : $(EXECUTABLE)$(EXE)
                         $(CONLY) $(OBJOUT)./mod_gzip.$(OBJ) \
                         mod_gzip.c
 
-apache/t : $(EXECUTABLE)$(EXE)
+apache/t : defaulttarget
 	rm -f $(APACHETEST)/t.obj
 	cd $(APACHETEST); $(SAFECC) \
                        --keep=. $(APATCH) \
@@ -792,7 +787,7 @@ apache/t : $(EXECUTABLE)$(EXE)
                         $(OBJOUT)./t.obj \
                         t.c
 
-apache/rewrite: $(EXECUTABLE)$(EXE)
+apache/rewrite: defaulttarget
 	rm -f $(APACHETEST)/mod_gzip.$(OBJ)
 	cd $(APACHETEST); $(SAFECC) \
                        --keep=. $(APATCH) \

@@ -2242,7 +2242,6 @@ and createLocal = function
                                   Some (integer (String.length s + 1)),
                                   a)
         | _, _, _ -> ());
-        ignore (E.log "found init: %a\n" d_plaininit ie');
         (* Now create assignments instead of the initialization *)
         se @@ (assignInit (Var vi, NoOffset) ie' et empty)
       end

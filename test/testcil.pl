@@ -200,6 +200,7 @@ sub extraOptions {
     return (
         @supopt,
         "--safecdebug!",
+        "--noremake!", 
             );
 }
 
@@ -213,7 +214,9 @@ sub extraHelpMessage {
 
 Additional arguments for SafeC test harness
   --safecdebug         Use the debug versions of everything (default is false)
-
+  --noremake           Does not try to remake the executable before each test.
+                       (so that you can modify the sources while the test 
+                       is running)
   Default log file is safec.log
 EOF
 }
@@ -247,7 +250,10 @@ sub add3Tests {
     
     my $theargs = defined($self->{option}->{safecdebug}) ? " " : " RELEASE=1 ";
     $theargs .= " $extraargs ";
-
+    
+    if(defined $self->{option}->{noremake}) {
+        $theargs .= " NOREMAKE=1";
+    }
     my $k;
     my %patterns = %commonerrors;
 
