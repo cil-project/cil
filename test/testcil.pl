@@ -181,17 +181,12 @@ $TEST->add1Test("test/alloc-manualinferbox",
 #
 $TEST->add3Tests("bh", "_GNUCC=1");
    $TEST->add3Group("bh", "slow", "olden");
-#   $TEST->addBadComment("bh-box", "CRASHES");
 
 $TEST->add3Tests("power", "_GNUCC=1");
    $TEST->add3Group("power", "olden");
-#   $TEST->addBadComment("power-box", "Bug in BOX");
 
 $TEST->add3Tests("health", "_GNUCC=1");
    $TEST->add3Group("health", "olden");
-#   $TEST->addBadComment("health-inferbox", "Crashes");
-#   $TEST->addBadComment("health-cil", "don't know how to run");
-#   $TEST->addBadComment("health-box", "Bug in BOX");
 
 $TEST->add3Tests("perimeter");
    $TEST->add3Group("perimeter", "olden");
@@ -201,12 +196,12 @@ $TEST->add3Tests("bisort", "_GNUCC=1");
    $TEST->add3Group("bisort", "olden");
 $TEST->add3Tests("mst");
    $TEST->add3Group("mst", "olden");
-   $TEST->addBadComment("mst-inferbox", "UBOUND");
-   $TEST->addBadComment("mst-box", "UBOUND");
 $TEST->add3Tests("em3d", "_GNUCC=1");
-   $TEST->add3Group("em3d", "olden", "bad");
+   $TEST->add3Group("em3d", "olden");
 $TEST->add3Tests("treeadd", "_GNUCC=1");
    $TEST->add3Group("treeadd", "olden");
+#$TEST->add3Tests("voronoi", "_GNUCC=1");
+#   $TEST->add3Group("voronoi", "olden", "bad");
 
 #
 # SPEC95
@@ -218,7 +213,6 @@ $TEST->add3Tests("li", "_GNUCC=1");
 
 $TEST->add3Tests("compress", "_GNUCC=1");
   $TEST->add3Group("compress", "slow");
-#   $TEST->addBadComment("compress-box", "missing wrappers");
 
 $TEST->add3Tests("go", "_GNUCC=1");
    $TEST->add3Group("go", "slow");
