@@ -66,162 +66,102 @@ include Makefile.ocaml
 ##### Settings that depend on the computer we are on
 ##### Make sure the COMPUTERNAME environment variable is set
 ifeq ($(COMPUTERNAME), RAW)   # George's workstation
-BASEDIR=C:/Necula
-TVDIR=$(BASEDIR)/Source/TransVal
-CILDIR=$(SAFECCDIR)/cil
-SAFECCDIR=$(BASEDIR)/SafeC
-PCCDIR=$(SAFECCDIR)/cil/test/PCC
+BASEDIR=C:/Necula/SafeC
 OLDPATCH=1
 PATCHINCLUDES=1
 endif
 ifeq ($(COMPUTERNAME), FETA) # George's home machine
-BASEDIR=C:/Necula
-TVDIR=$(BASEDIR)/Source/TransVal
-CILDIR=$(SAFECCDIR)/cil
-SAFECCDIR=$(BASEDIR)/SafeC
-PCCDIR=$(SAFECCDIR)/cil/test/PCC
+BASEDIR=C:/Necula/SafeC
 OLDPATCH=1
 PATCHINCLUDES=1
 endif
 ifeq ($(COMPUTERNAME), tenshi) # Wes's laptop
 BASEDIR=/home/weimer/cvs/
-SAFECCDIR=$(BASEDIR)/safeC
-PCCDIR=$(BASEDIR)/cil/test/PCC
-TVDIR=$(BASEDIR)/TransVal
-CILDIR=$(BASEDIR)/cil
 _GNUCC=1
 endif
 ifeq ($(COMPUTERNAME), galvatron) # jlee's 
 BASEDIR=/home/jlee/summer
-SAFECCDIR=$(BASEDIR)
-PCCDIR=$(SAFECCDIR)/cil/test/PCC
-TVDIR=$(BASEDIR)/TransVal
-CILDIR=$(BASEDIR)/cil
 _GNUCC=1
 USE_GC=1
 endif
 ifeq ($(COMPUTERNAME), madroneprime) # jlee on madrone
 BASEDIR=/home/jlee/research
-SAFECCDIR=$(BASEDIR)
-PCCDIR=$(SAFECCDIR)/cil/test/PCC
-TVDIR=$(BASEDIR)/TransVal
-CILDIR=$(BASEDIR)/cil
 _GNUCC=1
 USE_GC=1
 USER_SCOTT=1
 endif
 ifeq ($(COMPUTERNAME), madrone) # scott's desktop
 BASEDIR=/home/scott/wrk/safec
-SAFECCDIR=$(BASEDIR)
-PCCDIR=$(SAFECCDIR)/cil/test/PCC
-TVDIR=$(BASEDIR)/TransVal
-CILDIR=$(BASEDIR)/cil
 _GNUCC=1
 USE_GC=1
 USER_SCOTT=1
 endif
 ifeq ($(COMPUTERNAME), leetch) # scott's laptop
 BASEDIR=/home/scott/wrk/safec
-SAFECCDIR=$(BASEDIR)
-PCCDIR=$(SAFECCDIR)/cil/test/PCC
-TVDIR=$(BASEDIR)/TransVal
-CILDIR=$(BASEDIR)/cil
 _GNUCC=1
 USE_GC=1
 USER_SCOTT=1
 endif
 ifeq ($(COMPUTERNAME), seamonkey) # another for scott
 BASEDIR=/home/scott/wrk/safec
-SAFECCDIR=$(BASEDIR)
-PCCDIR=$(SAFECCDIR)/cil/test/PCC
-TVDIR=$(BASEDIR)/TransVal
-CILDIR=$(BASEDIR)/cil
 _GNUCC=1
 USE_GC=1
 USER_SCOTT=1
 endif
 ifeq ($(COMPUTERNAME), brooksie_scott) # scott on brooksie
 BASEDIR=/home/smcpeak
-SAFECCDIR=$(BASEDIR)
-PCCDIR=$(SAFECCDIR)/cil/test/PCC
-TVDIR=$(BASEDIR)/TransVal
-CILDIR=$(BASEDIR)/cil
 _GNUCC=1
 USE_GC=1
 USER_SCOTT=1
 endif
+
 ifeq ($(COMPUTERNAME), fuji) # Rahul's laptop
 BASEDIR=/home/sprahul/research
-SAFECCDIR=$(BASEDIR)
-PCCDIR=$(BASEDIR)/cil/test/PCC
-TVDIR=$(BASEDIR)/TransVal
-CILDIR=$(BASEDIR)/cil
 _GNUCC=1
 endif
+
 ifeq ($(COMPUTERNAME), brooksie) # Rahul's desktop
 BASEDIR=/home/sprahul/research
-SAFECCDIR=$(BASEDIR)
-PCCDIR=$(BASEDIR)/cil/test/PCC
-TVDIR=$(BASEDIR)/TransVal
-CILDIR=$(BASEDIR)/cil
 _GNUCC=1
 endif
 ifeq ($(COMPUTERNAME), brooksie_george) # Rahul's desktop, for George
 BASEDIR=/home/necula/Source
-SAFECCDIR=$(BASEDIR)
-PCCDIR=$(SAFECCDIR)/cil/test/PCC
-TVDIR=$(BASEDIR)/TransVal
-CILDIR=$(BASEDIR)/cil
 _GNUCC=1
 endif
 
 ifeq ($(COMPUTERNAME), madrone_danny) # dannys desktop
 BASEDIR=/home/dannyant
-SAFECCDIR=$(BASEDIR)
-PCCDIR=$(SAFECCDIR)/cil/test/PCC
-TVDIR=$(BASEDIR)/TransVal
-CILDIR=$(BASEDIR)/cil
 _GNUCC=1
 endif
 
 ifeq ($(COMPUTERNAME), danny_desk) # dannys desktop
 BASEDIR=/home/danny/project
-SAFECCDIR=$(BASEDIR)
-PCCDIR=$(SAFECCDIR)/cil/test/PCC
-TVDIR=$(BASEDIR)/TransVal
-CILDIR=$(BASEDIR)/cil
 _GNUCC=1
 endif
 
 ifeq ($(COMPUTERNAME), brooksie_raygto) # Rahul's desktop, for Raymond
 BASEDIR=/home/raygto/
-SAFECCDIR=$(BASEDIR)
-PCCDIR=$(SAFECCDIR)/cil/test/PCC
-TVDIR=$(BASEDIR)/TransVal
-CILDIR=$(BASEDIR)/cil
 _GNUCC=1
 endif
 ifeq ($(COMPUTERNAME), madrone_amanb) # Aman's *top
 ifndef BASEDIR
 BASEDIR=/home/amanb/safec
 endif
-SAFECCDIR=$(BASEDIR)
-PCCDIR=$(SAFECCDIR)/cil/test/PCC
-TVDIR=$(BASEDIR)/TransVal
-CILDIR=$(BASEDIR)/cil
 _GNUCC=1
 USE_GC=1
 endif
+
 ifeq ($(COMPUTERNAME), peecy_amanb_win2k) # Aman's win2k box
 ifndef BASEDIR
 BASEDIR=e:/aman/cal/research/
 endif
+_GNUCC=1
+endif
+
 SAFECCDIR=$(BASEDIR)
 PCCDIR=$(SAFECCDIR)/cil/test/PCC
 TVDIR=$(BASEDIR)/TransVal
 CILDIR=$(BASEDIR)/cil
-_GNUCC=1
-endif
 
 # sm: I keep getting bit by this
 ifndef BASEDIR
@@ -560,7 +500,7 @@ $(CILLIB) : lib/cillib.c
 	lib /OUT:$@ obj/cillib.o
 
 SAFECPATCHER += --mode mscl 
-PATCH_SYSINCLUDES=stdio.h ctype.h string.h io.h
+PATCH_SYSINCLUDES=stdio.h ctype.h string.h io.h stdarg.h
 includes: cleanincludes
 	$(SAFECPATCHER) --patch=$(CILDIR)/lib/safec_msvc.patch \
                         --dest=$(CILDIR)/include \
@@ -589,7 +529,7 @@ $(CILLIB) : lib/cillib.c
 	ranlib $@
 
 SAFECPATCHER += --mode gcc
-PATCH_SYSINCLUDES=stdio.h ctype.h sys/fcntl.h string.h
+PATCH_SYSINCLUDES=stdio.h ctype.h sys/fcntl.h string.h stdarg.h
 includes: cleanincludes
 	$(SAFECPATCHER) --patch=$(CILDIR)/lib/safec_gcc.patch \
                         --dest=$(CILDIR)/include \

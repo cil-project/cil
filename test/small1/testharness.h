@@ -1,4 +1,4 @@
-extern void printf(char *, ...);
+extern int printf(char *, ...);
 extern void exit(int);
 
 #define E(n) { printf("Error %d\n", n); return n; }

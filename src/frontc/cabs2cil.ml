@@ -107,24 +107,6 @@ let popGlobals () =
   revonto (revonto [] !theFile) !theFileTypes
 
 
-(* This is very SLOW!!!. The only reason it does not matter much is because 
- * the combiner removes duplicate declarations
-let replacePreviousDefsWithDecls (vi: varinfo ) : bool = 
-  let rec alreadyDef = ref false in
-  let rec loop = function
-      [] -> []
-    | (GVar (vi', i', l) as g) :: rest when vi'.vid = vi.vid -> 
-        if i' = None then
-          GDecl (vi', l) :: loop rest
-        else begin
-          alreadyDef := true;
-          g :: rest (* No more defs *)
-        end
-    | g :: rest -> g :: loop rest
-  in
-  theFile := loop !theFile;
-  !alreadyDef 
-*)
 (********* ENVIRONMENTS ***************)
 
 (* The environment is kept in two distinct data structures. A hash table maps
