@@ -70,35 +70,42 @@ let rec processOneFile fname =
       else
         raise Done_Processing
     in
+    if !Util.doCheck then begin
+      ignore (E.log "First CIL check\n");
+      CK.checkFile [] cil;
+    end;
 
     (* sm: remove unused temps to cut down on gcc warnings  *)
     (* (Stats.time "usedVar" Rmtmps.removeUnusedTemps cil);  *)
     (trace "sm" (dprintf "removing unused temporaries\n"));
     (Rmtmps.removeUnusedTemps cil);
 
-		if (!Util.logCalls) then begin
-			Logcalls.logCalls cil 
-		end ; 
-
-		if (!Util.logWrites) then begin
-			Logwrites.logWrites cil 
-		end ; 
-
-		if (!heapify) then begin
-			Heapify.default_heapify cil 
-		end ;
-
-		if (!stackguard) then begin
-			Heapify.default_stackguard cil 
-		end ;
-
+    if (!Util.logCalls) then begin
+      Logcalls.logCalls cil 
+    end ; 
+    
+    if (!Util.logWrites) then begin
+      Logwrites.logWrites cil 
+    end ; 
+    
+    if (!heapify) then begin
+      Heapify.default_heapify cil 
+    end ;
+    
+    if (!stackguard) then begin
+      Heapify.default_stackguard cil 
+    end ;
+    
     (match !outChannel with
       None -> ()
     | Some c -> Stats.time "printCIL" (C.printFile c) cil);
     if !E.hadErrors then
       E.s (E.error "Cabs2cil has some errors");
-    if !Util.doCheck then
+
+    if !Util.doCheck then begin
+      ignore (E.log "Final CIL check\n");
       CK.checkFile [] cil;
+    end
   end with Done_Processing -> ()
         
 (***** MAIN *****)  

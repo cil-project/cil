@@ -76,6 +76,9 @@ val pushContext  : (unit -> Pretty.doc) -> unit
 (** Removes the last registered context printing function *)
 val popContext   : unit -> unit
 
+(** Show the context stack to stderr *)
+val showContext : unit -> unit
+
 (** To ensure that the context is registered and removed properly, use the 
     function below *)
 val withContext  : (unit -> Pretty.doc) -> ('a -> 'b) -> 'a -> 'b

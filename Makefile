@@ -1673,7 +1673,7 @@ endif
 
 linuxclean: 
 	cd $(LINUXSRC); make clean
-	-cd $(LINUXSRC); chmod -R a+w * ; find . \( \
+	-cd $(LINUXSRC); find . \( \
 		-name '*cil.c' -o \
 		-name '*.exe' -o \
 		-name '*.i' -o \
@@ -1684,4 +1684,4 @@ linuxclean:
 	      	\) -exec rm -f {} \;
 
 linux: mustbegcc mustbelinux mustbemanju linuxclean
-	cd $(LINUXSRC) ; make -k CC="$(CILLY)" HOSTCC="$(CILLY) -std=c9x"
+	cd $(LINUXSRC) ; make -k CC="$(CILLY)" HOSTCC="$(CILLY)"

@@ -104,7 +104,7 @@ let unimp (fmt : ('a,unit,doc) format) : 'a =
   Pretty.gprintf f fmt
 
 let warn (fmt : ('a,unit,doc) format) : 'a = 
-  let f d = contextMessage "Warning" d; text "" in
+  let f d = contextMessage "Warning" d; nil in
   Pretty.gprintf f fmt
 
 

@@ -1016,6 +1016,7 @@ let bug (fmt : ('a,unit,doc) format) : 'a =
     E.hadErrors := true; 
     ignore (eprintf "@!%t: Bug: %a@!" 
               d_thisloc insert d);
+    E.showContext ();
     raise E.Error
   in
   Pretty.gprintf f fmt
@@ -1025,6 +1026,7 @@ let errorLoc (loc: location) (fmt : ('a,unit,doc) format) : 'a =
     E.hadErrors := true; 
     ignore (eprintf "@!%a: Error: %a@!" 
               d_loc loc insert d);
+    E.showContext ();
     raise E.Error
   in
   Pretty.gprintf f fmt
@@ -1033,6 +1035,7 @@ let warn (fmt : ('a,unit,doc) format) : 'a =
   let f d =
     ignore (eprintf "@!%t: Warning: %a@!" 
               d_thisloc insert d);
+    E.showContext ();
     nil
   in
   Pretty.gprintf f fmt
@@ -1041,6 +1044,7 @@ let warnLoc (loc: location) (fmt : ('a,unit,doc) format) : 'a =
   let f d =
     ignore (eprintf "@!%a: Warning: %a@!" 
               d_loc loc insert d);
+    E.showContext ();
     nil
   in
   Pretty.gprintf f fmt
