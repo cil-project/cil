@@ -147,6 +147,7 @@ $TEST->newTest(
 # Now add tests
 $TEST->addTests("testrun/const-array-init", "WARNINGS_ARE_ERRORS=1", ['cil']);
 $TEST->addTests("test_withtrusted/deepcopy1", "", ['inferbox']);
+$TEST->addTests("test_withtrusted/deepcopy2", "", ['inferbox']);
 $TEST->addTests("testrun/pointsto", "", ['inferbox']);
 $TEST->addTests("testrun/hostent", "", ['inferbox']);
 $TEST->addTests("testrun/hostent2", "", ['inferbox']);
