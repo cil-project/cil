@@ -446,6 +446,7 @@ let integerKinds (i: int) (posskinds: ikind list) (s: string option) =
           
 
 let integer i = Const (integerKinds i [IInt] None, lu)(* For now only ints *)
+let kinteger (k: ikind) (i: int) = Const (CInt(i, k,  None), lu)
 let hexinteger i = 
     Const (integerKinds i [IInt] (Some (Printf.sprintf "0x%08X" i)), lu)
              
@@ -548,6 +549,14 @@ let mkCompInfo
    comp.cfields <- flds;
    comp
 
+(**** Utility functions ******)
+let rec unrollType = function   (* Might drop some attributes !! *)
+    TNamed (_, r, _) -> unrollType r
+  | TForward (comp, _) -> TComp comp
+  | x -> x
+
+
+
                                    
 let var vi : lval = (Var vi, NoOffset)
 let mkSet lv e = Instr(Set(lv,e,lu))
@@ -576,13 +585,31 @@ let mkSeq sl =
   | sl' -> Sequence(sl')
 
 
-(**** Utility functions ******)
-let rec unrollType = function   (* Might drop some attributes !! *)
-    TNamed (_, r, _) -> unrollType r
-  | TForward (comp, _) -> TComp comp
-  | x -> x
+
+let mkWhile (guard:exp) (body: stmt list) : stmt = 
+  (* Do it like this so that the pretty printer recognizes it *)
+  Loop (Sequence (IfThenElse(guard, Skip, Break) :: body))
+
+let mkFor (start: stmt) (guard: exp) (next: stmt) (body: stmt list) : stmt = 
+  mkSeq 
+    (start ::
+     mkWhile guard (body @ [next]) :: [])
 
 
+let mkForIncr (iter: varinfo) (first: exp) (past: exp) (incr: exp) 
+    (body: stmt list) : stmt = 
+      (* See what kind of operator we need *)
+      let compop, nextop = 
+        match unrollType iter.vtype with
+          TPtr _ -> LtP, PlusPI
+        | _ -> Lt, PlusA
+      in
+      mkFor (mkSet (var iter) first)
+        (BinOp(compop, Lval(var iter), past, intType, lu))
+        (mkSet (var iter) 
+           (BinOp(nextop, Lval(var iter), incr, iter.vtype, lu)))
+        body
+  
 
 
 (* the name of the C function we call to get ccgr ASTs
@@ -782,7 +809,7 @@ let rec d_decl (docName: unit -> doc) () this =
         dprintf "%s%s %s %t" su1 su2 n' docName
   | TForward (comp, a) -> 
       let su = if comp.cstruct then "struct" else "union" in
-				dprintf "%s %s %a%t" su comp.cname d_attrlistpre a docName
+      dprintf "%s %s %a%t" su comp.cname d_attrlistpre a docName
 
   | TEnum (n, kinds, a) -> 
       let n' = 
@@ -1628,8 +1655,16 @@ let foldLeftCompound (doexp: offset option -> exp -> typ -> 'a -> 'a)
       in
       foldFields comp.cfields comp.cfields initl acc
   | _ -> E.s (E.unimp "Type of Compound is not array or struct")
-      
 
+
+
+let rec isCompleteType t = 
+  match unrollType t with 
+  | TArray(t, None, _) -> false
+  | TComp comp when comp.cfields = [] -> false
+  | TComp comp -> (* Struct or union *)
+      List.for_all (fun fi -> isCompleteType fi.ftype) comp.cfields
+  | _ -> true
 
 (**
  **

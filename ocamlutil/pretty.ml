@@ -63,11 +63,14 @@ let nest n d   = text (String.make n ' ') ++ align ++ d ++ unalign
 let  seq sep f dl = 
   let rec loop = function
       []     -> nil
-    | h :: t -> sep ++ f h ++ loop t
+    | h :: t -> 
+        let fh = f h in  (* Make sure this is done first *)
+        sep ++ fh ++ loop t
   in
   (match dl with
     [] -> nil
-  | h :: t -> f h ++ loop t)
+  | h :: t -> 
+      let fh = f h in fh ++ loop t)
 
 let docArray f () a = 
   let len = Array.length a in
@@ -76,9 +79,11 @@ let docArray f () a =
   else
     let rec loop i =
       if i >= len then nil else
-      f i a.(i) ++ loop (i + 1)
+      let fi = f i a.(i) in (* Make sure this is done first *)
+      fi ++ loop (i + 1)
     in
-    f 0 a.(0) ++ loop 1
+    let f0 = f 0 a.(0) in
+    f0  ++ loop 1
       
 let docOpt delem () = function
     None -> text "None"

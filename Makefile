@@ -213,7 +213,7 @@ testallpcc: $(EXECUTABLE)$(EXE) $(TVEXE) $(SAFECLIB) $(SAFEMAINLIB)
 	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.exe
 	make -C $(PCCDIR) \
              CC="$(SAFECC) --keep=$(CILDIR)/test/PCCout $(CONLY)" \
-             USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
+             USE_JAVA= USE_JUMPTABLE= TYPE=$(PCCTYPE) \
              COMPILER=$(PCCCOMP) \
              ENGINE_OTHERS="C:$(SAFECLIB) C:$(SAFEMAINLIB)" \
              TRANSLF_OTHERS="C:$(SAFECLIB) C:$(SAFEMAINLIB)" \
@@ -252,8 +252,8 @@ rbtest: test/small2/rbtest.c $(EXECUTABLE)$(EXE) $(TVEXE)
                  $(EXEOUT)rbtest.exe
 	$(PCCTEST)/rbtest.exe
 
-HUFFCOMPILE=$(SAFECC) --keep=. 
-# HUFFCOMPILE=cl /MLd
+# HUFFCOMPILE=$(SAFECC) --keep=. 
+HUFFCOMPILE=cl /MLd
 ifdef BOX
 HUFFOTHERS="C:$(SAFEMAINLIB)" 
 else

@@ -46,13 +46,15 @@ static int writeByte(U8 b) {
   }
   return 0;
 }
+
 int main(int argc, char **argv) {
   PHASH freq = NewHash();
   int freqfid, codefid;
-  int source, delta;
+  int nrSource, delta;
   double clk;
   int count = 0;
   int sz;
+  INDATA srcFile, compFile;
   
   /* Must be passed the name of a file to compress */
   if(argc < 2) {
@@ -61,15 +63,17 @@ int main(int argc, char **argv) {
   }
   TIMESTART(clk);
 
-  initLFIOFile(argv[1]);
+  initLFIOFile(&srcFile, argv[1]);
+  
   /* Read the file, 2 bytes at a time and create the frequency table */
-  source = 0;
-  while(canFetch(2)) {
-    U16 wrd = fetchWordLE();
-    source += 2;
+  nrSource = 0;
+  while(canFetch(&srcFile, 2)) {
+    U16 wrd = fetchWordLE(&srcFile);
+    nrSource += 2;
     bumpFrequency(freq, wrd);
   }
-  printf("Read %d bytes\n", source);
+  finishIOFile(&srcFile);
+  printf("Read %d bytes\n", nrSource);
   /* Open the code and frequency files */
   freqfid = CREAT("huffman.freq");
   codefid = CREAT("huffman.code");
@@ -79,40 +83,44 @@ int main(int argc, char **argv) {
   }
   createCompressTables(freq, freqfid, codefid);
   close(freqfid); close(codefid);
-  finishIOFile();
-
+  
   /* Now read again and compress */
   initCompressor("huffman.code");
-  initLFIOFile(argv[1]);
+  initLFIOFile(&srcFile, argv[1]);
   outPoint = 0; written = 0;
   startCompress(&writeByte);
   /* Read the file, 2 bytes at a time and compress */
-  while(canFetch(2)) {
-    U16 wrd = fetchWordLE();
+  while(canFetch(&srcFile, 2)) {
+    U16 wrd = fetchWordLE(&srcFile);
     writeCompressedSymbol(wrd);
-    bumpFrequency(freq, wrd);
   }
   endCompress();
   flushOut();
   close(compressfid);
-  finishIOFile();
+  finishIOFile(&srcFile);
 
-  /* Now decompress and count how many you get */
-//  initLFIOFile("huffman.compressed");
-//  startDecompress();
-//  endDecompress();
-//  delta = source;
-//  while(delta > 0) {
-//    fetchCompressedSymbol();
-//    delta -= 2;
-//  }
-//  finishIOFile();
-
+  /* Now decompress and compare */
+  initLFIOFile(&compFile, "huffman.compressed");
+  initLFIOFile(&srcFile, argv[1]);
+  startDecompress();
+  delta = nrSource;
+  while(delta > 1562) {
+    int comp = fetchCompressedSymbol(&compFile);
+    int src  = fetchWordLE(&srcFile);
+    if(src != comp) {
+      ERROR3(-1, "Src(%04x) != Comp(%04x) (at offset %d)\n",
+             src, comp, nrSource - delta);
+    }
+    delta -= 2;
+  }
+  endDecompress(&compFile);
+  finishIOFile(&srcFile); finishIOFile(&compFile);
   finalizeCompressor();
+
 
   TIMESTOP(clk);
   printf("Source %d bytes. Compressed %d bytes. Ratio: %5.2lf\n",
-         source, written, (double)source / (double)written);
+         nrSource, written, (double)nrSource / (double)written);
   printf("Run hashtest in %8.3lfms\n", clk / 1000.0);
   exit (0);
 }

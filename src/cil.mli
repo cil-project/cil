@@ -426,6 +426,7 @@ type file = global list
 val integerKinds: int -> 
                   possiblekinds: ikind list -> s: string option -> constant
 val integer: int -> exp
+val kinteger: ikind -> int -> exp
 val hexinteger: int -> exp
              
 val zero: exp
@@ -445,6 +446,10 @@ val doubleType: typ
 (* Generate fresh names from a prefix *)
 val newTypeName: string -> string
 
+val isCompleteType: typ -> bool  (* Returns true if this is a complete type. 
+                                  * This means that sizeof(t) makes sense. 
+                                  * Incomplete types are not yet defined 
+                                  * structures and empty arrays. *)
 
 (** Construct sorted lists of attributes ***)
 val addAttribute: attribute -> attribute list -> attribute list
@@ -492,6 +497,23 @@ val mkString: string -> exp
 
     (* Make a sequence out of a list of statements *)
 val mkSeq: stmt list -> stmt
+
+
+    (* Make a while loop. Can contain Break or Continue *)
+val mkWhile: guard:exp -> body:stmt list -> stmt
+
+    (* Make a for loop for(i=start; i<past; i += incr) { ... }. The body 
+     * should not contain Break or Continue !!!. Can be used with i a pointer 
+     * or an arithemtic type. start and done must have the same type but incr 
+     * must be an integer *)
+val mkForIncr:  iter:varinfo -> first:exp -> past:exp -> incr:exp 
+                -> body:stmt list -> stmt
+
+    (* Make a for loop for(start; guard; next) { ... }. The body should not 
+     * contain Break or Continue !!! *) 
+val mkFor: start:stmt -> guard:exp -> next:stmt -> body: stmt list -> stmt
+ 
+
 
 
 (**** Utility functions ******)

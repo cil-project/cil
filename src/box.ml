@@ -412,6 +412,23 @@ let mustBeTagged v =
  * extern). *)
              
 let taggedTypes: (typsig, typ) H.t = H.create 123
+let tagLength (t: typ) : (exp * exp) = (* Call only for a isCompleteType *)
+(*        let bytes = (bitsSizeOf t) lsr 3 in
+          let words = (bytes + 3) lsr 2 in
+          let tagwords = (words + 15) lsr 4 in
+*)
+  (* First the number of words *)
+  BinOp(Shiftrt, 
+        BinOp(PlusA, 
+              SizeOf(t, lu),
+              kinteger IUInt 3, uintType, lu),
+        integer 2, uintType, lu),
+  (* Now the number of tag words *)
+  BinOp(Shiftrt, 
+        BinOp(PlusA, 
+              SizeOf(t, lu),
+              kinteger IUInt 63, uintType, lu),
+        integer 6, uintType, lu)
 
 let tagType (t: typ) : typ = 
   let tsig = typeSig t in
@@ -419,23 +436,20 @@ let tagType (t: typ) : typ =
     H.find taggedTypes tsig
   with Not_found -> begin
     let newtype = 
-      try
-        let bytes = (bitsSizeOf t) lsr 3 in (* Might raise not-found for 
-                                             * incomplete types  *)
-        let words = (bytes + 3) lsr 2 in
-        let tagwords = (words + 15) lsr 4 in
+      if isCompleteType t then 
         (* ignore (E.log "Type %a -> bytes=%d, words=%d, tagwords=%d\n"
                   d_type t bytes words tagwords); *)
+        let _, tagWords = tagLength t in
         TComp 
           (mkCompInfo true ""
              (fun _ -> 
                [ ("_len", uintType, []);
                  ("_data", t, []);
                  ("_tags", TArray(intType, 
-                                  Some (integer tagwords), []), []);
+                                  Some tagWords, []), []);
                ])
              [])
-      with Not_found -> begin (* An incomplete type *)
+      else begin (* An incomplete type *)
 	(* GCC does not like fields to have incomplete types *)
 	let complt = 
 	  match unrollType t with
@@ -471,23 +485,15 @@ let splitTagType tagged =
       end
     | _ -> E.s (E.bug "splitTagType. No tags: %a\n" d_plaintype tagged)
   in
-  let bytes = 
-    try (bitsSizeOf dfld.ftype) lsr 3
-    with _ -> E.s (E.bug "splitTagType: incomplete type") in
-  let words = (bytes + 3) lsr 2 in
-  let tagwords = (words + 15) lsr 4 in
+  let words, tagwords = tagLength dfld.ftype in
             (* Now create the tag initializer *)
   dfld, lfld, tfld, words, tagwords
 
 let makeTagCompoundInit tagged datainit = 
-  let dfld, lfld, tfld, words, tagwords = splitTagType tagged in
-  let rec loopTags idx = 
-    if idx >= tagwords then [] else
-    (None, zero) :: loopTags (idx + 1)
-  in
+  let dfld, lfld, tfld, words, _ = splitTagType tagged in
   Compound (tagged, 
                   (* Now the length *)
-            (None, Const(CInt(words, IUInt, None), lu)) ::
+            (None, words) ::
             (match datainit with 
               None -> []
             | Some e -> [(None, e)]))
@@ -496,17 +502,18 @@ let makeTagCompoundInit tagged datainit =
   dfld
 
 
-let makeTagAssignInit tagged vi = 
+(* Generates code that initializes vi. Needs "iter", an integer variable to 
+ * be used as a for loop index *)
+let makeTagAssignInit tagged (iter: varinfo) vi : stmt list = 
   let dfld, lfld, tfld, words, tagwords = splitTagType tagged in
-  let rec loopTags idx = 
-    if idx >= tagwords then 
-      [mkSet (Var vi, Field(lfld, NoOffset)) 
-          (Const(CInt(words, IUInt, None), lu))] 
-    else
-      (mkSet (Var vi, Field(tfld, First (Index (integer idx, NoOffset)))) zero)
-      :: loopTags (idx + 1)
-  in
-  loopTags 0
+  (* Write the length *)
+  mkSet (Var vi, Field(lfld, NoOffset)) words ::
+  (* And the loop *)
+  mkForIncr iter zero tagwords one 
+    [mkSet (Var vi, Field(tfld, First (Index (Lval(var iter), NoOffset)))) 
+        zero ]
+  ::
+  []
 
 (****** the CHECKERS ****)
 let fatVoidPtr = fixupType voidPtrType
@@ -1359,12 +1366,22 @@ let boxFile globals =
         f.sbody <- mkSeq newbody;
         (* Now we must take all locals whose address is taken and turn their 
            types into structures with tags and length field *)
+        let tagIterator : varinfo option ref = ref None in
         let tagLocal stmacc l = 
           if not (mustBeTagged l) then stmacc
           else
+            let iter = 
+              match !tagIterator with
+                Some i -> i
+              | None -> begin
+                  let i = makeTempVar f ~name:"iter" intType in
+                  tagIterator := Some i;
+                  i
+              end
+            in
             let newtype = tagType l.vtype in
             l.vtype <- newtype;
-            (makeTagAssignInit newtype l) @ stmacc
+            (makeTagAssignInit newtype iter l) @ stmacc
         in
         let inilocals = List.fold_left tagLocal [] f.slocals in
         f.sbody <- mkSeq (inilocals @ [boxstmt f.sbody]);
@@ -1408,7 +1425,7 @@ let boxFile globals =
               | Some e -> begin
                   match e with
                     Const(CStr _, _) -> begin
-                      let dfld, lfld, tfld, words, tagwords = 
+                      let dfld, lfld, tfld, _, _ = 
                         splitTagType vi.vtype in
                       match dfld.ftype with
                         TArray(TInt((IUChar|ISChar|IChar), _), _, _)  
