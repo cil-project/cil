@@ -1499,7 +1499,7 @@ let doCheckFat which arg argt =
 (* Accumulate the statements in reverse order *)
 let seqToFSeq (p: exp) (b: exp) (bend: exp) (acc: stmt clist)
     : exp * exp * exp * stmt clist =   
-  p, bend, zero, 
+  p, p, bend, 
   CConsL
     (call None (Lval (var checkLBoundFun.svar))
        [ castVoidStar b; castVoidStar p; ],
