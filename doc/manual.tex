@@ -302,6 +302,317 @@ an explicit bounds check in an 'if' statement, so the program skips
 the bad statements (that is what I did to cause all of the "array bug"
 outputs in the "5 4" case above).
 
+\chapter{Using CCured on Apache Modules}
+
+\section{Introduction}
+
+This writing assumes Apache 1.3.19 and an x86/Linux system. Apache is an
+open source web server that has the ability to dynamically load third-party
+modules. Modules can examine and alter HTTP requests and also examine and
+alter the webserver replies. For example, a compression module might
+examine the HTTP request to see if it contains the ``Accept-Encoding:
+gzip'' tag. If it does it might alter the HTTP reply, replacing the text of
+the webpage body with a compressed version of that text. Modules can be
+configured (via a file called {\tt httpd.conf}) so that their behavior is
+limited to a certain location or directory. 
+
+Apache modules share the same address space as the Apache webserver: no
+software fault isolation is present. As a result, if the module crashes it
+brings down that webserver (although apache is usually configured to
+immediately spawn a new webserver thread to replace the fallen one). More
+distressingly, a module with a security violation (for example, a
+format-string bug) can allow remote users to gain shell access to the
+webserver machine (one version of {\tt mod\_php3} features such a
+vulnerability: CCured prevents that vulnerability). 
+
+Apache modules are typically single files with a fairly standard naming
+convention: {\tt mod\_foo.c} is the {\tt foo} module, where {\tt foo}
+ranges over fairly descriptive keywords like {\tt gzip}, {\tt random}, {\tt
+urlcount}, {\tt auth} or {\tt layout}. {\tt mod\_foo.c} almost invariable
+contains a global data structure of type {\tt module} with the C name {\tt
+foo\_module}. This data structure is a table of function pointers and entry
+points. Once {\tt mod\_foo.c} has been compiled to the shared object {\tt
+mod\_foo.so}, Apache will dynamically load it and call the function
+pointers listed in the {\tt foo\_module} structure at the appropriate time
+(e.g., when a new request comes in). 
+
+\section{Curing Apache Modules}
+
+Most Apache modules are of a relatively modest size and curing them is no
+great chore. However, some annotation work must be done. Since the cured
+module must interact with the non-cured Apache webserver, objects that are
+passed between them must not change size. As a result, {\tt WILD} and other
+fat pointers cannot be introduced into such objects. Annotations must be
+added to convince CCured that the module can be made safe without such
+run-time checks. 
+
+Imagine that you are trying to cure {\tt mod\_urlcount.c}.  Take out your
+favorite text editor and open up the file. Near the top you should find a
+configuration record structure. Each module defines a separate
+configuration record structure with a separate (non-exported) name. For
+example, {\tt mod\_urlcount} has:
+
+\begin{verbatim}
+typedef struct urlcount_config_rec {
+    int         urlcount_default;
+    CounterType urlcount_type;
+    int         urlcount_auto_add;
+    char       *urlcount_file;
+} urlcount_config_rec;
+\end{verbatim}
+
+Each module also contains functions that create, manipulate and merge such
+configuration structures. This is the mechanism through which Apache modules
+maintain global state. Each time Apache calls one of the function pointers
+exported by the module, it passes along a way to get to the appropriate
+configuration record. Since Apache does not know how the config structure
+will be defined, it uses {\tt void} pointers to describe the type. CCured
+comes with a set of macros that instantiate those {\tt void *}s on a
+per-module basis. Add the line:
+
+\begin{verbatim}
+NEW_MODULE_TYPE(urlcount, urlcount_config_rec)  // this is a macro
+\end{verbatim}
+
+where the first parameter is the module suffix name and the second is the
+type name of the configuration record. This macro declares a type named
+{\tt module\_urlcount}.  As mentioned earlier, each module exports a module
+structure (full of function pointers). We must redeclare the module to take
+advantage of the instantiated types. Change:
+
+\begin{verbatim}
+module urlcount_module; // full of "void *"s
+\end{verbatim}
+
+to
+
+\begin{verbatim}
+module_urlcount urlcount_module; // uses "url_config_rec *", not "void *"
+\end{verbatim}
+
+Now scroll down a bit and look for the word keyword {\tt void}. Apache
+modules often feature unnecessary casts to void. For example, {\tt
+mod\_headers} contains this function:
+
+\begin{verbatim}
+static void *merge_headers_config(pool *p, void *basev, void *overridesv)
+{
+    headers_conf *a = (headers_conf *) ap_pcalloc(p, sizeof(headers_conf));
+    headers_conf *base = (headers_conf *) basev, 
+        *overrides = (headers_conf *) overridesv;
+    a->headers = ap_append_arrays(p, base->headers, overrides->headers);
+    return a;
+}
+\end{verbatim}
+
+Every {\tt void} in this function really stands for {\tt headrs\_conf} (the
+{\tt mod\_headers} version of {\tt urlcount\_config\_rec}). Change it so
+that the {\tt void} types are no longer present: 
+
+\begin{verbatim}
+static headers_conf *
+    merge_headers_config(pool *p, headers_conf *basev, headers_conf *overridesv)
+{
+    headers_conf *a = (headers_conf *) ap_pcalloc(p, sizeof(headers_conf));
+    headers_conf *base = (headers_conf *) basev, 
+        *overrides = (headers_conf *) overridesv;
+    a->headers = ap_append_arrays(p, base->headers, overrides->headers);
+    return a;
+}
+\end{verbatim}
+
+Repeat this process with all configuration functions that contain {\tt
+void}. Now search for {\tt ap\_get\_module\_config}. It is a macro that
+contains a (safe) cast to and from {\tt void *} -- it allows modules to
+extract their configuration record from the global server state. For
+example, {\tt mod\_headers} contains:
+
+\begin{verbatim}
+headers_conf *serverconf =
+    (headers_conf *) ap_get_module_config(s->module_config, &headers_module);
+\end{verbatim}
+
+Change this to:
+
+\begin{verbatim}
+    headers_conf * serverconf;
+    { __NOBOXBLOCK
+    serverconf = ap_get_module_config(s->module_config, &headers_module);
+    } 
+\end{verbatim}
+
+The {\tt \_\_NOBOXBLOCK} block keyword tells CCured to leave the block
+alone: we are asserting that it is already safe. Modify every instance of
+{\tt ap\_get\_module\_config} and {\tt ap\_get\_perdir\_module\_config}
+the same way. 
+
+Now look for a datatype with the suffix {\tt entry}. For example, {\tt
+mod\_headers} features:
+
+\begin{verbatim}
+typedef struct {
+    hdr_actions action;
+    char *header;
+    char *value;
+} header_entry;
+\end{verbatim}
+
+This marks a use of Apache's polymorphic (via {\tt void *}) array routines. 
+Insert the following macro declaration to tell CCured about this array
+type:
+
+\begin{verbatim}
+NEW_TABLE_TYPE(header_entry, header_entry)      // macro
+\end{verbatim}
+
+This macro declares a new type, {\tt array\_header\_FOO} (where {\tt FOO}
+is the first argument) that is a specialized version of the Apache-provided
+type {\tt array\_header}. Other data structure (for example, the
+configuration record structure) will contain {\tt array\_header}s. We
+change them to use this new datatype. Change all declarations like:
+
+\begin{verbatim}
+typedef struct {
+    array_header *headers;
+} headers_conf;
+\end{verbatim}
+
+into:
+
+\begin{verbatim}
+typedef struct {
+    array_header_header_entry *headers;
+} headers_conf;
+\end{verbatim}
+
+Now search for every call to {\tt ap\_make\_array}, {\tt
+ap\_append\_arrays}, {\tt ap\_push\_array} and append {\tt FOO} (in our
+runing example, {\tt header\_entry}) to the name of each called function.
+For example, change: 
+
+\begin{verbatim}
+new = (header_entry *) ap_push_array(dirconf->headers);
+\end{verbatim}
+
+into:
+
+\begin{verbatim}
+new = (header_entry *) ap_push_array_header_entry(dirconf->headers);
+\end{verbatim}
+
+Finally, surround all global table declarations with {\tt \#pragma}s that
+tell CCured to leave them alone (because Apache must read them). Often
+there are three such global tables per module. One is an array of {\tt
+struct const command\_rec}s, one is an array of {\tt struct const
+handler\_rec}s, and the last is a {\tt module}. Surround them all with {\tt
+\#pragma}s as follows:
+
+\begin{verbatim}
+static const handler_rec mod_gzip_handlers[] =
+{
+    {"mod_gzip_handler", mod_gzip_handler},
+    {CGI_MAGIC_TYPE,     mod_gzip_handler},
+    {"cgi-script",       mod_gzip_handler},
+    {"*",                mod_gzip_handler},
+    {NULL}
+};
+\end{verbatim}
+
+becomes:
+
+\begin{verbatim}
+#pragma box(off)
+static const handler_rec mod_gzip_handlers[] =
+{
+    {"mod_gzip_handler", mod_gzip_handler},
+    {CGI_MAGIC_TYPE,     mod_gzip_handler},
+    {"cgi-script",       mod_gzip_handler},
+    {"*",                mod_gzip_handler},
+    {NULL}
+};
+#pragma box(on)
+\end{verbatim}
+
+Finally, change the declaration of the global module to use the new
+specialized type we created earlier. For example, change:
+
+\begin{verbatim}
+module MODULE_VAR_EXPORT urlcount_module = {
+\end{verbatim}
+
+into:
+
+\begin{verbatim}
+module_urlcount MODULE_VAR_EXPORT urlcount_module = {
+\end{verbatim}
+
+Voil\`a. 
+
+\section{Linking Apache Modules}
+
+Suppose you have just finished making the source modifications to {\tt
+mod\_foo.c}. Now you want to test it on Apache. Use CCured to compile it to
+{\tt mod\_foo.o}. Make sure that there are no {\tt WILD} pointers and that 
+the sizes of types involved in the apache-module interface did not change. 
+Now you must link it:
+
+\begin{verbatim}
+    $ gcc -shared -o mod_foo.so mod_foo.o
+    $ cp mod_foo.so /path/to/apache/bin/
+\end{verbatim}
+
+Now go to your Apache binary directory and edit {\tt httpd.conf}. Go to the
+{\tt LoadModule} section and add something appropriate according to the
+documentation for your module. For example, {\tt mod\_usertrack} can be
+configured by adding:
+
+\begin{verbatim}
+LoadModule usertrack_module bin/mod_usertrack.so
+CookieTracking On
+CookieExpires "1 days"
+\end{verbatim}
+
+Now try to start Apache:
+
+\begin{verbatim}
+    $ ./apachectl stop
+    $ ./apachectl start
+    ./apachectl start: httpd started
+\end{verbatim}
+
+If you see the ``{\tt httpd started}'' message, it worked. If there were
+messages about undefined symbols, you probably have to write a few
+wrappers. For example, you might see:
+
+\begin{verbatim}
+    ./httpd: undefined symbol strdup_ff: mod_foo cannot be loaded
+\end{verbatim}
+
+In this case you must write a wrapper for {\tt strdup} that uses {\tt FSEQ}
+pointers. Suppose you write it in {\tt wrapper\_foo.c} and compile that to
+{\tt wrapper\_foo.o}. Now go back to the linking step: 
+
+\begin{verbatim}
+    $ gcc -shared -o mod_foo.so mod_foo.o wrapper_foo.o
+    $ cp mod_foo.so /path/to/apache/bin/
+\end{verbatim}
+
+And try to start Apache again. Eventually this process converges (you can
+skip ahead by using a utility like {\tt nm} to list all of the undefined
+symbols in {\tt mod\_foo.so} if you like) and your Apache module will be up
+and running.
+
+If for some reasons your Apache module crashes at run-time, consider using
+the underlying CIL {\tt --logcalls} mechanism to track down the error
+(Apache modules do not treat well with normal debuggers). Make sure that
+the debugging comments are directed to {\tt syslog(3)} rather than {\tt
+printf(3)} or somesuch. 
+
+As daunting as it may seem, it actually takes less than 30 minutes to Cure
+an Apache module of average size and get it up and running. Some of that
+time is spend reading the module's documentation so that it can be loaded
+and tested correctly. Good luck!
+
 \chapter{Customizing CCured}
 
   \section{Polymorphic functions}
