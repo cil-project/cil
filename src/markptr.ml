@@ -87,9 +87,10 @@ let rec doType (t: typ) (p: N.place)
         t, nextidx
       end
         
+          (* Strip the type names so that we have less sharing of nodes *)
   | TNamed (n, bt, a) -> 
-      let t', _ = doType bt (N.PType n) 0 in
-      t', nextidx
+      let t', nextidx' = doType bt p nextidx in
+      t', nextidx'
         
   | TForward (comp, a) -> 
       if H.mem doneComposites comp.ckey then
@@ -422,11 +423,14 @@ let instantiatePolyFunc (vi: varinfo) : varinfo * bool =
                         d_plaintype t);
             shallowCopyFunctionType t
         | None -> 
+            (* make a copy to return now *)
             let copiedtype = shallowCopyFunctionType vi.vtype in
+            (* Make a copy to memoize and use to template new copies *)
+            let copiedtype2 = shallowCopyFunctionType vi.vtype in
             if debugInstantiate then
               ignore (E.log "  The first time. Made template: %a\n"
                         d_plaintype copiedtype);
-            origtypref := Some vi.vtype;
+            origtypref := Some copiedtype2;
             copiedtype
       in
       let newvi = 
@@ -532,6 +536,9 @@ let doGlobal (g: global) : global =
       | _ -> ());
       g
     end
+
+  (* Keep the typedefs only because they are convenient to define son struct 
+   * tags. We won't use the TNamed *)
   | GType (n, t, l) -> 
       let t', _ = doType t (N.PType n) 0 in
       GType (n, t', l)

@@ -23,11 +23,6 @@ let currentFunction : fundec ref  = ref dummyFunDec
 let currentFile     : file ref = ref dummyFile
 let currentFileId     = ref 0
 
-let doPrint () = 
-  if !currentFunction.svar.vname = "mod_gzip_strendswith" then 
-    true
-  else
-    false
 
            (* After processing an expression, we create its type, a list of 
             * instructions that should be executed before this exp is used, 
@@ -2154,11 +2149,6 @@ let boxFile file =
     | GFun (f, l) -> 
         if debug then
           ignore (E.log "Boxing GFun(%s)\n" f.svar.vname);
-        let ours = 
-          f.svar.vname = "mod_gzip_strendswith" ||
-          f.svar.vname = "mod_gzip_strendswith_ww" in
-        if ours then
-          ignore (E.log "Doing function %s\n" f.svar.vname); 
         (* Fixup the return type as well, except if it is a vararg *)
         f.svar.vtype <- fixupType f.svar.vtype;
           (* If the type has changed and this is a global function then we
