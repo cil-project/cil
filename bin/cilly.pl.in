@@ -127,8 +127,8 @@ sub applyCil {
         0!=system("grep '^$fqsrc\$' $ENV{CILIFY_MODULES} >/dev/null")) {
       # sm: this is to help isolate the problem with linux
       print("skipping cilly for $fqsrc...\n");
-      $self->runShell("cp $src $cilfile");
-      return $cilfile;
+      $self->runShell("cp $src $outfile");
+      return $outfile;
     }
     else {
       print("NOT skipping cilly for $fqsrc\n");
