@@ -56,6 +56,15 @@ CAMLFLAGS    =-I $(OBJDIR)
 
 ECHO = @
 
+ifdef PROFILE
+# RELEASE	= 1
+ CAMLC          = ocamlopt -p
+ CAMLLINK       = ocamlopt -p
+ CMO            = cmx
+ CMXA           = cmxa
+ EXEEXT         = .asm
+ MOVEAFTERCAMLC = cmi cmx $(OBJ)
+else
 ifdef RELEASE
  CAMLC          = ocamlopt
  CAMLLINK       = ocamlopt
@@ -64,15 +73,6 @@ ifdef RELEASE
  EXEEXT         = .asm
  MOVEAFTERCAMLC = cmi cmx $(OBJ)
 else 
-ifdef PROFILE
- RELEASE	= 1
- CAMLC          = ocamlopt -p
- CAMLLINK       = ocamlopt -p
- CMO            = cmx
- CMXA           = cmxa
- EXEEXT         = .asm
- MOVEAFTERCAMLC = cmi cmx $(OBJ)
-else
  CAMLC          = ocamlc -g
  CAMLLINK       = ocamlc -custom -g
  CMO            = cmo
@@ -199,7 +199,8 @@ $(EXECUTABLE)$(EXE) : $(MODULES:%=$(OBJDIR)/%.$(CMO))
 #	Phonies should be "remade" even if someone mistakenly creates them
 .PHONY: clean realclean
 clean:
-# AB: The profiler junk must be cleared too (gmon.sum)
+# AB: The profiler junk must be cleared too (gmon.sum, gmon.out)
+	-find $(OBJDIR)/../test -name "gmon.?u?" -exec rm {} \;
 	-rm -f $(foreach ext, cmi cmo cmx cmxa exe sum, $(OBJDIR)/*.$(ext))
 	-rm -f $(OBJDIR)/*.$(OBJ)
 	-rm -f $(EXECUTABLE)$(EXE)
