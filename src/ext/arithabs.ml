@@ -405,14 +405,15 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
     
     (** This is called for reading from a variable we consider (meaning that 
      * its address is not taken and has the right type) *)
-    method private variableUse (state: int VH.t) (v: varinfo) : string = 
+    method private variableUse ?(print=true) 
+                               (state: int VH.t) (v: varinfo) : string = 
       let freshId = 
         try VH.find state v
         with Not_found -> 
           E.s (E.bug "%a: varUse: varRenameState does not know anything about %s" 
                  d_loc !currentLoc v.vname )
       in
-      if debugRename then 
+      if debugRename && print then 
         ignore (E.log "At %a: variableUse(%s) : %d\n" 
                   d_loc !currentLoc v.vname freshId);
       variableName v freshId
@@ -424,7 +425,7 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
       if debugRename then 
         ignore (E.log "At %a: variableDef(%s) : %d\n" 
                   d_loc !currentLoc v.vname newid);
-      let n = self#variableUse state v in
+      let n = self#variableUse ~print:false state v in
       freshVars <- n :: freshVars;
       n
     
@@ -502,11 +503,6 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
       | Call (_, Lval (Var f, NoOffset), args, l) -> 
           printCall None f args l
             
-      | Call (_, _, _, l) -> 
-          (*
-          ignore (E.log "ignoring call in %a\n" d_loc l);
-          *)
-          nil
 
       | _ -> nil (* Ignore the other instructions *)        
             
@@ -520,6 +516,9 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
       currentLoc := get_stmtLoc s.skind;
       (* Initialize the renamer for this statement *)
       lastFreshId := blockStartData.(s.sid);
+      if debugRename then 
+        ignore (E.log "Initialize the renamer for block %d to %d\n" 
+                  s.sid !lastFreshId);
       assert (!lastFreshId >= 0);
 
       let cfgi = 
@@ -731,10 +730,16 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
           freshVars <- [];
           uninitVars <- [];
           
+          if debugRename then 
+            ignore (E.log "Starting renaming phase I for %s\n" 
+                      fdec.svar.vname);
           Array.iteri (fun i (b: S.cfgBlock) -> 
             (* compute the initial state *)
             blockStartData.(i) <- !lastFreshId;
-            
+            if debugRename then 
+              ignore (E.log "Save the rename state for block %d to %d\n"
+                        i !lastFreshId);
+
             (* Initialize the renaming state *)
             self#initVarRenameState b;
           
@@ -747,31 +752,35 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
               Instr il -> begin
                 List.iter
                   (fun i -> 
+                    let doCall (dest: varinfo option) (f: varinfo) : unit = 
+                      let gwt: varinfo list = 
+                        getGlobalsWrittenTransitive f in
+                      let gwt' = 
+                        match dest with 
+                          Some v -> 
+                            gwt @ [ v ] 
+                        | _ -> gwt 
+                      in
+                      List.iter (fun v -> 
+                        ignore (self#variableDef varRenameState v))
+                        gwt'
+                    in
                     match i with 
-                      Set ((Var v, NoOffset), _, _)
+                      Set ((Var v, NoOffset), _, l)
                         when considerVariable v ->
+                          currentLoc := l;
                           ignore (self#variableDef varRenameState v)
                     | Call (Some (Var v, NoOffset), 
-                            Lval (Var f, NoOffset), _, _) 
-                      ->
-                        let gwt: varinfo list = 
-                          getGlobalsWrittenTransitive f in
-                        let gwt' = 
-                          if considerVariable v then 
-                            gwt @ [ v ] else gwt 
-                        in
-                        List.iter (fun v -> 
-                          ignore (self#variableDef varRenameState v))
-                          gwt'
+                            Lval (Var f, NoOffset), _, l) 
+                      when considerVariable v ->
+                        currentLoc := l;
+                        doCall (Some v) f
 
 
-                    | Call (None, 
-                            Lval (Var f, NoOffset), _, _) -> 
-                          let gwt: varinfo list = 
-                            getGlobalsWrittenTransitive f in
-                          List.iter (fun v -> 
-                            ignore (self#variableDef varRenameState v))
-                            gwt
+                    | Call (_, 
+                            Lval (Var f, NoOffset), _, l) -> 
+                              currentLoc := l;
+                              doCall None f
 
                     | _ -> ())
                   il
@@ -793,6 +802,9 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
           ) 
           cfgi.S.blocks;
 
+          if debugRename then 
+            ignore (E.log "Starting renaming phase II (printing) for %s\n" 
+                      fdec.svar.vname);
 
 
           (** For each basic block *)

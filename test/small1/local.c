@@ -1,29 +1,19 @@
-/* xlbfun.c - xlisp basic built-in functions */
-/*	Copyright (c) 1985, by David Michael Betz
-	All Rights Reserved
-	Permission is granted for unrestricted non-commercial use	*/
-/* modified for SPEC by Michael Paton 1994 and Alexander Carlton 1995 */
 
-#include <math.h>
-#include <stdarg.h>
-#include "local.h"
-
-NODE*** xlstack;
+typedef struct node {
+  struct node *xl_cdr;	/* the cdr pointer */
+} NODE;
 
 
-/* xbquote - back quote function */
-NODE *xbquote(NODE *args)
-{
-  NODE *expr,*val;  
-  val = bquote1(expr);
-  return (val);
-}
+NODE *** xlstack;
+
+#define rplacd(x,y)	((x)->xl_cdr = (y))
+
 
 /* bquote1 - back quote helper function */
 NODE *bquote1(NODE *expr)
 {
   NODE ***oldstk;
-  rplacd(expr,bquote1(cdr(expr)));
+  expr->xl_cdr = bquote1(expr->xl_cdr);
   xlstack = oldstk;
   return (expr);
 }
