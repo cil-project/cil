@@ -960,8 +960,10 @@ and attrsId al =
 let addToHisto (histo: ('a, int ref) H.t) (much: int) (which: 'a) : unit = 
   try let r = H.find histo which in r := !r + much 
   with Not_found -> let r = ref much in H.add histo which r
+
 let getHisto (histo: ('a, int ref) H.t) (which: 'a) : int = 
   try let r = H.find histo which in !r with Not_found -> 0
+
 let sortHisto (histo: ('a, int ref) H.t) : ('a * int) list = 
   let theList : ('a * int) list ref = ref [] in
   H.iter (fun k r -> theList := (k, !r) :: !theList) histo;
@@ -1025,7 +1027,28 @@ let printGraphStats () =
     (fun nid many -> ignore (E.log " %d -> %d@!" nid many))
     10
     spreadsToImmediate;
-  
+
+  (* Now compute for each bad cast to how many nodes it gets *)
+  if false && getHisto totKind Wild > !totalNodes / 10 then begin
+    ignore (E.log "Finding the really bad casts\n");
+    (* Scan all the nodes *)
+    H.iter 
+      (fun id n ->
+        match n.kind, n.why_kind with
+          Wild, BadCast e -> begin
+            (* Clear the mark nodes in the entire graph *)
+            H.iter (fun id n -> n.mark <- false) idNode;
+            let count = ref 0 in
+            ()
+            (* Scan the graph forward, backward and to points to. Count the 
+             * nodes we reach *)
+          end
+            
+        | _, _ -> ()
+        ) idNode;
+
+  end;
+
   (* Now compute for each WILD node at which node its WILD originates *)
   let castReaches : (location, int ref) H.t = H.create 117 in
   H.iter 
