@@ -122,7 +122,7 @@ $TEST->add3Tests("testrun/switch");
 $TEST->add3Tests("testrun/caserange", "_GNUCC=1");
 $TEST->add3Tests("test/attr");
 $TEST->add3Tests("test/attr2", "_GNUCC=1");
-    $TEST->addBadComment("test/attr2-box", "Format is not a string");
+    $TEST->addBadComment("test/attr2-box", "Format is a fat pointer to string");
 $TEST->add3Tests("test/attr3", "_GNUCC=1");
 $TEST->add3Tests("testrun/attr4", "_GNUCC=1");
 $TEST->add3Tests("test/bh1");
