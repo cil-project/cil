@@ -172,3 +172,5 @@ fseq1
 closefunc
 addr
 polystruct-tmp
+glob
+sin_zero

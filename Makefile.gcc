@@ -45,6 +45,8 @@ LIBOUT := -rs
 PATCH_SYSINCLUDES := ctype.h fcntl.h malloc.h netdb.h pwd.h signal.h \
                      stdarg.h stdio.h stdlib.h string.h \
                      time.h unistd.h varargs.h arpa/inet.h \
-		     sys/fcntl.h sys/ioctl.h sys/socket.h sys/stat.h sys/uio.h
+		     sys/fcntl.h sys/ioctl.h sys/socket.h sys/stat.h sys/uio.h \
+                     glob.h
+
 
 

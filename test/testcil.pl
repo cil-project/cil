@@ -861,6 +861,7 @@ smAddTest("scott/signal $box");
 smAddTest("scott/getaddrinfo $box");
 smAddTest("test-bad/sin_zero $box");
 smAddTest("scott/getopt $box");
+smAddTest("scott/glob $box");
 
 # current problematic test cases
 smAddTest("scott/complex_float $box");
@@ -936,9 +937,7 @@ else {
 smAddTest("scott/getpwnam $box $gcc");
 
 smAddTest("test-bad/execv $box $gcc");
-$TEST->setField(smFailTest("needs deep-mangled wrapper", "scott/popen $box $gcc"),
-                "FailDiagnosis",
-                "inferred glob_t probably has unanticipated type");
+smAddTest("scott/popen $box $gcc");
 smAddTest("scott/memset_int $box");
 smAddTest("scott/printfllong $box $gcc");
 smAddTest("test-bad/replydirname $box");
