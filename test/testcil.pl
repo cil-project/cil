@@ -202,9 +202,9 @@ $TEST->add3Tests("wes-hashtest", "");
 $TEST->add3Tests("wes-rbtest", "");
 $TEST->addTests("test/alloc", "MANUALBOX=1", ['inferbox']);
 $TEST->add3Tests("testrun/addr-array");
-$TEST->addTests("combine1_3", "", ['cil']);
-$TEST->addTests("combine2_3", "", ['cil']);
-$TEST->addTests("combine3_3", "", ['cil']);
+$TEST->addTests("combine1", "", ['cil']);
+$TEST->addTests("combine2", "", ['cil']);
+$TEST->addTests("combine3", "", ['cil']);
 
 # Tests that are expected to fail
 $TEST->add2TestsFail("testrun/failubound1", "", "Failure .+: Ubound");

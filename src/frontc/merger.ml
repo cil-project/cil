@@ -293,6 +293,13 @@ end
 let collectTypeTagDefs = new collectTypeTagDefsClass
 
 
+
+
+(* Put some effort into replacing type names with types. But since we can 
+ * easily get confused in the presence of attributes, do it only when it is 
+ * easy *)
+let applyTypeNames ((k:envKind), (n:string)) (s, n, l) = ()
+
 (* Equality constraints *)
 type eqConstraint = envKind * string * string
 let rec compareSpecs 
@@ -473,6 +480,8 @@ let findTypeTagNames (f: Cabs.file) =
   H.clear fileTypeTags;
   (* Collect the type and tags defined in this file *)
   ignore (visitCabsFile collectTypeTagDefs f);
+  (* Apply type names when possible *)
+  H.iter applyTypeNames fileTypeTags;
   (* Now collect and solve the constraint graph *)
   constructConstraintGraph ();
   (* Now assign names to types and tags *)

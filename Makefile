@@ -368,10 +368,10 @@ testmodel/%: $(SMALL1)/%.c $(SMALL1)/modelextern.c
                          $(CFLAGS) $(EXEOUT)$*.exe $*.c modelextern.$(OBJEXT)
 	cd $(SMALL1); ./$*.exe
 
-combine%_3: 
+combine%: 
 	cd $(SMALL1); \
           $(CCURED) $(CFLAGS) \
-                    combine$*_1.c combine$*_2.c combine$*_3.c \
+                    $(notdir $(wildcard $(SMALL1)/combine$*_[1-9].c)) \
                     --combine  \
                     $(STANDARDPATCH) \
 	            $(EXEOUT)combine$*.exe

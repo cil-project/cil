@@ -9,7 +9,7 @@ int main() {
 
   typedef struct foo *PFOO;
 
-  PFOO pfoo;
+  PFOO pfoo = &foo;
   
   struct foo {
     int a;

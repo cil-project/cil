@@ -3164,7 +3164,6 @@ and constFoldBinOp bop e1 e2 tres =
           integer (if i1 <> i2 && ge (isunsigned ik1) i1 i2 then 1 else 0)
       | _ -> BinOp(bop, e1', e2', tres)
     in
-    (*ignore (E.log "After constfold: %a\n" d_plainexp newe);*) (*sm: annoying*)
     newe
   end else
     BinOp(bop, e1', e2', tres)
