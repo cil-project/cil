@@ -385,11 +385,13 @@ let rec typeHasChanged t =
 (* Check whether the type contains an embedded array *)
 let mustBeTagged v = 
   let rec containsArray t =
-(*
     existsType 
-      (function TArray _ -> true | _ -> false) t
+      (function 
+          TArray _ -> ExistsTrue 
+        | TPtr _ -> ExistsFalse
+        | _ -> ExistsMaybe) t
   in
-*)
+(*
     match unrollType t with 
       TArray _ -> true
     | TComp comp -> 
@@ -398,7 +400,7 @@ let mustBeTagged v =
     | (TInt _ | TEnum _ | TFloat _ | TBitfield _ ) -> false
     | _ -> E.s (E.unimp "containsArray: %a" d_plaintype t)
   in
-
+*)
   if v.vglob then 
     match v.vtype with 
       TFun _ -> false 
