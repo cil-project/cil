@@ -12,7 +12,11 @@ else
   CFLAGS := -D_GNUCC -Wall  -g -ggdb -D_DEBUG
 endif
 
-OPT_O2 := -O2
+ifdef NO_OPTIMIZATION
+  OPT_O2 :=
+else
+  OPT_O2 := -O2
+endif
 CONLY := -c
 OBJOUT := -o
 OBJEXT := o
