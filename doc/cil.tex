@@ -49,7 +49,7 @@ intermediate languages designed for compilation, by maintaining types and a
 close relationship with the source program. The main advantage of CIL is that
 it compiles all valid C programs into a few core constructs with a very clean
 semantics. Also CIL has a syntax-directed type system that makes it easy to
-analyze and manipulate C programs. Furtheremore, the CIL front-end is able to
+analyze and manipulate C programs. Furthermore, the CIL front-end is able to
 process not only ANSI-C programs but also those using Microsoft C or GNU C
 extensions. If you do not use CIL and want instead to use just a C parser and
 analyze programs expressed as abstract-syntax trees then your analysis will
@@ -112,11 +112,16 @@ you build it CIL will configure itself according to the underlying compiler.
 However, CIL has only been tested on Intel x86 using the gcc compiler on Linux
 and cygwin and using the MS Visual C compiler. 
 
+ The largest application we have used CIL for is
+\ahref{../ccured/index.html}{CCured}, a compiler that compiles C code into
+type-safe code by analyzing your pointer usage and inserting runtime checks in
+the places that cannot be guaranteed statically to be type safe.  
+
 \section{Installation}
 
-You will need OCaml release 3.04 or higher to build CIL. CIL has been tested
-on Linux and on Windows (where it can behave at either Microsoft Visual C or
-gcc). 
+You will need OCaml release 3.04 or higher to build CIL (we have tested it
+with 3.05 and 3.06 as well). CIL has been tested on Linux and on Windows
+(where it can behave at either Microsoft Visual C or gcc).
 
  If you want to use CIL on Windows then you must get a complete installation
 of \t{cygwin} and the source-code OCaml distribution and compile it yourself
@@ -142,6 +147,10 @@ OCaml). If you have not done this before then take a look
 subdirectory of \t{obj}. The name of the subdirectory is either \t{x86\_WIN32}
 if you are using \t{cygwin} on Windows or \t{x86\_LINUX} if you are using
 Linux. 
+\item If you decide to use CIL, {\bf please}
+\ahref{mailto:necula@cs.berkeley.edu}{send us a note}. This will help recharge
+our batteries after more than a year of development. And of course, do send us
+your bug reports as well.
 
 \end{enumerate}
 
@@ -160,7 +169,7 @@ or the particular alignment rules for structure fields. CIL is also dependent
 on the way the compiler implements variable argument functions. The version
 2.96 of the GNU C compiler uses an implementation of variable argument
 functions that is not supported in CIL (and we do not plan to support it since
-it has been superseeded by the scheme used by GNU C version 3.0).
+it has been superseded by the scheme used by GNU C version 3.0).
 
 The file \ahref{cil.tar.gz}{cil.tar.gz} contains the complete source CIL
 distribution, consisting of the following files:
@@ -677,7 +686,7 @@ function. For example, the \t{\%e} placeholder means that the next argument
 placeholder. See \ciltyperef{formatArg} for a definition of the placeholders
 that are understood. 
 
- A dual feature is the intepreted deconstructors. This can be used to test
+ A dual feature is the interpreted deconstructors. This can be used to test
 whether a CIL construct has a certain form:
 \begin{verbatim}
 Formatcil.dType "void * const (*)(int x)" t
@@ -694,7 +703,7 @@ Formatcil.dType "void * (*)(%F)" t
  will match any function pointer type, independent of the type and number of
 the formals. If the match succeeds the result is \t{Some [ FF forms ]} where
 \t{forms} is a list of names and types of the formals. Note that each member
-in the resulting list corresponds positionally to a placeholdes in the
+in the resulting list corresponds positionally to a placeholder in the
 pattern.
 
  The interpreted constructors and deconstructors do not support the complete C
@@ -779,7 +788,7 @@ List of instructions
    Instr_list ::= Instr | %I | Instr Instr_list
 \end{verbatim}
 
-Notes regarding the syntax of :
+Notes regarding the syntax:
 \begin{itemize}
 \item In the grammar description above non-terminals are written with
 uppercase initial
@@ -819,7 +828,7 @@ declaration instead of a type in the cast. In this case the name that you
 declare is ignored.
 
 \item In lists of formal parameters and lists of attributes, an empty list in
-the pattern matches any formal parameters or atttributes. 
+the pattern matches any formal parameters or attributes. 
 
 \item When matching types, uses of named types are unrolled to expose a real
 type before matching. 
@@ -852,16 +861,16 @@ constructing and deconstructing:
  
   \subsubsection{Performance considerations for interpreted constructors}
  
- Parsing the parsers is done with a LALR parser and it takes time. To improve
-performance the constructors and decosntructors memoize the patters and will
-only compile a pattern once. Also all construction and deconstruction
+ Parsing the patterns is done with a LALR parser and it takes time. To improve
+performance the constructors and deconstructors memoize the parsed patterns
+and will only compile a pattern once. Also all construction and deconstruction
 functions can be applied partially to the pattern string to produce a function
 that can be later used directly to construct or deconstruct. This function
 appears to be an order of magnitude slower than if the construction is done
 using the CIL constructors (without memoization the process would be two
 orders of magnitude slower.) However, the convenience of interpreted
 constructor might make them a viable choice in many situations when
-performance is not paramount (e.g. prototyping). 
+performance is not paramount (e.g. prototyping).
 
 
  \subsection{Printing and Debugging support}
@@ -910,7 +919,7 @@ and fields). Attributes are represented using the type \ciltyperef{attribute}.
 An attribute consists of a name and a number of arguments (represented using
 the type \ciltyperef{attrparam}). Almost any expression can be used as an
 attribute argument. Attributes are stored in lists sorted by the name of the
-attribute. To maintain list sortedness, use the functions
+attribute. To maintain list ordering, use the functions
 \cilvalref{typeAttrs} to retrieve the attributes of a type and the functions
 \cilvalref{addAttribute} and \cilvalref{addAttributes} to add attributes.
 Alternatively you can use \cilvalref{typeAddAttributes} to add an attribute to
@@ -1109,7 +1118,7 @@ have made an effort to reclassify GCC attributes as name and type attributes
 
    It is not worth going into the obscure details of where MSVC accepts these
    type attributes. The parser thinks it knows these details and it pulls
-   these attributes from whereever they might be placed. The important thing
+   these attributes from wherever they might be placed. The important thing
    is that MSVC will accept if we print them according to the rules of the CIL
    attributes ! 
 
@@ -1138,7 +1147,7 @@ bin/cilly -D HAPPY_MOOD -I myincludes hello.c -o hello
 \begin{itemize}
 \item preprocessing using the -D and -I arguments with the resulting file left in \t{hello.i}, 
 \item the invocation of the \t{cilly.asm} application which parses \t{hello.i}
-coverts it to CIL and the pretty-prints it to \t{hellocil.c}
+converts it to CIL and the pretty-prints it to \t{hellocil.c}
 \item another round of preprocessing with the result placed in \t{hellocil.i}
 \item the true compilation with the result in \t{hellocil.o}
 \item a linking phase with the result in \t{hello}
@@ -1260,7 +1269,7 @@ subprocess. In addition, the following options are supported:
         \item MSVC - the Microsoft Visual C compiler. Of course, you should
                      pass only MSVC valid options in this case. 
         \item AR - the archiver \t{ar}. Only the mode \t{cr} is supported and
-                   the original version of the arhive is lost. 
+                   the original version of the archive is lost. 
      \end{itemize}
 \item \t{--help} Prints a list of the options supported.
 \item \t{--verbose} Prints lots of messages about what is going on.
@@ -1305,16 +1314,15 @@ supported:
 \item \t{--MSVC}. Enable the MSVC extensions and pretty-print for consumption
 by MSVC.
 \item \t{--logcalls}. Insert code in the processed source to print the name of
-funtions as are called. Implemented in \t{src/logcalls.ml}.
+functions as are called. Implemented in \t{src/logcalls.ml}.
 \item \t{--logwrites}. Insert code in the processed source to print the
 address of all memory writes. Implemented in \t{src/logwrites.ml}.
 \item \t{--heapify}. Apply the heapify transformation.
                      Implemented in \t{src/heapify.ml}.
 \item \t{--heapify}. Apply the StackGuard transformation.
                      Implemented in \t{src/stackguard.ml}.
-\item \t{--stages}. Print the stages that CCured is performing.
 \item \t{--warnall}. Print all the warnings.
-\item \t{--log=xxx}. Set \t{xxx} to be the name of the log file for the CCured
+\item \t{--log=xxx}. Set \t{xxx} to be the name of the log file for the CIL
 application. By default \t{stderr} is used.
 \item \t{--keepunused}. Do not attempt to remove the unused variables and
        types from CIL. 
@@ -1352,7 +1360,7 @@ without encountering these):
 
 \begin{enumerate}
 \item Nested function definitions.
-\item Construcing function calls.
+\item Constructing function calls.
 \item Naming an expression's type.
 \item Complex numbers
 \item Hex floats
@@ -1393,7 +1401,7 @@ compiled into assignments.
 syntax for initializers, which is more than both \t{gcc} and \t{MSVC}. I
 (George) think that this is the most complicated part of the C language and
 whoever designed it should be banned from ever designing languages again.
-\item Case ranges. These are commpiled into separate cases. There is no code
+\item Case ranges. These are compiled into separate cases. There is no code
 duplication, just a larger number of \t{case} statements.
 \item Transparent unions. This is a strange feature that allows you to define
 a function whose formal argument has a (tranparent) union type, but the
@@ -1449,7 +1457,7 @@ be defined twice. First with the ``extern inline'' specifier and the second
 time without it. If optimizations are turned off then the ``extern inline''
 definition is considered a prototype (its body is ignored). If optimizations
 are turned on then the extern inline function is inlined at all of its
-occurences from the point of its definition all the way to the point where the
+occurrences from the point of its definition all the way to the point where the
 (optional) second definition appears. No body is generated for an extern
 inline function. A body is generated for the real definition and that one is
 used in the rest of the file. 
@@ -1463,7 +1471,7 @@ used in the rest of the file.
 but the first one. This is not so bad because GCC itself would not like it. 
 
 \item There are still a number of bugs in handling some obscure features of
-GCC. For example, when you use variable-length arrays, CIL turnes them into
+GCC. For example, when you use variable-length arrays, CIL turns them into
 calls to \t{alloca}. This means that they are deallocated when the function
 returns and not when the local scope ends. 
 \end{itemize}
@@ -1506,7 +1514,7 @@ actions are taken:
 \t{typedef}, and structure/union/enumeration tags) are given new names if they
 conflict with declarations from previously processed sources. The new name is
 formed by appending the suffix \t{\_\_\_n}, where \t{n} is a unique integer
-identifier. Then the new names are applied to their occurences in the file. 
+identifier. Then the new names are applied to their occurrences in the file. 
 
  If the \t{--agressive-merge} argument is passed to \t{cilly} then we try to
 merge all isomorphic structure and union types, independent of their original
@@ -1597,7 +1605,7 @@ match any of the processed files.
 \item \t{group=foo} - will add this patch to the named group. If this is not
 specified then a unique group is created to contain just the current patch.
 When all files specified in the command line have been patched, an error
-message is generated for all groupsfor whom no member patch was used. We use
+message is generated for all groups for whom no member patch was used. We use
 this mechanism to receive notice when the patch triggers are out-dated with
 respect to the new include files. 
 \item \t{system=sysname} - will only consider this pattern on a given
@@ -1611,7 +1619,7 @@ matters).
 marker. Each of these group of lines is a multi-line pattern that if found in
 the file will be replaced with the text given at the end of the block. 
 
- The matching is space-insenstive.
+ The matching is space-insensitive.
 
  All of the markers \t{<<<}, \t{|||}, \t{===} and \t{>>>} must appear at the
 beginning of a line but they can be followed by arbitrary text (which is
@@ -1661,7 +1669,7 @@ how many dark corners this language has, especially if you want to parse
 real-world programs such as those written for GCC or if you are more ambitious
 and you want to parse the Linux or Windows NT sources (both of these were
 written without any respect for the standard and with the expectation that
-compilers will be changed to accomodate the program). 
+compilers will be changed to accommodate the program). 
 
  The following examples were actually encountered either in real programs or
 are taken from the ISO C99 standard or from the GCC's testcases. My first
@@ -1765,8 +1773,9 @@ int main() {
 }
 \end{cilcode}
 
-\item Another one with constructed literals. This one would not go through GCC
-(but goes through CIL). This code returns 2.
+\item Another one with constructed literals. This one is legal according to
+the GCC documentation but somehow GCC chokes on (it works in CIL though). This
+code returns 2.
 
 \begin{cilcode}[local]
  return ((int []){1,2,3,4})[1];
@@ -1797,16 +1806,16 @@ strange things:
 way but you are on your own if you try to jump into another function this way.
 
 \begin{cilcode}[global]
-static void *jtab[2];
+static void *jtab[2]; // A jump table
 static int doit(int x){
  
   static int jtab_init = 0;
-  if(!jtab_init) {
+  if(!jtab_init) { // Initialize the jump table
     jtab[0] = &&lbl1;
     jtab[1] = &&lbl2;
     jtab_init = 1;
   }
-  goto *jtab[x];
+  goto *jtab[x]; // Jump through the table
 lbl1:
   return 0;
 lbl2:
@@ -1827,8 +1836,8 @@ int main(void){
  return ({goto L; 0;}) && ({L: 5;});
 \end{cilcode}
 
-\item \t{extern inline} is a strange feature of C. Can you guess what the
-following code computes? 
+\item \t{extern inline} is a strange feature of GNU C. Can you guess what the
+following code computes?
 
 \begin{cilcode}[global]
 extern inline foo(void) { return 1; }
@@ -1915,7 +1924,7 @@ return a.x + a.y + a.z + a.u + a.v;
 
 \section{Authors}
 
- CIL was develped starting from Hugues Casse's \t{frontc} front-end for C
+ CIL was developed starting from Hugues Casse's \t{frontc} front-end for C
 although all the files from the \t{frontc} distribution have been changed very
 extensively. The main author is \ahref{mailto:necula@cs.berkeley.edu}{George
 Necula}, with significant contributions from
@@ -1938,7 +1947,7 @@ Necula}.
 \section{Changes}
 \begin{itemize}
 \item {\bf August 12, 2002}: Fixed a bug in the translation of wide-character
-strings. Now this translation maches that of the underlying compiler. Changed
+strings. Now this translation matches that of the underlying compiler. Changed
 the implementation of the compiler dependencies.
 \item {\bf May 25, 2002}: Added interpreted constructors and destructors.
 \item {\bf May 17, 2002}: Changed the representation of functions to move the

@@ -2084,8 +2084,10 @@ type formatArg =
   | Fva of bool (** For the ellipsis in a function type *)
   | Fv of varinfo
   | Fl of lval
-  | Flo of lval option (** For the result of a function call *)
+  | Flo of lval option 
+
   | Fo of offset
+
   | Fc of compinfo
   | Fi of instr
   | FI of instr list
