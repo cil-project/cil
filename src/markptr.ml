@@ -49,10 +49,21 @@ let rec doType (t: typ) (p: N.place)
           let n = N.newNode p nextidx bt' a in
           TPtr (bt', n.N.attr), i'
   end
-  | TArray(bt, len, a) ->
+  | TArray(bt, len, a) -> begin
+      (* wes: we want a node for the array, just like we have a node for
+       * each pointer *)
+      match N.nodeOfAttrlist a with
+        Some n -> TArray (bt, len, a), nextidx (* Already done *)
+      | None -> 
+          let bt', i' = doType bt p (nextidx + 1) in
+          let n = N.newNode p nextidx bt' a in
+          TArray (bt', len, n.N.attr), i'
+  end
+      (* old array code: 
       let bt', i' = doType bt p nextidx in
       if bt == bt' then t, i' 
       else TArray(bt', len, a), i'
+        *)
           
   | TComp comp -> 
       if H.mem doneComposites comp.ckey then
@@ -426,7 +437,6 @@ let printFile (c: out_channel) fl =
       N.simplify (); 
       N.printGraph c;
       output_string c " End of graph*/\n";
-      N.printGraph c;
       output_string c "/* Now the solved graph (simplesolve)\n";
       Stats.time "simple solver" Simplesolve.solve N.idNode ; 
       N.printGraph c;

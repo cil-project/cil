@@ -380,13 +380,13 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
   done ;
 
 
-  (* now take all of the intcast pointers and make them fseq *)
+  (* now take all of the intcast pointers and make them seq *)
   Hashtbl.iter (fun id n -> all := n :: !all) node_ht ;
   while (!worklist <> []) do
     (* pick out our current node *)
     let cur = List.hd !worklist in
     if (cur.intcast) then begin
-      ignore (update_kind cur FSeq BoolFlag)
+      ignore (update_kind cur Seq BoolFlag)
     end ;
     worklist := List.tl !worklist 
   done ;
