@@ -18,6 +18,13 @@ ifneq ($(ARCHOS), x86_LINUX)
 endif
 endif
 
+defaulttarget:
+	@echo "This Makefile is intended to be run with an explicit target."
+
+# watch for out-of-date Makefile
+Makefile: Makefile.in
+	cd ..; ./config.status
+
 # sm: find and remove all the intermediate files from translation
 # sm: removed *box.c from those removed since $(TESTDIR)/PCC/src/pccbox.c should be kept
 clean:
@@ -547,7 +554,9 @@ hola: scott/hola
 # on quickbuild (which rebuilds translator components whose dependencies
 # have changed), and others do..
 ifdef TARGETS_DEP_QUICKBUILD
-  TARGET_DEP := quickbuild
+  # with switch to test/Makefile, doesn't do what I want, so no-op
+  #TARGET_DEP := quickbuild
+  TARGET_DEP := 
 endif
 
 # sm: attempt at a single rule for my testing purposes
@@ -573,7 +582,10 @@ scott-nolink/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 # sm: a target for programs which are *supposed* to fail, because
 # they intentionally violate the type system; but this is only
 # when FAIL is #defined, otherwise they should exit ok
-bad/%: $(TESTDIR)/bad/%.c $(TARGET_DEP)
+# 2/14/02: renamed from bad/% because with that name (and now that
+# test/Makefile is being used) it actually collides with the name of
+# the generated binary, so sometimes make thinks it's up-to-date!
+badd/%: $(TESTDIR)/bad/%.c $(TARGET_DEP)
 	rm -f $(TESTDIR)/bad/$*
 	cd $(TESTDIR)/bad; $(CC) $(CONLY) $(WARNALL) $*.c
 	@true "first try the succeed case"
@@ -631,11 +643,11 @@ bads/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 
 # sm: yet another failure-test target, this time utilizing a separate
 # script capable of testing multiple failures per file
-test-bad/%: quickbuild $(TESTDIR)/small2/%.c $(TARGET_DEP)
+test-bad/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 	CCUREDHOME="$(CCUREDHOME)" CCURED="$(CCURED) --noPrintLn" \
 	  CFLAGS=""`$(PATCHECHO) $(STANDARDPATCH)`" $(CFLAGS) $(WARNALL)" \
           TESTBADONCE="$(TESTBADONCE)" \
-	  bash lib/test-bad $*.c
+	  bash ../lib/test-bad $*.c
 
 # sm: trivial test of combiner
 MYSAFECC := $(CCURED) --keep=. $(STANDARDPATCH)

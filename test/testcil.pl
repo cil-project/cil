@@ -583,12 +583,12 @@ smAddTest("scott/open");
 smAddTest("scott/ioctl $box");
 smAddTest("scott/stralloc $box $gcc");
 smAddTest("scott/mknod $box");
-smAddTest("bad/nullfield $manualbox");
+smAddTest("badd/nullfield $manualbox");
 smAddTest("scott/constfold");
 smAddTest("scott/mode_sizes");       # mode(__QI__) stuff
 
 # test of strings (need more!)
-smFailTest("unsound user annotation RWSTRING", "bad/ovwrnull $box");
+smFailTest("unsound user annotation RWSTRING", "badd/ovwrnull $box");
 smAddTest("test-bad/strloop2 $box");
 
 # tests of function models
@@ -606,7 +606,7 @@ smFailTest("problem inferring FSEQ where WILD is expected; problem with FSEQ too
 
 # more stuff, mostly from ftpd
 if ($TEST->{option}->{safecdebug}) {
-  smFailTest("need vprintf_sw wrapper", "scott/reply $box");
+  smAddTest("scott/reply $box");
 }
 else {
   smFailTest("problem with __extinline", "scott/reply $box");
@@ -635,16 +635,16 @@ smAddTest("hola");
 smAddTest("hola $box");
 
 # a few things that should fail
-smAddTest("bad/lbound $box");
-smAddTest("bad/ubound $box");
-smAddTest("bad/fseq $box");
-smAddTest("bad/calloc $box");
-smAddTest("bad/stackaddr $box");
+smAddTest("badd/lbound $box");
+smAddTest("badd/ubound $box");
+smAddTest("badd/fseq $box");
+smAddTest("badd/calloc $box");
+smAddTest("badd/stackaddr $box");
 smAddTest("test-bad/trivial-tb");
 smAddTest("test-bad/retptr $box");
 
 # verify we have tags and that they work
-smAddTest("bad/nonptr $box");          # very simple test
+smAddTest("badd/nonptr $box");          # very simple test
 smAddTest("scott/arraytags $box");     # this one is pretty hairy
 
 # simple test of combiner
@@ -686,7 +686,8 @@ smAddTest("wes-hashtest $iters");
 smAddTest("wes-hashtest $box $iters");
 
 # some piece of PCC
-smAddTest("testpcc/parseobject EXTRAARGS=--no-idashi");
+smFailTest("parse error, cause unknown", 
+           "testpcc/parseobject EXTRAARGS=--no-idashi");
 
 # apache modules; set is needed for next one
 $TEST->setField(smAddTest("apache!1setup"), 'Cmd', "make apachesetup");

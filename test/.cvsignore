@@ -31,3 +31,4 @@ testcil.random
 __log*
 testsafec.smlog
 Makefile
+__scalar2pointer.txt
