@@ -542,11 +542,6 @@ let compute_results (show_sets : bool) : unit =
     total_lvalues = count_hash_elts lvalue_hash in
   let 
     counted_lvalues = ref 0 in
-  let print_reached_unknown name = 
-    begin
-      Printf.printf "%s -> (top)\n" name;
-    end
-  in
   let print_result (name,set) =
       let rec print_set s = 
 	match s with
@@ -578,8 +573,7 @@ let compute_results (show_sets : bool) : unit =
 		      try
 			lval_elts := (vinf.vname, A.points_to_names lv) :: (!lval_elts)
 		      with
-			| A.UnknownLocation -> 
-			    (print_reached_unknown vinf.vname)
+			| A.UnknownLocation -> ()
 		    end
 		 ) lvalue_hash;
     List.iter print_result (!lval_elts); 
