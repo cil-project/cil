@@ -163,11 +163,15 @@ else
 endif
 
 
+COMPILEMSG=
+LINKMSG=
 
 ifdef NATIVECAML
  ifdef PROFILE
    COMPILEFLAGS   += -p
    LINKFLAGS      += -p
+   COMPILEMSG     += (profile)
+   LINKMSG        += (profile)
  endif
  ifdef STATIC
    COMPILEFLAGS   += -ccopt -static
@@ -255,7 +259,7 @@ $(OBJDIR)/%.cmi: %.mli
          # Compile an ML file. After compilation we 
          # copy to $(OBJDIR) the .cmi and the result of compilation.
 $(OBJDIR)/%.$(CMO): %.ml
-	@$(NARRATIVE) "Compiling           $< to $(COMPILETOWHAT)"
+	@$(NARRATIVE) "Compiling           $< to $(COMPILETOWHAT) $(COMPILEMSG)"
 	$(ECHO)#if test $(OBJDIR) != $(<D) -a -f $(OBJDIR)/$(basename $(<F)).cmi ;then \
            $(COMMAND) mv -f $(OBJDIR)/$(basename $(<F)).cmi $(<D); \
            mv -f $(OBJDIR)/$(basename $(<F)).cmi $(<D); \
@@ -274,7 +278,7 @@ $(OBJDIR)/%.$(CMO): %.ml
              # Compile C files
              # They appear to be left in the current directory as .o files
 $(OBJDIR)/%.$(CMC): %.c
-	@$(NARRATIVE) Compiling C file $<
+	@$(NARRATIVE) "Compiling C file $< $(COMPILEMSG)"
 	$(AT)$(CAMLC) $(CAMLFLAGS) -c $< -o $@
 	$(AT)mv -f $(basename $(notdir $<)).$(OBJ) $@
 
