@@ -102,6 +102,10 @@ sub parse_command_line {
                 $idmin = $argument;
             } elsif ($flag eq "log") {
                 $logfile = $argument;
+            } elsif ($flag eq "top_form") {
+                $num_runs{$flag} = $argument;
+            } elsif ($flag eq "line") {
+                $num_runs{$flag} = $argument;
             } else {die "Illegal flag: $flag \n"}
         } else {push @non_flags, $str;}
     }
