@@ -1260,4 +1260,9 @@ bc: mustbegcc
 	cd $(BCDIR); rm -f *.o; make CC="$(CCURED) --combine"
 	cd $(BCDIR); make test
 
+FTDIR := test/ptrdist-1.1/ft
+ft: mustbegcc
+	cd $(FTDIR); rm -f *.o; make CC="$(CCURED) --combine"
+	cd $(FTDIR); make test
+
 
