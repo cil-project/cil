@@ -231,6 +231,8 @@ $TEST->add3Tests("testrun/func5");
 $TEST->add3Tests("testrun/func6");
 $TEST->addTests("testrun/func7", "", ['inferbox']);
 $TEST->addTests("testrun/func8", "", ['inferbox']);
+$TEST->add2Tests("testrun/func9");
+   $TEST->addBadComment("testrun/func9-inferbox", "When we take the address of a polymorphic function, the address gets \"dummyNode\" as its node, which causes us to not add some edges.");
 $TEST->add3Tests("test/globals");
 $TEST->add3Tests("testrun/float");
 $TEST->add3Tests("testrun/ptr1");
