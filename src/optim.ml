@@ -521,6 +521,20 @@ let find_in_array (array : 'a array) (element : 'a) : int =
     if array.(i) == element then i else findloop (i + 1)
   in
   findloop 0
+
+(* Find a substring *)
+let strstr str qry : bool =
+  let ql = String.length qry in
+  let sl = String.length str in
+  let rec loop pos qpos =
+    qpos >= ql ||
+    (str.[pos] == qry.[qpos] && (loop (pos+1) (qpos+1))) ||
+    (pos < (sl-ql) && (loop (pos+1) 0)) 
+  in
+  ql <= sl && loop 0 0
+     
+
+
 (******************************************************************************)
 
 (* Some statistics that we can use to brag about later *)
@@ -995,7 +1009,10 @@ and removeCheck (checkName : string) (i : instr list) : instr list =
     [] -> acc
   | hd :: rest ->
       match hd with
-      | Call(_,Lval(Var x,_),args,l) when x.vname = checkName -> removeCheckLoop checkName acc rest	  
+      | Call(_,Lval(Var x,_),args,l) when (checkName.[0] != 'C') && (strstr x.vname checkName) ->
+	  removeCheckLoop checkName acc rest	  
+      | Call(_,Lval(Var x,_),args,l) when x.vname = checkName -> 
+	  removeCheckLoop checkName acc rest	  
       |	_ -> removeCheckLoop checkName (hd :: acc) rest
   in List.rev (removeCheckLoop checkName [] i)
 
