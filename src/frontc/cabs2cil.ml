@@ -921,7 +921,9 @@ and doType (a : attribute list) = function
       let rec loop i = function
           [] -> []
         | (kname, A.NOTHING) :: rest -> 
-           (kname, (newTagName kname, i)) :: loop (increm i 1) rest
+            (* Process this tag so that it ends up in the environment *)
+            let newname = newTagName kname in
+            (kname, (newname, i)) :: loop (increm i 1) rest
 
         | (kname, e) :: rest ->
             let i = 
@@ -929,7 +931,9 @@ and doType (a : attribute list) = function
                 c, e', _ when isEmpty c -> e'
               | _ -> E.s (E.unimp "enum with non-const initializer")
             in
-            (kname, (newTagName kname, i)) :: loop (increm i 1) rest
+            (* Process this tag so that it ends up in the environment *)
+            let newname = newTagName kname in
+            (kname, (newname, i)) :: loop (increm i 1) rest
       in
       let fields = loop zero eil in
       let res = TEnum (n, List.map (fun (_, x) -> x) fields, a) in
