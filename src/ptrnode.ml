@@ -252,12 +252,13 @@ let kindOfAttrlist al =
             match loop al with
               x, UserSpec -> x, UserSpec
             | _ -> begin
-                let nd = 
-                  try H.find idNode n
-                  with Not_found -> 
-                    E.s (E.bug "Cannot find node with id = %d\n" n)
-                in
-                nd.kind, nd.why_kind
+                try 
+                  let nd = H.find idNode n in
+                  nd.kind, nd.why_kind
+                with Not_found -> begin
+                  ignore (E.warn "Cannot find node %d\n" n);
+                  Unknown, UserSpec
+                end
             end
         end
         | _ -> loop al

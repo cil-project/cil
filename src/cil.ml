@@ -464,6 +464,10 @@ end;;
 
 let lu = locUnknown
 
+    (* A special location that we use to mark that a BinOp was created from 
+     * an index *)
+let luindex = { line = -1000; col = -1; file = ""; }
+
 let integerFits (i: int) (k: ikind) =  true (* We know that i is less than 31 
                                              * bits so it fits even in an 
                                              * IInt *)
@@ -1589,7 +1593,7 @@ let mkMem (addr: exp) (off: offset) : exp =
     | Some lv, _ -> (* non-index on an array *)
         Lval(addOffsetLval (Index(zero, off)) lv)
     | None, Index(ei, resto) -> (* index on a non-array *)
-        Lval(Mem (BinOp(PlusPI, addr, ei, typeOf addr, lu)), resto) 
+        Lval(Mem (BinOp(PlusPI, addr, ei, typeOf addr, luindex)), resto) 
     | None, _ -> (* non-index on a non-array *)
         Lval(Mem addr, off)
   in

@@ -252,7 +252,11 @@ let rec doExp (e: exp) =
         SLiteral 0 -> ()
       | SPos -> e1n.N.posarith <- true
       | SLiteral n when n > 0 -> e1n.N.posarith <- true
-      | _ -> e1n.N.arith <- true);
+      | _ -> 
+          if l.line = -1000 then (* Was created from p[e] *)
+            e1n.N.posarith <- true
+          else
+            e1n.N.arith <- true);
       BinOp (bop, e1', doExpAndCast e2 intType, e1t, l), e1t, e1n
       
       

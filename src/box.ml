@@ -132,19 +132,12 @@ and baseTypeName = function
 
 (**** Inspect the boxing style attribute *)
 let extractPointerTypeAttribute al = 
-  let rec loop = function
-      [] -> P.Unknown
-    | a :: al -> begin
-        match P.attr2k a with
-          P.Unknown -> loop al
-        | k -> k
-    end
-  in
-  loop al
+  let k, why = P.kindOfAttrlist al in
+  k
           
 
 let kindOfType t = 
-  (* Since t was fixed up it has a qualifier if it is a pointer *)
+  (* Since t was fixed up, it has a qualifier if it is a pointer *)
   match extractPointerTypeAttribute (typeAttrs t) with
     P.Unknown -> P.Scalar
   | res -> res
