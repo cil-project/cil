@@ -4,6 +4,7 @@
  *  George C. Necula    <necula@cs.berkeley.edu>
  *  Scott McPeak        <smcpeak@cs.berkeley.edu>
  *  Wes Weimer          <weimer@cs.berkeley.edu>
+ *  Ben Liblit          <liblit@cs.berkeley.edu>
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -1510,28 +1511,8 @@ external parse : string -> file = "cil_main"
  *)
 
 
-let escape_char = function
-  | '\007' -> "\\a"
-  | '\b' -> "\\b"
-  | '\t' -> "\\t"
-  | '\n' -> "\\n"
-  | '\011' -> "\\v"
-  | '\012' -> "\\f"
-  | '\r' -> "\\r"
-  | '"' -> "\\\""
-  | '\'' -> "\\'"
-  | '\\' -> "\\\\"
-  | ' ' .. '~' as printable -> String.make 1 printable
-  | unprintable -> Printf.sprintf "\\%03o" (Char.code unprintable)
-
-let escape_string str =
-  let length = String.length str in
-  let buffer = Buffer.create length in
-  for index = 0 to length - 1 do
-    Buffer.add_string buffer (escape_char (String.get str index))
-  done;
-  Buffer.contents buffer
-
+let escape_char = Cprint.escape_char
+let escape_string = Cprint.escape_string
   
 let d_ikind () = function
     IChar -> text "char"

@@ -1,9 +1,10 @@
 (*
  *
- * Copyright (c) 2001-2002, 
+ * Copyright (c) 2001-2003,
  *  George C. Necula    <necula@cs.berkeley.edu>
  *  Scott McPeak        <smcpeak@cs.berkeley.edu>
  *  Wes Weimer          <weimer@cs.berkeley.edu>
+ *  Ben Liblit          <liblit@cs.berkeley.edu>
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -221,81 +222,63 @@ let print_commas nl fct lst =
   print_list (fun () -> print ","; if nl then new_line() else space()) fct lst
 	
 
-let conv_digit (value:int) = 
-  String.make 1 
-    (Char.chr (value + 
-		 (if value < 10 then (Char.code '0') 
-                 else ((Char.code 'a') - 10))))
+let escape_char = function
+  | '\007' -> "\\a"
+  | '\b' -> "\\b"
+  | '\t' -> "\\t"
+  | '\n' -> "\\n"
+  | '\011' -> "\\v"
+  | '\012' -> "\\f"
+  | '\r' -> "\\r"
+  | '"' -> "\\\""
+  | '\'' -> "\\'"
+  | '\\' -> "\\\\"
+  | ' ' .. '~' as printable -> String.make 1 printable
+  | unprintable -> Printf.sprintf "\\%03o" (Char.code unprintable)
+
 let escape_string str =
-  let lng = String.length str in
-  let rec build idx =
-    if idx >= lng then ""
-    else
-      let sub = String.sub str idx 1 in
-      let res = match sub with
-	"\n" -> "\\n"
-      | "\"" -> "\\\""
-      | "'" -> "\\'"
-      | "\r" -> "\\r"
-      | "\t" -> "\\t"
-      | "\b" -> "\\b"
-      | "\000" -> "\\0"
-      | _ -> if sub = (Char.escaped (String.get sub 0))
-      then sub
-      else let code = Char.code (String.get sub 0) in
-      "\\"
-      ^ (conv_digit (code / 64))
-      ^ (conv_digit ((code mod 64) / 8))
-      ^ (conv_digit (code mod 8)) in
-      res ^ (build (idx + 1)) in
-  build 0
+  let length = String.length str in
+  let buffer = Buffer.create length in
+  for index = 0 to length - 1 do
+    Buffer.add_string buffer (escape_char (String.get str index))
+  done;
+  Buffer.contents buffer
 
 let print_string (s:string) =
   print ("\"" ^ escape_string s ^ "\"")
 
-let rec conv_to_hex (value:int64):string =
-  let sixteen = Int64.of_int 16 in
-  if compare value sixteen < 0  then  (* if value < 16 *)
-    conv_digit (Int64.to_int value)
-  else    (* conv_to_hex(value / 16) ^ conv_digit(value mod 16) *)
-    (conv_to_hex (Int64.div value sixteen))
-    ^ (conv_digit (Int64.to_int (Int64.rem value sixteen)))
+(* a wide char represented as an int64 *)
+let escape_wchar =
+  let limit upper probe = Int64.compare upper probe > 0 in
+  let fits_byte = limit (Int64.of_int 0x100) in
+  let fits_octal_escape = limit (Int64.of_int 0o1000) in
+  let fits_universal_4 = limit (Int64.of_int 0x10000) in
+  let fits_universal_8 = limit (Int64.of_string "0x100000000") in
+  fun charcode ->
+    if fits_byte charcode then
+      escape_char (Char.chr (Int64.to_int charcode))
+    else if fits_octal_escape charcode then
+      Printf.sprintf "\\%03Lo" charcode
+    else if fits_universal_4 charcode then
+      Printf.sprintf "\\u%04Lx" charcode
+    else if fits_universal_8 charcode then
+      Printf.sprintf "\\u%04Lx" charcode
+    else
+      invalid_arg "Cprint.escape_string_intlist"
 
-(* a string represented as a list of int64s *)
-let rec escape_string_intlist (str: int64 list):string =
-  match str with
-    [] -> ""
-  | value::rest ->
-      let this_char = 
-	let twofiftyfive = Int64.of_int 255 in
-	if (compare value twofiftyfive > 0) then 
-	  "\\x"^(conv_to_hex value)
-	else begin
-	  let code = Int64.to_int value in
-	  match code with
-	    7 -> "\\a"
-	  | 8 -> "\\b"
-	  | 9 -> "\\t"
-	  | 10 -> "\\n"
-	  | 13 -> "\\r"
-	  | 34 -> "\\\""
-	  | 39 -> "\\'"
-	  | 92 -> "\\\\"
-	  | 0 -> "\\0"
-	  | _ -> 
-	      if code >= 32 && code <= 126 then
-		String.make 1 (Char.chr code)
-	      else
-		"\\"
-		^ (conv_digit (code / 64))
-		^ (conv_digit ((code mod 64) / 8))
-		^ (conv_digit (code mod 8))
-	end
-      in
-      this_char ^ (escape_string_intlist rest)
+(* a wide string represented as a list of int64s *)
+let escape_wstring (str : int64 list) =
+  let length = List.length str in
+  let buffer = Buffer.create length in
+  let append charcode =
+    let addition = escape_wchar charcode in
+    Buffer.add_string buffer addition
+  in
+  List.iter append str;
+  Buffer.contents buffer
 
 let print_wstring (s: int64 list) =
-  print ("L\"" ^ escape_string_intlist s ^ "\"")
+  print ("L\"" ^ escape_wstring s ^ "\"")
 
 (*
 ** Base Type Printing
