@@ -511,6 +511,8 @@ sub applyPatches {
     my $lineno = 0;
     my $line; # The current line
 
+    # the file name that should be printed in the line directives
+    my $lineDirectiveFile = $in;
     # Now apply the SOF patches
     foreach my $patch (@eof_patches) {
         if(defined $patch->{FLAGS}->{atsof}) {

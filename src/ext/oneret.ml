@@ -98,10 +98,11 @@ let oneret (f: Cil.fundec) : unit =
     | [] -> []
 
     | ({skind=Return (retval, l)} as s) :: rests -> 
+        currentLoc := l;
         if hasRet && retval = None then 
-          E.s (E.unimp "Found return without value in function %s\n" fname);
+          E.s (error "Found return without value in function %s\n" fname);
         if not hasRet && retval <> None then 
-          E.s (E.unimp "Found return in subroutine %s\n" fname);
+          E.s (error "Found return in subroutine %s\n" fname);
         (* Keep this statement because it might have labels. But change it to 
          * an instruction that sets the return value (if any). *)
         s.skind <- begin
@@ -121,12 +122,15 @@ let oneret (f: Cil.fundec) : unit =
         end
 
     | ({skind=If(eb,t,e,l)} as s) :: rests -> 
+        currentLoc := l;
         s.skind <- If(eb, scanBlock false t, scanBlock false e, l);
         s :: scanStmts mainbody rests
     | ({skind=Loop(b,l,lb1,lb2)} as s) :: rests -> 
+        currentLoc := l;
         s.skind <- Loop(scanBlock false b, l,lb1,lb2);
         s :: scanStmts mainbody rests
     | ({skind=Switch(e, b, cases, l)} as s) :: rests -> 
+        currentLoc := l;
         s.skind <- Switch(e, scanBlock false b, cases, l);
         s :: scanStmts mainbody rests
     | s :: rests -> s :: scanStmts mainbody rests
