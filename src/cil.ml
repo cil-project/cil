@@ -2441,6 +2441,7 @@ let d_global () = function
 type declName = 
     DNNothing                           (* docName is nil *)
   | DNString of string                  (* docName is just a variable name *)
+  | DNPtrStuff of doc                   (* Some document that starts with * *)
   | DNStuff of doc                      (* Anything else *)
 
 (** A printer interface for CIL trees. Create instantiations of 
@@ -3096,6 +3097,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         DNNothing -> nil
       | DNString s -> text s
       | DNStuff d -> d
+      | DNPtrStuff d -> d
     in
     (* Print the docName with some attributes preceedign it, maybe with 
      * parentheses *)
@@ -3103,6 +3105,16 @@ class defaultCilPrinterClass : cilPrinter = object (self)
       match dnwhat, a with
         DNStuff d, _ -> (* Must parenthesize whether or not we have attrs *)
           text "(" ++ self#pAttrs () a ++ name  ++ text ")"
+      | DNPtrStuff d, _ -> 
+          if (match t with TPtr _ -> true | _ -> false) then (* We are in a 
+                                                              * Ptr. No need 
+                                                              * for 
+                                                              * parentheses *)
+            self#pAttrs () a ++ name
+          else
+            text "(" ++ self#pAttrs () a ++ name  ++ text ")"
+            
+          
       | DNNothing, [] -> nil
       | DNNothing, _ :: _ -> (* Cannot print the attributes in this case 
                               * because gcc does not like them here *)
@@ -3140,7 +3152,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           ++ name
     | TPtr (bt, a)  -> 
         self#pType 
-          (DNStuff (text "* " ++ parenthname a))
+          (DNPtrStuff (text "* " ++ parenthname a))
           () 
           bt
 
@@ -3347,7 +3359,7 @@ class plainCilPrinterClass =
     match dn with 
       DNNothing -> self#pOnlyType () t
     | DNString s -> text (s ^ " : ") ++ self#pOnlyType () t
-    | DNStuff d -> d ++ text " : " ++ self#pOnlyType () t
+    | DNStuff d | DNPtrStuff d -> d ++ text " : " ++ self#pOnlyType () t
 
  method private pOnlyType () = function 
      TVoid a -> dprintf "TVoid(@[%a@])" self#pAttrs a

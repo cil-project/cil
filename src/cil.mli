@@ -1594,6 +1594,7 @@ type declName =
                                          * Nothing is declared *)
   | DNString of string                  (* The declared entity is just a 
                                          * string *)
+  | DNPtrStuff of Pretty.doc                   (* Some document that starts with * *)
   | DNStuff of Pretty.doc               (* Anything else *)
 
 (** A printer interface for CIL trees. Create instantiations of 
