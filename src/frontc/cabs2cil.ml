@@ -3488,12 +3488,12 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
       pointerComparison (mkCastT zero intType t2) t2 e2 t2
 
 
-  | (Eq|Ne|Le|Lt|Ge|Gt|Eq|Ne) when isPointerType t1 && isArithmeticType t2 ->
+  | (Eq|Ne|Le|Lt|Ge|Gt) when isPointerType t1 && isArithmeticType t2 ->
       ignore (warnOpt "Comparison of pointer and non-pointer");
       (* Cast both values to upointType *)
       doBinOp bop (mkCastT e1 t1 !upointType) !upointType 
                   (mkCastT e2 t2 !upointType) !upointType
-  | (Eq|Ne|Le|Lt|Ge|Gt|Eq|Ne) when isArithmeticType t1 && isPointerType t2 ->
+  | (Eq|Ne|Le|Lt|Ge|Gt) when isArithmeticType t1 && isPointerType t2 ->
       ignore (warnOpt "Comparison of pointer and non-pointer");
       (* Cast both values to upointType *)
       doBinOp bop (mkCastT e1 t1 !upointType) !upointType 
