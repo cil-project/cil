@@ -1,4 +1,4 @@
-(* Written by S. P. Rahul *)
+(* Authors: Aman Bhargava, S. P. Rahul *)
 
 (* Optimizes the placement of boxing checks *)
 
@@ -138,7 +138,8 @@ and printCfgStmt ?(showGruesomeDetails = true) s =
   ignore (printf "Preds: ");
   List.iter (function s -> ignore (printf "%d " s.sid)) s.preds;
   ignore (printf "\n");
-  if showGruesomeDetails then begin
+  if (s.sid != -1) then begin
+    if showGruesomeDetails then begin
     ignore (printf "Gen:\n ");
     List.iter (function e -> ignore (printf "%a\n" d_exp e)) (!gen).(s.sid);
     ignore (printf "\n");
@@ -150,7 +151,9 @@ and printCfgStmt ?(showGruesomeDetails = true) s =
     ignore (printf "Out:\n ");
     List.iter (function e -> ignore (printf "%a\n" d_exp e)) (!outNode).(s.sid);
     ignore (printf "\n");
+    end;
   end;
+  
   match s.skind  with
   | If (test, blk1, blk2, _) ->
       ignore (printf "Cond: %a\n" d_plainexp test);
@@ -169,13 +172,14 @@ let rec orderBlock blk =
     dfs (List.hd  blk)
   end
   else ()
+
 (*
 and dfs s =
   if not (List.memq s !markedNodes) then begin
     markedNodes := s::!markedNodes;
     List.iter dfs s.succs;
     s.sid <- !sCount;
-    !nodes.(!sCount) <- s; ( * add to ordered array * )
+    !nodes.(!sCount) <- s;  ( * add to ordered array * )
     sCount := !sCount - 1;
   end
 *)
@@ -197,7 +201,6 @@ and dfsLoop (s:stmt) =
     !nodes.(!sCount) <- s; (* add to ordered array *)
     sCount := !sCount - 1;
   end
-
 
 
 (*-----------------------------------------------------------------*)
@@ -375,6 +378,8 @@ let nullChecksOptim f =
   sCount := !numNodes-1;
   nodes := Array.create !numNodes dummyStmt; (* allocate space *)
   orderBlock f.sbody.bstmts; (* assign sid *)
+  (* sCount+1 was the largest sid assigned *)
+  
 
   (* Create gen and kill for all nodes *)
   gen := Array.create !numNodes [];  (* allocate space *)
@@ -388,21 +393,23 @@ let nullChecksOptim f =
   (!inNode).(0) <- [];
   outNode := Array.create !numNodes !allVals;
 
-
   let changed = ref true in  (* to detect if fix-point has been reached *)
   while !changed do
     changed := false;
-    for i = 0 to (!numNodes-1) do
-      let old = (!outNode).(i) in
-      let tmpIn = intersectAll (List.map (function s -> (!outNode).(s.sid)) (!nodes).(i).preds) in
-      (!inNode).(i) <- tmpIn;
-      if (!kill).(i) then
-        (!outNode).(i) <- (!gen).(i)
-      else
-        (!outNode).(i) <- union (!gen).(i) tmpIn;
-      if old <> (!outNode).(i) then changed := true
+    for i = (!sCount + 1) to (!numNodes-1) do
+      if (!nodes).(i).sid != -1 then begin
+        let old = (!outNode).(i) in
+        let tmpIn = intersectAll (List.map (function s -> if (s.sid = -1) then !allVals else (!outNode).(s.sid)) (!nodes).(i).preds) in
+        (!inNode).(i) <- tmpIn;
+        if (!kill).(i) then
+          (!outNode).(i) <- (!gen).(i)
+        else
+          (!outNode).(i) <- union (!gen).(i) tmpIn;
+        if old <> (!outNode).(i) then changed := true
+      end
     done
   done;
+
 
   if debug then printCfgBlock f.sbody;
   if debug then begin
@@ -418,9 +425,10 @@ let nullChecksOptim f =
   *)
 
   Array.iter (function s ->
-    match s.skind with
-      Instr l -> s.skind <- Instr(optimInstr l (!inNode).(s.sid))
-    | _ -> ())
+    if (s.sid != -1) then
+      match s.skind with
+        Instr l -> s.skind <- Instr(optimInstr l (!inNode).(s.sid))
+      | _ -> ())
     !nodes;
 
   f
@@ -1394,6 +1402,7 @@ let optimFun (f : fundec) (isGlobinit : bool) =
   else begin
     (* Remove redundant CHECK_NULL *)
     if amandebug then begin pr "Null Checks"; pr "\n"; end ;
+
     optimizedF := nullChecksOptim !optimizedF;
     
     (* Remove other redundant checks *)

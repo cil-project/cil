@@ -44,9 +44,6 @@ odoc:
 	make -f Makefile.cil odoc $(MAKEOVERRIDES)
 
 
-# don't be confused by presence of odoc/ directory
-.PHONY: cil-doc
-
 CCURED := perl $(CCUREDHOME)/lib/ccured.pl 
 PATCHER := perl $(CCUREDHOME)/lib/patcher.pl
 
