@@ -2517,6 +2517,36 @@ and doInitializer
         | _ when initl = [] || not (isValidIndex nextidx) ->
             acc, List.rev sofar, nextidx, initl
               
+        | (A.ATINDEXRANGE_INIT (idxs, idxe), ie) :: restinitl -> 
+            (* Turn this into many copies of ATINDEX_INIT. Ignore for now the 
+             * case when the initializer has side-effects *)
+            let (doidxs, idxs', _) = 
+              doExp isconst idxs (AExp(Some intType)) in
+            let (doidxe, idxe', _) = 
+              doExp isconst idxe (AExp(Some intType)) in
+            let s, e, dorange = 
+              match constFold idxs', constFold idxe' with
+                Const(CInt32(s, _, _)), 
+                Const(CInt32(e, _, _)) -> 
+                  Int32.to_int s, Int32.to_int e, doidxs @@ doidxe
+              | _ -> E.s (error 
+                       "INDEX initialization designator is not a constant")
+            in
+            if s > e then 
+              E.s (error "start index larger than end index in range initializer");
+            let rec loop restinitl (i: int) = 
+              if i = s then restinitl else
+              loop ((A.NEXT_INIT, ie) :: restinitl) (i - 1)
+            in
+            let restinitl = loop restinitl e in
+            (* Now add the one for the start *)
+            let restinitl = 
+              (A.ATINDEX_INIT (A.CONSTANT (A.CONST_INT (string_of_int s)),
+                               A.NEXT_INIT),
+               ie) :: restinitl in
+            initArray nextidx sofar (acc @@ dorange) restinitl
+              
+            
            (* Check if we have a field designator *)         
         | (A.ATINDEX_INIT (idxe, A.NEXT_INIT), ie) :: restinitl ->
             let nextidx', doidx = 
