@@ -31,12 +31,17 @@ my %test_cache = ();            # Cached test results.
 # Since Perl hashes retain their keys if you don't do this you get a
 # horrible memory leak in the test_cache.
 my $mark_signature;
-my $tmpinput;                   # Temporary file to render marked subsequence to.
-my $last_successful_tmpinput;   # Last one to past the test.
 
 # End of the last marker rendered to the tmp file.  Used to figure out
 # if the next one abuts it or not.
 my $last_mark_stop;
+my @current_markers;            # Markers to be rendered to $tmpinput if answer not in cache.
+
+my @log_if_success;             # Messages to be written to the log on a successful test.
+my @delete_if_failure;          # Files to be unlinked on a failed test.
+
+my $tmpinput;                   # Temporary file to render marked subsequence to.
+my $last_successful_tmpinput;   # Last one to past the test.
 
 my $tmp_index = 0;              # Cache the last index used to make a tmp file.
 my $tmpdir_index = 0;           # Cache the last index used to make a tmp directory.
@@ -68,25 +73,29 @@ END
 
 # Functions ****************
 
-# Return true iff this input produces an error (which we want).
+sub make_tmpfile ($) {
+    my ($filename) = @_;
+    die if -e $filename;
+    push @delete_if_failure, $filename;
+    return $filename;
+}
+
+# Return true if the current_markers pass the interesting test.
 sub test {
     my $cached_result = $test_cache{$mark_signature};
-    if (defined $cached_result) {print "cached\n"; return $cached_result;} else {print "\n"}
-    my @command_lines = ();
-    my @tmp_files = ();
+    if (defined $cached_result) {print "\tcached\n"; return $cached_result;} else {print "\n"}
+    render_tmpinput();
+    @log_if_success = ();
+    @delete_if_failure = ();
     my $input = "${tmpdir}/${tmpinput}";
-    die unless -f $input; push @tmp_files, $input;
+    die unless -f $input; push @delete_if_failure, $input;
 
     # Test case specific.
-    my $cmp_output = "${tmpdir}/${tmpinput}.cmp";
-    die if -e $cmp_output; push @tmp_files, $cmp_output; 
-    my $command = "gcc $input &> $cmp_output"; push @command_lines, $command;
     my $result = 0;
-    if (run($command)) {        # Only interesting if it compiles
-        my $run_output = "${tmpdir}/${tmpinput}.run";
-        die if -e $run_output; push @tmp_files, $run_output;
-        $command = "./a.out &> $run_output"; push @command_lines, $command;
-        $result = ! run($command); # But does not run.
+    my $cmp_output = make_tmpfile "${tmpdir}/${tmpinput}.cmp";
+    if (run("gcc $input &> $cmp_output")) {        # Only interesting if it compiles
+        my $run_output = make_tmpfile "${tmpdir}/${tmpinput}.run";
+        $result = ! run("./a.out &> $run_output"); # But does not run.
     }
 
     # Actual ccured run.
@@ -101,26 +110,49 @@ sub test {
         print "\tSUCCESS ****************\n";
         open LOG, ">>${tmpdir}/${logfile}" or die $!;
         print LOG "\n$tmpinput\n";
-        print LOG join("\n", @command_lines), "\n";
+        print LOG join("\n", @log_if_success), "\n";
         close LOG or die $!;
         $last_successful_tmpinput = $tmpinput;
     } else {
-        foreach my $file (@tmp_files) {unlink $file;}
+        foreach my $file (@delete_if_failure) {
+#            print "UNLINKING $file\n";
+            unlink $file;
+        }
     }
+    undef @log_if_success;
+    undef @delete_if_failure;
     print "\n";
     return $test_cache{$mark_signature} = $result;
 }
 
-sub start_marking {
+sub run ($) {
+    my ($command) = @_;
+    print $command, "\n";
+    push @log_if_success, $command;
+    my $unix_ret_val = system $command;
+    return $unix_ret_val ? 0 : 1;
+}
+
+sub render_tmpinput {
     $tmpinput = unused_tempfile();
+    open TMPINPUT, ">${tmpdir}/$tmpinput" or die $!;
+    foreach my $marker (@current_markers) {
+        for (my $i=$marker->{start}; $i<$marker->{stop}; ++$i) {
+            print TMPINPUT $chunks[$i];
+        }
+    }
+    close TMPINPUT or die $!;   # NOTE: Leave $tmpinput defined.
+}
+
+sub start_marking {
+    @current_markers = ();
     $mark_signature = "";
     undef $last_mark_stop;
-    open TMPINPUT, ">${tmpdir}/$tmpinput" or die $!;
 }
 
 sub mark {
     my ($marker) = @_;
-    # Maintain the $mark_signature and $last_mark_stop;
+    push @current_markers, $marker;
     if (defined $last_mark_stop) {
         if ($last_mark_stop < $marker->{start}) {
             $mark_signature .= $last_mark_stop . "]";
@@ -132,24 +164,11 @@ sub mark {
         $mark_signature .= "[" . $marker->{start} . ",";
     }
     $last_mark_stop = $marker->{stop};
-    # Render to the tmp file.
-    for (my $i=$marker->{start}; $i<$marker->{stop}; ++$i) {
-        print TMPINPUT $chunks[$i];
-    }
 }
 
 sub stop_marking {
     $mark_signature .= $last_mark_stop . "]" if defined $last_mark_stop;
-    print $mark_signature, " ";
-    close TMPINPUT or die $!;
-    # NOTE: Leave $tmpinput defined.
-}
-
-sub run (\$) {
-    my $line_ref = shift;
-    print $line_ref, "\n";
-    my $unix_ret_val = system $line_ref;
-    return $unix_ret_val ? 0 : 1;
+    print $mark_signature;
 }
 
 sub unused_tempfile {
