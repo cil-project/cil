@@ -46,6 +46,9 @@ CILLY_FEATURES :=
 ifdef USE_BLOCKINGGRAPH
   CILLY_FEATURES += blockinggraph
 endif
+ifdef USE_RAND
+  CILLY_FEATURES += rand
+endif
 
     # Now rules to make cilly
 CILLY_MODULES = pretty errormsg trace stats util clist \

@@ -380,11 +380,14 @@ NEWLINE="\\
 
 
 # Give a list of features with the defaults
-features="blockinggraph=no"
+features="blockinggraph=no,rand=no"
 
 AC_ARG_WITH(blockinggraph,
     AC_HELP_STRING([--with-blockinggraph],
                    [enable the blocking graph feature]))
+AC_ARG_WITH(rand,
+    AC_HELP_STRING([--with-rand],
+                   [enable the randomized value numbering]))
    
 for f_val in $features
 do
