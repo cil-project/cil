@@ -1518,7 +1518,7 @@ LINUX_TOPATCH := asm/uaccess.h asm/atomic.h asm/bitops.h \
 	         asm/current.h asm/string.h \
                  linux/config.h linux/list.h linux/skbuff.h \
 		 linux/etherdevice.h linux/netdevice.h linux/interrupt.h
-linuxsetup:
+linuxsetup: mustbelinux
 	$(PATCHER)  -D MODULE -D __KERNEL__ -I /usr/src/linux/include \
                     --patch=test/linux/linux.patch \
                     --dest=$(LINUX_INCLUDES) \

@@ -4026,14 +4026,15 @@ let boxFile file =
             theFile := consGlobal g !theFile
 
         | GFun (f, l) when hasAttribute "nobox" f.svar.vattr -> 
+            f.sbody <- visitCilBlock unsafeVisitor f.sbody;
             theFile := consGlobal g !theFile
             
         | GFun (f, l) -> 
             currentLoc := l;
             if showGlobals then ignore (E.log "Boxing GFun(%s) at %a\n" 
                                           f.svar.vname d_loc l);
-            (* Drop functions that are just modelledbodies *)
-            if filterAttributes "modelledbody" f.svar.vattr != [] then begin
+            (* Drop functions that are just modeledbodies *)
+            if hasAttribute "modeledbody" f.svar.vattr then begin
               theFile := consGlobal 
                    (GText ("// Dummy body of " ^ f.svar.vname ^ " was here"))
                    !theFile;

@@ -33,10 +33,10 @@
   #define __NODE
   #define __HEAPIFY
   #define __DUMMYDEFN
-  #define __BOXMODEL(fname)
+  #define __BOXMODEL
   #define __NOBOXBLOCK
   #define __NOBOX
-  #define __MODELLED
+  #define __MODELEDBODY
   #define __BOXVARARG(x)
   #define __BOXFORMAT(x)
 #else
@@ -66,10 +66,10 @@
     #define __HEAPIFY
   #endif
   #define __DUMMYDEFN __attribute__((dummydefn))
-  #define __BOXMODEL(fname) __attribute__((boxmodel(fname)))
+  #define __BOXMODEL __attribute__((boxmodel))
   #define __NOBOXBLOCK  __blockattribute__(nobox)
   #define __NOBOX __attribute__((nobox))
-  #define __MODELLED
+  #define __MODELEDBODY
   #define __BOXVARARG(x)
   #define __BOXFORMAT(x)
 #endif

@@ -32,6 +32,10 @@ class clearRefBitsVis = object
           args;
         SkipChildren
 
+    | GPragma (Attr("boxmodelof", AStr s :: _), _) -> 
+        H.add forceToKeep s true;
+        SkipChildren
+
     | _ -> DoChildren
 
 end

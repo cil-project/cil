@@ -6,8 +6,8 @@ module E = Errormsg
 
 module N = Ptrnode
 
-let debugInstantiate = false
-let debugModels = false
+let debugInstantiate = true
+let debugModels = true
 
 
 let lu = locUnknown
@@ -24,6 +24,10 @@ let genericId   = ref 0
 let callId = ref (-1)  (* Each call site gets a new ID *)
 
 let polyId = ref (-1) 
+let newPolyName (base: string) = 
+  let res = "/*" ^ (string_of_int (!polyId + 1)) ^ "*/" ^ base in
+  incr polyId;
+  res
 
 let rec stripCasts (e: exp) = 
   match e with CastE(_, e') -> stripCasts e' | _ -> e
@@ -139,8 +143,8 @@ let registerFunction (fi: funinfo) =
 
 
 (* We keep track of the models to use *)
-let boxModelledBy: (string, fundec) H.t = H.create 15 (* Map the name of the 
-                                                    * modelled function to 
+let boxModeledBy: (string, fundec) H.t = H.create 15 (* Map the name of the 
+                                                    * modeled function to 
                                                     * the model *)
 
 let boxModels: (string, bool) H.t = H.create 15 (* The name of the models *)
@@ -642,11 +646,13 @@ let instantiatePolyFunc (fvi: varinfo) : varinfo * bool =
           in
           let newvi = 
             {fvi with vtype = origtype; (* Set it like this and doVarInfo will 
-                                       * fix it  *)
-              vname = ("/*" ^ (string_of_int (!polyId + 1)) ^ "*/" ^ 
-                    fvi.vname);
-              vattr = dropNodeAttrs fvi.vattr }  in
-          incr polyId;
+                                         * fix it  *)
+              vname = newPolyName fvi.vname;
+              vattr = dropAttribute  
+                           (dropNodeAttrs fvi.vattr)
+                           (Attr("nobox", [])) }  in
+          (* Drop the modelledbody from the fvi *)
+          fvi.vattr <- dropAttribute fvi.vattr (Attr("modeledbody",[]));
           theFile := GDecl (newvi, locUnknown) :: !theFile;
           instantiations := (old_name, newvi) :: !instantiations;
           newvi, true
@@ -1491,8 +1497,14 @@ let doGlobal (g: global) : global =
       | Attr("box", [AId("on")]) -> boxing := true
       | Attr("box", [AId("off")]) -> boxing := false
       | Attr("nobox", [AStr s]) ->
-          applyToFunction s
-            (fun vi -> vi.vattr <- addAttribute (Attr("nobox",[])) vi.vattr)
+          if alreadyDefinedFunction s then
+            ignore (warn "#pragma nobox appears after definition of %s\n" s)
+          else begin
+            applyToFunction s
+              (fun vi -> vi.vattr <- addAttribute (Attr("nobox",[])) vi.vattr);
+            (* Make nobox functions polymorphic *)
+            H.add polyFunc s (ref None)
+          end
             
       | Attr("boxvararg", [AStr s; ASizeOf t]) -> 
 (*
@@ -1528,16 +1540,16 @@ let doGlobal (g: global) : global =
 
       | Attr("boxmodelof", AStr modelname :: lst) -> begin
           if lst = [] then 
-            ignore (warn "#pragma boxmodelof with empty list of modelled functions")
+            ignore (warn "#pragma boxmodelof with empty list of modeled functions")
           else
             H.add boxModels modelname true;
           List.iter 
             (function 
-                AStr modelled -> begin
+                AStr modeled -> begin
                   try
                     match H.find allFunctions modelname with
                       Defined fdef -> 
-                        H.add boxModelledBy modelled fdef
+                        H.add boxModeledBy modeled fdef
                     | _ -> raise Not_found
                   with Not_found -> 
                     ignore (warn "#pragma boxmodelof appears before the definition of %s\n"
@@ -1599,21 +1611,28 @@ let doGlobal (g: global) : global =
           in
           GVar (vi, init', l)
 
-      | GFun (fdec, l) when (hasAttribute "nobox" fdec.svar.vattr) ->  g
       | GFun (fdec, l) ->
           currentLoc := l;
           if not !disableModelCheck then begin
             registerFunction (Defined fdec);
           end;
-          (* If it is polymorphic then remember it for later. *)
-          if H.mem polyFunc fdec.svar.vname then begin
-            H.add polyBodies fdec.svar.vname fdec;
-            GText ("// Body of " ^ fdec.svar.vname ^ " used to be here\n")
-          end else begin
-            doVarinfo fdec.svar;
-            doFunctionBody fdec;
+          if H.mem boxModels (stripPoly fdec.svar.vname) then begin
+            fdec.svar.vattr <- 
+               addAttribute (Attr("boxmodel",[])) fdec.svar.vattr;
+          end;
+          let dobox = not (hasAttribute "nobox" fdec.svar.vattr) in
+          if dobox then begin
+            (* If it is polymorphic then remember it for later. *)
+            if H.mem polyFunc fdec.svar.vname then begin
+              H.add polyBodies fdec.svar.vname fdec;
+              GText ("// Body of " ^ fdec.svar.vname ^ " used to be here\n")
+            end else begin
+              doVarinfo fdec.svar;
+              doFunctionBody fdec;
+              g
+            end
+          end else
             g
-          end
 
 
       | GPragma _ -> g (* Should never be reached *)
@@ -1631,7 +1650,7 @@ let markFile fl =
   H.clear allFunctions;
   H.clear applyToFunctionMemory;
   H.clear boxModels;
-  H.clear boxModelledBy;
+  H.clear boxModeledBy;
   H.clear dontUnrollTypes;
   H.clear calledFunctions;
   instantiations := [];
@@ -1679,58 +1698,63 @@ let markFile fl =
   List.iter (fun g -> let g' = doGlobal g in 
                       theFile := g' :: !theFile) fl.globals;
 
-  (* Now we must create a body for all of the modelled functions. We know that 
+  (* Now we must create a body for all of the modeled functions. We know that 
    * they do not have a definition already *)
   disableModelCheck := true;
   (* Scan all of the declared functions and see if they have a model *)
   H.iter 
     (fun fname -> fun info -> 
       try
-        let model : fundec = H.find boxModelledBy fname in
+        let model : fundec = H.find boxModeledBy fname in
         (* We have a model *)
-        let modelled : varinfo = 
+        let modeled : varinfo = 
           match info with 
             Defined x -> 
-              E.s (E.bug "Function %s is both defined and has models!\n" fname)
+              if hasAttribute "nobox" x.svar.vattr then
+                x.svar
+              else
+                E.s (E.bug "Function %s is both defined and has models!\n" 
+                       fname)
+
           | Declared x -> x
         in
         if debugModels then
           ignore (E.log "Creating body for %s based on model %s\n"
-                    modelled.vname model.svar.vname);
+                    modeled.vname model.svar.vname);
 
         if [] != 
            filterAttributes "missingproto" 
-            (getFunctionTypeAttributes (Lval (var modelled)))
+            (getFunctionTypeAttributes (Lval (var modeled)))
         then 
           E.s (unimp "Cannot model functions without prototype: %s\n" 
-                 modelled.vname);
+                 modeled.vname);
 
         (* Make the sformals *)
         let rt, sformals, va, l = 
-          match modelled.vtype with
+          match modeled.vtype with
             TFun(rt, args, va, l) -> rt, args, va, l 
           | _ -> 
-              E.s (E.bug "Modelled function %s does not have a function type"
-                     modelled.vname)
+              E.s (E.bug "Modeled function %s does not have a function type"
+                     modeled.vname)
         in
         (* Go over the formals and make sure that we assign the right ids. 
          * Being in a type they might not have the right IDS. This is safe 
          * since we know that there is no definition already for this func.  *)
         let vid = ref 0 in (* for local ids *)
         List.iter (fun s -> s.vid <- !vid; incr vid) sformals;
-        let modelledFun = { svar     = modelled;
+        let modeledFun = {  svar     = modeled;
                             sformals = sformals;
                             slocals  = [];
                             smaxid   = !vid - 1;
                             sinline  = false;
                             sbody    = mkBlock [] ;
-														smaxstmtid = None ;} in
+			    smaxstmtid = None ;} in
         (* Now make the body *)
         let reslvo, reso = 
           match rt with 
             TVoid _ -> None, None
           | t -> 
-              let tmp = makeTempVar modelledFun t in
+              let tmp = makeTempVar modeledFun t in
               Some (var tmp), Some (Lval (var tmp))
         in
         let call = 
@@ -1739,31 +1763,31 @@ let markFile fl =
                    List.map (fun a -> Lval (var a)) sformals,
                    locUnknown)) in
         let return = mkStmt (Return (reso, locUnknown)) in
-        modelledFun.sbody <- mkBlock [call; return];
-        (* Mark it as modelled *)
-        modelled.vattr <- 
-           addAttribute (Attr("modelledbody",[])) modelled.vattr;
+        modeledFun.sbody <- mkBlock [call; return];
+        (* Mark it as modeled *)
+        modeled.vattr <- 
+           addAttribute (Attr("modeledbody",[])) modeled.vattr;
         (* If it is polymorphic we postpone it *)
-        if H.mem polyFunc (stripPoly modelled.vname) then begin
-          H.add polyBodies modelled.vname modelledFun;
+        if H.mem polyFunc (stripPoly modeled.vname) then begin
+          H.add polyBodies modeled.vname modeledFun;
           (* We also go through all of the instantiations and mark them as 
-           * modelledbody so their bodies can be dropped. The instantiations 
+           * modeledbody so their bodies can be dropped. The instantiations 
            * that are created later during the copying of the polymorphic 
-           * functions will get their modelledbody attribute from the one we 
+           * functions will get their modeledbody attribute from the one we 
            * set above *)
           List.iter 
             (fun (n, vi) -> 
-              if modelled.vname = stripPoly n then begin
+              if stripPoly modeled.vname = stripPoly n then begin
                 vi.vattr <- 
-                   addAttribute (Attr("modelledbody",[])) vi.vattr
+                   addAttribute (Attr("modeledbody",[])) vi.vattr
               end)
             !instantiations;
         end else begin
           (* Just mark the body *)
           theFile := GText ("// Modeling body of " 
-                            ^ modelled.vname ^ " based on model " ^
+                            ^ modeled.vname ^ " based on model " ^
                             model.svar.vname) :: !theFile;
-          let g' = doGlobal (GFun (modelledFun, locUnknown)) in
+          let g' = doGlobal (GFun (modeledFun, locUnknown)) in
           theFile :=  g' :: !theFile;
         end
       with Not_found -> ())
@@ -1853,7 +1877,7 @@ let markFile fl =
   H.clear polyFunc;
   H.clear polyBodies;
   H.clear boxModels;
-  H.clear boxModelledBy;
+  H.clear boxModeledBy;
   H.clear allFunctions;
   H.clear dontUnrollTypes;
   H.clear applyToFunctionMemory;
