@@ -142,7 +142,6 @@ sub new {
       if($self->{VERBOSE}) { print STDERR "Merging disabled by CILLY_NOMERGE\n"; }
     }
 
-
 #    print Dumper($self);
 
     return $self;
@@ -490,7 +489,7 @@ sub preprocess_before_cil {
     my @args = @{$ppargs};
 
     # See if we must force some includes
-    if(defined $self->{INCLUDEDIR}) {
+    if(defined $self->{INCLUDEDIR} && !defined($ENV{"CILLY_NOCURE"})) {
         # And force the other includes. Put them at the begining
         if(($self->{MODENAME} eq 'GNUCC') &&
            # sm: m88k doesn't work if I pass -I.
