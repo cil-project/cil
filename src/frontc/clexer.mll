@@ -102,6 +102,8 @@ let init_lexicon _ =
       ("__declspec", DECLSPEC);
     ]
 
+(* Mark an identifier as a type name. The old mapping is preserved and will 
+ * be reinstated when we exit this context *)
 let add_type name =
 (*   ignore (print_string ("adding type name " ^ name ^ "\n")); *)
    StringHashtbl.add lexicon name (NAMED_TYPE name)
@@ -119,13 +121,15 @@ let pop_context _ =
                            (* ignore (print_string ("removing lexicon for " ^ name ^ "\n")); *)
                             StringHashtbl.remove lexicon name) con)
 
+(* Mark an identifier as a variable name. The old mapping is preserved and 
+ * will be reinstated when we exit this context  *)
 let add_identifier name =
-	match !context with
-	[] -> () (* Just ignore raise (InternalError "Empty context stack") *)
-	| con::sub ->
-		(context := (name::con)::sub;
-(*                print_string ("adding IDENT for " ^ name ^ "\n"); *)
-		StringHashtbl.add lexicon name (IDENT name))
+  match !context with
+    [] -> () (* Just ignore raise (InternalError "Empty context stack") *)
+  | con::sub ->
+      (context := (name::con)::sub;
+       (*                print_string ("adding IDENT for " ^ name ^ "\n"); *)
+       StringHashtbl.add lexicon name (IDENT name))
 
 
 (*
