@@ -193,7 +193,9 @@ module NeculaFolding = functor (A : AliasInfo) ->
             try
               let defined = (IntMap.find v.vid regFile) in
               if (defined.rmem) then dependsOnMem := true;
-              ChangeTo (defined.rval)
+              (match defined.rval with
+              | Const(x) -> ChangeTo (defined.rval)
+              | _ -> DoChildren)
             with Not_found -> DoChildren
           end
         | Lval (Mem _, _) -> dependsOnMem := true; DoChildren
