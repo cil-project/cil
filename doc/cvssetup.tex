@@ -69,6 +69,18 @@ cvs -q
 update -d
 \end{verbatim}
 
+ \subsection{\t{.ssh/config}}
+
+ Create a \home{/.ssh/config} file with this line in it:
+\begin{verbatim}
+ForwardX11 yes
+\end{verbatim}
+
+ If the \t{DISPLAY} environment variable is set when you invoke \t{ssh} (e.g.
+to \t{localhost:0.0} then \t{ssh} will do automatic X11 forwarding for you.
+This is not useful for the use of \t{ssh} with \t{cvs} but when you want to do
+remote login. 
+
  \subsection{Using CVS with \t{ssh}}
 
  Note: these instructions appear to work even on Windows with the \t{ssh} and
