@@ -2,14 +2,16 @@ open Cil
 open Pretty 
 open Trace
 
+open Clist
+
 module H = Hashtbl
 module E = Errormsg
 module N = Ptrnode 
 
 
 let debugType = false
-let showGlobals = true
-let debugInstr = true
+let showGlobals = false
+let debugInstr = false
 
 let interceptCasts = ref false  (* If true it will insert calls to 
                                  * __scalar2pointer when casting scalars to 
@@ -34,13 +36,13 @@ let currentFunction : fundec ref  = ref dummyFunDec
 let currentFile     : file ref = ref dummyFile
 let currentFileId     = ref 0
 
-let extraGlobInit : block ref = ref CEmpty
+let extraGlobInit : stmt clist ref = ref empty
 
            (* After processing an expression, we create its type, a list of 
             * instructions that should be executed before this exp is used, 
             * and a replacement exp *)
 type expRes = 
-    typ * block * exp
+    typ * stmt clist * exp
 
           (* When we create fat expressions we want to postpone some 
            * operations because they might involve creation of temporaries 
@@ -164,7 +166,7 @@ let isAllocFunction name =
 
             (* Same for offsets *)
 type offsetRes = 
-    typ * block * offset * exp * N.opointerkind
+    typ * stmt clist * offset * exp * N.opointerkind
       
 
 (*** Helpers *)            
@@ -177,10 +179,10 @@ let prefix p s =
 
 
   (* We collect here the new file *)
-let theFile : global clist ref = ref CEmpty
-
-let checkFunctionDecls : global clist ref 
-    = ref (single (GText("#define __WILD\n#define __FSEQ\n#define __SAFE")))
+let theFile : global list ref = ref []
+let consGlobal x l = x :: l
+let checkFunctionDecls : global list ref 
+    = ref [GText("#define __WILD\n#define __FSEQ\n#define __SAFE")]
 
 (**** Make new types ****)
 
@@ -292,7 +294,7 @@ let bitfieldCompinfo comp =
             List.map (fun f -> f.fname, f.ftype, f.fattr) bitfields) [] 
       in
       (* Add it to the file *)
-      theFile := CConsL(GCompTag (bundle, !currentLoc), !theFile);
+      theFile := consGlobal (GCompTag (bundle, !currentLoc)) !theFile;
       let bfinfo = 
         { fname = bname; ftype = TComp (bundle, []); 
           fattr = []; fcomp = comp } in
@@ -434,19 +436,19 @@ let rec readFieldsOfFat (e: exp) (et: typ)
     (* Create a new temporary of a fat type and set its pointer and base 
      * fields *)
 let setFatPointer (t: typ) (p: typ -> exp) (b: exp) (e: exp)
-    : block * lval = 
+    : stmt clist * lval = 
   let tmp = makeTempVar !currentFunction t in
   let fptr, fbaseo, fendo = getFieldsOfFat t in
   let p' = p fptr.ftype in
-  let setbase : block = 
+  let setbase : stmt clist = 
     match fbaseo with
-      None -> CEmpty
+      None -> empty
     | Some fbase -> 
         single (mkSet (Var tmp, Field(fbase,NoOffset)) (castVoidStar b))
   in
-  let setend : block = 
+  let setend : stmt clist = 
     match fendo with
-      None -> CEmpty
+      None -> empty
     | Some fend -> 
         single (mkSet (Var tmp, Field(fend,NoOffset)) (castVoidStar e))
   in
@@ -574,7 +576,7 @@ let checkNullFun =
   fdec.svar.vtype <- TFun(voidType, [ argp ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
-     CConsL(GDecl (fdec.svar, lu), !checkFunctionDecls);
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fdec
 
 let checkSafeRetFatFun = 
@@ -584,7 +586,7 @@ let checkSafeRetFatFun =
   fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
-     CConsL(GDecl (fdec.svar, lu), !checkFunctionDecls);
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fdec
     
   
@@ -597,7 +599,7 @@ let checkSafeFatLeanCastFun =
   fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
-     CConsL(GDecl (fdec.svar, lu), !checkFunctionDecls);
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fdec
 
 let checkFunctionPointer = 
@@ -607,7 +609,7 @@ let checkFunctionPointer =
   fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
-     CConsL(GDecl (fdec.svar, lu), !checkFunctionDecls);
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fun whatp whatb whatkind -> 
     if whatkind = N.Safe then
       call None (Lval(var checkNullFun.svar)) [ castVoidStar whatp ]
@@ -640,7 +642,7 @@ let checkFetchLength =
   fdec.svar.vstorage <- Static;
   fdec.svar.vtype <- TFun(uintType, [ argp; argb ], false, []);
   checkFunctionDecls := 
-     CConsL(GDecl (fdec.svar, lu), !checkFunctionDecls);
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fun tmplen ptr base -> 
     call (Some (tmplen, false)) (Lval (var fdec.svar))
       [ castVoidStar ptr; 
@@ -652,7 +654,7 @@ let checkFetchStringEnd =
   fdec.svar.vstorage <- Static;
   fdec.svar.vtype <- TFun(voidPtrType, [ args; ], false, []);
   checkFunctionDecls := 
-     CConsL(GDecl (fdec.svar, lu), !checkFunctionDecls);
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fdec
 
 let checkStringMax = 
@@ -662,7 +664,7 @@ let checkStringMax =
   fdec.svar.vstorage <- Static;
   fdec.svar.vtype <- TFun(uintType, [ argp; argb ], false, []);
   checkFunctionDecls := 
-     CConsL(GDecl (fdec.svar, lu), !checkFunctionDecls);
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fdec
 
 let checkFetchEnd = 
@@ -672,7 +674,7 @@ let checkFetchEnd =
   fdec.svar.vtype <- TFun(voidPtrType, [ argp; argb ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
-     CConsL(GDecl (fdec.svar, lu), !checkFunctionDecls);
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fun tmplen base -> 
     let ptr = ptrOfBase base in (* we used to use this and worked, but when 
                                  * we added tables stoped working *)
@@ -687,8 +689,8 @@ let checkLBoundFun =
   fdec.svar.vtype <- TFun(voidType, [ argb; argp; ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
-     CConsL(GDecl (fdec.svar, lu), !checkFunctionDecls);
-  theFile := CConsL(GDecl (fdec.svar, lu), !theFile);
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
+  theFile := consGlobal (GDecl (fdec.svar, lu)) !theFile;
   fdec
 
 let checkUBoundFun = 
@@ -699,7 +701,7 @@ let checkUBoundFun =
   fdec.svar.vtype <- TFun(voidType, [ argbend; argp; argpl ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
-     CConsL(GDecl (fdec.svar, lu), !checkFunctionDecls);
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fdec
 
 let checkBoundsFun = 
@@ -711,7 +713,7 @@ let checkBoundsFun =
   fdec.svar.vtype <- TFun(voidType, [ argb; argbend; argp; argpl ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
-     CConsL(GDecl (fdec.svar, lu), !checkFunctionDecls);
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fdec
 
 let checkBoundsLenFun = 
@@ -723,7 +725,7 @@ let checkBoundsLenFun =
   fdec.svar.vtype <- TFun(voidType, [ argb; argbl; argp; argpl ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
-     CConsL(GDecl (fdec.svar, lu), !checkFunctionDecls);
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fdec
 
 (* A run-time function to coerce scalars into pointers. Scans the heap and 
@@ -736,7 +738,7 @@ let interceptCastFunction =
   let argid = makeLocalVar fdec "lid" intType in
   fdec.svar.vtype <- TFun(voidPtrType, [ argl; argf; argid ], false, []);
   theFile := 
-     CConsL(GDecl (fdec.svar, lu), !theFile);
+     consGlobal (GDecl (fdec.svar, lu)) !theFile;
   fdec
 
 
@@ -748,7 +750,7 @@ let checkFatPointerRead =
   let argp  = makeLocalVar fdec "p" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argb; arglen; argp; ], false, []);
   checkFunctionDecls := 
-     CConsL(GDecl (fdec.svar, lu), !checkFunctionDecls);
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fdec.svar.vstorage <- Static;
   
   fun base where len -> 
@@ -765,7 +767,7 @@ let checkFatPointerWrite =
   fdec.svar.vtype <- 
      TFun(voidType, [ argb; arglen; argp; argwb; argwp; ], false, []);
   checkFunctionDecls := 
-     CConsL(GDecl (fdec.svar, lu), !checkFunctionDecls);
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fdec.svar.vstorage <- Static;
   
   fun base where whatbase whatp len -> 
@@ -782,7 +784,7 @@ let checkFatStackPointer =
      TFun(voidType, [ argp; argb; ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
-     CConsL(GDecl (fdec.svar, lu), !checkFunctionDecls);
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   
   fun whatp nullIfInt -> 
     call None (Lval(var fdec.svar))
@@ -796,7 +798,7 @@ let checkLeanStackPointer =
      TFun(voidType, [ argp; ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
-     CConsL(GDecl (fdec.svar, lu), !checkFunctionDecls);
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   
   fun whatp -> 
     call None (Lval(var fdec.svar))
@@ -812,7 +814,7 @@ let checkZeroTagsFun =
   fdec.svar.vtype <- 
      TFun(voidType, [ argb; argbl; argp; argsize; offset ], false, []);
   checkFunctionDecls := 
-     CConsL(GDecl (fdec.svar, lu), !checkFunctionDecls);
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fdec.svar.vstorage <- Static;
   fdec
 
@@ -823,7 +825,7 @@ let checkFindHomeFun =
   fdec.svar.vtype <- 
      TFun(voidPtrType, [ argk; argp ], false, []);
   checkFunctionDecls := 
-     CConsL(GDecl (fdec.svar, lu), !checkFunctionDecls);
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fdec.svar.vstorage <- Static;
   fdec
 
@@ -836,7 +838,7 @@ let checkFindHomeEndFun =
   fdec.svar.vtype <- 
      TFun(voidPtrType, [ argk; argp; argea ], false, []);
   checkFunctionDecls := 
-     CConsL(GDecl (fdec.svar, lu), !checkFunctionDecls);
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fdec.svar.vstorage <- Static;
   fdec
 
@@ -860,7 +862,7 @@ let checkPositiveFun =
   fdec.svar.vtype <- TFun(voidType, [ argx; ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
-     CConsL(GDecl (fdec.svar, lu), !checkFunctionDecls);
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fdec
 
 
@@ -927,10 +929,10 @@ and fixit t =
                 let tstruct = TComp (tcomp, []) in
                 (* Register the struct *)
                 theFile := 
-                   CConsL(GCompTag (tcomp, !currentLoc), !theFile);
+                   consGlobal (GCompTag (tcomp, !currentLoc)) !theFile;
                 (* Now define a type name *)
                 theFile := 
-                   CConsL(GType(tname, tstruct, !currentLoc), !theFile);
+                   consGlobal (GType(tname, tstruct, !currentLoc)) !theFile;
                 let tres = TNamed(tname, tstruct, [N.k2attr pkind]) in
                 (* Add this to ensure that we do not try to box it twice *)
                 H.add fixedTypes (typeSigBox tres) tres;
@@ -1029,10 +1031,10 @@ and addArraySize t =
                ("_array", complt, packAttr); ]) []
     in
     (* Register the new tag *)
-    theFile := CConsL(GCompTag (newtypecomp, !currentLoc), !theFile);
+    theFile := consGlobal (GCompTag (newtypecomp, !currentLoc)) !theFile;
     let newtype = TComp (newtypecomp, []) in
     let named = TNamed (tname, newtype, [Attr("sized", [])]) in
-    theFile := CConsL(GType (tname, newtype, !currentLoc), !theFile);
+    theFile := consGlobal (GType (tname, newtype, !currentLoc)) !theFile;
     H.add sizedArrayTypes tsig named;
     (* Since maybe we added a zero length when there was no length, we should 
      * compute the new signature
@@ -1072,7 +1074,7 @@ and tagType (t: typ) : typ =
              []
         in
         (* Register the type *)
-        theFile := CConsL(GCompTag (tagComp, !currentLoc), !theFile);
+        theFile := consGlobal (GCompTag (tagComp, !currentLoc)) !theFile;
         TComp (tagComp, [])
 
       end else begin (* An incomplete type *)
@@ -1092,12 +1094,12 @@ and tagType (t: typ) : typ =
                [ ("_len", uintType, []);
                  ("_data", complt, []); ]) [] in
         (* Register the type *)
-        theFile := CConsL(GCompTag (tagComp, !currentLoc), !theFile);
+        theFile := consGlobal (GCompTag (tagComp, !currentLoc)) !theFile;
         TComp (tagComp, [])
       end
     in
     let named = TNamed (tname, newtype, []) in
-    theFile := CConsL(GType (tname, newtype, !currentLoc), !theFile);
+    theFile := consGlobal (GType (tname, newtype, !currentLoc)) !theFile;
     H.add taggedTypes tsig named;
     H.add taggedTypes (typeSigBox named) named;
     named
@@ -1131,12 +1133,12 @@ let pkAddrOf (lv: lval)
              (lvt: typ)
              (lvk: N.opointerkind)  (* The kind of the AddrOf pointer *)
              (fb: exp)
-             (fe: exp) : (fexp * block) = 
+             (fe: exp) : (fexp * stmt clist) = 
   let ptrtype = mkPointerTypeKind lvt lvk in
   match lvk with
-    N.Safe -> mkFexp1 ptrtype (mkAddrOf lv), CEmpty
+    N.Safe -> mkFexp1 ptrtype (mkAddrOf lv), empty
   | (N.Index | N.Wild | N.FSeq | N.FSeqN | N.Seq | N.SeqN ) -> 
-      mkFexp3 ptrtype (AddrOf(lv)) fb fe, CEmpty
+      mkFexp3 ptrtype (AddrOf(lv)) fb fe, empty
   | _ -> E.s (bug "pkAddrOf(%a)" N.d_opointerkind lvk)
          
          
@@ -1259,7 +1261,7 @@ let registerAreaFun =
   fdec.svar.vtype <- TFun(voidType, [ argi; argb; arge; ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
-     CConsL(GDecl (fdec.svar, lu), !checkFunctionDecls);
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fdec
 
 let unregisterFrameFun =   
@@ -1267,7 +1269,7 @@ let unregisterFrameFun =
   fdec.svar.vtype <- TFun(voidType, [ ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
-     CConsL(GDecl (fdec.svar, lu), !checkFunctionDecls);
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fdec
 
 
@@ -1277,7 +1279,7 @@ let hasRegisteredAreas = ref true
 (* Produce a statement to register an area and saves the code to unregister 
  * the area *)
 let registerArea (args: exp list) 
-                 (acc: block) : block = 
+                 (acc: stmt clist) : stmt clist = 
   if !N.useLeanFats then begin
     hasRegisteredAreas := true;
     let reg = call None (Lval(var registerAreaFun.svar)) args in
@@ -1414,26 +1416,26 @@ let doCheckFat which arg argt =
 (****** CONVERSION FUNCTIONS *******)
 
 (* Accumulate the statements in reverse order *)
-let seqToFSeq (p: exp) (b: exp) (bend: exp) (acc: block)
-    : exp * exp * exp * block =   
+let seqToFSeq (p: exp) (b: exp) (bend: exp) (acc: stmt clist)
+    : exp * exp * exp * stmt clist =   
   p, bend, zero, 
   CConsL
     (call None (Lval (var checkLBoundFun.svar))
        [ castVoidStar b; castVoidStar p; ],
      acc)
 
-let indexToSeq (p: exp) (b: exp) (bend: exp) (acc: block) 
-    : exp * exp * exp * block =
+let indexToSeq (p: exp) (b: exp) (bend: exp) (acc: stmt clist) 
+    : exp * exp * exp * stmt clist =
   let tmp = makeTempVar !currentFunction voidPtrType in
   p, b, Lval(var tmp), CConsL (checkFetchEnd tmp b, acc)
 
-let indexToFSeq (p: exp) (b: exp) (bend: exp) (acc: block) 
-    : exp * exp * exp * block =
+let indexToFSeq (p: exp) (b: exp) (bend: exp) (acc: stmt clist) 
+    : exp * exp * exp * stmt clist =
   let p', b', bend', acc' = indexToSeq p b bend acc in
   seqToFSeq p' b' bend' acc'
   
-let fseqToSafe (p: exp) (desttyp: typ) (b: exp) (bend: exp) (acc: block) 
-    : exp * exp * exp * block =
+let fseqToSafe (p: exp) (desttyp: typ) (b: exp) (bend: exp) (acc: stmt clist) 
+    : exp * exp * exp * stmt clist =
   let baset =
       match unrollType desttyp with
         TPtr(x, _) -> x
@@ -1445,8 +1447,8 @@ let fseqToSafe (p: exp) (desttyp: typ) (b: exp) (bend: exp) (acc: block)
               castVoidStar p; SizeOf (baset)],
           acc)
     
-let seqToSafe (p: exp) (desttyp: typ) (b: exp) (bend: exp) (acc: block) 
-    : exp * exp * exp * block =
+let seqToSafe (p: exp) (desttyp: typ) (b: exp) (bend: exp) (acc: stmt clist) 
+    : exp * exp * exp * stmt clist =
 (*
   let p', b', bend', acc' = seqToFSeq p b bend acc in
   fseqToSafe p' desttyp b' bend' acc'
@@ -1465,14 +1467,14 @@ let seqToSafe (p: exp) (desttyp: typ) (b: exp) (bend: exp) (acc: block)
      acc)
   
 
-let indexToSafe (p: exp) (desttyp: typ) (b: exp) (bend: exp) (acc: block) 
-    : exp * exp * exp * block =
+let indexToSafe (p: exp) (desttyp: typ) (b: exp) (bend: exp) (acc: stmt clist) 
+    : exp * exp * exp * stmt clist =
   let p', b', bend', acc' = indexToSeq p b bend acc in
   seqToSafe p' desttyp b' bend' acc'
     
 
-let stringToSeq (p: exp) (b: exp) (bend: exp) (acc: block) 
-    : exp * exp * exp * block =
+let stringToSeq (p: exp) (b: exp) (bend: exp) (acc: stmt clist) 
+    : exp * exp * exp * stmt clist =
   (* Make a new temporary variable *)
   let tmpend = makeTempVar !currentFunction voidPtrType in
   p, p,  (Lval (var tmpend)),
@@ -1480,8 +1482,8 @@ let stringToSeq (p: exp) (b: exp) (bend: exp) (acc: block)
             [ p ],
           acc)
 
-let stringToFseq (p: exp) (b: exp) (bend: exp) (acc: block) 
-    : exp * exp * exp * block =
+let stringToFseq (p: exp) (b: exp) (bend: exp) (acc: stmt clist) 
+    : exp * exp * exp * stmt clist =
   (* Make a new temporary variable *)
   let tmpend = makeTempVar !currentFunction voidPtrType in
   p, (Lval (var tmpend)), zero,
@@ -1490,26 +1492,26 @@ let stringToFseq (p: exp) (b: exp) (bend: exp) (acc: block)
           acc)
 
   
-let seqNToString (p: exp) (desttyp: typ) (b: exp) (bend: exp) (acc: block) 
-    : exp * exp * exp * block =
+let seqNToString (p: exp) (desttyp: typ) (b: exp) (bend: exp) (acc: stmt clist) 
+    : exp * exp * exp * stmt clist =
   (* Conversion to a string is with a bounds check *)
   seqToSafe p desttyp b bend acc
 
-let fseqNToString (p: exp) (desttyp: typ) (b: exp) (bend: exp) (acc: block) 
-    : exp * exp * exp * block =
+let fseqNToString (p: exp) (desttyp: typ) (b: exp) (bend: exp) (acc: stmt clist) 
+    : exp * exp * exp * stmt clist =
   (* Conversion to a string is with a bounds check *)
   fseqToSafe p desttyp b bend acc
 
-let wildToROString (p: exp) (b: exp) (bend: exp) (acc: block) 
-    : exp * exp * exp * block =
+let wildToROString (p: exp) (b: exp) (bend: exp) (acc: stmt clist) 
+    : exp * exp * exp * stmt clist =
   p, zero, zero, 
   CConsL (call None (Lval (var checkStringMax.svar))
             [ castVoidStar p; b ],
           acc)
 
 (* weimer: is this right?! *)
-let indexToROString (p: exp) (b: exp) (bend: exp) (acc: block) 
-    : exp * exp * exp * block =
+let indexToROString (p: exp) (b: exp) (bend: exp) (acc: stmt clist) 
+    : exp * exp * exp * stmt clist =
   p, zero, zero, 
   CConsL (call None (Lval (var checkStringMax.svar))
             [ castVoidStar p; b ], acc)
@@ -1517,7 +1519,7 @@ let indexToROString (p: exp) (b: exp) (bend: exp) (acc: block)
 let fromTable (oldk: N.opointerkind) 
               (p: exp) 
   (* Returns a base, and an end *) 
-  : exp * exp * block =
+  : exp * exp * stmt clist =
   let checkAreas () = 
     if not !N.useLeanFats then 
       E.s (bug "I thought that we weren't using lean fats\n")
@@ -1551,11 +1553,11 @@ let fromTable (oldk: N.opointerkind)
            
 
 (* from table *)
-let fromTableFexp (fe: fexp) : block * fexp =
+let fromTableFexp (fe: fexp) : stmt clist * fexp =
   let oldt, oldk, p, b, bend = breakFexp fe in
   let newk = N.stripT oldk in
   if newk = oldk then
-    CEmpty, fe
+    empty, fe
   else
     let bt = 
       match unrollType oldt with
@@ -1584,7 +1586,7 @@ let beforeField ((btype, pkind, mklval, base, bend, stmts) as input) =
   | N.Index -> 
       let _, _, _, docheck = 
         indexToSafe (mkAddrOf (mklval NoOffset)) 
-          (TPtr(btype, [])) base bend CEmpty
+          (TPtr(btype, [])) base bend empty
       in
       (btype, N.Safe, mklval, zero, zero,
        append stmts docheck)
@@ -1592,7 +1594,7 @@ let beforeField ((btype, pkind, mklval, base, bend, stmts) as input) =
   | (N.Seq|N.SeqN) -> 
       let _, _, _, docheck = 
         seqToSafe (mkAddrOf (mklval NoOffset)) 
-          (TPtr(btype,[])) base bend CEmpty
+          (TPtr(btype,[])) base bend empty
       in
       (btype, N.Safe, mklval, zero, zero,
        append stmts docheck)
@@ -1600,7 +1602,7 @@ let beforeField ((btype, pkind, mklval, base, bend, stmts) as input) =
   | (N.FSeq|N.FSeqN) -> 
       let _, _, _, docheck = 
         fseqToSafe (mkAddrOf (mklval NoOffset)) 
-          (TPtr(btype,[])) base bend CEmpty
+          (TPtr(btype,[])) base bend empty
       in
       (btype, N.Safe, mklval, zero, zero,
        append stmts docheck)
@@ -1633,7 +1635,7 @@ let rec pkStartOf (lv: lval)
               (lvt: typ)
               (lvk: N.opointerkind)  (* The kind of the StartOf pointer *)
               (fb: exp)
-              (fe: exp) : (fexp * block) = 
+              (fe: exp) : (fexp * stmt clist) = 
   match unrollType lvt with
     TArray(t, _, _) -> begin
       let newp = AddrOf(addOffsetLval (Index(zero, NoOffset)) lv) in
@@ -1643,16 +1645,16 @@ let rec pkStartOf (lv: lval)
             arrayPointerToIndex lvt lvk lv fb
           in
           let pres = mkPointerTypeKind t pkind in
-          mkFexp3 pres newp base bend, CEmpty
+          mkFexp3 pres newp base bend, empty
 
       | N.Wild -> 
-          mkFexp3 (mkPointerTypeKind t lvk) newp fb zero, CEmpty
+          mkFexp3 (mkPointerTypeKind t lvk) newp fb zero, empty
 
       | N.Seq|N.FSeq|N.Index -> 
           (* multi-dim arrays. Convert to SAFE first *)
           let (lvt', lvk', mklval', base', bend', stmts') = 
             beforeField (lvt,lvk, (fun o -> 
-              addOffsetLval o lv), fb, fe, CEmpty) in
+              addOffsetLval o lv), fb, fe, empty) in
           if lvk' <> N.Safe then
             E.s (bug "pkStartOf: I expected a safe here\n");
           let (res, stmts'') = pkStartOf lv lvt lvk' base' bend' in
@@ -1668,16 +1670,16 @@ let rec pkStartOf (lv: lval)
       let start = StartOf lv in
       match lv with
         Var vi, NoOffset when !N.defaultIsWild -> 
-          mkFexp3 (mkPointerTypeKind lvt N.Wild) start start zero, CEmpty
+          mkFexp3 (mkPointerTypeKind lvt N.Wild) start start zero, empty
       | _ -> 
-          mkFexp3 (mkPointerTypeKind lvt lvk) start fb zero, CEmpty
+          mkFexp3 (mkPointerTypeKind lvt lvk) start fb zero, empty
   end
         
   | _ -> E.s (unimp "pkStartOf on a non-array and non-function: %a"
                 d_plaintype lvt)
 
 let varStartInput (vi: varinfo) = 
-  vi.vtype, N.Safe, (fun o -> (Var vi, o)), zero, zero, CEmpty
+  vi.vtype, N.Safe, (fun o -> (Var vi, o)), zero, zero, empty
   
 
 
@@ -1685,13 +1687,13 @@ let pkArithmetic (ep: exp)
                  (et: typ)
                  (ek: N.opointerkind) (* kindOfType et *)
                  (bop: binop)  (* Either PlusPI or MinusPI or IndexPI *)
-                 (e2: exp) : (fexp * block) = 
+                 (e2: exp) : (fexp * stmt clist) = 
   let ptype, ptr, fb, fe = readFieldsOfFat ep et in
   match ek with
     N.Wild|N.Index|N.WildT|N.IndexT -> 
-      mkFexp3 et (BinOp(bop, ptr, e2, ptype)) fb zero, CEmpty
+      mkFexp3 et (BinOp(bop, ptr, e2, ptype)) fb zero, empty
   | (N.Seq|N.SeqN|N.SeqT|N.SeqNT) -> 
-      mkFexp3 et (BinOp(bop, ptr, e2, ptype)) fb fe, CEmpty
+      mkFexp3 et (BinOp(bop, ptr, e2, ptype)) fb fe, empty
   | (N.FSeq|N.FSeqN|N.FSeqT|N.FSeqNT) ->
       mkFexp3 et (BinOp(bop, ptr, e2, ptype)) fb fe, 
       single (call None (Lval (var checkPositiveFun.svar)) [ e2 ])
@@ -1703,7 +1705,7 @@ let pkArithmetic (ep: exp)
       (* Arithmetic on strings is tricky. We must first convert to a FSeq and 
        * then do arithmetic. We leave it a SeqN to be converted back to 
        * string late if necessary *)
-      let p', b', bend', acc' = stringToSeq ptr fb fe CEmpty in
+      let p', b', bend', acc' = stringToSeq ptr fb fe empty in
       (* Change the type from String into a SeqN pointer *)
       let ptype' = 
         match ptype with
@@ -1730,7 +1732,7 @@ let rec checkBounds
                 (bend: exp)
                 (lv: lval)
                 (lvt: typ) 
-                (pkind: N.opointerkind) : block = 
+                (pkind: N.opointerkind) : stmt clist = 
   begin
     let lv', lv't = getHostIfBitfield lv lvt in
     (* Do not check the bounds when we access variables without array 
@@ -1744,7 +1746,7 @@ let rec checkBounds
           
     | N.Index -> 
         let _, _, _, docheck = 
-          indexToSafe (AddrOf(lv')) (TPtr(lv't, [])) base bend CEmpty in
+          indexToSafe (AddrOf(lv')) (TPtr(lv't, [])) base bend empty in
         rev docheck
           
     | (N.FSeq|N.FSeqN) ->
@@ -1757,7 +1759,7 @@ let rec checkBounds
             base
         in
         let _, _, _, docheck = 
-          fseqToSafe (AddrOf(lv')) (TPtr(lv't, [])) base' bend CEmpty in
+          fseqToSafe (AddrOf(lv')) (TPtr(lv't, [])) base' bend empty in
         rev docheck
           
     | (N.Seq|N.SeqN) ->
@@ -1770,7 +1772,7 @@ let rec checkBounds
             bend
         in
         let _, _, _, docheck = 
-          seqToSafe (AddrOf(lv')) (TPtr(lv't, [])) base bend' CEmpty in
+          seqToSafe (AddrOf(lv')) (TPtr(lv't, [])) base bend' empty in
         rev docheck
           
     | N.Safe | N.String | N.ROString -> begin
@@ -1778,7 +1780,7 @@ let rec checkBounds
           Mem addr, _ -> 
            single (call None (Lval (var checkNullFun.svar)) 
                      [ castVoidStar addr ])
-        | _, _ -> CEmpty
+        | _, _ -> empty
     end
 
     | _ -> E.s (bug "Unexpected pointer kind in checkBounds(%a)"
@@ -1794,7 +1796,7 @@ let rec checkBounds
 
     (* Cast an fexp to another one. Accumulate necessary statements to doe *)
 let rec castTo (fe: fexp) (newt: typ)
-               (doe: block) : block * fexp =
+               (doe: stmt clist) : stmt clist * fexp =
   let newkind = kindOfType newt in
   match fe, newkind with
   (***** Catch the simple casts **********)
@@ -1820,7 +1822,7 @@ let rec castTo (fe: fexp) (newt: typ)
       (* Cast the pointer expression to the new pointer type *)
       let castP (p: exp) = doCast p newPointerType in
       (* Converts a reversed accumulator to doe *)
-      let finishDoe (acc: block) = append doe (rev acc) in
+      let finishDoe (acc: stmt clist) = append doe (rev acc) in
       let oldt, oldk, p, b, bend = breakFexp fe in
       let is_zero fexp = 
         match fexp with
@@ -1916,32 +1918,32 @@ let rec castTo (fe: fexp) (newt: typ)
 
        (* INDEX -> SAFE. Must do bounds checking *)
       | N.Index, N.Safe ->
-          let p', _, _, acc' = indexToSafe p newPointerType b bend CEmpty in
+          let p', _, _, acc' = indexToSafe p newPointerType b bend empty in
           finishDoe acc', L(newt, newkind, castP p')      
        (* INDEX -> SEQ *)
       | N.Index, N.Seq ->
-          let p', b', bend', acc' = indexToSeq p b bend CEmpty in
+          let p', b', bend', acc' = indexToSeq p b bend empty in
           finishDoe acc', FM(newt, newkind, castP p', b', bend')      
        (* INDEX -> FSEQ *)
       | N.Index, N.FSeq ->
-          let p', b', bend', acc' = indexToFSeq p b bend CEmpty in
+          let p', b', bend', acc' = indexToFSeq p b bend empty in
           finishDoe acc', FM(newt, newkind, castP p', b', bend')      
 
        (* SEQ -> SAFE. Must do bounds checking *)
       | (N.Seq|N.SeqN), N.Safe ->
-          let p', _, _, acc' = seqToSafe p newPointerType b bend CEmpty in
+          let p', _, _, acc' = seqToSafe p newPointerType b bend empty in
           finishDoe acc', L(newt, newkind, castP p')      
        (* SEQ -> FSEQ *)
       | (N.Seq|N.SeqN), N.FSeq ->
-          let p', b', bend', acc' = seqToFSeq p b bend CEmpty in
+          let p', b', bend', acc' = seqToFSeq p b bend empty in
           finishDoe acc', FM(newt, newkind, castP p', b', bend')      
       | N.SeqN, N.FSeqN ->
-          let p', b', bend', acc' = seqToFSeq p b bend CEmpty in
+          let p', b', bend', acc' = seqToFSeq p b bend empty in
           finishDoe acc', FM(newt, newkind, castP p', b', bend')      
 
        (* FSEQ -> SAFE. Must do bounds checking *)
       | (N.FSeq|N.FSeqN), N.Safe ->
-          let p', _, _, acc' = fseqToSafe p newPointerType b bend CEmpty in
+          let p', _, _, acc' = fseqToSafe p newPointerType b bend empty in
           finishDoe acc', L(newt, newkind, castP p')      
 
        (* FSEQ -> SEQ. *)
@@ -1958,29 +1960,29 @@ let rec castTo (fe: fexp) (newt: typ)
           
       | N.SeqN, (N.String|N.ROString) ->
           let p', b', bend', acc' = 
-            seqNToString p newPointerType b bend CEmpty in
+            seqNToString p newPointerType b bend empty in
           finishDoe acc', L(newt, newkind, castP p')  
 
       | N.FSeqN, (N.String|N.ROString) ->
           let p', b', bend', acc' = 
-            fseqNToString p newPointerType b bend CEmpty in
+            fseqNToString p newPointerType b bend empty in
           finishDoe acc', L(newt, newkind, castP p')  
 
       | N.String, (N.FSeqN|N.FSeq) ->
-          let p', b', bend', acc' = stringToFseq p b bend CEmpty in
+          let p', b', bend', acc' = stringToFseq p b bend empty in
           finishDoe acc', FM(newt, newkind, castP p', b', bend') 
           (* wes: was ( p', b', bend') at the end *)
 
       | N.String, (N.SeqN|N.Seq) ->
-          let p', b', bend', acc' = stringToSeq p b bend CEmpty in
+          let p', b', bend', acc' = stringToSeq p b bend empty in
           finishDoe acc', FM(newt, newkind, castP p', b', bend')  
 
       | N.Wild, N.ROString -> 
-          let p', b', bend', acc' = wildToROString p b bend CEmpty in
+          let p', b', bend', acc' = wildToROString p b bend empty in
           finishDoe acc', L(newt, newkind, castP p')
 
       | N.Index, N.ROString -> 
-          let p', b', bend', acc' = indexToROString p b bend CEmpty in
+          let p', b', bend', acc' = indexToROString p b bend empty in
           finishDoe acc', L(newt, newkind, castP p')
 
       | N.ROString, (N.FSeq|N.FSeqN) -> 
@@ -1989,7 +1991,7 @@ let rec castTo (fe: fexp) (newt: typ)
                  N.d_opointerkind oldk N.d_opointerkind newkind 
                  d_fexp fe
                  d_plaintype oldt)       ;
-          let p', b', bend', acc' = stringToFseq p b bend CEmpty in
+          let p', b', bend', acc' = stringToFseq p b bend empty in
           finishDoe acc', FM(newt, newkind, castP p', bend', zero) 
 
 (*
@@ -2046,7 +2048,7 @@ type checkLvWhy =
 
 let rec checkMem (why: checkLvWhy) 
                  (lv: lval) (base: exp) (bend: exp)
-                 (lvt: typ) (pkind: N.opointerkind) : block = 
+                 (lvt: typ) (pkind: N.opointerkind) : stmt clist = 
   (* ignore (E.log "checkMem: lvt: %a\n" d_plaintype lvt); *)
   (* Maybe it is a table. In that case, get the true base and end *)
   (* See if a table pointer *)
@@ -2078,7 +2080,7 @@ let rec checkMem (why: checkLvWhy)
     (* Now the tag checking. We only care about pointers. We keep track of 
      * what we write in each field and we check pointers in a special way.  *)
     let rec doCheckTags (why: checkLvWhy) (where: lval) 
-        (t: typ) (pkind: N.opointerkind) (acc: block) : block = 
+        (t: typ) (pkind: N.opointerkind) (acc: stmt clist) : stmt clist = 
       match unrollType t with 
       | (TInt _ | TFloat _ | TEnum _ | TBitfield _ ) -> acc
 (*    | TFun _ -> acc *)
@@ -2148,15 +2150,16 @@ let rec checkMem (why: checkLvWhy)
                       (addOffsetLval (Index(itvar, NoOffset)) where)
                       bt
                       pkind (* ??? *)
-                      CEmpty
+                      empty
                   in
                   append
-                    (mkForIncr 
-                       ~iter: it
-                       ~first: zero
-                       ~stopat: len
-                       ~incr: one
-                       ~body: initone)
+                    (fromList
+                       (mkForIncr 
+                          ~iter: it
+                          ~first: zero
+                          ~stopat: len
+                          ~incr: one
+                          ~body: (toList initone)))
                     acc)
           end
       end
@@ -2174,7 +2177,7 @@ let rec checkMem (why: checkLvWhy)
     let zeroAndCheckTags = 
     (* Call doCheckTags anyway because even for safe writes it needs to check 
        * when pointers are written *)
-      let dotags = doCheckTags why lv lvt pkind CEmpty in
+      let dotags = doCheckTags why lv lvt pkind empty in
       if pkind = N.Wild then
         match why with 
         | ToWrite _ -> CConsL(checkZeroTags base (getLenExp ()) lv lvt,
@@ -2211,10 +2214,10 @@ let checkWrite e = checkMem (ToWrite e)
 let rec checkReturnValue 
     (typ: typ) 
     (e: exp)
-    (acc: block) : 
+    (acc: stmt clist) : 
 
     (* Return the accumulated statements *)
-    block = 
+    stmt clist = 
   match unrollType typ with
     TInt _ | TBitfield _ | TEnum _ | TFloat _ | TVoid _ -> acc
   | TPtr (t, _) -> 
@@ -2261,7 +2264,7 @@ let rec initializeType
     (* Produces a function that, when given an lval of the given type, 
      * accumulates (prepends) some initialization statements to a give 
      * accumulator  *)
-    : (lval -> block -> block) =
+    : (lval -> stmt clist -> stmt clist) =
   match unrollType t with
     TInt _ | TFloat _ | TBitfield _ | TEnum _ -> (fun lv acc -> acc)
   | TFun _ -> (fun lv acc -> acc) (* Probably a global function prototype *)
@@ -2331,11 +2334,14 @@ let rec initializeType
             withivar 
               (fun iter -> 
                 append
-                  (mkForIncr iter zero l one
-                     (initone 
-                        (addOffsetLval (Index (Lval(var iter), NoOffset)) 
-                           thearraylv)
-                        CEmpty)) 
+                  (fromList
+                     (mkForIncr iter zero l one
+                        (toList
+                           (initone 
+                              (addOffsetLval (Index (Lval(var iter), 
+                                                     NoOffset)) 
+                                 thearraylv)
+                              empty))))
                   acc2)
 
       | _ -> (* A regular struct. Do all the fields in sequence *)
@@ -2376,10 +2382,13 @@ let rec initializeType
           withivar 
             (fun iter -> 
               append
-                (mkForIncr iter zero l one
-                   (initone 
-                      (addOffsetLval (Index (Lval(var iter), NoOffset)) lv)
-                      CEmpty))
+                (fromList
+                   (mkForIncr iter zero l one
+                      (toList
+                         (initone 
+                            (addOffsetLval (Index (Lval(var iter), 
+                                                   NoOffset)) lv)
+                            empty))))
                 acc1)
       end
     (* A union type *)
@@ -2416,9 +2425,9 @@ let rec initializeType
 (* Create and accumulate the initializer for a variable *)
 let initializeVar (withivar: (varinfo -> 'a) -> 'a) (* Allocate an iteration 
                                                      * variable temporarily *)
-                  (acc: block)
+                  (acc: stmt clist)
                   (v: varinfo) 
-                   : block = 
+                   : stmt clist = 
   (* Maybe it must be tagged *)
   if mustBeTagged v then begin
    (* Generates code that initializes vi. Needs "iter", an integer variable 
@@ -2440,11 +2449,12 @@ let initializeVar (withivar: (varinfo -> 'a) -> 'a) (* Allocate an iteration
            (* And the loop to initialize the tags with zero *)
            (if not v.vglob then
              append
-               (mkForIncr iter zero (doCast tagwords intType) one 
-                  (single (mkSet (Var v, Field(tfld, 
-                                               Index (Lval(var iter), 
-                                                      NoOffset))) 
-                             zero)))
+               (fromList
+                  (mkForIncr iter zero (doCast tagwords intType) one 
+                     [mkSet (Var v, Field(tfld, 
+                                          Index (Lval(var iter), 
+                                                 NoOffset))) 
+                         zero]))
                acc'
            else
              acc')))
@@ -2453,7 +2463,7 @@ let initializeVar (withivar: (varinfo -> 'a) -> 'a) (* Allocate an iteration
     doinit (Var v, NoOffset) acc
   end
 
-let rec stringLiteral (s: string) (strt: typ) : block * fexp = 
+let rec stringLiteral (s: string) (strt: typ) : stmt clist * fexp = 
   let fixChrPtrType = fixupType strt in
   let k = kindOfType fixChrPtrType in
   match  k with 
@@ -2466,7 +2476,7 @@ let rec stringLiteral (s: string) (strt: typ) : block * fexp =
       gvar.vstorage <- Static;
       let varinit, dfield = 
         makeTagCompoundInit newt (Some (SingleInit(Const(CStr s)))) in
-      theFile := CConsL (GVar (gvar, Some varinit, !currentLoc), !theFile);
+      theFile := consGlobal (GVar (gvar, Some varinit, !currentLoc)) !theFile;
       let result = StartOf (Var gvar, Field(dfield, NoOffset)) in
       let voidStarResult = castVoidStar result in
       (* Register the area *)
@@ -2477,7 +2487,7 @@ let rec stringLiteral (s: string) (strt: typ) : block * fexp =
       in
       (* Add the registration to the global initializer *)
       if regarea != !extraGlobInit then extraGlobInit := regarea;
-      (CEmpty, FM (fixChrPtrType, N.Wild,
+      (empty, FM (fixChrPtrType, N.Wild,
                result, 
                castVoidStar result, zero))
   | N.Seq | N.Safe | N.FSeq | N.String | N.ROString | N.SeqN | N.FSeqN -> 
@@ -2527,7 +2537,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
                (vi:  varinfo)   (* Where to put the result *)
                (f:  exp)        (* The allocation function *)
                (args: exp list) (* The arguments passed to the allocation *) 
-    : block = 
+    : stmt clist = 
 (*  ignore (E.log "Allocation call of %a. type(vi) = %a@! vtype = %a@!" 
             d_exp f d_plaintype vi.vtype
             d_plaintype vtype);  *)
@@ -2651,7 +2661,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
         (* Now initialize. *)
         let inits = 
           initializeType basetype (withIterVar !currentFunction) mustZero
-            (Some theend) (Mem tmpvar, NoOffset) CEmpty
+            (Some theend) (Mem tmpvar, NoOffset) empty
         in
         CConsL (check_enough, inits)
 
@@ -2669,27 +2679,28 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
         let initone = 
           initializeType basetype
             (withIterVar !currentFunction) mustZero None
-            (Mem tmpvar, NoOffset) CEmpty
+            (Mem tmpvar, NoOffset) empty
             
         in
         let initializeAll = 
-          if initone = CEmpty then 
+          if initone = empty then 
             single (mkSet (var tmpp) (doCast theend ptrtype))
           else 
-            mkFor 
-              ~start:(single (mkEmptyStmt ()))
-              ~guard:(BinOp(Le, BinOp(PlusA, 
-                                      doCast tmpvar uintType, 
-                                      SizeOf(ptrtype), uintType),
-                            doCast theend uintType, intType))
-              ~next:(single (mkSet (var tmpp) 
-                               (BinOp(IndexPI, tmpvar, one, ptrtype))))
-              ~body:initone
+            fromList
+              (mkFor 
+                 ~start:[mkEmptyStmt ()]
+                 ~guard:(BinOp(Le, BinOp(PlusA, 
+                                         doCast tmpvar uintType, 
+                                         SizeOf(ptrtype), uintType),
+                               doCast theend uintType, intType))
+                 ~next:[mkSet (var tmpp) 
+                           (BinOp(IndexPI, tmpvar, one, ptrtype))]
+                 ~body:(toList initone))
         in 
         CConsL(savetheend, 
                append initializeAll
                  (if k = N.FSeqN || k = N.SeqN then 
-                   single putnullterm else CEmpty))
+                   single putnullterm else empty))
 
     | N.String -> (* Allocate this as SeqN, with a null term *)
         ignore (warn "Allocation of string. Use FSEQN instead. (%a)"
@@ -2713,7 +2724,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
   (* Now see if we must register the whole area *)
   let register_area = 
     match kno_t with
-    | N.Safe -> CEmpty
+    | N.Safe -> empty
     | N.Wild | N.Index -> 
         let areaKind = 
           if kno_t = N.Wild then 
@@ -2721,11 +2732,11 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
         in
         registerArea [ integer areaKind;
                        castVoidStar (Lval (Var vi, ptroff));
-                       zero ] CEmpty
+                       zero ] empty
     | N.Seq | N.SeqN | N.FSeq | N.FSeqN -> 
         registerArea [ integer registerAreaSeqInt;
                        castVoidStar (Lval (Var vi, ptroff));
-                       castVoidStar tmpvar ] CEmpty
+                       castVoidStar tmpvar ] empty
     | _ -> E.s (bug "pkAllocate: register_area: %a" N.d_opointerkind k)
   in        
   CConsL(alloc,
@@ -2822,11 +2833,13 @@ let interceptCall
 
 
     (************* STATEMENTS **************)
-let rec boxblock (b: block) : block = 
-  compactBlock (fold_left 
-                  (fun acc s -> append acc (boxstmt s)) CEmpty b)
+let rec boxblock (b: stmt list) : stmt list = 
+  (* compactBlock *) 
+  (toList 
+     (List.fold_left 
+        (fun acc s -> append acc (boxstmt s)) empty b))
 
-and boxstmt (s: Cil.stmt) : block = 
+and boxstmt (s: Cil.stmt) : stmt clist = 
    (* Keep the original statement, but maybe modify its kind. This way we 
     * maintain the labels and we have no need to change the Gotos and the 
     * cases in the Switch *)
@@ -2848,7 +2861,7 @@ and boxstmt (s: Cil.stmt) : block =
         let (doe'', e'') = castTo e' retType doe' in
         let (et, doe2, e2) = fexp2exp e'' doe'' in
         let doe3 = checkReturnValue et e2 doe2 in
-        s.skind <- Instr CEmpty;  
+        s.skind <- Instr [];  
         CConsL(s, 
                append doe3 
                  (CConsL(unregisterStmt (), 
@@ -2862,20 +2875,21 @@ and boxstmt (s: Cil.stmt) : block =
     | If(be, t, e, l) -> 
         currentLoc := l;
         let (_, doe, e') = boxexp (CastE(intType, be)) in
-        s.skind <- Instr CEmpty;
+        s.skind <- Instr [];
         CConsL(s, 
                CConsR(doe, mkStmt (If(e', boxblock t, boxblock e, l))))
     | Instr il -> 
         (* Do each instruction in turn *)
-        let b = fold_left (fun acc i -> append acc (boxinstr i)) CEmpty il in
-        s.skind <- Instr CEmpty;
-        compactBlock (CConsL (s, b))
+        let b = 
+          List.fold_left (fun acc i -> append acc (boxinstr i)) empty il in
+        s.skind <- Instr [];
+        (* compactBlock *) (CConsL (s, b))
 
     | Switch (e, b, cases, l) -> 
         currentLoc := l;
         (* Cases are preserved *)
         let (_, doe, e') = boxexp (CastE(intType, e)) in
-        s.skind <- Instr CEmpty;
+        s.skind <- Instr [];
         CConsL(s, CConsR(doe, mkStmt (Switch (e', boxblock b, cases, l))))
 
   with e -> begin
@@ -2886,7 +2900,7 @@ and boxstmt (s: Cil.stmt) : block =
   end
 
 
-and boxinstr (ins: instr) : block = 
+and boxinstr (ins: instr) : stmt clist = 
   if debugInstr then ignore (E.log "Boxing %a\n" d_instr ins);
   try
     match ins with
@@ -2903,7 +2917,7 @@ and boxinstr (ins: instr) : block =
               checkWrite e3 lv' lvbase lvend lvt lvkind
           | Var vi, off when (vi.vglob || lvkind != N.Safe) -> 
               checkWrite e3 lv' lvbase lvend lvt lvkind
-          | _ -> CEmpty
+          | _ -> empty
         in
         append dolv (append doe3 (CConsR (check, mkSet lv' e3)))
 
@@ -2929,16 +2943,16 @@ and boxinstr (ins: instr) : block =
                               * all arguments and, if needed we pack the 
                               * result  *)
             let rec doArgs = function
-              | [] -> (CEmpty, [])
+              | [] -> (empty, [])
               | a :: resta -> 
                   let (at, doa, a') = boxexp a in
                   let (doresta, resta') = doArgs resta in
                   let (checka, a'') = 
 (* !!!! remove this *)         
                     if isFatType at then 
-                      (CEmpty, readPtrField a' at)
+                      (empty, readPtrField a' at)
                     else  
-                      (CEmpty, a')
+                      (empty, a')
                   in
                   (append doa (append checka doresta), a'' :: resta')
             in
@@ -2947,7 +2961,7 @@ and boxinstr (ins: instr) : block =
             let rec doArgs restargs restargst = (* The types of functions 
                                                  * have been fixed already  *) 
               match restargs, restargst with
-                [], [] -> CEmpty, []
+                [], [] -> empty, []
               | a :: resta, t :: restt -> 
                   let (doa, fa') = boxexpf a in
                   let (doa', fa'') = castTo fa' t.vtype doa in
@@ -2972,13 +2986,13 @@ and boxinstr (ins: instr) : block =
              (* Compute the destination of the call and some code to use 
               * after the call. Use boxinstr to get the code after the call 
               * to ensure that we use all the proper checks.  *)
-              let (vi1: varinfo), (setvi1: block) = 
+              let (vi1: varinfo), (setvi1: stmt clist) = 
                 match boxlval (Var vi, NoOffset) with
                   (_, _, (Var _, NoOffset), _, _, _) -> 
-                    vi, CEmpty
+                    vi, empty
                       
                 | (_, _, 
-                   ((Var vi', Field(dfld, NoOffset)) as newlv), _, _,CEmpty) -> 
+                   ((Var vi', Field(dfld, NoOffset)) as newlv), _, _,empty) -> 
                      let tmp = makeTempVar !currentFunction dfld.ftype in
                      tmp, 
                      boxinstr (Set ((Var vi, NoOffset), Lval (var tmp), l))
@@ -3022,14 +3036,14 @@ and boxinstr (ins: instr) : block =
     | Asm(tmpls, isvol, outputs, inputs, clobs, l) ->
         currentLoc := l;
         let rec doOutputs = function
-            [] -> CEmpty, []
+            [] -> empty, []
           | (c, lv) :: rest -> 
               let (lvt, lvkind, lv', lvbase, lvend, dolv) = boxlval lv in
               let check = 
                 match lv' with
                   Mem _, _ -> 
                     checkWrite (integer 0) lv' lvbase lvend lvt lvkind
-                | _ -> CEmpty
+                | _ -> empty
               in
               if isFatType lvt then
                 ignore (E.log "Warning: fat output in %a\n"
@@ -3039,7 +3053,7 @@ and boxinstr (ins: instr) : block =
         in
         let (doouts, outputs') = doOutputs outputs in
         let rec doInputs = function
-            [] -> CEmpty, []
+            [] -> empty, []
           | (c, ei) :: rest -> 
               let (et, doe, e') = boxexp ei in
               if isFatType et then
@@ -3065,7 +3079,7 @@ and boxinstr (ins: instr) : block =
  * component (for pointer kinds other than Safe) and the third component (for 
  * pointer kinds Seq). We also compute a list of statements that must be 
  * executed to check the bounds.  *)
-and boxlval (b, off) : (typ * N.opointerkind * lval * exp * exp * block) = 
+and boxlval (b, off) : (typ * N.opointerkind * lval * exp * exp * stmt clist) = 
   let debuglval = false in
   (* As we go along the offset we keep track of the basetype and the pointer 
    * kind, along with the current base expression and a function that can be 
@@ -3159,7 +3173,7 @@ and boxlval (b, off) : (typ * N.opointerkind * lval * exp * exp * block) =
       
     (* Box an expression and return the fexp version of the result. If you do 
      * not care about an fexp, you can call the wrapper boxexp *)
-and boxexpf (e: exp) : block * fexp = 
+and boxexpf (e: exp) : stmt clist * fexp = 
   try
     match e with
     | Lval (lv) -> 
@@ -3173,14 +3187,14 @@ and boxexpf (e: exp) : block * fexp =
               checkRead lv' baseaddr len lvt lvkind
           | Var vi, off when containsArray vi.vtype || mustBeTagged vi -> 
               checkRead lv' baseaddr len lvt lvkind
-          | _, _ -> CEmpty
+          | _, _ -> empty
         in
         let lvtk = kindOfType lvt in
         (append dolv check, mkFexp1 lvt (Lval(lv')))
             
-    | Const (CInt32 (_, ik, _)) -> (CEmpty, L(TInt(ik, []), N.Scalar, e))
-    | Const ((CChr _)) -> (CEmpty, L(charType, N.Scalar, e))
-    | Const (CReal (_, fk, _)) -> (CEmpty, L(TFloat(fk, []), N.Scalar, e))
+    | Const (CInt32 (_, ik, _)) -> (empty, L(TInt(ik, []), N.Scalar, e))
+    | Const ((CChr _)) -> (empty, L(charType, N.Scalar, e))
+    | Const (CReal (_, fk, _)) -> (empty, L(TFloat(fk, []), N.Scalar, e))
 
      (* All strings appear behind a CastE. The pointer node in the CastE 
       * tells us how to represent the string *)
@@ -3246,7 +3260,7 @@ and boxexpf (e: exp) : block * fexp =
         if containsExposedPointers t then 
           ignore (warn "Boxing sizeof(%a) when type contains pointers. Use sizeof expression." d_type t);
         let t' = fixupType t in
-        (CEmpty, L(uintType, N.Scalar, SizeOf(t')))
+        (empty, L(uintType, N.Scalar, SizeOf(t')))
 
           
     | SizeOfE (Lval lv) -> 
@@ -3255,12 +3269,12 @@ and boxexpf (e: exp) : block * fexp =
          * if we view the lvalue as an expression  *)
         (* ignore (E.log "boxexpf: %a\n" d_plainlval lv); *)
         let lvt, lvkind, lv', baseaddr, len, dolv = boxlval lv in
-        (CEmpty, L(uintType, N.Scalar, SizeOfE(Lval lv')))
+        (empty, L(uintType, N.Scalar, SizeOfE(Lval lv')))
 
     | SizeOfE (e) -> begin
         let (et, doe, e') = boxexp e in
         (* Drop all size-effects from this SizeOf *)
-        (CEmpty, L(uintType, N.Scalar, SizeOfE(e')))
+        (empty, L(uintType, N.Scalar, SizeOfE(e')))
     end
 
     | AddrOf (lv) ->
@@ -3295,7 +3309,7 @@ and boxexpf (e: exp) : block * fexp =
   with exc -> begin
     ignore (E.log "boxexpf (%s): %a in %s\n" 
               (Printexc.to_string exc) d_exp e !currentFunction.svar.vname);
-    (CEmpty, L(charPtrType, N.String, dExp (dprintf "booo_exp: %a" d_exp e)))
+    (empty, L(charPtrType, N.String, dExp (dprintf "booo_exp: %a" d_exp e)))
   end 
             
       
@@ -3304,7 +3318,7 @@ and boxinit (ei: init) : init =
     match ei with
       SingleInit e ->
         let e't, doe, e', e'base, e'len = boxexpSplit e in
-        if doe <> CEmpty then
+        if doe <> empty then
           E.s (unimp "Non-pure initializer %a\n"  d_exp e);
         SingleInit e'
 
@@ -3324,7 +3338,7 @@ and boxinit (ei: init) : init =
   end 
 
 
-and fexp2exp (fe: fexp) (doe: block) : expRes = 
+and fexp2exp (fe: fexp) (doe: stmt clist) : expRes = 
   match fe with
     L (t, pk, e') -> (t, doe, e')       (* Done *)
   | FS (t, pk, e') -> (t, doe, e')      (* Done *)
@@ -3335,7 +3349,7 @@ and fexp2exp (fe: fexp) (doe: block) : expRes =
       (* Put e1' in a variable if not an lval *)
       let caste, tmp = 
         match e' with
-        | Lval tmp -> CEmpty, tmp
+        | Lval tmp -> empty, tmp
         | _ -> 
             let tmp = var (makeTempVar !currentFunction oldt) in
             (single (mkSet tmp e'), tmp)
@@ -3401,9 +3415,10 @@ let preamble () =
 (*  ignore (fixupType (TPtr(TVoid([AId("const")]), [AId("wild")]))); *)
   let startFile = !theFile in
   theFile := 
-     CConsL(GText ("#include \"safec.h\"\n"),
-            CConsL(GText ("// Include the definition of the checkers\n"),
-                   startFile))
+     consGlobal
+       (GText ("#include \"safec.h\"\n"))
+       (consGlobal (GText ("// Include the definition of the checkers\n"))
+          startFile)
 
 (* a hashtable of functions that we have already made wrappers for *)
 let wrappedFunctions = H.create 15
@@ -3439,12 +3454,12 @@ let boxFile file =
         | Attr("box", [AId("on")]) -> boxing := true
         | Attr("box", [AId("off")]) -> boxing := false
         | Attr("boxtext", [AStr s]) ->
-            theFile := CConsL(GText s, !theFile)
+            theFile := consGlobal (GText s) !theFile
         | _ -> ());
-        theFile := CConsL(g, !theFile)
+        theFile := consGlobal g !theFile
       end
     | _ -> begin
-        if not !boxing then theFile := CConsL(g, !theFile) else
+        if not !boxing then theFile := consGlobal g !theFile else
         match g with
 
         | GDecl (vi, l) -> boxglobal vi false None l
@@ -3460,7 +3475,7 @@ let boxFile file =
             ignore (E.log "after GType(%s -> %a)@!"
                       n d_plaintype tnew);
 *)
-            theFile := CConsL(GType (n, tnew, l), !theFile)
+            theFile := consGlobal (GType (n, tnew, l)) !theFile
                        
         | GCompTag (comp, l) ->
             if showGlobals then ignore (E.log "Boxing GCompTag(%s) at %a\n"
@@ -3474,7 +3489,7 @@ let boxFile file =
                 fi.ftype <- fixupType newt) 
               comp.cfields;
             bitfieldCompinfo comp;
-            theFile := CConsL(g, !theFile)
+            theFile := consGlobal g !theFile
 
         | GFun (f, l) -> 
             currentLoc := l;
@@ -3492,9 +3507,9 @@ let boxFile file =
             (* Check that we do not take the address of a formal. If we 
              * actually do then we must make that formal a true local and 
              * create another formal  *)
-            let newformals, (newbody : block) =
+            let newformals, (newbody : stmt clist) =
               let rec loopFormals = function
-                  [] -> [], f.sbody
+                  [] -> [], fromList f.sbody
                 | form :: restf ->
                     let r1, r2 = loopFormals restf in
                     if form.vaddrof then begin
@@ -3534,7 +3549,7 @@ let boxFile file =
               f.slocals;
             currentFunction := f;           (* so that maxid and locals can be
                                                * updated in place *)
-            f.sbody <- newbody;
+            f.sbody <- toList newbody;
             (* Initialize and register the locals. Since we do this before 
              * boxing we will not initialize the temporaries created during 
              * boxing. But then we know that those are always defiend before 
@@ -3544,7 +3559,7 @@ let boxFile file =
             let inilocals = 
               List.fold_left 
                 (initializeVar (withIterVar f)) 
-                CEmpty f.slocals in
+                empty f.slocals in
 
             (* sm/gn: for testing the removeTemps module: add some extra temps *)
             if (traceActive "gratuitousTemps") then (
@@ -3555,12 +3570,12 @@ let boxFile file =
             );
 
             (* Do the body now *)
-            let boxbody : block = boxblock f.sbody in
-            f.sbody <- append inilocals boxbody;
-            theFile := CConsL(GFun (f, l), !theFile)
+            let boxbody : stmt list = boxblock f.sbody in
+            f.sbody <- toList (append inilocals (fromList boxbody));
+            theFile := consGlobal (GFun (f, l)) !theFile
                                         
         | (GAsm _ | GText _ | GPragma _ | GEnumTag _ ) as g -> 
-            theFile := CConsL(g, !theFile)
+            theFile := consGlobal g !theFile
     end
 
   and boxglobal vi isdef init (l: location) =
@@ -3605,12 +3620,12 @@ let boxFile file =
      * initializeVar but for now we keep it here *)
     if not (mustBeTagged vi) then
       if isdef then begin
-        theFile := CConsL(GVar(vi, init',l), !theFile)
+        theFile := consGlobal (GVar(vi, init',l)) !theFile
       end else
-        theFile := CConsL(GDecl (vi, l), !theFile)
+        theFile := consGlobal (GDecl (vi, l)) !theFile
     else begin
       if not isdef && vi.vstorage <> Extern then
-        theFile := CConsL(GDecl (vi, l), !theFile)
+        theFile := consGlobal (GDecl (vi, l)) !theFile
       else begin
         (* Make the initializer *)
         (* Add it to the tag initializer *)
@@ -3620,7 +3635,7 @@ let boxFile file =
             let (x, _) = makeTagCompoundInit vi.vtype init' in
             Some x
         in
-        theFile := CConsL(GVar(vi, varinit,l), !theFile)
+        theFile := consGlobal (GVar(vi, varinit,l)) !theFile
       end
     end
   in
@@ -3629,11 +3644,11 @@ let boxFile file =
     try doGlobal x with e -> begin
       ignore (E.log "boxglobal (%s)\n" (Printexc.to_string e));
       theFile := 
-         CConsL(GAsm (sprint 2 (dprintf "booo_global %a" d_global x), 
-                      !currentLoc), !theFile)
+         consGlobal (GAsm (sprint 2 (dprintf "booo_global %a" d_global x), 
+                           !currentLoc)) !theFile
     end 
   in
-  extraGlobInit := CEmpty;
+  extraGlobInit := empty;
   H.clear taggedTypes;
   (* Create the preamble *)
   preamble ();
@@ -3644,23 +3659,24 @@ let boxFile file =
   let newglobinit = 
     match file.globinit with
       None -> 
-        if !extraGlobInit <> CEmpty then
+        if !extraGlobInit <> empty then
           let gi = getGlobInit file in
-          gi.sbody <- !extraGlobInit;
+          gi.sbody <- toList !extraGlobInit;
           Some gi
         else
           None
     | Some g -> begin
-        match hdtl !theFile with
-          Some (GFun(gi, _)), rest -> 
+        match !theFile with
+          GFun(gi, _) :: rest -> 
             theFile := rest; (* Take out the global initializer (last thing 
-                                added) *)
-            gi.sbody <- compactBlock (append !extraGlobInit gi.sbody);
+            added) *)
+            gi.sbody <- (* compactBlock *) 
+               toList (append !extraGlobInit (fromList gi.sbody));
             Some gi
         | _ -> E.s (bug "box: Cannot find global initializer")
     end
   in
-  let res = rev (!theFile) in
+  let res = List.rev (!theFile) in
   (* Clean up global hashes to avoid retaining garbage *)
   H.clear hostsOfBitfields;
   H.clear typeNames;
@@ -3668,8 +3684,8 @@ let boxFile file =
   H.clear fixedComps;
   H.clear taggedTypes;
   H.clear sizedArrayTypes;
-  extraGlobInit := CEmpty;
-  theFile := CEmpty;
+  extraGlobInit := empty;
+  theFile := [];
   let res = {file with globals = res; globinit = newglobinit} in
   Globinit.insertGlobInit ~mainname:!mangledMainName res ;
   if showGlobals then ignore (E.log "Finished boxing file\n");

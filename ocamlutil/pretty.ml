@@ -38,7 +38,7 @@ let aman_no_layout = (aman && (mode = "SkipLayout"))            (* Constant-fold
 let aman_no_output = (aman && (mode = "SkipOutput"))
 let aman_no_fit    = (aman && (mode = "SkipFit"))
 
-
+let george = true
 
 
 let noBreaks = ref false  (* Replace all soft breaks with space *)
@@ -53,12 +53,13 @@ type doc =
   | Concat   of doc * doc
   | CText    of doc * string
   | Line     
-  | Break
+  | Break    
   | Align
   | Unalign
 
 
 let nil  = Nil
+
 let (++) d1 d2 = Concat (d1, d2)
 let text s     = Text s
 let num  i     = text (string_of_int i)
@@ -66,7 +67,7 @@ let chr  c     = text (String.make 1 c)
 let align      = Align
 let unalign    = Unalign
 let line       = Line
-let break      = Break (* Line *) (* Aman's benchmarking goo *)
+let break      = Break  (* Line *) (* Aman's benchmarking goo *)
 
 
 let nest n d   = Spaces n ++ align ++ d ++ unalign
@@ -328,7 +329,8 @@ let fit (start: 'a)
                                         (* Create a new breakData *)
         let bid    = incr breakId; !breakId in
         let bdata  = 
-          if doc = Break && not !breakAllMode then
+          if (match doc with Break -> true | _ -> false) 
+              && not !breakAllMode then
             {id=bid;col=newCol + 1;align=ar;status=Open}
           else
             begin
@@ -416,6 +418,215 @@ let fit (start: 'a)
       end
 	  
 
+(***** A new fit function ****)
+
+
+(* We keep a stack of active aligns. *)
+type align = 
+    { mutable gainBreak: int;  (* This is the gain that is associated with 
+                                 * taking the break associated with this 
+                                 * alignment mark. If this is 0, then there 
+                                 * is no break associated with the mark *)
+      mutable isTaken: bool ref; (* If breakGain is > 0 then this is a ref 
+                                  * cell that must be set to true when the 
+                                  * break is taken. These ref cells are also 
+                                  * int the "breaks" list  *)
+      mutable deltaFromPrev: int (* The column of this alignment mark - the 
+                                  * column of the previous mark *)
+    } 
+      
+let mkAlign (deltacol: int) = 
+  { gainBreak = 0; isTaken = ref false; deltaFromPrev = deltacol; }
+
+let topAlignAbsCol = ref 0 (* The absolute column of the top alignment *)
+
+(* We use references to avoid the need to pass data around all the time *)
+let aligns: align list ref = 
+  ref [mkAlign 0] (* The current stack of active alignment marks, with the 
+                    * top at the head. Never empty. *)
+
+(* Keep a list of ref cells for the breaks, in the same order that we see 
+ * them in the document *)
+let breaks: bool ref list ref = ref []
+
+(* The maximum column that we should use *)
+let maxCol = ref 0
+
+(* Sometimes we take all the optional breaks *)
+let breakAllMode = ref false
+
+(* We are taking a newline and moving left *)
+let newline (abscol: int) =
+  let topalign = List.hd !aligns in (* aligns is never empty *)
+  topalign.gainBreak <- 0;        (* Erase the current break info *)
+  if !breakAllMode && !topAlignAbsCol < !maxCol then 
+    breakAllMode := false;
+  !topAlignAbsCol                          (* This is the new column *)
+
+
+(* We have just advanced to a new column. See if we must take a line break *)
+let movingRight (abscol: int) : int = 
+  (* Keep taking the best break until we get back to the left of maxCol or no 
+   * more are left *)
+  let rec tryAgain abscol = 
+    if abscol < !maxCol then abscol else 
+    begin
+      (* Find the best gain there is out there *)
+      let bestGain = ref 0 in
+      let breakingAlign : align option ref = ref None (* the align with the 
+          * best gain *)
+      in
+      let breakingAlignNext: align option ref = ref None (* The align that is 
+                                                          * on top of the 
+                                                          * best one in the 
+                                                          * stack  *)
+      in
+      let rec loop (next: align option) = function
+          [] -> ()
+        | a :: resta -> 
+            if a.gainBreak > !bestGain then begin
+              bestGain := a.gainBreak;
+              breakingAlign := Some a;
+              breakingAlignNext := next
+            end;
+            loop (Some a) resta
+      in
+      loop None !aligns;
+      
+      if !bestGain = 0 then begin
+        (* No breaks are available. Take all breaks from now on *)
+        breakAllMode := true;
+        abscol
+      end else begin
+        let breakingAlign = 
+          match !breakingAlign with
+            Some x -> x 
+          | None -> failwith "Have a gain but can't find the align" in
+        breakingAlign.isTaken := true;
+        breakingAlign.gainBreak <- 0;
+        if debug then 
+          fprintf "Taking break at %d. gain=%d\n" abscol !bestGain;
+        (* Now adjust the align that follows the one taken, and maybe also the 
+        * topAlignAbsCol *)
+        match !breakingAlignNext with
+          None -> (* We are taking the break of the top align *) 
+            tryAgain (abscol - !bestGain)
+        | Some next -> begin
+            next.deltaFromPrev <- next.deltaFromPrev - !bestGain;
+            (* We must have moved the top align left also *)
+            topAlignAbsCol := !topAlignAbsCol - !bestGain;
+            tryAgain (abscol - !bestGain)
+        end
+      end
+    end
+  in
+  tryAgain abscol
+
+
+(* Pass the current absolute column and compute the new column *)
+let rec scan (abscol: int) (d: doc) : int = 
+  match d with 
+    Nil -> abscol
+  | Concat (d1, d2) -> scan (scan abscol d1) d2
+  | Spaces n -> abscol + n
+  | Text s -> 
+      let sl = String.length s in 
+      movingRight (abscol + sl)
+  | CText (d, s) -> 
+      let sl = String.length s in 
+      movingRight ((scan abscol d) + sl)
+  | Align -> 
+      let topAlign = mkAlign (abscol - !topAlignAbsCol) in
+      aligns :=  topAlign :: !aligns;
+      topAlignAbsCol := abscol;
+      abscol
+  | Unalign -> begin
+      match !aligns with
+        top :: t when t != [] -> 
+          aligns := t; 
+          topAlignAbsCol := !topAlignAbsCol - top.deltaFromPrev;
+          abscol
+
+      | _ -> failwith "Unmatched unalign\n"
+  end
+  | Line -> (* A forced line break *) newline abscol
+
+
+  | Break -> (* An optional line break. Always a space followed by an 
+              * optional line break  *)
+      let takenref = ref false in
+      breaks := takenref :: !breaks;
+      let topalign = List.hd !aligns in (* aligns is never empty *)
+      if !breakAllMode then begin
+        takenref := true;
+        newline abscol 
+      end else begin
+        (* If there was a previous break there it stay not taken, forever *)
+        topalign.isTaken <- takenref;
+        topalign.gainBreak <- 1 + abscol - !topAlignAbsCol;
+        movingRight (1 + abscol)
+      end
+    
+      
+(* The actual function that takes a document and prints it *)
+let emitDoc 
+    (emitString: string -> int -> unit) (* emit a number of copies of a 
+                                         * string *)
+    (d: doc) = 
+  let aligns: int list ref = ref [0] in (* A stack of alignment columns *)
+
+  (* Use this function to take a newline *)
+  let newline () = 
+    match !aligns with
+      [] -> failwith "Ran out of aligns"
+    | x :: _ -> 
+        emitString "\n" 1;
+        emitString " "  x;
+        x
+  in
+    
+  let rec loop (abscol: int) (d: doc) : int (* the new column *) =
+    match d with
+      Nil -> abscol
+    | Concat (d1, d2) -> loop (loop abscol d1) d2
+    | Spaces n -> 
+        emitString " " n;
+        abscol + n
+
+    | Text s -> 
+        let sl = String.length s in
+        emitString s 1;
+        abscol + sl
+
+    | CText (d, s) -> 
+        let sl = String.length s in
+        let newcol = loop abscol d in
+        emitString s 1;
+        newcol + sl
+
+    | Align -> 
+        aligns := abscol :: !aligns;
+        abscol
+
+    | Unalign -> begin
+        match !aligns with
+          [] -> failwith "Unmatched unalign"
+        | _ :: rest -> aligns := rest; abscol
+    end
+    | Line -> newline ()
+    | Break -> begin
+        match !breaks with
+          [] -> failwith "Break without a takenref"
+        | istaken :: rest -> 
+            breaks := rest; (* Consume the break *)
+            if !istaken then newline ()
+            else begin
+              emitString " " 1; 
+              abscol + 1
+            end
+    end
+  in
+  loop 0 d
 
 let flushOften = ref false
 
@@ -425,6 +636,17 @@ let fprint =
     fun chn width doc -> fit () (fun _ _ _ -> ()) width doc
   else if aman_no_fit then
     fun chn width doc -> ()
+  else if george then 
+    fun chn width doc -> begin
+      maxCol := width;
+      ignore (scan 0 doc);
+      breaks := List.rev !breaks;
+      ignore (emitDoc 
+                (fun s nrcopies -> 
+                  for i = 1 to nrcopies do
+                    output_string chn s
+                  done) doc)
+    end
   else
     fun chn width doc ->
       fit () 
@@ -472,7 +694,7 @@ let gprintf (finish : doc -> doc)
   let startAlignDepth = !alignDepth in
   (* Special concatenation functions *)
   let dconcat (acc: doc) (another: doc) = 
-    if !alignDepth > !printDepth then acc else Concat(acc, another) in
+    if !alignDepth > !printDepth then acc else acc ++ another in
   let dctext1 (acc: doc) (str: string) = 
     if !alignDepth > !printDepth then acc else 
     CText(acc, str) in
@@ -567,7 +789,7 @@ let gprintf (finish : doc -> doc)
                 else if !alignDepth = !printDepth then
                   CText(acc, "...")
                 else
-                  Concat(acc, align)
+                  acc ++ align
               in
               incr alignDepth;
               collect newacc (i + 2)
@@ -578,7 +800,7 @@ let gprintf (finish : doc -> doc)
                 if !alignDepth >= !printDepth then
                   acc
                 else
-                  Concat(acc, unalign)
+                  acc ++ unalign
               in
               collect newacc (i + 2)
           | '!' ->                        (* hard-line break *)

@@ -49,9 +49,7 @@ val ilongFitsUInt : bool ref         (* Whether a signed long can fit an
                                        * long uses more bits than an int  *)
 val newCil : bool ref
 
-val printLn : bool ref                 (* true to print #line directoves *)
-
-type location = {
+type location = { 
     line: int;				(* -1 means "do not know" *)
     file: string; 
 }
@@ -72,56 +70,6 @@ val errorLoc: location -> ('a,unit,Pretty.doc) format -> 'a
 val unimp: ('a,unit,Pretty.doc) format -> 'a  
 val warn: ('a,unit,Pretty.doc) format -> 'a
 val warnLoc: location -> ('a,unit,Pretty.doc) format -> 'a  
-
-
-
-(* We often need to concatenate sequences and using lists for this purpose is 
- * expensive. So we define a kind of "concatenable lists" that are easier to 
- * concatenate *)
-type 'a clist = 
-  | CEmpty                        (* The only representation for the empty 
-                                   * list  *)
-  | CConsL of 'a * 'a clist
-  | CConsR of 'a clist * 'a 
-  | CSeq  of 'a clist * 'a clist (* We concatenate only two of them at this 
-                                  * time. Neither is CEmpty. To be sure 
-                                  * always use append to make these  *)
-
-val linearize: 'a clist -> 'a clist 
-          (* Constructs a clist that uses only CEmpty and CConsL. Use this 
-           * rarely since it almost always copies the list. The best way to 
-           * use this is to assume that the list is linearized and when you 
-           * come accross CConsR or CSeq you call this function.  *)
-
-val single: 'a -> 'a clist
-
-val fromList: 'a list -> 'a clist
-val fromListRev: 'a list -> 'a clist  (* reverse the list *)
-
-val append: 'a clist -> 'a clist -> 'a clist
-
-val hdtl: 'a clist -> 'a option * 'a clist (* Splits into the head and the 
-                                            * tail. The head is None iff the 
-                                            * original list is empty  *)
-
-val length: 'a clist -> int
-
-val map: ('a -> 'b) -> 'a clist -> 'b clist
-
-val mapList: ('a -> 'b clist) -> 'a clist -> 'b clist (* Replaces each 
-                                                       * element with an 
-                                                       * entire list  *)
-
-
-val fold_left: ('acc -> 'a -> 'acc) -> 'acc -> 'a clist -> 'acc
-val iter: ('a -> unit) -> 'a clist -> unit
-
-val rev: 'a clist -> 'a clist
-
-val docCList: 
-    Pretty.doc -> ('a -> Pretty.doc) -> unit -> 'a clist -> Pretty.doc
-
-
 
 (* Information about a variable. Use one of the makeLocalVar, makeTempVar or 
  * makeGlobalVar to create instances of this data structure. These structures a
@@ -480,7 +428,7 @@ and stmt = {
 
 (* A few kinds of statements *)
 and stmtkind = 
-  | Instr  of instr clist         (* A bunch of instructions that do not 
+  | Instr  of instr list                (* A bunch of instructions that do not 
                                          * contain control flow stuff. 
                                          * Control flows falls through. *)
   | Return of exp option * location     (* The return statement. This is a 
@@ -510,7 +458,7 @@ and stmtkind =
 
 (* A block is a sequence of statements with the control falling through from 
  * one element to the next *)
-and block = stmt clist
+and block = stmt list
 
 and label = 
     Label of string * location          (* A real label *)
@@ -588,7 +536,7 @@ type global =
 
 type file = 
     { mutable fileName: string;   (* the complete file name *)
-      mutable globals: global clist;
+      mutable globals: global list;
       mutable globinit: fundec option;  (* A global initializer. It 
                                                   * is not part of globals 
                                                   * and it is printed last. 
@@ -641,7 +589,7 @@ val isInteger: exp -> int32 option
 val isZero: exp -> bool
 
 val mkStmt: stmtkind -> stmt
-val mkStmtOneInstr: instr -> stmt (* Make a statement with one instruction *)
+val mkStmtOneInstr: instr -> stmt
 
 (* use this instead of List.@ because you get fewer basic blocks *)
 val compactBlock: block -> block
@@ -707,7 +655,7 @@ val mkWhile: guard:exp -> body:block -> block
      * or an integer. Start and done must have the same type but incr 
      * must be an integer *)
 val mkForIncr:  iter:varinfo -> first:exp -> stopat:exp -> incr:exp 
-                 -> body:block -> block
+                 -> body:stmt list -> stmt list
 
     (* Make a for loop for(start; guard; next) { ... }. The body can 
      * contain Break but not Continue !!! *) 
@@ -992,8 +940,8 @@ val docAlphaTable: alphaTable:(string, int ref) Hashtbl.t -> Pretty.doc
     (* Process all two adjacent statements and possibly replace them both. If 
      * some replacement happens then the new statements are themselves 
      * subject to optimization  *)
-(*val peepHole2: (instr * instr -> instr list option) -> block -> unit*)
-val peepHole1: (instr -> instr clist option) -> block -> unit
+val peepHole2: (instr * instr -> instr list option) -> block -> unit
+val peepHole1: (instr -> instr list option) -> block -> unit
 
 (**
  **
