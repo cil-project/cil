@@ -631,7 +631,7 @@ val d_attrlist: bool -> unit -> attribute list -> Pretty.doc (* Whether it
                                                               * or after 
                                                               * stuff  *) 
 val d_stmt: unit -> stmt -> Pretty.doc
-
+val d_block: unit -> block -> Pretty.doc
 val d_lval: unit -> lval -> Pretty.doc
 val d_instr: unit -> instr -> Pretty.doc
 val d_fun_decl: unit -> fundec -> Pretty.doc
