@@ -432,10 +432,9 @@ Assuming that you have written \t{logwrites.ml} here is how you use it:
  call the function \t{Cil.printFile: out\_channel -> Cil.file -> unit} to print
  the file to a given output channel.
 
- \item In the \t{cil} directory run \t{make} to make the bytecode version of
- the \t{cilly} application (in \t{obj/cilly.byte.exe}) and then run \t{make
- RELEASE=1} to also make the optimized version of the applciation (in
- \t{obj/cilly.asm.exe}). 
+ \item In the \t{cil} directory run \t{make setup} to make both the bytecode
+ and the native code versions of the \t{cilly} application (in
+ \t{obj/cilly.byte.exe} and in \t{obj/cilly.asm.exe} respectively).
 
  \item Now you can invoke the \t{cilly} application on a preprocessed file, or
  instead use the \t{cilly.pl} driver which provides a convenient compiler-like
@@ -749,7 +748,9 @@ CIL you will obtain the file \t{obj/cilly.asm.exe}.
 
  We wrote a driver for this executable that makes it easy to invoke your
 analysis on existing C code with very little manual intervention. This driver
-is \t{lib/cilly.pl} and is quite powerful. 
+is \t{lib/cilly.pl} and is quite powerful. Note that the \t{cilly.pl} script
+is configured during installation with the path where CIL resides. This means
+that you can move it to any place you want. 
 
  A simple use of the driver is:
 \begin{verbatim}

@@ -4,6 +4,7 @@
 # author: George Necula
 
 # Debugging. Set ECHO= to debug this Makefile 
+.PHONY: setup quickbuild doc distrib machdep
 ECHO = @
 
 # Directory containing the *.cm[io] files for odoc.
@@ -177,6 +178,7 @@ DISTRIB_SRC = pretty.ml pretty.mli errormsg.ml errormsg.mli \
 
 DISTRIB_SRC_FRONTC = cabs.ml cprint.ml clexer.mli clexer.mll \
 		     cparser.mly cabsvisit.ml cabsvisit.mli \
+                     merger.ml mainmerger.ml \
 		     cabs2cil.ml cabs2cil.mli frontc.ml frontc.mli
 
 DISTRIB_SRC_EXT = logcalls.ml logcalls.mli \
