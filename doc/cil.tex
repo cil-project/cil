@@ -1279,7 +1279,8 @@ include files should be produced with the patcher script (see
  Among the options for the \t{cilly} you can put anything that can normally
 go in the command line of the compiler that \t{cilly} is impersonating.
 \t{cilly} will do its best to pass those options along to the appropriate
-subprocess. In addition, the following options are supported:
+subprocess. In addition, the following options are supported (a complete and
+up-to-date list can always be obtained by running \t{cilly --help}):
 
 \begin{itemize}
 \item \t{--mode=mode} This must be the first argument if present. It makes
@@ -1299,10 +1300,6 @@ subprocess. In addition, the following options are supported:
 source file all of the sources that make your application, and then to apply
 \t{cilly.asm} on the resulting source. The sequence of actions in this case is
 described above and the merger itself is described in \secref{merger}.
-\item \t{--M<args>}. A comma-separated list of arguments to be passed to the
-merger. This is only relevant if the \t{--merge} argument is also passed.
-Multiple \t{--M} arguments can be passed. See the \secref{merger} for details
-on what arguments the merger accepts. 
 
 \item \t{--leavealone=xxx}. Do not merge and do not present to CIL the files
 whose basename is "xxx". These files are compiled as usual and linked in at
@@ -2009,6 +2006,7 @@ Necula}.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf September 3, 2002}: Fixed the merger documentation. 
 \item {\bf August 29, 2002}: {\bf Released version 1.0.0.}
 \item {\bf August 29, 2002}: Started numbering versions with a major nubmer,
 minor and revisions. Released version 1.0.0.

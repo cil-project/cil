@@ -2207,6 +2207,10 @@ ifndef GIMPDEST
   GIMPDEST := $(CCUREDHOME)/gimp
 endif
 
+# GIMPNOCLEAN must be set to avoid cleaning before building (for testing)
+ifdef GIMPNOCLEAN
+  GIMP_DO_CLEAN := make clean
+endif
 # I'm not sure the best way to do this; I need LD_LIBRARY_PATH to point
 # to $(GIMPDEST)/lib.  This Makefile could add it to the environment
 # itself, but then the hapless user copying+pasting commands from a
@@ -2235,6 +2239,7 @@ zlib-configure:
 	cd $(ZLIBSRC); ./configure --prefix=$(GIMPDEST)
 
 zlibclean:
+ifndef GIMPNOCLEAN
 	cd $(ZLIBSRC); make clean
 	-cd $(ZLIBSRC); find . \( \
 		-name '*cil.c' -o \
@@ -2245,6 +2250,7 @@ zlibclean:
 		-name '*cabs.c' -o \
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
+endif
 
 zlib: mustbegcc $(ZLIBSRC)/Makefile mustbelinux zlibclean
 	cd $(ZLIBSRC); make CC="$(CILLY)" test
@@ -2278,7 +2284,8 @@ tiff-configure:
 	cd $(TIFFSRC); echo yes | ./configure
 
 tiffclean:
-	cd $(TIFFSRC); make clean
+ifndef GIMPNOCLEAN
+	cd $(TIFFSRC);  make clean
 	-cd $(TIFFSRC); find . \( \
 		-name '*cil.c' -o \
 		-name '*.exe' -o \
@@ -2288,6 +2295,7 @@ tiffclean:
 		-name '*cabs.c' -o \
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
+endif
 
 # To test tiff make sure you get and unpack v3.4pics.tar.gz
 #   http://uiarchive.uiuc.edu/mirrors/ftp/ftp.uu.net/graphics/tiff/v3.4pics.tar.gz
@@ -2327,6 +2335,7 @@ jpeg-configure:
 	cd $(JPEGSRC); ./configure --prefix=$(GIMPDEST)
 
 jpegclean:
+ifndef GIMPNOCLEAN
 	cd $(JPEGSRC); make clean
 	-cd $(JPEGSRC); find . \( \
 		-name '*cil.c' -o \
@@ -2337,6 +2346,7 @@ jpegclean:
 		-name '*cabs.c' -o \
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
+endif
 
 jpeg: mustbegcc $(JPEGSRC)/Makefile mustbelinux jpegclean
 	cd $(JPEGSRC); make CC="$(CILLY)"; make test
@@ -2378,6 +2388,7 @@ libpng-configure: $(GIMPDEST)/lib/libz.a
           fi
 
 libpngclean:
+ifndef GIMPNOCLEAN
 	cd $(LIBPNGSRC); make clean
 	-cd $(LIBPNGSRC); find . \( \
 		-name '*cil.c' -o \
@@ -2388,6 +2399,7 @@ libpngclean:
 		-name '*cabs.c' -o \
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
+endif
 
 libpng: mustbegcc $(LIBPNGSRC)/Makefile mustbelinux libpngclean
 	cd $(LIBPNGSRC); make prefix=$(GIMPDEST) CC="$(CILLY)"
@@ -2411,6 +2423,7 @@ mpeg-configure:
 	cd $(MPEGSRC); ./configure --prefix=$(GIMPDEST)
 
 mpegclean:
+ifndef GIMPNOCLEAN
 	cd $(MPEGSRC); make clean
 	-cd $(MPEGSRC); find . \( \
 		-name '*cil.c' -o \
@@ -2421,6 +2434,7 @@ mpegclean:
 		-name '*cabs.c' -o \
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
+endif
 
 mpeg: mustbegcc $(MPEGSRC)/Makefile mustbelinux mpegclean
 	cd $(MPEGSRC); make CC="$(CILLY)"; ./mpegtest test.mpg
@@ -2443,6 +2457,7 @@ glib-configure:
 	cd $(GLIBSRC); ./configure --prefix=$(GIMPDEST)
 
 glibclean:
+ifndef GIMPNOCLEAN
 	cd $(GLIBSRC); make clean
 	-cd $(GLIBSRC); find . \( \
 		-name '*cil.c' -o \
@@ -2453,6 +2468,7 @@ glibclean:
 		-name '*cabs.c' -o \
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
+endif
 
 # sm: changed 'mustbemanju' to '$(GLIBSRC)/Makefile'
 glib: mustbegcc $(GLIBSRC)/Makefile mustbelinux glibclean
@@ -2485,6 +2501,7 @@ gtk-configure: checkgimplib
 # old:   ./configure --with-glib=../glib-1.2.9
 
 gtkclean:
+ifndef GIMPNOCLEAN
 	cd $(GTKSRC); make clean
 	-cd $(GTKSRC); find . \( \
 		-name '*cil.c' -o \
@@ -2495,6 +2512,7 @@ gtkclean:
 		-name '*cabs.c' -o \
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
+endif
 
 gtk: mustbegcc checkgimplib $(GTKSRC)/Makefile mustbelinux gtkclean
 	cd $(GTKSRC); make CC="$(CILLY)"; 
@@ -2520,6 +2538,7 @@ gimp-configure:
 
 # an unfortunate name collision with "pencil.c" complicates the rule below...
 gimpclean:
+ifndef GIMPNOCLEAN
 	cd $(GIMPSRC); make clean
 	-cd $(GIMPSRC); find . \( \
 		\( -name '*cil.c' -a \! -name 'pencil.c' \) -o \
@@ -2530,6 +2549,7 @@ gimpclean:
 		-name '*cabs.c' -o \
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
+endif
 
 gimp: mustbegcc checkgimplib $(GIMPSRC)/Makefile mustbelinux gimpclean
 	cd $(GIMPSRC); make CC="$(CILLY)"
@@ -2604,7 +2624,7 @@ tort/compat/%: $(CTORTDIR)/compat/%.c mustbemanju mustbegcc
 
 # ping, from netkit-base-0.17
 PINGDIR := $(CCUREDHOME)/test/ping
-
+.PHONY: ping
 ping:
 	cd $(PINGDIR); rm -f ping.o; make CC="$(CCURED) $(STANDARDPATCH)"
 

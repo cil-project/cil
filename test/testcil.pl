@@ -537,9 +537,9 @@ $TEST->add2Tests("m88k", "_GNUCC=1");
   $TEST->enable("m88k-inferbox", 0); # Infinite loop
   $TEST->addBadComment("m88k-inferbox", "missing wrappers");
 
-$TEST->add2Tests("vortex", "_GNUCC=1 OPTIM= ");
-  $TEST->add2Group("vortex", "vslow", "spec", "slow");
-  $TEST->addBadComment("vortex-inferbox", "bug in resetSScanf");
+#$TEST->add2Tests("vortex", "_GNUCC=1 OPTIM= ");
+#  $TEST->add2Group("vortex", "vslow", "spec", "slow");
+#  $TEST->addBadComment("vortex-inferbox", "bug in resetSScanf");
 
 
 $TEST->add2Tests("apache/gzip");
@@ -578,40 +578,89 @@ $TEST->add2Tests("perf/perfrtti");
 
 
 # VSLOW tests
-$TEST->addTests("ftpd", "", ['cil']);
-  $TEST->addGroups("ftpd-cil", 'vslow');
-$TEST->addTests("linux", "", ['cil']);
-  $TEST->addGroups("linux-cil", 'vslow');
-$TEST->addTests("linux-merge3", "", ['cil']);
-  $TEST->addGroups("linux-merge3-cil", 'vslow');
-$TEST->addTests("sendmail", "", ['cil', 'inferbox']);
-  $TEST->addGroups("sendmail-cil", 'vslow');
-  $TEST->addGroups("sendmail-inferbox", 'vslow');
-$TEST->newTest(
-    Name => "emacs",
-    Dir => ".",
-    Cmd => "make emacs",
-    Group => ['vslow'],
-    Patterns => []);
-$TEST->addTests("perl", "", ['cil']);
-  $TEST->addGroups("perl-cil", 'vslow');
-$TEST->addTests("bind", "", ['cil']);
-  $TEST->addGroups("bind-cil", 'vslow');
-$TEST->addTests("wuftpd", "", ['cil']);
-  $TEST->addGroups("wuftpd-cil", 'vslow');
-$TEST->addTests("openssh", "", ['cil']);
-  $TEST->addGroups("openssh-cil", 'vslow');
-$TEST->addTests("apache", "", ['cil']);
-  $TEST->addGroups("apache-cil", 'vslow');
+#$TEST->addTests("linux", "", ['cil']);
+#  $TEST->addGroups("linux-cil", 'vslow');
+#$TEST->addTests("linux-merge3", "", ['cil']);
+#  $TEST->addGroups("linux-merge3-cil", 'vslow');
+#$TEST->addTests("sendmail", "", ['cil', 'inferbox']);
+#  $TEST->addGroups("sendmail-cil", 'vslow');
+#  $TEST->addGroups("sendmail-inferbox", 'vslow');
+#$TEST->newTest(
+#    Name => "emacs",
+#    Dir => ".",
+#    Cmd => "make emacs",
+#    Group => ['vslow'],
+#    Patterns => []);
+#$TEST->addTests("perl", "", ['cil']);
+#  $TEST->addGroups("perl-cil", 'vslow');
+#$TEST->addTests("bind", "", ['cil']);
+#  $TEST->addGroups("bind-cil", 'vslow');
+#$TEST->addTests("wuftpd", "", ['cil']);
+#  $TEST->addGroups("wuftpd-cil", 'vslow');
+#$TEST->addTests("openssh", "", ['cil']);
+#  $TEST->addGroups("openssh-cil", 'vslow');
+#$TEST->addTests("apache", "", ['cil']);
+#  $TEST->addGroups("apache-cil", 'vslow');
+
+#
 # GIMP and friends
+#
 $TEST->newTest(
-    Name => "gimp-all-world",
+    Name => "gimpall-world", # A CIL only test
     Dir => ".",
-    Cmd => "make gimp-all-world LD_LIBRARY_PATH=/home/necula/cil/gimp/lib",
+    Enabled => 0,
+    Cmd => "make gimpall-world LD_LIBRARY_PATH=$FindBin::Bin/../gimp/lib",
     Group => ['vslow'],
     Patterns => []);
-$TEST->addTests("ping", "", ['cil']);
-  $TEST->addGroups("ping-cil", 'vslow');
+
+
+#
+# PING
+#
+$TEST->newTest(
+    Name => "ping-cil",
+    Dir => ".",
+    Cmd => "make ping " . $TEST->testCommandExtras(""),
+    Enabled => 1,
+    Group => ['vslow'],
+    Patterns => \%commonerrors);
+$TEST->newTest(
+    Name => "ping-inferbox",
+    Dir => ".",
+    Cmd => "make ping " . $TEST->testCommandExtras("INFERBOX=infer"),
+    Enabled => 1,
+    Group => ['vslow'],
+    Patterns => \%commonerrors);
+
+#
+# FTPD
+#
+$TEST->newTest(
+    Name => "ftpd-cil",
+    Dir => ".",
+    Cmd => "make ftpd " . $TEST->testCommandExtras(""),
+    Enabled => 0,
+    Group => ['vslow'],
+    Patterns => \%commonerrors);
+$TEST->newTest(
+    Name => "ftpd-inferbox",
+    Dir => ".",
+    Cmd => "make ftpd " . $TEST->testCommandExtras("INFERBOX=infer"),
+    Enabled => 0,
+    Group => ['vslow'],
+    Patterns => \%commonerrors);
+
+
+#
+# ACE
+#
+$TEST->newTest(
+    Name => "ace",
+    Dir => "/home/necula/ex/ace.edg",
+    Cmd => "make regtest",
+    Enabled => 1,
+    Group => ['vslow'],
+    Patterns => \%commonerrors);
 
 
 # -------------- scott's testcases --------------
@@ -1293,5 +1342,6 @@ sub uniqueName {
 }
 
 1;
+
 
 
