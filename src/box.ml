@@ -1362,7 +1362,7 @@ let checkBounds (mktmplen: unit -> exp)
                 (pkind: N.pointerkind) : stmt list = 
   let lv', lv't = getHostIfBitfield lv lvt in
     (* Do not check the bounds when we access variables without array 
-       * indexing  *)
+     * indexing  *)
   match pkind with
   | N.Wild -> (* We'll need to read the length anyway since we need it for 
                  * working with the tags *)
