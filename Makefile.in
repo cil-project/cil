@@ -178,7 +178,7 @@ DISTRIB_SRC_FRONTC = cabs.ml cprint.ml clexer.mli clexer.mll \
 
 DISTRIB_SRC_EXT = logcalls.ml logcalls.mli \
                   astslicer.ml simplemem.ml heap.ml partial.ml \
-                  logwrites.ml heapify.ml
+                  logwrites.ml heapify.ml callgraph.ml callgraph.mli
 
 DISTRIB_LIB = Cilly.pm
 
