@@ -95,7 +95,7 @@ ifeq ($(ARCHOS), x86_WIN32)
   EXE		= $(EXEEXT).exe
   OBJ   	= obj
   ifdef CAMLUSEUNIX
-    UNIXLIBS	+= unix.$(CMXA) %CAMLLIB%/libunix.lib wsock32.lib
+    UNIXLIBS	+= unix.$(CMXA) $(CAMLLIB)/libunix.lib wsock32.lib
   endif
 endif
 ifeq ($(ARCHOS), x86_LINUX)

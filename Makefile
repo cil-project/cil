@@ -8,7 +8,6 @@
 # Debugging. Set ECHO= to debug this Makefile 
 ECHO = @
 
-# USECCGR = 1
 USEFRONTC = 1
 
 # First stuff that makes the executable 
@@ -32,21 +31,12 @@ UNSAFE      = 1
 endif
 CAMLLIBS    = 
 
-ifdef USECCGR
-MLLS      += mllex.mll
-MLYS      += cilparse.mly
-MODULES   += mllex cilparse
-PARSELIBS += ../parsgen/libccgr.a ../smbase/libsmbase.a \
-             libstdc++-3-libc6.1-2-2.10.0.a
-endif
-
-ifdef USEFRONTC
+# Front end stuff
 SOURCEDIRS += src/frontc
 MLLS       += clexer.mll
 MLYS       += cparser.mly
 MODULES    += cabs cprint clexer cparser cabs2cil cabsvisit \
               frontc
-endif
 
 # Add main late
 MODULES    += main
@@ -72,16 +62,35 @@ OLDPATCH = 1
 PATCHINCLUDES=1
 endif
 
-# By default use GCC
+# By default use GCC, unless you set NO_GC
 ifndef _MSVC
 _GNUCC = 1
 endif
 
+# Set the COMPILER variable
+ifdef _MSVC
+  ifdef RELEASE
+    COMPILER=mscl_release
+  else
+    COMPILER=mscl_debug
+  endif
+else
+ ifdef _GNUCC
+   ifdef RELEASE
+     COMPILER=gcc_release
+   else
+     COMPILER=gcc_debug
+   endif
+ endif
+endif
 
 
-PCCDIR=$(CCUREDHOME)/test/PCC
-CCURED=perl $(CCUREDHOME)/lib/ccured.pl 
-COMBINECC=perl $(CCUREDHOME)/lib/combiner.pl
+# By default use the GC if we use GCC
+ifdef _GNUCC
+ ifndef NO_GC
+  USE_GC=1
+ endif
+endif
 
 
 # sm: I keep getting bit by this
@@ -93,14 +102,19 @@ BASEDIR=$(HMM)
 CCUREDHOME=$(HMM)
 PCCDIR=$(HMM)
 TVDIR=$(HMM)
-CCUREDHOME=$(HMM)
 _GNUCC=$(HMM)
 endif
 
+PCCDIR=$(CCUREDHOME)/test/PCC
+CCURED=perl $(CCUREDHOME)/lib/ccured.pl 
+COMBINECC=perl $(CCUREDHOME)/lib/combiner.pl
 
 export EXTRAARGS
 export INFERBOX
 
+###
+### GCC options
+###
 ifdef _GNUCC
 DEBUGCCL=gcc -Wall -x c -g -ggdb -D_GNUCC 
 RELEASECCL=gcc -x c -O3 -fomit-frame-pointer -D_RELEASE -D_GNUCC -Wall 
@@ -136,6 +150,9 @@ endif
 endif
 
 
+###
+### MS VC options
+###
 ifdef _MSVC
 DEBUGCCL=cl /TC /Zi /MLd /I./lib /DEBUG
 RELEASECCL=cl /TC /ML /I./lib
@@ -169,14 +186,7 @@ CCL=$(DEBUGCCL)
 endif
 CC=$(CCL) $(CONLY)
 
-
-ifdef RELEASE
-SAFECLIB=obj/ccured.$(LIBEXT)
-CILLIB=obj/cillib.$(LIBEXT)
-else
-SAFECLIB=obj/ccureddebug.$(LIBEXT)
-CILLIB=obj/cillibdebug.$(LIBEXT)
-endif
+CCUREDLIB=obj/ccured_$(COMPILER).$(LIBEXT)
 
 ifdef PATCHINCLUDES
 STANDARDPATCH= --includedir=$(CCUREDHOME)/include
@@ -189,12 +199,100 @@ ifdef INFERBOX
 MANUALBOX=1
 endif
 
+# garbage collector options
+ifdef _GNUCC
+  ifdef USE_GC
+    # enable the garbage collector by default for gcc
+    CCURED+= $(DEF)USE_GC
+    DEBUGCCL+= $(DEF)USE_GC
+    RELEASECCL+= $(DEF)USE_GC
+    GCLIB = $(CCUREDHOME)/lib/gc/gc.a
+
+$(GCLIB):
+	cd lib/gc; make
+
+gctest: 
+	cd lib/gc; ./gctest
+
+  else
+    GCLIB =
+gctest: 
+
+  endif
+else
+  # on msvc, what needs to be done to get gc working:
+  #  - make sure we can compile gc.a, and that gctests works
+  #  - modify the commands which build $(CCUREDLIB) so they
+  #    include gc.a
+  GCLIB =
+endif
+
+CCURED+= $(EXTRAARGS)
+
+###
+###
+###    # Now the rules to make the library
+###
+###
+ifndef RELEASE
+CCUREDLIBARG=$(DEF)_DEBUG
+endif
+
+SAFECPATCHER=perl $(CCUREDHOME)/lib/patcher.pl
+ifdef _MSVC
+$(CCUREDLIB) : lib/safec.c lib/safec.h lib/safeccheck.h lib/splay.c 
+	cl $(DOOPT) $(INC)./lib $(CONLY) $(DEF)_MSVC $(CCUREDLIBARG) \
+                                           $(OBJOUT)obj/safec.o lib/safec.c
+	cl $(DOOPT) $(INC)./lib $(CONLY) $(DEF)_MSVC $(CCUREDLIBARG) \
+                                           $(OBJOUT)obj/splay.o lib/splay.c
+	lib /OUT:$@ obj/safec.o obj/splay.o 
+
+SAFECPATCHER += --mode=mscl 
+PATCH_SYSINCLUDES=stdio.h ctype.h string.h io.h stdarg.h crtdbg.h
+includes: cleanincludes
+	$(SAFECPATCHER) --patch=$(CCUREDHOME)/lib/safec_msvc.patch \
+                        --dest=$(CCUREDHOME)/include \
+	                $(foreach file,$(PATCH_SYSINCLUDES), --sfile=$(file))
+cleanincludes: 
+	$(SAFECPATCHER) --dest=$(CCUREDHOME)/include --clean
+endif
+
+# Libraries on GCC
+# sm: if GC is enabled, we just add it to the runtime library
+# (or rather, we add safec.o to gc.a's contents)
+ifdef _GNUCC
+$(CCUREDLIB) : lib/safec.c $(GCLIB) lib/splay.o
+	$(CC) $(CCUREDLIBARG) $(OBJOUT)obj/safec.o $<
+	if echo $(GCLIB) | grep / >/dev/null; then \
+		cp -f $(GCLIB) $@; echo "using GC"; \
+	else \
+		rm -f $@; echo "not using GC"; \
+	fi
+	ar -r $@ obj/safec.o lib/splay.o
+	ranlib $@
+
+
+SAFECPATCHER += --mode gcc
+PATCH_SYSINCLUDES=stdio.h ctype.h sys/fcntl.h fcntl.h string.h stdarg.h
+includes: cleanincludes
+	$(SAFECPATCHER) --patch=$(CCUREDHOME)/lib/safec_gcc.patch \
+                        --dest=$(CCUREDHOME)/include \
+	                $(foreach file,$(PATCH_SYSINCLUDES), --sfile=$(file))
+cleanincludes: 
+	$(SAFECPATCHER) --dest=$(CCUREDHOME)/include --clean
+endif
+# new patching specification wants to be run through preprocessor before use
+ifdef NEWPATCH
+$(PATCHFILE2): lib/$(PATCHFILE)2
+	$(CPPSTART) $(PATCHDEFS) lib/$(PATCHFILE)2 > $(PATCHFILE2)
+endif
+
 ######################
 .PHONY : defaulttarget
 ifdef NOREMAKE
 defaulttarget : 
 else
-defaulttarget : $(EXECUTABLE)$(EXE) $(SAFECLIB) $(CILLIB) 
+defaulttarget : $(EXECUTABLE)$(EXE)
 endif
 
 combiner:
@@ -203,7 +301,10 @@ combiner:
 cilly: 
 	make -f Makefile.cil RELEASE=$(RELEASE)
 
-setup: combiner cilly defaulttarget includes
+presetup: 
+	rm -rf $(CCUREDLIB)
+
+setup: presetup  $(CCUREDLIB) gctest combiner cilly defaulttarget includes
 
 
 
@@ -220,11 +321,6 @@ ifdef USER_SCOTT
   #TRACE=patch
 endif
 
-# bite the bullet and make it the default
-ifndef OLDPATCH
-  NEWPATCH=1
-endif
-
 
 # weimer: support for other solvers
 ifdef INFERBOX
@@ -232,13 +328,13 @@ ifdef INFERBOX
   PATCHDEFS= $(DEF)CCURED
   CCURED+= --emitinfer 
 else
-ifndef MANUALBOX
-CCURED+= --boxdefaultwild
-endif
+  ifndef MANUALBOX
+    CCURED+= --boxdefaultwild
+  endif
 endif
 
 ifdef MANUALBOX
-CCURED+= $(DEF)MANUALBOX
+  CCURED+= $(DEF)MANUALBOX
 endif
 
 
@@ -330,7 +426,7 @@ endif
 # if this file doesn't exist; this file is *not* checked in to
 # the CVS repository (please be careful to avoid putting things
 # in here which will cause things to break when it's missing)
--include site-config.mk
+# -include site-config.mk
 
 
 # ----------- above here is configuration -------------------
@@ -341,7 +437,7 @@ endif
 ifdef NOREMAKE
 defaulttarget: 
 else
-defaulttarget: $(EXECUTABLE)$(EXE) $(SAFECLIB) $(CILLIB) $(PATCHFILE2) 
+defaulttarget: $(EXECUTABLE)$(EXE) $(CCUREDLIB) $(CILLIB) $(PATCHFILE2) 
 endif
 
 .PHONY: trval
@@ -357,101 +453,6 @@ $(OBJDIR)/cil.$(CMXA): $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
 	$(CAMLLINK) -a -o $@ $^
 
 
-# garbage collector options
-ifneq ($(COMPUTERNAME), RAW)   # George's workstation
-ifneq ($(COMPUTERNAME), FETA)   # George's workstation
-ifdef _GNUCC
-  ifndef NO_GC
-  #ifdef USE_GC
-    # enable the garbage collector by default for gcc
-    CCURED+= $(DEF)USE_GC
-    DEBUGCCL+= $(DEF)USE_GC
-    RELEASECCL+= $(DEF)USE_GC
-    GCLIB = $(CCUREDHOME)/lib/gc/gc.a
-
-$(GCLIB):
-	cd lib/gc; make && ./gctest
-
-  else
-    GCLIB =
-  endif
-else
-  # on msvc, what needs to be done to get gc working:
-  #  - make sure we can compile gc.a, and that gctests works
-  #  - modify the commands which build $(SAFECLIB) so they
-  #    include gc.a
-  GCLIB =
-endif
-endif
-endif
-
-CCURED+= $(EXTRAARGS)
-
-###
-###
-###    # Now the rules to make the library
-###
-###
-ifndef RELEASE
-SAFECLIBARG=$(DEF)_DEBUG
-endif
-
-SAFECPATCHER=perl $(CCUREDHOME)/lib/patcher.pl
-ifdef _MSVC
-$(SAFECLIB) : lib/safec.c lib/safec.h lib/safeccheck.h lib/splay.c 
-	cl $(DOOPT) /I./lib /c $(DEF)_MSVC $(SAFECLIBARG) \
-                                           $(OBJOUT)obj/safec.o lib/safec.c
-	cl $(DOOPT) /I./lib /c $(DEF)_MSVC $(SAFECLIBARG) \
-                                           $(OBJOUT)obj/splay.o lib/splay.c
-	lib /OUT:$@ obj/safec.o obj/splay.o 
-$(CILLIB) : lib/cillib.c
-	cl $(DOOPT) /I./lib /Gy /c $(DEF)_MSVC $(SAFECLIBARG) \
-                                           $(OBJOUT)obj/cillib.o lib/cillib.c
-	lib /OUT:$@ obj/cillib.o
-
-SAFECPATCHER += --mode=mscl 
-PATCH_SYSINCLUDES=stdio.h ctype.h string.h io.h stdarg.h crtdbg.h
-includes: cleanincludes
-	$(SAFECPATCHER) --patch=$(CCUREDHOME)/lib/safec_msvc.patch \
-                        --dest=$(CCUREDHOME)/include \
-	                $(foreach file,$(PATCH_SYSINCLUDES), --sfile=$(file))
-cleanincludes: 
-	$(SAFECPATCHER) --dest=$(CCUREDHOME)/include --clean
-endif
-
-# Libraries on GCC
-# sm: if GC is enabled, we just add it to the runtime library
-# (or rather, we add safec.o to gc.a's contents)
-ifdef _GNUCC
-$(SAFECLIB) : lib/safec.c $(GCLIB) lib/splay.o
-	$(CC) $(SAFECLIBARG) $(OBJOUT)obj/safec.o $<
-	if echo $(GCLIB) | grep / >/dev/null; then \
-		cp -f $(GCLIB) $@; echo "using GC"; \
-	else \
-		rm -f $@; echo "not using GC"; \
-	fi
-	ar -r $@ obj/safec.o lib/splay.o
-	ranlib $@
-
-$(CILLIB) : lib/cillib.c
-	$(CC) $(SAFECLIBARG) $(OBJOUT)obj/cillib.o $<
-	ar -r $@ obj/cillib.o
-	ranlib $@
-
-SAFECPATCHER += --mode gcc
-PATCH_SYSINCLUDES=stdio.h ctype.h sys/fcntl.h fcntl.h string.h stdarg.h
-includes: cleanincludes
-	$(SAFECPATCHER) --patch=$(CCUREDHOME)/lib/safec_gcc.patch \
-                        --dest=$(CCUREDHOME)/include \
-	                $(foreach file,$(PATCH_SYSINCLUDES), --sfile=$(file))
-cleanincludes: 
-	$(SAFECPATCHER) --dest=$(CCUREDHOME)/include --clean
-endif
-# new patching specification wants to be run through preprocessor before use
-ifdef NEWPATCH
-$(PATCHFILE2): lib/$(PATCHFILE)2
-	$(CPPSTART) $(PATCHDEFS) lib/$(PATCHFILE)2 > $(PATCHFILE2)
-endif
 
 # ----------- above here are rules for building the translator ----------
 # ----------- below here are rules for building benchmarks --------

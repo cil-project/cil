@@ -10,7 +10,10 @@
 # NEWPATCH = 1
 # endif
 
-# If you want to use Microsoft Visual C uncomment the next line
+# If you want to use Microsoft Visual C uncomment the few next line
 # ifndef _GNUCC
 # _MSVC = 1
 # endif
+
+# If you do not want to use the garbage collector uncomment the next line
+# NO_GC=1
