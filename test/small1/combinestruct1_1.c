@@ -5,7 +5,7 @@ struct A {
 };
                             
 // make A's type part of the interface
-extern struct A connection;          
+extern struct A *connection;          
 
 // refer to A::x
 int foo()
