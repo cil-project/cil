@@ -186,9 +186,9 @@ class removeTempsVis (usedTypedefs : (string,bool) H.t) = object (self)
                 if ((String.length v.vname) < 3 ||
                 (String.sub v.vname 0 3) <> "tmp") then
                   (* sm: if I'd had this to begin with, it would have been
-                  * a little easier to track down the bug where I didn't
-                  * check the function return-value destination *)
-                  removed_temps := (f.svar.vname ^ "::" ^ v.vname) :: 
+                   * a little easier to track down the bug where I didn't
+                   * check the function return-value destination *)
+                  removed_temps := (f.svar.vname ^ "::" ^ v.vname) ::
                     !removed_temps ;
                   (* (ignore (E.warn "Removing unused source variable %s"
                              v.vname)); *)
@@ -196,7 +196,7 @@ class removeTempsVis (usedTypedefs : (string,bool) H.t) = object (self)
               end
               else
                 true    (* keep it *)
-                  )
+            )
             f.slocals);
       f
     in

@@ -2457,11 +2457,13 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         (* also don't print the 'combiner' pragma *)
         (* nor 'cilnoremove' *)
         let suppress =
-          not !print_CIL_Input && not !msvcMode &&
+          not !print_CIL_Input && 
+          not !msvcMode &&
           ((startsWith "box" an) ||
-          (startsWith "ccured" an) ||
-          (an = "merger") ||
-          (an = "cilnoremove")) in
+           (startsWith "ccured" an) ||
+           (an = "merger") ||
+           (an = "cilnoremove") ||
+           (an = "inherits")) in
         let d =
           if args = [] then
             text an
@@ -2833,11 +2835,44 @@ let d_shortglobal () = function
   | GText _ -> text "GText"
   | GAsm _ -> text "GAsm"
 
+
+(* sm: given an ordinary CIL object printer, yield one which
+ * behaves the same, except it never prints #line directives
+ * (this is useful for debugging printfs) *)
+let dn_obj (func: unit -> 'a -> doc) : (unit -> 'a -> doc) =
+begin
+  (* construct the closure to return *)
+  let theFunc () (obj:'a) : doc =
+  begin
+    let prevPrintLn:bool = !printLn in
+    printLn := false;
+    let ret = (func () obj) in    (* call underlying printer *)
+    printLn := prevPrintLn;
+    ret
+  end in
+  theFunc
+end
+
+(* now define shortcuts for the non-location-printing versions,
+ * with the naming prefix "dn_" *)
+let dn_exp       = (dn_obj d_exp)
+let dn_lval      = (dn_obj d_lval)
+(* dn_offset is missing because it has a different interface *)
+let dn_init      = (dn_obj d_init)
+let dn_type      = (dn_obj d_type)
+let dn_global    = (dn_obj d_global)
+let dn_attrlist  = (dn_obj d_attrlist)
+let dn_attr      = (dn_obj d_attr)
+let dn_attrparam = (dn_obj d_attrparam)
+let dn_stmt      = (dn_obj d_stmt)
+let dn_instr     = (dn_obj d_instr)
+
+
 (* Now define a cilPlainPrinter *)
 class plainCilPrinterClass =
-  (* We keep track of the composite types that we have done to avoid 
+  (* We keep track of the composite types that we have done to avoid
    * recursion *)
-  let donecomps : (int, unit) H.t = H.create 13 in 
+  let donecomps : (int, unit) H.t = H.create 13 in
   object (self)
 
   inherit defaultCilPrinterClass as super

@@ -1856,6 +1856,20 @@ val d_stmt: unit -> stmt -> Pretty.doc
 val d_global: unit -> global -> Pretty.doc
 
 
+(** Versions of the above pretty printers, that don't print #line directives *)
+val dn_exp       : unit -> exp -> Pretty.doc
+val dn_lval      : unit -> lval -> Pretty.doc
+(* dn_offset is missing because it has a different interface *)
+val dn_init      : unit -> init -> Pretty.doc
+val dn_type      : unit -> typ -> Pretty.doc
+val dn_global    : unit -> global -> Pretty.doc
+val dn_attrlist  : unit -> attributes -> Pretty.doc
+val dn_attr      : unit -> attribute -> Pretty.doc
+val dn_attrparam : unit -> attrparam -> Pretty.doc
+val dn_stmt      : unit -> stmt -> Pretty.doc
+val dn_instr     : unit -> instr -> Pretty.doc
+
+
 (** Pretty-print a short description of the global. This is useful for error 
  * messages *)
 val d_shortglobal: unit -> global -> Pretty.doc
