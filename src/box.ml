@@ -648,8 +648,7 @@ let checkZeroTags =
   fun base lenExp lv t ->
     let lv', lv't = getHostIfBitfield lv t in
     call None (Lval (var fdec.svar))
-      [ castVoidStar base; 
-        lenExp ;
+      [ castVoidStar base; lenExp ;
         castVoidStar (AddrOf(lv', lu)); 
         SizeOf(lv't, lu); ] 
   
@@ -700,15 +699,17 @@ let checkMem (towrite: exp option)
              (lv: lval) (base: exp) (t: typ) : stmt list = 
   (* Fetch the length field in a temp variable. But do not create the 
    * variable until certain that it is needed *)
-  let lenExp : exp option ref = ref None in
-  let getLenExp () = 
-    match !lenExp with
-      Some x -> x
-    | None -> begin
-        let len = makeTempVar !currentFunction ~name:"_tlen" uintType in
-        let x = Lval(var len) in
-        lenExp := Some x;
-        x
+  let getLenExp = 
+    let lenExp : exp option ref = ref None in
+    fun () -> begin
+      match !lenExp with
+        Some x -> x
+      | None -> begin
+          let len = makeTempVar !currentFunction ~name:"_tlen" uintType in
+          let x = Lval(var len) in
+          lenExp := Some x;
+          x
+      end
     end
   in
   let getVarOfExp e = 
