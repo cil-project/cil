@@ -11,13 +11,13 @@
  * 2. Redistributions in binary form must reproduce the above copyright notice, 
  * this list of conditions and the following disclaimer in the documentation 
  * and/or other materials provided with the distribution. 
- * 3. The name of the authors may not be used to endorse or promote products derived from 
- * this software without specific prior written permission. 
+ * 3. The name of the authors may not be used to endorse or promote products 
+ * derived from  this software without specific prior written permission. 
  *
  * DISCLAIMER:
- * THIS SOFTWARE IS PROVIDED BY THE AUTHORS ``AS IS'' AND ANY EXPRESS OR IMPLIED 
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF 
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHORS ``AS IS'' AND ANY EXPRESS OR 
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES 
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
  * IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY DIRECT, INDIRECT, 
  * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, 
  * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS 
@@ -29,50 +29,61 @@
  *)
 
 (** Utility functions for pretty-printing. The major features provided by 
-  * this module are
+    this module are 
 - An [fprintf]-style interface with support for user-defined printers
 - The printout is fit to a width by selecting some of the optional newlines
 - Constructs for alignment and indentation
 - Print ellipsis starting at a certain nesting depth
 - Constructs for printing lists and arrays
 
-
- Pretty-printing occurs in two tages
-{ol
+ Pretty-printing occurs in two stages:
 - Construct a [doc] object that encodes all of the elements to be printed 
   along with alignment specifiers and optional and mandatory newlines
 - Format the [doc] to a certain width and emit it as a string, to an output 
   stream or pass it to a user-defined function
-}
 
  The formating algorithm is not optimal but it does a pretty good job while 
  still operating in linear time. The original version was based on a pretty 
  printer by Philip Wadler which turned out to not scale to large jobs. 
 *)
 
-(** The type of unformated documents. Elements of this type can be 
-  * constructed in two ways. Either with a number of constructor shown below, 
-  * or using the [dprintf] function with a [printf]-like interface. The 
-  * [dprintf] method is slightly slower so we do not use it for large jobs 
-  * such as the output routines for a compiler. But we use it for small jobs 
-  * such as logging and error messages. *)
+(** API *)
+
+
+(* I have no idea why ocamldoc misreads my comments on cygwin. I seem to be 
+ * able to solve the problem by putting some [a] in some places *)
+
+(** [a] The type of unformated documents. Elements of this type can be 
+    constructed in two ways. Either with a number of constructor shown below, 
+    or using the [dprintf] function with a [printf]-like interface. The 
+    [dprintf] method is slightly slower so we do not use it for large jobs 
+    such as the output routines for a compiler. But we use it for small jobs 
+    such as logging and error messages. *)
 type doc
 
 
-(** Next are constructors for the [doc] type. *)
 
-(** Constructs an empty document *)
+(** Constructors for the doc type. *)
+
+
+
+
+(** [a]Constructs an empty document *)
 val nil          : doc
 
+
 (** Concatenates two documents. This is an infix operator that associates to 
-  * the left. *)
+    the left. *)
 val (++)         : doc -> doc -> doc 
+
 
 (** A document that prints the given string *)
 val text         : string -> doc
 
+
 (** A document that prints an integer in decimal form *)
 val num          : int    -> doc
+
 
 (** A document that prints a character. This is just like [text] 
   * with a one-character string. *)
@@ -146,14 +157,14 @@ val docOpt: (unit -> 'a -> doc) -> unit -> 'a option -> doc
 val insert       : unit -> doc -> doc
 
 (** The next few functions provinde an alternative method for constructing 
-  * [doc] objects. In each of these functions there is a format string 
-  * argument (of type [('a, unit, doc) format]; if you insist on 
-  * understanding what that means see the module [Printf]). The format string 
-  * is like that for the [printf] function in C, except that it understands a 
-  * few more formating controls, all starting with the \@ character. 
+    [doc] objects. In each of these functions there is a format string 
+    argument (of type [('a, unit, doc) format]; if you insist on 
+    understanding what that means see the module [Printf]). The format string 
+    is like that for the [printf] function in C, except that it understands a 
+    few more formating controls, all starting with the \@ character. 
 
  The following special formatting characters are understood (these do not 
-  * correspond to arguments of the function):
+ correspond to arguments of the function):
 -  \@\[ Inserts an [align]. Every format string must have matching 
         [align] and [unalign]. 
 -  \@\] Inserts an [unalign].
@@ -231,13 +242,13 @@ val printDepth   : int ref
 
 
 (** If set to [true] then optional breaks are taken only when the document 
-  * has exceeded the given width. This means that the printout will looked 
-  * more ragged but it will be faster *)
+    has exceeded the given width. This means that the printout will looked 
+    more ragged but it will be faster *)
 val fastMode  : bool ref 
 
 val flushOften   : bool ref  (* If true the it flushes after every print *)
 
 val withPrintDepth : int -> (unit -> unit) -> unit
 
-(* A descrptive string with version, flags etc. *)
+(** A descrptive string with version, flags etc. *)
 val getAboutString : unit -> string

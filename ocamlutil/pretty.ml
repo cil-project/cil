@@ -78,30 +78,30 @@ let indent n d   = text " " ++ align ++ d ++ unalign
 
 
 (* Format a sequence. The first argument is a separator *)
-let  seq sep f dl = 
+let seq ~(sep:doc)  ~(doit:'a -> doc) ~(elements: 'a list) = 
   let rec loop (acc: doc) = function
       []     -> acc
     | h :: t -> 
-        let fh = f h in  (* Make sure this is done first *)
+        let fh = doit h in  (* Make sure this is done first *)
         loop (acc ++ sep ++ fh) t
   in
-  (match dl with
+  (match elements with
     [] -> nil
   | h :: t -> 
-      let fh = f h in loop fh t)
+      let fh = doit h in loop fh t)
 
 
-let docArray sep f () a = 
-  let len = Array.length a in
+let docArray ~(sep:doc) ~(doit:int -> 'a -> doc) () ~(elements:'a array) = 
+  let len = Array.length elements in
   if len = 0 then 
     nil
   else
     let rec loop (acc: doc) i =
       if i >= len then acc else
-      let fi = f i a.(i) in (* Make sure this is done first *)
+      let fi = doit i elements.(i) in (* Make sure this is done first *)
       loop (acc ++ sep ++ fi) (i + 1)
     in
-    let f0 = f 0 a.(0) in
+    let f0 = doit 0 elements.(0) in
     loop f0 1
 
 let docOpt delem () = function
@@ -110,7 +110,8 @@ let docOpt delem () = function
 
 
 
-let docList sep f () dl = seq sep f dl
+let docList ~(sep:doc) ~(doit:'a -> doc) () ~(elements:'a list) = 
+  seq sep doit elements
 
 let insert () d = d
 
@@ -440,7 +441,7 @@ let emitDoc
 
 
 (* Print a document on a channel *)
-let fprint_george (chn : out_channel) (width : int) doc =
+let fprint_george (chn: out_channel) ~(width: int) doc =
   maxCol := width;
 (*let doc = flatten Nil doc in *)
   ignore (scan 0 doc);
@@ -454,7 +455,7 @@ let fprint_george (chn : out_channel) (width : int) doc =
                 * consumes breaks) because otherwise we waste memory *)
 
 (* Print the document to a string *)
-let sprint_george (width : int)  doc : string = 
+let sprint_george ~(width : int)  doc : string = 
   maxCol := width;
   ignore (scan 0 doc);
   breaks := List.rev !breaks;
@@ -854,10 +855,10 @@ let qprint qchn width doc =
 let qprintf format doc =
   qprint (QOut_channel stdout) 80 doc
 
-let qfprint chn width doc =
+let qfprint chn ~width doc =
   qprint (QOut_channel chn) width doc
 
-let qsprint width doc =
+let qsprint ~width doc =
   let buf = Buffer.create 1024 in
   qprint (QBuffer buf) width doc;
   Buffer.contents buf
