@@ -801,6 +801,7 @@ let d_attrcustom : (attribute -> Pretty.doc option) ref =
   in
   ref d_attrcustombase
 
+let printShortTypes = ref false
 let rec d_decl (docName: unit -> doc) () this = 
   let parenth outer_t doc = 
     let typ_strength = function         (* binding strength of type 
@@ -829,7 +830,7 @@ let rec d_decl (docName: unit -> doc) () this =
         if comp.cstruct then "struct", "str", "uct"
                         else "union",  "uni", "on"
       in
-      if n' = "" || canPrintName (su, n') then
+      if not (!printShortTypes) && (n' = "" || canPrintName (su, n')) then
         dprintf "%s@[%s %s%a {@!%a@]@!} %t" su1 su2 n' 
           d_attrlistpost comp.cattr
           (docList line (d_fielddecl ())) comp.cfields docName
@@ -842,7 +843,8 @@ let rec d_decl (docName: unit -> doc) () this =
   | TEnum (n, kinds, a) -> 
       let n' = 
         if String.length n >= 5 && String.sub n 0 5 = "@anon" then "" else n in
-      if n' = "" || canPrintName ("enum", n') then
+      if not (!printShortTypes) && 
+        (n' = "" || canPrintName ("enum", n')) then
         dprintf "enum@[ %s%a {%a@]@?} %t" n' d_attrlistpost a
           (docList line (fun (n,i) -> dprintf "%s = %d,@?" n i)) kinds
           docName
@@ -1588,9 +1590,8 @@ let existsType (f: typ -> existsAction) (t: typ) : bool =
         | TArray (t', _, _) -> loop t'
         | TPtr (t', _) -> loop t'
         | TFun (rt, args, _, _) -> 
-            loop rt ||
-            List.exists (fun a -> loop a.vtype) args
-          | _ -> false)
+            (loop rt || List.exists (fun a -> loop a.vtype) args)
+        | _ -> false)
   and loopComp c = 
     try
       H.find memo c.ckey; 
