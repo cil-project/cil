@@ -1,9 +1,9 @@
 # Debugging. Set ECHO= to debug this Makefile 
-ECHO = 
+ECHO = @
 
 # apparently this must be commented out when first
 # building this (we don't know why)
-RELEASE = 1
+# RELEASE = 1
 
 # USECCGR = 1
 USEFRONTC = 1
