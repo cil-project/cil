@@ -113,7 +113,7 @@ class heapifyAnalyzeVisitor f alloc free = object
 end
     
 let heapify (f : file) (alloc : exp) (free : exp)  =
-  visitCilFileSameGlobals (new heapifyAnalyzeVisitor f alloc free) f;
+  visitCilFile (new heapifyAnalyzeVisitor f alloc free) f;
   f
 
 (* heapify code ends here *)
