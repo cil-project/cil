@@ -1267,6 +1267,8 @@ let wcharType = ref voidType
 let typeOfSizeOf = ref voidType
 let kindOfSizeOf = ref IUInt
 
+let initCIL_called = ref false
+
 (** Returns true if and only if the given integer type is signed. *)
 let isSigned = function
   | IUChar
@@ -4720,6 +4722,8 @@ and offsetOfFieldAcc ~(fi: fieldinfo)
 (* The size of a type, in bits. If struct or array then trailing padding is 
  * added *)
 and bitsSizeOf t = 
+  if not !initCIL_called then 
+    E.s (E.error "You did not call Cil.initCIL before using the CIL library");
   match t with 
     (* For long long sometimes the alignof and sizeof are different *)
   | TInt((ILongLong|IULongLong), _) -> 8 * !theMachine.M.sizeof_longlong
@@ -5732,7 +5736,8 @@ let initCIL () =
   little_endian := !theMachine.M.little_endian;
   underscore_name := !theMachine.M.underscore_name;
   nextGlobalVID := 1;
-  nextCompinfoKey := 1
+  nextCompinfoKey := 1;
+  initCIL_called := true
     
 
 (* We want to bring all type declarations before the data declarations. This 
