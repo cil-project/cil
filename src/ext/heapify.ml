@@ -50,13 +50,23 @@ let mkSimpleField ci fn ft fl =
   { fcomp = ci ; fname = fn ; ftype = ft ; fbitfield = None ; fattr = [];
     floc = fl }
 
+
 (* actual Heapify begins *)
-class containsArray result = object (* does this type contain an array? *)
-  inherit nopCilVisitor  (* only visit types *)
-  method vtype t = match t with
-    TArray _ -> result := true ; SkipChildren (* found an array *)
-  | _ -> DoChildren
-end
+
+(* Does this local var contain an array? *)
+let rec containsArray (t:typ) : bool =  (* does this type contain an array? *)
+  match unrollType t with
+    TArray _ -> true
+  | TComp(ci, _) -> (* look at the types of the fields *)
+      let fieldContainsArray acc fi = 
+	acc || (containsArray fi.ftype) in
+      List.fold_left fieldContainsArray false ci.cfields
+  | _ -> 
+    (* Ignore other types, including TInt and TPtr.  We don't care whether
+       there are arrays in the base types of pointers; only about whether
+       this local variable itself needs to be moved to the heap. *)
+   false
+
 
 class heapifyModifyVisitor big_struct big_struct_fields varlist free = object
   inherit nopCilVisitor  (* visit lvalues and statements *)
@@ -81,19 +91,18 @@ class heapifyAnalyzeVisitor f alloc free = object
   method vglob gl = match gl with
     GFun(fundec,funloc) -> 
       let counter = ref 0 in (* the number of local vars containing arrays *)
-      let varlist = ref [] in  (* a list of (var,id) pairs *)
+      let varlist = ref [] in  (* a list of (var,id) pairs, in reverse order *)
       List.iter (fun vi ->  (* find all local vars with arrays *)
-	let result = ref false in 
-        ignore (visitCilType (new containsArray result) vi.vtype);
-        if !result then begin (* this local var contains an array *)
-	  varlist := (vi,!counter) :: !varlist ; (* add it to the list *)
-	  incr counter (* put the next such var in the next slot *)
-        end ;
+        if containsArray vi.vtype then begin (* this var contains an array *)
+          varlist := (vi,!counter) :: !varlist ; (* add it to the list *)
+          incr counter (* put the next such var in the next slot *)
+        end
         ) fundec.slocals ; 
       if (!varlist <> []) then begin (* some local vars contain arrays *)
         let name = (fundec.svar.vname ^ "_heapify") in
         let ci = mkCompInfo true name (* make a big structure *)
-	    (fun _ -> List.map (* each local var becomes a field *)
+	    (fun _ -> List.rev_map (* reverse the list to fix the order *)
+                (* each local var becomes a field *)
 		(fun (vi,i) -> vi.vname,vi.vtype,None,[],locUnknown) !varlist) [] in
         let vi = makeLocalVar fundec name (TPtr(TComp(ci,[]),[])) in
         let modify = new heapifyModifyVisitor (Var(vi)) 
@@ -138,10 +147,9 @@ end
 class sgAnalyzeVisitor f push pop get_ra set_ra = object
   inherit nopCilVisitor
   method vfunc fundec = 
-    let needs_guarding = List.fold_left (fun acc vi ->
-      acc || let result = ref false in
-      ignore (visitCilType (new containsArray result) vi.vtype);
-      !result) false fundec.slocals in
+    let needs_guarding = List.fold_left 
+	(fun acc vi -> acc || containsArray vi.vtype) 
+	false fundec.slocals in
     if needs_guarding then begin
       let ra_tmp = makeLocalVar fundec "return_address" voidPtrType in
       let ra_exp = Lval(Var(ra_tmp),NoOffset) in 

@@ -524,6 +524,7 @@ $TEST->addTests("testrun/fseq5", "", ['inferbox']);
 $TEST->addTests("testrun/recur1", "", ['inferbox']);
 $TEST->addTests("testrun/recur2", "", ['inferbox']);
 # $TEST->addTests("testrun/seqn1", "", ['inferbox']);
+$TEST->addTests("test_heapify", "", ['cil']);
 
 #
 # OLDEN benchmarks

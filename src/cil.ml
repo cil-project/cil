@@ -3711,7 +3711,8 @@ and childrenType (vis : cilVisitor) (t : typ) : typ =
       let a' = fAttr a in
       if t1' != t || e' != e  || a' != a then TArray(t1', Some e', a') else t
 
-      (* DON'T recurse automatically; user can call visitCompFields *)
+      (* DON'T recurse into the compinfo, this is done in visitCilGlobal.
+	 User can iterate over cinfo.cfields manually, if desired.*)
   | TComp(cinfo, a) ->
       let a' = fAttr a in
       if a != a' then TComp(cinfo, a') else t

@@ -522,6 +522,13 @@ testwrapper/%: $(SMALL1)/%.c $(SMALL1)/wrapperextern.c
                          $(CFLAGS) $(EXEOUT)$*.exe $*.c wrapperextern.c
 	cd $(SMALL1); ./$*.exe
 
+#test of "cilly --heapify"
+test_heapify: $(SMALL1)/heapify.c  
+	cd $(SMALL1); $(CILLY) --heapify --keepunused  \
+	       $(CFLAGS) $(EXEOUT)heapify.exe heapify.c
+	cd $(SMALL1); ./heapify.exe
+	echo SUCCESS
+
 
 combine%: $(SMALL1)/combine%_1.c
 	cd $(SMALL1); \
