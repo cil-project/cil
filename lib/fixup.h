@@ -34,7 +34,7 @@
   #define __HEAPIFY
   #define __DUMMYDEFN
   #define __BOXMODEL(fname)
-  #define __NOBOX(block) { block }
+  #define __NOBOXBLOCK
 #else
   #define __WILD   __attribute__((wild))
   #define __SAFE   __attribute__((safe))
@@ -63,7 +63,7 @@
   #endif
   #define __DUMMYDEFN __attribute__((dummydefn))
   #define __BOXMODEL(fname) __attribute__((boxmodel(fname)))
-  #define __NOBOX(block)    { __blockattribute__(nobox) block }
+  #define __NOBOXBLOCK  __blockattribute__(nobox)
 #endif
 
 //#if ! defined(MANUALBOX) && ! defined(INFERBOX)

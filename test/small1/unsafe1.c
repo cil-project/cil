@@ -17,7 +17,9 @@ int main() {
   array[1].next = & array[0];
   fseq ++;
   
-  __NOBOX(data = *(int*)fseq;); // We don't want this cast to polute fseq
+  { __NOBOXBLOCK
+      data = *(int*)fseq; // We don't want this cast to polute fseq
+  }
 
   SUCCESS;
    
