@@ -311,10 +311,16 @@ and doLvalue ((base, off) : lval) (iswrite: bool) : lval * N.node =
   let base', startNode = 
     match base with 
       Var vi -> begin 
+        (* ignore (E.log "doLval (before): %s: T=%a\n"
+                  vi.vname d_plaintype vi.vtype); *)
         doVarinfo vi; (* It was done when the variable was declared !!! *)
+        let vn = 
+          match N.nodeOfAttrlist vi.vattr with Some n -> n | _ -> N.dummyNode
+        in
         (* Now grab the node for it *)
-        base, 
-        (match N.nodeOfAttrlist vi.vattr with Some n -> n | _ -> N.dummyNode)
+        (* ignore (E.log "doLval: %s: T=%a (ND=%d)\n"
+                  vi.vname d_plaintype vi.vtype vn.N.id); *)
+        base, vn
       end
     | Mem e -> 
         let e', et, ne = doExp e in
@@ -356,6 +362,8 @@ and expToType (e,et,en) t (callid: int) =
   in
   let etn = nodeOfType et in
   let tn  = nodeOfType t in
+  (* ignore (E.log "expToType e=%a (NS=%d) -> TD=%a (ND=%d)\n"
+            d_plainexp e etn.N.id d_plaintype t tn.N.id); *)
   match etn == N.dummyNode, tn == N.dummyNode with
     true, true -> e
   | false, true -> e (* Ignore casts of pointer to non-pointer *)
@@ -435,9 +443,10 @@ let rec doStmt (s: stmt) =
   | Instr (Asm _, _) -> s
   | Instr (Set (lv, e), l) -> 
       let lv', lvn = doLvalue lv true in
-      let eres = doExp e in
       (* Now process the copy *)
-      let e' = expToType eres lvn.N.btype (-1) in
+(*      ignore (E.log "Setting lv=%a\n lvt=%a (ND=%d)" 
+                d_plainlval lv d_plaintype (typeOfLval lv) lvn.N.id); *)
+      let e' = doExpAndCast e lvn.N.btype in
       Instr (Set (lv', e'), l)
 
   | Instr (Call (reso, orig_func, args), l) -> 
@@ -528,7 +537,11 @@ let doGlobal (g: global) : global =
            * node is used for a formal as we used in a type. So we put the 
            * formals inside a type and we do it like that *)
           let typWithFormals = TFun(rt, fdec.sformals, isva, fa) in
+          (* ignore (E.log "Before formals:%s :  %a\n"
+                    fdec.svar.vname d_plaintype typWithFormals); *)
           let _ = doType typWithFormals (N.PGlob fdec.svar.vname) 1 in
+          (* ignore (E.log "After formals:%s :  %a\n"
+                    fdec.svar.vname d_plaintype typWithFormals); *)
 (*          if ispoly then
             fdec.svar.vtype <- TFun(rt, fdec.sformals, isva, fa); *)
           currentResultType := rt
@@ -545,6 +558,22 @@ let markFile fl =
   currentFileName := fl.fileName;
   E.hadErrors := false;
   H.clear polyFunc;
+  (* Scan the file and if you find a function declaration, move the formals 
+   * to the type. This way we get the same node generated for an argument in 
+   * the type (to be used at call sites) and in the formals (to be used 
+   * within the function body) *)
+  List.iter 
+    (fun g -> 
+      match g with
+        GFun (fdec, _) -> begin
+          match fdec.svar.vtype with
+            TFun(rt, _, isva, fa) -> 
+              fdec.svar.vtype <- TFun(rt, fdec.sformals, isva, fa)
+          | _ -> E.s (E.bug "global %s without functiuon type\n"
+                        fdec.svar.vname)
+        end
+      | _ -> ())
+    fl.globals;
   if !N.allPoly || !N.externPoly then
     (* Go through the file once and find all declarations - definitions (for 
      * functions only) *)
