@@ -1508,39 +1508,22 @@ external parse : string -> file = "cil_main"
  *)
 
 
-let escape_char c = 
-  let conv v = 
-    String.make 1 
-      (Char.chr (v + (if v < 10 then (Char.code '0') 
-      else (Char.code 'a' - 10)))) 
-  in
-  match c with
-    '\n' -> "\\n"
-  | '\034' -> "\\\""   (* This is the doublequote in ASCII since otherwise it 
-                          bothers the CAML fontification in emacs *)
-  | '\'' -> "\\'"
-  | '\r' -> "\\r"
-  | '\t' -> "\\t"
+let escape_char = function
+  | '\007' -> "\\a"
   | '\b' -> "\\b"
-  | '\000' -> "\\0"
+  | '\t' -> "\\t"
+  | '\n' -> "\\n"
+  | '\011' -> "\\v"
+  | '\012' -> "\\f"
+  | '\r' -> "\\r"
+  | '"' -> "\\\""
+  | '\'' -> "\\'"
   | '\\' -> "\\\\"
-  | _ -> 
-      let esc = String.make 1 c in
-      if esc = Char.escaped c then esc
-      else 
-        let code = Char.code c in
-        "\\"
-        ^ (conv (code / 64))
-        ^ (conv ((code mod 64) / 8))
-        ^ (conv (code mod 8))
+  | ' ' .. '~' as printable -> String.make 1 printable
+  | unprintable -> Printf.sprintf "\\%03o" (Char.code unprintable)
 
 let escape_string str =
   let lng = String.length str in
-  let conv v = 
-    String.make 1 
-      (Char.chr (v + (if v < 10 then (Char.code '0') 
-      else (Char.code 'a' - 10)))) 
-  in
   let rec build idx =
     if idx >= lng then ""
     else
