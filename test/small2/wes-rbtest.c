@@ -10,6 +10,7 @@
 #endif
 #endif
 
+#include <stdio.h>
 /* A special purpose main */
 //#include "main.h"
 /****** Data sizes *******
@@ -148,30 +149,6 @@ struct _iobuf {
         char *_tmpfname;
         };
 typedef struct _iobuf FILE;
-
-int   __cdecl printf(const char * __ROSTRING, ...);
-int   __cdecl fprintf(FILE * __SAFE, const char * __ROSTRING, ...);
-int   __cdecl fflush(FILE * __SAFE);
-#define NULL (void*)0
-
-#ifdef _MSVC
-#ifndef _CRTIMP
-#ifdef  _DLL
-#define _CRTIMP __declspec(dllimport)
-#else   /* ndef _DLL */
-#define _CRTIMP
-#endif  /* _DLL */
-#endif  /* _CRTIMP */
-_CRTIMP extern FILE _iob[];
-#define stdin  (&_iob[0])
-#define stdout (&_iob[1])
-#define stderr (&_iob[2])
-#else /* GNUCC */
-
-        extern FILE *stdout;
-        extern FILE *stderr;
-
-#endif
 
 extern  int   debugMM;      
 
