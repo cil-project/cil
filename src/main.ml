@@ -112,7 +112,7 @@ let rec processOneFile fname =
 (***** MAIN *****)  
 let rec theMain () =
   let doCombine = ref "" in 
-  let usageMsg = "Usage: safecc [options] source-files" in
+  let usageMsg = "Usage: cilly [options] source-files" in
   let files : string list ref = ref [] in
   let recordFile fname = files := fname :: (!files) in
   let openLog lfile =

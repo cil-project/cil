@@ -86,8 +86,11 @@ odoc:
 texdoc:
 	-rm -f doc/html/cil/*
 	-mkdir doc/html/cil
-	cd doc/html/cil; hevea -exec xxdate.exe ../../cil
-	cd doc/html/cil; hevea -exec xxdate.exe ../../cil
+	-mkdir doc/html/cil/examples
+	cd doc; perl cilcode.pl cil.tex >cilpp.tex
+	cd doc/html/cil; hevea -exec xxdate.exe ../../cilpp
+	cd doc/html/cil; hevea -exec xxdate.exe ../../cilpp
+	cd doc/html/cil; mv cilpp.html cil.html
 	cd doc/html/cil; hacha -o ciltoc.html cil.html
 	cp doc/cilindex.html doc/html/cil/index.html
 	cp doc/cilheader.html doc/html/cil

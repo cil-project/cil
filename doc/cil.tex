@@ -28,12 +28,15 @@ transformation of C programs.
  CIL is both lower-level than abstract-syntax trees, by clarifying ambiguous
 constructs and removing redundant ones, and also higher-level than typical
 intermediate languages designed for compilation, by maintaining types and a
-close relationship with the source program. CIL has only a few core constructs
-and a syntax-directed type system that makes it easy to analyze and manipulate
-C programs, and emit them in a form that can be compiled by a C compiler and
-easily correlated with the original source. At the same time we provide a
-front-end that translates to CIL not only ANSI C programs but also those using
-Microsoft C or GNU C extensions.
+close relationship with the source program. The main advantage of CIL is that
+it compiles all C programs into a few core constructs with a very clean
+semantics and has a syntax-directed type system that makes it easy to analyze
+and manipulate C programs. Furtheremore, the CIL front-end is able to process
+not only ANSI-C programs but also those using Microsoft C or GNU C extensions.
+If you want to analyze programs using abstract-syntax trees then your analysis
+will have to handle a lot of ugly corners of the language (let alone the fact
+that parsing C itself is not a trivial task). See \secref{simplec} for some
+examples of ``interesting'' C programs.
 
  In essence, CIL is a highly-structured, ``clean'' subset of C. CIL features a
 reduced number of syntactic and conceptual forms. For example, all looping
@@ -55,7 +58,7 @@ information. Thus CIL provides an integrated program representation that can
 be used with routines that require an AST (e.g. type-based analyses and
 pretty-printers), as well as with routines that require a CFG (e.g., dataflow analyses).
 
- In addition CIL comes accompanies by a number of Perl scripts that perform
+ In addition CIL comes accompanied by a number of Perl scripts that perform
 generally useful operations on code:
 \begin{itemize}
 \item A \ahrefloc{sec-driver}{driver} which behaves as either the
@@ -467,6 +470,10 @@ on Windows/MSVC.
 
 \item We do not support tri-graph sequences (ISO 5.2.1.1).
 
+\item There are still a number of bugs in handling some obscure features of
+GCC. For example, when you use variable-length arrays, CIL turnes them into
+calls to \t{alloca}. This means that they are deallocated when the function
+returns and not when the local scope ends. 
 \end{itemize}
 
  And some limitations that are not really bugs:
@@ -826,12 +833,173 @@ have made an effort to reclassify GCC attributes in name and type attributes
    is that MSVC will accept if we print them according to the rules of the CIL
    attributes ! 
 
+\section{Who Says C is Simple?}\label{sec-simplec}
+
+ When I (George) started to write CIL I thought it was going to take two weeks.
+Exactly a year has passed since then and I am still fixing bugs in it. This
+gross underestimate was due to the fact that I thought parsing and making
+sense of C is simple. You probably think the same. What I did not expect was
+how many dark corners this language has, especially if you want to parse
+real-world programs such as those written for GCC or if you are more ambitious
+and you want to parse the Linux or Windows NT sources (both of these were
+written without any respect for the standard and with the expectation that
+compilers will be changed to accomodate the program). 
+
+ The following examples were actually encountered either in real programs or
+are taken from the ISO C99 standard or from the GCC's testcases. My first
+reaction when I saw these was: {\em Is this C?}. The second one was : {\em
+What the hell does it mean?}. 
+
+ If you are contemplating doing program analysis for C on abstract-syntax
+trees then your analysis ought to be able to handle these things. Or, you can
+use CIL and let CIL translate them into clean C code. 
+
+%
+% Note: the cilcode environment is bogus. You should preprocess this source
+% with cilcode.pl !!!
+%
+%
+ \subsection{Standard C}
+
+\begin{enumerate}
+
+\item Scoping rules can be tricky. This function returns 5.
+
+\begin{cilcode}[global]
+int x = 5;
+int f() {
+  int x = 3;
+  {
+    extern int x;
+    return x;
+  }
+}
+\end{cilcode}
+
+\item Functions and function pointers are implicitly converted to each other. 
+
+\begin{cilcode}[global]
+int (*pf)(void);
+int f(void) {
+
+   *pf = f; // This looks ok
+   pf(); // Invoke a function pointer?     
+   ****pf = f; // Looks strange but Ok
+   ****pf = *********f; // Looks strange but Ok
+   (***************f)(); // Also Ok             
+}
+\end{cilcode}
+
+\item Initializer with designators are one of the hardest parts about ISO C.
+Neither MSVC or GCC implement them fully. GCC comes close though. What is the
+final value of \t{i.nested.y} and \t{i.nested.z}? (Answer: 2 and respectively
+6). 
+
+\begin{cilcode}[global]
+struct { 
+   int x; 
+   struct { 
+       int y, z; 
+   } nested;
+} i = { .nested.y = 5, 6, .x = 1, 2 };               
+\end{cilcode}
+
+\item This is from c-torture. This function returns 1.
+
+\begin{cilcode}[global]
+typedef struct
+{
+  char *key;
+  char *value;
+} T1;
+
+typedef struct
+{
+  long type;
+  char *value;
+} T3;
+
+T1 a[] =
+{
+  {
+    "",
+    ((char *)&((T3) {1, (char *) 1}))
+  }
+};
+int main() {
+   T3 *pt3 = (T3*)a[0].value;
+   return pt3->value;
+}
+\end{cilcode}
+
+
+\item Another one with constructed literals. This one woudl not go through GCC
+(but goes through CIL). This code returns 2.
+
+\begin{cilcode}[local]
+ return ((int []){1,2,3,4})[1];
+\end{cilcode}
+
+\end{enumerate}
+
+ \subsection{GCC ugliness}
+
+\begin{enumerate}
+
+\item GCC has generalized lvalues. You can take the address of a lot of
+strange things:
+
+\begin{cilcode}[local]
+  int x, y, z;
+  return &(x ? y : z) - & (x++, x);
+\end{cilcode}
+
+\item Computed jumps can be tricky. CIL compiles them away in a fairly clean
+way but you are on your own if you try to jump into another function this way.
+
+\begin{cilcode}[global]
+static void *jtab[2];
+static int doit(int x){
+ 
+  static int jtab_init = 0;
+  if(!jtab_init) {
+    jtab[0] = &&lbl1;
+    jtab[1] = &&lbl2;
+    jtab_init = 1;
+  }
+  goto *jtab[x];
+lbl1:
+  return 0;
+lbl2:
+  return 1;
+}
+ 
+int main(void){
+  if (doit(0) != 0) exit(1);
+  if (doit(1) != 1) exit(1);
+  exit(0);
+}
+\end{cilcode}
+
+
+\item A cute little example that we made up. What is the returned value?
+(Answer: 1); 
+\begin{cilcode}[local]
+ return ({goto L; 0;}) && ({L: 5;});
+\end{cilcode}
+
+
+\end{enumerate}
+
+ \subsection{Microsoft VC ugliness}
+
+
 \section{Credits}
 
  CIL was develped starting from Hugues Casse's \t{frontc} front-end for C
-although all the files from the \t{frontc} distribution have been changed
-heavily. The main author is George Necula, with significant contributions from
-Scott McPeak, Westley Weimer, Raymond To and Aman Bhargava.
+although all the files from the \t{frontc} distribution have been changed very
+extensively. The main author is George Necula, with significant contributions
+from Scott McPeak, Westley Weimer, Raymond To and Aman Bhargava.
  
 \end{document}
 
