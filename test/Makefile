@@ -45,7 +45,8 @@ clean:
 		-name '*infer.c' -o \
 		-name '*_all*.c' -o \
 	        -name "*-tmp.c" -o \
-		-name '*_comb*.c' \
+		-name '*_comb*.c' -o \
+		-name 'libmerge.a*' \
 	\) -exec rm -f {} \;
 	-find . -name '*.browser' -exec rm -rf {} \;
 
@@ -2680,6 +2681,14 @@ merge-twice:
 	$(CCUREDHOME)/bin/merger.pl --ccured --out small2/merged-twice.c \
 	  --in small2/merged-once.c small2/merge-twice-3.c
 	gcc -c -w small2/merged-twice.c
+
+#merge-twice-1.c is just included here so that we use the merger.  The
+# interesting code is in merge-ar.c
+#3 steps: compile to *.o, merge to libmerge.a, and compile
+merge-ar:
+	cd small2; $(CCUREDHOME)/bin/cilly --merge -c merge-ar.c merge-twice-1.c
+	cd small2; $(CCUREDHOME)/bin/cilly --merge --mode=AR cr libmerge.a merge-ar.o merge-twice-1.o
+	cd small2; $(CCUREDHOME)/bin/cilly --merge libmerge.a -o merge-ar
 
 blockattr: small1/blockattr.c
 	cd small1; $(CCUREDHOME)/obj/$(ARCHOS)/ccured.byte.exe \

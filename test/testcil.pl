@@ -231,7 +231,7 @@ $TEST->add3Tests("testrun/func6");
 $TEST->addTests("testrun/func7", "", ['inferbox']);
 $TEST->addTests("testrun/func8", "", ['inferbox']);
 $TEST->add2Tests("testrun/func9");
-   $TEST->addBadComment("testrun/func9-inferbox", "When we take the address of a polymorphic function, the address gets \"dummyNode\" as its node, which causes us to not add some edges.");
+#fixed:   $TEST->addBadComment("testrun/func9-inferbox", "When we take the address of a polymorphic function, the address gets \"dummyNode\" as its node, which causes us to not add some edges.");
 $TEST->add3Tests("test/globals");
 $TEST->add3Tests("testrun/float");
 $TEST->add3Tests("testrun/ptr1");
@@ -562,9 +562,11 @@ $TEST->addTests("testrun/scanf2", "", ['inferbox']);
 $TEST->addTests("testrun/scanf3", "", ['inferbox']);
     $TEST->addBadComment("testrun/scanf3-inferbox", "ccured_fscanf_string is too consrevative");
 $TEST->add2Tests("testrun/stringsize");
-    $TEST->addBadComment("testrun/stringsize-cil", "CIL doesn't handle sizeof( \"string literal\" ) correcly.");
-    $TEST->addBadComment("testrun/stringsize-inferbox", "CIL doesn't handle sizeof( \"string literal\" ) correcly.");
+#fixed:    $TEST->addBadComment("testrun/stringsize-cil", "CIL doesn't handle sizeof( \"string literal\" ) correcly.");
+#fixed:    $TEST->addBadComment("testrun/stringsize-inferbox", "CIL doesn't handle sizeof( \"string literal\" ) correcly.");
 
+$TEST->add2Tests("merge-ar", "");
+    $TEST->add2BadComment("merge-ar", "merger bug when static locals have the smae name as formals in a different function.");
 #
 # OLDEN benchmarks
 #
