@@ -432,6 +432,7 @@ let markFile fl =
 let printFile (c: out_channel) fl = 
   Cil.setCustomPrint (N.ptrAttrCustom true)
     (fun fl ->
+      Cil.printFile c fl;
       output_string c "/* Now the graph\n";
      (*N.gc ();   *)
       N.simplify (); 
