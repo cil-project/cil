@@ -288,6 +288,19 @@ let restoreHash ?deepCopy (h: ('a, 'b) H.t) : (unit -> unit) =
   in
   (fun () -> hash_copy_into old h)
 
+let restoreIntHash ?deepCopy (h: 'a IH.t) : (unit -> unit) = 
+  let old = 
+    match deepCopy with 
+      None -> IH.copy h 
+    | Some f -> 
+        let old = IH.create 13 in 
+        IH.iter (fun k d -> IH.add old k (f d)) h;
+        old
+  in
+  (fun () -> 
+    IH.clear old;
+    IH.iter (fun i k -> IH.add old i k) h)
+
 let restoreArray ?deepCopy (a: 'a array) : (unit -> unit) = 
   let old = Array.copy a in
   (match deepCopy with 
@@ -679,6 +692,28 @@ let registeredSymbolNames: (string, symbol) H.t = H.create 113
 let symbolNames: string IH.t = IH.create 113 
 let nextSymbolId = ref 0 
 
+
+(* Reset the symbols. We want to allow the registration of symbols at the 
+ * top-level. This means that we cannot simply clear the hash tables. The 
+ * first time we call "reset" we actually remember the state. *)
+let resetThunk: (unit -> unit) option ref = ref None
+
+let snapshotSymbols () : unit -> unit = 
+  runThunks [ restoreIntHash symbolNames;
+              restoreRef nextSymbolId;
+              restoreHash registeredSymbolNames ]
+
+let resetSymbols () = 
+  match !resetThunk with 
+    None -> resetThunk := Some (snapshotSymbols ())
+  | Some t -> t ()
+  
+
+let dumpSymbols () = 
+  ignore (E.log "Current symbols\n");
+  IH.iter (fun i k -> ignore (E.log " %s -> %d\n" k i)) symbolNames;
+  ()
+
 let registerSymbolName (n: string) : symbol = 
   try H.find registeredSymbolNames n
   with Not_found -> begin
@@ -703,5 +738,5 @@ let symbolName (id: symbol) : string =
   try IH.find symbolNames id
   with Not_found -> 
     ignore (E.warn "Cannot find the name of symbol %d" id);
-    "pseudo" ^ string_of_int id
+    "symbol" ^ string_of_int id
 

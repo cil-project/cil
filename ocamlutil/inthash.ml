@@ -21,6 +21,10 @@ let copy h =
   { size = h.size;
     data = Array.copy h.data }
 
+let copy_into src dest = 
+  dest.size <- src.size;
+  dest.data <- Array.copy src.data
+
 let resize tbl =
   let odata = tbl.data in
   let osize = Array.length odata in

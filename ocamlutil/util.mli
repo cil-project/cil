@@ -97,6 +97,10 @@ val restoreRef: ?deepCopy:('a -> 'a) -> 'a ref -> unit -> unit
 (** Given a hash table, produce a thunk that later restores it to its current value *)
 val restoreHash: ?deepCopy:('b -> 'b) -> ('a, 'b) Hashtbl.t -> unit -> unit
 
+(** Given an integer hash table, produce a thunk that later restores it to 
+ * its current value *)
+val restoreIntHash: ?deepCopy:('b -> 'b) -> 'b Inthash.t -> unit -> unit
+
 (** Given an array, produce a thunk that later restores it to its current value *)
 val restoreArray: ?deepCopy:('a -> 'a) -> 'a array -> unit -> unit
 
@@ -250,3 +254,15 @@ val registerSymbolName: string -> symbol
  * invoked with indices from 0 to the counter - 1. Returns the id of the 
  * first symbol created *)
 val registerSymbolRange: int -> (int -> string) -> symbol
+
+
+(** Reset the state of the symbols to the program startup state *)
+val resetSymbols: unit -> unit
+
+(** Take a snapshot of the symbol state. Returns a thunk that restores the 
+ * state. *)
+val snapshotSymbols: unit -> unit -> unit
+
+
+(** Dump the list of registered symbols *)
+val dumpSymbols: unit -> unit
