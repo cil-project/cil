@@ -491,7 +491,7 @@ $TEST->add2TestsFail("testmodel/noproto1", "", "Function pointer");
 $TEST->add2TestsFail("testmodel/noproto2", "", "Failure: Non-pointer");
 # $TEST->add2Tests("testmodel/noproto");
 
-$TEST->add2TestsFail("testrun/failsprintf1", "", "Failure .+: Ubound");
+$TEST->add2TestsFail("testrun/failsprintf1", "", "Failure: Ubound");
 $TEST->add2TestsFail("testrun/failsprintf2", "", "Failure: ");
 $TEST->add2TestsFail("testrun/failsprintf3", "", "Failure: Non-pointer");
 
