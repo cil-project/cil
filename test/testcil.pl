@@ -432,6 +432,9 @@ $TEST->addTests("testrun/rtti4", "", ['inferbox']);
 $TEST->addTests("testrun/rtti5", "", ['inferbox']);
 $TEST->addTests("testrun/rtti6", "", ['inferbox']);
 $TEST->addTests("testrun/rtti7", "", ['inferbox']);
+$TEST->addTests("testrun/rtti8", "", ['inferbox']);
+   $TEST->addBadComment("testrun/rtti8-inferbox", 
+                        "Bug with NULL and SEQR");
 $TEST->addTests("testrun/rttioo", "", ['inferbox']);
 $TEST->addTests("testrun/rttioo2", "", ['inferbox']);
 $TEST->addTests("test/bind-cannot-convert", "", ['inferbox']);
