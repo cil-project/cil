@@ -1204,7 +1204,7 @@ and d_fun_decl () f =
     TFun (restyp, args, isva, a) -> 
       if args != f.sformals then 
         f.svar.vtype <- TFun(restyp, f.sformals, isva, a)
-  | _ -> E.s (E.bug "Type of %s is not a function\n" f.svar.vname));
+  | _ -> ignore (E.warn "Type of %s is not a function\n" f.svar.vname));
   dprintf "%s%a%a %a@!{ @[%a@!%a@]@!}" 
     (if isinline then 
       if !msvcMode then "__inline " else "inline " 

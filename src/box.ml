@@ -732,26 +732,34 @@ let mustBeTagged v =
       (stringListContains v.vname leaveAloneGlobVars)) then
     false else     * return false *
 *)
-  if !P.defaultIsWild then
-   let rec containsArray t =
-   existsType 
-        (function 
-            TArray _ -> ExistsTrue 
-          | TPtr _ -> ExistsFalse
-          | _ -> ExistsMaybe) t
-    in
-   if v.vglob then 
-      match v.vtype with 
-        TFun _ -> false (* Do not tag functions!! Mainly because we don't know 
+  let isFunction = 
+    match v.vglob, v.vtype with 
+      true, TFun _ -> true
+    |  _ -> false
+  in
+  if isFunction then false
+                       (* Do not tag functions!! Mainly because we don't know 
                         * how to put the tag. Plus, function pointers should 
                         * have a length = 0 so we cannot write there *)
-      | _ -> 
-          if v.vstorage = Static then v.vaddrof || containsArray v.vtype
-          else true  (* We tag all externals because we might 
-                        take their address somewhere else *)
-    else v.vaddrof || containsArray v.vtype
   else
-    (filterAttributes "tagged" v.vattr) <> []
+    if !P.defaultIsWild then
+      let rec containsArray t =
+        existsType 
+          (function 
+              TArray _ -> ExistsTrue 
+            | TPtr _ -> ExistsFalse
+            | _ -> ExistsMaybe) t
+      in
+      if v.vglob then 
+        if v.vstorage = Static then 
+          v.vaddrof || containsArray v.vtype
+        else 
+          true  (* We tag all externals because we might 
+                   take their address somewhere else *)
+      else 
+        v.vaddrof || containsArray v.vtype
+    else
+      (filterAttributes "tagged" v.vattr) <> []
 
 
 (* Create a compound initializer for a tagged type *)
@@ -1975,6 +1983,13 @@ and castTo (fe: fexp) (newt: typ)
         (P.Scalar|P.Safe), (P.Scalar|P.Safe) -> 
           (doe, L(newt, P.Scalar, castP p))
 
+        (* SAFE -> WILD. Only allowed for function pointers because we do not 
+         * know how to tag functions, yet *)
+      | P.Safe, P.Wild 
+            when (match unrollType oldt 
+                     with TPtr(TFun _, _) -> true | _ -> false) -> 
+              (doe, mkFexp2 newt (castP p) zero)
+          
         (* SCALAR -> INDEX, WILD, SEQ *)
       | P.Scalar, (P.Index|P.Wild|P.Seq) ->
           if not (isZero p) then
