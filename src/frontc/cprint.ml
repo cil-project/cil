@@ -141,15 +141,17 @@ let setLoc (l : cabsloc) =
   if !printLines then 
     if (l.lineno <> !curLoc.lineno) || l.filename <> !curLoc.filename then 
       begin
-        spaces := 0;
-        new_line();
-        print "#";
+        let oldspaces = !spaces in
+(*        spaces := 0;
+        new_line(); *)
+        if !spaces <> 0 then print "\n#" else print "#";
         if !msvcMode then print "line";
         print " ";
         print (string_of_int l.lineno);
         if (l.filename <> !curLoc.filename) then begin
           print (" \"" ^ l.filename ^ "\"")
         end;
+        spaces := oldspaces;
         new_line();
         curLoc := l
       end
