@@ -1229,7 +1229,7 @@ file-local symbol.
  Occasionally we have needed to modify slightly the standard include files.
 So, we developed a simple mechanism that allows us to create modified copies
 of the include files and use them instead of the standard ones. For this
-purpose we specify a patch file and we run a program caller that Patcher which
+purpose we specify a patch file and we run a program caller Patcher which
 makes modified copies of include files and applies the patch.
 
  The patcher is invoked as follows: 
@@ -1284,6 +1284,14 @@ keyword = value. The following flags are supported:
 \begin{itemize}
 \item \t{file=foo.h} - will only apply the patch on files whose name is
                        \t{foo.h}. 
+\item \t{optional} - this means that it is Ok if the current patch does not
+match any of the processed files. 
+\item \t{group=foo} - will add this patch to the named group. If this is not
+specified then a unique group is created to contain just the current patch.
+When all files specified in the command line have been patched, an error
+message is generated for all groupsfor whom no member patch was used. We use
+this mechanism to receive notice when the patch triggers are out-dated with
+respect to the new include files. 
 \end{itemize}
 
 

@@ -72,6 +72,7 @@ my @patches; # A list of the patches to apply
 
 my $ppargs = join(' ', @ARGV);
 
+my %groups;
 
 &findCompilerVersion();
 
@@ -116,6 +117,35 @@ foreach $file (@{$option{ufile}}) {
 foreach $file (@{$option{sfile}}) {
     &patchOneFile($file, 1);
 } 
+
+# Now check whether we have used all the patches
+my $hadError = 0;
+foreach my $patch (@patches) {
+    # It was optional
+    if(defined $patch->{FLAGS}->{optional}) { next; }
+    # Its group was done
+    if(defined $patch->{FLAGS}->{group}) {
+        if(! defined $groups{$patch->{FLAGS}->{group}}) {
+            $hadError = 1;
+            print "None of the following patch from group $patch->{FLAGS}->{group} were used:\n";
+            foreach my $gp (@patches) {
+                if($gp->{FLAGS}->{group} eq $patch->{FLAGS}->{group}) {
+                    print "\tfrom $gp->{PATCHFILE} at $gp->{PATCHLINENO}\n";
+                }
+            }
+            $groups{$patch->{FLAGS}->{group}} = 1; # We're done with it
+        }
+        next;
+    }
+    # It was not in a group and was not optional
+    if(! defined $patch->{USED}) { 
+        $hadError = 1;
+        print "Non-optional patch was not used:\n\tfrom $patch->{PATCHFILE} at $patch->{PATCHLINENO}\n";
+        next;
+    }
+}
+exit $hadError;
+
 
 ############# SUBROUTINES 
 sub findCompilerVersion {
@@ -300,6 +330,13 @@ sub preparePatchFile {
         }
         $patchStartLine = $patchLineNo + 1;
         my $replacement = "";
+        # If we have more than one non-optional pattern with no group
+        # specified, then create a group
+        if(@all_patterns > 1 && 
+           ! defined $valueflags{group} && 
+           ! defined $valueflags{optional}) {
+            $valueflags{group} = $pFile . "_$patchStartLine";
+        }
         while(<PFILE>) {
             $patchLineNo ++;
             if($_ =~ m|^>>>|) {
@@ -433,6 +470,11 @@ sub applyPatches {
                                         $patch->{PATCHLINENO});
                 $line .= $patch->{REPLACE};
                 $line .= &lineDirective($in, $lineno + 1);
+                # Mark that we have used this group
+                $patch->{USED} = 1;
+                if(defined $patch->{FLAGS}->{group}) {
+                    $groups{$patch->{FLAGS}->{group}} = 1;
+                }
                 last;
             }
         }
@@ -448,41 +490,4 @@ sub applyPatches {
     return 1;
 }
 
-1;
 
-
-__END__
-
-=head1 Include file patcher
-
- This script can be used to create copies of include files modified according
- to a patching specification. 
-
- The patch file consists of sequences of the form:
-
-<<< [specifiers]
-pattern1, possibly multiple lines
-|||
-pattern2, possibly multiple lines
-|||
-...
-===
-replacement text, possibly multiple lines
->>>
-
- Everything else is ignored.  
- 
- The only specifier currently supported is "g" meaning that the pattern is
- attempted multiple times. By default a pattern is dropped once it matched. 
-
- If any of the patterns matches the text in the file being processed, it is
- replaced with the replacement text. The replacement text can contain the
- special keyword @__pattern__@, which is replaced with the pattern that
- matched. 
-
- Only entire lines are matched.
-
- White space is ignored when matching. 
-
- As long as the markers <<< >>> ||| and === appear at the start of the file
- there can be more stuff after them.

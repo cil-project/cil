@@ -2339,6 +2339,8 @@ gimpall-world: checkgimplib
 #######
 #######  C-TORTURE
 #######
+# To run all c-torture tests do
+# test> testsafec --group=ctorture --run
 CTORTDIR := /usr/local/src/gcc/gcc/testsuite/gcc.c-torture
 # CILLY := gcc
 tort/compile/%: $(CTORTDIR)/compile/%.c mustbemanju mustbegcc
