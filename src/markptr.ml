@@ -61,6 +61,9 @@ let setUpdated n = begin N.setFlag n N.pkUpdated end
 let setIntCast n = begin N.setFlag n N.pkIntCast end
 let setInterface n = begin N.setFlag n N.pkInterface end
 
+let setOnStack n = begin N.setFlag n N.pkOnStack end
+let setEscape n = begin N.setFlag n N.pkEscape end
+
 (* A number of functions will be treated polymorphically. In that case store 
  * their original type. When we process the type of a polymorphic function we 
  * first store here the original type.  *)
@@ -339,7 +342,7 @@ let rec signOf = function
 (* Do varinfo. We do the type and for all variables we also generate a node 
  * that will be used when we take the address of the variable (or if the 
  * variable contains an array) *)
-let doVarinfo vi = 
+let doVarinfo (vi : varinfo) = 
   (* Compute a place for it *)
   let place = 
     if vi.vglob then
@@ -364,6 +367,11 @@ let doVarinfo vi =
   vi.vattr <- addAttributes vi.vattr n.N.attr;
 (*  ignore (E.log "varinfo: T=%a. A=%a\n" 
             d_plaintype vi.vtype (d_attrlist true) vi.vattr) *)
+
+  (* sg: not global and not static means a variable goes on the stack *)
+  if (not vi.vglob) && (vi.vstorage <> Static) then
+	setOnStack n;
+
   ()
 
 (* Do an expression. Return an expression, a type and a node. The node is 
@@ -1280,6 +1288,19 @@ and doInstr (i:instr) : instr list =
 (*      ignore (E.log "Setting lv=%a\n lvt=%a (ND=%d)" 
                 d_plainlval lv d_plaintype (typeOfLval lv) lvn.N.id); *)
       let e' = doExpAndCast e lvn.N.btype in
+
+		(* sg: If assigning thru a pointer or to a global, mark adresses 
+		 * in e' as pkEscape.  The former is a conservative approximation 
+		 * since depending on where lv can point, the value may
+		 * provably not escape 
+		 *)
+		(match lv' with
+			 Mem _, _ -> 
+			   expMarkEscape e' (* thru a pointer *)
+		   | Var vi, _ -> 
+			   if vi.vglob then expMarkEscape e' else () ); (* to a global *)
+
+
       [Set (lv', e', l)]
 
   | Call (reso, orig_func, args, l) as i -> begin
@@ -1293,6 +1314,34 @@ and doInstr (i:instr) : instr list =
         Some il -> mapNoCopyList doInstr il
       | None -> doFunctionCall reso orig_func args l
   end
+
+(* todo: if marking a union, mark all fields *)
+and expMarkEscape (e : exp) : unit =
+  let addrLvMarkEscape (lv : lval) : unit = 
+	let _, lvnode = doLvalue lv false (* gets node for &lv *)
+	in setEscape lvnode
+  in
+  (* is this it? *)
+  let lvMarkEscape (lv : lval) : unit =
+    let _, lvn = doLvalue lv false 
+	in setEscape (nodeOfType lvn.N.btype)
+		 (* a global shouldn't be marked w/ escape flag *)
+  in
+	match e with
+		Lval lv    -> lvMarkEscape lv
+	  | StartOf lv -> lvMarkEscape lv
+
+	  | AddrOf lv  -> addrLvMarkEscape lv
+
+	  | CastE(_, e1)   -> expMarkEscape e1
+	  | UnOp(_, e1, _) -> expMarkEscape e1 
+
+	  | BinOp( (Lt|Gt|Le|Ge|Eq|Ne|LtP|GtP|LeP|GeP|EqP|NeP), _, _, _) -> ()
+	  | BinOp(_, e1, e2, _) -> expMarkEscape e1; expMarkEscape e2 
+	  | Question(_, e1, e2) -> expMarkEscape e1; expMarkEscape e2
+
+	  | _ -> ()
+
 
 and interceptFunctionCalls = function
   | i -> None

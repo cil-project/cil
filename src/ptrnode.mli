@@ -163,6 +163,7 @@ val pkReachIndex : int (* can reach an Index node *)
 val pkReachSeq : int (* can reach a Seq node *)
 val pkNoPrototype : int (* Used as actual argument in a function without 
                               * prototype *)
+val pkEscape : int (* can "escape" i.e. be assigned to heap memory *)
 
 (* The main graph *)
 val idNode: (int, node) Hashtbl.t

@@ -188,6 +188,9 @@ let pkReachIndex = 256       (* can reach an Index node *)
 let pkReachSeq = 512         (* can reach a Seq node *)
 let pkNoPrototype = 1024     (* Used as actual argument in a function without 
                               * prototype *)
+let pkEscape = 2048          (* value may be assigned thru a pointer and escape
+							  * to the heap *)
+
 
 (* George may also want:
 let pkNullTerm   = of_int 8  (* Points to a null-terminated buffer *)
@@ -202,8 +205,9 @@ let pkForward    = of_int 128 (* The pointer is into an array, and is moving
                                * only forward *)
 *)
 
+
 (* These are bitmasks of flags. *) 
-let pkCastPredFlags = (pkUpdated lor pkPosArith lor pkArith)
+let pkCastPredFlags = (pkUpdated lor pkPosArith lor pkArith lor pkEscape)
 let pkCastSuccFlags = (pkOnStack lor pkNull lor pkIntCast)
 let pkCNIPredFlags =  (pkReachString lor pkReachIndex lor pkReachSeq)
 
@@ -291,7 +295,8 @@ let d_node () n =
      ++ d_placeidx () n.where
      ++ text " ("
      ++ text ((if hasFlag n pkOnStack then "stack," else "") ^
-              (if hasFlag n pkUpdated then "upd," else "") ^
+			  (if hasFlag n pkEscape then "escape," else "") ^
+			  (if hasFlag n pkUpdated then "upd," else "") ^
               (if hasFlag n pkPosArith then "posarith," else "") ^
               (if hasFlag n pkArith then "arith," else "") ^
               (if hasFlag n pkNull then "null," else "") ^
