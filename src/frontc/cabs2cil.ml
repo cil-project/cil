@@ -1725,20 +1725,20 @@ and doExp (isconst: bool)    (* In a constant *)
                    else [IInt; ILong; IUInt; ILongLong]
             in
             (* Convert to integer. To prevent overflow we do the arithmetic 
-             * on Int64 . Even then we might loose the case when not even 64 
-             * bits are enough!! *)
+             * on Int64 and we take care of overflow. We work only with 
+             * positive integers since the lexer takes care of the sign *)
             let rec toInt (base: int64) (acc: int64) (idx: int) : int64 = 
               let doAcc (what: int) = 
                 let acc' = 
-                  Int64.add (Int64.mul base acc)  (Int64.of_int what)
-                in
-                toInt base acc' (idx + 1)
+                  Int64.add (Int64.mul base acc)  (Int64.of_int what) in
+                if acc < Int64.zero || (* We clearly overflow since base >= 2 *)
+                   (acc' > Int64.zero && acc' < acc) then 
+                  E.s (unimp "Cannot represent on 64 bits the integer %s\n"
+                         str)
+                else
+                  toInt base acc' (idx + 1)
               in 
               if idx >= l - suffixlen then begin
-                (* We know what we need only handle positive integers. The 
-                 * lexer takes care of the - sign *)
-                if acc < Int64.zero then 
-                  E.s (unimp "Integer constant does not fit on 64 bits: %s" str);
                 acc
               end else 
                 let ch = String.get str idx in
