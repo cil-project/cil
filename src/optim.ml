@@ -427,7 +427,13 @@ let amandebug = try (Sys.getenv "REDDBG") = "1" with _ -> false
 let amanDontRemove = try (Sys.getenv "REDDONTREMOVE") = "1" with _ -> false
 
 (* Be extremely non-conservative about assignments and func-calls *)
-let amanNonConservatic = try (Sys.getenv "REDNONCONSERVATIVE") = "1" with _ -> false
+let amanNonConservative = 
+  try (Sys.getenv "REDNONCONSERVATIVE") = "1" with _ -> false
+
+(* Skip the global init which is often very long and slows down my 
+   super-quadratic algo *)
+let amanSkipGlobInit =
+  try (Sys.getenv "REDSKIPGLOBINIT") = "1" with _ -> false
 
 
 (******************************************************************************)
@@ -489,13 +495,23 @@ let printLatVal n = Printf.printf " %s" (getLatValDescription n)
 
 (******************************************************************************)
 (* Produce debugging output with a REDDBG: prefix *)
-let pr s = Printf.printf  "REDDBG: "; Printf.printf s
+let pr s = flush stdout;Printf.printf  "REDDBG: "; Printf.printf s
 
 (* Returns the name of a function in a Call *)
 let getCallName = function
     Call (_,Lval (Var f,_),_,_) -> f.vname
   | Call _ -> "<some-function>"
   | _ -> "<non-call>"
+
+(* Returns the outermost offset of an offset *)
+let rec getOutermostOffset (off : offset) =
+  match off with
+    NoOffset
+  | Field (_, NoOffset)
+  | Index (_, NoOffset) -> off
+  | Field (_, off) -> getOutermostOffset off
+  | Index (_, off) -> getOutermostOffset off
+    
 
 (* Returns -1 if not found *)
 let find_in_array (array : 'a array) (element : 'a) : int =  
@@ -740,7 +756,7 @@ and removeRedundancies (cin_start : lattice) instList node_number =
    This is a very subtle and important function
 *)
 and minLatticeValue (inst : instr) : lattice =
-  if amanNonConservatic then latCheckNotNeeded
+  if amanNonConservative then latCheckNotNeeded
   else
   match inst with
     Set (lval,exp,_) -> 
@@ -748,8 +764,11 @@ and minLatticeValue (inst : instr) : lattice =
 	((List.mem lval !checkLvals) || (* Directly modifying the argument to the CHECK *)
 	(!checkHasAliasedVar &&         (* Possibly, indirectly modifying *)
 	 (match lval with 
-	   (Mem _,_) | (_,Index _) | (_,Field _) -> true
-         | (Var _,NoOffset) -> false)))
+	   (Mem _,_) -> true
+         | (_, off) -> 
+	     match (getOutermostOffset off) with
+	       Index _ -> true
+	     | _ -> false)))
       then latCheckNeeded
       else latCheckNotNeeded
   | Call (None,Lval(Var f,_),args,_) -> 	
@@ -890,14 +909,28 @@ and getCheckedLvals (check : instr) : lval list =
     | Question (e1,e2,e3) -> 
 	(getLvalsFromExp e1) @ (getLvalsFromExp e2) @ (getLvalsFromExp e3)
     | CastE (_,e1) -> getLvalsFromExp e1
-    | AddrOf lv -> getLvalsFromExp (Lval lv)
+    | AddrOf lv -> (try getLvalsFromExp (Lval (stripOffset lv)) with _ -> [])
     | StartOf lv -> getLvalsFromExp (Lval lv)
     | Lval ((Mem e1, NoOffset) as lv) -> lv :: (getLvalsFromExp e1)
     | Lval ((Var v, NoOffset) as lv) -> [lv]
-    | Lval ((v, Field (_, off)) as lv) -> lv :: (getLvalsFromExp (Lval (v,off)))
-    | Lval ((v, Index (e1, off)) as lv) -> lv :: 
-	(getLvalsFromExp e1) @ (getLvalsFromExp (Lval (v,off)))
+    | Lval ((_, Field _) as lv) -> lv :: (getLvalsFromExp (Lval (stripOffset lv)))
+    | Lval ((_, Index _) as lv) -> lv :: (getLvalsFromExp (Lval (stripOffset lv)))
+
+  (* Helper function that strips the outermost offset of an lval
+     e.g. a[3].z[3] -> a[3].z -> a[3] -> a -> invalid_arg!
+  *)
+  and stripOffset (lv : lval) : lval=
+    let rec butlastOffset (off : offset) =
+      match off with
+	NoOffset -> invalid_arg "butlastOffset (in stripOffset) should not be called on NoOffset"
+      |	Index (_, NoOffset)
+      |	Field (_, NoOffset) -> NoOffset
+      |	Index (e, off2) -> Index (e, butlastOffset off2)
+      |	Field (f, off2) -> Field (f, butlastOffset off2)
+    in
+    match lv with (mv, off) -> (mv, butlastOffset off)
   in
+  
   match check with
     Call (_,Lval(Var checkName,_),args,_) -> 
       let someargs =
@@ -1041,8 +1074,9 @@ let optimFile file =
 
   (* ab: ... and the global initializer *)
   (match file.globinit with
-    None -> ()
-  | Some f -> file.globinit <- Some (optimFun f));
+    Some f when not amanSkipGlobInit -> 
+      file.globinit <- Some (optimFun f)
+  | _ -> ());
   
   if debug
   then begin
