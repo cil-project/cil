@@ -36,6 +36,7 @@
  *)
 module H = Hashtbl
 open Cil
+open Pretty
 module E = Errormsg
 
 let debug = false
@@ -54,6 +55,31 @@ let getFunctionNode (n: string) : node =
     n
     (fun _ -> { name = n; mustcheck = false; scanned = false; succs = [] })
 
+(** Dump the function call graph. Assume that there is a main *)
+let dumpGraph = true
+let dumpFunctionCallGraph () = 
+  H.iter (fun _ x -> x.scanned <- false) functionNodes;
+  let rec dumpOneNode (ind: int) (n: node) : unit = 
+    output_string !E.logChannel "\n";
+    for i = 0 to ind do 
+      output_string !E.logChannel "  "
+    done;
+    output_string !E.logChannel (n.name ^ " ");
+    if n.scanned then (* Already dumped *)
+      output_string !E.logChannel " <rec> "
+    else begin
+      n.scanned <- true;
+      List.iter (dumpOneNode (ind + 1)) n.succs
+    end
+  in
+  try
+    let main = H.find functionNodes "main" in
+    dumpOneNode 0 main
+  with Not_found -> begin
+    ignore (E.log 
+              "I would like to dump the function graph but there is no main");
+  end
+  
 (* We add a dummy function whose name is "@@functionPointer@@" that is called 
  * at all invocations of function pointers and itself calls all functions 
  * whose address is taken.  *)
@@ -133,7 +159,7 @@ let findCheckPlacement () =
        end)
     functionNodes
 
-let addCheck (f: Cil.file) : unit = 
+let makeFunctionCallGraph (f: Cil.file) : unit = 
   init ();
   (* Scan the file and construct the control-flow graph *)
   List.iter
@@ -145,7 +171,15 @@ let addCheck (f: Cil.file) : unit =
           ignore (visitCilBlock vis fdec.sbody)
 
       | _ -> ())
-    f.globals;
+    f.globals
+
+let makeAndDumpFunctionCallGraph (f: file) = 
+  makeFunctionCallGraph f;
+  dumpFunctionCallGraph ()
+
+
+let addCheck (f: Cil.file) : unit = 
+  makeFunctionCallGraph f;
   findCheckPlacement ();
   if !checkSomeFunctions then begin
     (* Add a declaration for the stack threshhold variable. The program is 

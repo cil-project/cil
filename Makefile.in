@@ -124,7 +124,7 @@ $(OBJDIR)/machdep.ml : src/machdep.c
 cilversion: $(OBJDIR)/cilversion.ml
 $(OBJDIR)/cilversion.ml: configure.in
 	rm -f $@
-	echo "(* This module was generate automatically by code in Makefile *)" >$@
+	echo "(* This module was generated automatically by code in Makefile *)" >$@
 # Generate here the version information
 	echo "let cilVersionMajor = @CIL_VERSION_MAJOR@" >>$@
 	echo "let cilVersionMinor = @CIL_VERSION_MINOR@" >>$@

@@ -1388,8 +1388,11 @@ let mkCompInfo
 
 (** Make a copy of a compinfo, changing the name and the key *)
 let copyCompInfo (ci: compinfo) (n: string) : compinfo = 
-  let ci' = {ci with cname = n; ckey = !nextCompinfoKey } in
+  let ci' = {ci with cname = n; 
+                     ckey = !nextCompinfoKey; } in
   incr nextCompinfoKey;
+  (* Copy the fields and set the new pointers to parents *)
+  ci'.cfields <- List.map (fun f -> {f with fcomp = ci'}) ci'.cfields;
   ci'
 
 (**** Utility functions ******)
@@ -1842,6 +1845,17 @@ and d_binop () b =
   | BOr -> text "|"
 
 let invalidStmt = mkStmt (Instr [])
+
+(** Construct a hash with the builtins *)
+let gccBuiltins : (string, typ * typ list) H.t = 
+  let h = H.create 17 in
+  let funType rt argTypes = 
+    TFun(rt, Some (List.map (fun t -> ("", t, [])) argTypes), false, [])
+  in
+  H.add h "__builtin_next_arg" (voidPtrType, [uintType]);
+  H.add h "__builtin_constant_p" (intType, [ intType ]);
+  H.add h "__builtin_fabs" (doubleType, [ doubleType ]);
+  h
 
 (** A printer interface for CIL trees. Create instantiations of 
  * this type by specializing the class {!Cil.defaultCilPrinter}. *)
@@ -2487,13 +2501,13 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         let body = (self#pLineDirective ~forcefile:true l) 
                       ++ (self#pFunDecl () fundec) in
         fundec.svar.vattr <- oldattr;
-        proto ++ body
+        proto ++ body ++ line
           
     | GType (typ, l) ->
         self#pLineDirective ~forcefile:true l ++
           text "typedef "
           ++ (self#pType (Some (text typ.tname)) () typ.ttype)
-          ++ chr ';'
+          ++ text ";\n"
 
     | GEnumTag (enum, l) ->
         self#pLineDirective l ++
@@ -2505,11 +2519,11 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                     ++ self#pExp () i
                     ++ text "," ++ break)
                 () enum.eitems)
-          ++ unalign ++ break ++ text "};"
+          ++ unalign ++ break ++ text "};\n"
 
     | GEnumTagDecl (enum, l) -> (* This is a declaration of a tag *)
         self#pLineDirective l ++
-          text ("enum " ^ enum.ename ^ ";")
+          text ("enum " ^ enum.ename ^ ";\n")
 
     | GCompTag (comp, l) -> (* This is a definition of a tag *)
         let n = comp.cname in
@@ -2524,11 +2538,11 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                                comp.cfields)
                          ++ unalign)
           ++ line ++ text "}" ++
-          (self#pAttrs () comp.cattr) ++ text ";"
+          (self#pAttrs () comp.cattr) ++ text ";\n"
 
     | GCompTagDecl (comp, l) -> (* This is a declaration of a tag *)
         self#pLineDirective l ++
-          text (compFullName comp) ++ text ";"
+          text (compFullName comp) ++ text ";\n"
 
     | GVar (vi, io, l) ->
         self#pLineDirective ~forcefile:true l ++
@@ -2546,85 +2560,21 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                   line ++ self#pLineDirective l ++ text "  " 
                 else nil) ++
                 (self#pInit () i))
-          ++ chr ';'
+          ++ text ";\n"
       
     (* print global variable 'extern' declarations, and function prototypes *)    
-    | GVarDecl (vi, l) -> (
-        (*(trace "sm" (dprintf "printing %s\n" vi.vname));*)
-        (* sm: I want to suppress prototypes for certain functions,
-         * because if we print them them gcc thinks they're real,
-         * external functions, and we get linker errors; but this
-         * "polymorphic prefix" thing is in the way; strip it *)
-        (* TODO: I think polymorphic prefixes on vi.vname are a mistake
-         * because they force all surrounding code to interpret them
-         * (as I have here), and it's not obvious on the face of it
-         * how to do so, or which module is responsible.  So, I'd like
-         * to remove this after we find a different way of encoding the
-         * poly prefixes.   What's more, because CIL should not depend
-         * on the Poly module, I have to copy that code here!  This is
-         * clearly a design mistake. *)
-
-        (* GN: you should not be using this printed to print the result of 
-         * CCured. Use the one from Ptrnode.ml *)
-
-        (* --------- BEGIN code copied from ccured/Poly.ml --------- *)
-        (* Split a name into a polymorphic prefix and a base name. The polymorphic
-         * prefix is the empty string if this is not a polymorphic name *)
-        let splitPolyName (name: string) : string * string =
-          let nl = String.length name in
-          if nl = 0 then "", name else
-          if String.get name 0 = '/' then
-            let rec loop i = (* Search for the second / *)
-              if i >= nl - 1 then "", name else
-              if String.get name i = '/' then
-                 String.sub name 0 (i + 1), String.sub name (i + 1) (nl - i - 1)
-              else
-                loop (i + 1)
-            in
-            loop 1
-          else
-            "", name
-        in
-
-        (* Strip polymorphic prefix. Return the base name *)
-        let stripPoly (name: string) : string =
-          let _, n = splitPolyName name in n
-        in
-        (* --------- END code copied from ccured/Poly.ml --------- *)
-
-        let basename:string = (stripPoly vi.vname) in
-
-        (* sm: don't print boxmodels; avoids gcc warnings *)
-        if (hasAttribute "boxmodel" vi.vattr) then
-          (text ("// omitted boxmodel GVarDecl " ^ vi.vname ^ "\n"))
-
-        (* sm: also don't print declarations for gcc builtins *)
-        (* this doesn't do what I want, I don't know why *)
-        else if (startsWith "__builtin_" basename && not !print_CIL_Input) then
-          (text ("// omitted gcc builtin " ^ vi.vname ^ "\n"))
-
-        (* sm: don't print the prototype for _setjmp_w because I have *)
-        (* written a wrapper macro, and that macro would expand in the *)
-        (* prototype as well, causing a syntax error *)
-        else if ((basename = "_setjmp_w" ||
-                  basename = "setjmp_w" ||
-                  basename = "__sigsetjmp_w") && (not !print_CIL_Input))  then
-          (text ("// omitted prototype for " ^ vi.vname ^ "\n"))
-
-        else (
-          self#pLineDirective l ++
-            (self#pVDecl () vi)
-            ++ chr ';'
-        )
-      )
+    | GVarDecl (vi, l) ->
+        self#pLineDirective l ++
+          (self#pVDecl () vi)
+          ++ text ";\n"
 
     | GAsm (s, l) ->
         self#pLineDirective l ++
-          text ("__asm__(\"" ^ escape_string s ^ "\");")
+          text ("__asm__(\"" ^ escape_string s ^ "\");\n")
 
     | GPragma (Attr(an, args), l) ->
         (* sm: suppress printing pragmas that gcc does not understand *)
-        (* assume anything starting with "box" or "ccured" is ours *)
+        (* assume anything starting with "ccured" is ours *)
         (* also don't print the 'combiner' pragma *)
         (* nor 'cilnoremove' *)
         let suppress =
@@ -2647,9 +2597,13 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           ++ (if suppress then text "/* " else text "")
           ++ (text "#pragma ")
           ++ d
-          ++ (if suppress then text " */" else text "")
+          ++ (if suppress then text " */\n" else text "\n")
 
-    | GText s  -> text s
+    | GText s  -> 
+        if s <> "//" then 
+          text s ++ text "\n"
+        else
+          nil
 
 
    method dGlobal (out: out_channel) (g: global) : unit = 
@@ -2669,7 +2623,8 @@ class defaultCilPrinterClass : cilPrinter = object (self)
          (* Temporarily remove the function attributes *)
          fdec.svar.vattr <- [];
          fprint out 80 (self#pFunDecl () fdec);               
-         fdec.svar.vattr <- oldattr
+         fdec.svar.vattr <- oldattr;
+         output_string out "\n"
 
      | GVar (vi, Some i, l) -> 
          fprint out 80 
@@ -2685,7 +2640,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                    line ++ self#pLineDirective l ++ text "  " 
                  else nil)); 
          self#dInit out 3 i;
-         output_string out ";"
+         output_string out ";\n"
 
      | g -> fprint out 80 (self#pGlobal () g)
 
@@ -3966,8 +3921,7 @@ let dumpFile (pp: cilPrinter) (out : out_channel) file =
                (* sm: I want to easily tell whether the generated output
                 * is with print_CIL_Input or not *)
                "/* print_CIL_Input is " ^ (if !print_CIL_Input then "true" else "false") ^ " */\n\n"));
-  iterGlobals file 
-    (fun g -> dumpGlobal pp out g; output_string out "\n");
+  iterGlobals file (fun g -> dumpGlobal pp out g);
     
   (* sm: we have to flush the output channel; if we don't then under *)
   (* some circumstances (I haven't figure out exactly when, but it happens *)
@@ -4566,7 +4520,8 @@ and bitsOffset (baset: typ) (off: offset) : int * int =
         (* Construct a list of fields preceeding and including this one *)
         let prevflds = 
           let rec loop = function
-              [] -> E.s (E.bug "Cannot find field %s\n" f.fname)
+              [] -> E.s (E.bug "bitsOffset: Cannot find field %s in %s\n" 
+                           f.fname f.fcomp.cname)
             | fi' :: _ when fi' == f -> [fi']
             | fi' :: rest -> fi' :: loop rest
           in
@@ -5522,5 +5477,6 @@ let d_formatarg () = function
   | FS _ -> dprintf "FS"
 
   | FX _ -> dprintf "FX()"
+
 
 

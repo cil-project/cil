@@ -150,7 +150,9 @@ $TEST->addTests("testrun/warnings-noreturn", "WARNINGS_ARE_ERRORS=1", ['cil']);
 $TEST->addTests("testrun/warnings-empty", "WARNINGS_ARE_ERRORS=1", ['cil']);
 $TEST->addTests("testrun/warnings-unused-label", "WARNINGS_ARE_ERRORS=1", ['cil']);
 $TEST->addTests("test_withtrusted/deepcopy1", "", ['inferbox']);
+$TEST->addTests("test/compat1", "", ['inferbox']);
 $TEST->addTests("testrun/pointsto", "", ['inferbox']);
+$TEST->addTests("testrun/trusted1", "", ['inferbox']);
 $TEST->addTests("testrun/hostent", "", ['inferbox']);
 $TEST->addTests("testrun/hostent2", "", ['inferbox']);
 $TEST->addBadComment("testrun/hostent2-inferbox",
@@ -488,7 +490,7 @@ $TEST->addTests("testrun/openssl-bounds", "", ['inferbox']);
 
 $TEST->addTestsFail("testrun/struct3", "", "Non-pointer", ['inferbox']);
 
-if($^O eq 'MSWin32') {
+if($win32) {
     $TEST->addTests("testrun/extern_init", "_MSVC=1", ['cil']);   
 }
 $TEST->addTests("testrun/extern1", "", ['cil']);

@@ -292,8 +292,9 @@ let markPragmaRoots keepers file =
  *)
 
 
-let mark info =
-  trace "usedGlobal" (dprintf "marking root (external linkage): global %s\n" info.vname);
+let mark (why: string) info =
+  trace "usedGlobal" 
+    (dprintf "marking root (%s): global %s\n" why info.vname);
   info.vreferenced <- true
 
 
@@ -326,7 +327,7 @@ let markExportedRoots file =
   let considerGlobal = function
     | GVar ({vstorage = storage} as info, _, _)
       when storage != Static ->
-	mark info
+	mark "non-static" info
     | GFun ({svar = v} as fundec, _) ->
         let keep = 
           if hasExportingAttribute v then
@@ -341,7 +342,7 @@ let markExportedRoots file =
           else
             true (* Keep the others *)
         in
-        if keep then mark v
+        if keep then mark "non-static" v
     | _ ->
 	()
   in
@@ -364,10 +365,10 @@ let markExportedRoots file =
 let markCompleteProgramRoots file =
   let considerGlobal = function
     | GFun ({svar = {vname = "main"; vstorage = vstorage} as info}, _) ->
-	if vstorage <> Static then mark info
+	if vstorage <> Static then mark "non-static" info
     | GFun (fundec, _)
       when hasExportingAttribute fundec.svar ->
-	mark fundec.svar
+	mark "non-static" fundec.svar
     | _ ->
 	()
   in

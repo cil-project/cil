@@ -334,7 +334,7 @@ and attrparam =
 
 (** The definition of a structure or union type. Use {!Cil.mkCompInfo} to 
  * make one and use {!Cil.copyCompInfo} to copy one (this ensures that a new 
- * key is assigned). *)
+ * key is assigned and that the fields have the right pointers to parents.). *)
 and compinfo = {
     mutable cstruct: bool;              
    (** True if struct, False if union *)
@@ -347,7 +347,9 @@ and compinfo = {
      * different files might have different keys. Use {!Cil.copyCompInfo} to 
      * copy structures so that a new key is assigned. *)
     mutable cfields: fieldinfo list;    
-    (** Information about the fields *) 
+    (** Information about the fields. Notice that each fieldinfo has a 
+      * pointer back to the host compinfo. This means that you should not 
+      * share fieldinfo's between two compinfo's *) 
     mutable cattr:   attributes;        
     (** The attributes that are defined at the same time as the composite 
      * type. These attributes can be supplemented individually at each 
@@ -1066,6 +1068,10 @@ val copyFunction: fundec -> string -> fundec
  * variables to the types stack *)
 val pushGlobal: global -> types: global list ref 
                        -> variables: global list ref -> unit
+
+(** A list of the GCC built-in functions. Maps the name to the result and 
+  * argument types *)
+val gccBuiltins: (string, typ * typ list) Hashtbl.t
 
 (** {b Values for manipulating initializers} *)
 

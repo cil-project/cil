@@ -39,3 +39,5 @@
  * of the top of the stack in "main" and then it picks one function *)
 
 val addCheck: Cil.file -> unit
+
+val makeAndDumpFunctionCallGraph: Cil.file -> unit

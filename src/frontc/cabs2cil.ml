@@ -5142,17 +5142,17 @@ let convFile ((fname : string), (dl : Cabs.definition list)) : Cil.file =
   if !E.verboseFlag || !Util.printStages then 
     ignore (E.log "Converting CABS->CIL\n");
   (* Setup the built-ins, but do not add their prototypes to the file *)
-  List.iter 
-    (fun (name, resTyp, argTypes) ->
-      let v = 
-        makeGlobalVar name (TFun(resTyp, 
-                                 Some (List.map (fun at -> ("", at, [])) 
-                                         argTypes),
-                                 false, [])) in
-      ignore (alphaConvertVarAndAddToEnv true v))
-    [ ("__builtin_constant_p", intType, [ intType ]);
-      ("__builtin_fabs", doubleType, [ doubleType ]);
-    ];
+  if not !msvcMode then begin
+    H.iter 
+      (fun name (resTyp, argTypes) ->
+        let v = 
+          makeGlobalVar name (TFun(resTyp, 
+                                   Some (List.map (fun at -> ("", at, [])) 
+                                           argTypes),
+                                   false, [])) in
+        ignore (alphaConvertVarAndAddToEnv true v))
+      gccBuiltins;
+  end;
   let globalidx = ref 0 in
   let doOneGlobal (d: A.definition) = 
     let s = doDecl true d in
@@ -5195,21 +5195,6 @@ let convFile ((fname : string), (dl : Cabs.definition list)) : Cil.file =
   List.iter doOneGlobal dl;
   let globals = ref (popGlobals ()) in
 
-  (* Now go through the used composite types and find those that are not 
-   * defined. Add a forward declaration for them at the beginning of the 
-   * file. This will prevent certain errors when such types are used in local 
-   * scopes 
-
-   * gn: this is not necessary anymore because we add GCompTagDecl always 
-   * eagerly.
-   * 
-  H.iter 
-    (fun key ci -> 
-      if ci.cfields = [] then begin
-        ignore (E.warnOpt "%s empty or not defined" key);
-        globals := GCompTagDecl(ci, locUnknown) :: !globals
-      end) compInfoNameEnv;
-  *)
   H.clear noProtoFunctions;
   H.clear mustTurnIntoDef;  
   H.clear alreadyDefined;

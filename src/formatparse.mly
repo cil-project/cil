@@ -222,6 +222,11 @@ let doAttr (id: string)
 
 type falist = formatArg list
 
+type maybeInit = 
+    NoInit
+  | InitExp of exp
+  | InitCall of lval * exp list
+
 %}
 
 %token <string> IDENT
@@ -303,8 +308,8 @@ type falist = formatArg list
 
 
 %type <unit> initialize
-%type <(Cil.location -> (string * Cil.formatArg) list -> Cil.stmt)> stmt
-%type <(Cil.location -> (string * Cil.formatArg) list -> Cil.stmt list)> stmt_list
+%type <((string -> Cil.typ -> Cil.varinfo) -> Cil.location -> (string * Cil.formatArg) list -> Cil.stmt)> stmt
+%type <((string -> Cil.typ -> Cil.varinfo) -> Cil.location -> (string * Cil.formatArg) list -> Cil.stmt list)> stmt_list
 
 %type <((string * Cil.formatArg) list -> Cil.exp) * (Cil.exp -> Cil.formatArg list option)> expression
 
@@ -322,6 +327,8 @@ type falist = formatArg list
 %type <(Cil.location -> (string * Cil.formatArg) list -> Cil.instr) * (Cil.instr -> Cil.formatArg list option)> instr
 
 %type <(Cil.typ -> (string * Cil.formatArg) list -> Cil.offset) * (Cil.offset -> Cil.formatArg list option)> offset
+
+
 %%
 
 
@@ -577,6 +584,7 @@ lval:
                            ((fun args -> 
                                 match getArg currentArg args with 
                                   Fl l -> l
+                                | Fv v -> Var v, NoOffset
                                 | a -> wrongArgType currentArg "lval" a),
 
                             fun l -> Some [ Fl l ])
@@ -651,6 +659,14 @@ argv :
                            | a -> wrongArgType currentArg "varinfo" a),
 
                           fun v -> Some [ Fv v ])
+                       } 
+|  IDENT               { let currentArg = $1 in
+                         ((fun args -> 
+                           match getArg currentArg args with 
+                             Fv v -> v
+                           | a -> wrongArgType currentArg "varinfo" a),
+                         (fun v -> 
+                             E.s (bug "identifiers (%s) are not supported for deconstruction" currentArg)))
                        } 
 ;
 
@@ -1298,35 +1314,36 @@ arguments_ne:
 /*(******** STATEMENTS *********)*/
 stmt: 
     IF LPAREN expression RPAREN stmt           %prec IF
-                  { (fun loc args -> 
+                  { (fun mkTemp loc args -> 
                          mkStmt (If((fst $3) args, 
-                                    mkBlock [ $5 loc args ],
+                                    mkBlock [ $5 mkTemp loc args ],
                                     mkBlock [], loc)))
                   }
 |   IF LPAREN expression RPAREN stmt ELSE stmt 
-                  { (fun loc args -> 
+                  { (fun mkTemp loc args -> 
                          mkStmt (If((fst $3) args, 
-                                    mkBlock [ $5 loc args ],
-                                    mkBlock [ $7 loc args], loc)))
+                                    mkBlock [ $5 mkTemp loc args ],
+                                    mkBlock [ $7 mkTemp loc args], loc)))
                   }
 |   RETURN exp_opt SEMICOLON  
-                  { (fun loc args -> 
+                  { (fun mkTemp loc args -> 
                          mkStmt (Return((fst $2) args, loc))) 
                   }
 |   BREAK SEMICOLON  
-                  { (fun loc args -> 
+                  { (fun mkTemp loc args -> 
                          mkStmt (Break loc))
                   }
 |   CONTINUE SEMICOLON 
-                  { (fun loc args -> 
+                  { (fun mkTemp loc args -> 
                          mkStmt (Continue loc))
                   }
 |   LBRACE stmt_list RBRACE  
-                  { (fun loc args -> 
-                         mkStmt (Block (mkBlock ($2 loc args))))
+                  { (fun mkTemp loc args -> 
+                         let stmts = $2 mkTemp loc args in
+                         mkStmt (Block (mkBlock (stmts))))
                   }
 |   WHILE LPAREN expression RPAREN stmt  
-                  { (fun loc args -> 
+                  { (fun mkTemp loc args -> 
                         let e = (fst $3) args in
                         let e = 
                           if isPointerType(typeOf e) then 
@@ -1340,33 +1357,58 @@ stmt:
                                                  mkBlock [ mkStmt 
                                                              (Break loc) ],
                                                  loc));
-                                           $5 loc args ],
+                                           $5 mkTemp loc args ],
                                  loc, None, None)))
                    } 
-|   instr_list    { (fun loc args -> 
+|   instr_list    { (fun mkTemp loc args -> 
                        mkStmt (Instr ($1 loc args)))
                   }
 |   ARG_s         { let currentArg = $1 in
-                    (fun loc args -> 
+                    (fun mkTemp loc args -> 
                        match getArg currentArg args with
                          Fs s -> s
                        | a -> wrongArgType currentArg "stmt" a) }
 ;
 
 stmt_list: 
-    /* empty */  { (fun loc args -> []) }
+    /* empty */  { (fun mkTemp loc args -> []) }
 
 |   ARG_S        { let currentArg = $1 in
-                   (fun loc args -> 
+                   (fun mkTemp loc args -> 
                        match getArg currentArg args with 
                        | FS sl -> sl 
                        | a -> wrongArgType currentArg "stmts" a)
                  }
 |   stmt stmt_list  
-                 { (fun loc args -> 
-                      let this = $1 loc args in
-                      this :: ($2 loc args))
+                 { (fun mkTemp loc args -> 
+                      let this = $1 mkTemp loc args in
+                      this :: ($2 mkTemp loc args))
                  }
+/* (* We can also have a declaration *) */
+|   type_spec attributes decl maybe_init SEMICOLON stmt_list 
+                { (fun mkTemp loc args -> 
+                     let tal = (fst $2) args in
+                     let ts  = (fst $1) tal args in
+                     let (n, t, _) = (fst $3) ts args in
+                     let init = $4 args in
+                     (* Before we proceed we must create the variable *)
+                     let v = mkTemp n t in
+                     (* Now we parse the rest *)
+                     let rest = $6 mkTemp loc ((n, Fv v) :: args) in
+                     (* Now we add the initialization instruction to the 
+                      * front *)
+                     match init with 
+                       NoInit -> rest
+                     | InitExp e -> 
+                         mkStmtOneInstr (Set((Var v, NoOffset), e, loc)) 
+                         :: rest
+                     | InitCall (f, args) ->
+                         mkStmtOneInstr (Call(Some (Var v, NoOffset), 
+                                              Lval f, args, loc))
+                         :: rest
+
+                                                           )
+                 } 
 ;
 
 instr_list:
@@ -1385,6 +1427,16 @@ instr_list:
                       let this = (fst $1) loc args in
                       this :: ($2 loc args))
                  }
+;
+
+
+maybe_init:
+|                               { (fun args -> NoInit) }
+| EQ expression                 { (fun args -> InitExp ((fst $2) args)) }
+| EQ lval LPAREN arguments RPAREN 
+                                { (fun args -> 
+                                    InitCall((fst $2) args, (fst $4) args)) }
+;
 %%
 
 

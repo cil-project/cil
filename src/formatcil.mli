@@ -63,13 +63,18 @@ val cType: string -> (string * Cil.formatArg) list -> Cil.typ
 val cInstr: string -> Cil.location -> 
                       (string * Cil.formatArg) list -> Cil.instr
 
-(** Constructs a statement based on the program and the list of arguments. 
- * Only the first statement is parsed. 
- * The parsing of the string is memoized. *)
-val cStmt: string -> Cil.location -> (string * Cil.formatArg) list -> Cil.stmt
+(* Constructs a statement based on the program and the list of arguments. We 
+ * also pass a function that can be used to make new varinfo's for the 
+ * declared variables, and a location to be used for the statements. Only the 
+ * first statement is parsed. The parsing of the string is memoized. *)
+val cStmt: string -> 
+           (string -> Cil.typ -> Cil.varinfo) -> 
+           Cil.location -> (string * Cil.formatArg) list -> Cil.stmt
 
 (** Constructs a list of statements *)
-val cStmts: string -> Cil.location -> (string * Cil.formatArg) list -> 
+val cStmts: string -> 
+            (string -> Cil.typ -> Cil.varinfo) -> 
+            Cil.location -> (string * Cil.formatArg) list -> 
             Cil.stmt list
 
 (** Deconstructs an expression based on the program. Produces an optional 

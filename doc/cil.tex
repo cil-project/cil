@@ -831,6 +831,9 @@ Statements
 
 Lists of statements
    Stmt_list ::= empty | %S:ID | Stmt Stmt_list  
+                | Type_spec Attrs Decl ; Stmt_list
+                | Type_spec Attrs Decl = E ; Stmt_list
+                | Type_spec Attrs Decl = L (Args) ; Stmt_list
 
 List of instructions
    Instr_list ::= Instr | %I:ID | Instr Instr_list
@@ -903,12 +906,11 @@ in CIL.
 Instead, the result contains a sequence of values in the same order as the
 appearance of pattern arguments in the pattern.
 
-\item You cannot construc declarations (except for function formals in
-prototypes)
+\item You can mix statements with declarations. For each declaration a new
+  temporary will be constructed (using a function you provive). You can then
+  refer to that temporary by name in the rest of the pattern.
 
-\item The pattern cannot refer to variables (because it does not know about
-any particular program). Instead you should fill in the variable names using
-pattern arguments. 
+\item The \t{\%v:} pattern specifier is optional.
 \end{itemize}
 
  The following function are defined in the \t{Formatcil} module for
@@ -930,17 +932,17 @@ the CIL representation of code that scans an array backwards and initializes
 every even-index element with an expression:
 \begin{code}
 Formatcil.cStmts
-  "%v:idx = sizeof(%v:array) / sizeof(%v:array[0]) - 1;
-   while(%v:idx >= 0) {
+  "int idx = sizeof(array) / sizeof(array[0]) - 1;
+   while(idx >= 0) {
      // Some statements to be run for all the elements of the array
      %S:init
-     if(! (%v:idx & 1)) 
-       %v:array[%v:idx] = %e:init_even;
+     if(! (idx & 1)) 
+       array[idx] = %e:init_even;
      /* Do not forget to decrement the index variable */
-     %v:idx = %v:idx - 1;
+     idx = idx - 1;
    }"
+  (fun n t -> makeTempVar myfunc ~name:n t)
   [ ("array", Fv myarray); 
-    ("idx", Fv (makeTempVar myfunc intType));
     ("init", FS [stmt1; stmt2; stmt3]);
     ("init_even", Fe init_expr_for_even_elements) ]
 \end{verbatim}\end{code}
@@ -2147,6 +2149,11 @@ Necula}.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf January 19, 2003}: Added support for declarations in interpreted
+  constructors. Relaxed the semantics of the patterns for variables. 
+\item {\bf January 17, 2003}: Added built-in prototypes for the gcc built-in
+  functions. Changed the \t{pGlobal} method in the printers to print the
+  carriage return as well.
 \item {\bf January 9, 2003}: Reworked lexer and parser's strategy for
   tracking source file names and line numbers to more closely match
   typical native compiler behavior.  The visible CIL interface is

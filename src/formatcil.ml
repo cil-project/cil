@@ -59,10 +59,14 @@ let instrMemoTable :
                (instr -> formatArg list option))) H.t = H.create 23
 
 let stmtMemoTable :
-    (string, (location -> (string * formatArg) list -> stmt)) H.t = H.create 23
+    (string, ((string -> typ -> varinfo) -> 
+              location -> 
+              (string * formatArg) list -> stmt)) H.t = H.create 23
 
 let stmtsMemoTable :
-    (string, (location -> (string * formatArg) list -> stmt list)) H.t = H.create 23
+    (string, ((string -> typ -> varinfo) -> 
+              location -> 
+              (string * formatArg) list -> stmt list)) H.t = H.create 23
 
 
 let doParse (prog: string) 
@@ -108,11 +112,13 @@ let cInstr (prog: string) : location -> (string * formatArg) list -> instr =
   let cf = doParse prog Formatparse.instr instrMemoTable in
   (fst cf)
 
-let cStmt (prog: string) : location -> (string * formatArg) list -> stmt = 
+let cStmt (prog: string) : (string -> typ -> varinfo) -> 
+                           location -> (string * formatArg) list -> stmt = 
   let cf = doParse prog Formatparse.stmt stmtMemoTable in
   cf
 
 let cStmts (prog: string) : 
+    (string -> typ -> varinfo) -> 
     location -> (string * formatArg) list -> stmt list = 
   let cf = doParse prog Formatparse.stmt_list stmtsMemoTable in
   cf

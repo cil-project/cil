@@ -1,4 +1,0 @@
-#!/bin/sh
-# grep across our source tree for something; run as bin/grepfor
-
-cat allsrcs | xargs grep "$@"
