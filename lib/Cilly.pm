@@ -250,7 +250,8 @@ sub collectOneArgument {
 
     # sm: response file
     if($arg =~ m|-@(.+)$| ||
-        ($self->{MODENAME} eq "MSVC" && $arg =~ m|@(.+)$|)) {
+        (($self->{MODENAME} eq "MSVC" ||
+          $self->{MODENAME} eq "MSLINK") && $arg =~ m|@(.+)$|)) {
         my $fname = $1;         # name of response file
         &classifyArgDebug("processing response file: $fname\n");
 
@@ -629,7 +630,7 @@ sub compile {
 sub makeOutArguments { 
     my ($self, $which, $dest) = @_;
     $dest = $dest->{filename} if ref $dest;
-    if($self->{MODENAME} eq "MSVC") { 
+    if($self->{MODENAME} eq "MSVC" || $self->{MODENAME} eq "MSLINK") { 
         # A single argument
         return ("$which$dest");
     } else {
@@ -1273,7 +1274,14 @@ sub msvc_preprocess {
     my ($sbase, $sdir, $sext) = 
         fileparse($srcname, 
                   "(\\.c)|(\\.cc)|(\\.cpp)|(\\.i)");
-    my @cmd = ('cl', '/nologo', '/P', '/D_MSVC', @{$ppargs});
+    # If this is a .cpp file we still hope it is C. Pass the /Tc argument to 
+    # cl to force this file to be interpreted as a C one
+    my @cmd = @{$ppargs};
+
+    if($sext eq ".cpp") {
+        push @cmd, "/Tc";
+    }
+    @cmd = ('cl', '/nologo', '/P', '/D_MSVC', @cmd);
     $res = $self->runShell(@cmd, $srcname);
     # MSVC cannot be told where to put the output. But we know that it
     # puts it in the current directory
@@ -1395,6 +1403,7 @@ package MSLINK;
 use strict;
 
 use File::Basename;
+use Data::Dumper;
 
 sub new {
     my ($proto, $stub) = @_;
@@ -1403,10 +1412,10 @@ sub new {
 
     my $self = 
     { NAME => 'Microsoft linker',
-      MODENAME => 'mslink',
+      MODENAME => 'MSLINK',
       CC => ['no_compiler_in_mslink_mode'],
       CPP => ['no_compiler_in_mslink_mode'],
-      LD => ['cl', '/nologo'],
+      LD => ['link'],
       DEFARG  => "??DEFARG",
       INCARG  => "??INCARG",
       DEBUGARG => ['/DEBUG'],
@@ -1415,13 +1424,13 @@ sub new {
       LIBEXT => "lib",   # Library extension (without the .)
       EXEEXT => ".exe",  # Executable extension (with the .)
       OUTOBJ => "??OUTOBJ",
-      OUTEXE => "/OUT:",
+      OUTEXE => "-out:", # Keep this form because build.exe looks for it
       LINEPATTERN => "", 
 
       OPTIONS => 
-          ["[^/-]" => { TYPE => 'OSOURCE' },
-           "/OUT:" => { TYPE => 'OUT' },
-           "/"  => { TYPE => 'LINK' },
+          ["[^/\\-@]" => { TYPE => 'OSOURCE' },
+           "[/\\-](OUT|out):" => { TYPE => 'OUT' },
+           "^((/)|(\\-[^\\-]))"  => { TYPE => 'LINK' },
            ],
       };
     bless $self, $class;
@@ -1438,10 +1447,29 @@ sub forceIncludeArg {  # Same as for CL
 
 sub linkOutputFile {
     my($self, $src) = @_;
-    if("@{$self->{OUTARG}}" =~ m|/OUT:(.+)|) {
+#    print Dumper($self);
+    Carp::confess "Cannot compute the linker output file" 
+        if ! defined $self->{OUTARG};
+
+    if("@{$self->{OUTARG}}" =~ m|.+:(.+)|) {
         return $1;
     }
     die "I do not know what is the link output file\n";
+}
+
+sub setVersion {
+    my($self) = @_;
+    my $cversion = "";
+    open(VER, "link 2>&1|") || die "Cannot start Microsoft LINK\n";
+    while(<VER>) {
+        if($_ =~ m|Linker Version (\S+)|) {
+            $cversion = "link_$1";
+            close(VER);
+            $self->{VERSION} = $cversion;
+            return;
+        }
+    }
+    die "Cannot find Microsoft LINK version\n";
 }
 
 ########################################################################
