@@ -2227,8 +2227,8 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         (* assume anything starting with "box" or "ccured" is ours *)
         (* also don't print the 'combiner' pragma *)
         (* nor 'cilnoremove' *)
-        let suppress = 
-          not !print_CIL_Input && not !msvcMode && 
+        let suppress =
+          not !print_CIL_Input && not !msvcMode &&
           ((startsWith "box" an) ||
           (startsWith "ccured" an) ||
           (an = "merger") ||
@@ -2414,6 +2414,9 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     (* sm: also suppress "format" because we seem to print it in *)
     (* a way gcc does not like *)
     | "format", _ -> text "/* format attribute */", false
+
+    (* sm: here's another one I don't want to see gcc warnings about.. *)
+    | "canPointToStack", _ -> text "/*canPointToStack*/", false
 
     | _ -> (* This is the dafault case *)
         (* Add underscores to the name *)
