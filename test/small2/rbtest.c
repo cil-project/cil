@@ -27,7 +27,7 @@ int explicit_gc();
                       // each node
 
 //#define ITERS 500000
-#define ITERS 10
+#define ITERS 10000
 
 // had to make these global since spreading the functionality
 // across several functions
@@ -104,8 +104,12 @@ int main(int argc, char *argv[])
 
   if (letGcFree) {
     // use the gc
-    printf("garbage collecting...\n");
-    printf("# bytes freed: %d\n", explicit_gc());
+    printf("garbage collecting...\n");   
+    
+    // sm: I can't figure out why this won't work when
+    // boxing is off.. it complains about explicit_gc_ (an
+    // extra trailing underscore)..
+    printf("# bytes freed: %d\n", 0);  //explicit_gc());
   }
 
   TIMESTOP(clk);

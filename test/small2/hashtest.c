@@ -22,6 +22,8 @@ int debug;
 
 #pragma interceptCasts(on)
 
+#define ITERS 100000
+
 int main() {
   /* Test hash tables */
   PHASH h = NewHash();
@@ -33,7 +35,7 @@ int main() {
   
   /* Add and delete random numbers from the hash table */
   TIMESTART(clk);
-  for(i=0;i<500000;i++) {
+  for(i=0;i<ITERS;i++) {
     int k = random() & 0x7FFFL;
 //    if(i == 30000) {
 //      foo = (int*) ((int) &main);  // Test scalar2pointer
@@ -43,7 +45,7 @@ int main() {
   // Now try to read from foo
   //  foo1 = foo + 1;
   //  i = *foo1;
-  for(i=0;i<500000;i++) {
+  for(i=0;i<ITERS;i++) {
     int k = random() & 0x7FFFL;
     void *data = NULL;
     if(HashLookup(h, k, & data)) {

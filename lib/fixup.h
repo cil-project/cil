@@ -82,6 +82,7 @@
   // we won't link safec{debug,}lib.a either; so let's provide
   // a dummy definition of this fn
   static inline int explicit_gc() { return 0; }
+  //#define explicit_gc() ((void)0)
 #endif
 
 

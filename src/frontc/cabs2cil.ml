@@ -5,6 +5,7 @@ module H = Hashtbl
 
 open Pretty
 open Cil
+open Trace
 
 
 let lu = locUnknown
@@ -941,26 +942,48 @@ and doType (a : attribute list) = function
 
   | A.ENUMDEF (n, eil) -> 
       if n = "" then E.s (E.bug "Missing enum tag");
-      let rec loop i = function
+      
+      (* make a new name for this enumeration *)
+      let n' = newAlphaName "enum" n in
+
+      (* sm: start a scope for the enum tag values, since they *)
+      (* can refer to earlier tags *)
+      (startScope ());
+
+      (* as each name,value pair is determined, this is called *)
+      let rec processName kname i rest = begin
+        (* add the name to the environment, but with a faked 'typ' field; *)
+        (* we don't know the full type yet (since that includes all *)
+        (* of the tag values), but we won't need them in here *)
+        (addLocalToEnv kname (EnvEnum (i, TEnum (n', [], a))));
+
+        (* add this tag to the list so that it ends up in the real *)
+        (* environment when we're finished *)
+        let newname = newAlphaName "" kname in
+        (kname, (newname, i)) :: loop (increm i 1) rest
+      end
+
+      and loop i = function
           [] -> []
-        | (kname, A.NOTHING) :: rest -> 
-            (* Process this tag so that it ends up in the environment *)
-            let newname = newAlphaName "" kname in
-            (kname, (newname, i)) :: loop (increm i 1) rest
+        | (kname, A.NOTHING) :: rest ->
+            (* use the passed-in 'i' as the value, since none specified *)
+            (processName kname i rest)
 
         | (kname, e) :: rest ->
-            let i = 
+            (* constant-eval 'e' to determine tag value *)
+            let i =
               match doExp true e (AExp None) with
                 c, e', _ when isEmpty c -> e'
               | _ -> E.s (E.unimp "enum with non-const initializer")
             in
-            (* Process this tag so that it ends up in the environment *)
-            let newname = newAlphaName "" kname in
-            (kname, (newname, i)) :: loop (increm i 1) rest
+            (processName kname i rest)
       in
+
+      (* sm: now throw away the environment we built for eval'ing *)
+      (* the enum tags, so we can add to the new one properly *)
+      (exitScope ());
+
       let fields = loop zero eil in
-      (* make a new name for this enumeration *)
-      let n' = newAlphaName "enum" n in
       let res = TEnum (n', List.map (fun (_, x) -> x) fields, a) in
       (* Now we have the real host type. Set the environment properly *)
       List.iter

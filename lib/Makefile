@@ -7,6 +7,9 @@ CC = gcc $(CFLAGS)
 splay: splay.c
 	$(CC) -o splay -DTEST_SPLAY splay.c
 
+check-splay: splay
+	./splay
+
 # I compile with several levels of optimization because this
 # greatly purturbs the results
 mymark: mymark.c
