@@ -125,7 +125,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
   Hashtbl.iter (fun id n -> 
     if n.interface (* && not (n.arith || n.posarith) *) && 
        is_char_pointer n then begin
-      if (n.updated) then
+      if (n.updated || (List.length n.succ) <> 0) then
         ignore (update_kind n String BoolFlag )
       else
         ignore (update_kind n ROString BoolFlag )
@@ -178,8 +178,11 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       List.iter (fun e -> 
         (if cur.kind = Wild then update e.eto Wild (SpreadFromEdge cur)) ;
         (if e.ekind = ECast &&
-            (e.eto.kind = String || e.eto.kind = FSeqN || e.eto.kind = SeqN) then
+            (e.eto.kind = String || 
+             e.eto.kind = FSeqN || e.eto.kind = SeqN) then
             update cur (if is_array e.eto then SeqN else e.eto.kind) (SpreadFromEdge e.eto));
+        (if e.ekind = ECast && e.eto.kind = ROString &&
+            cur.kind = FSeqN && (List.length cur.succ) = 1 then update cur ROString (SpreadFromEdge e.eto)) ;
       ) cur.succ ;
 
       (* handle predecessor edges *)
@@ -192,7 +195,6 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
         (if (e.ekind <> ESafe) && 
             (e.efrom.kind = String || e.efrom.kind = FSeqN || e.efrom.kind = SeqN) then
             update cur (if is_array e.efrom then SeqN else e.efrom.kind) (SpreadFromEdge e.efrom));
-        
       ) cur.pred ;
 
       (* handle points-to information *)

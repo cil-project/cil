@@ -1673,6 +1673,10 @@ let castTo (fe: fexp) (newt: typ)
 
       | N.ROString, (N.FSeq|N.FSeqN) -> 
         ignore (E.warn "Warning: wes-is-lazy cast from ROSTRING -> FSEQ[N]") ;
+        ignore (E.warn "castTo(%a -> %a.@!%a@!%a)" 
+                 N.d_pointerkind oldk N.d_pointerkind newkind 
+                 d_fexp fe
+                 d_plaintype oldt)       ;
           let p', b', bend', acc' = stringToFseq p b bend [] in
           finishDoe acc', FM(newt, newkind, castP p', bend', zero) 
 
