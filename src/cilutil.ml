@@ -62,3 +62,6 @@ let tryFinally
     raise e
   end
 
+
+
+let doCxxPP = ref false

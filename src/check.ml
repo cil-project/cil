@@ -303,7 +303,8 @@ and checkCompInfo (isadef: defuse) comp =
     (* Add it to the map before we go on *)
     H.add compUsed comp.ckey (comp, ref isadef);
     H.add compNames fullname ();
-    (* Do not check the compinfo unless this is a definition *)
+    (* Do not check the compinfo unless this is a definition. Otherwise you 
+     * might run into undefined types. *)
     if isadef = Defined then begin
       checkAttributes comp.cattr;
       let fctx = if comp.cstruct then CTStruct else CTUnion in
