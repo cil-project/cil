@@ -125,28 +125,7 @@ sub cpp {
     my ($self, $src, $dest, @args) = @_;
     my $res;
     if($self->{MODENAME} eq "mscl") {
-        my ($sbase, $sdir, $sext) = 
-            fileparse($src, 
-                      "(\\.c)|(\\.cc)|(\\.cpp)|(\\.i)");
-        my $cmd = "cl /nologo /P /D_MSVC " . join(' ', @args);
-        $res = $self->runShell("$cmd $src");
-        # MSVC cannot be told where to put the output. But we know that it
-        # puts it in the current directory
-        my $msvcout = "./$sbase.i";
-        my @st1 = stat $msvcout;
-        my @st2 = stat $dest;
-        while($#st1 >= 0) {
-            if(shift @st1 != shift @st2) {
-#                print "$msvcout is NOT the same as $afterpp\n";
-                if($self->{VERBOSE}) {
-                    print "Copying $msvcout to $dest\n";
-                }
-                unlink $dest;
-                &File::Copy::copy($msvcout, $dest);
-                unlink $msvcout;
-                return;
-            }
-        }
+        $self->MSCL::cpp($src, $dest, @args);
     } else {
         my $cmd = $self->{CPP} . " " . 
             join(' ', @args) .  " " .
@@ -177,7 +156,7 @@ sub link {
 }
 
 
-# EVERYTHING
+# DO EVERYTHING
 sub doit {
     my ($self) = @_;
     my $file;
@@ -508,6 +487,34 @@ sub new {
     return $self;
 }
 
+
+sub cpp {
+    my($self, $src, $dest, @args) = @_;
+    my $res;
+    my ($sbase, $sdir, $sext) = 
+        fileparse($src, 
+                  "(\\.c)|(\\.cc)|(\\.cpp)|(\\.i)");
+    my $cmd = "cl /nologo /P /D_MSVC " . join(' ', @args);
+    $res = $self->runShell("$cmd $src");
+    # MSVC cannot be told where to put the output. But we know that it
+    # puts it in the current directory
+    my $msvcout = "./$sbase.i";
+    my @st1 = stat $msvcout;
+    my @st2 = stat $dest;
+    while($#st1 >= 0) {
+        if(shift @st1 != shift @st2) {
+#                print "$msvcout is NOT the same as $afterpp\n";
+            if($self->{VERBOSE}) {
+                print "Copying $msvcout to $dest\n";
+            }
+            unlink $dest;
+            &File::Copy::copy($msvcout, $dest);
+            unlink $msvcout;
+            return $res;
+        }
+    }
+    return $res;
+}
 
 sub forceIncludeArg { 
     my($self, $what) = @_;
