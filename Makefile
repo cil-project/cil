@@ -1381,7 +1381,7 @@ yacr: mustbegcc
 ################# LINUX
 LINUX_INCLUDES := $(CCUREDHOME)/test/linux/include
 LINUX_TOPATCH := asm/uaccess.h asm/atomic.h asm/bitops.h \
-	         asm/current.h \
+	         asm/current.h asm/string.h \
                  linux/config.h linux/list.h
 linuxsetup:
 	$(PATCHER)  -D MODULE -D _KERNEL_ -I /usr/src/linux/include \
