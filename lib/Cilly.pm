@@ -609,8 +609,9 @@ sub straight_preprocess {
 
 sub compile {
     my($self, $src, $dest, $ppargs, $ccargs) = @_;
-    &mydebug("Cilly.compile(src=$src, dest=$dest)\n");
-    Carp::confess "bad dest: $dest" unless $dest->isa('OutputFile');
+    &mydebug("Cilly.compile(src=$src, dest=$dest->{filename})\n");
+    Carp::confess "bad dest: $dest->{filename}" 
+        unless $dest->isa('OutputFile');
     
     if($self->{SEPARATE}) {
         # Now invoke CIL and compile afterwards
@@ -620,18 +621,18 @@ sub compile {
     # If we are merging then we just save the preprocessed source
     my ($mtime, $res, $outfile);
     if(! $self->{TRUEOBJ}) {
-        $outfile = $dest->filename; $mtime = 0; $res   = $dest;
+        $outfile = $dest->{filename}; $mtime = 0; $res   = $dest;
     } else {
         # Do the real compilation
         $res = $self->straight_compile($src, $dest, $ppargs, $ccargs);
         # Now stat the result 
         my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
-            $atime,$mtime_1,$ctime,$blksize,$blocks) = stat($dest);
+            $atime,$mtime_1,$ctime,$blksize,$blocks) = stat($dest->{filename});
         if(! defined($mtime_1)) {
-            die "Cannot stat the result of compilation $dest";
+            die "Cannot stat the result of compilation $dest->{filename}";
         }
         $mtime = $mtime_1;
-        $outfile = $dest . $Cilly::savedSourceExt;
+        $outfile = $dest->{filename} . $Cilly::savedSourceExt;
     }
     # sm: made the following output unconditional following the principle
     # that by default you should be able to see every file getting written

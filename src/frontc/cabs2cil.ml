@@ -1501,13 +1501,13 @@ let conditionalConversion (t2: typ) (t3: typ) : typ =
     | TInt _, TPtr _ -> t3 (* most likely comparison with 0 *)
 
           (* When we compare two pointers of diffent type, we combine them 
-           * using the same algorith when combining multiple declarations of 
+           * using the same algorithm when combining multiple declarations of 
            * a global *)
     | (TPtr _) as t2', (TPtr _ as t3') -> begin
         try combineTypes CombineOther t2' t3' 
         with Failure msg -> begin
-          ignore (warn "A.QUESTION %a does not match %a"
-                    d_type (unrollType t2) d_type (unrollType t3));
+          ignore (warn "A.QUESTION: %a does not match %a (%s)"
+                    d_type (unrollType t2) d_type (unrollType t3) msg);
           t2 (* Just pick one *)
         end
     end
