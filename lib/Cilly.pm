@@ -200,10 +200,18 @@ sub collectOneArgument {
         if(! -d $self->{KEEPDIR}) {
             die "Cannot find directory $self->{KEEPDIR}";
         }
+	#The cilly process ignores this flag, but maybe some extension uses it.
+        push @{$self->{CILARGS}}, "--keep";
         return 1;
     }
     if($arg eq '--keep') {
-	die "\"--keep\" requires an argument (e.g. --keep=.)";
+	#treat as "--keep=."
+        $self->{KEEPDIR} = ".";
+        if(! -d $self->{KEEPDIR}) {
+            die "Cannot find directory $self->{KEEPDIR}";
+        }
+        push @{$self->{CILARGS}}, "--keep";
+        return 1;
     }
     if($arg eq '--nomerge') {
         $self->{SEPARATE} = 1;

@@ -2050,6 +2050,14 @@ sign specification; you could argue that this should not be allowed anyway):
 typedef signed char __s8;
 __s8 unsigned uchartest; // This is unsigned char for gcc
 \end{verbatim}\end{code}
+
+%matth: Sept 8, 2003
+\item Like \ahref{http://gcc.gnu.org/onlinedocs/gcc/Thread-Local.html}
+{GCC version 3}, CIL treats ``\t{\_\_thread}'' as a keyword.
+Therefore it will reject programs that use \t{\_\_thread} as an
+identifier, even if you are using MSVC or an older version of GCC.
+(Some versions of pthread.h have this problem.)
+
 \end{itemize}
 
   \section{Using the merger}\label{sec-merger}\cutname{merger.html}
