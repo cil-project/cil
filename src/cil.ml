@@ -2438,11 +2438,13 @@ class defaultCilPrinterClass : cilPrinter = object (self)
               | {skind=Instr [];labels=[]} :: rest -> skipEmpty rest
               | x -> x
             in
+            (* Bill McCloskey: Do not remove the If if it has labels *)
             match skipEmpty b.bstmts with
-              {skind=If(e,tb,fb,_)} :: rest -> begin
+              {skind=If(e,tb,fb,_); labels=[]} :: rest -> begin
                 match skipEmpty tb.bstmts, skipEmpty fb.bstmts with
-                  [], {skind=Break _} :: _  -> e, rest
-                | {skind=Break _} :: _, [] -> UnOp(LNot, e, intType), rest
+                  [], {skind=Break _; labels=[]} :: _  -> e, rest
+                | {skind=Break _; labels=[]} :: _, [] 
+                                     -> UnOp(LNot, e, intType), rest
                 | _ -> raise Not_found
               end
             | _ -> raise Not_found
