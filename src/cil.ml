@@ -610,7 +610,8 @@ class type cilVisitor = object
                                                   * place. *)
   method vfunc : fundec -> fundec visitAction    (* function definition. 
                                                   * Replaced in place. *)
-  method vglob : global -> global visitAction    (* global (vars, types,etc.)*)
+  method vglob : global -> global list visitAction  (* global (vars, 
+                                                     * types,etc.)  *)
   method vinit : init -> init visitAction        (* initializers for globals *)
   method vtype : typ -> typ visitAction          (* use of some type *)
   method vattr : attribute -> attribute list visitAction (* An attribute *)
@@ -2644,9 +2645,9 @@ and childrenFunction (vis : cilVisitor) (f : fundec) : fundec =
   f.sbody <- visitCilBlock vis f.sbody;        (* visit the body *)
   f
 
-let rec visitCilGlobal (vis: cilVisitor) (g: global) : global =
+let rec visitCilGlobal (vis: cilVisitor) (g: global) : global list =
   (trace "visit" (dprintf "visitCilGlobal\n"));
-  doVisit vis vis#vglob childrenGlobal g
+  doVisitList vis vis#vglob childrenGlobal g
 and childrenGlobal (vis: cilVisitor) (g: global) : global =
   match g with
   | GFun (f, l) -> 
@@ -2683,7 +2684,7 @@ and childrenGlobal (vis: cilVisitor) (g: global) : global =
 let visitCilFile (vis : cilVisitor) (f : file) : file =
   let fGlob g = visitCilGlobal vis g in
   (* primary list of globals *)
-  f.globals <- mapNoCopy fGlob f.globals;
+  f.globals <- mapNoCopyList fGlob f.globals;
   (* the global initializer *)
   (match f.globinit with
     None -> ()

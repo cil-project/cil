@@ -824,7 +824,8 @@ class type cilVisitor = object
                                                  * place. *)
   method vfunc: fundec -> fundec visitAction    (* function definition. 
                                                  * Replaced in place. *)
-  method vglob: global -> global visitAction    (* global (vars, types,etc.)*)
+  method vglob: global -> global list visitAction (* global (vars, 
+                                                   * types,etc.)  *)
   method vinit: init -> init visitAction        (* initializers for globals *)
   method vtype: typ -> typ visitAction          (* use of some type *)
   method vattr: attribute -> attribute list visitAction (* An attribute *)
@@ -842,7 +843,7 @@ val visitCilInstr: cilVisitor -> instr -> instr list
 val visitCilType: cilVisitor -> typ -> typ
 val visitCilVarDecl: cilVisitor -> varinfo -> varinfo
 val visitCilFunction: cilVisitor -> fundec -> fundec
-val visitCilGlobal: cilVisitor -> global -> global
+val visitCilGlobal: cilVisitor -> global -> global list
 val visitCilInit: cilVisitor -> init -> init
 val visitCilStmt: cilVisitor -> stmt -> stmt
 val visitCilBlock: cilVisitor -> block -> block

@@ -242,7 +242,7 @@ class splitVarVisitorClass : cilVisitor = object (self)
     H.clear dontSplit;
     SkipChildren  (* We are done with this function *)
 
-  method vglob (g: global) : global visitAction = 
+  method vglob (g: global) : global list visitAction = 
     match g with 
      GFun (f, _) -> DoChildren
     | _ -> SkipChildren

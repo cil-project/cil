@@ -1456,8 +1456,7 @@ ijpeg-noclean: defaulttarget mustbegcc
 #### SPEC95 gcc
 GCCDIR=$(SPECDIR)/126.gcc
 # sm: --noPrintInferbox works around an infinite loop in our data structure
-GCCSAFECC=$(CCURED) --combine --noPrintInferbox \
-                    $(PATCHARG)
+GCCSAFECC=$(CCURED) --combine $(PATCHARG)
 
 
 gccclean: 	
@@ -1466,12 +1465,12 @@ gccclean:
 
 gcc: defaulttarget mustbegcc
 	cd $(GCCDIR)/src; \
-            make clean build CC="$(GCCSAFECC) -DCCURED $(CONLY)" \
+            make clean build CC="$(GCCSAFECC) $(CONLY)" \
                              LD="$(GCCSAFECC)" 
 
 gcc-noclean: defaulttarget mustbegcc
 	cd $(GCCDIR)/src; \
-            make       build CC="$(GCCSAFECC) -DCCURED  $(CONLY)" \
+            make       build CC="$(GCCSAFECC) $(CONLY)" \
                              LD="$(GCCSAFECC)" 
 
 gcc-combined: defaulttarget mustbegcc
