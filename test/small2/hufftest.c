@@ -125,7 +125,7 @@ int main(int argc, char **argv) {
   TIMESTOP(clk);
   printf("Source %d bytes. Compressed %d bytes. Ratio: %5.2lf\n",
          nrSource, written, (double)nrSource / (double)written);
-  printf("Run hashtest in %8.3lfms\n", clk / 1000.0);
+  printf("Run hufftest in %8.3lfms\n", clk / 1000.0);
   exit (0);
   return 0;
 }
