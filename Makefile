@@ -206,6 +206,16 @@ CILDIR=$(BASEDIR)/cil
 _GNUCC=1
 USE_GC=1
 endif
+ifeq ($(COMPUTERNAME), peecy_amanb_win2k) # Aman's win2k box
+ifndef BASEDIR
+BASEDIR=e:/aman/cal/research/
+endif
+SAFECCDIR=$(BASEDIR)
+PCCDIR=$(SAFECCDIR)/cil/test/PCC
+TVDIR=$(BASEDIR)/TransVal
+CILDIR=$(BASEDIR)/cil
+_GNUCC=1
+endif
 
 # sm: I keep getting bit by this
 ifndef BASEDIR
@@ -323,7 +333,9 @@ else
 defaulttarget : $(EXECUTABLE)$(EXE) $(SAFECLIB) $(CILLIB)
 endif
 
+
 setup: defaulttarget includes
+
 
 SAFECC=perl $(CILDIR)/lib/safecc.pl
 
@@ -1605,7 +1617,9 @@ obj/prettytest.exe: src/pretty.mli src/pretty.ml src/prettytest.ml
 prettytest:  obj/prettytest.exe
 	time obj/prettytest.exe ; echo
 
-
+constrainttest:
+	ocamlc -o obj/constraint.exe src/constraint.ml
+	obj/constraint.exe
 
 ### ftpd-BSD-0.3.2-5
 FTPDDIR=test/ftpd/ftpd
