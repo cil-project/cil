@@ -187,7 +187,7 @@ and childrenTypeSpecifier vis ts =
   in
   match ts with
     Tstruct (n, Some fg) -> 
-      (trace "sm" (dprintf "visiting struct %s\n" n));
+      (*(trace "sm" (dprintf "visiting struct %s\n" n));*)
       let fg' = mapNoCopy childrenFieldGroup fg in
       if fg' != fg then Tstruct( n, Some fg') else ts
   | Tunion (n, Some fg) -> 

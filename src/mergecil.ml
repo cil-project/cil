@@ -1391,7 +1391,11 @@ let oneFilePass2 (f: file) =
       end
       | g -> mergePushGlobals (visitCilGlobal renameVisitor g)
   with e -> begin
-    ignore (E.log "error when merging global: %s\n" (Printexc.to_string e));
+    let globStr:string = (P.sprint 1000 (P.dprintf 
+      "error when merging global %a: %s"
+      d_global g  (Printexc.to_string e))) in
+    ignore (E.log "%s\n" globStr);
+    (*"error when merging global: %s\n" (Printexc.to_string e));*)
     mergePushGlobal (GText (P.sprint 80 
                               (P.dprintf "/* error at %t:" d_thisloc)));
     mergePushGlobal g;
