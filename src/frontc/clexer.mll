@@ -291,7 +291,9 @@ rule initial =
 |		'"'			{ (* '"' *)
                                           try CST_STRING (str lexbuf)
                                           with e -> 
-                                             raise (InternalError "str")}
+                                             raise (InternalError 
+                                                     ("str: " ^ 
+                                                      Printexc.to_string e))}
 |		floatnum		{CST_FLOAT (Lexing.lexeme lexbuf)}
 |		hexnum			{CST_INT (Lexing.lexeme lexbuf)}
 |		octnum			{CST_INT (Lexing.lexeme lexbuf)}
@@ -406,6 +408,7 @@ and pragma = parse
 
 and str = parse	
         '"'             {""} (* '"' *)
+
 |	hex_escape	{let cur = scan_hex_escape (String.sub
 					 (Lexing.lexeme lexbuf) 2 2) in 
                                         cur ^ (str lexbuf)}
