@@ -132,7 +132,7 @@ ifneq ($(INFERBOX),none)
   ifeq ($(INFERBOX),wild)
     # sm: some of my edg-related source changes need to know whether
     # they're being processed for the all-WILD mode
-    CCURED+= -DWILDBOX
+    CCURED+= $(DEF)WILDBOX
   endif
 else
   CCURED+= --curetype=none
@@ -1042,8 +1042,7 @@ perimeter:
 	cd $(PERIMDIR); \
                make PLAIN=1 clean defaulttarget  \
                     $(PERIMARGS) \
-                    CC="$(COMBINECCURED) \
-			$(PATCHARG)"
+                    CC="$(COMBINECCURED) $(CFLAGS) $(PATCHARG)"
 	cd $(PERIMDIR); sh ./testit ./perimeter.exe
 	cd $(PERIMDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                    do time ./perimeter.exe ; done"
