@@ -646,6 +646,8 @@ smAddTest("scott/unscomp");    # kernel/fs/buffer.c
 # current problematic test cases
 smAddTest("scott/complex_float $box");
 smAddTest("mergeinline");
+smFailTest("solver bug, and z2 is removed improperly", 
+           "testexe/structs_comb $box");
 
 # tests of things implemented for EDG compatibility
 smAddTest("mergestruct");
