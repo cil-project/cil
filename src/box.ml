@@ -1389,11 +1389,6 @@ let pkAddrOf (lv: curelval)
   end
   | _ -> begin      
       let ptrtype = mkPointerTypeKind lv.lvt lv.plvk in
-(*
-      ignore (E.log "pkAddrOf: lv=%a\nlvk=%a\nfb=%a\nfe=%a\n"
-                d_plainlval lv N.d_opointerkind lvk 
-                d_plainexp fb d_plainexp fe);
-*)
       match lv.plvk with
         N.Safe -> mkFexp1 ptrtype (mkAddrOf lv.lv), lv.lvstmts
       | (N.Index | N.Wild | N.FSeq | N.FSeqN | N.Seq | N.SeqN ) -> 
@@ -1874,6 +1869,7 @@ let beforeField (inlv: curelval) : curelval
     (* The kind is never a table type *)
     N.Wild -> inlv (* No change if we are in a tagged area *)
   | N.Safe -> inlv (* No change if already safe *)
+
   | N.Index -> 
       let _, _, _, docheck = 
         indexToSafe (mkAddrOf inlv.lv) 
@@ -3582,13 +3578,19 @@ and interceptCall
  * it *)
 and boxlval (b, off) : curelval = 
   (* Maybe we have heapified this one *)
-  match b with
-    Var vi -> begin
+  match b, off with
+    Var vi, off -> begin
       try
         let newb, newoff = H.find heapifiedLocals vi.vname in
         boxlval (newb, addOffset off newoff)
       with Not_found -> boxlval1 (b, off)
     end
+        (* Itercept the case (T* ))->f *)
+  | Mem z, Field(f, NoOffset) when isZero z -> 
+      { lv = (b, off); lvt = typeOfLval (b, off);
+        lvb = zero; lve = zero; plvk = N.Wild; 
+        lvstmts = empty }
+
   | _ -> boxlval1 (b, off)
 
 and boxlval1 (b, off) : curelval =
@@ -3629,8 +3631,6 @@ and boxlval1 (b, off) : curelval =
         { lv = mkMem addr' NoOffset; lvt = addrt1; plvk = addrkind; 
           lvb = addrbase1; lve = addrend1; lvstmts = doaddr2 }
   in
-  if debuglval then
-    ignore (E.log "Startinput: %a\n" d_curelval startinput);
   (* As we go along we need to go into tagged and sized types. *)
   let goIntoTypes (inlv: curelval) : curelval =
           (* (btype, pkind, mklval, base, bend, stmts) as input) *)
@@ -3670,7 +3670,7 @@ and boxlval1 (b, off) : curelval =
 
     | Field (f, resto) -> 
         if debuglval then 
-          ignore (E.log "doingOffset(%s): %a\n" f.fname d_curelval inlv);
+          ignore (E.log "doingField(%s): %a\n" f.fname d_curelval inlv);
         let bflv = beforeField inlv in
         let addf = 
           try
@@ -3849,7 +3849,7 @@ and boxexpf (e: exp) : stmt clist * fexp =
     end
 
     | AddrOf (lv) ->
-        let blv (* (lvt, lvkind, lv', baseaddr, bend, dolv) *) = boxlval lv in
+        let blv = boxlval lv in
         (* Check that variables whose address is taken are flagged as such, 
          * or are globals  *)
         (match blv.lv with
