@@ -119,7 +119,13 @@ char *strpbrk(char const *s, char const *accept) __DUMMYDEFN
 
 // this will probably collide with non-glibc systems.. but I can't
 // #include <stdio.h> because it interacts badly with patching
+#if defined(_MSVC)
+char *fgets(char *buf, int size, struct _iobuf *fp) __DUMMYDEFN
+#elif defined(__CYGWIN__)
+char __cdecl *fgets(char *buf, int size, struct __sFILE *fp) __DUMMYDEFN
+#else
 char *fgets(char *buf, int size, struct _IO_FILE *fp) __DUMMYDEFN
+#endif
 {
   return buf;
 }
