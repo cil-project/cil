@@ -1056,7 +1056,12 @@ and fixupOneArgumentType (funcid, argid) (t: typ) : typ =
 
   | TVoid _ -> t (* This is a missing return or argument type *)
 
-  | _ -> E.s (unimp "fixupOneArgumentType: %a" d_type t)
+  | _ -> begin
+      (* Leave these things alone *)
+      ignore (warn "argument too wide (%a) in a WILD function. Leaving alone!"
+                d_type t);
+      t
+  end
            
 
 (* Keep track of the fixed composite types. Index by full name *)

@@ -3029,7 +3029,7 @@ let rec isCompleteType t =
 
 (* removeUnusedTemps has been moved to rmtmps.ml *)  
 
-
+let debugAlpha = true
 (*** Alpha conversion ***)
 (* Create a new name based on a given name. The new name is formed from a 
  * prefix (obtained from the given name by stripping a suffix consisting of _ 
@@ -3042,18 +3042,25 @@ let rec newAlphaName (alphaTable: (string, int ref) H.t)
   let prefix, sep, suffix = splitNameForAlpha lookupname in
   (* ignore (E.log "newAlphaName(%s). P=%s, S=%d\n" lookupname prefix suffix);
      *)
+  if debugAlpha then
+    ignore (E.log "Alpha conv: %s %s %d. " prefix sep suffix);
   let newname = 
     try
       let rc = H.find alphaTable prefix in
+      if debugAlpha then
+        ignore (E.log " Old suffix %d. " !rc);
       let newsuffix, sep = 
         if suffix > !rc then suffix, sep else !rc + 1, "_" in
       rc := newsuffix;
       prefix ^ sep ^ (string_of_int newsuffix)
     with Not_found -> begin (* First variable with this prefix *)
       H.add alphaTable prefix (ref suffix);
+      ignore (E.log " First seen. ");
       lookupname  (* Return the original name *)
     end
   in
+  if debugAlpha then
+    ignore (E.log " Res=: %s\n" newname);
   newname
   
 (* Strip the suffix. Return the prefix, the separator (empty or _) and a 
@@ -3076,7 +3083,7 @@ and splitNameForAlpha (lookupname: string) : (string * string * int) =
         (String.sub lookupname 0 under_idx, "_", acc)
       else
         let c = Char.code (String.get lookupname i) - Char.code '0' in
-        if c >= 0 && c < 9 then 
+        if c >= 0 && c <= 9 then 
           collectSuffix (10 * acc + c) (i + 1)
         else
           raise Not_found
