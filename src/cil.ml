@@ -2429,6 +2429,9 @@ let rec offsetOfFieldAcc (fi: fieldinfo)
             oaLastFieldWidth = wd;
             oaPrevBitPack = None;
           } 
+
+(* should we make a big noise when we cannot take the size of something? *)
+and flagSizeOfErrors = ref true 
         
 (* The size of a type, in bits. If struct or array then trailing padding is 
  * added *)
@@ -2483,9 +2486,16 @@ and bitsSizeOf t =
   | TArray(t, None, _) -> raise Not_found
         
   | TArray _ -> 
-      E.s (E.unimp "sizeOfInt for non-constant length array:@!%a" d_type t)
+      if (!flagSizeOfErrors) then 
+        E.s (E.unimp "sizeOfInt for non-constant length array:@!%a" d_type t)
+      else
+        raise Not_found
 	| TFun _ -> 32
-  | TVoid _ -> E.s (E.bug "bitsSizeOf void")
+  | TVoid _ -> 
+      if (!flagSizeOfErrors) then
+        E.s (E.bug "bitsSizeOf void")
+      else
+        raise Not_found
 
 
 and addTrailing nrbits = 

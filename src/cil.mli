@@ -677,6 +677,8 @@ class type cilVisitor = object
   method vtdec : string -> typ -> bool    (* typedef *)
 end
 
+class nopCilVisitor : cilVisitor
+
 
 (* other cil constructs *)
 val visitCilFile: cilVisitor -> file -> unit
@@ -842,6 +844,7 @@ val offsetOfFieldAcc: fi: fieldinfo ->
         
 (* The size of a type, in bits. If struct or array then trailing padding is 
  * added *)
+val flagSizeOfErrors: bool ref
 val bitsSizeOf: typ -> int
 val sizeOf: typ -> exp
             

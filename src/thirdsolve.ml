@@ -380,7 +380,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     Hashtbl.iter (fun id cur -> 
       (* is this node "innately" FSeq? *)
       if (not (cur.can_reach_seq || cur.can_reach_index)) &&
-         (cur.posarith || (cur.null && cur.intcast)) &&
+         (cur.posarith || cur.intcast) &&
          cur.kind <> Wild && 
          not(set_outside cur) then begin
          if cur.can_reach_string then begin
@@ -466,7 +466,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     Hashtbl.iter (fun id cur -> 
       (* if it would have been an FSEQ, but for that pesky user annotation *)
       if cur.can_reach_seq && (not cur.can_reach_index) &&
-         (cur.posarith || (cur.null && cur.intcast)) && 
+         (cur.posarith || cur.intcast) && 
          not (set_outside cur) && cur.kind <> Wild then begin
          assert(cur.why_kind <> UserSpec) ; 
          if cur.can_reach_string then
@@ -475,7 +475,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
            (update cur Seq BoolFlag)
       end ;
       (* if it is a natural seq pointer ... *)
-      if (cur.arith || (cur.intcast && not cur.null)) && 
+      if (cur.arith) && 
          (not cur.can_reach_index) &&
          not (set_outside cur) && cur.kind <> Wild then begin
          assert(cur.why_kind <> UserSpec) ; 
@@ -608,14 +608,14 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     Hashtbl.iter (fun id cur -> 
       (* if it would have been an [F]SEQ, but for that pesky user annotation *)
       if (cur.can_reach_index) &&
-         (cur.posarith || (cur.null && cur.intcast)) && 
+         (cur.posarith || cur.intcast) && 
          not (set_outside cur) && cur.kind <> Wild then begin
          assert(cur.why_kind <> UserSpec || cur.kind = Index) ; 
          assert(not(cur.can_reach_seq) || (cur.can_reach_seq && cur.can_reach_index)) ;
          (update cur Index BoolFlag)
       end ;
       (* if it is a natural seq pointer ... *)
-      if (cur.arith || cur.intcast) && (cur.can_reach_index) &&
+      if (cur.arith) && (cur.can_reach_index) &&
          not (set_outside cur) && cur.kind <> Wild then begin
          assert(cur.why_kind <> UserSpec || cur.kind = Index) ; 
          assert(not(cur.can_reach_seq) || (cur.can_reach_seq && cur.can_reach_index)) ;
