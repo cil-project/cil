@@ -40,6 +40,15 @@
 val removeUnusedTemps: Cil.file -> unit
 
 
+(* you can stick names of functions in this hashtable, and then
+ * set Util.sliceGlobal, to keep only the named functions *)
+val forceToKeep : (string, bool) Hashtbl.t
+
+(* if you set 'forceToKeep', then call this version, since it skips
+ * the explicit clearing of that hashtable *)
+val removeUnusedTempsInner: Cil.file -> unit
+
+
 val keepUnused: bool ref (* Set this to true to turn off this module *)
 
 (* AAARRGGGHHH!!!! *)

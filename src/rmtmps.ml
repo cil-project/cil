@@ -213,16 +213,24 @@ let keepUnused = ref false
 (*   - non-extern global variable declarations           *)
 (*   - inline funcs & extern globals that are referenced *)
 (* it only works if we visit toplevel decls in reverse order *)
-let removeUnusedTemps (file : file) =
-  if !keepUnused then () else
+let rec removeUnusedTemps (file : file) =
+  if (!keepUnused || (traceActive "disableTmpRemoval")) then
+    (trace "disableTmpRemoval" (dprintf "temp removal disabled\n")) else
 begin
-  if (traceActive "disableTmpRemoval") then
-    (trace "disableTmpRemoval" (dprintf "temp removal disabled\n"))
-  else
-
   if (traceActive "printCilTree") then (
     (dumpFile defaultCilPrinter stdout file)
   );
+
+  (* begin by clearing all the 'referenced' bits, and noting all *)
+  (* those declarations that are marked 'cilnoremove' *)
+  H.clear forceToKeep;
+
+  (removeUnusedTempsInner file)
+end
+
+and removeUnusedTempsInner (file : file) =
+begin
+  visitCilFileSameGlobals (new clearRefBitsVis) file;
 
   (* find every global function prototype *)
   let globalDecls : (string, bool) H.t = H.create 17 in
@@ -235,11 +243,6 @@ begin
 
   (* for every typedef name, this records whether it is needed *)
   let usedTypedefs : (string, bool) H.t = H.create 17 in
-
-  (* begin by clearing all the 'referenced' bits, and noting all *)
-  (* those declarations that are marked 'cilnoremove' *)
-  H.clear forceToKeep;
-  visitCilFileSameGlobals (new clearRefBitsVis) file;
 
   (* create the visitor object *)
   let vis = (new removeTempsVis usedTypedefs) in
@@ -262,20 +265,34 @@ begin
         (* encountered at once per toplevel construct; so, I leave *)
         (* them uncommented *)
 
+        (* if only OCaml included a "return" construct, I wouldn't have
+         * to resort to a non-functional style here *)
+        let replacement: global option ref = ref None in
+
         (* now examine the head *)
         let retainHead = match hd with
           (* global function definition *)
-          | GFun(f,_) -> (
+          | GFun(f,l) -> (
               let keepIt = ref false in
               let reason = ref "not needed" in
 
-              if (f.svar.vreferenced) then (
-                keepIt := true;
-                reason := "vreferenced flag is set"
-              )
-              else if (H.mem forceToKeep f.svar.vname) then (
+              if (H.mem forceToKeep f.svar.vname) then (
                 keepIt := true;
                 reason := "of noremove pragma"
+              )
+              else if (f.svar.vreferenced) then (
+                if (!U.sliceGlobal) then (
+                  (* when slicing globals, referenced flag is enough to keep
+                   * the prototype, but not the body; replace the body with
+                   * a prototype (given that this functions is referenced) *)
+                  replacement := Some(GVarDecl(f.svar, l));
+                  keepIt := false;
+                  reason := "replaced by prototype";
+                )
+                else (
+                  keepIt := true;
+                  reason := "vreferenced flag is set"
+                )
               )
               else if (not !U.sliceGlobal) then (
                 (* if we're not slicing, then functions which the linker makes *)
@@ -305,7 +322,8 @@ begin
               )
               else (
                 (* this will be deleted; don't trace *)
-                (trace "usedVar" (dprintf "removing func: %s\n" f.svar.vname));
+                (trace "usedVar" (dprintf "removing func: %s (%s)\n" 
+                                          f.svar.vname !reason));
                 false
               )
             )
@@ -375,14 +393,14 @@ begin
                 (* I think we don't need to trace again during sweep, because *)
                 (* all tracing of types should have finished during mark phase *)
                 (*(visitCilType vis t);*)           (* root; trace it *)
-                true                            (* used; keep it *)
-                  )
+                true                                (* used; keep it *)
+              )
               else (
                 (* not used, remove it *)
                 (trace "usedType" (dprintf "removing typedef %s\n" t.tname));
                 false
-                  )
               )
+            )
 
           (* global variable 'extern' declaration *)
           | GVarDecl(v, _) -> (
@@ -425,10 +443,15 @@ begin
             )
         in
 
-        if (retainHead) then
-          revLoop (hd :: acc) tl
-        else
-          revLoop acc tl
+        match !replacement with
+        | Some(r) ->
+            (* put in the replacement instead of 'hd' *)
+            (revLoop (r :: acc) tl)
+        | _ ->
+            if (retainHead) then
+              (revLoop (hd :: acc) tl)     (* keep 'hd' *)
+            else
+              revLoop acc tl               (* drop head *)
       )
 
     | [] -> acc

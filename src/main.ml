@@ -49,24 +49,41 @@ let mergedChannel : out_channel option ref = ref None
 let keepFiles = ref false
 let heapify = ref false
 let stackguard = ref false
+let doCallGraph = ref false
 let testcil = ref ""
+
+let doEpicenter = ref false
+let epicenterName = ref ""
+let epicenterHops = ref 0
 
 exception Done_Processing
 
 
-let parseOneFile (fname: string) : C.file = 
+let parseOneFile (fname: string) : C.file =
   (* PARSE and convert to CIL *)
   if !Util.printStages then ignore (E.log "Parsing %s\n" fname);
   let cil = F.parse fname () in
-  (* sm: remove unused temps to cut down on gcc warnings  *)
-  (* (Stats.time "usedVar" Rmtmps.removeUnusedTemps cil);  *)
-  (trace "sm" (dprintf "removing unused temporaries\n"));
-  (Rmtmps.removeUnusedTemps cil);
+  
+  if (not !doEpicenter) then (
+    (* sm: remove unused temps to cut down on gcc warnings  *)
+    (* (Stats.time "usedVar" Rmtmps.removeUnusedTemps cil);  *)
+    (trace "sm" (dprintf "removing unused temporaries\n"));
+    (Rmtmps.removeUnusedTemps cil)
+  );
   cil
 
 
 let rec processOneFile (cil: C.file) =
   try begin
+
+    if !doCallGraph then (
+      let graph:Callgraph.callgraph = (Callgraph.computeGraph cil) in
+      (Callgraph.printGraph stdout graph)
+    );
+    
+    if !doEpicenter then (
+      (Epicenter.sliceFile cil !epicenterName !epicenterHops)
+    );
 
     if !Util.doCheck then begin
       ignore (E.log "First CIL check\n");
@@ -88,7 +105,13 @@ let rec processOneFile (cil: C.file) =
     if (!stackguard) then begin
       Heapify.default_stackguard cil 
     end ;
-    
+      
+    (* sm: enabling this by default, since I think usually we
+     * want 'cilly' transformations to preserve annotations; I
+     * can easily add a command-line flag if someone sometimes
+     * wants these suppressed *)
+    C.print_CIL_Input := true;
+
     (match !outChannel with
       None -> ()
     | Some c -> Stats.time "printCIL" (C.dumpFile C.defaultCilPrinter c) cil);
@@ -219,6 +242,12 @@ let rec theMain () =
                "output #line directives in comments";
     "--sliceGlobal", Arg.Unit (fun _ -> Util.sliceGlobal := true),
                "output is the slice of #pragma cilnoremove(sym) symbols";
+    "--doCallGraph", Arg.Unit (fun _ -> doCallGraph := true),
+               "compute and print a static call graph" ;
+    "--epicenter", Arg.String (fun s -> doEpicenter := true; epicenterName := s),
+               "<name>: do an epicenter slice starting from function <name>";
+    "--hops", Arg.Int (fun n -> epicenterHops := n),
+               "<n>: specify max # of hops for epicenter slice";
     (* sm: some more debugging options *)
     "--tr",         Arg.String Trace.traceAddMulti,
                      "<sys>: subsystem to show debug printfs for";
