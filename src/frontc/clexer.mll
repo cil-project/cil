@@ -1,9 +1,10 @@
 (*
  *
- * Copyright (c) 2001-2002, 
+ * Copyright (c) 2001-2003,
  *  George C. Necula    <necula@cs.berkeley.edu>
  *  Scott McPeak        <smcpeak@cs.berkeley.edu>
  *  Wes Weimer          <weimer@cs.berkeley.edu>
+ *  Ben Liblit          <liblit@cs.berkeley.edu>
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -296,20 +297,27 @@ let usuffix = ['u' 'U']
 let lsuffix = "l"|"L"|"ll"|"LL"
 let intsuffix = lsuffix | usuffix | usuffix lsuffix | lsuffix usuffix
 
+let hexprefix = '0' ['x' 'X']
+
 let intnum = decdigit+ intsuffix?
 let octnum = '0' octdigit+ intsuffix?
-let hexnum = '0' ['x' 'X'] hexdigit+ intsuffix?
+let hexnum = hexprefix hexdigit+ intsuffix?
 
 let exponent = ['e' 'E']['+' '-']? decdigit+
 let fraction  = '.' decdigit+
-let floatraw = (intnum? fraction)
+let decfloat = (intnum? fraction)
 	      |(intnum exponent)
 	      |(intnum? fraction exponent)
 	      | (intnum '.') 
               | (intnum '.' exponent) 
 
+let hexfraction = hexdigit* '.' hexdigit+ | hexdigit+
+let binexponent = ['p' 'P'] ['+' '-']? decdigit+
+let hexfloat = hexprefix hexfraction binexponent
+             | hexprefix hexdigit+   binexponent
+
 let floatsuffix = ['f' 'F' 'l' 'L']
-let floatnum = floatraw floatsuffix?
+let floatnum = (decfloat | hexfloat) floatsuffix?
 
 let ident = (letter|'_')(letter|decdigit|'_')* 
 let attribident = (letter|'_')(letter|decdigit|'_'|':')
