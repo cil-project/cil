@@ -1113,7 +1113,7 @@ let collect_ptset_fast (l : c_absloc) : abslocset =
 	  li.aliases
 	end
   in
-    insist (can_query_graph ()) "can't query graph";
+    insist (can_query_graph ()) "flow_step can't query graph";
     if (get_flow_computed l) then (get_aliases l)
     else
       begin
@@ -1145,7 +1145,7 @@ let collect_ptset_slow (l : c_absloc) : abslocset =
       end
   in
     begin
-      insist (can_query_graph ()) "can't query graph";
+      insist (can_query_graph ()) "collect_ptset_slow can't query graph";
       if (get_flow_computed l) then
 	(get_aliases l)
       else  
@@ -1222,9 +1222,9 @@ let points_to_names (lv : lvalue) : string list =
 let absloc_points_to (lv : lvalue) : absloc list = 
   points_to_aux (lv.contents)
   
-let absloc_epoints_to = points_to_aux 
+let absloc_epoints_to (t : tau) : absloc list = points_to_aux t
 
-let absloc_of_lvalue (lv : lvalue) = (find lv.l).loc
+let absloc_of_lvalue (lv : lvalue) : absloc = (find lv.l).loc
 
 let absloc_eq = equal_absloc
 

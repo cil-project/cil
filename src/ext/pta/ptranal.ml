@@ -154,6 +154,18 @@ let next_alloc = function
       in A.address (A.make_lvalue false name (Some v)) (* check *)
   | _ -> raise Bad_return
 
+let is_effect_free_fun = function
+  | Lval (lh,o) when (isFunctionType (typeOfLval (lh,o))) ->
+      begin match lh with
+	| Var v -> begin
+            try ("CHECK_" = String.sub v.vname 0 6)
+            with Invalid_argument _ -> false
+          end
+	| _ -> false
+      end
+  | _ -> false
+      
+
 (***********************************************************************)
 (*                                                                     *)
 (* AST Traversal Functions                                             *)
@@ -306,6 +318,12 @@ let analyze_instr (i : instr ) : unit =
 	      | Some r -> A.assign (analyze_lval r) (next_alloc (fexpr))
 	      | None -> ()
 	  end
+        else if (is_effect_free_fun fexpr)
+        then 
+          begin 
+            List.map analyze_expr actuals; 
+            () 
+          end
 	else (* todo : check to see if the thing is an undefined function *)
 	  begin
 	    let 
@@ -680,21 +698,41 @@ let compute_alias_frequency () : unit =
 *)
 
 
-(** abstract location interface *)
+(***********************************************************************)
+(*                                                                     *)
+(* Abstract Location Interface                                         *)
+(*                                                                     *)
+(***********************************************************************)
 type absloc = A.absloc
 
 let rec lvalue_of_varinfo (vi : varinfo) : A.lvalue =
   H.find lvalue_hash vi
 
 let lvalue_of_lval = traverse_lval
-let lvalue_of_expr = traverse_expr
+let tau_of_expr = traverse_expr
 
 (** return an abstract location for a varinfo, resp. lval *)
 let absloc_of_varinfo vi = A.absloc_of_lvalue (lvalue_of_varinfo vi)
 let absloc_of_lval lv = A.absloc_of_lvalue (lvalue_of_lval lv)
 
-let absloc_e_points_to e = A.absloc_epoints_to (lvalue_of_expr e)
+let absloc_e_points_to e = A.absloc_epoints_to (tau_of_expr e)
 let absloc_lval_aliases lv = A.absloc_points_to (lvalue_of_lval lv)
+
+(* all abslocs that e transitively points to *)
+let absloc_e_transitive_points_to (e : Cil.exp) : absloc list =
+  let rec lv_trans_ptsto (worklist : varinfo list) (acc : varinfo list) : absloc list =
+    match worklist with 
+      | [] -> List.map absloc_of_varinfo acc
+      | vi::wklst'' -> 
+          if List.mem vi acc then 
+            lv_trans_ptsto wklst'' acc
+          else
+            lv_trans_ptsto ( List.rev_append 
+                               (A.points_to (lvalue_of_varinfo vi)) 
+                               wklst'' ) 
+              (vi::acc)
+  in
+    lv_trans_ptsto (A.epoints_to (tau_of_expr e)) []
 
 let absloc_eq a b = A.absloc_eq(a,b)
 

@@ -120,6 +120,8 @@ val absloc_of_lval : Cil.lval -> absloc
 val absloc_eq : absloc -> absloc -> bool
 
 val absloc_e_points_to  : Cil.exp -> absloc list
+val absloc_e_transitive_points_to : Cil.exp -> absloc list 
+
 val absloc_lval_aliases : Cil.lval -> absloc list
 
 
