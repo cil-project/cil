@@ -141,6 +141,9 @@ ifdef MANUALBOX
 endif
 
 
+ifdef OCAMLDEBUG
+  CCURED+= --ocamldebug
+endif
 ifdef NOGC
   CCURED+= --nogc
 endif
@@ -2427,3 +2430,4 @@ PINGDIR := $(CCUREDHOME)/test/ping
 
 ping:
 	cd $(PINGDIR); rm -f ping.o; make CC="$(CCURED) $(STANDARDPATCH)"
+

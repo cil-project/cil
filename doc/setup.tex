@@ -80,6 +80,48 @@ To test your ocaml distribution, try:
   # exit 0;;    <-- you type "exit 0;;", and press enter
 \end{verbatim}
 
+ If you intend to program in Ocaml then you should also install the emacs
+support files for ocaml. This will give you nice fontification and
+indentation. If you check in code that is not indented nicely some members of
+the project will not be pleased!
+
+ \subsection{Debugging Support Ocaml}
+
+ If you expet to need to run the debugger our projects are set up in such a
+way that they will invoke the debugger for you. How to do that is described in
+each project's documentation. But for that support to work you must add the
+following code to your .emacs file:
+\begin{verbatim}
+(defvar ocamldebug-history nil)
+(defun my-camldebug (command-line)
+  "Run camldebug on program FILE in buffer *camldebug-FILE*.
+The directory containing FILE becomes the initial working directory
+and source-file directory for camldebug.  If you wish to change this, use
+the camldebug commands `cd DIR' and `directory'."
+  (interactive
+   (list (read-from-minibuffer "Run ocamldebug (like this): "
+			       (if (consp ocamldebug-history)
+				   (car ocamldebug-history)
+				 "ocamldebug")
+                                 nil
+                               nil
+			       '(ocamldebug-history . 1))))
+  ; call something from camldebug.el to make sure it is loaded
+  (camldebug-numeric-arg 1)
+  (pop-to-buffer (concat "*camldebug*"))
+  (setq words (gud-chop-words command-line)) 
+  (message "Current directory is %s" default-directory)
+  (apply 'make-comint (cons "camldebug"
+                      (cons (car words)
+                      (cons nil (cdr words)))))
+  (set-process-filter (get-buffer-process (current-buffer))
+                      'camldebug-filter)
+  (set-process-sentinel (get-buffer-process (current-buffer))
+                        'camldebug-sentinel)
+  (camldebug-mode)
+  (camldebug-set-buffer))
+\end{verbatim}
+
 
 \section{Set the environment variables}
 

@@ -3330,7 +3330,7 @@ let printFile (pp: cilPrinter) (out : out_channel) file =
   iterGlobals file 
     (fun g -> 
       let dg = printGlobal pp () g in
-      if dg != nil then print (printGlobal pp () g ++ line));
+      if dg != nil then print (dg ++ line));
     
   (* sm: we have to flush the output channel; if we don't then under *)
   (* some circumstances (I haven't figure out exactly when, but it happens *)
