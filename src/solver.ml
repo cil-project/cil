@@ -75,6 +75,48 @@ let sequence_condition t_from t_to =
     (TArray(t_to,(Some(Const(CInt32(Int32.of_int 1024,
                                     ILong,None)))),[])) Safe 
 
+
+(* Add compatibility edges between nodes that are pointed by two pointers in 
+ * the ECast relationship.  For example, in
+ *       int *(1) *(2) x;
+ *       int *(3) *(4) y = x;
+ * We add an edge between (1) and (3). They must have the same kind
+ * (i.e., they must both be WILD or both be SAFE). *)
+
+(* Add compatibility edges for all casts out of a node *)
+let addCompatEdges (n1: node) = 
+  (* Add a compatibility edge between two nodes *)
+  let rec addIt (n1: node) (n2: node) : unit = 
+    (* Only if there is no such edge already *)
+    if not (List.exists (fun e -> e.eto == n2 && e.ekind = ECompat) n1.succ) 
+    then begin
+      addEdge n1 n2 ECompat (-1);
+      doTypePair n1.btype n2.btype (* Recurse *)
+    end
+
+  (* Process a pair of type which are in ECast or ECompat relationship *)
+  and doTypePair (t1: typ) (t2: typ) = 
+    match t1, t2 with
+    | (TInt _ | TFloat _ | TEnum _ | TBitfield _), 
+      (TInt _ | TFloat _ | TEnum _ | TBitfield _) -> ()
+
+    | TPtr (bt1, a1), TPtr (bt2, a2) -> begin
+        match nodeOfAttrlist a1, nodeOfAttrlist a2 with 
+          Some btn1, Some btn2 -> addIt btn1 btn2
+        | _ -> () (* this should never happen !!! *)
+    end
+
+    | TFun (rt1, args1, _, _), TFun (rt2, args2, _, _) 
+          when List.length args1 = List.length args2 -> 
+        doTypePair rt1 rt2;
+        List.iter2 (fun a1 a2 -> doTypePair a1.vtype a2.vtype) args1 args2
+        
+    | _ -> () (*  !!!! We should handle structs at the very least *)
+  in
+  List.iter 
+    (fun e -> if e.ekind = ECast then doTypePair n1.btype e.eto.btype) 
+    n1.succ
+ 
 (*
  * The Heart of the Solver
  *)
@@ -83,34 +125,39 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    * ~~~~~~
    * Add ECompat edges.
    *)
-  if show_steps then ignore (Pretty.printf "Solver: Step 1  (ECompat)\n") ;
-  (* loop over all the nodes ... *)
   let finished = ref false in 
+  if show_steps then ignore (Pretty.printf "Solver: Step 1  (ECompat)\n") ;
+  Hashtbl.iter (fun id cur -> addCompatEdges cur) node_ht;
+
+(*
+  * loop over all the nodes ... *
   while (not !finished) do 
     finished := true ; 
     Hashtbl.iter (fun id cur -> 
-      (* Add ECompat edges. For example, in
-       * int *(1) *(2) x;
-       * int *(3) *(4) y = x;
-       * We add an edge between (1) and (3). They must have the same kind
-       * (i.e., they must both be WILD or both be SAFE). *)
+      * Add ECompat edges. For example, in
+      * int *(1) *(2) x;
+      * int *(3) *(4) y = x;
+      * We add an edge between (1) and (3). They must have the same kind
+      * (i.e., they must both be WILD or both be SAFE). *
       List.iter (fun e -> 
-         match (nodeOfAttrlist (typeAttrs cur.btype)),
+        match (nodeOfAttrlist (typeAttrs cur.btype)),
                (nodeOfAttrlist (typeAttrs e.eto.btype)) with
            Some(n1),Some(n3) -> begin
-             (* check and see if there is already such an edge *)
+             * check and see if there is already such an edge *
              if List.exists (fun e -> e.eto == n3 &&
-                e.ekind = ECompat) n1.succ then
-                () (* already done *)
+               e.ekind = ECompat) n1.succ then
+               () * already done *
              else begin
-               addEdge n1 n3 ECompat e.ecallid; (* use same callid *)
+               addEdge n1 n3 ECompat e.ecallid; * use same callid *
                finished := false ; 
              end
            end
          | _ -> ()
-      ) (cast_compat_edges cur.succ);
-    ) node_ht ; 
+               ) (cast_compat_edges cur.succ);
+      ) node_ht ; 
   done ;
+*)
+
 
   (* Step 2
    * ~~~~~~
