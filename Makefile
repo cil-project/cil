@@ -64,8 +64,8 @@ endif
 spec : $(EXECUTABLE)$(EXE)
 
 .PHONE: trval
-trval: $(TVDIR)/obj/transval$(EXE)
-	make -C $(TVDIR)
+trval: $(TVDIR)/obj/transval.asm.exe
+	make -C $(TVDIR) RELEASE=1
 
 export EXTRAARGS
 export BOX

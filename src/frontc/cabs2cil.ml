@@ -1100,7 +1100,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
           tresult   (* Should this be t instead ??? *)
           
     | A.UNARY((A.POSINCR|A.POSDECR) as uop, e) -> 
-      (* If we do not drop the result then we must save the value *)
+        (* If we do not drop the result then we must save the value *)
         let uop' = if uop = A.POSINCR then Plus else Minus in
         let (se, e', t) = doExp e (AExp None) in
         let lv = 
@@ -1110,6 +1110,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
           | _ -> E.s (E.unimp "Expected lval for ++ or --")
         in
         let tresult, opresult = doBinOp uop' (Lval(lv)) t one intType in
+        (* The actual ++ must occur after the current statement !!! *)
         let se', result = 
           if what <> ADrop then 
             let tmp = newTempVar t in
