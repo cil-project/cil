@@ -1055,10 +1055,12 @@ let arithmeticConversion    (* c.f. ISO 6.3.1.8 *)
 (* Specify whether the cast is from the source code *)
 let rec castTo ?(fromsource=false) 
                 (ot : typ) (nt : typ) (e : exp) : (typ * exp ) = 
+(*
   ignore (E.log "%t: castTo:%s %a->%a\n"
             d_thisloc
             (if fromsource then "(source)" else "")
             d_type ot d_type nt);
+*)
   if not fromsource && typeSig ot = typeSig nt then
     (* Do not put the cast if it is not necessary, unless it is from the 
      * source. *)
