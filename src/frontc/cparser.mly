@@ -821,6 +821,9 @@ attr:
 |   IDENT COLON CST_INT                  { VARIABLE ($1 ^ ":" ^ $3) }
 |   DEFAULT COLON CST_INT                { VARIABLE ("default:" ^ $3) }
 |   NAMED_TYPE                           { VARIABLE $1 }
+                                         /* (* use a VARIABLE "" so that the 
+                                             * parentheses are printed *) */
+|   IDENT LPAREN  RPAREN                 { CALL(VARIABLE $1, [VARIABLE ""]) }
 |   IDENT LPAREN attr_list_ne RPAREN     { CALL(VARIABLE $1, $3) }
 |   CST_INT                              { CONSTANT(CONST_INT $1) }
 |   string_list                          { CONSTANT(CONST_STRING $1) }
