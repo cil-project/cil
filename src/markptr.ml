@@ -1328,7 +1328,7 @@ and doFunctionCall
   let funct =
     match pfunct with
       TPtr ((TFun _ as funct), _) -> funct
-    | _ -> E.s (bug "Expected a function pointer here")
+    | _ -> E.s (bug "Mark:doFunctionCall: Expected a function pointer here")
   in
   let (rt, formals, isva) = 
     match unrollType funct with

@@ -3463,8 +3463,14 @@ and constFold (machdep: bool) (e: exp) : exp =
   match e with
     BinOp(bop, e1, e2, tres) -> constFoldBinOp machdep bop e1 e2 tres
   | UnOp(Neg, e1, tres) -> begin
+      let tk = 
+        match unrollType tres with
+          TInt(ik, _) -> ik
+        | TEnum _ -> IInt
+        | _ -> E.s (bug "constFold:UnOp")
+      in
       match constFold machdep e1 with
-        Const(CInt64(i,ik,_)) -> kinteger64 ik (Int64.neg i)
+        Const(CInt64(i,ik,_)) -> kinteger64 tk (Int64.neg i)
       | _ -> e
   end
         (* Characters are integers *)
@@ -3479,8 +3485,11 @@ and constFold (machdep: bool) (e: exp) : exp =
   | SizeOfE e when machdep -> constFold machdep (SizeOf (typeOf e))
 
   | CastE (t, e) -> begin
-      match constFold machdep e, t with 
-        Const(CInt64(i,k,_)), TInt(nk,_) -> Const(CInt64(i,nk,None))
+      match constFold machdep e, unrollType t with 
+        (* Might truncate silently *)
+        Const(CInt64(i,k,_)), TInt(nk,_) -> 
+          let i' = truncateInteger64 nk i in
+          Const(CInt64(i', nk, None))
       | e', _ -> CastE (t, e')
   end
 
@@ -3496,7 +3505,10 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
                                         IInt, None))
         | CastE(TInt (ik, ta), e) -> begin
             match mkInt e with
-              Const(CInt64(i, _, _)) -> kinteger64 ik i 
+              Const(CInt64(i, _, _)) -> 
+                let i' = truncateInteger64 ik i in
+                Const(CInt64(i', ik, None))
+
             | e' -> CastE(TInt(ik, ta), e')
         end
         | e -> e
@@ -3528,32 +3540,32 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
       | IndexPI, e1'', Const(CInt64(z,_,_)) when z = Int64.zero -> e1''
       | MinusPI, e1'', Const(CInt64(z,_,_)) when z = Int64.zero -> e1''
       | PlusA, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
-          kinteger64 ik1 (Int64.add i1 i2)
+          kinteger64 tk (Int64.add i1 i2)
       | MinusA, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
-          kinteger64 ik1 (Int64.sub i1 i2)
+          kinteger64 tk (Int64.sub i1 i2)
       | Mult, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
-          kinteger64 ik1 (Int64.mul i1 i2)
+          kinteger64 tk (Int64.mul i1 i2)
       | Div, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> begin
-          try kinteger64 ik1 (Int64.div i1 i2)
+          try kinteger64 tk (Int64.div i1 i2)
           with Division_by_zero -> BinOp(bop, e1', e2', tres)
       end
       | Mod, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> begin
-          try kinteger64 ik1 (Int64.rem i1 i2)
+          try kinteger64 tk (Int64.rem i1 i2)
           with Division_by_zero -> BinOp(bop, e1', e2', tres) 
       end
       | BAnd, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
-          kinteger64 ik1 (Int64.logand i1 i2)
+          kinteger64 tk (Int64.logand i1 i2)
       | BOr, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
-          kinteger64 ik1 (Int64.logor i1 i2)
+          kinteger64 tk (Int64.logor i1 i2)
       | BXor, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
-          kinteger64 ik1 (Int64.logxor i1 i2)
+          kinteger64 tk (Int64.logxor i1 i2)
       | Shiftlt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,IInt,_)) -> 
-          kinteger64 ik1 (Int64.shift_left i1 (Int64.to_int i2))
+          kinteger64 tk (Int64.shift_left i1 (Int64.to_int i2))
       | Shiftrt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,IInt,_)) -> 
           if isunsigned ik1 then 
-            kinteger64 ik1 (Int64.shift_right_logical i1 (Int64.to_int i2))
+            kinteger64 tk (Int64.shift_right_logical i1 (Int64.to_int i2))
           else
-            kinteger64 ik1 (Int64.shift_right i1 (Int64.to_int i2))
+            kinteger64 tk (Int64.shift_right i1 (Int64.to_int i2))
 
       | Eq, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
           integer (if i1 = i2 then 1 else 0)

@@ -212,6 +212,8 @@ $TEST->add3Tests("testrun/addr-array");
 $TEST->addTests("combine1", "", ['cil']);
 $TEST->addTests("combine2", "", ['cil']);
 $TEST->addTests("combine3", "", ['cil']);
+$TEST->add2Tests("testrun/funptr1");
+   $TEST->addBadComment("testrun/funptr1-inferbox", "Bug in markptr");
 
 # Tests that are expected to fail
 $TEST->add2TestsFail("testrun/failubound1", "", "Failure .+: Ubound");
