@@ -941,7 +941,7 @@ ac_config_headers="$ac_config_headers config.h"
 # Assign here the CIL version numbers
 CIL_VERSION_MAJOR=1
 CIL_VERSION_MINOR=1
-CIL_VERSION_REV=0
+CIL_VERSION_REV=1
 CIL_VERSION=$CIL_VERSION_MAJOR.$CIL_VERSION_MINOR.$CIL_VERSION_REV
 
 CCURED_VERSION_MAJOR=1
@@ -3007,7 +3007,7 @@ echo "$as_me:3006: result: $ac_cv_func_memcmp_working" >&5
 echo "${ECHO_T}$ac_cv_func_memcmp_working" >&6
 test $ac_cv_func_memcmp_working = no && LIBOBJS="$LIBOBJS memcmp.$ac_objext"
 
-for ac_func in mkdir select socket
+for ac_func in mkdir select socket __sysv_signal
 do
 ac_ac_var=`echo "ac_cv_func_$ac_func" | $ac_tr_sh`
 echo "$as_me:3013: checking for $ac_func" >&5

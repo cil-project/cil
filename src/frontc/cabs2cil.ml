@@ -5104,6 +5104,10 @@ and doStatement (s : A.statement) : chunk =
     | A.RETURN (A.NOTHING, loc) -> 
         let loc' = convLoc loc in
         currentLoc := loc';
+        (match !currentReturnType with 
+           TVoid _ -> ()
+          | _ -> 
+            ignore (warn "Return statement without a value in function returning %a\n" d_type !currentReturnType));
         returnChunk None loc'
 
     | A.RETURN (e, loc) -> begin
@@ -5112,6 +5116,7 @@ and doStatement (s : A.statement) : chunk =
         (* Sometimes we return the result of a void function call *)
         match !currentReturnType with
           TVoid _ -> 
+            ignore (warn "Return statement with a value in function returning void");
             let (se, _, _) = doExp false e ADrop in
             se @@ returnChunk None loc'
         | _ ->  
