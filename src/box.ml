@@ -17,6 +17,9 @@ let interceptCasts = ref false  (* If true it will insert calls to
                                  * __scalar2pointer when casting scalars to 
                                  * pointers.  *)
 
+let stackChecks = ref true	    (* include checks like CHECK_STOREPTR and
+															   * CHECK_RETURNPTR? *)
+
 let compactBlocks = true
 
 let lu = locUnknown

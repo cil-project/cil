@@ -1,3 +1,4 @@
+val stackChecks : bool ref
 
 val boxFile: Cil.file -> Cil.file
 
