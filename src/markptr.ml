@@ -592,26 +592,45 @@ let markFile fl =
   currentFileName := fl.fileName;
   E.hadErrors := false;
   H.clear polyFunc;
+  (* Find the globals that are declared but not defined. They are part of 
+   * the interface. *)
+  let interfglobs : (int, varinfo) H.t = H.create 111 in
+  let processDecls = function
+      GDecl (vi, _) ->
+        H.add interfglobs vi.vid vi
+    | _ -> ()
+  in
+  (* Add all the declarations *)
+  List.iter processDecls fl.globals;
+  (* Take out the defined functions *)
+  let processDefs = function
+      GVar (vi, _, _) -> 
+        H.remove interfglobs vi.vid
+    | GFun (fdec, _) -> 
+        H.remove interfglobs fdec.svar.vid
+    | _ -> ()
+  in
+  List.iter processDefs fl.globals;
+
+  (* See what functions we must make polymorphic *)
   if !N.allPoly || !N.externPoly then
     (* Go through the file once and find all declarations - definitions (for 
      * functions only) *)
-    let processDecls = function
-        GDecl (vi, _) when isFunctionType vi.vtype ->
-          H.add polyFunc vi.vname (ref None)
+    let processFunDecls glob = 
+      let vio = 
+        match glob with 
+          GDecl (vi, _) when isFunctionType vi.vtype -> Some vi
+        | GFun (fdec, _) -> Some fdec.svar
+        | _ -> None
+      in
+      match vio with
+        Some vi -> 
+          if !N.allPoly || (!N.externPoly && 
+                            H.mem interfglobs vi.vid) then
+            H.add polyFunc vi.vname (ref None)
       | _ -> ()
     in
-    let processDefs = function
-        GFun (fdec, _) when isFunctionType fdec.svar.vtype ->
-          if !N.externPoly then 
-            H.remove polyFunc fdec.svar.vname
-          else
-            H.add polyFunc fdec.svar.vname (ref None)
-      | _ -> ()
-    in
-    (* Add all the declarations *)
-    List.iter processDecls fl.globals;
-    (* Add or remove definitions, depending on externPoly *)
-    List.iter processDefs fl.globals;
+    List.iter processFunDecls fl.globals;
   else begin
     (* Otherwise we start with some defaults *)
     List.iter (fun s -> H.add polyFunc s (ref None)) 
@@ -620,6 +639,20 @@ let markFile fl =
   theFile := [];
   List.iter (fun g -> let g' = doGlobal g in 
                       theFile := g' :: !theFile) fl.globals;
+
+  (* Now go through the types of interfglobs and mark all nodes that are part 
+   * of the interface *)
+  H.iter
+    (fun id vi -> 
+      ignore 
+        (existsType 
+           (fun t -> 
+             match N.nodeOfAttrlist (typeAttrs t) with
+               Some n -> n.N.interface <- true; ExistsMaybe
+             | _ -> ExistsMaybe)
+           vi.vtype))
+    interfglobs;
+    
   ignore (E.log "Markptr: %s\n"
             (if !E.hadErrors then "Error" else "Success"));
   let newfile = {fl with globals = List.rev !theFile} in

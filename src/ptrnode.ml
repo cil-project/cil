@@ -61,9 +61,6 @@ type node =
       mutable attr: attribute list;     (* The attributes of this pointer 
                                          * type *)
 
-      mutable inInterface: bool;        (* Whether this node appears in the 
-                                         * interface of our module *)
-
       mutable onStack: bool;            (* Whether might contain stack 
                                          * addresses *)
       mutable updated: bool;            (* Whether it is used in a write 
@@ -203,8 +200,8 @@ let d_node () n =
     (if n.arith then "arith," else "")
     (if n.null  then "null," else "")
     (if n.intcast  then "int," else "")
+    (if n.interface  then "interf," else "")
     (if n.sized  then "sized," else "")
-    (if n.inInterface then "interf," else "")
     (docList (chr ',' ++ break)
        (fun n -> num n.id)) n.pointsto
     d_pointerkind n.kind
@@ -376,7 +373,6 @@ let newNode (p: place) (idx: int) (bt: typ) (a: attribute list) : node =
             btype   = bt;
             attr    = addAttribute (ACons("_ptrnode", [AInt !nextId])) a;
             where   = where;
-            inInterface = false;
             onStack = false;
             updated = false;
             arith   = false;
