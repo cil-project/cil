@@ -1,5 +1,5 @@
 # .gdbinit
 
-file vararg-tagged1.exe
+file transtest-ptr2.exe
 break main
 run
