@@ -70,18 +70,23 @@ type doc =
 (* Break a string at \n *)
 let rec breakString (acc: doc) (str: string) : doc = 
   try
+    (* Printf.printf "breaking string %s\n" str; *)
     let r = String.index str '\n' in
+    (* Printf.printf "r=%d\n" r; *)
     let len = String.length str in
-    if r > 0 then 
-      let acc' = Concat(CText (acc, String.sub str 0 (r - 1)), Line) in
+    if r > 0 then begin
+      (* Printf.printf "Taking %s\n" (String.sub str 0 r); *)
+      let acc' = Concat(CText (acc, String.sub str 0 r), Line) in
       if r = len - 1 then (* The last one *)
         acc'
-      else
+      else begin
+        (* Printf.printf "Continuing with %s\n" (String.sub str (r + 1) (len - r - 1)); *)
         breakString acc'
-          (String.sub str (r + 1) (String.length str - r - 1))
-    else (* The first is a newline *)
+          (String.sub str (r + 1) (len - r - 1))
+      end
+    end else (* The first is a newline *)
       breakString (Concat(acc, Line))
-        (String.sub str (r + 1) (String.length str - r - 1))
+        (String.sub str (r + 1) (len - r - 1))
   with Not_found -> 
     if acc = Nil then Text str else CText (acc, str)
 
@@ -319,7 +324,7 @@ let movingRight (abscol: int) : int =
 let printDepth = ref 10000000 (* WRW: must see whole thing *)
 let alignDepth = ref 0
 
-let useAlignDepth = true
+let useAlignDepth = false
 
 (** Start an align. Return true if we ahve just passed the threshhold *)
 let enterAlign () = 
