@@ -43,7 +43,7 @@ int main(void)
     }
     // if (i > 2000) { listAllBtreeValues(Bplus); }
   }
-  for (i = 0; i < 25600; i++)
+  for (i = 0; i < 1505600; i++)
     (void) search(Bplus, i);
   // listAllBtreeValues(Bplus);
   freeBtree(Bplus);
