@@ -118,62 +118,6 @@
     // waiting on rest until need them..
   #endif
 
-  union printf_format {
-    int             f_int;
-    double          f_double;
-    char * __ROSTRING f_string;
-    #ifdef _GNUCC
-      // sm: needed for ftpd's file-length printout
-      long long     f_longlong;
-    #endif
-  };
-
-  #pragma boxvararg_printf("printf", 1)
-  #pragma boxvararg_printf("fprintf", 2)
-  #pragma boxvararg_printf("snprintf", 3)
-  #pragma boxvararg_printf("syslog", 2)
-  #pragma boxvararg_printf("sprintf", 2)
-  #pragma boxvararg_printf("vsprintf", 2)
-  #pragma boxvararg_printf("vprintf", 1)     // sm: for ftpd
-  #pragma boxvararg_printf("vsyslog", 2)     // sm: for ftpd
-
-  // We want to force sprintf to carry a length
-  #pragma boxvararg("sprintf_model", sizeof(union printf_format))
-  #pragma cilnoremove("sprintf_model")
-  static inline
-  int sprintf_model(char *buffer, const char *format, ...) {
-    // Force buffer to carry a length
-    void* e = __endof(buffer); // buffer ++ would do the same
-    return 0;
-  }
-  #pragma boxmodelof("sprintf_model", "sprintf")
-
-  // We want to force vsprintf to carry a length
-  #pragma boxvararg("vsprintf_model", sizeof(union printf_format))
-  static inline 
-  int vsprintf_model(char *buffer, const char *format,
-                     struct __ccured_va_list *args) {
-    // Force buffer to carry a length
-    void* e = __endof(buffer); // buffer ++ would do the same
-    return 0;
-  }
-  #pragma boxmodelof("vsprintf_model", "vsprintf")
-  #pragma cilnoremove("vsprintf_model")   
-
-  // sm: adding this for wu-ftpd, where there are lots of calls
-  // to {s,f}scanf, but in all cases it's a simple type being read,
-  // not a string, so we should be ok letting things go unchecked
-  union scanf_format {
-    int *p_int;
-    double *p_double;
-    long *p_long;
-    unsigned int *p_uint;
-    // sm: if someone wants to add char* here, a wrapper should
-    // be written, I think
-  };
-
-  #pragma boxvararg("sscanf", sizeof(union scanf_format))
-  #pragma boxvararg("fscanf", sizeof(union scanf_format))
 
   // sm: taking a stab at strchr's model
   static inline
@@ -183,17 +127,6 @@
   }
   #pragma cilnoremove("strchr_model")
   #pragma boxmodelof("strchr_model", "strchr")
-
-  #if 0
-    // sm: I didn't notice this was here before I wrote the one below..
-    static inline char *strpbrk_model(char const *s, char const *accept)
-    {
-      int someInt = (int)(*accept);   // make sure 'accept' can be read from
-      return s;                       // connect s to retval
-    }
-    #pragma cilnoremove("strpbrk_model")
-    #pragma boxmodelof("strpbrk_model", "strpbrk")
-  #endif // 0
 
   static inline char *strdup_model(char const *s)
   {
