@@ -57,7 +57,8 @@ PLIST insert(PLIST l, void *  el, int pos) {
 int exists(PLIST l, void *  el) {
   while(l && l->car != el) {
     l= l->cdr;
-    l ++;
+    /* WEIMER: this increment is an error! */
+    /* l ++;             */
   }
   return (l != 0);
 }
