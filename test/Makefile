@@ -1446,8 +1446,11 @@ compress-optimvariant: mustbegcc
               do time ./compress.exe <input.data >combine-compress.out ;done"
 
 
+# sm: -DCCURED_MODIFICATIONS enables Wes' manual splitting of the 'node'
+# struct; I need it to *not* be enabled for the run through gcc, since
+# gcc-2.x doesn't know about transparent unions
 LIDIR := $(SPECDIR)/130.li
-LISAFECC := $(CCURED) --allowInlineAssembly 
+LISAFECC := $(CCURED) -DCCURED_MODIFICATIONS --allowInlineAssembly 
 li:  mustbegcc
 	cd $(LIDIR)/src; \
             make clean build CC="$(LISAFECC) $(CONLY)" \
