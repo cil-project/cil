@@ -537,7 +537,7 @@ and doExpAndCastCall e t callid =
   expToType (doExp e') t callid
 
 
-let debugInstantiate = true
+let debugInstantiate = false
 
 (* Keep track of all instantiations that we did, so we can copy the bodies *)
 let instantiations: (string * varinfo) list ref = ref []
@@ -1363,13 +1363,15 @@ let doGlobal (g: global) : global =
       (match a with
         Attr("boxpoly", [ AStr(s) ]) -> 
           if not (H.mem polyFunc s) then begin
-            ignore (E.log "Will treat %s as polymorphic\n" s); 
+            if !E.verboseFlag then 
+              ignore (E.log "Will treat %s as polymorphic\n" s); 
             H.add polyFunc s (ref None)
           end
 
       | Attr("boxalloc", AStr(s) :: _) -> 
           if not (H.mem polyFunc s) then begin
-            ignore (E.log "Will treat %s as polymorphic\n" s); 
+            if !E.verboseFlag then 
+              ignore (E.log "Will treat %s as polymorphic\n" s); 
             H.add polyFunc s (ref None)
           end
 
@@ -1379,7 +1381,8 @@ let doGlobal (g: global) : global =
 
       | Attr("boxvararg", [AStr s; ASizeOf t]) -> 
           if debugVararg then 
-            ignore (E.log "Will treat %s as a vararg function\n" s);
+            if !E.verboseFlag then 
+              ignore (E.log "Will treat %s as a vararg function\n" s);
           applyToFunction s 
             (addFunctionTypeAttribute (Attr("boxvararg", [ASizeOf t])))
 
@@ -1460,8 +1463,9 @@ let doGlobal (g: global) : global =
             List.iter 
               (function 
                   Attr(_, [AStr fname]) -> 
-                    ignore (E.log "Will use %s as a model for %s\n"
-                              fdec.svar.vname fname);
+                    if !E.verboseFlag then 
+                      ignore (E.log "Will use %s as a model for %s\n"
+                                fdec.svar.vname fname);
                     H.add boxModels fname fdec;
                 | _ -> ()) modelattrs;
           end;
@@ -1710,8 +1714,9 @@ let markFile fl =
            vi.vtype))
     interfglobs;
     
-  ignore (E.log "Markptr: %s\n"
-            (if !E.hadErrors then "Error" else "Success"));
+  if !E.verboseFlag || !E.hadErrors then
+    ignore (E.log "Markptr: %s\n"
+              (if !E.hadErrors then "Error" else "Success"));
   let newfile = {fl with globals = newglobals; globinit = newglobinit} in
   if !Util.doCheck then
     Check.checkFile [] newfile;
@@ -1727,7 +1732,7 @@ let markFile fl =
   newfile
 
         
-let solver = ref "simple"
+let solver = ref "fourth"
 
 (* A special file printer *)
 let printFile (c: out_channel) fl = 

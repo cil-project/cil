@@ -67,20 +67,20 @@ let rec theMain () =
   in
   (*********** COMMAND LINE ARGUMENTS *****************)
   let argDescr = [
-    "-verbose", Arg.Unit (fun _ -> E.verboseFlag := true),
+    "--verbose", Arg.Unit (fun _ -> E.verboseFlag := true),
                 "turn of verbose mode";
-    "-debug", Arg.String (setDebugFlag true),
+    "--debug", Arg.String (setDebugFlag true),
                      "<xxx> turns on debugging flag xxx";
-    "-flush", Arg.Unit (fun _ -> Pretty.flushOften := true),
+    "--flush", Arg.Unit (fun _ -> Pretty.flushOften := true),
                      "Flush the output streams often (aids debugging)" ;
-    "-log", Arg.String openLog, "the name of the log file";
-    "-o", Arg.String (fun s -> outputFile := s),
+    "--log", Arg.String openLog, "the name of the log file";
+    "--o", Arg.String (fun s -> outputFile := s),
                      "output file for the combiner";
-    "-msvc", Arg.Unit (fun _ -> Cprint.msvcMode := true),
+    "--msvc", Arg.Unit (fun _ -> Cprint.msvcMode := true),
              "Produce MSVC output. Default is GNU";
-    "-noPrintLn", Arg.Unit (fun _ -> Cprint.printLn := false),
+    "--noPrintLn", Arg.Unit (fun _ -> Cprint.printLn := false),
                "don't output #line directives";
-    "-commPrintLn", Arg.Unit (fun _ -> Cprint.printLnComment := true),
+    "--commPrintLn", Arg.Unit (fun _ -> Cprint.printLnComment := true),
                "output #line directives in comments";
   ] in
   begin

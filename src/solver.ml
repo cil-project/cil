@@ -14,8 +14,6 @@ module E = Errormsg
 let safe_downcasts = false
 let ignore_funs = false
 
-let show_steps = true
-
 (* Set this to true and initialize the watch_which_nodes with a list of nodes 
 n * to be watched *)
 let logUpdates = false
@@ -150,7 +148,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    * Add ECompat edges.
    *)
   let finished = ref false in 
-  if show_steps then ignore (E.log "Solver: Step 1  (ECompat)\n") ;
+  if !E.verboseFlag then ignore (E.log "Solver: Step 1  (ECompat)\n") ;
   Hashtbl.iter (fun id cur -> addCompatEdges cur) node_ht;
 
 (*
@@ -188,7 +186,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    * Our second pass over the set of nodes. 
    * Set all of the flag starting conditions that we know about.  
    *)
-  if show_steps then ignore (E.log "Solver: Step 2  (Base Case)\n") ;
+  if !E.verboseFlag then ignore (E.log "Solver: Step 2  (Base Case)\n") ;
   (* loop over all the nodes ... *)
   Hashtbl.iter (fun id n -> 
     (* Add in starting flag conditions. For example, we can identify
@@ -239,7 +237,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    * ~~~~~~
    * Push all of the boolean flags around. 
    *)
-  if show_steps then ignore (E.log "Solver: Step 3  (Data-Flow)\n") ;
+  if !E.verboseFlag then ignore (E.log "Solver: Step 3  (Data-Flow)\n") ;
   (* loop over all the nodes ... *)
   finished := false ; 
   while (not !finished) do 
@@ -281,7 +279,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    * after boolean flags (otherwise we cannot tell the "read-only" part)
    * but before we do WILDs (because they interact with read-only strings). 
    *)
-  if show_steps then ignore (E.log "Solver: Step 4  (read-only strings)\n") ;
+  if !E.verboseFlag then ignore (E.log "Solver: Step 4  (read-only strings)\n") ;
   Hashtbl.iter (fun id n ->
     (* If a string is never updated and it never goes anywhere then
      * we can give it the special terminating "ro-string" status. *)
@@ -304,7 +302,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    * Turn all bad casts into Wild Pointers. There is a small amount of
    * black magic in this step. 
    *)
-  if show_steps then ignore (E.log "Solver: Step 5  (bad casts)\n") ;
+  if !E.verboseFlag then ignore (E.log "Solver: Step 5  (bad casts)\n") ;
   Hashtbl.iter (fun id cur ->
     if hasFlag cur pkNoPrototype then 
       update cur Wild BoolFlag;
@@ -355,7 +353,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    * ~~~~~~
    * Spread wild pointers.
    *)
-  if show_steps then ignore (E.log "Solver: Step 6  (spread WILD)\n") ;
+  if !E.verboseFlag then ignore (E.log "Solver: Step 6  (spread WILD)\n") ;
   (* Now "update" becomes more complicated because we can do some
    * consistency checks. A successful update also tells us to loop again.
    * A more efficient algorithm would use a true worklist. *)
@@ -420,7 +418,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
   let can_reach_seq n = hasFlag n pkReachSeq in
   let can_reach_index n = hasFlag n pkReachIndex in 
 
-  if show_steps then ignore (E.log "Solver: Step 7  (unified SEQ handling)\n") ;
+  if !E.verboseFlag then ignore (E.log "Solver: Step 7  (unified SEQ handling)\n") ;
 
   (* this helper function picks the right kind of Sequence for a node *)
   let pick_the_right_kind_of_seq n base why = begin
@@ -554,7 +552,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    * Change certain FSeqNs to ROStrings. An FSeqN with only one successor
    * becomes an ROString if that successor is an ROString. 
    *)
-  if show_steps then ignore (E.log "Solver: Step 8  (FSEQN->ROSTRING)\n") ;
+  if !E.verboseFlag then ignore (E.log "Solver: Step 8  (FSEQN->ROSTRING)\n") ;
   finished := false ; 
   while not !finished do 
     finished := true ; 
@@ -577,7 +575,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    * ~~~~~~~
    * All other nodes are safe. 
    *)
-  if show_steps then ignore (E.log "Solver: Step 9  (SAFE)\n") ;
+  if !E.verboseFlag then ignore (E.log "Solver: Step 9  (SAFE)\n") ;
   Hashtbl.iter (fun id n -> 
     if n.kind = Unknown then begin
       assert(n.why_kind <> UserSpec) ;
@@ -588,14 +586,14 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     end
   ) node_ht ;
 
-  if show_steps then ignore (E.log "Solver: DONE\n") ;
+  if !E.verboseFlag then ignore (E.log "Solver: DONE\n") ;
 
 end
 
 (* Old Solver Code: *)
 
 (*
-  if show_steps then ignore (Pretty.printf "Solver: Step 7  (FSEQ[N] nodes)\n") ;
+  if !E.verboseFlag then ignore (Pretty.printf "Solver: Step 7  (FSEQ[N] nodes)\n") ;
   finished := false ; 
   while not !finished do 
     finished := true ; 
@@ -683,7 +681,7 @@ end
    * ~~~~~~
    * Attempt to make SEQ[N] nodes. 
    *)
-  if show_steps then ignore (E.log "Solver: Step 8  (SEQ[N])\n") ;
+  if !E.verboseFlag then ignore (E.log "Solver: Step 8  (SEQ[N])\n") ;
   finished := false ; 
   while not !finished do 
     finished := true ; 
@@ -805,7 +803,7 @@ end
    * ~~~~~~~
    * Note all index nodes.
    *)
-  if show_steps then ignore (E.log "Solver: Step 10 (INDEX)\n") ;
+  if !E.verboseFlag then ignore (E.log "Solver: Step 10 (INDEX)\n") ;
   finished := false ; 
   while not !finished do 
     finished := true ; 

@@ -117,7 +117,7 @@ end
 (* just parse *)
 and parse_to_cabs_inner (fname : string) =
   try
-    ignore (E.log "Frontc is parsing %s\n" fname);
+    if !E.verboseFlag then ignore (E.log "Frontc is parsing %s\n" fname);
     flush !E.logChannel;
     let file = open_in fname in
     E.hadErrors := false;
@@ -126,7 +126,7 @@ and parse_to_cabs_inner (fname : string) =
       Stats.time "parse"
         (Cparser.file Clexer.initial) lexbuf in
     close_in file;
-    ignore (E.log "Frontc finished parsing %s\n" fname);
+    if !E.verboseFlag then ignore (E.log "Frontc finished parsing %s\n" fname);
     cabs
   with (Sys_error msg) -> begin
     ignore (E.log "Cannot open %s : %s\n" fname msg);
@@ -192,7 +192,8 @@ let parse fname =
     (trace "sm" (dprintf "beginning conversion to Cil\n"));
     let cil = Stats.time "conv" (Cabs2cil.convFile fname) cabs in
     if !doPrintProtos then (printPrototypes cabs);
-    ignore (E.log "FrontC finished conversion of %s to CIL\n" fname);
+    if !E.verboseFlag then 
+      ignore (E.log "FrontC finished conversion of %s to CIL\n" fname);
     cil
 
 

@@ -4044,7 +4044,8 @@ exception DeepExit
 let definedFunctions : (string, string) H.t = H.create 111
 
 let boxFile file =
-  ignore (E.log "Boxing file\n");
+  if !E.verboseFlag then
+    ignore (E.log "Boxing file\n");
   E.hadErrors := false;
   H.clear definedFunctions;
   currentFile := file;
@@ -4055,7 +4056,8 @@ let boxFile file =
     let h = H.hash file.fileName in
     let h16 = (h lxor (h lsr 16)) land 0xFFFF in
     currentFileId := h16;
-    ignore (E.log "File %s has id 0x%04x\n" file.fileName h16)
+    if !E.verboseFlag then 
+      ignore (E.log "File %s has id 0x%04x\n" file.fileName h16)
   in
   let rec doGlobal g = 
     try match g with
@@ -4067,7 +4069,8 @@ let boxFile file =
         | Attr("interceptCasts", [ AId("off") ]) -> interceptCasts := false
         | Attr("boxalloc",  AStr(s) :: rest) -> 
             if not (H.mem allocFunctions s) then begin
-                ignore (E.log "Will treat %s as an allocation function\n" s);
+                if !E.verboseFlag then
+                  ignore (E.log "Will treat %s as an allocation function\n" s);
                 boxallocPragma s rest
             end
         | Attr("box", [AId("on")]) -> boxing := true

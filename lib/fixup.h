@@ -2,8 +2,8 @@
 
 
 /* Use this in the source to cast an integer what to a pointer in the same 
- * home area as host. Use this guarded by BEFOREBOX  */
-#ifdef BEFOREBOX
+ * home area as host. Use this guarded by CCURED  */
+#ifdef CCURED
 #define CASTTOPOINTER(btyp, host, what) \
       (((btyp *)(host)) + (((S32)(what) - (S32)(host)) / ((S32)sizeof(btyp)))) 
 #else
@@ -76,7 +76,7 @@
 //#define calloc_fseq calloc
 //#endif
 
-#if !defined(BEFOREBOX)
+#if !defined(CCURED)
   // if some code calls explicit_gc, but we're not boxing, then
   // we won't link safec{debug,}lib.a either; so let's provide
   // a dummy definition of this fn
@@ -94,7 +94,7 @@
 
 
 // Now specify some special pragmas
-#ifdef BEFOREBOX
+#ifdef CCURED
   #pragma boxpoly("__endof")
   void *__endof(void *);
   #pragma boxalloc("malloc", nozero, sizein(0))
@@ -106,7 +106,6 @@
     double          f_double;
     char * __ROSTRING f_string;
   };
-  #define PRINTF_FUNCTION(name, format_idx) _Pragma boxvararg_printf(name, sizeof(union printf_format), format_idx)
 
   #pragma boxvararg_printf("printf", 0)
   #pragma boxvararg_printf("fprintf", 1)
@@ -167,7 +166,7 @@
 // such an unusual type; and it doesn't use any types that aren't built-in
 
 // gn: disabled this since everythign in BOX mode fails due to redefin.
-#ifdef BEFOREBOX
+#ifdef CCURED
   typedef void (*_box_sig_fn)(int);
   static inline
   _box_sig_fn signal_model(int signum, _box_sig_fn fn)
@@ -189,9 +188,9 @@
     return s;                       // connect s to retval
   }
 
-#endif // BEFOREBOX
+#endif // CCURED
 
-#ifdef BEFOREBOX
+#ifdef CCURED
 #pragma boxpoly("__endof")
 void *__endof(void *ptr); // Get the end of a pointer
 #pragma boxpoly("__startof")

@@ -26,53 +26,149 @@ code which we write and is linked with the translated executable.
 
 \chapter{Using CCured}
 
- At the moment the main interface to CCured is through the Makefile. The
-Makefile has lots of targets. About 1/4 are used to build the translator
-itself, and 3/4 are used to build instrumented versions of various benchmarks.
-Typical usage is to explicitly specify the name of a benchmark to build. For
-example
+ CCured consists of several components: an Ocaml application that does the
+main work, a set of Perl scripts that are used to invoke the CCured
+application, and a set of header and run-time library files. 
 
+ To use CCured you should put the \t{lib} directory in your \t{PATH} (see
+Chapter \ref{ch-start}) and then you can invoke the CCured wrapper as follows:
 \begin{verbatim}
-  % make go [options]
+perl -S ccured.pl [options]
 \end{verbatim}
 
-This will build the 'go' benchmark.
+ (the \t{-S} option instructs \t{perl} to find the \t{ccured.pl} script in the
+ \t{PATH}). 
 
-If you don't specify any options, the translator operates in 'cil' mode:
+ The \t{ccured.pl} script is meant to behave as a drop-in replacement for
+\t{gcc} and Microsoft Visual C compiler. This means that you can use CCured
+with your existing Makefile, just make sure to set the \t{CC} variable to the
+above command:
+\begin{verbatim}
+make mystuff CC="perl -S ccured.pl [options]"
+\end{verbatim}
+
+ {\bf IMPORTANT:} If you want to use CCured instead of the Microsoft Visual C
+compiler, the first argument for the \t{ccured.pl} script must
+\t{"--mode=mscl"}. 
+
+ Among the options for the \t{ccured.pl} you can put anything that can
+normally go in the command line of the compiler that CCured is impersonating.
+\t{ccured.pl} will do its best to pass those options along to the appropriate
+subprocess. In addition, the following options are supported:
+
+\begin{itemize}
+\item \t{--help} Prints a list of the options supported.
+\item \t{--debug} Use the debug version of the CCured application. By default
+the release version is used.
+\item \t{--verbose} Prints lots of messages about what is going on.
+\item \t{--combine} This tells CCured to first attempt to collect into one
+source file all of the sources that make your application, and then to apply
+CCured on the resulting source. To see how this is accomplished, see Chapter
+\ref{ch-combiner}. This option is normally used when you use CCured with a
+Makefile. 
+\item \t{--nocure=xxx}. Do not cure the files whose basename is "xxx". This is
+used in combination with the \t{--combine} option.
+\item \t{--includedir=xxx}. Override the include files with those in the given
+directory. The given directory is the same name that was given an an argument
+to the patcher (see Chapter \label{ch-patcher}). In particular this means that
+that directory contains subdirectories named based on the current compiler
+version. The patcher creates those directories. 
+\item \t{--usecabs}. Do not cure, but instead just parse the source and print
+its AST out. 
+\item \t{--usecil}. Do not cure, but instead just parse the source, convert to
+CIL and then print it out. 
+\item \t{--curetype=xxx}. Specify what kind of cure is desired. Valid options
+currently are:
+   \begin{itemize}
+    \item \t{none}. No cure. This is the default. In that case the
+           \t{--includedir} and the \t{--nocure} options have no effect. 
+    \item \t{infer}. This is the regular cure. Use the inferencer.
+    \item \t{wild}. This makes all pointers \DYNAMIC{}.
+   \end{itemize}
+\item \t{--emitinfer}. This means that the result of inference is also
+printed. 
+\item \t{--optimize}. Run the optimizer after curing.
+\end{itemize}
+
+ All of the other options that start with \t{-} (and are not recognized as
+compiler options) are passed unmodified to the CCured OCaml application. Among
+those options the following might be of interest:
+\begin{itemize}
+\item \t{--check}. Run a consistency check over the CIL after every operation. 
+\item \t{--logCalls}. Insert code in the processed source to print the name of
+funtions as are called. 
+\item \t{--log=xxx}. Set \t{xxx} to be the name of the log file for the CCured
+application. By default \t{stderr} is used.
+\item \t{--keepunused}. Do not attempt to remove the unused variables and
+types from CIL. 
+\item \t{--noPrintLn}. Do not print line numbers.
+\item \t{--commPrintLn}. Print line numbers but in comments.
+\end{itemize}
+
+ For example you can run the following commands:
+\begin{verbatim}
+perl -S ccured.pl test/small1/hello.c -o hello
+perl -S ccured.pl --curetype=infer test/small1/hello.c -o hello
+\end{verbatim}
+
+ \section{Using the {\tt make} interface}
+
+ While it is possible to use CCured using just the \t{ccured.pl} script we
+have found it easier to write a \t{Makefile} that contains invocations of
+\t{ccured.pl}. See Chapter \ref{ch-start} for how to configure the
+\t{Makefile}. 
+ 
+ To use the \t{make} interface you use the following command:
+\begin{verbatim}
+make target [options]
+\end{verbatim}
+
+ The following targets are currently recognized:
+\begin{itemize}
+\item \t{setup}. This makes the undrlying CCured application and prepares the
+patched include files.
+\item \t{test/xxx}.  This will run CCured in compile-only mode on the single
+file \t{test/small1/xxx.c}. 
+\item \t{testrun/xxx}. This is like the above but will make an executable and
+will then run the result. 
+\item \t{bh}, \t{bisort}, \t{tsp}, etc. These are a number of test cases that
+we have loaded in the \t{test} directory. The complete list of these can be
+obtained by reading the \t{Makefile}.
+\end{itemize}
+
+ To customize the operation of CCured you can pass the following options to
+the \t{make} command:
+\begin{itemize}
+\item \t{\_GNUCC=1}. This will make sure that you run in \t{gcc} mode even if
+your configuration is for Microsoft Visual C. This has no effect on Linux.
+\item \t{RELEASE=1}. To make sure you run the optimized executables. Do
+\t{make setup RELEASE=1} to build the executables first.
+\item \t{VERBOSE=1}. Passes the \t{--verbose} flag to CCured.
+\item \t{NOREMAKE=1}. Does not attempt to check the freshness and to make the
+underlying CCured application. This is useful in test cases that you want to
+run while working on the CCured sources.
+\item \t{INFERBOX=xxx}. Passes the \t{--curetype=xxx} flag to CCured. Use
+either \t{infer} or \t{wild} as \t{xxx}.
+\item \t{USECABS=1}. Passes \t{--usecabs} to CCured.
+\item \t{USECIL=1}. Passes \t{--usecil} to CCured.
+\item \t{OPTIM=1}. Passes \t{--optimize} to CCured.
+\item \t{EXTRARGS="..."}. Passes \t{...} to CCured.
+\end{itemize}
+
+ If you don't specify any options, the translator operates in 'cil' mode:
 it reads the file in, translates it into our intermediate format, and
 then spits it right back out (no instrumentation).  This is primarily a
 test of the parser and the intermediate format.
 
-To add instrumentation, use "INFERBOX=4" or "INFERBOX=wild".  The former
+To add instrumentation, use "INFERBOX=infer" or "INFERBOX=wild".  The former
 uses type inference to try to remove many of the runtime checks.  The
-latter does not try to remove any checks.  Generally, "INFERBOX=4" is
+latter does not try to remove any checks.  Generally, "INFERBOX=infer" is
 what you want:
 
 \begin{verbatim}
-  % make go INFERBOX=4
+  make bh INFERBOX=infer
 \end{verbatim}
 
-There are a bunch of other options strewn throughout the Makefile; they
-look like this in the Makefile:
-
-\begin{verbatim}
-  ifeq ($(INFERBOX), 4)
-      SAFECC+= --safec=-solver --safec=fourth
-  endif
-\end{verbatim}%$
-
-One target of note is the one I use for making the small test programs
-that comprise the bulk of 'regrtest': scott/% (the '%' is a pattern
-wildcard).  When you drop a .c file, say foo.c, into test/small2, you
-can invoke the translator on it by using this target:
-
-\begin{verbatim}
-  % make scott/foo [options]
-\end{verbatim}
-
-If you construct a test case to exhibit some current bug, current
-practice is to drop that file into test/small2 so we can use the scott/%
-target to run it.
 
 \chapter{Using CCured on new software packages}
 
@@ -494,7 +590,7 @@ ignored).
  The replacement text can contain the special keyword \t{@\_\_pattern\_\_@},
 which is substituted with the pattern that matched. 
 
-  \chapter{Using the combiner}
+  \chapter{Using the combiner}\label{ch-combiner}
 
  The easiest way to use CCured is when you want to process a whole program and
 thus allow the inferencer to see all of the uses of all defined functions and
@@ -754,7 +850,11 @@ the script with:
 
 And of course, report these to us!
 
-        \chapter{Getting Started}
+        \chapter{Getting Started}\label{ch-start}
+
+ CCured works on Linux and MS Windows (Win95 operation is unreliable but Win98
+and (highly recommended) Win2k should work). CCured might also work on other
+systems that use \t{gcc}, but we have not tried it.
 
 \section{Get OCaml}
 
@@ -781,48 +881,44 @@ To test your ocaml distribution, try:
   # exit 0;;    <-- you type "exit 0;;", and press enter
 \end{verbatim}
 
-\section{Get the C-Cured sources via CVS}
+\section{If you want to use Windows}
 
-You'll need CVS (Concurrent Version System) installed; version 1.10 or
-greater is recommended.  If you don't have it (try "which cvs"), you can
-get it from
+ \subsection{Get \t{cygwin}}
 
-  \ahrefurl{http://www.cvshome.org/}
+ You must have a bunch of Unix tools installed on your machine. (In the future
+we might be able to avoid these but for now you are better off with them.).
+Here is what I (George) do to install Cygwin. You need a good network
+connection for this. 
+\begin{itemize}
+\item Create a directory \t{C:\\Download\\cygwin}
+\item Go to \ahrefurl{http://sources.redhat.com/cygwin} and click \t{Install
+cygwin} icon. Download \t{setup.exe} to the directory you just created.
+\item Run \t{setup.exe} and select ``Download to local directory''. This will
+take a while (~ 30 minutes)
+\item Run \t{setup.exe} again and not select to ``Install from local
+directory''. It is best to {\bf deselect} the \t{cvs} and \t{tetex} packages.
+The \t{cvs} version that comes with \t{cygwin} seems to have some problems. At
+some point in the future they will be fixed, I suppose. 
+\item I choose \t{C:\\Programs\\cygwin} as the home for \t{cygwin}, I use
+\t{DOS} as the default text file and I choose ``Install for All''.
+\item Add \t{C:\\Programs\\cygwin} to your PATH.
+\end{itemize}
 
-Next you'll need an account on brooksie.cs.berkeley.edu; talk to Rahul
-(\mailto{sprahul@cs.berkeley.edu}) to get an account.
+ \subsection{Get \t{cvs}}
 
-Next, configure your cvs to use 'ssh' as your connection method.  If you're
-using csh/tcsh, use
+ A version of \t{cvs} for Windows that I've had success with can be found at
 
-\begin{verbatim}
-  setenv CVS_RSH ssh
-\end{verbatim}
+ \ahrefurl{http://raw.cs.berkeley.edu/cvs.exe}
 
-  
-and for sh/bash, use
+ Copy that file in \t{C:\\Programs\\cygwin\\bin}
 
-\begin{verbatim}
-  export CVS_RSH=ssh
-\end{verbatim}
+ \subsection{Get \t{perl}}
 
-This should probably be put into your .cshrc or .bashrc so it gets run
-every time the shell starts.
+ Go to \ahrefurl{http://www.activestate.com} and download ActivePerl. Follow
+the instructions. Put the directory that contains the perl executable in your
+PATH. 
 
-Now, checkout the repository.  As an example, here's how I do it:
-
-
-\begin{verbatim}
-  % cvs -d :ext:smcpeak@brooksie.cs:/home/cvs-repository checkout cil
-                ^^^^^^^
-         use your username instead
-\end{verbatim}
-
-This will checkout all the sources into a new directory called cil/, off
-the current directory.
-
-
-\subsection{Using CVS with SSH on Windows}
+ \subsection{Get \t{ssh}}
 
 It has been observed that the cygwin version of ssh doesn't behave well
 with cvs because of some CR-LF translation problems. Hence, you will need 
@@ -920,6 +1016,50 @@ pserver mode without letting you know.
 (Send corrections/comments/questions to \mailto{ab@amanb.net})
 \end{itemize}
 
+\section{Get the C-Cured sources via CVS}
+
+You'll need CVS (Concurrent Version System) installed; version 1.10 or
+greater is recommended.  If you don't have it (try "which cvs"), you can
+get it from
+
+  \ahrefurl{http://www.cvshome.org/}
+
+Next you'll need an account on brooksie.cs.berkeley.edu; talk to Rahul
+(\mailto{sprahul@cs.berkeley.edu}) to get an account.
+
+Next, configure your cvs to use 'ssh' as your connection method.  If you're
+using csh/tcsh, use
+
+\begin{verbatim}
+  setenv CVS_RSH ssh
+\end{verbatim}
+
+  
+and for sh/bash, use
+
+\begin{verbatim}
+  export CVS_RSH=ssh
+\end{verbatim}
+
+This should probably be put into your .cshrc or .bashrc so it gets run
+every time the shell starts.
+
+Now, checkout the repository.  As an example, here's how I do it:
+
+
+\begin{verbatim}
+  % cvs -d :ext:smcpeak@brooksie.cs:/home/cvs-repository checkout cil
+                ^^^^^^^
+         use your username instead
+\end{verbatim}
+
+This will checkout all the sources into a new directory called cil/, off
+the current directory.
+
+
+\section{Put CCured in your PATH}
+
+ Put the \t{lib} directory in your PATH.
 
 \section{Customize the Makefile}
 
@@ -929,7 +1069,7 @@ file called \t{.ccuredrc\_model}. Make a copy of it called \t{.ccuredrc} and
 place it in the same directory. Edit \t{.ccuredrc} according to your needs. If
 you use \t{gcc} on Linux you typically don't need to change anything. In this
 case you don't even need to have the \t{.ccuredrc} file. {\bf Never check in
-\t{ccuredrc} in the repository since here you will have your own
+\t{ccuredrc} in the CVS repository since here you will have your own
 configuration options.}.
 
 \section{Compile CCured}
@@ -942,21 +1082,12 @@ Go into the cil/ directory, and run GNU make:
 \end{verbatim}
 
 
-\section{Run the regression tests}
+\section{Run CCured}
 
-Go into \t{cil/test} and run
+Go into \t{cil} and run
 \begin{verbatim}
- testsafec --run
+ make testrun/hello INFRBOX=infer
 \end{verbatim}
-
- See Chapter~\ref{ch-regtest} (Using the regression tester) for more details. 
-
- This will take between half an hour and two hours. It produces a log
-(safec.log) which can be used to review why individual tests failed.
-
-
-
-
 
 
 \appendix
@@ -1006,6 +1137,7 @@ lib/: (C code for use at runtime)
   gc/: boehm-weiser garbage collector (http://www.hpl.hp.com/personal/Hans_Boehm/gc/)
 \end{verbatim}
 
+ 
 
 \chapter{Using CVS}
 CVS is used to synchronize changes to the project across multiple
