@@ -1036,6 +1036,7 @@ health : defaulttarget
                make PLAIN=1 clean defaulttarget \
                     $(HEALTHARGS) \
                     CC="$(COMBINESAFECC) \
+                        --nobox=trusted_health \
 			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
 	cd $(HEALTHDIR); sh -c "time ./health.exe 5 500 1 1"
 
@@ -1062,11 +1063,12 @@ VORONARGS = _MSVC=1
 endif
 voronoi : defaulttarget
 	cd $(VORONDIR); \
-               make PLAIN=1 clean defaulttarget \
+               make PLAIN=1 clean voronoi.exe \
                     $(VORONARGS) \
                     CC="$(COMBINESAFECC) \
+                        --nobox=trusted_voronoi \
 			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
-	cd $(VORONDIR); sh -c "time ./voronoi.exe"
+	cd $(VORONDIR); sh -c "time ./voronoi.exe 60000 1"
 
 # Traveling salesman
 TSPDIR=test/olden/tsp

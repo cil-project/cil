@@ -884,7 +884,7 @@ and doInstr (i:instr) : instr =
       if List.length args <> List.length formals && not isva then begin
         (* Bark if it is polymorphic. No prototype + polymorphism (or 
          * allocation) do not work together *)
-        if ispoly then 
+        if ispoly || isprintf != None then 
           E.s (error "Calling polymorphic (or allocation) function %a without proper prototype" d_exp func);
         pfuncn.N.noPrototype <- true;
       end;
