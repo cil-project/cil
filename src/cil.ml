@@ -5345,6 +5345,18 @@ let rec xform_switch_stmt s break_dest cont_dest label_index = begin
       let break_block = mkBlock [ break_stmt ] in
       let body_block = b in 
       let body_if_stmtkind = (If(zero,body_block,break_block,l)) in
+
+      (* The default case, if present, must be used only if *all*
+      non-default cases fail [ISO/IEC 9899:1999, §6.8.4.2, ¶5]. As a
+      result, we sort the order in which we handle the labels (but not the
+      order in which we print out the statements, so fall-through still
+      works as expected). *)
+      let compare_choices s1 s2 = match s1.labels, s2.labels with
+      | (Default(_) :: _), _ -> 1
+      | _, (Default(_) :: _) -> -1
+      | _, _ -> 0
+      in
+
       let rec handle_choices sl = match sl with
         [] -> body_if_stmtkind
       | stmt_hd :: stmt_tl -> begin
@@ -5365,7 +5377,7 @@ let rec xform_switch_stmt s break_dest cont_dest label_index = begin
         end in
         handle_labels stmt_hd.labels
       end in
-      s.skind <- handle_choices sl ;
+      s.skind <- handle_choices (List.sort compare_choices sl) ;
       xform_switch_block b (fun () -> ref break_stmt) cont_dest i 
     end
   | Loop(b,l,_,_) -> 
