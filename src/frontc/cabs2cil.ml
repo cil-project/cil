@@ -531,7 +531,6 @@ let newTempVar typ =
   let stripConst t =
     let a = typeAttrs t in
     let a1 = dropAttribute "const" a in
-(*    let a1 = dropAttribute a1 (Attr("restrict", [])) in *)
     setTypeAttrs t a1
   in
   alphaConvertVarAndAddToEnv false  (* Do not add to the environment *)
@@ -1935,7 +1934,8 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
         if n = "" then E.s (error "Missing struct tag on incomplete struct");
         findCompType "struct" n []
     | [A.Tstruct (n, Some nglist)] -> (* A definition of a struct *)
-      let n' = if n <> "" then n else anonStructName "struct" suggestedAnonName in
+      let n' = 
+        if n <> "" then n else anonStructName "struct" suggestedAnonName in
       (* Use the attributes now *)
       let a = !attrs in 
       attrs := [];
@@ -1945,7 +1945,8 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
         if n = "" then E.s (error "Missing union tag on incomplete union");
         findCompType "union" n []
     | [A.Tunion (n, Some nglist)] -> (* A definition of a union *)
-        let n' = if n <> "" then n else anonStructName "union" suggestedAnonName in
+        let n' = 
+          if n <> "" then n else anonStructName "union" suggestedAnonName in
         (* Use the attributes now *)
         let a = !attrs in 
         attrs := [];
@@ -1956,7 +1957,8 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
         findCompType "enum" n []
 
     | [A.Tenum (n, Some eil)] -> (* A definition of an enum *)
-        let n' = if n <> "" then n else anonStructName "enum" suggestedAnonName in
+        let n' = 
+          if n <> "" then n else anonStructName "enum" suggestedAnonName in
         (* make a new name for this enumeration *)
         let n'' = newAlphaName true "enum" n' in
         (* Create the enuminfo, or use one that was created already for a 
