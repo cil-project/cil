@@ -969,6 +969,9 @@ and location = {
     byte: int;             (** The byte position in the source file *)
 }
 
+(** Comparison function for locations.
+ ** Compares first by filename, then line, then byte *)
+val compareLoc: location -> location -> int
 
 (** {b Values for manipulating globals} *)
 

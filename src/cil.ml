@@ -710,7 +710,15 @@ let locUnknown = { line = -1; file = ""; byte = -1; }
 (* A reference to the current location *)
 let currentLoc : location ref = ref locUnknown
 
-
+let compareLoc (a: location) (b: location) : int =
+  let namecmp = compare a.file b.file in
+  if namecmp != 0 
+  then namecmp
+  else
+    let linecmp = a.line - b.line in
+    if linecmp != 0 
+    then linecmp
+    else a.byte - b.byte
 
 let argsToList : (string * typ * attributes) list option 
                   -> (string * typ * attributes) list 
