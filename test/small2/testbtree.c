@@ -31,15 +31,15 @@ int main(void)
   TIMESTART(clk);
 
   Bplus = initBtree(ARRAY_SIZE, MAX_FAN_OUT, compareKeys);
-  for (i = 0; i < 204800; i++) {
+  for (i = 0; i < 20000; i++) {
     j = rand();
     if (search(Bplus, j) == NONODE) {
       insert(Bplus, j);
-      // fprintf(stderr, "XXX %d, insert %d XXX\n", i, j);
+      //fprintf(stderr, "XXX %d, insert %d XXX\n", i, j);
     }
     else {
       delete(Bplus, j);
-      // fprintf(stderr, "XXX %d, delete %d XXX\n", i, j);
+      //fprintf(stderr, "XXX %d, delete %d XXX\n", i, j);
     }
     // if (i > 2000) { listAllBtreeValues(Bplus); }
   }

@@ -790,7 +790,8 @@ COMBINESAFECC = $(SAFECC) --combine $(DOOPT)
 # Barnes-Hut
 BHDIR=test/bh
 bh : defaulttarget mustbegcc
-	cd $(BHDIR); rm code.exe *.o; make CC="$(COMBINESAFECC) --nobox=bhbox"
+	cd $(BHDIR); rm code.exe *.o; make CC="$(COMBINESAFECC) --nobox=bhbox \
+			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
 	echo  >$(BHDIR)/data.in
 	echo  >>$(BHDIR)/data.in
 	echo  >>$(BHDIR)/data.in
@@ -830,7 +831,7 @@ compress-noclean: defaulttarget mustbegcc
 	sh -c "time $(COMPRESSDIR)/exe/base/compress95.v8 < $(COMPRESSDIR)/exe/base/input.data > $(COMPRESSDIR)/src/combine-compress.out"
 
 compress: defaulttarget mustbegcc
-	cd $(COMPRESSDIR)/src; make CC="$(COMBINESAFECC)" clean build
+	cd $(COMPRESSDIR)/src; make CC="$(COMBINESAFECC) --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)" clean build
 	echo "14000000 q 2231" >$(COMPRESSDIR)/exe/base/input.data 
 	sh -c "time $(COMPRESSDIR)/exe/base/compress95.v8 < $(COMPRESSDIR)/exe/base/input.data > $(COMPRESSDIR)/src/combine-compress.out"
 
