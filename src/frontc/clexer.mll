@@ -32,9 +32,11 @@ let init_lexicon _ =
       ("long", LONG);
       ("short", SHORT);
       ("register", REGISTER);
-      ("signed", SIGNED);
+      ("signed", SIGNED); ("__signed", SIGNED);
       ("unsigned", UNSIGNED);
-      ("volatile", VOLATILE);
+      ("volatile", VOLATILE); ("__volatile", VOLATILE);
+      (* WW: see /usr/include/sys/cdefs.h for why __signed and __volatile
+       * are accepted GCC-isms *)
       ("char", CHAR);
       ("int", INT);
       ("float", FLOAT);

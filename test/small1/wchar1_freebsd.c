@@ -1,5 +1,5 @@
-# 1 "wchar1.c"
-# 1 "testharness.h" 1
+//# 1 "wchar1.c"
+//# 1 "testharness.h" 1
 extern int printf(const char *, ...);
 extern void exit(int);
 
@@ -7,9 +7,9 @@ extern void exit(int);
 
 
 
-# 1 "wchar1.c" 2
+//# 1 "wchar1.c" 2
 
-# 1 "/usr/include/stddef.h" 1 3
+//# 1 "/usr/include/stddef.h" 1 3
  
 
 
@@ -50,7 +50,7 @@ extern void exit(int);
 
 
 
-# 1 "/usr/include/machine/ansi.h" 1 3
+//# 1 "/usr/include/machine/ansi.h" 1 3
  
 
 
