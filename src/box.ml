@@ -845,8 +845,11 @@ let checkBoundsFun =
   let argpl  = makeVarinfo "pl" uintType in
   fdec.svar.vtype <- TFun(voidType, [ argb; argbend; argp; argpl ], false, []);
   fdec.svar.vstorage <- Static;
-  checkFunctionDecls := 
-     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
+  (* sm: this is a macro; don't declare it; avoids a gcc warning *)
+  (*
+    checkFunctionDecls :=
+       consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
+  *)
   fdec
 
 let checkBoundsLenFun = 
@@ -1505,14 +1508,16 @@ let registerAreaFun =
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fdec
 
-let unregisterFrameFun =   
+let unregisterFrameFun =
   let fdec = emptyFunction "CHECK_UNREGISTERFRAME" in
   fdec.svar.vtype <- TFun(voidType, [ ], false, []);
   fdec.svar.vstorage <- Static;
-  checkFunctionDecls := 
-     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
+  (* sm: this is a macro; don't declare it; avoids a gcc warning *)
+  (*
+    checkFunctionDecls :=
+       consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
+  *)
   fdec
-
 
 (* Everytime you register a local variable, remember here *)  
 let hasRegisteredAreas = ref true

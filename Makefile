@@ -505,7 +505,7 @@ comb: test/small2/comb1.c test/small2/comb2.c
 
 # sm: test of combiner's ability to report inconsistencies
 baddef: test/small2/baddef1.c test/small2/baddef2.c 
-	cd test/small2; $(CCL) baddef1.c baddef2.c -o baddef && ./baddef
+	cd test/small2; $(CC) baddef1.c baddef2.c -o baddef && ./baddef
 	rm -f test/small2/baddef
 	cd test/small2; \
 	  $(MYSAFECC) --combine baddef1.c $(CONLY) $(OBJOUT) baddef1.o; \

@@ -2149,6 +2149,8 @@ let _ =
         Some (text "__asm__(" 
                 ++ docList (chr ',') (d_attrarg ()) () args
                 ++ text ")")
+    (* we suppress printing mode(__si__) because it triggers an *)
+    (* internal compiler error in all current gcc versions *)
     | Attr("mode", [AId "__SI__"]) -> Some (text "/* mode(__SI__) */")
     | _ -> None
   in
@@ -2796,17 +2798,23 @@ let d_global () = function
         text ("__asm__(\"" ^ escape_string s ^ "\");")
 
   | GPragma (Attr(an, args), l) ->
+      (* sm: suppress printing pragmas that gcc does not understand *)
+      (* assume anything starting with "box" is ours *)
+      let suppress = ((String.length an) >= 3) &&
+                     ((String.sub an 0 3) = "box") in
       let d =
         if args = [] then
           text an
         else
-          text (an ^ "(") 
+          text (an ^ "(")
             ++ docList (chr ',') (d_attrarg ()) () args
             ++ text ")"
       in
-      d_line l ++
-        text "#pragma "
+      d_line l 
+        ++ (if suppress then text "/* " else text "")
+        ++ (text "#pragma ")
         ++ d
+        ++ (if suppress then text " */" else text "")
 
   | GText s  -> text s
 

@@ -153,7 +153,7 @@ all: combiner cilly $(EXECUTABLE)$(EXE) libraries
 # we need to know what the patcher will think the compiler's version is
 COMPILERVERSION := $(shell $(PATCHER) --dumpversion)
 
-# names one all of the patched include files, so we can have a proper dependency
+# names all of the patched include files, so we can have a proper dependency
 PATCHEDHEADERS := $(foreach file, $(PATCH_SYSINCLUDES), \
                     $(CCUREDHOME)/include/$(COMPILERVERSION)/$(file))
 
