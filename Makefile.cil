@@ -13,7 +13,8 @@ ifdef RELEASE
 endif
 
 SOURCEDIRS  = src src/frontc src/ext
-OBJDIR      = obj
+OBJDIR      := obj/$(ARCHOS)
+DEPENDDIR   := obj/.depend
 MLLS        = clexer.mll
 MLYS        = cparser.mly
 MODULES     = pretty errormsg trace stats util clist \

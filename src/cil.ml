@@ -10,38 +10,6 @@ module H = Hashtbl
  * Scott McPeak, George Necula, Wes Weimer
  *
  *)
-(* CIL is intended to be an IL for source-to-source transformations of C 
- * programs. In the process of converting preprocessed C source to CIL most 
- * of the syntactic sugar is removed and type checking is performed. CIL has 
- * the following properties:
-
- - has a pretty printer that should print valid source. There is also a 
- * pretty printer that prints abstract syntax (for debugging)
-
- - all local variables are pulled to the start of a function. Their names are 
- * changed to be unique and to avoid conflicts with global variables
-
- - all forms of source-level loops are changed into a single Loop construct 
- * that loops forever except if a break, return or goto is encountered. In 
- * many cases the continue statement is turned into a goto. 
-
- - all implicit integer promotions, argument promotions and arithmetic 
- * conversions are turned into explicit casts.
-
- - all integer constants have the proper type attached to them
-
- - the function arguments with array type are changed into pointers.
-*)
-(*
- * Note: you may *NOT* change the order of the fields or the order in
- * which disjoint union choices are presented. The C translation code
- * has those values hard-wired.
- *)
-
-(* TODO
-   - type of sizeof is hardwired to UInt
-   - integerFits is hardwired to true
-*)
 
 module M = Machdep
 
@@ -1914,9 +1882,6 @@ and d_lval () lv =
     | NoOffset -> dobase ()
     | Field (fi, o) -> 
         d_offset (fun _ -> dobase () ++ text "." ++ text fi.fname) o
-(*    | Index (Const(CInt64(z,_,_)), NoOffset) when z = Int64.zero -> 
-        text "(*" ++ dobase () ++ text ")"
-*)
     | Index (e, o) ->
         d_offset (fun _ -> dobase () ++ text "[" ++ d_exp () e ++ text "]") o
   in
@@ -1925,7 +1890,6 @@ and d_lval () lv =
   | Mem e, Field(fi, o) ->
       d_offset (fun _ ->
         (d_expprec arrowLevel () e) ++ text ("->" ^ fi.fname)) o
-(*  | Mem e, NoOffset -> dprintf "(*%a)" (d_expprec derefStarLevel) e *)
   | Mem e, o ->
       d_offset (fun _ -> 
         text "(*" ++ d_expprec derefStarLevel () e ++ text ")") o

@@ -22,7 +22,13 @@ use File::Basename;
 use strict;
 BEGIN {
     @CilCompiler::ISA = qw(Merger);
-    $CilCompiler::base = $FindBin::Bin . "/../obj/cilly";
+    $CilCompiler::base = $FindBin::Bin . "/../obj";
+    if($^O eq 'MSWin32') {
+        $CilCompiler::base .= '/x86_WIN32';
+    } else {
+        $CilCompiler::base .= '/x86_LINUX';
+    }
+    $CilCompiler::base .= "/cilly";
 
     $CilCompiler::mtime_asm = int((stat("$CilCompiler::base.asm.exe"))[9]);
     $CilCompiler::mtime_byte = int((stat("$CilCompiler::base.byte.exe"))[9]);

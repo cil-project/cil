@@ -8,7 +8,8 @@ ECHO := @
 # First stuff that makes the executable 
 
 SOURCEDIRS  := src src/frontc src/ext src/ccured
-OBJDIR      := obj
+OBJDIR      := obj/$(ARCHOS)
+DEPENDDIR   := obj/.depend
 MLLS        := 
 MLYS        := 
 MODULES     := pretty trace errormsg stats util clist \

@@ -12,7 +12,13 @@ use CompilerStub;
 BEGIN {
     @Merger::ISA = qw(CompilerStub);
     $Merger::combext = "_comb.c";
-    $Merger::combbase = $FindBin::Bin . "/../obj/merger";
+    $Merger::combbase = $FindBin::Bin . "/../obj";
+    if($^O eq 'MSWin32') {
+        $Merger::combbase .= '/x86_WIN32';
+    } else {
+        $Merger::combbase .= '/x86_LINUX';
+    }
+    $Merger::combbase .= "/merger";
     # Pick the most recent merger
     $Merger::mtime_asm = int((stat("$Merger::combbase.asm.exe"))[9]);
     $Merger::mtime_byte = int((stat("$Merger::combbase.byte.exe"))[9]);

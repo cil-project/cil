@@ -23,7 +23,6 @@ quickbuild:
 setup:
 	make -r -f Makefile.cil      setup $(MAKEOVERRIDES)
 	make -r -f Makefile.ccured   setup $(MAKEOVERRIDES)
-	make -r -f Makefile.merger   setup $(MAKEOVERRIDES)
 
 
 

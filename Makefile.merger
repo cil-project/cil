@@ -6,7 +6,8 @@ ECHO = @
 
 
 SOURCEDIRS  = src src/frontc
-OBJDIR      = obj
+OBJDIR      = obj/$(ARCHOS)
+DEPENDDIR   = obj/.depend
 MLLS        = clexer.mll
 MLYS        = cparser.mly
 MODULES     = pretty errormsg stats util \

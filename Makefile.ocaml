@@ -40,13 +40,14 @@
 
   # SOURCEDIRS - the source directories
   # OBJDIR     - the directory where to put all object files
+  # DEPENDDIR  - the directory where to put dependency files
   # MLLS       - the base names of .mll files (no directory)
   # MLYS       - the base names of .mly files (no directory)
   # MODULES    - the base names of the modules in the order in which they
   #              must be linked
   # EXECUTABLE - the name of the executable to create
   # CAMLLIBS   - a list of CAML libraries to use. 
-  #              For each, will add %.$(CMXA) -cclib -l%
+  #              For each, will add %.$(CMXZ) -cclibs -l%
   # EXTRACLEAN - additional things to pass to "rm" for the "clean" target
 CAMLLEX = ocamllex
 CAMLYACC= ocamlyacc -v
@@ -142,7 +143,6 @@ vpath %.ml  $(SOURCEDIRS) $(OBJDIR)
 vpath %.mli $(SOURCEDIRS) $(OBJDIR)
 vpath %.c   $(SOURCEDIRS)
 
-DEPENDDIR  = $(OBJDIR)/.depend
 
 #  Secondaries are intermediates that we don't want make to delete
 #  By giving the right names to secondary files we tell make where to make
@@ -220,34 +220,25 @@ $(EXECUTABLE)$(EXE) : $(MODULES:%=$(OBJDIR)/%.$(CMO)) \
                     $^
 
 #	Phonies should be "remade" even if someone mistakenly creates them
-.PHONY: clean realclean
+.PHONY: cleancaml
 cleancaml:
-# AB: The profiler junk must be cleared too (gmon.sum, gmon.out)
-	-find $(OBJDIR)/../test -name "gmon.?u?" -exec rm {} \;
-	-rm -f $(foreach ext, cmi cmo cmx cmxa exe sum, $(OBJDIR)/*.$(ext))
-	-rm -f $(OBJDIR)/*.$(OBJ)
-	-rm -f $(EXECUTABLE)$(EXE)
-	-rm -f camlprim0.obj  $(EXTRACLEAN)
-	-rm -f src/frontc/clexer.ml
-	@echo " "
-	@echo "doing 'make realclean' always because our build process has issues.."
+	-find obj \( \
+		-name '*.cmi' -o \
+		-name '*.cmo' -o \
+                -name '*.cmx' -o \
+		-name '*.cma' -o \
+		-name '*.cmxa' -o \
+		-name '*.exe' -o \
+		-name '*.o' -o \
+		-name '*.obj' \
+	\) -exec rm {} \;
+	-rm -f $(EXTRACLEAN)
 	-rm -f $(DEPENDDIR)/*.d $(DEPENDDIR)/*.di
 	-rm -f $(MLLS:%.mll=$(OBJDIR)/%.ml) \
                $(MLLS:%.mll=$(OBJDIR)/%.mli) \
                $(MLYS:%.mly=$(OBJDIR)/%.ml) \
                $(MLYS:%.mly=$(OBJDIR)/%.mli)
 
-# sm: I added that reminder to 'clean' after spending 20 minutes debugging
-# the build process until I discovered that stale dependency files were 
-# killing my builds; the reminder would have made 'make realclean' the 2nd
-# thing to try, thus saving 20 minutes
-
-realcleancaml: clean
-	-rm -f $(DEPENDDIR)/*.d $(DEPENDDIR)/*.di
-	-rm -f $(MLLS:%.mll=$(OBJDIR)/%.ml) \
-               $(MLLS:%.mll=$(OBJDIR)/%.mli) \
-               $(MLYS:%.mly=$(OBJDIR)/%.ml) \
-               $(MLYS:%.mly=$(OBJDIR)/%.mli)
 
 # Automatic dependency generation (see GNU info for details)
 #
