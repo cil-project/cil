@@ -84,7 +84,8 @@ let addNewVar vi =
       else begin
         incr alphaId;
         let newname = origname ^ (string_of_int (!alphaId)) in
-        ignore (E.log "Alpha-converting %s to %s\n" origname newname);
+        ignore (E.log "Warning: Alpha-converting %s to %s\n" 
+                  origname newname);
         (true, {vi with vname = newname})
       end
     end with Not_found -> (true, vi)
@@ -245,7 +246,7 @@ type expAction =
 
 (******** CASTS *********)
 let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) = 
-  if ot = nt then (ot, e) else
+  if typeSig ot = typeSig nt then (ot, e) else
   match ot, nt with
     TNamed(_,r), _ -> castTo r nt e
   | _, TNamed(_,r) -> castTo ot r e
@@ -266,23 +267,22 @@ let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) =
 
   | TArray _, TPtr _ -> (nt, (CastE(nt,e,lu)))
 
-  | TArray(t1,_,_), TArray(t2,None,_) when t1 == t2 -> (nt, e)
+  | TArray(t1,_,_), TArray(t2,None,_) when typeSig t1 = typeSig t2 -> (nt, e)
 
   | TPtr _, TArray(_,None,_) -> (nt, e)
 
   | TEnum _, TInt _ -> (nt, e)
+  | TFloat _, TInt _ -> (nt, (CastE(nt,e,lu)))
+  | TInt _, TFloat _ -> (nt, (CastE(nt,e,lu)))
+  | TFloat _, TFloat _ -> (nt, (CastE(nt,e,lu)))
+  | TInt _, TEnum _ -> (intType, e)
+  | TEnum _, TEnum _ -> (intType, e)
 
   | TFun _, TPtr(TFun _, _) -> (nt, e)
 
-  | TInt _, TFloat _ -> (nt, (CastE(nt,e,lu)))
-
-  | TFloat _, TFloat _ -> (nt, (CastE(nt,e,lu)))
 
   | TBitfield _, TInt _ -> (nt, e)
 
-  | TInt _, TEnum _ -> (intType, e)
-
-  | TEnum _, TEnum _ -> (intType, e)
 
   | _ -> E.s (E.unimp "castTo %a -> %a@!" d_type ot d_type nt)
 
@@ -421,12 +421,22 @@ and doType (a : attribute list) = function
         findCompType "union"  n
 
   | A.PROTO (bt, snlist, isvararg) ->
+      (* Turn [] types into pointers in the arguments and the result type. 
+       * This simplifies our life a lot  *)
+      let arrayToPtr = function
+          TArray(t,None,attr) -> TPtr(t, AId("const") :: attr)
+        | TArray(_,Some _ ,_) -> 
+            E.s (E.unimp "Complete array type in argument list")
+        | x -> x
+      in
       let targs = 
         match List.map (makeVarInfo false locUnknown) snlist  with
           [t] when (match t.vtype with TVoid _ -> true | _ -> false) -> []
         | l -> l
-      in 
-      TFun (doType [] bt, targs, isvararg, a)
+      in
+      List.iter (fun a -> a.vtype <- arrayToPtr a.vtype) targs;
+      let tres = arrayToPtr (doType [] bt) in
+      TFun (tres, targs, isvararg, a)
 
   | A.OLD_PROTO _ -> E.s (E.unimp "oldproto")
   | A.ENUM (n, eil) -> 
@@ -609,7 +619,9 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
           
     | A.EXPR_SIZEOF e -> 
         let (se, e', t) = doExp e (AExp None) in
-        finishExp se (sizeOf t) intType
+        (* !!!! The book says that the expression is not evaluated, so we 
+         * drop the potential size-effects *)
+        finishExp [] (sizeOf t) intType
           
     | A.CAST (bt, e) -> 
         let se1, typ = 
@@ -916,89 +928,92 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
     (* Process expressions that should be l-values *)
 and doLval (e : A.expression) : (stmt list * lval * typ) = 
   let lu = locUnknown in
-  let findField n fidlist = 
+  let findField strname n fidlist = 
     try
       List.find (fun fid -> n = fid.fname) fidlist
-    with Not_found -> E.s (E.unimp "Cannot find field %s" n)
+    with Not_found -> E.s (E.unimp "Cannot find field %s in %s" n strname)
   in
   let addOffset addit lv =
     let rec loop = function
         NoOffset -> addit
       | Field(fid', offset) -> Field(fid', loop offset)
-      | Index(e', offset) -> Index(e', loop offset)
       | CastO(t, offset) -> CastO(t, loop offset)
     in
     match lv with 
-      Var(vi,offset,l) -> begin
-        let offset' = loop offset in
-        match vi.vtype, offset' with
-          TPtr _, Index _ -> Mem(Lval(Var(vi,NoOffset,l)), offset', l)
-        | _, _ -> Var(vi,loop offset,l)
-      end
+      Var(vi,offset,l) -> Var(vi,loop offset,l)
     | Mem(e,offset,l) -> Mem(e,loop offset,l)
   in
   match e with
-    A.VARIABLE n -> begin
+    A.VARIABLE n -> begin               
       try
         let vi = lookup n in
-        ([], Var(vi,NoOffset,lu), vi.vtype)
+        ([], Var(vi,NoOffset,lu), vi.vtype) (* v = * ( & v + 0) *)
       with Not_found -> begin 
         ignore (E.log "Cannot resolve variable %s\n" n);
         raise Not_found
       end
     end
-  | A.MEMBEROFPTR (e, str) -> 
-      let (se, e', t') = doExp e (AExp None) in begin
-        match unrollType t' with
-          TPtr(t1, _) ->
-            let fid = 
-              match unrollType t1 with 
-                TStruct (n, fil, _) -> findField str fil
-              | TUnion (n, fil, _) -> findField str fil
-              | x -> 
-                  E.s (E.unimp 
-                       "expecting a struct with field %s. Found %a. t1 is %a" 
-                         str d_type x d_type t')
-            in
-            (se, Mem(e', Field(fid, NoOffset), lu), fid.ftype)
-        | _ -> E.s (E.unimp "expecting a pointer to a struct")
-      end
+  | A.INDEX (e1, e2) -> begin
+      let (se1, e1', t1) = doExp e1 (AExp None) in
+      let (se2, e2', t2) = doExp e2 (AExp None) in
+      let se = se1 @ se2 in
+      let (tresult, swap) = 
+        match unrollType t1, unrollType t2 with
+          TPtr(t1e,_), TInt _ -> t1e, false
+        | TArray (t1e,_,_), TInt _ -> t1e, false
+        | TInt _, TPtr(t2e,_) -> t2e, true
+        | TInt _, TArray (t2e, _, _) -> t2e, true
+        | _ -> E.s (E.unimp "Expecting a pointer type in index")
+      in
+      if swap then 
+        (se, Mem(BinOp(Index,e2',e1',t2,lu),NoOffset,lu), tresult)
+      else
+        (se, Mem(BinOp(Index,e1',e2',t1,lu),NoOffset,lu), tresult)
+  end      
+  | A.UNARY (A.MEMOF, e) -> 
+      let (se, e', t) = doExp e (AExp None) in
+      let tresult = 
+        match unrollType t with
+          TPtr(te, _) -> te
+        | TArray (te,_,_) -> te
+        | _ -> E.s (E.unimp "Expecting a pointer type in * ")
+      in
+      (se, Mem(e',NoOffset,lu), tresult)
 
+           (* e.str = (& e + off(str)). If e = (be + beoff) then e.str = (be 
+            * + beoff + off(str))  *)
   | A.MEMBEROF (e, str) -> 
       let (se, lv, t') = doLval e in
       let fid = 
         match unrollType t' with
-          TStruct (n, fil, _) -> findField str fil
-        | TUnion (n, fil, _) -> findField str fil
+          TStruct (n, fil, _) -> findField n str fil
+        | TUnion (n, fil, _) -> findField n str fil
         | _ -> E.s (E.unimp "expecting a struct with field %s" str)
       in
       let lv' = addOffset (Field(fid, NoOffset)) lv in
       (se, lv', fid.ftype)
 
-  | A.UNARY (A.MEMOF, e) -> 
-      let (se, e', t) = doExp e (AExp None) in
-      let t' = 
-        match unrollType t with 
-          TPtr (t', _) -> t'
-        | TArray (t', _, _) -> t'
-        | _ -> E.s (E.unimp "expecting a pointer type but found %a in *(%a)\n"
-                      d_type t d_exp e')
-      in
-      (se, Mem(e', NoOffset, lu), t')
+       (* e->str = * (e + off(str)) *)
+  | A.MEMBEROFPTR (e, str) -> 
+      let (se, e', t') = doExp e (AExp None) in begin
+        let pointedt = 
+          match unrollType t' with
+            TPtr(t1, _) -> t1
+          | TArray(t1,_,_) -> t1
+          | _ -> E.s (E.unimp "expecting a pointer to a struct")
+        in
+        let fid = 
+          match unrollType pointedt with 
+            TStruct (n, fil, _) -> findField n str fil
+          | TUnion (n, fil, _) -> findField n str fil
+          | x -> 
+              E.s (E.unimp 
+                     "expecting a struct with field %s. Found %a. t1 is %a" 
+                     str d_type x d_type t')
+        in
+        (se, Mem(e', Field(fid, NoOffset), lu), fid.ftype)
+      end
 
-  | A.INDEX (e1, e2) -> begin
-      let (se1, lv1', t1') = doLval e1 in
-      let (se2, e2', t2') = doExp e2 (AExp None) in
-      let (_, e2'') = castTo t2' intType e2' in
-      let tres = 
-        match unrollType t1' with 
-          TPtr(tres, _) -> tres
-        | TArray(tres, _, _) -> tres
-        | _ -> E.s (E.unimp "expecting a pointer type but found %a in %a[%a]\n"
-                      d_type t1' d_lval lv1' d_exp e2')
-      in
-      (se1 @ se2, addOffset (Index(e2'', NoOffset)) lv1', tres)
-  end
   | A.CAST (bt, e) -> 
       let t = doType [] bt in
       let (se, lv, t1) = doLval e in

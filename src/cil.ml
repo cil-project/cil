@@ -110,7 +110,6 @@ and constant =
   | CChr of char 
   | CReal of float * string option       (* Also give the textual 
                                         * representation *)
-(* !!! int only holds 31 bits. We need long constants as well *)
 
 (* unary operations *)
 and unop =
@@ -120,6 +119,11 @@ and unop =
 (* binary operations *)
 and binop =
     Plus
+  | Index                               (* Just like Plus but the first 
+                                         * operand is a pointer and the next 
+                                         * is an integer. Only so that we can 
+                                         * print it using [ ... ] when it 
+                                         * appears in a Mem lvalue *)
   | Minus
   | Mult
   | Div
@@ -162,7 +166,6 @@ and lval =
 and offset = 
   | NoOffset
   | Field      of fieldinfo * offset    (* l.f + offset *)
-  | Index      of exp * offset          (* l[e] + offset *)
   | CastO      of typ * offset          (* ((t)l) + offset *)
 
 (**** INSTRUCTIONS. May cause effects directly but may not have control flow.*)
@@ -432,9 +435,9 @@ let rec d_decl (fulltype: bool) (docName: unit -> doc) () this =
       d_decl fulltype
         (fun _ -> 
           parenth restyp 
-            (dprintf "%t(%a%a)" 
+            (dprintf "%t(@[%a%a@])" 
                docName
-               (docList (chr ',') (d_videcl ())) args'
+               (docList (chr ',' ++ break) (d_videcl ())) args'
                insert (if isvararg then text ", ..." else nil)))
         ()
         restyp
@@ -450,51 +453,77 @@ and d_fieldinfo () f =
     
 
 (* exp *)
-and d_exp () e =
-  let getPrec = function
+
+(* Parentheses level. An expression "a op b" is printed parenthesized if its 
+ * parentheses level is >= that that of its context. Identifiers have the 
+ * lowest level and weakly binding operators (e.g. |) have the largest level 
+ *)
+and getParenthLevel = function
+  | Compound _ -> 10
+
                                         (* Comparisons *)
-      BinOp((Eq|Ne|Gt|Lt|Ge|Le),_,_,_,_) -> 4
+  | BinOp((Eq|Ne|Gt|Lt|Ge|Le),_,_,_,_) -> 8
                                         (* Bit operations. Technically, they 
-                                         * could have precedence 3,but I like 
+                                         * could have level 9,but I like 
                                          * parentheses around them in 
                                          * comparisons  *)
-    | BinOp((Shiftlt|Shiftrt|BAnd|BOr|BXor),_,_,_,_) -> 4
+  | BinOp((BOr|BXor|BAnd|Shiftlt|Shiftrt),_,_,_,_) -> 7
                                         (* Additive *)
-    | BinOp((Minus|Plus),_,_,_,_)  -> 2
+  | BinOp((Minus|Plus|Index),_,_,_,_)  -> 6
                                         (* Multiplicative *)
-    | BinOp((Div|Mod|Mult),_,_,_,_) -> 1
+  | BinOp((Div|Mod|Mult),_,_,_,_) -> 4
+
+                                        (* Unary *)
+  | AddrOf(_,_) -> 3
+  | UnOp((Neg|BNot),_,_,_) -> 3
+  | CastE(_,_,_) -> 3
+
+                                        (* Lvals *)
+  | Lval(Mem(_,_,_)) -> 2                   
+  | Lval(Var(_,(Field _|CastO _),_)) -> 2
+  | SizeOf _ -> 2
+
+  | Lval(Var(_,NoOffset,_)) -> 1        (* Plain variables *)
+  | Const _ -> 1                        (* Constants *)
+
                                         (* Rest *)
-    | _ -> 0
-  in
+
+(* Print an expression assuming a precedence for the context. Use a small 
+ * number to parenthesize the printed expression. 0 guarantees parentheses. 1 
+ * will parenthesize everything but identifiers. *)
+and d_expprec contextprec () e = 
+  if getParenthLevel e >= contextprec then
+    dprintf "(%a)" d_exp e
+  else
+    d_exp () e
+
+and d_exp () e = 
+  let level = getParenthLevel e in
   match e with
     Const(c,l) -> dprintf "%a" d_const c
   | Lval(l) -> dprintf "%a" d_lval l
-  | UnOp(u,e,_,l) -> 
+  | UnOp(u,e1,_,l) -> 
       let d_unop () u =
         match u with
           Neg -> text "-"
         | BNot -> text "~"
       in
-      dprintf "%a %a" d_unop u d_exp e
+      dprintf "%a %a" d_unop u (d_expprec level) e1
 
   | BinOp(b,e1,e2,_,l) -> 
-      let topprec = getPrec e in
-      let docArg () e = 
-        let d = d_exp () e in
-        if getPrec e >= topprec then 
-          dprintf "(%a)" insert d 
-        else d
-      in
-      dprintf "@[%a %a@?%a@]" docArg e1 d_binop b docArg e2
-  | CastE(t,e,l) -> dprintf "(%a)(%a)" d_type t d_exp e
+      dprintf "@[%a %a@?%a@]" 
+        (d_expprec level) e1 d_binop b (d_expprec level) e2
+  | CastE(t,e,l) -> dprintf "(%a)%a" d_type t (d_expprec level) e
   | SizeOf (t, l) -> dprintf "sizeof(%a)" d_type t
-  | AddrOf(lv,lo) -> dprintf "& (%a)" d_lval lv
+  | AddrOf(lv,lo) -> dprintf "& %a" (d_lvalprec 2) lv
   | Compound (t, el) -> dprintf "(%a) {@[%a@]}" d_type t
         (docList (chr ',' ++ break) (d_exp ())) el
+  
 
 and d_binop () b =
   match b with
     Plus -> text "+"
+  | Index -> text "+"
   | Minus -> text "-"
   | Mult -> text "*"
   | Div -> text "/"
@@ -547,11 +576,13 @@ and d_plainexp () = function
 
 and d_plainlval () = function
   | Var(vi,o,l) -> dprintf "Var(@[%s,@?%a@])" vi.vname d_plainoffset o
+  | Mem(BinOp(Index,e1,e2,_,_),o,l) -> 
+      dprintf "Mem(@[Idx(@[%a,@?%a@],@?%a@])" 
+        d_plainexp e1 d_plainexp e2 d_plainoffset o
   | Mem(e,o,l) -> dprintf "Mem(@[%a,@?%a@])" d_plainexp e d_plainoffset o
 
 and d_plainoffset () = function
     NoOffset -> text "NoOffset"
-  | Index(e,o) -> dprintf "Index(@[%a,@?%a@])" d_plainexp e d_plainoffset o
   | Field(fi,o) -> 
       dprintf "Field(@[%s:%a,@?%a@])" 
         fi.fname d_plaintype fi.ftype d_plainoffset o
@@ -560,7 +591,8 @@ and d_plainoffset () = function
 and d_plaintype () = function
     TVoid a -> dprintf "TVoid(@[%a@])" d_attrlist a
   | TInt(ikind, a) -> dprintf "TInt(@[%a,@?%a@])" d_ikind ikind d_attrlist a
-  | TFloat(fkind, a) -> dprintf "TFloat(@[%a,@?%a@])" d_fkind fkind d_attrlist a
+  | TFloat(fkind, a) -> 
+      dprintf "TFloat(@[%a,@?%a@])" d_fkind fkind d_attrlist a
   | TBitfield(ikind,i,a) -> 
       dprintf "TBitfield(@[%a,@?%d,@?%a@])" d_ikind ikind i d_attrlist a
   | TNamed (n, t) ->
@@ -592,11 +624,15 @@ and d_plaintype () = function
 
 
 (* lvalue *)
+and d_lvalprec contextprec () lv = 
+  if getParenthLevel (Lval(lv)) >= contextprec then
+    dprintf "(%a)" d_lval lv
+  else
+    d_lval () lv
+  
 and d_lval () lv = 
   let rec d_offset dobase = function
     | NoOffset -> dprintf "%t" dobase
-    | Index (e, o) -> 
-        d_offset (fun () -> dprintf "%t[@[%a@]]" dobase d_exp e) o
     | Field (fi, o) -> 
         d_offset (fun () -> dprintf "%t.%s" dobase fi.fname) o
     | CastO (t, o) ->
@@ -604,10 +640,11 @@ and d_lval () lv =
   in
   match lv with
     Var(vi,o,_) -> d_offset (fun _ -> text vi.vname) o
+  | Mem(BinOp(Index,e1,e2,_,_),o,_) -> 
+      d_offset (fun _ -> dprintf "%a[%a]" (d_expprec 3) e1 d_exp e2) o
   | Mem(e,Field(fi, o),_) -> 
-      d_offset (fun _ -> dprintf "%a->%s" d_exp e fi.fname) o
-
-  | Mem(e,NoOffset,_) -> dprintf "*%a" d_exp e
+      d_offset (fun _ -> dprintf "%a->%s" (d_expprec 3) e fi.fname) o
+  | Mem(e,NoOffset,_) -> dprintf "*%a" (d_expprec 3) e
 
   | Mem(e,o,_) -> d_offset (fun _ -> d_exp () e) o
         
@@ -616,11 +653,12 @@ and d_instr () i =
   | Set(lv,e,lo) -> begin
       (* Be nice to some special cases *)
       match e with
-        BinOp(Plus,Lval(lv'),Const(CInt(1,_),_),_,_) when lv == lv' -> 
+        BinOp((Plus|Index),Lval(lv'),Const(CInt(1,_),_),_,_) when lv == lv' -> 
           dprintf "%a ++;" d_lval lv
       | BinOp(Minus,Lval(lv'),Const(CInt(1,_),_),_,_) when lv == lv' -> 
           dprintf "%a --;" d_lval lv
-      | BinOp((Plus|Minus|BAnd|BOr|BXor|Mult|Div|Mod|Shiftlt|Shiftrt) as bop,
+      | BinOp((Plus|Index|Minus|BAnd|BOr|BXor|
+               Mult|Div|Mod|Shiftlt|Shiftrt) as bop,
               Lval(lv'),e,_,_) when lv == lv' -> 
           dprintf "%a %a= %a;" d_lval lv d_binop bop d_exp e
       | _ -> dprintf "%a = %a;" d_lval lv d_exp e
@@ -750,6 +788,7 @@ let printFile (out : out_channel) (globs : file) =
   | GAsm s -> dprintf "__asm__(\"%s\")@!" (escape_string s)
   in
   List.iter (fun g -> print (d_global () g ++ line)) globs
+
     
 
 
@@ -813,7 +852,6 @@ let iterExp (f: exp -> unit) (body: stmt) : unit =
     | Mem(e,off,_) -> fExp e; fOff off
   and fOff = function
       Field (_, o) -> fOff o
-    | Index (e, o) -> fExp e; fOff o
     | CastO (_, o) -> fOff o
     | NoOffset -> ()
   and fStmt = function
@@ -926,7 +964,39 @@ let rec hashType (t: typ) : int =
 
 *)
 
-    
+     (* Type signatures. Two types are identical iff they have identical 
+      * signatures *)
+type typsig = 
+    TSArray of typsig * exp option * attribute list
+  | TSPtr of typsig * attribute list
+  | TSStruct of string * attribute list
+  | TSUnion of string * attribute list
+  | TSFun of typsig * (typsig * attribute list) list * bool * attribute list
+  | TSBase of typ
+
+(* Compute a type signature *)
+let rec typeSig t = 
+  match t with 
+  | (TInt _ | TFloat _ | TEnum _ | TBitfield _ | TVoid _) -> TSBase t
+  | TPtr (t, a) -> TSPtr (typeSig t, a)
+  | TArray (t,l,a) -> TSArray(typeSig t, l, a)
+  | TStruct (n, _, a) -> TSStruct (n, a)
+  | TUnion (n, _, a) -> TSUnion (n, a)
+  | TFun(rt,args,isva,a) -> TSFun(typeSig rt, 
+                                  List.map (fun vi -> (typeSig vi.vtype, 
+                                                       vi.vattr)) args,
+                                  isva, a)
+  | TNamed(_, t) -> typeSig t
+  | TForward n -> begin
+      let l = String.length n in
+      try
+        if String.sub n 0 1 = "s" then 
+          TSStruct(String.sub n 7 (l - 7), [])
+        else
+          TSUnion(String.sub n 6 (l - 6), [])
+      with _ -> E.s (E.bug "Invalid TForward(%s)" n)
+  end
+      
 let dExp : doc -> exp = 
   function d -> Const(CStr(sprint 80 d),lu)
 
