@@ -11,7 +11,9 @@ int s1;
 
 int sets1() {
   static int s1 = 5; // Our own private copy
-  return s1;
+
+  static int counter = 29; // Try again
+  return s1 + counter;
 }
 
 int main() {
