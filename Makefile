@@ -444,45 +444,23 @@ testpcc/% : $(PCCDIR)/src/%.c defaulttarget
 
 
 
-testallspj: defaulttarget
-	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.o
-	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.exe
-	make -C $(PCCDIR) \
-             CC="$(SAFECC) --keep=$(CILDIR)/test/PCCout $(CONLY)" \
-             USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
-             COMPILER=$(PCCCOMP) \
-             ENGINE_OTHERS="$(CILDIR)/$(SAFECLIB) $(CILDIR)/$(SAFEMAINLIB)" \
-             TRANSLF_OTHERS="$(CILDIR)/$(SAFECLIB) $(CILDIR)/$(SAFEMAINLIB)" \
-	     defaulttarget 
-
 ifdef _MSVC
 MSLINK=--mode=mslink
 endif
-combinepcc: defaulttarget
+pcc : defaulttarget
 	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.o
 	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.exe
 	make -C $(PCCDIR) \
-             CC="$(SAFECC) --patch=$(CILDIR)/lib/$(PATCHFILE) --combine --keep=$(CILDIR)/test/PCCout $(CONLY)" \
+             CC="$(SAFECC) --combine --keep=$(CILDIR)/test/PCCout $(CONLY)" \
              LD="$(SAFECC) $(MSLINK) --combine --keep=$(CILDIR)/test/PCCout" \
              USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
              COMPILER=$(PCCCOMP) \
              ENGINE_OTHERS="$(CILDIR)/$(SAFECLIB) $(CILDIR)/$(SAFEMAINLIB)" \
              TRANSLF_OTHERS="$(CILDIR)/$(SAFECLIB) $(CILDIR)/$(SAFEMAINLIB)" \
-	     defaulttarget 
+	     clean defaulttarget 
 
-.PHONY : allpcc
-allpcc: defaulttarget
-	cd $(PCCTEST); \
-           $(SAFECC) --keep=. \
-                 $(DOOPT) \
-                 ../PCC/bin/engine.$(ARCHOS)$(PCCCOMP).$(PCCTYPE).exe.c \
-                 $(EXEOUT)allengine.exe
-
-runpcc:
-ifdef _GNUCC
-	rm $(PCCDIR)/bin/*_MSVC*
-endif
-	cd $(PCCDIR)/test; test.cmd fact --save-temps=pccout --gory
+pccclean :
+	make -C $(PCCDIR) clean
 
 
 SPJDIR=C:/Necula/Source/Touchstone/test

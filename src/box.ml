@@ -781,16 +781,6 @@ let checkZeroTagsFun =
   fdec.svar.vstorage <- Static;
   fdec
 
-let checkNewHomeFun =
-  let fdec = emptyFunction "CHECK_NEWHOME" in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
-  let arge  = makeLocalVar fdec "e" voidPtrType in
-  fdec.svar.vtype <- 
-     TFun(voidType, [ argb; arge ], false, []);
-  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
-  fdec.svar.vstorage <- Static;
-  fdec
-
 let checkFindHomeFun =
   let fdec = emptyFunction "CHECK_FINDHOME" in
   let argk  = makeLocalVar fdec "kind" intType in
@@ -981,7 +971,9 @@ and addArraySize t =
       TComp 
         (mkCompInfo true ""
            (fun _ -> 
-             [ ("_size", uintType, packAttr);
+             [ ("_size", uintType, []); (* Don't pack the first field or else 
+                                         * the whole variable will be packed 
+                                         * against the preceeding one *)
                ("_array", complt, packAttr); ]) [])
     in
     let tname = newTypeName "_sized_" t in
@@ -1016,7 +1008,9 @@ and tagType (t: typ) : typ =
         TComp 
           (mkCompInfo true ""
              (fun _ -> 
-               [ ("_len", uintType, tagAttr);
+               [ ("_len", uintType, []); (* Don't pack the first field,or 
+                                          * else the entire thing will be 
+                                          * packed against the preceeding one *)
                  ("_data", t, tagAttr);
                  ("_tags", TArray(intType, 
                                   Some tagWords, []), tagAttr);
@@ -1963,8 +1957,14 @@ let withIterVar (f: fundec) (doit: varinfo -> 'a) : 'a =
   avail := newv :: !avail;
   res
   
-  
-let rec checkMem (towrite: exp option) 
+
+(* Various reasons why we might want to check an LV *)  
+type checkLvWhy = 
+    ToWrite of exp
+  | ToRead
+  | ToSizeOf  (* Like ToRead but we do not need to check anything *)
+
+let rec checkMem (why: checkLvWhy) 
                  (lv: lval) (base: exp) (bend: exp)
                  (lvt: typ) (pkind: N.opointerkind) : stmt list = 
   (* ignore (E.log "checkMem: lvt: %a\n" d_plaintype lvt); *)
@@ -1973,7 +1973,7 @@ let rec checkMem (towrite: exp option)
   let newk = N.stripT pkind in 
   if newk <> pkind then begin (* A table pointer *)
     let base, bend, stmts = fromTable pkind (mkAddrOf lv) in
-    stmts @ (checkMem towrite lv base bend lvt newk)
+    stmts @ (checkMem why lv base bend lvt newk)
   end else begin
     (* Fetch the length field in a temp variable. But do not create the 
      * variable until certain that it is needed  *)
@@ -1997,40 +1997,42 @@ let rec checkMem (towrite: exp option)
     in
     (* Now the tag checking. We only care about pointers. We keep track of 
      * what we write in each field and we check pointers in a special way.  *)
-    let rec doCheckTags (towrite: exp option) (where: lval) 
+    let rec doCheckTags (why: checkLvWhy) (where: lval) 
         (t: typ) (pkind: N.opointerkind) acc = 
       match unrollType t with 
       | (TInt _ | TFloat _ | TEnum _ | TBitfield _ ) -> acc
 (*    | TFun _ -> acc *)
       | TComp comp when isFatComp comp -> begin (* A fat pointer *)
-          match towrite with
-            None -> (* a read *)
+          match why with
+            ToRead -> (* a read *)
               if pkind = N.Wild then
                 (checkFatPointerRead base 
                    (AddrOf(where)) (getLenExp ())) :: acc
               else
                 acc
-          | Some towrite -> (* a write *)
+          | ToWrite towrite -> (* a write *)
               let _, whatp, whatb, _ = readFieldsOfFat towrite t in
               if pkind = N.Wild then
                 (checkFatPointerWrite base (AddrOf(where)) 
                    whatb whatp (getLenExp ())) :: acc
               else
                 checkFatStackPointer whatp whatb :: acc
+          | ToSizeOf -> acc
       end 
       | TComp comp when comp.cstruct -> 
           let doOneField acc fi = 
             let newwhere = addOffsetLval (Field(fi, NoOffset)) where in
-            let newtowrite = 
-              match towrite with 
-                None -> None
-              | Some (Lval whatlv) -> 
-                  Some (Lval (addOffsetLval (Field(fi, NoOffset)) whatlv))
+            let newwhy = 
+              match why with 
+                ToRead -> ToRead
+              | ToWrite (Lval whatlv) -> 
+                  ToWrite (Lval (addOffsetLval (Field(fi, NoOffset)) whatlv))
                   (* sometimes in Asm outputs we pretend that we write 0 *)
-              | Some (Const(CInt(0, _, _))) -> None
-              | Some e -> E.s (E.unimp "doCheckTags (%a)" d_exp e)
+              | ToWrite (Const(CInt(0, _, _))) -> ToRead
+              | ToWrite e -> E.s (E.unimp "doCheckTags (%a)" d_exp e)
+              | ToSizeOf -> why
             in
-            doCheckTags newtowrite newwhere fi.ftype pkind acc
+            doCheckTags newwhy newwhere fi.ftype pkind acc
           in
           List.fold_left doOneField acc comp.cfields
             
@@ -2047,15 +2049,18 @@ let rec checkMem (towrite: exp option)
                   let itvar = Lval (var it) in
                 (* make the body to initialize one element *)
                   let initone = 
-                    let towriteelem = 
-                      match towrite with
-                        None -> None
-                      | Some (Lval whatlv) -> 
-                          Some (Lval (addOffsetLval (Index(itvar, NoOffset)) 
-                                        whatlv))
-                      | Some e -> E.s (E.unimp "doCheckTags: write (%a)" d_exp e)
+                    let whyelem = 
+                      match why with
+                        ToRead -> ToRead
+                      | ToWrite (Lval whatlv) -> 
+                          ToWrite (Lval (addOffsetLval (Index(itvar, 
+                                                              NoOffset)) 
+                                           whatlv))
+                      | ToWrite e -> 
+                          E.s (E.unimp "doCheckTags: write (%a)" d_exp e)
+                      | ToSizeOf -> why
                     in
-                    doCheckTags towriteelem
+                    doCheckTags whyelem
                       (addOffsetLval (Index(itvar, NoOffset)) where)
                       bt
                       pkind (* ??? *)
@@ -2073,9 +2078,9 @@ let rec checkMem (towrite: exp option)
       | TPtr(_, _) -> (* This can only happen if we are writing to an untagged 
                          * area. All other areas contain only fat pointers *)
           begin
-            match towrite with
-              Some x -> checkLeanStackPointer x :: acc
-            | None -> acc
+            match why with
+              ToWrite x -> checkLeanStackPointer x :: acc
+            | _ -> acc
           end
       | _ -> E.s (E.unimp "unexpected type in doCheckTags: %a\n" d_type t)
     in
@@ -2083,16 +2088,16 @@ let rec checkMem (towrite: exp option)
     let zeroAndCheckTags = 
     (* Call doCheckTags anyway because even for safe writes it needs to check 
        * when pointers are written *)
-      let dotags = doCheckTags towrite lv lvt pkind [] in
+      let dotags = doCheckTags why lv lvt pkind [] in
       if pkind = N.Wild then
-        match towrite with 
-          None -> dotags
-        | Some _ -> (checkZeroTags base (getLenExp ()) lv lvt) :: dotags
+        match why with 
+        | ToWrite _ -> (checkZeroTags base (getLenExp ()) lv lvt) :: dotags
+        | _ -> dotags
       else
         dotags
     in
   (* Now see if we need to do bounds checking *)
-    let iswrite = (match towrite with Some _ -> true | _ -> false) in
+    let iswrite = (match why with ToWrite _ -> true | _ -> false) in
     let checkb = 
       (checkBounds iswrite getLenExp base bend lv lvt pkind) 
       @ zeroAndCheckTags in
@@ -2107,8 +2112,8 @@ let rec checkMem (towrite: exp option)
   
           
     (* Check a write *)
-let checkRead = checkMem None
-let checkWrite e = checkMem (Some e)
+let checkRead = checkMem ToRead
+let checkWrite e = checkMem (ToWrite e)
 
 
 
@@ -2602,16 +2607,8 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
       end
     | _ -> mkEmptyStmt ()
   in
-  (* Now add the home area to the table *)
-  let add_table =
-    if false &&  k <> kno_t then
-      call None (Lval (var checkNewHomeFun.svar))
-        [Lval (Var vi, ptroff) ; tmpvar ]
-    else
-      mkEmptyStmt () 
-  in
   alloc :: adjust_ptr :: assign_p :: 
-  assign_base :: setsz :: (init @ [assign_end] @ [add_table])
+  assign_base :: setsz :: (init @ [assign_end])
 
 (* Given a sized array type, return the size and the array field *)
 let getFieldsOfSized (t: typ) : fieldinfo * fieldinfo = 
@@ -3097,11 +3094,21 @@ and boxexpf (e: exp) : stmt list * fexp =
         let t' = fixupType t in
         ([], L(uintType, N.Scalar, SizeOf(t')))
 
+    (* Intercept the case when we do sizeof an lvalue. This way we can avoid 
+     * trying to check the safety of reads that might be triggered if we view 
+     * the lvalue as an expression *)
+          
+    | SizeOfE (Lval lv) -> 
+        (* ignore (E.log "boxexpf: %a\n" d_plainlval lv); *)
+        let lvt, lvkind, lv', baseaddr, len, dolv = boxlval lv in
+        ([], L(uintType, N.Scalar, SizeOfE(Lval lv')))
+
     | SizeOfE (e) -> begin
         let (et, doe, e') = boxexp e in
         (* Drop all size-effects from this SizeOf *)
         ([], L(uintType, N.Scalar, SizeOfE(e')))
     end
+
     | AddrOf (lv) ->
         let (lvt, lvkind, lv', baseaddr, bend, dolv) = boxlval lv in
         (* Check that variables whose address is taken are flagged as such, 
@@ -3162,28 +3169,6 @@ and boxinit (ei: init) : init =
     SingleInit (dExp (dprintf "booo_init: %a" d_init ei))
   end 
 
-(*    
-and boxGlobalInit (ei: init) (et: typ) = 
-  let et' = fixupType et in
-  let (e't, doe, e', e'base, e'len) = boxexpSplit e in
-  if doe <> [] then
-    E.s (E.unimp "Non-pure initializer %a\n"  d_exp e);
-  let compoundtype = 
-  match unrollType et' with
-    TComp comp when comp.cstruct -> begin
-      match comp.cfields with 
-        [p;b] when p.fname = "_p" && b.fname = "_b" -> Some et'
-      | l :: d :: _ when l.fname = "_len" && d.fname = "_data" ->
-          if isFatType d.ftype then Some d.ftype else None
-      | _ -> None
-    end
-  | _ -> None
-  in
-  match compoundtype with
-    None -> e'
-  | Some ct -> 
-      CompoundInit(ct, [ e'; SingleInit(castVoidStar e'base)])
-*)
 
 and fexp2exp (fe: fexp) (doe: stmt list) : expRes = 
   match fe with
