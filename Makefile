@@ -500,6 +500,11 @@ test/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
                --patch=../../lib/$(PATCHFILE) \
 	       $(CONLY) $(DOOPT) $(ASMONLY)$*.s $*.c 
 
+testexe/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
+	cd $(SMALL1); $(SAFECC)   \
+               --patch=../../lib/$(PATCHFILE) \
+	       $(DOOPT) $(EXEOUT)$*.exe $*.c 
+
 # weimer: test, compile and run
 testc/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
 	cd $(SMALL1); $(SAFECC)   \
@@ -787,14 +792,14 @@ go: defaulttarget mustbegcc
 	cd $(GODIR)/src; \
             make clean build CC="$(GOSAFECC) $(CONLY)" \
                              LD="$(GOSAFECC)" 
-	$(GODIR)/exe/base/go_ultra \
+	$(GODIR)/exe/base/go.ultra \
             <$(GODIR)/data/train/input/2stone9.in
 
 go-noclean: defaulttarget mustbegcc
 	cd $(GODIR)/src; \
             make build CC="$(GOSAFECC) $(CONLY)" \
                        LD="$(GOSAFECC)" 
-	$(GODIR)/exe/base/go_ultra \
+	$(GODIR)/exe/base/go.ultra \
             <$(GODIR)/data/train/input/2stone9.in
 
 

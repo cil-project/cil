@@ -131,6 +131,7 @@ $TEST->add3Tests("li", "_GNUCC=1");
   $TEST->addComment("li-inferbox", "bug in box.ml");
 $TEST->add3Tests("compress", "_GNUCC=1");
    $TEST->addComment("compress-box", "missing wrappers");
+$TEST->add3Tests("go", "_GNUCC=1");
 $TEST->add3Tests("apache/gzip");
 $TEST->add3Tests("apache/rewrite");
   $TEST->addComment("apache/rewrite-cil", "missing main");

@@ -211,10 +211,6 @@ let rec print_base_type  typ =
   | PROTO (typ, _, _, _) -> print_base_type typ
   | PTR typ -> print_base_type  typ
   | ARRAY (typ, _) -> print_base_type  typ
-(*
-  | CONST typ -> print_base_type  typ
-  | VOLATILE typ -> print_base_type  typ
-*)
   | ATTRTYPE (typ, _) -> print_base_type typ
 
   | TYPEOF e -> print "__typeof__("; print_expression e 1; print ")"
@@ -288,6 +284,7 @@ and print_pointer typ =
   end
 
   | ARRAY (typ, _) -> print_pointer typ
+
   | _ -> ()
         
 and print_array typ =
@@ -307,26 +304,26 @@ and print_type (fct : unit -> unit) (typ : base_type ) =
     | ARRAY (typ, _) -> get_base_type typ
     | _ -> typ
   in
-  let rec parentProto = function
-      PTR _ -> true
-    | ARRAY _ -> true
-    | ATTRTYPE (typ, a) -> begin
-        let rec loop = function
-            [] -> parentProto typ
-        | ("cdecl", []) :: rest when !msvcMode -> loop rest
-        | ("stdcall", []) :: rest when !msvcMode -> loop rest
-        | _ -> true
-        in
-        loop a
-    end
-    | _ -> false
-  in
   let base = get_base_type typ in
   match base with
     BITFIELD (_, exp) -> fct (); print " : "; print_expression exp 1
   | PROTO (typ', pars, ell, _) ->
       print_type
 	(fun _ ->
+          let rec parentProto = function
+              PTR _ -> true
+            | ARRAY _ -> true
+            | ATTRTYPE (typ, a) -> begin
+                let rec loop = function
+                    [] -> parentProto typ
+                  | ("cdecl", []) :: rest when !msvcMode -> loop rest
+                  | ("stdcall", []) :: rest when !msvcMode -> loop rest
+                  | _ -> true
+                in
+                loop a
+            end
+            | _ -> false
+          in
           let p = parentProto typ in
 	  if p then print "(";
 	  print_pointer typ;
@@ -337,8 +334,61 @@ and print_type (fct : unit -> unit) (typ : base_type ) =
 	  print_params pars ell;
 	  print ")")
 	typ'
-  | _ -> print_pointer typ; fct (); print_array typ
+  | _ -> (* print_pointer typ; fct (); print_array typ *)
+      print_pointer_array fct typ
         
+(* print_pointer type is passed the binding strength of the context *)
+and print_pointer_array (fct : unit -> unit) (typ : base_type ) = 
+  let parenth (outer_t: base_type) (doit: unit -> unit) : unit = 
+    let typ_strength = function         (* binding strength of type 
+                                         * constructors  *)
+      | ARRAY _ -> 11
+      | PTR _ -> 10
+      | PROTO _ -> 12
+      | _ -> 1
+    in
+    if typ_strength outer_t > typ_strength typ then begin
+      print "("; doit (); print ")"
+    end else
+      doit ()
+  in
+  match typ with
+    PTR typ' -> print_pointer_array 
+                  (fun _ -> parenth typ' (fun _ -> print "*"; fct ())) typ' 
+  | ARRAY (typ', dim) ->
+      print_pointer_array 
+        (fun _ -> 
+          parenth typ'
+            (fun _ -> fct(); print "["; print_expression dim 0;  print "]"))
+        typ'
+  | ATTRTYPE (typ, a) -> begin 
+      print_pointer_array fct typ;
+        (* Extract the const and volatile attributes *)
+      let rec doconstvol = function
+          [] -> []
+        | ("const", []) :: rest -> print "" (* " const "*); doconstvol rest
+        | ("volatile", []) :: rest -> print " volatile "; doconstvol rest
+        | ("cdecl", []) :: rest when !msvcMode -> 
+            print "" (* " __cdecl "*); doconstvol rest
+        | ("stdcall", []) :: rest when !msvcMode -> 
+            print ""(*" __stdcall "*); doconstvol rest
+        | a :: rest -> a :: doconstvol rest
+      in
+      let rest = doconstvol a in
+      if rest <> [] then 
+        begin
+          print " __attribute__((";
+          let printOne (s, el) =
+            print s;
+            if el <> [] then
+              print_commas false (fun e -> print_expression e 1) el
+          in
+          print_commas false printOne rest;
+          print ")) "
+        end
+  end
+  | _ -> fct ()
+  
 and print_onlytype typ =
   print_base_type typ;
   print_type (fun _ -> ()) typ
