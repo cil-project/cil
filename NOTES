@@ -10,3 +10,17 @@
  - vararg functions are a problem. By definition, they involve taking the
    address of a formal argument. BOX sees this and and makes a copy of that
    argument. But also there is no easy way to do bounds checking for vararg.
+
+ - BOX copies formals whose address is taken into a local. But it forgets to
+   copy them back upon return. This should not be a problem because in most
+   C compilers the caller cannot see the effects on the actual arguments.
+
+ - We must turn on alignment on a 32-bit boundary. Otherwise, MSVC pads the
+   tagged structures (sometimes) and puts an extra word between the length and
+   the data. The padding is fixed for now in safeccheck.h
+
+ - Writing or reading unaligned pointers is not allowed. 
+
+ - Right now when we try to read a pointer and we don't find one in tags, we
+   overwrite the base part of the pointer to be read with 0. But this might
+   have undesired side-effects.
