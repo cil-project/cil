@@ -81,8 +81,6 @@ type node =
                                          * this pointer  *)
       mutable intcast: bool;            (* Some integer other than 0 is 
                                          * stored in this pointer *)
-      mutable interface : bool;         (* this node is part of the
-                                         * interface in the user program *)
       mutable succ: edge list;          (* All edges with "from" = this node *)
       mutable pred: edge list;          (* All edges with "to" = this node *)
 
@@ -205,7 +203,6 @@ let d_node () n =
     (if n.arith then "arith," else "")
     (if n.null  then "null," else "")
     (if n.intcast  then "int," else "")
-    (if n.interface  then "interface," else "")
     (if n.sized  then "sized," else "")
     (if n.inInterface then "interf," else "")
     (docList (chr ',' ++ break)
@@ -386,7 +383,6 @@ let newNode (p: place) (idx: int) (bt: typ) (a: attribute list) : node =
             posarith= false;
             null    = false;
             intcast = false;
-            interface = false;
             succ = [];
             kind = kind;
             why_kind = why_kind; 

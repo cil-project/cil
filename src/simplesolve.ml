@@ -179,7 +179,7 @@ let rec is_p n other_n = match n.where with
 let can_cast (n1 : node) (n2 : node) = begin
   let t1 = n1.btype in
   let t2 = n2.btype in 
-    if subtype t1 Safe t2 Safe then
+  if subtype t1 Safe t2 Safe then
     (Safe,Safe,false)
   else if subtype t1 Safe 
      (TArray(t2,(Some(Const(CInt(1024,ILong,None)))),[])) Safe then
@@ -400,6 +400,9 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
 
     end) node_ht
   done ;
+
+  (* mark all interface char * nodes with no arith as string *)
+
 
   (* all otherwise unconstrained nodes become safe *)
   Hashtbl.iter (fun id n -> 
