@@ -1749,6 +1749,9 @@ class type cilPrinter = object
     (** Dump a control-flow statement to a file with a given indentation. 
      * This is used by {!Cil.dumpGlobal}. *)
 
+  method pBlock: unit -> block -> Pretty.doc
+    (** Print a block. *)
+
   method pGlobal: unit -> global -> Pretty.doc
     (** Global (vars, types, etc.). This can be slow and is used only by 
      * {!Cil.printGlobal} but not by {!Cil.dumpGlobal}. *)
@@ -1783,6 +1786,13 @@ class type cilPrinter = object
      * will be printed always. Otherwise the file name is printed only if it 
      * is different from the last time time this function is called. The last 
      * file name is stored in a private field inside the cilPrinter object. *)
+
+  method pStmtKind : stmt -> unit -> stmtkind -> Pretty.doc
+    (** Print a statement kind. The code to be printed is given in the
+     * {!Cil.stmtkind} argument.  The initial {!Cil.stmt} argument
+     * records the statement which follows the one being printed;
+     * {!Cil.defaultCilPrinterClass} uses this information to prettify
+     * statement printing in certain special cases. *)
 
   method pExp: unit -> exp -> Pretty.doc
     (** Print expressions *) 
