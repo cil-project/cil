@@ -1,8 +1,11 @@
 
 static char *usageplocal = "Usage";
 static char usageescape = 'C';
+
+#pragma box(off)
 char *usagep = "Usage non-local";
 char usages[] = "Usage string";
+#pragma box(on)
 
 char *null = (void*)0;
 
@@ -44,6 +47,8 @@ int afunc(void) {
   NESTED loc1;
   char   locbuff[30] NULLTERM;
   char   indexbuff[10] SIZED;
+
+  loc1.f1.a2 = glob1.f1.a2;
   
   return * loc1.f2[3].i1 + (locbuff[0] - indexbuff[0]);
 }

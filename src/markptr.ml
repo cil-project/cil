@@ -12,6 +12,8 @@ let currentFileName = ref ""
 let currentFunctionName = ref ""
 let currentResultType = ref voidType
 
+let boxing = ref true
+
 let callId = ref (-1)  (* Each call site gets a new ID *)
 
 let polyId = ref (-1) 
@@ -626,69 +628,76 @@ let rec doStmt (s: stmt) =
 (* Now do the globals *)
 let doGlobal (g: global) : global = 
   match g with
-    (GText _ | GAsm _) -> g
   | GPragma (a, _) as g -> begin
       (match a with
         ACons("boxpoly", [ AStr(s) ]) -> 
           ignore (E.log "Will treat %s as polymorphic\n" s); 
           H.add polyFunc s (ref None)
+      | ACons("box", [AId("on")]) -> boxing := true
+      | ACons("box", [AId("off")]) -> boxing := false
       | _ -> ());
       g
     end
+  | _ -> 
+      if not !boxing then g
+      else match g with
+      | GText _ | GAsm _ -> g
 
-  (* Keep the typedefs only because they are convenient to define son struct 
-   * tags. We won't use the TNamed *)
-  | GType (n, t, l) -> 
-      let t', _ = doType t (N.PType n) 0 in
-      GType (n, t', l)
-
-  | GDecl (vi, _) -> 
+       (* Keep the typedefs only because they are convenient to define son 
+        * struct tags. We won't use the TNamed  *)
+      | GType (n, t, l) -> 
+          let t', _ = doType t (N.PType n) 0 in
+          GType (n, t', l)
+            
+      | GDecl (vi, _) -> 
       (* ignore (E.log "Found GDecl of %s. T=%a\n" vi.vname
                 d_plaintype vi.vtype); *)
-      if not (H.mem polyFunc vi.vname) then doVarinfo vi; 
-      g
-  | GVar (vi, init, l) -> 
-      let init' = 
-        match init with
-          None -> None
-        | Some i -> Some (doExpAndCast i vi.vtype)
-      in
-      GVar (vi, init', l)
-  | GFun (fdec, l) -> 
-      let newvi, ispoly = instantiatePolyFunc fdec.svar in
-      if ispoly then
-        fdec.svar <- newvi; (* Change the varinfo if the instantiation has 
-                             * changed it *)
-      currentFunctionName := fdec.svar.vname;
-      (* Go through the formals and copy their type and attributes from the 
-       * type. Then restore the sharing  *)
-      (match fdec.svar.vtype with
-        TFun(rt, targs, isva, fa) -> 
-          let rec scanFormals targs sformals = 
-            match targs, sformals with
-              [], [] -> ()
-            | ta :: targs, sf :: sformals -> 
-                sf.vtype <- ta.vtype;
-                sf.vattr <- ta.vattr;
-                scanFormals targs sformals
-            | _ -> E.s (E.bug "scanFormals(%s) non-matching formal lists"
-                          fdec.svar.vname)
+          if not (H.mem polyFunc vi.vname) then doVarinfo vi; 
+          g
+      | GVar (vi, init, l) -> 
+          let init' = 
+            match init with
+              None -> None
+            | Some i -> Some (doExpAndCast i vi.vtype)
           in
-          scanFormals targs fdec.sformals;
+          GVar (vi, init', l)
+      | GFun (fdec, l) -> 
+          let newvi, ispoly = instantiatePolyFunc fdec.svar in
+          if ispoly then
+            fdec.svar <- newvi; (* Change the varinfo if the instantiation has 
+                                   * changed it *)
+          currentFunctionName := fdec.svar.vname;
+          (* Go through the formals and copy their type and attributes from 
+           * the type. Then restore the sharing  *)
+          (match fdec.svar.vtype with
+            TFun(rt, targs, isva, fa) -> 
+              let rec scanFormals targs sformals = 
+                match targs, sformals with
+                  [], [] -> ()
+                | ta :: targs, sf :: sformals -> 
+                    sf.vtype <- ta.vtype;
+                    sf.vattr <- ta.vattr;
+                    scanFormals targs sformals
+                | _ -> E.s (E.bug "scanFormals(%s) non-matching formal lists"
+                              fdec.svar.vname)
+              in
+              scanFormals targs fdec.sformals;
           (* Restore the sharing by writing the type *)
-          setFormals fdec fdec.sformals;
-          currentResultType := rt
-      | _ -> E.s (E.bug "Not a function")); 
-      (* Do the other locals *)
-      List.iter doVarinfo fdec.slocals;
-      (* Do the body *)
-      fdec.sbody <- doStmt fdec.sbody;
-      g
+              setFormals fdec fdec.sformals;
+              currentResultType := rt
+          | _ -> E.s (E.bug "Not a function")); 
+          (* Do the other locals *)
+          List.iter doVarinfo fdec.slocals;
+          (* Do the body *)
+          fdec.sbody <- doStmt fdec.sbody;
+          g
+      | GPragma _ -> g (* Should never be reached *)
       
       
 (* Now do the file *)      
 let markFile fl = 
   currentFileName := fl.fileName;
+  boxing := true;
   E.hadErrors := false;
   H.clear polyFunc;
   (* Find the globals that are declared but not defined. They are part of 

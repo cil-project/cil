@@ -10,6 +10,7 @@ module E = Errormsg
 
 
 let doFile (fl: file) : file = 
+  let boxing = ref true in
   let rec doGlobal = function
       GVar (vi, Some init, l) as g -> 
         let hasPointers = 
@@ -18,7 +19,7 @@ let doFile (fl: file) : file =
               match t with 
                 TPtr _ -> ExistsTrue
               | _ -> ExistsMaybe) vi.vtype in
-        if hasPointers then 
+        if !boxing && hasPointers then 
           let finit = getGlobInit fl in
           (* Now generate the code. Baseoff is the offset to the current 
            * compound  *)
@@ -35,7 +36,14 @@ let doFile (fl: file) : file =
         else g
           
         (* Leave alone all other globals *)
-    | g -> g
+    | GPragma (a, _) as g -> begin
+        (match a with
+        | ACons("box", [AId("on")]) -> boxing := true
+        | ACons("box", [AId("off")]) -> boxing := false
+        | _ -> ());
+        g
+    end
+  | g -> g
   in
   let newglobals = List.map doGlobal fl.globals in (* Do this first *)
   let newfile = {fl with globals = newglobals} in

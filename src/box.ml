@@ -2313,6 +2313,7 @@ let boxFile file =
   ignore (E.log "Boxing file\n");
   E.hadErrors := false;
   currentFile := file;
+  let boxing = ref true in
   (* Compute a small file ID *)
   let _ = 
     let h = H.hash file.fileName in
@@ -2325,98 +2326,102 @@ let boxFile file =
                                         (* We ought to look at pragmas to see 
                                          * if they talk about alignment of 
                                          * structure fields *)
-    | GPragma (a, _) -> begin
+      GPragma (a, _) -> begin
         (match a with
           ACons("interceptCasts", [ AId("on") ]) -> interceptCasts := true
         | ACons("interceptCasts", [ AId("off") ]) -> interceptCasts := false
+        | ACons("box", [AId("on")]) -> boxing := true
+        | ACons("box", [AId("off")]) -> boxing := false
         | _ -> ());
         theFile := g :: !theFile
-    end
+      end
+    | _ -> 
+        if not !boxing then theFile := g :: !theFile else
+        match g with
 
-    | GText _  -> theFile := g :: !theFile
-    | GDecl (vi, l) -> boxglobal vi false None l
-    | GVar (vi, init, l) -> boxglobal vi true init l
-    | GType (n, t, l) -> 
-        if debug then
-          ignore (E.log "Boxing GType(%s)\n" n);
-        let tnew = fixupType t in
-        theFile := GType (n, tnew, l) :: !theFile
-
-    | GFun (f, l) -> 
-        if debug then
-          ignore (E.log "Boxing GFun(%s)\n" f.svar.vname);
-        (* Fixup the return type as well, except if it is a vararg *)
-        f.svar.vtype <- fixupType f.svar.vtype;
-          (* If the type has changed and this is a global function then we
-           * also change its name *)
-        fixupGlobName f.svar;
-        (* Fixup the types of the locals  *)
-        List.iter 
-          (fun l -> 
-            let newa, newt = moveAttrsFromDataToType l.vattr l.vtype in
-            l.vattr <- N.replacePtrNodeAttrList N.AtVar newa;
-            l.vtype <- fixupType newt;
-            if mustBeTagged l then
-              l.vtype <- tagType l.vtype;
-
+        | GDecl (vi, l) -> boxglobal vi false None l
+        | GVar (vi, init, l) -> boxglobal vi true init l
+        | GType (n, t, l) -> 
+            if debug then
+              ignore (E.log "Boxing GType(%s)\n" n);
+            let tnew = fixupType t in
+            theFile := GType (n, tnew, l) :: !theFile
+                                               
+        | GFun (f, l) -> 
+            if debug then
+              ignore (E.log "Boxing GFun(%s)\n" f.svar.vname);
+            (* Fixup the return type as well, except if it is a vararg *)
+            f.svar.vtype <- fixupType f.svar.vtype;
+            (* If the type has changed and this is a global function then we 
+             * also change its name  *)
+            fixupGlobName f.svar;
+            (* Fixup the types of the locals  *)
+            List.iter 
+              (fun l -> 
+                let newa, newt = moveAttrsFromDataToType l.vattr l.vtype in
+                l.vattr <- N.replacePtrNodeAttrList N.AtVar newa;
+                l.vtype <- fixupType newt;
+                if mustBeTagged l then
+                  l.vtype <- tagType l.vtype;
+                
             (* sm: eliminate the annoying warnings about taking the address
              * of a 'register' variable, by removing the 'register' storage
              * class for any variable with 'wild' attribute and 'named' type *)
-            begin
-              if (l.vstorage = Register) then
-                match l.vtype with
-                  TNamed(_,_,al) ->
-                    if (hasAttribute "wild" al) then begin
-                      (trace "reg-remove"
-                        (dprintf "removing register keyword from %s\n"
-                                 l.vname));
-                      l.vstorage <- NoStorage
-                    end
-                |
-                  _ -> ()
-            end;
-          )
-          f.slocals;
+                begin
+                  if (l.vstorage = Register) then
+                    match l.vtype with
+                      TNamed(_,_,al) ->
+                        if (hasAttribute "wild" al) then begin
+                          (trace "reg-remove"
+                             (dprintf "removing register keyword from %s\n"
+                                l.vname));
+                          l.vstorage <- NoStorage
+                        end
+                    |
+                      _ -> ()
+                end;
+                )
+              f.slocals;
         (* We fix the formals *)
-        List.iter (fun l -> 
-          l.vattr <- N.replacePtrNodeAttrList N.AtVar l.vattr;
-          l.vtype <- fixupType l.vtype) f.sformals;
-        currentFunction := f;           (* so that maxid and locals can be
-                                         * updated in place *)
+            List.iter (fun l -> 
+              l.vattr <- N.replacePtrNodeAttrList N.AtVar l.vattr;
+              l.vtype <- fixupType l.vtype) f.sformals;
+            currentFunction := f;           (* so that maxid and locals can be
+                                               * updated in place *)
         (* Check that we do not take the address of a formal. If we actually
-         * do then we must make that formal a true local and create another
-         * formal *)
-        let newformals, newbody =
-          let rec loopFormals = function
-              [] -> [], [f.sbody]
-            | form :: restf ->
-                let r1, r2 = loopFormals restf in
-                if form.vaddrof then begin
-                  let tmp = makeTempVar f form.vtype in
+           * do then we must make that formal a true local and create another
+           * formal *)
+            let newformals, newbody =
+              let rec loopFormals = function
+                  [] -> [], [f.sbody]
+                | form :: restf ->
+                    let r1, r2 = loopFormals restf in
+                    if form.vaddrof then begin
+                      let tmp = makeTempVar f form.vtype in
                   (* Now take it out of the locals and replace it with the 
-                   * current formal. It is not worth optimizing this one  *)
-                  f.slocals <-
-                     form ::
-                     (List.filter (fun x -> x.vid <> tmp.vid) f.slocals);
+                     * current formal. It is not worth optimizing this one  *)
+                      f.slocals <-
+                         form ::
+                         (List.filter (fun x -> x.vid <> tmp.vid) f.slocals);
                     (* Now replace form with the temporary in the formals *)
-                  tmp :: r1, (mkSet (var form) (Lval(var tmp)) :: r2)
-                end else
-                  form :: r1, r2
-          in
-          loopFormals f.sformals
-        in
-        setFormals f newformals;
-        f.sbody <- mkSeq newbody;
+                      tmp :: r1, (mkSet (var form) (Lval(var tmp)) :: r2)
+                    end else
+                      form :: r1, r2
+              in
+              loopFormals f.sformals
+            in
+            setFormals f newformals;
+            f.sbody <- mkSeq newbody;
         (* Do the body *)
-        let boxbody = boxstmt f.sbody in
+            let boxbody = boxstmt f.sbody in
         (* Initialize the locals *)
-        let inilocals = 
-          List.fold_left 
-            (initializeVar (makeIterVar f)) [boxbody] f.slocals in
-        f.sbody <- mkSeq inilocals;
-        theFile := GFun (f, l) :: !theFile
-
-    | GAsm _ as g -> theFile := g :: !theFile
+            let inilocals = 
+              List.fold_left 
+                (initializeVar (makeIterVar f)) [boxbody] f.slocals in
+            f.sbody <- mkSeq inilocals;
+            theFile := GFun (f, l) :: !theFile
+                                        
+        | (GAsm _ | GText _ | GPragma _) as g -> theFile := g :: !theFile
 
   and boxglobal vi isdef init (l: location) =
     if debug then
