@@ -639,6 +639,17 @@ let checkSafeRetFatFun =
   theFile := GDecl fdec.svar :: !theFile;
   fdec
     
+let checkIndexFun = 
+  let fdec = emptyFunction "CHECK_INDEX" in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  let argl  = makeLocalVar fdec "l" uintType in
+  fdec.svar.vtype <- TFun(voidType, [ argp; argb; argl ], false, []);
+  fdec.svar.vstorage <- Static;
+  theFile := GDecl fdec.svar :: !theFile;
+  fdec
+  
+    
 let checkSafeFatLeanCastFun = 
   let fdec = emptyFunction "CHECK_SAFEFATLEANCAST" in
   let argp  = makeLocalVar fdec "p" voidPtrType in
@@ -1179,6 +1190,12 @@ and boxlval (b, off) : (typ * stmt list * lval * exp * P.pointerkind) =
 and boxoffset (mklval: offset -> lval) 
               (off: offset) 
               (basety: typ) (baseaddr: exp) (pkind: P.pointerkind): offsetRes= 
+  let checkIndex () = 
+    call None (Lval (var checkIndexFun.svar))
+      [ castVoidStar (mkAddrOf (mklval NoOffset));
+        castVoidStar baseaddr;
+        SizeOf (basety, lu)]
+  in
   match off with 
   | NoOffset ->
       (basety, [], NoOffset, baseaddr, pkind)
@@ -1186,7 +1203,7 @@ and boxoffset (mklval: offset -> lval)
   | Field (fi, resto) ->
       let newbase, newpkind, checkbase = 
         match pkind with
-          P.Index -> zero, P.Safe, [] (* check index here *)
+          P.Index -> zero, P.Safe, [checkIndex ()]
         | P.Wild -> baseaddr, P.Wild, [] (* No check here *)
         | _ -> E.s (E.unimp "boxoffset: field")
       in
@@ -1200,7 +1217,7 @@ and boxoffset (mklval: offset -> lval)
   | Index (e, resto) -> 
       let newbase, newpkind, checkbase = 
         match pkind with
-          P.Index -> zero, P.Index, [] (* check index here *)
+          P.Index -> zero, P.Index, [checkIndex ()]
         | P.Wild -> baseaddr, P.Wild, [] (* No check here *)
         | _ -> E.s (E.unimp "boxoffset: index")
       in
