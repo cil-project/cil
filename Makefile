@@ -345,8 +345,8 @@ combinepcc: $(EXECUTABLE)$(EXE) $(TVEXE) $(SAFECLIB) $(SAFEMAINLIB)
              LD="$(SAFECC) $(MSLINK) --combine --keep=$(CILDIR)/test/PCCout" \
              USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
              COMPILER=$(PCCCOMP) \
-             ENGINE_OTHERS="$(SAFECLIB) $(SAFEMAINLIB)" \
-             TRANSLF_OTHERS="$(SAFECLIB) $(SAFEMAINLIB)" \
+             ENGINE_OTHERS="$(CILDIR)/$(SAFECLIB) $(CILDIR)/$(SAFEMAINLIB)" \
+             TRANSLF_OTHERS="$(CILDIR)/$(SAFECLIB) $(CILDIR)/$(SAFEMAINLIB)" \
 	     defaulttarget 
 
 .PHONY : allpcc
