@@ -97,7 +97,45 @@ let rec theMain () =
   let doCombine = ref "" in 
   let usageMsg = "Usage: cilly [options] source-files" in
   let files : string list ref = ref [] in
-  let recordFile fname = files := fname :: (!files) in
+  let recordFile fname = 
+    files := fname :: (!files) 
+  in
+  (* Parsing of files with additional names *)
+  let parseExtraFile (s: string) = 
+    try
+      let sfile = open_in s in
+      while true do
+        let line = try input_line sfile with e -> (close_in sfile; raise e) in
+        let linelen = String.length line in
+        let rec scan (pos: int) (* next char to look at *)
+                     (start: int) : unit (* start of the word, 
+                                            or -1 if none *) =
+          if pos >= linelen then 
+            if start >= 0 then 
+              recordFile (String.sub line start (pos - start))
+            else 
+              () (* Just move on to the next line *)
+          else
+            let c = String.get line pos in
+            match c with 
+              ' ' | '\n' | '\r' | '\t' -> 
+                (* whitespace *)
+                if start >= 0 then begin
+                  recordFile (String.sub line start (pos - start));
+                end;
+                scan (pos + 1) (-1)
+
+            | _ -> (* non-whitespace *)
+                if start >= 0 then 
+                  scan (pos + 1) start 
+                else
+                  scan (pos + 1) pos
+        in
+        scan 0 (-1)
+      done
+    with Sys_error _ -> E.s (E.error "Cannot find extra file: %s\n" s)
+   |  End_of_file -> () 
+  in
   let openLog lfile =
     if !E.verboseFlag then
       ignore (Printf.printf "Setting log file to %s\n" lfile);
@@ -168,6 +206,9 @@ let rec theMain () =
                      "<sys>: subsystem to show debug printfs for";
     "--pdepth",     Arg.Int setTraceDepth,
                       "<n>: set max print depth (default: 5)";
+
+    "--extrafiles", Arg.String parseExtraFile,
+    "<filename>: the name of a file that contains a list of additional files to process, separated by whitespace of newlines";
   ] @ F.args in
   begin
     Stats.reset ();
