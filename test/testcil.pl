@@ -308,6 +308,7 @@ $TEST->add3Tests("testrun/polyrec");
 $TEST->addTests("testrun/polylist", "", ['inferbox']);
 $TEST->addTests("test-bad1/polystruct", "", ['inferbox']);
 $TEST->addTests("test-bad1/fseqfail", "", ['inferbox']);
+$TEST->addTests("test-bad/fseq1fail", "", ['inferbox']);
 $TEST->addTests("test-bad/globinit", "", ['inferbox']);
 $TEST->add3Tests("testrun/label1");
 $TEST->add3Tests("testrun/label2");

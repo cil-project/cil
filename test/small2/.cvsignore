@@ -12,6 +12,7 @@ hola
 *.ilk
 *cured.c
 *_comb.c
+*.browser
 comb
 ocamlprof*
 voidfree
@@ -157,3 +158,4 @@ union5
 arrayexpand
 byteprintf
 null_pointer_field
+bufferlinegetter
