@@ -1400,20 +1400,6 @@ let getParenthLevel = function
   | Const _ -> 0                        (* Constants *)
 
 
-(* types. Call with a function that when invoked will fill-in the declared 
- * name  *)
-
-  (* When we print types for consumption by another compiler we must be 
-   * careful to avoid printing multiple type definitions *)
-let definedTypes : ((string * string), bool) H.t = H.create 17
-let canPrintCompDef n = true (*
-  try begin
-    ignore (H.find definedTypes n); false
-  end with Not_found -> begin
-    H.add definedTypes n true;
-    true
-  end
-*)
 
 (* Separate out the MSVC storage-modifier name attributes *)
 let separateStorageModifiers (al: attribute list) = 
@@ -2347,106 +2333,106 @@ and d_fielddecl () fi =
 (** A printer interface for CIL trees. Create instantiations of 
  * this type by specializing the class {!Cil.defaultCilPrinter}. *)
 class type cilPrinter = object
-  method pvdec: unit -> varinfo -> doc
+  method pVDecl: unit -> varinfo -> doc
     (** Invoked for each variable declaration. Note that variable 
      * declarations are all the [GVar], [GDecl], [GFun], all the [varinfo] in 
      * formals of function types, and the formals and locals for function 
      * definitions. *)
 
-  method pvrbl: unit -> varinfo -> doc
+  method pVar: varinfo -> doc
     (** Invoked on each variable use. *)
 
-  method plval: unit -> lval -> doc
+  method pLval: unit -> lval -> doc
     (** Invoked on each lvalue occurence *)
 
-  method pinst: unit -> instr -> doc
+  method pInst: unit -> instr -> doc
     (** Invoked on each instruction occurrence. *)
 
-  method pstmt: unit -> stmt -> doc
+  method pStmt: unit -> stmt -> doc
     (** Control-flow statement. *)
 
-  method pglob: unit -> global -> doc       (** Global (vars, types, etc.) *)
+  method pGlob: unit -> global -> doc       (** Global (vars, types, etc.) *)
 
-  method ptype: doc -> docNameWhat -> unit -> typ -> doc  
+  method pType: doc -> docNameWhat -> unit -> typ -> doc  
   (* Use of some type in some declaration. The first argument is used to print 
    * the declared element. Note that for structure/union and enumeration types 
    * the definition of the composite type is not visited. Use [vglob] to 
    * visit it.  *)
 
-  method pattr: unit -> attribute -> doc
-    (** Attribute.*)
+  method pAttr: attribute -> doc * bool
+    (** Attribute. Also return an indication whether this attribute must be 
+      * printed inside the __attribute__ list or not. *)
    
-  method pattrParam: unit -> attrparam -> doc
-    (** An attribute parameter *)
-
-  method pattrs: unit -> attributes -> doc
+  method pAttrs: unit -> attributes -> doc
     (** Attribute lists *)
 
-  method pline: unit -> location -> doc
+  method pLineDirective: location -> doc
     (** Print a line-number. This is assumed to come always on an empty line*)
 
-  method pexp: unit -> exp -> doc
+  method pExp: unit -> exp -> doc
     (** Print expressions *) 
 
-  method pinit: unit -> init -> doc
+  method pInit: unit -> init -> doc
 end
 
 (* Top-level printing functions *)
 let printType (pp: cilPrinter) () (t: typ) : doc = 
-  pp#ptype nil DNNothing () t
+  pp#pType nil DNNothing () t
   
 let printExp (pp: cilPrinter) () (e: exp) : doc = 
-  pp#pexp () e
+  pp#pExp () e
 
 let printLval (pp: cilPrinter) () (lv: lval) : doc = 
-  pp#plval () lv
+  pp#pLval () lv
 
 let printGlobal (pp: cilPrinter) () (g: global) : doc = 
-  pp#pglob () g
+  pp#pGlob () g
 
-class defaultCilPrinter : cilPrinter = object (self)
-     (* variable use *)
-  method pvrbl () (v:varinfo) = text v.vname
+class defaultCilPrinterClass : cilPrinter = object (self)
+  (*** VARIABLES ***)
+  (* variable use *)
+  method pVar (v:varinfo) = text v.vname
 
-  method pvdec () (v:varinfo) = (* variable declaration *)
+  (* variable declaration *)
+  method pVDecl () (v:varinfo) =
     let stom, rest = separateStorageModifiers v.vattr in
     (* First the storage modifiers *)
-    (self#pattrs () stom)
+    (self#pAttrs () stom)
       ++ d_storage () v.vstorage
-      ++ (d_decl (fun _ -> text v.vname) DNString () v.vtype)
+      ++ (self#pType (text v.vname) DNString () v.vtype)
       ++ text " "
-      ++ self#pattrs () rest
+      ++ self#pAttrs () rest
 
   (*** L-VALUES ***)
-  method plval () (lv:lval) =  (* lval (base is 1st field)  *)
-    let rec d_offset dobase = function
-      | NoOffset -> dobase ()
+  method pLval () (lv:lval) =  (* lval (base is 1st field)  *)
+    let rec d_offset (base: doc) = function
+      | NoOffset -> base
       | Field (fi, o) -> 
-          d_offset (fun _ -> dobase () ++ text "." ++ text fi.fname) o
+          d_offset (base ++ text "." ++ text fi.fname) o
       | Index (e, o) ->
-          d_offset (fun _ -> dobase () ++ text "[" ++ d_exp () e ++ text "]") o
+          d_offset (base ++ text "[" ++ self#pExp () e ++ text "]") o
     in
     match lv with
-      Var vi, o -> d_offset (fun _ -> text vi.vname) o
+      Var vi, o -> d_offset (self#pVar vi) o
     | Mem e, Field(fi, o) ->
-        d_offset (fun _ ->
-          (d_expprec arrowLevel () e) ++ text ("->" ^ fi.fname)) o
+        d_offset 
+          ((self#pExpPrec arrowLevel () e) ++ text ("->" ^ fi.fname)) o
     | Mem e, o ->
-        d_offset (fun _ -> 
-          text "(*" ++ d_expprec derefStarLevel () e ++ text ")") o
+        d_offset
+          (text "(*" ++ self#pExpPrec derefStarLevel () e ++ text ")") o
 
   method private pLvalPrec (contextprec: int) () lv = 
     if getParenthLevel (Lval(lv)) >= contextprec then
-      text "(" ++ self#plval () lv ++ text ")"
+      text "(" ++ self#pLval () lv ++ text ")"
     else
-      self#plval () lv
+      self#pLval () lv
 
   (*** EXPRESSIONS ***)
-  method pexp () (e: exp) : doc = 
+  method pExp () (e: exp) : doc = 
     let level = getParenthLevel e in
     match e with
       Const(c) -> d_const () c
-    | Lval(l) -> self#plval () l
+    | Lval(l) -> self#pLval () l
     | UnOp(u,e1,_) -> 
         let d_unop () u =
           match u with
@@ -2474,27 +2460,27 @@ class defaultCilPrinter : cilPrinter = object (self)
     | SizeOf (t) -> 
         text "sizeof(" ++ self#pOnlyType () t ++ chr ')'
     | SizeOfE (e) -> 
-        text "sizeof(" ++ self#pexp () e ++ chr ')'
+        text "sizeof(" ++ self#pExp () e ++ chr ')'
     | AlignOf (t) -> 
         text "__alignof__(" ++ self#pOnlyType () t ++ chr ')'
     | AlignOfE (e) -> 
-        text "__alignof__(" ++ self#pexp () e ++ chr ')'
+        text "__alignof__(" ++ self#pExp () e ++ chr ')'
     | AddrOf(lv) -> 
         text "& " ++ (self#pLvalPrec addrOfLevel () lv)
           
-    | StartOf(lv) -> self#plval () lv
+    | StartOf(lv) -> self#pLval () lv
 
   method private pExpPrec (contextprec: int) () (e: exp) = 
     let thisLevel = getParenthLevel e in
                                  (* This is to quite down GCC warnings *)
     if thisLevel >= contextprec || (thisLevel = additiveLevel &&
                                     contextprec = bitwiseLevel) then
-      text "(" ++ self#pexp () e ++ text ")"
+      text "(" ++ self#pExp () e ++ text ")"
     else
-      self#pexp () e
+      self#pExp () e
 
-  method pinit () = function 
-      SingleInit e -> self#pexp () e
+  method pInit () = function 
+      SingleInit e -> self#pExp () e
     | CompoundInit (t, initl) -> 
       (* We do not print the type of the Compound *)
 (*
@@ -2520,11 +2506,11 @@ class defaultCilPrinter : cilPrinter = object (self)
             Field(f, NoOffset), i -> 
               (if printDesignator then 
                 text ("." ^ f.fname ^ " = ") 
-              else nil) ++ self#pinit () i
+              else nil) ++ self#pInit () i
           | Index(e, NoOffset), i -> 
               (if printDesignator then 
-                text "[" ++ self#pexp () e ++ text "] = " else nil) ++ 
-                self#pinit () i
+                text "[" ++ self#pExp () e ++ text "] = " else nil) ++ 
+                self#pInit () i
           | _ -> E.s (unimp "Trying to print malformed initializer")
         in
         chr '{' ++ (align 
@@ -2533,7 +2519,7 @@ class defaultCilPrinter : cilPrinter = object (self)
           ++ chr '}'
           
   (*** INSTRUCTIONS ****)
-  method pinst () (i:instr) =       (* imperative instruction *)
+  method pInst () (i:instr) =       (* imperative instruction *)
     match i with
     | Set(lv,e,l) -> begin
         (* Be nice to some special cases *)
@@ -2541,45 +2527,45 @@ class defaultCilPrinter : cilPrinter = object (self)
           BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt64(one,_,_)),_)
             when lv == lv' && one = Int64.one ->
               d_line l
-                ++ printLval (self :> defaultCilPrinter) () lv
+                ++ self#pLval () lv
                 ++ text " ++;"
 
         | BinOp((MinusA|MinusPI),Lval(lv'),
                 Const(CInt64(one,_,_)), _) when lv == lv' && one = Int64.one ->
                   d_line l
-                    ++ printLval (self :>defaultCilPrinter) () lv
+                    ++ self#pLval () lv
                     ++ text " --;"
 
         | BinOp((PlusA|PlusPI|IndexPI|MinusA|MinusPP|MinusPI|BAnd|BOr|BXor|
           Mult|Div|Mod|Shiftlt|Shiftrt) as bop,
                 Lval(lv'),e,_) when lv == lv' ->
                   d_line l
-                    ++ printLval (self :> defaultCilPrinter) () lv
+                    ++ self#pLval () lv
                     ++ text " " ++ d_binop () bop
                     ++ text "= "
-                    ++ printExp (self :> defaultCilPrinter) () e
+                    ++ self#pExp () e
                     ++ text ";"
                     
         | _ ->
             d_line l
-              ++ printLval (self :> defaultCilPrinter)  () lv
+              ++ self#pLval () lv
               ++ text " = "
-              ++ printExp (self :> defaultCilPrinter)  () e
+              ++ self#pExp () e
               ++ text ";"
               
     end
     | Call(Some lv, Lval(Var vi, NoOffset), [dest; SizeOf t], l) 
         when vi.vname = "__builtin_va_arg" -> 
           d_line l
-            ++ (printLval (self :> defaultCilPrinter)  () lv ++ text " = ")
+            ++ (self#pLval () lv ++ text " = ")
                    
             (* Now the function name *)
             ++ text "__builtin_va_arg"
             ++ text "(" ++ (align
                               (* Now the arguments *)
-                              ++ printExp (self :> defaultCilPrinter)  () dest 
+                              ++ self#pExp () dest 
                               ++ chr ',' ++ break 
-                              ++ printType (self :> defaultCilPrinter)  () t
+                              ++ self#pOnlyType () t
                               ++ unalign)
             ++ text ");"
 
@@ -2588,15 +2574,15 @@ class defaultCilPrinter : cilPrinter = object (self)
           ++ (match dest with
             None -> nil
           | Some lv -> 
-              printLval (self :> defaultCilPrinter) () lv ++ text " = " ++
+              self#pLval () lv ++ text " = " ++
                 (* Maybe we need to print a cast *)
                 (let destt = typeOfLval lv in
                 match unrollType (typeOf e) with
                   TFun (rt, _, _, _) when typeSig rt <> typeSig destt ->
-                    text "(" ++ d_type () destt ++ text ")"
+                    text "(" ++ self#pOnlyType () destt ++ text ")"
                 | _ -> nil))
           (* Now the function name *)
-          ++ (let ed = printExp (self :> defaultCilPrinter) () e in
+          ++ (let ed = self#pExp () e in
               match e with 
                 Lval(Var _, _) -> ed
               | _ -> text "(" ++ ed ++ text ")")
@@ -2604,7 +2590,7 @@ class defaultCilPrinter : cilPrinter = object (self)
           (align
              (* Now the arguments *)
              ++ (docList (chr ',' ++ break) 
-                   (printExp (self :> defaultCilPrinter) ()) () args)
+                   (self#pExp ()) () args)
              ++ unalign)
         ++ text ");"
 
@@ -2619,7 +2605,7 @@ class defaultCilPrinter : cilPrinter = object (self)
         else
           d_line l
             ++ text ("__asm__ ") 
-            ++ self#pattrs () attrs 
+            ++ self#pAttrs () attrs 
             ++ text " ("
             ++ (align
                   ++ (docList line
@@ -2633,7 +2619,7 @@ class defaultCilPrinter : cilPrinter = object (self)
                      ++ (docList (chr ',' ++ break)
                            (fun (c, lv) ->
                              text ("\"" ^ escape_string c ^ "\" (")
-                               ++ printLval (self :> defaultCilPrinter) () lv
+                               ++ self#pLval () lv
                                ++ text ")") () outs)))
                 ++
                   (if ins = [] && clobs = [] then
@@ -2643,7 +2629,7 @@ class defaultCilPrinter : cilPrinter = object (self)
                        ++ (docList (chr ',' ++ break)
                              (fun (c, e) ->
                                text ("\"" ^ escape_string c ^ "\" (")
-                                 ++ d_exp () e
+                                 ++ self#pExp () e
                                  ++ text ")") () ins)))
                   ++
                   (if clobs = [] then nil
@@ -2657,13 +2643,214 @@ class defaultCilPrinter : cilPrinter = object (self)
             ++ text ");"
             
 
-  method pexp () (e: exp) = 
-    d_exp () e
+  (**** STATEMENTS ****)
+  method pStmt () (s:stmt) =        (* constrol-flow statement *)
+    self#pStmtNext invalidStmt () s
 
-  method pstmt () (s:stmt) = nil        (* constrol-flow statement *)
+  method private pStmtNext (next: stmt) () (s: stmt) =
+    (* print the labels *)
+    ((docList line (fun l -> self#pLabel () l)) () s.labels)
+      (* print the statement itself. If the labels are non-empty and the
+      * statement is empty, print a semicolon  *)
+      ++ 
+      (if s.skind = Instr [] && s.labels <> [] then
+        text ";"
+      else
+        (if s.labels <> [] then line else nil) 
+          ++ self#pStmtKind next () s.skind)
+
+  method private pLabel () = function
+      Label (s, _, true) -> text (s ^ ": ")
+    | Label (s, _, false) -> text (s ^ ": /* CIL Label */ ")
+    | Case (e, _) -> text "case " ++ self#pExp () e ++ text ": "
+    | Default _ -> text "default: "
+
+  method private pBlock () (blk: block) = 
+    let rec dofirst () = function
+        [] -> nil
+      | [x] -> self#pStmtNext invalidStmt () x
+      | x :: rest -> dorest nil x rest
+    and dorest acc prev = function
+        [] -> acc ++ (self#pStmtNext invalidStmt () prev)
+      | x :: rest -> 
+          dorest (acc ++ (self#pStmtNext x () prev) ++ line)
+            x rest
+    in
+    (* Let the host of the block decide on the alignment. The d_block will 
+     * pop the alignment as well  *)
+    text "{" 
+      ++ 
+      (if blk.battrs <> [] then 
+        self#pAttrsGen true blk.battrs
+      else nil)
+      ++ line
+      ++ (dofirst () blk.bstmts)
+      ++ unalign ++ line ++ text "}"
+
+  
+  (* Store here the name of the last file printed in a line number. This is 
+   * private to the object *)
+  val mutable lastFileName = ""
+  (* Make sure that you only call d_line on an empty line *)
+  method pLineDirective l = 
+    let printLine (forcefile: bool) (l : location) : string =
+      let str = ref "" in
+      if !printLn && l.line > 0 then begin
+        if !printLnComment then str := "//";
+        str := !str ^ "#";
+        if !msvcMode then str := !str ^ "line";
+        str := !str ^ " " ^ string_of_int(l.line);
+        if forcefile || l.file <> lastFileName then begin
+          lastFileName <- l.file;
+          str := !str ^ " \"" ^ l.file ^ "\""
+        end
+      end;
+      currentLoc := l;
+      !str
+    in
+    let ls = printLine false l in
+    if ls <> "" then leftflush ++ text ls ++ line else nil
+   
+
+  method private pStmtKind (next: stmt) () = function
+      Return(None, l) ->
+        self#pLineDirective l
+          ++ text "return;"
+
+    | Return(Some e, l) ->
+        self#pLineDirective l
+          ++ text "return ("
+          ++ self#pExp () e
+          ++ text ");"
+          
+    | Goto (sref, l) -> begin
+        (* Grab one of the labels *)
+        let rec pickLabel = function
+            [] -> None
+          | Label (l, _, _) :: _ -> Some l
+          | _ :: rest -> pickLabel rest
+        in
+        match pickLabel !sref.labels with
+          Some l -> text ("goto " ^ l ^ ";")
+        | None -> 
+            ignore (error "Cannot find label for target of goto\n");
+            text "goto __invalid_label;"
+    end
+
+    | Break l ->
+        self#pLineDirective l
+          ++ text "break;"
+
+    | Continue l -> 
+        self#pLineDirective l
+          ++ text "continue;"
+
+    | Instr il ->
+        align
+          ++ (docList line (fun i -> self#pInst () i) () il)
+          ++ unalign
+
+    | If(be,t,{bstmts=[];battrs=[]},l) ->
+        self#pLineDirective l
+          ++ text "if"
+          ++ (align
+                ++ text " ("
+                ++ self#pExp () be
+                ++ text ") "
+                ++ self#pBlock () t)
+          
+    | If(be,t,{bstmts=[{skind=Goto(gref,_);labels=[]} as s];
+                battrs=[]},l)
+     when !gref == next ->
+       self#pLineDirective l
+         ++ text "if"
+         ++ (align
+               ++ text " ("
+               ++ self#pExp () be
+               ++ text ") "
+               ++ self#pBlock () t)
+
+    | If(be,{bstmts=[];battrs=[]},e,l) ->
+        self#pLineDirective l
+          ++ text "if"
+          ++ (align
+                ++ text " ("
+                ++ self#pExp () (UnOp(LNot,be,intType))
+                ++ text ") "
+                ++ self#pBlock () e)
+
+    | If(be,{bstmts=[{skind=Goto(gref,_);labels=[]} as s];
+           battrs=[]},e,l)
+      when !gref == next ->
+        self#pLineDirective l
+          ++ text "if"
+          ++ (align
+                ++ text " ("
+                ++ self#pExp () (UnOp(LNot,be,intType))
+                ++ text ") "
+                ++ self#pBlock () e)
+          
+    | If(be,t,e,l) ->
+        self#pLineDirective l
+          ++ (align
+                ++ text "if"
+                ++ (align
+                      ++ text " ("
+                      ++ self#pExp () be
+                      ++ text ") "
+                      ++ self#pBlock () t)
+                ++ text " "   (* sm: indent next code 2 spaces (was 4) *)
+                ++ (align
+                      ++ text "else "
+                      ++ self#pBlock () e)
+                ++ unalign)
+          
+    | Switch(e,b,_,l) ->
+        self#pLineDirective l
+          ++ (align
+                ++ text "switch ("
+                ++ self#pExp () e
+                ++ text ") "
+                ++ self#pBlock () b)
+    | Loop(b, l) -> begin
+        (* Maybe the first thing is a conditional. Turn it into a WHILE *)
+        try
+          let term, bodystmts =
+            let rec skipEmpty = function
+                [] -> []
+              | {skind=Instr [];labels=[]} :: rest -> skipEmpty rest
+              | x -> x
+            in
+            match skipEmpty b.bstmts with
+              {skind=If(e,tb,fb,_)} :: rest -> begin
+                match skipEmpty tb.bstmts, skipEmpty fb.bstmts with
+                  [], {skind=Break _} :: _  -> e, rest
+                | {skind=Break _} :: _, [] -> UnOp(LNot, e, intType), rest
+                | _ -> raise Not_found
+              end
+            | _ -> raise Not_found
+          in
+          self#pLineDirective l
+            ++ text "wh"
+            ++ (align
+                  ++ text "ile ("
+                  ++ self#pExp () term
+                  ++ text ") "
+                  ++ self#pBlock () {bstmts=bodystmts; battrs=b.battrs})
+
+        with Not_found ->
+          self#pLineDirective l
+            ++ text "wh"
+            ++ (align
+                  ++ text "ile (1) "
+                  ++ self#pBlock () b)
+    end
+    | Block b -> align ++ self#pBlock () b
+      
+
 
   (*** GLOBALS ***)
-  method pglob () (g:global) : doc =       (* global (vars, types, etc.) *)
+  method pGlob () (g:global) : doc =       (* global (vars, types, etc.) *)
     match g with 
     | GFun (fundec, l) ->
         (* If the function has attributes then print a prototype because GCC 
@@ -2671,31 +2858,31 @@ class defaultCilPrinter : cilPrinter = object (self)
         let oldattr = fundec.svar.vattr in
         let proto = 
           if oldattr <> [] then 
-            (d_line l) ++ (d_videcl () fundec.svar) ++ chr ';' ++ line 
+            (self#pLineDirective l) ++ (self#pVDecl () fundec.svar) ++ chr ';' ++ line 
           else nil in
         (* Temporarily remove the function attributes *)
         fundec.svar.vattr <- [];
-        let body = (d_line l) ++ (self#pFunDecl () fundec) in
+        let body = (self#pLineDirective l) ++ (self#pFunDecl () fundec) in
         fundec.svar.vattr <- oldattr;
         proto ++ body
           
     | GType (typ, l) ->
-        d_line l ++
+        self#pLineDirective l ++
         if typ.tname = "" then
-          printType (self :> defaultCilPrinter) () typ.ttype ++ chr ';'
+          self#pOnlyType () typ.ttype ++ chr ';'
         else
           text "typedef "
-            ++ (self#ptype (text typ.tname) DNString () typ.ttype)
+            ++ (self#pType (text typ.tname) DNString () typ.ttype)
             ++ chr ';'
 
     | GEnumTag (enum, l) ->
-        d_line l ++
+        self#pLineDirective l ++
           text "enum" ++ align ++ text (" " ^ enum.ename) ++
-          self#pattrs () enum.eattr ++ text " {" ++ line
+          self#pAttrs () enum.eattr ++ text " {" ++ line
           ++ (docList line 
                 (fun (n,i) -> 
                   text (n ^ " = ") 
-                    ++ printExp (self :> defaultCilPrinter)  () i
+                    ++ self#pExp () i
                     ++ text "," ++ break)
                 () enum.eitems)
           ++ unalign ++ break ++ text "};"
@@ -2706,18 +2893,18 @@ class defaultCilPrinter : cilPrinter = object (self)
           if comp.cstruct then "struct", "str", "uct"
           else "union",  "uni", "on"
         in
-        d_line l ++
+        self#pLineDirective l ++
           text su1 ++ (align ++ text su2 ++ chr ' ' ++ text n
                          ++ text " {" ++ line
-                         ++ ((docList line (self#pfieldDecl ())) () 
+                         ++ ((docList line (self#pFieldDecl ())) () 
                                comp.cfields)
                          ++ unalign)
           ++ line ++ text "}" ++
-          (self#pattrs () comp.cattr) ++ text ";"
+          (self#pAttrs () comp.cattr) ++ text ";"
 
     | GVar (vi, io, l) ->
-        d_line l ++
-          self#pvdec () vi
+        self#pLineDirective l ++
+          self#pVDecl () vi
           ++ chr ' '
           ++ (match io with
             None -> nil
@@ -2734,13 +2921,13 @@ class defaultCilPrinter : cilPrinter = object (self)
           (text ("// omitted gcc builtin " ^ vi.vname ^ "\n"))
             )
         else (
-          d_line l ++
-            (self#pvdec () vi)
+          self#pLineDirective l ++
+            (self#pVDecl () vi)
             ++ chr ';'
             )
             )
     | GAsm (s, l) ->
-        d_line l ++
+        self#pLineDirective l ++
           text ("__asm__(\"" ^ escape_string s ^ "\");")
 
     | GPragma (Attr(an, args), l) ->
@@ -2758,10 +2945,10 @@ class defaultCilPrinter : cilPrinter = object (self)
             text an
           else
             text (an ^ "(")
-              ++ docList (chr ',') (self#pattrParam ()) () args
+              ++ docList (chr ',') (self#pAttrParam ()) () args
               ++ text ")"
         in
-        d_line l 
+        self#pLineDirective l 
           ++ (if suppress then text "/* " else text "")
           ++ (text "#pragma ")
           ++ d
@@ -2770,8 +2957,8 @@ class defaultCilPrinter : cilPrinter = object (self)
     | GText s  -> text s
 
 
-   method private pfieldDecl () fi = 
-     (self#ptype
+   method private pFieldDecl () fi = 
+     (self#pType
      (text (if fi.fname = missingFieldName then "" else fi.fname))
      DNString 
        () 
@@ -2779,29 +2966,29 @@ class defaultCilPrinter : cilPrinter = object (self)
        ++ text " "
        ++ (match fi.fbitfield with None -> nil 
              | Some i -> text ": " ++ num i ++ text " ")
-       ++ self#pattrs () fi.fattr
+       ++ self#pAttrs () fi.fattr
        ++ text ";"
 
   method private pFunDecl () f =
     text (if f.sinline then "__inline " else "")
-      ++ self#pvdec () f.svar
+      ++ self#pVDecl () f.svar
       ++ line
       ++ text "{ "
       ++ (align
             (* locals. *)
-            ++ (docList line (fun vi -> self#pvdec () vi ++ text ";") 
+            ++ (docList line (fun vi -> self#pVDecl () vi ++ text ";") 
                   () f.slocals)
             ++ line ++ line
             (* the body *)
-            ++ d_block () f.sbody)
+            ++ self#pBlock () f.sbody)
       ++ line
       ++ text "}"
 
   (***** PRINTING DECLARATIONS and TYPES ****)
   method private pOnlyType () (t:typ) = 
-    self#ptype nil DNNothing () t
+    self#pType nil DNNothing () t
     
-  method ptype (name: doc) (* The actual declared name  *) 
+  method pType (name: doc) (* The actual declared name  *) 
                (dnwhat: docNameWhat) (* What kind of name *)
                () (t:typ) =         (* use of some type *)
     (* Print the docName with some attributes, maybe with parentheses *)
@@ -2811,11 +2998,11 @@ class defaultCilPrinter : cilPrinter = object (self)
       else if dnwhat = DNNothing then
         (* Cannot print the attributes in this case *)
         text "/*(" 
-          ++ self#pattrs () a
+          ++ self#pAttrs () a
           ++ text ")*/"
       else begin
         text "(" 
-          ++ self#pattrs () a
+          ++ self#pAttrs () a
           ++ name
           ++ text ")"
       end
@@ -2823,51 +3010,51 @@ class defaultCilPrinter : cilPrinter = object (self)
     match t with 
     TVoid a ->
       text "void"
-        ++ self#pattrs () a 
+        ++ self#pAttrs () a 
         ++ text " " 
         ++ name
 
     | TInt (ikind,a) -> 
         d_ikind () ikind 
-          ++ self#pattrs () a 
+          ++ self#pAttrs () a 
           ++ text " "
           ++ name
 
     | TFloat(fkind, a) -> 
         d_fkind () fkind 
-          ++ self#pattrs () a 
+          ++ self#pAttrs () a 
           ++ text " " 
           ++ name
 
     | TComp (comp, a) -> (* A reference to a struct *)
         let su = if comp.cstruct then "struct" else "union" in
         text (su ^ " " ^ comp.cname ^ " ") 
-          ++ self#pattrs () a 
+          ++ self#pAttrs () a 
           ++ name
           
     | TEnum (enum, a) -> 
         text ("enum " ^ enum.ename ^ " ")
-          ++ self#pattrs () a 
+          ++ self#pAttrs () a 
           ++ name
     | TPtr (bt, a)  -> 
-        self#ptype 
-          (text "* " ++ self#pattrs () a ++ name)
+        self#pType 
+          (text "* " ++ self#pAttrs () a ++ name)
           DNStuff
           () 
           bt
 
   | TArray (elemt, lo, a) -> 
-      self#ptype 
+      self#pType 
         (parenthname () a
            ++ text "[" 
-           ++ (match lo with None -> nil | Some e -> d_exp () e)
+           ++ (match lo with None -> nil | Some e -> self#pExp () e)
            ++ text "]")
         DNStuff
         ()
         elemt
 
   | TFun (restyp, args, isvararg, a) -> 
-      self#ptype 
+      self#pType 
         (parenthname () a
            ++ text "("
            ++ (align 
@@ -2876,7 +3063,7 @@ class defaultCilPrinter : cilPrinter = object (self)
                  else
                    (if args = None then nil 
                    else if args = Some [] then text "void"
-                   else (docList (chr ',' ++ break) (self#pvdec ()) () 
+                   else (docList (chr ',' ++ break) (self#pVDecl ()) () 
                            (argsToList args)))
                      ++ (if isvararg then break ++ text ", ..." else nil))
                  ++ unalign)
@@ -2886,36 +3073,73 @@ class defaultCilPrinter : cilPrinter = object (self)
         restyp
 
   | TNamed (t, a) ->
-      text t.tname ++ self#pattrs () a ++ text " " ++ name
+      text t.tname ++ self#pAttrs () a ++ text " " ++ name
 
   | TBuiltin_va_list a -> 
       text "__builtin_va_list"
-       ++ self#pattrs () a 
+       ++ self#pAttrs () a 
         ++ text " " 
         ++ name
 
 
   (**** PRINTING ATTRIBUTES *********)
-  method pattr () (Attr(an, args): attribute) =
-    (* Add underscores to the name *)
-    let an' = if !msvcMode then "__" ^ an else "__" ^ an ^ "__" in
-    if args = [] then 
-      text an'
-    else
-      text (an' ^ "(") 
-        ++ (docList (chr ',') (self#pattrParam ()) () args)
-        ++ text ")"
+  method pAttrs () (a: attributes) = 
+    self#pAttrsGen false a
 
-  method pattrParam () = function 
+
+  (* Print one attribute. Return also an indication whether this attribute 
+   * should be printed inside the __attribute__ list *)
+  method pAttr (Attr(an, args): attribute) : doc * bool =
+    (* Recognize and take care of some known cases *)
+    match an, args with 
+      "const", [] -> text "const", false
+          (* Put the aconst inside the attribute list *)
+    | "aconst", [] when not !msvcMode -> text "__const__", true
+    | "volatile", [] -> text "volatile", false
+    | "restrict", [] -> text "__restrict", false
+    | "missingproto", [] -> text "/* missing proto */", false
+    | "cdecl", [] when !msvcMode -> text "__cdecl", false
+    | "stdcall", [] when !msvcMode -> text "__stdcall", false
+    | "declspec", args when !msvcMode -> 
+        text "__declspec(" 
+          ++ docList (chr ',') (self#pAttrParam ()) () args
+          ++ text ")", false
+    | "asm", args -> 
+        text "__asm__(" 
+          ++ docList (chr ',') (self#pAttrParam ()) () args
+          ++ text ")", false
+    (* we suppress printing mode(__si__) because it triggers an *)
+    (* internal compiler error in all current gcc versions *)
+    (* sm: I've now encountered a problem with mode(__hi__)... *)
+    (* I don't know what's going on, but let's try disabling all "mode"..*)
+    | "mode", [ACons(tag,[])] -> 
+        text "/* mode(" ++ text tag ++ text ") */", false
+
+    (* sm: also suppress "format" because we seem to print it in *)
+    (* a way gcc does not like *)
+    | "format", _ -> text "/* format attribute */", false
+
+    | _ -> (* This is the dafault case *)
+        (* Add underscores to the name *)
+        let an' = if !msvcMode then "__" ^ an else "__" ^ an ^ "__" in
+        if args = [] then 
+          text an', true
+        else
+          text (an' ^ "(") 
+            ++ (docList (chr ',') (self#pAttrParam ()) () args)
+            ++ text ")", 
+          true
+
+  method private pAttrParam () = function 
     | AInt n -> num n
     | AStr s -> text ("\"" ^ escape_string s ^ "\"")
     | ACons(s, []) -> text s
     | ACons(s,al) ->
         text (s ^ "(")
-          ++ (docList (chr ',') (self#pattrParam ()) () al)
+          ++ (docList (chr ',') (self#pAttrParam ()) () al)
           ++ text ")"
-    | ASizeOfE a -> text "sizeof(" ++ self#pattrParam () a ++ text ")"
-    | ASizeOf t -> text "sizeof(" ++ self#ptype nil DNNothing () t ++ text ")"
+    | ASizeOfE a -> text "sizeof(" ++ self#pAttrParam () a ++ text ")"
+    | ASizeOf t -> text "sizeof(" ++ self#pType nil DNNothing () t ++ text ")"
     | AUnOp(u,a1) -> 
         let d_unop () u =
           match u with
@@ -2923,22 +3147,51 @@ class defaultCilPrinter : cilPrinter = object (self)
           | BNot -> text "~"
           | LNot -> text "!"
         in
-        (d_unop () u) ++ text " (" ++ (self#pattrParam () a1) ++ text ")"
+        (d_unop () u) ++ text " (" ++ (self#pAttrParam () a1) ++ text ")"
 
     | ABinOp(b,a1,a2) -> 
         align 
           ++ text "(" 
-          ++ (self#pattrParam () a1)
+          ++ (self#pAttrParam () a1)
           ++ text ") "
           ++ (d_binop () b)
           ++ break 
-          ++ text " (" ++ (self#pattrParam () a2) ++ text ") "
+          ++ text " (" ++ (self#pAttrParam () a2) ++ text ") "
           ++ unalign
           
-  method pattrs () (a: attributes) = nil
-  method pline () (l: location) = nil
-end
+  (* A general way of printing lists of attributes *)
+  method private pAttrsGen (block: bool) (a: attributes) = 
+    (* Scan all the attributes and separate those that must be printed inside 
+     * the __attribute__ list *)
+    let rec loop (in__attr__: doc list) = function
+        [] -> begin 
+          match in__attr__ with
+            [] -> nil
+          | _ :: _->
+              (if block then 
+                text " /* __blockattribute__(" else text "__attribute__((")
 
+                ++ (docList (chr ',' ++ break) 
+                      (fun a -> a)) () in__attr__
+                ++ text ")"
+                ++ (if block then text "*/" else text ")")
+        end
+      | x :: rest -> 
+          let dx, ina = self#pAttr x in
+          if ina then 
+            loop (dx :: in__attr__) rest
+          else
+            dx ++ text " " ++ loop in__attr__ rest
+    in
+    let res = loop [] a in
+    if res = nil then
+      res
+    else
+      text " " ++ res ++ text " "
+
+end (* class defaultCilPrinterClass *)
+
+let defaultCilPrinter = new defaultCilPrinterClass
 
    (* Some plain pretty-printers. Unlike the above these expose all the 
     * details of the internal representation *)
@@ -3786,6 +4039,16 @@ let d_global () = function
 
   | GText s  -> text s
 
+let newPrinter = false
+class testPrinterClass : cilPrinter = object
+  inherit defaultCilPrinterClass as super
+
+  method pVar v = 
+    super#pVar v ++ text "/* What the heck */"
+
+end
+
+let pp = defaultCilPrinter 
 let printFile (out : out_channel) file =
   printDepth := 99999;  (* We don't want ... in the output *)
   (* If we are in RELEASE mode then we do not print indentation *)
@@ -3799,10 +4062,12 @@ let printFile (out : out_channel) file =
   if !E.verboseFlag then 
     ignore (E.log "printing file %s\n" file.fileName);
   let print x = fprint out 78 x in
-  print (text ("/* Generated by CIL */\n\n"));
-  H.clear definedTypes;
-  iterGlobals file (fun g -> print (d_global () g ++ line));
-  H.clear definedTypes
+  print (text ("/* Generated by CIL v. 1.0 */\n\n"));
+  if newPrinter then 
+    iterGlobals file (fun g -> print (printGlobal pp () g ++ line))
+  else begin
+    iterGlobals file (fun g -> print (d_global () g ++ line));
+  end
 
     
 let printFileWithCustom (out: out_channel) 
