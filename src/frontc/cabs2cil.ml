@@ -1562,7 +1562,7 @@ let rec doSpecList (specs: A.spec_elem list)
     | [A.TtypeofE e] -> 
         let (c, _, t) = doExp false e (AExp None) in
         if not (isEmpty c) then
-          E.s (warn "typeof for a non-pure expression\n");
+          ignore (warn "typeof for a non-pure expression\n");
         t
 
     | [A.TtypeofT (specs, dt)] -> 
