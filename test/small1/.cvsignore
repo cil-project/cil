@@ -34,4 +34,5 @@ sscanf.out
 a.out
 vararg.out
 array.a.files
+*.html
 
