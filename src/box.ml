@@ -2192,10 +2192,6 @@ let rec initializeType
       else 
         fun lv acc -> acc
   end
-  | TComp comp when not comp.cstruct && allScalarType t -> begin 
-    (* A union ... but all the fields are scalar *)
-    (fun lv acc -> acc)  
-    end
   | TComp comp when comp.cstruct -> begin (* A struct *)
       match comp.cfields with
         [s; a] when s.fname = "_size" && a.fname = "_array" ->
@@ -2291,6 +2287,32 @@ let rec initializeType
                     (addOffsetLval (Index (Lval(var iter), NoOffset)) lv)
                     [])) @ acc1)
       end
+    (* A union type *)
+  | TComp comp -> begin
+      (* Go through all of the fields and find the one that is largest. 
+       * Initialize that one. *)
+      let (maxfld, themax) = 
+        List.fold_left 
+          (fun (bestsofar, bestval) f -> 
+            let bitsthis = 
+              try bitsSizeOf f.ftype with Not_found -> 
+                E.s (E.unimp "initializing union with open fields")
+            in
+            if bitsthis > bestval then
+              (Some f, bitsthis)
+            else
+              (bestsofar, bestval)) (None, -1) comp.cfields in
+      let toinit = 
+        match maxfld with Some f -> f 
+        | _ -> E.s (E.unimp "cannot find widest field in union %s" comp.cname)
+      in
+      (* ignore (E.log "Will initialize field %s (with size %d)\n" 
+                toinit.fname themax); *)
+      let initone = initializeType toinit.ftype withivar mustZero endo in
+      fun lv acc ->
+        initone (addOffsetLval (Field(toinit, NoOffset)) lv) acc 
+    end
+
   | _ -> E.s (E.unimp "initializeType (for type %a)" d_plaintype t)
 
     
@@ -2484,16 +2506,21 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
             (Mem tmpvar, NoOffset) []
             
         in
-        savetheend ::
-        mkFor 
-          ~start:[mkEmptyStmt ()]
-          ~guard:(BinOp(Le, BinOp(PlusA, 
-                                  doCast tmpvar uintType, 
-                                  SizeOf(ptrtype), uintType),
-                        doCast theend uintType, intType))
-          ~next:[(mkSet (var tmpp) 
-                   (BinOp(IndexPI, tmpvar, one, ptrtype)))]
-          ~body:initone 
+        let initializeAll = 
+          if initone = [] then 
+            [ mkSet (var tmpp) theend ]
+          else 
+            mkFor 
+              ~start:[mkEmptyStmt ()]
+              ~guard:(BinOp(Le, BinOp(PlusA, 
+                                      doCast tmpvar uintType, 
+                                      SizeOf(ptrtype), uintType),
+                            doCast theend uintType, intType))
+              ~next:[(mkSet (var tmpp) 
+                        (BinOp(IndexPI, tmpvar, one, ptrtype)))]
+              ~body:initone
+        in 
+        savetheend :: initializeAll
         @
         (if k = N.FSeqN || k = N.SeqN then [putnullterm] else [])
 
