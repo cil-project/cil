@@ -101,6 +101,7 @@ and fieldinfo = {
 }
 
 (* what is the type of an expression? *)
+(* Keep attributes sorted. Use addAttribute and addAttributes *)
 and typ =
     TVoid of attribute list
   | TInt of ikind * attribute list
@@ -127,9 +128,8 @@ and typ =
             * "forwardTypeMap"  *)
   | TForward of string
 
-  | TNamed of string * typ * attribute list (* From a typedef. The attributes 
-                                             * are in addition to the 
-                                             * attributes of the named type  *)
+  | TNamed of string * typ
+    (* From a typedef. The attributes are pushed into the named type *)
 
 (* kinds of integers *)
 and ikind = 
@@ -443,6 +443,34 @@ let mkSeq sl =
   | sl' -> Sequence(sl')
 
 
+
+
+(**** Attributes ****)
+let rec addAttribute a al = 
+    let an = 
+      match a with 
+        AId s -> s
+      | ACons (s, _) -> s
+      | _ -> E.s (E.unimp "Unexpected attribute at top level")
+    in
+    let rec insertSorted = function
+       [] -> [a]
+     | ((AId s) as a1 :: rest) as al -> 
+          if an < s then a :: al else 
+          if an = s then al else
+          a1 :: insertSorted rest
+     | ((ACons(s, _)) as a1 :: rest) as al -> 
+          if an < s then a :: al else 
+          if an = s then al else
+          a1 :: insertSorted rest
+     | _ -> E.s (E.unimp "Unexpected attribute at top level")
+    in 
+    insertSorted al
+
+let addAttributes a ats = 
+  List.fold_left (fun acc a -> addAttribute a acc) ats a
+
+ 
 let forwardTypeMap : (string, typ) H.t = H.create 113
 let clearForwardMap () = H.clear forwardTypeMap
 let resolveForwardType n = 
@@ -467,7 +495,7 @@ let replaceForwardType key t =
 
 (**** Utility functions ******)
 let rec unrollType = function
-    TNamed (_, r,_) -> unrollType r
+    TNamed (_, r) -> unrollType r
   | TForward n -> unrollType (resolveForwardType n)
   | x -> x
 
@@ -732,7 +760,7 @@ let rec d_decl (docName: unit -> doc) () this =
         ()
         restyp
 
-  | TNamed (n, _, a) -> dprintf "%a %s %t" d_attrlistpost a n docName
+  | TNamed (n, _) -> dprintf "%s %t" n docName
 
 
 (* Only a type (such as for a cast) *)        
@@ -1076,8 +1104,8 @@ and d_plaintype () = function
       dprintf "TFloat(@[%a,@?%a@])" d_fkind fkind d_attrlistpost a
   | TBitfield(ikind,i,a) -> 
       dprintf "TBitfield(@[%a,@?%d,@?%a@])" d_ikind ikind i d_attrlistpost a
-  | TNamed (n, t, a) ->
-      dprintf "TNamed(@[%s,@?%a,@?%a@])" n d_plaintype t d_attrlistpost a
+  | TNamed (n, t) ->
+      dprintf "TNamed(@[%s,@?%a@])" n d_plaintype t
   | TForward n -> dprintf "TForward(%s)" n
   | TPtr(t, a) -> dprintf "TPtr(@[%a,@?%a@])" d_plaintype t d_attrlistpost a
   | TArray(t,l,a) -> 
@@ -1122,7 +1150,7 @@ let rec intSizeOf = function            (* Might raise Not_found *)
   | TEnum _ ->  4
   | TPtr _ ->  4
   | TArray(t, Some (Const(CInt(l,_,_),_)),_) -> (intSizeOf t) * l
-  | TNamed(_, r, _) -> intSizeOf r
+  | TNamed(_, r) -> intSizeOf r
   | TForward r -> intSizeOf (resolveForwardType r)
   | TStruct(_,flds,_) -> 
       let rec loop = function
@@ -1253,7 +1281,7 @@ let rec typeSig t =
                                   List.map (fun vi -> (typeSig vi.vtype, 
                                                        vi.vattr)) args,
                                   isva, a)
-  | TNamed(_, t, _) -> typeSig t (* !!! Dropping arguments here *)
+  | TNamed(_, t) -> typeSig t
   | TForward n -> begin
       let l = String.length n in
       try
@@ -1366,12 +1394,12 @@ let isPointerType t =
   | _ -> false
 
 
-let typeAttrs = function
+let rec typeAttrs = function
     TVoid a -> a
   | TInt (_, a) -> a
   | TFloat (_, a) -> a
   | TBitfield (_, _, a) -> a
-  | TNamed (n, _, a) -> a
+  | TNamed (_, t) -> typeAttrs t
   | TPtr (_, a) -> a
   | TArray (_, _, a) -> a
   | TStruct (_, _, a) -> a
@@ -1381,13 +1409,13 @@ let typeAttrs = function
   | TFun (_, _, _, a) -> a
 
 
-let setTypeAttrs t a =
+let rec setTypeAttrs t a =
   match t with
     TVoid _ -> TVoid a
   | TInt (i, _) -> TInt (i, a)
   | TFloat (f, _) -> TFloat (f, a)
   | TBitfield (i, s, _) -> TBitfield (i, s, a)
-  | TNamed (n, t, _) -> TNamed(n, t, a)
+  | TNamed (n, t) -> E.s (E.unimp "Setting attributes for a named type")
   | TPtr (t', _) -> TPtr(t', a)
   | TArray (t', l, _) -> TArray(t', l, a)
   | TStruct (n, f, _) -> TStruct(n,f,a)

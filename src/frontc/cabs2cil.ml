@@ -394,8 +394,8 @@ let conditionalConversion (e2: exp) (t2: typ) (e3: exp) (t3: typ) : typ =
 let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) = 
   if typeSig ot = typeSig nt then (ot, e) else
   match ot, nt with
-    TNamed(_,r, _), _ -> castTo r nt e
-  | _, TNamed(_,r, _) -> castTo ot r e
+    TNamed(_,r), _ -> castTo r nt e
+  | _, TNamed(_,r) -> castTo ot r e
   | TForward(rt), _ -> castTo (resolveForwardType rt) nt e
   | _, TForward(rt) -> castTo ot (resolveForwardType rt) e
   | TInt(ikindo,_), TInt(ikindn,_) -> 
@@ -455,7 +455,7 @@ let doNameGroup (sng: A.single_name -> 'a)
 let rec makeFieldInfo (host: string) 
                      ((bt,st,(n,nbt,a,e)) : A.single_name) : fieldinfo = 
   let rec removeNamed = function
-      TNamed (_, t, _) -> removeNamed t
+      TNamed (_, t) -> removeNamed t
     | TPtr(t,a) -> TPtr(removeNamed t, a)
     | t -> t
   in
@@ -623,10 +623,6 @@ and doType (a : attribute list) = function
       let res = TEnum (n, loop 0 eil, a) in
       List.iter (fun (n,fieldidx) -> recordEnumField n fieldidx res) fields;
       res
-(*
-  | A.CONST bt -> doType (AId("const") :: a) bt
-  | A.VOLATILE bt -> doType (AId("volatile") :: a) bt
-*)
   | A.ATTRTYPE (bt, a') -> 
       let rec doAttribute = function
           (s, []) -> AId s
@@ -651,11 +647,15 @@ and doType (a : attribute list) = function
   | A.NAMED_TYPE n -> begin
       match findTypeName n with
         (TNamed _) as x -> x
-      | typ -> TNamed(n, typ, a)
+      | typ -> 
+          if typeAttrs typ <> a then 
+            E.s (E.unimp "Named type does nto have the attributes expected")
+          else
+            TNamed(n, typ)
   end
   | A.TYPEOF e -> 
       let (se, _, t) = doExp e (AExp None) in
-      if se <> [] then
+      if se <> [] || a <> [] then
         E.s (E.unimp "typeof for a non-pure expression\n");
       t
 

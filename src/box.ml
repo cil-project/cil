@@ -60,7 +60,7 @@ let makeNewTypeName base =
    (* Make a type name, for use in type defs *)
 let rec typeName = function
     TForward n -> typeName (resolveForwardType n)
-  | TNamed (n, _, _) -> n
+  | TNamed (n, _) -> n
   | TVoid(_) -> "void"
   | TInt(IInt,_) -> "int"
   | TInt(IUInt,_) -> "uint"
@@ -111,7 +111,7 @@ let newFatPointerName t =
 let rec fixupType t = 
   match t with
     TForward n -> t
-  | TNamed (n, t, a) -> TNamed(n, fixupType t, a) (* Keep the Named types *)
+  | TNamed (n, t) -> TNamed(n, fixupType t) (* Keep the Named types *)
                                         (* We leave alone vararg functions 
                                          * mainly because it is hard to write 
                                          * a wrapper for them. We'll check 
@@ -159,7 +159,7 @@ and fixit t =
                                fattr   = [];
                              }; ], []) 
           in
-          let tres = TNamed(tname, fixed, []) in
+          let tres = TNamed(tname, fixed) in
           H.add fixedTypes (typeSig fixed) fixed; (* We add fixed ourselves. 
                                                    * The TNamed will be added 
                                                    * after doit  *)
@@ -169,7 +169,7 @@ and fixit t =
       end
             
       | TForward _ ->  t              (* Don't follow TForward *)
-      | TNamed (n, t', a) -> TNamed (n, fixupType t', a)
+      | TNamed (n, t') -> TNamed (n, fixupType t')
             
       | TStruct(n, flds, a) -> begin
           let r = 
@@ -369,7 +369,7 @@ let tagType (t: typ) : (typ * fieldinfo * fieldinfo * fieldinfo *
             ("_len", intType);
             ("_data", t) ] [] in
       let tname = "_tagged_" ^ typeName t in
-      let named = TNamed (tname, newt, []) in
+      let named = TNamed (tname, newt) in
       theFile := GType (tname, newt) :: !theFile;
       H.add taggedTypes tsig named;
       named
@@ -497,7 +497,7 @@ let bitsForType iswrite t =
         pushBit bBase (pushBit bPtr acc)
     | TStruct (_, flds, _) -> 
         List.fold_left (fun acc f -> tagOfType acc f.ftype) acc flds
-    | TNamed (_, t, _) -> tagOfType acc t
+    | TNamed (_, t) -> tagOfType acc t
     | t -> E.s (E.unimp "tagOfType: %a" d_plaintype t)
   in
   let finishAcc (idx, currentmask, currentvalue, acc) = 
