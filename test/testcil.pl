@@ -358,7 +358,7 @@ $TEST->add2TestsFail("testrun/failsprintf3", "", "Failure: Non-pointer");
 
 $TEST->add2TestsFail("testrun/failsscanf1", "", "Failure: Ubound");
     $TEST->addBadComment("testrun/failsscanf1-box", "Missing wrappers");
-$TEST->add2TestsFail("testrun/simon6", "", "Failure: Non-pointer");
+$TEST->add2TestsFail("testrun/simon6", "", "Failure: Null pointer");
     
 $TEST->add2TestsFail("testrun/infer1", "", "Failure: ");
 $TEST->addTestsFail("testrun/fseq1", "", "Failure: Decrement FSEQ", 
