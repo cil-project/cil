@@ -1973,7 +1973,7 @@ linux-clean3:
 # source available at www.sendmail.org
 
 
-sendmail: mustbegcc
+sendmail: mustbegcc 
 ifndef BIG_EXAMPLES_DIR
 	@echo "You should BIG_EXAMPLES_DIR.  I'll assume it's ../../big-examples."
 	BIG_EXAMPLES_DIR=../../big-examples
