@@ -848,11 +848,13 @@ let rec checkGlobal = function
             startEnv ();
             (* Do the locals *)
             let doLocal tctx v = 
-              if not 
-                  (v.vid >= 0 && v.vid <= fd.smaxid && not v.vglob &&
-                   v.vstorage <> Extern) then
-                E.s (bug "Invalid local vid = %d for %s in %s" 
-                       vi.vid v.vname fname);
+              if v.vglob then
+                ignore (warnContext
+                          "Local %s has the vglob flag set" v.vname);
+              if v.vstorage <> NoStorage && v.vstorage <> Register then
+                ignore (warnContext
+                          "Local %s has storage %a\n" v.vname
+                          d_storage v.vstorage);
               checkType v.vtype tctx;
               checkAttributes v.vattr;
               defineVariable v

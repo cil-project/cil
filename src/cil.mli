@@ -426,8 +426,6 @@ constructer using a global counter.
 will be generated so that to avoid conflict with other locals. 
 - {!Cil.makeLocalVar} : like {!Cil.makeTempVar} but you can specify the
 exact name to be used. 
-- {!Cil.makeFormalVar} : make a new formal argument. This is added
-both to the formal arguments and to the locals of the host function. 
 - {!Cil.copyVarinfo}: make a shallow copy of a varinfo assigning a new name 
 and a new unique identifier
 
@@ -756,14 +754,20 @@ and fundec =
       mutable sformals: varinfo list;   
         (** Formals. These must be in the same order and with the same 
          * information as the formal information in the type of the function. 
-         * Use {!Cil.setFormals} or {!Cil.makeFormalVar} or 
+         * Use {!Cil.setFormals} or 
          * {!Cil.setFunctionType} to set these formals and ensure that they 
          * are reflected in the function type. Do not make copies of these 
          * because the body refers to them. *)
       mutable slocals: varinfo list;    
         (** Locals. Does NOT include the sformals. Do not make copies of 
          * these because the body refers to them. *)
-      mutable smaxid: int;           (** Max local id. Starts at 0 *)
+      mutable smaxid: int;           (** Max local id. Starts at 0. Used for 
+                                      * creating the names of new temporary 
+                                      * variables. Updated by 
+                                      * {!Cil.makeLocalVar} and 
+                                      * {!Cil.makeTempVar}. You can also use 
+                                      * {!Cil.setMaxId} to set it after you 
+                                      * have added the formals and locals. *)
       mutable sbody: block;          (** The function body. *)
       mutable smaxstmtid: int option;  (** max id of a (reachable) statement 
                                         * in this function, if we have 
@@ -962,6 +966,11 @@ val setFormals: fundec -> varinfo list -> unit
  * type to the formals *)
 val setFunctionType: fundec -> typ -> unit
 
+(** Update the smaxid after you have populated with locals and formals 
+ * (unless you constructed those using {!Cil.makeLocalVar} or 
+ * {!Cil.makeTempVar}. *)
+val setMaxId: fundec -> unit
+
 (** A dummy function declaration handy when you need one as a placeholder. It 
  * contains inside a dummy varinfo. *)
 val dummyFunDec: fundec
@@ -970,7 +979,7 @@ val dummyFunDec: fundec
 val dummyFile: file
 
 (** Write a {!Cil.file} in binary form to the filesystem. The file can be
- * read back in later using {!Cil.loadBinaryFile}, possibly saving parsing
+ * read back in later usciing {!Cil.loadBinaryFile}, possibly saving parsing
  * time. The second argument is the name of the file that should be
  * created. *)
 val saveBinaryFile : file -> string -> unit
@@ -1717,7 +1726,7 @@ val d_thisloc: unit -> Pretty.doc
 (** Pretty-print an integer of a given kind *)
 val d_ikind: unit -> ikind -> Pretty.doc
 
-(** Pretty-print a floating-point value *)
+(** Pretty-print a floating-point kind *)
 val d_fkind: unit -> fkind -> Pretty.doc
 
 (** Pretty-print storage-class information *)

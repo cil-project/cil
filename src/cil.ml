@@ -536,13 +536,13 @@ and fundec =
       mutable sformals: varinfo list;   
         (** Formals. These must be shared with the formals that appear in the 
          * type of the function. Use {!Cil.setFormals} or 
-         * {!Cil.makeFormalVar} or {!Cil.setFunctionType} to set these 
+         * {!Cil.setFunctionType} to set these 
          * formals and ensure that they are reflected in the function type. 
          * Do not make copies of these because the body refers to them. *)
       mutable slocals: varinfo list;    
         (** Locals. Does not include the sformals. Do not make copies of 
          * these because the body refers to them. *)
-      mutable smaxid: int;           (** Max local id. Starts at 0 *)
+      mutable smaxid: int;           (** Max local id. Starts at 0. *)
       mutable sbody: block;          (** The function body. *)
       mutable smaxstmtid: int option;  (** max id of a (reachable) statement 
                                         * in this function, if we have 
@@ -3194,7 +3194,10 @@ let setFunctionType (f: fundec) (t: typ) =
 
   | _ -> E.s (E.bug "setFunctionType: not a function type")
       
-          
+
+let setMaxId (f: fundec) = 
+  f.smaxid <- List.length f.sformals + List.length f.slocals
+
   
   (* Make a formal variable for a function. Insert it in both the sformals 
    * and the type of the function. You can optionally specify where to insert 

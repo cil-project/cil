@@ -554,7 +554,7 @@ $TEST->add2Tests("apache/gzip");
 #   $TEST->addBadComment("apache/random-box", "BUG");
 
 $TEST->add2Tests("testrun/sizeof1");
-$TEST->add2Tests("testrun/seq1");
+$TEST->addTests("testrun/seq1", "", ['inferbox']);
 
 # HERE
 

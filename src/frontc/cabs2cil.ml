@@ -339,6 +339,25 @@ let newAlphaName (globalscope: bool) (* The name should have global scope *)
 
 
   
+
+let explodeString (nullterm: bool) (s: string) : char list =  
+  let rec allChars i acc = 
+    if i < 0 then acc
+    else allChars (i - 1) ((String.get s i) :: acc)
+  in
+  allChars (-1 + String.length s) 
+    (if nullterm then [Char.chr 0] else [])
+    
+(*** In order to process GNU_BODY expressions we must record that a given 
+ *** COMPUTATION is interesting *)
+let gnu_body_result : (A.statement * ((exp * typ) option ref)) ref 
+    = ref (A.NOP cabslu, ref None)
+
+(*** When we do statements we need to know the current return type *)
+let currentReturnType : typ ref = ref (TVoid([]))
+let currentFunctionFDEC: fundec ref = ref dummyFunDec
+
+  
 let lastStructId = ref 0
 let anonStructName (k: string) (suggested: string) = 
   incr lastStructId;
@@ -349,37 +368,13 @@ let anonStructName (k: string) (suggested: string) =
 let constrExprId = ref 0
 
 
-let localId = ref (-1)   (* All locals get id's starting at 0 *)
-let locals : varinfo list ref = ref []
-
-let resetLocals () = 
-  localId := (-1); locals := []
-
 let startFile () = 
   H.clear env;
   H.clear genv;
   H.clear alphaTable;
-  lastStructId := 0;
-  resetLocals ()
+  lastStructId := 0
 
 
-     (* Eliminate all locals from the alphaTable. Return the maxlocal id and 
-      * the list of locals (but remove the arguments first) *)
-let endFunction (formals: varinfo list) : (int * varinfo list) = 
-  let revlocals = List.rev !locals in
-  let maxid = !localId + 1 in
-  resetLocals ();
-  let rec drop formals locals = 
-    match formals, locals with
-      [], l -> l
-    | f :: formals, l :: locals -> 
-        if f != l then 
-          E.s (error "formal %s is not in locals (found instead %s)" 
-                 f.vname l.vname);
-        drop formals locals
-    | _ -> E.s (error "Too few locals")
-  in
-  (maxid, drop formals revlocals)
 
 let enterScope () = 
   scopes := (ref []) :: !scopes
@@ -447,8 +442,10 @@ let alphaConvertVarAndAddToEnv (addtoenv: bool) (vi: varinfo) : varinfo =
     else 
       copyVarinfo vi newname
   in
+  (* STore all locals in the slocals (in reversed order). We'll reverse them 
+   * and take out the formals at the end of the function *)
   if not vi.vglob then
-    locals := newvi :: !locals;
+    !currentFunctionFDEC.slocals <- newvi :: !currentFunctionFDEC.slocals;
 
   (if addtoenv then 
     if vi.vglob then
@@ -471,6 +468,9 @@ let newTempVar typ =
     let a1 = dropAttribute "const" a in
     setTypeAttrs t a1
   in
+  if !currentFunctionFDEC == dummyFunDec then 
+    E.s (bug "newTempVar called outside a function");
+  (* Start with the name "tmp". THe alpha converter will fix it *)
   let vi = makeVarinfo false "tmp" (stripConst typ) in
   alphaConvertVarAndAddToEnv false  vi (* Do not add to the environment *)
 (*
@@ -578,26 +578,6 @@ let findCompType kind n a =
     if olda = a then old else makeForward ()
   with Not_found -> makeForward ()
   
-  
-
-let explodeString (nullterm: bool) (s: string) : char list =  
-  let rec allChars i acc = 
-    if i < 0 then acc
-    else allChars (i - 1) ((String.get s i) :: acc)
-  in
-  allChars (-1 + String.length s) 
-    (if nullterm then [Char.chr 0] else [])
-    
-(*** In order to process GNU_BODY expressions we must record that a given 
- *** COMPUTATION is interesting *)
-let gnu_body_result : (A.statement * ((exp * typ) option ref)) ref 
-    = ref (A.NOP cabslu, ref None)
-
-(*** When we do statements we need to know the current return type *)
-let currentReturnType : typ ref = ref (TVoid([]))
-let currentFunctionVI : varinfo ref = ref dummyFunDec.svar
-let currentFunctionFormals : varinfo list ref = ref []
-
 
 (* A simple visitor that searchs a statement for labels *)
 class canDropStmtClass pRes = object
@@ -2648,7 +2628,7 @@ and doExp (isconst: bool)    (* In a constant *)
                 if past <= l &&
                    String.sub s start (String.length tofind) = tofind then
                   (if start > 0 then String.sub s 0 start else "") ^
-                  !currentFunctionVI.vname ^
+                  !currentFunctionFDEC.svar.vname ^
                   (if past < l then String.sub s past (l - past) else "")
                 else
                   s
@@ -2820,7 +2800,7 @@ and doExp (isconst: bool)    (* In a constant *)
               what
         | A.VARIABLE s when 
                isOldStyleVarArgName s 
-            && (match !currentFunctionVI.vtype with 
+            && (match !currentFunctionFDEC.svar.vtype with 
                    TFun(_, _, true, _) -> true | _ -> false) ->
             (* We are in an old-style variable argument function and we are 
              * taking the address of the argument that was removed while 
@@ -2832,7 +2812,7 @@ and doExp (isconst: bool)    (* In a constant *)
                 | [a] -> a
                 | _ :: rest -> getLast rest 
               in
-              let last = getLast !currentFunctionFormals in
+              let last = getLast !currentFunctionFDEC.sformals in
               let res = mkAddrOfAndMark (var last) in
               let tres = typeOf res in
               let tres', res' = castTo tres (TInt(IULong, [])) res in
@@ -4129,7 +4109,7 @@ and createLocal ((_, sto, _, _) as specs)
           (* Maybe the initializer refers to the function itself. 
              Push a prototype for the function, just in case. Hopefully,
              if does not refer to the locals *)
-          cabsPushGlobal (GVarDecl (!currentFunctionVI, !currentLoc));
+          cabsPushGlobal (GVarDecl (!currentFunctionFDEC.svar, !currentLoc));
           Some ie'
         end
       in
@@ -4282,9 +4262,19 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
         (fun _ -> dprintf "2cil: %s" n)
         (fun _ ->
           try
-            (* Reset the local identifier so that formals are created with
-            * the proper IDs  *)
-            resetLocals ();
+            (* Make the fundec right away, and we'll populate it later. We 
+             * need this throughout the code to create temporaries. *)
+            currentFunctionFDEC := 
+               { svar     = makeGlobalVar "@tempname@" voidType;
+                 slocals  = []; (* For now we'll put hre both the locals and 
+                                 * the formals. Then "endFunction" will 
+                                 * separate them *)
+                 sformals = []; (* Not final yet *)
+                 smaxid   = 0;
+                 sbody    = dummyFunDec.sbody; (* Not final yet *)
+		 smaxstmtid = None;
+               };
+
             constrExprId := 0;
             (* Setup the environment. Add the formals to the locals. Maybe
             * they need alpha-conv  *)
@@ -4292,36 +4282,47 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
             
             H.clear varSizeArrays;
             
-            let bt,sto,inl,attrs = doSpecList n specs in
             (* Do not process transparent unions in function definitions.
             * We'll do it later *)
             transparentUnionArgs := [];
-            let ftyp, funattr = 
-              doType (AttrName false) bt (A.PARENTYPE(attrs, dt, a)) in
 
-            (* If this is the definition of an extern inline then we change 
-             * its name, by adding the suffix __extinline. We also make it 
-             * static *)
-            let n', sto' =
-              let n' = n ^ "__extinline" in
-              if inl && sto = Extern then 
-                n', Static
-              else begin 
-               (* Maybe this is the body of a previous extern inline. Then we 
-                * must take that one out of the environment because it is not 
-                * used from here on. This will also ensure that then we make 
-                * this functions' varinfo we will not think it is a duplicate 
-                * definition  *)
-                (try
-                  ignore (lookupVar n'); (* n' is defined *)
-                  let oldvi, _ = lookupVar n in
-                  if oldvi.vname <> n' then E.s (bug "extern inline redefinition: %s (expected %s)"
-                                                   oldvi.vname n');
-                  H.remove env n; H.remove genv n;
-                  H.remove env n'; H.remove genv n'
-                with Not_found -> ());
-                n, sto 
-              end
+            let _ = 
+              let bt,sto,inl,attrs = doSpecList n specs in
+              !currentFunctionFDEC.svar.vinline <- inl;
+              
+              let ftyp, funattr = 
+                doType (AttrName false) bt (A.PARENTYPE(attrs, dt, a)) in
+              !currentFunctionFDEC.svar.vtype <- ftyp;
+              !currentFunctionFDEC.svar.vattr <- funattr;
+
+              (* If this is the definition of an extern inline then we change 
+               * its name, by adding the suffix __extinline. We also make it 
+               * static *)
+              let n', sto' =
+                let n' = n ^ "__extinline" in
+                if inl && sto = Extern then 
+                  n', Static
+                else begin 
+                  (* Maybe this is the body of a previous extern inline. Then 
+                  * we must take that one out of the environment because it 
+                  * is not used from here on. This will also ensure that 
+                  * then we make this functions' varinfo we will not think 
+                  * it is a duplicate definition *)
+                  (try
+                    ignore (lookupVar n'); (* n' is defined *)
+                    let oldvi, _ = lookupVar n in
+                    if oldvi.vname <> n' then 
+                      E.s (bug "extern inline redefinition: %s (expected %s)"
+                             oldvi.vname n');
+                    H.remove env n; H.remove genv n;
+                    H.remove env n'; H.remove genv n'
+                  with Not_found -> ());
+                  n, sto 
+                end
+              in
+              (* Now we have the name and the storage *)
+              !currentFunctionFDEC.svar.vname <- n';
+              !currentFunctionFDEC.svar.vstorage <- sto'
             in
               
             (* Add the function itself to the environment. Add it before 
@@ -4330,12 +4331,8 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
             * because there might be a formal with the same name as the 
             * function and we want it to take precedence. *)
             (* Make a variable out of it and put it in the environment *)
-            let thisFunctionVI, _ =
-              let vi = makeVarinfo true n' ftyp in
-              vi.vinline <- inl;
-              vi.vattr <- funattr;
-              vi.vstorage <- sto';
-              makeGlobalVarinfo true vi
+            !currentFunctionFDEC.svar <- 
+               fst (makeGlobalVarinfo true !currentFunctionFDEC.svar);
 (*                
                 { vname = n';
                   vtype = ftyp;
@@ -4349,65 +4346,64 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                   vreferenced = false;   (* sm *)
                 }
 *)
-            in
+            (* If it is extern inline then we add it to the global 
+             * environment for the original name as well. This will ensure 
+             * that all uses of this function will refer to the renamed 
+             * function *)
+            addGlobalToEnv n (EnvVar !currentFunctionFDEC.svar);
+
+            if H.mem alreadyDefined !currentFunctionFDEC.svar.vname then
+              E.s (error "There is a definition already for %s" n);
+
 (*
             ignore (E.log "makefunvar:%s@! type=%a@! vattr=%a@!"
                         n d_type thisFunctionVI.vtype 
                         d_attrlist thisFunctionVI.vattr);
 *)
-            (* If it is extern inline then we add it to the global 
-             * environment for the original name as well. This will ensure 
-             * that all uses of this function will refer to the renamed 
-             * function *)
-            addGlobalToEnv n (EnvVar thisFunctionVI);
 
             (* makeGlobalVarinfo might have changed the type of the function 
              * (when combining it with the type of the prototype). So get the 
              * type only now. *)
             (* Extract the information from the type *)
-            let (returnType, formals_t, isvararg, funta) =
-              splitFunctionTypeVI thisFunctionVI 
+            let _ = 
+              let (returnType, formals_t, isvararg, funta) =
+                splitFunctionTypeVI !currentFunctionFDEC.svar 
+              in
+              (* Record the returnType for doStatement *)
+              currentReturnType   := returnType;
+              
+              
+              (* Create the formals and add them to the environment. *)
+              let formals = 
+                List.map 
+                  (fun (fn, ft, fa) -> 
+                    let f = makeVarinfo false fn ft in
+                    f.vdecl <- !currentLoc;
+                    f.vattr <- fa;
+                    (*
+                    { vname = fn; vtype = ft; vattr = fa; 
+                    vglob = false; vid = newVarId fn false; 
+                    vinline = false;
+                    vreferenced = false; vaddrof = false;
+                    vstorage = NoStorage; vdecl = !currentLoc; }
+                    *)
+                    alphaConvertVarAndAddToEnv true f)
+                  (argsToList formals_t)
+              in
+              (* Recreate the type *)
+              let ftype = TFun(returnType, 
+                               Some (List.map (fun f -> (f.vname,
+                                                         f.vtype, 
+                                                         f.vattr)) formals), 
+                               isvararg, funta) in
+              (*
+              ignore (E.log "Funtype of %s: %a\n" n' d_type ftype);
+              *)
+              (* Now fix the names of the formals in the type of the function 
+              * as well *)
+              !currentFunctionFDEC.svar.vtype <- ftype;
+              !currentFunctionFDEC.sformals <- formals;
             in
-            (* Record the returnType for doStatement *)
-            currentReturnType   := returnType;
-            
-
-            (* Create the formals and add them to the environment. *)
-            let formals = 
-              localId := 0;
-              List.map 
-                (fun (fn, ft, fa) -> 
-                  let f = makeVarinfo false fn ft in
-                  f.vdecl <- !currentLoc;
-                  f.vattr <- fa;
-                  incr localId;
-(*
-                  { vname = fn; vtype = ft; vattr = fa; 
-                            vglob = false; vid = newVarId fn false; 
-                            vinline = false;
-                            vreferenced = false; vaddrof = false;
-                            vstorage = NoStorage; vdecl = !currentLoc; }
-*)
-                  alphaConvertVarAndAddToEnv true f)
-                (argsToList formals_t)
-            in
-            (* Recreate the type *)
-            let ftype = TFun(returnType, 
-                             Some (List.map (fun f -> (f.vname,
-                                                       f.vtype, 
-                                                       f.vattr)) formals), 
-                             isvararg, funta) in
-(*
-            ignore (E.log "Funtype of %s: %a\n" n' d_type ftype);
-*)
-            (* Now fix the names of the formals in the type of the function 
-            * as well *)
-            thisFunctionVI.vtype <- ftype;
-
-            if H.mem alreadyDefined thisFunctionVI.vname then
-              E.s (error "There is a definition already for %s" n);
-            currentFunctionVI := thisFunctionVI;
-            currentFunctionFormals := formals;
             (* Now change the type of transparent union args back to what it 
              * was so that the body type checks. We must do it this late 
              * because makeGlobalVarinfo from above might choke if we give 
@@ -4424,59 +4420,85 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                     with Not_found -> ());
                     fixbackFormals (idx + 1) args'
               in
-              fixbackFormals 0 formals;
+              fixbackFormals 0 !currentFunctionFDEC.sformals;
               transparentUnionArgs := [];
             in
-            (* Now do the body *)
-            let stm = doBody body in
-            (* Finish everything *)
-            exitScope ();
-            
-            (* Now fill in the computed goto statement with cases. Do this
-            * before mkFunctionbody which resolves the gotos *)
-            (match !gotoTargetData with
-              Some (switchv, switch) ->
-                let switche, l =
-                  match switch.skind with
-                    Switch (switche, _, _, l) -> switche, l
-                  | _ -> E.s(bug "the computed goto statement not a switch")
-                in
-                (* Build a default chunk that segfaults *)
-                let default =
-                  defaultChunk
-                    l
-                    (i2c (Set ((Mem (mkCast (integer 0) intPtrType),
-                                NoOffset),
-                               integer 0, l)))
-                in
-                let bodychunk = ref default in
-                H.iter (fun lname laddr ->
-                  bodychunk :=
-                     caseRangeChunk
-                       [integer laddr] l
-                       (gotoChunk lname l @@ !bodychunk))
-                  gotoTargetHash;
-                (* Now recreate the switch *)
-                let newswitch = switchChunk switche !bodychunk l in
-                (* We must still share the old switch statement since we
-                * have already inserted the goto's *)
-                let newswitchkind =
-                  match newswitch.stmts with
-                    [ s]
-                      when newswitch.postins = [] && newswitch.cases = []->
-                        s.skind
-                  | _ -> E.s (bug "Unexpected result from switchChunk")
-                in
-                switch.skind <- newswitchkind
+            (********** Now do the BODY *************)
+            let _ = 
+              let stmts = doBody body in
+              (* Finish everything *)
+              exitScope ();
+              (* Now fill in the computed goto statement with cases. Do this 
+               * before mkFunctionbody which resolves the gotos *)
+              (match !gotoTargetData with
+                Some (switchv, switch) ->
+                  let switche, l =
+                    match switch.skind with
+                      Switch (switche, _, _, l) -> switche, l
+                    | _ -> E.s(bug "the computed goto statement not a switch")
+                  in
+                  (* Build a default chunk that segfaults *)
+                  let default =
+                    defaultChunk
+                      l
+                      (i2c (Set ((Mem (mkCast (integer 0) intPtrType),
+                                  NoOffset),
+                                 integer 0, l)))
+                  in
+                  let bodychunk = ref default in
+                  H.iter (fun lname laddr ->
+                    bodychunk :=
+                       caseRangeChunk
+                         [integer laddr] l
+                         (gotoChunk lname l @@ !bodychunk))
+                    gotoTargetHash;
+                  (* Now recreate the switch *)
+                  let newswitch = switchChunk switche !bodychunk l in
+                  (* We must still share the old switch statement since we
+                  * have already inserted the goto's *)
+                  let newswitchkind =
+                    match newswitch.stmts with
+                      [ s]
+                        when newswitch.postins = [] && newswitch.cases = []->
+                          s.skind
+                    | _ -> E.s (bug "Unexpected result from switchChunk")
+                  in
+                  switch.skind <- newswitchkind
                      
-            | None -> ());
-            (* Reset the global parameters *)
-            gotoTargetData := None;
-            H.clear gotoTargetHash;
-            gotoTargetNextAddr := 0;
+              | None -> ());
+              (* Now finis the body and store it *)
+              !currentFunctionFDEC.sbody <- mkFunctionBody stmts;
+              (* Reset the global parameters *)
+              gotoTargetData := None;
+              H.clear gotoTargetHash;
+              gotoTargetNextAddr := 0;
+            in
+            
 
+(*
+            ignore (E.log "endFunction %s at %t:@! sformals=%a@!  slocals=%a@!"
+                      !currentFunctionFDEC.svar.vname d_thisloc
+                      (docList (chr ',') (fun v -> text v.vname)) 
+                      !currentFunctionFDEC.sformals
+                      (docList (chr ',') (fun v -> text v.vname)) 
+                      !currentFunctionFDEC.slocals);
+*)
+            let rec dropFormals formals locals = 
+              match formals, locals with
+                [], l -> l
+              | f :: formals, l :: locals -> 
+                  if f != l then 
+                    E.s (bug "formal %s is not in locals (found instead %s)" 
+                           f.vname l.vname);
+                  dropFormals formals locals
+              | _ -> E.s (bug "Too few locals")
+            in
+            !currentFunctionFDEC.slocals 
+              <- dropFormals !currentFunctionFDEC.sformals 
+                   (List.rev !currentFunctionFDEC.slocals);
+            setMaxId !currentFunctionFDEC;
 
-            let (maxid, locals) = endFunction formals in
+(* in
             let fdec = { svar     = thisFunctionVI;
                          slocals  = locals;
                          sformals = formals;
@@ -4485,36 +4507,40 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
 			 smaxstmtid = None;
                        }
             in
-
+*)
             (* Now go over the types of the formals and pull out the formals 
              * with transparent union type. Replace them with some shadow 
              * parameters and then add assignments  *)
-            let newformals, newbody =
-              List.fold_right (* So that the formals come out in order *)
-                (fun f (accform, accbody) ->
-                  match isTransparentUnion f.vtype with
-                    None -> (f :: accform, accbody)
-                  | Some fstfield ->
-                      (* A new shadow to be placed in the formals *)
-                      let shadow = makeTempVar fdec fstfield.ftype in
-                      (* Now take it out of the locals and replace it with 
-                       * the current formal. It is not worth optimizing this 
-                       * one  *)
-                      fdec.slocals <-
-                         f ::
-                         (List.filter (fun x -> x.vid <> shadow.vid)
-                            fdec.slocals);
-                      (shadow :: accform,
-                       mkStmt (Instr [Set ((Var f, Field(fstfield,
-                                                         NoOffset)),
-                                           Lval (var shadow),
-                                           !currentLoc)]) :: accbody))
-                formals
-                ([], fdec.sbody.bstmts)
+            let _ = 
+              let newformals, newbody =
+                List.fold_right (* So that the formals come out in order *)
+                  (fun f (accform, accbody) ->
+                    match isTransparentUnion f.vtype with
+                      None -> (f :: accform, accbody)
+                    | Some fstfield ->
+                        (* A new shadow to be placed in the formals. Use 
+                         * makeTempVar to update smaxid and all others. *)
+                        let shadow = 
+                          makeTempVar !currentFunctionFDEC fstfield.ftype in
+                        (* Now take it out of the locals and replace it with 
+                        * the current formal. It is not worth optimizing this 
+                        * one  *)
+                        !currentFunctionFDEC.slocals <-
+                           f ::
+                           (List.filter (fun x -> x.vid <> shadow.vid)
+                              !currentFunctionFDEC.slocals);
+                        (shadow :: accform,
+                         mkStmt (Instr [Set ((Var f, Field(fstfield,
+                                                           NoOffset)),
+                                             Lval (var shadow),
+                                             !currentLoc)]) :: accbody))
+                  !currentFunctionFDEC.sformals
+                  ([], !currentFunctionFDEC.sbody.bstmts)
+              in
+              !currentFunctionFDEC.sbody.bstmts <- newbody;
+              (* To make sure sharing with the type is proper *)
+              setFormals !currentFunctionFDEC newformals; 
             in
-            fdec.sbody.bstmts <- newbody;
-            setFormals fdec newformals; (* To make sure sharing with the
-                                           * type is proper *)
 
             (* Now see whether we can fall through to the end of the function 
              * *)
@@ -4552,24 +4578,24 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
               in
               fall b.bstmts
             in
-            if blockFallsThrough fdec.sbody then begin
+            if blockFallsThrough !currentFunctionFDEC.sbody then begin
               let retval = 
-                match unrollType returnType with
+                match unrollType !currentReturnType with
                   TVoid _ -> None
                 | (TInt _ | TEnum _ | TFloat _ | TPtr _) as rt -> 
                     Some (mkCastT zero intType rt)
                 | _ ->
-                    ignore (warn "Body of function %s falls-through and cannot find an appropriate return value\n" fdec.svar.vname);
+                    ignore (warn "Body of function %s falls-through and cannot find an appropriate return value\n" !currentFunctionFDEC.svar.vname);
                     None
               in
-              fdec.sbody.bstmts <- 
-                 fdec.sbody.bstmts 
+              !currentFunctionFDEC.sbody.bstmts <- 
+                 !currentFunctionFDEC.sbody.bstmts 
                  @ [mkStmt (Return(retval, !currentLoc))]
             end;
             
-            (*              ignore (E.log "The env after finishing the body of %s:\n%t\n"
+            (* ignore (E.log "The env after finishing the body of %s:\n%t\n"
                         n docEnv); *)
-            cabsPushGlobal (GFun (fdec, funloc));
+            cabsPushGlobal (GFun (!currentFunctionFDEC, funloc));
             empty
           with e -> begin
             ignore (E.log "error in collectFunction %s: %s\n"
