@@ -619,6 +619,7 @@ $TEST->add2Tests("testrun/stringsize");
 
 $TEST->addTests("testrun/typeof1", "", ['cil']);
 $TEST->addTests("testrun/semicolon", "_GNUCC=1", ['cil']);
+$TEST->addTests("testrun/oom", "", ['inferbox']);
 
 $TEST->add2Tests("merge-ar", "");
 #
