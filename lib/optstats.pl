@@ -19,7 +19,11 @@ sub intHandler {
 }
 
                                 # Create an exception handler
-$SIG{'INT'} = \&intHandler;
+sub setInterruptHandler {
+    $SIG{'INT'} = \&intHandler;
+}
+
+&setInterruptHandler();
 
 my $matchtime = "user\\s*(\\d+)m([0-9.]+)s";
 my $calctime  = "\$1 * 60 + \$2";
@@ -112,6 +116,9 @@ sub printHelp {
 
     If no cases are requested then 'nocure' and 'base' will be run.
     If the 'all' case is requested then all cases are run.
+
+    Press CTRL-C if you want to skip the current test. 
+
 EOF
     print "Tests available:\n\t" , join("\n\t", @alltests), "\n";
     print "Cases available:\n\t", join("\n\t",  @allcaseskeys), "\n";
@@ -157,6 +164,7 @@ foreach my $tst (@tests) {
         $count ++;
         $res = `$cmd 2>&1`;
         print LOG $res;
+        &processInterrupt();
         if ($res !~ m/$matchtime/) { 
             print $res;
             warn "Cannot find the time for $cmd"; 
@@ -192,6 +200,10 @@ my %allbenefits = ();
 foreach my $tst (@tests) {
     my $results = $allresults{$tst};
     my $base = $results->{'base'};
+    if($base == 0.0) {
+        warn "*** Base case for $tst takes 0s\n";
+        next;
+    }
     my %benefits;
     foreach my $case (keys %{$results}) {
         if($case eq 'base') { next ;}
@@ -264,4 +276,23 @@ sub printOneTest {
 sub max {
     my($a, $b) = @_;
     return ($a >= $b) ? $a : $b;
+}
+
+sub processInterrupt {
+    my($self) = @_;
+    if($interrupt) {
+        $interrupt = 0;
+        print "\n";
+        while(1) {
+            print "You pressed CTRL-C. Want to continue? (y/n): ";
+            my $answer = <STDIN>; chop $answer;
+            if($answer eq "") { next; }
+            if($answer eq "y" || $answer eq "Y") {
+                &setInterruptHandler();
+                return;
+            }
+            last;
+        }
+        die "I'm outta here\n";
+    }
 }

@@ -723,7 +723,7 @@ bh-optimvariant.%: mustbegcc
 	cd $(BHDIR); \
            $(OPTIMVARIANT) \
                  code.exe_combcured.$*.optim.c \
-                 trusted_bh.c \
+                 trusted_bh.c -lm \
                  $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
                  $(EXEOUT)code.exe
 	make runbh $(MAKEOVERRIDES)
@@ -759,7 +759,7 @@ power:  mustbegcc
 
 power-optimvariant.%: mustbegcc
 	cd $(PWDIR); \
-           $(OPTIMVARIANT) \
+           $(OPTIMVARIANT) $(PWEXTRA) \
                  power.exe_combcured.$*.optim.c \
                  $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
                  $(EXEOUT)power.exe
@@ -779,19 +779,16 @@ health:
 	cd $(HEALTHDIR); \
                make PLAIN=1 clean defaulttarget \
                     $(HEALTHARGS) \
-                    CC="$(COMBINECCURED) \
-                        --nocure=trusted_health \
-			 $(PATCHARG)"
-	cd $(HEALTHDIR); sh -c "time ./health$(LDEXT) 5 500 1 1"
+                    CC="$(COMBINECCURED) $(PATCHARG)"
+	cd $(HEALTHDIR); sh -c "time ./health.exe 5 500 1 1"
 
 health-optimvariant.%: mustbegcc
 	cd $(HEALTHDIR); \
-           $(OPTIMVARIANT) \
+           $(OPTIMVARIANT) -lm \
                  health.exe_combcured.$*.optim.c \
-                 trusted_health.c \
                  $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
                  $(EXEOUT)health.exe
-	cd $(HEALTHDIR); sh -c "time ./health$(LDEXT) 5 500 1 1"
+	cd $(HEALTHDIR); sh -c "time ./health.exe 5 500 1 1"
 
 
 # Perimeter of regions in images
@@ -847,7 +844,7 @@ tsp:
 
 tsp-optimvariant.%: mustbegcc
 	cd $(TSPDIR); \
-           $(OPTIMVARIANT) \
+           $(OPTIMVARIANT) $(TSPEXTRA) \
                  tsp.exe_combcured.$*.optim.c \
                  $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
                  $(EXEOUT)tsp.exe
@@ -898,6 +895,15 @@ mst:
                                LD="$(OLDENMSTSAFECC)"
 	cd $(OLDENMSTDIR); sh -c "time ./mst.exe 2048 1"
 	cd $(OLDENMSTDIR); if test -f gmon.out; then gprof mst.exe gmon.out; fi
+
+
+mst-optimvariant.%: mustbegcc
+	cd $(OLDENMSTDIR); \
+           $(OPTIMVARIANT) \
+                 mst.exe_combcured.$*.optim.c \
+                 $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
+                 $(EXEOUT)mst.exe
+	cd $(OLDENMSTDIR); sh -c "time ./mst.exe 2048 1"
 
 
 
@@ -977,12 +983,12 @@ old-compress :  $(COMPRESSDIR)/src/combine-compress.c
 
 compress-noclean:  mustbegcc
 	cd $(COMPRESSDIR)/src; make CC="$(COMBINECCURED)" build
-	cd $(COMPRESSDIR)/src; sh -c "time ./compress < input.data > combine-compress.out"
+	cd $(COMPRESSDIR)/src; sh -c "time ./compress.exe < input.data > combine-compress.out"
 
 compress:  mustbegcc
 	cd $(COMPRESSDIR)/src; \
                make CC="$(COMBINECCURED) $(PATCHARG)" clean build
-	cd $(COMPRESSDIR)/src; sh -c "time ./compress < input.data > combine-compress.out"
+	cd $(COMPRESSDIR)/src; sh -c "time ./compress.exe < input.data > combine-compress.out"
 
 compress-optimvariant.%: mustbegcc
 	cd $(COMPRESSDIR)/src; \
@@ -990,7 +996,7 @@ compress-optimvariant.%: mustbegcc
                  compress.exe_combcured.$*.optim.c \
                  $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
                  $(EXEOUT)compress.exe
-	cd $(COMPRESSDIR)/src; sh -c "time ./compress < input.data > combine-compress.out"
+	cd $(COMPRESSDIR)/src; sh -c "time ./compress.exe < input.data > combine-compress.out"
 
 
 LIDIR := $(SPECDIR)/130.li
@@ -999,9 +1005,16 @@ li:  mustbegcc
 	cd $(LIDIR)/src; \
             make clean build CC="$(LISAFECC) $(CONLY)" \
                              LD="$(LISAFECC)"
-	sh -c "time $(LIDIR)/src/trial_li \
+	sh -c "time $(LIDIR)/src/li.exe \
             <$(LIDIR)/data/train/input/train.lsp \
             >$(LIDIR)/data/train/input/train.out"
+
+li-optimvariant.%: mustbegcc
+	cd $(LIDIR)/src; \
+           $(OPTIMVARIANT) -lm \
+                 li.exe_combcured.$*.optim.c \
+                 $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
+                 $(EXEOUT)li.exe
 
 li-combined:  mustbegcc
 	cd $(LIDIR)/src; \
@@ -1012,7 +1025,7 @@ li-noclean:  mustbegcc
             make build CC="$(LISAFECC) $(CONLY)" \
                        LD="$(LISAFECC)" \
                        EXTRA_LIBS=$(LIEXTRA) 
-	sh -c "time $(LIDIR)/src/trial_li \
+	sh -c "time $(LIDIR)/src/li.exe \
             <$(LIDIR)/data/train/input/train.lsp \
             >$(LIDIR)/data/train/input/train.out"
 
@@ -1024,7 +1037,7 @@ liinfer: li
 	cd $(LIDIR)/src ; $(CCURED) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  $(CFLAGS) \
                  trial_li.c \
-                 $(EXEOUT)trial_li.exe
+                 $(EXEOUT)li.exe
 
 
 ### SPEC95 GO
@@ -1040,7 +1053,7 @@ go:  mustbegcc
 	cd $(GODIR)/src; \
             make clean build CC="$(GOSAFECC) $(CONLY)" \
                              LD="$(GOSAFECC)"
-	cd $(GODIR)/src; sh -c "time ./go 50 9"
+	cd $(GODIR)/src; sh -c "time ./go.exe 50 9"
 
 go-combined:  mustbegcc
 	cd $(GODIR)/src; \
@@ -1052,7 +1065,7 @@ go-noclean:  mustbegcc
             make build CC="$(GOSAFECC) $(CONLY)" \
                        LD="$(GOSAFECC)" \
                              EXTRA_LIBS=$(GOEXTRA) 
-	sh -c "time $(GODIR)/src/go 50 9"
+	sh -c "time $(GODIR)/src/go.exe 50 9"
 
 go-optimvariant.%: mustbegcc
 	cd $(GODIR)/src; \
@@ -1060,7 +1073,7 @@ go-optimvariant.%: mustbegcc
                  go.exe_combcured.$*.optim.c \
                  $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
                  $(EXEOUT)compress.exe
-	cd $(GODIR)/src; sh -c "time ./go 50 9"
+	cd $(GODIR)/src; sh -c "time ./go.exe 50 9"
 
 
 
@@ -1364,7 +1377,8 @@ yacr: mustbegcc
 
 ################# LINUX
 LINUX_INCLUDES := $(CCUREDHOME)/test/linux/include
-LINUX_TOPATCH := asm/uaccess.h \
+LINUX_TOPATCH := asm/uaccess.h asm/atomic.h asm/bitops.h \
+	         asm/current.h \
                  linux/config.h linux/list.h
 linuxsetup:
 	$(PATCHER)  -D MODULE -D _KERNEL_ -I /usr/src/linux/include \
