@@ -33,12 +33,11 @@ if($^O eq 'MSWin32') {
 
 # Set a signal handler
 my $interrupt = 0;
+my $timeout = 0;
 sub intHandler {
     my $signame = shift;
-    #print "I got a SIG$signame\n";
-    #if($signame eq 'INT') {
-        $interrupt = 1;
-    #}
+#    print "I got a SIG$signame\n";
+    $interrupt = 1;
 }
 
 # another one, for the hack involving --showoutput
@@ -50,11 +49,12 @@ sub setUsr1Handler {
     $gotSigUsr1 = 0;
     $SIG{'USR1'} = \&usr1Handler;
 }
+    
 
                                 # Create an exception handler
 sub setInterruptHandler {
     $SIG{'INT'} = \&intHandler;
-    
+
     # sm: 'CLD' is the child-death signal, which we always
     # get when a child exits
 #    $SIG{'CLD'} = \&intHandler;
@@ -172,6 +172,7 @@ sub new {
          "--stoponerror",     # Stop at the first error
          "--showoutput",      # Show the output on the console
          "--regrtest",        # enable a variety of regrtest-like behaviors
+         "--timeout=i",       # timeout (seconds)
          "--skip=i",          # skip a certain number of tests on startup
          "--stopAfter=i",     # stop after the given test number
          "--extraArgs=s",     # additional argument to pass to each test command
@@ -186,6 +187,7 @@ sub new {
     $self->{gory}       = $option{gory};
     $self->{verbose}    = $option{verbose};
     $self->{regrtest}   = $option{regrtest};
+    $self->{timeout}    = (defined($option{timeout}) ? $option{timeout} : 60);
 
     # Initialize the list of tests
     my %tests = ();
@@ -268,6 +270,7 @@ $params
   --logversions=<nr>           How many old versions of the log file to keep
   --stoponerror                Stop at the first error
   --showoutput                 Show the output on the console
+  --timeout=ss                 Stop the command after ss seconds. Use 0 to disable.
 $extra
 
 Report bugs to necula\@cs.berkeley.edu.
@@ -374,7 +377,24 @@ sub runCommand {
 
         my $olddir = Cwd::cwd();
         if(chdir $dir) {
-            my $res = system($newcmd);
+            my $res;
+            eval { 
+                local $SIG{ALRM} = sub { die "got timeout"; };
+                alarm $self->{timeout};
+                $res = system($newcmd);
+                alarm 0;
+            };
+            if($@ =~ m/got timeout/) {
+#                print STDERR "Got timeout. Kill children\n";
+                print STDERR "  TIMEOUT ";
+                open(ERR, ">>$stderrFile");
+                print ERR "Error: TIMEOUT";
+                close(ERR);
+                local $SIG{HUP} = 'IGNORE';
+                kill HUP => -$$;
+                $res = (1 << 7) + 1
+            }
+
             if ($gotSigUsr1) {
                 $self->gprint("[exited: usr1]");
                 $res = 2 << 8;     # no signal, exit code 2
