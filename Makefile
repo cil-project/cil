@@ -220,8 +220,10 @@ ifdef _GNUCC
 SAFECLIB=$(OBJDIR)/safeclib.a
 $(SAFECLIB) : $(SAFECCDIR)/cil/lib/safec.c
 	$(CC) $(OBJOUT)$(OBJDIR)/safec.o $<
-	@echo "dnw: "$(LIB) $(LIBOUT)$(SAFECLIB) $(OBJOUT)$(OBJDIR)/safec.o 
-	@echo "sm: below was -t .. changed to -r.." > /dev/null
+	# I have no idea what George is doing here. :-)
+	# $(CC) $(LIB) $(LIBOUT)$(SAFECLIB) $(OBJOUT)$(OBJDIR)/safec.o 
+	# But this works. 
+	ar -r $(SAFECLIB) $(OBJDIR)/safec.o
 	ar -r $(SAFECLIB) $(OBJDIR)/safec.o
 endif
 
