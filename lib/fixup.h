@@ -118,9 +118,6 @@
   #define __CANPOINTTOSTACK
 #endif
 
-//#if ! defined(MANUALBOX) && ! defined(INFERBOX)
-//#define calloc_fseq calloc
-//#endif
 
 #if !defined(CCURED)
   // if some code calls explicit_gc, but we're not boxing, then
@@ -150,126 +147,7 @@ extern long double __builtin_fabsl(long double);
 // Now specify some special pragmas
 #ifdef CCURED
 
-  //
-  //Define FP_FAIL for use in wrappers:
-  //
-  #if !defined(RELEASELIB) && !defined(FP_FAIL_IS_VERBOSE)
-    #define FP_FAIL_IS_VERBOSE
-  #endif
-
-  #ifdef _GNUCC
-    #define FILEFUNC (__FILE__ ":" __FUNCTION__)
-    #define LINEFUNC __LINE__
-  #else
-    #define FILEFUNC __FILE__
-    #define LINEFUNC __LINE__
-  #endif
-
-  #if defined(FP_FAIL_IS_VERBOSE)
-    #define FP_FAIL_EXTRA_PARAMS , char *file, int line
-    #define FP_FAIL_EXTRA_ARGS , file, line
-    #define FILE_AND_LINE , FILEFUNC, LINEFUNC
-    #define FP_FAIL_STR(s) fp_fail_str(s, __FILE__, __LINE__)
-    #define FP_FAIL(code) fp_fail(code, __FILE__, __LINE__)
-  #else
-    #define FP_FAIL_EXTRA_PARAMS
-    #define FP_FAIL_EXTRA_ARGS
-    #define FILE_AND_LINE
-    #define FP_FAIL_STR(s) fp_fail_str(s)
-    #define FP_FAIL(code) fp_fail(code)
-  #endif
-
-  #ifndef NORETURN
-    #ifdef _MSVC
-      #define NORETURN __declspec(noreturn)
-    #else
-      #define NORETURN __attribute__((noreturn))
-    #endif
-  #endif
-
-  // declaration of our failure functions
-  // fail with a given error message
-  NORETURN  void fp_fail_str(char *str  FP_FAIL_EXTRA_PARAMS);
-
-  // fail with a given code, which maps to a message
-  NORETURN  void fp_fail(int msgId  FP_FAIL_EXTRA_PARAMS);
-
-
-//////////////////////////////////////////////////////////////
-// Declare primitive wrapper functions:
-//
-
-//These functions do not do any error checking:
-
-  void * __SAFE  __ptrof_nocheck(void *ptr);
-  // Type inference:  no constraints.
-  // In the wrapper:  returns ptr._p.
-
-  void * __SAFE  __startof(void *ptr); 
-  // Type inference:  ptr must allow backwards arithmetic.
-  // In the wrapper:  returns ptr._b.
-
-  void * __SAFE  __endof(void *ptr);
-  // Type inference:  ptr must allow forwards arithmetic.
-  // In the wrapper:  returns ptr._e (WILDs: returns 0 if ptr._b == 0).
-
-  void * __mkptr(void * __SAFE p, void *phome);
-  // Type inference:  phome must be castable to the return type.
-  // In the wrapper:  returns a (multiword) pointer to p with phome's
-  //                    memory region.
-
-  int __noninteger(void *ptr);
-  // Type inference:  no constraints.
-  // In the wrapper:  returns zero iff ptr is 0 or another non-pointer value
-  //                    (i.e. an int cast to a pointer); non-zero otherwise.
-
-  #define __LENGTH(p) ( ((unsigned int)__endof(p)) - ((unsigned int)__ptrof_nocheck(p)) )
-  // Type inference:  ptr must allow forwards arithmetic.
-  // In the wrapper:  returns ptr._e - ptr._p (or the WILD equivalent).
-  #define __NUM_ELEMENTS(p) ( __LENGTH(p) / sizeof(*p) )
-  // Type inference:  ptr must allow forwards arithmetic.
-  // In the wrapper:  returns number of elements in the buffer.
-
-//These functions may call fp_fail:
-
-  void * __SAFE  __ptrof(void *ptr);
-  // Type inference:  no constraints.
-  // In the wrapper:  returns ptr._p.
-  //                 Calls fp_fail if ptr is nonnull and out of bounds.
-
-  int __strlen(void *ptr);      
-  // Type inference:  ptr must allow forwards arithmetic; also sets the
-  //                    reachString flag.
-  // In the wrapper:  returns the length of the string, not couting the 
-  //                    terminating nul.
-  //                  Calls fp_fail if ptr is null or not nul-terminated.
-
-  void __write_at_least(void *ptr, unsigned int n);  
-  // Type inference:  ptr must allow forwards arithmetic.
-  // In the wrapper:  Verifies that we can write the next n bytes of ptr. In
-  //                    WILDs, also clears the tags for the next n bytes.
-  //                  Calls fp_fail if ptr is null or not long enough.
-
-  void __copytags(void *dest, void* src, unsigned int n);  
-  // Type inference:  ptr must allow forwards arithmetic.
-  // In the wrapper:  Verifies that we can read/write the next n bytes
-  //                    of both dest and src.  In WILDs, also copys the
-  //                    appropriate tags from src to dest.
-  //                  Calls fp_fail if either dest or src is null or not long
-  //                    enough.
-
-
-  #pragma boxpoly("__ptrof")
-  #pragma boxpoly("__ptrof_nocheck")
-  #pragma boxpoly("__startof")
-  #pragma boxpoly("__endof")
-  #pragma boxpoly("__mkptr")
-  #pragma boxpoly("__strlen")
-  #pragma boxpoly("__noninteger")
-  #pragma boxpoly("__write_at_least")
-  #pragma boxpoly("__copytags")
-
-  // there's more of these in ccured_GNUCC.patch..
+// there's more of these in ccured_GNUCC.patch..
   #pragma boxvararg_printf("printf", 1)
   #pragma boxvararg_printf("vprintf", 1)      // sm: this fixes a problem with rbtest when rmtmps is disabled ...
   #pragma boxvararg_printf("fprintf", 2)
@@ -291,80 +169,8 @@ extern long double __builtin_fabsl(long double);
     // waiting on rest until need them..
   #endif
 
-/*
-  // sm: taking a stab at strchr's model
-  static inline
-  char* strchr_model(char* dest, int c)
-  {
-    return dest;      // just establish the flow
-  }
-  #pragma cilnoremove("strchr_model")
-  #pragma boxmodelof("strchr_model", "strchr")
-
-  static inline char *strdup_model(char const *s)
-  {
-    char *p;
-    __endof(s);                  // need a length
-    return p;                    // result is unconstrained new value
-  }
-  #pragma cilnoremove("strdup_model")
-  #pragma boxmodelof("strdup_model", "strdup")
-
-  // sm: I cannot force return value to be fseq if 's' is ...
-  static inline char *strpbrk_model(const char *s, const char *accept)
-  {
-    __endof(s);          // s must be searchable
-    __endof(accept);     // also accept
-    return s;            // return points into 's'
-  }
-  #pragma cilnoremove("strpbrk_model")
-  #pragma boxmodelof("strpbrk_model", "strpbrk")
-*/
-  static inline char *strtok_model(char *s, char const *delim)
-  {
-    __endof(s);
-    __endof(delim);
-    return s;
-  }
-  #pragma cilnoremove("strtok_model")
-  #pragma boxmodelof("strtok_model", "strtok")
-
-/*  #pragma boxpoly("memcpy")
-  #pragma boxpoly("memset", "__builtin_memset")
-  #pragma boxpoly("memmove")
-  #pragma boxpoly("memcmp")
-  #pragma boxpoly("write")
-  #pragma boxpoly("read")
-  #pragma boxpoly("fread")
-  #pragma boxpoly("fwrite")*/
   #pragma boxpoly("mmap")      // sm: for ftpd
   #pragma boxpoly("munmap")    // sm: for ftpd
-
-/*
-  #pragma boxpoly("memset_seq_model")
-  static inline
-  void* memset_seq_model(void* dest, int towrite, unsigned int size)
-  {
-    void *end = __endof(dest); // Make sure it has an end
-    return dest;
-  }
-  #pragma boxmodelof("memset_seq_model", "memset", "__builtin_memset")
-  #pragma cilnoremove("memset_seq_model")
-
-
-  #pragma boxpoly("memcpy_seq_model")
-  static inline
-  void* memcpy_seq_model(void* dest, void *src, unsigned int size)
-  {
-    void *end = __endof(dest);
-    dest = src; // Make sure they are both have the same type
-    return dest;
-  }
-  #pragma boxmodelof("memcpy_seq_model", "memcpy", "memmove",
-                     "__builtin_memcpy")
-  #pragma cilnoremove("memcpy_seq_model")
-*/
-
 
   // like for allocators, we have __builtin_blah for str*...
   #ifdef _GNUCC
@@ -406,23 +212,13 @@ extern long double __builtin_fabsl(long double);
 
   #pragma boxexported("main")
      
-
+/*
   // stuff for test/small2/ioctl.c
   union ioctl_format {
     int anInt;
     int *anIntPtr;
   };
   #pragma boxvararg("ioctl", sizeof(union ioctl_format))
-/*
-  // for test/small2/execv.c
-  static inline int execv_model(char *path, char **argv)
-  {
-    // make sure I can tell how long the 'path' and 'argv' arrays are
-    __endof(path);
-    __endof(argv);
-    return 0;
-  }
-  #pragma boxmodelof("execv_model", "execv")
 */
   // for ping; need a model so I get to write a wrapper, where
   // I can emulate optarg as optarg_f
@@ -445,25 +241,6 @@ extern long double __builtin_fabsl(long double);
 
 #endif
 
-
-/*
-// sm: I think it's a bad idea to try to match signal's declaration since it's
-// such an unusual type; and it doesn't use any types that aren't built-in
-
-// gn: disabled this since everything in BOX mode fails due to redefin.
-#ifdef CCURED
-  typedef void (*_box_sig_fn)(int);
-  static inline
-  _box_sig_fn signal_model(int signum, _box_sig_fn fn)
-  {
-    // flow argument to result
-    return fn;
-  }
-  #pragma cilnoremove("signal_model")
-  #pragma boxmodelof("signal_model", "signal")
-
-#endif // CCURED
-*/
 
 #ifndef CCURED
   #define __startof(p) p
