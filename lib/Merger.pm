@@ -120,7 +120,7 @@ sub preprocess_beforecil {
     my @args = @{$ppargs};
 
     # See if we must force some includes
-    if($#{$self->{INCLUDEDIR}} > -1) {
+    if(@{$self->{INCLUDEDIR}} > 0) {
         # And force the other includes. Put them at the begining
         if($self->{MODENAME} eq 'GNUCC') {
             unshift @args, "-I.";
@@ -140,7 +140,7 @@ sub preprocess_beforecil {
         }
     }
 
-    return $self->SUPER::preprocess($src, $dest, $ppargs);
+    return $self->SUPER::preprocess($src, $dest, \@args);
 }
 
 

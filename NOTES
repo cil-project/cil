@@ -69,6 +69,10 @@ CCURED
 
  - printf is not quite safe. If we do not manage to verify statically the
    arguments we should be calling a wrapper. Do we do that? 
+
+ - in a SEQ pointer we must keep the end = null if the poiner is an integer.
+   Else there is trouble when we cast to FSEQ. Can we cast integers into FSEQ?
+
    
  - sm: because wild area lengths have word-level granularity, we can't protect
    the final 0 of a char array unless the alignment works out; solutions

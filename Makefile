@@ -331,16 +331,16 @@ ifdef _MSVC
   MSLINK := --mode=mscl
 endif
 PCCSAFECC=$(CCURED) $(DEF)CCURED \
-                    $(STANDARDPATCH) --combine \
+                    $(STANDARDPATCH) --merge \
                     --keep=$(CCUREDHOME)/test/PCCout \
-                    --nocure=pccbox --nocure=alloc
+                    --leavealone=pccbox --leavealone=alloc
 pcc : 
 #	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.o
 	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.exe
 	-rm $(PCCDIR)/bin/*.exe
 	make -C $(PCCDIR) \
              CC="$(PCCSAFECC) $(CONLY)" \
-             LD="$(CCURED) $(MSLINK) --combine --keep=$(CCUREDHOME)/test/PCCout" \
+             LD="$(CCURED) $(MSLINK) --merge --keep=$(CCUREDHOME)/test/PCCout" \
              USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
              COMPILER=$(PCCCOMP) \
 	     clean  
@@ -351,7 +351,7 @@ pcc-noclean :
 	-rm $(PCCDIR)/bin/*.exe
 	make -C $(PCCDIR) \
              CC="$(PCCSAFECC) $(CONLY)" \
-             LD="$(CCURED) $(MSLINK) --combine --keep=$(CCUREDHOME)/test/PCCout" \
+             LD="$(CCURED) $(MSLINK) --merge --keep=$(CCUREDHOME)/test/PCCout" \
              USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
              COMPILER=$(PCCCOMP) \
 
@@ -446,7 +446,7 @@ testmodel/%: $(SMALL1)/%.c $(SMALL1)/modelextern.c
             $(CC) $(CONLY) $(OBJOUT)modelextern.$(OBJEXT) modelextern.c
 	cd $(SMALL1); $(CCURED) \
                          $(STANDARDPATCH) \
-                         --nocure=modelextern --combine \
+                         --leavealone=modelextern --merge \
                          $(CFLAGS) $(EXEOUT)$*.exe $*.c modelextern.$(OBJEXT)
 	cd $(SMALL1); ./$*.exe
 
@@ -454,7 +454,7 @@ combine%:
 	cd $(SMALL1); \
           $(CCURED) $(CFLAGS) \
                     $(notdir $(wildcard $(SMALL1)/combine$*_[1-9].c)) \
-                    --combine  \
+                    --merge  \
                     $(STANDARDPATCH) \
 	            $(EXEOUT)combine$*.exe
 	cd $(SMALL1); ./combine$*.exe
@@ -477,7 +477,7 @@ optim/% : $(OPTIMTESTDIR)/%.c
 
 hashtest: test/small2/hashtest.c 
 	rm -f $(PCCTEST)/hashtest.exe
-	cd $(PCCTEST); $(CCURED) --combine \
+	cd $(PCCTEST); $(CCURED) --merge \
                                  --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  $(CFLAGS) \
                  `$(PATCHECHO) $(STANDARDPATCH)` \
@@ -501,10 +501,10 @@ hashtest-optimvariant.%: mustbegcc
 rbtest: test/small2/rbtest.c 
 	rm -f $(PCCTEST)/rbtest.exe
 	@true "compile with gcc for better error diagnostics (ha!)"
-	cd $(PCCTEST); $(CCURED) --combine \
+	cd $(PCCTEST); $(CCURED) --merge \
                                  --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  `$(PATCHECHO) $(STANDARDPATCH)` \
-                 $(CFLAGS) \
+                 $(OPT_O2) \
                  $(INC)$(PCCDIR)/src \
                  $(PCCDIR)/src/redblack.c \
                  ../small2/rbtest.c \
@@ -524,8 +524,8 @@ rbtest-optimvariant.%: mustbegcc
 btreetest: test/small2/testbtree.c \
            test/small2/btree.c 
 	rm -f test/small2/btreetest.exe
-	cd test/small2; $(CCURED) --combine --keep=. \
-                 $(CFLAGS) \
+	cd test/small2; $(CCURED) --merge --keep=. \
+                 $(OPT_O2) \
                  $(STANDARDPATCH) \
                  btree.c testbtree.c \
                  $(EXEOUT)btreetest.exe
@@ -635,9 +635,9 @@ MYSAFECC := $(CCURED) --keep=. $(DEF)$(ARCHOS) $(STANDARDPATCH)
 comb: test/small2/comb1.c test/small2/comb2.c 
 	rm -f test/small2/comb
 	cd test/small2; \
-	  $(MYSAFECC) --combine comb1.c $(CONLY) $(OBJOUT) comb1.o; \
-	  $(MYSAFECC) --combine comb2.c $(CONLY) $(OBJOUT) comb2.o; \
-          $(MYSAFECC) --combine comb1.o comb2.o $(EXEOUT)comb
+	  $(MYSAFECC) --merge comb1.c $(CONLY) $(OBJOUT) comb1.o; \
+	  $(MYSAFECC) --merge comb2.c $(CONLY) $(OBJOUT) comb2.o; \
+          $(MYSAFECC) --merge comb1.o comb2.o $(EXEOUT)comb
 	test/small2/comb
 
 # sm: test of combiner's ability to report inconsistencies
@@ -645,9 +645,9 @@ baddef: test/small2/baddef1.c test/small2/baddef2.c
 	cd test/small2; $(CC) baddef1.c baddef2.c -o baddef && ./baddef
 	rm -f test/small2/baddef
 	cd test/small2; \
-	  $(MYSAFECC) --combine baddef1.c $(CONLY) $(OBJOUT) baddef1.o; \
-	  $(MYSAFECC) --combine baddef2.c $(CONLY) $(OBJOUT) baddef2.o; \
-          $(MYSAFECC) --combine baddef1.o baddef2.o $(EXEOUT)baddef \
+	  $(MYSAFECC) --merge baddef1.c $(CONLY) $(OBJOUT) baddef1.o; \
+	  $(MYSAFECC) --merge baddef2.c $(CONLY) $(OBJOUT) baddef2.o; \
+          $(MYSAFECC) --merge baddef1.o baddef2.o $(EXEOUT)baddef \
 	  > baddef.rept 2>&1
 	cat test/small2/baddef.rept
 	test/small2/baddef
@@ -671,8 +671,8 @@ comcfrac:
 	-rm $(CFRACDIR)/*.o
 	-rm $(CFRACDIR)/cfrac
 	make -C $(CFRACDIR) \
-	  CC="$(CCURED) --combine --keep=$(CFRACDIR)" \
-	  LD="$(CCURED) --combine --keep=$(CFRACDIR)"
+	  CC="$(CCURED) --merge --keep=$(CFRACDIR)" \
+	  LD="$(CCURED) --merge --keep=$(CFRACDIR)"
 	csh -c "time $(CFRACDIR)/cfrac 327905606740421458831903"
 
 # espresso: memory benchmark that does logic minimization
@@ -688,7 +688,7 @@ espresso:
 
 
 
-HUFFCOMPILE := $(CCURED) $(DEF)NOVARARG --combine --keep=. 
+HUFFCOMPILE := $(CCURED) $(DEF)NOVARARG --merge --keep=. 
 # HUFFCOMPILE := cl /MLd
 ifdef _GNUCC
   HUFFOTHERS += -lm
@@ -807,7 +807,7 @@ apache/% : $(APACHETEST)/mod_%.c
 # benchmark's Makefile (helps to ensure consistency between the
 # non-ccured build and the ccured build, and also some programs
 # take too long on -O3)
-COMBINECCURED := $(CCURED) --combine
+COMBINECCURED := $(CCURED) --merge
 
 # sm: trying to collapse where are specifications are
 PATCHARG := `$(PATCHECHO) $(STANDARDPATCH)`
@@ -822,7 +822,7 @@ all-olden: mustbegcc bh bisort em3d health mst perimeter power treeadd tsp
 BHDIR := test/olden/bh
 bh:  mustbegcc
 	cd $(BHDIR); rm -f code.exe *.o; \
-               make CC="$(COMBINECCURED) --nocure=trusted_bh $(PATCHARG)"
+               make CC="$(COMBINECCURED) --leavealone=trusted_bh $(PATCHARG)"
 	make runbh $(MAKEOVERRIDES)
 
 bh-combined:  mustbegcc
@@ -879,7 +879,7 @@ HEALTHDIR=test/olden/health
 ifdef _MSVC
   HEALTHARGS := _MSVC=1
 endif
-health: 
+health: mustbegcc
 	cd $(HEALTHDIR); \
                make PLAIN=1 clean defaulttarget \
                     $(HEALTHARGS) \
@@ -932,7 +932,7 @@ voronoi :
                make PLAIN=1 clean voronoi.exe \
                     $(VORONARGS) \
                     CC="$(COMBINECCURED) \
-                        --nocure=trusted_voronoi \
+                        --leavealone=trusted_voronoi \
 			$(PATCHARG)"
 	cd $(VORONDIR); sh -c "time ./voronoi.exe 60000 1"
 
@@ -1028,7 +1028,7 @@ mst-optimvariant.%: mustbegcc
 
 
 TREEADDIR := test/olden/treeadd
-TREEADDSAFECC := $(CCURED) --combine $(PATCHARG) $(NOPRINTLN)
+TREEADDSAFECC := $(CCURED) --merge $(PATCHARG) $(NOPRINTLN)
 ifeq ($(ARCHOS), x86_WIN32)
   TREEADDSAFECC += $(DEF)WIN32 $(DEF)MSDOS
 endif
@@ -1055,7 +1055,7 @@ treeadd-optimvariant.%: mustbegcc
 
 
 EM3DDIR := test/olden/em3d
-EM3DSAFECC := $(CCURED) --combine $(PATCHARG)
+EM3DSAFECC := $(CCURED) --merge $(PATCHARG)
 ifeq ($(ARCHOS), x86_WIN32)
   EM3DSAFECC += $(DEF)WIN32 $(DEF)MSDOS
   SS_RAND := TRUE
@@ -1126,7 +1126,7 @@ compress-optimvariant.%: mustbegcc
 
 
 LIDIR := $(SPECDIR)/130.li
-LISAFECC := $(CCURED) --combine $(PATCHARG)
+LISAFECC := $(CCURED) --merge $(PATCHARG)
 li:  mustbegcc
 	cd $(LIDIR)/src; \
             make clean build CC="$(LISAFECC) $(CONLY)" \
@@ -1174,7 +1174,7 @@ liinfer: li
 
 ### SPEC95 GO
 GODIR := $(SPECDIR)/099.go
-GOSAFECC := $(CCURED) --combine  $(PATCHARG) $(NOPRINTLN) $(OPT_O2)
+GOSAFECC := $(CCURED) --merge  $(PATCHARG) $(NOPRINTLN) $(OPT_O2)
 
 goclean: 	
 	cd $(GODIR)/src; make clean
@@ -1214,7 +1214,7 @@ go-optimvariant.%: mustbegcc
 
 ### SPEC95 vortex
 VORDIR := $(SPECDIR)/147.vortex
-VORSAFECC := $(CCURED) --combine   $(PATCHARG)
+VORSAFECC := $(CCURED) --merge   $(PATCHARG)
 #VORSAFECC := $(CCURED)  $(PATCHARG)
 ifdef _GNUCC
   VOREXTRA := -lm
@@ -1290,8 +1290,8 @@ vortex-tv:
 
 ### SPEC95 m88ksim
 M88DIR := $(SPECDIR)/124.m88ksim
-M88SAFECC := $(CCURED) --combine $(PATCHARG) \
-               --nocure=m88k_trusted
+M88SAFECC := $(CCURED) --merge $(PATCHARG) \
+               --leavealone=m88k_trusted
 m88kclean: 	
 	cd $(M88DIR)/src; make clean
 	cd $(M88DIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
@@ -1320,7 +1320,7 @@ m88k-combined:  mustbegcc
 
 ### SPEC95 ijpeg
 IJPEGDIR := $(SPECDIR)/132.ijpeg
-IJPEGSAFECC := $(CCURED) --combine $(PATCHARG)
+IJPEGSAFECC := $(CCURED) --merge $(PATCHARG)
 ifeq ($(ARCHOS), x86_WIN32)
   IJPEGSAFECC += -DWIN32 -DMSDOS
 endif
@@ -1370,7 +1370,7 @@ ijpeg-noclean:  mustbegcc
 
 #### SPEC95 gcc
 GCCDIR := $(SPECDIR)/126.gcc
-GCCSAFECC := $(CCURED) --combine $(PATCHARG)
+GCCSAFECC := $(CCURED) --merge $(PATCHARG)
 
 
 gccclean: 	
@@ -1415,7 +1415,7 @@ gzip-clean:
 	cd $(GZIPDIR)/src; rm -f *.$(OBJEXT) *.$(EXEEXT)
 
 gzip-build: gzip-clean
-	cd $(GZIPDIR)/src; $(CCURED) --combine $(GZIPSOURCES) $(EXEOUT)gzip.exe
+	cd $(GZIPDIR)/src; $(CCURED) --merge $(GZIPSOURCES) $(EXEOUT)gzip.exe
 
 gzip-run:
 	cd $(GZIPDIR)/src; ./gzip.exe trees.c
@@ -1449,7 +1449,7 @@ linux-clean:
 	$(MAKE) -C $(LINUXDIR) clean
 
 combinetest: 
-	cd test/small1; $(CCURED) --combine /Fet.exe t.c t1.c
+	cd test/small1; $(CCURED) --merge /Fet.exe t.c t1.c
 
 obj/prettytest.exe: src/pretty.mli src/pretty.ml src/prettytest.ml
 	$(CAMLC) -I src -o obj/prettytest.exe src/pretty.mli src/pretty.ml src/prettytest.ml
@@ -1463,7 +1463,7 @@ constrainttest:
 
 ### ftpd-BSD-0.3.2-5
 FTPDDIR := test/ftpd/ftpd
-FTPDSAFECC := $(CCURED) --combine $(PATCHARG)
+FTPDSAFECC := $(CCURED) --merge $(PATCHARG)
 ifeq ($(ARCHOS), x86_WIN32)
   FTPDSAFECC += $(DEF)WIN32 $(DEF)MSDOS
 endif
@@ -1478,7 +1478,7 @@ ftpd: ftpd-clean mustbegcc
 
 ### wu-ftpd-2.6.1
 WUFTPDDIR := test/wu-ftpd-2.6.1
-WUFTPDSAFECC := $(CCURED) --combine $(PATCHARG)
+WUFTPDSAFECC := $(CCURED) --merge $(PATCHARG)
 ifeq ($(ARCHOS), x86_WIN32)
   WUFTPDSAFECC += $(DEF)WIN32 $(DEF)MSDOS
 endif
@@ -1509,7 +1509,7 @@ spr/%:  test/spr/%.c
 ANAGRAMDIR := test/ptrdist-1.1/anagram
 anagram: mustbegcc
 	cd $(ANAGRAMDIR); rm -f *.o; \
-             make CC="$(CCURED) $(STANDARDPATCH) --combine"
+             make CC="$(CCURED) $(STANDARDPATCH) --merge"
 	cd $(ANAGRAMDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                       do make test; done"
 
@@ -1528,7 +1528,7 @@ anagram-optimvariant.%: mustbegcc
 BCDIR := test/ptrdist-1.1/bc
 bc: mustbegcc
 	cd $(BCDIR); rm -f *.o; \
-            make CC="$(CCURED) $(STANDARDPATCH) --combine"
+            make CC="$(CCURED) $(STANDARDPATCH) --merge"
 	cd $(BCDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                       do make test; done"
 
@@ -1544,7 +1544,7 @@ bc-optimvariant.%: mustbegcc
 FTDIR := test/ptrdist-1.1/ft
 ft: mustbegcc
 	cd $(FTDIR); rm -f *.o; \
-           make CC="$(CCURED) $(STANDARDPATCH) --combine"
+           make CC="$(CCURED) $(STANDARDPATCH) --merge"
 	cd $(FTDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                       do make test; done"
 
@@ -1561,7 +1561,7 @@ ft-optimvariant.%: mustbegcc
 KSDIR := test/ptrdist-1.1/ks
 ks: mustbegcc
 	cd $(KSDIR); rm -f *.o; \
-           make CC="$(CCURED) $(STANDARDPATCH) --combine"
+           make CC="$(CCURED) $(STANDARDPATCH) --merge"
 	cd $(KSDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                       do make test; done"
 
@@ -1579,7 +1579,7 @@ ks-optimvariant.%: mustbegcc
 YACRDIR := test/ptrdist-1.1/yacr2
 yacr: mustbegcc
 	cd $(YACRDIR); rm -f *.o; \
-           make CC="$(CCURED) $(STANDARDPATCH) --combine"
+           make CC="$(CCURED) $(STANDARDPATCH) --merge"
 	cd $(YACRDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                       do make test; done"
 
@@ -1639,7 +1639,7 @@ ide-cd: mustbegcc mustbelinux $(LINUXMODULELIB)
 REISERFSDIR := test/linux/reiserfs
 reiserfs: mustbegcc mustbelinux $(LINUXMODULELIB)
 	cd $(REISERFSDIR); ( make clean && \
-           make CC="$(CCURED) --combine \
+           make CC="$(CCURED) --merge \
                        $(LINUXPATCH) --entryPoint='init_reiserfs_fs'" ) ;
 	cd $(LINUXMODULELIBDIR) ; make reiserfs_cured.o
 
