@@ -1672,6 +1672,9 @@ respect to the new include files.
 operating system. The ``sysname'' is are reported by the ``\$\^O'' variable in
 Perl. For Windows use ``MSWin32'' and for Linux use ``linux'' (capitalization
 matters).
+\item \t{ateof} - In this case the patterns are ignored and the replacement
+text is placed at the end of the patched file. Use the \t{file} flag if you
+want to restrict the files in which this replacement is performed. 
 \end{itemize}
 
 
@@ -2006,6 +2009,7 @@ Necula}.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf September 6, 2002}: Extended the patcher with the \t{ateof} flag.
 \item {\bf September 4, 2002}: Fixed bug in the elaboration to CIL. In some
 cases constant folding of \t{||} and \t{&&} was computed wrong.
 \item {\bf September 3, 2002}: Fixed the merger documentation. 

@@ -343,13 +343,20 @@ sub preparePatchFile {
             }
         }
         # Now we have found the start
-        my $pattern = <PFILE>;
+        $_ = <PFILE>;
         $patchLineNo ++;
-        if($pattern eq "") {
+        my $current_pattern = [];
+        my @all_patterns = ();
+        if($_ =~ m|^===|) {
+            if(! defined $valueflags{ateof}) {
+                die "A pattern is missing in $pFile";
+            }
+            goto AfterPattern;
+        }
+        if($_ eq "") {
             die "A pattern is missing in $pFile";
         }
-        my @all_patterns = ();
-        my $current_pattern = [$pattern];
+        push @{$current_pattern}, $_;
 
         while(<PFILE>) {
             $patchLineNo ++;
@@ -364,10 +371,11 @@ sub preparePatchFile {
             }
             push @{$current_pattern}, $_;
         }
+      AfterPattern:
         # Finish off the last pattern
         push @all_patterns, $current_pattern;
         if($_ !~ m|^===|) {
-            die "No separator found after pattern $pattern in $pFile";
+            die "No separator found after pattern in $pFile";
         }
         $patchStartLine = $patchLineNo + 1;
         my $replacement = "";
@@ -409,7 +417,7 @@ sub preparePatchFile {
             }
             $replacement .= $_;
         }
-        die "Replacement for $pattern not ended in $pFile";
+        die "Unfinished replacement for pattern in $pFile";
     }
     close(PFILE) ||
         die "Cannot close patch file $pFile\n";
@@ -450,6 +458,8 @@ sub applyPatches {
     my($in, $out) = @_;
     # Initialize all the patches
     my $patch;
+    # And remember the EOF patches that are applicable here
+    my @eof_patches = ();
     foreach $patch (@patches) {
         $patch->{USE} = 1;
         my $infile = $patch->{FLAGS}->{file};
@@ -457,11 +467,18 @@ sub applyPatches {
 #            print "Will not use patch ", 
 #                  &lineDirective($patch->{PATCHFILE},$patch->{PATCHLINENO});
             $patch->{USE} = 0;
+            next;
         }
         # Disable the system specific patterns
         if(defined $patch->{FLAGS}->{system} &&
            $patch->{FLAGS}->{system} ne $^O) {
             $patch->{USE} = 0;
+            next;
+        }
+        # Disable also (for now) the patches that must be applied at EOF
+        if(defined $patch->{FLAGS}->{ateof}) {
+            $patch->{USE} = 0;
+            push @eof_patches, $patch;
         }
         
     }
@@ -512,15 +529,7 @@ sub applyPatches {
                 # Now replace
                 $lineno += ($patNrLines - 1);
                 $toundo -= ($patNrLines - 1);
-                $line  = &lineDirective($patch->{PATCHFILE},
-                                        $patch->{PATCHLINENO});
-                $line .= $patch->{REPLACE};
-                $line .= &lineDirective($in, $lineno + 1);
-                # Mark that we have used this group
-                $patch->{USED} = 1;
-                if(defined $patch->{FLAGS}->{group}) {
-                    $groups{$patch->{FLAGS}->{group}} = 1;
-                }
+                $line = &applyOnePatch($patch, &lineDirective($in, $lineno + 1));
                 last;
             }
         }
@@ -532,8 +541,29 @@ sub applyPatches {
         }
     }
     close(IN) || die "Cannot close file $in";
+    # Now apply the EOF patches
+    foreach $patch (@eof_patches) {
+        if(defined $patch->{FLAGS}->{ateof}) {
+            my $line = &applyOnePatch($patch, &lineDirective($in, $lineno));
+            print OUT $line;
+        }
+    }
+
     close(OUT);
     return 1;
 }
 
 
+sub applyOnePatch {
+    my($patch, $after) = @_;
+    my $line  = &lineDirective($patch->{PATCHFILE},
+                               $patch->{PATCHLINENO});
+    $line .= $patch->{REPLACE};
+    $line .= $after;
+    # Mark that we have used this group
+    $patch->{USED} = 1;
+    if(defined $patch->{FLAGS}->{group}) {
+        $groups{$patch->{FLAGS}->{group}} = 1;
+    }
+    return $line;
+}
