@@ -54,3 +54,5 @@ xlsubr
 baddef
 baddef.rept
 litstruct
+cmpzero
+a.out
