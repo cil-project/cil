@@ -544,6 +544,7 @@ $TEST->add2Tests("apache/gzip");
 #---------------- some performance tests 
 $TEST->add2Tests("perf/perfglobarray");
 $TEST->add2Tests("perf/perffseq");
+$TEST->add2Tests("perf/perffseq1");
 $TEST->add2Tests("perf/perfindex");
 $TEST->add2Tests("perf/perfseq");
 $TEST->add2Tests("perf/perfwild");
