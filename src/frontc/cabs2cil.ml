@@ -1662,8 +1662,7 @@ and doExp (isconst: bool)    (* In a constant *)
           tresult   (* Should this be t instead ??? *)
           
     | A.BINARY(A.ASSIGN, e1, e2) -> 
-        if isconst then
-          E.s (error "ASSIGN in constant");
+        if isconst then E.s (error "ASSIGN in constant");
         let (se1, e1', lvt) = doExp false e1 (AExp None) in
         let lv, lvt' = 
           match e1' with 
@@ -2003,7 +2002,7 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
     | Eq -> EqP | Ge -> GeP | Ne -> NeP | Gt -> GtP | Le -> LeP | Lt -> LtP
     | _ -> E.s (error "bop2point")
   in
-  let pointerComparison e1 e2 = 
+  let pointerComparison e1 t1 e2 t2 = 
     (* Cast both sides to the same kind of pointer, that is preferably not 
      * void* *)
     let commontype = 
@@ -2043,13 +2042,11 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
   | MinusA when isPointerType t1 && isIntegralType t2 -> 
       t1, constFoldBinOp MinusPI e1 (doCastT e2 t2 (integralPromotion t2)) t1
   | (MinusA|Le|Lt|Ge|Gt|Eq|Ne) when isPointerType t1 && isPointerType t2 ->
-      pointerComparison e1 e2
-  | (Eq|Ne) when isPointerType t1 && 
-                 (match e2 with Const(CInt(0,_,_)) -> true | _ -> false) -> 
-      pointerComparison e1 (doCastT e2 t2 t1)
-  | (Eq|Ne) when isPointerType t2 && 
-                 (match e1 with Const(CInt(0,_,_)) -> true | _ -> false) -> 
-      pointerComparison (doCastT e1 t1 t2) e2
+      pointerComparison e1 t1 e2 t2
+  | (Eq|Ne) when isPointerType t1 && isZero e2 -> 
+      pointerComparison e1 t1 (doCastT e2 t2 t1) t1
+  | (Eq|Ne) when isPointerType t2 && isZero e1 -> 
+      pointerComparison (doCastT e1 t1 t2) t2 e2 t2
 
 
   | (Eq|Ne|Le|Lt|Ge|Gt|Eq|Ne) when isPointerType t1 && isArithmeticType t2 ->

@@ -974,6 +974,11 @@ vortex-noclean: defaulttarget mustbegcc
 	sh -c "time $(VORDIR)/exe/base/vortex.ultra \
             <$(VORDIR)/data/test/input/vortex.raw"
 
+vortex-combined: defaulttarget mustbegcc
+	cd $(VORDIR)/exe/base; \
+            $(SAFECC) vortex.ultra_all.c $(VOREXTRA) $(EXEOUT)vortex.ultra.exe
+
+
 ### SPEC95 m88ksim
 M88DIR=$(SPECDIR)/124.m88ksim
 M88SAFECC=$(SAFECC) --combine --keep=safeccout
@@ -1057,15 +1062,11 @@ gcc: defaulttarget mustbegcc
 	cd $(GCCDIR)/src; \
             make clean build CC="$(GCCSAFECC) $(CONLY)" \
                              LD="$(GCCSAFECC)" 
-	$(GCCDIR)/exe/base/vortex_ultra \
-            <$(GCCDIR)/data/train/input/2stone9.in
 
 gcc-noclean: defaulttarget mustbegcc
 	cd $(GCCDIR)/src; \
             make       build CC="$(GCCSAFECC) $(CONLY)" \
                              LD="$(GCCSAFECC)" 
-	$(GCCDIR)/exe/base/vortex_ultra \
-            <$(GCCDIR)/data/train/input/2stone9.in
 
 allcc1: defaulttarget mustbegcc
 	cd $(GCCDIR)/exe/base; $(SAFECC) $(DOOPT) cc1.v8_all.c
