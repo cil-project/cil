@@ -161,4 +161,5 @@ null_pointer_field
 bufferlinegetter
 checkinit
 voidstarint
+signal
 *.out
