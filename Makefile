@@ -145,7 +145,6 @@ testhash: $(HASHTESTMAIN) $(EXECUTABLE)$(EXE)
 	$(SAFECC) --keep=$(PCCTEST) $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) \
                  $(INC)$(PCCDIR)/src \
                  $(PCCDIR)/src/hash.c \
-                 $(PCCDIR)/src/redblack.c \
                  $(HASHTESTMAIN) \
                  $(EXEOUT)$(PCCTEST)/hashtest.exe
 	$(PCCTEST)/hashtest.exe

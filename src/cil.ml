@@ -371,6 +371,9 @@ let integerKinds (i: int) (posskinds: ikind list) (s: string option) =
           
 
 let integer i = Const (integerKinds i [IInt] None, lu)(* For now only ints *)
+let hexinteger i = 
+    Const (integerKinds i [IInt] (Some (Printf.sprintf "0x%08X" i)), lu)
+             
 let zero      = integer 0
 let one       = integer 1
 let mone      = integer (-1)

@@ -395,12 +395,13 @@ let checkSafeMemComp =
     let fdec = emptyFunction (name ^ (string_of_int words)) in
     let p  = makeLocalVar fdec "p" voidPtrType in
     let b  = makeLocalVar fdec "b" voidPtrType in
-    let wrds = makeLocalVar fdec "len" intType in
+    let len  = makeLocalVar fdec "len" intType in
     let rec loop idx = 
       if idx >= words then [] 
-      else (makeLocalVar fdec "t" intType) :: loop (idx + 1) 
+      else (makeLocalVar fdec "t" uintType) ::
+           (makeLocalVar fdec "t" uintType) :: loop (idx + 1) 
     in
-    fdec.svar.vtype <- TFun(voidType, p :: b :: loop 0, false, []);
+    fdec.svar.vtype <- TFun(voidType, p :: b :: len :: loop 0, false, []);
     fdec
   in
   let readChecks = [| mkCheck "CHECK_SAFEREADCOMP" 1; 
@@ -440,15 +441,20 @@ let checkSafeWriteLean =
 
  (* Given a type compute a list of tags for its components *)
 
-let bitsForType t = 
-  let bLean = 0 in
-  let bPtr  = 1 in
-  let bBase = 2 in
-  let rec pushBit b (idx,current,acc) = 
-    if idx = 30 then 
-      pushBit b (0,0,current :: acc)  (* Make a new word *)
+let bitsForType isread t = 
+  (* Mask and value for the various kinds of data *)
+  let bLean = (if isread then 0 else 3), 0 in
+  let bPtr  = 3, 2 in
+  let bBase = 3, 1 in (* Leave this with 1 in LSB so we can recognize it 
+                         easily *)
+  let rec pushBit ((maskb, valueb) as b)
+                  (idx,currentmask,currentvalue,acc) = 
+    let newmask = currentmask lor (maskb lsl idx) in
+    let newvalue = currentvalue lor (valueb lsl idx) in
+    if idx = 28 then
+      (0, 0, 0, newvalue :: newmask :: acc)
     else
-      (idx + 2, current lor (b lsl idx), acc)
+      (idx + 2, newmask, newvalue, acc)
   in
   let rec tagOfType acc = function
     | (TInt _ | TFloat _ | TEnum _) as t -> 
@@ -463,13 +469,13 @@ let bitsForType t =
     | TNamed (_, t, _) -> tagOfType acc t
     | t -> E.s (E.unimp "tagOfType: %a" d_plaintype t)
   in
-  let finishAcc (idx, current, acc) = 
+  let finishAcc (idx, currentmask, currentvalue, acc) = 
 (*    ignore (E.log "Finish for %a@! idx=%d, current=%d@!" 
               d_plaintype t idx current); *)
-    (15 * (List.length acc) + (idx lsr 1),
-     List.rev (if idx = 0 then acc else current :: acc))
+    ((15 * (List.length acc) + idx) lsr 1,
+     List.rev (if idx = 0 then acc else currentvalue :: currentmask :: acc))
   in
-  finishAcc (tagOfType (0,0,[]) t)
+  finishAcc (tagOfType (0,0,0,[]) t)
 
     (* Check a read *)
 let checkMem (isread: bool) (lv: lval) (base: exp) (t: typ) : stmt list = 
@@ -478,8 +484,8 @@ let checkMem (isread: bool) (lv: lval) (base: exp) (t: typ) : stmt list =
         [call None (Lval(var checkSafeReadFun.svar))
             (CastE(voidPtrType, AddrOf(lv, lu), lu) :: base :: [])]
   | _ ->
-      let (nrWords, tags) = bitsForType t in
-      let tlen = List.length tags in
+      let (nrWords, tags) = bitsForType isread t in
+      let tlen = (List.length tags) lsr 1 in
       if nrWords = 1 then (* A lean memory operation *)
         let theCheck = 
           if isread then checkSafeReadLean else checkSafeWriteLean in
@@ -489,7 +495,7 @@ let checkMem (isread: bool) (lv: lval) (base: exp) (t: typ) : stmt list =
         let theCheck = checkSafeMemComp isread tlen in
         [call None (Lval(var theCheck.svar)) 
             (CastE(voidPtrType, AddrOf(lv, lu), lu) :: base ::
-             integer (nrWords) :: (List.map integer tags))]
+             (integer nrWords) :: (List.map hexinteger tags))]
           
     (* Check a write *)
 let checkRead = checkMem true 
