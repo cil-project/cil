@@ -203,6 +203,7 @@ val d_opointerkind: unit -> opointerkind -> Pretty.doc
 val d_whykind: unit -> whykind -> Pretty.doc
 val d_node: unit -> node -> Pretty.doc
 val d_place: unit -> place -> Pretty.doc
+val d_pkind: unit -> pkind -> Pretty.doc
 
 val ptrAttrCustom: printnode:bool -> Cil.attribute -> Pretty.doc option
 
