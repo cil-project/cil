@@ -517,9 +517,9 @@ let checkFatPointerWrite =
   let argt  = makeLocalVar fdec "tags" intType in
   fdec.svar.vtype <- TFun(voidType, [ argb; argp; argw; argt ], false, []);
   
-  fun base where what tagstart -> 
+  fun base where whatbase whatp tagstart -> 
     call None (Lval(var fdec.svar))
-      [ base; where; what; tagstart]
+      [ base; where; whatbase; whatp; tagstart]
   
   
 let checkMem (towrite: exp option) 
@@ -542,8 +542,8 @@ let checkMem (towrite: exp option)
             None -> (* a read *)
               (checkFatPointerRead base wherep tagStartExp) :: acc
           | Some towrite -> (* a write *)
-              let whatp = readPtrField towrite t in
-              (checkFatPointerWrite base wherep whatp tagStartExp) :: acc
+              let _, whatp, whatb = readPtrBaseField towrite t in
+              (checkFatPointerWrite base wherep whatb whatp tagStartExp) :: acc
         end 
     | TComp(true, _, flds, _, _) -> 
         let doOneField acc fi = 
