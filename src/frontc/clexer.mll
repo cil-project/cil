@@ -43,7 +43,6 @@
 open Cparser
 exception Eof
 exception InternalError of string
-let version = "Clexer V1.0f 10.8.99 Hugues Cassé"
 
 
 (*
