@@ -1872,6 +1872,7 @@ let gccBuiltins : (string, typ * typ list) H.t =
   if hasbva then begin
     H.add h "__builtin_va_end" (voidType, [ TBuiltin_va_list [] ]);
     H.add h "__builtin_varargs_start" (voidType, [ TBuiltin_va_list [] ]);
+    H.add h "__builtin_va_start" (voidType, [ TBuiltin_va_list [] ]);
     (* When we parse builtin_stdarg_start, we drop the second argument *)
     H.add h "__builtin_stdarg_start" (voidType, [ TBuiltin_va_list []; ]);
     (* When we parse builtin_va_arg we change its interface *)
