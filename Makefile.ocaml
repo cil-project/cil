@@ -66,8 +66,8 @@ ifdef RELEASE
 else 
 ifdef PROFILE
  RELEASE	= 1
- CAMLC          = boo -p
- CAMLLINK       = boo -p
+ CAMLC          = ocamlopt -p
+ CAMLLINK       = ocamlopt -p
  CMO            = cmx
  CMXA           = cmxa
  EXEEXT         = .asm
