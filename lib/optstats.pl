@@ -124,16 +124,20 @@ for ($i=0; $i<$#checks; $i++) {
 
 print_pad_rowhead (" ");
 
+# Squeeze the column names to fit in (tab-size - 1) width
 $max_header_wordlength = 7;
 for ($j=0; $j<$#tests; $j++) {
-    if (length ($tests[$j]) > $max_header_wordlength) {
-	print substr($tests[$j],0,$max_header_wordlength-1);
-	print substr($tests[$j],(length($tests[$j])-1));
-	print "\t";
-    } else {
-	print "$tests[$j]\t";
+    $shortname = $tests[$j];
+    while (length($shortname) > $max_header_wordlength) {
+	if ($shortname =~ /(.*)[aeiou]([^aeiou]*)/) {
+	    $shortname = "$1$2";
+	} else {
+	    $shortname = substr($shortname,0,$max_header_wordlength)
+	}
     }
+    print "$shortname\t";
 }
+
 print "\n";
 
 for ($i=0; $i<$#checks; $i++) {
