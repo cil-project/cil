@@ -219,6 +219,7 @@ $TEST->addTests("testrun/init11", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/init12", "_GNUCC=1", ['cil']);
 $TEST->add2Tests("testrun/init13", "_GNUCC=1");
 $TEST->add2Tests("testrun/init14", "_GNUCC=1");
+$TEST->add2Tests("testrun/init15", "_GNUCC=1");
 $TEST->addTests("testrun/cond1", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/cond2", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/initial", "_GNUCC=1", ['cil']);
