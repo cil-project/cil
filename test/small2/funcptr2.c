@@ -34,6 +34,8 @@ struct S* makeAnS(int a)
   return ret;
 }
 
+int zero = 0;
+
 int doSomethingToS(struct Func *func, int a)
 {
   struct S *wildptr;
@@ -43,7 +45,7 @@ int doSomethingToS(struct Func *func, int a)
   printf("got back %p\n", wildptr);
 
   // make wildptr be wild
-  if (0) {
+  if (zero) {   
     struct T *pt = (struct T*)malloc(sizeof(*pt));
     pt->px = (int*)malloc(sizeof(* (pt->px) ));
     *(pt->px) = 3;

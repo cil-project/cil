@@ -904,7 +904,7 @@ $TEST->setField(altAddTest("scott/ptrkinds $box"), "AfterSuccessScript", <<'EOF'
   # looks like we no longer print __SAFE with safe pointers...
   #grepBoth $src safeptr __SAFE && \
 
-  src=small2/ptrkindscured.c
+  src=small2/ptrkinds.cured.c
   if grepBoth $src fseqptr __FSEQ && \
      grepBoth $src seqptr __SEQ && \
      grepBoth $src wildptr __WILD; then
@@ -1182,6 +1182,7 @@ altAddTest("scott/unionassign $box");
 altAddTest("scott/unionassign $wildbox");
 altAddTest("scott/readv $box");
 altFailTest("FSEQ incompleteness", "scott/bloop $box");
+altAddTest("scott/funcptr3 INFERBOX=infer");
 
 
 # $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug

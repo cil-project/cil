@@ -22,6 +22,8 @@ int multXbyY(struct S *ps, int a)
   return ps->ix * (* (ps->py) ) + a;
 }
 
+int zero = 0;    // hide a literal from CCured
+
 int doSomethingToS(struct S *ps, acceptsS func)
 {
   struct S *wildptr = ps;
@@ -29,7 +31,7 @@ int doSomethingToS(struct S *ps, acceptsS func)
   printf("in doSomethingToS\n");
 
   // make wildptr be wild
-  if (0) {
+  if (zero) {
     struct T *pt = (struct T*)malloc(sizeof(*pt));
     pt->px = (int*)malloc(sizeof(* (pt->px) ));
     *(pt->px) = 3;
