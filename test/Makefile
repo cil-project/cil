@@ -537,7 +537,7 @@ testwrapper/%: $(SMALL1)/%.c $(SMALL1)/wrapperextern.c
 
 #test of "cilly --heapify"
 test_heapify: $(SMALL1)/heapify.c  
-	cd $(SMALL1); $(CILLY) --heapify --keepunused  \
+	cd $(SMALL1); $(CILLY) --doheapify --keepunused  \
 	       $(CFLAGS) $(EXEOUT)heapify.exe heapify.c
 	cd $(SMALL1); ./heapify.exe
 	echo SUCCESS
