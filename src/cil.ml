@@ -2729,8 +2729,11 @@ and childrenOffset (vis: cilVisitor) (off: offset) : offset =
   | NoOffset -> off
 
 and visitCilInstr (vis: cilVisitor) (i: instr) : instr list =
+  let oldloc = !currentLoc in
   currentLoc := (get_instrLoc i);
-  doVisitList vis vis#vinst childrenInstr i
+  let res = doVisitList vis vis#vinst childrenInstr i in
+  currentLoc := oldloc;
+  res
 
 and childrenInstr (vis: cilVisitor) (i: instr) : instr =
   let fExp = visitCilExpr vis in
@@ -2761,8 +2764,12 @@ and childrenInstr (vis: cilVisitor) (i: instr) : instr =
 
 (* visit all nodes in a Cil statement tree in preorder *)
 and visitCilStmt (vis: cilVisitor) (s: stmt) : stmt =
+  let oldloc = !currentLoc in
   currentLoc := (get_stmtLoc s.skind) ;
-  doVisit vis vis#vstmt childrenStmt s
+  let res = doVisit vis vis#vstmt childrenStmt s in
+  currentLoc := oldloc;
+  res
+  
 and childrenStmt (vis: cilVisitor) (s: stmt) : stmt =
   let fExp e = (visitCilExpr vis e) in
   let fLval lv = (visitCilLval vis lv) in
@@ -2924,8 +2931,11 @@ and childrenFunction (vis : cilVisitor) (f : fundec) : fundec =
 
 let rec visitCilGlobal (vis: cilVisitor) (g: global) : global list =
   (*(trace "visit" (dprintf "visitCilGlobal\n"));*)
+  let oldloc = !currentLoc in
   currentLoc := (get_globalLoc g) ;
-  doVisitList vis vis#vglob childrenGlobal g
+  let res = doVisitList vis vis#vglob childrenGlobal g in
+  currentLoc := oldloc;
+  res
 and childrenGlobal (vis: cilVisitor) (g: global) : global =
   match g with
   | GFun (f, l) -> 
@@ -4059,6 +4069,22 @@ let rec newAlphaName ~(alphaTable: (string, int ref) H.t)
     ignore (E.log " Res=: %s\n" newname);
   newname
   
+
+and registerAlphaName ~(alphaTable: (string, int ref) H.t)
+                      ~(lookupname: string) : unit = 
+  let prefix, sep, suffix = splitNameForAlpha ~lookupname in
+  if debugAlpha then
+    ignore (E.log "Registering alpha name: %s %s %d. " prefix sep suffix);
+  try
+    let rc = H.find alphaTable prefix in
+    if debugAlpha then
+      ignore (E.log " Old suffix %d. " !rc);
+    let newsuffix = if suffix > !rc then suffix else !rc in
+    rc := newsuffix;
+  with Not_found -> begin (* First variable with this prefix *)
+    H.add alphaTable prefix (ref suffix);
+    if debugAlpha then ignore (E.log " First seen. ");
+  end
 
 (* Strip the suffix. Return the prefix, the separator (empty or _) and a 
  * numeric suffix (-1 if the separator is empty or if _ is the last thing in 

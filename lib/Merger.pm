@@ -82,14 +82,6 @@ sub collectOneArgument {
         $self->{TRUEOBJ} = 1; return 1;
     }
     if($arg eq "--cilmerger") {
-        $Merger::combbase =~ s|merger|cilly|g;
-        # Pick the most recent merger
-        $Merger::mtime_asm = int((stat("$Merger::combbase.asm.exe"))[9]);
-        $Merger::mtime_byte = int((stat("$Merger::combbase.byte.exe"))[9]);
-        $Merger::merger = 
-            $Merger::combbase . 
-                ($Merger::mtime_asm >= $Merger::mtime_byte 
-                 ? ".asm.exe" : ".byte.exe");
         $self->{CILMERGER} = 1;
         return 1;
     }
@@ -316,14 +308,22 @@ sub link {
     # Now invoke the merger
     my $merged = $dest . $Merger::combext;
     my $cmd = "$Merger::merger --out $merged ";
+    if($self->{CILMERGER}) {
+        $Merger::combbase =~ s|merger|cilly|g;
+        # Pick the most recent merger
+        $Merger::mtime_asm = int((stat("$Merger::combbase.asm.exe"))[9]);
+        $Merger::mtime_byte = int((stat("$Merger::combbase.byte.exe"))[9]);
+        $Merger::merger = 
+            $Merger::combbase . 
+                ($Merger::mtime_asm >= $Merger::mtime_byte 
+                 ? ".asm.exe" : ".byte.exe");
+        $cmd = "$Merger::merger --out $merged --merge ";
+    }
     if($self->{MODENAME} eq "MSVC") {
         $cmd .= " --MSVC ";
     }
     if($self->{VERBOSE}) {
         $cmd .= " --verbose ";
-    }
-    if($self->{CILMERGER}) {
-        $cmd .= " --merge ";
     }
     if(defined $self->{MERGE_ARGS}) {
         $cmd .= " " . join(' ', @{$self->{MERGE_ARGS}}) . " ";

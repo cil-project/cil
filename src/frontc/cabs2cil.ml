@@ -404,6 +404,7 @@ let resetLocals () =
 
 let startFile () = 
   H.clear env;
+  H.clear genv;
   H.clear alphaTable;
   resetLocals ()
 
@@ -1210,7 +1211,8 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
         if oldk == k then oldk else
         (* GCC allows a function definition to have a more precise integer 
          * type than a prototype that says "int" *)
-        if not !msvcMode && oldk = IInt && bitsSizeOf t <= 32 then 
+        if not !msvcMode && oldk = IInt && bitsSizeOf t <= 32 
+           && (what = CombineFunarg || what = CombineFunret) then
           k
         else
           raise (Failure "different integer types")
@@ -1221,7 +1223,8 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
         if oldk == k then oldk else
         (* GCC allows a function definition to have a more precise integer 
          * type than a prototype that says "double" *)
-        if not !msvcMode && oldk = FDouble && k = FFloat then 
+        if not !msvcMode && oldk = FDouble && k = FFloat 
+           && (what = CombineFunarg || what = CombineFunret) then
           k
         else
           raise (Failure "different floating point types")
@@ -5017,6 +5020,7 @@ let convFile ((fname : string), (dl : Cabs.definition list)) : Cil.file =
   (* Clean up the global types *)
   E.hadErrors := false;
   initGlobals();
+  startFile ();
   H.clear compInfoNameEnv;
   H.clear enumInfoNameEnv;
   H.clear mustTurnIntoDef;
@@ -5081,7 +5085,7 @@ let convFile ((fname : string), (dl : Cabs.definition list)) : Cil.file =
   H.iter 
     (fun key ci -> 
       if ci.cfields = [] then begin
-        ignore (E.warn "%s empty or not defined" key);
+        if !E.verboseFlag then ignore (E.warn "%s empty or not defined" key);
         globals := GType("", TComp(ci, []), locUnknown) :: !globals
       end) compInfoNameEnv;
 
@@ -5091,7 +5095,9 @@ let convFile ((fname : string), (dl : Cabs.definition list)) : Cil.file =
   H.clear compInfoNameEnv;
   H.clear enumInfoNameEnv;
   H.clear isomorphicStructs;
-  ignore (E.log "Cabs2cil converted %d globals\n" !globalidx);
+  H.clear env;
+  H.clear genv;
+  if false then ignore (E.log "Cabs2cil converted %d globals\n" !globalidx);
   (* We are done *)
   { fileName = fname;
     globals  = !globals;

@@ -1682,6 +1682,12 @@ val d_global: unit -> global -> Pretty.doc
 val newAlphaName: alphaTable:(string, int ref) Hashtbl.t ->
                   lookupname:string -> string
 
+
+(** Register a name with an alpha conversion table to ensure that when later 
+  * we call newAlphaName we do not end up generating this one *)
+val registerAlphaName: alphaTable:(string, int ref) Hashtbl.t -> 
+                  lookupname:string -> unit
+
 (** Split the name in preparation for newAlphaName. The prefix returned is 
     used to index into the hashtable. The next result value is a separator 
     (either empty or _)  *)
