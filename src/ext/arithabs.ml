@@ -654,7 +654,7 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
 
 
           (* Compute strongly connected components *)
-          let scc: (int list * int list) list = 
+          let scc: S.sccInfo = 
             stronglyConnectedComponents cfgi in 
 
           (** For each basic block *)
@@ -677,11 +677,11 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
           prologue (U.docHash (fun k _ -> text k)) cg_node.CG.cnCallees epilogue
           prologue (U.docHash (fun k _ -> text k)) cg_node.CG.cnCallers epilogue
           (docList ~sep:line
-             (fun (headers, nodes) -> 
+             (fun oneScc -> 
                dprintf "%sSCC %sheaders %a%s %snodes %a%s%s\n"
                  prologue 
-		 prologue (docList num) headers epilogue
-                 prologue (docList num) nodes epilogue 
+		 prologue (docList num) oneScc.S.headers epilogue
+                 prologue (docList num) oneScc.S.nodes epilogue 
 		 epilogue))
                   scc);
 
@@ -914,22 +914,23 @@ let feature : featureDescr =
            
         ) nodeIdToNode;
 
-      let scc: (int list * int list) list =
+      let scc: S.sccInfo =
         stronglyConnectedComponents ci in 
       List.iter 
-        (fun (headers, nodes) -> 
+        (fun oneScc -> 
           ignore (p "%sSCC %sheaders %a%s %snodes %a%s%s\n"
                     prologue 
 		    prologue (docList 
-                       (fun n -> 
-                         (try text (IH.find nodeIdToNode n).CG.cnInfo.vname
+                       (fun h -> 
+                         (try 
+			   text (IH.find nodeIdToNode h).CG.cnInfo.vname
                          with Not_found -> assert false)))
-                    headers epilogue
+                    oneScc.S.headers epilogue
                     prologue (docList 
                        (fun n -> 
                          (try text (IH.find nodeIdToNode n).CG.cnInfo.vname
                          with Not_found -> assert false)))
-                    nodes epilogue
+                    oneScc.S.nodes epilogue
 		    epilogue))
         scc;
    );

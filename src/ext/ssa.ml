@@ -62,7 +62,13 @@ type idomInfo = int array  (* immediate dominator *)
 
 and dfInfo = (int list) array  (* dominance frontier *)
 
-and sccInfo = (int list * int list) list (* list of headers * nodes in a SCC) *)
+and oneSccInfo = {
+    nodes: int list;
+    headers: int list;
+    backEdges: (int*int) list;
+  } 
+
+and sccInfo = oneSccInfo list 
 
 (* Muchnick's Domin_Fast, 7.16 *)
 
@@ -482,8 +488,8 @@ let preorderDAG (nrNodes: int) (successors: (int list) array): int list =
 
 
 (* Muchnick Fig 7.12 *) 
-(* takes an SCC as an input and returns a list of headers, and a preorder traversal of the SCC *)
-let preorder (nrNodes: int) (successors: (int list) array) (r: int): int list * int list = 
+(* takes an SCC description as an input and returns prepares the appropriate SCC *)
+let preorder (nrNodes: int) (successors: (int list) array) (r: int): oneSccInfo = 
   if debug then begin
     ignore (E.log "Inside preorder \n");
     for i = 0 to nrNodes - 1 do 
@@ -495,8 +501,8 @@ let preorder (nrNodes: int) (successors: (int list) array) (r: int): int list * 
   let pre = Array.make nrNodes (-1) in
   let post = Array.make nrNodes (-1) in
   let visit = Array.make nrNodes (false) in
+  let backEdges = ref ([]) in
   let headers = ref(IntSet.empty) in
-  let nrBackEdges = ref (0) in
   let rec depth_first_search_pp (x:int) =      
     visit.(x) <- true; 
     pre.(x) <- !j;
@@ -506,7 +512,7 @@ let preorder (nrNodes: int) (successors: (int list) array) (r: int): int list * 
 	(depth_first_search_pp y)
       else 
 	if (post.(y) = -1) then begin
-          incr nrBackEdges;
+          backEdges := (x,y)::!backEdges;
 	  headers := IntSet.add y !headers;
 	end;
 	      ) successors.(x);
@@ -519,7 +525,8 @@ let preorder (nrNodes: int) (successors: (int list) array) (r: int): int list * 
     if (pre.(y) != -1) then nodes.(pre.(y)) <- y;
   done;
   let nodeList = List.filter (fun i -> (i != -1)) (Array.to_list nodes) in
-  (set2list !headers, nodeList)
+  let result = { headers = set2list !headers; backEdges = !backEdges; nodes = nodeList; } in
+  result
     
 
 exception Finished
@@ -666,6 +673,7 @@ let stronglyConnectedComponents (f: cfgInfo): sccInfo =
 	   ) sccorder in
   if (debug) then begin 
     ignore (E.log "Computed Preorder for Nodes of each SCC\n");
+    List.iter (fun scc -> ignore (E.log "BackEdges = %a\n" (docList (fun (src,dest) -> E.log "%d %d" src dest)) scc.backEdges);) scclist;
   end;
   scclist
 
