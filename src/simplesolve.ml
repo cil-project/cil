@@ -449,6 +449,24 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     end) node_ht
   done ;
 
+  (* push back SeqN, FSeqN, Index back to array types *)
+  finished := false ; 
+  while not !finished do 
+    finished := true ; 
+    Hashtbl.iter (fun id cur ->
+    if (cur.kind = Index || cur.kind = FSeqN || cur.kind = SeqN) then begin
+      (* mark all array types *) 
+      let why = SpreadToArrayFrom(cur) in
+      let f = (fun n -> 
+            if update_kind n cur.kind why then
+              finished := false) in
+      match nodeOfAttrlist (typeAttrs cur.btype) with
+          Some(n) -> f n
+        | None -> ()
+    end) node_ht
+  done ;
+
+
 
   (* all otherwise unconstrained nodes become safe *)
   Hashtbl.iter (fun id n -> 

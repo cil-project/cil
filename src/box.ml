@@ -1514,6 +1514,10 @@ let castTo (fe: fexp) (newt: typ)
       | N.FSeqN, (N.Seq|N.SeqN) ->
           doe, FM(newt, newkind, castP p, b, b)
 
+      (* SeqN -> SEQ *)
+      | N.SeqN, N.Seq -> 
+          doe, FM(newt, newkind, castP p, b, b)
+
       | N.SeqN, N.String ->
           let p', b', bend', acc' = seqNToString p newPointerType b bend [] in
           finishDoe acc', L(newt, newkind, castP p')  

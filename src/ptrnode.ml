@@ -122,6 +122,7 @@ and whykind = (* why did we give it this kind? *)
   | PolyCast of edge
   | SpreadFromEdge of node 
   | SpreadPointsTo of node
+  | SpreadToArrayFrom of node
   | BoolFlag
   | Default
   | UserSpec
@@ -190,6 +191,7 @@ let d_whykind () = function
       dprintf "polymorphic(%a (%d) <= %a(%d))" 
         d_type e.eto.btype e.eto.id d_type e.efrom.btype e.efrom.id
   | BoolFlag -> text "from_flag"
+  | SpreadToArrayFrom(n) -> dprintf "spread_to_array_from(%d)" n.id
   | SpreadFromEdge(n) -> dprintf "spread_from_edge(%d)" n.id
   | SpreadPointsTo(n) -> dprintf "spread_points_to(%d)" n.id
   | Default -> text "by_default"
@@ -375,11 +377,6 @@ let replacePtrNodeAttrList where al =
         else !foundNode
     | AtVar ->
         if !foundNode = "wild" then "tagged" 
-          (* wes: for some reason, these don't work in the AtArray slot
-           * above *) 
-        else if !foundNode = "seqn" then "nullterm" 
-        else if !foundNode = "fseqn" then "nullterm" 
-        else if !foundNode = "string" then "nullterm" 
         else !foundNode
     | AtOther -> !foundNode
   in
