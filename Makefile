@@ -885,10 +885,13 @@ PWEXTRA=$(CILDIR)/$(SAFEMAINLIB)
 else
 PWEXTRA=
 endif
+ifdef _GNUCC
+PWEXTRA += -lm
+endif
 power : defaulttarget mustbegcc
 	cd $(PWDIR); \
                make PLAIN=1 clean defaulttarget \
-                    EXTRA_LIBS=$(PWEXTRA) \
+                    EXTRA_LIBS="$(PWEXTRA)" \
                     CC="$(COMBINESAFECC) \
 			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
 	cd $(PWDIR); ./power.exe
@@ -964,10 +967,13 @@ endif
 ifdef _MSVC
 TSPARGS = _MSVC=1
 endif
+ifdef _GNUCC
+TSPEXTRA += -lm
+endif
 tsp : defaulttarget
 	cd $(TSPDIR); \
                make PLAIN=1 clean defaulttarget \
-                    EXTRA_LIBS=$(TSPEXTRA) \
+                    EXTRA_LIBS="$(TSPEXTRA)" \
 	            $(TSPARGS) \
                     CC="$(COMBINESAFECC) \
 			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"

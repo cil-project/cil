@@ -160,7 +160,7 @@ $TEST->add3Tests("bh", "_GNUCC=1");
    $TEST->addBadComment("bh-box", "CRASHES");
 
 $TEST->add3Tests("power", "_GNUCC=1");
-   $TEST->add3Group("power", "slow", "olden");
+   $TEST->add3Group("power", "olden");
    $TEST->addBadComment("power-box", "Bug in BOX");
 
 $TEST->add3Tests("health", "_GNUCC=1");
