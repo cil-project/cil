@@ -3301,7 +3301,11 @@ and doExp (isconst: bool)    (* In a constant *)
         let rec loop sofar = function
             [e] -> 
               let (se, e', t') = doExp false e what in (* Pass on the action *)
-              finishExp (sofar @@ se) e' t' (* does not hurt to do it twice *)
+              (sofar @@ se, e', t')
+(*
+              finishExp (sofar @@ se) e' t' (* does not hurt to do it twice. 
+                                             * GN: it seems it does *)
+*)
           | e :: rest -> 
               let (se, _, _) = doExp false e ADrop in
               loop (sofar @@ se) rest
