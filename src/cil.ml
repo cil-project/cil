@@ -1974,7 +1974,7 @@ let rec typeOf (e: exp) : typ =
   | Compound (t, _) -> t
   | AddrOf (lv) -> TPtr(typeOfLval lv, [])
   | StartOf (lv) -> begin
-      match typeOfLval lv with
+      match unrollType (typeOfLval lv) with
         TArray (t,_, _) -> TPtr(t, [])
       | TFun _ as t -> TPtr(t, [])
      | _ -> E.s (E.bug "typeOf: StartOf on a non-array or non-function")

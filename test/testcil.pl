@@ -77,6 +77,7 @@ $TEST->add3Tests("hufftest", "", @runpattern);
 $TEST->add3Tests("test/alloc");
 $TEST->add3Tests("test/argcast", "", @runpattern);
 $TEST->add3Tests("test/array1");
+$TEST->add3Tests("test/array2");
 $TEST->add3Tests("test/attr");
 $TEST->add3Tests("test/bh1", "", @runpattern);
 $TEST->add3Tests("test/bitfield");
