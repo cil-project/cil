@@ -502,7 +502,7 @@ trval:
 # kudos to George for this lovely patsubst code ...
 obj/cil.$(CMXA): $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
 	$(CAMLLINK) -a -o $@ $^
-	
+
 
 # garbage collector options
 ifneq ($(COMPUTERNAME), RAW)   # George's workstation
@@ -831,7 +831,7 @@ scott/%: test/small2/%.c defaulttarget
                  $(DOOPT) `true $(WARNALL)` $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*
-	test/small2/$*
+	sh -c "time test/small2/$*"
 
 scott-nolink/%: test/small2/%.c defaulttarget
 	rm -f test/small2/$*
@@ -1401,7 +1401,7 @@ go: defaulttarget mustbegcc
 	cd $(GODIR)/src; \
             make clean build CC="$(GOSAFECC) $(CONLY)" \
                              LD="$(GOSAFECC)"
-	$(GODIR)/src/go 50 9
+	sh -c "time $(GODIR)/src/go 50 9"
 
 go-combined: defaulttarget mustbegcc
 	cd $(GODIR)/src; \
