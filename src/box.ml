@@ -120,7 +120,7 @@ let leaveAlone : (string, bool) H.t =
   List.iter (fun s -> H.add h s true)
     [ "sscanf"; "scanf";
       "fscanf"; "_CrtDbgReport"; 
-      "fprintf"; "printf"; "sprintf" ];
+      "fprintf"; "printf"; "sprintf"; "vfprintf" ];
   h
 
 
@@ -183,18 +183,18 @@ let boxallocPragma (name: string) (args: attrarg list) : unit =
   H.add allocFunctions name ai
 
 
-
+    (* See if the function name starts with /* ... */ *)
+let stripPolyName (fname: string) : string = 
+  let l = String.length fname in
+  if String.sub fname 0 2 = "/*" then
+    let endpoly = String.index_from fname 2 '/' in
+    String.sub fname (endpoly + 1) (l - endpoly - 1)
+  else
+    fname
+        
 let getAllocInfo fname = 
   try
-  (* See if the function name starts with /* ... */ *)
-    let fname' = 
-      let l = String.length fname in
-      if String.sub fname 0 2 = "/*" then
-        let endpoly = String.index_from fname 2 '/' in
-        String.sub fname (endpoly + 1) (l - endpoly - 1)
-      else
-        fname
-    in
+    let fname' = stripPolyName fname in
     (* ignore (E.log "Getting alloc info for %s\n" fname'); *)
     Some (H.find allocFunctions fname') 
   with _ -> None
@@ -223,7 +223,8 @@ let prefix p s =
 
   (* We collect here the new file *)
 let theFile : global list ref = ref []
-let consGlobal x l = x :: l
+let consGlobal (x : global) l = x :: l
+
 let checkFunctionDecls : global list ref 
     = ref [GText("#define __WILD\n#define __FSEQ\n#define __SAFE")]
 
@@ -616,9 +617,9 @@ let pkQualName (pk: N.opointerkind)
 
 let memcpyWWWFun =   
   let fdec = emptyFunction "memcpy_www" in
-  let argd  = makeFormal "dest" !wildpVoidType in
-  let args  = makeFormal "src" !wildpVoidType in
-  let argl  = makeFormal "len" uintType in
+  let argd  = makeVarinfo "dest" !wildpVoidType in
+  let args  = makeVarinfo "src" !wildpVoidType in
+  let argl  = makeVarinfo "len" uintType in
   fdec.svar.vtype <- TFun(!wildpVoidType, [ argd; args; argl ], false, []);
   (* Do not add this to the declarations because the type of the arguments 
    * does not make sense  *)
@@ -632,27 +633,27 @@ let memcpyWWWFun =
 
 let mallocFun = 
   let fdec = emptyFunction "malloc" in
-  let argl  = makeFormal "len" uintType in
+  let argl  = makeVarinfo "len" uintType in
   fdec.svar.vtype <- TFun(voidPtrType, [ argl ], false, []);
   fdec
 
 let freeFun = 
   let fdec = emptyFunction "free" in
-  let argp  = makeFormal "area" voidPtrType in
+  let argp  = makeVarinfo "area" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argp ], false, []);
   fdec
 
 (* sm: for tagged heapified areas *)
 let freeMinus4Fun =
   let fdec = emptyFunction "free_minus4" in
-  let argp  = makeFormal "area" voidPtrType in
+  let argp  = makeVarinfo "area" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argp ], false, []);
   fdec
 
 let mainWrapper =
   let fdec = emptyFunction "_mainWrapper" in
-  let argc  = makeFormal "argc" intType in
-  let argv  = makeFormal "argv" (TPtr(charPtrType, [])) in
+  let argc  = makeVarinfo "argc" intType in
+  let argv  = makeVarinfo "argv" (TPtr(charPtrType, [])) in
   fdec.svar.vtype <- TFun(intType, [ argc; argv ], false, []);
   checkFunctionDecls := 
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
@@ -660,8 +661,8 @@ let mainWrapper =
 
 let mainWrapper_w =   
   let fdec = emptyFunction "_mainWrapper_w" in
-  let argc  = makeFormal "argc" intType in
-  let argv  = makeFormal "argv" (TPtr(charPtrType, [])) in
+  let argc  = makeVarinfo "argc" intType in
+  let argv  = makeVarinfo "argv" (TPtr(charPtrType, [])) in
   fdec.svar.vtype <- TFun(intType, [ argc; argv ], false, []);
   checkFunctionDecls := 
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
@@ -669,8 +670,8 @@ let mainWrapper_w =
 
 let mainWrapper_fs =   
   let fdec = emptyFunction "_mainWrapper_fs" in
-  let argc  = makeFormal "argc" intType in
-  let argv  = makeFormal "argv" (TPtr(charPtrType, [])) in
+  let argc  = makeVarinfo "argc" intType in
+  let argv  = makeVarinfo "argv" (TPtr(charPtrType, [])) in
   fdec.svar.vtype <- TFun(intType, [ argc; argv ], false, []);
   checkFunctionDecls := 
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
@@ -678,8 +679,8 @@ let mainWrapper_fs =
 
 let mainWrapper_fq =   
   let fdec = emptyFunction "_mainWrapper_fq" in
-  let argc  = makeFormal "argc" intType in
-  let argv  = makeFormal "argv" (TPtr(charPtrType, [])) in
+  let argc  = makeVarinfo "argc" intType in
+  let argv  = makeVarinfo "argv" (TPtr(charPtrType, [])) in
   fdec.svar.vtype <- TFun(intType, [ argc; argv ], false, []);
   checkFunctionDecls := 
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
@@ -687,8 +688,8 @@ let mainWrapper_fq =
 
 let mainWrapper_qw =   
   let fdec = emptyFunction "_mainWrapper_qw" in
-  let argc  = makeFormal "argc" intType in
-  let argv  = makeFormal "argv" (TPtr(charPtrType, [])) in
+  let argc  = makeVarinfo "argc" intType in
+  let argv  = makeVarinfo "argv" (TPtr(charPtrType, [])) in
   fdec.svar.vtype <- TFun(intType, [ argc; argv ], false, []);
   checkFunctionDecls := 
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
@@ -696,8 +697,8 @@ let mainWrapper_qw =
 
 let mainWrapper_fw =   
   let fdec = emptyFunction "_mainWrapper_fw" in
-  let argc  = makeFormal "argc" intType in
-  let argv  = makeFormal "argv" (TPtr(charPtrType, [])) in
+  let argc  = makeVarinfo "argc" intType in
+  let argv  = makeVarinfo "argv" (TPtr(charPtrType, [])) in
   fdec.svar.vtype <- TFun(intType, [ argc; argv ], false, []);
   checkFunctionDecls := 
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
@@ -706,7 +707,7 @@ let mainWrapper_fw =
 
 let checkNullFun =   
   let fdec = emptyFunction "CHECK_NULL" in
-  let argp  = makeFormal "p" voidPtrType in
+  let argp  = makeVarinfo "p" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argp ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
@@ -715,8 +716,8 @@ let checkNullFun =
 
 let checkSafeRetFatFun = 
   let fdec = emptyFunction "CHECK_SAFERETFAT" in
-  let argp  = makeFormal "p" voidPtrType in
-  let argb  = makeFormal "isptr" voidPtrType in
+  let argp  = makeVarinfo "p" voidPtrType in
+  let argb  = makeVarinfo "isptr" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
@@ -727,9 +728,9 @@ let checkSafeRetFatFun =
     
 let checkFunctionPointer = 
   let fdec = emptyFunction "CHECK_FUNCTIONPOINTER" in
-  let argp  = makeFormal "p" voidPtrType in
-  let argb  = makeFormal "b" voidPtrType in
-  let argnr  = makeFormal "nr" intType in
+  let argp  = makeVarinfo "p" voidPtrType in
+  let argb  = makeVarinfo "b" voidPtrType in
+  let argnr  = makeVarinfo "nr" intType in
   fdec.svar.vtype <- TFun(voidType, [ argp; argb; argnr ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
@@ -761,8 +762,8 @@ let ptrOfBase (base: exp) =
 
 let checkFetchLength = 
   let fdec = emptyFunction "CHECK_FETCHLENGTH" in
-  let argp  = makeFormal "p" voidPtrType in
-  let argb  = makeFormal "b" voidPtrType in
+  let argp  = makeVarinfo "p" voidPtrType in
+  let argb  = makeVarinfo "b" voidPtrType in
   fdec.svar.vstorage <- Static;
   fdec.svar.vtype <- TFun(uintType, [ argp; argb ], false, []);
   checkFunctionDecls := 
@@ -774,7 +775,7 @@ let checkFetchLength =
 
 let checkFetchStringEnd = 
   let fdec = emptyFunction "CHECK_FETCHSTRINGEND" in
-  let args  = makeFormal "s" charPtrType in
+  let args  = makeVarinfo "s" charPtrType in
   fdec.svar.vstorage <- Static;
   fdec.svar.vtype <- TFun(voidPtrType, [ args; ], false, []);
   checkFunctionDecls := 
@@ -783,8 +784,8 @@ let checkFetchStringEnd =
 
 let checkStringMax = 
   let fdec = emptyFunction "CHECK_STRINGMAX" in
-  let argp  = makeFormal "p" voidPtrType in
-  let argb  = makeFormal "b" voidPtrType in
+  let argp  = makeVarinfo "p" voidPtrType in
+  let argb  = makeVarinfo "b" voidPtrType in
   fdec.svar.vstorage <- Static;
   fdec.svar.vtype <- TFun(uintType, [ argp; argb ], false, []);
   checkFunctionDecls := 
@@ -793,8 +794,8 @@ let checkStringMax =
 
 let checkFetchEnd = 
   let fdec = emptyFunction "CHECK_FETCHEND" in
-  let argp  = makeFormal "p" voidPtrType in
-  let argb  = makeFormal "b" voidPtrType in
+  let argp  = makeVarinfo "p" voidPtrType in
+  let argb  = makeVarinfo "b" voidPtrType in
   fdec.svar.vtype <- TFun(voidPtrType, [ argp; argb ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
@@ -808,8 +809,8 @@ let checkFetchEnd =
 
 let checkLBoundFun = 
   let fdec = emptyFunction "CHECK_LBOUND" in
-  let argb  = makeFormal "b" voidPtrType in
-  let argp  = makeFormal "p" voidPtrType in
+  let argb  = makeVarinfo "b" voidPtrType in
+  let argp  = makeVarinfo "p" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argb; argp; ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
@@ -819,9 +820,9 @@ let checkLBoundFun =
 
 let checkUBoundFun = 
   let fdec = emptyFunction "CHECK_UBOUND" in
-  let argbend  = makeFormal "bend" voidPtrType in
-  let argp  = makeFormal "p" voidPtrType in
-  let argpl  = makeFormal "pl" uintType in
+  let argbend  = makeVarinfo "bend" voidPtrType in
+  let argp  = makeVarinfo "p" voidPtrType in
+  let argpl  = makeVarinfo "pl" uintType in
   fdec.svar.vtype <- TFun(voidType, [ argbend; argp; argpl ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
@@ -831,9 +832,9 @@ let checkUBoundFun =
 (* sm: check ubound, or allow NULL pointer (modified from above) *)
 let checkUBoundOrNullFun =
   let fdec = emptyFunction "CHECK_UBOUND_OR_NULL" in
-  let argbend  = makeFormal "bend" voidPtrType in
-  let argp  = makeFormal "p" voidPtrType in
-  let argpl  = makeFormal "pl" uintType in
+  let argbend  = makeVarinfo "bend" voidPtrType in
+  let argp  = makeVarinfo "p" voidPtrType in
+  let argpl  = makeVarinfo "pl" uintType in
   fdec.svar.vtype <- TFun(voidType, [ argbend; argp; argpl ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls :=
@@ -842,10 +843,10 @@ let checkUBoundOrNullFun =
 
 let checkBoundsFun =
   let fdec = emptyFunction "CHECK_BOUNDS" in
-  let argb  = makeFormal "b" voidPtrType in
-  let argbend  = makeFormal "bend" voidPtrType in
-  let argp  = makeFormal "p" voidPtrType in
-  let argpl  = makeFormal "pl" uintType in
+  let argb  = makeVarinfo "b" voidPtrType in
+  let argbend  = makeVarinfo "bend" voidPtrType in
+  let argp  = makeVarinfo "p" voidPtrType in
+  let argpl  = makeVarinfo "pl" uintType in
   fdec.svar.vtype <- TFun(voidType, [ argb; argbend; argp; argpl ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
@@ -854,10 +855,10 @@ let checkBoundsFun =
 
 let checkBoundsLenFun = 
   let fdec = emptyFunction "CHECK_BOUNDS_LEN" in
-  let argb  = makeFormal "b" voidPtrType in
-  let argbl  = makeFormal "bl" uintType in
-  let argp  = makeFormal "p" voidPtrType in
-  let argpl  = makeFormal "pl" uintType in
+  let argb  = makeVarinfo "b" voidPtrType in
+  let argbl  = makeVarinfo "bl" uintType in
+  let argp  = makeVarinfo "p" voidPtrType in
+  let argpl  = makeVarinfo "pl" uintType in
   fdec.svar.vtype <- TFun(voidType, [ argb; argbl; argp; argpl ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
@@ -869,9 +870,9 @@ let checkBoundsLenFun =
 let interceptId = ref 0
 let interceptCastFunction = 
   let fdec = emptyFunction "__scalar2pointer" in
-  let argl = makeFormal "l" ulongType in
-  let argf = makeFormal "fid" intType in
-  let argid = makeFormal "lid" intType in
+  let argl = makeVarinfo "l" ulongType in
+  let argf = makeVarinfo "fid" intType in
+  let argid = makeVarinfo "lid" intType in
   fdec.svar.vtype <- TFun(voidPtrType, [ argl; argf; argid ], false, []);
   theFile := 
      consGlobal (GDecl (fdec.svar, lu)) !theFile;
@@ -881,9 +882,9 @@ let interceptCastFunction =
 (* Check a read *)
 let checkFatPointerRead = 
   let fdec = emptyFunction "CHECK_FATPOINTERREAD" in
-  let argb  = makeFormal "b" voidPtrType in
-  let arglen  = makeFormal "nrWords" uintType in
-  let argp  = makeFormal "p" voidPtrType in
+  let argb  = makeVarinfo "b" voidPtrType in
+  let arglen  = makeVarinfo "nrWords" uintType in
+  let argp  = makeVarinfo "p" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argb; arglen; argp; ], false, []);
   checkFunctionDecls := 
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
@@ -895,11 +896,11 @@ let checkFatPointerRead =
 
 let checkFatPointerWrite = 
   let fdec = emptyFunction "CHECK_FATPOINTERWRITE" in
-  let argb  = makeFormal "b" voidPtrType in
-  let arglen  = makeFormal "nrWords" uintType in
-  let argp  = makeFormal "p" voidPtrType in
-  let argwb  = makeFormal "wb" voidPtrType in
-  let argwp  = makeFormal "wp" voidPtrType in
+  let argb  = makeVarinfo "b" voidPtrType in
+  let arglen  = makeVarinfo "nrWords" uintType in
+  let argp  = makeVarinfo "p" voidPtrType in
+  let argwb  = makeVarinfo "wb" voidPtrType in
+  let argwp  = makeVarinfo "wp" voidPtrType in
   fdec.svar.vtype <- 
      TFun(voidType, [ argb; arglen; argp; argwb; argwp; ], false, []);
   checkFunctionDecls := 
@@ -914,8 +915,8 @@ let checkFatPointerWrite =
   
 let checkFatStackPointer = 
   let fdec = emptyFunction "CHECK_FATSTACKPOINTER" in
-  let argb  = makeFormal "b" voidPtrType in
-  let argp  = makeFormal "isptr" voidPtrType in
+  let argb  = makeVarinfo "b" voidPtrType in
+  let argp  = makeVarinfo "isptr" voidPtrType in
   fdec.svar.vtype <- 
      TFun(voidType, [ argp; argb; ], false, []);
   fdec.svar.vstorage <- Static;
@@ -929,7 +930,7 @@ let checkFatStackPointer =
 
 let checkLeanStackPointer = 
   let fdec = emptyFunction "CHECK_LEANSTACKPOINTER" in
-  let argp  = makeFormal "p" voidPtrType in
+  let argp  = makeVarinfo "p" voidPtrType in
   fdec.svar.vtype <- 
      TFun(voidType, [ argp; ], false, []);
   fdec.svar.vstorage <- Static;
@@ -942,7 +943,7 @@ let checkLeanStackPointer =
 
 let checkNotBelowStackPointer = 
   let fdec = emptyFunction "CHECK_NOTBELOWSTACK" in
-  let argp  = makeFormal "p" voidPtrType in
+  let argp  = makeVarinfo "p" voidPtrType in
   fdec.svar.vtype <- 
      TFun(voidType, [ argp; ], false, []);
   fdec.svar.vstorage <- Static;
@@ -955,8 +956,8 @@ let checkNotBelowStackPointer =
 
 let checkNotBelowStackPointerFat = 
   let fdec = emptyFunction "CHECK_NOTBELOWSTACKFAT" in
-  let argp  = makeFormal "p" voidPtrType in
-  let argb  = makeFormal "b" voidPtrType in
+  let argp  = makeVarinfo "p" voidPtrType in
+  let argb  = makeVarinfo "b" voidPtrType in
   fdec.svar.vtype <- 
      TFun(voidType, [ argp; argb; ], false, []);
   fdec.svar.vstorage <- Static;
@@ -969,11 +970,11 @@ let checkNotBelowStackPointerFat =
 
 let checkZeroTagsFun =
   let fdec = emptyFunction "CHECK_ZEROTAGS" in
-  let argb  = makeFormal "b" voidPtrType in
-  let argbl = makeFormal "bl" uintType in
-  let argp  = makeFormal "p" voidPtrType in
-  let argsize  = makeFormal "size" uintType in
-  let offset  = makeFormal "offset" uintType in
+  let argb  = makeVarinfo "b" voidPtrType in
+  let argbl = makeVarinfo "bl" uintType in
+  let argp  = makeVarinfo "p" voidPtrType in
+  let argsize  = makeVarinfo "size" uintType in
+  let offset  = makeVarinfo "offset" uintType in
   fdec.svar.vtype <- 
      TFun(voidType, [ argb; argbl; argp; argsize; offset ], false, []);
   checkFunctionDecls := 
@@ -983,8 +984,8 @@ let checkZeroTagsFun =
 
 let checkFindHomeFun =
   let fdec = emptyFunction "CHECK_FINDHOME" in
-  let argk  = makeFormal "kind" intType in
-  let argp  = makeFormal "p" voidPtrType in
+  let argk  = makeVarinfo "kind" intType in
+  let argp  = makeVarinfo "p" voidPtrType in
   fdec.svar.vtype <- 
      TFun(voidPtrType, [ argk; argp ], false, []);
   checkFunctionDecls := 
@@ -995,9 +996,9 @@ let checkFindHomeFun =
 
 let checkFindHomeEndFun =
   let fdec = emptyFunction "CHECK_FINDHOMEEND" in
-  let argk  = makeFormal "kind" intType in
-  let argp  = makeFormal "p" voidPtrType in
-  let argea  = makeFormal "ea" (TPtr(voidPtrType,[])) in
+  let argk  = makeVarinfo "kind" intType in
+  let argp  = makeVarinfo "p" voidPtrType in
+  let argea  = makeVarinfo "ea" (TPtr(voidPtrType,[])) in
   fdec.svar.vtype <- 
      TFun(voidPtrType, [ argk; argp; argea ], false, []);
   checkFunctionDecls := 
@@ -1021,7 +1022,7 @@ let typeSigBox t = typeSigWithAttrs ignorePtrNode t
 (***** Pointer arithemtic *******)
 let checkPositiveFun = 
   let fdec = emptyFunction "CHECK_POSITIVE" in
-  let argx  = makeFormal "x" intType in
+  let argx  = makeVarinfo "x" intType in
   fdec.svar.vtype <- TFun(voidType, [ argx; ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
@@ -1080,12 +1081,6 @@ let fixedComps : (int, unit) H.t = H.create 113
 let rec fixupType t = 
   match t with
     TComp (_, _) -> t (* Ignore the forward references *)
-    (* Keep the Named types
-  | TNamed _ -> begin
-     match getNodeAttributes t with
-       TNamed(n, t', a) -> TNamed(n, fixupType t', a)
-      | _ -> E.s (bug "fixupType")
-   end  *)
 
   (* Do not hash function types because they contain arguments whose types 
    * change later *)
@@ -1093,14 +1088,6 @@ let rec fixupType t =
       List.iter (fun argvi -> argvi.vtype <- fixupType argvi.vtype) args;
       let res = TFun(fixupType rt, args, isva, a) in
       res
-(*
-      match fixit t with
-        TFun (rt, args', isva, a) -> 
-          TFun(rt,
-               List.map2 (fun a a' -> {a' with vname = a.vname;}) args args',
-               isva, dropAttribute a (Attr("__format__",[]))) 
-      | _ -> E.s (bug "fixupType")
-*)
   end 
   | _ -> fixit t
 
@@ -1192,7 +1179,7 @@ and fixit t =
             let res = TFun(fixupType rt, args, isva, a) in
             res
       in
-(*    H.add fixedTypes ts fixed; *)
+      H.add fixedTypes ts fixed;
 (*      H.add fixedTypes (typeSigBox fixed) fixed; *)
 (*    ignore (E.log "Id of %a\n is %s\n" d_plaintype t (N.typeIdentifier t));*)
       fixed
@@ -1354,9 +1341,9 @@ let preamble () =
        (consGlobal (GText ("// Include the definition of the checkers\n"))
          (consGlobal (GText (
              (* sm: my god but this is an ugly hack, isn't it?  I couldn't find another way.. *)
-             "wildp_void memcpy_www(wildp_void dest,\n" ^
+             "/* wildp_void memcpy_www(wildp_void dest,\n" ^
              "                      wildp_void src,\n" ^
-             "                      unsigned int size);  // hack\n"))
+             "                      unsigned int size); */ // hack\n"))
            startFile
        )))
 
@@ -1395,6 +1382,11 @@ let pkAddrOf (lv: lval)
   end
   | _ -> begin      
       let ptrtype = mkPointerTypeKind lvt lvk in
+(*
+      ignore (E.log "pkAddrOf: lv=%a\nlvk=%a\nfb=%a\nfe=%a\n"
+                d_plainlval lv N.d_opointerkind lvk 
+                d_plainexp fb d_plainexp fe);
+*)
       match lvk with
         N.Safe -> mkFexp1 ptrtype (mkAddrOf lv), empty
       | (N.Index | N.Wild | N.FSeq | N.FSeqN | N.Seq | N.SeqN ) -> 
@@ -1511,9 +1503,9 @@ let registerAreaSeqInt    = 2
 
 let registerAreaFun =   
   let fdec = emptyFunction "CHECK_REGISTERAREA" in
-  let argi  = makeFormal "k" intType in
-  let argb  = makeFormal "b" voidPtrType in
-  let arge  = makeFormal "e" voidPtrType in
+  let argi  = makeVarinfo "k" intType in
+  let argb  = makeVarinfo "b" voidPtrType in
+  let arge  = makeVarinfo "e" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argi; argb; arge; ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
@@ -2194,14 +2186,14 @@ let rec castTo (fe: fexp) (newt: typ)
 
         (* SAFE -> FSEQ *)          
       | N.Safe, N.FSeq -> 
-          let p' = castP p in
           (* If the pointer type is a void ptr then do not add one to get the 
            * end since that is illegal C *)
           let theend = 
-            match unrollType newPointerType with
-              TPtr(TVoid _, _) -> p'
-            | _ -> BinOp(PlusPI, p', one, newPointerType)
+            match unrollType (typeOf p) with
+              TPtr(TVoid _, _) -> p
+            | _ -> BinOp(PlusPI, p, one, newPointerType)
           in
+          let p' = castP p in
           (doe, FM (newt, newkind, p', p', theend))
 
         (* weimer: SAFE -> FSEQN only when the SAFE is 0 *)
@@ -2353,6 +2345,12 @@ let rec castTo (fe: fexp) (newt: typ)
   end
 
 
+let rec castToDebug (fe: fexp) (newt: typ)
+                    (doe: stmt clist) : stmt clist * fexp =
+  let (doe', fe') as res = castTo fe newt doe in
+  ignore (E.log "castToDebug:\n  fe=%a\n  newt= %a\n fe'=%a\n\n"
+            d_fexp fe d_plaintype newt d_fexp fe');
+  res
 
 
 (* Cache some iterator variables for the current function. *)
@@ -3130,7 +3128,8 @@ let fixupGlobName vi =
         qualNames acc' t'
     | TFun(tres, args, _, _) -> 
         let acc' = qualNames acc tres in
-        List.fold_left (fun acc a -> qualNames acc a.vtype) acc' args 
+        List.fold_left 
+          (fun acc a -> qualNames acc a.vtype) acc' args 
 
     | TNamed (_, t, _) -> qualNames acc t
 
@@ -3151,7 +3150,6 @@ let fixupGlobName vi =
   if vi.vglob && (* vi.vstorage <> Static &&  *)
     not (H.mem leaveAlone vi.vname) &&
     not (isAllocFunction vi.vname) &&
-    not (matchPolyName "memcpy" vi.vname) &&
     not (H.mem mangledNames vi.vname) then
     begin
       let quals = qualNames [] vi.vtype in
@@ -3197,6 +3195,7 @@ class unsafeVisitorClass = object
               fixLastOffset (addOffsetLval (Field(f2, NoOffset)) lv)
           | f1 :: _ when f1.fname = "_p" -> 
               fixLastOffset (addOffsetLval (Field(f1, NoOffset)) lv)
+          | _ -> lv
         end
       | _ -> lv
     in
@@ -3344,18 +3343,7 @@ and boxinstr (ins: instr) : stmt clist =
           let newb, newoff = H.find heapifiedLocals vi.vname in
           let stmt1 = boxinstr (Call (Some (newb, newoff), f, args, l)) in
           stmt1
-(*
-          (* Make a temporary variable with the same type *)
-          let tmp = makeTempVar !currentFunction vi.vtype in
-          (* Fix its type *)
-          tmp.vtype <- fixupType tmp.vtype;
-          (* Add a separate call to initialize the temporary *)
-          let stmt1 = boxinstr (Call (Some (tmp, iscast), f, args, l)) in
-          (* Now add an assignment *)
-          let stmt2 = boxinstr (Set ((newb, newoff),
-                                     Lval (var tmp), l)) in
-          append stmt1 stmt2
-*)
+
     | Call(vio, f, args, l) ->
         currentLoc := l;
         let (ft, dof, f', fkind) = 
@@ -3430,6 +3418,8 @@ and boxinstr (ins: instr) : stmt clist =
                 [], [] -> empty, []
               | a :: resta, t :: restt -> 
                   let (doa, fa') = boxexpf a in
+(*                  ignore (E.log "boxCall: a=%a\n  fa'=%a\n\n"
+                            d_plainexp a d_fexp fa'); *)
                   let (doa', fa'') = castTo fa' t.vtype doa in
                   let (_, doa'', a2) = fexp2exp fa'' doa' in
                   let (doresta, resta') = doArgs resta restt in
@@ -3463,7 +3453,8 @@ and boxinstr (ins: instr) : stmt clist =
               (* See if it is a memcpy. We handle only the case when we do 
                * not use the return value *)
               match f' with
-                Lval(Var fv, NoOffset) when matchPolyName "memcpy" fv.vname 
+                Lval(Var fv, NoOffset) when 
+                (false && matchPolyName "memcpy" fv.vname) 
                 -> begin
                   let memcpyFun = 
                     match !theMemcpyFun with
@@ -3832,7 +3823,6 @@ and boxexpf (e: exp) : stmt clist * fexp =
     | CastE (t, e) -> begin
         let t' = fixupType t in
         let (doe, fe') = boxexpf e in
-        (* Put e into a variable *)
         castTo fe' t' doe
     end
           
@@ -4035,9 +4025,13 @@ and boxexpSplit (e: exp) =
 (* a hashtable of functions that we have already made wrappers for *)
 let wrappedFunctions = H.create 15
 
+exception DeepExit
+let definedFunctions : (string, string) H.t = H.create 111
+
 let boxFile file =
   ignore (E.log "Boxing file\n");
   E.hadErrors := false;
+  H.clear definedFunctions;
   currentFile := file;
   mangledMainName := ""; (* We have not yet seen main *)
   let boxing = ref true in
@@ -4049,10 +4043,9 @@ let boxFile file =
     ignore (E.log "File %s has id 0x%04x\n" file.fileName h16)
   in
   let rec doGlobal g = 
-    match g with
-                                        (* We ought to look at pragmas to see 
-                                         * if they talk about alignment of 
-                                         * structure fields *)
+    try match g with
+      (* We ought to look at pragmas to see if they talk about alignment of 
+       * structure fields  *)
       GPragma (a, _) -> begin
         (match a with
           Attr("interceptCasts", [ AId("on") ]) -> interceptCasts := true
@@ -4077,15 +4070,15 @@ let boxFile file =
 
         | GDecl (vi, l) -> 
             boxglobal vi false None l;
-            (* Strip all the polymorphic versions of memcpy from the file *)
-            if vi.vname = "memcpy" then
-              theMemcpyFun := Some vi (* Leave the non-polymorphic one *)
-            else if matchPolyName "memcpy" vi.vname then begin
+            (* Comment out all the polymorphic versions from the file  *)
+            if prefix "/*" vi.vname then begin
               match !theFile with
-                GDecl _ :: rest -> theFile := rest
+                ((GDecl _) as g) :: rest -> 
+                  theFile := g :: rest
               | _ -> 
-                  E.s (E.bug "Cannot find declaration of polymorphic memcpy")
+                  E.s (E.bug "Cannot find declaration of polymorphic func.")
             end
+
               
               
         | GVar (vi, init, l) -> boxglobal vi true init l
@@ -4120,6 +4113,14 @@ let boxFile file =
             currentLoc := l;
             if showGlobals then ignore (E.log "Boxing GFun(%s) at %a\n" 
                                           f.svar.vname d_loc l);
+            (* Drop functions that are just modelledbodies *)
+            if filterAttributes "modelledbody" f.svar.vattr != [] then begin
+              theFile := consGlobal 
+                   (GText ("// Dummy body of " ^ f.svar.vname ^ " was here"))
+                   !theFile;
+              raise DeepExit
+            end;
+
             (match f.svar.vtype with
               TFun (_, _, true, _) -> E.s (unimp "Cannot box vararg function %s. Put it ina nobox module" f.svar.vname)
             | _ -> ());
@@ -4138,6 +4139,19 @@ let boxFile file =
             (* If the type has changed and this is a global function then we 
              * also change its name  *)
             fixupGlobName f.svar;
+            (* This might be a polymorphic instance function. See if we have 
+             * another one with the same mangling *)
+            (let stripname = stripPolyName f.svar.vname in
+             try
+              let already = H.find definedFunctions stripname in
+              theFile := 
+                 consGlobal 
+                   (GText (sprint 80 (dprintf "// %s coalesced with %s"
+                                        f.svar.vname already))) 
+                   !theFile;
+              raise DeepExit
+             with Not_found -> 
+               H.add definedFunctions stripname f.svar.vname);
             (* Check that we do not take the address of a formal. If we 
              * actually do then we must make that formal a true local and 
              * create another formal  *)
@@ -4314,8 +4328,6 @@ let boxFile file =
                toList (append inilocals (fromList f.sbody.bstmts));
             H.clear heapifiedLocals;
             heapifiedFree := [];
-            (* Split the fat local variables *)
-            Boxsplit.splitLocals f;
             (* Drop it if it is just a model *)
             if not (hasAttribute "boxmodel" f.svar.vattr) then 
               theFile := consGlobal (GFun (f, l)) !theFile
@@ -4323,6 +4335,7 @@ let boxFile file =
         | (GAsm _ | GText _ | GPragma _ | GEnumTag _ ) as g -> 
             theFile := consGlobal g !theFile 
     end 
+    with DeepExit -> ()
 
   and boxglobal vi isdef init (l: location) =
     currentLoc := l; 
@@ -4479,6 +4492,7 @@ let boxFile file =
   H.clear taggedTypes;
   H.clear sizedArrayTypes;
   H.clear boxedArguments;
+  H.clear definedFunctions;
   extraGlobInit := empty;
   globInitIterVars := [];
   iterVars := [];
@@ -4486,7 +4500,8 @@ let boxFile file =
   let res = {file with globals = res; globinit = newglobinit} in
   Globinit.insertGlobInit res ;
   if showGlobals then ignore (E.log "Finished boxing file\n");
-  res
+  let res' = Stats.time "split" Boxsplit.splitLocals res in
+  res'
 
   
       

@@ -1,3 +1,3 @@
 
 
-val splitLocals: Cil.fundec -> unit
+val splitLocals: Cil.file -> Cil.file

@@ -35,6 +35,7 @@
   #define __DUMMYDEFN
   #define __BOXMODEL(fname)
   #define __NOBOXBLOCK
+  #define __MODELLED
 #else
   #define __WILD   __attribute__((wild))
   #define __SAFE   __attribute__((safe))
@@ -64,6 +65,7 @@
   #define __DUMMYDEFN __attribute__((dummydefn))
   #define __BOXMODEL(fname) __attribute__((boxmodel(fname)))
   #define __NOBOXBLOCK  __blockattribute__(nobox)
+  #define __MODELLED
 #endif
 
 //#if ! defined(MANUALBOX) && ! defined(INFERBOX)
@@ -81,6 +83,9 @@
   #define explicit_gc() ((void)0)
 #endif
 
+#ifdef _MSVC
+#pragma warning(disable: 4068) // Unrecognized pragma
+#endif
 
 
 
@@ -97,6 +102,7 @@
 #pragma boxprintf("syslog", 1)
 
 #pragma boxpoly("memcpy")
+#pragma boxpoly("memset")
 
 #pragma boxexported("main")
 #endif
@@ -112,14 +118,22 @@
 // such an unusual type; and it doesn't use any types that aren't built-in
 
 // gn: disabled this since everythign in BOX mode fails due to redefin.
-//#ifdef BEFOREBOX
-//  typedef void (*_box_sig_fn)(int);
-//  _box_sig_fn signal_model(int signum, _box_sig_fn fn) __BOXMODEL("signal");
-//  _box_sig_fn signal_model(int signum, _box_sig_fn fn)
-//  {
-//    // flow argument to result
-//    return fn;
-//  }
-//#endif // BEFOREBOX
+#ifdef BEFOREBOX
+  typedef void (*_box_sig_fn)(int);
+  _box_sig_fn signal_model(int signum, _box_sig_fn fn) __BOXMODEL("signal");
+  inline _box_sig_fn signal_model(int signum, _box_sig_fn fn)
+  {
+    // flow argument to result
+    return fn;
+  }
+#endif // BEFOREBOX
 
-
+#ifdef BEFOREBOX
+#pragma boxpoly("__endof")
+void *__endof(void *ptr); // Get the end of a pointer
+#pragma boxpoly("__startof")
+void *__startof(void *ptr); // Get the start of a pointer
+#else
+#define __startof(p) p
+#define __endof(p) p
+#endif

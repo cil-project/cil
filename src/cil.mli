@@ -494,12 +494,13 @@ type fundec =
       mutable sformals: varinfo list;   (* These are the formals. These must 
                                          * be shared with the formals that 
                                          * appear in the type of the 
-                                         * function. Use setFormals to set 
-                                         * these formals and ensure that they 
-                                         * are reflected in the function 
-                                         * type. Do not make copies of 
-                                         * these because the body refers to 
-                                         * them. *)
+                                         * function. Use setFormals or 
+                                         * makeFormalVar or setFunctionType 
+                                         * to set these formals and ensure 
+                                         * that they are reflected in the 
+                                         * function type. Do not make copies 
+                                         * of these because the body refers 
+                                         * to them. *)
       mutable slocals: varinfo list;    (* locals, DOES NOT include the
                                          * sformals. Do not make copies of
                                          * these because the body refers to
@@ -802,8 +803,7 @@ type 'a visitAction =
 (* Some of the nodes are changed in place if the children are changed. Use 
  * one of Change... actions if you want to copy the node *)
 class type cilVisitor = object
-  method vvrbl: varinfo -> varinfo visitAction  (* variable use. Replaced in 
-                                                 * place.  *)
+  method vvrbl: varinfo -> varinfo visitAction  (* variable use.  *)
   method vvdec: varinfo -> varinfo visitAction  (* variable declaration. 
                                                  * Replaced in place. *)
   method vexpr: exp -> exp visitAction          (* expression *)
@@ -824,8 +824,8 @@ class type cilVisitor = object
   method vtype: typ -> typ visitAction          (* use of some type *)
 end
 
-class nopCilVisitor : cilVisitor
-
+class nopCilVisitor: cilVisitor
+class copyFunctionVisitor: string -> cilVisitor
 
 (* other cil constructs *)
 val visitCilFile: cilVisitor -> file -> file
@@ -835,7 +835,7 @@ val visitCilOffset: cilVisitor -> offset -> offset
 val visitCilInstr: cilVisitor -> instr -> instr list
 val visitCilType: cilVisitor -> typ -> typ
 val visitCilVarDecl: cilVisitor -> varinfo -> varinfo
-val visitCilFunction: cilVisitor -> fundec -> unit (* Change in place *)
+val visitCilFunction: cilVisitor -> fundec -> fundec
 val visitCilGlobal: cilVisitor -> global -> global
 val visitCilInit: cilVisitor -> init -> init
 val visitCilStmt: cilVisitor -> stmt -> stmt
@@ -851,13 +851,22 @@ val doVisitList: vis: cilVisitor ->
                  children: (cilVisitor -> 'a -> 'a) ->
                  node: 'a -> 'a list
 
-   (* Make a formal argument for use ina TFun *)
-val makeFormal: string -> typ -> varinfo
+   (* Make a varinfo (for use in a TFun). Use other functions to make locals 
+    * and globals *)
+val makeVarinfo: string -> typ -> varinfo
 
-   (* Make a local variable and add it to a function *)
-val makeLocalVar: fundec -> string -> typ -> varinfo
+  (* Make a formal variable for a function. Insert it in both the sformals 
+   * and the type of the function. You can optionally specify where to insert 
+   * this one. If where = "^" then it is inserted first. If where = "$" then 
+   * it is inserted last. Otherwise where must be the name of a formal after 
+   * which to insert this. By default it is inserted at the end. *)
+val makeFormalVar: fundec -> ?where:string -> string -> typ -> varinfo
 
-   (* Make a temporary variable *)
+   (* Make a local variable and add it to a function's slocals (only if 
+    * insert = true) *)
+val makeLocalVar: fundec -> ?insert:bool -> string -> typ -> varinfo
+
+   (* Make a temporary variable and add it to a function's slocals *)
 val makeTempVar: fundec -> ?name: string -> typ -> varinfo
 
 
@@ -872,6 +881,10 @@ val emptyFunction: string -> fundec
    (* Update the formals of a fundec and make sure that the function type 
     * shares them *)
 val setFormals: fundec -> varinfo list -> unit
+
+   (* Set the types of arguments and results as given by the function type 
+    * passed as the second argument *)
+val setFunctionType: fundec -> typ -> unit
 
     (* A dummy function declaration handy for initialization *)
 val dummyFunDec: fundec
@@ -913,7 +926,7 @@ val isIntegralType: typ -> bool
 val isArithmeticType: typ -> bool
 val isPointerType: typ -> bool
 val isFunctionType: typ -> bool
-
+val isArrayType: typ -> bool
 
 type attributeClass = 
     AttrName of bool 

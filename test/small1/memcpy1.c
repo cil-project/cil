@@ -1,6 +1,6 @@
-extern char* malloc(unsigned int x);
-extern void* memcpy(void *dest, void *src, unsigned int x);
-extern void exit(int );
+#include "testharness.h"
+#include <string.h>
+#include <stdlib.h>
 
 typedef struct {
   char *f1;

@@ -487,15 +487,15 @@ type fundec =
     { mutable svar:     varinfo;        (* Holds the name and type as a
                                          * variable, so we can refer to it
                                          * easily from the program *)
-      mutable sformals: varinfo list;   (* These are the formals. These must 
+      mutable sformals: varinfo list;    (* These are the formals. These must 
                                          * be shared with the formals that 
                                          * appear in the type of the 
-                                         * function. Use setFormals to set 
-                                         * these formals and ensure that they 
-                                         * are reflected in the function 
-                                         * type. Do not make copies of 
-                                         * these because the body refers to 
-                                         * them. *)
+                                         * function. Use setFormals or 
+                                         * makeFormalVar to set these formals 
+                                         * and ensure that they are reflected 
+                                         * in the function type. Do not make 
+                                         * copies of these because the body 
+                                         * refers to them.  *)
       mutable slocals: varinfo list;    (* locals, DOES NOT include the
                                          * sformals. Do not make copies of
                                          * these because the body refers to
@@ -1717,10 +1717,6 @@ and d_instr () i =
       | BinOp((PlusA|PlusPI|IndexPI|MinusA|MinusPP|MinusPI|BAnd|BOr|BXor|
                Mult|Div|Mod|Shiftlt|Shiftrt) as bop,
               Lval(lv'),e,_) when lv == lv' ->
-(*
-          dprintf "\n%s@!%a %a= %a;"
-          (printLine l) d_lval lv d_binop bop d_exp e
-*)
           d_line l
             ++ d_lval () lv
             ++ text " " ++ d_binop () bop
@@ -1729,9 +1725,6 @@ and d_instr () i =
             ++ text ";"
 
       | _ ->
-(* dprintf "\n%s@!%a = %a;"
-          (printLine l) d_lval lv d_exp e
-*)
           d_line l
             ++ d_lval () lv
             ++ text " = "
@@ -1740,19 +1733,6 @@ and d_instr () i =
 
   end
   | Call(dest,e,args,l) ->
-(*
-      dprintf "\n%s@!%t%t(@[%a@]);" (printLine l)
-        (fun _ -> match vio with
-          None -> nil |
-          Some (vi, iscast) ->
-            if iscast then
-              dprintf "%s = (%a)" vi.vname d_type vi.vtype
-            else
-              dprintf "%s = " vi.vname)
-        (fun _ -> match e with Lval(Var _, _) -> d_exp () e
-        | _ -> dprintf "(%a)" d_exp e)
-        (docList (chr ',' ++ break) (d_exp ())) args
-*)
        d_line l
          ++ (match dest with
                None -> nil
@@ -2183,6 +2163,152 @@ let _ =
   in
   setCustomPrintAttribute d_attrcustombase
 
+
+
+
+   (* Make a varinfo for use in argument part of a function type *)
+let makeVarinfo name typ =
+  { vname = name;
+    vid   = 0;
+    vglob = false;
+    vtype = typ;
+    vdecl = lu;
+    vattr = [];
+    vstorage = NoStorage;
+    vaddrof = false;
+    vreferenced = false;    (* sm *)
+  } 
+
+let makeLocal fdec name typ = (* a helper function *)
+  fdec.smaxid <- 1 + fdec.smaxid;
+  let vi = makeVarinfo name typ in
+  vi.vid <- fdec.smaxid;
+  vi
+  
+   (* Make a local variable and add it to a function *)
+let makeLocalVar fdec ?(insert = true) name typ =
+  let vi = makeLocal fdec name typ in
+  if insert then fdec.slocals <- fdec.slocals @ [vi];
+  vi
+
+
+let makeTempVar fdec ?(name = "tmp") typ : varinfo =
+  let name = name ^ (string_of_int (1 + fdec.smaxid)) in
+  makeLocalVar fdec name typ
+
+ 
+  (* Set the formals and make sure the function type shares them *)
+let setFormals (f: fundec) (forms: varinfo list) = 
+  f.sformals <- forms;
+  match unrollType f.svar.vtype with
+    TFun(rt, _, isva, fa) -> 
+      f.svar.vtype <- TFun(rt, forms, isva, fa)
+  | _ -> E.s (E.bug "Set formals. %s does not have function type\n"
+                f.svar.vname)
+    
+   (* Set the types of arguments and results as given by the function type 
+    * passed as the second argument *)
+let setFunctionType (f: fundec) (t: typ) = 
+  match unrollType t with
+    TFun (rt, args, va, a) -> 
+      (* Change the function type. For now use the sformals instead of args *)
+      f.svar.vtype <- TFun (rt, f.sformals, va, a);
+      (* Change the sformals and we know that indirectly we'll change the 
+       * function type *)
+      if List.length f.sformals <> List.length args then 
+        E.s (E.bug "setFunctionType: wrong number of arguments");
+      List.iter2 
+        (fun a f -> 
+          f.vtype <- a.vtype; f.vattr <- a.vattr; 
+          if a.vname <> "" then
+            f.vname <- a.vname) args f.sformals
+
+  | _ -> E.s (E.bug "setFunctionType: not a function type")
+      
+          
+  
+  (* Make a formal variable for a function. Insert it in both the sformals 
+   * and the type of the function. You can optionally specify where to insert 
+   * this one. If where = "^" then it is inserted first. If where = "$" then 
+   * it is inserted last. Otherwise where must be the name of a formal after 
+   * which to insert this. By default it is inserted at the end. *)
+let makeFormalVar fdec ?(where = "$") name typ : varinfo = 
+  (* Search for the insertion place *)
+  let thenewone = ref fdec.svar in (* Just a placeholder *)
+  let makeit () : varinfo = 
+    let vi = makeLocal fdec name typ in
+    thenewone := vi;
+    vi
+  in
+  let rec loopFormals = function
+      [] -> 
+        if where = "$" then [makeit ()]
+        else E.s (E.error "makeFormalVar: cannot find insert-after formal %s"
+                    where)
+    | f :: rest when f.vname = where -> f :: makeit () :: rest
+    | f :: rest -> f :: loopFormals rest
+  in
+  let newformals = 
+    if where = "^" then makeit () :: fdec.sformals else 
+    loopFormals fdec.sformals in
+  setFormals fdec newformals;
+  !thenewone
+
+   (* Make a global variable. Your responsibility to make sure that the name
+    * is unique *)
+let makeGlobalVar name typ =
+  let vi = { vname = name;
+             vid   = H.hash name;
+             vglob = true;
+             vtype = typ;
+             vdecl = lu;
+             vattr = [];
+             vstorage = NoStorage;
+             vaddrof = false;
+             vreferenced = false;    (* sm *)
+           }  in
+  vi
+
+
+   (* Make an empty function *)
+let emptyFunction name = 
+  { svar  = makeGlobalVar name (TFun(voidType, [], false,[]));
+    smaxid = 0;
+    slocals = [];
+    sformals = [];
+    sbody = mkBlock [];
+    sinline = false;
+  } 
+
+
+
+    (* A dummy function declaration handy for initialization *)
+let dummyFunDec = emptyFunction "@dummy"
+let dummyFile = 
+  { globals = [];
+    fileName = "<dummy>";
+    globinit = None;
+    globinitcalled = false}
+
+
+(* Take the name of a file and make a valid symbol name out of it. There are 
+ * a few chanracters that are not valid in symbols *)
+let makeValidSymbolName (s: string) = 
+  let s = String.copy s in (* So that we can update in place *)
+  let l = String.length s in
+  for i = 0 to l - 1 do
+    let c = String.get s i in
+    let isinvalid = 
+      match c with
+        '-' | '.' -> true
+      | _ -> false
+    in
+    if isinvalid then 
+      String.set s i '_';
+  done;
+  s
+
+
 (*** Define the visiting engine ****)
 (* visit all the nodes in a Cil expression *)
 let doVisit (vis: cilVisitor)
@@ -2238,6 +2364,7 @@ let doVisitList (vis: cilVisitor)
         ChangeDoChildrenPost (_, f) -> f nodespost
       | _ -> nodespost
   
+let debugVisit = false
 
 let rec visitCilExpr (vis: cilVisitor) (e: exp) : exp = 
   doVisit vis vis#vexpr childrenExp e
@@ -2456,12 +2583,19 @@ and childrenVarDecl (vis : cilVisitor) (v : varinfo) : varinfo =
   v.vtype <- visitCilType vis v.vtype;
   v
 
-let rec visitCilFunction (vis : cilVisitor) (f : fundec) : unit =
-  ignore (doVisit vis vis#vfunc childrenFunction f)
+let rec visitCilFunction (vis : cilVisitor) (f : fundec) : fundec =
+  if debugVisit then ignore (E.log "Visiting function %s\n" f.svar.vname);
+  doVisit vis vis#vfunc childrenFunction f
+
 and childrenFunction (vis : cilVisitor) (f : fundec) : fundec =
   f.svar <- visitCilVarDecl vis f.svar; (* hit the function name *)
   (* visit local declarations *)
   f.slocals <- mapNoCopy (visitCilVarDecl vis) f.slocals;
+  (* visit the formals *)
+  let oldformals = f.sformals in
+  let newformals = mapNoCopy (visitCilVarDecl vis) f.sformals in
+  (* Restore the sharing if the formals have changed *)
+  if oldformals != newformals then setFormals f newformals;
   f.sbody <- visitCilBlock vis f.sbody;        (* visit the body *)
   f
 
@@ -2471,8 +2605,8 @@ let rec visitCilGlobal (vis: cilVisitor) (g: global) : global =
 and childrenGlobal (vis: cilVisitor) (g: global) : global =
   match g with
   | GFun (f, l) -> 
-      visitCilFunction vis f;
-      g
+      let f' = visitCilFunction vis f in
+      if f' != f then GFun (f', l) else g
   | GType(s, t, l) ->
       let t' = visitCilType vis t in
       if t' != t then GType (s, t', l) else g
@@ -2497,116 +2631,15 @@ and childrenGlobal (vis: cilVisitor) (g: global) : global =
   | _ -> g
 
 let visitCilFile (vis : cilVisitor) (f : file) : file =
-  (trace "visitCilFile" (dprintf "%s\n" f.fileName));
   let fGlob g = visitCilGlobal vis g in
   (* primary list of globals *)
   f.globals <- mapNoCopy fGlob f.globals;
   (* the global initializer *)
   (match f.globinit with
     None -> ()
-  | Some g -> visitCilFunction vis g);
-  (trace "visitCilFile" (dprintf "finished %s\n" f.fileName));
+  | Some g -> f.globinit <- Some (visitCilFunction vis g));
   f
 
-
-   (* Make a formal argument *)
-let makeFormal name typ =
-  let vi = { vname = name;
-             vid   = 0;
-             vglob = false;
-             vtype = typ;
-             vdecl = lu;
-             vattr = [];
-             vstorage = NoStorage;
-             vaddrof = false;
-             vreferenced = false;    (* sm *)
-           } 
-  in
-  vi
-
-   (* Make a local variable and add it to a function *)
-let makeLocalVar fdec name typ =
-  fdec.smaxid <- 1 + fdec.smaxid;
-  let vi = { vname = name;
-             vid   = fdec.smaxid;
-             vglob = false;
-             vtype = typ;
-             vdecl = lu;
-             vattr = [];
-             vstorage = NoStorage;
-             vaddrof = false;
-             vreferenced = false;    (* sm *)
-           }  in
-  fdec.slocals <- fdec.slocals @ [vi];
-  vi
-
-let makeTempVar fdec ?(name = "tmp") typ =
-  let name = name ^ (string_of_int (1 + fdec.smaxid)) in
-  makeLocalVar fdec name typ
-
-
-   (* Make a global variable. Your responsibility to make sure that the name
-    * is unique *)
-let makeGlobalVar name typ =
-  let vi = { vname = name;
-             vid   = H.hash name;
-             vglob = true;
-             vtype = typ;
-             vdecl = lu;
-             vattr = [];
-             vstorage = NoStorage;
-             vaddrof = false;
-             vreferenced = false;    (* sm *)
-           }  in
-  vi
-
-
-   (* Make an empty function *)
-let emptyFunction name = 
-  { svar  = makeGlobalVar name (TFun(voidType, [], false,[]));
-    smaxid = 0;
-    slocals = [];
-    sformals = [];
-    sbody = mkBlock [];
-    sinline = false;
-  } 
-
-
-  (* Set the formals and make sure the function type shares them *)
-let setFormals (f: fundec) (forms: varinfo list) = 
-  f.sformals <- forms;
-  match unrollType f.svar.vtype with
-    TFun(rt, _, isva, fa) -> 
-      f.svar.vtype <- TFun(rt, forms, isva, fa)
-  | _ -> E.s (E.bug "Set formals. %s does not have function type\n"
-                f.svar.vname)
-      
-
-    (* A dummy function declaration handy for initialization *)
-let dummyFunDec = emptyFunction "@dummy"
-let dummyFile = 
-  { globals = [];
-    fileName = "<dummy>";
-    globinit = None;
-    globinitcalled = false}
-
-
-(* Take the name of a file and make a valid symbol name out of it. There are 
- * a few chanracters that are not valid in symbols *)
-let makeValidSymbolName (s: string) = 
-  let s = String.copy s in (* So that we can update in place *)
-  let l = String.length s in
-  for i = 0 to l - 1 do
-    let c = String.get s i in
-    let isinvalid = 
-      match c with
-        '-' | '.' -> true
-      | _ -> false
-    in
-    if isinvalid then 
-      String.set s i '_';
-  done;
-  s
 
 
 
@@ -2909,6 +2942,11 @@ let isPointerType t =
 let isFunctionType t = 
   match unrollType t with
     TFun _ -> true
+  | _ -> false
+
+let isArrayType t = 
+  match unrollType t with
+    TArray _ -> true
   | _ -> false
 
 
@@ -3422,3 +3460,94 @@ let offsetOf (fi: fieldinfo) (startcomp: int) : int * int =
   (lastoff.oaLastFieldStart, lastoff.oaLastFieldWidth)
 
 
+(* A visitor that makes a deep copy of a function body *)
+class copyFunctionVisitor (newname: string) = object (self)
+  inherit nopCilVisitor
+
+      (* Keep here a maping from locals to their copies *)
+  val map : (string, varinfo) H.t = H.create 113 
+      (* Keep here a maping from statements to their copies *)
+  val stmtmap : (int, stmt) H.t = H.create 113
+  val sid = ref 0 (* Will have to assign ids to statements *)
+      (* Keep here a list of statements to be patched *)
+  val patches : stmt list ref = ref []
+
+  val argid = ref 0
+
+      (* This is the main function *)
+  method vfunc (f: fundec) : fundec visitAction = 
+    (* We need a map from the old locals/formals to the new ones *)
+    H.clear map;
+    argid := 0;
+     (* Make a copy of the fundec. *)
+    let f' = {f with svar = f.svar} in
+    let patchfunction (f' : fundec) = 
+      (* Change the name. Only this late to allow the visitor to copy the 
+       * svar  *)
+      f'.svar.vname <- newname;
+      let findStmt (i: int) = 
+        try H.find stmtmap i 
+        with Not_found -> E.s (bug "Cannot find the copy of stmt#%d" i)
+      in
+      let patchstmt (s: stmt) = 
+        match s.skind with
+          Goto (sr, l) -> 
+            (* Make a copy of the reference *)
+            let sr' = ref (findStmt !sr.sid) in
+            s.skind <- Goto (sr',l)
+        | Switch (e, body, cases, l) -> 
+            s.skind <- Switch (e, body, 
+                               List.map (fun cs -> findStmt cs.sid) cases, l)
+        | _ -> ()
+      in
+      List.iter patchstmt !patches;
+      f'
+    in
+    patches := [];
+    sid := 0;
+    H.clear stmtmap;
+    ChangeDoChildrenPost (f', patchfunction)
+    
+      (* We must create a new varinfo for each declaration. Memoize to 
+       * maintain sharing *)
+  method vvdec (v: varinfo) = 
+    (* Some varinfo have empty names. Give them some name *)
+    if v.vname = "" then begin
+      v.vname <- "arg" ^ string_of_int !argid; incr argid
+    end;
+    try
+      ChangeTo (H.find map v.vname)
+    with Not_found -> begin
+      let v' = {v with vname = v.vname} in
+      H.add map v.vname v';
+      ChangeDoChildrenPost (v', fun x -> x)
+    end
+
+      (* We must replace references to local variables *)
+  method vvrbl (v: varinfo) = 
+    if v.vglob then SkipChildren else 
+    try
+      ChangeTo (H.find map v.vname)
+    with Not_found -> 
+      E.s (bug "Cannot find the new copy of local variable %s" v.vname)
+
+
+        (* Replace statements. *)
+  method vstmt (s: stmt) : stmt visitAction = 
+    s.sid <- !sid; incr sid;
+    let s' = {s with sid = s.sid} in
+    H.add stmtmap s.sid s'; (* Remember where we copied this *)
+    (* if we have a Goto or a Switch remember them to fixup at end *)
+    (match s'.skind with
+      (Goto _ | Switch _) -> patches := s' :: !patches
+    | _ -> ());
+    (* Do the children *)
+    ChangeDoChildrenPost (s', fun x -> x)
+
+      (* Copy blocks since they are shared *)
+  method vblock (b: block) = 
+    ChangeDoChildrenPost ({b with bstmts = b.bstmts}, fun x -> x)
+
+
+  method vglob _ = E.s (bug "copyFunction should not be used on globals")
+end

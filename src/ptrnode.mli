@@ -42,17 +42,12 @@ type node =
                                          * type of a global contains several 
                                          * pointer types (nested) *)
 
-              btype: Cil.typ;               (* The base type of this pointer *)
-      mutable attr: Cil.attribute list;     (* The attributes of this pointer 
+              btype: Cil.typ;          (* The base type of this pointer *)
+      mutable attr: Cil.attribute list;(* The attributes of this pointer 
                                          * type *)
 
       mutable flags : int; 
 
-(* 
-      mutable flagsCastPred: int; (* cast_pred: updated *)
-      mutable flagsCNIPred: int;
-      mutable flagsCastSucc: int ; 
-      *)
       
       mutable onStack: bool;            (* Whether might contain stack 
                                          * addresses *)
@@ -64,6 +59,8 @@ type node =
                                          * added to it. We assume that the 
                                          * programmer uses the notation [e] 
                                          * to indicate positive indices e. *)
+      mutable mustHaveEnd: bool;        (* If this is SAFE at the very end, 
+                                         * make it FSEQ *)
       mutable arith: bool;              (* Whenever things are added to this 
                                          * pointer, but we don't know that 
                                          * they are positive *)
@@ -176,6 +173,8 @@ and edgekind =
                               * int * 1 * 2 x; 
                               * int * 3 * 4 y;
                               * We will connect 1 and 3 with ECompat. *)
+  | EPolyCast                (* This is a edge that is added in a polymorphic 
+                              * function call or return. *)
 
 
 (* The main graph *)

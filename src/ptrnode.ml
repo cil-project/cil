@@ -66,14 +66,8 @@ type node =
       mutable attr: attribute list;     (* The attributes of this pointer 
                                          * type *)
 
-      mutable flags : int; 
+      mutable flags: int; 
 
-(* 
-      mutable flagsCastPred: int; (* cast_pred: updated *)
-      mutable flagsCNIPred: int;
-      mutable flagsCastSucc: int ; 
-      *)
-      
       mutable onStack: bool;            (* Whether might contain stack 
                                          * addresses *)
       mutable updated: bool;            (* Whether it is used in a write 
@@ -84,6 +78,8 @@ type node =
                                          * added to it. We assume that the 
                                          * programmer uses the notation [e] 
                                          * to indicate positive indices e. *)
+      mutable mustHaveEnd: bool;        (* If this is SAFE at the very end, 
+                                         * make it FSEQ *)
       mutable arith: bool;              (* Whenever things are added to this 
                                          * pointer, but we don't know that 
                                          * they are positive *)
@@ -196,6 +192,8 @@ and edgekind =
                               * int * 1 * 2 x; 
                               * int * 3 * 4 y;
                               * We will connect 1 and 3 with ECompat. *)
+  | EPolyCast                (* This is a edge that is added in a polymorphic 
+                              * function call or return. *)
 
 
 (* set a boolean bitflag *)
@@ -289,6 +287,7 @@ let d_ekind () = function
   | EIndex -> text "Index"
   | ENull -> text "Null"
   | ECompat -> text "Compat" 
+  | EPolyCast -> text "PolyCast"
 
 let d_whykind () = function
 (*    BadCast(t1,t2) -> dprintf "cast(%a<= %a)" d_type t1 d_type t2
@@ -312,36 +311,6 @@ let d_whykind () = function
   | Special (s, l) -> text (s ^ " at ") ++ d_loc () l
 
 let d_node () n = 
-(*
-  dprintf "%d : %a (%s%s%s%s%s%s%s%s%s%s%s) (@[%a@])@! K=%a/%a T=%a@!  S=@[%a@]@!  P=@[%a@]@!" 
-    n.id d_placeidx n.where
-    (if n.onStack || hasFlag n pkOnStack then "stack," else "")
-    (if n.updated || hasFlag n pkUpdated then "upd," else "")
-    (if n.posarith || hasFlag n pkPosArith then "posarith," else "")
-    (if n.arith || hasFlag n pkArith then "arith," else "")
-    (if n.null || hasFlag n pkNull then "null," else "")
-    (if n.intcast || hasFlag n pkIntCast then "int," else "")
-    (if n.interface || hasFlag n pkInterface then "interf," else "")
-    (if n.sized  then "sized," else "")
-    (if n.can_reach_string || hasFlag n pkReachString then "reach_s," else "")
-    (if n.can_reach_seq    || hasFlag n pkReachSeq    then "reach_q," else "")
-    (if n.can_reach_index  || hasFlag n pkReachIndex  then "reach_i," else "")
-    (docList (chr ',' ++ (break))
-       (fun n -> num n.id)) n.pointsto
-    d_opointerkind n.kind
-    d_whykind n.why_kind
-    d_type n.btype
-    (docList (chr ',' ++ (break))
-       (fun e -> dprintf "%d:%a%a" e.eto.id
-           d_ekind e.ekind
-           insert (if e.ecallid >= 0 then dprintf "(%d)" e.ecallid else nil)))
-    n.succ
-    (docList (chr ',' ++ (break))
-       (fun e -> dprintf "%d:%a%a" e.efrom.id
-           d_ekind e.ekind
-           insert (if e.ecallid >= 0 then dprintf "(%d)" e.ecallid else nil)))
-    n.pred
-*)    
     num n.id 
      ++ text " : " 
      ++ d_placeidx () n.where
@@ -353,6 +322,7 @@ let d_node () n =
               (if n.arith || hasFlag n pkArith then "arith," else "") ^
               (if n.null || hasFlag n pkNull then "null," else "") ^
               (if n.intcast || hasFlag n pkIntCast then "int," else "") ^
+              (if n.mustHaveEnd then "mustend," else "") ^
               (if n.noPrototype || hasFlag n pkNoPrototype 
               then "noproto," else "") ^
               (if n.interface || hasFlag n pkInterface 
@@ -713,6 +683,7 @@ let newNode (p: place) (idx: int) (bt: typ) (al: attribute list) : node =
             onStack = false;
             updated = false;
             arith   = false;
+            mustHaveEnd = false;
             posarith= false;
             null    = false;
             intcast = false;
@@ -729,6 +700,7 @@ let newNode (p: place) (idx: int) (bt: typ) (al: attribute list) : node =
             can_reach_seq = false;
             can_reach_index = false;
             pred = []; } in
+
 (*  ignore (E.log "Created new node(%d) at %a\n" n.id d_placeidx where); *)
   H.add placeId where n;
   H.add idNode n.id n;
@@ -828,6 +800,7 @@ let ptrAttrCustom printnode = function
     | Attr("heapify", []) -> Some (text "__HEAPIFY")
     | Attr("boxmodel", [AStr fname]) -> 
         Some (text ("__BOXMODEL(" ^ fname ^ ")"))
+    | Attr("modelledbody", _) -> Some (text "__MODELLED")
     | a -> None
 
 
@@ -1115,4 +1088,87 @@ let printGraphStats () =
   H.clear totKind;
   H.clear spreadTo;
   ()
+
+
+
+(* Copy a portion of the graph corresponding to a function body. Return a 
+ * maping from old node ids to new nodes *)
+let copySubgraph (f: fundec) (newfname: string) : (int, node) H.t = 
+  let map : (int, node) H.t = H.create 113 in (* The maping *)
+  let todo : node list ref = ref [] in (* Nodes still to do *)
+  let rec copyOne (n: node) : node = 
+    try
+      H.find map n.id  (* Maybe it was done already *)
+    with Not_found -> begin
+      (* See if we can actually copy this *)
+      let cancopy, dosuccs, where' = 
+        match n.where with 
+          PLocal (fl, fn, ln), idx -> 
+            true, true, (PLocal (fl, newfname, ln), idx)
+        | PAnon anonid, idx -> 
+            true, true, (anonPlace (), idx)
+        | PGlob s, idx when s = f.svar.vname -> 
+            true, false, (PGlob newfname, idx)
+        | PStatic (fl, s), idx when s = f.svar.vname -> 
+            true, false, (PStatic (fl, newfname), idx)
+        | _ -> false, false, n.where
+      in
+      if not cancopy then 
+        n
+      else begin
+        (* A function to replace the _ptrnode attribute *)
+        let replacePtrNodeAttr (a: attribute list) (newid: int) = 
+          addAttribute 
+            (Attr("_ptrnode", [AInt newid])) 
+            (dropAttribute a (Attr("_ptrnode", [])))
+        in
+        (* First we must do the nodes that appear in the base type of this 
+         * node *)
+        let btype', pointsto' = 
+          match n.btype with
+            TPtr (bt, a) -> begin
+              match nodeOfAttrlist a with
+                None -> 
+                  E.s (E.bug "Cannot find node attribute in copySubgraph")
+              | Some succ -> 
+                  (* Copy the node corresponding to the successor *)
+                  let succ' = copyOne succ in
+                  TPtr (succ'.btype, replacePtrNodeAttr a succ'.id), [succ']
+            end
+          | _ -> n.btype, n.pointsto (* No change if not a pointer *)
+        in
+        (* Now copy this node *)
+        incr nextId;
+        let n' = {n with id = !nextId; btype = btype'; pointsto = pointsto';
+                         where = where';
+                         attr = replacePtrNodeAttr n.attr !nextId} in
+        H.add map n.id n'; (* Add it to the map *)
+        (* Make copies of the succ edges *)
+        List.iter 
+          (fun e -> 
+            let e' = {e with efrom = n'} in
+            if dosuccs then todo := e.eto :: !todo)
+          n'.succ;
+        (* Make copies of the predecessor edges *)
+        List.iter
+          (fun e -> 
+            let e' = {e with eto = n'} in
+            e'.efrom.succ <- e' :: e'.efrom.succ)
+          n'.pred;
+        n'
+      end
+    end
+  in
+  let rec loop () = 
+    match !todo with
+      [] -> map
+    | x :: rest -> begin
+        todo := rest;
+        ignore (copyOne x);
+        loop ()
+    end
+  in
+  (* Initialize the todo list with the nodes that appear in formals *)
+  map
+  
 

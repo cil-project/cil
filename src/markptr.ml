@@ -65,12 +65,25 @@ end
  * first store here the original type.  *)
 let polyFunc : (string, typ option ref) H.t = H.create 7
 
+(* Remember the bodies of polymorphic functions *)
+let polyBodies : (string, fundec) H.t = H.create 7
+
 (* all of the printf-like format string functions. The integer is the
  * argument number of the format string. *)
 let printfFunc : (string, int ) H.t = H.create 15
 
 (* We keep track of the models to use *)
-let boxModels : (string, fundec) H.t = H.create 15
+let boxModels: (string, fundec) H.t = H.create 15 (* Map the name of the 
+                                                    * modelled function to 
+                                                    * the model *)
+let modelledFuncs: (varinfo, fundec) H.t = H.create 15 (* Same but the map is 
+                                                        * on the varinfo *)
+
+
+(* We need a function that copies a CIL function. *)
+let copyFunction (f: fundec) (newname: string) = 
+  visitCilFunction (new copyFunctionVisitor(newname)) f
+  
 
 (* We keep track of a number of type that we should not unroll *)
 let dontUnrollTypes : (string, bool) H.t = H.create 19
@@ -98,16 +111,6 @@ let nodeOfType t =
     end
   | _ -> N.dummyNode
 
-
-(* Rewrite types so that pointer types get a new node and a new attribute. 
- * The attribute is added by the N.newNode.  *)
-
-(* Keep track of composite types that we have done already, to avoid looping *)
-let doneComposites: (int, bool) H.t = H.create 111 
-
-(* We pull out definitions of composites so that they are not hidded behing 
- * pointers *)
-let pulledOutComposites: (int, bool) H.t = H.create 111
 
 
 (* We will accumulate the marked globals in here *)
@@ -303,15 +306,17 @@ let doVarinfo vi =
   (* Do the type of the variable. Start the index at 1 *)
   let t', _ = doType vi_vtype place 1 in
   vi.vtype <- t';
-  (* ignore (E.log "Did varinfo: %s. T=%a\n" vi.vname
+(*  ignore (E.log "Did varinfo: %s. T=%a\n" vi.vname
             d_plaintype vi.vtype); *)
   (* Associate a node with the variable itself. Use index = 0 *)
   let n = N.getNode place 0 vi.vtype vi.vattr in
   (* Add this to the variable attributes *)
-  vi.vattr <- n.N.attr (*;
-  ignore (E.log "varinfo: T=%a. A=%a\n" 
+  vi.vattr <- addAttributes vi.vattr n.N.attr; (* Make sure we get the 
+                                                * _ptrnode *) 
+(*  ignore (E.log "varinfo: T=%a. A=%a\n" 
             d_plaintype vi.vtype (d_attrlist true) vi.vattr) *)
-    
+  ()
+
 (* Do an expression. Return an expression, a type and a node. The node is 
  * only meaningful if the type is a TPtr _. In that case the node is also 
  * refered to from the attributes of TPtr. Otherwise the node is N.dummyNode
@@ -420,7 +425,7 @@ and doLvalue ((base, off) : lval) (iswrite: bool) : lval * N.node =
           match N.nodeOfAttrlist vi.vattr with Some n -> n | _ -> N.dummyNode
         in
         (* Now grab the node for it *)
-        (* ignore (E.log "doLval: %s: T=%a (ND=%d)\n"
+(*        ignore (E.log "doLval: %s: T=%a (ND=%d)\n"
                   vi.vname d_plaintype vi.vtype vn.N.id); *)
         base, vn
       end
@@ -452,11 +457,11 @@ and doOffset (off: offset) (n: N.node) : offset * N.node =
 
   
 (* Now model an assignment of a processed expression into a type *)
-and expToType (e,et,en) t (callid: int) : exp = 
+and expToType (e,et,en) t (callid: int) (polycast: bool) : exp = 
   let etn = nodeOfType et in
   let tn  = nodeOfType t in
 (*  ignore (E.log "expToType e=%a (NS=%d) -> TD=%a (ND=%d)\n"
-            d_plainexp e etn.N.id d_plaintype t tn.N.id);*)
+            d_plainexp e etn.N.id d_plaintype t tn.N.id); *)
   match etn == N.dummyNode, tn == N.dummyNode with
     true, true -> e (* scalar -> scalar *)
   | false, true -> e (* Ignore casts of pointer to non-pointer *)
@@ -495,7 +500,10 @@ and expToType (e,et,en) t (callid: int) : exp =
             (* Now use the function instead of adding an edge *)
             e
           end else begin
-            N.addEdge etn desttn N.ECast callid; 
+(*            ignore (E.log "Setting %a : %a -> %d\n"
+                      d_plainexp e d_plaintype et desttn.N.id); *)
+            N.addEdge etn desttn 
+              (if polycast then N.ECast (* PolyCast *) else N.ECast) callid; 
             e
           end
         in
@@ -516,83 +524,92 @@ and expToType (e,et,en) t (callid: int) : exp =
 and doExpAndCast e t = 
   (* Get rid of cascades of casts of 0 *)
   let e' = if isZero e then zero else e in
-  expToType (doExp e') t (-1)
+  expToType (doExp e') t (-1) false
 
-and doExpAndCastCall e t callid = 
+and doExpAndCastCall e t callid ispolyarg = 
   (* Get rid of cascades of casts of 0 *)
   let e' = if isZero e then zero else e in
-  expToType (doExp e') t callid
-
+  expToType (doExp e') t callid ispolyarg
 
 
 let debugInstantiate = false
 
-let instantiatePolyFunc (vi: varinfo) : varinfo * bool =
+(* Keep track of all instantiations that we did, so we can copy the bodies *)
+let instantiations: (string * varinfo) list ref = ref []
+
+(* To avoid going into in an infinite loop keep a track of the instantiations 
+ * that are being done *)
+let recursiveInstantiations: (string * varinfo) list ref = ref []
+
+(* Take a look at the function and see if we must instantiate it. Return an 
+ * instance and a boolean saying if the function ispolymorphic. *)
+let instantiatePolyFunc (fvi: varinfo) : varinfo * bool = 
   (* The args might be shared with other declarations and with formals for 
    * defined functions. Make shallow copies of all of them  *)
+  let dropNodeAttrs a = dropAttribute a (Attr("_ptrnode", [])) in
   let shallowCopyFunctionType t = 
     match unrollType t with
       TFun (rt, args, isva, fa) -> 
         TFun (rt, 
               List.map (fun a -> {a with vname = a.vname}) args,
               isva, fa)
-    | _ -> E.s (bug "instantiating a non-function (%s)\n" vi.vname)
+    | _ -> E.s (bug "instantiating a non-function (%s)\n" fvi.vname)
   in
-  let old_name = vi.vname in
-  if debugInstantiate then
-    ignore (E.log "Instantiating function %s\n" old_name);
-  let res, ispoly = 
-    try
-      let origtypref = H.find polyFunc vi.vname in
-      if debugInstantiate then
-        ignore (E.log "   poly function %s\n"
-                  vi.vname);
-      let origtype = (* Copy the type and remember it *)
-        match !origtypref with
-          Some t -> 
-            if debugInstantiate then
-              ignore (E.log "  Not the first time. Copying: %a\n"
-                        d_plaintype t);
-            shallowCopyFunctionType t
-        | None -> 
-            (* make a copy to return now *)
-            let copiedtype = shallowCopyFunctionType vi.vtype in
-            (* Make a copy to memoize and use to template new copies *)
-            let copiedtype2 = shallowCopyFunctionType vi.vtype in
-            if debugInstantiate then
-              ignore (E.log "  The first time. Made template: %a\n"
-                        d_plaintype copiedtype);
-            origtypref := Some copiedtype2;
-            copiedtype
-      in
-      let newvi = 
-        {vi with vtype = origtype; (* Set it like this and doVarInfo 
-                                      will fix it *)
-                 vname = ("/*" ^ (string_of_int (!polyId + 1)) ^ "*/" ^ 
-                          vi.vname)}  in
-      incr polyId;
-      newvi, true
-    with Not_found -> 
-      if debugInstantiate then
-        ignore (E.log "  not polymorphic\n");
-      vi, false    (* Not polymorphic *)
+  (* Copy a type but drop the existing nodes *)
+  let rec copyTypeNoNodes (t: typ) = 
+    match t with
+      TPtr(bt, a) -> TPtr(copyTypeNoNodes bt, dropNodeAttrs a)
+    | t -> t
   in
-  doVarinfo res;
-  if debugInstantiate then begin
+  let old_name = fvi.vname in
+  let newvi, ispoly = 
+    match List.filter (fun (on, ovi) -> on = old_name) !recursiveInstantiations
+    with 
+    | (_, ovi) :: _  -> ovi, true (* Reuse the recursive instantiation *)
+    | [] -> begin
+        try
+          if debugInstantiate then 
+            ignore (E.log "trying instantiatePoly %s\n" old_name);
+          let origtypref = H.find polyFunc fvi.vname in
+          if debugInstantiate then
+            ignore (E.log "Instantiating poly function %s\n" old_name);
+          let origtype = (* Copy the type and remember it *)
+            match !origtypref with
+              Some t -> 
+                if debugInstantiate then
+                  ignore (E.log "  Not the first time. Copying: %a\n"
+                            d_plaintype t);
+                shallowCopyFunctionType t
+            | None -> 
+                (* make a copy to return now *)
+                let copiedtype = shallowCopyFunctionType fvi.vtype in
+                (* Make a copy to memoize and use to template new copies *)
+                let copiedtype2 = shallowCopyFunctionType fvi.vtype in
+                if debugInstantiate then
+                  ignore (E.log "  The first time. Made template: %a\n"
+                            d_plaintype copiedtype);
+                origtypref := Some copiedtype2;
+                copiedtype
+          in
+          let newvi = 
+            {fvi with vtype = origtype; (* Set it like this and doVarInfo will 
+                                       * fix it  *)
+              vname = ("/*" ^ (string_of_int (!polyId + 1)) ^ "*/" ^ 
+                    fvi.vname);
+              vattr = dropNodeAttrs fvi.vattr }  in
+          incr polyId;
+          theFile := GDecl (newvi, locUnknown) :: !theFile;
+          instantiations := (old_name, newvi) :: !instantiations;
+          newvi, true
+        with Not_found -> 
+          fvi, false    (* Not polymorphic *)
+    end
+  in
+  if debugInstantiate && ispoly then begin
     ignore (E.log " After instantiatePoly: %s T=%a\n"
-              res.vname d_plaintype res.vtype);
-    (* Check the template, again *)
-    try
-      let origtypref = H.find polyFunc old_name in
-      match !origtypref with
-        Some t -> 
-          ignore (E.log "  and the template is now: %a\n"
-                    d_plaintype t)
-      | None -> E.s (bug " there should be a template\n")
-    with Not_found -> ()
+              newvi.vname d_plaintype newvi.vtype);
   end;
-  if debugInstantiate then ignore (E.log "Done instantiatePoly\n");
-  res, ispoly
+  newvi, ispoly
 
 (* possible printf arguments *)
 type printfArgType = FormatInt | FormatDouble | FormatPointer
@@ -722,96 +739,82 @@ let isPrintf reso orig_func args = begin
   | _ -> None
 end
 
+(* Some utility functions for decomposing a function call so that we can 
+ * process them in a special way *)
+type callArgDescr = 
+    { caOrig: exp; (* The original actual, without the cast that was added to 
+                    * match it with the formal type *)
+      caOrigType: typ; (* Type of caOrig *)
+      caOrigNode: N.node; (* The node corresponding to caOrigType, if TPtr *)
+      caFormal: varinfo;  (* The formal varinfo *)
+      caFormalType: typ; (* The type of the corresponding formal *)
+      caFormalNode: N.node; (* The node corrsponding to caFormalNode,if TPtr *)
+    } 
 
-
-
-(*** Handle memcpy function ***)
-let isMemcpy 
-    (reso: lval option) 
-    (f: exp) 
-    (args: exp list)
-
-    (* Returned the modified arguments (and an indication whether we did 
-    * anything to them) *)
-    : exp list option =  
-
-  try
-    match f with
-      (Lval(Var(v), NoOffset)) when matchPolyName "memcpy" v.vname -> begin
-(*        ignore (E.log "Found %s at %t\n" v.vname d_thisloc); *)
-        let dst, src, len = 
-          match args with 
-            [dst; src; len] -> dst, src, len
-          | _ -> 
-              ignore (warn "Call to memcpy with other than 3 arguments");
-              raise Not_found
-        in
-        (* Get the types of the destination and the source. But be prepared 
-         * to strip the top level cast since it could have been added by 
-         * cabs2cil *)
-        let stripCast (e: exp) = 
-          match e with
-            CastE(_, e') -> e'
-          | _ -> e
-        in
-        let dst' = stripCast dst in
-        let src' = stripCast src in
-        let dst_t = typeOf dst' in
-        let src_t = typeOf src' in
-        (* A function to split a pointer type into base type, attribute and 
-         * node of attributes *)
-        let splitPtrType (t: typ) = 
-          match unrollType t with
-            TPtr(bt, a) -> begin
-              bt, a, 
-              (match N.nodeOfAttrlist a with
-                Some n -> n
-              | None -> N.dummyNode)
-            end
-          | _ -> 
-              ignore (warn "Expecting a pointer type when doing memcpy");
-              raise Not_found
-        in
-        let dst_b, dst_a, dst_n = splitPtrType dst_t in
-        let src_b, src_a, src_n = splitPtrType src_t in
-        (* Now get the type of the polymorphic instance of memcpy *)
-        let rt, da, sa, la, fa =
-          match v.vtype with
-            TFun(rt, [da; sa; la], false, fa) -> rt, da, sa, la, fa
-          | _ -> 
-              ignore (warn "Type of memcpy is not a function");
-              raise Not_found
-        in
-        let rt_b, rt_a, rt_n = splitPtrType rt in
-        let rt' = TPtr(dst_b, rt_a) in
-        let da_b, da_a, da_n = splitPtrType da.vtype in
-        da.vtype <- TPtr(dst_b, da_a);
-        (* ignore (E.log "New type of da is %a\n"
-                      d_plaintype da.vtype); *)
-        let sa_b, sa_a, sa_n = splitPtrType sa.vtype in
-        sa.vtype <- TPtr(src_b, sa_a);
-        v.vtype <- TFun(rt', [da; sa; la], false, fa);
-        (* Now add appropriate edges between the nodes of the polymorphic 
-        * function. Edges relating actual arguments and formals will be 
-        * added at the call site *)
-        if da_n == N.dummyNode || sa_n == N.dummyNode 
-            || rt_n == N.dummyNode then begin
-                ignore (warn "Formals of memcpy do not have nodes");
-                raise Not_found;
-            end;
-        N.addEdge da_n rt_n N.ECast !callId;
-        (* ignore (E.log "Done adding edge between nodes %d and %d\n"
-                      da_n.N.id rt_n.N.id); *)
-        (* Now pretend that we do *dst = *src *)
-        ignore (expToType (one, src_b, N.dummyNode) dst_b !callId);
-        (* Now repackage the args with the right casts *)
-        Some [dst'; src'; len]
+let decomposeCall 
+    (reso: lval option)
+    (f: exp)
+    (args: exp list) : (* result *) callArgDescr * 
+                       (* args *) callArgDescr list = 
+  (* Fetch the function type *)
+  let rt, formals = 
+    match unrollType (typeOf f) with
+      TFun (rt, formals, _, _) -> rt, formals
+    | _ -> E.s (E.bug "decomposingCall to a non-function")
+  in
+  if List.length formals <> List.length args then 
+    E.s (E.bug "decomposeCall: mismatch of argument list length");
+  (* A function to split a pointer type into base type, attribute and 
+  * node of attributes *)
+  let splitPtrType (t: typ) = 
+    match unrollType t with
+      TPtr(bt, a) -> begin
+        bt, a, 
+        (match N.nodeOfAttrlist a with
+          Some n -> n
+        | None -> N.dummyNode)
       end
-    | _ -> raise Not_found
-  with _ -> None
-    
+    | _ -> voidType, [], N.dummyNode
+  in
+  let argDescr = 
+    List.map2
+      (fun a f ->
+        (* Get the types of the arguments. But be prepared to strip the top 
+         * level cast since it could have been added by cabs2cil *)
+        let stripCast (e: exp) = match e with CastE(_, e') -> e' | _ -> e in
+        let orig = stripCast a in
+        let origt = typeOf orig in
+        let orig_bt, orig_a, orig_n = splitPtrType origt in
+        (* So the same for the formal *)
+        let formt = f.vtype in
+        let form_bt, form_a, form_n = splitPtrType formt in
+        { caOrig = orig; caOrigType = origt; caOrigNode = orig_n;
+          caFormal = f; caFormalType = formt; caFormalNode = form_n })
+      args formals
+  in
+  (* Now the return type *)
+  let rt_bt, rt_a, rt_n = splitPtrType rt in
+  let resDescr = 
+    match reso, rt with 
+      None, TVoid _ -> 
+        { caOrig = zero; caOrigType = voidType; caOrigNode = N.dummyNode;
+          caFormal = dummyFunDec.svar; 
+          caFormalType = voidType; caFormalNode = N.dummyNode }
+    | None, _ -> { caOrig = zero; caOrigType = voidType; 
+                   caOrigNode = N.dummyNode;
+                   caFormal = dummyFunDec.svar; 
+                   caFormalType = rt; caFormalNode = rt_n }
+    | Some _, TVoid _ -> E.s (E.bug "decomposeCall: assigned subroutine")
+    | Some lv, _ -> 
+        let origt = typeOfLval lv in
+        let orig_bt, orig_a, orig_n = splitPtrType origt in
+        { caOrig = Lval (lv); caOrigType = origt; 
+          caOrigNode = orig_n; caFormal = dummyFunDec.svar; 
+          caFormalType = rt; caFormalNode = rt_n }
+  in
+  resDescr, argDescr
 
-    
+
 let rec doBlock blk = 
   if hasAttribute "nobox" blk.battrs then 
     blk
@@ -851,28 +854,28 @@ and doInstr (i:instr) : instr =
       let e' = doExpAndCast e lvn.N.btype in
       Set (lv', e', l)
 
-  | Call (reso, orig_func, args, l) -> 
+  | Call (reso, orig_func, args, l) as i -> 
       currentLoc := l;
       incr callId; (* A new call id *)
+(*      ignore (E.log "Call %a args: %a\n" 
+                d_plainexp orig_func
+                (docList (chr ',') (fun a -> d_plaintype () (typeOf a)))
+                args); *)
       let func, ispoly = (* check and see if it is polymorphic *)
         match orig_func with
           (Lval(Var(v),NoOffset)) -> 
             let newvi, ispoly = instantiatePolyFunc v in
-            (* And add a declaration for it *)
-            if ispoly then
-              theFile := GDecl (newvi, l) :: !theFile;
-            (Lval(Var(newvi), NoOffset)), ispoly
+            doVarinfo newvi;
+            if ispoly then begin
+              Lval (Var newvi, NoOffset), true
+            end else (* Not polymorphic *) orig_func, false
         | _ -> orig_func, false
       in
       let isprintf = isPrintf reso func args in
-      let args = 
+      let args' = 
         match isprintf with
-          Some args' -> args'
-        | None -> begin
-            match isMemcpy reso func args with 
-              Some args' -> args'
-            | None -> args
-        end
+          Some args'  -> args'
+        | None -> args
       in
       (* Do the function as if we were to take its address *)
       let pfunc, pfunct, pfuncn = 
@@ -894,7 +897,7 @@ and doInstr (i:instr) : instr =
       in
       (* If the function has more actual arguments than formals then mark the 
        * function node as used without prototype *)
-      if List.length args <> List.length formals && not isva then begin
+      if List.length args' <> List.length formals && not isva then begin
         (* Bark if it is polymorphic. No prototype + polymorphism (or 
          * allocation) do not work together *)
         if ispoly || isprintf != None then 
@@ -915,11 +918,26 @@ and doInstr (i:instr) : instr =
             a' :: loopArgs [] args
 
         | fo :: formals, a :: args -> 
-            let a' = doExpAndCastCall a fo.vtype !callId in
+            (* See if this is a polymorphic argument *)
+            let ispolyarg = 
+              match ispoly, unrollType fo.vtype with
+                true, TPtr(TVoid _, _) -> true
+              | _, _ -> false
+            in
+(*            ignore (E.log "Call arg %a: %a -> %s\n" 
+                      d_exp a' d_plaintype (typeOf a') fo.vname); *)
+            let a' = doExpAndCastCall a fo.vtype !callId ispolyarg in
             a' :: loopArgs formals args
+
         | _, _ -> E.s (E.unimp "Markptr: not enough arguments in call to %a"
                          d_exp orig_func)
-      in  begin
+      in  
+      let polyRet = 
+        match ispoly, unrollType rt with 
+          true, TPtr(TVoid _, _) -> true
+        | _, _ -> false
+      in
+      begin
           (* Now check the return value*)
         match reso, unrollType rt with
           None, TVoid _ -> ()
@@ -932,10 +950,59 @@ and doInstr (i:instr) : instr =
             (* Add the cast. Make up a phony expression and a node so that we 
              * can call expToType. *)
             ignore (expToType (Const(CStr("a call return")),
-                               rt, N.dummyNode) (typeOfLval dest') !callId)
+                               rt, N.dummyNode) (typeOfLval dest') 
+                      !callId polyRet)
 	end 
       end;
-      Call(reso, func', loopArgs formals args, l)
+      (* Take a look at a few special function *)
+      (match func' with 
+        Lval(Var v, NoOffset) -> begin
+          match args' with
+            [a] -> 
+              if matchPolyName "__endof" v.vname then begin
+                let n = nodeOfType (typeOf a) in
+                if n == N.dummyNode then
+                  E.s (error "Call to __endof on a non pointer");
+                n.N.posarith <- true (* To make sure we have an end *)
+              end else if matchPolyName "__startof" v.vname then begin
+                let n = nodeOfType (typeOf a) in
+                if n == N.dummyNode then
+                  E.s (error "Call to __startof on a non pointer");
+                n.N.arith <- true (* To make sure we have a start and an end *)
+              end 
+          | _ -> ()
+        end
+      | _ -> ());
+      Call(reso, func', loopArgs formals args', l)
+
+
+let doFunctionBody (fdec: fundec) = 
+  currentFunctionName := fdec.svar.vname;
+  (* Go through the formals and copy their type and attributes from 
+  * the type. Then restore the sharing  *)
+  (match fdec.svar.vtype with
+    TFun(rt, targs, isva, fa) -> 
+      let rec scanFormals targs sformals = 
+        match targs, sformals with
+          [], [] -> ()
+        | ta :: targs, sf :: sformals -> 
+            sf.vtype <- ta.vtype;
+            sf.vattr <- ta.vattr;
+            scanFormals targs sformals
+        | _ -> E.s (bug "scanFormals(%s) non-matching formal lists"
+                      fdec.svar.vname)
+      in
+      scanFormals targs fdec.sformals;
+      (* Restore the sharing by writing the type *)
+      setFormals fdec fdec.sformals;
+      currentResultType := rt
+  | _ -> E.s (bug "Not a function")); 
+  (* Do the other locals *)
+  List.iter doVarinfo fdec.slocals;
+  (* Do the body *)
+  fdec.sbody <- doBlock fdec.sbody
+
+let disableModelCheck = ref false
   
 (* Now do the globals *)
 let doGlobal (g: global) : global = 
@@ -993,27 +1060,16 @@ let doGlobal (g: global) : global =
   
       | GDecl (vi, l) -> 
           currentLoc := l;
-         (* ignore (E.log "Found GDecl of %s. T=%a\n" vi.vname
-                d_plaintype vi.vtype); *)
+          (* ignore (E.log "Found GDecl of %s. T=%a\n" vi.vname
+                    d_plaintype vi.vtype); *)
           if not (H.mem polyFunc vi.vname) then doVarinfo vi; 
-          (* Maybe it has a model *)
-          (try
+          (try  (* Remember the model for it if there is one *)
             let model = H.find boxModels vi.vname in
-            (* Pretend the function calls its model *)
-            match vi.vtype, model.svar.vtype with
-              TFun(vrt, vargs, _, _), TFun(mrt, margs, _, _) -> 
-                if List.length vargs <> List.length margs then begin
-                  ignore (warn "%s has different number of arguments than its model %s\n" vi.vname model.svar.vname);
-                  raise Not_found
-                end;
-                List.iter2 (fun va ma -> 
-                  ignore (expToType (one, va.vtype, N.dummyNode) ma.vtype 0))
-                  vargs margs;
-                (* Connect the return types *)
-                ignore (expToType (one, mrt, N.dummyNode) vrt 0)
-            | _ -> ()
+            vi.vattr <- addAttribute (Attr("modelledbody", [])) vi.vattr;
+            H.add modelledFuncs vi model
           with Not_found -> ());
           g
+
       | GVar (vi, init, l) -> 
           currentLoc := l;
           let init' = 
@@ -1024,57 +1080,49 @@ let doGlobal (g: global) : global =
                 Some i'
           in
           GVar (vi, init', l)
+            
       | GFun (fdec, l) -> 
           currentLoc := l;
-          let newvi, ispoly = instantiatePolyFunc fdec.svar in
-          (* See if it actually is a model *)
-          List.iter 
-            (function 
-                Attr(_, [AStr fname]) -> 
-                  ignore (E.log "Will use %s as a model for %s\n"
-                            fdec.svar.vname fname);
-                  H.add boxModels fname fdec
-              | _ -> ()) (filterAttributes "boxmodel" fdec.svar.vattr);
-          if ispoly then
-            fdec.svar <- newvi; (* Change the varinfo if the instantiation 
-                                 * has changed it *)
-          currentFunctionName := fdec.svar.vname;
-          (* Go through the formals and copy their type and attributes from 
-           * the type. Then restore the sharing  *)
-          (match fdec.svar.vtype with
-            TFun(rt, targs, isva, fa) -> 
-              let rec scanFormals targs sformals = 
-                match targs, sformals with
-                  [], [] -> ()
-                | ta :: targs, sf :: sformals -> 
-                    sf.vtype <- ta.vtype;
-                    sf.vattr <- ta.vattr;
-                    scanFormals targs sformals
-                | _ -> E.s (bug "scanFormals(%s) non-matching formal lists"
-                              fdec.svar.vname)
-              in
-              scanFormals targs fdec.sformals;
-          (* Restore the sharing by writing the type *)
-              setFormals fdec fdec.sformals;
-              currentResultType := rt
-          | _ -> E.s (bug "Not a function")); 
-          (* Do the other locals *)
-          List.iter doVarinfo fdec.slocals;
-          (* Do the body *)
-          fdec.sbody <- doBlock fdec.sbody;
-          g
+          (* See if it is a model for anybody *)
+          let modelattrs = filterAttributes "boxmodel" fdec.svar.vattr in
+          if not !disableModelCheck then 
+            List.iter 
+              (function 
+                  Attr(_, [AStr fname]) -> 
+                    ignore (E.log "Will use %s as a model for %s\n"
+                              fdec.svar.vname fname);
+                    H.add boxModels fname fdec;
+                | _ -> ()) modelattrs;
+          (* If it is polymorphic then remember it for later. *)
+          if H.mem polyFunc fdec.svar.vname then begin
+            H.add polyBodies fdec.svar.vname fdec;
+            GText ("// Body of " ^ fdec.svar.vname ^ " used to be here\n")
+          end else begin
+            (* This one should not also have a model *)
+            if not !disableModelCheck && H.mem boxModels fdec.svar.vname then 
+              E.s (E.bug "Function %s is both defined and has models!\n" 
+                     fdec.svar.vname);
+            doVarinfo fdec.svar;
+            doFunctionBody fdec;
+            g
+          end
 
       | GPragma _ -> g (* Should never be reached *)
   end
+
       
 (* Now do the file *)      
 let markFile fl = 
   currentFileName := fl.fileName;
   boxing := true;
+  disableModelCheck := false;
   E.hadErrors := false;
   H.clear polyFunc;
+  H.clear polyBodies;
   H.clear boxModels;
+  H.clear modelledFuncs;
   H.clear dontUnrollTypes;
+  instantiations := [];
   (* Some globals that are exported and must thus be considered part of the 
    * interface *)
   let exported : (string, bool) H.t = H.create 111 in
@@ -1137,12 +1185,109 @@ let markFile fl =
     List.iter (fun s -> H.add polyFunc s (ref None)) 
       ["free" ];
   end;
-  (* initialize the default printf-like functions. Done in fixup.h
-  List.iter (fun (s,i) -> H.add printfFunc s i)
-    [("printf",0) ; ("fprintf",1) ; ("sprintf",1) ; ("snprintf",2)] ; *)
   theFile := [];
   List.iter (fun g -> let g' = doGlobal g in 
                       theFile := g' :: !theFile) fl.globals;
+
+  (* Now we must create a body for all of the modelled functions. We know that 
+   * they do not have a definition already *)
+  disableModelCheck := true;
+  H.iter
+    (fun modelled -> fun model ->
+      ignore (E.log "Creating a body for %s based on model %s\n"
+                modelled.vname model.svar.vname);
+      (* Make the sformals *)
+      let rt, sformals, va, l = 
+        match modelled.vtype with
+          TFun(rt, args, va, l) -> rt, args, va, l 
+        | _ -> E.s (E.bug "Modelled function %s does not have a function type"
+                      modelled.vname)
+      in
+      (* Go over the formals and make sure that we assign the right ids. 
+       * Being in a type they might not have the right IDS. This is safe 
+       * since we know that there is no definition already for this func. *)
+      let vid = ref 0 in (* for local ids *)
+      List.iter (fun s -> s.vid <- !vid; incr vid) sformals;
+      let modelledFun = { svar     = modelled;
+                          sformals = sformals;
+                          slocals  = [];
+                          smaxid   = !vid - 1;
+                          sinline  = false;
+                          sbody    = mkBlock [] } in
+      (* Now make the body *)
+      let reslvo, reso = 
+        match rt with 
+          TVoid _ -> None, None
+        | t -> 
+            let tmp = makeTempVar modelledFun t in
+            Some (var tmp), Some (Lval (var tmp))
+      in
+      let call = 
+        mkStmtOneInstr
+          (Call (reslvo, Lval (var model.svar),
+                 List.map (fun a -> Lval (var a)) sformals,
+                 locUnknown)) in
+      let return = mkStmt (Return (reso, locUnknown)) in
+      modelledFun.sbody <- mkBlock [call; return];
+      (* If it is polymorphic we postpone it *)
+      if H.mem polyFunc modelled.vname then
+        H.add polyBodies modelled.vname modelledFun
+      else begin
+        (* Just mark the body *)
+        theFile := GText ("// Modeling body of " 
+                          ^ modelled.vname ^ " based on model " ^
+                          model.svar.vname) :: !theFile;
+        let g' = doGlobal (GFun (modelledFun, locUnknown)) in
+        theFile :=  g' :: !theFile;
+      end) modelledFuncs;
+
+  
+  let allinstantiations : (string * varinfo) list ref = ref [] in
+
+  (* Now we must process the polymorphic functions. While we do that we might 
+   * create new polymorphic instantiations. Careful about infinite loops *)
+  let rec loopInstantiations (recs: (string * varinfo) list) (* parents *) = 
+    (* See what new instantiations we got *)
+    let newinst = List.rev !instantiations in (* Do them in order *)
+    instantiations := [];
+    allinstantiations := !allinstantiations @ newinst;
+    List.iter (depthFirst recs) newinst
+
+  and depthFirst (recs: (string * varinfo) list) (* Parents *)
+                 ((oldname, newvi) as thisone)
+      : unit = 
+    assert (!instantiations == []);
+    let recs' = thisone :: recs in
+    recursiveInstantiations := recs'; (* Set the parents for instantiatePoly *)
+    (try 
+      let body = H.find polyBodies oldname in
+      if debugInstantiate then 
+        ignore (E.log "Copying body of function %s\n" newvi.vname);
+      let f' = copyFunction body newvi.vname in
+      (* We must use newvi as the svar but we have to preserve the 
+      * sharing with sformals *)
+      setFunctionType f' newvi.vtype;
+      newvi.vtype <- f'.svar.vtype;
+      f'.svar <- newvi;
+      let g' = doGlobal (GFun(f', locUnknown)) in
+      theFile :=  g' :: !theFile;
+    with Not_found -> ()); (* This one does not have a body, or a model *)
+    loopInstantiations recs'
+  in
+  (* Now do the instantiations *)
+  loopInstantiations [];
+
+  (* There might be some polymorphic functions that were not used. Make sure 
+   * we have an instance of those as well, except if the body is a model. *)
+  H.iter 
+    (fun oldname -> fun body ->
+      if  filterAttributes "boxmodel" body.svar.vattr != [] 
+       && List.filter (fun (on, _) -> on = oldname) !allinstantiations != [] 
+      then
+        let g' = doGlobal (GFun(body, locUnknown)) in
+        theFile :=  g' :: !theFile)
+    polyBodies;
+  
   (* Now do the globinit *)
   let newglobinit = 
     match fl.globinit with
@@ -1174,11 +1319,13 @@ let markFile fl =
   let newfile = {fl with globals = newglobals; globinit = newglobinit} in
   if !Util.doCheck then
     Check.checkFile [] newfile;
-  H.clear doneComposites;
-  H.clear pulledOutComposites;
   H.clear polyFunc;
+  H.clear polyBodies;
   H.clear boxModels;
+  H.clear modelledFuncs;
   H.clear dontUnrollTypes;
+  recursiveInstantiations := [];
+  instantiations := [];
   newfile
 
         

@@ -219,7 +219,7 @@ endif
 
 
 ifdef _MSVC
-DEBUGCCL=cl /TC /O0 /Zi /MLd /I./lib /DEBUG
+DEBUGCCL=cl /TC /Zi /MLd /I./lib /DEBUG
 RELEASECCL=cl /TC /ML /I./lib
 ifdef RELEASE
 DOOPT=/Ox /Ob2 /G6
@@ -701,6 +701,15 @@ testrun/% : $(SMALL1)/%.c  defaulttarget
 	cd $(SMALL1); $(SAFECC)   \
                $(STANDARDPATCH) \
 	       $(DOOPT) $(EXEOUT)$*.exe $*.c
+	cd $(SMALL1); ./$*.exe
+
+testmodel/%: $(SMALL1)/%.c $(SMALL1)/modelextern.c defaulttarget
+	cd $(SMALL1); \
+            $(DEBUGCCL) $(CONLY) $(OBJOUT)modelextern.$(OBJ) modelextern.c
+	cd $(SMALL1); $(SAFECC) \
+                         $(STANDARDPATCH) \
+                         --nobox=modelextern --combine \
+                         $(DOOPT) $(EXEOUT)$*.exe $*.c modelextern.$(OBJ)
 	cd $(SMALL1); ./$*.exe
 
 combine%_3: defaulttarget
