@@ -439,7 +439,7 @@ SAFECLIBARG=$(DEF)_DEBUG
 endif
 
 $(SAFECLIB) : lib/safec.c lib/safec.h lib/safeccheck.h lib/splay.c 
-	cl $(DOOPT) /I./lib /c $(DEF)_MSVC $(SAFECLIBARG) \
+	cl $(DOOPT) /I./lib /Gy /c $(DEF)_MSVC $(SAFECLIBARG) \
                                            $(OBJOUT)obj/safec.o lib/safec.c
 	cl $(DOOPT) /I./lib /c $(DEF)_MSVC $(SAFECLIBARG) \
                                            $(OBJOUT)obj/splay.o lib/splay.c
@@ -458,6 +458,7 @@ $(SAFECLIB) : lib/safec.c $(GCLIB) lib/splay.o
 		rm -f $@; \
 	fi
 	ar -r $@ obj/safec.o lib/splay.o
+	ranlib $@
 
 endif
 
