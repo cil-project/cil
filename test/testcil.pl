@@ -419,6 +419,7 @@ $TEST->addTests("test-bad/checkinit", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/union2", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("scott/checkinit", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("scott/union5", "", ['inferbox']);
+$TEST->addTests("testrun/unrolltype", "", ['inferbox']);
 
 #
 # OLDEN benchmarks
