@@ -40,10 +40,10 @@ int test_fseq() {
   // Bad cannot be SAFE of else we'll fail the Non-pointer test
   int * P_KIND bad = safeToSeq(0);
   // We can increment bad and read
-  // ERROR(1):Ubound
-  // ERROR(2):Ubound
-  // ERROR(3):Ubound
-  // ERROR(4):Ubound
+  // ERROR(1):Non-pointer
+  // ERROR(2):Non-pointer
+  // ERROR(3):Non-pointer
+  // ERROR(4):Non-pointer
 #if ERROR > 0
   int res = bad[1];
 #endif  
