@@ -2975,7 +2975,7 @@ let boxFile file =
                    (d_attrlist true) l.vattr); *)
             (* sm: eliminate the annoying warnings about taking the address
              * of a 'register' variable, by removing the 'register' storage
-             * class for any variable with 'wild' attribute and 'named' type *)
+             * class for any variable with 'wild' attribute and 'named' type 
                 begin
                   if (l.vstorage = Register) then
                     match l.vtype with
@@ -2988,7 +2988,7 @@ let boxFile file =
                         end
                     |
                       _ -> ()
-                end;
+                end; *)
                 )
               f.slocals;
             currentFunction := f;           (* so that maxid and locals can be
