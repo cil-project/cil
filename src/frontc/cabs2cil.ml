@@ -1086,8 +1086,9 @@ let rec doSpecList (specs: A.spec_elem list)
   (* Collect the attributes *)
   let attrs : A.attribute list ref = ref [] in
 
-  let doSpecElem (acc: A.typeSpecifier list) 
-                 (se: A.spec_elem) : A.typeSpecifier list = 
+  let doSpecElem (se: A.spec_elem)
+                 (acc: A.typeSpecifier list) 
+                  : A.typeSpecifier list = 
     match se with 
       A.SpecTypedef -> acc
     | A.SpecInline -> isinline := true; acc
@@ -1109,8 +1110,22 @@ let rec doSpecList (specs: A.spec_elem list)
     | A.SpecType ts -> ts :: acc
     | A.SpecPattern _ -> E.s (E.bug "SpecPattern in cabs2cil input")
   in
-  (* Now scan the list and collect the type specifiers *)
-  let tspecs = List.fold_left doSpecElem [] specs in
+  (* Now scan the list and collect the type specifiers. Preserve the order *)
+  let tspecs = List.fold_right doSpecElem specs [] in
+  let tspecs' = 
+    (* GCC allows a named type that appears first to be followed by things 
+     * like "short", "signed", "unsigned" or "long". *)
+    match tspecs with 
+      A.Tnamed n :: (_ :: _ as rest) when not !msvcMode -> 
+        (* If rest contains "short" or "long" then drop the Tnamed *)
+        if List.exists (function A.Tshort -> true 
+                               | A.Tlong -> true | _ -> false) rest then
+          rest
+        else
+          tspecs
+
+    | _ -> tspecs
+  in
   (* Sort the type specifiers *)
   let sortedspecs = 
     let order = function (* Don't change this *)
@@ -1126,7 +1141,8 @@ let rec doSpecList (specs: A.spec_elem list)
       | A.Tdouble -> 9
       | _ -> 10 (* There should be at most one of the others *)
     in
-    List.sort (fun ts1 ts2 -> compare (order ts1) (order ts2)) tspecs 
+    (* Hopefully this is stable sort *)
+    List.sort (fun ts1 ts2 -> compare (order ts1) (order ts2)) tspecs' 
   in
   (* And now try to make sense of it. See ISO 6.7.2 *)
   let bt = 
@@ -1181,9 +1197,12 @@ let rec doSpecList (specs: A.spec_elem list)
 
      (* Now the other type specifiers *)
     | [A.Tnamed n] -> begin
-        match lookupType "type" n with 
-          (TNamed _) as x, _ -> x
-        | typ -> E.s (error "Named type %s is not mapped correctly\n" n)
+        let t = 
+          match lookupType "type" n with 
+            (TNamed _) as x, _ -> x
+          | typ -> E.s (error "Named type %s is not mapped correctly\n" n)
+        in
+        t
     end
 
     | [A.Tstruct (n, None)] -> (* A reference to a struct *)
@@ -1209,7 +1228,8 @@ let rec doSpecList (specs: A.spec_elem list)
         (* make a new name for this enumeration *)
         let n'' = newAlphaName true "enum" n' in
         (* Create the enuminfo *)
-        let enum = { ename = n''; eitems = []; eattr = []; ereferenced = false; } in
+        let enum = { ename = n''; eitems = []; 
+                     eattr = []; ereferenced = false; } in
         let res = TEnum (enum, []) in
 
         (* sm: start a scope for the enum tag values, since they *
@@ -1270,7 +1290,7 @@ let rec doSpecList (specs: A.spec_elem list)
         typ
 
     | _ -> 
-        E.s (error "Bad combination of type specifiers")
+        E.s (error "Invalid combination of type specifiers")
   in
   bt,!storage,!isinline,List.rev !attrs
 

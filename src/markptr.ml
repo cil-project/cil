@@ -1318,18 +1318,25 @@ and doFunctionCall
     | _ -> orig_func, false
   in
   (* Do the function as if we were to take its address *)
-  let pfunc, pfunct, pfuncn = 
+  let pfunc, funct, pfuncn = 
     match func with 
-      Lval lv -> doExp (mkAddrOf lv)
+      Lval lv -> doExp (mkAddrOf lv), typeOfLval lv
     | _ -> E.s (unimp "Called function is not an lvalue")
   in
   (* Now fetch out the real function and its type *)
   let func' = Lval (mkMem pfunc NoOffset) in
-  let funct =
-    match pfunct with
-      TPtr ((TFun _ as funct), _) -> funct
+  let funct = typeOfLval lv in
+(*
+    match unrollType pfunct with
+      TPtr (funct, _) -> begin
+        match unrollType funct with 
+          TFun _ -> funct
+        | _ ->
+            E.s (bug "Mark:doFunctionCall: Expected a function pointer here")
+      end
     | _ -> E.s (bug "Mark:doFunctionCall: Expected a function pointer here")
   in
+*)
   let (rt, formals, isva) = 
     match unrollType funct with
       TFun(rt, formals, isva, _) -> rt, formals, isva

@@ -214,7 +214,10 @@ $TEST->addTests("combine2", "", ['cil']);
 $TEST->addTests("combine3", "", ['cil']);
 $TEST->add2Tests("testrun/funptr1");
    $TEST->addBadComment("testrun/funptr1-inferbox", "Bug in markptr");
-
+$TEST->addTests("testrun/typespec1", "_GNUCC=1", ['cil']);
+   $TEST->addBadComment("testrun/typespec1-inferbox", 
+                        "Must emulate bug in GCC?");
+   
 # Tests that are expected to fail
 $TEST->add2TestsFail("testrun/failubound1", "", "Failure .+: Ubound");
 $TEST->add2TestsFail("testrun/failnull1", "", "Failure .+: Non-pointer");
