@@ -297,3 +297,86 @@ type registerInfo = {
 let valOf : 'a option -> 'a = function
     None -> raise (Failure "Util.valOf")
   | Some x -> x
+
+
+
+(************************************************************************)
+
+module type STACK = sig
+  type 'a t
+  (** The type of stacks containing elements of type ['a]. *)
+
+  exception Empty
+  (** Raised when {!Stack.pop} or {!Stack.top} is applied to an empty stack. *)
+
+  val create : unit -> 'a t
+  (** Return a new stack, initially empty. *)
+
+  val push : 'a -> 'a t -> unit
+  (** [push x s] adds the element [x] at the top of stack [s]. *)
+
+  val pop : 'a t -> 'a
+  (** [pop s] removes and returns the topmost element in stack [s],
+     or raises [Empty] if the stack is empty. *)
+
+  val top : 'a t -> 'a
+  (** [top s] returns the topmost element in stack [s],
+     or raises [Empty] if the stack is empty. *)
+  
+  val clear : 'a t -> unit
+  (** Discard all elements from a stack. *)
+  
+  val copy : 'a t -> 'a t
+  (** Return a copy of the given stack. *)
+  
+  val is_empty : 'a t -> bool
+  (** Return [true] if the given stack is empty, [false] otherwise. *)
+  
+  val length : 'a t -> int
+  (** Return the number of elements in a stack. *)
+  
+  val iter : ('a -> unit) -> 'a t -> unit
+  (** [iter f s] applies [f] in turn to all elements of [s],
+     from the element at the top of the stack to the element at the
+     bottom of the stack. The stack itself is unchanged. *)
+end
+
+module Stack = struct
+
+  type 'a t = { mutable length : int;
+                stack : 'a Stack.t; }
+
+  exception Empty
+
+  let create () = { length = 0;
+                    stack = Stack.create(); }
+
+  let push x s =
+    s.length <- s.length + 1;
+    Stack.push x s.stack
+
+  let pop s =
+    s.length <- s.length - 1;
+    Stack.pop s.stack
+
+  let top s =
+    Stack.top s.stack
+
+  let clear s =
+    s.length <- 0;
+    Stack.clear s.stack
+
+  let copy s = { length = s.length;
+		 stack = Stack.copy s.stack; }
+    
+  let is_empty s =
+    Stack.is_empty s.stack
+
+  let length s = s.length
+
+  let iter f s =
+    Stack.iter f s.stack
+
+end
+
+(************************************************************************)
