@@ -1,4 +1,6 @@
 void exit(int);
+void abort(void);
+
 // From c-torture
 
 /* The purpose of this test is to catch edge cases when arguments are passed

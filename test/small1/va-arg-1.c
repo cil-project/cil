@@ -1,6 +1,7 @@
 // This is from c-torture
 #include <stdarg.h>
 extern void exit(int);
+extern void abort(void);
 
 #pragma boxvararg("f", sizeof(union { long l; }))
 

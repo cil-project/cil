@@ -1,5 +1,5 @@
 #include "testharness.h"
-
+extern int abort(void);
 // From c-torture
 
 int expect_do1 = 1, expect_do2 = 2;
