@@ -56,3 +56,9 @@ CCURED
 
  - I wonder what do we do when casting between abstract types (struct foo *
    where struct foo is not defined)
+
+ - change CHECK_RETURNPTR and CHECK_STOREPTR so that the range checked
+    is 512K (instead of 1 meg) for Linux Kernel Drivers.
+
+ - add a flag that effectively puts #pragma box(off) / #pragma box(on)
+   around all global initializers in a file. 

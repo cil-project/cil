@@ -1529,7 +1529,8 @@ LINUX_INCLUDES := $(CCUREDHOME)/test/linux/include
 LINUX_TOPATCH := asm/uaccess.h asm/atomic.h asm/bitops.h \
 	         asm/current.h asm/string.h \
                  linux/config.h linux/list.h linux/skbuff.h \
-		 linux/etherdevice.h linux/irq_cpustat.h
+		 linux/etherdevice.h linux/irq_cpustat.h \
+		 linux/netdevice.h
 
 linuxsetup: mustbelinux
 	$(PATCHER)  -D MODULE -D __KERNEL__ -I /usr/src/linux/include \
@@ -1558,3 +1559,15 @@ pcnet32: mustbegcc mustbelinux $(LINUXMODULELIB)
 	cd $(PCNET32DIR); ( make clean && \
            make CC="$(CCURED) $(LINUXPATCH) --entryPoint='pcnet32_init_module'" ) ;
 	cd $(LINUXMODULELIBDIR) ; make pcnet32_cured.o
+	
+IDECDDIR := test/linux/ide-cd
+ide-cd: mustbegcc mustbelinux $(LINUXMODULELIB)
+	cd $(IDECDDIR); ( make clean && \
+           make CC="$(CCURED) $(LINUXPATCH) --entryPoint='ide_cdrom_init'" ) ;
+	cd $(LINUXMODULELIBDIR) ; make ide-cd_cured.o
+
+REISERFSDIR := test/linux/reiserfs
+reiserfs: mustbegcc mustbelinux $(LINUXMODULELIB)
+	cd $(REISERFSDIR); ( make clean && \
+           make CC="$(CCURED) $(LINUXPATCH) --entryPoint='init_reiserfs_fs'" ) ;
+	cd $(LINUXMODULELIBDIR) ; make reiserfs_cured.o
