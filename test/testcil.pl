@@ -371,6 +371,8 @@ $TEST->addTests("test-bad/nonptr1",
 $TEST->addTests("test-bad/asm1", 
                 "EXTRAARGS=--allowInlineAssembly", ['inferbox']);
 
+$TEST->addTests("test-bad/size1", "", ['inferbox']);
+                
 $TEST->addTests("test-bad-ln/handler1",
     "CCURED_ERROR_HANDLERS=handler1.handlers FAILISVERBOSE=1", ['inferbox']);
     

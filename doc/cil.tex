@@ -2149,10 +2149,49 @@ struct foo {
  int y;
 };
 extern struct foo another;
+void main() {
+}
 \end{verbatim}\end{code}
 
- And the result of merging file1.c and file2.c is:
+ There are several ways in which one might create an executable from these
+files:
+\begin{itemize}
+\item
+\begin{verbatim}
+gcc file1.c file2.c -o a.out
+\end{verbatim}
 
+\item 
+\begin{verbatim}
+gcc -c file1.c -o file1.o
+gcc -c file2.c -o file2.o
+ld file1.o file2.o -o a.out
+\end{verbatim}
+
+\item 
+\begin{verbatim}
+gcc -c file1.c -o file1.o
+gcc -c file2.c -o file2.o
+ar r libfile2.a file2.o
+gcc file1.o libfile2.a -o a.out
+\end{verbatim}
+
+\item 
+\begin{verbatim}
+gcc -c file1.c -o file1.o
+gcc -c file2.c -o file2.o
+ar r libfile2.a file2.o
+gcc file1.o -lfile2 -o a.out
+\end{verbatim}
+\end{itemize}
+
+ In each of the cases above you must replace all occurrences of \t{gcc} and
+\t{ld} with \t{cilly --merge}, and all occurrences of \t{ar} with \t{cilly
+--merge --mode AR}. It is very important that the \t{--merge} flag be used
+throughout the build process. If you want to see the merged source file you
+must also pass the \t{--keepmerged} flag to the linking phase. 
+
+ The result of merging file1.c and file2.c is:
 \begin{code}
 // from file1.c
 struct foo; // Forward declaration
@@ -2623,6 +2662,8 @@ Necula}.
  
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf December 30, 2003} : Extended the \t{cilly} command to understand
+  better linker command options \t{-lfoo}. 
 \item {\bf December 5, 2003}: Added markup commands to the pretty-printer
 module. Also, changed the ``@<'' left-flush command into ``@\^''.
 \item {\bf December 4, 2003}: Wide string literals are now handled

@@ -82,6 +82,7 @@ sub new {
       VERBOSE => 0,    # when true, print extra detail
       TRACE_COMMANDS => 1, # when true, echo commands being run
       SEPARATE => ! $::default_is_merge,
+      LIBDIR => [],
       OPERATION => 'TOEXE', # This is the default for all compilers
     };
     my $self = bless $ref, $class;
@@ -146,7 +147,7 @@ sub new {
       if($self->{VERBOSE}) { print STDERR "Merging disabled by CILLY_NOMERGE\n"; }
     }
 
-#    print Dumper($self);
+    print Dumper($self);
 
     return $self;
 }
@@ -836,7 +837,12 @@ sub link {
 
     my ($tomerge, $trueobjs) = $self->separateTrueObjects($psrcs);
 
-    
+    if($self->{VERBOSE}) {
+        print STDERR "Will merge the following: ", 
+                         join(' ', @{$tomerge}), "\n";
+        print STDERR "Will just link the genuine object files: ", 
+                         join(' ', @{$trueobjs}), "\n";
+    }
     # Check the modification times and see if we can just use the combined
     # file instead of merging all over again
     if(@{$tomerge} > 1 && $self->{KEEPMERGED}) {
@@ -1798,8 +1804,31 @@ sub new {
                                                 $stub->{SAVE_TEMPS} = '.'; } }},
 	    '--?print-' => { TYPE => 'SPECIAL' },
 	    '-dump' => { TYPE => 'SPECIAL' },
-            "-l" => { TYPE => 'LINK' },
-            "-L" => { TYPE => 'LINK' },
+            "-l" => 
+            { RUN => sub { 
+                my ($libname) = ($_[1] =~ m|-l(.+)$|);
+                # See if we can find this library in the LIBDIR
+                my @libdirs = @{$stub->{LIBDIR}};
+                if($#libdirs == -1) {
+                    push @libdirs, '.';
+                }
+                foreach my $d (@libdirs) {
+                    if(-f "$d/lib$libname.a") {
+                        # Pretend that we had a straight argument
+                        push @{$stub->{OFILES}}, "$d/lib$libname.a";
+                        return;
+                    }
+                }
+                # We get here when we cannot find the library in the LIBDIR
+                push @{$stub->{LINKARGS}}, $_[1];
+            }},
+            "-L" => 
+            { RUN => sub { 
+                # Remember these directories in LIBDIR
+                my ($dir) = ($_[1] =~ m|-L(.+)$|);
+                push @{$stub->{LIBDIR}}, $dir;
+                push @{$stub->{LINKARGS}}, $_[1];
+            }},
             "-f" => { TYPE => 'LINKCC' },
             "-r\$" => { RUN => sub { $stub->{OPERATION} = "TOLIB"; }},
             "-i\$" => { RUN => sub { $stub->{OPERATION} = "TOLIB"; }},
