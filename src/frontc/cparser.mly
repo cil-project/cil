@@ -411,9 +411,14 @@ primary_expression:                     /*(* 6.5.1. *)*/
 		        {CONSTANT (fst $1), snd $1}
 |		paren_comma_expression  
 		        {smooth_expression (fst $1), snd $1}
+|		LPAREN block RPAREN
+		        { GNU_BODY (fst3 $2), $1 }
+
+     /*(* Next is Scott's transformer *)*/
 |               AT_EXPR LPAREN IDENT RPAREN         /* expression pattern variable */
                          { EXPR_PATTERN(fst $3), $1 }
 ;
+
 postfix_expression:                     /*(* 6.5.2 *)*/
 |               primary_expression     
                         { $1 }
@@ -473,8 +478,6 @@ cast_expression:   /*(* 6.5.4 *)*/
                          { $1 }
 |		LPAREN type_name RPAREN cast_expression
 		         { CAST($2, SINGLE_INIT (fst $4)), $1 }
-|		LPAREN block RPAREN
-		        { GNU_BODY (fst3 $2), $1 }
 ;
 
 multiplicative_expression:  /*(* 6.5.5 *)*/
@@ -607,125 +610,6 @@ expression:           /*(* 6.5.17 *)*/
                         { $1 }
 ;
                             
-expression_old:
-        	constant     /*x*/
-		        {CONSTANT (fst $1), snd $1}
-|		IDENT    /*x*/
-		        {VARIABLE (fst $1), snd $1}
-|		paren_comma_expression              
-		        {smooth_expression (fst $1), snd $1}
-|		SIZEOF expression
-		        {EXPR_SIZEOF (fst $2), $1}
-|	 	SIZEOF LPAREN type_name RPAREN
-		        {let b, d = $3 in TYPE_SIZEOF (b, d), $1}
-|		ALIGNOF expression
-		        {EXPR_ALIGNOF (fst $2), $1}
-|	 	ALIGNOF LPAREN type_name RPAREN
-		        {let b, d = $3 in TYPE_ALIGNOF (b, d), $1}
-|		PLUS expression
-		        {UNARY (PLUS, fst $2), $1}
-|		MINUS expression
-		        {UNARY (MINUS, fst $2), $1}
-|		STAR expression
-		        {UNARY (MEMOF, fst $2), $1}
-|		AND expression				%prec ADDROF
-		        {UNARY (ADDROF, fst $2), $1}
-|		EXCLAM expression
-		        {UNARY (NOT, fst $2), $1}
-|		TILDE expression
-		        {UNARY (BNOT, fst $2), $1}
-|		PLUS_PLUS expression                    %prec CAST  /*x*/
-		        {UNARY (PREINCR, fst $2), $1}
-|		expression PLUS_PLUS    /*x*/
-		        {UNARY (POSINCR, fst $1), snd $1}
-|		MINUS_MINUS expression                  %prec CAST   /*x*/
-		        {UNARY (PREDECR, fst $2), $1}
-|		expression MINUS_MINUS    /*x*/
-		        {UNARY (POSDECR, fst $1), snd $1}
-|		expression ARROW id_or_typename    /*x*/
-		        {MEMBEROFPTR (fst $1, $3), snd $1}
-|		expression DOT id_or_typename         /*x*/
-		        {MEMBEROF (fst $1, $3), snd $1}
-|		LPAREN block RPAREN
-		        { GNU_BODY (fst3 $2), $1 }
-|		expression LPAREN arguments RPAREN
-			{CALL (fst $1, $3), snd $1}
-|               BUILTIN_VA_ARG LPAREN expression COMMA type_name RPAREN
-                        { let b, d = $5 in
-                          CALL (VARIABLE "__builtin_va_arg", 
-                                [fst $3; TYPE_SIZEOF (b, d)]), $1 }
-|		expression bracket_comma_expression
-			{INDEX (fst $1, smooth_expression $2), snd $1}
-|		expression QUEST opt_expression COLON expression
-			{QUESTION (fst $1, $3, fst $5), snd $1}
-|		expression PLUS expression
-			{BINARY(ADD, fst $1, fst $3), snd $1}
-|		expression MINUS expression
-			{BINARY(SUB, fst $1, fst $3), snd $1}
-|		expression STAR expression
-			{BINARY(MUL, fst $1, fst $3), snd $1}
-|		expression SLASH expression
-			{BINARY(DIV, fst $1, fst $3), snd $1}
-|		expression PERCENT expression
-			{BINARY(MOD, fst $1, fst $3), snd $1}
-|		expression AND_AND expression
-			{BINARY(AND, fst $1, fst $3), snd $1}
-|		expression PIPE_PIPE expression
-			{BINARY(OR, fst $1, fst $3), snd $1}
-|		expression AND expression
-			{BINARY(BAND, fst $1, fst $3), snd $1}
-|		expression PIPE expression
-			{BINARY(BOR, fst $1, fst $3), snd $1}
-|		expression CIRC expression
-			{BINARY(XOR, fst $1, fst $3), snd $1}
-|		expression EQ_EQ expression
-			{BINARY(EQ, fst $1, fst $3), snd $1}
-|		expression EXCLAM_EQ expression
-			{BINARY(NE, fst $1, fst $3), snd $1}
-|		expression INF expression
-			{BINARY(LT, fst $1, fst $3), snd $1}
-|		expression SUP expression
-			{BINARY(GT, fst $1, fst $3), snd $1}
-|		expression INF_EQ expression
-			{BINARY(LE, fst $1, fst $3), snd $1}
-|		expression SUP_EQ expression
-			{BINARY(GE, fst $1, fst $3), snd $1}
-|		expression  INF_INF expression
-			{BINARY(SHL, fst $1, fst $3), snd $1}
-|		expression  SUP_SUP expression
-			{BINARY(SHR, fst $1, fst $3), snd $1}
-|		expression EQ expression
-			{BINARY(ASSIGN, fst $1, fst $3), snd $1}
-|		expression PLUS_EQ expression
-			{BINARY(ADD_ASSIGN, fst $1, fst $3), snd $1}
-|		expression MINUS_EQ expression
-			{BINARY(SUB_ASSIGN, fst $1, fst $3), snd $1}
-|		expression STAR_EQ expression
-			{BINARY(MUL_ASSIGN, fst $1, fst $3), snd $1}
-|		expression SLASH_EQ expression
-			{BINARY(DIV_ASSIGN, fst $1, fst $3), snd $1}
-|		expression PERCENT_EQ expression
-			{BINARY(MOD_ASSIGN, fst $1, fst $3), snd $1}
-|		expression AND_EQ expression
-			{BINARY(BAND_ASSIGN, fst $1, fst $3), snd $1}
-|		expression PIPE_EQ expression
-			{BINARY(BOR_ASSIGN, fst $1, fst $3), snd $1}
-|		expression CIRC_EQ expression
-			{BINARY(XOR_ASSIGN, fst $1, fst $3), snd $1}
-|		expression INF_INF_EQ expression	
-			{BINARY(SHL_ASSIGN, fst $1, fst $3), snd $1}
-|		expression SUP_SUP_EQ expression
-			{BINARY(SHR_ASSIGN, fst $1, fst $3), snd $1}
-|		LPAREN type_name RPAREN expression %prec CAST
-		         { CAST($2, SINGLE_INIT (fst $4)), $1 }
-/* (* We handle GCC constructor expressions *) */
-|		LPAREN type_name RPAREN LBRACE initializer_list_opt RBRACE
-		         { CAST($2, COMPOUND_INIT $5), $1 }
-/* (* GCC's address of labels *)  */
-|               AND_AND IDENT  { LABELADDR (fst $2), $1 }
-|               AT_EXPR LPAREN IDENT RPAREN         /* expression pattern variable */
-                         { EXPR_PATTERN(fst $3), $1 }
-;
 
 constant:
     CST_INT				{CONST_INT (fst $1), snd $1}

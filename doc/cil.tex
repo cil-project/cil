@@ -2486,6 +2486,20 @@ code returns 2.
   static (*pbar)() = 0;
 \end{cilcode}
 
+
+\item Two years after heavy use of CIL, by us and others, I discovered a bug
+  in the parser. The return value of the following function depends on what
+  precedence you give to casts and unary minus:
+\begin{cilcode}[global]
+  unsigned long foo() {
+    return (unsigned long) - 1 / 8;
+  }
+\end{cilcode}
+
+  The correct interpretation is \t{((unsigned long) - 1) / 8}, which is a
+  relatively large number, as opposed to \t{(unsigned long) (- 1 / 8)}, which
+  is 0. 
+
 \end{enumerate}
 
  \subsection{GCC ugliness}\label{sec-ugly-gcc}
@@ -2689,6 +2703,8 @@ Necula}.
  
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf April 6, 2004}: Fixed embarassing bug in the parser: the precedence
+  of casts and unary operators was switched. 
 \item {\bf April 5, 2004}: {\bf Released version 1.2.5}
 \item {\bf April 5, 2004}: Fixed a bug involving statements mixed between
 declarations containing initializers. Now we make sure that the initializers
