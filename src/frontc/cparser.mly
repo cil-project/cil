@@ -13,24 +13,16 @@ let parse_error msg : 'a =
 
 let print = print_string
 
-let curLine = -1
 
-
-let getCurLn () : int =
-         Clexer.lineno !Clexer.current_handle 
-        (* curLine *)                             
+(*
+let getCurLn () : int = !Clexer.currentLine
+         curLine                            
 
 let getCurFn () : string =
         (Clexer.file_name !Clexer.current_handle)
-        (* "why is'nt this working" *)
+*)
+let currentLoc () = {lineno = !Clexer.currentLine; filename = !Clexer.currentFile;}
 
-let currentLoc () =
-                ref {lineno = getCurLn();
-                  filename = getCurFn();}
-
-
-let setCurrentLoc () =
-  curLine = Clexer.lineno !Clexer.current_handle
 
 (*
 ** Expression building
@@ -67,25 +59,26 @@ let applyPointer (ptspecs: attribute list list) (dt: decl_type)
   in
   loop ptspecs
 
-let doDeclaration (specs: spec_elem list) (nl: init_name list) : definition = 
+let doDeclaration (loc: cabsloc) (specs: spec_elem list) (nl: init_name list) : definition = 
   if isTypedef specs then begin
     (* Tell the lexer about the new type names *)
     List.iter (fun ((n, _, _), _) -> Clexer.add_type n) nl;
-    TYPEDEF ((specs, List.map (fun (n, _) -> n) nl), !(currentLoc()))
+    TYPEDEF ((specs, List.map (fun (n, _) -> n) nl), loc)
   end else
     if nl = [] then
-      ONLYTYPEDEF (specs, !(currentLoc()))
+      ONLYTYPEDEF (specs, loc)
     else begin
       List.iter (fun ((n, _, _), _) -> Clexer.add_identifier n) nl;
-      DECDEF ((specs, nl), !(currentLoc()))  
+      DECDEF ((specs, nl), loc)  
     end
 
 
-let doFunctionDef (specs: spec_elem list) 
+let doFunctionDef (loc: cabsloc)
+                  (specs: spec_elem list) 
                   (n: name) 
                   (b: body) : definition = 
   let fname = (specs, n) in
-  FUNDEF (fname, b, !(currentLoc()))
+  FUNDEF (fname, b, loc)
 
 
 let doOldParDecl (names: string list)
@@ -218,6 +211,7 @@ let doOldParDecl (names: string list)
 %type <Cabs.decl_type> abs_direct_decl abs_direct_decl_opt
 %type <Cabs.decl_type * Cabs.attribute list> abstract_decl
 %type <attribute list list> pointer pointer_opt /* Each element is a "* <type_quals_opt>" */
+%type <Cabs.cabsloc> location
 %%
 
 interpret:
@@ -232,15 +226,18 @@ globals:
 | globals global			{$2::$1}
 ;
 
+location:
+   /* empty */                	{ currentLoc () }  %prec IDENT
+
 
 /*** Global Definition ***/
 global:
-  declaration           { $1 }
+  declaration  { $1 }
 | function_def          { $1 }
-| ASM LPAREN CST_STRING RPAREN SEMICOLON
-                        { GLOBASM ($3, !(currentLoc())) }
-| PRAGMA attr           { PRAGMA ($2, !(currentLoc())) }
-| error SEMICOLON       { PRAGMA (CONSTANT(CONST_STRING "error"), !(currentLoc())) }
+| location ASM LPAREN CST_STRING RPAREN SEMICOLON
+                        { GLOBASM ($4, $1) }
+| location PRAGMA attr  { PRAGMA ($3, $1) }
+| location error SEMICOLON { PRAGMA (CONSTANT(CONST_STRING "error"), $1) }
 ;
 typename:
     IDENT				{$1}
@@ -426,60 +423,52 @@ block_begin:
     LBRACE      		         {Clexer.push_context ()}
 ;
 
-
 block_item_list:
     /* empty */                          { [] }
-|   declaration block_item_list {BDEF $1 :: $2 }
-|   statement block_item_list   {BSTM $1 :: $2 }
+|   declaration block_item_list          {BDEF $1 :: $2 }
+|   statement block_item_list            {BSTM $1 :: $2 }
 ;
 
 
 
 
-location:
-   /* empty */                	{ignore(setCurrentLoc());
-	        		NOP !(currentLoc ())} %prec IDENT
 
 statement:
-    SEMICOLON		{NOP !(currentLoc ())}
+    location SEMICOLON		{NOP $1 }
 |   location comma_expression SEMICOLON
-	        	{COMPUTATION ((smooth_expression $2),
-	        	!(currentLoc ()))}
-|   location block               {BLOCK ($2, !(currentLoc ()))}
+	        	{COMPUTATION (smooth_expression $2, $1)}
+|   location block               {BLOCK ($2, $1)}
 |   location IF LPAREN comma_expression RPAREN statement %prec IF
-                	{IF (smooth_expression $4, $6,
-	        	 NOP !(currentLoc ()), !(currentLoc ()))}
+                	{IF (smooth_expression $4, $6, NOP $1, $1)}
 |   location IF LPAREN comma_expression RPAREN statement ELSE statement
-	                {IF (smooth_expression $4, $6, $8,
-	                !(currentLoc ()))}
+	                {IF (smooth_expression $4, $6, $8, $1)}
 |   location SWITCH LPAREN comma_expression RPAREN statement
-                        {SWITCH (smooth_expression $4, $6,
-                        !(currentLoc ()))}
+                        {SWITCH (smooth_expression $4, $6, $1)}
 |   location WHILE LPAREN comma_expression RPAREN statement
-	        	{WHILE (smooth_expression $4, $6,
-	        	!(currentLoc ()))}
+	        	{WHILE (smooth_expression $4, $6, $1)}
 |   location DO statement WHILE LPAREN comma_expression RPAREN SEMICOLON
-	        	         {DOWHILE (smooth_expression $6, $3,
-	        	          !(currentLoc ()))}
+	        	         {DOWHILE (smooth_expression $6, $3, $1)}
 |   location FOR LPAREN opt_expression SEMICOLON opt_expression
 	        SEMICOLON opt_expression RPAREN statement
-	                         {FOR ($4, $6, $8, $10, !(currentLoc ()))}
+	                         {FOR ($4, $6, $8, $10, $1)}
 |   location IDENT COLON statement
-		                 {LABEL ($2, $4, !(currentLoc ()))}
+		                 {LABEL ($2, $4, $1)}
 |   location CASE expression COLON
-	                         {CASE ($3, NOP !(currentLoc ()), !(currentLoc ()))}
+	                         {CASE ($3, NOP $1, $1)}
 |   location DEFAULT COLON
-	                         {DEFAULT (NOP !(currentLoc ()), !(currentLoc ()))}
-|   location RETURN SEMICOLON    {RETURN (NOTHING, !(currentLoc ()))}
+	                         {DEFAULT (NOP $1, $1)}
+|   location RETURN SEMICOLON    {RETURN (NOTHING, $1)}
 |   location RETURN expression SEMICOLON
-	                         {RETURN ($3, !(currentLoc ()))}
-|   location BREAK SEMICOLON     {BREAK !(currentLoc ())}
-|   location CONTINUE SEMICOLON	 {CONTINUE !(currentLoc ())}
+	                         {RETURN ($3, $1)}
+|   location BREAK SEMICOLON     {BREAK $1}
+|   location CONTINUE SEMICOLON	 {CONTINUE $1}
 |   location GOTO IDENT SEMICOLON
-		                 {GOTO ($3, !(currentLoc ()))}
-|   location gnuasm  SEMICOLON   { $2}
-|   location MSASM               { ASM ([$2], false, [], [], [], !(currentLoc ()))}
-|   location error   SEMICOLON   { (NOP !(currentLoc ()))}
+		                 {GOTO ($3, $1)}
+|   location ASM maybevol LPAREN asmtemplate asmoutputs RPAREN SEMICOLON
+                        { let (outs,ins,clobs) = $6 in
+                          ASM ($5, $3, outs, ins, clobs, $1) }
+|   location MSASM               { ASM ([$2], false, [], [], [], $1)}
+|   location error   SEMICOLON   { (NOP $1)}
 ;
 
 
@@ -489,9 +478,9 @@ statement:
 /*******************************************************/
 
 declaration:                                /* ISO 6.7.*/
-    decl_spec_list init_declarator_list SEMICOLON
-                                       { doDeclaration $1 $2 }
-|   decl_spec_list SEMICOLON           { doDeclaration $1 [] }
+    location decl_spec_list init_declarator_list SEMICOLON
+                                       { doDeclaration $1 $2 $3 }
+|   location decl_spec_list SEMICOLON  { doDeclaration $1 $2 [] }
 ;
 init_declarator_list:                       /* ISO 6.7 */
     init_declarator                              { [$1] }
@@ -506,17 +495,17 @@ init_declarator:                             /* ISO 6.7 */
 
 decl_spec_list:                         /* ISO 6.7 */
                                         /* ISO 6.7.1 */
-|   TYPEDEF location decl_spec_list_opt          { SpecTypedef :: $3  }    
-|   EXTERN location decl_spec_list_opt           { SpecStorage EXTERN :: $3 }
-|   STATIC  location decl_spec_list_opt          { SpecStorage STATIC :: $3 }
-|   AUTO location   decl_spec_list_opt           { SpecStorage AUTO :: $3 }
-|   REGISTER location decl_spec_list_opt         { SpecStorage REGISTER :: $3}
+|   TYPEDEF decl_spec_list_opt          { SpecTypedef :: $2  }    
+|   EXTERN decl_spec_list_opt           { SpecStorage EXTERN :: $2 }
+|   STATIC  decl_spec_list_opt          { SpecStorage STATIC :: $2 }
+|   AUTO   decl_spec_list_opt           { SpecStorage AUTO :: $2 }
+|   REGISTER decl_spec_list_opt         { SpecStorage REGISTER :: $2}
                                         /* ISO 6.7.2 */
-|   type_spec location decl_spec_list_opt_no_named { SpecType $1 :: $3 }
+|   type_spec decl_spec_list_opt_no_named { SpecType $1 :: $2 }
                                         /* ISO 6.7.4 */
-|   INLINE location decl_spec_list_opt           { SpecInline :: $3 }
-|   attribute location decl_spec_list_opt        { SpecAttr $1 :: $3 }
-|   EXTENSION location decl_spec_list            { $3 }
+|   INLINE decl_spec_list_opt           { SpecInline :: $2 }
+|   attribute decl_spec_list_opt        { SpecAttr $1 :: $2 }
+|   EXTENSION decl_spec_list            { $2 }
 ;
 /* In most cases if we see a NAMED_TYPE we must shift it. Thus we declare 
  * NAMED_TYPE to have right associativity */
@@ -727,25 +716,25 @@ abs_direct_decl_opt:
 |   /* empty */                     { JUSTBASE }
 ;
 function_def:  /* (* ISO 6.9.1 *) */
-  decl_spec_list declarator block { doFunctionDef $1 $2 $3 }
+  location decl_spec_list declarator block { doFunctionDef $1 $2 $3 $4 }
 /* (* Old-style function prototype *) */
-| decl_spec_list old_proto_decl block  { doFunctionDef $1 $2 $3 } 
+| location decl_spec_list old_proto_decl block  { doFunctionDef $1 $2 $3 $4 } 
 /* (* New-style function that does not have a return type *) */
-|          IDENT LPAREN parameter_list RPAREN block
-                           { let fdec = ($1, PROTO(JUSTBASE, $3, false), []) in
+| location        IDENT LPAREN parameter_list RPAREN block
+                           { let fdec = ($2, PROTO(JUSTBASE, $4, false), []) in
                              (* Default is int type *)
                              let defSpec = [SpecType Tint] in
-                             doFunctionDef defSpec fdec $5 }
+                             doFunctionDef $1 defSpec fdec $6 }
 /* (* No return type and old-style parameter list *) */
-|          IDENT LPAREN old_parameter_list RPAREN old_pardef_list block
+| location        IDENT LPAREN old_parameter_list RPAREN old_pardef_list block
                            { (* Convert pardecl to new style *)
-                             let pardecl = doOldParDecl $3 $5 in
+                             let pardecl = doOldParDecl $4 $6 in
                              (* Make the function declarator *)
-                             let fdec = ($1, 
+                             let fdec = ($2, 
                                          PROTO(JUSTBASE, pardecl,false), []) in
                              (* Default is int type *)
                              let defSpec = [SpecType Tint] in
-                             doFunctionDef defSpec fdec $6 }
+                             doFunctionDef $1 defSpec fdec $7 }
 ;
 
 
@@ -784,11 +773,6 @@ attr_list_ne:
 ;
 
 /*** GCC ASM instructions ***/
-gnuasm: 
-   ASM maybevol LPAREN asmtemplate asmoutputs RPAREN
-                        { let (outs,ins,clobs) = $5 in
-                          ASM ($4, $2, outs, ins, clobs, !(currentLoc())) }
-;
 maybevol:
      /* empty */                        { false }
 |    VOLATILE                           { true }

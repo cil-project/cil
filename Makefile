@@ -999,7 +999,7 @@ else
 IJPEGEXTRA=
 endif
 ifeq ($(ARCHOS), x86_WIN32)
-IJPEGSAFECC += -DWIN32
+IJPEGSAFECC += -DWIN32 -DMSDOS
 endif
 ijpegclean: 	
 	cd $(IJPEGDIR)/src; make clean

@@ -42,13 +42,11 @@ let parse_to_cabs fname =
     ignore (E.log "Frontc is parsing %s\n" fname);
     flush !E.logChannel;
     let file = open_in fname in
-    Clexer.init (false, file, "", "", 0, 0, stderr, fname);
     E.hadErrors := false;
+    let lexbuf: Lexing.lexbuf = Clexer.init fname file in
     let cabs = 
       Stats.time "parse"
-        (Cparser.file Clexer.initial)
-	(Lexing.from_function 
-           (Clexer.get_buffer Clexer.current_handle)) in
+        (Cparser.file Clexer.initial) lexbuf in
     close_in file;
     ignore (E.log "Frontc finished parsing\n");
     (match !out with 

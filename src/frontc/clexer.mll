@@ -41,65 +41,63 @@ end
 module StringHashtbl = Hashtbl.Make(HashString)
 let lexicon = StringHashtbl.create 211
 let init_lexicon _ =
-	StringHashtbl.clear lexicon;
-	List.fold_left
-	(fun tbl (key, token) -> StringHashtbl.add tbl key token ; tbl)
-	lexicon
-	[
-		("auto", AUTO);
-		("const", CONST); ("__const", CONST); ("__const__", CONST);
-		("static", STATIC);
-		("extern", EXTERN);
-		("long", LONG);
-		("short", SHORT);
-		("register", REGISTER);
-		("signed", SIGNED);
-		("unsigned", UNSIGNED);
-		("volatile", VOLATILE);
-		("char", CHAR);
-		("int", INT);
-		("float", FLOAT);
-		("double", DOUBLE);
-		("void", VOID);
-		("enum", ENUM);
-		("struct", STRUCT);
-		("typedef", TYPEDEF);
-		("union", UNION);
-		("break", BREAK);
-		("continue", CONTINUE);
-		("goto", GOTO); 
-		("return", RETURN);
-		("switch", SWITCH);
-		("case", CASE); 
+  StringHashtbl.clear lexicon;
+  List.iter 
+    (fun (key, token) -> StringHashtbl.add lexicon key token)
+    [ ("auto", AUTO);
+      ("const", CONST); ("__const", CONST); ("__const__", CONST);
+      ("static", STATIC);
+      ("extern", EXTERN);
+      ("long", LONG);
+      ("short", SHORT);
+      ("register", REGISTER);
+      ("signed", SIGNED);
+      ("unsigned", UNSIGNED);
+      ("volatile", VOLATILE);
+      ("char", CHAR);
+      ("int", INT);
+      ("float", FLOAT);
+      ("double", DOUBLE);
+      ("void", VOID);
+      ("enum", ENUM);
+      ("struct", STRUCT);
+      ("typedef", TYPEDEF);
+      ("union", UNION);
+      ("break", BREAK);
+      ("continue", CONTINUE);
+      ("goto", GOTO); 
+      ("return", RETURN);
+      ("switch", SWITCH);
+      ("case", CASE); 
 		("default", DEFAULT);
-		("while", WHILE);  
-		("do", DO);  
-		("for", FOR);
-		("if", IF);
+      ("while", WHILE);  
+      ("do", DO);  
+      ("for", FOR);
+      ("if", IF);
 		("else", ELSE);
-		(*** Implementation specific keywords ***)
-		("__signed__", SIGNED);
-                ("__inline__", INLINE); ("inline", INLINE); 
-                ("__inline", INLINE); ("_inline", INLINE);
-		("__attribute__", ATTRIBUTE);
-                ("__asm__", ASM); ("asm", ASM);
-                ("__typeof__", TYPEOF);
-                ("__volatile__", VOLATILE);
-                ("__FUNCTION__", FUNCTION__);
-		(*** weimer: GCC arcana ***)
-		("__restrict", RESTRICT); ("restrict", RESTRICT);
-		("__extension__", EXTENSION);
-                (**** MS VC ***)
-                ("__int64", INT64);
-                ("__int32", INT);
-                ("_cdecl",  MSATTR ("_cdecl")); 
-                ("__cdecl", MSATTR ("__cdecl"));
-                ("_stdcall", MSATTR "_stdcall"); 
-                ("__stdcall", MSATTR "__stdcall");
-                ("_fastcall", MSATTR "_fastcall"); 
-                ("__fastcall", MSATTR "__fastcall");
-                ("__declspec", DECLSPEC);
-	]
+      (*** Implementation specific keywords ***)
+      ("__signed__", SIGNED);
+      ("__inline__", INLINE); ("inline", INLINE); 
+      ("__inline", INLINE); ("_inline", INLINE);
+      ("__attribute__", ATTRIBUTE);
+      ("__asm__", ASM); ("asm", ASM);
+      ("__typeof__", TYPEOF);
+      ("__volatile__", VOLATILE);
+      ("__FUNCTION__", FUNCTION__);
+      (*** weimer: GCC arcana ***)
+      ("__restrict", RESTRICT); ("restrict", RESTRICT);
+      ("__extension__", EXTENSION);
+      (**** MS VC ***)
+      ("__int64", INT64);
+      ("__int32", INT);
+      ("_cdecl",  MSATTR ("_cdecl")); 
+      ("__cdecl", MSATTR ("__cdecl"));
+      ("_stdcall", MSATTR "_stdcall"); 
+      ("__stdcall", MSATTR "__stdcall");
+      ("_fastcall", MSATTR "_fastcall"); 
+      ("__fastcall", MSATTR "__fastcall");
+      ("__declspec", DECLSPEC);
+    ]
 
 let add_type name =
 (*   ignore (print_string ("adding type name " ^ name ^ "\n")); *)
@@ -138,12 +136,34 @@ let scan_ident id = try StringHashtbl.find lexicon id
 *)
  
 (*** input handle ***)
+let currentLine = ref 0 (* the index of the current line *)
+
+let currentFile = ref "" (* The file in which we are *)
+
+let startLine = ref 0 (* the position in the buffer where the current line 
+                       * starts *)
+
+(* The current lexing buffer *)
+let currentLexBuf = ref (Lexing.from_string "")
+
+let init (infile: string) 
+         (inc: in_channel) : Lexing.lexbuf =
+  currentLine := 1;
+  startLine := 0;
+  currentFile := infile;
+  init_lexicon ();
+  let lexbuf = Lexing.from_channel inc in
+  currentLexBuf := lexbuf;
+  lexbuf
+
+let newline () = 
+  incr currentLine;
+  startLine := Lexing.lexeme_start !currentLexBuf
+
+(*
 type handle =
 	bool * in_channel * string * string * int * int * out_channel * string
 let current_handle = ref (false, stdin, "", "", 0, 0, stdout, "")
-
-let currentLine = ref 0
-let currentFile = ref ""
 
 let interactive (h : handle) = let (i, _, _, _, _, _, _, _) = h in i
 let in_channel (h : handle) = let (_, c, _, _, _, _, _, _) = h in c
@@ -154,17 +174,20 @@ let real_pos (i : int) (h : handle) = let (_, _, _, _, p, _, _, _) = h in i - p
 let lineno (h : handle) = let (_, _, _, _, _, n, _, _) = h in n
 let out_channel (h : handle) = let (_, _, _, _, _, _, out, _) = h in out
 let file_name (h : handle) = let (_, _, _, _, _, _, _, name) = h in name
-
+*)
+(*  
 let set_line num =
   let (inter, cha, lin, buf, pos, _, out, name) = !current_handle in
-  currentLine := num - 1;
+  currentLine := num - 1
   current_handle := (inter, cha, lin, buf, pos, num - 1, out, name)
+*)
 
+(*
 let set_name name =
   let (inter, cha, lin, buf, pos, num, out, _) = !current_handle in
-  currentFile := name;
+  currentFile := name
   current_handle := (inter, cha, lin, buf, pos, num, out, name) 
-
+*)
 
 (*** syntax error building ***)
 let underline_error (buffer : string) (start : int) (stop : int) =
@@ -183,26 +206,20 @@ let underline_error (buffer : string) (start : int) (stop : int) =
       )
     
 let display_error msg token_start token_end =
-  output_string (out_channel !current_handle) (
-  (if (interactive !current_handle)
-  then ""
-  else 
-    (file_name !current_handle) ^ "["
-    ^ (string_of_int (lineno !current_handle)) ^ "] "
-		                                   )
-  ^ msg ^ ": "
-  ^ (underline_error
-       (line !current_handle)
-       (real_pos token_start !current_handle)
-       (real_pos token_end !current_handle)
-       )
-      );
-  flush (out_channel !current_handle)
+  output_string 
+    stderr
+    ((!currentFile ^ "[" ^ (string_of_int !currentLine) ^ "] ")
+     ^ msg ^ ": "
+     ^ (underline_error
+          (string_of_int !currentLine)
+          (token_start - !startLine)
+          (token_end - !startLine)));
+  flush stderr
 
 (*** Error handling ***)
 let error msg =
-	display_error msg (Parsing.symbol_start ()) (Parsing.symbol_end ());
-	raise Parsing.Parse_error
+  display_error msg (Parsing.symbol_start ()) (Parsing.symbol_end ());
+  raise Parsing.Parse_error
 
 
 (*** escape character management ***)
@@ -260,7 +277,7 @@ let floatraw = (intnum? fraction)
 let floatnum = floatraw floatsuffix?
 
 let ident = (letter|'_')(letter|decdigit|'_')* 
-let blank = [' ' '\t' '\n' '\012']
+let blank = [' ' '\t' '\012']
 let escape = '\\' _
 let hex_escape = '\\' ['x' 'X'] hexdigit hexdigit
 let oct_escape = '\\' octdigit  octdigit octdigit
@@ -269,9 +286,8 @@ rule initial =
 	parse 	"/*"			{let _ = comment lexbuf in 
                                          initial lexbuf}
 |		blank			{initial lexbuf}
-|		"__attribute__ (" blank* "(__const__)" blank* ")" { initial lexbuf}
-|		"__attribute__ ((const))" { initial lexbuf}
-|		'#'			{line lexbuf}
+|               '\n'                    { newline (); initial lexbuf }
+|		'#'			{ hash lexbuf}
 	
 |		'\''			{ CST_CHAR (chr lexbuf)}
 |		'"'			{ (* '"' *)
@@ -341,31 +357,39 @@ rule initial =
 						(Lexing.lexeme_end lexbuf);
 						initial lexbuf}
 and comment =
-    parse 	"*/"			{()}
-| 		_ 				{comment lexbuf}
+    parse 	
+      "*/"			        {()}
+|     '\n'                              { newline (); comment lexbuf }
+| 		_ 			{comment lexbuf}
 
 (* # <line number> <file name> ... *)
-and line = parse
-  '\n'		{ initial lexbuf}
-| blank		{ line lexbuf}
-| intnum	{ set_line (int_of_string (Lexing.lexeme lexbuf));
-		  file lexbuf }
+and hash = parse
+  '\n'		{ newline (); initial lexbuf}
+| blank		{ hash lexbuf}
+| intnum	{ (* We are seeing a GCC line number *)
+                  currentLine := int_of_string (Lexing.lexeme lexbuf) - 1;
+                  (* A file name must follow *)
+		  gccfile lexbuf }
+| "line"        { hash lexbuf } (* MSVC line number info *)
 | "pragma"      { PRAGMA }
 | _	        { endline lexbuf}
 
-and file =
-	parse '\n'		{initial lexbuf}
-|	blank			{file lexbuf}
+and gccfile =
+	parse 
+        '\n'		        {newline (); initial lexbuf}
+|	blank			{gccfile lexbuf}
 |	'"' [^ '"']* '"' 	{ (* '"' *)
-                                 set_name (rem_quotes (Lexing.lexeme lexbuf));
+                                 currentFile := 
+                                    (rem_quotes (Lexing.lexeme lexbuf));
 							endline lexbuf}
-|	_					{endline lexbuf}
-and endline =
-	parse '\n' 				{initial lexbuf}
-|	_					{endline lexbuf}
+|	_			{endline lexbuf}
+
+and endline = parse 
+        '\n' 			{ newline (); initial lexbuf}
+|	_			{endline lexbuf}
 
 and pragma = parse
-   '\n'        { "" }
+   '\n'                 { newline (); "" }
 |   _                   { let cur = Lexing.lexeme lexbuf in 
                           cur ^ (pragma lexbuf) }  
 
@@ -417,8 +441,8 @@ and msasmnobrace = parse
                           cur ^ (msasmnobrace lexbuf) }
 {
 
-(*** get_buffer ***)
-let get_buffer (h : handle ref) (dst : string) (len : int) : int =
+(*** get_buffer ***
+let get_buffer (dst : string) (len : int) : int =
   let (inter, chan, line, buffer, pos, lineno, out, name) = !h in
   try
     let (bufferp, linep, posp, linenop) =
@@ -432,7 +456,6 @@ let get_buffer (h : handle ref) (dst : string) (len : int) : int =
 	(if inter then pos else pos + (String.length line)),
 	lineno + 1
 	  ) in
-		(*let _ = print_endline ("-->" ^ linep) in*)
     let bufl = String.length bufferp in
     let lenp = min len bufl in
     let buffers = if bufl = lenp
@@ -440,16 +463,16 @@ let get_buffer (h : handle ref) (dst : string) (len : int) : int =
     else String.sub bufferp lenp (bufl - lenp) in
     begin
       String.blit bufferp 0 dst 0 lenp;
-      h := (inter, chan, linep, buffers, posp, linenop, out, name);
       lenp
     end
   with End_of_file -> 0
 
+*)
 
 (* init: handle -> ()
 **	Initialize lexer.
 *)
-let init hdl =
-  ignore (init_lexicon ());
+(*
   current_handle := hdl 
+*)
 }
