@@ -1,5 +1,8 @@
 # Debugging. Set ECHO= to debug this Makefile 
 ECHO = 
+
+# apparently this must be commented out when first
+# building this (we don't know why)
 RELEASE = 1
 
 # USECCGR = 1
@@ -68,6 +71,14 @@ TVDIR=$(BASEDIR)/TransVal
 CILDIR=$(BASEDIR)/cil
 _GNUCC=1
 endif
+ifeq ($(COMPUTERNAME), madrone) # scott's desktop
+BASEDIR=/home/scott/wrk
+SAFECCDIR=$(BASEDIR)/safec
+PCCDIR=$(BASEDIR)/PCC
+TVDIR=$(BASEDIR)/TransVal
+CILDIR=$(BASEDIR)/cil
+_GNUCC=1
+endif
 
 ######################
 .PHONY : spec
@@ -84,8 +95,8 @@ _MSVC = 1			# Use the MSVC compiler by default
 endif
 
 ifdef _GNUCC
-DEBUGCCL=gcc -x c -O0 -g -Wall
-RELEASECCL=gcc -x c -O3 -Wall
+DEBUGCCL=gcc -x c -O0 -g -Wall -I/usr/include/sys
+RELEASECCL=gcc -x c -O3 -Wall -I/usr/include/sys
 #LIB=lib
 #LIBOUT=-o
 DOOPT=-O3
@@ -94,7 +105,7 @@ OBJOUT=-o
 EXEOUT=-o
 DEF=-D
 ASMONLY=-S -o 
-CPPSTART=gcc -E %i -Dx86_WIN32 -D_GNUCC
+CPPSTART=gcc -E %i -Dx86_WIN32 -D_GNUCC  -I/usr/include/sys
 CPPOUT=-o %o
 CPP=$(CPPSTART) $(CPPOUT)
 INC=-I

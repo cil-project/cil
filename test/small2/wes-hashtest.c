@@ -286,11 +286,11 @@ int main() {
   /* Add and delete random numbers from the hash table */
   TIMESTART(clk);
   for(i=0;i<500000;i++) {
-    int k = random();
+    int k = random() & 0xFFFFL;
     AddToHash(h, k, (void*)k);
   }
   for(i=0;i<500000;i++) {
-    int k = random();
+    int k = random() & 0xFFFFL;
     void *data = NULL;
     if(HashLookup(h, k, & data)) {
       count ++;

@@ -34,7 +34,7 @@ int main() {
   /* Add and delete random numbers from the hash table */
   TIMESTART(clk);
   for(i=0;i<500000;i++) {
-    int k = random();
+    int k = i;//rand();
     insertRB(& t, k, DATASIZE);
   }
   for(i=0;i<500000;i++) {
