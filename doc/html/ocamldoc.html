@@ -1,0 +1,75 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+  <title>How to build the ocamldoc tool</title>
+  <meta http-equiv="content-type" content="text/html; charset=ISO-8859-1">
+</head>
+
+<body>
+<h2>How to build the ocamldoc tool</h2>
+
+<p>For the purposes of these instructions, pick some directories:</p>
+<ul><li><tt>$DIST</tt>: directory where you'll download the tarballs
+    <li><tt>$BLD</tt>: directory where you'll compile the software
+    <li><tt>$PREFIX</tt>: directory into which the compiled files will be installed
+    <li><tt>$CIL</tt>: toplevel directory of ccured ("cil") repository
+</ul>
+
+<p>First, download and build the latest <a href="http://www.cvshome.org/docs/manual/cvs.html">
+CVS</a> snapshot of the <a href="http://caml.inria.fr/ocaml/">OCaml</a> compiler:
+<pre>
+  % cd $BLD
+  % cvs -d :pserver:anoncvs@camlcvs.inria.fr:/caml checkout ocaml
+  % cd ocaml
+  % ./configure --prefix $PREFIX
+  % make world
+  % make opt
+  % make ocamlc.opt         # ocamldoc wants this?
+  % make install
+</pre></p>
+
+<p>Next, download the <a href="http://pauillac.inria.fr/~guesdon/Tars/ocamldoc_08_10_2001.tar.gz">
+ocamldoc distribution tarball</a>, and build it:
+<pre>
+  % cd $BLD
+  % tar xvfz $DIST/ocamldoc_08_10_2001.tar.gz
+  % cd ocamldoc
+  % ln -s $BLD/ocaml ocaml
+  (edit configure.in, need to double-quote $OCAMLVERSION in 3 places)
+  % PATH=$PREFIX/bin:$PATH              # for sh/bash
+      or
+  % set path = ($PREFIX/bin $path)      # for csh/tcsh
+  % autoconf
+  % ./configure
+  % make depend
+  % make all
+  (fails with complaint about either missing .cmx (if ocamlc.opt not built)
+  or "inconsistent assumptions over implementation Odoc_misc", but this
+  doesn't matter since it makes 'odoc' successfully)
+  % make install
+  (succeeds in copying 'odoc' to $PREFIX/bin, but fails to copy odoc_info.cma; ignoring)
+</pre>
+The resulting <tt>odoc</tt> binary can be copied anywhere and used.  It doesn't
+need any of the other files.</p>
+
+<p>(optional) Staying in <tt>$BLD/ocamldoc</tt>, we can have it
+generate a few sample documentation files:
+<pre>
+  % make doctest          # build docs of ocamldoc sources -&gt; doctest/
+  % make stdlib           # build docs of ocaml library sources -&gt; stdlib/
+  (appears to fail with "Unbound module Support", but actually succeeds)
+</pre></p>
+
+
+<p>Finally, we can use this to generate documentation for the CCured sources:
+<pre>
+  % cd $CIL
+  % mkdir odoc
+  % $PREFIX/bin/odoc -d odoc -html -I obj src/*.mli src/frontc/*.mli
+</pre>
+This will dump a bunch of .html files into the odoc/ directory.  It also may spew
+some messages about errors parsing text inside comments; those messages are
+nonfatal but should be addressed.</p>
+
+</body>
+</html>
