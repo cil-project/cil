@@ -475,11 +475,11 @@ SAFECC+= $(EXTRAARGS)
 ###    # Now the rules to make the library
 ###
 ###
-ifdef _MSVC
 ifndef RELEASE
 SAFECLIBARG=$(DEF)_DEBUG
 endif
 
+ifdef _MSVC
 $(SAFECLIB) : lib/safec.c lib/safec.h lib/safeccheck.h lib/splay.c 
 	cl $(DOOPT) /I./lib /c $(DEF)_MSVC $(SAFECLIBARG) \
                                            $(OBJOUT)obj/safec.o lib/safec.c
@@ -497,7 +497,7 @@ endif
 # (or rather, we add safec.o to gc.a's contents)
 ifdef _GNUCC
 $(SAFECLIB) : lib/safec.c $(GCLIB) lib/splay.o
-	$(CC) $(OBJOUT)obj/safec.o $<
+	$(CC) $(SAFECLIBARG) $(OBJOUT)obj/safec.o $<
 	if echo $(GCLIB) | grep / >/dev/null; then \
 		cp -f $(GCLIB) $@; echo "using GC"; \
 	else \
@@ -507,7 +507,7 @@ $(SAFECLIB) : lib/safec.c $(GCLIB) lib/splay.o
 	ranlib $@
 
 $(CILLIB) : lib/cillib.c
-	$(CC) $(OBJOUT)obj/cillib.o $<
+	$(CC) $(SAFECLIBARG) $(OBJOUT)obj/cillib.o $<
 	ar -r $@ obj/cillib.o
 	ranlib $@
 

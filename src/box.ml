@@ -3415,22 +3415,52 @@ and boxinstr (ins: instr) : stmt clist =
                 
             end
           | Some destlv -> begin
-              (* Always go through a temporary to ensure the we do the right 
-               * checks when we write the destination. The temporary must 
-               * have the destination type so that the cast is propagated to 
-               * the function. *)
+              (* Always put the result of the call in a temporary variable so 
+               * that the actual store into the destination occurs with a Set 
+               * and the right checks are inserted *)
               let tmp = makeTempVar !currentFunction 
-                  (fixupType (typeOfLval destlv)) in
+                  (if isallocate <> None then 
+                    (* For allocation we make the temporary the same type as 
+                     * the destination. The allocation routine will know what 
+                     * to do with it. *)
+                    let (destlvt, _, _, _, _, _) = boxlval destlv in
+                    destlvt
+                  else
+                    (* If it is not allocation we make the temporary have the 
+                     * same type as the function return type. This is to 
+                     * prevent the situation when we would need a cast 
+                     * between non-scalar types *)
+                    ftret) in
               (* Now do the call itself *)
               let thecall = 
                 match isallocate with
-                  None -> single (interceptCall (Some(var tmp)) f' args')
+                  None -> single (interceptCall (Some (var tmp)) f' args')
                 | Some ai -> pkAllocate ai (var tmp) f' args'
               in
               (* Now use boxinstr to do the code after Call properly *)
               let aftercall = boxinstr (Set(destlv, Lval (var tmp), l)) in
               (* Now put them together *)
               append thecall aftercall
+(*
+              (* Always go through a temporary to ensure the we do the right 
+               * checks when we write the destination. The temporary must 
+               * have the destination type so that the cast is propagated to 
+               * the function. *)
+              (* Do the destination to get its type. Cannot use typeOfLval 
+               * because destlv might not be a well-formed lval *)
+              let (destlvt, _, _, _, _, _) = boxlval destlv in
+              let tmp = makeTempVar !currentFunction destlvt in
+              (* Now do the call itself *)
+              let thecall = 
+                match isallocate with
+                  None -> single (interceptCall (Some (var tmp)) f' args')
+                | Some ai -> pkAllocate ai (var tmp) f' args'
+              in
+              (* Now use boxinstr to do the code after Call properly *)
+              let aftercall = boxinstr (Set(destlv, Lval (var tmp), l)) in
+              (* Now put them together *)
+              append thecall aftercall
+*)
           end
 (*              
               let (lvt, lvkind, lv', lvbase, lvend, dolv) = boxlval destlv in
