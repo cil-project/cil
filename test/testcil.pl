@@ -354,7 +354,7 @@ $TEST->add3Tests("testrun/wchar4");
 $TEST->addTests("testrun/wchar5", "", ['cil']);
 $TEST->add2Tests("testrun/escapes");
    $TEST->addBadComment("testrun/escapes-inferbox", 
-                        "Bug in parser (precedences)");
+                        "CCured drops some intermediate casts, even when they are needed for correct sign-extension.");
 $TEST->addTests("test-bad1/wchar-bad", "", ['cil']);
 $TEST->add3Tests("testrun/tablebug", "TABLE=A");
 $TEST->add3Tests("testrun/addrof", "MANUALBOX=1");
