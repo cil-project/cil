@@ -29,19 +29,20 @@ int main() {
   double clk;
   int count = 0;
   int sz;
-  int *foo;
+  //  int *foo, *foo1;
   
   /* Add and delete random numbers from the hash table */
   TIMESTART(clk);
   for(i=0;i<500000;i++) {
     int k = random() & 0x7FFFL;
-    if(i == 30000) {
-      foo = (int*) ((int) &main);  // Test interceptCasts
-    }
+//    if(i == 30000) {
+//      foo = (int*) ((int) &main);  // Test scalar2pointer
+//    }
     AddToHash(h, k, (void*)k);
   }
   // Now try to read from foo
-  i = *foo;
+  //  foo1 = foo + 1;
+  //  i = *foo1;
   for(i=0;i<500000;i++) {
     int k = random() & 0x7FFFL;
     void *data = NULL;

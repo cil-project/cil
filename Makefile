@@ -238,6 +238,7 @@ endif
 
 
 SPJDIR=C:/Necula/Source/Touchstone/test
+SPJARG +=  -WV,"-H,4000000,-noindent" -WC,"-H,4000000,-noindent"
 ifndef RELEASE
 SPJARG += --pccdebug
 endif
@@ -252,7 +253,7 @@ runspj.linpack :
 ifdef _GNUCC
 	rm $(PCCDIR)/bin/*_MSVC*
 endif
-	cd $(SPJDIR); spj linpack/Linpack.java --gory \
+	cd $(SPJDIR); spj linpack/Linpack.java --gory  -WC,"-T,1000" \
                       $(SPJARG) --pcchome=$(PCCDIR)
 
 runspj.quicksort :

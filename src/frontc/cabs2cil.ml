@@ -1505,7 +1505,7 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
   in
   let bop2point = function
       MinusA -> MinusPP
-    | Eq -> EqP | Ge -> GeP | Ne -> NeP | Gt -> GtP | Le -> LtP | Lt -> LtP
+    | Eq -> EqP | Ge -> GeP | Ne -> NeP | Gt -> GtP | Le -> LeP | Lt -> LtP
     | _ -> E.s (E.bug "bop2point")
   in
   let pointerComparison e1 e2 = 
