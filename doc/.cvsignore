@@ -13,6 +13,8 @@
 *.out
 *.xyc
 *.xyd
+cil-api.tex
+cil.version.tex
 cilpp.tex
 cilcode.tmp
 ccuredcode.tmp
