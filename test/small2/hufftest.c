@@ -75,10 +75,21 @@ int main(int argc, char **argv) {
   }
   finishIOFile(&srcFile);
   printf("Read %d bytes\n", nrSource);
-  /* Open the code and frequency files */
-  freqfid = CREAT("huffman.freq");
-  codefid = CREAT("huffman.code");
-  compressfid = CREAT("huffman.compressed");
+  
+  // sm: the following code doesn't behave quite right
+  // because of a bug in cil's constant folding code
+  #if defined(x86_WIN32)
+    /* Open the code and frequency files */
+    freqfid = CREAT("huffman.freq");
+    codefid = CREAT("huffman.code");
+    compressfid = CREAT("huffman.compressed");
+  #else
+    // workaround code (will leave win32 code as-is)
+    freqfid = open("huffman.freq", 01101, 0777);
+    codefid = open("huffman.code", 01101, 0777);
+    compressfid = open("huffman.compressed", 01101, 0777);
+  #endif
+
   if(freqfid < 0 || codefid < 0 || compressfid < 0) {
     ERROR0(1, "Cannot create frequency and code files\n");
   }

@@ -672,6 +672,9 @@ endif
 ifdef _GNUCC
 HUFFOTHERS += -lm
 endif
+ifndef HUFFINPUT
+  HUFFINPUT=$(CILDIR)/src/frontc/cparser.output
+endif
 hufftest: test/small2/hufftest.c defaulttarget
 	rm -f $(PCCTEST)/hufftest.exe \
               $(PCCTEST)/huffman.compressed \
@@ -688,8 +691,7 @@ hufftest: test/small2/hufftest.c defaulttarget
                  ../small2/hufftest.c \
                  $(HUFFOTHERS) \
                  $(EXEOUT)hufftest.exe
-	cd $(PCCTEST); ./hufftest.exe \
-                             $(CILDIR)/src/frontc/cparser.output
+	cd $(PCCTEST); ./hufftest.exe $(HUFFINPUT)
 
 
 wes-rbtest: test/small2/wes-rbtest.c defaulttarget
