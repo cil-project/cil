@@ -1471,23 +1471,20 @@ let mustBeTagged v =
     |  _ -> false
   in
   if isFunction then false
-                       (* Do not tag functions!! Mainly because we don't know 
-                        * how to put the tag. Plus, function pointers should 
-                        * have a length = 0 so we cannot write there *)
+                       (* Do not tag functions!! We handle them separately *)
   else
     (* See if it make sense to tag this one. We look at the address-of flag 
      * and whether it contains arrays. *)
     let taggable = 
-      if v.vglob then 
-        if v.vstorage = Static then 
-          v.vaddrof || containsArray v.vtype
-        else 
-          true  (* We tag all externals because we might 
-                   take their address somewhere else *)
-      else
-        v.vaddrof || containsArray v.vtype
+      v.vaddrof || containsArray v.vtype
+        (* !!! Do not tag the other globals. If you want them tagged then put 
+         * a __TAGGED attribute  *)
     in
-    taggable &&
+    (* But do not tag certain variables *)
+    let taggable' = 
+      taggable && (v.vname <> "__ccured_va_tags")
+    in
+    taggable' &&
     (!N.defaultIsWild || (filterAttributes "tagged" v.vattr) <> [])
 
 

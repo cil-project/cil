@@ -148,10 +148,10 @@ $TEST->add3Tests("test/list");
 $TEST->add3Tests("test/pointers");
 $TEST->add3Tests("test/printf", "", @runpattern);
 $TEST->add3Tests("test/printf_const", "", @runpattern);
-$TEST->add3Tests("testrun/vararg1");
-$TEST->add3Tests("testrun/vararg2");
-$TEST->add3Tests("testrun/vararg3");
-$TEST->add3Tests("testrun/vararg4");
+$TEST->add2Tests("testrun/vararg1");
+$TEST->add2Tests("testrun/vararg2");
+$TEST->add2Tests("testrun/vararg3");
+$TEST->add2Tests("testrun/vararg4");
 $TEST->add3Tests("test/retval");
 $TEST->add3Tests("test/seq");
 $TEST->add3Tests("test/sized");
@@ -208,6 +208,8 @@ $TEST->add2TestFail("testrun/failprintf6", "Failure: type mismatch");
 $TEST->add2TestFail("testrun/failsprintf1", "Failure: Ubound");
 $TEST->add2TestFail("testrun/failsprintf2", "Failure: Ubound");
 $TEST->add2TestFail("testrun/failsprintf3", "Failure: Non-pointer");
+
+$TEST->add2TestFail("testrun/failsscanf1", "Failure: Ubound");
     
 #
 # OLDEN benchmarks

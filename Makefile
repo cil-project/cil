@@ -1168,8 +1168,7 @@ mst: defaulttarget
 
 
 TREEADDIR=test/olden/treeadd
-TREEADDSAFECC=$(CCURED) --combine --keep=safeccout  \
-                  --nocure=ta_trusted \
+TREEADDSAFECC=$(CCURED) --combine \
                   $(PATCHARG) \
                   $(NOPRINTLN)
 ifeq ($(ARCHOS), x86_WIN32)
@@ -1186,7 +1185,7 @@ treeadd: defaulttarget mustbegcc
 	cd $(TREEADDIR); sh -c "time ./treeadd$(LDEXT) 21 1"
 
 NEWBISORTDIR=test/olden/newbisort
-NEWBISORTSAFECC=$(CCURED) --combine --keep=safeccout  \
+NEWBISORTSAFECC=$(CCURED) --combine \
                    --nocure=ta_trusted \
                   $(PATCHARG) \
                   $(NOPRINTLN)
@@ -1207,7 +1206,7 @@ newbisort: defaulttarget mustbegcc
 
 
 EM3DDIR=test/olden/em3d
-EM3DDSAFECC=$(CCURED) --combine --keep=safeccout  \
+EM3DDSAFECC=$(CCURED) --combine \
                   $(PATCHARG) \
                   --nocure=trusted_em3d \
                   $(NOPRINTLN)
@@ -1253,7 +1252,7 @@ compress: defaulttarget mustbegcc
 	cd $(COMPRESSDIR)/src; sh -c "time ./compress < input.data > combine-compress.out"
 
 LIDIR=$(SPECDIR)/130.li
-LISAFECC=$(CCURED) --combine $(PATCHARG) --keep=safeccout
+LISAFECC=$(CCURED) --combine $(PATCHARG)
 li: defaulttarget mustbegcc
 	cd $(LIDIR)/src; \
             make clean build CC="$(LISAFECC) $(CONLY)" \
@@ -1288,8 +1287,7 @@ liinfer: li
 
 ### SPEC95 GO
 GODIR=$(SPECDIR)/099.go
-GOSAFECC=$(CCURED) --combine  $(PATCHARG) \
-                   --keep=safeccout $(NOPRINTLN) $(OPT_O2)
+GOSAFECC=$(CCURED) --combine  $(PATCHARG) $(NOPRINTLN) $(OPT_O2)
 
 goclean: 	
 	cd $(GODIR)/src; make clean
@@ -1393,8 +1391,7 @@ vortex-tv:
 
 ### SPEC95 m88ksim
 M88DIR=$(SPECDIR)/124.m88ksim
-M88SAFECC=$(CCURED) --combine --keep=safeccout \
-                    $(PATCHARG) \
+M88SAFECC=$(CCURED) --combine $(PATCHARG) \
                     --nocure=m88k_trusted --noPrintInferbox
 m88kclean: 	
 	cd $(M88DIR)/src; make clean
@@ -1424,9 +1421,7 @@ m88k-combined: defaulttarget mustbegcc
 
 ### SPEC95 ijpeg
 IJPEGDIR=$(SPECDIR)/132.ijpeg
-IJPEGSAFECC=$(CCURED) --combine --keep=safeccout  \
-                  $(PATCHARG) \
-                  --nocure=ijpeg_trusted -include ijpeg.fixup.h
+IJPEGSAFECC=$(CCURED) --combine $(PATCHARG)
 ifeq ($(ARCHOS), x86_WIN32)
 IJPEGSAFECC += -DWIN32 -DMSDOS
 endif
@@ -1453,8 +1448,7 @@ ijpeg-combined: defaulttarget mustbegcc
 ijpeg-noclean: defaulttarget mustbegcc
 	cd $(IJPEGDIR)/src; \
             make       build CC="$(IJPEGSAFECC) $(CONLY)" \
-                             LD="$(IJPEGSAFECC)" \
-                             EXTRA_LIBS=$(IJPEGEXTRA)
+                             LD="$(IJPEGSAFECC)"
 	sh -c "time $(IJPEGDIR)/src/ijpeg \
             -image_file $(IJPEGDIR)/data/ref/input/penguin.ppm \
             -GO"
@@ -1462,7 +1456,7 @@ ijpeg-noclean: defaulttarget mustbegcc
 #### SPEC95 gcc
 GCCDIR=$(SPECDIR)/126.gcc
 # sm: --noPrintInferbox works around an infinite loop in our data structure
-GCCSAFECC=$(CCURED) --combine --keep=safeccout --noPrintInferbox \
+GCCSAFECC=$(CCURED) --combine --noPrintInferbox \
                     $(PATCHARG)
 
 
@@ -1530,8 +1524,7 @@ constrainttest:
 
 ### ftpd-BSD-0.3.2-5
 FTPDDIR=test/ftpd/ftpd
-FTPDSAFECC=$(CCURED) --combine --keep=safeccout  \
-                  $(PATCHARG) \
+FTPDSAFECC=$(CCURED) --combine $(PATCHARG) \
                   $(NOPRINTLN)
 ifeq ($(ARCHOS), x86_WIN32)
 FTPDSAFECC += $(DEF)WIN32 $(DEF)MSDOS

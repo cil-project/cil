@@ -100,6 +100,9 @@ sub link {
     if($self->{MODENAME} eq "mscl") {
         $cmd .= " --msvc ";
     }
+    if($self->{VERBOSE}) {
+        $cmd .= " --verbose ";
+    }
     $cmd .= join(' ', @tocombine);
     $self->runShell($cmd);
 
