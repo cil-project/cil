@@ -587,14 +587,14 @@ hola: test/small2/hola.c $(EXECUTABLE)$(EXE) \
 
 # sm: trivial test of test combiner
 MYSAFECC = $(SAFECC) --keep=. $(DEF)$(ARCHOS)
-com: test/small2/com1.c test/small2/com2.c $(EXECUTABLE)$(EXE) \
+comb: test/small2/comb1.c test/small2/comb2.c $(EXECUTABLE)$(EXE) \
                                  $(SAFECLIB) $(SAFEMAINLIB)
-	rm -f test/small2/com
+	rm -f test/small2/comb
 	cd test/small2; \
-	  $(MYSAFECC) --combine com1.c $(CONLY) $(OBJOUT) com1.o; \
-	  $(MYSAFECC) --combine com2.c $(CONLY) $(OBJOUT) com2.o; \
-          $(MYSAFECC) --combine com1.o com2.o $(EXEOUT)com
-	test/small2/com
+	  $(MYSAFECC) --combine comb1.c $(CONLY) $(OBJOUT) comb1.o; \
+	  $(MYSAFECC) --combine comb2.c $(CONLY) $(OBJOUT) comb2.o; \
+          $(MYSAFECC) --combine comb1.o comb2.o $(EXEOUT)comb
+	test/small2/comb
 
 # cfrac: a memory benchmark which factorizes into products of primes
 CFRACDIR = $(CILDIR)/../bench/cfrac
