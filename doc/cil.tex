@@ -1000,6 +1000,9 @@ subprocess. In addition, the following options are supported:
 source file all of the sources that make your application, and then to apply
 \t{cilly.asm} on the resulting source. The sequence of actions in this case is
 described above and the merger itself is described in \secref{merger}.
+\item \t{--aggressive-merge}. We try to merge all isomorphic type names
+independent of their original names. 
+
 \item \t{--leavealone=xxx}. Do not merge and do not present to CIL the files
 whose basename is "xxx". These files are compiled as usual and linked in at
 the end. 
@@ -1232,6 +1235,10 @@ conflict with declarations from previously processed sources. The new name is
 formed by appending the suffix \t{\_\_\_n}, where \t{n} is a unique integer
 identifier. Then the new names are applied to their occurences in the file. 
 
+ If the \t{--agressive-merge} argument is passed to \t{cilly} then we try to
+merge all isomorphic structure and union types, independent of their original
+name. 
+
 \item Non-static declarations of globals are never renamed. But we try to
 remove duplicate ones. The equality check is done on the whole structure of
 the declaration (including the line-number information) after the body of the
@@ -1251,7 +1258,6 @@ processing another file that there is an external symbol with the same name.
 In this case, a second pass is made over the merged file to rename the
 file-local symbol. 
 \end{itemize}
-
 
     \section{Using the patcher}\label{sec-patcher}\cutname{patcher.html}
 

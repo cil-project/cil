@@ -156,6 +156,8 @@ let rec theMain () =
                "output #line directives in comments";
     "--extrafiles", Arg.String parseExtraFile,
     "<filename>: the name of a file that contains a list of additional files to process, separated by whitespace of newlines";
+    "--aggressive", Arg.Unit (fun _ -> Merger.aggressive := true),
+               "be aggressive when merging types";
   ] in
   begin
     Stats.reset ();

@@ -39,6 +39,9 @@ open Pretty
 module E = Errormsg
 module H = Hashtbl
 
+(** Be aggressive when merging types *)
+let aggressive = ref false
+
 let debugTypes  = false
 let debugFundef = false
 
@@ -457,6 +460,17 @@ let stripLocation (g: definition) : definition =
 
 (* Equality constraints *)
 type eqConstraint = envKind * string * string
+
+let d_eqc () ((ek, oldn, newn) : eqConstraint) : doc = 
+  dprintf "%s(%s, %s)" (ek2text ek) oldn newn
+let d_eqc_list () (el : eqConstraint list) : doc = 
+  dprintf "@[%a@]" (docList (chr ',' ++ break) (d_eqc ())) el
+
+let alreadyKnownToBeEqual (eqc : eqConstraint) (acc: eqConstraint list) = 
+  List.exists (fun x -> x = eqc) acc
+
+(* Compare two specifiers and collect a number of constraints that must all 
+ * be satisfied for the specifiers to be isomorphic *)
 let rec compareSpecs 
      (s1: specifier) 
      (s2: specifier) (acc: eqConstraint list) : eqConstraint list = 
@@ -469,14 +483,25 @@ let rec compareSpecs
   match ts1, ts2 with 
     [SpecType ts1], [SpecType ts2] -> begin
       (* We don't go into the definition of a struct here, except if it is 
-       * anonymous *)
+       * anonymous or we are being aggressive *)
       match ts1, ts2 with 
         Tstruct (s1, fg1), Tstruct (s2, fg2) -> 
-          if s1 = "" && s2 = "" then 
+          if s1 = "" && s2 = "" then (* We always go into Anonymous structs. 
+                                      * No danger of recursion here *)
             compareFieldGroupLists acc fg1 fg2
           else
-            if s1 = "" || s2 = "" then raise Not_found else
-            (EStruct, s1, s2) :: acc
+            (* If only one is anonymous we cannot do anything. Too bad. *)
+            let eqc = (EStruct, s1, s2) in
+            if s1 = "" || s2 = "" then raise Not_found 
+            else if !aggressive then 
+              (* Check that we have not seen these already *)
+              if alreadyKnownToBeEqual eqc acc then 
+                acc
+              else 
+                compareFieldGroupLists (eqc :: acc) fg1 fg2
+            else (* Not aggressive. Do not go into the struct *)
+              eqc :: acc
+                                     
       | Tunion (s1, fg1), Tunion (s2, fg2) -> 
           if s1 = "" && s2 = "" then 
             compareFieldGroupLists acc fg1 fg2
@@ -500,20 +525,25 @@ let rec compareSpecs
   | _ -> if ts1 = ts2 then acc else raise Not_found
   
 and compareFieldGroups acc (s1, fg1) (s2, fg2) = 
+  (* Names of fields, attributes and decl_types must be the same *)
   if fg1 <> fg2 then raise Not_found;
   compareSpecs s1 s2 acc
 
 and compareFieldGroupLists acc fgl1 fgl2 =
   match fgl1, fgl2 with 
-    Some fgl1, Some fgl2 -> List.fold_left2 compareFieldGroups [] fgl1 fgl2
+    Some fgl1, Some fgl2 -> List.fold_left2 compareFieldGroups acc fgl1 fgl2
   | None, None -> acc
   | _, _ -> raise Not_found
       
 
 (* Store some global definitions for typeTags. For each orignal name and kind 
  * we store the list of all defintions for that name that were encountered in 
- * the whole program. *)
+ * the whole program. If we are in aggressive merging mode then all the names 
+ * in the hash key are the empty string. *)
 let globalTypeTags : (envKind * string, typeTagDef) H.t = H.create 111
+
+(** Just a set of defined global type tags *)
+let globalDefinedTypeTags : (envKind * string, bool) H.t = H.create 111
 
 let dumpGlobalTypeTags (msg: string) = 
   Cprint.force_new_line ();
@@ -579,13 +609,15 @@ let dumpGraph (msg: string) =
 let constructConstraintGraph () = 
   H.clear constraintGraph; nodeId := 0;
   let doOne (defk, defn) (defspec, ((_, def_dt, def_a) as defname), defloc) = 
-    (* All previous typeTagDefs for the same original name *)
-    let old = H.find_all globalTypeTags (defk, defn)  in
+    (* All previous typeTagDefs for the same original name. If in aggressive 
+     * mode then look for all definitions of the same kind. *)
+    let defn' = if !aggressive then "" else defn in
+    let old = H.find_all globalTypeTags (defk, defn')  in
     List.iter
       (fun (_, oldn, oldspec, ((_, old_dt, old_a) as oldname), oldloc) -> 
         (* Make a node *)
         let node = getNode (defk, oldn, defn) in
-        (* This node must be made eq *)
+        (* This node must be made eq to start with *)
         node.eq <- true;
         (* Find the equality constraints that must all hold for defn to be 
         * compatible with oldn. Watch out for Not_found *)
@@ -595,26 +627,56 @@ let constructConstraintGraph () =
             match defk with 
               EType -> 
                 if old_dt <> def_dt || old_a <> def_a then raise Not_found;
-                compareSpecs oldspec defspec []
+                if debugTypes then 
+                  ignore (E.log "compareSpecs %s %s and %s\n"
+                            (ek2text defk) oldn defn);
+                let res = compareSpecs oldspec defspec [] in
+                if debugTypes then 
+                  ignore (E.log "\tsuccess with %a\n" d_eqc_list res);
+                res
+                
             | EStruct -> begin
                 match oldspec, defspec with 
                   [SpecType (Tstruct (_, Some ofg))], 
                   [SpecType (Tstruct (_, Some nfg))] -> 
-                    compareFieldGroupLists [] (Some ofg) (Some nfg)
+                    if debugTypes then 
+                      ignore (E.log "compareFieldGroupList %s %s and %s\n"
+                                (ek2text defk) oldn defn);
+                    let res = 
+                      compareFieldGroupLists 
+                        [(defk, oldn, defn)] (Some ofg) (Some nfg) in
+                    if debugTypes then 
+                      ignore (E.log "\tsuccess with %a\n" d_eqc_list res);
+                    res
                 | _ -> E.s (E.bug "compareTypeTags(struct)")
             end
             | EUnion -> begin
                 match oldspec, defspec with 
                   [SpecType (Tunion (_, Some ofg))], 
                   [SpecType (Tunion (_, Some nfg))] -> 
-                    compareFieldGroupLists [] (Some ofg) (Some nfg)
+                    if debugTypes then 
+                      ignore (E.log "compareFieldGroupList %s %s and %s\n"
+                                (ek2text defk) oldn defn);
+                    let res = compareFieldGroupLists [] (Some ofg) (Some nfg)
+                    in
+                    if debugTypes then 
+                      ignore (E.log "\tsuccess with %a\n" d_eqc_list res);
+                    res
+                    
                 | _ -> E.s (E.bug "compareTypeTags(union)")
             end
             | EEnum -> begin
                 match oldspec, defspec with 
                   [SpecType (Tenum (_, Some el1))], 
                   [SpecType (Tenum (_, Some el2))] -> 
-                    if el1 = el2 then [] else raise Not_found
+                    if debugTypes then 
+                      ignore (E.log "compareEnum %s %s and %s\n"
+                                (ek2text defk) oldn defn);
+                    let res = if el1 = el2 then [] else raise Not_found in
+                    if debugTypes then 
+                      ignore (E.log "\tsuccess with %a\n" d_eqc_list res);
+                    res
+
                 | _ -> E.s (E.bug "compareTypeTags(enum)")
             end
             | _ -> E.s (E.bug "compareTypeTags(other)")
@@ -624,18 +686,22 @@ let constructConstraintGraph () =
             let node1 = getNode ckey in (* Make the node not eq if it does 
                                          * not exist already *)
             node1.succs <- node :: node1.succs) constr
-        with _ -> (* This node cannot possibly match *)
-          node.eq <- false)
+        with _ -> begin (* This node cannot possibly match *)
+          if debugTypes then 
+            ignore (E.log "\tfailed !!!\n");
+          node.eq <- false;
+        end)
       old
   in
   H.iter doOne fileTypeTags;
   (* Now we can have constraint pairs when at least one is an undefined 
-   * struct and the  other is a defined or undefined struct with the same 
-   * name *)
+   * struct and the other is a defined or undefined struct with the same 
+   * name. For the local tags we can look in fileTypeTags. For the global 
+   * ones we have a separate hashtable. *)
   H.iter (fun (k,on,nn) nd -> 
-    if on = nn then
+    if (k = EStruct || k = EUnion) && (!aggressive || on = nn) then
       if not (H.mem fileTypeTags (k, nn)) ||
-         not (H.mem globalTypeTags (k, on)) then
+         not (H.mem globalDefinedTypeTags (k, on)) then
       nd.eq <- true) constraintGraph;
  
   if debugTypes then dumpGraph " before pushing";
@@ -662,7 +728,8 @@ let findTypeTagNames (f: Cabs.file) =
       begin
         let defkn = (defk, defn) in
         (* Find the first old name that matches *)
-        let oldnames = H.find_all globalTypeTags defkn in
+        let defkn' = if !aggressive then (defk, "") else defkn in
+        let oldnames = H.find_all globalTypeTags defkn' in
         let matches = 
           List.filter 
             (fun (_, on, _, _, _) -> let n = getNode (defk, on, defn) in n.eq)
@@ -701,7 +768,10 @@ let findTypeTagNames (f: Cabs.file) =
         let defspec' = visitCabsSpecifier renameVisitor defspec in
         let nk = match defk with EType -> NType | _ -> NVar in
         let defname' = visitCabsName renameVisitor nk defspec' defname in
-        H.add globalTypeTags defkn (defk, defn', defspec', defname', defloc)
+        let defkn' = if !aggressive then (defk, "") else defkn in
+        H.add globalTypeTags defkn' (defk, defn', defspec', defname', defloc);
+        (* And mark it as defined *)
+        H.add globalDefinedTypeTags defkn true;
       end)
     fileTypeTags;
   if debugTypes then dumpGlobalTypeTags "globalTypeTags:\n"
@@ -749,6 +819,7 @@ let merge (files : Cabs.file list) : Cabs.definition list =
   resetAlpha (); (* Clear the alpha tables *)
   H.clear globalDefinitions;
   H.clear globalTypeTags;
+  H.clear globalDefinedTypeTags;
   collectGlobals files; (* Collect all the globals *)
   theProgram := [];
   let doOneFile ((fname, f): Cabs.file) = 
@@ -758,7 +829,7 @@ let merge (files : Cabs.file list) : Cabs.definition list =
     H.clear reused;
     (* Find the new names for type and tags *)
     if debugTypes then 
-      ignore (E.log "Combining a file\n");
+      ignore (E.log "Combining file %s\n" fname);
     changeDefsIntoRefs := false;
     findTypeTagNames (fname, f);
     changeDefsIntoRefs := true;
@@ -889,5 +960,6 @@ let merge (files : Cabs.file list) : Cabs.definition list =
   H.clear reused;
   H.clear globalDefinitions;
   H.clear globalTypeTags;
+  H.clear globalDefinedTypeTags;
   res
 

@@ -1035,7 +1035,7 @@ val upointType: typ
    and (4) a list of attributes to be associated with the composite type. *)
 val mkCompInfo: bool ->      (* whether it is a struct or a union *)
                string ->     (* empty for anonymous structures *)
-               (typ -> (string * typ * int option * attributes) list) ->
+               (compinfo -> (string * typ * int option * attributes) list) ->
                (* a function that when given a forward 
                   representation of the structure type constructs the type of 
                   the fields. The function can ignore this argument if not 

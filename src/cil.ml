@@ -1055,8 +1055,8 @@ let mkCompInfo
                 * representation of the structure type constructs the type of 
                 * the fields. The function can ignore this argument if not 
                 * constructing a recursive type.  *)
-               (mkfspec: typ -> (string * typ * 
-                                 int option * attribute list) list) 
+               (mkfspec: compinfo -> (string * typ * 
+                                      int option * attribute list) list) 
                (a: attribute list) : compinfo =
    (* make an new name for anonymous structs *)
    if n = "" then 
@@ -1067,14 +1067,13 @@ let mkCompInfo
        cattr = a; creferenced = false; } in
    compSetName comp n;  (* fix the name and the key *)
    let self = ref voidType in
-   let tforward = TComp (comp, []) in
    let flds = 
        List.map (fun (fn, ft, fb, fa) -> 
           { fcomp = comp;
             ftype = ft;
             fname = fn;
             fbitfield = fb;
-            fattr = fa }) (mkfspec tforward) in
+            fattr = fa }) (mkfspec comp) in
    comp.cfields <- flds;
    comp
 

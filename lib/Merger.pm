@@ -74,6 +74,9 @@ sub collectOneArgument {
     if($arg =~ m|--merge|)  {
         $self->{MERGE} = 1; return 1;
     }
+    if($arg =~ m|--aggressive-merge|) {
+        $self->{AGGRESSIVE_MERGE} = 1; return 1;
+    }
     if($arg =~ m|--trueobj|) {
         $self->{TRUEOBJ} = 1; return 1;
     }
@@ -305,6 +308,9 @@ sub link {
     }
     if($self->{VERBOSE}) {
         $cmd .= " --verbose ";
+    }
+    if($self->{AGGRESSIVE_MERGE}) {
+        $cmd .= " --aggressive ";
     }
     # If the number of files to merge is larger than 25 then put them into a
     # file 
