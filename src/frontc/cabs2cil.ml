@@ -4497,7 +4497,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
               <- dropFormals !currentFunctionFDEC.sformals 
                    (List.rev !currentFunctionFDEC.slocals);
             setMaxId !currentFunctionFDEC;
-
+ 
 (* in
             let fdec = { svar     = thisFunctionVI;
                          slocals  = locals;
