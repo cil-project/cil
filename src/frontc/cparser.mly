@@ -81,6 +81,7 @@ type typeSpecifier = (* Merge all specifiers into one type *)
   | Tshort
   | Tint
   | Tlong
+  | Tint64
   | Tfloat
   | Tdouble
   | Tsigned
@@ -169,7 +170,7 @@ let applyInitializer i' ((n,bt,a,i) as name) =
     NOTHING -> (n, bt, a, i')
   | _ -> parse_error "Multiple initializers"
 
-(* Apply a type specifier. We start with NO_TYPE ISO 6.7.2 *)
+(* Apply a type specifier. We start with NO_TYPE. ISO 6.7.2 *)
 let applyTypeSpec ts spec = 
   let typ = 
     match spec.styp, ts with
@@ -185,7 +186,9 @@ let applyTypeSpec ts spec =
     | NO_TYPE, Tshort -> INT(SHORT, NO_SIGN)
     | INT(NO_SIZE, sign), Tshort -> INT(SHORT, sign)
     | NO_TYPE, Tlong -> INT(LONG, NO_SIGN)
+    | NO_TYPE, Tint64 -> INT(LONG_LONG, NO_SIGN)
     | INT(NO_SIZE, sign), Tlong -> INT(LONG, sign)
+    | INT(NO_SIZE, sign), Tint64 -> INT(LONG_LONG, sign)
     | INT(LONG, sign), Tlong -> INT(LONG_LONG, sign)
     | DOUBLE false, Tlong -> DOUBLE true
     | NO_TYPE, Tfloat -> FLOAT false
@@ -853,6 +856,7 @@ type_spec:   /* ISO 6.7.2 */
 |   SHORT           { Tshort }
 |   INT             { Tint }
 |   LONG            { Tlong }
+|   INT64           { Tint64 }
 |   FLOAT           { Tfloat }
 |   DOUBLE          { Tdouble }
 |   SIGNED          { Tsigned }
