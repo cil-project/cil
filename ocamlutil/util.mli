@@ -134,10 +134,7 @@ val tryFinally:
  * set of registers. *)
 type registerInfo = {
     rName: string; (** The name of the register *)
-    rGroup: string; (** The name of the group to which this register belongs. 
-                     * The special group {!Engine.machineRegisterGroup} 
-                     * contains the machine registers, which are displayed in 
-                     * a special window. *)
+    rGroup: string; (** The name of the group to which this register belongs.*)
     rVal: Pretty.doc; (** The value to be displayed about a register *)
     rOneLineVal: Pretty.doc option (** The value to be displayed on one line *)
 } 
@@ -161,7 +158,8 @@ module type STACK = sig
   (** The type of stacks containing elements of type ['a]. *)
 
   exception Empty
-  (** Raised when {!Stack.pop} or {!Stack.top} is applied to an empty stack. *)
+  (** Raised when {!Util.Stack.pop} or {!Util.Stack.top} is applied to an 
+   * empty stack. *)
 
   val create : unit -> 'a t
 
