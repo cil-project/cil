@@ -133,3 +133,15 @@ let d_growarray (sep: Pretty.doc)
                 ()
                 (elements: 'a t) =
   Pretty.docArray sep doit () elements.gaData
+
+let restoreGA ?deepCopy (ga: 'a t) : (unit -> unit) = 
+  let old = 
+    (match deepCopy with 
+         None -> copy ga
+       | Some f -> deep_copy ga f)
+  in
+  (fun () ->           
+     for i = 0 to max_init_index ga do 
+       set ga i (getg old i)
+     done)
+

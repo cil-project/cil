@@ -104,3 +104,9 @@ val d_growarray : Pretty.doc -> (int -> 'a -> Pretty.doc) -> unit -> 'a t
                              -> Pretty.doc
 (** [GrowArray.d_growarray sep f () a] creates a {!Pretty.doc} for growable
    array a using separator sep and element printer f. *)
+
+
+val restoreGA: ?deepCopy:('a -> 'a) -> 'a t -> unit -> unit
+(** Given a growable array, produce a thunk that later restores it to its
+    current value *)
+
