@@ -804,6 +804,33 @@ let checkLeanStackPointer =
     call None (Lval(var fdec.svar))
       [ castVoidStar whatp;]
 
+let checkNotBelowStackPointer = 
+  let fdec = emptyFunction "CHECK_NOTBELOWSTACK" in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  fdec.svar.vtype <- 
+     TFun(voidType, [ argp; ], false, []);
+  fdec.svar.vstorage <- Static;
+  checkFunctionDecls := 
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
+  
+  fun whatp -> 
+    call None (Lval(var fdec.svar))
+      [ castVoidStar whatp;]
+
+let checkNotBelowStackPointerFat = 
+  let fdec = emptyFunction "CHECK_NOTBELOWSTACKFAT" in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  fdec.svar.vtype <- 
+     TFun(voidType, [ argp; argb; ], false, []);
+  fdec.svar.vstorage <- Static;
+  checkFunctionDecls := 
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
+  
+  fun whatp nullIfInt -> 
+    call None (Lval(var fdec.svar))
+      [ castVoidStar whatp; castVoidStar nullIfInt;]
+
 let checkZeroTagsFun =
   let fdec = emptyFunction "CHECK_ZEROTAGS" in
   let argb  = makeLocalVar fdec "b" voidPtrType in
@@ -2222,7 +2249,7 @@ let rec checkReturnValue
     TInt _ | TBitfield _ | TEnum _ | TFloat _ | TVoid _ -> acc
   | TPtr (t, _) -> 
       (* This is a lean pointer *) 
-      CConsL (checkLeanStackPointer e, acc)
+      CConsL (checkNotBelowStackPointer e, acc)
 
   | TComp (comp, _) when isFatComp comp -> 
       let ptype, ptr, fb, fe = readFieldsOfFat e typ in
@@ -2233,7 +2260,7 @@ let rec checkReturnValue
         | N.FSeq|N.FSeqN -> fe
         | _ -> E.s (unimp "checkReturn: unexpected kind of fat type")
       in
-      CConsL (checkFatStackPointer ptr nullIfInt,  acc)
+      CConsL (checkNotBelowStackPointerFat ptr nullIfInt,  acc)
 
     (* A regular struct *)                                          
   | TComp (comp, _) when comp.cstruct ->
@@ -2249,7 +2276,7 @@ let rec checkReturnValue
         acc
         comp.cfields
         
-  | _ -> E.s (unimp "checkReturnValue: type\n")
+  | _ -> E.s (unimp "checkReturnValue: unexpected return type\n")
       
 
 (********** Initialize variables ***************)

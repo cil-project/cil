@@ -4,7 +4,7 @@ int * external(int *);
 
 int foo(int *y) {
   int *external(int *z); // We must pull this out
-  int (* local1)();  // We must leave this here
+  int (* local1)() = 0;  // We must leave this here
   int (* local2[4])(); // And this one as well
 
   local2[0] = local1; // Use them somehow

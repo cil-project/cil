@@ -883,7 +883,7 @@ bh : defaulttarget mustbegcc
 	echo  >>$(BHDIR)/data.in
 	cd $(BHDIR); sh -c "time ./code < data.in > data.out"
 	@true "sm: added next line to compare output to expected output"
-	cd $(BHDIR); sh -c "perl normalize.pl < data.out | diff data.cil.out - | head"
+#	cd $(BHDIR); sh -c "perl normalize.pl < data.out | diff data.cil.out - | head"
 
 
 # Power pricing

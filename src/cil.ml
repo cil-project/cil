@@ -631,9 +631,6 @@ let get_stmtLoc (statement : stmtkind) =
 let luindex = { line = -1000; file = ""; }
 
 
-let printLn = ref true
-
-
 let printLine (l : location) : string =
   let str = ref "" in
     if !printLn && l.line > 0 then begin

@@ -26,8 +26,8 @@ let single x = CList [x]
 let empty = CList []
     
 let append l1 l2 = 
-  if l1 == CList [] then l2 else
-  if l2 == CList [] then l1 else
+  if l1 = CList [] then l2 else
+  if l2 = CList [] then l1 else
   CSeq (l1, l2)
     
 let rec length (acc: int) = function
