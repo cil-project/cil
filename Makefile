@@ -147,7 +147,7 @@ _MSVC = 1			# Use the MSVC compiler by default
 endif
 
 ifdef _GNUCC
-DEBUGCCL=gcc -x c -O0 -g -D_GNUCC 
+DEBUGCCL=gcc -x c -O0 -g -ggdb -D_GNUCC 
 RELEASECCL=gcc -x c -O3 -Wall -I/usr/include/sys
 #LIB=lib
 #LIBOUT=-o
@@ -577,13 +577,32 @@ APACHECFLAGS=-Wall -D_GNUCC -g \
 APATCH += --patch=apache_gcc.patch
 endif
 
-apache/gzip2 : $(EXECUTABLE)$(EXE)
-	rm -f $(APACHETEST)/gzip2.$(OBJ)
+apache/urlcount : $(EXECUTABLE)$(EXE)
+	rm -f $(APACHETEST)/mod_urlcount.$(OBJ)
 	cd $(APACHETEST); $(SAFECC) \
-                       --keep=. --patch=apache_gcc.patch \
+                       --keep=. $(APATCH) \
+                        $(DOOPT) \
                         $(APACHECFLAGS) \
-                        $(CONLY) $(OBJOUT)./gzip2.$(OBJ) \
-                        gzip2.c
+                        $(CONLY) $(OBJOUT)./mod_urlcount.$(OBJ) \
+                        mod_urlcount.c
+
+apache/layout : $(EXECUTABLE)$(EXE)
+	rm -f $(APACHETEST)/mod_layout.$(OBJ)
+	cd $(APACHETEST); $(SAFECC) \
+                       --keep=. $(APATCH) \
+                        $(DOOPT) \
+                        $(APACHECFLAGS) \
+                        $(CONLY) $(OBJOUT)./mod_layout.$(OBJ) \
+                        mod_layout.c
+
+apache/random : $(EXECUTABLE)$(EXE)
+	rm -f $(APACHETEST)/mod_random.$(OBJ)
+	cd $(APACHETEST); $(SAFECC) \
+                       --keep=. $(APATCH) \
+                        $(DOOPT) \
+                        $(APACHECFLAGS) \
+                        $(CONLY) $(OBJOUT)./mod_random.$(OBJ) \
+                        mod_random.c
 
 apache/gzip : $(EXECUTABLE)$(EXE)
 	rm -f $(APACHETEST)/mod_gzip.$(OBJ)
