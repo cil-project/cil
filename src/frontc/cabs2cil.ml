@@ -3703,7 +3703,8 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
   | _ -> E.s (error "doBinOp: %a\n" d_plainexp (BinOp(bop,e1,e2,intType)))
 
 (* Constant fold a conditional. This is because we want to avoid having 
- * conditionals in the initializers *)
+ * conditionals in the initializers. So, we try very hard to avoid creating 
+ * new statements. *)
 and doCondExp (isconst: bool) 
               (e: A.expression) : condExpRes = 
   let rec addChunkBeforeCE (c0: chunk) = function
@@ -3721,8 +3722,8 @@ and doCondExp (isconst: bool)
     A.BINARY (A.AND, e1, e2) -> begin
       let ce1 = doCondExp isconst e1 in
       let ce2 = doCondExp isconst e2 in
-      match ce1 with
-        CEExp (se1, (Const(CInt64 _) as ci1)) -> 
+      match ce1, ce2 with
+        CEExp (se1, (Const(CInt64 _) as ci1)), _ -> 
           if not (isZero ci1) then 
             addChunkBeforeCE se1 ce2
           else 
@@ -3731,15 +3732,18 @@ and doCondExp (isconst: bool)
               ce1 
             else 
               CEAnd (ce1, ce2)
-
+      | CEExp(se1, e1'), CEExp (se2, e2') when isEmpty se1 && isEmpty se2 -> 
+          CEExp (empty, BinOp(LAnd, 
+                              mkCast e1' intType, 
+                              mkCast e2' intType, intType))
       | _ -> CEAnd (ce1, ce2)
     end
 
   | A.BINARY (A.OR, e1, e2) -> begin
       let ce1 = doCondExp isconst e1 in
       let ce2 = doCondExp isconst e2 in
-      match ce1 with
-        CEExp (se1, (Const(CInt64 _) as ci1)) -> 
+      match ce1, ce2 with
+        CEExp (se1, (Const(CInt64 _) as ci1)), _ -> 
           if isZero ci1 then 
             addChunkBeforeCE se1 ce2
           else 
@@ -3749,6 +3753,9 @@ and doCondExp (isconst: bool)
             else 
               CEOr (ce1, ce2)
 
+      | CEExp (se1, e1'), CEExp (se2, e2') when isEmpty se1 && isEmpty se2 ->
+          CEExp (empty, BinOp(LOr, mkCast e1' intType, 
+                              mkCast e2' intType, intType))
       | _ -> CEOr (ce1, ce2)
     end
 
@@ -3759,6 +3766,9 @@ and doCondExp (isconst: bool)
             CEExp (se1, one) 
           else
             CEExp (se1, zero)
+      | CEExp (se1, e) when isEmpty se1 -> 
+          CEExp (empty, UnOp(LNot, mkCast e intType, intType))
+
       | ce1 -> CENot ce1
   end
 

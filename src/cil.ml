@@ -1592,7 +1592,9 @@ let d_const () c =
 
 (* Parentheses level. An expression "a op b" is printed parenthesized if its 
  * parentheses level is >= that that of its context. Identifiers have the 
- * lowest level and weakly binding operators (e.g. |) have the largest level 
+ * lowest level and weakly binding operators (e.g. |) have the largest level. 
+ * The correctness criterion is that a smaller level MUST correspond to a 
+ * stronger precedence!
  *)
 let derefStarLevel = 20
 let indexLevel = 20
@@ -1602,6 +1604,7 @@ let additiveLevel = 60
 let comparativeLevel = 70
 let bitwiseLevel = 75
 let getParenthLevel = function
+  | BinOp((LAnd | LOr), _,_,_) -> 80
                                         (* Bit operations. *)
   | BinOp((BOr|BXor|BAnd),_,_,_) -> bitwiseLevel (* 75 *)
 
@@ -1609,8 +1612,8 @@ let getParenthLevel = function
   | BinOp((Eq|Ne|Gt|Lt|Ge|Le),_,_,_) ->
       comparativeLevel (* 70 *)
                                         (* Additive. Shifts can have higher 
-                                         * level but I want parentheses 
-                                         * around them *)
+                                         * level than + or - but I want 
+                                         * parentheses around them *)
   | BinOp((MinusA|MinusPP|MinusPI|PlusA|
            PlusPI|IndexPI|Shiftlt|Shiftrt),_,_,_)  
     -> additiveLevel (* 60 *)
@@ -1848,6 +1851,8 @@ and d_binop () b =
   | BAnd -> text "&"
   | BXor -> text "^"
   | BOr -> text "|"
+  | LAnd -> text "&&"
+  | LOr -> text "||"
 
 let invalidStmt = mkStmt (Instr [])
 
@@ -4597,7 +4602,7 @@ and constFold (machdep: bool) (e: exp) : exp =
             match unop with 
               Neg -> kinteger64 tk (Int64.neg i)
             | BNot -> kinteger64 tk (Int64.lognot i)
-            | _ -> UnOp(unop, e1c, tres)
+            | LNot -> if i = Int64.zero then one else zero
             end
         | e1c -> UnOp(unop, e1c, tres)
       with Not_found -> e
@@ -4711,6 +4716,9 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
 
       | Gt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 ->
           integer (if i1 <> i2 && ge (isunsigned ik1) i1 i2 then 1 else 0)
+      | LAnd, _, _ when isZero e1' || isZero e2' -> zero
+      | LOr, _, _ when isZero e1' -> e2'
+      | LOr, _, _ when isZero e2' -> e1'
       | _ -> BinOp(bop, e1', e2', tres)
     in
     if debugConstFold then 

@@ -507,6 +507,9 @@ and checkExp (isconst: bool) (e: exp) : typ =
           | Mod|BAnd|BOr|BXor -> 
               typeMatch t1 t2; checkIntegralType tres;
               typeMatch t1 tres; tres
+          | LAnd | LOr -> 
+              typeMatch t1 t2; checkBooleanType tres;
+              typeMatch t1 tres; tres
           | Shiftlt | Shiftrt -> 
               typeMatch t1 tres; checkIntegralType t1; 
               checkIntegralType t2; tres
