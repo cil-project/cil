@@ -784,20 +784,21 @@ let conditionalConversion (e2: exp) (t2: typ) (e3: exp) (t3: typ) : typ =
           when comp2.ckey = comp3.ckey -> t2 
     | TPtr(_, _), TPtr(TVoid _, _) -> t2
     | TPtr(TVoid _, _), TPtr(_, _) -> t3
-    | TPtr(t2'', _), TPtr(t3'', _) 
-          when typeSig t2'' = typeSig t3'' -> t2
-    (* weimer: added to handle  ``string ? string : "NULL"''.
-     * A better solution would be to compute the typesig above without
-     * considering 'const'. *)
-    | TPtr(TInt(k1,_),_), TPtr(TInt(k2,_), _) when 
-        is_char k1 && is_char k2 -> t2
-    | TPtr(_, _), TInt _ when isZero e3 -> t2
+    | TPtr _, TPtr _ when typeSig t2 = typeSig t3 -> t2
+    | TPtr _, TInt _ when isZero e3 -> t2
     | TInt _, TPtr _ when isZero e2  -> t3
-      (* weimer: give a better error message here *)
-    | TPtr(t2'', _), TPtr(t3'', _) when typeSig t2'' <> typeSig t3'' ->
-            E.s (error "A.QUESTION %a does not match %a"
-              d_type (unrollType t2) d_type (unrollType t3))
-    | _, _ -> E.s (error "A.QUESTION for non-scalar type")
+
+          (* When we compare two pointers of diffent type, we combine them 
+           * using the same algorith when combining multiple declarations of 
+           * a global *)
+    | (TPtr _) as t2', (TPtr _ as t3') ->
+        try combineTypes t2' t3'
+        with Failure msg -> begin
+          ignore (warn "A.QUESTION %a does not match %a"
+                    d_type (unrollType t2) d_type (unrollType t3));
+          t2 (* Just pick one *)
+        end
+    | _, _ -> E.s (error "A.QUESTION for invalid combination of types")
   in
   tresult
 
@@ -859,6 +860,95 @@ let doNameGroup (doone: A.spec_elem list -> 'n -> 'a)
   List.map (fun n -> doone s n) nl
 
 
+    (* Combine the types. Raises the Failure exception with an error message.*)
+let rec combineTypes (oldt: typ) (t: typ) : typ = 
+  match oldt, t with
+  | TVoid olda, TVoid a -> TVoid (addAttributes olda a)
+  | TInt (oldik, olda), TInt (ik, a) -> 
+      let combineIK oldk k = 
+        if oldk == k then oldk else
+        raise (Failure "different integer types")
+      in
+      TInt (combineIK oldik ik, addAttributes olda a)
+  | TFloat (oldfk, olda), TFloat (fk, a) -> 
+      let combineFK oldk k = 
+        if oldk == k then oldk else
+        raise (Failure "different floating point types")
+      in
+      TFloat (combineFK oldfk fk, addAttributes olda a)
+  | TEnum (oldei, olda), TEnum (ei, a) -> 
+      if oldei.ename = ei.ename then TEnum (ei, addAttributes olda a) else
+      raise (Failure  "different enumeration tags")
+        
+        (* Strange one. But seems to be handled by GCC *)
+  | TEnum (oldei, olda) , TInt(IInt, a) -> TEnum(oldei, 
+                                                 addAttributes olda a)
+        (* Strange one. But seems to be handled by GCC *)
+  | TInt(IInt, olda), TEnum (ei, a) -> TEnum(ei, addAttributes olda a)
+        
+        
+  | TComp (oldci, olda) , TComp (ci, a) -> 
+      if oldci.cname = ci.cname && oldci.cstruct = ci.cstruct 
+      then TComp (oldci, addAttributes olda a)
+      else raise (Failure "different struct/union types")
+  | TArray (oldbt, oldsz, olda), TArray (bt, sz, a) -> 
+      let newbt = combineTypes oldbt bt in
+      let newsz = 
+        if oldsz = sz then sz else
+        match oldsz, sz with
+          None, Some _ -> sz
+        | Some _, None -> oldsz
+        | _ -> raise (Failure "different array lengths")
+      in
+      TArray (newbt, newsz, addAttributes olda a)
+        
+  | TPtr (oldbt, olda), TPtr (bt, a) -> 
+      TPtr (combineTypes oldbt bt, addAttributes olda a)
+        
+  | TFun (_, _, _, [Attr("missingproto",_)]), TFun _ -> t
+        
+  | TFun (oldrt, oldargs, oldva, olda), TFun (rt, args, va, a) ->
+      let newrt = combineTypes oldrt rt in
+      if oldva != va then 
+        raise (Failure "diferent vararg specifiers");
+      (* If one does not have arguments, believe the one with the 
+      * arguments *)
+      let loldargs = List.length oldargs in
+      let largs    = List.length args in
+      let newargs = 
+        if loldargs = 0 then args else
+        if largs = 0 then oldargs else
+        if loldargs <> largs then 
+          raise (Failure "different number of arguments")
+        else begin
+          (* Go over the arguments and update the old ones with the 
+          * adjusted types *)
+          List.iter2 
+            (fun oldarg arg -> 
+              if oldarg.vname = "" then oldarg.vname <- arg.vname;
+              oldarg.vattr <- addAttributes oldarg.vattr arg.vattr;
+              oldarg.vtype <- combineTypes oldarg.vtype arg.vtype)
+            oldargs args;
+          oldargs
+        end
+      in
+      TFun (newrt, newargs, oldva, addAttributes olda a)
+        
+  | TNamed (oldn, oldt, olda), TNamed (n, _, a) when oldn = n ->
+      TNamed (oldn, oldt, addAttributes olda a)
+        
+        (* Unroll first the new type *)
+  | _, TNamed (n, t, a) -> 
+      let res = combineTypes oldt t in
+      typeAddAttributes a res
+        
+        (* And unroll the old type as well if necessary *)
+  | TNamed (oldn, oldt, a), _ -> 
+      let res = combineTypes oldt t in
+      typeAddAttributes a res
+        
+  | _ -> raise (Failure "different type constructors")
+
 
 (* Create and cache varinfo's for globals. Starts with a varinfo but if the 
  * global has been declared already it might come back with another varinfo. 
@@ -883,95 +973,6 @@ let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
     oldvi.vstorage <- newstorage;
     (* Union the attributes *)
     oldvi.vattr <- addAttributes oldvi.vattr vi.vattr;
-    (* Combine the types. Raises the Failure exception with an error message.*)
-    let rec combineTypes (oldt: typ) (t: typ) : typ = 
-      match oldt, t with
-      | TVoid olda, TVoid a -> TVoid (addAttributes olda a)
-      | TInt (oldik, olda), TInt (ik, a) -> 
-          let combineIK oldk k = 
-            if oldk == k then oldk else
-            raise (Failure "different integer types")
-          in
-          TInt (combineIK oldik ik, addAttributes olda a)
-      | TFloat (oldfk, olda), TFloat (fk, a) -> 
-          let combineFK oldk k = 
-            if oldk == k then oldk else
-            raise (Failure "different floating point types")
-          in
-          TFloat (combineFK oldfk fk, addAttributes olda a)
-      | TEnum (oldei, olda), TEnum (ei, a) -> 
-          if oldei.ename = ei.ename then TEnum (ei, addAttributes olda a) else
-          raise (Failure  "different enumeration tags")
-
-      (* Strange one. But seems to be handled by GCC *)
-      | TEnum (oldei, olda) , TInt(IInt, a) -> TEnum(oldei, 
-                                                     addAttributes olda a)
-      (* Strange one. But seems to be handled by GCC *)
-      | TInt(IInt, olda), TEnum (ei, a) -> TEnum(ei, addAttributes olda a)
-
-
-      | TComp (oldci, olda) , TComp (ci, a) -> 
-          if oldci.cname = ci.cname && oldci.cstruct = ci.cstruct 
-          then TComp (oldci, addAttributes olda a)
-          else raise (Failure "different struct/union types")
-      | TArray (oldbt, oldsz, olda), TArray (bt, sz, a) -> 
-          let newbt = combineTypes oldbt bt in
-          let newsz = 
-            if oldsz = sz then sz else
-            match oldsz, sz with
-              None, Some _ -> sz
-            | Some _, None -> oldsz
-            | _ -> raise (Failure "different array lengths")
-          in
-          TArray (newbt, newsz, addAttributes olda a)
-
-      | TPtr (oldbt, olda), TPtr (bt, a) -> 
-          TPtr (combineTypes oldbt bt, addAttributes olda a)
-
-      | TFun (_, _, _, [Attr("missingproto",_)]), TFun _ -> t
-
-      | TFun (oldrt, oldargs, oldva, olda), TFun (rt, args, va, a) ->
-          let newrt = combineTypes oldrt rt in
-          if oldva != va then 
-            raise (Failure "diferent vararg specifiers");
-          (* If one does not have arguments, believe the one with the 
-           * arguments *)
-          let loldargs = List.length oldargs in
-          let largs    = List.length args in
-          let newargs = 
-            if loldargs = 0 then args else
-            if largs = 0 then oldargs else
-            if loldargs <> largs then 
-              raise (Failure "different number of arguments")
-            else begin
-              (* Go over the arguments and update the old ones with the 
-              * adjusted types *)
-              List.iter2 
-                (fun oldarg arg -> 
-                  if oldarg.vname = "" then oldarg.vname <- arg.vname;
-                  oldarg.vattr <- addAttributes oldarg.vattr arg.vattr;
-                  oldarg.vtype <- combineTypes oldarg.vtype arg.vtype)
-                oldargs args;
-              oldargs
-            end
-          in
-          TFun (newrt, newargs, oldva, addAttributes olda a)
-
-      | TNamed (oldn, oldt, olda), TNamed (n, _, a) when oldn = n ->
-          TNamed (oldn, oldt, addAttributes olda a)
-
-      (* Unroll first the new type *)
-      | _, TNamed (n, t, a) -> 
-          let res = combineTypes oldt t in
-          typeAddAttributes a res
-
-      (* And unroll the old type as well if necessary *)
-      | TNamed (oldn, oldt, a), _ -> 
-          let res = combineTypes oldt t in
-          typeAddAttributes a res
-
-      | _ -> raise (Failure "different type constructors")
-    in
     begin 
       try
         oldvi.vtype <- combineTypes oldvi.vtype vi.vtype
