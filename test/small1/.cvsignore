@@ -40,3 +40,8 @@ array.a.files
 
 test-bad.err test-bad.out
 *optimcured*.c
+
+longBlock.cmx
+polystruct-tmp.c
+sscanf_string
+wchar-bad-tmp.c
