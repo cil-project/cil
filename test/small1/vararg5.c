@@ -1,3 +1,5 @@
+#include <vararg5.h>
+
 /* 
 This file is a test for variable argument functions, where the call to 
 print is made in a separate function, talking. This checks to see if we 
