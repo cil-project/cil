@@ -3,7 +3,7 @@ typedef long int __time_t;
 
 typedef __time_t time_t;
 
-extern  struct
+/* extern  */ struct // This is a definition
 {
 			 
 	time_t	to_initial;	 

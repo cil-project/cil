@@ -806,7 +806,7 @@ use strict;
 
 use File::Basename;
 
-my $gcc = "C:/Programs/cygwin/bin/gcc";
+# The variable $::cc is inherited from the main script!!
 
 sub new {
     my ($proto, $stub) = @_;
@@ -818,9 +818,9 @@ sub new {
       MODENAME => 'GNUCC',  # do not change this since it is used in code
       # sm: added -O since it's needed for inlines to be merged instead of causing link errors
       # sm: removed -O to ease debugging; will address "inline extern" elsewhere
-      CC => "$gcc -D_GNUCC -c",
-      LD => "$gcc -D_GNUCC ",
-      CPP => "$gcc -D_GNUCC -E ",
+      CC => "$::cc -D_GNUCC -c",
+      LD => "$::cc -D_GNUCC ",
+      CPP => "$::cc -D_GNUCC -E ",
       DEFARG  => "-D",
       INCARG => "-I",
       DEBUGARG => "-g",
@@ -998,7 +998,7 @@ sub linkOutputFile {
 sub setVersion {
     my($self) = @_;
     my $cversion = "";
-    open(VER, "$gcc -dumpversion " 
+    open(VER, "$::cc -dumpversion " 
          . join(' ', @{$self->{PPARGS}}) ." |") 
         || die "Cannot start GNUCC";
     while(<VER>) {

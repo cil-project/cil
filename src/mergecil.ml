@@ -77,18 +77,36 @@ let rec find (pathcomp: bool) (nd: 'a node) =
     res
   end
 
+
+(* Union two nodes. For each node we also have a boolean that says "try not 
+ * to make this representative". We return a function for undoing the union. 
+ * Make sure that between the union and the undo you do not do path 
+ * compression  *)
+let union (nd1: 'a node) (try_not1: bool) 
+          (nd2: 'a node) (try_not2: bool) : unit -> unit = 
+   if nd1.nfidx < nd2.nfidx && (not try_not1 || try_not2) then begin
+     (* Make 1 the reprsentative *)
+     let old2rep = nd2.nrep in
+     nd2.nrep <- nd1; 
+     fun () -> nd2.nrep <- old2rep
+   end else begin
+     (* Make 2 the reprsentative *)
+     let old1rep = nd1.nrep in
+     nd1.nrep <- nd2; 
+     fun () -> nd1.nrep <- old1rep
+   end
+     
 (* Find the representative for a node and compress the paths in the process*)
 let findRepresentative
     (pathcomp: bool)
     (eq: (int * string, 'a node) H.t)
     (fidx: int)
-    (name: string) : 'a * bool =
+    (name: string) : 'a option =
   try
     let nd = H.find eq (fidx, name) in
-    let res = find pathcomp nd in
-    res.ndata, res == res.nrep
+    if nd == nd.nrep then None else Some (find pathcomp nd).ndata
   with Not_found -> 
-    E.s (bug "Cannot find node for %s in file %d\n" name fidx)
+    None
 
 (* Dump a graph *)
 let dumpGraph (what: string) (eq: (int * string, 'a node) H.t) : unit = 
@@ -220,6 +238,7 @@ let rec combineTypes (what: combineWhat)
       TFloat (combineFK oldfk fk, addAttributes olda a)
 
   | TEnum (oldei, olda), TEnum (ei, a) -> begin
+      let origoldei = oldei in (* Save the original for the end *)
       (* Find the node for this enum, no path compression. *)
       let oldeinode = getNode eEq oldfidx oldei.ename oldei locUnknown in
       let einode    = getNode eEq fidx ei.ename ei locUnknown in
@@ -227,7 +246,6 @@ let rec combineTypes (what: combineWhat)
         TEnum (oldei, addAttributes olda a) 
       else begin
         (* Replace with the representative data *)
-        let origoldei = oldei in (* Save the original for the end *)
         let oldei = oldeinode.ndata in
         let oldfidx = oldeinode.nfidx in
         let ei = einode.ndata in
@@ -247,9 +265,9 @@ let rec combineTypes (what: combineWhat)
         (* We get here if the enumerations match *)
         oldei.eattr <- addAttributes oldei.eattr ei.eattr;
         (* Set the representative *)
-        einode.nrep <- oldeinode;
-        if debugMerge then 
-          ignore (E.log "  Renaming enum %s to %s\n" ei.ename  oldei.ename);
+        let _ = union oldeinode false einode false in
+(*        if debugMerge then 
+          ignore (E.log "  Renaming enum %s to %s\n" ei.ename  oldei.ename);*)
         TEnum (origoldei, addAttributes olda a)
       end
   end
@@ -261,6 +279,7 @@ let rec combineTypes (what: combineWhat)
         
         
   | TComp (oldci, olda) , TComp (ci, a) -> begin
+      let origoldci = oldci in
       if oldci.cstruct <> ci.cstruct then 
         raise (Failure "(different struct/union types)");
       (* See if we have a mapping already *)
@@ -273,7 +292,6 @@ let rec combineTypes (what: combineWhat)
         TComp (oldci, addAttributes olda a) 
       else begin
         (* Replace with the representative data *)
-        let origoldci = oldci in
         let oldci = oldcinode.ndata in
         let oldfidx = oldcinode.nfidx in
         let ci = cinode.ndata in
@@ -292,8 +310,7 @@ let rec combineTypes (what: combineWhat)
         (* We check that they are defined in the same way. While doing this 
          * there might be recursion and we have to watch for going into an 
          * infinite loop. So we add the assumption that they are equal *)
-        let oldcirep = cinode.nrep in
-        cinode.nrep <- oldcinode.nrep;
+        let undo = union oldcinode (old_len = 0) cinode (len = 0) in
         (* We check the fields but watch for Failure. We only do the check 
          * when the lengths are the same. Due to the code above this the 
          * other possibility is that one of the length is 0, in which case we 
@@ -311,7 +328,7 @@ let rec combineTypes (what: combineWhat)
             ) oldci.cfields ci.cfields
           with Failure reason -> begin 
             (* Our assumption was wrong. Forget the isomorphism *)
-            cinode.nrep <- oldcirep;
+            undo ();
             let msg = 
               sprint ~width:80
                 (dprintf
@@ -321,8 +338,9 @@ let rec combineTypes (what: combineWhat)
           end);
         (* We get here when we succeeded checking that they are equal *)
         oldci.cattr <- addAttributes oldci.cattr ci.cattr;
-        if debugMerge then 
+(*        if debugMerge then 
           ignore (E.log " Renaming %s to %s\n" (compFullName ci) oldci.cname);
+*)
         TComp (origoldci, addAttributes olda a) 
       end
   end
@@ -405,9 +423,9 @@ let rec combineTypes (what: combineWhat)
                  oldn n reason) in
           raise (Failure msg)
         end);
-        tnode.nrep <- oldtnode.nrep;
-        if debugMerge then 
-          ignore (E.log " Renaming type name %s to %s\n" n oldn);
+        let _ = union oldtnode false tnode false in
+(*        if debugMerge then 
+          ignore (E.log " Renaming type name %s to %s\n" n oldn); *)
         TNamed (oldn, oldt, addAttributes olda a)
       end
   end
@@ -436,30 +454,26 @@ class renameVisitorClass = object (self)
       (* This is a variable use. See if we must change it *)
   method vvrbl (vi: varinfo) : varinfo visitAction = 
     if not vi.vglob then DoChildren else
-    let vi', isrep = findRepresentative true vEq !currentFidx vi.vname in 
-    if isrep then 
-      DoChildren
-    else
-      ChangeTo vi'
+    match findRepresentative true vEq !currentFidx vi.vname with
+      None -> DoChildren
+    | Some vi' -> ChangeTo vi'
 
-
+          
         (* The use of a type *)
   method vtype (t: typ) = 
     match t with 
       TComp (ci, a) -> begin
         let eqH = if ci.cstruct then sEq else uEq in
-        let ci', isrep = findRepresentative true eqH !currentFidx ci.cname in
-        if isrep then 
-          DoChildren
-        else
-          ChangeTo (TComp (ci', visitCilAttributes (self :> cilVisitor) a))
+        match findRepresentative true eqH !currentFidx ci.cname with
+          None -> DoChildren
+        | Some ci' -> 
+            ChangeTo (TComp (ci', visitCilAttributes (self :> cilVisitor) a))
       end
     | TEnum (ei, a) -> begin
-        let ei', isrep = findRepresentative true eEq !currentFidx ei.ename in
-        if isrep then 
-          DoChildren
-        else
-          ChangeTo (TEnum (ei', visitCilAttributes (self :> cilVisitor) a))
+        match findRepresentative true eEq !currentFidx ei.ename with
+          None -> DoChildren
+        | Some ei' -> 
+            ChangeTo (TEnum (ei', visitCilAttributes (self :> cilVisitor) a))
       end
 
     | TNamed (tn, typ, a) -> begin
@@ -491,7 +505,7 @@ let renameVisitor = new renameVisitorClass
 
 let rec oneFilePass1 (f:file) : unit = 
   if debugMerge || !E.verboseFlag then 
-    ignore (E.log "Per-merging (%d) %s\n" !currentFidx f.fileName);
+    ignore (E.log "Pre-merging (%d) %s\n" !currentFidx f.fileName);
 
   if f.globinitcalled || f.globinit <> None then
     E.s (E.warn "Merging file %s has global initializer" f.fileName);
@@ -532,7 +546,7 @@ let rec oneFilePass1 (f:file) : unit =
         end
       in
       oldvi.vstorage <- newstorage;
-      vinode.nrep <- oldvinode; (* Set its representative *)
+      let _ = union oldvinode false vinode false in ()
     with Not_found -> (* Not present in the previous files. Remember it for 
                        * later  *)
       H.add vEnv vi.vname vinode
@@ -559,45 +573,43 @@ let rec oneFilePass1 (f:file) : unit =
   (* Now we go once more through the file and we rename the globals that we 
    * keep. We also scan the entire body and we replace references to the 
    * representative types or variables *)
-
 let oneFilePass2 (f: file) = 
   if debugMerge then 
     ignore (E.log "Final merging phase (%d): %s\n" 
               !currentFidx f.fileName);
   let processOneGlobal (g: global) : unit = 
-      (* Process a varinfo. Reuse an old one, or rename it if necessary and 
-       * return an indication if this is a new one  *)
-    let processVarinfo (vi: varinfo) (vloc: location) : varinfo * bool= 
+      (* Process a varinfo. Reuse an old one, or rename it if necessary *)
+    let processVarinfo (vi: varinfo) (vloc: location) : varinfo =  
       (* Maybe it is static. Rename it then *)
       if vi.vstorage = Static then begin
         vi.vname <- newAlphaName vAlpha vi.vname;
         vi.vid <- H.hash vi.vname;
-        vi, true
+        vi
       end else begin
         (* Find the representative *)
-        let oldvi, isrep = 
-          findRepresentative true vEq !currentFidx vi.vname in 
-        oldvi, isrep
+        match findRepresentative true vEq !currentFidx vi.vname with
+          None -> vi
+        | Some vi' -> vi'
       end
     in
     try
       match g with 
       | GDecl (vi, l) as g -> 
           currentLoc := l;
-          let vi', isold = processVarinfo vi l in
-          if isold then (* Drop this declaration *) () else
+          let vi' = processVarinfo vi l in
+          if vi != vi' then (* Drop this declaration *) () else
           pushGlobals (visitCilGlobal renameVisitor g)
             
       | GVar (vi, init, l) as g -> 
           currentLoc := l;
-          let vi', _= processVarinfo vi l in
+          let vi' = processVarinfo vi l in
           (* We must keep this definition even if we reuse this varinfo, 
           * because maybe the previous one was a declaration *)
           pushGlobals (visitCilGlobal renameVisitor (GVar(vi', init, l)))
             
       | GFun (fdec, l) as g -> 
           currentLoc := l;
-          let vi', _ = processVarinfo fdec.svar l in
+          let vi' = processVarinfo fdec.svar l in
           (* We keep it anyway. Like a definition. *)
           pushGlobals (visitCilGlobal renameVisitor g)
             
@@ -606,41 +618,37 @@ let oneFilePass2 (f: file) =
           let eqH, alphaH = 
             if ci.cstruct then sEq, sAlpha else uEq, uAlpha 
           in
-          let oldci, isrep = 
-            findRepresentative true sEq !currentFidx ci.cname in
-          if isrep then begin
-            (* A new one, we must rename it and keep the definition *)
-            ci.cname <- newAlphaName alphaH ci.cname;
-            ci.ckey <- H.hash (compFullName ci);
-            pushGlobals (visitCilGlobal renameVisitor g);
-          end else begin
-            (* This is not the representative *)
-            (* See if the old one is empty and the new one is not *)
-            if oldci.cfields = [] then begin
-              (* Define the old compinfo here (because it was not defined) 
-               * but put our fields in it first ! *)
-              if debugMerge then 
-                ignore (E.log " Adding a definition for the empty %s\n"
-                          (compFullName oldci));
-              oldci.cfields <- 
-                 List.map (fun fi -> { fi with fcomp = oldci }) ci.cfields;
-              pushGlobals (visitCilGlobal renameVisitor (GCompTag(oldci, l)))
-            end else (* It is an old structure that is not empty. Drop this 
-                  * declaration because we'll not be using it. *)
-              ()
+          match findRepresentative true sEq !currentFidx ci.cname with
+            None -> 
+              (* A new one, we must rename it and keep the definition *)
+              ci.cname <- newAlphaName alphaH ci.cname;
+              ci.ckey <- H.hash (compFullName ci);
+              pushGlobals (visitCilGlobal renameVisitor g)
+          | Some oldci -> begin
+              (* This is not the representative *)
+              (* See if the old one is empty and the new one is not *)
+              if oldci.cfields = [] then begin
+                (* Define the old compinfo here (because it was not defined) 
+                * but put our fields in it first ! *)
+                if debugMerge then 
+                  ignore (E.log " Adding a definition for the empty %s\n"
+                            (compFullName oldci));
+                oldci.cfields <- 
+                   List.map (fun fi -> { fi with fcomp = oldci }) ci.cfields;
+                pushGlobals (visitCilGlobal renameVisitor (GCompTag(oldci, l)))
+              end else (* It is an old structure that is not empty. Drop this 
+                * declaration because we'll not be using it. *)
+                ()
           end
       end  
-      | GEnumTag (ei, l) as g -> 
+      | GEnumTag (ei, l) as g -> begin
           currentLoc := l;
-          let oldei, isrep = 
-            findRepresentative true eEq !currentFidx ei.ename in
-          if isrep then begin
-            (* We must rename it *)
-            ei.ename <- newAlphaName eAlpha ei.ename;
-            pushGlobals (visitCilGlobal renameVisitor g);
-          end else
-            () (* Drop this since we are reusing it from before *)
-              
+          match findRepresentative true eEq !currentFidx ei.ename with 
+            None -> (* We must rename it *)
+              ei.ename <- newAlphaName eAlpha ei.ename;
+              pushGlobals (visitCilGlobal renameVisitor g);
+          | Some _ -> () (* Drop this since we are reusing it from before *)
+      end
       | GType (n, t, l) as g -> begin
           currentLoc := l;
           if n = "" then begin (* This is here just to introduce an undefined 
@@ -648,27 +656,27 @@ let oneFilePass2 (f: file) =
             let t'  = visitCilType renameVisitor t in
             pushGlobal (GType(n, t', l))
           end else begin
-            let (n', t'), isrep = 
-              findRepresentative true tEq !currentFidx n in
+            let nt' = 
+              match findRepresentative true tEq !currentFidx n with
+                None -> (* We must rename it *)
+                  let n' = newAlphaName tAlpha n in
+                  let t'  = visitCilType renameVisitor t in
+                  pushGlobal (GType(n', t', l));
+                  n', t'
+              | Some (n', t') -> n', t' (* And we drop it *)
+            in
             (* Add it to the local environment so we know how to rename types*)
-            H.add tEnv n (n', t');
-            if isrep then begin
-              (* We must rename it *)
-              let n' = newAlphaName tAlpha n in
-              let t'  = visitCilType renameVisitor t in
-              pushGlobal (GType(n', t', l));
-            end else 
-              () (* We drop it *)
+            H.add tEnv n nt';
           end
       end
       | g -> pushGlobals (visitCilGlobal renameVisitor g)
-with e -> begin
-  ignore (E.log "error when merging global: %s\n" (Printexc.to_string e));
-  pushGlobal (GText (sprint 80 (dprintf "/* error at %t:" d_thisloc)));
-  pushGlobal g;
-  pushGlobal (GText ("*************** end of error*/"));
+  with e -> begin
+    ignore (E.log "error when merging global: %s\n" (Printexc.to_string e));
+    pushGlobal (GText (sprint 80 (dprintf "/* error at %t:" d_thisloc)));
+    pushGlobal g;
+    pushGlobal (GText ("*************** end of error*/"));
         
-    end
+  end
   in
   List.iter processOneGlobal f.globals
 
@@ -680,7 +688,13 @@ let merge (files: file list) (newname: string) : file =
   currentFidx := 0;
   List.iter (fun f -> oneFilePass1 f; incr currentFidx) files;
 
-
+  (* Now maybe dump the graph *)
+  if debugMerge then begin
+    dumpGraph "type" tEq;
+    dumpGraph "struct" sEq;
+    dumpGraph "union" uEq;
+    dumpGraph "enum" eEq;
+  end;
   (* Make the second pass over the files. This is when we start rewriting the 
    * file *)
   currentFidx := 0;
