@@ -1287,3 +1287,19 @@ prettytest:  obj/prettytest.exe
 
 
 
+### ftpd-BSD-0.3.2-5
+FTPDDIR=test/ftpd/ftpd
+FTPDSAFECC=$(SAFECC) --combine --keep=safeccout  \
+                  --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) \
+                  $(NOPRINTLN)
+ifeq ($(ARCHOS), x86_WIN32)
+FTPDSAFECC += -DWIN32 -DMSDOS
+endif
+ftpd-clean: 	
+	cd $(FTPDDIR); make clean
+	cd $(FTPDDIR); rm -f *cil.c *box.c *.i *_ppp.c *.origi *_all.c
+
+ftpd: defaulttarget mustbegcc
+	cd $(FTPDDIR); \
+            make CC="$(FTPDSAFECC)" \
+                 LD="$(FTPDSAFECC)"
