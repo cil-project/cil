@@ -4018,6 +4018,9 @@ let boxFile file =
             (* end WEIMER *)
             theFile := consGlobal g !theFile
 
+        | GFun (f, l) when hasAttribute "nobox" f.svar.vattr -> 
+            theFile := consGlobal g !theFile
+            
         | GFun (f, l) -> 
             currentLoc := l;
             if showGlobals then ignore (E.log "Boxing GFun(%s) at %a\n" 

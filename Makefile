@@ -1290,8 +1290,9 @@ yacr: mustbegcc
 
 
 ################# LINUX
-LINUX_INCLUDES := test/linux/include
-LINUX_TOPATCH := asm/uaccess.h
+LINUX_INCLUDES := $(CCUREDHOME)/test/linux/include
+LINUX_TOPATCH := asm/uaccess.h asm/bitops.h \
+                 linux/slab.h linux/list.h
 linuxsetup:
 	$(PATCHER)  -D MODULE -D _KERNEL_ -I /usr/src/linux/include \
                     --patch=test/linux/linux.patch \

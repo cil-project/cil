@@ -21,8 +21,7 @@ class clearRefBitsVis = object
 end
 
 
-(* encapsulate this since rumor has it Raymond has changed *)
-(* how we represent 'inline' *)
+
 let isInlineFunc (f: fundec) : bool = f.sinline
 
 

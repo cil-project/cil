@@ -1457,7 +1457,10 @@ let doGlobal (g: global) : global =
 
       | Attr("box", [AId("on")]) -> boxing := true
       | Attr("box", [AId("off")]) -> boxing := false
-
+      | Attr("nobox", [AStr s]) ->
+          applyToFunction s
+            (fun vi -> vi.vattr <- addAttribute (Attr("nobox",[])) vi.vattr)
+            
       | Attr("boxvararg", [AStr s; ASizeOf t]) -> 
           if debugVararg then 
             if !E.verboseFlag then 
@@ -1531,8 +1534,9 @@ let doGlobal (g: global) : global =
                 Some i'
           in
           GVar (vi, init', l)
-            
-      | GFun (fdec, l) -> 
+
+      | GFun (fdec, l) when (hasAttribute "nobox" fdec.svar.vattr) ->  g
+      | GFun (fdec, l) ->
           currentLoc := l;
           (* See if it is a model for anybody *)
           if not !disableModelCheck then begin
