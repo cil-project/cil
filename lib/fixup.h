@@ -2,8 +2,12 @@
 
 #ifdef _MSVC   /************* MICROSOFT VISUAL C *************/
 /* Drop some things on the floor */
-#define __cdecl
 #define __declspec(a)
+
+/* Turn others into GCC syntax */
+#define __inline inline
+#define _inline inline
+
 
 /* Define some types */
 #define __int64 long long

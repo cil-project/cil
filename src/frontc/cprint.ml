@@ -196,8 +196,12 @@ let rec print_base_type  typ =
   | OLD_PROTO (typ, _, _) -> print_base_type typ
   | PTR typ -> print_base_type  typ
   | ARRAY (typ, _) -> print_base_type  typ
+(*
   | CONST typ -> print_base_type  typ
   | VOLATILE typ -> print_base_type  typ
+*)
+  | ATTRTYPE (typ, _) -> print_base_type typ
+
   | TYPEOF e -> print "__typeof__("; print_expression e 1; print ")"
 	
 and print_fields  id (flds : name_group list) =
@@ -241,16 +245,43 @@ and print_enum id items =
 and get_base_type typ =
   match typ with
     PTR typ -> get_base_type typ
+(*
   | CONST typ -> get_base_type typ
   | VOLATILE typ -> get_base_type typ
+*)
+  | ATTRTYPE (typ, _) -> get_base_type typ
   | ARRAY (typ, _) -> get_base_type typ
   | _ -> typ
 	
 and print_pointer typ =
   match typ with
     PTR typ -> print_pointer typ; print "*"
+(*
   | CONST typ -> print_pointer typ; print " const "
   | VOLATILE typ -> print_pointer typ; print " volatile "
+*)
+  | ATTRTYPE (typ, a) -> begin 
+      print_pointer typ;
+        (* Extract the const and volatile attributes *)
+      let rec doconstvol = function
+          [] -> []
+        | ("const", []) :: rest -> print " const "; doconstvol rest
+        | ("volatile", []) :: rest -> print " volatile "; doconstvol rest
+        | a :: rest -> a :: doconstvol rest
+      in
+      let rest = doconstvol a in
+      if rest <> [] then begin
+        print " __attribute__((";
+        let printOne (s, el) =
+          print s;
+          if el <> [] then
+            print_commas false (fun e -> print_expression e 1) el
+        in
+        print_commas false printOne rest;
+        print ")) "
+      end
+  end
+
   | ARRAY (typ, _) -> print_pointer typ
   | _ -> ()
         

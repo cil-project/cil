@@ -86,6 +86,8 @@ let init_lexicon _ =
                 ("__volatile__", VOLATILE);
                 (**** MS VC ***)
                 ("__int64", INT64);
+                ("_cdecl",  CDECL); ("__cdecl", CDECL);
+                ("__stdcall", STDCALL);
 	]
 
 let add_type name =

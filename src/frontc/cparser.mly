@@ -63,8 +63,22 @@ type modifier =
     BASE_SIZE of size
   | BASE_SIGN of sign
   | BASE_STORAGE of storage
+(*
   | BASE_VOLATILE
   | BASE_CONST
+*)
+  | BASE_ATTR of attribute
+
+let base_CONST = BASE_ATTR("const", [])
+let base_VOLATILE = BASE_ATTR("volatile", [])
+let base_CDECL = BASE_ATTR("cdecl", [])
+let base_STDCALL = BASE_ATTR("stdcall", [])
+
+let tCONST typ = ATTRTYPE(typ, ["const", []])
+let tCDECL typ = ATTRTYPE(typ, ["cdecl", []])
+let tSTDCALL typ = ATTRTYPE(typ, ["stdcall", []])
+let tVOLATILE typ = ATTRTYPE(typ, ["volatile", []])
+let tATTR typ a = ATTRTYPE(typ, a)
 
 exception BadModifier
 let badModifier (modi : modifier) where = 
@@ -86,23 +100,32 @@ let apply_mod (typ, sto) modi =
     | (FLOAT false, BASE_SIZE LONG) -> FLOAT true
     | (DOUBLE false, BASE_SIZE LONG) -> DOUBLE true
     | (PTR typ, _) -> PTR (mod_root typ)
+    | ATTRTYPE (typ, a), _ -> ATTRTYPE (mod_root typ, a)
+(*
     | (CONST typ, _) -> CONST (mod_root typ)
     | (VOLATILE typ, _) -> VOLATILE (mod_root typ)
+*)
     | _ -> badModifier modi "1"
   in
   let check_access typ =
     match typ with
-      PROTO _ | OLD_PROTO _ | VOLATILE _ -> false
+      PROTO _ | OLD_PROTO _ | ATTRTYPE _ (* | CONST _ | VOLATILE _ *) -> false
     | _ -> true in
   match modi with
     BASE_SIGN _ -> (mod_root typ, sto)
   | BASE_SIZE _ -> (mod_root typ, sto)
+(*
   | BASE_CONST ->
       if (check_access typ) then (CONST typ, sto)
       else badModifier modi "2"
   | BASE_VOLATILE ->
       if (check_access typ) then (VOLATILE typ, sto)
       else badModifier modi "3"
+*)
+  | BASE_ATTR a -> 
+      if (check_access typ) then  ATTRTYPE (typ, [a]), sto
+      else badModifier modi "2"
+
   | BASE_STORAGE INLINE -> begin
       match sto with
         NO_STORAGE -> (typ, INLINE)
@@ -131,8 +154,11 @@ let set_type tst tin =
     | ARRAY (typ, dim) -> ARRAY (set typ, dim)
     | PROTO (typ, pars, ell) -> PROTO (set typ, pars, ell)
     | OLD_PROTO (typ, pars, ell) -> OLD_PROTO (set typ, pars, ell)
+(*
     | CONST typ -> CONST (set typ)
     | VOLATILE typ -> VOLATILE (set typ)
+*)
+    | ATTRTYPE (typ, a) -> ATTRTYPE (set typ, a)
     | BITFIELD (NO_TYPE, exp) -> BITFIELD(tst, exp)
     | _ -> badType typ "2" in
   set tin
@@ -209,6 +235,7 @@ let apply_qual ((t1, q1) : base_type * modifier list)
 %token IF ELSE
 
 %token ATTRIBUTE INLINE ASM TYPEOF
+%token STDCALL CDECL
 %token <string> MSASM
 
 /* operator precedence */
@@ -321,8 +348,8 @@ global_mod_list:
 ;
 global_mod:
     STATIC				{BASE_STORAGE (STATIC false)}
-|   CONST				{BASE_CONST}
-|   VOLATILE				{BASE_VOLATILE}
+|   CONST				{base_CONST}
+|   VOLATILE				{base_VOLATILE}
 |   EXTERN				{BASE_STORAGE (EXTERN false)}
 |   INLINE                              {BASE_STORAGE INLINE}
 ;
@@ -343,14 +370,20 @@ global_def:
 ;
 global_dec:
     IDENT 		{($1, NO_TYPE)}	
+|   CDECL IDENT         {($2, tCDECL NO_TYPE)}
+|   STDCALL IDENT       {($2, tSTDCALL NO_TYPE)}
 |   LPAREN global_dec RPAREN
 			{$2}
 |   STAR global_dec
 			{(fst $2, set_type (PTR NO_TYPE) (snd $2))}
+|   CDECL STAR global_dec
+			{(fst $3, set_type (PTR (tCDECL NO_TYPE)) (snd $3))}
+|   STDCALL STAR global_dec
+			{(fst $3, set_type (PTR (tSTDCALL NO_TYPE)) (snd $3))}
 |   STAR CONST global_dec
-			{(fst $3, set_type (CONST (PTR NO_TYPE)) (snd $3))}
+			{(fst $3, set_type (tCONST (PTR NO_TYPE)) (snd $3))}
 |   STAR VOLATILE global_dec
-			{(fst $3, set_type (VOLATILE (PTR NO_TYPE)) (snd $3))}
+			{(fst $3, set_type (tVOLATILE (PTR NO_TYPE)) (snd $3))}
 |   global_dec LBRACKET comma_expression RBRACKET
 			{(fst $1, 
                           set_type (ARRAY (NO_TYPE, smooth_expression $3)) 
@@ -369,6 +402,12 @@ global_dec:
 			{(fst $2, 
                           set_type (OLD_PROTO (NO_TYPE, fst $5, snd $5)) 
                             (snd $2))}
+/*
+|   CDECL global_dec  {(fst $2,
+                          set_type (tCDECL NO_TYPE) (snd $2))}
+|   STDCALL global_dec {(fst $2,
+                          set_type (tSTDCALL NO_TYPE) (snd $2))}
+*/
 ;
 global_proto:
     global_dec gcc_attributes
@@ -414,13 +453,13 @@ old_type:
 ;
 old_mods_opt:
     /* empty */				{[]}
-|   CONST				{[BASE_CONST]}
+|   CONST				{[base_CONST]}
 |   REGISTER				{[BASE_STORAGE REGISTER]}
 ;
 old_qual:
     qual_type				{$1}
 |   old_qual qual_type			{apply_qual $1 $2}
-|   old_qual CONST			{(fst $1, BASE_CONST::(snd $1))}
+|   old_qual CONST			{(fst $1, base_CONST::(snd $1))}
 |   old_qual REGISTER			{(fst $1, 
                                           (BASE_STORAGE REGISTER)::(snd $1))}
 ;
@@ -435,9 +474,9 @@ old_dec:
     IDENT			{($1, NO_TYPE)}
 |   STAR old_dec		{(fst $2, set_type (PTR NO_TYPE) (snd $2))}
 |   STAR CONST old_dec		{(fst $3, 
-                                  set_type (CONST (PTR NO_TYPE)) (snd $3))}
+                                  set_type (tCONST (PTR NO_TYPE)) (snd $3))}
 |   STAR VOLATILE old_dec	{(fst $3, 
-                                  set_type (VOLATILE (PTR NO_TYPE)) (snd $3))}
+                                  set_type (tVOLATILE (PTR NO_TYPE)) (snd $3))}
 |   old_dec LBRACKET comma_expression RBRACKET
 			        {(fst $1, 
                                   set_type (ARRAY (NO_TYPE, 
@@ -481,8 +520,8 @@ local_mod_list:
 local_mod:
     STATIC				{BASE_STORAGE (STATIC false)}
 |   AUTO				{BASE_STORAGE AUTO}
-|   CONST				{BASE_CONST}
-|   VOLATILE				{BASE_VOLATILE}
+|   CONST				{base_CONST}
+|   VOLATILE				{base_VOLATILE}
 |   REGISTER				{BASE_STORAGE REGISTER}
 |   EXTERN				{BASE_STORAGE (EXTERN false)}
 ;
@@ -506,9 +545,9 @@ local_dec:
 |   NAMED_TYPE		{Clexer.add_identifier $1;($1, NO_TYPE)}
 |   STAR local_dec	{(fst $2, set_type (PTR NO_TYPE) (snd $2))}
 |   STAR CONST local_dec
-			{(fst $3, set_type (CONST (PTR NO_TYPE)) (snd $3))}
+			{(fst $3, set_type (tCONST (PTR NO_TYPE)) (snd $3))}
 |   STAR VOLATILE local_dec
-			{(fst $3, set_type (VOLATILE (PTR NO_TYPE)) (snd $3))}
+			{(fst $3, set_type (tVOLATILE (PTR NO_TYPE)) (snd $3))}
 |   local_dec LBRACKET comma_expression RBRACKET
 			{(fst $1, 
                           set_type (ARRAY (NO_TYPE, smooth_expression $3)) 
@@ -529,21 +568,21 @@ local_dec:
 /*** Typedef Definition ***/
 typedef_type:
     typedef_sub		{apply_mods (snd $1) ((fst $1), NO_STORAGE)}
-|   CONST typedef_sub	{apply_mods (BASE_CONST::(snd $2)) 
+|   CONST typedef_sub	{apply_mods (base_CONST::(snd $2)) 
                             ((fst $2), NO_STORAGE)}
 ;
 typedef_sub:
     NAMED_TYPE			{(NAMED_TYPE $1, [])}
-|   NAMED_TYPE CONST		{(NAMED_TYPE $1, [BASE_CONST])}
+|   NAMED_TYPE CONST		{(NAMED_TYPE $1, [base_CONST])}
 |   comp_type			{($1, [])}		
-|   comp_type CONST		{($1, [BASE_CONST])}
+|   comp_type CONST		{($1, [base_CONST])}
 |   typedef_qual		{$1}
 ;
 
 typedef_qual:
    qual_type			{$1}
 |  typedef_qual qual_type	{apply_qual $1 $2}
-|  typedef_qual CONST		{(fst $1, BASE_CONST::(snd $1))}
+|  typedef_qual CONST		{(fst $1, base_CONST::(snd $1))}
 ;
 typedef_defs:
     typedef_def				{[$1]}
@@ -554,12 +593,20 @@ typedef_def:
 ;
 typedef_dec:
     IDENT		{($1, NO_TYPE)}
-|   NAMED_TYPE          {($1, NO_TYPE)}  /* undo what the lexer did */
+|   CDECL IDENT		{($2, tCDECL NO_TYPE)}
+|   STDCALL IDENT	{($2, tSTDCALL NO_TYPE)}
+|   NAMED_TYPE          {($1, NO_TYPE)}  /* undo what the lexer did. So that 
+                                            we don't throw up when a name is 
+                                            defined multiple times */
 |   STAR typedef_dec	{(fst $2, set_type (PTR NO_TYPE) (snd $2))}
+|   STDCALL STAR typedef_dec	
+                        {(fst $3, set_type (PTR (tSTDCALL NO_TYPE)) (snd $3))}
+|   CDECL STAR typedef_dec	
+                        {(fst $3, set_type (PTR (tCDECL NO_TYPE)) (snd $3))}
 |   STAR CONST typedef_dec   
-                        {(fst $3, set_type (CONST (PTR NO_TYPE)) (snd $3))}
+                        {(fst $3, set_type (tCONST (PTR NO_TYPE)) (snd $3))}
 |   STAR VOLATILE typedef_dec
-			{(fst $3, set_type (VOLATILE (PTR NO_TYPE)) (snd $3))}
+			{(fst $3, set_type (tVOLATILE (PTR NO_TYPE)) (snd $3))}
 |   typedef_dec LBRACKET comma_expression RBRACKET
 			{(fst $1, 
                           set_type (ARRAY (NO_TYPE, smooth_expression $3)) 
@@ -602,8 +649,8 @@ field_mod_list:
 |	field_mod_list field_mod		{$2::$1}
 ;
 field_mod:
-	CONST			       {BASE_CONST}
-|	VOLATILE		       {BASE_VOLATILE}
+	CONST			       {base_CONST}
+|	VOLATILE		       {base_VOLATILE}
 ;
 field_qual:	
 	qual_type			{$1}
@@ -621,12 +668,20 @@ field_def:
 ;
 field_dec:
     IDENT			{($1, NO_TYPE)}
+|   CDECL IDENT                 {($2, tCDECL NO_TYPE)}
+|   STDCALL IDENT               {($2, tSTDCALL NO_TYPE)}
 |   NAMED_TYPE			{($1, NO_TYPE)}
 |   STAR field_dec		{(fst $2, set_type (PTR NO_TYPE) (snd $2))}
+|   STDCALL STAR field_dec	
+                                 {(fst $3, set_type (PTR (tSTDCALL NO_TYPE)) 
+                                                 (snd $3))}
+|   CDECL STAR field_dec	
+                                {(fst $3, set_type (PTR (tCDECL NO_TYPE)) 
+                                                         (snd $3))}
 |   STAR CONST field_dec	{(fst $3, 
-                                  set_type (CONST (PTR NO_TYPE)) (snd $3))}
+                                  set_type (tCONST (PTR NO_TYPE)) (snd $3))}
 |   STAR VOLATILE field_dec	{(fst $3, 
-                                  set_type (VOLATILE (PTR NO_TYPE)) (snd $3))}
+                                  set_type (tVOLATILE (PTR NO_TYPE)) (snd $3))}
 |   field_dec LBRACKET comma_expression RBRACKET
                                 {(fst $1, 
                                   set_type (ARRAY (NO_TYPE, 
@@ -641,7 +696,7 @@ field_dec:
 	      		        {(fst $2, 
                                   set_type (PROTO (NO_TYPE, fst $5, snd $5)) 
                                     (snd $2))}
-|  LPAREN field_dec RPAREN	{$2}
+|   LPAREN field_dec RPAREN	{$2}
 |  IDENT COLON expression	{($1, BITFIELD (NO_TYPE, $3))}
 |  COLON expression             {("___missing_field_name", 
                                   BITFIELD (NO_TYPE, $2))}
@@ -679,17 +734,17 @@ param_mods:
 |   param_mods param_mod		{$2::$1}
 ;
 param_mod:
-    CONST				{BASE_CONST}
+    CONST				{base_CONST}
 |   REGISTER				{BASE_STORAGE REGISTER}
-|   VOLATILE				{BASE_VOLATILE}
+|   VOLATILE				{base_VOLATILE}
 ;
 param_qual:
     qual_type				{$1}
 |   param_qual qual_type		{apply_qual $1 $2}
-|   param_qual CONST			{(fst $1, BASE_CONST::(snd $1))}
+|   param_qual CONST			{(fst $1, base_CONST::(snd $1))}
 |   param_qual REGISTER			{(fst $1, 
                                           (BASE_STORAGE REGISTER)::(snd $1))}
-|   param_qual VOLATILE			{(fst $1, BASE_VOLATILE::(snd $1))}
+|   param_qual VOLATILE			{(fst $1, base_VOLATILE::(snd $1))}
 ;
 param_def:
     param_dec gcc_attributes		{(fst $1, snd $1, $2, NOTHING)}
@@ -698,11 +753,14 @@ param_dec:
     /* empty */		{("", NO_TYPE)}
 |   IDENT		{($1, NO_TYPE)}
 |   NAMED_TYPE		{($1, NO_TYPE)}
+|   CDECL STAR param_dec   {(fst $3, set_type (PTR (tCDECL NO_TYPE)) (snd $3))}
+|   STDCALL STAR param_dec {(fst $3, set_type (PTR (tSTDCALL NO_TYPE)) 
+                                              (snd $3))}
 |   STAR param_dec	{(fst $2, set_type (PTR NO_TYPE) (snd $2))}
 |   STAR CONST param_dec
-			{(fst $3, set_type (CONST (PTR NO_TYPE)) (snd $3))} 
+			{(fst $3, set_type (tCONST (PTR NO_TYPE)) (snd $3))} 
 |   STAR VOLATILE param_dec
-			{(fst $3, set_type (VOLATILE (PTR NO_TYPE)) (snd $3))}
+			{(fst $3, set_type (tVOLATILE (PTR NO_TYPE)) (snd $3))}
 |   param_dec LBRACKET comma_expression RBRACKET
 			{(fst $1, set_type (ARRAY (NO_TYPE, 
                                                    smooth_expression $3)) 
@@ -744,15 +802,16 @@ only_mod_list:
 |   only_mod_list only_mod		{$2::$1}
 ;
 only_mod:
-    CONST				{BASE_CONST}
-|   VOLATILE				{BASE_VOLATILE}
+    CONST				{base_CONST}
+|   VOLATILE				{base_VOLATILE}
 ;
 only_dec:
     /* empty */		{NO_TYPE}
+|   CDECL STAR only_dec {set_type (PTR (tCDECL NO_TYPE)) $3}
 |   STAR only_dec	{set_type (PTR NO_TYPE) $2}
-|   STAR CONST only_dec	{set_type (CONST (PTR NO_TYPE)) $3}
+|   STAR CONST only_dec	{set_type (tCONST (PTR NO_TYPE)) $3}
 |   STAR VOLATILE only_dec
-			{set_type (VOLATILE (PTR NO_TYPE)) $3}
+			{set_type (tVOLATILE (PTR NO_TYPE)) $3}
 |   only_dec LBRACKET comma_expression RBRACKET
 			{set_type (ARRAY (NO_TYPE, smooth_expression $3)) $1}
 |   only_dec LBRACKET RBRACKET
@@ -1029,12 +1088,12 @@ statement:
 /*** GCC attributes ***/
 gcc_attributes:
     /* empty */						{[]}	
-|   attributes						{ $1 }
+|   gcc_neattributes		{ $1 }
 ;
 
-attributes:
+gcc_neattributes:
     attribute				{ $1}
-|   attributes attribute		{$1 @ $2}
+|   gcc_neattributes attribute		{$1 @ $2}
 ;
 
 attribute:

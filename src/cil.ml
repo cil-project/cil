@@ -254,11 +254,18 @@ let call res f args = Instruction(Call(res,f,args,lu))
 
 let mkString s = Const(CStr s, lu)
 
+    (* Make a sequence out of a list of statements *)
 let mkSeq sl = 
   let rec removeSkip = function 
       [] -> []
     | Skip :: rest -> removeSkip rest
     | Sequence (sl) :: rest -> removeSkip (sl @ rest)
+    | ((Default | Label _ | Case _) as last) :: rest -> 
+        let rest' = removeSkip rest in
+        if rest' = [] then
+          last :: [Skip]                (* Put a ; after default or a label*)
+        else
+          last :: rest'
     | s :: rest -> s :: removeSkip rest
   in
   match removeSkip sl with 
@@ -385,16 +392,17 @@ let d_const () c =
 let getParenthLevel = function
   | Compound _ -> 100
 
-                                        (* Comparisons *)
-  | BinOp((Eq|Ne|Gt|Lt|Ge|Le),_,_,_,_) -> 80
   | Question _ -> 80
-                                        (* Bit operations. Technically, they 
-                                         * could have level 9,but I like 
-                                         * parentheses around them in 
-                                         * comparisons  *)
-  | BinOp((BOr|BXor|BAnd|Shiftlt|Shiftrt),_,_,_,_) -> 70
-                                        (* Additive *)
-  | BinOp((Minus|Plus),_,_,_,_)  -> 60
+                                        (* Bit operations. *)
+  | BinOp((BOr|BXor|BAnd),_,_,_,_) -> 75
+
+                                        (* Comparisons *)
+  | BinOp((Eq|Ne|Gt|Lt|Ge|Le),_,_,_,_) -> 70
+                                        (* Additive. Shifts can have higher 
+                                         * level but I want parentheses 
+                                         * around them *)
+  | BinOp((Minus|Plus|Shiftlt|Shiftrt),_,_,_,_)  -> 60
+
                                         (* Multiplicative *)
   | BinOp((Div|Mod|Mult),_,_,_,_) -> 40
 
@@ -480,6 +488,12 @@ let rec d_decl (docName: unit -> doc) () this =
       else
         dprintf "enum %s %t" n' docName
 
+  | TPtr (TFun(tres, args, isva, af) as t, ap) when !msvcOutput ->  (* !!! *)
+      d_decl (fun _ -> parenth t (dprintf "%a *%a %t" 
+                                    d_attrlist af
+                                    d_attrlist ap docName )) 
+             () (TFun(tres, args, isva, []))
+
   | TPtr (t, a)  -> 
       d_decl (fun _ -> parenth t (dprintf "*%a %t" d_attrlist a docName )) 
              () t
@@ -508,7 +522,8 @@ let rec d_decl (docName: unit -> doc) () this =
       in
       d_decl (fun _ -> 
         parenth restyp 
-          (dprintf "%t(@[%a%a@])" 
+          (dprintf "%a %t(@[%a%a@])" 
+             d_attrlist a
              docName
              (docList (chr ',' ++ break) (d_videcl ())) args'
              insert (if isvararg then text ", ..." else nil)))
@@ -600,7 +615,7 @@ and d_attr () = function
         (docList (chr ',') (d_attr ())) al
           
 and d_attrlist () al =
-  (* Take out the const and volatile *)
+  (* Take out the special attributes *)
   let rec loop remaining = function
       [] -> begin
         match remaining with
@@ -614,6 +629,10 @@ and d_attrlist () al =
         dprintf " const%a" insert (loop remaining rest)
     | (AId("volatile")) :: rest -> 
         dprintf " volatile%a" insert (loop remaining rest)
+    | (AId("cdecl")) :: rest when !msvcOutput -> 
+        dprintf " __cdecl%a" insert (loop remaining rest)
+    | (AId("stdcall")) :: rest when !msvcOutput -> 
+        dprintf " __stdcall%a" insert (loop remaining rest)
     | x :: rest -> loop (x :: remaining) rest
   in
   loop [] al
@@ -723,6 +742,8 @@ and d_stmt () s =
   | Default -> dprintf "default:"
   | Instruction(i) -> d_instr () i
 
+   (* Some plain pretty-printers. Unlike the above these expose all the 
+    * details of the internal representation *)
 and d_plainexp () = function
     Const(c,_) -> dprintf "Const(%a)" d_const c
   | Lval(lv) -> dprintf "Lval(@[%a@])" d_plainlval lv
@@ -1079,6 +1100,8 @@ let mkMem (addr: exp) (off: offset) : exp =
   res
           
 
+
+(**** Compute the type of an expression ****)
 let rec typeOf (e: exp) : typ = 
   match e with
     Const(CInt _, _) -> intType
@@ -1117,3 +1140,30 @@ and typeOffset basetyp = function
         TArray (t, _, _) -> typeOffset t o
       | _ -> E.s (E.bug "typeOfLval: First on a non-array")
   end
+
+
+let rec doCast (e: exp) (oldt: typ) (newt: typ) = 
+  match e with
+    CastE(oldt', e', _) -> doCast e' (typeOf e') newt
+  | _ -> 
+      if typeSig oldt = typeSig newt then
+        e
+      else
+        CastE(newt, e,lu)
+
+
+let isIntegralType t = 
+  match unrollType t with
+    (TInt _ | TEnum _ | TBitfield _) -> true
+  | _ -> false
+
+let isArithmeticType t = 
+  match unrollType t with
+    (TInt _ | TEnum _ | TBitfield _ | TFloat _) -> true
+  | _ -> false
+    
+
+let isPointerType t = 
+  match unrollType t with
+    (TPtr _ | TArray _) -> true
+  | _ -> false

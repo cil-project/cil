@@ -58,70 +58,107 @@ let resetLocals () =
 let getLocals () = 
   (!localId + 1, List.rev !locals)
 
+    (* Replace a global variable in the environment with another one with the 
+     * same name *)
+let replaceGlobal vi = 
+  let isGlob = ref false in
+  let rec loop = function
+      [] -> E.s (E.bug "Cannot replace global variable %s\n" vi.vname)
+    | EVar(name, _) :: rest when name = vi.vname -> begin
+        EVar(name, vi) :: rest
+    end
+    | x :: rest -> x :: loop rest
+  in
+  env := loop !env
+
+   (* Add a new global variable *)
+let addNewVariableToEnv lookupname vi = 
+  if vi.vglob then 
+    let rec loop = function
+        [] -> [EVar(lookupname, vi)]
+      | x :: rest -> x :: loop rest
+    in
+    env := loop !env
+  else 
+    env := EVar(lookupname, vi) :: !env
+
 let addNewVar vi = 
-  let origname = vi.vname in
-  let (isnew, newvi) = 
-    try begin
-      let oldvi = lookup vi.vname in
-      (* The variable already exists in the environment. Certainly it exists 
-       * in locals *)
-      if vi.vglob && oldvi.vglob then
+  let newname =                           (* A new name for the variable *)
+    (* Scan the locals and the environment and find the maximum integer n 
+     * such that lookupname ^ (string_of_int n) appears in the locals. Return 
+     * -2 is not such integer found. Return -1 if a variable with the exact 
+     * same name was found *)
+    let l = String.length vi.vname in
+    let max a b = if a > b then a else b in
+    let doOneVi acc lvi = 
+      let li = String.length lvi.vname in
+      if li >= l && String.sub lvi.vname 0 l = vi.vname then
+        if li = l then
+          max acc (-1)
+        else
+          max acc 
+            (try int_of_string (String.sub lvi.vname l (li - l))
+            with _ -> -2)
+      else
+        acc
+    in
+    let maxid =                         (* Find the max both in env and in 
+                                         * locals *)
+      List.fold_left 
+        (fun acc e -> 
+          match e with EVar(_, vi) -> doOneVi acc vi | _ -> acc)
+        (List.fold_left doOneVi (-2) !locals)
+        !env
+    in
+    if maxid = -2 then
+      vi.vname 
+    else
+      vi.vname ^ (string_of_int (maxid + 1))
+  in
+  let newvi = if vi.vname = newname then vi else {vi with vname = newname} in
+  if vi.vglob then
+    (* A global variable. If new then go ahead and return it *)
+    if vi.vname = newname then begin
+      addNewVariableToEnv vi.vname newvi;
+      newvi;
+    end else begin
+      (* Check what was the previous definition *)
+      try
+        let oldvi = lookup vi.vname in
         if oldvi.vstorage = Extern  && vi.vstorage = NoStorage then begin
-          (* Remove the old version from the environment *)
-          let rec loop = function
-              [] -> E.s (E.bug "Cannot remove variable")
-            | EVar(name, _) :: rest when name = vi.vname -> rest
-            | x :: rest -> x :: loop rest
-          in
-          env := loop !env;
-          (true, vi)
+          (* We'll add this version instead *)
+          replaceGlobal vi;
+          vi            
         end else
           if vi.vstorage = Extern && (oldvi.vstorage = NoStorage ||
                                       oldvi.vstorage = Extern) then
-            (false, oldvi)              (* Don't add a new version *)
+            oldvi               (* Don't add a new version *)
           else
             match vi.vtype, oldvi.vtype with
                                         (* function prototypes are not 
                                          * definitions *)
-              TFun _, TFun _ -> (false, oldvi)
-            | TPtr (TFun _, _), TPtr (TFun _, _) -> (false, oldvi)
-            | _ -> E.s (E.unimp "Variable redefinition: %s\n" vi.vname)
-      else begin
-        incr alphaId;
-        let newname = origname ^ (string_of_int (!alphaId)) in
-(*        ignore (E.log "Warning: Alpha-converting %s to %s\n" 
-                  origname newname);
-*)
-        (true, {vi with vname = newname})
+              TFun _, TFun _ -> oldvi
+            | TPtr (TFun _, _), TPtr (TFun _, _) -> oldvi
+            | _ -> E.s (E.unimp "Global variable redefinition: %s\n" vi.vname)
+      with Not_found -> begin
+        (* Maybe it conflicted with some local *)
+        addNewVariableToEnv vi.vname newvi;
+        newvi
       end
-    end with Not_found -> begin
-      (* Not in the env. But maybe it is already in the locals *)
-      if List.exists (fun x -> x.vname = origname) !locals then begin
-        (* Generate another one *)
-        incr alphaId;
-        let newname = origname ^ (string_of_int (!alphaId)) in
-(*
-        ignore (E.log "Warning: Alpha-converting %s to %s\n" 
-                  origname newname);
-*)
-        (true, {vi with vname = newname})
-      end else 
-        (true, vi)
     end
-  in
-  if isnew then begin
-    env := EVar (origname, newvi) :: !env;
-    if not newvi.vglob then
-      locals := newvi :: !locals
-  end;
-  newvi
-
+  else begin
+    (* A local variable. Add to the environment and to locals *)
+    addNewVariableToEnv vi.vname newvi;
+    locals := newvi :: !locals;
+    newvi
+  end
+    
 
 (* Create a new temporary variable *)
 let newTempVar typ = 
   incr localId;
   addNewVar 
-    { vname = "tmp" ^ (string_of_int (!localId));
+    { vname = "tmp";  (* addNewVar will make the name fresh *)
       vid   = !localId;
       vglob = false;
       vtype = typ;
@@ -264,6 +301,56 @@ type expAction =
 
 
 (******** CASTS *********)
+let integralPromotion (t : typ) : typ = (* c.f. K&R A6.1 *)
+  match unrollType t with
+    TInt ((IShort|IChar|ISChar), a) -> TInt(IInt, a)
+  | TInt ((IUShort|IUChar), a) -> TInt(IUInt, a)
+  | TInt _ -> t
+  | TEnum (_, _, a) -> TInt(IInt, a)
+  | TBitfield((IShort|IChar|ISChar), _, a) -> TInt(IInt, a)
+  | TBitfield((IUShort|IUChar), _, a) -> TInt(IUInt, a)
+  | TBitfield(i, _, a) -> TInt(ILong, a)
+  | _ -> E.s (E.unimp "integralPromotion")
+  
+
+let arithmeticConversion    (* c.f. K&R A6.5 *)
+    (t1: typ)
+    (t2: typ) : typ = 
+  let checkToInt _ = () in  (* dummies for now *)
+  let checkToFloat _ = () in
+  match unrollType t1, unrollType t2 with
+    TFloat(FLongDouble, _), _ -> checkToFloat t2; t1
+  | _, TFloat(FLongDouble, _) -> checkToFloat t1; t2
+  | TFloat(FDouble, _), _ -> checkToFloat t2; t1
+  | _, TFloat (FDouble, _) -> checkToFloat t1; t2
+  | TFloat(FFloat, _), _ -> checkToFloat t2; t1
+  | _, TFloat (FFloat, _) -> checkToFloat t1; t2
+  | _, _ -> begin
+      let t1' = integralPromotion t1 in
+      let t2' = integralPromotion t2 in
+      match unrollType t1', unrollType t2' with
+        TInt(IULongLong, _), _ -> checkToInt t2'; t1'
+      | _, TInt(IULongLong, _) -> checkToInt t1'; t2'
+            
+      | TInt(ILongLong, _), _ -> checkToInt t2'; t1'
+      | _, TInt(ILongLong, _) -> checkToInt t1'; t2'
+            
+      | TInt(IULong, _), _ -> checkToInt t2'; t1'
+      | _, TInt(IULong, _) -> checkToInt t1'; t2'
+            
+      | TInt(ILong, _), _ -> checkToInt t2'; t1'
+      | _, TInt(ILong, _) -> checkToInt t1'; t2'
+            
+      | TInt(IUInt, _), _ -> checkToInt t2'; t1'
+      | _, TInt(IUInt, _) -> checkToInt t1'; t2'
+            
+      | TInt(IInt, _), TInt (IInt, _) -> t1'
+
+      | _, _ -> E.s (E.unimp "arithmetic Conversion.@!T1=%a@!T2=%a@!"
+                       d_plaintype t1 d_plaintype t2)
+  end
+
+  
 let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) = 
   if typeSig ot = typeSig nt then (ot, e) else
   match ot, nt with
@@ -313,6 +400,7 @@ let checkBool (ot : typ) (e : exp) : bool =
   | TPtr _ -> true
   | TEnum _ -> true
   | TBitfield _ -> true
+  | TFloat _ -> true
   |  _ -> E.s (E.unimp "castToBool %a" d_type ot)
 
 
@@ -377,7 +465,7 @@ and doStorage = function
   | A.EXTERN _ -> Extern
 
 and doType (a : attribute list) = function
-    A.NO_TYPE -> E.s (E.unimp "NO_TYPE")
+    A.NO_TYPE -> intType
   | A.VOID -> TVoid a
   | A.INT (sz, sgn) -> 
       let ikind = 
@@ -407,8 +495,8 @@ and doType (a : attribute list) = function
       | _ -> E.s (E.unimp "bitfield width is not an integer")
       in
       TBitfield (ikind, width, a)
-  | A.FLOAT lng -> TFloat ((if lng then FFloat else FDouble), a)
-  | A.DOUBLE lng -> TFloat ((if lng then FDouble else FLongDouble), a)
+  | A.FLOAT lng -> TFloat ((if lng then FDouble else FFloat), a)
+  | A.DOUBLE lng -> TFloat ((if lng then FLongDouble else FDouble), a)
   | A.PTR bt -> TPtr (doType [] bt, a)
   | A.ARRAY (bt, len) ->
       let lo = 
@@ -455,8 +543,16 @@ and doType (a : attribute list) = function
         | l -> l
       in
       List.iter (fun a -> a.vtype <- arrayToPtr a.vtype) targs;
-      let tres = arrayToPtr (doType [] bt) in
-      TFun (tres, targs, isvararg, a)
+      (* See if the bt has some attributes that actually belong to the 
+         function *)
+      let bt', a' = 
+        match bt with
+          A.ATTRTYPE (bt', ["stdcall", []]) -> bt', AId("stdcall") :: a
+        | A.ATTRTYPE (bt', ["cdecl", []]) -> bt', AId("cdecl") :: a
+        | _ -> bt, a
+      in
+      let tres = arrayToPtr (doType [] bt') in
+      TFun (tres, targs, isvararg, a')
 
   | A.OLD_PROTO _ -> E.s (E.unimp "oldproto")
   | A.ENUM (n, eil) -> 
@@ -481,9 +577,17 @@ and doType (a : attribute list) = function
       let res = TEnum (n, loop 0 eil, a) in
       List.iter (fun (n,fieldidx) -> recordEnumField n fieldidx res) fields;
       res
-
+(*
   | A.CONST bt -> doType (AId("const") :: a) bt
   | A.VOLATILE bt -> doType (AId("volatile") :: a) bt
+*)
+  | A.ATTRTYPE (bt, a') -> 
+      let doAttribute = function
+          (s, []) -> AId s
+        | (s, _) -> E.s (E.unimp "Constructed attributes")
+      in
+      doType ((List.map doAttribute a') @ a) bt
+
   | A.NAMED_TYPE n -> begin
       match findTypeName n with
         (TNamed _) as x -> x
@@ -746,25 +850,35 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         let (se, e', t) = doExp e (AExp None) in
         let (t'', e'') = 
           match typ with
-            TVoid _ when what = ADrop -> (t, e')(* strange GNU thing *)
+            TVoid _ when what = ADrop -> (t, e') (* strange GNU thing *)
           |  _ -> castTo t typ e' 
         in
         finishExp (se1 @ se) e'' t''
           
-    | A.UNARY((A.MINUS|A.BNOT) as uop, e) -> 
-        let uop' = match uop with
-          A.MINUS -> Neg
-        | A.BNOT -> BNot
-        | _ -> E.s (E.bug "")
-        in
+    | A.UNARY(A.MINUS, e) -> 
         let (se, e', t) = doExp e (AExp None) in
-        let (t'', e'') = castTo t intType e' in
-        let result = 
-          match uop', e'' with
-            Neg, Const(CInt(i,_),_) -> integer (- i)
-          | _ -> UnOp(uop',e'', t'', lu)
-        in
-        finishExp se result t'' 
+        if isIntegralType t then
+          let tres = integralPromotion t in
+          let e'' = 
+            match e' with
+            | Const(CInt(i, _), _) -> integer (- i)
+            | _ -> UnOp(Neg, doCast e' t tres, tres, lu)
+          in
+          finishExp se e'' tres
+        else
+          if isArithmeticType t then
+            finishExp se (UnOp(Neg,e',t,lu)) t
+          else
+            E.s (E.unimp "Unary - on a non-arithmetic type")
+        
+    | A.UNARY(A.BNOT, e) -> 
+        let (se, e', t) = doExp e (AExp None) in
+        if isIntegralType t then
+          let tres = integralPromotion t in
+          let e'' = UnOp(BNot, doCast e' t tres, tres, lu) in
+          finishExp se e'' tres
+        else
+          E.s (E.unimp "Unary ~ on a non-integral type")
           
     | A.UNARY(A.PLUS, e) -> doExp e what 
           
@@ -776,6 +890,11 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         | CastE (t', Lval x, _) -> 
             finishExp se (CastE(TPtr(t', []),
                                 AddrOf(x, lu), lu)) (TPtr(t', []))
+        | StartOf (lv) -> (* !!! is this correct ? *)
+            let tres = TPtr(typeOfLval lv, []) in
+            finishExp se (AddrOf(lv, lu)) tres
+
+            
         | _ -> E.s (E.unimp "Expected lval for ADDROF. Got %a@!"
                       d_plainexp e')
     end
@@ -852,68 +971,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         in
         let (se1, e1', t1) = doExp e1 (AExp None) in
         let (se2, e2', t2) = doExp e2 (AExp None) in
-        let tresult, e1'', e2'' = 
-          match bop', unrollType t1, unrollType t2 with
-                                        (* ignore sizes for now *)
-          | (Plus|Minus|Mult|Div|Mod|BAnd|BOr|BXor|Shiftlt|Shiftrt), 
-                 (TInt _|TEnum _|TBitfield _), 
-                 (TInt _|TEnum _|TBitfield _) -> intType, e1', e2'
-          | (Eq|Ne|Ge|Gt|Le|Lt), 
-                 (TInt _|TEnum _|TBitfield _), 
-                 (TInt _|TEnum _|TBitfield _) -> intType, e1', e2'
-          | (Plus|Minus|Mult|Div|Mod), TFloat _, TFloat _ -> t1, e1', e2'
-          | (Eq|Ne|Ge|Gt|Le|Lt), TFloat _, TFloat _ -> intType, e1', e2'
-          | Plus, TPtr _, TInt _ -> t1, e1', e2'
-          | Plus, TInt _, TPtr _ -> t2, e1', e2'
-          | Minus, TPtr _, TInt _ -> t1, e1', e2'
-          | (Eq|Ne|Le|Ge|Lt|Gt|Minus), TPtr _, TPtr _ -> intType, e1', e2'
-          | (Eq|Ne|Le|Ge|Lt|Gt), TPtr _, TInt _ when 
-              (match e2' with Const(CInt(0,_),_) -> true | _ -> false) 
-              -> intType, e1', CastE(t1, zero, lu)
-          | (Eq|Ne|Le|Ge|Lt|Gt), TInt _, TPtr _ when 
-              (match e1' with Const(CInt(0,_),_) -> true | _ -> false) 
-              -> intType, CastE(t1, zero, lu), e2'
-          | _ -> 
-              ignore (E.log "Warning: untyped %a. t1=%a and t2=%a\n" 
-                        d_exp (BinOp(bop',e1',e2',intType, lu))
-                        d_type t1 d_type t2);
-              intType, e1', e2'   (*** !!! this is only temporary *)
-        in
-        let result = 
-          let mkInt = function
-              Const(CChr c, _) -> Const(CInt(Char.code c, None),lu)
-            | e -> e
-          in
-          match bop', mkInt e1'', mkInt e2'' with
-            Plus, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> integer (i1 + i2)
-          | Minus, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> integer (i1 - i2)
-          | Mult, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> integer (i1 * i2)
-          | Div, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> integer (i1 / i2)
-          | Mod, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> integer (i1 mod i2)
-          | BAnd, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
-              integer (i1 land i2)
-          | BOr, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
-              integer (i1 lor i2)
-          | BXor, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
-              integer (i1 lxor i2)
-          | Shiftlt, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
-              integer (i1 lsl i2)
-          | Shiftrt, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
-              integer (i1 lsr i2)
-          | Eq, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
-              integer (if i1 = i2 then 1 else 0)
-          | Ne, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
-              integer (if i1 <> i2 then 1 else 0)
-          | Le, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
-              integer (if i1 <= i2 then 1 else 0)
-          | Ge, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
-              integer (if i1 >= i2 then 1 else 0)
-          | Lt, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
-              integer (if i1 < i2 then 1 else 0)
-          | Gt, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
-              integer (if i1 > i2 then 1 else 0)
-          | _ -> BinOp(bop', e1'', e2'', tresult, lu)
-        in
+        let tresult, result = doBinOp bop' e1' t1 e2' t2 in
         finishExp (se1 @ se2) result tresult
           
     | A.BINARY((A.ADD_ASSIGN|A.SUB_ASSIGN|A.MUL_ASSIGN|A.DIV_ASSIGN|
@@ -938,8 +996,8 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
           | _ -> E.s (E.unimp "Expected lval for assignment")
         in
         let (se2, e2', t2) = doExp e2 (AExp None) in
-        let tresult = intType in (* !!!! this is temporary *)
-        finishExp (se1 @ [mkSet lv1 (BinOp(bop',Lval(lv1),e2',tresult,lu))])
+        let tresult, result = doBinOp bop' e1' t1 e2' t2 in
+        finishExp (se1 @ se2 @ [mkSet lv1 result])
           (Lval(lv1))
           tresult
           
@@ -1130,6 +1188,105 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
   end
     
 
+and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
+  let constFold e1' e2' tres = 
+    if isIntegralType tres then
+      let newe = 
+        let mkInt = function
+            Const(CChr c, _) -> Const(CInt(Char.code c, None),lu)
+          | e -> e
+        in
+        match bop, mkInt e1', mkInt e2' with
+          Plus, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> integer (i1 + i2)
+        | Minus, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> integer (i1 - i2)
+        | Mult, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> integer (i1 * i2)
+        | Div, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> integer (i1 / i2)
+        | Mod, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> integer (i1 mod i2)
+        | BAnd, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
+            integer (i1 land i2)
+        | BOr, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
+            integer (i1 lor i2)
+        | BXor, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
+            integer (i1 lxor i2)
+        | Shiftlt, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
+            integer (i1 lsl i2)
+        | Shiftrt, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
+            integer (i1 lsr i2)
+        | Eq, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
+            integer (if i1 = i2 then 1 else 0)
+        | Ne, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
+            integer (if i1 <> i2 then 1 else 0)
+        | Le, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
+            integer (if i1 <= i2 then 1 else 0)
+        | Ge, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
+            integer (if i1 >= i2 then 1 else 0)
+        | Lt, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
+            integer (if i1 < i2 then 1 else 0)
+        | Gt, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
+            integer (if i1 > i2 then 1 else 0)
+        | _ -> BinOp(bop, e1', e2', tres, lu)
+      in
+      tres, newe
+    else
+      tres, BinOp(bop, e1', e2', tres, lu)
+  in
+  let doArithmetic () = 
+    let tres = arithmeticConversion t1 t2 in
+    constFold (doCast e1 t1 tres) (doCast e2 t2 tres) tres
+  in
+  let doIntegralArithmetic () = 
+    let tres = unrollType (arithmeticConversion t1 t2) in
+    match tres with
+      TInt _ -> constFold (doCast e1 t1 tres) (doCast e2 t2 tres) tres
+    | _ -> E.s (E.unimp "%a operator on a non-integer type" d_binop bop)
+  in
+  match bop with
+    (Mult|Div) -> doArithmetic ()
+  | (Mod|BAnd|BOr|BXor|Shiftlt|Shiftrt) -> doIntegralArithmetic ()
+  | (Plus|Minus|Eq|Ne|Lt|Le|Ge|Gt) 
+      when isArithmeticType t1 && isArithmeticType t2 -> doArithmetic ()
+  | Plus when isPointerType t1 && isIntegralType t2 -> 
+      constFold e1 (doCast e2 t2 (integralPromotion t2)) t1
+  | Plus when isIntegralType t1 && isPointerType t2 -> 
+      constFold (doCast e1 t1 (integralPromotion t1)) e2 t2
+  | Minus when isPointerType t1 && isIntegralType t2 -> 
+      constFold e1 (doCast e2 t2 (integralPromotion t2)) t1
+  | (Minus|Le|Lt|Ge|Gt|Eq|Ne) when isPointerType t1 && isPointerType t2 ->
+      constFold e1 e2 intType
+  | _ -> E.s (E.unimp "doBinOp: %a\n" d_plainexp (BinOp(bop,e1,e2,intType,lu)))
+(*
+
+  
+  let tresult, e1', e2' = 
+    match bop, unrollType t1, unrollType t2 with
+    | (Plus|Minus|Mult|Div|Mod|BAnd|BOr|BXor|Shiftlt|Shiftrt), 
+      (TInt _|TEnum _|TBitfield _), 
+      (TInt _|TEnum _|TBitfield _) -> intType, e1, e2
+    | (Eq|Ne|Ge|Gt|Le|Lt), 
+        (TInt _|TEnum _|TBitfield _), 
+        (TInt _|TEnum _|TBitfield _) -> intType, e1, e2
+    | (Plus|Minus|Mult|Div|Mod), TFloat _, TFloat _ -> t1, e1, e2
+    | (Eq|Ne|Ge|Gt|Le|Lt), TFloat _, TFloat _ -> intType, e1, e2
+    | Plus, TPtr _, TInt _ -> t1, e1, e2
+    | Plus, TInt _, TPtr _ -> t2, e1, e2
+    | Minus, TPtr _, TInt _ -> t1, e1, e2
+    | (Eq|Ne|Le|Ge|Lt|Gt|Minus), TPtr _, TPtr _ -> intType, e1, e2
+    | (Eq|Ne|Le|Ge|Lt|Gt), TPtr _, TInt _ when 
+        (match e2 with Const(CInt(0,_),_) -> true | _ -> false) 
+      -> intType, e1, CastE(t1, zero, lu)
+    | (Eq|Ne|Le|Ge|Lt|Gt), TInt _, TPtr _ when 
+        (match e1 with Const(CInt(0,_),_) -> true | _ -> false) 
+      -> intType, CastE(t1, zero, lu), e2
+    | _ -> 
+        ignore (E.log "Warning: untyped %a. t1=%a and t2=%a\n" 
+                  d_exp (BinOp(bop,e1,e2,intType, lu))
+                  d_type t1 d_type t2);
+        intType, e1, e2 
+  in
+  let result = 
+  in
+  tresult, result
+*)
 
 (* A special case for conditionals *)
 and doCondition (e: A.expression) 
@@ -1149,6 +1306,16 @@ and doCondition (e: A.expression)
     in
     costMany sl <= 3
   in 
+  let canDrop sl = (* We can drop a statement only if it does not contain 
+                    * label definitions *)
+    let rec dropOne = function
+        (Skip | Goto _ | Return _| Case _ | Default | 
+        Break | Continue | Instruction _) -> true
+      | Sequence sl -> List.for_all dropOne sl
+      | _ -> false
+    in
+    List.for_all dropOne sl
+  in
   match e with 
   | A.BINARY(A.AND, e1, e2) ->
       let (sf1, sf2) = 
@@ -1186,11 +1353,8 @@ and doCondition (e: A.expression)
       let (se, e, t) as rese = doExp e (AExp None) in
       ignore (checkBool t e);
       match e with 
-        Const(CInt(i,_),_) -> 
-          if i <> 0 then
-            se @ st
-          else
-            se @ sf
+        Const(CInt(i,_),_) when i <> 0 && canDrop sf -> se @ st
+      | Const(CInt(0,_),_) when canDrop st -> se @ sf
       | _ -> se @ [IfThenElse(e, mkSeq st, mkSeq sf)]
   end
 

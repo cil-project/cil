@@ -37,8 +37,11 @@ and base_type =
  | OLD_PROTO of old_proto	
  | NAMED_TYPE of string
  | ENUM of string * enum_item list
- | CONST of base_type
+ | ATTRTYPE of base_type * attributes   (* Type with attributes *)
+(*
+ | CONST of base_type * attributes
  | VOLATILE of base_type
+*)
  | TYPEOF of expression                 (* GCC __typeof__ *)
 
 and name = string * base_type * attributes * expression
