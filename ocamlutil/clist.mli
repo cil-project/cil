@@ -61,19 +61,10 @@ val single: 'a -> 'a clist
 (** The empty clist *)
 val empty: 'a clist               
 
-(*
-val fromList: 'a list -> 'a clist
-val fromListRev: 'a list -> 'a clist  (* reverse the list *)
-*)
 
 (** Append two clists *)
 val append: 'a clist -> 'a clist -> 'a clist 
 
-(*
-(** Splits into the head and the tail. The head is None iff the original
-   list is empty *)
-val hdtl: 'a clist -> 'a option * 'a clist 
-*)
 
 (** Find the length of a clist *)
 val length: 'a clist -> int   
@@ -81,11 +72,6 @@ val length: 'a clist -> int
 (** Map a function over a clist. Returns another clist *)
 val map: ('a -> 'b) -> 'a clist -> 'b clist 
 
-(*
-(** Replaces each element with an entire list *)
-val mapList: ('a -> 'b clist) -> 'a clist -> 'b clist 
-
-*)
 
 (** A version of fold_left that works on clists *)
 val fold_left: ('acc -> 'a -> 'acc) -> 'acc -> 'a clist -> 'acc
