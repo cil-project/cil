@@ -1103,7 +1103,7 @@ let attributeHash: (string, attributeClass) H.t =
   List.iter (fun a -> H.add table a (AttrName false))
     [ "section"; "constructor"; "destructor"; "unused"; "weak"; 
       "no_instrument_function"; "alias"; "no_check_memory_usage";
-      "exception"; "model"; "restrict"; 
+      "exception"; "model"; (* "restrict"; *)
       "aconst"; "__asm__" (* Gcc uses this to specifiy the name to be used in 
                            * assembly for a global  *)];
 
@@ -1596,7 +1596,27 @@ and typeOffset basetyp = function
   | Field (fi, o) -> typeOffset fi.ftype o
 
 
-(* Print attributes in a custom way *)
+and d_binop () b =
+  match b with
+    PlusA | PlusPI | IndexPI -> text "+"
+  | MinusA | MinusPP | MinusPI -> text "-"
+  | Mult -> text "*"
+  | Div -> text "/"
+  | Mod -> text "%"
+  | Shiftlt -> text "<<"
+  | Shiftrt -> text ">>"
+  | Lt | LtP -> text "<"
+  | Gt | GtP -> text ">"
+  | Le | LeP -> text "<="
+  | Ge | GeP -> text ">="
+  | Eq | EqP -> text "=="
+  | Ne | NeP -> text "!="
+  | BAnd -> text "&"
+  | BXor -> text "^"
+  | BOr -> text "|"
+
+
+(* Print attributes in a custom way 
 let d_attrcustom : (attribute -> Pretty.doc option) ref = 
   ref (fun a -> None)
 
@@ -1635,7 +1655,7 @@ let setCustomPrintPragmaScope custom f =
     let res = f x in
     d_pragmacustom := ocustom;
     res
-
+*)
 (* Make an statement that we'll use as an invalid statement during printing *)
 let invalidStmt = {dummyStmt with sid = -2}
 
@@ -1644,17 +1664,17 @@ let invalidStmt = {dummyStmt with sid = -2}
  * because printing has a side-effect: we record whose structures we have 
  * printed the definition. Pass also an indication if the docName function 
  * returns just a name (this is used to avoid printing a lot of parentheses 
- * around names) *) 
+ * around names) 
 type docNameWhat = 
-    DNNothing                             (* docName is nil *)
-  | DNString                              (* docName is just a variable name *)
-  | DNStuff                             (* Anything else *)
+    ODNNothing                           (* docName is nil *)
+  | ODNString                            (* docName is just a variable name *)
+  | ODNStuff                             (* Anything else *)
 let rec d_decl (docName: unit -> doc) (dnwhat: docNameWhat) () this = 
   (* Print the docName with some attributes, maybe with parentheses *)
   let parenthname () (a: attribute list) = 
-    if a = [] && dnwhat <> DNStuff then
+    if a = [] && dnwhat <> ODNStuff then
       docName ()
-    else if dnwhat = DNNothing then
+    else if dnwhat = ODNNothing then
       (* Cannot print the attributes in this case *)
       text "/*(" 
         ++ d_attrlist_pre () a
@@ -1700,7 +1720,7 @@ let rec d_decl (docName: unit -> doc) (dnwhat: docNameWhat) () this =
       d_decl 
         (fun _ -> 
           text "* " ++ d_attrlist_pre () a ++ docName ())
-        DNStuff
+        ODNStuff
         () 
         bt
 
@@ -1711,7 +1731,7 @@ let rec d_decl (docName: unit -> doc) (dnwhat: docNameWhat) () this =
             ++ text "[" 
             ++ (match lo with None -> nil | Some e -> d_exp () e)
             ++ text "]")
-        DNStuff
+        ODNStuff
         ()
         elemt
 
@@ -1731,7 +1751,7 @@ let rec d_decl (docName: unit -> doc) (dnwhat: docNameWhat) () this =
                       ++ (if isvararg then break ++ text ", ..." else nil))
                   ++ unalign)
             ++ text ")")
-        DNStuff
+        ODNStuff
         ()
         restyp
 
@@ -1770,7 +1790,7 @@ and d_type () t =
     | TFun (rt, args, isva, a) -> TFun (rt, args, isva, a)
     | TBuiltin_va_list a -> TBuiltin_va_list (fixthem a)
   in  
-  d_decl (fun _ -> nil) DNNothing () (fixattrs t)
+  d_decl (fun _ -> nil) ODNNothing () (fixattrs t)
 
 
 (* exp *)
@@ -1872,24 +1892,6 @@ and d_init () = function
                     ++ unalign)
         ++ chr '}'
 
-and d_binop () b =
-  match b with
-    PlusA | PlusPI | IndexPI -> text "+"
-  | MinusA | MinusPP | MinusPI -> text "-"
-  | Mult -> text "*"
-  | Div -> text "/"
-  | Mod -> text "%"
-  | Shiftlt -> text "<<"
-  | Shiftrt -> text ">>"
-  | Lt | LtP -> text "<"
-  | Gt | GtP -> text ">"
-  | Le | LeP -> text "<="
-  | Ge | GeP -> text ">="
-  | Eq | EqP -> text "=="
-  | Ne | NeP -> text "!="
-  | BAnd -> text "&"
-  | BXor -> text "^"
-  | BOr -> text "|"
         
 (* attributes *)
 and d_attr () (Attr(an, args): attribute) =
@@ -2314,7 +2316,7 @@ and d_videcl () vi =
     (* First the storage modifiers *)
     (d_attrlist_pre () stom)
     ++ d_storage () vi.vstorage
-    ++ (d_decl (fun _ -> text vi.vname) DNString () vi.vtype)
+    ++ (d_decl (fun _ -> text vi.vname) ODNString () vi.vtype)
     ++ text " "
     ++ d_attrlist () rest
 
@@ -2322,13 +2324,124 @@ and d_fielddecl () fi =
   (d_decl 
      (fun _ -> 
        text (if fi.fname = missingFieldName then "" else fi.fname))
-     DNString () fi.ftype)
+     ODNString () fi.ftype)
     ++ text " "
     ++ (match fi.fbitfield with None -> nil 
                              | Some i -> text ": " ++ num i ++ text " ")
     ++ d_attrlist () fi.fattr
     ++ text ";"
 
+(* wes: I want to see this at the top level *)
+let d_global () = function
+  | GFun (fundec, l) ->
+      (* If the function has attributes then print a prototype because GCC 
+       * cannot accept function attributes in a definition  *)
+      let oldattr = fundec.svar.vattr in
+      let proto = 
+        if oldattr <> [] then 
+          (d_line l) ++ (d_videcl () fundec.svar) ++ chr ';' ++ line 
+        else nil in
+      (* Temporarily remove the function attributes *)
+      fundec.svar.vattr <- [];
+      let body = (d_line l) ++ (d_fun_decl () fundec) in
+      fundec.svar.vattr <- oldattr;
+      proto ++ body
+
+  | GType (typ, l) ->
+      d_line l ++
+      if typ.tname = "" then
+        ((d_decl (fun _ -> nil) ODNNothing) () typ.ttype) ++ chr ';'
+      else
+        text "typedef "
+          ++ ((d_decl (fun _ -> text typ.tname) ODNString) () typ.ttype)
+          ++ chr ';'
+
+  | GEnumTag (enum, l) ->
+     d_line l ++
+     text "enum" ++ align ++ text (" " ^ enum.ename) ++
+        d_attrlist () enum.eattr ++ text " {" ++ line
+        ++ (docList line 
+              (fun (n,i) -> 
+                text (n ^ " = ") 
+                  ++ d_exp () i
+                  ++ text "," ++ break)
+              () enum.eitems)
+        ++ unalign ++ break ++ text "};"
+
+  | GCompTag (comp, l) -> (* This is a definition of a tag *)
+      let n = comp.cname in
+      let su, su1, su2 =
+        if comp.cstruct then "struct", "str", "uct"
+                        else "union",  "uni", "on"
+      in
+      d_line l ++
+      text su1 ++ (align ++ text su2 ++ chr ' ' ++ text n
+                     ++ text " {" ++ line
+                     ++ ((docList line (d_fielddecl ())) () comp.cfields)
+                     ++ unalign)
+        ++ line ++ text "}" ++
+        (d_attrlist () comp.cattr) ++ text ";"
+
+  | GVar (vi, io, l) ->
+      d_line l ++
+        (d_videcl () vi)
+        ++ chr ' '
+        ++ (match io with
+              None -> nil
+            | Some i -> text " = " ++ (d_init () i))
+        ++ chr ';'
+
+  | GDecl (vi, l) -> (
+      (* sm: don't print boxmodels; avoids gcc warnings *)
+      if (hasAttribute "boxmodel" vi.vattr) then
+        (text ("// omitted boxmodel GDecl " ^ vi.vname ^ "\n"))
+      (* sm: also don't print declarations for gcc builtins *)
+      (* this doesn't do what I want, I don't know why *)
+      else if startsWith "__builtin_" vi.vname && not !print_CIL_Input then (
+        (text ("// omitted gcc builtin " ^ vi.vname ^ "\n"))
+      )
+      else (
+        d_line l ++
+        (d_videcl () vi)
+          ++ chr ';'
+      )
+    )
+  | GAsm (s, l) ->
+      d_line l ++
+        text ("__asm__(\"" ^ escape_string s ^ "\");")
+
+  | GPragma (Attr(an, args), l) ->
+      (* sm: suppress printing pragmas that gcc does not understand *)
+      (* assume anything starting with "box" is ours *)
+      (* also don't print the 'combiner' pragma *)
+      (* nor 'cilnoremove' *)
+      let suppress = 
+        not !print_CIL_Input && 
+        ((startsWith "box" an) ||
+         (an = "merger") ||
+         (an = "cilnoremove")) in
+      let d =
+        if args = [] then
+          text an
+        else
+          text (an ^ "(")
+            ++ docList (chr ',') (d_attrparam ()) () args
+            ++ text ")"
+      in
+      d_line l 
+        ++ (if suppress then text "/* " else text "")
+        ++ (text "#pragma ")
+        ++ d
+        ++ (if suppress then text " */" else text "")
+
+  | GText s  -> text s
+
+*)
+
+type declName = 
+    DNNothing                           (* docName is nil *)
+  | DNString of string                  (* docName is just a variable name *)
+  | DNStuff of doc                      (* Anything else *)
 
 (** A printer interface for CIL trees. Create instantiations of 
  * this type by specializing the class {!Cil.defaultCilPrinter}. *)
@@ -2345,15 +2458,15 @@ class type cilPrinter = object
   method pLval: unit -> lval -> doc
     (** Invoked on each lvalue occurence *)
 
-  method pInst: unit -> instr -> doc
+  method pInstr: unit -> instr -> doc
     (** Invoked on each instruction occurrence. *)
 
   method pStmt: unit -> stmt -> doc
     (** Control-flow statement. *)
 
-  method pGlob: unit -> global -> doc       (** Global (vars, types, etc.) *)
+  method pGlobal: unit -> global -> doc       (** Global (vars, types, etc.) *)
 
-  method pType: doc -> docNameWhat -> unit -> typ -> doc  
+  method pType: declName -> unit -> typ -> doc  
   (* Use of some type in some declaration. The first argument is used to print 
    * the declared element. Note that for structure/union and enumeration types 
    * the definition of the composite type is not visited. Use [vglob] to 
@@ -2362,6 +2475,9 @@ class type cilPrinter = object
   method pAttr: attribute -> doc * bool
     (** Attribute. Also return an indication whether this attribute must be 
       * printed inside the __attribute__ list or not. *)
+
+  method pAttrParam: unit -> attrparam -> doc
+    (** Attribute parameter. *)
    
   method pAttrs: unit -> attributes -> doc
     (** Attribute lists *)
@@ -2375,18 +2491,6 @@ class type cilPrinter = object
   method pInit: unit -> init -> doc
 end
 
-(* Top-level printing functions *)
-let printType (pp: cilPrinter) () (t: typ) : doc = 
-  pp#pType nil DNNothing () t
-  
-let printExp (pp: cilPrinter) () (e: exp) : doc = 
-  pp#pExp () e
-
-let printLval (pp: cilPrinter) () (lv: lval) : doc = 
-  pp#pLval () lv
-
-let printGlobal (pp: cilPrinter) () (g: global) : doc = 
-  pp#pGlob () g
 
 class defaultCilPrinterClass : cilPrinter = object (self)
   (*** VARIABLES ***)
@@ -2399,7 +2503,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     (* First the storage modifiers *)
     (self#pAttrs () stom)
       ++ d_storage () v.vstorage
-      ++ (self#pType (text v.vname) DNString () v.vtype)
+      ++ (self#pType (DNString v.vname) () v.vtype)
       ++ text " "
       ++ self#pAttrs () rest
 
@@ -2453,16 +2557,16 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
     | CastE(t,e) -> 
         text "(" 
-          ++ self#pOnlyType () t
+          ++ self#pType DNNothing () t
           ++ text ")"
           ++ self#pExpPrec level () e
 
     | SizeOf (t) -> 
-        text "sizeof(" ++ self#pOnlyType () t ++ chr ')'
+        text "sizeof(" ++ self#pType DNNothing () t ++ chr ')'
     | SizeOfE (e) -> 
         text "sizeof(" ++ self#pExp () e ++ chr ')'
     | AlignOf (t) -> 
-        text "__alignof__(" ++ self#pOnlyType () t ++ chr ')'
+        text "__alignof__(" ++ self#pType DNNothing () t ++ chr ')'
     | AlignOfE (e) -> 
         text "__alignof__(" ++ self#pExp () e ++ chr ')'
     | AddrOf(lv) -> 
@@ -2519,27 +2623,27 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           ++ chr '}'
           
   (*** INSTRUCTIONS ****)
-  method pInst () (i:instr) =       (* imperative instruction *)
+  method pInstr () (i:instr) =       (* imperative instruction *)
     match i with
     | Set(lv,e,l) -> begin
         (* Be nice to some special cases *)
         match e with
           BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt64(one,_,_)),_)
             when lv == lv' && one = Int64.one ->
-              d_line l
+              self#pLineDirective l
                 ++ self#pLval () lv
                 ++ text " ++;"
 
         | BinOp((MinusA|MinusPI),Lval(lv'),
                 Const(CInt64(one,_,_)), _) when lv == lv' && one = Int64.one ->
-                  d_line l
+                  self#pLineDirective l
                     ++ self#pLval () lv
                     ++ text " --;"
 
         | BinOp((PlusA|PlusPI|IndexPI|MinusA|MinusPP|MinusPI|BAnd|BOr|BXor|
           Mult|Div|Mod|Shiftlt|Shiftrt) as bop,
                 Lval(lv'),e,_) when lv == lv' ->
-                  d_line l
+                  self#pLineDirective l
                     ++ self#pLval () lv
                     ++ text " " ++ d_binop () bop
                     ++ text "= "
@@ -2547,7 +2651,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                     ++ text ";"
                     
         | _ ->
-            d_line l
+            self#pLineDirective l
               ++ self#pLval () lv
               ++ text " = "
               ++ self#pExp () e
@@ -2556,7 +2660,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     end
     | Call(Some lv, Lval(Var vi, NoOffset), [dest; SizeOf t], l) 
         when vi.vname = "__builtin_va_arg" -> 
-          d_line l
+          self#pLineDirective l
             ++ (self#pLval () lv ++ text " = ")
                    
             (* Now the function name *)
@@ -2565,12 +2669,12 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                               (* Now the arguments *)
                               ++ self#pExp () dest 
                               ++ chr ',' ++ break 
-                              ++ self#pOnlyType () t
+                              ++ self#pType DNNothing () t
                               ++ unalign)
             ++ text ");"
 
     | Call(dest,e,args,l) ->
-        d_line l
+        self#pLineDirective l
           ++ (match dest with
             None -> nil
           | Some lv -> 
@@ -2579,7 +2683,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                 (let destt = typeOfLval lv in
                 match unrollType (typeOf e) with
                   TFun (rt, _, _, _) when typeSig rt <> typeSig destt ->
-                    text "(" ++ self#pOnlyType () destt ++ text ")"
+                    text "(" ++ self#pType DNNothing () destt ++ text ")"
                 | _ -> nil))
           (* Now the function name *)
           ++ (let ed = self#pExp () e in
@@ -2596,14 +2700,14 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
     | Asm(attrs, tmpls, outs, ins, clobs, l) ->
         if !msvcMode then
-          d_line l
+          self#pLineDirective l
             ++ text "__asm {"
             ++ (align
                   ++ (docList line text () tmpls)
                   ++ unalign)
             ++ text "};"
         else
-          d_line l
+          self#pLineDirective l
             ++ text ("__asm__ ") 
             ++ self#pAttrs () attrs 
             ++ text " ("
@@ -2691,7 +2795,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
   (* Store here the name of the last file printed in a line number. This is 
    * private to the object *)
   val mutable lastFileName = ""
-  (* Make sure that you only call d_line on an empty line *)
+  (* Make sure that you only call self#pLineDirective on an empty line *)
   method pLineDirective l = 
     let printLine (forcefile: bool) (l : location) : string =
       let str = ref "" in
@@ -2747,7 +2851,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
     | Instr il ->
         align
-          ++ (docList line (fun i -> self#pInst () i) () il)
+          ++ (docList line (fun i -> self#pInstr () i) () il)
           ++ unalign
 
     | If(be,t,{bstmts=[];battrs=[]},l) ->
@@ -2850,7 +2954,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
 
   (*** GLOBALS ***)
-  method pGlob () (g:global) : doc =       (* global (vars, types, etc.) *)
+  method pGlobal () (g:global) : doc =       (* global (vars, types, etc.) *)
     match g with 
     | GFun (fundec, l) ->
         (* If the function has attributes then print a prototype because GCC 
@@ -2869,10 +2973,10 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     | GType (typ, l) ->
         self#pLineDirective l ++
         if typ.tname = "" then
-          self#pOnlyType () typ.ttype ++ chr ';'
+          self#pType DNNothing () typ.ttype ++ chr ';'
         else
           text "typedef "
-            ++ (self#pType (text typ.tname) DNString () typ.ttype)
+            ++ (self#pType (DNString typ.tname) () typ.ttype)
             ++ chr ';'
 
     | GEnumTag (enum, l) ->
@@ -2908,7 +3012,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           ++ chr ' '
           ++ (match io with
             None -> nil
-          | Some i -> text " = " ++ (d_init () i))
+          | Some i -> text " = " ++ (self#pInit () i))
           ++ chr ';'
           
     | GDecl (vi, l) -> (
@@ -2959,16 +3063,15 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
    method private pFieldDecl () fi = 
      (self#pType
-     (text (if fi.fname = missingFieldName then "" else fi.fname))
-     DNString 
-       () 
-       fi.ftype)
+        (DNString (if fi.fname = missingFieldName then "" else fi.fname))
+        () 
+        fi.ftype)
        ++ text " "
        ++ (match fi.fbitfield with None -> nil 
-             | Some i -> text ": " ++ num i ++ text " ")
+       | Some i -> text ": " ++ num i ++ text " ")
        ++ self#pAttrs () fi.fattr
        ++ text ";"
-
+       
   method private pFunDecl () f =
     text (if f.sinline then "__inline " else "")
       ++ self#pVDecl () f.svar
@@ -2985,27 +3088,38 @@ class defaultCilPrinterClass : cilPrinter = object (self)
       ++ text "}"
 
   (***** PRINTING DECLARATIONS and TYPES ****)
-  method private pOnlyType () (t:typ) = 
-    self#pType nil DNNothing () t
     
-  method pType (name: doc) (* The actual declared name  *) 
-               (dnwhat: docNameWhat) (* What kind of name *)
+  method pType (dnwhat: declName) (* What kind of name *)
                () (t:typ) =         (* use of some type *)
-    (* Print the docName with some attributes, maybe with parentheses *)
-    let parenthname () (a: attribute list) = 
-      if a = [] && dnwhat <> DNStuff then
+    let name = 
+      match dnwhat with 
+        DNNothing -> nil
+      | DNString s -> text s
+      | DNStuff d -> d
+    in
+    (* Print the docName with some attributes preceedign it, maybe with 
+     * parentheses *)
+    let parenthname (a: attribute list) = 
+      match dnwhat, a with
+        DNStuff d, _ -> (* Must parenthesize whether or not we have attrs *)
+          text "(" ++ self#pAttrs () a ++ name  ++ text ")"
+      | DNNothing, [] -> nil
+      | DNNothing, _ :: _ -> (* Cannot print the attributes in this case 
+                              * because gcc does not like them here *)
+          text "/*(" ++ self#pAttrs () a ++ text ")*/"
+      | DNString s, a -> self#pAttrs () a ++ text s
+
+(*
+      if a = [] && (match dnwhat with DNStuff _ -> false | _ -> true) then
         name
       else if dnwhat = DNNothing then
-        (* Cannot print the attributes in this case *)
-        text "/*(" 
-          ++ self#pAttrs () a
-          ++ text ")*/"
+        (* Cannot print the attributes in this case because gcc does not like 
+         * them here *)
+        text "/*(" ++ self#pAttrs () a ++ text ")*/"
       else begin
-        text "(" 
-          ++ self#pAttrs () a
-          ++ name
-          ++ text ")"
+        text "(" ++ self#pAttrs () a ++ name  ++ text ")"
       end
+*)
     in
     match t with 
     TVoid a ->
@@ -3038,39 +3152,37 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           ++ name
     | TPtr (bt, a)  -> 
         self#pType 
-          (text "* " ++ self#pAttrs () a ++ name)
-          DNStuff
+          (DNStuff (text "* " ++ parenthname a))
           () 
           bt
 
-  | TArray (elemt, lo, a) -> 
-      self#pType 
-        (parenthname () a
-           ++ text "[" 
-           ++ (match lo with None -> nil | Some e -> self#pExp () e)
-           ++ text "]")
-        DNStuff
-        ()
-        elemt
-
-  | TFun (restyp, args, isvararg, a) -> 
-      self#pType 
-        (parenthname () a
-           ++ text "("
-           ++ (align 
-                 ++ (if args = Some [] && isvararg then 
-                   text "..."
-                 else
-                   (if args = None then nil 
-                   else if args = Some [] then text "void"
-                   else (docList (chr ',' ++ break) (self#pVDecl ()) () 
-                           (argsToList args)))
-                     ++ (if isvararg then break ++ text ", ..." else nil))
-                 ++ unalign)
-           ++ text ")")
-        DNStuff
-        ()
-        restyp
+    | TArray (elemt, lo, a) -> 
+        self#pType 
+          (DNStuff (parenthname a
+                      ++ text "[" 
+                      ++ (match lo with None -> nil | Some e -> self#pExp () e)
+                      ++ text "]"))
+          ()
+          elemt
+          
+    | TFun (restyp, args, isvararg, a) -> 
+        self#pType 
+          (DNStuff 
+             (parenthname a
+                ++ text "("
+                ++ (align 
+                      ++ (if args = Some [] && isvararg then 
+                        text "..."
+                      else
+                        (if args = None then nil 
+                        else if args = Some [] then text "void"
+                        else (docList (chr ',' ++ break) (self#pVDecl ()) () 
+                                (argsToList args)))
+                          ++ (if isvararg then break ++ text ", ..." else nil))
+                      ++ unalign)
+                ++ text ")"))
+          ()
+          restyp
 
   | TNamed (t, a) ->
       text t.tname ++ self#pAttrs () a ++ text " " ++ name
@@ -3130,7 +3242,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
             ++ text ")", 
           true
 
-  method private pAttrParam () = function 
+  method pAttrParam () = function 
     | AInt n -> num n
     | AStr s -> text ("\"" ^ escape_string s ^ "\"")
     | ACons(s, []) -> text s
@@ -3139,7 +3251,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           ++ (docList (chr ',') (self#pAttrParam ()) () al)
           ++ text ")"
     | ASizeOfE a -> text "sizeof(" ++ self#pAttrParam () a ++ text ")"
-    | ASizeOf t -> text "sizeof(" ++ self#pType nil DNNothing () t ++ text ")"
+    | ASizeOf t -> text "sizeof(" ++ self#pType DNNothing () t ++ text ")"
     | AUnOp(u,a1) -> 
         let d_unop () u =
           match u with
@@ -3193,116 +3305,180 @@ end (* class defaultCilPrinterClass *)
 
 let defaultCilPrinter = new defaultCilPrinterClass
 
-   (* Some plain pretty-printers. Unlike the above these expose all the 
-    * details of the internal representation *)
-let rec d_plainexp () = function
+(* Top-level printing functions *)
+let printType (pp: cilPrinter) () (t: typ) : doc = 
+  pp#pType DNNothing () t
+  
+let printExp (pp: cilPrinter) () (e: exp) : doc = 
+  pp#pExp () e
+
+let printLval (pp: cilPrinter) () (lv: lval) : doc = 
+  pp#pLval () lv
+
+let printGlobal (pp: cilPrinter) () (g: global) : doc = 
+  pp#pGlobal () g
+
+let printAttr (pp: cilPrinter) () (a: attribute) : doc = 
+  let ad, _ = pp#pAttr a in ad
+
+let printAttrs (pp: cilPrinter) () (a: attributes) : doc = 
+  pp#pAttrs () a
+
+let printInstr (pp: cilPrinter) () (i: instr) : doc = 
+  pp#pInstr () i
+
+let printStmt (pp: cilPrinter) () (s: stmt) : doc = 
+  pp#pStmt () s
+
+let printInit (pp: cilPrinter) () (i: init) : doc = 
+  pp#pInit () i
+
+(* Now define some short cuts *)
+let d_exp () e = printExp defaultCilPrinter () e
+let d_lval () lv = printLval defaultCilPrinter () lv
+let d_init () i = printInit defaultCilPrinter () i
+let d_type () t = printType defaultCilPrinter () t
+let d_global () g = printGlobal defaultCilPrinter () g
+let d_attrlist () a = printAttrs defaultCilPrinter () a 
+let d_attr () a = printAttr defaultCilPrinter () a
+let d_attrparam () e = defaultCilPrinter#pAttrParam () e
+let d_stmt () s = printStmt defaultCilPrinter () s
+let d_instr () i = printInstr defaultCilPrinter () i
+
+(* Now define a cilPlainPrinter *)
+class plainCilPrinterClass =
+  (* We keep track of the composite types that we have done to avoid 
+   * recursion *)
+  let donecomps : (int, unit) H.t = H.create 13 in 
+  object (self)
+
+  inherit defaultCilPrinterClass as super
+  
+  (*** PLAIN TYPES ***)
+  method pType (dn: declName) () (t: typ) = 
+    match dn with 
+      DNNothing -> self#pOnlyType () t
+    | DNString s -> text (s ^ " : ") ++ self#pOnlyType () t
+    | DNStuff d -> d ++ text " : " ++ self#pOnlyType () t
+
+ method private pOnlyType () = function 
+     TVoid a -> dprintf "TVoid(@[%a@])" self#pAttrs a
+   | TInt(ikind, a) -> dprintf "TInt(@[%a,@?%a@])" 
+         d_ikind ikind self#pAttrs a
+   | TFloat(fkind, a) -> 
+       dprintf "TFloat(@[%a,@?%a@])" d_fkind fkind self#pAttrs a
+   | TNamed (t, a) ->
+       dprintf "TNamed(@[%s,@?%a,@?%a@])" 
+         t.tname self#pOnlyType t.ttype self#pAttrs a
+   | TPtr(t, a) -> dprintf "TPtr(@[%a,@?%a@])" self#pOnlyType t self#pAttrs a
+   | TArray(t,l,a) -> 
+       let dl = match l with 
+         None -> text "None" | Some l -> dprintf "Some(@[%a@])" self#pExp l in
+       dprintf "TArray(@[%a,@?%a,@?%a@])" 
+         self#pOnlyType t insert dl self#pAttrs a
+   | TEnum(enum,a) -> dprintf "Enum(%s,@[%a@])" enum.ename self#pAttrs a
+   | TFun(tr,args,isva,a) -> 
+       dprintf "TFun(@[%a,@?%a%s,@?%a@])"
+         self#pOnlyType tr 
+         insert 
+         (if args = None then text "None"
+         else (docList (chr ',' ++ break) 
+                 (fun a -> dprintf "%s: %a" a.vname self#pOnlyType a.vtype)) 
+             () 
+             (argsToList args))
+         (if isva then "..." else "") self#pAttrs a
+   | TComp (comp, a) -> 
+       if H.mem donecomps comp.ckey then 
+         dprintf "TCompLoop(%s %s, _, %a)" 
+           (if comp.cstruct then "struct" else "union") comp.cname 
+           self#pAttrs comp.cattr
+       else begin
+         H.add donecomps comp.ckey (); (* Add it before we do the fields *)
+         dprintf "TComp(@[%s %s,@?%a,@?%a,@?%a@])" 
+           (if comp.cstruct then "struct" else "union") comp.cname
+           (docList (chr ',' ++ break) 
+              (fun f -> dprintf "%s : %a" f.fname self#pOnlyType f.ftype)) 
+           comp.cfields
+           self#pAttrs comp.cattr
+           self#pAttrs a
+       end
+   | TBuiltin_va_list a -> 
+       dprintf "TBuiltin_va_list(%a)" self#pAttrs a
+
+    
+  (* Some plain pretty-printers. Unlike the above these expose all the 
+   * details of the internal representation *)
+  method dExp () = function
     Const(c) -> 
       text "Const(" ++ d_const () c ++ text ")"
   | Lval(lv) -> 
       text "Lval(" 
         ++ (align
-              ++ d_plainlval () lv
+              ++ self#pLval () lv
               ++ unalign)
         ++ text ")"
         
-  | CastE(t,e) -> dprintf "CastE(@[%a,@?%a@])" d_plaintype t d_plainexp e
-  | StartOf lv -> dprintf "StartOf(%a)" d_plainlval lv
-  | AddrOf (lv) -> dprintf "AddrOf(%a)" d_plainlval lv
+  | CastE(t,e) -> dprintf "CastE(@[%a,@?%a@])" self#pOnlyType t self#pExp e
+  | StartOf lv -> dprintf "StartOf(%a)" self#pLval lv
+  | AddrOf (lv) -> dprintf "AddrOf(%a)" self#pLval lv
   | e -> d_exp () e
 
-and d_plaininit () = function
-    SingleInit e -> dprintf "SI(%a)" d_exp e
-  | CompoundInit (t, initl) -> 
-      let d_plainoneinit (o, i) = 
-        d_plainoffset () o ++ text " = " ++ d_plaininit () i
-      in
-      dprintf "CI(@[%a,@?%a@])" d_plaintype t
-        (docList (chr ',' ++ break) d_plainoneinit) initl
 
-and d_plainlval () = function
-  | Var vi, o -> dprintf "Var(@[%s,@?%a@])" vi.vname d_plainoffset o
-  | Mem e, o -> dprintf "Mem(@[%a,@?%a@])" d_plainexp e d_plainoffset o
+  method private d_plainoffset () = function
+      NoOffset -> text "NoOffset"
+    | Field(fi,o) -> 
+        dprintf "Field(@[%s:%a,@?%a@])" 
+          fi.fname self#pOnlyType fi.ftype self#d_plainoffset o
+     | Index(e, o) -> 
+         dprintf "Index(@[%a,@?%a@])" self#pExp e self#d_plainoffset o
 
-and d_plainoffset () = function
-    NoOffset -> text "NoOffset"
-  | Field(fi,o) -> 
-      dprintf "Field(@[%s:%a,@?%a@])" 
-        fi.fname d_plaintype fi.ftype d_plainoffset o
-  | Index(e, o) -> dprintf "Index(@[%a,@?%a@])" d_plainexp e d_plainoffset o
+  method pInit () = function
+      SingleInit e -> dprintf "SI(%a)" d_exp e
+    | CompoundInit (t, initl) -> 
+        let d_plainoneinit (o, i) = 
+          self#d_plainoffset () o ++ text " = " ++ self#pInit () i
+        in
+        dprintf "CI(@[%a,@?%a@])" self#pOnlyType t
+          (docList (chr ',' ++ break) d_plainoneinit) initl
+           
+  method pLval () (lv: lval) =  
+    match lv with 
+    | Var vi, o -> dprintf "Var(@[%s,@?%a@])" vi.vname self#d_plainoffset o
+    | Mem e, o -> dprintf "Mem(@[%a,@?%a@])" self#pExp e self#d_plainoffset o
 
-and d_plaintype () (t: typ) = 
-  let donecomps : (int, unit) H.t = H.create 13 in (* Keep track of structure 
-                                                    * definitions to avoid 
-                                                    * going into infinite 
-                                                    * loop *)
-  let rec scanType () = function
-    TVoid a -> dprintf "TVoid(@[%a@])" d_attrlist a
-  | TInt(ikind, a) -> dprintf "TInt(@[%a,@?%a@])" 
-        d_ikind ikind d_attrlist a
-  | TFloat(fkind, a) -> 
-      dprintf "TFloat(@[%a,@?%a@])" d_fkind fkind d_attrlist a
-  | TNamed (t, a) ->
-      dprintf "TNamed(@[%s,@?%a,@?%a@])" t.tname scanType t.ttype d_attrlist a
-  | TPtr(t, a) -> dprintf "TPtr(@[%a,@?%a@])" scanType t d_attrlist a
-  | TArray(t,l,a) -> 
-      let dl = match l with 
-        None -> text "None" | Some l -> dprintf "Some(@[%a@])" d_plainexp l in
-      dprintf "TArray(@[%a,@?%a,@?%a@])" 
-        scanType t insert dl d_attrlist a
-  | TEnum(enum,a) -> dprintf "Enum(%s,@[%a@])" enum.ename d_attrlist a
-  | TFun(tr,args,isva,a) -> 
-      dprintf "TFun(@[%a,@?%a%s,@?%a@])"
-        scanType tr 
-        insert 
-        (if args = None then text "None"
-         else (docList (chr ',' ++ break) 
-                 (fun a -> dprintf "%s: %a" a.vname scanType a.vtype)) 
-                 () 
-                 (argsToList args))
-        (if isva then "..." else "") d_attrlist a
-  | TComp (comp, a) -> 
-      if H.mem donecomps comp.ckey then 
-        dprintf "TCompLoop(%s %s, _, %a)" 
-          (if comp.cstruct then "struct" else "union") comp.cname 
-          d_attrlist comp.cattr
-      else begin
-        H.add donecomps comp.ckey (); (* Add it before we do the fields *)
-        dprintf "TComp(@[%s %s,@?%a,@?%a,@?%a@])" 
-          (if comp.cstruct then "struct" else "union") comp.cname
-          (docList (chr ',' ++ break) 
-             (fun f -> dprintf "%s : %a" f.fname scanType f.ftype)) 
-          comp.cfields
-          d_attrlist comp.cattr
-          d_attrlist a
-      end
-  | TBuiltin_va_list a -> 
-      dprintf "TBuiltin_va_list(%a)" d_attrlist a
-  in
-  scanType () t
+
+end
+let plainCilPrinter = new plainCilPrinterClass
+
+(* And now some shortcuts *)
+let d_plainexp () e = plainCilPrinter#pExp () e
+let d_plaintype () t = plainCilPrinter#pType DNNothing () t
+let d_plaininit () i = plainCilPrinter#pInit () i
+let d_plainlval () l = plainCilPrinter#pLval () l
 
 let rec d_typsig () = function
     TSArray (ts, eo, al) -> 
       dprintf "TSArray(@[%a,@?%a,@?%a@])" 
         d_typsig ts 
         insert (match eo with None -> text "None" | Some e -> d_exp () e)
-        d_attrlist_pre al
+        d_attrlist al
   | TSPtr (ts, al) -> 
       dprintf "TSPtr(@[%a,@?%a@])"
-        d_typsig ts d_attrlist_pre al
+        d_typsig ts d_attrlist al
   | TSComp (iss, name, al) -> 
       dprintf "TSComp(@[%s %s,@?%a@])"
         (if iss then "struct" else "union") name
-        d_attrlist_pre al
+        d_attrlist al
   | TSFun (rt, args, isva, al) -> 
       dprintf "TSFun(@[%a,@?%a,%b,@?%a@])"
         d_typsig rt
         (docList (chr ',' ++ break) (d_typsig ())) args isva
-        d_attrlist_pre al
+        d_attrlist al
   | TSEnum (n, al) -> 
       dprintf "TSEnum(@[%s,@?%a@])"
-        n d_attrlist_pre al
+        n d_attrlist al
   | TSBase t -> dprintf "TSBase(%a)" d_type t
-
+(*
 let _ = 
   let d_attrcustombase = function
     | Attr("const", []) -> Some (text "const")
@@ -3333,7 +3509,7 @@ let _ =
     | _ -> None
   in
   setCustomPrintAttribute d_attrcustombase
-
+*)
 
 
 
@@ -3934,110 +4110,6 @@ let mapGlobals (fl: file)
   end)
 
 
-(* wes: I want to see this at the top level *)
-let d_global () = function
-  | GFun (fundec, l) ->
-      (* If the function has attributes then print a prototype because GCC 
-       * cannot accept function attributes in a definition  *)
-      let oldattr = fundec.svar.vattr in
-      let proto = 
-        if oldattr <> [] then 
-          (d_line l) ++ (d_videcl () fundec.svar) ++ chr ';' ++ line 
-        else nil in
-      (* Temporarily remove the function attributes *)
-      fundec.svar.vattr <- [];
-      let body = (d_line l) ++ (d_fun_decl () fundec) in
-      fundec.svar.vattr <- oldattr;
-      proto ++ body
-
-  | GType (typ, l) ->
-      d_line l ++
-      if typ.tname = "" then
-        ((d_decl (fun _ -> nil) DNNothing) () typ.ttype) ++ chr ';'
-      else
-        text "typedef "
-          ++ ((d_decl (fun _ -> text typ.tname) DNString) () typ.ttype)
-          ++ chr ';'
-
-  | GEnumTag (enum, l) ->
-     d_line l ++
-     text "enum" ++ align ++ text (" " ^ enum.ename) ++
-        d_attrlist () enum.eattr ++ text " {" ++ line
-        ++ (docList line 
-              (fun (n,i) -> 
-                text (n ^ " = ") 
-                  ++ d_exp () i
-                  ++ text "," ++ break)
-              () enum.eitems)
-        ++ unalign ++ break ++ text "};"
-
-  | GCompTag (comp, l) -> (* This is a definition of a tag *)
-      let n = comp.cname in
-      let su, su1, su2 =
-        if comp.cstruct then "struct", "str", "uct"
-                        else "union",  "uni", "on"
-      in
-      d_line l ++
-      text su1 ++ (align ++ text su2 ++ chr ' ' ++ text n
-                     ++ text " {" ++ line
-                     ++ ((docList line (d_fielddecl ())) () comp.cfields)
-                     ++ unalign)
-        ++ line ++ text "}" ++
-        (d_attrlist () comp.cattr) ++ text ";"
-
-  | GVar (vi, io, l) ->
-      d_line l ++
-        (d_videcl () vi)
-        ++ chr ' '
-        ++ (match io with
-              None -> nil
-            | Some i -> text " = " ++ (d_init () i))
-        ++ chr ';'
-
-  | GDecl (vi, l) -> (
-      (* sm: don't print boxmodels; avoids gcc warnings *)
-      if (hasAttribute "boxmodel" vi.vattr) then
-        (text ("// omitted boxmodel GDecl " ^ vi.vname ^ "\n"))
-      (* sm: also don't print declarations for gcc builtins *)
-      (* this doesn't do what I want, I don't know why *)
-      else if startsWith "__builtin_" vi.vname && not !print_CIL_Input then (
-        (text ("// omitted gcc builtin " ^ vi.vname ^ "\n"))
-      )
-      else (
-        d_line l ++
-        (d_videcl () vi)
-          ++ chr ';'
-      )
-    )
-  | GAsm (s, l) ->
-      d_line l ++
-        text ("__asm__(\"" ^ escape_string s ^ "\");")
-
-  | GPragma (Attr(an, args), l) ->
-      (* sm: suppress printing pragmas that gcc does not understand *)
-      (* assume anything starting with "box" is ours *)
-      (* also don't print the 'combiner' pragma *)
-      (* nor 'cilnoremove' *)
-      let suppress = 
-        not !print_CIL_Input && 
-        ((startsWith "box" an) ||
-         (an = "merger") ||
-         (an = "cilnoremove")) in
-      let d =
-        if args = [] then
-          text an
-        else
-          text (an ^ "(")
-            ++ docList (chr ',') (d_attrparam ()) () args
-            ++ text ")"
-      in
-      d_line l 
-        ++ (if suppress then text "/* " else text "")
-        ++ (text "#pragma ")
-        ++ d
-        ++ (if suppress then text " */" else text "")
-
-  | GText s  -> text s
 
 let newPrinter = true
 

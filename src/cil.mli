@@ -1586,11 +1586,15 @@ val d_storage: unit -> storage -> Pretty.doc
 (** Pretty-print a constant *)
 val d_const: unit -> constant -> Pretty.doc
 
-type docNameWhat = 
-    DNNothing                             (* docName is nil *)
-  | DNString                              (* docName is just a variable name *)
-  | DNStuff                             (* Anything else *)
-
+(** When printing declarations or types we need to differentiate between 
+ * different forms of the declared entity (mostly for proper parenthetization 
+ * and printing of type attributes *)
+type declName = 
+    DNNothing                           (* This is the name of a type. 
+                                         * Nothing is declared *)
+  | DNString of string                  (* The declared entity is just a 
+                                         * string *)
+  | DNStuff of Pretty.doc               (* Anything else *)
 
 (** A printer interface for CIL trees. Create instantiations of 
  * this type by specializing the class {!Cil.defaultCilPrinter}. *)
@@ -1607,15 +1611,16 @@ class type cilPrinter = object
   method pLval: unit -> lval -> Pretty.doc
     (** Invoked on each lvalue occurence *)
 
-  method pInst: unit -> instr -> Pretty.doc
+  method pInstr: unit -> instr -> Pretty.doc
     (** Invoked on each instruction occurrence. *)
 
   method pStmt: unit -> stmt -> Pretty.doc
     (** Control-flow statement. *)
 
-  method pGlob: unit -> global -> Pretty.doc       (** Global (vars, types, etc.) *)
+  method pGlobal: unit -> global -> Pretty.doc
+    (** Global (vars, types, etc.) *)
 
-  method pType: Pretty.doc -> docNameWhat -> unit -> typ -> Pretty.doc  
+  method pType: declName -> unit -> typ -> Pretty.doc  
   (* Use of some type in some declaration. The first argument is used to print 
    * the declared element. Note that for structure/union and enumeration types 
    * the definition of the composite type is not visited. Use [vglob] to 
@@ -1624,6 +1629,9 @@ class type cilPrinter = object
   method pAttr: attribute -> Pretty.doc * bool
     (** Attribute. Also return an indication whether this attribute must be 
       * printed inside the __attribute__ list or not. *)
+   
+  method pAttrParam: unit -> attrparam -> Pretty.doc 
+    (** Attribute paramter *)
    
   method pAttrs: unit -> attributes -> Pretty.doc
     (** Attribute lists *)
@@ -1650,11 +1658,20 @@ val printLval: cilPrinter -> unit -> lval -> Pretty.doc
 
 val printGlobal: cilPrinter -> unit -> global -> Pretty.doc 
 
+val printAttr: cilPrinter -> unit -> attribute -> Pretty.doc 
+val printAttrs: cilPrinter -> unit -> attributes -> Pretty.doc 
+val printInstr: cilPrinter -> unit -> instr -> Pretty.doc 
+val printStmt: cilPrinter -> unit -> stmt -> Pretty.doc 
+val printInit: cilPrinter -> unit -> init -> Pretty.doc 
+
 (** Pretty-print a type using {!Cil.defaultCilPrinter} *)
 val d_type: unit -> typ -> Pretty.doc
 
 (** Pretty-print an expression using {!Cil.defaultCilPrinter}  *)
 val d_exp: unit -> exp -> Pretty.doc
+
+(** Pretty-print an lvalue using {!Cil.defaultCilPrinter}   *)
+val d_lval: unit -> lval -> Pretty.doc
 
 (** Pretty-print an initializer using {!Cil.defaultCilPrinter}  *)
 val d_init: unit -> init -> Pretty.doc
@@ -1671,24 +1688,30 @@ val d_attrparam: unit -> attrparam -> Pretty.doc
 (** Pretty-print a list of attributes using {!Cil.defaultCilPrinter}  *)
 val d_attrlist: unit -> attributes -> Pretty.doc 
 
+(** Pretty-print an instruction using {!Cil.defaultCilPrinter}   *)
+val d_instr: unit -> instr -> Pretty.doc
 
 (** Pretty-print a statement using {!Cil.defaultCilPrinter}   *)
 val d_stmt: unit -> stmt -> Pretty.doc
 
+(** Pretty-print the internal representation of a global using 
+ * {!Cil.defaultCilPrinter} *)
+val d_global: unit -> global -> Pretty.doc
+
+(*
 (** Pretty-print a block using {!Cil.defaultCilPrinter}   *)
 val d_block: unit -> block -> Pretty.doc
+*)
 
-(** Pretty-print an lvalue using {!Cil.defaultCilPrinter}   *)
-val d_lval: unit -> lval -> Pretty.doc
-
-(** Pretty-print an instruction using {!Cil.defaultCilPrinter}   *)
-val d_instr: unit -> instr -> Pretty.doc
+(*
 
 (** Pretty-print a function declaration using {!Cil.defaultCilPrinter}   *)
 val d_fun_decl: unit -> fundec -> Pretty.doc
 
 (** Pretty-print a variable declaration using {!Cil.defaultCilPrinter}   *)
 val d_videcl: unit -> varinfo -> Pretty.doc
+*)
+
 
 (** Pretty-print an entire file. Here you give the channel where the printout
  * should be sent. *)
@@ -1744,14 +1767,12 @@ val d_plaininit: unit -> init -> Pretty.doc
 (** Pretty-print the internal representation of an lvalue *)
 val d_plainlval: unit -> lval -> Pretty.doc
 
-(** Pretty-print the internal representation of an lvalue offset *)
-val d_plainoffset: unit -> offset -> Pretty.doc
+(** Pretty-print the internal representation of an lvalue offset 
+val d_plainoffset: unit -> offset -> Pretty.doc *)
 
 (** Pretty-print the internal representation of a type *)
 val d_plaintype: unit -> typ -> Pretty.doc
 
-(** Pretty-print the internal representation of a global *)
-val d_global: unit -> global -> Pretty.doc
 
 
 (** ALPHA conversion *)
