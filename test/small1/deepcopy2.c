@@ -85,19 +85,10 @@ int main(int argc, char** argv) {
 struct bar* __deepcopy_to_fat_bar(struct bar* dest, struct bar __LEAN * src);
 struct bar __LEAN * __deepcopy_to_lean_bar(struct bar __LEAN * dest, struct bar* src);
 struct bar __LEAN * __deepcopy_array_to_lean_bar(struct bar* src);
+struct bar * __deepcopy_array_to_fat_bar(struct bar __LEAN* src, int n);
 
 struct bar* copy_bars_to_fat(struct bar __LEAN * src) {
-  struct bar* new_bars = malloc(NR_BARS * sizeof(*new_bars));
-  int i;
-  //make a fat pointer to the source array (to make indexing easier below).
-  struct bar __LEAN * srcfat = __mkptr_size(src, NR_BARS * sizeof(*src));
-  if (src == NULL)
-    return NULL;
-
-  for (i = 0; i < NR_BARS; i++) {
-    __deepcopy_to_fat_bar(&new_bars[i], &srcfat[i]);
-  }
-  return new_bars;
+  return __deepcopy_array_to_fat_bar(src, NR_BARS);
 }
 
 double* copy_an_array_to_fat(struct foo __LEAN * src) {
@@ -139,6 +130,7 @@ void more_tests()
   if (__deepcopy_to_fat_foo(&f, NULL) != NULL) E(21);
   if (__deepcopy_to_fat_foo(NULL, &flean) == NULL) E(22);
   __deepcopy_array_to_lean_bar(NULL); //matth: HACK to keep this decl from being deleted.
-  __deepcopy_to_lean_bar(NULL); //matth: HACK to keep this decl from being deleted.
+  __deepcopy_to_lean_bar(NULL, NULL); //matth: HACK to keep this decl from being deleted.
+  __deepcopy_to_fat_bar(NULL, NULL); //matth: HACK to keep this decl from being deleted.
 }
 
