@@ -1112,10 +1112,18 @@ let d_const () c =
        * large positive ones *)
       if i < Int64.zero 
           && (match ik with 
-            IUInt | IULong | IULongLong -> true | _ -> false) then
-        text ("0x" ^ Int64.format "%x" i ^ suffix ik)
+            IUInt | IULong | IULongLong | IUChar | IUShort -> true | _ -> false) then
+        let high = Int64.shift_right i 32 in
+        if ik <> IULongLong && ik <> ILongLong && high = Int64.of_int (-1) then
+          (* Print only the low order 32 bits *)
+          text ("0x" ^ 
+                Int64.format "%x" (Int64.logand i (Int64.shift_right_logical high 32))
+                ^ suffix ik)
+        else
+          text ("0x" ^ Int64.format "%x" i ^ suffix ik)
       else
         text (Int64.to_string i ^ suffix ik)
+
   | CStr(s) -> text ("\"" ^ escape_string s ^ "\"")
   | CChr(c) -> text ("'" ^ escape_char c ^ "'")
   | CReal(_, _, Some s) -> text s
@@ -3065,6 +3073,7 @@ let rec constFold (e: exp) : exp =
         Const(CInt64(i,_,_)) -> integer64 (Int64.neg i)
       | _ -> e
   end
+        (* Characters are integers *)
   | Const(CChr c) -> Const(CInt64(Int64.of_int (Char.code c), 
                                   IInt, None))
   | _ -> e
@@ -3072,76 +3081,92 @@ let rec constFold (e: exp) : exp =
 and constFoldBinOp bop e1 e2 tres = 
   let e1' = constFold e1 in
   let e2' = constFold e2 in
-  if isIntegralType tres then
+  if isIntegralType tres then begin
     let newe = 
       let rec mkInt = function
           Const(CChr c) -> Const(CInt64(Int64.of_int (Char.code c), 
                                         IInt, None))
-        | CastE(TInt _, e) -> mkInt e
+        | CastE(TInt (ik, ta), e) -> begin
+            match mkInt e with
+              Const(CInt64(i, _, _)) -> Const(CInt64(i, ik, None))
+            | e' -> CastE(TInt(ik, ta), e')
+        end
         | e -> e
       in
-      (* See if the result is unsigned *)
-      let isunsigned = 
+      let tk = 
         match unrollType tres with
-          TInt((IUInt | IUChar | IUShort | IULong | IULongLong), _) -> true
+          TInt(ik, _) -> ik
+        | TEnum _ -> IInt
+        | _ -> E.s (bug "constFoldBinOp")
+      in
+      (* See if the result is unsigned *)
+      let isunsigned = function
+          (IUInt | IUChar | IUShort | IULong | IULongLong) -> true
         | _ -> false
       in
+      let ge (unsigned: bool) (i1: int64) (i2: int64) : bool = 
+        if unsigned then 
+          let l1 = Int64.shift_right_logical i1 1 in
+          let l2 = Int64.shift_right_logical i2 1 in (* Both positive now *)
+          (l1 > l2) || (l1 = l2 && 
+                        Int64.logand i1 Int64.one >= Int64.logand i2 Int64.one)
+        else i1 >= i2
+      in
+      (* Assume that the necessary promotions have been done *)
       match bop, mkInt e1', mkInt e2' with
-        PlusA, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) -> 
-          integer64 (Int64.add i1 i2)
       | PlusA, Const(CInt64(z,_,_)), e2'' when z = Int64.zero -> e2''
       | PlusA, e1'', Const(CInt64(z,_,_)) when z = Int64.zero -> e1''
       | PlusPI, e1'', Const(CInt64(z,_,_)) when z = Int64.zero -> e1''
       | IndexPI, e1'', Const(CInt64(z,_,_)) when z = Int64.zero -> e1''
       | MinusPI, e1'', Const(CInt64(z,_,_)) when z = Int64.zero -> e1''
-      | MinusA, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) -> 
-          integer64 (Int64.sub i1 i2)
-      | Mult, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) -> 
-          integer64 (Int64.mul i1 i2)
-      | Div, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) -> begin
-          try integer64 (Int64.div i1 i2)
-          with Division_by_zero -> 
-            E.s (unimp "Division by zero while constant folding")
+      | PlusA, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
+          kinteger64 ik1 (Int64.add i1 i2)
+      | MinusA, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
+          kinteger64 ik1 (Int64.sub i1 i2)
+      | Mult, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
+          kinteger64 ik1 (Int64.mul i1 i2)
+      | Div, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> begin
+          try kinteger64 ik1 (Int64.div i1 i2)
+          with Division_by_zero -> BinOp(bop, e1', e2', tres)
       end
-      | Mod, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) -> begin
-          try integer64 (Int64.rem i1 i2)
-          with Division_by_zero -> 
-            E.s (unimp "Division by zero while constant folding")
+      | Mod, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> begin
+          try kinteger64 ik1 (Int64.rem i1 i2)
+          with Division_by_zero -> BinOp(bop, e1', e2', tres) 
       end
-      | BAnd, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) -> 
-          integer64 (Int64.logand i1 i2)
-      | BOr, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) -> 
-          integer64 (Int64.logor i1 i2)
-      | BXor, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) -> 
-          integer64 (Int64.logxor i1 i2)
-      | Shiftlt, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) -> 
+      | BAnd, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
+          kinteger64 ik1 (Int64.logand i1 i2)
+      | BOr, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
+          kinteger64 ik1 (Int64.logor i1 i2)
+      | BXor, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
+          kinteger64 ik1 (Int64.logxor i1 i2)
+      | Shiftlt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,IInt,_)) -> 
           integer64 (Int64.shift_left i1 (Int64.to_int i2))
-      | Shiftrt, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) -> 
-          if isunsigned then 
-            integer64 (Int64.shift_right_logical i1 (Int64.to_int i2))
+      | Shiftrt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,IInt,_)) -> 
+          if isunsigned ik1 then 
+            kinteger64 ik1 (Int64.shift_right_logical i1 (Int64.to_int i2))
           else
-            integer64 (Int64.shift_right i1 (Int64.to_int i2))
+            kinteger64 ik1 (Int64.shift_right i1 (Int64.to_int i2))
 
-      | Eq, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) -> 
+      | Eq, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
           integer (if i1 = i2 then 1 else 0)
-      | Ne, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) -> 
+      | Ne, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
           integer (if i1 <> i2 then 1 else 0)
-      | Le, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) 
-            when not isunsigned -> 
-          integer (if i1 <= i2 then 1 else 0)
-      | Ge, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) 
-            when not isunsigned -> 
-          integer (if i1 >= i2 then 1 else 0)
-      | Lt, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) 
-            when not isunsigned -> 
-          integer (if i1 < i2 then 1 else 0)
-      | Gt, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) 
-            when not isunsigned -> 
-          integer (if i1 > i2 then 1 else 0)
+      | Le, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 ->
+          integer (if ge (isunsigned ik1) i2 i1 then 1 else 0)
+
+      | Ge, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 ->
+          integer (if ge (isunsigned ik1) i1 i2 then 1 else 0)
+
+      | Lt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 ->
+          integer (if i1 <> i2 && ge (isunsigned ik1) i2 i1 then 1 else 0)
+
+      | Gt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 ->
+          integer (if i1 <> i2 && ge (isunsigned ik1) i1 i2 then 1 else 0)
       | _ -> BinOp(bop, e1', e2', tres)
     in
+    ignore (E.log "After constfold: %a\n" d_plainexp newe);
     newe
-  else
+  end else
     BinOp(bop, e1', e2', tres)
 
 
