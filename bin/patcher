@@ -165,7 +165,8 @@ foreach $file (@{$option{sfile}}) {
 my $hadError = 0;
 foreach my $patch (@patches) {
     # It was optional
-    if(defined $patch->{FLAGS}->{optional}) { next; }
+    if(defined $patch->{FLAGS}->{optional} ||
+       defined $patch->{FLAGS}->{disabled}) { next; }
     # It was for another system
     if(defined $patch->{FLAGS}->{system} &&
        $patch->{FLAGS}->{system} ne $::platform) { next; }
@@ -364,7 +365,8 @@ sub preparePatchFile {
         my $current_pattern = [];
         my @all_patterns = ();
         if($_ =~ m|^===|) {
-            if(! defined $valueflags{ateof}) {
+            if(! defined $valueflags{ateof} && 
+               ! defined $valueflags{atsof}) {
                 die "A pattern is missing in $pFile";
             }
             goto AfterPattern;
@@ -492,7 +494,9 @@ sub applyPatches {
             next;
         }
         # Disable also (for now) the patches that must be applied at EOF
-        if(defined $patch->{FLAGS}->{ateof}) {
+        if(defined $patch->{FLAGS}->{ateof} || 
+           defined $patch->{FLAGS}->{atsof} ||
+           defined $patch->{FLAGS}->{disabled} ) {
             $patch->{USE} = 0;
             push @eof_patches, $patch;
         }
@@ -506,6 +510,15 @@ sub applyPatches {
 
     my $lineno = 0;
     my $line; # The current line
+
+    # Now apply the SOF patches
+    foreach my $patch (@eof_patches) {
+        if(defined $patch->{FLAGS}->{atsof}) {
+            my $line = &applyOnePatch($patch, &lineDirective($in, $lineno));
+            print OUT $line;
+        }
+    }
+
     while($line = &readIncludeLine(\*IN)) {
         $lineno ++;
             # Now we have a line to print out. See if it needs patching
