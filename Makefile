@@ -888,7 +888,7 @@ health : defaulttarget
 	            $(HEALTHARGS) \
                     CC="$(COMBINESAFECC) \
 			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
-	cd $(HEALTHDIR); ./health.exe 10 10 10 1
+	cd $(HEALTHDIR); ./health.exe
 
 
 
