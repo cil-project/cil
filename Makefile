@@ -1902,15 +1902,15 @@ gimpall: zlib tiff libpgn jpeg mpeg glib gtk
 CTORTDIR := /usr/local/src/gcc/gcc/testsuite/gcc.c-torture
 # CILLY := gcc
 tort/compile/%: $(CTORTDIR)/compile/%.c mustbemanju mustbegcc
-	$(CILLY) $(CTORTDIR)/compile/$*.c -c
+	$(CILLY) $(CTORTDIR)/compile/$*.c -c -o $(CTORTDIR)/compile/$*.o
 
 tort/execute/%: $(CTORTDIR)/execute/%.c mustbemanju mustbegcc
-	$(CILLY) $(CTORTDIR)/execute/$*.c -o ./a.exe
+	$(CILLY) $(CTORTDIR)/execute/$*.c -o $(CTORTDIR)/compile/a.exe
 	echo Cure complete
-	./a.exe
+	$(CTORTDIR)/compile/a.exe
 
 tort/compat/%: $(CTORTDIR)/compat/%.c mustbemanju mustbegcc
-	$(CILLY) $(CTORTDIR)/compat/$*.c -o ./a.exe
+	$(CILLY) $(CTORTDIR)/compat/$*.c -o $(CTORTDIR)/compile/a.exe
 	echo Cure complete
-	./a.exe
+	$(CTORTDIR)/compile/a.exe
 
