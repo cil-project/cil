@@ -312,7 +312,7 @@ let restoreHash ?deepCopy (h: ('a, 'b) H.t) : (unit -> unit) =
     match deepCopy with 
       None -> H.copy h 
     | Some f -> 
-        let old = H.create 13 in 
+        let old = H.create (H.length h) in 
         H.iter (fun k d -> H.add old k (f d)) h;
         old
   in
