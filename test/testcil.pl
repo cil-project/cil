@@ -261,6 +261,8 @@ $TEST->addTests("test/restrict1", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/rmtmps1", "", ['cil']);
 $TEST->addTests("test/proto1", "", ['cil']);
 $TEST->addTests("testrun/struct1", "", ['cil']);
+$TEST->addTests("testrun/union2", "", ['cil']);
+$TEST->addTests("testrun/union3", "", ['cil']);
    
 # Tests that are expected to fail
 $TEST->add2TestsFail("testrun/failubound1", "", "Failure .+: Ubound");

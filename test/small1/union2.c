@@ -2,7 +2,11 @@
 
 typedef unsigned long ULONG;
 typedef long LONG;
-typedef long long LONGLONG; 
+#ifdef _GNUCC
+typedef long long LONGLONG;
+#else
+typedef __int64 LONGLONG;
+#endif
 
 typedef union _LARGE_INTEGER {
   struct {  
@@ -15,6 +19,7 @@ typedef union _LARGE_INTEGER {
   } u;
     LONGLONG QuadPart;
 } LARGE_INTEGER;
+
 
 int main() {
   LARGE_INTEGER foo;
@@ -29,5 +34,7 @@ int main() {
     E(2);
   } 
 
+  
   SUCCESS; 
 }
+

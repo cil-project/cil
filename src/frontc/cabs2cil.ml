@@ -23,6 +23,11 @@ let cabslu = {lineno = -10; filename = "cabs lu";}
 (* Keep a list of functions that were called without a prototype. *)
 let noProtoFunctions : (int, bool) H.t = H.create 13
 
+(* Check that s starts with the prefix p *)
+let prefix p s = 
+  let lp = String.length p in
+  let ls = String.length s in
+  lp <= ls && String.sub s 0 lp = p
 
 (***** COMPUTED GOTO ************)
 
@@ -1394,11 +1399,9 @@ let isValidIndex (leno: int option) (idx: int) =
   | _ -> true)
 
 
+let annonCompFieldNameId = ref 0
+let annonCompFieldName = "__annonCompField"
  
-
-
-      
-  
                    
 
 (* Utility ***)
@@ -1985,8 +1988,21 @@ and makeCompType (isstruct: bool)
           | _ -> E.s (error "bitfield width is not an integer constant")
       end
     in
+    (* If the field is unnamed and its type is a structure of union type then 
+     * give it a distinguished name *)
+    let n' = 
+      if n = missingFieldName then begin
+        match unrollType ftype with 
+          TComp _ -> begin
+            incr annonCompFieldNameId;
+            annonCompFieldName ^ (string_of_int !annonCompFieldNameId)
+          end 
+        | _ -> n
+      end else
+        n
+    in
     { fcomp     =  comp;
-      fname     =  n;
+      fname     =  n';
       ftype     =  ftype;
       fbitfield =  width;
       fattr     =  nattr;
@@ -2053,10 +2069,29 @@ and doExp (isconst: bool)    (* In a constant *)
             (se +++ (Set(lv, e'', !currentLoc)), e'', t'')
     end
   in
-  let findField n fidlist = 
-    try
-      List.find (fun fid -> n = fid.fname) fidlist
-    with Not_found -> E.s (error "Cannot find field %s" n)
+  let rec findField (n: string) (fidlist: fieldinfo list) : offset * typ =
+    (* Depth first search for the field. This appears to be what GCC does. 
+     * MSVC checks that there are no ambiguous field names, so it does not 
+     * matter how we search *)
+    let rec search = function
+        [] -> NoOffset, voidType (* Did not find *)
+      | fid :: rest when fid.fname = n -> Field(fid, NoOffset), fid.ftype
+      | fid :: rest when prefix annonCompFieldName fid.fname -> begin
+          match fid.ftype with 
+            TComp (ci, _) -> 
+              let off, t = search ci.cfields in
+              if off = NoOffset then 
+                search rest  (* Continue searching *)
+              else
+                Field (fid, off), t
+          | _ -> E.s (bug "unnamed field type is not a struct/union")
+      end
+      | _ :: rest -> search rest
+    in
+    let off, t = search fidlist in
+    if off = NoOffset then 
+      E.s (error "Cannot find field %s" n);
+    off, t
   in
   try
     match e with
@@ -2135,13 +2170,13 @@ and doExp (isconst: bool)    (* In a constant *)
           match e' with Lval x -> x 
           | _ -> E.s (error "Expected an lval in MEMDEROF")
         in
-        let fid = 
+        let field_offset, field_type = 
           match unrollType t' with
             TComp (comp, _) -> findField str comp.cfields
           | _ -> E.s (error "expecting a struct with field %s" str)
         in
-        let lv' = Lval(addOffsetLval (Field(fid, NoOffset)) lv) in
-        finishExp se lv' fid.ftype
+        let lv' = Lval(addOffsetLval field_offset lv) in
+        finishExp se lv' field_type
           
        (* e->str = * (e + off(str)) *)
     | A.MEMBEROFPTR (e, str) -> 
@@ -2154,7 +2189,7 @@ and doExp (isconst: bool)    (* In a constant *)
           | TArray(t1,_,_) -> t1
           | _ -> E.s (error "expecting a pointer to a struct")
         in
-        let fid = 
+        let field_offset, field_type = 
           match unrollType pointedt with 
             TComp (comp, _) -> findField str comp.cfields
           | x -> 
@@ -2162,7 +2197,7 @@ and doExp (isconst: bool)    (* In a constant *)
                      "expecting a struct with field %s. Found %a. t1 is %a" 
                      str d_type x d_type t')
         in
-        finishExp se (Lval (mkMem e' (Field(fid, NoOffset)))) fid.ftype
+        finishExp se (Lval (mkMem e' field_offset)) field_type
           
           
     | A.CONSTANT ct -> begin
@@ -3925,6 +3960,7 @@ let convFile fname dl =
   H.clear compInfoNameEnv;
   H.clear mustTurnIntoDef;
   H.clear alreadyDefined;
+  annonCompFieldNameId := 0;
   if !E.verboseFlag || !Util.printStages then 
     ignore (E.log "Converting CABS->CIL\n");
   (* Setup the built-ins *)
@@ -4174,9 +4210,6 @@ let convFile fname dl =
                         @ [mkStmt (Return(retval, !currentLoc))]
               end;
                 
-
-              
-
 (*              ignore (E.log "The env after finishing the body of %s:\n%t\n"
                         n docEnv); *)
               pushGlobal (GFun (fdec, !currentLoc))
@@ -4203,56 +4236,9 @@ let convFile fname dl =
     (fun key ci -> 
       if ci.cfields = [] then begin
         ignore (E.warn "%s used but not defined" key);
-        (* MSVC does not like structures with no fields 
-        if !msvcMode then 
-          ci.cfields <- [{ fcomp = ci; fname = missingFieldName; 
-                           ftype = intType; fbitfield = Some 0;
-                           fattr = []}]; *)
         globals := GType("", TComp(ci, []), locUnknown) :: !globals
       end) compInfoNameEnv;
 
-  if not pullTypesForward then begin
-    (* Now go through the file and find all function prototypes. Then look 
-     * inside their argument list and collect all composite types. If those 
-     * types appear for the first time we must add a forward declaration to 
-     * them. This can happen when we have a prototype without arguments, 
-     * followed by the declaration of a composite type, followed by the 
-     * defintion of the function. Since the prototype will now refer to the 
-     * composite type, we get a warning about a forward declaration in the 
-     * argument list of a prototype  *)
-    let compSoFar : (int, bool) H.t = H.create 113 in
-    let rec loop acc = function
-        [] -> acc
-      | (GDecl (v, l) as g) :: rest -> begin
-          let acc' = 
-            match v.vtype with
-              TFun(rt, args, isva, a) -> 
-                List.fold_left (fun acc' a -> 
-                  let pacc = ref acc' in
-                  let doOne = function
-                      TComp(ci, _) -> 
-                        if not (H.mem compSoFar ci.ckey) then begin
-                          H.add compSoFar ci.ckey true;
-                          pacc := GType ("", TComp(ci, []), l) :: !pacc
-                        end;
-                        ExistsMaybe
-                    | _ -> ExistsMaybe
-                  in
-                  ignore (existsType doOne a.vtype);
-                  !pacc) acc (argsToList args)
-            | _ -> acc
-          in
-          loop (g :: acc') rest
-      end
-      | (GCompTag (ci, _) as g):: rest -> 
-          H.add compSoFar ci.ckey true;
-          loop (g :: acc) rest
-            
-      | g :: rest -> loop (g :: acc) rest
-    in
-    globals := List.rev (loop [] !globals);
-    H.clear compSoFar;
-  end;
   H.clear noProtoFunctions;
   H.clear mustTurnIntoDef;  
   H.clear alreadyDefined;
