@@ -90,7 +90,16 @@ class canonicalizeVisitor = object(self)
 	ChangeTo [] (* delete from here. *)
       end else begin
 	H.add alreadyDefined v ();
-	DoChildren
+	if H.mem alreadyDeclared v then begin
+	  (* Change the earlier declaration to Extern *)
+	  let oldS = v.vstorage in
+	  ignore (E.log "changing storage of %s from %a\n" 
+		    v.vname d_storage oldS);
+	  v.vstorage <- Extern;	  
+	  let newv = {v with vstorage = oldS} in
+	  ChangeDoChildrenPost([GVar(newv, Some init, l)], (fun g -> g) )
+	end else
+	  DoChildren
       end
   | GVar(v, None, l)
   | GVarDecl(v, l) when not (isFunctionType v.vtype) -> begin
