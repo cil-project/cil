@@ -43,6 +43,8 @@ if [ "$1" = "" ]; then
   echo "You can also set RUNONLY=n to run only the nth iteration"
   exit 0
 fi
+echo "CCURED=$CCURED"
+echo "CFLAGS=$CFLAGS"
 srcfile="$1"
 # Construct the name of the temporary file to use
 srcfilenoext=`echo $srcfile | sed s/.c\$//`
