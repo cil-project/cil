@@ -1787,10 +1787,10 @@ emacsclean:
 	      	\) -exec rm -f {} \;
 
 emacs: mustbegcc mustbelinux mustbemanju emacsclean
-	cd $(EMACSSRC) ; make CC="$(CILLY)"
+	cd $(EMACSSRC) ; make CC="$(CCURED)"
 
 emacs-noclean: mustbegcc mustbelinux mustbemanju
-	cd $(EMACSSRC) ; make CC="$(CILLY)"
+	cd $(EMACSSRC) ; make CC="$(CCURED)"
 
 emacs-gcc: mustbelinux mustbemanju emacsclean
 	cd $(EMACSSRC) ; make CC=gcc
@@ -1841,10 +1841,10 @@ bindclean:
 	      	\) -exec rm -f {} \;
 
 bind: mustbegcc mustbelinux mustbemanju bindclean
-	cd $(BINDSRC) ; make CC="$(CILLY)"
+	cd $(BINDSRC) ; make CC="$(CCURED)"
 
 bind-noclean: mustbegcc mustbelinux mustbemanju
-	cd $(BINDSRC) ; make CC="$(CILLY)"
+	cd $(BINDSRC) ; make CC="$(CCURED)"
 
 bind-gcc: mustbelinux mustbemanju bindclean
 	cd $(BINDSRC) ; make CC=gcc
@@ -1901,10 +1901,10 @@ opensshclean:
 	      	\) -exec rm -f {} \;
 
 openssh: mustbegcc mustbelinux mustbemanju opensshclean
-	cd $(OPENSSHSRC) ; make CC="$(CILLY)"
+	cd $(OPENSSHSRC) ; make CC="$(CCURED)"
 
 openssh-noclean: mustbegcc mustbelinux mustbemanju
-	cd $(OPENSSHSRC) ; make CC="$(CILLY)"
+	cd $(OPENSSHSRC) ; make CC="$(CCURED)"
 
 openssh-gcc: mustbelinux mustbemanju opensshclean
 	cd $(OPENSSHSRC) ; make CC=gcc
@@ -1932,10 +1932,10 @@ apacheclean:
 	      	\) -exec rm -f {} \;
 
 apache: mustbegcc mustbelinux mustbemanju apacheclean
-	cd $(APACHESRC) ; make CC="$(CILLY)" ; make install
+	cd $(APACHESRC) ; make CC="$(CCURED)" ; make install
 
 apache-noclean: mustbegcc mustbelinux mustbemanju
-	cd $(APACHESRC) ; make CC="$(CILLY)" ; make install
+	cd $(APACHESRC) ; make CC="$(CCURED)" ; make install
 
 apache-gcc: mustbelinux mustbemanju apacheclean
 	cd $(APACHESRC) ; make CC=gcc ; make install
