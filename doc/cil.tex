@@ -55,6 +55,310 @@ information. Thus CIL provides an integrated program representation that can
 be used with routines that require an AST (e.g. type-based analyses and
 pretty-printers), as well as with routines that require a CFG (e.g., dataflow analyses).
 
+ In addition CIL comes accompanies by a number of Perl scripts that perform
+generally useful operations on code:
+\begin{itemize}
+\item A \ahrefloc{sec-driver}{driver} which behaves as either the
+\t{gcc} or Microsoft VC compiler and can invoke the preprocessor and the CIL
+application. The advantage of this script is that you can use it with existing
+make files.
+\item A \ahrefloc {sec-merger}{whole-program merger} that you can use as a
+replacement for your compiler and it learns all the files you compile when you
+make a project and merges all of the preprocessed source files into a single
+one. This makes it easy to do whole-program analysis.
+\item A \ahrefloc{sec-patcher}{patcher} makes it easy to create modified
+copies of the system include files. The preprocessor can then be told how to 
+\end{itemize}
+
+\section{CIL API Documentation}\label{sec-cil} 
+
+ The CIL API is documented in the file \t{src/cil.mli}. We also have an
+\ahref{cil-api}{online documentation}.  
+
+\section{The CIL Driver}
+
+ We have packaged CIL as an application \t{cilly} that contains certain
+example modules, such as \t{logwrites.ml} (a module
+that instruments code to print the addresses of memory locations being
+written). Normally, you write another module like that, add command-line
+options and an invocation of your module in \t{src/main.ml}. Once you compile
+CIL you will obtain the file \t{obj/cilly.asm.exe}. 
+
+ We wrote a driver for this executable that makes it easy to invoke your
+analysis on existing C code with very little manual intervention. This driver
+is \t{lib/cilly.pl} and is quite powerful. 
+
+ A simple use of the driver is:
+\begin{verbatim}
+perl lib/cilly.pl -D HAPPY_MOOD -I myincludes hello.c -o hello
+\end{verbatim}
+
+ This performs the following actions: 
+\begin{itemize}
+\item preprocessing using the -D and -I arguments with the resulting file left in \t{hello.i}, 
+\item the invocation of the \t{cilly.asm} application which parses \t{hello.i}
+coverts it to CIL and the pretty-prints it to \t{hellocil.c}
+\item another round of preprocessing with the result placed in \t{hellocil.i}
+\item the true compilation with the result in \t{hellocil.o}
+\item a linking phase with the result in \t{hello}
+\end{itemize}
+ 
+ Note that \t{cilly.pl} behaves like the \t{gcc} compiler with the additional
+effect that CIL sees all the source code. This makes it easy
+to use it with existing \t{Makefiles}:
+\begin{verbatim}
+make CC="perl lib/cilly.pl" LD="perl lib/cilly.pl"
+\end{verbatim}
+
+ \t{cilly.pl} can also behave as the Microsoft Visual C compiler, if the first
+ argument is \t{--mode=MSVC}:
+\begin{verbatim}
+perl lib/cilly.pl --mode=MSVC /D HAPPY_MOOD /I myincludes hello.c /Fe hello.exe
+\end{verbatim}
+
+ (This in turn will pass a \t{--MSVC} flag to the underlying \t{cilly.asm}
+ process which will make it understand the Microsoft Visual C extensions)
+
+ Furthermore, \t{cilly.pl} allows you to pass some arguments on to the
+underlying \t{cilly.asm} process. As a general rule all arguments that start
+with \t{--} and that \t{cilly.pl} itself does not process, are passed on. For
+example, 
+\begin{verbatim}
+perl lib/cilly.pl --logwrites -D HAPPY_MOOD -I myincludes hello.c -o hello.exe
+\end{verbatim}
+
+ will produce a file \t{hellocil.c} that prints all the memory addresses
+written by the application. 
+
+ The most powerful feature of \t{cilly.pl} is that it can collect all the
+sources in your project, merge them into one file and then apply CIL. This
+makes it a breeze to do whole-program analysis and transformation. All you
+have to do is to pass the \t{--merge} flag to \t{cilly.pl}:
+\begin{verbatim}
+make CC="perl lib/cilly.pl --logwrites --merge"
+\end{verbatim}
+
+ You can even leave some files untouched:
+\begin{verbatim}
+make CC="perl lib/cilly.pl --logwrites --merge --leavealone=foo --leavealone=bar"
+\end{verbatim}
+
+ This will merge all the files except those with the basename \t{foo} and
+\t{bar}. Those files will be compiled as usual and then linked in at the very
+end. 
+
+ The sequence of actions performed by \t{cilly.pl} depends on whether merging
+is turned on or not:
+\begin{itemize}
+\item If merging is off
+  \begin{enumerate}
+    \item For every file \t{file.c} to compile
+         \begin{enumerate}
+            \item Preprocess the file with the given arguments to 
+                  produce \t{file.i}
+            \item Invoke \t{cilly.asm} to produce a \t{filecil.c}
+            \item Preprocess to \t{filecil.i}
+            \item Invoke the underlying compiler to produce \t{filecil.o}
+         \end{enumerate}
+    \item Link the resulting objects
+  \end{enumerate}
+\item If merging is on
+  \begin{enumerate}
+    \item For every file \t{file.c} to compile
+         \begin{enumerate}
+            \item Preprocess the file with the given arguments to 
+                  produce \t{file.i}
+            \item Save the preprocessed source as \t{file.o}
+         \end{enumerate}
+    \item When linking executable \t{hello.exe}, look at every object 
+          file that must be linked and see if it actually 
+          contains preprocessed source. Pass all those files to a 
+          special merging application (described in
+          \secref{merger}) to produce \t{hello.exe\_comb.c}
+    \item Invoke \t{cilly.asm} to produce a \t{hello.exe\_combcil.c}
+    \item Preprocess to \t{hello.exe\_combcil.i}
+    \item Invoke the underlying compiler to produce \t{hello.exe\_combcil.o}
+    \item Invoke the actual linker to produce \t{hello.exe}
+  \end{enumerate}
+\end{itemize}
+
+ Note that files that you specify with \t{--leavealone} are not merged and
+never presented to CIL. They are compiled as usual and then are linked in at
+the end. 
+
+ And a final feature of \t{cilly.pl} is that it can substitute copies of the
+system's include files:
+
+\begin{verbatim}
+make CC="perl lib/cilly.pl --includedir=myinclude"
+\end{verbatim}
+
+ This will force the preprocessor to use the file \t{myinclude/xxx/stdio.h}
+(if it exists) whenever it encounters \t{#include <stdio.h>}. The \t{xxx} is
+a string that identifies the compiler version you are using. This modified
+include files should be produced with the patcher script (see
+\secref{patcher}).
+
+  \subsection{\t{cilly.pl} Options}
+
+ Among the options for the \t{cilly.pl} you can put anything that can normally
+go in the command line of the compiler that \t{cilly.pl} is impersonating.
+\t{cilly.pl} will do its best to pass those options along to the appropriate
+subprocess. In addition, the following options are supported:
+
+\begin{itemize}
+\item \t{--mode=mode} This must be the first argument if present. It makes
+\t{cilly.pl} behave as a given compiled. The following modes are recognized: 
+     \begin{itemize}
+        \item GNUCC - the GNU C Compiler. This is the default.
+        \item MSVC - the Microsoft Visual C compiler. Of course, you should
+                     pass only MSVC valid options in this case. 
+     \end{itemize}
+\item \t{--help} Prints a list of the options supported.
+\item \t{--verbose} Prints lots of messages about what is going on.
+\item \t{--stages} Less than \t{--verbose} but lets you see what \t{cilly.pl}
+                   is doing. 
+\item \t{--merge} This tells \t{cilly} to first attempt to collect into one
+source file all of the sources that make your application, and then to apply
+\t{cilly.asm} on the resulting source. The sequence of actions in this case is
+described above and the merger itself is described in \secref{merger}.
+\item \t{--leavealone=xxx}. Do not merge and do not present to CIL the files
+whose basename is "xxx". These files are compiled as usual and linked in at
+the end. 
+\item \t{--includedir=xxx}. Override the include files with those in the given
+directory. The given directory is the same name that was given an an argument
+to the patcher (see \secref{patcher}). In particular this means that
+that directory contains subdirectories named based on the current compiler
+version. The patcher creates those directories. 
+\item \t{--usecabs}. Do not CIL, but instead just parse the source and print
+its AST out. This should looked like the preprocessed file.
+\end{itemize}
+ 
+ 
+  \subsection{\t{cilly.asm} Options}
+
+ All of the options that start with \t{--} and are not understood by
+\t{cilly.pl} are passed on to \t{cilly.asm}. The following options are
+supported:
+\begin{itemize}
+\item \t{--out=xxx}. The name of the pretty-printed file.
+\item \t{--verbose}. Print lots of random stuff. This is passed on from
+\t{cilly.pl}.
+\item \t{-help}. Print the help. Actually \t{cilly.pl} will do this if you
+      pass it \t{--help}.  
+\item \t{--check}. Run a consistency check over the CIL after every operation. 
+\item \t{--MSVC}. Enable the MSVC extensions and pretty-print for consumption
+by MSVC.
+\item \t{--logcalls}. Insert code in the processed source to print the name of
+funtions as are called. Implemented in \t{src/logcalls.ml}.
+\item \t{--logwrites}. Insert code in the processed source to print the
+address of all memory writes. Implemented in \t{src/logwrites.ml}.
+\item \t{--heapify}. Apply the heapify transformation.
+                     Implemented in \t{src/heapify.ml}.
+\item \t{--heapify}. Apply the StackGuard transformation.
+                     Implemented in \t{src/stackguard.ml}.
+\item \t{--stages}. Print the stages that CCured is performing.
+\item \t{--log=xxx}. Set \t{xxx} to be the name of the log file for the CCured
+application. By default \t{stderr} is used.
+\item \t{--keepunused}. Do not attempt to remove the unused variables and
+       types from CIL. 
+\item \t{--noPrintLn}. Do not print line numbers.
+\item \t{--commPrintLn}. Print line numbers but in comments.
+\end{itemize}
+
+
+\section{Controlling CIL}
+
+ In the process of converting a C file to CIL we drop the unused prototypes
+and even inline function definitions. This results in much smaller files. If
+you do not want this behavior then you must pass the \t{--keepunused} argument
+to the CIL application. 
+
+ Alternatively you can put the following pragma in the code (instructing CIL
+to specifically keep the declarations and definitions of the function
+\t{func1} and variable \t{var2}, the definition of type \t{foo} and of
+structure \t{bar}):
+\begin{verbatim}
+#pragma cilnoremove("func1", "var2", "type foo", "struct bar")
+\end{verbatim}
+
+
+\section{Installation}
+
+You will need OCaml release 3.02 or higher to build CIL. CIL has been tested
+on Linux and on Windows (where it can behave at either Microsoft Visual C or
+gcc). 
+
+ If you want to use CIL on Windows then you must get a complete installation
+of \t{cygwin} and the source-code OCaml distribution and compile it yourself
+using the cygwin tools (as opposed to getting the Win32 native-code version of
+OCaml). If you have not done this before then take a look
+\ahref{setup.html}{here}. (Don't need to worry about \t{cvs} and \t{ssh} since
+you won't be using those.) 
+
+\begin{enumerate}
+\item Unzip and untar the source distribution. This will create a directory
+      called \t{cil} whose structure is explained in \secref{distrib}. \\
+      \hsp\verb!tar xvfz cil.taz!
+\item Create an environment variable \t{ARCHOS} and set it to either
+      \t{X86\_LINUX} or \t{x86\_WIN32}.
+\item Enter the \t{cil} directory and run GNU make to build the 
+      distribution.\\
+      \hsp\verb!cd cil!\\
+      \hsp\verb!make!\\
+      \hsp\verb!make NATIVECAML=1!\\
+
+\item You should now find \t{obj/cilly.asm.exe} and \t{obj/merger.asm.exe}
+\end{enumerate}
+
+\section{Distribution}\label{sec-distrib}
+
+The file \ahref{cil.tar.gz}{cil.tar.gz} contains the complete source CIL
+distribution, consisting of the following files:
+
+\begin{tabular}{ll}
+Filename   & Description \\
+\t{Makefile}                    & Makefile for building CIL \\
+\t{Makefile.ocaml}              & A file that is included by \t{Makefile} \\
+\t{doc/}                        & HTML documentation of the CIL API \\
+\t{obj/}                        & Directory that will contain the compiled
+                                   CIL modules and executables\\
+\t{lib/cilly.pl}                & A Perl script that can be invoked with the 
+                                  same arguments as either \t{gcc} or
+                                  Microsoft Visual C and will convert the
+                                  program to CIL, perform some simple
+                                  transformations, emit it and compile it as
+                                  usual. \\
+\t{lib/CompilerStub.pm}         & A Perl class that can be used to write code
+                                  that impersonates a compiler. \t{cilly.pl}
+                                  uses it.  \\
+\t{lib/Merger.pm}               &  A subclass of \t{CompilerStub.pm} that can
+                                  be used to merge source files into a single
+                                  source file.\t{cilly.pl}
+                                  uses it. \\
+\t{src/cil.ml,mli}              & Definition of CIL abstract syntax and
+                                   utilities for manipulating it\\
+\t{src/clist.ml,mli}            & Utilities for efficiently managing lists
+                                   that need to be concatenated often\\
+\t{src/errormsg.ml,mli}         & Utilities for error reporting \\
+\t{src/frontc/}                 & The parser, the CIL converter and the 
+                                  merger \\
+\t{src/heapify.ml}              & A CIL transformation that moves array local
+                                   variables from the stack to the heap \\
+\t{src/logcalls.ml,mli}         & A CIL transformation that logs every
+                                   function call \\
+\t{src/logwrites.ml}            & A CIL transformation that logs every memory
+                                   write \\
+\t{src/main.ml}                 & A test application called \t{cilly} \\
+\t{src/pretty.ml,mli}           & Utilities for pretty printing \\
+\t{src/stats.ml,mli}            & Utilities for maintaining timing statistics
+\\
+\t{src/trace.ml,mli}            & Utilities useful for printing debugging
+                                   information\\
+\t{src/util.ml}                 & Miscellaneous functions and global variables
+\end{tabular}
+
+
 \section{GCC Extensions}
 
  The CIL parser handles most of the \t{gcc}
@@ -123,7 +427,28 @@ as such in CIL.
 \item Keywords \t{typeof}, \t{alignof}, \t{inline} are supported. 
 \end{enumerate}
 
+\section{CIL Limitations}
 
+ There are several implementation details of CIL that might make it unusable
+ or less than ideal for certain tasks:
+
+\begin{itemize}
+\item CIL operates after preprocessing. If you need to see comments, for
+example, you cannot use CIL. But you can use attributes and pragmas instead.
+And there is some support to help you patch the include files before they are
+seen by the preprocessor. This is how we turn some #define that we don't like
+into function calls for example. 
+
+\item CIL does transform the code in a non-trivial way. This is done in order
+to make most analyses easier. But if you want to see the code \t{e1, e2++}
+exactly as it appears in the code, then you should not use CIL. 
+
+\item CIL removes all local scopes and moves all variables to function
+scope. It also separates a declaration with an initializer into a declaration
+plus an assignment. The unfortunate effect of this transformation is that
+local variables cannot have the \t{const} qualifier.
+
+\end{itemize}
  
 \section{Known Bugs}
 
@@ -143,96 +468,75 @@ on Windows/MSVC.
 \item \t{long} and \t{int} are 32-bit, \t{short} is 16 bits. 
 \end{itemize}
 
-\section{Distribution}
 
-The file \ahref{cil.tar.gz}{cil.tar.gz} contains the complete source CIL
-distribution, consisting of the following files:
+  \section{Using the merger}\label{sec-merger}
 
-\begin{tabbing}
-FilenameXXXXXXXXXXXXXXXXXXXXXXXXX \= DescriptionXXX \kill
-\t{Makefile}                    \= Makefile for building CIL \\
-\t{Makefile.ocaml}              \= A file that is included by \t{Makefile} \\
-\t{doc/}                        \= HTML documentation of the CIL API \\
-\t{obj/}                        \= Directory that will contain the compiled
-                                   CIL modules and executables\\
-\t{src/cil.ml,mli}              \= Definition of CIL abstract syntax and
-                                   utilities for manipulating it\\
-\t{src/clist.ml,mli}            \= Utilities for efficiently managing lists
-                                   that need to be concatenated often\\
-\t{src/errormsg.ml,mli}         \= Utilities for error reporting \\
-\t{src/frontc/}                 \= The parser and CIL converter \\
-\t{src/heapify.ml}              \= A CIL transformation that moves array local
-                                   variables from the stack to the heap \\
-\t{src/logcalls.ml,mli}         \= A CIL transformation that logs every
-                                   function call \\
-\t{src/logwrites.ml}            \= A CIL transformation that logs every memory
-                                   write \\
-\t{src/main.ml}                 \= A test application called \t{cilly} \\
-\t{src/pretty.ml,mli}           \= Utilities for pretty printing \\
-\t{src/stats.ml,mli}            \= Utilities for maintaining timing statistics
-\\
-\t{src/trace.ml,mli}            \= Utilities useful for printing debugging
-                                   information\\
-\t{src/util.ml}                 \= Miscellaneous functions and global variables
-\end{tabbing}
+ There are many other program analyses that are more effective when
+done on the whole program.
 
-\section{Installation}
-
-You will need OCaml release 3.02 or higher to build CIL. CIL has been tested
-on Linux and on Windows (where it can behave at either Microsoft Visual C or
-gcc). If you want to use CIL on Windows then you must get the source-code
-OCaml distribution and compile it yourself using the cygwin tools (as opposed
-to getting the Win32 native-code version of OCaml).
-
+ The merger is a tool that combines all of the C source files in a project
+into a single C file. There are two tasks that a merger must solve:
 \begin{enumerate}
-\item Unzip and untar the source distribution. This will create a directory
-      called \t{cil}. \\
-      \hsp\verb!tar xvfz cil.taz!
-\item Create an environment variable \t{ARCHOS} and set it to either
-      \t{X86\_LINUX} or \t{x86\_WIN32}.
-\item Enter the \t{cil} directory and run GNU make to build the 
-      distribution.\\
-      \hsp\verb!cd cil!\\
-      \hsp\verb!make!\\
-      \hsp\verb!make NATIVECAML=1!\\
+\item Detect what are all the sources that make a project and with what
+compiler arguments they are compiled.
 
-\item You can now run either the bytecode or native code version of the
-      \t{cilly} test application on a preprocessed C source file. For example,
-      to invoke \t{cilly} on \t{foo.i}, do one of the following:\\
-      \hsp\verb!obj/cilly.byte.exe foo.i!\\
-      \hsp\verb!obj/cilly.asm.exe foo.i!\\
-      You can give the option \verb!-help! to get a list of all
-      the options accepted by \t{cilly}.
+\item Merge all of the source files into a single file. 
 \end{enumerate}
 
-\section{CIL API Documentation} 
-Online documentation of the CIL API is available~\ahref{cil-api}{here}. This
-documentation is also included in the distribution, in the \t{doc}
-subdirectory. 
+ For the first task the merger impersonates a compiler and a linker (both a
+GCC and a Microsoft Visual C mode are supported) and it expect to be invoked
+(from a build script or a Makefile) on all sources of the project. When
+invoked to compile a source the merger just preprocesses the source and
+saves using the name of the requested object file. By preprocessing this early
+the merger is able to take into account variations in the command line
+arguments that affect preprocessing of different source files. 
 
-\section{Controlling CIL}
+ When the merger is invoked in the place of the linker it collects the
+preprocessed sources that were stored with the names of the object files, and
+invoked the second part of the merger. Note that arguments that affect the
+compilation or linking must be the same for all source files.
 
- In the process of converting a C file to CIL we drop the unused prototypes
-and even inline function definitions. This results in much smaller files. If
-you do not want this behavior then you must pass the \t{--keepunused} argument
-to the CIL application. 
+ For the second task, the merger essentially concatenates the preprocessed
+sources with care to rename conflicting file-local declarations (we call this
+process alpha-conversion or a file). The merger also attempts to remove
+duplicate global declarations and definitions. Specifically the following
+actions are taken: 
 
- Alternatively you can put the following pragma in the code (instructing CIL
-to specifically keep the declarations and definitions of the function
-\t{func1} and variable \t{var2}, the definition of type \t{foo} and of
-structure \t{bar}):
-\begin{verbatim}
-#pragma cilnoremove("func1", "var2", "type foo", "struct bar")
-\end{verbatim}
+\begin{itemize}
+\item File-scope names (\t{static} globals, names of types defined with
+\t{typedef}, and structure/union/enumeration tags) are given new names if they
+conflict with declarations from previously processed sources. The new name is
+formed by appending the suffix \t{\_\_\_n}, where \t{n} is a unique integer
+identifier. Then the new names are applied to their occurences in the file. 
 
-    \section{Using the patcher}\label{ch-patcher}
+\item Non-static declarations of globals are never renamed. But we try to
+remove duplicate ones. The equality check is done on the whole structure of
+the declaration (including the line-number information) after the body of the
+declaration has been alpha-converted. This process is intended to remove those
+declarations that originate from the same include file. Similarly, we try to
+eliminate duplicate definitions of \t{inline} functions, since these
+occasionally appear in include files.
 
- Occasionally for the purposes of CCured we have needed to modify slightly the
-standard include files. So, we developed a simple mechanism that allows us to
-create modified copies of the include files and use them instead of the
-standard ones. For this purpose we specify a patch file and we run a program
-caller that Patcher which makes modified copies of include files and applies
-the patch. 
+\item Names of types and tags of structures or unions or enumerations are
+considered to have file scope and thus are candidate for renaming. However, if
+we detect an existing declaration with the same body from a previously
+processed file, we reuse it.
+
+\item In rare situations, it can happen that a file-local global in
+encountered first and it is not renamed, only to discover later when
+processing another file that there is an external symbol with the same name.
+In this case, a second pass is made over the merged file to rename the
+file-local symbol. 
+\end{itemize}
+
+
+    \section{Using the patcher}\label{sec-patcher}
+
+ Occasionally we have needed to modify slightly the standard include files.
+So, we developed a simple mechanism that allows us to create modified copies
+of the include files and use them instead of the standard ones. For this
+purpose we specify a patch file and we run a program caller that Patcher which
+makes modified copies of include files and applies the patch.
 
  The patcher is invoked as follows: 
 \begin{verbatim}
@@ -242,8 +546,8 @@ Options:
   --help       Prints this help message
   --verbose    Prints a lot of information about what is being done
   --mode=xxx   What tool to emulate: 
-                gcc     - GNU CC
-                mscl    - MS VC cl compiler
+                GNUCC     - GNU CC
+                MSVC      - MS VC cl compiler
 
   --dest=xxx   The destination directory. Will make one if it does not exist
   --patch=xxx  Patch file (can be specified multiple times)
@@ -294,68 +598,6 @@ ignored).
  The replacement text can contain the special keyword \t{@\_\_pattern\_\_@},
 which is substituted with the pattern that matched. 
 
-  \section{Using the combiner}\label{ch-combiner}
-
- The easiest way to use CCured is when you want to process a whole program and
-thus allow the inferencer to see all of the uses of all defined functions and
-variables. This way CCured is able to infer the best representation for such
-globals. There are many other program analyses that are more effective when
-done on the whole program.
-
- The combiner is a tool that combines all of the C source files in a project
-into a single C file. There are two tasks that a combiner must solve:
-\begin{enumerate}
-\item Detect what are all the sources that make a project and with what
-compiler arguments they are compiled.
-
-\item Combine all of the source files into a single file. 
-\end{enumerate}
-
- For the first task the combiner impersonates a compiler and a linker (both a
-GCC and a Microsoft Visual C mode are supported) and it expect to be invoked
-(from a build script or a Makefile) on all sources of the project. When
-invoked to compile a source the combiner just preprocesses the source and
-saves using the name of the requested object file. By preprocessing this early
-the combiner is able to take into account variations in the command line
-arguments that affect preprocessing of different source files. 
-
- When the combiner is invoked in the place of the linker it collects the
-preprocessed sources that were stored with the names of the object files, and
-invoked the second part of the combiner. Note that arguments that affect the
-compilation or linking must be the same for all source files.
-
- For the second task, the combiner essentially concatenates the preprocessed
-sources with care to rename conflicting file-local declarations (we call this
-process alpha-conversion or a file). The combiner also attempts to remove
-duplicate global declarations and definitions. Specifically the following
-actions are taken: 
-
-\begin{itemize}
-\item File-scope names (\t{static} globals, names of types defined with
-\t{typedef}, and structure/union/enumeration tags) are given new names if they
-conflict with declarations from previously processed sources. The new name is
-formed by appending the suffix \t{\_\_\_n}, where \t{n} is a unique integer
-identifier. Then the new names are applied to their occurences in the file. 
-
-\item Non-static declarations of globals are never renamed. But we try to
-remove duplicate ones. The equality check is done on the whole structure of
-the declaration (including the line-number information) after the body of the
-declaration has been alpha-converted. This process is intended to remove those
-declarations that originate from the same include file. Similarly, we try to
-eliminate duplicate definitions of \t{inline} functions, since these
-occasionally appear in include files.
-
-\item Names of types and tags of structures or unions or enumerations are
-considered to have file scope and thus are candidate for renaming. However, if
-we detect an existing declaration with the same body from a previously
-processed file, we reuse it.
-
-\item In rare situations, it can happen that a file-local global in
-encountered first and it is not renamed, only to discover later when
-processing another file that there is an external symbol with the same name.
-In this case, a second pass is made over the combined file to rename the
-file-local symbol. 
-\end{itemize}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
 \section{Using attributes with CIL}\label{sec-attrib}
@@ -574,8 +816,10 @@ have made an effort to reclassify GCC attributes in name and type attributes
 
  CIL was develped starting from Hugues Casse's \t{frontc} front-end for C
 although all the files from the \t{frontc} distribution have been changed
-heavily. 
+heavily. The main author is George Necula, with significant contributions from
+Scott McPeak, Westley Weimer, Raymond To and Aman Bhargava.
  
 \end{document}
+
 
 

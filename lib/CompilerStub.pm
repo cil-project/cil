@@ -84,7 +84,7 @@ sub collectOneArgument {
     # Maybe it is a compiler option or a source file
     if($self->compilerArgument($self->{OPTIONS}, $arg, $pargs)) { return 1; }
 
-    if($arg eq "--help") {
+    if($arg eq "--help" || $arg eq "-help") {
         $self->printHelp(); exit 1;
     }
     if($arg eq "--verbose") {
@@ -113,7 +113,7 @@ Options:
                 MSLINK  - MS VC link linker
                This option must be the first one! If it is not found there
                then GNUCC mode is assumed.
-  --help       Prints this help message
+  --help (or -help) Prints this help message
   --verbose    Prints a lot of information about what is being done
   --keep=xxx   Keep temporary files in the given directory
 EOF
@@ -135,7 +135,7 @@ EOF
 }
 
 
-# PREPROCESSING
+# PREPROCESSING. Return the actual destination
 sub preprocess {
     my ($self, $src, $dest, $ppargs) = @_;
     my $res;
@@ -148,7 +148,7 @@ sub preprocess {
         $res = $self->runShell($cmd);
         
     }
-    return $res;
+    return $dest;
 }
 
 
@@ -178,7 +178,7 @@ sub preprocess_compile {
     my ($base, $dir, $ext) = fileparse($src, "\\.[^.]+");
     if($ext eq ".c" || $ext eq ".cpp") {
         my $out    = $self->preprocessOutputFile($src);
-        $self->preprocess($src, $out, $ppargs);
+        $out = $self->preprocess($src, $out, $ppargs);
         $src = $out;
         $ext = ".i";
     }

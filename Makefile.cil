@@ -29,17 +29,24 @@ CAMLLIBS    =
 EXTRACLEAN += $(OBJDIR)/*.obj $(OBJDIR)/*.a $(OBJDIR)/*.o
 
 
+ifneq ($(ARCHOS), x86_WIN32)
+ifneq ($(ARCHOS), x86_LINUX) 
+   $(error You must set the ARCHOS variable to either x86_WIN32 or x86_LINUX)
+endif
+endif
+
     # Include now the common set of rules for OCAML
     # This file will add the rules to make $(EXECUTABLE)$(EXE)
 include Makefile.ocaml
 
 
-
 quickbuild: $(EXECUTABLE)$(EXE)
+	$(MAKE) -r -f Makefile.merger  quickbuild $(MAKEOVERRIDES)
 
 setup:
 	$(MAKE) -r -f Makefile.cil all $(MAKEOVERRIDES) NATIVECAML= 
 	$(MAKE) -r -f Makefile.cil all $(MAKEOVERRIDES) NATIVECAML=1
+	$(MAKE) -r -f Makefile.merger setup $(MAKEOVERRIDES)
 
 all:  quickbuild cillib
 # Build an OCAML library (CMA / CMXA) that exports our Cil stuff

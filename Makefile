@@ -6,17 +6,22 @@
 #   http://www.gnu.org/manual/make/html_chapter/make_toc.html
 
 
+ifneq ($(ARCHOS), x86_WIN32)
+ifneq ($(ARCHOS), x86_LINUX) 
+   $(error You must set the ARCHOS variable to either x86_WIN32 or x86_LINUX)
+endif
+endif
+
 # sm: moved this before setup and am now arranging things so this
 # can be the primary target; must rethink what 'setup' means
 quickbuild:
 	make -r -f Makefile.ccured   quickbuild $(MAKEOVERRIDES)
 	make -r -f Makefile.cil      quickbuild $(MAKEOVERRIDES)
-	make -r -f Makefile.combiner quickbuild $(MAKEOVERRIDES)
 
 setup:
 	make -r -f Makefile.ccured   setup $(MAKEOVERRIDES)
 	make -r -f Makefile.cil      setup $(MAKEOVERRIDES)
-	make -r -f Makefile.combiner setup $(MAKEOVERRIDES)
+	make -r -f Makefile.merger   setup $(MAKEOVERRIDES)
 
 
 
@@ -54,7 +59,11 @@ cil-distrib:
 
 # sm: infer CCUREDHOME when not set, to ease having multiple trees
 ifndef CCUREDHOME
+ ifeq ($(ARCHOS), x86_WIN32)
+  $(error You have not defined the CCUREDHOME variable)
+ else
   export CCUREDHOME := $(shell pwd)
+ endif
 endif
 
 CCURED := perl $(CCUREDHOME)/lib/ccured.pl 

@@ -139,18 +139,18 @@ let rec theMain () =
                      "turns on generation of code to log function calls in CIL";
     "--logwrites", Arg.Unit (fun _ -> Util.logWrites := true),
                      "turns on generation of code to log memory writes in CIL";
-		"-heapify", Arg.Unit (fun _ -> heapify := true),
+    "--heapify", Arg.Unit (fun _ -> heapify := true),
 					"apply the `heapify' transformation";
-		"-stackguard", Arg.Unit (fun _ -> stackguard := true),
+    "--stackguard", Arg.Unit (fun _ -> stackguard := true),
 					"apply the `stackguard' transformation";
     "--nodebug", Arg.String (setDebugFlag false), 
                       "<xxx> turns off debugging flag xxx";
     "--testcil", Arg.String (fun s -> testcil := s), 
           "test CIL using the give compiler";
     "--log", Arg.String openLog, "the name of the log file";
-    "-o", Arg.String outFile, "the name of the output CIL file";
+    "--out", Arg.String outFile, "the name of the output CIL file";
 
-    "-keep", Arg.Unit (fun _ -> keepFiles := true), "Keep intermediate files";
+    "--keep", Arg.Unit (fun _ -> keepFiles := true), "Keep intermediate files";
     "--MSVC", Arg.Unit (fun _ -> C.msvcMode := true;
                                 F.setMSVCMode ()),
              "Produce MSVC output. Default is GNU";

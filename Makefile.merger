@@ -1,4 +1,4 @@
-# Makefile for the combiner
+# Makefile for the merger
 # author: George Necula
 
 # Debugging. Set ECHO= to debug this Makefile 
@@ -11,9 +11,9 @@ MLLS        = clexer.mll
 MLYS        = cparser.mly
 MODULES     = pretty errormsg stats util \
               cabs cprint cabsvisit combine merger clexer cparser \
-              maincombiner
+              mainmerger
 
-EXECUTABLE  = $(OBJDIR)/combiner
+EXECUTABLE  = $(OBJDIR)/merger
 CAMLUSEUNIX = 1
 ifdef NATIVECAML
   UNSAFE      = 1
@@ -31,6 +31,12 @@ MODULES     += trace clist cil
 EXTRACLEAN += $(OBJDIR)/*.obj $(OBJDIR)/*.a $(OBJDIR)/*.o
 
 
+ifneq ($(ARCHOS), x86_WIN32)
+ifneq ($(ARCHOS), x86_LINUX) 
+   $(error You must set the ARCHOS variable to either x86_WIN32 or x86_LINUX)
+endif
+endif
+
     # Include now the common set of rules for OCAML
     # This file will add the rules to make $(EXECUTABLE)$(EXE)
 include Makefile.ocaml
@@ -39,7 +45,7 @@ include Makefile.ocaml
 quickbuild: $(EXECUTABLE)$(EXE)
 
 setup:
-	$(MAKE) -r -f Makefile.combiner quickbuild $(MAKEOVERRIDES) NATIVECAML= 
-	$(MAKE) -r -f Makefile.combiner quickbuild $(MAKEOVERRIDES) NATIVECAML=1
+	$(MAKE) -r -f Makefile.merger quickbuild $(MAKEOVERRIDES) NATIVECAML= 
+	$(MAKE) -r -f Makefile.merger quickbuild $(MAKEOVERRIDES) NATIVECAML=1
 
 

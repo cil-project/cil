@@ -5,9 +5,9 @@ use strict;
 use FindBin;
 use Data::Dumper;
 
-use lib "$FindBin::Bin"; # The libraries are in the same dirctory
+use lib "$FindBin::Bin"; # The libraries are in the same directory
 
-use CompilerStub;
+use Merger;
 
 my $stub = CilCompiler->new(@ARGV);
 
@@ -16,12 +16,12 @@ my $stub = CilCompiler->new(@ARGV);
 $stub->doit();
 
 
-# Define here your favorite compiler by overriding CompilerStub methods
+# Define here your favorite compiler by overriding Merger methods
 package CilCompiler;
 use File::Basename;
 use strict;
 BEGIN {
-    @CilCompiler::ISA = qw(CompilerStub);
+    @CilCompiler::ISA = qw(Merger);
     $CilCompiler::base = $FindBin::Bin . "/../obj/cilly";
 
     $CilCompiler::mtime_asm = int((stat("$CilCompiler::base.asm.exe"))[9]);
@@ -39,72 +39,49 @@ BEGIN {
 }
 
 
-# Customize the preprocessing
-# Add -DCIL
-sub preprocess {
-    my ($self, $src, $dest, $ppargs) = @_;
-    my @newppargs = @{$ppargs};
-    push @newppargs, " $self->{DEFARG}CIL ";
-#    if($src !~ m|main|) {
-#        die "Not the file I was looking for: $src\n";
-#    }
-    return $self->SUPER::preprocess($src, $dest, \@newppargs);
-}
 
 sub usage {
     print "cilly [options] [gcc_or_mscl arguments]\n";
 }
 
-# Customize the compilation
+sub helpMessage {
+    my($self) = @_;
+    # Print first the original
+    $self->SUPER::helpMessage();
+    print <<EOF;
+
+  All other arguments starting with -- are passed to the Cilly process.
+
+The following are the arguments of the Cilly process
+EOF
+   my $cmd = $CilCompiler::compiler . " -help";
+   $self->runShell($cmd); 
+}
+
+
 # SRC is preprocessed already but may be already cilly-fied
-sub compile {
-    my ($self, $src, $dest, $ppargs, $ccargs) = @_;
+sub applyCil {
+    my ($self, $src, $ppargs) = @_;
+
+    my ($base, $dir, $ext) = fileparse($src, "(\\.[^.]+)");
+    my $dest = "$dir/$base" . "cil.c";
+    if($self->{VERBOSE}) { print "Cilly compiling $src to $dest\n"; }
     
-    my ($base, $dir, $ext) = fileparse($src, "\\.[^.]+");
-    if($base =~ m|cil$|) { # Already the output of CIL
-        return $self->SUPER::compile($src, $dest, $ppargs, $ccargs);
-    } else { # Must pas through CIL first
-        if($self->{VERBOSE}) { print "Cilly compiling $src to $dest\n"; }
-
-        my $cmd = $CilCompiler::compiler;
-        
-        if($self->{MODENAME} eq "MSVC") {
-            $cmd .= " --MSVC ";
-        }
-        if($self->{VERBOSE}) {
-            $cmd .= " --verbose ";
-        }
-        if(defined $self->{CILLYARGS}) {
-            $cmd .= join(' ', @{$self->{CILLYARGS}});
-        }
-        # Make a name for the CIL file
-        my $cilfile = "$dir$base" . "cil.c";
-        $self->runShell("$cmd $src -o $cilfile");
-
-        # Now preprocess and compile again
-        my $res = $self->SUPER::preprocess_compile($cilfile, 
-                                                   $dest, $ppargs, $ccargs);
-        return 0;
+    my $cmd = $CilCompiler::compiler;
+    
+    if($self->{MODENAME} eq "MSVC") {
+        $cmd .= " --MSVC ";
     }
+    if($self->{VERBOSE}) {
+        $cmd .= " --verbose ";
+    }
+    if(defined $self->{CILARGS}) {
+        $cmd .= join(' ', @{$self->{CILARGS}});
+    }
+    # Make a name for the CIL file
+    my $cilfile = "$dir$base" . "cil.c";
+    $self->runShell("$cmd $src --out $cilfile");
 
+    return $cilfile;
 }
 
-# We need to customize the collection of arguments
-sub collectOneArgument {
-    my($self, $arg, $pargs) = @_;
-    # See if the super class understands this
-    if($self->SUPER::collectOneArgument($arg, $pargs)) { return 1; }
-    if($arg =~ m|--nofail|)  {
-        $self->{NOFAIL} = 1; return 1;
-    }
-        # All other arguments starting with -- are passed to cilly
-    if($arg =~ m|^--|) {
-        # Split the ==
-        if($arg =~ m|^(--\S+)=(.+)$|) {
-            push @{$self->{CILLYARGS}}, $1, $2; return 1;
-        } else {
-            push @{$self->{CILLYARGS}}, $arg; return 1;
-        }
-    }
-    return 0;
-}
