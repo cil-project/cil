@@ -34,6 +34,8 @@
  *)
 exception Bad_return
 exception Bad_function
+exception UnknownLocation = Olf.UnknownLocation
+
 
 open Cil
 
@@ -70,7 +72,7 @@ let no_flow = A.no_flow
 let no_sub = A.no_sub
 let fun_ptrs_as_funs = ref false
 let show_progress = ref false
-let debug_may_aliases = ref true
+let debug_may_aliases = ref false
 
 let found_undefined = ref false
 
@@ -483,6 +485,8 @@ let may_alias (e1 : exp) (e2 : exp) : bool =
             
 let resolve_lval (lv : lval) : varinfo list = A.points_to (traverse_lval lv)
 
+let resolve_exp (e : exp) : varinfo list = A.epoints_to (traverse_expr e)
+
 let resolve_funptr (e : exp) : fundec list =
   let varinfos = A.epoints_to (traverse_expr e) in
     List.fold_left (fun fdecs -> fun vinf ->
@@ -513,6 +517,18 @@ let show_progress_fn (counted : int ref) (total : int) : unit =
       end
     else ()
   end
+
+
+let compute_may_aliases (b : bool) : unit = 
+  let rec compute_may_aliases_aux (exps : exp list) =
+    match (exps) with
+      | h :: t -> ignore (List.map (may_alias h) t); compute_may_aliases_aux t 
+      | [] -> ()
+  in
+  let exprs : exp list ref = ref [] in
+    H.iter (fun e -> fun _ -> exprs := e :: (!exprs)) expressions;
+    compute_may_aliases_aux (!exprs)
+
 
 let compute_results (show_sets : bool) : unit = 
   if (show_sets) then
@@ -569,6 +585,12 @@ let compute_results (show_sets : bool) : unit =
     List.iter print_result (!lval_elts); 
     if (show_sets) then
       Printf.printf "Total number of things pointed to: %d\n" !total_pointed_to
+    ;
+    if (!debug_may_aliases) then
+      begin
+	Printf.printf "Printing may alias relationships\n";
+	compute_may_aliases(true)
+      end
   
 let print_types () : unit =
   print_string "Printing inferred types of lvalues...";
@@ -577,16 +599,6 @@ let print_types () : unit =
 		  Printf.printf "%s : %s\n" vi.vname (A.string_of_lvalue lv)
 	       ) lvalue_hash 
 
-
-let compute_may_aliases (b : bool) : unit = 
-  let rec compute_may_aliases_aux (exps : exp list) =
-    match (exps) with
-      | h :: t -> ignore (List.map (may_alias h) t); compute_may_aliases_aux t 
-      | [] -> ()
-  in
-  let exprs : exp list ref = ref [] in
-    H.iter (fun e -> fun _ -> exprs := e :: (!exprs)) expressions;
-    compute_may_aliases_aux (!exprs)
   
 
 (** Alias queries. For each function, gather sets of locals, formals, and 
@@ -594,8 +606,6 @@ let compute_may_aliases (b : bool) : unit =
   each pair of values is aliased. Aliasing is determined by taking points-to
   set intersections.
 *)
-
-
 let compute_aliases = compute_may_aliases
 (*
   let f_counted = ref 0 in

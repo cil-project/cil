@@ -262,11 +262,13 @@ let rec theMain () =
     "--nocheck", Arg.Unit (fun _ -> Util.doCheck := false),
                      "turns off consistency checking of CIL";
     "--ptr_analysis",Arg.Unit (fun _ -> ptrAnalysis := true),
-                     "turns on alias analysis";
+                     "Turns on alias analysis";
     "--ptr_may_aliases", Arg.Unit (fun _ -> Ptranal.debug_may_aliases := true),
-                  "print out results of may alias queries";
+                  "Print out results of may alias queries";
     "--ptr_unify", Arg.Unit (fun _ -> Ptranal.no_sub := true),
-                  "make the alias analysis unification-based";
+                  "Make the alias analysis unification-based";
+    "--ptr_conservative", Arg.Unit (fun _ -> Ptranal.conservative_undefineds := true),
+                  "Treat undefineds conservatively in alias analysis";
     "--ptr_results", Arg.Unit (fun _ -> ptrResults := true),
                      "print the results of the alias analysis"; 
     "--ptr_mono", Arg.Unit (fun _ -> Ptranal.analyze_mono := true),

@@ -89,9 +89,15 @@ val print_types : unit -> unit
 (*                                                                     *)
 (***********************************************************************)
 
+(** If undefined functions are analyzed conservatively, any of the 
+  high-level queries may raise this exception *)
+exception UnknownLocation
+
 val may_alias : Cil.exp -> Cil.exp -> bool
 
 val resolve_lval : Cil.lval -> (Cil.varinfo list)
+
+val resolve_exp : Cil.exp -> (Cil.varinfo list)
 
 val resolve_funptr : Cil.exp -> (Cil.fundec list)
 

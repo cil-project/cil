@@ -329,6 +329,13 @@ let iter_tau f t =
   in
     iter_tau' t
 
+let equal_absloc = function 
+  | ((i,_,_),(i',_,_)) ->  (i = i')
+      
+let equal_c_absloc l l' = 
+  (find l).l_stamp = (find l').l_stamp
+    
+
 let equal_tau (t : tau) (t' : tau) =
   (get_stamp t) = (get_stamp t')
 
@@ -353,7 +360,10 @@ let set_top_c_absloc (l : c_absloc) (b: bool) : unit =
     (find l).l_top <- b
   end
 
-let get_aliases (l : c_absloc) = (find l).aliases
+let get_aliases (l : c_absloc) = 
+  if (top_c_absloc l)
+  then raise ReachedTop
+  else (find l).aliases
 
 (***********************************************************************)
 (*                                                                     *)
@@ -1162,7 +1172,7 @@ let may_alias (t1 : tau) (t2 : tau) : bool =
 	  | _ ->raise WellFormed
       end
     in
-      (equal_tau t1 t2) or (not (C.is_empty (C.inter (collect_ptset l1) (collect_ptset l2))))
+      (equal_c_absloc l1 l2) or (not (C.is_empty (C.inter (collect_ptset l1) (collect_ptset l2))))
   with
     | NoContents -> false
     | ReachedTop -> raise UnknownLocation
@@ -1209,6 +1219,7 @@ let absloc_epoints_to = points_to_aux
 
 let absloc_of_lvalue (lv : lvalue) = (find lv.l).loc
 
-let absloc_eq = function 
-  | ((i,_,_),(i',_,_)) ->  (i = i')
+let absloc_eq = equal_absloc
+
+
 
