@@ -242,6 +242,9 @@ SPJARG +=  -WV,"-H,4000000,-noindent" -WC,"-H,4000000,-noindent"
 ifndef RELEASE
 SPJARG += --pccdebug
 endif
+ifdef SPJTIME
+SPJARG += -WC,"-T,1000" 
+endif
 
 runspj.fact :
 ifdef _GNUCC
@@ -253,14 +256,35 @@ runspj.linpack :
 ifdef _GNUCC
 	rm $(PCCDIR)/bin/*_MSVC*
 endif
-	cd $(SPJDIR); spj linpack/Linpack.java --gory  -WC,"-T,1000" \
+	cd $(SPJDIR); spj linpack/Linpack.java --gory  \
                       $(SPJARG) --pcchome=$(PCCDIR)
 
 runspj.quicksort :
 ifdef _GNUCC
 	rm $(PCCDIR)/bin/*_MSVC*
 endif
-	cd $(SPJDIR); spj arrays/QuickSort.java --gory -WC,"-T,1000" \
+	cd $(SPJDIR); spj arrays/QuickSort.java --gory \
+                      $(SPJARG) --pcchome=$(PCCDIR)
+
+runspj.simplex :
+ifdef _GNUCC
+	rm $(PCCDIR)/bin/*_MSVC*
+endif
+	cd $(SPJDIR); spj simplex/Simplex.java --gory  \
+                      $(SPJARG) --pcchome=$(PCCDIR)
+
+runspj.getopt :
+ifdef _GNUCC
+	rm $(PCCDIR)/bin/*_MSVC*
+endif
+	cd $(SPJDIR); spj gnu/getopt --gory  \
+                      $(SPJARG) --pcchome=$(PCCDIR)
+
+runspj.antlr :
+ifdef _GNUCC
+	rm $(PCCDIR)/bin/*_MSVC*
+endif
+	cd $(SPJDIR); spj antlr --gory  "-WV,-H,10000000" "-WC,-H,10000000" \
                       $(SPJARG) --pcchome=$(PCCDIR)
 
 ############ Small tests
