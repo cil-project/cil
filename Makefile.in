@@ -169,6 +169,10 @@ else
 cillib: $(OBJDIR)/cil.$(CMXA)
 endif
 
+# Test the CIL library
+testcillib:
+	echo "load \"cil.cma\";;" | ocaml -I $(OBJDIR)
+
 
 $(OBJDIR)/feature_config.ml: Makefile.cil.in config.status
 	rm -f $(OBJDIR)/feature_config.*
@@ -393,7 +397,8 @@ distrib-nocheck: doc $(DISTRIB_ROOT)
 
 ## Check a distribution
 checkdistrib:
-	cd $(TOP_DIR) && ./configure && $(MAKE) && $(MAKE) quicktest
+	cd $(TOP_DIR) && ./configure && \
+           $(MAKE) && $(MAKE) testcillib && $(MAKE) quicktest
 
 
 ## Publish the distribution

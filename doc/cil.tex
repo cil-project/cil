@@ -2066,6 +2066,9 @@ Therefore it will reject programs that use \t{\_\_thread} as an
 identifier, even if you are using MSVC or an older version of GCC.
 (Some versions of pthread.h have this problem.)
 
+\item The statement \t{x = 3 + x ++} will perform the increment of \t{x}
+  before the assignment, while \t{gcc} delays the increment after the
+  assignment. 
 \end{itemize}
 
   \section{Using the merger}\label{sec-merger}\cutname{merger.html}
@@ -2668,10 +2671,16 @@ Necula}.
  
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf February 20, 2004}: {\bf Released version 1.2.4}
 \item {\bf February 15, 2004}: Changed the parser to allow extra semicolons
   after field declarations.
 \item {\bf February 14, 2004}: Changed the Errormsg functions: error, unimp,
 bug to not raise an exception. Instead they just set Errormsg.hadErrors. 
+\item {\bf February 13, 2004}: Change the parsing of attributes to recognize
+  enumeration constants.
+\item {\bf February 10, 2004}: In some versions of \t{gcc} the identifier
+  {\_\{thread} is an identifier and in others it is a keyword. Added code
+  during configuration to detect which is the case. 
 \item {\bf January 7, 2004}: {\bf Released version 1.2.3}
 \item {\bf January 7, 2004}: Changed the alpha renamer to be less
 conservative. It will remember all versions of a name that were seen and will

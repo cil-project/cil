@@ -35,16 +35,12 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  **)/
-/*(* NOTE: This parser is based on a parser written by Hugues Casse. Since
-   * then I have changed it in numerous ways to the point where it probably
-   * does not resemble Hugues's original one at all  *)*/
 %{
 open Cabs
 module E = Errormsg
 
 let parse_error msg : unit =       (* sm: c++-mode highlight hack: -> ' <- *)
-  E.parse_error
-    msg
+  E.parse_error msg
 
 let print = print_string
 
