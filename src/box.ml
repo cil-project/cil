@@ -863,7 +863,6 @@ and boxexpf (e: exp) : stmt list * fexp =
           (dolv @ check, L(rest, Lval(lv')))
             
     | Const (CInt (_, ik, _), _) -> ([], L(TInt(ik, []), e))
-    | Const (CLInt _,  _) -> E.s (E.unimp "boxexp: CLInt")
     | Const ((CChr _), _) -> ([], L(charType, e))
     | Const (CReal (_, fk, _), _) -> ([], L(TFloat(fk, []), e))
     | CastE (t, e, l) -> begin

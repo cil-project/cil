@@ -147,9 +147,6 @@ and typ =
   | TNamed of string * typ * attribute list (* From a typedef. The attributes 
                                              * are in addition to the 
                                              * attributes of the named type  *)
-           (* A reference to a struct or a union. The argument is "struct x" 
-            * or "union x". The reference is resolved using the hash table 
-            * "forwardTypeMap"  *)
 
 
 (* kinds of integers *)
@@ -176,7 +173,6 @@ and constant =
                                           * 6.4.4.1) and the textual 
                                           * representation, if available. Use 
                                           * "integer" to create these  *)
-  | CLInt of int64 * ikind * string option
   | CStr of string
   | CChr of char 
   | CReal of float * fkind * string option(* Give the fkind (see ISO 6.4.4.2) 
@@ -388,21 +384,22 @@ type global =
                                          * storage Extern *)
   | GType of string * typ               (* A typedef *)
 
+  | GDecl of varinfo                    (* A variable declaration. Might be a 
+                                         * prototype. There might be at most 
+                                         * one declaration and at most one 
+                                         * definition for a given variable. 
+                                         * If both forms appear then they 
+                                         * must share the same varinfo. A 
+                                         * prototype shares the varinfo with 
+                                         * the fundec of the definition. 
+                                         * Either has storage Extern or 
+                                         * there must be a definition (Gvar 
+                                         * or GFun) in this file  *)
   | GVar  of varinfo * exp option       (* A variable definition. Might have 
                                          * an initializer. There must be at 
                                          * most one definition for a variable 
                                          * in an entire program. Cannot have 
                                          * storage Extern *)
-  | GDecl of varinfo                    (* A variable declaration. Might be a 
-                                         * prototype. There might be many 
-                                         * declarations and at most one 
-                                         * definition. They must all _share_ 
-                                         * the same varinfo. A prototype 
-                                         * shares the varinfo with the fundec 
-                                         * of the definition. Either have 
-                                         * storage Extern or there must be a 
-                                         * definition (Gvar or GFun) in this 
-                                         * file *)
   | GAsm of string                      (* Global asm statement. These ones 
                                          * can contain only a template *)
   | GPragma of string                   (* Pragmas at top level. Unparsed *)
@@ -657,12 +654,10 @@ let d_const () c =
   match c with
     CInt(_, _, Some s) -> text s
   | CInt(i, _, None) -> num i
-  | CLInt(l,h, Some s) -> text s
   | CStr(s) -> dprintf "\"%s\"" (escape_string s)
   | CChr(c) -> dprintf "'%s'" (escape_char c)
   | CReal(_, _, Some s) -> text s
   | CReal(f, _, None) -> dprintf "%f" f
-  | _ -> E.s (E.unimp "constant")
 
 (* Parentheses level. An expression "a op b" is printed parenthesized if its 
  * parentheses level is >= that that of its context. Identifiers have the 
@@ -1291,7 +1286,6 @@ let rec typeOf (e: exp) : typ =
     Const(CInt (_, ik, _), _) -> TInt(ik, [])
   | Const(CChr _, _) -> charType
   | Const(CStr _, _) -> charPtrType 
-  | Const(CLInt (_, ik, _),_) -> TInt(ik, [])
   | Const(CReal (_, fk, _), _) -> TFloat(fk, [])
   | Lval(lv) -> typeOfLval lv
   | SizeOf _ -> uintType
@@ -1747,6 +1741,43 @@ let offsetOf (fi: fieldinfo) (startcomp: int) : int * int =
   (lastoff.oaLastFieldStart, lastoff.oaLastFieldWidth)
       
  
-      
-      
-
+(**************** CHECKING ********************)      
+(* qA consistency checker for CIL programs. All invariants that should always 
+ * hold are checked. *)
+let check (fl: file) = 
+  (* Attributes must be sorted *)
+  let checkAttributes (attrs: attribute list) = 
+    let aName = function (* Attribute name *)
+      AId s -> s | ACons (s, _) -> s
+    | _ -> E.s (E.unimp "Unexpected attribute")
+    in 
+    let rec loop lastname = function
+        [] -> true
+      | a :: resta -> 
+          let an = aName a in
+          an >= lastname && loop an resta
+    in
+    loop "" attrs
+  in
+  (* Keep track of defined type names, by name *)
+  let typeDefs : (string, typ) H.t = H.create 117 in
+  (* Check a type *)
+  let checkType (t: typ) = 
+    match t with
+      TVoid a -> checkAttributes a
+    | TInt (ik, a) -> checkAttributes a
+    | TFloat (_, a) -> checkAttributes a
+    | TBitfield (ik, w, a) -> 
+        checkAttributes a &&
+        w >= 0 &&
+        w <= bitsSizeOf (TInt(ik, a))
+  in
+  let checkGlobal = function
+      GAsm _ -> true
+    | GPragma _ -> true
+    | GType (n, t) -> 
+        checkType t &&
+        not (H.mem typeDefs n) &&
+        (H.add typeDefs n t; true)
+  in
+  List.for_all checkGlobal fl

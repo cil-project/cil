@@ -387,7 +387,6 @@ let doFunctionDef (spec: specifier) (n: name)
 %type <Cabs.enum_item list> enum_list
 %type <Cabs.definition> declaration function_def
 %type <Cabs.base_type> type_name
-
 %type <Cabs.body> block block_item_list
 %%
 
