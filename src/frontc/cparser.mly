@@ -460,6 +460,8 @@ statement:
 		                 {LABEL ($2, $4, $1)}
 |   location CASE expression COLON
 	                         {CASE ($3, NOP $1, $1)}
+|   location CASE expression ELLIPSIS expression COLON
+	                         {CASERANGE ($3, $5, NOP $1, $1)}
 |   location DEFAULT COLON
 	                         {DEFAULT (NOP $1, $1)}
 |   location RETURN SEMICOLON    {RETURN (NOTHING, $1)}

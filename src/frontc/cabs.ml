@@ -135,6 +135,7 @@ and statement =
  | RETURN of expression * cabsloc
  | SWITCH of expression * statement * cabsloc
  | CASE of expression * statement * cabsloc
+ | CASERANGE of expression * expression * statement * cabsloc
  | DEFAULT of statement * cabsloc
  | LABEL of string * statement * cabsloc
  | GOTO of string * cabsloc
@@ -239,6 +240,7 @@ begin
   | RETURN(_,loc) -> loc
   | SWITCH(_,_,loc) -> loc
   | CASE(_,_,loc) -> loc
+  | CASERANGE(_,_,_,loc) -> loc
   | DEFAULT(_,loc) -> loc
   | LABEL(_,_,loc) -> loc
   | GOTO(_,loc) -> loc

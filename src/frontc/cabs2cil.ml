@@ -598,11 +598,12 @@ module BlockChunk =
         cases = [];
       }
 
-    let caseChunk (e: exp) (l: location) (next: chunk) = 
+    let caseRangeChunk (el: exp list) (l: location) (next: chunk) = 
       let fst, stmts' = getFirstInChunk next in
-      let lb = Case (e, l) in
-      fst.labels <- lb :: fst.labels;
-      { next with stmts = stmts'; cases = (lb, fst) :: next.cases}
+      let labels = List.map (fun e -> Case (e, l)) el in
+      let cases  = List.map (fun l -> (l, fst)) labels in
+      fst.labels <- labels @ fst.labels;
+      { next with stmts = stmts'; cases = cases @ next.cases}
         
     let defaultChunk (l: location) (next: chunk) = 
       let fst, stmts' = getFirstInChunk next in
@@ -2805,8 +2806,31 @@ and doStatement (s : A.statement) : chunk =
         let loc' = convLoc loc in
         currentLoc := loc';
         let (se, e', et) = doExp false e (AExp None) in
-        se @@ caseChunk (constFold e') loc' (doStatement s)
-                    
+        if isNotEmpty se then
+          E.s (error "Case statement with a non-constant");
+        caseRangeChunk [constFold e'] loc' (doStatement s)
+            
+    | A.CASERANGE (el, eh, s, loc) -> 
+        let loc' = convLoc loc in
+        currentLoc := loc';
+        let (sel, el', etl) = doExp false el (AExp None) in
+        let (seh, eh', etl) = doExp false eh (AExp None) in
+        if isNotEmpty sel || isNotEmpty seh then
+          E.s (error "Case statement with a non-constant");
+        let il, ih = 
+          match constFold el', constFold eh' with
+            Const(CInt32(il, _, _)), Const(CInt32(ih, _, _)) -> 
+              Int32.to_int il, Int32.to_int ih
+          | _ -> E.s (unimp "Cannot understand the constants in case range")
+        in
+        if il > ih then 
+          E.s (error "Empty case range");
+        let rec mkAll (i: int) = 
+          if i > ih then [] else integer i :: mkAll (i + 1)
+        in
+        caseRangeChunk (mkAll il) loc' (doStatement s)
+        
+
     | A.DEFAULT (s, loc) -> defaultChunk (convLoc loc) (doStatement s)
                      
     | A.LABEL (l, s, loc) -> 

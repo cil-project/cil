@@ -96,6 +96,7 @@ $TEST->add3Tests("test/array1");
 $TEST->add3Tests("test/array2");
 $TEST->add3Tests("test/matrix");
 $TEST->add3Tests("testrun/switch");
+$TEST->add3Tests("testrun/caserange", "_GNUCC=1");
 $TEST->add3Tests("test/attr");
 $TEST->add3Tests("test/attr2", "_GNUCC=1");
 $TEST->add3Tests("test/attr3", "_GNUCC=1");

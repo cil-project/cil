@@ -258,6 +258,9 @@ and combine_statement stat =
       SWITCH(combine_expression exp, combine_substatement stat, loc)
   | CASE (exp, stat, loc) ->
       CASE(combine_expression exp, combine_substatement stat, loc)
+  | CASERANGE (expl, exph, stat, loc) ->
+      CASERANGE(combine_expression expl, combine_expression exph, 
+                combine_substatement stat, loc)
   | DEFAULT (stat, loc) ->
       DEFAULT(combine_substatement stat, loc)
   | LABEL (name, stat, loc) ->

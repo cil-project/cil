@@ -2820,6 +2820,8 @@ let rec constFold (e: exp) : exp =
         Const(CInt32(i,_,_)) -> integer32 (Int32.neg i)
       | _ -> e
   end
+  | Const(CChr c) -> Const(CInt32(Int32.of_int (Char.code c), 
+                                  IInt, None))
   | _ -> e
 
 and constFoldBinOp bop e1 e2 tres = 

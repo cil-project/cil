@@ -640,6 +640,16 @@ and print_statement stat =
       print ":";
       indent ();
       print_substatement stat
+  | CASERANGE (expl, exph, stat, loc) ->
+      setLoc(loc);
+      unindent ();
+      print "case ";
+      print_expression expl 1;
+      print " ... ";
+      print_expression exph 1;
+      print ":";
+      indent ();
+      print_substatement stat
   | DEFAULT (stat, loc) ->
       setLoc(loc);
       unindent ();
