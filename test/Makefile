@@ -78,7 +78,7 @@ ifdef RELEASE
   # use runtime library with minimal debugging checks
   export RELEASELIB := 1
   # turn on gcc's optimizer for the resulting executables
-  export CCURED += -O2
+  export CCURED += -O2 --failIsTerse --alwaysStopOnError
 endif
 
 # By default we are on Linux
