@@ -10,3 +10,7 @@ holabox: holabox.c
 		./holabox.c \
 		/home/scott/wrk/safec/cil/lib/../obj/safecdebuglib.a
 
+clean:
+	rm -f *.o *_all.c *cil.c *box.c *_ppp.c *.i *.origi *infer.c
+	rm -f comb enuminit multiplestatics staticafternostorage
+	rm -f ocamlprof.dump "#"*

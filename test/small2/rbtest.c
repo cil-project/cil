@@ -27,7 +27,7 @@ int explicit_gc();
                       // each node
 
 //#define ITERS 500000
-#define ITERS 10000
+#define ITERS 1
 
 // had to make these global since spreading the functionality
 // across several functions

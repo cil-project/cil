@@ -9,4 +9,11 @@ hola
 *_all.c
 comb
 ocamlprof*
-
+voidfree
+recursetype
+rmunused
+regbeforeassign
+partialbracket
+enuminit
+staticafternostorage
+voidfree

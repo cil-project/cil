@@ -585,16 +585,7 @@ btreetest: test/small2/testbtree.c \
 
 
 # sm: this is my little test program
-hola: test/small2/hola.c $(EXECUTABLE)$(EXE) \
-                                 $(SAFECLIB) $(SAFEMAINLIB)
-	rm -f test/small2/hola
-	cd test/small2; $(CC) $(CONLY) $(DEF)$(ARCHOS) hola.c
-	cd test/small2; $(SAFECC) --keep=. $(DEF)$(ARCHOS) \
-                 `$(PATCHECHO) --patch=../../lib/$(PATCHFILE)` \
-                 $(DOOPT) $(WARNALL) \
-                 hola.c \
-                 $(EXEOUT)hola
-	test/small2/hola
+hola: scott/hola
 
 # sm: attempt at a single rule for my testing purposes
 scott/%: test/small2/%.c $(EXECUTABLE)$(EXE) \
