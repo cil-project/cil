@@ -143,6 +143,13 @@ $TEST->newTest(
     Dir => ".",
     Group => ["apache", "slow"],
     Cmd => "make apachesetup _GNUCC=1");
+
+# build the documentation
+$TEST->newTest(
+    Name => "doc",
+    Dir => "..",
+    Cmd => "make doc",
+    Group => ["doc"]);
     
 # Now add tests
 $TEST->addTests("testrun/const-array-init", "WARNINGS_ARE_ERRORS=1", ['cil']);
