@@ -17,6 +17,8 @@ let interceptCasts = ref false  (* If true it will insert calls to
                                  * __scalar2pointer when casting scalars to 
                                  * pointers.  *)
 
+let compactBlocks = true
+
 let lu = locUnknown
 let isSome = function Some _ -> true | _ -> false
 
@@ -2861,10 +2863,12 @@ let interceptCall
 
     (************* STATEMENTS **************)
 let rec boxblock (b: stmt list) : stmt list = 
-  (* compactBlock *) 
-  (toList 
-     (List.fold_left 
-        (fun acc s -> append acc (boxstmt s)) empty b))
+  let res = 
+    toList 
+       (List.fold_left 
+          (fun acc s -> append acc (boxstmt s)) empty b)
+  in
+  if compactBlocks then compactBlock res else res
 
 and boxstmt (s: Cil.stmt) : stmt clist = 
    (* Keep the original statement, but maybe modify its kind. This way we 
@@ -2910,7 +2914,7 @@ and boxstmt (s: Cil.stmt) : stmt clist =
         let b = 
           List.fold_left (fun acc i -> append acc (boxinstr i)) empty il in
         s.skind <- Instr [];
-        (* compactBlock *) (CConsL (s, b))
+        CConsL (s, b)
 
     | Switch (e, b, cases, l) -> 
         currentLoc := l;
@@ -3696,9 +3700,9 @@ let boxFile file =
         match !theFile with
           GFun(gi, _) :: rest -> 
             theFile := rest; (* Take out the global initializer (last thing 
-            added) *)
-            gi.sbody <- (* compactBlock *) 
-               toList (append !extraGlobInit (fromList gi.sbody));
+                              * added)  *)
+            let res = toList (append !extraGlobInit (fromList gi.sbody)) in
+            gi.sbody <- if compactBlocks then compactBlock res else res;
             Some gi
         | _ -> E.s (bug "box: Cannot find global initializer")
     end

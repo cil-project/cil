@@ -9,6 +9,11 @@ open Cil
 open Trace
 
 
+let pullTypesForward = true (* If true then all type declarations are pulled 
+                             * to the beginning of the file, followed by the 
+                             * variable declarations *)
+
+
 (* ---------- source error message handling ------------- *)
 let lu = locUnknown
 let cabslu = {lineno = -10; filename = "cabs lu";}
@@ -47,6 +52,38 @@ let convLoc (l : cabsloc) =
 (*** EXPRESSIONS *************)
                                         (* We collect here the program *)
 let theFile : global list ref = ref []
+let theFileTypes : global list ref = ref []
+
+let initGlobals () = theFile := []; theFileTypes := []
+let pushGlobal (g: global) = 
+  if not pullTypesForward then theFile := g :: !theFile else
+  match g with 
+    GType _ | GCompTag _ | GEnumTag _ -> theFileTypes := g :: !theFileTypes
+  | _ -> theFile := g :: !theFile
+    
+let popGlobals () = 
+  let rec revonto (tail: global list) = function
+      [] -> tail
+    | x :: rest -> revonto (x :: tail) rest
+  in
+  revonto (revonto [] !theFile) !theFileTypes
+
+
+let replacePreviousDefsWithDecls (vi: varinfo ) : bool = 
+  let rec alreadyDef = ref false in
+  let rec loop = function
+      [] -> []
+    | (GVar (vi', i', l) as g) :: rest when vi'.vid = vi.vid -> 
+        if i' = None then
+          GDecl (vi', l) :: loop rest
+        else begin
+          alreadyDef := true;
+          g :: rest (* No more defs *)
+        end
+    | g :: rest -> g :: loop rest
+  in
+  theFile := loop !theFile;
+  !alreadyDef 
 
 (********* ENVIRONMENTS ***************)
 
@@ -818,20 +855,8 @@ let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
         | _, _ -> 
             E.s (error "Declaration of %s does not match previous declaration from %a." vi.vname d_loc oldloc)
     in
-    let rec alreadyDef = ref false in
-    let rec loop = function
-        [] -> []
-      | (GVar (vi', i', l) as g) :: rest when vi'.vid = vi.vid -> 
-          if i' = None then
-            GDecl (vi', l) :: loop rest
-          else begin
-            alreadyDef := true;
-            g :: rest (* No more defs *)
-          end
-      | g :: rest -> g :: loop rest
-    in
-    theFile := loop !theFile;
-    oldvi, !alreadyDef
+    let alreadyDef = replacePreviousDefsWithDecls vi in
+    oldvi, alreadyDef
       
   with Not_found -> begin (* A new one. It is a definition unless it is 
                            * Extern  *)
@@ -1047,7 +1072,7 @@ let rec doSpecList (specs: A.spec_elem list)
         (* Record the enum name in the environment *)
         addLocalToEnv (kindPlusName "enum" n'') (EnvTyp res);
         (* And define the tag *)
-        theFile := GEnumTag (enum, !currentLoc) :: !theFile;
+        pushGlobal (GEnumTag (enum, !currentLoc));
         res
         
           
@@ -1337,7 +1362,7 @@ and makeCompType (iss: bool)
   let toplevel_typedef = false in
   let res = TComp (comp, []) in
   (* Create a typedef for this one *)
-  theFile := GCompTag (comp, !currentLoc) :: !theFile;
+  pushGlobal (GCompTag (comp, !currentLoc));
 
       (* There must be a self cell created for this already *)
   addLocalToEnv (kindPlusName kind n) (EnvTyp res);
@@ -1875,7 +1900,7 @@ and doExp (isconst: bool)    (* In a constant *)
                 proto.vstorage <- Extern;
                 H.add noProtoFunctions proto.vid true;
                 (* Add it to the file as well *)
-                theFile := GDecl (proto, !currentLoc) :: !theFile;
+                pushGlobal (GDecl (proto, !currentLoc));
                 (empty, Lval(var proto), ftype)
               end
             end
@@ -2485,7 +2510,7 @@ and createGlobal (specs: A.spec_elem list)
     if not alreadyDef then begin(* Do not add declarations after def *)
       if vi.vstorage = Extern then 
         if init = None then 
-          theFile := GDecl (vi, !currentLoc) :: !theFile
+          pushGlobal (GDecl (vi, !currentLoc))
         else
           E.s (error "%s is extern and with initializer" vi.vname)
       else
@@ -2494,14 +2519,14 @@ and createGlobal (specs: A.spec_elem list)
           if init <> None then
             E.s (error "Function declaration with initializer (%s)\n"
                    vi.vname);
-          theFile := GDecl(vi, !currentLoc) :: !theFile
+          pushGlobal (GDecl(vi, !currentLoc))
         end else
-          theFile := GVar(vi, init, !currentLoc) :: !theFile
+          pushGlobal (GVar(vi, init, !currentLoc))
     end
   with e -> begin
     ignore (E.log "error in CollectGlobal (%s)\n" n);
-    theFile := dGlobal (dprintf "booo - error in global %s (%t)" 
-                          n d_thisloc) !currentLoc :: !theFile
+    pushGlobal (dGlobal (dprintf "booo - error in global %s (%t)" 
+                           n d_thisloc) !currentLoc)
   end
 (*
           ignore (E.log "Env after processing global %s is:@!%t@!" 
@@ -2549,7 +2574,7 @@ and createLocal (specs: A.spec_elem list)
           Some ie'
         end
       in
-      theFile := GVar(vi, init, !currentLoc) :: !theFile;
+      pushGlobal (GVar(vi, init, !currentLoc));
       empty
 
   (* Maybe we have an extern declaration. Make it a global *)
@@ -2620,11 +2645,11 @@ and doTypedef ((specs, nl): A.name_group) =
         (* Register the type. register it as local because we might be in a 
         * local context  *)
         addLocalToEnv (kindPlusName "type" n) (EnvTyp namedTyp);
-        theFile := GType (n', newTyp', !currentLoc) :: !theFile
+        pushGlobal (GType (n', newTyp', !currentLoc))
       with e -> begin
         ignore (E.log "Error on A.TYPEDEF (%s)\n"
                   (Printexc.to_string e));
-        theFile := GAsm ("booo_typedef:" ^ n, !currentLoc) :: !theFile
+        pushGlobal (GAsm ("booo_typedef:" ^ n, !currentLoc))
       end
     in
     List.iter createTypedef nl
@@ -2636,7 +2661,7 @@ and doTypedef ((specs, nl): A.name_group) =
         [] -> "<missing name>"
       | (n, _, _) :: _ -> n
     in
-    theFile := GAsm ("booo_typedef: " ^ fstname, !currentLoc) :: !theFile
+    pushGlobal (GAsm ("booo_typedef: " ^ fstname, !currentLoc))
   end
 
 and doOnlyTypedef (specs: A.spec_elem list) : unit = 
@@ -2649,11 +2674,11 @@ and doOnlyTypedef (specs: A.spec_elem list) : unit =
     if nattr <> [] then
       ignore (warn "Ignoring identifier attribute");
            (* doSpec will register the type. Put a special GType in the file *)
-    theFile := GType ("", restyp, !currentLoc) :: !theFile
+    pushGlobal (GType ("", restyp, !currentLoc))
   with e -> begin
     ignore (E.log "Error on A.ONLYTYPEDEF (%s)\n"
               (Printexc.to_string e));
-    theFile := GAsm ("booo_typedef", !currentLoc) :: !theFile
+    pushGlobal (GAsm ("booo_typedef", !currentLoc))
   end
 
 and assignInit (lv: lval) 
@@ -2829,7 +2854,7 @@ let convFile fname dl =
   ignore (E.log "Cabs2cil conversion\n");
   (* Clean up the global types *)
   E.hadErrors := false;
-  theFile := [];
+  initGlobals();
   H.clear compInfoNameEnv;
   (* Setup the built-ins *)
   let _ =
@@ -2854,7 +2879,8 @@ let convFile fname dl =
 
     | A.GLOBASM (s,loc) ->
         currentLoc := convLoc(loc);
-        theFile := GAsm (s, !currentLoc) :: !theFile
+        pushGlobal (GAsm (s, !currentLoc))
+
     | A.PRAGMA (a, loc) -> begin
         currentLoc := convLoc(loc);
         match doAttr ("dummy", [a]) with
@@ -2865,7 +2891,7 @@ let convFile fname dl =
               | ACons (s, args) -> Attr (s, args)
               | _ -> E.s (error "Unexpected attribute in #pragma")
             in
-            theFile := GPragma (a'', !currentLoc) :: !theFile
+            pushGlobal (GPragma (a'', !currentLoc))
         | _ -> E.s (error "Too many attributes in pragma")
     end
 
@@ -2988,11 +3014,11 @@ let convFile fname dl =
 
 (*              ignore (E.log "The env after finishing the body of %s:\n%t\n"
                         n docEnv); *)
-              theFile := GFun (fdec, !currentLoc) :: !theFile
+              pushGlobal (GFun (fdec, !currentLoc))
             with e -> begin
               ignore (E.log "error in collectFunction %s: %s\n" 
                         n (Printexc.to_string e));
-              theFile := GAsm("error in function ", !currentLoc) :: !theFile
+              pushGlobal (GAsm("error in function ", !currentLoc))
             end)
           () (* argument of E.withContext *)
   in
@@ -3000,7 +3026,7 @@ let convFile fname dl =
   H.clear noProtoFunctions;
   (* We are done *)
   { fileName = fname;
-    globals  = List.rev (! theFile);
+    globals  = popGlobals ();
     globinit = None;
     globinitcalled = false;
   } 

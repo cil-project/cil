@@ -13,7 +13,7 @@ typedef struct def {
 } *defnamed;
 
 void foo() {
-  bar();
+  bar(BAR, 5);
 }
 
 defnamed bar(enum lateenum x1, INT x2);

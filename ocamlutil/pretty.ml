@@ -51,7 +51,6 @@ let fprintf x = Printf.fprintf stderr x
 type doc = 
     Nil
   | Text     of string
-  | Spaces   of int        (* A number of spaces *)
   | Concat   of doc * doc
   | CText    of doc * string
   | Line     
@@ -77,7 +76,7 @@ let line       = Line
 let break      = Break  (* Line *) (* Aman's benchmarking goo *)
 
 
-let nest n d   = (if n > 0 then Spaces n else nil) ++ align ++ d ++ unalign
+let nest n d   = text (String.make 1 ' ') ++ align ++ d ++ unalign
 
 (* Rewrite seq to be tail recursive *)
 let  seq sep f dl = 
@@ -288,7 +287,6 @@ let fit (start: 'a)
       Nil -> cont aligns breaks col
     | Concat(d1,d2) -> 
         scan aligns breaks col (fun a b c -> scan a b c cont d2) d1
-    | Spaces n -> cont aligns breaks (col + n)
     | Text s -> 
         let tl = String.length s in
         cont aligns breaks (col + tl)
@@ -385,7 +383,6 @@ let fit (start: 'a)
       Nil -> acc
     | Align -> acc
     | Unalign -> acc
-    | Spaces n -> doString acc " " n
     | Text s -> doString acc s 1
     | Concat (d1, d2) -> layout (layout acc d1) d2
     | CText (d, s) -> doString (layout acc d) s 1
@@ -429,6 +426,16 @@ let fit (start: 'a)
 
 (***** A new fit function ****)
 
+(* When we construct documents, most of the time they are heavily unbalanced 
+ * towards the left. This is due to the left-associativity of ++ and also to 
+ * the fact that constructors such as docList construct from the let of a 
+ * sequence. We would prefer to shift the imbalance to the right to avoid 
+ * consuming a lot of stack when we traverse the document *)
+let rec flatten (acc: doc) = function
+  | Concat (d1, d2) -> flatten (flatten acc d2) d1
+  | CText (d, s) -> flatten (Concat(Text s, acc)) d
+  | Nil -> acc (* Get rid of Nil *)
+  | d -> Concat(d, acc)
 
 (* We keep a stack of active aligns. *)
 type align = 
@@ -504,12 +511,15 @@ let chooseBestGain () : align option =
   let rec loop = function
       [] -> ()
     | a :: resta -> 
+        if debug then
+          fprintf "Looking at align with gain %d\n" a.gainBreak;
         if a.gainBreak > !bestGain then begin
           bestGain := a.gainBreak;
           breakingAlign := Some a;
         end;
         loop resta
   in
+  loop !aligns;
   !breakingAlign
 
 
@@ -525,15 +535,21 @@ let movingRight (abscol: int) : int =
   let rec tryAgain abscol = 
     if abscol < !maxCol then abscol else 
     begin
+      if debug then
+        fprintf "Looking for a break to take in column %d\n" abscol;
       (* Find the best gain there is out there *)
       match chooseBestGain () with 
         None -> begin
           (* No breaks are available. Take all breaks from now on *)
           breakAllMode := true;
+          if debug then
+            fprintf "Can't find any breaks\n";
           abscol
         end 
       | Some breakingAlign -> begin
           let topalign = List.hd !aligns in
+          let theGain = breakingAlign.gainBreak in
+          assert (theGain > 0);
           if debug then 
             fprintf "Taking break at %d. gain=%d\n" 
               abscol breakingAlign.gainBreak;
@@ -541,10 +557,10 @@ let movingRight (abscol: int) : int =
           breakingAlign.gainBreak <- 0;
           if breakingAlign != topalign then begin
             breakingAlign.deltaToNext := 
-               !(breakingAlign.deltaToNext) - breakingAlign.gainBreak;
-            topAlignAbsCol := !topAlignAbsCol - breakingAlign.gainBreak
+               !(breakingAlign.deltaToNext) - theGain;
+            topAlignAbsCol := !topAlignAbsCol - theGain
           end;
-          tryAgain (abscol - breakingAlign.gainBreak)
+          tryAgain (abscol - theGain)
       end
     end
   in
@@ -556,13 +572,18 @@ let rec scan (abscol: int) (d: doc) : int =
   match d with 
     Nil -> abscol
   | Concat (d1, d2) -> scan (scan abscol d1) d2
-  | Spaces n -> abscol + n
   | Text s -> 
       let sl = String.length s in 
+      if debug then 
+        fprintf "Done string: %s from %d to %d\n" s abscol (abscol + sl);
       movingRight (abscol + sl)
   | CText (d, s) -> 
+      let abscol' = scan abscol d in
       let sl = String.length s in 
-      movingRight ((scan abscol d) + sl)
+      if debug then 
+        fprintf "Done string: %s from %d to %d\n" s abscol' (abscol' + sl);
+      movingRight (abscol' + sl)
+
   | Align -> pushAlign abscol; abscol
   | Unalign -> popAlign (); abscol 
   | Line -> (* A forced line break *) newline abscol
@@ -577,7 +598,8 @@ let rec scan (abscol: int) (d: doc) : int =
         takenref := true;
         newline abscol 
       end else begin
-        (* If there was a previous break there it stays not taken, forever *)
+        (* If there was a previous break there it stays not taken, forever. 
+         * So we overwrite it. *)
         topalign.isTaken <- takenref;
         topalign.gainBreak <- 1 + abscol - !topAlignAbsCol;
         movingRight (1 + abscol)
@@ -601,13 +623,54 @@ let emitDoc
         x
   in
     
+  (* A continuation passing style loop *)
+  let rec loopCont (abscol: int) (d: doc) (cont: int -> unit) : unit 
+      (* the new column *) =
+    match d with
+      Nil -> cont abscol
+    | Concat (d1, d2) -> 
+        loopCont abscol d1 (fun abscol' -> loopCont abscol' d2 cont)
+
+    | Text s -> 
+        let sl = String.length s in
+        emitString s 1;
+        cont (abscol + sl)
+
+    | CText (d, s) -> 
+        loopCont abscol d 
+          (fun abscol' -> 
+            let sl = String.length s in
+            emitString s 1; 
+            cont (abscol' + sl))
+
+    | Align -> 
+        aligns := abscol :: !aligns;
+        cont abscol
+
+    | Unalign -> begin
+        match !aligns with
+          [] -> failwith "Unmatched unalign"
+        | _ :: rest -> aligns := rest; cont abscol
+    end
+    | Line -> cont (newline ())
+    | Break -> begin
+        match !breaks with
+          [] -> failwith "Break without a takenref"
+        | istaken :: rest -> 
+            breaks := rest; (* Consume the break *)
+            if !istaken then cont (newline ())
+            else begin
+              emitString " " 1; 
+              cont (abscol + 1)
+            end
+    end
+  in
+
+  (* A directy style loop *)
   let rec loop (abscol: int) (d: doc) : int (* the new column *) =
     match d with
       Nil -> abscol
     | Concat (d1, d2) -> loop (loop abscol d1) d2
-    | Spaces n -> 
-        if n > 0 then emitString " " n;
-        abscol + n
 
     | Text s -> 
         let sl = String.length s in
@@ -615,10 +678,10 @@ let emitDoc
         abscol + sl
 
     | CText (d, s) -> 
+        let abscol' = loop abscol d in
         let sl = String.length s in
-        let newcol = loop abscol d in
-        emitString s 1;
-        newcol + sl
+        emitString s 1; 
+        abscol' + sl
 
     | Align -> 
         aligns := abscol :: !aligns;
@@ -642,6 +705,7 @@ let emitDoc
             end
     end
   in
+(*  loopCont 0 d (fun x -> ()) *)
   loop 0 d
 
 let flushOften = ref false
@@ -658,6 +722,7 @@ let fprint =
       if george_no_scan then () 
       else
         begin
+(*         let doc = flatten Nil doc in *)
           ignore (scan 0 doc);
           if george_no_emit then ()
           else begin

@@ -692,30 +692,33 @@ let dummyStmt =
   mkStmt (Instr [(Asm(["dummy statement!!"], false, [], [], [], lu))])
 
 let compactBlock (b: block) : block =  
-      (* Try to compress statements *)
-  let rec compress (leftover: stmt) = function
-      [] -> if leftover == dummyStmt then [] else [leftover]
+      (* Try to compress statements. Scan the list of statements and remember 
+       * the last instrunction statement encountered, along with a Clist of 
+       * instructions in it. *)
+  let rec compress (lastinstrstmt: stmt) (* Might be dummStmt *)
+                   (lastinstrs: instr Clist.clist) 
+                   (b: block) =
+    let finishLast (tail: block) : block = 
+      if lastinstrstmt == dummyStmt then tail
+      else begin
+        lastinstrstmt.skind <- Instr (Clist.toList lastinstrs);
+        lastinstrstmt :: tail
+      end
+    in
+    match b with 
+      [] -> finishLast []
     | ({skind=Instr il} as s) :: rest ->
-        if leftover == dummyStmt then
-          compress s rest
+        let ils = Clist.fromList il in
+        if lastinstrstmt != dummyStmt && s.labels == [] then
+          compress lastinstrstmt (Clist.append lastinstrs ils) rest
         else
-          if s.labels == [] then
-            match leftover.skind with 
-              Instr previl -> 
-                leftover.skind <- Instr (previl @ il);
-                compress leftover rest
-            | _ -> E.s (E.bug "cabs2cil: compress")
-          else
-                (* This one has labels. Cannot attach to prev *)
-            leftover :: compress s rest
-        | s :: rest -> 
-            let res = s :: compress dummyStmt rest in
-            if leftover == dummyStmt then
-              res
-            else
-              leftover :: res
+          finishLast (compress s ils rest)
+
+    | s :: rest -> 
+        let res = s :: compress dummyStmt Clist.empty rest in
+        finishLast res
   in
-  compress dummyStmt b
+  compress dummyStmt Clist.empty b
 
 (*
 let structId = ref 0 (* Find a better way to generate new names *)
@@ -1255,7 +1258,7 @@ let rec d_decl (docName: unit -> doc) (dnwhat: docNameWhat) () this =
             ++ text "("
             ++ (align 
                   ++ (docList (chr ',' ++ break) (d_videcl ()) () args)
-                  ++ (if isvararg then text ", ..." else nil)
+                  ++ (if isvararg then break ++ text ", ..." else nil)
                   ++ unalign)
             ++ text ")")
         DNStuff
@@ -1346,6 +1349,7 @@ and d_exp () e =
       (d_expprec level () e1)
         ++ text " ? "
         ++ (d_expprec level () e2)
+        ++ text " : " 
         ++ (d_expprec level () e3)
 
   | CastE(t,e) -> 
@@ -1654,15 +1658,19 @@ and d_block () blk =
         dorest (acc ++ (d_stmt_next x () prev) ++ line)
                   x rest
   in
-  align
-    ++ text "{ " ++ (align ++ line
-                       ++ (dofirst () blk) ++ unalign)
-    ++ line ++ text "}" ++ unalign
+(* Let the host of the block decide on the alignment. The d_block will pop 
+ * the alignment as well *)
+  text "{" 
+    ++ line
+    ++ (dofirst () blk)
+    ++ unalign ++ line ++ text "}"
 (*
   dprintf "@[{ @[@!%a@]@!}@]" dofirst blk
 *)
 
-and d_line l = text ("\n" ^ printLine l) ++ line
+and d_line l = 
+  let ls = printLine l in
+  if ls <> "" then text ("\n" ^ printLine l) ++ line else nil
 
 and d_stmtkind (next: stmt) () = function
     Return(None, l) ->
@@ -1700,10 +1708,8 @@ and d_stmtkind (next: stmt) () = function
         ++ (align
               ++ text " ("
               ++ d_exp () be
-              ++ text ")"
-              ++ line
-              ++ d_block () t
-              ++ unalign)
+              ++ text ") "
+              ++ d_block () t)
 
   | If(be,t,[{skind=Goto(gref,_);labels=[]} as s],l)
       when !gref == next ->
@@ -1713,10 +1719,8 @@ and d_stmtkind (next: stmt) () = function
           ++ (align
                 ++ text " ("
                 ++ d_exp () be
-                ++ text ")"
-                ++ line
-                ++ d_block () t
-                ++ unalign)
+                ++ text ") "
+                ++ d_block () t)
 
   | If(be,[],e,l) ->
 (*
@@ -1728,9 +1732,8 @@ and d_stmtkind (next: stmt) () = function
         ++ (align
               ++ text " ("
               ++ d_exp () (UnOp(LNot,be,intType))
-              ++ text ")"
-              ++ d_block () e
-              ++ unalign)
+              ++ text ") "
+              ++ d_block () e)
 
   | If(be,[{skind=Goto(gref,_);labels=[]} as s],e,l)
       when !gref == next ->
@@ -1742,9 +1745,8 @@ and d_stmtkind (next: stmt) () = function
         ++ (align
               ++ text " ("
               ++ d_exp () (UnOp(LNot,be,intType))
-              ++ text ")"
-              ++ d_block () e
-              ++ unalign)
+              ++ text ") "
+              ++ d_block () e)
 
   | If(be,t,e,l) ->
 (*      dprintf "\n%s@!@[if@[ (%a)@!%a@]@!el@[se@!%a@]@]" (printLine l)
@@ -1756,16 +1758,12 @@ and d_stmtkind (next: stmt) () = function
               ++ (align
                     ++ text " ("
                     ++ d_exp () be
-                    ++ text ")"
-                    ++ d_block () t
-                    ++ unalign)
-              ++ line
-              ++ text "el"
+                    ++ text ") "
+                    ++ d_block () t)
+              ++ text " el"
               ++ (align
-                    ++ text "se"
-                    ++ line
-                    ++ d_block () e
-                    ++ unalign)
+                    ++ text "se "
+                    ++ d_block () e)
               ++ unalign)
 
   | Switch(e,b,_,l) ->
@@ -1775,10 +1773,8 @@ and d_stmtkind (next: stmt) () = function
         ++ (align
               ++ text "switch ("
               ++ d_exp () e
-              ++ text ")"
-              ++ line
-              ++ d_block () b
-              ++ unalign)
+              ++ text ") "
+              ++ d_block () b)
 (*
   | Loop(b, l) ->
       See if the first thing in the block is a "if e then skip else break"
@@ -1813,20 +1809,16 @@ and d_stmtkind (next: stmt) () = function
           ++ (align
                 ++ text "ile ("
                 ++ d_exp () term
-                ++ text ")"
-                ++ line
-                ++ d_block () body
-                ++ unalign)
+                ++ text ") "
+                ++ d_block () body)
 
     with Not_found ->
 (*        dprintf "\n%s@!wh@[ile (1)@!%a@]" (printLine l) d_block b *)
       d_line l
         ++ text "wh"
         ++ (align
-              ++ text "ile (1)"
-              ++ line
-              ++ d_block () b
-              ++ unalign)
+              ++ text "ile (1) "
+              ++ d_block () b)
 
         
 
@@ -1838,23 +1830,14 @@ and d_goto (s: stmt) =
     | _ :: rest -> pickLabel rest
   in
   match pickLabel s.labels with
-    Some l -> dprintf "goto %s;" l
+    Some l -> text ("goto " ^ l ^ ";")
   | None -> 
       ignore (E.warn "Cannot find label for target of goto\n");
       text "goto __invalid_label;"
 
 and d_fun_decl () f = 
   let stom, rest = separateStorageModifiers f.svar.vattr in
-(*
-  dprintf "%s%a@!{ @[%a@!@!%a@]@!}" 
-    (if f.sinline then "__inline " else "")
-    d_videcl f.svar
-    (* locals. *)
-    (docList line (fun vi -> d_videcl () vi ++ text ";")) f.slocals
-    (* the body *)
-    d_block f.sbody
-*)
-    text (if f.sinline then "__inline " else "")
+  text (if f.sinline then "__inline " else "")
     ++ d_videcl () f.svar
     ++ line
     ++ text "{ "
@@ -1863,8 +1846,7 @@ and d_fun_decl () f =
           ++ (docList line (fun vi -> d_videcl () vi ++ text ";") () f.slocals)
           ++ line ++ line
           (* the body *)
-          ++ d_block () f.sbody
-          ++ unalign)
+          ++ d_block () f.sbody)
     ++ line
     ++ text "}"
     
@@ -1875,13 +1857,13 @@ and d_videcl () vi =
     (* First the storage modifiers *)
     d_attrlistpre stom
     d_storage vi.vstorage
-    (d_decl (fun _ -> dprintf "%s" vi.vname) DNString) vi.vtype
+    (d_decl (fun _ -> text vi.vname) DNString) vi.vtype
     d_attrlistpost rest
 *)    
     (* First the storage modifiers *)
     (d_attrlistpre () stom)
     ++ d_storage () vi.vstorage
-    ++ (d_decl (fun _ -> dprintf "%s" vi.vname) DNString () vi.vtype)
+    ++ (d_decl (fun _ -> text vi.vname) DNString () vi.vtype)
     ++ text " "
     ++ d_attrlistpost () rest
 
@@ -1993,11 +1975,13 @@ let _ =
     | Attr("cdecl", []) when !msvcMode -> Some (text "__cdecl")
     | Attr("stdcall", []) when !msvcMode -> Some (text "__stdcall")
     | Attr("declspec", args) when !msvcMode -> 
-        Some (dprintf "__declspec(%a)"
-                (docList (chr ',') (d_attrarg ())) args)
+        Some (text "__declspec(" 
+                ++ docList (chr ',') (d_attrarg ()) () args
+                ++ text ")")
     | Attr("asm", args) -> 
-        Some (dprintf "__asm__(%a)"
-                (docList (chr ',') (d_attrarg ())) args)
+        Some (text "__asm__(" 
+                ++ docList (chr ',') (d_attrarg ()) () args
+                ++ text ")")
     | _ -> None
   in
   setCustomPrintAttribute d_attrcustombase
@@ -2389,7 +2373,11 @@ let d_global () = function
      d_line l ++
      text "enum" ++ align ++ text (" " ^ enum.ename) ++
         d_attrlistpost () enum.eattr ++ text " {"
-        ++ ((docList line (fun (n,i) -> dprintf "%s = %a,@?" n d_exp i))
+        ++ (docList line 
+              (fun (n,i) -> 
+                text (n ^ " = ") 
+                  ++ d_exp () i
+                  ++ text "," ++ break)
               () enum.eitems)
         ++ unalign ++ break ++ text "};"
 
@@ -2435,18 +2423,20 @@ let d_global () = function
         ++ chr ';'
 
   | GAsm (s, l) -> d_line l ++
-     dprintf "__asm__(\"%s\");@!" (escape_string s)
+     text ("__asm__(\"" ^ escape_string s ^ "\");")
 
   | GPragma (Attr(an, args), l) ->
       let d =
         if args = [] then
           text an
         else
-          dprintf "%s(%a)" an
-            (docList (chr ',') (d_attrarg ())) args
+          text (an ^ "(") 
+            ++ docList (chr ',') (d_attrarg ()) () args
+            ++ text ")"
       in
       d_line l ++
-      dprintf "#pragma %a@!" insert d
+        text "#pragma "
+        ++ d
 
   | GText s  -> text s
 
