@@ -2412,7 +2412,7 @@ and boxstmt (s: Cil.stmt) : block =
         in
         s.skind <- Instr [];  (* Make it empty but keep it first to preserve 
                                  * the labels and the gotos *)
-        s :: doe2 @ [ mkStmt (Return (Some e2, l)) ]
+        s :: doe'' @ [ mkStmt (Return (Some e2, l)) ]
                       
     | Loop (b, l) -> 
         s.skind <- Loop (boxblock b, l);

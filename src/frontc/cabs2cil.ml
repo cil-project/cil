@@ -359,7 +359,7 @@ module BlockChunk =
 
     let canDuplicate (c: chunk) = 
                         (* We can duplicate a statement if it is small and 
-                         * does not contain label definitions  *)
+                         * does not contain label definitions  
       let rec cost = function
           [] -> 0
         | s :: rest -> 
@@ -373,6 +373,8 @@ module BlockChunk =
             one + cost rest
       in
       cost c.stmts + List.length c.postins <= 3
+                           *)
+      false (* Do not duplicate because we get too much sharing *)
 
     let canDrop (c: chunk) = false
 
