@@ -208,6 +208,7 @@ ifdef BOX
 SAFECC+= --box
 endif
 ifdef INFERBOX
+EXTRAARGS+= $(DEF)INFERBOX
 SAFECC+= --inferbox
 else
 ifndef MANUALBOX

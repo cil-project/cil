@@ -11,8 +11,6 @@ let debug = false
 
 let checkReturn = true
 
-let defaultIsWild  = ref false
-
 let interceptCasts = ref false  (* If true it will insert calls to 
                                  * __scalar2pointer when casting scalars to 
                                  * pointers.  *)
@@ -74,13 +72,13 @@ let leaveAloneGlobVars = [
    * find a more general solution?  some way to know, in advance,
    * that a given symbol lives in an unseen library? *)
   "stdin"; "stdout"; "stderr"
-];;
-
+]
+    
 
             (* Same for offsets *)
 type offsetRes = 
     typ * stmt list * offset * exp * P.pointerkind
-
+      
 
 (*** Helpers *)            
 let castVoidStar e = doCast e (typeOf e) voidPtrType
@@ -175,9 +173,9 @@ let newStringName () =
 
 
 (* sm: scan a list of strings for one element
- * (never know where to put this kind of stuff in ML *)
+ * (never know where to put this kind of stuff in ML) *)
 let stringListContains (str:string) (sl:string list) : bool =
-  (List.exists (fun s -> s = str) sl);;
+  List.exists (fun s -> s = str) sl
 
 
 (* Since we cannot take the address of a bitfield we will do bounds checking
@@ -252,21 +250,25 @@ let fixedTypes : (typsig, typ) H.t = H.create 17
 
 (* Get rid of all Const attributes *)
 let dropConst t =
- let dropit a = dropAttribute a (AId("const")) in
- let rec loop = function
-    TVoid a -> TVoid (dropit a)
-  | TInt (i, a) -> TInt (i, dropit a)
-  | TFloat (f, a) -> TFloat (f, dropit a)
-  | TBitfield (i, s, a) -> TBitfield (i, s, dropit a)
-  | TNamed (n, t, a) -> TNamed(n, loop t, dropit a)
-  | TPtr (t', a) -> TPtr(loop t', dropit a)
-  | TArray (t', l, a) -> TArray(loop t', l, dropit a)
-  | TComp comp as t -> t
-  | TForward (comp, a) -> TForward (comp, dropit a)
-  | TEnum (n, f, a) -> TEnum (n, f, dropit a)
-  | TFun (r, args, v, a) -> 
-      List.iter (fun a -> a.vtype <- loop a.vtype) args;
-      TFun(loop r, args, v, dropit a)
+ let dropit isptr a = 
+   P.replacePtrNodeAttrList isptr (dropAttribute a (AId("const"))) in
+ let rec loop t = 
+   match t with 
+     TVoid a -> TVoid (dropit false a)
+   | TInt (i, a) -> TInt (i, dropit false a)
+   | TFloat (f, a) -> TFloat (f, dropit false a)
+   | TBitfield (i, s, a) -> TBitfield (i, s, dropit false a)
+   | TNamed (n, t, a) -> 
+       let isptr = match unrollType t with TPtr _ -> true | _ -> false in
+       TNamed(n, loop t, dropit isptr a)
+   | TPtr (t', a) -> TPtr(loop t', dropit true a)
+   | TArray (t', l, a) -> TArray(loop t', l, dropit false a)
+   | TComp comp as t -> t
+   | TForward (comp, a) -> TForward (comp, dropit false a)
+   | TEnum (n, f, a) -> TEnum (n, f, dropit false a)
+   | TFun (r, args, v, a) -> 
+       List.iter (fun a -> a.vtype <- loop a.vtype) args;
+       TFun(loop r, args, v, dropit false a)
  in
  loop t
 
@@ -299,7 +301,7 @@ let getFieldsOfFat (t: typ) : fieldinfo * fieldinfo * (fieldinfo option) =
       | _ -> E.s (E.bug "getFieldsOfFat")
     end
   | _ -> E.s (E.bug "getFieldsOfFat %a\n" d_type t)
-
+        
 let rec readFieldsOfFat (e: exp) et =     
   if isFatType et then
     let fptr, fbase, fendo = getFieldsOfFat et in
@@ -307,11 +309,11 @@ let rec readFieldsOfFat (e: exp) et =
         NoOffset -> 
           Field(fptr, NoOffset), Field(fbase, NoOffset), 
           (match fendo with Some x -> Field(x, NoOffset) | _ -> NoOffset)
-
+            
       | Field(fi, o) -> 
           let po, bo, lo = compOffsets o in
           Field(fi, po), Field(fi, bo), Field(fi, lo)
-
+            
       | Index(e, o) ->
           let po, bo, lo = compOffsets o in
           Index(e, po), Index(e, bo), Index(e, lo)
@@ -393,7 +395,11 @@ let rec fixupType t =
   match t with
     TForward _ -> t
     (* Keep the Named types *)
-  | TNamed (n, t, a) -> TNamed(n, fixupType t, dropAttribute a (AId("const")))
+  | TNamed _ -> begin
+     match dropConst t with
+       TNamed(n, t', a) -> TNamed(n, fixupType t', a)
+      | _ -> E.s (E.bug "fixupType")
+   end
 
     (* Sometimes we find a function type without arguments or with arguments 
      * with different names (a prototype that we have done before). Do the 
@@ -406,32 +412,24 @@ let rec fixupType t =
                isva, dropAttribute a (ACons("__format__",[])))
       | _ -> E.s (E.bug "fixupType")
   end
-  | TPtr(t', a) -> begin
-      (* Add the default pointer qualifier if none present *)
-      match extractPointerTypeAttribute a with
-        P.Unknown -> 
-          let kres = if !defaultIsWild then P.Wild else P.Safe in
-          fixit (TPtr(t', addAttribute (P.k2attr kres) a))
-      | k -> fixit t
-  end
   | _ -> fixit t
 
 and fixit t = 
-  (* First drop the Const attribute *)
-  let tdrop = dropConst t in
-  let ts = typeSig tdrop in
+  (* First drop the Const attribute and replace the _ptrnode attribute *)
+  let t = dropConst t in
+  let ts = typeSig t in
   try
     H.find fixedTypes ts 
   with Not_found -> begin
     let fixed = 
-      match tdrop with 
-        (TInt _|TEnum _|TFloat _|TVoid _|TBitfield _) -> tdrop
+      match t with 
+        (TInt _|TEnum _|TFloat _|TVoid _|TBitfield _) -> t
 
       | TPtr (t', a) -> begin
           (* Now do the base type *)
           let fixed' = fixupType t' in
           (* Extract the boxing style attribute *)
-          let pkind = kindOfType tdrop in 
+          let pkind = kindOfType t in 
           let newType = TPtr(fixed', a) in
           let fixed = 
             if pkNrFields pkind = 1 then newType 
@@ -456,7 +454,7 @@ and fixit t =
           fixed
       end
             
-      | TForward _ ->  tdrop          (* Don't follow TForward, since these 
+      | TForward _ ->  t          (* Don't follow TForward, since these 
                                        * fill be taken care of when the 
                                        * definition is encountered  *)
       | TNamed (n, t', a) -> TNamed (n, fixupType t', a)
@@ -585,7 +583,7 @@ and tagType (t: typ) : typ =
     H.add taggedTypes tsig named;
     H.add taggedTypes (typeSig named) named;
     named
-  end
+   end
 
 and tagLength (t: typ) : (exp * exp) = (* Call only for a isCompleteType *)
 (*        let bytes = (bitsSizeOf t) lsr 3 in
@@ -593,7 +591,7 @@ and tagLength (t: typ) : (exp * exp) = (* Call only for a isCompleteType *)
           let tagwords = (words + 15) lsr 4 in
 *)
   (* First the number of words *)
-  BinOp(Shiftrt, 
+   BinOp(Shiftrt, 
         BinOp(PlusA, 
               SizeOf(t, lu),
               kinteger IUInt 3, uintType, lu),
@@ -610,7 +608,7 @@ and tagLength (t: typ) : (exp * exp) = (* Call only for a isCompleteType *)
 
 (**** Make a pointer type of a certain kind *)
 let mkPointerTypeKind (bt: typ) (k: P.pointerkind) = 
-  fixupType (TPtr(bt, [P.k2attr k]))
+   fixupType (TPtr(bt, [P.k2attr k]))
 
 let mkFexp1 (t: typ) (e: exp) = 
   let k = kindOfType t in
@@ -630,18 +628,19 @@ let mkFexp3 (t: typ) (ep: exp) (eb: exp) (ee: exp) =
   let k = kindOfType t in
   match k with
     P.Seq -> FM (t, k, ep, eb, ee)
-  | _ -> E.s (E.bug "mkFexp3")
+  | _ -> E.s (E.bug "mkFexp3(%a): ep=%a\nt=%a" 
+                P.d_pointerkind k d_plainexp ep d_plaintype t)
 
 (***** Conversion functions *******)
 
 
 (***** Pointer arithemtic *******)
 let checkPositiveFun = 
-  let fdec = emptyFunction "CHECK_POSITIVE" in
+   let fdec = emptyFunction "CHECK_POSITIVE" in
   let argx  = makeLocalVar fdec "x" intType in
   fdec.svar.vtype <- TFun(voidType, [ argx; ], false, []);
-  fdec.svar.vstorage <- Static;
-  fdec
+   fdec.svar.vstorage <- Static;
+   fdec
 
 let pkArithmetic (ep: exp)
                  (et: typ)
@@ -661,7 +660,7 @@ let pkArithmetic (ep: exp)
       E.s (E.bug "pkArithmetic: pointer arithmetic on safe pointer: %a@!"
              d_exp ep)
   | _ -> E.s (E.bug "pkArithmetic")
-
+        
 
 (***** Address of ******)
 let pkAddrOf (lv: lval)
@@ -676,20 +675,20 @@ let pkAddrOf (lv: lval)
       mkFexp2 ptrtype (AddrOf(lv, lu)) f2, []
   | P.Seq ->  mkFexp3 ptrtype (AddrOf(lv, lu)) f2 f3, []
   | _ -> E.s (E.bug "pkAddrOf(%a)" P.d_pointerkind lvk)
-
-
+         
+         
 
 (************* END of pointer qualifiers *************)
   
 (* Given a sized array type, return the size and the array field *)
 let getFieldsOfSized (t: typ) : fieldinfo * fieldinfo = 
   match unrollType t with
-    TComp comp when comp.cstruct -> begin
+   TComp comp when comp.cstruct -> begin
       match comp.cfields with 
         s :: a :: [] when s.fname = "_size" && a.fname = "_array" -> s, a
       | _ -> E.s (E.bug "getFieldsOfSized")
     end
-  | _ -> E.s (E.bug "getFieldsOfSized %a\n" d_type t)
+   | _ -> E.s (E.bug "getFieldsOfSized %a\n" d_type t)
   
 
 
@@ -697,17 +696,17 @@ let getFieldsOfSized (t: typ) : fieldinfo * fieldinfo =
 
    (* Test if we must check the return value *)
 let mustCheckReturn tret =
-  checkReturn &&
-  match unrollType tret with
+   checkReturn &&
+   match unrollType tret with
     TPtr _ -> true
-  | TArray _ -> true
-  | _ -> isFatType tret
+   | TArray _ -> true
+   | _ -> isFatType tret
 
 
    (* Test if we have changed the type *)
 let rec typeContainsFats t =
-  existsType 
-    (function TComp comp -> 
+   existsType 
+   (function TComp comp -> 
       begin
         match comp.cfields with
           [p;b] when comp.cstruct && p.fname = "_p" && b.fname = "_b" -> 
@@ -722,20 +721,20 @@ let rec typeContainsFats t =
 (* Check whether the type contains an embedded array *)
 let mustBeTagged v =
   (* sm: if it is a global (locals get passed to this fn too), and
-   * is among the special list of untagged globals, leave it alone *)
+   * is among the special list of untagged globals, leave it alone *
   if (v.vglob &&
       (stringListContains v.vname leaveAloneGlobVars)) then
-    false else     (* return false *)
-
-  if !defaultIsWild then
-    let rec containsArray t =
-      existsType 
+    false else     * return false *
+*)
+  if !P.defaultIsWild then
+   let rec containsArray t =
+   existsType 
         (function 
             TArray _ -> ExistsTrue 
           | TPtr _ -> ExistsFalse
           | _ -> ExistsMaybe) t
     in
-    if v.vglob then 
+   if v.vglob then 
       match v.vtype with 
         TFun _ -> false (* Do not tag functions!! Mainly because we don't know 
                         * how to put the tag. Plus, function pointers should 
@@ -1274,6 +1273,74 @@ let checkMem (towrite: exp option)
 let checkRead = checkMem None
 let checkWrite e = checkMem (Some e)
 
+let mangledNames : (string, unit) H.t = H.create 123
+let fixupGlobName vi =
+  (* sm: don't touch some globals *)
+   if (stringListContains vi.vname leaveAloneGlobVars) then
+   () else    (* return *)
+
+  (* Scan a type and compute a list of qualifiers that distinguish the
+   * various possible combinations of qualifiers *)
+   let rec qualNames acc = function
+      TInt _ | TFloat _ | TBitfield _ | TVoid _ | TEnum _ -> acc
+    | TPtr(t', _) as t -> begin
+        match kindOfType t with
+          P.Safe -> qualNames ("s" :: acc) t'
+        | P.Wild -> "w" :: acc (* Don't care about what it points to *)
+        | P.Index -> qualNames ("i" :: acc) t'
+        | P.Seq -> qualNames ("q" :: acc) t'
+        | P.FSeq -> qualNames ("f" :: acc) t'
+        | P.Scalar -> acc
+        | _ -> E.s (E.bug "qualNames")
+    end
+    | TArray(t', _, a) ->
+        let acc' =
+          (* Choose the attributes so that "s" is always the C represent *)
+          if filterAttributes "sized" a <> [] then "l" :: acc else "s" :: acc
+        in
+        qualNames acc' t'
+    | TFun(tres, args, _, _) -> 
+        let acc' = qualNames acc tres in
+        List.fold_left (fun acc a -> qualNames acc a.vtype) acc' args 
+
+    | TNamed (_, t, _) -> qualNames acc t
+
+    (* We only go into struct that we created as part of "sized" or "seq" or 
+     * "fatp" *)
+    | TComp comp -> begin
+        try
+          let data_type = 
+            match comp.cfields with
+              [p;b] when p.fname = "_p" && b.fname = "_b" -> p.ftype
+            | [p;b;e] when p.fname = "_p" && b.fname = "_b" && e.fname = "_e" 
+              -> p.ftype
+            | [s;a] when s.fname = "_size" && a.fname = "_array" -> a.ftype
+            | _ -> raise Not_found
+          in
+          qualNames acc data_type
+        with Not_found -> acc
+    end
+    | TForward _ -> acc (* Do not go into recursive structs *)
+  in
+  if vi.vglob && vi.vstorage <> Static &&
+    not (List.exists (fun la -> la = vi.vname) leaveAlone) &&
+    not (H.mem mangledNames vi.vname) then
+    begin
+      let quals = qualNames [] vi.vtype in
+      let rec allSafe = function (* Only default qualifiers *)
+          [] -> true
+        | "s" :: rest -> allSafe rest
+        | _ -> false
+      in
+      let newname =
+        if allSafe quals then vi.vname
+        else
+          vi.vname ^ "_" ^ (List.fold_left (fun acc x -> x ^ acc) "" quals)
+      in
+      H.add mangledNames newname ();
+      vi.vname <- newname
+    end
+
 
 (* A run-time function to coerce scalars into pointers. Scans the heap and 
  * (in the future the stack) *)
@@ -1622,7 +1689,7 @@ and boxexpf (e: exp) : stmt list * fexp =
     | Const (CStr s, cloc) -> 
        (* Make a global variable that stores this one, so that we can attach 
         * a tag to it  *)
-        if !defaultIsWild then
+        if !P.defaultIsWild then
           let l = 1 + String.length s in 
           let newt = tagType (TArray(charType, Some (integer l), [])) in
           let gvar = makeGlobalVar (newStringName ()) newt in
@@ -1743,7 +1810,7 @@ and boxexpf (e: exp) : stmt list * fexp =
                * out of it *)
               let start = StartOf lv' in
               match lv' with
-                Var vi, NoOffset when !defaultIsWild -> 
+                Var vi, NoOffset when !P.defaultIsWild -> 
                   mkFexp2 (mkPointerTypeKind lvt P.Wild) start start
               | _ -> 
                   mkFexp2 (mkPointerTypeKind lvt lvkind) start baseaddr
@@ -1841,7 +1908,13 @@ and boxexpSplit (e: exp) =
 
 and boxfunctionexp (f : exp) = 
   match f with
-    Lval(Var vi, NoOffset) -> boxexp f
+    Lval(Var vi, NoOffset) -> begin
+      (* Sometimes it is possible that we have not seen this varinfo. Maybe 
+       * it was introduced by the type inferencer to mark an independent copy 
+       * of the function *)
+      fixupGlobName vi;
+      boxexp f
+   end
   | Lval(Mem base, NoOffset) -> 
       let rest, lvkind, lv', lvbase, lvend, dolv = 
         boxlval (Mem base, NoOffset) in
@@ -1964,73 +2037,6 @@ and castTo (fe: fexp) (newt: typ)
   end
       
 
-let mangledNames : (string, unit) H.t = H.create 123
-let fixupGlobName vi =
-  (* sm: don't touch some globals *)
-  if (stringListContains vi.vname leaveAloneGlobVars) then
-    () else    (* return *)
-
-  (* Scan a type and compute a list of qualifiers that distinguish the
-   * various possible combinations of qualifiers *)
-  let rec qualNames acc = function
-      TInt _ | TFloat _ | TBitfield _ | TVoid _ | TEnum _ -> acc
-    | TPtr(t', _) as t -> begin
-        match kindOfType t with
-          P.Safe -> qualNames ("s" :: acc) t'
-        | P.Wild -> "w" :: acc (* Don't care about what it points to *)
-        | P.Index -> qualNames ("i" :: acc) t'
-        | P.Seq -> qualNames ("q" :: acc) t'
-        | P.FSeq -> qualNames ("f" :: acc) t'
-        | P.Scalar -> acc
-        | _ -> E.s (E.bug "qualNames")
-    end
-    | TArray(t', _, a) ->
-        let acc' =
-          (* Choose the attributes so that "s" is always the C represent *)
-          if filterAttributes "sized" a <> [] then "l" :: acc else "s" :: acc
-        in
-        qualNames acc' t'
-    | TFun(tres, args, _, _) -> 
-        let acc' = qualNames acc tres in
-        List.fold_left (fun acc a -> qualNames acc a.vtype) acc' args 
-
-    | TNamed (_, t, _) -> qualNames acc t
-
-    (* We only go into struct that we created as part of "sized" or "seq" or 
-     * "fatp" *)
-    | TComp comp -> begin
-        try
-          let data_type = 
-            match comp.cfields with
-              [p;b] when p.fname = "_p" && b.fname = "_b" -> p.ftype
-            | [p;b;e] when p.fname = "_p" && b.fname = "_b" && e.fname = "_e" 
-              -> p.ftype
-            | [s;a] when s.fname = "_size" && a.fname = "_array" -> a.ftype
-            | _ -> raise Not_found
-          in
-          qualNames acc data_type
-        with Not_found -> acc
-    end
-    | TForward _ -> acc (* Do not go into recursive structs *)
-  in
-  if vi.vglob && vi.vstorage <> Static &&
-    not (List.exists (fun la -> la = vi.vname) leaveAlone) &&
-    not (H.mem mangledNames vi.vname) then
-    begin
-      let quals = qualNames [] vi.vtype in
-      let rec allSafe = function (* Only default qualifiers *)
-          [] -> true
-        | "s" :: rest -> allSafe rest
-        | _ -> false
-      in
-      let newname =
-        if allSafe quals then vi.vname
-        else
-          vi.vname ^ "_" ^ (List.fold_left (fun acc x -> x ^ acc) "" quals)
-      in
-      H.add mangledNames newname ();
-      vi.vname <- newname
-    end
 
 
 (* Create the preamble (in reverse order). Must create it every time because 

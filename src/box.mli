@@ -8,7 +8,3 @@ val customAttrPrint: Cil.attribute -> Pretty.doc option
  * WILD, all arrays are not!!! SIZED and all variables whose address is taken 
  * or which are globals or which contain arrays are TAGGED  *)
 
-(* If defaultIsNotWild then pointers without a qualifier are SAFE and only 
- * the arrays that are specfically SIZED contain a size field and only the 
- * variables that are specifically TAGGED contain tags *)
-val defaultIsWild: bool ref

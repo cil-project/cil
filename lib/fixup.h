@@ -33,7 +33,6 @@
 #define SIZED
 #define SEQ
 #define FSEQ
-#define calloc_fseq calloc
 #else
 #define WILD   __attribute__((wild))
 #define SAFE   __attribute__((safe))
@@ -44,3 +43,6 @@
 #define FSEQ   __attribute__((fseq))
 #endif
 
+#if ! defined(MANUALBOX)
+#define calloc_fseq calloc
+#endif

@@ -8,6 +8,11 @@ open Pretty
 module H = Hashtbl
 module E = Errormsg
 
+(* If defaultIsNotWild then pointers without a qualifier are SAFE and only 
+ * the arrays that are specfically SIZED contain a size field and only the 
+ * variables that are specifically TAGGED contain tags *)
+let defaultIsWild  = ref false
+
 (* A place where a pointer type can occur *)
 type place = 
     PGlob of string  (* A global variable or a global function *)
@@ -239,6 +244,23 @@ let nodeOfAttrlist al =
   | _ -> E.s (E.bug "nodeOfAttrlist")
 
 
+let k2attr = function
+    Safe -> AId("safe")
+  | Index -> AId("index")
+  | Wild -> AId("wild")
+  | Seq -> AId("seq")
+  | FSeq -> AId("fseq")
+  | _ -> E.s (E.unimp "k2attr")
+
+let attr2k = function
+    AId("safe") -> Safe
+  | AId("wild") -> Wild
+  | AId("index") -> Index
+  | AId("fseq") -> FSeq
+  | AId("seq") -> Seq
+  | _ -> Unknown
+    
+
 let kindOfAttrlist al = 
   let rec loop = function
       [] -> Unknown, Default
@@ -249,25 +271,54 @@ let kindOfAttrlist al =
         | AId "seq" -> Seq, UserSpec
         | AId "fseq" -> FSeq, UserSpec
         | AId "wild" -> Wild, UserSpec
-        | ACons("_ptrnode", [AInt n]) -> begin
-            (* See if there is a UserSpec *)
-            match loop al with
-              x, UserSpec -> x, UserSpec
-            | _ -> begin
-                try 
-                  let nd = H.find idNode n in
-                  nd.kind, nd.why_kind
-                with Not_found -> begin
-                  ignore (E.warn "Cannot find node %d\n" n);
-                  Unknown, UserSpec
-                end
-            end
-        end
         | _ -> loop al
     end    
   in
   loop al
     
+
+(* Replace the ptrnode attribute with the actual qualifier attribute *)
+let replacePtrNodeAttrList isptr al = 
+  let foundNode : pointerkind ref = ref Unknown in
+  let rec loop = function
+      [] -> []
+    | a :: al -> begin
+        match a with
+          ACons("_ptrnode", [AInt n]) -> begin
+              try 
+                let nd = H.find idNode n in
+                foundNode := nd.kind;
+                if nd.kind = Unknown then
+                  ignore (E.warn "Found node %d with kind Unkown\n" n);
+                loop al
+              with Not_found -> begin
+                ignore (E.warn "Cannot find node %d\n" n);
+                loop al
+              end
+          end
+        | AId "safe" -> foundNode := Safe; loop al
+        | AId "index" -> foundNode := Index; loop al
+        | AId "seq" -> foundNode := Seq; loop al
+        | AId "fseq" -> foundNode := FSeq; loop al
+        | AId "wild" -> foundNode := Wild; loop al
+        | _ -> a :: loop al
+    end
+  in 
+  let al' = loop al in
+  let kres = 
+    if !foundNode <> Unknown then !foundNode 
+    else 
+      if isptr then
+        if !defaultIsWild then Wild else Safe 
+      else
+        Unknown
+  in
+  if kres <> Unknown then 
+    addAttribute (k2attr kres) al' 
+  else 
+    al'
+
+  
 (* Make a new node *)
 let newNode (p: place) (idx: int) (bt: typ) (a: attribute list) : node =
   let where = p, idx in
@@ -366,22 +417,6 @@ let ptrAttrCustom printnode = function
     | a -> None
 
 
-let k2attr = function
-    Safe -> AId("safe")
-  | Index -> AId("index")
-  | Wild -> AId("wild")
-  | Seq -> AId("seq")
-  | FSeq -> AId("fseq")
-  | _ -> E.s (E.unimp "k2attr")
-
-let attr2k = function
-    AId("safe") -> Safe
-  | AId("wild") -> Wild
-  | AId("index") -> Index
-  | AId("fseq") -> FSeq
-  | AId("seq") -> Seq
-  | _ -> Unknown
-    
 
 (**** Garbage collection of nodes ****)
 (* I guess it is safe to call this even if you are not done with the whole 
