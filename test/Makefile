@@ -253,6 +253,9 @@ ifdef CCURED_FAIL_IS_VERBOSE
   # affects the instrumented code *and* the support library
   CCURED+= $(DEF)CCURED_FAIL_IS_VERBOSE
 endif
+ifdef ALLOW_INLINE_ASSEMBLY
+  CCURED+= --allowInlineAssembly
+endif
 
 # sm: pass tracing directives on 'make' command line like TRACE=usedVars
 # I don't quote $(TRACE) because it actually appears inside another quoted
@@ -1133,7 +1136,7 @@ all-olden: mustbegcc bh bisort em3d health mst perimeter power treeadd tsp
 BHDIR := $(TESTDIR)/olden/bh
 bh:  mustbegcc
 	cd $(BHDIR); rm -f code.exe *.o; \
-               make CC="$(COMBINECCURED) --leavealone=trusted_bh "
+               make CC="$(COMBINECCURED) --leavealone=trusted_bh --allowInlineAssembly"
 	(export ONE_VARIABLE=1 ; make runbh $(MAKEOVERRIDES) )
 
 bh-combined:  mustbegcc
@@ -1168,7 +1171,7 @@ endif
 power:  mustbegcc
 	cd $(PWDIR); \
                make PLAIN=1 clean defaulttarget \
-                    CC="$(COMBINECCURED) "
+                    CC="$(COMBINECCURED)  --allowInlineAssembly"
 	cd $(PWDIR); sh ./testit ./power.exe
 	cd $(PWDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                     do time ./power.exe ; done"
