@@ -282,6 +282,19 @@ let stronglyConnectedComponents (cfg: S.cfgInfo) : S.sccInfo =
 
 let globalsDumped = IH.create 13
 
+
+(** We print variable names in a special way *)
+let variableName (v: varinfo) (freshId: int) = 
+  (if v.vaddrof then begin          
+     assert treatAddressOfAsRead;
+     "addrof_"
+   end else "") ^ 
+    (if freshId = 0 then 
+      v.vname
+    else
+      v.vname ^ "___" ^ string_of_int freshId)
+
+
 (** We define a new printer *)
 class absPrinterClass (callgraph: CG.callgraph) : cilPrinter = 
 
@@ -374,14 +387,7 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
           E.s (E.bug "%a: varUse: varRenameState does not know anything about %s" 
                  d_loc !currentLoc v.vname )
       in
-      (if v.vaddrof then begin
-        assert treatAddressOfAsRead;
-        "addrof_"
-      end else "") ^ 
-      (if freshId = 0 then 
-        v.vname
-      else
-        v.vname ^ "___" ^ string_of_int freshId)
+      variableName v freshId
         
     method private variableDef (state: int IH.t) (v: varinfo) : string = 
       assert (not v.vaddrof);
@@ -713,14 +719,14 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
         ignore (p "%sfunction %s\n  %sformals %a%s\n  %sglobalsreadtransitive %a%s\n  %sglobalswrittentransitive %a%s\n  %slocals %a%s\n  %suninitlocals %a%s\n  %sglobalsread %a%s\n  %sglobalswritten %a%s\n  %scalls %a%s\n  %scalledby %a%s\n  %a"
           prologue fdec.svar.vname
           prologue (docList (fun v -> text v.vname)) fdec.sformals epilogue
-          prologue (d_list "," (fun () v -> text v.vname)) 
+          prologue (d_list "," (fun () v -> text (variableName v 0))) 
                   (getGlobalsReadTransitive fdec.svar) epilogue
-          prologue (d_list "," (fun () v -> text v.vname)) 
+          prologue (d_list "," (fun () v -> text (variableName v 0)))
                   (getGlobalsWrittenTransitive fdec.svar) epilogue
           prologue (docList text) freshVars epilogue
           prologue (docList text) uninitVars epilogue
-          prologue (d_list "," (fun () (_, v) -> text v.vname)) (IH.tolist glob_read) epilogue
-          prologue (d_list "," (fun () (_, v) -> text v.vname)) (IH.tolist glob_written) epilogue
+          prologue (d_list "," (fun () (_, v) -> text (variableName v 0))) (IH.tolist glob_read) epilogue
+          prologue (d_list "," (fun () (_, v) -> text (variableName v 0))) (IH.tolist glob_written) epilogue
           prologue (U.docHash (fun k _ -> text k)) cg_node.CG.cnCallees epilogue
           prologue (U.docHash (fun k _ -> text k)) cg_node.CG.cnCallers epilogue
           (docList ~sep:line
