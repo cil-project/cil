@@ -22,3 +22,24 @@ STR a[] = {
   { usages, 4},
 };
 
+
+typedef struct {
+  struct {
+    char * a1[10];
+    char * a2;
+    char   strbuff[20] NULLTERM;
+  } f1;
+  struct {
+    int * i1;
+  } f2[5] SIZED;
+} NESTED;
+
+NESTED glob1;
+
+int afunc(void) {
+  NESTED loc1;
+  char   locbuff[30] NULLTERM;
+  char   indexbuff[10] SIZED;
+  
+  return * loc1.f2[3].i1 + (locbuff[0] - indexbuff[0]);
+}

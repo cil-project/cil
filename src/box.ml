@@ -1070,19 +1070,6 @@ let makeTagCompoundInit tagged datainit =
   dfld
 
 
-(* Generates code that initializes vi. Needs "iter", an integer variable to 
- * be used as a for loop index *)
-let makeTagAssignInit (iter: varinfo) vi : stmt list = 
-  let dfld, lfld, tfld, words, tagwords = splitTagType vi.vtype in
-  (* Write the length *)
-  mkSet (Var vi, Field(lfld, NoOffset)) words ::
-  (* And the loop *)
-  mkForIncr iter zero (doCast tagwords (typeOf tagwords) intType) one 
-    [mkSet (Var vi, Field(tfld, Index (Lval(var iter), NoOffset))) 
-        zero ]
-  ::
-  []
-
 
 (* Since we cannot take the address of a bitfield we treat accesses to a 
  * bitfield like an access to the entire host that contains it (for the 
@@ -2184,10 +2171,115 @@ and boxfunctionexp (f : exp) =
   | _ -> E.s (E.unimp "Unexpected function expression")
 
 
-    
-      
 
+(********** Initialize variables ***************)
+let makeIterVar f = 
+  let iVar : varinfo option ref = ref None in (* Memoize *)
+  fun () -> 
+    match !iVar with
+      Some i -> i
+    | None -> begin
+        let i = makeTempVar f ~name:"iter" intType in
+        iVar := Some i;
+        i
+    end
 
+(* Create and accumulate the initializer for a variable *)
+let initializeVar (mkivar: unit -> varinfo) 
+                  (acc: stmt list)
+                  (v: varinfo) 
+                   : stmt list = 
+  (* Maybe it must be tagged *)
+  if mustBeTagged v then begin
+    let newtype = tagType v.vtype in
+    v.vtype <- newtype;
+   (* Generates code that initializes vi. Needs "iter", an integer variable 
+    * to be used as a for loop index  *)
+    let iter = mkivar () in
+    let dfld, lfld, tfld, words, tagwords = splitTagType v.vtype in
+    (* Write the length *)
+    mkSet (Var v, Field(lfld, NoOffset)) words ::
+    (* And the loop to initialize the tags with zero *)
+    mkForIncr iter zero (doCast tagwords (typeOf tagwords) intType) one 
+      [mkSet (Var v, Field(tfld, Index (Lval(var iter), NoOffset))) 
+          zero ]
+    ::
+    acc
+  end else begin
+    (* Scan the type for arrays. Maybe they must be SIZED or NULLTERM *)
+    let rec initForType 
+                 (t: typ) 
+                 (doit: offset -> exp -> stmt list -> stmt list) 
+                 (acc: stmt list) : stmt list = 
+      match unrollType t with
+        TInt _ | TFloat _ | TBitfield _ | TEnum _ -> acc
+      | TComp comp when comp.cstruct -> begin
+          match comp.cfields with
+            [s; a] when s.fname = "_size" && a.fname = "_array" ->
+              (* Sized arrays *)
+              let bt, l = match unrollType a.ftype with
+                TArray(bt, Some l, _) -> bt, l
+              | _ -> E.s (E.unimp "Sized array of unknown length")
+              in
+              let dothissize = 
+                doit (Field(s, NoOffset)) 
+                  (BinOp(Mult, doCast l (typeOf l) uintType, 
+                         SizeOf(bt), uintType))
+                  acc in
+              (* Prepare the "doit" function for the base type *)
+              let iter = mkivar () in (* Hopefully not nested *)
+              let doforarray (off: offset) (what: exp) (acc: stmt list) = 
+                mkForIncr iter zero l one 
+                  (doit (Index (Lval(var iter), off)) what []) :: acc
+              in
+              initForType bt doforarray dothissize
+          | _ -> (* A regular struct. Do all the fields in sequence *)
+              List.fold_left 
+                (fun acc fld -> 
+                  initForType fld.ftype 
+                    (fun off what acc -> doit (Field(fld, off)) what acc)
+                    acc)
+                acc
+                comp.cfields
+      end
+      | TArray(bt, Some l, a) -> 
+          if filterAttributes "nullterm" a <> [] then begin
+            (* Write a zero at the very end *)
+            (match unrollType bt with
+              TInt((IChar|ISChar|IUChar), _) -> ()
+            | _ -> E.s (E.unimp "NULLTERM array of base type %a (in %s)"
+                          d_type bt v.vname));
+            doit (Index(BinOp(MinusA, l, one, intType), NoOffset)) zero acc
+          end else
+            (* Initialize all elements *)
+            (* Prepare the "doit" function for the base type *)
+            let iter = mkivar () in (* Hopefully not nested *)
+            let doforarray (off: offset) (what: exp) (acc: stmt list) = 
+              mkForIncr iter zero l one 
+                (doit (Index (Lval(var iter), off)) what []) :: acc
+            in
+            initForType bt doforarray acc
+          
+      | TPtr (bt, a) when not v.vglob -> begin
+          (* If a non-wild pointer then initialize to zero *)
+        let mustinit = 
+          not v.vglob &&
+          (match N.kindOfAttrlist a with
+            N.Wild, _ -> false
+          | N.Unknown, _ when !N.defaultIsWild -> false
+          | _ -> true) 
+        in
+        if mustinit then
+          doit NoOffset (doCast zero intType t) acc
+        else 
+          acc
+      end
+      | _ -> E.s (E.unimp "initializeVar (for type %a)" d_plaintype t)
+    in
+    initForType v.vtype 
+      (fun off what acc -> mkSet (Var v, off) what :: acc)
+      acc
+  end
 
 (* Create the preamble (in reverse order). Must create it every time because 
  * we must consider the effect of "defaultIsWild" *)
@@ -2302,27 +2394,10 @@ let boxFile file =
         in
         setFormals f newformals;
         f.sbody <- mkSeq newbody;
-        (* Now we must take all locals whose address is taken and turn their 
-           types into structures with tags and length field *)
-        let tagIterator : varinfo option ref = ref None in
-        let tagLocal stmacc l = 
-          if not (mustBeTagged l) then stmacc
-          else
-            let iter =
-              match !tagIterator with
-                Some i -> i
-              | None -> begin
-                  let i = makeTempVar f ~name:"iter" intType in
-                  tagIterator := Some i;
-                  i
-              end
-            in
-            let newtype = tagType l.vtype in
-            l.vtype <- newtype;
-            (makeTagAssignInit iter l) @ stmacc
-        in
-        let inilocals = List.fold_left tagLocal [] f.slocals in
-        f.sbody <- mkSeq (inilocals @ [boxstmt f.sbody]);
+        let boxbody = boxstmt f.sbody in
+        let inilocals = 
+          List.fold_left (initializeVar (makeIterVar f)) [boxbody] f.slocals in
+        f.sbody <- mkSeq inilocals;
         theFile := GFun (f, l) :: !theFile
 
     | GAsm _ as g -> theFile := g :: !theFile
