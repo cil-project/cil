@@ -55,8 +55,8 @@ ifndef CCUREDHOME
   endif
 endif
 
-CCURED := perl $(CCUREDHOME)/bin/ccured.pl 
-PATCHER := perl $(CCUREDHOME)/bin/patcher.pl
+CCURED := $(CCUREDHOME)/bin/ccured
+PATCHER := $(CCUREDHOME)/bin/patcher
 
 # Now do the user-specific customization
 # It is Ok if this file does not exist
@@ -113,7 +113,7 @@ endif
 
 STANDARDPATCH := --includedir=$(CCUREDHOME)/include
 
-# CCURED contains arguments that are passed to ccured.pl
+# CCURED contains arguments that are passed to ccured
 # Pass such arguments in the command line as EXTRAARGS="..."
 # NOTE: you should *never* set EXTRAARGS within this Makefile,
 # because *any* such settings will be overridden if someone
@@ -232,7 +232,7 @@ endif
 # enable the new tree-based patcher
 ifdef NEWPATCH
   # at the moment, the new patcher is kinda shoehorned into this Makefile..
-  # perhaps ccured.pl is the right place to deal with telling ccured.exe
+  # perhaps ccured is the right place to deal with telling ccured.exe
   # about this file
 
   # hack: possible append 'd' to the name, so we get different versions
@@ -244,7 +244,7 @@ ifdef NEWPATCH
     PATCHFILE2=$(CCUREDHOME)/lib/$(PATCHFILE)2.i
   endif
 
-  # tell ccured.byte.exe (via ccured.pl) where to find the patch file
+  # tell ccured.byte.exe (via ccured) where to find the patch file
   CCURED+= --patchFile=$(PATCHFILE2)
 
   # and turn off the other patcher
@@ -458,7 +458,7 @@ combine%:
 
 arcombine: mustbegcc
 	cd $(SMALL1); $(CCURED) --merge -c array1.c array2.c
-	cd $(SMALL1); perl $(CCUREDHOME)/bin/cilly.pl --merge \
+	cd $(SMALL1); $(CCUREDHOME)/bin/cilly --merge \
                            --mode=AR crv array.a array1.o array2.o
 	cd $(SMALL1); $(CCURED) --merge -o matrix.exe array.a matrix.c
 	cd $(SMALL1); ./matrix.exe
@@ -771,7 +771,7 @@ testfile/% :
 	$(CCURED) /TC $*
 
 testdir/% : 
-	make -C CC="perl ccured.pl" $*
+	make -C CC="ccured" $*
 
 
 ################## Linux device drivers
@@ -1453,7 +1453,7 @@ linuxstandard:
 	$(MAKE) -C $(LINUXDIR) clean vmlinux \
               MY-CC="gcc"
 
-LINUXCC := perl $(CCUREDHOME)/bin/ccured.pl --mode=gcc
+LINUXCC := $(CCUREDHOME)/bin/ccured --mode=gcc
 ifdef NOLINES
   LINUXCC+= --noPrintLn
 endif
@@ -1680,7 +1680,7 @@ mustbemanju:
 	@if ! test -d $(LINUXSRC) ; then  \
                 echo You dont have the Linux sources in $(LINUXSRC); exit 3; fi
 
-CILLY := perl $(CCUREDHOME)/bin/cilly.pl
+CILLY := $(CCUREDHOME)/bin/cilly
 ifdef NOLINES
   CILLY+= --noPrintLn
 endif
@@ -1856,10 +1856,10 @@ wuftpdclean:
 	      	\) -exec rm -f {} \;
 
 wuftpd: mustbegcc mustbelinux mustbemanju wuftpdclean
-	cd $(WUFTPDSRC) ; ./build CC=$(CCUREDHOME)/bin/cilly.pl lnx
+	cd $(WUFTPDSRC) ; ./build CC=$(CCUREDHOME)/bin/cilly lnx
 
 wuftpd-noclean: mustbegcc mustbelinux mustbemanju
-	cd $(WUFTPDSRC) ; ./build CC=$(CCUREDHOME)/bin/cilly.pl lnx
+	cd $(WUFTPDSRC) ; ./build CC=$(CCUREDHOME)/bin/cilly lnx
 
 wuftpd-gcc: mustbelinux mustbemanju wuftpdclean
 	cd $(WUFTPDSRC) ; ./build CC=gcc lnx

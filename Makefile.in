@@ -186,7 +186,8 @@ DISTRIB_SRC_EXT = logcalls.ml logcalls.mli \
 
 DISTRIB_LIB = CompilerStub.pm.in Merger.pm
 
-DISTRIB_BIN = cilly.pl.in patcher.pl
+DISTRIB_BIN = cilly.in cilly.bat.in \
+              patcher.in patcher.bat.in
 
 DISTRIB_SMALL1=hello.c func.c init.c init1.c wchar1.c vararg1.c testharness.h 
 
@@ -249,10 +250,10 @@ clean: cleancaml
 
 
 test/%: 
-	perl bin/cilly.pl -c test/small1/$*.c -o test/small1/$*.o
+	bin/cilly -c test/small1/$*.c -o test/small1/$*.o
 
 testrun/%: 
-	perl bin/cilly.pl test/small1/$*.c -o test/small1/$*
+	bin/cilly test/small1/$*.c -o test/small1/$*
 	test/small1/$*
 
 
