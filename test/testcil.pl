@@ -1198,7 +1198,7 @@ altAddTest("scott/unionassign $box");
 altAddTest("scott/unionassign $wildbox");
 altAddTest("scott/readv $box");
 altFailTest("FSEQ incompleteness", "scott/bloop $box");
-altAddTest("scott/funcptr3 INFERBOX=infer");
+altAddTest("scott/funcptr3 $box");
 altAddTest("scott/structattr");
 altAddTest("scott/neg64");
 altAddTest("testc/arrayinitsize");
@@ -1213,6 +1213,7 @@ altAddTest("scott/enumerator_sizeof");
 altAddTest("testrun/decl_mix_stmt");
 altFailTest("output makes GCC unhappy", "scott/enumattr");
 altFailTest("alignment-related unsoundness", "scott/alignprob $box");
+altAddTest("scott/doublefree $box RELEASE=1");
 
 
 # $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug
