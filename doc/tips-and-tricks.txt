@@ -1,0 +1,35 @@
+This file is meant to collect the various "here's how to do X" advice
+we like to send around in emails and then promptly forget.
+
+----------------------- slicer for globals ----------------------
+
+I (Scott) just implemented a simple extension to cilly.asm.exe
+(really, just a small modification to 'rmtmps') which lets you slice a
+given C file so that it only contains things which contribute to a
+given global's type (actually, you can name as many root globals as
+you want).  I think this will be useful for tracking down merger
+problems in big programs.
+
+To use this, just add
+
+  #pragma cilnoremove("my_symbol")
+
+to the file in question, and then run
+
+  cilly.asm.exe --sliceGlobal --out file.cil.c file.i
+
+(where file.i is preprocessed file.c).  This will slice file.i so it only
+contains things which are needed for 'my_symbol' to compile successfully,
+and write the output to file.cil.c.
+
+The symbol in question can be a function, enum tag, struct tag, typedef
+name, or global variable.  Add more #pragma cilnoremove's to add more
+things to the root set.
+
+Update: It doesn't work very well for types.  Instead, if you want to
+slice on a type, add at the end of the file
+
+  #pragma cilnoremove("myGlobalVar")
+  struct typeOfInterest myGlobalVar;
+
+then the slicer will retain 'typeOfInterest'.
