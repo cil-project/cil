@@ -980,7 +980,7 @@ smAddTest("scott/nested $table");
 
 # These take too long if we turn off strings
 ## hashtest and rbtest with TABLE
-#my $iters = "EXTRAARGS=-DITERS=100";
+my $iters = "EXTRAARGS=-DITERS=100";
 #$TEST->setField(smAddTest("rbtest $table $iters"),
 #                "FailDiagnosis", "Maybe ARCHOS isn't set right?");
 #smAddTest("hashtest $table $iters");
