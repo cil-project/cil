@@ -186,7 +186,6 @@ let display_error msg token_start token_end =
       );
   flush (out_channel !current_handle)
 
-
 (*** Error handling ***)
 let error msg =
 	display_error msg (Parsing.symbol_start ()) (Parsing.symbol_end ());

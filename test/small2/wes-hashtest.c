@@ -568,7 +568,6 @@ int main() {
   printf("Hash has %d elements. Found %d times\n",
           sz, count);
   printf("Run hashtest in %8.3lfms\n", clk / 1000.0);
-  printf("Hello\n");
   exit (0);
 }
 

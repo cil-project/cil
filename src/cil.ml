@@ -368,6 +368,7 @@ and stmt =
   | Break
   | Continue
   | Instr of instr
+  | Line of string * int                (* A line-number marker *)
         
 type fundec = 
     { svar:     varinfo;                (* Holds the name and type as a 
@@ -1184,6 +1185,7 @@ and d_stmt () s =
   | Switch(e,s) -> dprintf "@[switch (%a)@!%a@]" d_exp e d_stmt s
   | Default -> dprintf "default:"
   | Instr(i) -> d_instr () i
+  | Line (f, n) -> dprintf "# %d %s\n" n f
 
 
         

@@ -337,10 +337,9 @@ int main() {
   FORALLRBNODES(t, { sz ++; });
   freeRB(t, NULL);
   TIMESTOP(clk);
-  fprintf(stderr, "Hash has %d elements. Found %d times\n",
+  fprintf(stderr, "RBTree has %d elements. Found %d times\n",
           sz, count);
-  printf("Run hashtest in %8.3lfms\n", clk / 1000.0);
-  fprintf(stderr, "Hello\n");
+  printf("Run rbtest in %8.3lfms\n", clk / 1000.0);
   exit (0);
   return 0;
 }

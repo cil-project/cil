@@ -1364,7 +1364,7 @@ let rec boxstmt (s : stmt) : stmt =
     match s with 
       Sequence sl -> mkSeq (List.map boxstmt sl)
           
-    | (Label _ | Goto _ | Case _ | Default | Skip | 
+    | (Label _ | Goto _ | Case _ | Default | Skip | Line _ |
       Return None | Break | Continue) -> s
           
     | Loop s -> Loop (boxstmt s)
@@ -1684,41 +1684,54 @@ and boxexpf (e: exp) : stmt list * fexp =
     | Const (CInt (_, ik, _), _) -> ([], L(TInt(ik, []), P.Scalar, e))
     | Const ((CChr _), _) -> ([], L(charType, P.Scalar, e))
     | Const (CReal (_, fk, _), _) -> ([], L(TFloat(fk, []), P.Scalar, e))
+
+     (* All strings appear behing a CastE. The pointer node in the CastE 
+      * tells us how to represent the string *)
+    | CastE ((TPtr(TInt(IChar, _), a) as strt), 
+             Const (CStr s, cloc), _) -> begin
+        let fixChrPtrType = fixupType strt in
+        let k = kindOfType fixChrPtrType in
+        match  k with 
+          P.Wild -> 
+          (* Make a global variable that stores this one, so that we can 
+           * attach a tag to it  *)
+            let l = 1 + String.length s in 
+            let newt = tagType (TArray(charType, Some (integer l), [])) in
+            let gvar = makeGlobalVar (newStringName ()) newt in
+            gvar.vstorage <- Static;
+            let varinit, dfield = 
+              makeTagCompoundInit newt (Some (Const(CStr s, cloc))) in
+            theFile := GVar (gvar, Some varinit) :: !theFile;
+            let result = StartOf (Var gvar, Field(dfield, NoOffset)) in
+            ([], FM (fixChrPtrType, P.Wild,
+                     result, 
+                     doCast result (typeOf result) voidPtrType, zero))
+        | P.Seq | P.Safe | P.FSeq -> 
+            let l = ((1 + String.length s) + 3) land (lnot 3) in
+            let tmp = makeTempVar !currentFunction charPtrType in
+            (* Make it a SEQ for now *)
+            let res = 
+              FM(fixChrPtrType, k,
+                 Lval (var tmp), 
+                 BinOp(PlusPI, Lval (var tmp), integer l, charPtrType, lu), 
+                 Lval (var tmp))
+            in
+            ([mkSet (var tmp) (Const (CStr s, cloc))], res)
+
+        | _ -> E.s (E.unimp "String literal to %a" P.d_pointerkind k)
+    end
+    | Const (CStr _, _) -> 
+        (* Behave as if it is a FSeq *)
+        boxexpf (CastE (TPtr(TInt(IChar, []), [AId("fseq")]), 
+                        e, lu))
+
+
     | CastE (t, e, l) -> begin
         let t' = fixupType t in
         let (doe, fe') = boxexpf e in
         (* Put e into a variable *)
         castTo fe' t' doe
     end
-    | Const (CStr s, cloc) -> 
-       (* Make a global variable that stores this one, so that we can attach 
-        * a tag to it  *)
-        if !P.defaultIsWild then
-          let l = 1 + String.length s in 
-          let newt = tagType (TArray(charType, Some (integer l), [])) in
-          let gvar = makeGlobalVar (newStringName ()) newt in
-          gvar.vstorage <- Static;
-          let varinit, dfield = 
-            makeTagCompoundInit newt (Some (Const(CStr s, cloc))) in
-          theFile := GVar (gvar, Some varinit) :: !theFile;
-          let fatChrPtrType = fixupType charPtrType in
-          let result = StartOf (Var gvar, Field(dfield, NoOffset)) in
-          ([], FM (fatChrPtrType, P.Wild,
-                   result, 
-                   doCast result (typeOf result) voidPtrType, zero))
-        else
-          (* For now all string constants are transformed into FSEQ pointers *)
-          let l = ((1 + String.length s) + 3) land (lnot 3) in
-          let tmp = makeTempVar !currentFunction charPtrType in
-          let fseqChrPtrType     = 
-            fixupType (TPtr(TInt(IChar, []), [AId("fseq")]))
-          in
-          ([mkSet (var tmp) (Const (CStr s, cloc))], 
-           FM(fseqChrPtrType, P.FSeq,
-              Lval (var tmp), 
-              BinOp(PlusPI, Lval (var tmp), integer l, charPtrType, lu), 
-              zero))
-                
           
           
     | UnOp (uop, e, restyp, l) -> 

@@ -371,6 +371,7 @@ and stmt =
   | Break
   | Continue
   | Instr of instr
+  | Line of string * int                (* A line-number marker *)
 
 type fundec =
     { svar:     varinfo;                (* Holds the name and type as a

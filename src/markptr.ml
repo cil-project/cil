@@ -267,6 +267,12 @@ let rec doExp (e: exp) =
       let newt', _ = doType newt (N.anonPlace ()) 0 in
       CastE (newt', doExpAndCast e newt', l), newt', nodeOfType newt'
 
+  | Const (CStr s, l) as e -> 
+      (* Add a cast in front of all strings. This way we have a place where 
+       * to attach a node *)
+      let newt', _ = doType charPtrType (N.anonPlace ()) 0 in
+      CastE (newt', e, l), newt', nodeOfType newt'
+      
   | _ -> (e, typeOf e, N.dummyNode)
 
 
@@ -453,6 +459,10 @@ let doGlobal (g: global) : global =
       let init' = 
         match init with
           None -> None
+              (* Catch the case of a string that initializes an array *)
+        | Some (Const(CStr _, _)) when
+          (match vi.vtype with TArray _ -> true | _ -> false) -> 
+            init
         | Some i -> Some (doExpAndCast i vi.vtype)
       in
       GVar (vi, init')
