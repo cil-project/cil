@@ -9,6 +9,7 @@ typedef struct {
   int b : 5;
   _int64 c : 16;
   int d : 8;
+  int last;
 } S1;
 
 int g1,g2,g3,g4;
