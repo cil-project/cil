@@ -294,6 +294,12 @@ let variableName (v: varinfo) (freshId: int) =
     else
       v.vname ^ "___" ^ string_of_int freshId)
 
+(** Use a hash table indexed by varinfo *)
+module VH = Hashtbl.Make(struct 
+                           type t = varinfo 
+                           let hash (v: varinfo) = v.vid
+                           let equal v1 v2 = v1.vid = v2.vid
+                         end)
 
 (** We define a new printer *)
 class absPrinterClass (callgraph: CG.callgraph) : cilPrinter = 
@@ -311,12 +317,15 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
 
     val mutable cfgInfo: S.cfgInfo option = None 
         
+
+    val mutable sccInfo: S.sccInfo option = None
+
     val mutable currentFundec = dummyFunDec
 
-        (** For each block end, a mapping from IDs of variables that were 
-         * defined in this block, to their fresh ID *)
-    val mutable blockEndData: int IH.t array = 
-      Array.make 0 (IH.create 13)
+        (** For each block end, a mapping from IDs of variables to their ID 
+         * at the end of the block *)
+    val mutable blockEndData: int VH.t array = 
+      Array.make 0 (VH.create 13)
 
         (** For each block start, remember the starting newFreshId as we 
          * start the block *)
@@ -324,7 +333,7 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
       Array.make 0 (-1) 
 
 
-    val mutable varRenameState: int IH.t = IH.create 13
+    val mutable varRenameState: int VH.t = VH.create 13
 
           (* All the fresh variables *)
     val mutable freshVars: string list = []
@@ -334,7 +343,7 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
     val mutable uninitVars: string list = []
 
     method private initVarRenameState (b: S.cfgBlock) =
-      IH.clear varRenameState;
+      VH.clear varRenameState;
       
       let cfgi = 
         match cfgInfo with
@@ -356,23 +365,23 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
                 not v.vglob &&
                 (not (List.exists (fun v' -> v'.vid = v.vid) 
                         currentFundec.sformals)) in
-              IH.add varRenameState v.vid 0;
+              VH.add varRenameState v 0;
               let vn = self#variableUse varRenameState v in
               if isUninitializedLocal then 
                 uninitVars <- vn :: uninitVars;
             end else begin
-              IH.add varRenameState v.vid (freshVarId ());
+              VH.add varRenameState v (freshVarId ());
               let vn = self#variableUse varRenameState v in
               freshVars <- vn :: freshVars
             end
           else begin 
             let fid = 
-              try IH.find blockEndData.(defblk) v.vid
+              try VH.find blockEndData.(defblk) v
               with Not_found -> 
                 E.s (E.bug "In block %d: Cannot find data for variable %s in block %d"
                        b.S.bstmt.sid v.vname defblk)
             in
-            IH.add varRenameState v.vid fid
+            VH.add varRenameState v fid
           end)
         b.S.livevars;
       
@@ -380,18 +389,18 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
     
     (** This is called for reading from a variable we consider (meaning that 
      * its address is not taken and has the right type) *)
-    method private variableUse (state: int IH.t) (v: varinfo) : string = 
+    method private variableUse (state: int VH.t) (v: varinfo) : string = 
       let freshId = 
-        try IH.find state v.vid
+        try VH.find state v
         with Not_found -> 
           E.s (E.bug "%a: varUse: varRenameState does not know anything about %s" 
                  d_loc !currentLoc v.vname )
       in
       variableName v freshId
         
-    method private variableDef (state: int IH.t) (v: varinfo) : string = 
+    method private variableDef (state: int VH.t) (v: varinfo) : string = 
       assert (not v.vaddrof);
-      IH.replace state v.vid (freshVarId ());
+      VH.replace state v (freshVarId ());
       let n = self#variableUse state v in
       freshVars <- n :: freshVars;
       n
@@ -502,7 +511,7 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
           blk.S.livevars 
       in
       (* do not emit phi for start block *)
-      let phivars = 
+      let phivars: varinfo list = 
         if s.sid = cfgi.S.start then 
           []
         else
@@ -530,13 +539,47 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
         | None -> nil
       in
 
+      let headerstuff = 
+        (* See if this block is a header *)
+        let scc = 
+          match sccInfo with Some x -> x 
+          | _ -> E.s (E.bug "sccInfo is not set")
+        in
+        if List.exists (fun sci -> List.mem s.sid sci.S.headers) scc then begin
+          (* We get the variables at the end of any predecessor. *)
+          let p: int = 
+            match cfgi.S.predecessors.(s.sid) with 
+              p :: _ -> p
+            | [] -> E.s (E.bug "Header block %d has no predecessors" s.sid)
+          in
+          let pend: int VH.t = blockEndData.(p) in
+          let allvars: (varinfo * int) list = 
+            VH.fold (fun v id acc -> (v, id) :: acc) pend []
+          in
+          let nonphi: (varinfo * int) list = 
+            List.filter 
+              (fun (v, _) -> 
+                not (List.exists (fun v' -> v'.vid = v.vid) phivars)) allvars
+          in
+            
+          dprintf "%snonphi %a%s\n"
+            prologue 
+            (docList 
+               (fun (v, vvariant) -> 
+                 text (variableName v vvariant)))
+            nonphi
+            epilogue
+        end else
+          nil
+      in
         
       ignore (p ~ind:ind
-                "%sstmt %d %ssuccs %a%s %spreds %a%s %sidom %a%s\n  @[%a@]\n"
+                "%sstmt %d %ssuccs %a%s %spreds %a%s %sidom %a%s\n%a  @[%a@]\n"
                 prologue s.sid (** Statement id *)
                 prologue (d_list "," (fun _ s' -> num s'.sid)) s.succs epilogue
                 prologue (d_list "," (fun _ s' -> num s'.sid)) s.preds epilogue
                 prologue insert idom epilogue
+                insert headerstuff
                 (docList ~sep:line 
                    (fun pv -> 
                      let (lhs, rhs) = getPhiAssignment pv in 
@@ -641,10 +684,15 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
           (* Call here the SSA function to fill-in the cfgInfo *)
           S.add_ssa_info cfgi;
 
+          (* Compute strongly connected components *)
+          let scc: S.sccInfo = 
+            stronglyConnectedComponents cfgi in 
+          sccInfo <- Some scc;
+
           (* Now do the SSA renaming. *)
 
           blockStartData <- Array.make cfgi.S.size (-1);
-          blockEndData <- Array.make cfgi.S.size (IH.create 13);
+          blockEndData <- Array.make cfgi.S.size (VH.create 13);
           
           lastFreshId := 0;
 
@@ -701,14 +749,11 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
                 ()
             );
             
-            blockEndData.(i) <- IH.copy varRenameState;
+            blockEndData.(i) <- VH.copy varRenameState;
           ) 
           cfgi.S.blocks;
 
 
-          (* Compute strongly connected components *)
-          let scc: S.sccInfo = 
-            stronglyConnectedComponents cfgi in 
 
           (** For each basic block *)
         

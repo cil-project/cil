@@ -2,6 +2,7 @@ int x;
 
 int main(int a) {
   int i=0;
-  while (a<5) { i=i+1; }
+  int j = 6;
+  while (a<5) { i=i+j+a; }
 }
 
