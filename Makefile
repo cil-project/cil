@@ -1052,7 +1052,8 @@ compress: defaulttarget mustbegcc
 	sh -c "time $(COMPRESSDIR)/exe/base/compress95.v8 < $(COMPRESSDIR)/exe/base/input.data > $(COMPRESSDIR)/src/combine-compress.out"
 
 LIDIR=$(SPECDIR)/130.li
-LISAFECC=$(SAFECC) --combine --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) --keep=safeccout
+LISAFECC=$(SAFECC) --combine --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) \
+                   --keep=safeccout $(NOPRINTLN)
 ifdef BOX
 LIEXTRA=$(CILDIR)/$(SAFEMAINLIB)
 else
