@@ -1810,15 +1810,7 @@ let rec doSpecList (specs: A.spec_elem list)
         storage := sto';
         acc
 
-    | A.SpecAttr a -> 
-        let ignore = 
-          match a with 
-(*            ("restrict", _) -> true *)
-          | _ -> false
-        in
-        if not ignore then 
-          attrs := a :: !attrs; 
-        acc
+    | A.SpecAttr a -> attrs := a :: !attrs; acc
     | A.SpecType ts -> ts :: acc
     | A.SpecPattern _ -> E.s (E.bug "SpecPattern in cabs2cil input")
   in
@@ -1935,14 +1927,20 @@ let rec doSpecList (specs: A.spec_elem list)
         findCompType "struct" n []
     | [A.Tstruct (n, Some nglist)] -> (* A definition of a struct *)
       let n' = if n <> "" then n else anonStructName "struct" in
-      makeCompType true n' nglist []
+      (* Use the attributes now *)
+      let a = !attrs in 
+      attrs := [];
+      makeCompType true n' nglist (doAttributes a)
         
     | [A.Tunion (n, None)] -> (* A reference to a union *)
         if n = "" then E.s (error "Missing union tag on incomplete union");
         findCompType "union" n []
     | [A.Tunion (n, Some nglist)] -> (* A definition of a union *)
         let n' = if n <> "" then n else anonStructName "union" in
-        makeCompType false n' nglist []
+        (* Use the attributes now *)
+        let a = !attrs in 
+        attrs := [];
+        makeCompType false n' nglist (doAttributes a)
           
     | [A.Tenum (n, None)] -> (* Just a reference to an enum *)
         if n = "" then E.s (error "Missing enum tag on incomplete enum");
@@ -1954,7 +1952,11 @@ let rec doSpecList (specs: A.spec_elem list)
         let n'' = newAlphaName true "enum" n' in
         (* Create the enuminfo, or use one that was created already for a 
          * forward reference *)
+        (* Use the attributes now *)
+        let a = !attrs in 
+        attrs := [];
         let enum = createEnumInfo n'' in 
+        enum.eattr <- doAttributes a;
         let res = TEnum (enum, []) in
 
         (* sm: start a scope for the enum tag values, since they *
