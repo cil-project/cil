@@ -391,7 +391,7 @@ let createFile () =
   in
   (* Print the file *)
   let oc = open_out "testingcil.c" in
-  printFile oc file;
+  printFile defaultCilPrinter oc file;
   close_out oc
 
   

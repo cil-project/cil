@@ -1391,28 +1391,6 @@ val typeAddAttributes: attribute list -> typ -> typ
     their uses *)
 val typeRemoveAttributes: string list -> typ -> typ
 
-(** Use this to intercept all attributes when they are printed. If the 
- * functional argument returns [Some d] then [d] is used as the external form 
- * of the attribute. Otherwise the attribute is printed normally. *)
-val setCustomPrintAttribute: 
-    (attribute -> Pretty.doc option) -> unit
-
-(** Like {!Cil.setCustomPrintAttribute} but adds the given function to the 
- * beginning of the chain of custom attribute printers but only for the 
- * duration of executing the function passed as the second argument when 
- * applied to the third argument *)
-val setCustomPrintAttributeScope: 
-    (attribute -> Pretty.doc option) -> ('a -> 'b) -> 'a -> 'b
-
-(** Use this to intercept all the pragmas when they are printed. Same 
- * semantics as {!Cil.setCustomPrintAttribute} *)
-val setCustomPrintPragma: 
-    (attribute -> Pretty.doc option) -> unit
-             
-(** Like {!Cil.setCustomPrintAttributeScope} but for pragmas *)
-val setCustomPrintPragmaScope: 
-    (attribute -> Pretty.doc option) -> ('a -> 'b) -> 'a -> 'b
-
 
 (******************
  ******************  VISITOR
@@ -1589,6 +1567,7 @@ and to print the resulting {!Pretty.doc}. For each major type in CIL there is
 a corresponding function that pretty-prints an element of that type:
 *)
 
+
 (** Pretty-print a location *)
 val d_loc: unit -> location -> Pretty.doc
 
@@ -1607,52 +1586,113 @@ val d_storage: unit -> storage -> Pretty.doc
 (** Pretty-print a constant *)
 val d_const: unit -> constant -> Pretty.doc
 
-(** Pretty-print a type *)
+type docNameWhat = 
+    DNNothing                             (* docName is nil *)
+  | DNString                              (* docName is just a variable name *)
+  | DNStuff                             (* Anything else *)
+
+
+(** A printer interface for CIL trees. Create instantiations of 
+ * this type by specializing the class {!Cil.defaultCilPrinter}. *)
+class type cilPrinter = object
+  method pVDecl: unit -> varinfo -> Pretty.doc
+    (** Invoked for each variable declaration. Note that variable 
+     * declarations are all the [GVar], [GDecl], [GFun], all the [varinfo] in 
+     * formals of function types, and the formals and locals for function 
+     * definitions. *)
+
+  method pVar: varinfo -> Pretty.doc
+    (** Invoked on each variable use. *)
+
+  method pLval: unit -> lval -> Pretty.doc
+    (** Invoked on each lvalue occurence *)
+
+  method pInst: unit -> instr -> Pretty.doc
+    (** Invoked on each instruction occurrence. *)
+
+  method pStmt: unit -> stmt -> Pretty.doc
+    (** Control-flow statement. *)
+
+  method pGlob: unit -> global -> Pretty.doc       (** Global (vars, types, etc.) *)
+
+  method pType: Pretty.doc -> docNameWhat -> unit -> typ -> Pretty.doc  
+  (* Use of some type in some declaration. The first argument is used to print 
+   * the declared element. Note that for structure/union and enumeration types 
+   * the definition of the composite type is not visited. Use [vglob] to 
+   * visit it.  *)
+
+  method pAttr: attribute -> Pretty.doc * bool
+    (** Attribute. Also return an indication whether this attribute must be 
+      * printed inside the __attribute__ list or not. *)
+   
+  method pAttrs: unit -> attributes -> Pretty.doc
+    (** Attribute lists *)
+
+  method pLineDirective: location -> Pretty.doc
+    (** Print a line-number. This is assumed to come always on an empty line*)
+
+  method pExp: unit -> exp -> Pretty.doc
+    (** Print expressions *) 
+
+  method pInit: unit -> init -> Pretty.doc
+end
+
+class defaultCilPrinterClass: cilPrinter
+val defaultCilPrinter: cilPrinter
+
+(* Top-level printing functions *)
+(** Print a {!Cil.typ} give a pretty printer *)
+val printType: cilPrinter -> unit -> typ -> Pretty.doc
+  
+val printExp: cilPrinter -> unit -> exp -> Pretty.doc
+
+val printLval: cilPrinter -> unit -> lval -> Pretty.doc
+
+val printGlobal: cilPrinter -> unit -> global -> Pretty.doc 
+
+(** Pretty-print a type using {!Cil.defaultCilPrinter} *)
 val d_type: unit -> typ -> Pretty.doc
 
-(** Pretty-print an expression *)
+(** Pretty-print an expression using {!Cil.defaultCilPrinter}  *)
 val d_exp: unit -> exp -> Pretty.doc
 
-(** Pretty-print an initializer *)
+(** Pretty-print an initializer using {!Cil.defaultCilPrinter}  *)
 val d_init: unit -> init -> Pretty.doc
 
 (** Pretty-print a binary operator *)
 val d_binop: unit -> binop -> Pretty.doc
 
-(** Pretty-print an attribute *)
+(** Pretty-print an attribute using {!Cil.defaultCilPrinter}  *)
 val d_attr: unit -> attribute -> Pretty.doc
 
-(** Pretty-print an argument of an attribute *)
+(** Pretty-print an argument of an attribute using {!Cil.defaultCilPrinter}  *)
 val d_attrparam: unit -> attrparam -> Pretty.doc
 
-(** Pretty-print a list of attributes *)
+(** Pretty-print a list of attributes using {!Cil.defaultCilPrinter}  *)
 val d_attrlist: unit -> attributes -> Pretty.doc 
 
-(** Like d_attrlist but when attribute comes before the  
-  * qualified entity. The only difference is in how spaces are printed *)
-val d_attrlist_pre: unit -> attributes -> Pretty.doc  
 
-(** Pretty-print a statement *)
+(** Pretty-print a statement using {!Cil.defaultCilPrinter}   *)
 val d_stmt: unit -> stmt -> Pretty.doc
 
-(** Pretty-print a block *)
+(** Pretty-print a block using {!Cil.defaultCilPrinter}   *)
 val d_block: unit -> block -> Pretty.doc
 
-(** Pretty-print an lvalue *)
+(** Pretty-print an lvalue using {!Cil.defaultCilPrinter}   *)
 val d_lval: unit -> lval -> Pretty.doc
 
-(** Pretty-print an instruction *)
+(** Pretty-print an instruction using {!Cil.defaultCilPrinter}   *)
 val d_instr: unit -> instr -> Pretty.doc
 
-(** Pretty-print a function declaration *)
+(** Pretty-print a function declaration using {!Cil.defaultCilPrinter}   *)
 val d_fun_decl: unit -> fundec -> Pretty.doc
 
-(** Pretty-print a variable declaration *)
+(** Pretty-print a variable declaration using {!Cil.defaultCilPrinter}   *)
 val d_videcl: unit -> varinfo -> Pretty.doc
 
 (** Pretty-print an entire file. Here you give the channel where the printout
  * should be sent. *)
-val printFile: out_channel -> file -> unit
+val printFile: cilPrinter -> out_channel -> file -> unit
 
 
 (* the following error message producing functions also print a location in 

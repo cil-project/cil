@@ -4039,17 +4039,9 @@ let d_global () = function
 
   | GText s  -> text s
 
-let newPrinter = false
-class testPrinterClass : cilPrinter = object
-  inherit defaultCilPrinterClass as super
+let newPrinter = true
 
-  method pVar v = 
-    super#pVar v ++ text "/* What the heck */"
-
-end
-
-let pp = defaultCilPrinter 
-let printFile (out : out_channel) file =
+let printFile (pp: cilPrinter) (out : out_channel) file =
   printDepth := 99999;  (* We don't want ... in the output *)
   (* If we are in RELEASE mode then we do not print indentation *)
   (* AB: These flags are no longer used by Pretty *)
@@ -4069,19 +4061,6 @@ let printFile (out : out_channel) file =
     iterGlobals file (fun g -> print (d_global () g ++ line));
   end
 
-    
-let printFileWithCustom (out: out_channel) 
-                        (custom: attribute -> doc option) 
-                        (f: file) = 
-  let oldCustom = !d_attrcustom in
-  let newCustom a = 
-    match custom a with
-      None -> oldCustom a
-    | x -> x
-  in
-  d_attrcustom := newCustom;
-  printFile out f;
-  d_attrcustom := oldCustom
 
 
 (******************

@@ -208,7 +208,7 @@ begin
   else
 
   if (traceActive "printCilTree") then (
-    (printFile stdout file)
+    (printFile defaultCilPrinter stdout file)
   );
 
   (* find every global function prototype *)

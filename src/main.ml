@@ -85,7 +85,7 @@ let rec processOneFile (cil: C.file) =
     
     (match !outChannel with
       None -> ()
-    | Some c -> Stats.time "printCIL" (C.printFile c) cil);
+    | Some c -> Stats.time "printCIL" (C.printFile C.defaultCilPrinter c) cil);
 
     if !E.hadErrors then
       E.s (E.error "Cabs2cil has some errors");
