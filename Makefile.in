@@ -54,7 +54,7 @@ CILLY_MODULES = pretty errormsg trace stats util clist \
               patch frontc check mergecil logcalls logwrites rmtmps \
 	      callgraph epicenter heapify \
               setp uref steensgaard golf dummy ptranal \
-              canonicalize heap partial testcil \
+              canonicalize heap oneret partial simplemem testcil \
 	      $(CILLY_FEATURES) \
 	      feature_config \
               maincil
@@ -289,6 +289,8 @@ DISTRIB_SRC_EXT = logcalls.ml logcalls.mli \
                   epicenter.ml epicenter.mli \
 	          stackoverflow.mli stackoverflow.ml \
 	          canonicalize.ml canonicalize.mli \
+	          oneret.ml oneret.mli \
+	          simplemem.ml \
 	          blockinggraph.ml blockinggraph.mli \
 
 DISTRIB_SRC_EXT_PTA = setp.ml setp.mli dummy.ml golf.ml golf.mli \
