@@ -194,6 +194,17 @@ TVDIR=$(BASEDIR)/TransVal
 CILDIR=$(BASEDIR)/cil
 _GNUCC=1
 endif
+ifeq ($(COMPUTERNAME), peecy_amanb_win2k) # Aman's desktop
+ifndef BASEDIR
+BASEDIR=/home/amanb/safec
+endif
+SAFECCDIR=$(BASEDIR)
+PCCDIR=$(SAFECCDIR)/cil/test/PCC
+TVDIR=$(BASEDIR)/TransVal
+CILDIR=$(BASEDIR)/cil
+# _GNUCC=1
+# USE_GC=1
+endif
 ifeq ($(COMPUTERNAME), madrone_amanb) # Aman's *top
 ifndef BASEDIR
 BASEDIR=/home/amanb/safec
@@ -202,8 +213,8 @@ SAFECCDIR=$(BASEDIR)
 PCCDIR=$(SAFECCDIR)/cil/test/PCC
 TVDIR=$(BASEDIR)/TransVal
 CILDIR=$(BASEDIR)/cil
-_GNUCC=1
-USE_GC=1
+# _GNUCC=1
+# USE_GC=1
 endif
 
 # sm: I keep getting bit by this
@@ -259,8 +270,9 @@ endif
 
 
 ifdef _MSVC
-DEBUGCCL=cl /TC /O0 /Zi /MLd /I./lib /DEBUG
-RELEASECCL=cl /TC /ML /I./lib
+# ab: Added /nologo to suppress visual noise
+DEBUGCCL=cl /nologo /TC /O0 /Zi /MLd /I./lib /DEBUG
+RELEASECCL=cl /nologo /TC /ML /I./lib
 ifdef RELEASE
 DOOPT=/Ox /Ob2 /G6
 else
@@ -274,7 +286,7 @@ EXEOUT=/Fe
 DEF=/D
 ASMONLY=/Fa
 INC=/I
-CPPSTART=cl /Dx86_WIN32 /D_MSVC /E /TC /I./lib /FI fixup.h /DBEFOREBOX
+CPPSTART=cl /nologo /Dx86_WIN32 /D_MSVC /E /TC /I./lib /FI fixup.h /DBEFOREBOX
 CPPOUT= %i >%o
 CPP=$(CPPSTART) $(CPPOUT)
 SAFECC += --safec=-msvc
@@ -497,7 +509,7 @@ ifdef _GNUCC
 $(SAFECLIB) : lib/safec.c $(GCLIB) lib/splay.o
 	$(CC) $(OBJOUT)obj/safec.o $<
 	if echo $(GCLIB) | grep / >/dev/null; then \
-		cp -f $(GCLIB) $@; \
+		cp  $(GCLIB) $@; \
 	else \
 		rm -f $@; \
 	fi
