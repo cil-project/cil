@@ -1018,6 +1018,11 @@ sub compilerArgument {
                   push @{$self->{CCARGS}}, $fullarg; 
                   push @{$self->{LINKARGS}}, $fullarg; return 1;
               }
+              if($action->{TYPE} eq "ALLARGS") {
+                  push @{$self->{PPARGS}}, $fullarg;
+                  push @{$self->{CCARGS}}, $fullarg; 
+                  push @{$self->{LINKARGS}}, $fullarg; return 1;
+              }
               if($action->{TYPE} eq "LINK") {
                   push @{$self->{LINKARGS}}, $fullarg; return 1;
               }
@@ -1126,11 +1131,12 @@ sub new {
 # parameterized by a following word. The word can be attached immediately to
 # the end of the argument or in a separate word. 
 #
-# If the action contains TYPE => "..." then the argument is put into one of
-# several lists, as follows: "PREPROC" in ppargs, "CC" in ccargs, "LINK" in
-# linkargs, "LINKCC" both in ccargs and linkargs, "CSOURCE" in cfiles, 
-# "ASMSOURCE" in sfiles, 
-# "OSOURCE" in ofiles, "ISOURCE" in ifiles, "OUT" in outarg. 
+# If the action contains TYPE => "..." then the argument is put into
+# one of several lists, as follows: "PREPROC" in ppargs; "CC" in
+# ccargs; "LINK" in linkargs; "LINKCC" both in ccargs and linkargs;
+# "ALLARGS" in ppargs, ccargs, and linkargs; "CSOURCE" in cfiles;
+# "ASMSOURCE" in sfiles; "OSOURCE" in ofiles; "ISOURCE" in ifiles;
+# "OUT" in outarg.
 #
 # If the TYPE is not defined but the RUN => sub { ... } is defined then the
 # given subroutine is invoked with the self, the argument and the (possibly
@@ -1527,6 +1533,7 @@ sub new {
             "-W" => { TYPE => 'CC' },
             "-g" => { RUN => sub { push @{$stub->{CCARGS}}, $_[1];
                                    push @{$stub->{LINKARGS}}, $_[1]; }},
+	    "-save-temps" => { TYPE => 'ALLARGS' },
             "-l" => { TYPE => 'LINK' },
             "-L" => { TYPE => 'LINK' },
             "-f" => { TYPE => 'LINKCC' },
