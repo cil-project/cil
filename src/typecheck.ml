@@ -4,9 +4,6 @@
 
 open Ptrnode
 open Cil
-module E = Errormsg
-
-let loc = ref locUnknown (* global location: where are we typechecking? *)
 
 (* For a probably-pointer P, we want to determine:
  *  (a) the Cil.type associated with *P
@@ -71,7 +68,7 @@ let rec typecheck_wild_type t =
     | TEnum(e,al) -> ()
     | TPtr(t2,al) -> let kind,why = kindOfAttrlist al in
                      (if kind <> Wild then ignore
-                      (E.warn "typecheck: %a should be Wild" d_type t)) ;
+                      (warn "typecheck:@?%a should be Wild" d_type t)) ;
                      typecheck_wild_type t2 
     | TComp(ci,al) -> List.iter (fun fi -> typecheck_wild_type fi.ftype)
                           ci.cfields
@@ -81,7 +78,7 @@ let rec typecheck_wild_type t =
                                (argsToList vl)
     | TArray(t2,_,al) -> let kind,why = kindOfAttrlist al in
                      (if kind <> Wild then ignore
-                      (E.warn "typecheck: %a should be Wild" d_type t)) ;
+                      (warn "typecheck:@?%a should be Wild" d_type t)) ;
                      typecheck_wild_type t2 
     | TNamed(_) -> failwith "unrollType"
   end
@@ -113,85 +110,100 @@ let typecheck_pointer_arithmetic a b e =
       match isInteger (constFold true b) with 
         Some(i) when i >= Int64.zero -> ()
       | Some _ | None -> ignore
-          (E.warn "typecheck: %a@?not positive arith on %a pointer in %a" 
-            d_loc !loc d_opointerkind ptr_kind d_exp e)
+          (warn "typecheck:@?not positive arith on %a pointer in %a" 
+            d_opointerkind ptr_kind d_exp e)
       end ; true 
     | Wild -> true
     | _ -> false
     in if not okay then ignore
-      (E.warn "typecheck: %a@?bad arithmetic on %a %a pointer %a in@!%a" 
-        d_loc !loc d_opointerkind ptr_kind d_type (typeOf a) d_exp a d_exp e)
+      (warn "typecheck:@?bad arithmetic on %a %a pointer %a in@!%a" 
+        d_opointerkind ptr_kind d_type (typeOf a) d_exp a d_exp e)
   with _ -> ignore
-      (E.warn "typecheck: %a@?no qualifier for %a in %a" 
-        d_loc !loc d_exp a d_exp e)
+      (warn "typecheck:@?no qualifier for %a in %a" 
+        d_exp a d_exp e)
 
 (* Consistency checking on a variable declaration.
  * Right now this just checks its type. *)
 let typecheck_varinfo vi other_list = typecheck_type vi.vtype other_list
+
+let checking = ref true 
+
+(* Make sure casts/assignments work correctly. 
+ * 
+ *)
+let check_cast (context : Pretty.doc) to_type from_exp = begin
+  let from_type = typeOf(from_exp) in 
+  try begin
+    let to_target, to_kind, to_addr_kind = 
+      kind_of_ptr_type to_type in
+    try begin
+      let from_target, from_kind, from_addr_kind = 
+        kind_of_ptr_exp from_exp in
+      (* check a cast from one pointer to another *)
+      try begin
+      let okay = 
+      match from_kind, to_kind with
+        Safe, Safe -> Type.subtype to_target from_target 
+      | Safe, Seq 
+      | Safe, FSeq ->
+          let n = (Type.bytesSizeOf(from_target) / Type.bytesSizeOf(to_target)) + 1 in
+          Type.subtype from_target 
+              (TArray(to_target, Some(integer n), [])) 
+      | Seq, Safe 
+      | FSeq, Safe -> 
+          let n = (Type.bytesSizeOf(to_target) / Type.bytesSizeOf(from_target)) + 1 in
+          Type.subtype to_target 
+              (TArray(from_target, Some(integer n), [])) 
+      | Seq, Seq 
+      | FSeq, FSeq 
+      | Seq, FSeq  
+      | FSeq, Seq -> 
+          let from_size = Type.bytesSizeOf(from_target) in
+          let to_size = Type.bytesSizeOf(to_target) in
+          Type.equal 
+            (TArray(from_target, Some(integer to_size), []))
+            (TArray(to_target, Some(integer from_size), []))
+      | Wild, Wild -> true (* always OK *)
+
+      | _, ROString -> true (* always OK *)
+
+      | _, _ -> ignore
+        (warn "typecheck:@?unfamiliar %a -> %a cast@?%a -> %a@!%a" 
+          d_opointerkind from_kind d_opointerkind to_kind 
+          d_type from_type d_type to_type Pretty.insert context) ; true
+      in if not okay then ignore
+        (warn "typecheck:@?bad %a -> %a cast@?%a -> %a@!%a" 
+          d_opointerkind from_kind d_opointerkind to_kind 
+          d_type from_type d_type to_type Pretty.insert context)
+      end with problem -> ignore
+        (warn "typecheck:@?cannot check %a -> %a cast@?%a -> %a@!%a@!%s" 
+          d_opointerkind from_kind d_opointerkind to_kind 
+          d_type from_type d_type to_type Pretty.insert context
+          (Printexc.to_string problem))
+    end with _ -> begin
+      (* 'to' is a pointer, 'from' is not *)
+      match to_kind with
+        Safe | String | ROString ->  (* from must be 0 *)
+          if isZero from_exp then
+            ()
+          else ignore
+            (warn 
+            "typecheck:@?non-zero value %a of type %a cast into %a type %a@!%a"
+              d_exp from_exp d_type from_type d_opointerkind to_kind 
+              d_type to_type Pretty.insert context)
+      | _ -> () (* any int is fine *)
+    end
+  end with _ -> ()
+end
+
+let current_function_type = ref None
 
 (* Consistency checking for code. *)
 class typecheck = object
   inherit nopCilVisitor 
   method vexpr e = begin
     match e with
-      CastE(to_type, from_exp) -> begin
-        let from_type = typeOf(from_exp) in 
-        try begin
-          let to_target, to_kind, to_addr_kind = 
-            kind_of_ptr_type to_type in
-          try begin
-            let from_target, from_kind, from_addr_kind = 
-              kind_of_ptr_exp from_exp in
-            (* check a cast from one pointer to another *)
-            let okay = 
-            match from_kind, to_kind with
-              Safe, Safe -> Type.subtype to_target from_target 
-            | Safe, Seq 
-            | Safe, FSeq ->
-                let n = (bitsSizeOf(from_target) / bitsSizeOf(to_target)) + 1 in
-                Type.subtype from_target 
-                    (TArray(to_target, Some(integer n), [])) 
-            | Seq, Safe 
-            | FSeq, Safe -> 
-                let n = (bitsSizeOf(to_target) / bitsSizeOf(from_target)) + 1 in
-                Type.subtype to_target 
-                    (TArray(from_target, Some(integer n), [])) 
-            | Seq, Seq 
-            | FSeq, FSeq 
-            | Seq, FSeq  
-            | FSeq, Seq -> 
-                let from_size = bitsSizeOf(from_target) / 8 in
-                let to_size = bitsSizeOf(to_target) / 8 in
-                Type.equal 
-                  (TArray(from_target, Some(integer to_size), []))
-                  (TArray(to_target, Some(integer from_size), []))
-            | Wild, Wild -> true (* always OK *)
-            | _, _ -> ignore
-              (E.warn "typecheck: %a@?unfamiliar %a -> %a cast@?%a -> %a@!%a" 
-                d_loc !loc
-                d_opointerkind from_kind d_opointerkind to_kind 
-                d_type from_type d_type to_type d_exp e) ; true
-            in if not okay then ignore
-              (E.warn "typecheck: %a@?bad %a -> %a cast@?%a -> %a@!%a" 
-                d_loc !loc
-                d_opointerkind from_kind d_opointerkind to_kind 
-                d_type from_type d_type to_type d_exp e)
-          end with _ -> begin
-            (* 'to' is a pointer, 'from' is not *)
-            match to_kind with
-              Safe | String | ROString ->  (* from must be 0 *)
-                if isZero from_exp then
-                  ()
-                else ignore
-                  (E.warn 
-                    "typecheck: %a@?non-zero value %a cast into %a type %a"
-                    d_loc !loc
-                    d_exp from_exp d_opointerkind to_kind 
-                    d_type to_type)
-            | _ -> () (* any int is fine *)
-          end
-        end with _ -> ()
-        end
+      CastE(to_type, from_exp) -> check_cast (d_exp () e) to_type from_exp
     | BinOp(PlusPI,a,b,_) 
     | BinOp(MinusPI,a,b,_) -> (* pointer is always on the left *)
         typecheck_pointer_arithmetic a b e 
@@ -205,49 +217,76 @@ class typecheck = object
     | _ -> ()
     end ; DoChildren
   method vinst i = 
-    (loc := match i with Set(_,_,l) | Call(_,_,_,l) | Asm(_,_,_,_,_,l) -> l);
-    DoChildren
+    match i with 
+    | Set(lv,exp,_) -> 
+      if (isPointerType (typeOfLval lv)) then begin
+        check_cast (d_instr () i) (typeOfLval lv) exp
+      end ; DoChildren
+    | Call(lvopt,f,args,_) -> begin
+      match typeOf f with
+        TFun(ret_type, formal_vi_list, vararg, al) -> begin
+        (* check the actual arguments *)
+        (try 
+          List.iter2 (fun formal_vi actual_exp ->
+            check_cast (d_instr () i) (formal_vi.vtype) actual_exp)
+            (argsToList formal_vi_list) args
+        with _ -> ()) ; 
+        (* finally, check the lvalue against the return type *)
+        match lvopt with
+          Some(lv) -> 
+            check_cast (d_instr () i) (typeOfLval lv) (CastE(ret_type, f))
+        | None -> ()
+        end
+      | tau -> ignore (warn "typecheck:@?call to non-function type %a@!%a"
+              d_type tau d_instr i)
+      end; DoChildren
+    | Asm _ -> DoChildren
   method vstmt s = 
-    (loc := match s.skind with
-      Return(_,l) | Goto(_,l) | Break(l) | Continue(l) | 
-      If(_,_,_,l) | Switch(_,_,_,l) | Loop(_,l) -> l
-      | _ -> !loc) ;
-    DoChildren
+    match s.skind with
+    | Return(Some(e),l) -> begin
+      match !current_function_type with
+        Some(TFun(ret_type,_,_,_)) ->
+          check_cast (d_stmt () s) ret_type e
+      | Some(tau) -> ignore (warn "typecheck:@?return inside non-function@!%a"
+          d_stmt s)
+      | None -> ignore (warn "typecheck:@?return not inside a function@!%a"
+          d_stmt s)
+      end;
+      DoChildren
+    | _ -> DoChildren
   method vblock b = 
     if hasAttribute "nobox" b.battrs then
       SkipChildren
     else
       DoChildren
+  method vfunc f = 
+    typecheck_varinfo f.svar (List.map (fun vi -> vi.vtype) f.sformals) ;
+    List.iter (fun vi -> typecheck_varinfo vi []) f.sformals ;
+    List.iter (fun vi -> typecheck_varinfo vi []) f.slocals ;
+    DoChildren
+  method vglob g = match g with
+      GFun(fundec,_) -> 
+        current_function_type := Some(fundec.svar.vtype) ; 
+        (if !checking then DoChildren else SkipChildren)
+    | GType(str,tau,_) -> (if !checking then typecheck_type tau [] ) ;
+                          SkipChildren
+    | GEnumTag(_) -> DoChildren
+    | GCompTag(ci,_) -> DoChildren
+    | GVar(vi,None,_) -> DoChildren
+    | GVar(vi,Some(init),_) -> DoChildren
+    | GAsm(_) -> DoChildren
+    | GPragma(a, _) -> begin
+        match a with
+          | Attr("box", [AId("on")]) -> checking := true
+          | Attr("box", [AId("off")]) -> checking := false
+          | _ -> () 
+      end ; DoChildren
+    | GText(_) -> DoChildren
+    | GDecl(_) -> DoChildren
 end
 
 let typechecker = new typecheck 
   
-(* Consistency checking for functions. *)
-let typecheck_fun f = 
-  typecheck_varinfo f.svar 
-    (List.map (fun vi -> vi.vtype) f.sformals) ;
-  List.iter (fun vi -> typecheck_varinfo vi []) f.sformals ;
-  List.iter (fun vi -> typecheck_varinfo vi []) f.slocals ;
-  ignore (visitCilBlock typechecker f.sbody)
-
-let checking = ref true 
-
-let typecheck_global g = match g with
-    GFun(fundec,_) -> (if !checking then typecheck_fun fundec )
-  | GType(str,tau,_) -> (if !checking then typecheck_type tau [] )
-  | GEnumTag(_) -> ()
-  | GCompTag(ci,_) -> ()
-  | GVar(vi,io,_) -> ()
-  | GAsm(_) -> ()
-  | GPragma(a, _) -> begin
-      match a with
-        | Attr("box", [AId("on")]) -> checking := true
-        | Attr("box", [AId("off")]) -> checking := false
-        | _ -> () 
-    end
-  | GText(_) -> ()
-  | GDecl(_) -> () 
-
+(* The main entry point to our typechecker *)
 let typecheck_file f =
-  checking := true ; 
-  List.iter (fun glob -> typecheck_global glob) f.globals
+  checking := true ; ignore (visitCilFile typechecker f) 

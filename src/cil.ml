@@ -651,6 +651,17 @@ let get_instrLoc (inst : instr) =
     | Call(_, _, _, loc) -> loc
     | Asm(_, _, _, _, _, loc) -> loc
 
+let get_globalLoc (g : global) =
+  match g with
+  | GFun(_,l) -> (l)
+  | GType(_,_,l) -> (l)
+  | GEnumTag(_,l) -> (l) 
+  | GCompTag(_,l) -> (l) 
+  | GDecl(_,l) -> (l) 
+  | GVar(_,_,l) -> (l)
+  | GAsm(_,l) -> (l)
+  | GPragma(_,l) -> (l) 
+  | GText(_) -> locUnknown
 
 let rec get_stmtLoc (statement : stmtkind) =
   match statement with 
@@ -2518,11 +2529,7 @@ and childrenOffset (vis: cilVisitor) (off: offset) : offset =
   | NoOffset -> off
 
 and visitCilInstr (vis: cilVisitor) (i: instr) : instr list =
-  let l = 
-    match i with 
-      Set(_, _, l) | Call (_, _, _, l) | Asm(_, _, _, _, _, l) -> l
-  in
-  currentLoc := l;
+  currentLoc := (get_instrLoc i);
   doVisitList vis vis#vinst childrenInstr i
 
 and childrenInstr (vis: cilVisitor) (i: instr) : instr =
@@ -2554,6 +2561,7 @@ and childrenInstr (vis: cilVisitor) (i: instr) : instr =
 
 (* visit all nodes in a Cil statement tree in preorder *)
 and visitCilStmt (vis: cilVisitor) (s: stmt) : stmt =
+  currentLoc := (get_stmtLoc s.skind) ;
   doVisit vis vis#vstmt childrenStmt s
 and childrenStmt (vis: cilVisitor) (s: stmt) : stmt =
   let fExp e = (visitCilExpr vis e) in
@@ -2719,6 +2727,7 @@ and childrenFunction (vis : cilVisitor) (f : fundec) : fundec =
 
 let rec visitCilGlobal (vis: cilVisitor) (g: global) : global list =
   (*(trace "visit" (dprintf "visitCilGlobal\n"));*)
+  currentLoc := (get_globalLoc g) ;
   doVisitList vis vis#vglob childrenGlobal g
 and childrenGlobal (vis: cilVisitor) (g: global) : global =
   match g with

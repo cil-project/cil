@@ -12,6 +12,11 @@ type layout =
   | Union of ((layout list) list) * int (* total union size in bytes *)
   | Pointer of typ  (* target is a C/CIL type *)
 
+let bytesSizeOf tau = 
+  try
+    bitsSizeOf(tau) / 8
+  with _ -> 1
+
 (* Pretty printing *)
 let rec d_layout () l = match l with
     Scalar(i) -> dprintf "Scalar(%d)" i 
@@ -27,9 +32,10 @@ and d_layout_list () ll =
 let rec convert_type_to_layout_list (t : typ) =
   let t = unrollType t in 
   match t with
-    TVoid _ -> failwith "convert_type_to_layout_list: void"
-  | TInt _ | TFloat _ | TEnum _ -> [Scalar((bitsSizeOf t) / 8)]
+    TVoid _ -> (* failwith "convert_type_to_layout_list: void" *) [] 
+  | TInt _ | TFloat _ | TEnum _ -> [Scalar((bytesSizeOf t))]
   | TPtr(tau,_) -> [Pointer(tau)]
+  | TArray(tau,Some(e),_) when e = one -> convert_type_to_layout_list tau 
   | TArray(tau,Some(e),_) -> 
       let ll = convert_type_to_layout_list tau in
       let len = begin match isInteger e with
@@ -39,15 +45,15 @@ let rec convert_type_to_layout_list (t : typ) =
   | TArray(tau,None,_) -> 
       failwith "convert_type_to_layout_list: empty array"
   | TComp(ci,al) when ci.cstruct ->
-      let total_size = (bitsSizeOf t) / 8 in
+      let total_size = (bytesSizeOf t) in
       let seen_size = ref 0 in 
       let ll = ref [] in 
       List.iter (fun fi -> 
-        let field_size_bits = bitsSizeOf fi.ftype in 
+        let field_size_bytes = bytesSizeOf fi.ftype in 
         let field_offset_bits, field_width_bits = 
           bitsOffset t (Field(fi,NoOffset)) in
         let field_offset = field_offset_bits / 8 in 
-        let field_size = field_size_bits / 8 in 
+        let field_size = field_size_bytes in 
         if (!seen_size < field_offset) then begin
           ll := !ll @ [Scalar(field_offset - !seen_size)];
           seen_size := field_offset 
@@ -61,9 +67,9 @@ let rec convert_type_to_layout_list (t : typ) =
       end ;
       !ll
   | TComp(ci,al) when not ci.cstruct -> 
-      let total_size = (bitsSizeOf t) / 8 in
+      let total_size = (bytesSizeOf t) in
       let lll = List.map (fun fi ->
-        let this_size = (bitsSizeOf fi.ftype) / 8 in
+        let this_size = (bytesSizeOf fi.ftype) in
         let ll = convert_type_to_layout_list fi.ftype in
         if this_size < total_size then
           ll @ [Scalar(total_size - this_size)]
@@ -72,7 +78,7 @@ let rec convert_type_to_layout_list (t : typ) =
       ) ci.cfields in
       [Union(lll,total_size)]
   | TComp _ -> failwith "convert_type_to_layout_list: mystery comp"
-  | TFun _ -> failwith "convert_type_to_layout_list: function pointer"
+  | TFun(_) -> [Pointer(t)]
   | TNamed _ -> failwith "convert_type_to_layout_list: named"
   
 (* Strips 'i' bytes of scalars from the beginning of the layout list 'll'.
@@ -113,8 +119,8 @@ let global_subtype = Hashtbl.create 511
 (* Check to see if two types are physically/structurally equal. This
  * is the function that other modules should call to check equality. *)
 let rec equal t1 t2 =
-  let s1 = bitsSizeOf t1 in
-  let s2 = bitsSizeOf t2 in
+  let s1 = bytesSizeOf t1 in
+  let s2 = bytesSizeOf t2 in
   if s1 <> s2 then
     false
   else if TypeUF.check_equal !global_eq t1 t2 then
@@ -132,8 +138,8 @@ let rec equal t1 t2 =
 (* Is small a physical/structural subtype of big? Only the top-level layout
  * can actually be a subtype. Must be invariant under pointers. *)
 and subtype small big = 
-  let s1 = bitsSizeOf small in
-  let s2 = bitsSizeOf big in
+  let s1 = bytesSizeOf small in
+  let s2 = bytesSizeOf big in
   if s1 > s2 then
     false
   else if Hashtbl.mem global_subtype (small,big) then 
