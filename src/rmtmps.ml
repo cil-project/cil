@@ -582,6 +582,8 @@ let uninteresting =
 
     (* various macros in glibc's <ctype.h> *)
     "__c"; "__res";
+
+    (* We remove the __malloc variables *)
   ] in
 
   (* optional alpha renaming *)

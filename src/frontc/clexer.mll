@@ -198,8 +198,8 @@ let scan_escape str =
   | "v" -> '\011'  (* ASCII code 11 *)
   | "a" -> '\007'  (* ASCII code 7 *)
   | "e" -> '\027'  (* ASCII code 27. This is a GCC extension *)
-  | "'" -> '\''
-  | "\""-> '"'
+  | "'" -> '\''    
+  | "\""-> '"'     (* '"' *)
   | "?" -> '?'
   | "\\" -> '\\' 
   | _ -> error ("Unrecognized escape sequence: \\" ^ str)

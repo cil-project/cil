@@ -3,10 +3,11 @@
 #
 # To create a source file to be processed by this script do:
 # - the file should be a standalone program with main without any arguments
+#   You can add other files as part of the CFLAGS variable
 # - add a comment
 #    // NUMERRORS n
 #   where n is the number of errors to be tested by this file
-# - add after certain lines in your file comments (1 <= k <= n)
+# - at the end of certain lines in your file comments (1 <= k <= n)
 #    // ERROR(k)
 # - first all ERROR-lines are removed and the program must succeed.
 # - to test for error k all ERROR lines except those with label ERROR(k)
@@ -108,6 +109,7 @@ while [ $i -le $numcases ]; do
   echo $CCURED $CFLAGS $tmpname.c ${OUTFLAG}${tmpname}$OUTEXT
   $CCUREDHOME/bin/teetwo test-bad.out test-bad.err \
               $CCURED $CFLAGS -DERROR=$i $tmpname.c ${OUTFLAG}${tmpname}$OUTEXT
+  cat test-bad.out test-bad.err
   status=$?
   if [ $status != 0 ]; then
     if [ $i = 0 ] ;then
@@ -134,6 +136,7 @@ while [ $i -le $numcases ]; do
   echo "./$tmpname"
   rm -f test-bad.out test-bad.err
   if $CCUREDHOME/bin/teetwo test-bad.out test-bad.err ./$tmpname ; then
+    cat test-bad.out test-bad.err
     if [ $i = 0 ]; then
       # expected success on 0th iteration
       echo "(succeeded as expected)"
@@ -143,6 +146,7 @@ while [ $i -le $numcases ]; do
       exit 2
     fi
   else
+    cat test-bad.out test-bad.err
     if [ $i = 0 ]; then
       # unexpected failure on 0th iteration
       echo "The 0th iteration failed! It is supposed to succeed."

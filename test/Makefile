@@ -522,6 +522,7 @@ testwrapper/%: $(SMALL1)/%.c $(SMALL1)/wrapperextern.c
                          $(CFLAGS) $(EXEOUT)$*.exe $*.c wrapperextern.c
 	cd $(SMALL1); ./$*.exe
 
+
 #test of "cilly --heapify"
 test_heapify: $(SMALL1)/heapify.c  
 	cd $(SMALL1); $(CILLY) --heapify --keepunused  \
@@ -783,6 +784,16 @@ test-bad1/%: $(TESTDIR)/small1/%.c $(TARGET_DEP)
           TESTBADONCE="$(TESTBADONCE)" \
 	  _MSVC="$(_MSVC)" \
 	  bash ../../bin/test-bad $*.c
+
+test-bad-wrapper/%: $(TESTDIR)/small2/%.c $(TESTDIR)/small2/wrapperextern.c 
+	cd $(TESTDIR)/small2; \
+	  CCUREDHOME="$(CCUREDHOME)" \
+	  CCURED="$(CCURED) --separate --leavealone=wrapperextern --commPrintLn" \
+	  CFLAGS="wrapperextern.c "`$(PATCHECHO) $(STANDARDPATCH)`" $(CFLAGS) $(WARNALL)" \
+          TESTBADONCE="$(TESTBADONCE)" \
+	  _MSVC="$(_MSVC)" \
+	  bash ../../bin/test-bad $*.c 
+
 
 # sm: trivial test of combiner
 MYSAFECC := $(CCURED) --keep=. $(STANDARDPATCH)

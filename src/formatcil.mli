@@ -40,27 +40,37 @@
 
 
 (** Constructs an expression based on the program and the list of arguments. 
- * The parsing of the string is memoized. *)
-val cExp: string -> Cil.formatArg list -> Cil.exp
+ * Each argument consists of a name followed by the actual data. This 
+ * argument will be placed instead of occurrences of "%v:name" in the pattern 
+ * (where the "v" is dependent on the type of the data). The parsing of the 
+ * string is memoized. * Only the first expression is parsed. *)
+val cExp: string -> (string * Cil.formatArg) list -> Cil.exp
 
 (** Constructs an lval based on the program and the list of arguments. 
+ * Only the first lvalue is parsed. 
  * The parsing of the string is memoized. *)
-val cLval: string -> Cil.formatArg list -> Cil.lval
+val cLval: string -> (string * Cil.formatArg) list -> Cil.lval
 
 (** Constructs a type based on the program and the list of arguments. 
+ * Only the first type is parsed. 
  * The parsing of the string is memoized. *)
-val cType: string -> Cil.formatArg list -> Cil.typ
+val cType: string -> (string * Cil.formatArg) list -> Cil.typ
 
 
 (** Constructs an instruction based on the program and the list of arguments. 
+ * Only the first instruction is parsed. 
  * The parsing of the string is memoized. *)
-val cInstr: string -> Cil.location -> Cil.formatArg list -> Cil.instr
+val cInstr: string -> Cil.location -> 
+                      (string * Cil.formatArg) list -> Cil.instr
 
 (** Constructs a statement based on the program and the list of arguments. 
+ * Only the first statement is parsed. 
  * The parsing of the string is memoized. *)
-val cStmt: string -> Cil.location -> Cil.formatArg list -> Cil.stmt
+val cStmt: string -> Cil.location -> (string * Cil.formatArg) list -> Cil.stmt
 
-
+(** Constructs a list of statements *)
+val cStmts: string -> Cil.location -> (string * Cil.formatArg) list -> 
+            Cil.stmt list
 
 (** Deconstructs an expression based on the program. Produces an optional 
  * list of format arguments. The parsing of the string is memoized. *)

@@ -162,6 +162,13 @@ let wstr_to_warray wstr =
   res := !res ^ "}" ;
   !res
 
+let getArgName (l: Lexing.lexbuf) (prefixlen: int) =
+  let lexeme = Lexing.lexeme l in
+  let ll = String.length lexeme in
+  if  ll > prefixlen then 
+    String.sub lexeme (prefixlen + 1) (ll - prefixlen - 1)
+  else
+    ""
 }
 
 let decdigit = ['0'-'9']
@@ -195,8 +202,16 @@ let escape = '\\' _
 let hex_escape = '\\' ['x' 'X'] hexdigit hexdigit
 let oct_escape = '\\' octdigit  octdigit octdigit
 
+
+(* The arguments are of the form %l$foo *)
+let argname = (':' ident)?
+
 rule initial =
 	parse 	blank			{ initial lexbuf}
+|               "/*"			{ let _ = comment lexbuf in 
+                                          initial lexbuf}
+|               "//"                    { endline lexbuf }
+|               "\n"                    { E.newline (); initial lexbuf}
 |		floatnum		{CST_FLOAT (Lexing.lexeme lexbuf)}
 |		hexnum			{CST_INT (Lexing.lexeme lexbuf)}
 |		octnum			{CST_INT (Lexing.lexeme lexbuf)}
@@ -238,30 +253,31 @@ rule initial =
 |               ':'                     {COLON}
 |               '?'                     {QUEST}
 |		"sizeof"		{SIZEOF}
-|               "%eo"                   {ARG_eo}
-|               "%e"                    {ARG_e}
-|               "%E"                    {ARG_E}
-|               "%u"                    {ARG_u}
-|               "%b"                    {ARG_b}
-|               "%t"                    {ARG_t}
-|               "%d"                    {ARG_d}
-|               "%lo"                   {ARG_lo}
-|               "%l"                    {ARG_l}
-|               "%i"                    {ARG_i}
-|               "%I"                    {ARG_I}
-|               "%o"                    {ARG_o}
-|               "%va"                   {ARG_va}
-|               "%v"                    {ARG_v}
-|               "%k"                    {ARG_k}
-|               "%f"                    {ARG_f}
-|               "%F"                    {ARG_F}
-|               "%p"                    {ARG_p}
-|               "%P"                    {ARG_P}
-|               "%s"                    {ARG_s}
-|               "%S"                    {ARG_S}
-|               "%g"                    {ARG_g}
-|               "%A"                    {ARG_A}
-|               "%c"                    {ARG_c}
+
+|               "%eo" argname           {ARG_eo (getArgName lexbuf 3) }
+|               "%e"  argname           {ARG_e  (getArgName lexbuf 2) }
+|               "%E"  argname           {ARG_E  (getArgName lexbuf 2) }
+|               "%u"  argname           {ARG_u  (getArgName lexbuf 2) }
+|               "%b"  argname           {ARG_b  (getArgName lexbuf 2) }
+|               "%t"  argname           {ARG_t  (getArgName lexbuf 2) }
+|               "%d"  argname           {ARG_d  (getArgName lexbuf 2) }
+|               "%lo" argname           {ARG_lo (getArgName lexbuf 3) }
+|               "%l"  argname           {ARG_l  (getArgName lexbuf 2) }
+|               "%i"  argname           {ARG_i  (getArgName lexbuf 2) }
+|               "%I"  argname           {ARG_I  (getArgName lexbuf 2) }
+|               "%o"  argname           {ARG_o  (getArgName lexbuf 2) }
+|               "%va" argname           {ARG_va (getArgName lexbuf 3) }
+|               "%v"  argname           {ARG_v  (getArgName lexbuf 2) }
+|               "%k"  argname           {ARG_k  (getArgName lexbuf 2) }
+|               "%f"  argname           {ARG_f  (getArgName lexbuf 2) }
+|               "%F"  argname           {ARG_F  (getArgName lexbuf 2) }
+|               "%p"  argname           {ARG_p  (getArgName lexbuf 2) }
+|               "%P"  argname           {ARG_P  (getArgName lexbuf 2) }
+|               "%s"  argname           {ARG_s  (getArgName lexbuf 2) }
+|               "%S"  argname           {ARG_S  (getArgName lexbuf 2) }
+|               "%g"  argname           {ARG_g  (getArgName lexbuf 2) }
+|               "%A"  argname           {ARG_A  (getArgName lexbuf 2) }
+|               "%c"  argname           {ARG_c  (getArgName lexbuf 2) } 
 
 |		'%'			{PERCENT}
 |		ident			{scan_ident (Lexing.lexeme lexbuf)}
@@ -272,3 +288,14 @@ rule initial =
 						(Lexing.lexeme_end lexbuf);
                                          raise Parsing.Parse_error
                                         }
+
+and comment =
+    parse 	
+      "*/"			        { () }
+|     '\n'                              { E.newline (); comment lexbuf }
+| 		_ 			{ comment lexbuf }
+
+
+and endline = parse 
+        '\n' 			{ E.newline (); initial lexbuf}
+|	_			{ endline lexbuf}

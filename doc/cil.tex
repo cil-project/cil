@@ -710,10 +710,18 @@ TPtr(TFun(TVoid [Attr("const", [])],
  Similarly you can construct expressions and instructions. The pattern string
 can also contain a number of placeholders which are replaced during
 construction with CIL items passed as additional argument to the construction
-function. For example, the \t{\%e} placeholder means that the next argument
-(expected to be of form \t{Fe exp}) will supply the expression to replace the
-placeholder. See \ciltyperef{formatArg} for a definition of the placeholders
-that are understood. 
+function. For example, the \t{\%e:id} placeholder means that the argument
+labeled ``id'' (expected to be of form \t{Fe exp}) will supply the expression
+to replace the placeholder. For example, the following code constructs an
+increment instruction:
+\begin{code}
+Formatcil.cInstr "%v:x = %v:x + %e:something"
+        [ ("something", Fe some_exp);
+          ("x", Fv some_varinfo) ]
+\end{verbatim}\end{code}
+
+ See \ciltyperef{formatArg} for a definition of the placeholders that are
+understood.
 
  A dual feature is the interpreted deconstructors. This can be used to test
 whether a CIL construct has a certain form:
@@ -823,12 +831,12 @@ Notes regarding the syntax:
 uppercase initial
 
 \item All of the patterns consist of the \t{\%} character followed by one or
-two letters. For each such patters there is a corresponding constructor of the
-\ciltyperef{formatArg} type, whose name if the letter 'F' followed by the same
-one or two letters as in the patters. That constructor is used by the user
-code to pass a \ciltyperef{formatArg} actual argument to the interpreted
-constructor and by the interpreted deconstructor to return what was matched
-for a pattern.
+two letters, followed optionally by ``:'' and an indentifier. For each such
+pattern there is a corresponding constructor of the \ciltyperef{formatArg}
+type, whose name is the letter 'F' followed by the same one or two letters as
+in the pattern. That constructor is used by the user code to pass a
+\ciltyperef{formatArg} actual argument to the interpreted constructor and by
+the interpreted deconstructor to return what was matched for a pattern.
 
 \item If the pattern name is uppercase, it designates a list of the elements
 designated by the corresponding lowercase pattern. E.g. \%E designated lists
@@ -870,6 +878,8 @@ corresponding placeholder to the entire list of attributes, including
 \t{const}. 
  
 \item All instruction-patterns must be terminated by semicolon
+
+\item The autoincrement and autodecrement instructions are not supported.
 
 \end{itemize}
 
@@ -2086,7 +2096,9 @@ Necula}.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
-\item {\bf December 17, 2002}: {\bf Released version 1.0.5}
+\item {\bf January 17, 2003}: {\bf Released version 1.0.5}
+\item {\bf January 4, 2003}: Changed the interface for the Formatcil module.
+  Now the placeholders in the pattern have names.
 \item {\bf December 17, 2002}: Fixed a few bugs in CIL related to the
   representation of string literals. Now they have type array of characters
   and we {\bf have added the StartOfString expression constructor} to denote

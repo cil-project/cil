@@ -43,23 +43,26 @@ module H = Hashtbl
 let noMemoize = ref false
 
 let expMemoTable :
-    (string, ((formatArg list -> exp) * 
+    (string, (((string * formatArg) list -> exp) * 
                (exp -> formatArg list option))) H.t = H.create 23
 
 let typeMemoTable :
-    (string, ((formatArg list -> typ) * 
+    (string, (((string * formatArg) list -> typ) * 
                (typ -> formatArg list option))) H.t = H.create 23
 
 let lvalMemoTable :
-    (string, ((formatArg list -> lval) * 
+    (string, (((string * formatArg) list -> lval) * 
                (lval -> formatArg list option))) H.t = H.create 23
 
 let instrMemoTable :
-    (string, ((location -> formatArg list -> instr) * 
+    (string, ((location -> (string * formatArg) list -> instr) * 
                (instr -> formatArg list option))) H.t = H.create 23
 
 let stmtMemoTable :
-    (string, (location -> formatArg list -> stmt)) H.t = H.create 23
+    (string, (location -> (string * formatArg) list -> stmt)) H.t = H.create 23
+
+let stmtsMemoTable :
+    (string, (location -> (string * formatArg) list -> stmt list)) H.t = H.create 23
 
 
 let doParse (prog: string) 
@@ -88,62 +91,30 @@ let doParse (prog: string)
     end
   end
   
-let makeProg (fl: formatArg list) : string * formatArg list = 
-  (* Construct the program *)
-  List.fold_right 
-    (fun f (progacc, argacc) -> 
-      match f with 
-        FX s -> (s ^ progacc, argacc)
-      | Fe _ -> ("%e" ^ progacc, f :: argacc)
-      | FE _ -> ("%E" ^ progacc, f :: argacc)
-      | Fv _ -> ("%v" ^ progacc, f :: argacc)
-      | Fc _ -> ("%c" ^ progacc, f :: argacc)
-      | Fd _ -> ("%d" ^ progacc, f :: argacc)
-      | Fo _ -> ("%o" ^ progacc, f :: argacc)
-      | Fl _ -> ("%l" ^ progacc, f :: argacc)
-      | Fi _ -> ("%i" ^ progacc, f :: argacc)
-      | Ft _ -> ("%t" ^ progacc, f :: argacc)
-      | FP _ -> ("%P" ^ progacc, f :: argacc)
-      | Fp _ -> ("%p" ^ progacc, f :: argacc)
-      | FA _ -> ("%A" ^ progacc, f :: argacc)
-      | FS _ -> ("%S" ^ progacc, f :: argacc)
-      | Fs _ -> ("%s" ^ progacc, f :: argacc)
-      | Fg _ -> ("%g" ^ progacc, f :: argacc)
-      | FI _ -> ("%I" ^ progacc, f :: argacc)
-      | Flo _ -> ("%lo" ^ progacc, f :: argacc)
-      | Fva _ -> ("%va" ^ progacc, f :: argacc)
-      | FF _ -> ("%F" ^ progacc, f :: argacc)
-      | Ff _ -> ("%f" ^ progacc, f :: argacc)
-      | Fk _ -> ("%k" ^ progacc, f :: argacc)
-      | Fb _ -> ("%b" ^ progacc, f :: argacc)
-      | Fu _ -> ("%u" ^ progacc, f :: argacc)
-      | Feo _ -> ("%eo" ^ progacc, f :: argacc))
-    fl
-    ("", [])
 
-
-let cExp (prog: string) : formatArg list -> exp = 
+let cExp (prog: string) : (string * formatArg) list -> exp = 
   let cf = doParse prog Formatparse.expression expMemoTable in
   (fst cf)
 
-let cExp' (fl: formatArg list) : exp = 
-  let prog, args = makeProg fl in
-  cExp prog args
-
-let cLval (prog: string) : formatArg list -> lval = 
+let cLval (prog: string) : (string * formatArg) list -> lval = 
   let cf = doParse prog Formatparse.lval lvalMemoTable in
   (fst cf)
 
-let cType (prog: string) : formatArg list -> typ = 
+let cType (prog: string) : (string * formatArg) list -> typ = 
   let cf = doParse prog Formatparse.typename typeMemoTable in
   (fst cf)
 
-let cInstr (prog: string) : location -> formatArg list -> instr = 
+let cInstr (prog: string) : location -> (string * formatArg) list -> instr = 
   let cf = doParse prog Formatparse.instr instrMemoTable in
   (fst cf)
 
-let cStmt (prog: string) : location -> formatArg list -> stmt = 
+let cStmt (prog: string) : location -> (string * formatArg) list -> stmt = 
   let cf = doParse prog Formatparse.stmt stmtMemoTable in
+  cf
+
+let cStmts (prog: string) : 
+    location -> (string * formatArg) list -> stmt list = 
+  let cf = doParse prog Formatparse.stmt_list stmtsMemoTable in
   cf
 
 
@@ -204,8 +175,9 @@ let test () =
   Stats.time "make instruction interpreted"
     (fun _ -> for i = 0 to times do 
       let ins = 
-        cInstr "%v = (* ((int * (*)(int, int * a2, int * * a3))%v))();"
-          locUnknown [ Fv res; Fv fptr ] 
+        cInstr "%v:res = (* ((int * (*)(int, int * a2, int * * a3))%v:fptr))();"
+          locUnknown [ ("res", Fv res); 
+                       ("fptr", Fv fptr) ] 
       in
       ()
     done)
@@ -215,20 +187,20 @@ let test () =
   Stats.time "make instruction interpreted memoized"
     (fun _ -> for i = 0 to times do 
       let ins = 
-        cInstr "%v = (* ((int * (*)(int, int * a2, int * * a3))%v))();"
-          locUnknown [ Fv res; Fv fptr ] 
+        cInstr "%v:res = (* ((int * (*)(int, int * a2, int * * a3))%v:fptr))();"
+          locUnknown [ ("res", Fv res); ("fptr", Fv fptr) ] 
       in
       ()
     done)
     ();
   (* Now make the instruction interpreted with partial application *)
   let partInstr = 
-    cInstr "%v = (* ((int * (*)(int, int * a2, int * * a3))%v))();" in
+    cInstr "%v:res = (* ((int * (*)(int, int * a2, int * * a3))%v:fptr))();" in
   Stats.time "make instruction interpreted partial"
     (fun _ -> for i = 0 to times do 
       let ins = 
         partInstr
-          locUnknown [ Fv res; Fv fptr ] 
+          locUnknown [ ("res", Fv res); ("fptr", Fv fptr) ] 
       in
       ()
     done)

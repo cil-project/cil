@@ -47,20 +47,16 @@ let parse_error msg : 'a =           (* sm: c++-mode highlight hack: -> ' <- *)
     msg
     (Parsing.symbol_start ()) (Parsing.symbol_end ())
 
-(* Keep track of the index of the current %argument *)
-let currentArg = ref (-1)
-let nextArg () = 
-  incr currentArg; !currentArg
 
-let getArg (argno: int) (args: formatArg list) = 
+let getArg (argname: string) (args: (string * formatArg) list) = 
   try 
-    List.nth args argno
+    snd (List.find (fun (n, a) -> n = argname) args)
   with _ -> 
-    E.s (bug "Pattern string %s does not have enough arguments\n"
-           !E.currentPattern)
+    E.s (bug "Pattern string %s does not have argument with name %s\n"
+           !E.currentPattern argname)
 
-let wrongArgType (which: int) (expected: string) (found: formatArg) = 
-  E.s (bug "Expecting %s argument (%d) and found %a\n" 
+let wrongArgType (which: string) (expected: string) (found: formatArg) = 
+  E.s (bug "Expecting %s argument (%s) and found %a\n" 
          expected which d_formatarg found)
 
 let doUnop (uo: unop) subexp = 
@@ -200,7 +196,7 @@ let matchFloatType (fk: fkind) (t:typ) : formatArg list option =
   | _ -> None
 
 let doAttr (id: string) 
-           (aargs: ((formatArg list -> attrparam list) * 
+           (aargs: (((string * formatArg) list -> attrparam list) * 
                     (attrparam list -> formatArg list option)) option)
     = 
   let t = match aargs with 
@@ -242,9 +238,9 @@ type falist = formatArg list
 %token SIGNED UNSIGNED LONG SHORT
 %token VOLATILE EXTERN STATIC CONST RESTRICT AUTO REGISTER
 
-%token ARG_e ARG_eo ARG_E ARG_u ARG_b ARG_t ARG_d ARG_lo ARG_l ARG_i
-%token ARG_o ARG_va ARG_f ARG_F ARG_A ARG_v ARG_k ARG_c ARG_d
-%token ARG_s ARG_p ARG_P ARG_I ARG_S ARG_g
+%token <string> ARG_e ARG_eo ARG_E ARG_u ARG_b ARG_t ARG_d ARG_lo ARG_l ARG_i
+%token <string> ARG_o ARG_va ARG_f ARG_F ARG_A ARG_v ARG_k ARG_c ARG_d
+%token <string> ARG_s ARG_p ARG_P ARG_I ARG_S ARG_g
 
 %token SIZEOF ALIGNOF
 
@@ -303,27 +299,34 @@ type falist = formatArg list
 %left	DOT ARROW LPAREN LBRACE
 %nonassoc IDENT QUEST CST_INT
 
-%start initialize expression typename offset lval instr stmt
+%start initialize expression typename offset lval instr stmt stmt_list
 
 
 %type <unit> initialize
-%type <(Cil.location -> Cil.formatArg list -> Cil.stmt)> stmt
-%type <(Cil.formatArg list -> Cil.exp) * (Cil.exp -> Cil.formatArg list option)> expression
-%type <(Cil.formatArg list -> Cil.exp) * (Cil.exp -> Cil.formatArg list option)> constant
-%type <(Cil.formatArg list -> Cil.lval) * (Cil.lval -> Cil.formatArg list option)> lval
+%type <(Cil.location -> (string * Cil.formatArg) list -> Cil.stmt)> stmt
+%type <(Cil.location -> (string * Cil.formatArg) list -> Cil.stmt list)> stmt_list
 
-%type <(Cil.formatArg list -> Cil.typ) * (Cil.typ -> Cil.formatArg list option)> typename
-%type <(Cil.attributes -> Cil.formatArg list -> Cil.typ) * (Cil.typ -> Cil.formatArg list option)> type_spec
-%type <(Cil.formatArg list -> (string * Cil.typ * Cil.attributes) list option * bool) * ((string * Cil.typ * Cil.attributes) list option * bool -> Cil.formatArg list option)> parameters
+%type <((string * Cil.formatArg) list -> Cil.exp) * (Cil.exp -> Cil.formatArg list option)> expression
+
+%type <((string * Cil.formatArg) list -> Cil.exp) * (Cil.exp -> Cil.formatArg list option)> constant
+
+%type <((string * Cil.formatArg) list -> Cil.lval) * (Cil.lval -> Cil.formatArg list option)> lval
+
+%type <((string * Cil.formatArg) list -> Cil.typ) * (Cil.typ -> Cil.formatArg list option)> typename
+
+%type <(Cil.attributes -> (string * Cil.formatArg) list -> Cil.typ) * (Cil.typ -> Cil.formatArg list option)> type_spec
+
+%type <((string * Cil.formatArg) list -> (string * Cil.typ * Cil.attributes) list option * bool) * ((string * Cil.typ * Cil.attributes) list option * bool -> Cil.formatArg list option)> parameters
 
 
-%type <(Cil.location -> Cil.formatArg list -> Cil.instr) * (Cil.instr -> Cil.formatArg list option)> instr
-%type <(Cil.typ -> Cil.formatArg list -> Cil.offset) * (Cil.offset -> Cil.formatArg list option)> offset
+%type <(Cil.location -> (string * Cil.formatArg) list -> Cil.instr) * (Cil.instr -> Cil.formatArg list option)> instr
+
+%type <(Cil.typ -> (string * Cil.formatArg) list -> Cil.offset) * (Cil.offset -> Cil.formatArg list option)> offset
 %%
 
 
 initialize: 
- /* empty */   { currentArg := (-1) }
+ /* empty */   {  }
 ;
 
 /* (*** Expressions ***) */
@@ -331,7 +334,7 @@ initialize:
 
 expression:
 |               ARG_e  {  (* Count arguments eagerly *) 
-                            let currentArg = nextArg () in 
+                            let currentArg = $1 in 
                             ((fun args ->
                                match getArg currentArg args with 
                                    Fe e -> e
@@ -512,7 +515,7 @@ expression:
 
 /*(* Separate the ARG_ to ensure that the counting of arguments is right *)*/
 argu :
-|   ARG_u              { let currentArg = nextArg () in
+|   ARG_u              { let currentArg = $1 in
                          ((fun args ->
                            match getArg currentArg args with
                              Fu uo -> uo
@@ -523,7 +526,7 @@ argu :
 ;
 
 argb :
-|   ARG_b              { let currentArg = nextArg () in
+|   ARG_b              { let currentArg = $1 in
                          ((fun args ->
                            match getArg currentArg args with
                              Fb bo -> bo
@@ -534,7 +537,7 @@ argb :
 ;
 
 constant:
-|   ARG_d              { let currentArg = nextArg () in
+|   ARG_d              { let currentArg = $1 in
                            ((fun args ->
                              match getArg currentArg args with
                                Fd n -> integer n
@@ -546,7 +549,7 @@ constant:
                             | _ -> None) 
                          } 
 
-|   ARG_g             { let currentArg = nextArg () in
+|   ARG_g             { let currentArg = $1 in
                         ((fun args ->
                              match getArg currentArg args with
                                Fg s -> Const(CStr s)
@@ -570,7 +573,7 @@ constant:
 
 /*(***************** LVALUES *******************)*/
 lval: 
-|   ARG_l             { let currentArg = nextArg () in
+|   ARG_l             { let currentArg = $1 in
                            ((fun args -> 
                                 match getArg currentArg args with 
                                   Fl l -> l
@@ -641,7 +644,7 @@ lval:
     ;
 
 argv :
-|   ARG_v              { let currentArg = nextArg () in
+|   ARG_v              { let currentArg = $1 in
                          ((fun args ->
                            match getArg currentArg args with
                              Fv v -> v
@@ -654,7 +657,7 @@ argv :
   
 /*(********** OFFSETS *************)*/
 offset: 
-|  ARG_o             { let currentArg = nextArg () in
+|  ARG_o             { let currentArg = $1 in
                             ((fun t args -> 
                                 match getArg currentArg args with 
                                   Fo o -> o
@@ -732,7 +735,7 @@ one_formal:
                    } 
 
 | ARG_f 
-                   { let currentArg = nextArg () in
+                   { let currentArg = $1 in
                      ((fun args -> 
                          match getArg currentArg args with
                           Ff (fn, ft, fa) -> (fn, ft, fa)
@@ -743,7 +746,7 @@ one_formal:
 ;
 
 type_spec:  
-|   ARG_t       { let currentArg = nextArg () in
+|   ARG_t       { let currentArg = $1 in
                      ((fun al args -> 
                        match getArg currentArg args with 
                           Ft t -> typeAddAttributes al t
@@ -758,7 +761,7 @@ type_spec:
                            TVoid _ -> Some []
                          | _ -> None)) }
 
-|   ARG_k           { let currentArg = nextArg () in
+|   ARG_k           { let currentArg = $1 in
                       ((fun al args -> 
                         match getArg currentArg args with 
                           Fk ik -> TInt(ik, al)
@@ -803,7 +806,7 @@ type_spec:
 |   DOUBLE          { ((fun al args -> TFloat(FDouble, al)),
                        matchFloatType FDouble) }
 
-|   STRUCT ARG_c { let currentArg = nextArg () in
+|   STRUCT ARG_c { let currentArg = $2 in
                       ((fun al args -> 
                          match getArg currentArg args with 
                            Fc ci -> TComp(ci, al)
@@ -813,7 +816,7 @@ type_spec:
                             TComp(ci, _) -> Some [ Fc ci ]
                           | _ -> None))
                     }
-|   UNION ARG_c { let currentArg = nextArg () in
+|   UNION ARG_c { let currentArg = $2 in
                      ((fun al args -> 
                          match getArg currentArg args with 
                            Fc ci -> TComp(ci, al)
@@ -948,7 +951,7 @@ parameters_ne:
                         | _ -> None))
                    }
 
-| ARG_va           { let currentArg = nextArg () in
+| ARG_va           { let currentArg = $1 in
                      ((fun args -> 
                        match getArg currentArg args with
                          Fva isva -> ([], isva)
@@ -959,7 +962,7 @@ parameters_ne:
                        | _ -> None))
                    } 
 
-| ARG_F            { let currentArg = nextArg () in
+| ARG_F            { let currentArg = $1 in
                      ((fun args -> 
                        match getArg currentArg args with
                         FF fl -> ( fl, false)
@@ -1009,7 +1012,7 @@ exp_opt:
                         Some e -> (snd $1) e
                       | _ -> None))
                    } 
-|  ARG_eo          { let currentArg = nextArg () in
+|  ARG_eo          { let currentArg = $1 in
                      ((fun args ->
                        match getArg currentArg args with
                          Feo lo -> lo
@@ -1026,7 +1029,7 @@ attributes:
   /* empty */     { ((fun args -> []), 
                      (fun attrs -> Some [])) }
           
-| ARG_A           { let currentArg = nextArg () in
+| ARG_A           { let currentArg = $1 in
                     ((fun args -> 
                         match getArg currentArg args with
                           FA al -> al
@@ -1083,7 +1086,7 @@ attr_args_ne:
                                       end
                                     | _ -> None))
                                   } 
-|   ARG_P               { let currentArg = nextArg () in
+|   ARG_P               { let currentArg = $1 in
                           ((fun args -> 
                             match getArg currentArg args with
                               FP al -> al
@@ -1108,7 +1111,7 @@ attr_arg:
                               (snd $3) args
                         | _ -> None))
                      } 
-|   ARG_p            { let currentArg = nextArg () in
+|   ARG_p            { let currentArg = $1 in
                        ((fun args -> 
                           match getArg currentArg args with
                             Fp p -> p
@@ -1122,7 +1125,7 @@ attr_arg:
 /* (********** INSTRUCTIONS ***********) */
 instr: 
 |               ARG_i SEMICOLON
-                        { let currentArg = nextArg () in
+                        { let currentArg = $1 in
                           ((fun loc args -> 
                                 match getArg currentArg args with 
                                   Fi i -> i
@@ -1238,7 +1241,7 @@ instr:
 
 /* (* Separate this out to ensure that the counting or arguments is right *)*/
 arglo: 
-    ARG_lo               { let currentArg = nextArg () in
+    ARG_lo               { let currentArg = $1 in
                            ((fun args -> 
                              let res = 
                                match getArg currentArg args with
@@ -1269,7 +1272,7 @@ arguments_ne:
                        | _ -> None))
                   }
 
-| ARG_E           {  let currentArg = nextArg () in
+| ARG_E           {  let currentArg = $1 in
                      ((fun args -> 
                          match getArg currentArg args with
                            FE el -> el
@@ -1294,7 +1297,7 @@ arguments_ne:
 
 /*(******** STATEMENTS *********)*/
 stmt: 
-    IF LPAREN expression RPAREN stmt 
+    IF LPAREN expression RPAREN stmt           %prec IF
                   { (fun loc args -> 
                          mkStmt (If((fst $3) args, 
                                     mkBlock [ $5 loc args ],
@@ -1343,7 +1346,7 @@ stmt:
 |   instr_list    { (fun loc args -> 
                        mkStmt (Instr ($1 loc args)))
                   }
-|   ARG_s         { let currentArg = nextArg () in
+|   ARG_s         { let currentArg = $1 in
                     (fun loc args -> 
                        match getArg currentArg args with
                          Fs s -> s
@@ -1353,7 +1356,7 @@ stmt:
 stmt_list: 
     /* empty */  { (fun loc args -> []) }
 
-|   ARG_S        { let currentArg = nextArg () in
+|   ARG_S        { let currentArg = $1 in
                    (fun loc args -> 
                        match getArg currentArg args with 
                        | FS sl -> sl 
@@ -1371,7 +1374,7 @@ instr_list:
           many instructions as possible *)*/
     instr   %prec COMMA 
                  { (fun loc args -> [ ((fst $1) loc args) ]) }
-|   ARG_I        { let currentArg = nextArg () in
+|   ARG_I        { let currentArg = $1 in
                    (fun loc args -> 
                        match getArg currentArg args with 
                        | FI il -> il 

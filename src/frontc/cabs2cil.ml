@@ -486,7 +486,11 @@ let alphaConvertVarAndAddToEnv (addtoenv: bool) (vi: varinfo) : varinfo =
  * a struct we must recursively strip the "const" from fields and array 
  * elements. *)
 let rec stripConstLocalType (t: typ) : typ = 
-  let dc a = dropAttribute "const" a in
+  let dc a = 
+    if hasAttribute "const" a then 
+      dropAttribute "const" a 
+    else a 
+  in
   match t with 
   | TPtr (bt, a) -> 
       (* We want to be able to detect by pointer equality if the type has 
@@ -519,7 +523,7 @@ let rec stripConstLocalType (t: typ) : typ =
       List.iter 
         (fun f -> 
           let t' = stripConstLocalType f.ftype in
-          if t' != t then begin
+          if t' != f.ftype then begin
             ignore (warnOpt "Stripping \"const\" from field %s of %s\n" 
                       f.fname (compFullName ci));
             f.ftype <- t'
