@@ -17,13 +17,15 @@ let reset () = top.sub <- []
 
 
 let print chn msg = 
+  (* Total up *)
+  top.time <- List.fold_left (fun sum f -> sum +. f.time) 0.0 top.sub;
   let rec prTree ind node = 
     Printf.fprintf chn "%s%-20s          %6.3f s\n" 
       (String.make ind ' ') node.name node.time  ;
     List.iter (prTree (ind + 2)) node.sub
   in
   Printf.fprintf chn "%s" msg;
-  List.iter (prTree 0) top.sub
+  List.iter (prTree 0) [ top ]
         
 let repeattime limit str f arg = 
                                         (* Find the right stat *)

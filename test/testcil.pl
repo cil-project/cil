@@ -17,7 +17,11 @@ use RegTest;
 print "Test infrastructure for SafeC\n";
 
 # Create our customized test harness
-my $TEST = SafecRegTest->new(AvailParams => {},
+my $TEST = SafecRegTest->new(AvailParams => { 'SAFE' => 1,
+                                              'WILD' => 1,
+                                              'FSEQ' => 1,
+                                              'RUN' => 1,
+                                              'CURE' => 1 },
                              LogFile => "safec.log",
                              CommandName => "testsafec");
 
@@ -75,6 +79,19 @@ my %commonerrors =
     "^(.+: fatal error.+)\$" => sub { $_[1]->{ErrorMsg} = $_[2]; },
     "^stackdump: Dumping stack trace" => sub { $_[1]->{ErrorMsg} = $_[2]; },
 
+#
+# Now collect some parameters
+    "^ptrkinds:\\s+SAFE - \\d+ \\(\\s*(\\d+)\\%" 
+              => sub { $_[1]->{SAFE} = $_[2]; },
+    "^ptrkinds:\\s+WILD - \\d+ \\(\\s*(\\d+)\\%" 
+              => sub { $_[1]->{WILD} = $_[2]; },
+    "^ptrkinds:\\s+FSEQ - \\d+ \\(\\s*(\\d+)\\%" 
+              => sub { $_[1]->{FSEQ} = $_[2]; },
+
+    "^user\\s+(\\d+)m([\\d.]+)s"
+              => sub { $_[1]->{RUN} = 60 * $_[2] + $_[3]; },
+
+    "^TOTAL\\s+([\\d.]+) s" => sub { $_[1]->{CURE} = $_[2]; },
     );
 
                                          
@@ -295,10 +312,15 @@ $TEST->add3Tests("treeadd", "_GNUCC=1");
 
 # PTR INTENSIVE BENCHMARKS
 $TEST->add2Tests("anagram", "_GNUCC=1");
+   $TEST->add2Group("anagram", "ptrdist", "slow");
 $TEST->add2Tests("bc", "_GNUCC=1");
+   $TEST->add2Group("bc", "ptrdist", "slow");
 $TEST->add2Tests("ft", "_GNUCC=1");
+   $TEST->add2Group("ft", "ptrdist", "slow");
 $TEST->add2Tests("ks", "_GNUCC=1");
+   $TEST->add2Group("ks", "ptrdist", "slow");
 $TEST->add2Tests("yacr", "_GNUCC=1");
+   $TEST->add2Group("yacr", "ptrdist", "slow");
 
 #
 # SPEC95
