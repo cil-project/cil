@@ -135,6 +135,7 @@ let init_lexicon _ =
       ("__stdcall", fun _ -> MSATTR ("__stdcall", currentLoc ()));
       ("_fastcall", fun _ -> MSATTR ("_fastcall", currentLoc ())); 
       ("__fastcall", fun _ -> MSATTR ("__fastcall", currentLoc ()));
+      ("__w64", fun _ -> MSATTR("__w64", currentLoc ()));
       ("__declspec", fun loc -> DECLSPEC loc);
       (* weimer: some files produced by 'GCC -E' expect this type to be
        * defined *)

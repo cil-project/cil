@@ -2883,6 +2883,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         text "__declspec(" 
           ++ docList (chr ',') (self#pAttrParam ()) () args
           ++ text ")", false
+    | "w64", [] when !msvcMode -> text "__w64", false
     | "asm", args -> 
         text "__asm__(" 
           ++ docList (chr ',') (self#pAttrParam ()) () args
