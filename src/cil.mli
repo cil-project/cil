@@ -1914,6 +1914,12 @@ class type cilPrinter = object
     (** Dump a control-flow statement to a file with a given indentation. 
      * This is used by {!Cil.dumpGlobal}. *)
 
+  method dBlock: out_channel -> int -> block -> unit
+    (** Dump a control-flow block to a file with a given indentation. 
+     * This is used by {!Cil.dumpGlobal}. *)
+
+  method pBlock: unit -> block -> Pretty.doc
+
   method pBlock: unit -> block -> Pretty.doc
     (** Print a block. *)
 
@@ -2001,9 +2007,18 @@ val printInstr: cilPrinter -> unit -> instr -> Pretty.doc
  * instead. *)
 val printStmt: cilPrinter -> unit -> stmt -> Pretty.doc
 
+(** Print a block given a pretty printer. This can take very long 
+ * (or even overflow the stack) for huge block. Use {!Cil.dumpBlock} 
+ * instead. *)
+val printBlock: cilPrinter -> unit -> block -> Pretty.doc
+
 (** Dump a statement to a file using a given indentation. Use this instead of 
  * {!Cil.printStmt} whenever possible. *)
 val dumpStmt: cilPrinter -> out_channel -> int -> stmt -> unit
+
+(** Dump a block to a file using a given indentation. Use this instead of 
+ * {!Cil.printBlock} whenever possible. *)
+val dumpBlock: cilPrinter -> out_channel -> int -> block -> unit
 
 (** Print an initializer given a pretty printer. This can take very long 
  * (or even overflow the stack) for huge initializers. Use {!Cil.dumpInit} 
@@ -2054,6 +2069,11 @@ val d_label: unit -> label -> Pretty.doc
  * extremely slow (or even overflow the stack) for huge statements. Use 
  * {!Cil.dumpStmt} instead. *)
 val d_stmt: unit -> stmt -> Pretty.doc
+
+(** Pretty-print a block using {!Cil.defaultCilPrinter}. This can be 
+ * extremely slow (or even overflow the stack) for huge blocks. Use 
+ * {!Cil.dumpBlock} instead. *)
+val d_block: unit -> block -> Pretty.doc
 
 (** Pretty-print the internal representation of a global using 
  * {!Cil.defaultCilPrinter}. This can be extremely slow (or even overflow the 
@@ -2156,25 +2176,31 @@ val d_plaintype: unit -> typ -> Pretty.doc
  * scoping *)
 type undoAlphaElement
 
+(** This is the type of the elements of the alpha renaming table. *)
+type alphaTableData
+
+
 (** Create a new name based on a given name. The new name is formed from a 
  * prefix (obtained from the given name by stripping a suffix consisting of _ 
  * followed by only digits), followed by a special separator and then by a 
  * positive integer suffix. The first argument is a table mapping name 
- * prefixes with the largest suffix used so far for that prefix. The largest 
- * suffix is 1 when only the version without suffix has been used. This 
- * function updates the table with the new largest suffix generated. The 
- * "undolist" argument, when present, will be used by the function to record 
- * information that can be used by {!Cil.undoAlphaChanges} to undo those 
- * changes. Note that the undo information will be in reverse order in which 
- * the action occurred. *)
-val newAlphaName: alphaTable:(string, int ref) Hashtbl.t ->
+ * prefixes to some data that specifies what suffixes have been used and how 
+ * to create the new one. This function updates the table with the new 
+ * largest suffix generated. The "undolist" argument, when present, will be 
+ * used by the function to record information that can be used by 
+ * {!Cil.undoAlphaChanges} to undo those changes. Note that the undo 
+ * information will be in reverse order in which the action occurred. Returns 
+ * the new name and, if different from the lookupname, the location of the 
+ * previous occurrence. This function knows about the location implicitly 
+ * from the {!Cil.currentLoc}. *)
+val newAlphaName: alphaTable:(string, alphaTableData ref) Hashtbl.t ->
                   undolist: undoAlphaElement list ref option ->
-                  lookupname:string -> string
+                  lookupname:string -> string * location
 
 
 (** Register a name with an alpha conversion table to ensure that when later 
   * we call newAlphaName we do not end up generating this one *)
-val registerAlphaName: alphaTable:(string, int ref) Hashtbl.t -> 
+val registerAlphaName: alphaTable:(string, alphaTableData ref) Hashtbl.t -> 
                        undolist: undoAlphaElement list ref option ->
                        lookupname:string -> unit
 
@@ -2182,11 +2208,13 @@ val registerAlphaName: alphaTable:(string, int ref) Hashtbl.t ->
     used to index into the hashtable. The next result value is a separator 
     (either empty or the separator chosen to separate the original name from 
      the index)  *)
-val splitNameForAlpha: lookupname:string -> string * string * int
-val docAlphaTable: unit -> (string, int ref) Hashtbl.t -> Pretty.doc
+val docAlphaTable: unit -> (string, alphaTableData ref) Hashtbl.t -> Pretty.doc
+
+
+val getAlphaPrefix: lookupname:string -> string
 
 (** Undo the changes to a table *)
-val undoAlphaChanges: alphaTable:(string, int ref) Hashtbl.t -> 
+val undoAlphaChanges: alphaTable:(string, alphaTableData ref) Hashtbl.t -> 
                       undolist:undoAlphaElement list -> unit
 
 (** Assign unique names to local variables. This might be necessary after you 

@@ -7,7 +7,7 @@
 </head>
 
 <frameset rows="64,*">
-  <frame name="banner" scrolling="no" noresize target="contents" 
+  <frame name="banner" scrolling="auto" noresize target="contents" 
          src="cilheader.html">
   <frameset cols="267,*">
     <frame name="contents" target="main" src="ciltoc.html" scrolling="auto">

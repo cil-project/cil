@@ -276,6 +276,9 @@ let rec theMain () =
     "--mergedout", Arg.String (openFile "merged output"
                                    (fun oc -> mergedChannel := Some oc)),
                 "specify the name of the merged file";
+    "--ignore-merge-conflicts", 
+                 Arg.Unit (fun _ -> Mergecil.ignore_merge_conflicts := true),
+                  "ignore merging conflicts";
     "--noPrintLn", Arg.Unit (fun _ -> Cil.lineDirectiveStyle := None;
                                      Cprint.printLn := false),
                "don't output #line directives";

@@ -1974,6 +1974,10 @@ class type cilPrinter = object
     (** Dump a control-flow statement to a file with a given indentation. This is used by 
      * {!Cil.dumpGlobal}. *)
 
+  method dBlock: out_channel -> int -> block -> unit
+    (** Dump a control-flow block to a file with a given indentation. This is 
+     * used by {!Cil.dumpGlobal}. *)
+
   method pBlock: unit -> block -> Pretty.doc
     (** Print a block. *)
 
@@ -2405,6 +2409,9 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
   method dStmt (out: out_channel) (ind: int) (s:stmt) : unit = 
     fprint out 80 (indent ind (self#pStmt () s))
+
+  method dBlock (out: out_channel) (ind: int) (b:block) : unit = 
+    fprint out 80 (indent ind (self#pBlock () b))
 
   method private pStmtNext (next: stmt) () (s: stmt) =
     (* print the labels *)
@@ -3127,8 +3134,15 @@ let printInstr (pp: cilPrinter) () (i: instr) : doc =
 let printStmt (pp: cilPrinter) () (s: stmt) : doc = 
   pp#pStmt () s
 
+let printBlock (pp: cilPrinter) () (b: block) : doc = 
+  (* We must add the alignment ourselves, beucase pBlock will pop it *)
+  align ++ pp#pBlock () b
+
 let dumpStmt (pp: cilPrinter) (out: out_channel) (ind: int) (s: stmt) : unit = 
   pp#dStmt out ind s
+
+let dumpBlock (pp: cilPrinter) (out: out_channel) (ind: int) (b: block) : unit = 
+  pp#dBlock out ind b
 
 let printInit (pp: cilPrinter) () (i: init) : doc = 
   pp#pInit () i
@@ -3148,6 +3162,7 @@ let d_attr () a = printAttr defaultCilPrinter () a
 let d_attrparam () e = defaultCilPrinter#pAttrParam () e
 let d_label () l = defaultCilPrinter#pLabel () l
 let d_stmt () s = printStmt defaultCilPrinter () s
+let d_block () b = printBlock defaultCilPrinter () b
 let d_instr () i = printInstr defaultCilPrinter () i
 
 let d_shortglobal () = function
@@ -5126,88 +5141,104 @@ let rec isCompleteType t =
 
 
 
-let debugAlpha = false
+let debugAlpha (prefix: string) = prefix = "jiffies"
 (*** Alpha conversion ***)
 let alphaSeparator = "___"
 let alphaSeparatorLen = String.length alphaSeparator
 
+(** For each prefix we remember the list of suffixes and the next integer 
+ * suffix to use *)
+type alphaTableData = int * (string * location) list
+
 type undoAlphaElement = 
-    AlphaChangedSuffix of int ref * int (* The reference that was changed and 
-                                         * the old suffix *)
+    AlphaChangedSuffix of alphaTableData ref * alphaTableData (* The 
+                                             * reference that was changed and 
+                                             * the old suffix *)
   | AlphaAddedSuffix of string          (* We added this new entry to the 
                                          * table *)
 
 (* Create a new name based on a given name. The new name is formed from a 
  * prefix (obtained from the given name by stripping a suffix consisting of 
- * the alphaSeparator followed by only digits), followed by a special 
- * separator and then by a positive integer suffix. The first argument is a 
- * table mapping name prefixes with the b * largest suffix used so far for 
- * that prefix. The largest suffix is one when only the version without 
- * suffix has been used. *)
-let rec newAlphaName ~(alphaTable: (string, int ref) H.t)
+ * the alphaSeparator followed by only digits), followed by alphaSeparator 
+ * and then by a positive integer suffix. The first argument is a table 
+ * mapping name prefixes to the largest suffix used so far for that 
+ * prefix. The largest suffix is one when only the version without suffix has 
+ * been used. *)
+let rec newAlphaName ~(alphaTable: (string, alphaTableData ref) H.t)
                      ~(undolist: undoAlphaElement list ref option)
-                     ~(lookupname: string) : string = 
-  let prefix, sep, suffix = splitNameForAlpha ~lookupname in
-  (* ignore (E.log "newAlphaName(%s). P=%s, S=%d\n" lookupname prefix suffix);
-     *)
-  if debugAlpha then
-    ignore (E.log "Alpha conv: %s %s %d. " prefix sep suffix);
-  let newname = 
+                     ~(lookupname: string) : string * location = 
+  alphaWorker ~alphaTable:alphaTable ~undolist:undolist 
+              ~lookupname:lookupname true
+  
+
+(** Just register the name so that we will not use in the future *)
+and registerAlphaName ~(alphaTable: (string, alphaTableData ref) H.t)
+                      ~(undolist: undoAlphaElement list ref option)
+                      ~(lookupname: string) : unit = 
+  ignore (alphaWorker ~alphaTable:alphaTable ~undolist:undolist 
+                      ~lookupname:lookupname false)
+
+
+and alphaWorker      ~(alphaTable: (string, alphaTableData ref) H.t)
+                     ~(undolist: undoAlphaElement list ref option)
+                     ~(lookupname: string) 
+                     (make_new: bool) : string * location = 
+  let prefix, suffix, (numsuffix: int) = splitNameForAlpha ~lookupname in
+  if debugAlpha prefix then
+    ignore (E.log "Alpha worker: prefix=%s suffix=%s (%d) create=%b. " 
+              prefix suffix numsuffix make_new);
+  let newname, (oldloc: location) = 
     try
       let rc = H.find alphaTable prefix in
-      if debugAlpha then
-        ignore (E.log " Old suffix %d. " !rc);
-      let newsuffix, sep = 
-        if suffix > !rc then suffix, sep else !rc + 1, alphaSeparator in
+      let max, suffixes = !rc in 
+      (* We have seen this prefix *)
+      if debugAlpha prefix then
+        ignore (E.log " Old max %d. Old suffixes: @[%a@]" max
+                  (docList (chr ',') 
+                     (fun (s, l) -> dprintf "%a:%s" d_loc l s)) suffixes);
+      (* Save the undo info *)
       (match undolist with 
         Some l -> l := AlphaChangedSuffix (rc, !rc) :: !l
       | _ -> ());
-      rc := newsuffix;
-      prefix ^ sep ^ (string_of_int newsuffix)
+
+      let newmax, newsuffix, (oldloc: location), newsuffixes = 
+        if numsuffix > max then begin 
+          (* Clearly we have not seen it *)
+          numsuffix, suffix, !currentLoc,
+          (suffix, !currentLoc) :: suffixes 
+        end else begin 
+          match List.filter (fun (n, _) -> n = suffix) suffixes with 
+            [] -> (* Not found *)
+              max, suffix, !currentLoc, (suffix, !currentLoc) :: suffixes
+          | [(_, l) ] -> 
+              (* We have seen this exact suffix before *)
+              if make_new then 
+                let newsuffix = alphaSeparator ^ (string_of_int (max + 1)) in
+                max + 1, newsuffix, l, (newsuffix, !currentLoc) :: suffixes
+              else
+                max, suffix, !currentLoc, suffixes
+          |  _ -> E.s (E.bug "Cil.alphaWorker")
+        end
+      in
+      rc := (newmax, newsuffixes);
+      prefix ^ newsuffix, oldloc
     with Not_found -> begin (* First variable with this prefix *)
       (match undolist with 
         Some l -> l := AlphaAddedSuffix prefix :: !l
       | _ -> ());
-      H.add alphaTable prefix (ref suffix);
-      if debugAlpha then ignore (E.log " First seen. ");
-      lookupname  (* Return the original name *)
+      H.add alphaTable prefix (ref (numsuffix, [ (suffix, !currentLoc) ]));
+      if debugAlpha prefix then ignore (E.log " First seen. ");
+      lookupname, !currentLoc  (* Return the original name *)
     end
   in
-  if debugAlpha then
-    ignore (E.log " Res=: %s\n" newname);
-  newname
-  
+  if debugAlpha prefix then
+    ignore (E.log " Res=: %s (%a)\n" newname d_loc oldloc);
+  newname, oldloc
 
-and registerAlphaName ~(alphaTable: (string, int ref) H.t)
-                      ~(undolist: undoAlphaElement list ref option)
-                      ~(lookupname: string) : unit = 
-  let prefix, sep, suffix = splitNameForAlpha ~lookupname in
-  if debugAlpha then
-    ignore (E.log "Registering alpha name: %s %s %d. " prefix sep suffix);
-  try
-    let rc = H.find alphaTable prefix in
-    if debugAlpha then
-      ignore (E.log " Old suffix %d. " !rc);
-    let newsuffix = if suffix > !rc then suffix else !rc in
-    (match undolist with 
-      Some l -> l := AlphaChangedSuffix (rc, !rc) :: !l
-    | _ -> ());
-    rc := newsuffix;
-  with Not_found -> begin (* First variable with this prefix *)
-    (match undolist with 
-      Some l -> l := AlphaAddedSuffix prefix :: !l
-    | _ -> ());
-    H.add alphaTable prefix (ref suffix);
-    if debugAlpha then ignore (E.log " First seen. ");
-  end
-
-(* Strip the suffix. Return the prefix, the separator (empty or _) and a 
- * numeric suffix (-1 if the separator is empty or if _the separator is not 
- * followed y digits) *)
+(* Strip the suffix. Return the prefix, the suffix (including the separator 
+ * and the numeric value, possibly empty), and the 
+ * numeric value of the suffix (possibly -1 if missing) *) 
 and splitNameForAlpha ~(lookupname: string) : (string * string * int) = 
-  (* Split the lookup name into a prefix, a separator (empty or 
-   * alphaSeparator) and a suffix. The suffix is numeric and is separated by 
-   * sep from the prefix *)
   let len = String.length lookupname in
   (* Search backward for the numeric suffix. Return the first digit of the 
    * suffix. Returns len if no numeric suffix *)
@@ -5232,29 +5263,38 @@ and splitNameForAlpha ~(lookupname: string) : (string * string * int) =
     (lookupname, "", -1)  (* No valid suffix in the name *)
   else
     (String.sub lookupname 0 (startSuffix - alphaSeparatorLen), 
-     alphaSeparator,
+     String.sub lookupname (startSuffix - alphaSeparatorLen) 
+                           (len - startSuffix + alphaSeparatorLen),
      int_of_string (String.sub lookupname startSuffix (len - startSuffix)))
     
 
+let getAlphaPrefix ~(lookupname:string) : string = 
+  let p, _, _ = splitNameForAlpha ~lookupname:lookupname in
+  p
+      
 (* Undoes the changes as specified by the undolist *)
-let undoAlphaChanges ~(alphaTable: (string, int ref) H.t) 
+let undoAlphaChanges ~(alphaTable: (string, alphaTableData ref) H.t) 
                      ~(undolist: undoAlphaElement list) = 
   List.iter
     (function 
-        AlphaChangedSuffix (where, old) -> where := old
-      | AlphaAddedSuffix name -> H.remove alphaTable name)
+        AlphaChangedSuffix (where, old) -> 
+          where := old
+      | AlphaAddedSuffix name -> 
+          if debugAlpha name then 
+            ignore (E.log "Removing %s from alpha table\n" name);
+          H.remove alphaTable name)
     undolist
 
-let docAlphaTable () (alphaTable: (string, int ref) H.t) = 
-  let acc : (string * int) list ref = ref [] in
+let docAlphaTable () (alphaTable: (string, alphaTableData ref) H.t) = 
+  let acc : (string * (int * (string * location) list)) list ref = ref [] in
   H.iter (fun k d -> acc := (k, !d) :: !acc) alphaTable;
-  docList line (fun (k, d) -> dprintf "  %s -> %d" k d) () !acc
+  docList line (fun (k, (d, _)) -> dprintf "  %s -> %d" k d) () !acc
 
 
 (** Uniquefy the variable names *)
 let uniqueVarNames (f: file) : unit = 
   (* Setup the alpha conversion table for globals *)
-  let gAlphaTable: (string, int ref) H.t = H.create 113 in
+  let gAlphaTable: (string, alphaTableData ref) H.t = H.create 113 in
   (* Keep also track of the global names that we have used. Map them to the 
    * variable ID. We do this only to check that we do not have two globals 
    * with the same name. *)
@@ -5292,11 +5332,11 @@ let uniqueVarNames (f: file) : unit =
           let undolist = ref [] in
           (* Process one local variable *)
           let processLocal (v: varinfo) = 
-            let newname = 
+            let newname, oldloc = 
               newAlphaName gAlphaTable (Some undolist) v.vname in
             if false && newname <> v.vname then (* Disable this warning *)
-              ignore (warn "uniqueVarNames: Changing the name of local %s in %s to %s\n"
-                        v.vname fdec.svar.vname newname);
+              ignore (warn "uniqueVarNames: Changing the name of local %s in %s to %s (due to duplicate at %a)\n"
+                        v.vname fdec.svar.vname newname d_loc oldloc);
             v.vname <- newname
           in
           (* Do the formals first *)

@@ -253,7 +253,7 @@ let genv : (string, envdata * location) H.t = H.create 307
   * hash table easily *)
 type undoScope =
     UndoRemoveFromEnv of string
-  | UndoResetAlphaCounter of string * int
+  | UndoResetAlphaCounter of alphaTableData ref * alphaTableData
   | UndoRemoveFromAlphaTable of string
 
 let scopes :  undoScope list ref list ref = ref []
@@ -293,11 +293,9 @@ let addGlobalToEnv (k: string) (d: envdata) : unit =
  * first argument is a table mapping name prefixes with the largest suffix 
  * used so far for that prefix. The largest suffix is one when only the 
  * version without suffix has been used. *)
-let alphaTable : (string, int ref) H.t = H.create 307 (* vars and enum tags. 
-                                                       * For composite types 
-                                                       * we have names like 
-                                                       * "struct foo" or 
-                                                       * "union bar" *)
+let alphaTable : (string, alphaTableData ref) H.t = H.create 307 
+        (* vars and enum tags. For composite types we have names like "struct 
+         * foo" or "union bar" *)
 
 (* To keep different name scopes different, we add prefixes to names 
  * specifying the kind of name: the kind can be one of "" for variables or 
@@ -318,7 +316,7 @@ let stripKind (kind: string) (kindplusname: string) : string =
    
 let newAlphaName (globalscope: bool) (* The name should have global scope *)
                  (kind: string) 
-                 (origname: string) : string = 
+                 (origname: string) : string * location = 
   let lookupname = kindPlusName kind origname in
   (* If we are in a scope then it means that we are alpha-converting a local 
    * name. Go and add stuff to reset the state of the alpha table but only to 
@@ -326,10 +324,10 @@ let newAlphaName (globalscope: bool) (* The name should have global scope *)
   let rec findEnclosingFun = function
       [] -> (* At global scope *)()
     | [s] -> begin
-        let prefix, _, _ = splitNameForAlpha lookupname in
+        let prefix = getAlphaPrefix lookupname in
         try
           let countref = H.find alphaTable prefix in
-          s := (UndoResetAlphaCounter (prefix, !countref)) :: !s
+          s := (UndoResetAlphaCounter (countref, !countref)) :: !s
         with Not_found ->
           s := (UndoRemoveFromAlphaTable prefix) :: !s
     end
@@ -337,8 +335,8 @@ let newAlphaName (globalscope: bool) (* The name should have global scope *)
   in
   if not globalscope then 
     findEnclosingFun !scopes;
-  let newname = Cil.newAlphaName alphaTable None lookupname in
-  stripKind kind newname
+  let newname, oldloc = Cil.newAlphaName alphaTable None lookupname in
+  stripKind kind newname, oldloc
 
 
   
@@ -396,13 +394,8 @@ let exitScope () =
     | UndoRemoveFromEnv n :: t -> 
         H.remove env n; loop t
     | UndoRemoveFromAlphaTable n :: t -> H.remove alphaTable n; loop t
-    | UndoResetAlphaCounter (n, oldv) :: t -> 
-        begin
-          try
-            let vref = H.find alphaTable n in
-            vref := oldv
-          with Not_found -> ()
-        end;
+    | UndoResetAlphaCounter (vref, oldv) :: t -> 
+        vref := oldv;
         loop t
   in
   loop !this
@@ -439,7 +432,7 @@ let alphaConvertVarAndAddToEnv (addtoenv: bool) (vi: varinfo) : varinfo =
   ignore (E.log "%t: alphaConvert(addtoenv=%b) %s" d_thisloc addtoenv vi.vname);
 *)
   (* Announce the name to the alpha conversion table *)
-  let newname = newAlphaName (addtoenv && vi.vglob) "" vi.vname in
+  let newname, oldloc = newAlphaName (addtoenv && vi.vglob) "" vi.vname in
   (* Make a copy of the vi if the name has changed. Never change the name for 
    * global variables *)
   let newvi = 
@@ -457,8 +450,8 @@ let alphaConvertVarAndAddToEnv (addtoenv: bool) (vi: varinfo) : varinfo =
           (* And continue using the last one *)
           vi
         with Not_found -> 
-          E.s (E.error "The alpha conversion wants to change the name of global %s" 
-                 vi.vname);
+          E.s (E.error "It seems that we would need to rename global %s (to %s) because of previous occurrence at %a" 
+                 vi.vname newname d_loc oldloc);
       end else
         copyVarinfo vi newname
     end
@@ -927,7 +920,7 @@ let startLoop iswhile =
   continues := (if iswhile then While else NotWhile (ref "")) :: !continues
 
 (* Sometimes we need to create new label names *)
-let newLabelName (base: string) = newAlphaName false "label" base
+let newLabelName (base: string) = fst (newAlphaName false "label" base)
 
 let continueOrLabelChunk (l: location) : chunk = 
   match !continues with
@@ -2035,7 +2028,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
         let n' =
           if n <> "" then n else anonStructName "enum" suggestedAnonName in
         (* make a new name for this enumeration *)
-        let n'' = newAlphaName true "enum" n' in
+        let n'', _  = newAlphaName true "enum" n' in
         (* Create the enuminfo, or use one that was created already for a
          * forward reference *)
         (* Use the attributes now *)
@@ -2058,7 +2051,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
           
           (* add this tag to the list so that it ends up in the real 
           * environment when we're finished  *)
-          let newname = newAlphaName true "" kname in
+          let newname, _  = newAlphaName true "" kname in
           (kname, (newname, i, loc)) :: loop (increm i 1) rest
         end
             
@@ -2456,7 +2449,7 @@ and makeCompType (isstruct: bool)
                  (a: attribute list) = 
   (* Make a new name for the structure *)
   let kind = if isstruct then "struct" else "union" in
-  let n' = newAlphaName true kind n in
+  let n', _  = newAlphaName true kind n in
   (* Create the self cell for use in fields and forward references. Or maybe 
    * one exists already from a forward reference  *)
   let comp, _ = createCompInfo isstruct n' in
@@ -4495,7 +4488,8 @@ and createGlobal (specs : (typ * storage * bool * A.attribute list))
       end
     end
   with e -> begin
-    ignore (E.log "error in createGlobal(%s): %s\n" n
+    ignore (E.log "error in createGlobal(%s: %a): %s\n" n
+              d_loc !currentLoc
               (Printexc.to_string e));
     cabsPushGlobal (dGlobal (dprintf "booo - error in global %s (%t)" 
                            n d_thisloc) !currentLoc);
@@ -4531,7 +4525,7 @@ and createLocal ((_, sto, _, _) as specs)
 
       (* Now alpha convert it to make sure that it does not conflict with 
        * existing globals or locals from this function. *)
-      let newname = newAlphaName true "" n in
+      let newname, _  = newAlphaName true "" n in
       (* Make it global  *)
       let vi = makeVarInfoCabs ~isformal:false
                                ~isglobal:true 
@@ -4991,37 +4985,77 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
              * functions like long convert(x) { __asm { mov eax, x \n cdq } } 
              * That set a return value via an ASM statement. As a result, I 
              * am changing this so a final ASM statement does not count as 
-             * "fall through" for the purposes of this warninge.  *)
+             * "fall through" for the purposes of this warning.  *)
             let instrFallsThrough (i : instr) = match i with
-              Set _ | Call _ -> true
+              Set _ -> true
+            | Call (None, Lval (Var e, NoOffset), _, _) 
+                      when e.vname = "exit" -> false
+            | Call _ -> true
             | Asm _ -> false
             in 
             let rec stmtFallsThrough (s: stmt) : bool = 
               match s.skind with
-                Instr(il) -> List.fold_left (fun acc elt -> 
-                  instrFallsThrough elt) true il
+                Instr(il) -> 
+                  List.fold_left (fun acc elt -> 
+                                      acc && instrFallsThrough elt) true il
               | Return _ | Break _ | Continue _ -> false
               | Goto _ -> false
               | If (_, b1, b2, _) -> 
                   blockFallsThrough b1 || blockFallsThrough b2
-              | Switch (e, b, targets, _) -> true (* Conservative *)
+              | Switch (e, b, targets, _) -> 
+                   (* See if there is a "default" case *)
+                   if not 
+                      (List.exists (fun s -> 
+                         List.exists (function Default _ -> true | _ -> false)
+                                      s.labels)
+                                   targets) then begin
+(*
+                      ignore (E.log "Switch falls through because no default");
+
+*)                      true (* We fall through because there is no default *)
+                   end else begin
+                      (* We must examine all cases. If any falls through, 
+                       * then the switch falls through. *)
+                      blockFallsThrough b
+                   end
               | Loop _ -> true (* Conservative *)
               | Block b -> blockFallsThrough b
               | TryFinally (b, h, _) -> blockFallsThrough h
-              | TryExcept (b, _, h, _) -> true (* conservative *)
+              | TryExcept (b, _, h, _) -> true (* Conservative *)
             and blockFallsThrough b = 
               let rec fall = function
                   [] -> true
                 | s :: rest -> 
-                    if stmtFallsThrough s then fall rest else labels rest
+                    if stmtFallsThrough s then begin
+(*
+                        ignore (E.log "Stmt %a falls through\n" d_stmt s);
+*)
+                        fall rest
+                    end else begin
+(*
+                        ignore (E.log "Stmt %a DOES NOT fall through\n"
+                                      d_stmt s);
+*)
                       (* If we are not falling thorough then maybe there 
                       * are labels who are *)
+                        labels rest
+                    end
               and labels = function
                   [] -> false
-                  | s :: rest when s.labels <> [] -> fall (s :: rest)
+                    (* We have a label, perhaps we can jump here *)
+                  | s :: rest when s.labels <> [] -> 
+(*
+                     ignore (E.log "invoking fall %a: %a\n" 
+                                      d_loc !currentLoc d_stmt s);
+*)
+                     fall (s :: rest)
                   | _ :: rest -> labels rest
               in
-              fall b.bstmts
+              let res = fall b.bstmts in
+(*
+              ignore (E.log "blockFallsThrough=%b %a\n" res d_block b);
+*)
+              res
             in
             if blockFallsThrough !currentFunctionFDEC.sbody then begin
               let retval = 
@@ -5084,7 +5118,7 @@ and doTypedef ((specs, nl): A.name_group) =
         (* Create a new name for the type. Use the same name space as that of 
         * variables to avoid confusion between variable names and types. This 
         * is actually necessary in some cases.  *)
-        let n' = newAlphaName true "" n in
+        let n', _  = newAlphaName true "" n in
         let ti = { tname = n'; ttype = newTyp'; treferenced = false } in
         let namedTyp = TNamed(ti, []) in
         (* Register the type. register it as local because we might be in a

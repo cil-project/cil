@@ -532,6 +532,8 @@ $TEST->addTests("testrun/msvc5", "", ["cil"]);
 
 $TEST->addTests("testrun/extern1", "", ['cil']);
 
+$TEST->addTests("test/duplicate", "", ['cil']);
+
 # Tests that are expected to fail
 $TEST->add2TestsFail("testrun/failubound1", "", "Failure UBOUND");
 $TEST->add2TestsFail("testrun/failnull1", "", "Failure");
