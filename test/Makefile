@@ -407,7 +407,7 @@ else
 endif
 
 testpcc/% : $(PCCDIR)/src/%.c 
-	cd $(CCUREDHOME)/test/PCCout; $(CCURED) --keep=. $(DEF)$(ARCHOS) \
+	cd $(CCUREDHOME)/test/PCCout; $(CCURED) --save-temps=. $(DEF)$(ARCHOS) \
                   $(DEF)$(PCCTYPE) $(CONLY) \
                   $(PCCDIR)/src/$*.c \
                   $(OBJOUT)$(notdir $*).o
@@ -418,7 +418,7 @@ ifdef _MSVC
   MSLINK := --mode=mscl
 endif
 PCCSAFECC=$(CCURED) $(DEF)CCURED \
-                    --keep=$(CCUREDHOME)/test/PCCout \
+                    --save-temps=$(CCUREDHOME)/test/PCCout \
                     --leavealone=pccbox --leavealone=alloc
 pcc : 
 #	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.o
@@ -426,7 +426,7 @@ pcc :
 	-rm $(PCCDIR)/bin/*.exe
 	make -C $(PCCDIR) \
              CC="$(PCCSAFECC) $(CONLY)" \
-             LD="$(CCURED) $(MSLINK) --keep=$(CCUREDHOME)/test/PCCout" \
+             LD="$(CCURED) $(MSLINK) --save-temps=$(CCUREDHOME)/test/PCCout" \
              USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
              COMPILER=$(PCCCOMP) \
 	     clean  
@@ -437,7 +437,7 @@ pcc-noclean :
 	-rm $(PCCDIR)/bin/*.exe
 	make -C $(PCCDIR) \
              CC="$(PCCSAFECC) $(CONLY)" \
-             LD="$(CCURED) $(MSLINK)  --keep=$(CCUREDHOME)/test/PCCout" \
+             LD="$(CCURED) $(MSLINK)  --save-temps=$(CCUREDHOME)/test/PCCout" \
              USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
              COMPILER=$(PCCCOMP) \
 
@@ -607,7 +607,7 @@ optim/% : $(OPTIMTESTDIR)/%.c
 hashtest: $(TESTDIR)/small2/hashtest.c 
 	rm -f $(PCCTEST)/hashtest.exe
 	cd $(PCCTEST); $(CCURED)  \
-                                 --keep=. $(DEF)x86_LINUX $(DEF)$(PCCTYPE) \
+                                 --save-temps=. $(DEF)x86_LINUX $(DEF)$(PCCTYPE) \
                  $(CFLAGS) \
                  $(INC)$(PCCDIR)/src \
                  $(PCCDIR)/src/hash.c \
@@ -633,7 +633,7 @@ rbtest: $(TESTDIR)/small2/rbtest.c
 	rm -f $(PCCTEST)/rbtest.exe
 	@true "compile with gcc for better error diagnostics (ha!)"
 	cd $(PCCTEST); $(CCURED)  \
-                                 --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
+                                 --save-temps=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  $(CFLAGS) \
                  $(INC)$(PCCDIR)/src \
                  $(PCCDIR)/src/redblack.c \
@@ -655,7 +655,7 @@ rbtest-optimvariant: mustbegcc
 btreetest: $(TESTDIR)/small2/testbtree.c \
            $(TESTDIR)/small2/btree.c 
 	rm -f $(TESTDIR)/small2/btreetest.exe
-	cd $(TESTDIR)/small2; $(CCURED) --keep=. \
+	cd $(TESTDIR)/small2; $(CCURED) --save-temps=. \
                  $(CFLAGS) \
                  btree.c testbtree.c \
                  $(EXEOUT)btreetest.exe
@@ -700,7 +700,7 @@ endif
 scott/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 	rm -f $(TESTDIR)/small2/$*.exe
 	cd $(TESTDIR)/small2; $(CC) $(CONLY) $(WARNALL) $*.c
-	cd $(TESTDIR)/small2; $(CCURED) --nomerge --keep=. \
+	cd $(TESTDIR)/small2; $(CCURED) --nomerge --save-temps=. \
                  $(CFLAGS) $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*.exe
@@ -709,7 +709,7 @@ scott/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 scott-nolink/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 	rm -f $(TESTDIR)/small2/$*.exe
 	cd $(TESTDIR)/small2; $(CC) $(CONLY) $(WARNALL) $*.c
-	cd $(TESTDIR)/small2; $(CCURED) --nomerge $(CONLY) --keep=. \
+	cd $(TESTDIR)/small2; $(CCURED) --nomerge $(CONLY) --save-temps=. \
                  $(CFLAGS) $(WARNALL) $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*.exe
@@ -719,7 +719,7 @@ scott-nolink/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 perf/%: $(TESTDIR)/small1/%.c
 	rm -f $(TESTDIR)/small1/$*
 	cd $(TESTDIR)/small1; \
-             $(CCURED) --nomerge --keep=. \
+             $(CCURED) --nomerge --save-temps=. \
                  $(CFLAGS) `true $(WARNALL)` $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*.exe
@@ -747,7 +747,7 @@ badd/%: $(TESTDIR)/bad/%.c $(TARGET_DEP)
 	rm -f $(TESTDIR)/bad/$*.exe
 	cd $(TESTDIR)/bad; $(CC) $(CONLY) $(WARNALL) $*.c
 	@true "first try the succeed case"
-	cd $(TESTDIR)/bad; $(CCURED) --nomerge --keep=. \
+	cd $(TESTDIR)/bad; $(CCURED) --nomerge --save-temps=. \
                  -g $(CFLAGS) -fno-inline-functions $(WARNALL) $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*.exe
@@ -758,7 +758,7 @@ badd/%: $(TESTDIR)/bad/%.c $(TARGET_DEP)
 		echo "That should have worked; FAIL was not defined!"; exit 2; \
 	fi
 	@true "now try the failure case"
-	cd $(TESTDIR)/bad; $(CCURED) --nomerge --keep=. \
+	cd $(TESTDIR)/bad; $(CCURED) --nomerge --save-temps=. \
                  $(CFLAGS) -fno-inline-functions $(WARNALL) $(NOPRINTLN) -DFAIL \
                  $*.c \
                  $(EXEOUT)$*.exe
@@ -775,7 +775,7 @@ bads/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 	rm -f $(TESTDIR)/small2/$*.exe
 	cd $(TESTDIR)/small2; $(CC) $(CONLY) $(WARNALL) $*.c
 	@true "first try the succeed case"
-	cd $(TESTDIR)/small2; $(CCURED) --nomerge --keep=. \
+	cd $(TESTDIR)/small2; $(CCURED) --nomerge --save-temps=. \
                  $(CFLAGS) $(WARNALL) $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*.exe
@@ -785,7 +785,7 @@ bads/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 		echo "That should have worked; FAIL was not defined!"; exit 2; \
 	fi
 	@true "now try the failure case"
-	cd $(TESTDIR)/small2; $(CCURED) --nomerge --keep=. \
+	cd $(TESTDIR)/small2; $(CCURED) --nomerge --save-temps=. \
                  $(CFLAGS) $(WARNALL) $(NOPRINTLN) -DFAIL \
                  $*.c \
                  $(EXEOUT)$*.exe
@@ -850,7 +850,7 @@ test-bad-crypt/%: $(TESTDIR)/small1/%.c $(TARGET_DEP)
 
 
 # sm: trivial test of combiner
-MYSAFECC := $(CCURED) --keep=.
+MYSAFECC := $(CCURED) --save-temps=.
 comb: $(TESTDIR)/small2/comb1.c $(TESTDIR)/small2/comb2.c 
 	rm -f $(TESTDIR)/small2/comb.exe
 	cd $(TESTDIR)/small2; \
@@ -886,7 +886,7 @@ baddef: $(TESTDIR)/small2/baddef1.c $(TESTDIR)/small2/baddef2.c
 # The final grep will succeed only once the inference correctly says
 # the argument to __throw_setup is WILD.
 doThrowFv:
-	cd $(TESTDIR)/small2; $(CCURED) --nomerge -c --keep=. doThrowFv.c
+	cd $(TESTDIR)/small2; $(CCURED) --nomerge -c --save-temps=. doThrowFv.c
 	cd $(TESTDIR)/small2; grep throw_setup doThrowFv.cured.c
 	cd $(TESTDIR)/small2; grep throw_setup_ww doThrowFv.cured.c
 
@@ -903,16 +903,16 @@ cfrac:
 	-rm $(CFRACDIR)/*.o
 	-rm $(CFRACDIR)/cfrac.exe
 	make -C $(CFRACDIR) \
-	  CC="$(CCURED) --nomerge --keep=$(CFRACDIR)" \
-	  LD="$(CCURED) --nomerge --keep=$(CFRACDIR)"
+	  CC="$(CCURED) --nomerge --save-temps=$(CFRACDIR)" \
+	  LD="$(CCURED) --nomerge --save-temps=$(CFRACDIR)"
 	csh -c "time $(CFRACDIR)/cfrac.exe 327905606740421458831903"
 
 comcfrac: 
 	-rm $(CFRACDIR)/*.o
 	-rm $(CFRACDIR)/cfrac.exe
 	make -C $(CFRACDIR) \
-	  CC="$(CCURED) --keep=$(CFRACDIR)" \
-	  LD="$(CCURED) --keep=$(CFRACDIR)"
+	  CC="$(CCURED) --save-temps=$(CFRACDIR)" \
+	  LD="$(CCURED) --save-temps=$(CFRACDIR)"
 	csh -c "time $(CFRACDIR)/cfrac.exe 327905606740421458831903"
 
 # espresso: memory benchmark that does logic minimization
@@ -921,14 +921,14 @@ espresso:
 	@true -rm $(ESPRESSODIR)/*.o
 	@true -rm $(ESPRESSODIR)/espresso.exe
 	make -C $(ESPRESSODIR) \
-	  CC="$(CCURED) --keep=$(ESPRESSODIR)" \
-	  LD="$(CCURED) --keep=$(ESPRESSODIR)"
+	  CC="$(CCURED) --save-temps=$(ESPRESSODIR)" \
+	  LD="$(CCURED) --save-temps=$(ESPRESSODIR)"
 	csh -c "time $(ESPRESSODIR)/espresso.exe -t $(ESPRESSODIR)INPUT/Z5xp1.espresso >/dev/null"
 
 
 
 
-HUFFCOMPILE := $(CCURED) $(DEF)NOVARARG --keep=. --keepmerged
+HUFFCOMPILE := $(CCURED) $(DEF)NOVARARG --save-temps=. --keepmerged
 # HUFFCOMPILE := cl /MLd
 ifdef _GNUCC
   HUFFOTHERS += -lm
@@ -967,7 +967,7 @@ hufftest-optimvariant: mustbegcc
 
 wes-rbtest: $(TESTDIR)/small2/wes-rbtest.c 
 	rm -f $(PCCTEST)/wes-rbtest.exe
-	cd $(PCCTEST); $(CCURED) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
+	cd $(PCCTEST); $(CCURED) --save-temps=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  $(CFLAGS) \
                  $(INC)$(PCCDIR)/src \
                  ../small2/wes-rbtest.c \
@@ -976,7 +976,7 @@ wes-rbtest: $(TESTDIR)/small2/wes-rbtest.c
 
 wes-hashtest: $(TESTDIR)/small2/wes-hashtest.c 
 	rm -f $(PCCTEST)/wes-hashtest.exe
-	cd $(PCCTEST); $(CCURED) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
+	cd $(PCCTEST); $(CCURED) --save-temps=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  $(CFLAGS) \
                  $(INC)$(PCCDIR)/src \
                  ../small2/wes-hashtest.c \
@@ -1122,7 +1122,7 @@ APATCH := --includedir=$(APACHEBASE)/include
 apache/% : $(APACHETEST)/mod_%.c
 	rm -f $(APACHETEST)/mod_$*.$(OBJEXT)
 	cd $(APACHETEST) ; $(CCURED) \
-                       --keep=. $(APATCH) \
+                       --save-temps=. $(APATCH) \
                         $(CFLAGS) \
                         $(APACHECFLAGS) \
                         $(CONLY) $(OBJOUT)./mod_$*.$(OBJEXT) \
@@ -1427,7 +1427,7 @@ spec-compress :
 
 old-compress :  $(COMPRESSDIR)/src/combine-compress.c
 	rm -f $(COMPRESSDIR)/combine-compress.exe
-	cd $(COMPRESSDIR)/src ; $(CCURED) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
+	cd $(COMPRESSDIR)/src ; $(CCURED) --save-temps=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  $(CFLAGS) \
                  combine-compress.c \
                  $(EXEOUT)combine-compress.exe
@@ -1500,7 +1500,7 @@ liclean:
 	cd $(LIDIR)/src; rm -f *.cil.c *box.c *.i *_ppp.c *.origi trial_li_all.c
 
 liinfer: li
-	cd $(LIDIR)/src ; $(CCURED) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
+	cd $(LIDIR)/src ; $(CCURED) --save-temps=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  $(CFLAGS) \
                  trial_li.c \
                  $(EXEOUT)li.exe
