@@ -46,6 +46,8 @@ module VS = Usedef.VS
 module S = Ssa
 
 let debug = false
+let prologue = "["
+let epilogue = "]"
 
 let arithAbsOut = ref stdout
 let setArithAbsFile (s: string) =
@@ -420,9 +422,9 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
             
 
     method dBlock (out: out_channel) (ind: int) (b: block) : unit = 
-      ignore (p ~ind:ind "<block\n");
+      ignore (p ~ind:ind "%sblock\n" prologue);
       List.iter (self#dStmt out (ind+ 2)) b.bstmts;
-      ignore (p ~ind:ind ">\n")
+      ignore (p ~ind:ind "%s\n" epilogue)
         
     method dStmt (out: out_channel) (ind: int) (s: stmt) : unit = 
 
@@ -480,11 +482,11 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
 
         
       ignore (p ~ind:ind
-                "<stmt %d <succs %a> <preds %a> <idom %a>\n  @[%a@]\n"
-                s.sid (** Statement id *)
-                (d_list "," (fun _ s' -> num s'.sid)) s.succs
-                (d_list "," (fun _ s' -> num s'.sid)) s.preds
-                insert idom
+                "%sstmt %d %ssuccs %a%s %spreds %a%s %sidom %a%s\n  @[%a@]\n"
+                prologue s.sid (** Statement id *)
+                prologue (d_list "," (fun _ s' -> num s'.sid)) s.succs epilogue
+                prologue (d_list "," (fun _ s' -> num s'.sid)) s.preds epilogue
+                prologue insert idom epilogue
                 (docList ~sep:line 
                    (fun pv -> 
                      let (lhs, rhs) = getPhiAssignment pv in 
@@ -501,7 +503,7 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
               pd ~ind:ind (self#pInstr () i ++ line))
             il
       | Block b -> List.iter (self#dStmt out ind) b.bstmts
-      | Goto (s, _) -> ignore (p ~ind:ind "<goto %d>\n" !s.sid)
+      | Goto (s, _) -> ignore (p ~ind:ind "%sgoto %d%s\n" prologue !s.sid epilogue)
       | Return (what, _) -> begin
 
           let gwt: varinfo list = 
@@ -524,22 +526,25 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
       end
 
       | If(e, b1, b2, _) -> 
-          ignore (p ~ind:ind "<if %a\n" self#pExp e);
+          ignore (p ~ind:ind "%sif %a\n" prologue self#pExp e);
           self#dBlock out (ind + 2) b1;
           self#dBlock out (ind + 2) b2;
-          ignore (p ~ind:ind ">\n")
+          ignore (p ~ind:ind "%s\n" epilogue)
             
       | Loop (b, _, Some co, Some br) -> 
-          ignore (p ~ind:ind "<loop <cont %d> <break %d>\n" co.sid br.sid);
+          ignore (p ~ind:ind "%sloop %scont %d%s %sbreak %d%s\n" 
+		    prologue 
+		    prologue co.sid epilogue 
+		    prologue br.sid epilogue);
           List.iter (self#dStmt out (ind+ 2)) b.bstmts;
-          ignore (p ~ind:ind ">\n")
+          ignore (p ~ind:ind "%s\n" epilogue)
             
             (* The other cases should have been removed already *)
       | _ -> E.s (E.unimp "try except"));
       
       (* The termination *)
       let ind = ind - 2 in
-      ignore (p ~ind:ind ">\n")
+      ignore (p ~ind:ind "%s\n" epilogue)
         
         
     method dGlobal (out: out_channel) (g: global) : unit = 
@@ -658,24 +663,26 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
         (* The header *)
         pd (self#pLineDirective ~forcefile:true l); 
 
-        ignore (p "<function %s\n  <formals %a>\n  <globalsreadtransitive %a>\n  <globalswrittentransitive %a>\n  <locals %a>\n  <uninitlocals %a>\n  <globalsread %a>\n  <globalswritten %a>\n  <calls %a>\n  <calledby %a>\n  %a"
-          fdec.svar.vname
-          (docList (fun v -> text v.vname)) fdec.sformals
-          (d_list "," (fun () v -> text v.vname)) 
-                  (getGlobalsReadTransitive fdec.svar)
-          (d_list "," (fun () v -> text v.vname)) 
-                  (getGlobalsWrittenTransitive fdec.svar)
-          (docList text) freshVars
-          (docList text) uninitVars
-          (d_list "," (fun () (_, v) -> text v.vname)) (IH.tolist glob_read)
-          (d_list "," (fun () (_, v) -> text v.vname)) (IH.tolist glob_written)
-          (U.docHash (fun k _ -> text k)) cg_node.CG.cnCallees
-          (U.docHash (fun k _ -> text k)) cg_node.CG.cnCallers
+        ignore (p "%sfunction %s\n  %sformals %a%s\n  %sglobalsreadtransitive %a%s\n  %sglobalswrittentransitive %a%s\n  %slocals %a%s\n  %suninitlocals %a%s\n  %sglobalsread %a%s\n  %sglobalswritten %a%s\n  %scalls %a%s\n  %scalledby %a%s\n  %a"
+          prologue fdec.svar.vname
+          prologue (docList (fun v -> text v.vname)) fdec.sformals epilogue
+          prologue (d_list "," (fun () v -> text v.vname)) 
+                  (getGlobalsReadTransitive fdec.svar) epilogue
+          prologue (d_list "," (fun () v -> text v.vname)) 
+                  (getGlobalsWrittenTransitive fdec.svar) epilogue
+          prologue (docList text) freshVars epilogue
+          prologue (docList text) uninitVars epilogue
+          prologue (d_list "," (fun () (_, v) -> text v.vname)) (IH.tolist glob_read) epilogue
+          prologue (d_list "," (fun () (_, v) -> text v.vname)) (IH.tolist glob_written) epilogue
+          prologue (U.docHash (fun k _ -> text k)) cg_node.CG.cnCallees epilogue
+          prologue (U.docHash (fun k _ -> text k)) cg_node.CG.cnCallers epilogue
           (docList ~sep:line
              (fun (headers, nodes) -> 
-               dprintf "<SCC <headers %a> <nodes %a>>\n"
-                 (docList num) headers
-                 (docList num) nodes))
+               dprintf "%sSCC %sheaders %a%s %snodes %a%s%s\n"
+                 prologue 
+		 prologue (docList num) headers epilogue
+                 prologue (docList num) nodes epilogue 
+		 epilogue))
                   scc);
 
 
@@ -683,7 +690,7 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
         self#dBlock out 2 fdec.sbody;
 
         (* The end *)
-        ignore (p "\n>\n\n")
+        ignore (p "\n%s\n\n" epilogue)
 
     (* Emit the globals whose address is not taken *)
     | GVarDecl (vi, l) | GVar (vi, _, l) when 
@@ -692,7 +699,7 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
       -> 
         IH.add globalsDumped vi.vid ();
         pd (self#pLineDirective ~forcefile:true l);
-        ignore (p "<global %s>\n" vi.vname)
+        ignore (p "%sglobal %s%s\n" prologue vi.vname epilogue)
         
     | _ -> ()
 end
@@ -911,17 +918,19 @@ let feature : featureDescr =
         stronglyConnectedComponents ci in 
       List.iter 
         (fun (headers, nodes) -> 
-          ignore (p "<SCC <headers %a> <nodes %a>>\n"
-                    (docList 
+          ignore (p "%sSCC %sheaders %a%s %snodes %a%s%s\n"
+                    prologue 
+		    prologue (docList 
                        (fun n -> 
                          (try text (IH.find nodeIdToNode n).CG.cnInfo.vname
                          with Not_found -> assert false)))
-                    headers
-                    (docList 
+                    headers epilogue
+                    prologue (docList 
                        (fun n -> 
                          (try text (IH.find nodeIdToNode n).CG.cnInfo.vname
                          with Not_found -> assert false)))
-                    nodes))
+                    nodes epilogue
+		    epilogue))
         scc;
    );
         
