@@ -1704,7 +1704,11 @@ and makeVarInfo
     vstorage = sto;
     vattr    = nattr;
     vdecl    = ldecl;
-    vtype    = typeRemoveAttributes [Attr("const", [])] vtype;
+    (* Remove the const qualifier from local variables because they are 
+       initialized through assignments *)
+    vtype    = if not isglob then 
+                  typeRemoveAttributes [Attr("const", [])] vtype
+               else vtype;
     vaddrof  = false;
     vreferenced = false;   (* sm *)
   }
