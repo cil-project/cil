@@ -1652,13 +1652,13 @@ gzip: gzip-clean gzip-build gzip-run
 
 #
 # Linux
-LINUXDIR := /home/project/linux-2.2.9
+LINUXDIR := /home/weimer/linux-2.4.19
 
 linuxstandard: 
 	$(MAKE) -C $(LINUXDIR) clean vmlinux \
               MY-CC="gcc"
 
-LINUXCC := $(CCUREDHOME)/bin/ccured --mode=gcc
+LINUXCC := $(CCUREDHOME)/bin/ccured --mode=GNUCC
 ifdef NOLINES
   LINUXCC+= --noPrintLn
 endif
@@ -1672,6 +1672,11 @@ linux-cabs:  mustbegcc
 linux-cil:  mustbegcc
 	$(MAKE) -C $(LINUXDIR) vmlinux \
               MY-CC="$(LINUXCC) --cil"
+
+linux-ccured: mustbegcc
+	$(MAKE) -C $(LINUXDIR) vmlinux \
+              CC="$(LINUXCC) --separate --curetype=infer"
+
 
 linux-clean:
 	$(MAKE) -C $(LINUXDIR) clean
@@ -2030,8 +2035,10 @@ perl-gcc: mustbelinux mustbemanju perlclean
 	cd $(PERLSRC) ; make CC=gcc
 
 #### ------------- BIND ----------------------------
+# http://www.isc.org/products/BIND/
 
-BINDSRC := /usr/local/src/bind-9.2.0
+#BINDSRC := /usr/local/src/bind-9.2.0
+BINDSRC := /home/weimer/bind-9.2.2rc1
 
 bindclean:
 	cd $(BINDSRC); make clean
@@ -2046,13 +2053,16 @@ bindclean:
 	      	\) -exec rm -f {} \;
 
 bind: mustbegcc mustbelinux mustbemanju bindclean
-	cd $(BINDSRC) ; make CC="$(CCURED)"
+	cd $(BINDSRC) ; make -e CC="$(CCURED)" MAKE="make -e" \
+                LD="$(CILLY) --merge --verbose --commPrintLn " \
+                AR="$(CILLY) --mode=AR --merge --verbose " \
+                RANLIB="echo" 
 
 bind-noclean: mustbegcc mustbelinux mustbemanju
-	cd $(BINDSRC) ; make CC="$(CCURED)"
+	cd $(BINDSRC) ; make -e CC="$(CCURED)"
 
 bind-gcc: mustbelinux mustbemanju bindclean
-	cd $(BINDSRC) ; make CC=gcc
+	cd $(BINDSRC) ; make -e CC=gcc
 
 #### ------------- WU-FTPD -------------------------
 
