@@ -62,3 +62,5 @@ a.out
 ioctl
 stralloc
 segfault
+strpbrk
+fgets

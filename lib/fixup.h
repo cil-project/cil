@@ -117,5 +117,12 @@ char *strpbrk(char const *s, char const *accept) __DUMMYDEFN
   return s;                   // connect s to retval
 }
 
+// this will probably collide with non-glibc systems.. but I can't
+// #include <stdio.h> because it interacts badly with patching
+char *fgets(char *buf, int size, struct _IO_FILE *fp) __DUMMYDEFN
+{
+  return buf;
+}
+
 #endif // end of dummy definitions
 

@@ -784,6 +784,34 @@ bad/%: test/bad/%.c defaulttarget
 		echo "(failed as expected)"; exit 0; \
 	fi
 
+# same rules, this time in 'scott' directory, since it's a pain to
+# move the file just to add a failure case
+bads/%: test/small2/%.c defaulttarget
+	rm -f test/small2/$*
+	cd test/small2; $(CC) $(CONLY) $(WARNALL) $(DEF)$(ARCHOS) $*.c
+	@true "first try the succeed case"
+	cd test/small2; $(SAFECC) --verbose --keep=. $(DEF)$(ARCHOS) \
+                 `$(PATCHECHO) --patch=../../lib/$(PATCHFILE)` \
+                 $(DOOPT) $(WARNALL) $(NOPRINTLN) \
+                 $*.c \
+                 $(EXEOUT)$*
+	if test/small2/$*; then \
+		echo "(worked as expected, when FAIL not defined)"; exit 0; \
+	else \
+		echo "That should have worked; FAIL was not defined!"; exit 2; \
+	fi
+	@true "now try the failure case"
+	cd test/small2; $(SAFECC) --verbose --keep=. $(DEF)$(ARCHOS) \
+                 `$(PATCHECHO) --patch=../../lib/$(PATCHFILE)` \
+                 $(DOOPT) $(WARNALL) $(NOPRINTLN) -DFAIL \
+                 $*.c \
+                 $(EXEOUT)$*
+	if test/small2/$*; then \
+		echo "That should have failed!"; exit 2; \
+	else \
+		echo "(failed as expected)"; exit 0; \
+	fi
+
 
 
 # sm: trivial test of combiner

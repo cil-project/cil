@@ -1,5 +1,5 @@
 # .gdbinit
 
-file simplewild
+file fgets
 break main
 run

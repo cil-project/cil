@@ -14,4 +14,6 @@ allmlfiles
 out
 site-config.mk
 __scalar2pointer.txt
-
+*.log
+tmp
+*.log.prev
