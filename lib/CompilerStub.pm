@@ -25,7 +25,7 @@ sub new {
       PPARGS => [],    # Preprocessor args
       CCARGS => [],    # Compiler args
       LINKARGS => [],  # Linker args
-      DEBUG => 0,      # this causes the bytecode boxer to be used.. ?
+      NATIVECAML => 1, # this causes the native code boxer to be used
       RELEASELIB => 0, # if true, use the release runtime library (if any)
       VERBOSE => 0,    # when true, print extra detail
       OPERATION => 'TOEXE', # This is the default for all compilers
@@ -85,8 +85,8 @@ sub collectOneArgument {
     if($arg eq "--help") {
         $self->printHelp(); exit 1;
     }
-    if($arg eq "--debug") {
-        $self->{DEBUG} = 1; return 1;
+    if($arg eq "--bytecode") {
+        $self->{NATIVECAML} = 0; return 1;
     }
     if($arg eq "--releaselib") {
         $self->{RELEASELIB} = 1; return 1;
@@ -118,7 +118,7 @@ Options:
                This option must be the first one! If it is not found there
                then GNUCC mode is assumed.
   --help       Prints this help message
-  --debug      Invoke the bytecode (as opposed to native code) boxer
+  --bytecode   Invoke the bytecode (as opposed to native code) boxer
   --releaselib Link with the release version of the CCured runtime library
   --verbose    Prints a lot of information about what is being done
   --keep=xxx   Keep temporary files in the given directory

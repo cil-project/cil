@@ -35,9 +35,9 @@
   # Set the following before including this file
   # 
   # ARCHOS     - the architecture x86_WIN32, x86_LINUX
-  # RELEASE    - if set then will use the native compiler
+  # NATIVECAML - if set then will use the native compiler
   # CAMLUSEUNIX- if set then will link the unix library
-  # UNSAFE     - if set then will turn off safety checks (only with RELEASE)
+  # UNSAFE     - if set then will turn off safety checks (only with NATIVECAML)
 
   # SOURCEDIRS - the source directories
   # OBJDIR     - the directory where to put all object files
@@ -88,7 +88,7 @@ endif
 
 
 ifdef PROFILE
-# RELEASE	= 1
+# NATIVECAML	= 1
  CAMLC          = ocamlopt -p $(COMPILEFLAGS)
  CAMLLINK       = ocamlopt -p $(LINKFLAGS)
  CMO            = cmx
@@ -96,8 +96,8 @@ ifdef PROFILE
  EXEEXT         = .asm
  MOVEAFTERCAMLC = cmi cmx $(OBJ)
 else
-ifdef RELEASE
- #foo := $(shell echo "I am in RELEASE mode" >&2; echo whatever)
+ifdef NATIVECAML
+ #foo := $(shell echo "I am in NATIVECAML mode" >&2; echo whatever)
  CAMLC          = ocamlopt $(COMPILEFLAGS)
  CAMLLINK       = ocamlopt $(LINKFLAGS)
  CMO            = cmx
@@ -105,7 +105,7 @@ ifdef RELEASE
  EXEEXT         = .asm
  MOVEAFTERCAMLC = cmi cmx $(OBJ)
  COMPILETOWHAT  = native code
- # sm: by adding -native in release mode, we prevent spurious
+ # sm: by adding -native in native mode, we prevent spurious
  # dependencies on .cmo files which were causing lots of
  # extra recompilation
  CAMLDEP        = ocamldep -native
@@ -271,7 +271,7 @@ $(DEPENDDIR)/%.di: %.mli
 
 ifndef CLEANING
 #foo := $(shell echo "MODULES = $(MODULES)" 1>&2; echo whatever)
-#foo := $(shell echo "RELEASE = $(RELEASE)" 1>&2; echo whatever)
+#foo := $(shell echo "NATIVECAML = $(NATIVECAML)" 1>&2; echo whatever)
 -include $(MODULES:%=$(DEPENDDIR)/%.d)
 -include $(MODULES:%=$(DEPENDDIR)/%.di)
 endif

@@ -1,17 +1,10 @@
 # Makefile building and using the CCured compiler
 # author: George Necula
-#
-# Debugging. Set ECHO= to debug this Makefile 
+# hacks here and there by Wes and Scott
 
 # this Makefile makes use of several GNU Make extensions; see
 #   http://www.gnu.org/manual/make/html_chapter/make_toc.html
 
-
-# sm: infer CCUREDHOME when not set, to ease having multiple trees
-ifndef CCUREDHOME
-  export CCUREDHOME := $(shell pwd)
-  #$(error You have not defined the CCUREDHOME variable)
-endif
 
 # sm: moved this before setup and am now arranging things so this
 # can be the primary target; must rethink what 'setup' means
@@ -44,13 +37,18 @@ clean:
 
 # build ocamldoc documentation tree
 
-.PHONY: odoc cil-distrib 
+.PHONY: odoc cil-distrib quickbuild setup clean
 odoc:
 	make -f Makefile.ccured odoc $(MAKEOVERRIDES)
 	make -f Makefile.cil odoc $(MAKEOVERRIDES)
 
 cil-distrib:
 	make -f Makefile.cil cil-distrib $(MAKEOVERRIDES)
+
+# sm: infer CCUREDHOME when not set, to ease having multiple trees
+ifndef CCUREDHOME
+  export CCUREDHOME := $(shell pwd)
+endif
 
 CCURED := perl $(CCUREDHOME)/lib/ccured.pl 
 PATCHER := perl $(CCUREDHOME)/lib/patcher.pl
@@ -59,9 +57,21 @@ PATCHER := perl $(CCUREDHOME)/lib/patcher.pl
 # It is Ok if this file does not exist
 -include $(CCUREDHOME)/.ccuredrc
 
+# as a convenience, let RELEASE=1 on the command line imply
+# all options designed to make things fast (at least when not in
+# the middle of development)
+ifdef RELEASE
+  # use native code tools
+  export NATIVECAML := 1
+  # enable the optimizer inside our translator
+  export OPTIM := 1
+  # use runtime library with minimal debugging checks
+  export RELEASELIB := 1
+endif
+
 # By default we are on Linux
 ifndef ARCHOS
-ARCHOS := x86_WIN32
+  ARCHOS := x86_WIN32
 endif
 
 # By default use the old patcher
@@ -76,11 +86,11 @@ endif
 
 # Now include the compiler specific stuff
 ifdef _MSVC
-   include Makefile.msvc
+  include Makefile.msvc
 else
- ifdef _GNUCC
-   include Makefile.gcc
- endif
+  ifdef _GNUCC
+    include Makefile.gcc
+  endif
 endif
 
 
@@ -149,13 +159,8 @@ endif
 ifdef CHECK
   CCURED += --check
 endif
-ifndef RELEASE
-  CCURED+= --debug
-else
-  # weimer: RELEASE=1 implies OPTIM=1
-  ifndef NOOPTIM
-     CCURED+= --optimize
-  endif
+ifndef NATIVECAML
+  CCURED+= --bytecode
 endif
 ifdef OPTIM
   CCURED+= --optimize
@@ -245,27 +250,28 @@ ITERATIONS := 1
 endif
 
 ifeq '$(ITERATIONS)' '1'
-ITERATION_ELEMS := 1
+  ITERATION_ELEMS := 1
 else
-ifeq '$(ITERATIONS)' '3'
-ITERATION_ELEMS := 1 2 3
-else
-ifeq '$(ITERATIONS)' '5'
-ITERATION_ELEMS := 1 2 3 4 5
-else
-ifeq '$(ITERATIONS)' '7'
-ITERATION_ELEMS := 1 2 3 4 5 6 7
-else
-error ITERATIONS value is not legal
-endif
-endif
-endif
+  ifeq '$(ITERATIONS)' '3'
+    ITERATION_ELEMS := 1 2 3
+  else
+    ifeq '$(ITERATIONS)' '5'
+      ITERATION_ELEMS := 1 2 3 4 5
+    else
+      ifeq '$(ITERATIONS)' '7'
+	ITERATION_ELEMS := 1 2 3 4 5 6 7
+      else
+	error ITERATIONS value is not legal
+      endif
+    endif
+  endif
 endif
 
 
 ####### Test with PCC sources
 PCCDIR := $(CCUREDHOME)/test/PCC
 PCCTEST := test/PCCout
+# sm: didn't update following use of RELEASE b/c I don't understand it
 ifdef RELEASE
   PCCTYPE := RELEASE
   SPJARG :=
@@ -327,6 +333,7 @@ pccclean :
 
 SPJDIR := C:/Necula/Source/Touchstone/test
 SPJARG +=  -WV,"-H,4000000,-noindent" -WC,"-H,4000000,-noindent"
+# sm: didn't update following use of RELEASE b/c I don't understand it
 ifndef RELEASE
   SPJARG += --pccdebug
 endif
