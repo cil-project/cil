@@ -16,7 +16,6 @@ let splitVar (func: fundec)
              (v: varinfo) 
              (fstfld: fieldinfo) 
              (restflds: fieldinfo list) = 
-  ignore (E.log "***Spliting variable %s\n" v.vname);
   (* Update the type of the variable *)
   v.vtype <- fstfld.ftype;
   H.add newvars v.vname 
