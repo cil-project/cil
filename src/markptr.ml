@@ -21,6 +21,10 @@ let polyId = ref (-1)
  * first store here the original type.  *)
 let polyFunc : (string, typ option ref) H.t = H.create 7
 
+(* all of the printf-like format string functions. The integer is the
+ * argument number of the format string. *)
+let printfFunc : (string, int ) H.t = H.create 15
+
 
 (* if some enclosing context [like the attributes for a field] says that
  * this array should be sized ... we do not want to forget it! *)
@@ -468,6 +472,93 @@ let instantiatePolyFunc (vi: varinfo) : varinfo * bool =
   end;
   res, ispoly
 
+(* possible printf arguments *)
+type printfArgType = FormatInt | FormatDouble | FormatPointer
+
+let d_printfArgType () at = begin
+  match at with
+    FormatInt -> text "int"
+  | FormatDouble -> text "double"
+  | FormatPointer -> text "pointer"
+end
+
+(* interpret a conversion specifier: the stuff that comes after the % 
+ * in a printf format string *)
+let rec parseConversionSpec f start = begin
+  try 
+  match Char.lowercase f.[start] with
+    'e' | 'f' | 'g' |   (* double arg *)
+    'a' ->              (* double arg *)
+      FormatDouble, (start+1)
+    | 'd' | 'i' |         (* signed int arg *)
+    'o' | 'u' | 'x' |   (* unsigned int arg *)
+    'c' |               (* unsigned char *)
+    'p' ->              (* void pointer treated as int *)
+      FormatInt, (start+1)
+    | 's' -> FormatPointer, (start+1) (* char pointer *)
+    | 'n' -> E.s (E.bug "Cannot handle 'n' character in format string [%s]" f)
+    | _ -> parseConversionSpec f (start+1)
+  with _ ->
+    ignore (E.warn "Malformed format string [%s], assuming int arg at end" f) ;
+    FormatInt, (start+1)
+end
+
+(* take apart a format string and return a list of int/pointer choices *)
+let rec parseFormatString f start = begin
+  try 
+    let i = String.index_from f start '%' in
+    if f.[i+1] = '%' then (* an escaped %, not a format char *) 
+      parseFormatString f (i+2)
+    else begin
+      (* look after the % to see if they want an Int or a Pointer *)
+      let t, next_start = parseConversionSpec f (i+1) in
+      t :: (parseFormatString f next_start) (* look for another % *)
+    end
+  with _ -> []  (* no more % left in format string *)
+end
+
+(* remove casts *)
+let removeCasts e = begin
+  match e with 
+    CastE(t,e') -> e'
+  | _ -> e 
+end
+
+(* return the first few items of a list *)
+let rec list_first l n = begin
+  if n >= 0 then (List.hd l) :: (list_first (List.tl l) (n-1))
+  else []
+end
+
+(* Handle printf-like functions *)
+let isPrintf reso orig_func args (v : varinfo) = begin
+  (* extract the first o+1 args from orig_func  *)
+  let first_few_args orig_func o = begin
+    match orig_func with 
+      TFun(t,a,isv,attr) -> list_first a o
+    | _ -> E.s (E.bug "isPrintf.first_few_args")
+  end in 
+  try 
+    let o = Hashtbl.find printfFunc v.vname in begin
+    let format_arg = removeCasts (List.nth args o) in 
+    match format_arg with (* find the format string *)
+      Const(CStr(f)) -> 
+        let argTypeList = parseFormatString f 0 in 
+        (*
+        ignore (E.warn "Found printf [%s]@!Infer arg types: %a" f
+          (docList (chr ',' ++ break) (d_printfArgType ())) argTypeList) ;
+        *)
+        (* OK, let's create a new wrapper for this printf-like function *)
+        false
+    | _ -> 
+      ignore (E.warn "%s called with non-const format string %a" 
+        v.vname d_exp format_arg) ; 
+      false (* cannot handle non-constant format strings *)
+    end
+  with _ ->
+    false (* we only handle declared printf-like functions *)
+end
+
 (* Do a statement *)
 let rec doStmt (s: stmt) = 
   match s with 
@@ -493,6 +584,7 @@ let rec doStmt (s: stmt) =
       let func = (* check and see if it is polymorphic *)
         match orig_func with
           (Lval(Var(v),NoOffset)) -> 
+            let is_printf = isPrintf reso orig_func args v in
             let newvi, ispoly = instantiatePolyFunc v in
             (* And add a declaration for it *)
             if ispoly then
@@ -643,6 +735,9 @@ let markFile fl =
     List.iter (fun s -> H.add polyFunc s (ref None)) 
       ["free"; "malloc"; "calloc"; "calloc_fseq"; "realloc"];
   end;
+  (* initialize the default printf-like functions *)
+  List.iter (fun (s,i) -> H.add printfFunc s i)
+    [("printf",0) ; ("fprintf",1) ; ("sprintf",1) ; ("snprintf",2)] ;
   theFile := [];
   List.iter (fun g -> let g' = doGlobal g in 
                       theFile := g' :: !theFile) fl.globals;

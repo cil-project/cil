@@ -218,6 +218,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
 
   (* filters an edgelist so that it contains only ECast edges *)
   let ecast_edges_only l = List.filter (fun e -> e.ekind = ECast) l in
+  let non_safe_edges_only l = List.filter (fun e -> e.ekind <> ESafe) l in 
   let ecastandenull_edges_only l = 
     List.filter (fun e -> e.ekind = ECast || e.ekind = ENull) l in
   let eCNI_edges_only l = List.filter (fun e -> e.ekind = ECast || 
@@ -443,7 +444,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
             else update_kind n (if is_array n then SeqN else cur.kind) why) then
               finished := false) in
       let contaminated_list = 
-        (List.map (fun e -> e.efrom) ((* ecast_edges_only *) cur.pred)) 
+        (List.map (fun e -> e.efrom) ((* non_safe_edges_only *) cur.pred)) 
         (* @ 
         (List.map (fun e -> e.eto) (ecast_edges_only cur.succ))   *)
         in
@@ -469,8 +470,6 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
         | None -> ()
     end) node_ht
   done ;
-
-
 
   (* all otherwise unconstrained nodes become safe *)
   Hashtbl.iter (fun id n -> 
