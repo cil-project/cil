@@ -1053,7 +1053,7 @@ let renameVisitor = new renameVisitorClass
 (** A visitor that renames uses of inline functions that were discovered in 
  * pass 2 to be used before they are defined. This is like the renameVisitor 
  * except it only looks at the variables (thus it is a bit more efficient) 
- * and it also drops forward declarations of the inlines to be removed). *)
+ * and it also renames forward declarations of the inlines to be removed). *)
 
 class renameInlineVisitorClass = object (self)
   inherit nopCilVisitor 
@@ -1074,12 +1074,13 @@ class renameInlineVisitorClass = object (self)
           ChangeTo vi'
     end
 
-  (* And drop some declarations of inlines to remove *)
+  (* And rename some declarations of inlines to remove. We cannot drop this 
+   * declaration (see small1/combineinline6 ) *)
   method vglob = function
-      GVarDecl(vi, _) -> begin
+      GVarDecl(vi, l) when vi.vinline -> begin
         match findReplacement true vEq !currentFidx vi.vname with 
           None -> DoChildren
-        | _ -> ChangeTo [] (* Drop it *)
+        | Some (vi', _) -> ChangeTo [GVarDecl (vi', l)] (* Drop it *)
       end
     | _ -> DoChildren
 
