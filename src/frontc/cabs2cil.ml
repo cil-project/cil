@@ -1766,6 +1766,8 @@ and makeVarInfo
                 (ldecl: location)
                 ((s,(n,ndt,a)) : A.single_name) : varinfo = 
   let bt, sto, inline, attrs = doSpecList s in
+  if inline then
+    ignore (warn "inline for a non-function: %s" n);
   let vtype, nattr = 
     doType (AttrName false) bt (A.PARENTYPE(attrs, ndt, a)) in
   { vname    = n;

@@ -107,6 +107,8 @@ if(defined($option{patch})) {
     }
 }
 
+# print Dumper(\@patches);
+
 my $file;
 foreach $file (@{$option{ufile}}) {
     &patchOneFile($file, 0);
@@ -258,7 +260,6 @@ sub preparePatchFile {
         if($_ !~ m|^<<<(.*)$|) {
             next;
         }
-        $patchStartLine = $patchLineNo;
         # Process the flags
         my @patchflags = split(/\s*,\s*/, $1);
         my %valueflags;
@@ -297,6 +298,7 @@ sub preparePatchFile {
         if($_ !~ m|^===|) {
             die "No separator found after pattern $pattern in $pFile";
         }
+        $patchStartLine = $patchLineNo + 1;
         my $replacement = "";
         while(<PFILE>) {
             $patchLineNo ++;
@@ -423,13 +425,12 @@ sub applyPatches {
                         }
                     }
                 }
-                # print "Check succeeded\n";
+                # print "Using patch from $patch->{PATCHFILE}:$patch->{PATCHLINENO} at $in:$lineno\n";
                 # Now replace
                 $lineno += ($patNrLines - 1);
                 $toundo -= ($patNrLines - 1);
                 $line  = &lineDirective($patch->{PATCHFILE},
-                                        $patch->{PATCHLINENO} 
-                                        + 2 + $patNrLines);
+                                        $patch->{PATCHLINENO});
                 $line .= $patch->{REPLACE};
                 $line .= &lineDirective($in, $lineno + 1);
                 last;
