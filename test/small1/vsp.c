@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdarg.h>
-#include <testharness.h>
+#include "testharness.h"
 
 static void
 ns_client_logv(void *client, void *category,

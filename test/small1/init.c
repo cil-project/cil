@@ -2,10 +2,9 @@
 #define __NULLTERM
 #define __SIZED
 #endif
+#include "testharness.h"
 
-extern int printf(const char*, ...);
 extern int strcmp(const char*, const char*);
-extern void exit(int);
 
 /* run this with COMPATMODE=1 if compiling directly, since neither GCC nor 
  * MSVCC fully support the C standard */

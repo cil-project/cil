@@ -78,7 +78,8 @@ ifdef RELEASE
   # use runtime library with minimal debugging checks
   export RELEASELIB := 1
   # turn on gcc's optimizer for the resulting executables
-  export CCURED += -O2 --failIsTerse --alwaysStopOnError
+  export FAILISTERSE := 1
+  export CCURED += -O2 --alwaysStopOnError
 endif
 
 # By default we are on Linux
@@ -206,6 +207,9 @@ ifdef KEEPMERGED
 endif
 ifdef PRINTSTAGES
   CCURED+= --stages
+endif
+ifdef FAILISTERSE
+  CCURED+= --failIsTerse
 endif
 ifdef EMITINFER
   CCURED+= --emitinfer
