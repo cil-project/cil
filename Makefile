@@ -1393,5 +1393,8 @@ LINUXPATCH := $(STANDARDPATCH) --includedir=$(LINUX_INCLUDES)
 
 SBULLDIR := test/sbull
 sbull: mustbegcc mustbelinux
-	cd $(SBULLDIR); rm -f *.o; \
-           make CC="$(CCURED) $(LINUXPATCH) --entryPoint='sbull_init'"
+	cd $(SBULLDIR); ( make clean && make .depend && \
+           make CC="$(CCURED) $(LINUXPATCH) --entryPoint='sbull_init'" && \
+	   make sbull_wrappers.o && \
+	   ld -i -o sbull_cured.o sbull_wrappers.o sbull.o && \
+	   size sbull_cured.o )
