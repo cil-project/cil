@@ -109,7 +109,7 @@ $(OBJDIR)/machdep.ml : src/machdep.c
 	echo "let msvc = {" >>$@
 	$(OBJDIR)/machdep.exe >>$@
 	echo "}"          >>$@
- 
+
 #
 # Create the version information module
 .PHONY: cilversion
@@ -121,7 +121,7 @@ $(OBJDIR)/cilversion.ml: configure.in
 	echo "let cilVersionMajor = @CIL_VERSION_MAJOR@" >>$@
 	echo "let cilVersionMinor = @CIL_VERSION_MINOR@" >>$@
 	echo "let cilVersionRev   = @CIL_VERSION_REV@"   >>$@
-	echo "let cilVersion      = \"@(CIL_VERSION@\""  >>$@ 
+	echo "let cilVersion      = \"@CIL_VERSION@\""  >>$@ 
 
 # Build an OCAML library (CMA / CMXA) that exports our Cil stuff
 cillib: $(OBJDIR)/cil.$(CMXA)

@@ -750,15 +750,18 @@ ifndef RELEASE
 	pesky dialog boxes. <<<<<"
 endif
 endif
-	cd $(TESTDIR)/small2; CCUREDHOME="$(CCUREDHOME)" \
-               CCURED="$(CCURED) --separate --commPrintLn" \
+	cd $(TESTDIR)/small2; \
+	  CCUREDHOME="$(CCUREDHOME)" \
+	  CCURED="$(CCURED) --separate --commPrintLn" \
 	  CFLAGS=""`$(PATCHECHO) $(STANDARDPATCH)`" $(CFLAGS) $(WARNALL)" \
-          TESTBADONCE="$(TESTBADONCE)" _MSVC="$(_MSVC)" \
+          TESTBADONCE="$(TESTBADONCE)" \
+	  _MSVC="$(_MSVC)" \
 	  bash ../../bin/test-bad $*.c
 
 test-bad1/%: $(TESTDIR)/small1/%.c $(TARGET_DEP)
-	cd $(TESTDIR)/small1; CCUREDHOME="$(CCUREDHOME)" \
-               CCURED="$(CCURED) --separate --commPrintLn" \
+	cd $(TESTDIR)/small1; \
+	  CCUREDHOME="$(CCUREDHOME)" \
+	  CCURED="$(CCURED) --separate --commPrintLn" \
 	  CFLAGS=""`$(PATCHECHO) $(STANDARDPATCH)`" $(CFLAGS) $(WARNALL)" \
           TESTBADONCE="$(TESTBADONCE)" \
 	  bash ../../bin/test-bad $*.c

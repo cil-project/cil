@@ -85,7 +85,7 @@ while [ $i -le $numcases ]; do
   # generate a temporary file; first hide the ERROR tags which identify
   # the current test, then remove all remaining ERROR lines
   # (syntax for errors has parentheses so if I have >=10 cases I don't
-  # run into problems wherep e.g. ERROR1 is a substring of ERROR10)
+  # run into problems where e.g. ERROR1 is a substring of ERROR10)
   # use the little perl script to put line number directives where we remove 
   # lines 
   echo "generating test $i"

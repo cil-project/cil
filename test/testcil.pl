@@ -819,8 +819,8 @@ smAddTest("test-bad/setjmp $box");
 smAddTest("combinetaggedfn $wildbox SEPARATE=1 UNTAGGEDFNS=1");
 
 # test of strings (need more!)
-smFailTest("unsound user annotation RWSTRING", "badd/ovwrnull $box");
-smAddTest("test-bad/strloop2 $box");
+smFailTest("problem reading the 0 byte", "badd/ovwrnull $box");
+smFailTest("problem reading the 0 byte", "test-bad/strloop2 $box");
 
 # tests of function models
 smAddTest("scott/memcpy $box");
