@@ -746,6 +746,14 @@ baddef: $(TESTDIR)/small2/baddef1.c $(TESTDIR)/small2/baddef2.c
           $(MYSAFECC)  baddef1.o baddef2.o $(EXEOUT)baddef
 	$(TESTDIR)/small2/baddef
 
+# sm: Run CCured in all-wild mode, and see if we get the right answer.
+# The final grep will succeed only once the inference correctly says
+# the argument to __throw_setup is WILD.
+doThrowFv:
+	cd $(TESTDIR)/small2; $(CCURED) --separate -c doThrowFv.c
+	cd $(TESTDIR)/small2; grep throw_setup doThrowFvcured.c
+	cd $(TESTDIR)/small2; grep throw_setup_ww doThrowFvcured.c
+
 # cfrac: a memory benchmark which factorizes into products of primes
 CFRACDIR := $(CCUREDHOME)/../bench/cfrac
 cfrac: 
