@@ -22,7 +22,8 @@ my $TEST = SafecRegTest->new(AvailParams => {"run" => 1,
                                              "solve" => 1, 
                                              "print" => 1, 
                                              "box" => 1},
-                             LogFile => "safec.log");
+                             LogFile => "safec.log",
+                             CommandName => "testsafec");
 
 my @runpattern = 
     ("^Run.+ ([.\\d]+)ms" => sub { $_[1]->{"run"} = $_[2]; });
