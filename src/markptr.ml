@@ -655,10 +655,15 @@ let argumentTypeSig (t: typ) =
   (* Ignore all attributes *)
   typeSigWithAttrs (fun x -> []) (argumentPromotion t)
 
+type vaKind  = int (* An index starting from 0 *) 
+             * string (* A name of the kind *)
+             * typ (* The type of the kind *)
+             * typsig (* The pre-computed type signature *)
+
 (* Keep track for each function whether it is a vararg, and the 
  * alternatives, with an index, a field name, a type and a type signature. 
  * raises Not_found *)
-let getVarargKinds (func: exp) : (int * string * typ * typsig) list = 
+let getVarargKinds (func: exp) : vaKind list = 
   match filterAttributes "boxvararg" (getFunctionTypeAttributes func) with
     [Attr(_, [ASizeOf t])] -> 
       let kinds = 
@@ -692,7 +697,7 @@ let getVarargKinds (func: exp) : (int * string * typ * typsig) list =
 
 (* May raise Not_found *)
 let findTypeIndex (t: typ) 
-                  (argkinds: (int * string * typ * typsig) list)
+                  (argkinds: vaKind list)
     : int * string * typ * typsig = 
   let ts = argumentTypeSig t in
   List.find (fun (_, _, _, ks) -> ks = ts) argkinds
@@ -771,7 +776,7 @@ end
 let handleFormatString 
     (func: exp)
     (args: exp list) 
-    (argkinds: (int * string * typ * typsig) list) 
+    (argkinds: vaKind list) 
     (indices: int list) : bool =
   try
     match filterAttributes "boxformat" (getFunctionTypeAttributes func) with
@@ -906,7 +911,12 @@ let getNextField (vainfo: varinfo) : lval =
   | _ -> E.s (E.bug "getNextField: can't find it")
     
     (* We keep a list of the marker variables and their mapping to vainfo 
-     * variables *)
+     * variables. We also keep  *)
+type vaListType = 
+    { vaOrigName: string ; (* The original name *)
+      vaNewVarinfo: varinfo; (* The replacement *)
+      vaKinds: vaKind list } 
+
 let markers: (string, varinfo) H.t = H.create 13
     (* The last formal in this body *)
 let lastformal : varinfo ref = ref dummyFunDec.svar
