@@ -42,6 +42,7 @@ sockaddr
 oldstyle
 typeof
 asmfndecl
+funcname
 qsort
 memset_sizeof
 jpeg_compress_struct
