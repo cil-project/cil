@@ -1,9 +1,10 @@
-(*
+(**
  * CIL: An intermediate language for analyzing C progams.
  *
  * George Necula
  *
  *)
+
 (* CIL is intended to be an IL for source-to-source transformations of C 
  * programs. In the process of converting preprocessed C source to CIL most 
  * of the syntactic sugar is removed and type checking is performed. CIL has 
@@ -27,57 +28,22 @@
  - the function arguments with array type are changed into pointers.
 *)
 
-(**** The constraints specified in this file are checked in the module Check. 
-    * Take a look there for a precise specification of the invariants that a 
-    * Cil.file must satisfy *)
+(** The constraints specified in this file are checked in the module Check. 
+  * Take a look there for a precise specification of the invariants that a 
+  * Cil.file must satisfy *)
 
-(* TODO
-   - inner struct/union/enum/typedef tags
-   - type of sizeof is hardwired to UInt
-   - integerFits is hardwired to true
-   - in cabs2cil we drop the volatile sometimes
-*)
 
-(* A few globals that control the interpretation of C source *)
-val msvcMode : bool ref               (* Whether the pretty printer should 
-                                       * print output for the MS VC 
-                                       * compiler. Default is GCC *)
-val charIsUnsigned : bool ref         (* Whether CHAR is unsigned. Default 
-                                       * false *)
-val ilongFitsUInt : bool ref         (* Whether a signed long can fit an 
-                                       * unsigned integer. True only if a 
-                                       * long uses more bits than an int  *)
-val newCil : bool ref
-
-val printLn: bool ref                   (* Whether to print line numbers *)
-val printLnComment: bool ref            (* Whether to print line numbers in comments*)
-
+(** Describes a location in a source file *)
 type location = { 
-    line: int;				(* -1 means "do not know" *)
+    line: int;			   (** -1 means "do not know" *)
     file: string; 
 }
 
-val locUnknown: location
-(* A reference to the current location *)
-val currentLoc: location ref
 
-val d_loc: unit -> location -> Pretty.doc
-val d_thisloc: unit -> Pretty.doc  (* the currentLoc *)
-
-(* the following error message producing functions also print a location in 
- * the code. use Errormsg.bug and Errormsg.unimp if you do not want that *)
-val bug: ('a,unit,Pretty.doc) format -> 'a
-val unimp: ('a,unit,Pretty.doc) format -> 'a
-val error: ('a,unit,Pretty.doc) format -> 'a
-val errorLoc: location -> ('a,unit,Pretty.doc) format -> 'a  
-val unimp: ('a,unit,Pretty.doc) format -> 'a  
-val warn: ('a,unit,Pretty.doc) format -> 'a
-val warnLoc: location -> ('a,unit,Pretty.doc) format -> 'a  
-
-(* Information about a variable. Use one of the makeLocalVar, makeTempVar or 
- * makeGlobalVar to create instances of this data structure. These structures a
- * re shared by all references to the variable. So, you can change the name
- * easily, for example *)
+(* Information about a variable. These structures are shared by all 
+ * references to the variable. So, you can change the name easily, for 
+ * example Use one of the makeLocalVar, makeTempVar or makeGlobalVar to 
+ * create instances of this data structure. *)
 type varinfo = { 
     mutable vname: string;				
     mutable vtype: typ;                 (* The declared type *)
@@ -574,6 +540,24 @@ type file =
     } 
 	(* global function decls, global variable decls *)
 
+val locUnknown: location
+(* A reference to the current location *)
+val currentLoc: location ref
+
+val d_loc: unit -> location -> Pretty.doc
+val d_thisloc: unit -> Pretty.doc  (* the currentLoc *)
+
+(* the following error message producing functions also print a location in 
+ * the code. use Errormsg.bug and Errormsg.unimp if you do not want that *)
+val bug: ('a,unit,Pretty.doc) format -> 'a
+val unimp: ('a,unit,Pretty.doc) format -> 'a
+val error: ('a,unit,Pretty.doc) format -> 'a
+val errorLoc: location -> ('a,unit,Pretty.doc) format -> 'a  
+val unimp: ('a,unit,Pretty.doc) format -> 'a  
+val warn: ('a,unit,Pretty.doc) format -> 'a
+val warnLoc: location -> ('a,unit,Pretty.doc) format -> 'a  
+
+
 
 (* Construct an integer of a given kind. *)
 val kinteger: ikind -> int -> exp
@@ -603,8 +587,14 @@ val constFoldBinOp: binop -> exp -> exp -> typ -> exp
 (* Increment an expression. Can be arithmetic or pointer type *) 
 val increm: exp -> int -> exp
 
+(** Manipulating types *)
+
+(** Constructs a void type with no attributes *)
 val voidType: typ
+
+(** Construct various flavors of {t TInt} types with no attributes *) 
 val intType: typ
+
 val uintType: typ
 val longType: typ
 val ulongType: typ
@@ -1083,4 +1073,21 @@ val mapNoCopy: ('a -> 'a) -> 'a list -> 'a list
 (* Like map but each call can return a list. Try not to make a copy of the 
  * list *)
 val mapNoCopyList: ('a -> 'a list) -> 'a list -> 'a list
+
+
+
+
+(* A few globals that control the interpretation of C source *)
+val msvcMode: bool ref               (* Whether the pretty printer should 
+                                       * print output for the MS VC 
+                                       * compiler. Default is GCC *)
+val charIsUnsigned: bool ref         (* Whether CHAR is unsigned. Default 
+                                       * false *)
+val ilongFitsUInt: bool ref         (* Whether a signed long can fit an 
+                                       * unsigned integer. True only if a 
+                                       * long uses more bits than an int  *)
+
+val printLn: bool ref                   (* Whether to print line numbers *)
+val printLnComment: bool ref            (* Whether to print line numbers in comments*)
+
 

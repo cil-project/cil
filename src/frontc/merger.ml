@@ -224,7 +224,45 @@ and splitNameForAlpha (lookupname: string) : (string * string * int) =
     (lookupname, "", -1)
 
 
+(** Handling of types and tag definitions *)
 
+(* We keep for the already merged file a list of tag definitions indexed by 
+ * the original name. *)
+let globalTags : (string, typeSpecifier) H.t = H.create 111
+
+type eqConstraint = envKind * string * string
+let rec compareSpecs 
+     (s1: specifier) 
+     (s2: specifier) (acc: eqConstraint list) : eqConstraint list = 
+  (* filter out the type specifiers *)
+  let ts1, rest1 = 
+    List.partition (function SpecType _ -> true | _ -> false) s1 in
+  let ts2, rest2 = 
+    List.partition (function SpecType _ -> true | _ -> false) s2 in
+  if rest1 <> rest2 then raise Not_found;
+  match ts1, ts2 with 
+    [SpecType ts1], [SpecType ts2] -> begin
+      (* We don't go into the definition of a struct here *)
+      match ts1, ts2 with 
+        Tstruct (s1, fg1), Tstruct (s2, fg2) -> 
+          (EStruct, s1, s2) :: acc
+      | Tunion (s1, fg1), Tunion (s2, fg2) -> 
+          (EUnion, s1, s2) :: acc
+      | Tenum (s1, el1), Tenum (s2, el2) -> 
+          (EEnum, s1, s2) :: acc
+      | Tnamed t1, Tnamed t2 -> 
+          (EType, t1, t2) :: acc
+      | TtypeofT (s1, dt1), TtypeofT (s2, dt2) -> 
+          if dt1 <> dt2 then raise Not_found;
+          compareSpecs s1 s2 acc
+          
+      | _ -> if ts1 = ts2 then acc else raise Not_found
+    end
+  | _ -> if ts1 = ts2 then acc else raise Not_found
+  
+let compareFieldGroups (s1, fg1) (s2, fg2) acc = 
+  if fg1 <> fg2 then raise Not_found;
+  compareSpecs s1 s2 acc
 
 
 

@@ -437,15 +437,6 @@ let findCompType kind n a =
   
   
 
-(**** To initialize some local arrays we need strncpy ****)
-let strncpyFun = 
-  let fdec = emptyFunction "strncpy" in
-  let argd  = makeLocalVar fdec "dst" charPtrType in
-  let args  = makeLocalVar fdec "src" charConstPtrType in
-  let arglen  = makeLocalVar fdec "len" uintType in
-  fdec.svar.vtype <- TFun(charPtrType, [ argd; args; arglen ], false, []);
-  fdec
-
 let explodeString (nullterm: bool) (s: string) : char list =  
   let rec allChars i acc = 
     if i < 0 then acc

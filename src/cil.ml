@@ -53,8 +53,6 @@ let ilongFitsUInt = ref false         (* Whether a signed long can fit an
                                        * unsigned integer. True only if a 
                                        * long uses more bits than an int  *)
 
-let newCil = ref true
-
 let printLn= ref true                 (* Whether to print line numbers *)
 let printLnComment= ref false
 

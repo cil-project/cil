@@ -1,0 +1,45 @@
+\documentclass{article}
+\usepackage{hevea}
+
+\def\t#1{{\tt #1}}
+\title{CIL: User Manual}
+
+%%% % Make sure that all documents show up in the main frame
+%%% %HEVEA \AtBeginDocument{\@print{<base target="main">}}
+
+% A few commands for describing the api
+
+% Use for declaring a new ``val''. Syntax: \apival{name : type}
+\def\apival#1:#2{\t{#1} : \t{#2}}
+
+
+% \apiref{name} use to refer to an API value
+\def\apiref#1{#1}
+
+
+\begin{document}
+\maketitle
+\section{Introduction}
+
+
+\section{CIL API Documentation} 
+ 
+\subsection{Attributes}
+
+\subsection{Expressions}
+
+\subsection{Pretty-printing}
+
+\subsection{Error reporting}
+
+\apival{error : 'a,unit,Pretty.doc) format -> 'a}
+
+ Prints an error message along with the location information stored in
+ \apiref{currentLoc} and stops the execution with an \apiref{E.Error}
+ exception. 
+
+\begin{verbatim}
+ E.s (error "I'm dying")
+\end{verbatim}
+
+\end{document}
