@@ -717,3 +717,91 @@ and attrsId al =
   | _ -> "r" ^ List.fold_left (fun acc a -> acc ^ attrId a) "" al ^ "r"
 
 
+
+(************ Print statistics about the graph ******************)
+let addToHisto (histo: ('a, int ref) H.t) (much: int) (which: 'a) : unit = 
+  try let r = H.find histo which in r := !r + much 
+  with Not_found -> let r = ref much in H.add histo which r
+let getHisto (histo: ('a, int ref) H.t) (which: 'a) : int = 
+  try let r = H.find histo which in !r with Not_found -> 0
+let sortHisto (histo: ('a, int ref) H.t) : ('a * int) list = 
+  let theList : ('a * int) list ref = ref [] in
+  H.iter (fun k r -> theList := (k, !r) :: !theList) histo;
+  List.sort (fun (_,v1) (_,v2) -> - (compare v1 v2)) !theList 
+
+let showFirst (showone: 'a -> int -> unit)
+              (many: int) (lst: ('a * int) list) =    
+  let rec loop i = function
+      (n, s) :: rest when i >= 0 && s > 0 -> 
+        showone n s;
+        loop (i - 1) rest
+    | _ -> ()
+  in
+  loop many lst
+    
+
+
+
+let printGraphStats () =     
+  (* Keep a histograph per kind *)
+  let totKind : (pointerkind, int ref) H.t = H.create 17 in 
+  let totalNodes = ref 0 in
+  (* The number of bad casts *)
+  let badCasts = ref 0 in
+  (* Keep track of spread_from_edge. For each node how many other nodes have 
+   * WILD/spread_from_edge(n).  *)
+  let spreadTo : (int, int ref) H.t = H.create 117 in
+  let examine_node id n =
+    incr totalNodes;
+    addToHisto totKind 1 n.kind;
+    if n.kind = Wild then begin
+      (match n.why_kind with
+        SpreadFromEdge(fromn) -> addToHisto spreadTo 1 fromn.id
+      | BadCast _ -> incr badCasts
+      | _ -> ())
+    end
+  in
+  H.iter examine_node idNode;
+  ignore (E.log "Graph contains %d nodes\n" !totalNodes);
+  H.iter
+    (fun k r -> ignore (E.log "  %a - %d (%3.0f%%)\n"
+                          d_pointerkind k !r
+                          (float_of_int(!r) 
+                             /. float_of_int(!totalNodes) *. 100.0)))
+    totKind;
+
+  (* Now print the WILD bottlenecks. Places that have many successors in the 
+   * spreadToEdge *)
+  let spreadsToImmediate = sortHisto spreadTo in
+  ignore (E.log "Node xxx spreads to yyy immediate successors\n");
+  showFirst 
+    (fun nid many -> ignore (E.log " %d -> %d@!" nid many))
+    10
+    spreadsToImmediate;
+  
+  (* Now compute for each WILD node at which node its WILD originates *)
+  let castReaches : (int, int ref) H.t = H.create 117 in
+  H.iter 
+    (fun id n -> 
+      if n.kind = Wild then begin
+        let rec searchOrigin n = 
+          match n.why_kind with
+            SpreadFromEdge (fromn) -> searchOrigin fromn
+          | BadCast _ -> n
+          | _ -> n
+        in
+        let origin = searchOrigin n in
+        addToHisto castReaches 1 origin.id
+      end)
+    idNode;
+  let castReaches = sortHisto castReaches in
+  ignore (E.log "Cast from node xxx reaches to yyy nodes:\n");
+  showFirst 
+    (fun nid many -> ignore (E.log " %d -> %d@!" nid many))
+    20
+    castReaches;
+  
+  H.clear totKind;
+  H.clear spreadTo;
+  ()
+

@@ -856,6 +856,7 @@ let printFile (c: out_channel) fl =
       output_string c "/* End of solved graph*/\n#endif\n";
       ) 
     fl ;
+  Stats.time "graph stats" N.printGraphStats ();
   (* Cil.setCustomPrint (N.ptrAttrCustom false)
     (fun fl -> Cil.printFile c fl) fl; *)
   ()
