@@ -1506,8 +1506,9 @@ let rec collectInitializer
                  !pMaxIdx len);
         (* len could be extremely big. So omit the last initializers, if they 
          * are many (more than 16) *)
+(*
         ignore (E.log "collectInitializer: len = %d, pMaxIdx= %d\n"
-                  len !pMaxIdx);
+                  len !pMaxIdx); *)
         let endAt = 
           if len - 1 > !pMaxIdx + 16 then 
             !pMaxIdx 
