@@ -102,16 +102,16 @@ type node =
       
       (* The rest are the computed results of constraint resolution *)
       mutable kind: opointerkind;
-      mutable why_kind : whykind;
-      mutable sized : bool ;            (* An array may be SIZED at which
+      mutable why_kind: whykind;
+      mutable sized: bool ;            (* An array may be SIZED at which
                                          * point it has a length field
                                          * stored right before it. This
                                          * leads to INDEX pointers. *)
       
-      mutable can_reach_string : bool;  (* used by the solvers *)
-      mutable can_reach_seq : bool;     (* used by the solvers *)
-      mutable can_reach_index : bool;   (* used by the solvers *)
-      mutable locked : bool;            (* do not change this kind later *)
+      mutable can_reach_string: bool;  (* used by the solvers *)
+      mutable can_reach_seq: bool;     (* used by the solvers *)
+      mutable can_reach_index: bool;   (* used by the solvers *)
+      mutable locked: bool;            (* do not change this kind later *)
       mutable mark: bool;               (* For mark-and-sweep GC of nodes. 
                                          * Most of the time is false *)
     }       
@@ -161,6 +161,7 @@ and whykind = (* why did we give it this kind? *)
   | UserSpec
   | Unconstrained
   | PrintfArg (* printf inference *)
+  | Special of string * location
 
 and edge = 
     { mutable efrom:    node;
@@ -171,7 +172,7 @@ and edge =
                               * passing arguments or getting a result) then 
                               * we put a program-unique callid, to make it 
                               * possible later to do push-down verification *)
-
+      mutable eloc: location;
       (* It would be nice to add some reason why this edge was added, to 
        * explain later to the programmer.  *)
     } 
@@ -286,8 +287,9 @@ let d_whykind () = function
   | PolyCast(t1,t2) -> dprintf "polymorphic(%a<= %a)" d_type t1 d_type t2
 *)
   | BadCast e -> 
-      dprintf "cast(%a(%d) <= %a(%d))" 
+      dprintf "cast(%a(%d) <= %a(%d)) at %a" 
         d_type e.eto.btype e.eto.id d_type e.efrom.btype e.efrom.id 
+        d_loc e.eloc
   | PolyCast e -> 
       dprintf "polymorphic(%a (%d) <= %a(%d))" 
         d_type e.eto.btype e.eto.id d_type e.efrom.btype e.efrom.id
@@ -299,6 +301,7 @@ let d_whykind () = function
   | UserSpec -> text "user_spec"
   | Unconstrained -> text "unconstrained"
   | PrintfArg -> text "printf_arg"
+  | Special (s, l) -> text (s ^ " at ") ++ d_loc () l
 
 let d_node () n = 
 (*
@@ -735,7 +738,8 @@ let addEdge (start: node) (dest: node) (kind: edgekind) (callid: int) =
     ignore (E.warn "Adding edge between nodes %d and %d\n" start.id dest.id)
   else begin
     let nedge = 
-      { efrom = start; eto= dest; ekind = kind; ecallid = callid; } in
+      { efrom = start; eto= dest; ekind = kind; ecallid = callid; 
+        eloc = !currentLoc} in
     start.succ <- nedge :: start.succ;
     dest.pred <- nedge :: dest.pred
   end
@@ -1044,24 +1048,26 @@ let printGraphStats () =
     spreadsToImmediate;
   
   (* Now compute for each WILD node at which node its WILD originates *)
-  let castReaches : (int, int ref) H.t = H.create 117 in
+  let castReaches : (location, int ref) H.t = H.create 117 in
   H.iter 
     (fun id n -> 
       if n.kind = Wild then begin
         let rec searchOrigin n = 
           match n.why_kind with
             SpreadFromEdge (fromn) -> searchOrigin fromn
-          | BadCast _ -> n
-          | _ -> n
+          | SpreadPointsTo fromn -> searchOrigin fromn
+          | BadCast e -> e.eloc
+          | _ -> locUnknown
         in
         let origin = searchOrigin n in
-        addToHisto castReaches 1 origin.id
+        if origin != locUnknown then 
+          addToHisto castReaches 1 origin
       end)
     idNode;
   let castReaches = sortHisto castReaches in
   ignore (E.log "Cast from node xxx reaches to yyy nodes:\n");
   showFirst 
-    (fun nid many -> ignore (E.log " %d -> %d@!" nid many))
+    (fun nloc many -> ignore (E.log " %a -> %d@!" d_loc nloc many))
     20
     castReaches;
   

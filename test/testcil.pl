@@ -148,6 +148,7 @@ $TEST->add3Tests("test/scope3");
 $TEST->add3Tests("test/scope4");
 $TEST->add3Tests("testrun/scope5");
 $TEST->add3Tests("test/voidstar");
+$TEST->add3Tests("testrun/memcpy1");
 $TEST->add3Tests("wes-hashtest", "", @runpattern);
 $TEST->add3Tests("wes-rbtest", "", @runpattern);
 $TEST->add1Test("test/alloc-manualinferbox",

@@ -21,6 +21,25 @@ let callId = ref (-1)  (* Each call site gets a new ID *)
 
 let polyId = ref (-1) 
 
+let matchSuffix (lookingfor: string) (lookin: string) = 
+  let inl = String.length lookin in
+  let forl = String.length lookingfor in
+  inl >= forl && String.sub lookin (inl - forl) forl = lookingfor
+
+(* Match two names, ignoring the polymorphic prefix *)
+let matchPolyName (lookingfor: string) (lookin: string) = 
+  let inl = String.length lookin in
+  if inl = 0 then false else
+  if String.get lookin 0 = '/' then
+    let rec loop i = (* Search for the second / *)
+      if i >= inl - 1 then false else 
+      if String.get lookin i = '/' then 
+        String.sub lookin (i + 1) (inl - i - 1) = lookingfor
+      else loop (i + 1)
+    in
+    loop 1
+  else lookin = lookingfor
+
 (* weimer: utility function to ease the transition between our flag formats *)
 let setPosArith n = begin
   n.N.posarith <- true ; N.setFlag n N.pkPosArith ;
@@ -440,8 +459,8 @@ and doOffset (off: offset) (n: N.node) : offset * N.node =
 and expToType (e,et,en) t (callid: int) : exp = 
   let etn = nodeOfType et in
   let tn  = nodeOfType t in
-  (* ignore (E.log "expToType e=%a (NS=%d) -> TD=%a (ND=%d)\n"
-            d_plainexp e etn.N.id d_plaintype t tn.N.id); *)
+(*  ignore (E.log "expToType e=%a (NS=%d) -> TD=%a (ND=%d)\n"
+            d_plainexp e etn.N.id d_plaintype t tn.N.id);*)
   match etn == N.dummyNode, tn == N.dummyNode with
     true, true -> e (* scalar -> scalar *)
   | false, true -> e (* Ignore casts of pointer to non-pointer *)
@@ -587,7 +606,7 @@ let d_printfArgType () at = begin
   | FormatDouble -> text "double"
   | FormatPointer -> text "pointer"
 end
-
+    
 (* interpret a conversion specifier: the stuff that comes after the % 
  * in a printf format string *)
 let rec parseConversionSpec f start = begin
@@ -643,64 +662,153 @@ end
 let isPrintf reso orig_func args = begin
   match orig_func with
     (Lval(Var(v),NoOffset)) -> begin try 
-    let o = Hashtbl.find printfFunc v.vname in begin
-    let format_arg = removeCasts (List.nth args o) in 
-    let rec remove_casts l =
-      match l with
-        CastE(_,e) -> remove_casts e
-      | _ -> l
-    in 
-    match remove_casts format_arg with (* find the format string *)
-      Const(CStr(f)) -> 
-        let argTypeList = parseFormatString f 0 in 
-        (* insert an explicit cast to the right type for every argument *)
-        let num_args = List.length args in 
-        let new_args = ref [] in 
-        for i = 0 to num_args-1 do
-          let this_arg = List.nth args i in 
-          if i = 0 && v.vname = "sprintf" then begin
-            let temp_type = TPtr((TInt(IChar,[])),[]) in
-            let cast_arg,t,n = doExp (CastE(temp_type,this_arg)) in
-            n.N.kind <- N.Safe ;
-            ignore (warn "Call to sprintf. Ought to use snprintf\n");
-            n.N.why_kind <- N.PrintfArg ;
-            new_args := cast_arg :: !new_args;
-          end else if i < o then begin 
-            new_args := this_arg :: !new_args;
-          end else if i = o then begin
-            let temp_type = TPtr((TInt(IChar,[])),[]) in
-            let cast_arg,t,n = doExp (CastE(temp_type,this_arg)) in
-            n.N.kind <- N.ROString ;
-            n.N.why_kind <- N.PrintfArg ;
-            new_args := cast_arg :: !new_args;
-          end else begin
-            let temp_type, rostring = 
-            match List.nth argTypeList (i-(o+1)) with
-              FormatInt -> (TInt(IInt,[])), false
-            | FormatDouble -> (TFloat(FDouble,[])), false
-            | FormatPointer -> (TPtr((TInt(IChar,[])),[])), true
-            in 
-            let cast_arg,t,n = doExp (CastE(temp_type,this_arg)) in
-            if rostring then begin
-              n.N.kind <- N.ROString ; n.N.why_kind <- N.PrintfArg 
-            end;
-            new_args := cast_arg :: !new_args;
-          end
-        done ;
-        Some(List.rev !new_args)
-    | _ -> 
-      ignore (warn "%s called with non-const format string %a" 
-                v.vname d_exp format_arg) ; 
-      None (* cannot handle non-constant format strings *)
-    end
+      let o = Hashtbl.find printfFunc v.vname in begin
+        let format_arg = removeCasts (List.nth args o) in 
+        let rec remove_casts l =
+          match l with
+            CastE(_,e) -> remove_casts e
+          | _ -> l
+        in 
+        match remove_casts format_arg with (* find the format string *)
+          Const(CStr(f)) -> 
+            let argTypeList = parseFormatString f 0 in 
+            (* insert an explicit cast to the right type for every argument *)
+            let num_args = List.length args in 
+            let new_args = ref [] in 
+            for i = 0 to num_args-1 do
+              let this_arg = List.nth args i in 
+              if i = 0 && v.vname = "sprintf" then begin
+                let temp_type = TPtr((TInt(IChar,[])),[]) in
+                let cast_arg,t,n = doExp (CastE(temp_type,this_arg)) in
+                n.N.kind <- N.Safe ;
+                ignore (warn "Call to sprintf. Ought to use snprintf\n");
+                n.N.why_kind <- N.PrintfArg ;
+                new_args := cast_arg :: !new_args;
+              end else if i < o then begin 
+                new_args := this_arg :: !new_args;
+              end else if i = o then begin
+                let temp_type = TPtr((TInt(IChar,[])),[]) in
+                let cast_arg,t,n = doExp (CastE(temp_type,this_arg)) in
+                n.N.kind <- N.ROString ;
+                n.N.why_kind <- N.PrintfArg ;
+                new_args := cast_arg :: !new_args;
+              end else begin
+                let temp_type, rostring = 
+                  match List.nth argTypeList (i-(o+1)) with
+                    FormatInt -> (TInt(IInt,[])), false
+                  | FormatDouble -> (TFloat(FDouble,[])), false
+                  | FormatPointer -> (TPtr((TInt(IChar,[])),[])), true
+                in 
+                let cast_arg,t,n = doExp (CastE(temp_type,this_arg)) in
+                if rostring then begin
+                  n.N.kind <- N.ROString ; n.N.why_kind <- N.PrintfArg 
+                end;
+                new_args := cast_arg :: !new_args;
+              end
+            done ;
+            Some(List.rev !new_args)
+        | _ -> 
+            ignore (warn "%s called with non-const format string %a" 
+                      v.vname d_exp format_arg) ; 
+            None (* cannot handle non-constant format strings *)
+      end
     with _ ->
       None (* we only handle declared printf-like functions *)
     end 
   | _ -> None
 end
 
+
+
+
+(*** Handle memcpy function ***)
+let isMemcpy 
+    (reso: (varinfo * bool) option) 
+    (f: exp) 
+    (args: exp list)
+
+    (* Returned the modified arguments (and an indication whether we did 
+    * anything to them) *)
+    : exp list option =  
+
+  try
+    match f with
+      (Lval(Var(v), NoOffset)) when matchPolyName "memcpy" v.vname -> begin
+        ignore (E.log "Found %s at %t\n" v.vname d_thisloc);
+        let dst, src, len = 
+          match args with 
+            [dst; src; len] -> dst, src, len
+          | _ -> 
+              ignore (warn "Call to memcpy with other than 3 arguments");
+              raise Not_found
+        in
+        (* Get the types of the destination and the source. But be prepared 
+         * to strip the top level cast since it could have been added by 
+         * cabs2cil *)
+        let stripCast (e: exp) = 
+          match e with
+            CastE(_, e') -> e'
+          | _ -> e
+        in
+        let dst' = stripCast dst in
+        let src' = stripCast src in
+        let dst_t = typeOf dst' in
+        let src_t = typeOf src' in
+        (* A function to split a pointer type into base type, attribute and 
+         * node of attributes *)
+        let splitPtrType (t: typ) = 
+          match unrollType t with
+            TPtr(bt, a) -> begin
+              bt, a, 
+              (match N.nodeOfAttrlist a with
+                Some n -> n
+              | None -> N.dummyNode)
+            end
+          | _ -> 
+              ignore (warn "Expecting a pointer type when doing memcpy");
+              raise Not_found
+        in
+        let dst_b, dst_a, dst_n = splitPtrType dst_t in
+        let src_b, src_a, src_n = splitPtrType src_t in
+        (* Now get the type of the polymorphic instance of memcpy *)
+        let rt, da, sa, la, fa =
+          match v.vtype with
+            TFun(rt, [da; sa; la], false, fa) -> rt, da, sa, la, fa
+          | _ -> 
+              ignore (warn "Type of memcpy is not a function");
+              raise Not_found
+        in
+        let rt_b, rt_a, rt_n = splitPtrType rt in
+        let rt' = TPtr(dst_b, rt_a) in
+        let da_b, da_a, da_n = splitPtrType da.vtype in
+        da.vtype <- TPtr(dst_b, da_a);
+        (* ignore (E.log "New type of da is %a\n"
+                      d_plaintype da.vtype); *)
+        let sa_b, sa_a, sa_n = splitPtrType sa.vtype in
+        sa.vtype <- TPtr(src_b, sa_a);
+        v.vtype <- TFun(rt', [da; sa; la], false, fa);
+        (* Now add appropriate edges between the nodes of the polymorphic 
+        * function. Edges relating actual arguments and formals will be 
+        * added at the call site *)
+        if da_n == N.dummyNode || sa_n == N.dummyNode 
+            || rt_n == N.dummyNode then begin
+                ignore (warn "Formals of memcpy do not have nodes");
+                raise Not_found;
+            end;
+        N.addEdge da_n rt_n N.ECast !callId;
+        (* ignore (E.log "Done adding edge between nodes %d and %d\n"
+                      da_n.N.id rt_n.N.id); *)
+        (* Now pretend that we do *dst = *src *)
+        ignore (expToType (one, src_b, N.dummyNode) dst_b !callId);
+        (* Now repackage the args with the right casts *)
+        Some [dst'; src'; len]
+      end
+  with _ -> None
+    
+
+    
 let rec doBlock blk = 
-  List.map doStmt blk
+    List.map doStmt blk
 
 and doStmt (s: stmt) : stmt = 
   (match s.skind with 
@@ -736,11 +844,7 @@ and doInstr (i:instr) : instr =
 
   | Call (reso, orig_func, args, l) -> 
       currentLoc := l;
-      let args = 
-        match isPrintf reso orig_func args with
-          Some(o) -> o
-        | None -> args
-      in 
+      incr callId; (* A new call id *)
       let func = (* check and see if it is polymorphic *)
         match orig_func with
           (Lval(Var(v),NoOffset)) -> 
@@ -751,13 +855,21 @@ and doInstr (i:instr) : instr =
             (Lval(Var(newvi), NoOffset)) 
         | _ -> orig_func
       in
+      let args = 
+        match isPrintf reso func args with
+          Some args' -> args'
+        | None -> begin
+            match isMemcpy reso func args with 
+              Some args' -> args'
+            | None -> args
+        end
+      in 
       let func', funct, funcn = doExp func in
       let (rt, formals, isva) = 
         match unrollType funct with
           TFun(rt, formals, isva, _) -> rt, formals, isva
         | _ -> E.s (bug "Call to a non-function")
       in
-      incr callId; (* A new call id *)
       (* Now check the arguments *)
       let rec loopArgs formals args = 
         match formals, args with
@@ -842,22 +954,6 @@ let doGlobal (g: global) : global =
           if not comp.cstruct &&
             hasAttribute "safeunion" comp.cattr then
             comp.cstruct <- true;
-(*
-      (* If this is not a forward reference then we pull out the definition 
-       * of the composite. This helps somewhat later in boxing because we do 
-       * not have to worry about definitions of composites being hidded 
-       * behing pointers or arrays. We do it this late because we want to 
-       * pull inner structs first. *)
-      if not (H.mem pulledOutComposites comp.ckey) then begin
-        (* No point in pulling out comps that appear at the top level in a 
-        * typedef *)
-        (if (match p, nextidx with N.PType _, 0 -> false | _ -> true) then
-          theFile := 
-             GType ("", TComp(false, comp, []), !currentLoc) :: !theFile);
-        (* But mark it as pulled out in any case *)
-        H.add pulledOutComposites comp.ckey true;
-      end;
-*)
           GCompTag (comp, l)
   
       | GDecl (vi, l) -> 

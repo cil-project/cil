@@ -203,7 +203,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       let why = if f then 
                   PolyCast(e)
                 else
-                  BadCast(e) 
+                  BadCast e
         in
       ignore (update_kind e.eto k1 why) ;
       ignore (update_kind e.efrom k2 why) ;

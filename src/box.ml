@@ -22,6 +22,24 @@ let compactBlocks = true
 let lu = locUnknown
 let isSome = function Some _ -> true | _ -> false
 
+let fatpVoidType = ref voidType
+
+
+(* Match two names, ignoring the polymorphic prefix *)
+let matchPolyName (lookingfor: string) (lookin: string) = 
+  let inl = String.length lookin in
+  if inl = 0 then false else
+  if String.get lookin 0 = '/' then
+    let rec loop i = (* Search for the second / *)
+      if i >= inl - 1 then false else 
+      if String.get lookin i = '/' then 
+        String.sub lookin (i + 1) (inl - i - 1) = lookingfor
+      else loop (i + 1)
+    in
+    loop 1
+  else lookin = lookingfor
+
+let theMemcpyFun : varinfo option ref = ref None
 
 (**** Stuff that we use while converting to new CIL *)
 let mkSet (lv:lval) (e: exp) : stmt 
@@ -550,7 +568,9 @@ let mkFexp3 (t: typ) (ep: exp) (eb: exp) (ee: exp) : fexp  =
 
 let pkTypePrefix (pk: N.opointerkind) = 
   match pk with
-    N.Wild | N.FSeq | N.FSeqN | N.Index -> "fatp_"
+    N.Wild -> "wildp_"
+  | N.FSeq | N.FSeqN -> "fseqp_"
+  | N.Index -> "indexp_"
   | N.Seq | N.SeqN -> "seq_"
   | _ -> E.s (bug "pkTypeName")
   
@@ -570,6 +590,19 @@ let pkQualName (pk: N.opointerkind)
   | _ -> E.s (bug "pkQualName")
   
 (****** the CHECKERS ****)
+
+
+let memcpyWWWFun =   
+  let fdec = emptyFunction "memcpy_www" in
+  let argd  = makeLocalVar fdec "dest" !fatpVoidType in
+  let args  = makeLocalVar fdec "src" !fatpVoidType in
+  let argl  = makeLocalVar fdec "len" uintType in
+  fdec.svar.vtype <- TFun(!fatpVoidType, [ argd; args; argl ], false, []);
+  (* Do not add this to the declarations because the type of the arguments 
+   * does not make sense 
+  checkFunctionDecls := 
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls; *)
+  fdec
 
 
 let checkNullFun =   
@@ -1148,6 +1181,25 @@ and tagLength (sz: exp) : (exp * exp) =
               doCast sz uintType, kinteger IUInt 127, uintType),
         integer 7, uintType)
     
+
+
+
+(* Create the preamble (in reverse order). Must create it every time because 
+ * we must consider the effect of "defaultIsWild" *)
+let preamble () = 
+  (* Define WILD away *)
+  theFile := !checkFunctionDecls;
+  (** Create some more fat types *)
+  ignore (fixupType (TPtr(TInt(IChar, []), [Attr("wild",[])])));
+(*  ignore (fixupType (TPtr(TInt(IChar, [AId("const")]), [AId("wild")]))); *)
+  fatpVoidType := fixupType (TPtr(TVoid([]), [Attr("wild",[])]));
+(*  ignore (fixupType (TPtr(TVoid([AId("const")]), [AId("wild")]))); *)
+  let startFile = !theFile in
+  theFile := 
+     consGlobal
+       (GText ("#include \"safec.h\"\n"))
+       (consGlobal (GText ("// Include the definition of the checkers\n"))
+          startFile)
 
 
 (**** Make a pointer type of a certain kind *)
@@ -2833,6 +2885,7 @@ let fixupGlobName vi =
   if vi.vglob && (* vi.vstorage <> Static &&  *)
     not (H.mem leaveAlone vi.vname) &&
     not (isAllocFunction vi.vname) &&
+    not (matchPolyName "memcpy" vi.vname) &&
     not (H.mem mangledNames vi.vname) then
     begin
       let quals = qualNames [] vi.vtype in
@@ -3010,7 +3063,47 @@ and boxinstr (ins: instr) : stmt clist =
         in
         let finishcall = 
           match vio with 
-            None -> single (call None f' args')
+            None -> begin
+              (* See if it is a memcpy. We handle only the case when we do 
+               * not use the return value *)
+              match f' with
+                Lval(Var fv, NoOffset) when matchPolyName "memcpy" fv.vname 
+                -> begin
+                  let memcpyFun = 
+                    match !theMemcpyFun with
+                      None -> 
+                        E.s (unimp "Cannot find the prototype for memcpy")
+                    | Some x -> x
+                  in
+                  (* Now cast the first two arguments to voidptr, so that the 
+                   * C compiler is happy *)
+                  let da, sa, la = 
+                    match args' with
+                      [da; sa; la] -> da, sa, la
+                    | _ -> E.s (unimp "Too many argument to memcpy")
+                  in 
+                  match kindOfType (typeOf sa), kindOfType (typeOf da) with
+                    N.Wild, N.Wild -> 
+                      single (call None (Lval(Var memcpyWWWFun.svar, NoOffset))
+                                args')
+                  | ks, kd -> (* Here we ought to check lengths *)
+                      if ks = N.Wild then 
+                        ignore (warn "Drop tags in memcpy Wild -> Non-wild")
+                      else if kd = N.Wild then
+                        ignore (warn "Drop tags in memcpy Non-wild -> Wild")
+                      else
+                        ignore (warn "Call to memcpy ought to check the length");
+                      let args'' = 
+                        [ CastE(voidPtrType, 
+                                readPtrField da (typeOf da)); 
+                          CastE(voidPtrType, 
+                                readPtrField sa (typeOf sa)); la] in
+                      single (call None (Lval(Var memcpyFun, NoOffset)) args'')
+                end
+              | _ -> single (call None f' args')
+                
+            end
+
           | Some (vi, _) -> begin
              (* If the destination variable gets tags then we must put the 
               * result of the call into a temporary first  *)
@@ -3434,22 +3527,6 @@ and boxfunctionexp (f : exp) =
 
 
 
-(* Create the preamble (in reverse order). Must create it every time because 
- * we must consider the effect of "defaultIsWild" *)
-let preamble () = 
-  (* Define WILD away *)
-  theFile := !checkFunctionDecls;
-  (** Create some more fat types *)
-  ignore (fixupType (TPtr(TInt(IChar, []), [Attr("wild",[])])));
-(*  ignore (fixupType (TPtr(TInt(IChar, [AId("const")]), [AId("wild")]))); *)
-  ignore (fixupType (TPtr(TVoid([]), [Attr("wild",[])])));
-(*  ignore (fixupType (TPtr(TVoid([AId("const")]), [AId("wild")]))); *)
-  let startFile = !theFile in
-  theFile := 
-     consGlobal
-       (GText ("#include \"safec.h\"\n"))
-       (consGlobal (GText ("// Include the definition of the checkers\n"))
-          startFile)
 
 (* a hashtable of functions that we have already made wrappers for *)
 let wrappedFunctions = H.create 15
@@ -3493,7 +3570,19 @@ let boxFile file =
         if not !boxing then theFile := consGlobal g !theFile else
         match g with
 
-        | GDecl (vi, l) -> boxglobal vi false None l
+        | GDecl (vi, l) -> 
+            boxglobal vi false None l;
+            (* Strip all the polymorphic versions of memcpy from the file *)
+            if vi.vname = "memcpy" then
+              theMemcpyFun := Some vi (* Leave the non-polymorphic one *)
+            else if matchPolyName "memcpy" vi.vname then begin
+              match !theFile with
+                GDecl _ :: rest -> theFile := rest
+              | _ -> 
+                  E.s (E.bug "Cannot find declaration of polymorphic memcpy")
+            end
+              
+              
         | GVar (vi, init, l) -> boxglobal vi true init l
         | GType (n, t, l) -> 
             currentLoc := l;

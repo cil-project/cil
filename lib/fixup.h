@@ -10,6 +10,7 @@
 #define CASTTOPOINTER(btyp, host, what) ((btyp *)(what))
 #endif
 
+#ifndef __NODE
 #ifndef MANUALBOX
 #define __SAFE
 #define __INDEX
@@ -18,8 +19,6 @@
 #define __SEQ
 #define __WILD
 #define __SIZED
-// sm: changed __STRING to __RWSTRING to avoid conflict
-// with linux header files
 #define __RWSTRING
 #define __ROSTRING
 #define __NULLTERM
@@ -32,6 +31,7 @@
 #define __FSEQNT
 #define __SEQNT
 #define __INDEXT
+#define __NODE
 #else
 #define __WILD   __attribute__((wild))
 #define __SAFE   __attribute__((safe))
@@ -51,6 +51,8 @@
 #define __SEQNT   __attribute__((seqnt))
 #define __FSEQT   __attribute__((fseqt))
 #define __FSEQNT   __attribute__((fseqnt))
+#define __NODE
+#endif
 #endif
 
 #if ! defined(MANUALBOX) && ! defined(INFERBOX)
@@ -81,6 +83,8 @@
 #pragma boxprintf("fprintf", 1)
 #pragma boxprintf("sprintf", 1)
 #pragma boxprintf("snprintf", 2)
+
+#pragma boxpoly("memcpy")
 
 #pragma boxexported("main")
 #endif
