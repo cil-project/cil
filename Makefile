@@ -124,8 +124,8 @@ ifdef MANUALBOX
   CCURED+= $(DEF)MANUALBOX
 endif
 
-ifdef USE_GC
-  CCURED+= $(DEF)USE_GC
+ifdef NOGC
+  CCURED+= --nogc
 endif
 
 ifeq ($(TABLE), A)

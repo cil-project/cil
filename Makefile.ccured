@@ -56,7 +56,7 @@ PATCHER := perl $(CCUREDHOME)/lib/patcher.pl
 # It is Ok if this file does not exist
 -include $(CCUREDHOME)/.ccuredrc
 
-# By default use GCC, unless you set NO_GC
+# By default use GCC, unless you set MSVC
 ifndef _MSVC
   _GNUCC := 1
 endif
@@ -77,16 +77,6 @@ else
 endif
 
 
-# By default use the GC if we use GCC, unless NO_GC set;
-# on msvc, what needs to be done to get gc working:
-#  - make sure we can compile gc.a, and that gctests works
-#  - modify the commands which build $(CCUREDLIB) so they
-#    include gc.a
-ifdef _GNUCC
- ifndef NO_GC
-   USE_GC := 1
- endif
-endif
 
 PATCHER +=--mode=$(COMPILERNAME)
 
@@ -94,17 +84,17 @@ PATCHER +=--mode=$(COMPILERNAME)
 CCUREDLIB := obj/ccured_$(COMPILEREXT).$(LIBEXT)
 
 # garbage collector options
-ifdef USE_GC
+# ifndef NOGC
   GCLIB := $(CCUREDHOME)/lib/gc/gc.a
-  CFLAGS += -DUSE_GC=1
 
 # pretend it's only dependent on one file; that's not true of course,
 # but we rarely (ever?) modify the gc's sources, and one dependency
 # is better than none (which causes recompile every time!)
 $(GCLIB): $(CCUREDHOME)/lib/gc/mark.c
 	cd $(CCUREDHOME)/lib/gc && make && ./gctest
-
-endif
+#else
+#   CFLAGS += $(DEF)CCURED_NO_GC
+#endif  
 
 # sm: enabling this causes the syslog(2) call in safec.c to be omitted
 ifdef NO_FPFAIL_SYSLOG

@@ -192,8 +192,9 @@ and ikind =
   | IUShort     (** unsigned short *)
   | ILong       (** long *)
   | IULong      (** unsigned long *)
-  | ILongLong   (** long long *)
-  | IULongLong  (** unsigned long long*)
+  | ILongLong   (** long long (or _int64 on Microsoft Visual C) *)
+  | IULongLong  (** unsigned long long (or unsigned_int64 on Microsoft 
+                    Visual C) *)
 
 (** Various kinds of floating-point numbers*)
 and fkind = 

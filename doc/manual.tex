@@ -89,6 +89,8 @@ currently are:
 printed. 
 \item \t{--optimize}. Run the optimizer after curing.
 \item \t{--stats}. Print some statistics about the inserted checks.
+\item \t{--nogc}. Will assume that you do not use a garbage collector. In this
+case the cured code will use explicit deallocation and might be unsafe.
 \end{itemize}
 
  All of the other options that start with \t{-} (and are not recognized as
@@ -156,6 +158,7 @@ either \t{infer} or \t{wild} as \t{xxx}.
 \item \t{USECIL=1}. Passes \t{--usecil} to CCured.
 \item \t{OPTIM=1}. Passes \t{--optimize} to CCured.
 \item \t{STATS=1}. Passes \t{--stats} to CCured.
+\item \t{NOGC=1}. Passes \t{--nogc} to CCured.
 \item \t{EXTRARGS="..."}. Passes \t{...} to CCured.
 \end{itemize}
 
