@@ -8,14 +8,22 @@
 open Cil
 open Ptrnode
 open Solveutil
+open Trace
+open Pretty
 module H = Hashtbl
 module E = Errormsg
 
-let safe_downcasts = false
-let ignore_funs = false
+let safe_downcasts = false    (* when true, we let any downcast go unchecked *)
+let ignore_funs = false       (* when true, function calls are always blessed *)
 
-(* Set this to true and initialize the watch_which_nodes with a list of nodes 
-n * to be watched *)
+(* sm: it turned out we were flowing SEQ in both directions of the cast, even *)
+(* though our paper claimed we only flowed it backwards; so I changed the *)
+(* code below to in fact only flow it backwards; this could be used to change *)
+(* it back to the original behavior (which leads to more SEQ instead of SAFE) *)
+let flow_seq_forward = false  (* when true, SEQ flows forward along casts, too *)
+
+(* Set this to true and initialize the watch_which_nodes with a list of nodes
+ * to be watched *)
 let logUpdates = false
 let logNodeUpdate = 
   let which_nodes = [ 1482; 63 ] in
@@ -500,35 +508,38 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
         ) (ecast_edges_only cur.succ) ;
 
       (* consider all the predecessor edges *)
-      if not (set_outside cur) && cur.kind <> Wild then 
-      List.iter (fun e -> 
-        match e.ekind, e.efrom.kind with 
+      if not (set_outside cur) && cur.kind <> Wild then
+      List.iter (fun e ->
+        match e.ekind, e.efrom.kind with
           ENull, FSeq  | ENull, FSeqN
-        | EIndex, FSeq | EIndex, FSeqN -> 
-            if (cur.kind <> ROString) then 
+        | EIndex, FSeq | EIndex, FSeqN ->
+            if (cur.kind <> ROString) then
               (pick_the_right_kind_of_seq cur FSeq (SpreadFromEdge e.efrom))
         | ESafe, FSeqN
         | ESafe, String ->
             if (not ((is_array e.efrom) || (hasFlag cur pkArith))) &&
                (hasFlag cur pkPosArith || e.efrom.kind = FSeqN) &&
-               (cur.kind <> ROString) then 
+               (cur.kind <> ROString) then
               (pick_the_right_kind_of_seq cur FSeq (SpreadFromEdge e.efrom))
+        | ECast, Seq   | ECast, SeqN ->
+            if flow_seq_forward then
+              if (cur.kind <> ROString) then
+                (pick_the_right_kind_of_seq cur Seq (SpreadFromEdge e.efrom))
         | ECompat, Seq | ECompat, SeqN
-        | ECast, Seq   | ECast, SeqN 
-        | ENull, Seq   | ENull, SeqN -> 
-            if (cur.kind <> ROString) then 
+        | ENull, Seq   | ENull, SeqN ->
+            if (cur.kind <> ROString) then
               (pick_the_right_kind_of_seq cur Seq (SpreadFromEdge e.efrom))
         | EIndex, _ ->
-             if not (can_reach_index cur) && not (set_outside cur) && 
+             if not (can_reach_index cur) && not (set_outside cur) &&
                 cur.kind <> ROString &&
-                cur.kind <> Wild && cur.kind <> FSeq && cur.kind <> FSeqN then 
+                cur.kind <> Wild && cur.kind <> FSeq && cur.kind <> FSeqN then
               (pick_the_right_kind_of_seq cur Seq (SpreadFromEdge e.efrom))
         | ECast, Index
         | ECompat, Index
         | ENull, Index
-        | EIndex, Index -> 
+        | EIndex, Index ->
               (pick_the_right_kind_of_seq cur Index (SpreadFromEdge e.efrom))
-        | _ -> () 
+        | _ -> ()
       ) cur.pred ;
 
       (* consider points-to information *)
