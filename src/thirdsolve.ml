@@ -156,7 +156,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       if n.kind = ROString then begin
         ()
       end else if n.kind <> Wild && set_outside n then begin
-        E.s (E.bug "Solver: bad annotation (should be wild because of cast)@!%a" d_node n)
+        E.s (E.bug "Solver: bad annotation (should be wild because of cast)@!%a@!%a" d_node e.eto d_node e.efrom)
       end else begin
         assert(not(set_outside n) || n.kind = Wild) ;
         update n Wild (BadCast e)
@@ -218,7 +218,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
         List.iter (fun e -> 
           if e.eto.kind = ROString then begin
             ()
-          end else if e.eto.kind <> Wild && e.efrom.why_kind = UserSpec then begin
+          end else if e.eto.kind <> Wild && e.eto.why_kind = UserSpec then begin
             E.s (E.bug "Solver: bad annotation (should be wild because of successor edge)@!%a" d_node e.eto)
           end else begin
             (if (e.eto.why_kind = UserSpec) then assert (e.eto.kind = Wild)) ;
@@ -241,7 +241,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
         (* handle points-to information *)
         List.iter (fun n ->
           if n.kind <> Wild && set_outside n then begin
-            E.s (E.bug "Solver: bad annotation (should be wild because of pointsto)@!%a" d_node n)
+            E.s (E.bug "Solver: bad annotation (should be wild because of pointsto)@!%a@!%a" d_node n d_node cur)
           end ;
           (if (n.why_kind = UserSpec) then assert (n.kind = Wild)) ;
           update n Wild (SpreadPointsTo cur) ;
