@@ -41,6 +41,7 @@
 (*   - local temporaries introduced but not used      *)
 (*   - global declarations that are not used          *)
 (*   - types that are not used                        *)
+(*   - labels that are not used (gn)                  *)
 
 
 (* Some clients may wish to augment or replace the standard strategy
@@ -78,5 +79,3 @@ val removeUnusedTemps: ?markRoots:rootsMarker -> Cil.file -> unit
 
 val keepUnused: bool ref (* Set this to true to turn off this module *)
 
-(* AAARRGGGHHH!!!! *)
-(*val hack_Cil_d_global: unit -> Cil.global -> Pretty.doc*)

@@ -456,7 +456,7 @@ end
 
 let markReachable file =
   (* build a mapping from global names back to their definitions & declarations *)
-  let globalMap = Hashtbl.create 1 in
+  let globalMap = Hashtbl.create 137 in
   let considerGlobal global =
     match global with
     | GFun ({svar = info}, _)
@@ -484,7 +484,78 @@ let markReachable file =
   in
   iterGlobals file considerGlobal
 
+(**********************************************************************
+ *
+ * Marking and removing of unused labels
+ *
+ **********************************************************************)
 
+(* We keep only one label, preferably one that was not introduced by CIL. 
+ * Scan a list of labels and return the data for the label that should be 
+ * kept, and the remaining filtered list of labels *)
+let labelsToKeep (ll: label list) : (string * location * bool) * label list = 
+  let rec loop (sofar: string * location * bool) = function
+      [] -> sofar, []
+    | l :: rest -> 
+        let newlabel, keepl = 
+          match l with
+          | Case _ | Default _ -> sofar, true 
+          | Label (ln, lloc, isorig) -> begin
+              match isorig, sofar with 
+              | false, ("", _, _) -> 
+                  (* keep this one only if we have no label so far *)
+                  (ln, lloc, isorig), false
+              | false, _ -> sofar, false
+              | true, (_, _, false) -> 
+                  (* this is an original label; prefer it to temporary or 
+                   * missing labels *)
+                  (ln, lloc, isorig), false
+              | true, _ -> sofar, false
+          end
+        in
+        let newlabel', rest' = loop newlabel rest in
+        newlabel', (if keepl then l :: rest' else rest')
+  in
+  loop ("", locUnknown, false) ll
+
+class markUsedLabels (labelMap: (string, unit) H.t) = object
+  inherit nopCilVisitor
+
+  method vstmt (s: stmt) = 
+    match s.skind with 
+      Goto (dest, _) -> 
+        let (ln, _, _), _ = labelsToKeep !dest.labels in
+        if ln = "" then 
+          E.s (E.bug "rmtmps: destination of statement does not have labels");
+        (* Mark it as used *)
+        H.replace labelMap ln ();
+        DoChildren
+
+    | _ -> DoChildren
+
+   (* No need to go into expressions or instructions *)
+  method vexpr _ = SkipChildren
+  method vinst _ = SkipChildren
+  method vtype _ = SkipChildren
+end
+
+class removeUnusedLabels (labelMap: (string, unit) H.t) = object
+  inherit nopCilVisitor
+
+  method vstmt (s: stmt) = 
+    let (ln, lloc, lorig), lrest = labelsToKeep s.labels in
+    s.labels <-
+       (if ln <> "" && H.mem labelMap ln then (* We had labels *)
+         (Label(ln, lloc, lorig) :: lrest)
+       else
+         lrest);
+    DoChildren
+
+   (* No need to go into expressions or instructions *)
+  method vexpr _ = SkipChildren
+  method vinst _ = SkipChildren
+  method vtype _ = SkipChildren
+end
 
 (***********************************************************************
  *
@@ -554,6 +625,12 @@ let removeUnmarked file =
 	  local.vreferenced
 	in
 	func.slocals <- List.filter filterLocal func.slocals;
+        (* We also want to remove unused labels. We do it all here, including 
+         * marking the used labels *)
+        let usedLabels:(string, unit) H.t = H.create 13 in
+        ignore (visitCilBlock (new markUsedLabels usedLabels) func.sbody);
+        (* And now we scan again and we remove them *)
+        ignore (visitCilBlock (new removeUnusedLabels usedLabels) func.sbody);
 	true
 
     (* all other globals are retained *)

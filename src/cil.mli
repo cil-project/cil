@@ -872,7 +872,7 @@ and stmtkind =
     * goto's that have been inserted during elaboration. The reference 
     * points to the statement that is the target of the Goto. This means that 
     * you have to update the reference whenever you replace the target 
-    * statement. *)
+    * statement. The target statement MUST have at least a label. *)
 
   | Break of location                   
    (** A break to the end of the nearest enclosing Loop or Switch *)
