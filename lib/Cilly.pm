@@ -1576,7 +1576,7 @@ sub new {
 	    '-MMD$' => { TYPE => 'EARLY_PREPROC' },
             "-include" => { ONEMORE => 1, TYPE => "PREPROC" },  # sm
 	    '-Wp,' => { TYPE => 'PREPROC' },
-            "-ansi" => { TYPE => "PREPROC" },
+            "-ansi" => { TYPE => 'ALLARGS' },
             "-c" => { RUN => sub { $stub->{OPERATION} = "TOOBJ"; }},
             "-x" => { ONEMORE => 1, TYPE => "CC" },
 	    "-v" => { TYPE => 'ALLARGS',
@@ -1618,7 +1618,7 @@ sub new {
 	    '-Wl,--(no-)?whole-archive$' => { TYPE => 'OSOURCE' },
 	    '-Wl,' => { TYPE => 'LINK' },
             "-traditional" => { TYPE => 'PREPROC' },
-            "-std" => { TYPE => 'CC' },
+            '-std=' => { TYPE => 'ALLARGS' },
             "--start-group" => { RUN => sub { } },
             "--end-group" => { RUN => sub { }},
 	    '-pthread$' => { TYPE => 'ALLARGS' },
