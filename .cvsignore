@@ -16,7 +16,7 @@ out
 site-config.mk
 __scalar2pointer.txt
 *.log
-tmp
+tmp*
 *.log.prev
 make.out*
 odoc

@@ -2805,7 +2805,7 @@ let d_global () = function
   | GDecl (vi, l) -> (
       (* sm: don't print boxmodels; avoids gcc warnings *)
       if (hasAttribute "boxmodel" vi.vattr) then
-        (text "/* omitted boxmodel GDecl ") ++ (text vi.vname) ++ (text " */")
+        (text ("// omitted boxmodel GDecl " ^ vi.vname ^ "\n"))
       else (
         d_line l ++
         (d_videcl () vi)

@@ -1,6 +1,6 @@
 # This module implements a compiler stub that parses the command line
 # arguments of gcc and Microsoft Visual C (along with some arguments for the
-# script itself) and gives hooks into preprocessing, compil;ation and linking. 
+# script itself) and gives hooks into preprocessing, compil;ation and linking.
 package CompilerStub;
 @ISA = ();
 
@@ -18,15 +18,16 @@ sub new {
     my ($proto, @args) = @_;
     my $class = ref($proto) || $proto;
 
-    my $ref = 
-    { CFILES => [], # C input files
-      OFILES => [], # Other input files
-      IFILES => [], # Already preprocessed files
-      PPARGS => [], # Preprocessor args
-      CCARGS => [], # Compiler args
-      LINKARGS => [], # Linker args
-      DEBUG => 0,
-      VERBOSE => 0,
+    my $ref =
+    { CFILES => [],    # C input files
+      OFILES => [],    # Other input files
+      IFILES => [],    # Already preprocessed files
+      PPARGS => [],    # Preprocessor args
+      CCARGS => [],    # Compiler args
+      LINKARGS => [],  # Linker args
+      DEBUG => 0,      # this causes the bytecode boxer to be used.. ?
+      RELEASELIB => 0, # if true, use the release runtime library (if any)
+      VERBOSE => 0,    # when true, print extra detail
       OPERATION => 'TOEXE', # This is the default for all compilers
     };
     my $self = bless $ref, $class;
@@ -87,11 +88,14 @@ sub collectOneArgument {
     if($arg eq "--debug") {
         $self->{DEBUG} = 1; return 1;
     }
+    if($arg eq "--releaselib") {
+        $self->{RELEASELIB} = 1; return 1;
+    }
     if($arg eq "--verbose") {
         $self->{VERBOSE} = 1; return 1;
     }
     if($arg =~ m|--keep=(.+)$|) {
-        $self->{KEEPDIR} = $1; 
+        $self->{KEEPDIR} = $1;
         if(! -d $self->{KEEPDIR}) {
             die "Cannot find directory $self->{KEEPDIR}";
         }
@@ -107,14 +111,15 @@ sub printHelp {
     $self->usage();
     print <<EOF;
 Options:
-  --mode=xxx   What tool to emulate: 
+  --mode=xxx   What tool to emulate:
                 GNUCC   - GNU CC
                 MSVC    - MS VC cl compiler
                 MSLINK  - MS VC link linker
                This option must be the first one! If it is not found there
                then GNUCC mode is assumed.
   --help       Prints this help message
-  --debug      Set a debug flag
+  --debug      Invoke the bytecode (as opposed to native code) boxer
+  --releaselib Link with the release version of the CCured runtime library
   --verbose    Prints a lot of information about what is being done
   --keep=xxx   Keep temporary files in the given directory
 EOF
@@ -322,8 +327,12 @@ sub runShell {
     if(1 || $self->{VERBOSE}) { print STDERR "$cmd\n"; }
 
     # weimer: let's have a sanity check
-    if (system($cmd)) {
-	die "Possible error with $cmd!\n";
+    my $code = system($cmd);
+    if ($code != 0) {
+        # sm: now that we always print, don't echo the command again,
+        # since that makes the output more confusing
+	#die "Possible error with $cmd!\n";
+	exit($code >> 8);    # extract exit code portion
     } 
 }
 

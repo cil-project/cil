@@ -13,12 +13,13 @@ ifndef CCUREDHOME
   #$(error You have not defined the CCUREDHOME variable)
 endif
 
+# sm: moved this before setup and am now arranging things so this
+# can be the primary target; must rethink what 'setup' means
+quickbuild:
+	make -f Makefile.ccured quickbuild $(MAKEOVERRIDES)
 
 setup:
 	make -f Makefile.ccured setup $(MAKEOVERRIDES)
-
-quickbuild:
-	make -f Makefile.ccured quickbuild $(MAKEOVERRIDES)
 
 # sm: find and remove all the intermediate files from translation
 clean:
@@ -90,7 +91,7 @@ export EXTRAARGS
 export INFERBOX
 
 ifndef INFERBOX
-INFERBOX:=none
+  INFERBOX := none
 endif
 
 STANDARDPATCH := --includedir=$(CCUREDHOME)/include
@@ -98,16 +99,6 @@ STANDARDPATCH := --includedir=$(CCUREDHOME)/include
 # CCURED contains arguments that are passed to ccured.pl
 # Pass such arguments in the command line as EXTRAARGS="..."
 CCURED+= $(EXTRAARGS)
-
-
-# sm: my options
-ifdef USER_SCOTT
-  # I like -g always
-  CCURED+= -g
-
-  # trace patching process
-  #TRACE=patch
-endif
 
 
 ifneq ($(INFERBOX),none)
@@ -157,6 +148,9 @@ ifdef CHECK
 endif
 ifndef RELEASE
   CCURED+= --debug
+endif
+ifdef RELEASELIB
+  CCURED+= --releaselib
 endif
 ifdef VERBOSE
   CCURED+= --verbose

@@ -28,7 +28,7 @@
 #* THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #*
 #*
-  
+
   # Generic Makefile for Ocaml projects
   # Written by necula@cs.berkeley.edu
   # 
@@ -54,7 +54,38 @@ CAMLDEP = ocamldep
 
 CAMLFLAGS    =-I $(OBJDIR)
 
-ECHO = @
+# sm: two styles for echoing compilation progress:
+#   style 1, by George:
+#     - print English descriptions of what's happening
+#     - set ECHO to "" to see *everything*
+#   style 2, by Scott:
+#     - do not print English descriptions
+#     - print every shell command that is executed which has a side effect,
+#       so that they could be pasted into a shell to reproduce manually
+#     - omit some of the details of dependency generation
+#
+# to be able to choose which style, several variables are used:
+#   @$(NARRATIVE)  - put this before English descriptions for style 1
+#   @$(COMMAND)    - put this before shell commands which are to be
+#                    printed for style 2; the command is *not* executed
+#   $(AT)          - put this before shell commands which are to be executed,
+#                    and also printed in style 2
+#   $(ECHO)        - use in place of '@' for things not printed in either style
+ifdef ECHOSTYLE_SCOTT
+  # 'true' silently consumes its arguments, whereas 'echo' prints them
+  NARRATIVE   := true           
+  COMMAND     := echo
+  AT          := 
+  ECHO        := @
+else
+  NARRATIVE   := echo
+  COMMAND     := true
+  # change these next two definitions to <empty> to echo everything,
+  # or leave as @ to suppress echoing
+  AT          := @
+  ECHO        := @
+endif
+
 
 ifdef PROFILE
 # RELEASE	= 1
@@ -66,6 +97,7 @@ ifdef PROFILE
  MOVEAFTERCAMLC = cmi cmx $(OBJ)
 else
 ifdef RELEASE
+ #foo := $(shell echo "I am in RELEASE mode" >&2; echo whatever)
  CAMLC          = ocamlopt $(COMPILEFLAGS)
  CAMLLINK       = ocamlopt $(LINKFLAGS)
  CMO            = cmx
@@ -73,6 +105,10 @@ ifdef RELEASE
  EXEEXT         = .asm
  MOVEAFTERCAMLC = cmi cmx $(OBJ)
  COMPILETOWHAT  = native code
+ # sm: by adding -native in release mode, we prevent spurious
+ # dependencies on .cmo files which were causing lots of
+ # extra recompilation
+ CAMLDEP        = ocamldep -native
 else 
  CAMLC          = ocamlc -g $(COMPILEFLAGS)
  CAMLLINK       = ocamlc -custom -g $(LINKFLAGS)
@@ -122,8 +158,9 @@ DEPENDDIR  = $(OBJDIR)/.depend
              # copy it to OBJDIR (where the .ml) file will live.
 $(OBJDIR)/%.ml: %.mll
 	$(CAMLLEX) $<
-	$(ECHO)mv -f $(basename $<).ml $(OBJDIR)
+	$(AT)mv -f $(basename $<).ml $(OBJDIR)
 	$(ECHO)if test -f $(basename $<).mli ;then \
+	  $(COMMAND) cp -f $(basename $<).mli $(OBJDIR); \
 	  cp -f $(basename $<).mli $(OBJDIR) \
         ;fi
 
@@ -131,33 +168,38 @@ $(OBJDIR)/%.ml: %.mll
              # Move the result to the $(OBJDIR) directory.
 $(OBJDIR)/%.ml $(OBJDIR)/%.mli: %.mly
 	$(CAMLYACC) $(CAMLYACCFLAGS) $<
-	$(ECHO)mv -f $(basename $<).ml $(basename $<).mli $(OBJDIR)
+	$(AT)mv -f $(basename $<).ml $(basename $<).mli $(OBJDIR)
 
          # Compile an MLI file
 $(OBJDIR)/%.cmi: %.mli
-	@echo Compiling interface $<
-	$(ECHO)$(CAMLC) $(CAMLFLAGS) -c $<
+	@$(NARRATIVE) Compiling interface $<
+	$(AT)$(CAMLC) $(CAMLFLAGS) -c $<
 	$(ECHO)if test $(OBJDIR) != $(<D) ;then \
+                   $(COMMAND) mv -f $(basename $<).cmi $(OBJDIR); \
                    mv -f $(basename $<).cmi $(OBJDIR) \
         ;fi
 
          # Compile an ML file
 $(OBJDIR)/%.$(CMO): %.ml
-	@echo Compiling $< to $(COMPILETOWHAT)
+	@$(NARRATIVE) "Compiling $< to $(COMPILETOWHAT)"
 	$(ECHO)if test $(OBJDIR) != $(<D) ;then \
                  if test -f $(OBJDIR)/$(*F).cmi ;then \
+                      $(COMMAND) mv -f $(OBJDIR)/$(*F).cmi $(<D); \
                       mv -f $(OBJDIR)/$(*F).cmi $(<D) \
                  ;fi \
         ;fi
+	@$(COMMAND) $(CAMLC) $(CAMLFLAGS) -c $<
 	$(ECHO)if $(CAMLC) $(CAMLFLAGS) -c $< ;then \
 	   if test $(OBJDIR) != $(<D) ;then \
               if test -f $(basename $<).cmi ;then \
+                $(COMMAND) mv -f $(foreach ext,$(MOVEAFTERCAMLC), $(basename $<).$(ext)) $(OBJDIR); \
                 mv -f $(foreach ext,$(MOVEAFTERCAMLC), $(basename $<).$(ext)) \
                       $(OBJDIR) \
               ;fi \
            ;fi ; exit 0 \
         ;else \
 	   if test $(OBJDIR) != $(<D) ;then \
+                $(COMMAND) mv -f $(foreach ext,$(MOVEAFTERCAMLC), $(basename $<).$(ext)) $(OBJDIR); \
                 mv -f $(foreach ext,$(MOVEAFTERCAMLC), $(basename $<).$(ext)) \
                       $(OBJDIR) \
            ;fi ; exit 1 \
@@ -165,14 +207,14 @@ $(OBJDIR)/%.$(CMO): %.ml
 
              # Compile C files
 $(OBJDIR)/%.$(OBJ): %.c
-	@echo Compiling C file $<
-	$(ECHO)$(CAMLC) $(CAMLFLAGS) -c $<
-	$(ECHO)mv -f $(basename $<).$(OBJ) $(OBJDIR)
+	@$(NARRATIVE) Compiling C file $<
+	$(AT)$(CAMLC) $(CAMLFLAGS) -c $<
+	$(AT)mv -f $(basename $<).$(OBJ) $(OBJDIR)
 
              # Linking
 $(EXECUTABLE)$(EXE) : $(MODULES:%=$(OBJDIR)/%.$(CMO)) 
-	@echo Linking $(COMPILETOWHAT) $@
-	$(ECHO)$(CAMLLINK) -o $@ $(CAMLLIBS) $^
+	@$(NARRATIVE) Linking $(COMPILETOWHAT) $@
+	$(AT)$(CAMLLINK) -o $@ $(CAMLLIBS) $^
 
 
 #	Phonies should be "remade" even if someone mistakenly creates them
@@ -184,8 +226,14 @@ cleancaml:
 	-rm -f $(OBJDIR)/*.$(OBJ)
 	-rm -f $(EXECUTABLE)$(EXE)
 	-rm -f camlprim0.obj  $(EXTRACLEAN)
+	-rm -f src/frontc/clexer.ml
 	@echo " "
-	@echo "reminder: consider 'make realclean' if 'make clean' isn't doing enough."
+	@echo "doing 'make realclean' always because our build process has issues.."
+	-rm -f $(DEPENDDIR)/*.d $(DEPENDDIR)/*.di
+	-rm -f $(MLLS:%.mll=$(OBJDIR)/%.ml) \
+               $(MLLS:%.mll=$(OBJDIR)/%.mli) \
+               $(MLYS:%.mly=$(OBJDIR)/%.ml) \
+               $(MLYS:%.mly=$(OBJDIR)/%.mli)
 
 # sm: I added that reminder to 'clean' after spending 20 minutes debugging
 # the build process until I discovered that stale dependency files were 
@@ -212,14 +260,18 @@ FIXDEPEND:=perl -e 'while(<>) { s%[^/\\ :]+[/\\]% %g; s%([^ :\\\n]+)%\$$(OBJDIR)
 # FIXDEPEND:=cat
 DEPINCLUDES= -I $(OBJDIR) $(SOURCEDIRS:%=-I %)
 $(DEPENDDIR)/%.d: %.ml
-	@echo Generating dependency information for $<
-	$(ECHO)$(CAMLDEP) $(DEPINCLUDES) $< | tee | $(FIXDEPEND) > $@
+	@$(NARRATIVE) Generating dependency information for $<
+	@$(COMMAND) $(CAMLDEP) $(DEPINCLUDES) $<
+	$(ECHO)$(CAMLDEP) $(DEPINCLUDES) $< | $(FIXDEPEND) > $@
 
 $(DEPENDDIR)/%.di: %.mli
-	@echo Generating dependency information for $<
+	@$(NARRATIVE) Generating dependency information for $<
+	@$(COMMAND) $(CAMLDEP) $(DEPINCLUDES) $<
 	$(ECHO)$(CAMLDEP) $(DEPINCLUDES) $< | $(FIXDEPEND) > $@
 
 ifndef CLEANING
+#foo := $(shell echo "MODULES = $(MODULES)" 1>&2; echo whatever)
+#foo := $(shell echo "RELEASE = $(RELEASE)" 1>&2; echo whatever)
 -include $(MODULES:%=$(DEPENDDIR)/%.d)
 -include $(MODULES:%=$(DEPENDDIR)/%.di)
 endif

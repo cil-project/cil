@@ -70,8 +70,9 @@ else
   endif
 endif
 
-ifdef RELEASE
-  COMPILEREXT := $(COMPILERNAME)_release
+# sm: separating release library from release tools
+ifdef RELEASELIB
+  COMPILEREXT := $(COMPILERNAME)_releaselib
 else
   COMPILEREXT := $(COMPILERNAME)_debug
 endif
@@ -103,22 +104,34 @@ $(GCLIB): $(CCUREDHOME)/lib/gc/mark.c
 	cd $(CCUREDHOME)/lib/gc/$(COMPILERNAME); \
             rm -f gc.log; ./gctest; if test -f gc.log ;then cat gc.log; fi
 
-# sm: enabling this causes the syslog(2) call in safec.c to be omitted
-ifdef NO_FPFAIL_SYSLOG
-  CFLAGS+= $(DEF)NO_FPFAIL_SYSLOG
-endif
-
-
 ###
 ###
 ###    # Now the rules to make the library
 ###
 ###
-ifndef RELEASE
-  CCUREDLIBARG := $(DEF)_DEBUG
+CCUREDLIBARG :=
+
+# RELEASELIB means we try for performance, with terse error messages
+# !RELEASELIB means enable more debugging checking, and try to produce
+#             better error messages
+ifdef RELEASELIB
+  CCUREDLIBARG+= $(DEF)RELEASELIB
 endif
 
-$(CCUREDLIB) : lib/safec.c lib/safec.h lib/safeccheck.h lib/splay.c $(GCLIB) 
+# _DEBUG means to try to drop into the debugger on failure
+ifndef RELEASELIB
+  CCUREDLIBARG+= $(DEF)_DEBUG
+endif
+
+# NO_FPFAIL_SYSLOG means the syslog(2) call in safec.c will be omitted
+ifdef NO_FPFAIL_SYSLOG
+  CCUREDLIBARG+= $(DEF)NO_FPFAIL_SYSLOG
+endif
+
+# we build the library from source each time, so that we don't end up
+# with .o files built with Makefile arguments that have changed
+$(CCUREDLIB): lib/safec.c lib/safec.h lib/safeccheck.h lib/splay.c $(GCLIB) 
+	@echo "Trying to build $(CCUREDLIB)"
 	$(CC) $(CFLAGS) $(INC)./lib $(CONLY) $(CCUREDLIBARG) \
                     $(OBJOUT)obj/safec.$(OBJEXT) lib/safec.c
 	$(CC) $(CFLAGS) $(INC)./lib $(CONLY) $(CCUREDLIBARG) \
@@ -163,7 +176,7 @@ ifdef _MSVC
                                              $(MAKEOVERRIDES) 
 endif
 
-quickbuild:  combiner $(EXECUTABLE)$(EXE)
+quickbuild:  combiner $(EXECUTABLE)$(EXE) libraries
 
 # the patch template file
 PATCHTEMPLATE := $(CCUREDHOME)/lib/ccured_$(COMPILERNAME).patch
