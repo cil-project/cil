@@ -44,6 +44,9 @@ let debugInlines = false
 let mergeSynonyms = true
 
 
+(** Whethere to use path compression *)
+let usePathCompression = false
+
 (* Try to merge definitions of inline functions. They can appear in multiple 
  * files and we would like them all to be the same. This can slow down the 
  * merger an order of magnitude !!! *)
@@ -105,7 +108,7 @@ let rec find (pathcomp: bool) (nd: 'a node) =
     nd
   else begin
     let res = find pathcomp nd.nrep in
-    if false && pathcomp && nd.nrep != res then 
+    if usePathCompression && pathcomp && nd.nrep != res then 
       nd.nrep <- res; (* Compress the paths *)
     res
   end
@@ -117,39 +120,48 @@ let rec find (pathcomp: bool) (nd: 'a node) =
  * function for undoing the union. Make sure that between the union and the 
  * undo you do not do path compression *)
 let union (nd1: 'a node) (nd2: 'a node) : 'a node * (unit -> unit) = 
-  if nd1 == nd2 then begin
-      E.s (bug "unioning two identical nodes for %s(%d)" 
-             nd1.nname nd1.nfidx)
-  end;
   (* Move to the representatives *)
   let nd1 = find true nd1 in
   let nd2 = find true nd2 in 
-  let rep, norep = (* Choose the representative *)
-    if (nd1.nloc != None) =  (nd2.nloc != None) then 
-      (* They have the same defined status. Choose the earliest *)
-      if nd1.nfidx < nd2.nfidx then nd1, nd2 
-      else if nd1.nfidx > nd2.nfidx then nd2, nd1
-      else (* In the same file. Choose the one with the earliest index *) begin
-        match nd1.nloc, nd2.nloc with 
-          Some (_, didx1), Some (_, didx2) -> 
-            if didx1 < didx2 then nd1, nd2 else
-            if didx1 > didx2 then nd2, nd1 
-            else begin
+  if nd1 == nd2 then begin
+    (* It can happen that we are trying to union two nodes that are already 
+     * equivalent. This is because between the time we check that two nodes 
+     * are not already equivalent and the time we invoke the union operation 
+     * we check type isomorphism which might change the equivalence classes *)
+(*
+    ignore (warn "unioning already equivalent nodes for %s(%d)" 
+              nd1.nname nd1.nfidx);
+*)
+    nd1, fun x -> x
+  end else begin
+    let rep, norep = (* Choose the representative *)
+      if (nd1.nloc != None) =  (nd2.nloc != None) then 
+        (* They have the same defined status. Choose the earliest *)
+        if nd1.nfidx < nd2.nfidx then nd1, nd2 
+        else if nd1.nfidx > nd2.nfidx then nd2, nd1
+        else (* In the same file. Choose the one with the earliest index *) begin
+          match nd1.nloc, nd2.nloc with 
+            Some (_, didx1), Some (_, didx2) -> 
+              if didx1 < didx2 then nd1, nd2 else
+              if didx1 > didx2 then nd2, nd1 
+              else begin
               ignore (warn 
-                        "Merging two elements in the same file with the same idx within the file");
+                        "Merging two elements (%s and %s) in the same file (%d) with the same idx (%d) within the file" 
+                        nd1.nname nd2.nname nd1.nfidx didx1);
+                nd1, nd2
+              end
+          | _, _ -> (* both none. Does not matter which one we choose. Should 
+              * not happen though. *)
+              ignore (warn "Merging two undefined elements in the same file: %s and %s\n" nd1.nname nd2.nname);
               nd1, nd2
-            end
-        | _, _ -> (* both none. Does not matter which one we choose. Should 
-                   * not happen though. *)
-            ignore (warn "Merging two undefined elements in the same file: %s and %s\n" nd1.nname nd2.nname);
-            nd1, nd2
-      end
-    else (* One is defined, the other is not. Choose the defined one *)
-      if nd1.nloc != None then nd1, nd2 else nd2, nd1
-  in
-  let oldrep = norep.nrep in
-  norep.nrep <- rep; 
-  rep, (fun () -> norep.nrep <- oldrep)
+        end
+      else (* One is defined, the other is not. Choose the defined one *)
+        if nd1.nloc != None then nd1, nd2 else nd2, nd1
+    in
+    let oldrep = norep.nrep in
+    norep.nrep <- rep; 
+    rep, (fun () -> norep.nrep <- oldrep)
+  end
 (*      
 let union (nd1: 'a node) (nd2: 'a node) : 'a node * (unit -> unit) = 
   if nd1 == nd2 && nd1.nname = "!!!intEnumInfo!!!" then begin
