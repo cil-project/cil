@@ -129,6 +129,7 @@ $TEST->add3Tests("test/huff1");
 $TEST->add3Tests("testrun/init");
 $TEST->add3Tests("testrun/init1");
 $TEST->add1Tests("testrun/init2", "_GNUCC=1");
+$TEST->add1Tests("testrun/init3", "_GNUCC=1");
 $TEST->add3Tests("test/initial", "_GNUCC=1");
 $TEST->add3Tests("test/jmp_buf");
 $TEST->add3Tests("test/linux_atomic", "_GNUCC=1");

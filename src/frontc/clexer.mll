@@ -244,7 +244,7 @@ let letter = ['a'- 'z' 'A'-'Z']
 
 let usuffix = ['u' 'U']
 let lsuffix = ['l' 'L']
-let intsuffix = (lsuffix|usuffix|(usuffix lsuffix lsuffix)|(usuffix lsuffix)|(lsuffix usuffix))?
+let intsuffix = (lsuffix|usuffix|(lsuffix lsuffix)|(usuffix lsuffix lsuffix)|(usuffix lsuffix)|(lsuffix usuffix))?
 let floatsuffix = ['f' 'F' 'l' 'L']
 
 let intnum = decdigit+ intsuffix?

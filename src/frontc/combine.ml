@@ -177,7 +177,11 @@ and combine_init_expression (iexp: init_expression) : init_expression =
                 NEXT_INIT -> NEXT_INIT
               | INFIELD_INIT (fn, i) -> INFIELD_INIT(fn, doinit i)
               | ATINDEX_INIT (e, i) -> 
-                  ATINDEX_INIT(combine_expression e, doinit i)                              in
+                  ATINDEX_INIT(combine_expression e, doinit i)
+              | ATINDEXRANGE_INIT (s, e) ->
+                  ATINDEXRANGE_INIT(combine_expression s, 
+                                    combine_expression e)
+            in
             (doinit i, combine_init_expression e)
       in
       COMPOUND_INIT (List.map doinitexp initexps)

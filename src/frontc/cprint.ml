@@ -457,6 +457,12 @@ and print_init_expression (iexp: init_expression) : unit =
                   print_expression e 1;
                   print "]";
                   doinit i
+              | ATINDEXRANGE_INIT (s, e) -> 
+                  print "["; 
+                  print_expression s 1;
+                  print " ... ";
+                  print_expression e 1;
+                  print "]"
                 in
             doinit i; print " = "; 
             print_init_expression e
@@ -505,7 +511,9 @@ and print_expression (exp : expression) (lvl : int) =
       * constants we don't need them  *)
       (match iexp with
         SINGLE_INIT e -> print_expression e 15
-      | COMPOUND_INIT _ -> print "("; print_init_expression iexp; print ")"
+      | COMPOUND_INIT _ -> (* print "("; *) 
+          print_init_expression iexp 
+          (* ; print ")" *)
       | NO_INIT -> print "<NO_INIT in cast. Should never arise>")
 
   | CALL (exp, args) ->

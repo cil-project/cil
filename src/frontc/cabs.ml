@@ -196,6 +196,7 @@ and initwhat =
     NEXT_INIT
   | INFIELD_INIT of string * initwhat
   | ATINDEX_INIT of expression * initwhat
+  | ATINDEXRANGE_INIT of expression * expression
 
 
                                         (* Each attribute has a name and some

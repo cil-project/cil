@@ -219,13 +219,12 @@ let doOldParDecl (names: string list)
 interpret:
   file EOF				{$1}
 ;
-file:
-  /* empty */				{[]}
-| globals				{List.rev $1}
+file: globals				{$1}
 ;
 globals:
-  global				{[$1]}
-| globals global			{$2::$1}
+  /* empty */                           { [] }
+| global globals                        { $1 :: $2 }
+| SEMICOLON globals                     { $2 }
 ;
 
 location:
@@ -234,17 +233,18 @@ location:
 
 /*** Global Definition ***/
 global:
-  declaration  { $1 }
-| function_def          { $1 }
-| location ASM LPAREN string_list RPAREN SEMICOLON
-                        { GLOBASM ($4, $1) }
-| location PRAGMA attr  { PRAGMA ($3, $1) }
+  declaration                           { $1 }
+| function_def                          { $1 }
+| location ASM LPAREN string_list RPAREN SEMICOLON 
+                                        { GLOBASM ($4, $1) }
+| location PRAGMA attr                  { PRAGMA ($3, $1) }
 | location error SEMICOLON { PRAGMA (CONSTANT(CONST_STRING "error"), $1) }
 ;
 typename:
     IDENT				{$1}
 |   NAMED_TYPE				{$1}
 ;
+
 maybecomma:
    /* empty */                          { () }
 |  COMMA                                { () }
@@ -407,6 +407,8 @@ init_designators:
     DOT IDENT init_designators_opt      { INFIELD_INIT($2, $3) }
 |   LBRACKET  expression RBRACKET init_designators_opt
                                         { ATINDEX_INIT($2, $4) }
+|   LBRACKET  expression ELLIPSIS expression RBRACKET
+                                        { ATINDEXRANGE_INIT($2, $4) }
 ;         
 init_designators_opt:
    /* empty */                          { NEXT_INIT }
@@ -445,6 +447,8 @@ declaration_list:
 statement_list:
 |   /* empty */                          { [] }
 |   statement statement_list             { $1 :: $2 }
+/*(* GCC accepts a label at the end of a block *)*/
+|   location IDENT COLON                 { [ LABEL ($2, NOP $1, $1)] }
 ;
 
 
@@ -500,7 +504,6 @@ statement:
 |   location MSASM               { ASM ([$2], false, [], [], [], $1)}
 |   location error   SEMICOLON   { (NOP $1)}
 ;
-
 
 
 /*******************************************************/
