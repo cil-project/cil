@@ -704,6 +704,20 @@ about high-level file processing. Again, we highly recommend that you just
 our \t{cilly} driver so that you can avoid spending time re-inventing the
 wheel to provide drop-in support for standard \t{makefile}s. 
 
+Here is a concrete example of compiling and linking your project against
+CIL. Imagine that your program analysis or transformation is contained in
+the single file \t{main.ml}. 
+
+\begin{verbatim}
+$ ocamlopt -c -I $(CIL)/obj/x86_LINUX/ main.ml
+$ ocamlopt -o main unix.cmxa \ 
+        $(CIL)/obj/x86_LINUX/cil.cmxa main.cmx
+\end{verbatim}
+
+The first line compiles your analysis, the second line links it against CIL
+(as a library) and the Ocaml Unix library. For more information about
+compiling and linking Ocaml programs, see the Ocaml home page. 
+
 In the next section we give an overview of the API that you can use
 to write your analysis and transformation. 
  
