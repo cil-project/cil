@@ -161,7 +161,7 @@ DISTRIB_SRC = pretty.ml pretty.mli errormsg.ml errormsg.mli \
 	      testcil.ml mergecil.ml mergecil.mli maincil.ml machdep.c
 
 DISTRIB_SRC_FRONTC = cabs.ml cprint.ml clexer.mli clexer.mll \
-		     cparser.mly \
+		     cparser.mly cxxlexer.mll cxxparser.mly \
 		     cabs2cil.ml cabs2cil.mli frontc.ml frontc.mli
 
 DISTRIB_SRC_EXT = logcalls.ml logcalls.mli \

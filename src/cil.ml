@@ -3460,12 +3460,6 @@ let addOffsetLval toadd (b, off) : lval =
   (* Make an AddrOf. Given an lval of type T will give back an expression of 
    * type ptr(T)  *)
 let mkAddrOf ((b, off) as lval) : exp = 
-  (* See if lval is a function or an array
-  let isfun = 
-    match  unrollType (typeOfLval lval) with
-      TFun _ -> true
-    | _ -> false
-  in *)
   (* Never take the address of a register variable *)
   (match lval with
     Var vi, off when vi.vstorage = Register -> vi.vstorage <- NoStorage

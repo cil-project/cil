@@ -31,7 +31,7 @@ my $postambleLocal = <<EOF;
 EOF
 
 if(! -d $tmpdir) {
-    mkdir $tmpdir || die "Cannot make $tmpdir\n";
+    mkdir $tmpdir || die "Canmake not make $tmpdir\n";
 
 }
 my $incode = 0;
@@ -45,7 +45,7 @@ while(<>) {
     if(! $incode && $_ =~ m|^\\begin{cilcode}\[(.*)\]$|) {
         $opt = $1;
         $incode = 1;
-        print STDERR "Found CIL code at line $lineno\n";
+        print STDERR "\n***Found CIL code at line $lineno\n";
         open(TSTSRC, ">$tmpdir/ex$testnr.c") 
             || die "Cannot create source $testnr";
         if($opt eq 'local') {
