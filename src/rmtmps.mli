@@ -1,9 +1,10 @@
 (*
  *
- * Copyright (c) 2001 by
+ * Copyright (c) 2001-2002 by
  *  George C. Necula	necula@cs.berkeley.edu
  *  Scott McPeak        smcpeak@cs.berkeley.edu
  *  Wes Weimer          weimer@cs.berkeley.edu
+ *  Ben Liblit          liblit@cs.berkeley.edu
  *   
  * All rights reserved.  Permission to use, copy, modify and distribute
  * this software for research purposes only is hereby granted, 
@@ -33,20 +34,33 @@
 (* rmtmps.mli *)
 (* remove unused things from cil files:               *)
 (*   - local temporaries introduced but not used      *)
-(*   - globla declarations that are not used          *)
+(*   - global declarations that are not used          *)
 (*   - types that are not used                        *)
 
+
+(* Some clients may wish to augment or replace the standard strategy
+ * for marking reachable roots.  The optional "markRooks" argument to
+ * Rmtmps.removeUnusedTemps grants this flexibility.  If given, it
+ * should name a function which will set the appropriate referenced
+ * bits on any global symbols which should be treated as retained
+ * roots.
+ * 
+ * Function Rmtmps.defaultRootsMarker encapsulates the default root
+ * marking logic, which consists of marking those global variables and
+ * functions which are visible to the linker and runtime loader.  A
+ * client's root marker can call this directly if the goal is to
+ * augment rather than replace the standard logic.
+ * 
+ * Note that certain CIL- and CCured-specific pragmas induce
+ * additional global roots.  This functionality is always present, and
+ * is not subject to replacement by "markRoots".
+ *)
+
+type rootsMarker = Cil.file -> unit
+val defaultRootsMarker : rootsMarker
+
 (* process a complete Cil file *)
-val removeUnusedTemps: Cil.file -> unit
-
-
-(* you can stick names of functions in this hashtable, and then
- * set Util.sliceGlobal, to keep only the named functions *)
-val forceToKeep : (string, bool) Hashtbl.t
-
-(* if you set 'forceToKeep', then call this version, since it skips
- * the explicit clearing of that hashtable *)
-val removeUnusedTempsInner: Cil.file -> unit
+val removeUnusedTemps: ?markRoots:rootsMarker -> Cil.file -> unit
 
 
 val keepUnused: bool ref (* Set this to true to turn off this module *)

@@ -12,73 +12,53 @@ module H = Hashtbl
 
 
 let sliceFile (f:file) (epicenter:string) (maxHops:int) : unit =
-begin
-  (* compute the static call graph *)
-  let graph:callgraph = (computeGraph f) in
+  let markRoots f =
+    (* compute the static call graph *)
+    let graph:callgraph = (computeGraph f) in
 
-  (* will accumulate here the set of names of functions to keep *)
-  (* update: rather than doing the slicing here, which is fairly
-   * ignorant of things like global variables, we'll modify the
-   * table used by rmtmps and let it do it *)
-  let keep: (string, bool) H.t = (*(H.create 117) in*)
-    Rmtmps.forceToKeep in
+    (* will accumulate here the set of names of functions already seen *)
+    let seen: (string, unit) H.t = (H.create 117) in
 
-  (* recursive depth-first search through the call graph, finding
-   * all nodes within 'hops' hops of 'node' and adding them to
-   * the 'keep' hashtable *)
-  let rec dfs (node:callnode) (hops:int) : unit =
-  begin
-    (* if we've already added this node, don't recurse here again *)
-    if (H.mem keep node.cnName) then () else
+    (* recursive depth-first search through the call graph, finding
+     * all nodes within 'hops' hops of 'node' and marking them to
+     * to be retained *)
+    let rec dfs (node:callnode) (hops:int) : unit =
+      (* only recurse if we haven't already marked this node *)
+      if not (H.mem seen node.cnInfo.vname) then
+	begin
+          (* add this node *)
+	  H.add seen node.cnInfo.vname ();
+	  node.cnInfo.vreferenced <- true;
+	  trace "epicenter" (dprintf "will keep %s\n" node.cnInfo.vname);
+	  
+          (* if we cannot do any more hops, stop *)
+	  if (hops > 0) then
 
-    (* add this node *)
-    (H.add keep node.cnName true);
-    (trace "epicenter" (dprintf "will keep %s\n" node.cnName));
-
-    (* if we cannot do any more hops, stop *)
-    if (hops = 0) then () else
-
-    (* recurse on all the node's callers and callees *)
-    let recurse (adjName:string) (adjacent:callnode) : unit =
-      (dfs adjacent (hops - 1)) in
-    (H.iter recurse node.cnCallees);
-    (H.iter recurse node.cnCallers)
-  end in
-  (dfs (H.find graph epicenter) maxHops);
-
-  (* now go over the entire file, throwing away all function definitions
-   * which are not on the list *)
-  if false then (   (* old *)
-    let keepIt (g:global) : bool =
-    begin
-      match g with
-      | GFun(fdec,_) ->
-          let ret:bool = (H.mem keep fdec.svar.vname) in
-          (trace "epicenter" (dprintf "keep %s: %b\n" fdec.svar.vname ret));
-          ret
-      | _ -> true    (* keep any non-functions *)
-    end in
-    f.globals <- (List.filter keepIt f.globals)
-  )
-  else (            (* new *)
-    (* let rmtmps do the entire job *)
-    Util.sliceGlobal := true
-  );
+            (* recurse on all the node's callers and callees *)
+	    let recurse (adjName:string) (adjacent:callnode) : unit =
+	      (dfs adjacent (hops - 1)) in
+	    Hashtbl.iter recurse node.cnCallees;
+	    Hashtbl.iter recurse node.cnCallers
+	end
+    in
+    dfs (Hashtbl.find graph epicenter) maxHops;
+  in
 
   (* finally, since the previous step retained all types but there could
    * now be many types which are never used, make a rmtmps pass to
    * throw away unused types *)
-  (Rmtmps.removeUnusedTempsInner f)
-end
+  Util.sliceGlobal := true;
+  Rmtmps.removeUnusedTemps ~markRoots:markRoots f
 
 
 
 (*
  *
- * Copyright (c) 2001 by
+ * Copyright (c) 2001-2002 by
  *  George C. Necula	necula@cs.berkeley.edu
  *  Scott McPeak        smcpeak@cs.berkeley.edu
  *  Wes Weimer          weimer@cs.berkeley.edu
+ *  Ben Liblit          liblit@cs.berkeley.edu
  *
  * All rights reserved.  Permission to use, copy, modify and distribute
  * this software for research purposes only is hereby granted,
