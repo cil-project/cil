@@ -2778,9 +2778,15 @@ and doExp (isconst: bool)    (* In a constant *)
         in
         (* Save the previous data *)
         let old_gnu = ! gnu_body_result in
-        let lastComp, isvoidbody = 
-          try findLastComputation (List.rev b.A.bstmts), false    
-          with Not_found -> A.NOP cabslu, true
+        let lastComp, isvoidbody =
+          match what with 
+            ADrop -> (* We are dropping the result *)
+              A.NOP cabslu, true
+          | _ -> 
+              try findLastComputation (List.rev b.A.bstmts), false    
+              with Not_found -> 
+                E.s (error "Cannot find COMPUTATION in GNU.body")
+                  (*                A.NOP cabslu, true *)
         in
         (* Prepare some data to be filled by doExp *)
         let data : (exp * typ) option ref = ref None in
@@ -2791,7 +2797,7 @@ and doExp (isconst: bool)    (* In a constant *)
         gnu_body_result := old_gnu;
         match !data with
           None when isvoidbody -> finishExp se zero voidType
-        | None -> E.s (error "Cannot find COMPUTATION in GNU.body")
+        | None -> E.s (bug "Cannot find COMPUTATION in GNU.body")
         | Some (e, t) -> finishExp se e t
     end
 
