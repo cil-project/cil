@@ -64,6 +64,14 @@ type node =
       mutable attr: attribute list;     (* The attributes of this pointer 
                                          * type *)
 
+      mutable flags : int; 
+
+(* 
+      mutable flagsCastPred: int; (* cast_pred: updated *)
+      mutable flagsCNIPred: int;
+      mutable flagsCastSucc: int ; 
+      *)
+      
       mutable onStack: bool;            (* Whether might contain stack 
                                          * addresses *)
       mutable updated: bool;            (* Whether it is used in a write 
@@ -185,15 +193,26 @@ let is_table_kind = function
   | _ -> false
 
 
-(* The constants for pointer kind flags. *)
-let pkNull       = of_int 1  (* Can be null *)
-let pkOnStack    = of_int 2  (* Can contain a stack address *)
-let pkROnly      = of_int 4  (* Never write through this pointer *)
+(* set a boolean bitflag *)
+let setFlag n f = n.flags <- n.flags lor f
+(* check a boolean bitflag *)
+let hasFlag n f = n.flags land f <> 0 
 
+let pkInterface = 1          (* this is an interface node *)
+let pkUpdated = 2            (* we write through this pointer *)
+let pkOnStack = 4            (* can contain a stack address *)
+let pkNull = 8               (* can be NULL *)
+let pkIntCast = 16           (* can contain an integer *)
+let pkPosArith = 32          (* subject to positive pointer arithmetic *)
+let pkArith = 64             (* subject to arbitrary pointer arithmetic *)
+let pkReachString = 128      (* can reach a String node *)
+let pkReachIndex = 256       (* can reach an Index node *)
+let pkReachSeq = 512         (* can reach a Seq node *)
+
+(* George may also want:
 let pkNullTerm   = of_int 8  (* Points to a null-terminated buffer *)
 let pkRegistered = of_int 16 (* The pointer always points to a memory 
                               * area that is registered  *)
-
 (* Some representation flags *)
 let pkLean       = of_int 32  (* The pointer is 1 word. It's capabilities, if 
                                * any, are registered. In that case it must 
@@ -201,22 +220,12 @@ let pkLean       = of_int 32  (* The pointer is 1 word. It's capabilities, if
 let pkIndex      = of_int 64  (* The pointer is into a sized array. *)
 let pkForward    = of_int 128 (* The pointer is into an array, and is moving 
                                * only forward *)
+*)
+let pkCastPredFlags = pkUpdated (* bitmask of all Cast/Pred flags *)
+let pkCastSuccFlags = pkOnStack lor pkNull lor pkIntCast lor
+                      pkPosArith lor pkArith
+let pkCNISuccFlags =  pkReachString lor pkReachIndex lor pkReachSeq
 
-
-let pkEmpty      = zero 
-
-(* Flags that propagate forward with the control flow (during inference) *)
-let pkForwardProp = logor pkNull pkOnStack
-
-(* Flags that propagate against the control flow (during inference) *)
-let pkBackwardProp = 
-  logor pkNullTerm 
-    (logor pkROnly pkRegistered)
-
-
-(* Some simple accessor functions *)
-let pkHas (f: int32) (pk: int32) = zero <> (logand pk f)
- 
 let pkIsWild = function
     KWild _ -> true | _ -> false
 
@@ -325,6 +334,7 @@ let d_node () n =
 
 
 (* Convert the old kind into the new kind *)    
+(*
 let okind2kind = function
     Safe -> KSafe zero
   | Index -> KSeq pkIndex
@@ -345,8 +355,10 @@ let okind2kind = function
   | ROString -> KString pkROnly
 
   | k -> E.s (E.unimp "okind2kind: %a\n" d_opointerkind k)
+  *)
 
 (* Convert the new kind into the old kind *)    
+(*
 let pk2okind = function
     KSafe _ -> Safe
   | KSeq f -> 
@@ -367,6 +379,7 @@ let pk2okind = function
   | KWild f -> if pkHas f pkLean then WildT else Wild
   | KScalar -> Scalar
   | KUnknown -> Unknown
+  *)
 
 (* A mapping from place , index to ids. This will help us avoid creating 
  * duplicate nodes *)
@@ -444,8 +457,10 @@ let k2attr = function
   | ROString -> AId("rostring") 
   | k -> E.s (E.unimp "k2attr:%a" d_opointerkind k)
 
+(*
 let pk2attr (pk: pkind) : attribute = 
   k2attr (pk2okind pk)
+  *)
 
 let kindOfAttrlist al = 
   let rec loop = function
@@ -475,9 +490,11 @@ let kindOfAttrlist al =
   loop al
 
 
+(*
 let pkindOfAttrlist al = 
   let k, why = kindOfAttrlist al in
   okind2kind k, why
+  *)
 
 (* Replace the ptrnode attribute with the actual qualifier attribute *)
 type whichAttr = 
@@ -589,6 +606,7 @@ let newNode (p: place) (idx: int) (bt: typ) (a: attribute list) : node =
             btype   = bt;
             attr    = addAttribute (ACons("_ptrnode", [AInt !nextId])) a;
             where   = where;
+            flags   = 0 ;
             onStack = false;
             updated = false;
             arith   = false;

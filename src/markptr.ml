@@ -21,6 +21,26 @@ let callId = ref (-1)  (* Each call site gets a new ID *)
 
 let polyId = ref (-1) 
 
+(* weimer: utility function to ease the transition between our flag formats *)
+let setPosArith n = begin
+  n.N.posarith <- true ; N.setFlag n N.pkPosArith ;
+end
+let setArith n = begin
+  n.N.arith <- true ; N.setFlag n N.pkArith ;
+end
+let setNull n = begin
+  n.N.null <- true ; N.setFlag n N.pkNull ;
+end
+let setUpdated n = begin
+  n.N.updated <- true ; N.setFlag n N.pkUpdated ;
+end
+let setIntCast n = begin
+  n.N.intcast <- true ; N.setFlag n N.pkIntCast ;
+end
+let setInterface n = begin
+  n.N.interface <- true ; N.setFlag n N.pkInterface ;
+end
+
 (* A number of functions will be treated polymorphically. In that case store 
  * their original type. When we process the type of a polymorphic function we 
  * first store here the original type.  *)
@@ -326,13 +346,14 @@ let rec doExp (e: exp) =
       in
       (match sign with
         SLiteral 0 -> ()
-      | SPos -> e1n.N.posarith <- true
-      | SLiteral n when n > 0 -> e1n.N.posarith <- true
+      | SPos -> setPosArith e1n
+
+      | SLiteral n when n > 0 -> setPosArith e1n
       | _ -> 
           if bop = IndexPI then (*  Was created from p[e] *)
-             e1n.N.posarith <- true
+             setPosArith e1n
           else 
-            e1n.N.arith <- true);
+             setArith e1n);
       if sign = SLiteral 0 then
           e1', e1t, e1n
         else
@@ -383,7 +404,7 @@ and doLvalue ((base, off) : lval) (iswrite: bool) : lval * N.node =
     | Mem e -> 
         let e', et, ne = doExp e in
         if iswrite then
-          ne.N.updated <- true;
+          setUpdated ne ;
         Mem e', ne
   in
   let newoff, newn = doOffset off startNode in
@@ -399,7 +420,7 @@ and doOffset (off: offset) (n: N.node) : offset * N.node =
       Field(fi, newo), newn
   | Index(e, resto) -> begin
       let nextn = startOfNode n in
-      nextn.N.posarith <- true;
+      setPosArith nextn ;
       let newo, newn = doOffset resto nextn in
       let e', et, _ = doExp e in
       Index(e', newo), newn
@@ -423,7 +444,7 @@ and expToType (e,et,en) t (callid: int) : exp =
   | false, true -> e (* Ignore casts of pointer to non-pointer *)
   | false, false -> (* pointer to pointer *)
       if isZero e then begin
-        tn.N.null <- true; 
+        setNull tn ;
         N.addEdge etn tn N.ENull callid;
         e
       end else 
@@ -465,12 +486,12 @@ and expToType (e,et,en) t (callid: int) : exp =
   | true, false -> (* scalar -> pointer *)
       (* Check for zero *)
       (if isZero e then
-        tn.N.null <- true
+        setNull tn 
       else begin
         match e with
           Const(CStr(_)) -> () 
         | _ -> 
-            tn.N.intcast <- true
+          setIntCast tn 
       end);
       e
     
@@ -931,7 +952,7 @@ let markFile fl =
         (existsType 
            (fun t -> 
              match N.nodeOfAttrlist (typeAttrs t) with
-               Some n -> n.N.interface <- true; ExistsMaybe
+               Some n -> setInterface n; ExistsMaybe
              | _ -> ExistsMaybe)
            vi.vtype))
     interfglobs;

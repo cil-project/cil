@@ -363,7 +363,7 @@ let fit start accString width =
     scan [ref 0] [] 0 scanCont doc
 
 
-let flushOften = ref false
+let flushOften = ref true
 
 let fprint chn width doc = 
   fit () (fun _ s -> output_string chn s;

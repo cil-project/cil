@@ -21,7 +21,7 @@ MLYS        =
 # ast clex cparse
 # sm: trace: utility for debug-time printfs
 MODULES     = pretty trace errormsg stats util cil check ptrnode \
-              simplesolve secondsolve thirdsolve wildsolve globinit \
+              simplesolve secondsolve thirdsolve wildsolve solver globinit \
               oneret box markptr \
               rmtmps optim
 EXECUTABLE  = $(OBJDIR)/safec
@@ -255,15 +255,20 @@ endif
 ifeq ($(INFERBOX), 3)
     SAFECC+= --safec=-solver --safec=third
 endif
+ifeq ($(INFERBOX), 4)
+    SAFECC+= --safec=-solver --safec=fourth
+endif
 ifeq ($(INFERBOX), wild)
     SAFECC+= --safec=-solver --safec=wild
 endif
 ifeq ($(INFERBOX), wildsafe)
     SAFECC+= --safec=-solver --safec=wildsafe
 endif
-ifeq ($(TABLE), 1)
-    #SAFECC+= --safec=-table
-    SAFECC+= --safec=-leaninterface
+ifeq ($(TABLE), A)
+    SAFECC+= --safec=-tableAll
+endif
+ifeq ($(TABLE), I)
+    SAFECC+= --safec=-tableInterface
 endif
 
 ifdef INFERBOX
