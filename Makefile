@@ -421,6 +421,12 @@ ifdef LOGCALLS
 SAFECC+= --safec=-logcalls
 endif
 
+# when this is turned on, it should disable any source changes we've
+# made that are purely in the interest of performance
+ifdef NO_PERF_CHANGES
+SAFECC+= $(DEF)NO_PERF_CHANGES
+endif
+
 # sm: user-specific configuration; the leading '-' means it's ok
 # if this file doesn't exist; this file is *not* checked in to
 # the CVS repository (please be careful to avoid putting things

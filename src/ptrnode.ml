@@ -1051,11 +1051,12 @@ let printGraphStats () =
     end
   in
   H.iter examine_node idNode;
-  ignore (E.log "Graph contains %d nodes\n" !totalNodes);
+  (* sm: prepend string 'ptrkinds:' so I can easily grep for this info *)
+  ignore (E.log "ptrkinds: Graph contains %d nodes\n" !totalNodes);
   H.iter
-    (fun k r -> ignore (E.log "  %a - %d (%3.0f%%)\n"
+    (fun k r -> ignore (E.log "ptrkinds:   %a - %d (%3.0f%%)\n"
                           d_opointerkind k !r
-                          (float_of_int(!r) 
+                          (float_of_int(!r)
                              /. float_of_int(!totalNodes) *. 100.0)))
     totKind;
   ignore (E.log "%d bad casts of which %d involved void*\n"
