@@ -131,9 +131,10 @@ $(OBJDIR)/cilversion.ml: configure.in
 .PHONY: cillib
 cillib: $(OBJDIR)/cil.$(CMXA) $(OBJDIR)/libcil.a
 
-# list of modules to use for building a library; remove 'maincil'
-# and add 'libmaincil'
-OCAML_CIL_LIB_MODULES := $(MODULES:maincil=) libmaincil
+# OLD:list of modules to use for building a library; remove 'maincil'
+# OLD:and add 'libmaincil'
+# WW: this "libmaincil" thing causes "make distrib" to fail
+OCAML_CIL_LIB_MODULES := $(MODULES:maincil=) maincil
 
 # Build an OCAML library (CMA / CMXA) that exports our Cil stuff
 $(OBJDIR)/cil.$(CMXA): $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
