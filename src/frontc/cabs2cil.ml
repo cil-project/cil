@@ -288,96 +288,6 @@ let lookupEnumField n =
   H.find enumFields n                   (* might raise Not_found *)
   
 
-(***************************)
-(* Each conversion of an AST statement produces a "chunk". chunks can be 
- * concatenated and converted to statements *)
-module StatementChunk = 
-  struct
-    type chunk = float * ostmt list
-    let  c2s (_, s) = s
-    let  s2c s = (0.0, s)
-    let  i2c i l = (0.0, [Instrs(i, l)])
-        
-    (* An empty chunk *)
-    let empty : chunk = s2c []
-        
-    (* Adding an instruction to the end of a chunk *)
-    let (+++) (c: chunk) ((i, l): instr * location) : chunk = 
-      s2c (c2s c @ [Instrs (i, l)])
-
-
-    (* Chunk concatenation *)
-    let (@@) (c1: chunk) (c2: chunk) : chunk = s2c ((c2s c1) @ (c2s c2))
-        
-    (* Check if a chunk is empty *)
-    let isEmpty (c: chunk) : bool = (c2s c) == []
-    let isNotEmpty (c: chunk) : bool = (c2s c) != []
-        
-
-    (* Add a label to the beginning of a chunk *)
-    let consLabel l c = s2c (Labels l :: c2s c)
-        
-    let mkStatement (c: chunk) : ostmt = mkSeq (c2s c)
-        
-    let mkFunctionBody (c: chunk) : ostmt = mkSeq (c2s c)
-
-    (* A skip *)
-    let skipChunk : chunk = s2c [Skip]
-
-    (* A break *)
-    let breakChunk (l: location) : chunk = s2c [Breaks]
-
-    let continueChunk (l: location) : chunk = s2c [Continues]
-
-    (* A loop *)
-    let loopChunk (body: chunk) : chunk = 
-      s2c [Loops (mkStatement body)]
-
-
-    let gotoChunk (l: string) (loc: location) : chunk = 
-      s2c [Gotos l]
-
-    let returnChunk (what: exp option) (l: location) : chunk = 
-      s2c [Returns (what, l)]
-        
-    let ifChunk (b: exp) (l: location) (t: chunk) (e: chunk) : chunk = 
-      s2c [IfThenElse(b, mkStatement t, mkStatement e, l)]
-        
-    let caseChunk (i: int) (l: location) (next: chunk) = 
-      s2c (Cases (i,lu) :: (c2s next))
-        
-    let defaultChunk (l: location) (next: chunk) = 
-      s2c (Defaults :: c2s next)
-        
-    let switchChunk (e: exp) (body: chunk) (l: location) = 
-      (s2c [Switchs (e, mkStatement body, l)])
-
-    let canDuplicate (c: chunk) = 
-                        (* We can duplicate a statement if it is small and 
-                         * does not contain label definitions  *)
-      let rec costOne = function
-          Skip -> 0
-        | Sequence sl -> costMany sl
-        | Loops stmt -> 100
-        | IfThenElse (_, _, _, _) | Block _ -> 100
-        | Labels _ -> 10000
-        | Switchs _ -> 100
-        | (Gotos _|Returns _|Cases _|Defaults|Breaks|Continues|Instrs _) -> 1
-      and costMany sl = List.fold_left (fun acc s -> acc + costOne s) 0 sl
-      in
-      costMany (c2s c) <= 3
-        
-    let canDrop (c: chunk) = (* We can drop a statement only if it does not 
-                              * contain label definitions  *)
-      let rec dropOne = function
-          (Skip | Gotos _ | Returns _| Cases _ | Defaults | 
-          Breaks | Continues | Instrs _) -> true
-        | Sequence sl -> List.for_all dropOne sl
-        | _ -> false
-      in
-      List.for_all dropOne (c2s c)
-
-  end
 
 module BlockChunk = 
   struct
@@ -432,7 +342,7 @@ module BlockChunk =
     (* Append two chunks. Never refer to the original chunks after you call 
      * this. And especially never share c2 with somebody else *)
     let (@@) (c1: chunk) (c2: chunk) = 
-      { stmts = concatBlocks (pushPostIns c1) c2.stmts;
+      { stmts = compressBlock (pushPostIns c1 @ c2.stmts);
         postins = c2.postins;
 (*
         fixbreak = (fun b -> c1.fixbreak b; c2.fixbreak b);
@@ -617,16 +527,15 @@ module BlockChunk =
         cases = [];
       } 
 
-    let mkFunctionBody (c: chunk) : ostmt = 
+    let mkFunctionBody (c: chunk) : block = 
       resolveGotos (); initLabels ();
       if c.cases <> [] then
         E.s (E.bug "Swtich cases not inside a switch statement\n");
-      Block (pushPostIns c)
+      pushPostIns c
       
   end
 
-open StatementChunk 
-(* open BlockChunk *)
+open BlockChunk 
 
 
 (************ Labels ***********)

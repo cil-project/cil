@@ -28,10 +28,12 @@ let doFile (fl: file) : file =
             match what with
               Compound (t, initl) -> 
                 foldLeftCompound (initone off') t initl acc
-            | _ -> Instrs(Set ((Var vi, off'), what), locUnknown) :: acc
+            | _ -> 
+                mkStmt (Instr [(Set ((Var vi, off'), what), locUnknown)]) 
+                :: acc
           in
-          let inits = initone NoOffset NoOffset init vi.vtype [finit.sbody] in 
-          finit.sbody <- mkSeq (List.rev inits);
+          let inits = initone NoOffset NoOffset init vi.vtype finit.sbody in 
+          finit.sbody <- compressBlock (List.rev inits);
           GVar (vi, None, l)
         else g
           

@@ -647,24 +647,7 @@ let isPrintf reso orig_func args = begin
   | _ -> None
 end
 
-(* Do a statement. OLD *)
-let rec doOStmt (s: ostmt) : ostmt = 
-  match s with 
-    (Skip | Labels _ | Cases _ | Defaults | Breaks | Continues | Gotos _) -> s
-  | Sequence sl -> Sequence (List.map doOStmt sl)
-  | Loops s -> Loops (doOStmt s)
-  | IfThenElse (e, s1, s2, l) -> 
-      IfThenElse (doExpAndCast e intType, doOStmt s1, doOStmt s2, l)
-  | Switchs (e, s, l) -> Switchs (doExpAndCast e intType, doOStmt s, l)
-  | Returns (None, _) -> s
-  | Returns (Some e, l) -> 
-      Returns (Some (doExpAndCast e !currentResultType), l)
-  | Instrs (i, l) -> 
-      let i' = doInstr i l in
-      Instrs (i', l)
-  | Block blk -> Block (doBlock blk)
-
-and doBlock blk = 
+let rec doBlock blk = 
   List.map doStmt blk
 
 and doStmt (s: stmt) : stmt = 
@@ -816,7 +799,7 @@ let doGlobal (g: global) : global =
           (* Do the other locals *)
           List.iter doVarinfo fdec.slocals;
           (* Do the body *)
-          fdec.sbody <- doOStmt fdec.sbody;
+          fdec.sbody <- doBlock fdec.sbody;
           g
       | GPragma _ -> g (* Should never be reached *)
   end

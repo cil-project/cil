@@ -101,7 +101,6 @@ let currentReturnType : typ ref = ref voidType
 
 (* A map of labels in the current function *)
 let labels : (string, unit) H.t = H.create 17
-let gotos  : (string, unit) H.t = H.create 17
 
 (*** TYPES ***)
 (* Cetain types can only occur in some contexts, so keep a list of context *)
@@ -515,51 +514,53 @@ and checkExp (isconst: bool) (e: exp) : typ =
       end)
     () (* The argument of withContext *)
 
-and checkStmto (s: ostmt) = 
+and checkStmt (s: stmt) = 
   E.withContext 
     (fun _ -> 
       (* Print context only for certain small statements *)
-      match s with 
-        Sequence _ | Loops _ | IfThenElse _ | Switchs _  -> nil
-      | _ -> dprintf "checkStmto: %a" d_ostmt s)
+      match s.skind with 
+        Loop _ | If _ | Switch _  -> nil
+      | _ -> dprintf "checkStmt: %a" d_stmt s)
     (fun _ -> 
-      match s with
-        Skip | Breaks | Continues | Defaults | Cases _ -> ()
-      | Sequence ss -> List.iter checkStmto ss
-      | Loops s -> checkStmto s
-      | Labels l -> begin
-          if H.mem labels l then
-            ignore (E.warn "Multiply defined label %s" l);
-          H.add labels l ()
-      end
-      | Gotos l -> H.add gotos l ()
-      | IfThenElse (e, st, sf,_) -> 
-          let te = checkExp false e in
-          checkBooleanType te;
-          checkStmto st;
-          checkStmto sf
-      | Returns (re,_) -> begin
+      (* Check the labels *)
+      let checkLabel = function
+          Label (ln, l) -> 
+            if H.mem labels ln then
+              ignore (E.warn "Multiply defined label %s" ln);
+            H.add labels ln ()
+        | _ -> () (* Not yet implemented *)
+      in
+      List.iter checkLabel s.labels;
+      match s.skind with
+        Break _ | Continue _ -> ()
+      | Goto (gref, _) -> 
+          if not (List.exists (function Label _ -> true | _ -> false) 
+                    !gref.labels) then
+            ignore (E.warn "Goto to block without a label\n")
+
+      | Return (re,_) -> begin
           match re, !currentReturnType with
             None, TVoid _  -> ()
           | _, TVoid _ -> ignore (E.warn "Invalid return value")
           | None, _ -> ignore (E.warn "Invalid return value")
           | Some re', rt' -> checkExpType false re' rt'
-      end
-      | Switchs (e, s, _) -> 
+        end
+      | Loop (b, l) -> checkBlock b
+      | If (e, bt, bf,_) -> 
+          let te = checkExp false e in
+          checkBooleanType te;
+          checkBlock bt;
+          checkBlock bf
+      | Switch (e, b, cases, _) -> 
+          (* Do not check cases for now *)
           checkExpType false e intType;
-          checkStmto s
+          checkBlock b
             
-      | Instrs (i,l) -> checkInstr i
-
-      | Block blk -> List.iter checkStmt blk)
-
+      | Instr il -> List.iter (fun (i,l) -> checkInstr i) il)
     () (* argument of withContext *)
 
-and checkStmt (s: stmt) = 
-  E.withContext 
-    (fun _ -> dprintf "checkStmt")
-    (fun _ -> ())
-    ()
+and checkBlock (b: block) : unit = 
+  List.iter checkStmt b
 
 
 and checkInstr (i: instr) = 
@@ -716,13 +717,8 @@ let rec checkGlobal = function
             in
             List.iter (doLocal CTFArg) fd.sformals;
             List.iter (doLocal CTDecl) fd.slocals;
-            checkStmto fd.sbody;
-            (* Now check that all gotos have a target *)
-            H.iter 
-              (fun k _ -> if not (H.mem labels k) then 
-                E.s (E.bug "Label %s is not defined" k)) gotos;
+            checkBlock fd.sbody;
             H.clear labels;
-            H.clear gotos;
             (* Done *)
             endEnv ()
           with e -> 

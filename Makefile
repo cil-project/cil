@@ -22,7 +22,7 @@ MLYS        =
 # sm: trace: utility for debug-time printfs
 MODULES     = pretty trace errormsg stats util cil check ptrnode \
               simplesolve secondsolve thirdsolve globinit box markptr \
-              optim rmtmps
+              rmtmps
 EXECUTABLE  = $(OBJDIR)/safec
 CAMLUSEUNIX = 1
 ifdef RELEASE

@@ -17,7 +17,6 @@ class nopCilVisitor = object
   method vlval (l:lval) = true        (* lval (base is 1st field) *)
   method voffs (o:offset) = true      (* lval offset *)
   method vinst (i:instr) = true       (* imperative instruction *)
-  method vostmt (s:ostmt) = true        (* constrol-flow statement. Old *)
   method vstmt (s:stmt) = true        (* constrol-flow statement *)
   method vfunc (f:fundec) = true      (* function definition *)
   method vfuncPost (f:fundec) = true  (*   postorder version *)

@@ -20,23 +20,19 @@ let lu = locUnknown
 let isSome = function Some _ -> true | _ -> false
 
 
-(**** Stuff that we use while converting to new CIL 
+(**** Stuff that we use while converting to new CIL *)
 let mkSet (lv:lval) (e: exp) : stmt = mkStmt (Instr [Set(lv, e), lu])
 let call lvo f args : stmt = mkStmt (Instr [Call(lvo,f,args), lu])
 let skip = mkEmptyStmt ()
 let mkAsm tmpls isvol outputs inputs clobs = 
       mkStmt (Instr [Asm(tmpls, isvol, outputs, inputs, clobs), lu])
 let mkInstr i l : stmt = mkStmt (Instr [(i, l)])
-let mkSeq (bl: stmt list) : stmt list = concatBlocks bl []
-let body2block (x: ostmt) : stmt list = 
-  match x with
-    Block b -> b
-  | Skip -> []
-  | _ -> E.s (E.unimp "body2block:")
-let block2body (x: stmt list) : ostmt = Block x
-*)
+let mkSeq (bl: stmt list) : stmt list = compressBlock bl
+let body2block (x: block) : block = x
+let block2body (x: stmt list) : block = x
 
-(**** Stuff that we use with the old CIL *)
+
+(**** Stuff that we use with the old CIL
 type stmt = ostmt  
 let mkSet  lv e = Instrs(Set(lv, e), lu)
 let call lvo f args = Instrs(Call(lvo,f,args), lu) 
@@ -48,7 +44,7 @@ let mkForIncr = mkForIncrO
 let mkFor = mkForO
 let body2block (x: ostmt) = [x]
 let block2body (x: ostmt list) : ostmt = mkSeq x
-
+ *)
 
 (*** End stuff for old CIL *)
 
@@ -2388,75 +2384,17 @@ let fixupGlobName vi =
 
 
     (************* STATEMENTS **************)
-(*
 let rec boxblock (b: block) : block = 
-  List.fold_left (fun acc s -> concatBlocks acc (boxstmt s)) [] b 
-*)
-(*
+  compressBlock (List.fold_left (fun acc s -> acc @ (boxstmt s)) [] b)
+
 and boxstmt (s: Cil.stmt) : block = 
-   * Keep the original statement, but maybe modify its kind. This way we 
-   * maintain the labels and we have no need to change the Gotos and the 
-   * cases in the Switch *
-  match s.skind with 
-    Return (None, _) | Break _ | Continue _ | Goto _ -> [s]
-  | Return (Some e, l) -> 
-      let retType =
-        match !currentFunction.svar.vtype with 
-          TFun(tRes, _, _, _) -> tRes
-        | _ -> E.s (E.bug "Current function's type is not TFun")
-      in 
-      let (doe', e') = boxexpf e in
-      let (doe'', e'') = castTo e' retType doe' in
-      let (et, doe2, e2) = fexp2exp e'' doe'' in
-      let doe'' =
-        if mustCheckReturn retType then
-          doe2 @ [doCheckFat checkSafeRetFatFun e2 et]
-        else
-          doe2
-      in
-      s.skind <- Instr [];  * Make it empty but keep it first to preserve 
-                             * the labels and the gotos *
-      s :: doe2 @ [ mkStmt (Return (Some e2, l)) ]
-
-  | Loop (b, l) -> 
-      s.skind <- Loop (boxblock b, l);
-      [ s ] 
-
-  | If(be, t, e, l) -> 
-      let (_, doe, e') = boxexp (CastE(intType, be)) in
-      s.skind <- Instr [];
-      s :: doe @ [ mkStmt (If(e', boxblock t, boxblock e, l)) ]
-  | Instr il -> 
-      * Do each instruction in turn *
-      let b = List.fold_left (fun acc (i,l) -> acc @ boxinstr i l) [] il in
-      s.skind <- Instr [];
-      concatBlocks (s :: b) []
-  | Switch (e, b, cases, l) -> 
-      * Cases are preserved *
-      let (_, doe, e') = boxexp (CastE(intType, e)) in
-      s.skind <- Instr [];
-      s :: doe @ [ mkStmt (Switch (e', boxblock b, cases, l)) ]
-      *)  
-
-let rec boxostmt (s : Cil.ostmt) : ostmt = 
+   (* Keep the original statement, but maybe modify its kind. This way we 
+    * maintain the labels and we have no need to change the Gotos and the 
+    * cases in the Switch *)
   try
-    match s with 
-      Sequence sl -> mkSeq (List.map boxostmt sl)
-          
-    | (Labels _ | Gotos _ | Cases _ | Defaults | Skip |
-      Returns (None, _) | Breaks | Continues) -> s
-          
-    | Loops s -> Loops (boxostmt s)
-          
-    | IfThenElse (e, st, sf, l) -> 
-        let (_, doe, e') = boxexp (CastE(intType, e)) in
-        mkSeq (doe @ [IfThenElse (e', boxostmt st, boxostmt sf, l)])
-          
-    | Switchs (e, s, l) -> 
-        let (_, doe, e') = boxexp (CastE(intType, e)) in
-        mkSeq (doe @ [Switchs (e', boxostmt s, l)])
-
-    | Returns (Some e, l) -> 
+    match s.skind with 
+      Return (None, _) | Break _ | Continue _ | Goto _ -> [s]
+    | Return (Some e, l) -> 
         let retType =
           match !currentFunction.svar.vtype with 
             TFun(tRes, _, _, _) -> tRes
@@ -2471,19 +2409,33 @@ let rec boxostmt (s : Cil.ostmt) : ostmt =
           else
             doe2
         in
-        mkSeq (doe2 @ [Returns (Some e2, l)])
-    | Instrs (i, l) -> mkSeq (boxinstr i l)
-(*    | Block b -> Block (boxblock b) *)
+        s.skind <- Instr [];  (* Make it empty but keep it first to preserve 
+                                 * the labels and the gotos *)
+        s :: doe2 @ [ mkStmt (Return (Some e2, l)) ]
+                      
+    | Loop (b, l) -> 
+        s.skind <- Loop (boxblock b, l);
+        [ s ] 
+          
+    | If(be, t, e, l) -> 
+        let (_, doe, e') = boxexp (CastE(intType, be)) in
+        s.skind <- Instr [];
+        s :: doe @ [ mkStmt (If(e', boxblock t, boxblock e, l)) ]
+    | Instr il -> 
+        (* Do each instruction in turn *)
+        let b = List.fold_left (fun acc (i,l) -> acc @ boxinstr i l) [] il in
+        s.skind <- Instr [];
+        compressBlock (s :: b)
+    | Switch (e, b, cases, l) -> 
+      (* Cases are preserved *)
+        let (_, doe, e') = boxexp (CastE(intType, e)) in
+        s.skind <- Instr [];
+        s :: doe @ [ mkStmt (Switch (e', boxblock b, cases, l)) ]
   with e -> begin
-    ignore (E.log "boxostmt (%s) in %s\n" 
+    ignore (E.log "boxstmt (%s) in %s\n" 
               (Printexc.to_string e) !currentFunction.svar.vname);
-    Instrs(dInstr (dprintf "booo_statement(%a)" d_ostmt s), lu)
+    [mkStmt(Instr [dInstr (dprintf "booo_statement(%a)" d_stmt s), lu])]
   end
-and boxfbody (fb: ostmt) : stmt list = 
-(*
-  boxblock (body2block fb)
-*)
-  [boxostmt fb]
 
 
 and boxinstr (ins: instr) (l: location): stmt list = 
@@ -3097,14 +3049,14 @@ let boxFile file =
             currentFunction := f;           (* so that maxid and locals can be
                                                * updated in place *)
             f.sbody <- block2body newbody;
-        (* Do the body *)
-            let boxbody : stmt list = boxfbody f.sbody in
-        (* Initialize the locals *)
+            (* Do the body *)
+            let boxbody : block = boxblock f.sbody in
+            (* Initialize the locals *)
             let inilocals = 
               List.fold_left 
                 (initializeVar (withIterVar f)) 
                 boxbody f.slocals in
-            f.sbody <- block2body inilocals;
+            f.sbody <- inilocals;
             theFile := GFun (f, l) :: !theFile
                                         
         | (GAsm _ | GText _ | GPragma _) as g -> theFile := g :: !theFile

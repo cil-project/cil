@@ -359,29 +359,7 @@ and instr =
                   string list           (* register clobbers *)
 
 
-(**** STATEMENTS. Mostly structural information ****)
-and ostmt = 
-  | Skip                                (* empty statement *)
-  | Sequence of ostmt list               (* Use mkSeq to make a Sequence. This 
-                                         * will optimize the result and will 
-                                         * make sure that there are no 
-                                         * trailing Default of Label or Case *)
-  | Loops of ostmt                       (* A loop. When stmt is done the 
-                                         * control starts back with stmt. 
-                                        * Ends with break or a Goto outside.*)
-  | IfThenElse of exp * ostmt * ostmt * location    (* if *)
-  | Labels of string 
-  | Gotos of string
-  | Returns of exp option * location
-  | Switchs of exp * ostmt * location   (* no work done to break this appart *)
-  | Cases of int * location            (* The case expressions are resolved *)
-  | Defaults
-  | Breaks
-  | Continues
-  | Instrs of instr * location
 
-  | Block of block                      (* Just a placeholder to allow us to 
-                                         * mix blocks and statements *)
 (* The statement is the structural unit in the control flow graph *)
 and stmt = {
     mutable labels: label list;         (* Whether the statement starts with a 
@@ -446,7 +424,7 @@ type fundec =
                                          * these because the body refers to 
                                          * them  *)
       mutable smaxid: int;              (* max local id. Starts at 0 *)
-      mutable sbody: ostmt;              (* the body *)
+      mutable sbody: block;             (* the body *)
     } 
 
 type global = 
@@ -498,7 +476,6 @@ class type cilVisitor = object
   method vlval : lval -> bool        (* lval (base is 1st field) *)
   method voffs : offset -> bool      (* lval offset *)
   method vinst : instr -> bool       (* imperative instruction *)
-  method vostmt : ostmt -> bool        (* constrol-flow statement. Old *)
   method vstmt : stmt -> bool        (* constrol-flow statement *)
   method vfunc : fundec -> bool      (* function definition *)
   method vfuncPost : fundec -> bool  (*   postorder version *)
@@ -516,7 +493,6 @@ class nopCilVisitor = object
   method vlval (l:lval) = true        (* lval (base is 1st field) *)
   method voffs (o:offset) = true      (* lval offset *)
   method vinst (i:instr) = true       (* imperative instruction *)
-  method vostmt (s:ostmt) = true        (* constrol-flow statement *)
   method vstmt (s:stmt) = true        (* constrol-flow statement *)
   method vfunc (f:fundec) = true      (* function definition *)
   method vfuncPost (f:fundec) = true  (*   postorder version *)
@@ -595,7 +571,7 @@ let dummyStmt =
   mkStmt (Instr [(Asm(["dummy statement!!"], false, [], [], []), lu)])
 
 
-let concatBlocks (b1: block) (b2: block) : block =  
+let compressBlock (b: block) : block =  
       (* Try to compress statements *)
   let rec compress (leftover: stmt) = function
       [] -> if leftover == dummyStmt then [] else [leftover]
@@ -619,7 +595,7 @@ let concatBlocks (b1: block) (b2: block) : block =
             else
               leftover :: res
   in
-  compress dummyStmt (b1 @ b2)
+  compress dummyStmt b
 
 
 let structId = ref 0 (* Find a better way to generate new names *)
@@ -731,11 +707,11 @@ let rec unrollType = function   (* Might drop some attributes !! *)
 
                                    
 let var vi : lval = (Var vi, NoOffset)
-let assign vi e = Instrs(Set (var vi, e), lu)
+(* let assign vi e = Instrs(Set (var vi, e), lu) *)
 
 let mkString s = Const(CStr s)
 
-    (* Make a sequence out of a list of statements *)
+    (* Make a sequence out of a list of statements
 let mkSeq sl = 
   let rec removeSkip = function 
       [] -> []
@@ -744,7 +720,7 @@ let mkSeq sl =
     | ((Defaults | Labels _ | Cases _) as last) :: rest -> 
         let rest' = removeSkip rest in
         if rest' = [] then
-          last :: [Skip]                (* Put a ; after default or a label*)
+          last :: [Skip]        
         else
           last :: rest'
     | s :: rest -> s :: removeSkip rest
@@ -753,12 +729,7 @@ let mkSeq sl =
     [] -> Skip
   | [s] -> s
   | sl' -> Sequence(sl')
-
-
-
-let mkWhileO (guard:exp) (body: ostmt list) : ostmt list = 
-  (* Do it like this so that the pretty printer recognizes it *)
-  [ Loops (Sequence (IfThenElse(guard, Skip, Breaks, lu) :: body)) ]
+ *)
 
 let mkWhile (guard:exp) (body: stmt list) : stmt list = 
   (* Do it like this so that the pretty printer recognizes it *)
@@ -768,33 +739,13 @@ let mkWhile (guard:exp) (body: stmt list) : stmt list =
                   body, lu)) ]
 
 
-let mkForO (start: ostmt list) (guard: exp) (next: ostmt list) 
-           (body: ostmt list) : ostmt list = 
-  [ mkSeq 
-      (start @
-       mkWhileO guard (body @ next)) ]
 
 let mkFor (start: stmt list) (guard: exp) (next: stmt list) 
           (body: stmt list) : stmt list = 
-  concatBlocks
-    start
-    (mkWhile guard (concatBlocks body next))
+  compressBlock
+    (start @ 
+     (mkWhile guard (compressBlock (body @ next))))
 
-
-
-let mkForIncrO (iter: varinfo) (first: exp) (past: exp) (incr: exp) 
-    (body: ostmt list) : ostmt list = 
-      (* See what kind of operator we need *)
-  let compop, nextop = 
-    match unrollType iter.vtype with
-      TPtr _ -> LtP, PlusPI
-    | _ -> Lt, PlusA
-  in
-  mkForO [Instrs(Set (var iter, first), lu)]
-    (BinOp(compop, Lval(var iter), past, intType))
-    [Instrs(Set (var iter, 
-                 (BinOp(nextop, Lval(var iter), incr, iter.vtype))), lu)]
-    body
     
 let mkForIncr (iter: varinfo) (first: exp) (past: exp) (incr: exp) 
     (body: stmt list) : stmt list = 
@@ -1311,41 +1262,8 @@ and d_instr () i =
                               (fun x -> dprintf "\"%s\"" (escape_string x))) 
               clobs)
        
-and d_ostmt () s =
-  let doThen a = (* Want to print { } in the "then" branch to avoid 
-                  dangling elses. ASM gives some problems with MSVC so 
-                  bracket them as well  *) 
-    match a with
-      IfThenElse _ | Loops _ | Instrs(Asm _, _) | Switchs _ -> 
-        Sequence [a]
-    | _ -> a
-  in
-  match s with
-    Skip -> dprintf ";"
-  | Sequence(lst) -> dprintf "@[{ @[@!%a@]@!}@]" 
-        (docList line (d_ostmt ())) lst
-  | Loops(Sequence(IfThenElse(e,Skip,Breaks,_) :: rest)) -> 
-      dprintf "wh@[ile (%a)@!%a@]" d_exp e d_ostmt (Sequence rest)
-  | Loops(stmt) -> 
-      dprintf "wh@[ile (1)@!%a@]" d_ostmt stmt
-  | IfThenElse(e,a,(Skip|Sequence([Skip])),_) -> 
-      dprintf "if@[ (%a)@!%a@]" d_exp e d_ostmt (doThen a)
-  | IfThenElse(e,a,b,_) -> 
-      dprintf "@[if@[ (%a)@!%a@]@!el@[se@!%a@]@]" 
-        d_exp e d_ostmt (doThen a) d_ostmt b
-  | Labels(s) -> dprintf "%s:" s
-  | Cases(i,_) -> dprintf "case %d: " i
-  | Gotos(s) -> dprintf "goto %s;" s
-  | Breaks  -> dprintf "break;"
-  | Continues -> dprintf "continue;"
-  | Returns(None,_) -> text "return;"
-  | Returns(Some e,_) -> dprintf "return (%a);" d_exp e
-  | Switchs(e,s,_) -> dprintf "@[switch (%a)@!%a@]" d_exp e d_ostmt s
-  | Defaults -> dprintf "default:"
-  | Instrs(i,_) -> d_instr () i
-  | Block blk -> (d_block invalidStmt invalidStmt) () blk
 
-and d_stmt (next: stmt) (break: stmt) (cont: stmt) () (s: stmt) = 
+and d_stmt_next (next: stmt) () (s: stmt) = 
   dprintf "%a%t"
     (* print the labels *)
     (docList line (fun l -> d_label () l)) s.labels
@@ -1355,28 +1273,30 @@ and d_stmt (next: stmt) (break: stmt) (cont: stmt) () (s: stmt) =
       if s.skind = Instr [] && s.labels <> [] then
         text ";"
       else
-        d_stmtkind s next break cont () s.skind)
+        d_stmtkind next () s.skind)
+
+and d_stmt () (s: stmt) = (* A version that is easier to call *)
+  d_stmt_next invalidStmt () s
 
 and d_label () = function
     Label (s, _) -> dprintf "%s: " s
   | Case (i, _) -> dprintf "case %d: " i
   | Default _ -> text "default: "
 
-and d_block (break: stmt) (cont: stmt) () blk = 
+and d_block () blk = 
   let rec dofirst () = function
       [] -> nil
-    | [x] -> d_stmt invalidStmt break cont () x
+    | [x] -> d_stmt_next invalidStmt () x
     | x :: rest -> dorest nil x rest
   and dorest acc prev = function
-      [] -> acc ++ (d_stmt invalidStmt break cont () prev)
+      [] -> acc ++ (d_stmt_next invalidStmt () prev)
     | x :: rest -> 
-        dorest (acc ++ (d_stmt x break cont () prev) ++ line)
+        dorest (acc ++ (d_stmt_next x () prev) ++ line)
                   x rest
   in
   dprintf "@[{ @[@!%a@]@!}@]" dofirst blk
 
-and d_stmtkind (this:stmt) 
-               (next: stmt) (break: stmt) (cont: stmt) () = function
+and d_stmtkind (next: stmt) () = function
     Return(None, _) -> text "return;"
   | Return(Some e, _) -> dprintf "return (%a);" d_exp e
   | Goto (sref, _) -> d_goto !sref
@@ -1386,27 +1306,26 @@ and d_stmtkind (this:stmt)
       dprintf "@[%a@]" 
         (docList line (fun (i, l) -> d_instr () i)) il
   | If(be,t,[],_) -> 
-      dprintf "if@[ (%a)@!%a@]" d_exp be (d_block break cont) t
+      dprintf "if@[ (%a)@!%a@]" d_exp be d_block t
   | If(be,t,[{skind=Goto(gref,_)} as s],_) 
       when s.labels == [] && !gref == next -> 
-      dprintf "if@[ (%a)@!%a@]" d_exp be (d_block break cont) t
+      dprintf "if@[ (%a)@!%a@]" d_exp be d_block t
   | If(be,[],e,_) -> 
-      dprintf "if@[ (%a)@!%a@]" d_exp (UnOp(LNot,be,intType)) 
-        (d_block break cont) e
+      dprintf "if@[ (%a)@!%a@]" d_exp (UnOp(LNot,be,intType)) d_block e
   | If(be,[{skind=Goto(gref,_)} as s],e,_) 
       when s.labels == [] && !gref == next -> 
       dprintf "if@[ (%a)@!%a@]" d_exp  (UnOp(LNot,be,intType)) 
-          (d_block break cont) e
+          d_block e
   | If(be,t,e,_) -> 
       dprintf "@[if@[ (%a)@!%a@]@!el@[se@!%a@]@]" 
-        d_exp be (d_block break cont) t (d_block break cont) e
+        d_exp be d_block t d_block e
   | Switch(e,b,_,_) -> 
-      dprintf "@[switch (%a)@!%a@]" d_exp e (d_block next cont) b
+      dprintf "@[switch (%a)@!%a@]" d_exp e d_block b
   | Loop({skind=If(e,[],[{skind=Goto (gref,_)} as brk],_)} :: rest, _) 
     when !gref == next && brk.labels == [] -> 
-      dprintf "wh@[ile (%a)@!%a@]" d_exp e (d_block next this) rest
+      dprintf "wh@[ile (%a)@!%a@]" d_exp e d_block rest
   | Loop(b, _) -> 
-      dprintf "wh@[ile (1)@!%a@]" (d_block next this) b
+      dprintf "wh@[ile (1)@!%a@]" d_block b
 
 and d_goto (s: stmt) = 
   (* Grab one of the labels *)
@@ -1441,7 +1360,7 @@ and d_fun_decl () f =
     (* locals. *)
     (docList line (fun vi -> d_videcl () vi ++ text ";")) f.slocals
     (* the body *)
-    d_ostmt f.sbody
+    d_block f.sbody
 
 and d_videcl () vi = 
   let pre, post = separateAttributes vi.vattr in 
@@ -1568,7 +1487,7 @@ let emptyFunction name =
     smaxid = 0;
     slocals = [];
     sformals = [];
-    sbody = Skip;
+    sbody = [];
   } 
 
 
@@ -1780,13 +1699,13 @@ begin
     end
 end
 
-(* visit all nodes in a Cil statement tree in preorder *)
+(*
 and visitCilOStmt (vis: cilVisitor) (body: ostmt) : unit =
 begin
   let rec fExp e = (visitCilExpr vis e)
   and fLval lv = (visitCilLval vis lv)
   and fOff o = (visitCilOffset vis o)
-  and fInst i = (visitCilInstr vis i)   (* compiler doesn't like this curried..? *)
+  and fInst i = (visitCilInstr vis i) 
   and fStmt (s: stmt) = (visitCilStmt vis s)
 
   and fOStmt s = if (vis#vostmt s) then fOStmt' s
@@ -1805,9 +1724,33 @@ begin
   in
   fOStmt body
 end
+*)
 
-and visitCilStmt (vis: cilVisitor) (body: stmt) : unit =
-    ()
+(* visit all nodes in a Cil statement tree in preorder *)
+and visitCilStmt (vis: cilVisitor) (s: stmt) : unit =
+  let fExp e = (visitCilExpr vis e) in
+  let fLval lv = (visitCilLval vis lv) in
+  let fOff o = (visitCilOffset vis o) in
+  let fBlock b = visitCilBlock vis b in
+  let fInst i = visitCilInstr vis i in
+
+  let rec fStmt s = if (vis#vstmt s) then fStmt' s
+  and fStmt' s = 
+    match s.skind with
+      Break _ | Continue _ | Goto _ | Return (None, _) -> ()
+    | Return (Some e, _) -> fExp e
+    | Loop (b, _) -> fBlock b
+    | If(e, s1, s2, _) -> fExp e; fBlock s1; fBlock s2
+    | Switch (e, b, _, _) -> fExp e; fBlock b
+    | Instr il -> List.iter (fun (i, _) -> fInst i) il
+  in
+  fStmt s
+    
+ 
+and visitCilBlock (vis: cilVisitor) (b: block) : unit = 
+  let fStmt s = (visitCilStmt vis s) in
+  List.iter fStmt b
+
 
 and visitCilType (vis : cilVisitor) (t : typ) : unit =
 begin
@@ -1869,7 +1812,7 @@ begin
       (fun (v : varinfo) ->
         (visitCilVarDecl vis v))       (* visit local declarations *)
       f.slocals);
-    (visitCilOStmt vis f.sbody);        (* visit the body *)
+    (visitCilBlock vis f.sbody);        (* visit the body *)
     (ignore (vis#vfuncPost f))         (* postorder visit *)
   )
 end

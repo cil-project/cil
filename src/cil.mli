@@ -441,7 +441,7 @@ type fundec =
                                          * these because the body refers to
                                          * them  *)
       mutable smaxid: int;              (* max local id. Starts at 0 *)
-      mutable sbody: ostmt;              (* the body *)
+      mutable sbody: block;             (* the body *)
     }
 
 type global =
@@ -516,7 +516,7 @@ val doubleType: typ
 val mkStmt: stmtkind -> stmt
 
 (* use this instead of List.@ because you get fewer basic blocks *)
-val concatBlocks: block -> block -> block
+val compressBlock: block -> block
 
 val mkEmptyStmt: unit -> stmt
 val dummyStmt: stmt
@@ -565,31 +565,23 @@ val var: varinfo -> lval
 val mkAddrOf: lval -> exp               (* Works for both arrays (in which 
                                          * case it construct a StartOf) and 
                                          * for scalars. *)
-val assign: varinfo -> exp -> ostmt
+(* val assign: varinfo -> exp -> stmt *)
 
 val mkString: string -> exp
 
-    (* Make a sequence out of a list of statements *)
-val mkSeq: ostmt list -> ostmt
-
 
     (* Make a while loop. Can contain Break or Continue *)
-val mkWhileO: guard:exp -> body:ostmt list -> ostmt list
 val mkWhile: guard:exp -> body:block -> block
 
     (* Make a for loop for(i=start; i<past; i += incr) { ... }. The body 
-     * should not contain Break or Continue !!!. Can be used with i a pointer 
+     * can contain Break but not Continue !!!. Can be used with i a pointer 
      * or an integer. Start and done must have the same type but incr 
      * must be an integer *)
-val mkForIncrO:  iter:varinfo -> first:exp -> stopat:exp -> incr:exp 
-                 -> body:ostmt list -> ostmt list
 val mkForIncr:  iter:varinfo -> first:exp -> stopat:exp -> incr:exp 
                  -> body:stmt list -> stmt list
 
-    (* Make a for loop for(start; guard; next) { ... }. The body should not 
-     * contain Break or Continue !!! *) 
-val mkForO: start:ostmt list -> guard:exp -> next:ostmt list -> 
-           body: ostmt list -> ostmt list
+    (* Make a for loop for(start; guard; next) { ... }. The body can 
+     * contain Break but not Continue !!! *) 
 val mkFor: start:block -> guard:exp -> next:block -> body: block -> block
  
 
@@ -629,10 +621,10 @@ val d_attrlist: bool -> unit -> attribute list -> Pretty.doc (* Whether it
                                                               * comes before 
                                                               * or after 
                                                               * stuff  *) 
-       
+val d_stmt: unit -> stmt -> Pretty.doc
+
 val d_lval: unit -> lval -> Pretty.doc
 val d_instr: unit -> instr -> Pretty.doc
-val d_ostmt: unit -> ostmt -> Pretty.doc
 val d_fun_decl: unit -> fundec -> Pretty.doc
 val d_videcl: unit -> varinfo -> Pretty.doc
 val printFile: out_channel -> file -> unit
@@ -671,7 +663,6 @@ class type cilVisitor = object
   method vlval : lval -> bool        (* lval (base is 1st field) *)
   method voffs : offset -> bool      (* lval offset *)
   method vinst : instr -> bool       (* imperative instruction *)
-  method vostmt : ostmt -> bool        (* constrol-flow statement. old *)
   method vstmt : stmt -> bool        (* constrol-flow statement *)
   method vfunc : fundec -> bool      (* function definition *)
   method vfuncPost : fundec -> bool  (*   postorder version *)
@@ -680,8 +671,6 @@ class type cilVisitor = object
   method vtdec : string -> typ -> bool    (* typedef *)
 end
 
-(* visit all nodes in a Cil statement tree in preorder *)
-val visitCilOStmt: cilVisitor -> ostmt -> unit
 
 (* other cil constructs *)
 val visitCilFile: cilVisitor -> file -> unit
