@@ -262,6 +262,16 @@ ifdef UNTAGGEDFNS
   CCURED+= --wildUntaggedFns
 endif
 
+# when TAGALLFNS is defined, and the WILD solver is being used,
+# functions are *always* tagged
+ifdef TAGALLFNS
+  ifdef UNTAGGEDFNS
+    # catch old settings
+    $(error you cannot say TAGALLFNS and UNTAGGEDFNS)
+  endif
+  CCURED+= --wildTagAllFns
+endif
+
 
 # enable the new tree-based patcher
 ifdef NEWPATCH

@@ -676,6 +676,8 @@ smAddTest("scott/regparm0 $gcc");         # this works, unfortunately..
 smAddTest("scott/unscomp");               # kernel/fs/buffer.c
 smAddTest("scott/suppress_optim $box");
 smAddTest("scott/suppress_optim $wildbox");
+smFailTest("need wild_www",
+           "scott/suppress_optim $wildbox TAGALLFNS=1");
 
 # current problematic test cases
 smAddTest("scott/complex_float $box");
@@ -687,8 +689,7 @@ smAddTest("scott/dblarg.int $box");       # this yields a warning that might be 
 smAddTest("scott/decl_inl $box");         # produces a gcc warning I'd like to silence
 smFailTest("infers a safe ptr argument to __throw_setup",
            "doThrowFv $wildbox UNTAGGEDFNS=1");
-smFailTest("uninitialized temporary",
-           "scott/uninit_tmp");
+smAddTest("scott/uninit_tmp");
 
 # tests of things implemented for EDG compatibility
 smAddTest("mergestruct");
