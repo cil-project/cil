@@ -4,7 +4,6 @@ use strict;
 # Implementation by Daniel Wilkerson of the delta debugging algorithm:
 # http://www.st.cs.uni-sb.de/dd/
 
-
 # FIX: This ought to be a Perl module where you can plug in your own
 # test function, but for now, just take this script and hack the test
 # function yourself.
@@ -37,8 +36,8 @@ my $mark_signature;
 my $last_mark_stop;
 my @current_markers;            # Markers to be rendered to $tmpinput if answer not in cache.
 
-my @log_if_success;             # Messages to be written to the log on a successful test.
-my @delete_if_failure;          # Files to be unlinked on a failed test.
+#my @log_if_success;             # Messages to be written to the log on a successful test.
+#my @delete_if_failure;          # Files to be unlinked on a failed test.
 
 my $tmpinput;                   # Temporary file to render marked subsequence to.
 my $last_successful_tmpinput;   # Last one to past the test.
@@ -47,6 +46,7 @@ my $tmp_index = 0;              # Cache the last index used to make a tmp file.
 my $tmpdir_index = 0;           # Cache the last index used to make a tmp directory.
 my $tmpdir;                     # Temporary directory for external programs.
 my $logfile = "Log";            # File in $tmpdir where log of successful runs is written.
+chomp (my $this_dir = `pwd`);   # The current directory.
 
 my $granularity = "line";       # What is the size of an input chunk?
 my $dump_input = 0;             # Dump out the input after reading it in.
@@ -76,27 +76,35 @@ END
 sub make_tmpfile ($) {
     my ($filename) = @_;
     die if -e $filename;
-    push @delete_if_failure, $filename;
+#    push @delete_if_failure, $filename;
     return $filename;
 }
 
 # Return true if the current_markers pass the interesting test.
 sub test {
     my $cached_result = $test_cache{$mark_signature};
-    if (defined $cached_result) {print "\tcached\n"; return $cached_result;} else {print "\n"}
+    if (defined $cached_result) {
+        print "\tcached\n";
+        return $cached_result;
+    }
     render_tmpinput();
-    @log_if_success = ();
-    @delete_if_failure = ();
+#    @log_if_success = ();
+#    @delete_if_failure = ();
     my $input = "${tmpdir}/${tmpinput}";
-    die unless -f $input; push @delete_if_failure, $input;
+#    die unless -f $input; push @delete_if_failure, $input;
+
+    die if system "rm -f ${tmpdir}/arena/*";
+    my $arena_name = "input${input_suffix}";
+    link $input, "${tmpdir}/arena/${arena_name}";
+    my $result = ! system "cd ${tmpdir}/arena; ${this_dir}/hello.test ${arena_name}";
 
     # Test case specific.
-    my $result = 0;
-    my $cmp_output = make_tmpfile "${tmpdir}/${tmpinput}.cmp";
-    if (run("gcc $input &> $cmp_output")) {        # Only interesting if it compiles
-        my $run_output = make_tmpfile "${tmpdir}/${tmpinput}.run";
-        $result = ! run("./a.out &> $run_output"); # But does not run.
-    }
+#      my $result = 0;
+#      my $cmp_output = make_tmpfile "${tmpdir}/${tmpinput}.cmp";
+#      if (run("gcc $input &> $cmp_output")) {        # Only interesting if it compiles
+#          my $run_output = make_tmpfile "${tmpdir}/${tmpinput}.run";
+#          $result = ! run("./a.out &> $run_output"); # But does not run.
+#      }
 
     # Actual ccured run.
 #      my $command = <<END
@@ -107,28 +115,30 @@ sub test {
 
     # Keep around info on successful runs.
     if ($result) {
-        print "\tSUCCESS ****************\n";
+        my $size = (split " ", `wc -l $input`)[0];
+        print "\tSUCCESS, lines: $size ****************\n";
         open LOG, ">>${tmpdir}/${logfile}" or die $!;
-        print LOG "\n$tmpinput\n";
-        print LOG join("\n", @log_if_success), "\n";
+        print LOG "$tmpinput, lines: $size\n";
+#        print LOG join("\n", @log_if_success), "\n";
         close LOG or die $!;
         $last_successful_tmpinput = $tmpinput;
     } else {
-        foreach my $file (@delete_if_failure) {
+        print "\n";
+        unlink $input;
+#        foreach my $file (@delete_if_failure) {
 #            print "UNLINKING $file\n";
-            unlink $file;
-        }
+#            unlink $file;
+#        }
     }
-    undef @log_if_success;
-    undef @delete_if_failure;
-    print "\n";
+#    undef @log_if_success;
+#    undef @delete_if_failure;
     return $test_cache{$mark_signature} = $result;
 }
 
 sub run ($) {
     my ($command) = @_;
     print $command, "\n";
-    push @log_if_success, $command;
+#    push @log_if_success, $command;
     my $unix_ret_val = system $command;
     return $unix_ret_val ? 0 : 1;
 }
@@ -183,7 +193,7 @@ sub unused_tempfile {
 
 sub unused_tempdir {
   my $dirname;
-  for (; $dirname = "deltatmp.${tmpdir_index}", -e $dirname; ++$tmpdir_index) {}
+  for (; $dirname = "tmp.${tmpdir_index}", -e $dirname; ++$tmpdir_index) {}
   return $dirname;
 }
 
@@ -191,6 +201,7 @@ sub select_tmpdir {
     $tmpdir = unused_tempdir() unless defined $tmpdir;
     die if -e $tmpdir;
     mkdir $tmpdir, 0777;
+    mkdir "${tmpdir}/arena", 0777;
 }
 
 sub parse_command_line {
@@ -279,7 +290,7 @@ sub dump_markers {
 }
 
 sub increase_granularity {
-  print "Increase granularity\n";
+  print "\nIncrease granularity\n";
   print "Before ";
   dump_markers();
   my @newmarkers = ();
@@ -306,9 +317,11 @@ sub done {
     print "A log of successful runs is in ${tmpdir}/${logfile}\n";
     if (defined $cp_minimal) {
         print "Copying minimal run to $cp_minimal\n";
-        my $cp_result = ! system "cp ${tmpdir}/${last_successful_tmpinput} $cp_minimal";
-        die "cp failed" unless $cp_result;
+        die "cp failed" if system "cp ${tmpdir}/${last_successful_tmpinput} $cp_minimal";
     }
+    open LOG, ">>${tmpdir}/${logfile}" or die $!;
+    print LOG "\nDone.\n";
+    close LOG or die $!;
     exit 0;
 }
 
