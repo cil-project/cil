@@ -49,8 +49,9 @@ ocamldoc distribution tarball</a>, and build it:
   % make install
   (succeeds in copying 'odoc' to $PREFIX/bin, but fails to copy odoc_info.cma; ignoring)
 </pre>
-The resulting <tt>odoc</tt> binary can be copied anywhere and used.  It doesn't
-need any of the other files.</p>
+The resulting <tt>odoc</tt> binary can be copied anywhere and used.  However,
+it contains within it the path to the 'ocamlrun' binary in $PREFIX/bin, so
+that has to stay put.  Building <tt>odoc.opt</tt> unfortunately fails.</p>
 
 <p>(optional) Staying in <tt>$BLD/ocamldoc</tt>, we can have it
 generate a few sample documentation files:
