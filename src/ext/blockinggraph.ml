@@ -40,6 +40,8 @@ module E = Errormsg
 
 let debug = false
 
+let fingerprintAll = true
+
 
 type blockkind =
     NoBlock
@@ -412,6 +414,11 @@ let initFun =
                 (TFun (voidType, Some [("num_nodes", intType, [])],
                        false, []))
 
+let fingerprintVar =
+  let vi = makeGlobalVar "stack_fingerprint" intType in
+  vi.vstorage <- Extern;
+  vi
+
 let insertInstr (newInstr: instr) (s: stmt) : unit =
   match s.skind with
     Instr instrs ->
@@ -536,10 +543,15 @@ class instrumentClass = object
   inherit nopCilVisitor
 
   val mutable curNode : node ref = ref (getFunctionNode "main")
+  val mutable seenRet : bool ref = ref false
+
+  val mutable funId : int ref = ref 0
 
   method vfunc (fdec: fundec) : fundec visitAction = begin
     (* Remember the current function. *)
     curNode := getFunctionNode fdec.svar.vname;
+    seenRet := false;
+    funId := Random.bits ();
     (* Add useful locals. *)
     ignore (makeLocalVar fdec "savesp" voidPtrType);
     ignore (makeLocalVar fdec "savechunk" voidPtrType);
@@ -547,6 +559,14 @@ class instrumentClass = object
     (* Add macro for function entry when we're done. *)
     let addEntryNode (fdec: fundec) : fundec =
       let node = getFunctionNode fdec.svar.vname in
+      if fingerprintAll || node.origkind <> NoBlock then begin
+        let fingerprintSet =
+          Set (var fingerprintVar, BinOp (BXor, Lval (var fingerprintVar),
+                                          integer !funId, intType),
+               locUnknown)
+        in
+        fdec.sbody.bstmts <- mkStmtOneInstr fingerprintSet :: fdec.sbody.bstmts
+      end;
       let nodeFun = emptyFunction ("NODE_CALL_"^(string_of_int node.nodeid)) in
       let nodeCall = Call (None, Lval (var nodeFun.svar), [], locUnknown) in
       nodeFun.svar.vtype <- funType voidType [];
@@ -587,7 +607,7 @@ class instrumentClass = object
           in
           (* If there's a call site here, instrument it. *)
           let len = List.length instrs in
-          if len > 0 then
+          if len > 0 then begin
             match List.nth instrs (len - 1) with
               Call (_, Lval (Var vi, NoOffset), _, _) ->
               (*
@@ -598,10 +618,25 @@ class instrumentClass = object
             | Call (_, e, _, _) -> (* Calling a function pointer *)
                 instrumentNode (getFunctionPtrNode (typeOf e))
             | _ -> ()
-          end
-      | _ -> ()
-    end;
-    DoChildren
+          end;
+          DoChildren
+        end
+      | Cil.Return _ -> begin
+          if !seenRet then E.s (bug "found multiple returns");
+          seenRet := true;
+          if fingerprintAll || !curNode.origkind <> NoBlock then begin
+            let fingerprintSet =
+              Set (var fingerprintVar, BinOp (BXor, Lval (var fingerprintVar),
+                                              integer !funId, intType),
+                   locUnknown)
+            in
+            s.skind <- Block (mkBlock [mkStmtOneInstr fingerprintSet;
+                                       mkStmt s.skind]);
+          end;
+          SkipChildren
+        end
+      | _ -> DoChildren
+    end
   end
 end
 
@@ -609,7 +644,9 @@ let instrumentProgram (f: file) : unit =
   (* Add function prototypes. *)
   f.globals <- GText ("#include \"stack.h\"") ::
                GVarDecl (initFun, locUnknown) ::
-               GVarDecl (beforeFun, locUnknown) :: f.globals;
+               GVarDecl (beforeFun, locUnknown) ::
+               GVarDecl (fingerprintVar, locUnknown) ::
+               f.globals;
   (* Add instrumentation to call sites. *)
   visitCilFile ((new instrumentClass) :> cilVisitor) f;
   (* Force creation of this node. *)
@@ -636,6 +673,7 @@ let feature : featureDescr =
     fd_extraopt = [];
     fd_doit = 
     (function (f : file) ->
+      Random.init 0; (* Use the same seed so that results are predictable. *)
       gatherPragmas f;
       makeFunctionCallGraph f;
       markBlockingFunctions ();
