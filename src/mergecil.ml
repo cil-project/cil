@@ -729,12 +729,12 @@ let rec oneFilePass1 (f:file) : unit =
             (List.map (fun (fn, _, _) -> fn) (argsToList args));
           (* Force inline functions to be static *) 
           fdec.svar.vreferenced <- false;
-          if fdec.sinline && fdec.svar.vstorage = NoStorage then 
+          if fdec.svar.vinline && fdec.svar.vstorage = NoStorage then 
             fdec.svar.vstorage <- Static;
           if fdec.svar.vstorage <> Static then begin
             matchVarinfo fdec.svar (l, !currentDeclIdx)
           end else begin
-            if fdec.sinline && mergeInlines then 
+            if fdec.svar.vinline && mergeInlines then 
               (* Just create the nodes for inline functions *)
               ignore (getNode iEq iSyn !currentFidx 
                         fdec.svar.vname fdec.svar None)
@@ -1029,7 +1029,7 @@ let oneFilePass2 (f: file) =
             setFormals fdec fdec.sformals
           end;
           (** See if we can remove this inline function *)
-          if fdec'.sinline && mergeInlines then begin
+          if fdec'.svar.vinline && mergeInlines then begin
             let printout = 
               (* Temporarily turn of printing of lines *)
               let oldprintln = !printLn in

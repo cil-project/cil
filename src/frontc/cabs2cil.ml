@@ -506,6 +506,7 @@ let newTempVar typ =
       vglob = false;
       vtype = stripConst typ;
       vdecl = locUnknown;
+      vinline = false;
       vattr = [];
       vaddrof = false;
       vreferenced = false;   (* sm *)
@@ -1365,6 +1366,7 @@ let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
         vi.vstorage
       end
     in
+    oldvi.vinline <- oldvi.vinline || vi.vinline;
     oldvi.vstorage <- newstorage;
     (* Union the attributes *)
     oldvi.vattr <- cabsAddAttributes oldvi.vattr vi.vattr;
@@ -2028,6 +2030,7 @@ and makeVarInfo
     vstorage = sto;
     vattr    = nattr;
     vdecl    = ldecl;
+    vinline  = false;
     (* Remove the const qualifier from local variables because they are 
        initialized through assignments *)
     vtype    = if not isglob then 
@@ -4403,7 +4406,6 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                 n, sto 
               end
             in
-
               
             (* Add the function itself to the environment. Add it before 
             * you do the body because the function might be recursive. Add 
@@ -4418,6 +4420,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                   vglob = true;
                   vid   = newVarId n true;
                   vdecl = lu;
+                  vinline = inl;
                   vattr = funattr;
                   vaddrof = false;
                   vstorage = sto';
@@ -4453,6 +4456,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                 (fun (fn, ft, fa) -> 
                   let f = { vname = fn; vtype = ft; vattr = fa; 
                             vglob = false; vid = newVarId fn false; 
+                            vinline = false;
                             vreferenced = false; vaddrof = false;
                             vstorage = NoStorage; vdecl = !currentLoc; } in
                   alphaConvertVarAndAddToEnv true f)
@@ -4549,10 +4553,10 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                          sformals = formals;
                          smaxid   = maxid;
                          sbody    = mkFunctionBody stm;
-                         sinline  = inl;
 			 smaxstmtid = None;
                        }
             in
+
             (* Now go over the types of the formals and pull out the formals 
              * with transparent union type. Replace them with some shadow 
              * parameters and then add assignments  *)

@@ -447,6 +447,9 @@ and varinfo = {
     mutable vglob: bool;	        
     (** True if this is a global variable*)
 
+    mutable vinline: bool;
+    (** Whether this varinfo is for an inline function. *)
+
     mutable vdecl: location;            
     (** Location of variable declaration. Not yet implemented. *)
 
@@ -753,7 +756,6 @@ and fundec =
          * these because the body refers to them. *)
       mutable smaxid: int;           (** Max local id. Starts at 0 *)
       mutable sbody: block;          (** The function body. *)
-      mutable sinline: bool;         (** Whether the function is inline *)
       mutable smaxstmtid: int option;  (** max id of a (reachable) statement 
                                         * in this function, if we have 
                                         * computed it. range = 0 ... 

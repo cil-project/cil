@@ -327,6 +327,9 @@ and varinfo = {
 
     mutable vglob: bool;	        (** True if this is a global variable*)
 
+    (** Whether this varinfo is for an inline function. *)
+    mutable vinline: bool;
+
     mutable vdecl: location;            (** Location of variable declaration *)
 
     mutable vid: int;  (** A unique integer identifier. For globals this is a 
@@ -545,7 +548,6 @@ and fundec =
          * these because the body refers to them. *)
       mutable smaxid: int;           (** Max local id. Starts at 0 *)
       mutable sbody: block;          (** The function body. *)
-      mutable sinline: bool;         (** Whether the function is inline *)
       mutable smaxstmtid: int option;  (** max id of a (reachable) statement 
                                         * in this function, if we have 
                                         * computed it. range = 0 ... 
@@ -1723,7 +1725,8 @@ class defaultCilPrinterClass : cilPrinter = object (self)
   method pVDecl () (v:varinfo) =
     let stom, rest = separateStorageModifiers v.vattr in
     (* First the storage modifiers *)
-    (self#pAttrs () stom)
+    text (if v.vinline then "__inline " else "")
+      ++ (self#pAttrs () stom)
       ++ d_storage () v.vstorage
       ++ (self#pType (Some (text v.vname)) () v.vtype)
       ++ text " "
@@ -2414,8 +2417,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
        ++ text ";"
        
   method private pFunDecl () f =
-    text (if f.sinline then "__inline " else "")
-      ++ self#pVDecl () f.svar
+      self#pVDecl () f.svar
       ++ line
       ++ text "{ "
       ++ (align
@@ -2915,6 +2917,7 @@ let makeVarinfo name typ =
     vglob = false;
     vtype = typeRemoveAttributes ["const"] typ;
     vdecl = lu;
+    vinline = false;
     vattr = [];
     vstorage = NoStorage;
     vaddrof = false;
@@ -3005,6 +3008,7 @@ let makeGlobalVar name typ =
              vid   = H.hash name;
              vglob = true;
              vtype = typ;
+             vinline = false;
              vdecl = lu;
              vattr = [];
              vstorage = NoStorage;
@@ -3021,8 +3025,7 @@ let emptyFunction name =
     slocals = [];
     sformals = [];
     sbody = mkBlock [];
-    sinline = false;
-		smaxstmtid = None;
+    smaxstmtid = None;
   } 
 
 

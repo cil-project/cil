@@ -87,7 +87,7 @@ end
 
 
 
-let isInlineFunc (f: fundec) : bool = f.sinline
+let isInlineFunc (f: fundec) : bool = f.svar.vinline
 
 (* weimer Mon Dec 10 16:28:11  2001
  * This huge list of removed temporaries is annoying to look at. Let's
