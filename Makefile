@@ -1846,7 +1846,9 @@ mpeg-gcc: mustbegcc mustbemanju mustbelinux mpegclean
 
 
 # GLIB
-GLIBSRC :=/usr/local/src/glib-1.2.9
+ifndef GLIBSRC
+  GLIBSRC := /usr/local/src/glib-1.2.9
+endif
 glibclean:
 	cd $(GLIBSRC); make clean
 	-cd $(GLIBSRC); find . \( \
@@ -1859,8 +1861,9 @@ glibclean:
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
 
-glib: mustbegcc mustbemanju mustbelinux glibclean
-	cd $(GLIBSRC); make CC="$(CILLY) --keepunused"; 
+# sm: changed 'mustbemanju' to '$(GLIBSRC)/Makefile'
+glib: mustbegcc $(GLIBSRC)/Makefile mustbelinux glibclean
+	cd $(GLIBSRC); make CC="$(CILLY)"; 
 	cd $(GLIBSRC)/tests; make check-TESTS
 
 glib-gcc: mustbegcc mustbemanju mustbelinux glibclean
