@@ -58,6 +58,7 @@ options:
   --mode=xxx   What tool to emulate: 
                 GNUCC   - GNU CC
                 MSVC    - MS VC cl compiler
+                EDG     - EDG front end
 
   --dest=xxx   The destination directory. Will make one if it does not exist
   --patch=xxx  Patch file (can be specified multiple times)
@@ -225,9 +226,10 @@ sub lineDirective {
     if($option{mode} eq "MSVC") {
         return "#line $lineno \"$fileName\"\n";
     }
-    if($option{mode} eq "GNUCC") {
+    if($option{mode} eq "GNUCC" || $option{mode} eq "EDG") {
         return "# $lineno \"$fileName\"\n";
     }
+    die "lineDirective: invalid mode";
 }
 
 # Find the absolute name for a file
@@ -240,9 +242,10 @@ sub patchOneFile {
     open(TOPREPROC, ">$preprocfile.c") || die "Cannot open preprocessor file";
     print TOPREPROC "#include $fname1\n";
     close(TOPREPROC);
+    # Do not test for error while running the preprocessor because the 
+    # error might be due to an #error directive
     if($option{mode} eq "GNUCC") {
-        (!system("$::cc -E $ppargs $preprocfile.c >$preprocfile.i")) 
-            || die "Cannot run the GCC preprocessor";
+        system("$::cc -E $ppargs $preprocfile.c >$preprocfile.i");
     } elsif($option{mode} eq "MSVC") {
         (!system("cl /nologo /P $ppargs $preprocfile.c"))
             || die "Cannot run the CL preprocessor";
@@ -258,11 +261,11 @@ sub patchOneFile {
         }
     }
     close(PPOUT);
+    if($absname eq "" || ! -f $absname) {
+        die "Cannot find the absolute name of $fname1 in $preprocfile.i\n";
+    }
     unlink "$preprocfile.c";
     unlink "$preprocfile.i";
-    if($absname eq "") {
-        die "Cannot find the absolute name of $fname1\n";
-    }
     # If we fail then maybe we are using cygwin paths in a Win32 system
     if($option{mode} eq "GNUCC" && $::iswin32) {
         open(WINNAME, "cygpath -w $absname|")
