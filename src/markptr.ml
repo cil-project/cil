@@ -16,8 +16,11 @@ let callId = ref (-1)  (* Each call site gets a new ID *)
 
 let polyId = ref (-1) 
 
-(* A number of functions will be treated polymorphically *)
-let polyFunc : (string, bool) H.t = H.create 7
+(* A number of functions will be treated polymorphically. In that case store 
+ * their original type. When we process the type of a polymorphic function we 
+ * first store here the original type.  *)
+let polyFunc : (string, typ option ref) H.t = H.create 7
+
 
 (* if some enclosing context [like the attributes for a field] says that
  * this array should be sized ... we do not want to forget it! *)
@@ -56,7 +59,7 @@ let rec doType (t: typ) (p: N.place)
         Some n -> TPtr (bt, a), nextidx (* Already done *)
       | None -> 
           let bt', i' = doType bt p (nextidx + 1) in
-          let n = N.newNode p nextidx bt' a in
+          let n = N.getNode p nextidx bt' a in
           TPtr (bt', n.N.attr), i'
   end
   | TArray(bt, len, a) -> begin
@@ -67,7 +70,7 @@ let rec doType (t: typ) (p: N.place)
         Some n -> TArray (bt, len, a), nextidx (* Already done *)
       | None -> 
           let bt', i' = doType bt p (nextidx + 1) in
-          let n = N.newNode p nextidx bt' a in
+          let n = N.getNode p nextidx bt' a in
           TArray (bt', len, n.N.attr), i'
   end
           
@@ -102,15 +105,14 @@ let rec doType (t: typ) (p: N.place)
         
   | TFun (restyp, args, isva, a) -> 
       let restyp', i0 = doType restyp p nextidx in
-      (* Rewrite the argument types and copy them !!! (to allow polymorphism)
-          *)
-      let i', args' = 
+      let i' = 
         List.fold_left 
-          (fun (nidx, acc) arg -> 
+          (fun nidx arg -> 
             let t', i' = doType arg.vtype p nidx in
-            let arg' = {arg with vtype = t'} in
-            (i', arg' :: acc)) (i0, []) args in
-      let newtp = TFun(restyp', List.rev args', isva, a) in
+            arg.vtype <- t'; (* Can change in place because we shall copy the 
+                              * varinfo for polymorphic functions *)
+            i') i0 args in
+      let newtp = TFun(restyp', args, isva, a) in
       newtp, i'
 
           
@@ -309,7 +311,7 @@ and doLvalue ((base, off) : lval) (iswrite: bool) : lval * N.node =
   let base', startNode = 
     match base with 
       Var vi -> begin 
-        doVarinfo vi;
+        doVarinfo vi; (* It was done when the variable was declared !!! *)
         (* Now grab the node for it *)
         base, 
         (match N.nodeOfAttrlist vi.vattr with Some n -> n | _ -> N.dummyNode)
@@ -382,22 +384,41 @@ and doExpAndCastCall e t callid =
 (* We will accumulate the marked globals in here *)
 let theFile : global list ref = ref []
 
-let instantiatePolyFunc (vi: varinfo) : varinfo =
-  if H.mem polyFunc vi.vname then begin
-(*    ignore (E.log "InstatiatePoly:%s T=%a\n" vi.vname
-              d_plaintype vi.vtype); *)
-            (* In this case the original varinfo has not been touched. So we 
-             * make a copy of it and we change that *)
-    let newvi = 
-      {vi with vname = 
-                  ("/*" ^ (string_of_int (!polyId + 1)) ^ "*/" ^ vi.vname)} in
-    incr polyId;
-     (* Now process it *)
-(*    ignore (E.log "instantiating to %s\n" newvi.vname); *)
-    doVarinfo newvi;
-    newvi
-  end else
-    vi
+
+let instantiatePolyFunc (vi: varinfo) : varinfo * bool =
+  (* The args might be shared with other declarations and with formals for 
+   * defined functions. Make shallow copies of all of them  *)
+  let shallowCopyFunctionType t = 
+    match unrollType t with
+      TFun (rt, args, isva, fa) -> 
+        TFun (rt, 
+              List.map (fun a -> {a with vname = a.vname}) args,
+              isva, fa)
+    | _ -> E.s (E.bug "instantiating a non-function (%s)\n" vi.vname)
+  in
+  let res, ispoly = 
+    try
+      let origtypref = H.find polyFunc vi.vname in
+      let origtype = (* Copy the type and remember it *)
+        match !origtypref with
+          Some t -> shallowCopyFunctionType t
+        | None -> 
+            let copiedtype = shallowCopyFunctionType vi.vtype in
+            origtypref := Some copiedtype;
+            copiedtype
+      in
+      let newvi = 
+        {vi with vtype = origtype; (* Set it like this and doVarInfo 
+                                      will fix it *)
+                 vname = ("/*" ^ (string_of_int (!polyId + 1)) ^ "*/" ^ 
+                          vi.vname)}  in
+      incr polyId;
+      newvi, true
+    with Not_found -> vi, false
+  in
+    (* Not polymorphic *)
+  doVarinfo res;
+  res, ispoly
 
 (* Do a statement *)
 let rec doStmt (s: stmt) = 
@@ -423,9 +444,10 @@ let rec doStmt (s: stmt) =
       let func = (* check and see if it is polymorphic *)
         match orig_func with
           (Lval(Var(v),NoOffset)) -> 
-            let newvi = instantiatePolyFunc v in
+            let newvi, ispoly = instantiatePolyFunc v in
             (* And add a declaration for it *)
-            theFile := GDecl (newvi, lu) :: !theFile;
+            if ispoly then
+              theFile := GDecl (newvi, lu) :: !theFile;
             (Lval(Var(newvi), NoOffset)) 
         | _ -> orig_func
       in
@@ -472,13 +494,14 @@ let doGlobal (g: global) : global =
       (match a with
         ACons("boxpoly", [ AStr(s) ]) -> 
           ignore (E.log "Will treat %s as polymorphic\n" s); 
-          H.add polyFunc s true
+          H.add polyFunc s (ref None)
       | _ -> ());
       g
     end
   | GType (n, t, l) -> 
       let t', _ = doType t (N.PType n) 0 in
       GType (n, t', l)
+
   | GDecl (vi, _) -> 
 (*      ignore (E.log "Found GDecl of %s. T=%a\n" vi.vname
                 d_plaintype vi.vtype); *)
@@ -492,20 +515,24 @@ let doGlobal (g: global) : global =
       in
       GVar (vi, init', l)
   | GFun (fdec, l) -> 
-      let newvi = instantiatePolyFunc fdec.svar in
-      fdec.svar <- newvi; (* Change the varinfo if the instantiation has 
-                           * changed it *)
+      let newvi, ispoly = instantiatePolyFunc fdec.svar in
+      if ispoly then
+        fdec.svar <- newvi; (* Change the varinfo if the instantiation has 
+                             * changed it *)
       currentFunctionName := fdec.svar.vname;
-      (* Do the formals (the local version). Must do them because they are 
-       * not part of the type *)
-     List.iter doVarinfo fdec.sformals;
-      (* Put the formals into the function type so that we get the right 
-       * information to BOX *)
+      (* Do the formals *)
       (match fdec.svar.vtype with
         TFun(rt, _, isva, fa) -> 
-          fdec.svar.vtype <- TFun(rt, fdec.sformals, isva, fa);
+          (* Do the formals, because they might not be shared with the type. 
+           * (If they are nothing happens.) We want to ensure that the same 
+           * node is used for a formal as we used in a type. So we put the 
+           * formals inside a type and we do it like that *)
+          let typWithFormals = TFun(rt, fdec.sformals, isva, fa) in
+          let _ = doType typWithFormals (N.PGlob fdec.svar.vname) 1 in
+(*          if ispoly then
+            fdec.svar.vtype <- TFun(rt, fdec.sformals, isva, fa); *)
           currentResultType := rt
-      | _ -> E.s (E.bug "Not a function"));
+      | _ -> E.s (E.bug "Not a function")); 
       (* Do the other locals *)
       List.iter doVarinfo fdec.slocals;
       (* Do the body *)
@@ -518,33 +545,29 @@ let markFile fl =
   currentFileName := fl.fileName;
   E.hadErrors := false;
   H.clear polyFunc;
-  if !N.allPoly then
+  if !N.allPoly || !N.externPoly then
     (* Go through the file once and find all declarations - definitions (for 
      * functions only) *)
-    let processGlob = function
+    let processDecls = function
         GDecl (vi, _) when isFunctionType vi.vtype ->
-          (* Make a shallow copy of the arguments in the function type to 
-           * ensure that we do not have interference with the formals of a 
-           * previous definition 
-
-          (match unrollType vi.vtype with
-            TFun (rt, args, isva, fa) -> 
-              vi.vtype 
-                <- TFun (rt, List.map 
-                           (fun a -> 
-                             {a with vname = "/**/" ^ a.vname}) args,
-                         isva, fa)
-          | _ -> ()); *)
-          H.add polyFunc vi.vname true
-      | GFun (f, l) -> H.add polyFunc f.svar.vname true
+          H.add polyFunc vi.vname (ref None)
       | _ -> ()
     in
-(*    ignore (E.log "The polymorphic functions:\n");
-    H.iter (fun n -> fun _ -> ignore (E.log " %s@!" n)) polyFunc; *)
-    List.iter processGlob fl.globals
+    let processDefs = function
+        GFun (fdec, _) when isFunctionType fdec.svar.vtype ->
+          if !N.externPoly then 
+            H.remove polyFunc fdec.svar.vname
+          else
+            H.add polyFunc fdec.svar.vname (ref None)
+      | _ -> ()
+    in
+    (* Add all the declarations *)
+    List.iter processDecls fl.globals;
+    (* Add or remove definitions, depending on externPoly *)
+    List.iter processDefs fl.globals;
   else begin
     (* Otherwise we start with some defaults *)
-    List.iter (fun s -> H.add polyFunc s true) 
+    List.iter (fun s -> H.add polyFunc s (ref None)) 
       ["free"; "malloc"; "calloc"; "calloc_fseq"; "realloc"];
   end;
   theFile := [];
@@ -561,6 +584,8 @@ let markFile fl =
 let printFile (c: out_channel) fl = 
   Cil.setCustomPrint (N.ptrAttrCustom true)
     (fun fl ->
+      let opi = !printIndent in
+      printIndent := false;
       Cil.printFile c fl;
       output_string c "#if 0\n/* Now the graph */\n";
       (* N.gc ();   *)
@@ -570,6 +595,7 @@ let printFile (c: out_channel) fl =
       output_string c "/* Now the solved graph (simplesolve) */\n";
       Stats.time "simple solver" Simplesolve.solve N.idNode ; 
       N.printGraph c;
+      printIndent := opi;
       output_string c "/* End of solved graph*/\n#endif\n";
       ) 
     fl ;

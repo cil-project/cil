@@ -382,9 +382,7 @@ type fundec =
       mutable sformals: varinfo list;   (* These are the formals. There are
                                          * other formals in the type of the
                                          * svar, but these are referred from
-                                         * the body and these are printed in
-                                         * the argument list for function
-                                         * definitions. Do not make copies of
+                                         * the body. Do not make copies of
                                          * these because the body refers to
                                          * them.  *)
       mutable slocals: varinfo list;    (* locals, DOES NOT include the

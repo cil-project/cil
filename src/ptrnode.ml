@@ -18,6 +18,9 @@ let defaultIsWild  = ref false
  * polymorphically *)
 let allPoly = ref false
 
+
+let externPoly = ref false
+
 (* A place where a pointer type can occur *)
 type place = 
     PGlob of string  (* A global variable or a global function *)
