@@ -779,12 +779,26 @@ IJPEGSAFECC=$(SAFECC) --combine --keep=safeccout
 
 ijpegclean: 	
 	cd $(IJPEGDIR)/src; make clean
-	cd $(VODIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
+	cd $(IJPEGDIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
 
 ijpeg: defaulttarget mustbegcc
 	cd $(IJPEGDIR)/src; \
             make build CC="$(IJPEGSAFECC) $(CONLY)" \
                        LD="$(IJPEGSAFECC)" 
-	$(GODIR)/exe/base/vortex_ultra \
-            <$(GODIR)/data/train/input/2stone9.in
+	$(IJPEGDIR)/exe/base/vortex_ultra \
+            <$(IJPEGDIR)/data/train/input/2stone9.in
 
+#### SPEC95 gcc
+GCCDIR=$(SPECDIR)/126mk32.ijpeg
+GCCSAFECC=$(SAFECC) --combine --keep=safeccout
+
+ijpegclean: 	
+	cd $(GCCDIR)/src; make clean
+	cd $(GCCDIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
+
+ijpeg: defaulttarget mustbegcc
+	cd $(GCCDIR)/src; \
+            make build CC="$(GCCSAFECC) $(CONLY)" \
+                       LD="$(GCCSAFECC)" 
+	$(GCCDIR)/exe/base/vortex_ultra \
+            <$(GCCDIR)/data/train/input/2stone9.in
