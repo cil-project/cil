@@ -39,7 +39,7 @@ let rec can_cast from_k to_k =
     false (one_step_cast from_k)
 
 (* helper functions *)
-let ecast_edges_only l = List.filter (fun e -> e.ekind = ECast) l 
+let ecast_edges_only l = List.filter (fun e -> e.ekind = ECast || e.ekind = ECompat) l 
 let non_safe_edges_only l = List.filter (fun e -> e.ekind <> ESafe) l 
 let ecastandenull_edges_only l = 
   List.filter (fun e -> e.ekind = ECast || e.ekind = ENull) l 
