@@ -1198,6 +1198,7 @@ altAddTest("scott/initedextern");
 altAddTest("scott/arrayinit");
 altAddTest("scott/structattr2");
 altAddTest("scott/structattr3");
+altAddTest("scott/enumerator_sizeof");
 
 
 # $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug

@@ -2514,12 +2514,28 @@ and preprocessCast (specs: A.specifier)
 
 and isIntConstExp (aexp) : exp option =
   match doExp true aexp (AExp None) with
-      (c, (Const (CInt64 (i,_,_)) as p),_) when isEmpty c ->
-	Some p
+    (* first, filter for those Const exps that are integers *)
+    | (c, (Const (CInt64 (i,_,_)) as p),_) when isEmpty c ->
+        Some p
     | (c, (Const (CChr i) as p),_) when isEmpty c ->
-	Some p
-    | _ -> None
+        Some p
+    (* other Const expressions are not ok *)
+    | (_, (Const _), _) -> 
+        None
+    (* now, anything else that 'doExp true' returned is ok (provided
+       that it didn't yield side effects); this includes, in particular,
+       the various sizeof and alignof expression kinds *)
+    | (c, e, _) when isEmpty c ->
+        Some e
+    (* we only get here when the expression had side effects *)
+    | _ ->
+        None
 
+(* this is like 'isIntConstExp', but retrieves the actual integer
+ * the expression denotes; I have not extended it to work with
+ * sizeof/alignof since (for CCured) we can't const-eval those,
+ * and it's not clear whether they can be bitfield width specifiers
+ * anyway (since that's where this function is used) *)
 and isIntegerConstant (aexp) : int option =
   match doExp true aexp (AExp None) with
       (c, (Const (CInt64 (i,_,_)) as p),_) when isEmpty c ->
