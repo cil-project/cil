@@ -536,7 +536,7 @@ smAddTest("scott/putc $wildbox");
 smAddTest("scott/lexnum");
 smAddTest("scott/ctype");
 smAddTest("scott/ctype $box");
-smAddTest("test-bad/wildfun $box);
+smAddTest("test-bad/wildfun $box");
 
 # verify results of inference
 $TEST->setField(smAddTest("scott/ptrkinds $box"), "AfterSuccessScript", <<'EOF');
