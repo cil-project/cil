@@ -10,7 +10,7 @@ open Pretty
 open Trace
 module E = Errormsg
 
-let safe_voidstar = true
+let safe_voidstar = false
 
 (* are the given two types congurent? see infer.tex 
  * also remember that two wild pointers are always considered congruent *)
@@ -176,7 +176,8 @@ let rec subtype (t1 : typ) (q1 : opointerkind)
     end
     | TVoid(_), _ -> safe_voidstar
     | _, TVoid(_) -> safe_voidstar
-          
+    | TArray(et, eo, _), t ->
+        type_congruent et q1 t q2
     | _,_ -> false
           
 (* a predicate to determine if a polymorphic function call is involved *)
