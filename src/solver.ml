@@ -382,6 +382,11 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
        * this node to be SEQ-ish *)
       if not (set_outside cur) then 
       List.iter (fun e ->
+        (* This is basically a condensed version of the three versions of
+         * this code that I wrote originally. The old versions are
+         * available at the bottom of this file. With all of the conditions
+         * in one place you should have an easier time changing things
+         * if I'm not around. *)
         match e.ekind, e.eto.kind with
           ECast, FSeqN 
         | ECompat, FSeq
@@ -416,7 +421,6 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       if not (set_outside cur) then 
       List.iter (fun e -> 
         match e.ekind, e.efrom.kind with 
-          (* ECast, FSeq  | ECast, FSeqN  *)
           ENull, FSeq  | ENull, FSeqN
         | EIndex, FSeq | EIndex, FSeqN -> 
             if (cur.kind <> ROString) then 
@@ -460,6 +464,45 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     ) node_ht ; 
   done ;
 
+  (* Step 9
+   * ~~~~~~
+   * Change certain FSeqNs to ROStrings. An FSeqN with only one successor
+   * becomes an ROString if that successor is an ROString. 
+   *)
+  if show_steps then ignore (Pretty.printf "Solver: Step 8  (FSEQN->ROSTRING)\n") ;
+  finished := false ; 
+  while not !finished do 
+    finished := true ; 
+    (* consider every node in the graph! *)
+    Hashtbl.iter (fun id cur -> 
+      (* consider all succ edges *)
+      List.iter (fun e -> 
+        if e.ekind = ECast && e.eto.kind = ROString &&
+            cur.kind = FSeqN && not (hasFlag cur pkUpdated) &&
+            (List.length cur.succ) = 1 then begin 
+            assert(cur.why_kind <> UserSpec) ; 
+            update cur ROString (SpreadFromEdge e.eto) ;
+        end
+      ) cur.succ
+  ) node_ht ;
+  done ;
+
+
+  (* Step 11
+   * ~~~~~~~
+   * All other nodes are safe. 
+   *)
+  if show_steps then ignore (Pretty.printf "Solver: Step 9  (SAFE)\n") ;
+  Hashtbl.iter (fun id n -> 
+    if n.kind = Unknown then begin
+      assert(n.why_kind <> UserSpec) ;
+      (update n Safe Unconstrained)
+    end
+  ) node_ht ;
+
+end
+
+(* Old Solver Code: *)
 
 (*
   if show_steps then ignore (Pretty.printf "Solver: Step 7  (FSEQ[N] nodes)\n") ;
@@ -667,29 +710,6 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
   done ;
   *)
 
-  (* Step 9
-   * ~~~~~~
-   * Change certain FSeqNs to ROStrings. An FSeqN with only one successor
-   * becomes an ROString if that successor is an ROString. 
-   *)
-  if show_steps then ignore (Pretty.printf "Solver: Step 9  (FSEQN->ROSTRING)\n") ;
-  finished := false ; 
-  while not !finished do 
-    finished := true ; 
-    (* consider every node in the graph! *)
-    Hashtbl.iter (fun id cur -> 
-      (* consider all succ edges *)
-      List.iter (fun e -> 
-        if e.ekind = ECast && e.eto.kind = ROString &&
-            cur.kind = FSeqN && not (hasFlag cur pkUpdated) &&
-            (List.length cur.succ) = 1 then begin 
-            assert(cur.why_kind <> UserSpec) ; 
-            update cur ROString (SpreadFromEdge e.eto) ;
-        end
-      ) cur.succ
-  ) node_ht ;
-  done ;
-
 (*
   (* Step 10
    * ~~~~~~~
@@ -754,17 +774,3 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     ) node_ht
   done ;
   *)
-
-  (* Step 11
-   * ~~~~~~~
-   * All other nodes are safe. 
-   *)
-  if show_steps then ignore (Pretty.printf "Solver: Step 11 (SAFE)\n") ;
-  Hashtbl.iter (fun id n -> 
-    if n.kind = Unknown then begin
-      assert(n.why_kind <> UserSpec) ;
-      (update n Safe Unconstrained)
-    end
-  ) node_ht ;
-
-end
