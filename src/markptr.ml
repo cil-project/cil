@@ -837,7 +837,9 @@ let prepareVarargArguments
             let k_idx, _, kt, _ = 
               try findTypeIndex t argkinds
               with Not_found ->  
-                E.s (unimp "Argument %d does not match any expected type for vararg function %a" arg_idx d_exp func)
+                let tau = typeOf a in 
+                E.s (unimp "Argument %d (%a : %a) does not match any expected type for vararg function %a.@! Expected: %a" arg_idx d_exp a d_type tau d_exp func 
+                (docList (chr ',' ++ break) (fun (_,_,tau,_) -> d_type () tau)) argkinds )
             in
             let a' = doCastT a t kt in
             (arg_idx - 1, k_idx :: indices, a' :: args)
