@@ -1716,10 +1716,10 @@ sendmailclean:
 	      	\) -exec rm -f {} \;
 
 sendmail: mustbegcc mustbelinux mustbemanju sendmailclean
-	cd $(SENDMAILSRC) ; make CC="$(CILLY)"
+	cd $(SENDMAILSRC) ; make CC="$(CCURED)"
 
 sendmail-noclean: mustbegcc mustbelinux mustbemanju
-	cd $(SENDMAILSRC) ; make CC="$(CILLY)"
+	cd $(SENDMAILSRC) ; make CC="$(CCURED)"
 
 sendmail-gcc: mustbelinux mustbemanju linuxclean
 	cd $(SENDMAILSRC) ; make CC=gcc
