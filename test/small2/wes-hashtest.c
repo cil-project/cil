@@ -11,6 +11,13 @@
 * ALSHIFT is log2(ALIGN + 1)
 * UALIGN is the integer whose size if ALIGN + 1.
 *************************/
+#ifndef _GNUCC
+#ifndef _MSVC
+#define WILD
+#define SAFE
+#define SEQ
+#endif
+#endif
 
 typedef unsigned long UL;
 typedef unsigned char UC;

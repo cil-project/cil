@@ -209,7 +209,8 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     else match k1 with
       Wild -> false
     | Safe | Unknown -> true
-    | String -> not (k2 = Safe)
+    | ROString -> not (k2 = Safe)
+    | String -> not (k2 = Safe) 
     | FSeq | FSeqN -> not (k2 = Safe)
     | Seq | SeqN -> not (k2 = Safe || k2 = FSeq || k2 = FSeqN) 
     | Index -> k2 = Wild
@@ -433,7 +434,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
   while not !finished do 
     finished := true ; 
     Hashtbl.iter (fun id cur ->
-    if (cur.kind = String || cur.kind = FSeqN || cur.kind = SeqN) then begin
+    if (cur.kind = String || cur.kind = ROString || cur.kind = FSeqN || cur.kind = SeqN) then begin
       (* mark all of the predecessors of y along ECast with "String" *)
       let why = SpreadFromEdge(cur) in
       let f = (fun n -> 
@@ -444,7 +445,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
             else update_kind n (if is_array n then SeqN else cur.kind) why) then
               finished := false) in
       let contaminated_list = 
-        (List.map (fun e -> e.efrom) (non_safe_edges_only  cur.pred)) 
+        (List.map (fun e -> e.efrom) (non_safe_edges_only  cur.pred))
         (* @ 
         (List.map (fun e -> e.eto) (ecast_edges_only cur.succ))   *)
         in
@@ -476,6 +477,8 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     if n.kind = Unknown then begin
       n.kind <- Safe ;
       n.why_kind <- Unconstrained 
+    end else if n.kind = String && not n.updated then begin
+      n.kind <- ROString ;
     end) node_ht ;
 
   ignore (E.log "Finished solving constraints\n");

@@ -495,18 +495,21 @@ let rec parseConversionSpec f start = begin
   match Char.lowercase f.[start] with
     'e' | 'f' | 'g' |   (* double arg *)
     'a' ->              (* double arg *)
-      FormatDouble, (start+1)
+      [FormatDouble], (start+1)
     | 'd' | 'i' |         (* signed int arg *)
     'o' | 'u' | 'x' |   (* unsigned int arg *)
     'c' |               (* unsigned char *)
     'p' ->              (* void pointer treated as int *)
-      FormatInt, (start+1)
-    | 's' -> FormatPointer, (start+1) (* char pointer *)
+      [FormatInt], (start+1)
+    | '*' ->            (* integer *)
+      let a,b = parseConversionSpec f (start+1) in
+      FormatInt :: a, b 
+    | 's' -> [FormatPointer], (start+1) (* char pointer *)
     | 'n' -> E.s (E.bug "Cannot handle 'n' character in format string [%s]" f)
     | _ -> parseConversionSpec f (start+1)
   with _ ->
     ignore (E.warn "Malformed format string [%s], assuming int arg at end" f) ;
-    FormatInt, (start+1)
+    [FormatInt], (start+1)
 end
 
 (* take apart a format string and return a list of int/pointer choices *)
@@ -518,7 +521,7 @@ let rec parseFormatString f start = begin
     else begin
       (* look after the % to see if they want an Int or a Pointer *)
       let t, next_start = parseConversionSpec f (i+1) in
-      t :: (parseFormatString f next_start) (* look for another % *)
+      t @ (parseFormatString f next_start) (* look for another % *)
     end
   with _ -> []  (* no more % left in format string *)
 end
@@ -537,32 +540,49 @@ let rec list_first l n = begin
 end
 
 (* Handle printf-like functions *)
-let isPrintf reso orig_func args (v : varinfo) = begin
-  (* extract the first o+1 args from orig_func  *)
-  let first_few_args orig_func o = begin
-    match orig_func with 
-      TFun(t,a,isv,attr) -> list_first a o
-    | _ -> E.s (E.bug "isPrintf.first_few_args")
-  end in 
-  try 
+let isPrintf reso orig_func args = begin
+  match orig_func with
+    (Lval(Var(v),NoOffset)) -> begin try 
     let o = Hashtbl.find printfFunc v.vname in begin
     let format_arg = removeCasts (List.nth args o) in 
     match format_arg with (* find the format string *)
       Const(CStr(f)) -> 
         let argTypeList = parseFormatString f 0 in 
-        (*
-        ignore (E.warn "Found printf [%s]@!Infer arg types: %a" f
-          (docList (chr ',' ++ break) (d_printfArgType ())) argTypeList) ;
-        *)
         (* OK, let's create a new wrapper for this printf-like function *)
-        false
+        let num_args = List.length args in 
+        let new_name = v.vname ^ (string_of_int num_args) in 
+        let new_arg_vis = ref [] in 
+        for i = 0 to num_args-1 do
+          let this_arg_name = new_name ^ "_a" ^ (string_of_int i) in
+          let this_arg_type = 
+          if i = 0 && v.vname = "sprintf" then
+            TPtr((TInt(IChar,[])),[AId("fseq")]) 
+          else if i < o then
+            typeOf( List.nth args (i) ) else (* args before the format string *)
+          if i = o then (* the format string itself! *)
+            TPtr((TInt(IChar,[])),[AId("rostring")]) else 
+          match List.nth argTypeList (i-(o+1)) with
+            FormatInt -> TInt(IInt,[])
+          | FormatDouble -> TFloat(FDouble,[])
+          | FormatPointer -> TPtr((TInt(IChar,[])),[AId("rostring")])
+          in 
+          let new_arg_vi = makeGlobalVar this_arg_name this_arg_type in
+          new_arg_vis := !new_arg_vis @ [new_arg_vi] 
+        done ;
+        let new_type = TFun( (TInt(IInt,[])) , !new_arg_vis , false, []) in
+        let new_v = makeGlobalVar new_name new_type in
+        new_v.vattr <- ACons("make_wrapper",[AVar(v)]) :: new_v.vattr ; 
+        theFile := GDecl (new_v, lu) :: !theFile;
+        Some(Lval(Var(new_v),NoOffset))
     | _ -> 
       ignore (E.warn "%s called with non-const format string %a" 
         v.vname d_exp format_arg) ; 
-      false (* cannot handle non-constant format strings *)
+      None (* cannot handle non-constant format strings *)
     end
-  with _ ->
-    false (* we only handle declared printf-like functions *)
+    with _ ->
+      None (* we only handle declared printf-like functions *)
+    end 
+  | _ -> None
 end
 
 (* Do a statement *)
@@ -587,10 +607,14 @@ let rec doStmt (s: stmt) =
       Instr (Set (lv', e'), l)
 
   | Instr (Call (reso, orig_func, args), l) -> 
+      let orig_func = 
+        match isPrintf reso orig_func args with
+          Some(o) -> o
+        | None -> orig_func
+      in 
       let func = (* check and see if it is polymorphic *)
         match orig_func with
           (Lval(Var(v),NoOffset)) -> 
-            let is_printf = isPrintf reso orig_func args v in
             let newvi, ispoly = instantiatePolyFunc v in
             (* And add a declaration for it *)
             if ispoly then

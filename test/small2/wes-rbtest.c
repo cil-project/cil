@@ -1,3 +1,14 @@
+#ifndef _GNUCC
+#ifndef _MSVC
+#define WILD 
+#define SAFE
+#define FSEQ
+#define SEQ
+#define SIZED
+#define U32     int
+#define __cdecl
+#endif
+#endif
 
 /* A special purpose main */
 //#include "main.h"

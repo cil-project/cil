@@ -1213,7 +1213,7 @@ and d_fun_decl () f =
       [], _ -> false, pre
     | _, pre' -> true, pre'
   in
-  dprintf "%s%a%a %a@!{ @[%a@!%a@]@!}" 
+  dprintf "%s%a%a %a@!{ @[%a@!@!%a@]@!}" 
     (if isinline then 
       if !msvcMode then "__inline " else "inline " 
      else "")

@@ -112,6 +112,7 @@ and pointerkind =
   | FSeqN  (* A FSeq in a null-terminated char array *)
 
   | String (* fseq <= string <= fseq *)
+  | ROString (* string->rostring *)
 
   | Index
   | Wild
@@ -168,6 +169,7 @@ let d_pointerkind () = function
   | FSeq -> text "FSEQ" 
   | FSeqN -> text "FSEQN" 
   | String -> text "STRING" 
+  | ROString -> text "ROSTRING"
   | Index -> text "INDEX"
   | Seq -> text "SEQ"
   | SeqN -> text "SEQN"
@@ -285,6 +287,7 @@ let k2attr = function
   | SeqN -> AId("seqn")
   | FSeqN -> AId("fseqn")
   | String -> AId("string")
+  | ROString -> AId("rostring") 
   | _ -> E.s (E.unimp "k2attr")
 
 let attr2k = function
@@ -296,6 +299,7 @@ let attr2k = function
   | AId("fseqn") -> FSeqN
   | AId("seqn") -> SeqN
   | AId("string") -> String
+  | AId("rostring") -> ROString
   | _ -> Unknown
     
 
@@ -314,6 +318,7 @@ let kindOfAttrlist al =
         | AId "sized" -> Index, UserSpec
         | AId "tagged" -> Wild, UserSpec
         | AId "string" -> String, UserSpec
+        | AId "rostring" -> ROString, UserSpec
         | AId "nullterm" -> String, UserSpec
         | _ -> loop al
     end    
@@ -367,6 +372,7 @@ let replacePtrNodeAttrList where al =
         | AId "sized" -> foundNode := "sized"; loop al
         | AId "tagged" -> foundNode := "tagged"; loop al
         | AId "string" -> foundNode := "string"; loop al
+        | AId "rostring" -> foundNode := "rostring"; loop al
         | _ -> a :: loop al
     end
   in 
@@ -381,6 +387,7 @@ let replacePtrNodeAttrList where al =
         else if !foundNode = "seqn" then "nullterm" 
         else if !foundNode = "fseqn" then "nullterm" 
         else if !foundNode = "string" then "nullterm" 
+        else if !foundNode = "rostring" then "nullterm" 
         else if !foundNode = "wild" then "wild" 
         else if where = AtOpenArray then 
           if !defaultIsWild then "wild" else "sized" 
@@ -493,6 +500,7 @@ let ptrAttrCustom printnode = function
     | AId("opt") -> Some (text "OPT")
     | AId("wild") -> Some (text "WILD")
     | AId("string") -> Some (text "STRING")
+    | AId("rostring") -> Some (text "ROSTRING")
     | AId("sized") -> Some (text "SIZED")
     | AId("tagged") -> Some (text "TAGGED")
     | AId("nullterm") -> Some (text "NULLTERM")
