@@ -58,23 +58,23 @@ ECHO = @
 
 ifdef PROFILE
 # RELEASE	= 1
- CAMLC          = ocamlopt -p
- CAMLLINK       = ocamlopt -p
+ CAMLC          = ocamlopt -p $(COMPILEFLAGS)
+ CAMLLINK       = ocamlopt -p $(LINKFLAGS)
  CMO            = cmx
  CMXA           = cmxa
  EXEEXT         = .asm
  MOVEAFTERCAMLC = cmi cmx $(OBJ)
 else
 ifdef RELEASE
- CAMLC          = ocamlopt
- CAMLLINK       = ocamlopt
+ CAMLC          = ocamlopt $(COMPILEFLAGS)
+ CAMLLINK       = ocamlopt $(LINKFLAGS)
  CMO            = cmx
  CMXA           = cmxa
  EXEEXT         = .asm
  MOVEAFTERCAMLC = cmi cmx $(OBJ)
 else 
- CAMLC          = ocamlc -g
- CAMLLINK       = ocamlc -custom -g
+ CAMLC          = ocamlc -g $(COMPILEFLAGS)
+ CAMLLINK       = ocamlc -custom -g $(LINKFLAGS)
  CMO            = cmo
  CMXA           = cma
  EXEEXT         = .byte
