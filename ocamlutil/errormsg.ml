@@ -87,7 +87,7 @@ let showContext () =
     raise e
   end
 
-let contextMessage name d = 
+let contextMessage (name: string) (d: doc) = 
   ignore (eprintf "@!%s: %a@!" name insert d);
   showContext ()
 
