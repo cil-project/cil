@@ -2671,8 +2671,10 @@ let getFieldsOfSized (t: typ) : fieldinfo * fieldinfo =
   
 
 
-
+(* Remember names that we have already mangled *)
 let mangledNames : (string, unit) H.t = H.create 123
+(* Remeber if we mangled the name of main *)
+let mangledMainName : string ref = ref "main"
 let fixupGlobName vi =
   (* Scan a type and compute a list of qualifiers that distinguish the
    * various possible combinations of qualifiers *)
@@ -2728,6 +2730,8 @@ let fixupGlobName vi =
           vi.vname ^ "_" ^ (List.fold_left (fun acc x -> x ^ acc) "" quals)
       in
       H.add mangledNames newname ();
+      if vi.vname = "main" && vi.vstorage <> Static then
+        mangledMainName := newname;
       vi.vname <- newname
     end
 
@@ -3539,7 +3543,7 @@ let boxFile file =
    H.clear sizedArrayTypes;
    extraGlobInit := [];
    let res = {file with globals = res; globinit = newglobinit} in
-   Globinit.insertGlobInit res;
+   Globinit.insertGlobInit ~mainname:!mangledMainName res ;
    res
 
   

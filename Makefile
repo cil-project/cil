@@ -800,8 +800,15 @@ COMBINESAFECC = $(SAFECC) --combine $(DOOPT)
 
 # Barnes-Hut
 BHDIR=test/bh
+ifdef BOX
+BHEXTRA=$(CILDIR)/$(SAFEMAINLIB)
+else
+BHEXTRA=
+endif
 bh : defaulttarget mustbegcc
-	cd $(BHDIR); rm code.exe *.o; make CC="$(COMBINESAFECC) --nobox=bhbox \
+	cd $(BHDIR); rm code.exe *.o; \
+               make EXTRA_LIBS=$(BHEXTRA) \
+                    CC="$(COMBINESAFECC) --nobox=bhbox \
 			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
 	echo  >$(BHDIR)/data.in
 	echo  >>$(BHDIR)/data.in
@@ -842,31 +849,46 @@ compress-noclean: defaulttarget mustbegcc
 	echo "14000000 q 2231" >$(COMPRESSDIR)/exe/base/input.data 
 	sh -c "time $(COMPRESSDIR)/exe/base/compress95.v8 < $(COMPRESSDIR)/exe/base/input.data > $(COMPRESSDIR)/src/combine-compress.out"
 
+ifdef BOX
+COMPRESSEXTRA=$(CILDIR)/$(SAFEMAINLIB) 
+else
+COMPRESSEXTRA=
+endif
 compress: defaulttarget mustbegcc
-	cd $(COMPRESSDIR)/src; make CC="$(COMBINESAFECC) --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)" clean build
+	cd $(COMPRESSDIR)/src; \
+               make EXTRA_LIBS=$(COMPRESSEXTRA) \
+                    CC="$(COMBINESAFECC) --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)" clean build
 	echo "14000000 q 2231" >$(COMPRESSDIR)/exe/base/input.data 
 	sh -c "time $(COMPRESSDIR)/exe/base/compress95.v8 < $(COMPRESSDIR)/exe/base/input.data > $(COMPRESSDIR)/src/combine-compress.out"
 
 LIDIR=$(SPECDIR)/130.li
 LISAFECC=$(SAFECC) --combine --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) --keep=safeccout
+ifdef BOX
+LIEXTRA=$(CILDIR)/$(SAFEMAINLIB)
+else
+LIEXTRA=
+endif
 li: defaulttarget mustbegcc
 	cd $(LIDIR)/src; \
             make clean build CC="$(LISAFECC) $(CONLY)" \
-                             LD="$(LISAFECC)" 
-	time $(LIDIR)/src/trial_li \
+                             LD="$(LISAFECC)" \
+                             EXTRA_LIBS=$(LIEXTRA)
+	sh -c "time $(LIDIR)/src/trial_li \
             <$(LIDIR)/data/train/input/train.lsp \
-            >$(LIDIR)/data/train/input/train.out
+            >$(LIDIR)/data/train/input/train.out"
 
 licombined: defaulttarget mustbegcc
-	cd $(LIDIR)/src; $(SAFECC) trial_li_all.c $(EXEOUT)trial_li_all.exe
+	cd $(LIDIR)/src; \
+            $(SAFECC) trial_li_all.c $(LIEXTRA) $(EXEOUT)trial_li_all.exe
 
 li-noclean: defaulttarget mustbegcc
 	cd $(LIDIR)/src; \
             make build CC="$(LISAFECC) $(CONLY)" \
-                       LD="$(LISAFECC)" 
-	time $(LIDIR)/src/trial_li \
+                       LD="$(LISAFECC)" \
+                       EXTRA_LIBS=$(LIEXTRA) 
+	sh -c "time $(LIDIR)/src/trial_li \
             <$(LIDIR)/data/train/input/train.lsp \
-            >$(LIDIR)/data/train/input/train.out
+            >$(LIDIR)/data/train/input/train.out"
 
 liclean: 
 	cd $(LIDIR)/src; make clean
@@ -882,6 +904,11 @@ liinfer: li
 ### SPEC95 GO
 GODIR=$(SPECDIR)/099.go
 GOSAFECC=$(SAFECC) --combine  --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) --keep=safeccout
+ifdef BOX
+GOEXTRA=$(CILDIR)/$(SAFEMAINLIB)
+else
+GOEXTRA=
+endif
 
 goclean: 	
 	cd $(GODIR)/src; make clean
@@ -891,22 +918,27 @@ goclean:
 go: defaulttarget mustbegcc
 	cd $(GODIR)/src; \
             make clean build CC="$(GOSAFECC) $(CONLY)" \
-                             LD="$(GOSAFECC)" 
-	$(GODIR)/exe/base/go.ultra 5 6 \
-            <$(GODIR)/data/train/input/2stone9.in
+                             LD="$(GOSAFECC)" \
+                             EXTRA_LIBS=$(GOEXTRA)
+	$(GODIR)/exe/base/go.ultra 50 9
 
 go-noclean: defaulttarget mustbegcc
 	cd $(GODIR)/src; \
             make build CC="$(GOSAFECC) $(CONLY)" \
-                       LD="$(GOSAFECC)" 
-	$(GODIR)/exe/base/go.ultra 5 6\
-            <$(GODIR)/data/train/input/2stone9.in
+                       LD="$(GOSAFECC)" \
+                             EXTRA_LIBS=$(GOEXTRA) 
+	sh -c "time $(GODIR)/exe/base/go.ultra 50 9"
 
 
 
 ### SPEC95 vortex
 VORDIR=$(SPECDIR)/147.vortex
 VORSAFECC=$(SAFECC) --combine --keep=safeccout
+ifdef BOX
+VOREXTRA=$(CILDIR)/$(SAFEMAINLIB)
+else
+VOREXTRA=
+endif
 
 vortexclean: 	
 	cd $(VORDIR)/src; make clean
@@ -915,20 +947,27 @@ vortexclean:
 vortex: defaulttarget mustbegcc
 	cd $(VORDIR)/src; \
             make clean build CC="$(VORSAFECC) $(CONLY)" \
-                             LD="$(VORSAFECC)" 
-	$(VORDIR)/exe/base/vortex.ultra \
-            <$(VORDIR)/data/test/input/vortex.raw
+                             LD="$(VORSAFECC)" \
+                             EXTRA_LIBS=$(VOREXTRA)
+	sh -c "time $(VORDIR)/exe/base/vortex.ultra \
+            <$(VORDIR)/data/test/input/vortex.raw"
 
 vortex-noclean: defaulttarget mustbegcc
 	cd $(VORDIR)/src; \
             make build CC="$(VORSAFECC) $(CONLY)" \
-                       LD="$(VORSAFECC)" 
-	$(VORDIR)/exe/base/vortex.ultra \
-            <$(VORDIR)/data/test/input/vortex.raw
+                       LD="$(VORSAFECC)" \
+                       EXTRA_LIBS=$(VOREXTRA) 
+	sh -c "time $(VORDIR)/exe/base/vortex.ultra \
+            <$(VORDIR)/data/test/input/vortex.raw"
 
 ### SPEC95 m88ksim
 M88DIR=$(SPECDIR)/124.m88ksim
 M88SAFECC=$(SAFECC) --combine --keep=safeccout
+ifdef BOX
+M88EXTRA=$(CILDIR)/$(SAFEMAINLIB)
+else
+M88EXTRA=
+endif
 
 m88kclean: 	
 	cd $(M88DIR)/src; make clean
@@ -937,12 +976,26 @@ m88kclean:
 m88k: defaulttarget mustbegcc
 	cd $(M88DIR)/src; \
             make clean build CC="$(M88SAFECC) $(CONLY)" \
-                             LD="$(M88SAFECC)" 
-	$(M88DIR)/exe/base/m88ksim.ultra
+                             LD="$(M88SAFECC)" \
+                             EXTRA_LIBS=$(M88EXTRA) 
+	sh -c "time $(M88DIR)/exe/base/m88ksim.ultra"
+
+m88k-noclean: defaulttarget mustbegcc
+	cd $(M88DIR)/src; \
+            make       build CC="$(M88SAFECC) $(CONLY)" \
+                             LD="$(M88SAFECC)" \
+                             EXTRA_LIBS=$(M88EXTRA) 
+	sh -c "time $(M88DIR)/exe/base/m88ksim.ultra"
+
 
 ### SPEC95 ijpeg
 IJPEGDIR=$(SPECDIR)/132.ijpeg
 IJPEGSAFECC=$(SAFECC) --combine --keep=safeccout
+ifdef BOX
+IJPEGEXTRA=$(CILDIR)/$(SAFEMAINLIB)
+else
+IJPEGEXTRA=
+endif
 
 ijpegclean: 	
 	cd $(IJPEGDIR)/src; make clean
@@ -951,10 +1004,28 @@ ijpegclean:
 ijpeg: defaulttarget mustbegcc
 	cd $(IJPEGDIR)/src; \
             make clean build CC="$(IJPEGSAFECC) $(CONLY)" \
-                             LD="$(IJPEGSAFECC)" 
-	$(IJPEGDIR)/exe/base/ijpeg.ultra \
+                             LD="$(IJPEGSAFECC)" \
+                             EXTRA_LIBS=$(IJPEGEXTRA)
+	sh -c "time $(IJPEGDIR)/exe/base/ijpeg.ultra \
             -image_file $(IJPEGDIR)/data/ref/input/penguin.ppm \
-            -GO
+            -GO"
+
+ijpeg-combined: defaulttarget mustbegcc
+	cd $(IJPEGDIR)/exe/base; \
+            $(SAFECC) ijpeg.ultra_all.c $(IJPEGEXTRA) \
+                $(EXEOUT)ijpeg.ultra
+	sh -c "time $(IJPEGDIR)/exe/base/ijpeg.ultra \
+            -image_file $(IJPEGDIR)/data/ref/input/penguin.ppm \
+            -GO"
+
+ijpeg-noclean: defaulttarget mustbegcc
+	cd $(IJPEGDIR)/src; \
+            make       build CC="$(IJPEGSAFECC) $(CONLY)" \
+                             LD="$(IJPEGSAFECC)" \
+                             EXTRA_LIBS=$(IJPEGEXTRA)
+	sh -c "time $(IJPEGDIR)/exe/base/ijpeg.ultra \
+            -image_file $(IJPEGDIR)/data/ref/input/penguin.ppm \
+            -GO"
 
 #### SPEC95 gcc
 GCCDIR=$(SPECDIR)/126.gcc

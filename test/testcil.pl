@@ -38,6 +38,7 @@ my %commonerrors =
                  $_[1]->{ErrorCode} = $_[1]->{instage};
              }
          }},
+    "stackdump: Dumping stack trace" => sub { $_[1]->{ErrorCode} = 1006; },
     
     "Syntax error" => sub { $_[1]->{ErrorCode} = 1000; },
     
@@ -150,15 +151,15 @@ $TEST->add1Test("test/alloc-manualinferbox",
                 "test/alloc INFERBOX=$inferbox MANUALBOX=1",
                 %commonerrors);
 $TEST->add3Tests("bh", "_GNUCC=1");
-   $TEST->addBadComment("bh-box", "missing wrappers");
+   $TEST->addBadComment("bh-box", "CRASHES");
 $TEST->add3Tests("li", "_GNUCC=1");
   $TEST->addBadComment("li-box", "bug in box.ml");
   $TEST->addBadComment("li-inferbox", "bug in box.ml");
 $TEST->add3Tests("compress", "_GNUCC=1");
-   $TEST->addBadComment("compress-box", "missing wrappers");
+#   $TEST->addBadComment("compress-box", "missing wrappers");
 $TEST->add3Tests("go", "_GNUCC=1");
-   $TEST->addBadComment("go-box", "missing wrappers");
-   $TEST->addBadComment("go-inferbox", "missing wrappers");
+   $TEST->addBadComment("go-box", "CRASHES with LBound");
+   $TEST->addBadComment("go-inferbox", "CRASHES with LBound");
 $TEST->add3Tests("apache/gzip");
    $TEST->add3Group("apache/gzip", "apache");
 #   $TEST->addBadComment("apache/gzip-inferbox", "BUG");
@@ -269,6 +270,7 @@ sub errorHeading {
     return "Constraint solving error" if $err == 1003;
     return "Boxing error" if $err == 1004;
     return "Compilation error" if $err == 1005;
+    return "Execution error" if $err == 1006;
     return "Error $err";
 }
 

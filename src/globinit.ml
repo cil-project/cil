@@ -10,7 +10,7 @@ module E = Errormsg
 
 
 (* Insert the global initializer in the main *)
-let insertGlobInit (file: file) : unit = 
+let insertGlobInit ?(mainname="main") (file: file) : unit = 
   match file.globinit with 
   | Some gi when not file.globinitcalled -> 
       let theFile : global list ref = ref [] in
@@ -19,7 +19,7 @@ let insertGlobInit (file: file) : unit =
         begin
           fun g ->
             (match g with
-              GFun(m, lm) when m.svar.vname = "main" ->
+              GFun(m, lm) when m.svar.vname = mainname ->
                 (* Prepend a prototype *)
                 theFile := GDecl (gi.svar, lm) :: !theFile;
                 m.sbody <- 
@@ -35,8 +35,8 @@ let insertGlobInit (file: file) : unit =
         end
         file.globals;
       if not !inserted then 
-        ignore (E.warn "Cannot find main to add global initializer %s" 
-                  gi.svar.vname);
+        ignore (E.warn "Cannot find %s to add global initializer %s" 
+                  mainname gi.svar.vname);
       file.globals <- List.rev !theFile
   | _ -> ()
 
