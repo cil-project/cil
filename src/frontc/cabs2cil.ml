@@ -164,8 +164,9 @@ let reduce_multichar typ =
 
 let interpret_character_constant char_list =
   let value = reduce_multichar charType char_list in
-  if value < (Int64.of_int 256) then
-    (CChr(Char.chr (Int64.to_int value))),(TInt(IChar,[]))
+  if value < (Int64.of_int 256) then  
+    (* ISO C 6.4.4.4.10: single-character constants have type int *)
+    (CChr(Char.chr (Int64.to_int value))), intType
   else begin
     let orig_rep = None (* Some("'" ^ (String.escaped str) ^ "'") *) in
     if value < (Int64.of_int 65536) then
