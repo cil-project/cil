@@ -38,6 +38,10 @@ clean:
 		-name '*~' -o \
 		-name '*.cil.c' -o \
 		-name '*.cured.c' -o \
+		-name '*cured.c' -o \
+		-name '*.s' -o \
+		-name '*.a' -o \
+		-name '*.stackdump' -o \
 		-name '*.optimcured.c' -o \
                 -name '*.cured.*.optim.c' -o \
 		-name '*.exe' -o \
@@ -2867,3 +2871,54 @@ tile:
 	cd $(TILEDIR); rm -f tile.exe *.o; \
                make CC="$(COMBINECCURED) --allowInlineAssembly"
 	cd $(TILEDIR); make run
+
+#----------------------------------------------------------------------
+# Generate a distribution of the CIL/CCured regression tests
+
+.PHONY: distrib distrib-nocheck checkdistrib
+TESTS_TAR_GZ:=ccured-tests-@CIL_VERSION@.tar.gz
+## Make a distribution and check it
+distrib: distrib-nocheck checkdistrib
+
+# Work in a temporary directory
+TEMP_DIR = ../TEMP_ccured-distrib
+
+# The tar archive members will be relative to this directory
+TOP_DIR = $(TEMP_DIR)/test
+
+DISTRIB_TEST = Makefile.in RegTest.pm testsafec testsafec.pl testcil.h
+
+distrib-nocheck: clean
+        # Clean the test directory
+        # Create the distribution from scratch
+	-mkdir $(TEMP_DIR)
+	rm -rf $(TOP_DIR)
+
+	rm -rf $(TESTS_TAR_GZ)
+	mkdir $(TOP_DIR) 
+
+	cp $(patsubst %,%,$(DISTRIB_TEST)) $(TOP_DIR)
+	cp -r small1 small2 olden spec95 ptrdist-1.1 bad ftpd ping $(TOP_DIR)
+# Delete all CVS directories
+	if find $(TEMP_DIR) -name CVS -print >cvss.txt ; then \
+            rm -rf `cat cvss.txt` ;fi
+# Now make the TAR ball
+	cd $(TEMP_DIR); tar cfz $(TESTS_TAR_GZ) test
+	mv $(TEMP_DIR)/$(TESTS_TAR_GZ) ..
+
+#	rm -rf $(TEMP_DIR)
+
+## Check a distribution
+checkdistrib:
+	cd $(TOP_DIR) && ./configure && $(MAKE) && $(MAKE) quicktest
+
+
+## Publish the distribution
+TESTSHTMLDEST=/usr/local/apache-1.3.22/htdocs/ccured
+publish_distrib: doc
+	if test -d $(TESTSHTMLDEST); then \
+           cp -f $(TESTS_TAR_GZ) $(TESTSHTMLDEST)/distrib; \
+           ln -sf $(TESTSHTMLDEST)/distrib/$(TESTS_TAR_GZ) $(TESTSHTMLDEST)/distrib/ccured-tests-latest.tar.gz ; \
+	else \
+	   error "Cannot publish because $(TESTSHTMLDEST) does not exist" ; \
+        fi
