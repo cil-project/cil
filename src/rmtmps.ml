@@ -195,9 +195,9 @@ begin
   (* iterate over the list of globals in reverse, marking things *)
   (* as reachable if they are reachable from the roots, and *)
   (* removing ultimately unreachable toplevel constructs *)
-  let rec revLoop (lst : global list) : global list =
+  let rec revLoop (lst : global clist) : global clist =
     match lst with
-    | hd::tl -> (
+    | CConsL(hd, tl) -> (
         (* process the tail first; going backwards is the key *)
         (* to keeping this dependency analysis simple, since it *)
         (* means we will always process all of the uses of a *)
@@ -291,12 +291,14 @@ begin
         in
 
         if (retainHead) then
-          hd :: processedTail
+          CConsL(hd, processedTail)
         else
           processedTail
       )
 
-    | [] -> []
+    | CEmpty -> CEmpty
+    | CConsR _ as l -> revLoop (linearize l)
+    | CSeq _ as l -> revLoop (linearize l)
   in
 
   file.globals <- (revLoop file.globals)

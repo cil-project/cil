@@ -10,7 +10,7 @@ open Ptrnode
 open Solveutil
 module H = Hashtbl
 
-let show_steps = false
+let show_steps = true
 
 (* Set this to true and initialize the watch_which_nodes with a list of nodes 
  * to be watched *)
@@ -572,6 +572,8 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       (update n Safe Unconstrained)
     end
   ) node_ht ;
+
+  if show_steps then ignore (E.log "Solver: DONE\n") ;
 
 end
 

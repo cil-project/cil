@@ -66,10 +66,116 @@ let currentLoc : location ref = ref locUnknown
 
 let printShortTypes = ref false
 
-(* Information about a variable. Use one of the makeLocalVar, makeTempVar or 
- * makeGlobalVar to create instances of this data structure. These structures a
- * re shared by all references to the variable. So, you can change the name
- * easily, for example *)
+
+
+(* We often need to concatenate sequences and using lists for this purpose is 
+ * expensive. So we define a kind of "concatenable lists" that are easier to 
+ * concatenate *)
+type 'a clist = 
+  | CEmpty                        (* The only representation for the empty 
+                                   * list  *)
+  | CConsL of 'a * 'a clist
+  | CConsR of 'a clist * 'a 
+  | CSeq  of 'a clist * 'a clist (* We concatenate only two of them at this 
+                                  * time. Neither is CEmpty. To be sure 
+                                  * always use append to make these  *)
+
+let rec linearizeOnto (tail: 'a clist) = function
+    CEmpty -> tail
+  | CConsL (x, l) as l0 -> 
+      let l' = linearizeOnto tail l in
+      if l == l' then l0 else CConsL (x, l')
+  | CConsR (l, x) -> linearizeOnto (CConsL (x, tail)) l
+  | CSeq (l1, l2) -> linearizeOnto (linearizeOnto tail l2) l1
+        
+let linearize l = linearizeOnto CEmpty l
+    
+    
+let single x = CConsL (x, CEmpty)
+    
+let append l1 l2 = 
+  if l1 == CEmpty then l2 else
+  if l2 == CEmpty then l1 else
+  CSeq (l1, l2)
+    
+let rec length (acc: int) = function
+    CEmpty -> acc
+  | CConsL (_, l) -> length (acc + 1) l
+  | CConsR (l, _) -> length (acc + 1) l
+  | CSeq (l1, l2) -> length (length acc l1) l2
+let length l = length 0 l  (* The external version *)
+    
+let map (f: 'a -> 'b) (l: 'a clist) : 'b clist = 
+  let rec loop = function
+      CEmpty -> CEmpty
+    | CConsL (x, l) -> let x' = f x in CConsL (x', loop l)
+    | CConsR (l, x) -> let l' = loop l in CConsR (l', f x)
+    | CSeq (l1, l2) -> let l1' = loop l1 in CSeq (l1', loop l2)
+  in
+  loop l
+    
+let mapList (f: 'a -> 'b clist) (l: 'a clist) : 'b clist = 
+  let rec loop = function
+      CEmpty -> CEmpty
+    | CConsL (x, l) -> let x' = f x in append x' (loop l)
+    | CConsR (l, x) -> let l' = loop l in append l' (f x)
+    | CSeq (l1, l2) -> let l1' = loop l1 in append l1' (loop l2)
+  in
+  loop l
+    
+let fold_left (f: 'acc -> 'a -> 'acc) (start: 'acc) (l: 'a clist) = 
+  let rec loop (start: 'acc) = function
+      CEmpty -> start
+    | CConsL (x, l) -> loop (f start x) l
+    | CConsR (l, x) -> let res = loop start l in f res x
+    | CSeq (l1, l2) -> 
+        let res1 = loop start l1 in
+        loop res1 l2
+  in
+  loop start l
+    
+let iter (f: 'a -> unit) (l: 'a clist) : unit = 
+  let rec loop = function
+      CEmpty -> ()
+    | CConsL (x, l) -> f x; loop l
+    | CConsR (l, x) -> loop l; f x
+    | CSeq (l1, l2) -> loop l1; loop l2
+  in
+  loop l
+    
+let rec hdtl (l: 'a clist) : 'a option * 'a clist = 
+  match l with
+    CEmpty -> None, CEmpty
+  | CConsL (x, l) -> Some x, l
+  | CConsR (CEmpty, x) -> Some x, CEmpty
+  | CConsR (l, x) -> 
+      let (h, t) = hdtl l in
+      (h, CConsR (t, x))
+  | CSeq (l1, l2) -> (* We know that l1 is not empty *)
+      assert (l1 != CEmpty);
+      let (h, t) = hdtl l1 in
+      (h, CSeq (t, l2))
+        
+let rec rev = function
+    CEmpty -> CEmpty
+  | CConsL (x, l) -> CConsR (rev l, x)
+  | CConsR (l, x) -> CConsL (x, rev l)
+  | CSeq (l1, l2) -> CSeq (rev l2, rev l1)
+
+        
+let rec fromList = function
+    [] -> CEmpty
+  | x :: rest -> CConsL(x, fromList rest)
+        
+let rec fromListRevOnto (tail: 'a clist) = function
+    [] -> tail
+  | x :: rest -> fromListRevOnto (CConsL(x, tail)) rest
+let fromListRev l = fromListRevOnto CEmpty l
+        
+ (* Information about a variable. Use one of the makeLocalVar, makeTempVar or 
+  * makeGlobalVar to create instances of this data structure. These 
+  * structures a re shared by all references to the variable. So, you can 
+  * change the name easily, for example  *)
 type varinfo = { 
     mutable vid: int;	(* Unique integer indentifier. For globals this is a 
                          * hash of the name. Locals are numbered from 0 
@@ -423,7 +529,7 @@ and stmt = {
 
 (* A few kinds of statements *)
 and stmtkind = 
-  | Instr  of instr list                (* A bunch of instructions that do not 
+  | Instr  of instr clist         (* A bunch of instructions that do not 
                                          * contain control flow stuff. 
                                          * Control flows falls through. *)
   | Return of exp option * location     (* The return statement. This is a 
@@ -453,7 +559,7 @@ and stmtkind =
 
 (* A block is a sequence of statements with the control falling through from 
  * one element to the next *)
-and block = stmt list
+and block = stmt clist
 
 and label = 
     Label of string * location          (* A real label *)
@@ -531,7 +637,7 @@ type global =
 
 type file = 
     { mutable fileName: string;   (* the complete file name *)
-      mutable globals: global list;
+      mutable globals: global clist;
       mutable globinit: fundec option;  (* A global initializer. It 
                                                   * is not part of globals 
                                                   * and it is printed last. 
@@ -540,10 +646,6 @@ type file =
       mutable globinitcalled: bool;     (* Whether the global initialization 
                                          * function is called in main *)
     } 
-
-
-
-
 
 
 
@@ -609,7 +711,8 @@ let get_instrLoc (inst : instr) =
     | Asm(_, _, _, _, _, loc) -> loc
 
 
-let get_stmtLoc (statement : stmtkind) =
+let get_stmtLoc (statement : stmtkind) = lu
+(*
   match statement with 
       Instr([]) -> lu
     | Instr(hd::tl) -> get_instrLoc(hd)
@@ -620,7 +723,7 @@ let get_stmtLoc (statement : stmtkind) =
     | If(_, _, _, loc) -> loc
     | Switch(_, _, _, loc) -> loc
     | Loop(_, loc) -> loc
-
+*)
 
 
 
@@ -686,37 +789,47 @@ let mkStmt (sk: stmtkind) : stmt =
     labels = [];
     sid = -1; succs = []; preds = [] }
 
-let mkEmptyStmt () = mkStmt (Instr [])
+let mkStmtOneInstr (i: instr) = 
+  { skind = Instr (single i); labels = []; sid = -1; 
+    succs = []; preds = [] }
+
+let mkEmptyStmt () = mkStmt (Instr CEmpty)
 
 let dummyStmt = 
-  mkStmt (Instr [(Asm(["dummy statement!!"], false, [], [], [], lu))])
+  mkStmt (Instr (single 
+                   (Asm(["dummy statement!!"], false, [], [], [], lu))))
 
+(* Tries to compact adjacent statements containing only instructions *)
 let compactBlock (b: block) : block =  
-      (* Try to compress statements *)
-  let rec compress (leftover: stmt) = function
-      [] -> if leftover == dummyStmt then [] else [leftover]
-    | ({skind=Instr il} as s) :: rest ->
-        if leftover == dummyStmt then
-          compress s rest
-        else
-          if s.labels == [] then
-            match leftover.skind with 
-              Instr previl -> 
-                leftover.skind <- Instr (previl @ il);
-                compress leftover rest
-            | _ -> E.s (E.bug "cabs2cil: compress")
-          else
-                (* This one has labels. Cannot attach to prev *)
-            leftover :: compress s rest
-        | s :: rest -> 
-            let res = s :: compress dummyStmt rest in
-            if leftover == dummyStmt then
-              res
+  (* Go over all of the statements in order and remeber the last statement 
+   * containing only instructions (if any) *)
+  let newblock, leftover = 
+    fold_left
+      (fun (((startblock: block), (leftoverstmt: stmt option)) as acc) s ->
+        match leftoverstmt, s.skind  with 
+          None, Instr il -> (startblock, Some s)
+        | Some leftover, Instr il  -> 
+            if s.labels = [] then
+              (* If it has no labels we can drop this statement and add its 
+               * instructions to the leftover *)
+              match leftover.skind with 
+                Instr previl -> 
+                  leftover.skind <- Instr (append previl il);
+                  acc
+              | _ -> E.s (E.bug "cabs2cil: compactBlock")
             else
-              leftover :: res
+              (CConsR (startblock, leftover), Some s)
+        | None, _ -> (CConsR (startblock, s), None)
+        | Some leftover, _ -> 
+            (CConsR (CConsR (startblock, leftover), s), None))
+      (CEmpty, None)
+      b
   in
-  compress dummyStmt b
+  match leftover with 
+    None -> newblock
+  | Some s -> CConsR (newblock, s)
 
+    
 (*
 let structId = ref 0 (* Find a better way to generate new names *)
 let newTypeName n = 
@@ -861,24 +974,28 @@ let var vi : lval = (Var vi, NoOffset)
 let mkString s = Const(CStr s)
 
 
-let mkWhile (guard:exp) (body: stmt list) : stmt list = 
+let mkWhile (guard:exp) (body: block) : block = 
   (* Do it like this so that the pretty printer recognizes it *)
-  [ mkStmt (Loop (mkStmt (If(guard, 
-                             [ mkEmptyStmt () ], 
-                             [ mkStmt (Break lu)], lu)) ::
-                  compactBlock body, lu)) ]
+  single
+    (mkStmt (Loop (CConsL
+                     (mkStmt (If(guard, 
+                                 single (mkEmptyStmt ()),
+                                 single (mkStmt (Break lu)), lu)),
+                      compactBlock body), 
+                   lu)))
 
 
 
-let mkFor (start: stmt list) (guard: exp) (next: stmt list) 
-          (body: stmt list) : stmt list = 
+let mkFor (start: block) (guard: exp) (next: block) 
+          (body: block) : block = 
   compactBlock
-    (start @ 
-     (mkWhile guard (compactBlock (body @ next))))
+    (append 
+       start
+       (mkWhile guard (compactBlock (append body next))))
 
     
 let mkForIncr (iter: varinfo) (first: exp) (past: exp) (incr: exp) 
-    (body: stmt list) : stmt list = 
+    (body: block) : block = 
       (* See what kind of operator we need *)
   let compop, nextop = 
     match unrollType iter.vtype with
@@ -886,11 +1003,14 @@ let mkForIncr (iter: varinfo) (first: exp) (past: exp) (incr: exp)
     | _ -> Lt, PlusA
   in
   mkFor 
-    [ mkStmt (Instr [(Set (var iter, first, lu))]) ]
+    (single (mkStmt (Instr (single (Set (var iter, first, lu))))))
     (BinOp(compop, Lval(var iter), past, intType))
-    [ mkStmt (Instr [(Set (var iter, 
-                           (BinOp(nextop, Lval(var iter), incr, iter.vtype)),
-                           lu))])] 
+    (single 
+       (mkStmt (Instr (single 
+                         (Set (var iter, 
+                               (BinOp(nextop, Lval(var iter), 
+                                      incr, iter.vtype)),
+                               lu))))))
     body
   
 
@@ -1157,6 +1277,15 @@ let setCustomPrintAttributeScope custom f =
     d_attrcustom := ocustom;
     res
 
+
+let docCList (sep: doc) (doone: 'a -> doc) () (dl: 'a clist) = 
+  fold_left 
+    (fun (acc: doc) (elem: 'a) -> 
+      let elemd = doone elem in
+      if acc == nil then elemd else acc ++ sep ++ elemd)
+    nil
+    dl
+
 (* Make an statement that we'll use as an invalid statement during printing *)
 let invalidStmt = {dummyStmt with sid = -2}
 
@@ -1240,11 +1369,6 @@ and d_type () t =
         match !d_attrcustom a with
           Some _ -> true
         | _ -> false)
-(*
-(Attr(an, _)) -> 
-        match an with 
-          "const" | "volatile" -> true | _ -> false)
-*)
       ta
   in
   let fixattrs = function
@@ -1469,7 +1593,7 @@ and d_stmt_next (next: stmt) () (s: stmt) =
     (* print the statement itself. If the labels are non-empty and the 
      * statement is empty, print a semicolon  *)
     (fun _ ->
-      if s.skind = Instr [] && s.labels <> [] then
+      if (s.skind = Instr CEmpty) && s.labels <> [] then
         text ";"
       else
         d_stmtkind next () s.skind)
@@ -1482,7 +1606,29 @@ and d_label () = function
   | Case (e, _) -> dprintf "case %a: " d_exp e
   | Default _ -> text "default: "
 
-and d_block () blk = 
+and d_block () (blk: block) =
+  let doblock _ =
+    let thedoc, lasto = 
+      fold_left
+        (* acc stores the statements printed, excluding the previous one *)
+        (fun ((acc: doc), (prevo: stmt option)) (s: stmt) ->
+          (* Print the previous statement *)
+          match prevo with 
+            None -> (acc, Some s)
+          | Some prev -> 
+              let acc' = acc ++ (d_stmt_next s () prev) in
+              (acc', Some s))
+        (nil, None)
+        blk
+    in
+    (* Now do the last one as well *)
+    thedoc ++
+      (match lasto with
+        None -> nil
+      | Some last -> d_stmt_next invalidStmt () last) 
+  in
+  dprintf "@[{ @[@!%t@]@!}@]" doblock 
+  (*
   let rec dofirst () = function
       [] -> nil
     | [x] -> d_stmt_next invalidStmt () x
@@ -1490,12 +1636,21 @@ and d_block () blk =
   and dorest acc prev = function
       [] -> acc ++ (d_stmt_next invalidStmt () prev)
     | x :: rest -> 
-        dorest (acc ++ (d_stmt_next x () prev) ++ line)
-                  x rest
-  in
-  dprintf "@[{ @[@!%a@]@!}@]" dofirst blk
+        dorest (acc ++ (d_stmt_next x () prev) ++ line) x rest
+*)
 
-and d_stmtkind (next: stmt) () = function
+
+(* Pretty print a statement. We know what the next statement is and sometimes 
+ * we can print nicer stuff *)
+and d_stmtkind (next: stmt) () (skind: stmtkind) = 
+  (* Check if a block contains just a goto to "next" *)
+  let isGotoNext (b: block) = 
+    match hdtl b with 
+      None, _ -> false
+    | Some {labels = []; skind = Goto(gref, _)}, CEmpty -> !gref == next
+    | _ -> false
+  in
+  match skind with
     Return(None, l) -> dprintf "\n%s@!return;" (printLine l)
   | Return(Some e, l) -> dprintf "\n%s@!return (%a);" (printLine l) d_exp e
   | Goto (sref, l) -> d_goto !sref
@@ -1504,18 +1659,19 @@ and d_stmtkind (next: stmt) () = function
 (*  | Instr [] -> text "/* empty block */" *)
   | Instr il ->
       dprintf "@[%a@]"
-        (docList line (fun i -> d_instr () i)) il
-  | If(be,t,[],l) ->
+        (docCList line (fun i -> d_instr () i)) il
+  | If(be,t,CEmpty,l) ->
       dprintf "\n%s@!if@[ (%a)@!%a@]" (printLine l) d_exp be d_block t
-  | If(be,t,[{skind=Goto(gref,_);labels=[]} as s],l)
-      when !gref == next ->
+  | If(be,t,e,l) when isGotoNext e -> 
       dprintf "\n%s@!if@[ (%a)@!%a@]" (printLine l) d_exp be d_block t
-  | If(be,[],e,l) ->
-      dprintf "\n%s@!if@[ (%a)@!%a@]" (printLine l) d_exp (UnOp(LNot,be,intType)) d_block e
-  | If(be,[{skind=Goto(gref,_);labels=[]} as s],e,l)
-      when !gref == next ->
-      dprintf "\n%s@!if@[ (%a)@!%a@]" (printLine l) d_exp  (UnOp(LNot,be,intType))
-          d_block e
+  | If(be,CEmpty,e,l) ->
+      dprintf "\n%s@!if@[ (%a)@!%a@]" (printLine l) 
+        d_exp (UnOp(LNot,be,intType)) d_block e
+  | If(be,t,e,l) when isGotoNext e -> 
+      dprintf "\n%s@!if@[ (%a)@!%a@]" (printLine l) d_exp  
+        (UnOp(LNot,be,intType))
+        d_block e
+
   | If(be,t,e,l) ->
       dprintf "\n%s@!@[if@[ (%a)@!%a@]@!el@[se@!%a@]@]" (printLine l)
         d_exp be d_block t d_block e
@@ -1533,21 +1689,27 @@ and d_stmtkind (next: stmt) () = function
       (* Maybe the first thing is a conditional *)
       try
         let term, body =
-          let rec skipEmpty = function
-              [] -> []
-            | {skind=Instr [];labels=[]} :: rest -> skipEmpty rest
-            | x -> x
+          (* Skip the empty blocks and then do a hdtl *)
+          let rec skipEmpty (b: block) : stmt option * block = 
+            match hdtl b with
+              None, _ -> None, CEmpty
+            | Some {skind = Instr CEmpty; labels = []}, rest 
+              -> skipEmpty rest
+            | res -> res
           in
           match skipEmpty b with
-            {skind=If(e,tb,fb,_)} :: rest -> begin
+            None, _ -> raise Not_found (* Empty loop body *)
+          | Some {skind=If(e, tb, fb, _); labels=[]}, rest -> begin
               match skipEmpty tb, skipEmpty fb with
-                [], {skind=Break _} :: _  -> e, rest
-              | {skind=Break _} :: _, [] -> UnOp(LNot, e, intType), rest
+                (None, _), (Some {skind=Break _}, _)  -> e, rest
+              | (Some {skind=Break _}, _), (None, _) -> 
+                  UnOp(LNot, e, intType), rest
               | _ -> raise Not_found
             end
           | _ -> raise Not_found
         in
-        dprintf "\n%s@!wh@[ile (%a)@!%a@]" (printLine l) d_exp term d_block body
+        dprintf "\n%s@!wh@[ile (%a)@!%a@]" 
+          (printLine l) d_exp term d_block body
       with Not_found ->
         dprintf "\n%s@!wh@[ile (1)@!%a@]" (printLine l) d_block b
 
@@ -1788,7 +1950,7 @@ and visitCilStmt (vis: cilVisitor) (s: stmt) : unit =
     | Loop (b, _) -> fBlock b
     | If(e, s1, s2, _) -> fExp e; fBlock s1; fBlock s2
     | Switch (e, b, _, _) -> fExp e; fBlock b
-    | Instr il -> List.iter fInst il
+    | Instr il -> iter fInst il
   in
   (* Visit the labels *)
   List.iter (function Case (e, _) -> fExp e | _ -> ()) s.labels;
@@ -1797,7 +1959,7 @@ and visitCilStmt (vis: cilVisitor) (s: stmt) : unit =
  
 and visitCilBlock (vis: cilVisitor) (b: block) : unit = 
   let fStmt s = (visitCilStmt vis s) in
-  List.iter fStmt b
+  iter fStmt b
 
 
 and visitCilType (vis : cilVisitor) (t : typ) : unit =
@@ -1900,7 +2062,7 @@ begin
   let fGlob g = (visitCilGlobal vis g) in
 
   (* primary list of globals *)
-  (List.iter fGlob f.globals);
+  (iter fGlob f.globals);
 
   (* the global initializer *)
   (match f.globinit with
@@ -1923,7 +2085,7 @@ begin
   | Some g -> (fGlob (GFun(g, locUnknown))));
 
   (* then the primary list of globals, reversed *)
-  (List.iter fGlob (List.rev f.globals))
+  (iter fGlob (rev f.globals))
 end
 
 
@@ -1971,7 +2133,7 @@ let emptyFunction name =
     smaxid = 0;
     slocals = [];
     sformals = [];
-    sbody = [];
+    sbody = CEmpty;
     sinline = false;
   } 
 
@@ -1989,7 +2151,7 @@ let setFormals (f: fundec) (forms: varinfo list) =
     (* A dummy function declaration handy for initialization *)
 let dummyFunDec = emptyFunction "@dummy"
 let dummyFile = 
-  { globals = [];
+  { globals = CEmpty;
     fileName = "<dummy>";
     globinit = None;
     globinitcalled = false}
@@ -2031,7 +2193,7 @@ let getGlobInit (fl: file) =
 (* Iterate over all globals, including the global initializer *)
 let iterGlobals (fl: file)
                 (doone: global -> unit) : unit =
-  List.iter doone fl.globals;
+  iter doone fl.globals;
   (match fl.globinit with
     None -> ()
   | Some g -> doone (GFun(g, locUnknown)))
@@ -2040,7 +2202,7 @@ let iterGlobals (fl: file)
 let foldGlobals (fl: file) 
                 (doone: 'a -> global -> 'a) 
                 (acc: 'a) : 'a = 
-  let acc' = List.fold_left doone acc fl.globals in
+  let acc' = fold_left doone acc fl.globals in
   (match fl.globinit with
     None -> acc'
   | Some g -> doone acc' (GFun(g, locUnknown)))
@@ -2049,7 +2211,7 @@ let foldGlobals (fl: file)
 (* Fold over all globals, including the global initializer *)
 let mapGlobals (fl: file) 
                (doone: global -> global) : unit = 
-  fl.globals <- List.map doone fl.globals;
+  fl.globals <- map doone fl.globals;
   (match fl.globinit with
     None -> ()
   | Some g -> begin
@@ -2136,22 +2298,21 @@ let printFileWithCustom (out: out_channel)
 
 (******************** OPTIMIZATIONS *****)
 let rec peepHole1 (* Process one statement and possibly replace it *)
-                  (doone: instr -> instr list option)
+                  (doone: instr -> instr clist option)
                   (* Scan a block and recurse inside nested blocks *)
                   (b: block) : unit = 
-  List.iter 
+  iter 
     (fun s -> 
       match s.skind with
         Instr il -> 
-          let rec loop = function
-              [] -> []
-            | i :: rest -> begin
+          let il' = 
+            mapList 
+              (fun i -> 
                 match doone i with
-                  None -> i :: loop rest
-                | Some sl -> loop (sl @ rest)
-            end
+                  None -> single i
+                | Some sl -> sl) il
           in
-          s.skind <- Instr (loop il)
+          s.skind <- Instr il'
       | If (e, tb, eb, _) -> 
           peepHole1 doone tb;
           peepHole1 doone eb
@@ -2160,10 +2321,10 @@ let rec peepHole1 (* Process one statement and possibly replace it *)
       | Return _ | Goto _ | Break _ | Continue _ -> ())
     b
 
-let rec peepHole2  (* Process two statements and possibly replace them both *)
-                   (dotwo: instr * instr -> instr list option)
+(*let rec peepHole2   Process two statements and possibly replace them both
+                   (dotwo: instr * instr -> instr clist option)
                    (b: block) : unit = 
-  List.iter 
+  iter 
     (fun s -> 
       match s.skind with
         Instr il -> 
@@ -2185,7 +2346,7 @@ let rec peepHole2  (* Process two statements and possibly replace them both *)
       | Loop (b, l) -> peepHole2 dotwo b
       | Return _ | Goto _ | Break _ | Continue _ -> ())
     b
-
+ *)
 
 
 (**** Compute the type of an expression ****)
