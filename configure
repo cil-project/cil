@@ -2784,7 +2784,7 @@ done
 # $target is typically processor-vendor-os
 case "$target" in
   # linux
-  *86*linux*|*86*freebsd)
+  *86*linux*|*86*freebsd*)
     echo "$as_me:2788: result: configuring for linux/x86" >&5
 echo "${ECHO_T}configuring for linux/x86" >&6
 
