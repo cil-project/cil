@@ -121,7 +121,7 @@ let iter f h =
     do_bucket d.(i)
   done
 
-let fold f h init =
+let fold (f: int -> 'a -> 'b -> 'b) (h: 'a t) (init: 'b) =
   let rec do_bucket b accu =
     match b with
       Empty ->

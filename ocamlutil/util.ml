@@ -1,6 +1,7 @@
 (** Utility functions for Coolaid *)
 module E = Errormsg
 module H = Hashtbl
+module IH = Inthash
 
 open Pretty
 
@@ -669,3 +670,38 @@ let loadConfiguration (fname: string) : unit =
    
  
 (************************************************************************)
+
+(*********************************************************************)
+type symbol = int
+
+(**{ Registering symbol names} *)
+let registeredSymbolNames: (string, symbol) H.t = H.create 113
+let symbolNames: string IH.t = IH.create 113 
+let nextSymbolId = ref 0 
+
+let registerSymbolName (n: string) : symbol = 
+  try H.find registeredSymbolNames n
+  with Not_found -> begin
+    let id = !nextSymbolId in
+    incr nextSymbolId;
+    H.add registeredSymbolNames n id;
+    IH.add symbolNames id n;
+    id
+  end
+
+(** Register a range of symbols. The mkname function will be invoked for 
+ * indices starting at 0 *)
+let registerSymbolRange (count: int) (mkname: int -> string) : symbol = 
+  if count < 0 then E.s (E.bug "registerSymbolRange: invalid counter");
+  let first = !nextSymbolId in
+  for i = 0 to count - 1 do 
+    ignore (registerSymbolName (mkname i))
+  done;
+  first
+    
+let symbolName (id: symbol) : string = 
+  try IH.find symbolNames id
+  with Not_found -> 
+    ignore (E.warn "Cannot find the name of symbol %d" id);
+    "pseudo" ^ string_of_int id
+

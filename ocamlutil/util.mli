@@ -234,3 +234,17 @@ val useConfigurationList: string -> (configData list -> unit) -> unit
 
 
 (************************************************************************)
+
+(** Symbols are integers that are uniquely associated with names *)
+type symbol = int
+
+(** Get the name of a symbol *)
+val symbolName: symbol -> string
+
+(** Register a symbol name and get the symbol for it *)
+val registerSymbolName: string -> symbol
+
+(** Register a number of consecutive symbol ids. The naming function will be 
+ * invoked with indices from 0 to the counter - 1. Returns the id of the 
+ * first symbol created *)
+val registerSymbolRange: int -> (int -> string) -> symbol
