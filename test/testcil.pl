@@ -151,6 +151,7 @@ $TEST->addTests("testrun/warnings-empty", "WARNINGS_ARE_ERRORS=1", ['cil']);
 $TEST->addTests("testrun/warnings-unused-label", "WARNINGS_ARE_ERRORS=1", ['cil']);
 $TEST->addTests("test_withtrusted/deepcopy1", "", ['inferbox']);
 $TEST->addTests("test/compat1", "", ['inferbox']);
+$TEST->addTests("testrun/compat2", "", ['inferbox']);
 $TEST->addTests("testrun/pointsto", "", ['inferbox']);
 $TEST->addTests("testrun/trusted1", "", ['inferbox']);
 $TEST->addTests("testrun/hostent", "", ['inferbox']);
