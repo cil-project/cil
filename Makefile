@@ -172,9 +172,9 @@ ifdef _MSVC
 DEBUGCCL=cl /TC /O0 /Zi /MLd /I./lib /DEBUG
 RELEASECCL=cl /TC /ML /I./lib
 ifdef RELEASE
-DOOPT=/Ox /Ob2
+DOOPT=/Ox /Ob2 /G6
 else
-DOOPT=
+DOOPT=/Zi /MLd
 endif
 CONLY=/c
 OBJOUT=/Fo
@@ -199,7 +199,12 @@ endif
 CC=$(CCL) $(CONLY)
 
 
+ifeq ($(COMPUTERNAME), FETA)
+SAFECC=perl $(CILDIR)/lib/newsafecc.pl
+else
 SAFECC=perl $(CILDIR)/lib/safecc.pl
+endif
+
 ifdef SHOWCABS
 SAFECC+= --cabs
 endif
@@ -389,8 +394,7 @@ SMALL1=test/small1
 test/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
 	cd $(SMALL1); $(SAFECC)   \
                --patch=../../lib/$(PATCHFILE) \
-	       $*.c $(DOOPT) $(ASMONLY)$*.s
-#	       $*.c $(CONLY) $(DOOPT) $(ASMONLY)$*.s
+	       $(CONLY) $(DOOPT) $(ASMONLY)$*.s $*.c 
 
 testc/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
 	cd $(SMALL1); $(SAFECC)   \
@@ -399,13 +403,11 @@ testc/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
 	$(SMALL1)/$*.exe
 
 
-SMALL2=test/small2
-
 hashtest: test/small2/hashtest.c $(EXECUTABLE)$(EXE) \
                                  $(SAFECLIB) $(SAFEMAINLIB)  $(TVEXE)
 	rm -f $(PCCTEST)/hashtest.exe
 	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
-                 $(DOOPT) \
+                 $(DOOPT) $(HASHTESTEXTRA) \
                  --patch=../../lib/$(PATCHFILE)\
                  $(INC)$(PCCDIR)/src \
                  $(PCCDIR)/src/hash.c \
@@ -549,6 +551,7 @@ apache/gzip : $(EXECUTABLE)$(EXE)
 	rm -f $(APACHETEST)/mod_gzip.$(OBJ)
 	cd $(APACHETEST); $(SAFECC) \
                        --keep=. $(APATCH) \
+                        $(DOOPT) \
                         $(APACHECFLAGS) \
                         $(CONLY) $(OBJOUT)./mod_gzip.$(OBJ) \
                         mod_gzip.c
@@ -565,6 +568,7 @@ apache/rewrite: $(EXECUTABLE)$(EXE)
 	rm -f $(APACHETEST)/mod_gzip.$(OBJ)
 	cd $(APACHETEST); $(SAFECC) \
                        --keep=. $(APATCH) \
+                        $(DOOPT) \
                         $(APACHECFLAGS) \
                         $(OBJOUT)./mod_rewrite.$(OBJ) \
                         $(APACHEBASE)/modules/standard/mod_rewrite.c

@@ -1361,13 +1361,29 @@ let dummyFile =
     globinit = None}
 
 
+let makeValidSymbolName (s: string) = 
+  let s = String.copy s in (* So that we can update in place *)
+  let l = String.length s in
+  for i = 0 to l - 1 do
+    let c = String.get s i in
+    let isinvalid = 
+      match c with
+        '-' -> true
+      | _ -> false
+    in
+    if isinvalid then 
+      String.set s i '_';
+  done;
+  s
+  
 let getGlobInit (fl: file) = 
   match fl.globinit with 
     Some f -> f
   | None -> begin
-      let f = emptyFunction ("__globinit_" ^ 
-                             (Filename.chop_extension
-                                (Filename.basename fl.fileName))) 
+      let f = emptyFunction 
+          (makeValidSymbolName ("__globinit_" ^ 
+                                (Filename.chop_extension
+                                   (Filename.basename fl.fileName))))
       in
       ignore (E.warn "Added global initializer %s" f.svar.vname);
       fl.globinit <- Some f;
