@@ -582,13 +582,13 @@ let replacePtrNodeAttrList where al =
         else if !foundNode = "string" then "nullterm" 
         else if !foundNode = "rostring" then "nullterm" 
         else if !foundNode = "wild" then "wild" 
-(*        else if !foundNode = "wildt" then "wild" *)
+        else if !foundNode = "wildt" then "wild"
         else if where = AtOpenArray then 
           if !defaultIsWild then "wild" else "sized" 
         else !foundNode
     | AtVar ->
         if !foundNode = "wild" then "tagged" 
-(*        else if !foundNode = "wildt" then "tagged" *)
+        else if !foundNode = "wildt" then "tagged"
         else !foundNode
     | AtOther -> !foundNode
   in

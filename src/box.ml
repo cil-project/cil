@@ -1501,10 +1501,12 @@ let checkWild (p: exp) (basetyp: typ) (b: exp) (blen: exp) : stmt =
     [ castVoidStar b; blen;
       castVoidStar p; SizeOf (basetyp)]
       
-  (* Check index when we switch from Index to Safe *)
+  (* Check index when we switch from a sequence type to Safe, in preparation 
+   * for accessing a field.  *)
 let beforeField ((btype, pkind, mklval, base, bend, stmts) as input) = 
   match pkind with
-    N.Wild | N.WildT -> input (* No change if we are in a tagged area *)
+    (* The kind is never a table type *)
+    N.Wild -> input (* No change if we are in a tagged area *)
   | N.Safe -> input (* No change if already safe *)
   | N.Index -> 
       let _, _, _, docheck = 
@@ -1533,8 +1535,9 @@ let beforeField ((btype, pkind, mklval, base, bend, stmts) as input) =
         
     
 let rec beforeIndex ((btype, pkind, mklval, base, bend, stmts) as input) = 
+  (* The table is never a table type *)
   match pkind with
-  | (N.Safe|N.Wild|N.Seq) -> 
+  | (N.Safe|N.Wild) -> 
       let (elemtype, pkind, base, bend) = 
         arrayPointerToIndex btype pkind (mklval NoOffset) base in
       (elemtype, pkind, mklval, base, bend, stmts)
@@ -1601,68 +1604,22 @@ let varStartInput (vi: varinfo) =
   vi.vtype, N.Safe, (fun o -> (Var vi, o)), zero, zero, []
   
 
-let stringLiteral (s: string) (strt: typ) = 
-  let fixChrPtrType = fixupType strt in
-  let k = kindOfType fixChrPtrType in
-  match  k with 
-    N.Wild -> 
-          (* Make a global variable that stores this one, so that we can 
-           * attach a tag to it  *)
-      let l = 1 + String.length s in 
-      let newt = tagType (TArray(charType, Some (integer l), [])) in
-      let gvar = makeGlobalVar (newStringName ()) newt in
-      gvar.vstorage <- Static;
-      let varinit, dfield = 
-        makeTagCompoundInit newt (Some (Const(CStr s))) in
-      theFile := GVar (gvar, Some varinit, lu) :: !theFile;
-      let result = StartOf (Var gvar, Field(dfield, NoOffset)) in
-      ([], FM (fixChrPtrType, N.Wild,
-               result, 
-               castVoidStar result, zero))
-  | N.Seq | N.Safe | N.FSeq | N.String | N.ROString | N.SeqN | N.FSeqN -> 
-      let l = (if isNullTerm k then 0 else 1) + String.length s in
-      let tmp = makeTempVar !currentFunction charPtrType in
-      (* Make it a SEQ for now *)
-      let theend = BinOp(IndexPI, Lval (var tmp), integer l, charPtrType) in
-      let res = 
-        match k with 
-          N.Safe | N.String | N.ROString -> 
-            mkFexp1 fixChrPtrType (Lval (var tmp))
-        | N.Seq | N.SeqN | N.FSeq | N.FSeqN -> 
-            mkFexp3  fixChrPtrType 
-              (Lval (var tmp))
-              (Lval (var tmp))
-              theend 
-
-        | _ -> E.s (E.bug "stringLiteral")
-      in
-      ([mkSet (var tmp) (Const (CStr s))], res)
-        
-  | _ -> E.s (E.unimp "String literal to %a" N.d_opointerkind k)
-
 
 let pkArithmetic (ep: exp)
                  (et: typ)
                  (ek: N.opointerkind) (* kindOfType et *)
                  (bop: binop)  (* Either PlusPI or MinusPI or IndexPI *)
                  (e2: exp) : (fexp * stmt list) = 
-  let ptype, ek, ptr, fb, fe, s1 = 
-    let newk = N.stripT ek in
-    if ek <> newk then 
-      let fb, fe, s1 = fromTable ek ep in
-      et, newk, ep, fb, fe, s1
-    else
-      let ptype, ptr, fb, fe = readFieldsOfFat ep et in
-      ptype, ek, ptr, fb, fe, []
-  in
+  let ptype, ptr, fb, fe = readFieldsOfFat ep et in
   match ek with
-    N.Wild|N.Index -> 
-      mkFexp3 et (BinOp(bop, ptr, e2, ptype)) fb zero, s1
-  | (N.Seq|N.SeqN) -> 
-      mkFexp3 et (BinOp(bop, ptr, e2, ptype)) fb fe, s1
-  | (N.FSeq|N.FSeqN) -> 
+    N.Wild|N.Index|N.WildT|N.IndexT -> 
+      mkFexp3 et (BinOp(bop, ptr, e2, ptype)) fb zero, []
+  | (N.Seq|N.SeqN|N.SeqT|N.SeqNT) -> 
+      mkFexp3 et (BinOp(bop, ptr, e2, ptype)) fb fe, []
+  | (N.FSeq|N.FSeqN|N.FSeqT|N.FSeqNT) ->
       mkFexp3 et (BinOp(bop, ptr, e2, ptype)) fb fe, 
-      s1 @ [call None (Lval (var checkPositiveFun.svar)) [ e2 ]]
+      [call None (Lval (var checkPositiveFun.svar)) [ e2 ]]
+      
   | N.Safe ->
       E.s (E.bug "pkArithmetic: pointer arithmetic on safe pointer: %a@!"
              d_exp ep)
@@ -1684,7 +1641,7 @@ let pkArithmetic (ep: exp)
       let et' = fixupType ptype' in
 (*      ignore (E.log "pkArith: %a\n" d_plaintype ptype'); *)
       let p'' = BinOp(bop, p', e2, ptype') in
-      mkFexp3 et' p'' b' bend', s1 @ List.rev acc'
+      mkFexp3 et' p'' b' bend', List.rev acc'
       
   | _ -> E.s (E.bug "pkArithmetic(%a)" N.d_opointerkind ek)
         
@@ -1980,6 +1937,8 @@ let rec castTo (fe: fexp) (newt: typ)
                  d_fexp fe
                  d_plaintype oldt)      
   end
+
+
 
 
 (* For each function cache some iterator variables. *)
@@ -2356,6 +2315,68 @@ let initializeVar (withivar: (varinfo -> 'a) -> 'a) (* Allocate an iteration
     doinit (Var v, NoOffset) acc
   end
 
+let rec stringLiteral (s: string) (strt: typ) : stmt list * fexp = 
+  let fixChrPtrType = fixupType strt in
+  let k = kindOfType fixChrPtrType in
+  match  k with 
+    N.Wild -> 
+          (* Make a global variable that stores this one, so that we can 
+           * attach a tag to it  *)
+      let l = 1 + String.length s in 
+      let newt = tagType (TArray(charType, Some (integer l), [])) in
+      let gvar = makeGlobalVar (newStringName ()) newt in
+      gvar.vstorage <- Static;
+      let varinit, dfield = 
+        makeTagCompoundInit newt (Some (Const(CStr s))) in
+      theFile := GVar (gvar, Some varinit, lu) :: !theFile;
+      let result = StartOf (Var gvar, Field(dfield, NoOffset)) in
+      let voidStarResult = castVoidStar result in
+      (* Register the area *)
+      let regarea = 
+        call None (Lval (var registerAreaFun.svar))
+          [ integer registerAreaTaggedInt;
+            voidStarResult; zero ] 
+      in
+      ([regarea], FM (fixChrPtrType, N.Wild,
+                      result, 
+                      castVoidStar result, zero))
+  | N.Seq | N.Safe | N.FSeq | N.String | N.ROString | N.SeqN | N.FSeqN -> 
+      let l = (if isNullTerm k then 0 else 1) + String.length s in
+      let tmp = makeTempVar !currentFunction charPtrType in
+      (* Make it a SEQ for now *)
+      let theend = BinOp(IndexPI, Lval (var tmp), integer l, charPtrType) in
+      (* Register the area *)
+      let regarea = 
+        call None (Lval (var registerAreaFun.svar))
+          [ integer registerAreaSeqInt;
+            castVoidStar (Lval (var tmp)); 
+            castVoidStar theend ] in
+      let res = 
+        match k with 
+          N.Safe | N.String | N.ROString -> 
+            mkFexp1 fixChrPtrType (Lval (var tmp))
+        | N.Seq | N.SeqN | N.FSeq | N.FSeqN -> 
+            mkFexp3  fixChrPtrType 
+              (Lval (var tmp))
+              (Lval (var tmp))
+              theend 
+
+        | _ -> E.s (E.bug "stringLiteral")
+      in
+      ([regarea; mkSet (var tmp) (Const (CStr s))], res)
+        
+  | N.WildT | N.SeqT | N.FSeqT | N.SeqNT | N.FSeqNT -> 
+      let kno_t = N.stripT k in
+      let strtno_t = 
+        match strt with
+          TPtr(chrt, a) -> TPtr(chrt, [N.k2attr kno_t])
+        | _ -> E.s (E.bug "Making a string of a non char type\n")
+      in
+      let s1, fe = stringLiteral s strtno_t in
+      (* Now cast it to the desired string type *)
+      castTo fe fixChrPtrType s1
+
+  | _ -> E.s (E.unimp "String literal to %a" N.d_opointerkind k)
 
 
 (*************** Handle Allocation ***********)
@@ -2368,6 +2389,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
             d_exp f d_plaintype vi.vtype
             d_plaintype vtype);  *)
   let k = kindOfType vi.vtype in
+  let kno_t = N.stripT k in
   (* Get the size *)
   let sz = ai.aiGetSize args in
   (* See if we must zero *)
@@ -2385,7 +2407,9 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
       N.Wild | N.Seq | N.FSeq | N.SeqN | N.FSeqN | N.Index -> 
         let fptr, fbase, fendo = getFieldsOfFat vi.vtype in 
         fptr.ftype, Field(fptr, NoOffset)
-    | N.Safe | N.String -> vi.vtype, NoOffset
+    | N.Safe | N.String 
+    | N.WildT | N.SeqT | N.FSeqT | N.SeqNT | N.FSeqNT | N.IndexT 
+      -> vi.vtype, NoOffset
     | _ -> E.s (E.unimp "pkAllocate: ptrtype (%a)" N.d_opointerkind k)
   in
   (* Get the base type *)
@@ -2397,7 +2421,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
 
   (* Compute the size argument to be passed to the allocator *)
   let allocsz = 
-    match k with 
+    match kno_t with 
       N.Wild -> 
         wrdsToBytes (BinOp(PlusA, nrdatawords,
                            BinOp(PlusA, nrtagwords, kinteger IUInt 1, 
@@ -2412,7 +2436,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
   let alloc = call (Some (tmpp, true)) f (ai.aiNewSize allocsz args) in
   (* Adjust the allocation pointer *)
   let adjust_ptr = 
-    match k with
+    match kno_t with
       N.Index | N.Wild -> 
         mkSet (var tmpp) (doCast (BinOp(IndexPI, 
                                         doCast tmpvar charPtrType, 
@@ -2426,7 +2450,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
   (* And the base, if necessary *)
   let assign_base = 
     match k with 
-      N.Wild | N.Seq | N.SeqN | N.Index -> begin
+      N.Wild | N.Seq | N.SeqN | N.FSeq | N.FSeqN | N.Index -> begin
         let fptr, fbaseo, fendo = getFieldsOfFat vi.vtype in
         match fbaseo with
           Some fbase -> (mkSet (Var vi, Field(fbase, NoOffset))
@@ -2438,7 +2462,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
 
   (* Set the size if necessary *)
   let setsz = 
-    match k with
+    match kno_t with
       N.Wild | N.Index -> 
         mkSet (Mem(BinOp(PlusA, 
                          doCast tmpvar uintPtrType,
@@ -2459,7 +2483,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
              NoOffset)
         (doCast zero charType)
     in
-    match k with
+    match kno_t with
       N.Wild -> 
         (* Zero the tags *)
         if mustZero then
@@ -2544,12 +2568,12 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
     | _ -> mkEmptyStmt ()
   in
   (* Now add the home area to the table *)
-  let add_table = 
-    if k <> N.stripT k then
+  let add_table =
+    if false &&  k <> kno_t then
       call None (Lval (var checkNewHomeFun.svar))
         [Lval (Var vi, ptroff) ; tmpvar ]
     else
-      mkEmptyStmt ()
+      mkEmptyStmt () 
   in
   alloc :: adjust_ptr :: assign_p :: 
   assign_base :: setsz :: (init @ [assign_end] @ [add_table])
@@ -2868,7 +2892,9 @@ and boxlval (b, off) : (typ * N.opointerkind * lval * exp * exp * stmt list) =
         let (addrt, doaddr, addr', addr'base, addr'len) = boxexpSplit addr in
         let addrt', pkind = 
           match unrollType addrt with
-            TPtr(t, a) -> t, kindOfType addrt
+            TPtr(t, a) -> 
+               (* Make sure it is not a table type *)
+              t, N.stripT (kindOfType addrt)
           | _ -> E.s (E.unimp "Mem but no pointer type: %a@!addr= %a@!"
                         d_plaintype addrt d_plainexp addr)
         in
