@@ -12,8 +12,15 @@ FILE * get_stderr() {
 } 
 
 #ifdef __CYGWIN__
-char *get_ctype() {
-  return _ctype_;
+int _get_ctype_p1(unsigned int chr) {
+  return (_ctype_ + 1)[chr]; 
 }
 #endif
 
+#if defined(__GLIBC__) && __GLIBC__ == 2 && __GLIBC_MINOR__ == 0
+/// For brooksie
+int _get__ctype_b(int chr) { 
+  return (__ctype_b[chr]);
+}
+#endif
+ 
