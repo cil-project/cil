@@ -366,6 +366,16 @@ Send bugs to necula\@cs.berkeley.edu.
 EOF
 }
 
+
+#
+# Normalize a file name to always use slashes
+#
+sub normalizeFileName {
+    my($f) = @_;
+    $f =~ s|\\|/|g;
+    return $f;
+}
+
 #
 # The basic routines: for ech source file preprocess, compile, then link
 # everything
@@ -1108,24 +1118,29 @@ sub compilerArgument {
               }
               elsif($action->{TYPE} eq "CSOURCE") {
 		  OutputFile->protect(@fullarg);
+                  $fullarg[0] = &normalizeFileName($fullarg[0]);
                   push @{$self->{CFILES}}, @fullarg; return 1;
               }
               elsif($action->{TYPE} eq "ASMSOURCE") {
 		  OutputFile->protect(@fullarg);
+                  $fullarg[0] = &normalizeFileName($fullarg[0]);
                   push @{$self->{SFILES}}, @fullarg; return 1;
               }
               elsif($action->{TYPE} eq "OSOURCE") {
 		  OutputFile->protect(@fullarg);
+                  $fullarg[0] = &normalizeFileName($fullarg[0]);
                   push @{$self->{OFILES}}, @fullarg; return 1;
               }
               elsif($action->{TYPE} eq "ISOURCE") {
 		  OutputFile->protect(@fullarg);
+                  $fullarg[0] = &normalizeFileName($fullarg[0]);
                   push @{$self->{IFILES}}, @fullarg; return 1;
               }
               elsif($action->{TYPE} eq 'OUT') {
                   if(defined($self->{OUTARG})) {
                       print "Warning: output file is multiply defined: @{$self->{OUTARG}} and @fullarg\n";
                   }
+                  $fullarg[0] = &normalizeFileName($fullarg[0]);
                   $self->{OUTARG} = [@fullarg]; return 1;
               }
               print "  Do not understand TYPE\n"; return 1;
@@ -1284,6 +1299,7 @@ sub new {
                 { RUN => sub { 
                     my $arg = $_[1];
                     my ($fname) = ($arg =~ m|[/\\-]Tc(.+)$|);
+                    $fname = &normalizeFileName($fname);
                     push @{$stub->{CFILES}}, $fname;
                 }},
            "/v(d|m)" => { TYPE => "CC" },
@@ -1737,7 +1753,7 @@ sub new {
             # .o files can be linker scripts
             "[^-]" => { RUN => sub { &GNUCC::parseLinkerScript(@_); }},
             "-E"   => { RUN => sub { $stub->{OPERATION} = "TOI"; }},
-	    '-pipe$' => { TYPE => 'ALLARGS' },
+	    '-pipe\$' => { TYPE => 'ALLARGS' },
             "-[DI]" => { ONEMORE => 1, TYPE => "PREPROC" },
             '-U$' => { TYPE => 'PREPROC', ONEMORE => 1 },
             '-undef$' => { TYPE => 'PREPROC' },
@@ -1806,6 +1822,7 @@ sub new {
     bless $self, $class;
     return $self;
 }
+# '
 
 my $linker_script_debug = 0;
 sub parseLinkerScript {
