@@ -367,6 +367,7 @@ global:
 | ASM LPAREN string_constant RPAREN SEMICOLON
                                         { GLOBASM (fst $3, $1) }
 | PRAGMA attr PRAGMA_EOL		{ PRAGMA ($2, $1) }
+| PRAGMA attr SEMICOLON PRAGMA_EOL	{ PRAGMA ($2, $1) }
 /* (* Old-style function prototype. This should be somewhere else, like in
     * "declaration". For now we keep it at global scope only because in local
     * scope it looks too much like a function call  *) */
