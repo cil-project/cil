@@ -266,14 +266,17 @@ let currentFunction : fundec ref  = ref dummyFunDec
 let currentFile     : file ref = ref dummyFile
 let currentFileId     = ref 0
 
+let isFatComp (comp: compinfo) = 
+  (comp.cstruct && 
+   (match comp.cfields with 
+     [p;b] when p.fname = "_p" && b.fname = "_b" -> true
+   | _ -> false))
+
+
     (* Test if a type is FAT *)
 let isFatType t = 
   match unrollType t with
-    TComp comp when comp.cstruct -> begin
-      match comp.cfields with 
-        [p;b] when p.fname = "_p" && b.fname = "_b" -> true
-      | _ -> false
-    end
+    TComp comp when isFatComp comp -> true 
   | _ -> false
 
 let getPtrFieldOfFat t : fieldinfo = 
@@ -346,6 +349,7 @@ let readPtrField (e: exp) (t: typ) : exp =
       
 let readBaseField (e: exp) (t: typ) : exp = 
   let (tptr, ptr, base) = readPtrBaseField e t in base
+
 
 
    (* Test if we must check the return value *)
@@ -635,6 +639,35 @@ let checkBounds : (unit -> exp) -> exp -> lval -> typ -> stmt =
     else
       Skip
 
+(* Compute the offset of first scalar field in a thing to be written. Raises 
+ * Not_found if there is no scalar *)
+let offsetOfFirstScalar (t: typ) : exp = 
+  let rec theOffset sofar t = 
+    match unrollType t with
+      (TInt _ | TFloat _ | TEnum _) -> Some sofar
+    | TPtr _ -> None
+    | TComp comp when isFatComp comp -> None
+    | TComp comp when comp.cstruct -> begin
+        let containsBitfield = ref false in
+        let doOneField acc fi = 
+          match acc, fi.ftype with
+            None, TBitfield _ -> containsBitfield := true; None
+          | None, _ -> 
+              theOffset (addOffset (Field(fi, NoOffset)) sofar) fi.ftype
+          | Some _, _ -> acc
+        in
+        List.fold_left doOneField None comp.cfields
+    end
+    | _ -> E.s (E.unimp "offsetOfFirstScalar")
+  in
+  match theOffset NoOffset t with
+    None -> raise Not_found
+  | Some NoOffset -> CastE(uintType, zero, lu)
+  | Some off -> 
+      let scalar = Mem (doCast zero intType (TPtr (t, []))), off in
+      let addrof = mkAddrOf scalar in
+      CastE(uintType, addrof, lu)
+
   
 let checkZeroTags = 
   let fdec = emptyFunction "CHECK_ZEROTAGS" in
@@ -642,15 +675,21 @@ let checkZeroTags =
   let argbl = makeLocalVar fdec "bl" uintType in
   let argp  = makeLocalVar fdec "p" charPtrType in
   let argsize  = makeLocalVar fdec "size" uintType in
-  fdec.svar.vtype <- TFun(voidType, [ argb; argbl; argp; argsize ], false, []);
+  let offset  = makeLocalVar fdec "offset" uintType in
+  fdec.svar.vtype <- 
+     TFun(voidType, [ argb; argbl; argp; argsize; offset ], false, []);
   theFile := GDecl fdec.svar :: !theFile;
   fdec.svar.vstorage <- Static;
   fun base lenExp lv t ->
     let lv', lv't = getHostIfBitfield lv t in
-    call None (Lval (var fdec.svar))
-      [ castVoidStar base; lenExp ;
-        castVoidStar (AddrOf(lv', lu)); 
-        SizeOf(lv't, lu); ] 
+    try
+      let offexp = offsetOfFirstScalar lv't in
+      call None (Lval (var fdec.svar))
+        [ castVoidStar base; lenExp ;
+          castVoidStar (AddrOf(lv', lu)); 
+          SizeOf(lv't, lu); offexp ] 
+    with Not_found -> 
+      Skip
   
 let doCheckFat which arg argt = 
   (* Take the argument and break it apart *)
@@ -722,20 +761,16 @@ let checkMem (towrite: exp option)
   let rec doCheckTags (towrite: exp option) (where: lval) t acc = 
     match unrollType t with 
     | (TInt _ | TFloat _ | TEnum _ | TBitfield _ ) -> acc
-    | TComp comp 
-        when (comp.cstruct && 
-              (match comp.cfields with 
-                [p;b] when p.fname = "_p" && b.fname = "_b" -> true
-        | _ -> false)) -> begin (* A fat pointer *)
-            match towrite with
-              None -> (* a read *)
-                (checkFatPointerRead base 
-                   (AddrOf(where, lu)) (getLenExp ())) :: acc
-            | Some towrite -> (* a write *)
-                let _, whatp, whatb = readPtrBaseField towrite t in
-                (checkFatPointerWrite base (AddrOf(where, lu)) 
-                   whatb whatp (getLenExp ())) :: acc
-        end 
+    | TComp comp when isFatComp comp -> begin (* A fat pointer *)
+        match towrite with
+          None -> (* a read *)
+            (checkFatPointerRead base 
+               (AddrOf(where, lu)) (getLenExp ())) :: acc
+        | Some towrite -> (* a write *)
+            let _, whatp, whatb = readPtrBaseField towrite t in
+            (checkFatPointerWrite base (AddrOf(where, lu)) 
+               whatb whatp (getLenExp ())) :: acc
+    end 
     | TComp comp when comp.cstruct -> 
         let doOneField acc fi = 
           let newwhere = addOffsetLval (Field(fi, NoOffset)) where in
@@ -774,7 +809,7 @@ let checkMem (towrite: exp option)
   (* Now see if we need to do bounds checking *)
   let check_0 = 
     match checkBounds getLenExp base lv t, zeroAndCheckTags with
-      Skip, [] -> []  (* Don't even fetch the length *)
+      Skip, ([]|[Skip]) -> []  (* Don't even fetch the length *)
     | cb, zct -> 
         (checkFetchLength (getVarOfExp (getLenExp ())) base) 
         :: cb :: zct
