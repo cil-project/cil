@@ -735,7 +735,7 @@ let collectGlobals (fl: file list) =
     | _ -> ()
   in
   H.clear globals;
-  List.iter (fun f -> List.iter collectOneGlobal f) fl
+  List.iter (fun (fname, f) -> List.iter collectOneGlobal f) fl
 
 
 (* Remember some definitions so that we can drop duplicates *)
@@ -745,20 +745,22 @@ let globalDefinitions: (Cabs.definition, bool) H.t = H.create 113
 let theProgram: Cabs.definition list ref = ref []
 
 (* The MAIN MERGER *)
-let merge (files : Cabs.file list) : Cabs.file = 
+let merge (files : Cabs.file list) : Cabs.definition list = 
   resetAlpha (); (* Clear the alpha tables *)
   H.clear globalDefinitions;
   H.clear globalTypeTags;
   collectGlobals files; (* Collect all the globals *)
   theProgram := [];
-  let doOneFile (f: Cabs.file) = 
+  let doOneFile ((fname, f): Cabs.file) = 
+    if !E.verboseFlag then 
+      ignore (E.log "Merging %s\n" fname);
     H.clear env; (* Start with a brand new environment *)
     H.clear reused;
     (* Find the new names for type and tags *)
     if debugTypes then 
       ignore (E.log "Combining a file\n");
     changeDefsIntoRefs := false;
-    findTypeTagNames f;
+    findTypeTagNames (fname, f);
     changeDefsIntoRefs := true;
     (* Now apply the new names and while doing that remove some global 
      * declarations *)

@@ -162,7 +162,7 @@ and parse_to_cabs_inner (fname : string) =
       Stats.time "parse"
         (Cparser.file Clexer.initial) lexbuf in
     close_in file;
-    cabs
+    (fname, cabs)
   with (Sys_error msg) -> begin
     ignore (E.log "Cannot open %s : %s\n" fname msg);
     close_output ();
@@ -180,7 +180,7 @@ and parse_to_cabs_inner (fname : string) =
 
   
 (* print to safec.proto.h the prototypes of all functions that are defined *)
-let printPrototypes (file : Cabs.file) : unit =
+let printPrototypes ((fname, file) : Cabs.file) : unit =
 begin
   (*ignore (E.log "file has %d defns\n" (List.length file));*)
 
@@ -224,7 +224,7 @@ let parse fname =
   let cabs = parse_to_cabs fname in
   (* Now convert to CIL *)
   fun _ ->
-    let cil = Stats.time "conv" (Cabs2cil.convFile fname) cabs in
+    let cil = Stats.time "conv" Cabs2cil.convFile cabs in
     if !doPrintProtos then (printPrototypes cabs);
     cil
 

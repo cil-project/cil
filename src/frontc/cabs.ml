@@ -130,7 +130,7 @@ and definition =
  (* expression transformer: source and destination *)
  | EXPRTRANSFORMER of expression * expression * cabsloc
 
-and file = definition list
+and file = string * definition list
 
 
 (*

@@ -1197,6 +1197,11 @@ type combineWhat =
                    * prototype *)
   | CombineOther
 
+(* We sometimes want to succeed in combining two structure types that are 
+ * identical except for the names of the structs. We keep a list of types 
+ * that are known to be equal *)
+let isomorphicStructs : (string * string, bool) H.t = H.create 15
+
 let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ = 
   match oldt, t with
   | TVoid olda, TVoid a -> TVoid (cabsAddAttributes olda a)
@@ -1234,9 +1239,57 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
         
         
   | TComp (oldci, olda) , TComp (ci, a) -> 
-      if oldci.cname = ci.cname && oldci.cstruct = ci.cstruct 
-      then TComp (oldci, cabsAddAttributes olda a)
-      else raise (Failure "different struct/union types")
+      if oldci.cstruct <> ci.cstruct then 
+        raise (Failure "different struct/union types");
+      let comb_a = cabsAddAttributes olda a in
+      if oldci.cname = ci.cname then 
+        TComp (oldci, comb_a)
+      else 
+        (* Now maybe they are actually the same *)
+        if H.mem isomorphicStructs (oldci.cname, ci.cname) then 
+          (* We know they are the same *)
+          TComp (oldci, comb_a)
+        else begin
+          (* If one has 0 fields (undefined) while the other has some fields 
+           * we accept it *)
+          let oldci_nrfields = List.length oldci.cfields in
+          let ci_nrfields = List.length ci.cfields in
+          if oldci_nrfields = 0 then
+            TComp (ci, comb_a)
+          else if ci_nrfields = 0 then
+            TComp (oldci, comb_a) 
+          else begin
+            (* Make sure that at least they have the same number of fields *)
+            if  oldci_nrfields <> ci_nrfields then begin
+              ignore (E.log "different number of fields: %s had %d and %s had %d\n"
+                        oldci.cname oldci_nrfields
+                        ci.cname ci_nrfields);
+              raise (Failure "different structs(number of fields)");
+            end;
+            (* Assume they are the same *)
+            H.add isomorphicStructs (oldci.cname, ci.cname) true;
+            H.add isomorphicStructs (ci.cname, oldci.cname) true;
+            (* Check that the fields are isomorphic and watch for Failure *)
+            (try
+              List.iter2 (fun oldf f -> 
+                if oldf.fbitfield <> f.fbitfield then 
+                  raise (Failure "different structs(bitfield info)");
+                if oldf.fattr <> f.fattr then 
+                  raise (Failure "different structs(field attributes)");
+                (* Make sure the types are compatible *)
+                ignore (combineTypes CombineOther oldf.ftype f.ftype);
+                ) oldci.cfields ci.cfields
+            with Failure _ as e -> begin 
+              (* Our assumption was wrong. Forget the isomorphism *)
+              H.remove isomorphicStructs (oldci.cname, ci.cname);
+              H.remove isomorphicStructs (ci.cname, oldci.cname);
+              raise e
+            end);
+            (* We get here if we succeeded *)
+            TComp (oldci, comb_a)
+          end
+        end
+
   | TArray (oldbt, oldsz, olda), TArray (bt, sz, a) -> 
       let newbt = combineTypes CombineOther oldbt bt in
       let newsz = 
@@ -4958,7 +5011,7 @@ and doStatement (s : A.statement) : chunk =
 
 
 (* Translate a file *)
-let convFile fname dl =
+let convFile ((fname : string), (dl : Cabs.definition list)) : Cil.file =
   (* Clean up the global types *)
   E.hadErrors := false;
   initGlobals();
@@ -4966,6 +5019,7 @@ let convFile fname dl =
   H.clear enumInfoNameEnv;
   H.clear mustTurnIntoDef;
   H.clear alreadyDefined;
+  H.clear isomorphicStructs;
   annonCompFieldNameId := 0;
   if !E.verboseFlag || !Util.printStages then 
     ignore (E.log "Converting CABS->CIL\n");
@@ -5034,6 +5088,7 @@ let convFile fname dl =
   H.clear alreadyDefined;
   H.clear compInfoNameEnv;
   H.clear enumInfoNameEnv;
+  H.clear isomorphicStructs;
   ignore (E.log "Cabs2cil converted %d globals\n" !globalidx);
   (* We are done *)
   { fileName = fname;
