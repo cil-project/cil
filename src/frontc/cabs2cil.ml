@@ -182,6 +182,14 @@ let newTempVar typ =
     } 
 
 
+let mkAddrOfAndMark ((b, off) as lval) : exp = 
+  (* Mark the vaddrof flag if b is a variable *)
+  (match b with 
+    Var vi -> vi.vaddrof <- true
+  | _ -> ());
+  mkAddrOf lval
+  
+
 (**** To initialize some local arrays we need strncpy ****)
 let strncpyFun = 
   let fdec = emptyFunction "strncpy" in
@@ -724,11 +732,11 @@ and doExp (isconst: bool)    (* In a constant *)
    * Similarly an expression of function type is turned into StartOf *)
   let processStartOf e t = 
     match e, unrollType t with
-      Lval(lv), TArray(t, _, a) -> mkAddrOf lv, TPtr(t, a)
+      Lval(lv), TArray(t, _, a) -> mkAddrOfAndMark lv, TPtr(t, a)
     | Lval(lv), TFun _  -> begin
         match lv with 
           Mem(addr), NoOffset -> addr, TPtr(t, [])
-        | _, _ -> mkAddrOf lv, TPtr(t, [])
+        | _, _ -> mkAddrOfAndMark lv, TPtr(t, [])
     end
     | Compound _, TArray(t', _, a) -> e, t
     | _, (TArray _ | TFun _) -> 
@@ -1148,13 +1156,13 @@ and doExp (isconst: bool)    (* In a constant *)
     | A.UNARY(A.ADDROF, e) -> begin
         let (se, e', t) = doExp isconst e (AExp None) in
         match e' with 
-          Lval x -> finishExp se (mkAddrOf x) (TPtr(t, []))
+          Lval x -> finishExp se (mkAddrOfAndMark x) (TPtr(t, []))
         | CastE (t', Lval x) -> 
             finishExp se (CastE(TPtr(t', []),
-                                (mkAddrOf x))) (TPtr(t', []))
+                                (mkAddrOfAndMark x))) (TPtr(t', []))
         | StartOf (lv) -> (* !!! is this correct ? *)
             let tres = TPtr(typeOfLval lv, []) in
-            finishExp se (mkAddrOf lv) tres
+            finishExp se (mkAddrOfAndMark lv) tres
 
             
         | _ -> E.s (E.unimp "Expected lval for ADDROF. Got %a@!"
@@ -1719,7 +1727,7 @@ and doAssign (lv: lval) : exp -> stmt list = function
               _, [] -> []
             | i, (None, e) :: el -> 
                 let res = loop ((i + 1), el) in
-                let newlv = mkMem (mkAddrOf lv) 
+                let newlv = mkMem (mkAddrOfAndMark lv) 
                                   (Index(integer i, NoOffset)) in
                 let newlv = 
                   match newlv with 

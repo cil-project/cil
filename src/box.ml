@@ -1101,7 +1101,7 @@ let mustBeTagged v =
         else 
           true  (* We tag all externals because we might 
                    take their address somewhere else *)
-      else 
+      else
         v.vaddrof || containsArray v.vtype
     else
       (filterAttributes "tagged" v.vattr) <> []
@@ -2201,7 +2201,7 @@ let pkAllocate (ai:  allocinfo) (* Information about the allocation function *)
         mkSet (Var vi, Field(fbase, NoOffset)) tmpvar
     | _ -> Skip
   in
-  alloc :: (* adjust_ptr :: *) assign_p :: 
+  alloc :: adjust_ptr :: assign_p :: 
   assign_base :: setsz :: (init @ [assign_end])
 
 (* Given a sized array type, return the size and the array field *)
