@@ -60,14 +60,18 @@ int globalInt = 5;
 void separator() {}
 
 
+// explicitly declare the entry to the gc
+void GC_gcollect(void);
+
+
 int main()
 {
   // here's a local int to point at
   int localInt;
-  
+
   // call that inline func
   localInt = am_used();
-  
+
   // point at them
   globalPtr = &globalInt;
 
@@ -75,10 +79,26 @@ int main()
 
   // this simply isn't allowed!
   //globalPtr = &localInt;
-  
+
   separator();
-  
+
   globalPtr = (int*)malloc(sizeof(int));
+
+    
+  // allocate lots of memory which will all be unreachable,
+  // in hopes of triggering the GC
+  {
+    int i;
+    void **p, ***q;
+    for (i=0; i<1000; i++) {
+      p = (void**)malloc(sizeof(*p));
+      *p = (void*)5;
+    }
+  }
+
+  // now will the gc be called?
+  // (requires BOX=1 so we get safec{debug,}lib.a ...)
+  //GC_gcollect();
 
   printf("hola finished successfully\n");
   return 0;

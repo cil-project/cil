@@ -289,6 +289,31 @@ ifdef OPTIM
 SAFECC += --optim
 endif
 
+# garbage collector options
+ifdef _GNUCC
+  ifndef NO_GC
+    # enable the garbage collector by default for gcc
+    SAFECC+= $(DEF)USE_GC
+    DEBUGCCL+= $(DEF)USE_GC
+    RELEASECCL+= $(DEF)USE_GC
+    GCLIB = $(CILDIR)/lib/gc/gc.a
+
+# base_lib is created when gc.a is created, as a marker
+$(GCLIB): lib/gc/base_lib
+	cd lib/gc; make && ./gctest
+
+  else
+    GCLIB =
+  endif
+else
+  # on msvc, what needs to be done to get gc working:
+  #  - make sure we can compile gc.a, and that gctests works
+  #  - modify the commands which build $(SAFECLIB) so they
+  #    include gc.a
+  GCLIB =
+endif
+
+
 SAFECC+= $(EXTRAARGS)
 
 ###
@@ -312,9 +337,16 @@ $(SAFEMAINLIB) : lib/safecmain.c lib/safec.h lib/safeccheck.h
 endif
 
 # Libraries on GCC
+# sm: if GC is enabled, we just add it to the runtime library
+# (or rather, we add safec.o to gc.a's contents)
 ifdef _GNUCC
-$(SAFECLIB) : lib/safec.c
+$(SAFECLIB) : lib/safec.c $(GCLIB)
 	$(CC) $(OBJOUT)obj/safec.o $<
+	if echo $(GCLIB) | grep / >/dev/null; then \
+		cp -f $(GCLIB) $@; \
+	else \
+		rm -f $@; \
+	fi
 	ar -r $@ obj/safec.o
 
 $(SAFEMAINLIB) : lib/safecmain.c lib/safec.h lib/safeccheck.h
