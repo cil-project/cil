@@ -239,7 +239,7 @@ let make_char (i:int64):char =
   let min_val = Int64.zero in
   let max_val = Int64.of_int 255 in
   (* if i < 0 || i > 255 then error*)
-  if Int64.compare i min_val < 0 || Int64.compare i max_val > 0 then begin
+  if compare i min_val < 0 || compare i max_val > 0 then begin
     let msg = Printf.sprintf "character 0x%Lx too big" i in
     error msg
   end;

@@ -255,7 +255,7 @@ let print_string s =
 
 let rec conv_to_hex (value:int64):string =
   let sixteen = Int64.of_int 16 in
-  if Int64.compare value sixteen < 0  then  (* if value < 16 *)
+  if compare value sixteen < 0  then  (* if value < 16 *)
     conv_digit (Int64.to_int value)
   else    (* conv_to_hex(value / 16) ^ conv_digit(value mod 16) *)
     (conv_to_hex (Int64.div value sixteen))
@@ -267,7 +267,7 @@ let rec escape_wstring (str: int64 list):string =
   | value::rest ->
       let this_char = 
 	let twofiftyfive = Int64.of_int 255 in
-	if (Int64.compare value twofiftyfive > 0) then 
+	if (compare value twofiftyfive > 0) then 
 	  "\\x"^(conv_to_hex value)
 	else
 	  Char.escaped (Char.chr (Int64.to_int value))

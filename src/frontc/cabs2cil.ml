@@ -3850,7 +3850,7 @@ and doInit
       let charinits = 
         List.map 
           (fun c -> 
-	    if (Int64.compare c maxWChar > 0) then (* if c > maxWChar *)
+	    if (compare c maxWChar > 0) then (* if c > maxWChar *)
 	      E.s (error "character 0x%Lx too big." c)
 	    else
               (A.NEXT_INIT, 
