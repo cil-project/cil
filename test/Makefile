@@ -839,6 +839,15 @@ test-bad-wrapper/%: $(TESTDIR)/small2/%.c $(TESTDIR)/small2/wrapperextern.c
 	  _MSVC="$(_MSVC)" \
 	  bash ../../bin/test-bad $*.c 
 
+test-bad-crypt/%: $(TESTDIR)/small1/%.c $(TARGET_DEP)
+	cd $(TESTDIR)/small1; \
+	  CCUREDHOME="$(CCUREDHOME)" \
+	  CCURED="$(CCURED) --nomerge --commPrintLn -lcrypt" \
+	  CFLAGS=" $(CFLAGS) $(WARNALL)" \
+          TESTBADONCE="$(TESTBADONCE)" \
+	  _MSVC="$(_MSVC)" \
+	  bash ../../bin/test-bad $*.c
+
 
 # sm: trivial test of combiner
 MYSAFECC := $(CCURED) --keep=.
