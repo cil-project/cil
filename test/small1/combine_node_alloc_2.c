@@ -7,3 +7,8 @@ struct node {
 struct node *list[1] = {
     ((struct node *) 0)
 };
+
+int main()
+{
+  return (int)( list[0] );
+}

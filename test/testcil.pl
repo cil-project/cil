@@ -705,7 +705,7 @@ smFailTest("problem with gcc coercions",
 smFailTest("problem with over-aggressive pointer checks?",
            "scott/ptrarith INFERBOX=infer");
 smAddTest("combine_samefn");
-smFailTest("Out of memory message", "combine_node_alloc");
+smAddTest("combine_node_alloc");
 
 # tests of things implemented for EDG compatibility
 smAddTest("mergestruct");

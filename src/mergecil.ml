@@ -1049,6 +1049,93 @@ begin
 end
 
 
+(* sm: equality for initializers, etc.; this is like '=', except
+ * when we reach shared pieces (like references into the type
+ * structure), we use '==', to prevent circularity *)
+(* update: that's no good; I'm using this to find things which
+ * are equal but from different CIL trees, so nothing will ever
+ * be '=='.. as a hack I'll just change those places to 'true',
+ * so these functions are not now checking proper equality..
+ * places where equality is not complete are marked "INC" *)
+let rec equalInits (x: init) (y: init) : bool =
+begin
+  match x,y with
+  | SingleInit(xe), SingleInit(ye) -> (equalExps xe ye)
+  | CompoundInit(xt, xoil), CompoundInit(yt, yoil) ->
+      (*(xt == yt) &&*)  (* INC *)       (* types need to be identically equal *)
+      let rec equalLists xoil yoil : bool =
+        match xoil,yoil with
+        | ((xo,xi) :: xrest), ((yo,yi) :: yrest) ->
+            (equalOffsets xo yo) &&
+            (equalInits xi yi) &&
+            (equalLists xrest yrest)
+        | [], [] -> true
+        | _, _ -> false
+      in
+      (equalLists xoil yoil)
+  | _, _ -> false
+end
+
+and equalOffsets (x: offset) (y: offset) : bool =
+begin
+  match x,y with
+  | NoOffset, NoOffset -> true
+  | Field(xfi,xo), Field(yfi,yo) ->
+      (xfi.fname = yfi.fname) &&     (* INC: same fieldinfo name.. *)
+      (equalOffsets xo yo)
+  | Index(xe,xo), Index(ye,yo) ->
+      (equalExps xe ye) &&
+      (equalOffsets xo yo)
+  | _,_ -> false
+end
+
+and equalExps (x: exp) (y: exp) : bool =
+begin
+  match x,y with
+  | Const(xc), Const(yc) ->        xc = yc       (* safe to use '=' on literals *)
+  | Lval(xl), Lval(yl) ->          (equalLvals xl yl)
+  | SizeOf(xt), SizeOf(yt) ->      true (*INC: xt == yt*)  (* identical types *)
+  | SizeOfE(xe), SizeOfE(ye) ->    (equalExps xe ye)
+  | AlignOf(xt), AlignOf(yt) ->    true (*INC: xt == yt*)
+  | AlignOfE(xe), AlignOfE(ye) ->  (equalExps xe ye)
+  | UnOp(xop,xe,xt), UnOp(yop,ye,yt) ->
+      xop = yop &&
+      (equalExps xe ye) &&
+      true  (*INC: xt == yt*)
+  | BinOp(xop,xe1,xe2,xt), BinOp(yop,ye1,ye2,yt) ->
+      xop = yop &&
+      (equalExps xe1 ye1) &&
+      (equalExps xe2 ye2) &&
+      true  (*INC: xt == yt*)
+  | CastE(xt,xe), CastE(yt,ye) ->
+      (*INC: xt == yt &&*)
+      (equalExps xe ye)
+  | AddrOf(xl), AddrOf(yl) ->      (equalLvals xl yl)
+  | StartOf(xl), StartOf(yl) ->    (equalLvals xl yl)
+  | _,_ -> false
+end
+
+and equalLvals (x: lval) (y: lval) : bool =
+begin
+  match x,y with
+  | (Var(xv),xo), (Var(yv),yo) ->
+      xv.vname == yv.vname &&     (* INC: same varinfo names.. *)
+      (equalOffsets xo yo)
+  | (Mem(xe),xo), (Mem(ye),yo) ->
+      (equalExps xe ye) &&
+      (equalOffsets xo yo)
+  | _,_ -> false
+end
+
+let equalInitOpts (x: init option) (y: init option) : bool =
+begin
+  match x,y with
+  | None,None -> true
+  | Some(xi), Some(yi) -> (equalInits xi yi)
+  | _,_ -> false
+end
+
+
   (* Now we go once more through the file and we rename the globals that we 
    * keep. We also scan the entire body and we replace references to the 
    * representative types or variables. We set the referenced flags once we 
@@ -1097,28 +1184,28 @@ let oneFilePass2 (f: file) =
       | GVarDecl (vi, l) as g -> 
           currentLoc := l;
           let vi' = processVarinfo vi l in
-          if vi != vi' then (* Drop this declaration *) () 
+          if vi != vi' then (* Drop this declaration *) ()
           else if H.mem emittedVarDecls vi'.vname then (* No need to keep it *)
             ()
           else begin
-            H.add emittedVarDecls vi'.vname true; (* Remember that we emitted 
+            H.add emittedVarDecls vi'.vname true; (* Remember that we emitted
                                                    * it  *)
             mergePushGlobals (visitCilGlobal renameVisitor g)
           end
-            
-      | GVar (vi, init, l) as g -> 
+
+      | GVar (vi, init, l) as g ->
           currentLoc := l;
           let vi' = processVarinfo vi l in
-          (* We must keep this definition even if we reuse this varinfo, 
-          * because maybe the previous one was a declaration *)
+          (* We must keep this definition even if we reuse this varinfo,
+           * because maybe the previous one was a declaration *)
           H.add emittedVarDecls vi.vname true; (* Remember that we emitted it*)
-                   
-          let emitIt:bool =
+
+          let emitIt:bool = (not mergeGlobals) ||
             try
               let prevVar, prevInitOpt, prevLoc =
                 (H.find emittedVarDefn vi'.vname) in
               (* previously defined; same initializer? *)
-              if (prevInitOpt = init) then (
+              if (equalInitOpts prevInitOpt init) then (
                 (trace "mergeGlob"
                   (P.dprintf "dropping global var %s at %a in favor of the one at %a\n"
                              vi'.vname  d_loc l  d_loc prevLoc));
