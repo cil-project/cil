@@ -84,13 +84,13 @@ end
 *)
 let args : (string * Arg.spec * string) list =
 [
-  "--cabsonly", Arg.String set_output, "Output file";
+  "--cabsonly", Arg.String set_output, "<fname>: CABS output file name";
   "--printComments", Arg.Unit (fun _ -> Cprint.printComments := true),
-             "print cabs tree structure in comments in cabs output";
+             ": print cabs tree structure in comments in cabs output";
   "--patchFile", Arg.String (fun pf -> patchFileName := pf),
-             "name the file containing patching transformations";
+             "<fname>: name the file containing patching transformations";
   "--printProtos", Arg.Unit (fun _ -> doPrintProtos := true),
-             "print prototypes to safec.proto.h after parsing";
+             ": print prototypes to safec.proto.h after parsing";
 ]
 
 exception ParseError of string
@@ -111,7 +111,7 @@ begin
     E.s (E.error "There were parsing errors in %s\n" fname);
 
   (* and apply the patch file, return transformed file *)
-  let patched = (* match !patchFile with
+  let patched = match !patchFile with
 
     | Some(pf) -> (
         (* save old value of out so I can use it for debugging during patching *)
@@ -129,7 +129,7 @@ begin
 
         result
       )
-    | None -> *) cabs
+    | None -> cabs
   in
 
   (* print it ... *)

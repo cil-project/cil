@@ -2496,3 +2496,8 @@ big-arrays : mustbemanju
                $(STANDARDPATCH) \
 	       $(CONLY) $(CFLAGS) big-arrays.c
 	echo SUCCESS
+
+# sm: stuff I've put into the misc/ directory
+misc-tests:
+	cd $(CCUREDHOME)/test/misc; \
+	  make clean all CILLY_EXE=$(CCUREDHOME)/obj/$(ARCHOS)/cilly.byte.exe

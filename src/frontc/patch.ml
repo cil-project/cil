@@ -51,7 +51,8 @@ exception NoMatch
 (* thrown when an attempt to find the associated binding fails *)
 exception BadBind of string
 
-(* trying to isolate performance problems *)
+(* trying to isolate performance problems; will hide all the *)
+(* potentially expensive debugging output behind "if verbose .." *)
 let verbose : bool = true
 
 
@@ -74,60 +75,7 @@ let extractPatternVar (s : string) : string =
   (*(trace "patch" (dprintf "extractPatternVar %s\n" s));*)
   (String.sub s 6 ((String.length s) - 7))
 
-
-(* class to describe how to modify the tree for subtitution *)
-class substitutor (bindings : binding list) = object(self)
-  (* look in the binding list for a given name *)
-  method findBinding (name : string) : binding =
-  begin
-    try
-      (List.find
-        (fun b ->
-          match b with
-          | BSpecifier(n, _) -> n=name
-          | BName(n, _) -> n=name
-          | BExpr(n, _) -> n=name)
-        bindings)
-    with
-      Not_found -> raise (BadBind ("name not found: " ^ name))
-  end
-
-  method vexpr (e:expression) : expression =
-  begin
-    match e with
-    | EXPR_PATTERN(name) -> (
-        match (self#findBinding name) with
-        | BExpr(_, expr) -> expr    (* substitute bound expression *)
-        | _ -> raise (BadBind ("wrong type: " ^ name))
-      )
-    | _ -> e
-  end
-
-  method vvname (s:string) : string =
-  begin
-    if (isPatternVar s) then (
-      let name = (extractPatternVar s) in
-      match (self#findBinding name) with
-      | BName(_, str) -> str        (* substitute *)
-      | _ -> raise (BadBind ("wrong type: " ^ name))
-    )
-    else
-      s
-  end
-
-  method vspec (s:specifier) : specifier =
-  begin
-    match s with
-    | SpecPattern(name) :: rest -> (
-        match (self#findBinding name) with
-        | BSpecifier(_, speclist) -> speclist @ rest
-        | _ -> raise (BadBind ("wrong type: " ^ name))
-      )
-    | _ -> s
-  end
-end
-
-
+  
 (* a few debugging printers.. *)
 let printExpr (e : expression) =
 begin
@@ -137,13 +85,18 @@ begin
   )
 end
 
-let printSpecs (pat : spec_elem list) (tgt : spec_elem list) =
+let printSpec (spec: spec_elem list) =
 begin
   if (verbose && traceActive "patchDebug") then (
-    Cprint.print_specifiers pat;  Cprint.force_new_line ();
-    Cprint.print_specifiers tgt;  Cprint.force_new_line ();
+    Cprint.print_specifiers spec;  Cprint.force_new_line ();
     Cprint.flush ()
   )
+end
+
+let printSpecs (pat : spec_elem list) (tgt : spec_elem list) =
+begin
+  (printSpec pat);
+  (printSpec tgt)
 end
 
 let printDecl (pat : name) (tgt : name) =
@@ -173,6 +126,103 @@ begin
 end
 
 
+(* class to describe how to modify the tree for subtitution *)
+class substitutor (bindings : binding list) = object(self)
+  inherit nopCabsVisitor as super
+
+  (* look in the binding list for a given name *)
+  method findBinding (name : string) : binding =
+  begin
+    try
+      (List.find
+        (fun b ->
+          match b with
+          | BSpecifier(n, _) -> n=name
+          | BName(n, _) -> n=name
+          | BExpr(n, _) -> n=name)
+        bindings)
+    with
+      Not_found -> raise (BadBind ("name not found: " ^ name))
+  end
+
+  method vexpr (e:expression) : expression visitAction =
+  begin
+    match e with
+    | EXPR_PATTERN(name) -> (
+        match (self#findBinding name) with
+        | BExpr(_, expr) -> ChangeTo(expr)    (* substitute bound expression *)
+        | _ -> raise (BadBind ("wrong type: " ^ name))
+      )
+    | _ -> DoChildren
+  end
+  
+  (* use of a name *)
+  method vvar (s:string) : string =
+  begin
+    if (isPatternVar s) then (
+      let nameString = (extractPatternVar s) in
+      match (self#findBinding nameString) with
+      | BName(_, str) -> str        (* substitute *)
+      | _ -> raise (BadBind ("wrong type: " ^ nameString))
+    )
+    else
+      s
+  end
+
+  (* binding introduction of a name *)
+  method vname (k: nameKind) (spec: specifier) (n: name) : name visitAction =
+  begin
+    match n with (s (*variable name*), dtype, attrs) -> (
+      let replacement = (self#vvar s) in    (* use replacer from above *)
+      if (s <> replacement) then
+        ChangeTo(replacement, dtype, attrs)
+      else
+        DoChildren                          (* no replacement *)
+    )
+  end
+
+  method vspec (specList: specifier) : specifier visitAction =
+  begin
+    if verbose then (trace "patchDebug" (dprintf "substitutor: vspec\n"));
+    (printSpec specList);
+
+    (* are any of the specifiers SpecPatterns?  we have to check the entire *)
+    (* list, not just the head, because e.g. "typedef @specifier(foo)" has *)
+    (* "typedef" as the head of the specifier list *)
+    if (List.exists (fun elt -> match elt with
+                                | SpecPattern(_) -> true
+                                | _ -> false)
+                    specList) then begin
+      (* yes, replace the existing list with one got by *)
+      (* replacing all occurrences of SpecPatterns *)
+      (trace "patchDebug" (dprintf "at least one spec pattern\n"));
+      ChangeTo
+        (List.flatten
+          (List.map
+            (* for each specifier element, yield the specifier list *)
+            (* to which it maps; then we'll flatten the final result *)
+            (fun elt ->
+              match elt with
+              | SpecPattern(name) -> (
+                  match (self#findBinding name) with
+                  | BSpecifier(_, replacement) -> (
+                      (trace "patchDebug" (dprintf "replacing pattern %s\n" name));
+                      replacement                                                  
+                    )
+                  | _ -> raise (BadBind ("wrong type: " ^ name))
+                )
+              | _ -> [elt]    (* leave this one alone *)
+            )
+            specList
+          )
+        )
+    end
+    else
+      (* none of the specifiers in specList are patterns *)
+      DoChildren
+  end
+end
+
 
 (* why can't I have forward declarations in the language?!! *)
 let unifyExprFwd : (expression -> expression -> binding list) ref
@@ -187,7 +237,7 @@ begin
   (printExpr expr);
 
   (* apply the transformation *)
-  let result = (visitCabsExpr expr (new substitutor bindings :> cabsVisitor)) in
+  let result = (visitCabsExpression (new substitutor bindings :> cabsVisitor) expr) in
   (printExpr result);
 
   result
@@ -201,7 +251,9 @@ let d_loc (_:unit) (loc: cabsloc) : doc =
 (* to apply expression transformers *)
 class exprTransformer (srcpattern : expression) (destpattern : expression)
                       (patchline : int) (srcloc : cabsloc) = object(self)
-  method vexpr (e:expression) : expression =
+  inherit nopCabsVisitor as super
+
+  method vexpr (e:expression) : expression visitAction =
   begin
     (* see if the source pattern matches this subexpression *)
     try (
@@ -210,26 +262,28 @@ class exprTransformer (srcpattern : expression) (destpattern : expression)
       (* match! *)
       (trace "patch" (dprintf "expr match: patch line %d, src %a\n"
                               patchline d_loc srcloc));
-      (substExpr bindings destpattern)
+      ChangeTo(substExpr bindings destpattern)
     )
 
     with NoMatch -> (
       (* doesn't apply *)
-      e
+      DoChildren
     )
   end
 
   (* other constructs left unchanged *)
-  method vvname (s:string) = s
-  method vspec (s:specifier) = s
 end
 
 
 let gettime () : float =
   (Unix.times ()).Unix.tms_utime
 
-let rec applyPatch (patch : file) (src : file) : file =
+let rec applyPatch (patchFile : file) (srcFile : file) : file =
 begin
+  let patch : definition list = (snd patchFile) in
+  let srcFname : string = (fst srcFile) in
+  let src : definition list = (snd srcFile) in
+
   (trace "patchTime" (dprintf "applyPatch start: %f\n" (gettime ())));
   if (traceActive "patchDebug") then
     Cprint.out := stdout      (* hack *)
@@ -239,7 +293,7 @@ begin
   unifyExprFwd := unifyExpr;
 
   (* patch a single source definition, yield transformed *)
-  let rec patchDefn (patch : file) (d : definition) : definition list =
+  let rec patchDefn (patch : definition list) (d : definition) : definition list =
   begin
     match patch with
     | TRANSFORMER(srcpattern, destpattern, loc) :: rest -> (
@@ -255,6 +309,7 @@ begin
           (* we have a match!  apply the substitutions *)
           (trace "patch" (dprintf "defn match: patch line %d, src %a\n"
                                   loc.lineno d_loc (get_definitionloc d)));
+
           (List.map (fun destElt -> (substDefn bindings destElt)) destpattern)
         )
 
@@ -272,12 +327,18 @@ begin
                      loc.lineno d_loc (get_definitionloc d)));
 
         (* walk around in 'd' looking for expressions to modify *)
-        let d' = (visitCabsDefn d (new exprTransformer srcpattern destpattern
-                                                       loc.lineno (get_definitionloc d)))
-        in
+        let dList = (visitCabsDefinition
+                      ((new exprTransformer srcpattern destpattern
+                                            loc.lineno (get_definitionloc d))
+                       :> cabsVisitor)
+                      d
+                    ) in
 
         (* recursively invoke myself to try additional patches *)
-        (patchDefn rest d')
+        (* since visitCabsDefinition might return a list, I'll try my *)
+        (* addtional patches on every yielded definition, then collapse *)
+        (* all of them into a single list *)
+        (List.flatten (List.map (fun d -> (patchDefn rest d)) dList))
       )
 
     | _ :: rest -> (
@@ -286,12 +347,15 @@ begin
       )
     | [] -> (
         (* reached the end of the patch file with no match *)
+        let ret : definition list =
         [d]     (* have to wrap it in a list ... *)
+        in ret
       )
   end in
 
   (* transform all the definitions *)
-  let result = (List.flatten (List.map (fun d -> (patchDefn patch d)) src)) in
+  let result : definition list =
+    (List.flatten (List.map (fun d -> (patchDefn patch d)) src)) in
 
   (*Cprint.print_defs result;*)
 
@@ -302,7 +366,7 @@ begin
   );
 
   (trace "patchTime" (dprintf "applyPatch finish: %f\n" (gettime ())));
-  result
+  (srcFname, result)
 end
 
 
@@ -453,9 +517,10 @@ begin
     PTR(tattr, ttype) ->
       (mustEq pattr tattr);
       (unifyDeclType ptype ttype)
-  | PROTO(ptype, pformals, pva),
-    PROTO(ttype, tformals, tva) ->
+  | PROTO(ptype, pformals, pva, pexc),
+    PROTO(ttype, tformals, tva, texc) ->
       (mustEq pva tva);
+      (mustEq pexc texc);
       (unifyDeclType ptype ttype) @
       (unifySingleNames pformals tformals)
   | _ -> (
@@ -646,7 +711,9 @@ begin
   (printDefn defn);
 
   (* apply the transformation *)
-  (visitCabsDefn defn (new substitutor bindings :> cabsVisitor))
+  match (visitCabsDefinition (new substitutor bindings :> cabsVisitor) defn) with
+  | [d] -> d    (* expect a singleton list *)
+  | _ -> (failwith "didn't get a singleton list where I expected one")
 end
 
 

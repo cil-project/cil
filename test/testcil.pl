@@ -684,6 +684,7 @@ smAddTest("scott/suppress_optim $wildbox");
 smAddTest("scott/suppress_optim $wildbox TAGALLFNS=1");
 smAddTest("testrun/bug1 $box");
 smAddTest("scott/structs_edg_stl_ccuredlib_test $box");
+smAddTest("misc-tests");
 
 # current problematic test cases
 smAddTest("scott/complex_float $box");

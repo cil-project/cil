@@ -136,6 +136,7 @@ and definition =
 
  | LINKAGE of string * definition list * cabsloc
 
+(* the string is a file name, and then the list of toplevel forms *)
 and file = string * definition list
 
 
