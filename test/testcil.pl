@@ -604,8 +604,7 @@ smAddTest("badd/nullfield $manualbox");
 smAddTest("scott/constfold");
 smAddTest("scott/mode_sizes");       # mode(__QI__) stuff
 smAddTest("scott-nolink/brlock");
-smFailTest("infers qsort_wsff which is really weird (very unsound)",
-           "scott/qsort_wild $box");
+smAddTest("scott/qsort_wild $box");
 
 # test of strings (need more!)
 smFailTest("unsound user annotation RWSTRING", "badd/ovwrnull $box");
@@ -615,7 +614,7 @@ smAddTest("test-bad/strloop2 $box");
 smAddTest("scott/memcpy $box");
 smAddTest("scott/realloc $box");
 smAddTest("scott/strchr $box");
-smFailTest("__endof_sf error", "scott/models $box");
+smAddTest("scott/models $box");
 
 # tests of things in safec.c
 smAddTest("scott/qsort $box");
@@ -635,7 +634,7 @@ else {
 smAddTest("scott/getpwnam $box");
 
 smAddTest("test-bad/execv $box");
-$TEST->setField(smFailTest("__endof_sf error", "scott/popen $box"),
+$TEST->setField(smAddTest("scott/popen $box"),
                 "FailDiagnosis", "inferred glob_t probably has unanticipated type");
 smAddTest("scott/memset_int $box");
 smAddTest("scott/printfllong $box");

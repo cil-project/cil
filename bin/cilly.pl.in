@@ -107,8 +107,35 @@ sub applyCil {
         $extraarg = "--out $outfile";
     }
 
+    # for help with module isolation, I need a fully-qualified name
+    my $fqsrc = $src;
+    if ($fqsrc !~ "^/") {            # if not already fully-qualified..
+      my $wd = `pwd`;
+      chomp($wd);
+      $fqsrc = $wd . "/" . $src;     # prepend cwd to fully-qualify
+      $fqsrc =~ s,/\./,/,;           # remove "/./" arising from src beginning with "./"
+    }
+
+    # when defined, CILIFY_MODULES is the name of a file containing
+    # the names of all the files process with cilly.asm.exe; the
+    # rest just get the .i filed copied to the cil.c file
+    if (defined($ENV{CILIFY_MODULES}) &&
+        # the ^ and $ are anchors for the regexp; they're needed because
+        # the filename contains dots, which grep interprets as matching
+        # anything; the anchors make sure that ".i" only matches ".i" as
+        # an extension
+        0!=system("grep '^$fqsrc\$' $ENV{CILIFY_MODULES} >/dev/null")) {
+      # sm: this is to help isolate the problem with linux
+      print("skipping cilly for $fqsrc...\n");
+      $self->runShell("cp $src $cilfile");
+      return $cilfile;
+    }
+    else {
+      print("NOT skipping cilly for $fqsrc\n");
+    }
+
     if($self->{VERBOSE}) { print "Cilly compiling $src to $outfile\n"; }
-    
+
     my $cmd = "$CilCompiler::compiler ";
     
     if($self->{MODENAME} eq "MSVC") {

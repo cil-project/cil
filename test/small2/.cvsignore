@@ -122,3 +122,4 @@ mode_sizes
 test-bad.err
 brlock
 test-bad.out
+qsort_wild
