@@ -521,6 +521,7 @@ let checkSafeRetFatFun =
   let argp  = makeLocalVar fdec "p" voidPtrType in
   let argb  = makeLocalVar fdec "b" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
+  fdec.svar.vstorage <- Static;
   theFile := GDecl fdec.svar :: !theFile;
   fdec
     
@@ -529,6 +530,7 @@ let checkSafeFatLeanCastFun =
   let argp  = makeLocalVar fdec "p" voidPtrType in
   let argb  = makeLocalVar fdec "b" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
+  fdec.svar.vstorage <- Static;
   theFile := GDecl fdec.svar :: !theFile;
   fdec
 
@@ -538,6 +540,7 @@ let checkFunctionPointer =
   let argb  = makeLocalVar fdec "b" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
   theFile := GDecl fdec.svar :: !theFile;
+  fdec.svar.vstorage <- Static;
   fun whatp whatb -> 
     call None (Lval(var fdec.svar)) [ castVoidStar whatp; 
                                       castVoidStar whatb]
@@ -547,6 +550,7 @@ let checkFetchLength =
   let argp  = makeLocalVar fdec "p" voidPtrType in
   let argb  = makeLocalVar fdec "b" voidPtrType in
   fdec.svar.vtype <- TFun(uintType, [ argp; argb ], false, []);
+  fdec.svar.vstorage <- Static;
   theFile := GDecl fdec.svar :: !theFile;
   fun tmplen base -> 
     let ptr = 
@@ -574,6 +578,7 @@ let checkFetchTagStart =
   let argl  = makeLocalVar fdec "l" uintType in
   fdec.svar.vtype <- TFun(voidPtrType, [ argb; argl ], false, []);
   theFile := GDecl fdec.svar :: !theFile;
+  fdec.svar.vstorage <- Static;
   fun tmplen base len -> 
     call (Some tmplen) (Lval (var fdec.svar))
       [ castVoidStar base; 
@@ -614,6 +619,7 @@ let checkBounds : (unit -> exp) -> exp -> lval -> typ -> stmt =
   let argp  = makeLocalVar fdec "p" voidPtrType in
   let argpl  = makeLocalVar fdec "pl" uintType in
   fdec.svar.vtype <- TFun(voidType, [ argb; argl; argp; argpl ], false, []);
+  fdec.svar.vstorage <- Static;
   theFile := GDecl fdec.svar :: !theFile;
   fun mktmplen base lv t ->
     let lv', lv't = getHostIfBitfield lv t in
@@ -649,6 +655,7 @@ let checkZeroTags =
   let argsize  = makeLocalVar fdec "size" uintType in
   fdec.svar.vtype <- TFun(voidType, [ argb; argbl; argp; argsize ], false, []);
   theFile := GDecl fdec.svar :: !theFile;
+  fdec.svar.vstorage <- Static;
   fun base lenExp lv t ->
     let lv', lv't = getHostIfBitfield lv t in
     call None (Lval (var fdec.svar))
@@ -674,6 +681,7 @@ let checkFatPointerRead =
   let argp  = makeLocalVar fdec "p" voidPtrType in
   let argt  = makeLocalVar fdec "tags" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argb; argp; argt ], false, []);
+  fdec.svar.vstorage <- Static;
   theFile := GDecl fdec.svar :: !theFile;
   
   fun base where tagstart -> 
@@ -690,6 +698,7 @@ let checkFatPointerWrite =
   fdec.svar.vtype <- 
      TFun(voidType, [ argb; argp; argwb; argwp; argt ], false, []);
   theFile := GDecl fdec.svar :: !theFile;
+  fdec.svar.vstorage <- Static;
   
   fun base where whatbase whatp tagstart -> 
     call None (Lval(var fdec.svar))
@@ -757,7 +766,9 @@ let checkMem (towrite: exp option)
               None -> None
             | Some (Lval whatlv) -> 
                 Some (Lval (addOffsetLval (Field(fi, NoOffset)) whatlv))
-            | _ -> E.s (E.unimp "doCheckTags")
+                  (* sometimes in Asm outputs we pretend that we write 0 *)
+            | Some (Const(CInt(0, _, _), _)) -> None
+            | Some e -> E.s (E.unimp "doCheckTags (%a)" d_exp e)
           in
           doCheckTags newtowrite newwhere fi.ftype acc
         in
