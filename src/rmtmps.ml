@@ -686,7 +686,7 @@ let rec removeUnusedTemps ?(markRoots : rootsMarker = defaultRootsMarker) file =
       let removedLocals = removeUnmarked file in
 
       (* print which original source variables were removed *)
-      if removedLocals != [] then
+      if false && removedLocals != [] then
 	let count = List.length removedLocals in
 	if count > 2000 then 
 	  ignore (E.warn "%d unused local variables removed" count)
