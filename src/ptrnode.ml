@@ -194,9 +194,9 @@ let is_table_kind = function
 
 
 (* set a boolean bitflag *)
-let setFlag n f = n.flags <- n.flags lor f
+let setFlag n f = n.flags <- (n.flags lor f)
 (* check a boolean bitflag *)
-let hasFlag n f = n.flags land f <> 0 
+let hasFlag n f = (n.flags land f) <> 0 
 
 let pkInterface = 1          (* this is an interface node *)
 let pkUpdated = 2            (* we write through this pointer *)
@@ -221,10 +221,11 @@ let pkIndex      = of_int 64  (* The pointer is into a sized array. *)
 let pkForward    = of_int 128 (* The pointer is into an array, and is moving 
                                * only forward *)
 *)
-let pkCastPredFlags = pkUpdated (* bitmask of all Cast/Pred flags *)
-let pkCastSuccFlags = pkOnStack lor pkNull lor pkIntCast lor
-                      pkPosArith lor pkArith
-let pkCNISuccFlags =  pkReachString lor pkReachIndex lor pkReachSeq
+
+(* These are bitmasks of flags. *) 
+let pkCastPredFlags = (pkUpdated lor pkPosArith lor pkArith)
+let pkCastSuccFlags = (pkOnStack lor pkNull lor pkIntCast)
+let pkCNISuccFlags =  (pkReachString lor pkReachIndex lor pkReachSeq)
 
 let pkIsWild = function
     KWild _ -> true | _ -> false
@@ -304,17 +305,17 @@ let d_whykind () = function
 let d_node () n = 
   dprintf "%d : %a (%s%s%s%s%s%s%s%s%s%s%s) (@[%a@])@! K=%a/%a T=%a@!  S=@[%a@]@!  P=@[%a@]@!" 
     n.id d_placeidx n.where
-    (if n.onStack then "stack," else "")
-    (if n.updated then "upd," else "")
-    (if n.posarith then "posarith," else "")
-    (if n.arith then "arith," else "")
-    (if n.null  then "null," else "")
-    (if n.intcast  then "int," else "")
-    (if n.interface  then "interf," else "")
+    (if n.onStack || hasFlag n pkOnStack then "stack," else "")
+    (if n.updated || hasFlag n pkUpdated then "upd," else "")
+    (if n.posarith || hasFlag n pkPosArith then "posarith," else "")
+    (if n.arith || hasFlag n pkArith then "arith," else "")
+    (if n.null || hasFlag n pkNull then "null," else "")
+    (if n.intcast || hasFlag n pkIntCast then "int," else "")
+    (if n.interface || hasFlag n pkInterface then "interf," else "")
     (if n.sized  then "sized," else "")
-    (if n.can_reach_string  then "reach_s," else "")
-    (if n.can_reach_seq     then "reach_q," else "")
-    (if n.can_reach_index   then "reach_i," else "")
+    (if n.can_reach_string || hasFlag n pkReachString then "reach_s," else "")
+    (if n.can_reach_seq    || hasFlag n pkReachSeq    then "reach_q," else "")
+    (if n.can_reach_index  || hasFlag n pkReachIndex  then "reach_i," else "")
     (docList (chr ',' ++ break)
        (fun n -> num n.id)) n.pointsto
     d_opointerkind n.kind

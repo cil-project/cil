@@ -175,7 +175,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
         if e.ekind = ECast || e.ekind = ECompat then begin
           let old_flags = e.efrom.flags in 
             setFlag e.efrom (cur.flags land pkCastPredFlags) ;
-            finished := !finished || (old_flags <> e.efrom.flags)
+            finished := !finished && (old_flags = e.efrom.flags)
         end
       ) cur.pred ;
 
@@ -184,7 +184,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
         if e.ekind = ECast || e.ekind = ECompat then begin
           let old_flags = e.eto.flags in 
             setFlag e.eto (cur.flags land pkCastSuccFlags) ;
-            finished := !finished || (old_flags <> e.eto.flags)
+            finished := !finished && (old_flags = e.eto.flags)
         end
       ) cur.succ ;
 
@@ -193,7 +193,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
         if e.ekind = ECast || e.ekind = ENull || e.ekind = EIndex || e.ekind = ECompat then begin
           let old_flags = e.eto.flags in 
             setFlag e.eto (cur.flags land pkCNISuccFlags) ;
-            finished := !finished || (old_flags <> e.eto.flags)
+            finished := !finished && (old_flags = e.eto.flags)
         end
       ) cur.succ ;
     ) node_ht ;
