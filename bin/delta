@@ -4,10 +4,6 @@ use strict;
 # Implementation by Daniel Wilkerson of the delta debugging algorithm:
 # http://www.st.cs.uni-sb.de/dd/
 
-# FIX: This ought to be a Perl module where you can plug in your own
-# test function, but for now, just take this script and hack the test
-# function yourself.
-
 # FIX: What is the deal with this pass where we try every marker
 # individually?  Does this ever find anything?  It seems very
 # unlikely.  Take stats on this.  I think we can just remove it.
@@ -36,9 +32,6 @@ my $mark_signature;
 my $last_mark_stop;
 my @current_markers;            # Markers to be rendered to $tmpinput if answer not in cache.
 
-#my @log_if_success;             # Messages to be written to the log on a successful test.
-#my @delete_if_failure;          # Files to be unlinked on a failed test.
-
 my $tmpinput;                   # Temporary file to render marked subsequence to.
 my $last_successful_tmpinput;   # Last one to past the test.
 
@@ -47,38 +40,33 @@ my $tmpdir_index = 0;           # Cache the last index used to make a tmp direct
 my $tmpdir;                     # Temporary directory for external programs.
 my $logfile = "Log";            # File in $tmpdir where log of successful runs is written.
 chomp (my $this_dir = `pwd`);   # The current directory.
+my $starttime = time;           # The time we started.
 
 my $granularity = "line";       # What is the size of an input chunk?
 my $dump_input = 0;             # Dump out the input after reading it in.
 my $cp_minimal;                 # Copy the minimal successful test to the current dir.
 my $verbose = 0;                # Be more verbose.
-my $input_suffix = ".c";        # For now, our input files are .c files.
+my $suffix = ".c";              # For now, our input files are .c files.
+my $test = "test";              # The script to run as the test.
 
 my $help_message = <<END
+
     Delta Debugging
     delta.pl implements the delta-debugging algorithm: http://www.st.cs.uni-sb.de/dd/
     Implemented by Daniel Wilkerson.
-    To get help.
-      -help
-    For verbose output.
-      -verbose
-    To read input in line or C-top-level-form granularity.
-      -granularity=line or -granularity=top_form
-    To dump the input after reading.
-      -dump_input
-    To copy the minimal successful test to the current directory when done.
-      -cp_minimal=<filename>
+
+    -help Get help
+    -test=<testscript> Specify the test script, defaults to $test
+    -dump_input Dump input after reading
+    -verbose Get more verbose output
+    -cp_minimal=<filename> Copy the minimal successful test to the current directory
+    -granularity=line Use lines as the granularity
+    -granularity=top_form Use C top-level forms as the granularity
+
 END
 ;
 
 # Functions ****************
-
-sub make_tmpfile ($) {
-    my ($filename) = @_;
-    die if -e $filename;
-#    push @delete_if_failure, $filename;
-    return $filename;
-}
 
 # Return true if the current_markers pass the interesting test.
 sub test {
@@ -87,60 +75,27 @@ sub test {
         print "\tcached\n";
         return $cached_result;
     }
+
     render_tmpinput();
-#    @log_if_success = ();
-#    @delete_if_failure = ();
-    my $input = "${tmpdir}/${tmpinput}";
-#    die unless -f $input; push @delete_if_failure, $input;
+    print " $tmpinput";
+    my $arena = "$tmpdir/arena";
+    die if system "rm -f $arena/*";
+    my $input = "$tmpdir/$tmpinput";
+    my $arena_input = "input$suffix";
+    link $input, "$arena/$arena_input";
+    my $result = ! system "cd $arena; $this_dir/$test $arena_input";
 
-    die if system "rm -f ${tmpdir}/arena/*";
-    my $arena_name = "input${input_suffix}";
-    link $input, "${tmpdir}/arena/${arena_name}";
-    my $result = ! system "cd ${tmpdir}/arena; ${this_dir}/hello.test ${arena_name}";
-
-    # Test case specific.
-#      my $result = 0;
-#      my $cmp_output = make_tmpfile "${tmpdir}/${tmpinput}.cmp";
-#      if (run("gcc $input &> $cmp_output")) {        # Only interesting if it compiles
-#          my $run_output = make_tmpfile "${tmpdir}/${tmpinput}.run";
-#          $result = ! run("./a.out &> $run_output"); # But does not run.
-#      }
-
-    # Actual ccured run.
-#      my $command = <<END
-#  CILLY_DONT_LINK_AFTER_MERGE=1 CILLY_DONT_COMPILE_AFTER_MERGE=1 /home/dsw/cil/bin/ccured --curetype=infer -I/home/dsw/cil/include -I/home/dsw/cil/include/gcc_2.95.3 --commPrintLn --tr=sm --verbose -D_GNUCC ${tmpdir}/$filename -o structs-cured 2>&1 | tee ${tmpdir}/${filename}.run | grep 'Bug:'
-#  END
-#      ;
-#      my $result = run ($command);
-
-    # Keep around info on successful runs.
+    # Keep around info only for successful runs.
     if ($result) {
         my $size = (split " ", `wc -l $input`)[0];
         print "\tSUCCESS, lines: $size ****************\n";
-        open LOG, ">>${tmpdir}/${logfile}" or die $!;
-        print LOG "$tmpinput, lines: $size\n";
-#        print LOG join("\n", @log_if_success), "\n";
-        close LOG or die $!;
+        log_msg("$tmpinput, lines: $size");
         $last_successful_tmpinput = $tmpinput;
     } else {
         print "\n";
         unlink $input;
-#        foreach my $file (@delete_if_failure) {
-#            print "UNLINKING $file\n";
-#            unlink $file;
-#        }
     }
-#    undef @log_if_success;
-#    undef @delete_if_failure;
     return $test_cache{$mark_signature} = $result;
-}
-
-sub run ($) {
-    my ($command) = @_;
-    print $command, "\n";
-#    push @log_if_success, $command;
-    my $unix_ret_val = system $command;
-    return $unix_ret_val ? 0 : 1;
 }
 
 sub render_tmpinput {
@@ -185,7 +140,7 @@ sub unused_tempfile {
     die unless defined $tmpdir;
     my $filename;
     do {
-        $filename = sprintf("%03d", $tmp_index) . $input_suffix;
+        $filename = sprintf("%03d", $tmp_index) . $suffix;
         $tmp_index++;
     } while -e "${tmpdir}/$filename";
     return $filename;
@@ -223,6 +178,8 @@ sub parse_command_line {
                 }
             } elsif ($flag eq "cp_minimal") {
                 $cp_minimal = $argument;
+            } elsif ($flag eq "test") {
+                $test = $argument;
             } else {die "Illegal flag: $flag \n"}
         } else {push @non_flags, $str;}
     }
@@ -319,10 +276,44 @@ sub done {
         print "Copying minimal run to $cp_minimal\n";
         die "cp failed" if system "cp ${tmpdir}/${last_successful_tmpinput} $cp_minimal";
     }
-    open LOG, ">>${tmpdir}/${logfile}" or die $!;
-    print LOG "\nDone.\n";
-    close LOG or die $!;
+    log_msg("Done.");
     exit 0;
+}
+
+sub dhms_from_seconds {
+    my ($total_seconds) = @_;
+    my $sec = $total_seconds % 60;
+
+    my $total_minutes = ($total_seconds - $sec) / 60;
+    die unless $total_minutes == (int $total_minutes);
+    my $min = $total_minutes % 60;
+
+    my $total_hours = ($total_minutes - $min) / 60;
+    die unless $total_hours == (int $total_hours);
+    my $hours = $total_hours % 24;
+
+    my $days = ($total_hours - $hours) / 24;
+    die unless $days == (int $days);
+
+    return ($days, $hours, $min, $sec);
+}
+
+sub log_msg {
+    my ($message) = @_;
+    my $now = time;             # Get a timestamp in seconds.
+    my $elapsed = $now - $starttime; # Make relative to start time.
+    my ($d,$h,$m,$s) = dhms_from_seconds($elapsed); # Convert to more familiar format.
+    my $elapsed_dhms = "$h:$m:$s"; # Format.
+    if ($d > 0) {
+        my $day_str = "$d day";
+        $day_str .= "s" if $d > 1;
+        $day_str .= ", ";
+        $elapsed_dhms = $day_str . $elapsed_dhms;
+    }
+    my $timestr = scalar localtime($now); # Format as abolute.
+    open LOG, ">>${tmpdir}/${logfile}" or die $!;
+    print LOG sprintf ("%-39s %d, %s\t%s\n", $message, $elapsed, $elapsed_dhms, $timestr);
+    close LOG or die $!;
 }
 
 # Main ****************
@@ -333,6 +324,8 @@ if ($verbose) {
     print "\nDelta debugging algorithm, implemented by Daniel Wilkerson.\n";
     dump_settings();
 }
+
+log_msg("Start.");
 
 read_input_chunks();
 dump_input() if $dump_input;
