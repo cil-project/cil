@@ -7,7 +7,7 @@ ECHO := @
 
 # First stuff that makes the executable 
 
-SOURCEDIRS  := src
+SOURCEDIRS  := src src/frontc src/ext src/ccured
 OBJDIR      := obj
 MLLS        := 
 MLYS        := 

@@ -12,7 +12,7 @@ ifdef RELEASE
   NATIVECAML := 1
 endif
 
-SOURCEDIRS  = src src/frontc
+SOURCEDIRS  = src src/frontc src/ext
 OBJDIR      = obj
 MLLS        = clexer.mll
 MLYS        = cparser.mly
@@ -20,7 +20,7 @@ MODULES     = pretty errormsg trace stats util clist \
               cabs cprint clexer cparser cabsvisit \
               machdep cil cabs2cil \
               frontc check logcalls logwrites rmtmps \
-	      cfg heapify simplemem oneret testcil unionfind type maincil
+	      switch heapify simplemem oneret testcil maincil
 
 EXECUTABLE  = $(OBJDIR)/cilly
 ifdef NATIVECAML
@@ -142,13 +142,15 @@ DISTRIB_SRC = pretty.ml pretty.mli errormsg.ml errormsg.mli \
               trace.ml trace.mli stats.ml stats.mli \
               util.ml clist.ml clist.mli \
 	      cil.ml cil.mli check.ml check.mli \
-	      logcalls.ml logcalls.mli logwrites.ml \
-	      rmtmps.ml rmtmps.mli cfg.ml cfg.mli \
-	      heapify.ml testcil.ml maincil.ml
+	      rmtmps.ml rmtmps.mli \
+	      testcil.ml maincil.ml
 
 DISTRIB_SRC_FRONTC = cabs.ml cprint.ml clexer.mli clexer.mll \
 		     cparser.mly cabsvisit.ml cabsvisit.mli \
 		     cabs2cil.ml cabs2cil.mli frontc.ml frontc.mli
+
+DISTRIB_SRC_EXT = cfg.ml cfg.mli logcalls.ml logcalls.mli \
+                  logwrites.ml heapify.ml 
 
 DISTRIB_LIB = CompilerStub.pm Merger.pm cilly.pl patcher.pl
 
@@ -161,18 +163,20 @@ distrib: doc
 	rm -rf cil.tar.gz
 	mkdir $(TEMP_DIR)/cil \
 	      $(TEMP_DIR)/cil/src \
+              $(TEMP_DIR)/cil/src/frontc \
+              $(TEMP_DIR)/cil/src/ext \
               $(TEMP_DIR)/cil/obj \
               $(TEMP_DIR)/cil/doc \
 	      $(TEMP_DIR)/cil/lib \
 	      $(TEMP_DIR)/cil/doc/api \
               $(TEMP_DIR)/cil/obj/.depend \
-              $(TEMP_DIR)/cil/src/frontc \
               $(TEMP_DIR)/cil/test \
 
 	cp Makefile.cil $(TEMP_DIR)/cil/Makefile
 	cp Makefile.ocaml $(TEMP_DIR)/cil/Makefile.ocaml
 
 	cp $(patsubst %,src/%,$(DISTRIB_SRC)) $(TEMP_DIR)/cil/src
+	cp $(patsubst %,src/ext/%,$(DISTRIB_SRC_EXT)) $(TEMP_DIR)/cil/src/ext
 	cp $(patsubst %,src/frontc/%,$(DISTRIB_SRC_FRONTC)) \
 		$(TEMP_DIR)/cil/src/frontc
 	cp $(patsubst %,lib/%,$(DISTRIB_LIB)) $(TEMP_DIR)/cil/lib

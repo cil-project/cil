@@ -4101,3 +4101,78 @@ end
 let copyFunction (f: fundec) (newname: string) : fundec = 
   visitCilFunction (new copyFunctionVisitor(newname)) f
   
+(********* Compute the CFG ********)
+let sid_counter = ref 0 
+let statements : stmt list ref = ref [] 
+(* Clear all info about the CFG in statements *)  
+class clear : cilVisitor = object
+  inherit nopCilVisitor
+  method vstmt s = begin
+    s.sid <- !sid_counter ;
+    incr sid_counter ;
+    statements := s :: !statements;
+    s.succs <- [] ;
+    s.preds <- [] ;
+    DoChildren
+  end
+  method vexpr _ = SkipChildren
+  method vtype _ = SkipChildren
+  method vinst _ = SkipChildren
+end
+
+let link source dest = begin
+  if not (List.mem dest source.succs) then
+    source.succs <- dest :: source.succs ;
+  if not (List.mem source dest.preds) then
+    dest.preds <- source :: dest.preds 
+end
+let trylink source dest_option = match dest_option with
+  None -> ()
+| Some(dest) -> link source dest 
+
+let rec succpred_block b fallthrough =
+  let rec handle sl = match sl with
+    [] -> ()
+  | [a] -> succpred_stmt a fallthrough 
+  | hd :: tl -> succpred_stmt hd (Some(List.hd tl)) ;
+                handle tl 
+  in handle b.bstmts
+and succpred_stmt s fallthrough = 
+  match s.skind with
+    Instr _ -> trylink s fallthrough
+  | Return _ -> ()
+  | Goto(dest,l) -> link s !dest
+  | Break _ -> failwith "succpred: break"
+  | Continue _ -> failwith "succpred: continue"
+  | Switch _ -> failwith "succpred: switch"
+  | If(e1,b1,b2,l) -> 
+      (match b1.bstmts with
+        [] -> trylink s fallthrough
+      | hd :: tl -> (link s hd ; succpred_block b1 fallthrough )) ;
+      (match b2.bstmts with
+        [] -> trylink s fallthrough
+      | hd :: tl -> (link s hd ; succpred_block b2 fallthrough ))
+  | Loop(b,l) -> begin match b.bstmts with
+                   [] -> failwith "succpred: empty loop!?" 
+                 | hd :: tl -> 
+                    link s hd ; 
+                    succpred_block b (Some(hd))
+                 end
+  | Block(b) -> begin match b.bstmts with
+                  [] -> trylink s fallthrough
+                | hd :: tl -> link s hd ;
+                    succpred_block b fallthrough
+                end
+
+
+(* make the cfg and return a list of statements *)
+let computeCFGInfo (f : fundec) : stmt list =
+  let clear_it = new clear in 
+  sid_counter := 0 ; 
+  statements := [];
+  ignore (visitCilBlock clear_it f.sbody) ;
+  f.smaxstmtid <- Some (!sid_counter) ;
+  succpred_block f.sbody (None);
+  let res = !statements in
+  statements := [];
+  res

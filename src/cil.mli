@@ -708,13 +708,15 @@ statement has a (possibly empty) list of labels. The
 {!Cil.stmtkind} field of a statement indicates what kind of statement it 
 is.
 
+ Use {!Cil.mkStmt} to make a statement and the fill-in the fields. 
+
 CIL also comes with support for control-flow graphs. The [sid] field in
 [stmt] can be
 used to give unique numbers to statements, and the [succs] and [preds]
 fields can be used to maintain a list of successors and predeccors for every
-statement. 
+statement. The CFG information is not computed by default. Instead you must 
+explicitly use the function {!Cil.computeCFGInfo} to do it.
 
- Use {!Cil.mkStmt} to make a statement and the fill-in the fields. 
 *)
 (** Statements. *)
 and stmt = {
@@ -804,10 +806,6 @@ and instr =
     * number of arguments is the same as that of the declared formals, except 
     * for vararg functions.  *)
 
-    (** See the GCC specification for the meaning of ASM. If the source is MS 
-     * VC then only the templates are used *)
-                         (* sm: I've added a notes.txt file which contains more
-                          * information on interpreting Asm instructions *)
   | Asm        of attributes * (* Really only const and volatile can appear 
                                * here *)
                   string list *         (* templates (CR-separated) *)
@@ -819,14 +817,45 @@ and instr =
                   (string * exp) list * (* inputs with constraints *)
                   string list *         (* register clobbers *)
                   location
-        (** An inline assembly instruction. The arguments are (1) a list of 
-            attributes (only const and volatile can appear here and only for 
-            GCC), (2) templates (CR-separated), (3) a list of 
-            outputs, each of which is an lvalue with a constraint, (4) a list 
-            of input expressions along with constraints, (5) clobbered 
-            registers, and (5) location information *)
+    (** There are for storing inline assembly. They follow the GCC 
+      * specfication: 
+{v 
+  asm [volatile] ("...template..." "..template.."
+                  : "c1" (o1), "c2" (o2), ..., "cN" (oN)
+                  : "d1" (i1), "d2" (i2), ..., "dM" (iM)
+                  : "r1", "r2", ..., "nL" );
+ v}
 
+where the parts are
 
+  - [volatile] (optional): when present, the assembler instruction
+    cannot be removed, moved, or otherwise optimized
+  - template: a sequence of strings, with %0, %1, %2, etc. in the string to 
+    refer to the input and output expressions. I think they're numbered
+    consecutively, but the docs don't specify. Each string is printed on 
+    a separate line. This is the only part that is present for MSVC inline
+    assembly.
+  - "ci" (oi): pairs of constraint-string and output-lval; the 
+    constraint specifies that the register used must have some
+    property, like being a floating-point register; the constraint
+    string for outputs also has "=" to indicate it is written, or
+    "+" to indicate it is both read and written; 'oi' is the
+    name of a C lvalue (probably a variable name) to be used as
+    the output destination
+  - "dj" (ij): pairs of constraint and input expression; the constraint
+    is similar to the "ci"s.  the 'ij' is an arbitrary C expression
+    to be loaded into the corresponding register
+  - "rk": registers to be regarded as "clobbered" by the instruction;
+    "memory" may be specified for arbitrary memory effects
+
+an example (from gcc manual):
+{v 
+  asm volatile ("movc3 %0,%1,%2"
+                : /* no outputs */
+                : "g" (from), "g" (to), "g" (count)
+                : "r0", "r1", "r2", "r3", "r4", "r5");
+ v}
+*)
 
 (** Describes a location in a source file *)
 and location = { 
@@ -867,6 +896,10 @@ val foldGlobals: file -> ('a -> global -> 'a) -> 'a -> 'a
 (** Map over all globals, including the global initializer and change things 
     in place *)
 val mapGlobals: file -> (global -> global) -> unit
+
+(** Compute the CFG information for all statements in a fundec and return a 
+  * list of the statements *)
+val computeCFGInfo: fundec -> stmt list
 
 (** {b Values for manipulating initializers} *)
 
@@ -1211,7 +1244,6 @@ val mkFor: start:stmt list -> guard:exp -> next: stmt list ->
  
 
 
-  
 (**************************************************)
 (** {b Values for manipulating attributes} *)
 

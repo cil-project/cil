@@ -102,6 +102,11 @@ of the 904 c-torture tests that it should pass. GCC itself fails 19 tests. A
 total of 1400 regression test cases are run automatically on each change to
 the CIL sources.
 
+ CIL is relatively independent on the underlying machine and compiler. When
+you build it CIL will configure itself according to the underlying compiler.
+However, CIL has only been tested on Intel x86 using the gcc compiler on Linux
+and cygwin and using the MS Visual C compiler. 
+
 \section{Compiling C to CIL}\label{sec-cabs2cil}
 
  In this section we try to describe a few of the many transformations that are
@@ -1004,13 +1009,17 @@ Filename   & Description \\
 \t{src/clist.ml,mli}            & Utilities for efficiently managing lists
                                    that need to be concatenated often\\
 \t{src/errormsg.ml,mli}         & Utilities for error reporting \\
-\t{src/frontc/}                 & The parser, the CIL converter and the 
-                                  merger \\
-\t{src/heapify.ml}              & A CIL transformation that moves array local
+\t{src/frontc/clexer.mll}       & The lexer \\
+\t{src/frontc/cparser.mly}      & The parser \\
+\t{src/frontc/cabs.ml}          & The abstract syntax \\
+\t{src/frontc/cprint.ml}        & The pretty printer for CABS \\
+\t{src/frontc/cabs2cil.ml}      & The elaborator to CIL \\
+\t{src/frontc/merger.ml}        & The merger \\
+\t{src/ext/heapify.ml}          & A CIL transformation that moves array local
                                    variables from the stack to the heap \\
-\t{src/logcalls.ml,mli}         & A CIL transformation that logs every
+\t{src/ext/logcalls.ml,mli}     & A CIL transformation that logs every
                                    function call \\
-\t{src/logwrites.ml}            & A CIL transformation that logs every memory
+\t{src/ext/logwrites.ml}        & A CIL transformation that logs every memory
                                    write \\
 \t{src/main.ml}                 & A test application called \t{cilly} \\
 \t{src/pretty.ml,mli}           & Utilities for pretty printing \\
@@ -1119,9 +1128,8 @@ local variables cannot have the \t{const} qualifier.
 \begin{itemize}
 
 \item The implementation of \t{bitsSizeOf} does not take into account the
-packing pragmas. Also, it appears that in some cases involving bitfields it is
-not accurate on Linux. It was tested to be accurate on cygwin/gcc-2.95.3 and
-on Windows/MSVC. 
+packing pragmas. However it was tested to be accurate on cygwin/gcc-2.95.3,
+Linux/gcc-2.95.3 and on Windows/MSVC.
 
 \item We do not support tri-graph sequences (ISO 5.2.1.1).
 
@@ -1148,15 +1156,6 @@ GCC. For example, when you use variable-length arrays, CIL turnes them into
 calls to \t{alloca}. This means that they are deallocated when the function
 returns and not when the local scope ends. 
 \end{itemize}
-
- And some limitations that are not really bugs:
-\begin{itemize}
-\item \t{long} and \t{int} are 32-bit, \t{short} is 16 bits. 
-
- 
-
-\end{itemize}
-
 
   \section{Using the merger}\label{sec-merger}
 

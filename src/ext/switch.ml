@@ -143,71 +143,9 @@ let remove_switch_file f =
   | _ -> ()
   )
 
-let sid_counter = ref 0 
-  
-class clear = object
-  inherit nopCilVisitor
-  method vstmt s = begin
-    s.sid <- !sid_counter ;
-    incr sid_counter ;
-    s.succs <- [] ;
-    s.preds <- [] ;
-    DoChildren
-  end
-end
-
-let link source dest = begin
-  if not (List.mem dest source.succs) then
-    source.succs <- dest :: source.succs ;
-  if not (List.mem source dest.preds) then
-    dest.preds <- source :: dest.preds 
-end
-let trylink source dest_option = match dest_option with
-  None -> ()
-| Some(dest) -> link source dest 
-
-let rec succpred_block b fallthrough =
-  let rec handle sl = match sl with
-    [] -> ()
-  | [a] -> succpred_stmt a fallthrough 
-  | hd :: tl -> succpred_stmt hd (Some(List.hd tl)) ;
-                handle tl 
-  in handle b.bstmts
-and succpred_stmt s fallthrough = 
-  match s.skind with
-    Instr _ -> trylink s fallthrough
-  | Return _ -> ()
-  | Goto(dest,l) -> link s !dest
-  | Break _ -> failwith "succpred: break"
-  | Continue _ -> failwith "succpred: continue"
-  | Switch _ -> failwith "succpred: switch"
-  | If(e1,b1,b2,l) -> 
-      (match b1.bstmts with
-        [] -> trylink s fallthrough
-      | hd :: tl -> (link s hd ; succpred_block b1 fallthrough )) ;
-      (match b2.bstmts with
-        [] -> trylink s fallthrough
-      | hd :: tl -> (link s hd ; succpred_block b2 fallthrough ))
-  | Loop(b,l) -> begin match b.bstmts with
-                   [] -> failwith "succpred: empty loop!?" 
-                 | hd :: tl -> 
-                    link s hd ; 
-                    succpred_block b (Some(hd))
-                 end
-  | Block(b) -> begin match b.bstmts with
-                  [] -> trylink s fallthrough
-                | hd :: tl -> link s hd ;
-                    succpred_block b fallthrough
-                end
-
 let make_cfg (f : file) = begin
   remove_switch_file f ; 
-  let clear_it = new clear in 
   iterGlobals f (fun glob -> match glob with 
-    GFun(fd,_) -> 
-      sid_counter := 0 ; 
-      ignore (visitCilBlock clear_it fd.sbody) ;
-      fd.smaxstmtid <- Some(!sid_counter) ;
-      succpred_block fd.sbody (None) ;
+    GFun(fd,_) -> ignore (computeCFGInfo fd)
   | _ -> ())
 end
