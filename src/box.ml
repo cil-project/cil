@@ -420,12 +420,13 @@ let tagLength (t: typ) : (exp * exp) = (* Call only for a isCompleteType *)
               SizeOf(t, lu),
               kinteger IUInt 3, uintType, lu),
         integer 2, uintType, lu),
-  (* Now the number of tag words *)
+  (* Now the number of tag words. At 1 tag bit/ word we can fit the tags for 
+   * 128 bytes into one tag word. *)
   BinOp(Shiftrt, 
         BinOp(PlusA, 
               SizeOf(t, lu),
-              kinteger IUInt 63, uintType, lu),
-        integer 6, uintType, lu)
+              kinteger IUInt 127, uintType, lu),
+        integer 7, uintType, lu)
 
 let tagType (t: typ) : typ = 
   let tsig = typeSig t in
@@ -572,18 +573,6 @@ let checkFetchLength =
       [ castVoidStar ptr; 
         castVoidStar base ]
 
-let checkFetchTagStart = 
-  let fdec = emptyFunction "CHECK_FETCHTAGSTART" in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
-  let argl  = makeLocalVar fdec "l" uintType in
-  fdec.svar.vtype <- TFun(voidPtrType, [ argb; argl ], false, []);
-  theFile := GDecl fdec.svar :: !theFile;
-  fdec.svar.vstorage <- Static;
-  fun tmplen base len -> 
-    call (Some tmplen) (Lval (var fdec.svar))
-      [ castVoidStar base; 
-        len ]
-
 (* Since we cannot take the address of a bitfield we treat accesses to a 
  * bitfield like an access to the entire host that contains it (for the 
  * purpose of checking). This is only Ok if the host does not contain pointer 
@@ -678,33 +667,33 @@ let doCheckLean which arg  =
 let checkFatPointerRead = 
   let fdec = emptyFunction "CHECK_FATPOINTERREAD" in
   let argb  = makeLocalVar fdec "b" voidPtrType in
+  let arglen  = makeLocalVar fdec "nrWords" uintType in
   let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argt  = makeLocalVar fdec "tags" voidPtrType in
-  fdec.svar.vtype <- TFun(voidType, [ argb; argp; argt ], false, []);
+  fdec.svar.vtype <- TFun(voidType, [ argb; arglen; argp; ], false, []);
   fdec.svar.vstorage <- Static;
   theFile := GDecl fdec.svar :: !theFile;
   
-  fun base where tagstart -> 
+  fun base where len -> 
     call None (Lval(var fdec.svar))
-      [ castVoidStar base; castVoidStar where; castVoidStar tagstart]
+      [ castVoidStar base; len; castVoidStar where]
 
 let checkFatPointerWrite = 
   let fdec = emptyFunction "CHECK_FATPOINTERWRITE" in
   let argb  = makeLocalVar fdec "b" voidPtrType in
+  let arglen  = makeLocalVar fdec "nrWords" uintType in
   let argp  = makeLocalVar fdec "p" voidPtrType in
   let argwb  = makeLocalVar fdec "wb" voidPtrType in
   let argwp  = makeLocalVar fdec "wp" voidPtrType in
-  let argt  = makeLocalVar fdec "tags" voidPtrType in
   fdec.svar.vtype <- 
-     TFun(voidType, [ argb; argp; argwb; argwp; argt ], false, []);
+     TFun(voidType, [ argb; arglen; argp; argwb; argwp; ], false, []);
   theFile := GDecl fdec.svar :: !theFile;
   fdec.svar.vstorage <- Static;
   
-  fun base where whatbase whatp tagstart -> 
+  fun base where whatbase whatp len -> 
     call None (Lval(var fdec.svar))
-      [ castVoidStar base; 
+      [ castVoidStar base; len; 
         castVoidStar where; 
-        castVoidStar whatbase; castVoidStar whatp; castVoidStar tagstart]
+        castVoidStar whatbase; castVoidStar whatp;]
   
   
 let checkMem (towrite: exp option) 
@@ -727,18 +716,6 @@ let checkMem (towrite: exp option)
       Lval(Var vi, NoOffset) -> vi
     | _ -> E.s (E.bug "getLen");
   in
-  (* And the start of tags in another temp variable *)
-  let tagStartExp : exp option ref = ref None in
-  let getTagStartExp () = 
-    match !tagStartExp with
-      Some x -> x
-    | None -> begin
-        let x = makeTempVar !currentFunction ~name:"_ttags" voidPtrType in
-        let res = Lval(var x) in
-        tagStartExp := Some res; 
-        res
-    end
-  in
   (* Now the tag checking. We only care about pointers. We keep track of what 
    * we write in each field and we check pointers in a special way. *)
   let rec doCheckTags (towrite: exp option) (where: lval) t acc = 
@@ -752,11 +729,11 @@ let checkMem (towrite: exp option)
             match towrite with
               None -> (* a read *)
                 (checkFatPointerRead base 
-                   (AddrOf(where, lu)) (getTagStartExp ())) :: acc
+                   (AddrOf(where, lu)) (getLenExp ())) :: acc
             | Some towrite -> (* a write *)
                 let _, whatp, whatb = readPtrBaseField towrite t in
                 (checkFatPointerWrite base (AddrOf(where, lu)) 
-                   whatb whatp (getTagStartExp ())) :: acc
+                   whatb whatp (getLenExp ())) :: acc
         end 
     | TComp comp when comp.cstruct -> 
         let doOneField acc fi = 
@@ -793,22 +770,13 @@ let checkMem (towrite: exp option)
     zeroTags :: 
     (doCheckTags towrite lv t [])
   in
-  (* Now we know if we need to look at the tags *)
-  let check_1 = 
-    match zeroAndCheckTags with
-      [] | [Skip] -> []
-    | _ -> 
-        (checkFetchTagStart 
-           (getVarOfExp (getTagStartExp ()))
-           base (getLenExp ())) :: zeroAndCheckTags
-  in
   (* Now see if we need to do bounds checking *)
   let check_0 = 
-    match checkBounds getLenExp base lv t, check_1 with
+    match checkBounds getLenExp base lv t, zeroAndCheckTags with
       Skip, [] -> []  (* Don't even fetch the length *)
-    | cb, _ -> 
+    | cb, zct -> 
         (checkFetchLength (getVarOfExp (getLenExp ())) base) 
-        :: cb :: check_1
+        :: cb :: zct
   in
   check_0
   
