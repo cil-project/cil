@@ -526,7 +526,7 @@ APACHEBASE=apache_1.3.19/src
 APACHECFLAGS=/nologo /MDd /W3 /GX /Zi /Od \
          /I "$(APACHEBASE)\include" /I "$(APACHEBASE)\os\win32" /D "_DEBUG" \
          /D "WIN32" /D "_WINDOWS" /D "NO_DBM_REWRITEMAP" \
-         /D "SHARED_MODULE" /D "WIN32_LEAN_AND_MEAN" /FD /c 
+         /D "SHARED_MODULE" /D "WIN32_LEAN_AND_MEAN" /FD 
 
 apache/gzip : $(EXECUTABLE)$(EXE)
 	rm -f $(APACHETEST)/mod_gzip.obj

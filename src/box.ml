@@ -240,7 +240,7 @@ let dropConst t =
   | TEnum (n, f, a) -> TEnum (n, f, dropit a)
   | TFun (r, args, v, a) -> 
       List.iter (fun a -> a.vtype <- loop a.vtype) args;
-      TFun(r, args, v, dropit a)
+      TFun(loop r, args, v, dropit a)
  in
  loop t
 
