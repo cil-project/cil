@@ -45,7 +45,7 @@
 
 
 (* Some clients may wish to augment or replace the standard strategy
- * for marking reachable roots.  The optional "markRooks" argument to
+ * for marking reachable roots.  The optional "markRoots" argument to
  * Rmtmps.removeUnusedTemps grants this flexibility.  If given, it
  * should name a function which will set the appropriate referenced
  * bits on any global symbols which should be treated as retained
