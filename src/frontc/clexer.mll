@@ -138,6 +138,30 @@ let add_identifier name =
 let rem_quotes str = String.sub str 1 ((String.length str) - 2)
 let scan_ident id = try StringHashtbl.find lexicon id
 	with Not_found -> IDENT id
+
+(* Change \ into / in file names. To avoid complications with escapes *)
+let cleanFileName str = 
+  let str1 = if str <> "" && String.get str 0 = '"' (* '"' *) 
+        then rem_quotes str else str in
+  let l = String.length str1 in
+  let rec loop (copyto: int) (i: int) = 
+     if i >= l then 
+         String.sub str1 0 copyto
+     else 
+       let c = String.get str1 i in
+       if c <> '\\' then begin
+          String.set str1 copyto c; loop (copyto + 1) (i + 1)
+       end else begin
+          String.set str1 copyto '/';
+          if i < l - 2 && String.get str1 (i + 1) = '\\' then
+              loop (copyto + 1) (i + 2)
+          else 
+              loop (copyto + 1) (i + 1)
+       end
+  in
+  loop 0 0
+
+
 (*
 ** Buffer processor
 *)
@@ -159,7 +183,7 @@ let init (infile: string)
          (inc: in_channel) : Lexing.lexbuf =
   currentLine := 1;
   startLine := 0;
-  currentFile := infile;
+  currentFile := cleanFileName infile;
   attribDepth := 0;
   init_lexicon ();
   let lexbuf = Lexing.from_channel inc in
@@ -371,7 +395,7 @@ and file =  parse
 |	blank			{file lexbuf}
 |	'"' [^ '\012' '\t' '"']* '"' 	{ (* '"' *)
                                  currentFile := 
-                                    (rem_quotes (Lexing.lexeme lexbuf));
+                                     cleanFileName (Lexing.lexeme lexbuf);
 (*
                                  print_string ("Found "^ !currentFile ^".\n");
 
