@@ -25,7 +25,8 @@ open Cil
 open Cabs
 let version = "Cprint 2.1e 9.1.99 Hugues Cassé"
 
-let lu = {line = -1; col = -1; file = "loc unknown";}
+let lu = {line = -1; file = "loc unknown";}
+let cabslu = {lineno = -10; filename = "cabs loc unknown";}
 
 let msvcMode = ref false
 
@@ -495,7 +496,7 @@ and print_expression (exp : expression) (lvl : int) =
       print ("->" ^ fld)
   | GNU_BODY blk ->
       print "(";
-      print_statement (BLOCK (blk, {line = -1; col = -1; file = "";}));
+      print_statement (BLOCK (blk, cabslu));
       print ")" in
   if lvl > lvl' then print ")" else ()
     
@@ -674,34 +675,34 @@ and print_defs defs =
 
 and print_def def =
   match def with
-    FUNDEF (proto, body) ->
+    FUNDEF (proto, body, loc) ->
       print_single_name proto;
-      print_statement (BLOCK (body, lu));
+      print_statement (BLOCK (body, loc));
       force_new_line ();
 
-  | DECDEF names ->
+  | DECDEF (names, loc) ->
       print_init_name_group names;
       print ";";
       new_line ()
-	
-  | TYPEDEF names ->
+
+  | TYPEDEF (names, loc) ->
       print_name_group names;
       print ";";
       new_line ();
       force_new_line ()
-        
-  | ONLYTYPEDEF specs ->
+
+  | ONLYTYPEDEF (specs, loc) ->
       print_specifiers specs;
       print ";";
       new_line ();
       force_new_line ()
 
-  | GLOBASM asm -> 
+  | GLOBASM (asm, loc) ->
       print "__asm__ (";  print_string asm; print ");";
       new_line ();
       force_new_line ()
 
-  | PRAGMA a -> 
+  | PRAGMA (a,loc) ->
       force_new_line ();
       print "#pragma ";
       let oldwidth = !width in
@@ -709,7 +710,7 @@ and print_def def =
       print_expression a 1;
       width := oldwidth;
       force_new_line ()
-      
+
 
 (*  print abstrac_syntax -> ()
 **		Pretty printing the given abstract syntax program.
@@ -717,7 +718,7 @@ and print_def def =
 let print (result : out_channel) (defs : file) =
   out := result;
   print_defs defs
-    
+
 let set_tab t = tab := t
 let set_width w = width := w
 

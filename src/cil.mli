@@ -51,7 +51,6 @@ val newCil : bool ref
 
 type location = { 
     line: int;				(* -1 means "do not know" *)
-    col: int;
     file: string; 
 }
 

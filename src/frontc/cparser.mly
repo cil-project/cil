@@ -2,24 +2,38 @@
    I have changed it in numerous ways to the point where it probably does not
    resemble Hugues's original one at all */
 %{
-open Cil
 open Cabs
-let version = "Cparser V3.0b 10.9.99 Hugues Cassé"
+let version = "Cparser V3.0b 10.9.99 Hugues Cassé"
 
 let parse_error msg : 'a =
   Errormsg.hadErrors := true;
-  Clexer.display_error 
-    ("Syntax error (" ^ msg ^")") 
+  Clexer.display_error
+    ("Syntax error (" ^ msg ^")")
     (Parsing.symbol_start ()) (Parsing.symbol_end ())
 
 let print = print_string
 
-let currentLoc () = 
-  {line = (Clexer.lineno !Clexer.current_handle); 
-    col = -1;                        
-    file = (Clexer.file_name !Clexer.current_handle);}
+let curLine = -1
+
+
+let getCurLn () : int =
+         Clexer.lineno !Clexer.current_handle 
+        (* curLine *)                             
+
+let getCurFn () : string =
+        (Clexer.file_name !Clexer.current_handle)
+        (* "why is'nt this working" *)
+
+let currentLoc () =
+                ref {lineno = getCurLn();
+                  filename = getCurFn();}
+
+
+let setCurrentLoc () =
+  curLine = Clexer.lineno !Clexer.current_handle
+
 (*
-** Expression building 
+** Expression building
 *)
 let smooth_expression lst =
   match lst with
@@ -32,7 +46,7 @@ let list_expression expr =
     COMMA lst -> lst
   | NOTHING -> []
   | _ -> [expr]
-        
+
 
 
 let __functionString = (String.make 1 (Char.chr 0)) ^ "__FUNCTION__" 
@@ -57,13 +71,13 @@ let doDeclaration (specs: spec_elem list) (nl: init_name list) : definition =
   if isTypedef specs then begin
     (* Tell the lexer about the new type names *)
     List.iter (fun ((n, _, _), _) -> Clexer.add_type n) nl;
-    TYPEDEF (specs, List.map (fun (n, _) -> n) nl)
+    TYPEDEF ((specs, List.map (fun (n, _) -> n) nl), !(currentLoc()))
   end else
     if nl = [] then
-      ONLYTYPEDEF specs
+      ONLYTYPEDEF (specs, !(currentLoc()))
     else begin
       List.iter (fun ((n, _, _), _) -> Clexer.add_identifier n) nl;
-      DECDEF (specs, nl)
+      DECDEF ((specs, nl), !(currentLoc()))  
     end
 
 
@@ -71,16 +85,16 @@ let doFunctionDef (specs: spec_elem list)
                   (n: name) 
                   (b: body) : definition = 
   let fname = (specs, n) in
-  FUNDEF (fname, b)
+  FUNDEF (fname, b, !(currentLoc()))
 
 
-let doOldParDecl (names: string list) 
-                 (pardefs: name_group list) : single_name list = 
-  let findOneName n = 
+let doOldParDecl (names: string list)
+                 (pardefs: name_group list) : single_name list =
+  let findOneName n =
     (* Search in pardefs for the definition for this parameter *)
     let rec loopGroups = function
         [] -> ([SpecType Tint], (n, JUSTBASE, []))
-      | (specs, names) :: restgroups -> 
+      | (specs, names) :: restgroups ->
           let rec loopNames = function
               [] -> loopGroups restgroups
             | ((n',_, _) as sn) :: _ when n' = n -> (specs, sn)
@@ -128,7 +142,7 @@ let doOldParDecl (names: string list)
 %token WHILE DO FOR
 %token IF ELSE
 
-%token ATTRIBUTE INLINE ASM TYPEOF FUNCTION__ 
+%token ATTRIBUTE INLINE ASM TYPEOF FUNCTION__
 /* weimer: gcc "__extension__" keyword */
 %token EXTENSION
 %token DECLSPEC
@@ -143,7 +157,7 @@ let doOldParDecl (names: string list)
 %nonassoc EXTENSION
 %left	COMMA
 %right	EQ PLUS_EQ MINUS_EQ STAR_EQ SLASH_EQ PERCENT_EQ
-		AND_EQ PIPE_EQ CIRC_EQ INF_INF_EQ SUP_SUP_EQ
+                AND_EQ PIPE_EQ CIRC_EQ INF_INF_EQ SUP_SUP_EQ
 %right	QUEST COLON
 %left	PIPE_PIPE
 %left	AND_AND
@@ -158,7 +172,7 @@ let doOldParDecl (names: string list)
 %right	EXCLAM TILDE PLUS_PLUS MINUS_MINUS CAST RPAREN ADDROF SIZEOF
 %left 	LBRACKET
 %left	DOT ARROW LPAREN LBRACE
-%right  NAMED_TYPE     /* We'll use this to handle redefinitions of 
+%right  NAMED_TYPE     /* We'll use this to handle redefinitions of
                         * NAMED_TYPE as variables */
 %left   IDENT
 
@@ -172,7 +186,7 @@ let doOldParDecl (names: string list)
 %type <Cabs.attribute list> attributes
 %type <Cabs.statement> statement
 %type <Cabs.constant> constant
-%type <Cabs.expression> expression opt_expression 
+%type <Cabs.expression> expression opt_expression
 %type <Cabs.init_expression> init_expression
 %type <Cabs.expression list> comma_expression
 %type <string> string_list
@@ -183,7 +197,7 @@ let doOldParDecl (names: string list)
 
 %type <spec_elem list> decl_spec_list
 %type <typeSpecifier> type_spec
-%type <Cabs.name_group list> struct_decl_list 
+%type <Cabs.name_group list> struct_decl_list
 
 
 %type <Cabs.name> old_proto_decl
@@ -224,9 +238,9 @@ global:
   declaration           { $1 }
 | function_def          { $1 }
 | ASM LPAREN CST_STRING RPAREN SEMICOLON
-                        { GLOBASM $3 }
-| PRAGMA attr           { PRAGMA $2 }
-| error SEMICOLON       { PRAGMA (CONSTANT(CONST_STRING "error")) }
+                        { GLOBASM ($3, !(currentLoc())) }
+| PRAGMA attr           { PRAGMA ($2, !(currentLoc())) }
+| error SEMICOLON       { PRAGMA (CONSTANT(CONST_STRING "error"), !(currentLoc())) }
 ;
 typename:
     IDENT				{$1}
@@ -241,48 +255,48 @@ maybecomma:
 
 
 expression:
-		constant
-			{CONSTANT $1}		
+        	constant
+		        {CONSTANT $1}
 |		IDENT
-			{VARIABLE $1}
+		        {VARIABLE $1}
 |		SIZEOF expression
-			{EXPR_SIZEOF $2}
-|	 	SIZEOF LPAREN type_name RPAREN  
-			{let b, d = $3 in TYPE_SIZEOF (b, d)}
+		        {EXPR_SIZEOF $2}
+|	 	SIZEOF LPAREN type_name RPAREN
+		        {let b, d = $3 in TYPE_SIZEOF (b, d)}
 |		PLUS expression
-			{UNARY (PLUS, $2)}
+		        {UNARY (PLUS, $2)}
 |		MINUS expression
-			{UNARY (MINUS, $2)}
+		        {UNARY (MINUS, $2)}
 |		STAR expression
-			{UNARY (MEMOF, $2)}
+		        {UNARY (MEMOF, $2)}
 |		AND expression				%prec ADDROF
-			{UNARY (ADDROF, $2)}
+		        {UNARY (ADDROF, $2)}
 |		EXCLAM expression
-			{UNARY (NOT, $2)}
+		        {UNARY (NOT, $2)}
 |		TILDE expression
-			{UNARY (BNOT, $2)}
+		        {UNARY (BNOT, $2)}
 |		PLUS_PLUS expression %prec CAST
-			{UNARY (PREINCR, $2)}
+		        {UNARY (PREINCR, $2)}
 |		expression PLUS_PLUS
-			{UNARY (POSINCR, $1)}
+		        {UNARY (POSINCR, $1)}
 |		MINUS_MINUS expression %prec CAST
-			{UNARY (PREDECR, $2)}
+		        {UNARY (PREDECR, $2)}
 |		expression MINUS_MINUS
-			{UNARY (POSDECR, $1)}
+		        {UNARY (POSDECR, $1)}
 |		expression ARROW IDENT
-			{MEMBEROFPTR ($1, $3)}
+		        {MEMBEROFPTR ($1, $3)}
 |		expression ARROW NAMED_TYPE
-			{MEMBEROFPTR ($1, $3)}
+		        {MEMBEROFPTR ($1, $3)}
 |		expression DOT IDENT
-			{MEMBEROF ($1, $3)}
+		        {MEMBEROF ($1, $3)}
 |		expression DOT NAMED_TYPE
-			{MEMBEROF ($1, $3)}
+		        {MEMBEROF ($1, $3)}
 |		LPAREN block RPAREN
-			{GNU_BODY $2}
+		        {GNU_BODY $2}
 |		LPAREN comma_expression RPAREN
-			{(smooth_expression $2)}
-|		LPAREN type_name RPAREN expression %prec CAST 
-			{CAST ($2, $4)}
+		        {(smooth_expression $2)}
+|		LPAREN type_name RPAREN expression %prec CAST
+		        {CAST ($2, $4)}
 |		expression LPAREN opt_expression RPAREN
 			{CALL ($1, list_expression $3)}
 |		expression LBRACKET comma_expression RBRACKET
@@ -382,7 +396,7 @@ init_designators:
     DOT IDENT init_designators_opt      { INFIELD_INIT($2, $3) }
 |   LBRACKET  expression RBRACKET init_designators_opt
                                         { ATINDEX_INIT($2, $4) }
-;
+;         
 init_designators_opt:
    /* empty */                          { NEXT_INIT }
 |  init_designators                     { $1 }
@@ -391,16 +405,16 @@ init_designators_opt:
 
 
 opt_expression:
-		/* empty */
-			{NOTHING}
-|		comma_expression
-			{smooth_expression $1}
+	        /* empty */
+	        	{NOTHING}
+|	        comma_expression
+	        	{smooth_expression $1}
 ;
 comma_expression:
-		expression
-			{[$1]}
-|		comma_expression COMMA expression
-			{$3::$1}
+	        expression
+	        	{[$1]}
+|	        comma_expression COMMA expression
+	        	{$3::$1}
 ;
 
 
@@ -409,85 +423,63 @@ block: /* ISO 6.8.2 */
     block_begin block_item_list RBRACE   {Clexer.pop_context(); $2}
 ;
 block_begin:
-    LBRACE 				 {Clexer.push_context ()}
+    LBRACE      		         {Clexer.push_context ()}
 ;
+
+
 block_item_list:
     /* empty */                          { [] }
-|   declaration block_item_list          { BDEF $1 :: $2  }
-|   statement block_item_list            { BSTM $1 :: $2 }
+|   declaration block_item_list {BDEF $1 :: $2 }
+|   statement block_item_list   {BSTM $1 :: $2 }
 ;
 
-statement: 
-    startstatement thestatement          { (* set_statement_loc *) $2 (* $1 *) }
-;
-startstatement:
-    /* empty */        %prec EXTENSION { (!Clexer.currentFile, !Clexer.currentLine) }
-;
 
-thestatement:
-    SEMICOLON		{NOP (currentLoc ())}
-|   comma_expression SEMICOLON
-			{COMPUTATION ((smooth_expression $1),
-			 	      {line = (Clexer.lineno !Clexer.current_handle); col = -1;
-			 	       file = (Clexer.file_name !Clexer.current_handle)})}
-|   block		{BLOCK ($1, {line = (Clexer.lineno !Clexer.current_handle); col = -1;
-			 	     file = (Clexer.file_name !Clexer.current_handle)})}
-|   IF LPAREN comma_expression RPAREN statement %prec IF
-			{IF (smooth_expression $3, $5,
-			NOP{line = (Clexer.lineno !Clexer.current_handle); col = -1; file = (Clexer.file_name !Clexer.current_handle);},
-			{line = (Clexer.lineno !Clexer.current_handle); col = -1;
-			 file = (Clexer.file_name !Clexer.current_handle)})}
-|   IF LPAREN comma_expression RPAREN statement ELSE statement
-			{IF (smooth_expression $3, $5, $7,
-		        {line = (Clexer.lineno !Clexer.current_handle); col = -1;
-			 file = (Clexer.file_name !Clexer.current_handle)})}
-|   SWITCH LPAREN comma_expression RPAREN statement
-                        {SWITCH (smooth_expression $3, $5,
-		        {line = (Clexer.lineno !Clexer.current_handle); col = -1;
-			 file = (Clexer.file_name !Clexer.current_handle)})}
-|   WHILE LPAREN comma_expression RPAREN statement
-			{WHILE (smooth_expression $3, $5,
-		        {line = (Clexer.lineno !Clexer.current_handle); col = -1;
-			 file = (Clexer.file_name !Clexer.current_handle)})}
-|   DO statement WHILE LPAREN comma_expression RPAREN SEMICOLON
-			{DOWHILE (smooth_expression $5, $2,
-		        {line = (Clexer.lineno !Clexer.current_handle); col = -1;
-			 file = (Clexer.file_name !Clexer.current_handle)})}
-|   FOR LPAREN opt_expression SEMICOLON opt_expression
-		SEMICOLON opt_expression RPAREN statement
-			{FOR ($3, $5, $7, $9,
-		        {line = (Clexer.lineno !Clexer.current_handle); col = -1;
-			 file = (Clexer.file_name !Clexer.current_handle)})}
-|   IDENT COLON statement
-			{LABEL ($1, $3,
-		        {line = (Clexer.lineno !Clexer.current_handle); col = -1;
-			 file = (Clexer.file_name !Clexer.current_handle)})}
-|   CASE expression COLON
-			{CASE ($2, NOP{line = (Clexer.lineno !Clexer.current_handle); col = -1;
-			 file = (Clexer.file_name !Clexer.current_handle)},
-		        {line = (Clexer.lineno !Clexer.current_handle); col = -1;
-			 file = (Clexer.file_name !Clexer.current_handle)})}
-|   DEFAULT COLON
-			{DEFAULT (NOP{line = (Clexer.lineno !Clexer.current_handle); col = -1;
-			 file = (Clexer.file_name !Clexer.current_handle)}, {line = (Clexer.lineno !Clexer.current_handle); col = -1;
-			 file = (Clexer.file_name !Clexer.current_handle)})}
-|   RETURN SEMICOLON	{RETURN (NOTHING, {line = (Clexer.lineno !Clexer.current_handle); col = -1;
-			 file = (Clexer.file_name !Clexer.current_handle)})}      
-|   RETURN expression SEMICOLON
-			{RETURN ($2, {line = (Clexer.lineno !Clexer.current_handle); col = -1;
-			 file = (Clexer.file_name !Clexer.current_handle)})}
-|   BREAK SEMICOLON	{BREAK {line = (Clexer.lineno !Clexer.current_handle); col = -1;
-			 file = (Clexer.file_name !Clexer.current_handle)}}
-|   CONTINUE SEMICOLON	{CONTINUE {line = (Clexer.lineno !Clexer.current_handle); col = -1;
-			 file = (Clexer.file_name !Clexer.current_handle)}}
-|   GOTO IDENT SEMICOLON
-			{GOTO ($2, {line = (Clexer.lineno !Clexer.current_handle); col = -1;
-			 file = (Clexer.file_name !Clexer.current_handle)})}
-|   gnuasm  SEMICOLON   { $1} 
-|   MSASM               { ASM ([$1], false, [], [], [], {line = (Clexer.lineno !Clexer.current_handle); col = -1;
-			 file = (Clexer.file_name !Clexer.current_handle)}) }
-|   error   SEMICOLON   { (NOP {line = (Clexer.lineno !Clexer.current_handle); col = -1;
-			 file = (Clexer.file_name !Clexer.current_handle)}) }
+
+
+location:
+   /* empty */                	{ignore(setCurrentLoc());
+	        		NOP !(currentLoc ())} %prec IDENT
+
+statement:
+    SEMICOLON		{NOP !(currentLoc ())}
+|   location comma_expression SEMICOLON
+	        	{COMPUTATION ((smooth_expression $2),
+	        	!(currentLoc ()))}
+|   location block               {BLOCK ($2, !(currentLoc ()))}
+|   location IF LPAREN comma_expression RPAREN statement %prec IF
+                	{IF (smooth_expression $4, $6,
+	        	 NOP !(currentLoc ()), !(currentLoc ()))}
+|   location IF LPAREN comma_expression RPAREN statement ELSE statement
+	                {IF (smooth_expression $4, $6, $8,
+	                !(currentLoc ()))}
+|   location SWITCH LPAREN comma_expression RPAREN statement
+                        {SWITCH (smooth_expression $4, $6,
+                        !(currentLoc ()))}
+|   location WHILE LPAREN comma_expression RPAREN statement
+	        	{WHILE (smooth_expression $4, $6,
+	        	!(currentLoc ()))}
+|   location DO statement WHILE LPAREN comma_expression RPAREN SEMICOLON
+	        	         {DOWHILE (smooth_expression $6, $3,
+	        	          !(currentLoc ()))}
+|   location FOR LPAREN opt_expression SEMICOLON opt_expression
+	        SEMICOLON opt_expression RPAREN statement
+	                         {FOR ($4, $6, $8, $10, !(currentLoc ()))}
+|   location IDENT COLON statement
+		                 {LABEL ($2, $4, !(currentLoc ()))}
+|   location CASE expression COLON
+	                         {CASE ($3, NOP !(currentLoc ()), !(currentLoc ()))}
+|   location DEFAULT COLON
+	                         {DEFAULT (NOP !(currentLoc ()), !(currentLoc ()))}
+|   location RETURN SEMICOLON    {RETURN (NOTHING, !(currentLoc ()))}
+|   location RETURN expression SEMICOLON
+	                         {RETURN ($3, !(currentLoc ()))}
+|   location BREAK SEMICOLON     {BREAK !(currentLoc ())}
+|   location CONTINUE SEMICOLON	 {CONTINUE !(currentLoc ())}
+|   location GOTO IDENT SEMICOLON
+		                 {GOTO ($3, !(currentLoc ()))}
+|   location gnuasm  SEMICOLON   { $2}
+|   location MSASM               { ASM ([$2], false, [], [], [], !(currentLoc ()))}
+|   location error   SEMICOLON   { (NOP !(currentLoc ()))}
 ;
 
 
@@ -504,27 +496,27 @@ declaration:                                /* ISO 6.7.*/
 init_declarator_list:                       /* ISO 6.7 */
     init_declarator                              { [$1] }
 |   init_declarator COMMA init_declarator_list   { $1 :: $3 }
- 
+
 ;
 init_declarator:                             /* ISO 6.7 */
     declarator                          { ($1, NO_INIT) }
-|   declarator EQ init_expression 
+|   declarator EQ init_expression
                                         { ($1, $3) }
 ;
 
 decl_spec_list:                         /* ISO 6.7 */
                                         /* ISO 6.7.1 */
-|   TYPEDEF decl_spec_list_opt          { SpecTypedef :: $2  }
-|   EXTERN decl_spec_list_opt           { SpecStorage EXTERN :: $2 }
-|   STATIC  decl_spec_list_opt          { SpecStorage STATIC :: $2 }
-|   AUTO   decl_spec_list_opt           { SpecStorage AUTO :: $2 }
-|   REGISTER decl_spec_list_opt         { SpecStorage REGISTER :: $2} 
+|   TYPEDEF location decl_spec_list_opt          { SpecTypedef :: $3  }    
+|   EXTERN location decl_spec_list_opt           { SpecStorage EXTERN :: $3 }
+|   STATIC  location decl_spec_list_opt          { SpecStorage STATIC :: $3 }
+|   AUTO location   decl_spec_list_opt           { SpecStorage AUTO :: $3 }
+|   REGISTER location decl_spec_list_opt         { SpecStorage REGISTER :: $3}
                                         /* ISO 6.7.2 */
-|   type_spec decl_spec_list_opt_no_named { SpecType $1 :: $2 }
+|   type_spec location decl_spec_list_opt_no_named { SpecType $1 :: $3 }
                                         /* ISO 6.7.4 */
-|   INLINE decl_spec_list_opt           { SpecInline :: $2 }
-|   attribute decl_spec_list_opt        { SpecAttr $1 :: $2 }
-|   EXTENSION decl_spec_list            { $2 }
+|   INLINE location decl_spec_list_opt           { SpecInline :: $3 }
+|   attribute location decl_spec_list_opt        { SpecAttr $1 :: $3 }
+|   EXTENSION location decl_spec_list            { $3 }
 ;
 /* In most cases if we see a NAMED_TYPE we must shift it. Thus we declare 
  * NAMED_TYPE to have right associativity */
@@ -694,8 +686,8 @@ pointer: /* (* ISO 6.7.5 *) */
    STAR attributes pointer_opt  { $2 :: $3 }
 ;
 pointer_opt:
-   /* empty */                                   { [] }
-|  pointer                                       { $1 }
+                                     { [] }
+|  pointer                           { $1 }
 ;
 
 type_name: /* (* ISO 6.7.6 *) */
@@ -795,8 +787,7 @@ attr_list_ne:
 gnuasm: 
    ASM maybevol LPAREN asmtemplate asmoutputs RPAREN
                         { let (outs,ins,clobs) = $5 in
-                          ASM ($4, $2, outs, ins, clobs, {line = Clexer.lineno !Clexer.current_handle;
-                          col = -1; file = Clexer.file_name !Clexer.current_handle}) }
+                          ASM ($4, $2, outs, ins, clobs, !(currentLoc())) }
 ;
 maybevol:
      /* empty */                        { false }

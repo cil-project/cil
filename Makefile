@@ -126,7 +126,7 @@ CILDIR=$(BASEDIR)/cil
 _GNUCC=1
 endif
 ifeq ($(COMPUTERNAME), danny_desk) # dannys desktop
-BASEDIR=/home/danny_desk
+BASEDIR=/home/danny/project
 SAFECCDIR=$(BASEDIR)
 PCCDIR=$(SAFECCDIR)/cil/test/PCC
 TVDIR=$(BASEDIR)/TransVal

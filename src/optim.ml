@@ -9,7 +9,7 @@ module E=Errormsg
 let debug = false
 
 (*-----------------------------------------------------------------*)
-let dummyStmt = {labels = []; sid = -1; skind = Break {line = -1;col = -1;file = ""};
+let dummyStmt = {labels = []; sid = -1; skind = Break {line = -1; file = ""};
                   succs= []; preds = []} (* a place holder so that we can create
                                          an array of stmts *)
 let sCount = ref 0   (* to generate consecutive sid's *)

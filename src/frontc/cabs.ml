@@ -1,4 +1,4 @@
-(* cabs -- abstract syntax for FrontC
+(* cabs -- abstract syntax for FrontC                                 
 **
 ** Project:	frontc
 ** File:	cabs.ml
@@ -16,6 +16,13 @@ let version = "Cabs 2.1 4.7.99 Hugues Cassé"
 (*
 ** Types
 *)
+
+type cabsloc = {
+ lineno : int;
+ filename: string;
+
+}                                                                     
+
 type typeSpecifier = (* Merge all specifiers into one type *)
     Tvoid                             (* Type specifier ISO 6.7.2 *)
   | Tchar
@@ -33,80 +40,80 @@ type typeSpecifier = (* Merge all specifiers into one type *)
   | Tenum of string * enum_item list option    (* None if an old type *)
   | Ttypeof of expression                      (* GCC __typeof__ *)
 
-and storage = 
+and storage =
     NO_STORAGE | AUTO | STATIC | EXTERN | REGISTER
 
 
 (* Type specifier elements. These appear at the start of a declaration *)
-and spec_elem = 
+and spec_elem =
     SpecTypedef
   | SpecInline
   | SpecAttr of attribute
   | SpecStorage of storage
   | SpecType of typeSpecifier
 
-(* Declarator type. They modify the base type given in the specifier. Keep 
- * them in the order as they are printed (this means that the top level 
- * constructor for ARRAY and PTR is the inner-level in the meaning of the 
+(* Declarator type. They modify the base type given in the specifier. Keep
+ * them in the order as they are printed (this means that the top level
+ * constructor for ARRAY and PTR is the inner-level in the meaning of the
  * declared type) *)
-and decl_type = 
+and decl_type =
  | JUSTBASE                               (* Prints the declared name *)
- | PARENTYPE of attribute list * decl_type * attribute list 
-                                          (* Prints "(attrs1 decl attrs2)". 
-                                           * attrs2 are attributes of the 
-                                           * declared identifier and it is as 
-                                           * if they appeared at the very end 
-                                           * of the declarator. attrs1 can 
-                                           * contain attributes for the 
-                                           * identifier or attributes for the 
+ | PARENTYPE of attribute list * decl_type * attribute list
+                                          (* Prints "(attrs1 decl attrs2)".
+                                           * attrs2 are attributes of the
+                                           * declared identifier and it is as
+                                           * if they appeared at the very end
+                                           * of the declarator. attrs1 can
+                                           * contain attributes for the
+                                           * identifier or attributes for the
                                            * enclosing type.  *)
  | BITFIELD of expression                 (* Prints "name : exp" *)
- | ARRAY of decl_type * expression        (* Prints "decl [ exp ]". decl is 
+ | ARRAY of decl_type * expression        (* Prints "decl [ exp ]". decl is
                                            * never a PTR. *)
  | PTR of attribute list * decl_type      (* Prints "* attrs decl" *)
  | PROTO of decl_type * single_name list * bool
-                                          (* Prints "decl (args[, ...])". 
+                                          (* Prints "decl (args[, ...])".
                                            * decl is never a PTR. *)
 
-(* The base type and the storage are common to all names. Each name might 
+(* The base type and the storage are common to all names. Each name might
  * contain type or storage modifiers *)
 and name_group = spec_elem list * name list
 
 and init_name_group = spec_elem list * init_name list
 
-(* The decl_type is in the order in which they are printed. Only the name of 
- * the declared identifier is pulled out. The attributes are those that are 
+(* The decl_type is in the order in which they are printed. Only the name of
+ * the declared identifier is pulled out. The attributes are those that are
  * printed after the declarator *)
 and name = string * decl_type * attribute list
 
 (* A name with an initializer *)
 and init_name = name * init_expression
 
-(* Single names are for declarations that cannot come in groups, like 
+(* Single names are for declarations that cannot come in groups, like
  * function parameters and functions *)
 and single_name = spec_elem list * name
 
 
 and enum_item = string * expression
- 
+
 (*
 ** Declaration definition
 *)
-and definition = 
-   FUNDEF of single_name * body 
- | DECDEF of init_name_group
- | TYPEDEF of name_group
- | ONLYTYPEDEF of spec_elem list
- | GLOBASM of string
- | PRAGMA of expression
+and definition =
+   FUNDEF of single_name * body * cabsloc
+ | DECDEF of init_name_group * cabsloc
+ | TYPEDEF of name_group * cabsloc
+ | ONLYTYPEDEF of spec_elem list * cabsloc
+ | GLOBASM of string * cabsloc
+ | PRAGMA of expression * cabsloc
 
-and file = definition list				
+and file = definition list
 
 
 (*
 ** statements
 *)
-and bodyelem =                          (* ISO 6.8.2 allows declarations to 
+and bodyelem =                          (* ISO 6.8.2 allows declarations to
                                            be intermixed with statements *)
    BDEF of definition
  | BSTM of statement
@@ -114,26 +121,26 @@ and bodyelem =                          (* ISO 6.8.2 allows declarations to
 and body = bodyelem list
 
 and statement =
-   NOP of Cil.location
- | COMPUTATION of expression * Cil.location
- | BLOCK of body * Cil.location
- | SEQUENCE of statement * statement * Cil.location
- | IF of expression * statement * statement * Cil.location
- | WHILE of expression * statement * Cil.location
- | DOWHILE of expression * statement * Cil.location
- | FOR of expression * expression * expression * statement * Cil.location
- | BREAK of Cil.location
- | CONTINUE of Cil.location
- | RETURN of expression * Cil.location
- | SWITCH of expression * statement * Cil.location
- | CASE of expression * statement * Cil.location
- | DEFAULT of statement * Cil.location
- | LABEL of string * statement * Cil.location
- | GOTO of string * Cil.location
+   NOP of cabsloc
+ | COMPUTATION of expression * cabsloc
+ | BLOCK of body * cabsloc
+ | SEQUENCE of statement * statement * cabsloc
+ | IF of expression * statement * statement * cabsloc
+ | WHILE of expression * statement * cabsloc
+ | DOWHILE of expression * statement * cabsloc
+ | FOR of expression * expression * expression * statement * cabsloc
+ | BREAK of cabsloc
+ | CONTINUE of cabsloc
+ | RETURN of expression * cabsloc
+ | SWITCH of expression * statement * cabsloc
+ | CASE of expression * statement * cabsloc
+ | DEFAULT of statement * cabsloc
+ | LABEL of string * statement * cabsloc
+ | GOTO of string * cabsloc
  (* template, whether volatile, list of constraints and expressions for 
   * outputs and for inputs. The final list contains the clobbered registers  *)
  | ASM of string list * bool * (string * expression) list 
-       * (string * expression) list * string list * Cil.location
+       * (string * expression) list * string list * cabsloc
        
 (*
 ** Expressions
@@ -188,11 +195,11 @@ and initwhat =
                                         (* Each attribute has a name and some
                                          * optional arguments *)
 and attribute = string * expression list
-
+                                              
 
 (*********** HELPER FUNCTIONS **********)
 
-let missingFieldDecl = ("___missing_field_name", JUSTBASE, []) 
+let missingFieldDecl = ("___missing_field_name", JUSTBASE, [])
 
 let rec isStatic = function
     [] -> false
@@ -215,7 +222,7 @@ let rec isTypedef = function
   | _ :: rest -> isTypedef rest
 
 
-let get_statementloc (s : statement) : Cil.location =
+let get_statementloc (s : statement) : cabsloc =
 begin
   match s with
   | NOP(loc) -> loc

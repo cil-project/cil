@@ -309,30 +309,30 @@ and tag_defined (s: spec_elem) =
    Could make another function to clean this code up *)
 and already_declared def =
   match def with
-    FUNDEF ((s, name), body) ->
-      if isStatic s then 
+    FUNDEF ((s, name), body, loc) ->
+      if isStatic s then
         H.mem fDefTable def || (H.add fDefTable def 1; false)
       else
         H.mem gDefTable def || (H.add gDefTable def 1; false)
-              
-  | DECDEF (s, names) ->
-      if isStatic s then 
+
+  | DECDEF ((s, names), loc) ->
+      if isStatic s then
           H.mem fDefTable def || (H.add fDefTable def 1; false)
       else
         H.mem gDefTable def || (H.add gDefTable def 1; false)
-              
-  | TYPEDEF (s, names) ->
+
+  | TYPEDEF ((s, names), loc) ->
       if List.exists tag_defined s then
         true
       else
         H.mem gDefTable def || (H.add gDefTable def 1; false)
-          
-  | ONLYTYPEDEF s ->
+
+  | ONLYTYPEDEF (s, loc) ->
       if List.exists tag_defined s then
         true
       else
         H.mem gDefTable def || (H.add gDefTable def 1; false)
-      
+
   | _ -> false (* ASM and others are always considered to be false *)
 
 
@@ -390,36 +390,36 @@ and combine_def def global = begin
   if global then H.clear lMap; 
 
   match def with
-    FUNDEF ((s, name), body) ->
-      (* One MSVC force inline functions to be static. Otherwise the compiler 
+    FUNDEF ((s, name), body, loc) ->
+      (* One MSVC force inline functions to be static. Otherwise the compiler
        * might complain that the function is declared with multiple bodies *)
-      let s' = 
+      let s' =
         if !Cprint.msvcMode && isInline s then
           SpecStorage STATIC :: s else s
       in
       (declare_id "" (s', name) global;
       let n = combine_single_name "" (s', name)  (* force evaluation *)
       in
-      FUNDEF(n, List.map combineBlkElem body))
-               
-  | DECDEF (s, names) ->
-      List.iter (fun (name, _) -> declare_id "" (s, name) global) names;
-      DECDEF(combine_specs s, 
-             List.map (fun (name, init) -> combine_name "" name,
-                                           combine_init_expression init) names)
-       
-  | TYPEDEF (s, names) ->
-      (declare_ids "type" (SpecStorage STATIC :: s, names) global;
-      TYPEDEF(combine_name_group "type" (s, names)))
-      
-  | ONLYTYPEDEF s -> 
-      ONLYTYPEDEF(combine_specs s)
-        
-  | GLOBASM asm -> 
-      GLOBASM asm 
+      FUNDEF(n, List.map combineBlkElem body, loc))
 
-  | PRAGMA a -> 
-      PRAGMA a
+  | DECDEF ((s, names), loc) ->
+      List.iter (fun (name, _) -> declare_id "" (s, name) global) names;
+      DECDEF((combine_specs s,
+             List.map (fun (name, init) -> combine_name "" name,
+                                           combine_init_expression init) names), loc)
+
+  | TYPEDEF ((s, names), loc) ->
+      (declare_ids "type" (SpecStorage STATIC :: s, names) global;
+      TYPEDEF((combine_name_group "type" (s, names)),loc))
+
+  | ONLYTYPEDEF (s, loc) ->
+      ONLYTYPEDEF(combine_specs s, loc)
+
+  | GLOBASM (asm,loc) ->
+      GLOBASM (asm, loc)
+
+  | PRAGMA (a,loc) ->
+      PRAGMA (a, loc)    
 end
 
   

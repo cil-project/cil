@@ -56,11 +56,10 @@ let newCil = ref true
 
 type location = { 
     line: int;				(* -1 means "do not know" *)
-    col: int;
     file: string; 
 }
 
-let locUnknown = { line = -1; col = -1; file = ""; }
+let locUnknown = { line = -1; file = ""; }
 (* A reference to the current location *)
 let currentLoc : location ref = ref locUnknown
 
@@ -544,7 +543,7 @@ let lu = locUnknown
 
     (* A special location that we use to mark that a BinOp was created from 
      * an index *)
-let luindex = { line = -1000; col = -1; file = ""; }
+let luindex = { line = -1000; file = ""; }
 
 let integerFits (i: int) (k: ikind) =  true (* We know that i is less than 31 
                                              * bits so it fits even in an 
