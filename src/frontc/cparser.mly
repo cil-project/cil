@@ -39,6 +39,7 @@
 **			   ()() > * > []. Add typalg.c for testing it.	
 **
 **      George Necula. 12/12/00: extended the syntax to process GNU C
+**      George Necula. 1/4/00: completely rewrote the parsing of types
 */
 %{
 open Cabs
