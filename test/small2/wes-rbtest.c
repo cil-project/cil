@@ -200,45 +200,7 @@ extern  int   __mmId;
 #define STACK_INIT { char __probe;\
                      __stackInit = & __probe; __mmId = 0; }
 
-#define MALLOC(mallocfun, res, err, sz, type, category) {\
-       long _sz = (sz);\
-       (res) = (type)mallocfun(_sz);\
-       if(! (res)) {\
-           ERROR0(err, "Cannot malloc\n"); \
-       }\
-       __MM_REPORT("malloc", (res), _sz, category);}
 
-#define FREE(freefun, res, category) {\
-       if(res) {\
-        __MM_REPORT("free", (res), 0, category);\
-        freefun(res); }}
-
-#define CALLOC(callocfun, res, err, nrelem, sz, type, category) {\
-       int _nrelem = (nrelem);\
-       long _sz = (sz);\
-       (res) = (type)callocfun(_nrelem, _sz);\
-       if(! (res)) {\
-           ERROR0(err, "Cannot calloc\n"); \
-       }\
-       __MM_REPORT("malloc", (res), _sz * _nrelem, category);}
-
-#define REALLOC(res, err, sz, type, category) {\
-       long _sz = (sz);\
-       if((res)) { __MM_REPORT("free", (res), 0, category); }\
-       (res) = (type)realloc((res), _sz);\
-       if(! (res)) {\
-           ERROR0(err, "Cannot realloc\n"); \
-       }\
-       __MM_REPORT("malloc", (res), _sz, category);}
-
-#define STRDUP(res, err, what, category) {\
-       char* _what = what;\
-       long _sz = strlen(_what) + 1;\
-       (res) = strdup(_what);\
-       if(! (res)) {\
-           ERROR0(err, "Cannot strdup\n"); \
-       }\
-       __MM_REPORT("malloc", (res), _sz, category);}
     
 #if defined(_DEBUG) || defined(_DEBUGMM)
 #define __MM_REPORT(what, where, size, category) {\
@@ -448,8 +410,7 @@ static int printRBTree(RBNode *tree, U32 address) {
 
 char * FSEQ insertRB(RBNode **tree, U32 key, int datalen) {
   RBNode *x, *t;
-  CALLOC(calloc_rbnode,
-         x, NULL, 1, sizeof(RBNode) + datalen, RBNode*, "RBNode");
+  x = (RBNode*)malloc(sizeof(*x) + datalen);
   x->left = NULL;
   x->right = NULL;
   x->parent = NULL;

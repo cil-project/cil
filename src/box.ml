@@ -105,8 +105,7 @@ let allocFunctions : (string, allocinfo) H.t =
   in
   let h = H.create 17 in
   List.iter (fun (s, ai) -> H.add h s ai)
-    [ ("malloc", mallocAI); 
-      ("calloc", { aiZeros = true; aiGetSize = mulTwoArgs})];
+    [ ("malloc", mallocAI); ];
   h
 
 let getAllocInfo fname = 
@@ -2018,7 +2017,7 @@ let pkAllocate (ai:  allocinfo) (* Information about the allocation function *)
             (fun off -> mkAddrOf (Mem tmpvar, off))
             []
         in
-        inits
+        check_enough :: inits
 
     | N.Seq | N.FSeq | N.SeqN | N.FSeqN | N.Index ->
         (* Compute and save the end of the type *)
