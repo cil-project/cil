@@ -63,6 +63,15 @@ ifdef RELEASE
  CMXA           = cmxa
  EXEEXT         = .asm
  MOVEAFTERCAMLC = cmi cmx $(OBJ)
+else 
+ifdef PROFILE
+ RELEASE	= 1
+ CAMLC          = boo -p
+ CAMLLINK       = boo -p
+ CMO            = cmx
+ CMXA           = cmxa
+ EXEEXT         = .asm
+ MOVEAFTERCAMLC = cmi cmx $(OBJ)
 else
  CAMLC          = ocamlc -g
  CAMLLINK       = ocamlc -custom -g
@@ -70,6 +79,7 @@ else
  CMXA           = cma
  EXEEXT         = .byte
  MOVEAFTERCAMLC = cmi cmo
+endif
 endif
 
 ifdef UNSAFE 
@@ -189,7 +199,8 @@ $(EXECUTABLE)$(EXE) : $(MODULES:%=$(OBJDIR)/%.$(CMO))
 #	Phonies should be "remade" even if someone mistakenly creates them
 .PHONY: clean realclean
 clean:
-	-rm -f $(foreach ext, cmi cmo cmx cmxa exe, $(OBJDIR)/*.$(ext))
+# AB: The profiler junk must be cleared too (gmon.sum)
+	-rm -f $(foreach ext, cmi cmo cmx cmxa exe sum, $(OBJDIR)/*.$(ext))
 	-rm -f $(OBJDIR)/*.$(OBJ)
 	-rm -f $(EXECUTABLE)$(EXE)
 	-rm -f camlprim0.obj  $(EXTRACLEAN)

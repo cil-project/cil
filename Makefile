@@ -268,6 +268,9 @@ SAFECC=perl $(CILDIR)/lib/safecc.pl
 #  SAFECC+= -g
 #endif
 
+ifdef PROFILE
+SAFECC+= --profile 
+endif
 
 # weimer: support for other solvers
 ifeq ($(INFERBOX), 1)
