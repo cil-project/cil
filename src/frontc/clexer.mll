@@ -354,9 +354,7 @@ rule initial =
 |		'#'			{ hash lexbuf}
 |               "_Pragma" 	        { PRAGMA (currentLoc ()) }
 |		'\''			{ CST_CHAR (chr lexbuf, currentLoc ())}
-|		"L'"			{ (* weimer: wide character constant *)
-                                          let wcc = chr lexbuf in 
-                                          CST_CHAR (wcc, currentLoc ()) }
+|		"L'"			{ CST_WCHAR (chr lexbuf, currentLoc ()) }
 |		'"'			{ (* '"' *)
 (* matth: BUG:  this could be either a regular string or a wide string.
  *  e.g. if it's the "world" in 

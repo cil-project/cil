@@ -588,6 +588,7 @@ and print_expression (exp : expression) (lvl : int) =
 	CONST_INT i -> print i
       | CONST_FLOAT r -> print r
       | CONST_CHAR c -> print ("'" ^ escape_wstring c ^ "'")
+      | CONST_WCHAR c -> print ("L'" ^ escape_wstring c ^ "'")
       | CONST_STRING s -> print_string s
       | CONST_WSTRING ws -> print_wstring ws)
   | VARIABLE name ->

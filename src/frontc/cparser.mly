@@ -186,6 +186,7 @@ let trd3 (_, _, result) = result
 
 %token <string * Cabs.cabsloc> IDENT
 %token <int64 list * Cabs.cabsloc> CST_CHAR
+%token <int64 list * Cabs.cabsloc> CST_WCHAR
 %token <string * Cabs.cabsloc> CST_INT
 %token <string * Cabs.cabsloc> CST_FLOAT
 %token <string * Cabs.cabsloc> NAMED_TYPE
@@ -514,6 +515,7 @@ constant:
     CST_INT				{CONST_INT (fst $1), snd $1}
 |   CST_FLOAT				{CONST_FLOAT (fst $1), snd $1}
 |   CST_CHAR				{CONST_CHAR (fst $1), snd $1}
+|   CST_WCHAR				{CONST_WCHAR (fst $1), snd $1}
 |   string_constant			{CONST_STRING (fst $1), snd $1}
 /*add a nul to strings.  We do this here (rather than in the lexer) to make
   concatenation easy below.*/

@@ -141,12 +141,18 @@ let isOldStyleVarArgTypeName n =
  * multiply and add to get the desired value. 
  *)
 
-(* Given a character constant (like 'a' or 'abc') as
- * a list of characters, turn it into a CIL constant. *)
+(* Given a character constant (like 'a' or 'abc') as a list of 64-bit
+ * values, turn it into a CIL constant.  Multi-character constants are
+ * treated as multi-digit numbers with radix given by the bit width of
+ * the specified type (either char or wchar_t). *)
+let reduce_multichar typ =
+  let radix = bitsSizeOf typ in
+  List.fold_left
+    (fun acc -> Int64.add (Int64.shift_left acc 8))
+    Int64.zero
+
 let interpret_character_constant char_list =
-  let value = List.fold_left 
-      (fun acc elt -> Int64.add (Int64.shift_left acc 8) elt)
-      Int64.zero char_list in
+  let value = reduce_multichar charType char_list in
   if value < (Int64.of_int 256) then
     (CChr(Char.chr (Int64.to_int value))),(TInt(IChar,[]))
   else begin
@@ -2716,6 +2722,11 @@ and doExp (isconst: bool)    (* In a constant *)
         | A.CONST_CHAR char_list ->
             let a, b = (interpret_character_constant char_list) in 
             finishExp empty (Const a) b 
+              
+        | A.CONST_WCHAR char_list ->
+	    let value = reduce_multichar !wcharType char_list in
+	    let result = kinteger64 !wcharKind value in
+            finishExp empty result (typeOf result)
               
         | A.CONST_FLOAT str -> begin
             (* Maybe it ends in U or UL. Strip those *)

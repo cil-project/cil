@@ -273,6 +273,7 @@ and constant =
   | CONST_INT of string   (* the textual representation *)
   | CONST_FLOAT of string (* the textual representaton *)
   | CONST_CHAR of int64 list
+  | CONST_WCHAR of int64 list
   | CONST_STRING of string
   | CONST_WSTRING of int64 list (* List of wide characters.  Since characters
       * may have 16- or 32-bit values, we can't use a string to represent
