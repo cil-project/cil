@@ -13,6 +13,7 @@
 *.out
 *.xyc
 *.xyd
+auto
 cil-api.tex
 cil.version.tex
 cilpp.tex
