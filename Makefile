@@ -693,7 +693,7 @@ compress : defaulttarget $(COMPRESSDIR)/src/combine-compress.c
                  $(DOOPT) \
                  combine-compress.c \
                  $(EXEOUT)combine-compress.exe
-	time $(COMPRESSDIR)/src/combine-compress.exe < $(COMPRESSDIR)/src/input.data > $(COMPRESSDIR)/src/combine-compress.out
+	sh -c "time $(COMPRESSDIR)/src/combine-compress.exe < $(COMPRESSDIR)/src/input.data > $(COMPRESSDIR)/src/combine-compress.out"
 
 LIDIR=$(SPECDIR)/130.li
 li: defaulttarget

@@ -1738,7 +1738,12 @@ let mkAddrOf ((b, off) as lval) : exp =
   match unrollType (typeOfLval lval) with
     TArray _ -> StartOf lval
   | TFun _ -> StartOf lval
-  | _ -> AddrOf(lval)
+  | _ -> begin
+      (match lval with
+        Var vi, off when vi.vstorage = Register -> vi.vstorage <- NoStorage
+      | _ -> ());
+      AddrOf(lval)
+  end
 
 let isIntegralType t = 
   match unrollType t with
