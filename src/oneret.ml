@@ -55,7 +55,7 @@ let oneret (f: Cil.fundec) : unit =
                            * time to add the return statement *)
         let rs = getRetStmt () in
         if !haveGoto then
-          rs.labels <- (Label("return_label", !lastloc)) :: rs.labels;
+          rs.labels <- (Label("return_label", !lastloc, false)) :: rs.labels;
         [rs]
 
     | [] -> []

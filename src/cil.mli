@@ -506,7 +506,10 @@ and block =
 
 (** Labels*)
 and label = 
-    Label of string * location          (** A real label *)
+    Label of string * location * bool   (* A real label.*)
+		(* If the bool is "true", the label is from the input source program.
+		 * If the bool is "false", the label was created by CIL or some
+		 * other transformation *)
   | Case of exp * location              (** A case statement *)
   | Default of location                 (** A default statement *)
 

@@ -482,7 +482,10 @@ and block =
    } 
 
 and label = 
-    Label of string * location          (* A real label *)
+    Label of string * location * bool   (* A real label.*)
+		(* If the bool is "true", the label is from the input source program.
+		 * If the bool is "false", the label was created by CIL or some
+		 * other transformation *)
   | Case of exp * location              (* A case statement *)
   | Default of location                 (* A default statement *)
 
@@ -1903,7 +1906,8 @@ and d_stmt () (s: stmt) = (* A version that is easier to call *)
   d_stmt_next invalidStmt () s
 
 and d_label () = function
-    Label (s, _) -> text (s ^ ": ")
+    Label (s, _, true) -> text (s ^ ": ")
+  | Label (s, _, false) -> text (s ^ ": /* CIL Label */ ")
   | Case (e, _) -> text "case " ++ d_exp () e ++ text ": "
   | Default _ -> text "default: "
 
@@ -2061,7 +2065,7 @@ and d_goto (s: stmt) =
   (* Grab one of the labels *)
   let rec pickLabel = function
       [] -> None
-    | Label (l, _) :: _ -> Some l
+    | Label (l, _, _) :: _ -> Some l
     | _ :: rest -> pickLabel rest
   in
   match pickLabel s.labels with

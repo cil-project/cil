@@ -503,7 +503,7 @@ and checkStmt (s: stmt) =
     (fun _ -> 
       (* Check the labels *)
       let checkLabel = function
-          Label (ln, l) -> 
+          Label (ln, l, _) -> 
             if H.mem labels ln then
               ignore (warn "Multiply defined label %s" ln);
             H.add labels ln ()

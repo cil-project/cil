@@ -30,9 +30,10 @@ let get_switch_count () =
 let rec xform_switch_stmt s break_dest cont_dest label_index = begin
   s.labels <- List.map (fun lab -> match lab with
     Label _ -> lab
-  | Case(e,l) -> let str = Pretty.sprint 80 (Pretty.dprintf "switch_%d_%a" label_index d_exp e) in 
-                 (Label(str,l))
-  | Default(l) -> (Label(Printf.sprintf "switch_%d_default" label_index,l))
+  | Case(e,l) -> let str = Pretty.sprint 80 
+									(Pretty.dprintf "switch_%d_%a" label_index d_exp e) in 
+                 (Label(str,l,false))
+  | Default(l) -> (Label(Printf.sprintf "switch_%d_default" label_index,l,false))
   ) s.labels ; 
   match s.skind with
     Instr _ -> ()
@@ -76,7 +77,8 @@ let rec xform_switch_stmt s break_dest cont_dest label_index = begin
        *)
       let i = get_switch_count () in 
       let break_stmt = mkStmt (Instr []) in
-      break_stmt.labels <- [Label((Printf.sprintf "switch_%d_break" i),l)] ;
+      break_stmt.labels <- 
+				[Label((Printf.sprintf "switch_%d_break" i),l,false)] ;
       let break_block = mkBlock [ break_stmt ] in
       let body_block = b in 
       let body_if_stmtkind = (If(Cil.zero,body_block,break_block,l)) in
@@ -96,7 +98,7 @@ let rec xform_switch_stmt s break_dest cont_dest label_index = begin
               let then_block = mkBlock [ mkStmt (Goto(ref stmt_hd,dl)) ] in
               let else_block = mkBlock [ mkStmt (handle_labels lab_tl) ] in
               If(pred,then_block,else_block,dl)
-          | Label(s,ll) :: lab_tl -> handle_labels lab_tl
+          | Label(_,_,_) :: lab_tl -> handle_labels lab_tl
         end in
         handle_labels stmt_hd.labels
       end in
@@ -106,9 +108,11 @@ let rec xform_switch_stmt s break_dest cont_dest label_index = begin
   | Loop(b,l) -> 
           let i = get_switch_count () in 
           let break_stmt = mkStmt (Instr []) in
-          break_stmt.labels <- [Label((Printf.sprintf "while_%d_break" i),l)] ;
+          break_stmt.labels <- 
+						[Label((Printf.sprintf "while_%d_break" i),l,false)] ;
           let cont_stmt = mkStmt (Instr []) in
-          cont_stmt.labels <- [Label((Printf.sprintf "while_%d_continue" i),l)] ;
+          cont_stmt.labels <- 
+						[Label((Printf.sprintf "while_%d_continue" i),l,false)] ;
           b.bstmts <- cont_stmt :: b.bstmts ;
           let this_stmt = mkStmt (s.skind) in
           let break_dest () = ref break_stmt in

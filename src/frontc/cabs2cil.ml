@@ -756,11 +756,13 @@ module BlockChunk =
           let n = mkEmptyStmt () in
           n, n :: c.stmts
       
-    let consLabel (l: string) (c: chunk) (loc: location) : chunk = 
+    let consLabel (l: string) (c: chunk) (loc: location) 
+				(in_original_program_text : bool) : chunk = 
       (* Get the first statement and add the label to it *)
       let labstmt, stmts' = getFirstInChunk c in
       (* Add the label *)
-      labstmt.labels <- Label (l, loc) :: labstmt.labels;
+      labstmt.labels <- Label (l, loc, in_original_program_text) :: 
+				labstmt.labels;
       H.add labelStmt l labstmt;
       if c.stmts == stmts' then c else {c with stmts = stmts'}
 
@@ -844,7 +846,7 @@ let consLabContinue (c: chunk) =
   match !continues with
     [] -> E.s (error "labContinue not in a loop")
   | While :: rest -> c
-  | NotWhile lr :: rest -> if !lr = "" then c else consLabel !lr c !currentLoc
+  | NotWhile lr :: rest -> if !lr = "" then c else consLabel !lr c !currentLoc false
 
 let exitLoop () = 
   match !continues with
@@ -3178,7 +3180,7 @@ and doCondition (isconst: bool) (* If we are in constants, we do our best to
           (sf, sf)
         else begin
           let lab = newLabelName "_L" in
-          (gotoChunk lab lu, consLabel lab sf !currentLoc)
+          (gotoChunk lab lu, consLabel lab sf !currentLoc false)
         end
       in
       let st' = doCondition isconst e2 st sf1 in
@@ -3192,7 +3194,7 @@ and doCondition (isconst: bool) (* If we are in constants, we do our best to
           (st, st)
         else begin
           let lab = newLabelName "_L" in
-          (gotoChunk lab lu, consLabel lab st !currentLoc)
+          (gotoChunk lab lu, consLabel lab st !currentLoc false)
         end
       in
       let st' = st1 in
@@ -3998,7 +4000,7 @@ and doStatement (s : A.statement) : chunk =
         let loc' = convLoc loc in
         currentLoc := loc';
         (* Lookup the label because it might have been locally defined *)
-        consLabel (lookupLabel l) (doStatement s) loc'
+        consLabel (lookupLabel l) (doStatement s) loc' true
                      
     | A.GOTO (l, loc) -> 
         let loc' = convLoc loc in
@@ -4035,7 +4037,7 @@ and doStatement (s : A.statement) : chunk =
             let switch = mkStmt (Switch (Lval(var switchv), 
                                          mkBlock [], [], loc')) in
             (* And make a label for it since we'll goto it *)
-            switch.labels <- [Label ("__docompgoto", loc')];
+            switch.labels <- [Label ("__docompgoto", loc', false)];
             gotoTargetData := Some (switchv, switch);
             se @@ i2c (Set(var switchv, doCast e' uintType, loc')) @@
             s2c switch
@@ -4073,7 +4075,7 @@ and doStatement (s : A.statement) : chunk =
         (i2c (Asm(attr', tmpls, outs', ins', clobs, loc')))
   with e -> begin
     (ignore (E.log "Error in doStatement (%s)\n" (Printexc.to_string e)));
-    consLabel "booo_statement" empty (convLoc (A.get_statementloc s))
+    consLabel "booo_statement" empty (convLoc (A.get_statementloc s)) false
   end
 
 
