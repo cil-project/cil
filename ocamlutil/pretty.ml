@@ -40,8 +40,8 @@ let aman_no_fit    = aman && false
 
 
 
-let noBreaks = ref true  (* Replace all soft breaks with space *)
-let noAligns = ref true (* Whether to obey align/unalign *)
+let noBreaks = ref false  (* Replace all soft breaks with space *)
+let noAligns = ref false (* Whether to obey align/unalign *)
 
 let fprintf x = Printf.fprintf stderr x
 
