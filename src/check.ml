@@ -721,7 +721,7 @@ and checkInstr (i: instr) =
           (* Now check the return value*)
       (match dest, unrollType rt with
         None, TVoid _ -> ()
-      | Some _, TVoid _ -> ignore (warn "Call of subroutine is assigned")
+      | Some _, TVoid _ -> ignore (warn "void value is assigned")
       | None, _ -> () (* "Call of function is not assigned" *)
       | Some destlv, rt' -> 
           let desttyp = checkLval false destlv in

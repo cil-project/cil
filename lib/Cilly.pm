@@ -1504,6 +1504,8 @@ sub new {
             "-p" => { TYPE => 'LINKCC' },
             "-pg" => { TYPE => 'LINKCC' },
             "-a" => { TYPE => 'LINKCC' },
+            "-Wall" => { TYPE => 'CC', 
+			 RUN => sub { push @{$stub->{CILARGS}},"--warnall";}},
             "-W" => { TYPE => 'CC' },
             "-g" => { RUN => sub { push @{$stub->{CCARGS}}, $_[1];
                                    push @{$stub->{LINKARGS}}, $_[1]; }},
