@@ -36,7 +36,6 @@
   # 
   # ARCHOS     - the architecture x86_WIN32, x86_LINUX
   # NATIVECAML - if set then will use the native compiler
-  # CAMLUSEUNIX- if set then will link the unix library
   # UNSAFE     - if set then will turn off safety checks (only with NATIVECAML)
 
   # SOURCEDIRS - the source directories
@@ -46,7 +45,8 @@
   # MODULES    - the base names of the modules in the order in which they
   #              must be linked
   # EXECUTABLE - the name of the executable to create
-  #
+  # CAMLLIBS   - a list of CAML libraries to use. 
+  #              For each, will add %.$(CMXZ) -cclibs -l%
   # EXTRACLEAN - additional things to pass to "rm" for the "clean" target
 CAMLLEX = ocamllex
 CAMLYACC= ocamlyacc -v
@@ -130,22 +130,17 @@ endif
 
 EXE		= $(EXEEXT).exe
 OBJ   	= o
-ifdef CAMLUSEUNIX
-  UNIXLIBS	+= unix.$(CMXA) -cclib -lunix
-endif
-
 
 export EXE
 
 
-#  Libs to use - include the Num libs
-CAMLLIBS += nums.$(CMXA) $(PARSELIBS) $(UNIXLIBS) -cclib -lnums
 
     # Allow searching for .ml and .mli
 vpath %.mll $(SOURCEDIRS)
 vpath %.mly $(SOURCEDIRS)
 vpath %.ml  $(SOURCEDIRS) $(OBJDIR)
 vpath %.mli $(SOURCEDIRS) $(OBJDIR)
+vpath %.c   $(SOURCEDIRS)
 
 DEPENDDIR  = $(OBJDIR)/.depend
 
@@ -209,16 +204,20 @@ $(OBJDIR)/%.$(CMO): %.ml
         ;fi
 
              # Compile C files
+             # They appear to be left in the current directory
 $(OBJDIR)/%.$(OBJ): %.c
 	@$(NARRATIVE) Compiling C file $<
-	$(AT)$(CAMLC) $(CAMLFLAGS) -c $<
-	$(AT)mv -f $(basename $<).$(OBJ) $(OBJDIR)
+	$(AT)$(CAMLC) $(CAMLFLAGS) -c $< -o $@
+	$(AT)mv -f $(basename $(notdir $<)).$(OBJ) $(OBJDIR)
 
              # Linking
-$(EXECUTABLE)$(EXE) : $(MODULES:%=$(OBJDIR)/%.$(CMO)) 
+$(EXECUTABLE)$(EXE) : $(MODULES:%=$(OBJDIR)/%.$(CMO)) \
+                      $(CMODULES:%=$(OBJDIR)/%.$(OBJ)) 
 	@$(NARRATIVE) Linking $(COMPILETOWHAT) $@
-	$(AT)$(CAMLLINK) -o $@ $(CAMLLIBS) $^
-
+	$(AT)$(CAMLLINK) -o $@ \
+                    $(CAMLLIBS:%=%.$(CMXA)) \
+                    $(CAMLLIBS:%=-cclib -l%) \
+                    $^
 
 #	Phonies should be "remade" even if someone mistakenly creates them
 .PHONY: clean realclean

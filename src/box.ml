@@ -431,13 +431,14 @@ let rec readFieldsOfFat (e: exp) (et: typ)
       | Lval(Mem e'', o) -> 
           let po, bo, eo = compOffsets o in
           Lval(Mem e'', po), Lval(Mem e'', bo), Lval(Mem e'', eo)
+(*
       | Question (e1, e2, e3) ->
           let e2t, e2', e2'', e2e = readFieldsOfFat e2 et in
           let   _, e3', e3'', e3e = readFieldsOfFat e3 et in
           (Question(e1,e2',e3'), 
            Question(e1,e2'',e3''), 
            Question(e1, e2e,e3e))
-(*
+
       | Compound (t, [p; b]) when isFatType t -> 
           p, b, zero
       | Compound (t, [p; b; e]) when isFatType t -> 
@@ -3873,12 +3874,14 @@ and boxexpf (e: exp) : stmt clist * fexp =
         (*        ignore (E.log "result of StartOf: %a@!" d_fexp res); *)
         (dostartof, res)
     end
+(*
     | Question (e1, e2, e3) ->       
         let (_, doe1, e1') = boxexp (CastE(intType, e1)) in
         let (et2, doe2, e2') = boxexp e2 in
         let (et3, doe3, e3') = boxexp e3 in
         let result = mkFexp1 et2 (Question (e1', e2', e3')) in
         (append doe1 (append doe2 doe3), result)
+*)
   with exc -> begin
     ignore (E.log "boxexpf (%s): %a in %s\n" 
               (Printexc.to_string exc) d_exp e !currentFunction.svar.vname);

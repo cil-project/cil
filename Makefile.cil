@@ -22,11 +22,10 @@ MODULES     = pretty errormsg trace stats util clist \
 	            cfg heapify simplemem oneret testcil unionfind type maincil
 
 EXECUTABLE  = $(OBJDIR)/cilly
-CAMLUSEUNIX = 1
 ifdef NATIVECAML
   UNSAFE      = 1
 endif
-CAMLLIBS    = 
+CAMLLIBS    = unix
 
 
 # Additional things to clean

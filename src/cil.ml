@@ -291,13 +291,6 @@ and exp =
                                          * explicit for the arguments *)
   | BinOp      of binop * exp * exp * typ
 
-  | Question   of exp * exp * exp      (* e1 ? e2 : e3. Sometimes we cannot 
-                                        * turn this into a conditional 
-                                        * statement (e.g. in global 
-                                        * initializers). This is only allowed 
-                                        * inside constant initializers.!!! In 
-                                        * all other places it must bne turned 
-                                        * into IfThenElse  *)
   | CastE      of typ * exp            (* Use doCast to make casts *)
 
   | AddrOf     of lval                 (* Always use mkAddrOf to construct
@@ -1203,7 +1196,7 @@ let addrOfLevel = 30
 let bitwiseLevel = 75
 let additiveLevel = 60
 let getParenthLevel = function
-  | Question _ -> 80
+(*  | Question _ -> 80 *)
                                         (* Bit operations. *)
   | BinOp((BOr|BXor|BAnd),_,_,_) -> bitwiseLevel (* 75 *)
 
@@ -1397,7 +1390,7 @@ let rec typeOf (e: exp) : typ =
   | AlignOf _ | AlignOfE _ -> uintType
   | UnOp (_, _, t) -> t
   | BinOp (_, _, _, t) -> t
-  | Question (_, e2, _) -> typeOf e2
+(*  | Question (_, e2, _) -> typeOf e2 *)
   | CastE (t, _) -> t
   | AddrOf (lv) -> TPtr(typeOfLval lv, [])
   | StartOf (lv) -> begin
@@ -1620,13 +1613,13 @@ and d_exp () e =
         ++ (d_expprec level () e2)
         ++ unalign
 
-  | Question (e1, e2, e3) ->
+(*  | Question (e1, e2, e3) ->
       (d_expprec level () e1)
         ++ text " ? "
         ++ (d_expprec level () e2)
         ++ text " : " 
         ++ (d_expprec level () e3)
-
+*)
   | CastE(t,e) -> 
       text "(" 
         ++ d_type () t
@@ -2475,9 +2468,10 @@ and childrenExp (vis: cilVisitor) (e: exp) : exp =
   | BinOp (bo, e1, e2, t) -> 
       let e1' = vExp e1 in let e2' = vExp e2 in let t' = vTyp t in
       if e1' != e1 || e2' != e2 || t' != t then BinOp(bo, e1',e2',t') else e
-  | Question (e1, e2, e3) -> 
+(*  | Question (e1, e2, e3) -> 
       let e1' = vExp e1 in let e2' = vExp e2 in let e3' = vExp e3 in
       if e1' != e1 || e2' != e2 || e3' != e3 then Question(e1',e2',e3') else e
+*)
   | CastE (t, e1) ->           
       let t' = vTyp t in let e1' = vExp e1 in
       if t' != t || e1' != e1 then CastE(t', e1') else e
@@ -3139,8 +3133,8 @@ let rec isConstant = function
         -> vi.vglob && isConstantOff off
   | AddrOf (Mem e, off) | StartOf(Mem e, off) 
         -> isConstant e && isConstantOff off
-  | Question (e1, e2, e3) -> 
-      isConstant e1 && isConstant e2 && isConstant e3
+(*  | Question (e1, e2, e3) -> 
+      isConstant e1 && isConstant e2 && isConstant e3 *)
 
 and isConstantOff = function
     NoOffset -> true

@@ -617,7 +617,8 @@ let rec simplifyExp e : exp =
   | AlignOfE e -> simplifyExp e
   | BinOp (op,e1,e2,t) -> BinOp (op, simplifyExp e1, simplifyExp e2, t)
   | UnOp (op,e,t) -> UnOp (op,simplifyExp e,t)
-  | Question (e1,e2,e3) -> Question (simplifyExp e1,simplifyExp e2,simplifyExp e3)
+(*  | Question (e1,e2,e3) -> Question (simplifyExp e1,simplifyExp e2,simplifyExp 
+  e3) *)
   | CastE (_,e) -> simplifyExp e
   | Lval lv -> simplifyLval lv
   | StartOf lv -> simplifyLval lv
@@ -651,8 +652,9 @@ let rec expEqual e1 e2 : bool=
       op1=op2 && (expEqual ea1 eb1) && (expEqual ea2 eb2) && t1=t2
   | UnOp (op1,ea1,t1), UnOp (op2,eb1,t2) -> 
       op1=op2 && (expEqual ea1 eb1) && t1=t2
-  | Question (ea1,ea2,ea3), Question (eb1,eb2,eb3) ->
+(*  | Question (ea1,ea2,ea3), Question (eb1,eb2,eb3) ->
       (expEqual ea1 eb1) && (expEqual ea2 eb2) && (expEqual ea3 eb3)
+*)
   | CastE (t1,e1), CastE (t2,e2) ->(* t1=t2 &&*) (expEqual e1 e2)
   | CastE (_, e1), _ -> expEqual e1 e2
   |  _,CastE (_, e2) -> expEqual e1 e2
@@ -1248,8 +1250,9 @@ and getCheckedLvals (check : instr) : lval list =
     | AlignOfE _ -> []
     | UnOp (_,e1,_) -> getLvalsFromExp e1
     | BinOp (_,e1,e2,_) -> (getLvalsFromExp e1) @ (getLvalsFromExp e2)
-    | Question (e1,e2,e3) -> 
+(*    | Question (e1,e2,e3) -> 
 	(getLvalsFromExp e1) @ (getLvalsFromExp e2) @ (getLvalsFromExp e3)
+*)
     | CastE (_,e1) -> getLvalsFromExp e1
     | AddrOf (Var _, NoOffset) -> []
     | AddrOf (Mem e, NoOffset) -> getLvalsFromExp e
@@ -1298,8 +1301,9 @@ and expHasAliasedVar (e : exp) : bool =
   | AlignOfE _ -> false
   | UnOp (_,e1,_) -> expHasAliasedVar e1
   | BinOp (_,e1,e2,_) -> (expHasAliasedVar e1) || (expHasAliasedVar e2)
-  | Question (e1,e2,e3) -> 
+(*  | Question (e1,e2,e3) -> 
       ((expHasAliasedVar e1) || (expHasAliasedVar e2) || (expHasAliasedVar e3))
+*)
   | CastE (_,e1) -> expHasAliasedVar e1
   | AddrOf lv -> lvalHasAliasedVar lv
   | StartOf lv -> lvalHasAliasedVar lv

@@ -14,11 +14,10 @@ MODULES     = pretty errormsg stats util \
               mainmerger
 
 EXECUTABLE  = $(OBJDIR)/merger
-CAMLUSEUNIX = 1
 ifdef NATIVECAML
   UNSAFE      = 1
 endif
-CAMLLIBS    = 
+CAMLLIBS    = unix
 
 # sm: we have to add more modules because the dependency files refer
 # to them, and therefore compiling fails without them.  for example,

@@ -23,7 +23,7 @@ and kind_of_ptr_exp e =
   match e with
   | UnOp(op,e1,tau) -> kind_of_ptr_type tau
   | BinOp(op,e1,e2,tau) -> kind_of_ptr_type tau
-  | Question(e1,e2,e3) -> kind_of_ptr_exp e2 
+(*  | Question(e1,e2,e3) -> kind_of_ptr_exp e2 *)
   | CastE(tau,e) -> kind_of_ptr_type tau 
   | Lval(lv) -> kind_of_ptr_lval lv 
   | AddrOf(lv) -> 

@@ -303,14 +303,6 @@ and exp =
                                             type of the result. The arithemtic
                                             conversions are made  explicit
                                             for the arguments *)
-                
-  | Question   of exp * exp * exp      (** e1 ? e2 : e3. Sometimes we cannot 
-                                           turn this into a conditional 
-                                           statement (e.g. in global 
-                                           initializers). This is only allowed 
-                                           inside constant initializers. In 
-                                           all other places it must be turned 
-                                           into IfThenElse  *)
   | CastE      of typ * exp            (** Use doCast to make casts *)
 
   | AddrOf     of lval                 (** Always use mkAddrOf to construct

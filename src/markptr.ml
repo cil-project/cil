@@ -1363,8 +1363,9 @@ and expMarkEscape (e : exp) : unit =
 
 	  | BinOp( (Lt|Gt|Le|Ge|Eq|Ne|LtP|GtP|LeP|GeP|EqP|NeP), _, _, _) -> ()
 	  | BinOp(_, e1, e2, _) -> expMarkEscape e1; expMarkEscape e2 
+(*
 	  | Question(_, e1, e2) -> expMarkEscape e1; (*expMarkEscape e2*)
-
+*)
 	  | _ -> ()
 
 

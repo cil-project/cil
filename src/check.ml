@@ -427,6 +427,7 @@ and checkExp (isconst: bool) (e: exp) : typ =
               typeMatch tres intType;
               tres
       end
+(*
       | Question (eb, et, ef) -> 
           if not isconst then
             ignore (warn "Question operator not in a constant\n");
@@ -436,7 +437,7 @@ and checkExp (isconst: bool) (e: exp) : typ =
           let tf = checkExp isconst ef in
           typeMatch tt tf;
           tt
-
+*)
       | AddrOf (lv) -> begin
           let tlv = checkLval isconst lv in
           (* Only certain types can be in AddrOf *)
