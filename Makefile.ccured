@@ -252,10 +252,10 @@ D_LIB := ccured.pl ccured_GNUCC.patch ccured_MSVC.patch \
 
 D_SMALL1 := array1.c array2.c alloc.c bitfield.c cast1.c fseq1.c
 
-distrib: 
+distrib: doc
 	rm -f ccured.tar.gz
 # Make a CIL distribution
-#	make -f Makefile.cil distrib
+	make -f Makefile.cil distrib
 # Unpack the distribution in our temporary directory
 	rm -rf $(DISTRIB_DIR)
 	mkdir $(DISTRIB_DIR)

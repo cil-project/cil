@@ -467,7 +467,7 @@ sub smAddTest {
 
   my %patterns = %commonerrors;
   my $tst = $self->newTest(Name => $tname,
-                           Dir => "..",
+                           Dir => ".",
                            Cmd => "make $command" . $self->testCommandExtras(""),
                            Group => ['quick'],
                            Patterns => \%patterns);
