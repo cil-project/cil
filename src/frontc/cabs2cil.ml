@@ -1945,7 +1945,7 @@ and doExp (isconst: bool)    (* In a constant *)
           let tres = integralPromotion t in
           let e'' = 
             match e' with
-            | Const(CInt64(i, _, _)) -> integer64 (Int64.neg i)
+            | Const(CInt64(i, ik, _)) -> kinteger64 ik (Int64.neg i)
             | _ -> UnOp(Neg, doCastT e' t tres, tres)
           in
           finishExp se e'' tres

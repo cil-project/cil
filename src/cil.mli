@@ -766,28 +766,26 @@ val one: exp
 (* -1 *)
 val mone: exp
 
-(** Construct an integer of a given kind. *)
-val kinteger: ikind -> int -> exp
 
-(** Construct an integer of a given kind, using OCaml's int64 type. *)
+(** Construct an integer of a given kind, using OCaml's int64 type. If needed 
+  * it will truncate the integer to be within the representable range for the 
+  * given kind. *)
 val kinteger64: ikind -> int64 -> exp
 
-(** Truncates an integer to ensure it is within the range 
-    for the requested kind *)
-val truncateInteger64: ikind -> int64 -> int64
+(** Construct an integer of a given kind. Converts the integer to int64 and 
+  * then uses kinteger64. This might truncate the value if you use a kind 
+  * that cannot represent the given integer. This can only happen for one of 
+  * the Char or Short kinds *)
+val kinteger: ikind -> int -> exp
 
-(** Like kinteger64 but first uses truncateInteger64. *)
-val kinteger64Truncate: ikind -> int64 -> exp
-
-(** Construct an integer of the first kind that is big enough. Use only for 
-    positive integers! *)
-val integerKinds: ikind list -> int64 -> exp
-
-(** Construct an integer of kind IInt. *)
+(** Construct an integer of kind IInt. You can use this always since the 
+    OCaml integers are 31 bits and are guaranteed to fit in an IInt *)
 val integer: int -> exp
 
-(** Construct an integer of kind IInt, using OCaml's int64 type.  *)
-val integer64: int64 -> exp
+(** Construct an integer of the first kind that is big enough. Use only for 
+    positive integers!!! *)
+val integerKinds: ikind list -> int64 -> exp
+
 
 (** True if the given expression is a (possibly cast'ed) 
     character or an integer constant *)
@@ -798,20 +796,16 @@ val isInteger: exp -> int64 option
 val isZero: exp -> bool
 
 (** Do constant folding on an expression. If the first argument is true then 
-    will also compute machine-dependent expressions such as sizeof *)    
+    will also compute compiler-dependent expressions such as sizeof *)    
 val constFold: bool -> exp -> exp
 
 (** Do constant folding on a binary operation. The bulk of the work done by 
     [constFold] is done here. If the first argument is true then 
-    will also compute machine-dependent expressions such as sizeof *)
+    will also compute compiler-dependent expressions such as sizeof *)
 val constFoldBinOp: bool -> binop -> exp -> exp -> typ -> exp
 
 (** Increment an expression. Can be arithmetic or pointer type *) 
 val increm: exp -> int -> exp
-
-(** Represent an integer in hex. The value is the same, but the textual 
-    representation is different *)
-val hexinteger: int -> exp
 
 
 (** Makes an lvalue out of a given variable *)
