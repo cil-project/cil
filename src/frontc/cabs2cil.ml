@@ -610,9 +610,9 @@ and doType (a : attribute list) = function
       let bt', a' = 
         match bt with
           A.ATTRTYPE (bt', ["stdcall", []]) -> 
-            bt', addAttribute (AId("stdcall")) a
+            bt', (* addAttribute (AId("stdcall")) *) a
         | A.ATTRTYPE (bt', ["cdecl", []]) -> 
-            bt', addAttribute (AId("cdecl")) a
+            bt', a (* addAttribute (AId("cdecl")) *)
         | _ -> bt, a
       in
       let tres = arrayToPtr (doType [] bt') in
@@ -645,11 +645,6 @@ and doType (a : attribute list) = function
       List.iter (fun (n,fieldidx) -> recordEnumField n fieldidx res) fields;
       recordTypeName ("enum " ^ n) res; 
       res
-
-(*
-  | A.CONST bt -> doType (AId("const") :: a) bt
-  | A.VOLATILE bt -> doType (AId("volatile") :: a) bt
-*)
   | A.ATTRTYPE (bt, a') -> 
       let rec doAttribute = function
           (s, []) -> AId s
@@ -1339,6 +1334,9 @@ and doExp (isconst: bool)    (* In a constant *)
                         "Unexpected type of the called function %a: %a" 
                         d_exp f' d_type x)
         in
+        (* Drop certain qualifiers from the result type *)
+        let resType' =  
+          typeRemoveAttributes [AId("cdecl"); AId("__cdecl__")] resType in
         (* Do the arguments. In REVERSE order !!! Both GCC and MSVC do this *)
         let rec loopArgs 
             : varinfo list * A.expression list 
@@ -1346,7 +1344,7 @@ and doExp (isconst: bool)    (* In a constant *)
             | ([], []) -> ([], [])
             | (varg :: atypes, a :: args) -> 
                 let (ss, args') = loopArgs (atypes, args) in
-                let (sa, a', att) = doExp false a (AExp None) in
+                let (sa, a', att) = doExp false a (AExp (Some varg.vtype)) in
                 let (at'', a'') = castTo att varg.vtype a' in
                 (ss @ sa, a'' :: args')
                   
@@ -1367,7 +1365,7 @@ and doExp (isconst: bool)    (* In a constant *)
                 (integer 0) intType
               (* Set to a variable of corresponding type *)
           | ASet((Var vi, NoOffset) as lv, vtype) -> 
-              let mustCast = typeSig resType <> typeSig vtype in
+              let mustCast = typeSig resType' <> typeSig vtype in
               finishExp 
                 (sf @ sargs @ [Instr(Call(Some (vi, mustCast),f'',args'), lu)])
                 (Lval(lv))
@@ -1384,8 +1382,8 @@ and doExp (isconst: bool)    (* In a constant *)
                     match what with
                       AExp (Some t) -> 
                         newTempVar t, t, 
-                        typeSig t <> typeSig resType
-                    | _ -> newTempVar resType, resType, false
+                        typeSig t <> typeSig resType'
+                    | _ -> newTempVar resType', resType', false
                   in
                   let i = Instr(Call(Some (tmp, iscast),f'',args'), lu) in
                   finishExp (sf @ sargs @ [i]) (Lval(var tmp)) restyp'
@@ -1610,6 +1608,15 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
   | (Eq|Ne) when isPointerType t2 && 
                  (match e1 with Const(CInt(0,_,_)) -> true | _ -> false) -> 
       pointerComparison (doCastT e1 t1 t2) e2
+
+
+  | (Eq|Ne|Le|Lt|Ge|Gt|Eq|Ne) when isPointerType t1 && isArithmeticType t2 ->
+      ignore (E.warn "Comparison of pointer and non-pointer");
+      doBinOp bop (doCastT e1 t1 t2) t2 e2 t2
+  | (Eq|Ne|Le|Lt|Ge|Gt|Eq|Ne) when isArithmeticType t1 && isPointerType t2 ->
+      ignore (E.warn "Comparison of pointer and non-pointer");
+      doBinOp bop e1 t1 (doCastT e2 t2 t1) t1
+
   | _ -> E.s (E.unimp "doBinOp: %a\n" d_plainexp (BinOp(bop,e1,e2,intType)))
 
 (* A special case for conditionals *)
@@ -1854,13 +1861,13 @@ and doStatement (s : A.statement) : stmt list =
           
     | A.RETURN A.NOTHING -> [Return (None, lu)]
     | A.RETURN e -> 
-        let (se, e', et) = doExp false e (AExp None) in
+        let (se, e', et) = doExp false e (AExp (Some !currentReturnType)) in
         let (et'', e'') = castTo et (!currentReturnType) e' in
         se @ [Return (Some e'', lu)]
                
     | A.SWITCH (e, s) -> 
-        let (se, e', et) = doExp false e (AExp None) in
-        let (et'', e'') = castTo et (TInt(IInt,[])) e' in
+        let (se, e', et) = doExp false e (AExp (Some intType)) in
+        let (et'', e'') = castTo et intType e' in
         let s' = doStatement s in
         se @ [Switch (e'', mkSeq s', lu)]
                

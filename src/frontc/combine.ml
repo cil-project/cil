@@ -140,13 +140,12 @@ end
 and combine_onlytype typ =
   combine_type typ
 
-(* NOTE: REMOVE ATTRIBUTE *)    
 and combine_name ((id, typ, attr, exp) : name) = begin
- if id = "___missing_field_name"
+  if id = "___missing_field_name"
   then
-    (id, combine_type typ, [], combine_expression exp)
+    (id, combine_type typ, attr, combine_expression exp)
   else
-    (lookup_id id, combine_type typ, [], combine_expression exp)
+    (lookup_id id, combine_type typ, attr, combine_expression exp)
 end
         
 and combine_name_group (typ, sto, names) =

@@ -552,7 +552,7 @@ and addAttributes al0 al =
     if al  == [] then al0 else
     List.fold_left (fun acc a -> addAttribute a acc) al al0
 
-and dropAttribute al a = 
+and dropAttribute (al: attribute list) (a: attribute) = 
   let rec amatch a a' = 
     match a, a' with
       AId s, AId s' when s = s' -> true
@@ -565,7 +565,10 @@ and dropAttribute al a =
   in
   List.filter (fun a' -> not (amatch a a')) al
 
-and filterAttributes s al = 
+and dropAttributes (todrop: attribute list) (al : attribute list) =
+  List.fold_left dropAttribute al todrop
+
+and filterAttributes (s: string) (al: attribute list) = 
   let amatch = function
     AId s' when s = s' -> true
   | ACons (s', _) when s = s' -> true
@@ -1073,7 +1076,7 @@ and d_attrlist pre () al = (* Whether it comes before or after stuff *)
           [] -> nil
         | _ -> dprintf "__attribute__((%a)) "
               (docList (chr ',' ++ break) 
-                 (fun a -> dprintf "%a" d_attr a)) al 
+                 (fun a -> dprintf "%a" d_attr a)) remaining 
       end
     | x :: rest -> begin
         match !d_attrcustom x with
@@ -1111,9 +1114,9 @@ and d_lval () lv =
   | Mem e, Field(fi, o) -> 
       d_offset (fun _ -> 
         dprintf "%a->%s" (d_expprec arrowLevel) e fi.fname) o
-  | Mem e, NoOffset -> dprintf "(*%a)" (d_expprec derefStarLevel) e
+(*  | Mem e, NoOffset -> dprintf "(*%a)" (d_expprec derefStarLevel) e *)
   | Mem e, o -> 
-      d_offset (fun _ -> dprintf "%a" (d_expprec indexLevel) e) o
+      d_offset (fun _ -> dprintf "(*%a)" (d_expprec derefStarLevel) e) o
         
 and d_instr () i =
   match i with
@@ -1463,7 +1466,9 @@ let printFile (out : out_channel) file =
           d_videcl vi 
           insert (match eo with None -> nil | Some e -> 
             dprintf " = %a" d_exp e)
-    | GDecl (vi, _) -> dprintf "%a;" d_videcl vi 
+    | GDecl (vi, _) -> 
+        dprintf "%a;" d_videcl vi
+          
     | GAsm (s, _) -> dprintf "__asm__(\"%s\");@!" (escape_string s)
     | GPragma (a, _) -> dprintf "#pragma %a@!" d_attr a
     | GText s  -> text s
@@ -1723,8 +1728,8 @@ let mkMem (addr: exp) (off: offset) : exp =
     | None, _ -> (* non-index on a non-array *)
         Lval(Mem addr, off)
   in
-(*  ignore (E.log "memof : %a\nresult = %a\n" 
-            d_plainexp addr d_plainexp res); *)
+(*  ignore (E.log "memof : %a:%a\nresult = %a\n" 
+            d_plainexp addr d_plainoffset off d_plainexp res); *)
   res
           
 
@@ -1792,7 +1797,7 @@ let typeAddAttributes a0 t =
   match t with 
     TVoid a -> TVoid (add a)
   | TInt (ik, a) -> TInt (ik, add a)
-  | TFloat (fk, a) -> TFloat (fk, a)
+  | TFloat (fk, a) -> TFloat (fk, add a)
   | TBitfield (i, s, a) -> TBitfield (i, s, add a)
   | TEnum (n, t, a) -> TEnum (n, t, add a)
   | TPtr (t, a) -> TPtr (t, add a)
@@ -1801,6 +1806,21 @@ let typeAddAttributes a0 t =
   | TComp comp -> comp.cattr <- add comp.cattr ; t
   | TForward (comp, a) -> TForward (comp, add a)
   | TNamed (n, t, a) -> TNamed (n, t, add a)
+
+let typeRemoveAttributes (a0: attribute list) t = 
+  let drop (al: attribute list) = dropAttributes a0 al in
+  match t with 
+    TVoid a -> TVoid (drop a)
+  | TInt (ik, a) -> TInt (ik, drop a)
+  | TFloat (fk, a) -> TFloat (fk, drop a)
+  | TBitfield (i, s, a) -> TBitfield (i, s, drop a)
+  | TEnum (n, t, a) -> TEnum (n, t, drop a)
+  | TPtr (t, a) -> TPtr (t, drop a)
+  | TArray (t, l, a) -> TArray (t, l, drop a)
+  | TFun (t, args, isva, a) -> TFun(t, args, isva, drop a)
+  | TComp comp -> comp.cattr <- drop comp.cattr ; t
+  | TForward (comp, a) -> TForward (comp, drop a)
+  | TNamed (n, t, a) -> TNamed (n, t, drop a)
 
      (* Type signatures. Two types are identical iff they have identical 
       * signatures *)
@@ -1812,19 +1832,20 @@ type typsig =
   | TSBase of typ
 
 (* Compute a type signature *)
-let rec typeSig t = 
+let rec typeSigAttrs doattr t = 
+  let typeSig = typeSigAttrs doattr in
   match t with 
   | (TInt _ | TFloat _ | TEnum _ | TBitfield _ | TVoid _) -> TSBase t
-  | TPtr (t, a) -> TSPtr (typeSig t, a)
-  | TArray (t,l,a) -> TSArray(typeSig t, l, a)
-  | TComp comp -> TSComp (comp.cstruct, comp.cname, comp.cattr)
+  | TPtr (t, a) -> TSPtr (typeSig t, doattr a)
+  | TArray (t,l,a) -> TSArray(typeSig t, l, doattr a)
+  | TComp comp -> TSComp (comp.cstruct, comp.cname, doattr comp.cattr)
   | TFun(rt,args,isva,a) -> TSFun(typeSig rt, 
                                   List.map (fun vi -> (typeSig vi.vtype, 
-                                                       vi.vattr)) args,
-                                  isva, a)
-  | TNamed(_, t, a) -> typeSigAddAttrs a (typeSig t)
+                                                       doattr vi.vattr)) args,
+                                  isva, doattr a)
+  | TNamed(_, t, a) -> typeSigAddAttrs (doattr a) (typeSig t)
 
-  | TForward (comp, a) -> typeSigAddAttrs a (typeSig (TComp comp))
+  | TForward (comp, a) -> typeSigAddAttrs (doattr a) (typeSig (TComp comp))
       
 and typeSigAddAttrs a0 t = 
   if a0 == [] then t else
@@ -1835,6 +1856,8 @@ and typeSigAddAttrs a0 t =
   | TSComp (iss, n, a) -> TSComp (iss, n, addAttributes a0 a)
   | TSFun(ts, tsargs, isva, a) -> TSFun(ts, tsargs, isva, addAttributes a0 a)
 
+
+let typeSig t = typeSigAttrs (fun al -> al) t
 
 
 let rec doCastT (e: exp) (oldt: typ) (newt: typ) = 

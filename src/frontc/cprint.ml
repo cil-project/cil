@@ -733,15 +733,26 @@ and print_attribute (name,args) =
   end
 
 and print_attributes attrs = 
-  if attrs = [] then ()
-  else if !msvcMode then
-    print_list space print_attribute attrs
+    (* Remove some attributes for now *)
+  let toremove = ["inline"] in 
+  let rec loop = function
+      [] -> []
+    | ((an, _) as a) :: rest -> 
+        if List.exists (fun n -> n = an) toremove then
+          loop rest
+        else
+          a :: loop rest
+    in
+  let attrs' = loop attrs in
+  if attrs' = [] then ()
   else
-    begin
-      space (); print "__attribute__((";
-      print_commas false print_attribute attrs;
-      print "))"
-    end
+    if !msvcMode then  print_list space print_attribute attrs'
+    else
+      begin
+        space (); print "__attribute__((";
+        print_commas false print_attribute attrs';
+        print "))"
+      end
 
 
 (*

@@ -292,7 +292,9 @@ let doVarinfo vi =
   (* Associate a node with the variable itself. Use index = 0 *)
   let n = N.getNode place 0 vi.vtype vi.vattr in
   (* Add this to the variable attributes *)
-  vi.vattr <- n.N.attr
+  vi.vattr <- n.N.attr (*;
+  ignore (E.log "varinfo: T=%a. A=%a\n" 
+            d_plaintype vi.vtype (d_attrlist true) vi.vattr) *)
     
 (* Do an expression. Return an expression, a type and a node. The node is 
  * only meaningful if the type is a TPtr _. In that case the node is also 
@@ -896,9 +898,6 @@ let printFile (c: out_channel) fl =
       (* N.printGraph c; 
       output_string c "/* End of graph */\n"; *)
       output_string c "/* Now the solved graph (simplesolve) */\n";
-      (match !solver with
-        "second" -> Stats.time "second solver" Secondsolve.solve N.idNode 
-      | _ -> Stats.time "simple solver" Simplesolve.solve N.idNode) ;
       Stats.time "printgraph" N.printGraph c;
       printIndent := opi;
       output_string c "/* End of solved graph*/\n#endif\n";

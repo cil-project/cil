@@ -329,7 +329,9 @@ let fixedTypes : (typsig, typ) H.t = H.create 17
  * attributes with their corresponding pointer kind attributes *)
 let dropConst t =
   let dropit where a = 
-    N.replacePtrNodeAttrList where (dropAttribute a (AId("const"))) in
+    N.replacePtrNodeAttrList where 
+      (dropAttribute a (AId("const")))
+  in
   let rec loop t = 
     match t with 
       TVoid a -> TVoid (dropit N.AtOther a)
@@ -741,6 +743,18 @@ let checkZeroTagsFun =
   fdec.svar.vstorage <- Static;
   fdec
 
+(* When we compute attributes we ignore the ptrnode attribute *)
+let ignorePtrNode al = 
+  let rec loop = function
+      [] -> []
+    | ACons("_ptrnode", _) :: rest -> loop rest
+    | (a :: rest) as al -> 
+        let rest' = loop rest in
+        if rest' == rest then al else a :: rest'
+  in
+  loop al
+let typeSigBox t = typeSigAttrs ignorePtrNode t
+
 (***** Pointer arithemtic *******)
 let checkPositiveFun = 
   let fdec = emptyFunction "CHECK_POSITIVE" in
@@ -778,7 +792,7 @@ let rec fixupType t =
 and fixit t = 
   (* First drop the Const attribute and replace the _ptrnode attribute *)
   let t = dropConst t in
-  let ts = typeSig t in
+  let ts = typeSigBox t in
   try
     H.find fixedTypes ts 
   with Not_found -> begin
@@ -806,12 +820,12 @@ and fixit t =
               in
               theFile := GType(tname, tstruct, lu) :: !theFile;
               let tres = TNamed(tname, tstruct, [N.k2attr pkind]) in
-              H.add fixedTypes (typeSig tstruct) tres;
+              H.add fixedTypes (typeSigBox tstruct) tres;
               tres
           in
           (* We add fixed ourselves. The TNamed will be added after doit  *)
-          H.add fixedTypes (typeSig fixed) fixed; 
-          H.add fixedTypes (typeSig (TPtr(fixed', a))) fixed;
+          H.add fixedTypes (typeSigBox fixed) fixed; 
+          H.add fixedTypes (typeSigBox (TPtr(fixed', a))) fixed;
           fixed
       end
             
@@ -853,7 +867,7 @@ and fixit t =
           res
     in
     H.add fixedTypes ts fixed;
-    H.add fixedTypes (typeSig fixed) fixed;
+    H.add fixedTypes (typeSigBox fixed) fixed;
 (*    ignore (E.log "Id of %a\n is %s\n" d_plaintype t (N.typeIdentifier t));*)
     fixed
   end
@@ -871,7 +885,7 @@ and moveAttrsFromDataToType attrs typ =
 
 (****** Generate sized arrays *)
 and addArraySize t = 
-  let tsig = typeSig t in
+  let tsig = typeSigBox t in
   try
     H.find sizedArrayTypes tsig
   with Not_found -> begin
@@ -903,13 +917,13 @@ and addArraySize t =
     let named = TNamed (tname, newtype, [AId("sized")]) in
     theFile := GType (tname, newtype, lu) :: !theFile;
     H.add sizedArrayTypes tsig named;
-    H.add sizedArrayTypes (typeSig named) named;
-    H.add sizedArrayTypes (typeSig newtype) named;
+    H.add sizedArrayTypes (typeSigBox named) named;
+    H.add sizedArrayTypes (typeSigBox newtype) named;
     named
   end
   
 and tagType (t: typ) : typ = 
-  let tsig = typeSig t in
+  let tsig = typeSigBox t in
   try
     H.find taggedTypes tsig
   with Not_found -> begin
@@ -949,7 +963,7 @@ and tagType (t: typ) : typ =
     let named = TNamed (tname, newtype, []) in
     theFile := GType (tname, newtype, lu) :: !theFile;
     H.add taggedTypes tsig named;
-    H.add taggedTypes (typeSig named) named;
+    H.add taggedTypes (typeSigBox named) named;
     named
    end
 
@@ -1024,44 +1038,6 @@ let arrayPointerToIndex (t: typ) (k: N.pointerkind)
                 d_plaintype t)
 
 
-(******* Start of *******)
-let pkStartOf (lv: lval)
-              (lvt: typ)
-              (lvk: N.pointerkind)  (* The kind of the StartOf pointer *)
-              (f2: exp)
-              (f3: exp) : (fexp * stmt list) = 
-  match unrollType lvt with
-    TArray(t, _, _) -> begin
-      let newp = AddrOf(addOffsetLval (Index(zero, NoOffset)) lv) in
-      match lvk with
-        N.Safe -> 
-          let (_, pkind, base, bend) = 
-            arrayPointerToIndex lvt lvk lv f2
-          in
-          let pres = mkPointerTypeKind t pkind in
-          if pkind = N.Seq || pkind = N.SeqN then
-            mkFexp3 pres newp base bend, []
-          else
-            mkFexp2 pres newp base, []
-      | N.Wild -> 
-          mkFexp2 (mkPointerTypeKind t lvk) newp f2, []
-      | _ -> E.s (E.unimp "StartOf")
-    end
-  | TFun _ -> begin
-              (* Taking the address of a function is a special case. Since 
-               * fuctions are not tagged the type of the the pointer is Safe. 
-               * If we are in defaultIsWild then we must make a Wild pointer 
-               * out of it *)
-      let start = StartOf lv in
-      match lv with
-        Var vi, NoOffset when !N.defaultIsWild -> 
-          mkFexp2 (mkPointerTypeKind lvt N.Wild) start start, []
-      | _ -> 
-          mkFexp2 (mkPointerTypeKind lvt lvk) start f2, []
-  end
-        
-  | _ -> E.s (E.unimp "pkStartOf on a non-array and non-function: %a"
-                d_plaintype lvt)
 
 
 
@@ -1377,15 +1353,71 @@ let beforeField ((btype, pkind, mklval, base, bend, stmts) as input) =
                 N.d_pointerkind pkind)
         
     
-let beforeIndex ((btype, pkind, mklval, base, bend, stmts) as input) = 
+let rec beforeIndex ((btype, pkind, mklval, base, bend, stmts) as input) = 
   match pkind with
   | (N.Safe|N.Wild|N.Seq) -> 
       let (elemtype, pkind, base, bend) = 
         arrayPointerToIndex btype pkind (mklval NoOffset) base in
       (elemtype, pkind, mklval, base, bend, stmts)
-        
-  | _ -> E.s (E.unimp "toIndex on unexpected pointer kind %a"
+
+  | (N.FSeq|N.FSeqN|N.Seq|N.SeqN|N.Index) ->   
+      (* Convert to safe first *)
+      let (_, pkind1, _, _, _, _) as res1 = beforeField input in
+      if pkind1 != N.Safe then
+        E.s (E.bug "beforeIndex: should be Safe\n");
+      (* Now try again *)
+      beforeIndex res1
+
+  | _ -> E.s (E.unimp "beforeIndex on unexpected pointer kind %a"
                 N.d_pointerkind pkind)
+
+(******* Start of *******)
+let rec pkStartOf (lv: lval)
+              (lvt: typ)
+              (lvk: N.pointerkind)  (* The kind of the StartOf pointer *)
+              (f2: exp)
+              (f3: exp) : (fexp * stmt list) = 
+  match unrollType lvt with
+    TArray(t, _, _) -> begin
+      let newp = AddrOf(addOffsetLval (Index(zero, NoOffset)) lv) in
+      match lvk with
+        N.Safe -> 
+          let (_, pkind, base, bend) = 
+            arrayPointerToIndex lvt lvk lv f2
+          in
+          let pres = mkPointerTypeKind t pkind in
+          if pkind = N.Seq || pkind = N.SeqN then
+            mkFexp3 pres newp base bend, []
+          else
+            mkFexp2 pres newp base, []
+      | N.Wild -> 
+          mkFexp2 (mkPointerTypeKind t lvk) newp f2, []
+      | N.Seq|N.FSeq|N.Index -> 
+          (* multi-dim arrays. Convert to SAFE first *)
+          let (lvt', lvk', mklval', base', bend', stmts') = 
+            beforeField (lvt,lvk, (fun o -> addOffsetLval o lv), f2, f3, []) in
+          if lvk' <> N.Safe then
+            E.s (E.bug "pkStartOf: I expected a safe here\n");
+          let (res, stmts'') = pkStartOf lv lvt lvk' base' bend' in
+          (res, stmts' @ stmts'')
+          
+      | _ -> E.s (E.unimp "pkStartOf: %a" N.d_pointerkind lvk)
+    end
+  | TFun _ -> begin
+              (* Taking the address of a function is a special case. Since 
+               * fuctions are not tagged the type of the the pointer is Safe. 
+               * If we are in defaultIsWild then we must make a Wild pointer 
+               * out of it *)
+      let start = StartOf lv in
+      match lv with
+        Var vi, NoOffset when !N.defaultIsWild -> 
+          mkFexp2 (mkPointerTypeKind lvt N.Wild) start start, []
+      | _ -> 
+          mkFexp2 (mkPointerTypeKind lvt lvk) start f2, []
+  end
+        
+  | _ -> E.s (E.unimp "pkStartOf on a non-array and non-function: %a"
+                d_plaintype lvt)
 
 let varStartInput (vi: varinfo) = 
   vi.vtype, N.Safe, (fun o -> (Var vi, o)), zero, zero, []
@@ -2006,6 +2038,7 @@ let rec initForType
         acc
   end
   | TFun _ -> acc (* Probably a global function prototype *)
+  | TVoid _ -> acc (* allocating and returning a void* *)
   | _ -> E.s (E.unimp "initializeVar (for type %a)" d_plaintype t)
 
 
@@ -2440,19 +2473,24 @@ and boxinstr (ins: instr) (l: location): stmt =
                             vi.vname iscast d_plaintype ftret 
                             d_plaintype vi.vtype); *)
                   if (* iscast && *)
-                     typeSig(ftret) <> typeSig (vi.vtype) &&
+                     typeSigBox(ftret) <> typeSigBox (vi.vtype) &&
                      (not (isSome isallocate)) && 
                     (match unrollType vi.vtype, unrollType ftret with
                       TComp _, _ -> true
                     | _, TComp _ -> true
                     | _ -> false) then
-                    let tmp = makeTempVar !currentFunction ftret in
+                    (* Drop cdecl from the return type *)
+                    let ftret' = 
+                      typeRemoveAttributes [AId("cdecl"); 
+                                             AId("__cdecl__")] ftret in
+                    let tmp = makeTempVar !currentFunction ftret' in
                     Some (tmp, false), 
                     vi.vtype,
                     [boxinstr (Set((Var vi, NoOffset), 
                                    Lval (var tmp))) l]
                   else
                     Some (vi, iscast), vi.vtype, []
+
               | (tv, _, ((Var _, Field(dfld, NoOffset)) as newlv), _, _,[]) -> 
                   let tmp = makeTempVar !currentFunction dfld.ftype in
                   Some (tmp, iscast), 
@@ -2661,8 +2699,9 @@ and boxexpf (e: exp) : stmt list * fexp =
         | (MinusPP|EqP|NeP|LeP|LtP|GeP|GtP), _, _ -> 
             (doe1 @ doe2, 
              L(restyp', N.Scalar,
-               BinOp(bop, readPtrField e1' et1, 
-                     readPtrField e2' et2, restyp')))
+               BinOp(bop, 
+                     doCast (readPtrField e1' et1) intType, 
+                     doCast (readPtrField e2' et2) intType, restyp')))
               
         | _, N.Scalar, N.Scalar -> 
             (doe1 @ doe2, L(restyp', N.Scalar, BinOp(bop,e1',e2',restyp')))

@@ -233,8 +233,13 @@ SAFECC=perl $(CILDIR)/lib/safecc.pl
 
 # weimer: support for other solvers
 ifeq ($(INFERBOX), 2)
-    SAFECC+= --safec="-solver second"
+    SAFECC+= --safec=-solver --safec=second
 endif
+
+ifdef INFERBOX
+BOX=1
+endif
+
 
 ifdef SHOWCABS
 SAFECC+= --cabs
@@ -652,6 +657,24 @@ apache/rewrite: $(EXECUTABLE)$(EXE)
 BHDIR=test/bh
 bh : defaulttarget
 	cd $(BHDIR); make
+
+COMBINESAFECC = $(SAFECC) --combine
+combinebh : defaulttarget
+ifndef _GNUCC
+	@echo BH can only be done with _GNUCC=1
+else
+	cd $(BHDIR); rm -f *.i *.exe *.o; make CC="$(COMBINESAFECC)"
+endif
+
+allbh : defaulttarget
+ifndef _GNUCC
+	@echo BH can only be done with _GNUCC=1
+else
+	cd $(BHDIR); $(SAFECC) --keep=. \
+                 $(DOOPT) \
+                 code_all.c \
+                 $(EXEOUT)allbh.exe
+endif
 
 # SPEC95
 SPECDIR=test/spec95

@@ -124,6 +124,7 @@ let addAttribute ((n, args) as q) a =
         | Some false -> q' :: insertSorted rest
     end
   in
+  if n = "cdecl" then a else
   insertSorted a
 
 let addAttributes a ats = 
@@ -146,7 +147,7 @@ let addAttributesTypeOfName a ((n,bt,ats,i) : name) : name =
   if a = [] then (n,bt,ats,i)
   else match bt with 
     ATTRTYPE (bt', a') -> (n, ATTRTYPE (bt', addAttributes a a'), ats, i)
-  | _ -> (n, ATTRTYPE (bt, a), ats, i)
+  | _ -> (n, ATTRTYPE (bt, addAttributes a []), ats, i)
   
 (* Make it inline *)
 let applyInline spec = {spec with sinline = true}

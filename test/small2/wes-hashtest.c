@@ -11,13 +11,6 @@
 * ALSHIFT is log2(ALIGN + 1)
 * UALIGN is the integer whose size if ALIGN + 1.
 *************************/
-#ifndef _GNUCC
-#ifndef _MSVC
-#define WILD
-#define SAFE
-#define SEQ
-#endif
-#endif
 
 typedef unsigned long UL;
 typedef unsigned char UC;
@@ -136,20 +129,20 @@ struct _iobuf {
         };
 typedef struct _iobuf FILE;
 
-int   __cdecl printf(const char * SAFE, ...);
-int   __cdecl fprintf(FILE * SAFE, const char * SAFE, ...);
+int   __cdecl printf(const char * , ...);
+int   __cdecl fprintf(FILE * , const char * , ...);
 void  __cdecl exit(int);
-int   __cdecl fflush(FILE * SAFE);
+int   __cdecl fflush(FILE * );
 
-void  *  SAFE malloc(unsigned int);
+void  *   malloc(unsigned int);
 #if defined(INFERBOX) && ! defined(MANUALBOX)
 void  *  __attribute__((fseq))
       calloc_fseq(unsigned int nrelem, unsigned int osize);
 #else
-void  *  FSEQ calloc_fseq(unsigned int nrelem, unsigned int osize);
+void  *   calloc_fseq(unsigned int nrelem, unsigned int osize);
 #endif
 
-void          free(void * SAFE);
+void          free(void * );
 
 #define NULL (void*)0
 
@@ -270,7 +263,7 @@ typedef int HASH_KEY;
 typedef struct HashEntry {
   int key;                    /* The key EMPTY_ENTRY is reserved for empty 
                                * entries  */
-  void * WILD data;
+  void * data;
 } HASH_ENTRY;
 
 			      /* A bucket is a list of clusters of 
@@ -278,18 +271,18 @@ typedef struct HashEntry {
                                * entries but it is optimized by allocating 
                                * a cluster of entries at a time */
 typedef struct BucketData {
-  struct BucketData * SAFE next;
+  struct BucketData * next;
   HASH_ENTRY entries[BUCKET_SIZE];
 } BUCKET_DATA;
 
 
 typedef struct {
   int size;
-  BUCKET_DATA * SAFE data;
+  BUCKET_DATA * data;
 } HASH_BUCKET;
 
 
-typedef HASH_BUCKET * FSEQ PHASH;
+typedef HASH_BUCKET *  PHASH;
 
 
 PHASH NewHash(void);
@@ -297,9 +290,9 @@ void  FreeHash(PHASH);
 
 			      /* The following functions return TRUE if the 
                                * particular data was already in the hash */
-int   HashLookup(PHASH, HASH_KEY, void * WILD * SAFE data);
+int   HashLookup(PHASH, HASH_KEY, void *  *  data);
 			      /* If data already exists, then replace it */
-int   AddToHash(PHASH, HASH_KEY, void * WILD);
+int   AddToHash(PHASH, HASH_KEY, void * );
 
                               /* Nothing happens if the key does not exits */
 int   DeleteFromHash(PHASH, HASH_KEY);
@@ -308,7 +301,7 @@ int   DeleteFromHash(PHASH, HASH_KEY);
                                * element is a closure. The data is 
                                * overwritten but not placed into another 
                                * bucket ! */
-int   MapHash(PHASH, void * WILD (* SAFE)(HASH_KEY, void * WILD, UPOINT),
+int   MapHash(PHASH, void *  (* )(HASH_KEY, void * , UPOINT),
               UPOINT);
 
                               /* Returns the number of elements in the table */
@@ -322,7 +315,7 @@ int   releaseHashes(void);
 
 unsigned SizeHash(PHASH hash) {
   int i;
-  HASH_BUCKET * FSEQ pBucket = (HASH_BUCKET * FSEQ)hash;
+  HASH_BUCKET *  pBucket = (HASH_BUCKET * )hash;
   unsigned res = 0;
   for(i=0;i<NR_HASH_BUCKETS;i++, pBucket++) {
     res += pBucket->size;
@@ -349,13 +342,13 @@ unsigned SizeHash(PHASH hash) {
 #define BUCKET_CACHE_PREALLOC  BUCKET_CACHE_SIZE
 #endif
 
-static  BUCKET_DATA * SAFE bucketCache[BUCKET_CACHE_SIZE];
+static  BUCKET_DATA *  bucketCache[BUCKET_CACHE_SIZE];
 static  int nextFreeBucket = 0;
 
 
-static  BUCKET_DATA * SAFE acquireHashBucket(void) {
+static  BUCKET_DATA *  acquireHashBucket(void) {
   if(nextFreeBucket == 0) {
-    BUCKET_DATA * SAFE buck;
+    BUCKET_DATA *  buck;
     MALLOC(malloc, buck, NULL, sizeof(BUCKET_DATA), BUCKET_DATA*,
            "hash_bucket_data");
     return buck;
@@ -364,7 +357,7 @@ static  BUCKET_DATA * SAFE acquireHashBucket(void) {
   }
 }
 
-static int releaseHashBucket(BUCKET_DATA * SAFE buck) {
+static int releaseHashBucket(BUCKET_DATA *  buck) {
   if(nextFreeBucket < BUCKET_CACHE_SIZE) {
     bucketCache[nextFreeBucket ++] = buck;
   } else {
@@ -396,20 +389,21 @@ int   releaseHashes(void) {
 /**************** NewHash *******************/
 PHASH NewHash(void) {
   /* Allocate a hash */
-  PHASH res;
-  CALLOC(calloc_fseq, res, NULL, NR_HASH_BUCKETS, sizeof(HASH_BUCKET), PHASH,
-         "hash_table");
+  PHASH res = (PHASH)calloc(NR_HASH_BUCKETS, sizeof(HASH_BUCKET));
+  if(! (res)) {
+    ERROR0(err, "Cannot calloc\n"); 
+  }
   return (PHASH)res;
 }
 
 void FreeHash(PHASH hin) {
   int i;
-  HASH_BUCKET * FSEQ h = (HASH_BUCKET * FSEQ)hin;
+  HASH_BUCKET *  h = (HASH_BUCKET * )hin;
   for(i=0;i<NR_HASH_BUCKETS;i++) {
-    HASH_BUCKET * SAFE buck = & h[i];
-    BUCKET_DATA * SAFE bdata = buck->data;
+    HASH_BUCKET *  buck = & h[i];
+    BUCKET_DATA *  bdata = buck->data;
     while(bdata != NULL) {
-      BUCKET_DATA * SAFE t_bdata = bdata;
+      BUCKET_DATA *  t_bdata = bdata;
       bdata = bdata->next;
       releaseHashBucket(t_bdata);
     }
@@ -419,13 +413,13 @@ void FreeHash(PHASH hin) {
 
 typedef enum {SET, LOOKUP, DELETE} HashOper;
 
-static void *  WILD ProcessHash(PHASH hin, HASH_KEY key, void * WILD data,
-                                int * SAFE found, HashOper oper) {
+static void *   ProcessHash(PHASH hin, HASH_KEY key, void *  data,
+                                int *  found, HashOper oper) {
   int bucket_no, i, k;
-  BUCKET_DATA * SAFE buck = NULL;
-  BUCKET_DATA * SAFE * SAFE next = NULL;
+  BUCKET_DATA *  buck = NULL;
+  BUCKET_DATA *  *  next = NULL;
   HASH_ENTRY *target = NULL;
-  HASH_BUCKET * FSEQ h = (HASH_BUCKET * FSEQ)hin;
+  HASH_BUCKET *  h = (HASH_BUCKET * )hin;
   
   if(key == EMPTY_ENTRY) { key ++; }
   
@@ -436,7 +430,7 @@ static void *  WILD ProcessHash(PHASH hin, HASH_KEY key, void * WILD data,
 
   i = BUCKET_SIZE;
   for(k=h[bucket_no].size;k > 0;) { /* Look for the data */
-    HASH_ENTRY * FSEQ e;
+    HASH_ENTRY *  e;
     buck = *next;             /* Get the next cluster */ 
     next = &(buck->next);     /* Move one to next cluster */
     e = buck->entries;        /* This is the current entry */
@@ -481,7 +475,7 @@ static void *  WILD ProcessHash(PHASH hin, HASH_KEY key, void * WILD data,
 }
 
 			      /* Lookup a hash key. Put the result in *data */
-int HashLookup(PHASH h, HASH_KEY key, void * WILD * SAFE data) {
+int HashLookup(PHASH h, HASH_KEY key, void *  *  data) {
   int found;
   *data = ProcessHash(h, key, NULL, &found, LOOKUP);
   return found;
@@ -489,7 +483,7 @@ int HashLookup(PHASH h, HASH_KEY key, void * WILD * SAFE data) {
 
 			      /* Extend the hash. If the data already exists 
                                * then replace it*/
-int AddToHash(PHASH h, HASH_KEY key, void* WILD data) {
+int AddToHash(PHASH h, HASH_KEY key, void*  data) {
   int found;
   ProcessHash(h, key, data, &found, SET);
   return found;
@@ -501,15 +495,15 @@ int DeleteFromHash(PHASH h, HASH_KEY key) {
   return 0;
 }
 
-int MapHash(PHASH h, void* WILD (* SAFE f)(HASH_KEY, void* WILD, UPOINT),
+int MapHash(PHASH h, void*  (*  f)(HASH_KEY, void* , UPOINT),
             UPOINT closure) {
   int i;
-  HASH_BUCKET * FSEQ pBucket = (HASH_BUCKET* FSEQ )h;
+  HASH_BUCKET *  pBucket = (HASH_BUCKET*  )h;
 
   for(i=0;i<NR_HASH_BUCKETS;i++, pBucket ++) {
     int sz = pBucket->size;
-    BUCKET_DATA * SAFE pData = pBucket->data;
-    HASH_ENTRY * FSEQ pEntry = pData->entries;
+    BUCKET_DATA *  pData = pBucket->data;
+    HASH_ENTRY *  pEntry = pData->entries;
     int k = 0;
     for(;sz > 0;sz --, k++, pEntry++) {
       if(k == BUCKET_SIZE) {
@@ -561,7 +555,7 @@ int main() {
   TIMESTART(clk);
   for(i=0;i<500000;i++) {
     int k = random() & 0x7FFFL;
-    AddToHash(h, k, (void* WILD)k);
+    AddToHash(h, k, (void* )k);
   }
   for(i=0;i<500000;i++) {
     int k = random() & 0x7FFFL;

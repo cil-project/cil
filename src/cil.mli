@@ -719,6 +719,7 @@ val setTypeAttrs: typ -> attribute list -> typ (* Resets the attributes *)
 
 
 val typeAddAttributes: attribute list -> typ -> typ
+val typeRemoveAttributes: attribute list -> typ -> typ
 
      (* Type signatures. Two types are identical iff they have identical 
       * signatures *)
@@ -731,6 +732,8 @@ type typsig =
 
 (* Compute a type signature *)
 val typeSig: typ -> typsig
+(* Like typeSig but customize the incorporation of attributes *)
+val typeSigAttrs: (attribute list -> attribute list) -> typ -> typsig
 
 (* Construct a cast *)
 val doCastT: e:exp -> oldt:typ -> newt:typ -> exp

@@ -92,6 +92,7 @@ let rec type_congruent (t1 : typ) (q1 : pointerkind)
 
   | TVoid(_),TVoid(_) -> true
   | TInt(_),TInt(_) -> true
+  | TFloat _, TFloat _ -> true
   (* fails to unify bitfields *)
   | TEnum(_),TEnum(_) -> true
   | TFun(_),TFun(_) -> true

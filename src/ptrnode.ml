@@ -348,23 +348,23 @@ let replacePtrNodeAttrList where al =
     | a :: al -> begin
         match a with
           ACons("_ptrnode", [AInt n]) -> begin
-              try 
-                let nd = H.find idNode n in
-                let found = 
-                  if nd.kind = Unknown then begin
-                    ignore (E.warn "Found node %d with kind Unkown\n" n);
-                    ""
-                  end else 
-                    match k2attr nd.kind with
-                      AId s -> s
-                    | _ -> E.s (E.bug "replacePtrNodeAttrList")
-                in
-                foundNode := found;
-                loop al
-              with Not_found -> begin
-                ignore (E.warn "Cannot find node %d\n" n);
-                loop al
-              end
+            try 
+              let nd = H.find idNode n in
+              let found = 
+                if nd.kind = Unknown then begin
+                  ignore (E.warn "Found node %d with kind Unkown\n" n);
+                  ""
+                end else 
+                  match k2attr nd.kind with
+                    AId s -> s
+                  | _ -> E.s (E.bug "replacePtrNodeAttrList")
+              in
+              foundNode := found;
+              a :: loop al
+            with Not_found -> begin
+              ignore (E.warn "Cannot find node %d\n" n);
+              a :: loop al
+            end
           end
         | AId "safe" -> foundNode := "safe"; loop al
         | AId "index" -> foundNode := "index"; loop al
