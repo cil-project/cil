@@ -688,6 +688,7 @@ smAddTest("misc-tests");
 smAddTest("scott/chararr1 $box");
 smAddTest("scott/chararr2 $box");
 smAddTest("scott/thing");
+smAddTest("scott/strerror1 $box");
 
 # current problematic test cases
 smAddTest("scott/complex_float $box");
