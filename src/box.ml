@@ -3169,13 +3169,6 @@ let fixupGlobName vi =
 
 class unsafeVisitorClass = object
   inherit nopCilVisitor
-
-  method vvdec (v: varinfo) = begin
-    (* declared variables: clear the 'referenced' bits *)
-    (* assume declaration preceed all uses *)
-    v.vreferenced <- false;
-    true
-  end
 end
 let unsafeVisitor = new unsafeVisitorClass
 
@@ -3191,8 +3184,7 @@ let interceptCall
     (************* STATEMENTS **************)
 let rec boxblock (b: block) : block = 
   if hasAttribute "nobox" b.battrs then
-    { bstmts = boxUnsafeStmts b.bstmts;
-      battrs = b.battrs }
+    visitCilBlock unsafeVisitor b
   else begin
     let res = 
       toList 
@@ -3984,12 +3976,6 @@ and boxexpSplit (e: exp) =
       let (tptr, ptr, base, bend) = readFieldsOfFat e'' et in
       (tptr, append doe caste, ptr, base, bend)
 
-
-(************ UNSAFE *************)
-and boxUnsafeStmts (ss: stmt list) : stmt list = 
-  (* simple visitor to clear the 'referenced' bits *)
-  List.iter (visitCilStmt unsafeVisitor) ss;
-  ss
 
 
 (* a hashtable of functions that we have already made wrappers for *)

@@ -16,7 +16,7 @@ class clearRefBitsVis = object
     (* declared variables: clear the 'referenced' bits *)
     (* assume declaration preceed all uses *)
     v.vreferenced <- false;
-    true
+    DoChildren
   end
 end
 
@@ -44,7 +44,7 @@ class removeTempsVis (*(usedTypes : (typ,bool) H.t)*)
       (trace "usedVar" (dprintf "global var ref: %s\n" v.vname))
     );
     v.vreferenced <- true;
-    true
+    DoChildren
   end
 
   method vtype (t : typ) = begin
@@ -54,10 +54,10 @@ class removeTempsVis (*(usedTypes : (typ,bool) H.t)*)
         (* hasn't already been marked *)
         if (not e.ereferenced) then (
           e.ereferenced <- true;
-          true    (* recurse (though actually recursing into an enum does nothing) *)
+          DoChildren    (* recurse (though actually recursing into an enum does nothing) *)
         )
         else (
-          false   (* don't recurse *)
+          SkipChildren   (* don't recurse *)
         )
       )
 
@@ -67,12 +67,14 @@ class removeTempsVis (*(usedTypes : (typ,bool) H.t)*)
           c.creferenced <- true;
           
           (* to recurse, we must ask explicitly *)
-          (visitCompFields (self :> cilVisitor) c);
+          List.iter 
+            (fun f -> 
+              ignore (visitCilType (self :> cilVisitor) f.ftype)) c.cfields;
 
-          true   (* this actually does nothing *)
+          DoChildren   (* this actually does nothing *)
         )
         else (
-          false 
+          SkipChildren
         )
       )
 
@@ -82,7 +84,7 @@ class removeTempsVis (*(usedTypes : (typ,bool) H.t)*)
         (* see if this typedef name has already been marked *)
         if (H.mem usedTypedefs s) then (
           (* already marked, don't recurse further *)
-          false
+          SkipChildren
         )
         else (
           (trace "usedType" (dprintf "marking used typedef: %s\n" s));
@@ -91,39 +93,44 @@ class removeTempsVis (*(usedTypes : (typ,bool) H.t)*)
           (H.add usedTypedefs s true);
 
           (* recurse deeper into the type referred-to by the typedef *)
-          true
+          DoChildren
         )
       )
 
     | _ -> (
         (* for anything else, just look inside it *)
-        true
+        DoChildren
       )
   end
 
-  method vfuncPost (f : fundec) = begin
-    (* check the 'referenced' bits on the locals *)
-    f.slocals <- (List.filter
-      (fun (v : varinfo) ->
-        if (not v.vreferenced) then begin
-          (trace "usedLocal" (dprintf "removing unused: var decl: %s\n" v.vname));
-          if ((String.length v.vname) < 3 ||
-              (String.sub v.vname 0 3) <> "tmp") then
-            (* sm: if I'd had this to begin with, it would have been
-             * a little easier to track down the bug where I didn't
-             * check the function return-value destination *)
-            (ignore (E.warn "Removing unused source variable %s\n"
-                       v.vname));
-          false   (* remove it *)
-        end
-        else
-          true    (* keep it *)
-      )
-      f.slocals);
-
-    true
-  end
+  method vfunc (f : fundec) = 
+    (* Do everything after the function is visited *)
+    let doafter (f: fundec) = 
+      (* check the 'referenced' bits on the locals *)
+      f.slocals <- 
+         (List.filter
+            (fun (v : varinfo) ->
+              if (not v.vreferenced) then begin
+                (trace "usedLocal" 
+                   (dprintf "removing unused: var decl: %s\n" v.vname));
+                if ((String.length v.vname) < 3 ||
+                (String.sub v.vname 0 3) <> "tmp") then
+                  (* sm: if I'd had this to begin with, it would have been
+                  * a little easier to track down the bug where I didn't
+                  * check the function return-value destination *)
+                  (ignore (E.warn "Removing unused source variable %s\n"
+                             v.vname));
+                false   (* remove it *)
+              end
+              else
+                true    (* keep it *)
+                  )
+            f.slocals);
+      f
+    in
+    ChangeDoChildrenPost (f, doafter)
 end
+
 
 let keepUnused = ref false
 
@@ -152,7 +159,7 @@ begin
   );
 
   (* begin by clearing all the 'referenced' bits *)
-  (visitCilFile (new clearRefBitsVis) file);
+  ignore (visitCilFile (new clearRefBitsVis) file);
 
   (* create the visitor object *)
   let vis = (new removeTempsVis (*usedTypes*) usedTypedefs) in
@@ -189,7 +196,7 @@ begin
               if (f.svar.vreferenced ||
                   (not (isInlineFunc f))) then (
                 (trace "usedVar" (dprintf "keeping func: %s\n" f.svar.vname));
-                (visitCilFunction vis f);    (* root: trace it *)
+                ignore (visitCilFunction vis f);    (* root: trace it *)
                 true
               )
               else (
@@ -233,7 +240,7 @@ begin
                                              d_type t));
 
                   (* also trace from here *)
-                  (visitCilType vis t);
+                  ignore (visitCilType vis t);
 
                   (* and retain this type definition *)
                   true
@@ -271,7 +278,7 @@ begin
                 (trace "usedVar" (dprintf "keeping global: %s\n" v.vname));
 
                 (* since it's referenced, use it as a root for the type dependency *)
-                (visitCilVarDecl vis v);
+                ignore (visitCilVarDecl vis v);
 
                 (* it's referenced: keep it *)
                 true
@@ -280,7 +287,7 @@ begin
 
           (* something else: keep it *)
           | _ -> (
-              (visitCilGlobal vis hd);
+              ignore (visitCilGlobal vis hd);
               true
             )
         in

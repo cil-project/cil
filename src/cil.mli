@@ -760,49 +760,66 @@ val d_global: unit -> global -> Pretty.doc
  ******************
  ******************)
 
+(* Different visiting actions. 'a will be instantiated with exp, instr, etc. *)
+type 'a visitAction = 
+    SkipChildren                        (* Do not visit the children. Return 
+                                         * the node as it is *)
+  | ChangeTo of 'a                      (* Replace the expression with the 
+                                         * given one *)
+  | DoChildren                          (* Continue with the children of this 
+                                         * node. Rebuild the node on return 
+                                         * if any of the children changes 
+                                         * (use == test) *)
+  | ChangeDoChildrenPost of 'a * ('a -> 'a) (* First consider that the entire 
+                                          * exp is replaced by the first 
+                                          * paramenter. Then continue with 
+                                          * the children. On return rebuild 
+                                          * the node if any of the children 
+                                          * has changed and then apply the 
+                                          * function on the node *)
 
 
-(* sm: cil visitor interface for traversing Cil trees. *)
-(* There is no provision for modifying trees at this time. *)
+
+(* sm/gn: cil visitor interface for traversing Cil trees. *)
 (* Use visitCilStmt and/or visitCilFile to use this. *)
-(* The methods return true to continue recursing deeper into this *)
-(* construct, false to stop recursing (but siblings are visited). *)
+(* Some of the nodes are changed in place if the children are changed. Use 
+ * one of Change... actions if you want to copy the node *)
 class type cilVisitor = object
-  method vvrbl : varinfo -> bool     (* variable use *)
-  method vvdec : varinfo -> bool     (* variable declaration *)
-  method vexpr : exp -> bool         (* expression *)
-  method vlval : lval -> bool        (* lval (base is 1st field) *)
-  method voffs : offset -> bool      (* lval offset *)
-  method vinst : instr -> bool       (* imperative instruction *)
-  method vstmt : stmt -> bool        (* constrol-flow statement *)
-  method vfunc : fundec -> bool      (* function definition *)
-  method vfuncPost : fundec -> bool  (*   postorder version *)
-  method vglob : global -> bool      (* global (vars, types, etc.) *)
-  method vinit : init -> bool        (* initializers for globals *)
-  method vtype : typ -> bool         (* use of some type *)
-  method vtdec : string -> typ -> bool    (* typedef declaration *)
-  method venum : enuminfo -> bool    (* enum declaration *)
-  method vcomp : compinfo -> bool    (* composite (struct/enum) declaration *)
+  method vvrbl : varinfo -> varinfo visitAction  (* variable use. Replaced in 
+                                                  * place.  *)
+  method vvdec : varinfo -> varinfo visitAction  (* variable declaration. 
+                                                  * Replaced in place. *)
+  method vexpr : exp -> exp visitAction          (* expression *)
+  method vlval : lval -> lval visitAction        (* lval (base is 1st field) *)
+  method voffs : offset -> offset visitAction    (* lval offset *)
+  method vinst : instr -> instr visitAction      (* imperative instruction *)
+  method vstmt : stmt -> stmt visitAction        (* constrol-flow statement. 
+                                                  * Changed in place. *)
+  method vblock : block -> block visitAction     (* a block. Replaced in 
+                                                  * place. *)
+  method vfunc : fundec -> fundec visitAction    (* function definition. 
+                                                  * Replaced in place. *)
+  method vglob : global -> global visitAction    (* global (vars, types,etc.)*)
+  method vinit : init -> init visitAction        (* initializers for globals *)
+  method vtype : typ -> typ visitAction          (* use of some type *)
 end
 
 class nopCilVisitor : cilVisitor
 
 
 (* other cil constructs *)
-val visitCilFile: cilVisitor -> file -> unit
-val visitCilFileInReverse: cilVisitor -> file -> unit
-val visitCilExpr: cilVisitor -> exp -> unit
-val visitCilLval: cilVisitor -> lval -> unit
-val visitCilOffset: cilVisitor -> offset -> unit
-val visitCilInstr: cilVisitor -> instr -> unit
-val visitCilType: cilVisitor -> typ -> unit
-val visitCilVarDecl: cilVisitor -> varinfo -> unit
-val visitCilFunction: cilVisitor -> fundec -> unit
-val visitCilGlobal: cilVisitor -> global -> unit
-val visitCilInit: cilVisitor -> init -> unit
-val visitCilStmt: cilVisitor -> stmt -> unit
-val visitCompFields: cilVisitor -> compinfo -> unit
-
+val visitCilFile: cilVisitor -> file -> file
+val visitCilExpr: cilVisitor -> exp -> exp
+val visitCilLval: cilVisitor -> lval -> lval
+val visitCilOffset: cilVisitor -> offset -> offset
+val visitCilInstr: cilVisitor -> instr -> instr
+val visitCilType: cilVisitor -> typ -> typ
+val visitCilVarDecl: cilVisitor -> varinfo -> varinfo
+val visitCilFunction: cilVisitor -> fundec -> fundec
+val visitCilGlobal: cilVisitor -> global -> global
+val visitCilInit: cilVisitor -> init -> init
+val visitCilStmt: cilVisitor -> stmt -> stmt
+val visitCilBlock: cilVisitor -> block -> block
 
 
 

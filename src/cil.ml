@@ -565,88 +565,65 @@ type file =
 
 
 
+(* Different visiting actions. 'a will be instantiated with exp, instr, etc. *)
+type 'a visitAction = 
+    SkipChildren                        (* Do not visit the children. Return 
+                                         * the node as it is *)
+  | ChangeTo of 'a                      (* Replace the expression with the 
+                                         * given one *)
+  | DoChildren                          (* Continue with the children of this 
+                                         * node. Rebuild the node on return 
+                                         * if any of the children changes 
+                                         * (use == test) *)
+  | ChangeDoChildrenPost of 'a * ('a -> 'a) (* First consider that the entire 
+                                          * exp is replaced by the first 
+                                          * paramenter. Then continue with 
+                                          * the children. On return rebuild 
+                                          * the node if any of the children 
+                                          * has changed and then apply the 
+                                          * function on the node *)
 
 
-(* sm: cil visitor interface for traversing Cil trees *)
-(* no provision for modifying trees at this time *)
+(* sm/gn: cil visitor interface for traversing Cil trees. *)
+(* Use visitCilStmt and/or visitCilFile to use this. *)
+(* Some of the nodes are changed in place if the children are changed. Use 
+ * one of Change... actions if you want to copy the node *)
 class type cilVisitor = object
-  method vvrbl : varinfo -> bool     (* variable *)
-  method vvdec : varinfo -> bool     (* variable declaration *)
-  method vexpr : exp -> bool         (* expression *)
-  method vlval : lval -> bool        (* lval (base is 1st field) *)
-  method voffs : offset -> bool      (* lval offset *)
-  method vinst : instr -> bool       (* imperative instruction *)
-  method vstmt : stmt -> bool        (* constrol-flow statement *)
-  method vfunc : fundec -> bool      (* function definition *)
-  method vfuncPost : fundec -> bool  (*   postorder version *)
-  method vglob : global -> bool      (* global (vars, types, etc.) *)
-  method vinit : init -> bool        (* initializers for globals *)
-  method vtype : typ -> bool         (* use of some type *)
-  method vtdec : string -> typ -> bool    (* typedef declaration *)
-  method venum : enuminfo -> bool    (* enum declaration *)
-  method vcomp : compinfo -> bool    (* composite (struct/enum) declaration *)
+  method vvrbl : varinfo -> varinfo visitAction  (* variable use *)
+  method vvdec : varinfo -> varinfo visitAction  (* variable declaration *)
+  method vexpr : exp -> exp visitAction          (* expression *)
+  method vlval : lval -> lval visitAction        (* lval (base is 1st field) *)
+  method voffs : offset -> offset visitAction    (* lval offset *)
+  method vinst : instr -> instr visitAction      (* imperative instruction *)
+  method vstmt : stmt -> stmt visitAction        (* constrol-flow statement. 
+                                                  * Changed in place. *)
+  method vblock : block -> block visitAction     (* a block. Replaced in 
+                                                  * place. *)
+  method vfunc : fundec -> fundec visitAction    (* function definition. 
+                                                  * Replaced in place. *)
+  method vglob : global -> global visitAction    (* global (vars, types,etc.)*)
+  method vinit : init -> init visitAction        (* initializers for globals *)
+  method vtype : typ -> typ visitAction          (* use of some type *)
 end
 
 (* the default visitor does nothing at each node, but does *)
 (* not stop; hence they return true *)
-class nopCilVisitor = object
-  method vvrbl (v:varinfo) = true     (* variable *)
-  method vvdec (v:varinfo) = true     (* variable declaration *)
-  method vexpr (e:exp) = true         (* expression *)
-  method vlval (l:lval) = true        (* lval (base is 1st field) *)
-  method voffs (o:offset) = true      (* lval offset *)
-  method vinst (i:instr) = true       (* imperative instruction *)
-  method vstmt (s:stmt) = true        (* constrol-flow statement *)
-  method vfunc (f:fundec) = true      (* function definition *)
-  method vfuncPost (f:fundec) = true  (*   postorder version *)
-  method vglob (g:global) = true      (* global (vars, types, etc.) *)
-  method vinit (i:init) = true        (* global initializers *)
-  method vtype (t:typ) = true         (* use of some type *)
-  method vtdec (s:string) (t:typ) = true    (* typedef *)
-  method venum (e:enuminfo) = true
-  method vcomp (c:compinfo) = true
+class nopCilVisitor : cilVisitor = object
+  method vvrbl (v:varinfo) = DoChildren (* variable *)
+  method vvdec (v:varinfo) = DoChildren (* variable 
+                                                               * declaration *)
+  method vexpr (e:exp) = DoChildren   (* expression *) 
+  method vlval (l:lval) = DoChildren  (* lval (base is 1st 
+                                                         * field)  *)
+  method voffs (o:offset) = DoChildren      (* lval offset *)
+  method vinst (i:instr) = DoChildren       (* imperative instruction *)
+  method vstmt (s:stmt) = DoChildren        (* constrol-flow statement *)
+  method vblock (b: block) = DoChildren
+  method vfunc (f:fundec) = DoChildren      (* function definition *)
+  method vglob (g:global) = DoChildren      (* global (vars, types, etc.) *)
+  method vinit (i:init) = DoChildren        (* global initializers *)
+  method vtype (t:typ) = DoChildren         (* use of some type *)
 end
-
-(* as an example, here is a visitor that visits expressions *)
-(* note how objects capture constructor arguments for use later, *)
-(* even though they are not stored explicitly in fields *)
-class cilExprVisitor (ve : exp -> unit) = object
-  inherit nopCilVisitor    (* get default nop actions *)
-  method vexpr e =
-    (ve e);                (* call the ctor arg *)
-    true                   (* and keep going *)
-end
-
-
-(* GN: a visitor that can transform the CIL *)
-class type cilMaper = object
-  method mvrbl : varinfo -> varinfo  (* variable *)
-  method mexpr : exp -> exp          (* expression *)
-  method mlval : lval -> lval        (* lval (base is 1st field) *)
-  method moffs : offset -> offset    (* lval offset *)
-  method minst : instr -> instr      (* imperative instruction *)
-  method mstmt : stmt -> stmt        (* constrol-flow statement *)
-  method mtype : typ -> typ          (* use of some type *)
-end
-
-(* the default maper does nothing at each node, but does *)
-class nopCilMaperr = object
-  method mvrbl (v:varinfo) = v       (* variable *)
-  method mexpr (e:exp) = true         (* expression *)
-  method vlval (l:lval) = true        (* lval (base is 1st field) *)
-  method voffs (o:offset) = true      (* lval offset *)
-  method vinst (i:instr) = true       (* imperative instruction *)
-  method vstmt (s:stmt) = true        (* constrol-flow statement *)
-  method vfunc (f:fundec) = true      (* function definition *)
-  method vfuncPost (f:fundec) = true  (*   postorder version *)
-  method vglob (g:global) = true      (* global (vars, types, etc.) *)
-  method vinit (i:init) = true        (* global initializers *)
-  method vtype (t:typ) = true         (* use of some type *)
-  method vtdec (s:string) (t:typ) = true    (* typedef *)
-  method venum (e:enuminfo) = true
-  method vcomp (c:compinfo) = true
-end
-
 
 let lu = locUnknown
 
@@ -2214,250 +2191,299 @@ let _ =
 
 (*** Define the visiting engine ****)
 (* visit all the nodes in a Cil expression *)
-let rec visitCilExpr (vis : cilVisitor) (e : exp) : unit =
-begin
-  (* visit the expression itself *)
-  if (vis#vexpr e) then
+let doVisit (vis: cilVisitor)
+            (startvisit: 'a -> 'a visitAction) 
+            (children: cilVisitor -> 'a -> 'a) 
+            (node: 'a) : 'a = 
+  let action = startvisit node in
+  match action with
+    SkipChildren -> node
+  | ChangeTo node' -> node'
+  | _ -> 
+      let nodepre = match action with
+        ChangeDoChildrenPost (node', _) -> node'
+      | _ -> node
+      in
+      let nodepost = children vis node in
+      match action with
+        ChangeDoChildrenPost (_, f) -> f nodepost
+      | _ -> nodepost
 
-  (* and visit its subexpressions *)
-  let fExp e = visitCilExpr vis e in
-  let fTyp t = visitCilType vis t in
+let rec mapNoCopy (f: 'a -> 'a) = function
+    [] -> []
+  | (i :: resti) as li -> 
+      let i' = f i in
+      let resti' = mapNoCopy f resti in
+      if i' != i || resti' != resti then i' :: resti' else li 
+
+let rec visitCilExpr (vis: cilVisitor) (e: exp) : exp = 
+  doVisit vis vis#vexpr childrenExp e
+and childrenExp (vis: cilVisitor) (e: exp) : exp = 
+  let vExp e = visitCilExpr vis e in
+  let vTyp t = visitCilType vis t in
+  let vLval lv = visitCilLval vis lv in
   match e with
-    Const _ -> ()
-  | SizeOf t -> fTyp t
-  | SizeOfE e -> fExp e
-  | AlignOf t -> fTyp t
-  | AlignOfE e -> fExp e
-  | Lval lv -> (visitCilLval vis lv)
-  | UnOp(_,e,t) -> fExp e; fTyp t
-  | BinOp(_,e1,e2,t) -> fExp e1; fExp e2; fTyp t
-  | Question (e1, e2, e3) -> fExp e1; fExp e2; fExp e3
-  | CastE(t, e) -> fTyp t; fExp e
-  | AddrOf (lv) -> (visitCilLval vis lv)
-  | StartOf (lv) -> (visitCilLval vis lv)
-end
+    Const _ -> e
+  | SizeOf t -> 
+      let t'= vTyp t in 
+      if t' != t then SizeOf t' else e
+  | SizeOfE e1 -> 
+      let e1' = vExp e1 in
+      if e1' != e1 then SizeOfE e1' else e
+  | AlignOf t -> 
+      let t' = vTyp t in
+      if t' != t then AlignOf t' else e
+  | AlignOfE e1 -> 
+      let e1' = vExp e in
+      if e1' != e1 then AlignOfE e1' else e
+  | Lval lv -> 
+      let lv' = vLval lv in
+      if lv' != lv then Lval lv' else e
+  | UnOp (uo, e1, t) -> 
+      let e1' = vExp e1 in let t' = vTyp t in
+      if e1' != e1 || t' != t then UnOp(uo, e1', t') else e
+  | BinOp (bo, e1, e2, t) -> 
+      let e1' = vExp e1 in let e2' = vExp e2 in let t' = vTyp t in
+      if e1' != e1 || e2' != e2 || t' != t then BinOp(bo, e1',e2',t') else e
+  | Question (e1, e2, e3) -> 
+      let e1' = vExp e1 in let e2' = vExp e2 in let e3' = vExp e3 in
+      if e1' != e1 || e2' != e2 || e3' != e3 then Question(e1',e2',e3') else e
+  | CastE (t, e1) ->           
+      let t' = vTyp t in let e1' = vExp e1 in
+      if t' != t || e1' != e1 then CastE(t', e1') else e
+  | AddrOf lv -> 
+      let lv' = vLval lv in
+      if lv' != lv then AddrOf lv' else e
+  | StartOf lv -> 
+      let lv' = vLval lv in
+      if lv' != lv then StartOf lv' else e
 
-and visitCilInit (vis: cilVisitor) (i: init) : unit = 
-  (* visit the initializer itself *)
-  if (vis#vinit i) then
 
-  (* and visit its subexpressions *)
+and visitCilInit (vis: cilVisitor) (i: init) : init = 
+  doVisit vis vis#vinit childrenInit i
+and childrenInit (vis: cilVisitor) (i: init) : init = 
   let fExp e = visitCilExpr vis e in
   let fInit i = visitCilInit vis i in
   let fTyp t = visitCilType vis t in
   match i with
-  | SingleInit e -> fExp e
+  | SingleInit e -> 
+      let e' = fExp e in
+      if e' != e then SingleInit e' else i
   | CompoundInit (t, initl) ->
-      fTyp t;
-      List.iter fInit initl
+      let t' = fTyp t in
+      let initl' = mapNoCopy fInit initl in
+      if t' != t || initl' != initl then CompoundInit (t', initl') else i
 
   
-and visitCilLval (vis: cilVisitor) (lv: lval) : unit =
-begin
-  if (vis#vlval lv) then
-
+and visitCilLval (vis: cilVisitor) (lv: lval) : lval =
+  doVisit vis vis#vlval childrenLval lv
+and childrenLval (vis: cilVisitor) (lv: lval) : lval =  
+  (* and visit its subexpressions *)
+  let vExp e = visitCilExpr vis e in
+  let vTyp t = visitCilType vis t in
+  let vOff off = visitCilOffset vis off in
   match lv with
-    Var v, off -> (
-      (ignore (vis#vvrbl v));
-      (visitCilOffset vis off)
-    )
-  | Mem e, off -> (
-      (visitCilExpr vis e);
-      (visitCilOffset vis off)
-    )
-end
+    Var v, off ->
+      let v'   = doVisit vis vis#vvrbl (fun _ x -> x) v in
+      let off' = vOff off in
+      if v' != v || off' != off then Var v', off' else lv
+  | Mem e, off -> 
+      let e' = vExp e in
+      let off' = vOff off in
+      if e' != e || off' != off then Mem e', off' else lv
 
-and visitCilOffset (vis: cilVisitor) (off: offset) : unit =
-begin
-  if (vis#voffs off) then
-
+and visitCilOffset (vis: cilVisitor) (off: offset) : offset =
+  doVisit vis vis#voffs childrenOffset off
+and childrenOffset (vis: cilVisitor) (off: offset) : offset =
+  let vOff off = visitCilOffset vis off in
   match off with
-    Field (_, o) -> (visitCilOffset vis o)
-  | Index (e, o) -> (visitCilExpr vis e); (visitCilOffset vis o)
-  | NoOffset -> ()
-end
+    Field (f, o) -> 
+      let o' = vOff o in
+      if o' != o then Field (f, o') else off
+  | Index (e, o) -> 
+      let e' = visitCilExpr vis e in
+      let o' = visitCilOffset vis o in
+      if e' != e || o' != o then Index (e', o') else off
+  | NoOffset -> off
 
-and visitCilInstr (vis: cilVisitor) (i: instr) : unit =
-begin
-  if (vis#vinst i) then
-
+and visitCilInstr (vis: cilVisitor) (i: instr) : instr =
+  doVisit vis vis#vinst childrenInstr i
+and childrenInstr (vis: cilVisitor) (i: instr) : instr =
   let fExp = visitCilExpr vis in
   let fLval = visitCilLval vis in
-
   match i with
-  | Set(lv,e, _) -> fLval lv; fExp e
-  | Call(None,f,args, _) -> fExp f; (List.iter fExp args)
-  | Call((Some lv),fn,args, _) -> 
-      (fLval lv);
-      (fExp fn);
-      (List.iter fExp args)
+  | Set(lv,e,l) -> 
+      let lv' = fLval lv in let e' = fExp e in
+      if lv' != lv || e' != e then Set(lv',e',l) else i
+  | Call(None,f,args,l) -> 
+      let f' = fExp f in let args' = mapNoCopy fExp args in
+      if f' != f || args' != args then Call(None,f',args',l) else i
+  | Call(Some lv,fn,args,l) -> 
+      let lv' = fLval lv in let fn' = fExp fn in 
+      let args' = mapNoCopy fExp args in
+      if lv' != lv || fn' != fn || args' != args 
+      then Call(Some lv', fn', args', l) else i
 
-  | Asm(_,_,outs,ins,_,_) -> begin
-      (List.iter (fun (_, lv) -> fLval lv) outs);
-      (List.iter (fun (_, e) -> fExp e) ins)
-    end
-end
+  | Asm(sl,isvol,outs,ins,clobs,l) -> 
+      let outs' = mapNoCopy (fun ((s,lv) as pair) -> 
+                               let lv' = fLval lv in
+                               if lv' != lv then (s,lv') else pair) outs in
+      let ins'  = mapNoCopy (fun ((s,e) as pair) -> 
+                               let e' = fExp e in
+                               if e' != e then (s,e') else pair) ins in
+      if outs' != outs || ins' != ins then
+        Asm(sl,isvol,outs',ins',clobs,l) else i
 
 
 (* visit all nodes in a Cil statement tree in preorder *)
-and visitCilStmt (vis: cilVisitor) (s: stmt) : unit =
+and visitCilStmt (vis: cilVisitor) (s: stmt) : stmt =
+  doVisit vis vis#vstmt childrenStmt s
+and childrenStmt (vis: cilVisitor) (s: stmt) : stmt =
   let fExp e = (visitCilExpr vis e) in
   let fLval lv = (visitCilLval vis lv) in
   let fOff o = (visitCilOffset vis o) in
   let fBlock b = visitCilBlock vis b in
   let fInst i = visitCilInstr vis i in
-
-  let rec fStmt s = if (vis#vstmt s) then fStmt' s
-  and fStmt' s = 
+  (* Just change the statement kind *)
+  let skind' = 
     match s.skind with
-      Break _ | Continue _ | Goto _ | Return (None, _) -> ()
-    | Return (Some e, _) -> fExp e
-    | Loop (b, _) -> fBlock b
-    | If(e, s1, s2, _) -> fExp e; fBlock s1; fBlock s2
-    | Switch (e, b, _, _) -> fExp e; fBlock b
-    | Instr il -> List.iter fInst il
-    | Block b -> fBlock b
+      Break _ | Continue _ | Goto _ | Return (None, _) -> s.skind
+    | Return (Some e, l) -> 
+        let e' = fExp e in
+        if e' != e then Return (Some e', l) else s.skind
+    | Loop (b, l) -> 
+        let b' = fBlock b in
+        if b' != b then Loop (b', l) else s.skind
+    | If(e, s1, s2, l) -> 
+        let e' = fExp e in let s1'= fBlock s1 in let s2'= fBlock s2 in
+        if e' != e || s1' != s1 || s2' != s2 then 
+          If(e', s1', s2', l) else s.skind
+    | Switch (e, b, stmts, l) -> 
+        let e' = fExp e in let b' = fBlock b in
+        (* Don't do stmts, but we better not change those *)
+        if e' != e || b' != b then Switch (e', b', stmts, l) else s.skind
+    | Instr il -> 
+        let il' = mapNoCopy fInst il in
+        if il' != il then Instr il' else s.skind
+    | Block b -> 
+        let b' = fBlock b in 
+        if b' != b then Block b' else s.skind
   in
+  if skind' != s.skind then s.skind <- skind';
   (* Visit the labels *)
-  List.iter (function Case (e, _) -> fExp e | _ -> ()) s.labels;
-  fStmt s
+  let labels' = 
+    let fLabel = function
+        Case (e, l) as lb -> 
+          let e' = fExp e in
+          if e' != e then Case (e', l) else lb
+        | lb -> lb
+    in
+    mapNoCopy fLabel s.labels
+  in
+  if labels' != s.labels then s.labels <- labels';
+  s (* Always return the same statement *)
     
  
-and visitCilBlock (vis: cilVisitor) (b: block) : unit = 
-  let fStmt s = (visitCilStmt vis s) in
-  List.iter fStmt b.bstmts
+and visitCilBlock (vis: cilVisitor) (b: block) : block = 
+  doVisit vis vis#vblock childrenBlock b
+and childrenBlock (vis: cilVisitor) (b: block) : block = 
+  let fStmt s = visitCilStmt vis s in
+  let stmts' = mapNoCopy fStmt b.bstmts in
+  if stmts' != b.bstmts then { battrs = b.battrs; bstmts = stmts'} else b
 
-(* this is pulled out because all circularity will go through *)
-(* a compinfo, so I won't recurse by default, but I want the *)
-(* user to easily be able to recurse when desired *)
-and visitCompFields (vis : cilVisitor) (cinfo : compinfo) : unit =
-begin
-  (* iterate over fields *)
-  (List.iter
-    (fun (finfo : fieldinfo) ->
-      (visitCilType vis finfo.ftype))
-    cinfo.cfields)
-end
 
-and visitCilType (vis : cilVisitor) (t : typ) : unit =
-begin
-  (*(trace "visitCilType" (dprintf "%a\n" d_type t));*)
-
-  (* visit 't' itself *)
-  if (vis#vtype t) then
-
+and visitCilType (vis : cilVisitor) (t : typ) : typ =
+  doVisit vis vis#vtype childrenType t
+and childrenType (vis : cilVisitor) (t : typ) : typ =
   (* look for types referred to inside t's definition *)
+  let fTyp t = visitCilType vis t in
   match t with
-    TPtr(t, _) -> (visitCilType vis t)
-  | TArray(t, None, _) -> (visitCilType vis t)
-  | TArray(t, Some e, _) -> (
-      (visitCilType vis t);
-      (visitCilExpr vis e)
-    )
-  | TComp(cinfo, _) -> (
-      (* DON'T recurse automatically; user can call visitCompFields *)
-    )
-  | TFun(rettype, args, _, _) -> (
-      (visitCilType vis rettype);
+    TPtr(t1, a) -> 
+      let t1' = fTyp t1 in
+      if t1' != t then TPtr(t1', a) else t
+  | TArray(t1, None, a) -> 
+      let t1' = fTyp t1 in
+      if t1' != t then TArray(t1', None, a) else t
+  | TArray(t1, Some e, a) -> 
+      let t1' = fTyp t1 in
+      let e' = visitCilExpr vis e in
+      if t1' != t || e' != e then TArray(t1', Some e', a) else t
 
-      (* iterate over formals *)
-      (List.iter
-        (fun (v : varinfo) ->
-          (visitCilVarDecl vis v)      (* visit as a variable decl *)
-        )
-        args
-      )
-    )
-  | TNamed(s, t, _) -> (
-      (visitCilType vis t)
-    )
-  | _ -> ()       (* other types don't contain types *)
-end
+      (* DON'T recurse automatically; user can call visitCompFields *)
+  | TComp(cinfo, _) -> t
+
+  | TFun(rettype, args, isva, a) -> 
+      let rettype' = visitCilType vis rettype in
+      (* iterate over formals, as variable declarations *)
+      let args' = mapNoCopy (visitCilVarDecl vis) args in
+      if rettype' != rettype || args' != args then 
+        TFun(rettype', args', isva, a) else t
+
+  | TNamed(s, t1, a) -> 
+      let t1' = fTyp t1 in 
+      if t1' != t1 then TNamed (s, t1', a) else t
+
+  | _ -> t       (* other types don't contain types *)
 
 (* for declarations, we visit the types inside; but for uses, *)
 (* we just visit the varinfo node *)
-and visitCilVarDecl (vis : cilVisitor) (v : varinfo) : unit =
-begin
-  (* visit the variable as a decl *)
-  if (vis#vvdec v) then
+and visitCilVarDecl (vis : cilVisitor) (v : varinfo) : varinfo =
+  doVisit vis vis#vvdec childrenVarDecl v 
+and childrenVarDecl (vis : cilVisitor) (v : varinfo) : varinfo =
+  v.vtype <- visitCilType vis v.vtype;
+  v
 
-  (* visit the type it's declared as *)
-  (visitCilType vis v.vtype)
-end
+let rec visitCilFunction (vis : cilVisitor) (f : fundec) : fundec =
+  doVisit vis vis#vfunc childrenFunction f 
+and childrenFunction (vis : cilVisitor) (f : fundec) : fundec =
+  f.svar <- visitCilVarDecl vis f.svar; (* hit the function name *)
+  (* visit local declarations *)
+  f.slocals <- mapNoCopy (visitCilVarDecl vis) f.slocals;
+  f.sbody <- visitCilBlock vis f.sbody;        (* visit the body *)
+  f
 
-let visitCilFunction (vis : cilVisitor) (f : fundec) : unit =
-begin
-  if (vis#vfunc f) then (            (* preorder visit *)
-    (visitCilVarDecl vis f.svar);      (* hit the function name *)
-    (List.iter
-      (fun (v : varinfo) ->
-        (visitCilVarDecl vis v))       (* visit local declarations *)
-      f.slocals);
-    (visitCilBlock vis f.sbody);        (* visit the body *)
-    (ignore (vis#vfuncPost f))         (* postorder visit *)
-  )
-end
-
-let visitCilGlobal (vis: cilVisitor) (g: global) : unit =
-begin
+let rec visitCilGlobal (vis: cilVisitor) (g: global) : global =
   (trace "visit" (dprintf "visitCilGlobal\n"));
-
-  if (vis#vglob g) then
-
+  doVisit vis vis#vglob childrenGlobal g
+and childrenGlobal (vis: cilVisitor) (g: global) : global =
   match g with
-  | GFun (f, _) -> (visitCilFunction vis f)
-  | GType(s, t, _) -> (
-      (*(trace "visitTypedef" (dprintf "%s = %a\n" s d_type t));*)
-      if (vis#vtdec s t) then (visitCilType vis t)
-    )
-  | GEnumTag (enum, _) ->
-      (ignore (vis#venum enum))
-  | GCompTag (comp, _) -> (
-      (ignore (vis#vcomp comp))
+  | GFun (f, l) -> 
+      let f' = visitCilFunction vis f in
+      if f' != f then GFun (f', l) else g
+  | GType(s, t, l) ->
+      let t' = visitCilType vis t in
+      if t' != t then GType (s, t', l) else g
+  | GEnumTag (enum, _) -> g
+  | GCompTag (comp, _) -> 
+      (* Do the types of the fields *)
+      List.iter (fun fi -> fi.ftype <- visitCilType vis fi.ftype) comp.cfields;
+      g
 
-      (* DON'T recurse automatically; user can call visitCompFields *)
-    )
-  | GDecl(v, _) -> (visitCilVarDecl vis v)
-  | GVar (v, None, _) -> (visitCilVarDecl vis v)
-  | GVar (v, Some i, _) -> (visitCilVarDecl vis v); (visitCilInit vis i)
-  | _ -> ()
-end
+  | GDecl(v, l) -> 
+      let v' = visitCilVarDecl vis v in
+      if v' != v then GDecl (v', l) else g
+  | GVar (v, inito, l) -> 
+      let v' = visitCilVarDecl vis v in
+      let inito' = 
+        match inito with
+          None -> None 
+        | Some i -> let i' = visitCilInit vis i in 
+          if i' != i then Some i' else inito
+      in
+      if v' != v || inito' != inito then GVar (v', inito', l) else g
+  | _ -> g
 
-let visitCilFile (vis : cilVisitor) (f : file) : unit =
-begin
+let visitCilFile (vis : cilVisitor) (f : file) : file =
   (trace "visitCilFile" (dprintf "%s\n" f.fileName));
-
-  let fGlob g = (visitCilGlobal vis g) in
-
+  let fGlob g = visitCilGlobal vis g in
   (* primary list of globals *)
-  (List.iter fGlob f.globals);
-
+  f.globals <- mapNoCopy fGlob f.globals;
   (* the global initializer *)
   (match f.globinit with
     None -> ()
-  | Some g -> (fGlob (GFun(g, locUnknown))));
-
-  (trace "visitCilFile" (dprintf "finished %s\n" f.fileName))
-end
-
-(* sm: I didn't end up using this (because I needed more control *)
-(* over the iteration process than the visitor provides), but I *)
-(* leave it here anyway *)
-let visitCilFileInReverse (vis : cilVisitor) (f : file) : unit =
-begin
-  (trace "visitCilFileInReverse" (dprintf "%s\n" f.fileName));
-
-  let fGlob g = (visitCilGlobal vis g) in
-
-  (* first the global initializer *)
-  (match f.globinit with
-    None -> ()
-  | Some g -> (fGlob (GFun(g, locUnknown))));
-
-  (* then the primary list of globals, reversed *)
-  (List.iter fGlob (List.rev f.globals))
-end
-
+  | Some g -> f.globinit <- Some (visitCilFunction vis g));
+  (trace "visitCilFile" (dprintf "finished %s\n" f.fileName));
+  f
 
 
    (* Make a local variable and add it to a function *)
