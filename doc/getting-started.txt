@@ -268,7 +268,7 @@ in the base 'cil' directory (the one with 'regrtest'):
     The -d argument tells cvs to create on your machine any new directories
     that somebody might have checked in. By default cvs does not create new
     directories. This flag is so useful that many people find it useful to
-    create a ~/.cvsrc file with on line containing "update -d" in it. This way
+    create a ~/.cvsrc file with one line containing "update -d" in it. This way
     you don't have to specify the flag all the time.
 
     If you specify a filename (after cd'ing to the directory containing it),
