@@ -61,6 +61,10 @@ let rec isZero = function
   | CastE(_, e, _) -> isZero e
   | _ -> false
 
+let rec isInteger = function
+  | Const(CInt _, _) -> true
+  | CastE(_, e, _) -> isInteger e
+  | _ -> false
 
   (* We collect here the new file *)
 let theFile : global list ref = ref []
@@ -635,18 +639,18 @@ let checkBounds =
 let checkZeroTags = 
   let fdec = emptyFunction "CHECK_ZEROTAGS" in
   let argb  = makeLocalVar fdec "b" voidPtrType in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argpl  = makeLocalVar fdec "pl" uintType in
-  let argt  = makeLocalVar fdec "t" voidPtrType in
-  fdec.svar.vtype <- TFun(voidType, [ argb; argp; argpl; argt ], false, []);
+  let argbl = makeLocalVar fdec "bl" uintType in
+  let argp  = makeLocalVar fdec "p" charPtrType in
+  let argsize  = makeLocalVar fdec "size" uintType in
+  fdec.svar.vtype <- TFun(voidType, [ argb; argbl; argp; argsize ], false, []);
   theFile := GDecl fdec.svar :: !theFile;
-  fun base tagStart lv t ->
+  fun base lenExp lv t ->
     let lv', lv't = getHostIfBitfield lv t in
     call None (Lval (var fdec.svar))
       [ castVoidStar base; 
+        lenExp ;
         castVoidStar (AddrOf(lv', lu)); 
-        SizeOf(lv't, lu); 
-        castVoidStar tagStart ]
+        SizeOf(lv't, lu); ] 
   
 let doCheckFat which arg argt = 
   (* Take the argument and break it apart *)
@@ -744,7 +748,7 @@ let checkMem (towrite: exp option)
     let zeroTags = 
       match towrite with 
         None -> Skip
-      | Some _ -> checkZeroTags base tagStartExp lv t
+      | Some _ -> checkZeroTags base lenExp lv t
     in
     zeroTags :: 
     (doCheckTags towrite lv t [])
@@ -1273,7 +1277,7 @@ and castTo (fe: fexp) (newt: typ) (doe: stmt list) : stmt list * fexp =
       let newp = 
         if typeSig lt = typeSig ptype then e else CastE (ptype, e, lu) in
       let newbase, doe' = 
-        if coerceScalars && not (isZero e) then
+        if coerceScalars && not (isInteger e) then
           let tmp = makeTempVar !currentFunction voidPtrType in
            Lval(var tmp),
           doe @

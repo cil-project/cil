@@ -254,7 +254,8 @@ test/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
 
 SMALL2=test/small2
 
-hashtest: test/small2/hashtest.c $(EXECUTABLE)$(EXE) $(TVEXE)
+hashtest: test/small2/hashtest.c $(EXECUTABLE)$(EXE) \
+                                 $(SAFECLIB) $(SAFEMAINLIB)  $(TVEXE)
 	rm -f $(PCCTEST)/hashtest.exe
 	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) \
                  $(DOOPT) \
@@ -264,7 +265,8 @@ hashtest: test/small2/hashtest.c $(EXECUTABLE)$(EXE) $(TVEXE)
                  $(EXEOUT)hashtest.exe
 	$(PCCTEST)/hashtest.exe
 
-rbtest: test/small2/rbtest.c $(EXECUTABLE)$(EXE) $(TVEXE)
+rbtest: test/small2/rbtest.c $(EXECUTABLE)$(EXE) \
+                                 $(SAFECLIB) $(SAFEMAINLIB)  $(TVEXE)
 	rm -f $(PCCTEST)/rbtest.exe
 	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) \
                  $(DOOPT) \
