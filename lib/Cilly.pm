@@ -766,7 +766,7 @@ sub link {
 }
 
 sub applyCil {
-    my ($self, $ppsrc, $dest, $ppargs, $ccargs) = @_;
+    my ($self, $ppsrc, $dest) = @_;
     
     # The input files
     my @srcs = @{$ppsrc};
@@ -805,6 +805,9 @@ sub applyCil {
     }
     # Now run cilly
     $self->runShell($cmd);
+
+    # Tell the caller where we put the output
+    return $aftercil;
 }
 
 
@@ -815,40 +818,8 @@ sub applyCilAndCompile {
     my @srcs = @{$ppsrc};
     &mydebug("Cilly.PM.applyCilAndCompile(srcs=[",join(',',@{$ppsrc}),"])\n");
 
-    # Prepare the name of the CIL output file based on dest
-    my ($base, $dir, $ext) = fileparse($dest, "(\\.[^.]+)");
-    
-    # Now prepare the command line for invoking cilly
-    my ($cmd, $aftercil) = $self->CillyCommand ($ppsrc, $dir, $base);
-    $cmd .= " ";
-
-    if($self->{MODENAME} eq "MSVC") {
-        $cmd .= " --MSVC ";
-    }
-    if($self->{VERBOSE}) {
-        $cmd .= " --verbose ";
-    }
-    if(defined $self->{CILARGS}) {
-        $cmd .=  join(' ', @{$self->{CILARGS}}) . " ";
-    }
-
-    # Add the arguments
-    if(@srcs > 20) {
-        my $extraFile = "___extra_files";
-        open(TOMERGE, ">$extraFile") || die $!;
-        foreach my $fl (@srcs) {
-            print TOMERGE "$fl\n";
-        }
-        close(TOMERGE);
-        $cmd .= " --extrafiles $extraFile ";
-    } else {
-        $cmd .= join(' ', @srcs) . " ";
-    }
-    if(@srcs > 1 && $self->{KEEPMERGED}) {
-        $cmd .= " --mergedout $dir$base" . ".c ";
-    }
     # Now run cilly
-    $self->runShell($cmd);
+    my $aftercil = $self->applyCil($ppsrc, $dest);
 
     # Now preprocess
     my $aftercilpp = $self->preprocessOutputFile($aftercil);
