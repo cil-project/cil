@@ -349,7 +349,7 @@ $TEST->add2Tests("m88k", "_GNUCC=1");
   $TEST->enable("m88k-inferbox", 0); # Infinite loop
   $TEST->addBadComment("m88k-inferbox", "missing wrappers");
 
-$TEST->add2Tests("vortex", "_GNUCC=1");
+$TEST->add2Tests("vortex", "_GNUCC=1 OPTIM= ");
   $TEST->add2Group("vortex", "slow");
   $TEST->addBadComment("vortex-inferbox", "bug in resetSScanf");
 
