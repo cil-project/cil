@@ -5,9 +5,9 @@ COMPILERNAME=MSVC
 
 CC:=cl
 ifdef RELEASE
-  CFLAGS:=/DRELEASE /D_MSVC /Ox /Ob2 /G6
+  CFLAGS:=/DRELEASE /D_MSVC /Ox /Ob2 /G6 /nologo
 else
-  CFLAGS:=/D_DEBUG /D_MSVC /Zi /MLd
+  CFLAGS:=/D_DEBUG /D_MSVC /Zi /MLd /nologo
 endif
 CONLY:=/c
 
