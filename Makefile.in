@@ -51,7 +51,7 @@ ifdef USE_RAND
 endif
 
     # Now rules to make cilly
-CILLY_LIBRARY_MODULES = pretty errormsg trace stats util clist \
+CILLY_LIBRARY_MODULES = pretty inthash errormsg trace stats util clist \
               cilutil escape \
               cabs cabsvisit cprint lexerhack machdep cparser clexer  \
               cilversion cil formatparse formatlex formatcil cabs2cil \
@@ -106,13 +106,17 @@ setup: cilversion machdep
 
 # Create the machine dependency module
 # If the cl command cannot be run then the MSVC part will be identical to GCC
-.PHONY : machdep
+.PHONY : machdep 
 machdep: $(OBJDIR)/machdep.ml 
 $(OBJDIR)/machdep.ml : src/machdep.c configure.in Makefile.cil.in
 	rm -f $@
 	echo "(* This module was generated automatically by code in Makefile.cil and machdep.c *)" >$@
 # Now generate the type definition
-	echo "type mach = {" >> $@
+	echo "type mach = {" >> $@ 
+	echo "  version_major: int;     (* Major version number *)"    >> $@
+	echo "  version_minor: int;     (* Minor version number *)"    >> $@
+	echo "  version: string;        (* version number *)"          >> $@
+	echo "  underscore_name: bool;  (* If assembly names have leading underscore *)" >> $@
 	echo "  sizeof_short: int;      (* Size of \"short\" *)"       >> $@
 	echo "  sizeof_int: int;        (* Size of \"int\" *)"         >> $@
 	echo "  sizeof_long: int ;      (* Size of \"long\" *)"        >> $@
@@ -121,7 +125,7 @@ $(OBJDIR)/machdep.ml : src/machdep.c configure.in Makefile.cil.in
 	echo "  sizeof_enum: int;       (* Size of enum types *)"      >> $@
 	echo "  sizeof_longdouble: int; (* Size of \"long double\" *)" >> $@
 	echo "  sizeof_sizeof: int;     (* Size of \"sizeof(T)\" *)"   >> $@
-	echo "  sizeof_wchar: int;      (* Size of \"wchar_t\" *)"     >> $@
+	echo "  sizeof_wchar: int;      (* Size of \"wchar_t\" *)"     >> $@ 
 	echo "  sizeof_void: int;       (* Size of \"void\" *)"        >> $@
 	echo "  sizeof_fun: int;        (* Size of function *)"        >> $@
 	echo "  alignof_longlong: int;  (* Alignment of \"long long\" *)" >> $@
@@ -313,6 +317,7 @@ DISTRIB_SRC = clist.ml clist.mli \
 
 DISTRIB_OCAMLUTIL = pretty.ml pretty.mli errormsg.ml errormsg.mli \
                     trace.ml trace.mli stats.ml stats.mli util.ml util.mli \
+                    inthash.ml \
                     perfcount.c.in Makefile.ocaml Makefile.ocaml.build
 
 

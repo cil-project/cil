@@ -2004,9 +2004,10 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
 
      (* Now the other type specifiers *)
     | [A.Tnamed n] -> begin
-        if n = "__builtin_va_list" && Machdep.gccHas__builtin_va_list then 
-          TBuiltin_va_list []
-        else
+        if n = "__builtin_va_list" && 
+          Machdep.gccHas__builtin_va_list then begin
+            TBuiltin_va_list []
+        end else
           let t = 
             match lookupType "type" n with 
               (TNamed _) as x, _ -> x

@@ -52,10 +52,9 @@ compiler system.  This is available at:
 
   \ahrefurl{http://caml.inria.fr/ocaml/}
 
-At the time of writing, the current version is 3.06 (but all of our tools
-should work with 3.04 and 3.05 as well). The following instructions assume
-that you will build from sources even on Windows (instead of using the Native
-compiler provided). Here the rough sequence of steps:
+At the time of writing, the current version is 3.07. The following
+instructions assume that you will build from sources even on Windows (instead
+of using the Native compiler provided). Here the rough sequence of steps:
 \begin{itemize}
 \item Download and unpack the sources
 \item Go in that directory, start \t{bash} if on Windows, and run
@@ -63,7 +62,6 @@ compiler provided). Here the rough sequence of steps:
 % ./configure
 % make world
 % make opt
-% make opt.opt
 % make install
 \end{verbatim}
 
@@ -77,7 +75,7 @@ To test your ocaml distribution, try:
   /usr/local/bin/ocaml
 
   % ocaml
-        Objective Caml version 3.06
+        Objective Caml version 3.07
 
   # exit 0;;    <-- you type "exit 0;;", and press enter
 \end{verbatim}
@@ -102,16 +100,36 @@ and source-file directory for camldebug.  If you wish to change this, use
 the camldebug commands `cd DIR' and `directory'."
   (interactive
    (list (read-from-minibuffer "Run ocamldebug (like this): "
-			       (if (consp ocamldebug-history)
-				   (car ocamldebug-history)
-				 "ocamldebug")
+          (if (consp ocamldebug-history)
+       (car ocamldebug-history)
+     "ocamldebug")
                                  nil
                                nil
-			       '(ocamldebug-history . 1))))
+          '(ocamldebug-history . 1))))
   ; call something from camldebug.el to make sure it is loaded
   (camldebug-numeric-arg 1)
+
+  ; We must override the camldebug-display-line
+  (if (not (fboundp 'original-camldebug-display-line))
+      (fset 'original-camldebug-display-line 
+            (symbol-function 'camldebug-display-line)))
+  (defun camldebug-display-line (true-file character kind)
+    ; See if true-file exists
+    (if (not (file-exists-p true-file))
+        ; Try to run cygpath to convert the file name
+        (with-temp-buffer
+          (if (equal 0 
+                     (call-process "cygpath" nil t t "-m" true-file))
+              (progn
+                ; Drop the end of line
+                (when (bolp)
+                  (backward-delete-char 1))
+                (setq true-file (buffer-string))))))
+    (original-camldebug-display-line true-file character kind))
+
+
   (pop-to-buffer (concat "*camldebug*"))
-  (setq words (gud-chop-words command-line)) 
+  (setq words (split-string command-line)) 
   (message "Current directory is %s" default-directory)
   (apply 'make-comint (cons "camldebug"
                       (cons (car words)
