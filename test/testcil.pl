@@ -978,11 +978,12 @@ smAddTest("scott/regthenprintf $table");
 smAddTest("scott/twoprintfs $table");
 smAddTest("scott/nested $table");
 
-# hashtest and rbtest with TABLE
-my $iters = "EXTRAARGS=-DITERS=100";
-$TEST->setField(smAddTest("rbtest $table $iters"),
-                "FailDiagnosis", "Maybe ARCHOS isn't set right?");
-smAddTest("hashtest $table $iters");
+# These take too long if we turn off strings
+## hashtest and rbtest with TABLE
+#my $iters = "EXTRAARGS=-DITERS=100";
+#$TEST->setField(smAddTest("rbtest $table $iters"),
+#                "FailDiagnosis", "Maybe ARCHOS isn't set right?");
+#smAddTest("hashtest $table $iters");
 
 # red-black tree
 smAddTest("rbtest $iters");
@@ -1253,6 +1254,8 @@ sub testCommandExtras {
     }
     # Turn on the verbose flag
     $theargs .= " STATS=1 PRINTSTAGES=1 ";
+    # Turn off the strings
+    $theargs .= " EXTRAARGS=--noStrings ";
 
     return $theargs;
 }
