@@ -66,7 +66,8 @@ let init_lexicon _ =
       ("__asm__", ASM); ("asm", ASM);
       ("__typeof__", TYPEOF); ("__typeof", TYPEOF); ("typeof", TYPEOF); 
       ("__alignof__", ALIGNOF);
-      ("__volatile__", VOLATILE);
+      ("__volatile__", VOLATILE); ("__volatile", VOLATILE);
+
       ("__FUNCTION__", FUNCTION__); 
       ("__func__", FUNCTION__); (* ISO 6.4.2.2 *)
       ("__PRETTY_FUNCTION__", PRETTY_FUNCTION__);
@@ -423,7 +424,6 @@ and str = parse
 					  (Lexing.lexeme lexbuf) 1 1) in 
                                             cur ^ (str lexbuf)}
 |	_		{let cur = Lexing.lexeme lexbuf in 
-                         print_string ("Read " ^ cur ^ ".\n");
                          cur ^  (str lexbuf)} 
 
 and chr =  parse
