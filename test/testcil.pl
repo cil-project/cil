@@ -355,6 +355,7 @@ $TEST->addTests("testrun/polylist", "", ['inferbox']);
 $TEST->addTests("test-bad1/polystruct", "", ['inferbox']);
   $TEST->addBadComment("test-bad1/polystruct-inferbox", 
                        "Polymorphic structures seem to be broken");
+$TEST->addTests("testrun/polystruct2", "", ['inferbox']);
 $TEST->addTests("test-bad/fseq1fail", "", ['inferbox']);
 $TEST->addTests("test-bad/seqalign", "", ['inferbox']);
 $TEST->addTests("test-bad/globinit", "", ['inferbox']);
