@@ -11,8 +11,8 @@ let tryFinally
     (arg: 'a) : 'b = 
   try
     let res = main arg in
-    final (Some res);
-    res
+    final (Some res);    (* sm: I think it is a mistake for this 'final' call *)
+    res                  (* to be in the scope of the 'try' ... *)
   with e -> begin
     final None;
     raise e

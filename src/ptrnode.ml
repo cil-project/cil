@@ -5,6 +5,7 @@
 open Cil
 open Pretty
 open Int32
+open Trace
 
 module H = Hashtbl
 module E = Errormsg
@@ -469,20 +470,37 @@ let initialize () =
   nextId := -1
 
 
-let printGraph (c: out_channel) = 
+let printGraph (c: out_channel) =
+begin
   (* Get the nodes ordered by ID *)
-  let allsorted = 
+  (tracei "sm" (dprintf "beginning of printGraph\n"));
+  let allsorted =
     Stats.time "sortgraph"
-      (fun () -> 
+      (fun () ->
         let all : node list ref = ref [] in
+        (trace "sm" (dprintf "gathering nodes into a list\n"));
         H.iter (fun id n -> all := n :: !all) idNode;
+        (trace "sm" (dprintf "sorting that list\n"));
         List.sort (fun n1 n2 -> compare n1.id n2.id) !all) ()
   in
   printShortTypes := true;
-  Stats.time "printnodes" 
-    (List.iter (fun n -> fprint c 80 (d_node () n))) allsorted;
-  printShortTypes := false
-       
+  (trace "sm" (dprintf "printing the list\n"));
+  let count : int ref = ref 0 in
+  try
+    Stats.time "printnodes"
+      (List.iter (fun n -> (
+                   incr count;
+                   fprint c 80 (d_node () n)
+                 )))
+      allsorted;
+  with e -> (
+    (trace "sm" (dprintf "printing failed on iteration %d\n" !count));
+    raise e
+  );
+  printShortTypes := false;
+  (traceu "sm" (dprintf "end of printGraph\n"));
+end
+
 let nodeOfAttrlist al = 
   let findnode n =
     try Some (H.find idNode n)

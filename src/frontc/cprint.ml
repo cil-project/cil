@@ -142,6 +142,9 @@ let print str =
     if !follow = 0 then follow := !tab
   end
 
+(* sm: for some reason I couldn't just call print from frontc.... ? *)
+let print_unescaped_string str = print str
+
 let setLoc (l : cabsloc) =
   let tempcur = current in
   if !printLn then  

@@ -6,6 +6,8 @@
  *)
 open Cil
 open Ptrnode
+open Pretty
+open Trace
 module E = Errormsg
 
 (* are the given two types congurent? see infer.tex 
@@ -233,10 +235,11 @@ end
 
 (* table all the interface nodes in the graph *)
 let table_interface (node_ht : (int,node) Hashtbl.t) = begin
-  let finished = ref false in 
+  (trace "sm" (dprintf "beginning of table_interface\n"));
+  let finished = ref false in
   while (not !finished) do
-    finished := true ; 
-    Hashtbl.iter (fun id n -> 
+    finished := true ;
+    Hashtbl.iter (fun id n ->
       if n.interface then begin
         table_this_node n ;
       end ;
@@ -244,15 +247,16 @@ let table_interface (node_ht : (int,node) Hashtbl.t) = begin
         List.iter (fun e ->
           if e.ekind = ECompat && addT e.eto.kind <> e.eto.kind then begin
             table_this_node e.eto;
-            finished := false 
+            finished := false
           end) n.succ ;
         List.iter (fun e ->
           if e.ekind = ECompat && addT e.efrom.kind <> e.efrom.kind then begin
-            table_this_node e.efrom; 
-            finished := false 
+            table_this_node e.efrom;
+            finished := false
           end) n.pred ;
       end
-    ) node_ht ; 
+    ) node_ht ;
   done;
+  (trace "sm" (dprintf "end of table_interface\n"));
 end
 

@@ -17,3 +17,5 @@ __scalar2pointer.txt
 *.log
 tmp
 *.log.prev
+make.out*
+

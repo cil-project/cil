@@ -614,9 +614,13 @@ let memcpyWWWFun =
   let argl  = makeLocalVar fdec "len" uintType in
   fdec.svar.vtype <- TFun(!wildpVoidType, [ argd; args; argl ], false, []);
   (* Do not add this to the declarations because the type of the arguments 
-   * does not make sense 
-  checkFunctionDecls := 
-     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls; *)
+   * does not make sense  *)
+  (* sm: I think they make sense.. and the decl is needed if this fn is called.. *)
+  (* sm: I see.. at this point wildpVoidType is still 'void' so it doesn't work *)
+  (*
+  checkFunctionDecls :=
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
+  *)
   fdec
 
 let mallocFun = 
@@ -1326,7 +1330,7 @@ and tagLength (sz: exp) : (exp * exp) =
 
 (* Create the preamble (in reverse order). Must create it every time because 
  * we must consider the effect of "defaultIsWild" *)
-let preamble () = 
+let preamble () =
   (* Define WILD away *)
   theFile := !checkFunctionDecls;
   (** Create some more fat types *)
@@ -1335,11 +1339,16 @@ let preamble () =
   wildpVoidType := fixupType (TPtr(TVoid([]), [Attr("wild",[])]));
 (*  ignore (fixupType (TPtr(TVoid([AId("const")]), [AId("wild")]))); *)
   let startFile = !theFile in
-  theFile := 
-     consGlobal
-       (GText ("#include \"safec.h\"\n"))
+  theFile :=
+     (consGlobal (GText ("#include \"safec.h\"\n"))
        (consGlobal (GText ("// Include the definition of the checkers\n"))
-          startFile)
+         (consGlobal (GText (
+             (* sm: my god but this is an ugly hack, isn't it?  I couldn't find another way.. *)
+             "wildp_void memcpy_www(wildp_void dest,\n" ^
+             "                      wildp_void src,\n" ^
+             "                      unsigned int size);  // hack\n"))
+           startFile
+       )))
 
 
 (**** Make a pointer type of a certain kind *)
@@ -3394,20 +3403,32 @@ and boxinstr (ins: instr) : stmt clist =
                     | _ -> E.s (unimp "Too many argument to memcpy")
                   in 
                   match kindOfType (typeOf sa), kindOfType (typeOf da) with
-                    N.Wild, N.Wild -> 
-                      single (call None (Lval(Var memcpyWWWFun.svar, NoOffset))
-                                args')
+                    N.Wild, N.Wild ->
+                      (* sm: insert the casts; sometimes we need it *)
+                      let funnyCast (structType : typ) (structValue : exp) : exp =
+                      begin
+                        match structValue with
+                        | Lval(lv) ->
+                            (mkMem (CastE(TPtr(structType,[]), mkAddrOf(lv))) NoOffset)
+                        | _ -> E.s (unimp "Call to memcpy with wild non-lval")
+                      end in
+                      let args'' =
+                        [ funnyCast !wildpVoidType da ;
+                          funnyCast !wildpVoidType sa ;
+                          la ] in
+                      single (call None (Lval(Var memcpyWWWFun.svar, NoOffset)) args'')
+
                   | ks, kd -> (* Here we ought to check lengths *)
-                      if ks = N.Wild then 
+                      if ks = N.Wild then
                         ignore (warn "Drop tags in memcpy Wild -> Non-wild")
                       else if kd = N.Wild then
                         ignore (warn "Drop tags in memcpy Non-wild -> Wild")
                       else
                         ignore (warn "Call to memcpy ought to check the length");
-                      let args'' = 
-                        [ CastE(voidPtrType, 
-                                readPtrField da (typeOf da)); 
-                          CastE(voidPtrType, 
+                      let args'' =
+                        [ CastE(voidPtrType,
+                                readPtrField da (typeOf da));
+                          CastE(voidPtrType,
                                 readPtrField sa (typeOf sa)); la] in
                       single (call None (Lval(Var memcpyFun, NoOffset)) args'')
                 end

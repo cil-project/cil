@@ -337,8 +337,8 @@ ifdef USER_SCOTT
   # they are counterproductive
   SAFECC+= --safec=-noPrintLn
 
-  # making my patch module the default for me
-  TRACE=patch
+  # trace patching process
+  #TRACE=patch
 endif
 
 # bite the bullet and make it the default

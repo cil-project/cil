@@ -3369,7 +3369,7 @@ and doStatement (s : A.statement) : chunk =
 
 (* Translate a file *)
 let convFile fname dl =
-  ignore (E.log "Cabs2cil conversion\n");
+  ignore (E.log "Cabs2cil conversion of %s with %d defns\n" fname (List.length dl));
   (* Clean up the global types *)
   E.hadErrors := false;
   initGlobals();

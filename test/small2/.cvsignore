@@ -64,3 +64,7 @@ stralloc
 segfault
 strpbrk
 fgets
+memcpy
+open
+constdecl
+mknod

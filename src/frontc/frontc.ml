@@ -32,6 +32,9 @@ let patchFileName : string ref = ref ""      (* by default do no patching *)
 (* patching file contents *)
 let patchFile : Cabs.file option ref = ref None
 
+(* whether to print a file of prototypes after parsing *)
+let doPrintProtos : bool ref = ref false
+
 (* this seems like something that should be built-in.. *)
 let isNone (o : 'a option) : bool =
 begin
@@ -54,6 +57,8 @@ let args : (string * Arg.spec * string) list =
              "print cabs tree structure in comments in cabs output";
   "-patchFile", Arg.String (fun pf -> patchFileName := pf),
              "name the file containing patching transformations";
+  "-printProtos", Arg.Unit (fun _ -> doPrintProtos := true),
+             "print prototypes to safec.proto.h after parsing";
 ]
 
 exception ParseError of string
@@ -138,21 +143,67 @@ and parse_to_cabs_inner (fname : string) =
       raise e
   end
 
-let parse fname = 
+  
+(* print to safec.proto.h the prototypes of all functions that are defined *)
+let printPrototypes (file : Cabs.file) : unit =
+begin
+  (*ignore (E.log "file has %d defns\n" (List.length file));*)
+
+  let chan = open_out "safec.proto.h" in
+  ignore (fprintf chan "/* generated prototypes file, %d defs */\n" (List.length file));
+  Cprint.out := chan;
+
+  let counter : int ref = ref 0 in
+
+  let rec loop (d : Cabs.definition) = begin
+    match d with
+    | Cabs.FUNDEF(name, _, loc) -> (
+        match name with
+        | (_, (funcname, Cabs.PROTO(_,_,_), _)) -> (
+            incr counter;          
+            ignore (fprintf chan "\n/* %s from %s:%d */\n"
+                                 funcname loc.Cabs.filename loc.Cabs.lineno);
+            flush chan;
+            Cprint.print_single_name name;
+            Cprint.print_unescaped_string ";";
+            Cprint.force_new_line ();
+            Cprint.flush ()
+          )
+        | _ -> ()
+      )
+
+    | _ -> ()
+  end in
+  (List.iter loop file);
+
+  ignore (fprintf chan "\n/* wrote %d prototypes */\n" !counter);
+  close_out chan;
+  ignore (E.log "printed %d prototypes from %d defns to safec.proto.h\n"
+                !counter (List.length file))
+end
+
+
+
+let parse fname =
+  (trace "sm" (dprintf "beginning parsing to Cabs\n"));
   let cabs = parse_to_cabs fname in
   (* Now convert to CIL *)
-  fun _ -> 
+  fun _ ->
+    (trace "sm" (dprintf "beginning conversion to Cil\n"));
     let cil = Stats.time "conv" (Cabs2cil.convFile fname) cabs in
-    ignore (E.log "FrontC finished conversion to CIL\n");
+    if !doPrintProtos then (printPrototypes cabs);
+    ignore (E.log "FrontC finished conversion of %s to CIL (%d defns)\n"
+                  fname (List.length cabs));
     cil
-  
 
-let docombine (files: string list) : Cabs.file = 
+
+let docombine (files: string list) : Cabs.file =
   let list_of_parsed_files =
     List.map (fun file_name -> parse_to_cabs file_name) files in
   Combine.combine list_of_parsed_files
 
-let combine (files: string list) (out: string) = 
+let combine (files: string list) (out: string) =
+  (trace "sm" (dprintf "beginning parsing to Cabs for purposes of combining\n"));
   let cabs = docombine files in
   try
     let o = open_out out in
@@ -163,12 +214,13 @@ let combine (files: string list) (out: string) =
     ignore (E.log "Cannot open %s : %s\n" out msg);
     raise e
   end
-    
-  
-let parse_combine (files: string list) : Cil.file = 
+
+
+let parse_combine (files: string list) : Cil.file =
   let cabs = docombine files in
+  if !doPrintProtos then (printPrototypes cabs);
   (* Now convert to CIL *)
   let cil = Stats.time "conv" Cabs2cil.convFile "combined" cabs in
-  ignore (E.log "FrontC finished conversion to CIL\n");
+  ignore (E.log "FrontC finished conversion to CIL (via combiner)\n");
   cil
-  
+

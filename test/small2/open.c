@@ -6,7 +6,7 @@
 
 int main()
 {
-  int fd = open("/dev/zero", O_RDONLY);
+  int fd = open("/dev/zero", O_RDONLY, 0);    // must pass 3rd arg
   char buf;
 
   if (read(fd, &buf, 1) != 1) {
