@@ -156,7 +156,11 @@ DEBUGCCL=gcc -x c -O0 -g -ggdb -D_GNUCC
 RELEASECCL=gcc -x c -O3 -fomit-frame-pointer -D_RELEASE -D_GNUCC -Wall 
 #LIB=lib
 #LIBOUT=-o
+ifdef RELEASE
 DOOPT=-O3
+else
+DOOPT=-g
+endif
 CONLY=-c
 OBJOUT=-o
 OBJ=o
@@ -234,9 +238,9 @@ trval: $(TVDIR)/obj/transval.asm.exe
 SAFECC=perl $(CILDIR)/lib/safecc.pl
 
 # sm: I like -g always
-ifdef _GNUCC
-  SAFECC+= -g
-endif
+#ifdef _GNUCC
+#  SAFECC+= -g
+#endif
 
 
 
@@ -335,12 +339,12 @@ SAFECLIBARG=$(DEF)_DEBUG
 endif
 
 $(SAFECLIB) : lib/safec.c lib/safec.h lib/safeccheck.h
-	cl /Ox /Zi /I./lib /c $(DEF)_MSVC $(SAFECLIBARG) \
+	cl $(DOOPT) /I./lib /c $(DEF)_MSVC $(SAFECLIBARG) \
                                           $(OBJOUT)obj/safec.o $<
 	lib /OUT:$@ obj/safec.o 
 
 $(SAFEMAINLIB) : lib/safecmain.c lib/safec.h lib/safeccheck.h
-	cl /Ox /Zi /I./lib /c $(DEF)_MSVC $(OBJOUT)obj/safecmain.o $<
+	cl $(DOOPT) /I./lib /c $(DEF)_MSVC $(OBJOUT)obj/safecmain.o $<
 	lib /OUT:$@ obj/safecmain.o 
 endif
 
