@@ -1029,16 +1029,6 @@ let separateStorageModifiers (al: attribute list) =
   
 
 
-(* Some attributes are printed before and others after. The before ones are 
- * typically the qualifiers  *)
-let rec separateAttributes (pre, post) = function
-    [] -> pre,post
-  | ((Attr("const",[]) | Attr("volatile",[]) |
-      Attr("cdecl",[]) | Attr("stdcall",[])) as a) :: rest -> 
-      separateAttributes (a :: pre, post) rest
-  | a :: rest ->
-      separateAttributes (pre, a :: post) rest
-let separateAttributes a = separateAttributes ([], []) a    
 
 (* Print attributes in a custom way *)
 let d_attrcustom : (attribute -> Pretty.doc option) ref = 
@@ -1157,8 +1147,31 @@ let rec d_decl (docName: unit -> doc) (dnwhat: docNameWhat) () this =
   | TNamed (n, _, a) -> dprintf "%s%a %t" n d_attrlistpost a docName
 
 
-(* Only a type (such as for a cast) *)        
-and d_type () t = d_decl (fun _ -> nil) DNNothing () t
+(* Only a type (such as for a cast). There seems to be a problem with 
+ * printing the top-level attribute (since it would come right before the 
+ * missing name). So we strip it, but only if it is not printed in a custom 
+ * way. This means that attributes such as const and volatile stay. *)        
+and d_type () t = 
+  let fixthem (ta: attribute list) = 
+    List.filter 
+      (fun (Attr(an, _)) -> 
+        match an with 
+          "const" | "volatile" -> true | _ -> false)
+      ta
+  in
+  let fixattrs = function
+      TVoid a -> TVoid (fixthem a)
+    | TInt (ik, a) -> TInt (ik, fixthem a)
+    | TFloat (fk, a) -> TFloat (fk, fixthem a)
+    | TBitfield (ik, w, a) -> TBitfield (ik, w, fixthem a)
+    | TNamed (n, t, a) -> TNamed (n, t, fixthem a)
+    | TPtr (bt, a) -> TPtr (bt, fixthem a)
+    | TArray (bt, lo, a) -> TArray (bt, lo, fixthem a)
+    | TComp (isf, comp, a) -> TComp (isf, comp, fixthem a)
+    | TEnum (n, items, a) -> TEnum (n, items, fixthem a)
+    | TFun (rt, args, isva, a) -> TFun (rt, args, isva, a)
+  in  
+  d_decl (fun _ -> nil) DNNothing () (fixattrs t)
 
 
 (* exp *)
