@@ -40,8 +40,9 @@ clean:
 
 # build ocamldoc documentation tree
 odoc:
-	-mkdir odoc 2>/dev/null
-	odoc -d odoc -html -I obj src/*.mli src/frontc/*.mli
+	mkdir odoc 2>/dev/null || true
+	odoc -d odoc -html -t "CCured Module Documentation" \
+	     -I obj src/*.mli src/frontc/*.mli
 
 # don't be confused by presence of odoc/ directory
 .PHONY: odoc
