@@ -1,5 +1,5 @@
 # .gdbinit
 
-file models
+file vararg-tmp
 break main
 run

@@ -137,17 +137,6 @@ extern long double __builtin_fabsl(long double);
 // Now specify some special pragmas
 #ifdef CCURED
 
-  union printf_format {
-    int             f_int;
-    double          f_double;
-    char * __ROSTRING f_string;
-    #ifdef _GNUCC
-      // sm: needed for ftpd's file-length printout
-      long long     f_longlong;
-    #endif
-  };
-  #pragma cilnoremove("union printf_format")
-
   // there's more of these in ccured_GNUCC.patch..
   #pragma boxvararg_printf("printf", 1)
   #pragma boxvararg_printf("vprintf", 1)      // sm: this fixes a problem with rbtest when rmtmps is disabled ...

@@ -116,3 +116,6 @@ retptr
 arraytags
 strloop2
 mode_sizes
+*-tmp.c
+*tmp
+*.tmp.exe

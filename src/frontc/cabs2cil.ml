@@ -3976,8 +3976,6 @@ and createGlobal (specs : (typ * storage * bool * A.attribute list))
         );
     end;
     let vi, alreadyInEnv = makeGlobalVarinfo (inite != A.NO_INIT) vi in
-    ignore (E.log "createGlobal: before initializer. %s : %a\n"
-              vi.vname d_type vi.vtype);
             (* Do the initializer and complete the array type if necessary *)
     let init : init option = 
       if inite = A.NO_INIT then 
