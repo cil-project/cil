@@ -36,7 +36,7 @@
  *)
 
 open Pretty
-open Trace
+
 
 (* We often need to concatenate sequences and using lists for this purpose is 
  * expensive. So we define a kind of "concatenable lists" that are easier to 
@@ -151,7 +151,7 @@ let d_boxedInt () b =
   | SomethingElse -> (text "somethingElse")
 
 
-(* sm: some simple tests of CLists *)
+(* sm: some simple tests of CLists 
 let testCList () : unit =
 begin
   (trace "sm" (dprintf "in testCList\n"));
@@ -167,3 +167,11 @@ begin
 
 
 end
+1) in
+  (trace "sm" (dprintf "flattened: %a\n"
+                       (docList ~sep:(chr ',' ++ break) (d_boxedInt ()))
+                       flattened));
+
+
+end
+*)
