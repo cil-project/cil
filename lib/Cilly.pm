@@ -128,10 +128,19 @@ sub new {
             $self->{$key} = $compiler->{$key};
         }
     }
-    
+
     # Scan and process the arguments
     $self->setDefaultArguments;
     collectArgumentList($self, @args);
+
+    # sm: if an environment variable is set, then do not merge; this
+    # is intended for use in ./configure scripts, where merging delays
+    # the reporting of errors that the script is expecting
+    if (defined($ENV{"CILLY_NOMERGE"})) {
+      $self->{SEPARATE} = 1;
+      if($self->{VERBOSE}) { print STDERR "Merging disabled by CILLY_NOMERGE\n"; }
+    }
+
 
 #    print Dumper($self);
 
@@ -330,7 +339,7 @@ EOF
 
 #
 # The basic routines: for ech source file preprocess, compile, then link
-# everything 
+# everything
 #
 #
 
