@@ -2765,9 +2765,10 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     let printAttributes (a: attributes) = 
       let pa = self#pAttrs () a in
       match nameOpt with 
-      | None when not !print_CIL_Input -> 
+      | None when not !print_CIL_Input && not !msvcMode -> 
           (* Cannot print the attributes in this case because gcc does not 
-           * like them here, except if we are printing for CIL *)
+           * like them here, except if we are printing for CIL, or for MSVC. 
+           * In fact, for MSVC we MUST print attributes such as __stdcall *)
           if pa = nil then nil else 
           text "/*" ++ pa ++ text "*/"
       | _ -> pa
