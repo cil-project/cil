@@ -776,17 +776,27 @@ end
 
 let splitVarVisitor = new splitVarVisitorClass
     
-let rec doOneFunction (f: fundec) = 
-  (* Visit the body and change all expressions into three address code *)
-  let v = new threeAddressVisitor f in
-  f.sbody <- visitCilBlock v f.sbody;
-  if !splitStructs then begin
-    H.clear dontSplitLocals;
-    if not !dontSplit then begin
-      ignore (visitCilFunction splitVarVisitor f);
-    end;
-  end
-
+let doGlobal = function 
+    GFun(fi, _) ->  
+      (* Visit the body and change all expressions into three address code *)
+      let v = new threeAddressVisitor fi in
+      fi.sbody <- visitCilBlock v fi.sbody;
+      if !splitStructs then begin
+        H.clear dontSplitLocals;
+        if not !dontSplit then begin
+          ignore (visitCilFunction splitVarVisitor fi);
+        end;
+      end
+  | GVarDecl(vi, _) when isFunctionType vi.vtype ->
+      (* we might need to split the args/return value in the function type. *)
+      if !splitStructs then begin
+        H.clear dontSplitLocals;
+        if not !dontSplit then begin
+          ignore (visitCilVarDecl splitVarVisitor vi);
+        end;
+      end
+  | _ -> ()
+      
 let feature : featureDescr = 
   { fd_name = "simplify";
     fd_enabled = ref false;
@@ -795,9 +805,7 @@ let feature : featureDescr =
       ("--no-split-structs", Arg.Unit (fun _ -> splitStructs := false),
                     "do not split structured variables"); 
     ];
-    fd_doit = 
-    (function f -> iterGlobals f 
-        (function GFun(fi, _) -> doOneFunction fi | _ -> ()));
+    fd_doit = (function f -> iterGlobals f doGlobal);
     fd_post_check = true;
 }
 
