@@ -873,38 +873,7 @@ sub new {
     return $self;
 }
 
-my $linker_script_debug = 0;
-
-sub parseLinkerScript {
-  my ($filename) = @_;
-  my @return_list = ();
-  if ($filename=~/\.o$/) {
-    warn "parsing OBJECT FILE:$filename ****************\n" if $linker_script_debug;
-    open OBJFILE, $filename or die $!;
-    my $line = <OBJFILE>;
-    if ($line=~/^INPUT/) {
-      warn "\tYES an INPUT file.\n" if $linker_script_debug;
-      # Stick each line from the file onto our list.
-      while(defined ($line = <OBJFILE>)) {
-        chomp $line;
-        my ($listed_filename) = ($line=~/^(\S+)/);
-        if (defined $listed_filename && (length $listed_filename > 0)) {
-          warn "FILE LINE:$line:\n" if $linker_script_debug;
-          push @return_list, $listed_filename;
-        } else {
-          warn "EMPTY LINE:$line:\n" if $linker_script_debug;
-        }
-      }
-      warn "Contained the following files:", join (":", @return_list), ":\n" if $linker_script_debug;
-    } else {
-      warn "\tNOT an INPUT file.\n" if $linker_script_debug;
-    }
-    close OBJFILE or die $!;
-  }
-  return @return_list;
-}
-
-$linker_script_debug = 0;
+my $linker_script_debug = 1;
 sub parseLinkerScript {
     my($self, $filename, $onemore, $pargs) = @_;
     
@@ -917,27 +886,73 @@ sub parseLinkerScript {
     }
     warn "parsing OBJECT FILE:$filename ****************\n" if
         $linker_script_debug;
-    my $objfile; # Must be local because it is recursive
-    open $objfile, $filename or die $!;
-    my $line = <$objfile>;
+    open OBJFILE, $filename or die $!;
+    my $line = <OBJFILE>;
     if ($line !~ /^INPUT/) {
-        close $objfile or die $!;
+        close OBJFILE or die $!;
         goto NotAScript;
     }
     warn "\tYES an INPUT file.\n" if $linker_script_debug;
+    my @lines = <OBJFILE>; # Read it all and close it
+    unshift @lines, $line;
+    close OBJFILE or die $!;
     # Process recursively each line from the file
-    while(defined ($line = <$objfile>)) {
+    my @tokens = ();
+    my $incomment = 0; # Whether we are in a comment
+    foreach my $line (@lines) {
         chomp $line;
-        my @filenames = split(/\s+/, $line);
-        foreach my $listed_filename (@filenames) {
-            warn "LISTED FILE:$listed_filename:\n" if $linker_script_debug;
-            # Process it recursively because it could be a script itself
-            if($listed_filename eq ")") { last ; }
-            $self->parseLinkerScript($listed_filename, $onemore, $pargs);
-        } 
-        warn "EMPTY LINE:$line:\n" if $linker_script_debug;
+        if($incomment) {
+            # See where the comment ends
+            my $endcomment = index($line, "*/");
+            if($endcomment < 0) { # No end on this line
+                next; # next line
+            } else {
+                $line = substr($line, $endcomment + 2); 
+                $incomment = 0;
+            }
+        }
+        # Drop the comments that are on a single line
+        $line =~ s|/\*.*\*/| |g;
+        # Here if outside comment. See if a comment starts
+        my $startcomment = index($line, "/*");
+        if($startcomment >= 0) {
+            $incomment = 1;
+            $line = substr($line, 0, $startcomment);
+        }
+        # Split the line into tokens. Sicne we use parentheses in the pattern
+        # the separators will be tokens as well
+        push @tokens, split(/([(),\s])/, $line);
     }
-    close $objfile or die $!;
+    print "Found tokens:", join(':', @tokens), "\n" 
+        if $linker_script_debug;
+    # Now parse the file
+    my $state = 0;
+    foreach my $token (@tokens) {
+        if($token eq "" || $token =~ /\s+/) { next; } # Skip spaces
+        if($state == 0) {
+            if($token eq "INPUT") { $state = 1; next; } 
+            else { die "Error in script: expecting INPUT"; }
+        }
+        if($state == 1) { 
+            if($token eq "(") { $state = 2; next; } 
+            else { die "Error in script: expecting ( after INPUT"; }
+        } 
+        if($state == 2) { 
+            if($token eq ")") { $state = 0; next; }
+            if($token eq ",") { next; } # Comma could be a separator
+            # Now we better see a filename
+            if(! -f $token) {
+               warn "Linker script mentions inexistent file:$token.Ignoring\n";
+               next;
+            }
+            # Process it recursively because it could be a script itself
+            warn "LISTED FILE:$token.\n" if $linker_script_debug;
+            $self->parseLinkerScript($token, $onemore, $pargs);
+            next;
+        } 
+        die "Invalid linker script parser state\n";
+        
+    }
 }
 
 sub forceIncludeArg { 
