@@ -1617,7 +1617,7 @@ let d_const () c =
       )
 
   | CStr(s) -> text ("\"" ^ escape_string s ^ "\"")
-  | CWStr(s) -> text ("L\"" ^ s ^ "\"") 
+  | CWStr(s) -> text ("L\"" ^ escape_string s ^ "\"") 
   | CChr(c) -> text ("'" ^ escape_char c ^ "'")
   | CReal(_, _, Some s) -> text s
   | CReal(f, _, None) -> text (string_of_float f)

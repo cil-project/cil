@@ -548,8 +548,8 @@ constant:
 |   CST_FLOAT				{CONST_FLOAT (fst $1), snd $1}
 |   CST_CHAR				{CONST_CHAR (fst $1), snd $1}
 |   CST_WCHAR				{CONST_WCHAR (fst $1), snd $1}
-|   string_constant		{CONST_STRING (fst $1), snd $1}
-|   wstring_list			{CONST_WSTRING (fst $1 @ [Int64.zero]), snd $1}
+|   string_constant		        {CONST_STRING (fst $1), snd $1}
+|   wstring_list			{CONST_WSTRING (fst $1), snd $1}
 ;
 
 string_constant:

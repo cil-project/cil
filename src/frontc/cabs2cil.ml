@@ -2834,14 +2834,13 @@ and doExp (isconst: bool)    (* In a constant *)
               (TPtr(wchar_t, []))
               *)
 
-        | A.CONST_WSTRING ws -> 
-            (* takes a not-nul-terminated list, and converts it to a WIDE
-             * string. *)
-            let intlist_to_wstring (str: int64 list):string =
+        | A.CONST_WSTRING (ws: int64 list) -> 
+            (* takes a list of strings, and converts it to a WIDE string. *)
+            let intlist_to_wstring (str: int64 list) : string =
               (* L"\xabcd" "e" must to go
                  L"\xabcd\x65" and NOT L"\xabcde" *) 
               let rec loop lst must_escape = match lst with
-                [] -> "\000" (* nul-termination *) 
+                [] -> "" (* "\000" GN: nul-termination is implicit *) 
               | hd :: tl -> 
                 let must_escape_now = must_escape || 
                    (compare hd (Int64.of_int 255) > 0) || 
@@ -4081,7 +4080,7 @@ and doInit
     
 
         (* If we are at an array of characters and the initializer is a 
-         * string literal (optionally enclosed in braces) then explore the 
+         * string literal (optionally enclosed in braces) then explode the 
          * string into characters *)
   | TArray(bt, leno, _), 
       (A.NEXT_INIT, 
@@ -4156,6 +4155,21 @@ and doInit
         Int64.sub (Int64.shift_left Int64.one (bitsSizeOf !wcharType)) 
           Int64.one in
       let charinits = 
+	let init c = 
+	  if (compare c maxWChar > 0) then (* if c > maxWChar *)
+	    E.s (error "cab2cil:doInit:character 0x%Lx too big." c);
+          A.NEXT_INIT, 
+          A.SINGLE_INIT(A.CONSTANT (A.CONST_INT (Int64.to_string c)))
+	in
+        (List.map init s) @
+        (
+	  (* ISO 6.7.8 para 14: final NUL added only if no size specified, or
+	   * if there is room for it; btw, we can't rely on zero-init of
+	   * globals, since this array might be a local variable *)
+          if ((isNone leno) or ((List.length s) < (integerArrayLength leno)))
+            then [init Int64.zero]
+            else [])
+(*
         List.map 
           (fun c -> 
 	    if (compare c maxWChar > 0) then (* if c > maxWChar *)
@@ -4164,7 +4178,8 @@ and doInit
               (A.NEXT_INIT, 
                A.SINGLE_INIT(A.CONSTANT (A.CONST_INT (Int64.to_string c)))))
       s
-    in
+*)
+      in
       (* Create a separate object for the array *)
       let so' = makeSubobj so.host so.soTyp so.soOff in 
       (* Go inside the array *)
