@@ -84,3 +84,16 @@ void __cdecl exit(int);
 #ifdef _GNUCC
 void exit(int);
 #endif
+
+
+// Now specify some special pragmas
+#ifdef BEFOREBOX
+#pragma boxalloc("malloc", nozero, sizein(0))
+#pragma boxalloc("alloca", nozero, sizein(0))
+#pragma boxalloc("calloc", zero, sizemul(0,1))
+
+#pragma boxprintf("printf", 0)
+#pragma boxprintf("fprintf", 1)
+#pragma boxprintf("sprintf", 1)
+#pragma boxprintf("snprintf", 2)
+#endif

@@ -755,23 +755,28 @@ and doInstr (i:instr) (l: location) : instr =
       end;
       Call(reso, func', loopArgs formals args)
   
-      
 (* Now do the globals *)
 let doGlobal (g: global) : global = 
   match g with
   | GPragma (a, _) as g -> begin
       (match a with
         ACons("boxpoly", [ AStr(s) ]) -> 
-          ignore (E.log "Will treat %s as polymorphic\n" s); 
-          H.add polyFunc s (ref None)
+          if not (H.mem polyFunc s) then begin
+            ignore (E.log "Will treat %s as polymorphic\n" s); 
+            H.add polyFunc s (ref None)
+          end
 
       | ACons("boxalloc", AStr(s) :: _) -> 
-          ignore (E.log "Will treat %s as polymorphic\n" s); 
-          H.add polyFunc s (ref None)
+          if not (H.mem polyFunc s) then begin
+            ignore (E.log "Will treat %s as polymorphic\n" s); 
+            H.add polyFunc s (ref None)
+          end
 
       | ACons("boxprintf", AStr(s) :: AInt(id) :: []) -> 
-          ignore (E.log "Will treat %s as a printf function\n" s);
-          H.add printfFunc s id
+          if not (H.mem printfFunc s) then begin
+            ignore (E.log "Will treat %s as a printf function\n" s);
+            H.add printfFunc s id
+          end
 
       | ACons("box", [AId("on")]) -> boxing := true
       | ACons("box", [AId("off")]) -> boxing := false
@@ -884,9 +889,9 @@ let markFile fl =
     List.iter (fun s -> H.add polyFunc s (ref None)) 
       ["free" ];
   end;
-  (* initialize the default printf-like functions *)
+  (* initialize the default printf-like functions. Done in fixup.h
   List.iter (fun (s,i) -> H.add printfFunc s i)
-    [("printf",0) ; ("fprintf",1) ; ("sprintf",1) ; ("snprintf",2)] ;
+    [("printf",0) ; ("fprintf",1) ; ("sprintf",1) ; ("snprintf",2)] ; *)
   theFile := [];
   List.iter (fun g -> let g' = doGlobal g in 
                       theFile := g' :: !theFile) fl.globals;

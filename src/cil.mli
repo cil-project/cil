@@ -482,10 +482,13 @@ type global =
 type file = 
     { mutable fileName: string;   (* the complete file name *)
       mutable globals: global list;
-      mutable globinit: fundec option;  (* A global initializer. It is not 
-                                         * part of globals and it is printed 
-                                         * last. Use getGlobInit to 
-                                         * create/get one *)
+      mutable globinit: fundec option;  (* A global initializer. It 
+                                                  * is not part of globals 
+                                                  * and it is printed last. 
+                                                  * Use getGlobInit to 
+                                                  * create/get one.  *)
+      mutable globinitcalled: bool;     (* Whether the global initialization 
+                                         * function is called in main *)
     } 
 	(* global function decls, global variable decls *)
 

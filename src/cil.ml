@@ -464,6 +464,8 @@ type file =
       mutable globinit: fundec option;  (* A global initializer. It is not 
                                          * part of globals and it is printed 
                                          * last *)
+      mutable globinitcalled: bool;     (* Whether the global initialization 
+                                         * function is called in main *)
     } 
 	(* global function decls, global variable decls *)
 
@@ -1477,183 +1479,6 @@ and d_plaintype () = function
 
 
 
-   (* Make a local variable and add it to a function *)
-let makeLocalVar fdec name typ =
-  fdec.smaxid <- 1 + fdec.smaxid;
-  let vi = { vname = name;
-             vid   = fdec.smaxid;
-             vglob = false;
-             vtype = typ;
-             vdecl = lu;
-             vattr = [];
-             vstorage = NoStorage;
-             vaddrof = false;
-             vreferenced = false;    (* sm *)
-           }  in
-  fdec.slocals <- fdec.slocals @ [vi];
-  vi
-
-let makeTempVar fdec ?(name = "tmp") typ =
-  let name = name ^ (string_of_int (1 + fdec.smaxid)) in
-  makeLocalVar fdec name typ
-
-
-   (* Make a global variable. Your responsibility to make sure that the name
-    * is unique *)
-let makeGlobalVar name typ =
-  let vi = { vname = name;
-             vid   = H.hash name;
-             vglob = true;
-             vtype = typ;
-             vdecl = lu;
-             vattr = [];
-             vstorage = NoStorage;
-             vaddrof = false;
-             vreferenced = false;    (* sm *)
-           }  in
-  vi
-
-
-   (* Make an empty function *)
-let emptyFunction name = 
-  { svar  = makeGlobalVar name (TFun(voidType, [], false,[]));
-    smaxid = 0;
-    slocals = [];
-    sformals = [];
-    sbody = [];
-  } 
-
-
-  (* Set the formals and make sure the function type shares them *)
-let setFormals (f: fundec) (forms: varinfo list) = 
-  f.sformals <- forms;
-  match unrollType f.svar.vtype with
-    TFun(rt, _, isva, fa) -> 
-      f.svar.vtype <- TFun(rt, forms, isva, fa)
-  | _ -> E.s (E.bug "Set formals. %s does not have function type\n"
-                f.svar.vname)
-      
-
-    (* A dummy function declaration handy for initialization *)
-let dummyFunDec = emptyFunction "@dummy"
-let dummyFile = 
-  { globals = [];
-    fileName = "<dummy>";
-    globinit = None}
-
-
-(* Take the name of a file and make a valid symbol name out of it. There are 
- * a few chanracters that are not valid in symbols *)
-let makeValidSymbolName (s: string) = 
-  let s = String.copy s in (* So that we can update in place *)
-  let l = String.length s in
-  for i = 0 to l - 1 do
-    let c = String.get s i in
-    let isinvalid = 
-      match c with
-        '-' | '.' -> true
-      | _ -> false
-    in
-    if isinvalid then 
-      String.set s i '_';
-  done;
-  s
-  
-let getGlobInit (fl: file) = 
-  match fl.globinit with 
-    Some f -> f
-  | None -> begin
-      let f = emptyFunction 
-          (makeValidSymbolName ("__globinit_" ^ 
-                                (Filename.chop_extension
-                                   (Filename.basename fl.fileName))))
-      in
-      ignore (E.warn "Added global initializer %s" f.svar.vname);
-      fl.globinit <- Some f;
-      f
-  end
-  
-
-(* Iterate over all globals, including the global initializer *)
-let iterGlobals (fl: file)
-                (doone: global -> unit) : unit =
-  List.iter doone fl.globals;
-  (match fl.globinit with
-    None -> ()
-  | Some g -> doone (GFun(g, locUnknown)))
-
-(* Fold over all globals, including the global initializer *)
-let foldGlobals (fl: file) 
-                (doone: 'a -> global -> 'a) 
-                (acc: 'a) : 'a = 
-  let acc' = List.fold_left doone acc fl.globals in
-  (match fl.globinit with
-    None -> acc'
-  | Some g -> doone acc' (GFun(g, locUnknown)))
-
-
-(* Fold over all globals, including the global initializer *)
-let mapGlobals (fl: file) 
-               (doone: global -> global) : unit = 
-  fl.globals <- List.map doone fl.globals;
-  (match fl.globinit with
-    None -> ()
-  | Some g -> begin
-      match doone (GFun(g, locUnknown)) with
-        GFun(g', _) -> fl.globinit <- Some g'
-      | _ -> E.s (E.bug "mapGlobals: globinit is not a function")
-  end)
-
-(* wes: I want to see this at the top level *)
-let d_global () = function
-    GFun (fundec, _) -> d_fun_decl () fundec ++ line
-  | GType (str, typ, _) -> 
-      if str = "" then
-        dprintf "%a;@!" (d_decl (fun _ -> nil)) typ
-      else 
-        dprintf "typedef %a;@!" (d_decl (fun _ -> text str)) typ
-          
-  | GVar (vi, eo, _) -> dprintf "%a %a;"
-        d_videcl vi 
-        insert (match eo with None -> nil | Some e -> 
-            dprintf " = %a" d_exp e)
-    | GDecl (vi, _) -> dprintf "%a;" d_videcl vi 
-    | GAsm (s, _) -> dprintf "__asm__(\"%s\");@!" (escape_string s)
-    | GPragma (a, _) -> dprintf "#pragma %a@!" d_attr a
-    | GText s  -> text s
-
-let printFile (out : out_channel) file = 
-  printDepth := 99999;  (* We don't want ... in the output *)
-  (* If we are in RELEASE mode then we do not print indentation *)
-  printIndent := false;
-  assert (printIndent := true; true);
-  let print x = fprint out 80 x in
-  print (text "/* Generated by safecc */\n\n");
-  H.clear definedTypes;
-  noRedefinitions := true;
-  iterGlobals file (fun g -> print (d_global () g ++ line));
-  noRedefinitions := false;
-  H.clear definedTypes
-
-    
-let printFileWithCustom (out: out_channel) 
-                        (custom: attribute -> doc option) 
-                        (f: file) = 
-  let oldCustom = !d_attrcustom in
-  let newCustom a = 
-    match custom a with
-      None -> oldCustom a
-    | x -> x
-  in
-  d_attrcustom := newCustom;
-  printFile out f;
-  d_attrcustom := oldCustom
-
-
-(******************
- ******************
- ******************)
-
 
 (*** Define the visiting engine ****)
 (* visit all the nodes in a Cil expression *)
@@ -1898,6 +1723,208 @@ begin
   (* then the primary list of globals, reversed *)
   (List.iter fGlob (List.rev f.globals))
 end
+
+
+
+   (* Make a local variable and add it to a function *)
+let makeLocalVar fdec name typ =
+  fdec.smaxid <- 1 + fdec.smaxid;
+  let vi = { vname = name;
+             vid   = fdec.smaxid;
+             vglob = false;
+             vtype = typ;
+             vdecl = lu;
+             vattr = [];
+             vstorage = NoStorage;
+             vaddrof = false;
+             vreferenced = false;    (* sm *)
+           }  in
+  fdec.slocals <- fdec.slocals @ [vi];
+  vi
+
+let makeTempVar fdec ?(name = "tmp") typ =
+  let name = name ^ (string_of_int (1 + fdec.smaxid)) in
+  makeLocalVar fdec name typ
+
+
+   (* Make a global variable. Your responsibility to make sure that the name
+    * is unique *)
+let makeGlobalVar name typ =
+  let vi = { vname = name;
+             vid   = H.hash name;
+             vglob = true;
+             vtype = typ;
+             vdecl = lu;
+             vattr = [];
+             vstorage = NoStorage;
+             vaddrof = false;
+             vreferenced = false;    (* sm *)
+           }  in
+  vi
+
+
+   (* Make an empty function *)
+let emptyFunction name = 
+  { svar  = makeGlobalVar name (TFun(voidType, [], false,[]));
+    smaxid = 0;
+    slocals = [];
+    sformals = [];
+    sbody = [];
+  } 
+
+
+  (* Set the formals and make sure the function type shares them *)
+let setFormals (f: fundec) (forms: varinfo list) = 
+  f.sformals <- forms;
+  match unrollType f.svar.vtype with
+    TFun(rt, _, isva, fa) -> 
+      f.svar.vtype <- TFun(rt, forms, isva, fa)
+  | _ -> E.s (E.bug "Set formals. %s does not have function type\n"
+                f.svar.vname)
+      
+
+    (* A dummy function declaration handy for initialization *)
+let dummyFunDec = emptyFunction "@dummy"
+let dummyFile = 
+  { globals = [];
+    fileName = "<dummy>";
+    globinit = None;
+    globinitcalled = false}
+
+
+(* Take the name of a file and make a valid symbol name out of it. There are 
+ * a few chanracters that are not valid in symbols *)
+let makeValidSymbolName (s: string) = 
+  let s = String.copy s in (* So that we can update in place *)
+  let l = String.length s in
+  for i = 0 to l - 1 do
+    let c = String.get s i in
+    let isinvalid = 
+      match c with
+        '-' | '.' -> true
+      | _ -> false
+    in
+    if isinvalid then 
+      String.set s i '_';
+  done;
+  s
+  
+class insertGlobInit (f: fundec) (inserted: bool ref) = object
+  inherit nopCilVisitor 
+  method vglob = function
+      GFun(m, _) when m.svar.vname = "main" -> 
+        m.sbody <- 
+           compactBlock (mkStmt (Instr [(Call(None, Lval(var f.svar), 
+                                              []), lu)]) :: m.sbody);
+        inserted := true;
+        false (* Do not recurse *)
+    | _ -> false (* Do not recurse *)
+end
+
+let getGlobInit (fl: file) = 
+  match fl.globinit with 
+    Some f -> f
+  | None -> begin
+      let f = emptyFunction 
+          (makeValidSymbolName ("__globinit_" ^ 
+                                (Filename.chop_extension
+                                   (Filename.basename fl.fileName))))
+      in
+      (* Now try to connect it to main *)
+      let inserted = ref false in
+      visitCilFile (new insertGlobInit f inserted) fl;
+      if not !inserted then 
+        ignore (E.warn "Added global initializer %s" f.svar.vname);
+      fl.globinit <- Some f;
+      f
+  end
+  
+
+(* Iterate over all globals, including the global initializer *)
+let iterGlobals (fl: file)
+                (doone: global -> unit) : unit =
+  List.iter doone fl.globals;
+  (match fl.globinit with
+    None -> ()
+  | Some g -> doone (GFun(g, locUnknown)))
+
+(* Fold over all globals, including the global initializer *)
+let foldGlobals (fl: file) 
+                (doone: 'a -> global -> 'a) 
+                (acc: 'a) : 'a = 
+  let acc' = List.fold_left doone acc fl.globals in
+  (match fl.globinit with
+    None -> acc'
+  | Some g -> doone acc' (GFun(g, locUnknown)))
+
+
+(* Fold over all globals, including the global initializer *)
+let mapGlobals (fl: file) 
+               (doone: global -> global) : unit = 
+  fl.globals <- List.map doone fl.globals;
+  (match fl.globinit with
+    None -> ()
+  | Some g -> begin
+      match doone (GFun(g, locUnknown)) with
+        GFun(g', _) -> fl.globinit <- Some g'
+      | _ -> E.s (E.bug "mapGlobals: globinit is not a function")
+  end)
+
+(* wes: I want to see this at the top level *)
+let d_global () = function
+    GFun (fundec, _) -> d_fun_decl () fundec ++ line
+  | GType (str, typ, _) -> 
+      if str = "" then
+        dprintf "%a;@!" (d_decl (fun _ -> nil)) typ
+      else 
+        dprintf "typedef %a;@!" (d_decl (fun _ -> text str)) typ
+          
+  | GVar (vi, eo, _) -> dprintf "%a %a;"
+        d_videcl vi 
+        insert (match eo with None -> nil | Some e -> 
+            dprintf " = %a" d_exp e)
+  | GDecl (vi, _) -> dprintf "%a;" d_videcl vi 
+  | GAsm (s, _) -> dprintf "__asm__(\"%s\");@!" (escape_string s)
+  | GPragma (a, _) -> dprintf "#pragma %a@!" d_attr a
+  | GText s  -> text s
+
+let printFile (out : out_channel) file = 
+  printDepth := 99999;  (* We don't want ... in the output *)
+  (* If we are in RELEASE mode then we do not print indentation *)
+  printIndent := false;
+  assert (printIndent := true; true);
+  let print x = fprint out 80 x in
+  print (text "/* Generated by safecc */\n\n");
+  H.clear definedTypes;
+  noRedefinitions := true;
+  (* Print the prototype for the global initializer *)
+  (match file.globinit with
+    None -> ()
+  | Some gi -> 
+      print (d_global () (GDecl (gi.svar, lu)) ++ line));
+  iterGlobals file (fun g -> print (d_global () g ++ line));
+  noRedefinitions := false;
+  H.clear definedTypes
+
+    
+let printFileWithCustom (out: out_channel) 
+                        (custom: attribute -> doc option) 
+                        (f: file) = 
+  let oldCustom = !d_attrcustom in
+  let newCustom a = 
+    match custom a with
+      None -> oldCustom a
+    | x -> x
+  in
+  d_attrcustom := newCustom;
+  printFile out f;
+  d_attrcustom := oldCustom
+
+
+(******************
+ ******************
+ ******************)
+
 
 
 (******************** OPTIMIZATIONS *****)

@@ -136,14 +136,13 @@ let boxallocPragma (name: string) (args: attribute list) : unit =
   H.add allocFunctions name ai
 
 
-(* Add malloc and calloc *)
-let _ = boxallocPragma "malloc" [ AId("nozero"); 
-                                  ACons("sizein", [AInt 0])] 
+(* Add malloc and calloc
+let _ = boxallocPragma "malloc" [  
 let _ = boxallocPragma "alloca" [ AId("nozero"); 
                                   ACons("sizein", [AInt 0])] 
 let _ = boxallocPragma "calloc" [ AId("zero"); 
                                   ACons("sizemul", [AInt 0; AInt 1])] 
-  
+*) 
 
 let getAllocInfo fname = 
   try
@@ -1159,7 +1158,8 @@ let mustBeTagged v =
                         * how to put the tag. Plus, function pointers should 
                         * have a length = 0 so we cannot write there *)
   else
-    (* See if it make sense to tag this one *)
+    (* See if it make sense to tag this one. We look at the address-of flag 
+     * and whether it contains arrays. *)
     let taggable = 
       if v.vglob then 
         if v.vstorage = Static then 
@@ -1171,7 +1171,7 @@ let mustBeTagged v =
         v.vaddrof || containsArray v.vtype
     in
     taggable &&
-    (!N.defaultIsWild ||(filterAttributes "tagged" v.vattr) <> [])
+    (!N.defaultIsWild || (filterAttributes "tagged" v.vattr) <> [])
 
 
 (* Create a compound initializer for a tagged type *)
@@ -3058,8 +3058,10 @@ let boxFile file =
           ACons("interceptCasts", [ AId("on") ]) -> interceptCasts := true
         | ACons("interceptCasts", [ AId("off") ]) -> interceptCasts := false
         | ACons("boxalloc",  AStr(s) :: rest) -> 
-            ignore (E.log "Will treat %s as an allocation function\n" s);
-            boxallocPragma s rest
+            if not (H.mem allocFunctions s) then begin
+                ignore (E.log "Will treat %s as an allocation function\n" s);
+                boxallocPragma s rest
+            end
         | ACons("boxprintf",  AStr(s) :: rest) -> 
             H.add leaveAlone s true
         | ACons("box", [AId("on")]) -> boxing := true
