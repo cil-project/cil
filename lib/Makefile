@@ -1,6 +1,8 @@
 # Makefile for lib; this Makefile is just for building the test
 # programs for experimenting with gc
 
+# tweak
+
 CFLAGS = -g -Wall -Igc/include
 CC = gcc $(CFLAGS)
 
