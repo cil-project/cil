@@ -1,6 +1,10 @@
 // com1.c
 // part 1 of a program expected to be combined
 
+#ifndef __HEAPIFY
+  #define __HEAPIFY
+#endif
+
 int global_com1 = 5;
 
 int foo_com1(int x)

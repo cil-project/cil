@@ -470,7 +470,7 @@ sub smFailTest {
   }
 
   my $tname = smAddTest($command);
-  $main::globalTEST->addBadComment($tname, 'bad', $why);
+  $main::globalTEST->addBadComment($tname, $why);
 
   return $tname;
 }
@@ -581,7 +581,12 @@ smAddTest("scott/fgets $box");
 smAddTest("test-bad/sockets $box");
 
 # more stuff, mostly from ftpd
-smAddTest("scott/reply $box");
+if ($TEST->{option}->{safecdebug}) {
+  smAddTest("scott/reply $box");
+}
+else {
+  smFailTest("problem with __extinline", "scott/reply $box");
+}
 smAddTest("scott/getpwnam $box");
 smFailTest("execv bug", "scott/execv $box");
 smAddTest("scott/popen $box");
