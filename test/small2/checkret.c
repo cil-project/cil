@@ -32,7 +32,7 @@ struct strarr {
 struct strarr retarr() {
   int local;
   struct strarr res = { 0, &global, &global, &global }; // ERROR(3):Error 3
-  struct strarr res = { 0, &global, &local, &global }; // ERROR(4):Stack address
+  struct strarr res = { 0, &global, &local, &global }; // ERROR(4):Below stack
   return res;
 }
 

@@ -409,6 +409,8 @@ $TEST->addTests("test-bad/polylist", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/poly2", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/castnoedge", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/checkret", "_GNUCC=1", [ 'inferbox' ]);
+$TEST->addTests("test-bad/checkstore", "_GNUCC=1", [ 'inferbox' ]);
+$TEST->addTests("test-bad/checkinit", "_GNUCC=1", [ 'inferbox' ]);
 
 #
 # OLDEN benchmarks
