@@ -456,6 +456,7 @@ $TEST->addTests("scott/funptr1", "", ['inferbox']);
 $TEST->addTests("testrun/unrolltype", "", ['inferbox']);
 $TEST->addTests("testrun/wrapper2", "", ['cil', 'inferbox', 'box']);
 $TEST->addTests("testrun/fseqn1", "", ['inferbox']);
+$TEST->addTests("testrun/ubound1", "", ['inferbox']);
 # $TEST->addTests("testrun/seqn1", "", ['inferbox']);
 
 #
@@ -505,7 +506,7 @@ $TEST->add3Tests("compress", "_GNUCC=1");
   $TEST->add3Group("compress", "slow", "spec");
 
 $TEST->add3Tests("go", "_GNUCC=1");
-   $TEST->add3Group("go", "slow", "spec", "vslow");
+   $TEST->add3Group("go", "slow", "spec");
 
 $TEST->add2Tests("ijpeg", "_GNUCC=1");
   $TEST->add2Group("ijpeg", "slow", "spec");

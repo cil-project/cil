@@ -1354,7 +1354,7 @@ liinfer: li
 
 ### SPEC95 GO
 GODIR := $(SPECDIR)/099.go
-GOSAFECC := $(CCURED)   $(PATCHARG) $(NOPRINTLN) $(OPT_O2)
+GOSAFECC := $(CCURED) $(PATCHARG) --commPrintLn $(CFLAGS) $(OPT_O2)
 
 goclean: 	
 	cd $(GODIR)/src; make clean
