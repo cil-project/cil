@@ -152,25 +152,6 @@ testpcc/% : $(PCCDIR)/src/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
                   $(PCCDIR)/src/$*.c \
                   $(OUT)$(notdir $*).o
 
-hashtest: test/small1/hashtest.c $(EXECUTABLE)$(EXE) $(TVEXE)
-	rm -f $(PCCTEST)/hashtest.exe
-	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) \
-                 $(DOOPT) \
-                 $(INC)$(PCCDIR)/src \
-                 $(PCCDIR)/src/hash.c \
-                 ../small1/hashtest.c \
-                 $(EXEOUT)hashtest.exe
-	$(PCCTEST)/hashtest.exe
-
-rbtest: test/small1/rbtest.c $(EXECUTABLE)$(EXE) $(TVEXE)
-	rm -f $(PCCTEST)/rbtest.exe
-	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) \
-                 $(DOOPT) \
-                 $(INC)$(PCCDIR)/src \
-                 $(PCCDIR)/src/redblack.c \
-                 ../small1/rbtest.c \
-                 $(EXEOUT)rbtest.exe
-	$(PCCTEST)/rbtest.exe
 
 testallpcc: $(EXECUTABLE)$(EXE) $(TVEXE)
 	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.o
@@ -188,10 +169,26 @@ endif
 	cd $(PCCDIR)/../test; pwd; spj --gory $(SPJARG) arith/Fact.java
 
 ############ Small tests
-SMALL1=test/small1
-test/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
-	cd $(SMALL1); $(SAFECC) $*.c $(CONLY) $(DOOPT) $(ASMONLY)$*.s
+SMALL2=test/small2
+test/% : $(SMALL2)/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
+	cd $(SMALL2); $(SAFECC) $*.c $(CONLY) $(DOOPT) $(ASMONLY)$*.s
 
+
+hashtest: test/small2/hashtest.c $(EXECUTABLE)$(EXE) $(TVEXE)
+	rm -f $(SMALL2)/hashtest.exe
+	cd $(SMALL2); $(SAFECC) --keep=. $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) \
+                 $(DOOPT) \
+                 hash.c hashtest.c \
+                 $(EXEOUT)hashtest.exe
+	$(SMALL2)/hashtest.exe
+
+rbtest: test/small2/rbtest.c $(EXECUTABLE)$(EXE) $(TVEXE)
+	rm -f $(SMALL2)/rbtest.exe
+	cd $(SMALL2); $(SAFECC) --keep=. $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) \
+                 $(DOOPT) \
+                 redblack.c rbtest.c \
+                 $(EXEOUT)rbtest.exe
+	$(SMALL2)/rbtest.exe
 
 ### Generic test
 testfile/% : $(EXECUTABLE)$(EXE) %  $(TVEXE)
