@@ -26,4 +26,6 @@ ptrinint
 ptrmanip
 twoprintfs
 regthenprintf
+nested
+debug_table
 

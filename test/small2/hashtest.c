@@ -22,7 +22,9 @@ int debug;
 
 #pragma interceptCasts(on)
 
-#define ITERS 100000
+#ifndef ITERS
+  #define ITERS 500000
+#endif // ITERS
 
 int main() {
   /* Test hash tables */

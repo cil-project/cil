@@ -157,6 +157,10 @@ end
 (* it only works if we visit toplevel decls in reverse order *)
 let removeUnusedTemps (file : file) =
 begin
+  if (traceActive "disableTmpRemoval") then
+    (trace "disableTmpRemoval" (dprintf "trace removal disabled\n"))
+  else
+
   (* associate with every 'typ' whether it is referred-to *)
   (* by a global variable or function *)
   let usedTypes : (typ, bool) H.t = H.create 17 in

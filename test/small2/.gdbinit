@@ -1,5 +1,5 @@
 # .gdbinit
 
-file regthenprintf
+file nested
 break main
 run
