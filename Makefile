@@ -5,6 +5,7 @@
 # this Makefile makes use of several GNU Make extensions; see
 #   http://www.gnu.org/manual/make/html_chapter/make_toc.html
 
+# tweak to cause commit to think this is different
 
 ifneq ($(ARCHOS), x86_WIN32)
 ifneq ($(ARCHOS), x86_LINUX) 
