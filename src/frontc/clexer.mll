@@ -143,6 +143,8 @@ let currentFile = ref "" (* The file in which we are *)
 let startLine = ref 0 (* the position in the buffer where the current line 
                        * starts *)
 
+let attribDepth = ref 0 (* Remembers the nesting level when parsing 
+                         * attributes *)
 (* The current lexing buffer *)
 let currentLexBuf = ref (Lexing.from_string "")
 
@@ -151,6 +153,7 @@ let init (infile: string)
   currentLine := 1;
   startLine := 0;
   currentFile := infile;
+  attribDepth := 0;
   init_lexicon ();
   let lexbuf = Lexing.from_channel inc in
   currentLexBuf := lexbuf;
@@ -278,6 +281,7 @@ let floatraw = (intnum? fraction)
 let floatnum = floatraw floatsuffix?
 
 let ident = (letter|'_')(letter|decdigit|'_')* 
+let attribident = (letter|'_')(letter|decdigit|'_'|':')
 let blank = [' ' '\t' '\012']
 let escape = '\\' _
 let hex_escape = '\\' ['x' 'X'] hexdigit hexdigit
@@ -359,9 +363,9 @@ rule initial =
 						initial lexbuf}
 and comment =
     parse 	
-      "*/"			        {()}
+      "*/"			        { () }
 |     '\n'                              { newline (); comment lexbuf }
-| 		_ 			{comment lexbuf}
+| 		_ 			{ comment lexbuf }
 
 (* # <line number> <file name> ... *)
 and hash = parse
@@ -439,41 +443,31 @@ and msasmnobrace = parse
                                lexbuf.Lexing.lex_curr_pos - 5;
                           "" }
 |  _                    { let cur = Lexing.lexeme lexbuf in 
+
                           cur ^ (msasmnobrace lexbuf) }
+
+and attribute = parse
+   '\n'                 { newline (); attribute lexbuf }
+|  blank                { attribute lexbuf }
+|  '('                  { incr attribDepth; LPAREN }
+|  ')'                  { decr attribDepth;
+                          if !attribDepth = 0 then
+                            initial lexbuf (* Skip the last closed paren *)
+                          else
+                            RPAREN }
+|  attribident          { IDENT (Lexing.lexeme lexbuf) }
+
+|  '\''			{ CST_CHAR (chr lexbuf)}
+|  '"'			{ (* '"' *)
+                                          try CST_STRING (str lexbuf)
+                                          with e -> 
+                                             raise (InternalError "str")}
+|  floatnum		{CST_FLOAT (Lexing.lexeme lexbuf)}
+|  hexnum		{CST_INT (Lexing.lexeme lexbuf)}
+|  octnum		{CST_INT (Lexing.lexeme lexbuf)}
+|  intnum		{CST_INT (Lexing.lexeme lexbuf)}
+
+
 {
 
-(*** get_buffer ***
-let get_buffer (dst : string) (len : int) : int =
-  let (inter, chan, line, buffer, pos, lineno, out, name) = !h in
-  try
-    let (bufferp, linep, posp, linenop) =
-      if buffer <> ""
-      then (buffer, line , pos, lineno)
-      else
-	let buffer = (input_line chan) ^ "\n" in
-	(
-	buffer,
-	(if inter then line ^ buffer else buffer),
-	(if inter then pos else pos + (String.length line)),
-	lineno + 1
-	  ) in
-    let bufl = String.length bufferp in
-    let lenp = min len bufl in
-    let buffers = if bufl = lenp
-    then ""
-    else String.sub bufferp lenp (bufl - lenp) in
-    begin
-      String.blit bufferp 0 dst 0 lenp;
-      lenp
-    end
-  with End_of_file -> 0
-
-*)
-
-(* init: handle -> ()
-**	Initialize lexer.
-*)
-(*
-  current_handle := hdl 
-*)
 }

@@ -766,6 +766,10 @@ attr:
 |   IDENT LPAREN attr_list_ne RPAREN     { CALL(VARIABLE $1, $3) }
 |   CST_INT                              { CONSTANT(CONST_INT $1) }
 |   CST_STRING                           { CONSTANT(CONST_STRING $1) }
+                                           /*(* Const when it appears in 
+                                            * attribute lists, is translated 
+                                            * to aconst *)*/
+|   CONST                                { VARIABLE "aconst" }
 ;
 attr_list_ne:
 |  attr                                  { [$1] }

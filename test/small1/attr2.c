@@ -20,9 +20,12 @@ __attribute__((section(".t1sec"))) char t1[5], t2[6];
 void ( * pexit)(int err)  __attribute__((noreturn)) ;
 
 
+
+extern int * functional(void) __attribute__((__const__));
+
 int main() {
   printk("fooo");
   { int k = __module_parm_vidmem[3]; }
+  functional();
   do_exit(5);
 }
-

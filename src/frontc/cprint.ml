@@ -650,7 +650,9 @@ and print_attribute (name,args) =
   else begin
     print name;
     print "("; if name = "__attribute__" then print "(";
-    print_commas false (fun e -> print_expression e 1) args;
+    (match args with
+      [VARIABLE "aconst"] -> print "const"
+    | _ -> print_commas false (fun e -> print_expression e 1) args);
     print ")"; if name = "__attribute__" then print ")"
   end
 

@@ -683,11 +683,11 @@ let attributeHash: (string, attributeClass) H.t =
   List.iter (fun a -> H.add table a (AttrName false))
     [ "section"; "constructor"; "destructor"; "unused"; "weak"; 
       "no_instrument_function"; "alias"; "no_check_memory_usage";
-      "exception"; "model"; "mode"];
+      "exception"; "model"; "mode"; "aconst"];
   List.iter (fun a -> H.add table a (AttrName true))
     [ "thread"; "naked"; "dllimport"; "dllexport"; "noreturn" ];
   List.iter (fun a -> H.add table a (AttrFunType false))
-    [ "fconst"; "format"; "regparm"; "longcall" ];
+    [ "format"; "regparm"; "longcall" ];
   List.iter (fun a -> H.add table a (AttrFunType true))
     [ "stdcall";"cdecl"; "fastcall" ];
   List.iter (fun a -> H.add table a AttrType)
@@ -762,25 +762,6 @@ let var vi : lval = (Var vi, NoOffset)
 
 let mkString s = Const(CStr s)
 
-    (* Make a sequence out of a list of statements
-let mkSeq sl = 
-  let rec removeSkip = function 
-      [] -> []
-    | Skip :: rest -> removeSkip rest
-    | Sequence (sl) :: rest -> removeSkip (sl @ rest)
-    | ((Defaults | Labels _ | Cases _) as last) :: rest -> 
-        let rest' = removeSkip rest in
-        if rest' = [] then
-          last :: [Skip]        
-        else
-          last :: rest'
-    | s :: rest -> s :: removeSkip rest
-  in
-  match removeSkip sl with 
-    [] -> Skip
-  | [s] -> s
-  | sl' -> Sequence(sl')
- *)
 
 let mkWhile (guard:exp) (body: stmt list) : stmt list = 
   (* Do it like this so that the pretty printer recognizes it *)
@@ -825,7 +806,7 @@ external parse : string -> file = "cil_main"
  *)
 
 (* Some error reporting functions *)
-let d_loc (_: unit) (loc: location) : doc = 
+let d_loc (_: unit) (loc: location) : doc =  
   dprintf "%s:%d" loc.file loc.line
 
 let d_thisloc (_: unit) : doc = d_loc () !currentLoc
@@ -1588,6 +1569,8 @@ and d_plaintype () = function
 let _ = 
   let d_attrcustombase = function
     | Attr("const", []) -> Some (text "const")
+    | Attr("aconst", []) when not !msvcMode -> 
+        Some (text "__attribute__((__const__))")
     | Attr("volatile", []) -> Some (text "volatile")
     | Attr("restrict", []) -> Some (text "restrict")
     | Attr("cdecl", []) when !msvcMode -> Some (text "__cdecl")
