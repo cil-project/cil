@@ -96,7 +96,7 @@ type file =
           you create a global initialization CIL will try to insert code in 
           main to call it. *)
     } 
-(** Top-level representation of a C souce file *)
+(** Top-level representation of a C source file *)
 
 (** {b Globals}. The main type for representing global declarations and 
  * definitions. A list of these form a CIL file. The order of globals in the 
@@ -106,7 +106,7 @@ type file =
 and global =
   | GType of typeinfo * location    
     (** A typedef. All uses of type names (through the [TNamed] constructor) 
-        must be preceeded in the file by a definition of the name. The string 
+        must be preceded in the file by a definition of the name. The string 
         is the defined name and always not-empty. *)
 
   | GCompTag of compinfo * location     
@@ -206,7 +206,7 @@ and typ =
            * {!Cil.setFunctionType} for this purpose. *)
 
   | TNamed of typeinfo * attributes 
-          (* The use of a named type. Each such type name must be preceeded 
+          (* The use of a named type. Each such type name must be preceded 
            * in the file by a [GType] global. This is printed as just the 
            * type name. The actual referred type is not printed here and is 
            * carried only to simplify processing. To see through a sequence 
@@ -228,7 +228,7 @@ and typ =
   | TEnum of enuminfo * attributes
            (** A reference to an enumeration type. All such references must
                share the enuminfo among them and with a [GEnumTag] global that 
-               preceeds all uses. The attributes refer to this use of the 
+               precedes all uses. The attributes refer to this use of the 
                enumeration and are in addition to the attributes of the 
                enumeration itself, which are stored inside the enuminfo  *)
 
@@ -246,7 +246,7 @@ and typ =
 
  There are two easy ways to scan a type. First, you can use the
 {!Cil.existsType} to return a boolean answer about a type. This function
-is controled by a user-provided function that is queried for each type that is
+is controlled by a user-provided function that is queried for each type that is
 used to construct the current type. The function can specify whether to
 terminate the scan with a boolean result or to continue the scan for the
 nested types. 
@@ -353,7 +353,7 @@ and compinfo = {
      * type. These attributes can be supplemented individually at each 
      * reference to this [compinfo] using the [TComp] type constructor. *)
     mutable cdefined: bool;
-    (** This boolean flag can be used to distringuish between structures
+    (** This boolean flag can be used to distinguish between structures
      that have not been defined and those that have been defined but have
      no fields (such things are allowed in gcc). *)
     mutable creferenced: bool;          
@@ -362,7 +362,7 @@ and compinfo = {
 
 (** {b Structure fields.} The {!Cil.fieldinfo} structure is used to describe 
  * a structure or union field. Fields, just like variables, can have 
- * attributes asociated with the field itself or associated with the type of 
+ * attributes associated with the field itself or associated with the type of 
  * the field (stored along with the type of the field). *)
 
 (** Information about a struct/union field *)
@@ -416,7 +416,7 @@ and enuminfo = {
 and typeinfo = {
     mutable tname: string;              
     (** The name. Can be empty only in a [GType] when introducing a composite 
-     * or enumeration tag. If empty cannot be refered to from the file *)
+     * or enumeration tag. If empty cannot be referred to from the file *)
     mutable ttype: typ;
     (** The actual type. This includes the attributes that were present in 
      * the typedef *)
@@ -434,7 +434,7 @@ function definition {!Cil.fundec}.
 copy of the [varinfo]. Each [varinfo] has a globally unique identifier that 
 can be used to index maps and hashtables (the name can also be used for this 
 purpose, except for locals from different functions). This identifier is 
-constructer using a global counter.
+constructor using a global counter.
 
  It is very important that you construct [varinfo] structures using only one
  of the following functions:
@@ -505,7 +505,7 @@ C. They are represented as the type {!Cil.exp}. There are several
 interesting aspects of CIL expressions: 
 
  Integer and floating point constants can carry their textual representation.
-This way the integer 15 can be printed as 0xF if that is how it occured in the
+This way the integer 15 can be printed as 0xF if that is how it occurred in the
 source. 
 
  CIL uses 64 bits to represent the integer constants and also stores the width
@@ -520,9 +520,9 @@ an expression is a constant and a constant integer respectively.
 
  CIL keeps the type of all unary and binary expressions. You can think of that
 type qualifying the operator. Furthermore there are different operators for
-arithmetic and comparisons on arithemtic types and on pointers. 
+arithmetic and comparisons on arithmetic types and on pointers. 
 
- Another unusual aspect of CIL is that the implicit convertion between an
+ Another unusual aspect of CIL is that the implicit conversion between an
 expression of array type and one of pointer type is made explicit, using the
 [StartOf] expression constructor (which is not printed). If you apply the
 [AddrOf}]constructor to an lvalue of type [T] then you will be getting an
@@ -554,7 +554,7 @@ and exp =
     (** Unary operation. Includes the type of the result. *)
 
   | BinOp      of binop * exp * exp * typ
-    (** Binary operation. Includes the type of the result. The arithemtic 
+    (** Binary operation. Includes the type of the result. The arithmetic 
      * conversions are made explicit for the arguments. *)
 
   | CastE      of typ * exp            
@@ -571,6 +571,11 @@ and exp =
      * not printed. We have it in CIL because it makes the typing rules 
      * simpler. *)
 
+  | StartOfString of string
+    (* Since string literals have array type, we need a conversion operation 
+     * to obtain the address of the start of the string (a char pointer 
+     * type). This operator is not printed. *) 
+ 
 (** {b Constants.} *)
 
 (** Literal constants *)
@@ -583,7 +588,7 @@ and constant =
      * represented on 64 bits. OCAML does not give Overflow exceptions. *)
   | CStr of string 
     (** String constant. The escape characters inside the string have been 
-     * alredy interpreted. *)
+     * already interpreted. This constant has array type! *)
   | CChr of char   
     (** Character constant *)
   | CReal of float * fkind * string option 
@@ -627,7 +632,7 @@ and binop =
   | BOr                                 (** inclusive-or *)
 
 (** {b Lvalues.} Lvalues are the sublanguage of expressions that can appear at the left of an assignment or as operand to the address-of operator. 
-In C the sytax for lvalues is not always a good indication of the meaning 
+In C the syntax for lvalues is not always a good indication of the meaning 
 of the lvalue. For example the C value
 {v  
 a[0][1][2]
@@ -662,7 +667,7 @@ For example, [*&x = x].
 - {!Cil.typeOfLval} - the type of an lvalue
 - {!Cil.typeOffset} - the type of an offset, given the type of the
 host. 
-- {!Cil.addOffset} and {!Cil.addOffsetLval} - entend sequences
+- {!Cil.addOffset} and {!Cil.addOffsetLval} - extend sequences
 of offsets.
 - {!Cil.removeOffset} and {!Cil.removeOffsetLval} - shrink sequences
 of offsets.
@@ -690,7 +695,7 @@ and lhost =
 
 (** The offset part of an {!Cil.lval}. Each offset can be applied to certain 
   * kinds of lvalues and its effect is that it advances the starting address 
-  * of the lvalue and changes the denoted type, essentially focussing to some 
+  * of the lvalue and changes the denoted type, essentially focusing to some 
   * smaller lvalue that is contained in the original one. *)
 and offset = 
   | NoOffset          (** No offset. Can be applied to any lvalue and does 
@@ -756,7 +761,7 @@ the [varinfo].
 
  The function definition contains, in addition to the body, a list of all the
 local variables and separately a list of the formals. Both kind of variables
-can be refered to in the body of the function. The formals must also be shared
+can be referred to in the body of the function. The formals must also be shared
 with the formals that appear in the function type. For that reason, to
 manipulate formals you should use the provided functions
 {!Cil.makeFormalVar} and {!Cil.setFormals}. 
@@ -802,7 +807,7 @@ and block =
 
 
 (** {b Statements}. 
-CIL statements are the strutural elements that make the CFG. They are 
+CIL statements are the structural elements that make the CFG. They are 
 represented using the type {!Cil.stmt}. Every
 statement has a (possibly empty) list of labels. The
 {!Cil.stmtkind} field of a statement indicates what kind of statement it 
@@ -813,7 +818,7 @@ is.
 CIL also comes with support for control-flow graphs. The [sid] field in
 [stmt] can be used to give unique numbers to statements, and the [succs]
 and [preds] fields can be used to maintain a list of successors and
-predeccors for every statement. The CFG information is not computed by
+predecessors for every statement. The CFG information is not computed by
 default. Instead you must explicitly use the functions
 {!Cil.prepareCFG} and {!Cil.computeCFGInfo} to do it.
 
@@ -923,7 +928,7 @@ and instr =
                   string list *         (* register clobbers *)
                   location
     (** There are for storing inline assembly. They follow the GCC 
-      * specfication: 
+      * specification: 
 {v 
   asm [volatile] ("...template..." "..template.."
                   : "c1" (o1), "c2" (o2), ..., "cN" (oN)
@@ -1000,7 +1005,7 @@ val dummyFunDec: fundec
 val dummyFile: file
 
 (** Write a {!Cil.file} in binary form to the filesystem. The file can be
- * read back in later usciing {!Cil.loadBinaryFile}, possibly saving parsing
+ * read back in later using {!Cil.loadBinaryFile}, possibly saving parsing
  * time. The second argument is the name of the file that should be
  * created. *)
 val saveBinaryFile : file -> string -> unit
@@ -1049,7 +1054,7 @@ val computeCFGInfo: fundec -> bool -> stmt list
 val copyFunction: fundec -> string -> fundec 
 
 
-(** CIL keeps the types at the begining of the file and the variables at the 
+(** CIL keeps the types at the beginning of the file and the variables at the 
  * end of the file. This function will take a global and add it to the 
  * corresponding stack. Its operation is actually more complicated because if 
  * the global declares a type that contains references to variables (e.g. in 
@@ -1169,7 +1174,7 @@ val mkCompInfo: bool ->      (* whether it is a struct or a union *)
 val copyCompInfo: compinfo -> string -> compinfo
 
 (** This is a constant used as the name of an unnamed bitfield. These fields
-    do not participate in initialization and their name si not printed. *)
+    do not participate in initialization and their name is not printed. *)
 val missingFieldName: string 
 
 (** Get the full name of a comp *)
@@ -1215,7 +1220,8 @@ val isArrayType: typ -> bool
 exception LenOfArray
 
 (** Call to compute the array length as present in the array type, to an 
-  * integer. Raises {!Cil.LenOfArray} if not able to compute the length *)
+  * integer. Raises {!Cil.LenOfArray} if not able to compute the length, such 
+  * as when there is no length or the length is not a constant. *)
 val lenOfArray: exp option -> int
 
 (** Return a named fieldinfo in compinfo, or raise Not_found *)
@@ -1233,7 +1239,7 @@ type existsAction =
 (** Scans a type by applying the function on all elements. 
     When the function returns ExistsTrue, the scan stops with
     true. When the function returns ExistsFalse then the current branch is not
-    scaned anymore. Care is taken to 
+    scanned anymore. Care is taken to 
     apply the function only once on each composite type, thus avoiding 
     circularity. When the function returns ExistsMaybe then the types that 
     construct the current type are scanned (e.g. the base type for TPtr and 
@@ -1435,7 +1441,7 @@ val parseInt: string -> exp
 
 
 (**********************************************)
-(** {b Values for manipulating statments} *)
+(** {b Values for manipulating statements} *)
 
 (** Construct a statement, given its kind. Initialize the [sid] field to -1,
     and [labels], [succs] and [preds] to the empty list *)
@@ -1588,12 +1594,12 @@ class type cilVisitor = object
      * variable use *)
 
   method vexpr: exp -> exp visitAction          
-    (** Invoked on each expression occurence. The subtrees are the 
+    (** Invoked on each expression occurrence. The subtrees are the 
      * subexpressions, the types (for a [Cast] or [SizeOf] expression) or the 
      * variable use. *)
 
   method vlval: lval -> lval visitAction        
-    (** Invoked on each lvalue occurence *)
+    (** Invoked on each lvalue occurrence *)
 
   method voffs: offset -> offset visitAction    
     (** Invoked on each offset occurrence that is *not* as part
@@ -1726,7 +1732,7 @@ val print_CIL_Input: bool ref
  * will print the location. *)
 val currentLoc: location ref
 
-(** CIL has a faily easy to use mechanism for printing error messages. This 
+(** CIL has a fairly easy to use mechanism for printing error messages. This 
  * mechanism is built on top of the pretty-printer mechanism (see 
  * {!Pretty.doc}) and the error-message modules (see {!Errormsg.error}). 
 
@@ -1780,10 +1786,10 @@ class type cilPrinter = object
     (** Invoked on each variable use. *)
 
   method pLval: unit -> lval -> Pretty.doc
-    (** Invoked on each lvalue occurence *)
+    (** Invoked on each lvalue occurrence *)
 
   method pOffset: Pretty.doc -> offset -> Pretty.doc
-    (** Invoked on each offset occurence. The second argument is the base. *)
+    (** Invoked on each offset occurrence. The second argument is the base. *)
 
   method pInstr: unit -> instr -> Pretty.doc
     (** Invoked on each instruction occurrence. *)
@@ -1813,7 +1819,7 @@ class type cilPrinter = object
   method pType: Pretty.doc option -> unit -> typ -> Pretty.doc  
   (* Use of some type in some declaration. The first argument is used to print 
    * the declared element, or is None if we are just printing a type with no 
-   * name being decalred. Note that for structure/union and enumeration types 
+   * name being declared. Note that for structure/union and enumeration types 
    * the definition of the composite type is not visited. Use [vglob] to 
    * visit it.  *)
 
@@ -1822,7 +1828,7 @@ class type cilPrinter = object
       * printed inside the __attribute__ list or not. *)
    
   method pAttrParam: unit -> attrparam -> Pretty.doc 
-    (** Attribute paramter *)
+    (** Attribute parameter *)
    
   method pAttrs: unit -> attributes -> Pretty.doc
     (** Attribute lists *)
@@ -1969,7 +1975,8 @@ val dumpFile: cilPrinter -> out_channel -> file -> unit
 
 
 (* the following error message producing functions also print a location in 
- * the code. use Errormsg.bug and Errormsg.unimp if you do not want that *)
+ * the code. use {!Errormsg.bug} and {!Errormsg.unimp} if you do not want 
+ * that *)
 
 (** Like {!Errormsg.bug} except that {!Cil.currentLoc} is also printed *)
 val bug: ('a,unit,Pretty.doc) format -> 'a

@@ -423,6 +423,11 @@ and exp =
                           * [TArray(T)] produces an expression of type 
                           * [TPtr(T)]. *)
 
+  | StartOfString of string
+    (* Since string literals have array type, we need a conversion operation 
+     * to obtain the address of the start of the string (a char pointer 
+     * type). This operator is not printed. *)
+
 
 (** Literal constants *)
 and constant =
@@ -1597,7 +1602,7 @@ let getParenthLevel = function
                                         (* Unary *)
   | CastE(_,_) -> 30
   | AddrOf(_) -> 30
-  | StartOf(_) -> 30
+  | StartOf(_) | StartOfString _ -> 30
   | UnOp((Neg|BNot|LNot),_,_) -> 30
 
                                         (* Lvals *)
@@ -1761,7 +1766,11 @@ let rec typeOf (e: exp) : typ =
   match e with
   | Const(CInt64 (_, ik, _)) -> TInt(ik, [])
   | Const(CChr _) -> charType
-  | Const(CStr _) -> charPtrType 
+
+    (* The type of a string is an array of character ! *)
+  | Const(CStr s) -> 
+      TArray(charType, Some (integer (1 + String.length s)), [])
+
   | Const(CReal (_, fk, _)) -> TFloat(fk, [])
   | Lval(lv) -> typeOfLval lv
   | SizeOf _ | SizeOfE _ -> !typeOfSizeOf
@@ -1775,6 +1784,7 @@ let rec typeOf (e: exp) : typ =
         TArray (t,_, _) -> TPtr(t, [])
      | _ -> E.s (E.bug "typeOf: StartOf on a non-array")
   end
+  | StartOfString _ -> charPtrType
       
 and typeOfInit (i: init) : typ = 
   match i with 
@@ -1992,6 +2002,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         text "& " ++ (self#pLvalPrec addrOfLevel () lv)
           
     | StartOf(lv) -> self#pLval () lv
+    | StartOfString s -> d_const () (CStr s)
 
   method private pExpPrec (contextprec: int) () (e: exp) = 
     let thisLevel = getParenthLevel e in
@@ -3117,6 +3128,7 @@ class plainCilPrinterClass =
       text "__alignof__(" ++ self#pExp () e ++ chr ')'
 
   | StartOf lv -> dprintf "StartOf(%a)" self#pLval lv
+  | StartOfString s -> dprintf "StartOfString(%s)" s
   | AddrOf (lv) -> dprintf "AddrOf(%a)" self#pLval lv
 
 
@@ -3478,7 +3490,7 @@ and childrenExp (vis: cilVisitor) (e: exp) : exp =
   | StartOf lv -> 
       let lv' = vLval lv in
       if lv' != lv then StartOf lv' else e
-
+  | StartOfString _ -> e
 
 and visitCilInit (vis: cilVisitor) (i: init) : init = 
   doVisit vis vis#vinit childrenInit i
@@ -4137,6 +4149,7 @@ let isArrayType t =
 
 let rec isConstant = function
   | Const _ -> true
+  | StartOfString _ -> true (* !! is this Ok ? *)
   | UnOp (_, e, _) -> isConstant e
   | BinOp (_, e1, e2, _) -> isConstant e1 && isConstant e2
   | Lval (Var vi, NoOffset) -> 
@@ -4161,9 +4174,14 @@ let getCompField (cinfo:compinfo) (fieldName:string) : fieldinfo =
 
 let rec mkCastT ~(e: exp) ~(oldt: typ) ~(newt: typ) = 
   (* Do not remove old casts because they are conversions !!! *)
-  if typeSig oldt = typeSig newt then
-    e
-  else begin
+  if typeSig oldt = typeSig newt then begin
+    (* If the expression being cast is a StartOf or a StartOfString then we 
+     * keep the cast to prevent an enclosing sizeof from thinking that we are 
+     * taking the size of the array *)
+    match e with 
+      StartOf _ | StartOfString _ -> CastE(newt, e)
+    | _ -> e
+  end else begin
     (* Watch out for constants *)
     match newt, e with 
       TInt(newik, []), Const(CInt64(i, _, _)) -> kinteger64 newik i
@@ -4604,7 +4622,13 @@ and constFold (machdep: bool) (e: exp) : exp =
         kinteger IUInt (bs / 8)
       with SizeOfError _ -> e
   end
-  | SizeOfE e when machdep -> constFold machdep (SizeOf (typeOf e))
+  | SizeOfE e when machdep -> begin
+      (* Must intercept the case when e is a string. typeOf in that case 
+       * returns char_ptr and we want the length of the string instead *)
+      match e with 
+        Const(CStr s) -> kinteger IUInt (1 + String.length s)
+      | _ -> constFold machdep (SizeOf (typeOf e))
+  end
 
   | AlignOf t when machdep -> kinteger IUInt (alignOf_int t)
   | AlignOfE e when machdep -> constFold machdep (AlignOf (typeOf e))

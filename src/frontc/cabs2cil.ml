@@ -2483,6 +2483,10 @@ and doExp (isconst: bool)    (* In a constant *)
         mkStartOfAndMark lv, TPtr(tbase, a)
     | (Lval(lv) | CastE(_, Lval lv)), TFun _  -> 
         mkAddrOfAndMark lv, TPtr(t, [])
+      (* String literals are arrays *)
+    | (Const(CStr s)), TArray(chart, _, _) -> 
+        StartOfString s, TPtr(chart, [])
+        
     | _, (TArray _ | TFun _) -> 
         E.s (error "Array or function expression is not lval: %a@!"
                d_plainexp e)
@@ -2534,8 +2538,8 @@ and doExp (isconst: bool)    (* In a constant *)
     match e with
     | A.NOTHING when what = ADrop -> finishExp empty (integer 0) intType
     | A.NOTHING ->
-        finishExp empty
-          (Const(CStr("exp_nothing"))) (TPtr(TInt(IChar,[]),[]))
+        let res = Const(CStr("exp_nothing")) in
+        finishExp empty res (typeOf res)
 
     (* Do the potential lvalues first *)
     | A.VARIABLE n -> begin
@@ -2644,7 +2648,6 @@ and doExp (isconst: bool)    (* In a constant *)
           
           
     | A.CONSTANT ct -> begin
-        let finishCt c t = finishExp empty (Const(c)) t in
         let hasSuffix str = 
           let l = String.length str in
           fun s -> 
@@ -2703,12 +2706,13 @@ and doExp (isconst: bool)    (* In a constant *)
                   s
               with Not_found -> s
             in
-            finishCt (CStr(s')) charPtrType
+            let res = Const(CStr s') in
+            finishExp empty res (typeOf res)
               
         | A.CONST_CHAR s ->
             let char_list = explodeString false s in
-            let a,b = (interpret_character_constant s char_list) in 
-            finishCt a b 
+            let a, b = (interpret_character_constant s char_list) in 
+            finishExp empty (Const a) b 
               
         | A.CONST_FLOAT str -> begin
             (* Maybe it ends in U or UL. Strip those *)
@@ -2725,12 +2729,15 @@ and doExp (isconst: bool)    (* In a constant *)
                 str, FDouble
             in
             try
-              finishCt (CReal(float_of_string baseint, kind,
-                              Some str)) (TFloat(kind,[]))
+              finishExp empty 
+                (Const(CReal(float_of_string baseint, kind,
+                             Some str)))
+                (TFloat(kind,[]))
             with e -> begin
               ignore (E.log "float_of_string %s (%s)\n" str 
                         (Printexc.to_string e));
-              finishCt (CStr("booo CONS_FLOAT")) (TPtr(TInt(IChar,[]),[]))
+              let res = Const(CStr("booo CONS_FLOAT")) in
+              finishExp empty res (typeOf res)
             end
         end
     end          
@@ -2751,6 +2758,8 @@ and doExp (isconst: bool)    (* In a constant *)
           match e' with                 (* If we are taking the sizeof an
                                          * array we must drop the StartOf  *)
             StartOf(lv) -> SizeOfE (Lval(lv))
+
+          | StartOfString s -> SizeOfE (Const(CStr s))
 
                 (* Maybe we are taking the sizeof a variable-sized array *)
           | Lval (Var vi, NoOffset) -> begin
@@ -2777,6 +2786,7 @@ and doExp (isconst: bool)    (* In a constant *)
           match e' with                 (* If we are taking the sizeof an
                                          * array we must drop the StartOf  *)
             StartOf(lv) -> Lval(lv)
+          | StartOfString s -> Const(CStr s)
           | _ -> e'
         in
         finishExp empty (AlignOfE(e'')) uintType
@@ -2817,6 +2827,7 @@ and doExp (isconst: bool)    (* In a constant *)
               let e2, t2 = 
                 match unrollType typ, e' with
                   TArray _, StartOf lv -> Lval lv, typ
+                | TArray _, StartOfString s -> Const(CStr s), typ
                 | _, _ -> e', t'
               in
               se1 @@ se, e2, t2
@@ -2921,6 +2932,9 @@ and doExp (isconst: bool)    (* In a constant *)
             | StartOf (lv) ->
                 let tres = TPtr(typeOfLval lv, []) in (* pointer to array *)
                 finishExp se (mkAddrOfAndMark lv) tres
+
+            | StartOfString s -> 
+                E.s (unimp "Taking the address of a string literal: %s" s)
 
               (* Function names are converted into pointers to the function. 
                * Taking the address-of again does not change things *)
