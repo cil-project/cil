@@ -526,6 +526,13 @@ testrun/% : $(SMALL1)/%.c
 	cd $(SMALL1); ./$*.exe
 	echo SUCCESS
 
+# ww: for a running test that requires the math library ( -lm )
+testrunlm/% : $(SMALL1)/%.c  
+	cd $(SMALL1); $(CCURED) --nomerge  --commPrintLn  \
+	       $(CFLAGS) $(EXEOUT)$*.exe $*.c -lm
+	cd $(SMALL1); ./$*.exe
+	echo SUCCESS
+
 ARCHOS := @ARCHOS@
 OBJDIR := ../obj/$(ARCHOS)
 ifdef NATIVECAML
@@ -672,6 +679,11 @@ btreetest-optimvariant: mustbegcc
                  $(EXEOUT)btreetest.exe
 	cd $(TESTDIR)/small2; sh -c "for i in $(ITERATION_ELEMS) ; \
                                    do time ./btreetest.exe ; done"
+
+# ww: a small program that demonstrates a merging problem
+HYPHENODIR = hypheno
+hypheno: mustbegcc
+	cd $(HYPHENODIR) ; make CC="cilly --merge"
 
 # sm: this is my little test program
 hola: scott/hola

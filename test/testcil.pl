@@ -857,6 +857,12 @@ $TEST->newTest(
     Group => ['vslow'],
     Patterns => \%commonerrors);
 
+#
+# SciMark2 benchmark from NIST, used in a paper submitted to Usenix that
+# compared itself to CCured. 
+#
+$TEST->add2Tests("testrunlm/scimark2", "-lm");
+   $TEST->add2Group("testrunlm/scimark2", "slow");
 
 # -------------- alternate testcase interface ---------------
 # sm: trying to make a regrtest-like interface
