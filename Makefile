@@ -103,6 +103,16 @@ _GNUCC=1
 USE_GC=1
 USER_SCOTT=1
 endif
+ifeq ($(COMPUTERNAME), brooksie_scott) # scott on brooksie
+BASEDIR=/home/smcpeak
+SAFECCDIR=$(BASEDIR)
+PCCDIR=$(SAFECCDIR)/cil/test/PCC
+TVDIR=$(BASEDIR)/TransVal
+CILDIR=$(BASEDIR)/cil
+_GNUCC=1
+USE_GC=1
+USER_SCOTT=1
+endif
 ifeq ($(COMPUTERNAME), fuji) # Rahul's laptop
 BASEDIR=/home/sprahul/research
 SAFECCDIR=$(BASEDIR)
