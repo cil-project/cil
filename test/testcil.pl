@@ -540,11 +540,11 @@ $TEST->add2Tests("apache/gzip");
 
 
 #---------------- some performance tests 
-$TEST->add2Tests("perf/perfglobarray")
-$TEST->add2Tests("perf/perffseq")
-$TEST->add2Tests("perf/perfseq")
-$TEST->add2Tests("perf/perfwild")
-$TEST->add2Tests("perf/perfrtti")
+$TEST->add2Tests("perf/perfglobarray");
+$TEST->add2Tests("perf/perffseq");
+$TEST->add2Tests("perf/perfseq");
+$TEST->add2Tests("perf/perfwild");
+$TEST->add2Tests("perf/perfrtti");
 
 
 
