@@ -209,6 +209,10 @@ sub collectOneArgument {
         $self->{SEPARATE} = 0;
         return 1;
     }
+    if($arg =~ "--ccargs=(.+)\$") {
+        push @{$self->{CCARGS}}, $1;
+        return 1;
+    }
     if($arg eq '--trueobj') {
         $self->{TRUEOBJ} = 1;
         return 1;
@@ -1277,7 +1281,6 @@ sub new {
            "[^/].*\\.i\$" => { TYPE => 'ISOURCE' },
            "[^/\\-@]" => { TYPE => "OSOURCE" },
            "/O" => { TYPE => "CC" },
-           "/G" => { TYPE => "CC" },
            "[/\\-][DI]" => { TYPE => "PREPROC"},
            "/EH" => { TYPE => "CC" },
            "/G"  => { TYPE => "CC" },
