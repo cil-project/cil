@@ -244,6 +244,11 @@ let rec print_specifiers (specs: spec_elem list) =
         | STATIC -> "static "
         | EXTERN -> "extern "
         | REGISTER -> "register ")
+    | SpecCV cv -> 
+        print (match cv with
+        | CV_CONST -> "const "
+        | CV_VOLATILE -> "volatile "
+        | CV_RESTRICT -> "restrict ")
     | SpecAttr al -> print_attribute al; space ()
     | SpecType bt -> print_type_spec bt
     | SpecPattern name -> print ("@specifier(" ^ name ^ ") ")

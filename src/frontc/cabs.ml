@@ -91,14 +91,18 @@ and storage =
 and funspec = 
     INLINE | VIRTUAL | EXPLICIT
 
+and cvspec =
+    CV_CONST | CV_VOLATILE | CV_RESTRICT
+
 (* Type specifier elements. These appear at the start of a declaration *)
 (* Everywhere they appear in this file, they appear as a 'spec_elem list', *)
 (* which is not interpreted by cabs -- rather, this "word soup" is passed *)
 (* on to the compiler.  Thus, we can represent e.g. 'int long float x' even *)
 (* though the compiler will of course choke. *)
 and spec_elem =
-    SpecTypedef
-  | SpecAttr of attribute
+    SpecTypedef          
+  | SpecCV of cvspec            (* const/volatile *)
+  | SpecAttr of attribute       (* __attribute__ *)
   | SpecStorage of storage
   | SpecInline
   | SpecType of typeSpecifier

@@ -1816,8 +1816,15 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
   let isinline = ref false in (* If inline appears *)
   (* The storage is placed here *)
   let storage : storage ref = ref NoStorage in
-  (* Collect the attributes *)
-  let attrs : A.attribute list ref = ref [] in
+
+  (* Collect the attributes.  Unfortunately, we cannot treat GCC
+   * __attributes__ and ANSI C const/volatile the same way, since they
+   * associate with structures differently.  Specifically, ANSI 
+   * qualifiers never apply to structures (ISO 6.7.3), whereas GCC
+   * attributes always do (GCC manual 4.30).  Therefore, they are 
+   * collected and processed separately. *)
+  let attrs : A.attribute list ref = ref [] in      (* __attribute__, etc. *)
+  let cvattrs : A.cvspec list ref = ref [] in       (* const/volatile *)
 
   let doSpecElem (se: A.spec_elem)
                  (acc: A.typeSpecifier list) 
@@ -1839,6 +1846,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
         storage := sto';
         acc
 
+    | A.SpecCV cv -> cvattrs := cv :: !cvattrs; acc
     | A.SpecAttr a -> attrs := a :: !attrs; acc
     | A.SpecType ts -> ts :: acc
     | A.SpecPattern _ -> E.s (E.bug "SpecPattern in cabs2cil input")
@@ -1948,7 +1956,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
     | [A.Tstruct (n, Some nglist, extraAttrs)] -> (* A definition of a struct *)
       let n' =
         if n <> "" then n else anonStructName "struct" suggestedAnonName in
-      (* Use the attributes now *)
+      (* Use the (non-cv) attributes now *)
       let a = extraAttrs @ !attrs in
       attrs := [];
       makeCompType true n' nglist (doAttributes a)
@@ -2056,7 +2064,16 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
     | _ -> 
         E.s (error "Invalid combination of type specifiers")
   in
-  bt,!storage,!isinline,List.rev !attrs
+  bt,!storage,!isinline,List.rev (!attrs @ (convertCVtoAttr !cvattrs))
+                                                           
+(* given some cv attributes, convert them into named attributes for
+ * uniform processing *)
+and convertCVtoAttr (src: A.cvspec list) : A.attribute list =
+  match src with
+  | [] -> []
+  | CV_CONST    :: tl -> ("const",[])    :: (convertCVtoAttr tl)
+  | CV_VOLATILE :: tl -> ("volatile",[]) :: (convertCVtoAttr tl)
+  | CV_RESTRICT :: tl -> ("restrict",[]) :: (convertCVtoAttr tl)
 
 
 and makeVarInfoCabs 

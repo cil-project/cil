@@ -323,6 +323,7 @@ let trd3 (_, _, result) = result
 %type <Cabs.decl_type * Cabs.attribute list> abstract_decl
 %type <attribute list list * cabsloc> pointer pointer_opt /* Each element is a "* <type_quals_opt>" */
 %type <Cabs.cabsloc> location
+%type <Cabs.spec_elem * cabsloc> cvspec
 %%
 
 interpret:
@@ -750,7 +751,8 @@ decl_spec_list:                         /* ISO 6.7 */
 |   type_spec decl_spec_list_opt_no_named { SpecType (fst $1) :: $2, snd $1 }
                                         /* ISO 6.7.4 */
 |   INLINE decl_spec_list_opt           { SpecInline :: $2, $1 }
-|   attribute decl_spec_list_opt        { SpecAttr (fst $1) :: $2, snd $1 }
+|   cvspec decl_spec_list_opt           { (fst $1) :: $2, snd $1 }
+|   attribute_nocv decl_spec_list_opt   { SpecAttr (fst $1) :: $2, snd $1 }
 /* specifier pattern variable (must be last in spec list) */
 |   AT_SPECIFIER LPAREN IDENT RPAREN    { [ SpecPattern(fst $3) ], $1 }
 ;
@@ -1048,9 +1050,16 @@ function_def_start:  /* (* ISO 6.9.1 *) */
                             }
 ;
 
+/* const/volatile as type specifier elements */
+cvspec:
+    CONST                               { SpecCV(CV_CONST), $1 }
+|   VOLATILE                            { SpecCV(CV_VOLATILE), $1 }
+|   RESTRICT                            { SpecCV(CV_RESTRICT), $1 }
+;
+
 /*** GCC attributes ***/
 attributes:
-    /* empty */				{ []}	
+    /* empty */				{ []}
 |   attribute attributes	        { fst $1 :: $2 }
 ;
 
@@ -1063,23 +1072,29 @@ attributes_with_asm:
                                         { ("__asm__", 
 					   [CONSTANT(CONST_STRING (fst $3))]) :: $5 }
 ;
- 
-attribute:
+
+/* things like __attribute__, but no const/volatile */
+attribute_nocv:
     ATTRIBUTE LPAREN paren_attr_list_ne RPAREN	
                                         { ("__attribute__", $3), $1 }
 |   DECLSPEC paren_attr_list_ne         { ("__declspec", $2), $1 }
 |   MSATTR                              { (fst $1, []), snd $1 }
                                         /* ISO 6.7.3 */
+|   THREAD                              { ("__thread",[]), $1 }
+;
+
+/* __attribute__ plus const/volatile */
+attribute:
+    attribute_nocv                      { $1 }
 |   CONST                               { ("const", []), $1 }
 |   RESTRICT                            { ("restrict",[]), $1 }
 |   VOLATILE                            { ("volatile",[]), $1 }
-|   THREAD                              { ("__thread",[]), $1 }
 ;
 
 /* sm: I need something that just includes __attribute__ and nothing more,
  * to support them appearing between the 'struct' keyword and the type name */
 just_attribute:
-    ATTRIBUTE LPAREN paren_attr_list_ne RPAREN	
+    ATTRIBUTE LPAREN paren_attr_list_ne RPAREN
                                         { ("__attribute__", $3) }
 ;
 

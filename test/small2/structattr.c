@@ -4,6 +4,7 @@
 struct A {
   int x;
 } __attribute__((packed));
+struct A a;
 
 struct B {
   int x;
@@ -18,6 +19,7 @@ struct B {
 struct __attribute__((packed)) C {
   int x;
 };
+struct C c;
 
 struct __attribute__((packed)) D {
   int x;
@@ -38,6 +40,8 @@ typedef struct __attribute__((packed, aligned(4))) _INFORMATION {
      WCHAR FileName[1];
 } INFORMATION, *PINFORMATION;
 
+INFORMATION i;
+PINFORMATION pi;
 
 int main()
 {
