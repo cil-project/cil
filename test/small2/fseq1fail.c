@@ -37,7 +37,8 @@ int test_fseq() {
 #endif  
   // Now use the same function to convert the number 0
   // The bug is that we return the pointer {0, 8}
-  int *bad = safeToSeq(0);
+  // Bad cannot be SAFE of else we'll fail the Non-pointer test
+  int * P_KIND bad = safeToSeq(0);
   // We can increment bad and read
   // ERROR(1):Ubound
   // ERROR(2):Ubound
