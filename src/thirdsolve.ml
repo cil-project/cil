@@ -6,6 +6,7 @@ open Cil
 open Ptrnode
 
 let warn = ref false  
+let show_steps = ref false 
 
 (*          
  * In this diagram, X <- Y means that Y can be cast to X. This may involve
@@ -81,14 +82,14 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    * Set all of the little boolean flags correctly. Use whatever
    * method simplesolve uses. This covers everything except reaches_string.
    *)
-  ignore (Pretty.printf "Solver: Step 1\n") ;
+  if !show_steps then ignore (Pretty.printf "Solver: Step 1\n") ;
   Simplesolve.set_flags node_ht ; 
 
   (* Step 2
    * ~~~~~~
    * Mark all of the interface character pointers as strings. 
    *)
-  ignore (Pretty.printf "Solver: Step 2\n") ;
+  if !show_steps then ignore (Pretty.printf "Solver: Step 2\n") ;
   Hashtbl.iter (fun id n -> 
     if n.interface && is_char_pointer n then begin
       (* the user had something to say here *)
@@ -106,24 +107,6 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     end
   ) node_ht ;
 
-  (* Step 3
-   * ~~~~~~
-   * Mark all of the nodes that can reach a string.
-   *)
-  ignore (Pretty.printf "Solver: Step 3\n") ;
-  let rec mark_string a = 
-    if not (a.can_reach_string) then begin
-        a.can_reach_string <- true ;
-        List.iter (fun e -> 
-          if (e.ekind = ECast || e.ekind = ENull || e.ekind = EIndex) then
-              mark_string e.efrom
-          ) a.pred
-    end
-  in 
-  Hashtbl.iter (fun id n ->
-    if n.kind = String || n.kind = ROString then mark_string n
-  ) node_ht ;
-
   (* Step 4
    * ~~~~~~
    * Add ECompat edges for later use. If we see
@@ -132,7 +115,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    *  x = y; Then we add a compat edge between 1 and 3. They must both
    *  either be safe, wild or index. 
    *)
-  ignore (Pretty.printf "Solver: Step 4\n") ;
+  if !show_steps then ignore (Pretty.printf "Solver: Step 4\n") ;
   (* consider every node in the graph! *)
   Hashtbl.iter (fun id cur -> 
     (* consider all of the successor edges *)
@@ -144,11 +127,29 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     ) (ecast_edges_only cur.succ);
   ) node_ht ;
 
+  (* Step 3
+   * ~~~~~~
+   * Mark all of the nodes that can reach a string.
+   *)
+  if !show_steps then ignore (Pretty.printf "Solver: Step 3\n") ;
+  let rec mark_string a = 
+    if not (a.can_reach_string) then begin
+        a.can_reach_string <- true ;
+        List.iter (fun e -> 
+          if (e.ekind = ECast || e.ekind = ENull || e.ekind = EIndex || e.ekind = ECompat) then
+              mark_string e.efrom
+          ) a.pred
+    end
+  in 
+  Hashtbl.iter (fun id n ->
+    if n.kind = String || n.kind = ROString then mark_string n
+  ) node_ht ;
+
   (* Step 5
    * ~~~~~~
    * Turn all bad casts into Wild Pointers. 
    *)
-  ignore (Pretty.printf "Solver: Step 5\n") ;
+  if !show_steps then ignore (Pretty.printf "Solver: Step 5\n") ;
   Hashtbl.iter (fun id cur ->
     let make_wild n e =
       if n.kind = ROString then begin
@@ -196,7 +197,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    * ~~~~~~
    * Spread wild pointers.
    *)
-  ignore (Pretty.printf "Solver: Step 6\n") ;
+  if !show_steps then ignore (Pretty.printf "Solver: Step 6\n") ;
   let finished = ref false in 
   let update n k w = begin
     if (k <> n.kind) then begin
@@ -248,7 +249,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     ) node_ht 
   done ;
 
-  ignore (Pretty.printf "Solver: Check 1\n") ;
+  if !show_steps then ignore (Pretty.printf "Solver: Check 1\n") ;
   (* Consistency check: edges work correctly ... *)
   Hashtbl.iter (fun id cur ->
     (* All of my successors should have a predecessor edge
@@ -283,7 +284,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
 
   ) node_ht;
 
-  ignore (Pretty.printf "Solver: Check 2\n") ;
+  if !show_steps then ignore (Pretty.printf "Solver: Check 2\n") ;
   (* Consistency check: wild nodes should form strongly connected
    * components *)
   Hashtbl.iter (fun id cur -> 
@@ -311,7 +312,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    * ~~~~~~
    * Set can_reach_seq and can_reach_index. 
    *)
-  ignore (Pretty.printf "Solver: Step 7\n") ;
+  if !show_steps then ignore (Pretty.printf "Solver: Step 7\n") ;
   let rec mark_seq a = 
     if not (a.can_reach_seq) then begin
         a.can_reach_seq <- true ;
@@ -369,7 +370,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    * ~~~~~~
    * Attempt to make FSEQ[N] nodes. 
    *)
-  ignore (Pretty.printf "Solver: Step 8\n") ;
+  if !show_steps then ignore (Pretty.printf "Solver: Step 8\n") ;
   finished := false ; 
   while not !finished do 
     finished := true ; 
@@ -399,9 +400,9 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
           assert(not(cur.can_reach_index)) ;
           assert(not(cur.kind = Wild)) ;
           assert(cur.why_kind <> UserSpec) ; 
-          if cur.can_reach_string || e.eto.kind = FSeqN then begin
+          if (e.eto.kind = FSeqN) then assert(cur.can_reach_string) ; 
+          if cur.can_reach_string then begin
             (update cur FSeqN (SpreadFromEdge e.eto)) ;
-            cur.can_reach_string <- true 
           end else begin
             (update cur FSeq (SpreadFromEdge e.eto))
           end
@@ -455,7 +456,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    * ~~~~~~
    * Attempt to make SEQ[N] nodes. 
    *)
-  ignore (Pretty.printf "Solver: Step 9\n") ;
+  if !show_steps then ignore (Pretty.printf "Solver: Step 9\n") ;
   finished := false ; 
   while not !finished do 
     finished := true ; 
@@ -569,7 +570,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    * ~~~~~~~
    * Chance certain FSeqNs to ROStrings.
    *)
-  ignore (Pretty.printf "Solver: Step 10\n") ;
+  if !show_steps then ignore (Pretty.printf "Solver: Step 10\n") ;
   finished := false ; 
   while not !finished do 
     finished := true ; 
@@ -590,7 +591,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    * ~~~~~~~
    * Note all index nodes.
    *)
-  ignore (Pretty.printf "Solver: Step 11\n") ;
+  if !show_steps then ignore (Pretty.printf "Solver: Step 11\n") ;
   finished := false ; 
   while not !finished do 
     finished := true ; 
@@ -653,7 +654,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    * ~~~~~~~
    * All other nodes are safe. 
    *)
-  ignore (Pretty.printf "Solver: Step 12\n") ;
+  if !show_steps then ignore (Pretty.printf "Solver: Step 12\n") ;
   Hashtbl.iter (fun id n -> 
     if n.kind = Unknown then begin
       assert(n.why_kind <> UserSpec) ;
