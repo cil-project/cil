@@ -2468,6 +2468,24 @@ code returns 2.
  return ((int []){1,2,3,4})[1];
 \end{cilcode}
 
+\item In the example below there is one copy of ``bar'' and two copies of
+  ``pbar'' (static prototypes at block scope have file scope, while for all
+  other types they have block scope).  
+int foo() {
+   static bar();
+   static (*pbar)() = bar;
+   
+}
+
+static bar() { 
+  return 1;
+}
+
+static (*pbar)() = NULL;
+\begin{cilcode}
+
+\end{cilcode}
+
 \end{enumerate}
 
  \subsection{GCC ugliness}\label{sec-ugly-gcc}
@@ -2671,6 +2689,9 @@ Necula}.
  
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf March 5, 2004}: Fixed a bug in the handling of static function
+  prototypes in a block scope. They used to be renamed. Now we just consider
+  them global. 
 \item {\bf February 20, 2004}: {\bf Released version 1.2.4}
 \item {\bf February 15, 2004}: Changed the parser to allow extra semicolons
   after field declarations.

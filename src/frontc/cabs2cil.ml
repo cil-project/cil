@@ -4554,7 +4554,15 @@ and createLocal ((_, sto, _, _) as specs)
     | _ -> false
   in
   match ndt with 
-    _ when sto = Static -> 
+    (* Maybe we have a function prototype in local scope. Make it global. We 
+     * do this even if the storage is Static *)
+  | _ when isProto ndt -> 
+      let vi = createGlobal specs init_name in 
+      (* Add it to the environment to shadow previous decls *)
+      addLocalToEnv n (EnvVar vi);
+      empty
+    
+  | _ when sto = Static -> 
       if debugGlobal then 
         ignore (E.log "createGlobal (local static): %s\n" n);
 
@@ -4599,13 +4607,6 @@ and createLocal ((_, sto, _, _) as specs)
       addLocalToEnv n (EnvVar vi);
       empty
 
-  (* Maybe we have a function prototype in local scope. Make it global *)
-  | _ when isProto ndt -> 
-      let vi = createGlobal specs init_name in 
-      (* Add it to the environment to shadow previous decls *)
-      addLocalToEnv n (EnvVar vi);
-      empty
-    
   | _ -> 
       (* Make a variable of potentially variable size. If se0 <> empty then 
        * it is a variable size variable *)
