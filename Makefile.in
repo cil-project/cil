@@ -215,8 +215,8 @@ TESTCILARG=       --testcil "bash gcctestcil"
 endif
 
 .PHONY: testcil
-testcil: $(EXECUTABLE)$(EXE)	
-	       cd test; ../$(EXECUTABLE)$(EXE) $(TESTCILARG)
+testcil: $(OBJDIR)/cilly$(EXE)
+	       cd test; ../$(OBJDIR)/cilly$(EXE) $(TESTCILARG)
 
 .PHONY: odoc texdoc pdfdoc
 

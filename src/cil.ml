@@ -4597,7 +4597,7 @@ and bitsSizeOf t =
   | TNamed (t, _) -> bitsSizeOf t.ttype
   | TComp (comp, _) when comp.cfields = [] -> begin
       (* Empty structs are allowed in msvc mode *)
-      if not comp.cdefined || !msvcMode then
+      if not comp.cdefined && not !msvcMode then
         raise (SizeOfError t) (*abstract type*)
       else
         0
