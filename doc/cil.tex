@@ -189,13 +189,16 @@ another machine.)
 
  CIL also depends on how the compiler implements the variable argument
 functions. Most notably, {\bf Note: CIL does not work with gcc version 2.96
-because of the way in which it implements varargs.}. We have tested CIL on the
-following compilers:
+because of the way in which it implements varargs.}. You should not use
+version 2.96 because \ahref{http://gcc.gnu.org/gcc-2.96.html}{it was not a
+formal gcc release}, just a (buggy) developement version. You should upgrade
+your gcc to version 3.2 or to 2.95.3 (which actually appears to be much faster
+than 3.2). We have tested CIL on the following compilers:
 
 \begin{itemize}
 \item On Windows, \t{cl} compiler version 12.00.8168 and 13.00.9466. 
 Run \t{cl} with no arguments to get the compiler version. 
-\item On Windows, using \t{cygwin} and \t{gcc} version 2.95.3 and 3.0.4.
+\item On Windows, using \t{cygwin} and \t{gcc} version 2.95.3, 3.0 and 3.2.
 \item On Linux, using \t{gcc} version 2.95.3, 3.0 and 3.2.
 \end{itemize}
 
