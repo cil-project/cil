@@ -142,7 +142,7 @@ let rec theMain () =
     "-o", Arg.String outFile, "the name of the output CIL file";
 
     "-keep", Arg.Unit (fun _ -> keepFiles := true), "Keep intermediate files";
-    "-MSVC", Arg.Unit (fun _ -> C.msvcMode := true;
+    "--MSVC", Arg.Unit (fun _ -> C.msvcMode := true;
                                 F.setMSVCMode ()),
              "Produce MSVC output. Default is GNU";
     (* sm: the next two lines appeared twice?! *)

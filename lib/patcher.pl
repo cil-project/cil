@@ -113,7 +113,7 @@ foreach $file (@{$option{ufile}}) {
 }
 foreach $file (@{$option{sfile}}) {
     &patchOneFile($file, 1);
-}
+} 
 
 ############# SUBROUTINES 
 sub findCompilerVersion {
