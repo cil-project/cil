@@ -755,6 +755,25 @@ $TEST->newTest(
     Patterns => \%commonerrors);
 
 
+#
+# openssl
+#
+$TEST->newTest(
+    Name => "openssl-cil",
+    Dir => ".",
+    Cmd => "make openssl-test-withclean " . $TEST->testCommandExtras(""),
+    Enabled => 1,
+    Group => ['vslow'],
+    Patterns => \%commonerrors);
+$TEST->newTest(
+    Name => "openssl-cil",
+    Dir => ".",
+    Cmd => "make openssl-test-withclean " . $TEST->testCommandExtras("INFERBOX=infer"),
+    Enabled => 1,
+    Group => ['vslow'],
+    Patterns => \%commonerrors);
+
+
 # -------------- scott's testcases --------------
 # sm: trying to make a regrtest-like interface
 # 'args' should include things like "INFERBOX=infer" to specify operating mode

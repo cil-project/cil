@@ -2007,33 +2007,12 @@ endif
 
 
 
-# matth: use the big-examples sendmail instead of this
-ifdef 0
-SENDMAILSRC := /usr/local/src/sendmail-8.12.1/obj.Linux.2.4.5.i686/sendmail
+######################## OpenSSL
+
+openssl-test-withclean:
+	$(MAKE) -C $(BIG_EXAMPLES_DIR) openssl-test-withclean
 
 
-sendmailclean:
-	cd $(SENDMAILSRC); make clean
-	-cd $(SENDMAILSRC); find . \( \
-		-name '*cil.c' -o \
-		-name '*.exe' -o \
-		-name '*.i' -o \
-		-name '*.o' -o \
-		-name '*.obj' -o \
-		-name '*cabs.c' -o \
-		-name '*_comb*.c' \
-	      	\) -exec rm -f {} \;
-
-sendmail: mustbegcc mustbelinux mustbemanju sendmailclean
-	cd $(SENDMAILSRC) ; make CC="$(CCURED)"
-
-sendmail-noclean: mustbegcc mustbelinux mustbemanju
-	cd $(SENDMAILSRC) ; make CC="$(CCURED)"
-
-sendmail-gcc: mustbelinux mustbemanju linuxclean
-	cd $(SENDMAILSRC) ; make CC=gcc
-
-endif # 0
 #### ------------- EMACS ---------------------------
 
 # source available at ftp.gnu.org/gnu/emacs
