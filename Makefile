@@ -1695,20 +1695,6 @@ linux-gcc: mustbelinux mustbemanju linuxclean
 ######################## SENDMAIL
 SENDMAILSRC := /usr/local/src/sendmail-8.12.1/obj.Linux.2.4.5.i686/sendmail
 
-CILLY := perl $(CCUREDHOME)/lib/cilly.pl --verbose
-ifdef NOLINES
-  CILLY+= --noPrintln
-endif
-ifdef COMMLINES
-  CILLY+= --commPrintLn
-endif
-ifdef VERBOSE
-  CILLY+= --verbose
-endif
-ifdef PRINTSTAGES
-  CILLY+= --stages
-endif
-
 sendmailclean:
 	cd $(SENDMAILSRC); make clean
 	-cd $(SENDMAILSRC); find . \( \

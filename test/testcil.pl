@@ -113,6 +113,8 @@ $TEST->add3Tests("testrun/apachefptr");
 $TEST->add2Tests("testrun/asm1", "_GNUCC=1");
     $TEST->addBadComment("testrun/asm1-inferbox", 
                          "Unimplemented inline assmebly");
+$TEST->addTests("testrun/asm2", "_GNUCC=1", ['cil']);
+
 $TEST->add3Tests("testrun/offsetof");
 $TEST->addTests("testrun/question", "", ['cil']);
 $TEST->add3Tests("test/argcast");

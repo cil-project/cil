@@ -93,7 +93,11 @@
 #pragma warning(disable: 4068) // Unrecognized pragma
 #endif
 
-
+#ifdef _GNUCC
+extern void *__builtin_memset (void *__s, int __c, unsigned int __n);
+extern int __builtin_memcmp (__const void *__s1,
+                             __const void *__s2, unsigned int __n);
+#endif
 
 // Now specify some special pragmas
 #ifdef CCURED
@@ -175,7 +179,7 @@
   #pragma boxmodelof("strtok_model", "strtok")
 
   #pragma boxpoly("memcpy")
-  #pragma boxpoly("memset")
+  #pragma boxpoly("memset", "__builtin_memset")
   #pragma boxpoly("memmove")
   #pragma boxpoly("memcmp")
   #pragma boxpoly("write")
@@ -193,7 +197,7 @@
     void *end = __endof(dest); // Make sure it has an end
     return dest;
   }
-  #pragma boxmodelof("memset_seq_model", "memset")
+  #pragma boxmodelof("memset_seq_model", "memset", "__builtin_memset")
   #pragma cilnoremove("memset_seq_model")
 
 
@@ -206,7 +210,8 @@
     dest = src; // Make sure they are both have the same type
     return dest;
   }
-  #pragma boxmodelof("memcpy_seq_model", "memcpy", "memmove", "__builtin_memcpy")
+  #pragma boxmodelof("memcpy_seq_model", "memcpy", "memmove",
+                     "__builtin_memcpy")
   #pragma cilnoremove("memcpy_seq_model")
 
 

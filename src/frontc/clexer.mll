@@ -404,20 +404,20 @@ and pragma = parse
 |   _                   { let cur = Lexing.lexeme lexbuf in 
                           cur ^ (pragma lexbuf) }  
 
-and str =
-	parse	'"'             {""} (* '"' *)
-|	hex_escape		{let cur = scan_hex_escape (String.sub
+and str = parse	
+        '"'             {""} (* '"' *)
+|	hex_escape	{let cur = scan_hex_escape (String.sub
 					 (Lexing.lexeme lexbuf) 2 2) in 
                                         cur ^ (str lexbuf)}
-|	oct_escape		{let cur = scan_oct_escape (String.sub
+|	oct_escape	{let cur = scan_oct_escape (String.sub
 					(Lexing.lexeme lexbuf) 1 3) in 
                                          cur ^ (str lexbuf)}
-|	"\\0"			{(String.make 1 (Char.chr 0)) ^ 
+|	"\\0"		{(String.make 1 (Char.chr 0)) ^ 
                                          (str lexbuf)}
-|	escape			{let cur = scan_escape (String.sub
+|	escape		{let cur = scan_escape (String.sub
 					  (Lexing.lexeme lexbuf) 1 1) in 
                                             cur ^ (str lexbuf)}
-|	_			 {let cur = Lexing.lexeme lexbuf in 
+|	_		 {let cur = Lexing.lexeme lexbuf in 
                                          cur ^  (str lexbuf)} 
 
 and chr =  parse
