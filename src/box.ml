@@ -70,7 +70,7 @@ let rec newTypeName prefix t =
     n
  (* Make a type name, for use in type defs *)
 and baseTypeName = function
-    TForward (_, _, self, _)  -> baseTypeName !self
+    TForward (comp, _)  -> baseTypeName (TComp comp)
   | TNamed (n, _, _) -> n
   | TVoid(_) -> "void"
   | TInt(IInt,_) -> "int"
@@ -90,10 +90,10 @@ and baseTypeName = function
   | TEnum (n, _, _) -> 
       if String.sub n 0 1 = "@" then "enum"
       else "enum_" ^ n
-  | TComp (iss, n, _, _, _) -> 
-      let su = if iss then "struct" else "union" in
-      if String.sub n 0 1 = "@" then su
-      else su ^ "_" ^ n
+  | TComp comp -> 
+      let su = if comp.cstruct then "struct" else "union" in
+      if String.sub comp.cname 0 1 = "@" then su
+      else su ^ "_" ^ comp.cname
   | TFun _ -> "fun"
   | _ -> "type"
 
@@ -149,8 +149,10 @@ and fixit t =
           let fixed' = fixupType t' in
           let tname  = newTypeName "fatp_" fixed' in (* The name *)
           let fixed = 
-            mkCompType true tname 
-              [ ("_p", TPtr(fixed', a)); ("_b", voidPtrType)] []
+            TComp 
+              (mkCompInfo true tname 
+                 (fun _ _ -> [ ("_p", TPtr(fixed', a)); ("_b", voidPtrType)]) 
+                 [])
           in
           let tres = TNamed(tname, fixed, []) in
           H.add fixedTypes (typeSig fixed) fixed; (* We add fixed ourselves. 
@@ -161,16 +163,15 @@ and fixit t =
           tres
       end
             
-      | TForward _ ->  t              (* Don't follow TForward *)
+      | TForward _ ->  t              (* Don't follow TForward, since these 
+                                       * fill be taken care of when the 
+                                       * definition is encountered  *)
       | TNamed (n, t', a) -> TNamed (n, fixupType t', a)
           
-      | TComp (iss, n, flds, self, a) -> 
-          fixRecursiveType 
-            (TComp(iss, n, 
-                   List.map 
-                     (fun fi -> 
-                       {fi with ftype = fixupType fi.ftype}) flds,
-                   self, a)) 
+      | TComp comp -> 
+          (* Change the fields in place *)
+          List.iter (fun fi -> fi.ftype <- fixupType fi.ftype) comp.cfields;
+          t
             
       | TArray(t', l, a) -> TArray(fixupType t', l, a)
             
@@ -199,19 +200,30 @@ let currentFunction : fundec ref  = ref dummyFunDec
     (* Test if a type is FAT *)
 let isFatType t = 
   match unrollType t with
-    TComp(true, _, [p;b],_,_) when p.fname = "_p" && b.fname = "_b" -> true
+    TComp comp when comp.cstruct -> begin
+      match comp.cfields with 
+        [p;b] when p.fname = "_p" && b.fname = "_b" -> true
+      | _ -> false
+    end
   | _ -> false
 
 let getPtrFieldOfFat t : fieldinfo = 
   match unrollType t with
-    TComp(true, _, [p;b],_, _) when p.fname = "_p" && b.fname = "_b" -> p
+    TComp comp when comp.cstruct -> begin
+      match comp.cfields with 
+        [p;b] when p.fname = "_p" && b.fname = "_b" -> p
+      | _ -> E.s (E.bug "getPtrFieldOfFat %a\n" d_type t)
+    end
   | _ -> E.s (E.bug "getPtrFieldOfFat %a\n" d_type t)
 
 let getBaseFieldOfFat t : fieldinfo  = 
   match unrollType t with
-    TComp(true, _, [p;b], _, _) when p.fname = "_p" && b.fname = "_b" -> b
+    TComp comp when comp.cstruct -> begin
+      match comp.cfields with 
+        [p;b] when p.fname = "_p" && b.fname = "_b" -> b
+      | _ -> E.s (E.bug "getBaseFieldOfFat %a\n" d_type t)
+    end
   | _ -> E.s (E.bug "getBaseFieldOfFat %a\n" d_type t)
-
 
 let rec readPtrBaseField (e: exp) et =     
   if isFatType et then

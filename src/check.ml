@@ -85,6 +85,7 @@ let endEnv () =
   loop !varNamesList
     
 
+    
 (* The current function being checked *)
 let currentReturnType : typ ref = ref voidType
 
@@ -106,6 +107,18 @@ type ctxType =
                                          * in a cast *)
   | CTSizeof                            (* In a sizeof *)
   | CTDecl                              (* In a typedef, or a declaration *)
+
+
+let compInfoNameEnv : (string, unit) H.t = H.create 17
+let compInfoIdEnv : (int, compinfo) H.t = H.create 117
+
+(* Keep track of all TForward that we have see *)
+let compForwards : (int, compinfo) H.t = H.create 117
+(* Keep track of all definitions that we have seen *)
+let compDefined : (int, unit) H.t = H.create 117
+
+ 
+    
 
   (* Check a type *)
 let rec checkType (t: typ) (ctx: ctxType) = 
@@ -140,45 +153,14 @@ let rec checkType (t: typ) (ctx: ctxType) =
 
   | TForward (comp, a) -> 
       checkAttributes a;
-      (match !tr with 
-        TComp (iss', n', _, _, tr') as t' ->
-          if not  
-              (tr == tr' && (* They must share the self cell *)
-               iss' = iss &&
-               n = n') then
-            E.s (E.bug "Invalid TForward(%s)" n);
-          checkType t' ctx
+      checkCompInfo comp;
+      (* Mark it as a forward *)
+      H.add compForwards comp.ckey comp
 
-      | _ -> E.s (E.bug "TForward does not point to TComp but to %a"
-                    d_plaintype !tr))
-
-  | TComp(iss, n, fields, a, tr) -> begin
-      (* Make sure the self pointer is set properly *)
-      ignore (!tr == t || E.s (E.bug "Self pointer not set in %s" n));
-      (* Name cannot be empty *)
-      ignore (n <> "" || E.s (E.bug "TComp with empty name"));
-      try
-        let t' = H.find (if iss then structTags else unionTags) n in
-        (* If we have seen one with the same name then it must be the same 
-         * exact one. This check also avoids looping.  *)
-        if t != t' then 
-          E.s (E.bug "Redefinition of struct/union tag %s" n)
-      with Not_found -> begin
-        (* Add it to the map, before we check the fields *)
-        H.add (if iss then structTags else unionTags) n t;
-        let fctx = if iss then CTStruct else CTUnion in
-        let rec checkField f =
-          if not 
-              (f.fcomp == tr &&  (* Each field must share the self cell of 
-                                  * the host *)
-               f.fname <> "") then
-            E.s (E.bug "Self pointer not set in field %s of %s" f.fname n);
-          checkType f.ftype fctx;
-          checkAttributes f.fattr
-        in
-        List.iter checkField fields
-      end
-  end
+  | TComp comp -> 
+      checkCompInfo comp;
+      (* Mark it as a definition *)
+      H.add compDefined comp.ckey ()
 
   | TEnum (n, tags, a) -> begin
       checkAttributes a;
@@ -249,6 +231,40 @@ and typeMatch (t1: typ) (t2: typ) =
   if typeSig t1 <> typeSig t2 then
     E.s (E.bug "Type mismatch:@!    %a@!and %a@!" d_type t1 d_type t2)
 
+and checkCompInfo comp = 
+  (* Check if we have seen it already *)
+  let fullname = compFullName comp in
+  try
+    let oldci = H.find compInfoIdEnv comp.ckey in
+    if oldci != comp then
+      E.s (E.bug "Compinfo for %s is not shared" fullname)
+  with Not_found -> begin
+    (* Check that the name is not empty *)
+    if comp.cname = "" then 
+      E.s (E.bug "Compinfo with empty name");
+    (* Check that the name is unique *)
+    if H.mem compInfoNameEnv fullname then
+      E.s (E.bug "Duplicate name %s" fullname);
+    (* Check that the ckey is correct *)
+    if comp.ckey <> H.hash fullname then
+      E.s (E.bug "Invalid ckey for compinfo %s" fullname);
+    (* Add it to the map before we go on *)
+    H.add compInfoNameEnv fullname ();
+    H.add compInfoIdEnv comp.ckey comp;
+    let fctx = if comp.cstruct then CTStruct else CTUnion in
+    let rec checkField f =
+      if not 
+          (f.fcomp == comp &&  (* Each field must share the self cell of 
+                                * the host *)
+           f.fname <> "") then
+        E.s (E.bug "Self pointer not set in field %s of %s" f.fname fullname);
+      checkType f.ftype fctx;
+      checkAttributes f.fattr
+    in
+    List.iter checkField comp.cfields
+  end
+    
+
 and checkLval (isconst: bool) (lv: lval) : typ = 
   match lv with
     Var vi, off -> 
@@ -270,13 +286,13 @@ and checkOffset basetyp = function
       checkExpType false ei intType; checkOffset basetyp o
   | Field (fi, o) -> 
       (* Make sure we have seen the type of the host *)
-      (match !(fi.fcomp) with
-        TComp(iss, n, fields, _, tr) as t -> 
-          checkType t CTStruct; (* Check the type *)
-          (* Check that this exact field is part of the host *)
-          if not (List.exists (fun f -> f == fi) fields) then
-            E.s (E.bug "Field %s not part of %s" fi.fname n)
-      | _ -> E.s (E.bug "Field %s is not part of TComp" fi.fname));
+      if not (H.mem compInfoIdEnv fi.fcomp.ckey) then
+        E.s (E.bug "The host of field %s is not defined" fi.fname);
+      (* Now check that the host is shared propertly *)
+      checkCompInfo fi.fcomp;
+      (* Check that this exact field is part of the host *)
+      if not (List.exists (fun f -> f == fi) fi.fcomp.cfields) then
+        E.s (E.bug "Field %s not part of %s" fi.fname (compFullName fi.fcomp));
       checkOffset fi.ftype o
 
   | First o -> begin
@@ -596,6 +612,11 @@ let rec checkGlobal = function
 
 let checkFile fl = 
   List.iter (fun g -> try checkGlobal g with _ -> ()) fl;
+  (* Check that for all TForward there is a definition *)
+  H.iter 
+    (fun k comp -> if not (H.mem compDefined k) then 
+      E.s (E.bug "Compinfo %s is not defined" (compFullName comp))) 
+    compForwards;
   (* Clean the hashes to let the GC do its job *)
   H.clear typeDefs;
   H.clear structTags;
@@ -603,6 +624,10 @@ let checkFile fl =
   H.clear enumTags;
   H.clear varNamesEnv;
   H.clear varIdsEnv;
+  H.clear compInfoNameEnv;
+  H.clear compInfoIdEnv;
+  H.clear compForwards;
+  H.clear compDefined;
   varNamesList := [];
   true
   

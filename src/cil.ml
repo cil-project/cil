@@ -106,18 +106,19 @@ and fieldinfo = {
 
 
 (* Information about a composite type (a struct or a union). Use mkCompInfo 
- * and mkRecCompInfo to create non-recursive or (potentially) recursive 
- * versions of this  *)
+ * to create non-recursive or (potentially) recursive versions of this  *)
 and compinfo = {
     cstruct: bool;                      (* true if struct *)
     mutable cname: string;              (* the name. Always non-empty. If it 
                                          * starts with @ then it is not 
                                          * printed. Use compSetName to set 
-                                         * the name and the key *)
+                                         * the name and the key. Use 
+                                         * compFullName to get the full name 
+                                         * of a comp *)
     mutable ckey: int;                  (* A unique integer. Use Hashtbl.hash 
-                                         * on the string "struct name" or 
-                                         * "union name". All compinfo for a 
-                                         * given key are shared. *)
+                                         * on the string returned by 
+                                         * compFullName. All compinfo for a 
+                                         * given key are shared.  *)
     mutable cfields: fieldinfo list;
     mutable cattr:   attribute list;    (* The attributes that are defined at 
                                          * the same time as the composite 
@@ -509,13 +510,18 @@ and dropAttribute al a =
   List.filter (fun a' -> not (amatch a a')) al
 
 
+(* Get the full name of a comp *)
+let compFullName comp = 
+  (if comp.cstruct then "struct " else "union ") ^ comp.cname
+
 (* Set the name of a composite type. Also changes the key *)
-let compSetName commp n = 
-  commp.cname <- n;
-  commp.ckey <- H.hash ((if commp.cstruct then "struct " else "union ") ^ n)
+let compSetName comp n = 
+  comp.cname <- n;
+  comp.ckey <- H.hash (compFullName comp)
+
  
 (** Creates a a (potentially recursive) composite type **)
-let rec mkRecCompInfo
+let mkCompInfo
                (isstruct: bool) 
                (n: string)   (* empty for anonymous structures *)
                (* fspec is a function that when given the name of the 
@@ -541,11 +547,6 @@ let rec mkRecCompInfo
                                    fattr = [] }) (mkfspec n tforward) in
    comp
 
-(* A simpler version for the non-recursive case *)
-and mkCompInfo isstruct n fspec attr = 
-   mkRecCompInfo isstruct n (fun _ _ -> fspec) attr
-
- 
                                    
 let var vi : lval = (Var vi, NoOffset)
 let mkSet lv e = Instr(Set(lv,e,lu))
