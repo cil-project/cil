@@ -791,9 +791,10 @@ let checkNewHomeFun =
 
 let checkFindHomeFun =
   let fdec = emptyFunction "CHECK_FINDHOME" in
+  let argk  = makeLocalVar fdec "kind" intType in
   let argp  = makeLocalVar fdec "p" voidPtrType in
   fdec.svar.vtype <- 
-     TFun(voidPtrType, [ argp ], false, []);
+     TFun(voidPtrType, [ argk; argp ], false, []);
   checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
   fdec.svar.vstorage <- Static;
   fdec
@@ -1075,17 +1076,18 @@ let pkAddrOf (lv: lval)
   let ptrtype = mkPointerTypeKind lvt lvk in
   match lvk with
     N.Safe -> mkFexp1 ptrtype (mkAddrOf lv), []
-  | (N.Index | N.Wild | N.FSeq | N.FSeqN | N.Seq | N.SeqN) -> 
+  | (N.Index | N.Wild | N.FSeq | N.FSeqN | N.Seq | N.SeqN ) -> 
       mkFexp3 ptrtype (AddrOf(lv)) fb fe, []
   | _ -> E.s (E.bug "pkAddrOf(%a)" N.d_opointerkind lvk)
          
          
 (* Given an array type return the element type, pointer kind, base and bend *)
-let arrayPointerToIndex (t: typ) (k: N.opointerkind) 
+let arrayPointerToIndex (t: typ) 
+                        (k: N.opointerkind) 
                         (lv: lval) 
                         (base: exp) = 
   match unrollType t with
-    TArray(elemt, _, a) when k = N.Wild -> 
+    TArray(elemt, _, a) when k = N.Wild || k = N.WildT -> 
       (elemt, N.Wild, base, zero)
 
   | TArray(elemt, _, a) when (filterAttributes "sized" a <> []) -> 
@@ -1441,16 +1443,10 @@ let indexToROString (p: exp) (b: exp) (bend: exp) (acc: stmt list)
   call None (Lval (var checkStringMax.svar))
     [ castVoidStar p; b ] :: acc
 
-
-(* from table *)
-let fromTable (fe: fexp) : stmt list * fexp =
-  let oldt, oldk, p, b, bend = breakFexp fe in
-  let bt = 
-    match unrollType oldt with
-      TPtr(bt, _) -> bt
-    | _ -> voidType
-  in
-  let newt newkind = mkPointerTypeKind bt newkind in
+let fromTable (oldk: N.opointerkind) 
+              (p: exp) 
+  (* Returns a base, and an end *) 
+  : exp * exp * stmt list =
   let fetchHomeEnd (p: exp) : varinfo * varinfo * stmt = 
     let tmpb = makeTempVar !currentFunction voidPtrType in
     let tmpe = makeTempVar !currentFunction voidPtrType in
@@ -1458,21 +1454,42 @@ let fromTable (fe: fexp) : stmt list * fexp =
     call (Some (tmpb, false)) (Lval (var checkFindHomeEndFun.svar))
       [ castVoidStar p; mkAddrOf (var tmpe) ]
   in
-  let fetchHome (p: exp) : varinfo * stmt = 
+  let fetchHome (kind: int) (p: exp) : varinfo * stmt = 
     let tmpb = makeTempVar !currentFunction voidPtrType in
     tmpb,
     call (Some (tmpb, false)) (Lval (var checkFindHomeFun.svar))
-      [ castVoidStar p ]
+      [ integer kind; castVoidStar p ]
   in
   match oldk with
     N.WildT -> 
-      let b, s = fetchHome p in
-      [s], mkFexp3 (newt N.Wild) p (Lval(var b)) zero
-  | N.SeqT -> 
+      let b, s = fetchHome registerAreaTaggedInt p in
+      (Lval(var b)), zero, [ s ]
+  | N.IndexT ->
+      let b, s = fetchHome registerAreaSizedInt p in
+      (Lval(var b)), zero, [ s ]
+
+  | N.SeqT | N.SeqNT | N.FSeqT | N.FSeqNT -> 
       let b, e, s = fetchHomeEnd p in
-      [s], mkFexp3 (newt N.Seq) p (Lval(var b)) (Lval(var e))
-  | N.FSeqT | N.FSeqNT | N.SeqNT | N.IndexT -> E.s (E.unimp "fromTable")
-  | _ -> [], fe
+      (Lval(var b)), (Lval(var e)), [ s ]
+  | _ -> E.s (E.bug "Called fromTable on a non-table")
+
+           
+
+(* from table *)
+let fromTableFexp (fe: fexp) : stmt list * fexp =
+  let oldt, oldk, p, b, bend = breakFexp fe in
+  let newk = N.stripT oldk in
+  if newk = oldk then
+    [], fe
+  else
+    let bt = 
+      match unrollType oldt with
+        TPtr(bt, _) -> bt
+      | _ -> voidType
+    in
+    let newt = mkPointerTypeKind bt newk in
+    let b, e, s = fromTable oldk p in
+    s, mkFexp3 newt p b e
       
 
 let checkWild (p: exp) (basetyp: typ) (b: exp) (blen: exp) : stmt = 
@@ -1485,7 +1502,7 @@ let checkWild (p: exp) (basetyp: typ) (b: exp) (blen: exp) : stmt =
   (* Check index when we switch from Index to Safe *)
 let beforeField ((btype, pkind, mklval, base, bend, stmts) as input) = 
   match pkind with
-    N.Wild -> input (* No change if we are in a tagged area *)
+    N.Wild | N.WildT -> input (* No change if we are in a tagged area *)
   | N.Safe -> input (* No change if already safe *)
   | N.Index -> 
       let _, _, _, docheck = 
@@ -1663,63 +1680,71 @@ let pkArithmetic (ep: exp)
         
 
 
-let checkBounds (iswrite: bool) 
+let rec checkBounds 
+                (iswrite: bool) 
                 (mktmplen: unit -> exp)
                 (base: exp)
                 (bend: exp)
                 (lv: lval)
                 (lvt: typ) 
                 (pkind: N.opointerkind) : stmt list = 
-  let lv', lv't = getHostIfBitfield lv lvt in
+  (* See if a table pointer *)
+  let newk = N.stripT pkind in 
+  if newk <> pkind then (* A table pointer *)
+    let base, bend, stmts = fromTable pkind (mkAddrOf lv) in
+    stmts @ (checkBounds iswrite mktmplen base bend lv lvt newk)
+  else begin
+    let lv', lv't = getHostIfBitfield lv lvt in
     (* Do not check the bounds when we access variables without array 
      * indexing  *)
-  match pkind with
-  | N.Wild -> (* We'll need to read the length anyway since we need it for 
-                 * working with the tags *)
-      let docheck = 
-        checkWild (AddrOf(lv')) lv't base (mktmplen ()) in
-      [docheck]
-        
-  | N.Index -> 
-      let _, _, _, docheck = 
-        indexToSafe (AddrOf(lv')) (TPtr(lv't, [])) base bend [] in
-      List.rev docheck
-
-  | (N.FSeq|N.FSeqN) ->
-      let base' = 
-        if pkind = N.FSeqN && not iswrite then 
+    match pkind with
+    | N.Wild -> (* We'll need to read the length anyway since we need it for 
+                   * working with the tags *)
+        let docheck = 
+          checkWild (AddrOf(lv')) lv't base (mktmplen ()) in
+        [docheck]
+          
+    | N.Index -> 
+        let _, _, _, docheck = 
+          indexToSafe (AddrOf(lv')) (TPtr(lv't, [])) base bend [] in
+        List.rev docheck
+          
+    | (N.FSeq|N.FSeqN) ->
+        let base' = 
+          if pkind = N.FSeqN && not iswrite then 
           (* Allow reading of the trailing 0 *)
-          castVoidStar (BinOp(PlusPI, 
-                              doCast base charPtrType, one, charPtrType))
-        else
-          base
-      in
-      let _, _, _, docheck = 
-        fseqToSafe (AddrOf(lv')) (TPtr(lv't, [])) base' bend [] in
-      List.rev docheck
-
-  | (N.Seq|N.SeqN) ->
-      let bend' = 
-        if pkind = N.SeqN && not iswrite then 
+            castVoidStar (BinOp(PlusPI, 
+                                doCast base charPtrType, one, charPtrType))
+          else
+            base
+        in
+        let _, _, _, docheck = 
+          fseqToSafe (AddrOf(lv')) (TPtr(lv't, [])) base' bend [] in
+        List.rev docheck
+          
+    | (N.Seq|N.SeqN) ->
+        let bend' = 
+          if pkind = N.SeqN && not iswrite then 
           (* Allow reading of the trailing 0 *)
-          castVoidStar (BinOp(PlusPI, 
-                              doCast bend charPtrType, one, charPtrType))
-        else
-          bend
-      in
-      let _, _, _, docheck = 
-        seqToSafe (AddrOf(lv')) (TPtr(lv't, [])) base bend' [] in
-      List.rev docheck
-        
-  | N.Safe | N.String | N.ROString -> begin
-      match lv' with
-        Mem addr, _ -> 
-          [call None (Lval (var checkNullFun.svar)) [ castVoidStar addr ]]
-      | _, _ -> []
+            castVoidStar (BinOp(PlusPI, 
+                                doCast bend charPtrType, one, charPtrType))
+          else
+            bend
+        in
+        let _, _, _, docheck = 
+          seqToSafe (AddrOf(lv')) (TPtr(lv't, [])) base bend' [] in
+        List.rev docheck
+          
+    | N.Safe | N.String | N.ROString -> begin
+        match lv' with
+          Mem addr, _ -> 
+            [call None (Lval (var checkNullFun.svar)) [ castVoidStar addr ]]
+        | _, _ -> []
+    end
+
+    | _ -> E.s (E.bug "Unexpected pointer kind in checkBounds(%a)"
+                  N.d_opointerkind pkind)
   end
-
-  | _ -> E.s (E.bug "Unexpected pointer kind in checkBounds(%a)"
-                N.d_opointerkind pkind)
 
 
 
@@ -1751,7 +1776,7 @@ let rec castTo (fe: fexp) (newt: typ)
             pfield.ftype 
       in
       (* Conver the tables to normal *)
-      let doe1, fe = fromTable fe in
+      let doe1, fe = fromTableFexp fe in
       let doe = doe @ doe1 in
       (* Cast the pointer expression to the new pointer type *)
       let castP (p: exp) = doCast p newPointerType in

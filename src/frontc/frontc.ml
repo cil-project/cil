@@ -43,6 +43,7 @@ let parse_to_cabs fname =
     flush !E.logChannel;
     let file = open_in fname in
     Clexer.init (false, file, "", "", 0, 0, stderr, fname);
+    E.hadErrors := false;
     let cabs = 
       Stats.time "parse"
         (Cparser.file Clexer.initial)
@@ -57,6 +58,8 @@ let parse_to_cabs fname =
         close_output ();
       end
     | None -> ());
+    if !E.hadErrors then
+      raise Parsing.Parse_error;
     cabs
   with (Sys_error msg) -> begin
     ignore (E.log "Cannot open %s : %s\n" fname msg);

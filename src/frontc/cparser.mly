@@ -46,6 +46,7 @@ open Cabs
 let version = "Cparser V3.0b 10.9.99 Hugues Cassé"
 
 let parse_error msg : 'a =
+  Errormsg.hadErrors := true;
   Clexer.display_error 
     ("Syntax error (" ^ msg ^")") 
     (Parsing.symbol_start ()) (Parsing.symbol_end ())

@@ -15,6 +15,8 @@ module E = Errormsg
 let defaultIsWild  = ref false
 
 
+let leanInterface = ref false
+
 (* If allPoly is true then all un-defined functions are treated 
  * polymorphically *)
 let allPoly = ref false
@@ -437,7 +439,7 @@ let k2attr = function
   | FSeqNT -> AId("fseqnt")
   | String -> AId("string")
   | ROString -> AId("rostring") 
-  | _ -> E.s (E.unimp "k2attr")
+  | k -> E.s (E.unimp "k2attr:%a" d_opointerkind k)
 
 let pk2attr (pk: pkind) : attribute = 
   k2attr (pk2okind pk)
@@ -499,7 +501,20 @@ let replacePtrNodeAttrList where al =
                   ignore (E.warn "Found node %d with kind Unkown\n" n);
                   ""
                 end else 
-                  match k2attr nd.kind with
+                  let knd = 
+                    if !leanInterface && nd.interface then 
+                      match nd.kind with
+                        Wild -> WildT
+                      | FSeq -> FSeqT
+                      | FSeqN -> FSeqNT
+                      | Seq -> SeqT
+                      | SeqN -> SeqNT
+                      | Index -> IndexT
+                      | k -> k
+                    else
+                      nd.kind
+                  in
+                  match k2attr knd with
                     AId s -> s
                   | _ -> E.s (E.bug "replacePtrNodeAttrList")
               in
