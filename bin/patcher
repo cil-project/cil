@@ -256,17 +256,20 @@ sub patchOneFile {
     close(TOPREPROC);
     # Do not test for error while running the preprocessor because the 
     # error might be due to an #error directive
+    my $preproccmd = "";
     if($option{mode} eq "GNUCC") {
-	my $preproccmd = "$::cc -E $ppargs $preprocfile.c >$preprocfile.i";
+	$preproccmd = "$::cc -E $ppargs $preprocfile.c >$preprocfile.i";
 	if ($^O eq 'MSWin32') {   # Windows has no /dev/null
-	    system($preproccmd);
 	} else {                  # ignore stderr (e.g. #error directives)
-	    system($preproccmd . " 2>/dev/null");
+	    $preproccmd .= " 2>/dev/null";
 	}
     } elsif($option{mode} eq "MSVC") {
-        (!system("cl /nologo /P $ppargs $preprocfile.c"))
-            || die "Cannot run the CL preprocessor";
+        $preproccmd = "cl /nologo /P $ppargs $preprocfile.c";
     } else { die "Invalid --mode"; }
+
+    if(system($preproccmd)) {
+        die "Error running preprocessor: $preproccmd"
+    }
     
     # Now scan the resulting file and get the real name of the file
     my $absname = "";
