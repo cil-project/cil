@@ -88,7 +88,7 @@ ifeq ($(ARCHOS), x86_WIN32)
   endif
 endif
 ifeq ($(ARCHOS), x86_LINUX)
-  EXE           = $(EXEEXT)
+  EXE           = $(EXEEXT).exe # weimer: your other scripts need this
   OBJ           = o
   ifdef CAMLUSEUNIX
     UNIXLIBS	+= unix.$(CMXA) -cclib -lunix

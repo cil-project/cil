@@ -504,7 +504,7 @@ and dropAttribute al a =
     | AStr s, AStr s' when s = s' -> true
     | AVar vi, AVar vi' when vi.vid = vi'.vid -> true
     | ACons (s, args), ACons(s', args') when
-        s = s' && (List.for_all2 amatch args args') -> true
+        s = s' (* && (List.for_all2 amatch args args') *) -> true
     | _ -> false
   in
   List.filter (fun a' -> not (amatch a a')) al
@@ -782,7 +782,7 @@ let rec d_decl (docName: unit -> doc) () this =
         dprintf "%s%s %s %t" su1 su2 n' docName
   | TForward (comp, a) -> 
       let su = if comp.cstruct then "struct" else "union" in
-      dprintf "%s %s %a%t" su comp.cname d_attrlistpre a docName
+				dprintf "%s %s %a%t" su comp.cname d_attrlistpre a docName
 
   | TEnum (n, kinds, a) -> 
       let n' = 
@@ -815,7 +815,7 @@ let rec d_decl (docName: unit -> doc) () this =
       d_decl (fun _ -> parenth t
           (dprintf "%t[%a]%a" 
              docName
-             insert (match lo with None -> nil 
+             insert (match lo with None -> nil
              | Some e -> d_exp () e)
              d_attrlistpost a))
         ()
@@ -944,10 +944,9 @@ and d_attrlist pre al = (* Whether it comes before or after stuff *)
       [] -> begin
         match remaining with
           [] -> nil
-        | _ -> 
-            dprintf "__attribute__((%a)) "
+        | _ -> dprintf "__attribute__((%a)) "
               (docList (chr ',' ++ break) 
-                 (fun a -> dprintf "%a" d_attr a)) al
+                 (fun a -> dprintf "%a" d_attr a)) al 
       end
     | (AId("const")) :: rest -> 
         dprintf "const %a" insert (loop remaining rest)
@@ -1105,7 +1104,8 @@ and d_fun_decl () f =
   | _ -> E.s (E.bug "Type of %s is not a function\n" f.svar.vname));
   dprintf "%s%a%a %a@!{ @[%a@!%a@]@!}" 
     (if isinline then 
-      if !msvcMode then "__inline " else "inline " else "")
+      if !msvcMode then "__inline " else "inline " 
+     else "")
     d_storage f.svar.vstorage
     (* the prototype *)
     (d_decl (fun _ -> dprintf "%a%s" d_attrlistpre pre' f.svar.vname)) 
@@ -1725,6 +1725,7 @@ and bitsSizeOf = function
   | TNamed (_, t, _) -> bitsSizeOf t
   | TForward (comp, _) -> bitsSizeOf (TComp comp)
   | TPtr _ -> 32
+  | TComp comp when comp.cfields = [] -> raise Not_found (* abstract type *)
   | TComp comp when comp.cstruct -> (* Struct *)
         (* Go and get the last offset *)
       let startAcc = 

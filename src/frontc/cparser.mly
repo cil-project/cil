@@ -249,7 +249,7 @@ let typeOfSingleName (_, _, (_, bt, _, _)) = bt
 
 let isTypeAttr (n, _) = 
   match n with 
-    "const" | "volatile" | "cdecl" | "stdcall" -> true
+    "const" | "volatile" | "cdecl" | "stdcall" | "restrict" -> true
   | _ -> false
 
 let makeNameGroup (spec: specifier) (nl : name list) : name_group = 
@@ -308,7 +308,7 @@ let doFunctionDef (spec: specifier) (n: name)
 %token CHAR INT DOUBLE FLOAT VOID INT64
 %token ENUM STRUCT TYPEDEF UNION
 %token SIGNED UNSIGNED LONG SHORT
-%token VOLATILE EXTERN STATIC CONST AUTO REGISTER
+%token VOLATILE EXTERN STATIC CONST RESTRICT AUTO REGISTER
 
 %token SIZEOF
 
@@ -331,7 +331,9 @@ let doFunctionDef (spec: specifier) (n: name)
 %token WHILE DO FOR
 %token IF ELSE
 
-%token ATTRIBUTE INLINE ASM TYPEOF FUNCTION__
+%token ATTRIBUTE INLINE ASM TYPEOF FUNCTION__ 
+/* weimer: gcc "__extension__" keyword */
+%token EXTENSION
 %token STDCALL CDECL
 %token <string> MSASM
 %token <string> PRAGMA
@@ -353,7 +355,7 @@ let doFunctionDef (spec: specifier) (n: name)
 %left	INF SUP INF_EQ SUP_EQ
 %left	INF_INF SUP_SUP
 %left	PLUS MINUS
-%left	STAR SLASH PERCENT CONST VOLATILE
+%left	STAR SLASH PERCENT CONST RESTRICT VOLATILE
 %right	EXCLAM TILDE PLUS_PLUS MINUS_MINUS CAST RPAREN ADDROF
 %left 	LBRACKET
 %left	DOT ARROW LPAREN LBRACE SIZEOF
@@ -770,7 +772,7 @@ declaration:                                /* ISO 6.7. GCC attributes apply
     decl_spec_list init_declarator_list gcc_attributes SEMICOLON 
                                        { doDeclaration 
                                            (applyAttributes $3 $1) $2 }
-|   decl_spec_list                      SEMICOLON { doDeclaration $1 [] }
+|   decl_spec_list SEMICOLON { doDeclaration $1 [] }
 ;
 init_declarator_list:                       /* ISO 6.7 */
     init_declarator                              { [$1] }
@@ -785,6 +787,8 @@ init_declarator:                             /* ISO 6.7 */
 decl_spec_list:                         /* ISO 6.7 */
                                         /* ISO 6.7.1 */
 |   TYPEDEF decl_spec_list_opt          { applyTypedef $2 }
+/* weimer: gcc allows "__extension__ typedef unsigned long yada ..." */
+|   EXTENSION TYPEDEF decl_spec_list_opt          { applyTypedef $3 }
 |   EXTERN decl_spec_list_opt           { applyStorage (EXTERN false) $2 }
 |   STATIC  decl_spec_list_opt          { applyStorage (STATIC false) $2 }
 |   AUTO   decl_spec_list_opt           { applyStorage AUTO $2 }
@@ -793,6 +797,7 @@ decl_spec_list:                         /* ISO 6.7 */
 |   type_spec decl_spec_list_opt_no_named { applyTypeSpec $1 $2 }
                                         /* ISO 6.7.3 */
 |   CONST decl_spec_list_opt            { applyAttribute ("const",[]) $2 }
+|   RESTRICT decl_spec_list_opt         { (* applyAttribute ("restrict",[]) $2 *) $2 }
 |   VOLATILE decl_spec_list_opt         { applyAttribute ("volatile",[]) $2 }
                                         /* ISO 6.7.4 */
 |   INLINE decl_spec_list_opt           { applyInline $2 }

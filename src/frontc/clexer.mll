@@ -85,6 +85,10 @@ let init_lexicon _ =
                 ("__typeof__", TYPEOF);
                 ("__volatile__", VOLATILE);
                 ("__FUNCTION__", FUNCTION__);
+		(*** weimer: GCC arcana ***)
+		("__restrict", RESTRICT); ("restrict", RESTRICT);
+		(* ("__extension__", EXTENSION); *)
+		("__inline", INLINE);
                 (**** MS VC ***)
                 ("__int64", INT64);
                 ("_cdecl",  CDECL); ("__cdecl", CDECL);
@@ -253,6 +257,9 @@ rule initial =
 	parse 	"/*"			{let _ = comment lexbuf in 
                                          initial lexbuf}
 |		blank			{initial lexbuf}
+|		"__extension__"		{initial lexbuf}
+|		"__attribute__ ((__const__))" { initial lexbuf}
+|		"__attribute__ ((const))" { initial lexbuf}
 |		'#'			{line lexbuf}
 	
 |		'\''			{ CST_CHAR (chr lexbuf)}

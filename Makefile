@@ -1,5 +1,6 @@
 # Debugging. Set ECHO= to debug this Makefile 
-ECHO = @
+ECHO = 
+RELEASE = 1
 
 # USECCGR = 1
 USEFRONTC = 1
@@ -48,19 +49,29 @@ include Makefile.ocaml
 ifeq ($(COMPUTERNAME), RAW)   # George's workstation
 BASEDIR=C:/Necula
 TVDIR=$(BASEDIR)/Source/TransVal
+CILDIR=$(SAFECCDIR)/cil
+SAFECCDIR=$(BASEDIR)/SafeC
+PCCDIR=$(SAFECCDIR)/cil/test/PCC
 endif
 ifeq ($(COMPUTERNAME), FETA) # George's home machine
 BASEDIR=C:/Necula
 TVDIR=$(BASEDIR)/Source/TransVal
-endif
+CILDIR=$(SAFECCDIR)/cil
 SAFECCDIR=$(BASEDIR)/SafeC
 PCCDIR=$(SAFECCDIR)/cil/test/PCC
+endif
+ifeq ($(COMPUTERNAME), tenshi) # Wes's laptop
+BASEDIR=/home/weimer/cvs/
+SAFECCDIR=$(BASEDIR)/safeC
+PCCDIR=$(BASEDIR)/PCC
+TVDIR=$(BASEDIR)/TransVal
+CILDIR=$(BASEDIR)/cil
+_GNUCC=1
+endif
 
-
-
-#####################3
-.PHONY : safec
-safec : $(EXECUTABLE)$(EXE)
+######################
+.PHONY : spec
+spec : $(EXECUTABLE)$(EXE)
 
 .PHONE: trval
 trval: $(TVDIR)/obj/transval.asm.exe
@@ -113,7 +124,8 @@ CCL=DEBUGCCL
 endif
 CC=$(CCL) $(CONLY)
 
-SAFECC=perl $(SAFECCDIR)/cil/lib/safecc.pl
+
+SAFECC=perl $(CILDIR)/lib/safecc.pl
 ifndef NOCABS
 SAFECC+= --cabs
 endif
@@ -175,13 +187,12 @@ testpcc/% : $(PCCDIR)/src/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
                   $(PCCDIR)/src/$*.c \
                   $(OBJOUT)$(notdir $*).o
 
-
 testallpcc: $(EXECUTABLE)$(EXE) $(TVEXE) $(SAFECLIB) $(SAFEMAINLIB) 
 	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.o
 	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.exe
 	make -C $(PCCDIR) \
-             CC="$(SAFECC) --keep=$(SAFECCDIR)/cil/test/PCCout $(CONLY)" \
-             USE_JAVA= USE_JUMPTABLE= TYPE=$(PCCTYPE) \
+             CC="$(SAFECC) --keep=$(CILDIR)/test/PCC $(CONLY)" \
+             USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
              COMPILER=$(PCCCOMP) \
              ENGINE_OTHERS="C:$(SAFECLIB) C:$(SAFEMAINLIB)" \
              TRANSLF_OTHERS="C:$(SAFECLIB) C:$(SAFEMAINLIB)" \
@@ -199,22 +210,45 @@ test/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
 	cd $(SMALL1); $(SAFECC) $*.c $(CONLY) $(DOOPT) $(ASMONLY)$*.s
 
 SMALL2=test/small2
-hashtest: test/small2/hashtest.c $(EXECUTABLE)$(EXE) \
-                    $(SAFECLIB) $(SAFEMAINLIB) $(TVEXE)
-	rm -f $(SMALL2)/hashtest.exe
-	cd $(SMALL2); $(SAFECC) --keep=. $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) \
+
+hashtest: test/small2/hashtest.c $(EXECUTABLE)$(EXE) $(TVEXE)
+	rm -f $(PCCTEST)/hashtest.exe
+	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) \
                  $(DOOPT) \
-                 hash.c hashtest.c \
+                 $(INC)$(PCCDIR)/src \
+                 ../small2/hash.c \
+                 ../small2/hashtest.c \
                  $(EXEOUT)hashtest.exe
-	$(SMALL2)/hashtest.exe
+	$(PCCTEST)/hashtest.exe
 
 rbtest: test/small2/rbtest.c $(EXECUTABLE)$(EXE) $(TVEXE)
-	rm -f $(SMALL2)/rbtest.exe
-	cd $(SMALL2); $(SAFECC) --keep=. $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) \
+	rm -f $(PCCTEST)/rbtest.exe
+	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) \
                  $(DOOPT) \
-                 redblack.c rbtest.c \
+                 $(INC)$(PCCDIR)/src \
+                 ../small2/redblack.c \
+                 ../small2/rbtest.c \
                  $(EXEOUT)rbtest.exe
-	$(SMALL2)/rbtest.exe
+	$(PCCTEST)/rbtest.exe
+
+wes-rbtest: test/small2/wes-rbtest.c $(EXECUTABLE)$(EXE) $(TVEXE)
+	rm -f $(PCCTEST)/wes-rbtest.exe
+	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) \
+                 $(DOOPT) \
+                 $(INC)$(PCCDIR)/src \
+                 ../small2/wes-rbtest.c \
+                 $(EXEOUT)wes-rbtest.exe
+	$(PCCTEST)/wes-rbtest.exe
+
+wes-hashtest: test/small2/wes-hashtest.c $(EXECUTABLE)$(EXE) $(TVEXE)
+	rm -f $(PCCTEST)/wes-hashtest.exe
+	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) \
+                 $(DOOPT) \
+                 $(INC)$(PCCDIR)/src \
+                 ../small2/wes-hashtest.c \
+                 $(EXEOUT)wes-hashtest.exe
+	$(PCCTEST)/wes-hashtest.exe
+
 
 ### Generic test
 testfile/% : $(EXECUTABLE)$(EXE) %  $(TVEXE)

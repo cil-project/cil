@@ -188,8 +188,8 @@ let rec fixupType t =
       match fixit t with
         TFun (rt, args', isva, a) -> 
           TFun(rt,
-               List.map2 (fun a a' -> {a' with vname = a.vname}) args args',
-               isva, a)
+               List.map2 (fun a a' -> {a' with vname = a.vname;}) args args',
+               isva, dropAttribute a (ACons("__format__",[])))
       | _ -> E.s (E.bug "fixupType")
   end
   | _ -> fixit t
@@ -434,11 +434,18 @@ let tagType (t: typ) : typ =
                ])
              [])
       with Not_found -> begin (* An incomplete type *)
+	(* GCC does not like fields to have incomplete types *)
+	let complt = 
+	  match unrollType t with
+	    TArray(bt, None, a) -> TArray(bt, Some zero, a)
+	  | TComp ci when ci.cfields = [] -> TArray(charType, Some zero, [])
+	  | _ -> E.s (E.unimp "Don't know how to tag incomplete type %a" d_type t)
+	in
         TComp 
           (mkCompInfo true ""
              (fun _ -> 
                [ ("_len", uintType, []);
-                 ("_data", t, []); ]) [])
+                 ("_data", complt, []); ]) [])
       end
     in
     let tname = newTypeName "_tagged_" t in
@@ -1334,8 +1341,11 @@ let boxFile globals =
     if debug then
       ignore (E.log "Boxing GVar(%s)\n" vi.vname); 
         (* Leave alone some functions *)
-    if not (List.exists (fun s -> s = vi.vname) leaveAlone) then
+    if not (List.exists (fun s -> s = vi.vname) leaveAlone) then begin
+      (* REmove the format attribute from functions that we do not leave alone *)
       vi.vtype <- fixupType vi.vtype;
+      vi.vattr <- dropAttribute vi.vattr (ACons("__format__", []));
+    end;
           (* If the type has changed and this is a global variable then we
            * also change its name *)
     fixupGlobName vi;

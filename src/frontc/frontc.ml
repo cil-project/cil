@@ -61,7 +61,7 @@ let parse fname =
     raise (ParseError("Cannot open " ^ fname ^ ": " ^ msg ^ "\n"))
   end
   | Parsing.Parse_error -> begin
-      ignore (E.log "Parsing error");
+      ignore (E.log "Parsing error\n");
       close_output ();
       raise (ParseError("Parse error"))
   end

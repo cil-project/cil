@@ -162,7 +162,8 @@ let newTempVar typ =
     "const" variable *)
   let stripConst t =
     let a = typeAttrs t in
-    setTypeAttrs t (dropAttribute a (AId("const")))
+    setTypeAttrs t (dropAttribute (dropAttribute a (AId("const")))
+																									 (AId("restrict")))
   in
   alphaConvertAndAddToEnv 
     { vname = "tmp";  (* addNewVar will make the name fresh *)
@@ -667,6 +668,7 @@ and makeCompType (iss: bool)
       (* Drop volatile from struct *)
   let a = dropAttribute a (AId("volatile")) in
   let a = dropAttribute a (AId("const")) in
+  let a = dropAttribute a (AId("restrict")) in
   comp.cattr <- a;
   let res = TComp comp in
       (* There must be a self cell create for this already *)
@@ -1836,6 +1838,8 @@ let makeGlobalVarinfo (vi: varinfo) =
         oldvi.vstorage <- vi.vstorage 
       else E.s (E.unimp "Unexpected redefinition")
     in
+    (* Union the attributes *)
+    oldvi.vattr <- addAttributes oldvi.vattr vi.vattr;
     (* Maybe we had an incomplete type before and it is complete now  *)
     let _ = 
       let oldts = typeSig oldvi.vtype in
