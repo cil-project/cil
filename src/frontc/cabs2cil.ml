@@ -162,7 +162,8 @@ let newTempVar typ =
     "const" variable *)
   let stripConst t =
     let a = typeAttrs t in
-    setTypeAttrs t (dropAttribute (dropAttribute a (AId("const")))
+    setTypeAttrs t 
+		  (dropAttribute (dropAttribute a (AId("const")))
 																									 (AId("restrict")))
   in
   alphaConvertAndAddToEnv 
@@ -475,7 +476,11 @@ and doAttr : A.attribute -> attribute = function
       ACons (s, List.map attrOfExp el)
 
 and doAttrList (al: A.attribute list) : attribute list = 
-  List.fold_left (fun acc a -> addAttribute (doAttr a) acc) [] al
+  dropAttribute
+  (List.fold_left (fun acc a -> addAttribute (doAttr a) acc) [] al)
+	(* weimer: I need to drop this attribute before it gets anywhere *)
+	(ACons("__mode__",[]))
+
 
 and doStorage = function
     A.NO_STORAGE -> NoStorage
