@@ -93,36 +93,10 @@ remote login.
  everytime you run cvs. 
 
  If you want to be able to use \t{ssh} without typing a password everytime
-here is what you can do. There are two cases based on the version of the SSH
-protocol that your \t{ssh} uses. {\bf Note that the version of \t{ssh} that
-comes with cygwin uses protocol 2.}
+here is what you can do. These instructions are for the case when you use one
+of the newer versions of SSH that support the protocol 2. 
 
-\begin{itemize}
-\item For SSH protocol 1
-  \begin{itemize}
-  \item If you have an RSA private key that is already authorized on 
-        the server, copy it to \t{\home{}/.ssh/identity} and you 
-        should be done.
-  \item Otherwise
-     \begin{enumerate}
-       \item Run \t{ssh-keygen} to create a private key. 
-        Choose a passphrase and
-        remember it. If you do not have a passphrase then anybody who gets
-        access to your machine will also be able to log in to the server.
-       \item Copy the public key to the server (say \cvshost.cs.berkeley.edu)
-             \begin{verbatim}
-             cd ~
-             scp .ssh/identity.pub \cvshost:~/.ssh/newpublicid
-             ssh \cvshost
-             cd .ssh
-             cat newpublicid >> authorized_keys
-             \end{verbatim}
-    \end{enumerate}
-  \end{itemize}
- 
-\item For SSH protocol 2
-
-  \begin{itemize}
+\begin{enumerate}
   \item If you have a DSA private key that is already authorized on 
         the server, copy it to \t{\home{}/.ssh/id\_dsa} and you 
         should be done.
@@ -137,13 +111,13 @@ comes with cygwin uses protocol 2.}
           authorized\_keys}.  
              \begin{verbatim}
              cd ~
-             scp .ssh/id_dsa.pub \cvshost:~/.ssh/newpublicid
-             ssh \cvshost
+             scp .ssh/id_dsa.pub manju:~/.ssh/newpublicid
+             ssh manju
              cd .ssh
              cat newpublicid >> authorized_keys2
              \end{verbatim}
      \end{enumerate}
-  \end{itemize}
+\end{enumerate}
 
 
 \item If you want you can even start an agent to do the authentication for
@@ -151,7 +125,7 @@ you. The steps are different for Linux or Windows:
    \begin{itemize}
      \item On Linux or on Windows if you work from within \t{bash} you can run
         \begin{verbatim} 
-           source `ssh-agent`
+           eval `ssh-agent`
            ssh-add
         \end{verbatim}
 
