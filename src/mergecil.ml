@@ -1075,12 +1075,18 @@ class renameInlineVisitorClass = object (self)
     end
 
   (* And rename some declarations of inlines to remove. We cannot drop this 
-   * declaration (see small1/combineinline6 ) *)
+   * declaration (see small1/combineinline6) *)
   method vglob = function
       GVarDecl(vi, l) when vi.vinline -> begin
-        match findReplacement true vEq !currentFidx vi.vname with 
+        (* Get the original name *)
+        let origname = 
+          try H.find originalVarNames vi.vname 
+          with Not_found -> vi.vname
+        in
+        (* Now see if this must be replaced *)
+        match findReplacement true vEq !currentFidx origname with 
           None -> DoChildren
-        | Some (vi', _) -> ChangeTo [GVarDecl (vi', l)] (* Drop it *)
+        | Some (vi', _) -> ChangeTo [GVarDecl (vi', l)]
       end
     | _ -> DoChildren
 
