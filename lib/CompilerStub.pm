@@ -806,7 +806,7 @@ use strict;
 
 use File::Basename;
 
-my $gcc = "@CC@";
+my $gcc = "C:/Programs/cygwin/bin/gcc";
 
 sub new {
     my ($proto, $stub) = @_;

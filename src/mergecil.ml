@@ -90,6 +90,16 @@ let findRepresentative
   with Not_found -> 
     E.s (bug "Cannot find node for %s in file %d\n" name fidx)
 
+(* Dump a graph *)
+let dumpGraph (what: string) (eq: (int * string, 'a node) H.t) : unit = 
+  ignore (E.log "Equivalence graph for %s is:\n" what);
+  H.iter (fun (fidx, name) nd -> 
+    ignore (E.log "  %s(%d) -> " name fidx);
+    if nd == nd.nrep then 
+      ignore (E.log "*\n")
+    else
+      ignore (E.log " %s(%d)\n" nd.nrep.nname nd.nrep.nfidx ))
+    eq
 
 (* Make a node if one does not already exists *)
 let getNode    (eq: (int * string, 'a node) H.t)
@@ -481,7 +491,7 @@ let renameVisitor = new renameVisitorClass
 
 let rec oneFilePass1 (f:file) : unit = 
   if debugMerge || !E.verboseFlag then 
-    ignore (E.log "Per-merging %s\n" f.fileName);
+    ignore (E.log "Per-merging (%d) %s\n" !currentFidx f.fileName);
 
   if f.globinitcalled || f.globinit <> None then
     E.s (E.warn "Merging file %s has global initializer" f.fileName);
@@ -551,6 +561,9 @@ let rec oneFilePass1 (f:file) : unit =
    * representative types or variables *)
 
 let oneFilePass2 (f: file) = 
+  if debugMerge then 
+    ignore (E.log "Final merging phase (%d): %s\n" 
+              !currentFidx f.fileName);
   let processOneGlobal (g: global) : unit = 
       (* Process a varinfo. Reuse an old one, or rename it if necessary and 
        * return an indication if this is a new one  *)
