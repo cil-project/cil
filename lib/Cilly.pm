@@ -664,7 +664,7 @@ sub assemble {
 sub straight_link {
     my ($self, $psrcs, $dest, $ppargs, $ccargs, $ldargs) = @_;
     my @sources = ref($psrcs) ? @{$psrcs} : ($psrcs);
-    my @dest = $dest eq "" ? () : ($self->{OUTEXE}, $dest);
+    my @dest = $dest eq "" ? () : ("$self->{OUTEXE}$dest");
     # Pass the linkargs last because some libraries must be passed after
     # the sources
     my @cmd = (@{$self->{LD}}, @dest,
@@ -1328,7 +1328,7 @@ sub compileOutputFile {
 	    return new KeptFile($src, $self->{OBJEXT}, '.');
 	}
     } else {
-        die "compileOutputfile: operation is not TOOBJ";
+#        die "compileOutputfile: operation is not TOOBJ";
 	return $self->outputFile($src, $self->{OBJEXT});
     }
 }
@@ -1585,9 +1585,9 @@ sub new {
       OBJEXT => "o",
       LIBEXT => "a",
       EXEEXT => "",
-      OUTOBJ => '-o',
-      OUTEXE => '-o',
-      OUTCPP => '-o',
+      OUTOBJ => '-o ',
+      OUTEXE => '-o ',
+      OUTCPP => '-o ',
       FORCECSOURCE => [],
       LINEPATTERN => "^#\\s+(\\d+)\\s+\"(.+)\"",
       

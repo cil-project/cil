@@ -512,6 +512,7 @@ $TEST->addTestsFail("testrun/struct3", "", "Failure NULL", ['inferbox']);
 if($win32) {
     $TEST->addTests("testrun/extern_init", "_MSVC=1", ['cil']);   
     $TEST->addTests("testrun/msvc2", "_MSVC=1", ["cil"]);
+    $TEST->addTests("testrun/msvc3", "_MSVC=1", ["cil"]);
 }
 $TEST->addTests("testrun/msvc1", "", ["cil"]);
 

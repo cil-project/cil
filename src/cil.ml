@@ -1341,6 +1341,7 @@ type attributeClass =
   | AttrFunType of bool 
         (* Attribute of a function type. If argument is true and we are on 
          * MSVC then the attribute is printed just before the function name *)
+
   | AttrType  (* Attribute of a type *)
 
 (* This table contains the mapping of predefined attributes to classes. 
@@ -2749,7 +2750,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
   (***** PRINTING DECLARATIONS and TYPES ****)
     
   method pType (nameOpt: doc option) (* Whether we are declaring a name or 
-                                      * just a type *)
+                                      * we are just printing a type *)
                () (t:typ) =       (* use of some type *)
     let name = match nameOpt with None -> nil | Some d -> d in
     let printAttributes (a: attributes) = 
@@ -2763,11 +2764,11 @@ class defaultCilPrinterClass : cilPrinter = object (self)
       | _ -> pa
     in
     match t with 
-    TVoid a ->
-      text "void"
-        ++ self#pAttrs () a 
-        ++ text " " 
-        ++ name
+      TVoid a ->
+        text "void"
+          ++ self#pAttrs () a 
+          ++ text " " 
+          ++ name
 
     | TInt (ikind,a) -> 
         d_ikind () ikind 
@@ -2793,8 +2794,10 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           ++ name
     | TPtr (bt, a)  -> 
         (* Parenthesize the ( * attr name) if a pointer to a function or an 
-         * array *)
-        let paren = match bt with TFun _ | TArray _ -> true | _ -> false in
+         * array. However, don't do this on MSVC, because the __stdcall 
+         * attributes of the function must appear "__stdcall *f" *)
+        let paren = not !msvcMode && 
+                    match bt with TFun _ | TArray _ -> true | _ -> false in
         let name' = text "*" ++ printAttributes a ++ name in
         let name'' = if paren then text "(" ++ name' ++ text ")" else name' in
         self#pType 
