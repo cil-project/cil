@@ -1223,7 +1223,7 @@ let fprint_no_marshal = if use_Qversion then qfprint else fprint_old
 let sprint_no_marshal = if use_Qversion then qsprint else sprint_old
 
 let marshal_chn = if (marshalFilename = "") then stdout else begin
-  fprintf "Marshaling doc to file (append/create): %s\n" marshalFilename;  
+  fprintf "Marshaling doc to file (truncate/create): %s\n" marshalFilename;  
   (* AB: Why the @#$#@$ doesn't this work ? *)
   (*
   (open_out_gen 
