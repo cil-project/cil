@@ -570,8 +570,8 @@ let compute_results (show_sets : bool) : unit =
   in
   let lval_elts : (string * (string list)) list ref = ref [] 
   in 
-    A.finished_constraints();
     if (!conservative_undefineds & !found_undefined) then hose_globals ();
+    A.finished_constraints();
     Hashtbl.iter (fun vinf -> fun lv -> 
 		    begin
 		      (show_progress_fn counted_lvalues total_lvalues);

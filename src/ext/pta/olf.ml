@@ -236,24 +236,30 @@ let join_cache : (int * int, tau) H.t = H.create 64
 (* Utility Functions                                                   *)
 (*                                                                     *)
 (***********************************************************************)
-let can_add_constraints () = (!solver_state = AddingConstraints)
-
-let can_query_graph () = (!solver_state = FinishedConstraints)
-
-let finished_constraints () = 
-  begin
-    assert (!solver_state = AddingConstraints);
-    solver_state := FinishedConstraints
-  end
-
-let find = U.deref
-
 let die s = 
   begin
     Printf.printf "*******\nAssertion failed: %s\n*******" s;
     print_newline(); 
     assert(false)
   end
+
+let insist b s =
+  if (not b) then
+    die s
+  else ()
+
+
+let can_add_constraints () = (!solver_state = AddingConstraints) 
+
+let can_query_graph () = (!solver_state = FinishedConstraints)
+
+let finished_constraints () = 
+  begin
+    insist (!solver_state = AddingConstraints) "inconsistent states";
+    solver_state := FinishedConstraints
+  end
+
+let find = U.deref
 
 (** return the prefix of the list up to and including the first element
   satisfying p. if no element satisfies p, return the empty list *)
@@ -420,8 +426,8 @@ let string_of_tau (t : tau ) : string =
 		 | Var v -> s := v.v_name;
 		| Pair p -> 
 		    begin
-		      assert (ref_or_var(p.ptr));
-		      assert (fun_or_var(p.lam));
+		      insist (ref_or_var(p.ptr)) "wellformed";
+		      insist (fun_or_var(p.lam)) "wellformed";
 		      s := "{";
 		      s := (!s) ^ (string_of_tau' p.ptr);
 		      s := (!s) ^ ",";
@@ -431,7 +437,7 @@ let string_of_tau (t : tau ) : string =
 		    end
 		| Ref r ->
 		    begin
-		      assert(pair_or_var(r.points_to));
+		      insist (pair_or_var(r.points_to)) "wellformed";
 		      s := "ref(|";
 		      s := (!s) ^ (string_of_c_absloc r.rl);
 		      s := (!s) ^ "|,";
@@ -441,16 +447,16 @@ let string_of_tau (t : tau ) : string =
 		    end
 		| Fun f ->
 		    begin
-		      assert(pair_or_var(f.ret));
+		      insist (pair_or_var(f.ret)) "wellformed";
 		      let rec string_of_args = function
 			| h :: [] ->
 			    begin
-			      assert(pair_or_var(h));
+			      insist (pair_or_var(h)) "wellformed";
 			      s := (!s) ^ (string_of_tau' h)
 			    end
 			| h :: t -> 
 			    begin
-			      assert(pair_or_var(h));
+			      insist (pair_or_var(h)) "wellformed";
 			      s := (!s) ^ (string_of_tau' h) ^ ",";
 			      string_of_args t
 			    end
@@ -479,7 +485,8 @@ let string_of_tau (t : tau ) : string =
 let rec string_of_lvalue (lv : lvalue) : string =
   let contents = (string_of_tau(lv.contents)) in
   let l = (string_of_c_absloc lv.l) in
-    assert(pair_or_var(lv.contents)); (* do a consistency check *)
+    insist (pair_or_var(lv.contents)) "inconsistency at string_of_lvalue"; 
+    (* do a consistency check *)
     Printf.sprintf "[%s]^(%s)" contents l
 
 (** Print a list of tau elements, comma separated *)
@@ -841,7 +848,7 @@ and add_constraint_int (c : tconstraint) (toplev : bool) =
       print_constraint c
     else (); 
   begin
-    assert ( can_add_constraints () );
+    insist ( can_add_constraints () ) "can't add constraints";
     match c with
       | Unification _ ->
 	  Q.add c eq_worklist
@@ -1106,7 +1113,7 @@ let collect_ptset_fast (l : c_absloc) : abslocset =
 	  li.aliases
 	end
   in
-    assert (can_query_graph ());
+    insist (can_query_graph ()) "can't query graph";
     if (get_flow_computed l) then (get_aliases l)
     else
       begin
@@ -1138,7 +1145,7 @@ let collect_ptset_slow (l : c_absloc) : abslocset =
       end
   in
     begin
-      assert (can_query_graph ());
+      insist (can_query_graph ()) "can't query graph";
       if (get_flow_computed l) then
 	(get_aliases l)
       else  
