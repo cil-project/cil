@@ -325,29 +325,30 @@ and init =
   | CompoundInit   of typ * init list
 
 
-(* L-Values denote contents of memory addresses. A memory address is
+(* L-Values denote contents of memory addresses. A memory address is 
  * expressed as a base plus an offset. The base address can be the start 
  * address of storage for a local or global variable or, in general, any 
- * expression. We distinguish the two cases to avoid gratuituous introduction 
- * of the AddrOf operators on variables whose address would not be taken 
- * otherwise. *)
+ * pointer expression. We distinguish the two cases so that we can tell 
+ * quickly whether we are accessing some component of a variable directly or 
+ * we are accessign a memory location through a pointer. *)
 
 and lval =
     lbase * offset
 
 (* The meaning of an lval is expressed as a function "[lval] = (a, T)" that
- * returns a memory address "a" and a type "T" of the object storred starting
+ * returns a memory address "a" and a type "T" of the object stored starting
  * at the address "a".  *)
 
 (* The meaning of an lbase is expressed as a similar function. *)
 
-(* The meaning of an offset is expressed as a function "[offset](a, T) = (a',
- * T')" whose result also depends on a base address "a" and a base type "T".
+(* The meaning of an offset is expressed as a function "[offset](a, T) = (a', 
+ * T')" where (a, T) is the meaning of the base to be used with the offset. 
  * The result is another address and another base type  *)
 
 (* With this notation we define
   
-      [(lbase, offset)] = [offset] [lbase]
+      [(lbase, offset)] = [offset] [lbase]   (where juxtaposition is just 
+                                              function application)
 *)
 and lbase = 
   | Var        of varinfo               (* denotes the address & v, or if v 
@@ -374,10 +375,11 @@ and offset =
     (* [Index(e, off)](a, array(T)) = [off](a + e * sizeof(T), T) *)
 
 
-(* the following equivalences hold *)
+(* The following equivalences hold *)
 (* Mem(StartOf lv), NoOffset = StartOf (lv) if lv is a function *)
-(* Mem(AddrOf(Mem a, aoff)), off   = Mem(a, aoff + off)                *)
-(* Mem(AddrOf(Var v, aoff)), off   = Var(v, aoff + off)                *)
+(* Mem(AddrOf(Mem a, aoff)), off   = Mem a, aoff + off                *)
+(* Mem(AddrOf(Var v, aoff)), off   = Var v, aoff + off                *)
+(* AddrOf (Mem a, NoOffset)        = a                                *)
 
 (**** INSTRUCTIONS. May cause effects directly but may not have control flow.*)
 and instr =

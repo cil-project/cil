@@ -1547,13 +1547,12 @@ and doExp (isconst: bool)    (* In a constant *)
    * Similarly an expression of function type is turned into StartOf *)
   let processStartOf e t = 
     match e, unrollType t with
-      Lval(lv), TArray(t, _, a) -> mkAddrOfAndMark lv, TPtr(t, a)
+      Lval(lv), TArray(tbase, _, a) -> StartOf lv, TPtr(tbase, a)
     | Lval(lv), TFun _  -> begin
         match lv with 
           Mem(addr), NoOffset -> addr, TPtr(t, [])
-        | _, _ -> mkAddrOfAndMark lv, TPtr(t, [])
+        | _, _ -> StartOf lv, TPtr(t, [])
     end
-(*    | Compound _, TArray(t', _, a) -> e, t *)
     | _, (TArray _ | TFun _) -> 
         E.s (error "Array or function expression is not lval: %a@!"
                d_plainexp e)
@@ -1609,17 +1608,26 @@ and doExp (isconst: bool)    (* In a constant *)
         let (se1, e1', t1) = doExp false e1 (AExp None) in
         let (se2, e2', t2) = doExp false e2 (AExp None) in
         let se = se1 @@ se2 in
-        let (e1'', e2'', tresult) =
+        let (e1'', t1, e2'', tresult) =
+          (* Either e1 or e2 can be the pointer *)
           match unrollType t1, unrollType t2 with
-            TPtr(t1e,_), (TInt _|TEnum _) -> e1', e2', t1e
-          | (TInt _|TEnum _), TPtr(t2e,_) -> e2', e1', t2e
+            TPtr(t1e,_), (TInt _|TEnum _) -> e1', t1, e2', t1e
+          | (TInt _|TEnum _), TPtr(t2e,_) -> e2', t2, e1', t2e
           | _ -> 
               E.s (error 
                      "Expecting a pointer type in index:@! t1=%a@!t2=%a@!"
                      d_plaintype t1 d_plaintype t2)
         in
+        (* We have to distinguish the construction based on the type of e1'' *)
+        let res = 
+          match e1'' with 
+            StartOf array -> (* A real array indexing operation *)
+              addOffsetLval (Index(e2'', NoOffset)) array
+          | _ -> (* Turn into *(e1 + e2) *)
+              mkMem (BinOp(IndexPI, e1'', e2'', t1)) NoOffset
+        in
         (* Do some optimization of StartOf *)
-        finishExp se (Lval (mkMem e1'' (Index(e2'', NoOffset)))) tresult
+        finishExp se (Lval res) tresult
 
     end      
     | A.UNARY (A.MEMOF, e) -> 

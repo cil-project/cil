@@ -321,30 +321,30 @@ and init =
                                          * prefix of the initializers *)
   | CompoundInit   of typ * init list
 
-
-(* L-Values denote contents of memory addresses. A memory address is
+(* L-Values denote contents of memory addresses. A memory address is 
  * expressed as a base plus an offset. The base address can be the start 
  * address of storage for a local or global variable or, in general, any 
- * expression. We distinguish the two cases to avoid gratuituous introduction 
- * of the AddrOf operators on variables whose address would not be taken 
- * otherwise. *)
+ * pointer expression. We distinguish the two cases so that we can tell 
+ * quickly whether we are accessing some component of a variable directly or 
+ * we are accessign a memory location through a pointer. *)
 
 and lval =
     lbase * offset
 
 (* The meaning of an lval is expressed as a function "[lval] = (a, T)" that
- * returns a memory address "a" and a type "T" of the object storred starting
+ * returns a memory address "a" and a type "T" of the object stored starting
  * at the address "a".  *)
 
 (* The meaning of an lbase is expressed as a similar function. *)
 
-(* The meaning of an offset is expressed as a function "[offset](a, T) = (a',
- * T')" whose result also depends on a base address "a" and a base type "T".
+(* The meaning of an offset is expressed as a function "[offset](a, T) = (a', 
+ * T')" where (a, T) is the meaning of the base to be used with the offset. 
  * The result is another address and another base type  *)
 
 (* With this notation we define
   
-      [(lbase, offset)] = [offset] [lbase]
+      [(lbase, offset)] = [offset] [lbase]   (where juxtaposition is just 
+                                              function application)
 *)
 and lbase = 
   | Var        of varinfo               (* denotes the address & v, or if v 
@@ -371,10 +371,11 @@ and offset =
     (* [Index(e, off)](a, array(T)) = [off](a + e * sizeof(T), T) *)
 
 
-(* the following equivalences hold *)
+(* The following equivalences hold *)
 (* Mem(StartOf lv), NoOffset = StartOf (lv) if lv is a function *)
-(* Mem(AddrOf(Mem a, aoff)), off   = Mem(a, aoff + off)                *)
-(* Mem(AddrOf(Var v, aoff)), off   = Var(v, aoff + off)                *)
+(* Mem(AddrOf(Mem a, aoff)), off   = Mem a, aoff + off                *)
+(* Mem(AddrOf(Var v, aoff)), off   = Var v, aoff + off                *)
+(* AddrOf (Mem a, NoOffset)        = a                                *)
 
 (**** INSTRUCTIONS. May cause effects directly but may not have control flow.*)
 and instr =
@@ -2846,9 +2847,20 @@ let addOffsetLval toadd (b, off) : lval =
 
 
 
-  (* Make a Mem, while optimizing StartOf. The type of the addr must be 
-   * TPtr(t) and the type of the resulting expression is t *)
+  (* Make a Mem, while optimizing AddrOf. The type of the addr must be 
+   * TPtr(t) and the type of the resulting lval is t. An exception is when t 
+   * is a function type. Dereferencing it has no effect. *)
 let mkMem (addr: exp) (off: offset) : lval =  
+  match addr, off with
+    AddrOf lv, _ -> addOffsetLval off lv
+  | StartOf lv, _ -> begin
+      (* lv might be a function or an array *)
+      match unrollType (typeOfLval lv) with
+        TFun _ -> Mem addr, off
+      | _ -> addOffsetLval (Index(zero, off)) lv  (* Must be an array *)
+  end
+  | _ -> Mem addr, off
+(*
   let isarray = (* Maybe the addr is the start of an array *)
     match addr with 
       StartOf(lv) when 
@@ -2858,7 +2870,7 @@ let mkMem (addr: exp) (off: offset) : lval =
   in
   let res = 
     match isarray, off with
-      Some lv, Index _ -> (* index on an array *)
+    | Some lv, Index _ -> (* index on an array *)
         addOffsetLval off lv
     | Some lv, _ -> (* non-index on an array *)
         addOffsetLval (Index(zero, off)) lv
@@ -2873,7 +2885,7 @@ let mkMem (addr: exp) (off: offset) : lval =
 (*  ignore (E.log "memof : %a:%a\nresult = %a\n" 
             d_plainexp addr d_plainoffset off d_plainexp res); *)
   res
-          
+*)          
 
 
 let mkAddrOf ((b, off) as lval) : exp = 
@@ -2884,7 +2896,7 @@ let mkAddrOf ((b, off) as lval) : exp =
       (* Never take the address of a register variable *)
       (match lval with
         Var vi, off when vi.vstorage = Register -> vi.vstorage <- NoStorage
-      | _ -> ());
+      | _ -> ()); 
       (* Try to optimize some cases *)
       match lval with
         Mem e, NoOffset -> e

@@ -4304,14 +4304,14 @@ let boxFile file =
             H.clear heapifiedLocals;
             heapifiedFree := [];
             (* Split the fat local variables *)
-            Boxsplit.splitLocals f; 
+            Boxsplit.splitLocals f;
             (* Drop it if it is just a model *)
             if not (hasAttribute "boxmodel" f.svar.vattr) then 
               theFile := consGlobal (GFun (f, l)) !theFile
                                         
         | (GAsm _ | GText _ | GPragma _ | GEnumTag _ ) as g -> 
             theFile := consGlobal g !theFile 
-    end
+    end 
 
   and boxglobal vi isdef init (l: location) =
     currentLoc := l;

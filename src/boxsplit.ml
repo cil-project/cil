@@ -19,9 +19,11 @@ let splitVar (func: fundec)
   (* Update the type of the variable *)
   v.vtype <- fstfld.ftype;
   H.add newvars v.vname 
-    ((fstfld, v) ::
-     List.map (fun f -> (f, 
+    ((List.map (fun f -> (f, 
                          makeTempVar func ~name:v.vname f.ftype)) restflds)
+       (* It is important to put the first field last, so that it is updated 
+        * last in an assignment *)
+       @ [(fstfld, v)])
 
 (* May raise Not_found if the variable does not have components *)
 let getVarComponent (vname: string)
@@ -102,7 +104,10 @@ class splitVarVisitorClass : cilVisitor = object (self)
          * assign it to something *)
   method vinst (i: instr) : instr list visitAction = 
     match i with
-      (* Split into two instructions and then do children *)
+      (* Split into two instructions and then do children. Howver, v._p might 
+       * appear in the lv and if we duplicate the instruction we might get 
+       * bad results. To fix this problem we make sure that the update to _p 
+       * happens last. Other fields of v should not appear in lv. *)
       Set ((Var v, NoOffset), Lval lv, l) when H.mem newvars v.vname -> 
         ChangeTo 
           (List.map 
