@@ -509,7 +509,7 @@ ifdef _GNUCC
 $(SAFECLIB) : lib/safec.c $(GCLIB) lib/splay.o
 	$(CC) $(OBJOUT)obj/safec.o $<
 	if echo $(GCLIB) | grep / >/dev/null; then \
-		cp  $(GCLIB) $@; \
+		cp -f $(GCLIB) $@; \
 	else \
 		rm -f $@; \
 	fi
