@@ -82,6 +82,7 @@ let debug = true
 let splitStructs = ref true
 
 let onlyVariableBasics = ref false
+let noStringConstantsBasics = ref false
 
 exception BitfieldAccess
 
@@ -94,7 +95,8 @@ let rec makeThreeAddress
   match e with 
     SizeOf _ | SizeOfE _ | AlignOf _ |  AlignOfE _ | SizeOfStr _ -> 
       constFold true e
-  | Const _ | AddrOf (Var _, NoOffset) -> e
+  | Const _ -> e
+  | AddrOf (Var _, NoOffset) -> e
   | Lval lv -> Lval (simplifyLval setTemp lv)
   | BinOp(bo, e1, e2, tres) -> 
       BinOp(bo, makeBasic setTemp e1, makeBasic setTemp e2, tres)
@@ -120,8 +122,8 @@ and makeBasic (setTemp: taExp -> bExp) (e: exp) : bExp =
   (* See if it is a basic one *)
   match e' with 
   | Lval (Var _, _) -> e'
-  | Const _ | AddrOf (Var _, NoOffset) | StartOf (Var _, NoOffset) 
-    when not !onlyVariableBasics -> e'
+  | Const _ | AddrOf (Var _, NoOffset) | StartOf (Var _, NoOffset) ->
+      if !onlyVariableBasics then setTemp e' else e'
   | SizeOf _ | SizeOfE _ | AlignOf _ |  AlignOfE _ | SizeOfStr _ -> 
       E.s (bug "Simplify: makeBasic found SizeOf")
   | _ -> setTemp e' (* Put it into a temporary otherwise *)
