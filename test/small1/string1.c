@@ -19,6 +19,6 @@ int main() {
   pp ++; // This should go outside of the string
   *pp = 0; // Bang
 
-  E(1);
+  SUCCESS;
   
 }

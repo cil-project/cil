@@ -7,7 +7,8 @@ typedef struct { unsigned long pgprot; } pgprot_t;
 
 
 int main() {
-  pte_t *pte;
+  
+  pte_t one, *pte = &one;
   
   *pte = ((pte_t) { ( (( ( 0 ) >> 12  ) << 12 )
                       | ((((pgprot_t) { ( 0x001  | 0x004
