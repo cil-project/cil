@@ -2,12 +2,8 @@
 // tiny program for scott's testing purposes
 
 
-// avoid pollution from headers: declare it myself
-int printf(char const *fmt, ...);
-void *malloc(unsigned int size);
 
-
-
+#if 1
 // this is a pointer in the global area
 int *globalPtr;
 
@@ -71,3 +67,4 @@ int main()
   return x?0:x;
   #endif // 0
 }
+#endif // 0

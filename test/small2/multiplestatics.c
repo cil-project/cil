@@ -1,7 +1,5 @@
 // two static variables with the same name
 
-#include <assert.h>
-
 int foo()
 {
   static int x = 0;
@@ -16,7 +14,7 @@ int bar()
 
 int main()
 {
-  assert(foo() + bar() == 5);
+  return !(  foo() + bar() == 5  );
   return 0;
 }
 

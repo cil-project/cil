@@ -143,6 +143,17 @@ $TEST->add3Tests("apache/urlcount");
 $TEST->add3Tests("apache/layout");
 $TEST->add3Tests("apache/random");
 
+# scott's tiny testcases
+$TEST->add3Tests("scott/multiplestatics");
+$TEST->add3Tests("scott/regbeforeassign");
+$TEST->add3Tests("scott/partialbracket");
+$TEST->add3Tests("scott/enuminit");
+$TEST->add3Tests("scott/staticafternostorage");
+$TEST->add3Tests("scott/voidfree");
+$TEST->add3Tests("scott/recursetype");
+$TEST->add3Tests("scott/rmunused");
+$TEST->add3Tests("scott/simplewild");
+
 # $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug
 # my $tst = $TEST->getTest("apache/gzip-inferbox");
 # print Dumper($tst);
