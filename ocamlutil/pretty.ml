@@ -67,8 +67,26 @@ type doc =
   | Align
   | Unalign  
 
-let nil  = Nil
-let text s        = Text s
+(* Break a string at \n *)
+let rec breakString (acc: doc) (str: string) : doc = 
+  try
+    let r = String.index str '\n' in
+    let len = String.length str in
+    if r > 0 then 
+      let acc' = Concat(CText (acc, String.sub str 0 (r - 1)), Line) in
+      if r = len - 1 then (* The last one *)
+        acc'
+      else
+        breakString acc'
+          (String.sub str (r + 1) (String.length str - r - 1))
+    else (* The first is a newline *)
+      breakString (Concat(acc, Line))
+        (String.sub str (r + 1) (String.length str - r - 1))
+  with Not_found -> 
+    if acc = Nil then Text str else CText (acc, str)
+
+let nil           = Nil
+let text s        = breakString nil s
 let num  i        = text (string_of_int i)
 let real f        = text (string_of_float f)
 let chr  c        = text (String.make 1 c) 
@@ -295,29 +313,63 @@ let movingRight (abscol: int) : int =
   tryAgain abscol
 
 
+(* Keep track of nested align in gprintf. Each gprintf format string must 
+ * have properly nested align/unalign pairs. When the nesting depth surpasses 
+ * !printDepth then we print ... and we skip until the matching unalign *)
+let printDepth = ref 10000000 (* WRW: must see whole thing *)
+let alignDepth = ref 0
+
+let useAlignDepth = true
+
+(** Start an align. Return true if we ahve just passed the threshhold *)
+let enterAlign () = 
+  incr alignDepth;
+  useAlignDepth && !alignDepth = !printDepth + 1
+
+(** Exit an align *)
+let exitAlign () = 
+  decr alignDepth
+
+(** See if we are at a low-enough align level (and we should be printing 
+ * normally) *)
+let shallowAlign () = 
+  not useAlignDepth || !alignDepth <= !printDepth
+
+
 (* Pass the current absolute column and compute the new column *)
 let rec scan (abscol: int) (d: doc) : int = 
   match d with 
     Nil -> abscol
   | Concat (d1, d2) -> scan (scan abscol d1) d2
-  | Text s -> 
+  | Text s when shallowAlign () -> 
       let sl = String.length s in 
       if debug then 
         dbgprintf "Done string: %s from %d to %d\n" s abscol (abscol + sl);
       movingRight (abscol + sl)
   | CText (d, s) -> 
       let abscol' = scan abscol d in
-      let sl = String.length s in 
-      if debug then 
-        dbgprintf "Done string: %s from %d to %d\n" s abscol' (abscol' + sl);
-      movingRight (abscol' + sl)
+      if shallowAlign () then begin
+        let sl = String.length s in 
+        if debug then 
+          dbgprintf "Done string: %s from %d to %d\n" s abscol' (abscol' + sl);
+        movingRight (abscol' + sl)
+      end else
+        abscol'
 
-  | Align -> pushAlign abscol; abscol
-  | Unalign -> popAlign (); abscol 
-  | Line -> (* A forced line break *) newline ()
-  | LeftFlush -> (* Keep cursor left-flushed *) 0
+  | Align -> 
+      pushAlign abscol; 
+      if enterAlign () then 
+        movingRight (abscol + 3) (* "..." *)
+      else
+        abscol
 
-  | Break -> (* An optional line break. Always a space followed by an 
+  | Unalign -> exitAlign (); popAlign (); abscol 
+
+  | Line when shallowAlign () -> (* A forced line break *) newline ()
+
+  | LeftFlush when shallowAlign ()  -> (* Keep cursor left-flushed *) 0
+
+  | Break when shallowAlign () -> (* An optional line break. Always a space followed by an 
               * optional line break  *)
       let takenref = ref false in
       breaks := takenref :: !breaks;
@@ -335,6 +387,7 @@ let rec scan (abscol: int) (d: doc) : int =
             (1 + abscol) topalign.gainBreak;
         movingRight (1 + abscol)
       end
+  | _ -> (* Align level is too deep *) abscol
     
 
 (** Keep a running counter of the newlines we are taking. You can read and 
@@ -379,7 +432,7 @@ let emitDoc
     | Concat (d1, d2) -> 
         loopCont abscol d1 (fun abscol' -> loopCont abscol' d2 cont)
 
-    | Text s -> 
+    | Text s when shallowAlign () -> 
         let sl = String.length s in
 	indentIfNeeded ();
         emitString s 1;
@@ -388,23 +441,33 @@ let emitDoc
     | CText (d, s) -> 
         loopCont abscol d 
           (fun abscol' -> 
-            let sl = String.length s in
-	    indentIfNeeded ();
-            emitString s 1; 
-            cont (abscol' + sl))
+            if shallowAlign () then 
+              let sl = String.length s in
+	      indentIfNeeded ();
+              emitString s 1; 
+              cont (abscol' + sl)
+            else
+              cont abscol')
 
     | Align -> 
         aligns := abscol :: !aligns;
-        cont abscol
+        if enterAlign () then begin
+          indentIfNeeded ();
+          emitString "..." 1;
+          cont (abscol + 3)
+        end else
+          cont abscol
 
     | Unalign -> begin
         match !aligns with
           [] -> failwith "Unmatched unalign"
-        | _ :: rest -> aligns := rest; cont abscol
+        | _ :: rest -> 
+            exitAlign ();
+            aligns := rest; cont abscol
     end
-    | Line -> cont (newline ())
-    | LeftFlush -> wantIndent := false;  cont (0)
-    | Break -> begin
+    | Line when shallowAlign ()  -> cont (newline ())
+    | LeftFlush when shallowAlign () -> wantIndent := false;  cont (0)
+    | Break when shallowAlign () -> begin
         match !breaks with
           [] -> failwith "Break without a takenref"
         | istaken :: rest -> 
@@ -416,61 +479,21 @@ let emitDoc
               cont (abscol + 1)
             end
     end
+    | _ -> (* Align is too deep *)
+        cont abscol
   in
 
-  (* A directy style loop *)
-  let rec loop (abscol: int) (d: doc) : int (* the new column *) =
-    match d with
-      Nil -> abscol
-    | Concat (d1, d2) -> loop (loop abscol d1) d2
-
-    | Text s -> 
-        let sl = String.length s in
-	indentIfNeeded ();
-        emitString s 1;
-        abscol + sl
-
-    | CText (d, s) -> 
-        let abscol' = loop abscol d in
-        let sl = String.length s in
-	indentIfNeeded ();
-        emitString s 1; 
-        abscol' + sl
-
-    | Align -> 
-        aligns := abscol :: !aligns;
-        abscol
-
-    | Unalign -> begin
-        match !aligns with
-          [] -> failwith "Unmatched unalign"
-        | _ :: rest -> aligns := rest; abscol
-    end
-    | Line -> newline ()
-    | LeftFlush -> wantIndent := false; 0
-    | Break -> begin
-        match !breaks with
-          [] -> failwith "Break without a takenref"
-        | istaken :: rest -> 
-            breaks := rest; (* Consume the break *)
-            if !istaken then newline ()
-            else begin
-	      indentIfNeeded ();
-              emitString " " 1; 
-              abscol + 1
-            end
-    end
-  in
   loopCont 0 d (fun x -> ()) 
-(*  loop 0 d *)
 
 
 (* Print a document on a channel *)
 let fprint (chn: out_channel) ~(width: int) doc =
   maxCol := width;
   breaks := [];
+  alignDepth := 0;
   ignore (scan 0 doc);
   breaks := List.rev !breaks;
+  alignDepth := 0;
   ignore (emitDoc 
             (fun s nrcopies -> 
               for i = 1 to nrcopies do
@@ -483,6 +506,7 @@ let fprint (chn: out_channel) ~(width: int) doc =
 let sprint ~(width : int)  doc : string = 
   maxCol := width;
   breaks := [];
+  alignDepth := 0;
   ignore (scan 0 doc);
   breaks := List.rev !breaks;
   let buf = Buffer.create 1024 in
@@ -490,6 +514,7 @@ let sprint ~(width : int)  doc : string =
     if num <= 0 then ()
     else begin Buffer.add_string buf str; add_n_strings str (num - 1) end
   in
+  alignDepth := 0;
   emitDoc add_n_strings doc;
   breaks  := [];
   Buffer.contents buf
@@ -501,11 +526,6 @@ external format_int: string -> int -> string = "format_int"
 external format_float: string -> float -> string = "format_float"
 
 
-(* Keep track of nested align in gprintf. Each gprintf format string must 
- * have properly nested align/unalign pairs. When the nesting depth surpasses 
- * !printDepth then we print ... and we skip until the matching unalign *)
-let printDepth = ref 100 (* WRW: must see whole thing *)
-let alignDepth = ref 0
     
 let gprintf (finish : doc -> doc)  
     (format : ('a, unit, doc) format) : 'a =
@@ -518,7 +538,8 @@ let gprintf (finish : doc -> doc)
     if !alignDepth > !printDepth then acc else acc ++ another in
   let dctext1 (acc: doc) (str: string) = 
     if !alignDepth > !printDepth then acc else 
-    CText(acc, str) in
+    CText(acc, str)
+  in
   (* Special finish function *)
   let dfinish dc = 
     if !alignDepth <> startAlignDepth then
@@ -574,7 +595,7 @@ let gprintf (finish : doc -> doc)
                   else
                     s
               in
-              collect (dctext1 acc str) (succ j))
+              collect (breakString acc str) (succ j))
         | 'c' ->
             Obj.magic(fun c ->
               collect (dctext1 acc (String.make 1 c)) (succ j))
