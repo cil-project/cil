@@ -347,7 +347,9 @@ rule initial =
 |		','				{COMMA}
 |		'.'				{DOT}
 |		"sizeof"		{SIZEOF}
-|               "__asm"                 { MSASM (msasm lexbuf) }
+|               "__asm"                 { if !Cprint.msvcMode then 
+                                             MSASM (msasm lexbuf) 
+                                          else ASM }
       
 (* sm: tree transformation keywords *)
 |               "@transform"            {AT_TRANSFORM}
@@ -420,8 +422,9 @@ and str = parse
 |	escape		{let cur = scan_escape (String.sub
 					  (Lexing.lexeme lexbuf) 1 1) in 
                                             cur ^ (str lexbuf)}
-|	_		 {let cur = Lexing.lexeme lexbuf in 
-                                         cur ^  (str lexbuf)} 
+|	_		{let cur = Lexing.lexeme lexbuf in 
+                         print_string ("Read " ^ cur ^ ".\n");
+                         cur ^  (str lexbuf)} 
 
 and chr =  parse
     '\''	        {""}
