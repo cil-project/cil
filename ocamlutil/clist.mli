@@ -65,7 +65,7 @@ val empty: 'a clist
 
 (** Append two clists *)
 val append: 'a clist -> 'a clist -> 'a clist 
-
+                 
 (** A useful check to assert before an append. It checks that the two lists 
  * are not identically the same (Except if they are both empty) *)
 val checkBeforeAppend: 'a clist -> 'a clist -> bool
@@ -89,5 +89,4 @@ val rev: 'a clist -> 'a clist
 (** A document for printing a clist (similar to [docList]) *)
 val docCList: 
     Pretty.doc -> ('a -> Pretty.doc) -> unit -> 'a clist -> Pretty.doc
-
-
+ 

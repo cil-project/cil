@@ -31,6 +31,7 @@
  *)
 
 open Pretty
+open Trace
 
 (* We often need to concatenate sequences and using lists for this purpose is 
  * expensive. So we define a kind of "concatenable lists" that are easier to 
@@ -57,18 +58,18 @@ let fromList l = CList l
 let single x = CList [x]
 let empty = CList []
     
-let checkBeforeAppend  (l1: 'a clist) (l2: 'a clist) : bool = 
+let checkBeforeAppend  (l1: 'a clist) (l2: 'a clist) : bool =
   l1 != l2 || l1 = (CList [])
 
-let append l1 l2 = 
+let append l1 l2 =
   if l1 = CList [] then l2 else
   if l2 = CList [] then l1 else
   begin
-    if l1 == l2 then 
+    if l1 == l2 then
       raise (Failure "You should not use append to duplicate a list");
     CSeq (l1, l2)
   end
-    
+
 let rec length (acc: int) = function
     CList l -> acc + (List.length l)
   | CConsL (x, l) -> length (acc + 1) l
@@ -121,3 +122,43 @@ let docCList (sep: doc) (doone: 'a -> doc) () (dl: 'a clist) =
       if acc == nil then elemd else acc ++ sep ++ elemd)
     nil
     dl
+
+    
+(* let debugCheck (lst: 'a clist) : unit =*)
+(*   (* use a hashtable to store values encountered *)*)
+(*   let tbl : 'a bool H.t = (H.create 13) in*)
+
+(*   letrec recurse (node: 'a clist) =*)
+(*     (* have we seen*)*)
+
+(*     match node with*)
+(*     | CList*)
+
+
+(* --------------- testing ----------------- *)
+type boxedInt =
+  | BI of int
+  | SomethingElse
+
+let d_boxedInt () b =
+  match b with
+  | BI(i) -> (dprintf "%d" i)
+  | SomethingElse -> (text "somethingElse")
+
+
+(* sm: some simple tests of CLists *)
+let testCList () : unit =
+begin
+  (trace "sm" (dprintf "in testCList\n"));
+
+  let clist1 = (fromList [BI(1); BI(2); BI(3)]) in
+  (trace "sm" (dprintf "length of clist1 is %d\n"
+                       (length clist1) ));
+
+  let flattened = (toList clist1) in
+  (trace "sm" (dprintf "flattened: %a\n"
+                       (docList (chr ',' ++ break) (d_boxedInt ()))
+                       flattened));
+
+
+end
