@@ -54,6 +54,8 @@ type node =
   name: string;
   mutable scanned: bool;
   mutable expand: bool;
+  mutable fptr: bool;
+  mutable stacksize: int;
   mutable fds: fundec option;
   mutable bkind: blockkind;
   mutable origkind: blockkind;
@@ -80,10 +82,11 @@ let getFreshNodeNum () : int =
   num
 
 (* Initialize a node. *)
-let newNode (name: string) (appendNum: bool) : node =
+let newNode (name: string) (fptr: bool) : node =
   let id = getFreshNodeNum () in
-  { nodeid = id; name = if appendNum then name ^ (string_of_int id) else name;
-    fds = None; scanned = false; expand = false;
+  { nodeid = id; name = if fptr then name ^ (string_of_int id) else name;
+    scanned = false; expand = false;
+    fptr = fptr; stacksize = 0; fds = None;
     bkind = NoBlock; origkind = NoBlock;
     preds = []; succs = []; predstmts = []; }
 
@@ -168,6 +171,11 @@ let dumpFunctionCallGraphToFile () =
       output_string channel n.name
     in
     output_string channel (string_of_int n.nodeid);
+    output_string channel ":";
+    output_string channel (string_of_int n.stacksize);
+    output_string channel ":";
+    if n.fds = None && not n.fptr then
+      output_string channel "x";
     output_string channel ":";
     output_string channel n.name;
     output_string channel ":";
@@ -340,7 +348,7 @@ let findBlockingPointEdges (bpt: blockpt) : unit =
         List.iter (fun (s, n) -> if n.bkind <> NoBlock then
                                    Queue.add (Next (s, n)) worklist)
                   curNode.predstmts;
-        List.iter (fun n -> if n.fds = None then
+        List.iter (fun n -> if n.fptr then
                                Queue.add (Return n) worklist)
                   curNode.preds
   done
@@ -350,7 +358,7 @@ let markYieldPoints (n: node) : unit =
     if n.bkind = NoBlock then
       match n.origkind with
         BlockTrans ->
-          if n.expand || n.fds = None then begin
+          if n.expand || n.fptr then begin
             n.bkind <- BlockTrans;
             List.iter markNode n.succs
           end else begin
@@ -470,6 +478,12 @@ let markVar (vi: varinfo) : unit =
     end else if hasAttribute "expand" vi.vattr then begin
       node.expand <- true;
     end
+  end;
+  begin
+    match filterAttributes "stacksize" vi.vattr with
+      (Attr (_, [AInt n])) :: _ when n > node.stacksize ->
+        node.stacksize <- n
+    | _ -> ()
   end
 
 let makeFunctionCallGraph (f: Cil.file) : unit = 
@@ -514,7 +528,7 @@ class instrumentClass = object
     (* Add useful locals. *)
     ignore (makeLocalVar fdec "savesp" voidPtrType);
     ignore (makeLocalVar fdec "savechunk" voidPtrType);
-    ignore (makeLocalVar fdec "savecurchunk" voidPtrType);
+    ignore (makeLocalVar fdec "savebottom" voidPtrType);
     (* Add macro for function entry when we're done. *)
     let addEntryNode (fdec: fundec) : fundec =
       let node = getFunctionNode fdec.svar.vname in
