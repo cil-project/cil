@@ -117,6 +117,12 @@ val align: doc
 val unalign: doc
 
 
+(** Mark the beginning of a markup section. The width of a markup section is 
+ * considered 0 for the purpose of computing identation *)
+val mark: doc
+
+(** The end of a markup section *)
+val unmark: doc
 
 (************* Now some syntactic sugar *****************)
 (** Syntactic sugar *)
@@ -124,6 +130,10 @@ val unalign: doc
 (** Indents the document. Same as [((text "  ") ++ align ++ doc ++ unalign)],
     with the specified number of spaces. *)
 val indent: int -> doc -> doc
+
+(** Prints a document as markup. The marked document cannot contain line 
+ * breaks or alignment constructs. *)
+val markup: doc -> doc
 
 (** Formats a sequence. [sep] is a separator, [doit] is a function that 
  * converts an element to a document. *)
@@ -150,7 +160,7 @@ val docOpt: (unit -> 'a -> doc) -> unit -> 'a option -> doc
 
 
 (** A function that is useful with the [printf]-like interface *)
-val insert       : unit -> doc -> doc
+val insert: unit -> doc -> doc
 
 val dprintf: ('a, unit, doc) format -> 'a  
 (** This function provides an alternative method for constructing 
@@ -167,8 +177,10 @@ val dprintf: ('a, unit, doc) format -> 'a
 -  @\] Inserts an {!Pretty.unalign}.
 -  @!  Inserts a {!Pretty.line}. Just like "\n"
 -  @?  Inserts a {!Pretty.break}.
--  @<  Inserts a {!Pretty.leftflush}. 
-       Should be used immediately after @! or "\n"
+-  @<  Inserts a {!Pretty.mark}. 
+-  @<  Inserts a {!Pretty.unmark}.
+-  @^  Inserts a {!Pretty.leftflush}
+       Should be used immediately after @! or "\n".
 -  @@ : inserts a @ character
 
  In addition to the usual [printf] % formatting characters the following two 

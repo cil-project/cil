@@ -66,6 +66,8 @@ type doc =
   | LeftFlush
   | Align
   | Unalign  
+  | Mark
+  | Unmark
 
 (* Break a string at \n *)
 let rec breakString (acc: doc) (str: string) : doc = 
@@ -100,6 +102,8 @@ let unalign       = Unalign
 let line          = Line
 let leftflush     = LeftFlush
 let break         = Break  
+let mark          = Mark
+let unmark        = Unmark
 
 (* Note that all infix operators in Ocaml are left-associative. This means 
  * that if you have a long list of ++ then the whole thing is very unbalanced 
@@ -111,7 +115,7 @@ let (++) d1 d2 = Concat (d1, d2)
 (* Ben Liblit fix *)
 let indent n d = text (String.make n ' ') ++ (align ++ (d ++ unalign))
 
-
+let markup d = mark ++ d ++ unmark
 
 (* Format a sequence. The first argument is a separator *)
 let seq ~(sep:doc)  ~(doit:'a -> doc) ~(elements: 'a list) = 
@@ -175,7 +179,8 @@ let rec dbgPrintDoc = function
   | LeftFlush -> dbgprintf "(LeftFlush)"
   | Align -> dbgprintf "(Align)"
   | Unalign -> dbgprintf "(Unalign)"
-
+  | Mark -> dbgprintf "(Mark)"
+  | Unmark -> dbgprintf "(Unmark)"
 
 (******************************************************************************)	
 (* The "george" algorithm *)
@@ -234,6 +239,10 @@ let popAlign () =
       aligns := t; 
       topAlignAbsCol := !topAlignAbsCol - !(top.deltaFromPrev)
   | _ -> failwith "Unmatched unalign\n"
+
+(** We keep a list of active markup sections. For each one we keep the column 
+ * we are in *)
+let activeMarkups: int list ref = ref []
 
 
 (* Keep a list of ref cells for the breaks, in the same order that we see 
@@ -370,12 +379,17 @@ let rec scan (abscol: int) (d: doc) : int =
 
   | Unalign -> exitAlign (); popAlign (); abscol 
 
-  | Line when shallowAlign () -> (* A forced line break *) newline ()
+  | Line when shallowAlign () -> (* A forced line break *) 
+      if !activeMarkups != [] then 
+        failwith "Line breaks inside markup sections";
+      newline ()
 
   | LeftFlush when shallowAlign ()  -> (* Keep cursor left-flushed *) 0
 
-  | Break when shallowAlign () -> (* An optional line break. Always a space followed by an 
-              * optional line break  *)
+  | Break when shallowAlign () -> (* An optional line break. Always a space 
+                                   * followed by an optional line break *)
+      if !activeMarkups != [] then 
+        failwith "Line breaks inside markup sections";
       let takenref = ref false in
       breaks := takenref :: !breaks;
       let topalign = List.hd !aligns in (* aligns is never empty *)
@@ -392,6 +406,17 @@ let rec scan (abscol: int) (d: doc) : int =
             (1 + abscol) topalign.gainBreak;
         movingRight (1 + abscol)
       end
+
+  | Mark -> activeMarkups := abscol :: !activeMarkups;
+            abscol
+
+  | Unmark -> begin
+      match !activeMarkups with 
+        old :: rest -> activeMarkups := rest; 
+                       old
+      | [] -> failwith "Too many unmark"
+  end
+
   | _ -> (* Align level is too deep *) abscol
     
 
@@ -484,6 +509,18 @@ let emitDoc
               cont (abscol + 1)
             end
     end
+
+    | Mark -> 
+        activeMarkups := abscol :: !activeMarkups;
+        cont abscol
+
+    | Unmark -> begin
+        match !activeMarkups with 
+          old :: rest -> activeMarkups := rest; 
+                         cont old
+        | [] -> failwith "Unmark without a mark"
+    end
+
     | _ -> (* Align is too deep *)
         cont abscol
   in
@@ -496,6 +533,7 @@ let fprint (chn: out_channel) ~(width: int) doc =
   maxCol := width;
   breaks := [];
   alignDepth := 0;
+  activeMarkups := [];
   ignore (scan 0 doc);
   breaks := List.rev !breaks;
   alignDepth := 0;
@@ -504,6 +542,7 @@ let fprint (chn: out_channel) ~(width: int) doc =
               for i = 1 to nrcopies do
                 output_string chn s
               done) doc);
+  activeMarkups := [];
   breaks := [] (* We must do this especially if we don't do emit (which 
                 * consumes breaks) because otherwise we waste memory *)
 
@@ -511,6 +550,7 @@ let fprint (chn: out_channel) ~(width: int) doc =
 let sprint ~(width : int)  doc : string = 
   maxCol := width;
   breaks := [];
+  activeMarkups := [];
   alignDepth := 0;
   ignore (scan 0 doc);
   breaks := List.rev !breaks;
@@ -522,6 +562,7 @@ let sprint ~(width : int)  doc : string =
   alignDepth := 0;
   emitDoc add_n_strings doc;
   breaks  := [];
+  activeMarkups := [];
   Buffer.contents buf
 
 let a =3    
@@ -691,7 +732,11 @@ let gprintf (finish : doc -> doc)
               collect (dconcat acc line) (i + 2)
           | '?' ->                        (* soft line break *)
               collect (dconcat acc (break)) (i + 2)
-	  | '<' ->                        (* left-flushed *)
+          | '<' -> 
+              collect (dconcat acc mark) (i +1)
+          | '>' -> 
+              collect (dconcat acc unmark) (i +1)
+	  | '^' ->                        (* left-flushed *)
 	      collect (dconcat acc (leftflush)) (i + 2)
           | '@' -> 
               collect (dctext1 acc "@") (i + 2)
