@@ -87,6 +87,7 @@ type node =
 
 and pointerkind = 
     Safe
+  | Scalar (* not actually a pointer *)
   | FSeq
   | BSeq
   | String
@@ -137,13 +138,14 @@ let d_placeidx () (p, idx) =
   dprintf "%a.%d" d_place p idx
 
 let d_pointerkind () = function
-    Safe -> text "safe"
-  | FSeq -> text "fseq" 
-  | BSeq -> text "bseq"
-  | String -> text "string" 
-  | Index -> text "index"
-  | Wild -> text "wild" 
-  | Unknown -> text "unknown" 
+    Safe -> text "SAFE"
+  | Scalar -> text "SCALAR"
+  | FSeq -> text "FSEQ" 
+  | BSeq -> text "BSEQ"
+  | String -> text "STRING" 
+  | Index -> text "INDEX"
+  | Wild -> text "WILD" 
+  | Unknown -> text "UNKNOWN" 
 
 let d_ekind () = function
     ECast -> text "Cast"
@@ -322,16 +324,29 @@ let removeSucc n sid =
 let removePred n pid = 
   n.pred <- List.filter (fun e -> e.efrom.id <> pid) n.pred
 
-let ptrAttrCustom oldCustom = function
-      ACons("_ptrnode", [AInt n]) -> Some (dprintf "NODE(%d)" n)
-    | AId("_ronly") -> Some (text "RONLY")
-    | AId("_safe") -> Some (text "SAFE")
-    | AId("_seq") -> Some (text "SEQ")
-    | AId("_index") -> Some (text "INDEX")
-    | AId("_stack") -> Some (text "STACK")
-    | AId("_opt") -> Some (text "OPT")
-    | AId("_wild") -> Some (text "WILD")
-    | a -> oldCustom a
+let ptrAttrCustom printnode = function
+      ACons("_ptrnode", [AInt n]) -> 
+        if printnode then
+          Some (dprintf "NODE(%d)" n)
+        else begin
+          try
+            let nd = H.find idNode n in
+            if nd.kind = Unknown && nd.why_kind = Default then
+              Some nil (* Do not print these nodes *)
+            else
+              Some (d_pointerkind () nd.kind)
+          with Not_found -> Some nil (* Do not print these nodes *)
+        end
+    | AId("ronly") -> Some (text "RONLY")
+    | AId("safe") -> Some (text "SAFE")
+    | AId("seq") -> Some (text "SEQ")
+    | AId("index") -> Some (text "INDEX")
+    | AId("stack") -> Some (text "STACK")
+    | AId("opt") -> Some (text "OPT")
+    | AId("wild") -> Some (text "WILD")
+    | AId("sized") -> Some (text "SIZED")
+    | AId("tagged") -> Some (text "TAGGED")
+    | a -> None
 
 
 (**** Garbage collection of nodes ****)

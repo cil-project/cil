@@ -477,13 +477,6 @@ val isCompleteType: typ -> bool  (* Returns true if this is a complete type.
                                   * Incomplete types are not yet defined 
                                   * structures and empty arrays. *)
 
-(** Construct sorted lists of attributes ***)
-val addAttribute: attribute -> attribute list -> attribute list
-val addAttributes: attribute list -> attribute list -> attribute list
-val dropAttribute: attribute list -> attribute -> attribute list
-
-(* Retains attributes AId or ACons with the named constructor *)
-val filterAttributes: string -> attribute list -> attribute list
 
 (* Get the full name of a comp *)
 val compFullName: compinfo -> string
@@ -575,8 +568,6 @@ val d_exp: unit -> exp -> Pretty.doc
 val d_binop: unit -> binop -> Pretty.doc
 
 
-(* Set this function to intercept attributes as are printed. *)
-val d_attrcustom: (attribute -> Pretty.doc option) ref
 
 val d_attr: unit -> attribute -> Pretty.doc
 val d_attrlist: bool -> attribute list -> Pretty.doc (* Whether it comes 
@@ -587,6 +578,11 @@ val d_instr: unit -> instr -> Pretty.doc
 val d_stmt: unit -> stmt -> Pretty.doc
 val d_fun_decl: unit -> fundec -> Pretty.doc
 val printFile: out_channel -> file -> unit
+
+(* Set this function to intercept attributes as are printed. *)
+val setCustomPrint: (attribute -> Pretty.doc option) -> ('a -> 'b) -> 'a -> 'b
+
+
 val removeUnusedTemps: file -> unit        (* sm *)
 
 
@@ -658,6 +654,15 @@ val mkMem: addr:exp -> off:offset -> exp
 val isIntegralType: typ -> bool
 val isArithmeticType: typ -> bool
 val isPointerType: typ -> bool
+
+
+(** Construct sorted lists of attributes ***)
+val addAttribute: attribute -> attribute list -> attribute list
+val addAttributes: attribute list -> attribute list -> attribute list
+val dropAttribute: attribute list -> attribute -> attribute list
+
+(* Retains attributes AId or ACons with the named constructor *)
+val filterAttributes: string -> attribute list -> attribute list
 
 val typeAttrs: typ -> attribute list
 

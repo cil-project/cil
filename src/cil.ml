@@ -828,6 +828,19 @@ let d_attrcustom : (attribute -> Pretty.doc option) ref =
   in
   ref d_attrcustombase
 
+let setCustomPrint custom f = 
+  let ocustom = !d_attrcustom in
+  let newPrint a = 
+    match custom a with
+      None -> ocustom a
+    | x -> x
+  in
+  d_attrcustom := newPrint;
+  fun x -> 
+    let res = f x in
+    d_attrcustom := ocustom;
+    res
+
 let printShortTypes = ref false
 let rec d_decl (docName: unit -> doc) () this = 
   let parenth outer_t doc = 

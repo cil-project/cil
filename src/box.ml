@@ -3,11 +3,14 @@ open Pretty
 
 module H = Hashtbl
 module E = Errormsg
+module P = Ptrnode
 
 let debugType = false
 let debug = false
 
 let checkReturn = true
+
+let allAreWild = false
 
 let interceptCasts = ref false  (* If true it will insert calls to 
                                  * __scalar2pointer when casting scalars to 
@@ -27,17 +30,22 @@ type expRes =
            * fat pointer and then back to lean pointer, or initialization of 
            * a fat constant) we want to have as few statements as possible *)
 and fexp = 
-    L of typ * exp                      (* A lean expression of a given type *)
-  | F1 of typ * exp                     (* A fat expression that is already 
-                                         * converted to an expression *)
-  | F2 of typ * exp * exp               (* A fat expression of a given (fat) 
-                                         * type made out of two lean 
+    L  of typ * P.pointerkind * exp     (* A one-word expression of a given 
+                                         * kind (P.Scalar or PSafe) and type *)
+  | F1 of typ * P.pointerkind * exp    (* A two-word expression that is 
+                                         * already converted to an expression 
+                                         * *)
+  | F2 of typ * P.pointerkind * exp * exp(* A two-word expression of a given 
+                                         * (fat) type made out of two lean 
                                          * expression (the pointer and the 
                                          * base)  *)
-  | FC of typ * typ * exp               (* A fat expression that is a cast to 
-                                         * a fat type from another fat type. 
-                                         * The inner expression is an F1 
-                                         * whose type and value are given *)
+  | FC of typ * P.pointerkind * typ * P.pointerkind * exp               
+                                        (* A two-word expression that is a 
+                                         * cast of to a fat type from another 
+                                         * fat type. The inner expression is 
+                                         * an F1 whose type and value are 
+                                         * given  *)
+
 
 let leaveAlone = 
   ["printf"; "fprintf"; "sprintf"; "snprintf"; "sscanf"; "_snprintf";
@@ -46,7 +54,7 @@ let leaveAlone =
 
             (* Same for offsets *)
 type offsetRes = 
-    typ * stmt list * offset
+    typ * stmt list * offset * exp * P.pointerkind
 
 
 (*** Helpers *)            
@@ -115,14 +123,48 @@ and baseTypeName = function
   | _ -> "type"
 
 
+(**** Inspect the boxing style attribute *)
+let extractPointerTypeAttribute al = 
+  let pkind = ref P.Unknown in
+  let rec loop = function
+      [] -> []
+    | a :: al -> begin
+        match a with
+          AId("safe") -> pkind := P.Safe; al
+        | AId("wild") -> pkind := P.Wild; al
+        | AId("index") -> pkind := P.Index; al
+        | AId("seq") -> pkind := P.FSeq; al
+        | _ -> a :: loop al
+    end
+  in
+  let res = loop al in
+  if !pkind = P.Unknown then (!pkind, al) else (!pkind, res)
+          
+
+let kindOfType t = 
+  let pkind, _ = extractPointerTypeAttribute (typeAttrs t) in
+  pkind
+
+
+let extractArrayTypeAttribute al = 
+  let sized = ref false in
+  let rec loop = function
+      [] -> []
+    | a :: al -> begin
+        match a with
+          AId("sized") -> sized := true; al
+        | _ -> a :: loop al
+    end
+  in
+  let res = loop al in
+  if !sized then (true, res) else (false, al)
+
 (**** Make new string names *)
 let stringId = ref 0 
 let newStringName () = 
   incr stringId;
   "__string" ^ (string_of_int !stringId)
 
-(**** FIXUP TYPE ***)
-let fixedTypes : (typsig, typ) H.t = H.create 17
 
 
 (* Since we cannot take the address of a bitfield we will do bounds checking 
@@ -186,7 +228,15 @@ let doField (fi: fieldinfo) (off: offset) =
   else
     Field (fi, off)
 
-(***** Convert all pointers in types for fat pointers ************)
+(***** Convert some pointers in types to fat pointers ************)
+let sizedArrayTypes : (typsig, typ) H.t = H.create 123
+(* We need to avoid generating multiple copies of the same tagged type 
+ * because we run into trouble if a variable is defined twice (once with 
+ * extern). *)             
+let taggedTypes: (typsig, typ) H.t = H.create 123
+(**** FIXUP TYPE ***)
+let fixedTypes : (typsig, typ) H.t = H.create 17
+
 let rec fixupType t = 
   match t with
     TForward _ -> t
@@ -215,23 +265,44 @@ and fixit t =
         (TInt _|TEnum _|TFloat _|TVoid _|TBitfield _) -> t
 
       | TPtr (t', a) -> begin
-        (* Now do the base type *)
+          (* Now do the base type *)
           let fixed' = fixupType t' in
-          let tname  = newTypeName "fatp_" fixed' in (* The name *)
-          let fixed = 
-            TComp 
-              (mkCompInfo true tname 
-                 (fun _ -> [ ("_p", TPtr(fixed', a), []); 
-                             ("_b", voidPtrType, [])]) 
-                 [])
+          (* Extract the boxing style attribute *)
+          let pkind, newa = extractPointerTypeAttribute a in
+          let tname, fixed = 
+            match pkind with
+              (P.Safe|P.Unknown) -> "", TPtr(fixed', a)
+            | (P.Wild|P.Index) -> 
+                let tname  = newTypeName "fatp_" fixed' in (* The name *)
+                let fixed = 
+                  TComp 
+                    (mkCompInfo true tname 
+                       (fun _ -> [ ("_p", TPtr(fixed', newa), []); 
+                                   ("_b", voidPtrType, [])]) 
+                       [])
+                in
+                let pattr = 
+                  match pkind with P.Wild -> AId("wild") | _ -> AId("index") in
+                tname, TNamed(tname, fixed, [pattr])
+            | P.FSeq -> 
+                let tname  = newTypeName "seq_" fixed' in (* The name *)
+                let fixed = 
+                  TComp 
+                    (mkCompInfo true tname 
+                       (fun _ -> [ ("_p", TPtr(fixed', newa), []); 
+                                   ("_b", uintType, [])]) 
+                       [])
+                in
+                tname, TNamed(tname, fixed, [AId("fseq")])
+            | _ -> E.s (E.unimp "Don't know how to fix a %a" 
+                          P.d_pointerkind pkind)
           in
-          let tres = TNamed(tname, fixed, []) in
-          H.add fixedTypes (typeSig fixed) fixed; (* We add fixed ourselves. 
-                                                   * The TNamed will be added 
-                                                   * after doit  *)
+          (* We add fixed ourselves. The TNamed will be added after doit  *)
+          H.add fixedTypes (typeSig fixed) fixed; 
           H.add fixedTypes (typeSig (TPtr(fixed', a))) fixed;
-          theFile := GType(tname, fixed) :: !theFile;
-          tres
+          if tname <> "" then
+            theFile := GType(tname, fixed) :: !theFile;
+          fixed
       end
             
       | TForward _ ->  t              (* Don't follow TForward, since these 
@@ -241,11 +312,23 @@ and fixit t =
           
       | TComp comp -> 
           (* Change the fields in place, so that everybody sees the change *)
-          List.iter (fun fi -> fi.ftype <- fixupType fi.ftype) comp.cfields;
+          List.iter 
+            (fun fi -> 
+              let newa, newt = moveAttrsFromDataToType  fi.fattr fi.ftype in
+              fi.fattr <- newa;
+              fi.ftype <- fixupType newt) 
+            comp.cfields;
           bitfieldCompinfo comp;
           t
             
-      | TArray(t', l, a) -> TArray(fixupType t', l, a)
+      | TArray(t', l, a) -> 
+          let sized, newa = extractArrayTypeAttribute a in
+          let newarray = TArray(fixupType t', l, newa) in
+          if sized then
+            addArraySize newarray
+          else
+            newarray
+            
             
       | TFun(rt,args,isva,a) ->
           let args' = 
@@ -259,7 +342,112 @@ and fixit t =
     fixed
   end
 
+and moveAttrsFromDataToType attrs typ = 
+  let mustMove = function
+      AId("sized") -> true
+    | _ -> false
+  in
+  match List.filter mustMove attrs with
+  | [] -> attrs, typ
+  | tomove -> List.filter (fun a -> not (mustMove a)) attrs,
+              typeAddAttributes tomove typ
 
+(****** Generate sized arrays *)
+and addArraySize t = 
+  let tsig = typeSig t in
+  try
+    H.find sizedArrayTypes tsig
+  with Not_found -> begin
+	(* GCC does not like fields to have incomplete types *)
+    let complt = 
+      if isCompleteType t then t 
+      else begin
+        match unrollType t with
+	  TArray(bt, None, a) -> TArray(bt, Some zero, a)
+        | TComp ci when ci.cfields = [] -> TArray(charType, Some zero, [])
+        | _ -> 
+            E.s (E.unimp "Don't know how to tag incomplete type %a" 
+                   d_plaintype t)
+      end
+    in
+    let newtype = 
+      TComp 
+        (mkCompInfo true ""
+           (fun _ -> 
+             [ ("_len", uintType, []);
+               ("_data", complt, []); ]) [])
+    in
+    let tname = newTypeName "_sized_" t in
+    let named = TNamed (tname, newtype, [AId("sized")]) in
+    theFile := GType (tname, newtype) :: !theFile;
+    H.add sizedArrayTypes tsig named;
+    H.add sizedArrayTypes (typeSig named) named;
+    named
+  end
+  
+and tagType (t: typ) : typ = 
+  let tsig = typeSig t in
+  try
+    H.find taggedTypes tsig
+  with Not_found -> begin
+    let newtype = 
+      if isCompleteType t then 
+        (* ignore (E.log "Type %a -> bytes=%d, words=%d, tagwords=%d\n"
+                  d_type t bytes words tagwords); *)
+        let _, tagWords = tagLength t in
+        TComp 
+          (mkCompInfo true ""
+             (fun _ -> 
+               [ ("_len", uintType, []);
+                 ("_data", t, []);
+                 ("_tags", TArray(intType, 
+                                  Some tagWords, []), []);
+               ])
+             [])
+      else begin (* An incomplete type *)
+	(* GCC does not like fields to have incomplete types *)
+	let complt = 
+	  match unrollType t with
+	    TArray(bt, None, a) -> TArray(bt, Some zero, a)
+	  | TComp ci when ci.cfields = [] -> TArray(charType, Some zero, [])
+	  | _ -> E.s (E.unimp "Don't know how to tag incomplete type %a" 
+                        d_plaintype t)
+	in
+        TComp 
+          (mkCompInfo true ""
+             (fun _ -> 
+               [ ("_len", uintType, []);
+                 ("_data", complt, []); ]) [])
+      end
+    in
+    let tname = newTypeName "_tagged_" t in
+    let named = TNamed (tname, newtype, []) in
+    theFile := GType (tname, newtype) :: !theFile;
+    H.add taggedTypes tsig named;
+    H.add taggedTypes (typeSig named) named;
+    named
+  end
+
+and tagLength (t: typ) : (exp * exp) = (* Call only for a isCompleteType *)
+(*        let bytes = (bitsSizeOf t) lsr 3 in
+          let words = (bytes + 3) lsr 2 in
+          let tagwords = (words + 15) lsr 4 in
+*)
+  (* First the number of words *)
+  BinOp(Shiftrt, 
+        BinOp(PlusA, 
+              SizeOf(t, lu),
+              kinteger IUInt 3, uintType, lu),
+        integer 2, uintType, lu),
+  (* Now the number of tag words. At 1 tag bit/ word we can fit the tags for 
+   * 128 bytes into one tag word. *)
+  BinOp(Shiftrt, 
+        BinOp(PlusA, 
+              SizeOf(t, lu),
+              kinteger IUInt 127, uintType, lu),
+        integer 7, uintType, lu)
+    
+    
 (**** We know in what function we are ****)
 let currentFunction : fundec ref  = ref dummyFunDec
 let currentFile     : file ref = ref dummyFile
@@ -308,14 +496,6 @@ let rec readPtrBaseField (e: exp) et =
       | Index(e, o) ->
           let po, bo = compOffsets o in
           Index(e, po), Index(e, bo)
-(*
-      | Index(e, o) ->
-          let po, bo = compOffsets o in
-          Index(e, po), Index(e, bo)
-      | First o -> 
-          let po, bo = compOffsets o in
-          First po, First bo
-*)
     in
     let ptre, basee = 
       match e with
@@ -377,107 +557,32 @@ let rec typeContainsFats t =
       end 
       | _ -> ExistsMaybe)
     t
-(*
-    List.exists (fun f -> typeHasChanged f.ftype) comp.cfields
-    end
-  | TArray(t, _, _) -> typeHasChanged t
-  | TFun(rt, args, _, _) -> begin
-      typeHasChanged rt ||
-      List.exists (fun a -> typeHasChanged a.vtype) args
-  end
-  | TPtr (t, _) -> typeHasChanged t
-  | _ -> false
-*)
 
 (* Create tags for types along with the newly created fields and initializers 
  * for tags and for the length  *)
 (* Check whether the type contains an embedded array *)
 let mustBeTagged v = 
-  let rec containsArray t =
-    existsType 
-      (function 
-          TArray _ -> ExistsTrue 
-        | TPtr _ -> ExistsFalse
-        | _ -> ExistsMaybe) t
-  in
-  if v.vglob then 
-    match v.vtype with 
-      TFun _ -> false  (* Do not tag functions!! Mainly because we don't know 
+  if allAreWild then
+    let rec containsArray t =
+      existsType 
+        (function 
+            TArray _ -> ExistsTrue 
+          | TPtr _ -> ExistsFalse
+          | _ -> ExistsMaybe) t
+    in
+    if v.vglob then 
+      match v.vtype with 
+        TFun _ -> false (* Do not tag functions!! Mainly because we don't know 
                         * how to put the tag. Plus, function pointers should 
                         * have a length = 0 so we cannot write there *)
-    | _ -> 
-        if v.vstorage = Static then v.vaddrof || containsArray v.vtype
-        else true (* We tag all externals because we might 
-                     take their address somewhere else *)
-  else v.vaddrof || containsArray v.vtype
-    
-    
-(* We need to avoid generating multiple copies of the same tagged type 
- * because we run into trouble if a variable is defined twice (once with 
- * extern). *)
-             
-let taggedTypes: (typsig, typ) H.t = H.create 123
-let tagLength (t: typ) : (exp * exp) = (* Call only for a isCompleteType *)
-(*        let bytes = (bitsSizeOf t) lsr 3 in
-          let words = (bytes + 3) lsr 2 in
-          let tagwords = (words + 15) lsr 4 in
-*)
-  (* First the number of words *)
-  BinOp(Shiftrt, 
-        BinOp(PlusA, 
-              SizeOf(t, lu),
-              kinteger IUInt 3, uintType, lu),
-        integer 2, uintType, lu),
-  (* Now the number of tag words. At 1 tag bit/ word we can fit the tags for 
-   * 128 bytes into one tag word. *)
-  BinOp(Shiftrt, 
-        BinOp(PlusA, 
-              SizeOf(t, lu),
-              kinteger IUInt 127, uintType, lu),
-        integer 7, uintType, lu)
+      | _ -> 
+          if v.vstorage = Static then v.vaddrof || containsArray v.vtype
+          else true  (* We tag all externals because we might 
+                        take their address somewhere else *)
+    else v.vaddrof || containsArray v.vtype
+  else
+    (filterAttributes "tagged" v.vattr) <> []
 
-let tagType (t: typ) : typ = 
-  let tsig = typeSig t in
-  try
-    H.find taggedTypes tsig
-  with Not_found -> begin
-    let newtype = 
-      if isCompleteType t then 
-        (* ignore (E.log "Type %a -> bytes=%d, words=%d, tagwords=%d\n"
-                  d_type t bytes words tagwords); *)
-        let _, tagWords = tagLength t in
-        TComp 
-          (mkCompInfo true ""
-             (fun _ -> 
-               [ ("_len", uintType, []);
-                 ("_data", t, []);
-                 ("_tags", TArray(intType, 
-                                  Some tagWords, []), []);
-               ])
-             [])
-      else begin (* An incomplete type *)
-	(* GCC does not like fields to have incomplete types *)
-	let complt = 
-	  match unrollType t with
-	    TArray(bt, None, a) -> TArray(bt, Some zero, a)
-	  | TComp ci when ci.cfields = [] -> TArray(charType, Some zero, [])
-	  | _ -> E.s (E.unimp "Don't know how to tag incomplete type %a" 
-                        d_plaintype t)
-	in
-        TComp 
-          (mkCompInfo true ""
-             (fun _ -> 
-               [ ("_len", uintType, []);
-                 ("_data", complt, []); ]) [])
-      end
-    in
-    let tname = newTypeName "_tagged_" t in
-    let named = TNamed (tname, newtype, []) in
-    theFile := GType (tname, newtype) :: !theFile;
-    H.add taggedTypes tsig named;
-    H.add taggedTypes (typeSig named) named;
-    named
-  end
 
 (* Create a compound initializer for a tagged type *)
 let splitTagType tagged = 
@@ -853,7 +958,6 @@ let interceptCastFunction =
 let rec containsIndex = function
     NoOffset -> false
   | Field (_, o) -> containsIndex o
-(*  | Index (Const(CInt(0, _, _), _), o) -> containsIndex o *)
   | Index (Const(CInt(0, _, _), _), o) -> containsIndex o
   | Index _ -> true
 
@@ -886,12 +990,7 @@ let rec boxstmt (s : stmt) : stmt =
         let (et, doe, e') = boxexp e in
         let doe' = (* Add the check *)
           if mustCheckReturn retType then
-            if isFatType retType then begin
-                (* Cast e' to fat_voidptr *)
-              doe @ [doCheckFat checkSafeRetFatFun e' et]
-            end else begin
-              doe
-            end
+            doe @ [doCheckFat checkSafeRetFatFun e' et]
           else
             doe
         in
@@ -910,12 +1009,12 @@ and boxinstr (ins: instr) : stmt =
   try
     match ins with
     | Set (lv, e, l) -> 
-        let (rest, dolv, lv', lvbase) = boxlval lv in
-        let (_, doe, e') = boxexp e in
+        let (lvt, dolv, lv', lvbase, _) = boxlval lv in
+        let (et, doe, e') = boxexp e in (* Assume et is the same as lvt *)
         let check = 
           match lv' with
-            Mem _, _ -> checkWrite e' lv' lvbase rest
-          | Var vi, off when mustBeTagged vi -> checkWrite e' lv' lvbase rest
+            Mem _, _ -> checkWrite e' lv' lvbase lvt
+          | Var vi, off when mustBeTagged vi -> checkWrite e' lv' lvbase lvt
           | _ -> []
         in
         mkSeq (dolv @ doe @ check @ [Instr(Set(lv', e', l))])
@@ -959,7 +1058,8 @@ and boxinstr (ins: instr) : stmt =
                 [], [] -> [], []
               | a :: resta, t :: restt -> 
                   let (doa, fa') = boxexpf a in
-                  let (doa', fa'') = castTo fa' t.vtype doa in
+                  let (doa', fa'') = 
+                    castTo fa' t.vtype doa in
                   let (_, doa'', a2) = fexp2exp fa'' doa' in
                   let (doresta, resta') = doArgs resta restt in
                 (doa'' @ doresta,  a2 :: resta')
@@ -978,8 +1078,8 @@ and boxinstr (ins: instr) : stmt =
             None -> vi, []
           | Some vi -> begin
               match boxlval (Var vi, NoOffset) with
-                (_, _, (Var _, NoOffset), _) -> Some vi, []
-              | (tv, [], ((Var _, Field(dfld, NoOffset)) as newlv), _) -> 
+                (_, _, (Var _, NoOffset), _, _) -> Some vi, []
+              | (tv, [], ((Var _, Field(dfld, NoOffset)) as newlv), _, _) -> 
                   let tmp = makeTempVar !currentFunction dfld.ftype in
                   Some tmp, [boxinstr (Set((Var vi, NoOffset), 
                                            Lval (var tmp), lu))]
@@ -992,7 +1092,7 @@ and boxinstr (ins: instr) : stmt =
         let rec doOutputs = function
             [] -> [], []
           | (c, lv) :: rest -> 
-              let (lvt, dolv, lv', lvbase) = boxlval lv in
+              let (lvt, dolv, lv', lvbase, _) = boxlval lv in
               let check = 
                 match lv' with
                   Mem _, _ -> checkWrite (integer 0) lv' lvbase lvt
@@ -1027,16 +1127,14 @@ and boxinstr (ins: instr) : stmt =
 
  (* Given an lvalue, generate the type of denoted element, a list of 
   * statements to prepare to replacement lval, the replacement lval, and an 
-  * expression that denotes the base of the memory area containing the lval *)
-and boxlval (b, off) : (typ * stmt list * lval * exp) = 
-  let (b', dob, tbase, baseaddr, off') = 
+  * expression. The expression denotes the second element of a pointer to 
+  * lval and it comes with a flag describing the pointer kind. If the pointer 
+  * kind is PSafe then the expression will not be used. *)
+and boxlval (b, off) : (typ * stmt list * lval * exp * P.pointerkind) = 
+  let (b', dob, tbase, baseaddr, basek, off') = 
     match b with
       Var vi -> 
-        (* If the address of this variable is taken or if the variable 
-         * contains an array, then we must have changed the type into a 
-         * structure type, with tags. All globals are also tagged since we 
-         * might take their address at any time.  *)
-        let offbase, tbase, off' = 
+        let offbase, tbase, basek, off' = 
           if mustBeTagged vi then
             let dataf = 
               match unrollType vi.vtype with
@@ -1049,63 +1147,73 @@ and boxlval (b, off) : (typ * stmt list * lval * exp) =
                 end 
               | _ -> E.s (E.bug "Expecting tags in %s (no comp)" vi.vname)
             in
-            Field(dataf, NoOffset), dataf.ftype, Field(dataf, off)
+            (* A tagged variable has Wild pointers *)
+            Field(dataf, NoOffset), dataf.ftype, P.Wild, Field(dataf, off)
           else
-            NoOffset, vi.vtype, off
+            (* A variable that is not tagged. We use Safe pointers *)
+            NoOffset, vi.vtype, P.Safe, off
         in
         let baseaddr = 
-          match tbase with
-            TArray _ -> StartOf(Var vi, offbase)
-          | _ -> AddrOf((Var vi, offbase), lu)
+          if basek = P.Safe then zero
+          else
+            match tbase with
+              TArray _ -> StartOf(Var vi, offbase)
+            | _ -> AddrOf((Var vi, offbase), lu)
         in
-        (b, [], tbase, baseaddr, off')
+        (b, [], tbase, baseaddr, basek, off')
     | Mem addr -> 
         let (addrt, doaddr, addr', addr'base) = boxexpSplit addr in
-        let addrt' = 
+        let addrt', pkind = 
           match unrollType addrt with
-            TPtr(t, _) -> t
+            TPtr(t, a) -> t, kindOfType addrt
           | _ -> E.s (E.unimp "Mem but no pointer type: %a@!addr= %a@!"
                         d_plaintype addrt d_plainexp addr)
         in
-        (Mem addr', doaddr, addrt', addr'base, off)
+        (Mem addr', doaddr, addrt', addr'base, pkind, off)
   in
-  let (t, dooff, off'') = boxoffset off' tbase in
-  (t, dob @ dooff, (b', off''), baseaddr)
+  let (t, dooff, off'', baseaddr', basek') = 
+            boxoffset (fun resto -> (b', resto)) off' tbase baseaddr basek in
+  (t, dob @ dooff, (b', off''), baseaddr', basek')
 
 
-and boxoffset (off: offset) (basety: typ) : offsetRes = 
+and boxoffset (mklval: offset -> lval) 
+              (off: offset) 
+              (basety: typ) (baseaddr: exp) (pkind: P.pointerkind): offsetRes= 
   match off with 
   | NoOffset ->
-      (basety, [], NoOffset)
+      (basety, [], NoOffset, baseaddr, pkind)
 
   | Field (fi, resto) ->
-      (* The type of fi has been changed already *)
-      let (rest, doresto, off') = boxoffset resto fi.ftype in
-      (rest, doresto, doField fi off')
-(*
-  | Index (e, resto) -> 
-      let (_, doe, e') = boxexp e in
-      let (rest', doresto, off') = boxoffset resto basety in
-      (rest', doe @ doresto, Index(e', off'))
-
-  | First o -> 
-      let etype = 
-        match unrollType basety with
-          TArray (x, _, _) -> x
-        | _ -> E.s (E.bug "First on a non-array.@!T=%a\n" d_plaintype basety)
+      let newbase, newpkind, checkbase = 
+        match pkind with
+          P.Index -> zero, P.Safe, [] (* check index here *)
+        | P.Wild -> baseaddr, P.Wild, [] (* No check here *)
+        | _ -> E.s (E.unimp "boxoffset: field")
       in
-      let (rest, doresto, off') = boxoffset o etype in
-      (rest, doresto, First off')
-*)
+      (* The type of fi has been boxed already *)
+      let (rest, doresto, off', baseaddr', pkind') = 
+        boxoffset (fun resto -> mklval (Field(fi, resto))) 
+                  resto fi.ftype newbase newpkind 
+      in
+      (rest, checkbase @ doresto, doField fi off', baseaddr', pkind')
+
   | Index (e, resto) -> 
+      let newbase, newpkind, checkbase = 
+        match pkind with
+          P.Index -> zero, P.Index, [] (* check index here *)
+        | P.Wild -> baseaddr, P.Wild, [] (* No check here *)
+        | _ -> E.s (E.unimp "boxoffset: index")
+      in
       let etype = 
         match unrollType basety with
           TArray (x, _, _) -> x
         | _ -> E.s (E.bug "Index on a non-array.@!T=%a\n" d_plaintype basety)
       in
       let (_, doe, e') = boxexp e in
-      let (rest', doresto, off') = boxoffset resto etype in
-      (rest', doe @ doresto, Index (e', off'))
+      let (rest', doresto, off', baseaddr', pkind') = 
+        boxoffset (fun resto -> mklval (Index(e', resto))) 
+          resto etype newbase newpkind in
+      (rest', checkbase @ doe @ doresto, Index (e', off'), baseaddr', pkind')
       
     (* Box an expression and return the fexp version of the result. If you do 
      * not care about an fexp, you can call the wrapper boxexp *)
@@ -1113,22 +1221,22 @@ and boxexpf (e: exp) : stmt list * fexp =
   try
     match e with
     | Lval (lv) -> 
-        let rest, dolv, lv', lvbase = boxlval lv in
+        let rest, dolv, lv', baseaddr, lvkind = boxlval lv in
         let check = (* Check a read if it is in memory of if it comes from a 
                      * tagged variable *)
           match lv' with
-            Mem _, _ -> checkRead lv' lvbase rest
-          | Var vi, off when mustBeTagged vi -> checkRead lv' lvbase rest
+            Mem _, _ -> checkRead lv' baseaddr rest
+          | Var vi, off when mustBeTagged vi -> checkRead lv' baseaddr rest
           | _, _ -> []
         in
         if isFatType rest then
-          (dolv @ check, F1(rest, Lval(lv')))
+          (dolv @ check, F1(rest, P.Wild, Lval(lv')))
         else
-          (dolv @ check, L(rest, Lval(lv')))
+          (dolv @ check, L(rest, P.Wild, Lval(lv')))
             
-    | Const (CInt (_, ik, _), _) -> ([], L(TInt(ik, []), e))
-    | Const ((CChr _), _) -> ([], L(charType, e))
-    | Const (CReal (_, fk, _), _) -> ([], L(TFloat(fk, []), e))
+    | Const (CInt (_, ik, _), _) -> ([], L(TInt(ik, []), P.Scalar, e))
+    | Const ((CChr _), _) -> ([], L(charType, P.Scalar, e))
+    | Const (CReal (_, fk, _), _) -> ([], L(TFloat(fk, []), P.Scalar, e))
     | CastE (t, e, l) -> begin
         let t' = fixupType t in
         let (doe, fe') = boxexpf e in
@@ -1148,7 +1256,8 @@ and boxexpf (e: exp) : stmt list * fexp =
         theFile := GVar (gvar, Some varinit) :: !theFile;
         let fatChrPtrType = fixupType charPtrType in
         let result = StartOf (Var gvar, Field(dfield, NoOffset)) in
-        ([], F2 (fatChrPtrType, result, 
+        ([], F2 (fatChrPtrType, P.Wild,
+                 result, 
                  doCast result (typeOf result) voidPtrType))
           
           
@@ -1157,7 +1266,7 @@ and boxexpf (e: exp) : stmt list * fexp =
         let (et, doe, e') = boxexp e in
         assert (not (isFatType restyp'));
           (* The result is never a pointer *)
-        (doe, L(restyp', UnOp(uop, e', restyp', l)))
+        (doe, L(restyp', P.Scalar, UnOp(uop, e', restyp', l)))
           
     | BinOp (bop, e1, e2, restyp, l) -> begin
         let restyp' = fixupType restyp in
@@ -1166,16 +1275,17 @@ and boxexpf (e: exp) : stmt list * fexp =
         match bop, isFatType et1, isFatType et2 with
         | (PlusPI|MinusPI), true, false -> 
             let ptype = (getPtrFieldOfFat et1).ftype in
-            (doe1 @ doe2, F2 (restyp', 
+            (doe1 @ doe2, F2 (restyp', P.Wild,
                               BinOp(bop, readPtrField e1' et1, e2', ptype, l),
                               readBaseField e1' et1))
         | (MinusPP|EqP|NeP|LeP|LtP|GeP|GtP), true, true -> 
             (doe1 @ doe2, 
-             L(restyp', BinOp(bop, readPtrField e1' et1, 
-                              readPtrField e2' et2, restyp', l)))
+             L(restyp', P.Scalar,
+               BinOp(bop, readPtrField e1' et1, 
+                     readPtrField e2' et2, restyp', l)))
               
         | _, false, false -> 
-            (doe1 @ doe2, L(restyp', BinOp(bop,e1',e2',restyp', l)))
+            (doe1 @ doe2, L(restyp', P.Scalar, BinOp(bop,e1',e2',restyp', l)))
               
         | _, _, _ -> E.s (E.unimp "boxBinOp: %a@!et1=%a@!et2=%a@!" 
                             d_binop bop d_plaintype et1 d_plaintype et2)
@@ -1183,24 +1293,24 @@ and boxexpf (e: exp) : stmt list * fexp =
           
     | SizeOf (t, l) -> 
         let t' = fixupType t in
-        ([], L(intType, SizeOf(t', l)))
+        ([], L(intType, P.Scalar, SizeOf(t', l)))
           
    (* Intercept references of _iob. A major hack !!!!! *)
     | AddrOf ((Var vi,
                Index(Const(CInt _, _) as n, NoOffset)) as lv, 
               _) when !msvcMode && vi.vname = "_iob_fp_" 
       -> 
-        let (lvt, _, _, _) = boxlval lv in  (* Just to get the type*)
+        let (lvt, _, _, _, _) = boxlval lv in  (* Just to get the type*)
         let tres = fixupType (TPtr(lvt, [])) in
         let tmp1 = makeTempVar !currentFunction fatVoidPtr in
         let tmp2 = makeTempVar !currentFunction tres in
         let seq  = 
           [ boxstmt (call (Some tmp1) (Lval(var getIOBFunction.svar)) [ n ]);
             boxstmt (assign tmp2 (CastE(tres, Lval(var tmp1), lu))) ] in
-        (seq, F1(tres, Lval(var tmp2)))
+        (seq, F1(tres, P.Wild, Lval(var tmp2)))
           
     | AddrOf (lv, l) ->
-        let (lvt, dolv, lv', baseaddr) = boxlval lv in
+        let (lvt, dolv, lv', baseaddr, lvkind) = boxlval lv in
       (* Check that variables whose address is taken are flagged as such, or 
        * are globals *)
         (match lv' with
@@ -1213,11 +1323,11 @@ and boxexpf (e: exp) : stmt list * fexp =
             TArray(t, _, _) -> fixupType (TPtr(t, [])) 
           | _ -> *) fixupType (TPtr(lvt, []))
         in
-        (dolv, F2 (ptrtype, AddrOf(lv', l), baseaddr))
+        (dolv, F2 (ptrtype, P.Wild, AddrOf(lv', l), baseaddr))
           
     (* StartOf is like an AddrOf except for typing issues. *)
     | StartOf lv -> 
-        let (lvt, dolv, lv', baseaddr) = boxlval lv in
+        let (lvt, dolv, lv', baseaddr, lvkind) = boxlval lv in
       (* Check that variables whose address is taken are flagged *)
         (match lv' with
           (Var vi, _) when not vi.vaddrof && not vi.vglob -> 
@@ -1235,7 +1345,7 @@ and boxexpf (e: exp) : stmt list * fexp =
           | _ -> E.s (E.unimp "StartOf on a non-array and non-function: %a"
                         d_plaintype lvt)
         in
-        (dolv, F2 (ptrtype, res, baseaddr))
+        (dolv, F2 (ptrtype, P.Wild, res, baseaddr))
 
     | Question (e1, e2, e3, l) ->       
         let (_, doe1, e1') = boxexp (CastE(intType, e1, lu)) in
@@ -1243,9 +1353,9 @@ and boxexpf (e: exp) : stmt list * fexp =
         let (et3, doe3, e3') = boxexp e3 in
         let result = 
           if isFatType et2 then 
-            F1 (et2, Question (e1', e2', e3', l))
+            F1 (et2, P.Wild, Question (e1', e2', e3', l))
           else
-            L  (et2, Question (e1', e2', e3', l))
+            L  (et2, P.Scalar, Question (e1', e2', e3', l))
         in
         (doe1 @ doe2 @ doe3, result)
           
@@ -1256,10 +1366,10 @@ and boxexpf (e: exp) : stmt list * fexp =
           (None, boxGlobalInit ei tei) :: acc
         in
         let newinitl = List.rev (foldLeftCompound doOneInit t initl []) in
-        ([], L(t', Compound(t', newinitl)))
+        ([], L(t', P.Scalar, Compound(t', newinitl)))
   with exc -> begin
     ignore (E.log "boxexpf (%s)\n" (Printexc.to_string exc));
-    ([], L(charPtrType, dExp (dprintf "booo_exp: %a" d_exp e)))
+    ([], L(charPtrType, P.Wild, dExp (dprintf "booo_exp: %a" d_exp e)))
   end 
             
           
@@ -1287,12 +1397,12 @@ and boxGlobalInit e et =
 
 and fexp2exp (fe: fexp) (doe: stmt list) : expRes = 
   match fe with
-    L (t, e') -> (t, doe, e')            (* Done *)
-  | F1 (t, e') -> (t, doe, e')           (* Done *)
-  | F2 (ft, ep, eb) -> 
+    L (t, pk, e') -> (t, doe, e')       (* Done *)
+  | F1 (t, pk, e') -> (t, doe, e')      (* Done *)
+  | F2 (ft, pk, ep, eb) -> 
       let (doset, lv) = setFatPointer ft (fun _ -> ep) eb in
       (ft, doe @ doset, Lval(lv))
-  | FC (newt, oldt, e') -> 
+  | FC (newt, pk, oldt, _, e') -> 
       (* Put e1' in a variable if not an lval *)
       let caste, tmp = 
         match e' with
@@ -1301,7 +1411,7 @@ and fexp2exp (fe: fexp) (doe: stmt list) : expRes =
             let tmp = var (makeTempVar !currentFunction oldt) in
             ([mkSet tmp e'], tmp)
       in
-      (newt, 
+      (newt,
        doe @ caste, 
        Lval(Mem (CastE(TPtr(newt, []), 
                        AddrOf (tmp, lu), lu)),
@@ -1316,8 +1426,8 @@ and boxexp (e : exp) : expRes =
 and boxexpSplit (e: exp) = 
   let (doe, fe') = boxexpf e in
   match fe' with
-    L(lt, e') -> (lt, doe, e', doCast e' lt voidPtrType)
-  | F2(ft,p,b) -> ((getPtrFieldOfFat ft).ftype, doe, p, b)
+    L(lt, _, e') -> (lt, doe, e', doCast e' lt voidPtrType)
+  | F2(ft,_,p,b) -> ((getPtrFieldOfFat ft).ftype, doe, p, b)
   | _  ->
       let (et, caste, e'') = fexp2exp fe' doe in
       let (tptr, ptr, base) = readPtrBaseField e'' et in
@@ -1328,18 +1438,20 @@ and boxfunctionexp (f : exp) =
   match f with
     Lval(Var vi, NoOffset) -> boxexp f
   | Lval(Mem base, NoOffset) -> 
-      let rest, dolv, lv', lvbase = boxlval (Mem base, NoOffset) in
+      let rest, dolv, lv', lvbase, lvkind = boxlval (Mem base, NoOffset) in
       (rest, dolv @ [checkFunctionPointer (AddrOf(lv', lu)) lvbase], 
        Lval(lv'))
       
   | _ -> E.s (E.unimp "Unexpected function expression")
 
     (* Cast an fexp to another one. Accumulate necessary statements to doe *)
-and castTo (fe: fexp) (newt: typ) (doe: stmt list) : stmt list * fexp = 
+and castTo (fe: fexp) (newt: typ)
+           (doe: stmt list) : stmt list * fexp =
+  let newkind = kindOfType newt in
   match fe, isFatType newt with
-  | L(lt, e) , false -> (* LEAN -> LEAN *)
-      (doe, L(newt, doCast e lt newt))
-  | L(lt, e), true -> (* LEAN -> FAT *)
+  | L(lt, _, e) , false -> (* LEAN -> LEAN *)
+      (doe, L(newt, P.Scalar, doCast e lt newt))
+  | L(lt, pk, e), true -> (* LEAN -> FAT *)
       let ptype = (getPtrFieldOfFat newt).ftype in
       if not (isZero e) then
         ignore (E.warn "Casting scalar (%a) to pointer (in %s)!" 
@@ -1360,23 +1472,23 @@ and castTo (fe: fexp) (newt: typ) (doe: stmt list) : stmt list * fexp =
           ]
         end else CastE(voidPtrType, zero, lu), doe
       in
-      (doe', F2 (newt, newp, newbase))
+      (doe', F2 (newt, newkind, newp, newbase))
   
   (* FAT -> LEAN *)
-  | F1(oldt, e), false ->
-      (doe, L(newt, CastE(newt, readPtrField e oldt, lu)))
-  | F2(oldt, ep, eb), false ->
-      (doe, L(newt, CastE(newt, ep, lu)))
-  | FC(oldt, prevt, e), false ->
-      (doe, L(newt, CastE(newt, readPtrField e prevt, lu)))
+  | F1(oldt, _, e), false ->
+      (doe, L(newt, newkind, CastE(newt, readPtrField e oldt, lu)))
+  | F2(oldt, _, ep, eb), false ->
+      (doe, L(newt, newkind, CastE(newt, ep, lu)))
+  | FC(oldt, _, prevt, _, e), false ->
+      (doe, L(newt, newkind, CastE(newt, readPtrField e prevt, lu)))
 
   (* FAT -> FAT *)
-  | F1(oldt, e), true -> (doe, FC (newt, oldt, e))
-  | F2(oldt, ep, eb), true -> 
+  | F1(oldt, prevk, e), true -> (doe, FC (newt, newkind, oldt, prevk, e))
+  | F2(oldt, oldk, ep, eb), true -> 
       let ptype = (getPtrFieldOfFat newt).ftype in
-      (doe, F2 (newt, CastE(ptype, ep, lu), eb))
-  | FC(oldt, prevt, e), true -> 
-      (doe, FC(newt, prevt, e))
+      (doe, F2 (newt, newkind, CastE(ptype, ep, lu), eb))
+  | FC(oldt, oldk, prevt, prevk, e), true -> 
+      (doe, FC(newt, newkind, prevt, prevk, e))
       
 
     (* Create a new temporary of a fat type and set its pointer and base 

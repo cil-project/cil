@@ -416,17 +416,16 @@ let markFile fl =
 
 (* A special file printer *)
 let printFile (c: out_channel) fl = 
-  let ocustom = !d_attrcustom in
-  d_attrcustom := N.ptrAttrCustom !d_attrcustom;
-  Cil.printFile c fl;
-  output_string c "/* Now the graph\n";
-  (*N.gc ();   *)
-  N.simplify (); 
-  N.printGraph c;
-  output_string c " End of graph*/\n";
-  N.printGraph c;
-  output_string c "/* Now the solved graph (simplesolve)\n";
-  Stats.time "simple solver" Simplesolve.solve N.idNode ; 
-  N.printGraph c;
-  output_string c " End of solved graph*/\n"; 
-  d_attrcustom := ocustom
+  Cil.setCustomPrint (N.ptrAttrCustom true)
+    (fun fl ->
+      output_string c "/* Now the graph\n";
+     (*N.gc ();   *)
+      N.simplify (); 
+      N.printGraph c;
+      output_string c " End of graph*/\n";
+      N.printGraph c;
+      output_string c "/* Now the solved graph (simplesolve)\n";
+      Stats.time "simple solver" Simplesolve.solve N.idNode ; 
+      N.printGraph c;
+      output_string c " End of solved graph*/\n";)
+    fl
