@@ -169,7 +169,10 @@ let union (nd1: 'a node) (nd2: 'a node) : 'a node * (unit -> unit) =
               end
           | _, _ -> (* both none. Does not matter which one we choose. Should 
               * not happen though. *)
-              ignore (warn "Merging two undefined elements in the same file: %s and %s\n" nd1.nname nd2.nname);
+              (* sm: it does happen quite a bit when, e.g. merging STLport with
+               * some client source; I'm disabling the warning since it supposedly
+               * is harmless anyway, so is useless noise *)
+              (*ignore (warn "Merging two undefined elements in the same file: %s and %s\n" nd1.nname nd2.nname);*)
               nd1, nd2
         end
       else (* One is defined, the other is not. Choose the defined one *)
@@ -541,8 +544,15 @@ and matchCompInfo (oldfidx: int) (oldci: compinfo)
     (* More complicated is the case when the old one is not defined but the 
      * new one is. We still reuse the old one and we'll take care of defining 
      * it later with the new fields. *)
-    if len <> 0 && old_len <> 0 && old_len <> len then 
-      raise (Failure "(different number of structure fields)");
+    if len <> 0 && old_len <> 0 && old_len <> len then (
+      let curLoc = !currentLoc in     (* d_global blows this away.. *)
+      (trace "merge" (P.dprintf "different # of fields\n%d: %a\n%d: %a\n"
+                                old_len  d_global (GCompTag(oldci,locUnknown))
+                                    len  d_global (GCompTag(ci,locUnknown))
+                     ));            
+      currentLoc := curLoc;
+      raise (Failure "(different number of structure fields)")
+    );
     (* We check that they are defined in the same way. While doing this there 
      * might be recursion and we have to watch for going into an infinite 
      * loop. So we add the assumption that they are equal *)

@@ -293,8 +293,8 @@ Options:
                By default CIL is applied to the whole program during linking.
   --merge      Apply CIL to the merged program.
   --keepmerged  Save the merged file. Only useful if --separate is not given.
-  --trueobj          Do not write preprocessed sources in .obj files but
-                     create some other files.
+  --trueobj          Do not write preprocessed sources in .obj/.o files but
+                     create some other files (e.g. foo.o_saved.c).
  
   --leavealone=xxx   Leave alone files whose base name is xxx. This means
                      they are not merged and not processed with CIL.
@@ -659,16 +659,16 @@ sub separateTrueObjects {
         if(! $self->{TRUEOBJ}) {
             $combsrc = $src;
             $mtime = 0;
+        } else {
+            $combsrc = $src . $Cilly::savedSourceExt;
+            if(-f $combsrc) { 
+                my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
+                    $atime,$mtime_1,$ctime,$blksize,$blocks) = stat($src);
+                $mtime = $mtime_1;
             } else {
-                $combsrc = $src . $Cilly::savedSourceExt;
-                if(-f $combsrc) { 
-                    my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
-                        $atime,$mtime_1,$ctime,$blksize,$blocks) = stat($src);
-                    $mtime = $mtime_1;
-                } else {
-                    $mtime = 0;
-                }
+                $mtime = 0;
             }
+        }
         # Look inside and see if it is one of the files created by us
         open(IN, "<$combsrc") || die "Cannot read $combsrc";
         my $fstline = <IN>;

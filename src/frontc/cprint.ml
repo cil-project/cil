@@ -967,7 +967,8 @@ end
 *)
 let printFile (result : out_channel) ((fname, defs) : file) =
   out := result;
-  print_defs defs
+  print_defs defs;
+  flush ()     (* sm: should do this here *)
 
 let set_tab t = tab := t
 let set_width w = width := w

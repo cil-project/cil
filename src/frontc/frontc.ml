@@ -68,6 +68,9 @@ let patchFileName : string ref = ref ""      (* by default do no patching *)
 (* patching file contents *)
 let patchFile : Cabs.file option ref = ref None
 
+(* whether to print the patched CABS files *)
+let printPatchedFiles : bool ref = ref false
+
 (* whether to print a file of prototypes after parsing *)
 let doPrintProtos : bool ref = ref false
 
@@ -89,6 +92,8 @@ let args : (string * Arg.spec * string) list =
              ": print cabs tree structure in comments in cabs output";
   "--patchFile", Arg.String (fun pf -> patchFileName := pf),
              "<fname>: name the file containing patching transformations";
+  "--printPatched", Arg.Unit (fun _ -> printPatchedFiles := true),
+             ": print patched CABS files after patching, to *.patched";
   "--printProtos", Arg.Unit (fun _ -> doPrintProtos := true),
              ": print prototypes to safec.proto.h after parsing";
 ]
@@ -124,6 +129,15 @@ begin
 
         (trace "patch" (dprintf "newpatching %s\n" fname));
         let result = (Stats.time "newpatch" (Patch.applyPatch pf) cabs) in
+
+        if (!printPatchedFiles) then begin                              
+          let outFname:string = fname ^ ".patched" in
+          (trace "patch" (dprintf "printing patched version of %s to %s\n"
+                                  fname outFname));
+          let o = (open_out outFname) in
+          (Cprint.printFile o result);
+          (close_out o)
+        end;
 
         (* restore out *)
         Cprint.flush ();

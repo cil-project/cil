@@ -2,6 +2,9 @@
 // test merging two source files, each of which contain a definition
 // of a given function, but those definitions are identical (up to
 // alpha renaming of locals/params)
+                               
+// testing --mergeKeepAnnotations
+#pragma boxpoly("some_poly_fn")
 
 // repeated function
 int foo(int xxx)
@@ -12,7 +15,7 @@ int foo(int xxx)
 }
 
 
-int myglobal = 3;
+int myglobal __attribute__((mayPointToStack)) = 3;
 
 
 int main()
