@@ -1,6 +1,8 @@
 // hola.c
 // tiny program for scott's testing purposes
 
+#include <stdio.h>     // printf
+#include <stdlib.h>    // malloc
 
 #if 1
 // this is a pointer in the global area
