@@ -4389,6 +4389,7 @@ and bitsSizeOf t =
       | _ -> raise (SizeOfError t)
   end
 
+
   | TArray (_, None, _) | TFun _ | TVoid _ -> raise (SizeOfError t)
 
 
