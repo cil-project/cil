@@ -763,7 +763,7 @@ sub setVersion {
     open(VER, "gcc -dumpversion " . join(' ', @{$self->{PPARGS}}) ." |") 
         || die "Cannot start GCC";
     while(<VER>) {
-        if($_ =~ m|^(\d+\S+)|) {
+        if($_ =~ m|^(\d+\S+)| || $_ =~ m|^(egcs-\d+\S+)|) {
             $cversion = "gcc_$1";
             close(VER) || die "Cannot start GCC\n";
             $self->{VERSION} = $cversion;
