@@ -110,4 +110,5 @@ rusage
 bzero
 memset_int
 rmunused2
-
+gimpdouble
+struct_cs
