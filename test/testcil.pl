@@ -125,6 +125,7 @@ $TEST->add3Tests("test/cast1");
 $TEST->add3Tests("test/cast2");
 $TEST->add3Tests("test/constprop");
 $TEST->addTests("testrun/const1", "_GNUCC=1", ['cil']);
+$TEST->addTests("testrun/const2", "", ['cil']);
 $TEST->add3Tests("test/enum");
 $TEST->add3Tests("test/format1");
 $TEST->add3Tests("test/func");
