@@ -247,7 +247,6 @@ SAFECC=perl $(CILDIR)/lib/safecc.pl
 #endif
 
 
-
 # weimer: support for other solvers
 ifeq ($(INFERBOX), 1)
     SAFECC+= --safec=-solver --safec=first
@@ -320,6 +319,18 @@ endif
 ifdef OPTIM
 SAFECC += --optim
 endif
+
+
+# sm: user-specific configuration; the leading '-' means it's ok
+# if this file doesn't exist; this file is *not* checked in to
+# the CVS repository (please be careful to avoid putting things
+# in here which will cause things to break when it's missing)
+-include site-config.mk
+
+
+# ----------- above here is configuration -------------------
+# ----------- below here are rules to build targets ---------
+
 
 # garbage collector options
 ifneq ($(COMPUTERNAME), RAW)   # George's workstation
@@ -585,7 +596,19 @@ hola: test/small2/hola.c $(EXECUTABLE)$(EXE) \
                  $(EXEOUT)hola
 	test/small2/hola
 
-# sm: trivial test of test combiner
+# sm: attempt at a single rule for my testing purposes
+scott/%: test/small2/%.c $(EXECUTABLE)$(EXE) \
+                                 $(SAFECLIB) $(SAFEMAINLIB)
+	rm -f test/small2/$*
+	cd test/small2; $(CC) $(CONLY) $(DEF)$(ARCHOS) $*.c
+	cd test/small2; $(SAFECC) --keep=. $(DEF)$(ARCHOS) \
+                 `$(PATCHECHO) --patch=../../lib/$(PATCHFILE)` \
+                 $(DOOPT) $(WARNALL) \
+                 $*.c \
+                 $(EXEOUT)$*
+	test/small2/$*
+
+# sm: trivial test of combiner
 MYSAFECC = $(SAFECC) --keep=. $(DEF)$(ARCHOS)
 comb: test/small2/comb1.c test/small2/comb2.c $(EXECUTABLE)$(EXE) \
                                  $(SAFECLIB) $(SAFEMAINLIB)
