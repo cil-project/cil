@@ -324,10 +324,11 @@ and expToType (e,et,en) t (callid: int) =
     true, true -> e
   | false, true -> e (* Ignore casts of pointer to non-pointer *)
   | false, false -> 
-      if isZero e then 
-        tn.N.null <- true (* Do not add an edge *)
+      if isZero e then
+        tn.N.null <- true  (* Do not add an edge *)
       else
-        N.addEdge etn tn N.ECast callid; e
+        N.addEdge etn tn N.ECast callid; 
+      e
   | true, false -> 
       (* Cast of non-pointer to a pointer. Check for zero *)
       (if isZero e then
