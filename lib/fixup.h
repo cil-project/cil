@@ -41,7 +41,7 @@
 #define CASTTOPOINTER(btyp, host, what) ((btyp *)(what))
 #endif
 
-#if !defined(__NODE) && !defined(MANUALBOX)
+#if 0 && !defined(__NODE) && !defined(MANUALBOX)
   #define __SAFE
   #define __INDEX
   #define __TAGGED
@@ -71,6 +71,7 @@
   #define __BOXVARARG(x)
   #define __BOXFORMAT(x)
 #else
+#if !defined(__NODE)
   #define __WILD   __attribute__((wild))
   #define __SAFE   __attribute__((safe))
   #define __TAGGED __attribute__((tagged))
@@ -103,6 +104,7 @@
   #define __MODELEDBODY
   #define __BOXVARARG(x)
   #define __BOXFORMAT(x)
+#endif
 #endif
 
 // sm: I don't understand why the above macros are all conditioned
