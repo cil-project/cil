@@ -1145,39 +1145,6 @@ let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
                vi.vname d_loc oldloc reason)
     end;
       
-(*          
-          
-    (* Maybe we had an incomplete type before and it is complete now  *)
-    let _ = 
-(*      ignore (E.log "Old type: %a\n" d_plaintype oldvi.vtype);
-      ignore (E.log "New type: %a\n" d_plaintype vi.vtype); *)
-      let oldts = typeSig oldvi.vtype in
-      let newts = typeSig vi.vtype in
-      if oldts = newts then ()
-      else 
-        match oldts, newts with
-                                        (* If the new type is complete, I'll 
-                                         * trust it  *)
-        | TSArray(_, Some _, _), TSArray(_, None, _) -> ()
-        | TSArray(_, _, _), TSArray(_, Some _, _) 
-          -> oldvi.vtype <- vi.vtype
-         (* If one is a function with no arguments and the other has some 
-          * arguments, believe the one with the arguments *)
-        | TSFun(_, [], va1, _), TSFun(r2, _ :: _, va2, a2)
-               when va1 = va2 -> oldvi.vtype <- vi.vtype
-        | TSFun(r1, _ , va1, _), TSFun(_, [], va2, a2) when va1 = va2 -> ()
-         (* Otherwise maybe the attributes are different. Keep the union of 
-          * the attributes *)
-        | _, _ 
-              when setTypeSigAttrs [] oldts = 
-                   setTypeSigAttrs [] newts -> 
-           let olda = typeSigAttrs oldts in
-           let newa = typeSigAttrs newts in
-           oldvi.vtype <- setTypeAttrs oldvi.vtype (addAttributes olda newa)
-        | _, _ -> 
-            E.s (error "Declaration of %s does not match previous declaration from %a." vi.vname d_loc oldloc)
-    in
-*)
     oldvi, true
       
   with Not_found -> begin (* A new one. It is a definition unless it is 
@@ -4277,6 +4244,7 @@ let convFile fname dl =
               (* Setup the environment. Add the formals to the locals. Maybe
                * they need alpha-conv  *)
               enterScope ();  (* Start the scope *)
+
               H.clear varSizeArrays;
 
               let bt,sto,inl,attrs = doSpecList specs in
@@ -4294,21 +4262,17 @@ let convFile fname dl =
               in
               (* Record the returnType for doStatement *)
               currentReturnType   := returnType;
-              (* Add the formals to the environment *)
-              let formals' =
-                match formals with
-                  None -> None
-                | Some fl -> 
-                    Some (List.map (alphaConvertVarAndAddToEnv true) fl) in
-              let formalsList' = argsToList formals' in
-              let ftype = TFun(returnType, formals', isvararg, funta) in
-              (* Add the function itself to the environment. Just in case we
-               * have recursion and no prototype.  *)
+
+              (* Add the function itself to the environment. Add it before 
+               * you do the body because the function might be recursive. Add 
+               * it also before you add the formals to the environment 
+               * because there might be a formal with the same name as the 
+               * function and we want it to take precedence. *)
               (* Make a variable out of it and put it in the environment *)
               let thisFunctionVI, _ =
                 makeGlobalVarinfo true
                   { vname = n;
-                    vtype = ftype;
+                    vtype = ftyp;
                     vglob = true;
                     vid   = newVarId n true;
                     vdecl = lu;
@@ -4318,6 +4282,22 @@ let convFile fname dl =
                     vreferenced = false;   (* sm *)
                   }
               in
+
+              (* Add the formals to the environment *)
+              let formals' =
+                match formals with
+                  None -> None
+                | Some fl -> 
+                    Some (List.map (alphaConvertVarAndAddToEnv true) fl) in
+              ignore (E.log "after adding formals in %s: lookupEnv = %b\n"
+                        n (H.mem env n));
+              let formalsList' = argsToList formals' in
+              let ftype = TFun(returnType, formals', isvararg, funta) in
+              (* Now fix the names of the formals in the type of the function 
+               * as well *)
+              thisFunctionVI.vtype <- ftype;
+              ignore (E.log "Before makeGlobaVarinfo: ftype= %a\n"
+                        d_plaintype ftype);
 (*              ignore (E.log "makefunvar:%s@! type=%a@! vattr=%a@!"
                         n d_plaintype ftype (d_attrlist true) funattr); *)
               if H.mem alreadyDefined thisFunctionVI.vid then

@@ -1900,7 +1900,7 @@ gimpall: zlib tiff libpgn jpeg mpeg glib gtk
 #######  C-TORTURE
 #######
 CTORTDIR := /usr/local/src/gcc/gcc/testsuite/gcc.c-torture
-CILLY := gcc
+# CILLY := gcc
 tort/compile/%: $(CTORTDIR)/compile/%.c mustbemanju mustbegcc
 	$(CILLY) $(CTORTDIR)/compile/$*.c -c
 
