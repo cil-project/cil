@@ -1384,19 +1384,70 @@ let setTypeAttrs t a =
   | TFun (r, args, v, _) -> TFun(r,args,v,a)
 
 
-let typeAddAttributes a0 t = 
-  if a0 == [] then t else
-  let add (a: attributes) = addAttributes a0 a in
-  match t with 
-    TVoid a -> TVoid (add a)
-  | TInt (ik, a) -> TInt (ik, add a)
-  | TFloat (fk, a) -> TFloat (fk, add a)
-  | TEnum (enum, a) -> TEnum (enum, add a)
-  | TPtr (t, a) -> TPtr (t, add a)
-  | TArray (t, l, a) -> TArray (t, l, add a)
-  | TFun (t, args, isva, a) -> TFun(t, args, isva, add a)
-  | TComp (comp, a) -> TComp (comp, add a)
-  | TNamed (n, t, a) -> TNamed (n, t, add a)
+(* This stuff is to handle a GCC extension where you can request integers *)
+(* of specific widths using the "mode" attribute syntax; for example:     *)
+(*   typedef int int8_t __attribute__ ((__mode__ (  __QI__ ))) ;          *)
+(* The cryptic "__QI__" defines int8_t to be 8 bits wide, instead of the  *)
+(* 32 bits you'd guess if you didn't know about "mode".  The relevant     *)
+(* testcase is test/small2/mode_sizes.c, and it was inspired by my        *)
+(* /usr/include/sys/types.h.                                              *)
+(*                                                                        *)
+(* A consequence of this handling is that we throw away the mode          *)
+(* attribute, which we used to go out of our way to avoid printing anyway.*)  
+let handleGCCWidthMode (mode: string) (t: typ) : typ =
+begin
+  match t with
+  | TInt(intKind, existAttrs) ->
+    begin
+      (trace "gccwidth" (dprintf "I see mode %s applied to an int type\n"
+                                 mode (* #$@!#@ ML! d_type t *) ));
+      (* the cases below encode the 32-bit assumption.. *)
+      match (intKind, mode) with
+      | (IInt, "__QI__")      -> TInt(IChar, existAttrs)
+      | (IInt, "__byte__")    -> TInt(IChar, existAttrs)
+      | (IInt, "__HI__")      -> TInt(IShort, existAttrs)
+      | (IInt, "__SI__")      -> TInt(IInt, existAttrs)   (* same as t *)
+      | (IInt, "__word__")    -> TInt(IInt, existAttrs)
+      | (IInt, "__pointer__") -> TInt(IInt, existAttrs)
+      | (IInt, "__DI__")      -> TInt(ILongLong, existAttrs)
+
+      | (IUInt, "__QI__")     -> TInt(IUChar, existAttrs)
+      | (IUInt, "__byte__")   -> TInt(IUChar, existAttrs)
+      | (IUInt, "__HI__")     -> TInt(IUShort, existAttrs)
+      | (IUInt, "__SI__")     -> TInt(IUInt, existAttrs)
+      | (IUInt, "__word__")   -> TInt(IUInt, existAttrs)
+      | (IUInt, "__pointer__")-> TInt(IUInt, existAttrs)
+      | (IUInt, "__DI__")     -> TInt(IULongLong, existAttrs)
+
+      | _ -> (ignore (error "GCC width mode applied to unexpected type, or unexpected mode")); t
+    end
+  | _ -> (ignore (error "GCC width mode applied to unexpected type")); t
+end
+
+let typeAddAttributes a0 t =
+begin
+  match a0 with
+  | [] ->
+      (* no attributes, keep same type *)
+      t
+  | [Attr("mode", [ACons(mode,[])] )] ->
+      (* one of those funky GCC mode width-specifiers; *)
+      (* the pattern only matches singleton lists, I hope this won't be a problem *)
+      (handleGCCWidthMode mode t)
+  | _ ->
+      (* anything else: add a0 to existing attributes *)
+      let add (a: attributes) = addAttributes a0 a in
+      match t with
+        TVoid a -> TVoid (add a)
+      | TInt (ik, a) -> TInt (ik, add a)
+      | TFloat (fk, a) -> TFloat (fk, add a)
+      | TEnum (enum, a) -> TEnum (enum, add a)
+      | TPtr (t, a) -> TPtr (t, add a)
+      | TArray (t, l, a) -> TArray (t, l, add a)
+      | TFun (t, args, isva, a) -> TFun(t, args, isva, add a)
+      | TComp (comp, a) -> TComp (comp, add a)
+      | TNamed (n, t, a) -> TNamed (n, t, add a)
+end
 
 let typeRemoveAttributes (anl: string list) t = 
   let drop (al: attributes) = dropAttributes anl al in

@@ -585,6 +585,7 @@ smAddTest("scott/stralloc $box $gcc");
 smAddTest("scott/mknod $box");
 smAddTest("bad/nullfield $manualbox");
 smAddTest("scott/constfold");
+smAddTest("scott/mode_sizes");       # mode(__QI__) stuff
 
 # test of strings (need more!)
 smFailTest("unsound user annotation RWSTRING", "bad/ovwrnull $box");

@@ -4452,12 +4452,12 @@ and doTypedef ((specs, nl): A.name_group) =
   try
     (* Do the specifiers exactly once *)
     let bt, sto, inl, attrs = doSpecList specs in
-    if sto <> NoStorage || inl then 
+    if sto <> NoStorage || inl then
       E.s (error "Storage or inline specifier not allowed in typedef");
-    let createTypedef ((n,ndt,a) : A.name) = 
+    let createTypedef ((n,ndt,a) : A.name) =
       (*    E.s (error "doTypeDef") *)
       try
-        let newTyp, tattr = 
+        let newTyp, tattr =
           doType AttrType bt (A.PARENTYPE(attrs, ndt, a))  in
         let newTyp' = typeAddAttributes tattr newTyp in
         (* Create a new name for the type. Use the same name space as that of 
@@ -4465,7 +4465,7 @@ and doTypedef ((specs, nl): A.name_group) =
         * is actually necessary in some cases.  *)
         let n' = newAlphaName true "" n in
         let namedTyp = TNamed(n', newTyp', []) in
-        (* Register the type. register it as local because we might be in a 
+        (* Register the type. register it as local because we might be in a
         * local context  *)
         addLocalToEnv (kindPlusName "type" n) (EnvTyp namedTyp);
         pushGlobal (GType (n', newTyp', !currentLoc))
