@@ -4,15 +4,12 @@ use strict;
 # Implementation by Daniel Wilkerson of the delta debugging algorithm:
 # http://www.st.cs.uni-sb.de/dd/
 
-# Bugs:
-
-# The second loop that considers complement sets is restarting the big
-# loop as soon as it finds anything, which is sub-optimal.
-
 # Features:
 
 # Should probably start by throwing away things at the end rather than
 # at the start, since I think they are least likely to be relevant.
+# This would be easy to do by inserting a reverse in the complement
+# foreach loop.
 
 # Note that 1-minimality does not imply idempotency, so we could
 # re-run once it is stuck, perhaps with some randomization.
@@ -379,18 +376,26 @@ big_loop: {
     }
 
     # Test the complements to single markers.
-    foreach my $anti_test_marker (@markers) {
-        start_marking();
-        my @newmarkers = ();    # Will become markers if we find something.
-        foreach my $marker (@markers) {
-            next if $marker eq $anti_test_marker;
-            mark($marker);
-            push @newmarkers, $marker;
+  complement_loop: {
+        my %excluded = ();
+        foreach my $excluded_marker (@markers) {
+            start_marking();
+            foreach my $marker (@markers) {
+                next if $marker eq $excluded_marker;
+                next if $excluded{$marker};
+                mark($marker);
+            }
+            stop_marking();
+            if (test()) {
+                die "Can't happen" if $excluded{$excluded_marker};
+                $excluded{$excluded_marker}++;
+            }
         }
-        stop_marking();
-        if (test()) {
-            @markers = @newmarkers; # Get rid of this marker.
-            redo big_loop;
+        # If any were excluded, record this fact into @markers.
+        my @excluded_keys = keys %excluded;
+        if (@excluded_keys) {
+            @markers = grep {!$excluded{$_}} @markers;
+            redo complement_loop; # Retry at the same granularity.
         }
     }
 
