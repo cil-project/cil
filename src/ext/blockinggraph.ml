@@ -558,6 +558,7 @@ class instrumentClass = object
     ignore (makeLocalVar fdec "savebottom" voidPtrType);
     (* Add macro for function entry when we're done. *)
     let addEntryNode (fdec: fundec) : fundec =
+      if not !seenRet then E.s (bug "didn't find a return statement");
       let node = getFunctionNode fdec.svar.vname in
       if fingerprintAll || node.origkind <> NoBlock then begin
         let fingerprintSet =
