@@ -644,6 +644,8 @@ let newNode (p: place) (idx: int) (bt: typ) (al: attribute list) : node =
   let where = p, idx in
   incr nextId;
   let kind,why_kind = kindOfAttrlist al in
+(*  if !nextId = 1 then 
+    ignore (E.log "newNode: %a\n" d_opointerkind kind); *)
   let n = { id = !nextId;
             btype   = bt;
             attr    = addAttribute (Attr("_ptrnode", [AInt !nextId])) al;

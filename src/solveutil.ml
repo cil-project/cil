@@ -197,7 +197,7 @@ let rec is_p n other_n = match n.where with
 (* This "solver" turns almost all nodes WILD *)
 let wild_solve (node_ht : (int,node) Hashtbl.t) = begin
   Hashtbl.iter (fun id n -> 
-    if (n.kind <> ROString || n.why_kind <> PrintfArg) then begin
+    if (n.kind <> ROString) then begin
       (* Do not make WILD those functions that are not cast and are not used 
        * without prototype *)
       if (match n.btype with TFun _ -> true | _ -> false) &&
