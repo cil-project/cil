@@ -252,6 +252,7 @@ $TEST->add3Tests("testrun/polyrec");
 $TEST->add3Tests("testrun/label1");
 $TEST->add3Tests("testrun/label2");
 $TEST->add3Tests("testrun/label3");
+$TEST->add2Tests("testrun/label4", "_GNUCC=1");
 $TEST->add3Tests("testrun/wchar1");
 $TEST->add3Tests("testrun/wchar2");
 $TEST->add3Tests("testrun/wchar3");
@@ -289,11 +290,15 @@ $TEST->addTests("testrun/rmtmps1", "", ['cil']);
 $TEST->addTests("testrun/rmtmps2", "_GNUCC=1", ['cil']);
 $TEST->addTests("test/proto1", "", ['cil']);
 $TEST->addTests("test/proto2", "", ['cil']);
+   $TEST->addBadComment("test/proto2-cil", 
+                        "Bug in parser (precedences)");
 $TEST->addTests("testrun/struct1", "", ['cil']);
 $TEST->addTests("testrun/voidarg", "", ['cil']);
 $TEST->addTests("testrun/union2", "", ['cil']);
 $TEST->addTests("testrun/union3", "", ['cil']);
 $TEST->addTests("test/cpp-2", "", ['cil']);
+   $TEST->addBadComment("test/cpp-2", 
+                        "Bug in parser (empty pragmas)");
 
 if($^O eq 'MsWin32') {
     $TEST->addTests("testrun/extern_init", "_MSVC=1", ['cil']);   
@@ -461,7 +466,9 @@ if(-d $ctorture &&
                 'compile/981223-1', 'compile/991213-1', 'compile/20010605-2',
                 'compile/960512-1', 'compile/complex-1', 
                 'compile/complex-2', 'compile/complex-4', 
-                'compile/complex-5');
+                'compile/complex-5', 'execute/complex-2', 'execute/complex-5',
+                'execute/960512-1', 'execute/complex-4', 
+                'execute/complex-1', 'execute/20010605-2');
 
     # Also omit those with inner functions
     push @omit, 
@@ -472,7 +479,8 @@ if(-d $ctorture &&
      'execute/921215-1', 'execute/920428-2', 'execute/921017-1',
      'execute/nest-stdar-1', 'execute/nestfunc-3', 'execute/920501-7', 
      'execute/920721-4', 'execute/920612-2', 'execute/20010209', 
-     'execute/931002-1', 'execute/nestfunc-1', 'execute/20000822-1');
+     'execute/931002-1', 'execute/nestfunc-1', 'execute/20000822-1',
+     'compile/930506-2', 'execute/20010209-1');
 
     # Read the compile tests 
    my @tortures;

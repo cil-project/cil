@@ -544,8 +544,8 @@ statement_list:
 
 
 local_labels: 
-   /* empty */                           { [] }
-|  LABEL__ local_label_names SEMICOLON   { $2 }
+   /* empty */                                       { [] }
+|  LABEL__ local_label_names SEMICOLON local_labels  { $2 @ $4 }
 ;
 local_label_names: 
    IDENT                                 { [ $1 ] }
