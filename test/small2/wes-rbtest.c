@@ -96,6 +96,8 @@ typedef int BOOL;
 #define DIRLISTSEP ':'
 #endif /* x86_WIN32 */
 
+extern void exit(int);
+
 #ifdef _DEBUG
 #define _ASSERT(be) {if(!(be)){fprintf(stderr,"Assertion failed on line %d in file %s\n", __LINE__, __FILE__);exit(2);}}
 #else
