@@ -94,7 +94,7 @@ let rec doType (t: typ) (p: N.place)
       let iscomp = match bt with TComp comp -> true | _ -> false in
       if iscomp then
         let t', _ = doType bt (N.PType n) 0 in
-        t', nextidx
+        TNamed (n, t', a), nextidx
       else
         let t', nextidx' = doType bt p nextidx in
         t', nextidx'

@@ -202,7 +202,6 @@ let d_node () n =
     (if n.intcast  then "int," else "")
     (if n.interface  then "interf," else "")
     (if n.sized  then "sized," else "")
-    (if n.interface  then "interf," else "")
     (docList (chr ',' ++ break)
        (fun n -> num n.id)) n.pointsto
     d_pointerkind n.kind
