@@ -1898,7 +1898,7 @@ gtk-gcc: mustbegcc mustbemanju mustbelinux gtkclean
 
 
 
-gimpall: zlib tiff libpgn jpeg mpeg glib gtk
+gimpall: zlib tiff libpng jpeg mpeg glib gtk
 
 
 

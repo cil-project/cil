@@ -33,50 +33,53 @@ it compiles all C programs into a few core constructs with a very clean
 semantics and has a syntax-directed type system that makes it easy to analyze
 and manipulate C programs. Furtheremore, the CIL front-end is able to process
 not only ANSI-C programs but also those using Microsoft C or GNU C extensions.
-If you want to analyze programs using abstract-syntax trees then your analysis
-will have to handle a lot of ugly corners of the language (let alone the fact
-that parsing C itself is not a trivial task). See \secref{simplec} for some
-examples of ``interesting'' C programs.
+If you do not use CIL or similar frameworks and want instead to use just a C
+parser and analyze programs expressed as abstract-syntax trees then your
+analysis will have to handle a lot of ugly corners of the language (let alone
+the fact that parsing C itself is not a trivial task). See \secref{simplec}
+for some examples of such extreme programs that CIL simplifies for you.
 
  In essence, CIL is a highly-structured, ``clean'' subset of C. CIL features a
 reduced number of syntactic and conceptual forms. For example, all looping
 constructs are reduced to a single form, all function bodies are given
 explicit {\tt return} statements, syntactic sugar like {\tt "->"} is
-eliminated and function arguments with array types become pointers. This
-reduces the number of cases that must be considered when manipulating a C
-program. However, the external representation for CIL will often put back such
-syntactic sugar in order to stay faithful to the original source. CIL also
-separates type declarations from code and flattens scopes within function
-bodies. This structures the program in a manner more amenable to rapid
-analysis and transformation. CIL computes the types of all program
+eliminated and function arguments with array types become pointers. (For a
+more extensive list of how CIL simplifies C programs, see \sefrec{cabs2cil}.)
+This reduces the number of cases that must be considered when manipulating a C
+program. CIL also separates type declarations from code and flattens scopes
+within function bodies. This structures the program in a manner more amenable
+to rapid analysis and transformation. CIL computes the types of all program
 expressions, and makes all type promotions and casts explicit. CIL supports
-all GCC and MSVC extensions except for nested functions. Finally, CIL
-organizes C's imperative features into expressions, instructions and
-statements based on the presence and absence of side-effects and control-flow.
-Every statement can be annotated with successor and predecessor
+all GCC and MSVC extensions except for nested functions and complex numbers.
+Finally, CIL organizes C's imperative features into expressions, instructions
+and statements based on the presence and absence of side-effects and
+control-flow. Every statement can be annotated with successor and predecessor
 information. Thus CIL provides an integrated program representation that can
 be used with routines that require an AST (e.g. type-based analyses and
-pretty-printers), as well as with routines that require a CFG (e.g., dataflow analyses).
+pretty-printers), as well as with routines that require a CFG (e.g., dataflow
+analyses).
 
- In addition CIL comes accompanied by a number of Perl scripts that perform
-generally useful operations on code:
+ CIL comes accompanied by a number of Perl scripts that perform generally
+useful operations on code:
 \begin{itemize}
 \item A \ahrefloc{sec-driver}{driver} which behaves as either the
 \t{gcc} or Microsoft VC compiler and can invoke the preprocessor and the CIL
-application. The advantage of this script is that you can use it with existing
-make files.
+application. The advantage of this script is that you can easily use CIL and
+the analyses written for CIL with existing make files.
 \item A \ahrefloc {sec-merger}{whole-program merger} that you can use as a
 replacement for your compiler and it learns all the files you compile when you
 make a project and merges all of the preprocessed source files into a single
 one. This makes it easy to do whole-program analysis.
 \item A \ahrefloc{sec-patcher}{patcher} makes it easy to create modified
-copies of the system include files. The preprocessor can then be told how to 
+copies of the system include files. The CIL driver can then be told to use
+these patched copies instead of the standard ones.
 \end{itemize}
 
  CIL has been tested very extensively. It is able to process the SPECINT95
-benchmarks, the Linux kernel, GIMP and other open-source projects. It is also
-able to process the few Microsoft NT device drivers that we have had access
-to. CIL was tested against GCC's c-torture testsuite and (except for the tests
+benchmarks, the Linux kernel, GIMP and other open-source projects. This adds
+to about 1,000,000 lines of code that we tested it on. It is also able to
+process the few Microsoft NT device drivers that we have had access to. CIL
+was tested against GCC's c-torture testsuite and (except for the tests
 involving complex numbers and inner functions, which CIL does not currently
 implement) CIL passes most of the tests. In fact it passes more tests that
 \t{gcc 2.95.3}! A total of 1400 regression test cases are run automatically on
@@ -84,17 +87,17 @@ each change to the CIL sources.
 
 \section{Compiling C to CIL}\label{sec-cabs2cil}
 
- In this section we try to describe a few of the many transformations that
-are applied to a C program to convert it to CIL. The module that implements
-this conversion is about 5000 lines of OCaml code. In contrast a simple
-program transformation that instruments all functions to keep a shadow stack
-of the true return address (thus preventing stack smashing) is only 70 lines
-of code. This is both because the analysis has to handle only a few simple C
-constructs and also because it can leverage on CIL infrastructure such as
-vistors and pretty-printers. 
+ In this section we try to describe a few of the many transformations that are
+applied to a C program to convert it to CIL. The module that implements this
+conversion is about 5000 lines of OCaml code. In contrast a simple program
+transformation that instruments all functions to keep a shadow stack of the
+true return address (thus preventing stack smashing) is only 70 lines of code.
+This example shows that the analysis is so much simpler because it has to
+handle only a few simple C constructs and also because it can leverage on CIL
+infrastructure such as visitors and pretty-printers.
 
  In no particular order these are a few of the most significant ways in which
- C programs are compiled into CIL:
+C programs are compiled into CIL:
 \begin{enumerate}
 \item CIL will eliminate all declarations for unused entities. This means that
 just because your hello world program includes \t{stdio.h} it does not mean
@@ -330,6 +333,10 @@ to be used as lvalues:
    return &(x ? y : z) - & (x ++, x);
 \end{cilcode}
 
+\item All types are computed and explicit casts are inserted for all
+promotions and conversions that a compiler must insert:
+
+ 
 \end{enumerate}
 
 \section{CIL API Documentation}\label{sec-cil} 
