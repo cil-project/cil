@@ -292,3 +292,8 @@ type registerInfo = {
     rVal: Pretty.doc; (** The value to be displayed about a register *)
 } 
 
+
+
+let valOf : 'a option -> 'a = function
+    None -> raise (Failure "Util.valOf")
+  | Some x -> x

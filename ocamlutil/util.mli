@@ -105,3 +105,7 @@ type registerInfo = {
                      * a special window. *)
     rVal: Pretty.doc; (** The value to be displayed about a register *)
 } 
+
+
+(** Get the value of an option.  Raises Failure if None *)
+val valOf : 'a option -> 'a
