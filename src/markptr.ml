@@ -21,7 +21,8 @@ let callId = ref (-1)  (* Each call site gets a new ID *)
 
 let polyId = ref (-1) 
 
-let rec stripCast (e: exp) = match e with CastE(_, e') -> stripCast e' | _ -> e
+let rec stripCasts (e: exp) = 
+  match e with CastE(_, e') -> stripCasts e' | _ -> e
 
 let matchSuffix (lookingfor: string) (lookin: string) = 
   let inl = String.length lookin in
@@ -645,7 +646,8 @@ let argumentTypeSig (t: typ) =
   let argumentPromotion (t : typ) : typ =
     match unrollType t with
       (* We assume that an IInt can hold even an IUShort *)
-      TInt ((IShort|IUShort|IChar|ISChar|IUChar), a) -> TInt(IInt, a)
+      TInt ((IShort|IUShort|IChar|ISChar|IUChar|ILong|IULong|IUInt), a) -> 
+        TInt(IInt, a)
     | TInt _ -> t
           (* floats are passed as double *)
     | TFloat (FFloat, a) -> TFloat (FDouble, a)
@@ -660,40 +662,56 @@ type vaKind  = int (* An index starting from 0 *)
              * typ (* The type of the kind *)
              * typsig (* The pre-computed type signature *)
 
-(* Keep track for each function whether it is a vararg, and the 
- * alternatives, with an index, a field name, a type and a type signature. 
- * raises Not_found *)
-let getVarargKinds (func: exp) : vaKind list = 
-  match filterAttributes "boxvararg" (getFunctionTypeAttributes func) with
-    [Attr(_, [ASizeOf t])] -> 
-      let kinds = 
-        match unrollType t with
-          TComp (ci, _) when not ci.cstruct -> 
-            let rec loop (idx: int) = function
-                [] -> []
-              | fi :: restfi -> 
-                  (idx, fi.fname, fi.ftype, argumentTypeSig fi.ftype) 
-                  :: loop (idx + 1) restfi
-            in
-            loop 0 ci.cfields
-        | t' -> [(0, "anon", t', argumentTypeSig t')]
-      in
-      (* Make sure that no two types are compatible *)
-      let _ = 
-        List.fold_left
-          (fun prev ((_, thisn, _, thiss) as this) -> 
-            List.iter
-              (fun (_, pn, pt, ps) -> 
-                if thiss = ps then 
-                  E.s (error "Vararg type %a has compatible fields %s and %s\n"
-                         d_type t pn thisn)) prev;
-            this :: prev)
-          []
-          kinds
-      in
-      kinds
+(* Get the descriptor type for a va_list variable. May raise Not_found *)
+let getValistDescriptorType (dv:varinfo) = 
+  match unrollType dv.vtype with 
+    TPtr(TComp(ci, _), pa) when ci.cname = "__ccured_va_list" -> begin
+      match filterAttributes "boxvararg" pa with 
+        [Attr(_, [ASizeOf t])] -> t
+      | _ -> raise Not_found
+    end
+  | _ -> raise Not_found
+         
+
+let getVarargFunctionDescriptorType (fexp: exp) = 
+  match unrollType (typeOf fexp) with
+    TFun(_, _, _, a) -> begin
+      match filterAttributes "boxvararg" a with
+        [Attr(_, [ASizeOf t])] -> t
+      | _ -> raise Not_found
+    end
   | _ -> raise Not_found
 
+
+(* Keep track for each function whether it is a vararg, and the 
+ * alternatives, with an index, a field name, a type and a type signature. *)
+let getVarargKinds (descrt: typ) : vaKind list = 
+  let kinds = 
+    match unrollType descrt with
+      TComp (ci, _) when not ci.cstruct -> 
+        let rec loop (idx: int) = function
+            [] -> []
+          | fi :: restfi -> 
+              (idx, fi.fname, fi.ftype, argumentTypeSig fi.ftype) 
+              :: loop (idx + 1) restfi
+        in
+        loop 0 ci.cfields
+    | t' -> [(0, "anon", t', argumentTypeSig t')]
+  in
+  (* Make sure that no two types are compatible *)
+  let _ = 
+    List.fold_left
+      (fun prev ((_, thisn, _, thiss) as this) -> 
+        List.iter
+          (fun (_, pn, pt, ps) -> 
+            if thiss = ps then 
+              E.s (error "Vararg type %a has compatible fields %s and %s\n"
+                     d_type descrt pn thisn)) prev;
+        this :: prev)
+      []
+      kinds
+  in
+  kinds
 
 (* May raise Not_found *)
 let findTypeIndex (t: typ) 
@@ -788,7 +806,7 @@ let handleFormatString
             raise Not_found
           end
         in
-        match stripCast format_arg with
+        match stripCasts format_arg with
           Const(CStr(f)) -> 
             let format_types = parseFormatString f 0 in (* May raise 
                                                          * Not_found  *)
@@ -815,7 +833,8 @@ let prepareVarargArguments
     (nrformals: int)
     (args: exp list) : instr list * exp list = 
   try
-    let argkinds = getVarargKinds func in
+    let descrt = getVarargFunctionDescriptorType func in
+    let argkinds = getVarargKinds descrt in
     if debugVararg then 
       ignore (E.log "Preparing args in call to %a\n" d_exp func);
 
@@ -902,22 +921,7 @@ let getVarArgCompInfo () : compinfo  =
         ci
   in
   ci
-                
-let getNextField (vainfo: varinfo) : lval = 
-  let ci = getVarArgCompInfo () in
-  match ci.cfields with
-    n :: _ -> 
-      addOffsetLval (Field(n, NoOffset)) (var vainfo)
-  | _ -> E.s (E.bug "getNextField: can't find it")
     
-    (* We keep a list of the marker variables and their mapping to vainfo 
-     * variables. We also keep  *)
-type vaListType = 
-    { vaOrigName: string ; (* The original name *)
-      vaNewVarinfo: varinfo; (* The replacement *)
-      vaKinds: vaKind list } 
-
-let markers: (string, varinfo) H.t = H.create 13
     (* The last formal in this body *)
 let lastformal : varinfo ref = ref dummyFunDec.svar
 
@@ -929,45 +933,47 @@ class processVarargClass (fdec: fundec) = object
   method vinst (i: instr) : instr list visitAction = 
     match i with 
       Call(reso, (Lval(Var fvi, NoOffset) as f), args, l) -> 
-        let replaceMarker (args: exp list) : exp list = 
-          let marker, restargs = 
-            match args with 
-              marker :: restargs -> marker, restargs
-          | _ -> E.s (E.bug "va_macro must have at least one arg")
-          in
-          let newmarkervi = 
-            match marker with 
-              Lval (Var markervi, NoOffset) -> begin
-                try
-                  H.find markers markervi.vname
-                with Not_found -> begin
-                  let ci = getVarArgCompInfo () in
-                  (* Now create a local of that type *)
-                  let vainfo = 
-                    makeLocalVar 
-                      fdec ~insert:true "__ccured_va_local" (TComp(ci, [])) in
-                  H.add markers markervi.vname vainfo;
-                  vainfo.vaddrof <- true;
-                  vainfo
-                end
-              end
-            | _ -> 
-                E.s (unimp "We support only va_macros with variable marker")
-          in
-          AddrOf (Var newmarkervi, NoOffset) :: restargs
-        in        
-        if fvi.vname = "__ccured_va_start" then 
-          ChangeTo ([Call(reso, f, replaceMarker args, l)])
-        else if fvi.vname = "__ccured_va_arg" then begin
+        let getNthArg (n: int) = 
+          try
+            stripCasts (List.nth args n) 
+          with _ -> E.s (error "Not enough arguments in call to %s\n" 
+                           fvi.vname)
+        in
+        if fvi.vname = "__ccured_va_start" then begin
+          match getNthArg 0, getNthArg 1 with 
+            Lval (Var markervi, NoOffset),
+            AddrOf (Var last, NoOffset) -> begin
+              let markerdescrt = 
+                try getValistDescriptorType markervi 
+                with Not_found -> 
+                  E.s (error "Call to va_start on a non va_list variable\n")
+              in
+              let fundescrt = 
+                try getVarargFunctionDescriptorType (Lval(var fdec.svar))
+                with Not_found -> 
+                  E.s (error "Call to va_start in a non vararg function\n")
+              in
+              if markerdescrt <> fundescrt then
+                E.s (error "Cannot match the descriptor types in va_start");
+              if last != !lastformal then
+                E.s (error "va_start used on something other than the last formal");
+              SkipChildren
+            end
+          | _ -> E.s (error "Invalid call to %s\n" fvi.vname)
+        end else if fvi.vname = "__ccured_va_arg" then begin
           (* Find the type of the desired argument *)
-          let marker, desiredt = 
+          let markervi, desiredt = 
             match args with 
-              marker :: SizeOf t :: _ :: [] -> marker, t
-            | _ -> E.s (error "Call to va_start does not have a type")
+              Lval(Var markervi, NoOffset) :: SizeOf t :: _ :: [] -> 
+                markervi, t
+            | _ -> E.s (error "Invalid call to %s" fvi.vname)
           in
           let desiredts = argumentTypeSig desiredt in
           (* Find the index in the union type of a compatible type *)
-          let kinds = getVarargKinds (Lval(Var fvi, NoOffset)) in
+          let kinds = 
+            try getVarargKinds (getValistDescriptorType markervi) 
+            with Not_found -> E.s (error "Cannot find descriptor type in call to %s\n" fvi.vname)
+          in
           let ki, kn, kt, ks = 
             match List.filter (fun (_, _, _, ks) -> ks = desiredts) kinds with 
               [x] -> x
@@ -979,13 +985,11 @@ class processVarargClass (fdec: fundec) = object
             Some (Var tmpvi, NoOffset) -> tmpvi.vtype <- TPtr(kt,[])
           | None -> ignore (warn "Call to va_arg is not assigned")
           | _ -> E.s (unimp "Result of va_arg does not go into a variable"));
-          ChangeTo ([Call(reso, f, 
-                          replaceMarker [ marker; 
-                                          SizeOf kt; 
-                                          integer ki ], l)])
-        end else if fvi.vname = "__ccured_va_end" then 
-          ChangeTo ([Call(reso, f, replaceMarker args, l)])
-        else SkipChildren
+          ChangeTo ([Call(reso, f, [ Lval (var markervi); 
+                                     SizeOf kt; 
+                                     integer ki ], l)])
+        end else
+          SkipChildren
     | _ -> SkipChildren
 end
 
@@ -996,44 +1000,82 @@ let processVarargBody (fdec: fundec) : unit =
       TFun(_, formals, isva, _) -> formals, isva
     | _ -> E.s (E.bug "Function does not have function type")
   in
-  if isva then begin
-    (* Get the last formal *)
+  let foundVarargs = ref false in
+  (* Get and memoize the descriptor for a va_list local. Return None if this 
+   * is not a va_list local. *)
+  let getDescriptorLocal (l: varinfo) : typ option = 
+    match unrollType l.vtype with 
+      TPtr(TComp(ci, a), pa) when ci.cname = "__ccured_va_list" -> begin
+        foundVarargs := true;
+        let descrt = 
+          try getValistDescriptorType l 
+          with Not_found -> begin
+            (* It does not have a descriptor already. Grab it from the 
+            * function type *)
+            try
+              let descrt = 
+                getVarargFunctionDescriptorType (Lval(var fdec.svar)) in
+              l.vtype <- 
+                 TPtr(TComp(ci, a), 
+                      addAttribute (Attr("boxvararg", [ASizeOf descrt])) pa);
+              descrt
+            with Not_found -> 
+              E.s (error "Cannot find the descriptor type for va_list local %s"
+                     l.vname)
+          end
+        in
+        if debugVararg then 
+          ignore (E.log "va: found va_list variable %s with descriptor %a\n"
+                    l.vname d_type descrt);
+        Some descrt
+      end
+    | _ -> None
+  in
+  let doLocal (isformal: bool) 
+              (acc: instr list) 
+              (l: varinfo) = 
+    (* Get and memoize the descriptor type. We'll need it later *)
+    match getDescriptorLocal l with 
+    | Some descrt when not isformal -> 
+        (* Make a local to store the va info *)
+        let ci = getVarArgCompInfo () in
+        let vainfo = 
+          makeTempVar fdec ~name:(l.vname ^ "__vainfo") (TComp(ci, [])) in
+        vainfo.vaddrof <- true;
+        if debugVararg then 
+          ignore (E.log "va: creating local va_local %s for %s\n"
+                    vainfo.vname l.vname);
+        (* And an instruction to initialize the local *)
+        let init = Set(var l, AddrOf (var vainfo), !currentLoc) in
+        init :: acc
+    | _ -> acc
+  in
+  (* Go through all the locals (but not formals) and when we see a variable 
+   * of type __ccured_va_list then we allocate a local structure to which the 
+   * variable should point *)
+  let initlocals = List.fold_left (doLocal false) [] fdec.slocals in
+  (* Go through the formals also,mainly to verify that they have descriptors *)
+  List.iter (fun f -> ignore (doLocal true [] f)) fdec.sformals;
+  if !foundVarargs then begin
     lastformal := 
-       (let rec getlast = function 
-           [] -> E.s (E.bug "Vararg function %s does not have formals" 
-                        fdec.svar.vname)
-         | [l] -> l
-         | _ :: rest -> getlast rest
-       in getlast formals);
-    (* Now scan the body *)
-    H.clear markers;
+       if isva then begin
+         (* Get the last formal *)
+         let rec getlast = function 
+             [] -> E.s (E.bug "Vararg function %s does not have formals" 
+                          fdec.svar.vname)
+           | [l] -> l
+           | _ :: rest -> getlast rest
+         in getlast formals
+       end else dummyFunDec.svar;
     let va_visit = new processVarargClass(fdec) in
     fdec.sbody <- visitCilBlock va_visit fdec.sbody;
     (* Now insert code to initialize the next fields *)
     fdec.sbody.bstmts <- 
-       mkStmt 
-         (Instr 
-            (H.fold (fun _ vainfo acc -> 
-              Set(getNextField vainfo, integer (-1), !currentLoc) :: acc) 
-               markers
-               [])) ::
-       fdec.sbody.bstmts;
-    H.clear markers;
+       mkStmt (Instr initlocals) ::
+       fdec.sbody.bstmts
   end
 
-
-(* possible printf arguments *)
-type printfArgType = FormatInt | FormatDouble | FormatPointer
-
-let d_printfArgType () at = begin
-  match at with
-    FormatInt -> text "int"
-  | FormatDouble -> text "double"
-  | FormatPointer -> text "pointer"
-end
-    
-
-
+(*****************************************************************)
 
 (* return the first few items of a list *)
 let rec list_first l n = begin
@@ -1041,73 +1083,6 @@ let rec list_first l n = begin
   else []
 end
 
-(* Handle printf-like functions 
-let isPrintf reso orig_func args = begin
-  match orig_func with
-    (Lval(Var(v),NoOffset)) -> begin try 
-      let o = Hashtbl.find printfFunc v.vname in begin
-        let format_arg = removeCasts (List.nth args o) in 
-        let rec remove_casts l =
-          match l with
-            CastE(_,e) -> remove_casts e
-          | _ -> l
-        in 
-        match remove_casts format_arg with (* find the format string *)
-          Const(CStr(f)) -> 
-            let argTypeList = parseFormatString f 0 in 
-            let num_arg_types = List.length argTypeList in
-            (* insert an explicit cast to the right type for every argument *)
-            let num_args = List.length args in 
-            let new_args = ref [] in 
-            for i = 0 to num_args-1 do
-              let this_arg = List.nth args i in 
-              if i = 0 && v.vname = "sprintf" then begin
-                let temp_type = TPtr((TInt(IChar,[])),[]) in
-                let cast_arg,t,n = doExp (CastE(temp_type,this_arg)) in
-                n.N.kind <- N.Safe ;
-                ignore (warn "Call to sprintf. Ought to use snprintf\n");
-                n.N.why_kind <- N.PrintfArg ;
-                new_args := cast_arg :: !new_args;
-              end else if i < o then begin 
-                new_args := this_arg :: !new_args;
-              end else if i = o then begin
-                let temp_type = TPtr((TInt(IChar,[])),[]) in
-                let cast_arg,t,n = doExp (CastE(temp_type,this_arg)) in
-                n.N.kind <- N.ROString ;
-                n.N.why_kind <- N.PrintfArg ;
-                new_args := cast_arg :: !new_args;
-              end else begin
-                let temp_type, rostring = 
-                  let arg_type = 
-                    if i - (o + 1) >= num_arg_types then begin
-                      ignore (warn "More arguments than the format specifies");
-                      FormatInt
-                    end else List.nth argTypeList (i-(o+1))
-                  in
-                  match arg_type with
-                    FormatInt -> (TInt(IInt,[])), false
-                  | FormatDouble -> (TFloat(FDouble,[])), false
-                  | FormatPointer -> (TPtr((TInt(IChar,[])),[])), true
-                in 
-                let cast_arg,t,n = doExp (CastE(temp_type,this_arg)) in
-                if rostring then begin
-                  n.N.kind <- N.ROString ; n.N.why_kind <- N.PrintfArg 
-                end;
-                new_args := cast_arg :: !new_args;
-              end
-            done ;
-            Some(List.rev !new_args)
-        | _ -> 
-            ignore (warn "%s called with non-const format string %a" 
-                      v.vname d_exp format_arg) ; 
-            None (* cannot handle non-constant format strings *)
-      end
-    with Not_found ->
-      None (* we only handle declared printf-like functions *)
-    end 
-  | _ -> None
-end
-*)
 
 (* Some utility functions for decomposing a function call so that we can 
  * process them in a special way *)
@@ -1151,7 +1126,7 @@ let decomposeCall
       (fun a f ->
         (* Get the types of the arguments. But be prepared to strip the top 
          * level cast since it could have been added by cabs2cil *)
-        let orig = stripCast a in
+        let orig = stripCasts a in
         let origt = typeOf orig in
         let orig_bt, orig_a, orig_n = splitPtrType origt in
         (* So the same for the formal *)
@@ -1271,12 +1246,9 @@ and doFunctionCall
       TFun(rt, formals, isva, _) -> rt, formals, isva
     | _ -> E.s (bug "Call to a non-function")
   in
-  let isprintf = None in (* isPrintf reso func args in *)
   let preinstr, args' = 
     if isva then 
-      match isprintf with
-        Some args'  -> [], args'
-      | None -> prepareVarargArguments func' (List.length formals) args
+      prepareVarargArguments func' (List.length formals) args
     else
       [], args
   in
@@ -1285,7 +1257,7 @@ and doFunctionCall
   if List.length args' <> List.length formals && not isva then begin
     (* Bark if it is polymorphic. No prototype + polymorphism (or 
     * allocation) do not work together *)
-    if ispoly || isprintf != None then 
+    if ispoly then 
       E.s (error "Calling polymorphic (or allocation) function %a without proper prototype" d_exp func);
     N.setFlag pfuncn N.pkNoPrototype ; 
   end;

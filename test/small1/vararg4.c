@@ -11,7 +11,8 @@ union vararg_sum {
 #pragma boxvararg("sum", sizeof(union vararg_sum))
 int sum( int descriptor, ... );
 
-#pragma boxvararg_valist("sum_valist", "args", sizeof(union vararg_sum))
+// Argument 0 is a valist. 
+#pragma boxvararg("sum_valist", sizeof(union vararg_sum))
 int sum_valist(va_list args, int descriptor);
 
 #include "testharness.h"
@@ -48,9 +49,9 @@ int sum_valist(va_list args, int descriptor) {
   while(1) {
     int next;
     if (descriptor & 1) {
-      next = * va_arg (marker, int*);
+      next = * va_arg (args, int*);
     } else {
-      next = va_arg(marker, int);
+      next = va_arg(args, int);
     }
     if(!next) return sum;
     sum += next;

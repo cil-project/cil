@@ -2486,7 +2486,13 @@ and childrenOffset (vis: cilVisitor) (off: offset) : offset =
   | NoOffset -> off
 
 and visitCilInstr (vis: cilVisitor) (i: instr) : instr list =
+  let l = 
+    match i with 
+      Set(_, _, l) | Call (_, _, _, l) | Asm(_, _, _, _, _, l) -> l
+  in
+  currentLoc := l;
   doVisitList vis vis#vinst childrenInstr i
+
 and childrenInstr (vis: cilVisitor) (i: instr) : instr =
   let fExp = visitCilExpr vis in
   let fLval = visitCilLval vis in

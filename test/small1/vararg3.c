@@ -9,14 +9,17 @@
 char* progname = "vararg3";
 int showmessages = 1;
 
-#pragma boxvararg_format("pm_error", sizeof(union printf_format), 0) 
+#pragma boxvararg("my_vfprintf", sizeof(union printf_format)) 
+int my_vfprintf(FILE *stream, char const *format, va_list args );
+
+#pragma boxvararg("pm_error", sizeof(union printf_format)) 
 void pm_error( char* format, ... )     {
   va_list args;
 
   va_start( args, format );
   
   fprintf( stderr, "%s: ", progname );
-  (void) vfprintf( stderr, format, args );
+  (void) my_vfprintf( stderr, format, args );
   fputc( '\n', stderr );
   va_end( args );
 }
@@ -27,8 +30,7 @@ void pm_error( char* format, ... )     {
 ** you might consider getting a new stdio library.
 */
 
-#pragma boxvararg_valist("vfprintf", sizeof(union printf_format)) 
-int vfprintf(FILE *stream, char const *format, va_list args ) {
+int my_vfprintf(FILE *stream, char const *format, va_list vargs ) {
     int n;
     char* ep;
     char fchar;
@@ -91,12 +93,12 @@ int vfprintf(FILE *stream, char const *format, va_list args ) {
 		case 'd':
 		if ( do_long )
 		    {
-		    l = va_arg( args, long );
+		    l = va_arg( vargs, long );
 		    n += fprintf( stream, tformat, l );
 		    }
 		else
 		    {
-		    i = va_arg( args, int );
+		    i = va_arg( vargs, int );
 		    n += fprintf( stream, tformat, i );
 		    }
 		break;
@@ -107,23 +109,23 @@ int vfprintf(FILE *stream, char const *format, va_list args ) {
 	        case 'u':
 		if ( do_long )
 		    {
-		    ul = va_arg( args, unsigned long );
+		    ul = va_arg( vargs, unsigned long );
 		    n += fprintf( stream, tformat, ul );
 		    }
 		else
 		    {
-		    u = va_arg( args, unsigned );
+		    u = va_arg( vargs, unsigned );
 		    n += fprintf( stream, tformat, u );
 		    }
 		break;
 
 	        case 'c':
-		i = (char) va_arg( args, int );
+		i = (char) va_arg( vargs, int );
 		n += fprintf( stream, tformat, i );
 		break;
 
 	        case 's':
-		s = va_arg( args, char* );
+		s = va_arg( vargs, char* );
 		n += fprintf( stream, tformat, s );
 		break;
 
@@ -132,7 +134,7 @@ int vfprintf(FILE *stream, char const *format, va_list args ) {
 	        case 'f':
 	        case 'g':
 	        case 'G':
-		d = va_arg( args, double );
+		d = va_arg( vargs, double );
 		n += fprintf( stream, tformat, d );
 		break;
 
