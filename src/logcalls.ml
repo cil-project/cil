@@ -22,19 +22,30 @@ class verboseLogVisitor printfFun funstr = object
   method vinst i = begin
     match i with
       Call(lo,e,al,l) -> 
-      let str1 = Pretty.sprint 800 ( Pretty.dprintf "Calling %a\n" d_exp e) in
+      let str1 = Pretty.sprint 800 ( Pretty.dprintf "Calling %a(%a)\n" d_exp e
+        (docList (chr ',') (fun _ -> text "%p")) al) in
       let str2 = Pretty.sprint 800 ( Pretty.dprintf "Returned from %a\n" d_exp e) in
-      let newinst str = ((Call (None, Lval(var printfFun.svar),
-                                ( [ one ; Const(CStr(str)) ]),
+      let newinst str args = ((Call (None, Lval(var printfFun.svar),
+                                ( [ one ; Const(CStr(str)) ] @ args),
                                 locUnknown)) : instr )in
-      let ilist = ([ (newinst str1) ; i ; (newinst str2) ] : instr list) in
+      let ilist = ([ (newinst str1 al) ; i ; (newinst str2 []) ] : instr list) in
     (ChangeTo(ilist))
     | _ -> DoChildren 
   end
   method vstmt (s : stmt) = begin
     match s.skind with
-      Return(eo,l) ->
-      let str = "returning from " ^ funstr ^ "\n"  in
+      Return(Some(e),l) ->
+      let str = Pretty.sprint 800 ( Pretty.dprintf
+        "Return(%%p) from %s\n" funstr ) in
+      let newinst = ((Call (None, Lval(var printfFun.svar),
+                                ( [ one ; Const(CStr(str)) ; e ]),
+                                locUnknown)) : instr )in
+      let new_stmt = mkStmtOneInstr newinst in 
+      let slist = [ new_stmt ; s ] in 
+      (ChangeTo(mkStmt(Block(mkBlock slist))))
+    | Return(None,l) ->
+      let str = Pretty.sprint 800 ( Pretty.dprintf
+        "Return void from %s\n" funstr ) in
       let newinst = ((Call (None, Lval(var printfFun.svar),
                                 ( [ one ; Const(CStr(str)) ]),
                                 locUnknown)) : instr )in
@@ -69,7 +80,8 @@ let logCalls (f: file) : unit =
                   (Lval (var f) :: accargs, "%d, " ^ formatstr)
               | TFloat _ -> 
                   (Lval (var f) :: accargs, "%f, " ^ formatstr)
-              | _ -> (accargs,formatstr))
+              | _ -> 
+                  (Lval (var f) :: accargs, "%p, " ^ formatstr))
             ([], ")\n")
             fdec.sformals
         in

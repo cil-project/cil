@@ -3981,7 +3981,12 @@ let boxFile file =
                 fi.fattr <- newa ; 
                 fi.ftype <- fixupType newt) 
               comp.cfields;
-            bitfieldCompinfo comp;
+            (* WEIMER: only box the bitfields if we're making this WILD *)
+            (match N.nodeOfAttrlist comp.cattr with
+            | Some n when n.N.kind = N.Wild ->
+                bitfieldCompinfo comp;
+            | _ -> ());
+            (* end WEIMER *)
             theFile := consGlobal g !theFile
 
         | GFun (f, l) -> 
