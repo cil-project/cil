@@ -287,6 +287,7 @@ $TEST->add1Test("scott/main", "_GNUCC=1");
 $TEST->add1Test("scott/globalprob", "_GNUCC=1");
 $TEST->add1Test("scott/bisonerror", "_GNUCC=1");
 $TEST->add1Test("scott/cmpzero");
+$TEST->add1Test("scott/mknod", "_GNUCC=1");
 $TEST->add1Test("scott/kernel1", "_GNUCC=1");
 $TEST->add1Test("scott/kernel2", "_GNUCC=1");
 $TEST->add1Test("scott/xcheckers", "_GNUCC=1");
