@@ -223,6 +223,7 @@ $TEST->add3Tests("test/enum");
 $TEST->add3Tests("testrun/enum2");
 $TEST->add3Tests("test/format1");
 $TEST->add3Tests("test/func");
+$TEST->addTests("test/splitargs", "", ['inferbox']);
 $TEST->addTests("test/funcarg", "", ['cil']);
    $TEST->addBadComment("test/funcarg-cil", "Bug in parser (argument of function type)");
 
