@@ -92,7 +92,7 @@ $TEST->add3Tests("test/format1");
 $TEST->add3Tests("test/func");
 $TEST->add3Tests("test/globals");
 $TEST->add3Tests("test/huff1");
-#  $TEST->addComment("test/huff1-box", "pragma box misuse");
+  $TEST->addComment("test/huff1-box", "pragma box misuse");
   $TEST->addComment("test/huff1-inferbox", "pragma box misuse");
 $TEST->add3Tests("testrun/init");
 $TEST->add3Tests("testrun/init_gcc", "_GNUCC=1");
@@ -129,12 +129,12 @@ $TEST->add1Test("test/alloc-manualinferbox",
                 "test/alloc INFERBOX=$inferbox MANUALBOX=1",
                 %commonerrors);
 $TEST->add3Tests("bh", "_GNUCC=1");
-#   $TEST->addComment("bh-box", "missing wrappers");
+   $TEST->addComment("bh-box", "missing wrappers");
 $TEST->add3Tests("li", "_GNUCC=1");
-#  $TEST->addComment("li-box", "bug in box.ml");
+  $TEST->addComment("li-box", "bug in box.ml");
   $TEST->addComment("li-inferbox", "bug in box.ml");
 $TEST->add3Tests("compress", "_GNUCC=1");
-#   $TEST->addComment("compress-box", "missing wrappers");
+   $TEST->addComment("compress-box", "missing wrappers");
 $TEST->add3Tests("go", "_GNUCC=1");
 $TEST->add3Tests("apache/gzip");
 $TEST->add3Tests("apache/rewrite");
