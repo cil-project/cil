@@ -1333,13 +1333,21 @@ sub lineDirective {
 sub compileOutputFile {
     my($self, $src) = @_;
 
-    die "objectOutputFile: not a C source file: $src\n"
+    die "compileOutputFile: not a C source file: $src\n"
 	unless $src =~ /\.($::cilbin|c|cc|cpp|i|asm)$/;
 
-    # Carp::confess ("compileOutputFile: $self->{OPERATION}, $src, $self->{OUTARG}");
+    Carp::carp ("compileOutputFile: $self->{OPERATION}, $src", 
+                   Dumper($self->{OUTARG})) if 0;
     if ($self->{OPERATION} eq 'TOOBJ') {
-	if(defined $self->{OUTARG} && "@{$self->{OUTARG}}" =~ m|/Fo(.+)|) {
-	    return new OutputFile($src, $1);
+	if(defined $self->{OUTARG} 
+           && "@{$self->{OUTARG}}" =~ m|[/\\-]Fo(.+)|) {
+            my $dest  = $1;
+            # Perhaps $dest is a directory
+            if(-d $dest) {
+                return new KeptFile($src, $self->{OBJEXT}, $dest);
+            } else {
+                return new OutputFile($src, $1);
+            }
 	} else {
 	    return new KeptFile($src, $self->{OBJEXT}, '.');
 	}
