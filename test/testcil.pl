@@ -511,7 +511,10 @@ $TEST->addTestsFail("testrun/struct3", "", "Failure NULL", ['inferbox']);
 
 if($win32) {
     $TEST->addTests("testrun/extern_init", "_MSVC=1", ['cil']);   
+    $TEST->addTests("testrun/msvc2", "_MSVC=1", ["cil"]);
 }
+$TEST->addTests("testrun/msvc1", "", ["cil"]);
+
 $TEST->addTests("testrun/extern1", "", ['cil']);
 
 # Tests that are expected to fail
@@ -641,8 +644,6 @@ $TEST->add2Tests("go", "_GNUCC=1");
 
 $TEST->add2Tests("ijpeg", "_GNUCC=1");
   $TEST->add2Group("ijpeg", "slow", "spec");
-#  $TEST->addBadComment("ijpeg-cil", "EOF / read error?? (only on Win)");
-#  $TEST->addBadComment("ijpeg-cil", "strange failure on MANJU.");
 
 $TEST->add2Tests("m88k", "_GNUCC=1");
   $TEST->add2Group("m88k", "slow", "spec");

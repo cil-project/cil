@@ -174,6 +174,7 @@ and definition =
  | ONLYTYPEDEF of specifier * cabsloc
  | GLOBASM of string * cabsloc
  | PRAGMA of expression * cabsloc
+ | LINKAGE of string * cabsloc * definition list (* extern "C" { ... } *)
  (* toplevel form transformer, from the first definition to the *)
  (* second group of definitions *)
  | TRANSFORMER of definition * definition list * cabsloc
@@ -294,7 +295,7 @@ and initwhat =
   | INFIELD_INIT of string * initwhat
   | ATINDEX_INIT of expression * initwhat
   | ATINDEXRANGE_INIT of expression * expression
-
+ 
 
                                         (* Each attribute has a name and some
                                          * optional arguments *)
@@ -350,8 +351,8 @@ begin
   | ASM(_,_,_,_,_,loc) -> loc
 end
 
+
 let get_definitionloc (d : definition) : cabsloc =
-begin
   match d with
   | FUNDEF(_, _, l, _) -> l
   | DECDEF(_, l) -> l
@@ -361,7 +362,7 @@ begin
   | PRAGMA(_, l) -> l
   | TRANSFORMER(_, _, l) -> l
   | EXPRTRANSFORMER(_, _, l) -> l
-end
+  | LINKAGE (_, l, _) -> l
 
 let explodeStringToInts (s: string) : int64 list =  
   let rec allChars i acc = 

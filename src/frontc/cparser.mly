@@ -364,6 +364,11 @@ location:
 global:
 | declaration                           { $1 }
 | function_def                          { $1 } 
+/*(* Some C header files ar shared with the C++ compiler and have linkage 
+   * specification *)*/
+| EXTERN string_constant declaration    { LINKAGE (fst $2, snd $2, [ $3 ]) }
+| EXTERN string_constant LBRACE globals RBRACE 
+                                        { LINKAGE (fst $2, snd $2, $4)  }
 | ASM LPAREN string_constant RPAREN SEMICOLON
                                         { GLOBASM (fst $3, $1) }
 | PRAGMA attr PRAGMA_EOL		{ PRAGMA ($2, $1) }
@@ -373,7 +378,7 @@ global:
     * scope it looks too much like a function call  *) */
 | IDENT LPAREN old_parameter_list_ne RPAREN old_pardef_list SEMICOLON
                            { (* Convert pardecl to new style *)
-                             let pardecl, isva = doOldParDecl $3 $5 in
+                             let pardecl, isva = doOldParDecl $3 $5 in 
                              (* Make the function declarator *)
                              doDeclaration (snd $1) []
                                [((fst $1, PROTO(JUSTBASE, pardecl,isva), [], cabslu),

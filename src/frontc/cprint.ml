@@ -923,6 +923,14 @@ and print_def def =
       width := oldwidth;
       force_new_line ()
 
+  | LINKAGE (n, loc, dl) -> 
+      setLoc (loc);
+      force_new_line ();
+      print "extern "; print_string n; print_string "  {";
+      List.iter print_def dl;
+      print_string "}";
+      force_new_line ()
+
   | TRANSFORMER(srcdef, destdeflist, loc) ->
       setLoc(loc);
       print "@transform {";

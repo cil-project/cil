@@ -1255,15 +1255,15 @@ sub msvc_preprocess {
     # structure are the same, except for the access time.
     my @st1 = stat $msvcout; $st1[8] = 0;
     my @st2 = stat $dest; $st2[8] = 0;
-    if($msvcout ne $dest) {
+    if($msvcout ne $dest->{filename}) {
         while($#st1 >= 0) {
             if(shift @st1 != shift @st2) {
 #                print "$msvcout is NOT the same as $afterpp\n";
                 if($self->{VERBOSE}) {
-                    print STDERR "Copying $msvcout to $dest\n";
+                    print STDERR "Copying $msvcout to $dest->{filename}\n";
                 }
                 unlink $dest;
-                File::Copy::copy($msvcout, $dest);
+                File::Copy::copy($msvcout, $dest->filename);
                 unlink $msvcout;
                 return $res;
             }

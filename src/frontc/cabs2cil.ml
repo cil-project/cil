@@ -4994,6 +4994,21 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
         () (* argument of E.withContext *)
     end (* FUNDEF *)
 
+  | LINKAGE (n, loc, dl) -> 
+      currentLoc := convLoc loc;
+      if n <> "C" then 
+        ignore (warn "Encountered linkage specification \"%s\"" n);
+      if not isglobal then 
+        E.s (error "Encountered linkage specification in local scope");
+      (* For now drop the linkage on the floor !!! *)
+      List.iter 
+        (fun d -> 
+          let s = doDecl isglobal d in
+          if isNotEmpty s then 
+            E.s (bug "doDecl returns non-empty statement for global"))
+        dl;
+      empty
+
   | _ -> E.s (error "unexpected form of declaration")
 
 and doTypedef ((specs, nl): A.name_group) = 
