@@ -48,7 +48,7 @@
   # EXECUTABLE - the name of the executable to create
   #
 CAMLLEX = ocamllex
-CAMLYACC= ocamlyacc
+CAMLYACC= ocamlyacc -v
 CAMLDEP = ocamldep
 
 CAMLFLAGS    =-I $(OBJDIR)

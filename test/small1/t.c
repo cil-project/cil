@@ -1,6 +1,4 @@
-void foo(int x) {
-  char *s1 = "\n\r\t\b\f\v\a";
-  char s2 = '\\';
+typedef char *  va_list;
 
-}
-                  
+int (__cdecl *foo)(int (__stdcall * a)(void), int);
+

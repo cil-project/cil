@@ -3,4 +3,5 @@ camlprim0.obj
 *.o
 *.obj
 *.i
+*.pdb
 

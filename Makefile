@@ -119,7 +119,7 @@ PCCSOURCES = hash lf huffman x86/x86SE extensions/javaclasses
 PCCTEST=test/PCC
 testpcc: $(PCCSOURCES:%=testpcc/%)
 testpcc/% : $(PCCDIR)/src/%.c $(EXECUTABLE)$(EXE) 
-	$(SAFECC) --keep=$(PCCTEST) $(DEF)x86_WIN32 $(DEF)_DEBUG /c \
+	$(SAFECC) --keep=$(PCCTEST) $(DEF)x86_WIN32 $(DEF)_DEBUG $(CONLY) \
                   $(PCCDIR)/src/$*.c \
                   $(OUT)$(PCCTEST)/$(notdir $*).o
 
@@ -162,18 +162,8 @@ test/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE)
 
 
 ### Generic test
-ifdef BOX
-TESTBOX=-boxout $(basename $*).box
-endif
 testfile/% : $(EXECUTABLE)$(EXE) %
-	$(EXECUTABLE)$(EXE) $(EXTRAARGS) -verbose \
-             -cabsindent 2 \
-             -cabsout $(basename $*).cabs \
-	     -cilout $(basename $*).cil \
-             $(TESTBOX) \
-             $(TESTARGS) \
-             $*
-
+	$(SAFECC) /TC $*
 
 testdir/% : $(EXECUTABLE)$(EXE)
 	make -C CC="perl safecc.pl" $*
