@@ -4318,7 +4318,7 @@ let boxFile file =
     end 
 
   and boxglobal vi isdef init (l: location) =
-    currentLoc := l;
+    currentLoc := l; 
     if showGlobals then ignore (E.log "Boxing GVar(%s) at %a\n" 
                                   vi.vname d_loc l);
     (* Leave alone some functions *)
