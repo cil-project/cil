@@ -57,10 +57,17 @@ let fromList l = CList l
 let single x = CList [x]
 let empty = CList []
     
+let checkBeforeAppend  (l1: 'a clist) (l2: 'a clist) : bool = 
+  l1 != l2 || l1 = (CList [])
+
 let append l1 l2 = 
   if l1 = CList [] then l2 else
   if l2 = CList [] then l1 else
-  CSeq (l1, l2)
+  begin
+    if l1 == l2 then 
+      raise (Failure "You should not use append to duplicate a list");
+    CSeq (l1, l2)
+  end
     
 let rec length (acc: int) = function
     CList l -> acc + (List.length l)
@@ -78,16 +85,6 @@ let map (f: 'a -> 'b) (l: 'a clist) : 'b clist =
   in
   loop l
     
-(*
-let mapList (f: 'a -> 'b clist) (l: 'a clist) : 'b clist = 
-  let rec loop = function
-      CList l -> 
-    | CConsL (x, l) -> let x' = f x in append x' (loop l)
-    | CConsR (l, x) -> let l' = loop l in append l' (f x)
-    | CSeq (l1, l2) -> let l1' = loop l1 in append l1' (loop l2)
-  in
-  loop l
-  *)
   
 let fold_left (f: 'acc -> 'a -> 'acc) (start: 'acc) (l: 'a clist) = 
   let rec loop (start: 'acc) = function
@@ -109,20 +106,6 @@ let iter (f: 'a -> unit) (l: 'a clist) : unit =
   in
   loop l
     
-(*
-let rec hdtl (l: 'a clist) : 'a option * 'a clist = 
-  match l with
-    CEmpty -> None, CEmpty
-  | CConsL (x, l) -> Some x, l
-  | CConsR (CEmpty, x) -> Some x, CEmpty
-  | CConsR (l, x) -> 
-      let (h, t) = hdtl l in
-      (h, CConsR (t, x))
-  | CSeq (l1, l2) -> (* We know that l1 is not empty *)
-      assert (l1 != CEmpty);
-      let (h, t) = hdtl l1 in
-      (h, CSeq (t, l2))
-*)
         
 let rec rev = function
     CList l -> CList (List.rev l)
@@ -130,16 +113,6 @@ let rec rev = function
   | CConsR (l, x) -> CConsL (x, rev l)
   | CSeq (l1, l2) -> CSeq (rev l2, rev l1)
 
-(*        
-let rec fromList = function
-    [] -> CEmpty
-  | x :: rest -> CConsL(x, fromList rest)
-        
-let rec fromListRevOnto (tail: 'a clist) = function
-    [] -> tail
-  | x :: rest -> fromListRevOnto (CConsL(x, tail)) rest
-let fromListRev l = fromListRevOnto CEmpty l
-*)
 
 let docCList (sep: doc) (doone: 'a -> doc) () (dl: 'a clist) = 
   fold_left 

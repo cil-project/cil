@@ -476,7 +476,7 @@ combine%: $(SMALL1)/combine%_1.c
 arcombine: mustbegcc
 	cd $(SMALL1); $(CCURED) -c array1.c array2.c
 	cd $(SMALL1); $(CCUREDHOME)/bin/cilly \
-                           --mode=AR crv array.a array1.o array2.o
+                           --mode=AR --merge --verbose crv array.a array1.o array2.o
 	cd $(SMALL1); $(CCURED) -o matrix.exe array.a matrix.c
 	cd $(SMALL1); ./matrix.exe
 

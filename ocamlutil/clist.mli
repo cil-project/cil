@@ -41,8 +41,9 @@
     or followed by an element, or two clists implicitly appended together*)
 type 'a clist = 
   | CList of 'a list             (** The only representation for the empty 
-                                     list *)
-  | CConsL of 'a * 'a clist  
+                                     list. Try to use sparingly.  *)
+  | CConsL of 'a * 'a clist      (** Do not use this a lot because scanning 
+                                   * it is not tail recursive *)
   | CConsR of 'a clist * 'a 
   | CSeq of 'a clist * 'a clist (** We concatenate only two of them at this
                                     time. Neither is the empty clist. To be
@@ -65,6 +66,9 @@ val empty: 'a clist
 (** Append two clists *)
 val append: 'a clist -> 'a clist -> 'a clist 
 
+(** A useful check to assert before an append. It checks that the two lists 
+ * are not identically the same (Except if they are both empty) *)
+val checkBeforeAppend: 'a clist -> 'a clist -> bool
 
 (** Find the length of a clist *)
 val length: 'a clist -> int   
