@@ -455,6 +455,11 @@ $TEST->addTests("test/cpp-2", "", ['cil']);
    $TEST->addBadComment("test/cpp-2-cil", 
                         "Bug in parser (empty pragmas)");
 
+$TEST->addTests("testrun/openssl-bounds", "", ['inferbox']);
+   $TEST->addBadComment("testrun/openssl-bounds-inferbox", 
+                        "FSEQ2SAFE prevents code that should be legal.");
+
+
 $TEST->addTestsFail("testrun/struct3", "", "Non-pointer", ['inferbox']);
 
 if($^O eq 'MSWin32') {
