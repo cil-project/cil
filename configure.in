@@ -95,6 +95,12 @@ ocamlDownloadInstructions="
 # required major/minor
 reqMaj=3
 reqMin=04
+
+# latest known-good major/minor; all versions between 'req'
+# and 'known' are expected to be ok
+knownMaj=3
+knownMin=06
+
 AC_MSG_CHECKING(ocaml version is at least $reqMaj.$reqMin)
 if binaryExists ocamlc; then
   # what version?
@@ -113,6 +119,16 @@ if binaryExists ocamlc; then
   if test "$major" -gt $reqMaj -o \
           "$major" -ge $reqMaj -a "$minor" -ge $reqMin; then
     AC_MSG_RESULT([version is $ver, ok])
+
+    # sm: added this test when we found that CCured needed to be changed
+    # a little when 3.06 came out (it had previously worked with 3.04)
+    if test "$major" -gt $knownMaj -o \
+            "$major" -ge $knownMaj -a "$minor" -gt "$knownMin"; then
+      AC_MSG_WARN([Your ocaml version is $ver, but the latest version CCured
+                   is known to work with is $knownMaj.$knownMin.  If you have
+                   trouble compiling, please try using an earlier version
+                   or see if there is a later version of CCured.])
+    fi
   else
     AC_MSG_ERROR([
       I found OCaml version $ver; CCured requires at least $reqMaj.$reqMin.

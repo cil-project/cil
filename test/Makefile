@@ -1392,44 +1392,46 @@ go-optimvariant: mustbegcc
                                    do time ./go.exe 50 9; done"
 
 
-### SPEC95 GCC
-GCCDIR := $(SPECDIR)/126.gcc
-GCCSAFECC := $(CCURED) $(PATCHARG) --commPrintLn $(CFLAGS) $(OPT_O2)
+# sm: commented-out this section as per 21-aug-02 email discussion
+# with George; it's a near duplicate of the section below
+# ### SPEC95 GCC
+# GCCDIR := $(SPECDIR)/126.gcc
+# GCCSAFECC := $(CCURED) $(PATCHARG) --commPrintLn $(CFLAGS) $(OPT_O2)
 
-gccclean: 	
-	cd $(GCCDIR)/src; make clean
-	cd $(GCCDIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
-
-
-gcc:  mustbegcc
-	cd $(GCCDIR)/src; \
-            make clean build CC="$(GCCSAFECC) $(CONLY)" \
-                             LD="$(GCCSAFECC)"
-	cd $(GCCDIR)/src; sh ./testit ./cc1.exe
-	cd $(GCCDIR)/src; sh -c "for i in $(ITERATION_ELEMS) ; \
-                                   do time ./cc1.exe ; done"
-
-gcc-combined:  mustbegcc
-	cd $(GCCDIR)/src; \
-	   $(CCURED) $(CONLY) gcc_all.c
+# gccclean: 	
+# 	cd $(GCCDIR)/src; make clean
+# 	cd $(GCCDIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
 
 
-gcc-noclean:  mustbegcc
-	cd $(GCCDIR)/src; \
-            make build CC="$(GCCSAFECC) $(CONLY)" \
-                       LD="$(GCCSAFECC)" \
-                             EXTRA_LIBS=$(GCCEXTRA) 
-	sh -c "time $(GCCDIR)/src/cc1.exe "
+# gcc:  mustbegcc
+# 	cd $(GCCDIR)/src; \
+#             make clean build CC="$(GCCSAFECC) $(CONLY)" \
+#                              LD="$(GCCSAFECC)"
+# 	cd $(GCCDIR)/src; sh ./testit ./cc1.exe
+# 	cd $(GCCDIR)/src; sh -c "for i in $(ITERATION_ELEMS) ; \
+#                                    do time ./cc1.exe ; done"
 
-gcc-optimvariant: mustbegcc
-	cd $(GCCDIR)/src; rm -f cc1.exe
-	cd $(GCCDIR)/src; \
-           $(CC_OPTIMVARIANT) \
-                cc1.exe_comboptimcured.$(OPTIMVARIANT).c \
-                $(CCUREDLIB) \
-                $(EXEOUT)cc1.exe
-	cd $(GCCDIR)/src; sh -c "for i in $(ITERATION_ELEMS) ; \
-                                   do time ./cc1.exe ; done"
+# gcc-combined:  mustbegcc
+# 	cd $(GCCDIR)/src; \
+# 	   $(CCURED) $(CONLY) gcc_all.c
+
+
+# gcc-noclean:  mustbegcc
+# 	cd $(GCCDIR)/src; \
+#             make build CC="$(GCCSAFECC) $(CONLY)" \
+#                        LD="$(GCCSAFECC)" \
+#                              EXTRA_LIBS=$(GCCEXTRA) 
+# 	sh -c "time $(GCCDIR)/src/cc1.exe "
+
+# gcc-optimvariant: mustbegcc
+# 	cd $(GCCDIR)/src; rm -f cc1.exe
+# 	cd $(GCCDIR)/src; \
+#            $(CC_OPTIMVARIANT) \
+#                 cc1.exe_comboptimcured.$(OPTIMVARIANT).c \
+#                 $(CCUREDLIB) \
+#                 $(EXEOUT)cc1.exe
+# 	cd $(GCCDIR)/src; sh -c "for i in $(ITERATION_ELEMS) ; \
+#                                    do time ./cc1.exe ; done"
 
 
 

@@ -718,8 +718,7 @@ smAddTest("scott/chararr2 $box");
 smAddTest("scott/thing");
 smAddTest("scott/strerror1 $box");
 smAddTest("scott/bsearch $box");
-smFailTest("cast of integers to function pointers is not working.",
-           "scott/signal $box");
+smAddTest("scott/signal $box");
 
 # current problematic test cases
 smAddTest("scott/complex_float $box");
@@ -755,10 +754,8 @@ smAddTest("combine_copyptrs WARNINGS_ARE_ERRORS=1 MERGEINLINES=1");
 smAddTest("merge-twice");
 smAddTest("scott/arrayexpand INFERBOX=infer");
 smAddTest("scott/byteprintf INFERBOX=infer");
-smFailTest("inference bug with function pointers",
-           "scott/bufferlinegetter INFERBOX=infer");
-smFailTest("arithmetic on a null pointer",
-           "scott/null_pointer_field INFERBOX=infer");
+smAddTest("scott/bufferlinegetter INFERBOX=infer");
+smAddTest("scott/null_pointer_field INFERBOX=infer");
 
 # tests of things implemented for EDG compatibility
 smAddTest("mergestruct");
@@ -780,7 +777,7 @@ smAddTest("scott/models $box");
 # tests of things in safec.c
 smAddTest("scott/qsort $box");
 smAddTest("scott/strpbrk $box");
-smAddTest("scott/fgets $box");
+smFailTest("needs a deep-mangled wrapper?", "scott/fgets $box");
 smAddTest("test-bad/sockets $box $gcc");
 
 # more stuff, mostly from ftpd
@@ -795,8 +792,8 @@ else {
 smAddTest("scott/getpwnam $box $gcc");
 
 smAddTest("test-bad/execv $box $gcc");
-$TEST->setField(smAddTest("scott/popen $box $gcc"),
-                "FailDiagnosis", 
+$TEST->setField(smFailTest("needs deep-mangled wrapper", "scott/popen $box $gcc"),
+                "FailDiagnosis",
                 "inferred glob_t probably has unanticipated type");
 smAddTest("scott/memset_int $box");
 smAddTest("scott/printfllong $box $gcc");
