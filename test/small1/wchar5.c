@@ -20,7 +20,7 @@ int main(){
 
   {
     //BUG: we don't lex wide characters correctly.
-    wchar_t c = L"\xabcd";  
+    wchar_t c = L'\xabcd';  
   }
   
   SUCCESS;
