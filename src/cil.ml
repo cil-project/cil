@@ -1501,14 +1501,16 @@ let derefStarLevel = 20
 let indexLevel = 20
 let arrowLevel = 20
 let addrOfLevel = 30
-let bitwiseLevel = 75
 let additiveLevel = 60
+let comparativeLevel = 70
+let bitwiseLevel = 75
 let getParenthLevel = function
                                         (* Bit operations. *)
   | BinOp((BOr|BXor|BAnd),_,_,_) -> bitwiseLevel (* 75 *)
 
                                         (* Comparisons *)
-  | BinOp((Eq|Ne|Gt|Lt|Ge|Le),_,_,_) -> 70
+  | BinOp((Eq|Ne|Gt|Lt|Ge|Le),_,_,_) ->
+      comparativeLevel (* 70 *)
                                         (* Additive. Shifts can have higher 
                                          * level but I want parentheses 
                                          * around them *)
@@ -1910,10 +1912,17 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
   method private pExpPrec (contextprec: int) () (e: exp) = 
     let thisLevel = getParenthLevel e in
-                                 (* This is to quite down GCC warnings *)
-    if thisLevel >= contextprec || (thisLevel = additiveLevel &&
-                                    contextprec = bitwiseLevel) then
-      text "(" ++ self#pExp () e ++ text ")"
+    let needParens =
+      if thisLevel >= contextprec then
+	true
+      else if contextprec == bitwiseLevel then
+        (* quiet down some GCC warnings *)
+	thisLevel == additiveLevel || thisLevel == comparativeLevel
+      else
+	false
+    in
+    if needParens then
+      chr '(' ++ self#pExp () e ++ chr ')'
     else
       self#pExp () e
 
