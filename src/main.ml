@@ -309,12 +309,11 @@ let main () =
     try 
       theMain (); 
       fun () -> exit (if !failed then 1 else 0)
-    with F.CabsOnly -> (* This is Ok *) exit 0
+    with F.CabsOnly -> (* This is Ok *) fun () -> exit 0
     | e ->  
       (fun () -> 
         print_string ("Uncaught exception: " ^ (Printexc.to_string e)
                       ^ "\n");
-        Stats.print stderr "Timings:\n";
         exit 2)
   in
   begin

@@ -154,7 +154,7 @@ $TEST->add3Tests("test/alloc");
 $TEST->add3Tests("test/apachebits");
 $TEST->add3Tests("testrun/apachebuf");
 $TEST->add3Tests("testrun/alloc2");
-$TEST->add3Tests("testrun/alloc3");
+$TEST->addTests("testrun/alloc3", "", ['inferbox']);
 $TEST->add3Tests("testrun/apachefptr");
 $TEST->add2Tests("testrun/asm1", "_GNUCC=1");
     # sm: this one works for me
