@@ -73,6 +73,7 @@ sub new {
       IDASHI => 1,     # if true, pass "-I-" to gcc's preprocessor
       IDASHDOT => 1,   # if true, pass "-I." to gcc's preprocessor
       VERBOSE => 0,    # when true, print extra detail
+      TRACE_COMMANDS => 1, # when true, echo commands being run
       SEPARATE => ! $::default_is_merge,
       OPERATION => 'TOEXE', # This is the default for all compilers
     };
@@ -1037,7 +1038,7 @@ sub runShell {
     # sm: removed conditional on verbose since there's already
     # so much noise in the output, and this is the *one* piece
     # of information I *always* end up digging around for..
-    if(1 || $self->{VERBOSE}) { print STDERR "$cmd\n"; }
+    if($self->{TRACE_COMMANDS}) { print STDERR "$cmd\n"; }
 
     # weimer: let's have a sanity check
     my $code = system($cmd);
