@@ -1800,8 +1800,12 @@ class type cilPrinter = object
   method pAttrs: unit -> attributes -> doc
     (** Attribute lists *)
 
-  method pLineDirective: location -> doc
-    (** Print a line-number. This is assumed to come always on an empty line*)
+  method pLineDirective: ?forcefile:bool -> location -> Pretty.doc
+    (** Print a line-number. This is assumed to come always on an empty line. 
+     * If the forcefile argument is present and is true then the file name 
+     * will be printed always. Otherwise the file name is printed only if it 
+     * is different from the last time time this function is called. The last 
+     * file name is stored in a private field inside the cilPrinter object. *)
 
   method pExp: unit -> exp -> doc
     (** Print expressions *) 
@@ -2176,7 +2180,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
    * private to the object *)
   val mutable lastFileName = ""
   (* Make sure that you only call self#pLineDirective on an empty line *)
-  method pLineDirective l = 
+  method pLineDirective ?(forcefile=false) l = 
     let printLine (forcefile: bool) (l : location) : string =
       let str = ref "" in
       if !printLn && l.line > 0 then begin
@@ -2192,7 +2196,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
       currentLoc := l;
       !str
     in
-    let ls = printLine false l in
+    let ls = printLine forcefile l in
     if ls <> "" then leftflush ++ text ls ++ line else nil
    
 
@@ -2340,6 +2344,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         (* If the function has attributes then print a prototype because 
         * GCC cannot accept function attributes in a definition *)
         let oldattr = fundec.svar.vattr in
+        (* Always pring the file name before function declarations *)
         let proto = 
           if oldattr <> [] then 
             (self#pLineDirective l) ++ (self#pVDecl () fundec.svar) 
@@ -2347,7 +2352,8 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           else nil in
         (* Temporarily remove the function attributes *)
         fundec.svar.vattr <- [];
-        let body = (self#pLineDirective l) ++ (self#pFunDecl () fundec) in
+        let body = (self#pLineDirective ~forcefile:true l) 
+                      ++ (self#pFunDecl () fundec) in
         fundec.svar.vattr <- oldattr;
         proto ++ body
           

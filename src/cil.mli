@@ -189,7 +189,8 @@ and typ =
            * indicates if it is a variable-argument function. If this is the 
            * type of a varinfo for which we have a function declaration then 
            * the information for the formals must match that in the 
-           * function's sformals. *)
+           * function's sformals. Use {!Cil.setFormals} or 
+           * {!Cil.setFunctionType} for this purpose. *)
 
   | TNamed of typeinfo * attributes 
           (* The use of a named type. Each such type name must be preceeded 
@@ -1738,8 +1739,12 @@ class type cilPrinter = object
   method pAttrs: unit -> attributes -> Pretty.doc
     (** Attribute lists *)
 
-  method pLineDirective: location -> Pretty.doc
-    (** Print a line-number. This is assumed to come always on an empty line*)
+  method pLineDirective: ?forcefile:bool -> location -> Pretty.doc
+    (** Print a line-number. This is assumed to come always on an empty line. 
+     * If the forcefile argument is present and is true then the file name 
+     * will be printed always. Otherwise the file name is printed only if it 
+     * is different from the last time time this function is called. The last 
+     * file name is stored in a private field inside the cilPrinter object. *)
 
   method pExp: unit -> exp -> Pretty.doc
     (** Print expressions *) 

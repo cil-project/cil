@@ -54,6 +54,8 @@ let mergeInlines = true
 
 let mergeInlinesRepeat = mergeInlines && true
 
+let mergeInlinesWithAlphaConvert = mergeInlines && true
+
 (* Check that s starts with the prefix p *)
 let prefix p s = 
   let lp = String.length p in
@@ -945,11 +947,12 @@ end
 let renameVisitor = new renameVisitorClass
 
 
-(** A visitor the renames uses of inline functions that were discovered in 
+(** A visitor that renames uses of inline functions that were discovered in 
  * pass 2 to be used before they are defined *)
 
    (* Which inline functions must be replaced and how *)
 let inlinesToRemove: (string, varinfo) H.t = H.create 17
+let inlinesRemoved: (string, unit) H.t = H.create 17
 class renameInlineVisitorClass = object (self)
   inherit nopCilVisitor 
       
@@ -965,7 +968,8 @@ class renameInlineVisitorClass = object (self)
   method vglob = function
       GVarDecl(vi, _) when H.mem inlinesToRemove vi.vname -> 
         if debugMerge || !E.verboseFlag then 
-          ignore (E.log "   reusing inline %s\n" vi.vname);
+          ignore (E.log "   reusing inline %s\n" (H.find inlinesToRemove vi.vname).vname);
+        H.add inlinesRemoved vi.vname ();
         ChangeTo []
     | _ -> DoChildren
 
@@ -990,6 +994,7 @@ let oneFilePass2 (f: file) =
   let savedTheFile = !theFile in
   let savedTheFileTypes = !theFileTypes in
   H.clear inlinesToRemove;
+  H.clear inlinesRemoved;
 
   let processOneGlobal (g: global) : unit = 
       (* Process a varinfo. Reuse an old one, or rename it if necessary *)
@@ -1075,9 +1080,45 @@ let oneFilePass2 (f: file) =
               (* Temporarily set the name to all functions in the same way *)
               let newname = fdec'.svar.vname in
               fdec'.svar.vname <- "@@alphaname@@";
+              (* If we must do alpha conversion then temporarily set the 
+               * names of the local variables and formals in a standard way *)
+              let nameId = ref 0 in 
+              let newName () = incr nameId;  in
+              let oldNames : string list ref = ref [] in
+              let renameOne (v: varinfo) = 
+                oldNames := v.vname :: !oldNames; 
+                incr nameId;
+                v.vname <- "___alpha" ^ string_of_int !nameId
+              in
+              let undoRenameOne (v: varinfo) = 
+                match !oldNames with 
+                  n :: rest -> 
+                    oldNames := rest;
+                    v.vname <- n
+                | _ -> E.s (bug "undoRenameOne")
+              in
+              (* Remember the original type *)
+              let origType = fdec'.svar.vtype in
+              if mergeInlinesWithAlphaConvert then begin
+                (* Rename the formals *)
+                List.iter renameOne fdec'.sformals;
+                (* Reflect in the type *)
+                setFormals fdec' fdec'.sformals;
+                (* Now do the locals *)
+                List.iter renameOne fdec'.slocals
+              end;
+              (* Now print it *)
               let res = d_global () g' in
               printLn := oldprintln;
               fdec'.svar.vname <- newname;
+              if mergeInlinesWithAlphaConvert then begin
+                (* Do the locals in reverse order *)
+                List.iter undoRenameOne (List.rev fdec'.slocals);
+                (* Do the formals in reverse order *)
+                List.iter undoRenameOne (List.rev fdec'.sformals);
+                (* Restore the type *)
+                fdec'.svar.vtype <- origType;
+              end;
               res
             in
             (* Make a node for this inline function using the new name. use 
@@ -1098,12 +1139,13 @@ let oneFilePass2 (f: file) =
                           oldinode.nname oldinode.nfidx);
               (* There is some other inline function with the same printout *)
               if H.mem varUsedAlready fdec'.svar.vname then begin
-                ignore (warn "Inline function %s because it is used before it is defined" fdec'.svar.vname);
                 if mergeInlinesRepeat then begin
                   H.add inlinesToRemove fdec'.svar.vname oldinode.ndata;
                   repeatPass2 := true
-                end else
+                end else begin
+                  ignore (warn "Inline function %s because it is used before it is defined" fdec'.svar.vname);
                   raise Not_found 
+                end
               end;
               let _ = union oldinode inode in
               (* Clean up the vreferenced bit in the new inline, so that we 
@@ -1241,6 +1283,12 @@ let oneFilePass2 (f: file) =
     List.iter (fun g -> 
                  theFile := (visitCilGlobal renameInlinesVisitor g) @ !theFile)
       !theseGlobals;
+    (* Now check if we have inlines that we could not remove *)
+    H.iter (fun name _ -> 
+      if not (H.mem inlinesRemoved name) then 
+        ignore (warn "Could not remove inline %s. I have no idea why!\n"
+                  name))
+      inlinesToRemove
   end
 
 
