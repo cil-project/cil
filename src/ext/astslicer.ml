@@ -140,7 +140,7 @@ let enumerate out (f : Cil.file) =
  *)
 let print_it pfun name =
   ((Call(None,Lval(Var(pfun),NoOffset),
-    [StartOfString(name ^ "\n")],locUnknown))) 
+    [mkString (name ^ "\n")],locUnknown))) 
 
 class enumVisitor pfun st_ht in_ht = object
   inherit nopCilVisitor

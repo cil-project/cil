@@ -444,9 +444,7 @@ and checkExp (isconst: bool) (e: exp) : typ =
       match e with
       | Const(CInt64 (_, ik, _)) -> TInt(ik, [])
       | Const(CChr _) -> charType
-      | Const(CStr s) -> TArray(charType, 
-                                Some (integer (1 + String.length s)), 
-                                [])
+      | Const(CStr s) -> charPtrType
       | Const(CReal (_, fk, _)) -> TFloat(fk, [])
       | Lval(lv) -> 
           if isconst then
@@ -547,8 +545,6 @@ and checkExp (isconst: bool) (e: exp) : typ =
           | _ -> E.s (bug "StartOf on a non-array")
       end
             
-      | StartOfString s -> charPtrType
-
       | CastE (tres, e) -> begin
           let et = checkExp isconst e in
           checkType tres CTExp;

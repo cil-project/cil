@@ -2483,10 +2483,6 @@ and doExp (isconst: bool)    (* In a constant *)
         mkStartOfAndMark lv, TPtr(tbase, a)
     | (Lval(lv) | CastE(_, Lval lv)), TFun _  -> 
         mkAddrOfAndMark lv, TPtr(t, [])
-      (* String literals are arrays *)
-    | (Const(CStr s)), TArray(chart, _, _) -> 
-        StartOfString s, TPtr(chart, [])
-        
     | _, (TArray _ | TFun _) -> 
         E.s (error "Array or function expression is not lval: %a@!"
                d_plainexp e)
@@ -2538,7 +2534,7 @@ and doExp (isconst: bool)    (* In a constant *)
     match e with
     | A.NOTHING when what = ADrop -> finishExp empty (integer 0) intType
     | A.NOTHING ->
-        let res = StartOfString "exp_nothing" in
+        let res = Const(CStr "exp_nothing") in
         finishExp empty res (typeOf res)
 
     (* Do the potential lvalues first *)
@@ -2706,7 +2702,7 @@ and doExp (isconst: bool)    (* In a constant *)
                   s
               with Not_found -> s
             in
-            let res = StartOfString s' in
+            let res = Const(CStr s') in
             finishExp empty res (typeOf res)
               
         | A.CONST_CHAR s ->
@@ -2736,7 +2732,7 @@ and doExp (isconst: bool)    (* In a constant *)
             with e -> begin
               ignore (E.log "float_of_string %s (%s)\n" str 
                         (Printexc.to_string e));
-              let res = StartOfString "booo CONS_FLOAT" in
+              let res = Const(CStr "booo CONS_FLOAT") in
               finishExp empty res (typeOf res)
             end
         end
@@ -2750,7 +2746,7 @@ and doExp (isconst: bool)    (* In a constant *)
     | A.EXPR_SIZEOF (A.CONSTANT (A.CONST_STRING s)) -> begin
         (* Process the string first *)
         match doExp isconst (A.CONSTANT (A.CONST_STRING s)) (AExp None) with 
-          _, StartOfString s, _ -> 
+          _, Const(CStr s), _ -> 
             finishExp empty (SizeOfStr s) !typeOfSizeOf
         | _ -> E.s (bug "cabs2cil: sizeOfStr")
     end
@@ -2768,7 +2764,9 @@ and doExp (isconst: bool)    (* In a constant *)
                                          * array we must drop the StartOf  *)
             StartOf(lv) -> SizeOfE (Lval(lv))
 
-          | StartOfString s -> SizeOfStr s
+                (* Maybe we are taking the sizeof for a CStr. In that case we 
+                 * mean the pointer to the start of the string *)
+          | Const(CStr _) -> SizeOf (charPtrType)
 
                 (* Maybe we are taking the sizeof a variable-sized array *)
           | Lval (Var vi, NoOffset) -> begin
@@ -2782,7 +2780,7 @@ and doExp (isconst: bool)    (* In a constant *)
 
     | A.TYPE_ALIGNOF (bt, dt) ->
         let typ = doOnlyType bt dt in
-        finishExp empty (AlignOf(typ)) uintType
+        finishExp empty (AlignOf(typ)) !typeOfSizeOf
 
     | A.EXPR_ALIGNOF e ->
         let (se, e', t) = doExp false e (AExp None) in
@@ -2795,10 +2793,9 @@ and doExp (isconst: bool)    (* In a constant *)
           match e' with                 (* If we are taking the sizeof an
                                          * array we must drop the StartOf  *)
             StartOf(lv) -> Lval(lv)
-(*          | StartOfString s -> Const(CStr s) *)
           | _ -> e'
         in
-        finishExp empty (AlignOfE(e'')) uintType
+        finishExp empty (AlignOfE(e'')) !typeOfSizeOf
 
     | A.CAST ((specs, dt), ie) ->
         let s', dt', ie' = preprocessCast specs dt ie in
@@ -2836,7 +2833,6 @@ and doExp (isconst: bool)    (* In a constant *)
               let e2, t2 = 
                 match unrollType typ, e' with
                   TArray _, StartOf lv -> Lval lv, typ
-                | TArray _, StartOfString s -> Const(CStr s), typ
                 | _, _ -> e', t'
               in
               se1 @@ se, e2, t2
@@ -2941,9 +2937,6 @@ and doExp (isconst: bool)    (* In a constant *)
             | StartOf (lv) ->
                 let tres = TPtr(typeOfLval lv, []) in (* pointer to array *)
                 finishExp se (mkAddrOfAndMark lv) tres
-
-            | StartOfString s -> 
-                E.s (unimp "Taking the address of a string literal: %s" s)
 
               (* Function names are converted into pointers to the function. 
                * Taking the address-of again does not change things *)
@@ -4281,7 +4274,7 @@ and createLocal ((_, sto, _, _) as specs)
           let sizeof = 
             BinOp(Mult, 
                   SizeOfE (Lval(Mem(Lval(var vi)), NoOffset)),
-                  Lval (var savelen), uintType) in
+                  Lval (var savelen), !typeOfSizeOf) in
           (* Register the length *)
           H.add varSizeArrays vi.vid sizeof;
           (* There can be no initializer for this *)

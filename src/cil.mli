@@ -577,11 +577,6 @@ and exp =
      * not printed. We have it in CIL because it makes the typing rules 
      * simpler. *)
 
-  | StartOfString of string
-    (* Since string literals have array type, we need a conversion operation 
-     * to obtain the address of the start of the string (a char pointer 
-     * type). This operator is not printed. *) 
- 
 (** {b Constants.} *)
 
 (** Literal constants *)
@@ -593,9 +588,11 @@ and constant =
      * {!Cil.kinteger} to create these. Watch out for integers that cannot be 
      * represented on 64 bits. OCAML does not give Overflow exceptions. *)
   | CStr of string 
-    (** String constant. The escape characters inside the string have been 
-     * already interpreted. This constant has array type! Use [StartOfString 
-     * s] if you want a pointer! *)
+    (* String constant. The escape characters inside the string have been 
+     * already interpreted. This constant has pointer to character type! The 
+     * only case when you would like a string literal to have an array type 
+     * is when it is an argument to sizeof. In that case you should use 
+     * SizeOfStr. *)
   | CChr of char   
     (** Character constant *)
   | CReal of float * fkind * string option 
@@ -1434,8 +1431,7 @@ val mkMem: addr:exp -> off:offset -> lval
 val mkString: string -> exp
 
 (** Construct a cast when having the old type of the expression. If the new 
-  * type is the same as the old type, then no cast is added, except for 
-  * expressions of the form [StartOf] and [StartOfString]. *)
+  * type is the same as the old type, then no cast is added. *)
 val mkCastT: e:exp -> oldt:typ -> newt:typ -> exp
 
 (** Like {!Cil.mkCastT} but uses typeOf to get [oldt] *)  

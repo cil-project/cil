@@ -63,8 +63,10 @@ class logWriteVisitor = object
               in 
               ChangeTo 
               [ Call((None), (Lval(Var(printfFun.svar),NoOffset)), 
-                     [ one ; StartOfString str ; e ; AddrOf lv; 
-                       StartOfString l.file; integer l.line], locUnknown);
+                     [ one ; 
+                       mkString str ; e ; AddrOf lv; 
+                       mkString l.file; 
+                       integer l.line], locUnknown);
               i]
       end 
     | Call(Some lv, f, args, l) -> begin
@@ -76,8 +78,9 @@ class logWriteVisitor = object
               in 
               ChangeTo 
               [ Call((None), (Lval(Var(printfFun.svar),NoOffset)), 
-                     [ one ; StartOfString str ; AddrOf lv; 
-                       StartOfString l.file; 
+                     [ one ; 
+                       mkString str ; AddrOf lv; 
+                       mkString l.file; 
                        integer l.line], locUnknown);
               i]
       end 

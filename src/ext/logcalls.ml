@@ -103,7 +103,7 @@ class verboseLogVisitor printfFun funstr prefix = object
       let str2 = prefix ^ (Pretty.sprint 800
         ( Pretty.dprintf "Returned from %a\n" d_exp e)) in
       let newinst str args = ((Call (None, Lval(var printfFun.svar),
-                                ( [ (* one ; *) StartOfString str ] @ args),
+                                ( [ (* one ; *) mkString str ] @ args),
                                 locUnknown)) : instr )in
       let ilist = ([ (newinst str1 log_args) ; i ; (newinst str2 []) ] : instr list) in
     (ChangeTo(ilist))
@@ -115,7 +115,7 @@ class verboseLogVisitor printfFun funstr prefix = object
       let str = prefix ^ Pretty.sprint 800 ( Pretty.dprintf
         "Return(%%p) from %s\n" funstr ) in
       let newinst = ((Call (None, Lval(var printfFun.svar),
-                                ( [ (* one ; *) StartOfString str ; e ]),
+                                ( [ (* one ; *) mkString str ; e ]),
                                 locUnknown)) : instr )in
       let new_stmt = mkStmtOneInstr newinst in
       let slist = [ new_stmt ; s ] in
@@ -124,7 +124,7 @@ class verboseLogVisitor printfFun funstr prefix = object
       let str = prefix ^ (Pretty.sprint 800 ( Pretty.dprintf
         "Return void from %s\n" funstr)) in
       let newinst = ((Call (None, Lval(var printfFun.svar),
-                                ( [ (* one ; *) StartOfString str ]),
+                                ( [ (* one ; *) mkString str ]),
                                 locUnknown)) : instr )in
       let new_stmt = mkStmtOneInstr newinst in
       let slist = [ new_stmt ; s ] in
@@ -225,7 +225,7 @@ let logCalls (f: file) : unit =
         );
         fdec.sbody.bstmts <-
               mkStmt (Instr [Call (None, Lval(var printfFun.svar),
-                                ( (* one :: *) StartOfString formatstr 
+                                ( (* one :: *) mkString formatstr 
                                    :: actargs),
                                 loc)]) :: fdec.sbody.bstmts
 

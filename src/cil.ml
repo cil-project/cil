@@ -428,11 +428,6 @@ and exp =
                           * [TArray(T)] produces an expression of type 
                           * [TPtr(T)]. *)
 
-  | StartOfString of string
-    (* Since string literals have array type, we need a conversion operation 
-     * to obtain the address of the start of the string (a char pointer 
-     * type). This operator is not printed. *)
-
 
 (** Literal constants *)
 and constant =
@@ -442,7 +437,7 @@ and constant =
                   * {!Cil.integer} or {!Cil.kinteger} to create these. Watch 
                   * out for integers that cannot be represented on 64 bits. 
                   * OCAML does not give Overflow exceptions. *)
-  | CStr of string (** String constant (of array type) *)
+  | CStr of string (** String constant (of pointer type) *)
   | CChr of char   (** Character constant *)
   | CReal of float * fkind * string option (** Floating point constant. Give
                                                the fkind (see ISO 6.4.4.2) and
@@ -1426,7 +1421,7 @@ let isVoidPtrType t =
 let var vi : lval = (Var vi, NoOffset)
 (* let assign vi e = Instrs(Set (var vi, e), lu) *)
 
-let mkString s = StartOfString s
+let mkString s = Const(CStr s)
 
 
 let mkWhile ~(guard:exp) ~(body: stmt list) : stmt list = 
@@ -1617,7 +1612,7 @@ let getParenthLevel = function
                                         (* Unary *)
   | CastE(_,_) -> 30
   | AddrOf(_) -> 30
-  | StartOf(_) | StartOfString _ -> 30
+  | StartOf(_) -> 30
   | UnOp((Neg|BNot|LNot),_,_) -> 30
 
                                         (* Lvals *)
@@ -1782,9 +1777,10 @@ let rec typeOf (e: exp) : typ =
   | Const(CInt64 (_, ik, _)) -> TInt(ik, [])
   | Const(CChr _) -> charType
 
-    (* The type of a string is an array of character ! *)
-  | Const(CStr s) -> 
-      TArray(charType, Some (integer (1 + String.length s)), [])
+    (* The type of a string is a pointer to characters ! The only case when 
+     * you would want it to be an array is as an argument to sizeof, but we 
+     * have SizeOfStr for that *)
+  | Const(CStr s) -> charPtrType
 
   | Const(CReal (_, fk, _)) -> TFloat(fk, [])
   | Lval(lv) -> typeOfLval lv
@@ -1799,7 +1795,6 @@ let rec typeOf (e: exp) : typ =
         TArray (t,_, _) -> TPtr(t, [])
      | _ -> E.s (E.bug "typeOf: StartOf on a non-array")
   end
-  | StartOfString _ -> charPtrType
       
 and typeOfInit (i: init) : typ = 
   match i with 
@@ -2007,8 +2002,8 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
     | SizeOf (t) -> 
         text "sizeof(" ++ self#pType None () t ++ chr ')'
-    | SizeOfE (e) -> 
-        text "sizeof(" ++ self#pExp () e ++ chr ')'
+    | SizeOfE (e) ->  text "sizeof(" ++ self#pExp () e ++ chr ')'
+
     | SizeOfStr s -> 
         text "sizeof(" ++ d_const () (CStr s) ++ chr ')'
 
@@ -2020,7 +2015,6 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         text "& " ++ (self#pLvalPrec addrOfLevel () lv)
           
     | StartOf(lv) -> self#pLval () lv
-    | StartOfString s -> d_const () (CStr s)
 
   method private pExpPrec (contextprec: int) () (e: exp) = 
     let thisLevel = getParenthLevel e in
@@ -3148,7 +3142,6 @@ class plainCilPrinterClass =
       text "__alignof__(" ++ self#pExp () e ++ chr ')'
 
   | StartOf lv -> dprintf "StartOf(%a)" self#pLval lv
-  | StartOfString s -> dprintf "StartOfString(%s)" s
   | AddrOf (lv) -> dprintf "AddrOf(%a)" self#pLval lv
 
 
@@ -3512,7 +3505,6 @@ and childrenExp (vis: cilVisitor) (e: exp) : exp =
   | StartOf lv -> 
       let lv' = vLval lv in
       if lv' != lv then StartOf lv' else e
-  | StartOfString _ -> e
 
 and visitCilInit (vis: cilVisitor) (i: init) : init = 
   doVisit vis vis#vinit childrenInit i
@@ -4067,7 +4059,7 @@ let rec peepHole2  (* Process two statements and possibly replace them both *)
 
 
 let dExp: doc -> exp = 
-  fun d -> StartOfString(sprint 80 d)
+  fun d -> Const(CStr(sprint 80 d))
 
 let dInstr: doc -> location -> instr = 
   fun d l -> Asm([], [sprint 80 d], [], [], [], l)
@@ -4178,7 +4170,6 @@ let isArrayType t =
 
 let rec isConstant = function
   | Const _ -> true
-  | StartOfString _ -> true (* !! is this Ok ? *)
   | UnOp (_, e, _) -> isConstant e
   | BinOp (_, e1, e2, _) -> isConstant e1 && isConstant e2
   | Lval (Var vi, NoOffset) -> 
@@ -4204,12 +4195,7 @@ let getCompField (cinfo:compinfo) (fieldName:string) : fieldinfo =
 let rec mkCastT ~(e: exp) ~(oldt: typ) ~(newt: typ) = 
   (* Do not remove old casts because they are conversions !!! *)
   if typeSig oldt = typeSig newt then begin
-    (* If the expression being cast is a StartOf or a StartOfString then we 
-     * keep the cast to prevent an enclosing sizeof from thinking that we are 
-     * taking the size of the array *)
-    match e with 
-      StartOf _ | StartOfString _ -> CastE(newt, e)
-    | _ -> e
+    e
   end else begin
     (* Watch out for constants *)
     match newt, e with 
@@ -5321,16 +5307,17 @@ let initCIL () =
   theMachine := if !msvcMode then M.msvc else M.gcc;
   (* Find the right ikind given the size *)
   let findIkind (unsigned: bool) (sz: int) : ikind = 
-    if sz = !theMachine.M.sizeof_longlong then
-      if unsigned then IULongLong else ILongLong
+    (* Test the most common sizes first *)
+    if sz = !theMachine.M.sizeof_int then 
+      if unsigned then IUInt else IInt 
     else if sz = !theMachine.M.sizeof_long then 
       if unsigned then IULong else ILong
-    else if sz = !theMachine.M.sizeof_int then 
-      if unsigned then IUInt else IInt 
-    else if sz = !theMachine.M.sizeof_short then
-      if unsigned then IUShort else IShort
     else if sz = 1 then 
       if unsigned then IUChar else IChar 
+    else if sz = !theMachine.M.sizeof_short then
+      if unsigned then IUShort else IShort
+    else if sz = !theMachine.M.sizeof_longlong then
+      if unsigned then IULongLong else ILongLong
     else 
       E.s(E.unimp "initCIL: cannot find the right ikind for size %d\n" sz)
   in      
