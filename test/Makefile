@@ -730,10 +730,16 @@ bads/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 # sm: yet another failure-test target, this time utilizing a separate
 # script capable of testing multiple failures per file
 test-bad/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
+ifdef _MSVC
+ifndef RELEASE
+	@echo ">>>>> Set RELEASE=1 when using MSVC to avoid those\
+	pesky dialog boxes. <<<<<"
+endif
+endif
 	cd $(TESTDIR)/small2; CCUREDHOME="$(CCUREDHOME)" \
                CCURED="$(CCURED) --separate --commPrintLn" \
 	  CFLAGS=""`$(PATCHECHO) $(STANDARDPATCH)`" $(CFLAGS) $(WARNALL)" \
-          TESTBADONCE="$(TESTBADONCE)" \
+          TESTBADONCE="$(TESTBADONCE)" _MSVC="$(_MSVC)" \
 	  bash ../../bin/test-bad $*.c
 
 test-bad1/%: $(TESTDIR)/small1/%.c $(TARGET_DEP)
