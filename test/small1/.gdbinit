@@ -1,5 +1,5 @@
 # .gdbinit
 
-file strloop.exe
+file failprintf1.exe
 break main
 run
