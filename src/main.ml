@@ -58,6 +58,7 @@ let testcil = ref ""
 
 let ptrAnalysis = ref false
 let ptrResults = ref false
+let ptrTypes = ref false
 
 let doEpicenter = ref false
 let epicenterName = ref ""
@@ -101,9 +102,9 @@ let makeCFGFeature : C.featureDescr =
 let features : C.featureDescr list = 
   [ Logcalls.feature;
     Logwrites.feature;
-    Oneret.feature;    (* there is a dependency between oneret and *)
-    Heapify.feature1;  (* heapify! they both change return statements *)
+    Heapify.feature1;
     Heapify.feature2;
+    Oneret.feature;
     makeCFGFeature; 
     Partial.feature;
     Simplemem.feature;
@@ -130,8 +131,9 @@ let rec processOneFile (cil: C.file) =
     if (!ptrAnalysis) then begin
       Ptranal.analyze_file cil;
       Ptranal.compute_results (!ptrResults);
-      if (!Ptranal.debug_may_aliases) then
-	Ptranal.compute_aliases true
+(*       Ptranal.compute_aliases true;
+*)    if (!ptrTypes) then 
+	Ptranal.print_types ()
     end;		
 
     if (!Canonicalize.cpp_canon) then begin
@@ -155,7 +157,8 @@ let rec processOneFile (cil: C.file) =
 
     (match !outChannel with
       None -> ()
-    | Some c -> Stats.time "printCIL" (C.dumpFile C.defaultCilPrinter c) cil);
+    | Some c -> Stats.time "printCIL" 
+	(C.dumpFile (C.defaultCilPrinter) c) cil);
 
     if !E.hadErrors then
       E.s (E.error "Cabs2cil has some errors");
@@ -268,6 +271,8 @@ let rec theMain () =
                      "print the results of the alias analysis"; 
     "--ptr_mono", Arg.Unit (fun _ -> Ptranal.analyze_mono := true),
                     "run alias analysis monomorphically"; 
+    "--ptr_types",Arg.Unit (fun _ -> ptrTypes := true),
+                    "print inferred points-to analysis types";
     "--cppcanon", Arg.Unit (fun _ -> Canonicalize.cpp_canon := true),
      "Fix some C-isms so that the result is C++ compliant.";
     "--nodebug", Arg.String (setDebugFlag false),
