@@ -2522,7 +2522,13 @@ Necula}.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
-\item {\bf May 22, 2003}: {\bf Released version 1.1.0}
+\item {\bf May 23, 2003}: {\bf Released version 1.1.1}
+\item {\bf May 22, 2003}: Fixed a bug in the handling of inline functions. The
+CIL merger used to turn these functions into ``static'', which is incorrect. 
+\item {\bf May 22, 2003}: Expanded the CIL consistency checker to verify
+undesired sharing relationships between data structures. 
+\item {\bf May 22, 2003}: Fixed bug in the \t{oneret} CIL module: it was
+mishandling certain labeled return statements. 
 \item {\bf May 5, 2003}: {\bf Released version 1.0.11}
 \item {\bf May 5, 2003}: OS X (powerpc/darwin) support for CIL. Special 
 thanks to Jeff Foster, Andy Begel and Tim Leek. 
