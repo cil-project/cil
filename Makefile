@@ -1854,11 +1854,40 @@ glibclean:
 	      	\) -exec rm -f {} \;
 
 glib: mustbegcc mustbemanju mustbelinux glibclean
-	cd $(GLIBSRC); make -k CC="$(CILLY)"; 
+	cd $(GLIBSRC); make CC="$(CILLY) --keepunused"; 
+	cd $(GLIBSRC)/tests; make check-TESTS
 
 glib-gcc: mustbegcc mustbemanju mustbelinux glibclean
 	cd $(GLIBSRC); make CC=gcc; 
+	cd $(GLIBSRC)/tests; make check-TESTS
+
+glib-install: glib
 
 
-gimpall: zlib tiff libpgn jpeg mpeg glib
+# GTK
+# Must invoke 
+# ./configure --with-glib=../glib-1.2.9
+GTKSRC :=/usr/local/src/gtk+-1.2.9
+gtkclean:
+	cd $(GTKSRC); make clean
+	-cd $(GTKSRC); find . \( \
+		-name '*cil.c' -o \
+		-name '*.exe' -o \
+		-name '*.i' -o \
+		-name '*.o' -o \
+		-name '*.obj' -o \
+		-name '*cabs.c' -o \
+		-name '*_comb*.c' \
+	      	\) -exec rm -f {} \;
+
+gtk: mustbegcc mustbemanju mustbelinux gtkclean
+	cd $(GTKSRC); make CC="$(CILLY)"; 
+
+gtk-gcc: mustbegcc mustbemanju mustbelinux gtkclean
+	cd $(GTKSRC); make CC=gcc; 
+
+
+
+
+gimpall: zlib tiff libpgn jpeg mpeg glib gtk
 

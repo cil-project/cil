@@ -1186,7 +1186,7 @@ let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
     alphaConvertVarAndAddToEnv true vi, false
   end 
 
-let conditionalConversion (e2: exp) (t2: typ) (e3: exp) (t3: typ) : typ =
+let conditionalConversion (t2: typ) (t3: typ) : typ =
   let is_char k = match k with
     IChar | ISChar | IUChar -> true
   | _ -> false in 
@@ -1200,8 +1200,8 @@ let conditionalConversion (e2: exp) (t2: typ) (e3: exp) (t3: typ) : typ =
     | TPtr(_, _), TPtr(TVoid _, _) -> t2
     | TPtr(TVoid _, _), TPtr(_, _) -> t3
     | TPtr _, TPtr _ when typeSig t2 = typeSig t3 -> t2
-    | TPtr _, TInt _ when isZero e3 -> t2
-    | TInt _, TPtr _ when isZero e2  -> t3
+    | TPtr _, TInt _  -> t2 (* most likely comparison with 0 *)
+    | TInt _, TPtr _ -> t3 (* most likely comparison with 0 *)
 
           (* When we compare two pointers of diffent type, we combine them 
            * using the same algorith when combining multiple declarations of 
@@ -2931,9 +2931,67 @@ and doExp (isconst: bool)    (* In a constant *)
             A.NOTHING -> skipChunk
           | _ -> let (se2,_,_) = doExp false e2 ADrop in se2
         in
-        finishExp (doCondition isconst e1 se2 se3) (integer 0) intType
+        finishExp (doCondition isconst e1 se2 se3) zero intType
           
     | A.QUESTION (e1, e2, e3) -> begin (* what is not ADrop *)
+        (* Compile the conditional expression *)
+        let ce1 = doCondExp isconst e1 in
+        (* Now we must find the type of both branches, in order to compute 
+         * the type of the result *)
+        let se2, e2'o (* is an option. None means use e1 *), t2 = 
+          match e2 with 
+            A.NOTHING -> begin (* The same as the type of e1 *)
+              match ce1 with
+                CEExp (_, e1') -> empty, None, typeOf e1' (* Do not promote 
+                                                             to bool *)
+              | _ -> empty, None, intType
+            end
+          | _ -> 
+              let se2, e2', t2 = doExp isconst e2 (AExp None) in
+              se2, Some e2', t2
+        in
+        (* Do e3 for real *)
+        let se3, e3', t3 = doExp isconst e3 (AExp None) in
+        (* Compute the type of the result *)
+        let tresult = conditionalConversion t2 t3 in
+        match ce1 with
+          CEExp (se1, Const(CInt64(i, _, _))) 
+           when i = Int64.zero && canDrop se2 -> 
+             finishExp (se1 @@ se3) (snd (castTo t3 tresult e3')) tresult
+        | CEExp (se1, (Const(CInt64(i, _, _)) as e1')) 
+           when i <> Int64.zero && canDrop se3 -> begin
+             match e2'o with
+               None -> (* use e1' *)
+                 finishExp (se1 @@ se2) (snd (castTo t2 tresult e1')) tresult
+             | Some e2' -> 
+                 finishExp (se1 @@ se2) (snd (castTo t2 tresult e2')) tresult
+           end
+
+        | _ -> (* Use a conditional *) begin
+            match e2 with 
+              A.NOTHING -> 
+                let tmp = var (newTempVar tresult) in
+                let (se1, _, _) = doExp isconst e1 (ASet(tmp, tresult)) in
+                let (se3, _, _) = doExp isconst e3 (ASet(tmp, tresult)) in
+                finishExp (se1 @@ ifChunk (Lval(tmp)) lu
+                                    skipChunk se3)
+                  (Lval(tmp))
+                  tresult
+            | _ -> 
+                let lv, lvt = 
+                  match what with
+                  | ASet (lv, lvt) -> lv, lvt
+                  | _ -> 
+                      let tmp = newTempVar tresult in
+                      var tmp, tresult
+                in
+                (* Now do e2 and e3 for real *)
+                let (se2, _, _) = doExp isconst e2 (ASet(lv, lvt)) in
+                let (se3, _, _) = doExp isconst e3 (ASet(lv, lvt)) in
+                finishExp (doCondition isconst e1 se2 se3) (Lval(lv)) tresult
+        end
+
+(*
         (* Do these only to collect the types  *)
         let se2, e2', t2' = 
           match e2 with 
@@ -2986,6 +3044,7 @@ and doExp (isconst: bool)    (* In a constant *)
               let (se3, _, _) = doExp isconst e3 (ASet(lv, lvt)) in
               finishExp (doCondition isconst e1 se2 se3) (Lval(lv)) tresult
         end
+*)
     end
 
     | A.GNU_BODY b -> begin
