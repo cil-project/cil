@@ -1246,6 +1246,14 @@ sub setField {
     }
     $tst->{$field} = $value;
 }
+sub getField {
+    my($self, $tname, $field) = @_;
+    my $tst = $self->{tests}->{$tname};
+    if(! defined($tst)) {
+        die "Cannot set field of nonexistent test $tname\n";
+    }
+    return $tst->{$field};
+}
 
 sub addComment {
     my($self, $tname, $comm) = @_;
