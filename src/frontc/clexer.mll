@@ -200,6 +200,12 @@ let underline_error (buffer : string) (start : int) (stop : int) =
       )
 *)
     
+(* Weimer: Sun Dec  9 18:13:58  2001
+ * Rupak reports that scrolling too many errors can lock up his
+ * terminal. *)
+let num_errors = ref 0
+let max_errors = ref 20 
+
 let display_error msg token_start token_end =
   let adjStart = 
     if token_start < !startLine then 0 else token_start - !startLine in
@@ -213,7 +219,12 @@ let display_error msg token_start token_end =
                   ^ "]"
      ^ " : " ^ msg);
   output_string stderr "\n";
-  flush stderr
+  flush stderr ;
+  incr num_errors ;
+  if !num_errors > !max_errors then begin
+    output_string stderr "Too many errors. Aborting.\n" ;
+    exit 1 
+  end
 
 (*** Error handling ***)
 let error msg =
