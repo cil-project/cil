@@ -374,7 +374,7 @@ $TEST->add2Tests("testwrapper/wrapper1");
 $TEST->add2Tests("testwrapper/wrapperpoly");
 $TEST->addTests("test-bad-wrapper/wrapper1", "", ['inferbox']);
 $TEST->addTests("testrun/decl1", "_GNUCC=1", ['cil']);
-$TEST->add3Tests("wes-hashtest", "");
+$TEST->addTests("wes-hashtest", "", ['cil', 'inferbox']);
 $TEST->add3Tests("wes-rbtest", "");
 $TEST->addTests("test/alloc", "MANUALBOX=1", ['inferbox']);
 $TEST->add3Tests("testrun/addr-array");
