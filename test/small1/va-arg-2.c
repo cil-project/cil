@@ -7,7 +7,7 @@
 
 #include <stdarg.h>
 
-extern __SIZE_TYPE__ strlen ();
+extern unsigned int strlen (const char*);
 
 int
 to_hex (unsigned int a)
@@ -19,6 +19,7 @@ to_hex (unsigned int a)
   return hex[a];
 }
 
+#pragma boxvararg("f0", sizeof(int))
 void
 f0 (char* format, ...)
 {
@@ -33,6 +34,7 @@ f0 (char* format, ...)
   va_end(ap);
 }
 
+#pragma boxvararg("f1", sizeof(int))
 void
 f1 (int a1, char* format, ...)
 {
@@ -47,6 +49,7 @@ f1 (int a1, char* format, ...)
   va_end(ap);
 }
 
+#pragma boxvararg("f2", sizeof(int))
 void
 f2 (int a1, int a2, char* format, ...)
 {
@@ -61,6 +64,7 @@ f2 (int a1, int a2, char* format, ...)
   va_end(ap);
 }
 
+#pragma boxvararg("f3", sizeof(int))
 void
 f3 (int a1, int a2, int a3, char* format, ...)
 {
@@ -75,6 +79,7 @@ f3 (int a1, int a2, int a3, char* format, ...)
   va_end(ap);
 }
 
+#pragma boxvararg("f4", sizeof(int))
 void
 f4 (int a1, int a2, int a3, int a4, char* format, ...)
 {
@@ -89,6 +94,7 @@ f4 (int a1, int a2, int a3, int a4, char* format, ...)
   va_end(ap);
 }
 
+#pragma boxvararg("f5", sizeof(int))
 void
 f5 (int a1, int a2, int a3, int a4, int a5,
     char* format, ...)
@@ -104,6 +110,7 @@ f5 (int a1, int a2, int a3, int a4, int a5,
   va_end(ap);
 }
 
+#pragma boxvararg("f6", sizeof(int))
 void
 f6 (int a1, int a2, int a3, int a4, int a5,
     int a6,
@@ -120,6 +127,7 @@ f6 (int a1, int a2, int a3, int a4, int a5,
   va_end(ap);
 }
 
+#pragma boxvararg("f7", sizeof(int))
 void
 f7 (int a1, int a2, int a3, int a4, int a5,
     int a6, int a7,
@@ -136,6 +144,7 @@ f7 (int a1, int a2, int a3, int a4, int a5,
   va_end(ap);
 }
 
+#pragma boxvararg("f8", sizeof(int))
 void
 f8 (int a1, int a2, int a3, int a4, int a5,
     int a6, int a7, int a8,
@@ -152,6 +161,7 @@ f8 (int a1, int a2, int a3, int a4, int a5,
   va_end(ap);
 }
 
+#pragma boxvararg("f9", sizeof(int))
 void
 f9 (int a1, int a2, int a3, int a4, int a5,
      int a6, int a7, int a8, int a9,
@@ -168,6 +178,7 @@ f9 (int a1, int a2, int a3, int a4, int a5,
   va_end(ap);
 }
 
+#pragma boxvararg("f10", sizeof(int))
 void
 f10 (int a1, int a2, int a3, int a4, int a5,
      int a6, int a7, int a8, int a9, int a10,
@@ -184,6 +195,7 @@ f10 (int a1, int a2, int a3, int a4, int a5,
   va_end(ap);
 }
 
+#pragma boxvararg("f11", sizeof(int))
 void
 f11 (int a1, int a2, int a3, int a4, int a5,
      int a6, int a7, int a8, int a9, int a10,
@@ -201,6 +213,7 @@ f11 (int a1, int a2, int a3, int a4, int a5,
   va_end(ap);
 }
 
+#pragma boxvararg("f12", sizeof(int))
 void
 f12 (int a1, int a2, int a3, int a4, int a5,
      int a6, int a7, int a8, int a9, int a10,
@@ -218,6 +231,7 @@ f12 (int a1, int a2, int a3, int a4, int a5,
   va_end(ap);
 }
 
+#pragma boxvararg("f13", sizeof(int))
 void
 f13 (int a1, int a2, int a3, int a4, int a5,
      int a6, int a7, int a8, int a9, int a10,
@@ -235,6 +249,7 @@ f13 (int a1, int a2, int a3, int a4, int a5,
   va_end(ap);
 }
 
+#pragma boxvararg("f14", sizeof(int))
 void
 f14 (int a1, int a2, int a3, int a4, int a5,
      int a6, int a7, int a8, int a9, int a10,
@@ -252,6 +267,7 @@ f14 (int a1, int a2, int a3, int a4, int a5,
   va_end(ap);
 }
 
+#pragma boxvararg("f15", sizeof(int))
 void
 f15 (int a1, int a2, int a3, int a4, int a5,
      int a6, int a7, int a8, int a9, int a10,

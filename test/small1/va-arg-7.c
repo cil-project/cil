@@ -3,6 +3,8 @@
 
 #include <varargs.h>
 
+#pragma boxvararg("debug", sizeof(union { int i; double d;}))
+
 inline void
 debug(i1, i2, i3, i4, i5, i6, i7, f1, f2, f3, f4, f5, f6, f7, f8, f9, va_alist)
      int i1, i2, i3, i4, i5, i6, i7;

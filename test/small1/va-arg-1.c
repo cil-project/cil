@@ -1,6 +1,8 @@
 // This is from c-torture
 #include <stdarg.h>
 
+#pragma boxvararg("f", sizeof(union { long l; }))
+
 typedef unsigned long L;
 f (L p0, L p1, L p2, L p3, L p4, L p5, L p6, L p7, L p8, ...)
 {

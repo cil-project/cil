@@ -215,7 +215,7 @@ let boxallocPragma (name: string) (args: attrarg list) : unit =
     (* See if the function name starts with /* ... */ *)
 let stripPolyName (fname: string) : string = 
   let l = String.length fname in
-  if String.sub fname 0 2 = "/*" then
+  if l > 2 && String.sub fname 0 2 = "/*" then
     let endpoly = String.index_from fname 2 '/' in
     String.sub fname (endpoly + 1) (l - endpoly - 1)
   else

@@ -16,3 +16,7 @@ ExCreateCallback (
      int AllowMultipleCallbacks
     );
 
+
+int main() {
+  return 0;
+}

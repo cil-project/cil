@@ -1,13 +1,15 @@
-#ifndef _GNUCC
-#ifndef _MSVC
-#define WILD
-#define SAFE
-#define FSEQ
-#define SEQ
-#define SIZED
+#ifndef __SAFE
+#define __WILD
+#define __SAFE
+#define __FSEQ
+#define __SEQ
+#define __SIZED
+#endif
+
+
+#if ! defined(_MSVC) && ! defined(_GNUCC)
 #define U32     int
 #define __cdecl
-#endif
 #endif
 
 #include <stdio.h>
