@@ -70,7 +70,7 @@ void separator() {}
 int main()
 {
   // here's a local int to point at
-  int localInt;
+  //int localInt;
   
   // point at them
   globalPtr = &globalInt;

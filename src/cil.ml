@@ -2041,12 +2041,22 @@ class removeTempsVis = object
       f.slocals)
   end
 
+  method vglob (v: global) = begin
+    (* clear the referenced bit.. here I'm assuming we always *)
+    (* see a declaration before the first use *)
+    match v with
+      GDecl(v,_) -> begin
+        (trace "sm" (dprintf "clearing global referenced[%d]: %s\n" 
+                             v.vid v.vname));
+        (v.vreferenced <- false)
+      end
+    | _ -> ()
+  end
+
   method vvrbl (v : varinfo) = begin
-    if (not v.vglob) then begin
-      (* (trace "sm" (dprintf "var ref[%d]: %s\n" v.vid v.vname)); *)
-      v.vreferenced <- true
-    end;
-    ()
+    (trace "sm" (dprintf "var ref[%d]: %s\n" v.vid v.vname));
+    (* 4/23/01: mark globals this way, too *)
+    v.vreferenced <- true
   end
 
   method vfuncPost (f : fundec) = begin
@@ -2076,7 +2086,34 @@ end
 
 let removeUnusedTemps (file : file) =
 begin
-  visitCilFile (new removeTempsVis) file
+  (* step 1: remove unused locals, and mark used globals *)
+  (visitCilFile (new removeTempsVis) file);
+  
+  (* step 2: remove unused globals; the visitor currently *)
+  (* cannot modify the tree *)
+  let rec loop (lst : global list) : global list =
+    match lst with
+      hd::tl -> (
+        match hd with
+          GDecl(v,_) -> (
+            if (not v.vreferenced) then (
+              (trace "usedVar" (dprintf "removing global[%d]: %s\n"
+                                        v.vid v.vname));
+              (loop tl)
+            )
+            else (
+              (* it's referenced: keep it *)
+              hd :: (loop tl)
+            )
+          )
+        |
+          (* something other than a global: keep it *)
+          _ -> hd :: (loop tl)
+      )
+    |
+      [] -> []
+  in
+  file.globals <- (loop file.globals)
 end
 
 
