@@ -13,6 +13,8 @@ use lib "$FindBin::Bin";
 
 use RegTest;
 
+$ENV{LANG} = 'C';
+
 print "Test infrastructure for CCured and CIL\n";
 
 # Create our customized test harness
