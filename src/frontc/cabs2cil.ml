@@ -4159,6 +4159,7 @@ and createGlobal (specs : (typ * storage * bool * A.attribute list))
 and createLocal ((_, sto, _, _) as specs)
                 ((((n, ndt, a, cloc) : A.name), (e: A.init_expression)) as init_name) 
   : chunk =
+  let loc = convLoc cloc in
   (* Check if we are declaring a function *)
   let rec isProto (dt: decl_type) : bool = 
     match dt with
@@ -4177,7 +4178,7 @@ and createLocal ((_, sto, _, _) as specs)
       (* Make it global  *)
       let vi = makeVarInfoCabs ~isformal:false
                                ~isglobal:true 
-                               !currentLoc specs (newname, ndt, a) in
+                               loc specs (newname, ndt, a) in
       (* Add it to the environment as a local so that the name goes out of 
        * scope properly *)
       addLocalToEnv n (EnvVar vi);
@@ -4231,7 +4232,7 @@ and createLocal ((_, sto, _, _) as specs)
             makeVarInfoCabs 
                         ~isformal:false
                         ~isglobal:false 
-	                !currentLoc
+	                loc
                         (TInt(IUInt, []), NoStorage, false, [])
                         ("__lengthof" ^ vi.vname,JUSTBASE, []) 
           in
@@ -4451,15 +4452,32 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
               
               
               (* Create the formals and add them to the environment. *)
-              let formals = 
-                List.map 
-                  (fun (fn, ft, fa) -> 
-                    let f = makeVarinfo false fn ft in
-                    f.vdecl <- !currentLoc; (*sfg - locs buried in dt*)
-                    f.vattr <- fa;
-                    alphaConvertVarAndAddToEnv true f)
-                  (argsToList formals_t)
-              in
+	      (* sfg: extract locations for the formals from dt *)
+	      let doFormal (loc : location) (fn, ft, fa) =
+		let f = makeVarinfo false fn ft in
+		  (f.vdecl <- loc;
+		   f.vattr <- fa;
+		   alphaConvertVarAndAddToEnv true f)
+	      in
+	      let rec doFormals fl' ll' = 
+		begin
+		  match (fl', ll') with
+		    | [], _ -> [] 
+			
+		    | fl, [] -> (* no more locs available *)
+			  List.map (doFormal !currentLoc) fl 
+			
+		    | f::fl, (_,(_,_,_,l))::ll ->  
+			(* sfg: these lets seem to be necessary to
+			 *  force the right order of evaluation *)
+			let f' = doFormal (convLoc l) f in
+			let fl' = doFormals fl ll in
+			  f' :: fl'
+		end
+	      in
+	      let fmlocs = (match dt with PROTO(_, fml, _) -> fml | _ -> []) in
+	      let formals = doFormals (argsToList formals_t) fmlocs in
+
               (* Recreate the type based on the formals. *)
               let ftype = TFun(returnType, 
                                Some (List.map (fun f -> (f.vname,
@@ -4547,14 +4565,16 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
             in
             
 
+	     
 (*
-            ignore (E.log "endFunction %s at %t:@! sformals=%a@!  slocals=%a@!"
-                      !currentFunctionFDEC.svar.vname d_thisloc
-                      (docList (chr ',') (fun v -> text v.vname)) 
-                      !currentFunctionFDEC.sformals
-                      (docList (chr ',') (fun v -> text v.vname)) 
-                      !currentFunctionFDEC.slocals);
+              ignore (E.log "endFunction %s at %t:@! sformals=%a@!  slocals=%a@!"
+              !currentFunctionFDEC.svar.vname d_thisloc
+              (docList (chr ',') (fun v -> text v.vname)) 
+              !currentFunctionFDEC.sformals
+              (docList (chr ',') (fun v -> text v.vname)) 
+              !currentFunctionFDEC.slocals);
 *)
+
             let rec dropFormals formals locals = 
               match formals, locals with
                 [], l -> l

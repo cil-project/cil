@@ -41,7 +41,6 @@
  * a couple of functions and initialize CIL *)
 
 
-module F = Frontc
 module E = Errormsg
 
 open Cil
@@ -61,7 +60,7 @@ class unrollVisitorClass = object (self)
   method vvdec (vi : varinfo) : varinfo visitAction = 
     begin
       vi.vtype <- unrollTypeDeep vi.vtype;
-      E.log "varinfo for %s in file '%s' line %d byte %d\n" vi.vname vi.vdecl.file vi.vdecl.line vi.vdecl.byte;
+      ignore (E.log "varinfo for %s in file '%s' line %d byte %d\n" vi.vname vi.vdecl.file vi.vdecl.line vi.vdecl.byte);
       SkipChildren
     end
     
@@ -100,7 +99,7 @@ let getDummyTypes () : typ * typ =
 (* register some functions - these may be called from C code *)
 Callback.register "cil_parse" parseOneFile;
 Callback.register "cil_unparse" unparseToStdout;
-Callback.register "unroll_type_deep" unrollTypeDeep;
+(* Callback.register "unroll_type_deep" unrollTypeDeep; *)
 Callback.register "get_dummy_types" getDummyTypes;
 
 (* initalize CIL *)

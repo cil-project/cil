@@ -247,13 +247,13 @@ let findReplacement
     None
   end
 
-(* Make a node if one does not already exists. Otherwise return the 
+(* Make a node if one does not already exist. Otherwise return the 
  * representative *)
 let getNode    (eq: (int * string, 'a node) H.t)
                (syn: (string, 'a node) H.t)
                (fidx: int) (name: string) (data: 'a) 
                (l: (location * int) option) = 
-  let debugGetNode = false in
+  let debugGetNode = true (*sfg*) in
   if debugGetNode then 
     ignore (E.log "getNode(%s(%d), %a)\n"
               name fidx d_nloc l);
@@ -272,7 +272,7 @@ let getNode    (eq: (int * string, 'a node) H.t)
 
     | _, _ -> ());
     if debugGetNode then 
-      ignore (E.log "  node alredy found\n");
+      ignore (E.log "  node already found\n");
     find false res (* No path compression *)
   with Not_found -> begin
     let res = mkSelfNode eq syn fidx name data l in
@@ -725,6 +725,21 @@ and matchTypeInfo (oldfidx: int) (oldti: typeinfo)
   if oldtnode == tnode then (* We already know they are the same *)
     ()
   else begin
+    (*sfg*)
+    let lu = Cil.locUnknown in
+    let oldloc, loc = 
+      (match (oldtnode.nloc, tnode.nloc) with
+	   Some(ol, _), Some(l, _) -> (ol, l)
+	 | Some(ol, _), None -> (ol, lu)
+	 | None, Some(l, _) -> (lu, l)
+	 | None, None -> (lu, lu)
+      ) 
+      in	 
+    ignore(E.log "\nmatchTypeInfo: [%s(%d):%d:%d] [%s(%d):%d:%d]\n" 
+	     oldtnode.nname oldtnode.nfidx oldloc.line oldloc.byte 
+	     tnode.nname tnode.nfidx loc.line loc.byte );
+    (*sfg*)
+
     (* Replace with the representative data *)
     let oldti = oldtnode.ndata in
     let oldfidx = oldtnode.nfidx in

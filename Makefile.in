@@ -48,7 +48,7 @@ CILLY_LIBS     = unix str
 SOURCEDIRS  += src src/frontc src/ext
 MLLS        += clexer.mll formatlex.mll
 MLYS        += cparser.mly formatparse.mly
-MODULES     += $(CILLY_MODULES)
+MODULES     += $(CILLY_MODULES) libmaincil
 
 
 
@@ -134,13 +134,11 @@ $(OBJDIR)/cilversion.ml: configure.in
 .PHONY: cillib
 cillib: $(OBJDIR)/cil.$(CMXA) $(OBJDIR)/libcil.a
 
-# OLD:list of modules to use for building a library; remove 'maincil'
-# OLD:and add 'libmaincil'
-# WW: this "libmaincil" thing causes "make distrib" to fail
-OCAML_CIL_LIB_MODULES := $(MODULES:maincil=) maincil
+OCAML_CIL_LIB_MODULES := $(CILLY_MODULES)
 
-#sfg: this libmaincil thing is necessary to libcil.a and maincil breaks it
-OCAML_CIL_C_LIB_MODULES := $(MODULES:maincil=) libmaincil
+# list of modules to use for building a library; remove 'maincil'
+# and add 'libmaincil'
+OCAML_CIL_C_LIB_MODULES := $(CILLY_MODULES:maincil=) libmaincil
 
 # Build an OCAML library (CMA / CMXA) that exports our Cil stuff
 $(OBJDIR)/cil.$(CMXA): $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
