@@ -122,3 +122,8 @@ let list_fold_lefti (f: 'acc -> int -> 'a -> 'acc) (start: 'acc)
   in
   loop (0, start) l
 
+(** Generates the range of integers starting with a and ending with b *)
+let rec int_range_list (a : int) (b :int) =
+  if a > b then [] else
+  a :: int_range_list (a+1) b
+;;
