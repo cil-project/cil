@@ -1561,6 +1561,7 @@ sub new {
             # .o files can be linker scripts
             "[^-]" => { RUN => sub { &GNUCC::parseLinkerScript(@_); }},
             "-E"   => { RUN => sub { $stub->{OPERATION} = "TOI"; }},
+	    '-pipe$' => { TYPE => 'ALLARGS' },
             "-[DI]" => { ONEMORE => 1, TYPE => "PREPROC" },
             '-U$' => { TYPE => 'PREPROC', ONEMORE => 1 },
             '-undef$' => { TYPE => 'PREPROC' },
