@@ -9,7 +9,7 @@ use Cwd;                    # Directory navigation
 use strict;
 # use Data::Dumper;
 use FindBin;
-use lib "$FindBin::Bin";
+use lib "$FindBin::Bin/../ocamlutil";
 
 use RegTest;
 
