@@ -23,9 +23,9 @@ let insertGlobInit (file: file) : unit =
                 (* Prepend a prototype *)
                 theFile := GDecl (gi.svar, lm) :: !theFile;
                 m.sbody <- 
-                   compactBlock (mkStmt (Instr [(Call(None, 
-                                                      Lval(var gi.svar), 
-                                                      []), locUnknown)]) 
+                   compactBlock (mkStmt (Instr [Call(None, 
+                                                     Lval(var gi.svar), 
+                                                     [], locUnknown)]) 
                                  :: m.sbody);
                 inserted := true;
                 ignore (E.log "Inserted the globinit\n");
@@ -61,7 +61,7 @@ let doFile (fl: file) : file =
               Compound (t, initl) -> 
                 foldLeftCompound (initone off') t initl acc
             | _ -> 
-                mkStmt (Instr [(Set ((Var vi, off'), what), locUnknown)]) 
+                mkStmt (Instr [Set ((Var vi, off'), what, locUnknown)]) 
                 :: acc
           in
           let inits = initone NoOffset NoOffset init vi.vtype finit.sbody in 

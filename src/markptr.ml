@@ -680,7 +680,7 @@ and doStmt (s: stmt) : stmt =
   | Return (Some e, l) -> 
       s.skind <- Return (Some (doExpAndCast e !currentResultType), l)
   | Instr il -> 
-      s.skind <- Instr (List.map (fun (i,l) -> doInstr i l, l) il)
+      s.skind <- Instr (List.map doInstr il)
   | Loop (b, l) -> 
       s.skind <- Loop (doBlock b, l)
   | If(e, b1, b2, l) -> 
@@ -689,18 +689,18 @@ and doStmt (s: stmt) : stmt =
       s.skind <- Switch(doExpAndCast e intType, doBlock b, cases, l));
   s
 
-and doInstr (i:instr) (l: location) : instr = 
+and doInstr (i:instr) : instr = 
   match i with
   | Asm _ -> i
-  | Set (lv, e) -> 
+  | Set (lv, e,l) -> 
       let lv', lvn = doLvalue lv true in
       (* Now process the copy *)
 (*      ignore (E.log "Setting lv=%a\n lvt=%a (ND=%d)" 
                 d_plainlval lv d_plaintype (typeOfLval lv) lvn.N.id); *)
       let e' = doExpAndCast e lvn.N.btype in
-      Set (lv', e')
+      Set (lv', e', l)
 
-  | Call (reso, orig_func, args) -> 
+  | Call (reso, orig_func, args, l) -> 
       let args = 
         match isPrintf reso orig_func args with
           Some(o) -> o
@@ -753,7 +753,7 @@ and doInstr (i:instr) (l: location) : instr =
                                rt, N.dummyNode) destvi.vtype !callId)
 	end 
       end;
-      Call(reso, func', loopArgs formals args)
+      Call(reso, func', loopArgs formals args, l)
   
 (* Now do the globals *)
 let doGlobal (g: global) : global = 

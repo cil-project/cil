@@ -556,7 +556,7 @@ and checkStmt (s: stmt) =
           checkExpType false e intType;
           checkBlock b
             
-      | Instr il -> List.iter (fun (i,l) -> checkInstr i) il)
+      | Instr il -> List.iter checkInstr il)
     () (* argument of withContext *)
 
 and checkBlock (b: block) : unit = 
@@ -565,7 +565,7 @@ and checkBlock (b: block) : unit =
 
 and checkInstr (i: instr) = 
   match i with 
-  | Set (dest, e) -> 
+  | Set (dest, e, _) -> 
       let t = checkLval false dest in
       (* Not all types can be assigned to *)
       (match unrollType t with
@@ -575,7 +575,7 @@ and checkInstr (i: instr) =
       | _ -> ());
       checkExpType false e t
             
-  | Call(dest, what, args) -> 
+  | Call(dest, what, args, _) -> 
       let (rt, formals, isva) = 
         match checkExp false what with
           TFun(rt, formals, isva, _) -> rt, formals, isva

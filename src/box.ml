@@ -21,11 +21,12 @@ let isSome = function Some _ -> true | _ -> false
 
 
 (**** Stuff that we use while converting to new CIL *)
-let mkSet (lv:lval) (e: exp) : stmt = mkStmt (Instr [Set(lv, e), lu])
-let call lvo f args : stmt = mkStmt (Instr [Call(lvo,f,args), lu])
+let mkSet (lv:lval) (e: exp) : stmt 
+    = mkStmt (Instr [Set(lv, e, lu)])
+let call lvo f args : stmt = mkStmt (Instr [Call(lvo,f,args, lu)])
 let mkAsm tmpls isvol outputs inputs clobs = 
-  mkStmt (Instr [Asm(tmpls, isvol, outputs, inputs, clobs), lu])
-let mkInstr i l : stmt = mkStmt (Instr [(i, l)])
+  mkStmt (Instr [Asm(tmpls, isvol, outputs, inputs, clobs, lu)])
+let mkInstr i : stmt = mkStmt (Instr [i])
 
 
 (*** End stuff for old CIL *)
@@ -2628,7 +2629,7 @@ and boxstmt (s: Cil.stmt) : block =
         s :: doe @ [ mkStmt (If(e', boxblock t, boxblock e, l)) ]
     | Instr il -> 
         (* Do each instruction in turn *)
-        let b = List.fold_left (fun acc (i,l) -> acc @ boxinstr i l) [] il in
+        let b = List.fold_left (fun acc i -> acc @ boxinstr i) [] il in
         s.skind <- Instr [];
         compactBlock (s :: b)
     | Switch (e, b, cases, l) -> 
@@ -2639,16 +2640,16 @@ and boxstmt (s: Cil.stmt) : block =
   with e -> begin
     ignore (E.log "boxstmt (%s) in %s\n" 
               (Printexc.to_string e) !currentFunction.svar.vname);
-    [mkStmt(Instr [dInstr (dprintf "booo_statement(%a)" d_stmt s), lu])]
+    [mkStmt(Instr [dInstr (dprintf "booo_statement(%a)" d_stmt s)])]
   end
 
 
-and boxinstr (ins: instr) (l: location): stmt list = 
+and boxinstr (ins: instr) : stmt list = 
   if debug then
     ignore (E.log "Boxing %a\n" d_instr ins);
   try
     match ins with
-    | Set (lv, e) -> 
+    | Set (lv, e, l) -> 
         let (lvt, lvkind, lv', lvbase, lvend, dolv) = boxlval lv in
         let (doe, e') = boxexpf e in (* Assume et is the same as lvt *)
         (* Now do a cast, just in case some qualifiers are different *)
@@ -2664,7 +2665,7 @@ and boxinstr (ins: instr) (l: location): stmt list =
         in
         dolv @ doe3 @ check @ [mkSet lv' e3]
 
-    | Call(vio, f, args) ->
+    | Call(vio, f, args, l) ->
         let (ft, dof, f') = boxfunctionexp f in
         let (ftret, ftargs, isva) =
           match ft with 
@@ -2736,7 +2737,7 @@ and boxinstr (ins: instr) (l: location): stmt list =
                    ((Var vi', Field(dfld, NoOffset)) as newlv), _, _,[]) -> 
                      let tmp = makeTempVar !currentFunction dfld.ftype in
                      tmp, 
-                     boxinstr (Set ((Var vi, NoOffset), Lval (var tmp))) l
+                     boxinstr (Set ((Var vi, NoOffset), Lval (var tmp), l))
 (*                     [ mkSet newlv (Lval (var tmp)) ] *)
                 | _ ->  E.s (E.bug "Result of call is not a variable")
               in
@@ -2761,7 +2762,7 @@ and boxinstr (ins: instr) (l: location): stmt list =
                     (* Use boxinstr to do the proper cast and the proper 
                      * checks *)
                     boxinstr (Set((Var vi1, NoOffset), 
-                                  Lval (var tmp))) l @ setvi1
+                                  Lval (var tmp), l)) @ setvi1
                   else
                     call (Some(vi1,iscast)) f' args' :: setvi1
                                                           
@@ -2770,7 +2771,7 @@ and boxinstr (ins: instr) (l: location): stmt list =
         in
         dof @ doargs @ finishcall
 
-    | Asm(tmpls, isvol, outputs, inputs, clobs) ->
+    | Asm(tmpls, isvol, outputs, inputs, clobs, l) ->
         let rec doOutputs = function
             [] -> [], []
           | (c, lv) :: rest -> 
@@ -2805,7 +2806,7 @@ and boxinstr (ins: instr) (l: location): stmt list =
   with e -> begin
     ignore (E.log "boxinstr (%s):%a (in %s)\n" 
               (Printexc.to_string e) d_instr ins !currentFunction.svar.vname);
-    [mkInstr (dInstr (dprintf "booo_instruction(%a)" d_instr ins)) lu]
+    [mkInstr (dInstr (dprintf "booo_instruction(%a)" d_instr ins))]
   end
 
 (* Given an lvalue, generate all the stuff needed to construct a pointer to 

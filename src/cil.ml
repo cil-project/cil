@@ -332,22 +332,28 @@ and offset =
 
 (**** INSTRUCTIONS. May cause effects directly but may not have control flow.*)
 and instr =
-    Set        of lval * exp             (* An assignment. A cast is present 
+    Set        of lval * exp * location  (* An assignment. A cast is present 
                                           * if the exp has different type 
                                           * from lval *)
-  | Call       of (varinfo * bool) option * exp * exp list
+  | Call       of (varinfo * bool) option * exp * exp list * location
  			 (* optional: result temporary variable and an 
                           * indication that a cast is necessary (the declared 
                           * type of the function is not the same as that of 
                           * the result), the function value, argument list, 
-                          * location. Casts are inserted for arguments. If 
+                          * location. If the function is declared then casts 
+                          * are inserted for those arguments that correspond 
+                          * to declared formals. (The actual number of 
+                          * arguments might be smaller or larger than the 
+                          * declared number of arguments. C allows this.) If 
                           * the type of the result variable is not the same 
                           * as the declared type of the function result then 
-                          * an implicit cast exists. *)
+                          * an implicit cast exists.  *)
 
                          (* See the GCC specification for the meaning of ASM. 
                           * If the source is MS VC then only the templates 
                           * are used *)
+                         (* sm: I've added a notes.txt file which contains more
+                          * information on interpreting Asm instructions *)
   | Asm        of string list *         (* templates (CR-separated) *)
                   bool *                (* if it is volatile *)
                   (string * lval) list * (* outputs must be lvals with 
@@ -356,8 +362,8 @@ and instr =
                                           * run into some trouble with ASMs 
                                           * in the Linux sources  *)
                   (string * exp) list * (* inputs with constraints *)
-                  string list           (* register clobbers *)
-
+                  string list *         (* register clobbers *)
+                  location
 
 
 (* The statement is the structural unit in the control flow graph *)
@@ -379,7 +385,7 @@ and stmt = {
 and block = stmt list
 
 and stmtkind = 
-  | Instr  of (instr * location) list   (* A bunck of instruction that do not 
+  | Instr  of instr list                (* A bunch of instruction that do not 
                                          * contain control flow stuff *)
   | Return of exp option * location     (* The optional return *)
 
@@ -576,7 +582,7 @@ let mkStmt (sk: stmtkind) : stmt =
 let mkEmptyStmt () = mkStmt (Instr [])
 
 let dummyStmt = 
-  mkStmt (Instr [(Asm(["dummy statement!!"], false, [], [], []), lu)])
+  mkStmt (Instr [(Asm(["dummy statement!!"], false, [], [], [], lu))])
 
 
 let compactBlock (b: block) : block =  
@@ -763,11 +769,11 @@ let mkForIncr (iter: varinfo) (first: exp) (past: exp) (incr: exp)
     | _ -> Lt, PlusA
   in
   mkFor 
-    [ mkStmt (Instr [(Set (var iter, first), lu)]) ]
+    [ mkStmt (Instr [(Set (var iter, first, lu))]) ]
     (BinOp(compop, Lval(var iter), past, intType))
     [ mkStmt (Instr [(Set (var iter, 
-                           (BinOp(nextop, Lval(var iter), incr, iter.vtype))), 
-                      lu)])]
+                           (BinOp(nextop, Lval(var iter), incr, iter.vtype)),
+                           lu))])] 
     body
   
 
@@ -1210,7 +1216,7 @@ and d_lval () lv =
         
 and d_instr () i =
   match i with
-  | Set(lv,e) -> begin
+  | Set(lv,e,l) -> begin
       (* Be nice to some special cases *)
       match e with
         BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt(1,_,_)),_) 
@@ -1225,7 +1231,7 @@ and d_instr () i =
           dprintf "%a %a= %a;" d_lval lv d_binop bop d_exp e
       | _ -> dprintf "%a = %a;" d_lval lv d_exp e
   end
-  | Call(vio,e,args) ->
+  | Call(vio,e,args,l) ->
       dprintf "%a%a(@[%a@]);" 
         insert 
         (match vio with 
@@ -1240,7 +1246,7 @@ and d_instr () i =
         | _ -> dprintf "(%a)" d_exp e)
 	(docList (chr ',' ++ break) (d_exp ())) args
 
-  | Asm(tmpls, isvol, outs, ins, clobs) ->
+  | Asm(tmpls, isvol, outs, ins, clobs, l) ->
       if !msvcMode then
         dprintf "__asm {@[%a@]};@!"  (docList line text) tmpls
       else
@@ -1312,7 +1318,7 @@ and d_stmtkind (next: stmt) () = function
 (*  | Instr [] -> text "/* empty block */" *)
   | Instr il -> 
       dprintf "@[%a@]" 
-        (docList line (fun (i, l) -> d_instr () i)) il
+        (docList line (fun i -> d_instr () i)) il
   | If(be,t,[],_) -> 
       dprintf "if@[ (%a)@!%a@]" d_exp be d_block t
   | If(be,t,[{skind=Goto(gref,_);labels=[]} as s],_) 
@@ -1543,14 +1549,14 @@ begin
   let fLval = visitCilLval vis in
 
   match i with
-  | Set(lv,e) -> fLval lv; fExp e
-  | Call(None,f,args) -> fExp f; (List.iter fExp args)
-  | Call((Some (v, _)),fn,args) -> (
+  | Set(lv,e, _) -> fLval lv; fExp e
+  | Call(None,f,args, _) -> fExp f; (List.iter fExp args)
+  | Call((Some (v, _)),fn,args, _) -> (
       (ignore (vis#vvrbl v));
       (fExp fn);
       (List.iter fExp args)
     )
-  | Asm(_,_,outs,ins,_) -> begin
+  | Asm(_,_,outs,ins,_,_) -> begin
       (List.iter (fun (_, lv) -> fLval lv) outs);
       (List.iter (fun (_, e) -> fExp e) ins)
     end
@@ -1599,7 +1605,7 @@ and visitCilStmt (vis: cilVisitor) (s: stmt) : unit =
     | Loop (b, _) -> fBlock b
     | If(e, s1, s2, _) -> fExp e; fBlock s1; fBlock s2
     | Switch (e, b, _, _) -> fExp e; fBlock b
-    | Instr il -> List.iter (fun (i, _) -> fInst i) il
+    | Instr il -> List.iter fInst il
   in
   fStmt s
     
@@ -1917,12 +1923,10 @@ let rec peepHole1 (* Process one statement and possibly replace it *)
         Instr il -> 
           let rec loop = function
               [] -> []
-            | (i,l) :: rest -> begin
+            | i :: rest -> begin
                 match doone i with
-                  None -> (i,l) :: loop rest
-                | Some sl -> 
-                    let sl' = List.map (fun i -> (i, l)) sl in
-                    loop sl' @ rest
+                  None -> i :: loop rest
+                | Some sl -> loop (sl @ rest)
             end
           in
           s.skind <- Instr (loop il)
@@ -1944,13 +1948,11 @@ let rec peepHole2  (* Process two statements and possibly replace them both *)
           let rec loop = function
               [] -> []
             | [i] -> [i]
-            | ((i1, l1) as s1) :: ((((i2, l2) as s2) :: rest) as rest2) -> 
+            | (i1 :: ((i2 :: rest) as rest2)) -> 
                 begin
                   match dotwo (i1,i2) with
-                    None -> s1 :: loop rest2
-                  | Some sl -> 
-                      let sl' = List.map (fun i -> (i, l1)) sl in
-                      loop (sl' @ rest)
+                    None -> i1 :: loop rest2
+                  | Some sl -> loop (sl @ rest)
                 end
           in
           s.skind <- Instr (loop il)
@@ -2009,7 +2011,7 @@ let dExp : doc -> exp =
   function d -> Const(CStr(sprint 80 d))
 
 let dInstr : doc -> instr = 
-  function d -> Asm([sprint 80 d], false, [], [], [])
+  function d -> Asm([sprint 80 d], false, [], [], [], lu)
 
 
 let rec addOffset toadd (off: offset) : offset =

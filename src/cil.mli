@@ -334,10 +334,10 @@ and offset =
 
 (**** INSTRUCTIONS. May cause effects directly but may not have control flow.*)
 and instr =
-    Set        of lval * exp             (* An assignment. A cast is present 
+    Set        of lval * exp * location  (* An assignment. A cast is present 
                                           * if the exp has different type 
                                           * from lval *)
-  | Call       of (varinfo * bool) option * exp * exp list
+  | Call       of (varinfo * bool) option * exp * exp list * location
  			 (* optional: result temporary variable and an 
                           * indication that a cast is necessary (the declared 
                           * type of the function is not the same as that of 
@@ -364,8 +364,8 @@ and instr =
                                           * run into some trouble with ASMs 
                                           * in the Linux sources  *)
                   (string * exp) list * (* inputs with constraints *)
-                  string list           (* register clobbers *)
-
+                  string list *         (* register clobbers *)
+                  location
 
 (* STATEMENTS. 
  * The statement is the structural unit in the control flow graph. Use mkStmt 
@@ -389,7 +389,7 @@ and stmt = {
 
 (* A few kinds of statements *)
 and stmtkind = 
-  | Instr  of (instr * location) list   (* A bunch of instructions that do not 
+  | Instr  of instr list                (* A bunch of instructions that do not 
                                          * contain control flow stuff. 
                                          * Control flows falls through. *)
   | Return of exp option * location     (* The return statement. This is a 

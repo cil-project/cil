@@ -311,7 +311,7 @@ module BlockChunk =
   struct
     type chunk = {
         stmts: stmt list;
-        postins: (instr * location) list; (* Some instructions to append at 
+        postins: instr list;              (* Some instructions to append at 
                                            * the ends of statements (in 
                                            * reverse order)  *)
                                         (* A list of case statements at the 
@@ -328,8 +328,8 @@ module BlockChunk =
 
     let isNotEmpty (c: chunk) = not (isEmpty c)
 
-    let i2c (i: instr) (l: location) = 
-      { empty with postins = [(i, l)] }
+    let i2c (i: instr) = 
+      { empty with postins = [i] }
         
     (* Occasionally, we'll have to push postins into the statements *)
     let pushPostIns (c: chunk) : stmt list = 
@@ -349,8 +349,8 @@ module BlockChunk =
 
     (* Add an instruction at the end. Never refer to this instruction again 
      * after you call this *)
-    let (+++) (c: chunk) (il : instr * location) =
-      {c with postins = il :: c.postins}
+    let (+++) (c: chunk) (i : instr) =
+      {c with postins = i :: c.postins}
 
     (* Append two chunks. Never refer to the original chunks after you call 
      * this. And especially never share c2 with somebody else *)
@@ -757,14 +757,14 @@ let makeGlobalVarinfo (vi: varinfo) =
 let afterConversion (c: chunk) : chunk = 
   (* Now scan the statements and find Instr blocks *)
   let collapseCallCast = function
-      Call(Some(vi, false), f, args),
+      Call(Some(vi, false), f, args, l),
       Set((Var destv, NoOffset), 
-                CastE (newt, Lval(Var vi', NoOffset))) 
+                CastE (newt, Lval(Var vi', NoOffset)), _) 
       when (not vi.vglob && 
             String.length vi.vname >= 3 &&
             String.sub vi.vname 0 3 = "tmp" &&
             vi' == vi) 
-      -> Some [Call(Some(destv, true), f, args)]
+      -> Some [Call(Some(destv, true), f, args, l)]
     | _ -> None
   in
   (* First add in the postins *)
@@ -1056,7 +1056,7 @@ and doExp (isconst: bool)    (* In a constant *)
         | _ -> 
             let (e', t') = processStartOf e t in
             let (t'', e'') = castTo t' lvt e' in
-            (se +++ (Set(lv, e''), lu), e'', t'')
+            (se +++ (Set(lv, e'', lu)), e'', t'')
     end
   in
   let findField n fidlist = 
@@ -1511,7 +1511,7 @@ and doExp (isconst: bool)    (* In a constant *)
           | _ -> E.s (E.unimp "Expected lval for ++ or --")
         in
         let tresult, result = doBinOp uop' (Lval(lv)) t one intType in
-        finishExp (se +++ (Set(lv, doCastT result tresult t), lu))
+        finishExp (se +++ (Set(lv, doCastT result tresult t, lu)))
           (Lval(lv))
           tresult   (* Should this be t instead ??? *)
           
@@ -1531,11 +1531,11 @@ and doExp (isconst: bool)    (* In a constant *)
         let se', result = 
           if what <> ADrop then 
             let tmp = newTempVar t in
-            se +++ (Set(var tmp, Lval(lv)), lu), Lval(var tmp)
+            se +++ (Set(var tmp, Lval(lv), lu)), Lval(var tmp)
           else
             se, Lval(lv)
         in
-        finishExp (se' +++ (Set(lv, doCastT opresult tresult t), lu))
+        finishExp (se' +++ (Set(lv, doCastT opresult tresult t, lu)))
           result
           tresult   (* Should this be t instead ??? *)
           
@@ -1604,14 +1604,14 @@ and doExp (isconst: bool)    (* In a constant *)
         in
         let (se2, e2', t2) = doExp false e2 (AExp None) in
         let tresult, result = doBinOp bop' e1' t1 e2' t2 in
-        finishExp (se1 @@ se2 +++ (Set(lv1, result), lu))
+        finishExp (se1 @@ se2 +++ (Set(lv1, result, lu)))
           (Lval(lv1))
           tresult
           
     | A.BINARY((A.AND|A.OR), e1, e2) ->
         let tmp = var (newTempVar intType) in
-        finishExp (doCondition e (empty +++ (Set(tmp, integer 1), lu))
-                                 (empty +++ (Set(tmp, integer 0), lu)))
+        finishExp (doCondition e (empty +++ (Set(tmp, integer 1, lu)))
+                                 (empty +++ (Set(tmp, integer 0, lu))))
           (Lval tmp)
           intType
           
@@ -1620,7 +1620,7 @@ and doExp (isconst: bool)    (* In a constant *)
         let (se, e', t) as rese = doExp isconst e (AExp None) in
         ignore (checkBool t e');
         finishExp se (UnOp(LNot, e', intType)) intType
-(*   We could use this code but it consuses the translation validation
+(*   We could use this code but it confuses the translation validation
         finishExp 
           (doCondition e [mkSet tmp (integer 0)] [mkSet tmp (integer 1)])
           (Lval tmp)
@@ -1707,14 +1707,14 @@ and doExp (isconst: bool)    (* In a constant *)
           match what with 
             ADrop -> 
               finishExp 
-                (sf @@ sargs +++ (Call(None,f'',args'), lu))
+                (sf @@ sargs +++ (Call(None,f'',args', lu)))
                 (integer 0) intType
               (* Set to a variable of corresponding type *)
           | ASet((Var vi, NoOffset) as lv, vtype) -> 
               let mustCast = typeSig resType' <> typeSig vtype in
               finishExp 
                 (sf @@ sargs 
-                 +++ (Call(Some (vi, mustCast),f'',args'), lu))
+                 +++ (Call(Some (vi, mustCast),f'',args', lu)))
                 (Lval(lv))
                 vtype
 
@@ -1732,8 +1732,8 @@ and doExp (isconst: bool)    (* In a constant *)
                         typeSig t <> typeSig resType'
                     | _ -> newTempVar resType', resType', false
                   in
-                  let i = Call(Some (tmp, iscast),f'',args') in
-                  finishExp (sf @@ sargs +++ (i, lu)) (Lval(var tmp)) restyp'
+                  let i = Call(Some (tmp, iscast),f'',args', lu) in
+                  finishExp (sf @@ sargs +++ i) (Lval(var tmp)) restyp'
           end
         end
           
@@ -1839,7 +1839,7 @@ and doExp (isconst: bool)    (* In a constant *)
     end
   with e -> begin
     ignore (E.log "error in doExp (%s)@!" (Printexc.to_string e));
-    (i2c (dInstr (dprintf "booo_exp(%s)" (Printexc.to_string e))) lu, 
+    (i2c (dInstr (dprintf "booo_exp(%s)" (Printexc.to_string e))), 
      integer 0, intType)
   end
     
@@ -2191,12 +2191,12 @@ and doAssign (lv: lval) : exp -> chunk = function
             H.add env "strncpy" (EnvVar strncpyFun.svar)
           end;
           i2c (Call(None, Lval (var strncpyFun.svar),
-                    [ StartOf lv; e; SizeOf (lvt) ])) lu
+                    [ StartOf lv; e; SizeOf (lvt) ], lu))
 
       | TArray(_, None, _) -> E.s (E.unimp "initialization with a string")
-      | _ -> i2c (Set(lv, e)) lu
+      | _ -> i2c (Set(lv, e, lu))
   end
-  | e -> i2c (Set(lv, e)) lu
+  | e -> i2c (Set(lv, e, lu))
 
   (* Now define the processors for body and statement *)
 and doBody (b : A.body) : chunk = 
@@ -2330,7 +2330,7 @@ and doStatement (s : A.statement) : chunk =
             ins
         in
         !stmts @@ 
-        (i2c (Asm(tmpls, isvol, outs', ins', clobs)) lu)
+        (i2c (Asm(tmpls, isvol, outs', ins', clobs, lu)))
   with e -> begin
     (ignore (E.log "Error in doStatement (%s)\n" (Printexc.to_string e)));
     consLabel "booo_statement" empty

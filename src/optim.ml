@@ -161,7 +161,7 @@ let rec printChecksBlock blk =
 
 and printChecksStmt s =
   match s.skind with 
-    Instr l -> List.iter (function (i,_) -> printChecksInstr i) l
+    Instr l -> List.iter printChecksInstr l
   | Return _ | Continue _ | Break _ | Goto _ -> ()
   | If (e,blk1,blk2,_) -> printChecksBlock blk1; printChecksBlock blk2;
   | Switch (e,blk,_,_) -> printChecksBlock blk
@@ -169,7 +169,7 @@ and printChecksStmt s =
 
 and printChecksInstr i =
   match i with 
-    Call (_,Lval(Var x,_),args) when x.vname = "CHECK_NULL" ->
+    Call (_,Lval(Var x,_),args,l) when x.vname = "CHECK_NULL" ->
        (* args must be a list of one element -- the exp which we have 
           to ensure is non-null *)
       let arg = List.hd args in
@@ -216,7 +216,7 @@ let rec createGenKill () =
 and createGenKillForNode i s =
   instrGen := []; instrKill := false;
   match s.skind with 
-    Instr l ->  createGenKillForInstrList i (List.map (function (ins,l) -> ins) l) (* TODO *)
+    Instr l ->  createGenKillForInstrList i l (* TODO *)
   | _ -> (!gen).(i) <- []; (!kill).(i) <- false
         
 and createGenKillForInstrList i (l:instr list) = 
@@ -238,13 +238,13 @@ and createGenKillForInstr i =
   match i with 
     Asm _ -> ([],false)
   | Set _ -> ([],true) (* invalidate everything *)
-  | Call(_,Lval(Var x,_),args) when x.vname = "CHECK_NULL" ->
+  | Call(_,Lval(Var x,_),args, l) when x.vname = "CHECK_NULL" ->
       (* args is a list of one element *)
       let arg = List.hd args in
       (match arg with
         CastE(_,e) -> ([e],false)
       | _ -> ([arg],false))
-  | Call(_,Lval(Var x,_),args) (* Don't invalidate set if function is 
+  | Call(_,Lval(Var x,_),args, l) (* Don't invalidate set if function is 
                                   * something we know behaves well *)
     when ((String.length x.vname) > 6 && 
           (String.sub x.vname 0 6)="CHECK_") -> ([],false)
@@ -256,24 +256,24 @@ and createGenKillForInstr i =
    basic-block optimization *)
 (* nnl (for NotNullList) is a list of expressions guaranteed to be not null
    on entry to l *)
-let rec optimInstr (l: (instr * location) list) nnl = 
+let rec optimInstr (l: instr list) nnl : instr list = 
   match l with
     [] -> []
-  | ((first,firstLoc) as hd)::tl -> 
+  | first::tl -> 
       match first with 
-        Asm _ -> hd::optimInstr tl nnl
-      | Set _ -> hd::optimInstr tl [] (* Kill everything *)
-      | Call(_,Lval(Var x,_),args) when x.vname = "CHECK_NULL" ->
+        Asm _ -> first::optimInstr tl nnl
+      | Set _ -> first::optimInstr tl [] (* Kill everything *)
+      | Call(_,Lval(Var x,_),args,l) when x.vname = "CHECK_NULL" ->
       (* args is a list of one element *)
           let arg = List.hd args in
           let checkExp = (match arg with CastE(_,e) -> e | _ -> arg) in
           if (List.mem checkExp nnl) then optimInstr tl nnl (* remove redundant check*)
-          else hd::optimInstr tl (checkExp::nnl) (* add to the list of valid non-null exp *)
-      | Call(_,Lval(Var x,_),args)  (* Don't invalidate for well-behaved functions *)
+          else first::optimInstr tl (checkExp::nnl) (* add to the list of valid non-null exp *)
+      | Call(_,Lval(Var x,_),args,l)  (* Don't invalidate for well-behaved functions *)
         when ((String.length x.vname) > 6 && 
-              (String.sub x.vname 0 6)="CHECK_") -> hd::optimInstr tl nnl
+              (String.sub x.vname 0 6)="CHECK_") -> first::optimInstr tl nnl
       | Call _ -> (* invalidate everything *)
-          hd::optimInstr tl []
+          first::optimInstr tl []
   
 (*-----------------------------------------------------------------*)
 let nullChecksOptim f =

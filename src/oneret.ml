@@ -69,7 +69,7 @@ let oneret (f: Cil.fundec) : unit =
     | ({skind=Return (Some rval, l)} as s) :: rests -> 
         if not hasRet then 
           E.s (E.unimp "Found return in subroutine %s\n" fname);
-        s.skind <- Instr [(Set((Var (getRetVar ()), NoOffset), rval), l)];
+        s.skind <- Instr [Set((Var (getRetVar ()), NoOffset), rval, l)];
         if mainbody && rests == [] then
           s :: scanStmts mainbody rests
         else begin
