@@ -250,10 +250,14 @@ let scan_escape (char: char) : int64 =
   | 'f' -> '\012'  (* ASCII code 12 *)
   | 'v' -> '\011'  (* ASCII code 11 *)
   | 'a' -> '\007'  (* ASCII code 7 *)
-  | 'e' -> '\027'  (* ASCII code 27. This is a GCC extension *)
+  | 'e' | 'E' -> '\027'  (* ASCII code 27. This is a GCC extension *)
   | '\'' -> '\''    
   | '"'-> '"'     (* '"' *)
   | '?' -> '?'
+  | '(' when not !Cprint.msvcMode -> '('
+  | '{' when not !Cprint.msvcMode -> '{'
+  | '[' when not !Cprint.msvcMode -> '['
+  | '%' when not !Cprint.msvcMode -> '%'
   | '\\' -> '\\' 
   | other -> error ("Unrecognized escape sequence: \\" ^ (String.make 1 other))
   in
@@ -392,6 +396,10 @@ rule initial =
                                             end
                                           else
                                             initial lexbuf }
+|               '\\' '\r' * '\n'        {
+                                          E.newline ();
+                                          initial lexbuf
+                                        }
 |		'#'			{ hash lexbuf}
 |               "_Pragma" 	        { PRAGMA (currentLoc ()) }
 |		'\''			{ CST_CHAR (chr lexbuf, currentLoc ())}

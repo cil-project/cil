@@ -518,6 +518,8 @@ $TEST->addTests("testrun/pointerdiff", "", ['cil', 'inferbox', 'box']);
 $TEST->addTests("test/cpp-2", "", ['cil']);
    $TEST->addBadComment("test/cpp-2-cil", 
                         "Bug in parser (empty pragmas)");
+$TEST->addTests("test/cpp-3", "_GNUCC=1", ['cil']);
+
 $TEST->addTests("testrun/field1", "", ['inferbox']);
    $TEST->addBadComment("testrun/field1-inferbox", 
                         "Bug in handling of unsafe unions?");
@@ -536,6 +538,7 @@ if($win32) {
     $TEST->addTests("testrun/msvc4", "_MSVC=1", ["cil"]);
     $TEST->addTests("testrun/msvc6", "_MSVC=1", ["cil"]);
     $TEST->addTests("testrun/msvc7", "_MSVC=1", ["cil", "inferbox"]);
+    $TEST->addTests("testrun/msvc8", "_MSVC=1", ["cil"]);
 
     $TEST->addTests("test-bad/try1", "_MSVC=1", ["cil", "inferbox"]);
 }

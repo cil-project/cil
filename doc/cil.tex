@@ -360,6 +360,9 @@ that your analysis has to handle all the ugly stuff from \t{stdio.h}.
 int long signed x;
 signed long extern x;
 long static int long y;
+
+// Some code that uses these declaration, so that CIL does not remove them
+int main() { return x + y; }
 \end{cilcode}
 
 \item Anonymous structure and union declarations are given a name. 
@@ -423,12 +426,16 @@ folding.
 
 \item Enumeration tags are computed using constant folding:
 \begin{cilcode}[global]
+int main() {
   enum { 
      FIVE = 5, 
      SIX, SEVEN, 
      FOUR = FIVE - 1, 
      EIGHT = sizeof(double)
-  };
+  } x = FIVE;
+ return x;
+}
+
 \end{cilcode}
 
 \item Initializers are normalized to include specific initialization for the
@@ -2059,13 +2066,6 @@ typedef signed char __s8;
 __s8 unsigned uchartest; // This is unsigned char for gcc
 \end{verbatim}\end{code}
 
-%matth: Sept 8, 2003
-\item Like \ahref{http://gcc.gnu.org/onlinedocs/gcc/Thread-Local.html}
-{GCC version 3}, CIL treats ``\t{\_\_thread}'' as a keyword.
-Therefore it will reject programs that use \t{\_\_thread} as an
-identifier, even if you are using MSVC or an older version of GCC.
-(Some versions of pthread.h have this problem.)
-
 \item The statement \t{x = 3 + x ++} will perform the increment of \t{x}
   before the assignment, while \t{gcc} delays the increment after the
   assignment. 
@@ -2703,6 +2703,12 @@ Necula}.
  
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf April 7, 2004}: Fixed a bug in the driver. The temporary files are
+deleted by the Perl script before the CL compiler gets to them?
+\item {\bf April 7, 2004}: Added the - form of arguments to the MSVC driver.
+\item {\bf April 7, 2004}: Added a few more GCC-specific string escapes, (, [,
+{, \%, E. 
+\item {\bf April 7, 2004}: Fixed bug with continuation lines in MSVC.
 \item {\bf April 6, 2004}: Fixed embarassing bug in the parser: the precedence
   of casts and unary operators was switched. 
 \item {\bf April 5, 2004}: {\bf Released version 1.2.5}

@@ -199,7 +199,7 @@ let rec theMain () =
       ignore (Printf.printf "Setting %s to %s\n" what fl);
     (try takeit (open_out fl)
     with _ ->
-      raise (Arg.Bad ("Cannot open " ^ what ^ " file")))
+      raise (Arg.Bad ("Cannot open " ^ what ^ " file " ^ fl)))
   in
   let outName = ref "" in
   let setDebugFlag v name =

@@ -104,6 +104,7 @@ sub new {
             }
         }
         @args = @args1; # These are the argument after we extracted the --mode
+
     }
     if(defined $self->{MODENAME} && $self->{MODENAME} ne $mode) {
         die "Cannot re-specify the compiler";
@@ -132,6 +133,12 @@ sub new {
         my $key;
         foreach $key (keys %{$compiler}) {
             $self->{$key} = $compiler->{$key};
+        }
+
+        # For MSVC we have to use --save-temps because otherwise the 
+        # temporary files get deleted somehow before CL gets at them !
+        if($mode ne "GNUCC" && $mode ne "AR") {
+            $self->{SAVE_TEMPS} = '.';
         }
     }
 
@@ -1168,8 +1175,23 @@ sub compilerArgument {
 sub runShell {
     my ($self, @cmd) = @_;
 
+    my $msvcFriends = 
+        ($self->{MODENAME} eq "MSVC" || 
+         $self->{MODENAME} eq "MSLINK" || 
+         $self->{MODENAME} eq "MSLIB");
+
     foreach (@cmd) {
 	$_ = $_->filename if ref;
+        # If we are in MSVC mode then we might have to convert the files
+        # from cygwin names to the actual Windows names
+        if($msvcFriends && $^O eq "cygwin") {
+            my $arg = $_;
+            if ($arg =~ m|^/| && -f $arg) { 
+                my $mname = `cygpath -m $arg`;
+                chop $mname;
+                if($mname ne "") { $_ = $mname; }
+            }
+        }
     }
 
     # sm: I want this printed to stderr instead of stdout
@@ -1287,21 +1309,21 @@ sub new {
            "[^/].*\\.(asm)\$" => { TYPE => 'ASMSOURCE' },
            "[^/].*\\.i\$" => { TYPE => 'ISOURCE' },
            "[^/\\-@]" => { TYPE => "OSOURCE" },
-           "/O" => { TYPE => "CC" },
+           "[/\\-]O" => { TYPE => "CC" },
            "[/\\-][DI]" => { TYPE => "PREPROC"},
-           "/EH" => { TYPE => "CC" },
-           "/G"  => { TYPE => "CC" },
-           "/F[aA]"  => { TYPE => 'CC' },
+           "[/\\-]EH" => { TYPE => "CC" },
+           "[/\\-]G"  => { TYPE => "CC" },
+           "[/\\-]F[aA]"  => { TYPE => 'CC' },
            "[/\\-]Fo"     => { TYPE => 'OUT' },
            "/Fe"   => { TYPE => 'OUT',
                         RUN => sub { $stub->{OPERATION} = "TOEXE" }},
            "[/\\-]F[dprR]" => { TYPE => "CC" },
            "[/\\-]FI" => { TYPE => "PREPROC" },
-           "/[CXu]" => { TYPE => "PREPROC" },
-           "/U" => { ONEMORE => 1, TYPE => "PREPROC" },
-           "/(E|EP|P)" => { RUN => sub { push @{$stub->{PPARGS}}, $_[1]; 
+           "[/\\-][CXu]" => { TYPE => "PREPROC" },
+           "[/\\-]U" => { ONEMORE => 1, TYPE => "PREPROC" },
+           "[/\\-](E|EP|P)" => { RUN => sub { push @{$stub->{PPARGS}}, $_[1]; 
                                          $stub->{OPERATION} = "PREPROC"; }},
-           "/c" => { RUN => sub { $stub->{OPERATION} = "TOOBJ"; }},
+           "[/\\-]c" => { RUN => sub { $stub->{OPERATION} = "TOOBJ"; }},
            "[/\\-](Q|Z|J|nologo|w|W|Zm)" => { TYPE => "CC" },
            "[/\\-]Y(u|c|d|l|X)" => { TYPE => "CC" },
            "[/\\-]T(C|P)" => { TYPE => "PREPROC" },
@@ -1312,9 +1334,9 @@ sub new {
                     $fname = &normalizeFileName($fname);
                     push @{$stub->{CFILES}}, $fname;
                 }},
-           "/v(d|m)" => { TYPE => "CC" },
-           "/F" => { TYPE => "CC" },
-           "/M"   => { TYPE => 'LINKCC' },
+           "[/\\-]v(d|m)" => { TYPE => "CC" },
+           "[/\\-]F" => { TYPE => "CC" },
+           "[/\\-]M"   => { TYPE => 'LINKCC' },
            "/link" => { RUN => sub { push @{$stub->{LINKARGS}}, "/link", 
                                           @{$_[3]};
                                      @{$_[3]} = (); } },
