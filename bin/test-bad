@@ -117,7 +117,7 @@ while [ $i -le $numcases ]; do
       exit $status
     else
       if [ "x$themsg" != "x" ] ;then
-         echo grep "$themsg" test-bad.out test-bad.err
+         echo "grep \"$themsg\" test-bad.out test-bad.err"
          if ! grep "$themsg" test-bad.out test-bad.err  ;then
             echo "The ${i}th iteration failed to CURE but cannot find: $themsg"
             exit 3
@@ -155,7 +155,7 @@ while [ $i -le $numcases ]; do
     else
       # expected failure on >0th iteration
       if [ "x$themsg" != "x" ] ;then
-         echo grep "$themsg" test-bad.out test-bad.err
+         echo "grep \"$themsg\" test-bad.out test-bad.err"
          if ! grep "$themsg" test-bad.out test-bad.err ;then
             echo "The ${i}th iteration failed but cannot find:$themsg"
             exit 3
