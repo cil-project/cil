@@ -177,15 +177,7 @@ class splitVarVisitorClass : cilVisitor = object (self)
                     argsChanged := true;
                     match comp.cfields with
                       ({fname="_p"} as fstfld) :: restflds -> begin
-                        let mkcompvar (n: string) (ct: typ) = 
-                          { vname = n; vid = 0; 
-                            vglob = false; vtype = ct; 
-                            vdecl = lu; vattr = [];
-                            vstorage = NoStorage;
-                            vaddrof = false;
-                            vreferenced = false }
-                        in
-                        let splits = splitVar mkcompvar a fstfld restflds in
+                        let splits = splitVar makeFormal a fstfld restflds in
                         (List.map (fun (_, a') -> a) splits) @ acc
                       end
                     | _ -> a :: acc

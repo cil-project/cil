@@ -75,18 +75,23 @@ let printShortTypes = ref false
  * re shared by all references to the variable. So, you can change the name
  * easily, for example *)
 type varinfo = { 
+    mutable vname: string;				
+    mutable vtype: typ;                 (* The declared type *)
+    mutable vattr: attribute list;
+    mutable vstorage: storage;
+    (* The other fields are not used in varinfo as they appear in the formal 
+     * argument list in a TFun type *)
+
+
+    mutable vglob: bool;	(* Is this a global variable? *)
+
+    mutable vdecl: location;            (* where was this variable declared? *)
+
     mutable vid: int;	(* Unique integer indentifier. For globals this is a 
                          * hash of the name. Locals are numbered from 0 
                          * starting with the formal arguments. This field 
                          * will be set for you if you use one of the 
                          * makeLocalVar, makeTempVar or makeGlobalVar *)
-    mutable vname: string;				
-    mutable vglob: bool;	(* Is this a global variable? *)
-
-    mutable vtype: typ;                 (* The declared type *)
-    mutable vdecl: location;            (* where was this variable declared? *)
-    mutable vattr: attribute list;
-    mutable vstorage: storage;
     mutable vaddrof: bool;              (* Has its address taken. To insure 
                                          * that this is always set, always 
                                          * use mkAddrOf to construct an AddrOf
@@ -2053,14 +2058,6 @@ end
 
 and d_videcl () vi = 
   let stom, rest = separateStorageModifiers vi.vattr in
-(*
-  dprintf "%a%a%a %a"
-    (* First the storage modifiers *)
-    d_attrlistpre stom
-    d_storage vi.vstorage
-    (d_decl (fun _ -> text vi.vname) DNString) vi.vtype
-    d_attrlistpost rest
-*)    
     (* First the storage modifiers *)
     (d_attrlistpre () stom)
     ++ d_storage () vi.vstorage
@@ -2513,6 +2510,21 @@ let visitCilFile (vis : cilVisitor) (f : file) : file =
   (trace "visitCilFile" (dprintf "finished %s\n" f.fileName));
   f
 
+
+   (* Make a formal argument *)
+let makeFormal name typ =
+  let vi = { vname = name;
+             vid   = 0;
+             vglob = false;
+             vtype = typ;
+             vdecl = lu;
+             vattr = [];
+             vstorage = NoStorage;
+             vaddrof = false;
+             vreferenced = false;    (* sm *)
+           } 
+  in
+  vi
 
    (* Make a local variable and add it to a function *)
 let makeLocalVar fdec name typ =

@@ -52,6 +52,7 @@
   	   "compress",
   	   "go",
   	   "health",
+           "mst",
   	   "li",
   	   "power",
   	   "tsp",

@@ -1225,7 +1225,7 @@ mst: defaulttarget
             make clean mst.exe $(MSTARGS) \
                                CC="$(OLDENMSTSAFECC)" \
                                LD="$(OLDENMSTSAFECC)"
-	cd $(OLDENMSTDIR); sh -c "time ./mst.exe 1024 1"
+	cd $(OLDENMSTDIR); sh -c "time ./mst.exe 2048 1"
 
 
 

@@ -616,9 +616,9 @@ let pkQualName (pk: N.opointerkind)
 
 let memcpyWWWFun =   
   let fdec = emptyFunction "memcpy_www" in
-  let argd  = makeLocalVar fdec "dest" !wildpVoidType in
-  let args  = makeLocalVar fdec "src" !wildpVoidType in
-  let argl  = makeLocalVar fdec "len" uintType in
+  let argd  = makeFormal "dest" !wildpVoidType in
+  let args  = makeFormal "src" !wildpVoidType in
+  let argl  = makeFormal "len" uintType in
   fdec.svar.vtype <- TFun(!wildpVoidType, [ argd; args; argl ], false, []);
   (* Do not add this to the declarations because the type of the arguments 
    * does not make sense  *)
@@ -632,27 +632,27 @@ let memcpyWWWFun =
 
 let mallocFun = 
   let fdec = emptyFunction "malloc" in
-  let argl  = makeLocalVar fdec "len" uintType in
+  let argl  = makeFormal "len" uintType in
   fdec.svar.vtype <- TFun(voidPtrType, [ argl ], false, []);
   fdec
 
 let freeFun = 
   let fdec = emptyFunction "free" in
-  let argp  = makeLocalVar fdec "area" voidPtrType in
+  let argp  = makeFormal "area" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argp ], false, []);
   fdec
 
 (* sm: for tagged heapified areas *)
 let freeMinus4Fun =
   let fdec = emptyFunction "free_minus4" in
-  let argp  = makeLocalVar fdec "area" voidPtrType in
+  let argp  = makeFormal "area" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argp ], false, []);
   fdec
 
 let mainWrapper =
   let fdec = emptyFunction "_mainWrapper" in
-  let argc  = makeLocalVar fdec "argc" intType in
-  let argv  = makeLocalVar fdec "argv" (TPtr(charPtrType, [])) in
+  let argc  = makeFormal "argc" intType in
+  let argv  = makeFormal "argv" (TPtr(charPtrType, [])) in
   fdec.svar.vtype <- TFun(intType, [ argc; argv ], false, []);
   checkFunctionDecls := 
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
@@ -660,8 +660,8 @@ let mainWrapper =
 
 let mainWrapper_w =   
   let fdec = emptyFunction "_mainWrapper_w" in
-  let argc  = makeLocalVar fdec "argc" intType in
-  let argv  = makeLocalVar fdec "argv" (TPtr(charPtrType, [])) in
+  let argc  = makeFormal "argc" intType in
+  let argv  = makeFormal "argv" (TPtr(charPtrType, [])) in
   fdec.svar.vtype <- TFun(intType, [ argc; argv ], false, []);
   checkFunctionDecls := 
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
@@ -669,8 +669,8 @@ let mainWrapper_w =
 
 let mainWrapper_fs =   
   let fdec = emptyFunction "_mainWrapper_fs" in
-  let argc  = makeLocalVar fdec "argc" intType in
-  let argv  = makeLocalVar fdec "argv" (TPtr(charPtrType, [])) in
+  let argc  = makeFormal "argc" intType in
+  let argv  = makeFormal "argv" (TPtr(charPtrType, [])) in
   fdec.svar.vtype <- TFun(intType, [ argc; argv ], false, []);
   checkFunctionDecls := 
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
@@ -678,8 +678,8 @@ let mainWrapper_fs =
 
 let mainWrapper_fq =   
   let fdec = emptyFunction "_mainWrapper_fq" in
-  let argc  = makeLocalVar fdec "argc" intType in
-  let argv  = makeLocalVar fdec "argv" (TPtr(charPtrType, [])) in
+  let argc  = makeFormal "argc" intType in
+  let argv  = makeFormal "argv" (TPtr(charPtrType, [])) in
   fdec.svar.vtype <- TFun(intType, [ argc; argv ], false, []);
   checkFunctionDecls := 
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
@@ -687,8 +687,8 @@ let mainWrapper_fq =
 
 let mainWrapper_qw =   
   let fdec = emptyFunction "_mainWrapper_qw" in
-  let argc  = makeLocalVar fdec "argc" intType in
-  let argv  = makeLocalVar fdec "argv" (TPtr(charPtrType, [])) in
+  let argc  = makeFormal "argc" intType in
+  let argv  = makeFormal "argv" (TPtr(charPtrType, [])) in
   fdec.svar.vtype <- TFun(intType, [ argc; argv ], false, []);
   checkFunctionDecls := 
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
@@ -696,8 +696,8 @@ let mainWrapper_qw =
 
 let mainWrapper_fw =   
   let fdec = emptyFunction "_mainWrapper_fw" in
-  let argc  = makeLocalVar fdec "argc" intType in
-  let argv  = makeLocalVar fdec "argv" (TPtr(charPtrType, [])) in
+  let argc  = makeFormal "argc" intType in
+  let argv  = makeFormal "argv" (TPtr(charPtrType, [])) in
   fdec.svar.vtype <- TFun(intType, [ argc; argv ], false, []);
   checkFunctionDecls := 
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
@@ -706,7 +706,7 @@ let mainWrapper_fw =
 
 let checkNullFun =   
   let fdec = emptyFunction "CHECK_NULL" in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argp  = makeFormal "p" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argp ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
@@ -715,8 +715,8 @@ let checkNullFun =
 
 let checkSafeRetFatFun = 
   let fdec = emptyFunction "CHECK_SAFERETFAT" in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argb  = makeLocalVar fdec "isptr" voidPtrType in
+  let argp  = makeFormal "p" voidPtrType in
+  let argb  = makeFormal "isptr" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
@@ -727,9 +727,9 @@ let checkSafeRetFatFun =
     
 let checkFunctionPointer = 
   let fdec = emptyFunction "CHECK_FUNCTIONPOINTER" in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
-  let argnr  = makeLocalVar fdec "nr" intType in
+  let argp  = makeFormal "p" voidPtrType in
+  let argb  = makeFormal "b" voidPtrType in
+  let argnr  = makeFormal "nr" intType in
   fdec.svar.vtype <- TFun(voidType, [ argp; argb; argnr ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
@@ -761,8 +761,8 @@ let ptrOfBase (base: exp) =
 
 let checkFetchLength = 
   let fdec = emptyFunction "CHECK_FETCHLENGTH" in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
+  let argp  = makeFormal "p" voidPtrType in
+  let argb  = makeFormal "b" voidPtrType in
   fdec.svar.vstorage <- Static;
   fdec.svar.vtype <- TFun(uintType, [ argp; argb ], false, []);
   checkFunctionDecls := 
@@ -774,7 +774,7 @@ let checkFetchLength =
 
 let checkFetchStringEnd = 
   let fdec = emptyFunction "CHECK_FETCHSTRINGEND" in
-  let args  = makeLocalVar fdec "s" charPtrType in
+  let args  = makeFormal "s" charPtrType in
   fdec.svar.vstorage <- Static;
   fdec.svar.vtype <- TFun(voidPtrType, [ args; ], false, []);
   checkFunctionDecls := 
@@ -783,8 +783,8 @@ let checkFetchStringEnd =
 
 let checkStringMax = 
   let fdec = emptyFunction "CHECK_STRINGMAX" in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
+  let argp  = makeFormal "p" voidPtrType in
+  let argb  = makeFormal "b" voidPtrType in
   fdec.svar.vstorage <- Static;
   fdec.svar.vtype <- TFun(uintType, [ argp; argb ], false, []);
   checkFunctionDecls := 
@@ -793,8 +793,8 @@ let checkStringMax =
 
 let checkFetchEnd = 
   let fdec = emptyFunction "CHECK_FETCHEND" in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
+  let argp  = makeFormal "p" voidPtrType in
+  let argb  = makeFormal "b" voidPtrType in
   fdec.svar.vtype <- TFun(voidPtrType, [ argp; argb ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
@@ -808,8 +808,8 @@ let checkFetchEnd =
 
 let checkLBoundFun = 
   let fdec = emptyFunction "CHECK_LBOUND" in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argb  = makeFormal "b" voidPtrType in
+  let argp  = makeFormal "p" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argb; argp; ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
@@ -819,9 +819,9 @@ let checkLBoundFun =
 
 let checkUBoundFun = 
   let fdec = emptyFunction "CHECK_UBOUND" in
-  let argbend  = makeLocalVar fdec "bend" voidPtrType in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argpl  = makeLocalVar fdec "pl" uintType in
+  let argbend  = makeFormal "bend" voidPtrType in
+  let argp  = makeFormal "p" voidPtrType in
+  let argpl  = makeFormal "pl" uintType in
   fdec.svar.vtype <- TFun(voidType, [ argbend; argp; argpl ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
@@ -831,9 +831,9 @@ let checkUBoundFun =
 (* sm: check ubound, or allow NULL pointer (modified from above) *)
 let checkUBoundOrNullFun =
   let fdec = emptyFunction "CHECK_UBOUND_OR_NULL" in
-  let argbend  = makeLocalVar fdec "bend" voidPtrType in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argpl  = makeLocalVar fdec "pl" uintType in
+  let argbend  = makeFormal "bend" voidPtrType in
+  let argp  = makeFormal "p" voidPtrType in
+  let argpl  = makeFormal "pl" uintType in
   fdec.svar.vtype <- TFun(voidType, [ argbend; argp; argpl ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls :=
@@ -842,10 +842,10 @@ let checkUBoundOrNullFun =
 
 let checkBoundsFun =
   let fdec = emptyFunction "CHECK_BOUNDS" in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
-  let argbend  = makeLocalVar fdec "bend" voidPtrType in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argpl  = makeLocalVar fdec "pl" uintType in
+  let argb  = makeFormal "b" voidPtrType in
+  let argbend  = makeFormal "bend" voidPtrType in
+  let argp  = makeFormal "p" voidPtrType in
+  let argpl  = makeFormal "pl" uintType in
   fdec.svar.vtype <- TFun(voidType, [ argb; argbend; argp; argpl ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
@@ -854,10 +854,10 @@ let checkBoundsFun =
 
 let checkBoundsLenFun = 
   let fdec = emptyFunction "CHECK_BOUNDS_LEN" in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
-  let argbl  = makeLocalVar fdec "bl" uintType in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argpl  = makeLocalVar fdec "pl" uintType in
+  let argb  = makeFormal "b" voidPtrType in
+  let argbl  = makeFormal "bl" uintType in
+  let argp  = makeFormal "p" voidPtrType in
+  let argpl  = makeFormal "pl" uintType in
   fdec.svar.vtype <- TFun(voidType, [ argb; argbl; argp; argpl ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
@@ -869,9 +869,9 @@ let checkBoundsLenFun =
 let interceptId = ref 0
 let interceptCastFunction = 
   let fdec = emptyFunction "__scalar2pointer" in
-  let argl = makeLocalVar fdec "l" ulongType in
-  let argf = makeLocalVar fdec "fid" intType in
-  let argid = makeLocalVar fdec "lid" intType in
+  let argl = makeFormal "l" ulongType in
+  let argf = makeFormal "fid" intType in
+  let argid = makeFormal "lid" intType in
   fdec.svar.vtype <- TFun(voidPtrType, [ argl; argf; argid ], false, []);
   theFile := 
      consGlobal (GDecl (fdec.svar, lu)) !theFile;
@@ -881,9 +881,9 @@ let interceptCastFunction =
 (* Check a read *)
 let checkFatPointerRead = 
   let fdec = emptyFunction "CHECK_FATPOINTERREAD" in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
-  let arglen  = makeLocalVar fdec "nrWords" uintType in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argb  = makeFormal "b" voidPtrType in
+  let arglen  = makeFormal "nrWords" uintType in
+  let argp  = makeFormal "p" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argb; arglen; argp; ], false, []);
   checkFunctionDecls := 
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
@@ -895,11 +895,11 @@ let checkFatPointerRead =
 
 let checkFatPointerWrite = 
   let fdec = emptyFunction "CHECK_FATPOINTERWRITE" in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
-  let arglen  = makeLocalVar fdec "nrWords" uintType in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argwb  = makeLocalVar fdec "wb" voidPtrType in
-  let argwp  = makeLocalVar fdec "wp" voidPtrType in
+  let argb  = makeFormal "b" voidPtrType in
+  let arglen  = makeFormal "nrWords" uintType in
+  let argp  = makeFormal "p" voidPtrType in
+  let argwb  = makeFormal "wb" voidPtrType in
+  let argwp  = makeFormal "wp" voidPtrType in
   fdec.svar.vtype <- 
      TFun(voidType, [ argb; arglen; argp; argwb; argwp; ], false, []);
   checkFunctionDecls := 
@@ -914,8 +914,8 @@ let checkFatPointerWrite =
   
 let checkFatStackPointer = 
   let fdec = emptyFunction "CHECK_FATSTACKPOINTER" in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
-  let argp  = makeLocalVar fdec "isptr" voidPtrType in
+  let argb  = makeFormal "b" voidPtrType in
+  let argp  = makeFormal "isptr" voidPtrType in
   fdec.svar.vtype <- 
      TFun(voidType, [ argp; argb; ], false, []);
   fdec.svar.vstorage <- Static;
@@ -929,7 +929,7 @@ let checkFatStackPointer =
 
 let checkLeanStackPointer = 
   let fdec = emptyFunction "CHECK_LEANSTACKPOINTER" in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argp  = makeFormal "p" voidPtrType in
   fdec.svar.vtype <- 
      TFun(voidType, [ argp; ], false, []);
   fdec.svar.vstorage <- Static;
@@ -942,7 +942,7 @@ let checkLeanStackPointer =
 
 let checkNotBelowStackPointer = 
   let fdec = emptyFunction "CHECK_NOTBELOWSTACK" in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argp  = makeFormal "p" voidPtrType in
   fdec.svar.vtype <- 
      TFun(voidType, [ argp; ], false, []);
   fdec.svar.vstorage <- Static;
@@ -955,8 +955,8 @@ let checkNotBelowStackPointer =
 
 let checkNotBelowStackPointerFat = 
   let fdec = emptyFunction "CHECK_NOTBELOWSTACKFAT" in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
+  let argp  = makeFormal "p" voidPtrType in
+  let argb  = makeFormal "b" voidPtrType in
   fdec.svar.vtype <- 
      TFun(voidType, [ argp; argb; ], false, []);
   fdec.svar.vstorage <- Static;
@@ -969,11 +969,11 @@ let checkNotBelowStackPointerFat =
 
 let checkZeroTagsFun =
   let fdec = emptyFunction "CHECK_ZEROTAGS" in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
-  let argbl = makeLocalVar fdec "bl" uintType in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argsize  = makeLocalVar fdec "size" uintType in
-  let offset  = makeLocalVar fdec "offset" uintType in
+  let argb  = makeFormal "b" voidPtrType in
+  let argbl = makeFormal "bl" uintType in
+  let argp  = makeFormal "p" voidPtrType in
+  let argsize  = makeFormal "size" uintType in
+  let offset  = makeFormal "offset" uintType in
   fdec.svar.vtype <- 
      TFun(voidType, [ argb; argbl; argp; argsize; offset ], false, []);
   checkFunctionDecls := 
@@ -983,8 +983,8 @@ let checkZeroTagsFun =
 
 let checkFindHomeFun =
   let fdec = emptyFunction "CHECK_FINDHOME" in
-  let argk  = makeLocalVar fdec "kind" intType in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argk  = makeFormal "kind" intType in
+  let argp  = makeFormal "p" voidPtrType in
   fdec.svar.vtype <- 
      TFun(voidPtrType, [ argk; argp ], false, []);
   checkFunctionDecls := 
@@ -995,9 +995,9 @@ let checkFindHomeFun =
 
 let checkFindHomeEndFun =
   let fdec = emptyFunction "CHECK_FINDHOMEEND" in
-  let argk  = makeLocalVar fdec "kind" intType in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argea  = makeLocalVar fdec "ea" (TPtr(voidPtrType,[])) in
+  let argk  = makeFormal "kind" intType in
+  let argp  = makeFormal "p" voidPtrType in
+  let argea  = makeFormal "ea" (TPtr(voidPtrType,[])) in
   fdec.svar.vtype <- 
      TFun(voidPtrType, [ argk; argp; argea ], false, []);
   checkFunctionDecls := 
@@ -1021,7 +1021,7 @@ let typeSigBox t = typeSigWithAttrs ignorePtrNode t
 (***** Pointer arithemtic *******)
 let checkPositiveFun = 
   let fdec = emptyFunction "CHECK_POSITIVE" in
-  let argx  = makeLocalVar fdec "x" intType in
+  let argx  = makeFormal "x" intType in
   fdec.svar.vtype <- TFun(voidType, [ argx; ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
@@ -1511,9 +1511,9 @@ let registerAreaSeqInt    = 2
 
 let registerAreaFun =   
   let fdec = emptyFunction "CHECK_REGISTERAREA" in
-  let argi  = makeLocalVar fdec "k" intType in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
-  let arge  = makeLocalVar fdec "e" voidPtrType in
+  let argi  = makeFormal "k" intType in
+  let argb  = makeFormal "b" voidPtrType in
+  let arge  = makeFormal "e" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argi; argb; arge; ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 

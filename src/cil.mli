@@ -79,18 +79,24 @@ val warnLoc: location -> ('a,unit,Pretty.doc) format -> 'a
  * re shared by all references to the variable. So, you can change the name
  * easily, for example *)
 type varinfo = { 
+    mutable vname: string;				
+    mutable vtype: typ;                 (* The declared type *)
+    mutable vattr: attribute list;
+    mutable vstorage: storage;
+    (* The other fields are not used in varinfo as they appear in the formal 
+     * argument list in a TFun type *)
+
+
+    mutable vglob: bool;	(* Is this a global variable? *)
+
+    mutable vdecl: location;            (* where was this variable declared? *)
+
     mutable vid: int;	(* Unique integer indentifier. For globals this is a 
                          * hash of the name. Locals are numbered from 0 
                          * starting with the formal arguments. This field 
                          * will be set for you if you use one of the 
-                         * makeLocalVar, makeTempVar or makeGlobalVar *)
-    mutable vname: string;				
-    mutable vglob: bool;	(* Is this a global variable? *)
-
-    mutable vtype: typ;                 (* The declared type *)
-    mutable vdecl: location;            (* where was this variable declared? *)
-    mutable vattr: attribute list;
-    mutable vstorage: storage;
+                         * makeFormal, makeLocalVar, makeTempVar or 
+                         * makeGlobalVar  *)
     mutable vaddrof: bool;              (* Has its address taken. To insure 
                                          * that this is always set, always 
                                          * use mkAddrOf to construct an AddrOf
@@ -846,9 +852,12 @@ val doVisitList: vis: cilVisitor ->
                  children: (cilVisitor -> 'a -> 'a) ->
                  node: 'a -> 'a list
 
+   (* Make a formal argument for use ina TFun *)
+val makeFormal: string -> typ -> varinfo
 
    (* Make a local variable and add it to a function *)
 val makeLocalVar: fundec -> string -> typ -> varinfo
+
    (* Make a temporary variable *)
 val makeTempVar: fundec -> ?name: string -> typ -> varinfo
 
