@@ -132,7 +132,7 @@ let d_growarray (sep: Pretty.doc)
                 (doit:int -> 'a -> Pretty.doc)
                 ()
                 (elements: 'a t) =
-  Pretty.docArray sep doit () elements.gaData
+  Pretty.docArray ~sep:sep doit () elements.gaData
 
 let restoreGA ?deepCopy (ga: 'a t) : (unit -> unit) = 
   let old = 
