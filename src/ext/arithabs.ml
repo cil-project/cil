@@ -95,6 +95,8 @@ let preVisitor = new preVisitorClass
 class absPrinterClass (callgraph: CG.callgraph) : cilPrinter = object (self) 
   inherit defaultCilPrinterClass as super
 
+  val mutable idomData: stmt option IH.t = IH.create 13
+
   method pExp () = function
     | Const (CInt64(i, _, _)) -> text (Int64.to_string i)
     | BinOp (bop, e1, e2, _) -> 
@@ -135,11 +137,18 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter = object (self)
 
   method dStmt (out: out_channel) (ind: int) (s: stmt) : unit = 
     pd (self#pLineDirective (get_stmtLoc s.skind));
+    (* Lookup its dominator *)
+    let idom: doc = 
+      match Dominators.getIdom idomData s with 
+        Some dom -> num dom.sid
+      | None -> nil
+    in
     ignore (p ~ind:ind
-              "<stmt %d <succs %a> <preds %a>\n"
+              "<stmt %d <succs %a> <preds %a> <idom %a>\n"
               s.sid (** Statement id *)
               (d_list "," (fun _ s' -> num s'.sid)) s.succs
-              (d_list "," (fun _ s' -> num s'.sid)) s.preds);
+              (d_list "," (fun _ s' -> num s'.sid)) s.preds
+              insert idom);
     (* Now the statement kind *)
     let ind = ind + 2 in 
     (match s.skind with 
@@ -182,6 +191,9 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter = object (self)
           with Not_found -> E.s (E.bug "Cannot find call graph info for %s"
                                    fdec.svar.vname)
         in
+        (* Now compute the immediate dominators *)
+        idomData <- Dominators.computeIDom fdec;
+
         IH.clear globalsRead;
         IH.clear globalsWritten;
         ignore (visitCilBlock preVisitor fdec.sbody);

@@ -41,6 +41,7 @@ open Pretty
 open Trace      (* sm: 'trace' function *)
 module E = Errormsg
 module H = Hashtbl
+module IH = Inthash
 
 (*
  * CIL: An intermediate language for analyzing C progams.
@@ -602,7 +603,11 @@ and fundec =
       mutable smaxstmtid: int option;  (** max id of a (reachable) statement 
                                         * in this function, if we have 
                                         * computed it. range = 0 ... 
-                                        * (smaxstmtid-1) *)
+                                        * (smaxstmtid-1). This is computed by 
+                                        * {!Cil.computeCFGInfo}. *)
+      mutable sallstmts: stmt list;   (** After you call {!Cil.computeCFGInfo} 
+                                      * this field is set to contain all 
+                                      * statements in the function *)
     }
 
 
@@ -3515,6 +3520,7 @@ let emptyFunction name =
     sformals = [];
     sbody = mkBlock [];
     smaxstmtid = None;
+    sallstmts = [];
   } 
 
 
@@ -4183,7 +4189,7 @@ let getGlobInit ?(main_name="main") (fl: file) =
   end
   
 
-
+      
 (* Fold over all globals, including the global initializer *)
 let mapGlobals (fl: file) 
                (doone: global -> global) : unit = 
@@ -5497,13 +5503,18 @@ let trylink source dest_option = match dest_option with
   None -> ()
 | Some(dest) -> link source dest 
 
+
+(** Cmopute the successors and predecessors of a block, given a fallthrough *)
 let rec succpred_block b fallthrough =
   let rec handle sl = match sl with
     [] -> ()
   | [a] -> succpred_stmt a fallthrough 
-  | hd :: tl -> succpred_stmt hd (Some(List.hd tl)) ;
-                handle tl 
+  | hd :: ((next :: _) as tl) -> 
+      succpred_stmt hd (Some next) ;
+      handle tl 
   in handle b.bstmts
+
+
 and succpred_stmt s fallthrough = 
   match s.skind with
     Instr _ -> trylink s fallthrough
@@ -5513,6 +5524,7 @@ and succpred_stmt s fallthrough =
   | Continue _ 
   | Switch _ ->
     failwith "computeCFGInfo: cannot be called on functions with break, continue or switch statements. Use prepareCFG first to remove them."
+
   | If(e1,b1,b2,l) -> 
       (match b1.bstmts with
         [] -> trylink s fallthrough
@@ -5520,12 +5532,15 @@ and succpred_stmt s fallthrough =
       (match b2.bstmts with
         [] -> trylink s fallthrough
       | hd :: tl -> (link s hd ; succpred_block b2 fallthrough ))
-  | Loop(b,l,_,_) -> begin match b.bstmts with
-                   [] -> failwith "computeCFGInfo: empty loop" 
-                 | hd :: tl -> 
-                    link s hd ; 
-                    succpred_block b (Some(hd))
-                 end
+
+  | Loop(b,l,_,_) -> 
+      begin match b.bstmts with
+        [] -> failwith "computeCFGInfo: empty loop" 
+      | hd :: tl -> 
+          link s hd ; 
+          succpred_block b (Some(hd))
+      end
+
   | Block(b) -> begin match b.bstmts with
                   [] -> trylink s fallthrough
                 | hd :: tl -> link s hd ;
@@ -5702,17 +5717,18 @@ let prepareCFG (fd : fundec) : unit =
       (fun () -> failwith "prepareCFG: continue with no enclosing loop") (-1)
 
 (* make the cfg and return a list of statements *)
-let computeCFGInfo (f : fundec) (global_numbering : bool) : stmt list =
-  let clear_it = new clear in 
+let computeCFGInfo (f : fundec) (global_numbering : bool) : unit =
   if not global_numbering then 
     sid_counter := 0 ; 
   statements := [];
+  let clear_it = new clear in 
   ignore (visitCilBlock clear_it f.sbody) ;
   f.smaxstmtid <- Some (!sid_counter) ;
   succpred_block f.sbody (None);
-  let res = !statements in
+  let res = List.rev !statements in
   statements := [];
-  res
+  f.sallstmts <- res;
+  ()
 
 let initCIL () = 
   (* Set the machine *)

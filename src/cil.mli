@@ -820,7 +820,11 @@ and fundec =
       mutable smaxstmtid: int option;  (** max id of a (reachable) statement 
                                         * in this function, if we have 
                                         * computed it. range = 0 ... 
-                                        * (smaxstmtid-1) *)
+                                        * (smaxstmtid-1). This is computed by 
+                                        * {!Cil.computeCFGInfo}. *)
+      mutable sallstmts: stmt list;  (** After you call {!Cil.computeCFGInfo} 
+                                      * this field is set to contain all 
+                                      * statements in the function *)
     }
 
 
@@ -1123,8 +1127,9 @@ val prepareCFG: fundec -> unit
   * [Default], or [Continue] {!Cil.stmtkind}s or {!Cil.label}s. Use
   * {!Cil.prepareCFG} to transform them away.  The second argument should
   * be [true] if you wish a global statement number, [false] if you wish a
-  * local (per-function) statement numbering. *)
-val computeCFGInfo: fundec -> bool -> stmt list
+  * local (per-function) statement numbering. The list of statements is set 
+  * in the sallstmts field of a fundec. *)
+val computeCFGInfo: fundec -> bool -> unit
 
 
 (** Create a deep copy of a function. There should be no sharing between the 
@@ -1799,8 +1804,6 @@ val visitCilAttributes: cilVisitor -> attribute list -> attribute list
 (* And some generic visitors. The above are built with these *)
 
 
-
-
 (** {b Utility functions} *)
 
 (** Whether the pretty printer should print output for the MS VC compiler.
@@ -1958,7 +1961,7 @@ class type cilPrinter = object
      * is different from the last time time this function is called. The last 
      * file name is stored in a private field inside the cilPrinter object. *)
 
-  method pStmtKind : stmt -> unit -> stmtkind -> Pretty.doc
+  method pStmtKind: stmt -> unit -> stmtkind -> Pretty.doc
     (** Print a statement kind. The code to be printed is given in the
      * {!Cil.stmtkind} argument.  The initial {!Cil.stmt} argument
      * records the statement which follows the one being printed;

@@ -1619,6 +1619,17 @@ on your code, or generally as inspiration for writing similar modules. A
 particularly big and complex application written on top of CIL is CCured
 (\ahrefurl{../ccured/index.html}).
 
+\subsection{Data flow analysis framework}
+
+ The module \t{dataflow.ml} contains a parameterized framework for forward and
+backward data flow analyses. You provide the transfer functions and this
+module does the analysis. 
+
+\subsection{Dominators} 
+ 
+ The module \t{dominators.ml} contains the computation of immediate
+ dominators. It uses the \t{dataflow.ml} module. 
+
 \subsection{Points-to Analysis}
 
 The module \t{ptranal.ml} contains a context-sensitive, interprocedural
@@ -2707,6 +2718,10 @@ Necula}.
  
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf June 13, 2004}: Added the field \t{sallstmts} to a function
+  description, to hold all statements in the function.
+\item {\bf June 13, 2004}: Added new extensions for data flow analyses, and
+  for computing dominators.
 \item {\bf June 9, 2004}: Added support for GCC \t{\_\_attribute\_used\_\_}
 \item {\bf April 7, 2004}: {\bf Released version 1.2.5}
 \item {\bf April 7, 2004}: Allow now to run ./configure CC=cl and set the MSVC
