@@ -1495,16 +1495,17 @@ let mustBeTagged v =
     (* See if it make sense to tag this one. We look at the address-of flag 
      * and whether it contains arrays. *)
     let taggable = 
-      v.vaddrof || containsArray v.vtype
+      v.vaddrof || containsArray v.vtype 
+    || (match N.nodeOfAttrlist v.vattr with
+        Some n when n.N.kind = N.Wild && n.N.why_kind = N.UserSpec -> true 
+        | _ -> false)
         (* !!! Do not tag the other globals. If you want them tagged then put 
          * a __TAGGED attribute  *)
     in
     (* But do not tag certain variables *)
-    let taggable' = 
-      taggable && (v.vname <> "__ccured_va_tags")
-    in
+    let taggable' = taggable && (v.vname <> "__ccured_va_tags") in
     taggable' &&
-    (!N.defaultIsWild || (filterAttributes "tagged" v.vattr) <> [])
+    (!N.defaultIsWild || hasAttribute "tagged" v.vattr)
 
 
 
@@ -4285,8 +4286,7 @@ let boxFile file =
        * alone  *)
       let newa, newt = moveAttrsFromDataToType vi.vattr vi.vtype in
       vi.vattr <- N.replacePtrNodeAttrList N.AtVar 
-            (dropAttribute newa (Attr("__format__", [])))
-            ;
+            (dropAttribute newa (Attr("__format__", [])));
       vi.vtype <- fixupType newt;
       (* Now see if we must change the type of the function *)
       (match N.nodeOfAttrlist vi.vattr with

@@ -643,6 +643,7 @@ let replacePtrNodeAttrList where al =
 let newNode (p: place) (idx: int) (bt: typ) (al: attribute list) : node =
   let where = p, idx in
   incr nextId;
+  (* Maybe it has a kind specified by the user *)
   let kind,why_kind = kindOfAttrlist al in
 (*  if !nextId = 1 then 
     ignore (E.log "newNode: %a\n" d_opointerkind kind); *)
