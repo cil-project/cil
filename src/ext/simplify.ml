@@ -117,8 +117,13 @@ let rec makeThreeAddress
 
 (* Make a basic expression *)      
 and makeBasic (setTemp: taExp -> bExp) (e: exp) : bExp = 
+  let dump = false (* !currentLoc.line = 395 *) in
+  if dump then
+    ignore (E.log "makeBasic %a\n" d_plainexp e);
   (* Make it a three address expression first *)
   let e' = makeThreeAddress setTemp e in
+  if dump then 
+    ignore (E.log "   e'= %a\n" d_plainexp e);
   (* See if it is a basic one *)
   match e' with 
   | Lval (Var _, _) -> e'
@@ -126,6 +131,16 @@ and makeBasic (setTemp: taExp -> bExp) (e: exp) : bExp =
       if !onlyVariableBasics then setTemp e' else e'
   | SizeOf _ | SizeOfE _ | AlignOf _ |  AlignOfE _ | SizeOfStr _ -> 
       E.s (bug "Simplify: makeBasic found SizeOf")
+
+   (* We cannot make a function to be Basic, unless it actually is a variable 
+    * already. If this is a function pointer the best we can do is to make 
+    * the address of the function basic *)
+  | Lval (Mem a, NoOffset) when isFunctionType (typeOf e') -> 
+      if dump then 
+        ignore (E.log "  a function type\n");
+      let a' = makeBasic setTemp a in
+      Lval (Mem a', NoOffset)
+
   | _ -> setTemp e' (* Put it into a temporary otherwise *)
 
 
@@ -172,20 +187,25 @@ and simplifyLval
   match lv with 
     Mem a, off -> 
       let offidx, restoff = offsetToInt (typeOfLval (Mem a, NoOffset)) off in
-      let a' = makeBasic setTemp (add (mkCast a !upointType) offidx) in
+      let a' = 
+        if offidx <> zero then 
+          add (mkCast a !upointType) offidx
+        else
+          a
+      in
+      let a' = makeBasic setTemp a' in
       Mem (mkCast a' tres), restoff
 
   | Var v, off when v.vaddrof -> (* We are taking this variable's address *)
       let offidx, restoff = offsetToInt v.vtype off in
       (* We cannot call makeBasic recursively here, so we must do it 
        * ourselves *)
-      let off'' = 
-        if offidx = zero then zero else makeBasic setTemp offidx in
+      let a = mkAddrOrStartOf (Var v, NoOffset) in
       let a' = 
-        setTemp 
-          (add (mkCast (mkAddrOrStartOf (Var v, NoOffset))
-                  !upointType) off'') 
+        if offidx = zero then a else 
+        add (mkCast a !upointType) (makeBasic setTemp offidx) 
       in
+      let a' = setTemp a' in
       Mem (mkCast a' tres), restoff
 
   | Var v, off -> 
