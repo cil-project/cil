@@ -128,6 +128,7 @@ and whykind = (* why did we give it this kind? *)
   | Default
   | UserSpec
   | Unconstrained
+  | PrintfArg (* printf inference *)
 
 and edge = 
     { mutable efrom:    node;
@@ -199,6 +200,7 @@ let d_whykind () = function
   | Default -> text "by_default"
   | UserSpec -> text "user_spec"
   | Unconstrained -> text "unconstrained"
+  | PrintfArg -> text "printf arg"
 
 let d_node () n = 
   dprintf "%d : %a (%s%s%s%s%s%s%s%s) (@[%a@])@! K=%a/%a T=%a@!  S=@[%a@]@!  P=@[%a@]@!" 

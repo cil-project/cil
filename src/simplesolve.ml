@@ -477,9 +477,9 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     if n.kind = Unknown then begin
       n.kind <- Safe ;
       n.why_kind <- Unconstrained 
-    end else if n.kind = String && not n.updated then begin
+    end (* else if n.kind = String && not n.updated then begin
       n.kind <- ROString ;
-    end) node_ht ;
+    end *) ) node_ht ;
 
   ignore (E.log "Finished solving constraints\n");
 

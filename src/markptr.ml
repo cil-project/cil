@@ -548,32 +548,40 @@ let isPrintf reso orig_func args = begin
     match format_arg with (* find the format string *)
       Const(CStr(f)) -> 
         let argTypeList = parseFormatString f 0 in 
-        (* OK, let's create a new wrapper for this printf-like function *)
+        (* insert an explicit cast to the right type for every argument *)
         let num_args = List.length args in 
-        let new_name = v.vname ^ (string_of_int num_args) in 
-        let new_arg_vis = ref [] in 
+        let new_args = ref [] in 
         for i = 0 to num_args-1 do
-          let this_arg_name = new_name ^ "_a" ^ (string_of_int i) in
-          let this_arg_type = 
-          if i = 0 && v.vname = "sprintf" then
-            TPtr((TInt(IChar,[])),[AId("fseq")]) 
-          else if i < o then
-            typeOf( List.nth args (i) ) else (* args before the format string *)
-          if i = o then (* the format string itself! *)
-            TPtr((TInt(IChar,[])),[AId("rostring")]) else 
-          match List.nth argTypeList (i-(o+1)) with
-            FormatInt -> TInt(IInt,[])
-          | FormatDouble -> TFloat(FDouble,[])
-          | FormatPointer -> TPtr((TInt(IChar,[])),[AId("rostring")])
-          in 
-          let new_arg_vi = makeGlobalVar this_arg_name this_arg_type in
-          new_arg_vis := !new_arg_vis @ [new_arg_vi] 
+          let this_arg = List.nth args i in 
+          if i = 0 && v.vname = "sprintf" then begin
+            let temp_type = TPtr((TInt(IChar,[])),[]) in
+            let cast_arg,t,n = doExp (CastE(temp_type,this_arg)) in
+            n.N.kind <- N.FSeq ;
+            n.N.why_kind <- N.PrintfArg ;
+            new_args := cast_arg :: !new_args;
+          end else if i < o then begin 
+            new_args := this_arg :: !new_args;
+          end else if i = o then begin
+            let temp_type = TPtr((TInt(IChar,[])),[]) in
+            let cast_arg,t,n = doExp (CastE(temp_type,this_arg)) in
+            n.N.kind <- N.ROString ;
+            n.N.why_kind <- N.PrintfArg ;
+            new_args := cast_arg :: !new_args;
+          end else begin
+            let temp_type, rostring = 
+            match List.nth argTypeList (i-(o+1)) with
+              FormatInt -> (TInt(IInt,[])), false
+            | FormatDouble -> (TFloat(FDouble,[])), false
+            | FormatPointer -> (TPtr((TInt(IChar,[])),[])), true
+            in 
+            let cast_arg,t,n = doExp (CastE(temp_type,this_arg)) in
+            if rostring then begin
+              n.N.kind <- N.ROString ; n.N.why_kind <- N.PrintfArg 
+            end;
+            new_args := cast_arg :: !new_args;
+          end
         done ;
-        let new_type = TFun( (TInt(IInt,[])) , !new_arg_vis , false, []) in
-        let new_v = makeGlobalVar new_name new_type in
-        new_v.vattr <- ACons("make_wrapper",[AVar(v)]) :: new_v.vattr ; 
-        theFile := GDecl (new_v, lu) :: !theFile;
-        Some(Lval(Var(new_v),NoOffset))
+        Some(List.rev !new_args)
     | _ -> 
       ignore (E.warn "%s called with non-const format string %a" 
         v.vname d_exp format_arg) ; 
@@ -607,10 +615,10 @@ let rec doStmt (s: stmt) =
       Instr (Set (lv', e'), l)
 
   | Instr (Call (reso, orig_func, args), l) -> 
-      let orig_func = 
+      let args = 
         match isPrintf reso orig_func args with
           Some(o) -> o
-        | None -> orig_func
+        | None -> args
       in 
       let func = (* check and see if it is polymorphic *)
         match orig_func with

@@ -2679,78 +2679,6 @@ let preamble () =
 (* a hashtable of functions that we have already made wrappers for *)
 let wrappedFunctions = H.create 15
 
-(* Weimer: create an "unboxed" wrapper for a printf-like function *)
-let wrap_printf vi = begin
-  (* we're writing the "printf4" function in terms of the old "printf"
-   * function *)
-  let old_fun_attr = filterAttributes "make_wrapper" vi.vattr in
-  let old_fun_vi = match old_fun_attr with (* extract old function *)
-    [ACons(_,[AVar(vi)])] -> vi
-  | _ -> E.s (E.bug "Unexpected make_wrapper base function") in
-  vi.vattr <- dropAttribute vi.vattr (List.hd old_fun_attr) ;
-  H.add wrappedFunctions vi.vname true ;
-  let res_type,args,iva,al = match vi.vtype with
-    TFun(r,args,iva,al) -> r,args,iva,al
-  | _ -> E.s (E.bug "Unexpected make_wrapper new function") 
-  in 
-  (* make a new function -- the wrapper *)
-  fixupGlobName vi ;
-  let our_fundec = {
-    svar =  vi ; 
-    sformals = args ; 
-    slocals = [] ;
-    smaxid = 0;
-    sbody = Skip;
-  } in 
-  let vi_to_exp vi = Lval(Var(vi),NoOffset) in
-  let actuals = List.map vi_to_exp args in (* actual arguments *)
-  let checkable_actuals = ref actuals in (* those we should check *)
-  let is_sprintf = old_fun_vi.vname = "sprintf" in 
-  let old_arglist = match old_fun_vi.vtype with
-    TFun(r,args,iva,a) -> args
-  | _ -> E.s (E.bug "Unexpected make_wrapper base function type")
-  in 
-  for i = 2 to List.length old_arglist do 
-    (* in general, don't check things before the format string! *)
-    checkable_actuals := List.tl !checkable_actuals
-  done ;
-  (* build up the wrapper function body *)
-  let our_temp = makeTempVar our_fundec res_type in
-  let actuals = if is_sprintf then
-    let arg1 = List.hd actuals in 
-    let arg1_type = fixit (typeOf arg1) in 
-    let t,a,b,c = readFieldsOfFat arg1 arg1_type in
-    a :: BinOp(MinusPP,castVoidStar b,castVoidStar a,TInt(IInt,[])) :: List.tl actuals
-  else
-    actuals in 
-  let old_fun_vi = if is_sprintf then
-    makeGlobalVar "snprintf" (TVoid([]))
-  else old_fun_vi in 
-  let our_call = Call(Some(our_temp,false),(vi_to_exp old_fun_vi), actuals) in
-  let our_call_stmt = Instr(our_call,lu) in
-  let our_return_stmt = Return(Some(vi_to_exp our_temp),lu) in
-  let is_string exp = 
-    match typeOf exp with
-      TPtr(TInt(k,_),_) when k = IChar || k = ISChar || k = IUChar -> true 
-    | _ -> false
-  in 
-  (* we only check the format string and the args that follow it *)
-  let rec make_our_checks args = match args with
-    [] -> []
-  | hd :: tl when is_string hd -> 
-    let our_tmpend = makeTempVar our_fundec voidPtrType in
-    Instr(Call(Some(our_tmpend,false),(Lval(var checkFetchStringEnd.svar)),[hd]) ,lu)
-      :: make_our_checks tl
-  | hd :: tl -> make_our_checks tl 
-  in
-  let our_body = mkSeq ((make_our_checks !checkable_actuals) @ [our_call_stmt ;
-    our_return_stmt])  
-  in our_fundec.sbody <- our_body ;
-  let warning_comment = GText("// warning: automatically generated wrapper!") in 
-  theFile := GFun(our_fundec, lu) :: warning_comment :: !theFile
-end
-
-             
 let boxFile file =
   ignore (E.log "Boxing file\n");
   E.hadErrors := false;
@@ -2785,11 +2713,7 @@ let boxFile file =
         match g with
 
         | GDecl (vi, l) -> 
-          (* weimer: Support for automatic wrappers for printf, etc. *)
-          if (hasAttribute "make_wrapper" vi.vattr) then begin
-            if not (Hashtbl.mem wrappedFunctions vi.vname) then
-              wrap_printf vi
-          end else boxglobal vi false None l
+          boxglobal vi false None l
         | GVar (vi, init, l) -> boxglobal vi true init l
         | GType (n, t, l) -> 
             if debug then
