@@ -6,8 +6,8 @@ module E = Errormsg
 
 module N = Ptrnode
 
-let debugInstantiate = true
-let debugModels = true
+let debugInstantiate = false
+let debugModels = false
 
 
 let lu = locUnknown
