@@ -709,7 +709,7 @@ and init =
      * For arrays, however, we allow you to give only a prefix of the 
      * initializers. You can scan an initializer list with 
      * {!Cil.foldLeftCompound} or with {!Cil.foldLeftCompoundAll}. *)
- 
+(* Turned off for now 
   | ArrayInit of typ * int * init list
     (** The new form of initializer for arrays. Give the base type and the 
      *  length of the array, followed by a list of initializers in order. The 
@@ -717,6 +717,7 @@ and init =
      * for array initializers because they can be huge. They also do not have 
      * the corner cases of struct/union initializers where once certain 
      * fields can have initializers. *)
+*)
    
 (** {b Function definitions.} 
 A function definition is always introduced with a [GFun] constructor at the

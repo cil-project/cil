@@ -1471,9 +1471,11 @@ let rec setOneInit (this: preInit)
             if !pMaxIdx < idx then begin 
               pMaxIdx := idx;
               (* Maybe we also need to grow the array *)
-              if Array.length !pArray <= idx then begin
-                let newarray = Array.make (32 + idx) NoInitPre in
-                Array.blit !pArray 0 newarray 0 (Array.length !pArray);
+              let l = Array.length !pArray in
+              if l <= idx then begin
+                let growBy = max 32 (l / 2) in
+                let newarray = Array.make (growBy + idx) NoInitPre in
+                Array.blit !pArray 0 newarray 0 l;
                 pArray := newarray
               end
             end;
@@ -3706,7 +3708,7 @@ and doInitializer
 
   (* Setup the pre-initializer *)
   let topPreInit = ref NoInitPre in
-  if true || debugInit then 
+  if debugInit then 
     ignore (E.log "\nStarting a new initializer for %s : %a\n" 
               vi.vname d_type vi.vtype);
   let topSetupInit (o: offset) (e: exp) = 
@@ -3734,10 +3736,10 @@ and doInitializer
       end
     | _ -> vi.vtype
   in
-  if true then 
+  if debugInit then 
     ignore (E.log "Collecting the initializer for %s\n" vi.vname);
   let init = collectInitializer !topPreInit typ' in
-  if true then 
+  if debugInit then 
     ignore (E.log "Finished the initializer for %s\n" vi.vname);
   acc, init, typ'
 
@@ -4757,6 +4759,7 @@ and assignInit (lv: lval)
         ~ct:t
         ~initl:initl
         ~acc:acc
+(*
   | ArrayInit (bt, len, initl) -> 
       let idx = ref ( -1 ) in
       List.fold_left
@@ -4764,7 +4767,7 @@ and assignInit (lv: lval)
           assignInit (addOffsetLval (Index(integer !idx, NoOffset)) lv) i bt acc)
         acc
         initl
-
+*)
   (* Now define the processors for body and statement *)
 and doBody (blk: A.block) : chunk = 
   enterScope ();

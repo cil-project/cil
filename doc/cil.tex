@@ -1700,6 +1700,9 @@ Necula}.
 
 \section{Changes}
 \begin{itemize}
+\item {\bf May 15, 2002}: Changed the visitor for initializers to make two
+tail-recursive passes (the second is a \t{List.rev} and only done if one of
+the initializers change). This prevents \t{Stack_Overflow} for large initializers.
 \item {\bf May 15, 2002}: Changed the front-end to allow the use of \t{MSVC}
 mode even on machines that do not have MSVC. The machine-dependent parameters
 for GCC will be used in that case. 

@@ -521,12 +521,12 @@ and init =
              * designator is printed, so you better be on GCC since MSVC does 
              * not understand this. You can scan an initializer list with 
              * {!Cil.foldLeftCompound}. *)
-
+(*
   | ArrayInit of typ * int * init list
     (** The new form of initializer for arrays. Give the base type and the 
      *  length of the array, followed by a list of initializers in order. The 
      * list might be shorter than the array.  *)
-
+*)
 (** Function definitions. *)
 and fundec =
     { mutable svar:     varinfo;        
@@ -1602,8 +1602,9 @@ and typeOfInit (i: init) : typ =
   match i with 
     SingleInit e -> typeOf e
   | CompoundInit (t, _) -> t
+(*
   | ArrayInit (bt, len, _) -> TArray(bt, Some (integer len), [])
-
+*)
 and typeOfLval = function
     Var vi, off -> typeOffset vi.vtype off
   | Mem addr, off -> begin
@@ -1842,12 +1843,13 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                       ++ ((docList (chr ',' ++ break) d_oneInit) () initl) 
                       ++ unalign)
           ++ chr '}'
+(*
     | ArrayInit (_, _, il) -> 
         chr '{' ++ (align 
                       ++ ((docList (chr ',' ++ break) (self#pInit ())) () il) 
                       ++ unalign)
           ++ chr '}'
-
+*)
   (* dump initializers to a file. *)
   method dInit (out: out_channel) (ind: int) (i: init) = 
     (* Dump an array *)
@@ -1883,7 +1885,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
             (* Now a structure or a union *)
             fprint out 80 (indent ind (self#pInit () i))
     end
-
+(*
     | ArrayInit (bt, len, initl) -> begin
         (* If the base type does not contain structs then use the pInit 
         match unrollType bt with 
@@ -1892,6 +1894,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         | _ -> *)
             fprint out 80 (indent ind (self#pInit () i))
     end
+*)
         
   (*** INSTRUCTIONS ****)
   method pInstr () (i:instr) =       (* imperative instruction *)
@@ -2822,6 +2825,7 @@ class plainCilPrinterClass =
         in
         dprintf "CI(@[%a,@?%a@])" self#pOnlyType t
           (docList (chr ',' ++ break) d_plainoneinit) initl
+(*
     | ArrayInit (t, len, initl) -> 
         let idx = ref (- 1) in
         let d_plainoneinit i = 
@@ -2830,7 +2834,7 @@ class plainCilPrinterClass =
         in
         dprintf "AI(@[%a,%d,@?%a@])" self#pOnlyType t len
           (docList (chr ',' ++ break) d_plainoneinit) initl
-           
+*)           
   method pLval () (lv: lval) =  
     match lv with 
     | Var vi, o -> dprintf "Var(@[%s,@?%a@])" vi.vname self#d_plainoffset o
@@ -3178,7 +3182,7 @@ and childrenInit (vis: cilVisitor) (i: init) : init =
       List.iter doOneInit initl;
       let initl' = if !hasChanged then List.rev !newinitl else initl in
       if t' != t || initl' != initl then CompoundInit (t', initl') else i
-
+(*
   | ArrayInit (bt, len, initl) ->
       let bt' = fTyp bt in
       (* Collect the new initializer list, in reverse. We prefer two 
@@ -3194,7 +3198,7 @@ and childrenInit (vis: cilVisitor) (i: init) : init =
                           newinitl := i'' :: !newinitl) initl;
       let initl' = if !hasChanged then List.rev !newinitl else initl in
       if bt' != bt || initl' != initl then ArrayInit(bt', len, initl') else i
-
+*)
   
 and visitCilLval (vis: cilVisitor) (lv: lval) : lval =
   doVisit vis vis#vlval childrenLval lv
