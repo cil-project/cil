@@ -1014,7 +1014,7 @@ let attributeHash: (string, attributeClass) H.t =
   List.iter (fun a -> H.add table a (AttrFunType true))
     [ "stdcall";"cdecl"; "fastcall" ];
   List.iter (fun a -> H.add table a AttrType)
-    [ "const"; "volatile"; "mode" ];
+    [ "const"; "volatile"; "restrict"; "mode" ];
   table
       
 
