@@ -713,7 +713,21 @@ class splitVarVisitorClass(func:fundec option) : cilVisitor = object (self)
                                (H.find newvars v.vname))
                             @ acc
                           end
-                      | _ -> a' :: acc)
+                      | Lval lv  -> begin
+                          let newargs = 
+                            foldStructFields (typeOfLval lv)
+                              (fun off n t ->
+                                 let lv' = addOffsetLval off lv in
+                                 Lval lv') in
+                          if newargs = [] then
+                            a' :: acc (* not a split var *)
+                          else begin
+                            mustChange := true;
+                            newargs @ acc
+                          end
+                        end
+                      | _ -> (* only lvals are split, right? *)
+                          a' :: acc)
                     args args'
                     []
                 in

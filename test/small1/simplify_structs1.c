@@ -9,25 +9,25 @@ struct three {
   struct two i_1and2;
 };
 
-struct three global1 = { 0, {10, 20}};
+struct three global = { 0, {10, 20}};
 
 //Try an external declaration:
+extern struct three bar(struct three arg);
+extern void barvoid(struct three arg);
+
 extern struct three externstruct; //not split
-
-extern void bar(struct three arg);
-
-extern struct three bar2(struct three arg);
 
 int main() {
   struct three local1 = externstruct;
   struct three local2 = externstruct;
-  struct three local3 = externstruct;
-  //bar(global1);
+  struct three local3 = local2;
 
-  bar(local1);
-  local3 = bar2(local2); //local 2 is not split
+  barvoid(local1);      //local1 is split
+  local3 = bar(local2); //local2 is not split, but the args to bar are
 
-  // externstruct = bar(externstruct);
+  barvoid(global);      //global is not split, but the args to barvoid are
+
+  externstruct = bar(externstruct);
 
   
   return 0;

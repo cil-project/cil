@@ -29,7 +29,24 @@ void foo() {
 
 }
 
+
+//make sure split args are passed in the right order
+struct list node3 = {NULL, 40, &node2};
+void equalToNode3(struct list arg){
+  if ((arg.back != node3.back)
+      ||(arg.i != node3.i)
+      ||(arg.next != node3.next)) {
+    E(10);
+  }
+}
+
 int main() {
+  struct list local_node3 = node3;
+
   foo();
+
+  equalToNode3(local_node3);  //pass from a split var
+  equalToNode3(node3);        //pass from a nonsplit var
+
   SUCCESS;
 }
