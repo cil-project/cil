@@ -703,7 +703,9 @@ smAddTest("scott/monthname $box");
 smFailTest("problem with gcc coercions",
            "scott/floatarg INFERBOX=wild TAGALLFNS=1");
 smFailTest("problem with over-aggressive pointer checks?",
-           "scott/ptrarith INFERBOX=infer");           
+           "scott/ptrarith INFERBOX=infer");
+smFailTest("want merger to strip identical function definitions",
+           "combine_samefn");
 
 # tests of things implemented for EDG compatibility
 smAddTest("mergestruct");

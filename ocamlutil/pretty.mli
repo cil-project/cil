@@ -199,6 +199,14 @@ val eprintf: ('a, unit, doc) format -> 'a
 (** Like {!Pretty.dprintf} but more general. It also takes a function that is 
  * invoked on the constructed document but before any formatting is done. *) 
 val gprintf: (doc -> doc) -> ('a, unit, doc) format -> 'a
+                                                                     
+(* sm: arg!  why can't I write this function?! *)
+(* * Like {!Pretty.dprintf} but yielding a string with no newlines *)
+(*val sprintf: (doc, unit, doc) format -> string*)
+
+(* sm: different tack.. *)
+(* doesn't work either.  well f it anyway *)
+(*val failwithf: ('a, unit, doc) format -> 'a*)
 
 
 (** Invokes a thunk, with printDepth temporarily set to the specified value *)

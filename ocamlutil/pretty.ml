@@ -661,6 +661,19 @@ let printf format = fprintf stdout format
 let eprintf format = fprintf stderr format
 
 
+(* sm: I just don't get ML ... *)
+(* let sprintf (f: (doc, unit, doc) format) : string =*)
+(*   ( * make a doc * ) *)
+(*   let d:doc = (dprintf f) in*)
+(*   ( * make a string * ) *)
+(*   (sprint 1000000 d)*)
+
+(* let failwithf (f: ('a, unit, doc) format) : 'a =*)
+(*   let d:doc = (dprintf f) in*)
+(*   let s:string = (sprint 1000000 d) in*)
+(*   raise (Failure s)*)
+
+
 (*
 let sprintf format = gprintf (fun x -> sprint 80 x) format
 let printf  format = gprintf (fun x -> fprint stdout 80 x) format

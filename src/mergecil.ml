@@ -29,6 +29,13 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  *)
+ 
+(* mergecil.ml *)
+(* This module is responsible for merging multiple CIL source trees into
+ * a single, coherent CIL tree which contains the union of all the
+ * definitions in the source files.  It effectively acts like a linker,
+ * but at the source code level instead of the object code level. *)
+
 
 module P = Pretty
 open Cil
@@ -44,7 +51,7 @@ let debugInlines = false
 let mergeSynonyms = true
 
 
-(** Whethere to use path compression *)
+(** Whether to use path compression *)
 let usePathCompression = false
 
 (* Try to merge definitions of inline functions. They can appear in multiple 
@@ -56,7 +63,7 @@ let mergeInlinesRepeat = mergeInlines && true
 
 let mergeInlinesWithAlphaConvert = mergeInlines && true
 
-(* Check that s starts with the prefix p *)
+(* Return true if 's' starts with the prefix 'p' *)
 let prefix p s = 
   let lp = String.length p in
   let ls = String.length s in
@@ -77,11 +84,11 @@ type 'a node =
       (* location where defined and index within the file of the definition. 
        * If None then it means that this node actually DOES NOT appear in the 
        * given file. In rare occasions we need to talk in a given file about 
-       * types that are not defined in that file. This happens with undefiend 
+       * types that are not defined in that file. This happens with undefined 
        * structures but also due to cross-contamination of types in a few of 
        * the cases of combineType (see the definition of combineTypes). We 
        * try never to choose as representatives nodes without a definition. 
-       * WE also choose the representative the one that appears earliest *)
+       * We also choose as representative the one that appears earliest *)
       mutable nrep: 'a node;  (* A pointer to another node in its class (one 
                                * closer to the representative). The nrep node 
                                * is always in an earlier file, except for the 
@@ -231,7 +238,7 @@ let eEq: (int * string, enuminfo node) H.t = H.create 111 (* Enums *)
 let tEq: (int * string, typeinfo node) H.t = H.create 111 (* Type names*)
 let iEq: (int * string, varinfo node) H.t = H.create 111 (* Inlines *)
         
-(* Sometimes we want to merge synonims. We keep some tables indexed by names. 
+(* Sometimes we want to merge synonyms. We keep some tables indexed by names. 
  * Each name is mapped to multiple exntries *)
 let vSyn: (string, varinfo node) H.t = H.create 111 (* Not actually used *)
 let iSyn: (string, varinfo node) H.t = H.create 111 (* Inlines *)
@@ -256,7 +263,7 @@ let eAlpha : (string, int ref) H.t = H.create 57 (* Enumerations *)
 let tAlpha : (string, int ref) H.t = H.create 57 (* Type names *)
 
 
-(** Keep track for all global function definitions the names of the formal 
+(** Keep track, for all global function definitions, of the names of the formal 
  * arguments. They might change during merging of function types if the 
  * prototype occurs after the function definition and uses different names. 
  * We'll restore the names at the end *)
@@ -483,7 +490,13 @@ let rec combineTypes (what: combineWhat)
       let res = combineTypes what oldfidx oldt.ttype fidx t in
       typeAddAttributes a res
         
-  | _ -> raise (Failure "(different type constructors)")
+  | _ -> (
+      (* raise (Failure "(different type constructors)") *)
+      let msg:string = (P.sprint 1000 (P.dprintf "(different type constructors: %a vs. %a)"
+                                                 d_type oldt  d_type t)) in
+      raise (Failure msg)
+    )                                       
+
 
 (* Match two compinfos and throw a Failure if they do not match *)
 and matchCompInfo (oldfidx: int) (oldci: compinfo) 
@@ -523,19 +536,21 @@ and matchCompInfo (oldfidx: int) (oldci: compinfo)
      * old compinfo. *)
     if old_len = len then
       (try
-        List.iter2 (fun oldf f -> 
-          if oldf.fbitfield <> f.fbitfield then 
-            raise (Failure "(different bitfield info)");
-          if oldf.fattr <> f.fattr then 
-            raise (Failure "(different field attributes)");
-          (* Make sure the types are compatible *)
-          let newtype = 
-            combineTypes CombineOther oldfidx oldf.ftype fidx f.ftype
-          in
-          (* Change the type in the representative *)
-          oldf.ftype <- newtype;
-          ) oldci.cfields ci.cfields
-      with Failure reason -> begin 
+        List.iter2 
+          (fun oldf f ->
+            if oldf.fbitfield <> f.fbitfield then 
+              raise (Failure "(different bitfield info)");
+            if oldf.fattr <> f.fattr then 
+              raise (Failure "(different field attributes)");
+            (* Make sure the types are compatible *)
+            let newtype = 
+              combineTypes CombineOther oldfidx oldf.ftype fidx f.ftype
+            in
+            (* Change the type in the representative *)
+            oldf.ftype <- newtype;
+          ) 
+          oldci.cfields ci.cfields
+      with Failure reason -> begin
         (* Our assumption was wrong. Forget the isomorphism *)
         undo ();
         let msg = 
@@ -743,12 +758,12 @@ let rec oneFilePass1 (f:file) : unit =
               ignore (getNode iEq iSyn !currentFidx 
                         fdec.svar.vname fdec.svar None)
           end
-              (* Make nodes for the defiend type and structure tags *)
+              (* Make nodes for the defined type and structure tags *)
       | GType (t, l) ->
           incr currentDeclIdx;
           t.treferenced <- false; 
           if t.tname <> "" then (* The empty names are just for introducing 
-                                 * undefind comp tags *)
+                                 * undefined comp tags *)
             ignore (getNode tEq tSyn !currentFidx t.tname t 
                       (Some (l, !currentDeclIdx)))
           else begin (* Go inside and clean the referenced flag for the 
@@ -842,7 +857,7 @@ let matchInlines (oldfidx: int) (oldi: varinfo)
     ()
   end
 
-(***********************************************************8
+(************************************************************
  *
  *  PASS 2
  *
@@ -855,7 +870,7 @@ let matchInlines (oldfidx: int) (oldi: varinfo)
   * already; a bad style anyway *)
 let varUsedAlready: (string, unit) H.t = H.create 111
 
-(** A visitor the renames uses of variables and types *)      
+(** A visitor that renames uses of variables and types *)      
 class renameVisitorClass = object (self)
   inherit nopCilVisitor 
       
@@ -979,7 +994,7 @@ let renameInlinesVisitor = new renameInlineVisitorClass
   (* Now we go once more through the file and we rename the globals that we 
    * keep. We also scan the entire body and we replace references to the 
    * representative types or variables. We set the referenced flags once we 
-   * replaced the names. *)
+   * have replaced the names. *)
 let oneFilePass2 (f: file) = 
   if debugMerge || !E.verboseFlag then 
     ignore (E.log "Final merging phase (%d): %s\n" 

@@ -457,12 +457,9 @@ begin
     (trace "patchDebug" (dprintf "unifySpecifier\n"));
   (printSpecs [pat] [tgt]);
 
+  if (pat = tgt) then [] else
+
   match pat, tgt with
-  | SpecTypedef, SpecTypedef -> []
-  | SpecAttr(attr1), SpecAttr(attr2) ->
-      (mustEq attr1 attr2);
-      []
-  | SpecInline, SpecInline -> []
   | SpecType(tspec1), SpecType(tspec2) ->
       (unifyTypeSpecifier tspec1 tspec2)
   | SpecPattern(name), _ ->
