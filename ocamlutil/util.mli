@@ -27,6 +27,7 @@ val hash_copy_into: ('a, 'b) Hashtbl.t -> ('a, 'b) Hashtbl.t -> unit
 val anticompare: 'a -> 'a -> int
 
 val list_drop : int -> 'a list -> 'a list
+val list_droptail : int -> 'a list -> 'a list
 val list_span: ('a -> bool) -> ('a list) -> 'a list * 'a list
 val list_insert_by: ('a -> 'a -> int) -> 'a -> 'a list -> 'a list
 val list_head_default: 'a -> 'a list -> 'a
@@ -266,3 +267,30 @@ val snapshotSymbols: unit -> unit -> unit
 
 (** Dump the list of registered symbols *)
 val dumpSymbols: unit -> unit
+
+(************************************************************************)
+
+(** {1 Int32 Operators} *)
+
+module Int32Op : sig
+   val (<%) : int32 -> int32 -> bool
+   val (<=%) : int32 -> int32 -> bool
+   val (>%) : int32 -> int32 -> bool
+   val (>=%) : int32 -> int32 -> bool
+   val (<>%) : int32 -> int32 -> bool
+   
+   val (+%) : int32 -> int32 -> int32
+   val (-%) : int32 -> int32 -> int32
+   val ( *% ) : int32 -> int32 -> int32
+   val (/%) : int32 -> int32 -> int32
+   val (~-%) : int32 -> int32
+
+   val (<<%) : int32 -> int32 -> int32
+   val (>>%) : int32 -> int32 -> int32
+   val (>>>%) : int32 -> int32 -> int32
+
+   exception IntegerTooLarge
+   val to_int : int32 -> int
+end
+
+(************************************************************************)

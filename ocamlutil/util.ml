@@ -83,6 +83,18 @@ let rec list_drop (n : int) (xs : 'a list) : 'a list =
     | y::ys -> list_drop (n-1) ys
   end
 
+let list_droptail (n : int) (xs : 'a list) : 'a list =
+  if n < 0 then invalid_arg "Util.list_droptail";
+  let (ndrop,r) =
+    List.fold_right
+      (fun x (ndrop,acc) ->
+	if ndrop = 0 then (ndrop, x :: acc)
+	else (ndrop-1, acc))
+      xs
+      (n,[])
+  in
+  if ndrop > 0 then invalid_arg "Util.listdroptail"
+  else r
 
 let rec list_span (p : 'a -> bool) (xs : 'a list) : 'a list * 'a list = 
   begin match xs with
@@ -682,8 +694,6 @@ let loadConfiguration (fname: string) : unit =
 
    
  
-(************************************************************************)
-
 (*********************************************************************)
 type symbol = int
 
@@ -740,3 +750,33 @@ let symbolName (id: symbol) : string =
     ignore (E.warn "Cannot find the name of symbol %d" id);
     "symbol" ^ string_of_int id
 
+(************************************************************************)
+
+(** {1 Int32 Operators} *)
+
+module Int32Op = struct
+   exception IntegerTooLarge
+   let to_int (i: int32) = 
+     let i' = Int32.to_int i in (* Silently drop the 32nd bit *)
+     if i = Int32.of_int i' then i'
+     else raise IntegerTooLarge
+
+   let (<%) = (fun x y -> (Int32.compare x y) < 0)
+   let (<=%) = (fun x y -> (Int32.compare x y) <= 0)
+   let (>%) = (fun x y -> (Int32.compare x y) > 0)
+   let (>=%) = (fun x y -> (Int32.compare x y) >= 0)
+   let (<>%) = (fun x y -> (Int32.compare x y) <> 0)
+   
+   let (+%) = Int32.add
+   let (-%) = Int32.sub
+   let ( *% ) = Int32.mul
+   let (/%) = Int32.div
+   let (~-%) = Int32.neg
+
+   let (<<%) = fun i j -> Int32.shift_left i (to_int j)
+   let (>>%) = fun i j -> Int32.shift_right i (to_int j)
+   let (>>>%) = fun i j -> Int32.shift_right_logical i (to_int j)
+end
+
+
+(*********************************************************************)
