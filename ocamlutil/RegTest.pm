@@ -391,7 +391,8 @@ sub runCommand {
             chdir $olddir;
             return $res;
         } else {
-            die "Cannot change to directory $dir to run $newcmd\n";
+            print "\nCannot change to directory $dir to run $newcmd\n";
+            return 1;
         }
     }
 }
@@ -510,14 +511,22 @@ sub runTests {
         if (!$self->{regrtest}) {   # sm: don't want this..
           print $msg;
         }
+        my $lfile = Cwd::cwd() . "/__log";
+        my $lfilestdout = Cwd::cwd() . "/__log.stdout";
+        # Try to delete the file. If we cannot then somebody is hanging to
+        # them and we will not see any output
+        if((-f $lfile && ! unlink $lfile) || 
+           (-f $lfilestdout && ! unlink $lfilestdout)) {
+            die "\nCannot delete $lfile or $lfilestdout. Some process is hanging on to them";
+        }
+
         if(! $dryrun) {
             print GLOBLOG "\n===================================\n$msg\n";
             close(GLOBLOG) || die "Cannot close $logfile";
         } elsif (!$self->{regrtest}) {
             print "\n";
         }
-        my $lfile = Cwd::cwd() . "/__log";
-        my $lfilestdout = Cwd::cwd() . "/__log.stdout";
+       
         my $extracmd = "";
         #if(defined ($self->{option}->{showoutput})) {
         #    $extracmd = " | tee $lfilestdout 2>$lfile ";
@@ -606,7 +615,7 @@ sub parseLogFile {
             if(defined $currentTest) {
                 # print "Start parsing log for $currentTest->{Name}\n";
                 # Start the parsing
-                $self->startParsingLog($currentTest, );
+                $self->startParsingLog($currentTest);
             }
         }
         if(defined($currentTest)) {
@@ -867,8 +876,9 @@ sub doit {
         }
     }
     if(! -f $logFile) {
-	print "No log file exists. Use the --run command first to create one\n";
-	die "";
+	print "\n*** No log file exists. Use the --run command first to create  one\n\n\n";
+        $self->printHelp ();
+	exit 1;
     }
     # Parse the log file and set ErrorCode
     my ($results, $date) = $self->parseLogFile($logFile);
@@ -1162,6 +1172,7 @@ sub finishParsingLog {
     return;
 }
 
+my $debugpat = 0;
 # Called on each line of the log for this test
 # Should set fields in the object
 # The ErrorCode field, if set to <> 0 will signal an error
@@ -1173,7 +1184,10 @@ sub parseLogLine {
         foreach $pat (keys %patterns) {
             my @results;
             if($line =~ m/$pat/) {
-                #print "Matched $pat for $tst->{Name}\: $1, $2, $3, $4, $5, $6, $7, $8, $9\n";
+                if($debugpat) {
+                    print "Matched $pat for $tst->{Name}\: $1, $2, $3, $4, $5,
+$6, $7, $8, $9\n";
+                }
                 my $handler = $patterns{$pat};
                 &{$handler}($self, $tst, $1, $2, $3, $4, $5, $6, $7, $8, $9);
             }
