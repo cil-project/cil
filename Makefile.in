@@ -55,6 +55,9 @@ endif
 ifdef USE_SMALLOC
   CILLY_FEATURES += smalloc
 endif
+ifdef USE_CQUALANN
+  CILLYFEATURES += cqualann
+endif
 
     # Now rules to make cilly
 CILLY_LIBRARY_MODULES = pretty inthash errormsg trace stats util clist \
@@ -204,6 +207,9 @@ ifdef USE_ARITHABS
 endif
 ifdef USE_SMALLOC
 	echo "   Smalloc.feature;" >> $@  
+endif
+ifdef USE_CQUAL_ANN
+	echo "   Cqualann.feature;" >> $@  
 endif
 	echo "]"   >>$@ 
 # Must delete maincil.d and remake it, because it may have been made

@@ -463,6 +463,9 @@ AC_ARG_WITH(arithabs,
 # Smalloc.ml is distributed by {matth,nks}@cs.berkeley.edu as part of Scrash.
 features="$features smalloc=no"
 
+# cqualann.ml is used by Matt Harren.  Please ignore.
+features="$features cqualann=no"
+
 for f_val in $features
 do
    f=`echo $f_val | sed -e s%=.*$%%`
