@@ -538,6 +538,16 @@ $TEST->add2Tests("apache/gzip");
 #   $TEST->add3Group("apache/random", "apache");
 #   $TEST->addBadComment("apache/random-box", "BUG");
 
+
+#---------------- some performance tests 
+$TEST->add2Tests("perf/perfglobarray")
+$TEST->add2Tests("perf/perffseq")
+$TEST->add2Tests("perf/perfseq")
+$TEST->add2Tests("perf/perfwild")
+$TEST->add2Tests("perf/perfrtti")
+
+
+
 # -------------- scott's testcases --------------
 # sm: trying to make a regrtest-like interface
 # 'args' should include things like "INFERBOX=infer" to specify operating mode

@@ -37,3 +37,4 @@ array.a.files
 *.browser
 
 test-bad.err test-bad.out
+*optimcured*.c

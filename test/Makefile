@@ -321,7 +321,7 @@ UNIXTESTIT := sh ./testit
 
 # ----------- below here are rules for building benchmarks --------
 
-OPTIMVARIANT:= $(CC) $(DEF)_$(COMPILERNAME) \
+CC_OPTIMVARIANT:= $(CC) $(DEF)_$(COMPILERNAME) \
                  $(DEF)CIL \
                  $(DEF)CCURED $(DEF)RELEASELIB \
                  $(INC)$(CCUREDHOME)/include \
@@ -575,8 +575,8 @@ CCUREDLIB := $(CCUREDHOME)/obj/$(ARCHOS)/ccured_$(COMPILERNAME)_releaselib.$(LIB
 hashtest-optimvariant.%: mustbegcc
 	cd $(PCCTEST); rm -f hashtest.exe 
 	cd $(PCCTEST); \
-           $(OPTIMVARIANT) \
-                 hashtest.exe_comboptimcured.$*.c \
+           $(CC_OPTIMVARIANT) \
+                 hashtest.exe_comboptimcured.$(OPTIMVARIANT).c \
                  $(CCUREDLIB) \
                  $(EXEOUT)hashtest.exe
 	cd $(PCCTEST); sh -c "for i in $(ITERATION_ELEMS) ; \
@@ -600,8 +600,8 @@ rbtest: $(TESTDIR)/small2/rbtest.c
 rbtest-optimvariant.%: mustbegcc
 	cd $(PCCTEST); rm -f rbtest.exe
 	cd $(PCCTEST); \
-           $(OPTIMVARIANT) \
-                 rbtest.exe_comboptimcured.$*.c \
+           $(CC_OPTIMVARIANT) \
+                 rbtest.exe_comboptimcured.$(OPTIMVARIANT).c \
                  $(CCUREDLIB) \
                  $(EXEOUT)rbtest.exe
 	cd $(PCCTEST); sh -c "for i in $(ITERATION_ELEMS) ; \
@@ -622,8 +622,8 @@ btreetest: $(TESTDIR)/small2/testbtree.c \
 btreetest-optimvariant.%: mustbegcc
 	cd $(TESTDIR)/small2; rm -f btreetest.exe
 	cd $(TESTDIR)/small2; \
-           $(OPTIMVARIANT) \
-                 btreetest.exe_comboptimcured.$*.c \
+           $(CC_OPTIMVARIANT) \
+                 btreetest.exe_comboptimcured.$(OPTIMVARIANT).c \
                  $(CCUREDLIB) \
                  $(EXEOUT)btreetest.exe
 	cd $(TESTDIR)/small2; sh -c "for i in $(ITERATION_ELEMS) ; \
@@ -667,6 +667,30 @@ scott-nolink/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
                  $(CFLAGS) $(WARNALL) $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*
+
+#
+# Some performance tests
+perf/%: $(TESTDIR)/small1/%.c
+	rm -f $(TESTDIR)/small1/$*
+	cd $(TESTDIR)/small1; \
+             $(CCURED) --separate --keep=. \
+                 `$(PATCHECHO) $(STANDARDPATCH)` \
+                 $(CFLAGS) `true $(WARNALL)` $(NOPRINTLN) \
+                 $*.c \
+                 $(EXEOUT)$*.exe
+	cd $(TESTDIR)/small1; sh -c "for i in $(ITERATION_ELEMS) ; \
+                                   do time ./$*.exe ; done"
+
+perf/%-optimvariant: $(TESTDIR)/small1/%optimcured.c
+	cd $(TESTDIR)/small1; rm -f $*.exe
+	cd $(TESTDIR)/small1; \
+           $(CC_OPTIMVARIANT) \
+                 $*optimcured.$(OPTIMVARIANT).c \
+                 $(CCUREDLIB) \
+                 $(EXEOUT)$*.exe
+	cd $(TESTDIR)/small1; sh -c "for i in $(ITERATION_ELEMS) ; \
+                                   do time ./$*.exe ; done"
+
 
 # sm: a target for programs which are *supposed* to fail, because
 # they intentionally violate the type system; but this is only
@@ -861,8 +885,8 @@ hufftest: $(TESTDIR)/small2/hufftest.c
 hufftest-optimvariant.%: mustbegcc
 	cd $(PCCTEST); rm -f hufftest.exe
 	cd $(PCCTEST); \
-           $(OPTIMVARIANT) \
-                 hufftest.exe_comboptimcured.$*.c \
+           $(CC_OPTIMVARIANT) \
+                 hufftest.exe_comboptimcured.$(OPTIMVARIANT).c \
                  $(CCUREDLIB) \
                  $(EXEOUT)hufftest.exe
 	cd $(PCCTEST); sh -c "for i in $(ITERATION_ELEMS) ; \
@@ -995,8 +1019,8 @@ bh-combined:  mustbegcc
 bh-optimvariant.%: mustbegcc
 	cd $(BHDIR); rm -f code.exe
 	cd $(BHDIR); \
-           $(OPTIMVARIANT) \
-                 code.exe_comboptimcured.$*.c \
+           $(CC_OPTIMVARIANT) \
+                 code.exe_comboptimcured.$(OPTIMVARIANT).c \
                  trusted_bh.c -lm \
                  $(CCUREDLIB) \
                  $(EXEOUT)code.exe
@@ -1026,8 +1050,8 @@ power:  mustbegcc
 power-optimvariant.%: mustbegcc
 	cd $(PWDIR); rm -f power.exe
 	cd $(PWDIR); \
-           $(OPTIMVARIANT) $(PWEXTRA) \
-                 power.exe_comboptimcured.$*.c \
+           $(CC_OPTIMVARIANT) $(PWEXTRA) \
+                 power.exe_comboptimcured.$(OPTIMVARIANT).c \
                  $(CCUREDLIB) \
                  $(EXEOUT)power.exe
 	cd $(PWDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
@@ -1055,8 +1079,8 @@ health:
 health-optimvariant.%: mustbegcc
 	cd $(HEALTHDIR); rm -f health.exe
 	cd $(HEALTHDIR); \
-           $(OPTIMVARIANT) -lm \
-                 health.exe_comboptimcured.$*.c \
+           $(CC_OPTIMVARIANT) -lm \
+                 health.exe_comboptimcured.$(OPTIMVARIANT).c \
                  $(CCUREDLIB) \
                  $(EXEOUT)health.exe
 	cd $(HEALTHDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
@@ -1080,8 +1104,8 @@ perimeter:
 perimeter-optimvariant.%: mustbegcc
 	cd $(PERIMDIR); rm -f perimeter.exe
 	cd $(PERIMDIR); \
-           $(OPTIMVARIANT) \
-                 perimeter.exe_comboptimcured.$*.c \
+           $(CC_OPTIMVARIANT) \
+                 perimeter.exe_comboptimcured.$(OPTIMVARIANT).c \
                  $(CCUREDLIB) \
                  $(EXEOUT)perimeter.exe
 	cd $(PERIMDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
@@ -1123,8 +1147,8 @@ tsp:
 tsp-optimvariant.%: mustbegcc
 	cd $(TSPDIR); rm -f tsp.exe
 	cd $(TSPDIR); \
-           $(OPTIMVARIANT) $(TSPEXTRA) \
-                 tsp.exe_comboptimcured.$*.c \
+           $(CC_OPTIMVARIANT) $(TSPEXTRA) \
+                 tsp.exe_comboptimcured.$(OPTIMVARIANT).c \
                  $(CCUREDLIB) \
                  $(EXEOUT)tsp.exe
 	cd $(TSPDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
@@ -1151,8 +1175,8 @@ bisort:  mustbegcc
 bisort-optimvariant.%: mustbegcc
 	cd $(BISORTDIR); rm -f bisort.exe
 	cd $(BISORTDIR); \
-           $(OPTIMVARIANT) -lm \
-                 bisort.exe_comboptimcured.$*.c \
+           $(CC_OPTIMVARIANT) -lm \
+                 bisort.exe_comboptimcured.$(OPTIMVARIANT).c \
                  $(CCUREDLIB) \
                  $(EXEOUT)bisort.exe
 	cd $(BISORTDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
@@ -1185,8 +1209,8 @@ mst:
 mst-optimvariant.%: mustbegcc
 	cd $(OLDENMSTDIR); rm -f mst.exe
 	cd $(OLDENMSTDIR); \
-           $(OPTIMVARIANT) \
-                 mst.exe_comboptimcured.$*.c \
+           $(CC_OPTIMVARIANT) \
+                 mst.exe_comboptimcured.$(OPTIMVARIANT).c \
                  $(CCUREDLIB) \
                  $(EXEOUT)mst.exe
 	cd $(OLDENMSTDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
@@ -1215,8 +1239,8 @@ treeadd:  mustbegcc
 treeadd-optimvariant.%: mustbegcc
 	cd $(TRERADDIR); rm -f treeadd.exe
 	cd $(TRERADDIR); \
-           $(OPTIMVARIANT) -lm \
-                 treeadd.exe_comboptimcured.$*.c \
+           $(CC_OPTIMVARIANT) -lm \
+                 treeadd.exe_comboptimcured.$(OPTIMVARIANT).c \
                  $(CCUREDLIB) \
                  $(EXEOUT)treeadd.exe
 	cd $(TREEADDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
@@ -1245,8 +1269,8 @@ em3d:  mustbegcc
 em3d-optimvariant.%: mustbegcc
 	cd $(EM3DDIR); rm -f em3d.exe
 	cd $(EM3DDIR); \
-           $(OPTIMVARIANT) -lm \
-                 em3d.exe_comboptimcured.$*.c \
+           $(CC_OPTIMVARIANT) -lm \
+                 em3d.exe_comboptimcured.$(OPTIMVARIANT).c \
                  $(CCUREDLIB) \
                  $(EXEOUT)em3d.exe
 	cd $(EM3DDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
@@ -1288,8 +1312,8 @@ compress:  mustbegcc
 compress-optimvariant.%: mustbegcc
 	cd $(COMPRESSDIR)/src; rm -f compress.exe
 	cd $(COMPRESSDIR)/src; \
-           $(OPTIMVARIANT) \
-                 compress.exe_comboptimcured.$*.c \
+           $(CC_OPTIMVARIANT) \
+                 compress.exe_comboptimcured.$(OPTIMVARIANT).c \
                  $(CCUREDLIB) \
                  $(EXEOUT)compress.exe
 	cd $(COMPRESSDIR)/src; sh -c "for i in $(ITERATION_ELEMS) ; \
@@ -1311,8 +1335,8 @@ li:  mustbegcc
 li-optimvariant.%: mustbegcc
 	cd $(LIDIR)/src; rm -f li.exe
 	cd $(LIDIR)/src; \
-           $(OPTIMVARIANT) -lm \
-                li.exe_comboptimcured.$*.c \
+           $(CC_OPTIMVARIANT) -lm \
+                li.exe_comboptimcured.$(OPTIMVARIANT).c \
                 $(CCUREDLIB) \
                 $(EXEOUT)li.exe
 	cd $(LIDIR)/src; sh -c "for i in $(ITERATION_ELEMS) ; \
@@ -1376,8 +1400,8 @@ go-noclean:  mustbegcc
 go-optimvariant.%: mustbegcc
 	cd $(GODIR)/src; rm -f go.exe
 	cd $(GODIR)/src; \
-           $(OPTIMVARIANT) \
-                go.exe_comboptimcured.$*.c \
+           $(CC_OPTIMVARIANT) \
+                go.exe_comboptimcured.$(OPTIMVARIANT).c \
                 $(CCUREDLIB) \
                 $(EXEOUT)go.exe
 	cd $(GODIR)/src; sh -c "for i in $(ITERATION_ELEMS) ; \
@@ -1519,8 +1543,8 @@ ijpeg:  mustbegcc
 ijpeg-optimvariant.%: mustbegcc
 	cd $(IJPEGDIR)/src; rm -f ijpeg.exe
 	cd $(IJPEGDIR)/src; \
-           $(OPTIMVARIANT) \
-                ijpeg.exe_comboptimcured.$*.c \
+           $(CC_OPTIMVARIANT) \
+                ijpeg.exe_comboptimcured.$(OPTIMVARIANT).c \
                 $(CCUREDLIB) \
                 $(EXEOUT)ijpeg.exe
 	cd $(IJPEGDIR)/src; \
@@ -1675,11 +1699,11 @@ anagram: mustbegcc
 	cd $(ANAGRAMDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                       do make test; done"
 
-anagram-optimvariant.%: mustbegcc
+anagram-optimvariant: mustbegcc
 	cd $(ANAGRAMDIR); rm -f anagram.exe
 	cd $(ANAGRAMDIR); \
-           $(OPTIMVARIANT) \
-                 anagram_comboptimcured.$*.c \
+           $(CC_OPTIMVARIANT) \
+                 anagram.exe_comboptimcured.$(OPTIMVARIANT).c \
                  $(CCUREDLIB) \
                  $(EXEOUT)anagram.exe
 	cd $(ANAGRAMDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
@@ -1698,8 +1722,8 @@ bc: mustbegcc
 bc-optimvariant.%: mustbegcc
 	cd $(BCDIR); rm -f bc.exe
 	cd $(BCDIR); \
-           $(OPTIMVARIANT) \
-                 bc_comboptimcured.$*.c \
+           $(CC_OPTIMVARIANT) \
+                 bc.exe_comboptimcured.$(OPTIMVARIANT).c \
                  $(CCUREDLIB) \
                  $(EXEOUT)bc.exe
 	cd $(BCDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
@@ -1715,8 +1739,8 @@ ft: mustbegcc
 ft-optimvariant.%: mustbegcc
 	cd $(FTDIR); rm -f ft.exe
 	cd $(FTDIR); \
-           $(OPTIMVARIANT) \
-                 ft_comboptimcured.$*.c \
+           $(CC_OPTIMVARIANT) \
+                 ft.exe_comboptimcured.$(OPTIMVARIANT).c \
                  $(CCUREDLIB) \
                  $(EXEOUT)ft.exe
 	cd $(FTDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
@@ -1733,8 +1757,8 @@ ks: mustbegcc
 ks-optimvariant.%: mustbegcc
 	cd $(KSDIR); rm -f ks.exe
 	cd $(KSDIR); \
-           $(OPTIMVARIANT) \
-                 ks.exe_comboptimcured.$*.c \
+           $(CC_OPTIMVARIANT) \
+                 ks.exe_comboptimcured.$(OPTIMVARIANT).c \
                  $(CCUREDLIB) \
                  $(EXEOUT)ks.exe
 	cd $(KSDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
@@ -1752,8 +1776,8 @@ yacr: mustbegcc
 yacr-optimvariant.%: mustbegcc
 	cd $(YACRDIR); rm -f yacr2.exe
 	cd $(YACRDIR); \
-           $(OPTIMVARIANT) \
-                 yacr2.exe_comboptimcured.$*.c \
+           $(CC_OPTIMVARIANT) \
+                 yacr2.exe_comboptimcured.$(OPTIMVARIANT).c \
                  $(CCUREDLIB) \
                  $(EXEOUT)yacr2.exe
 	cd $(YACRDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
