@@ -6,6 +6,10 @@ module E = Errormsg
 
 module N = Ptrnode
 
+let debugInstantiate = false
+let debugModels = false
+
+
 let lu = locUnknown
 
 let currentFile = ref dummyFile
@@ -29,19 +33,21 @@ let matchSuffix (lookingfor: string) (lookin: string) =
   let forl = String.length lookingfor in
   inl >= forl && String.sub lookin (inl - forl) forl = lookingfor
 
-(* Match two names, ignoring the polymorphic prefix *)
-let matchPolyName (lookingfor: string) (lookin: string) = 
-  let inl = String.length lookin in
-  if inl = 0 then false else
-  if String.get lookin 0 = '/' then
+(* Strip polymorphic prefix *)
+let stripPoly (name: string) : string = 
+  let nl = String.length name in
+  if nl = 0 then name else
+  if String.get name 0 = '/' then
     let rec loop i = (* Search for the second / *)
-      if i >= inl - 1 then false else 
-      if String.get lookin i = '/' then 
-        String.sub lookin (i + 1) (inl - i - 1) = lookingfor
-      else loop (i + 1)
+      if i >= nl - 1 then name else 
+      if String.get name i = '/' then 
+        String.sub name (i + 1) (nl - i - 1)
+      else 
+        loop (i + 1)
     in
     loop 1
-  else lookin = lookingfor
+  else 
+    name
 
 (* weimer: utility function to ease the transition between our flag formats *)
 let setPosArith n = begin N.setFlag n N.pkPosArith end
@@ -64,6 +70,9 @@ let polyBodies : (string, fundec) H.t = H.create 7
 type funinfo = Declared of varinfo | Defined of fundec
 let allFunctions: (string, funinfo) H.t = H.create 113
 
+(* A list of functions that were called already *)
+let calledFunctions: (string, bool) H.t = H.create 113
+
 (* Apply a function to a function declaration or definition *)
 let applyToFunctionMemory: (string, (varinfo -> unit)) H.t = H.create 13    
 let applyToFunction (n: string) (f: varinfo -> unit) = 
@@ -73,6 +82,13 @@ let applyToFunction (n: string) (f: varinfo -> unit) =
       Declared fvi -> f fvi
     | Defined fdec -> f fdec.svar
   with Not_found -> H.add applyToFunctionMemory n f
+
+let alreadyDefinedFunction n = 
+  try
+    match H.find allFunctions n with 
+      Defined _ -> true
+    | _ -> false
+  with Not_found -> false
 
 let printfFormatUnion : compinfo option ref = ref None
   
@@ -563,7 +579,6 @@ and doExpAndCastCall e t callid =
   expToType (doExp e') t callid
 
 
-let debugInstantiate = false
 
 (* Keep track of all instantiations that we did, so we can copy the bodies *)
 let instantiations: (string * varinfo) list ref = ref []
@@ -1263,6 +1278,11 @@ and doInstr (i:instr) : instr list =
 
   | Call (reso, orig_func, args, l) as i -> begin
       currentLoc := l;
+      (match orig_func with
+        Lval(Var vf, NoOffset) -> 
+          if not (H.mem calledFunctions vf.vname) then
+            H.add calledFunctions vf.vname true
+      | _ -> ());
       match interceptFunctionCalls i with
         Some il -> mapNoCopyList doInstr il
       | None -> doFunctionCall reso orig_func args l
@@ -1381,12 +1401,12 @@ and doFunctionCall
     Lval(Var v, NoOffset) -> begin
       match args'' with
         [a] -> 
-          if matchPolyName "__endof" v.vname then begin
+          if "__endof" = stripPoly v.vname then begin
             let n = nodeOfType (typeOf a) in
             if n == N.dummyNode then
               E.s (error "Call to __endof on a non pointer: %a" d_plainexp a);
             setPosArith n (* To make sure we have an end *)
-          end else if matchPolyName "__startof" v.vname then begin
+          end else if "__startof" = stripPoly v.vname then begin
             let n = nodeOfType (typeOf a) in
             if n == N.dummyNode then
               E.s (error "Call to __startof on a non pointer");
@@ -1438,13 +1458,26 @@ let doGlobal (g: global) : global =
       (match a with
         Attr("boxpoly", [ AStr(s) ]) -> 
           if not (H.mem polyFunc s) then begin
+            if H.mem calledFunctions s then 
+              ignore (warn "#pragma boxpoly appears after call to %s\n"
+                        s);
+            if alreadyDefinedFunction s then
+              ignore (warn "#pragma boxpoly appears after the definition of %s\n" s);
             if !E.verboseFlag then 
               ignore (E.log "Will treat %s as polymorphic\n" s); 
             H.add polyFunc s (ref None)
           end
 
       | Attr("boxalloc", AStr(s) :: _) -> 
-          if not (H.mem polyFunc s) then begin
+(*
+          if H.mem calledFunctions s then 
+            ignore (warn "#pragma boxalloc appears after call to %s\n"
+                      s);
+          if alreadyDefinedFunction s then
+            ignore (warn "#pragma boxalloc appears for defined function %s\n" 
+                    s);
+
+*)          if not (H.mem polyFunc s) then begin
             if !E.verboseFlag then 
               ignore (E.log "Will treat %s as polymorphic\n" s); 
             (* Allocators are polymorphic *)
@@ -1462,6 +1495,11 @@ let doGlobal (g: global) : global =
             (fun vi -> vi.vattr <- addAttribute (Attr("nobox",[])) vi.vattr)
             
       | Attr("boxvararg", [AStr s; ASizeOf t]) -> 
+(*
+          if H.mem calledFunctions s then 
+            ignore (warn "#pragma boxvararg appears after call to %s\n"
+                      s);
+*)
           if debugVararg then 
             if !E.verboseFlag then 
               ignore (E.log "Will treat %s as a vararg function\n" s);
@@ -1469,6 +1507,11 @@ let doGlobal (g: global) : global =
             (addFunctionTypeAttribute (Attr("boxvararg", [ASizeOf t])))
 
       | Attr("boxvararg_printf", [AStr s; AInt format_idx]) -> 
+(*
+          if H.mem calledFunctions s then 
+            ignore (warn "#pragma boxvararg_printf appears after call to %s\n"
+                      s);
+*)
           let t = 
             match !printfFormatUnion with 
               Some ci -> TComp(ci, [])
@@ -1493,7 +1536,8 @@ let doGlobal (g: global) : global =
                 AStr modelled -> begin
                   try
                     match H.find allFunctions modelname with
-                      Defined fdef -> H.add boxModelledBy modelled fdef
+                      Defined fdef -> 
+                        H.add boxModelledBy modelled fdef
                     | _ -> raise Not_found
                   with Not_found -> 
                     ignore (warn "#pragma boxmodelof appears before the definition of %s\n"
@@ -1558,7 +1602,6 @@ let doGlobal (g: global) : global =
       | GFun (fdec, l) when (hasAttribute "nobox" fdec.svar.vattr) ->  g
       | GFun (fdec, l) ->
           currentLoc := l;
-          (* See if it is a model for anybody *)
           if not !disableModelCheck then begin
             registerFunction (Defined fdec);
           end;
@@ -1590,6 +1633,7 @@ let markFile fl =
   H.clear boxModels;
   H.clear boxModelledBy;
   H.clear dontUnrollTypes;
+  H.clear calledFunctions;
   instantiations := [];
   (* Some globals that are exported and must thus be considered part of the 
    * interface *)
@@ -1629,30 +1673,6 @@ let markFile fl =
 (*  ignore (E.log "inferfglob:\n");
   H.iter (fun sid v -> ignore (E.log "%s: %d@!" v.vname sid)) interfglobs; *)
 
-  (* See what functions we must make polymorphic *)
-  if !N.allPoly || !N.externPoly then
-    (* Go through the file once and find all declarations - definitions (for 
-     * functions only) *)
-    let processFunDecls glob = 
-      let vio = 
-        match glob with 
-          GDecl (vi, _) when isFunctionType vi.vtype -> Some vi
-        | GFun (fdec, _) -> Some fdec.svar
-        | _ -> None
-      in
-      match vio with
-        Some vi -> 
-          if !N.allPoly || (!N.externPoly && 
-                            H.mem interfglobs vi.vid) then
-            H.add polyFunc vi.vname (ref None)
-      | _ -> ()
-    in
-    List.iter processFunDecls fl.globals;
-  else begin
-    (* Otherwise we start with some defaults *)
-    List.iter (fun s -> H.add polyFunc s (ref None)) 
-      ["free" ];
-  end;
   theFile := [];
   (* Add some prototypes *)
   theFile := GDecl(checkFormatArgsFun.svar, lu) :: !theFile;
@@ -1674,17 +1694,24 @@ let markFile fl =
               E.s (E.bug "Function %s is both defined and has models!\n" fname)
           | Declared x -> x
         in
+        if debugModels then
+          ignore (E.log "Creating body for %s based on model %s\n"
+                    modelled.vname model.svar.vname);
+
         if [] != 
-           filterAttributes "missingproto" (getFunctionTypeAttributes (Lval (var modelled)))
+           filterAttributes "missingproto" 
+            (getFunctionTypeAttributes (Lval (var modelled)))
         then 
-          E.s (unimp "Cannot model functions without prototype: %s\n" modelled.vname);
+          E.s (unimp "Cannot model functions without prototype: %s\n" 
+                 modelled.vname);
 
         (* Make the sformals *)
         let rt, sformals, va, l = 
           match modelled.vtype with
             TFun(rt, args, va, l) -> rt, args, va, l 
-          | _ -> E.s (E.bug "Modelled function %s does not have a function type"
-                        modelled.vname)
+          | _ -> 
+              E.s (E.bug "Modelled function %s does not have a function type"
+                     modelled.vname)
         in
         (* Go over the formals and make sure that we assign the right ids. 
          * Being in a type they might not have the right IDS. This is safe 
@@ -1717,7 +1744,7 @@ let markFile fl =
         modelled.vattr <- 
            addAttribute (Attr("modelledbody",[])) modelled.vattr;
         (* If it is polymorphic we postpone it *)
-        if H.mem polyFunc modelled.vname then begin
+        if H.mem polyFunc (stripPoly modelled.vname) then begin
           H.add polyBodies modelled.vname modelledFun;
           (* We also go through all of the instantiations and mark them as 
            * modelledbody so their bodies can be dropped. The instantiations 
@@ -1726,7 +1753,7 @@ let markFile fl =
            * set above *)
           List.iter 
             (fun (n, vi) -> 
-              if matchPolyName modelled.vname n then begin
+              if modelled.vname = stripPoly n then begin
                 vi.vattr <- 
                    addAttribute (Attr("modelledbody",[])) vi.vattr
               end)
@@ -1771,7 +1798,10 @@ let markFile fl =
       f'.svar <- newvi;
       let g' = doGlobal (GFun(f', locUnknown)) in
       theFile :=  g' :: !theFile;
-    with Not_found -> ()); (* This one does not have a body, or a model *)
+    with Not_found -> 
+      if debugInstantiate then
+        ignore (E.log "Poly function %s does not have a body or model\n" 
+                  oldname)); (* This one does not have a body, or a model *)
     loopInstantiations recs'
   in
   (* Now do the instantiations *)
@@ -1781,7 +1811,7 @@ let markFile fl =
    * we have an instance of those as well, except if the body is a model. *)
   H.iter 
     (fun oldname -> fun body ->
-      if  filterAttributes "boxmodel" body.svar.vattr != [] 
+      if  H.mem boxModels (stripPoly body.svar.vname) 
        && List.filter (fun (on, _) -> on = oldname) !allinstantiations != [] 
       then
         let g' = doGlobal (GFun(body, locUnknown)) in
@@ -1827,6 +1857,7 @@ let markFile fl =
   H.clear allFunctions;
   H.clear dontUnrollTypes;
   H.clear applyToFunctionMemory;
+  H.clear calledFunctions;
   recursiveInstantiations := [];
   instantiations := [];
   currentFile := dummyFile;

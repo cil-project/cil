@@ -97,6 +97,8 @@
 
 // Now specify some special pragmas
 #ifdef CCURED
+  #pragma boxpoly("__startof")
+  void *__startof(void *ptr); // Get the start of a pointer
   #pragma boxpoly("__endof")
   void *__endof(void *);
   #pragma boxpoly("ccured_kind_of")
@@ -178,6 +180,7 @@
   #pragma boxpoly("fread")
   #pragma boxpoly("fwrite")
 
+  #pragma boxpoly("memset_seq_model")
   static inline
   void* memset_seq_model(void* dest, int towrite, unsigned int size)
   {
@@ -186,10 +189,10 @@
   }
   #pragma boxmodelof("memset_seq_model", "memset")
   #pragma cilnoremove("memset_seq_model")
-  #pragma boxpoly("memset_seq_model")
 
 
 
+  #pragma boxpoly("memcpy_seq_model")
   static inline
   void* memcpy_seq_model(void* dest, void *src, unsigned int size)
   {
@@ -198,7 +201,6 @@
     return dest;
   }
   #pragma boxmodelof("memcpy_seq_model", "memcpy", "memmove", "__builtin__memcpy")
-  #pragma boxpoly("memcpy_seq_model")
   #pragma cilnoremove("memcpy_seq_model")
 
 
@@ -265,14 +267,9 @@
 
 #endif // CCURED
 
-#ifdef CCURED
-#pragma boxpoly("__endof")
-void *__endof(void *ptr); // Get the end of a pointer
-#pragma boxpoly("__startof")
-void *__startof(void *ptr); // Get the start of a pointer
-#else
+
+#ifndef CCURED
 #define __startof(p) p
 #define __endof(p) p
 #endif
-
 
