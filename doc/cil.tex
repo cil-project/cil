@@ -529,15 +529,17 @@ Assuming that you have written \t{logwrites.ml} here is how you use it:
  definition of \t{argDescr} variable using the convention of the Ocaml
  standard library module \t{Arg}. For \t{logWrites} we added the option
  \t{--logwrites} that sets a global variable that enables the \t{logWrites}
- transformatio.
+ transformation.
 
  \item Modify \t{maincil.ml} add add a call to the top level function of your
  module to the body of the function \t{processOneFile}. Alternatively, you can
  call the \t{Frontc.parse: string -> unit -> Cil.file} function with the name
  of a file containing the output of the preprocessor and then invoke your
- analysis function on the resulting \t{Cil.file} data structure. Then you can
- call the function \t{Cil.printFile: out\_channel -> Cil.file -> unit} to print
- the file to a given output channel.
+ analysis function on the resulting \t{Cil.file} data structure. You might
+ want to call \t{Rmtmps.removeUnusedTemps} first to clean up the prototype and
+ variables that are not used. Then you can call the function \t{Cil.printFile:
+ cilPrinter -> out\_channel -> Cil.file -> unit} to print the file to a given
+ output channel. A good \t{cilPrinter} to use is \t{defaultCilPrinter}. 
 
  \item In the \t{cil} directory run \t{make setup} to make both the bytecode
  and the native code versions of the \t{cilly} application (in

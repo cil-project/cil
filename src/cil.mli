@@ -1621,8 +1621,8 @@ val d_const: unit -> constant -> Pretty.doc
 class type cilPrinter = object
   method pVDecl: unit -> varinfo -> Pretty.doc
     (** Invoked for each variable declaration. Note that variable 
-     * declarations are all the [GVar], [GVarDecl], [GFun], all the [varinfo] in 
-     * formals of function types, and the formals and locals for function 
+     * declarations are all the [GVar], [GVarDecl], [GFun], all the [varinfo] 
+     * in formals of function types, and the formals and locals for function 
      * definitions. *)
 
   method pVar: varinfo -> Pretty.doc
