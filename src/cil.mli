@@ -87,6 +87,7 @@ type varinfo = {
 and storage = 
     NoStorage |                         (* The default storage *)
     Static | 
+    StaticInitializer of exp | 
     Register | 
     Extern
 
@@ -582,6 +583,7 @@ val d_lval: unit -> lval -> Pretty.doc
 val d_instr: unit -> instr -> Pretty.doc
 val d_stmt: unit -> stmt -> Pretty.doc
 val d_fun_decl: unit -> fundec -> Pretty.doc
+val d_videcl : unit -> varinfo -> Pretty.doc
 val printFile: out_channel -> file -> unit
 
 (* Set this function to intercept attributes as are printed. *)

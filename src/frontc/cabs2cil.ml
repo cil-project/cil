@@ -1697,8 +1697,15 @@ and doDecl : A.definition -> stmt list = function
         let vi = alphaConvertAndAddToEnv true vi in        (* Replace vi *)
         if e = A.NOTHING then
           [Skip]
-        else
+        else begin
           let (se, e', et) = doExp false e (AExp (Some vi.vtype)) in
+          (* Weimer: we must catch static initializers *)
+          if (vi.vstorage = Static) then begin
+            match se with
+              [] -> vi.vstorage <- StaticInitializer(e') ; [] 
+            | _ -> E.s (E.bug "Local static with complex initializer:\n`%a' = {%a} %a\n" 
+                        d_videcl vi (docList line (d_stmt ())) se d_exp e')
+          end else begin
           (match vi.vtype, e', et with 
             (* We have a length now *)
             TArray(_,None, _), _, TArray(_, Some _, _) -> vi.vtype <- et
@@ -1711,6 +1718,8 @@ and doDecl : A.definition -> stmt list = function
           | _, _, _ -> ());
           let (_, e'') = castTo et vi.vtype e' in
           se @ (doAssign (Var vi, NoOffset) e'')
+          end
+        end
       in
       let stmts = doNameGroup createLocal ng in
       List.concat stmts
