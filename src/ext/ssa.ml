@@ -1,6 +1,10 @@
 module B=Bitmap
+module E = Errormsg
+
 open Cil
 open Pretty
+
+let debug = true
     
 (* Globalsread, Globalswritten should be closed under call graph *)
 
@@ -301,11 +305,21 @@ let add_dom_def_info (f: cfgInfo): unit =
     if (idom.(i) != -1) then children.(idom.(i)) <- i :: children.(idom.(i));
   done; 
   
+  if debug then begin
+    ignore (E.log "Immediate dominators\n");
+    for i = 0 to size - 1 do 
+      ignore (E.log " block %d: idom=%d, children=%a\n"
+                i idom.(i)
+                (docList num) children.(i));
+    done
+  end;
+
   (* For each variable, maintain a stack of blocks that define it. When you 
    * process a block, the top of the stack is the closest dominator that 
    * defines the variable *)
   let s = Array.make nrRegs ([start]) in 
   
+  (* Search top-down in the idom tree *)
   let rec search (x: int): unit = (* x is a graph node *)
     (* Push the current block for the phi variables *)
     List.iter 
@@ -324,6 +338,7 @@ let add_dom_def_info (f: cfgInfo): unit =
           blocks.(x).livevars <- (i, fst) :: blocks.(x).livevars
     done;
 
+
     (* Update s for the children *)
     List.iter 
       (fun (lhs,rhs) ->
@@ -336,14 +351,47 @@ let add_dom_def_info (f: cfgInfo): unit =
     List.iter search children.(x);
     
     (* Then we pop x, whenever it is on top of a stack *)
-    Array.iteri (fun i istack -> 
-      match istack with 
-        x' :: rest when x' = x -> s.(i) <- rest
-      | _ -> ()) s;
+    Array.iteri 
+      (fun i istack -> 
+        let rec dropX = function
+            [] -> []
+          |  x' :: rest when x = x' -> dropX rest
+          | l -> l
+        in
+        s.(i) <- dropX istack)
+      s;
   in
   search(start)
   
     
 let add_ssa_info (f: cfgInfo): unit = 
+  let d_reg () (r: int) = 
+    dprintf "%s(%d)" f.regToVarinfo.(r).vname r
+  in
+  if debug then begin
+    ignore (E.log "Doing SSA. Initial data:\n");
+    Array.iteri (fun i b -> 
+      ignore (E.log " block %d:\n    succs=@[%a@]\n    preds=@[%a@]\n   instr=@[%a@]\n"
+                i
+                (docList num) f.successors.(i)
+                (docList num) f.predecessors.(i)
+                (docList ~sep:line (fun (lhs, rhs) -> 
+                  dprintf "%a := @[%a@]"
+                    (docList (d_reg ())) lhs (docList (d_reg ())) rhs))
+                b.instrlist))
+      f.blocks;
+  end;
+
   add_phi_functions_info f;
   add_dom_def_info f;
+
+  if debug then begin
+    ignore (E.log "After SSA\n");
+    Array.iter (fun b -> 
+      ignore (E.log " block %d livevars: @[%a@]\n" 
+                b.bstmt.sid 
+                (docList (fun (i, fst) -> 
+                  dprintf "%a def at %d" d_reg i fst))
+                b.livevars))
+      f.blocks;
+  end

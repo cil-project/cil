@@ -221,6 +221,9 @@ let fundecToCFGInfo (fdec: fundec) : S.cfgInfo =
 
   ci
 
+(* Compute strongly-connected components *)
+let stronglyConnectedComponents (cfg: S.cfgInfo) : (int * int list) list = 
+  []
 
 
 let globalsDumped = IH.create 13
@@ -229,6 +232,8 @@ let globalsDumped = IH.create 13
 class absPrinterClass (callgraph: CG.callgraph) : cilPrinter = 
 
   let lastFreshId= ref 0 in 
+
+  (* freshVarId returns at least 1 *)
   let freshVarId () = incr lastFreshId; !lastFreshId in
   
 
@@ -238,6 +243,8 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
     val mutable idomData: stmt option IH.t = IH.create 13
 
     val mutable cfgInfo: S.cfgInfo option = None 
+        
+    val mutable currentFundec = dummyFunDec
 
         (** For each block end, a mapping from IDs of variables that were 
          * defined in this block, to their fresh ID *)
@@ -252,27 +259,36 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
 
     val mutable varRenameState: int IH.t = IH.create 13
 
+          (* All the fresh variables *)
+    val mutable freshVars: string list = []
 
     method private initVarRenameState (b: S.cfgBlock) =
       IH.clear varRenameState;
       
-      (* Convert livevars, to use varinfo *)
+      let cfgi = 
+        match cfgInfo with
+          None -> assert false
+        | Some cfgi -> cfgi
+      in
+        
       (* Initialize it based on the livevars info in the block *)
       List.iter 
         (fun (rid, defblk) -> 
-          let v = 
-            match cfgInfo with
-              None -> assert false
-            | Some cfg -> cfg.S.regToVarinfo.(rid)
-          in
+          let v = cfgi.S.regToVarinfo.(rid) in
           if defblk = b.S.bstmt.sid then
-            IH.add varRenameState v.vid (freshVarId ())
+            (* For the start block, use ID=0 for all variables *)
+            if defblk = cfgi.S.start then 
+              IH.add varRenameState v.vid 0
+            else begin
+              IH.add varRenameState v.vid (freshVarId ());
+              freshVars <- (self#variableUse varRenameState v) :: freshVars
+            end
           else begin 
             let fid = 
               try IH.find blockEndData.(defblk) v.vid
               with Not_found -> 
-                E.s (E.bug "Cannot find data for variable %s in block %d"
-                       v.vname defblk)
+                E.s (E.bug "In block %d: Cannot find data for variable %s in block %d"
+                       b.S.bstmt.sid v.vname defblk)
             in
             IH.add varRenameState v.vid fid
           end)
@@ -280,17 +296,22 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
       
       ()
         
-    method private variableUse (v: varinfo) : doc = 
+    method private variableUse (state: int IH.t) (v: varinfo) : string = 
       let freshId = 
-        try IH.find varRenameState v.vid
+        try IH.find state v.vid
         with Not_found -> 
           E.s (E.bug "varRenameState does not know anything about %s" v.vname)
       in
-      text (v.vname ^ "___" ^ string_of_int freshId)
+      if freshId = 0 then 
+        v.vname
+      else
+        v.vname ^ "___" ^ string_of_int freshId
         
-    method private variableDef (v: varinfo) : doc = 
-      IH.replace varRenameState v.vid (freshVarId ());
-      self#variableUse v
+    method private variableDef (state: int IH.t) (v: varinfo) : string = 
+      IH.replace state v.vid (freshVarId ());
+      let n = self#variableUse state v in
+      freshVars <- n :: freshVars;
+      n
     
     method pExp () = function
       | Const (CInt64(i, _, _)) -> text (Int64.to_string i)
@@ -304,7 +325,8 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
             d_unop uop self#pExp e1
       | CastE (t, e) -> self#pExp () e (* Ignore casts *)
             
-      | Lval (Var v, NoOffset) when considerVariable v -> self#variableUse v
+      | Lval (Var v, NoOffset) when considerVariable v -> 
+          text (self#variableUse varRenameState v)
             
             (* We ignore all other Lval *)
       | Lval _ -> text "(rand)"
@@ -313,16 +335,17 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
             
     method pInstr () = function
       | Set ((Var v, NoOffset), e, _) when considerVariable v -> 
-          self#variableDef v ++ text "=" ++ self#pExp () e
+          text (self#variableDef varRenameState v) 
+            ++ text "=" ++ self#pExp () e ++ text ";"
             
       | Call (Some (Var v, NoOffset), f, args, _)  when considerVariable v -> 
-          self#variableDef v ++ text "=" ++ 
-            dprintf "(%a @[%a@])" 
+          text (self#variableDef varRenameState v) ++ text "=" ++ 
+            dprintf "(%a @[%a@]);" 
             self#pExp f
             (docList ~sep:break (self#pExp ())) args
             
       | Call (None, f, args, _) -> 
-          dprintf "(%a @[%a@])" 
+          dprintf "(%a @[%a@]);" 
             self#pExp f
             (docList ~sep:break (self#pExp ())) args
             
@@ -340,12 +363,45 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
       lastFreshId := blockStartData.(s.sid);
       assert (!lastFreshId >= 0);
 
-      let blk = 
+      let cfgi = 
         match cfgInfo with
-          Some cfg -> cfg.S.blocks.(s.sid)
+          Some cfgi -> cfgi
         | None -> assert false
       in
+      let blk: S.cfgBlock = cfgi.S.blocks.(s.sid) in 
+
       self#initVarRenameState blk;
+
+      let phivars: varinfo list = 
+        List.fold_left
+          (fun acc (i, defblk) -> 
+            if defblk = s.sid then 
+              cfgi.S.regToVarinfo.(i) :: acc
+            else 
+              acc)
+          []
+          blk.S.livevars 
+      in
+      (* do not emit phi for start block *)
+      let phivars = 
+        if s.sid = cfgi.S.start then 
+          []
+        else
+          phivars
+      in
+
+      (* Get the predecessors information *)
+      let getPhiAssignment (v: varinfo) : (string * string list) = 
+        (* initVarRenameState has already set the state for the phi register *)
+        let lhs: string = self#variableUse varRenameState v in 
+        let rhs: string list = 
+          List.map
+            (fun p -> 
+              self#variableUse blockEndData.(p) v)
+            cfgi.S.predecessors.(s.sid)
+        in
+        (lhs, rhs)
+      in
 
       pd (self#pLineDirective (get_stmtLoc s.skind));
       (* Lookup its dominator *)
@@ -354,12 +410,21 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
           Some dom -> num dom.sid
         | None -> nil
       in
+
+        
       ignore (p ~ind:ind
-                "<stmt %d <succs %a> <preds %a> <idom %a>\n"
+                "<stmt %d <succs %a> <preds %a> <idom %a>\n  @[%a@]\n"
                 s.sid (** Statement id *)
                 (d_list "," (fun _ s' -> num s'.sid)) s.succs
                 (d_list "," (fun _ s' -> num s'.sid)) s.preds
-                insert idom);
+                insert idom
+                (docList ~sep:line 
+                   (fun pv -> 
+                     let (lhs, rhs) = getPhiAssignment pv in 
+                     dprintf "%s := (@@phi %a)" 
+                       lhs (docList ~sep:break text) rhs))
+                phivars
+                );
       (* Now the statement kind *)
       let ind = ind + 2 in 
       (match s.skind with 
@@ -370,8 +435,29 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
             il
       | Block b -> List.iter (self#dStmt out ind) b.bstmts
       | Goto (s, _) -> ignore (p ~ind:ind "goto %d\n" !s.sid)
-      | Return (None, _) -> ignore (p ~ind:ind "return;\n")
-      | Return (Some e, _) -> ignore (p ~ind:ind "return %a;\n" self#pExp e);
+      | Return (what, _) -> begin
+
+          let glob_written_trans = 
+            (try IH.find globalsWrittenTransitive currentFundec.svar.vid
+            with Not_found -> assert false) in 
+          IH.iter
+            (fun _ g -> 
+              ignore (p ~ind:ind "%s := %s;\n" g.vname
+                        (self#variableUse varRenameState g)))
+            glob_written_trans;
+
+          (* Check that what is __retres *)
+          let _ = 
+            (match what with
+              None -> ()
+            | Some (Lval (Var v, NoOffset)) when v.vname = "__retres" -> 
+                ignore (p ~ind:ind "%s := %s;\n" v.vname
+                          (self#variableUse varRenameState v))
+            |  _ -> E.s (E.bug "Found return with no __retres"))
+          in
+          ignore (p ~ind:ind "return;");
+      end
+
       | If(e, b1, b2, _) -> 
           ignore (p ~ind:ind "<if %a\n" self#pExp e);
           self#dBlock out (ind + 2) b1;
@@ -394,6 +480,9 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
     method dGlobal (out: out_channel) (g: global) : unit = 
       match g with 
         GFun (fdec, l) -> 
+          currentFundec <- fdec;
+          freshVars <- [];
+
           (* Make sure we use one return at most *)
           Oneret.oneret fdec;
           
@@ -431,19 +520,20 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
           S.add_ssa_info cfgi;
 
           (* Now do the SSA renaming. *)
-          
-          (* Remember the return block *)
-          let retBlk: int option ref = ref None in 
+
+          blockStartData <- Array.make cfgi.S.size (-1);
+          blockEndData <- Array.make cfgi.S.size (IH.create 13);
           
           lastFreshId := 0;
 
+          
           Array.iteri (fun i (b: S.cfgBlock) -> 
             (* compute the initial state *)
             blockStartData.(i) <- !lastFreshId;
             
             (* Initialize the renaming state *)
             self#initVarRenameState b;
-            
+          
             (* Now scan the block and keep track of the definitions *)
             (match b.S.bstmt.skind with 
               Instr il -> begin
@@ -453,40 +543,49 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
                       Set ((Var v, NoOffset), _, _) 
                     | Call (Some (Var v, NoOffset), _, _, _) 
                       when considerVariable v ->
-                        IH.replace varRenameState v.vid (freshVarId ())
+                        ignore (self#variableDef varRenameState v)
+
                     | _ -> ())
                   il
               end
-            | Return _ -> 
-                assert (!retBlk = None);
-                retBlk := Some i
                     
             | _ -> (* No definitions *)
                 ()
             );
             
-            blockEndData.(i) <- varRenameState;
+            blockEndData.(i) <- IH.copy varRenameState;
           ) 
-          (match cfgInfo with 
-           Some cfg -> cfg.S.blocks
-         | _ -> assert false);
-          
+          cfgi.S.blocks;
+
+
+          (* Compute strongly connected components *)
+          let scc: (int * int list) list = 
+            stronglyConnectedComponents cfgi in 
+
           (** For each basic block *)
         
             
         (* The header *)
         pd (self#pLineDirective ~forcefile:true l);
 
-        ignore (p "<function %s\n  <formals %a>\n  <locals %a>\n  <globalsread %a>\n  <globalsreadtransitive %a>\n  <globalswritten %a>\n  <globalswrittentransitive %a>\n  <calls %a>\n  <calledby %a>\n"
+        ignore (p "<function %s\n  <formals %a>\n  <globalsreadtransitive %a>\n  <othervars %a>\n  <globalsread %a>\n  <globalswritten %a>\n  <globalswrittentransitive %a>\n  <calls %a>\n  <calledby %a>\n  %a"
           fdec.svar.vname
-          (d_list "," (fun () v -> text v.vname)) fdec.sformals
-          (d_list "," (fun () v -> text v.vname)) fdec.slocals
+          (docList (fun v -> text v.vname)) fdec.sformals
+          (d_list "," (fun () (_, v) -> text v.vname)) 
+                  (IH.tolist glob_read_trans)
+          (docList text) freshVars
           (d_list "," (fun () (_, v) -> text v.vname)) (IH.tolist glob_read)
-          (d_list "," (fun () (_, v) -> text v.vname)) (IH.tolist glob_read_trans)
           (d_list "," (fun () (_, v) -> text v.vname)) (IH.tolist glob_written)
           (d_list "," (fun () (_, v) -> text v.vname)) (IH.tolist glob_written_trans)
           (U.docHash (fun k _ -> text k)) cg_node.CG.cnCallees
-          (U.docHash (fun k _ -> text k)) cg_node.CG.cnCallers);
+          (U.docHash (fun k _ -> text k)) cg_node.CG.cnCallers
+          (docList ~sep:line
+             (fun (nrback, nodes) -> 
+               dprintf "<SCC %d %a>\n"
+                 nrback
+                 (docList num) nodes))
+                  scc);
+
 
         (* The block *)
         self#dBlock out 2 fdec.sbody;
@@ -662,6 +761,63 @@ let feature : featureDescr =
       let absPrinter: cilPrinter = new absPrinterClass graph in 
       IH.clear globalsDumped;
       iterGlobals f
-        (arithAbs absPrinter););
+        (arithAbs absPrinter);
+
+      (* compute SCC for the call-graph *)
+      let nodeIdToNode: CG.callnode IH.t = IH.create 13 in
+      let funidToNodeId: int IH.t = IH.create 13 in 
+      let nrNodes = ref 0 in 
+      let mainNode = ref 0 in 
+      H.iter 
+        (fun vn cn -> 
+          if vn= "main" then mainNode := !nrNodes;
+          IH.add nodeIdToNode !nrNodes cn;
+          IH.add funidToNodeId cn.CG.cnInfo.vid !nrNodes;
+          incr nrNodes) graph;
+
+      let ci: S.cfgInfo = 
+        { S.start = !mainNode;
+          S.size = !nrNodes;
+          S.successors = Array.make !nrNodes [];
+          S.predecessors = Array.make !nrNodes [];
+          S.blocks = Array.make !nrNodes { S.bstmt = mkEmptyStmt ();
+                                           S.instrlist = [];
+                                           S.livevars = [] };
+         S.nrRegs = 0;
+         S.regToVarinfo = Array.create 0 dummyFunDec.svar;
+        }
+      in
+      nrNodes := 0;
+      IH.iter (fun idx cn -> 
+        let cnlistToNodeList (cnl: (string, CG.callnode) H.t) : int list = 
+          List.map 
+            (fun (_, sn) -> 
+              try IH.find funidToNodeId sn.CG.cnInfo.vid
+              with Not_found -> assert false
+            )
+            (U.hash_to_list cnl)
+        in
+        ci.S.successors.(idx) <- cnlistToNodeList cn.CG.cnCallees;
+        ci.S.predecessors.(idx) <- cnlistToNodeList cn.CG.cnCallers; 
+           
+        ) nodeIdToNode;
+
+      let scc: (int * int list) list = 
+        stronglyConnectedComponents ci in 
+      List.iter 
+        (fun (nrback, nodes) -> 
+          ignore (p "<SCC %d %a>\n"
+                    nrback
+                    (docList 
+                       (fun n -> 
+                         (try text (IH.find nodeIdToNode n).CG.cnInfo.vname
+                         with Not_found -> assert false)))
+                    nodes))
+        scc;
+   );
+        
+        
+      
+
     fd_post_check = false;
   } 

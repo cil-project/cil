@@ -1,3 +1,5 @@
+int g1, g2, g3;
+
 int test1() {
   int a,b;
   a = 1;
@@ -8,10 +10,11 @@ int test1() {
 }
 
 
-int test2() {
-  int a,b;
-  if (a<1) { b =1;} else { b = 2;}
+int test2(int a) {
+  int b;
+  if (a<1) { g1 = 5; b =1;} else { b = 2;}
   a = b;
+  g1 = g1 + 7;
   return a+b;
 }
 

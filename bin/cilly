@@ -81,7 +81,7 @@ sub collectOneArgument {
         $self->{TRANSVAL} = $1; return 1;
     }
     if($arg eq '--ocamldebug')  {
-        $self->{OCAMLDEBUG} = $1; return 1;
+        $self->{OCAMLDEBUG} = 1; return 1;
     }
     if($arg eq '--cabsonly') {
         $self->{CABSONLY} = 1; return 1;
@@ -115,8 +115,10 @@ sub CillyCommand {
     my $aftercil;
     my @cmd = ($CilCompiler::compiler);
 
-    if(defined $ENV{OCAMLDEBUG}) {
-        my @idirs = ("src", "src/frontc", "src/ccured", "src/ext", 
+    if(defined $ENV{OCAMLDEBUG} || $self->{OCAMLDEBUG}) {
+        print "OCAMLDEBUG is on\n";
+        my @idirs = ("src", "src/frontc", "src/ccured", "src/ext",
+                     "ocamlutil", 
                      "obj/$::archos");
 	my @iflags = map { ('-I', "$::cilhome/$_") } @idirs;
         unshift @cmd, 'ocamldebug', '-emacs', @iflags;
