@@ -140,6 +140,7 @@ $TEST->add3Tests("test/struct_init");
 $TEST->add3Tests("test/structassign");
 $TEST->add3Tests("test/tags");
 $TEST->add3Tests("test/task", "_GNUCC=1");
+$TEST->add3Tests("test/power1");
 $TEST->add3Tests("testrun/scope1");
 $TEST->add3Tests("test/scope2");
 $TEST->add3Tests("test/scope3");

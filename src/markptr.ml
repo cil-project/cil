@@ -78,7 +78,16 @@ let nodeOfType t =
  * The attribute is added by the N.newNode.  *)
 
 (* Keep track of composite types that we have done already, to avoid looping *)
-let doneComposites : (int, bool) H.t = H.create 111 
+let doneComposites: (int, bool) H.t = H.create 111 
+
+(* We pull out definitions of composites so that they are not hidded behing 
+ * pointers *)
+let pulledOutComposites: (int, bool) H.t = H.create 111
+
+
+(* We will accumulate the marked globals in here *)
+let theFile: global list ref = ref []
+    
 
 (* Pass also the place and the next index within the place. Returns the 
  * modified type and the next ununsed index *)
@@ -106,9 +115,9 @@ let rec doType (t: typ) (p: N.place)
           TArray (bt', len, n.N.attr), i'
   end
           
-  | TComp (false, comp, a) -> 
+  | TComp (false, comp, a) -> (* Not a forward reference *)
       if H.mem doneComposites comp.ckey then
-        t, nextidx
+        ()
       else begin
         H.add doneComposites comp.ckey true; (* before we do the fields *)
         List.iter 
@@ -119,10 +128,25 @@ let rec doType (t: typ) (p: N.place)
         (* Maybe we must turn this composite type into a struct *)
         if not comp.cstruct &&
           hasAttribute "safeunion" comp.cattr then
-          comp.cstruct <- true;
-        t, nextidx
-      end
-        
+          comp.cstruct <- true
+      end;
+      (* If this is not a forward reference then we pull out the definition 
+       * of the composite. This helps somewhat later in boxing because we do 
+       * not have to worry about definitions of composites being hidded 
+       * behing pointers or arrays. We do it this late because we want to 
+       * pull inner structs first. *)
+      if not (H.mem pulledOutComposites comp.ckey) then begin
+        (* No point in pulling out comps that appear at the top level in a 
+        * typedef *)
+        (if (match p, nextidx with N.PType _, 0 -> false | _ -> true) then
+          theFile := 
+             GType ("", TComp(false, comp, []), !currentLoc) :: !theFile);
+        (* But mark it as pulled out in any case *)
+        H.add pulledOutComposites comp.ckey true;
+      end;
+      t, nextidx
+  | TComp _ -> t, nextidx (* A forward reference, leave alone *)
+(*
   | TComp (_, comp, a) -> (* A forward reference *)
       if H.mem doneComposites comp.ckey then
         t, nextidx
@@ -134,7 +158,7 @@ let rec doType (t: typ) (p: N.place)
             f.ftype <- t') comp.cfields;
         t, nextidx
       end
-        
+*)       
     (* Strip the type names so that we have less sharing of nodes. However, 
      * we do not need to do it if the named type is a structure, and we get 
      * nicer looking programs. We also don't do it for base types *)
@@ -235,9 +259,6 @@ let startOfNode (n: N.node) : N.node =
   | _ -> n (* It is a function *)
   
 
-(* We will accumulate the marked globals in here *)
-let theFile : global list ref = ref []
-    
 
 
 (* Compute the sign of an expression. Extend this to a real constant folding 
@@ -993,6 +1014,8 @@ let markFile fl =
   let newfile = {fl with globals = newglobals; globinit = newglobinit} in
   if !Util.doCheck then
     Check.checkFile [] newfile;
+  H.clear doneComposites;
+  H.clear pulledOutComposites;
   newfile
 
         

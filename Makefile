@@ -896,6 +896,9 @@ power : defaulttarget mustbegcc
 			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
 	cd $(PWDIR); ./power.exe
 
+power-combined : defaulttarget mustbegcc
+	cd $(PWDIR); \
+             $(SAFECC) power.exe_all.c $(EXEOUT)power.exe
 
 # Health care simulation
 HEALTHDIR=test/olden/health

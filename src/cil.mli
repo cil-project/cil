@@ -479,7 +479,10 @@ type fundec =
 type global =
     GFun of fundec * location           (* A function definition. Cannot have 
                                          * storage Extern *)
-  | GType of string * typ * location    (* A typedef *)
+  | GType of string * typ * location    (* A typedef. The string can be empty 
+                                         * in which case we do not define a 
+                                         * name, just some structure tags 
+                                         * contains in typ. *)
 
   | GDecl of varinfo * location         (* A variable declaration. Might be a 
                                          * prototype. There might be at most 

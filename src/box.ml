@@ -21,10 +21,10 @@ let isSome = function Some _ -> true | _ -> false
 
 (**** Stuff that we use while converting to new CIL *)
 let mkSet (lv:lval) (e: exp) : stmt 
-    = mkStmt (Instr [Set(lv, e, lu)])
-let call lvo f args : stmt = mkStmt (Instr [Call(lvo,f,args, lu)])
+    = mkStmt (Instr [Set(lv, e, !currentLoc)])
+let call lvo f args : stmt = mkStmt (Instr [Call(lvo,f,args, !currentLoc)])
 let mkAsm tmpls isvol outputs inputs clobs = 
-  mkStmt (Instr [Asm(tmpls, isvol, outputs, inputs, clobs, lu)])
+  mkStmt (Instr [Asm(tmpls, isvol, outputs, inputs, clobs, !currentLoc)])
 let mkInstr i : stmt = mkStmt (Instr [i])
 
 
@@ -468,7 +468,7 @@ let rec kindOfType t =
         N.Unknown -> if !N.defaultIsWild then N.Wild else N.Safe
       | res -> res
     end
-  | TNamed (_, nt, _) -> kindOfType nt
+  | TNamed (_, nt, _) -> kindOfType nt(* Ignore the attributes of the TNamed *)
   | TComp (_, comp, _) when comp.cstruct -> begin
       match comp.cfields with
         p :: _ when p.fname = "_p" -> kindOfType p.ftype  (* A fat type *)
@@ -842,9 +842,12 @@ let checkPositiveFun =
   fdec
 
 
+(* Keep track of the fixed composite types. Index by full name *)
+let fixedComps : (int, unit) H.t = H.create 113
+
 let rec fixupType t = 
   match t with
-    TComp (true, _, _) -> t (* Leave alone the forward definitions *)
+    TComp (true, _, _) -> t (* Ignore the forward references *)
     (* Keep the Named types
   | TNamed _ -> begin
      match getNodeAttributes t with
@@ -902,7 +905,7 @@ and fixit t =
                        [],
                      [])
                 in
-                theFile := GType(tname, tstruct, lu) :: !theFile;
+                theFile := GType(tname, tstruct, !currentLoc) :: !theFile;
                 let tres = TNamed(tname, tstruct, [N.k2attr pkind]) in
                 (* Add this to ensure that we do not try to box it twice *)
                 H.add fixedTypes (typeSigBox tres) tres;
@@ -917,24 +920,29 @@ and fixit t =
             fixed
         end
               
-        | TComp (true, _, _) ->  t    (* Don't follow TForward, since these 
-                                       * will be taken care of when the 
-                                       * definition is encountered  *)
         | TNamed (n, t', a) -> TNamed (n, fixupType t', a)
-              
-        | TComp (_, comp, a) -> 
-          (* Change the fields in place, so that everybody sees the change *)
-            List.iter 
-              (fun fi -> 
-                let newa, newt = moveAttrsFromDataToType  fi.fattr fi.ftype in
-                fi.fattr <- newa ; 
-                fi.ftype <- fixupType newt) 
-              comp.cfields;
-            bitfieldCompinfo comp;
-            (* Save the fixed comp so we don't redo it later. Important since 
-             * redoing it means that we change the fields in place. *)
-            H.add fixedTypes (typeSigBox t) t;
-            t
+
+        | TComp (true, _, _) -> t (* Leave the forward alone *)              
+        | TComp (_, comp, a) ->
+            if H.mem fixedComps comp.ckey then 
+              t (* Do nothing *)
+            else begin
+              (* Mark it as done before we do the fields *)
+              H.add fixedComps comp.ckey ();
+              (* Change the fields in place, so that everybody sees the 
+               * change  *)
+              List.iter 
+                (fun fi -> 
+                  let newa, newt = moveAttrsFromDataToType fi.fattr fi.ftype in
+                  fi.fattr <- newa ; 
+                  fi.ftype <- fixupType newt) 
+                comp.cfields;
+              bitfieldCompinfo comp;
+              (* Save the fixed comp so we don't redo it later. Important 
+               * since redoing it means that we change the fields in place.  *)
+              (* if not isforw then H.add fixedTypes (typeSigBox t) t; *)
+              t
+            end
               
         | TArray(t', l, a) -> 
             let sized = extractArrayTypeAttribute a in
@@ -1019,7 +1027,7 @@ and addArraySize t =
     in
     let tname = newTypeName "_sized_" t in
     let named = TNamed (tname, newtype, [Attr("sized", [])]) in
-    theFile := GType (tname, newtype, lu) :: !theFile;
+    theFile := GType (tname, newtype, !currentLoc) :: !theFile;
     H.add sizedArrayTypes tsig named;
     (* Since maybe we added a zero length when there was no length, we should 
      * compute the new signature
@@ -1081,7 +1089,7 @@ and tagType (t: typ) : typ =
     in
     let tname = newTypeName "_tagged_" t in
     let named = TNamed (tname, newtype, []) in
-    theFile := GType (tname, newtype, lu) :: !theFile;
+    theFile := GType (tname, newtype, !currentLoc) :: !theFile;
     H.add taggedTypes tsig named;
     H.add taggedTypes (typeSigBox named) named;
     named
@@ -2415,7 +2423,7 @@ let rec stringLiteral (s: string) (strt: typ) : stmt list * fexp =
       gvar.vstorage <- Static;
       let varinit, dfield = 
         makeTagCompoundInit newt (Some (SingleInit(Const(CStr s)))) in
-      theFile := GVar (gvar, Some varinit, lu) :: !theFile;
+      theFile := GVar (gvar, Some varinit, !currentLoc) :: !theFile;
       let result = StartOf (Var gvar, Field(dfield, NoOffset)) in
       let voidStarResult = castVoidStar result in
       (* Register the area *)
@@ -3107,6 +3115,7 @@ and boxexpf (e: exp) : stmt list * fexp =
               checkRead lv' baseaddr len lvt lvkind
           | _, _ -> []
         in
+        let lvtk = kindOfType lvt in
         (dolv @ check, mkFexp1 lvt (Lval(lv')))
             
     | Const (CInt32 (_, ik, _)) -> ([], L(TInt(ik, []), N.Scalar, e))
@@ -3380,7 +3389,13 @@ let boxFile file =
         | GVar (vi, init, l) -> boxglobal vi true init l
         | GType (n, t, l) -> 
             if debug then ignore (E.log "Boxing GType(%s)\n" n);
+(*            ignore (E.log "before GType(%s -> %a)@!"
+                      n d_plaintype t); *)
             let tnew = fixupType t in
+(*
+            ignore (E.log "after GType(%s -> %a)@!"
+                      n d_plaintype tnew);
+*)
             theFile := GType (n, tnew, l) :: !theFile
                                                
         | GFun (f, l) -> 
@@ -3532,7 +3547,8 @@ let boxFile file =
     try doGlobal x with e -> begin
       ignore (E.log "boxglobal (%s)\n" (Printexc.to_string e));
       theFile := 
-         GAsm (sprint 2 (dprintf "booo_global %a" d_global x), lu) :: !theFile
+         GAsm (sprint 2 (dprintf "booo_global %a" d_global x), 
+               !currentLoc) :: !theFile
     end 
   in
   extraGlobInit := [];
@@ -3567,6 +3583,7 @@ let boxFile file =
    H.clear hostsOfBitfields;
    H.clear typeNames;
    H.clear fixedTypes;
+   H.clear fixedComps;
    H.clear taggedTypes;
    H.clear sizedArrayTypes;
    extraGlobInit := [];
