@@ -1290,7 +1290,17 @@ yacr: mustbegcc
 
 
 ################# LINUX
+LINUX_INCLUDES := test/linux/include
+LINUX_TOPATCH := asm/uaccess.h
+linuxsetup:
+	$(PATCHER)  -D MODULE -D _KERNEL_ -I /usr/src/linux/include \
+                    --patch=test/linux/linux.patch \
+                    --dest=$(LINUX_INCLUDES) \
+	            $(foreach file,$(LINUX_TOPATCH), --sfile=$(file))
+
+LINUXPATCH := $(STANDARDPATCH) --includedir=$(LINUX_INCLUDES)
+
 SBULLDIR := test/sbull
 sbull: mustbegcc mustbelinux
 	cd $(SBULLDIR); rm -f *.o; \
-           make CC="$(CCURED) $(STANDARDPATCH)"
+           make CC="$(CCURED) $(LINUXPATCH)"
