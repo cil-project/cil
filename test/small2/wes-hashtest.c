@@ -127,11 +127,6 @@ typedef long clock_t;
 #define TIMESTART(clk) {clk=(double)clock();}
 #define TIMESTOP(clk)  {clk=1000000.0 * ((double)clock()-(clk))/CLOCKS_PER_SEC;}
 
-void * SAFE  malloc_safe(unsigned int);
-void * SAFE  __cdecl calloc_safe(unsigned int, unsigned int);
-void * FSEQ  __cdecl calloc_fseq(unsigned int, unsigned int);
-void   __cdecl free_safe(void * SAFE);
-
 int __cdecl dup(int);
 int __cdecl dup2(int, int);
 int __cdecl close(int);

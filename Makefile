@@ -263,13 +263,20 @@ $(SAFEMAINLIB) : $(SAFECCDIR)/cil/lib/safecmain.c \
 	lib /OUT:$(SAFEMAINLIB) $(OBJDIR)/safecmain.o 
 endif
 ifdef _GNUCC
+ifdef RELEASE
 SAFECLIB=$(OBJDIR)/safeclib.a
+else
+SAFECLIB=$(OBJDIR)/safecdebuglib.a
+endif
 $(SAFECLIB) : $(SAFECCDIR)/cil/lib/safec.c
 	$(CC) $(OBJOUT)$(OBJDIR)/safec.o $<
-	# I have no idea what George is doing here. :-)
-	# $(CC) $(LIB) $(LIBOUT)$(SAFECLIB) $(OBJOUT)$(OBJDIR)/safec.o 
-	# But this works. 
 	ar -r $(SAFECLIB) $(OBJDIR)/safec.o
+SAFEMAINLIB=$(OBJDIR)/safecmain.a
+$(SAFEMAINLIB) : $(SAFECCDIR)/cil/lib/safecmain.c \
+                 $(SAFECCDIR)/cil/lib/safec.h \
+                 $(SAFECCDIR)/cil/lib/safeccheck.h
+	$(CC) $(OBJOUT)$(OBJDIR)/safecmain.o $<
+	ar -r $(SAFEMAINLIB) $(OBJDIR)/safecmain.o
 endif
 
 

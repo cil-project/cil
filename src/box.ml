@@ -380,12 +380,15 @@ and addArraySize t =
                    d_plaintype t)
       end
     in
+    let arrayAttr = 
+      if !msvcMode then [] else [AId("packed")]
+    in
     let newtype = 
       TComp 
         (mkCompInfo true ""
            (fun _ -> 
-             [ ("_size", uintType, []);
-               ("_array", complt, []); ]) [])
+             [ ("_size", uintType, arrayAttr);
+               ("_array", complt, arrayAttr); ]) [])
     in
     let tname = newTypeName "_sized_" t in
     let named = TNamed (tname, newtype, [AId("sized")]) in
@@ -406,13 +409,15 @@ and tagType (t: typ) : typ =
         (* ignore (E.log "Type %a -> bytes=%d, words=%d, tagwords=%d\n"
                   d_type t bytes words tagwords); *)
         let _, tagWords = tagLength t in
+        let tagAttr = if !msvcMode then [] else [AId("packed")]
+        in
         TComp 
           (mkCompInfo true ""
              (fun _ -> 
-               [ ("_len", uintType, []);
-                 ("_data", t, []);
+               [ ("_len", uintType, tagAttr);
+                 ("_data", t, tagAttr);
                  ("_tags", TArray(intType, 
-                                  Some tagWords, []), []);
+                                  Some tagWords, []), tagAttr);
                ])
              [])
       else begin (* An incomplete type *)
