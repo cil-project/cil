@@ -322,6 +322,19 @@ and remove_anon_type typ = begin
               List.map remove_anon_name_group flds)
   | ENUMDEF (id, items) -> (* Occur in onlytypedef, not typedef *)
       ENUMDEF (remove_anon_id id, items)
+  | PROTO (typ', pars, ell, x) -> 
+      PROTO(remove_anon_type typ', pars, ell, x)
+  | OLD_PROTO (typ', pars, ell, x) -> 
+      OLD_PROTO(remove_anon_type typ', pars, ell, x)
+  | PTR typ' -> 
+      PTR(remove_anon_type typ')
+  | ARRAY (typ', dim) -> 
+      ARRAY(remove_anon_type typ', dim)
+(*
+  | CONST typ' -> CONST (remove_anon_type typ')
+  | VOLATILE typ' -> VOLATILE (remove_anon_type typ')
+*)
+  | ATTRTYPE (typ', a) -> ATTRTYPE(remove_anon_type typ', a)
   | _ -> typ
 end    
 
@@ -579,7 +592,43 @@ and lookup_id id = begin
 end
         
 let combine (files : Cabs.file list) : Cabs.file =
-  List.flatten (List.map 
+begin
+   List.flatten (List.map 
                   (fun defs' -> combine_defs defs' true) 
                   files)
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
