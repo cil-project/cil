@@ -274,7 +274,7 @@ end
 and declare_tag tag = begin
    prerr_endline ("declare tag: " ^ tag);
    try
-     Hashtbl.find fTag tag; ();
+     ignore(Hashtbl.find fTag tag)
    with Not_found ->
      let newTag = find_newTag tag in 
      begin
@@ -898,14 +898,14 @@ and already_declared def = begin
       (match sto with
         STATIC i ->
           (try 
-            Hashtbl.find fDefTable def;
+            ignore(Hashtbl.find fDefTable def);
             true
           with Not_found ->
               (Hashtbl.add fDefTable def 1;
               false))
       | _ -> 
           (try
-            Hashtbl.find gDefTable def;
+            ignore(Hashtbl.find gDefTable def);
             true
           with Not_found ->
               (Hashtbl.add gDefTable def 1;
@@ -915,14 +915,14 @@ and already_declared def = begin
       (match sto with
         STATIC i ->
           (try 
-            Hashtbl.find fDefTable def;
+            ignore(Hashtbl.find fDefTable def);
             true
           with Not_found ->
               (Hashtbl.add fDefTable def 1;
               false))
       | _ -> 
           (try
-            Hashtbl.find gDefTable def;
+            ignore(Hashtbl.find gDefTable def);
             true
           with Not_found -> 
               (Hashtbl.add gDefTable def 1;
@@ -930,7 +930,7 @@ and already_declared def = begin
               
   | TYPEDEF names ->
       (try
-        Hashtbl.find gDefTable def;
+        ignore(Hashtbl.find gDefTable def);
         true
       with Not_found ->
           (Hashtbl.add gDefTable def 1;
@@ -938,7 +938,7 @@ and already_declared def = begin
           
   | ONLYTYPEDEF names ->
       (try
-        Hashtbl.find gDefTable def;
+        ignore(Hashtbl.find gDefTable def);
         true
       with Not_found ->
           (Hashtbl.add gDefTable def 1;
@@ -990,7 +990,7 @@ and declare_id (typ, sto, (id, typ', attr, exp)) global = begin
              Hashtbl.find gMap id; ();
            with Not_found -> (* new declaration *)
              (try
-                Hashtbl.find gAlphaTable id;
+                ignore(Hashtbl.find gAlphaTable id);
                 let newId = find_newId id in
                 begin
                   Hashtbl.add gAlphaTable newId id;
@@ -1003,16 +1003,16 @@ and declare_id (typ, sto, (id, typ', attr, exp)) global = begin
   else
     begin (* try to reuse the names as many times as possible *)
       try 
-        Hashtbl.find lMap id; ();
+        ignore(Hashtbl.find lMap id);
       with Not_found -> 
         (try
-           Hashtbl.find fMap id; ();
+           ignore(Hashtbl.find fMap id);
          with Not_found ->
            (try
-              Hashtbl.find gMap id ;();
+              ignore(Hashtbl.find gMap id);
             with Not_found ->
               (try
-                 Hashtbl.find gAlphaTable id;
+                 ignore(Hashtbl.find gAlphaTable id);
                  (* needs to be renamed *)
                  Hashtbl.add lMap id (find_newId id);
                with Not_found ->
