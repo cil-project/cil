@@ -58,6 +58,9 @@ doc:
 cil-distrib:
 	make -f Makefile.cil cil-distrib $(MAKEOVERRIDES)
 
+ccured-distrib:
+	make -f Makefile.ccured ccured-distrib $(MAKEOVERRIDES)
+
 # sm: infer CCUREDHOME when not set, to ease having multiple trees
 ifndef CCUREDHOME
   ifeq ($(ARCHOS), x86_WIN32)

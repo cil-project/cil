@@ -233,3 +233,24 @@ testgc:
 	rm -f $(GCLIB)
 	make
 	objdump --syms $(CCUREDLIB) | grep GC_
+
+
+
+##################
+###
+### CREATE THE DISTRIBUTION
+###
+#################
+DISTRIB_DIR:= TEMP_ccured_distrib
+
+distrib: doc
+	rm -f ccured.tar.gz
+# Make a CIL distribution
+	make -f Makefile.cil distrib
+# Unpack the distribution in our temporary directory
+	rm -rf $(DISTRIB_DIR)
+	mkdir $(DISTRIB_DIR)
+	cd $(DISTRIB_DIR); tar xvfz cil.tar.gz
+# Remember to rename the Makefile.cil
+	mv $(DISTRIB_DIR)/cil/Makefile $(DISTRIB_DIR)/cil/Makefile.cil
+# Now add the CCured-specific stuff 	
