@@ -146,6 +146,9 @@ endif
 ifdef BOX
 SAFECC+= --box
 endif
+ifdef NO_TAGS
+SAFECC+= $(DEF)NO_TAGS
+endif
 ifdef CHECK
 EXTRAARGS += -check
 endif
