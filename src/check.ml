@@ -709,7 +709,7 @@ let checkFile flags fl =
     (function
         NoCheckGlobalIds -> checkGlobalIds := false)
     flags;
-  List.iter (fun g -> try checkGlobal g with _ -> ()) fl.globals;
+  iterGlobals fl (fun g -> try checkGlobal g with _ -> ());
   (* Check that for all TForward there is a definition *)
   (try
     H.iter 

@@ -2115,6 +2115,7 @@ let convFile fname dl =
   (* We are done *)
   { fileName = fname;
     globals  = List.rev (! theFile);
+    globinit = None;
   } 
 
 

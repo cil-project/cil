@@ -2465,15 +2465,31 @@ let boxFile file =
   (* Create the preamble *)
   preamble ();
   interceptCasts := false;
-  (* Now the orgininal file *)
-  List.iter doGlobal file.globals;
+  (* Now the orgininal file, including the global initializer *)
+  iterGlobals file doGlobal;
+  (* Now finish the globinit *)
+  let newglobinit = 
+    match file.globinit with
+      None -> None
+    | Some g -> begin
+        match !theFile with
+          GFun(gi, _) :: rest -> 
+            theFile := rest; (* Take out the global initializer *)
+            Some gi
+        | _ -> E.s (E.bug "box: Cannot find global initializer\n")
+    end
+  in
   let res = List.rev (!theFile) in
+   (* Now do the global initializer *)
+  (match file.globinit with
+    None -> ()
+  | Some g -> doGlobal (GFun(g, locUnknown)));
   (* Clean up global hashes to avoid retaining garbage *)
   H.clear hostsOfBitfields;
   H.clear typeNames;
   H.clear fixedTypes;
   H.clear taggedTypes;
-  {file with globals = res}
+  {file with globals = res; globinit = newglobinit}
 
   
       

@@ -19,7 +19,7 @@ let defaultIsWild  = ref false
 let allPoly = ref false
 
 
-let externPoly = ref true
+let externPoly = ref false
 
 (* A place where a pointer type can occur *)
 type place = 

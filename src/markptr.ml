@@ -646,7 +646,19 @@ let markFile fl =
   theFile := [];
   List.iter (fun g -> let g' = doGlobal g in 
                       theFile := g' :: !theFile) fl.globals;
-
+  (* Now do the globinit *)
+  let newglobinit = 
+    match fl.globinit with
+      None -> None
+    | Some g -> begin
+        match doGlobal (GFun(g, locUnknown)) with
+          GFun (g', _) -> Some g'
+        | _ -> E.s (E.bug "markptr: globinit")
+    end
+  in
+  let newglobals = List.rev !theFile in
+        
+     
   (* Now go through the types of interfglobs and mark all nodes that are part 
    * of the interface *)
   H.iter
@@ -662,7 +674,7 @@ let markFile fl =
     
   ignore (E.log "Markptr: %s\n"
             (if !E.hadErrors then "Error" else "Success"));
-  let newfile = {fl with globals = List.rev !theFile} in
+  let newfile = {fl with globals = newglobals; globinit = newglobinit} in
   if !Util.doCheck then
     Check.checkFile [] newfile;
   newfile

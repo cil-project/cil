@@ -430,6 +430,10 @@ type global =
 type file = 
     { mutable fileName: string;   (* the complete file name *)
       mutable globals: global list;
+      mutable globinit: fundec option;  (* A global initializer. It is not 
+                                         * part of globals and it is printed 
+                                         * last. Use getGlobInit to 
+                                         * create/get one *)
     } ;;
 	(* global function decls, global variable decls *)
 
@@ -642,7 +646,19 @@ val setFormals: fundec -> varinfo list -> unit
 val dummyFunDec: fundec
 val dummyFile: file
 
+val getGlobInit: file -> fundec  (* Get the global initializer and create one 
+                                  * if it does not already exist *)
 
+
+(* Iterate over all globals, including the global initializer *)
+val iterGlobals: file -> (global -> unit) -> unit
+
+(* Fold over all globals, including the global initializer *)
+val foldGlobals: file -> ('a -> global -> 'a) -> 'a -> 'a
+
+(* Map over all globals, including the global initializer and change things 
+ * in place *)
+val mapGlobals: file -> (global -> global) -> unit
 
 (**** Compute the type of an expression ****)
 val typeOf: exp -> typ

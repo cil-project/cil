@@ -422,7 +422,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
 
   (* mark all interface char * nodes with no arith as string *)
   Hashtbl.iter (fun id n -> 
-    if n.interface && not (n.arith || n.posarith) && 
+    if n.interface (* && not (n.arith || n.posarith) *) && 
        is_char_pointer n then begin
       ignore (update_kind n String BoolFlag)
     end) node_ht ;
