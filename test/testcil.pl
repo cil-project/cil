@@ -1192,6 +1192,9 @@ altAddTest("scott/structattr");
 altAddTest("scott/neg64");
 altAddTest("testc/arrayinitsize");
 altAddTest("test-bad/enuminit2");
+altFailTest("structure attribute semantics", "scott/volatilestruct");
+altFailTest("dropping casts under sizeof", "scott/sizeofchar");
+altAddTest("scott/initedextern");
 
 
 # $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug

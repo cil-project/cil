@@ -4326,10 +4326,17 @@ and createGlobal (specs : (typ * storage * bool * A.attribute list))
          *  0x94, 0xf2, 0x00, 0xa0, 0xc9, 0x1e, 0xfb, 0x8b } };
          * So we allow "extern" + "initializer" if "const" is
          * around. *)
-        if vi.vstorage = Extern && 
-            not(hasAttribute "aconst" (typeAttrs vi.vtype)) &&
-            not !msvcMode then 
-          E.s (error "%s is extern and with initializer" vi.vname);
+        (* sm: As I read the ISO spec, in particular 6.9.2 and 6.7.8,
+         * "extern int foo = 3" is exactly equivalent to "int foo = 3";
+         * that is, if you put an initializer, then it is a definition,
+         * and "extern" is redundantly giving the name external linkage.
+         * gcc emits a warning, I guess because it is contrary to
+         * usual practice, but I think CIL warnings should be about
+         * semantic rather than stylistic issues, so I see no reason to
+         * even emit a warning. *)
+        if vi.vstorage = Extern then
+          vi.vstorage <- NoStorage;     (* equivalent and canonical *)
+
         H.add alreadyDefined vi.vname !currentLoc;
         H.remove mustTurnIntoDef vi.vid;
         cabsPushGlobal (GVar(vi, {init = init}, !currentLoc));
