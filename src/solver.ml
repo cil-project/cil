@@ -9,7 +9,7 @@ open Cil
 open Ptrnode
 open Solveutil
 
-let show_steps = true 
+let show_steps = false 
 
 (*          
  * In this diagram, X <- Y means that Y can be cast to X. This may involve
@@ -188,14 +188,14 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
         end
       ) cur.succ ;
 
-      (* now consider all Successor Cast/Null/Index edges *)
+      (* now consider all Predecessor Cast/Null/Index edges *)
       List.iter (fun e -> 
         if e.ekind = ECast || e.ekind = ENull || e.ekind = EIndex || e.ekind = ECompat then begin
-          let old_flags = e.eto.flags in 
-            setFlag e.eto (cur.flags land pkCNISuccFlags) ;
-            finished := !finished && (old_flags = e.eto.flags)
+          let old_flags = e.efrom.flags in 
+            setFlag e.efrom (cur.flags land pkCNIPredFlags) ;
+            finished := !finished && (old_flags = e.efrom.flags)
         end
-      ) cur.succ ;
+      ) cur.pred ;
     ) node_ht ;
   done ; 
 

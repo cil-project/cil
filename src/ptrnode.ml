@@ -225,7 +225,7 @@ let pkForward    = of_int 128 (* The pointer is into an array, and is moving
 (* These are bitmasks of flags. *) 
 let pkCastPredFlags = (pkUpdated lor pkPosArith lor pkArith)
 let pkCastSuccFlags = (pkOnStack lor pkNull lor pkIntCast)
-let pkCNISuccFlags =  (pkReachString lor pkReachIndex lor pkReachSeq)
+let pkCNIPredFlags =  (pkReachString lor pkReachIndex lor pkReachSeq)
 
 let pkIsWild = function
     KWild _ -> true | _ -> false
