@@ -1398,11 +1398,23 @@ let boxFile globals =
         let varinit = 
           if vi.vstorage = Extern then None 
           else
-              (* prepare the data initializer. *)
+              (* prepare the data initializer. Catch the case when we are 
+               * initialing an array of char with a string *)
             let init' = 
               match init with
                 None -> None
-              | Some e -> Some (boxGlobalInit e)
+              | Some e -> begin
+                  match e with
+                    Const(CStr _, _) -> begin
+                      let dfld, lfld, tfld, words, tagwords = 
+                        splitTagType vi.vtype in
+                      match dfld.ftype with
+                        TArray(TInt((IUChar|ISChar|IChar), _), _, _)  
+                        -> Some e
+                      | _ -> Some (boxGlobalInit e)
+                    end
+                  | _ -> Some (boxGlobalInit e)
+              end
             in
             let (x, _) = makeTagCompoundInit vi.vtype init' in
             Some x
