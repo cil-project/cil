@@ -667,6 +667,7 @@ smAddTest("test/addrofparam $box");
 smAddTest("scott-nolink/name-capture-bitand $box");
 smAddTest("scott-nolink/wildfun2 $box");
 smAddTest("scott/dblarg.int $box");      # this yields a warning that might be a problem
+smAddTest("scott/decl_inl $box");        # produces a gcc warning I'd like to silence
 
 # tests of things implemented for EDG compatibility
 smAddTest("mergestruct");
