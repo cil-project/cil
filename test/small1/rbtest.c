@@ -2,7 +2,7 @@
 
 /* A special purpose main */
 #include "main.h"
-#include "hash.h"
+#include "redblack.h"
 #include "alloc.h"
 
 /* Some globals that PCC needs */
@@ -19,11 +19,12 @@ int debugMM;
 int debug;
 
 
-
+#define DATASIZE 16   // This is the size of the data that is reserved in
+                      // each node
 
 int main() {
   /* Test hash tables */
-  PHASH h = NewHash();
+  RBNode *t = NULL;
   int i;
   double clk;
   int count = 0;
@@ -33,17 +34,18 @@ int main() {
   TIMESTART(clk);
   for(i=0;i<500000;i++) {
     int k = random();
-    AddToHash(h, k, (void*)k);
+    insertRB(& t, k, DATASIZE);
   }
   for(i=0;i<500000;i++) {
     int k = random();
     void *data = NULL;
-    if(HashLookup(h, k, & data)) {
+    if(findRB(t, k)) {
       count ++;
     }
   }
-  sz = SizeHash(h);
-  FreeHash(h);
+  sz = 0;
+  FORALLRBNODES(t, { sz ++; });
+  freeRB(t, NULL);
   TIMESTOP(clk);
   fprintf(stderr, "Hash has %d elements. Found %d times\n",
           sz, count);
