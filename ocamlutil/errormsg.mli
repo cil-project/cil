@@ -10,7 +10,6 @@ val getLineCol : info -> int -> string
 val fileName   : info -> string
 
 val logChannel : out_channel ref
-val outChannel : out_channel ref
 
 val debugFlag  : bool ref               (* If set then print debugging info *)
 val verboseFlag : bool ref

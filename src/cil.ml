@@ -37,7 +37,7 @@ type varinfo = {
     vid: int;		(* unique integer indentifier, one per decl *)
     vname: string;				
     vglob: bool;	(* is this a global variable? *)
-                        (* FIXME: currently always false *)
+
     mutable vtype: typ; 			
     mutable vdecl: location;	(* where was this variable declared? *)
     mutable vattr: attribute list;
@@ -63,16 +63,24 @@ and typ =
   | TInt of ikind * attribute list
   | TBitfield of ikind * int * attribute list
   | TFloat of fkind * attribute list
-  | Typedef of string * int * typ ref * attribute list
+  | TNamed of string * typ              (* from a typedef *)
   | TPtr of typ * attribute list
 
               (* base type and length *)
   | TArray of typ * exp option * attribute list
 
                (* name, fields, id, attributes *) 
-  | TStruct of string * fieldinfo list * int * attribute list 
-  | TUnion of string * fieldinfo list * int * attribute list
-  | TEnum of string * (string * int) list * int * attribute list
+
+  | TStruct of string * fieldinfo list * attribute list 
+  | TUnion of string * fieldinfo list * attribute list
+
+           (* A reference to a struct or a union. The argument is "struct x" 
+            * or "union x". The reference is resolved using the hash table 
+            * "forwardTypeMap"  *)
+  | TForward of string
+
+
+  | TEnum of string * (string * int) list * attribute list
                (* result, args, isVarArg, attributes *)
   | TFun of typ * varinfo list * bool * attribute list
 
@@ -107,7 +115,6 @@ and constant =
 (* unary operations *)
 and unop =
     Neg                                 (* unary - *)
-  | LNot                                (* ! *)
   | BNot                                (* ~ *)
 
 (* binary operations *)
@@ -147,10 +154,10 @@ and exp =
   | AddrOf     of lval * location
   | Compound   of typ * exp list        (* Used for initializers of 
                                          * structured types *)
-(* L-Values *)
+(* L-Values denote contents of memory addresses *)
 and lval =
-  | Var        of varinfo * offset * location(* variable + offset *)
-  | Mem        of exp * offset * location(* memory location + offset *)
+  | Var        of varinfo * offset * location (* denotes * (& v + offset) *)
+  | Mem        of exp * offset * location     (* denotes * (e + offset) *)
 
 and offset = 
   | NoOffset
@@ -190,13 +197,13 @@ and stmt =
   | Instruction of instr
         
 type fundec = 
-    { sname: string;                    (* function name *)
-      mutable slocals: varinfo list;    (* locals *)
+    { svar:     varinfo;                (* Hold the name and type as a 
+                                         * variable, so we can refer to it 
+                                         * easily from the program *)
+      mutable slocals: varinfo list;    (* locals, includes the arguments 
+                                         * included in the type of svar *)
       mutable smaxid: int;              (* max local id. Starts at 0 *)
       mutable sbody: stmt;              (* the body *)
-      mutable stype: typ;               (* the function type *)
-      mutable sstorage: storage;
-      mutable sattr: attribute list;
     } 
 
 type global = 
@@ -211,7 +218,60 @@ type file = global list
 	(* global function decls, global variable decls *)
 
 
+let forwardTypeMap : (string, typ) H.t = H.create 113
+let clearForwardMap () = H.clear forwardTypeMap
+let resolveForwardType n = 
+  try
+    H.find forwardTypeMap n
+  with Not_found -> 
+    E.s (E.unimp "Cannot resolve forward type %s\n" n)
+let addForwardType key t = 
+  H.add forwardTypeMap key t
 
+    (* Use this every time you redefine a struct or a union, to make sure all 
+     * the TForward see the change *)
+let replaceForwardType key t = 
+  try
+    H.remove forwardTypeMap key;
+    H.add forwardTypeMap key t
+  with Not_found -> ()                  (* Do nothing if not already in *)
+
+
+(**** Utility functions ******)
+let rec unrollType = function
+    TNamed (_, r) -> unrollType r
+  | TForward n -> unrollType (resolveForwardType n)
+  | x -> x
+
+let lu = locUnknown
+let integer i = Const (CInt(i, None), lu)
+let zero = integer 0
+
+let voidType = TVoid([])
+let intType = TInt(IInt,[])
+let charType = TInt(IChar, [])
+let charPtrType = TPtr(charType,[])
+let voidPtrType = TPtr(voidType, [])
+let doubleType = TFloat(FDouble, [])
+
+let var vi = Var(vi,NoOffset,locUnknown)
+let mkSet lv e = Instruction(Set(lv,e,lu))
+let assign vi e = mkSet (var vi) e
+let call res f args = Instruction(Call(res,f,args,lu))
+
+let mkString s = Const(CStr s, lu)
+
+let mkSeq sl = 
+  let rec removeSkip = function 
+      [] -> []
+    | Skip :: rest -> removeSkip rest
+    | Sequence (sl) :: rest -> removeSkip (sl @ rest)
+    | s :: rest -> s :: removeSkip rest
+  in
+  match removeSkip sl with 
+    [] -> Skip
+  | [s] -> s
+  | sl' -> Sequence(sl')
 
 
 
@@ -287,7 +347,7 @@ let d_const () c =
   | CInt(i, None) -> num i
   | CLInt(l,h, Some s) -> text s
   | CStr(s) -> dprintf "\"%s\"" (escape_string s)
-  | CChr(c) -> dprintf "'%c'" c
+  | CChr(c) -> dprintf "'%s'" (Char.escaped c)
   | CReal(_, Some s) -> text s
   | CReal(f, None) -> dprintf "%f" f
   | _ -> E.s (E.unimp "constant")
@@ -312,29 +372,38 @@ let rec d_decl (fulltype: bool) (docName: unit -> doc) () this =
   | TBitfield(ikind,i,a) -> 
       dprintf "%a %t : %d%a" d_ikind ikind docName i d_attrlist a
   | TFloat(fkind, a) -> dprintf "%a%a %t" d_fkind fkind d_attrlist a docName
-  | TStruct (n,fi,_,a) -> 
-      if fulltype || n = "" then
-        dprintf "str@[uct %s%a {@!%a@]@!} %t" n d_attrlist a
+  | TStruct (n,fi,a) -> 
+      let n' = 
+        if String.length n >= 5 && String.sub n 0 5 = "@anon" then "" else n in
+      if fulltype || n' = "" then
+        dprintf "str@[uct %s%a {@!%a@]@!} %t" n' d_attrlist a
           (docList line (d_fielddecl ())) fi docName
       else
-        dprintf "struct %s %t" n docName
-  | TUnion (n,fi,_,a) -> 
-      if fulltype || n = "" then
-        dprintf "uni@[on %s%a {@!%a@]@!} %t" n d_attrlist a
+        dprintf "struct %s %t" n' docName
+  | TUnion (n,fi,a) -> 
+      let n' = 
+        if String.length n >= 5 && String.sub n 0 5 = "@anon" then "" else n in
+      if fulltype || n' = "" then
+        dprintf "uni@[on %s%a {@!%a@]@!} %t" n' d_attrlist a
           (docList line (d_fielddecl ())) fi docName
       else
-        dprintf "union %s %t" n docName
-  | TEnum (n, kinds, _, a) -> 
-      if fulltype || n = "" then
-        dprintf "enum@[ %s%a {%a@]@?} %t" n d_attrlist a
+        dprintf "union %s %t" n' docName
+
+  | TForward n -> dprintf "%s %t" n docName
+
+  | TEnum (n, kinds, a) -> 
+      let n' = 
+        if String.length n >= 5 && String.sub n 0 5 = "@anon" then "" else n in
+      if fulltype || n' = "" then
+        dprintf "enum@[ %s%a {%a@]@?} %t" n' d_attrlist a
           (docList line (fun (n,i) -> dprintf "%s = %d,@?" n i)) kinds
           docName
       else
-        dprintf "enum %s" n
+        dprintf "enum %s" n'
 
   | TPtr (t, a)  -> 
       d_decl fulltype 
-             (fun _ -> parenth t (dprintf "*%t%a" docName d_attrlist a)) 
+             (fun _ -> parenth t (dprintf "*%a %t" d_attrlist a docName )) 
              () t
 
   | TArray (t, lo, a) -> 
@@ -348,17 +417,29 @@ let rec d_decl (fulltype: bool) (docName: unit -> doc) () this =
         ()
         t
   | TFun (restyp, args, isvararg, a) -> 
+      let args' = 
+        match args with 
+            [] -> [ { vname = "";
+                      vtype = voidType;
+                      vid   = 0;
+                      vglob = false;
+                      vattr = [];
+                      vdecl = lu;
+                      vaddrof = false; 
+                      vstorage = NoStorage; } ] 
+        | _ -> args
+      in
       d_decl fulltype
         (fun _ -> 
           parenth restyp 
             (dprintf "%t(%a%a)" 
                docName
-               (docList (chr ',') (d_videcl ())) args
+               (docList (chr ',') (d_videcl ())) args'
                insert (if isvararg then text ", ..." else nil)))
         ()
         restyp
-  | Typedef (n, _, _, _) -> 
-      dprintf "%s %t" n docName
+
+  | TNamed (n, _) -> dprintf "%s %t" n docName
 
 
 (* Only a type (such as for a cast) *)        
@@ -392,7 +473,6 @@ and d_exp () e =
       let d_unop () u =
         match u with
           Neg -> text "-"
-        | LNot -> text "!"
         | BNot -> text "~"
       in
       dprintf "%a %a" d_unop u d_exp e
@@ -460,10 +540,61 @@ and d_attrlist () al =
   loop [] al
     
 
+and d_plainexp () = function
+    Const(c,l) -> dprintf "Const(%a)" d_const c
+  | Lval(lv) -> dprintf "Lval(@[%a@])" d_plainlval lv
+  | e -> d_exp () e
+
+and d_plainlval () = function
+  | Var(vi,o,l) -> dprintf "Var(@[%s,@?%a@])" vi.vname d_plainoffset o
+  | Mem(e,o,l) -> dprintf "Mem(@[%a,@?%a@])" d_plainexp e d_plainoffset o
+
+and d_plainoffset () = function
+    NoOffset -> text "NoOffset"
+  | Index(e,o) -> dprintf "Index(@[%a,@?%a@])" d_plainexp e d_plainoffset o
+  | Field(fi,o) -> 
+      dprintf "Field(@[%s:%a,@?%a@])" 
+        fi.fname d_plaintype fi.ftype d_plainoffset o
+  | CastO(t, o) -> dprintf "CastO(@[%a,@?%a@])" d_plaintype t d_plainoffset o
+
+and d_plaintype () = function
+    TVoid a -> dprintf "TVoid(@[%a@])" d_attrlist a
+  | TInt(ikind, a) -> dprintf "TInt(@[%a,@?%a@])" d_ikind ikind d_attrlist a
+  | TFloat(fkind, a) -> dprintf "TFloat(@[%a,@?%a@])" d_fkind fkind d_attrlist a
+  | TBitfield(ikind,i,a) -> 
+      dprintf "TBitfield(@[%a,@?%d,@?%a@])" d_ikind ikind i d_attrlist a
+  | TNamed (n, t) ->
+      dprintf "TNamed(@[%s,@?%a@])" n d_plaintype t
+  | TForward n -> dprintf "TForward(%s)" n
+  | TPtr(t, a) -> dprintf "TPtr(@[%a,@?%a@])" d_plaintype t d_attrlist a
+  | TArray(t,l,a) -> 
+      let dl = match l with 
+        None -> text "None" | Some l -> dprintf "Some(@[%a@])" d_plainexp l in
+      dprintf "TArray(@[%a,@?%a,@?%a@])" 
+        d_plaintype t insert dl d_attrlist a
+  | TEnum(n,_,a) -> dprintf "Enum(%s,@[%a@])" n d_attrlist a
+  | TFun(tr,args,isva,a) -> 
+      dprintf "TFun(@[%a,@?%a%s,@?%a@])"
+        d_plaintype tr 
+        (docList (chr ',' ++ break) 
+           (fun a -> dprintf "%s: %a" a.vname d_plaintype a.vtype)) args
+        (if isva then "..." else "") d_attrlist a
+  | TStruct(n,flds,a) -> 
+      dprintf "TStruct(@[%s,@?%a,@?%a@])" n
+        (docList (chr ',' ++ break) 
+           (fun f -> dprintf "%s : %a" f.fname d_plaintype f.ftype)) flds
+        d_attrlist a
+  | TUnion(n,flds,a) -> 
+      dprintf "TUnion(@[%s,@?%a,@?%a@])" n
+        (docList (chr ',' ++ break) 
+           (fun f -> dprintf "%s : %a" f.fname d_plaintype f.ftype)) flds
+        d_attrlist a
+
+
 (* lvalue *)
 and d_lval () lv = 
   let rec d_offset dobase = function
-    | NoOffset -> dobase ()
+    | NoOffset -> dprintf "%t" dobase
     | Index (e, o) -> 
         d_offset (fun () -> dprintf "%t[@[%a@]]" dobase d_exp e) o
     | Field (fi, o) -> 
@@ -475,7 +606,9 @@ and d_lval () lv =
     Var(vi,o,_) -> d_offset (fun _ -> text vi.vname) o
   | Mem(e,Field(fi, o),_) -> 
       d_offset (fun _ -> dprintf "%a->%s" d_exp e fi.fname) o
+
   | Mem(e,NoOffset,_) -> dprintf "*%a" d_exp e
+
   | Mem(e,o,_) -> d_offset (fun _ -> d_exp () e) o
         
 and d_instr () i =
@@ -501,7 +634,8 @@ and d_instr () i =
   | Asm(tmpls, isvol, outs, ins, clobs) ->
       dprintf "__asm__ %a(@[%a%a%a%a@]);@!"
         insert (if isvol then text "__volatile__" else nil)
-        (docList (chr ',' ++ line) (fun x -> dprintf "\"%s\"" (escape_string x))) tmpls
+        (docList (chr ',' ++ line) 
+           (fun x -> dprintf "\"%s\"" (escape_string x))) tmpls
         insert 
         (if outs = [] && ins = [] && clobs = [] then 
           nil
@@ -520,12 +654,14 @@ and d_instr () i =
         (if clobs = [] then nil
         else
           dprintf ": %a" (docList (chr ',' ++ break) 
-                            (fun x -> dprintf "\"%s\"" (escape_string x))) clobs)
+                            (fun x -> dprintf "\"%s\"" (escape_string x))) 
+            clobs)
        
 and d_stmt () s =
   match s with
     Skip -> dprintf ";"
-  | Sequence(lst) -> dprintf "@[{ @[@!%a@]@!}@]" (docList line (d_stmt ())) lst
+  | Sequence(lst) -> dprintf "@[{ @[@!%a@]@!}@]" 
+        (docList line (d_stmt ())) lst
   | Loop(Sequence(IfThenElse(e,Skip,Break) :: rest)) -> 
       dprintf "whi@[le (%a)@!%a@]" d_exp e d_stmt (Sequence rest)
   | Loop(stmt) -> 
@@ -547,15 +683,15 @@ and d_stmt () s =
         
 and d_fun_decl () f = 
   dprintf "%a%a %a@!{ @[%a@!%a@]@!}" 
-    d_storage f.sstorage
+    d_storage f.svar.vstorage
     (* the prototype *)
-    (d_decl false (fun _ -> text f.sname)) f.stype
+    (d_decl false (fun _ -> text f.svar.vname)) f.svar.vtype
     (* attributes *)
-    d_attrlist f.sattr
+    d_attrlist f.svar.vattr
     (* locals. But eliminate first the formal arguments *)
     (docList line (fun vi -> d_videcl () vi ++ text ";"))
        (let nrArgs = 
-         match f.stype with
+         match f.svar.vtype with
            TFun(_, args, _, _) -> List.length args
          | _ -> E.s (E.bug "non-function type")
        in
@@ -578,7 +714,7 @@ and d_fielddecl () fi =
     (d_decl false (fun _ -> text fi.fname)) fi.ftype
     d_attrlist fi.fattr
 
-let printFile (out : out_channel) (f: file) = 
+let printFile (out : out_channel) (globs : file) = 
   let print x = fprint out 80 x in
   print (text "/* Generated by safecc */\n\n");
   let definedTypes : (string, bool) H.t = H.create 17 in
@@ -587,7 +723,7 @@ let printFile (out : out_channel) (f: file) =
     | GType (str, typ) -> 
         let doName n = 
           try begin
-            ignore (H.find definedTypes n); false 
+            ignore (H.find definedTypes n); false
           end with Not_found -> begin
             H.add definedTypes n true;
             true
@@ -595,8 +731,8 @@ let printFile (out : out_channel) (f: file) =
         in
         let fulltype = 
           match typ with
-            TStruct(n, _, _, _) when n <> "" -> doName ("struct " ^ n)
-          | TUnion(n,_,_,_) when n <> ""  -> doName ("union " ^ n)
+            TStruct(n, _, _) -> doName ("struct " ^ n)
+          | TUnion(n,_,_) -> doName ("union " ^ n)
           | _ -> true
         in
         if str = "" then
@@ -613,7 +749,7 @@ let printFile (out : out_channel) (f: file) =
                 dprintf " = %a" d_exp e)
   | GAsm s -> dprintf "__asm__(\"%s\")@!" (escape_string s)
   in
-  List.iter (fun g -> print (d_global () g ++ line)) f
+  List.iter (fun g -> print (d_global () g ++ line)) globs
     
 
 
@@ -621,45 +757,13 @@ let printFile (out : out_channel) (f: file) =
  ******************
  ******************)
 
-(**** Utility functions ******)
-let rec unrollType = function
-    Typedef (_, _, r, _) -> unrollType !r
-  | x -> x
-let lu = locUnknown
-let integer i = Const (CInt(i, None), lu)
-let zero = integer 0
-
-let voidType = TVoid([])
-let intType = TInt(IInt,[])
-let charType = TInt(IChar, [])
-let charPtrType = TPtr(charType,[])
-let voidPtrType = TPtr(voidType, [])
-let doubleType = TFloat(FDouble, [])
-
-let var vi = Var(vi,NoOffset,locUnknown)
-let mkSet lv e = Instruction(Set(lv,e,lu))
-let assign vi e = mkSet (var vi) e
-let call res f args = Instruction(Call(res,f,args,lu))
-
-let mkString s = Const(CStr s, lu)
-
-let mkSeq sl = 
-  let rec removeSkip = function 
-      [] -> []
-    | Skip :: rest -> removeSkip rest
-    | Sequence (sl) :: rest -> removeSkip (sl @ rest)
-    | s :: rest -> s :: removeSkip rest
-  in
-  match removeSkip sl with 
-    [] -> Skip
-  | [s] -> s
-  | sl' -> Sequence(sl')
 
 
   (* Compute some sizeOf to help with constant folding *)
 let rec intSizeOf = function            (* Might raise Not_found *)
     TInt((IUChar|IChar|ISChar), _) -> 1
   | TInt((IShort|IUShort), _) -> 2
+  | TInt((IInt|IUInt), _) -> 4
   | TInt((ILong|IULong), _) -> 4
   | TInt((ILongLong|IULongLong), _) ->  8
   | TFloat(FFloat, _) ->  4
@@ -668,8 +772,9 @@ let rec intSizeOf = function            (* Might raise Not_found *)
   | TEnum _ ->  4
   | TPtr _ ->  4
   | TArray(t, Some (Const(CInt(l,_),_)),_) -> (intSizeOf t) * l
-  | Typedef(_, _, r,_) -> intSizeOf !r
-  | TStruct(_,flds,_,_) -> 
+  | TNamed(_, r) -> intSizeOf r
+  | TForward r -> intSizeOf (resolveForwardType r)
+  | TStruct(_,flds,_) -> 
       let rec loop = function
           [] -> 0
         | f :: flds -> align (intSizeOf f.ftype) + loop flds
@@ -726,14 +831,105 @@ let iterExp (f: exp -> unit) (body: stmt) : unit =
   fStmt body
 
 
-    (* A dummy function declaration handy for initialization *)
-let dummyFunDec = 
-  { sname = "@dummy";
-    stype = TFun(voidType, [], false,[]);
-    sattr = [];
+
+   (* Make a local variable and add it to a function *)
+let makeLocalVar fdec name typ = 
+  fdec.smaxid <- 1 + fdec.smaxid;
+  let vi = { vname = name; 
+             vid   = fdec.smaxid;
+             vglob = false;
+             vtype = typ;
+             vdecl = lu;
+             vattr = [];
+             vstorage = NoStorage;
+             vaddrof = false;
+           }  in
+  fdec.slocals <- fdec.slocals @ [vi];
+  vi
+
+let makeTempVar fdec typ = 
+  let name = "tmp" ^ (string_of_int (1 + fdec.smaxid)) in
+  makeLocalVar fdec name typ
+
+
+   (* Make a global variable *) 
+let makeGlobalVar name typ = 
+  let vi = { vname = name; 
+             vid   = H.hash name;
+             vglob = true;
+             vtype = typ;
+             vdecl = lu;
+             vattr = [];
+             vstorage = NoStorage;
+             vaddrof = false;
+           }  in
+  vi
+
+
+   (* Make an empty function *)
+let emptyFunction name = 
+  { svar  = makeGlobalVar name (TFun(voidType, [], false,[]));
     smaxid = 0;
     slocals = [];
-    sstorage = NoStorage;
     sbody = Skip;
   } 
+
+    (* A dummy function declaration handy for initialization *)
+let dummyFunDec = emptyFunction "@dummy"
+
+
+
+
+  (* Type comparison *
+let rec sameType t1 t2 = 
+  match t1, t2 with
+    TInt _, TInt _ -> t1 = t2
+  | TVoid _, TVoid _ -> t1 = t2
+  | TFloat _, TFloat _ -> t1 = t2
+  | TEnum _, TEnum _ -> t1 = t2
+  | TBitfield _, TBitfield _ -> t1 = t2
+  | TPtr(t1,a1), TPtr(t2,a2) -> sameType t1 t2 && a1 = a2
+  | TArray(t1,l1,a1), TArray(t2,l2,a2) -> sameType t1 t2 && l1 = l2 && a1 = a2
+  | TStruct(n1,_,a1), TStruct(n2,_,a2) -> n1 = n2 && a1 = a2
+  | TUnion(n1,_,a1), TUnion(n2,_,a2) -> n1 = n2 && a1 = a2
+  | TNamed(_, t1), _ -> sameType t1 t2
+  | TFun(t1,args1,isva1,a1), TFun(t2,args2,isva2,a2) -> 
+      sameType t1 t2 && a1 = a2 && isva1 = isva2 &&
+      let rec sameArgs = function
+          [], [] -> true
+        | arg1 :: args1, arg2 :: args2 -> 
+            sameType arg1.vtype arg2.vtype && arg1.vattr = arg2.vattr
+              && sameArgs (args1, args2)
+        | _ -> false
+      in
+      sameArgs (args1, args2)
+
+  | _, TNamed(_, t2) -> sameType t1 t2
+  | TIncomplete tr1, _ -> sameType !tr1 t2
+  | _, TIncomplete tr2 -> sameType t1 !tr2
+  | _, _ -> false
+*)
+ (* A hash code function for types. Guaranteed to return the same thing for 
+  * two types that compare with sameType *
+let rec hashType (t: typ) : int =
+  match t with
+    (TVoid _|TInt _|TFloat _|TEnum _|TBitfield _) -> H.hash t
+  | TStruct (n, _, _, a) -> H.hash ("s", n, a)
+  | TUnion (n, _, _, a) -> H.hash ("u", n, a)
+  | TPtr (t', a) -> H.hash ("p", hashType t', a)
+  | TArray (t',l,a) -> H.hash ("a", hashType t', l, a)
+  | TFun (tr, args, isva, a) -> 
+      H.hash ("f", hashType tr, isva, a, 
+              List.map (fun arg -> (hashType arg.vtype, arg.vattr)) args)
+  | TNamed (_, t) -> hashType t
+  | TIncomplete tr -> hashType !tr
+
+*)
+
+    
+let dExp : doc -> exp = 
+  function d -> Const(CStr(sprint 80 d),lu)
+
+let dStmt : doc -> stmt = 
+  function d -> Instruction(Asm([sprint 80 d], false, [], [], []))
 

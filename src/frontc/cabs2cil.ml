@@ -25,7 +25,7 @@ let currentReturnType : typ ref = ref (TVoid([]))
 
 let env : enventry list ref = ref []    (* This is the environment *)
 
-(* Lookup a variable name *)
+(* Lookup a variable name. Might raise Not_found *)
 let lookup n = 
   let rec loop = function
       [] -> raise Not_found
@@ -61,17 +61,20 @@ let addNewVar vi =
     try begin
       let oldvi = lookup vi.vname in
       (* The variable already exists *)
-      (* ignore  (E.log "addNewVar.New=%a vglob=%b, old=%a vglob=%b\n"
-                 d_videcl vi vi.vglob d_videcl oldvi oldvi.vglob);
-         *)
       if vi.vglob && oldvi.vglob then
         if oldvi.vstorage = Extern  && vi.vstorage = NoStorage then begin
-          oldvi.vstorage <- NoStorage;
-          (false, oldvi)
+          (* Remove the old version from the environment *)
+          let rec loop = function
+              [] -> E.s (E.bug "Cannot remove variable")
+            | EVar(name, _) :: rest when name = vi.vname -> rest
+            | x :: rest -> x :: loop rest
+          in
+          env := loop !env;
+          (true, vi)
         end else
           if vi.vstorage = Extern && (oldvi.vstorage = NoStorage ||
                                       oldvi.vstorage = Extern) then
-            (false, oldvi)
+            (false, oldvi)              (* Don't add a new version *)
           else
             match vi.vtype, oldvi.vtype with
                                         (* function prototypes are not 
@@ -127,29 +130,42 @@ let endBlock () =
 let typedefs : (string, typ) H.t = H.create 113
 
    (* Keep a list of unresolved types. Maybe they are forward references *)
-let unresolvedTypes : (string * typ ref) list ref = ref []
+let forwardTypes : string list ref = ref []
 
-let findType n = 
+let recordTypeName n t = 
+  H.add typedefs n t
+
+let findTypeName n = 
   try
     H.find typedefs n
   with Not_found -> begin
-    let typref = ref (TVoid([])) in     (* To be patched later *)
-    unresolvedTypes := (n, typref) :: !unresolvedTypes;
-    Typedef (n, 0, typref, [])
+    E.s (E.unimp "Cannot find type %s\n" n)
   end
 
-let recordType n t = 
-  H.add typedefs n t;
-  (* Resolve some unresolved types *)
-  let rec loop still = function
-      [] -> unresolvedTypes := still
-    | (n', tref) :: rest when n = n' -> begin
-        tref := t;
-        loop still rest
-    end
-    | x :: rest -> loop (x :: still) rest
+let recordCompType t = 
+  let key = 
+    match t with
+      TStruct(n, _, _) -> "struct " ^ n
+    | TUnion(n, _, _) -> "union " ^ n
+    | _ -> E.s (E.bug "recordCompType")
   in
-  loop [] !unresolvedTypes
+  H.add typedefs key t;
+  (* Resolve some incomplete types *)
+  if (List.exists (fun x -> x = key) !forwardTypes) then
+    addForwardType key t
+
+   (* kind is either "struct" or "union" and n is a name *)
+let findCompType kind n = 
+  let key = kind ^ " " ^ n in
+  try
+    H.find typedefs key
+  with Not_found -> begin
+    forwardTypes := key :: !forwardTypes;
+    TForward key
+  end
+  
+
+
 
 let typeId : int ref = ref 0
 let newTypeId () = 
@@ -158,12 +174,9 @@ let newTypeId () =
 
 let newTypeName n = 
   incr typeId;
-  n ^ (string_of_int (!typeId))
+  "@anon" ^ n ^ (string_of_int (!typeId))
 
 (**** Occasionally we see structs with no name and no fields *)
-let typeEmptyAnonymousStruct = 
-  TStruct ("", [], 0, [])
-
 (* Sometimes we need to lookup enum fields *)
 let enumFields : (string, (int * typ)) H.t = H.create 17
 let recordEnumField n idx typ = 
@@ -234,12 +247,14 @@ type expAction =
 let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) = 
   if ot = nt then (ot, e) else
   match ot, nt with
-    Typedef(_,_,r,_), _ -> castTo !r nt e
-  | _, Typedef(_,_,r,_) -> castTo ot !r e
+    TNamed(_,r), _ -> castTo r nt e
+  | _, TNamed(_,r) -> castTo ot r e
+  | TForward(rt), _ -> castTo (resolveForwardType rt) nt e
+  | _, TForward(rt) -> castTo ot (resolveForwardType rt) e
   | TInt(ikindo,_), TInt(ikindn,_) -> 
       (nt, if ikindo == ikindn then e else CastE(nt, e, lu))
 
-  | TPtr (told, _), TPtr(tnew, _) -> (nt, CastE(nt, e,lu))
+  | TPtr (told, _), TPtr(tnew, _) -> (nt, CastE(nt, e, lu))
 
   | TInt _, TPtr _ when
       (match e with Const(CInt(0,_),_) -> true | _ -> false) -> 
@@ -290,6 +305,11 @@ let doNameGroup (sng: A.single_name -> 'a)
 
 let rec makeFieldInfo (host: string) 
                      ((bt,st,(n,nbt,a,e)) : A.single_name) : fieldinfo = 
+  let rec removeNamed = function
+      TNamed (_, t) -> removeNamed t
+    | TPtr(t,a) -> TPtr(removeNamed t, a)
+    | t -> t
+  in
   { fstruct  =  host;
     fname    =  n;
     ftype    =  doType [] nbt;
@@ -375,39 +395,42 @@ and doType (a : attribute list) = function
         | _ -> Some (doPureExp len)
       in
       TArray (doType [] bt, lo, a)
+
   | A.STRUCT (n, nglist) -> 
+      let n = if n = "" then newTypeName "struct" else n in
       let flds = 
         List.concat (List.map (doNameGroup (makeFieldInfo n)) nglist) in
       if flds <> [] then begin
                                         (* This introduces a new type *)
-        let tp = TStruct (n, flds, newTypeId (), a) in
-        if n <> "" then recordType ("struct " ^ n) tp; 
+        let tp = TStruct (n, flds, a) in
+        recordCompType tp; 
         tp
       end else begin
-        if n = "" then 
-          typeEmptyAnonymousStruct
-        else
-          findType ("struct " ^ n)
+          findCompType "struct"  n
       end
   | A.UNION (n, nglist) -> 
+      let n = if n = "" then newTypeName "union" else n in
       let flds = 
         List.concat (List.map (doNameGroup (makeFieldInfo n)) nglist) in
       if flds <> [] then begin
                                         (* This introduces a new type *)
-        let tp = TUnion (n, flds, newTypeId (), a) in
-        if n <> "" then recordType ("union " ^ n) tp; 
+        let tp = TUnion(n, flds, a) in
+        recordCompType tp; 
         tp
-      end else begin
-        if n = "" then E.s (E.unimp "Type with no fields and no name");
-        findType ("union " ^ n)
-      end
+      end else
+        findCompType "union"  n
+
   | A.PROTO (bt, snlist, isvararg) ->
-      TFun (doType [] bt, 
-            List.map (makeVarInfo false locUnknown) snlist,
-            isvararg, 
-            a)
+      let targs = 
+        match List.map (makeVarInfo false locUnknown) snlist  with
+          [t] when (match t.vtype with TVoid _ -> true | _ -> false) -> []
+        | l -> l
+      in 
+      TFun (doType [] bt, targs, isvararg, a)
+
   | A.OLD_PROTO _ -> E.s (E.unimp "oldproto")
   | A.ENUM (n, eil) -> 
+      let n = if n = "" then newTypeName "enum" else n in
       let rec loop i = function
           [] -> []
         | (kname, A.NOTHING) :: rest -> 
@@ -425,16 +448,16 @@ and doType (a : attribute list) = function
             (kname, i) :: loop (i + 1) rest
       in
       let fields = loop 0 eil in
-      let res = TEnum (n, loop 0 eil, newTypeId (), a) in
+      let res = TEnum (n, loop 0 eil, a) in
       List.iter (fun (n,fieldidx) -> recordEnumField n fieldidx res) fields;
       res
 
   | A.CONST bt -> doType (AId("const") :: a) bt
   | A.VOLATILE bt -> doType (AId("volatile") :: a) bt
   | A.NAMED_TYPE n -> begin
-      match findType n with
-        (Typedef _) as x -> x
-      | typ -> Typedef(n, 0, ref typ, [])
+      match findTypeName n with
+        (TNamed _) as x -> x
+      | typ -> TNamed(n, typ)
   end
   | A.TYPEOF e -> 
       let (se, _, t) = doExp e (AExp None) in
@@ -466,16 +489,11 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         finishExp [] (Const(CStr("exp_nothing"),lu)) (TPtr(TInt(IChar,[]),[]))
           
     | A.VARIABLE n -> begin
-        try wrapLval e 
-        with Not_found -> 
-          try 
-            let (idx, typ) = lookupEnumField n in
-          (* Maybe it is an enum field *)
-            finishExp [] (integer idx) typ
-          with Not_found -> begin
-            ignore (E.log "Cannot resolve variable %s\n" n);
-            raise Not_found
-          end
+        (* See if this is an enum field *)
+        try 
+          let (idx, typ) = lookupEnumField n in
+          finishExp [] (integer idx) typ    (* It is *)
+        with Not_found -> wrapLval e
     end
     | A.MEMBEROFPTR _ -> wrapLval e
     | A.MEMBEROF _ -> wrapLval e
@@ -557,7 +575,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
             match what with 
               AExp (Some typ) -> begin
                 match unrollType typ with 
-                  TStruct(n,flds,_,_) -> 
+                  TStruct(n,flds,_) -> 
                     let rec loopFlds = function
                         [], [] -> []
                       | (f :: flds), (e :: el) -> 
@@ -609,20 +627,14 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         in
         finishExp (se1 @ se) e'' t''
           
-    | A.UNARY((A.MINUS|A.NOT|A.BNOT) as uop, e) -> 
+    | A.UNARY((A.MINUS|A.BNOT) as uop, e) -> 
         let uop' = match uop with
           A.MINUS -> Neg
-        | A.NOT -> LNot
         | A.BNOT -> BNot
         | _ -> E.s (E.bug "")
         in
         let (se, e', t) = doExp e (AExp None) in
-        let (t'', e'') = 
-          if uop = A.NOT then 
-            begin ignore (checkBool t e'); 
-              (t, e') 
-            end 
-          else castTo t intType e' in
+        let (t'', e'') = castTo t intType e' in
         let result = 
           match uop', e'' with
             Neg, Const(CInt(i,_),_) -> integer (- i)
@@ -764,6 +776,11 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         (doCondition e [mkSet tmp (integer 1)] [mkSet tmp (integer 0)], 
          Lval(tmp), intType)
           
+    | A.UNARY(A.NOT, e) -> 
+        let tmp = var (newTempVar intType) in
+        (doCondition e [mkSet tmp (integer 0)] [mkSet tmp (integer 1)], 
+         Lval(tmp), intType)
+
     | A.CALL(f, args) -> 
         let (sf, f', ft') = doExp f (AExp None) in
       (* Get the result type and the argument types *)
@@ -781,9 +798,6 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
             : varinfo list * A.expression list 
           -> (stmt list * exp list) = function
             | ([], []) -> ([], [])
-            | ([varg], []) when 
-                 (match varg.vtype with TVoid _ -> true | _ -> false) 
-                            -> ([], [])
             | (varg :: atypes, a :: args) -> 
                 let (sa, a', att) = doExp a (AExp None) in
                 let (at'', a'') = castTo att varg.vtype a' in
@@ -915,24 +929,36 @@ and doLval (e : A.expression) : (stmt list * lval * typ) =
       | CastO(t, offset) -> CastO(t, loop offset)
     in
     match lv with 
-      Var(vi,offset,l) -> Var(vi,loop offset,l)
+      Var(vi,offset,l) -> begin
+        let offset' = loop offset in
+        match vi.vtype, offset' with
+          TPtr _, Index _ -> Mem(Lval(Var(vi,NoOffset,l)), offset', l)
+        | _, _ -> Var(vi,loop offset,l)
+      end
     | Mem(e,offset,l) -> Mem(e,loop offset,l)
   in
   match e with
-    A.VARIABLE n -> 
-      let vi = lookup n in
-      ([], Var(vi,NoOffset,lu), vi.vtype)
-
+    A.VARIABLE n -> begin
+      try
+        let vi = lookup n in
+        ([], Var(vi,NoOffset,lu), vi.vtype)
+      with Not_found -> begin 
+        ignore (E.log "Cannot resolve variable %s\n" n);
+        raise Not_found
+      end
+    end
   | A.MEMBEROFPTR (e, str) -> 
       let (se, e', t') = doExp e (AExp None) in begin
         match unrollType t' with
           TPtr(t1, _) ->
             let fid = 
               match unrollType t1 with 
-                TStruct (n, fil, _, _) -> findField str fil
-              | TUnion (n, fil, _, _) -> findField str fil
-              | x -> E.s (E.unimp "expecting a struct with field %s. Found %a. t1 is %a" 
-                            str d_type x d_type t')
+                TStruct (n, fil, _) -> findField str fil
+              | TUnion (n, fil, _) -> findField str fil
+              | x -> 
+                  E.s (E.unimp 
+                       "expecting a struct with field %s. Found %a. t1 is %a" 
+                         str d_type x d_type t')
             in
             (se, Mem(e', Field(fid, NoOffset), lu), fid.ftype)
         | _ -> E.s (E.unimp "expecting a pointer to a struct")
@@ -942,8 +968,8 @@ and doLval (e : A.expression) : (stmt list * lval * typ) =
       let (se, lv, t') = doLval e in
       let fid = 
         match unrollType t' with
-          TStruct (n, fil, _, _) -> findField str fil
-        | TUnion (n, fil, _, _) -> findField str fil
+          TStruct (n, fil, _) -> findField str fil
+        | TUnion (n, fil, _) -> findField str fil
         | _ -> E.s (E.unimp "expecting a struct with field %s" str)
       in
       let lv' = addOffset (Field(fid, NoOffset)) lv in
@@ -960,7 +986,7 @@ and doLval (e : A.expression) : (stmt list * lval * typ) =
       in
       (se, Mem(e', NoOffset, lu), t')
 
-  | A.INDEX (e1, e2) -> 
+  | A.INDEX (e1, e2) -> begin
       let (se1, lv1', t1') = doLval e1 in
       let (se2, e2', t2') = doExp e2 (AExp None) in
       let (_, e2'') = castTo t2' intType e2' in
@@ -972,7 +998,7 @@ and doLval (e : A.expression) : (stmt list * lval * typ) =
                       d_type t1' d_lval lv1' d_exp e2')
       in
       (se1 @ se2, addOffset (Index(e2'', NoOffset)) lv1', tres)
-
+  end
   | A.CAST (bt, e) -> 
       let t = doType [] bt in
       let (se, lv, t1) = doLval e in
@@ -1020,6 +1046,8 @@ and doCondition (e: A.expression)
       let sf' = doCondition e2 st2 sf in
       doCondition e1 st' sf'
 
+  | A.UNARY(A.NOT, e) -> doCondition e sf st
+
   | _ -> begin
       let (se, e, t) as rese = doExp e (AExp None) in
       ignore (checkBool t e);
@@ -1040,7 +1068,7 @@ and checkTypeAdd t1 t2 =
   | TFloat _, TFloat _ -> t1
   | TFloat _, TInt _ -> t1
   | TInt _, TFloat _ -> t2
-  | _ -> E.s (E.unimp "checkTypeAdd")
+  | _ -> E.s (E.unimp "checkTypeAdd %a + %a\n" d_type t1 d_type t2)
 
 
 and doPureExp (e : A.expression) : exp = 
@@ -1061,9 +1089,9 @@ and doDecl : A.definition -> stmt list = function
           [Skip]
         else
           let (se, e', et) = doExp e (AExp (Some vi.vtype)) in
-          (match et with (* We have a length now *)
-            TArray(_, Some _, _) -> vi'.vtype <- et
-          | _ -> ());
+          (match vi'.vtype, et with (* We have a length now *)
+            TArray(_,None, _), TArray(_, Some _, _) -> vi'.vtype <- et
+          | _, _ -> ());
           let (_, e'') = castTo et vi'.vtype e' in
           se @ [assign vi' e'']
       in
@@ -1134,7 +1162,7 @@ and doBody (decls, s) : stmt list =
       | A.RETURN e -> 
           let (se, e', et) = doExp e (AExp None) in
           let (et'', e'') = castTo et (!currentReturnType) e' in
-          se @ [Return (Some e')]
+          se @ [Return (Some e'')]
                  
       | A.SWITCH (e, s) -> 
           let (se, e', et) = doExp e (AExp None) in
@@ -1234,7 +1262,7 @@ let convFile dl =
           try
             let newTyp = doType (List.map doAttr a) nbt in
           (* Register the type *)
-            recordType n newTyp;
+            recordTypeName n newTyp;
             theFile := GType (n, newTyp) :: !theFile
           with e -> begin
             ignore (E.log "Error on A.TYPEDEF (%s)\n"
@@ -1313,7 +1341,7 @@ let convFile dl =
             (* Add the function itself to the environment. Just in case we 
              * have recursion and no prototype.  *)
             (* Make a variable out of it and put it in the environment *)
-            let thisFunction = 
+            let thisFunctionVI = 
               { vname = n;
                 vtype = ftype;
                 vglob = true;
@@ -1324,23 +1352,20 @@ let convFile dl =
                 vstorage = fstorage;
               } 
             in
-            ignore (addNewVar thisFunction);
+            ignore (addNewVar thisFunctionVI);
             (* Now do the body *)
             let s = doBody body in
             (* Finish everything *)
             endBlock ();
             (* Now add the function to the environment again. This time it 
              * will go into the global environment  *)
-            ignore (addNewVar thisFunction);
+            ignore (addNewVar thisFunctionVI);
             let (nrlocals, locals) = getLocals () in
-            let fdec = { sname    = n;
+            let fdec = { svar      = thisFunctionVI;
                          slocals  = locals;
                          smaxid   = nrlocals;
                          sbody    = (match mkSeq s with (Sequence _) as x -> x 
                                      | x -> Sequence [x]);
-                         sstorage = fstorage;
-                         sattr    = fattr;
-                         stype    = ftype;
                        } 
             in
             (* Fix the vaddrof flag *)

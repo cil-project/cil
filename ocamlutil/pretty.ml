@@ -359,7 +359,7 @@ let fit start accString width =
 
 
 let fprint chn width doc = 
-  fit () (fun _ s -> output_string chn s) width doc
+  fit () (fun _ s -> output_string chn s; flush chn) width doc
 
 let sprint width doc =
   fit "" (fun acc s -> acc ^ s) width doc
@@ -374,7 +374,7 @@ external format_float: string -> float -> string = "format_float"
 (* Keep track of nested align in gprintf. Each gprintf format string must 
  * have properly nested align/unalign pairs. When the nesting depth surpasses 
  * !printDepth then we print ... and we skip until the matching unalign *)
-let printDepth = ref 100 (* WRW: must see whole proof! *)
+let printDepth = ref 100 (* WRW: must see whole thing *)
 let alignDepth = ref 0
     
 let gprintf (finish : doc -> doc)  
@@ -414,7 +414,7 @@ let gprintf (finish : doc -> doc)
     in
     skipChars (succ i)
                                         (* the main collection function *)
-  and collect (acc : doc) i = 
+  and collect (acc: doc) (i: int) = 
     if i >= flen then Obj.magic (dfinish acc) else begin
       let c = fget i in
       if c = '%' then begin

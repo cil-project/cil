@@ -172,7 +172,7 @@ let apply_qual ((t1, q1) : base_type * modifier list)
     ((t2, q2) : base_type * modifier list)
     : base_type * modifier list =
   ((if t1 = NO_TYPE then t2 else
-  if t2 = NO_TYPE then t1 else  raise BadModifier),
+    if t2 = NO_TYPE then t1 else  raise BadModifier),
    List.append q1 q2)
 %}
 
@@ -263,6 +263,7 @@ let apply_qual ((t1, q1) : base_type * modifier list)
 %type <Cabs.expression> expression init_expression opt_expression
 %type <Cabs.expression list> comma_expression init_comma_expression
 %type <Cabs.single_name list * bool> parameters
+%type <string * Cabs.base_type> param_dec
 %type <string> string_list
 
 
@@ -704,10 +705,10 @@ param_dec:
 |   param_dec LBRACKET comma_expression RBRACKET
 			{(fst $1, set_type (ARRAY (NO_TYPE, 
                                                    smooth_expression $3)) 
-                            (snd $1))}
+                          (snd $1))}
 |   param_dec LBRACKET RBRACKET
 			{(fst $1, set_type (ARRAY (NO_TYPE, NOTHING)) 
-                            (snd $1))}
+                              (snd $1))}
 |   LPAREN param_dec RPAREN LPAREN parameters RPAREN
 			{(fst $2, set_type (PROTO (NO_TYPE, fst $5, snd $5)) 
                             (snd $2))}
