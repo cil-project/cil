@@ -1134,6 +1134,23 @@ let wcharType = ref voidType
 (* An integer type that is the type of sizeof. Initialized by initCIL *)
 let typeOfSizeOf = ref voidType
 
+(** Returns true if and only if the given integer type is signed. *)
+let isSigned = function
+  | IUChar
+  | IUShort
+  | IUInt
+  | IULong
+  | IULongLong ->
+      false
+  | ISChar
+  | IShort
+  | IInt
+  | ILong
+  | ILongLong ->
+      true
+  | IChar ->
+      not !theMachine.M.char_is_unsigned
+
 let mkStmt (sk: stmtkind) : stmt = 
   { skind = sk;
     labels = [];
@@ -4505,11 +4522,7 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
         | _ -> E.s (bug "constFoldBinOp")
       in
       (* See if the result is unsigned *)
-      let isunsigned = function
-          (IUInt | IUChar | IUShort | IULong | IULongLong) -> true
-        | IChar -> !theMachine.M.char_is_unsigned
-        | _ -> false
-      in
+      let isunsigned typ = not (isSigned typ) in
       let ge (unsigned: bool) (i1: int64) (i2: int64) : bool = 
         if unsigned then 
           let l1 = Int64.shift_right_logical i1 1 in

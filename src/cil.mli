@@ -1108,6 +1108,8 @@ val upointType: typ ref
  * {!Cil.msvcMode} and is set when you call {!Cil.initCIL}.  *)
 val typeOfSizeOf: typ ref
 
+(** Returns true if and only if the given integer type is signed. *)
+val isSigned: ikind -> bool
 
 (** Creates a a (potentially recursive) composite type. The arguments are: 
     (1) a boolean indicating whether it is a struct or a union, (2) the name 
