@@ -1,3 +1,7 @@
+extern void exit(int);
+extern void abort(void);
+
+
 // Fron ctorture
 typedef enum foo E;
 enum foo { e0, e1 };
