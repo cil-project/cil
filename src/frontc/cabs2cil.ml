@@ -1319,8 +1319,11 @@ and doAttr (a: A.attribute) : attribute list =
         | A.CONSTANT (A.CONST_INT str) -> AInt (int_of_string str)
         | A.CALL(A.VARIABLE n, args) -> 
             ACons ((if strip then stripUnderscore n else n), 
-                   List.map (attrOfExp false) args)
+                   List.map ae args)
+        | A.EXPR_SIZEOF e -> ASizeOfE (ae e)
+        | A.TYPE_SIZEOF (bt, dt) -> ASizeOf (doOnlyType bt dt)
         | _ -> E.s (error "Invalid expression in attribute")
+      and ae (e: A.expression) = attrOfExp false e
       in
       (* Sometimes we need to convert attrarg into attr *)
       let arg2attr = function

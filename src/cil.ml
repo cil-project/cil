@@ -211,9 +211,13 @@ and attribute = Attr of string * attrarg list
 and attrarg = 
     AId of string                      
   | AInt of int
-  | AStr of string 
+  | AStr of string  
   | AVar of varinfo
   | ACons of string * attrarg list       (* Constructed attributes *)
+  | ASizeOf of typ                      (* A way to talk about types *)
+  | ASizeOfE of attrarg
+  | AUnOp of unop * attrarg
+  | ABinOp of binop * attrarg * attrarg
 
 (* literal constants *)
 and constant =
@@ -1630,6 +1634,27 @@ and d_attrarg () = function
       text (s ^ "(")
         ++ (docList (chr ',') (d_attrarg ()) () al)
         ++ text ")"
+  | ASizeOfE a -> text "sizeof(" ++ d_attrarg () a ++ text ")"
+  | ASizeOf t -> text "sizeof(" ++ d_type () t ++ text ")"
+  | AUnOp(u,a1) -> 
+      let d_unop () u =
+        match u with
+          Neg -> text "-"
+        | BNot -> text "~"
+        | LNot -> text "!"
+      in
+      (d_unop () u) ++ text " (" ++ (d_attrarg () a1) ++ text ")"
+
+  | ABinOp(b,a1,a2) -> 
+      align 
+        ++ text "(" 
+        ++ (d_attrarg () a1)
+        ++ text ") "
+        ++ (d_binop () b)
+        ++ break 
+        ++ text " (" ++ (d_attrarg () a2) ++ text ") "
+        ++ unalign
+      
           
 and d_attrlistgen (block: bool) (pre: bool) () al = 
                     (* Whether it comes before or after stuff *)

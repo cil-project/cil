@@ -219,6 +219,11 @@ and attrarg =
   | AStr of string 
   | AVar of varinfo
   | ACons of string * attrarg list       (* Constructed attributes *)
+  | ASizeOf of typ                      (* A way to talk about types *)
+  | ASizeOfE of attrarg
+  | AUnOp of unop * attrarg
+  | ABinOp of binop * attrarg * attrarg
+
 
 (* literal constants *)
 and constant =

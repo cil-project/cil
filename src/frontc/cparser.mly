@@ -916,7 +916,42 @@ attr:
                                             * attribute lists, is translated 
                                             * to aconst *)*/
 |   CONST                                { VARIABLE "aconst" }
+|   SIZEOF expression                     {EXPR_SIZEOF $2}
+|   SIZEOF LPAREN type_name RPAREN
+		                         {let b, d = $3 in TYPE_SIZEOF (b, d)}
+|   ALIGNOF expression                   {EXPR_ALIGNOF $2}
+|   ALIGNOF LPAREN type_name RPAREN      {let b, d = $3 in TYPE_ALIGNOF (b, d)}
+|   PLUS expression    	                 {UNARY (PLUS, $2)}
+|   MINUS expression 		        {UNARY (MINUS, $2)}
+|   STAR expression		        {UNARY (MEMOF, $2)}
+|   AND expression				%prec ADDROF
+	                                {UNARY (ADDROF, $2)}
+|   EXCLAM expression		        {UNARY (NOT, $2)}
+|   TILDE expression		        {UNARY (BNOT, $2)}
+|   attr PLUS attr                      {BINARY(ADD ,$1 , $3)} 
+|   attr MINUS attr                     {BINARY(SUB ,$1 , $3)}
+|   attr STAR expression                {BINARY(MUL ,$1 , $3)}
+|   attr SLASH attr			{BINARY(DIV ,$1 , $3)}
+|   attr PERCENT attr			{BINARY(MOD ,$1 , $3)}
+|   attr AND_AND attr			{BINARY(AND ,$1 , $3)}
+|   attr PIPE_PIPE attr			{BINARY(OR ,$1 , $3)}
+|   attr AND attr			{BINARY(BAND ,$1 , $3)}
+|   attr PIPE attr			{BINARY(BOR ,$1 , $3)}
+|   attr CIRC attr			{BINARY(XOR ,$1 , $3)}
+|   attr EQ_EQ attr			{BINARY(EQ ,$1 , $3)}
+|   attr EXCLAM_EQ attr			{BINARY(NE ,$1 , $3)}
+|   attr INF attr			{BINARY(LT ,$1 , $3)}
+|   attr SUP attr			{BINARY(GT ,$1 , $3)}
+|   attr INF_EQ attr			{BINARY(LE ,$1 , $3)}
+|   attr SUP_EQ attr			{BINARY(GE ,$1 , $3)}
+|   attr INF_INF attr			{BINARY(SHL ,$1 , $3)}
+|   attr SUP_SUP attr			{BINARY(SHR ,$1 , $3)}
 ;
+attr_exp:
+|   expression ARROW id_or_typename     {MEMBEROFPTR ($1, $3)} 
+|   expression DOT id_or_typename       {MEMBEROF ($1, $3)}  
+;
+
 attr_list_ne:
 |  attr                                  { [$1] }
 |  attr COMMA attr_list_ne               { $1 :: $3 }

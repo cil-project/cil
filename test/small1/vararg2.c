@@ -7,7 +7,8 @@
 
 #include <stdio.h>
 #include <stdarg.h>
-int average( int first, ... );
+#include <varargs.h>
+int average( va_list );
 #include "testharness.h"
 
 int main( void )
@@ -20,25 +21,18 @@ int main( void )
    SUCCESS;
 }
 
-union vararg_average {
-  int ints;                   /* We only pass ints to this one */
-};
-
-#pragma boxvararg("average", sizeof(union vararg_average))
-
 /* Returns the average of a variable list of integers. */
-int average( int first, ... )
+int average( va_alist )
+va_dcl
 {
-   int count = 0, sum = 0, i = first;
+   int i, count, sum;
    va_list marker;
 
-   va_start( marker, first );     /* Initialize variable arguments. */
-   while( i != -1 )
-   {
+   va_start( marker );            /* Initialize variable arguments. */
+   for( sum = count = 0; (i = va_arg( marker, int)) != -1; count++ )
       sum += i;
-      count++;
-      i = va_arg( marker, int);
-   }
    va_end( marker );              /* Reset variable arguments.      */
    return( sum ? (sum / count) : 0 );
 }
+
+
