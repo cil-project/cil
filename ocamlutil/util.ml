@@ -185,6 +185,15 @@ let list_init (len : int) (init_fun : int -> 'a) : 'a list =
 ;;
 
 
+let rec list_find_first (l: 'a list) (f: 'a -> 'b option) : 'b option = 
+  match l with 
+    [] -> None
+  | h :: t -> begin
+      match f h with 
+        None -> list_find_first t f
+      | r -> r
+  end
+  
 (** Generates the range of integers starting with a and ending with b *)
 let int_range_list (a: int) (b: int) = 
   list_init (b - a + 1) (fun i -> a + i)

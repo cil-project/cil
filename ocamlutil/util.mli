@@ -47,6 +47,8 @@ val int_range_list : int -> int -> int list
 (* Create a list of length l *)
 val list_init : int -> (int -> 'a) -> 'a list
 
+(** Find the first element in a list that returns Some *)
+val list_find_first: 'a list -> ('a -> 'b option) -> 'b option 
 
 (** mapNoCopy is like map but avoid copying the list if the function does not 
  * change the elements *)
