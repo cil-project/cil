@@ -313,14 +313,15 @@ let inlineBodies : (P.doc, varinfo node) H.t = H.create 111
 
 (** A number of alpha conversion tables. We ought to keep one table for each 
  * name space. Unfortunately, because of the way the C lexer works, type 
- * names must be different from any other names!! We use only vAlpha. *)
-let vAlpha : (string, alphaTableData ref) H.t = H.create 57 (* Variables *)
+ * names must be different from variable names!! We one alpha table both for 
+ * variables and types. *)
+let vtAlpha : (string, alphaTableData ref) H.t = H.create 57 (* Variables and 
+                                                             * types *)
 let sAlpha : (string, alphaTableData ref) H.t = H.create 57 (* Structures and 
                                                              * unions have 
                                                              * the same name 
                                                              * space *)
 let eAlpha : (string, alphaTableData ref) H.t = H.create 57 (* Enumerations *)
-let tAlpha : (string, alphaTableData ref) H.t = H.create 57 (* Type names *)
 
 
 (** Keep track, for all global function definitions, of the names of the formal 
@@ -369,10 +370,9 @@ let originalVarNames: (string, string) H.t = H.create 113
 
 (* Initialize the module *)
 let init () = 
-  H.clear tAlpha;
   H.clear sAlpha;
   H.clear eAlpha;
-  H.clear vAlpha;
+  H.clear vtAlpha;
 
   H.clear vEnv;
 
@@ -765,7 +765,7 @@ let rec oneFilePass1 (f:file) : unit =
    * with the same name have been encountered before and we merge those types 
    * *)
   let matchVarinfo (vi: varinfo) (l: location * int) = 
-    ignore (registerAlphaName vAlpha None vi.vname);
+    ignore (registerAlphaName vtAlpha None vi.vname);
     (* Make a node for it and put it in vEq *)
     let vinode = mkSelfNode vEq vSyn !currentFidx vi.vname vi (Some l) in
     try
@@ -1296,7 +1296,7 @@ let oneFilePass2 (f: file) =
       else begin
         (* Maybe it is static. Rename it then *)
         if vi.vstorage = Static then begin
-          let newName, _ = newAlphaName vAlpha None vi.vname in
+          let newName, _ = newAlphaName vtAlpha None vi.vname in
           (* Remember the original name *)
           H.add originalVarNames newName vi.vname;
           if debugMerge then ignore (E.log "renaming %s at %a to %s\n"
@@ -1558,7 +1558,7 @@ let oneFilePass2 (f: file) =
                   E.s (bug "Setting creferenced for struct %s(%d) which is not in the sEq!\n"
                          ci.cname !currentFidx);
                 end);
-                let newname, _ = newAlphaName (if false then sAlpha else vAlpha) None ci.cname in
+                let newname, _ = newAlphaName sAlpha None ci.cname in
                 ci.cname <- newname;
                 ci.creferenced <- true; 
                 ci.ckey <- H.hash (compFullName ci);
@@ -1581,7 +1581,7 @@ let oneFilePass2 (f: file) =
           else begin
             match findReplacement true eEq !currentFidx ei.ename with 
               None -> (* We must rename it *)
-                let newname, _ = newAlphaName (if false then eAlpha else vAlpha) None ei.ename in
+                let newname, _ = newAlphaName eAlpha None ei.ename in
                 ei.ename <- newname;
                 ei.ereferenced <- true;
                 (* And we must rename the items to using the same name space 
@@ -1589,7 +1589,7 @@ let oneFilePass2 (f: file) =
                 ei.eitems <- 
                    List.map
                      (fun (n, i, loc) -> 
-                       let newname, _ = newAlphaName vAlpha None n in
+                       let newname, _ = newAlphaName vtAlpha None n in
                        newname, i, loc)
                      ei.eitems;
                 mergePushGlobals (visitCilGlobal renameVisitor g);
@@ -1629,7 +1629,7 @@ let oneFilePass2 (f: file) =
           else begin
             match findReplacement true tEq !currentFidx ti.tname with 
               None -> (* We must rename it and keep it *)
-                let newname, _ = newAlphaName (if false then tAlpha else vAlpha) None ti.tname in
+                let newname, _ = newAlphaName vtAlpha None ti.tname in
                 ti.tname <- newname;
                 ti.treferenced <- true;
                 mergePushGlobals (visitCilGlobal renameVisitor g);
