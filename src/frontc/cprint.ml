@@ -65,103 +65,94 @@ let flush _ =
 	end
 
 let commit _ =
-	if !current <> "" then begin
-		if !line = "" then begin
-			line := !current;
-			line_len := !current_len
-		end else begin
-			line := (!line ^ " " ^ !current);
-			line_len := !line_len + 1 + !current_len
-		end;
-		current := "";
-		current_len := 0
-	end
+  if !current <> "" then begin
+    if !line = "" then begin
+      line := !current;
+      line_len := !current_len
+    end else begin
+      line := (!line ^ " " ^ !current);
+      line_len := !line_len + 1 + !current_len
+    end;
+    current := "";
+    current_len := 0
+  end
 
 
 let addline () =
-	curLoc := {lineno = !curLoc.lineno+1;
-                   filename = !curLoc.filename}
-
-
+  curLoc := {lineno = !curLoc.lineno+1;
+              filename = !curLoc.filename}
+       
+       
 let new_line _ =
-	commit ();
-	if !line <> "" then begin
-		flush ();
-		addline();
-		output_char !out '\n'
-	end;
-	follow := 0
-
+  commit ();
+  if !line <> "" then begin
+    flush ();
+    addline();
+    output_char !out '\n'
+  end;
+  follow := 0
+       
 let force_new_line _ =
-	commit ();
-	flush ();
-	addline();
-	output_char !out '\n';
-	follow := 0
-
+  commit ();
+  flush ();
+  addline();
+  output_char !out '\n';
+  follow := 0
+       
 let indent _ =
-	new_line ();
-	spaces := !spaces + !tab;
-	if !spaces >= !max_indent then begin
-		spaces := !tab;
-		roll := !roll + 1
-	end
-
+  new_line ();
+  spaces := !spaces + !tab;
+  if !spaces >= !max_indent then begin
+    spaces := !tab;
+    roll := !roll + 1
+  end
+      
 let indentline _ =
-	new_line ();
-	if !spaces >= !max_indent then begin
-		spaces := !tab;
-		roll := !roll + 1
-	end
-
+  new_line ();
+  if !spaces >= !max_indent then begin
+    spaces := !tab;
+    roll := !roll + 1
+  end
+      
 let unindent _ =
-	new_line ();
-	spaces := !spaces - !tab;
-	if (!spaces <= 0) && (!roll > 0) then begin
-		spaces := ((!max_indent - 1) / !tab) * !tab;
-		roll := !roll - 1
-	end
-
+  new_line ();
+  spaces := !spaces - !tab;
+  if (!spaces <= 0) && (!roll > 0) then begin
+    spaces := ((!max_indent - 1) / !tab) * !tab;
+    roll := !roll - 1
+  end
+      
 let space _ = commit ()
 
 let print str =
-	current := !current ^ str;
-	current_len := !current_len + (String.length str);
-	if (!spaces + !follow + !line_len + 1 + !current_len) > !width
-	then begin
-		if !line_len = 0 then commit ();
-		flush ();
-		addline();
-		output_char !out '\n';
-		if !follow = 0 then follow := !tab
-	end
+  current := !current ^ str;
+  current_len := !current_len + (String.length str);
+  if (!spaces + !follow + !line_len + 1 + !current_len) > !width
+  then begin
+    if !line_len = 0 then commit ();
+    flush ();
+    addline();
+    output_char !out '\n';
+    if !follow = 0 then follow := !tab
+  end
 
 let setLoc (l : cabsloc) =
-	let tempcur = current in
-	if (l.filename <> !curLoc.filename) && !printLines then begin
-		spaces := 0;
-		new_line();
-	        print "#";
-	        if !msvcMode then print "line";
-	        print " ";
-                print (string_of_int l.lineno);
-                print " \"";
-                print l.filename;
-                print "\"";
-                new_line();
-	        curLoc := l
-	end
-        else if (l.lineno <> !curLoc.lineno) && !printLines then begin
-        	(*spaces := !tab;
-        	unindent();*)
-        	if (!spaces = 0) then print "#"
-                else print "\n#";
-		if !msvcMode then print "line";
-		print " ";
-                print (string_of_int l.lineno);
-                indentline();
-                curLoc := l
-	end
+  let tempcur = current in
+  if !printLines then 
+    if (l.lineno <> !curLoc.lineno) || l.filename <> !curLoc.filename then 
+      begin
+        spaces := 0;
+        new_line();
+        print "#";
+        if !msvcMode then print "line";
+        print " ";
+        print (string_of_int l.lineno);
+        if (l.filename <> !curLoc.filename) then begin
+          print (" \"" ^ l.filename ^ "\"")
+        end;
+        new_line();
+        curLoc := l
+      end
 
 
 

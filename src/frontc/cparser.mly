@@ -21,7 +21,8 @@ let getCurLn () : int = !Clexer.currentLine
 let getCurFn () : string =
         (Clexer.file_name !Clexer.current_handle)
 *)
-let currentLoc () = {lineno = !Clexer.currentLine; filename = !Clexer.currentFile;}
+let currentLoc () = { lineno = !Clexer.currentLine; 
+                      filename = !Clexer.currentFile;}
 
 
 (*

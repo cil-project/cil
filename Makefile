@@ -487,6 +487,7 @@ endif
 pcc : defaulttarget
 	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.o
 	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.exe
+	-rm $(PCCDIR)/bin/*.exe
 	make -C $(PCCDIR) \
              CC="$(SAFECC) --combine --keep=$(CILDIR)/test/PCCout $(CONLY)" \
              LD="$(SAFECC) $(MSLINK) --combine --keep=$(CILDIR)/test/PCCout" \
@@ -495,6 +496,12 @@ pcc : defaulttarget
              ENGINE_OTHERS="$(CILDIR)/$(SAFECLIB) $(CILDIR)/$(SAFEMAINLIB)" \
              TRANSLF_OTHERS="$(CILDIR)/$(SAFECLIB) $(CILDIR)/$(SAFEMAINLIB)" \
 	     clean defaulttarget 
+
+pcc-combined: defaulttarget
+	cd $(PCCDIR)/bin; \
+          $(SAFECC) engine.$(ARCHOS)$(PCCCOMP).$(PCCTYPE).exe_all.c \
+              $(EXEOUT)engine.$(ARCHOS)$(PCCCOMP).$(PCCTYPE).exe
+
 
 pccclean :
 	make -C $(PCCDIR) clean

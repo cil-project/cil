@@ -355,14 +355,16 @@ and hash = parse
 | "pragma"      { PRAGMA }
 | _	        { endline lexbuf}
 
-and file =
-	parse 
+and file =  parse 
         '\n'		        {newline (); initial lexbuf}
 |	blank			{file lexbuf}
-|	'"' [^ '"']* '"' 	{ (* '"' *)
+|	'"' [^ '\012' '\t' '"']* '"' 	{ (* '"' *)
                                  currentFile := 
                                     (rem_quotes (Lexing.lexeme lexbuf));
-				 endline lexbuf}
+(*
+                                 print_string ("Found "^ !currentFile ^".\n");
+
+*)				 endline lexbuf}
 |	_			{endline lexbuf}
 
 and endline = parse 

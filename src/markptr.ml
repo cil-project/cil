@@ -508,10 +508,14 @@ and expToType (e,et,en) t (callid: int) : exp =
       e
     
 and doExpAndCast e t = 
-  expToType (doExp e) t (-1)
+  (* Get rid of cascades of casts of 0 *)
+  let e' = if isZero e then zero else e in
+  expToType (doExp e') t (-1)
 
 and doExpAndCastCall e t callid = 
-  expToType (doExp e) t callid
+  (* Get rid of cascades of casts of 0 *)
+  let e' = if isZero e then zero else e in
+  expToType (doExp e') t callid
 
 
 

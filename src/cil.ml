@@ -1161,9 +1161,15 @@ let rec d_decl (docName: unit -> doc) (dnwhat: docNameWhat) () this =
 and d_type () t = 
   let fixthem (ta: attribute list) = 
     List.filter 
-      (fun (Attr(an, _)) -> 
+      (fun a -> 
+        match !d_attrcustom a with
+          Some _ -> true
+        | _ -> false)
+(*
+(Attr(an, _)) -> 
         match an with 
           "const" | "volatile" -> true | _ -> false)
+*)
       ta
   in
   let fixattrs = function
