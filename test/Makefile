@@ -748,7 +748,7 @@ badd/%: $(TESTDIR)/bad/%.c $(TARGET_DEP)
 	cd $(TESTDIR)/bad; $(CC) $(CONLY) $(WARNALL) $*.c
 	@true "first try the succeed case"
 	cd $(TESTDIR)/bad; $(CCURED) --nomerge --keep=. \
-                 -g $(CFLAGS) $(WARNALL) $(NOPRINTLN) \
+                 -g $(CFLAGS) -fno-inline-functions $(WARNALL) $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*.exe
 	echo $(TESTDIR)/bad/$*.exe
@@ -759,7 +759,7 @@ badd/%: $(TESTDIR)/bad/%.c $(TARGET_DEP)
 	fi
 	@true "now try the failure case"
 	cd $(TESTDIR)/bad; $(CCURED) --nomerge --keep=. \
-                 $(CFLAGS) $(WARNALL) $(NOPRINTLN) -DFAIL \
+                 $(CFLAGS) -fno-inline-functions $(WARNALL) $(NOPRINTLN) -DFAIL \
                  $*.c \
                  $(EXEOUT)$*.exe
 	echo $(TESTDIR)/bad/$*.exe
