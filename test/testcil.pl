@@ -675,6 +675,7 @@ smAddTest("scott/qsort_wild $box");
 smAddTest("scott/regparm0 $gcc");         # this works, unfortunately..
 smAddTest("scott/unscomp");               # kernel/fs/buffer.c
 smAddTest("scott/suppress_optim $box");
+smAddTest("scott/suppress_optim $wildbox");
 
 # current problematic test cases
 smAddTest("scott/complex_float $box");

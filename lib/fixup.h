@@ -149,7 +149,8 @@ extern long double __builtin_fabsl(long double);
   // which simply ignores them
   //void __suppress_optim_on_vars_in_try(void *foo, ...);
   union suppress_optim_format {
-    void *anyPtr;
+    void *voidPtr;
+    char *charPtr;
   };
   #pragma boxvararg("__suppress_optim_on_vars_in_try",
                     sizeof(union suppress_optim_format))
