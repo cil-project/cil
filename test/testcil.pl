@@ -163,7 +163,7 @@ $TEST->add3Tests("bh", "_GNUCC=1");
 
 $TEST->add3Tests("power", "_GNUCC=1");
    $TEST->add3Group("power", "olden");
-   $TEST->addBadComment("power-box", "Bug in BOX");
+#   $TEST->addBadComment("power-box", "Bug in BOX");
 
 $TEST->add3Tests("health", "_GNUCC=1");
    $TEST->add3Group("health", "olden");
@@ -195,7 +195,7 @@ $TEST->add3Tests("go", "_GNUCC=1");
 
 $TEST->add2Tests("ijpeg", "_GNUCC=1");
   $TEST->add2Group("ijpeg", "slow");
-  $TEST->addBadComment("ijpeg-cil", "EOF / read error?? (only on Win)");
+#  $TEST->addBadComment("ijpeg-cil", "EOF / read error?? (only on Win)");
   $TEST->addBadComment("ijpeg-inferbox", "missing wrappers");
 
 $TEST->add2Tests("vortex", "_GNUCC=1");
