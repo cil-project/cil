@@ -18,6 +18,7 @@ result=0
 handler() {
   # this signal means the underlying command exit erroneously,
   # though we don't know the code
+  echo "The command failed!"
   result=2
 }
 trap handler SIGUSR1
