@@ -67,13 +67,13 @@ let anticompare a b = compare b a
 
 
 let rec list_drop (n : int) (xs : 'a list) : 'a list =
-  if n < 0
-  then invalid_arg "Util.list_drop"
-  else if n = 0
-  then xs
-  else begin match xs with
-  | [] -> invalid_arg "Util.list_drop"
-  | y::ys -> list_drop (n-1) ys
+  if n < 0 then invalid_arg "Util.list_drop";
+  if n = 0 then 
+    xs
+  else begin 
+    match xs with
+    | [] -> invalid_arg "Util.list_drop"
+    | y::ys -> list_drop (n-1) ys
   end
 
 
@@ -218,3 +218,8 @@ let newGrowArray (initsz: int) (fill: 'a growArrayFill) : 'a growArray =
 
 let copyGrowArray (ga: 'a growArray) : 'a growArray = 
   { ga with gaData = Array.copy ga.gaData } 
+
+let hasPrefix (prefix: string) (what: string) : bool = 
+  let pl = String.length prefix in
+  try String.sub what 0 pl = prefix 
+  with Invalid_argument _ -> false
