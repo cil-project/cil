@@ -12,7 +12,7 @@ OBJDIR      = obj
 MLLS        = 
 MLYS        = 
 # ast clex cparse
-MODULES     = pretty errormsg stats cil box
+MODULES     = pretty errormsg stats cil check box
 EXECUTABLE  = $(OBJDIR)/spec
 CAMLUSEUNIX = 1
 ifdef RELEASE
