@@ -101,6 +101,7 @@ quickbuild: cilversion machdep cilly
 setup: cilversion machdep
 	$(MAKE) -f Makefile.cil cilly NATIVECAML= 
 	$(MAKE) -f Makefile.cil cilly NATIVECAML=1
+	$(MAKE) -f Makefile.cil cillib NATIVECAML=
 	$(MAKE) -f Makefile.cil cillib NATIVECAML=1
 
 # Create the machine dependency module
@@ -162,16 +163,13 @@ $(OBJDIR)/cilversion.ml: configure.in Makefile.cil.in
 	echo "let cilVersion      = \"@CIL_VERSION@\""  >>$@ 
 
 # build two libraries
-.PHONY: cillib
+.PHONY: cillib libcil
 ifeq ($(NATIVECAML),1)
 cillib: $(OBJDIR)/cil.$(CMXA) $(OBJDIR)/libcil.a
 else
 cillib: $(OBJDIR)/cil.$(CMXA)
 endif
 
-# Test the CIL library
-testcillib:
-	echo "load \"cil.cma\";;" | ocaml -I $(OBJDIR)
 
 
 $(OBJDIR)/feature_config.ml: Makefile.cil.in config.status
@@ -201,8 +199,11 @@ OCAML_CIL_LIB_CMODULES := perfcount
 OCAML_CIL_C_LIB_MODULES := $(CILLY_MODULES:maincil=) libmaincil
 
 # Build an OCAML library (CMA / CMXA) that exports our Cil stuff
-$(OBJDIR)/cil.$(CMXA): $(OCAML_CIL_LIB_CMODULES:%=$(OBJDIR)/lib%.a) $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO)) 
-	$(CAMLLINK) -a -o $@ -ccopt -L$(pkglibdir) $(OCAML_CIL_LIB_CMODULES:%=-cclib -l%) $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
+$(OBJDIR)/cil.$(CMXA): $(OCAML_CIL_LIB_CMODULES:%=$(OBJDIR)/lib%.a) \
+                       $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
+	$(CAMLLINK) -a -o $@ -ccopt -L$(pkglibdir) \
+               $(OCAML_CIL_LIB_CMODULES:%=-cclib -l%) \
+               $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
 
 $(OBJDIR)/libperfcount.a: %: %($(OBJDIR)/perfcount.o)
 	ranlib $@
@@ -211,7 +212,8 @@ $(OBJDIR)/libperfcount.a: %: %($(OBJDIR)/perfcount.o)
 # be called from C code; this is like the target above, except
 # it is callable from C instead of from Ocaml
 ifeq ($(NATIVECAML),1)
-$(OBJDIR)/libcil.a: $(OCAML_CIL_C_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
+$(OBJDIR)/libcil.a: $(OCAML_CIL_LIB_CMODULES:%=$(OBJDIR)/lib%.a) \
+                    $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
 	ocamlopt -output-obj -o $@ unix.cmxa str.cmxa $^
 else
 $(OBJDIR)/libcil.a:
@@ -398,7 +400,7 @@ distrib-nocheck: doc $(DISTRIB_ROOT)
 ## Check a distribution
 checkdistrib:
 	cd $(TOP_DIR) && ./configure && \
-           $(MAKE) && $(MAKE) testcillib && $(MAKE) quicktest
+           $(MAKE) && $(MAKE) quicktest
 
 
 ## Publish the distribution

@@ -1788,7 +1788,7 @@ sub new {
             "^-e\$" => { ONEMORE => 1, TYPE => 'LINK' },
             "^-T\$" => { ONEMORE => 1, TYPE => 'LINK' },
              # GCC defines some more macros if the optimization is On so pass
-             # the -O2 to the preprocessor and the compiler
+             # the -O to the preprocessor and the compiler
             '-O' => { TYPE => 'ALLARGS' },
             "-S" => { RUN => sub { $stub->{OPERATION} = "TOOBJ";
                                    push @{$stub->{CCARGS}}, $_[1]; }},

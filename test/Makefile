@@ -683,7 +683,7 @@ btreetest-optimvariant: mustbegcc
 # ww: a small program that demonstrates a merging problem
 HYPHENODIR = hypheno
 hypheno: mustbegcc
-	cd $(HYPHENODIR) ; make CC="cilly --merge"
+	cd $(HYPHENODIR) ; make CC="@CCUREDHOME@/bin/cilly --merge"
 
 # sm: this is my little test program
 hola: scott/hola

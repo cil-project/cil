@@ -1,6 +1,6 @@
 #include "../small1/testharness.h"
 
-// NUMERRORS 12
+// NUMERRORS 19
 
 enum tags {
   TAG_ZERO = 0,
@@ -23,6 +23,9 @@ struct host {
         __SELECTEDWHEN("tag" == 5)
 #endif         
          ;
+     int *disj __SELECTEDWHEN("tag" == 10 || "tag" == 11);
+     int *conj __SELECTEDWHEN("tag" >= 15 && "tag" <= 17);
+         
   } data;
   int * somethingelse;      
 } g;
@@ -82,8 +85,21 @@ int main() {
   // We can take the address of a non-discriminated field
   px = & g.somethingelse; E(11); // ERROR(11):Error 11
 
+#if ERROR >= 12 && ERROR <= 14
+  g.tag = 10;px = g.data.disj; E(12); // ERROR(12):Error 12
+  g.tag = 11;px = g.data.disj; E(13); // ERROR(13):Error 13
+  g.tag = 12;px = g.data.disj; // ERROR(14):Failure WRONGFIELD
+#endif
+  
+#if ERROR >= 15 && ERROR <= 18
+  g.tag = 10;px = g.data.conj; // ERROR(15):Failure WRONGFIELD
+  g.tag = 15;px = g.data.conj; E(16); // ERROR(16):Error 16
+  g.tag = 16;px = g.data.conj; E(17); // ERROR(17):Error 17
+  g.tag = 18;px = g.data.conj; // ERROR(18):Failure WRONGFIELD
+#endif
+  
   // When we switch tags we clear the pointers
-  g.tag = 1; g.data.ptrint = &x; g.tag = 0; if(! g.data.anint) E(12); // ERROR(12):Error 12
+  g.tag = 1; g.data.ptrint = &x; g.tag = 0; if(! g.data.anint) E(19); // ERROR(19):Error 19
   
   SUCCESS;
 }

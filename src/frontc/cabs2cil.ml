@@ -2235,6 +2235,10 @@ and doAttr (a: A.attribute) : attribute list =
         | A.TYPE_SIZEOF (bt, dt) -> ASizeOf (doOnlyType bt dt)
         | A.EXPR_ALIGNOF e -> AAlignOfE (ae e)
         | A.TYPE_ALIGNOF (bt, dt) -> AAlignOf (doOnlyType bt dt)
+        | A.BINARY(A.AND, aa1, aa2) -> 
+            ABinOp(LAnd, ae aa1, ae aa2)
+        | A.BINARY(A.OR, aa1, aa2) -> 
+            ABinOp(LOr, ae aa1, ae aa2)
         | A.BINARY(abop, aa1, aa2) -> 
             ABinOp (convBinOp abop, ae aa1, ae aa2)
         | A.UNARY(A.PLUS, aa) -> ae aa
@@ -5019,8 +5023,11 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
              * "fall through" for the purposes of this warning.  *)
             let instrFallsThrough (i : instr) = match i with
               Set _ -> true
-            | Call (None, Lval (Var e, NoOffset), _, _) 
-                      when e.vname = "exit" -> false
+            | Call (None, Lval (Var e, NoOffset), _, _) -> 
+                (* See if this is exit, or if it has the noreturn attribute *)
+                if e.vname = "exit" then false 
+                else if hasAttribute "noreturn" e.vattr then false
+                else true
             | Call _ -> true
             | Asm _ -> false
             in 
