@@ -33,10 +33,10 @@ ocamldoc distribution tarball</a>, and build it:
   % tar xvfz $DIST/ocamldoc_08_10_2001.tar.gz
   % cd ocamldoc
   % ln -s $BLD/ocaml ocaml
-  (edit configure.in, need to double-quote $OCAMLVERSION in 3 places)
-  % PATH=$PREFIX/bin:$PATH              # for sh/bash
+  % patch -p1 < $CIL/doc/ocamldoc.patch     # fix configure.in
+  % PATH=$PREFIX/bin:$PATH                  # for sh/bash
       or
-  % set path = ($PREFIX/bin $path)      # for csh/tcsh
+  % set path = ($PREFIX/bin $path)          # for csh/tcsh
   % autoconf
   % ./configure
   % make depend
