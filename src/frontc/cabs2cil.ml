@@ -2008,7 +2008,7 @@ and doInitializer
             | _ ->   
                 (* Recurse and consume some initializers for the purpose of 
                  * initializing one element *)
-                ignore (E.log "Do the array init for %d\n" nextidx);
+(*                ignore (E.log "Do the array init for %d\n" nextidx); *)
                 let acc', ie', _, initl' = doInitializer elt acc initl in
                 (* And continue with the array *)
                 initArray (nextidx + 1) 
@@ -2082,7 +2082,7 @@ and doInitializer
               match nextflds with
                 [] -> E.s (E.unimp "Too many initializers")
               | x :: xs -> 
-                  ignore (E.log "Do the comp init for %s\n" x.fname);
+(*                  ignore (E.log "Do the comp init for %s\n" x.fname); *)
                   xs, x.ftype
             in
              (* Now do the expression. Give it a chance to consume some 

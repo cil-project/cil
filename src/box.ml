@@ -2673,7 +2673,13 @@ let fixupGlobName vi =
       vi.vname <- newname
     end
 
-
+(*** Intercept some function calls *****)
+let interceptCall 
+    (reso: (varinfo * bool) option)
+    (func: exp)
+    (args: exp list) : stmt = 
+  call reso func args
+                 
 
 
     (************* STATEMENTS **************)
@@ -2842,13 +2848,13 @@ and boxinstr (ins: instr) : stmt list =
                   let iscast = typeSigBox(ftret) <> typeSigBox vi1.vtype in
                   if somecomp && iscast then 
                     let tmp = makeTempVar !currentFunction ftret in
-                    call (Some(tmp,false)) f' args' ::
+                    interceptCall (Some(tmp,false)) f' args' ::
                     (* Use boxinstr to do the proper cast and the proper 
                      * checks *)
                     boxinstr (Set((Var vi1, NoOffset), 
                                   Lval (var tmp), l)) @ setvi1
                   else
-                    call (Some(vi1,iscast)) f' args' :: setvi1
+                    interceptCall (Some(vi1,iscast)) f' args' :: setvi1
                                                           
               | Some ai -> (pkAllocate ai vi1 f' args') @ setvi1
           end

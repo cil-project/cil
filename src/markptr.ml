@@ -654,7 +654,8 @@ let isPrintf reso orig_func args = begin
           if i = 0 && v.vname = "sprintf" then begin
             let temp_type = TPtr((TInt(IChar,[])),[]) in
             let cast_arg,t,n = doExp (CastE(temp_type,this_arg)) in
-            n.N.kind <- N.FSeq ;
+            n.N.kind <- N.Safe ;
+            ignore (E.warn "Call to sprintf. Ought to use snprintf\n");
             n.N.why_kind <- N.PrintfArg ;
             new_args := cast_arg :: !new_args;
           end else if i < o then begin 
