@@ -1551,7 +1551,7 @@ sub new {
             "^-T\$" => { ONEMORE => 1, TYPE => 'LINK' },
              # GCC defines some more macros if the optimization is On so pass
              # the -O2 to the preprocessor and the compiler
-            "-O" => { TYPE => "PREPROC" },
+            '-O' => { TYPE => 'ALLARGS' },
             "-S" => { RUN => sub { $stub->{OPERATION} = "TOOBJ";
                                    push @{$stub->{CCARGS}}, $_[1]; }},
             "-o" => { ONEMORE => 1, TYPE => 'OUT' },
@@ -1561,8 +1561,7 @@ sub new {
             "-Wall" => { TYPE => 'CC', 
 			 RUN => sub { push @{$stub->{CILARGS}},"--warnall";}},
             "-W" => { TYPE => 'CC' },
-            "-g" => { RUN => sub { push @{$stub->{CCARGS}}, $_[1];
-                                   push @{$stub->{LINKARGS}}, $_[1]; }},
+            '-g' => { TYPE => 'ALLARGS' },
 	    "-save-temps" => { TYPE => 'ALLARGS',
 			       RUN => sub { $stub->{SAVE_TEMPS} = 1; } },
 	    '-print-' => { TYPE => 'SPECIAL' },
