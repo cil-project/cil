@@ -1616,20 +1616,19 @@ let rec collectInitializer
             
 
 type stackElem = 
-    InArray of offset * typ * int * int ref (* offset of parent, 
-                                              base type, length, current index. If the 
-                                             * array length is unspecified we use 
-                                             * Int.max_int  *)
+    InArray of offset * typ * int * int ref (* offset of parent, base type, 
+                                             * length, current index. If the 
+                                             * array length is unspecified we 
+                                             * use Int.max_int  *)
   | InComp  of offset * compinfo * fieldinfo list (* offset of parent, 
                                                    base comp, current fields *)
     
 
 (* A subobject is given by its address. The address is read from the end of 
  * the list (the bottom of the stack), starting with the current object *)
-type subobj = { mutable stack: stackElem list; (* With each stack 
-                                                           * element we store 
-                                                           * the offset of 
-                                                           * its PARENT *)
+type subobj = { mutable stack: stackElem list; (* With each stack element we 
+                                                * store the offset of its 
+                                                * PARENT  *)
                 mutable eof: bool; (* The stack is empty and we reached the 
                                     * end *)
                 mutable soTyp: typ; (* The type of the subobject. Set using 
@@ -3170,12 +3169,12 @@ and doExp (isconst: bool)    (* In a constant *)
       end
                
           
-    | A.BINARY((A.AND|A.OR), e1, e2) -> begin
+    | A.BINARY((A.AND|A.OR), _, _) | A.UNARY(A.NOT, _) -> begin
         let ce = doCondExp isconst e in
         (* We must normalize the result to 0 or 1 *)
         match ce with
-          CEExp (se, Const(CInt64(i, _, _))) -> 
-            finishExp se (if i = Int64.zero then zero else one) intType
+          CEExp (se, ((Const _) as c)) -> 
+            finishExp se (if isZero c then zero else one) intType
         | CEExp (se, e) ->
             let e' = 
               let te = typeOf e in
@@ -3193,13 +3192,7 @@ and doExp (isconst: bool)    (* In a constant *)
               (Lval tmp)
               intType
     end
-          
-    | A.UNARY(A.NOT, e) -> 
-        let tmp = var (newTempVar intType) in
-        let (se, e', t) as rese = doExp isconst e (AExp None) in
-        ignore (checkBool t e');
-        finishExp se (UnOp(LNot, e', intType)) intType
-          
+
     | A.CALL(f, args) -> 
         if isconst then
           E.s (error "CALL in constant");
