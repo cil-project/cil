@@ -320,8 +320,8 @@ UNIXTESTIT := sh ./testit
 
 OPTIMVARIANT:= $(CC) $(DEF)_$(COMPILERNAME) \
                  $(DEF)CIL \
-                 $(DEF)CCURED \
-                 $(INC)$(CCUREDHOME)/lib \
+                 $(DEF)CCURED $(DEF)RELEASELIB \
+                 $(INC)$(CCUREDHOME)/include \
                  $(OPT_O2)
 
 # use this dependency for those targets that must be built with GCC
@@ -982,7 +982,7 @@ bh-combined:  mustbegcc
 bh-optimvariant.%: mustbegcc
 	cd $(BHDIR); \
            $(OPTIMVARIANT) \
-                 code.exe_combcured.$*.optim.c \
+                 code.exe_comb.$*.optimcured.c \
                  trusted_bh.c -lm \
                  $(CCUREDLIB) \
                  $(EXEOUT)code.exe
