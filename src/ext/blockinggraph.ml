@@ -52,8 +52,10 @@ type node =
 {
   name: string;
   mutable scanned: bool;
+  mutable expand: bool;
   mutable fds: fundec option;
   mutable bkind: blockkind;
+  mutable origkind: blockkind;
   mutable preds: node list;
   mutable succs: node list;
   mutable predstmts: (stmt * node) list;
@@ -68,6 +70,12 @@ type blockpt =
   mutable leadsto: blockpt list;
 }
 
+(* Initialize a node. *)
+let newNode (name: string) : node =
+  { name = name; fds = None; scanned = false; expand = false;
+    bkind = NoBlock; origkind = NoBlock;
+    preds = []; succs = []; predstmts = []; }
+
 (* We add a dummy function whose name is "@@functionPointer@@" that is called 
  * at all invocations of function pointers and itself calls all functions 
  * whose address is taken.  *)
@@ -79,8 +87,7 @@ let getFunctionNode (n: string) : node =
   Util.memoize 
     functionNodes
     n
-    (fun _ -> { name = n; fds = None; scanned = false; bkind = NoBlock;
-                preds = []; succs = []; predstmts = []; })
+    (fun _ -> newNode n)
 
 (* We map types to nodes for function pointers *)
 let functionPtrNodes: (typsig, node) Hashtbl.t = Hashtbl.create 113
@@ -88,8 +95,7 @@ let getFunctionPtrNode (t: typ) : node =
   Util.memoize
     functionPtrNodes
     (typeSig t)
-    (fun _ -> { name = functionPointerName; fds = None; scanned = false;
-                bkind = NoBlock; preds = []; succs = []; predstmts = []; })
+    (fun _ -> newNode functionPointerName)
 
 
 (** Dump the function call graph. *)
@@ -113,7 +119,8 @@ let dumpFunctionCallGraph (start: node) =
       output_string !E.logChannel " <rec> "
     else begin
       n.scanned <- true;
-      List.iter (dumpOneNode (ind + 1)) n.succs
+      List.iter (fun n -> if n.bkind <> EndPoint then dumpOneNode (ind + 1) n)
+                n.succs
     end
   in
   dumpOneNode 0 start;
@@ -171,7 +178,7 @@ let endPt = { id = 0; point = mkEmptyStmt (); callfun = "end"; infun = "end";
 let curId : int ref = ref 1
 let startName : string ref = ref ""
 let blockingPoints : blockpt list ref = ref []
-let blockingPointsNew : blockpt list ref = ref []
+let blockingPointsNew : blockpt Queue.t = Queue.create ()
 let blockingPointsHash : (int, blockpt) Hashtbl.t = Hashtbl.create 113
 
 let getFreshNum () : int =
@@ -188,7 +195,7 @@ let getBlockPt (s: stmt) (cfun: string) (ifun: string) : blockpt =
                 leadsto = []; } in
     Hashtbl.add blockingPointsHash s.sid bpt;
     blockingPoints := bpt :: !blockingPoints;
-    blockingPointsNew := bpt :: !blockingPointsNew;
+    Queue.add bpt blockingPointsNew;
     bpt
 
 
@@ -220,10 +227,10 @@ let addBlockingPointEdge (bptFrom: blockpt) (bptTo: blockpt) : unit =
 
 let findBlockingPointEdges (bpt: blockpt) : unit =
   let seenStmts = Hashtbl.create 117 in
-  let worklist = ref [Next (bpt.point, getFunctionNode bpt.infun)] in
-  while !worklist <> [] do
-    let act = List.hd !worklist in
-    worklist := List.tl !worklist;
+  let worklist = Queue.create () in
+  Queue.add (Next (bpt.point, getFunctionNode bpt.infun)) worklist;
+  while not (Queue.is_empty worklist) do
+    let act = Queue.take worklist in
     match act with
       Process (curStmt, curNode) -> begin
         Hashtbl.add seenStmts curStmt.sid ();
@@ -233,13 +240,13 @@ let findBlockingPointEdges (bpt: blockpt) : unit =
               ignore (E.log "processing node %s\n" node.name);
             match node.bkind with
               NoBlock ->
-                worklist := Next (curStmt, curNode) :: !worklist
+                Queue.add (Next (curStmt, curNode)) worklist
             | BlockTrans -> begin
                 let processFundec (fd: fundec) : unit =
                   let s = List.hd fd.sbody.bstmts in
                   if not (Hashtbl.mem seenStmts s.sid) then
                     let n = getFunctionNode fd.svar.vname in
-                    worklist := Process (s, n) :: !worklist
+                    Queue.add (Process (s, n)) worklist
                 in
                 match node.fds with
                   Some fd ->
@@ -259,29 +266,50 @@ let findBlockingPointEdges (bpt: blockpt) : unit =
                 addBlockingPointEdge bpt endPt
           end
         | _ ->
-            worklist := Next (curStmt, curNode) :: !worklist
+            Queue.add (Next (curStmt, curNode)) worklist
       end
     | Next (curStmt, curNode) -> begin
         match curStmt.Cil.succs with
           [] ->
             if debug then
               ignore (E.log "hit end of %s\n" curNode.name);
-            worklist := Return curNode :: !worklist
+            Queue.add (Return curNode) worklist
         | _ ->
             List.iter (fun s ->
                          if not (Hashtbl.mem seenStmts s.sid) then
-                           worklist := Process (s, curNode) :: !worklist)
+                           Queue.add (Process (s, curNode)) worklist)
                       curStmt.Cil.succs
       end
+    | Return curNode when curNode.bkind = NoBlock ->
+        ()
     | Return curNode when curNode.name = !startName ->
         addBlockingPointEdge bpt endPt
     | Return curNode ->
-        List.iter (fun (s, n) -> worklist := Next (s, n) :: !worklist)
+        List.iter (fun (s, n) -> if n.bkind <> NoBlock then
+                                   Queue.add (Next (s, n)) worklist)
                   curNode.predstmts;
         List.iter (fun n -> if n.fds = None then
-                              worklist := Return n :: !worklist)
+                               Queue.add (Return n) worklist)
                   curNode.preds
   done
+
+let markYieldPoints (n: node) : unit =
+  let rec markNode (n: node) : unit =
+    if n.bkind = NoBlock then
+      match n.origkind with
+        BlockTrans ->
+          if n.expand || n.fds = None then begin
+            n.bkind <- BlockTrans;
+            List.iter markNode n.succs
+          end else begin
+            n.bkind <- BlockPoint
+          end
+      | _ ->
+          n.bkind <- n.origkind
+  in
+  Hashtbl.iter (fun _ n -> n.bkind <- NoBlock) functionNodes;
+  Hashtbl.iter (fun _ n -> n.bkind <- NoBlock) functionPtrNodes;
+  markNode n
 
 let makeBlockingGraph (start: node) =
   let startStmt =
@@ -292,12 +320,11 @@ let makeBlockingGraph (start: node) =
   curId := 1;
   startName := start.name;
   blockingPoints := [endPt];
-  blockingPointsNew := [];
+  Queue.clear blockingPointsNew;
   Hashtbl.clear blockingPointsHash;
-  ignore (getBlockPt startStmt "start" "start");
-  while !blockingPointsNew <> [] do
-    let bpt = List.hd !blockingPointsNew in
-    blockingPointsNew := List.tl !blockingPointsNew;
+  ignore (getBlockPt startStmt start.name start.name);
+  while not (Queue.is_empty blockingPointsNew) do
+    let bpt = Queue.take blockingPointsNew in
     findBlockingPointEdges bpt;
   done
 
@@ -320,6 +347,7 @@ let startNodes : node list ref = ref []
 let makeAndDumpBlockingGraphs () : unit =
   List.iter
     (fun n ->
+       markYieldPoints n;
        makeBlockingGraph n;
        dumpFunctionCallGraph n;
        dumpBlockingGraph ())
@@ -332,8 +360,8 @@ let markBlockingFunctions () : unit =
   let rec markFunction (n: node) : unit =
     if debug then
       ignore (E.log "marking %s\n" n.name);
-    if n.bkind = NoBlock then begin
-      n.bkind <- BlockTrans;
+    if n.origkind = NoBlock then begin
+      n.origkind <- BlockTrans;
       List.iter markFunction n.preds;
     end
   in
@@ -341,12 +369,14 @@ let markBlockingFunctions () : unit =
 
 let markVar (vi: varinfo) : unit =
   let node = getFunctionNode vi.vname in
-  if node.bkind = NoBlock then begin
+  if node.origkind = NoBlock then begin
     if hasAttribute "yield" vi.vattr then begin
-      node.bkind <- BlockPoint;
+      node.origkind <- BlockPoint;
       blockingNodes := node :: !blockingNodes;
     end else if hasAttribute "noreturn" vi.vattr then begin
-      node.bkind <- EndPoint;
+      node.origkind <- EndPoint;
+    end else if hasAttribute "expand" vi.vattr then begin
+      node.expand <- true;
     end
   end
 
@@ -358,7 +388,7 @@ let makeFunctionCallGraph (f: Cil.file) : unit =
         GFun(fdec, _) -> 
           let curNode = getFunctionNode fdec.svar.vname in
           if fdec.svar.vaddrof then begin
-            addCall (getFunctionPtrNode (TPtr (fdec.svar.vtype, [])))
+            addCall (getFunctionPtrNode fdec.svar.vtype)
                     curNode None;
           end;
           if hasAttribute "start" fdec.svar.vattr then begin
