@@ -23,6 +23,16 @@ type 'a fill =
   | Susp of (int -> 'a)
     (* A function given an index to generate a default value *)
 
+val make : int -> 'a fill -> 'a t
+(** [GrowArray.make n x] returns a fresh growable array of size
+   at least [n] with default value specified by [x].
+
+   Raise [Invalid_argument] if [n < 0] or [n > Sys.max_array_length]. *)
+
+val num_alloc_index: 'a t -> int
+(** [GrowArray.num_alloc_index a] returns the number of allocated entries in 
+ * the array **)
+
 val max_init_index : 'a t -> int
 (** [GrowArray.max_init_index a] returns the maximum index to
     which has been written.
@@ -61,12 +71,6 @@ val set : 'a t -> int -> 'a -> unit
    Raise [Invalid_argument "Array.set"] if [n] is outside the range
    of the underlying array. *)
         
-val make : int -> 'a fill -> 'a t
-(** [GrowArray.make n x] returns a fresh growable array of size
-   at least [n] with default value specified by [x].
-
-   Raise [Invalid_argument] if [n < 0] or [n > Sys.max_array_length]. *)
-
 val clear: 'a t -> unit 
 (** [GrowArray.clear a] clears the contents of the array and sets 
    max_init_index to -1.  Suspension thunks will be rerun to regenerate the 
@@ -100,6 +104,11 @@ val iter2 : (int -> 'a -> 'b -> unit) -> 'a t -> 'b t -> unit
 val fold_left : ('a -> 'b -> 'a) -> 'a -> 'b t -> 'a
 (** [GrowArray.fold_left f x a] computes
    [f (... (f (f x a.(0)) a.(1)) ...) a.(n-1)],
+   where [n] is the length of the array [a]. *)
+
+val fold_lefti : ('a -> int -> 'b -> 'a) -> 'a -> 'b t -> 'a
+(** [GrowArray.fold_lefti f x a] computes
+   [f (... (f (f x 0 a.(0)) 1 a.(1)) ...) (n-1) a.(n-1)],
    where [n] is the length of the array [a]. *)
 
 val fold_right : ('b -> 'a -> 'a) -> 'b t -> 'a -> 'a

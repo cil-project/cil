@@ -38,6 +38,9 @@ let growTheArray (ga: 'a t) (len: int)
 let max_init_index (ga: 'a t) : int =
   ga.gaMaxInitIndex
 
+let num_alloc_index (ga: 'a t) : int = 
+  Array.length ga.gaData
+
 let reset_max_init_index (ga: 'a t) : unit =
   ga.gaMaxInitIndex <- -1
 
@@ -131,6 +134,17 @@ let fold_left (f: 'acc -> 'a -> 'acc) (acc: 'acc) (ga: 'a t) : 'acc =
       acc
     else
       loop (f acc ga.gaData.(idx)) (idx + 1)
+  in
+  loop acc 0
+
+
+(** Fold left over the initialized elements of the array *)
+let fold_lefti (f: 'acc -> int -> 'a -> 'acc) (acc: 'acc) (ga: 'a t) : 'acc = 
+  let rec loop (acc: 'acc) (idx: int) : 'acc = 
+    if idx > max_init_index ga then 
+      acc
+    else
+      loop (f acc idx ga.gaData.(idx)) (idx + 1)
   in
   loop acc 0
 
