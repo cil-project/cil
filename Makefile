@@ -814,6 +814,7 @@ bh : defaulttarget mustbegcc
 	echo  >>$(BHDIR)/data.in
 	echo  >>$(BHDIR)/data.in
 	echo  >>$(BHDIR)/data.in
+	echo  >>$(BHDIR)/data.in
 	cd $(BHDIR);sh -c "time code < data.in > data.out"
 
 
