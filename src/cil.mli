@@ -987,8 +987,8 @@ val prepareCFG: fundec -> unit
 val computeCFGInfo: fundec -> bool -> stmt list
 
 
-(** Create a deep copy of a function. There shoudl be no sharing between the 
- * copy and the riginal function *)
+(** Create a deep copy of a function. There should be no sharing between the 
+ * copy and the original function *)
 val copyFunction: fundec -> string -> fundec 
 
 
