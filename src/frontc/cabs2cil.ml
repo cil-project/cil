@@ -523,7 +523,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         with Not_found -> 
           try                           (* It must be a real variable *)
             let vi = lookup n in
-            finishExp [] (Lval(Var(vi,NoOffset,lu))) vi.vtype
+            finishExp [] (Lval(var vi)) vi.vtype
           with Not_found -> begin 
             ignore (E.log "Cannot resolve variable %s\n" n);
             raise Not_found
@@ -926,7 +926,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
             TFun(rt,at,isvar,a) -> (rt,at,isvar,f')
           | TPtr(TFun(rt,at,isvar,a),_) -> (* Make the function pointer 
                                               * explicit *)
-              (rt,at,isvar,Lval(Mem(f',NoOffset,lu)))
+              (rt,at,isvar, mkMem f' NoOffset)
           | x -> E.s (E.unimp 
                         "Unexpected type of the called function %a: %a" 
                         d_exp f' d_type x)
@@ -958,7 +958,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
                 (sf @ sargs @ [Instruction(Call(None,f'',args',lu))])
                 (integer 0) intType
               (* Set to a variable of corresponding type *)
-          | ASet(Var(vi,NoOffset,_) as lv, vtype) 
+          | ASet((Var vi, NoOffset) as lv, vtype) 
               when (typeSig resType = typeSig vtype) -> 
                 finishExp 
                   (sf @ sargs @ [Instruction(Call(Some vi,f'',args',lu))])
@@ -967,7 +967,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
           | _ -> begin
               (* Must create a temporary *)
               match f'', args' with     (* Some constant folding *)
-                Lval(Var(fv,NoOffset,_)), [Const _] 
+                Lval(Var fv, NoOffset), [Const _] 
                   when fv.vname = "__builtin_constant_p" ->
                     finishExp (sf @ sargs) (integer 1) intType
               | _ -> 
@@ -1250,7 +1250,7 @@ and doStatement (s : A.statement) : stmt list =
               in
               stmts := se :: !stmts;
               match lv with 
-                Var(vi, NoOffset, _) -> (c, vi)(* already var *)
+                Var vi, NoOffset -> (c, vi)(* already var *)
               | _ -> begin
                   let tmp = newTempVar t in
                     temps := (lv, tmp) :: !temps;
@@ -1270,7 +1270,7 @@ and doStatement (s : A.statement) : stmt list =
         List.concat (List.rev !stmts) @ 
         (Instruction(Asm(tmpls, isvol, outs', ins', clobs)) ::
          (List.map (fun (lv, vi) -> 
-           Instruction(Set(lv,Lval(var vi),locUnknown))) !temps))
+           Instruction(Set(lv,Lval(var vi),lu))) !temps))
   with e -> begin
     (ignore (E.log "Error in doStatement (%s)\n" (Printexc.to_string e)));
     [Label "booo_statement"]
@@ -1420,8 +1420,8 @@ let convFile dl =
             in
             (* Fix the vaddrof flag *)
             let fixAddrExp = function
-                AddrOf (Var(vi, _, _), _) -> vi.vaddrof <- true
-              | StartOf (Var(vi, _, _)) -> vi.vaddrof <- true
+                AddrOf ((Var vi, _), _) -> vi.vaddrof <- true
+              | StartOf (Var vi, _) -> vi.vaddrof <- true
               | _ -> ()
             in
             iterExp fixAddrExp fdec.sbody;

@@ -53,8 +53,8 @@ and storage =
 
 (* information about a field access *)
 and fieldinfo = { 
-    fstruct: string;                    (* "CilLval *record"-> *)
-    fname: string;                      (* "Variable *field"->name *)
+    fstruct: string;                 
+    fname: string;                   
     mutable ftype: typ;
     mutable fattr: attribute list;
 }
@@ -121,11 +121,6 @@ and unop =
 (* binary operations *)
 and binop =
     Plus
-  | Advance                             (* Just like Plus but the first 
-                                         * operand is a pointer and the next 
-                                         * is an integer. Only so that we can 
-                                         * print it using [ ... ] when it 
-                                         * appears in a Mem lvalue *)
   | Minus
   | Mult
   | Div
@@ -164,19 +159,24 @@ and exp =
                                          * address of the first element
                                          * of the array *)
 
-(* L-Values denote contents of memory addresses *)
+(* L-Values denote contents of memory addresses. A memory address is 
+ * expressed as a base plus an offset. The base points to the start of value 
+ * of type "typ" *)
 and lval =
-  | Var        of varinfo * offset * location (* denotes * (& v + offset) *)
-  | Mem        of exp * offset * location     (* denotes * (e + offset) *)
+    lbase * offset  
+
+and lbase = 
+  | Var        of varinfo               (* denotes the address & v, or if v 
+                                         * is an array then just v *)
+  | Mem        of exp                   (* denotes an address expressed as an 
+                                         * expression *)
 
 and offset = 
   | NoOffset                            (* l *)
   | Field      of fieldinfo * offset    (* l.f + offset. l must be a struct 
                                          * or an union and l.f is the element 
                                          * type *)
-  | Index      of exp * offset          (* l + e + offset. l must be a 
-                                         * pointer or an array and l + e is 
-                                         * the element type *)
+  | Index      of exp * offset          (* l + e + offset. *)
 
 (**** INSTRUCTIONS. May cause effects directly but may not have control flow.*)
 and instr =
@@ -267,7 +267,7 @@ let charPtrType = TPtr(charType,[])
 let voidPtrType = TPtr(voidType, [])
 let doubleType = TFloat(FDouble, [])
 
-let var vi = Var(vi,NoOffset,locUnknown)
+let var vi : lval = (Var vi, NoOffset)
 let mkSet lv e = Instruction(Set(lv,e,lu))
 let assign vi e = mkSet (var vi) e
 let call res f args = Instruction(Call(res,f,args,lu))
@@ -482,7 +482,7 @@ and getParenthLevel = function
                                          * comparisons  *)
   | BinOp((BOr|BXor|BAnd|Shiftlt|Shiftrt),_,_,_,_) -> 7
                                         (* Additive *)
-  | BinOp((Minus|Plus|Advance),_,_,_,_)  -> 6
+  | BinOp((Minus|Plus),_,_,_,_)  -> 6
                                         (* Multiplicative *)
   | BinOp((Div|Mod|Mult),_,_,_,_) -> 4
 
@@ -493,12 +493,12 @@ and getParenthLevel = function
   | CastE(_,_,_) -> 3
 
                                         (* Lvals *)
-  | Lval(Mem(_,_,_)) -> 2                   
-  | Lval(Var(_,(Field _|Index _),_)) -> 2
+  | Lval(Mem _ , _) -> 2                   
+  | Lval(Var _, (Field _|Index _)) -> 2
   | SizeOf _ -> 2
 
-  | Lval(Var(_,NoOffset,_)) -> 1        (* Plain variables *)
-  | Const _ -> 1                        (* Constants *)
+  | Lval(Var _, NoOffset) -> 0        (* Plain variables *)
+  | Const _ -> 0                        (* Constants *)
 
                                         (* Rest *)
 
@@ -542,7 +542,6 @@ and d_exp () e =
 and d_binop () b =
   match b with
     Plus -> text "+"
-  | Advance -> text "+"
   | Minus -> text "-"
   | Mult -> text "*"
   | Div -> text "/"
@@ -606,12 +605,12 @@ and d_lval () lv =
         d_offset (fun _ -> dprintf "%t[%a]" dobase d_exp e) o
   in
   match lv with
-    Var(vi,o,_) -> 
+    Var vi, o -> 
       d_offset (fun _ -> text vi.vname) o
-  | Mem(e,Field(fi, o),_) -> 
-      d_offset (fun _ -> dprintf "%a->%s" (d_expprec 3) e fi.fname) o
-  | Mem(e,NoOffset,_) -> dprintf "*%a" (d_expprec 3) e
-  | Mem(e,o,_) -> 
+  | Mem e, Field(fi, o) -> 
+      d_offset (fun _ -> dprintf "%a->%s" (d_expprec 2) e fi.fname) o
+  | Mem e, NoOffset -> dprintf "*%a" (d_expprec 2) e
+  | Mem e, o -> 
       d_offset (fun _ -> dprintf "%a" d_exp e) o
         
 and d_instr () i =
@@ -619,12 +618,12 @@ and d_instr () i =
   | Set(lv,e,lo) -> begin
       (* Be nice to some special cases *)
       match e with
-        BinOp((Plus|Advance),Lval(lv'),Const(CInt(1,_),_),_,_) 
+        BinOp((Plus),Lval(lv'),Const(CInt(1,_),_),_,_) 
           when lv == lv' -> 
           dprintf "%a ++;" d_lval lv
       | BinOp(Minus,Lval(lv'),Const(CInt(1,_),_),_,_) when lv == lv' -> 
           dprintf "%a --;" d_lval lv
-      | BinOp((Plus|Advance|Minus|BAnd|BOr|BXor|
+      | BinOp((Plus|Minus|BAnd|BOr|BXor|
                Mult|Div|Mod|Shiftlt|Shiftrt) as bop,
               Lval(lv'),e,_,_) when lv == lv' -> 
           dprintf "%a %a= %a;" d_lval lv d_binop bop d_exp e
@@ -633,7 +632,7 @@ and d_instr () i =
   | Call(vio,e,args,loc) ->
       dprintf "%s%a(@[%a@]);" 
         (match vio with None -> "" | Some vi -> vi.vname ^ " = ") 
-        insert (match e with Lval(Var _) -> d_exp () e 
+        insert (match e with Lval(Var _, _) -> d_exp () e 
                              | _ -> dprintf "(%a)" d_exp e)
 	(docList (chr ',' ++ break) (d_exp ())) args
   | Asm(tmpls, isvol, outs, ins, clobs) ->
@@ -694,11 +693,8 @@ and d_plainexp () = function
   | e -> d_exp () e
 
 and d_plainlval () = function
-  | Var(vi,o,l) -> dprintf "Var(@[%s,@?%a@])" vi.vname d_plainoffset o
-  | Mem(BinOp(Advance,e1,e2,_,_),o,l) -> 
-      dprintf "Mem(@[Idx(@[%a,@?%a@],@?%a@])" 
-        d_plainexp e1 d_plainexp e2 d_plainoffset o
-  | Mem(e,o,l) -> dprintf "Mem(@[%a,@?%a@])" d_plainexp e d_plainoffset o
+  | Var vi, o -> dprintf "Var(@[%s,@?%a@])" vi.vname d_plainoffset o
+  | Mem e, o -> dprintf "Mem(@[%a,@?%a@])" d_plainexp e d_plainoffset o
 
 and d_plainoffset () = function
     NoOffset -> text "NoOffset"
@@ -872,8 +868,8 @@ let iterExp (f: exp -> unit) (body: stmt) : unit =
     | StartOf (lv) -> fLval lv
 
   and fLval = function
-      Var(_,off,_) -> fOff off
-    | Mem(e,off,_) -> fExp e; fOff off
+      Var _, off -> fOff off
+    | Mem e, off -> fExp e; fOff off
   and fOff = function
       Field (_, o) -> fOff o
     | Index (e, o) -> fExp e; fOff o
@@ -1029,20 +1025,18 @@ let dStmt : doc -> stmt =
 
 
  (* Add an offset at the end of an lv *)      
-let addOffset toadd lv =
+let addOffset toadd (b, off) =
  let rec loop = function
      NoOffset -> toadd
    | Field(fid', offset) -> Field(fid', loop offset)
    | Index(e, offset) -> Index(e, loop offset)
  in
- match lv with 
-   Var(vi,offset,l) -> Var(vi,loop offset,l)
- | Mem(e,offset,l) -> Mem(e,loop offset,l)
+ b, loop off
 
 
 
   (* Make a Mem, while optimizing StartOf *)
-let mkMem addr off =  
+let mkMem (addr: exp) (off: offset) : exp =  
   match addr with
     StartOf(lv) -> begin
       match off with (* An index 0 does not change anything but makes 
@@ -1050,4 +1044,4 @@ let mkMem addr off =
         Field _ -> Lval(addOffset (Index(zero, off)) lv)
       | _ -> Lval(addOffset off lv)
     end
-  | _ -> Lval(Mem(addr, off, lu))
+  | _ -> Lval(Mem addr, off)
