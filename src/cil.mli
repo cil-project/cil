@@ -1265,7 +1265,7 @@ val addOffset:     offset -> offset -> offset
 (** Compute the type of an lvalue *)
 val typeOfLval: lval -> typ
 
-(** Compute the type of an offset from a bast type *)
+(** Compute the type of an offset from a base type *)
 val typeOffset: typ -> offset -> typ 
 
 
