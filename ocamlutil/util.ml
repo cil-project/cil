@@ -135,3 +135,11 @@ let rec int_range_list (a : int) (b :int) =
   if a > b then [] else
   a :: int_range_list (a+1) b
 ;;
+
+let list_init (len : int) (init_fun : int -> 'a) : 'a list =
+  let rec loop n acc =
+    if n < 0 then acc
+    else loop (n-1) ((init_fun n)::acc)
+  in
+  loop (len - 1) []
+;;
