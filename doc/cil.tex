@@ -2355,10 +2355,10 @@ int f() {
 int (*pf)(void);
 int f(void) {
 
-   *pf = f; // This looks ok
+   pf = &f; // This looks ok
+   pf = ***f; // Dereference a function?
    pf(); // Invoke a function pointer?     
-   ****pf = f; // Looks strange but Ok
-   ****pf = *********f; // Looks strange but Ok
+   (****pf)();  // Looks strange but Ok
    (***************f)(); // Also Ok             
 }
 \end{cilcode}
