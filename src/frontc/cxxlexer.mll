@@ -153,6 +153,8 @@ let pop_context _ =
                            (* ignore (print_string ("removing lexicon for " ^ name ^ "\n")); *)
                             StringHashtbl.remove lexicon name) con)
 
+let inPragma = ref false
+
 (* Mark an identifier as a variable name. The old mapping is preserved and 
  * will be reinstated when we exit this context  *)
 let add_identifier name =
@@ -271,6 +273,7 @@ let init ~(filename: string)
   init_lexicon ();
   let lexbuf = Lexing.from_channel inchannel in
   currentLexBuf := lexbuf;
+  inPragma := false;
   lexbuf
 
 
@@ -373,9 +376,13 @@ rule initial =
                                           initial lexbuf}
 |               "//"                    { endline lexbuf }
 |		blank			{initial lexbuf}
-|               '\n'                    { newline (); initial lexbuf }
+|               '\n'                    { newline (); 
+                                          if !inPragma then begin
+                                             inPragma := false;
+                                             END_PRAGMA 
+                                          end else initial lexbuf }
 |		'#'			{ hash lexbuf}
-|               "_Pragma" 	        { PRAGMA }
+|               "_Pragma" 	        { inPragma := true; PRAGMA }
 |		'\''			{ CST_CHAR (chr lexbuf)}
 |		"L'"			{ (* weimer: wide character constant *)
                                           let wcc = chr lexbuf in 
@@ -484,7 +491,7 @@ and hash = parse
                   (* A file name must follow *)
 		  file lexbuf }
 | "line"        { hash lexbuf } (* MSVC line number info *)
-| "pragma"      { PRAGMA }
+| "pragma"      { inPragma := true; PRAGMA }
 | _	        { endline lexbuf}
 
 and file =  parse 
@@ -503,10 +510,6 @@ and endline = parse
         '\n' 			{ newline (); initial lexbuf}
 |	_			{ endline lexbuf}
 
-and pragma = parse
-   '\n'                 { newline (); "" }
-|   _                   { let cur = Lexing.lexeme lexbuf in 
-                          cur ^ (pragma lexbuf) }  
 
 and str = parse	
         '"'             {""} (* '"' *)

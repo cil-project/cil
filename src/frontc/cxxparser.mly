@@ -1,7 +1,7 @@
 /*(* NOTE: This parser is based on a parser written by Hugues Casse. Since
    * then I have changed it in numerous ways to the point where it probably
    * does not resemble Hugues's original one at all  *)*/
-%{
+%{ 
 open Cabs
 module E = Errormsg
 
@@ -137,7 +137,7 @@ end
 
 %}
 
-%token <string> IDENT
+%token <string> IDENT TILDE_IDENT
 %token <string> CST_CHAR
 %token <string> CST_INT
 %token <string> CST_FLOAT
@@ -180,7 +180,8 @@ end
 %token BLOCKATTRIBUTE
 %token DECLSPEC
 %token <string> MSASM MSATTR
-%token PRAGMA
+%token PRAGMA END_PRAGMA
+%token DD_NOTHROW IDE_INF INDE_NOINF
 
 /* sm: cabs tree transformation specification keywords */
 %token AT_TRANSFORM AT_TRANSFORMEXPR AT_SPECIFIER AT_EXPR AT_NAME
@@ -193,7 +194,7 @@ end
 %token TYPEID TYPENAME USING VIRTUAL 
 %token COLON_COLON
 
-%token TILDE_IDENT DOT_STAR ARROW_STAR
+%token DOT_STAR ARROW_STAR
 
 /* Conflict resolution tokens */
 %token CR_a0 CR_a1 CR_a2 CR_a3 CR_a4 CR_a5 CR_a6 CR_a7 CR_a8 CR_a9  
@@ -206,8 +207,34 @@ end
 
 %type <Cabs.definition list> file
 
+/* (* ELSE is right associative to solve the dangling ELSE ambiguity *)*/
+%right ELSE
+
+/* (* We have the operator new[] ambiguity. We solve by shifting the LBRACKET 
+    * *)*/
+%left NEW DELETE
+%left LBRACKET
+
+/* (* Sometimes we have attributes after a function declarator. We don't know 
+    * if they belong to the function or to the declared type. Shift them 
+    * anyway. *) */
+%left DD_NOTHROW
+/* (* The attribute specifiers are right associative to ensure the we keep 
+    * shifting them *) */
+%right VOLATILE CONST RESTRICT ATTRIBUTE DECLSPEC MSATTR
+
+/* (* :: has very high precedence so that we shift it always *) */
+/* %nonassoc IDENT NAMED_TYPE
+   %nonassoc COLON_COLON
+*/
+%right COLON_COLON
+%right IDENT TILDE_IDENT TEMPLATE
+
+%nonassoc IDE_NOINF
+%right INF
 
 %%
+
 
 location:
    /* empty */                	{ currentLoc () }  %prec IDENT
@@ -260,11 +287,6 @@ identifier_opt:
 
 
 
-ellipsis_opt: 
-  /* empty */  { () }
-| ELLIPSIS   { () }
-;
-
 
 /* (* 1.3  Basic concepts                              [gram.basic] *) */
 file:
@@ -279,41 +301,35 @@ primary_expression:
 | id_expression                              { () }
 ;
 
+/* (* A sequence of IDENT and TEMPLATE IDENT and TILDE_IDENT separated by 
+    * COLON_COLON and optionally preceeded by COLON_COLON. Always ended by 
+    * IDENT or TEMPLATE ID or  TILDE_IDENT. *)  
+    *) */
+nn_spec_id: 
+|  COLON_COLON                        { "::" }
+|  COLON_COLON nn_spec_id_no_col      { "::" ^ $2 }
+|              nn_spec_id_no_col      { $1 }
+;
+nn_spec_id_no_col: 
+|  IDENT  nn_spec_id_col              { $1 ^ $2 }
+|  TILDE_IDENT nn_spec_id_col         { $1 ^ $2 }
+|  TEMPLATE nn_spec_id_no_col         { "template" ^ $2}
+;
+nn_spec_id_col:
+   /* empty */                        { "" }  %prec COLON_COLON
+|  COLON_COLON                        { "::" }
+|  COLON_COLON nn_spec_id_no_col      { "::" ^ $2}
+;
+
 id_expression:
-  unqualified_id                                { () }
-| qualified_id                                   { () }
+  nn_spec_id                                             { () } %prec IDE_NOINF
+| nn_spec_id INF template_argument_list SUP              { () } %prec IDE_INF
+|                        operator_function_id            { () }
+| nn_spec_id operator_function_id            { () }
+|                        conversion_function_id          { () }
+| nn_spec_id conversion_function_id          { () }
 ;
 
-
-unqualified_id:
-  IDENT                                   { () }
-| operator_function_id                    { () }
-| conversion_function_id                  { () }
-| TILDE_IDENT                             { () } 
-;
-
-qualified_id:
-  nn_spec_unqualified_id    { () }
-| COLON_COLON IDENT                                   { () }
-| COLON_COLON operator_function_id                                   { () }
-| COLON_COLON template_id                                   { () }
-;
-
-
-nested_name_specifier:
-  class_or_namespace_name COLON_COLON nested_name_specifier_opt                                        { () }
-| class_or_namespace_name COLON_COLON TEMPLATE nested_name_specifier                                   { () }
-;
-
-nested_name_specifier_opt:
-  /* empty */                                   { () }
-| nested_name_specifier                                   { () }
-;
-
-
-class_or_namespace_name:
-  NAMED_TYPE  { () }
-;
 
 
 postfix_expression:
@@ -321,16 +337,11 @@ postfix_expression:
 | postfix_expression LBRACKET expression RBRACKET      { () }
 | postfix_expression LPAREN expression RPAREN           { () }
 | simple_type_specifier LPAREN expression_opt RPAREN    { () }
-| TYPENAME nn_spec_IDENT  
-                        LPAREN expression_list_opt RPAREN    { () }
-| TYPENAME nn_spec_template_opt_template_id 
+| TYPENAME nn_spec_id LPAREN expression_list_opt RPAREN    { () }
+| TYPENAME nn_spec_id INF template_argument_list SUP 
                         LPAREN expression_list_opt RPAREN    { () }
 | postfix_expression DOT          id_expression    { () }
-| postfix_expression DOT TEMPLATE id_expression    { () }
 | postfix_expression ARROW        id_expression    { () }
-| postfix_expression ARROW TEMPLATE id_expression    { () }
-| postfix_expression DOT pseudo_destructor_name    { () }
-| postfix_expression ARROW pseudo_destructor_name    { () }
 | postfix_expression PLUS_PLUS    { () }
 | postfix_expression MINUS_MINUS    { () }
 | DYNAMIC_CAST INF type_id SUP LPAREN expression RPAREN    { () }
@@ -350,11 +361,6 @@ expression_list_opt:
 | expression_list  { () }
 ;
 
-pseudo_destructor_name:
-  nn_spec_opt_type_name COLON_COLON TILDE named_type    { () }
-| nn_spec TEMPLATE template_id COLON_COLON TILDE named_type    { () }
-| nn_spec_opt TILDE named_type    { () }
-;
 
 unary_expression:
   postfix_expression    { () }
@@ -532,7 +538,7 @@ statement:
 | selection_statement  { () }
 | iteration_statement  { () }
 | jump_statement  { () }
-| declaration_statement  { () }
+| declaration_statement  { () } 
 | try_block  { () }
 | location ASM asmattr LPAREN asmtemplate asmoutputs RPAREN SEMICOLON
                                { () } 
@@ -582,7 +588,7 @@ statement_seq_opt:
 ;
 
 selection_statement:
-| location IF LPAREN condition RPAREN statement  { () }
+| location IF LPAREN condition RPAREN statement  { () }  %prec ELSE
 | location IF LPAREN condition RPAREN statement ELSE statement  { () }
 | location SWITCH LPAREN condition RPAREN statement  { () }
 ;
@@ -641,12 +647,14 @@ declaration:
 | explicit_specialization  { () }
 | linkage_specification  { () }
 | namespace_definition  { () }
-| location PRAGMA attr                  { () }
+| location PRAGMA      END_PRAGMA { () }
+| location PRAGMA attr END_PRAGMA { () }
 ;
 
 block_declaration:
 | simple_declaration  { () }
-| asm_definition  { () }
+/*(* This ASM definition is a statement *)*/
+| CR_a3 asm_definition  { () }
 | namespace_alias_definition  { () }
 | using_declaration  { () }
 | using_directive  { () }
@@ -669,7 +677,7 @@ decl_specifier_seq:
   
 decl_specifier_seq_opt: 
   /* empty       { () }  */
-| decl_specifier_seq  { () }
+| decl_specifier_seq  CR_c1 { () }
 ;
 
 storage_class_specifier:
@@ -696,7 +704,7 @@ type_specifier:
 
 
 simple_type_specifier:
-| nn_spec_opt_type_name  { () }
+| nn_spec_id CR_c2 { () }
 | CHAR  { () }
 /* (* missing wchar_t *) */  
 | BOOL  { () }
@@ -712,11 +720,10 @@ simple_type_specifier:
 ;
 
 elaborated_type_specifier:
-| class_key nn_spec_opt_IDENT  { () }
-| ENUM nn_spec_opt_IDENT { () }
-| TYPENAME nn_spec_IDENT  { () }
-| TYPENAME nn_spec_IDENT  
-                       INF template_argument_list SUP  { () }
+| class_key nn_spec_id  { () }
+| ENUM nn_spec_id { () }
+| TYPENAME nn_spec_id  { () }
+| TYPENAME nn_spec_id INF template_argument_list SUP  { () }
 | TYPEOF LPAREN expression RPAREN     { () } 
 | TYPEOF LPAREN type_id RPAREN        { () } 
 ;
@@ -754,17 +761,21 @@ namespace_body:
   
 
 namespace_alias_definition:
-| location NAMESPACE IDENT EQ nn_spec_opt_IDENT SEMICOLON  { () }
+| location NAMESPACE IDENT EQ nn_spec_id SEMICOLON  { () }
 ;
 
   
 using_declaration:
-| location USING              nn_spec_opt_unqualified_id SEMICOLON  { () }
-| location USING TYPENAME     nn_spec_unqualified_id SEMICOLON  { () }
+| location USING              nn_spec_id SEMICOLON  { () }
+| location USING              nn_spec_id 
+                     INF template_argument_list SUP SEMICOLON  { () }
+| location USING TYPENAME     nn_spec_id SEMICOLON  { () }
+| location USING TYPENAME     nn_spec_id 
+                     INF template_argument_list SUP SEMICOLON  { () }
 ;
 
 using_directive:
-| location USING NAMESPACE nn_spec_opt_IDENT SEMICOLON  { () }
+| location USING NAMESPACE nn_spec_id SEMICOLON  { () }
 ;
 
 asm_definition:
@@ -791,53 +802,50 @@ init_declarator:
 | declarator initializer_opt  { () }
 ;
 declarator:
-| direct_declarator  attributes_with_asm { () }
-| ptr_operator declarator  { () }
+| ptr_operators_opt direct_declarator attributes_with_asm CR_c3 { () }
 ;
 
 direct_declarator:
 | declarator_id  { () }
-| direct_declarator LPAREN parameter_declaration_clause 
-           RPAREN                       { () }
-| direct_declarator LPAREN parameter_declaration_clause 
-           RPAREN /*(* cv_qualifier_seq_opt *)*/ 
+| direct_declarator LPAREN parameter_declaration_clause RPAREN 
+                                { () } %prec DD_NOTHROW
+| direct_declarator 
+     LPAREN parameter_declaration_clause RPAREN 
            attributes THROW LPAREN type_id_list_opt RPAREN  { () }
 | direct_declarator LBRACKET constant_expression_opt RBRACKET  { () }
 | LPAREN attributes declarator RPAREN  { () }
 ;
 
+ptr_operators: 
+| STAR attributes ptr_operators_opt          { () }
+| AND attributes ptr_operators_opt           { () }
+| nn_spec_id STAR attributes ptr_operators_opt  { () }
+;
+ptr_operators_opt:
+   CR_c4 /* empty */                 { () }
+|  ptr_operators                     { $1 }
+;
   
-ptr_operator:
-| STAR cv_qualifier_seq_opt  { () }
-| AND  { () }
-| nn_spec STAR cv_qualifier_seq_opt  { () }
-;
-
-cv_qualifier_seq_opt: 
-  attributes      { () }   
-;
 
 declarator_id:
-|             id_expression  { () }  /* (* just for test *) */
-/* (* The following is covered by id_expression *) */
-| CR_a2 nn_spec_opt_type_name  { () }
+|     id_expression   { () }
 ;
  
 type_id:
 | type_specifier_seq abstract_declarator_opt  { () }
 ;
 type_specifier_seq:
-    type_specifier type_specifier_seq_opt  { () }
+| type_specifier type_specifier_seq_opt  CR_c5 { () }
 ;
 
 type_specifier_seq_opt: 
-  /* empty */      { () }  
+  /* empty */         { () }  
 | type_specifier_seq  { () }
 ;
 
 abstract_declarator:
-| ptr_operator abstract_declarator_opt  { () }
-| direct_abstract_declarator attributes { () }
+| ptr_operators                                           { () }
+| ptr_operators_opt direct_abstract_declarator attributes { () }
 ;
 
 abstract_declarator_opt: 
@@ -847,10 +855,10 @@ abstract_declarator_opt:
 
 direct_abstract_declarator:
 | direct_abstract_declarator_opt 
-           LPAREN parameter_declaration_clause RPAREN  { () }
+           LPAREN parameter_declaration_clause RPAREN  { () } %prec DD_NOTHROW
 | direct_abstract_declarator_opt 
            LPAREN parameter_declaration_clause RPAREN 
-               attributes /*(*cv_qualifier_seq_opt *)*/
+               attributes 
                THROW LPAREN type_id_list_opt RPAREN  { () }
 | direct_abstract_declarator_opt LBRACKET constant_expression_opt RBRACKET  
                { () }
@@ -858,16 +866,17 @@ direct_abstract_declarator:
 ;
 
 direct_abstract_declarator_opt: 
-  /* empty */      { () }  
+  CR_c6 /* empty */      { () }  
 | direct_abstract_declarator { () }
 ;
   
 parameter_declaration_clause:
-| parameter_declaration_list_opt ellipsis_opt  { () }
+| parameter_declaration_list_opt               { () }
+| parameter_declaration_list_opt ELLIPSIS  { () }
 | parameter_declaration_list COMMA ELLIPSIS  { () }
 ;
 
-parameter_declaration_list:
+parameter_declaration_list: 
 | parameter_declaration  { () }
 | parameter_declaration_list COMMA parameter_declaration  { () }
 ;
@@ -952,19 +961,14 @@ gcc_init_designators:  /*(* GCC supports these strange things *)*/
 
 
 /* (* 1.8  Classes                                   [gram.class]  *) */
-class_name:
-| named_type  { () }
-| template_id  { () }
-;
-
 
 class_specifier:
 | class_head LBRACE member_specification_opt RBRACE  { () }
 ;
 
 class_head:
-| class_key identifier_opt base_clause_opt  { () }
-| class_key nn_spec_IDENT base_clause_opt  { () }
+| class_key            base_clause_opt  { () }
+| class_key nn_spec_id base_clause_opt  { () }
 
 ;
 class_key:
@@ -986,7 +990,7 @@ member_specification_opt:
 member_declaration:
 | decl_specifier_seq_opt member_declarator_list_opt SEMICOLON   { () }
 | function_definition semicolon_opt { () }
-| qualified_id SEMICOLON  { () }
+/* | qualified_id SEMICOLON  { () } */
 | using_declaration  { () }
 | template_declaration  { () }
 ;
@@ -1005,7 +1009,8 @@ member_declarator_list_opt:
 member_declarator:
 /* (* The pure specifier is treated as a constant_initializer *) */
 | declarator constant_initializer_opt { () }
-| identifier_opt COLON constant_expression { () }
+| IDENT COLON constant_expression { () }
+|       COLON constant_expression { () }
 ;
 
 constant_initializer:
@@ -1036,9 +1041,9 @@ base_specifier_list:
 
 
 base_specifier:
-| nn_spec_opt_class_name { () }
-| VIRTUAL access_specifier_opt nn_spec_opt_class_name  { () }
-| access_specifier virtual_opt nn_spec_opt_class_name  { () }
+| nn_spec_id { () }
+| VIRTUAL access_specifier_opt nn_spec_id  { () }
+| access_specifier virtual_opt nn_spec_id  { () }
 ;
 
 
@@ -1060,17 +1065,11 @@ conversion_function_id:
 ;
 
 conversion_type_id:
-    type_specifier_seq conversion_declarator_opt  { () }
+    type_specifier_seq conversion_declarator  { () }
 ;
 conversion_declarator:
-    ptr_operator conversion_declarator_opt  { () }
+   ptr_operators_opt             { () }
 ;
-
-conversion_declarator_opt: 
-  /* empty */           { () }  
-| conversion_declarator { () }
-;
-
 
 ctor_initializer:
 | COLON mem_initializer_list  { () }
@@ -1091,14 +1090,12 @@ mem_initializer:
 ;
 
 mem_initializer_id:
-| nn_spec_opt_class_name { () }
-/* (* The IDENT case is covered by the previous case *) */
-| CR_a0 IDENT  { () }
+| nn_spec_id { () }
 ;
 
 /* (* 1.11  Overloading                            [gram.over] *) */
 operator_function_id:
-| OPERATOR NEW  { () }
+| OPERATOR NEW                    { () }  
 | OPERATOR NEW LBRACKET RBRACKET  { () }
 | OPERATOR DELETE  { () }
 | OPERATOR DELETE LBRACKET RBRACKET  { () }
@@ -1136,7 +1133,7 @@ operator_function_id:
 | OPERATOR PLUS_PLUS  { () }
 | OPERATOR MINUS_MINUS  { () }
 | OPERATOR COMMA  { () }
-| OPERATOR ARROW STAR  { () }
+| OPERATOR ARROW_STAR  { () }
 | OPERATOR ARROW  { () }
 | OPERATOR LPAREN RPAREN  { () }
 | OPERATOR LBRACKET RBRACKET  { () }
@@ -1144,10 +1141,10 @@ operator_function_id:
 
 /* (* 1.12  Templates                                        [gram.temp] *) */
 template_declaration:
-| location        TEMPLATE INF template_parameter_list 
-                                   SUP declaration  { () }
-| location EXPORT TEMPLATE INF template_parameter_list 
-                                   SUP declaration  { () }
+| location        TEMPLATE 
+                    INF template_parameter_list SUP declaration  { () }
+| location EXPORT TEMPLATE 
+                    INF template_parameter_list SUP declaration  { () }
 ;
 
 template_parameter_list:
@@ -1158,7 +1155,7 @@ template_parameter_list:
 
 template_parameter:
 | type_parameter  { () }
-| parameter_declaration  { () }
+| parameter_declaration  CR_c7 { () }
 ;
 
 type_parameter:
@@ -1171,21 +1168,16 @@ type_parameter:
               CLASS identifier_opt EQ id_expression  { () }
 ;
 
-template_id:
-| named_type INF template_argument_list SUP  { () }
-;
        
 template_argument_list:
-| template_argument  { () }
+| template_argument   { () }
 | template_argument_list COMMA template_argument  { () }
 ;
 
 
 template_argument:
-| assignment_expression  { () }
-| type_id  { () }
-/* (* The IDENT case is covered by the assignment_expression *) */
-| CR_a1 IDENT  { () }
+| assignment_expression CR_c6 { () }
+| type_id  { () } 
 ;
 
 explicit_instantiation:
@@ -1242,63 +1234,9 @@ type_id_list_opt:
 ;
 
 
-nn_spec_opt_type_name: 
-|                                   named_type   { () }
-|             nested_name_specifier named_type   { () }
-| COLON_COLON nested_name_specifier named_type   { () }
-;
-
-named_type: 
-  IDENT /* NAMED_TYPE  */     { () }
-;
-
-nn_spec_opt_class_name: 
-|                                   class_name   { () }
-|             nested_name_specifier class_name   { () }
-| COLON_COLON nested_name_specifier class_name   { () }
-
-nn_spec_unqualified_id:
-              nested_name_specifier unqualified_id   { () }
-| COLON_COLON nested_name_specifier unqualified_id   { () }
-;
-
-nn_spec_opt_unqualified_id:
-                                    unqualified_id   { () }
-|             nested_name_specifier unqualified_id   { () }
-| COLON_COLON nested_name_specifier unqualified_id   { () }
-;
-
-nn_spec_IDENT:
-              nested_name_specifier IDENT   { () }
-| COLON_COLON nested_name_specifier IDENT   { () }
-;
-
-nn_spec_opt_IDENT:
-|                                   IDENT   { () }
-|             nested_name_specifier IDENT   { () }
-| COLON_COLON nested_name_specifier IDENT   { () }
-;
-
-
-nn_spec_template_opt_template_id:
-  nn_spec template_id          { () }
-| nn_spec TEMPLATE template_id { () }
-;
-
-nn_spec:
-|             nested_name_specifier   { () }
-| COLON_COLON nested_name_specifier   { () }
-;
-
-nn_spec_opt:
-|                                      { () }
-|             nested_name_specifier    { () }
-| COLON_COLON nested_name_specifier    { () }
-;
-
 /*** GCC attributes ***/
 attributes:
-    /* empty */				{ []}	
+    /* empty */				{ []}	%prec VOLATILE
 |   attribute attributes	        { $1 :: $2 }
 ;
 
@@ -1470,3 +1408,4 @@ asmcloberlst_ne:
 
 
   
+
