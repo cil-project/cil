@@ -224,7 +224,9 @@ let newStringName () =
   incr stringId;
   "__string" ^ (string_of_int !stringId)
 
-let global4String (s : string) : exp = 
+let taintedChar = typeAddAttributes [Attr(tainted_attribute, [])] charType
+
+let global4String (s : string) (charIsTainted: bool): exp = 
   let l = 1 + (String.length s) in
   let stringInit =  
     let initl' = ref [] in
@@ -238,7 +240,8 @@ let global4String (s : string) : exp =
                SingleInit(integer 0)) :: !initl';
     List.rev !initl'
   in
-  let newt = TArray(charType, Some (integer l), []) in
+  let bt = if charIsTainted then taintedChar else charType in
+  let newt = TArray(bt, Some (integer l), []) in
   let gvar = makeGlobalVar (newStringName ()) newt in
   gvar.vstorage <- Static;
   let start = AddrOf (Var gvar, Index(zero, NoOffset)) in
@@ -246,15 +249,21 @@ let global4String (s : string) : exp =
   newGlobals := (GVar (gvar, {init=Some init}, !currentLoc))::!newGlobals;
   start
 
-(* call with visitFileSameGlobals, so that we can edit globals directly. *)
 class stringVisitor 
 = object(self)
   inherit nopCilVisitor
     
   method vexpr e = begin
     match e with 
-        Const(CStr s) -> ChangeTo(global4String s)
-      | _-> DoChildren
+        Const(CStr s) -> 
+(*           ignore (E.log "String without cast: %a\n" d_plainexp e); *)
+          ChangeTo(global4String s false)
+      | CastE(t, Const(CStr s)) ->
+          let taint =  baseTypeContainsSmallocAttribute t in
+(*           ignore (E.log "%stainted String: %a\n"  *)
+(*                     (if taint then "" else "Un") d_plainexp e); *)
+          ChangeTo(CastE(t, global4String s taint))
+      | _ -> DoChildren
   end
 end
 (*******   Visitor   *******)
