@@ -1498,6 +1498,7 @@ and doExp (isconst: bool)    (* In a constant *)
           | _ -> begin
               match what with
                 AExp (Some _) -> AExp (Some typ)
+              | ADrop -> ADrop
               | _ -> AExp None
           end
         in
