@@ -217,7 +217,10 @@ let dominance_frontier (flowgraph: cfgInfo) : dfInfo =
                                         (* Compute the dominance frontier  *)
   
   let bottom = Array.make size true in  (* bottom of the dominator tree *)
-  for i = 0 to size - 1 do if (i != start) then bottom.(idom.(i)) <- false; done;
+  for i = 0 to size - 1 do 
+    if (i != start) && idom.(i) <> -1 then bottom.(idom.(i)) <- false; 
+  done;
+
   let processed = Array.make size false in (* to record the nodes added to work_list *) 
   let workList = ref ([]) in (* to iterate in a bottom-up traversal of the dominator tree *)
   for i = 0 to size - 1 do 
@@ -238,7 +241,8 @@ let dominance_frontier (flowgraph: cfgInfo) : dfInfo =
     workList := List.tl !workList;
     if (x != start) then begin
       let i = idom.(x) in
-      if (List.for_all (fun child -> processed.(child)) children.(i)) then workList := i :: !workList; 
+      if i <> -1 && 
+         (List.for_all (fun child -> processed.(child)) children.(i)) then workList := i :: !workList; 
     end;
   done;
   df

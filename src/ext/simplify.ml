@@ -62,7 +62,8 @@
  - all sizeof and alignof are turned into constants
  - accesses to variables whose address is taken is turned into "Mem" accesses
  - same for accesses to arrays
- - all field and index computations are turned into address arithmetic
+ - all field and index computations are turned into address arithmetic, 
+   including bitfields.
 
 *)
 
@@ -81,6 +82,8 @@ let debug = true
 let splitStructs = ref true
 
 let onlyVariableBasics = ref false
+
+exception BitfieldAccess
 
 (* Turn an expression into a three address expression (and queue some 
  * instructions in the process) *)
@@ -131,18 +134,23 @@ and simplifyLval
   let add (e1: exp) (e2: exp) = 
     if isZero e2 then e1 else BinOp(PlusA, e1, e2, !upointType) 
   in
-  (* Convert an offset to an integer *)
+  (* Convert an offset to an integer, and possibly a residual bitfield offset*)
   let rec offsetToInt 
       (t: typ) (* The type of the host *)
-      (off: offset) : exp = 
+      (off: offset) : exp * offset = 
     match off with 
-      NoOffset -> zero
+      NoOffset -> zero, NoOffset
     | Field(fi, off') -> begin
         try 
           let start, _ = bitsOffset t (Field(fi, NoOffset)) in
-          if start land 7 <> 0 then 
-            E.s (unimp "Field does not start on a byte boundary");
-          add (integer (start / 8)) (offsetToInt fi.ftype off')
+          if start land 7 <> 0 then begin
+            (* We have a bitfield *)
+            assert (off' = NoOffset);
+            zero, Field(fi, off')
+          end else begin
+            let next, restoff = offsetToInt fi.ftype off' in
+            add (integer (start / 8)) next,  restoff
+          end
         with SizeOfError _ -> 
           E.s (unimp "Cannot compute the sizeof")
     end
@@ -151,28 +159,32 @@ and simplifyLval
           TArray(telem, _, _) -> telem
         | _ -> E.s (bug "Simplify: simplifyLval: index on a non-array")
         in
+        let next, restoff = offsetToInt telem off' in
         add 
           (BinOp(Mult, ei, SizeOf telem, !upointType)) 
-          (offsetToInt telem off')
+          next,
+        restoff
     end
   in
   let tres = TPtr(typeOfLval lv, []) in
   match lv with 
     Mem a, off -> 
-      let off' = offsetToInt (typeOfLval (Mem a, NoOffset)) off in
-      let a' = makeBasic setTemp (add (mkCast a !upointType) off') in
-      Mem (mkCast a' tres), NoOffset
+      let offidx, restoff = offsetToInt (typeOfLval (Mem a, NoOffset)) off in
+      let a' = makeBasic setTemp (add (mkCast a !upointType) offidx) in
+      Mem (mkCast a' tres), restoff
 
   | Var v, off when v.vaddrof -> (* We are taking this variable's address *)
-      let off' = offsetToInt v.vtype off in
+      let offidx, restoff = offsetToInt v.vtype off in
       (* We cannot call makeBasic recursively here, so we must do it 
        * ourselves *)
-      let off'' = makeBasic setTemp off' in
-      let a' = setTemp 
+      let off'' = 
+        if offidx = zero then zero else makeBasic setTemp offidx in
+      let a' = 
+        setTemp 
           (add (mkCast (mkAddrOrStartOf (Var v, NoOffset))
                   !upointType) off'') 
       in
-      Mem (mkCast a' tres), NoOffset
+      Mem (mkCast a' tres), restoff
 
   | Var v, off -> 
       (Var v, simplifyOffset setTemp off)

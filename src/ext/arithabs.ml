@@ -512,7 +512,8 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
               None -> gwt
             | Some (Lval (Var v, NoOffset)) when v.vname = "__retres" -> 
                 gwt @ [ v ]
-            | Some _ -> E.s (E.bug "Return with no __retres")
+            | Some e -> 
+                E.s (E.bug "Return with no __retres: %a" d_exp e)
           in
           ignore (p ~ind:ind
                     "return %a;"

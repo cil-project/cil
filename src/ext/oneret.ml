@@ -99,6 +99,13 @@ let oneret (f: Cil.fundec) : unit =
 
     | ({skind=Return (retval, l)} as s) :: rests -> 
         currentLoc := l;
+(*
+        ignore (E.log "Fixing return(%a) at %a\n"
+                  insert
+                  (match retval with None -> text "None" 
+                  | Some e -> d_exp () e)
+                  d_loc l);
+*)
         if hasRet && retval = None then 
           E.s (error "Found return without value in function %s\n" fname);
         if not hasRet && retval <> None then 
@@ -133,7 +140,12 @@ let oneret (f: Cil.fundec) : unit =
         currentLoc := l;
         s.skind <- Switch(e, scanBlock false b, cases, l);
         s :: scanStmts mainbody rests
-    | s :: rests -> s :: scanStmts mainbody rests
+    | ({skind=Block b} as s) :: rests -> 
+        s.skind <- Block (scanBlock false b);
+        s :: scanStmts mainbody rests
+    | ({skind=(Goto _ | Instr _ | Continue _ | Break _ 
+               | TryExcept _ | TryFinally _)} as s)
+      :: rests -> s :: scanStmts mainbody rests
 
   and scanBlock (mainbody: bool) (b: block) = 
     { bstmts = scanStmts mainbody b.bstmts; battrs = b.battrs; }
