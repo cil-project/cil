@@ -33,6 +33,7 @@
   #define __NODE
   #define __HEAPIFY
   #define __DUMMYDEFN
+  #define __BOXMODEL(fname)
 #else
   #define __WILD   __attribute__((wild))
   #define __SAFE   __attribute__((safe))
@@ -60,11 +61,12 @@
     #define __HEAPIFY
   #endif
   #define __DUMMYDEFN __attribute__((dummydefn))
+  #define __BOXMODEL(fname) __attribute__((boxmodel(fname)))
 #endif
 
-#if ! defined(MANUALBOX) && ! defined(INFERBOX)
-#define calloc_fseq calloc
-#endif
+//#if ! defined(MANUALBOX) && ! defined(INFERBOX)
+//#define calloc_fseq calloc
+//#endif
 
 #if !defined(BEFOREBOX)
   // if some code calls explicit_gc, but we're not boxing, then
@@ -102,33 +104,3 @@
 // hack: 'restrict' is a problem with glibc 2.2
 #define __restrict
 #define restrict
-
-// Now define some models
-#ifdef BEFOREBOX
-
-// deliberately not defined, to make sure our trick works and the dummy
-// definitions never hit the linker
-extern int someInt;
-
-// this decl is const-wrong!  but that's how it appears in string.h!
-char *strpbrk(char const *s, char const *accept) __DUMMYDEFN
-{
-  someInt = (int)(*accept);   // make sure 'accept' can be read from
-  return s;                   // connect s to retval
-}
-
-// this will probably collide with non-glibc systems.. but I can't
-// #include <stdio.h> because it interacts badly with patching
-#if defined(_MSVC)
-char *fgets(char *buf, int size, struct _iobuf *fp) __DUMMYDEFN
-#elif defined(__CYGWIN__)
-char __cdecl *fgets(char *buf, int size, struct __sFILE *fp) __DUMMYDEFN
-#else
-char *fgets(char *buf, int size, struct _IO_FILE *fp) __DUMMYDEFN
-#endif
-{
-  return buf;
-}
-
-#endif // end of dummy definitions
-

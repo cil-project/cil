@@ -2028,21 +2028,7 @@ and d_fun_decl () f = begin
           (* the body *)
           ++ d_block () f.sbody)
     ++ line
-    ++if (hasAttribute "dummydefn" f.svar.vattr) then (
-        (trace "dummydefn" (dprintf "omitting %s because it is a dummy definition\n" f.svar.vname));
-        text "; /* omitted because is dummydefn */" ++ line
-      )
-      else (
-        text "{ "
-        ++ (align
-              (* locals. *)
-              ++ (docList line (fun vi -> d_videcl () vi ++ text ";") () f.slocals)
-              ++ line ++ line
-              (* the body *)
-              ++ d_block () f.sbody)
-        ++ line
-        ++ text "}"
-      )
+    ++ text "}"
 end
 
 and d_videcl () vi = 

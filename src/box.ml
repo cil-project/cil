@@ -4181,7 +4181,9 @@ let boxFile file =
             f.sbody <- toList (append inilocals (fromList boxbody));
             H.clear heapifiedLocals;
             heapifiedFree := [];
-            theFile := consGlobal (GFun (f, l)) !theFile
+            (* Drop it if it is just a model *)
+            if not (hasAttribute "boxmodel" f.svar.vattr) then 
+              theFile := consGlobal (GFun (f, l)) !theFile
                                         
         | (GAsm _ | GText _ | GPragma _ | GEnumTag _ ) as g -> 
             theFile := consGlobal g !theFile

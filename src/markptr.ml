@@ -69,6 +69,8 @@ let polyFunc : (string, typ option ref) H.t = H.create 7
  * argument number of the format string. *)
 let printfFunc : (string, int ) H.t = H.create 15
 
+(* We keep track of the models to use *)
+let boxModels : (string, fundec) H.t = H.create 15
 
 (* if some enclosing context [like the attributes for a field] says that
  * this array should be sized ... we do not want to forget it! *)
@@ -849,7 +851,7 @@ and doInstr (i:instr) : instr =
             (* And add a declaration for it *)
             if ispoly then
               theFile := GDecl (newvi, l) :: !theFile;
-            (Lval(Var(newvi), NoOffset)), ispoly 
+            (Lval(Var(newvi), NoOffset)), ispoly
         | _ -> orig_func, false
       in
       let isprintf = isPrintf reso func args in
@@ -983,6 +985,23 @@ let doGlobal (g: global) : global =
          (* ignore (E.log "Found GDecl of %s. T=%a\n" vi.vname
                 d_plaintype vi.vtype); *)
           if not (H.mem polyFunc vi.vname) then doVarinfo vi; 
+          (* Maybe it has a model *)
+          (try
+            let model = H.find boxModels vi.vname in
+            (* Pretend the function calls its model *)
+            match vi.vtype, model.svar.vtype with
+              TFun(vrt, vargs, _, _), TFun(mrt, margs, _, _) -> 
+                if List.length vargs <> List.length margs then begin
+                  ignore (warn "%s has different number of arguments than its model %s\n" vi.vname model.svar.vname);
+                  raise Not_found
+                end;
+                List.iter2 (fun va ma -> 
+                  ignore (expToType (one, va.vtype, N.dummyNode) ma.vtype 0))
+                  vargs margs;
+                (* Connect the return types *)
+                ignore (expToType (one, mrt, N.dummyNode) vrt 0)
+            | _ -> ()
+          with Not_found -> ());
           g
       | GVar (vi, init, l) -> 
           currentLoc := l;
@@ -997,6 +1016,14 @@ let doGlobal (g: global) : global =
       | GFun (fdec, l) -> 
           currentLoc := l;
           let newvi, ispoly = instantiatePolyFunc fdec.svar in
+          (* See if it actually is a model *)
+          List.iter 
+            (function 
+                Attr(_, [AStr fname]) -> 
+                  ignore (E.log "Will use %s as a model for %s\n"
+                            fdec.svar.vname fname);
+                  H.add boxModels fname fdec
+              | _ -> ()) (filterAttributes "boxmodel" fdec.svar.vattr);
           if ispoly then
             fdec.svar <- newvi; (* Change the varinfo if the instantiation has 
                                    * changed it *)
@@ -1034,6 +1061,7 @@ let markFile fl =
   boxing := true;
   E.hadErrors := false;
   H.clear polyFunc;
+  H.clear boxModels;
   (* Some globals that are exported and must thus be considered part of the 
    * interface *)
   let exported : (string, bool) H.t = H.create 111 in
@@ -1133,6 +1161,8 @@ let markFile fl =
     Check.checkFile [] newfile;
   H.clear doneComposites;
   H.clear pulledOutComposites;
+  H.clear polyFunc;
+  H.clear boxModels;
   newfile
 
         
