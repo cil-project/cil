@@ -6,11 +6,22 @@
 <body>
 <h2>How to build the ocamldoc tool</h2>
 
+<p><a href="http://pauillac.inria.fr/~guesdon/tools.html">ocamldoc</a>
+is a tool for extracting documentation from specially-formatted
+comments in the source code.  It works similarly to
+<a href="http://java.sun.com/j2se/javadoc/index.html">javadoc</a>.
+The following instructions explain how to get, build, and use this tool,
+especially in the context of the CCured project.</p>
+
 <p>For the purposes of these instructions, pick some directories:</p>
 <ul><li><tt>$DIST</tt>: directory where you'll download the tarballs
+        (e.g. <tt>/home/scott/dist</tt>)
     <li><tt>$BLD</tt>: directory where you'll compile the software
+        (e.g. <tt>/home/scott/bld</tt>)
     <li><tt>$PREFIX</tt>: directory into which the compiled files will be installed
+        (e.g. <tt>/home/scott/lib/ocaml-current</tt> or <tt>/usr/local</tt>)
     <li><tt>$CIL</tt>: toplevel directory of ccured ("cil") repository
+        (e.g. <tt>/home/scott/wrk/safec/cil</tt>)
 </ul>
 
 <p>First, download and build the latest <a href="http://www.cvshome.org/docs/manual/cvs.html">
@@ -38,7 +49,7 @@ ocamldoc distribution tarball</a>, and build it:
       or
   % set path = ($PREFIX/bin $path)          # for csh/tcsh
   % autoconf
-  % ./configure
+  % ./configure                             # inherits --prefix from above
   % make depend
   % make all
   (fails with complaint about either missing .cmx (if ocamlc.opt not built)
@@ -63,8 +74,7 @@ generate a few sample documentation files:
 <p>Finally, we can use this to generate documentation for the CCured sources:
 <pre>
   % cd $CIL
-  % mkdir odoc
-  % $PREFIX/bin/odoc -d odoc -html -I obj src/*.mli src/frontc/*.mli
+  % make odoc
 </pre>
 This will dump a bunch of .html files into the odoc/ directory.  It also may spew
 some messages about errors parsing text inside comments; those messages are
