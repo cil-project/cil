@@ -1626,7 +1626,10 @@ let castTo (fe: fexp) (newt: typ)
       | N.Safe, N.FSeqN when is_zero fe  ->
           let p' = castP p in
           (doe, FM (newt, newkind, p', zero, zero))
-          
+      | N.Safe, N.SeqN when is_zero fe ->
+          let p' = castP p in
+          (doe, FM (newt, newkind, p', zero, zero))
+
         (* SAFE -> SEQ *)          
       | N.Safe, N.Seq -> 
           let p' = castP p in
@@ -1701,7 +1704,7 @@ let castTo (fe: fexp) (newt: typ)
 
       (* SeqN -> SEQ *)
       | N.SeqN, N.Seq -> 
-          doe, FM(newt, newkind, castP p, b, b)
+          doe, FM(newt, newkind, castP p, b, bend)
           
       | N.SeqN, (N.String|N.ROString) ->
           let p', b', bend', acc' = seqNToString p newPointerType b bend [] in
