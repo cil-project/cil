@@ -40,7 +40,7 @@ int main() {
   TIMESTART(clk);
   for(i=0;i<ITERS;i++) {
     int k = random() & 0x7FFFL;
-    printf("inserting #%d\n", i);
+    //    printf("inserting #%d\n", i);
 //    if(i == 30000) {
 //      foo = (int*) ((int) &main);  // Test scalar2pointer
 //    }
