@@ -479,6 +479,7 @@ and file =  parse
 
 and endline = parse 
         '\n' 			{ E.newline (); initial lexbuf}
+|   eof                         { EOF }
 |	_			{ endline lexbuf}
 
 and pragma = parse
