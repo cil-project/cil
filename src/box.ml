@@ -381,11 +381,12 @@ let rec typeHasChanged t =
  * for tags and for the length  *)
 (* Check whether the type contains an embedded array *)
 let mustBeTagged v = 
-  let rec containsArray t = 
+  let rec containsArray t =
+(*
     existsType 
       (function TArray _ -> true | _ -> false) t
   in
-(*
+*)
     match unrollType t with 
       TArray _ -> true
     | TComp comp -> 
@@ -394,7 +395,7 @@ let mustBeTagged v =
     | (TInt _ | TEnum _ | TFloat _ | TBitfield _ ) -> false
     | _ -> E.s (E.unimp "containsArray: %a" d_plaintype t)
   in
-*)
+
   if v.vglob then 
     match v.vtype with 
       TFun _ -> false 
@@ -912,9 +913,11 @@ and boxlval (b, off) : (typ * stmt list * lval * exp) =
                 TComp comp when comp.cstruct -> begin
                   match comp.cfields with 
                     _ :: df :: _ when df.fname = "_data" -> df
-                  | _ -> E.s (E.bug "addrOf but no tagged type")
+                  | _ -> 
+                      E.s (E.bug "Expecting tags in %s (no data field)" 
+                             vi.vname)
                 end 
-              | _ -> E.s (E.bug "addrOf but no tagged type")
+              | _ -> E.s (E.bug "Expecting tags in %s (no comp)" vi.vname)
             in
             Field(dataf, NoOffset), dataf.ftype, Field(dataf, off)
           else

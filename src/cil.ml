@@ -1504,7 +1504,7 @@ let existsType (f: typ -> bool) t =
     | TArray (t', _, _) -> loop t'
     | TPtr (t', _) -> loop t'
     | TFun (rt, args, _, _) -> 
-        loop rt &&
+        loop rt ||
         List.exists (fun a -> loop a.vtype) args
     | _ -> false)
   and loopComp c = 
