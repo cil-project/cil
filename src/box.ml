@@ -2376,9 +2376,11 @@ let rec stringLiteral (s: string) (strt: typ) : stmt list * fexp =
           [ integer registerAreaTaggedInt;
             voidStarResult; zero ] [] 
       in
-      (regarea, FM (fixChrPtrType, N.Wild,
-                      result, 
-                      castVoidStar result, zero))
+      (* Add the registration to the global initializer *)
+      extraGlobInit := regarea @ !extraGlobInit;
+      ([], FM (fixChrPtrType, N.Wild,
+               result, 
+               castVoidStar result, zero))
   | N.Seq | N.Safe | N.FSeq | N.String | N.ROString | N.SeqN | N.FSeqN -> 
       let l = (if isNullTerm k then 0 else 1) + String.length s in
       let tmp = makeTempVar !currentFunction charPtrType in
@@ -2391,6 +2393,8 @@ let rec stringLiteral (s: string) (strt: typ) : stmt list * fexp =
             castVoidStar (Lval (var tmp)); 
             castVoidStar theend ] []
       in
+      (* Add the registration to the global initializer *)
+      extraGlobInit := regarea @ !extraGlobInit;
       let res = 
         match k with 
           N.Safe | N.String | N.ROString -> 
@@ -2403,7 +2407,7 @@ let rec stringLiteral (s: string) (strt: typ) : stmt list * fexp =
 
         | _ -> E.s (E.bug "stringLiteral")
       in
-      (mkSet (var tmp) (Const (CStr s)) :: regarea, res)
+      (mkSet (var tmp) (Const (CStr s)) :: [], res)
         
   | N.WildT | N.SeqT | N.FSeqT | N.SeqNT | N.FSeqNT -> 
       let kno_t = N.stripT k in
