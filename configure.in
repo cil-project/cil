@@ -308,9 +308,9 @@ case "$target" in
     # override CCUREDHOME; even on cygwin we want forward slashes
     # sm: Ifolded this into what I hope will be the only
     # case-analysis of machine type
-    CCUREDHOME=`cygpath -wa $CCUREDHOME  | sed -e "s/\\\\\/\\//g"`
+    CCUREDHOME=`cygpath -wa "$CCUREDHOME"  | sed -e "s/\\\\\/\\//g"`
     CC=`which $CC`
-    CC=`cygpath -wa $CC  | sed -e "s/\\\\\/\\//g"`
+    CC=`cygpath -wa "$CC"  | sed -e "s/\\\\\/\\//g"`
     ;;
 
   *)
