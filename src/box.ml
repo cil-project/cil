@@ -2423,8 +2423,7 @@ let boxFile file =
           (* If the type has changed and this is a global variable then we
            * also change its name *)
     fixupGlobName vi;
-    (* Prepare the data initializer. Catch the case when we are initialing an 
-     * array of char with a string.  *)
+    (* Prepare the data initializer. *)
     let init' = 
       match init with
         None -> None
