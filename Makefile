@@ -414,6 +414,14 @@ hashtest: test/small2/hashtest.c
                  $(EXEOUT)hashtest.exe
 	$(PCCTEST)/hashtest.exe
 
+hufftest-optimvariant.%: mustbegcc
+	cd $(PCCTEST); \
+           $(OPTIMVARIANT) \
+                 hashtest.exe_combcured.$*.optim.c \
+                 $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
+                 $(EXEOUT)hashtest.exe
+	$(PCCTEST)/hashtest.exe $(HUFFINPUT)
+
 
 rbtest: test/small2/rbtest.c 
 	rm -f $(PCCTEST)/rbtest.exe
@@ -428,6 +436,14 @@ rbtest: test/small2/rbtest.c
                  $(EXEOUT)rbtest.exe
 	$(PCCTEST)/rbtest.exe letGcFree
 
+rbtest-optimvariant.%: mustbegcc
+	cd $(PCCTEST); \
+           $(OPTIMVARIANT) \
+                 rbtest.exe_combcured.$*.optim.c \
+                 $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
+                 $(EXEOUT)rbtest.exe
+	$(PCCTEST)/rbtest.exe letGcFree
+
 btreetest: test/small2/testbtree.c \
            test/small2/btree.c 
 	rm -f test/small2/btreetest.exe
@@ -438,6 +454,14 @@ btreetest: test/small2/testbtree.c \
                  $(EXEOUT)btreetest.exe
 	test/small2/btreetest.exe
 
+
+btreetest-optimvariant.%: mustbegcc
+	cd test/small2; \
+           $(OPTIMVARIANT) \
+                 btreetest.exe_combcured.$*.optim.c \
+                 $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
+                 $(EXEOUT)btreetest.exe
+	test/small2/btreetest.exe
 
 # sm: this is my little test program
 hola: scott/hola
@@ -610,6 +634,14 @@ hufftest: test/small2/hufftest.c
                  $(EXEOUT)hufftest.exe
 	cd $(PCCTEST); ./hufftest.exe $(HUFFINPUT)
 
+
+hufftest-optimvariant.%: mustbegcc
+	cd $(PCCTEST); \
+           $(OPTIMVARIANT) \
+                 hufftest.exe_combcured.$*.optim.c \
+                 $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
+                 $(EXEOUT)hufftest.exe
+	$(PCCTEST)/hufftest.exe $(HUFFINPUT)
 
 wes-rbtest: test/small2/wes-rbtest.c 
 	rm -f $(PCCTEST)/wes-rbtest.exe
@@ -1344,6 +1376,16 @@ anagram: mustbegcc
              make CC="$(CCURED) $(STANDARDPATCH) --combine"
 	cd $(ANAGRAMDIR); make test
 
+anagram-optimvariant.%: mustbegcc
+	cd $(ANAGRAMDIR); \
+           $(OPTIMVARIANT) \
+                 anagram_combcured.$*.optim.c \
+                 $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
+                 $(EXEOUT)anagram
+	cd $(ANAGRAMDIR); make test
+
+
+
 
 BCDIR := test/ptrdist-1.1/bc
 bc: mustbegcc
@@ -1351,10 +1393,26 @@ bc: mustbegcc
             make CC="$(CCURED) $(STANDARDPATCH) --combine"
 	cd $(BCDIR); make test
 
+bc-optimvariant.%: mustbegcc
+	cd $(BCDIR); \
+           $(OPTIMVARIANT) \
+                 bc_combcured.$*.optim.c \
+                 $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
+                 $(EXEOUT)bc
+	cd $(BCDIR); make test
+
 FTDIR := test/ptrdist-1.1/ft
 ft: mustbegcc
 	cd $(FTDIR); rm -f *.o; \
            make CC="$(CCURED) $(STANDARDPATCH) --combine"
+	cd $(FTDIR); make test
+
+ft-optimvariant.%: mustbegcc
+	cd $(FTDIR); \
+           $(OPTIMVARIANT) \
+                 ft_combcured.$*.optim.c \
+                 $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
+                 $(EXEOUT)ft
 	cd $(FTDIR); make test
 
 
@@ -1364,11 +1422,28 @@ ks: mustbegcc
            make CC="$(CCURED) $(STANDARDPATCH) --combine"
 	cd $(KSDIR); make test
 
+ks-optimvariant.%: mustbegcc
+	cd $(KSDIR); \
+           $(OPTIMVARIANT) \
+                 ks_combcured.$*.optim.c \
+                 $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
+                 $(EXEOUT)ks
+	cd $(KSDIR); make test
+
+
 
 YACRDIR := test/ptrdist-1.1/yacr2
 yacr: mustbegcc
 	cd $(YACRDIR); rm -f *.o; \
            make CC="$(CCURED) $(STANDARDPATCH) --combine"
+	cd $(YACRDIR); make test
+
+yacr-optimvariant.%: mustbegcc
+	cd $(YACRDIR); \
+           $(OPTIMVARIANT) \
+                 yacr2_combcured.$*.optim.c \
+                 $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
+                 $(EXEOUT)yacr2
 	cd $(YACRDIR); make test
 
 

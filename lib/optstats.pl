@@ -73,6 +73,15 @@ my @alltests =
       "li",
       "power",
       "tsp",
+      "bc",
+      "yacr",
+      "anagram",
+      "ft",
+      "ks",
+      "btreetest",
+      "rbtest",
+      "hufftest",
+      "hashtest"
       );
 
 # -------------------------------------------------------------------
