@@ -68,6 +68,9 @@ val no_flow : bool ref
 (** Show the progress of the flow step *)
 val show_progress : bool ref 
 
+(** Treat undefined functions conservatively *)
+val conservative_undefineds : bool ref
+
 (***********************************************************************)
 (*                                                                     *)
 (* Building the Points-to Graph                                        *)
@@ -102,16 +105,17 @@ val resolve_funptr : Cil.exp -> (Cil.fundec list)
 type absloc 
 
 (** Give an abstract location for a varinfo *)
-val abslocVarinfo : Cil.varinfo -> absloc
+val absloc_of_varinfo : Cil.varinfo -> absloc
 
 (** Give an abstract location for an Cil lvalue *)
-val abslocLval : Cil.lval -> absloc
+val absloc_of_lval : Cil.lval -> absloc
 
 (** may the two abstract locations be aliased? *)
-val abslocEq : absloc -> absloc -> bool
+val absloc_eq : absloc -> absloc -> bool
 
-(** Pretty print an abstract location *)
-val d_absloc : unit -> absloc -> Pretty.doc
+val absloc_e_points_to  : Cil.exp -> absloc list
+val absloc_lval_aliases : Cil.lval -> absloc list
+
 
 (***********************************************************************)
 (*                                                                     *)
@@ -119,11 +123,20 @@ val d_absloc : unit -> absloc -> Pretty.doc
 (*                                                                     *)
 (***********************************************************************)
 
-(** Compute points to sets. If true is passed, print the sets. *)
+(** Compute points to sets for variables. If true is passed, print the sets. *)
 val compute_results : bool -> unit
 
+(*
+
+Deprecated these. -- jk
+
 (** Compute alias relationships. If true is passed, print all alias pairs. *)
-val compute_aliases : bool -> unit
+ val compute_aliases : bool -> unit
 
 (** Compute alias frequncy *)
 val compute_alias_frequency : unit -> unit
+
+
+*)
+
+val compute_aliases : bool  -> unit

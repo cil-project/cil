@@ -39,16 +39,11 @@ open Cil
 
 module H = Hashtbl
 
-module A = Golf 
-
-(* module A = Steensgaard *)
-
-(* module A = Dummy *) 
+module A = Olf
 
 type access = A.lvalue * bool
 
 type access_map = (lval, access) H.t
-
 
 (** a mapping from varinfo's back to fundecs *)
 module VarInfoKey =
@@ -75,7 +70,11 @@ let no_flow = A.no_flow
 let no_sub = A.no_sub
 let fun_ptrs_as_funs = ref false
 let show_progress = ref false
-let debug_may_aliases = ref false
+let debug_may_aliases = ref true
+
+let found_undefined = ref false
+
+let conservative_undefineds = ref false
 
 let current_fundec : fundec option ref = ref None
 
@@ -123,6 +122,17 @@ let pointer_destroying_binop op : bool =
     | BXor -> false     
     | _ -> true
 
+let is_undefined_fun = function
+  | Lval (lh,o) ->
+	if (isFunctionType (typeOfLval (lh,o))) 
+	then
+	  match lh with
+	    | Var v -> v.vstorage = Extern
+	    | _ -> false
+	else
+	  false
+    | _ -> false
+
 let is_alloc_fun = function 
     | Lval (lh,o) ->
 	if (isFunctionType (typeOfLval (lh,o))) 
@@ -134,9 +144,11 @@ let is_alloc_fun = function
 	  false
     | _ -> false
 
-let next_alloc () = 
-  let name = "alloc_" ^ string_of_int (fresh_index())
-  in A.address (A.make_lvalue false name None) (* check *)
+let next_alloc = function
+  | Lval (Var v,o) ->
+      let name = Printf.sprintf "%s@%d" (v.vname) (fresh_index())
+      in A.address (A.make_lvalue false name (Some v)) (* check *)
+  | _ -> raise Bad_return
 
 (***********************************************************************)
 (*                                                                     *)
@@ -156,7 +168,7 @@ let analyze_var_decl (v : varinfo ) : A.lvalue =
 	  let is_global = 
 	    if (isFunctionType(v.vtype)) then false else v.vglob  
 	  in
-	  let lv = A.make_lvalue is_global v.vname (Some v)
+	  let lv = A.make_lvalue false v.vname (Some v)
 	  in
 	    H.add lvalue_hash v lv;
 	    lv
@@ -213,7 +225,7 @@ let rec analyze_lval (lv : lval ) : A.lvalue =
 	
 and analyze_expr_as_lval (e : exp) : A.lvalue = 
   match e with
-    | Lval l -> analyze_lval l 
+    | Lval l ->  analyze_lval l 
     | _ -> assert(false) (* todo -- other kinds of expressions? *)
 
 and analyze_expr (e : exp ) : A.tau = 
@@ -266,21 +278,38 @@ let analyze_instr (i : instr ) : unit =
 	A.assign (analyze_lval lval) (analyze_expr rhs)
     | Call (res,fexpr,actuals,l) ->
 	if ( not (isFunctionType(typeOf(fexpr))) ) 
-	then () (* varargs ?? *)
+	then () (* todo : is this a varargs ?? *)
 	else if (is_alloc_fun fexpr)
 	then 
-	  match res with
-	    | Some r -> A.assign (analyze_lval r) (next_alloc())
-	    | None -> ()
-	else
+	  begin
+	    if (!debug)
+	    then
+	      begin
+		print_string "Found allocation function..."; 
+		print_newline()
+	      end;
+	    match res with
+	      | Some r -> A.assign (analyze_lval r) (next_alloc (fexpr))
+	      | None -> ()
+	  end
+	else (* todo : check to see if the thing is an undefined function *)
 	  begin
 	    let 
-	      fnres,site = A.apply (analyze_expr fexpr) 
-			     (List.map analyze_expr actuals)
+	      fnres,site = 
+	      if (is_undefined_fun fexpr & !conservative_undefineds) then
+		begin
+		  A.apply_undefined (List.map analyze_expr actuals) 
+		end
+	      else
+		A.apply (analyze_expr fexpr) 
+		  (List.map analyze_expr actuals)
 	    in
 	      match res with 
 		| Some r ->
-		    A.assign_ret site (analyze_lval (r)) fnres
+		    begin
+		      A.assign_ret site (analyze_lval (r)) fnres;
+		      found_undefined := true;
+		    end
 		| None -> ()
 	  end
     | Asm _ -> ()
@@ -450,6 +479,11 @@ let count_hash_elts h =
       H.iter (fun _ -> fun _ -> incr result) lvalue_hash;
       !result
     end
+
+(** Make the most pessimistic assumptions about globals if an undefined
+  function is present. Such a function can write to every global variable *)
+let hose_globals () : unit = 
+  List.iter (fun vd -> A.assign_undefined (analyze_var_decl vd)) (!all_globals)
   
 let show_progress_fn (counted : int ref) (total : int) : unit = 
   begin
@@ -469,15 +503,15 @@ let compute_results (show_sets : bool) : unit =
       print_newline();
     end;
   let 
-    total_pointed_to = ref 0
-  in
+    total_pointed_to = ref 0 in
   let
-    total_lvalues = count_hash_elts lvalue_hash
-  in
+    total_lvalues = count_hash_elts lvalue_hash in
   let 
-    counted_lvalues = ref 0
-  in
-  let global_lvalues = ref 0
+    counted_lvalues = ref 0 in
+  let print_reached_unknown name = 
+    begin
+      Printf.printf "%s -> (top)\n" name;
+    end
   in
   let print_result (name,set) =
       let rec print_set s = 
@@ -502,19 +536,21 @@ let compute_results (show_sets : bool) : unit =
   in
   let lval_elts : (string * (string list)) list ref = ref [] 
   in 
+    A.finished_constraints();
+    if (!conservative_undefineds & !found_undefined) then hose_globals ();
     Hashtbl.iter (fun vinf -> fun lv -> 
 		    begin
-		      if (A.global_lvalue lv) then incr global_lvalues;
 		      (show_progress_fn counted_lvalues total_lvalues);
-		      lval_elts := (vinf.vname, A.points_to_names lv) :: (!lval_elts)
+		      try
+			lval_elts := (vinf.vname, A.points_to_names lv) :: (!lval_elts)
+		      with
+			| A.UnknownLocation -> 
+			    (print_reached_unknown vinf.vname)
 		    end
 		 ) lvalue_hash;
     List.iter print_result (!lval_elts); 
     if (show_sets) then
       Printf.printf "Total number of things pointed to: %d\n" !total_pointed_to
-    (* 
-       Printf.printf "Total number of inferred globals : %d\n" !global_lvalues
-    *)
   
 let print_types () : unit =
   print_string "Printing inferred types of lvalues...";
@@ -540,7 +576,10 @@ let compute_may_aliases (b : bool) : unit =
   each pair of values is aliased. Aliasing is determined by taking points-to
   set intersections.
 *)
-let compute_aliases (b : bool) : unit =
+
+
+let compute_aliases = compute_may_aliases
+(*
   let f_counted = ref 0 in
   let f_total = List.length (!all_functions) in
   let _ = print_string "Computing aliases..."; print_newline() in
@@ -573,7 +612,9 @@ let compute_aliases (b : bool) : unit =
     Printf.printf "Naive queries : %d of %d possible\n" (!a_count) (!a_total);
     Printf.printf "Smart queries : %d of %d possible\n" (!s_count) (!a_total)
     *)
+*)
 
+(*
 let compute_alias_frequency () : unit = 
   let f_counted = ref 0 in
   let f_total = List.length (!all_functions) in
@@ -609,39 +650,48 @@ let compute_alias_frequency () : unit =
     Printf.printf "Naive queries : %d of %d possible\n" (!a_count) (!a_total);
     Printf.printf "Smart queries : %d of %d possible\n" (!s_count) (!a_total)
 
-
+*)
 
 
 (** abstract location interface *)
 
+
 type absloc = A.absloc
 
-let rec lvalueVarinfo (vi : varinfo) : A.lvalue =
+let rec lvalue_of_varinfo (vi : varinfo) : A.lvalue =
   H.find lvalue_hash vi
 
-let rec lvalueLval (lv : lval) : A.lvalue =
+let rec lvalue_of_lval (lv : lval) : A.lvalue =
   match lv with
-    | (Var vi, _) -> lvalueVarinfo vi
-    | (Mem e, _) -> A.deref (A.rvalue (lvalueExp e))
+    | (Var vi, _) -> lvalue_of_varinfo vi
+    | (Mem e, _) -> A.deref (A.rvalue (lvalue_of_exp e))
 
 (* do not export - AddrOf only ok if it's dereferenced later *)
-and lvalueExp (e : exp) : A.lvalue =  
+and lvalue_of_exp (e : exp) : A.lvalue =  
   match e with 
-    | Lval lv -> lvalueLval lv
-    | CastE (_,e) -> lvalueExp e
-    | BinOp((PlusPI|IndexPI|MinusPI),e,_,_) -> lvalueExp e
+    | Lval lv -> lvalue_of_lval lv
+    | CastE (_,e) -> lvalue_of_exp e
+    | BinOp((PlusPI|IndexPI|MinusPI),e,_,_) -> lvalue_of_exp e
 
-    | (AddrOf lv | StartOf lv) -> 
-        A.phonyAddrOf (lvalueLval lv)
+    | (AddrOf lv) -> 
+        (*A.phonyAddrOf (lvalue_of_lval lv)*)
+        failwith "lvalue_of_exp: AddrOf lv"
+
+    | StartOf lv -> 
+        failwith "lvalue_of_exp: StartOf lv"
 
     | (Const _ | SizeOf _ | SizeOfE _ | SizeOfStr _ | AlignOf _ | AlignOfE
            _ | UnOp _ | BinOp _ )-> 
-        failwith "lvalueExp: fishy exp in lval"
+        failwith "lvalue_of_exp: fishy exp in lval"
 
 (** return an abstract location for a varinfo, resp. lval *)
-let abslocVarinfo vi = A.abslocLvalue (lvalueVarinfo vi)
-let abslocLval lv = A.abslocLvalue (lvalueLval lv)
+let absloc_of_varinfo vi = A.absloc_of_lvalue (lvalue_of_varinfo vi)
+let absloc_of_lval lv = A.absloc_of_lvalue (lvalue_of_lval lv)
 
-let abslocEq = A.abslocEq
-let d_absloc = A.d_absloc
+let absloc_e_points_to e = A.absloc_epoints_to (traverse_expr e)
+let absloc_lval_aliases lv = A.absloc_points_to (lvalue_of_lval lv)
+
+let absloc_eq a b = A.absloc_eq(a,b)
+
+
 
