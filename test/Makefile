@@ -2056,7 +2056,7 @@ bindclean:
 
 bind: mustbegcc mustbelinux mustbemanju bindclean
 	cd $(BINDSRC) ; make -e \
-              CC="$(CCURED) --curetype=infer $(STANDARDPATCH)" \
+              CC="$(CCURED) --curetype=infer --emitbrowser $(STANDARDPATCH)" \
               MAKE="make -e" \
                 LD="$(CILLY) --merge --verbose --commPrintLn " \
                 AR="$(CILLY) --mode=AR --merge --verbose " \
@@ -2064,7 +2064,7 @@ bind: mustbegcc mustbelinux mustbemanju bindclean
 
 bind-noclean: mustbegcc mustbelinux mustbemanju
 	cd $(BINDSRC) ; make -e \
-              CC="$(CCURED) --curetype=infer $(STANDARDPATCH)" \
+              CC="$(CCURED) --curetype=infer --emitbrowser $(STANDARDPATCH)" \
               MAKE="make -e" \
                 LD="$(CILLY) --merge --verbose --commPrintLn " \
                 AR="$(CILLY) --mode=AR --merge --verbose " \

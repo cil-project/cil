@@ -62,7 +62,7 @@ dns_rdatacallbacks_init(dns_rdatacallbacks_t *callbacks) {
 }
 
 int foo(dns_rdatacallbacks_t *ptr) {
-  stdio_error_warn_callback("Does it work %s","if we call it directly?");
+  stdio_error_warn_callback(ptr,"Does it work %s","if we call it directly?");
   ptr->warn(ptr,"Warning Int %d\n",55); 
   ptr->warn(ptr,"Warning String %s\n","mystring"); 
 } 

@@ -111,7 +111,7 @@ if binaryExists ocamlc; then
   diagnostic "major is $major"
   # minor: numbers after the .
   # (the outer level of bracket-quotation protects the inner brackets)
-  [minor=`echo $ver | sed 's/^.*\.\([0-9]\+\).*$/\1/'`]
+  [minor=`echo $ver | sed 's/[^.]*\.//'`]
   diagnostic "minor is $minor"
 
   # I would think autoconf would already have a facility for doing
@@ -171,6 +171,8 @@ AC_MSG_CHECKING([for Perl])
     MSWin32) # ActivePerl
         ;;
     linux)
+        ;;
+    freebsd)
         ;;
     *)
       AC_MSG_ERROR([
@@ -283,7 +285,7 @@ AC_CHECK_FUNCS(mkdir select socket)
 # $target is typically processor-vendor-os
 case "$target" in
   # linux
-  *86*linux*)
+  *86*linux*|*86*freebsd)
     AC_MSG_RESULT(configuring for linux/x86)
 
     ARCHOS=x86_LINUX
