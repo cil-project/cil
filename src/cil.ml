@@ -45,7 +45,16 @@ module H = Hashtbl
    - in cabs2cil we drop the volatile sometimes
 *)
 
-(* where did some construct originally appear in the source code? *)
+(* A few globals that control the interpretation of C source *)
+let msvcMode = ref false              (* Whether the pretty printer should 
+                                       * print output for the MS VC 
+                                       * compiler. Default is GCC *)
+let charIsUnsigned = ref false        (* Whether CHAR is unsigned. Default 
+                                       * false *)
+let ilongFitsUInt = ref false         (* Whether a signed long can fit an 
+                                       * unsigned integer. True only if a 
+                                       * long uses more bits than an int  *)
+
 type location = { 
     line: int;				(* -1 means "do not know" *)
     col: int;
@@ -352,9 +361,6 @@ type file = global list
 
 
 let lu = locUnknown
-let msvcMode = ref false              (* Whether the pretty printer should 
-                                       * print output for the MS VC 
-                                       * compiler. Default is GCC *)
 
 let integerFits (i: int) (k: ikind) =  true (* We know that i is less than 31 
                                              * bits so it fits even in an 

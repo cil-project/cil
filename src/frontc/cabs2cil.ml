@@ -349,22 +349,26 @@ let arithmeticConversion    (* c.f. ISO 6.3.1.8 *)
         TInt(IULongLong, _), _ -> checkToInt t2'; t1'
       | _, TInt(IULongLong, _) -> checkToInt t1'; t2'
             
-      | TInt(ILongLong, _), _ -> checkToInt t2'; t1'
+      (* We assume a long long is always larger than a long  *)
+      | TInt(ILongLong, _), _ -> checkToInt t2'; t1'  
       | _, TInt(ILongLong, _) -> checkToInt t1'; t2'
             
       | TInt(IULong, _), _ -> checkToInt t2'; t1'
       | _, TInt(IULong, _) -> checkToInt t1'; t2'
+
+                    
+      | TInt(ILong,_), TInt(IUInt,_) when not !ilongFitsUInt -> TInt(IULong,[])
+      | TInt(IUInt,_), TInt(ILong,_) when not !ilongFitsUInt -> TInt(IULong,[])
             
       | TInt(ILong, _), _ -> checkToInt t2'; t1'
       | _, TInt(ILong, _) -> checkToInt t1'; t2'
-            
+
       | TInt(IUInt, _), _ -> checkToInt t2'; t1'
       | _, TInt(IUInt, _) -> checkToInt t1'; t2'
             
       | TInt(IInt, _), TInt (IInt, _) -> t1'
 
-      | _, _ -> E.s (E.unimp "arithmetic Conversion.@!T1=%a@!T2=%a@!"
-                       d_plaintype t1 d_plaintype t2)
+      | _, _ -> E.s (E.bug "arithmeticConversion")
   end
 
 let conditionalConversion (e2: exp) (t2: typ) (e3: exp) (t3: typ) : typ =
@@ -1008,11 +1012,10 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
           | CastE (_, Lval x, _) -> x
           | _ -> E.s (E.unimp "Expected lval for ++ or --")
         in
-        let tres = checkTypeAdd t intType in
-        finishExp (se @ [mkSet lv (BinOp(uop', 
-                                         Lval(lv), integer 1, tres, lu))])
+        let tresult, result = doBinOp uop' (Lval(lv)) t one intType in
+        finishExp (se @ [mkSet lv (doCast result tresult t)])
           (Lval(lv))
-          tres
+          tresult   (* Should this be t instead ??? *)
           
     | A.UNARY((A.POSINCR|A.POSDECR) as uop, e) -> 
       (* If we do not drop the result then we must save the value *)
@@ -1024,7 +1027,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
           | CastE (_, Lval x, _) -> x
           | _ -> E.s (E.unimp "Expected lval for ++ or --")
         in
-        let tres = checkTypeAdd t intType in
+        let tresult, opresult = doBinOp uop' (Lval(lv)) t one intType in
         let se', result = 
           if what <> ADrop then 
             let tmp = newTempVar t in
@@ -1032,10 +1035,9 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
           else
             se, Lval(lv)
         in
-        finishExp (se' @ [mkSet lv (BinOp(uop', Lval(lv), 
-                                          integer 1, tres, lu))])
+        finishExp (se' @ [mkSet lv (doCast opresult tresult t)])
           result
-          tres
+          tresult   (* Should this be t instead ??? *)
           
     | A.BINARY(A.ASSIGN, e1, e2) -> 
         let (se1, e1', lvt) = doExp e1 (AExp None) in
@@ -1396,9 +1398,13 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
   | (Mod|BAnd|BOr|BXor) -> doIntegralArithmetic ()
   | (Shiftlt|Shiftrt) -> (* ISO 6.5.7. Only integral promotions. The result 
                           * has the same type as the left hand side *)
-      let t1' = integralPromotion t1 in
-      let t2' = integralPromotion t2 in
-      constFold (doCast e1 t1 t1') (doCast e2 t2 t2') t1'
+      if !msvcMode then
+        (* MSVC has a bug. We duplicate it here *)
+        doIntegralArithmetic ()
+      else
+        let t1' = integralPromotion t1 in
+        let t2' = integralPromotion t2 in
+        constFold (doCast e1 t1 t1') (doCast e2 t2 t2') t1'
 
   | (Plus|Minus) 
       when isArithmeticType t1 && isArithmeticType t2 -> doArithmetic ()
@@ -1489,17 +1495,6 @@ and doCondition (e: A.expression)
       | Const(CInt(0,_,_),_) when canDrop st -> se @ sf
       | _ -> se @ [IfThenElse(e, mkSeq st, mkSeq sf)]
   end
-
-and checkTypeAdd t1 t2 = 
-  match unrollType t1, unrollType t2 with
-    TInt _, TInt _ -> t1
-  | TPtr _, TInt _ -> t1
-  | TInt _, TPtr _ -> t2
-  | TFloat _, TFloat _ -> t1
-  | TFloat _, TInt _ -> t1
-  | TInt _, TFloat _ -> t2
-  | _ -> E.s (E.unimp "checkTypeAdd %a + %a\n" d_type t1 d_type t2)
-
 
 and doPureExp (e : A.expression) : exp = 
   let (se, e', _) = doExp e (AExp None) in
