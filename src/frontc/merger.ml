@@ -6,7 +6,7 @@ open Pretty
 module E = Errormsg
 module H = Hashtbl
 
-let debugTypes = false
+let debugTypes  = false
 let debugFundef = false
 
 (* Keep track of the current location *)
@@ -596,7 +596,9 @@ let findTypeTagNames (f: Cabs.file) =
             if debugTypes then
               ignore (E.log "reusing name for %s -> %s\n" defn on);
             if rest <> [] then 
-              ignore (E.warn " more than one old name found!\n");
+              ignore (E.warn " more than one old name found for %s!\n" defn);
+            (* Add to the environment the new name *)
+            H.add env defkn on;
             H.add reused defkn on
       end)
     fileTypeTags;
@@ -687,26 +689,29 @@ let merge (files : Cabs.file list) : Cabs.file =
           end else begin
             (* We apply the renaming to the declaration *)
             let d' = renameDefinition d in
-            (* We try to reuse function prototypes for non-static decls *)
-            if List.for_all 
-                (fun ((_, dt, _), _) -> 
-                  (* See if this is a function type *)
-                  let rec isFunctionType = function
-                      PROTO (JUSTBASE, _, _) -> true
-                    | PROTO (dt, _, _) -> isFunctionType dt
-                    | PARENTYPE (_, dt, _) -> isFunctionType dt
-                    | ARRAY (dt, _) -> isFunctionType dt
-                    | PTR (_, dt) -> isFunctionType dt
-                    | JUSTBASE -> false
-                  in
-                  isFunctionType dt) inl then
-              if H.mem globalDefinitions d' then 
-                () (* Drop it *)
-              else begin
-                H.add globalDefinitions d' true;
-                theProgram := d' :: !theProgram
+            (* We try to reuse function prototypes for non-static decls and 
+             * extern declarations *)
+            if isExtern s || 
+               (List.for_all 
+                  (fun ((_, dt, _), _) -> 
+                    (* See if this is a function type *)
+                    let rec isFunctionType = function
+                        PROTO (JUSTBASE, _, _) -> true
+                      | PROTO (dt, _, _) -> isFunctionType dt
+                      | PARENTYPE (_, dt, _) -> isFunctionType dt
+                      | ARRAY (dt, _) -> isFunctionType dt
+                      | PTR (_, dt) -> isFunctionType dt
+                      | JUSTBASE -> false
+                    in
+                    isFunctionType dt) inl) then 
+              begin
+                if H.mem globalDefinitions d' then 
+                  () (* Drop it *)
+                else begin
+                  H.add globalDefinitions d' true;
+                  theProgram := d' :: !theProgram
+                end
               end
-                
             else
               theProgram := d' :: !theProgram
           end
@@ -766,11 +771,13 @@ let merge (files : Cabs.file list) : Cabs.file =
           let s' = visitCabsSpecifier renameVisitor s in
           let rec loop = function
               [] -> []
-            | ((n, dt, a) as nm) :: rest -> 
-                if H.mem reused (EType, n) then 
+            | ((n, dt, a) as nm) :: rest -> begin
+                try
+                  let n' = H.find reused (EType, n) in
                   loop rest
-                else
+                with Not_found ->
                   visitCabsName renameVisitor NType s' nm :: loop rest
+            end
           in
           let nl' = loop nl in
           theProgram := 

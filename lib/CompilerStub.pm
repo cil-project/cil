@@ -34,15 +34,26 @@ sub new {
     };
     my $self = bless $ref, $class;
 
-    # Expect the --mode argument first. Else it is GCC
+    # Look for the --mode argument first. If not found it is GCC
+    my $mode;
     {
-        my $mode;
-        if($args[0] =~ m|--mode=(.+)$|) {
-            shift @args; $mode = $1;
-        } else { $mode = 'GNUCC'; }
-        if(defined $self->{MODENAME} && $self->{MODENAME} ne $mode) {
-            die "Cannot re-specify the compiler";
+        my @args1 = ();
+        foreach my $arg (@args) {
+            if($arg =~ m|--mode=(.+)$|) {
+                $mode = $1;
+            } else {
+                push @args1, $arg;
+            }
         }
+        @args = @args1; # These are the argument after we extracted the --mode
+    }
+    if(! defined($mode)) {
+        $mode = 'GNUCC'; # Default is GCC
+    }
+    if(defined $self->{MODENAME} && $self->{MODENAME} ne $mode) {
+        die "Cannot re-specify the compiler";
+    }
+    {
         my $compiler;
         if($mode eq "MSVC") {
             unshift @CompilerStub::ISA, qw(MSVC);

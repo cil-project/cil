@@ -248,6 +248,8 @@ $TEST->add3Tests("testrun/addr-array");
 $TEST->addTests("combine1", "", ['cil']);
 $TEST->addTests("combine2", "", ['cil']);
 $TEST->addTests("combine3", "", ['cil']);
+$TEST->addTests("combine5", "", ['cil']);
+$TEST->addTests("combine6", "", ['cil']);
 $TEST->add2Tests("testrun/funptr1");
 $TEST->addTests("testrun/typespec1", "_GNUCC=1", ['cil']);
    $TEST->addBadComment("testrun/typespec1-cil", 
