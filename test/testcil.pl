@@ -73,14 +73,21 @@ $TEST->newTest(
     Name => "\@\@inittests0",
     Dir => "..",
     Cmd => "make defaulttarget RELEASE=");
-$TEST->newTest(
-    Name => "\@\@inittests1",
-    Dir => "..",
-    Cmd => "make defaulttarget RELEASE=1");
-$TEST->newTest(
-    Name => "\@\@inittests2",
-    Dir => "..",
-    Cmd => "make defaulttarget RELEASE=1 _GNUCC=1");
+if($TEST->{option}->{safecdebug}) {
+    $TEST->newTest(
+                   Name => "\@\@inittests2",
+                   Dir => "..",
+                   Cmd => "make defaulttarget _GNUCC=1");
+} else {
+    $TEST->newTest(
+                   Name => "\@\@inittests1",
+                   Dir => "..",
+                   Cmd => "make defaulttarget RELEASE=1");
+    $TEST->newTest(
+                   Name => "\@\@inittests2",
+                   Dir => "..",
+                   Cmd => "make defaulttarget RELEASE=1 _GNUCC=1");
+}
     
 # Now add tests
 $TEST->add3Tests("btreetest", "", @runpattern);
