@@ -125,7 +125,7 @@ e. Test your session:
      for your private key (identity). 
    - Execute the ls command on the server:
 
-	     plink brooksie "ls -a"
+	     plink @brooksie "ls -a"
 
      The command should execute without asking for a password and return to the 
      windows prompt after executing "ls -a"
@@ -134,14 +134,32 @@ e. Test your session:
 	   putty @brooksie
      should log you in directly now.
 
-f. Set the environment variables
+f. Set the environment variables. Note that these are different than the usual
+   UNIX settings. The @brooksie part means "use the brooksie session from putty"
 
-       CVSROOT=:ext:brooksie:/home/cvs-repository
+       CVSROOT=:ext:@brooksie:/home/cvs-repository
        CVS_RSH=plink
 
 g. At this point you should be able to run cvs:
 
       cvs checkout cil
+
+h. If you have previously been using cvs in pserver mode, cvs might have created 
+   CVS/Root files in all subdirectories under its control. This file simply
+   stores the value of the CVSROOT environment variable when you had checked-out
+   the project for the first time. If CVS finds this file, it seems to ignore the 
+   environment CVSROOT variable and as a result, might be using pserver mode
+   without letting you know.
+   
+   A solution is to delete all the CVS/Root files.
+
+   Another symptom of the CVS/Root problem is the following error message:
+   cvs checkout: warning: unrecognized response `SSH-1.5-1.2.26' from cvs server
+   cvs checkout: warning: unrecognized response `Protocol mismatch.' from cvs	
+   server
+
+   Again, deleting the CVS/Root files should work.
+
 
 (Send corrections/comments/questions to ab@amanb.net)
 
