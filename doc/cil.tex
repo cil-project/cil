@@ -2689,6 +2689,8 @@ Necula}.
  
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf March 11. 2004} : Fixed a bug in the Cil.copyFunction function. The
+new local variables were not getting fresh IDs. 
 \item {\bf March 5, 2004}: Fixed a bug in the handling of static function
   prototypes in a block scope. They used to be renamed. Now we just consider
   them global. 

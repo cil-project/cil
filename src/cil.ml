@@ -5411,7 +5411,8 @@ class copyFunctionVisitor (newname: string) = object (self)
     try
       ChangeTo (H.find map v.vname)
     with Not_found -> begin
-      let v' = {v with vname = v.vname} in
+      let v' = {v with vid = !nextGlobalVID} in
+      incr nextGlobalVID;
       H.add map v.vname v';
       ChangeDoChildrenPost (v', fun x -> x)
     end
