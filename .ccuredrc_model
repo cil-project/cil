@@ -5,18 +5,12 @@
 # If you are on a Windows machine use / as path separator
 # Never check the .ccuredrc file in the repository !
 
-# If you want to use the new patcher, uncomment the next few lines
-# ifndef OLDPATCH
-# NEWPATCH = 1
-# endif
-
-# If you want to use Microsoft Visual C uncomment the few next line
-# ifndef _GNUCC
+ifndef _GNUCC
+# If you want to use Microsoft Visual C uncomment the next line
 # _MSVC = 1
-# endif
+endif
 
 # If you do not want to use the garbage collector uncomment the next line
-# Note that the garbage collector is not available on _MSVC anyway
 # NOGC=1
 
 
