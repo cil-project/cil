@@ -354,6 +354,8 @@ let currentFidx = ref 0
 let currentDeclIdx = ref 0 (* The index of the definition in a file. This is 
                             * maintained both in pass 1 and in pass 2. Make 
                             * sure you count the same things in both passes. *)
+(* Keep here the file names *)
+let fileNames : (int, string) H.t = H.create 113
 
 
 
@@ -401,6 +403,7 @@ let init () =
 
   currentFidx := 0;
   currentDeclIdx := 0;
+  H.clear fileNames;
 
   H.clear emittedVarDecls;
   H.clear emittedCompDecls;
@@ -755,6 +758,7 @@ and matchTypeInfo (oldfidx: int) (oldti: typeinfo)
 (* 3. We clean the referenced flags *)
 
 let rec oneFilePass1 (f:file) : unit = 
+  H.add fileNames !currentFidx f.fileName;
   if debugMerge || !E.verboseFlag then 
     ignore (E.log "Pre-merging (%d) %s\n" !currentFidx f.fileName);
   currentDeclIdx := 0;
@@ -784,8 +788,11 @@ let rec oneFilePass1 (f:file) : unit =
             oldvinode.nfidx oldvi.vtype  
             !currentFidx vi.vtype;
         with (Failure reason) -> begin
-          ignore (error "Incompatible declaration for %s (%d). Previous was at %a (%d) %s " 
-                    vi.vname !currentFidx d_loc oldloc oldvinode.nfidx reason);
+          ignore (error "Incompatible declaration for %s (from %s(%d)).@! Previous was at %a (from %s (%d)) %s " 
+                    vi.vname (H.find fileNames !currentFidx) !currentFidx
+                    d_loc oldloc 
+                    (H.find fileNames oldvinode.nfidx) oldvinode.nfidx 
+                    reason);
           raise Not_found
         end
       in
@@ -1065,7 +1072,7 @@ let renameVisitor = new renameVisitorClass
 (** A visitor that renames uses of inline functions that were discovered in 
  * pass 2 to be used before they are defined. This is like the renameVisitor 
  * except it only looks at the variables (thus it is a bit more efficient) 
- * and it also renames forward declarations of the inlines to be removed). *)
+ * and it also renames forward declarations of the inlines to be removed. *)
 
 class renameInlineVisitorClass = object (self)
   inherit nopCilVisitor 
@@ -1674,7 +1681,7 @@ let oneFilePass2 (f: file) =
 
 let merge (files: file list) (newname: string) : file = 
   init ();
-
+  
   (* Make the first pass over the files *)
   currentFidx := 0;
   List.iter (fun f -> oneFilePass1 f; incr currentFidx) files;

@@ -1855,6 +1855,8 @@ let gccBuiltins : (string, typ * typ list) H.t =
   H.add h "__builtin_next_arg" (voidPtrType, [uintType]);
   H.add h "__builtin_constant_p" (intType, [ intType ]);
   H.add h "__builtin_fabs" (doubleType, [ doubleType ]);
+  H.add h "__builtin_va_end" (voidType, [ TBuiltin_va_list [] ]);
+  H.add h "__builtin_stdarg_start" (voidType, [ intType; intType ]);
   h
 
 (** A printer interface for CIL trees. Create instantiations of 
