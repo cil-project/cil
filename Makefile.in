@@ -60,7 +60,7 @@ ifdef USE_CQUALANN
 endif
 
     # Now rules to make cilly
-CILLY_LIBRARY_MODULES = pretty inthash errormsg trace stats util clist \
+CILLY_LIBRARY_MODULES = pretty inthash errormsg alpha trace stats util clist \
               cilutil escape \
               cabs cabsvisit cprint lexerhack machdep cparser clexer  \
               cilversion cil formatparse formatlex formatcil cabs2cil \
@@ -277,7 +277,8 @@ odoc:
 	     -I $(OBJDIR) \
                     ocamlutil/pretty.mli ocamlutil/errormsg.mli \
                     ocamlutil/clist.mli \
-	  	    ocamlutil/stats.mli src/cil.mli src/formatcil.mli
+	  	    ocamlutil/stats.mli src/cil.mli src/formatcil.mli \
+                    ocamlutil/alpha/mli
 
 doc/cilpp.tex: doc/cilcode.pl doc/cil.tex 
 	-rm -rf doc/html/cil
@@ -309,7 +310,9 @@ pdfdoc: doc/cilpp.tex
 	     -I $(OBJDIR) \
                     ocamlutil/pretty.mli ocamlutil/errormsg.mli \
                     ocamlutil/clist.mli \
-	  	    ocamlutil/stats.mli src/cil.mli src/formatcil.mli
+	  	    ocamlutil/stats.mli src/cil.mli src/formatcil.mli \
+                    ocamlutil/alpha.mli
+
 	cd doc ; TEXINPUTS="$$TEXINPUTS:/usr/local/lib/ocaml/ocamldoc:/usr/lib/ocaml/ocamldoc" pdflatex cil-api.tex
 	cd doc ; mv cil-api.pdf html/cil/CIL-API.pdf
 
@@ -346,7 +349,7 @@ DISTRIB_SRC = cilutil.ml cil.ml cil.mli check.ml check.mli \
 
 DISTRIB_OCAMLUTIL = pretty.ml pretty.mli errormsg.ml errormsg.mli \
                     trace.ml trace.mli stats.ml stats.mli util.ml util.mli \
-                    inthash.ml clist.ml clist.mli \
+                    inthash.ml alpha.ml alpha.mli clist.ml clist.mli \
                     perfcount.c.in Makefile.ocaml Makefile.ocaml.build
 
 

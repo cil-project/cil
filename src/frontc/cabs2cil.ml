@@ -41,6 +41,7 @@
 module A = Cabs
 module E = Errormsg
 module H = Hashtbl
+module AL = Alpha
 
 open Cabs
 open Pretty
@@ -258,7 +259,8 @@ let genv : (string, envdata * location) H.t = H.create 307
   * hash table easily *)
 type undoScope =
     UndoRemoveFromEnv of string
-  | UndoResetAlphaCounter of alphaTableData ref * alphaTableData
+  | UndoResetAlphaCounter of location AL.alphaTableData ref * 
+                             location AL.alphaTableData
   | UndoRemoveFromAlphaTable of string
 
 let scopes :  undoScope list ref list ref = ref []
@@ -298,7 +300,7 @@ let addGlobalToEnv (k: string) (d: envdata) : unit =
  * first argument is a table mapping name prefixes with the largest suffix 
  * used so far for that prefix. The largest suffix is one when only the 
  * version without suffix has been used. *)
-let alphaTable : (string, alphaTableData ref) H.t = H.create 307 
+let alphaTable : (string, location AL.alphaTableData ref) H.t = H.create 307 
         (* vars and enum tags. For composite types we have names like "struct 
          * foo" or "union bar" *)
 
@@ -329,7 +331,7 @@ let newAlphaName (globalscope: bool) (* The name should have global scope *)
   let rec findEnclosingFun = function
       [] -> (* At global scope *)()
     | [s] -> begin
-        let prefix = getAlphaPrefix lookupname in
+        let prefix = AL.getAlphaPrefix lookupname in
         try
           let countref = H.find alphaTable prefix in
           s := (UndoResetAlphaCounter (countref, !countref)) :: !s
@@ -340,7 +342,8 @@ let newAlphaName (globalscope: bool) (* The name should have global scope *)
   in
   if not globalscope then 
     findEnclosingFun !scopes;
-  let newname, oldloc = Cil.newAlphaName alphaTable None lookupname in
+  let newname, oldloc = 
+           AL.newAlphaName alphaTable None lookupname !currentLoc in
   stripKind kind newname, oldloc
 
 

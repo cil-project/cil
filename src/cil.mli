@@ -2196,54 +2196,8 @@ val d_plaintype: unit -> typ -> Pretty.doc
 
 
 
-(** {b ALPHA conversion} *)
+(** {b ALPHA conversion} has been moved to the Alpha module. *)
 
-(** This is the type of the elements that are recorded by the alpha 
- * conversion functions in order to be able to undo changes to the tables 
- * they modify. Useful for implementing 
- * scoping *)
-type undoAlphaElement
-
-(** This is the type of the elements of the alpha renaming table. *)
-type alphaTableData
-
-
-(** Create a new name based on a given name. The new name is formed from a 
- * prefix (obtained from the given name by stripping a suffix consisting of _ 
- * followed by only digits), followed by a special separator and then by a 
- * positive integer suffix. The first argument is a table mapping name 
- * prefixes to some data that specifies what suffixes have been used and how 
- * to create the new one. This function updates the table with the new 
- * largest suffix generated. The "undolist" argument, when present, will be 
- * used by the function to record information that can be used by 
- * {!Cil.undoAlphaChanges} to undo those changes. Note that the undo 
- * information will be in reverse order in which the action occurred. Returns 
- * the new name and, if different from the lookupname, the location of the 
- * previous occurrence. This function knows about the location implicitly 
- * from the {!Cil.currentLoc}. *)
-val newAlphaName: alphaTable:(string, alphaTableData ref) Hashtbl.t ->
-                  undolist: undoAlphaElement list ref option ->
-                  lookupname:string -> string * location
-
-
-(** Register a name with an alpha conversion table to ensure that when later 
-  * we call newAlphaName we do not end up generating this one *)
-val registerAlphaName: alphaTable:(string, alphaTableData ref) Hashtbl.t -> 
-                       undolist: undoAlphaElement list ref option ->
-                       lookupname:string -> unit
-
-(** Split the name in preparation for newAlphaName. The prefix returned is 
-    used to index into the hashtable. The next result value is a separator 
-    (either empty or the separator chosen to separate the original name from 
-     the index)  *)
-val docAlphaTable: unit -> (string, alphaTableData ref) Hashtbl.t -> Pretty.doc
-
-
-val getAlphaPrefix: lookupname:string -> string
-
-(** Undo the changes to a table *)
-val undoAlphaChanges: alphaTable:(string, alphaTableData ref) Hashtbl.t -> 
-                      undolist:undoAlphaElement list -> unit
 
 (** Assign unique names to local variables. This might be necessary after you 
  * transformed the code and added or renamed some new variables. Names are 
