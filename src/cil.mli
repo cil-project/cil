@@ -1226,6 +1226,10 @@ val errorLoc: location -> ('a,unit,Pretty.doc) format -> 'a
 (** Like [Errormsg.warn] except that location information is also printed *)
 val warn: ('a,unit,Pretty.doc) format -> 'a
 
+(** Like [Errormsg.warn] except that location information and context 
+    is also printed *)
+val warnContext: ('a,unit,Pretty.doc) format -> 'a
+
 (** Like [warn] except that it explicitly takes a location argument, instead 
     of using the current location *)
 val warnLoc: location -> ('a,unit,Pretty.doc) format -> 'a  

@@ -1960,7 +1960,9 @@ and doExp (isconst: bool)    (* In a constant *)
           let envdata = H.find env n in
           match envdata with
             EnvVar vi, _ ->
-              if isconst && not (isFunctionType vi.vtype) then
+              if isconst && 
+                 not (isFunctionType vi.vtype) && 
+                 not (isArrayType vi.vtype)then
                 E.s (error "variable appears in constant");
               finishExp empty (Lval(var vi)) vi.vtype
           | EnvEnum (tag, typ), _ ->

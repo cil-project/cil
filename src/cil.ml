@@ -1035,6 +1035,14 @@ let warn (fmt : ('a,unit,doc) format) : 'a =
   let f d =
     ignore (eprintf "@!%t: Warning: %a@!" 
               d_thisloc insert d);
+    nil
+  in
+  Pretty.gprintf f fmt
+
+let warnContext (fmt : ('a,unit,doc) format) : 'a = 
+  let f d =
+    ignore (eprintf "@!%t: Warning: %a@!" 
+              d_thisloc insert d);
     E.showContext ();
     nil
   in
@@ -1505,7 +1513,10 @@ let rec d_decl (docName: unit -> doc) (dnwhat: docNameWhat) () this =
             parenthname () a
             ++ text "("
             ++ (align 
-                  ++ (if args = [] then text "void" 
+                  ++ (if args = [] then 
+                        (if hasAttribute "missingproto" a then 
+                             nil 
+                         else text "void")
                       else (docList (chr ',' ++ break) (d_videcl ()) () args))
                   ++ (if isvararg then break ++ text ", ..." else nil)
                   ++ unalign)
