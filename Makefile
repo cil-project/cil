@@ -1204,12 +1204,12 @@ vortex-noclean: defaulttarget mustbegcc
 
 vortex-combined: defaulttarget mustbegcc
 	cd $(VORDIR)/src; \
-            $(SAFECC) vortex_all.c $(VOREXTRA) $(EXEOUT)vortex.exe
+            $(SAFECC) vortex_all.c -g $(VOREXTRA) $(EXEOUT)vortex.exe
 	cd $(VORDIR)/src; sh -c "./testit vortex.exe"
 
 vortex-combined-gcc: mustbegcc
 	cd $(VORDIR)/src; \
-            gcc vortex_all.c \
+            gcc vortex_all.c -g \
                $(SAFECCDIR)/cil/obj/cillibdebug.a $(EXEOUT)vortex.exe
 	cd $(VORDIR)/src; sh -c "./testit vortex.exe"
 
@@ -1219,6 +1219,12 @@ vortex-combined-compare: mustbegcc
 	-make vortex-combined-gcc _GNUCC=1
 	cp $(VORDIR)/src/data/vortex.out $(VORDIR)/src/data/vortex.gcc.out
 	diff $(VORDIR)/src/data/vortex.cil.out $(VORDIR)/src/data/vortex.gcc.out
+
+vortex-makertl: mustbegcc
+	-make vortex-combined _GNUCC=1 TV=1
+
+vortex-tv:
+	$(TVDIR)/obj/transval.asm.exe -L $(VORDIR)/tv.log $(VORDIR)/src/vortex_all.i.rtl $(VORDIR)/src/vortex_allcil.i.rtl 
 
 ### SPEC95 m88ksim
 M88DIR=$(SPECDIR)/124.m88ksim
