@@ -179,9 +179,8 @@ sub collectOneArgument {
         $self->{SEPARATE} = 1;
         return 1;
     }
-    if($arg =~ m|--keepmerged(=(.+))?|) {
-        warn "Use --keepmerged=outfile\n";
-        $self->{KEEPMERGED} = $2;
+    if($arg eq '--keepmerged') {
+        $self->{KEEPMERGED} = 1;
         return 1;
     }
     if($arg =~ m|--leavealone=(.+)$|)  {
@@ -197,6 +196,12 @@ sub collectOneArgument {
     }
     if($arg eq "--bytecode") {
         $self->{NATIVECAML} = 0; return 1;
+    }
+    if($arg eq "--no-idashi") {
+        $self->{IDASHI} = 0; return 1;
+    }
+    if($arg eq "--no-idashdot") {
+        $self->{IDASHDOT} = 0; return 1;
     }
     # All other arguments starting with -- are passed to CIL
     if($arg =~ m|^--|) {
@@ -229,8 +234,7 @@ Options:
   --keep=xxx   Keep temporary files in the given directory
   --separate   Apply CIL separately to each source file as they are compiled. 
                By default CIL is applied to the whole program during linking.
-  --keepmerged=xxx  Save the merged file with the given name. Only useful if
-               --separate is not given.
+  --keepmerged  Save the merged file. Only useful if --separate is not given.
   --trueobj          Do not write preprocessed sources in .obj files but
                      create some other files.
  
@@ -266,7 +270,7 @@ EOF
 
 
 # LINKING into a library (with COMPILATION and PREPROCESSING)
-sub linktolib {
+sub straight_linktolib {
     my ($self, $psrcs, $dest, $ppargs, $ccargs, $ldargs) = @_;
     my @sources = ref($psrcs) ? @{$psrcs} : ($psrcs);
     $dest = $dest eq "" ? "" : $self->{OUTLIB} . $dest;
@@ -277,6 +281,32 @@ sub linktolib {
     return $self->runShell($cmd);
 }
 
+# Customize the linking into libraries
+sub linktolib {
+    my($self, $psrcs, $dest, $ppargs, $ccargs, $ldargs) = @_;
+    if($self->{VERBOSE}) { print "Linking into library $dest\n"; }
+    if($self->{SEPARATE}) {
+        # Not merging. Regular linking.
+        return $self->straight_linktolib($psrcs, $dest, 
+                                         $ppargs, $ccargs, $ldargs);
+    }
+    # We are merging
+
+    # Now collect the files to be merged
+    my @sources = ref($psrcs) ? @{$psrcs} : ($psrcs);
+
+    # Write the names of the files into a file with the extension files
+    open(FILES, ">$dest.files") || die("Cannot open $dest.files");
+    print FILES join("\n", @sources);
+    if($self->{VERBOSE}) {
+        print "Saved to $dest.files the list of names composing $dest\n";
+    }
+    close(FILES);
+
+    # Now link as usual, without calling CIL
+    return $self->straight_linktolib($psrcs, $dest, 
+                                     $ppargs, $ccargs, $ldargs);
+}
 
 ############
 ############ PREPROCESSING
@@ -557,6 +587,7 @@ sub applyCilAndCompile {
     
     # Now prepare the command line for invoking cilly
     my ($cmd, $aftercil) = $self->CillyCommand ($dir, $base);
+    $cmd .= " ";
 
     if($self->{MODENAME} eq "MSVC") {
         $cmd .= " --MSVC ";
@@ -579,6 +610,9 @@ sub applyCilAndCompile {
         $cmd .= " --extrafiles $extraFile ";
     } else {
         $cmd .= join(' ', @srcs) . " ";
+    }
+    if($self->{KEEPMERGED}) {
+        $cmd .= " --mergedout $dir$base" . ".c ";
     }
     # Now run cilly
     $self->runShell($cmd);
@@ -627,7 +661,7 @@ sub doit {
     # If only one source then apply CIL directly
     if($self->{OPERATION} eq "TOEXE" &&
        @{$self->{CFILES}} + @{$self->{IFILES}} == 1) {
-        $self->{SEPARATE} = 1; 
+#        $self->{SEPARATE} = 1; 
     }
 
     # Turn everything into OBJ files

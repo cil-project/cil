@@ -91,14 +91,12 @@ EOF
    $self->runShell($cmd); 
 }
 
-sub CilOutputSuffix {
-    return "cil";
-}
 
 sub CillyCommand {
-    my ($self, $out) = @_;
+    my ($self, $dir, $base) = @_;
 
-    return $CilCompiler::compiler . " --out $out";
+    my $aftercil = "$dir$base" . "cil.c";
+    return ($CilCompiler::compiler . " --out $aftercil", $aftercil);
 }
 
 1;

@@ -125,9 +125,6 @@ CCURED+= $(EXTRAARGS)
 ifdef NEWOPTIM
   CCURED += --optimize --newoptim
 endif
-ifdef CABSMERGER
-  CCURED += --cabsmerger
-endif
 ifneq ($(INFERBOX),none)
   MANUALBOX := 1
   CCURED+= --curetype=$(INFERBOX) $(DEF)INFERBOX
@@ -184,6 +181,9 @@ ifdef RELEASELIB
 endif
 ifdef VERBOSE
   CCURED+= --verbose
+endif
+ifdef KEEPMERGED
+  CCURED+= --keepmerged
 endif
 ifdef PRINTSTAGES
   CCURED+= --stages

@@ -203,7 +203,7 @@ let rec theMain () =
     "--keepunused", Arg.Unit (fun _ -> Rmtmps.keepUnused := true),
                 "do not remove the unused variables and types";
 
-    "--mergerout", Arg.String (openFile "merged output" 
+    "--mergedout", Arg.String (openFile "merged output" 
                                    (fun oc -> mergedChannel := Some oc)),
                 "specify the name of the merged file";
     "--noPrintLn", Arg.Unit (fun _ -> Cil.printLn := false;
