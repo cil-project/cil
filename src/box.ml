@@ -391,6 +391,17 @@ let pkTypePrefix (pk: P.pointerkind) =
   | _ -> E.s (E.bug "pkTypeName")
   
 
+let pkQualName (pk: P.pointerkind) 
+               (acc: string list) 
+               (dobasetype: string list -> string list) : string list = 
+  match pk with
+    P.Safe -> dobasetype ("s" :: acc)
+  | P.Wild -> "w" :: acc (* Don't care about what it points to *)
+  | P.Index -> dobasetype ("i" :: acc)
+  | P.Seq -> dobasetype ("q" :: acc)
+  | P.FSeq -> dobasetype ("f" :: acc)
+  | P.Scalar -> acc
+  | _ -> E.s (E.bug "pkQualName")
   
 
 let rec fixupType t = 
@@ -683,6 +694,65 @@ let pkAddrOf (lv: lval)
   | _ -> E.s (E.bug "pkAddrOf(%a)" P.d_pointerkind lvk)
          
          
+(* Given an array type return the element type, pointer kind, base and bend *)
+let arrayPointerToIndex (t: typ) (k: P.pointerkind) 
+                        (lv: lval) (base: exp) = 
+  match unrollType t with
+    TArray(elemt, _, a) when k = P.Wild -> 
+      (elemt, P.Wild, base, zero)
+
+  | TArray(elemt, _, a) when (filterAttributes "sized" a <> []) -> 
+      (elemt, P.Index, mkAddrOf lv, zero)
+
+    (* If it is not sized then better have a length *)
+  | TArray(elemt, Some alen, a) -> 
+      (elemt, P.Seq, mkAddrOf lv, 
+       BinOp(IndexPI, mkAddrOf lv, alen, TPtr(elemt, [])))
+
+  | _ -> E.s (E.bug "arrayPointerToIndex on a non-array (%a)" 
+                d_plaintype t)
+
+
+(******* Start of *******)
+let pkStartOf (lv: lval)
+              (lvt: typ)
+              (lvk: P.pointerkind)  (* The kind of the StartOf pointer *)
+              (f2: exp)
+              (f3: exp) : (fexp * stmt list) = 
+  match unrollType lvt with
+    TArray(t, _, _) -> begin
+      let newp = AddrOf(addOffsetLval (Index(zero, NoOffset)) lv) in
+      match lvk with
+        P.Safe -> 
+          let (_, pkind, base, bend) = 
+            arrayPointerToIndex lvt lvk lv f2
+          in
+          let pres = mkPointerTypeKind t pkind in
+          if pkind = P.Seq then
+            mkFexp3 pres newp base f3, []
+          else
+            mkFexp2 pres newp base, []
+      | P.Wild -> 
+          mkFexp2 (mkPointerTypeKind t lvk) newp f2, []
+      | _ -> E.s (E.unimp "StartOf")
+    end
+  | TFun _ -> begin
+              (* Taking the address of a function is a special case. Since 
+               * fuctions are not tagged the type of the the pointer is Safe. 
+               * If we are in defaultIsWild then we must make a Wild pointer 
+               * out of it *)
+      let start = StartOf lv in
+      match lv with
+        Var vi, NoOffset when !P.defaultIsWild -> 
+          mkFexp2 (mkPointerTypeKind lvt P.Wild) start start, []
+      | _ -> 
+          mkFexp2 (mkPointerTypeKind lvt lvk) start f2, []
+  end
+        
+  | _ -> E.s (E.unimp "pkStartOf on a non-array and non-function: %a"
+                d_plaintype lvt)
+
+
 
 (************* END of pointer qualifiers *************)
   
@@ -1021,43 +1091,126 @@ let checkWild (p: exp) (basetyp: typ) (b: exp) (blen: exp) : stmt =
     [ castVoidStar b; blen;
       castVoidStar p; SizeOf (basetyp)]
       
+  (* Check index when we switch from Index to Safe *)
+let beforeField ((btype, pkind, mklval, base, bend, stmts) as input) = 
+  match pkind with
+    P.Wild -> input (* No change if we are in a tagged area *)
+  | P.Safe -> input (* No change if already safe *)
+  | P.Index -> 
+      let _, _, _, docheck = 
+        indexToSafe (mkAddrOf (mklval NoOffset)) 
+          (TPtr(btype, [])) base bend []
+      in
+      (btype, P.Safe, mklval, zero, zero,
+       stmts @ docheck)
+        
+  | P.Seq -> 
+      let _, _, _, docheck = 
+        seqToSafe (mkAddrOf (mklval NoOffset)) (TPtr(btype,[])) base bend []
+      in
+      (btype, P.Safe, mklval, zero, zero,
+       stmts @ docheck)
+        
+  | P.FSeq -> 
+      let _, _, _, docheck = 
+        fseqToSafe (mkAddrOf (mklval NoOffset)) (TPtr(btype,[])) base bend []
+      in
+      (btype, P.Safe, mklval, zero, zero,
+       stmts @ docheck)
+        
+  | _ -> E.s (E.unimp "beforeField on unexpected pointer kind %a"
+                P.d_pointerkind pkind)
+        
     
+let beforeIndex ((btype, pkind, mklval, base, bend, stmts) as input) = 
+  match pkind with
+  | (P.Safe|P.Wild) -> 
+      let (elemtype, pkind, base, bend) = 
+        arrayPointerToIndex btype pkind (mklval NoOffset) base in
+      (elemtype, pkind, mklval, base, bend, stmts)
+        
+  | _ -> E.s (E.unimp "toIndex on unexpected pointer kind %a"
+                P.d_pointerkind pkind)
 
-let checkBounds : (unit -> exp) -> exp -> exp -> lval -> typ 
-                  -> P.pointerkind -> stmt list = 
+let varStartInput (vi: varinfo) = 
+  vi.vtype, P.Safe, (fun o -> (Var vi, o)), zero, zero, []
+  
 
-  (* And now the null check *)
-  fun mktmplen base bend lv lvt pkind ->
-    let lv', lv't = getHostIfBitfield lv lvt in
+let stringLiteral (s: string) (strt: typ) = 
+  let fixChrPtrType = fixupType strt in
+  let k = kindOfType fixChrPtrType in
+  match  k with 
+    P.Wild -> 
+          (* Make a global variable that stores this one, so that we can 
+           * attach a tag to it  *)
+      let l = 1 + String.length s in 
+      let newt = tagType (TArray(charType, Some (integer l), [])) in
+      let gvar = makeGlobalVar (newStringName ()) newt in
+      gvar.vstorage <- Static;
+      let varinit, dfield = 
+        makeTagCompoundInit newt (Some (Const(CStr s))) in
+      theFile := GVar (gvar, Some varinit, lu) :: !theFile;
+      let result = StartOf (Var gvar, Field(dfield, NoOffset)) in
+      ([], FM (fixChrPtrType, P.Wild,
+               result, 
+               doCast result (typeOf result) voidPtrType, zero))
+  | P.Seq | P.Safe | P.FSeq -> 
+      let l = ((1 + String.length s) + 3) land (lnot 3) in
+      let tmp = makeTempVar !currentFunction charPtrType in
+            (* Make it a SEQ for now *)
+      let res = 
+        mkFexp3  fixChrPtrType 
+          (Lval (var tmp))
+          (BinOp(IndexPI, Lval (var tmp), integer l, charPtrType)) 
+          (Lval (var tmp))
+      in
+      ([mkSet (var tmp) (Const (CStr s))], res)
+        
+  | _ -> E.s (E.unimp "String literal to %a" P.d_pointerkind k)
+
+
+
+let checkBounds (mktmplen: unit -> exp)
+                (base: exp)
+                (bend: exp)
+                (lv: lval)
+                (lvt: typ) 
+                (pkind: P.pointerkind) : stmt list = 
+  let lv', lv't = getHostIfBitfield lv lvt in
     (* Do not check the bounds when we access variables without array 
-     * indexing  *)
-    match pkind with
-    | P.Wild -> (* We'll need to read the length anyway since we need it for 
+       * indexing  *)
+  match pkind with
+  | P.Wild -> (* We'll need to read the length anyway since we need it for 
                  * working with the tags *)
-        let docheck = 
-          checkWild (AddrOf(lv')) lv't base (mktmplen ()) in
-        [docheck]
+      let docheck = 
+        checkWild (AddrOf(lv')) lv't base (mktmplen ()) in
+      [docheck]
+        
+  | P.Index -> 
+      let _, _, _, docheck = 
+        indexToSafe (AddrOf(lv')) (TPtr(lv't, [])) base bend [] in
+      List.rev docheck
+  | P.FSeq ->
+      let _, _, _, docheck = 
+        fseqToSafe (AddrOf(lv')) (TPtr(lv't, [])) base bend [] in
+      List.rev docheck
+  | P.Seq ->
+      let _, _, _, docheck = 
+        seqToSafe (AddrOf(lv')) (TPtr(lv't, [])) base bend [] in
+      List.rev docheck
+        
+  | P.Safe -> begin
+      match lv' with
+        Mem addr, _ -> 
+          [call None (Lval (var checkNullFun.svar)) [ castVoidStar addr ]]
+      | _, _ -> []
+  end
+  | _ -> E.s (E.bug "Unexpected pointer kind in checkBounds")
 
-    | P.Index -> 
-        let _, _, _, docheck = 
-          indexToSafe (AddrOf(lv')) (TPtr(lv't, [])) base bend [] in
-        List.rev docheck
-    | P.FSeq ->
-        let _, _, _, docheck = 
-          fseqToSafe (AddrOf(lv')) (TPtr(lv't, [])) base bend [] in
-        List.rev docheck
-    | P.Seq ->
-        let _, _, _, docheck = 
-          seqToSafe (AddrOf(lv')) (TPtr(lv't, [])) base bend [] in
-        List.rev docheck
-          
-    | P.Safe -> begin
-        match lv' with
-          Mem addr, _ -> 
-            [call None (Lval (var checkNullFun.svar)) [ castVoidStar addr ]]
-        | _, _ -> []
-    end
-    | _ -> E.s (E.bug "Unexpected pointer kind in checkBounds")
+
+
+
+(****************************************************)
 
 
 (* Compute the offset of first scalar field in a thing to be written. Raises 
@@ -1297,16 +1450,9 @@ let fixupGlobName vi =
    * various possible combinations of qualifiers *)
    let rec qualNames acc = function
       TInt _ | TFloat _ | TBitfield _ | TVoid _ | TEnum _ -> acc
-    | TPtr(t', _) as t -> begin
-        match kindOfType t with
-          P.Safe -> qualNames ("s" :: acc) t'
-        | P.Wild -> "w" :: acc (* Don't care about what it points to *)
-        | P.Index -> qualNames ("i" :: acc) t'
-        | P.Seq -> qualNames ("q" :: acc) t'
-        | P.FSeq -> qualNames ("f" :: acc) t'
-        | P.Scalar -> acc
-        | _ -> E.s (E.bug "qualNames")
-    end
+    | TPtr(t', _) as t -> 
+        let pk = kindOfType t in
+        pkQualName pk acc (fun acc' -> qualNames acc' t')
     | TArray(t', _, a) ->
         let acc' =
           (* Choose the attributes so that "s" is always the C represent *)
@@ -1553,7 +1699,7 @@ and boxlval (b, off) : (typ * P.pointerkind * lval * exp * exp * stmt list) =
   let (btype, pkind, mklval, base, bend, stmts) as startinput = 
     match b with
       Var vi -> 
-        vi.vtype, P.Safe, (fun o -> (Var vi, o)), zero, zero, []
+        varStartInput vi
     | Mem addr -> 
         let (addrt, doaddr, addr', addr'base, addr'len) = boxexpSplit addr in
         let addrt', pkind = 
@@ -1566,46 +1712,6 @@ and boxlval (b, off) : (typ * P.pointerkind * lval * exp * exp * stmt list) =
   in
 (*  ignore (E.log "Lval=%a@!startinput=%a\n" 
             d_lval (b, off) P.d_pointerkind pkind); *)
-  (* Check index when we switch from Index to Safe *)
-  let beforeField ((btype, pkind, mklval, base, bend, stmts) as input) = 
-    match pkind with
-      P.Wild -> input (* No change if we are in a tagged area *)
-    | P.Safe -> input (* No change if already safe *)
-    | P.Index -> 
-        let _, _, _, docheck = 
-          indexToSafe (mkAddrOf (mklval NoOffset)) 
-            (TPtr(btype, [])) base bend []
-        in
-        (btype, P.Safe, mklval, zero, zero,
-         stmts @ docheck)
-
-    | P.Seq -> 
-        let _, _, _, docheck = 
-          seqToSafe (mkAddrOf (mklval NoOffset)) (TPtr(btype,[])) base bend []
-        in
-        (btype, P.Safe, mklval, zero, zero,
-         stmts @ docheck)
-
-    | P.FSeq -> 
-        let _, _, _, docheck = 
-          fseqToSafe (mkAddrOf (mklval NoOffset)) (TPtr(btype,[])) base bend []
-        in
-        (btype, P.Safe, mklval, zero, zero,
-         stmts @ docheck)
-
-    | _ -> E.s (E.unimp "toSafe on unexpected pointer kind %a"
-                  P.d_pointerkind pkind)
-  in
-  let beforeIndex ((btype, pkind, mklval, base, bend, stmts) as input) = 
-    match pkind with
-    | (P.Safe|P.Wild) -> 
-        let (elemtype, pkind, base, bend) = 
-          arrayPointerToIndex btype pkind (mklval NoOffset) base in
-        (elemtype, pkind, mklval, base, bend, stmts)
-
-    | _ -> E.s (E.unimp "toIndex on unexpected pointer kind %a"
-                  P.d_pointerkind pkind)
-  in
   (* As we go along we need to go into tagged and sized types. *)
   let goIntoTypes ((btype, pkind, mklval, base, bend, stmts) as input) = 
     match 
@@ -1657,24 +1763,6 @@ and boxlval (b, off) : (typ * P.pointerkind * lval * exp * exp * stmt list) =
 (*  ignore (E.log "Done lval: pkind=%a@!" P.d_pointerkind pkind); *)
   (btype, pkind, mklval NoOffset, base, bend, stmts)
       
-(* Given an array type return the element type, pointer kind, base and bend *)
-and arrayPointerToIndex (t: typ) (k: P.pointerkind) 
-                        (lv: lval) (base: exp) = 
-  match unrollType t with
-    TArray(elemt, _, a) when k = P.Wild -> 
-      (elemt, P.Wild, base, zero)
-
-  | TArray(elemt, _, a) when (filterAttributes "sized" a <> []) -> 
-      (elemt, P.Index, mkAddrOf lv, zero)
-
-    (* If it is not sized then better have a length *)
-  | TArray(elemt, Some alen, a) -> 
-      (elemt, P.Seq, mkAddrOf lv, 
-       BinOp(IndexPI, mkAddrOf lv, alen, TPtr(elemt, [])))
-
-  | _ -> E.s (E.bug "arrayPointerToIndex on a non-array (%a)" 
-                d_plaintype t)
-
     (* Box an expression and return the fexp version of the result. If you do 
      * not care about an fexp, you can call the wrapper boxexp *)
 and boxexpf (e: exp) : stmt list * fexp = 
@@ -1700,38 +1788,8 @@ and boxexpf (e: exp) : stmt list * fexp =
      (* All strings appear behing a CastE. The pointer node in the CastE 
       * tells us how to represent the string *)
     | CastE ((TPtr(TInt(IChar, _), a) as strt), 
-             Const (CStr s)) -> begin
-        let fixChrPtrType = fixupType strt in
-        let k = kindOfType fixChrPtrType in
-        match  k with 
-          P.Wild -> 
-          (* Make a global variable that stores this one, so that we can 
-           * attach a tag to it  *)
-            let l = 1 + String.length s in 
-            let newt = tagType (TArray(charType, Some (integer l), [])) in
-            let gvar = makeGlobalVar (newStringName ()) newt in
-            gvar.vstorage <- Static;
-            let varinit, dfield = 
-              makeTagCompoundInit newt (Some (Const(CStr s))) in
-            theFile := GVar (gvar, Some varinit, lu) :: !theFile;
-            let result = StartOf (Var gvar, Field(dfield, NoOffset)) in
-            ([], FM (fixChrPtrType, P.Wild,
-                     result, 
-                     doCast result (typeOf result) voidPtrType, zero))
-        | P.Seq | P.Safe | P.FSeq -> 
-            let l = ((1 + String.length s) + 3) land (lnot 3) in
-            let tmp = makeTempVar !currentFunction charPtrType in
-            (* Make it a SEQ for now *)
-            let res = 
-              mkFexp3  fixChrPtrType 
-                (Lval (var tmp))
-                (BinOp(IndexPI, Lval (var tmp), integer l, charPtrType)) 
-                (Lval (var tmp))
-            in
-            ([mkSet (var tmp) (Const (CStr s))], res)
+             Const (CStr s)) -> stringLiteral s strt
 
-        | _ -> E.s (E.unimp "String literal to %a" P.d_pointerkind k)
-    end
     | Const (CStr _) -> 
         (* means that we have not yet run markptr. *)
         boxexpf (CastE (TPtr(TInt(IChar, []), 
@@ -1794,47 +1852,13 @@ and boxexpf (e: exp) : stmt list * fexp =
           
     (* StartOf is like an AddrOf except for typing issues. *)
     | StartOf lv -> begin
-        let (lvt, lvkind, lv', baseaddr, len, dolv) = boxlval lv in
+        let (lvt, lvkind, lv', baseaddr, bend, dolv) = boxlval lv in
         (* Check that variables whose address is taken are flagged *)
         (match lv' with
           (Var vi, _) when not vi.vaddrof && not vi.vglob -> 
             E.s (E.bug "addrof not set for %s (startof)" vi.vname)
         | _ -> ());
-        let res = 
-          match unrollType lvt with
-            TArray(t, _, _) -> begin
-              let newp = 
-                AddrOf(addOffsetLval (Index(zero, NoOffset)) lv') in
-              match lvkind with
-                P.Safe -> 
-                  let (_, pkind, base, bend) = 
-                    arrayPointerToIndex lvt lvkind lv' baseaddr
-                  in
-                  let pres = mkPointerTypeKind t pkind in
-                  if pkind = P.Seq then
-                    mkFexp3 pres newp base bend
-                  else
-                    mkFexp2 pres newp base
-              | P.Wild -> 
-                  mkFexp2 (mkPointerTypeKind t lvkind) newp baseaddr
-              | _ -> E.s (E.unimp "StartOf")
-            end
-          | TFun _ -> begin
-              (* Taking the address of a function is a special case. Since 
-               * fuctions are not tagged the type of the the pointer is Safe. 
-               * If we are in defaultIsWild then we must make a Wild pointer 
-               * out of it *)
-              let start = StartOf lv' in
-              match lv' with
-                Var vi, NoOffset when !P.defaultIsWild -> 
-                  mkFexp2 (mkPointerTypeKind lvt P.Wild) start start
-              | _ -> 
-                  mkFexp2 (mkPointerTypeKind lvt lvkind) start baseaddr
-          end
-
-          | _ -> E.s (E.unimp "StartOf on a non-array and non-function: %a"
-                        d_plaintype lvt)
-        in
+        let res, dostartof = pkStartOf lv' lvt lvkind baseaddr bend in
 (*        ignore (E.log "result of StartOf: %a@!" d_fexp res); *)
         (dolv, res)
     end
