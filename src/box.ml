@@ -79,11 +79,57 @@ let leaveAloneGlobVars = [
 ]
     
 
-let allocFunctions : (string, bool) H.t = 
+
+type allocinfo = 
+    { aiZeros: bool; (* Whether zeros memory *)
+      aiGetSize: exp list -> exp (* Get the size out of args *)
+    } 
+      
+let allocInfoGetSize (ai: allocinfo) (args: exp list) = 
+  ai.aiGetSize args
+let allocInfoZeros (ai: allocinfo) (args: exp list) = 
+  ai.aiZeros
+
+let mallocAI = 
+  let fstArg = function
+      a :: _ -> a
+    | _ -> E.s (E.bug "fstArg: not enough arguments")
+  in
+  { aiZeros = false; aiGetSize = fstArg}
+
+let allocFunctions : (string, allocinfo) H.t = 
+  let mulTwoArgs = function
+      a :: b :: _ -> BinOp(Mult, doCast a uintType, 
+                           doCast b uintType, uintType)
+    | _ -> E.s (E.bug "mulTwoArgs: not enough arguments")
+  in
   let h = H.create 17 in
-  List.iter (fun s -> H.add h s true)
-    ["malloc"; "calloc"; "realloc"];
+  List.iter (fun (s, ai) -> H.add h s ai)
+    [ ("malloc", mallocAI); 
+      ("calloc", { aiZeros = true; aiGetSize = mulTwoArgs})];
   h
+
+let getAllocInfo fname = 
+  try
+  (* See if the function name starts with /* ... */ *)
+    let fname' = 
+      let l = String.length fname in
+      if String.sub fname 0 2 = "/*" then
+        let endpoly = String.index_from fname 2 '/' in
+        String.sub fname (endpoly + 1) (l - endpoly - 1)
+      else
+        fname
+    in
+    (* ignore (E.log "Getting alloc info for %s\n" fname'); *)
+    Some (H.find allocFunctions fname') 
+  with _ -> None
+    
+
+
+
+
+(********************************************************************)
+
 
             (* Same for offsets *)
 type offsetRes = 
@@ -843,7 +889,7 @@ and tagType (t: typ) : typ =
       if isCompleteType t then 
         (* ignore (E.log "Type %a -> bytes=%d, words=%d, tagwords=%d\n"
                   d_type t bytes words tagwords); *)
-        let _, tagWords = tagLength t in
+        let _, tagWords = tagLength (SizeOf(t)) in
         let tagAttr = if !msvcMode then [] else [AId("packed")]
         in
         TComp 
@@ -879,23 +925,18 @@ and tagType (t: typ) : typ =
     named
    end
 
-and tagLength (t: typ) : (exp * exp) = (* Call only for a isCompleteType *)
-(*        let bytes = (bitsSizeOf t) lsr 3 in
-          let words = (bytes + 3) lsr 2 in
-          let tagwords = (words + 15) lsr 4 in
-*)
+(* Compute the number of data words and the number of tag words, given a raw 
+ * area size (in bytes) *)
+and tagLength (sz: exp) : (exp * exp) =
   (* First the number of words *)
    BinOp(Shiftrt, 
-        BinOp(PlusA, 
-              SizeOf(t),
-              kinteger IUInt 3, uintType),
+        BinOp(PlusA, doCast sz uintType, kinteger IUInt 3, uintType),
         integer 2, uintType),
   (* Now the number of tag words. At 1 tag bit/ word we can fit the tags for 
    * 128 bytes into one tag word. *)
   BinOp(Shiftrt, 
         BinOp(PlusA, 
-              SizeOf(t),
-              kinteger IUInt 127, uintType),
+              doCast sz uintType, kinteger IUInt 127, uintType),
         integer 7, uintType)
     
 
@@ -1075,7 +1116,7 @@ let splitTagType tagged =
       end
     | _ -> E.s (E.bug "splitTagType. No tags: %a\n" d_plaintype tagged)
   in
-  let words, tagwords = tagLength dfld.ftype in
+  let words, tagwords = tagLength (SizeOf(dfld.ftype)) in
             (* Now create the tag initializer *)
   dfld, lfld, tfld, words, tagwords
 
@@ -1726,7 +1767,301 @@ let checkRead = checkMem None
 let checkWrite e = checkMem (Some e)
 
 
+(********** Initialize variables ***************)
+let iterVars : (int, varinfo) H.t = H.create 13
+let makeIterVar f = 
+  fun () -> 
+    try
+      H.find iterVars f.svar.vid
+    with Not_found -> begin
+      let i = makeTempVar f ~name:"iter" intType in
+      H.add iterVars f.svar.vid i;
+      i
+    end
 
+    (* Scan the type for arrays. Maybe they must be SIZED or NULLTERM *)
+let rec initForType 
+                 (t: typ) 
+                 (mkivar: unit -> varinfo)
+                 (mustZero: bool)  (* The area is not zeroed already *)
+                 (endo: exp option) (* The end of the home area. To be used 
+                                     * for initializing arrays of size 0 *)
+                 (doit: offset -> exp -> stmt list -> stmt list) 
+                 (addrof: offset -> exp) (* Get the address of the field *)
+                 (acc: stmt list) : stmt list = 
+  match unrollType t with
+    TInt _ | TFloat _ | TBitfield _ | TEnum _ -> acc
+  | TComp comp when comp.cstruct -> begin
+      match comp.cfields with
+        [s; a] when s.fname = "_size" && a.fname = "_array" ->
+              (* Sized arrays *)
+              (* ignore (E.log "Initializing sized for %s\n" v.vname); *)
+          let bt, l, thissize = match unrollType a.ftype with
+            TArray(bt, Some l, _) when not (isZero l) -> 
+              bt, l,
+              (BinOp(Mult, doCast l uintType, SizeOf(bt), uintType))
+ 
+          | TArray(bt, _, _) -> begin
+              match endo with
+                Some e -> 
+                  (* We know the end of the area *)
+                  let sz = 
+                    BinOp(MinusA, e, 
+                          doCast (addrof (Field(a, NoOffset))) uintType, 
+                          uintType) in
+                  bt, 
+                  (BinOp(Div, sz, SizeOf(bt), uintType)), 
+                  sz
+
+              | None -> 
+                  ignore (E.warn "Initializing SIZED open array with length 0: %a" d_exp (addrof (Field(s, NoOffset))));
+                  bt, zero, zero
+          end
+          | _ -> E.s (E.bug "SIZED array is not an array\n")
+          in
+          let dothissize = doit (Field(s, NoOffset)) thissize acc in
+              (* Prepare the "doit" function for the base type *)
+          let iter = mkivar () in (* Hopefully not nested *)
+          let doforarray (off: offset) (what: exp) (acc: stmt list) = 
+            mkForIncr iter zero l one 
+              (doit (Index (Lval(var iter), off)) what []) :: acc
+          in
+          let doaddrforarray (off: offset) = 
+            E.s (E.bug "OPEN arrays inside arrays ???") 
+          in
+          initForType bt mkivar mustZero endo 
+            doforarray doaddrforarray dothissize
+      | _ -> (* A regular struct. Do all the fields in sequence *)
+          List.fold_left 
+            (fun acc fld -> 
+              initForType fld.ftype mkivar mustZero endo
+                (fun off what acc -> doit (Field(fld, off)) what acc)
+                (fun off -> addrof (Field(fld, off)))
+                acc)
+            acc
+            comp.cfields
+  end
+  | TArray(bt, Some l, a) -> 
+      if filterAttributes "nullterm" a <> [] && mustZero then begin
+            (* Write a zero at the very end *)
+        (match unrollType bt with
+          TInt((IChar|ISChar|IUChar), _) -> ()
+        | _ -> E.s (E.unimp "NULLTERM array of base type %a"
+                      d_type bt));
+        doit (Index(BinOp(MinusA, l, one, intType), NoOffset)) zero acc
+      end else
+            (* Initialize all elements *)
+            (* Prepare the "doit" function for the base type *)
+        let iter = mkivar () in (* Hopefully not nested *)
+        let doforarray (off: offset) (what: exp) (acc: stmt list) = 
+          mkForIncr iter zero l one 
+            (doit (Index (Lval(var iter), off)) what []) :: acc
+        in
+        let doaddrforarray (off: offset) = 
+          E.s (E.bug "OPEN arrays inside arrays ???") 
+        in
+        initForType bt mkivar mustZero endo doforarray doaddrforarray acc
+          
+  | TPtr (bt, a) -> begin
+          (* If a non-wild pointer then initialize to zero *)
+      let mustinit = 
+        mustZero &&
+        (match N.kindOfAttrlist a with
+          N.Wild, _ -> false
+        | N.Unknown, _ when !N.defaultIsWild -> false
+        | _ -> true) 
+      in
+      if mustinit then
+        doit NoOffset (doCastT zero intType t) acc
+      else 
+        acc
+  end
+  | TFun _ -> acc (* Probably a global function prototype *)
+  | _ -> E.s (E.unimp "initializeVar (for type %a)" d_plaintype t)
+
+
+(* Create and accumulate the initializer for a variable *)
+let initializeVar (mkivar: unit -> varinfo) 
+                  (acc: stmt list)
+                  (v: varinfo) 
+                   : stmt list = 
+  (* Maybe it must be tagged *)
+  if mustBeTagged v then begin
+   (* Generates code that initializes vi. Needs "iter", an integer variable 
+    * to be used as a for loop index  *)
+    let iter = mkivar () in
+    let dfld, lfld, tfld, words, tagwords = splitTagType v.vtype in
+    (* Write the length *)
+    mkSet (Var v, Field(lfld, NoOffset)) words ::
+    (* And the loop to initialize the tags with zero *)
+    (if not v.vglob then
+      mkForIncr iter zero (doCast tagwords intType) one 
+        [mkSet (Var v, Field(tfld, Index (Lval(var iter), NoOffset))) 
+            zero ]
+      ::
+      acc
+    else
+      acc)
+  end else begin
+    initForType v.vtype mkivar (not v.vglob) None
+      (fun off what acc -> mkSet (Var v, off) what :: acc)
+      (fun off -> mkAddrOf (Var v, off))
+      acc
+  end
+
+
+(*************** Handle Allocation ***********)
+let pkAllocate (ai:  allocinfo) (* Information about the allocation function *)
+               (vi:  varinfo)   (* Where to put the result *)
+               (vtype: typ)     (* The type of the result *)
+               (f:  exp)        (* The allocation function *)
+               (args: exp list) (* The arguments passed to the allocation *) 
+    : stmt list = 
+(*  ignore (E.log "Allocation call of %a. type(vi) = %a\n" 
+    d_exp f d_plaintype vtype); *)
+  let k = kindOfType vi.vtype in
+  (* Get the size *)
+  let sz = allocInfoGetSize ai args in
+  (* See if we must zero *)
+  let mustZero = not (allocInfoZeros ai args) in
+  (* Round up the size to be allocated *)
+  let nrdatawords, nrtagwords = tagLength sz in
+  (* Words to bytes converter *)
+  let wrdsToBytes wrds = 
+    BinOp(Shiftlt, doCast wrds uintType, integer 2, uintType) in
+  let nrdatabytes = wrdsToBytes nrdatawords in
+
+  (* Find the pointer type and the offset where to save it *)
+  let ptrtype, ptroff = 
+    match k with 
+      N.Wild | N.Seq | N.FSeq | N.SeqN | N.FSeqN | N.Index -> 
+        let fptr, fbase, fendo = getFieldsOfFat vtype in 
+        fptr.ftype, Field(fptr, NoOffset)
+    | N.Safe -> vtype, NoOffset
+    | _ -> E.s (E.unimp "pkAllocate: ptrtype (%a)" N.d_pointerkind k)
+  in
+  (* Get the base type *)
+  let basetype = 
+    match unrollType ptrtype with
+      TPtr(bt, _) -> bt
+    | _ -> E.s (E.bug "Result of allocation is not a pointer type\n")
+  in
+  (* Compute the size argument to be passed to the allocator *)
+  let allocsz = 
+    match k with 
+      N.Wild -> 
+        wrdsToBytes (BinOp(PlusA, nrdatawords,
+                           BinOp(PlusA, nrtagwords, kinteger IUInt 1, 
+                                 uintType), uintType))
+    | N.Index -> 
+        wrdsToBytes (BinOp(PlusA, nrdatawords, kinteger IUInt 1, uintType))
+    | _ -> nrdatabytes
+  in
+      (* Call the allocation function and put the result in a temporary *)
+  let tmpp = makeTempVar !currentFunction ptrtype in
+  let tmpvar = Lval(var tmpp) in
+  let alloc = call (Some (tmpp, true)) f [ allocsz ] in
+      (* Save the pointer value *)
+  let assign_p = mkSet (Var vi, ptroff) tmpvar in
+  (* And the base, if necessary *)
+  let assign_base = 
+    match k with 
+      N.Wild | N.Seq | N.SeqN | N.Index -> 
+        let fptr, fbase, fendo = getFieldsOfFat vtype in
+        (mkSet (Var vi, Field(fbase, NoOffset))
+           (doCast tmpvar voidPtrType))
+    | _ -> Skip
+  in
+  (* Set the size if necessary *)
+  let setsz = 
+    match k with
+      N.Wild | N.Index -> 
+        mkSet (Mem(BinOp(IndexPI, 
+                         CastE (uintPtrType, tmpvar),
+                         mone, uintPtrType)), 
+               NoOffset) 
+          nrdatawords
+    | _ -> Skip
+  in
+  (* Now the remainded of the initialization *)
+  let init = 
+    match k with
+      N.Wild -> 
+        (* Zero the tags *)
+        if mustZero then
+          call None
+            (Lval (var checkZeroTagsFun.svar))
+            [ tmpvar;                      (* base *)
+              nrdatabytes;                (* baselen *)
+              tmpvar;                      (* where to start *)
+              nrdatabytes;                 (* size of area to zero *)
+              zero (* offset *) ] ::
+          []  
+        else
+          [Skip]
+    | N.Safe -> 
+        (* Check that we have allocated enough for at least 1 elem. *)
+        let check_enough = 
+          call None (Lval (var checkPositiveFun.svar))
+            [ BinOp(MinusA, doCast nrdatabytes intType, 
+                    doCast (SizeOf(basetype)) intType, intType) ] in
+        (* Compute the end *)
+        let theend = BinOp(PlusPI, doCast tmpvar uintType,
+                           nrdatabytes, uintType) in
+        (* Now initialize. *)
+        let inits = 
+          initForType basetype (makeIterVar !currentFunction) mustZero
+            (Some theend)
+            (fun off what acc -> mkSet (Mem tmpvar, off) what :: acc)
+            (fun off -> mkAddrOf (Mem tmpvar, off))
+            []
+        in
+        inits
+
+    | N.Seq | N.FSeq | N.SeqN | N.FSeqN | N.Index ->
+        (* Compute and save the end of the type *)
+        let savetheend, theend = 
+          let tmpend = makeTempVar !currentFunction uintType in
+          mkSet (var tmpend)
+            (BinOp(PlusPI, doCast tmpvar uintType,
+                   nrdatabytes, uintType)),
+          Lval (var tmpend)
+        in
+        (* Now initialize. Use the tmp variable to iterate over a number of 
+         * copies  *)
+        savetheend ::
+        mkFor 
+          ~start:Skip
+          ~guard:(BinOp(Le, BinOp(PlusA, 
+                                  doCast tmpvar uintType, 
+                                  SizeOf(ptrtype), uintType),
+                        doCast theend uintType, intType))
+          ~next:(mkSet (var tmpp) 
+                   (BinOp(IndexPI, tmpvar, one, ptrtype)))
+          ~body:(initForType basetype (makeIterVar !currentFunction) mustZero
+                   None
+                   (fun off what acc -> mkSet (Mem tmpvar, off) what :: acc)
+                   (fun off -> mkAddrOf (Mem tmpvar, off))
+                   []) ::
+        []
+    | _ -> E.s (E.bug "pkAllocate: init")
+  in
+  (* Now assign the end if necessary. We do it this late because in the case 
+   * of sequences we now know the precise end of the allocated sequence  *)
+  let assign_end = 
+    match k with 
+      N.Seq | N.SeqN -> begin
+        let fptr, fbase, fendo = getFieldsOfFat vtype in
+        match fendo with
+          None -> Skip
+        | Some fend -> mkSet (Var vi, Field(fend, NoOffset)) tmpvar
+      end
+    | N.FSeq | N.FSeqN -> 
+        let fptr, fbase, fendo = getFieldsOfFat vtype in
+        mkSet (Var vi, Field(fbase, NoOffset)) tmpvar
+    | _ -> Skip
+  in
+  alloc :: assign_p :: assign_base :: setsz :: (init @ [assign_end])
 
 (* Given a sized array type, return the size and the array field *)
 let getFieldsOfSized (t: typ) : fieldinfo * fieldinfo = 
@@ -1782,6 +2117,7 @@ let fixupGlobName vi =
   (* weimer: static things too! *)
   if vi.vglob && (* vi.vstorage <> Static &&  *)
     not (H.mem leaveAlone vi.vname) &&
+    not (match getAllocInfo vi.vname with Some _ -> true | None -> false) &&
     not (H.mem mangledNames vi.vname) then
     begin
       let quals = qualNames [] vi.vtype in
@@ -1798,6 +2134,9 @@ let fixupGlobName vi =
       H.add mangledNames newname ();
       vi.vname <- newname
     end
+
+
+
 
     (************* STATEMENTS **************)
 let rec boxstmt (s : stmt) : stmt = 
@@ -1872,10 +2211,13 @@ and boxinstr (ins: instr) (l: location): stmt =
           | _ -> E.s (E.unimp "call of a non-function: %a @!: %a" 
                         d_plainexp f' d_plaintype ft) 
         in
-        let leavealone = 
+        let leavealone, isallocate = 
           match f' with
-            Lval(Var vf, NoOffset) -> H.mem leaveAlone vf.vname
-          | _ -> false 
+            Lval(Var vf, NoOffset) -> 
+              H.mem leaveAlone vf.vname,
+              getAllocInfo vf.vname
+
+          | _ -> false, None
         in
         let (doargs, args') =
           if leavealone then (* We leave some functions alone. But we check 
@@ -1917,9 +2259,9 @@ and boxinstr (ins: instr) (l: location): stmt =
             doArgs args ftargs  
         in
         (* Maybe the result is tagged *)
-        let vi', setvi = 
+        let vi', restype, setvi = 
           match vi with
-            None -> vi, []
+            None -> None, intType (* not an alloc, so it does not matter *), []
           | Some (vi, iscast) -> begin
               match boxlval (Var vi, NoOffset) with
                 (_, _, (Var _, NoOffset), _, _, _) -> 
@@ -1931,19 +2273,32 @@ and boxinstr (ins: instr) (l: location): stmt =
                       TComp _ -> true | _ -> false) then
                     let tmp = makeTempVar !currentFunction ftret in
                     Some (tmp, false), 
+                    vi.vtype,
                     [boxinstr (Set((Var vi, NoOffset), 
                                    Lval (var tmp))) l]
                   else
-                  Some (vi, iscast), []
+                  Some (vi, iscast), vi.vtype, []
               | (tv, _, ((Var _, Field(dfld, NoOffset)) as newlv), _, _,[]) -> 
                   let tmp = makeTempVar !currentFunction dfld.ftype in
                   Some (tmp, iscast), 
+                  vi.vtype,
                   [boxinstr (Set((Var vi, NoOffset), 
                                  Lval (var tmp))) l]
               | _ -> E.s (E.bug "Result of call is not a variable")
           end
         in
-        mkSeq (dof @ doargs @ ((call vi' f' args') :: setvi))
+        (* Now see if it is an allocation function *)
+        let finishcall = 
+          match isallocate with
+            None -> (call vi' f' args') :: setvi
+          | Some ai -> begin
+              match vi' with
+                Some (vi'', _) -> 
+                  (pkAllocate ai vi'' restype f' args') @ setvi
+              | _ -> E.s (E.bug "Allocator cannot be subroutine")
+          end
+        in
+        mkSeq (dof @ doargs @ finishcall)
 
     | Asm(tmpls, isvol, outputs, inputs, clobs) ->
         let rec doOutputs = function
@@ -2283,117 +2638,6 @@ and boxfunctionexp (f : exp) =
 
 
 
-(********** Initialize variables ***************)
-let iterVars : (int, varinfo) H.t = H.create 13
-let makeIterVar f = 
-  fun () -> 
-    try
-      H.find iterVars f.svar.vid
-    with Not_found -> begin
-      let i = makeTempVar f ~name:"iter" intType in
-      H.add iterVars f.svar.vid i;
-      i
-    end
-
-(* Create and accumulate the initializer for a variable *)
-let initializeVar (mkivar: unit -> varinfo) 
-                  (acc: stmt list)
-                  (v: varinfo) 
-                   : stmt list = 
-  (* Maybe it must be tagged *)
-  if mustBeTagged v then begin
-   (* Generates code that initializes vi. Needs "iter", an integer variable 
-    * to be used as a for loop index  *)
-    let iter = mkivar () in
-    let dfld, lfld, tfld, words, tagwords = splitTagType v.vtype in
-    (* Write the length *)
-    mkSet (Var v, Field(lfld, NoOffset)) words ::
-    (* And the loop to initialize the tags with zero *)
-    (if not v.vglob then
-      mkForIncr iter zero (doCast tagwords intType) one 
-        [mkSet (Var v, Field(tfld, Index (Lval(var iter), NoOffset))) 
-            zero ]
-      ::
-      acc
-    else
-      acc)
-  end else begin
-    (* Scan the type for arrays. Maybe they must be SIZED or NULLTERM *)
-    let rec initForType 
-                 (t: typ) 
-                 (doit: offset -> exp -> stmt list -> stmt list) 
-                 (acc: stmt list) : stmt list = 
-      match unrollType t with
-        TInt _ | TFloat _ | TBitfield _ | TEnum _ -> acc
-      | TComp comp when comp.cstruct -> begin
-          match comp.cfields with
-            [s; a] when s.fname = "_size" && a.fname = "_array" ->
-              (* Sized arrays *)
-              (* ignore (E.log "Initializing sized for %s\n" v.vname); *)
-              let bt, l = match unrollType a.ftype with
-                TArray(bt, Some l, _) -> bt, l
-              | _ -> E.s (E.unimp "Sized array of unknown length")
-              in
-              let dothissize = 
-                doit (Field(s, NoOffset)) 
-                  (BinOp(Mult, doCast l uintType, 
-                         SizeOf(bt), uintType))
-                  acc in
-              (* Prepare the "doit" function for the base type *)
-              let iter = mkivar () in (* Hopefully not nested *)
-              let doforarray (off: offset) (what: exp) (acc: stmt list) = 
-                mkForIncr iter zero l one 
-                  (doit (Index (Lval(var iter), off)) what []) :: acc
-              in
-              initForType bt doforarray dothissize
-          | _ -> (* A regular struct. Do all the fields in sequence *)
-              List.fold_left 
-                (fun acc fld -> 
-                  initForType fld.ftype 
-                    (fun off what acc -> doit (Field(fld, off)) what acc)
-                    acc)
-                acc
-                comp.cfields
-      end
-      | TArray(bt, Some l, a) -> 
-          if filterAttributes "nullterm" a <> [] && not v.vglob then begin
-            (* Write a zero at the very end *)
-            (match unrollType bt with
-              TInt((IChar|ISChar|IUChar), _) -> ()
-            | _ -> E.s (E.unimp "NULLTERM array of base type %a (in %s)"
-                          d_type bt v.vname));
-            doit (Index(BinOp(MinusA, l, one, intType), NoOffset)) zero acc
-          end else
-            (* Initialize all elements *)
-            (* Prepare the "doit" function for the base type *)
-            let iter = mkivar () in (* Hopefully not nested *)
-            let doforarray (off: offset) (what: exp) (acc: stmt list) = 
-              mkForIncr iter zero l one 
-                (doit (Index (Lval(var iter), off)) what []) :: acc
-            in
-            initForType bt doforarray acc
-          
-      | TPtr (bt, a) -> begin
-          (* If a non-wild pointer then initialize to zero *)
-        let mustinit = 
-          not v.vglob &&
-          (match N.kindOfAttrlist a with
-            N.Wild, _ -> false
-          | N.Unknown, _ when !N.defaultIsWild -> false
-          | _ -> true) 
-        in
-        if mustinit then
-          doit NoOffset (doCastT zero intType t) acc
-        else 
-          acc
-      end
-      | TFun _ -> acc (* Probably a global function prototype *)
-      | _ -> E.s (E.unimp "initializeVar (for type %a)" d_plaintype t)
-    in
-    initForType v.vtype 
-      (fun off what acc -> mkSet (Var v, off) what :: acc)
-      acc
-  end
 
 (* Create the preamble (in reverse order). Must create it every time because 
  * we must consider the effect of "defaultIsWild" *)
@@ -2509,7 +2753,7 @@ let boxFile file =
         | ACons("interceptCasts", [ AId("off") ]) -> interceptCasts := false
         | ACons("boxalloc",  [ AStr(s) ]) -> 
           ignore (E.log "Will treat %s as an allocation function\n" s); 
-          H.add allocFunctions s true
+          H.add allocFunctions s mallocAI
         | ACons("box", [AId("on")]) -> boxing := true
         | ACons("box", [AId("off")]) -> boxing := false
         | _ -> ());
@@ -2616,7 +2860,10 @@ let boxFile file =
       ignore (E.log "Boxing GVar(%s)\n" vi.vname);
         (* Leave alone some functions *)
     let origType = vi.vtype in
-    if not (H.mem leaveAlone vi.vname) then begin
+    if not (H.mem leaveAlone vi.vname) (* &&
+       * Leave alone the allocation functions !!!
+       not (match getAllocInfo vi.vname with Some _ -> true | _ -> false) *)
+    then begin
       (* Remove the format attribute from functions that we do not leave
        * alone  *)
       let newa, newt = moveAttrsFromDataToType vi.vattr vi.vtype in
