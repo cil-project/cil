@@ -1393,7 +1393,13 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
   in
   match bop with
     (Mult|Div) -> doArithmetic ()
-  | (Mod|BAnd|BOr|BXor|Shiftlt|Shiftrt) -> doIntegralArithmetic ()
+  | (Mod|BAnd|BOr|BXor) -> doIntegralArithmetic ()
+  | (Shiftlt|Shiftrt) -> (* ISO 6.5.7. Only integral promotions. The result 
+                          * has the same type as the left hand side *)
+      let t1' = integralPromotion t1 in
+      let t2' = integralPromotion t2 in
+      constFold (doCast e1 t1 t1') (doCast e2 t2 t2') t1'
+
   | (Plus|Minus) 
       when isArithmeticType t1 && isArithmeticType t2 -> doArithmetic ()
   | (Eq|Ne|Lt|Le|Ge|Gt) 
