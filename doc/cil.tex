@@ -29,6 +29,16 @@
 
 \newcommand{\hsp}{\hspace{0.5in}}
 \def\t#1{{\tt #1}}
+\newcommand\codecolor{\ifhevea\blue\else\fi}
+\renewcommand\c[1]{{\codecolor #1}} % Use for code fragments
+
+%%% Define an environment for code
+%% Unfortunately since hevea is not quite TeX you have to use this as follows
+%\begin{code}
+% ...
+%\end{verbatim}\end{code}
+\def\code{\begingroup\codecolor\begin{verbatim}}
+\def\endcode{\endgroup}
 
 %----------------------------------------------------------------------
 
@@ -1488,11 +1498,11 @@ returns and not when the local scope ends.
 
   \section{Using the merger}\label{sec-merger}\cutname{merger.html}
 
- There are many other program analyses that are more effective when
+ There are many program analyses that are more effective when
 done on the whole program.
 
  The merger is a tool that combines all of the C source files in a project
-into a single C file. There are two tasks that a merger must solve:
+into a single C file. There are two tasks that a merger must perform:
 \begin{enumerate}
 \item Detect what are all the sources that make a project and with what
 compiler arguments they are compiled.
@@ -1501,21 +1511,21 @@ compiler arguments they are compiled.
 \end{enumerate}
 
  For the first task the merger impersonates a compiler and a linker (both a
-GCC and a Microsoft Visual C mode are supported) and it expect to be invoked
+GCC and a Microsoft Visual C mode are supported) and it expects to be invoked
 (from a build script or a Makefile) on all sources of the project. When
-invoked to compile a source the merger just preprocesses the source and
-saves using the name of the requested object file. By preprocessing this early
-the merger is able to take into account variations in the command line
-arguments that affect preprocessing of different source files. 
+invoked to compile a source the merger just preprocesses the source and saves
+the result using the name of the requested object file. By preprocessing at
+this time the merger is able to take into account variations in the command
+line arguments that affect preprocessing of different source files.
 
- When the merger is invoked in the place of the linker it collects the
+ When the merger is invoked to link a number of object files it collects the
 preprocessed sources that were stored with the names of the object files, and
-invoked the second part of the merger. Note that arguments that affect the
-compilation or linking must be the same for all source files.
+invokes the merger proper. Note that arguments that affect the compilation or
+linking must be the same for all source files.
 
  For the second task, the merger essentially concatenates the preprocessed
 sources with care to rename conflicting file-local declarations (we call this
-process alpha-conversion or a file). The merger also attempts to remove
+process alpha-conversion of a file). The merger also attempts to remove
 duplicate global declarations and definitions. Specifically the following
 actions are taken: 
 
@@ -1526,22 +1536,25 @@ conflict with declarations from previously processed sources. The new name is
 formed by appending the suffix \t{\_\_\_n}, where \t{n} is a unique integer
 identifier. Then the new names are applied to their occurrences in the file. 
 
- If the \t{--agressive-merge} argument is passed to \t{cilly} then we try to
-merge all isomorphic structure and union types, independent of their original
-name. 
+\item Non-static declarations and definitions of globals are never renamed.
+But we try to remove duplicate ones. Equality of globals is detected by
+comparing the printed form of the global (ignoring the line number directives)
+after the body has been alpha-converted. This process is intended to remove
+those declarations (e.g. function prototypes) that originate from the same
+include file. Similarly, we try to eliminate duplicate definitions of
+\t{inline} functions, since these occasionally appear in include files.
 
-\item Non-static declarations of globals are never renamed. But we try to
-remove duplicate ones. The equality check is done on the whole structure of
-the declaration (including the line-number information) after the body of the
-declaration has been alpha-converted. This process is intended to remove those
-declarations that originate from the same include file. Similarly, we try to
-eliminate duplicate definitions of \t{inline} functions, since these
-occasionally appear in include files.
+\item The types of all global declarations with the same name from all files
+are compared for type isomorphism. During this process, the merger detects all
+those isomorphisms between structures and type definitions that are {\bf
+required} for the merged program to be legal. Such structure tags and
+typenames are coalesced and given the same name. 
 
-\item Names of types and tags of structures or unions or enumerations are
-considered to have file scope and thus are candidate for renaming. However, if
-we detect an existing declaration with the same body from a previously
-processed file, we reuse it.
+\item Besides the structure tags and type names that are required to be
+isomorphic, the merger also tries to coalesce definitions of structures and
+types with the same name from different file. However, in this case the merger
+will not give an error if such definitions are not isomorphic; it will just
+use different names for them. 
 
 \item In rare situations, it can happen that a file-local global in
 encountered first and it is not renamed, only to discover later when
@@ -1549,6 +1562,46 @@ processing another file that there is an external symbol with the same name.
 In this case, a second pass is made over the merged file to rename the
 file-local symbol. 
 \end{itemize}
+
+ Here is an example of using the merger:
+
+ The contents of \t{file1.c} is:
+\begin{code}
+struct foo; // Forward declaration
+extern struct foo *global;
+\end{verbatim}\end{code}
+
+ The contents of \t{file2.c} is:
+
+\begin{code}
+struct bar {
+ int x;
+ struct bar *next;
+};
+extern struct bar *global;
+struct foo {
+ int y;
+};
+extern struct foo another;
+\end{verbatim}\end{code}
+
+ And the result of merging file1.c and file2.c is:
+
+\begin{code}
+// from file1.c
+struct foo; // Forward declaration
+extern struct foo *global;
+
+// from file2.c
+struct foo {
+ int x;
+ struct foo *next;
+};
+struct foo___1 {
+ int y;
+};
+extern struct foo___1 another;
+\end{verbatim}\end{code}
 
     \section{Using the patcher}\label{sec-patcher}\cutname{patcher.html}
 

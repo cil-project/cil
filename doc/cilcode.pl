@@ -53,7 +53,7 @@ while(<>) {
         } else {
             print TSTSRC $preambleGlobal;
         }
-        print "\\begin{verbatim}\n";
+        print "\\begin{code}\n";
         next;
     }
     if($incode && $_ =~ m|^\\end{cilcode}$|) {
@@ -64,7 +64,7 @@ while(<>) {
             print TSTSRC $postambleGlobal;
         }
         close(TSTSRC);
-        print "\\end{verbatim}\n";
+        print "\\end{verbatim}\\end{code}\n";
         print "See the \\ahref{$htmloutdir/ex$testnr.txt}{CIL output} for this
 code fragment\n";
         # Now run cilly
