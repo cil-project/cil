@@ -742,18 +742,26 @@ and removeRedundancies (cin_start : lattice) instList node_number =
 	
 	  | Unknown | Needed -> (* This CHECK can't be removed.
 				   We have to recompute cin. *)
-	      if amandebug then 
-		pr "%s %d kept (lattice = %s)\n" (getCallName h) 
-		  index (getLatValDescription cin_local.latType);
-	      stats_kept := !stats_kept + 1;
-	      (match h2 with
-		Call (Some (var,_),_,_,loc) ->
-		  if cin_local.latWeight = wtLIVE (* IMPORTANT: re-use the same live-variable *)
-		  then removeRedundanciesLoop cin_local t (h2 :: filteredList)
-		  else removeRedundanciesLoop (latLive var) t (h2 :: filteredList)
-	      |	Call (None,_,_,_) ->
-		  removeRedundanciesLoop latCheckNotNeeded t (h2 :: filteredList)
-	      |	_ -> raise (Failure "non-Call in checkInstrs array"))
+	      try 
+		let h2 = peepholeReplace h2 in (* throws an exception if h2 can be removed *)
+		if amandebug then 
+		  pr "%s %d kept (lattice = %s)\n" (getCallName h2) 
+		    index (getLatValDescription cin_local.latType);
+
+		stats_kept := !stats_kept + 1;
+		(match h2 with
+		  Call (Some (var,_),_,_,loc) ->
+		    if cin_local.latWeight = wtLIVE (* IMPORTANT: re-use the same live-variable *)
+		    then removeRedundanciesLoop cin_local t (h2 :: filteredList)
+		    else removeRedundanciesLoop (latLive var) t (h2 :: filteredList)
+		| Call (None,_,_,_) ->
+		    removeRedundanciesLoop latCheckNotNeeded t (h2 :: filteredList)
+		| _ -> raise (Failure "non-Call in checkInstrs array"))
+
+	      with Exit ->		  
+		if amandebug then pr "%s removed by peephole \n" (getCallName h2) ;
+		stats_removed := !stats_removed + 1;
+		removeRedundanciesLoop cin_local t filteredList
 	end
 	else (* This instr is not a candidate for elimination.
 		It could be a Set, Call or Asm... so recompute the new cin.
@@ -761,6 +769,18 @@ and removeRedundancies (cin_start : lattice) instList node_number =
 	  removeRedundanciesLoop (lat_max cin_local (minLatticeValue h)) t (h :: filteredList) 
   in
   removeRedundanciesLoop cin_start instList []
+
+
+(* peepholeReplace:
+   Returns a peephole-optimized replacement for a given CHECK.
+   Raises Exit if this check can be removed
+*)
+and peepholeReplace (chk : instr) : instr =
+  match chk with
+    Call (_, Lval(Var{vname="CHECK_POSITIVE"},_), [Const (CInt32 (c,_,_))],_) 
+    when c >= Int32.zero ->
+      raise Exit
+  | _ -> chk
 
 
 (* minLatticeValue:
