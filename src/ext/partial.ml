@@ -37,6 +37,9 @@ module type Symex =
     val equal : t -> t -> bool              (* are these the same? *)
     val assign : t -> Cil.lval -> Cil.exp  -> (Cil.exp * t) 
       (* incorporate an assignment, return the RHS *)
+    val unassign : t -> Cil.lval -> t 
+      (* lose all information about the given lvalue: assume an 
+       * unknown external value has been assigned to it *)
     val assembly : t -> Cil.instr -> t      (* handle ASM *)
     val assume : t -> Cil.exp -> t          (* incorporate an assumption *) 
     val evaluate : t -> Cil.exp -> Cil.exp  (* symbolic evaluation *)
@@ -210,13 +213,23 @@ module NeculaFolding = functor (A : AliasInfo) ->
     let setRegister regFile (id: int) (v: exp * bool) = 
       IntMap.add id v regFile 
 
+    let resetRegister regFile (id: int) =
+      IntMap.remove id regFile 
+
     let assign r l e = 
       let (newe,b) = rewriteExp r e in
       let r' = match l with
-        (Var v, NoOffset) -> setRegister r v.vid (newe,b) 
+        (Var v, NoOffset) -> setRegister r v.vid (newe,b)
       | (Mem _, _) -> setMemory r
       | _ -> r 
       in newe, r' 
+
+    let unassign r l = 
+      let r' = match l with
+        (Var v, NoOffset) -> resetRegister r v.vid 
+      | (Mem _, _) -> setMemory r
+      | _ -> r 
+      in r' 
 
     let assembly r i = r (* no-op in Necula-world *)
     let assume r e = r (* no-op in Necula-world *)
@@ -459,7 +472,7 @@ module MakePartial =
                 state := state' ;
                 [Set(l,e',loc)]
             | Call(lo,(Lval(Var(vi),NoOffset)),al,loc) -> 
-                begin
+                let result = begin
                   try 
                     let fd = C.fundec_of_varinfo c vi in
                     begin 
@@ -477,10 +490,20 @@ module MakePartial =
                     let al' = List.map (S.evaluate !state) al in 
                     state := state'' ; 
                     [Call(lo,(Lval(Var(vi),NoOffset)),al',loc)]
-                end 
+                end in 
+                (* handle return value *)
+                begin 
+                  match lo with
+                    Some(lv) -> state := S.unassign !state lv 
+                  | _ -> () 
+                end ;
+                result
             | Call(lo,f,al,loc) -> 
                 let al' = List.map (S.evaluate !state) al in 
                 state := S.call_to_unknown_function !state ;
+                (match lo with
+                  Some(lv) -> state := S.unassign !state lv
+                | None -> ()) ;
                 [Call(lo,f,al',loc)]
             | Asm(_) -> state := S.assembly !state i ; [i] 
           ) il in
@@ -492,7 +515,7 @@ module MakePartial =
 
       | If(e,b1,b2,loc) -> 
           let e' = S.evaluate state e in 
-          Pretty.printf "%a evals to %a\n" d_exp e d_exp e' ; 
+          (* Pretty.printf "%a evals to %a\n" d_exp e d_exp e' ; *)
 
           (* helper function to remove an IF branch *)
           let remove b remains = begin 
