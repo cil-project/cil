@@ -576,10 +576,8 @@ and lookup_id id = begin
         id
 end
         
-let combine (files : string list) = begin
-    let list_of_parsed_files =
-      List.map (fun file_name -> Frontc.parse_to_cabs file_name)  files in
-        let defs = List.flatten (List.map (fun defs' -> combine_defs defs' true) list_of_parsed_files) in
-        Cprint.print stdout defs
-end
+let combine (files : Cabs.file list) : Cabs.file =
+  List.flatten (List.map 
+                  (fun defs' -> combine_defs defs' true) 
+                  files)
 

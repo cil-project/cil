@@ -41,11 +41,11 @@ ifdef USEFRONTC
 SOURCEDIRS += src/frontc
 MLLS       += clexer.mll
 MLYS       += cparser.mly
-MODULES    += cabs clexer cparser cprint cabs2cil frontc
+MODULES    += cabs clexer cparser cprint cabs2cil combine frontc
 endif
 
 # Add main late
-MODULES    += combine main
+MODULES    += main
     # Include now the common set of rules for OCAML
     # This file will add the rules to make $(EXECUTABLE).$(EXE)
 include Makefile.ocaml
@@ -198,16 +198,22 @@ CCL=$(DEBUGCCL)
 endif
 CC=$(CCL) $(CONLY)
 
-
+#
+# On some machines start using the new Perl driver
 ifeq ($(COMPUTERNAME), FETA)
 SAFECC=perl $(CILDIR)/lib/newsafecc.pl
 else
 ifeq ($(COMPUTERNAME), brooksie)
 SAFECC=perl $(CILDIR)/lib/newsafecc.pl
 else
+ifeq ($(COMPUTERNAME), RAW)
+SAFECC=perl $(CILDIR)/lib/newsafecc.pl
+else
 SAFECC=perl $(CILDIR)/lib/safecc.pl
 endif
 endif
+endif
+
 
 ifdef SHOWCABS
 SAFECC+= --cabs
