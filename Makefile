@@ -531,7 +531,7 @@ $(CILLIB) : lib/cillib.c
 	lib /OUT:$@ obj/cillib.o
 
 SAFECPATCHER += --mode mscl 
-PATCH_SYSINCLUDES=stdio.h ctype.h string.h
+PATCH_SYSINCLUDES=stdio.h ctype.h string.h io.h
 includes: cleanincludes
 	$(SAFECPATCHER) --patch=$(CILDIR)/lib/safec_msvc.patch \
                         --dest=$(CILDIR)/include \
