@@ -313,6 +313,7 @@ $TEST->addTests("testrun/typespec1", "_GNUCC=1", ['cil']);
    $TEST->addBadComment("testrun/typespec1-cil", 
                         "Must emulate bug in GCC?");
 $TEST->add2Tests("testrun/wild2", "_GNUCC=1");
+$TEST->add3Tests("testrun/wildfun");
 $TEST->addTests("testrun/returnvoid", "", ['cil']);
 $TEST->addTests("testrun/returnvoid1", "", ['cil']);
 $TEST->addTests("testrun/return1", "", ['cil']);
