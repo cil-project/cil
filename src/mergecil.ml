@@ -1051,29 +1051,36 @@ let renameVisitor = new renameVisitorClass
 
 
 (** A visitor that renames uses of inline functions that were discovered in 
- * pass 2 to be used before they are defined *)
+ * pass 2 to be used before they are defined. This is like the renameVisitor 
+ * except it only looks at the variables (thus it is a bit more efficient) 
+ * and it also drops forward declarations of the inlines to be removed). *)
 
-   (* Which inline functions must be replaced and how *)
-let inlinesToRemove: (string, varinfo) H.t = H.create 17
-let inlinesRemoved: (string, unit) H.t = H.create 17
 class renameInlineVisitorClass = object (self)
   inherit nopCilVisitor 
       
       (* This is a variable use. See if we must change it *)
   method vvrbl (vi: varinfo) : varinfo visitAction = 
     if not vi.vglob then DoChildren else
-    try
-      let vi' = H.find inlinesToRemove vi.vname in
-      ChangeTo vi'
-    with Not_found -> 
-      DoChildren
+    if vi.vreferenced then begin (* Already renamed *)
+      DoChildren 
+    end else begin
+      match findReplacement true vEq !currentFidx vi.vname with
+        None -> DoChildren
+      | Some (vi', oldfidx) -> 
+          if debugMerge then 
+              ignore (E.log "Renaming var %s(%d) to %s(%d)\n"
+                        vi.vname !currentFidx vi'.vname oldfidx);
+          vi'.vreferenced <- true; 
+          ChangeTo vi'
+    end
 
+  (* And drop some declarations of inlines to remove *)
   method vglob = function
-      GVarDecl(vi, _) when H.mem inlinesToRemove vi.vname -> 
-        if debugMerge || !E.verboseFlag then 
-          ignore (E.log "   reusing inline %s\n" (H.find inlinesToRemove vi.vname).vname);
-        H.add inlinesRemoved vi.vname ();
-        ChangeTo []
+      GVarDecl(vi, _) -> begin
+        match findReplacement true vEq !currentFidx vi.vname with 
+          None -> DoChildren
+        | _ -> ChangeTo [] (* Drop it *)
+      end
     | _ -> DoChildren
 
 end
@@ -1249,8 +1256,6 @@ let oneFilePass2 (f: file) =
   (* Keep a pointer to the contents of the file so far *)
   let savedTheFile = !theFile in
   let savedTheFileTypes = !theFileTypes in
-  H.clear inlinesToRemove;
-  H.clear inlinesRemoved;
 
   let processOneGlobal (g: global) : unit = 
       (* Process a varinfo. Reuse an old one, or rename it if necessary *)
@@ -1425,7 +1430,7 @@ let oneFilePass2 (f: file) =
                 (Some (l, !currentDeclIdx))
             in
             if debugInlines then begin
-              ignore (E.log "Created node %s(%d) with loc=%a. declidx=%d\n"
+              ignore (E.log "getNode %s(%d) with loc=%a. declidx=%d\n"
                         inode.nname inode.nfidx
                         d_nloc inode.nloc
                         !currentDeclIdx);
@@ -1438,10 +1443,11 @@ let oneFilePass2 (f: file) =
               if debugInlines then
                 ignore (E.log "  Matches %s(%d)\n" 
                           oldinode.nname oldinode.nfidx);
-              (* There is some other inline function with the same printout *)
+              (* There is some other inline function with the same printout. 
+               * We should reuse this, but watch for the case when the inline 
+               * was already used. *)
               if H.mem varUsedAlready fdec'.svar.vname then begin
                 if mergeInlinesRepeat then begin
-                  H.add inlinesToRemove fdec'.svar.vname oldinode.ndata;
                   repeatPass2 := true
                 end else begin
                   ignore (warn "Inline function %s because it is used before it is defined" fdec'.svar.vname);
@@ -1608,7 +1614,11 @@ let oneFilePass2 (f: file) =
     raise e    
   end
   in
+  (* Now do the real PASS 2 *)
   List.iter processOneGlobal f.globals;
+  (* See if we must re-visit the globals in this file because an inline that 
+   * is being removed was used before we saw the definition and we decided to 
+   * remove it *)
   if mergeInlinesRepeat && !repeatPass2 then begin
     if debugMerge || !E.verboseFlag then 
       ignore (E.log "Repeat final merging phase (%d): %s\n" 
@@ -1634,12 +1644,12 @@ let oneFilePass2 (f: file) =
     List.iter (fun g -> 
                  theFile := (visitCilGlobal renameInlinesVisitor g) @ !theFile)
       !theseGlobals;
-    (* Now check if we have inlines that we could not remove *)
+    (* Now check if we have inlines that we could not remove
     H.iter (fun name _ -> 
       if not (H.mem inlinesRemoved name) then 
         ignore (warn "Could not remove inline %s. I have no idea why!\n"
                   name))
-      inlinesToRemove
+      inlinesToRemove *)
   end
 
 
