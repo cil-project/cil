@@ -44,6 +44,11 @@ end
 
 let isInlineFunc (f: fundec) : bool = f.sinline
 
+(* weimer Mon Dec 10 16:28:11  2001
+ * This huge list of removed temporaries is annoying to look at. Let's
+ * spruce it up a bit.
+ *)
+let removed_temps = ref [] 
 
 
 (* This visitor recursively marks all reachable types and variables as used. *)
@@ -136,8 +141,10 @@ class removeTempsVis (*(usedTypes : (typ,bool) H.t)*)
                   (* sm: if I'd had this to begin with, it would have been
                   * a little easier to track down the bug where I didn't
                   * check the function return-value destination *)
-                  (ignore (E.warn "Removing unused source variable %s"
-                             v.vname));
+                  removed_temps := (f.svar.vname ^ "::" ^ v.vname) :: 
+                    !removed_temps ;
+                  (* (ignore (E.warn "Removing unused source variable %s"
+                             v.vname)); *)
                 false   (* remove it *)
               end
               else
@@ -332,7 +339,16 @@ begin
     | [] -> []
   in
 
-  file.globals <- (revLoop file.globals)
+  file.globals <- (revLoop file.globals) ;
+  if !removed_temps <> [] then begin
+    let len = List.length !removed_temps in
+    if len > 20 then 
+      (ignore (E.warn "%d unused source variables removed" len))
+    else 
+      (ignore (E.warn "Removed unused source variables:@!%a"
+        (docList (chr ',' ++ break) text) !removed_temps)) ;
+    removed_temps := [] 
+  end
 end
 
 
