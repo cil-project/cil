@@ -725,7 +725,7 @@ smAddTest("test-bad/trivial-tb");
 smAddTest("test-bad/retptr $box RELEASE=");
 
 # verify we have tags and that they work
-smAddTest("badd/nonptr $box $gcc");          # very simple test
+# smAddTest("badd/nonptr $box $gcc");          # very simple test. Covered by wild1
 smAddTest("scott/arraytags $box $gcc");     # this one is pretty hairy
 
 # simple test of combiner

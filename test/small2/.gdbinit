@@ -1,5 +1,5 @@
 # .gdbinit
 
-file wild1-tmp
+file arraytags
 break main
 run
