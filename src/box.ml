@@ -2201,11 +2201,14 @@ let initializeVar (mkivar: unit -> varinfo)
     (* Write the length *)
     mkSet (Var v, Field(lfld, NoOffset)) words ::
     (* And the loop to initialize the tags with zero *)
-    mkForIncr iter zero (doCast tagwords (typeOf tagwords) intType) one 
-      [mkSet (Var v, Field(tfld, Index (Lval(var iter), NoOffset))) 
-          zero ]
-    ::
-    acc
+    (if not v.vglob then
+      mkForIncr iter zero (doCast tagwords (typeOf tagwords) intType) one 
+        [mkSet (Var v, Field(tfld, Index (Lval(var iter), NoOffset))) 
+            zero ]
+      ::
+      acc
+    else
+      acc)
   end else begin
     (* Scan the type for arrays. Maybe they must be SIZED or NULLTERM *)
     let rec initForType 
