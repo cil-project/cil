@@ -21,7 +21,8 @@ my $TEST = SafecRegTest->new(AvailParams => { 'SAFE' => 1,
                                               'WILD' => 1,
                                               'FSEQ' => 1,
                                               'RUN' => 1,
-                                              'CURE' => 1 },
+                                              'CURE' => 1,
+                                              'SUCCESS' => 0},
                              LogFile => "safec.log",
                              CommandName => "testsafec");
 
