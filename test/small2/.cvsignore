@@ -134,3 +134,4 @@ mergeinline
 ehstack
 setjmp
 suppress_optim
+name-capture-bitand
