@@ -63,11 +63,6 @@ dnl    )
 dnl  fi
 
 
-dnl  set CCUREDHOME to current directory
-CCUREDHOME=`pwd`
-AC_MSG_RESULT(setting CCUREDHOME to $CCUREDHOME)
-
-
 dnl  ----------- platform-specific code -------------
 dnl  $target is typically processor-vendor-os
 case "$target" in
@@ -91,6 +86,26 @@ case "$target" in
 
 esac
 AC_MSG_RESULT(ARCHOS has been set to $ARCHOS)
+
+
+dnl set CCUREDHOME. For now this is the current directory, except
+dnl on cygwin where we convert it to a Windows path so we can pass it
+dnl to Microsoft tools as well
+case "$target" in
+   # cygwin
+   *cygwin*)
+     CCUREDHOME_cygwin=`pwd`
+   # even on cygwin we want forward slashes
+     CCUREDHOME=`cygpath -wa $CCUREDHOME_cygwin  | sed -e "s/\\\\\/\\//g"`
+     ;;
+   # all other systems 
+   *)
+     CCUREDHOME=`pwd`
+     ;;
+esac
+
+AC_MSG_RESULT(setting CCUREDHOME to $CCUREDHOME)
+
 
 
 dnl  ----------- some stuff 'autoscan' put here --------------

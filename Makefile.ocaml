@@ -263,8 +263,6 @@ $(DEPENDDIR)/%.di: %.mli
 	$(ECHO)$(CAMLDEP) $(DEPINCLUDES) $< | $(FIXDEPEND) > $@
 
 ifndef CLEANING
-#foo := $(shell echo "MODULES = $(MODULES)" 1>&2; echo whatever)
-#foo := $(shell echo "NATIVECAML = $(NATIVECAML)" 1>&2; echo whatever)
 -include $(MODULES:%=$(DEPENDDIR)/%.d)
 -include $(MODULES:%=$(DEPENDDIR)/%.di)
 endif

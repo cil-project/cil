@@ -20,12 +20,6 @@ ifdef NATIVECAML
 endif
 CAMLLIBS    = unix
 
-# sm: we have to add more modules because the dependency files refer
-# to them, and therefore compiling fails without them.  for example,
-# cprint says 'Open Cil' and uses its Location; Cil in turn refers
-# to Pretty
-MODULES     += trace clist machdep cil
-
 
 # Additional things to clean
 EXTRACLEAN += $(OBJDIR)/*.obj $(OBJDIR)/*.a $(OBJDIR)/*.o
