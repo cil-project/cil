@@ -1370,7 +1370,15 @@ let rec doSpecList (specs: A.spec_elem list)
         storage := sto';
         acc
 
-    | A.SpecAttr a -> attrs := a :: !attrs; acc
+    | A.SpecAttr a -> 
+        let ignore = 
+          match a with 
+            ("restrict", _) -> true
+          | _ -> false
+        in
+        if not ignore then 
+          attrs := a :: !attrs; 
+        acc
     | A.SpecType ts -> ts :: acc
     | A.SpecPattern _ -> E.s (E.bug "SpecPattern in cabs2cil input")
   in

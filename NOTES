@@ -25,6 +25,7 @@ this bug in doBinOp in cabs2cil.
  - we should allow the user to specify a logging function that takes
    printf()-style arguments (rather than hardcoding syslog/printk/printf). 
 
+ - the restrict attribute is dropped in cabs2cil
 
 CCURED
 ==============
