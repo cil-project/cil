@@ -1793,13 +1793,8 @@ let rec castTo (fe: fexp) (newt: typ)
       let finishDoe (acc: stmt list) = doe @ (List.rev acc) in
       let oldt, oldk, p, b, bend = breakFexp fe in
       let is_zero fexp = 
-        let rec is_zero_exp e = match e with
-          Const(CInt(0,_,_)) -> true
-        | CastE(_,e) -> is_zero_exp e
-        | _ -> false
-        in 
         match fexp with
-          L(t,k,e) -> is_zero_exp e
+          L(t,k,e) -> isZero e
         | _ -> false
       in
       match oldk, newkind with
@@ -2081,7 +2076,7 @@ let rec checkMem (why: checkLvWhy)
               | ToWrite (Lval whatlv) -> 
                   ToWrite (Lval (addOffsetLval (Field(fi, NoOffset)) whatlv))
                   (* sometimes in Asm outputs we pretend that we write 0 *)
-              | ToWrite (Const(CInt(0, _, _))) -> ToRead
+              | ToWrite (Const(CInt32(z, _, _))) when z = Int32.zero -> ToRead
               | ToWrite e -> E.s (unimp "doCheckTags (%a)" d_exp e)
               | ToSizeOf -> why
             in
@@ -3114,7 +3109,7 @@ and boxexpf (e: exp) : stmt list * fexp =
         in
         (dolv @ check, mkFexp1 lvt (Lval(lv')))
             
-    | Const (CInt (_, ik, _)) -> ([], L(TInt(ik, []), N.Scalar, e))
+    | Const (CInt32 (_, ik, _)) -> ([], L(TInt(ik, []), N.Scalar, e))
     | Const ((CChr _)) -> ([], L(charType, N.Scalar, e))
     | Const (CReal (_, fk, _)) -> ([], L(TFloat(fk, []), N.Scalar, e))
 

@@ -180,7 +180,7 @@ $TEST->add2Tests("vortex", "_GNUCC=1");
   $TEST->addBadComment("vortex-inferbox", "missing WRAPPERS");
 
 $TEST->add3Tests("apache/gzip");
-   $TEST->add3Group("apache/gzip", "apache");
+   $TEST->add3Group("apache/gzip", "apache", "slow");
 #   $TEST->addBadComment("apache/gzip-inferbox", "BUG");
 #   $TEST->addBadComment("apache/gzip-box", "BUG");
 #$TEST->add3Tests("apache/rewrite");
@@ -211,6 +211,7 @@ $TEST->add3Tests("scott/recursetype");
 #   $TEST->addBadComment("scott/recursetype-inferbox", "BUG");
 $TEST->add3Tests("scott/rmunused");
 $TEST->add3Tests("scott/simplewild");
+$TEST->add3Tests("scott/lexnum");
 
 # $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug
 # my $tst = $TEST->getTest("apache/gzip-inferbox");

@@ -35,7 +35,8 @@ let can_cast (n1 : node) (n2 : node) = begin
   if subtype t1 Safe t2 Safe then
     (Safe,Safe,false)
   else if subtype t1 Safe 
-     (TArray(t2,(Some(Const(CInt(1024,ILong,None)))),[])) Safe then
+     (TArray(t2,(Some(Const(CInt32(Int32.of_int 1024,ILong,None)))),
+             [])) Safe then
     (Seq,Seq,false)
   else begin
 (*    E.warn "Cannot cast %a <= %a\n" 

@@ -164,7 +164,8 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       if subtype t_from Safe t_to Safe then begin
         ()
       end else if subtype t_from Safe 
-          (TArray(t_to,(Some(Const(CInt(1024,ILong,None)))),[])) Safe then begin
+          (TArray(t_to,(Some(Const(CInt32(Int32.of_int 1024,ILong,None)))),
+                  [])) Safe then begin
         (update e.efrom Seq (BadCast e));
         (update e.eto Seq (BadCast e));
       end else if is_p n_from n_to ||

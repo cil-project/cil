@@ -242,16 +242,16 @@ let theFile : global list ref = ref []
 
 (* Compute the sign of an expression. Extend this to a real constant folding 
  * + the sign rule  *)
-type sign = SPos | SNeg | SAny | SLiteral of int
+type sign = SPos | SNeg | SAny | SLiteral of int32
 
 let rec signOf = function
-    Const(CInt(n, _, _)) -> SLiteral n
-  | Const(CChr c) -> SLiteral (Char.code c)
+    Const(CInt32(n, _, _)) -> SLiteral n
+  | Const(CChr c) -> SLiteral (Int32.of_int (Char.code c))
   | SizeOf _ -> SPos (* We do not compute it now *)
   | UnOp (Neg, e, _) -> begin
       match signOf e with
         SPos -> SNeg
-      | SLiteral n -> SLiteral (- n)
+      | SLiteral n -> SLiteral (Int32.neg n)
       | SNeg -> SNeg
       | _ -> SAny
   end
@@ -259,23 +259,23 @@ let rec signOf = function
   | BinOp (PlusA, e1, e2, _) -> begin
       match signOf e1, signOf e2 with
         SPos, SPos -> SPos
-      | SLiteral n, SPos when n >= 0 -> SPos
-      | SPos, SLiteral n when n >= 0 -> SPos
-      | SLiteral n1, SLiteral n2 -> SLiteral (n1 + n2)
+      | SLiteral n, SPos when n >= Int32.zero -> SPos
+      | SPos, SLiteral n when n >= Int32.zero -> SPos
+      | SLiteral n1, SLiteral n2 -> SLiteral (Int32.add n1 n2)
       | SNeg, SNeg -> SNeg
-      | SLiteral n, SNeg when n <= 0 -> SNeg
-      | SNeg, SLiteral n when n <= 0 -> SNeg
+      | SLiteral n, SNeg when n <= Int32.zero -> SNeg
+      | SNeg, SLiteral n when n <= Int32.zero -> SNeg
       | _ -> SAny
   end
   | BinOp (MinusA, e1, e2, _) -> begin
       match signOf e1, signOf e2 with
         SPos, SNeg -> SPos
-      | SLiteral n, SNeg when n >= 0 -> SPos
-      | SPos, SLiteral n when n <= 0 -> SPos
-      | SLiteral n1, SLiteral n2 -> SLiteral (n1 - n2)
+      | SLiteral n, SNeg when n >= Int32.zero -> SPos
+      | SPos, SLiteral n when n <= Int32.zero -> SPos
+      | SLiteral n1, SLiteral n2 -> SLiteral (Int32.sub n1 n2)
       | SNeg, SPos -> SNeg
-      | SLiteral n, SPos when n <= 0 -> SNeg
-      | SNeg, SLiteral n when n >= 0 -> SNeg
+      | SLiteral n, SPos when n <= Int32.zero -> SNeg
+      | SNeg, SLiteral n when n >= Int32.zero -> SNeg
       | _ -> SAny
   end
   | _ -> SAny
@@ -350,16 +350,16 @@ let rec doExp (e: exp) : exp * typ * N.node=
           (match bop with PlusPI|IndexPI -> e2 | _ -> UnOp(Neg, e2, intType)) 
       in
       (match sign with
-        SLiteral 0 -> ()
+        SLiteral z when z = Int32.zero -> ()
       | SPos -> setPosArith e1n
 
-      | SLiteral n when n > 0 -> setPosArith e1n
+      | SLiteral n when n > Int32.zero -> setPosArith e1n
       | _ -> 
           if bop = IndexPI then (*  Was created from p[e] *)
              setPosArith e1n
           else 
              setArith e1n);
-      if sign = SLiteral 0 then
+      if sign = SLiteral Int32.zero then
           e1', e1t, e1n
         else
           BinOp (bop, e1', doExpAndCast e2 intType, e1t), e1t, e1n
@@ -447,11 +447,6 @@ and doOffset (off: offset) (n: N.node) : offset * N.node =
   
 (* Now model an assignment of a processed expression into a type *)
 and expToType (e,et,en) t (callid: int) : exp = 
-  let rec isZero = function
-      Const(CInt(0, _, _)) -> true
-    | CastE(_, e) -> isZero e
-    | _ -> false
-  in
   let etn = nodeOfType et in
   let tn  = nodeOfType t in
   (* ignore (E.log "expToType e=%a (NS=%d) -> TD=%a (ND=%d)\n"

@@ -193,10 +193,14 @@ and attrarg =
 
 (* literal constants *)
 and constant =
-  | CInt of int * ikind * string option  (* Give the ikind (see ISO9899 
-                                          * 6.4.4.1) and the textual 
-                                          * representation, if available. Use 
-                                          * "integer" to create these  *)
+  | CInt32 of int32 * ikind * string option  
+                                    (* Give the ikind (see ISO9899 6.1.3.2) 
+                                     * and the textual representation, if 
+                                     * available. Use "integer" to create 
+                                     * these. Watch out for integers that 
+                                     * cannot be represented on 32 bits. 
+                                     * OCAML does not give Overflow 
+                                     * exceptions.  *)
   | CStr of string
   | CChr of char 
   | CReal of float * fkind * string option(* Give the fkind (see ISO 6.4.4.2) 
@@ -545,37 +549,29 @@ let lu = locUnknown
      * an index *)
 let luindex = { line = -1000; file = ""; }
 
-let integerFits (i: int) (k: ikind) =  true (* We know that i is less than 31 
-                                             * bits so it fits even in an 
-                                             * IInt *)
 
-let integerKinds (i: int) (posskinds: ikind list) (s: string option) = 
-  let rec loop = function
-      [] -> E.s (E.bug "integerkinds exhausted kinds")
-    | k :: rest -> 
-        if integerFits i k then
-          CInt(i, k, s)
-        else loop rest
-  in
-  loop posskinds
-          
+(* Construct an integer of a given kind. *)
+let kinteger (k: ikind) (i: int) = Const (CInt32(Int32.of_int i, k,  None))
+let kinteger32 (k: ikind) (i: int32) =  Const (CInt32(i, k,  None))
 
-let integer i = Const (integerKinds i [IInt] None)(* For now only ints *)
-let kinteger (k: ikind) (i: int) = Const (CInt(i, k,  None))
-let hexinteger i = 
-    Const (integerKinds i [IInt] (Some (Printf.sprintf "0x%08X" i)))
+(* Construct an integer. Use only for values that fit on 31 bits *)
+let integer (i: int) = kinteger IInt i
+let integer32 (i: int32) = kinteger32 IInt i
+
+let hexinteger (i: int) = 
+    Const (CInt32(Int32.of_int i, IInt, Some (Printf.sprintf "0x%08X" i)))
              
 let zero      = integer 0
 let one       = integer 1
 let mone      = integer (-1)
 
 let rec isInteger = function
-  | Const(CInt (n,_,_)) -> Some n
+  | Const(CInt32 (n,_,_)) -> Some n
   | CastE(_, e) -> isInteger e
   | _ -> None
         
 
-let rec isZero (e: exp) : bool = isInteger e = Some 0
+let rec isZero (e: exp) : bool = isInteger e = Some Int32.zero
 
 let voidType = TVoid([])
 let intType = TInt(IInt,[])
@@ -933,9 +929,26 @@ let d_storage () = function
 
 (* constant *)
 let d_const () c =
+  let suffix ik = 
+    match ik with
+      IUInt -> "U"
+    | ILong -> "L"
+    | IULong -> "UL"
+    | ILongLong -> "LL"
+    | IULongLong -> "ULL"
+    | _ -> ""
+  in
   match c with
-    CInt(_, _, Some s) -> text s
-  | CInt(i, _, None) -> num i
+    CInt32(_, _, Some s) -> text s (* Always print the text if there is one *)
+  | CInt32(i, ik, None) -> 
+      (* Watch out here for negative integers that we should be printing as 
+       * large positive ones *)
+      if i < Int32.zero 
+          && (match ik with 
+            IUInt | IULong | IULongLong -> true | _ -> false) then
+        text ("0x" ^ Int32.format "%x" i ^ suffix ik)
+      else
+        text (Int32.to_string i ^ suffix ik)
   | CStr(s) -> dprintf "\"%s\"" (escape_string s)
   | CChr(c) -> dprintf "'%s'" (escape_char c)
   | CReal(_, _, Some s) -> text s
@@ -1294,7 +1307,8 @@ and d_lval () lv =
     | NoOffset -> dobase ()
     | Field (fi, o) -> 
         d_offset (fun _ -> dprintf "%t.%s" dobase fi.fname) o
-    | Index (Const(CInt(0,_,_)), NoOffset) -> dprintf "(*%t)" dobase
+    | Index (Const(CInt32(z,_,_)), NoOffset) when z = Int32.zero -> 
+        dprintf "(*%t)" dobase
     | Index (e, o) -> 
         d_offset (fun _ -> dprintf "%t[%a]" dobase d_exp e) o
   in
@@ -1312,11 +1326,11 @@ and d_instr () i =
   | Set(lv,e,l) -> begin
       (* Be nice to some special cases *)
       match e with
-        BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt(1,_,_)),_) 
-          when lv == lv' -> 
+        BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt32(one,_,_)),_) 
+          when lv == lv' && one = Int32.one -> 
           dprintf "%a ++;" d_lval lv
       | BinOp((MinusA|MinusPI),Lval(lv'),
-              Const(CInt(1,_,_)), _) when lv == lv' -> 
+              Const(CInt32(one,_,_)), _) when lv == lv' && one = Int32.one -> 
           dprintf "%a --;" d_lval lv
       | BinOp((PlusA|PlusPI|IndexPI|MinusA|MinusPP|MinusPI|BAnd|BOr|BXor|
                Mult|Div|Mod|Shiftlt|Shiftrt) as bop,
@@ -2059,7 +2073,7 @@ let rec peepHole2  (* Process two statements and possibly replace them both *)
 (**** Compute the type of an expression ****)
 let rec typeOf (e: exp) : typ = 
   match e with
-    Const(CInt (_, ik, _)) -> TInt(ik, [])
+  | Const(CInt32 (_, ik, _)) -> TInt(ik, [])
   | Const(CChr _) -> charType
   | Const(CStr _) -> charPtrType 
   | Const(CReal (_, fk, _)) -> TFloat(fk, [])
@@ -2331,7 +2345,7 @@ let rec constFold (e: exp) : exp =
     BinOp(bop, e1, e2, tres) -> constFoldBinOp bop e1 e2 tres
   | UnOp(Neg, e1, tres) -> begin
       match constFold e1 with
-        Const(CInt(i,_,_)) -> integer (- i)
+        Const(CInt32(i,_,_)) -> integer32 (Int32.neg i)
       | _ -> e
   end
   | _ -> e
@@ -2342,47 +2356,68 @@ and constFoldBinOp bop e1 e2 tres =
   if isIntegralType tres then
     let newe = 
       let rec mkInt = function
-          Const(CChr c) -> Const(CInt(Char.code c, IInt, None))
+          Const(CChr c) -> Const(CInt32(Int32.of_int (Char.code c), 
+                                        IInt, None))
         | CastE(TInt _, e) -> mkInt e
         | e -> e
       in
+      (* See if the result is unsigned *)
+      let isunsigned = 
+        match unrollType tres with
+          TInt((IUInt | IUChar | IUShort | IULong | IULongLong), _) -> true
+        | _ -> false
+      in
       match bop, mkInt e1', mkInt e2' with
-        PlusA, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
-          integer (i1 + i2)
-      | PlusA, Const(CInt(0,_,_)), e2'' -> e2''
-      | PlusA, e1'', Const(CInt(0,_,_)) -> e1''
-      | PlusPI, e1'', Const(CInt(0,_,_)) -> e1''
-      | IndexPI, e1'', Const(CInt(0,_,_)) -> e1''
-      | MinusPI, e1'', Const(CInt(0,_,_)) -> e1''
-      | MinusA, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
-          integer (i1 - i2)
-      | Mult, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
-          integer (i1 * i2)
-      | Div, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
-          integer (i1 / i2)
-      | Mod, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
-          integer (i1 mod i2)
-      | BAnd, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
-          integer (i1 land i2)
-      | BOr, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
-          integer (i1 lor i2)
-      | BXor, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
-          integer (i1 lxor i2)
-      | Shiftlt, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
-          integer (i1 lsl i2)
-      | Shiftrt, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
-          integer (i1 lsr i2)
-      | Eq, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
+        PlusA, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) -> 
+          integer32 (Int32.add i1 i2)
+      | PlusA, Const(CInt32(z,_,_)), e2'' when z = Int32.zero -> e2''
+      | PlusA, e1'', Const(CInt32(z,_,_)) when z = Int32.zero -> e1''
+      | PlusPI, e1'', Const(CInt32(z,_,_)) when z = Int32.zero -> e1''
+      | IndexPI, e1'', Const(CInt32(z,_,_)) when z = Int32.zero -> e1''
+      | MinusPI, e1'', Const(CInt32(z,_,_)) when z = Int32.zero -> e1''
+      | MinusA, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) -> 
+          integer32 (Int32.sub i1 i2)
+      | Mult, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) -> 
+          integer32 (Int32.mul i1 i2)
+      | Div, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) -> begin
+          try integer32 (Int32.div i1 i2)
+          with Division_by_zero -> 
+            E.s (unimp "Division by zero while constant folding")
+      end
+      | Mod, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) -> begin
+          try integer32 (Int32.rem i1 i2)
+          with Division_by_zero -> 
+            E.s (unimp "Division by zero while constant folding")
+      end
+      | BAnd, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) -> 
+          integer32 (Int32.logand i1 i2)
+      | BOr, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) -> 
+          integer32 (Int32.logor i1 i2)
+      | BXor, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) -> 
+          integer32 (Int32.logxor i1 i2)
+      | Shiftlt, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) -> 
+          integer32 (Int32.shift_left i1 (Int32.to_int i2))
+      | Shiftrt, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) -> 
+          if isunsigned then 
+            integer32 (Int32.shift_right_logical i1 (Int32.to_int i2))
+          else
+            integer32 (Int32.shift_right i1 (Int32.to_int i2))
+
+      | Eq, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) -> 
           integer (if i1 = i2 then 1 else 0)
-      | Ne, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
+      | Ne, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) -> 
           integer (if i1 <> i2 then 1 else 0)
-      | Le, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
+      | Le, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) 
+            when not isunsigned -> 
           integer (if i1 <= i2 then 1 else 0)
-      | Ge, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
+      | Ge, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) 
+            when not isunsigned -> 
           integer (if i1 >= i2 then 1 else 0)
-      | Lt, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
+      | Lt, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) 
+            when not isunsigned -> 
           integer (if i1 < i2 then 1 else 0)
-      | Gt, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
+      | Gt, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) 
+            when not isunsigned -> 
           integer (if i1 > i2 then 1 else 0)
       | _ -> BinOp(bop, e1', e2', tres)
     in
@@ -2402,7 +2437,7 @@ let increm (e: exp) (i: int) =
 (*** Make a initializer for zeroe-ing a data type ***)
 let rec makeZeroInit (t: typ) : init = 
   match unrollType t with
-    TInt (ik, _) -> SingleInit(Const(CInt(0, ik, None)))
+    TInt (ik, _) -> SingleInit (Const(CInt32(Int32.zero, ik, None)))
   | TFloat(fk, _) -> SingleInit(Const(CReal(0.0, fk, None)))
   | (TEnum _ | TBitfield _) -> SingleInit zero
   | TComp (_, comp, _) as t' when comp.cstruct -> 
@@ -2420,7 +2455,7 @@ let rec makeZeroInit (t: typ) : init =
   | TArray(bt, Some len, _) as t' -> 
       let n = 
         match constFold len with
-          Const(CInt(n, _, _)) -> n
+          Const(CInt32(n, _, _)) -> Int32.to_int n
         | _ -> E.s (E.unimp "Cannot understand length of array")
       in
       let initbt = makeZeroInit bt in
@@ -2445,7 +2480,7 @@ let foldLeftCompound (doinit: offset -> init -> typ -> 'a -> 'a)
           (initl: init list)
           (acc: 'a) : 'a  =
         let incrementIdx = function
-            Const(CInt(n, ik, _)) -> Const(CInt(n + 1, ik, None))
+            Const(CInt32(n, ik, _)) -> Const(CInt32(Int32.succ n, ik, None))
           | e -> BinOp(PlusA, e, one, intType)
         in
         match initl with
@@ -2711,8 +2746,8 @@ and bitsSizeOf t =
         (* Add trailing by simulating adding an extra field *)
       addTrailing max
 
-  | TArray(t, Some (Const(CInt(l,_,_))),_) -> 
-      addTrailing ((bitsSizeOf t) * l)
+  | TArray(t, Some (Const(CInt32(l,_,_))),_) -> 
+      addTrailing ((bitsSizeOf t) * (Int32.to_int l))
 
   | TArray(t, None, _) -> raise Not_found
         

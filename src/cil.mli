@@ -197,10 +197,13 @@ and attrarg =
 
 (* literal constants *)
 and constant =
-  | CInt of int * ikind * string option  (* Give the ikind (see ISO9899 
-                                          * 6.4.4.1) and the textual 
-                                          * representation, if available. Use 
-                                          * "integer" to create these  *)
+  | CInt32 of int32 * ikind * string option 
+                 (* Give the ikind (see ISO9899 6.1.3.2) and the textual 
+                  * representation, if available. Use "integer" or "kinteger" 
+                  * to create these. Watch out for integers that cannot be 
+                  * represented on 32 bits. OCAML does not give Overflow 
+                  * exceptions. *)
+
   | CStr of string
   | CChr of char 
   | CReal of float * fkind * string option(* Give the fkind (see ISO 6.4.4.2) 
@@ -518,18 +521,22 @@ type file =
 	(* global function decls, global variable decls *)
 
 
-(* Selects the proper integer kind *)
-val integerKinds: int -> 
-                  possiblekinds: ikind list -> s: string option -> constant
-val integer: int -> exp
+(* Construct an integer of a given kind. *)
 val kinteger: ikind -> int -> exp
+val kinteger32: ikind -> int32 -> exp
+
+(* Construct an integer of kind IInt. *)
+val integer: int -> exp
+val integer32: int32 -> exp
+
+
 val hexinteger: int -> exp
              
 val zero: exp
 val one: exp
 val mone: exp
 
-(* Do constant folding *)
+(* Do constant folding *)    
 val constFold: exp -> exp
 
 (* And a special case for binary operations *)
@@ -551,7 +558,7 @@ val intPtrType: typ
 val uintPtrType: typ
 val doubleType: typ
 
-val isInteger: exp -> int option
+val isInteger: exp -> int32 option
 val isZero: exp -> bool
 
 val mkStmt: stmtkind -> stmt

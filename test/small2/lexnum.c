@@ -29,5 +29,8 @@ int main()
   PVAL(1 | 64 | 512, 577);
   PVAL(01 | 0100, 65);
   PVAL(01 | 0100 | 01000, 577);
+  // Now check for some overflow
+  PVAL(0xFFFFFFFF, -1);
+  PVAL(0x80000000 | 0x7FFFFFFFU, -1);
   return 0;
 }

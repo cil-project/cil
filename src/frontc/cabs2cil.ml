@@ -687,10 +687,8 @@ let conditionalConversion (e2: exp) (t2: typ) (e3: exp) (t3: typ) : typ =
     | TPtr(TVoid _, _), TPtr(_, _) -> t3
     | TPtr(t2'', _), TPtr(t3'', _) 
           when typeSig t2'' = typeSig t3'' -> t2
-    | TPtr(_, _), TInt _ when 
-            (match e3 with Const(CInt(0,_,_)) -> true | _ -> false) -> t2
-    | TInt _, TPtr _ when 
-              (match e2 with Const(CInt(0,_,_)) -> true | _ -> false) -> t3
+    | TPtr(_, _), TInt _ when isZero e3 -> t2
+    | TInt _, TPtr _ when isZero e2  -> t3
     | _, _ -> E.s (error "A.QUESTION for non-scalar type")
   in
   tresult
@@ -706,8 +704,7 @@ let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) =
 
   | TPtr (told, _), TPtr(tnew, _) -> (nt, doCastT e ot nt)
 
-  | TInt _, TPtr _ when
-      (match e with Const(CInt(0,_,_)) -> true | _ -> false) -> 
+  | TInt _, TPtr _ when isZero e  -> 
         (nt, doCastT e ot nt)
 
   | TInt _, TPtr _ -> (nt, doCastT e ot nt)
@@ -1165,7 +1162,7 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
           | _ -> E.s (error "Base type for bitfield is not an integer type")
         in
         let width = match doExp true e (AExp None) with
-          (c, Const(CInt(i,_,_)),_) when isEmpty c -> i
+          (c, Const(CInt32(i,_,_)),_) when isEmpty c -> Int32.to_int i
         | _ -> E.s (error "bitfield width is not an integer constant")
         in
         TBitfield (ikind, width, a), acc
@@ -1457,20 +1454,28 @@ and doExp (isconst: bool)    (* In a constant *)
                    then [IInt; IUInt; ILong; IULong; ILongLong; IULongLong]
                    else [IInt; ILong; IUInt; ILongLong]
             in
-            (* Convert to integer *)
-            let rec toInt (base: int) (acc: int) (idx: int) = 
-              if idx >= l - suffixlen then acc
-              else
+            (* Convert to integer. To check for overflow we do the arithmetic 
+             * on Int64 *)
+            let rec toInt (base: int64) (acc: int64) (idx: int) : int32 = 
+              let doAcc (what: int) = 
+                let acc' = 
+                  Int64.add (Int64.mul base acc)  (Int64.of_int what)
+                in
+                toInt base acc' (idx + 1)
+              in 
+              if idx >= l - suffixlen then begin
+                (* Now check if we can convert back to Int32 *)
+                if Int64.shift_right_logical acc 32 <> Int64.zero then
+                  E.s (unimp "Integer constant too large: %s" str);
+                Int64.to_int32 acc
+              end else 
                 let ch = String.get str idx in
                 if ch >= '0' && ch <= '9' then
-                  toInt base (base * acc + 
-                                (Char.code ch - Char.code '0')) (idx + 1)
-                else if  ch >= 'a' && ch <= 'f' && base = 16 then
-                  toInt base (base * acc + 
-                                (Char.code ch - Char.code 'a')) (idx + 1)
-                else if  ch >= 'A' && ch <= 'F' && base = 16 then
-                  toInt base (base * acc + 
-                                (Char.code ch - Char.code 'A')) (idx + 1)
+                  doAcc (Char.code ch - Char.code '0')
+                else if  ch >= 'a' && ch <= 'f'  then
+                  doAcc (10 + Char.code ch - Char.code 'a')
+                else if  ch >= 'A' && ch <= 'F'  then
+                  doAcc (10 + Char.code ch - Char.code 'A')
                 else
                   E.s (bug "Invalid integer constant: %s" str)
             in
@@ -1479,14 +1484,23 @@ and doExp (isconst: bool)    (* In a constant *)
                 if octalhex then
                   if l >= 2 && 
                     (let c = String.get str 1 in c = 'x' || c = 'X') then
-                    toInt 16 0 2
+                    toInt (Int64.of_int 16) Int64.zero 2
                   else
-                    toInt 8 0 1
+                    toInt (Int64.of_int 8) Int64.zero 1
                 else
-                  toInt 10 0 0
+                  toInt (Int64.of_int 10) Int64.zero 0
               in
-              let res = integerKinds i kinds (Some str) in
-              finishCt res (typeOf (Const(res)))
+              (* We assume that we are on a machine where int and long are 
+               * the same width and also that the constant is positive (the 
+               * lexer would have taken care of any - signs). Thus we know we 
+               * fit in the prefered kind. *)
+              let k =
+                match kinds with 
+                  k :: _ -> k 
+                | _ -> E.s (bug "no kinds for constant %s" str)
+              in
+              let res = kinteger32 k i in
+              finishExp empty res (typeOf res)
             with e -> begin
               ignore (E.log "int_of_string %s (%s)\n" str 
                         (Printexc.to_string e));
@@ -1609,7 +1623,7 @@ and doExp (isconst: bool)    (* In a constant *)
           let tres = integralPromotion t in
           let e'' = 
             match e' with
-            | Const(CInt(i, _, _)) -> integer (- i)
+            | Const(CInt32(i, _, _)) -> integer32 (Int32.neg i)
             | _ -> UnOp(Neg, doCastT e' t tres, tres)
           in
           finishExp se e'' tres
@@ -1946,8 +1960,8 @@ and doExp (isconst: bool)    (* In a constant *)
               let e3'' = doCastT e3' t3' tresult in
               let resexp = 
                 match e1' with
-                  Const(CInt(i, _, _)) when i <> 0 -> e2''
-                | Const(CInt(0, _, _)) -> e3''
+                  Const(CInt32(i, _, _)) when i <> Int32.zero -> e2''
+                | Const(CInt32(z, _, _)) when z = Int32.zero -> e3''
                 | _ -> Question(e1', e2'', e3'')
               in
               finishExp se1 resexp tresult
@@ -2125,8 +2139,8 @@ and doCondition (e: A.expression)
       let (se, e, t) as rese = doExp false e (AExp None) in
       ignore (checkBool t e);
       match e with 
-        Const(CInt(i,_,_)) when i <> 0 && canDrop sf -> se @@ st
-      | Const(CInt(0,_,_)) when canDrop st -> se @@ sf
+        Const(CInt32(i,_,_)) when i <> Int32.zero && canDrop sf -> se @@ st
+      | Const(CInt32(z,_,_)) when z = Int32.zero && canDrop st -> se @@ sf
       | _ -> se @@ ifChunk e !currentLoc st sf
   end
 
@@ -2158,7 +2172,7 @@ and doInitializer
           None -> None
         | Some n' -> begin
             match constFold n' with
-            | Const(CInt(ni, _, _)) -> Some ni
+            | Const(CInt32(ni, _, _)) -> Some (Int32.to_int ni)
             | _ -> E.s (error "Cannot understand the length of the array being initialized\n")
         end
       in
@@ -2185,7 +2199,7 @@ and doInitializer
               let (doidx, idxe', _) = 
                 doExp isconst idxe (AExp(Some intType)) in
               match constFold idxe' with
-                Const(CInt(x, _, _)) -> x, doidx
+                Const(CInt32(x, _, _)) -> Int32.to_int x, doidx
               | _ -> E.s (error 
                        "INDEX initialization designator is not a constant")
             in
