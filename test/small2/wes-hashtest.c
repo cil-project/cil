@@ -166,6 +166,9 @@ _CRTIMP extern FILE _iob[];
 #define stdin  (&_iob[0])
 #define stdout (&_iob[1])
 #define stderr (&_iob[2])
+#else /* GNUCC */
+extern FILE * stdout;
+extern FILE * stderr;
 #endif
 
 extern  int   debugMM;      
