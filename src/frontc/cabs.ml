@@ -158,7 +158,7 @@ and enum_item = string * expression * cabsloc
 ** Declaration definition (at toplevel)
 *)
 and definition =
-   FUNDEF of single_name * block * cabsloc
+   FUNDEF of single_name * block * cabsloc * cabsloc
  | DECDEF of init_name_group * cabsloc        (* global variable(s), or function prototype *)
  | TYPEDEF of name_group * cabsloc
  | ONLYTYPEDEF of specifier * cabsloc
@@ -342,7 +342,7 @@ end
 let get_definitionloc (d : definition) : cabsloc =
 begin
   match d with
-  | FUNDEF(_, _, l) -> l
+  | FUNDEF(_, _, l, _) -> l
   | DECDEF(_, l) -> l
   | TYPEDEF(_, l) -> l
   | ONLYTYPEDEF(_, l) -> l

@@ -389,7 +389,7 @@ rule initial =
 |		'~'				{TILDE (currentLoc ())}
 	
 |		'{'				{LBRACE (currentLoc ())}
-|		'}'				{RBRACE}
+|		'}'				{RBRACE (currentLoc ())}
 |		'['				{LBRACKET}
 |		']'				{RBRACKET}
 |		'('				{LPAREN (currentLoc ())}

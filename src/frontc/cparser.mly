@@ -120,11 +120,12 @@ let doDeclaration (loc: cabsloc) (specs: spec_elem list) (nl: init_name list) : 
 
 
 let doFunctionDef (loc: cabsloc)
+                  (lend: cabsloc)
                   (specs: spec_elem list) 
                   (n: name) 
                   (b: block) : definition = 
   let fname = (specs, n) in
-  FUNDEF (fname, b, loc)
+  FUNDEF (fname, b, loc, lend)
 
 
 let doOldParDecl (names: string list)
@@ -176,6 +177,10 @@ let rec intlist_to_string (str: int64 list):string =
       in
       this_char ^ (intlist_to_string rest)
 
+let fst3 (result, _, _) = result
+let snd3 (_, result, _) = result
+let trd3 (_, _, result) = result
+
 %}
 
 %token <string * Cabs.cabsloc> IDENT
@@ -212,8 +217,7 @@ let rec intlist_to_string (str: int64 list):string =
 %token<Cabs.cabsloc> PLUS_PLUS MINUS_MINUS
 
 %token RPAREN 
-%token<Cabs.cabsloc> LPAREN
-%token RBRACE
+%token<Cabs.cabsloc> LPAREN RBRACE
 %token<Cabs.cabsloc> LBRACE
 %token LBRACKET RBRACKET
 %token COLON
@@ -302,7 +306,7 @@ let rec intlist_to_string (str: int64 list):string =
 %type <Cabs.definition> declaration function_def
 %type <cabsloc * spec_elem list * name> function_def_start
 %type <Cabs.spec_elem list * Cabs.decl_type> type_name
-%type <Cabs.block * cabsloc> block
+%type <Cabs.block * cabsloc * cabsloc> block
 %type <string list> local_labels local_label_names
 %type <string list> old_parameter_list_ne
 
@@ -423,7 +427,7 @@ expression:
 |		expression DOT id_or_typename
 		        {MEMBEROF (fst $1, $3), snd $1}
 |		LPAREN block RPAREN
-		        { GNU_BODY (fst $2), $1 }
+		        { GNU_BODY (fst3 $2), $1 }
 |		paren_comma_expression
 		        {smooth_expression (fst $1), snd $1}
 |		expression LPAREN arguments RPAREN
@@ -620,13 +624,13 @@ block: /* ISO 6.8.2 */
                                             battrs = $3;
                                             bdefs = $4;
                                             bstmts = $5; },
-					    $1
+					    $1, $6
                                          } 
 |   error location RBRACE                { { blabels = [];
                                              battrs  = [];
                                              bdefs   = [];
                                              bstmts  = [] },
-					     $2
+					     $2, $3
                                          } 
 ;
 block_begin:
@@ -666,7 +670,7 @@ statement:
     SEMICOLON		{NOP $1 }
 |   comma_expression SEMICOLON
 	        	{COMPUTATION (smooth_expression (fst $1), snd $1)}
-|   block               {BLOCK (fst $1, snd $1)}
+|   block               {BLOCK (fst3 $1, snd3 $1)}
 |   IF paren_comma_expression statement                    %prec IF
                 	{IF (smooth_expression (fst $2), $3, NOP $1, $1)}
 |   IF paren_comma_expression statement ELSE statement
@@ -970,7 +974,7 @@ function_def:  /* (* ISO 6.9.1 *) */
             currentFunctionName := "<__FUNCTION__ used outside any functions>";
             !E.pop_context (); (* The context pushed by 
                                     * announceFunctionName *)
-            doFunctionDef loc specs decl (fst $2)
+            doFunctionDef loc (trd3 $2) specs decl (fst3 $2)
           } 
 
 

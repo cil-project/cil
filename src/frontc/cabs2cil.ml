@@ -4383,7 +4383,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
   (* If there are multiple definitions of extern inline, turn all but the 
    * first into a prototype *)
   | A.FUNDEF (((specs,(n,dt,a,loc')) : A.single_name),
-              (body : A.block), loc) 
+              (body : A.block), loc, _) 
       when isglobal && isExtern specs && isInline specs 
            && (H.mem genv (n ^ "__extinline")) -> 
        currentLoc := convLoc(loc);
@@ -4393,9 +4393,10 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
        doDecl isglobal (A.DECDEF ((specs, [((n,dt,a,loc'), A.NO_INIT)]), loc))
 
   | A.FUNDEF (((specs,(n,dt,a, _)) : A.single_name),
-              (body : A.block), loc) when isglobal ->
+              (body : A.block), loc1, loc2) when isglobal ->
     begin
-      let funloc = convLoc(loc) in
+      let funloc = convLoc loc1 in
+      let endloc = convLoc loc2 in
 (*      ignore (E.log "Definition of %s at %a\n" n d_loc funloc); *)
       currentLoc := funloc;
       E.withContext
@@ -4725,7 +4726,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
               in
               !currentFunctionFDEC.sbody.bstmts <- 
                  !currentFunctionFDEC.sbody.bstmts 
-                 @ [mkStmt (Return(retval, !currentLoc))]
+                 @ [mkStmt (Return(retval, endloc))]
             end;
             
             (* ignore (E.log "The env after finishing the body of %s:\n%t\n"
