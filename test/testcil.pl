@@ -549,6 +549,7 @@ $TEST->add2Tests("apache/gzip");
 #   $TEST->addBadComment("apache/random-box", "BUG");
 
 $TEST->add2Tests("testrun/sizeof1");
+$TEST->add2Tests("testrun/seq1");
 
 #---------------- some performance tests 
 $TEST->add2Tests("perf/perfglobarray");

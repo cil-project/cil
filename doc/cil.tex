@@ -1949,6 +1949,14 @@ Necula}.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf August 24, 2002}: Added to the machine-dependent configuration the
+\t{sizeof{void}}. It is 1 on gcc and 0 on MSVC. Extended the implementation of
+\t{Cil.bitsSizeOf} to handle this (it was previously returning an error when
+trying to compute the size of \t{void}).
+\item {\bf August 24, 2002}: Changed the representation of structure and
+unions to distinguish between undefined structures and those that are defined
+to be empty (allowed on gcc). The sizeof operator is undefined for the former
+and returns 0 for the latter.
 \item {\bf August 22, 2002}: Apply a patch from Richard H. Y. to support
 FreeBSD installations. Thanks, Richard!
 \item {\bf August 12, 2002}: Fixed a bug in the translation of wide-character
