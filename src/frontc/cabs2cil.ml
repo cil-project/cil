@@ -3656,7 +3656,7 @@ let convFile fname dl =
   H.iter 
     (fun key ci -> 
       if ci.cfields = [] then begin
-        ignore (E.warn "%s used but not defined\n" key);
+        ignore (E.warn "%s used but not defined" key);
         globals := GCompTag(ci, locUnknown) :: !globals
       end) compInfoNameEnv;
 

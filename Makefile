@@ -218,6 +218,10 @@ ifndef _GNUCC
 	@echo This test case works only with _GNUCC=1; exit 3
 endif
 
+mustbelinux:
+ifneq ($(ARCHOS), x86_LINUX)
+	error This test case works only on linux; exit 3
+endif
 
 ####### Test with PCC sources
 PCCDIR := $(CCUREDHOME)/test/PCC
@@ -1280,3 +1284,8 @@ yacr: mustbegcc
 	cd $(YACRDIR); make test
 
 
+################# LINUX
+SBULLDIR := test/sbull
+sbull: mustbegcc mustbelinux
+	cd $(SBULLDIR); rm -f *.o; \
+           make CC="$(CCURED) $(STANDARDPATCH)"
