@@ -109,3 +109,5 @@ type registerInfo = {
 
 (** Get the value of an option.  Raises Failure if None *)
 val valOf : 'a option -> 'a
+
+
