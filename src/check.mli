@@ -34,6 +34,6 @@
      * found  *)
 type checkFlags = 
     NoCheckGlobalIds   (* Do not check that the global ids have the proper 
-                        * hash value *)
+                        * hash value *) 
 
 val checkFile: checkFlags list -> Cil.file -> unit
