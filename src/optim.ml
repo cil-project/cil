@@ -41,18 +41,13 @@ let allVals = ref [] (* list of all flow values. To be used as TOP in dataflow a
    is invalid. We assume the validity has already been checked.
 *)
 (* At the end of CFG computation, numNodes = total number of CFG nodes *)
-let rec cfgBlock (blk: block) 
-                 (next:stmt option) (break:stmt option) (cont:stmt option) =
+let rec cfgBlock blk (next:stmt option) (break:stmt option) (cont:stmt option) =
   match blk with
-    CEmpty -> ();
-  | CConsL (hd, tl) -> begin
-      match hdtl tl with
-        None, _ -> cfgStmt hd next break cont 
-      | Some head_of_tl, _ -> 
-          cfgStmt hd (Some head_of_tl)  break cont;
-          cfgBlock tl next break cont
-  end
-  | _  -> cfgBlock (linearize blk) next break cont
+    [] -> ();
+  | [s] -> cfgStmt s next break cont 
+  | hd::tl -> 
+      cfgStmt hd (Some (List.hd tl))  break cont;
+      cfgBlock tl next break cont
 
 (* Fill in the CFG info for a stmt
    Meaning of next, break, cont should be clear from earlier comment
@@ -77,16 +72,16 @@ and cfgStmt s (next:stmt option) (break:stmt option) (cont:stmt option) =
       | Some c -> s.succs <- [c]; c.preds <- s::c.preds)
   | If (_, blk1, blk2, _) ->
       (* The succs of If is [true branch;false branch] *)
-      (match hdtl blk2 with
-        None, _ -> (match next with
+      (match blk2 with
+        [] -> (match next with
           None -> ()
         | Some n -> s.succs <- n::s.succs; n.preds <- s::n.preds)
-      | Some hd, tl -> s.succs <- hd::s.succs; hd.preds <- s::hd.preds);
-      (match hdtl blk1 with
-        None, _ -> (match next with
+      | (hd::tl) -> s.succs <- hd::s.succs; hd.preds <- s::hd.preds);
+      (match blk1 with
+        [] -> (match next with
           None -> ()
         | Some n -> s.succs <- n::s.succs; n.preds <- s::n.preds)
-      | Some hd, tl -> s.succs <- hd::s.succs; hd.preds <- s::hd.preds);
+      | (hd::tl) -> s.succs <- hd::s.succs; hd.preds <- s::hd.preds);
       cfgBlock blk1 next break cont;
       cfgBlock blk2 next break cont
   | Switch(_,blk,l,_) ->
@@ -94,18 +89,17 @@ and cfgStmt s (next:stmt option) (break:stmt option) (cont:stmt option) =
       List.iter (function br -> br.preds <- s::br.preds) l;
       cfgBlock blk next next cont
   | Loop(blk,_) ->
-      (match hdtl blk with
-        None, _ -> ()
-      | Some hdblk, _ -> 
-          s.succs <- [hdblk]; 
-          hdblk.preds <- s::hdblk.preds);
+      if (blk <> []) then begin
+        s.succs <- [List.hd blk]; 
+        (List.hd blk).preds <- s::(List.hd blk).preds
+      end;
       cfgBlock blk (Some s) next (Some s)
       (* Since all loops have terminating condition true, we don't put
          any direct successor to stmt following the loop *)
         
 
 let rec printCfgBlock blk =
-  iter (function s ->
+  List.iter (function s ->
     printCfgStmt s)
     blk
     
@@ -144,9 +138,10 @@ and printCfgStmt s =
 
 (* Assign sid based on reverse depth-first postorder *)
 let rec orderBlock blk =
-  match hdtl blk with 
-    None, _ -> ()
-  | Some hd, _ -> dfs hd
+  if (blk <> []) then begin
+    dfs (List.hd  blk)
+  end
+  else ()
 
 and dfs s = 
   if not (List.memq s !markedNodes) then begin
@@ -162,11 +157,11 @@ and dfs s =
    For debugging purposes *)
 
 let rec printChecksBlock blk = 
-  iter printChecksStmt blk
+  List.iter printChecksStmt blk
 
 and printChecksStmt s =
   match s.skind with 
-    Instr l -> iter printChecksInstr l
+    Instr l -> List.iter printChecksInstr l
   | Return _ | Continue _ | Break _ | Goto _ -> ()
   | If (e,blk1,blk2,_) -> printChecksBlock blk1; printChecksBlock blk2;
   | Switch (e,blk,_,_) -> printChecksBlock blk
@@ -224,20 +219,16 @@ and createGenKillForNode i s =
     Instr l ->  createGenKillForInstrList i l (* TODO *)
   | _ -> (!gen).(i) <- []; (!kill).(i) <- false
         
-and createGenKillForInstrList i (l:instr clist) = 
-  (let rec loop = function
-    CEmpty -> (!gen).(i) <- !instrGen; (!kill).(i) <- !instrKill
-  | CConsL(hd, tl) -> 
-      let (g,k) = createGenKillForInstr hd in
-      if (k) then begin
-        instrGen := []; instrKill := true;
-      end else begin
-        instrGen := union !instrGen g
-      end;
-      createGenKillForInstrList i tl
-  | l -> loop (linearize l)
-  in
-  loop l);
+and createGenKillForInstrList i (l:instr list) = 
+  (match l with
+    [] -> (!gen).(i) <- !instrGen; (!kill).(i) <- !instrKill
+  | hd::tl -> let (g,k) = createGenKillForInstr hd in
+    if (k) then begin
+      instrGen := []; instrKill := true;
+    end else begin
+      instrGen := union !instrGen g
+    end;
+    createGenKillForInstrList i tl);
   (!gen).(i) <- !instrGen; 
   (!kill).(i) <- !instrKill;
   allVals := union !allVals !instrGen (* update list of possible flow values *)
@@ -265,28 +256,24 @@ and createGenKillForInstr i =
    basic-block optimization *)
 (* nnl (for NotNullList) is a list of expressions guaranteed to be not null
    on entry to l *)
-let rec optimInstr (l: instr clist) nnl : instr clist = 
+let rec optimInstr (l: instr list) nnl : instr list = 
   match l with
-    CEmpty -> CEmpty
-  | CConsL (first, tl) -> begin
+    [] -> []
+  | first::tl -> 
       match first with 
-        Asm _ -> CConsL(first, optimInstr tl nnl)
-      | Set _ -> CConsL(first, optimInstr tl []) (* Kill everything *)
+        Asm _ -> first::optimInstr tl nnl
+      | Set _ -> first::optimInstr tl [] (* Kill everything *)
       | Call(_,Lval(Var x,_),args,l) when x.vname = "CHECK_NULL" ->
       (* args is a list of one element *)
           let arg = List.hd args in
           let checkExp = (match arg with CastE(_,e) -> e | _ -> arg) in
-          if (List.mem checkExp nnl) then 
-            optimInstr tl nnl (* remove redundant check*)
-          else CConsL(first, optimInstr tl (checkExp::nnl)) (* add to the list of valid non-null exp *)
+          if (List.mem checkExp nnl) then optimInstr tl nnl (* remove redundant check*)
+          else first::optimInstr tl (checkExp::nnl) (* add to the list of valid non-null exp *)
       | Call(_,Lval(Var x,_),args,l)  (* Don't invalidate for well-behaved functions *)
         when ((String.length x.vname) > 6 && 
-              (String.sub x.vname 0 6)="CHECK_") -> 
-                CConsL(first, optimInstr tl nnl)
+              (String.sub x.vname 0 6)="CHECK_") -> first::optimInstr tl nnl
       | Call _ -> (* invalidate everything *)
-          CConsL(first, optimInstr tl [])
-  end
-  | _ -> optimInstr  (linearize l) nnl
+          first::optimInstr tl []
   
 (*-----------------------------------------------------------------*)
 let nullChecksOptim f =
@@ -397,8 +384,7 @@ let optimFile file =
   end;
   
   (* Replace every function definition by its optimized version*)
-  file.globals <- 
-     map 
+  file.globals <- List.map 
       (function 
           GFun(f,l) -> GFun(optimFun f, l)
         | _ as other -> other)

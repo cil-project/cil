@@ -398,8 +398,8 @@ let currentFunctionVI : varinfo ref = ref dummyFunDec.svar
 module BlockChunk = 
   struct
     type chunk = {
-        stmts: block;
-        postins: instr clist;              (* Some instructions to append at 
+        stmts: stmt list;
+        postins: instr list;              (* Some instructions to append at 
                                            * the ends of statements (in 
                                            * reverse order)  *)
                                         (* A list of case statements at the 
@@ -408,42 +408,42 @@ module BlockChunk =
       } 
 
     let empty = 
-      { stmts = CEmpty; postins = CEmpty; cases = [];
+      { stmts = []; postins = []; cases = [];
         (* fixbreak = (fun _ -> ()); fixcont = (fun _ -> ()) *) }
 
     let isEmpty (c: chunk) = 
-      c.postins == CEmpty && c.stmts == CEmpty
+      c.postins == [] && c.stmts == []
 
     let isNotEmpty (c: chunk) = not (isEmpty c)
 
     let i2c (i: instr) = 
-      { empty with postins = single i }
+      { empty with postins = [i] }
         
     (* Occasionally, we'll have to push postins into the statements *)
-    let pushPostIns (c: chunk) : block = 
-      if c.postins = CEmpty then c.stmts
+    let pushPostIns (c: chunk) : stmt list = 
+      if c.postins = [] then c.stmts
       else
-        let rec findLast = function
-            CEmpty -> single (mkStmt (Instr (rev c.postins)))
-          | CSeq (l1, l2) -> CSeq (l1, findLast l2) (* l1 is not empty *)
-          | CConsL (({skind=Instr il} as s), CEmpty) as stmts -> 
-              s.skind <- Instr (append il (rev c.postins));
+        let rec toLast = function
+            [{skind=Instr il} as s] as stmts -> 
+              s.skind <- Instr (il @ (List.rev c.postins));
               stmts
-          | CConsL (x, l) -> CConsL(x, findLast l)
-          | CConsR (l1, x) -> CSeq (l1, findLast (CConsL (x, CEmpty)))
+
+          | [] -> [mkStmt (Instr (List.rev c.postins))]
+
+          | a :: rest -> a :: toLast rest
         in
-        compactBlock (findLast c.stmts)
+        compactBlock (toLast c.stmts)
 
 
     (* Add an instruction at the end. Never refer to this instruction again 
      * after you call this *)
     let (+++) (c: chunk) (i : instr) =
-      {c with postins = CConsL(i, c.postins)}
+      {c with postins = i :: c.postins}
 
     (* Append two chunks. Never refer to the original chunks after you call 
      * this. And especially never share c2 with somebody else *)
     let (@@) (c1: chunk) (c2: chunk) = 
-      { stmts = compactBlock (append (pushPostIns c1) c2.stmts);
+      { stmts = compactBlock (pushPostIns c1 @ c2.stmts);
         postins = c2.postins;
         cases = c1.cases @ c2.cases;
       } 
@@ -451,15 +451,15 @@ module BlockChunk =
     let skipChunk = empty
         
     let returnChunk (e: exp option) (l: location) : chunk = 
-      { stmts = single (mkStmt (Return(e, l)));
-        postins = CEmpty;
+      { stmts = [ mkStmt (Return(e, l)) ];
+        postins = [];
         cases = []
       }
 
     let ifChunk (be: exp) (l: location) (t: chunk) (e: chunk) : chunk = 
       
-      { stmts = single (mkStmt(If(be, pushPostIns t, pushPostIns e, l)));
-        postins = CEmpty;
+      { stmts = [ mkStmt(If(be, pushPostIns t, pushPostIns e, l))];
+        postins = [];
         cases = t.cases @ e.cases;
       } 
 

@@ -49,6 +49,8 @@ val ilongFitsUInt : bool ref         (* Whether a signed long can fit an
                                        * long uses more bits than an int  *)
 val newCil : bool ref
 
+val printLn: bool ref                   (* Whether to print line numbers *)
+
 type location = { 
     line: int;				(* -1 means "do not know" *)
     file: string; 

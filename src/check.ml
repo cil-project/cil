@@ -519,11 +519,11 @@ and checkStmt (s: stmt) =
           checkExpType false e intType;
           checkBlock b
             
-      | Instr il -> iter checkInstr il)
+      | Instr il -> List.iter checkInstr il)
     () (* argument of withContext *)
 
 and checkBlock (b: block) : unit = 
-  iter checkStmt b
+  List.iter checkStmt b
 
 
 and checkInstr (i: instr) = 

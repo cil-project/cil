@@ -48,52 +48,47 @@ let oneret (f: Cil.fundec) : unit =
   (* Now scan all the statements. Know if you are the main body of the 
    * function and be prepared to add new statements at the end *)
   let rec scanStmts (mainbody: bool) = function
-    | CEmpty when mainbody -> (* We are at the end of the function. Now 
-                                     * it is time to add the return statement 
-                                     * *)
+    | [] when mainbody -> (* We are at the end of the function. Now it is 
+                           * time to add the return statement *)
         let rs = getRetStmt () in
         if !haveGoto then
           rs.labels <- (Label("return_label", locUnknown)) :: rs.labels;
-        single rs
+        [rs]
 
-    | CEmpty -> CEmpty
-    | CConsL ({skind=Return (None, l)} as s, rests) -> 
-        if mainbody && rests == CEmpty then 
+    | [] -> []
+    | ({skind=Return (None, l)} as s) :: rests -> 
+        if mainbody && rests == [] then 
           scanStmts mainbody rests
         else begin
           let sgref = ref (getRetStmt ()) in
           s.skind <- Goto (sgref, l);
           haveGoto := true;
-          CConsL (s, scanStmts mainbody rests)
+          s :: (scanStmts mainbody rests)
         end
 
-    | CConsL ({skind=Return (Some rval, l)} as s, rests) -> 
+    | ({skind=Return (Some rval, l)} as s) :: rests -> 
         if not hasRet then 
           E.s (E.unimp "Found return in subroutine %s\n" fname);
-        s.skind <- Instr (single
-                            (Set((Var (getRetVar ()), NoOffset), rval, l)));
-        if mainbody && rests == CEmpty then
-          CConsL (s, scanStmts mainbody rests)
+        s.skind <- Instr [Set((Var (getRetVar ()), NoOffset), rval, l)];
+        if mainbody && rests == [] then
+          s :: scanStmts mainbody rests
         else begin
           let sgref = ref (getRetStmt ()) in
           let sg = mkStmt (Goto (sgref, l)) in
           haveGoto := true;
-          CConsL (s, CConsL (sg, scanStmts mainbody rests))
+          s :: sg :: (scanStmts mainbody rests)
         end
 
-    | CConsL ({skind=If(eb,t,e,l)} as s, rests) -> 
+    | ({skind=If(eb,t,e,l)} as s) :: rests -> 
         s.skind <- If(eb, scanStmts false t, scanStmts false e, l);
-        CConsL (s, scanStmts mainbody rests)
-    | CConsL ({skind=Loop(b,l)} as s, rests) -> 
+        s :: scanStmts mainbody rests
+    | ({skind=Loop(b,l)} as s) :: rests -> 
         s.skind <- Loop(scanStmts false b, l);
-        CConsL (s, scanStmts mainbody rests)
-    | CConsL ({skind=Switch(e, b, cases, l)} as s, rests) -> 
+        s :: scanStmts mainbody rests
+    | ({skind=Switch(e, b, cases, l)} as s) :: rests -> 
         s.skind <- Switch(e, scanStmts false b, cases, l);
-        CConsL (s, scanStmts mainbody rests)
-    | CConsL (s, rests) -> CConsL (s, scanStmts mainbody rests)
-
-    | CConsR _ as l -> scanStmts mainbody (linearize l)
-    | CSeq _ as l -> scanStmts mainbody (linearize l)
+        s :: scanStmts mainbody rests
+    | s :: rests -> s :: scanStmts mainbody rests
   in
   f.sbody <- scanStmts true f.sbody
         

@@ -54,6 +54,8 @@ let ilongFitsUInt = ref false         (* Whether a signed long can fit an
                                        * long uses more bits than an int  *)
 let newCil = ref true
 
+let printLn= ref true                 (* Whether to print line numbers *)
+
 type location = { 
     line: int;				(* -1 means "do not know" *)
     file: string; 

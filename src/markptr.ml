@@ -699,7 +699,8 @@ let isPrintf reso orig_func args = begin
   | _ -> None
 end
 
-let rec doBlock blk = map doStmt blk
+let rec doBlock blk = 
+  List.map doStmt blk
 
 and doStmt (s: stmt) : stmt = 
   (match s.skind with 
@@ -709,7 +710,7 @@ and doStmt (s: stmt) : stmt =
       currentLoc := l;
       s.skind <- Return (Some (doExpAndCast e !currentResultType), l)
   | Instr il -> 
-      s.skind <- Instr (map doInstr il)
+      s.skind <- Instr (List.map doInstr il)
   | Loop (b, l) -> 
       currentLoc := l;
       s.skind <- Loop (doBlock b, l)
@@ -934,7 +935,7 @@ let markFile fl =
     | _ -> ()
   in
   (* Add all the declarations *)
-  iter processDecls fl.globals;
+  List.iter processDecls fl.globals;
   (* Take out the defined functions *)
   let rec processDefs = function
       GVar (vi, _, _) -> processVarinfo vi
@@ -947,7 +948,7 @@ let markFile fl =
     end else
       H.remove interfglobs vi.vid
   in
-  iter processDefs fl.globals;
+  List.iter processDefs fl.globals;
 (*  ignore (E.log "inferfglob:\n");
   H.iter (fun sid v -> ignore (E.log "%s: %d@!" v.vname sid)) interfglobs; *)
 
@@ -969,7 +970,7 @@ let markFile fl =
             H.add polyFunc vi.vname (ref None)
       | _ -> ()
     in
-    iter processFunDecls fl.globals;
+    List.iter processFunDecls fl.globals;
   else begin
     (* Otherwise we start with some defaults *)
     List.iter (fun s -> H.add polyFunc s (ref None)) 
@@ -979,8 +980,8 @@ let markFile fl =
   List.iter (fun (s,i) -> H.add printfFunc s i)
     [("printf",0) ; ("fprintf",1) ; ("sprintf",1) ; ("snprintf",2)] ; *)
   theFile := [];
-  iter (fun g -> let g' = doGlobal g in 
-                 theFile := g' :: !theFile) fl.globals;
+  List.iter (fun g -> let g' = doGlobal g in 
+                      theFile := g' :: !theFile) fl.globals;
   (* Now do the globinit *)
   let newglobinit = 
     match fl.globinit with
@@ -991,7 +992,7 @@ let markFile fl =
         | _ -> E.s (bug "markptr: globinit")
     end
   in
-  let newglobals = fromList (List.rev !theFile) in
+  let newglobals = List.rev !theFile in
         
      
   (* Now go through the types of interfglobs and mark all nodes that are part 
