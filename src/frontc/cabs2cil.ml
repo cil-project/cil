@@ -552,7 +552,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
           | _ -> E.s (E.unimp "Expecting a pointer type in * ")
         in
         finishExp se 
-                  (mkMem e' (Index(zero, NoOffset)))
+                  (mkMem e' NoOffset)
                   tresult
 
            (* e.str = (& e + off(str)). If e = (be + beoff) then e.str = (be 

@@ -600,6 +600,7 @@ and d_lval () lv =
       d_offset (fun _ -> text vi.vname) o
   | Mem(e,Field(fi, o),_) -> 
       d_offset (fun _ -> dprintf "%a->%s" (d_expprec 3) e fi.fname) o
+  | Mem(e,NoOffset,_) -> dprintf "*%a" (d_expprec 3) e
   | Mem(e,o,_) -> 
       d_offset (fun _ -> dprintf "%a" d_exp e) o
         
@@ -1034,7 +1035,8 @@ let addOffset toadd lv =
 let mkMem addr off =  
   match addr with
     StartOf(lv) -> begin
-      match off with 
+      match off with (* An index 0 does not change anything but makes 
+                      * printing easier *)
         Field _ -> Lval(addOffset (Index(zero, off)) lv)
       | _ -> Lval(addOffset off lv)
     end

@@ -420,8 +420,9 @@ and boxoffset (off: offset) (basety: typ) : offsetRes =
       let fptr = getPtrFieldOfFat basety in
       let (rest, doo, off') = boxoffset off fptr.ftype in
       (rest, doo, Field(fptr, off'))
+
   | Index (e, resto) -> 
-      let rest =                   
+      let _ =        (* Just checking *)           
         match unrollType basety with
           TPtr (t, _) -> t
         | TArray (t, _, _) -> t
@@ -436,10 +437,6 @@ and boxoffset (off: offset) (basety: typ) : offsetRes =
       let (rest, doresto, off') = boxoffset resto fi'.ftype in
       (rest, doresto, Field(fi', off'))
         
-  | _ -> begin
-      ignore (E.log "boxoffset\n");
-      (charPtrType, [], NoOffset) 
-  end 
         
 
 and boxexp (e : exp) : expRes = 
@@ -578,7 +575,27 @@ and boxexp (e : exp) : expRes =
 
     (* StartOf is like an AddrOf except for typing issues. Fix these issues 
      * in AddrOf by looking for array arguments *)
-  | StartOf (lv) -> boxexp (AddrOf(addOffset (Index(zero,NoOffset)) lv, lu))
+  | StartOf (Var(vi,off,l)) -> 
+      if not vi.vaddrof then 
+        E.s (E.bug "addrof not set for %s" vi.vname);
+      let (rest, dooff, off')= boxoffset off vi.vtype in
+      let ptrtype = 
+        match rest with
+          TArray(t, _, a) -> TPtr(t, a)
+        | _ -> E.s (E.bug "StartOf on a non-array")
+      in
+      let tres = fixupType ptrtype in
+      let (doset, reslv) = 
+        setFatPointer tres 
+          (fun _ -> AddrOf(addOffset (Index(zero,NoOffset)) 
+                                     (Var(vi,off',l)), l))
+          (CastE(voidPtrType, 
+                 (match vi.vtype with
+                   TArray _ -> StartOf(Var(vi,NoOffset,l))
+                 | _ -> AddrOf(Var(vi,NoOffset,l),l)),
+                 lu)) in
+      (tres, dooff @ doset, Lval(reslv))
+      
       
   | _ -> begin
       ignore (E.log "boxexp: %a\n" d_exp e);
@@ -635,7 +652,8 @@ and castTo e et newt =
       in
       (doe, 
        Lval(Mem(CastE(TPtr(newt, []), 
-                      AddrOf (tmp, lu), lu),NoOffset,lu)))
+                      AddrOf (tmp, lu), lu),
+                Index(zero, NoOffset),lu)))
 
   | true, false -> ([], CastE(newt, readPtrField e et, lu))
 
