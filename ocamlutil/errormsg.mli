@@ -144,8 +144,11 @@ val parse_error: string -> (* A message *)
 val locUnknown: location
 
 
-val startParsing: string -> Lexing.lexbuf (* Call this function to start 
-                                           * parsing *)
+(* Call this function to start parsing. useBasename is by default "true", 
+ * meaning that the error information maintains only the basename *)
+val startParsing:  ?useBasename:bool -> string -> 
+  Lexing.lexbuf 
+
 val startParsingFromString: ?file:string -> ?line:int -> string
                             -> Lexing.lexbuf
 

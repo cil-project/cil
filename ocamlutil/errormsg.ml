@@ -212,7 +212,7 @@ let cleanFileName str =
   in
   loop 0 0
 
-let startParsing (fname: string) = 
+let startParsing ?(useBasename=true) (fname: string) = 
   (* We only support one open file at a time *)
   if !current != dummyinfo then begin
      s (error "Errormsg.startParsing supports only one open file: You want to open %s and %s is still open\n" fname !current.fileName); 
@@ -224,10 +224,12 @@ let startParsing (fname: string) =
   let lexbuf = Lexing.from_channel inchan in
   let i = 
     { linenum = 1; linestart = 0; 
-      fileName = cleanFileName (Filename.basename fname);
+      fileName = 
+        cleanFileName (if useBasename then Filename.basename fname else fname);
       lexbuf = lexbuf; inchan = Some inchan;
       hfile = ""; hline = 0;
       num_errors = 0 } in
+
   current := i;
   lexbuf
 
