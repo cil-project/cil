@@ -174,12 +174,16 @@ $TEST->addTests("test/compat1", "", ['inferbox']);
 $TEST->addTests("testrun/compat2", "", ['inferbox']);
 $TEST->addTests("testrun/pointsto", "", ['inferbox']);
 $TEST->addTests("testrun/trusted1", "", ['inferbox']);
-$TEST->addTests("testrun/hostent", "", ['inferbox']);
-$TEST->addTests("testrun/hostent2", "", ['inferbox']);
+$TEST->addTests("testrun/hostent", "", ['inferbox', 'slow']);
+$TEST->addTests("testrun/hostent2", "", ['inferbox', 'slow']);
 $TEST->add3Tests("btreetest");
+   $TEST->add3Group("btreetest", "slow");
 $TEST->add3Tests("hashtest");
+   $TEST->add3Group("hashtest", "slow");
 $TEST->add3Tests("rbtest");
+   $TEST->add3Group("rbtest", "slow");
 $TEST->add2Tests("hufftest");
+   $TEST->add2Group("hufftest", "slow");
 $TEST->add3Tests("test/alloc");
 $TEST->add3Tests("test/apachebits");
 $TEST->add3Tests("testrun/apachebuf");
@@ -297,7 +301,6 @@ $TEST->add3Tests("test/li");
 $TEST->add3Tests("test/li1", "_GNUCC=1");
 $TEST->add3Tests("test/list");
 $TEST->addTests("testrun/localinit", "", ['cil']);
-   $TEST->addBadComment("testrun/localinit-cil", "CIL bug: CIL moves definitions of locals to the beginning of the scope, even when this move is unsafe.");
 
 $TEST->addTests('testrun/longBlock', '', ['cil']);
 $TEST->add2Tests("testrun/perror");
@@ -345,6 +348,7 @@ $TEST->add3Tests("testrun/static", "", @runpattern);
 $TEST->add3Tests("test/static1");
 $TEST->addTests("testrun/static2", "", ['cil']);
 $TEST->add3Tests("test/strcpy");
+$TEST->addTests("test-bad/strcpy1", "", ['inferbox']);
 $TEST->add3Tests("test/string");
 $TEST->add3Tests("test/struct_init");
 $TEST->add3Tests("test/structassign");
@@ -366,7 +370,7 @@ $TEST->addTests("testrun/scope11", "", ['cil']);
 $TEST->add3Tests("test/voidstar");
 $TEST->add3Tests("testrun/memcpy1");
 $TEST->add3Tests("testrun/memset1");
-$TEST->addTests("testrun/memcpy2", "", ['inferbox']);
+$TEST->addTests("testrun/memcpy2", "", ['inferbox', 'slow']);
 $TEST->add3Tests("testrun/poly1");
 $TEST->add3Tests("testrun/poly2");
 $TEST->add3Tests("testrun/poly3");
@@ -424,6 +428,7 @@ $TEST->addTests("testrun/addrof4", "", ['inferbox']);
 $TEST->add3Tests("testrun/lval1", "_GNUCC=1");
 $TEST->add3Tests("testrun/bind1", "EXTRAARGS=--assumePrintf");
 $TEST->add3Tests("test/bind2", "EXTRAARGS=--allowInlineAssembly");
+   $TEST->add3Group("test/bind2", "slow");
 # $TEST->add3Tests("testmodel/model1");
 # $TEST->add3Tests("testmodel/modelpoly");
 $TEST->add2Tests("testwrapper/wrapper1");
@@ -432,8 +437,9 @@ $TEST->addTests("test-bad-wrapper/wrapper1", "", ['inferbox']);
 $TEST->addTests("test-bad-wrapper/wrapper2", "", ['inferbox']);
 $TEST->addTests("test-bad-crypt/crypt", "", ['inferbox']);
 $TEST->addTests("testrun/decl1", "_GNUCC=1", ['cil']);
-$TEST->addTests("wes-hashtest", "", ['cil', 'inferbox']);
+$TEST->addTests("wes-hashtest", "", ['cil', 'inferbox', 'slow']);
 $TEST->add3Tests("wes-rbtest", "");
+  $TEST->add3Group("wes-rbtest", "slow");
 $TEST->addTests("test/alloc", "MANUALBOX=1", ['inferbox']);
 $TEST->add3Tests("testrun/addr-array");
 $TEST->addTests("combine1", "", ['cil']);
@@ -526,8 +532,9 @@ $TEST->addTests("testrun/rmtmps-attr", "", ['cil']);
  
 $TEST->add3Tests("testrun/vsp");
 $TEST->addTests("testrun/vsp1", "", ['inferbox']);
-$TEST->addTests("testrun/strtoul", "", ['inferbox']);
-$TEST->addTests("test/bind-formatstring", "EXTRAARGS=--assumePrintf", ['inferbox']);
+$TEST->addTests("testrun/strtoul", "", ['inferbox', 'slow']);
+$TEST->addTests("test/bind-formatstring", "EXTRAARGS=--assumePrintf",
+                ['inferbox', "slow"]);
 $TEST->addTests("test/bind-empty-chain", "", ['inferbox']);
 $TEST->addTests("test/bind-safe-wild", "EXTRAARGS=--assumePrintf", ['inferbox']);
 $TEST->addTests("test/bind-zero", "EXTRAARGS=--assumePrintf", ['inferbox']);
@@ -618,8 +625,6 @@ $TEST->addTests("test-bad/override", "", [ 'inferbox' ]);
 $TEST->addTests("test-bad/wild1", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/union4", "", [ 'inferbox' ]);
 $TEST->addTests("test-bad/union6", "", [ 'inferbox' ]);
-  $TEST->addBadComment("test-bad/union6-inferbox", 
-                       "Unsoundness in tagged unions");
 $TEST->addTests("test-bad/union7", "", [ 'inferbox' ]);
   $TEST->addBadComment("test-bad/union7-inferbox", 
                        "Discriminated unions not yet implemented");
@@ -660,23 +665,23 @@ $TEST->add2Tests("bh", "EXTRAARGS=--allowInlineAssembly _GNUCC=1");
    $TEST->add2Group("bh", "slow", "olden");
 
 $TEST->add2Tests("power", "EXTRAARGS=--allowInlineAssembly _GNUCC=1");
-   $TEST->add2Group("power", "olden");
+   $TEST->add2Group("power", "olden", "slow");
 
 $TEST->add2Tests("health", "_GNUCC=1");
-   $TEST->add2Group("health", "olden");
+   $TEST->add2Group("health", "olden", "slow");
 
 $TEST->add3Tests("perimeter");
-   $TEST->add3Group("perimeter", "olden");
+   $TEST->add3Group("perimeter", "olden", "slow");
 $TEST->add3Tests("tsp");
-   $TEST->add3Group("tsp", "olden");
+   $TEST->add3Group("tsp", "olden", "slow");
 $TEST->add2Tests("bisort", "_GNUCC=1");
-   $TEST->add2Group("bisort", "olden");
+   $TEST->add2Group("bisort", "olden", "slow");
 $TEST->add2Tests("mst");
-   $TEST->add2Group("mst", "olden");
+   $TEST->add2Group("mst", "olden", "slow");
 $TEST->add2Tests("em3d", "_GNUCC=1");
-   $TEST->add2Group("em3d", "olden");
+   $TEST->add2Group("em3d", "olden", "slow");
 $TEST->add2Tests("treeadd", "_GNUCC=1");
-   $TEST->add2Group("treeadd", "olden");
+   $TEST->add2Group("treeadd", "olden", "slow");
 
 # PTR INTENSIVE BENCHMARKS 
 $TEST->add2Tests("anagram", "_GNUCC=1");
@@ -743,6 +748,7 @@ $TEST->add2Tests("testrun/comparisons");
     
 
 $TEST->add2Tests("cfrac");
+   $TEST->add2Group("cfrac", "slow");
 $TEST->add2Tests("matxmult");
 
 #---------------- some performance tests 
@@ -904,21 +910,20 @@ $TEST->add2Tests("testrunlm/scimark2", "-lm");
 # sm: trying to make a regrtest-like interface
 # 'args' should include things like "INFERBOX=infer" to specify operating mode
 sub altAddTest {
-  if (scalar(@_) != 1) {
-    print STDERR "wrong number of args to altAddTest: @_\n";
-    exit 2;
-  }
+  my ($command, @groups) = @_;
 
   my $self = $main::globalTEST;
-  my ($command) = @_;
   my ($name, $args) = ($command =~ /^(\S+) ?(.*)$/);     # name is first word
   my $tname = $self->uniqueName($name);
 
+  if(scalar(@groups) == 0) { 
+      @groups = ( 'quick' );
+  } 
   my %patterns = %commonerrors;
   my $tst = $self->newTest(Name => $tname,
                            Dir => ".",
                            Cmd => "make $command" . $self->testCommandExtras(""),
-                           Group => ['quick'],
+                           Group => [ @groups ],
                            Patterns => \%patterns);
 
   return $tname;
@@ -1015,8 +1020,8 @@ altAddTest("scott/argv $box");
 
 # function pointers don't work with inferred wildness
 altAddTest("scott/funcptr");
-altAddTest("scott/funcptr $wildbox");
-altAddTest("scott/funcptr $box");
+altAddTest("scott/funcptr $wildbox", "slow");
+altAddTest("scott/funcptr $box", "slow");
 
 # transparent unions are a problem for network apps
 altAddTest("scott/transpunion $gcc");
@@ -1051,18 +1056,18 @@ altFailTest("makes too many things tagged; this changed when matth modified "
            . "cared enough about TAGALLFNS=1 to fix it",
            "scott/suppress_optim $wildbox TAGALLFNS=1");
 altAddTest("testrun/bug1 $box");
-altAddTest("scott/structs_edg_stl_ccuredlib_test $box");
+altAddTest("scott/structs_edg_stl_ccuredlib_test $box", "slow");
 altAddTest("misc-tests");
-altAddTest("scott/chararr1 $box");
-altAddTest("scott/chararr2 $box");
+altAddTest("scott/chararr1 $box", "slow");
+altAddTest("scott/chararr2 $box", "slow");
 altAddTest("scott/thing");
 altAddTest("scott/strerror1 $box");
-altAddTest("scott/bsearch $box");
+altAddTest("scott/bsearch $box", "slow");
 altAddTest("scott/signal $box");
-altAddTest("scott/getaddrinfo $box");
+altAddTest("scott/getaddrinfo $box", "slow");
 altAddTest("test-bad/sin_zero $box");
-altAddTest("scott/getopt $box");
-altAddTest("scott/glob $box");
+altAddTest("scott/getopt $box", "slow");
+altAddTest("scott/glob $box", "slow");
 
 # current problematic test cases
 altAddTest("scott/complex_float $box");
@@ -1100,13 +1105,13 @@ altAddTest("scott/byteprintf INFERBOX=infer");
 altAddTest("scott/bufferlinegetter INFERBOX=infer");
 altAddTest("scott/null_pointer_field INFERBOX=infer");
 altAddTest("scott/closefunc INFERBOX=infer");
-altAddTest("scott/sockunion INFERBOX=infer");
+altAddTest("scott/sockunion INFERBOX=infer", "slow");
 
 # tests of things implemented for EDG compatibility
 altAddTest("mergestruct");
 altAddTest("test-bad/globstackptr $box");
 altAddTest("test-bad/ehstack $box");
-altAddTest("test-bad/setjmp $box");
+altAddTest("test-bad/setjmp $box", "slow");
 altAddTest("combinetaggedfn $wildbox SEPARATE=1 UNTAGGEDFNS=1");
 
 # test of strings (need more!)
@@ -1117,7 +1122,7 @@ altAddTest("test-bad/strloop2 $box");
 altAddTest("scott/memcpy $box");
 altAddTest("scott/realloc $box");
 altAddTest("scott/strchr $box");
-altAddTest("scott/models $box");
+altAddTest("scott/models $box", "slow");
 
 # tests of things in safec.c
 altAddTest("scott/qsort $box");
@@ -1129,14 +1134,14 @@ altAddTest("test-bad/sockets $box $gcc");
 altAddTest("scott/reply $box");
 
 # works on my machine; works on manju now too apparently
-altAddTest("scott/getpwnam $box $gcc");
+altAddTest("scott/getpwnam $box $gcc", "slow");
 
 altAddTest("test-bad/execv $box $gcc");
-altAddTest("scott/popen $box $gcc");
+altAddTest("scott/popen $box $gcc", "slow");
 altAddTest("scott/memset_int $box");
 altAddTest("scott/printfllong $box $gcc");
 altAddTest("test-bad/replydirname $box");
-altAddTest("test-bad/boundaries $box");
+altAddTest("test-bad/boundaries $box", "slow");
 altAddTest("scott/stat $box");
 altAddTest("scott/scanf $box");
 
@@ -1173,22 +1178,22 @@ my $iters = "EXTRAARGS=-DITERS=100";
 #altAddTest("hashtest $table $iters");
 
 # red-black tree
-altAddTest("rbtest $iters");
-altAddTest("rbtest $box $iters");
+altAddTest("rbtest $iters", "slow");
+altAddTest("rbtest $box $iters", "slow");
 
 altAddTest("wes-rbtest $iters");
-altAddTest("wes-rbtest $box $iters");
+altAddTest("wes-rbtest $box $iters", "slow");
 
 # hashtable
 $iters = "EXTRAARGS=-DITERS=10000";
-altAddTest("hashtest $iters");
-altAddTest("hashtest $box $iters");
-altAddTest("hashtest $wildbox $iters");
+altAddTest("hashtest $iters", "slow");
+altAddTest("hashtest $box $iters", "slow");
+altAddTest("hashtest $wildbox $iters", "slow");
 
 altAddTest("wes-hashtest $iters");
 altAddTest("wes-hashtest $box $iters");
 
-altAddTest("hashtest $box $iters MAXSPLIT=1");
+altAddTest("hashtest $box $iters MAXSPLIT=1", "slow");
 
 # some piece of PCC
 altAddTest("testpcc/parseobject EXTRAARGS=--no-idashi");
@@ -1273,7 +1278,7 @@ altAddTest("scott/invalredef2 $gcc");
 altAddTest("scott/errorinfn");
 altAddTest("scott/unionassign $box");
 altAddTest("scott/unionassign $wildbox");
-altAddTest("scott/readv $box");
+altAddTest("scott/readv $box", "slow");
 altFailTest("FSEQ incompleteness", "scott/bloop $box");
 altAddTest("scott/funcptr3 $box");
 altAddTest("scott/structattr");
@@ -1281,7 +1286,7 @@ altAddTest("scott/neg64");
 altAddTest("testc/arrayinitsize");
 altAddTest("test-bad/enuminit2");
 altAddTest("scott/volatilestruct");
-altFailTest("dropping casts under sizeof", "scott/sizeofchar");
+altAddTest("scott/sizeofchar");
 altAddTest("scott/initedextern");
 altAddTest("scott/arrayinit");
 altAddTest("scott/structattr2");

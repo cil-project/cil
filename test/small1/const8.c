@@ -1,4 +1,4 @@
-#include "testharness.h";
+#include "testharness.h"
 
 int main() {
   unsigned base = 5;
