@@ -96,6 +96,7 @@ let oneret (f: Cil.fundec) : unit =
         [rs]
 
     | [] -> []
+(* GN: Colapsed this case with the next one!
     | ({skind=Return (None, l)} as s) :: rests -> 
         if mainbody && rests == [] then begin 
           (* This is the last statement in the function. If it has labels, 
@@ -112,14 +113,24 @@ let oneret (f: Cil.fundec) : unit =
           haveGoto := true;
           s :: (scanStmts mainbody rests)
         end
-
-    | ({skind=Return (Some rval, l)} as s) :: rests -> 
-        if not hasRet then 
+*)
+    | ({skind=Return (retval, l)} as s) :: rests -> 
+        if hasRet && retval = None then 
+          E.s (E.unimp "Found return without value in function %s\n" fname);
+        if not hasRet && retval <> None then 
           E.s (E.unimp "Found return in subroutine %s\n" fname);
-        s.skind <- Instr [Set((Var (getRetVar ()), NoOffset), rval, l)];
+        (* Keep this statement because it might have labels. But change it to 
+         * an instruction that sets the return value (if any). *)
+        s.skind <- begin
+           match retval with 
+             Some rval -> Instr [Set((Var (getRetVar ()), NoOffset), rval, l)]
+           | None -> Instr []
+        end;
+        (* See if this is the last statement in function *)
         if mainbody && rests == [] then
           s :: scanStmts mainbody rests
         else begin
+          (* Add a Goto *)
           let sgref = ref (getRetStmt ()) in
           let sg = mkStmt (Goto (sgref, l)) in
           haveGoto := true;

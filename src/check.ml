@@ -148,7 +148,7 @@ let labels: (string, unit) H.t = H.create 17
 let statements: stmt list ref = ref []
 
 (* A list of the targets of Gotos *)
-let targets: stmt list ref = ref []
+let gotoTargets: (string * stmt) list ref = ref []
 
 (*** TYPES ***)
 (* Cetain types can only occur in some contexts, so keep a list of context *)
@@ -681,11 +681,18 @@ and checkStmt (s: stmt) =
         Break _ | Continue _ -> ()
       | Goto (gref, l) -> 
           currentLoc := l;
+          (* Find a label *)
+          let lab = 
+            match List.filter (function Label _ -> true | _ -> false) 
+                  !gref.labels with
+              Label (lab, _, _) :: _ -> lab
+            | _ -> 
+                ignore (warn "Goto to block without a label\n");
+                "<missing label>"
+          in
           (* Remember it as a target *)
-          targets := !gref :: !targets;
-          if not (List.exists (function Label _ -> true | _ -> false) 
-                    !gref.labels) then
-            ignore (warn "Goto to block without a label\n")
+          gotoTargets := (lab, !gref) :: !gotoTargets
+            
 
       | Return (re,l) -> begin
           currentLoc := l;
@@ -910,17 +917,17 @@ let rec checkGlobal = function
             List.iter (doLocal CTFArg) fd.sformals;
             List.iter (doLocal CTDecl) fd.slocals;
             statements := [];
-            targets := [];
+            gotoTargets := [];
             checkBlock fd.sbody;
             H.clear labels;
             (* Now verify that we have scanned all targets *)
             List.iter 
-              (fun t -> if not (List.memq t !statements) then 
+              (fun (lab, t) -> if not (List.memq t !statements) then 
                 ignore (warnContext
-                          "Target statement does not appear in function body"))
-              !targets;
+                          "Target of \"goto %s\" statement does not appear in function body" lab))
+              !gotoTargets;
             statements := [];
-            targets := [];
+            gotoTargets := [];
             (* Done *)
             endEnv ()
           with e -> 
