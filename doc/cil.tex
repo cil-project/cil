@@ -576,12 +576,20 @@ be specified multiple times.
 the Unix \t{patch} tool. The file has the following grammar:
 
 \begin{verbatim}
-<<<
+<<< flags
 patterns
 ===
 replacement
 >>>
 \end{verbatim}
+
+ The flags are a comma separated, case-sensitive, sequence of keywords or
+keyword = value. The following flags are supported:
+\begin{itemize}
+\item \t{file=foo.h} - will only apply the patch on files whose name is
+                       \t{foo.h}. 
+\end{itemize}
+
 
  The patterns can consist of several groups of lines separated by the \t{|||}
 marker. Each of these group of lines is a multi-line pattern that if found in

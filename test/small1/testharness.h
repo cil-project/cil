@@ -1,6 +1,8 @@
 extern int printf(char *, ...);
 extern void exit(int);
+#ifndef strcmp
 extern int strcmp(const char*, const char*);
+#endif
 
 // Always call E with a non-zero number
 #define E(n) { printf("Error %d\n", n); return n; }

@@ -260,10 +260,15 @@ sub preparePatchFile {
         }
         $patchStartLine = $patchLineNo;
         # Process the flags
-        my $patchflags = $1;
-        my $patchglobal;
-        if($patchflags =~ m|g|) {
-            $patchglobal = 1;
+        my @patchflags = split(/\s*,\s*/, $1);
+        my %valueflags;
+        foreach my $flg (@patchflags) {
+            $flg = &trimSpaces($flg);
+            if($flg =~ m|^(.+)\s*=\s*(.+)$|) {
+                $valueflags{$1} = $2;
+            } else {
+                $valueflags{$flg} = 1;
+            }
         }
         # Now we have found the start
         my $pattern = <PFILE>;
@@ -312,7 +317,7 @@ sub preparePatchFile {
                         push @pattern_no_space, $i;
                     }
                     push @patches, { HEAD => $pattern_no_space[0],
-                                     GLOBAL => $patchglobal,
+                                     FLAGS => \%valueflags,
                                      NRLINES   => $nrlines,
                                      PATTERNS => \@pattern_no_space,
                                      REPLACE => $local_repl,
@@ -332,6 +337,18 @@ sub preparePatchFile {
     # print Dumper(\@patches); die "Here\n";
     
 }
+
+sub trimSpaces {
+    my($str) = @_;
+    if($str =~ m|^\s+(\S.*)$|) {
+        $str = $1;
+    }
+    if($str =~ m|^(.*\S)\s+$|) {
+        $str = $1;
+    }
+    return $str;
+}
+
 
 my @includeReadAhead = ();
 sub readIncludeLine {
@@ -354,7 +371,14 @@ sub applyPatches {
     # Initialize all the patches
     my $patch;
     foreach $patch (@patches) {
-        $patch->{DONE} = 0;
+        $patch->{USE} = 1;
+        my $infile = $patch->{FLAGS}->{file};
+        if(defined $infile && $in !~ m|$infile$|) {
+#            print "Will not use patch ", 
+#                  &lineDirective($patch->{PATCHFILE},$patch->{PATCHLINENO});
+            $patch->{USE} = 0;
+        }
+        
     }
         
     open(OUT, ">$out") || die "Cannot open patch output file $out";
@@ -373,7 +397,7 @@ sub applyPatches {
         my $toundo  = 0;
       NextPatch:
         foreach $patch (@patches) {
-            if($patch->{DONE}) { next; } # We are done with this patch
+            if(! $patch->{USE}) { next; } # We are not using this patch
             my $line_no_spaces = $line;
             $line_no_spaces =~ s/\s+//g;
             if($line_no_spaces eq $patch->{HEAD}) {
@@ -408,10 +432,6 @@ sub applyPatches {
                                         + 2 + $patNrLines);
                 $line .= $patch->{REPLACE};
                 $line .= &lineDirective($in, $lineno + 1);
-                # And mark the patch as done
-                if(! $patch->{GLOBAL}) {
-                    $patch->{DONE} = 1;
-                }
                 last;
             }
         }
