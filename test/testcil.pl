@@ -197,15 +197,15 @@ $TEST->add3Tests("perimeter");
    $TEST->add3Group("perimeter", "olden");
 $TEST->add3Tests("tsp");
    $TEST->add3Group("tsp", "olden");
-$TEST->add3Tests("bisort");
+$TEST->add3Tests("bisort", "_GNUCC=1");
    $TEST->add3Group("bisort", "olden");
 $TEST->add3Tests("mst");
    $TEST->add3Group("mst", "olden");
    $TEST->addBadComment("mst-inferbox", "UBOUND");
    $TEST->addBadComment("mst-box", "UBOUND");
-$TEST->add3Tests("em3d");
+$TEST->add3Tests("em3d", "_GNUCC=1");
    $TEST->add3Group("em3d", "olden", "bad");
-$TEST->add3Tests("treeadd");
+$TEST->add3Tests("treeadd", "_GNUCC=1");
    $TEST->add3Group("treeadd", "olden");
 
 #
@@ -294,6 +294,7 @@ $TEST->add1Test("scott/xcheckers", "_GNUCC=1");
 $TEST->add1Test("scott/memberofptr", "_GNUCC=1");
 $TEST->add1Test("scott/invalredef", "_GNUCC=1");
 $TEST->add3Tests("scott/stralloc", "_GNUCC=1");
+$TEST->add1Test("scott/errorinfn");
 
 # $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug
 # my $tst = $TEST->getTest("apache/gzip-inferbox");

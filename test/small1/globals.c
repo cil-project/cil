@@ -1,5 +1,5 @@
 
-static int *glob2 = 0;
+static int *glob2;
 
 int *glob1 = (int*) & glob2;
 

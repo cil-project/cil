@@ -1020,7 +1020,7 @@ power: defaulttarget mustbegcc
                make PLAIN=1 clean defaulttarget \
                     CC="$(COMBINESAFECC) \
 			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
-	cd $(PWDIR); ./power.exe
+	cd $(PWDIR); sh -c "time ./power.exe"
 
 power-combined : defaulttarget mustbegcc
 	cd $(PWDIR); \
@@ -1052,7 +1052,7 @@ perimeter: defaulttarget
                     $(PERIMARGS) \
                     CC="$(COMBINESAFECC) \
 			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
-	cd $(PERIMDIR); ./perimeter.exe
+	cd $(PERIMDIR); sh -c "time ./perimeter.exe"
 
 
 # Voronoi diagrams
@@ -1066,7 +1066,7 @@ voronoi : defaulttarget
                     $(VORONARGS) \
                     CC="$(COMBINESAFECC) \
 			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
-	cd $(VORONDIR); ./voronoi.exe
+	cd $(VORONDIR); sh -c "time ./voronoi.exe"
 
 # Traveling salesman
 TSPDIR=test/olden/tsp
@@ -1082,7 +1082,7 @@ tsp: defaulttarget
                     $(TSPARGS) \
                     CC="$(COMBINESAFECC) \
 			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
-	cd $(TSPDIR); ./tsp.exe
+	cd $(TSPDIR); sh -c "time ./tsp.exe"
 
 
 # Bitonic sort
@@ -1097,35 +1097,36 @@ bisort : defaulttarget mustbegcc
                     CC="$(COMBINESAFECC) \
                         --nobox=trusted_bisort \
 			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
-	cd $(BISORTDIR); ./bisort.exe 100 1
+	cd $(BISORTDIR); sh -c "time ./bisort.exe 100 1"
 
 
 
 
 OLDENMSTDIR=test/olden/mst
-OLDENMSTSAFECC=$(SAFECC) --combine --keep=safeccout  \
-                  --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) \
-                  --nobox=trusted_mst \
-                  $(NOPRINTLN)
-ifeq ($(ARCHOS), x86_WIN32)
+OLDENMSTSAFECC=$(COMBINESAFECC) \
+                  --nobox=trusted_mst
+	          --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)
+ifdef _MSVC
 OLDENMSTSAFECC += $(DEF)WIN32 $(DEF)MSDOS
+MSTARGS= _MSVC=1
 endif
 mst-clean: 	
 	cd $(OLDENMSTDIR); make clean
 	cd $(OLDENMSTDIR); rm -f *cil.c *box.c *.i *_ppp.c *.origi *_all.c
 
-mst: defaulttarget mustbegcc
+mst: defaulttarget
 	cd $(OLDENMSTDIR); \
-            make clean mst.exe CC="$(OLDENMSTSAFECC)" \
-                           LD="$(OLDENMSTSAFECC)"
-	cd $(OLDENMSTDIR); ./mst.exe 1024 1
+            make clean mst.exe $(MSTARGS) \
+                               CC="$(OLDENMSTSAFECC)" \
+                               LD="$(OLDENMSTSAFECC)"
+	cd $(OLDENMSTDIR); sh -c "time ./mst.exe 1024 1"
 
 
 
 
 TREEADDIR=test/olden/treeadd
 TREEADDSAFECC=$(SAFECC) --combine --keep=safeccout  \
-                   --nobox=ta_trusted \
+                  --nobox=ta_trusted \
                   --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) \
                   $(NOPRINTLN)
 ifeq ($(ARCHOS), x86_WIN32)
@@ -1139,7 +1140,7 @@ treeadd: defaulttarget mustbegcc
 	cd $(TREEADDIR); \
             make clean treeadd CC="$(TREEADDSAFECC)" \
                        LD="$(TREEADDSAFECC)"
-	cd $(TREEADDIR); ./treeadd.exe 21 1
+	cd $(TREEADDIR); sh -c "time ./treeadd.exe 21 1"
 
 NEWBISORTDIR=test/olden/newbisort
 NEWBISORTSAFECC=$(SAFECC) --combine --keep=safeccout  \
@@ -1179,7 +1180,7 @@ em3d: defaulttarget mustbegcc
 	cd $(EM3DDIR); \
             make clean em3d CC="$(EM3DDSAFECC)" \
                             LD="$(EM3DDSAFECC)"
-	cd $(EM3DDIR); ./em3d 2000 100 1
+	cd $(EM3DDIR); sh -c "time ./em3d 2000 100 6"
 
 
 

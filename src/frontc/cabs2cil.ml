@@ -80,16 +80,33 @@ let pushGlobal (g: global) =
   | GPragma (Attr("pack", _), _) -> theFileTypes := g :: !theFileTypes
   | _ -> theFile := g :: !theFile
     
+(* Keep track of some variable ids that must be turned into definitions. We 
+ * do this when we encounter what appears a definition of a global but 
+ * without initializer. We leave it a declaration because maybe down the road 
+ * we see another definition with an initializer. But if we don't see any 
+ * then we turn the last such declaration into a definition without 
+ * initializer *)
+let mustTurnIntoDef: (int, bool) H.t = H.create 117
+
+(* Globals that have already been defined *)
+let alreadyDefined: (int, location) H.t = H.create 117
+
 let popGlobals () = 
   let rec revonto (tail: global list) = function
       [] -> tail
+
+    | GDecl (vi, l) :: rest 
+      when vi.vstorage != Extern && H.mem mustTurnIntoDef vi.vid -> 
+        H.remove mustTurnIntoDef vi.vid;
+        revonto (GVar (vi, None, l) :: tail) rest
+
     | x :: rest -> revonto (x :: tail) rest
   in
   revonto (revonto [] !theFile) !theFileTypes
 
 
 (* This is very SLOW!!!. The only reason it does not matter much is because 
- * the combiner removes duplicate declarations *)
+ * the combiner removes duplicate declarations
 let replacePreviousDefsWithDecls (vi: varinfo ) : bool = 
   let rec alreadyDef = ref false in
   let rec loop = function
@@ -105,7 +122,7 @@ let replacePreviousDefsWithDecls (vi: varinfo ) : bool =
   in
   theFile := loop !theFile;
   !alreadyDef 
-
+*)
 (********* ENVIRONMENTS ***************)
 
 (* The environment is kept in two distinct data structures. A hash table maps
@@ -870,25 +887,126 @@ let doNameGroup (doone: A.spec_elem list -> 'n -> 'a)
 
 (* Create and cache varinfo's for globals. Starts with a varinfo but if the 
  * global has been declared already it might come back with another varinfo. 
- * Returns the varinfo and whether there exists already a definition  *)
+ * Returns the varinfo to use (might be the old one), and an indication 
+ * whether the variable exists already in the environment *)
 let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
   try (* See if already defined *)
     let oldvi, oldloc = lookupVar vi.vname in
     (* It was already defined. We must reuse the varinfo. But clean up the 
      * storage.  *)
-    let _ = 
-      if vi.vstorage = oldvi.vstorage then ()
-      else if vi.vstorage = Extern then ()
+    let newstorage = 
+      if vi.vstorage = oldvi.vstorage || vi.vstorage = Extern then 
+        oldvi.vstorage 
       else if oldvi.vstorage = Extern then 
-        oldvi.vstorage <- vi.vstorage 
+        vi.vstorage 
       else begin
         ignore (warn "Inconsistent storage specification for %s. Previous declaration: %a" 
                vi.vname d_loc oldloc);
-        oldvi.vstorage <- vi.vstorage
+        vi.vstorage
       end
     in
+    oldvi.vstorage <- newstorage;
     (* Union the attributes *)
     oldvi.vattr <- addAttributes oldvi.vattr vi.vattr;
+    (* Combine the types. Raises the Failure exception with an error message.*)
+    let rec combineTypes (oldt: typ) (t: typ) : typ = 
+      match oldt, t with
+      | TVoid olda, TVoid a -> TVoid (addAttributes olda a)
+      | TInt (oldik, olda), TInt (ik, a) -> 
+          let combineIK oldk k = 
+            if oldk == k then oldk else
+            raise (Failure "different integer types")
+          in
+          TInt (combineIK oldik ik, addAttributes olda a)
+      | TFloat (oldfk, olda), TFloat (fk, a) -> 
+          let combineFK oldk k = 
+            if oldk == k then oldk else
+            raise (Failure "different floating point types")
+          in
+          TFloat (combineFK oldfk fk, addAttributes olda a)
+      | TEnum (oldei, olda), TEnum (ei, a) -> 
+          if oldei.ename = ei.ename then TEnum (ei, addAttributes olda a) else
+          raise (Failure  "different enumeration tags")
+
+      (* Strange one. But seems to be handled by GCC *)
+      | TEnum (oldei, olda) , TInt(IInt, a) -> TEnum(oldei, 
+                                                     addAttributes olda a)
+      (* Strange one. But seems to be handled by GCC *)
+      | TInt(IInt, olda), TEnum (ei, a) -> TEnum(ei, addAttributes olda a)
+
+
+      | TComp (oldci, olda) , TComp (ci, a) -> 
+          if oldci.cname = ci.cname && oldci.cstruct = ci.cstruct 
+          then TComp (oldci, addAttributes olda a)
+          else raise (Failure "different struct/union types")
+      | TArray (oldbt, oldsz, olda), TArray (bt, sz, a) -> 
+          let newbt = combineTypes oldbt bt in
+          let newsz = 
+            if oldsz = sz then sz else
+            match oldsz, sz with
+              None, Some _ -> sz
+            | Some _, None -> oldsz
+            | _ -> raise (Failure "different array lengths")
+          in
+          TArray (newbt, newsz, addAttributes olda a)
+
+      | TPtr (oldbt, olda), TPtr (bt, a) -> 
+          TPtr (combineTypes oldbt bt, addAttributes olda a)
+
+      | TFun (_, _, _, [Attr("missingproto",_)]), TFun _ -> t
+
+      | TFun (oldrt, oldargs, oldva, olda), TFun (rt, args, va, a) ->
+          let newrt = combineTypes oldrt rt in
+          if oldva != va then 
+            raise (Failure "diferent vararg specifiers");
+          (* If one does not have arguments, believe the one with the 
+           * arguments *)
+          let loldargs = List.length oldargs in
+          let largs    = List.length args in
+          let newargs = 
+            if loldargs = 0 then args else
+            if largs = 0 then oldargs else
+            if loldargs <> largs then 
+              raise (Failure "different number of arguments")
+            else begin
+              (* Go over the arguments and update the old ones with the 
+              * adjusted types *)
+              List.iter2 
+                (fun oldarg arg -> 
+                  if oldarg.vname = "" then oldarg.vname <- arg.vname;
+                  oldarg.vattr <- addAttributes oldarg.vattr arg.vattr;
+                  oldarg.vtype <- combineTypes oldarg.vtype arg.vtype)
+                oldargs args;
+              oldargs
+            end
+          in
+          TFun (newrt, newargs, oldva, addAttributes olda a)
+
+      | TNamed (oldn, oldt, olda), TNamed (n, _, a) when oldn = n ->
+          TNamed (oldn, oldt, addAttributes olda a)
+
+      (* Unroll first the new type *)
+      | _, TNamed (n, t, a) -> 
+          let res = combineTypes oldt t in
+          typeAddAttributes a res
+
+      (* And unroll the old type as well if necessary *)
+      | TNamed (oldn, oldt, a), _ -> 
+          let res = combineTypes oldt t in
+          typeAddAttributes a res
+
+      | _ -> raise (Failure "different type constructors")
+    in
+    begin 
+      try
+        oldvi.vtype <- combineTypes oldvi.vtype vi.vtype
+      with Failure reason -> 
+        E.s (error "Declaration of %s does not match previous declaration from %a (%s)." 
+               vi.vname d_loc oldloc reason)
+    end;
+      
+(*          
+          
     (* Maybe we had an incomplete type before and it is complete now  *)
     let _ = 
 (*      ignore (E.log "Old type: %a\n" d_plaintype oldvi.vtype);
@@ -919,8 +1037,8 @@ let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
         | _, _ -> 
             E.s (error "Declaration of %s does not match previous declaration from %a." vi.vname d_loc oldloc)
     in
-    let alreadyDef = replacePreviousDefsWithDecls vi in
-    oldvi, alreadyDef
+*)
+    oldvi, true
       
   with Not_found -> begin (* A new one. It is a definition unless it is 
                            * Extern  *)
@@ -2102,7 +2220,8 @@ and doExp (isconst: bool)    (* In a constant *)
                                                  * AExp None  *)
               with Not_found -> begin
                 ignore (warn "Calling function %s without prototype." n);
-                let ftype = TFun(intType, [], false, []) in
+                let ftype = TFun(intType, [], false, 
+                                 [Attr("missingproto",[])]) in
                 (* Add a prototype to the environment *)
                 let proto, _ = 
                   makeGlobalVarinfo false (makeGlobalVar n ftype) in
@@ -2649,7 +2768,7 @@ and doInitializer
             let acc', inits, nextidx, rest' = 
               initArray 0 [] acc initl_e in
             if rest' <> [] then
-              E.s (warn "Unused initializers\n");
+              ignore (warn "Unused initializers\n");
             acc', inits, nextidx, restinitl
               
         | _ -> (* Otherwise it is the initializer for some elements, starting 
@@ -2801,32 +2920,44 @@ and createGlobal (specs: A.spec_elem list)
         Some ie'
     in
 
-    (* sm: if it's a function prototype, and the storage class *)
-    (* isn't specified, make it 'extern'; this fixes a problem *)
-    (* with no-storage prototype and static definition *)
-    if (isFunctionType vi.vtype &&
-        vi.vstorage = NoStorage) then (
-      (*(trace "sm" (dprintf "adding extern to prototype of %s\n" n));*)
-      vi.vstorage <- Extern
-    );
-    let vi, alreadyDef = 
-      makeGlobalVarinfo (init != None &&
-                         not (isFunctionType vi.vtype)) vi in
-    if not alreadyDef then begin(* Do not add declarations after def *)
-      if vi.vstorage = Extern then 
-        if init = None then 
-          pushGlobal (GDecl (vi, !currentLoc))
-        else
-          E.s (error "%s is extern and with initializer" vi.vname)
-      else
-                (* If it has fucntion type it is a declaration *)
-        if isFunctionType vi.vtype then begin
-          if init <> None then
-            E.s (error "Function declaration with initializer (%s)\n"
-                   vi.vname);
-          pushGlobal (GDecl(vi, !currentLoc))
-        end else
-          pushGlobal (GVar(vi, init, !currentLoc))
+    if isFunctionType vi.vtype then begin
+      if init <> None then
+        E.s (error "Function declaration with initializer (%s)\n"
+               vi.vname);
+      (* sm: if it's a function prototype, and the storage class *)
+      (* isn't specified, make it 'extern'; this fixes a problem *)
+      (* with no-storage prototype and static definition *)
+      if vi.vstorage = NoStorage then (
+        (*(trace "sm" (dprintf "adding extern to prototype of %s\n" n));*)
+        vi.vstorage <- Extern;
+        );
+    end;
+    let vi, alreadyInEnv = makeGlobalVarinfo (init <> None) vi in
+    try
+      let oldloc = H.find alreadyDefined vi.vid in
+      if init != None then 
+        E.s (error "Global %s was already defined at %a\n" 
+               vi.vname d_loc oldloc);
+      (* Do not declare it again *)
+    with Not_found -> begin
+      (* Not already defined *)
+      if init != None then begin
+        if vi.vstorage = Extern then 
+          E.s (error "%s is extern and with initializer" vi.vname);
+        H.add alreadyDefined vi.vid !currentLoc;
+        H.remove mustTurnIntoDef vi.vid;
+        pushGlobal (GVar(vi, init, !currentLoc))
+      end else begin
+        if not (isFunctionType vi.vtype) 
+           && not (H.mem mustTurnIntoDef vi.vid) then 
+          begin
+            H.add mustTurnIntoDef vi.vid true
+          end;
+        if not alreadyInEnv then begin (* Only one declaration *)
+          (* If it has function type it is a prototype *)
+          pushGlobal (GDecl (vi, !currentLoc));
+        end
+      end
     end
   with e -> begin
     ignore (E.log "error in CollectGlobal (%s)\n" n);
@@ -3254,6 +3385,8 @@ let convFile fname dl =
   E.hadErrors := false;
   initGlobals();
   H.clear compInfoNameEnv;
+  H.clear mustTurnIntoDef;
+  H.clear alreadyDefined;
   (* Setup the built-ins *)
   let _ =
     let fdec = emptyFunction "__builtin_constant_p" in
@@ -3329,7 +3462,7 @@ let convFile fname dl =
               (* Add the function itself to the environment. Just in case we 
                * have recursion and no prototype.  *)
               (* Make a variable out of it and put it in the environment *)
-              let thisFunctionVI, alreadyDef = 
+              let thisFunctionVI, _ = 
                 makeGlobalVarinfo true
                   { vname = n;
                     vtype = ftype;
@@ -3344,7 +3477,7 @@ let convFile fname dl =
               in
 (*              ignore (E.log "makefunvar:%s@! type=%a@! vattr=%a@!"
                         n d_plaintype ftype (d_attrlist true) funattr); *)
-              if alreadyDef then
+              if H.mem alreadyDefined thisFunctionVI.vid then
                 E.s (error "There is a definition already for %s" n);
               currentFunctionVI := thisFunctionVI;
               (* Now change the type of transparent union args back to what 
@@ -3460,15 +3593,18 @@ let convFile fname dl =
             with e -> begin
               ignore (E.log "error in collectFunction %s: %s\n" 
                         n (Printexc.to_string e));
-              pushGlobal (GAsm("error in function ", !currentLoc))
+              pushGlobal (GAsm("error in function " ^ n, !currentLoc))
             end)
           () (* argument of E.withContext *)
   in
   List.iter doOneGlobal dl;
+  let globals = popGlobals () in
   H.clear noProtoFunctions;
+  H.clear mustTurnIntoDef;  
+  H.clear alreadyDefined;
   (* We are done *)
   { fileName = fname;
-    globals  = popGlobals ();
+    globals  = globals;
     globinit = None;
     globinitcalled = false;
   } 

@@ -44,6 +44,7 @@
 #define __SEQN   __attribute__((seqn))
 #define __FSEQN  __attribute__((fseqn))
 #define __NULLTERM   __attribute__((nullterm))
+#define __ROSTRING  __attribute__((rostring))
 #define __RWSTRING  __attribute__((string))
 #define __SAFEUNION __attribute__((safeunion))
 #define __INDEXT   __attribute__((indext))

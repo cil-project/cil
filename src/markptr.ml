@@ -135,19 +135,7 @@ let rec doType (t: typ) (p: N.place)
   end
           
   | TComp _ -> t, nextidx (* A forward reference, leave alone *)
-(*
-  | TComp (_, comp, a) -> (* A forward reference *)
-      if H.mem doneComposites comp.ckey then
-        t, nextidx
-      else begin
-        H.add doneComposites comp.ckey true; (* before we do the fields *)
-        List.iter 
-          (fun f -> 
-            let t', i' = doType f.ftype (N.PField f) 0 in
-            f.ftype <- t') comp.cfields;
-        t, nextidx
-      end
-*)       
+
     (* Strip the type names so that we have less sharing of nodes. However, 
      * we do not need to do it if the named type is a structure, and we get 
      * nicer looking programs. We also don't do it for base types *)
