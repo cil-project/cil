@@ -1667,7 +1667,11 @@ reiserfs-combined: mustbegcc mustbelinux \
 
 
 ################# THE LINUX KERNEL
-LINUXSRC := /usr/src/linux-cil
+ifndef LINUXSRC
+  # it turns out our sources have the path hardcoded, so changing
+  # this isn't as easy as it looks..
+  LINUXSRC := /usr/src/linux-cil
+endif
 mustbemanju: 
 	if ! test -d $(LINUXSRC) ; then  \
                 echo You dont have the Linux sources; exit 3; fi
@@ -1731,8 +1735,71 @@ sendmail-noclean: mustbegcc mustbelinux mustbemanju
 sendmail-gcc: mustbelinux mustbemanju linuxclean
 	cd $(SENDMAILSRC) ; make CC=gcc
 
-#### GIMP AND FRIENDS
-ZLIBSRC := /usr/local/src/zlib-1.1.3
+
+#### ------------- GIMP AND FRIENDS ----------------
+
+# downloads:
+#   ftp://ftp.gtk.org/pub/gtk/v1.2/glib-1.2.9.tar.gz
+#   ftp://ftp.gtk.org/pub/gtk/v1.2/gtk+-1.2.9.tar.gz
+#   ftp://ftp.gimp.org/gimp/v1.2/v1.2.2/gimp-1.2.2.tar.gz
+#   ftp://ftp.gimp.org/gimp/v1.2/v1.2.2/gimp-data-extras-1.2.0.tar.gz
+#   ftp://ftp.gimp.org/gimp/libs/jpegsrc.v6b.tar.gz
+#   ftp://ftp.gimp.org/gimp/libs/libpng-1.0.8.tar.gz
+#   ftp://ftp.gimp.org/gimp/libs/mpeg_lib-1.3.1.tar.gz
+#   ftp://ftp.gimp.org/gimp/libs/tiff-v3.5.5.tar.gz
+#   ftp://ftp.gimp.org/gimp/libs/zlib.tar.gz         (this is zlib-1.1.3)
+
+# library dependency tree:
+#
+#                        gimp
+#                         |
+#       +------+-----+----+---+-------+
+#       |      |     |        |       |
+#      png    jpeg  tiff     gtk+   mpeg
+#       |                     |
+#      zlib                  glib
+#
+# (note: this is *not* the directory hierarchy!  directory structure is flat)
+
+# GIMPBLD is the directory which holds each of the directories of
+# the unpacked source tarballs
+ifndef GIMPBLD
+  GIMPBLD := /usr/local/src
+endif
+
+# GIMPDEST is the directory where the installed gimp files go
+ifndef GIMPDEST
+  # sm: feel free to change this default, I set mine in .ccuredrc
+  GIMPDEST := $(CCUREDHOME)/gimp
+endif
+
+# I'm not sure the best way to do this; I need LD_LIBRARY_PATH to point
+# to $(GIMPDEST)/lib.  This Makefile could add it to the environment
+# itself, but then the hapless user copying+pasting commands from a
+# 'make' invocation would be very confused when they behave differently.
+# So I'll try to enforce that it's set right anytime it's needed.
+checkgimplib:
+	@if echo $$LD_LIBRARY_PATH | grep $(GIMPDEST)/lib >/dev/null; then \
+	  echo "ok: LD_LIBRARY_PATH contains $(GIMPDEST)/lib"; \
+	else \
+	  echo ""; \
+	  echo "Your LD_LIBRARY_PATH must contain $(GIMPDEST)/lib."; \
+	  echo "Humor me by saying (for bash):"; \
+	  echo "  export LD_LIBRARY_PATH=$(GIMPDEST)/lib"; \
+	  echo "or (for tcsh):"; \
+	  echo "  setenv LD_LIBRARY_PATH $(GIMPDEST)/lib"; \
+	  echo ""; \
+	  exit 2; \
+	fi
+
+# -------- zlib ---------
+ifndef ZLIBSRC
+  ZLIBSRC := $(GIMPBLD)/zlib-1.1.3
+endif
+
+zlib-configure:
+	cd $(ZLIBSRC); ./configure --prefix=$(GIMPDEST)
+
 zlibclean:
 	cd $(ZLIBSRC); make clean
 	-cd $(ZLIBSRC); find . \( \
@@ -1745,11 +1812,37 @@ zlibclean:
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
 
-zlib: mustbegcc mustbemanju mustbelinux zlibclean
+zlib: mustbegcc $(ZLIBSRC)/Makefile mustbelinux zlibclean
 	cd $(ZLIBSRC); make CC="$(CILLY)" test
 
+zlib-install:
+	cd $(ZLIBSRC); make install
 
-TIFFSRC := /usr/local/src/tiff-v3.5.5
+zlib-world: zlib-configure zlib zlib-install
+
+
+# -------- tiff ---------
+ifndef TIFFSRC
+  TIFFSRC := $(GIMPBLD)/tiff-v3.5.5
+endif
+
+# since tiff's configure doesn't accept a --prefix argument, we go to
+# some lengths to specify the destination directories by editing the
+# configure script directly
+tiff-configure:
+	@cd $(TIFFSRC); \
+          if [ ! -f configure.orig ]; then \
+            echo cp configure configure.orig; \
+            cp configure configure.orig; \
+          fi
+	cd $(TIFFSRC); \
+          cp configure configure.tmp; \
+	  sed -e 's,/usr/local,$(GIMPDEST),' \
+              -e 's,/var/httpd/htdocs/tiff,$(GIMPDEST)/html/tiff,' \
+            <configure.tmp >configure; \
+          rm configure.tmp
+	cd $(TIFFSRC); echo yes | ./configure
+
 tiffclean:
 	cd $(TIFFSRC); make clean
 	-cd $(TIFFSRC); find . \( \
@@ -1762,20 +1855,43 @@ tiffclean:
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
 
-# To install tiff make sure you get and install v3.4pics.tar.gz
+# To test tiff make sure you get and unpack v3.4pics.tar.gz
+#   http://uiarchive.uiuc.edu/mirrors/ftp/ftp.uu.net/graphics/tiff/v3.4pics.tar.gz
 # This will create a pics subdirectory 
 # Then run test_pics.sh -f pics/*.tif
 # This will create the .rpt files to be used later in comparisons
-tiff:  mustbegcc mustbemanju mustbelinux tiffclean
-	cd $(TIFFSRC); make CC="$(CILLY)"; make test
+#
+# sm: since testing tiff requires the .rpt files, and it's a bit of a hassle to
+# publish a reference set, I'm disabling the test unless the pics/ directory
+# exists
+tiff: mustbegcc $(TIFFSRC)/Makefile mustbelinux tiffclean
+	cd $(TIFFSRC); make CC="$(CILLY)"
+	cd $(TIFFSRC); \
+          if [ -d pics ]; then \
+            make test; \
+          fi
+
+tiff-gcc: mustbegcc $(TIFFSRC)/Makefile mustbelinux tiffclean
+	cd $(TIFFSRC); make CC="gcc"
+	cd $(TIFFSRC); \
+          if [ -d pics ]; then \
+            make test; \
+          fi
+
+tiff-install:
+	cd $(TIFFSRC); make install
+
+tiff-world: tiff-configure tiff tiff-install
 
 
-tiff-gcc:  mustbegcc mustbemanju mustbelinux tiffclean
-	cd $(TIFFSRC); make CC="gcc"; make test 
+# -------- jpeg ---------
+ifndef JPEGSRC
+  JPEGSRC := $(GIMPBLD)/jpeg-6b
+endif
 
+jpeg-configure:
+	cd $(JPEGSRC); ./configure --prefix=$(GIMPDEST)
 
-
-JPEGSRC :=/usr/local/src/jpeg-6b
 jpegclean:
 	cd $(JPEGSRC); make clean
 	-cd $(JPEGSRC); find . \( \
@@ -1788,20 +1904,45 @@ jpegclean:
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
 
-jpeg: mustbegcc mustbemanju mustbelinux jpegclean
+jpeg: mustbegcc $(JPEGSRC)/Makefile mustbelinux jpegclean
 	cd $(JPEGSRC); make CC="$(CILLY)"; make test
 
-jpeg-gcc: mustbegcc mustbemanju mustbelinux jpegclean
+jpeg-gcc: mustbegcc $(JPEGSRC)/Makefile mustbelinux jpegclean
 	cd $(JPEGSRC); make CC=gcc; make test
 
+# NOTE: must say 'install-lib' too!
+jpeg-install:
+	cd $(JPEGSRC); make install install-lib
+
+jpeg-world: jpeg-configure jpeg jpeg-install
+
+
+# -------- png ---------
+ifndef LIBPNGSRC
+  LIBPNGSRC := $(GIMPBLD)/libpng-1.0.8
+endif
 
 # Make zlib first
-# Create link ../zlib -> ../zlib-0.0.0
-# Create link ../libpng -> ../libpng-0.0.0
-# Create link ./scripts/makefile.std ./Makefile
 # We do not use the makefile for linux because we do
 # not want to use DLLs
-LIBPNGSRC :=/usr/local/src/libpng-1.0.8
+
+# the dependency on libz.a should catch build order errors here
+libpng-configure: $(GIMPDEST)/lib/libz.a
+	cd $(LIBPNGSRC)/..; \
+          if [ ! -L zlib ]; then \
+            echo "linking zlib"; \
+            ln -s $(ZLIBSRC) zlib; \
+          fi; \
+          if [ ! -L libpng ]; then \
+            echo "linking libpng"; \
+            ln -s $(LIBPNGSRC) libpng; \
+          fi
+	cd $(LIBPNGSRC); \
+          if [ ! -L Makefile ]; then \
+            echo "linking Makefile"; \
+            ln -s scripts/makefile.std Makefile; \
+          fi
+
 libpngclean:
 	cd $(LIBPNGSRC); make clean
 	-cd $(LIBPNGSRC); find . \( \
@@ -1814,16 +1955,27 @@ libpngclean:
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
 
-libpng: mustbegcc mustbemanju mustbelinux libpngclean
-	cd $(LIBPNGSRC); make CC="$(CILLY)"; make test
+libpng: mustbegcc $(LIBPNGSRC)/Makefile mustbelinux libpngclean
+	cd $(LIBPNGSRC); make prefix=$(GIMPDEST) CC="$(CILLY)"
+	cd $(LIBPNGSRC); make prefix=$(GIMPDEST) test
 
-libpng-gcc: mustbegcc mustbemanju mustbelinux libpngclean
-	cd $(LIBPNGSRC); make CC=gcc; make test
+libpng-gcc: mustbegcc $(LIBPNGSRC)/Makefile mustbelinux libpngclean
+	cd $(LIBPNGSRC); make prefix=$(GIMPDEST) CC=gcc; make test
+
+libpng-install:
+	cd $(LIBPNGSRC); make prefix=$(GIMPDEST) install
+
+libpng-world: libpng-configure libpng libpng-install
 
 
+# -------- mpeg ---------
+ifndef MPEGSRC
+  MPEGSRC := $(GIMPBLD)/mpeg_lib-1.3.1
+endif
 
-# MPEG
-MPEGSRC :=/usr/local/src/mpeg_lib-1.3.1
+mpeg-configure:
+	cd $(MPEGSRC); ./configure --prefix=$(GIMPDEST)
+
 mpegclean:
 	cd $(MPEGSRC); make clean
 	-cd $(MPEGSRC); find . \( \
@@ -1836,19 +1988,26 @@ mpegclean:
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
 
-mpeg: mustbegcc mustbemanju mustbelinux mpegclean
+mpeg: mustbegcc $(MPEGSRC)/Makefile mustbelinux mpegclean
 	cd $(MPEGSRC); make CC="$(CILLY)"; ./mpegtest test.mpg
 
-mpeg-gcc: mustbegcc mustbemanju mustbelinux mpegclean
+mpeg-gcc: mustbegcc $(MPEGSRC)/Makefile mustbelinux mpegclean
 	cd $(MPEGSRC); make CC=gcc;  ./mpegtest test.mpg
 
+mpeg-install:
+	cd $(MPEGSRC); make install
+
+mpeg-world: mpeg-configure mpeg mpeg-install
 
 
-
-# GLIB
+# -------- glib ---------
 ifndef GLIBSRC
-  GLIBSRC := /usr/local/src/glib-1.2.9
+  GLIBSRC := $(GIMPBLD)/glib-1.2.9
 endif
+
+glib-configure:
+	cd $(GLIBSRC); ./configure --prefix=$(GIMPDEST)
+
 glibclean:
 	cd $(GLIBSRC); make clean
 	-cd $(GLIBSRC); find . \( \
@@ -1866,17 +2025,31 @@ glib: mustbegcc $(GLIBSRC)/Makefile mustbelinux glibclean
 	cd $(GLIBSRC); make CC="$(CILLY)"; 
 	cd $(GLIBSRC)/tests; make check-TESTS
 
-glib-gcc: mustbegcc mustbemanju mustbelinux glibclean
+glib-gcc: mustbegcc $(GLIBSRC)/Makefile mustbelinux glibclean
 	cd $(GLIBSRC); make CC=gcc; 
 	cd $(GLIBSRC)/tests; make check-TESTS
 
-glib-install: glib
+# this doesn't depend on 'glib' because if it did then 'make glib'
+# followed by 'make glib-install' would rebuild everything on 2nd time
+# since we don't have proper dependency tracking here
+glib-install:
+	cd $(GLIBSRC); make install
+
+glib-world: glib-configure glib glib-install
 
 
-# GTK
-# Must invoke 
-# ./configure --with-glib=../glib-1.2.9
-GTKSRC :=/usr/local/src/gtk+-1.2.9
+# -------- gtk ---------
+ifndef GTKSRC
+  GTKSRC := $(GIMPBLD)/gtk+-1.2.9
+endif
+
+gtk-configure: checkgimplib
+	cd $(GTKSRC); ./configure --prefix=$(GIMPDEST) \
+                                  --with-glib-prefix=$(GIMPDEST)
+
+# old: Must invoke 
+# old:   ./configure --with-glib=../glib-1.2.9
+
 gtkclean:
 	cd $(GTKSRC); make clean
 	-cd $(GTKSRC); find . \( \
@@ -1889,20 +2062,87 @@ gtkclean:
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
 
-gtk: mustbegcc mustbemanju mustbelinux gtkclean
+gtk: mustbegcc checkgimplib $(GTKSRC)/Makefile mustbelinux gtkclean
 	cd $(GTKSRC); make CC="$(CILLY)"; 
 
-gtk-gcc: mustbegcc mustbemanju mustbelinux gtkclean
+gtk-gcc: mustbegcc checkgimplib $(GTKSRC)/Makefile mustbelinux gtkclean
 	cd $(GTKSRC); make CC=gcc; 
 
+gtk-install:
+	cd $(GTKSRC); make install
+
+gtk-world: gtk-configure gtk gtk-install
+
+
+# -------- gimp ---------
+# does NOT go through CIL yet ..
+ifndef GIMPSRC
+  GIMPSRC := $(GIMPBLD)/gimp-1.2.2
+endif
+
+gimp-configure:
+	cd $(GIMPSRC); ./configure --prefix=$(GIMPDEST) \
+                                   --with-gtk-prefix=$(GIMPDEST)
+
+# an unfortunate name collision with "pencil.c" complicates the rule below...
+gimpclean:
+	cd $(GIMPSRC); make clean
+	-cd $(GIMPSRC); find . \( \
+		\( -name '*cil.c' -a \! -name 'pencil.c' \) -o \
+		-name '*.exe' -o \
+		-name '*.i' -o \
+		-name '*.o' -o \
+		-name '*.obj' -o \
+		-name '*cabs.c' -o \
+		-name '*_comb*.c' \
+	      	\) -exec rm -f {} \;
+
+gimp: mustbegcc checkgimplib $(GIMPSRC)/Makefile mustbelinux gimpclean
+	cd $(GIMPSRC); make CC="$(CILLY)"
+
+gimp-resume:
+	cd $(GIMPSRC); make CC="$(CILLY)"
+
+gimp-gcc: mustbegcc checkgimplib $(GIMPSRC)/Makefile mustbelinux gimpclean
+	cd $(GIMPSRC); make CC=gcc; 
+
+gimp-install:
+	cd $(GIMPSRC); make install
+
+gimp-world: gimp-configure gimp gimp-install
 
 
 
-gimpall: zlib tiff libpng jpeg mpeg glib gtk
+# ---------- gimp-data ----------
+ifndef GIMPDATASRC
+  GIMPDATASRC := $(GIMPBLD)/gimp-data-extras-1.2.0
+endif
+
+gimp-data-configure:
+	cd $(GIMPDATASRC); ./configure --prefix=$(GIMPDEST) \
+                                       --with-gimp-prefix=$(GIMPDEST)
+
+gimp-data-install:
+	cd $(GIMPDATASRC); make install
+
+gimp-data-world: gimp-data-configure gimp-data-install
 
 
+# ----------- GIMP and all libraries ----------
+# compile them all; assumes they're already configured
+gimpall: zlib tiff libpng jpeg mpeg glib gtk gimp
 
-
+# go from just-unpacked to completely installed
+gimpall-world:
+	$(MAKE) glib-world
+	$(MAKE) gtk-world
+	$(MAKE) jpeg-world
+	$(MAKE) zlib-world
+	$(MAKE) libpng-world
+	$(MAKE) mpeg-world
+	$(MAKE) tiff-world
+	$(MAKE) gimp-world
+	$(MAKE) gimp-data-world
 
 
 #######
