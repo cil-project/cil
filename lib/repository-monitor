@@ -98,6 +98,7 @@ while (1) {
   if (@changes == 0) {
     # nothing changed; wait for 5 minutes (don't change status,
     # so we keep prior build success/fail info)
+    diagnostic ("nothing changed");
     sleep(300);
     next;
   }
