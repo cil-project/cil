@@ -321,9 +321,9 @@ extern long double __builtin_fabsl(long double);
 /*  #pragma boxpoly("memcpy")
   #pragma boxpoly("memset", "__builtin_memset")
   #pragma boxpoly("memmove")
-  #pragma boxpoly("memcmp")*/
+  #pragma boxpoly("memcmp")
   #pragma boxpoly("write")
-  #pragma boxpoly("read")
+  #pragma boxpoly("read")*/
   #pragma boxpoly("fread")
   #pragma boxpoly("fwrite")
   #pragma boxpoly("mmap")      // sm: for ftpd
