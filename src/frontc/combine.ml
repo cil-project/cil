@@ -32,10 +32,10 @@ module H = Hashtbl
 (* 2. Static declarations and function definitions are renamed (but only once 
  * per file). *)
 
-(* 3. We try to eliminate duplicate declarations and _inline_ function 
- * definitions. Duplication is checked using structural equality _after_ the 
- * body has been alpha-converted. This means that recursive static inline 
- * functions might not get eliminated. *)
+(* 3. We try to eliminate duplicate declarations of functions and _inline_ 
+ * function definitions. Duplication is checked using structural equality 
+ * _after_ the body has been alpha-converted. This means that recursive 
+ * static inline functions might not get eliminated. *)
 
 (* 4. The combiner gets confused if it sees both a static and a non-static 
  * declaration for the same global *)
@@ -938,7 +938,7 @@ and doDefinition (isglobal: bool) (* Whether at global scope *)
       (* Keep a hash of DEFDEF's and drop identical ones. Use OCAML's 
        * structural equality to test for identical declarations. If we don't 
        * do this then cabs2cil slows to a crawl. *)
-      if isglobal || !canreuse then 
+      if isglobal && !canreuse then 
         try
           let oldnames = H.find declarations ng_orignames in
           List.iter reuseOldName oldnames;

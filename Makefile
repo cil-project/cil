@@ -1187,6 +1187,11 @@ gcc:  mustbegcc
             make clean build CC="$(GCCSAFECC) $(CONLY)" \
                              LD="$(GCCSAFECC)" 
 
+gcc-combined:  mustbegcc
+	cd $(GCCDIR)/src; \
+            $(CCURED) $(CONLY) cc1_comb.c
+
+
 gcc-gcc:  mustbegcc
 	cd $(GCCDIR)/src; \
             make clean build CC="gcc -c" \

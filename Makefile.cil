@@ -33,3 +33,14 @@ EXTRACLEAN += $(OBJDIR)/*.obj $(OBJDIR)/*.a $(OBJDIR)/*.o
     # This file will add the rules to make $(EXECUTABLE).$(EXE)
 include Makefile.ocaml
 
+
+# ww: build an OCAML library (CMA / CMXA) that exports our Cil stuff
+# kudos to George for this lovely patsubst code ...
+cillib: $(OBJDIR)/cil.$(CMXA)
+
+# What should we put into the OCAML CIL library? 
+# everything by main.cl, basically
+OCAML_CIL_LIB_MODULES = $(MODULES:main=)
+$(OBJDIR)/cil.$(CMXA): $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
+	$(CAMLLINK) -a -o $@ $^
+

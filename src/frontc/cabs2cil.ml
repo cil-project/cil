@@ -1608,8 +1608,7 @@ and doExp (isconst: bool)    (* In a constant *)
             finishExp empty tag typ
           | _ -> raise Not_found
         with Not_found ->
-          ignore (E.log "Cannot resolve variable %s.\n" n);
-          raise Not_found
+          E.s (error "Cannot resolve variable %s.\n" n)
     end
     | A.INDEX (e1, e2) -> begin
         (* Recall that doExp turns arrays into StartOf pointers *)
