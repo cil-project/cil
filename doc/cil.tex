@@ -1786,7 +1786,7 @@ code returns 2.
 
 \end{enumerate}
 
- \subsection{GCC ugliness}\label{ugly-gcc}
+ \subsection{GCC ugliness}\label{sec-ugly-gcc}
 
 \begin{enumerate}
 
@@ -1950,7 +1950,8 @@ Necula}.
 \section{Changes}\label{sec-changes}
 \begin{itemize}
 \item {\bf August 25, 2002}: Fixed the implementation of the unique
-identifiers for global variables and composites. 
+identifiers for global variables and composites. Now those identifiers are
+globally unique.
 \item {\bf August 24, 2002}: Added to the machine-dependent configuration the
 \t{sizeof{void}}. It is 1 on gcc and 0 on MSVC. Extended the implementation of
 \t{Cil.bitsSizeOf} to handle this (it was previously returning an error when

@@ -3226,7 +3226,7 @@ let makeFormalVar fdec ?(where = "$") name typ : varinfo =
    (* Make a global variable. Your responsibility to make sure that the name
     * is unique *)
 let makeGlobalVar name typ =
-  let vi = makeVarinfo false name typ in
+  let vi = makeVarinfo true name typ in
   vi
 
 

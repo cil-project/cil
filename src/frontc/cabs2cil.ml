@@ -434,15 +434,6 @@ let docEnv () =
   docList line (fun (k, d) -> dprintf "  %s -> %a" k doone d) () !acc
 
 
-(* Create a new variable ID *)
-let newVarId name isglobal = 
-  if isglobal then H.hash name
-  else begin
-    incr localId;
-    !localId
-  end
-
-
 
 (* Add a new variable. Do alpha-conversion if necessary *)
 let alphaConvertVarAndAddToEnv (addtoenv: bool) (vi: varinfo) : varinfo = 
@@ -480,7 +471,9 @@ let newTempVar typ =
     let a1 = dropAttribute "const" a in
     setTypeAttrs t a1
   in
-  alphaConvertVarAndAddToEnv false  (* Do not add to the environment *)
+  let vi = makeVarinfo false "tmp" (stripConst typ) in
+  alphaConvertVarAndAddToEnv false  vi (* Do not add to the environment *)
+(*
     { vname = "tmp";  (* addNewVar will make the name fresh *)
       vid   = newVarId "tmp" false;
       vglob = false;
@@ -492,7 +485,7 @@ let newTempVar typ =
       vreferenced = false;   (* sm *)
       vstorage = NoStorage;
     } 
-
+*)
 
 let mkAddrOfAndMark ((b, off) as lval) : exp = 
   (* Mark the vaddrof flag if b is a variable *)
@@ -1990,7 +1983,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
   bt,!storage,!isinline,List.rev !attrs
 
 
-and makeVarInfo 
+and makeVarInfoCabs 
                 (isglob: bool) 
                 (ldecl: location)
                 (bt, sto, inline, attrs)
@@ -2000,6 +1993,18 @@ and makeVarInfo
     doType (AttrName false) bt (A.PARENTYPE(attrs, ndt, a)) in
   if inline && not (isFunctionType vtype) then
     ignore (error "inline for a non-function: %s" n);
+  let t = 
+    if not isglob then 
+      typeRemoveAttributes ["const"] vtype
+    else vtype
+  in
+  let vi = makeVarinfo isglob n t in
+  vi.vstorage <- sto;
+  vi.vattr <- nattr;
+  vi.vdecl <- ldecl;
+  vi
+(*
+
   { vname    = n;
     vid      = newVarId n isglob;
     vglob    = isglob;
@@ -2015,6 +2020,7 @@ and makeVarInfo
     vaddrof  = false;
     vreferenced = false;   (* sm *)
   }
+*)
 
 (* Process a local variable declaration and allow variable-sized arrays *)
 and makeVarSizeVarInfo (ldecl: location) 
@@ -2023,11 +2029,12 @@ and makeVarSizeVarInfo (ldecl: location)
    : varinfo * chunk * exp * bool = 
   if not !msvcMode then 
     match isVariableSizedArray ndt with
-      None -> makeVarInfo false ldecl spec_res (n,ndt,a), empty, zero, false
+      None -> 
+        makeVarInfoCabs false ldecl spec_res (n,ndt,a), empty, zero, false
     | Some (ndt', se, len) -> 
-        makeVarInfo false ldecl spec_res (n,ndt',a), se, len, true
+        makeVarInfoCabs false ldecl spec_res (n,ndt',a), se, len, true
   else
-    makeVarInfo false ldecl spec_res (n,ndt,a), empty, zero, false
+    makeVarInfoCabs false ldecl spec_res (n,ndt,a), empty, zero, false
 
 and doAttr (a: A.attribute) : attribute list = 
   (* Strip the leading and trailing underscore *)
@@ -2207,7 +2214,7 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
         (* Make the argument as for a formal *)
         let doOneArg (s, ((n, _, _) as nm)) : varinfo = 
           let s' = doSpecList n s in
-          makeVarInfo false locUnknown s' nm
+          makeVarInfoCabs false locUnknown s' nm
         in
         let targs : varinfo list option = 
           match List.map doOneArg args'  with
@@ -3996,7 +4003,7 @@ and createGlobal (specs : (typ * storage * bool * A.attribute list))
     if debugGlobal then 
       ignore (E.log "createGlobal: %s\n" n);
             (* Make a first version of the varinfo *)
-    let vi = makeVarInfo true locUnknown specs (n, ndt, a) in
+    let vi = makeVarInfoCabs true locUnknown specs (n, ndt, a) in
     (* Add the variable to the environment before doing the initializer 
      * because it might refer to the variable itself *)
     if isFunctionType vi.vtype then begin
@@ -4106,7 +4113,7 @@ and createLocal ((_, sto, _, _) as specs)
        * existing globals or locals from this function. *)
       let newname = newAlphaName true "" n in
       (* Make it global  *)
-      let vi = makeVarInfo true locUnknown specs (newname, ndt, a) in
+      let vi = makeVarInfoCabs true locUnknown specs (newname, ndt, a) in
       (* Add it to the environment as a local so that the name goes out of 
        * scope properly *)
       addLocalToEnv n (EnvVar vi);
@@ -4156,7 +4163,8 @@ and createLocal ((_, sto, _, _) as specs)
           ignore (warn "Variable-sized local variable %s" vi.vname);
           (* Make a local variable to keep the length *)
           let savelen = 
-            makeVarInfo false 
+            makeVarInfoCabs 
+                        false 
                         !currentLoc 
                         (TInt(IUInt, []), NoStorage, false, [])
                         ("__lengthof" ^ vi.vname,JUSTBASE, []) 
@@ -4323,7 +4331,12 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
             * function and we want it to take precedence. *)
             (* Make a variable out of it and put it in the environment *)
             let thisFunctionVI, _ =
-              makeGlobalVarinfo true
+              let vi = makeVarinfo true n' ftyp in
+              vi.vinline <- inl;
+              vi.vattr <- funattr;
+              vi.vstorage <- sto';
+              makeGlobalVarinfo true vi
+(*                
                 { vname = n';
                   vtype = ftyp;
                   vglob = true;
@@ -4335,6 +4348,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                   vstorage = sto';
                   vreferenced = false;   (* sm *)
                 }
+*)
             in
 (*
             ignore (E.log "makefunvar:%s@! type=%a@! vattr=%a@!"
@@ -4363,11 +4377,17 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
               localId := 0;
               List.map 
                 (fun (fn, ft, fa) -> 
-                  let f = { vname = fn; vtype = ft; vattr = fa; 
+                  let f = makeVarinfo false fn ft in
+                  f.vdecl <- !currentLoc;
+                  f.vattr <- fa;
+                  incr localId;
+(*
+                  { vname = fn; vtype = ft; vattr = fa; 
                             vglob = false; vid = newVarId fn false; 
                             vinline = false;
                             vreferenced = false; vaddrof = false;
-                            vstorage = NoStorage; vdecl = !currentLoc; } in
+                            vstorage = NoStorage; vdecl = !currentLoc; }
+*)
                   alphaConvertVarAndAddToEnv true f)
                 (argsToList formals_t)
             in
