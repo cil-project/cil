@@ -79,8 +79,10 @@ my @alltests =
 
 # Command line args
 my @tests = ();
+my $iterations = 5;
 my @optcases = ('original', 'ccured'); # These are always run
 &GetOptions('help' => \&printHelp,
+            'i=i' => \$iterations,
             't=s' => \@tests,
             'c=s' => \@optcases);
 if($#tests == -1) {
@@ -118,15 +120,18 @@ print "Running cases: ", join(',', @cases), "\n";
   
 my $logFile = 'test/optstats.log';
 open(LOG, ">$logFile") || die "Cannot open the $logFile\n";
-print "Logging results to $logFile\n";
+print "Logging output to $logFile\n";
 
 my $resultFile = 'test/optstats.results';
 &deleteOrRenameLog($resultFile, 0);
 open(RESULTS, ">$resultFile") || die "Cannot create results file $resultFile";
+print "Saving results to $resultFile\n";
 
 sub printHelp {
     print <<EOF;
-    optstats [-t test] ... [-t test] [-c case] ... [-c case]
+optstats [-i iterations] [-t test] ... [-t test] [-c case] ... [-c case]
+
+    The default number of iterations is $iterations. The median value is used.
 
     If no cases are requested then 'original' and 'ccured' will be run.
     If the 'all' case is requested then all cases are run.
@@ -134,9 +139,11 @@ sub printHelp {
     Press CTRL-C if you want to skip the current test. 
 
 EOF
-    print "Tests available:\n\t" , join("\n\t", @alltests), "\n";
-    print "Cases available:\n\t", join("\n\t",  grep { $_ ne 'original' &&
-                                                       $_ ne 'ccured'} @allcases), "\n";
+    print "Tests available:\n\t" , join(",", @alltests), "\n";
+    print "Cases available:\n\t", join(",",  grep { $_ ne 'original' &&
+                                                    $_ ne 'ccured'}
+                                       @allcases),
+                                 "\n";
     &printCasesExplanation();
     exit 0;
 }
@@ -144,6 +151,8 @@ EOF
 sub printCasesExplanation {
 print <<EOF;
  The following cases will be run for each test case:
+
+ The median of $iterations runs will be taken. 
 
  original: the original C code
  ccured:   regular CCured with inference and optimizations
@@ -172,9 +181,9 @@ foreach my $tst (@tests) {
     foreach my $case (@cases) {
         # Construct the command
         if($case eq 'original') {
-            $cmd = "make $tst INFERBOX=none $commoncmd";
+            $cmd = "make $tst INFERBOX=none ITERATIONS=$iterations $commoncmd";
         } elsif($case eq 'ccured') { 
-            $cmd = "make $tst INFERBOX=infer $commoncmd ";
+            $cmd = "make $tst INFERBOX=infer ITERATIONS=$iterations $commoncmd ";
             # Find out which variants we need
             if($#cases > -1) {
                 $cmd .= " EXTRAARGS=\"";
@@ -188,7 +197,7 @@ foreach my $tst (@tests) {
             }
         } else {
             # This is a regular variant
-            $cmd = "make $tst-optimvariant.no$case $commoncmd";
+            $cmd = "make $tst-optimvariant.no$case ITERATIONS=$iterations $commoncmd";
         }
         my $msg = "$count/$torun on " . 
                          localtime(time) . " : $tst ($case): $cmd\n";
@@ -198,10 +207,15 @@ foreach my $tst (@tests) {
         print RESULTS $msg;
         $count ++;
         if(! open(RUN, "$cmd 2>&1 |")) { warn "Cannot run $cmd"; next; }
+        my @times;
         while(<RUN>) {
             print LOG $_;
             if($_ =~ m/$matchtime/) { 
-                $results{$case} = eval $calctime;
+                my $thistime = eval $calctime;
+                print         "   $thistime" . "s ";
+                print LOG     "   $thistime" . "s ";
+                print RESULTS "   $thistime" . "s ";
+                push @times, $thistime;
                 next;
             }
             if($_ =~ m|\s+CHECK_(\S+)\s+(\d+)\s*\(\s*([\d.]+)%\)|) {
@@ -210,13 +224,20 @@ foreach my $tst (@tests) {
         }
         if(! close(RUN)) { warn "Cannot run $cmd"; next; }
         &processInterrupt();
-        if(! defined($results{$case})) {
-            print "Cannot find the time for $cmd\n";
-            next;
+        # Sort the times ascending
+        @times = sort { $a <=> $b } @times;
+        if($#times != $iterations - 1) {
+          if($#times == -1) {
+             print "Cannot find any times for $cmd\n";
+             next;
+          } else {
+             warn "Cannot find enough times for $cmd\n";
+          }
         } 
-        print         "   $results{$case}s\n";
-        print LOG     "   $results{$case}s\n";
-        print RESULTS "   $results{$case}s\n"; 
+        $results{$case} = $times[($#times + 1) / 2];
+        print         "   . Use $results{$case}s\n";
+        print LOG     "   . Use $results{$case}s\n";
+        print RESULTS "   . Use $results{$case}s\n";
     }
     if(defined $results{'CHECKS'}) {
         # Compute the noFATS = ccured - (nocheck - original)
@@ -366,24 +387,26 @@ sub printOneTest {
         print $msg; print LOG $msg; print RESULTS $msg;
     }
     # find out what checks are in OTHER
-    my @otherchecks = ();
-    foreach my $key (keys %data) {
-        if($key =~ m|^perc(.+)$|) {
-            my $check = $1;
-            if(! grep { $_ eq $check } (keys %data)) {
-                push @otherchecks, $check;
+    if(defined ($data{'OTHER'})) {
+        my @otherchecks = ();
+        foreach my $key (keys %data) {
+            if($key =~ m|^perc(.+)$|) {
+                my $check = $1;
+                if(! grep { $_ eq $check } (keys %data)) {
+                    push @otherchecks, $check;
+                }
             }
         }
-    }
-    if($#otherchecks > -1) {
-        # Sort the otherchecks
-        @otherchecks = 
-            sort { $data{"perc$b"} <=> $data{"perc$a"} } @otherchecks;
-        print "\t\t OTHER checks are : ";
-        foreach my $other (@otherchecks) {
-            print "$other (", $data{"perc$other"}, "%), ";
+        if($#otherchecks > -1) {
+            # Sort the otherchecks
+            @otherchecks = 
+                sort { $data{"perc$b"} <=> $data{"perc$a"} } @otherchecks;
+            print "\t\t OTHER checks are : ";
+            foreach my $other (@otherchecks) {
+                print "$other (", $data{"perc$other"}, "%), ";
+            }
+            print "\n";
         }
-        print "\n";
     }
 }
 

@@ -232,6 +232,30 @@ ifneq ($(ARCHOS), x86_LINUX)
 	@echo This test case works only on Linux; exit 3
 endif
 
+# ITERATIONS is the number of iterations
+ifndef ITERATIONS
+ITERATIONS := 1
+endif
+
+ifeq '$(ITERATIONS)' '1'
+ITERATION_ELEMS := 1
+else
+ifeq '$(ITERATIONS)' '3'
+ITERATION_ELEMS := 1 2 3
+else
+ifeq '$(ITERATIONS)' '5'
+ITERATION_ELEMS := 1 2 3 4 5
+else
+ifeq '$(ITERATIONS)' '7'
+ITERATION_ELEMS := 1 2 3 4 5 6 7
+else
+error ITERATIONS value is not legal
+endif
+endif
+endif
+endif
+
+
 ####### Test with PCC sources
 PCCDIR := $(CCUREDHOME)/test/PCC
 PCCTEST := test/PCCout
@@ -413,7 +437,8 @@ hashtest: test/small2/hashtest.c
                  $(PCCDIR)/src/hash.c \
                  ../small2/hashtest.c \
                  $(EXEOUT)hashtest.exe
-	cd $(PCCTEST); sh -c "hashtest.exe $(HUFFINPUT)"
+	cd $(PCCTEST); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                   do time ./hashtest.exe $(HUFFINPUT) ; done"
 
 hashtest-optimvariant.%: mustbegcc
 	cd $(PCCTEST); \
@@ -421,7 +446,8 @@ hashtest-optimvariant.%: mustbegcc
                  hashtest.exe_combcured.$*.optim.c \
                  $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
                  $(EXEOUT)hashtest.exe
-	cd $(PCCTEST); sh -c "hashtest.exe $(HUFFINPUT)"
+	cd $(PCCTEST); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                   do time ./hashtest.exe $(HUFFINPUT) ; done"
 
 
 rbtest: test/small2/rbtest.c 
@@ -435,7 +461,8 @@ rbtest: test/small2/rbtest.c
                  $(PCCDIR)/src/redblack.c \
                  ../small2/rbtest.c \
                  $(EXEOUT)rbtest.exe
-	$(PCCTEST)/rbtest.exe letGcFree
+	cd $(PCCTEST); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                   do time ./rbtest.exe letGcFree ; done"
 
 rbtest-optimvariant.%: mustbegcc
 	cd $(PCCTEST); \
@@ -443,7 +470,8 @@ rbtest-optimvariant.%: mustbegcc
                  rbtest.exe_combcured.$*.optim.c \
                  $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
                  $(EXEOUT)rbtest.exe
-	$(PCCTEST)/rbtest.exe letGcFree
+	cd $(PCCTEST); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                   do time ./rbtest.exe letGcFree ; done"
 
 btreetest: test/small2/testbtree.c \
            test/small2/btree.c 
@@ -453,7 +481,8 @@ btreetest: test/small2/testbtree.c \
                  $(STANDARDPATCH) \
                  btree.c testbtree.c \
                  $(EXEOUT)btreetest.exe
-	test/small2/btreetest.exe
+	cd test/small2; sh -c "for i in $(ITERATION_ELEMS) ; \
+                                   do time ./btreetest.exe ; done"
 
 
 btreetest-optimvariant.%: mustbegcc
@@ -462,7 +491,8 @@ btreetest-optimvariant.%: mustbegcc
                  btreetest.exe_combcured.$*.optim.c \
                  $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
                  $(EXEOUT)btreetest.exe
-	test/small2/btreetest.exe
+	cd test/small2; sh -c "for i in $(ITERATION_ELEMS) ; \
+                                   do time ./btreetest.exe ; done"
 
 # sm: this is my little test program
 hola: scott/hola
@@ -633,7 +663,8 @@ hufftest: test/small2/hufftest.c
                  ../small2/hufftest.c \
                  $(HUFFOTHERS) \
                  $(EXEOUT)hufftest.exe
-	cd $(PCCTEST); ./hufftest.exe $(HUFFINPUT)
+	cd $(PCCTEST); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                   do time ./hufftest.exe $(HUFFINPUT) ; done"
 
 
 hufftest-optimvariant.%: mustbegcc
@@ -642,7 +673,8 @@ hufftest-optimvariant.%: mustbegcc
                  hufftest.exe_combcured.$*.optim.c \
                  $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
                  $(EXEOUT)hufftest.exe
-	$(PCCTEST)/hufftest.exe $(HUFFINPUT)
+	cd $(PCCTEST); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                   do time ./hufftest.exe $(HUFFINPUT) ; done"
 
 wes-rbtest: test/small2/wes-rbtest.c 
 	rm -f $(PCCTEST)/wes-rbtest.exe
@@ -768,7 +800,9 @@ runbh:
 	echo  >>$(BHDIR)/data.in
 	echo  >>$(BHDIR)/data.in
 	echo  >>$(BHDIR)/data.in
-	cd $(BHDIR); sh -c "time ./code.exe < data.in >dat.out"
+
+	cd $(BHDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
+                             do time ./code.exe < data.in >data.out ; done"
 	@true "sm: added next line to compare output to expected output"
 #	cd $(BHDIR); sh -c "perl normalize.pl < data.out | diff data.cil.out - | head"
 
@@ -782,7 +816,8 @@ power:  mustbegcc
 	cd $(PWDIR); \
                make PLAIN=1 clean defaulttarget \
                     CC="$(COMBINECCURED) $(PATCHARG)"
-	cd $(PWDIR); sh -c "time ./power.exe"
+	cd $(PWDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                    do time ./power.exe ; done"
 
 power-optimvariant.%: mustbegcc
 	cd $(PWDIR); \
@@ -790,7 +825,8 @@ power-optimvariant.%: mustbegcc
                  power.exe_combcured.$*.optim.c \
                  $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
                  $(EXEOUT)power.exe
-	cd $(PWDIR); sh -c "time ./power.exe"
+	cd $(PWDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                    do time ./power.exe ; done"
 
 power-combined :  mustbegcc
 	cd $(PWDIR); \
@@ -807,7 +843,8 @@ health:
                make PLAIN=1 clean defaulttarget \
                     $(HEALTHARGS) \
                     CC="$(COMBINECCURED) $(PATCHARG)"
-	cd $(HEALTHDIR); sh -c "time ./health.exe 5 500 1 1"
+	cd $(HEALTHDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                    do time ./health.exe 5 500 1 1; done"
 
 health-optimvariant.%: mustbegcc
 	cd $(HEALTHDIR); \
@@ -815,7 +852,8 @@ health-optimvariant.%: mustbegcc
                  health.exe_combcured.$*.optim.c \
                  $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
                  $(EXEOUT)health.exe
-	cd $(HEALTHDIR); sh -c "time ./health.exe 5 500 1 1"
+	cd $(HEALTHDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                    do time ./health.exe 5 500 1 1; done"
 
 
 # Perimeter of regions in images
@@ -829,7 +867,8 @@ perimeter:
                     $(PERIMARGS) \
                     CC="$(COMBINECCURED) \
 			$(PATCHARG)"
-	cd $(PERIMDIR); sh -c "time ./perimeter.exe"
+	cd $(PERIMDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                   do time ./perimeter.exe ; done"
 
 perimeter-optimvariant.%: mustbegcc
 	cd $(PERIMDIR); \
@@ -837,7 +876,8 @@ perimeter-optimvariant.%: mustbegcc
                  perimeter.exe_combcured.$*.optim.c \
                  $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
                  $(EXEOUT)perimeter.exe
-	cd $(PERIMDIR); sh -c "time ./perimeter.exe"
+	cd $(PERIMDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                   do time ./perimeter.exe ; done"
 
 # Voronoi diagrams
 VORONDIR := test/olden/voronoi
@@ -867,7 +907,8 @@ tsp:
                     $(TSPARGS) \
                     CC="$(COMBINECCURED) \
 			$(PATCHARG)"
-	cd $(TSPDIR); sh -c "time ./tsp.exe"
+	cd $(TSPDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                   do time ./tsp.exe ; done"
 
 tsp-optimvariant.%: mustbegcc
 	cd $(TSPDIR); \
@@ -875,7 +916,8 @@ tsp-optimvariant.%: mustbegcc
                  tsp.exe_combcured.$*.optim.c \
                  $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
                  $(EXEOUT)tsp.exe
-	cd $(TSPDIR); sh -c "time ./tsp.exe"
+	cd $(TSPDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                   do time ./tsp.exe ; done"
 
 
 
@@ -891,7 +933,8 @@ bisort :  mustbegcc
                     CC="$(COMBINECCURED) \
                         --nocure=trusted_bisort \
 			$(PATCHARG)"
-	cd $(BISORTDIR); sh -c "time ./bisort.exe 100"
+	cd $(BISORTDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                   do time ./bisort.exe 100; done"
 
 bisort-optimvariant.%: mustbegcc
 	cd $(BISORTDIR); \
@@ -900,7 +943,8 @@ bisort-optimvariant.%: mustbegcc
                  trusted_bisort.c \
                  $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
                  $(EXEOUT)bisort.exe
-	cd $(BISORTDIR); sh -c "time ./bisort.exe 100"
+	cd $(BISORTDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                   do time ./bisort.exe 100; done"
 
 
 
@@ -920,7 +964,8 @@ mst:
             make clean mst.exe $(MSTARGS) \
                                CC="$(OLDENMSTSAFECC)" \
                                LD="$(OLDENMSTSAFECC)"
-	cd $(OLDENMSTDIR); sh -c "time ./mst.exe 2048 1"
+	cd $(OLDENMSTDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                   do time ./mst.exe 2048 1; done"
 	cd $(OLDENMSTDIR); if test -f gmon.out; then gprof mst.exe gmon.out; fi
 
 
@@ -930,7 +975,8 @@ mst-optimvariant.%: mustbegcc
                  mst.exe_combcured.$*.optim.c \
                  $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
                  $(EXEOUT)mst.exe
-	cd $(OLDENMSTDIR); sh -c "time ./mst.exe 2048 1"
+	cd $(OLDENMSTDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                   do time ./mst.exe 2048 1; done"
 
 
 
@@ -948,7 +994,8 @@ treeadd:  mustbegcc
 	cd $(TREEADDIR); \
             make clean treeadd CC="$(TREEADDSAFECC)" \
                        LD="$(TREEADDSAFECC)"
-	cd $(TREEADDIR); sh -c "time ./treeadd$(LDEXT) 21 1"
+	cd $(TREEADDDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                   do time ./treeadd.exe 21 1; done"
 
 NEWBISORTDIR := test/olden/newbisort
 NEWBISORTSAFECC := $(CCURED) --combine \
@@ -988,8 +1035,8 @@ em3d:  mustbegcc
 	cd $(EM3DDIR); \
             make clean em3d CC="$(EM3DDSAFECC)" \
                             LD="$(EM3DDSAFECC)"
-	cd $(EM3DDIR); sh -c "time ./em3d 2000 100 6"
-
+	cd $(TREEADDDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                   do time ./em3d.exe 2000 100 6; done"
 
 
 # SPEC95
@@ -1015,7 +1062,8 @@ compress-noclean:  mustbegcc
 compress:  mustbegcc
 	cd $(COMPRESSDIR)/src; \
                make CC="$(COMBINECCURED) $(PATCHARG)" clean build
-	cd $(COMPRESSDIR)/src; sh -c "time ./compress.exe < input.data > combine-compress.out"
+	cd $(COMPRESSDIR)/src; sh -c "for i in $(ITERATION_ELEMS) ; \
+              do time ./compress.exe <input.data >combine-compress.out ;done"
 
 compress-optimvariant.%: mustbegcc
 	cd $(COMPRESSDIR)/src; \
@@ -1023,7 +1071,8 @@ compress-optimvariant.%: mustbegcc
                  compress.exe_combcured.$*.optim.c \
                  $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
                  $(EXEOUT)compress.exe
-	cd $(COMPRESSDIR)/src; sh -c "time ./compress.exe < input.data > combine-compress.out"
+	cd $(COMPRESSDIR)/src; sh -c "for i in $(ITERATION_ELEMS) ; \
+              do time ./compress.exe <input.data >combine-compress.out ;done"
 
 
 LIDIR := $(SPECDIR)/130.li
@@ -1032,9 +1081,10 @@ li:  mustbegcc
 	cd $(LIDIR)/src; \
             make clean build CC="$(LISAFECC) $(CONLY)" \
                              LD="$(LISAFECC)"
-	sh -c "time $(LIDIR)/src/li.exe \
-            <$(LIDIR)/data/train/input/train.lsp \
-            >$(LIDIR)/data/train/input/train.out"
+	cd $(LIDIR)/src; sh -c "for i in $(ITERATION_ELEMS) ; \
+              do time ./li.exe \
+                      <../data/train/input/train.lsp \
+                      >../data/train/input/train.out ; done"
 
 li-optimvariant.%: mustbegcc
 	cd $(LIDIR)/src; \
@@ -1042,9 +1092,10 @@ li-optimvariant.%: mustbegcc
                  li.exe_combcured.$*.optim.c \
                  $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
                  $(EXEOUT)li.exe
-	sh -c "time $(LIDIR)/src/li.exe \
-            <$(LIDIR)/data/train/input/train.lsp \
-            >$(LIDIR)/data/train/input/train.out"
+	cd $(LIDIR)/src; sh -c "for i in $(ITERATION_ELEMS) ; \
+              do time ./li.exe \
+                      <../data/train/input/train.lsp \
+                      >../data/train/input/train.out ; done"
 
 li-combined:  mustbegcc
 	cd $(LIDIR)/src; \
@@ -1083,7 +1134,8 @@ go:  mustbegcc
 	cd $(GODIR)/src; \
             make clean build CC="$(GOSAFECC) $(CONLY)" \
                              LD="$(GOSAFECC)"
-	cd $(GODIR)/src; sh -c "time ./go.exe 50 9"
+	cd $(GODIR)/src; sh -c "for i in $(ITERATION_ELEMS) ; \
+                                   do time ./go.exe 50 9; done"
 
 go-combined:  mustbegcc
 	cd $(GODIR)/src; \
@@ -1103,7 +1155,8 @@ go-optimvariant.%: mustbegcc
                  go.exe_combcured.$*.optim.c \
                  $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
                  $(EXEOUT)compress.exe
-	cd $(GODIR)/src; sh -c "time ./go.exe 50 9"
+	cd $(GODIR)/src; sh -c "for i in $(ITERATION_ELEMS) ; \
+                                   do time ./go.exe 50 9; done"
 
 
 
@@ -1123,7 +1176,8 @@ vortex:  mustbegcc
 	cd $(VORDIR)/src; \
             make clean build CC="$(VORSAFECC) $(CONLY)" \
                              LD="$(VORSAFECC)"
-	cd $(VORDIR)/src; sh -c "./testit vortex$(LDEXT)"
+	cd $(VORTEXDIR)/src; sh -c "for i in $(ITERATION_ELEMS) ; \
+                                      do time ./testit vortex.exe; done"
 
 vortex-gcc:  mustbegcc
 	cd $(VORDIR)/src; \
@@ -1375,7 +1429,8 @@ ANAGRAMDIR := test/ptrdist-1.1/anagram
 anagram: mustbegcc
 	cd $(ANAGRAMDIR); rm -f *.o; \
              make CC="$(CCURED) $(STANDARDPATCH) --combine"
-	cd $(ANAGRAMDIR); make test
+	cd $(ANAGRAMDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                      do make test; done"
 
 anagram-optimvariant.%: mustbegcc
 	cd $(ANAGRAMDIR); \
@@ -1383,7 +1438,8 @@ anagram-optimvariant.%: mustbegcc
                  anagram_combcured.$*.optim.c \
                  $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
                  $(EXEOUT)anagram
-	cd $(ANAGRAMDIR); make test
+	cd $(ANAGRAMDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                      do make test; done"
 
 
 
@@ -1392,7 +1448,8 @@ BCDIR := test/ptrdist-1.1/bc
 bc: mustbegcc
 	cd $(BCDIR); rm -f *.o; \
             make CC="$(CCURED) $(STANDARDPATCH) --combine"
-	cd $(BCDIR); make test
+	cd $(BCDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                      do make test; done"
 
 bc-optimvariant.%: mustbegcc
 	cd $(BCDIR); \
@@ -1400,13 +1457,15 @@ bc-optimvariant.%: mustbegcc
                  bc_combcured.$*.optim.c \
                  $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
                  $(EXEOUT)bc
-	cd $(BCDIR); make test
+	cd $(BCDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                      do make test; done"
 
 FTDIR := test/ptrdist-1.1/ft
 ft: mustbegcc
 	cd $(FTDIR); rm -f *.o; \
            make CC="$(CCURED) $(STANDARDPATCH) --combine"
-	cd $(FTDIR); make test
+	cd $(FTDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                      do make test; done"
 
 ft-optimvariant.%: mustbegcc
 	cd $(FTDIR); \
@@ -1414,14 +1473,16 @@ ft-optimvariant.%: mustbegcc
                  ft_combcured.$*.optim.c \
                  $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
                  $(EXEOUT)ft
-	cd $(FTDIR); make test
+	cd $(FTDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                      do make test; done"
 
 
 KSDIR := test/ptrdist-1.1/ks
 ks: mustbegcc
 	cd $(KSDIR); rm -f *.o; \
            make CC="$(CCURED) $(STANDARDPATCH) --combine"
-	cd $(KSDIR); make test
+	cd $(KSDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                      do make test; done"
 
 ks-optimvariant.%: mustbegcc
 	cd $(KSDIR); \
@@ -1429,7 +1490,8 @@ ks-optimvariant.%: mustbegcc
                  ks_combcured.$*.optim.c \
                  $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
                  $(EXEOUT)ks
-	cd $(KSDIR); make test
+	cd $(KSDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                      do make test; done"
 
 
 
@@ -1437,7 +1499,8 @@ YACRDIR := test/ptrdist-1.1/yacr2
 yacr: mustbegcc
 	cd $(YACRDIR); rm -f *.o; \
            make CC="$(CCURED) $(STANDARDPATCH) --combine"
-	cd $(YACRDIR); make test
+	cd $(YACRDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                      do make test; done"
 
 yacr-optimvariant.%: mustbegcc
 	cd $(YACRDIR); \
@@ -1445,7 +1508,8 @@ yacr-optimvariant.%: mustbegcc
                  yacr2_combcured.$*.optim.c \
                  $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
                  $(EXEOUT)yacr2
-	cd $(YACRDIR); make test
+	cd $(YACRDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                      do make test; done"
 
 
 ################# LINUX
