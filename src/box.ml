@@ -2610,7 +2610,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
   (* Now see if we must register the whole area *)
   let register_area = 
     match kno_t with
-    | N.Safe -> []
+    | N.Safe -> [] 
     | N.Wild | N.Index -> 
         let areaKind = 
           if kno_t = N.Wild then 
