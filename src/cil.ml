@@ -1854,7 +1854,8 @@ let gccBuiltins : (string, typ * typ list) H.t =
   let funType rt argTypes = 
     TFun(rt, Some (List.map (fun t -> ("", t, [])) argTypes), false, [])
   in
-  H.add h "__builtin_next_arg" (voidPtrType, [uintType]);
+  (* When we parse builtin_next_arg we drop the second argument *)
+  H.add h "__builtin_next_arg" (voidPtrType, [ ]);
   H.add h "__builtin_constant_p" (intType, [ intType ]);
   H.add h "__builtin_fabs" (doubleType, [ doubleType ]);
   H.add h "__builtin_va_end" (voidType, [ TBuiltin_va_list [] ]);
@@ -2221,6 +2222,13 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     | Call(None, Lval(Var vi, NoOffset), [marker], l) 
         when vi.vname = "__builtin_stdarg_start" && not !printCilAsIs -> 
           self#pInstr () (Call(None,Lval(Var vi,NoOffset),[marker; zero],l))
+
+      (* In cabs2cil we have dropped the last argument in the call to 
+       * __builtin_next_arg. We add 0 (it seems that gcc does not care 
+       * what you actually use, as long as you use something) *)
+    | Call(res, Lval(Var vi, NoOffset), [ ], l) 
+        when vi.vname = "__builtin_next_arg" && not !printCilAsIs -> 
+          self#pInstr () (Call(res,Lval(Var vi,NoOffset),[zero],l))
 
     | Call(dest,e,args,l) ->
         self#pLineDirective l

@@ -3256,12 +3256,15 @@ and doExp (isconst: bool)    (* In a constant *)
         let argTypesList = argsToList argTypes in
         (* Drop certain qualifiers from the result type *)
         let resType' = resType in 
-        (* Before we do the arguments we try to intercept a few builtins *)
+        (* Before we do the arguments we try to intercept a few builtins. For 
+         * these we have defined then with a different type, so we do not 
+         * want to give warnings. *)
         let isVarArgBuiltin = 
           match f'' with 
             Lval (Var fv, NoOffset) ->
               fv.vname = "__builtin_stdarg_start" ||
-              fv.vname = "__builtin_va_arg" 
+              fv.vname = "__builtin_va_arg" ||
+              fv.vname = "__builtin_next_arg"
             | _ -> false
         in
           
@@ -3306,6 +3309,16 @@ and doExp (isconst: bool)    (* In a constant *)
         let (sargs, args') = loopArgs (argTypesList, args) in
         let what'', args'', is__builtin_va_arg = 
           let rec dropCasts = function CastE (_, e) -> dropCasts e | e -> e in
+          (* Get the name of the last formal *)
+          let getNameLastFormal () : string = 
+            match !currentFunctionFDEC.svar.vtype with
+              TFun(_, Some args, true, _) -> begin
+                match List.rev args with
+                  (last_par_name, _, _) :: _ -> last_par_name
+                | _ -> ""
+              end
+            | _ -> ""
+          in
           match f'' with 
             Lval(Var fv, NoOffset) -> begin
               if fv.vname = "__builtin_va_arg" then begin
@@ -3329,16 +3342,8 @@ and doExp (isconst: bool)    (* In a constant *)
                   marker :: last :: [] -> begin
                     let isOk = 
                       match dropCasts last with 
-                        Lval (Var lastv, NoOffset) -> begin
-                          match !currentFunctionFDEC.svar.vtype with
-                            TFun(_, Some args, true, _) -> begin
-                              match List.rev args with
-                                (last_par_name, _, _) :: _ ->
-                                              last_par_name = lastv.vname
-                              | _ -> false
-                            end
-                          | _ -> false
-                        end
+                        Lval (Var lastv, NoOffset) -> 
+                          lastv.vname = getNameLastFormal ()
                       | _ -> false
                     in
                     if not isOk then 
@@ -3352,6 +3357,23 @@ and doExp (isconst: bool)    (* In a constant *)
                     ignore (warn "Invalid call to %s\n" fv.vname);
                     what, args', false
                 
+              end else if fv.vname = "__builtin_next_arg" then begin
+                match args' with 
+                  last :: [] -> begin
+                    let isOk = 
+                      match dropCasts last with 
+                        Lval (Var lastv, NoOffset) -> 
+                          lastv.vname = getNameLastFormal ()
+                      | _ -> false
+                    in
+                    if not isOk then 
+                      ignore (warn "The argument in call to %s should be the last formal argument\n" fv.vname);
+                    
+                    what, [ ], false
+                  end
+                | _ -> 
+                    ignore (warn "Invalid call to %s\n" fv.vname);
+                    what, args', false
               end else
                 what, args', false
             end
