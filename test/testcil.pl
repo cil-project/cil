@@ -90,6 +90,9 @@ $TEST->add1Test("test/alloc-manualinferbox",
                 %commonerrors);
 
 # $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug
+# my $tst = $TEST->getTest("apache/gzip-inferbox");
+# print Dumper($tst);
+
 
 # print Dumper($TEST);
 

@@ -1532,7 +1532,8 @@ begin
 
   let rec fExp e = (vis#vexpr e); fExp' e
   and fExp' = function
-      (Const _|SizeOf _|SizeOfE _) -> ()
+      (Const _|SizeOf _) -> ()
+    | SizeOfE e -> fExp e
     | Lval lv -> fLval lv
     | UnOp(_,e,_) -> fExp e
     | BinOp(_,e1,e2,_) -> fExp e1; fExp e2
