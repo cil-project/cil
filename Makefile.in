@@ -66,7 +66,7 @@ CILLY_MODULES = pretty errormsg trace stats util clist \
 CILLY_CMODULES =
 CILLY_LIBS     = unix str
 
-SOURCEDIRS  += src src/frontc src/ext src/ext/pta Ocamlutil
+SOURCEDIRS  += src src/frontc src/ext src/ext/pta ocamlutil
 MLLS        += clexer.mll formatlex.mll
 MLYS        += cparser.mly formatparse.mly
 MODULES     += $(CILLY_MODULES) libmaincil
@@ -350,7 +350,7 @@ distrib-nocheck: doc $(DISTRIB_ROOT)
               $(TOP_DIR)/obj/x86_LINUX \
               $(TOP_DIR)/test \
               $(TOP_DIR)/test/small1 \
-              $(TOP_DIR)/Ocamlutil
+              $(TOP_DIR)/ocamlutil
 
 	cp $(patsubst %,%,$(DISTRIB_ROOT)) $(TOP_DIR)
         # Add a new Makefile which invokes Makefile.cil

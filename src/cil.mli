@@ -1064,8 +1064,10 @@ val saveBinaryFileChannel : file -> out_channel -> unit
  * {!Cil.saveBinaryFile}. *)
 val loadBinaryFile : string -> file 
 
-(** Get the global initializer and create one if it does not already exist *)
-val getGlobInit: file -> fundec  
+(** Get the global initializer and create one if it does not already exist. 
+ * When it creates a global initializer it attempts to place a call to it in 
+ * the main function named by the optional argument (default "main")  *)
+val getGlobInit: ?main_name:string -> file -> fundec  
 
 (** Iterate over all globals, including the global initializer *)
 val iterGlobals: file -> (global -> unit) -> unit
@@ -1559,7 +1561,7 @@ val partitionAttributes:  default:attributeClass ->
                                        attribute list * (* AttrFunType *)
                                            attribute list   (* AttrType *)
 
-(** Add an attribute. Maintains the attributes in sorted order or the second 
+(** Add an attribute. Maintains the attributes in sorted order of the second 
     argument *)
 val addAttribute: attribute -> attributes -> attributes
     

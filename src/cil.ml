@@ -1303,16 +1303,16 @@ let compactStmts (b: stmt list) : stmt list =
 
 (** Construct sorted lists of attributes ***)
 let rec addAttribute (Attr(an, _) as a: attribute) (al: attributes) = 
-    let rec insertSorted = function
-        [] -> [a]
-      | ((Attr(an0, _) as a0) :: rest) as l -> 
-          if an < an0 then a :: l
-          else if an > an0 then a0 :: insertSorted rest
-          else if a = a0 then l 
-          else a0 :: insertSorted rest (* Make sure we see all attributes 
-                                        * with this name *)
-    in
-    insertSorted al
+  let rec insertSorted = function
+      [] -> [a]
+    | ((Attr(an0, _) as a0) :: rest) as l -> 
+        if an < an0 then a :: l
+        else if an > an0 then a0 :: insertSorted rest
+        else if a = a0 then l (* Do not add if already in there *)
+        else a0 :: insertSorted rest (* Make sure we see all attributes with 
+                                      * this name *)
+  in
+  insertSorted al
 
 (** The second attribute list is sorted *)
 and addAttributes al0 (al: attributes) : attributes = 
@@ -1325,7 +1325,7 @@ and dropAttribute (an: string) (al: attributes) =
 and dropAttributes (anl: string list) (al: attributes) = 
   List.fold_left (fun acc an -> dropAttribute an acc) al anl
   
-and filterAttributes (s: string) (al: attribute list) = 
+and filterAttributes (s: string) (al: attribute list) : attribute list = 
   List.filter (fun (Attr(an, _)) -> an = s) al
 
 (* sm: *)
@@ -3953,36 +3953,63 @@ let visitCilFile (vis : cilVisitor) (f : file) : unit =
 
 
 
-
-let getGlobInit (fl: file) = 
+(** Create or fetch the global initializer. Tries to put a call to in the the 
+ * function with the main_name *)
+let getGlobInit ?(main_name="main") (fl: file) = 
   match fl.globinit with 
     Some f -> f
   | None -> begin
       (* Sadly, we cannot use the Filename library because it does not like 
        * function names with multiple . in them *)
-      let len = String.length fl.fileName in
-      (* Find the last path separator and record the first . that we see, 
-       * going backwards *)
-      let lastDot = ref len in
-      let rec findLastPathSep i = 
-        if i < 0 then -1 else
-        let c = String.get fl.fileName i in
-        if c = '/' || c = '\\' then i
-        else begin
-          if c = '.' && !lastDot = len then 
-            lastDot := i;
-          findLastPathSep (i - 1)
-        end
-      in
-      let lastPathSep = findLastPathSep (len - 1) in
-      let basenoext = 
-        String.sub fl.fileName (lastPathSep + 1) (!lastDot - lastPathSep - 1) 
-      in
       let f = 
+        let len = String.length fl.fileName in
+        (* Find the last path separator and record the first . that we see, 
+        * going backwards *)
+        let lastDot = ref len in
+        let rec findLastPathSep i = 
+          if i < 0 then -1 else
+          let c = String.get fl.fileName i in
+          if c = '/' || c = '\\' then i
+          else begin
+            if c = '.' && !lastDot = len then 
+              lastDot := i;
+            findLastPathSep (i - 1)
+          end
+        in
+        let lastPathSep = findLastPathSep (len - 1) in
+        let basenoext = 
+          String.sub fl.fileName (lastPathSep + 1) (!lastDot - lastPathSep - 1) 
+        in
         emptyFunction 
           (makeValidSymbolName ("__globinit_" ^ basenoext))
       in
       fl.globinit <- Some f;
+      (* Now try to add a call to the global initialized at the beginning of 
+       * main *)
+      let mainname = "main" in
+      let inserted = ref false in
+      List.iter 
+        (fun g ->
+          match g with
+            GFun(m, lm) when m.svar.vname = "main" ->
+              (* Prepend a prototype to the global initializer *)
+              fl.globals <- GVarDecl (f.svar, lm) :: fl.globals;
+              m.sbody.bstmts <- 
+                 compactStmts (mkStmt (Instr [Call(None, 
+                                                   Lval(var f.svar), 
+                                                   [], locUnknown)]) 
+                               :: m.sbody.bstmts);
+              inserted := true;
+              if !E.verboseFlag then
+                ignore (E.log "Inserted the globinit\n");
+              fl.globinitcalled <- true;
+          | _ -> ())
+        fl.globals;
+
+      if not !inserted then 
+        ignore (E.warn "Cannot find %s to add global initializer %s" 
+                  main_name f.svar.vname);
+      
       f
   end
   

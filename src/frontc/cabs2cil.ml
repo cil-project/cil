@@ -1144,12 +1144,15 @@ let cabsAddAttributes al0 (al: attributes) : attributes =
       match filterAttributes an acc with
         [] -> addAttribute a acc (* Nothing with that name *)
       | a' :: _ -> 
-          if a = a' then acc (* Already in *)
+          if a = a' then 
+            acc (* Already in *)
           else begin
             ignore (warnOpt 
-                      "Duplicate attribute %a overrides existing attribute %a"
+                      "Duplicate attribute %a along with %a"
                       d_attr a d_attr a');
-            addAttribute a (dropAttribute an acc)
+            (* let acc' = dropAttribute an acc in *)
+            (** Keep both attributes *)
+            addAttribute a acc
           end)
     al
     al0

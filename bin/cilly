@@ -124,6 +124,10 @@ sub CillyCommand {
         $aftercil = $self->cilOutputFile($dest, 'cabs.c');
         push @cmd, '--cabsonly', $aftercil;
     } else {
+        if(defined $self->{CILLY_OUT}) {
+            $aftercil = new OutputFile($dest, $self->{CILLY_OUT});
+            return ($aftercil, @cmd);
+        }
 	$aftercil = $self->cilOutputFile($dest, 'cil.c');
     }
     return ($aftercil, @cmd, '--out', $aftercil);

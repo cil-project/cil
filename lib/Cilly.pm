@@ -284,6 +284,12 @@ sub collectOneArgument {
             "response file name.  e.g., use -@", "respfile.\n");
     }
 
+    # Intercept the --out argument
+    if($arg =~ m|^--out=(\S+)$|) {
+        $self->{CILLY_OUT} = $1;
+        push @{$self->{CILARGS}}, "--out", $1;
+        return 1;
+    }
     # All other arguments starting with -- are passed to CIL
     if($arg =~ m|^--|) {
         # Split the ==
@@ -1642,7 +1648,7 @@ sub new {
             '-std=' => { TYPE => 'ALLARGS' },
             "--start-group" => { RUN => sub { } },
             "--end-group" => { RUN => sub { }},
-	    '-pthread$' => { TYPE => 'ALLARGS' },
+	    "-pthread\$" => { TYPE => 'ALLARGS' },
             ],
                                   
       };

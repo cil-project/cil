@@ -73,7 +73,7 @@ while(<>) {
             print "See the \\ahref{$htmloutdir/ex$testnr.txt}{CIL output} for this
 code fragment\n";
             # Now run cilly
-            my $cmd = "$cilly $cil_options -c $tmpdir/ex$testnr.c -o $tmpdir/ex$testnr.o --keep=$tmpdir";
+            my $cmd = "$cilly $cil_options -c $tmpdir/ex$testnr.c -o $tmpdir/ex$testnr.o --save-temps=$tmpdir";
             # print "$cmd\n";
             if(system($cmd)) {
                 die "Error running CIL for $tmpdir/ex$testnr.c";
