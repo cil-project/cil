@@ -1625,6 +1625,9 @@ class type cilPrinter = object
   method pGlobal: unit -> global -> Pretty.doc
     (** Global (vars, types, etc.) *)
 
+  method pFieldDecl: unit -> fieldinfo -> Pretty.doc
+    (** A field declaration *)
+
   method pType: Pretty.doc option -> unit -> typ -> Pretty.doc  
   (* Use of some type in some declaration. The first argument is used to print 
    * the declared element, or is None if we are just printing a type with no 
