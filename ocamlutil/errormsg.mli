@@ -144,8 +144,13 @@ val parse_error: string -> (* A message *)
 val locUnknown: location
 
 
+(** Records whether the stdin is open for reading the goal **)
+val readingFromStdin: bool ref
+
+
 (* Call this function to start parsing. useBasename is by default "true", 
- * meaning that the error information maintains only the basename *)
+ * meaning that the error information maintains only the basename. If the 
+ * file name is - then it reads from stdin. *)
 val startParsing:  ?useBasename:bool -> string -> 
   Lexing.lexbuf 
 
