@@ -44,6 +44,16 @@ val int_range_list : int -> int -> int list
 (* Create a list of length l *)
 val list_init : int -> (int -> 'a) -> 'a list
 
+
+(** mapNoCopy is like map but avoid copying the list if the function does not 
+ * change the elements *)
+
+val mapNoCopy: ('a -> 'a) -> 'a list -> 'a list
+
+val mapNoCopyList: ('a -> 'a list) -> 'a list -> 'a list
+
+val filterNoCopy: ('a -> bool) -> 'a list -> 'a list
+
 (** Growable arrays *)
 type 'a growArrayFill =
     Elem of 'a

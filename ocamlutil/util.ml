@@ -435,6 +435,36 @@ let absoluteFilename (fname: string) =
   else
     fname
 
+
+(* mapNoCopy is like map but avoid copying the list if the function does not 
+ * change the elements. *)
+let rec mapNoCopy (f: 'a -> 'a) = function
+    [] -> []
+  | (i :: resti) as li -> 
+      let i' = f i in
+      let resti' = mapNoCopy f resti in
+      if i' != i || resti' != resti then i' :: resti' else li 
+
+let rec mapNoCopyList (f: 'a -> 'a list) = function
+    [] -> []
+  | (i :: resti) as li -> 
+      let il' = f i in
+      let resti' = mapNoCopyList f resti in
+      match il' with
+        [i'] when i' == i && resti' == resti -> li
+      | _ -> il' @ resti'
+
+
+(* Use a filter function that does not rewrite the list unless necessary *)
+let rec filterNoCopy (f: 'a -> bool) (l: 'a list) : 'a list = 
+  match l with 
+    [] -> []
+  | h :: rest when not (f h) -> filterNoCopy f rest 
+  | h :: rest -> 
+      let rest' = filterNoCopy f rest in
+      if rest == rest' then l else h :: rest'
+
+
 (************************************************************************
 
  Configuration 
