@@ -294,6 +294,7 @@ $TEST->addTests("testrun/scope9", "", ['cil']);
 $TEST->add3Tests("test/voidstar");
 $TEST->add3Tests("testrun/memcpy1");
 $TEST->add3Tests("testrun/memset1");
+$TEST->addTests("testrun/memcpy2", "", ['inferbox']);
 $TEST->add3Tests("testrun/poly1");
 $TEST->add3Tests("testrun/poly2");
 $TEST->add3Tests("testrun/poly3");
