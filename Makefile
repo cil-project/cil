@@ -1657,7 +1657,7 @@ mustbemanju:
 	if ! test -d $(LINUXSRC) ; then  \
                 echo You dont have the Linux sources; exit 3; fi
 
-CILLY := perl $(CCUREDHOME)/lib/cilly.pl --verbose
+CILLY := perl $(CCUREDHOME)/lib/cilly.pl
 ifdef NOLINES
   CILLY+= --noPrintLn
 endif
@@ -1691,3 +1691,42 @@ linux-noclean:  mustbegcc mustbelinux mustbemanju
 
 linux-gcc: mustbelinux mustbemanju linuxclean
 	cd $(LINUXSRC); make -k CC=gcc HOSTCC=gcc
+
+
+#### GIMP AND FRIENDS
+JPEGSRC :=/usr/local/src/jpeg-6b
+
+jpegclean:
+	cd $(JPEGSRC); make clean
+	-cd $(JPEGSRC); find . \( \
+		-name '*cil.c' -o \
+		-name '*.exe' -o \
+		-name '*.i' -o \
+		-name '*.o' -o \
+		-name '*.obj' -o \
+		-name '*cabs.c' -o \
+		-name '*_comb*.c' \
+	      	\) -exec rm -f {} \;
+
+jpeg: mustbegcc mustbemanju mustbelinux jpegclean
+	cd $(JPEGSRC); make -k CC="$(CILLY)" 
+
+
+
+ZLIBSRC := /usr/local/src/zlib-1.1.3
+
+zlibclean:
+	cd $(ZLIBSRC); make clean
+	-cd $(ZLIBSRC); find . \( \
+		-name '*cil.c' -o \
+		-name '*.exe' -o \
+		-name '*.i' -o \
+		-name '*.o' -o \
+		-name '*.obj' -o \
+		-name '*cabs.c' -o \
+		-name '*_comb*.c' \
+	      	\) -exec rm -f {} \;
+
+zlib: mustbegcc mustbemanju mustbelinux zlibclean
+	cd $(ZLIBSRC); make -k CC="$(CILLY)" 
+
