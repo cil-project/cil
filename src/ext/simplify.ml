@@ -108,8 +108,10 @@ let rec makeThreeAddress
       match simplifyLval setTemp lv with 
         Mem a, NoOffset -> a
       | _ -> (* This is impossible, because we are taking the address 
-          * of v and simplifyLval should turn it into a Mem *)
-          E.s (bug "Simplify: makeThreeAddress for AddrOf")
+          * of v and simplifyLval should turn it into a Mem, except if the 
+          * sizeof has failed.  *)
+          E.s (bug "Simplify: makeThreeAddress for AddrOf(LV=%a, LVT=%a)"
+              d_lval lv d_type (typeOfLval lv))
   end
   | StartOf lv -> 
       makeThreeAddress setTemp (AddrOf (addOffsetLval (Index(zero, NoOffset))
@@ -158,18 +160,23 @@ and simplifyLval
     match off with 
       NoOffset -> zero, NoOffset
     | Field(fi, off') -> begin
-        try 
-          let start, _ = bitsOffset t (Field(fi, NoOffset)) in
-          if start land 7 <> 0 then begin
-            (* We have a bitfield *)
-            assert (off' = NoOffset);
-            zero, Field(fi, off')
-          end else begin
-            let next, restoff = offsetToInt fi.ftype off' in
-            add (integer (start / 8)) next,  restoff
-          end
-        with SizeOfError _ -> 
-          E.s (unimp "Cannot compute the sizeof")
+        let start = 
+          try 
+            let start, _ = bitsOffset t (Field(fi, NoOffset)) in
+            start
+          with SizeOfError (whystr, t') -> 
+            E.s (E.bug "%a: Cannot compute sizeof: %s: %a"
+                   d_loc !currentLoc whystr d_type t');
+            1 (* Make sure it is not a multiple of 8 bits *)
+        in
+        if start land 7 <> 0 then begin
+          (* We have a bitfield *)
+          assert (off' = NoOffset);
+          zero, Field(fi, off')
+        end else begin
+          let next, restoff = offsetToInt fi.ftype off' in
+          add (integer (start / 8)) next,  restoff
+        end
     end
     | Index(ei, off') -> begin
         let telem = match unrollType t with 

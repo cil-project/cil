@@ -4514,7 +4514,7 @@ let existsType (f: typ -> existsAction) (t: typ) : bool =
  ** MACHINE DEPENDENT PART
  **
  **)
-exception SizeOfError of typ
+exception SizeOfError of string * typ
 
         
 (* Get the minimum aligment in bytes for a given type *)
@@ -4554,7 +4554,8 @@ let rec alignOf_int = function
         (* These are some error cases *)
   | TFun _ when not !msvcMode -> !theMachine.M.alignof_fun
       
-  | (TFun _ | TVoid _) as t -> raise (SizeOfError t)
+  | TFun _ as t -> raise (SizeOfError ("function", t))
+  | TVoid _ as t -> raise (SizeOfError ("void", t))
       
 
      
@@ -4770,7 +4771,7 @@ and bitsSizeOf t =
   | TComp (comp, _) when comp.cfields = [] -> begin
       (* Empty structs are allowed in msvc mode *)
       if not comp.cdefined && not !msvcMode then
-        raise (SizeOfError t) (*abstract type*)
+        raise (SizeOfError ("abstract type", t)) (*abstract type*)
       else
         0
   end
@@ -4814,7 +4815,7 @@ and bitsSizeOf t =
       match constFold true len with 
         Const(CInt64(l,_,_)) -> 
           addTrailing ((bitsSizeOf t) * (Int64.to_int l)) (8 * alignOf_int t)
-      | _ -> raise (SizeOfError t)
+      | _ -> raise (SizeOfError ("array non-constant length", t))
   end
 
 
@@ -4822,7 +4823,8 @@ and bitsSizeOf t =
   | TFun _ when not !msvcMode -> (* On GCC the size of a function is defined *)
       8 * !theMachine.M.sizeof_fun
 
-  | TArray (_, None, _) | TFun _ -> raise (SizeOfError t)
+  | TArray (_, None, _) as t -> raise (SizeOfError ("array no lenght", t))
+  | TFun _ -> raise (SizeOfError ("function", t))
 
 
 and addTrailing nrbits roundto = 
@@ -4841,7 +4843,7 @@ and bitsOffset (baset: typ) (off: offset) : int * int =
         let ei = 
           match isInteger e with
             Some i64 -> Int64.to_int i64
-          | None -> raise (SizeOfError baset)
+          | None -> raise (SizeOfError ("index not constant", baset))
         in
         let bt = 
           match unrollType baset with

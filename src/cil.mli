@@ -2255,10 +2255,11 @@ val peepHole1: (instr -> instr list option) -> stmt list -> unit
 
      
 (** Raised when one of the bitsSizeOf functions cannot compute the size of a 
-    type. This can happen because the type contains array-length expressions 
-    that we don't know how to compute or because it is a type whose size is 
-    not defined (e.g. TFun or an undefined compinfo)  *)        
-exception SizeOfError of typ
+ * type. This can happen because the type contains array-length expressions 
+ * that we don't know how to compute or because it is a type whose size is 
+ * not defined (e.g. TFun or an undefined compinfo). The string is an 
+ * explanation of the error *)        
+exception SizeOfError of string * typ
 
 (** The size of a type, in bits. Trailing padding is added for structs and 
  * arrays. Raises {!Cil.SizeOfError} when it cannot compute the size. This 
