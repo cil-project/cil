@@ -7,11 +7,15 @@ int main() {
   char * s =  "Hello" ", world";
   int i;
 
+  // See if this is little or big endian
+  short foo = 0x0011;
+  char little_endian = (int) * (char*)&foo;
+
   for (i=0; i < 10; i++) {
-    if (w[i * sizeof(wchar_t)] != s[i]) {
+    if (w[i * sizeof(wchar_t)] != (little_endian ? s[i] : 0)) {
       E(1); 
     } 
-    if (w[i * sizeof(wchar_t)+ 1] != 0) {
+    if (w[i * sizeof(wchar_t)+ 1] != (little_endian ? 0 : s[i])) {
       E(2);
     } 
   }

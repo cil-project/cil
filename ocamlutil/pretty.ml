@@ -105,7 +105,7 @@ let break         = Break
 let mark          = Mark
 let unmark        = Unmark
 
-(* Note that all infix operators in Ocaml are left-associative. This means 
+(* Note that the ++ operator in Ocaml are left-associative. This means 
  * that if you have a long list of ++ then the whole thing is very unbalanced 
  * towards the left side. This is the worst possible case since scanning the 
  * left side of a Concat is the non-tail recursive case. *)
