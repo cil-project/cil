@@ -324,62 +324,6 @@ let stringListContains (str:string) (sl:string list) : bool =
   List.exists (fun s -> s = str) sl
 
 
-(* Since we cannot take the address of a bitfield we will do bounds checking
- * and tag zeroeing for an access to a bitfield as if the access were to the
- * entire struct that contains the field. But this might lead to problems if
- * the same struct contains both pointers and bitfields. In that case we
- * coalesce all consecutive bitfields into a substructure *)
-
-(* For each bitfield that was coalesced we map (the id of the host and the
- * field name) to the fieldinfo for the host and the fieldinfo inside the
- * host *)
-let hostsOfBitfields : (int * string, fieldinfo * fieldinfo) H.t = H.create 17
-let bundleid = ref 0
-let bitfieldCompinfo comp =
-  let containsPointer t = 
-    existsType (function TPtr _ -> ExistsTrue | _ -> ExistsMaybe) t in
-  if comp.cstruct &&
-    List.exists (fun fi -> fi.fbitfield <> None) comp.cfields &&
-    List.exists (fun fi -> containsPointer fi.ftype) comp.cfields 
-  then begin
-    (* Go over the fields and collect consecutive bitfields *)
-(*    ignore (E.log "Bundling the bitfields of %s\n"
-              (compFullName comp)); *)
-    let rec loopFields prev prevbits = function
-        [] -> List.rev (bundleBitfields prevbits prev)
-      | f :: rest -> begin
-          if f.fbitfield <> None then 
-            loopFields prev (f :: prevbits) rest
-          else
-            loopFields (f :: (bundleBitfields prevbits prev)) [] rest
-      end
-    and bundleBitfields bitfields prev = 
-      if bitfields = [] then prev else
-      let bname = "bits_" ^ (string_of_int !bundleid) in
-      incr bundleid;
-      let bitfields = List.rev bitfields in
-      let bundle = 
-        mkCompInfo true bname
-          (fun _ -> 
-            List.map (fun f -> f.fname, f.ftype, 
-                               f.fbitfield, f.fattr) bitfields) [] 
-      in
-      (* Add it to the file *)
-      theFile := consGlobal (GCompTag (bundle, !currentLoc)) !theFile;
-      let bfinfo = 
-        { fname = bname; ftype = TComp (bundle, []); 
-          fbitfield = None;
-          fattr = []; fcomp = comp } in
-      (* Go over the previous bitfields and add them to the host map *)
-      List.iter2 (fun oldbf newbf -> 
-        H.add hostsOfBitfields (comp.ckey, oldbf.fname) (bfinfo, newbf))
-        bitfields
-        bundle.cfields;
-      bfinfo :: prev
-    in
-    comp.cfields <- (loopFields [] [] comp.cfields)
-  end
-
 
 (***** Convert some pointers in types to fat pointers ************)
 let sizedArrayTypes : (typsig, typ) H.t = H.create 123
@@ -639,8 +583,6 @@ let pkQualName (pk: N.opointerkind)
   
 (****** the CHECKERS ****)
 
-(* Use this as a NOP instruction *)
-let nop : stmt = mkEmptyStmt ()
 
 let mallocFun = 
   let fdec = emptyFunction "malloc" in
@@ -940,7 +882,7 @@ let checkStoreFatPtr =
     if !stackChecks then 
       call None (Lval(var fdec.svar))
 	[ castVoidStar whatp; castVoidStar nullIfInt;]
-    else nop
+    else mkEmptyStmt ()
         
 let checkStorePtr =
   let fdec = emptyFunction "CHECK_STOREPTR" in
@@ -953,7 +895,7 @@ let checkStorePtr =
   fun whatp -> 
     if !stackChecks then 
       call None (Lval(var fdec.svar)) [ castVoidStar whatp;]
-    else nop
+    else mkEmptyStmt ()
 
 let checkReturnPtr =
   let fdec = emptyFunction "CHECK_RETURNPTR" in
@@ -966,7 +908,7 @@ let checkReturnPtr =
   fun whatp ->
     if !stackChecks then 
       call None (Lval(var fdec.svar)) [ castVoidStar whatp;]
-    else nop
+    else mkEmptyStmt ()
         
 let checkReturnFatPtr =
   let fdec = emptyFunction "CHECK_RETURNFATPTR" in
@@ -981,7 +923,7 @@ let checkReturnFatPtr =
     if !stackChecks then 
       call None (Lval(var fdec.svar))
 	[ castVoidStar whatp; castVoidStar nullIfInt;]
-    else nop
+    else mkEmptyStmt ()
 
 let checkZeroTagsFun =
   let fdec = emptyFunction "CHECK_ZEROTAGS" in
@@ -1588,62 +1530,87 @@ let makeTagCompoundInit (tagged: typ)
   dfld
 
 
-
+let debugBitfields = false
 (* Since we cannot take the address of a bitfield we treat accesses to a 
- * bitfield like an access to the entire host that contains it (for the 
- * purpose of checking). This is only Ok if the host does not also contain 
- * pointer fields  *)
-let getHostIfBitfield (lv: lval) (t: typ) : lval * typ = 
-  (lv, t)
-(*
-  let (lvbase, lvoff) = lv in
-  (* See if it is a bitfield and if yet, return the host *)
-  let rec getHost = function
-      Field (fi, NoOffset) -> 
-        if fi.fbitfield <> None then NoOffset else raise Not_found
-    | Field (fi, o) -> Field (fi, getHost o)
-    | Index (e, o) -> Index(e, getHost o)
-    | NoOffset -> raise Not_found
-  in
-  try
-    let lv' = lvbase, getHost lvoff in
-    let lv't = typeOfLval lv' in
-    (match unrollType lv't with 
-      TComp (comp, _) when comp.cstruct -> 
-        if List.exists (fun f -> typeContainsFats f.ftype) comp.cfields then
-          E.s (unimp "%s contains both bitfields and pointers.@!LV=%a@!T=%a@!" 
-                 (compFullName comp) d_plainlval lv d_plaintype t)
-    | _ -> E.s (bug "getHost: bitfield not in a struct"));
-    lv', lv't
-  with Not_found -> lv, t
-(*
-  match unrollType t with
-    TBitfield (ik, wd, a) -> begin
-      let lvbase, lvoff = lv in
-      let rec getHost = function
-          Field(fi, NoOffset) -> NoOffset
-        | Field(fi, off) -> Field(fi, getHost off)
-        | Index(e, off) -> Index(e, getHost off)
-        | NoOffset -> E.s (bug "a TBitfield that is not a field")
-      in
-      let lv' = lvbase, getHost lvoff in
-      let lv't = typeOfLval lv' in
-      (match unrollType lv't with 
-        TComp (comp, _) when comp.cstruct -> 
-          if List.exists (fun f -> typeContainsFats f.ftype) comp.cfields then
-            E.s (unimp "%s contains both bitfields and pointers.@!LV=%a@!T=%a@!" 
-                   (compFullName comp) d_plainlval lv d_plaintype t)
-      | _ -> E.s (bug "getHost: bitfield not in a struct"));
-      lv', lv't
-    end
-  | _ -> lv, t
-*)
-*)
-
-(* Now a routine to take the address of a field *)
-let takeAddressOfBitfield (lv: lval) (t: typ) : exp = 
-  let lv', t' = getHostIfBitfield lv t in
-  mkAddrOf lv'
+ * bitfield like an access to the entire sequence of adjacent bitfields in 
+ * the host structure. Return a starting address and a length of the range *)
+let getRangeOfBitfields (lv: lval) (t: typ) : exp * exp = 
+  let lvbase, lvoff = lv in
+  try (* Will throw Not_found if not a bitfield *)
+    let rec getHostOffset = function
+        Field (fi, NoOffset) -> 
+          if fi.fbitfield <> None then fi, NoOffset else raise Not_found
+      | Field (fi, o) -> 
+          let fibitfield, o' = getHostOffset o in
+          fibitfield, Field (fi, o')
+      | Index (e, o) -> 
+          let fibitfield, o' = getHostOffset o in
+          fibitfield, Index (e, o')
+      | NoOffset -> raise Not_found
+    in
+    let fibitfield, hostoff = getHostOffset lvoff in
+    if debugBitfields then 
+      ignore (E.log "Found bitfield %s with host %s\n" fibitfield.fname
+                fibitfield.fcomp.cname );
+    (* Now find the last non-bitfield field before fi *)
+    let rec findRange (before: fieldinfo option) (pastus: bool) = 
+      function
+        | [] -> before, None  (* Bitfields all the way to the end *)
+        | f :: rest -> 
+            if f.fname = fibitfield.fname then 
+              findRange before true rest (* We past our bitfield *)
+            else
+              if pastus then 
+                if f.fbitfield == None then 
+                  before, Some f (* We found the end of the range *)
+                else
+                  findRange before true rest
+              else
+                if f.fbitfield == None then
+                  findRange (Some f) false rest
+                else
+                  findRange before false rest
+    in
+    let before, after = findRange None false  fibitfield.fcomp.cfields in
+    let start = 
+      match before with
+        None -> (* We are the first in the host.Take the address of the host *)
+          if debugBitfields then 
+            ignore (E.log "  first in host\n");
+          mkAddrOf (lvbase, hostoff)
+      | Some beforefi -> 
+          if debugBitfields then 
+            ignore (E.log "  bitfields start after %s\n" beforefi.fname);
+          let beforelval = 
+            lvbase, (addOffset (Field(beforefi, NoOffset)) 
+                       hostoff)
+          in
+          BinOp(PlusPI, 
+                doCast (mkAddrOf beforelval) charPtrType, 
+                SizeOfE (Lval(beforelval)),
+                charPtrType)
+    in
+    let after = 
+      match after with 
+        Some afterfi -> 
+          if debugBitfields then 
+            ignore (E.log "  bitfields end before %s\n" afterfi.fname);
+          mkAddrOf (lvbase, addOffset (Field(afterfi, NoOffset)) hostoff)
+      | None -> (* No more bitfields after us *)
+          if debugBitfields then 
+            ignore (E.log "  last in host\n");
+          BinOp(PlusPI, 
+                doCast (mkAddrOf (lvbase, hostoff)) charPtrType, 
+                SizeOfE (Lval(lvbase, hostoff)),
+                charPtrType)
+    in
+    
+    (castVoidStar start, 
+     BinOp(MinusPP, 
+           doCast after charPtrType,
+           doCast start charPtrType, intType))
+  with Not_found ->
+    (mkAddrOf lv, SizeOf t)
 
 (* Compute the offset of first scalar field in a thing to be written. Raises 
  * Not_found if there is no scalar *)
@@ -1684,25 +1651,15 @@ let offsetOfFirstScalar (t: typ) : exp =
 
   
 let checkZeroTags base lenExp lv t = 
-  let lv', lv't = getHostIfBitfield lv t in
+  let start, size = getRangeOfBitfields lv t in
   try
-    let offexp = offsetOfFirstScalar lv't in
+    let offexp = offsetOfFirstScalar t in
     call None (Lval (var checkZeroTagsFun.svar))
       [ castVoidStar base; lenExp ;
-        castVoidStar (mkAddrOf lv'); 
-        SizeOf(lv't); offexp ] 
+        castVoidStar start; 
+        size; offexp ] 
   with Not_found -> 
     mkEmptyStmt ()
-
-(*  
-let doCheckFat which arg argt = 
-  let (_, ptr, base, end) = readFieldsOfFat arg argt in 
-  match kindOfType argt with
-    N.FSeq | N.FSeqN 
-  call None (Lval(var which.svar)) [ castVoidStar ptr; 
-                                     castVoidStar base; ]
-*)
-
 
 
 
@@ -1864,12 +1821,12 @@ let fromTableFexp (fe: fexp) : stmt clist * fexp =
     s, mkFexp3 newt p b e
       
 
-let checkWild (p: exp) (basetyp: typ) (b: exp) (blen: exp) : stmt = 
+let checkWild (p: exp) (size: exp) (b: exp) (blen: exp) : stmt = 
   (* This is almost like indexToSafe, except that we have the length already 
    * fetched *)
   call None (Lval (var checkBoundsLenFun.svar))
     [ castVoidStar b; blen;
-      castVoidStar p; SizeOf (basetyp)]
+      castVoidStar p; size]
       
   (* Check index when we switch from a sequence type to Safe, in preparation 
    * for accessing a field.  *)
@@ -2075,19 +2032,20 @@ let rec checkBounds
                 (pkind: N.opointerkind) : stmt clist = 
 *)
   begin
-    let lv', lv't = getHostIfBitfield lv.lv lv.lvt in
     (* Do not check the bounds when we access variables without array 
      * indexing  *)
     (* ignore (E.log "Check bounds: pkind=%a\n" N.d_opointerkind pkind); *)
     match lv.plvk with
     | N.Wild -> (* We'll need to read the length anyway since we need it for 
-                   * working with the tags *)
-        let docheck = checkWild (mkAddrOf lv') lv't lv.lvb (mktmplen ()) in
+                 * working with the tags *)
+        let start, size = getRangeOfBitfields lv.lv lv.lvt in 
+        let docheck = checkWild start size lv.lvb (mktmplen ()) in
         CConsR(lv.lvstmts, docheck)
           
     | N.Index -> 
         let _, _, _, docheck = 
-          indexToSafe (mkAddrOf(lv')) (TPtr(lv't, [])) lv.lvb lv.lve empty in
+          indexToSafe (mkAddrOf lv.lv) (TPtr(lv.lvt, [])) 
+                      lv.lvb lv.lve empty in
         append lv.lvstmts (rev docheck)
           
     | (N.FSeq|N.FSeqN) ->
@@ -2100,7 +2058,7 @@ let rec checkBounds
             lv.lvb
         in
         let p, _, _, docheck = 
-          fseqToSafe (mkAddrOf(lv')) (TPtr(lv't, [])) base' lv.lve empty in
+          fseqToSafe (mkAddrOf lv.lv) (TPtr(lv.lvt, [])) base' lv.lve empty in
         append lv.lvstmts (rev docheck)
           
     | (N.Seq|N.SeqN) ->
@@ -2113,7 +2071,7 @@ let rec checkBounds
             lv.lve
         in
         let p, _, _, docheck = 
-          seqToSafe (mkAddrOf(lv')) (TPtr(lv't, [])) lv.lvb bend' empty in
+          seqToSafe (mkAddrOf lv.lv) (TPtr(lv.lvt, [])) lv.lvb bend' empty in
         append lv.lvstmts (rev docheck)
           
     | N.Safe | N.String | N.ROString -> lv.lvstmts
@@ -2422,7 +2380,8 @@ let rec checkMem (why: checkLvWhy)
     (* Now the tag checking. We only care about pointers. We keep track of 
      * what we write in each field and we check pointers in a special way.  *)
     let rec doCheckTags (why: checkLvWhy) (where: lval) 
-                        (t: typ) (pkind: N.opointerkind) (acc: stmt clist) : stmt clist = 
+                        (t: typ) (pkind: N.opointerkind) 
+                        (acc: stmt clist) : stmt clist = 
       match unrollType t with 
       | (TInt _ | TFloat _ | TEnum _) -> acc
       | TComp (comp, _) when isFatComp comp -> begin (* A fat pointer *)
@@ -2517,9 +2476,10 @@ let rec checkMem (why: checkLvWhy)
     let checkTags = 
       (* Take a look at the type involved. If it does not contain pointers 
        * then we don't need to check anything *)
-      if existsType (function TPtr _ -> ExistsTrue | _ -> ExistsMaybe) inlv.lvt then begin
-        (* Call doCheckTags anyway because even for safe writes it needs to check 
-         * when pointers are written *)
+      if existsType (function TPtr _ -> ExistsTrue | _ -> ExistsMaybe) 
+                    inlv.lvt then begin
+        (* Call doCheckTags anyway because even for safe writes it needs to 
+         * check when pointers are written  *)
         doCheckTags why inlv.lv inlv.lvt inlv.plvk inlv.lvstmts
       end else
         inlv.lvstmts
@@ -2528,7 +2488,8 @@ let rec checkMem (why: checkLvWhy)
     let zeroAndCheckTags = 
       match inlv.plvk, why with 
         N.Wild, ToWrite _ -> 
-          CConsL(checkZeroTags inlv.lvb (getLenExp ()) inlv.lv inlv.lvt, checkTags)
+          CConsL(checkZeroTags inlv.lvb (getLenExp ()) inlv.lv inlv.lvt, 
+                 checkTags)
       | _ -> checkTags
     in
     (* Now see if we need to do bounds checking *)
@@ -2543,8 +2504,9 @@ let rec checkMem (why: checkLvWhy)
       None -> checkb
     | Some _ -> 
         let ptr = ptrOfBase inlv.lvb in
+        let start, _ = getRangeOfBitfields inlv.lv inlv.lvt in
         CConsL(checkFetchLength (getVarOfExp (getLenExp ())) 
-                 (takeAddressOfBitfield inlv.lv inlv.lvt) inlv.lvb,
+                 start inlv.lvb,
                checkb))
   end
   
@@ -3680,12 +3642,7 @@ and boxlval1 (b, off) : curelval =
         if debuglval then 
           ignore (E.log "doingField(%s): %a\n" f.fname d_curelval inlv);
         let bflv = beforeField inlv in
-        let addf = 
-          try
-            let host, this = H.find hostsOfBitfields (f.fcomp.ckey, f.fname) in
-            Field (host, Field(this, NoOffset))
-          with Not_found -> Field (f, NoOffset)
-        in
+        let addf = Field (f, NoOffset) in
         (* Prepare for the rest of the offset *)
         let next = { bflv with lv = addOffsetLval addf bflv.lv; 
                                lvt = f.ftype; } in
@@ -4025,12 +3982,6 @@ let boxFile file =
                 fi.fattr <- newa ; 
                 fi.ftype <- fixupType newt) 
               comp.cfields;
-            (* WEIMER: only box the bitfields if we're making this WILD *)
-            (match N.nodeOfAttrlist comp.cattr with
-            | Some n when n.N.kind = N.Wild ->
-                bitfieldCompinfo comp;
-            | _ -> ());
-            (* end WEIMER *)
             theFile := consGlobal g !theFile
 
         | GFun (f, l) when hasAttribute "nobox" f.svar.vattr -> 
@@ -4420,7 +4371,6 @@ let boxFile file =
   theFile := !descriptorDefinitions @ !theFile;
   let res = List.rev (!theFile) in
   (* Clean up global hashes to avoid retaining garbage *)
-  H.clear hostsOfBitfields;
   H.clear typeNames;
   H.clear fixedTypes;
   H.clear fixedComps;

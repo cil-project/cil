@@ -128,6 +128,11 @@ $TEST->add3Tests("testrun/attr4", "_GNUCC=1");
 $TEST->add3Tests("test/bh1");
 $TEST->add3Tests("test/bitfield");
     $TEST->addBadComment("test/bitfield-box", "Unimplemented & bitfield");
+$TEST->add3Tests("test/bitfield3");
+    $TEST->addBadComment("test/bitfield3-inferbox", 
+                         "Unimplemented & bitfield");
+    $TEST->addBadComment("test/bitfield3-box", 
+                         "Unimplemented & bitfield");
      
 $TEST->add3Tests("testrun/bitfield2");
 $TEST->add3Tests("test/box1");
