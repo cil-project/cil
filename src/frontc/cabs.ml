@@ -176,8 +176,8 @@ and expression =
   | GNU_BODY of body
 
 and constant =
-  | CONST_INT of string
-  | CONST_FLOAT of string
+  | CONST_INT of string   (* the textual representation *)
+  | CONST_FLOAT of string (* the textual representaton *)
   | CONST_CHAR of string
   | CONST_STRING of string
 

@@ -1438,7 +1438,7 @@ and doExp (isconst: bool)    (* In a constant *)
             (* See if it is octal or hex *)
             let octalhex = (l >= 1 && String.get str 0 = '0') in 
             (* The length of the suffix and a list of possible kinds. See ISO 
-             * 6.4.4.1 *)
+             * 6.1.3.2 *)
             let hasSuffix = hasSuffix str in
             let suffixlen, kinds = 
               if hasSuffix "ULL" || hasSuffix "LLU" then
@@ -1455,11 +1455,36 @@ and doExp (isconst: bool)    (* In a constant *)
               else
                 0, if octalhex 
                    then [IInt; IUInt; ILong; IULong; ILongLong; IULongLong]
-                   else [IInt; ILong; ILongLong]
+                   else [IInt; ILong; IUInt; ILongLong]
             in
-            let baseint = String.sub str 0 (l - suffixlen) in
+            (* Convert to integer *)
+            let rec toInt (base: int) (acc: int) (idx: int) = 
+              if idx >= l - suffixlen then acc
+              else
+                let ch = String.get str idx in
+                if ch >= '0' && ch <= '9' then
+                  toInt base (base * acc + 
+                                (Char.code ch - Char.code '0')) (idx + 1)
+                else if  ch >= 'a' && ch <= 'f' && base = 16 then
+                  toInt base (base * acc + 
+                                (Char.code ch - Char.code 'a')) (idx + 1)
+                else if  ch >= 'A' && ch <= 'F' && base = 16 then
+                  toInt base (base * acc + 
+                                (Char.code ch - Char.code 'A')) (idx + 1)
+                else
+                  E.s (bug "Invalid integer constant: %s" str)
+            in
             try
-              let i = int_of_string baseint in
+              let i = 
+                if octalhex then
+                  if l >= 2 && 
+                    (let c = String.get str 1 in c = 'x' || c = 'X') then
+                    toInt 16 0 2
+                  else
+                    toInt 8 0 1
+                else
+                  toInt 10 0 0
+              in
               let res = integerKinds i kinds (Some str) in
               finishCt res (typeOf (Const(res)))
             with e -> begin
