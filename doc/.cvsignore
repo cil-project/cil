@@ -15,3 +15,5 @@
 *.xyd
 cilpp.tex
 cilcode.tmp
+ccuredcode.tmp
+ccuredpp.tex

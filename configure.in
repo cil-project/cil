@@ -262,6 +262,8 @@ MY_AC_CONFIG_EXE_FILES(bin/cilly.pl)
 MY_AC_CONFIG_EXE_FILES(bin/ccured.pl)
 MY_AC_CONFIG_EXE_FILES(bin/scaninfer)
 MY_AC_CONFIG_EXE_FILES(bin/scaninfer.bat)
+MY_AC_CONFIG_EXE_FILES(bin/ccured)
+MY_AC_CONFIG_EXE_FILES(bin/ccured.bat)
 MY_AC_CONFIG_FILES(lib/CompilerStub.pm)
 MY_AC_CONFIG_EXE_FILES(bin/patcher.pl)
 

@@ -15,7 +15,7 @@ my $tmpdir  = "cilcode.tmp";
 my $htmloutdir = "examples";
 my $outdir  = "html/cil/$htmloutdir";
 
-my $cilly = "perl ../lib/cilly.pl";
+my $cilly = "perl ../bin/cilly.pl";
 
 my $preambleLocal = <<EOF;
 int main(void) {
