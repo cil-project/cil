@@ -187,6 +187,8 @@ $TEST->add3Tests("test/matrix");
 $TEST->add3Tests("testrun/switch");
 $TEST->add3Tests("testrun/strloop");
 $TEST->add2Tests("testrun/strloop3");
+$TEST->add2Tests("testrun/percentm");
+$TEST->add2Tests("testrun/percent400");
 $TEST->add3Tests("testrun/caserange", "_GNUCC=1");
 if (!$egcs) {
   $TEST->add3Tests("test/attr");
