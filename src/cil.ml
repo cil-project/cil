@@ -3029,7 +3029,7 @@ let rec isCompleteType t =
 
 (* removeUnusedTemps has been moved to rmtmps.ml *)  
 
-let debugAlpha = true
+let debugAlpha = false
 (*** Alpha conversion ***)
 (* Create a new name based on a given name. The new name is formed from a 
  * prefix (obtained from the given name by stripping a suffix consisting of _ 
