@@ -50,10 +50,6 @@ let prefix p s =
 let theFile : global list ref = ref []
 (**** Make new types ****)
 
-(* A list of functions to be left alone *)
-let leaveAlone = 
-  [ "printf"; "fprintf"; ]
-
    (* Keep some global counters for anonymous types *)
 let anonTypeId = ref 0
 let makeNewTypeName base = 
@@ -115,8 +111,15 @@ let rec fixupType t =
   match t with
     TForward n -> t
   | TNamed (n, t, a) -> TNamed(n, fixupType t, a) (* Keep the Named types *)
+                                        (* We leave alone vararg functions 
+                                         * mainly because it is hard to write 
+                                         * a wrapper for them. We'll check 
+                                         * that we only pass lean pointers to 
+                                         * them *)
+  | TFun (_, _, true, _) -> t
     (* Sometimes we find a function type without arguments (a prototype that 
-     * we have done before). Put the argument names back *)
+     * we have done before). Do the regular fixit and then put the argument 
+     * names back.  *)
   | TFun (_, args, _, _) -> begin
       match fixit t with
         TFun (rt, args', isva, a) -> 
@@ -225,6 +228,77 @@ let getBaseFieldOfFat t =
     TStruct(_, [p;b],_) when p.fname = "_p" && b.fname = "_b" -> b
   | _ -> E.s (E.bug "getBaseFieldOfFat %a\n" d_type t)
 
+
+let rec readPtrBaseField e et =     
+  if isFatType et then
+    let fptr  = getPtrFieldOfFat et in
+    let fbase = getBaseFieldOfFat et in
+    let rec compOffsets = function
+        NoOffset -> Field(fptr, NoOffset), Field(fbase, NoOffset)
+      | Field(fi, o) -> 
+          let po, bo = compOffsets o in
+          Field(fi, po), Field(fi, bo)
+      | Index(e, o) ->
+          let po, bo = compOffsets o in
+          Index(e, po), Index(e, bo)
+      | First o -> 
+          let po, bo = compOffsets o in
+          First po, First bo
+    in
+    let ptre, basee = 
+      match e with
+        Lval(Var vi, o) -> 
+          let po, bo = compOffsets o in
+          Lval(Var vi, po), Lval(Var vi, bo)
+      | Lval(Mem e'', o) -> 
+          let po, bo = compOffsets o in
+          Lval(Mem e'', po), Lval(Mem e'', bo)
+      | Question (e1, e2, e3, lq) ->
+          let e2t, e2', e2'' = readPtrBaseField e2 et in
+          let   _, e3', e3'' = readPtrBaseField e3 et in
+          (Question(e1,e2',e3', lq), Question(e1,e2'',e3'', lq))
+      | _ -> E.s (E.unimp "split _p field offset: %a" d_plainexp e)
+    in
+    (fptr.ftype, ptre, basee)
+  else
+    (et, e, e)
+
+    (* Create a new temporary of a fat type and set its pointer and base 
+     * fields *)
+let setFatPointer (t: typ) (p: typ -> exp) (b: exp) : stmt list * lval = 
+  let tmp = makeTempVar !currentFunction t in
+  let fptr = getPtrFieldOfFat t in
+  let fbase = getBaseFieldOfFat t in
+  let p' = p fptr.ftype in
+  ([ mkSet (Var tmp, Field(fptr,NoOffset)) p';
+     mkSet (Var tmp, Field(fbase,NoOffset)) b ], 
+     (Var tmp, NoOffset))
+      
+let readPtrField e t = 
+  let (tptr, ptr, base) = readPtrBaseField e t in ptr
+      
+let readBaseField e t = 
+  let (tptr, ptr, base) = readPtrBaseField e t in base
+
+let fromPtrToBase e = 
+  let rec replacePtrBase = function
+      Field(fip, NoOffset) when fip.fname = "_p" -> begin
+        (* Find the fat type that this belongs to *)
+        try
+          let fat = 
+            H.find fixedTypes (typeSig (TForward ("struct " ^ fip.fstruct))) in
+          let bfield = getBaseFieldOfFat fat in
+          Field(bfield, NoOffset)
+        with Not_found -> 
+          E.s (E.unimp "Field %s is not a component of a fat type" fip.fname)
+      end
+    | Field(f', o) -> Field(f',replacePtrBase o)
+    | _ -> E.s (E.unimp "Cannot find the _p field to replace in %a\n"
+                  d_plainexp e)
+  in
+  match e with
+    Lval (b, off) -> Lval(b, replacePtrBase off)
+  | _ -> E.s (E.unimp "replacing _p with _b in a non-lval")
   
    (* Test if we must check the return value *)
 let mustCheckReturn tret =
@@ -235,6 +309,20 @@ let mustCheckReturn tret =
   | _ -> isFatType tret
 
 
+   (* Test if we have changed the type *)
+let rec typeHasChanged t =
+  match unrollType t with
+    TStruct(_, [p;b],_) when p.fname = "_p" && b.fname = "_b" -> true
+  | TStruct(_, flds, _) -> List.exists (fun f -> typeHasChanged f.ftype) flds
+  | TUnion(_, flds, _) -> List.exists (fun f -> typeHasChanged f.ftype) flds
+  | TArray(t, _, _) -> typeHasChanged t
+  | TFun(rt, args, _, _) -> begin
+      typeHasChanged rt ||
+      List.exists (fun a -> typeHasChanged a.vtype) args
+  end
+  | TPtr (t, _) -> typeHasChanged t
+  | _ -> false
+ 
  (* Define tag structures, one for each size of tags, along with initializers
   *)
 let tagTypes : (int, typ) H.t = H.create 17
@@ -276,8 +364,8 @@ let tagTypeInit sz =                    (* sz is the sizeOf the data *)
 
 
 (****** the CHECKERS ****)
+let fatVoidPtr = fixupType voidPtrType
 let checkSafeRetFat = 
-  let fatVoidPtr = fixupType voidPtrType in
   let fdec = emptyFunction "CHECK_SAFERETFAT" in
   let arg  = makeLocalVar fdec "x" fatVoidPtr in
   fdec.svar.vtype <- TFun(voidType, [ arg ], false, []);
@@ -313,7 +401,21 @@ let checkSafeWrFat =
   fdec.svar.vtype <- TFun(voidType, [ arg ], false, []);
   fdec
     
+let checkSafeFatLeanCast = 
+  let fdec = emptyFunction "CHECK_SAFEFATLEANCAST" in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
+  fdec
+  
+let doCheckFat which arg argt = 
+  (* Take the argument and break it apart *)
+  let (_, ptr, base) = readPtrBaseField arg argt in 
+  call None (Lval(var which.svar)) [ CastE(voidPtrType, ptr, lu); 
+                                     CastE(voidPtrType, base, lu) ]
 
+let doCheckLean which arg  = 
+  call None (Lval(var which.svar)) [ CastE(voidPtrType, arg, lu)]
 
     (************* STATEMENTS **************)
 let rec boxstmt (s : stmt) : stmt = 
@@ -341,15 +443,15 @@ let rec boxstmt (s : stmt) : stmt =
             TFun(tRes, _, _, _) -> tRes
           | _ -> E.s (E.bug "Current function's type is not TFun")
         in 
-        let (_, doe, e') = boxexp e in
+        let (et, doe, e') = boxexp e in
         let doe' = (* Add the check *)
           if mustCheckReturn retType then
             if isFatType retType then begin
                 (* Cast e' to fat_voidptr *)
-              doe @ [call None (Lval(var checkSafeRetFat.svar)) [e']]
+              doe @ [doCheckFat checkSafeRetFat e' et]
             end else begin
               doe @ 
-              [call None (Lval(var checkSafeRetLean.svar)) [ e' ]]
+              [doCheckLean checkSafeRetLean e']
             end
           else
             doe
@@ -381,27 +483,39 @@ and boxinstr (ins: instr) =
           | _ -> E.s (E.unimp "call of a non-function: %a @!: %a" 
                         d_plainexp f' d_plaintype ft) 
         in
-        let rec doArgs restargs restargst = (* The types of functions have 
-                                             * been fixed already  *) 
-          match restargs, restargst with
-            [], [] -> [], []
-          | a :: resta, t :: restt -> 
-              let (doa, fa') = boxexpf a in
-              let (doa', fa'') = castTo fa' t.vtype doa in
-              let (_, doa'', a2) = fexp2exp fa'' doa' in
-              let (doresta, resta') = doArgs resta restt in
-              (doa'' @ doresta,  a2 :: resta')
-          | a :: resta, [] when isva -> 
-              let (at, doa, a') = boxexp a in
-              let (doresta, resta') = doArgs resta [] in
-              let a'' = 
-                if isFatType at then readPtrField a' at else a'
-              in
-              (doa @ doresta, a'' :: resta')
-
-          | _ -> E.s (E.unimp "vararg in call to %a" d_exp f)
+        let (doargs, args') =
+          if isva then (* We leave vararg functions alone. But we check all 
+                        * arguments and, if needed we pack the result *)
+            let rec doArgs = function
+              | [] -> ([], [])
+              | a :: resta -> 
+                  let (at, doa, a') = boxexp a in
+                  let (doresta, resta') = doArgs resta in
+                  let (checka, a'') = 
+                    if isFatType at then 
+                      ([doCheckFat checkSafeFatLeanCast a' at],
+                       readPtrField a' at)
+                    else ([], a')
+                  in
+                  (doa @ checka @ doresta, a'' :: resta')
+            in
+            doArgs args
+          else
+            let rec doArgs restargs restargst = (* The types of functions 
+                                                 * have 
+                                                 * been fixed already  *) 
+              match restargs, restargst with
+                [], [] -> [], []
+              | a :: resta, t :: restt -> 
+                  let (doa, fa') = boxexpf a in
+                  let (doa', fa'') = castTo fa' t.vtype doa in
+                  let (_, doa'', a2) = fexp2exp fa'' doa' in
+                  let (doresta, resta') = doArgs resta restt in
+                (doa'' @ doresta,  a2 :: resta')
+              | _ -> E.s (E.unimp "vararg in call to %a" d_exp f)
+            in
+            doArgs args ftargs  
         in
-        let (doargs, args') = doArgs args ftargs in
         mkSeq (dof @ doargs @ [call vi f' args'])
 
     | Asm(tmpls, isvol, outputs, inputs, clobs) ->
@@ -499,7 +613,8 @@ and boxoffset (off: offset) (basety: typ) : offsetRes =
       let (rest, doresto, off') = boxoffset o etype in
       (rest, doresto, First off')
 
-    (* Box an expression and return the fexp version of the result *)
+    (* Box an expression and return the fexp version of the result. If you do 
+     * not care about an fexp, you can call the wrapper boxexp *)
 and boxexpf (e: exp) : stmt list * fexp = 
   match e with
   | Lval (lv) -> 
@@ -610,7 +725,19 @@ and boxexpf (e: exp) : stmt list * fexp =
       in
       (dolv, F2 (ptrtype, AddrOf(addOffset (Index(zero, NoOffset)) lv', lu),
                  baseaddr))
-      
+
+  | Question (e1, e2, e3, l) ->       
+      let (_, doe1, e1') = boxexp (CastE(intType, e1, lu)) in
+      let (et2, doe2, e2') = boxexp e2 in
+      let (et3, doe3, e3') = boxexp e3 in
+      let result = 
+        if isFatType et2 then 
+          F1 (et2, Question (e1', e2', e3', l))
+        else
+          L  (et2, Question (e1', e2', e3', l))
+      in
+      (doe1 @ doe2 @ doe3, result)
+
   | _ -> begin
       ignore (E.log "boxexp: %a\n" d_exp e);
       ([], L (charPtrType, dExp (dprintf "booo expression(%a)" d_exp e)))
@@ -654,41 +781,12 @@ and boxexpSplit (e: exp) =
       let (tptr, ptr, base) = readPtrBaseField e'' et in
       (tptr, doe @ caste, ptr, base)
 
-and readPtrBaseField e et =     
-  if isFatType et then
-    let fptr  = getPtrFieldOfFat et in
-    let fbase = getBaseFieldOfFat et in
-    let rec compOffsets = function
-        NoOffset -> Field(fptr, NoOffset), Field(fbase, NoOffset)
-      | Field(fi, o) -> 
-          let po, bo = compOffsets o in
-          Field(fi, po), Field(fi, bo)
-      | Index(e, o) ->
-          let po, bo = compOffsets o in
-          Index(e, po), Index(e, bo)
-      | First o -> 
-          let po, bo = compOffsets o in
-          First po, First bo
-    in
-    let ptre, basee = 
-      match e with
-        Lval(Var vi, o) -> 
-          let po, bo = compOffsets o in
-          Lval(Var vi, po), Lval(Var vi, bo)
-      | Lval(Mem e'', o) -> 
-          let po, bo = compOffsets o in
-          Lval(Mem e'', po), Lval(Mem e'', bo)
-      | _ -> E.s (E.unimp "split _p field offset")
-    in
-    (fptr.ftype, ptre, basee)
-  else
-    (et, e, e)
 
     (* Cast an fexp to another one. Accumulate necessary statements to doe *)
 and castTo (fe: fexp) (newt: typ) (doe: stmt list) : stmt list * fexp = 
   match fe, isFatType newt with
   | L(lt, e) , false -> (* LEAN -> LEAN *)
-      (doe, L(newt, CastE(newt, e, lu)))
+      (doe, L(newt, doCast e lt newt))
   | L(lt, e), true -> (* LEAN -> FAT *)
       let ptype = (getPtrFieldOfFat newt).ftype in
       let newp = 
@@ -711,158 +809,62 @@ and castTo (fe: fexp) (newt: typ) (doe: stmt list) : stmt list * fexp =
   | FC(oldt, prevt, e), true -> 
       (doe, FC(newt, prevt, e))
       
-(*
-  if !currentFunction.svar.vname = "releaseHashes" then
-    ignore (E.log "cast %a@!from %a@! to %a\n" 
-              d_plainexp e d_plaintype et d_plaintype newt);
-*
-  match isFatType oldt, isFatType newt with
-    true, true ->              
-      let caste, tmp = 
-        match e with
-        | Lval (Mem (CastE(TPtr(_, []),
-                           AddrOf (tmp, _), _)),
-                Index(Const(CInt(0, _), _), NoOffset)) -> doe, tmp
-        | Lval tmp -> doe, tmp
-        | _ -> 
-            let tmp = var (makeTempVar !currentFunction et) in
-            (doe @ [mkSet tmp e], tmp)
-      in
-      (caste, 
-       Lval(Mem (CastE(TPtr(newt, []), 
-                       AddrOf (tmp, lu), lu)),
-            Index(zero, NoOffset)))
 
-  (* We cast from a fat to a non-fat. Maybe the fat is the result of a recent 
-   * cast from a non-fat *)
-  | true, false -> begin
-      try
-        (* Get the last two instructions from doe *)
-        ignore (E.log "Try to optimize cast of %a\n" d_plainexp e);
-        if List.length doe < 2 then
-          raise Not_found;
-        let rec loop = function
-            [ Instr(Set((Var v, Field(pFld, NoOffset)), p, _));
-              Instr(Set((Var v', Field(bFld, NoOffset)), _, _)) ] 
-            when v == v' && pFld.fname = "_p" && bFld.fname = "_b" ->
-              begin
-                ignore (E.log "castTo: e=%a.@!v=%s\n" d_plainexp e v.vname);
-                match e with
-                  Lval(Var v'', NoOffset) when v'' == v -> [], p
-                  (* Or maybe we have a fat cast *)
-                | Lval(Mem (CastE(TPtr(_, []), 
-                                  AddrOf ((Var v'', NoOffset), _), _)),
-                       Index(zero, NoOffset)) when v'' == v -> [], p
-                | _ -> raise Not_found
-              end
-
-          | a :: rest -> (* We know rest has at least 2 elements *)
-              let (dorest, e') = loop rest in
-              (a :: dorest, e')
-          | _ -> E.s (E.bug "castTo")
-        in
-        loop doe
-        
-      with Not_found -> begin
-        ignore (E.log "Couldn't optimize cast fat -> lean\n");
-        (doe, CastE(newt, readPtrField e et, lu))
-      end
-  end
-
-  | false, false -> 
-      if typeSig et = typeSig newt then 
-        (doe, e)
-      else
-        (doe, CastE(newt, e, lu))
-
-  | false, true -> begin 
-(*
-      if !currentFunction.svar.vname = "MapHash" then
-        ignore (E.log "Casting %a@!from %a@!to %a\n" 
-                  d_plainexp e d_plaintype et d_plaintype newt);
-*)
-  end
-*)
-
-    (* Create a new temporary of a fat type and set its pointer and base 
-     * fields *)
-and setFatPointer (t: typ) (p: typ -> exp) (b: exp) : stmt list * lval = 
-  let tmp = makeTempVar !currentFunction t in
-  let fptr = getPtrFieldOfFat t in
-  let fbase = getBaseFieldOfFat t in
-  let p' = p fptr.ftype in
-  ([ mkSet (Var tmp, Field(fptr,NoOffset)) p';
-     mkSet (Var tmp, Field(fbase,NoOffset)) b ], 
-     (Var tmp, NoOffset))
-      
-and readPtrField e t = 
-  let (tptr, ptr, base) = readPtrBaseField e t in ptr
-      
-and readBaseField e t = 
-  let (tptr, ptr, base) = readPtrBaseField e t in base
-
-and fromPtrToBase e = 
-  let rec replacePtrBase = function
-      Field(fip, NoOffset) when fip.fname = "_p" -> begin
-        (* Find the fat type that this belongs to *)
-        try
-          let fat = 
-            H.find fixedTypes (typeSig (TForward ("struct " ^ fip.fstruct))) in
-          let bfield = getBaseFieldOfFat fat in
-          Field(bfield, NoOffset)
-        with Not_found -> 
-          E.s (E.unimp "Field %s is not a component of a fat type" fip.fname)
-      end
-    | Field(f', o) -> Field(f',replacePtrBase o)
-    | _ -> E.s (E.unimp "Cannot find the _p field to replace in %a\n"
-                  d_plainexp e)
-  in
-  match e with
-    Lval (b, off) -> Lval(b, replacePtrBase off)
-  | _ -> E.s (E.unimp "replacing _p with _b in a non-lval")
 
 let boxFile globals =
   ignore (E.log "Boxing file\n");
-  theFile := GVar (checkSafeRetFat.svar, None) :: !theFile;
-  theFile := GVar (checkSafeRetLean.svar, None) :: !theFile;
   let doGlobal g = 
     match g with
-    | GVar (vi, init) as g -> begin
+                                        (* We ought to look at pragmas to see 
+                                         * if they talk about alignment of 
+                                         * structure fields *)
+    | GPragma s -> theFile := g :: !theFile
+    | GVar (vi, init) as g -> begin 
         if debug then
           ignore (E.log "Boxing GVar(%s)\n" vi.vname); 
-        if (match vi.vtype with TFun _ -> true | _ -> false) &&
-           List.exists (fun x -> x = vi.vname) leaveAlone then begin
-             (* Leave alone these functions *)
-             theFile := g :: !theFile
-        end else begin
-          vi.vtype <- fixupType vi.vtype;
-          if vi.vstorage <> Extern &&
-            (match vi.vtype with TFun _ -> false | _ -> true) then begin
-              let sz = intSizeOfNoExc vi.vtype in
+        vi.vtype <- fixupType vi.vtype;
+        let isFuncType = 
+          match unrollType vi.vtype with
+            TFun _ -> true
+          | TPtr (TFun _, _) -> true
+          | _ -> false
+        in
+          (* If the type has changed and this is a global variable then we
+           * also change its name *)
+        if vi.vglob && vi.vstorage <> Static && typeHasChanged vi.vtype then
+          begin
+            let oldname = vi.vname in
+            vi.vname <- vi.vname ^ "_fp_";
+(*            if not isFuncType then
+              ignore (E.log "Warning: global variable %s changed to %s\n"
+                        oldname vi.vname) *)
+          end;
+        if vi.vstorage <> Extern &&
+          (match vi.vtype with TFun _ -> false | _ -> true) then begin
+            let sz = intSizeOfNoExc vi.vtype in
               let (tagtype, taginit) = tagTypeInit sz in
               let tagvar = makeGlobalVar ("__tag_of_" ^ vi.vname) tagtype in
               tagvar.vstorage <- Static;
               theFile := GVar (tagvar, Some (taginit)) :: !theFile
-            end;
-          let init' = 
-            try
-              match init with
+          end;
+        let init' = 
+          try
+            match init with
                 None -> None
-              | Some e -> 
-                  let (et, doe, e', e'base) = 
-                    boxexpSplit (CastE(vi.vtype, e, lu)) in
-                  if doe <> [] then
+            | Some e -> 
+                let (et, doe, e', e'base) = 
+                  boxexpSplit (CastE(vi.vtype, e, lu)) in
+                if doe <> [] then
                   E.s (E.unimp "Non-pure initializer %a\n"
                          d_exp e);
                   if isFatType vi.vtype then
                     Some (Compound(vi.vtype, [ e'; e'base]))
                   else
                     Some e'
-            with e -> Some (dExp (dprintf "booo_init(%s)"
-                                    (Printexc.to_string e)))
-          in
-          theFile := GVar(vi, init') :: !theFile
-        end
+          with e -> Some (dExp (dprintf "booo_init(%s)"
+                                  (Printexc.to_string e)))
+        in
+        theFile := GVar(vi, init') :: !theFile
     end
     | GType (n, t) as g -> 
         if debug then
@@ -875,6 +877,11 @@ let boxFile globals =
           ignore (E.log "Boxing GFun(%s)\n" f.svar.vname);
         (* Fixup the return type as well *)
         f.svar.vtype <- fixupType f.svar.vtype;
+          (* If the type has changed and this is a global function then we
+           * also change its name *)
+        if f.svar.vglob && f.svar.vstorage <> Static 
+            && typeHasChanged f.svar.vtype then
+          f.svar.vname <- f.svar.vname ^ "_fp_";
         (* Fixup the types of the remaining locals *)
         List.iter (fun l -> l.vtype <- fixupType l.vtype) f.slocals;
         currentFunction := f;           (* so that maxid and locals can be 

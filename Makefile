@@ -114,23 +114,11 @@ endif
 ifdef RELEASE
 SAFECC+= --release
 endif
+
+
+
 ####### Test with PCC sources
-PCCSOURCES = hash lf huffman x86/x86SE extensions/javaclasses
 PCCTEST=test/PCC
-testpcc: $(PCCSOURCES:%=testpcc/%)
-testpcc/% : $(PCCDIR)/src/%.c $(EXECUTABLE)$(EXE) 
-	$(SAFECC) --keep=$(PCCTEST) $(DEF)x86_WIN32 $(DEF)_DEBUG $(CONLY) \
-                  $(PCCDIR)/src/$*.c \
-                  $(OUT)$(PCCTEST)/$(notdir $*).o
-
-testhash: $(PCCTEST)/main.c $(EXECUTABLE)$(EXE)
-	$(SAFECC) --keep=$(PCCTEST) $(DEF)x86_WIN32 \
-                 $(INC)$(PCCDIR) \
-                 $(PCCDIR)/src/hash.c \
-                 $(PCCDIR)/src/redblack.c \
-                 $(PCCTEST)/src/hashtest.c \
-                 $(EXEOUT)$(PCCTEST)/hashtest.exe
-
 ifdef RELEASE
 PCCTYPE=RELEASE
 SPJARG=
@@ -143,6 +131,21 @@ PCCCOMP=_GNUCC
 else
 PCCCOMP=_MSVC
 endif
+
+testpcc/% : $(PCCDIR)/src/%.c $(EXECUTABLE)$(EXE) 
+	$(SAFECC) --keep=$(PCCTEST) $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) $(CONLY) \
+                  $(PCCDIR)/src/$*.c \
+                  $(OUT)$(PCCTEST)/$(notdir $*).o
+
+HASHTESTMAIN=test/small1/hashtest.c
+testhash: $(HASHTESTMAIN) $(EXECUTABLE)$(EXE)
+	$(SAFECC) --keep=$(PCCTEST) $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) \
+                 $(INC)$(PCCDIR)/src \
+                 $(PCCDIR)/src/hash.c \
+                 $(PCCDIR)/src/redblack.c \
+                 $(HASHTESTMAIN) \
+                 $(EXEOUT)$(PCCTEST)/hashtest.exe
+
 testallpcc: $(EXECUTABLE)$(EXE)
 	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.o
 	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.exe

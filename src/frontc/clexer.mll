@@ -199,6 +199,7 @@ let scan_escape str =
   | "f" -> "\012"  (* ASCII code 12 *)
   | "v" -> "\011"  (* ASCII code 11 *)
   | "a" -> "\007"  (* ASCII code 7 *)
+  | "e" -> "\027"  (* ASCII code 27. This is a GCC extension *)
   | _ -> str
 
 let get_value chr =

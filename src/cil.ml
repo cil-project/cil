@@ -55,14 +55,16 @@ type location = {
 let locUnknown = { line = -1; col = -1; file = ""; }
 
 (* Information about a variable. Use one of the makeLocalVar, makeTempVar or 
- * makeGlobalVar to create instances of this data structure.  *)
+ * makeGlobalVar to create instances of this data structure. These structures a
+ * re shared by all references to the variable. So, you can change the name
+ * easily, for example *)
 type varinfo = { 
     vid: int;		(* Unique integer indentifier. For globals this is a 
                          * hash of the name. Locals are numbered from 0 
                          * starting with the formal arguments. This field 
                          * will be set for you if you use one of the 
                          * makeLocalVar, makeTempVar or makeGlobalVar *)
-    vname: string;				
+    mutable vname: string;				
     vglob: bool;	(* Is this a global variable? *)
 
     mutable vtype: typ;                 (* The declared type *)
@@ -95,9 +97,9 @@ and typ =
   | TInt of ikind * attribute list
   | TBitfield of ikind * int * attribute list
   | TFloat of fkind * attribute list
-  | TNamed of string * typ * attribute list (* From a typedef. The attributes 
-                                             * are in addition to the 
-                                             * attributes of the named type  *)
+           (* name, tags with values, attributes *)
+  | TEnum of string * (string * int) list * attribute list
+
   | TPtr of typ * attribute list        (* Pointer type *)
 
               (* base type and length *)
@@ -107,16 +109,17 @@ and typ =
   | TStruct of string * fieldinfo list * attribute list 
   | TUnion of string * fieldinfo list * attribute list
 
+               (* result, args, isVarArg, attributes *)
+  | TFun of typ * varinfo list * bool * attribute list
+
            (* A reference to a struct or a union. The argument is "struct x" 
             * or "union x". The reference is resolved using the hash table 
             * "forwardTypeMap"  *)
   | TForward of string
 
-           (* name, tags with values, attributes *)
-  | TEnum of string * (string * int) list * attribute list
-
-               (* result, args, isVarArg, attributes *)
-  | TFun of typ * varinfo list * bool * attribute list
+  | TNamed of string * typ * attribute list (* From a typedef. The attributes 
+                                             * are in addition to the 
+                                             * attributes of the named type  *)
 
 (* kinds of integers *)
 and ikind = 
@@ -202,7 +205,8 @@ and exp =
                                               * cannot turn this into a 
                                               * conditional statement (e.g. 
                                               * in global initializers) *)
-  | CastE      of typ * exp * location
+  | CastE      of typ * exp * location  (* Use doCast to make casts *)
+
   | Compound   of typ * exp list        (* Used only for initializers of 
                                          * structures and arrays *)
   | AddrOf     of lval * location
