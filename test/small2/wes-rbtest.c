@@ -149,7 +149,6 @@ typedef struct _iobuf FILE;
 
 int   __cdecl printf(const char * __ROSTRING, ...);
 int   __cdecl fprintf(FILE * __SAFE, const char * __ROSTRING, ...);
-void  __cdecl exit(int);
 int   __cdecl fflush(FILE * __SAFE);
 #define NULL (void*)0
 

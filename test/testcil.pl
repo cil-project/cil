@@ -69,9 +69,13 @@ my $inferbox = 3;
 
 # Now add tests
 $TEST->add3Tests("btreetest", "", @runpattern);
+   $TEST->addComment("btreetest-inferbox", "bug in solver");
 $TEST->add3Tests("hashtest", "", @runpattern);
 $TEST->add3Tests("rbtest", "", @runpattern);
 $TEST->add3Tests("hufftest", "", @runpattern);
+   $TEST->addComment("hufftest-inferbox", "bug in solver");
+   $TEST->addComment("hufftest-box", "missing wrappers");
+   $TEST->addComment("hufftest-cil", "bug running the test???");
 $TEST->add3Tests("test/alloc");
 $TEST->add3Tests("test/argcast", "", @runpattern);
 $TEST->add3Tests("test/array1");
@@ -120,8 +124,12 @@ $TEST->add1Test("test/alloc-manualinferbox",
                 "test/alloc INFERBOX=$inferbox MANUALBOX=1",
                 %commonerrors);
 $TEST->add3Tests("bh", "_GNUCC=1");
+   $TEST->addComment("bh-box", "missing wrappers");
 $TEST->add3Tests("li", "_GNUCC=1");
+  $TEST->addComment("li-box", "bug in box.ml");
+  $TEST->addComment("li-inferbox", "bug in box.ml");
 $TEST->add3Tests("compress", "_GNUCC=1");
+   $TEST->addComment("compress-box", "missing wrappers");
 $TEST->add3Tests("apache/gzip");
 $TEST->add3Tests("apache/rewrite");
   $TEST->addComment("apache/rewrite-cil", "missing main");
