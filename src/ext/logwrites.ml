@@ -132,6 +132,7 @@ let feature : featureDescr =
     fd_doit = 
     (function (f: file) -> 
       let lwVisitor = new logWriteVisitor in
-      visitCilFileSameGlobals lwVisitor f)
+      visitCilFileSameGlobals lwVisitor f);
+    fd_post_check = true;
   } 
 

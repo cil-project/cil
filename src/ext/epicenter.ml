@@ -69,7 +69,9 @@ let feature : featureDescr =
 
     fd_doit =
     (fun f -> 
-      sliceFile f !epicenterName !epicenterHops)
+      sliceFile f !epicenterName !epicenterHops);
+
+    fd_post_check = true;
   } 
 
 

@@ -128,4 +128,5 @@ let feature : featureDescr =
     fd_description = "simplify all memory expressions" ;
     fd_extraopt = [];
     fd_doit = (function (f: file) -> ignore (simplemem f)) ;
+    fd_post_check = true;
   } 

@@ -196,7 +196,8 @@ let feature : featureDescr =
     fd_description = "generation of code to log function calls";
     fd_extraopt = 
     [("--logstyle", Arg.Int (fun i -> setStyle i), styleHelp);];
-    fd_doit = logCalls 
+    fd_doit = logCalls;
+    fd_post_check = true
   } 
 
 (*

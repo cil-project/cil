@@ -66,8 +66,6 @@ open Cil
 module E = Errormsg
 module H = Hashtbl
 
-let cpp_canon = ref false
-
 (* For transformation #1. Stores all variable definitions in the file. *)
 let varDefinitions: (varinfo, global) H.t = H.create 111
 
@@ -286,8 +284,9 @@ let canonicalize (f:file) =
 
 let feature : featureDescr = 
   { fd_name = "canonicalize";
-    fd_enabled = cpp_canon;
+    fd_enabled = ref false;
     fd_description = "fixing some C-isms so that the result is C++ compliant.";
     fd_extraopt = [];
     fd_doit = canonicalize;
+    fd_post_check = true;
   } 

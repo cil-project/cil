@@ -192,7 +192,8 @@ let feature : featureDescr =
     fd_doit = 
     (function (f: file) -> 
       let graph:callgraph = computeGraph f in
-      printGraph stdout graph)
+      printGraph stdout graph);
+    fd_post_check = false;
   } 
 
 

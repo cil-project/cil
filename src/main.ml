@@ -87,7 +87,8 @@ let makeCFGFeature : C.featureDescr =
                       (* jc: blockinggraph depends on this "true" arg *)
                       ignore (Cil.computeCFGInfo fd true)
       | _ -> ()) 
-    ) 
+    );
+    C.fd_post_check = true;
   } 
 
 let features : C.featureDescr list = 
@@ -103,6 +104,7 @@ let features : C.featureDescr list =
     makeCFGFeature; 
     Partial.feature;
     Simplemem.feature;
+    Simplify.feature;
   ] 
   @ Feature_config.features 
 
@@ -121,7 +123,7 @@ let rec processOneFile (cil: C.file) =
         if ! (fdesc.C.fd_enabled) then begin
           fdesc.C.fd_doit cil;
           (* See if we need to do some checking *)
-          if !Util.doCheck then begin
+          if !Util.doCheck && fdesc.C.fd_post_check then begin
             ignore (E.log "CIL check after %s\n" fdesc.C.fd_name);
             ignore (CK.checkFile [] cil);
           end
@@ -239,6 +241,8 @@ let rec theMain () =
                      "turns off consistency checking of CIL";
     "--nodebug", Arg.String (setDebugFlag false),
                       "<xxx> turns off debugging flag xxx";
+    "--stats", Arg.Unit (fun _ -> Util.printStats := true),
+               "print some statistics";
     "--testcil", Arg.String (fun s -> testcil := s),
           "test CIL using the give compiler";
     "--nocil", Arg.Int (fun n -> Cabs2cil.nocil := n),
@@ -346,7 +350,7 @@ let main () =
         exit 2)
   in
   begin
-    if !E.verboseFlag then
+    if !E.verboseFlag || !Util.printStats then
       Stats.print stderr "Timings:\n";
     close_out (! E.logChannel);  
     (match ! outChannel with Some c -> close_out c | _ -> ());

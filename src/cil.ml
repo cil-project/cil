@@ -743,6 +743,10 @@ type featureDescr = {
 
     fd_doit: (file -> unit);
     (** This performs the transformation *)
+
+    fd_post_check: bool; 
+    (* Whether to perform a CIL consistency checking after this stage, if 
+     * checking is enabled (--check is passed to cilly) *)
 }
 
 let locUnknown = { line = -1; file = ""; byte = -1; }
@@ -1841,15 +1845,13 @@ and typeOfInit (i: init) : typ =
   match i with 
     SingleInit e -> typeOf e
   | CompoundInit (t, _) -> t
-(*
-  | ArrayInit (bt, len, _) -> TArray(bt, Some (integer len), [])
-*)
+
 and typeOfLval = function
     Var vi, off -> typeOffset vi.vtype off
   | Mem addr, off -> begin
       match unrollType (typeOf addr) with
         TPtr (t, _) -> typeOffset t off
-      | _ -> E.s (E.bug "typeOfLval: Mem on a non-pointer")
+      | _ -> E.s (bug "typeOfLval: Mem on a non-pointer")
   end
 
 and typeOffset basetyp = function

@@ -222,13 +222,15 @@ let feature1 : featureDescr =
     fd_enabled = Util.doStackGuard;
     fd_description = "instrument function calls and returns to maintain a separate stack for return addresses" ;
     fd_extraopt = [];
-    fd_doit = (function (f: file) -> default_stackguard f)
+    fd_doit = (function (f: file) -> default_stackguard f);
+    fd_post_check = true;
   } 
 let feature2 : featureDescr = 
   { fd_name = "heapify";
     fd_enabled = Util.doHeapify;
     fd_description = "move stack-allocated arrays to the heap" ;
     fd_extraopt = [];
-    fd_doit = (function (f: file) -> default_heapify f)
+    fd_doit = (function (f: file) -> default_heapify f);
+    fd_post_check = true;
   } 
       

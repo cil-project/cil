@@ -729,5 +729,6 @@ let feature : featureDescr =
 (*       compute_aliases true;
 *)    if (!ptrTypes) then 
          print_types ()
-    )
+    );
+    fd_post_check = false; (* No changes *)
   } 

@@ -148,5 +148,6 @@ let feature : featureDescr =
     fd_doit = (function (f: file) -> 
       Cil.iterGlobals f (fun glob -> match glob with
         Cil.GFun(fd,_) -> oneret fd; 
-      | _ -> ()))
+      | _ -> ()));
+    fd_post_check = true;
   } 

@@ -92,7 +92,7 @@ let doit (f: file) =
           end
     
     in 
-    loop ();
+    Stats.time "rand" loop ();
     ignore (E.log "\n");
   in
   List.iter 
@@ -108,5 +108,7 @@ let feature : featureDescr =
     fd_enabled = enabled;
     fd_description = "randomized global value numbering";
     fd_extraopt = [];
-    fd_doit = doit }
+    fd_doit = doit;
+    fd_post_check = false; (* No changes to the file *)
+}
 

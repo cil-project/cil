@@ -808,6 +808,7 @@ let feature : featureDescr =
         Errormsg.s (Errormsg.error "--dopartial: you must also specify --domakeCFG\n")
       end ; 
       partial f [] ) ;
+    fd_post_check = false;
   } 
 
 (*

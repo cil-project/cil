@@ -625,5 +625,6 @@ let feature : featureDescr =
       markBlockingFunctions ();
       makeAndDumpBlockingGraphs ();
       instrumentProgram f;
-      dumpFunctionCallGraphToFile ())
+      dumpFunctionCallGraphToFile ());
+    fd_post_check = true;
   } 

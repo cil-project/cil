@@ -1011,6 +1011,11 @@ type featureDescr = {
 
     fd_doit: (file -> unit);
     (** This performs the transformation *)
+
+    fd_post_check: bool; 
+    (* Whether to perform a CIL consistency checking after this stage, if 
+     * checking is enabled (--check is passed to cilly). Set this to true if 
+     * your feature makes any changes for the program. *)
 }
 
 (** Comparison function for locations.
@@ -1689,7 +1694,8 @@ class type cilVisitor = object
      * place your instructions. *)
   method queueInstr: instr list -> unit
 
-    (** Gets the queue of instructions and resets the queue *)
+    (** Gets the queue of instructions and resets the queue. This is done 
+     * automatically for you when you visit statments. *)
   method unqueueInstr: unit -> instr list
 
 end

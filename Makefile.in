@@ -57,7 +57,8 @@ CILLY_MODULES = pretty errormsg trace stats util clist \
               patch frontc check mergecil logcalls logwrites rmtmps \
 	      callgraph epicenter heapify \
               setp uref steensgaard olf dummy ptranal \
-              canonicalize heap oneret partial simplemem testcil \
+              canonicalize heap oneret partial simplemem simplify \
+              testcil \
 	      $(CILLY_FEATURES) \
 	      feature_config \
               maincil
