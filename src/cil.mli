@@ -446,7 +446,6 @@ type file =
 	(* global function decls, global variable decls *)
 
 
-
 (* Selects the proper integer kind *)
 val integerKinds: int -> 
                   possiblekinds: ikind list -> s: string option -> constant
@@ -606,37 +605,41 @@ val d_plaintype: unit -> typ -> Pretty.doc
 
 
 
-(* sm: cil visitor interface for traversing Cil trees *)
-(* no provision for modifying trees at this time *)
-(* use visitCilStmt and/or visitCilFile to use this *)
-(* I'd like to export cil.ml's default nopCilVisitor, but I don't know how *)
+(* sm: cil visitor interface for traversing Cil trees. *)
+(* There is no provision for modifying trees at this time. *)
+(* Use visitCilStmt and/or visitCilFile to use this. *)
+(* I'd like to export cil.ml's default nopCilVisitor, but I don't know how. *)
+(* The methods return true to continue recursing deeper into this *)
+(* construct, false to stop recursing (but siblings are visited). *)
 class type cilVisitor = object
-  method vvrbl : varinfo -> unit     (* variable *)
-  method vexpr : exp -> unit         (* expression *)
-  method vlval : lval -> unit        (* lval (base is 1st field) *)
-  method voffs : offset -> unit      (* lval offset *)
-  method vinst : instr -> unit       (* imperative instruction *)
-  method vstmt : stmt -> unit        (* constrol-flow statement *)
-  method vfunc : fundec -> unit      (* function definition *)
-  method vfuncPost : fundec -> unit  (*   postorder version *)
-  method vglob : global -> unit      (* global (vars, types, etc.) *)
+  method vvrbl : varinfo -> bool     (* variable use *)
+  method vvdec : varinfo -> bool     (* variable declaration *)
+  method vexpr : exp -> bool         (* expression *)
+  method vlval : lval -> bool        (* lval (base is 1st field) *)
+  method voffs : offset -> bool      (* lval offset *)
+  method vinst : instr -> bool       (* imperative instruction *)
+  method vstmt : stmt -> bool        (* constrol-flow statement *)
+  method vfunc : fundec -> bool      (* function definition *)
+  method vfuncPost : fundec -> bool  (*   postorder version *)
+  method vglob : global -> bool      (* global (vars, types, etc.) *)
+  method vtype : typ -> bool         (* use of some type *)
+  method vtdec : string -> typ -> bool    (* typedef *)
 end
-
-
-(* visit all nodes in a Cil expression tree in preorder *)
-val visitCilExp: cilVisitor -> exp -> unit
-
-(* Visit all nodes in a Cil lvalue tree in preorder *)
-val visitCilLval: cilVisitor -> lval -> unit
-
-(* Visit all nodes in a Cil instruction in preorder *)
-val visitCilInstr: cilVisitor -> instr -> unit
 
 (* visit all nodes in a Cil statement tree in preorder *)
 val visitCilStmt: cilVisitor -> stmt -> unit
 
-(* visit an entire file *)
-val visitCilFile: cilVisitor -> file -> unit
+(* other cil constructs *)
+val visitCilFile : cilVisitor -> file -> unit
+val visitCilFileInReverse : cilVisitor -> file -> unit
+val visitCilExpr : cilVisitor -> exp -> unit
+val visitCilLval : cilVisitor -> lval -> unit
+val visitCilOffset : cilVisitor -> offset -> unit
+val visitCilInstr: cilVisitor -> instr -> unit
+val visitCilType : cilVisitor -> typ -> unit
+val visitCilVarDecl : cilVisitor -> varinfo -> unit
+val visitCilFunction : cilVisitor -> fundec -> unit
+val visitCilGlobal : cilVisitor -> global -> unit
 
 
    (* Make a local variable and add it to a function *)

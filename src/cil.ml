@@ -440,35 +440,45 @@ type file =
 (* sm: cil visitor interface for traversing Cil trees *)
 (* no provision for modifying trees at this time *)
 class type cilVisitor = object
-  method vvrbl : varinfo -> unit     (* variable *)
-  method vexpr : exp -> unit         (* expression *)
-  method vlval : lval -> unit        (* lval (base is 1st field) *)
-  method voffs : offset -> unit      (* lval offset *)
-  method vinst : instr -> unit       (* imperative instruction *)
-  method vstmt : stmt -> unit        (* constrol-flow statement *)
-  method vfunc : fundec -> unit      (* function definition *)
-  method vfuncPost : fundec -> unit  (*   postorder version *)
-  method vglob : global -> unit      (* global (vars, types, etc.) *)
+  method vvrbl : varinfo -> bool     (* variable *)
+  method vvdec : varinfo -> bool     (* variable declaration *)
+  method vexpr : exp -> bool         (* expression *)
+  method vlval : lval -> bool        (* lval (base is 1st field) *)
+  method voffs : offset -> bool      (* lval offset *)
+  method vinst : instr -> bool       (* imperative instruction *)
+  method vstmt : stmt -> bool        (* constrol-flow statement *)
+  method vfunc : fundec -> bool      (* function definition *)
+  method vfuncPost : fundec -> bool  (*   postorder version *)
+  method vglob : global -> bool      (* global (vars, types, etc.) *)
+  method vtype : typ -> bool         (* use of some type *)
+  method vtdec : string -> typ -> bool    (* typedef *)
 end
 
-(* the default visitor does nothing at each node *)
+(* the default visitor does nothing at each node, but does *)
+(* not stop; hence they return true *)
 class nopCilVisitor = object
-  method vvrbl (v:varinfo) = ()     (* variable *)
-  method vexpr (e:exp) = ()         (* expression *)
-  method vlval (l:lval) = ()        (* lval (base is 1st field) *)
-  method voffs (o:offset) = ()      (* lval offset *)
-  method vinst (i:instr) = ()       (* imperative instruction *)
-  method vstmt (s:stmt) = ()        (* constrol-flow statement *)
-  method vfunc (f:fundec) = ()      (* function definition *)
-  method vfuncPost (f:fundec) = ()  (*   postorder version *)
-  method vglob (g:global) = ()      (* global (vars, types, etc.) *)
+  method vvrbl (v:varinfo) = true     (* variable *)
+  method vvdec (v:varinfo) = true     (* variable declaration *)
+  method vexpr (e:exp) = true         (* expression *)
+  method vlval (l:lval) = true        (* lval (base is 1st field) *)
+  method voffs (o:offset) = true      (* lval offset *)
+  method vinst (i:instr) = true       (* imperative instruction *)
+  method vstmt (s:stmt) = true        (* constrol-flow statement *)
+  method vfunc (f:fundec) = true      (* function definition *)
+  method vfuncPost (f:fundec) = true  (*   postorder version *)
+  method vglob (g:global) = true      (* global (vars, types, etc.) *)
+  method vtype (t:typ) = true         (* use of some type *)
+  method vtdec (s:string) (t:typ) = true    (* typedef *)
 end
 
 (* as an example, here is a visitor that visits expressions *)
-(* note how objects capture constructor arguments for use later *)
+(* note how objects capture constructor arguments for use later, *)
+(* even though they are not stored explicitly in fields *)
 class cilExprVisitor (ve : exp -> unit) = object
-  inherit nopCilVisitor
-  method vexpr e = (ve e)           (* call the ctor arg *)
+  inherit nopCilVisitor    (* get default nop actions *)
+  method vexpr e =
+    (ve e);                (* call the ctor arg *)
+    true                   (* and keep going *)
 end
 
 
@@ -1415,7 +1425,7 @@ let getGlobInit (fl: file) =
   
 
 (* Iterate over all globals, including the global initializer *)
-let iterGlobals (fl: file) 
+let iterGlobals (fl: file)
                 (doone: global -> unit) : unit =
   List.iter doone fl.globals;
   (match fl.globinit with
@@ -1497,121 +1507,215 @@ let printFileWithCustom (out: out_channel)
  ******************)
 
 
-
-
 (*** Define the visiting engine ****)
-(* visit all the nodes in a Cil expression *) 
-let rec  visitCilExp (vis: cilVisitor) (e: exp) : unit = 
+(* visit all the nodes in a Cil expression *)
+let rec visitCilExpr (vis : cilVisitor) (e : exp) : unit =
+begin
+  (* visit the expression itself *)
+  if (vis#vexpr e) then
+
+  (* and visit its subexpressions *)
+  let fExp e = (visitCilExpr vis e) in
+  match e with
+    (Const _|SizeOf _) -> ()
+  | SizeOfE e -> fExp e
+  | Lval lv -> (visitCilLval vis lv)
+  | UnOp(_,e,_) -> fExp e
+  | BinOp(_,e1,e2,_) -> fExp e1; fExp e2
+  | Question (e1, e2, e3) -> fExp e1; fExp e2; fExp e3
+  | CastE(_, e) -> fExp e
+  | Compound (_, initl) ->
+      List.iter
+        (function
+            (None, e) -> fExp e
+          | (Some ofs, e) -> (visitCilOffset vis ofs); fExp e
+        )
+        initl
+  | AddrOf (lv) -> (visitCilLval vis lv)
+  | StartOf (lv) -> (visitCilLval vis lv)
+end
+
+and visitCilLval (vis: cilVisitor) (lv: lval) : unit =
+begin
+  if (vis#vlval lv) then
+
+  match lv with
+    Var v, off -> (
+      (ignore (vis#vvrbl v));
+      (visitCilOffset vis off)
+    )
+  | Mem e, off -> (
+      (visitCilExpr vis e);
+      (visitCilOffset vis off)
+    )
+end
+
+and visitCilOffset (vis: cilVisitor) (off: offset) : unit =
+begin
+  if (vis#voffs off) then
+
+  match off with
+    Field (_, o) -> (visitCilOffset vis o)
+  | Index (e, o) -> (visitCilExpr vis e); (visitCilOffset vis o)
+  | NoOffset -> ()
+end
+
+and visitCilInstr (vis: cilVisitor) (i: instr) : unit =
+begin
+  if (vis#vinst i) then
+
+  let fExp = visitCilExpr vis in
   let fLval = visitCilLval vis in
-  let fOff  = visitCilOffset vis in 
-  let rec fExp e = (vis#vexpr e); fExp' e
-      
-  and fExp' = function
-      (Const _|SizeOf _) -> ()
-    | SizeOfE e -> fExp e
-    | Lval lv -> fLval lv
-    | UnOp(_,e,_) -> fExp e
-    | BinOp(_,e1,e2,_) -> fExp e1; fExp e2
-    | Question (e1, e2, e3) -> fExp e1; fExp e2; fExp e3
-    | CastE(_, e) -> fExp e
-    | Compound (_, initl) ->
-        List.iter
-          (function
-              (None, e) -> fExp e
-            | (Some ofs, e) -> fOff ofs; fExp e
-          )
-          initl
-    | AddrOf (lv) -> fLval lv
-    | StartOf (lv) -> fLval lv
-  in
-  fExp e
 
-(* visit all the nodes in a Cil lvalue *)
-and visitCilLval (vis: cilVisitor) (lv: lval) : unit = 
-  let fVrbl v = () in
-  let fExp = visitCilExp vis in
-  let fOff = visitCilOffset vis in
-
-  let rec fLval lv = (vis#vlval lv); fLval' lv
-  and fLval' = function
-      Var v, off -> (vis#vvrbl v); fOff off
-    | Mem e, off -> fExp e; fOff off
-  in
-  fLval lv
-
-and visitCilOffset (vis: cilVisitor) (off: offset) : unit = 
-  let fExp = visitCilExp vis in
-  let fOff = visitCilOffset vis in
-
-  let rec fOff o = (vis#voffs o); fOff' o
-  and fOff' = function
-      Field (_, o) -> fOff o
-    | Index (e, o) -> fExp e; fOff o
-    | NoOffset -> ()
-  in
-  fOff off
-  
-
-let visitCilInstr (vis: cilVisitor) (i: instr) : unit = 
-  let fExp = visitCilExp vis in
-  let fLval = visitCilLval vis in
-  (* I don't know why I had to specify the types here and nowhere
-   * else .. the compiler complained of partial applications
-   * where I could see none .. *)  
-  let rec fInst (i:instr) : unit = (vis#vinst i); fInst' i; ()
-  and fInst' (i:instr) : unit = match i with
-    | Set(lv,e) -> fLval lv; fExp e
-    | Call(None,f,args) -> fExp f; List.iter fExp args
-    | Call((Some (v, _)),fn,args) -> vis#vvrbl v; fExp fn; List.iter fExp args 
-    | Asm(_,_,outs,ins,_) -> begin
-        List.iter (fun (_, lv) -> fLval lv) outs;
-        List.iter (fun (_, e) -> fExp e) ins
-      end
-  in
-  fInst i
-
+  match i with
+  | Set(lv,e) -> fLval lv; fExp e
+  | Call(None,f,args) -> fExp f; (List.iter fExp args)
+  | Call((Some (v, _)),fn,args) -> (
+      (ignore (vis#vvrbl v));
+      (fExp fn);
+      (List.iter fExp args)
+    )
+  | Asm(_,_,outs,ins,_) -> begin
+      (List.iter (fun (_, lv) -> fLval lv) outs);
+      (List.iter (fun (_, e) -> fExp e) ins)
+    end
+end
 
 (* visit all nodes in a Cil statement tree in preorder *)
-let visitCilStmt (vis: cilVisitor) (body: stmt) : unit =
+and visitCilStmt (vis: cilVisitor) (body: stmt) : unit =
 begin
-  let fExp = visitCilExp vis in
-  let fLval = visitCilLval vis in
-  let fInst = visitCilInstr vis in
+  let rec fExp e = (visitCilExpr vis e)
+  and fLval lv = (visitCilLval vis lv)
+  and fOff o = (visitCilOffset vis o)
+  and fInst i = (visitCilInstr vis i)   (* compiler doesn't like this curried..? *)
 
-  let rec fStmt s = (vis#vstmt s); fStmt' s
-  and fStmt' = function
+  and fStmt s = if (vis#vstmt s) then fStmt' s
+  and fStmt' = begin function
       (Skip|Break|Continue|Label _|Goto _|Case _|Default|Return (None,_)) -> ()
     | Sequence s -> List.iter fStmt s
     | Loop s -> fStmt s
     | IfThenElse (e, s1, s2, _) -> fExp e; fStmt s1; fStmt s2
     | Return(Some e, _) -> fExp e
     | Switch (e, s, _) -> fExp e; fStmt s
-    | Instr(i, _) -> (fInst i); ()
+    | Instr(i, _) -> fInst i
+  end
 
   in
   fStmt body
 end
 
+and visitCilType (vis : cilVisitor) (t : typ) : unit =
+begin
+  (*(trace "visitCilType" (dprintf "%a\n" d_type t));*)
+
+  (* visit 't' itself *)
+  if (vis#vtype t) then
+
+  (* look for types referred to inside t's definition *)
+  match t with
+    TPtr(t, _) -> (visitCilType vis t)
+  | TArray(t, None, _) -> (visitCilType vis t)
+  | TArray(t, Some e, _) -> (
+      (visitCilType vis t);
+      (visitCilExpr vis e)
+    )
+  | TComp(cinfo) -> (
+      (* iterate over fields *)
+      (List.iter
+        (fun (finfo : fieldinfo) ->
+          (visitCilType vis finfo.ftype))
+        cinfo.cfields)
+    )
+  | TFun(rettype, args, _, _) -> (
+      (visitCilType vis rettype);
+
+      (* iterate over formals *)
+      (List.iter
+        (fun (v : varinfo) ->
+          (visitCilVarDecl vis v)      (* visit as a variable decl *)
+        )
+        args
+      )
+    )
+  (* I choose not to recurse into TNamed since my present *)
+  (* purpose doesn't need it, and it could lead to inf loop *)
+  | _ -> ()
+end
+
+(* for declarations, we visit the types inside; but for uses, *)
+(* we just visit the varinfo node *)
+and visitCilVarDecl (vis : cilVisitor) (v : varinfo) : unit =
+begin
+  (* visit the variable as a decl *)
+  if (vis#vvdec v) then
+
+  (* visit the type it's declared as *)
+  (visitCilType vis v.vtype)
+end
+
+let visitCilFunction (vis : cilVisitor) (f : fundec) : unit =
+begin
+  if (vis#vfunc f) then (            (* preorder visit *)
+    (visitCilVarDecl vis f.svar);      (* hit the function name *)
+    (List.iter
+      (fun (v : varinfo) ->
+        (visitCilVarDecl vis v))       (* visit local declarations *)
+      f.slocals);
+    (visitCilStmt vis f.sbody);        (* visit the body *)
+    (ignore (vis#vfuncPost f))         (* postorder visit *)
+  )
+end
+
+let visitCilGlobal (vis: cilVisitor) (g: global) : unit =
+begin
+  if (vis#vglob g) then
+
+  match g with
+  | GFun (f, _) -> (visitCilFunction vis f)
+  | GType(s, t, _) -> (
+      (*(trace "visitTypedef" (dprintf "%s = %a\n" s d_type t));*)
+      if (vis#vtdec s t) then (visitCilType vis t)
+    )
+  | GDecl(v, _) -> (visitCilVarDecl vis v)
+  | GVar (v, None, _) -> (ignore (vis#vvrbl v))
+  | GVar (v, Some e, _) -> (
+      (ignore (vis#vvrbl v));
+      (ignore (vis#vexpr e))
+    )
+  | _ -> ()
+end
 
 let visitCilFile (vis : cilVisitor) (f : file) : unit =
 begin
-  let rec fFunc f = begin
-    vis#vfunc f;                (* preorder visit *)
-    vis#vvrbl f.svar;           (* hit the function name *)
-    visitCilStmt vis f.sbody;   (* visit the body *)
-    vis#vfuncPost f             (* postorder visit *)
-  end
+  (trace "visitCilFile" (dprintf "%s\n" f.fileName));
 
-  and fGlob g = vis#vglob g; fGlob' g
-  and fGlob' = function
-    GFun (f, _) -> fFunc f
-  (* GDecl isn't visited because vvrbl is for *uses* *)
-  | GVar (v, None, _) -> vis#vvrbl v
-  | GVar (v, Some e, _) -> vis#vvrbl v; visitCilExp vis e
-  | _ -> ()
+  let fGlob g = (visitCilGlobal vis g) in
 
-  in 
-  iterGlobals f fGlob;
+  (* primary list of globals *)
+  (List.iter fGlob f.globals);
+
+  (* the global initializer *)
+  (match f.globinit with
+    None -> ()
+  | Some g -> (fGlob (GFun(g, locUnknown))))
+end
+
+(* sm: I didn't end up using this (because I needed more control *)
+(* over the iteration process than the visitor provides), but I *)
+(* leave it here anyway *)
+let visitCilFileInReverse (vis : cilVisitor) (f : file) : unit =
+begin
+  (trace "visitCilFileInReverse" (dprintf "%s\n" f.fileName));
+
+  let fGlob g = (visitCilGlobal vis g) in
+
+  (* first the global initializer *)
+  (match f.globinit with
+    None -> ()
+  | Some g -> (fGlob (GFun(g, locUnknown))));
+
+  (* then the primary list of globals, reversed *)
+  (List.iter fGlob (List.rev f.globals))
 end
 
 
@@ -2048,48 +2152,96 @@ let rec isCompleteType t =
   | _ -> true
 
 
-  
-(* sm: taking a stab at removing extra temporaries *)
-class removeTempsVis = object
+(* ------------- removing unused variables/types ----------- *)
+(* simple visitor to clear the 'referenced' bits *)
+class clearRefBitsVis = object
   inherit nopCilVisitor
-  method vfunc (f : fundec) = begin
-    (* name *)
-    (tracei "usedVar" (dprintf "function: %s\n" f.svar.vname));
 
+  method vvdec (v: varinfo) = begin
     (* declared variables: clear the 'referenced' bits *)
-    (List.iter
-      (fun (v : varinfo) ->
-        (* (trace "sm" (dprintf "var decl[%d]: %s\n" v.vid v.vname)); *)
-        v.vreferenced <- false
-      )
-      f.slocals)
+    (* assume declaration preceed all uses *)
+    v.vreferenced <- false;
+    true
   end
+end
 
-  method vglob (v: global) = begin
-    (* clear the referenced bit.. here I'm assuming we always *)
-    (* see a declaration before the first use *)
-    match v with
-      GDecl(v,_) -> begin
-        (trace "sm" (dprintf "clearing global referenced[%d]: %s\n" 
-                             v.vid v.vname));
-        (v.vreferenced <- false)
-      end
-    | _ -> ()
-  end
+
+(* encapsulate this since rumor has it Raymond has changed *)
+(* how we represent 'inline' *)
+let isInlineFunc (f: fundec) : bool = (
+  (hasAttribute "inline" f.svar.vattr)
+)
+
+
+(* This visitor recursively marks all reachable types and variables as used. *)
+(* You construct it with a hash table, which is already partially *)
+(* marked; this visitor destructively updates the hash table. *)
+class removeTempsVis (usedTypes : (typ,bool) H.t)
+                     (usedTypedefs : (string,bool) H.t) = object (self)
+  inherit nopCilVisitor
 
   method vvrbl (v : varinfo) = begin
-    (trace "sm" (dprintf "var ref[%d]: %s\n" v.vid v.vname));
-    (* 4/23/01: mark globals this way, too *)
-    v.vreferenced <- true
+    if (not (v.vglob)) then (
+      (trace "usedLocal" (dprintf "local var ref: %s\n" v.vname))
+    )
+    else (
+      (trace "usedVar" (dprintf "global var ref: %s\n" v.vname))
+    );
+    v.vreferenced <- true;
+    true
   end
 
+  method vtype (t : typ) = begin
+    match t with
+    | TNamed(s, t, _) -> (
+        (* see if this typedef name has already been marked *)
+        if (H.mem usedTypedefs s) then (
+          (* already marked, don't recurse further *)
+          true
+        )
+        else (
+          (trace "usedType" (dprintf "marking used typedef: %s\n" s));
+
+          (* not already marked; first mark the typedef name *)
+          (H.add usedTypedefs s true);
+
+          (* also recursively mark the type it refers to; *)
+          (* even if we return true, the visitor does not *)
+          (* automatically recurse since named types are the *)
+          (* cut-points for circularity *)
+          (visitCilType (self :> cilVisitor) t);
+
+          (* like I say, this has no effect *)
+          true
+        )
+      )
+
+    | _ -> (
+        (* for anything but a typedef, look only at its structure *)
+        if (H.mem usedTypes t) then (
+          (* this type has already been marked reachable, so *)
+          (* stop recursing into it *)
+          true
+        )
+        else (
+          (trace "usedType" (dprintf "marking used type: %a\n"
+                                     d_type t));
+
+          (* it is reachable; mark it as such *)
+          (H.add usedTypes t true);
+
+          (* then recurse into types reachable from here *)
+          true
+        )
+      )
+  end
+  
   method vfuncPost (f : fundec) = begin
-    (* check the 'referenced' bits *)
+    (* check the 'referenced' bits on the locals *)
     f.slocals <- (List.filter
       (fun (v : varinfo) ->
         if (not v.vreferenced) then begin
-          (trace "usedVar" (dprintf "*removing* unused: var decl[%d]: %s\n"
-                                   v.vid v.vname));
+          (trace "usedLocal" (dprintf "removing unused: var decl: %s\n" v.vname));
           if ((String.length v.vname) < 3 ||
               (String.sub v.vname 0 3) <> "tmp") then
             (* sm: if I'd had this to begin with, it would have been
@@ -2104,48 +2256,141 @@ class removeTempsVis = object
       )
       f.slocals);
 
-    (traceOutdent "usedVar")
+    true
   end
 end
 
+(* this traces which variables are used, from the set    *)
+(* of root declarations, which are:                      *)
+(*   - non-inline function definitions                   *)
+(*   - non-extern global variable declarations           *)
+(*   - inline funcs & extern globals that are referenced *)
+(* it only works if we visit toplevel decls in reverse order *)
 let removeUnusedTemps (file : file) =
 begin
-  (* step 1: remove unused locals, and mark used globals *)
-  (visitCilFile (new removeTempsVis) file);
+  (* associate with every 'typ' whether it is referred-to *)
+  (* by a global variable or function *)
+  let usedTypes : (typ, bool) H.t = H.create 17 in
 
-(*
-  iterGlobals file
-    (function 
-        GDecl (v, _) -> ignore (E.log " %s referenced=%b\n"
-                                  v.vname v.vreferenced)
-      | _ -> ());
-*)
+  (* and similarly for every typedef name *)
+  let usedTypedefs : (string, bool) H.t = H.create 17 in
 
-  (* step 2: remove unused globals; the visitor currently *)
-  (* cannot modify the tree *)
-  let rec loop (lst : global list) : global list =
+  (* begin by clearing all the 'referenced' bits *)
+  (visitCilFile (new clearRefBitsVis) file);
+
+  (* create the visitor object *)
+  let vis = (new removeTempsVis usedTypes usedTypedefs) in
+
+  (* this was here before, and it might still be useful later *)
+  (*
+    iterGlobals file
+      (function
+          GDecl (v, _) -> ignore (E.log " %s referenced=%b\n"
+                                    v.vname v.vreferenced)
+        | _ -> ());
+  *)
+
+  (* iterate over the list of globals in reverse, marking things *)
+  (* as reachable if they are reachable from the roots, and *)
+  (* removing ultimately unreachable toplevel constructs *)
+  let rec revLoop (lst : global list) : global list =
     match lst with
-      hd::tl -> (
-        match hd with
-          GDecl(v,_) -> (
-            if (not v.vreferenced) then (
-              (trace "usedVar" (dprintf "removing global[%d]: %s\n"
-                                        v.vid v.vname));
-              (loop tl)
+    | hd::tl -> (
+        (* process the tail first; going backwards is the key *)
+        (* to keeping this dependency analysis simple, since it *)
+        (* means we will always process all of the uses of a *)
+        (* variable or type, before we finally see the declaration *)
+        let processedTail = (revLoop tl) in
+
+        (* the 'trace' calls below are actually quite inexpensive *)
+        (* (when the corresponding flag is off), because they are only *)
+        (* encountered at once per toplevel construct; so, I leave *)
+        (* them uncommented *)
+
+        (* now examine the head *)
+        let retainHead = match hd with
+          | GFun(f,_) -> (
+              if (f.svar.vreferenced ||
+                  (not (isInlineFunc f))) then (
+                (trace "usedVar" (dprintf "keeping func: %s\n" f.svar.vname));
+                (visitCilFunction vis f);    (* root: trace it *)
+                true
+              )
+              else (
+                (* this will be deleted; don't trace *)
+                (trace "usedVar" (dprintf "removing func: %s\n" f.svar.vname));
+                false
+              )
             )
-            else (
-              (* it's referenced: keep it *)
-              hd :: (loop tl)
+
+          | GType(s, t, _) -> (
+              if (s = "") then (
+                (* it's a normal type declaration *)
+                if (H.mem usedTypes t) then (
+                  (trace "usedType" (dprintf "keeping type %a\n"
+                                             d_type t));
+
+                  (* also trace from here *)
+                  (visitCilType vis t);
+
+                  (* and retain this type definition *)
+                  true
+                )
+                else (
+                  (* not used, remove it *)
+                  (trace "usedType" (dprintf "removing type %a\n"
+                                             d_type t));
+                  false
+                )
+              )
+              else (
+                (* this is a typedef *)
+                if (H.mem usedTypedefs s) then (
+                  (trace "usedType" (dprintf "keeping typedef %s\n" s));
+                  (visitCilType vis t);           (* root; trace it *)
+                  true                            (* used; keep it *)
+                )
+                else (
+                  (* not used, remove it *)
+                  (trace "usedType" (dprintf "removing typedef %s\n" s));
+                  false
+                )
+              )
             )
-          )
-        |
-          (* something other than a global: keep it *)
-          _ -> hd :: (loop tl)
+
+          | GDecl(v, _) -> (
+              if (not v.vreferenced) then (
+                (trace "usedVar" (dprintf "removing global: %s\n" v.vname));
+                false
+              )
+              else (
+                (trace "usedVar" (dprintf "keeping global: %s\n" v.vname));
+
+                (* since it's referenced, use it as a root for the type dependency *)
+                (visitCilVarDecl vis v);
+
+                (* it's referenced: keep it *)
+                true
+              )
+            )
+
+          (* something else: keep it *)
+          | _ -> (
+              (visitCilGlobal vis hd);
+              true
+            )
+        in
+
+        if (retainHead) then
+          hd :: processedTail
+        else
+          processedTail
       )
-    |
-      [] -> []
+
+    | [] -> []
   in
-  file.globals <- (loop file.globals)
+
+  file.globals <- (revLoop file.globals)
 end
 
 
