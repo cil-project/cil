@@ -17,6 +17,8 @@ my $outdir  = "html/cil/$htmloutdir";
 
 my $cilly = "perl ../bin/cilly --verbose";
 
+my $doexamples = ! defined($ENV{'NO_EXAMPLES'});
+
 my $preambleLocal = <<EOF;
 int main(void) {
 \# 1
@@ -65,24 +67,28 @@ while(<>) {
         }
         close(TSTSRC);
         print "\\end{verbatim}\\end{code}\n";
-        print "See the \\ahref{$htmloutdir/ex$testnr.txt}{CIL output} for this
+        if($doexamples) {
+            print "See the \\ahref{$htmloutdir/ex$testnr.txt}{CIL output} for this
 code fragment\n";
-        # Now run cilly
-        my $cmd = "$cilly -c $tmpdir/ex$testnr.c -o $tmpdir/ex$testnr.o";
-        # print "$cmd\n";
-        if(system($cmd)) {
-            die "Error running CIL for $tmpdir/ex$testnr.c";
+            # Now run cilly
+            my $cmd = "$cilly -c $tmpdir/ex$testnr.c -o $tmpdir/ex$testnr.o";
+            # print "$cmd\n";
+            if(system($cmd)) {
+                die "Error running CIL for $tmpdir/ex$testnr.c";
+            }
+            # Now repackage the CIL file
+            my $cilfile = "$tmpdir/ex$testnr" . "cil.c";
+            open(CIL, "<$cilfile") || die "Cannot find CIL file for $testnr";
+            my $exfile = "$outdir/ex$testnr.txt";
+            open(OUT, ">$exfile") || die "Cannot write OUT file for $testnr ($exfile)";
+            while(<CIL>) {
+                print OUT $_;
+            }
+            close(OUT);
+            close(CIL);
+        } else {
+            print "(Code generation was turned off for this document)";
         }
-        # Now repackage the CIL file
-        my $cilfile = "$tmpdir/ex$testnr" . "cil.c";
-        open(CIL, "<$cilfile") || die "Cannot find CIL file for $testnr";
-        my $exfile = "$outdir/ex$testnr.txt";
-        open(OUT, ">$exfile") || die "Cannot write OUT file for $testnr ($exfile)";
-        while(<CIL>) {
-            print OUT $_;
-        }
-        close(OUT);
-        close(CIL);
         $testnr ++;
         next;
     }

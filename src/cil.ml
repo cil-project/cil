@@ -3216,38 +3216,6 @@ let rec d_typsig () = function
       dprintf "TSEnum(@[%s,@?%a@])"
         n d_attrlist al
   | TSBase t -> dprintf "TSBase(%a)" d_type t
-(*
-let _ = 
-  let d_attrcustombase = function
-    | Attr("const", []) -> Some (text "const")
-    | Attr("aconst", []) when not !msvcMode -> 
-        Some (text "__attribute__((__const__))")
-    | Attr("volatile", []) -> Some (text "volatile")
-    | Attr("restrict", []) -> Some (text "__restrict")
-    | Attr("missingproto", []) -> Some (text "/* missing proto */")
-    | Attr("cdecl", []) when !msvcMode -> Some (text "__cdecl")
-    | Attr("stdcall", []) when !msvcMode -> Some (text "__stdcall")
-    | Attr("declspec", args) when !msvcMode -> 
-        Some (text "__declspec(" 
-                ++ docList (chr ',') (d_attrparam ()) () args
-                ++ text ")")
-    | Attr("asm", args) -> 
-        Some (text "__asm__(" 
-                ++ docList (chr ',') (d_attrparam ()) () args
-                ++ text ")")
-    (* we suppress printing mode(__si__) because it triggers an *)
-    (* internal compiler error in all current gcc versions *)
-    (* sm: I've now encountered a problem with mode(__hi__)... *)
-    (* I don't know what's going on, but let's try disabling all "mode"..*)
-    | Attr("mode", [ACons(tag,[])]) -> 
-        Some ((text "/* mode(") ++ (text tag) ++ (text ") */"))
-    (* sm: also suppress "format" because we seem to print it in *)
-    (* a way gcc does not like *)
-    | Attr("format", _) -> Some (text "/* format attribute */")
-    | _ -> None
-  in
-  setCustomPrintAttribute d_attrcustombase
-*)
 
 
 
