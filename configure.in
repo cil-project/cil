@@ -1,4 +1,4 @@
-# configure.in for CCured
+# configure.in for CCured           -*- sh -*-
 # Process this file with autoconf to produce a configure script.
 
 # Autoconf runs this through the M4 macroprocessor first; lines
@@ -152,7 +152,7 @@ if binaryExists ocamlc; then
     AC_MSG_ERROR([
       At least one of ocamllex, ocamlyacc, ocamldep or ocamlopt is missing.
       In particular, ocamlopt requires you to "make opt" when building
-      Ocaml from source.  Please make sure all these tools are built and
+      OCaml from source.  Please make sure all these tools are built and
       in the path.
     ])
   fi
@@ -236,11 +236,19 @@ AC_SUBST(HAS_MSVC)
 # runs again); I had originally done the chmod after AC_OUTPUT, but
 # the problem is then the chmod doesn't run inside ./config.status
 
-AC_CONFIG_FILES(Makefile test/Makefile Makefile.cil lib/cilly.pl \
-                lib/ccured.pl lib/scaninfer lib/scaninfer.bat, 
-                chmod a-w $config_files Makefile test/Makefile \
-                    Makefile.cil lib/cilly.pl lib/ccured.pl \
-                    lib/scaninfer lib/scaninfer.bat)
+# MY_AC_CONFIG_FILES(filename)
+# do AC_CONFIG_FILES(filename, chmod a-w filename)
+define([MY_AC_CONFIG_FILES],
+[{ AC_CONFIG_FILES([$1], chmod a-w [$1]) }])
+
+MY_AC_CONFIG_FILES(Makefile)
+MY_AC_CONFIG_FILES(test/Makefile)
+MY_AC_CONFIG_FILES(Makefile.cil)
+MY_AC_CONFIG_FILES(lib/cilly.pl)
+MY_AC_CONFIG_FILES(lib/ccured.pl)
+MY_AC_CONFIG_FILES(lib/scaninfer)
+MY_AC_CONFIG_FILES(lib/scaninfer.bat)
+
 AC_OUTPUT()
 
 # show the user what the variables have been set to
