@@ -62,3 +62,7 @@ CCURED
 
  - add a flag that effectively puts #pragma box(off) / #pragma box(on)
    around all global initializers in a file. 
+
+
+ - turning interface char* into ROSTRING is unsound. This is done even when
+   the item is subject to writes. 

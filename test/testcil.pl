@@ -216,6 +216,9 @@ $TEST->add2Tests("testrun/funptr1");
 $TEST->addTests("testrun/typespec1", "_GNUCC=1", ['cil']);
    $TEST->addBadComment("testrun/typespec1-cil", 
                         "Must emulate bug in GCC?");
+$TEST->add2Tests("testrun/wild2", "_GNUCC=1");
+   $TEST->addBadComment("testrun/wild2-inferbox", 
+                        "Bug in box.ml");
    
 # Tests that are expected to fail
 $TEST->add2TestsFail("testrun/failubound1", "", "Failure .+: Ubound");
