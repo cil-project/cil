@@ -43,11 +43,9 @@
  * This is incomplete -- certain fixes which are necessary 
  * for some programs are not yet implemented.
  * 
- * #1) C allows global variables to have multiple declarations.  This
- *     transformation removes redundant declarations and moves any initializer
- *     for that variable to the position in the file where it was first
- *     defined.  BUG: that this will cause problems if the initializer
- *     depends on variables defined after the new location.
+ * #1) C allows global variables to have multiple declarations and (I think)
+ *     equivalent definitions. This transformation removes all but one
+ *     declaration and all but one definition.
  *
  * #2) Any variables that use C++ keywords as identifiers are renamed.
  *
@@ -74,20 +72,38 @@ let cpp_canon = ref false
 let varDefinitions: (varinfo, global) H.t = H.create 111
 
 
-class canonicalizeVisitorPass1 = object(self)
+class canonicalizeVisitor = object(self)
   inherit nopCilVisitor
   val mutable currentFunction: fundec = Cil.dummyFunDec;
 
-(* #1. record all variable initializations in varDefinitions.
-   See also canonicalizeVisitorPass2.  *)
+  (* A hashtable to prevent duplicate declarations. *)
+  val alreadyDeclared: (varinfo, unit) H.t = H.create 111
+  val alreadyDefined: (varinfo, unit) H.t = H.create 111
+
+  (* move variable declarations around *) 
   method vglob g = match g with 
     GVar(v, Some init, l) -> 
-      (* Register this definition in varDefinitions.  But visit children
-         first, in case the global changes in vinit. *)
-      ChangeDoChildrenPost([g],
-         (fun gl -> List.iter (fun g'-> H.add varDefinitions v g') gl; gl))
+      (* A definition.  May have been moved to an earlier position. *)
+      if H.mem alreadyDefined v then begin
+	ignore (E.warn "Duplicate definition of %s at %a.\n" 
+		        v.vname d_loc !currentLoc);
+	ChangeTo [] (* delete from here. *)
+      end else begin
+	H.add alreadyDefined v ();
+	DoChildren
+      end
+  | GVar(v, None, l)
+  | GVarDecl(v, l) when not (isFunctionType v.vtype) -> begin
+      (* A declaration.  May have been moved to an earlier position. *)
+      if H.mem alreadyDefined v || H.mem alreadyDeclared v then 
+	ChangeTo [] (* delete from here. *)
+      else begin
+	H.add alreadyDeclared v ();
+	DoChildren
+      end
+  end
   | GFun(f, l) ->
-	currentFunction <- f; 
+      currentFunction <- f; 
       DoChildren
   | _ ->
       DoChildren
@@ -240,55 +256,13 @@ class canonicalizeVisitorPass1 = object(self)
       end
     | _ -> ());
     DoChildren
-end (* class canonicalizeVisitorPass1 *)
-
-
-
-(* #1.  Use varDefinitions, which was compiled in pass1, to remove redundant
-   declarations. *)
-class canonicalizeVisitorPass2 = object(self)
-  inherit nopCilVisitor
-
-  (* A hashtable to prevent duplicate declarations. *)
-  val alreadyDeclaredOrDefined: (varinfo, unit) H.t = H.create 111
-
-  (* move variable declarations around *) 
-  method vglob g = match g with 
-    GVar(v, Some init, l) -> 
-      (* A definition.  May have been moved to an earlier position. *)
-      if H.mem alreadyDeclaredOrDefined v then 
-	ChangeTo [] (* delete from here. *)
-      else begin
-	H.add alreadyDeclaredOrDefined v ();
-	SkipChildren
-      end
-  | GVar(v, None, l)
-  | GVarDecl(v, l) when not (isFunctionType v.vtype) -> begin
-      (* A definition.  May have been moved to an earlier position. *)
-      if H.mem alreadyDeclaredOrDefined v then 
-	ChangeTo [] (* delete from here. *)
-      else
-	try
-	  let definition = H.find varDefinitions v in
-	  (* Move the definition here. *)
-	  H.add alreadyDeclaredOrDefined v ();
-	  ChangeTo [definition]
-	with Not_found ->
-	  (*Has no definition or earlier declaration, so leave this decl
-	    alone. *)
-	  H.add alreadyDeclaredOrDefined v ();
-	  SkipChildren
-  end
-  | _ -> 
-      DoChildren
-end (* class canonicalizeVisitorPass2 *)
+end (* class canonicalizeVisitor *)
 
 
 
 (* Entry point for this extension *)
 let canonicalize (f:file) =
-  visitCilFile (new canonicalizeVisitorPass1) f;
-  visitCilFile (new canonicalizeVisitorPass2) f;
+  visitCilFile (new canonicalizeVisitor) f;
 
   (* #3. Finally, add some #defines to change C keywords to their C++ 
      equivalents: *)
