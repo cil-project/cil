@@ -1035,13 +1035,13 @@ BHDIR := $(TESTDIR)/olden/bh
 bh:  mustbegcc
 	cd $(BHDIR); rm -f code.exe *.o; \
                make CC="$(COMBINECCURED) --leavealone=trusted_bh "
-	make runbh $(MAKEOVERRIDES)
+	(export ONE_VARIABLE=1 ; make runbh $(MAKEOVERRIDES) )
 
 bh-combined:  mustbegcc
 	cd $(BHDIR); \
 	    $(CCURED) --leavealone=trusted_bh \
                       code.exe_comb.c trusted_bh.c $(EXEOUT)code.exe
-	make runbh $(MAKEOVERRIDES)
+	(export ONE_VARIABLE=1 ; make runbh $(MAKEOVERRIDES) )
 
 bh-optimvariant: mustbegcc
 	cd $(BHDIR); rm -f code.exe
@@ -1051,7 +1051,7 @@ bh-optimvariant: mustbegcc
                  trusted_bh.c -lm \
                  $(CCUREDLIB) \
                  $(EXEOUT)code.exe
-	make runbh $(MAKEOVERRIDES)
+	(export ONE_VARIABLE=1 ; make runbh $(MAKEOVERRIDES) )
 
 # sm: rather than make it every time, I've added data.in (with 12 CRs)
 # to the repository
