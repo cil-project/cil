@@ -10,6 +10,8 @@ open Pretty
 open Trace
 module E = Errormsg
 
+let safe_voidstar = true
+
 (* are the given two types congurent? see infer.tex 
  * also remember that two wild pointers are always considered congruent *)
 let rec type_congruent (t1 : typ) (q1 : opointerkind) 
@@ -172,6 +174,8 @@ let rec subtype (t1 : typ) (q1 : opointerkind)
     | TComp(c1,_),_ when not c1.cstruct -> begin
         List.exists (fun elt -> subtype elt.ftype q1 t2 q2) c1.cfields 
     end
+    | TVoid(_), _ -> safe_voidstar
+    | _, TVoid(_) -> safe_voidstar
           
     | _,_ -> false
           
