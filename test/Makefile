@@ -572,7 +572,7 @@ hashtest: $(TESTDIR)/small2/hashtest.c
 
 CCUREDLIB := $(CCUREDHOME)/obj/$(ARCHOS)/ccured_$(COMPILERNAME)_releaselib.$(LIBEXT)
 
-hashtest-optimvariant.%: mustbegcc
+hashtest-optimvariant: mustbegcc
 	cd $(PCCTEST); rm -f hashtest.exe 
 	cd $(PCCTEST); \
            $(CC_OPTIMVARIANT) \
@@ -597,7 +597,7 @@ rbtest: $(TESTDIR)/small2/rbtest.c
 	cd $(PCCTEST); sh -c "for i in $(ITERATION_ELEMS) ; \
                                    do time ./rbtest.exe letGcFree ; done"
 
-rbtest-optimvariant.%: mustbegcc
+rbtest-optimvariant: mustbegcc
 	cd $(PCCTEST); rm -f rbtest.exe
 	cd $(PCCTEST); \
            $(CC_OPTIMVARIANT) \
@@ -619,7 +619,7 @@ btreetest: $(TESTDIR)/small2/testbtree.c \
                                    do time ./btreetest.exe ; done"
 
 
-btreetest-optimvariant.%: mustbegcc
+btreetest-optimvariant: mustbegcc
 	cd $(TESTDIR)/small2; rm -f btreetest.exe
 	cd $(TESTDIR)/small2; \
            $(CC_OPTIMVARIANT) \
@@ -882,7 +882,7 @@ hufftest: $(TESTDIR)/small2/hufftest.c
                                    do time ./hufftest.exe $(HUFFINPUT) ; done"
 
 
-hufftest-optimvariant.%: mustbegcc
+hufftest-optimvariant: mustbegcc
 	cd $(PCCTEST); rm -f hufftest.exe
 	cd $(PCCTEST); \
            $(CC_OPTIMVARIANT) \
@@ -1016,7 +1016,7 @@ bh-combined:  mustbegcc
                       code.exe_comb.c trusted_bh.c $(EXEOUT)code.exe
 	make runbh $(MAKEOVERRIDES)
 
-bh-optimvariant.%: mustbegcc
+bh-optimvariant: mustbegcc
 	cd $(BHDIR); rm -f code.exe
 	cd $(BHDIR); \
            $(CC_OPTIMVARIANT) \
@@ -1047,7 +1047,7 @@ power:  mustbegcc
 	cd $(PWDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                     do time ./power.exe ; done"
 
-power-optimvariant.%: mustbegcc
+power-optimvariant: mustbegcc
 	cd $(PWDIR); rm -f power.exe
 	cd $(PWDIR); \
            $(CC_OPTIMVARIANT) $(PWEXTRA) \
@@ -1076,7 +1076,7 @@ health:
 	cd $(HEALTHDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                     do time ./health.exe 5 500 1 1; done"
 
-health-optimvariant.%: mustbegcc
+health-optimvariant: mustbegcc
 	cd $(HEALTHDIR); rm -f health.exe
 	cd $(HEALTHDIR); \
            $(CC_OPTIMVARIANT) -lm \
@@ -1101,7 +1101,7 @@ perimeter:
 	cd $(PERIMDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                    do time ./perimeter.exe ; done"
 
-perimeter-optimvariant.%: mustbegcc
+perimeter-optimvariant: mustbegcc
 	cd $(PERIMDIR); rm -f perimeter.exe
 	cd $(PERIMDIR); \
            $(CC_OPTIMVARIANT) \
@@ -1144,7 +1144,7 @@ tsp:
 	cd $(TSPDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                    do time ./tsp.exe ; done"
 
-tsp-optimvariant.%: mustbegcc
+tsp-optimvariant: mustbegcc
 	cd $(TSPDIR); rm -f tsp.exe
 	cd $(TSPDIR); \
            $(CC_OPTIMVARIANT) $(TSPEXTRA) \
@@ -1172,7 +1172,7 @@ bisort:  mustbegcc
 	cd $(BISORTDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                    do time ./bisort.exe 100000; done"
 
-bisort-optimvariant.%: mustbegcc
+bisort-optimvariant: mustbegcc
 	cd $(BISORTDIR); rm -f bisort.exe
 	cd $(BISORTDIR); \
            $(CC_OPTIMVARIANT) -lm \
@@ -1206,7 +1206,7 @@ mst:
 	cd $(OLDENMSTDIR); if test -f gmon.out; then gprof mst.exe gmon.out; fi
 
 
-mst-optimvariant.%: mustbegcc
+mst-optimvariant: mustbegcc
 	cd $(OLDENMSTDIR); rm -f mst.exe
 	cd $(OLDENMSTDIR); \
            $(CC_OPTIMVARIANT) \
@@ -1236,7 +1236,7 @@ treeadd:  mustbegcc
 	cd $(TREEADDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                    do time ./treeadd.exe 21 1; done"
 
-treeadd-optimvariant.%: mustbegcc
+treeadd-optimvariant: mustbegcc
 	cd $(TRERADDIR); rm -f treeadd.exe
 	cd $(TRERADDIR); \
            $(CC_OPTIMVARIANT) -lm \
@@ -1266,7 +1266,7 @@ em3d:  mustbegcc
 	cd $(EM3DDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                    do time ./em3d.exe 2000 100 50; done"
 
-em3d-optimvariant.%: mustbegcc
+em3d-optimvariant: mustbegcc
 	cd $(EM3DDIR); rm -f em3d.exe
 	cd $(EM3DDIR); \
            $(CC_OPTIMVARIANT) -lm \
@@ -1309,7 +1309,7 @@ compress:  mustbegcc
               do time ./compress.exe <input.data >combine-compress.out ;done"
 	cd $(COMPRESSDIR)/src; diff combine-compress.out output.data >/dev/null
 
-compress-optimvariant.%: mustbegcc
+compress-optimvariant: mustbegcc
 	cd $(COMPRESSDIR)/src; rm -f compress.exe
 	cd $(COMPRESSDIR)/src; \
            $(CC_OPTIMVARIANT) \
@@ -1332,7 +1332,7 @@ li:  mustbegcc
                       <../data/train/input/train.lsp \
                       >../data/train/input/train.out ; done"
 
-li-optimvariant.%: mustbegcc
+li-optimvariant: mustbegcc
 	cd $(LIDIR)/src; rm -f li.exe
 	cd $(LIDIR)/src; \
            $(CC_OPTIMVARIANT) -lm \
@@ -1397,7 +1397,7 @@ go-noclean:  mustbegcc
                              EXTRA_LIBS=$(GOEXTRA) 
 	sh -c "time $(GODIR)/src/go.exe 50 9"
 
-go-optimvariant.%: mustbegcc
+go-optimvariant: mustbegcc
 	cd $(GODIR)/src; rm -f go.exe
 	cd $(GODIR)/src; \
            $(CC_OPTIMVARIANT) \
@@ -1540,7 +1540,7 @@ ijpeg:  mustbegcc
                           -image_file ../data/ref/input/vigo.ppm \
                           -GO; done"
 
-ijpeg-optimvariant.%: mustbegcc
+ijpeg-optimvariant: mustbegcc
 	cd $(IJPEGDIR)/src; rm -f ijpeg.exe
 	cd $(IJPEGDIR)/src; \
            $(CC_OPTIMVARIANT) \
@@ -1719,7 +1719,7 @@ bc: mustbegcc
 	cd $(BCDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                       do make test; done"
 
-bc-optimvariant.%: mustbegcc
+bc-optimvariant: mustbegcc
 	cd $(BCDIR); rm -f bc.exe
 	cd $(BCDIR); \
            $(CC_OPTIMVARIANT) \
@@ -1736,7 +1736,7 @@ ft: mustbegcc
 	cd $(FTDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                       do make test; done"
 
-ft-optimvariant.%: mustbegcc
+ft-optimvariant: mustbegcc
 	cd $(FTDIR); rm -f ft.exe
 	cd $(FTDIR); \
            $(CC_OPTIMVARIANT) \
@@ -1754,7 +1754,7 @@ ks: mustbegcc
 	cd $(KSDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                       do make test; done"
 
-ks-optimvariant.%: mustbegcc
+ks-optimvariant: mustbegcc
 	cd $(KSDIR); rm -f ks.exe
 	cd $(KSDIR); \
            $(CC_OPTIMVARIANT) \
@@ -1773,7 +1773,7 @@ yacr: mustbegcc
 	cd $(YACRDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                       do make test; done"
 
-yacr-optimvariant.%: mustbegcc
+yacr-optimvariant: mustbegcc
 	cd $(YACRDIR); rm -f yacr2.exe
 	cd $(YACRDIR); \
            $(CC_OPTIMVARIANT) \

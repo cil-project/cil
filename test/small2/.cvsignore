@@ -127,7 +127,7 @@ test-bad.out
 qsort_wild
 regparm0
 unscomp
-*optimcured.c
+*optimcured*
 mergestruct
 trace
 globstackptr
@@ -161,3 +161,4 @@ null_pointer_field
 bufferlinegetter
 checkinit
 voidstarint
+*.out
