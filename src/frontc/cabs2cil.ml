@@ -708,6 +708,18 @@ let lookupLabel (l: string) =
     | _ -> raise Not_found
   with Not_found -> 
     l
+
+
+(** ALLOCA ***)
+let allocaFun = 
+  let fdec = emptyFunction "alloca" in
+  let len = makeLocalVar fdec "len" uintType in
+  fdec.svar.vtype <- TFun(voidPtrType, [ len ], false, []);
+  fdec
+  
+(* Maps local variables that are variable sized arrays to the expression that 
+ * denotes their length *)
+let varSizeArrays : (int, exp) H.t = H.create 17
   
 (**** EXP actions ***)
 type expAction = 
@@ -1312,6 +1324,17 @@ and makeVarInfo
     vreferenced = false;   (* sm *)
   }
 
+(* Process a local variable declaration and allow variable-sized arrays *)
+and makeVarSizeVarInfo (ldecl: location) 
+                       ((s,(n,ndt,a)) : A.single_name) 
+   : varinfo * chunk * exp = 
+  if not !msvcMode then 
+    match isVariableSizedArray ndt with
+      None -> makeVarInfo false ldecl (s,(n,ndt,a)), empty, zero
+    | Some (ndt', se, len) -> 
+        makeVarInfo false ldecl (s,(n,ndt',a)), se, len
+  else
+    makeVarInfo false ldecl (s,(n,ndt,a)), empty, zero
 
 and doAttr (a: A.attribute) : attribute list = 
   (* Strip the leading and trailing underscore *)
@@ -1510,8 +1533,26 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
 (* If this is a declarator for a variable size array then turn it into a 
    pointer type and a length *)
 and isVariableSizedArray (dt: A.decl_type) 
-    : (A.decl_type * A.expression) option = 
-  None
+    : (A.decl_type * chunk * exp) option = 
+  let res = ref None in
+  let rec findArray = function
+    ARRAY (JUSTBASE, lo) when lo != A.NOTHING -> 
+      (* Allow non-constant expressions *)
+      let (se, e', _) = doExp false lo (AExp (Some intType)) in
+      if isNotEmpty se then begin
+        res := Some (se, e');
+        PTR ([], JUSTBASE)
+      end else ARRAY (JUSTBASE, lo)
+    | ARRAY (dt, lo) -> ARRAY (findArray dt, lo)
+    | PTR (al, dt) -> PTR (al, findArray dt)
+    | JUSTBASE -> JUSTBASE
+    | PARENTYPE (prea, dt, posta) -> PARENTYPE (prea, findArray dt, posta)
+    | PROTO (dt, f, a) -> PROTO (findArray dt, f, a)
+  in
+  let dt' = findArray dt in
+  match !res with 
+    None -> None
+  | Some (se, e) -> Some (dt', se, e)
 
 and doOnlyType (specs: A.spec_elem list) (dt: A.decl_type) : typ = 
   let bt',sto,inl,attrs = doSpecList specs in
@@ -1917,13 +1958,20 @@ and doExp (isconst: bool)    (* In a constant *)
            * drop the potential side-effects *)
         if isNotEmpty se then
           ignore (warn "Warning: Dropping side-effect in EXPR_SIZEOF\n");
-        let e'' =
+        let size =
           match e' with                 (* If we are taking the sizeof an
                                          * array we must drop the StartOf  *)
-            StartOf(lv) -> Lval(lv)
-          | _ -> e'
+            StartOf(lv) -> SizeOfE (Lval(lv))
+
+                (* Maybe we are taking the sizeof a variable-sized array *)
+          | Lval (Var vi, NoOffset) -> begin
+              try 
+                H.find varSizeArrays vi.vid 
+              with Not_found -> SizeOfE e' 
+          end
+          | _ -> SizeOfE e'
         in
-        finishExp empty (SizeOfE(e'')) uintType
+        finishExp empty size uintType
 
     | A.TYPE_ALIGNOF (bt, dt) ->
         let typ = doOnlyType bt dt in
@@ -3081,13 +3129,39 @@ and createLocal (specs: A.spec_elem list)
       empty
     
   | _ -> 
-      let vi = makeVarInfo false locUnknown (specs, (n, ndt, a)) in
+      (* Make a variable of potentially variable size. If se0 <> empty then 
+       * it is a variable size variable *)
+      let vi,se0,len = makeVarSizeVarInfo !currentLoc (specs, (n, ndt, a)) in
       let vi = alphaConvertVarAndAddToEnv true vi in        (* Replace vi *)
+      let se1 = 
+        if isNotEmpty se0 then begin (* Variable-sized array *) 
+          ignore (warn "Variable-sized local variable %s" vi.vname);
+          (* Make a local variable to keep the length *)
+          let savelen = 
+            makeVarInfo false !currentLoc ([A.SpecType A.Tint; 
+                                            A.SpecType A.Tunsigned], 
+                                           ("__lengthof" ^ vi.vname,
+                                            JUSTBASE, [])) in
+          (* Register it *)
+          let savelen = alphaConvertVarAndAddToEnv true savelen in
+          (* Compute the sizeof *)
+          let sizeof = 
+            BinOp(Mult, 
+                  SizeOfE (Lval(Mem(Lval(var vi)), NoOffset)),
+                  Lval (var savelen), uintType) in
+          (* Register the length *)
+          H.add varSizeArrays vi.vid len;
+          se0 +++ (Set(var savelen, len, !currentLoc)) 
+            (* Initialize the variable *)
+            +++ (Call(Some(var vi), Lval(var allocaFun.svar), 
+                      [ sizeof  ], !currentLoc))
+        end else empty
+      in
       if e = A.NO_INIT then
-        skipChunk
+        se1 (* skipChunk *)
       else begin
-        let se, ie', et, _ = 
-          doInitializer false false vi.vtype empty [ (A.NEXT_INIT, e) ] in
+        let se4, ie', et, _ = 
+          doInitializer false false vi.vtype se1 [ (A.NEXT_INIT, e) ] in
         (match vi.vtype, ie', et with 
             (* We have a length now *)
           TArray(_,None, _), _, TArray(_, Some _, _) -> vi.vtype <- et
@@ -3099,7 +3173,7 @@ and createLocal (specs: A.spec_elem list)
                                   a)
         | _, _, _ -> ());
         (* Now create assignments instead of the initialization *)
-        se @@ (assignInit (Var vi, NoOffset) ie' et empty)
+        se4 @@ (assignInit (Var vi, NoOffset) ie' et empty)
       end
           
           
@@ -3493,6 +3567,7 @@ let convFile fname dl =
               (* Setup the environment. Add the formals to the locals. Maybe
                * they need alpha-conv  *)
               enterScope ();  (* Start the scope *)
+              H.clear varSizeArrays;
 
               let bt,sto,inl,attrs = doSpecList specs in
               (* Do not process transparent unions in function definitions.
