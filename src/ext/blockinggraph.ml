@@ -341,16 +341,54 @@ let dumpBlockingGraph () =
     !blockingPoints;
   ignore (E.log "\n")
 
+let beforeFun =
+  makeGlobalVar "before_bg_node"
+                (TFun (voidType, Some [("node_idx", intType, []);
+                                       ("num_edges", intType, [])],
+                       false, []))
+
+let initFun =
+  makeGlobalVar "init_blocking_graph"
+                (TFun (voidType, Some [("num_nodes", intType, [])],
+                       false, []))
+
+let insertInstr (newInstr: instr) (s: stmt) : unit =
+  match s.skind with
+    Instr instrs ->
+      let rec insert (instrs: instr list) : instr list =
+        match instrs with
+          [] -> E.s (bug "instr list does not end with call\n")
+        | [Call _] -> newInstr :: instrs
+        | i :: rest -> i :: (insert rest)
+      in
+      s.skind <- Instr (insert instrs)
+  | _ ->
+      E.s (bug "instr stmt expected\n")
+
+let instrumentBlockingPoints () =
+  List.iter
+    (fun bpt ->
+       if bpt.id > 1 then
+       let arg1 = integer bpt.id in
+       let arg2 = integer (List.length bpt.leadsto) in
+       let call = Call (None, Lval (var beforeFun),
+                        [arg1; arg2], locUnknown) in
+       insertInstr call bpt.point)
+    !blockingPoints
+
 
 let startNodes : node list ref = ref []
 
 let makeAndDumpBlockingGraphs () : unit =
+  if List.length !startNodes <> 1 then
+    E.s (unimp "We can only handle exactly one start node right now.\n");
   List.iter
     (fun n ->
        markYieldPoints n;
        makeBlockingGraph n;
        dumpFunctionCallGraph n;
-       dumpBlockingGraph ())
+       dumpBlockingGraph ();
+       instrumentBlockingPoints ())
     !startNodes
 
 
@@ -406,6 +444,22 @@ let makeFunctionCallGraph (f: Cil.file) : unit =
       | _ -> ())
     f.globals
 
+let instrumentProgram (f: file) : unit =
+  (* Add function prototypes. *)
+  f.globals <- GVarDecl (initFun, locUnknown) ::
+               GVarDecl (beforeFun, locUnknown) :: f.globals;
+  (* Add initialization call to main(). *)
+  List.iter
+    (function
+       GFun (fdec, _) when fdec.svar.vname = "main" ->
+         let arg1 = integer (List.length !blockingPoints) in
+         let newStmt =
+           mkStmtOneInstr (Call (None, Lval (var initFun), [arg1], locUnknown))
+         in
+         fdec.sbody.bstmts <- newStmt :: fdec.sbody.bstmts
+     | _ -> ())
+    f.globals
+
 
 let feature : featureDescr = 
   { fd_name = "FCG";
@@ -416,5 +470,6 @@ let feature : featureDescr =
     (function (f : file) ->
       makeFunctionCallGraph f;
       markBlockingFunctions ();
-      makeAndDumpBlockingGraphs ())
+      makeAndDumpBlockingGraphs ();
+      instrumentProgram f)
   } 
