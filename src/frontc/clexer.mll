@@ -130,7 +130,7 @@ let scan_ident id = try StringHashtbl.find lexicon id
 (*
 ** Buffer processor
 *)
-
+ 
 (*** input handle ***)
 type handle =
 	bool * in_channel * string * string * int * int * out_channel * string
@@ -148,13 +148,11 @@ let file_name (h : handle) = let (_, _, _, _, _, _, _, name) = h in name
 
 let set_line num =
 	let (inter, cha, lin, buf, pos, _, out, name) = !current_handle in
-	(* current_handle := (inter, cha, lin, buf, pos, num - 1, out, name) *)
-        ()
+	 current_handle := (inter, cha, lin, buf, pos, num - 1, out, name)
 
 let set_name name =
 	let (inter, cha, lin, buf, pos, num, out, _) = !current_handle in
-	(* current_handle := (inter, cha, lin, buf, pos, num, out, name) *)
-        ()
+	 current_handle := (inter, cha, lin, buf, pos, num, out, name) 
 
 
 (*** syntax error building ***)
