@@ -1525,12 +1525,13 @@ let iterExp (f: exp -> unit) (body: stmt) : unit =
   fStmt body
 
 
-(* visit all nodes in a Cil statement tree in preorder *)
-let visitCilStmt (vis: cilVisitor) (body: stmt) : unit =
-begin
-  let fVrbl v = (vis#vvrbl v) in
-
+(*** Define the visiting engine ****)
+(* visit all the nodes in a Cil expression *) 
+let rec  visitCilExp (vis: cilVisitor) (e: exp) : unit = 
+  let fLval = visitCilLval vis in
+  let fOff  = visitCilOffset vis in 
   let rec fExp e = (vis#vexpr e); fExp' e
+      
   and fExp' = function
       (Const _|SizeOf _) -> ()
     | SizeOfE e -> fExp e
@@ -1548,33 +1549,63 @@ begin
           initl
     | AddrOf (lv) -> fLval lv
     | StartOf (lv) -> fLval lv
+  in
+  fExp e
 
-  and fLval lv = (vis#vlval lv); fLval' lv
+(* visit all the nodes in a Cil lvalue *)
+and visitCilLval (vis: cilVisitor) (lv: lval) : unit = 
+  let fVrbl v = () in
+  let fExp = visitCilExp vis in
+  let fOff = visitCilOffset vis in
+
+  let rec fLval lv = (vis#vlval lv); fLval' lv
   and fLval' = function
-      Var v, off -> fVrbl v; fOff off
+      Var v, off -> (vis#vvrbl v); fOff off
     | Mem e, off -> fExp e; fOff off
+  in
+  fLval lv
 
-  and fOff o = (vis#voffs o); fOff' o
+and visitCilOffset (vis: cilVisitor) (off: offset) : unit = 
+  let fExp = visitCilExp vis in
+  let fOff = visitCilOffset vis in
+
+  let rec fOff o = (vis#voffs o); fOff' o
   and fOff' = function
       Field (_, o) -> fOff o
     | Index (e, o) -> fExp e; fOff o
     | NoOffset -> ()
+  in
+  fOff off
+  
 
+let visitCilInstr (vis: cilVisitor) (i: instr) : unit = 
+  let fExp = visitCilExp vis in
+  let fLval = visitCilLval vis in
   (* I don't know why I had to specify the types here and nowhere
    * else .. the compiler complained of partial applications
    * where I could see none .. *)  
-  and fInst (i:instr) : unit = (vis#vinst i); fInst' i; ()
+  let rec fInst (i:instr) : unit = (vis#vinst i); fInst' i; ()
   and fInst' (i:instr) : unit = match i with
     | Set(lv,e) -> fLval lv; fExp e
     | Call(None,f,args) -> fExp f; List.iter fExp args
-    | Call((Some (v, _)),fn,args) -> fVrbl v; fExp fn; List.iter fExp args 
+    | Call((Some (v, _)),fn,args) -> vis#vvrbl v; fExp fn; List.iter fExp args 
     | Asm(_,_,outs,ins,_) -> begin
         List.iter (fun (_, lv) -> fLval lv) outs;
         List.iter (fun (_, e) -> fExp e) ins
       end
+  in
+  fInst i
 
-  and fStmt s = (vis#vstmt s); fStmt' s
-  and fStmt' = begin function
+
+(* visit all nodes in a Cil statement tree in preorder *)
+let visitCilStmt (vis: cilVisitor) (body: stmt) : unit =
+begin
+  let fExp = visitCilExp vis in
+  let fLval = visitCilLval vis in
+  let fInst = visitCilInstr vis in
+
+  let rec fStmt s = (vis#vstmt s); fStmt' s
+  and fStmt' = function
       (Skip|Break|Continue|Label _|Goto _|Case _|Default|Return (None,_)) -> ()
     | Sequence s -> List.iter fStmt s
     | Loop s -> fStmt s
@@ -1582,7 +1613,6 @@ begin
     | Return(Some e, _) -> fExp e
     | Switch (e, s, _) -> fExp e; fStmt s
     | Instr(i, _) -> (fInst i); ()
-  end
 
   in
   fStmt body
@@ -1603,10 +1633,11 @@ begin
     GFun (f, _) -> fFunc f
   (* GDecl isn't visited because vvrbl is for *uses* *)
   | GVar (v, None, _) -> vis#vvrbl v
-  | GVar (v, Some e, _) -> vis#vvrbl v; vis#vexpr e
+  | GVar (v, Some e, _) -> vis#vvrbl v; visitCilExp vis e
   | _ -> ()
 
-  in iterGlobals f fGlob
+  in 
+  iterGlobals f fGlob;
 end
 
 
@@ -2084,7 +2115,15 @@ let removeUnusedTemps (file : file) =
 begin
   (* step 1: remove unused locals, and mark used globals *)
   (visitCilFile (new removeTempsVis) file);
-  
+
+(*
+  iterGlobals file
+    (function 
+        GDecl (v, _) -> ignore (E.log " %s referenced=%b\n"
+                                  v.vname v.vreferenced)
+      | _ -> ());
+*)
+
   (* step 2: remove unused globals; the visitor currently *)
   (* cannot modify the tree *)
   let rec loop (lst : global list) : global list =
