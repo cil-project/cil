@@ -8,7 +8,7 @@
  * All rights reserved.  Permission to use, copy, modify and distribute
  * this software for research purposes only is hereby granted, 
  * provided that the following conditions are met: 
- * 1. XSRedistributions of source code must retain the above copyright notice, 
+ * 1. Redistributions of source code must retain the above copyright notice, 
  * this list of conditions and the following disclaimer. 
  * 2. Redistributions in binary form must reproduce the above copyright notice, 
  * this list of conditions and the following disclaimer in the documentation 
@@ -4141,7 +4141,7 @@ let rec makeZeroInit (t: typ) : init =
       in
       let initbt = makeZeroInit bt in
       let rec loopElems acc i = 
-        if i <= 0 then acc
+        if i < 0 then acc
         else loopElems ((Index(integer i, NoOffset), initbt) :: acc) (i - 1) 
       in
       CompoundInit(t', loopElems [] (n - 1))

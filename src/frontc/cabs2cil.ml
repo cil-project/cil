@@ -1506,6 +1506,8 @@ let rec collectInitializer
                  !pMaxIdx len);
         (* len could be extremely big. So omit the last initializers, if they 
          * are many (more than 16) *)
+        ignore (E.log "collectInitializer: len = %d, pMaxIdx= %d\n"
+                  len !pMaxIdx);
         let endAt = 
           if len - 1 > !pMaxIdx + 16 then 
             !pMaxIdx 
@@ -3224,8 +3226,7 @@ and doExp (isconst: bool)    (* In a constant *)
         in
         let argTypesList = argsToList argTypes in
         (* Drop certain qualifiers from the result type *)
-        let resType' = resType in (* 
-          typeRemoveAttributes [Attr("cdecl", [])] resType in *)
+        let resType' = resType in 
         (* Do the arguments. In REVERSE order !!! Both GCC and MSVC do this *)
         let rec loopArgs 
             : varinfo list * A.expression list 
