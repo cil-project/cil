@@ -413,7 +413,6 @@ and succkind =
                                          * which it is taken. The list of 
                                          * values is empty for the default 
                                          * case. *)
-
   | Return of exp option * location     (* The optional return *)
 
 

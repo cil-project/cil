@@ -379,13 +379,13 @@ and stmt =
   | Instr of instr * location
 
 
-and node = {
+and block = {
     mutable nid: int;
     mutable label: string option;
     mutable ins: (instr * location) list;
     mutable skind: succkind;
-    mutable succs: node list;
-    mutable preds: node list;
+    mutable succs: block list;
+    mutable preds: block list;
   } 
 
 and succkind = 
