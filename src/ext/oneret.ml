@@ -117,8 +117,8 @@ let oneret (f: Cil.fundec) : unit =
     | ({skind=If(eb,t,e,l)} as s) :: rests -> 
         s.skind <- If(eb, scanBlock false t, scanBlock false e, l);
         s :: scanStmts mainbody rests
-    | ({skind=Loop(b,l)} as s) :: rests -> 
-        s.skind <- Loop(scanBlock false b, l);
+    | ({skind=Loop(b,l,lb1,lb2)} as s) :: rests -> 
+        s.skind <- Loop(scanBlock false b, l,lb1,lb2);
         s :: scanStmts mainbody rests
     | ({skind=Switch(e, b, cases, l)} as s) :: rests -> 
         s.skind <- Switch(e, scanBlock false b, cases, l);

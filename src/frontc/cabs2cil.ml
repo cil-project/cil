@@ -757,7 +757,7 @@ module BlockChunk =
 
     let loopChunk (body: chunk) : chunk = 
       (* Make the statement *)
-      let loop = mkStmt (Loop (c2block body, !currentLoc)) in
+      let loop = mkStmt (Loop (c2block body, !currentLoc, None, None)) in
       { stmts = [ loop (* ; n *) ];
         postins = [];
         cases = body.cases;

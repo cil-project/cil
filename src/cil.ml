@@ -622,7 +622,8 @@ and stmtkind =
                                            you can get from the labels of the 
                                            statement *)
 
-  | Loop of block * location            (** A [while(1)] loop *)
+  | Loop of block * location * (stmt option) * (stmt option) 
+                                        (** A [while(1)] loop *)
 
   | Block of block                      (** Just a block of statements. Use it 
                                             as a way to keep some attributes 
@@ -856,7 +857,7 @@ let rec get_stmtLoc (statement : stmtkind) =
     | Continue(loc) -> loc
     | If(_, _, _, loc) -> loc
     | Switch (_, _, _, loc) -> loc
-    | Loop (_, loc) -> loc
+    | Loop (_, loc, _, _) -> loc
     | Block b -> if b.bstmts = [] then lu 
                  else get_stmtLoc ((List.hd b.bstmts).skind)
 
@@ -1340,7 +1341,7 @@ let mkWhile ~(guard:exp) ~(body: stmt list) : stmt list =
   [ mkStmt (Loop (mkBlock (mkStmt (If(guard, 
                                       mkBlock [ mkEmptyStmt () ], 
                                       mkBlock [ mkStmt (Break lu)], lu)) ::
-                           body), lu)) ]
+                           body), lu, None, None)) ]
 
 
 
@@ -2300,7 +2301,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                 ++ self#pExp () e
                 ++ text ") "
                 ++ self#pBlock () b)
-    | Loop(b, l) -> begin
+    | Loop(b, l, _, _) -> begin
         (* Maybe the first thing is a conditional. Turn it into a WHILE *)
         try
           let term, bodystmts =
@@ -3404,9 +3405,9 @@ and childrenStmt (vis: cilVisitor) (s: stmt) : stmt =
         (* Save the accumulated instructions *)
         savedInstr := vis#unqueueInstr ();
         if e' != e then Return (Some e', l) else s.skind
-    | Loop (b, l) -> 
+    | Loop (b, l, s1, s2) -> 
         let b' = fBlock b in
-        if b' != b then Loop (b', l) else s.skind
+        if b' != b then Loop (b', l, s1, s2) else s.skind
     | If(e, s1, s2, l) -> 
         let e' = fExp e in 
         (* Save the accumulated instructions *)
@@ -3757,7 +3758,7 @@ let rec peepHole1 (* Process one statement and possibly replace it *)
           peepHole1 doone tb.bstmts;
           peepHole1 doone eb.bstmts
       | Switch (e, b, _, _) -> peepHole1 doone b.bstmts
-      | Loop (b, l) -> peepHole1 doone b.bstmts
+      | Loop (b, l, _, _) -> peepHole1 doone b.bstmts
       | Block b -> peepHole1 doone b.bstmts
       | Return _ | Goto _ | Break _ | Continue _ -> ())
     ss
@@ -3784,7 +3785,7 @@ let rec peepHole2  (* Process two statements and possibly replace them both *)
           peepHole2 dotwo tb.bstmts;
           peepHole2 dotwo eb.bstmts
       | Switch (e, b, _, _) -> peepHole2 dotwo b.bstmts
-      | Loop (b, l) -> peepHole2 dotwo b.bstmts
+      | Loop (b, l, _, _) -> peepHole2 dotwo b.bstmts
       | Block b -> peepHole2 dotwo b.bstmts
       | Return _ | Goto _ | Break _ | Continue _ -> ())
     ss
@@ -4860,7 +4861,7 @@ and succpred_stmt s fallthrough =
       (match b2.bstmts with
         [] -> trylink s fallthrough
       | hd :: tl -> (link s hd ; succpred_block b2 fallthrough ))
-  | Loop(b,l) -> begin match b.bstmts with
+  | Loop(b,l,_,_) -> begin match b.bstmts with
                    [] -> failwith "computeCFGInfo: empty loop" 
                  | hd :: tl -> 
                     link s hd ; 
@@ -4966,7 +4967,7 @@ let rec xform_switch_stmt s break_dest cont_dest label_index = begin
       s.skind <- handle_choices sl ;
       xform_switch_block b (fun () -> ref break_stmt) cont_dest i 
     end
-  | Loop(b,l) -> 
+  | Loop(b,l,_,_) -> 
           let i = get_switch_count () in 
           let break_stmt = mkStmt (Instr []) in
           break_stmt.labels <- 
@@ -4975,7 +4976,8 @@ let rec xform_switch_stmt s break_dest cont_dest label_index = begin
           cont_stmt.labels <- 
 						[Label((Printf.sprintf "while_%d_continue" i),l,false)] ;
           b.bstmts <- cont_stmt :: b.bstmts ;
-          let this_stmt = mkStmt (s.skind) in
+          let this_stmt = mkStmt 
+            (Loop(b,l,Some(cont_stmt),Some(break_stmt))) in 
           let break_dest () = ref break_stmt in
           let cont_dest () = ref cont_stmt in 
           xform_switch_block b break_dest cont_dest label_index ;

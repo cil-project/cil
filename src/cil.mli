@@ -851,9 +851,12 @@ and stmtkind =
     * among its labels what cases it implements. The statements that 
     * implement the cases are somewhere within the provided [block]. *)
 
-  | Loop of block * location            
+  | Loop of block * location * (stmt option) * (stmt option)
     (** A [while(1)] loop. The termination test is implemented in the body of 
-     * a loop using a [Break] statement *)
+     * a loop using a [Break] statement. If prepareCFG has been called,
+     * the first stmt option will point to the stmt containing the continue
+     * label for this loop and the second will point to the stmt containing
+     * the break label for this loop. *)
 
   | Block of block                      
     (** Just a block of statements. Use it as a way to keep some block 

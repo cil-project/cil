@@ -92,7 +92,7 @@ let enumerate out (f : Cil.file) =
           Printf.fprintf out ")\n" ; 
           incr i 
     | Switch(_,b,_,_) 
-    | Loop(b,_) 
+    | Loop(b,_,_,_) 
     | Block(b) -> 
           emit base i st_ht s ; 
           decr i ; 
@@ -364,7 +364,7 @@ let mark_file (f : Cil.file) (names : (string, mark) Hashtbl.t) =
         doBlock b2 base'' i'' inside ;
         incr i
     | Switch(_,b,_,_) 
-    | Loop(b,_) 
+    | Loop(b,_,_,_) 
     | Block(b) -> 
         let inside = check base i default in 
         mark ws s inside ;

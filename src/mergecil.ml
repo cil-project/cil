@@ -1033,7 +1033,7 @@ begin
                           + 41*(stmtListSum b2.bstmts)
     | Switch(_,b,_,_) -> 43 + 47*(stmtListSum b.bstmts)
                             (* don't look at stmt list b/c is not part of tree *)
-    | Loop(b,_) -> 49 + 53*(stmtListSum b.bstmts)
+    | Loop(b,_,_,_) -> 49 + 53*(stmtListSum b.bstmts)
     | Block(b) -> 59 + 61*(stmtListSum b.bstmts)
   in
 
