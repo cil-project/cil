@@ -521,11 +521,11 @@ module BlockChunk =
           let n = mkEmptyStmt () in
           n, n :: c.stmts
       
-    let consLabel (l: string) (c: chunk) : chunk = 
+    let consLabel (l: string) (c: chunk) (loc: location) : chunk = 
       (* Get the first statement and add the label to it *)
       let labstmt, stmts' = getFirstInChunk c in
       (* Add the label *)
-      labstmt.labels <- Label (l, !currentLoc) :: labstmt.labels;
+      labstmt.labels <- Label (l, loc) :: labstmt.labels;
       H.add labelStmt l labstmt;
       if c.stmts == stmts' then c else {c with stmts = stmts'}
 
@@ -601,7 +601,7 @@ let consLabContinue (c: chunk) =
   match !continues with
     [] -> E.s (error "labContinue not in a loop")
   | While :: rest -> c
-  | NotWhile lr :: rest -> if !lr = "" then c else consLabel !lr c
+  | NotWhile lr :: rest -> if !lr = "" then c else consLabel !lr c !currentLoc
 
 let exitLoop () = 
   match !continues with
@@ -2071,7 +2071,7 @@ and doCondition (e: A.expression)
         else begin
           incr labelId;
           let lab = "L" ^ (string_of_int !labelId) in
-          (gotoChunk lab lu, consLabel lab sf)
+          (gotoChunk lab lu, consLabel lab sf !currentLoc)
         end
       in
       let st' = doCondition e2 st sf1 in
@@ -2087,7 +2087,7 @@ and doCondition (e: A.expression)
 
           incr labelId;
           let lab = "L" ^ (string_of_int !labelId) in
-          (gotoChunk lab lu, consLabel lab st)
+          (gotoChunk lab lu, consLabel lab st !currentLoc)
         end
       in
       let st' = st1 in
@@ -2571,10 +2571,10 @@ and doBody (b : A.body) : chunk =
       
 and doStatement (s : A.statement) : chunk = 
   try
-    currentLoc := convLoc (A.get_statementloc s);
     match s with
       A.NOP _ -> skipChunk
     | A.COMPUTATION (e, loc) ->
+        currentLoc := convLoc loc;
         let (lasts, data) = !gnu_body_result in
         if lasts == s then begin      (* This is the last in a GNU_BODY *)
           let (s', e', t') = doExp false e (AExp None) in
@@ -2586,7 +2586,9 @@ and doStatement (s : A.statement) : chunk =
             (* And now do some peep-hole optimizations *)
           s'
 
-    | A.BLOCK (b, loc) -> doBody b
+    | A.BLOCK (b, loc) -> 
+        currentLoc := convLoc loc;
+        doBody b
 
     | A.SEQUENCE (s1, s2, loc) ->
         (doStatement s1) @@ (doStatement s2)
@@ -2594,67 +2596,83 @@ and doStatement (s : A.statement) : chunk =
     | A.IF(e,st,sf,loc) ->
         let st' = doStatement st in
         let sf' = doStatement sf in
+        currentLoc := convLoc loc;
         doCondition e st' sf'
 
     | A.WHILE(e,s,loc) ->
         startLoop true;
         let s' = doStatement s in
         exitLoop ();
+        let loc' = convLoc loc in
+        currentLoc := loc';
         loopChunk ((doCondition e skipChunk
-                      (breakChunk !currentLoc))
+                      (breakChunk loc'))
                    @@ s')
           
     | A.DOWHILE(e,s,loc) -> 
         startLoop false;
         let s' = doStatement s in
-        let s'' = consLabContinue (doCondition e skipChunk (breakChunk !currentLoc))
+        let loc' = convLoc loc in
+        currentLoc := loc';
+        let s'' = consLabContinue (doCondition e skipChunk (breakChunk loc'))
         in
         exitLoop ();
         loopChunk (s' @@ s'')
           
     | A.FOR(e1,e2,e3,s,loc) -> begin
+        let loc' = convLoc loc in
+        currentLoc := loc';
         let (se1, _, _) = doExp false e1 ADrop in
         let (se3, _, _) = doExp false e3 ADrop in
         startLoop false;
         let s' = doStatement s in
+        currentLoc := loc';
         let s'' = consLabContinue se3 in
         exitLoop ();
         match e2 with
           A.NOTHING -> (* This means true *)
             se1 @@ loopChunk (s' @@ s'')
         | _ -> 
-            se1 @@ loopChunk ((doCondition e2 skipChunk (breakChunk !currentLoc))
+            se1 @@ loopChunk ((doCondition e2 skipChunk (breakChunk loc'))
                               @@ s' @@ s'')
     end
-    | A.BREAK loc -> breakChunk !currentLoc
+    | A.BREAK loc -> breakChunk (convLoc loc)
 
-    | A.CONTINUE loc -> continueOrLabelChunk !currentLoc
+    | A.CONTINUE loc -> continueOrLabelChunk (convLoc loc)
 
-    | A.RETURN (A.NOTHING, loc) -> returnChunk None !currentLoc
+    | A.RETURN (A.NOTHING, loc) -> returnChunk None (convLoc loc)
     | A.RETURN (e, loc) -> 
+        let loc' = convLoc loc in
+        currentLoc := loc';
         let (se, e', et) = doExp false e (AExp (Some !currentReturnType)) in
         let (et'', e'') = castTo et (!currentReturnType) e' in
-        se @@ (returnChunk (Some e'') !currentLoc)
+        se @@ (returnChunk (Some e'') loc')
                
     | A.SWITCH (e, s, loc) -> 
+        let loc' = convLoc loc in
+        currentLoc := loc';
         let (se, e', et) = doExp false e (AExp (Some intType)) in
         let (et'', e'') = castTo et intType e' in
         let s' = doStatement s in
-        se @@ (switchChunk e'' s' !currentLoc)
+        se @@ (switchChunk e'' s' loc')
                
     | A.CASE (e, s, loc) -> 
+        let loc' = convLoc loc in
+        currentLoc := loc';
         let (se, e', et) = doExp false e (AExp None) in
-        se @@ caseChunk (constFold e') !currentLoc (doStatement s)
+        se @@ caseChunk (constFold e') loc' (doStatement s)
                     
-    | A.DEFAULT (s, loc) -> defaultChunk !currentLoc (doStatement s)
+    | A.DEFAULT (s, loc) -> defaultChunk (convLoc loc) (doStatement s)
                      
     | A.LABEL (l, s, loc) -> 
-        consLabel l (doStatement s)
+        consLabel l (doStatement s) (convLoc loc)
                      
-    | A.GOTO (l, loc) -> gotoChunk l !currentLoc
+    | A.GOTO (l, loc) -> gotoChunk l (convLoc loc)
           
     | A.ASM (tmpls, isvol, outs, ins, clobs, loc) -> 
-      (* Make sure all the outs are variables *)
+        (* Make sure all the outs are variables *)
+        let loc' = convLoc loc in
+        currentLoc := loc';
         let temps : (lval * varinfo) list ref = ref [] in
         let stmts : chunk ref = ref empty in
         let outs' = 
@@ -2678,10 +2696,10 @@ and doStatement (s : A.statement) : chunk =
             ins              
         in
         !stmts @@
-        (i2c (Asm(tmpls, isvol, outs', ins', clobs, !currentLoc)))
+        (i2c (Asm(tmpls, isvol, outs', ins', clobs, loc')))
   with e -> begin
     (ignore (E.log "Error in doStatement (%s)\n" (Printexc.to_string e)));
-    consLabel "booo_statement" empty
+    consLabel "booo_statement" empty (convLoc (A.get_statementloc s))
   end
 
 

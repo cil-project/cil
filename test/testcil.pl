@@ -174,6 +174,11 @@ $TEST->add2Tests("ijpeg", "_GNUCC=1");
   $TEST->add2Group("ijpeg", "slow");
   $TEST->addBadComment("ijpeg-inferbox", "CRASHES");
 
+$TEST->add2Tests("vortex", "_GNUCC=1");
+  $TEST->add2Group("vortex", "slow");
+  $TEST->addBadComment("vortex-cil", "wrong input data");
+  $TEST->addBadComment("vortex-inferbox", "missing WRAPPERS");
+
 $TEST->add3Tests("apache/gzip");
    $TEST->add3Group("apache/gzip", "apache");
 #   $TEST->addBadComment("apache/gzip-inferbox", "BUG");

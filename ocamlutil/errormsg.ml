@@ -111,7 +111,7 @@ let warn (fmt : ('a,unit,doc) format) : 'a =
 let logChannel : out_channel ref = ref stderr
 
 let log (fmt : ('a,unit,doc) format) : 'a = 
-  let f d = fprint !logChannel 80 d; d in
+  let f d = fprint !logChannel 80 d; flush !logChannel; d in
   Pretty.gprintf f fmt
 
 

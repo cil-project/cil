@@ -4,12 +4,12 @@ open Trace
 
 module H = Hashtbl
 module E = Errormsg
-module N = Ptrnode
+module N = Ptrnode 
 
 
 let debugType = false
 let debug = false
-
+let debugInstr = false
 
 let interceptCasts = ref false  (* If true it will insert calls to 
                                  * __scalar2pointer when casting scalars to 
@@ -426,7 +426,7 @@ let rec readFieldsOfFat (e: exp) (et: typ)
       | Compound (t, [p; b; e]) when isFatType t -> 
           p, b, e
 *)
-      | _ -> E.s (E.unimp "split _p field offset: %a" d_plainexp e)
+      | _ -> E.s (unimp "split _p field offset: %a" d_plainexp e)
     in
     (fptr.ftype, ptre, basee, ende)
   else
@@ -459,17 +459,35 @@ let readPtrField (e: exp) (t: typ) : exp =
 let readBaseField (e: exp) (t: typ) : exp = 
   let (tptr, ptr, base, bend) = readFieldsOfFat e t in base
 
-let kindOfType t = 
+let rec kindOfType t = 
   (* Since t was fixed up, it has a qualifier if it is a pointer *)
+  (* If it is a named type, look at the real type *)
+  match t with
+    TPtr (_, a) -> begin
+      match extractPointerTypeAttribute a with
+        N.Unknown -> if !N.defaultIsWild then N.Wild else N.Safe
+      | res -> res
+    end
+  | TNamed (_, nt, _) -> kindOfType nt
+  | TComp (_, comp, _) when comp.cstruct -> begin
+      match comp.cfields with
+        p :: _ when p.fname = "_p" -> kindOfType p.ftype  (* A fat type *)
+      | _ -> N.Scalar
+  end
+  | _ -> N.Scalar
+ 
+(*
+
+  let t' = unrollType t in
   match extractPointerTypeAttribute (typeAttrs t) with
     N.Unknown -> begin
-      match unrollType t with
-        TPtr _ -> if !N.defaultIsWild then N.Wild else N.Safe
-      | t when isFatType t -> N.Wild
+      match t' with
+        TPtr _ -> 
+      | t' when isFatType t' -> N.Wild
       | _ -> N.Scalar
     end
   | res -> res
-
+*)
 
 let breakFexp (fe: fexp) : typ * N.opointerkind * exp * exp * exp = 
   match fe with
@@ -887,6 +905,7 @@ and fixit t =
                 theFile := GType(tname, tstruct, lu) :: !theFile;
                 let tres = TNamed(tname, tstruct, [N.k2attr pkind]) in
                 (* Add this to ensure that we do not try to box it twice *)
+                H.add fixedTypes (typeSigBox tres) tres;
                 H.add fixedTypes (typeSigBox tstruct) tres;
                 (* And to make sure that for all identical pointer types we 
                  * create identical structure *)
@@ -899,7 +918,7 @@ and fixit t =
         end
               
         | TComp (true, _, _) ->  t    (* Don't follow TForward, since these 
-                                       * fill be taken care of when the 
+                                       * will be taken care of when the 
                                        * definition is encountered  *)
         | TNamed (n, t', a) -> TNamed (n, fixupType t', a)
               
@@ -912,18 +931,25 @@ and fixit t =
                 fi.ftype <- fixupType newt) 
               comp.cfields;
             bitfieldCompinfo comp;
-            (* Save the fixed comp so we don't redo it later *)
+            (* Save the fixed comp so we don't redo it later. Important since 
+             * redoing it means that we change the fields in place. *)
             H.add fixedTypes (typeSigBox t) t;
             t
               
         | TArray(t', l, a) -> 
             let sized = extractArrayTypeAttribute a in
             let newarray = TArray(fixupType t', l, a) in
-            if sized then begin
-              addArraySize newarray
-            end else begin
-              newarray
-            end
+            let res = 
+              if sized then begin
+                addArraySize newarray
+              end else begin
+                newarray
+              end
+            in
+            (* Save the fixed comp so we don't redo it later. Important since 
+             * redoing it means that we change the fields in place. *)
+            H.add fixedTypes (typeSigBox res) res;
+            res
                 
                 
         | TFun(rt,args,isva,a) ->
@@ -975,7 +1001,7 @@ and addArraySize t =
         | TComp (_, ci, a) when ci.cfields = [] -> TArray(charType, Some zero, 
                                                           [Attr("sized", [])])
         | _ -> 
-            E.s (E.unimp "Don't know how to tag incomplete type %a" 
+            E.s (unimp "Don't know how to tag incomplete type %a" 
                    d_plaintype t)
       end
     in
@@ -1041,7 +1067,7 @@ and tagType (t: typ) : typ =
 	  | TArray(bt, Some z, a) when isZero z -> t
 	  | TComp (_, ci, _) when ci.cfields = [] -> 
               TArray(charType, Some zero, [])
-	  | _ -> t (* E.s (E.unimp "Don't know how to tag incomplete type %a" 
+	  | _ -> t (* E.s (unimp "Don't know how to tag incomplete type %a" 
                         d_plaintype t) *)
 	in
         TComp 
@@ -1299,7 +1325,7 @@ let getHostIfBitfield (lv: lval) (t: typ) : lval * typ =
       (match unrollType lv't with 
         TComp (_, comp, _) when comp.cstruct -> 
           if List.exists (fun f -> typeContainsFats f.ftype) comp.cfields then
-            E.s (E.unimp "%s contains both bitfields and pointers.@!LV=%a@!T=%a@!" 
+            E.s (unimp "%s contains both bitfields and pointers.@!LV=%a@!T=%a@!" 
                    (compFullName comp) d_plainlval lv d_plaintype t)
       | _ -> E.s (bug "getHost: bitfield not in a struct"));
       lv', lv't
@@ -1333,7 +1359,7 @@ let offsetOfFirstScalar (t: typ) : exp =
     end
     | TArray (bt, _, _) -> 
         theOffset (addOffset (Index(zero, NoOffset)) sofar) bt
-    | _ -> E.s (E.unimp "offsetOfFirstScalar")
+    | _ -> E.s (unimp "offsetOfFirstScalar")
   in
   match theOffset NoOffset t with
     None -> raise Not_found
@@ -1551,7 +1577,7 @@ let beforeField ((btype, pkind, mklval, base, bend, stmts) as input) =
       (btype, N.Safe, mklval, zero, zero,
        stmts @ docheck)
         
-  | _ -> E.s (E.unimp "beforeField on unexpected pointer kind %a"
+  | _ -> E.s (unimp "beforeField on unexpected pointer kind %a"
                 N.d_opointerkind pkind)
         
     
@@ -1571,7 +1597,7 @@ let rec beforeIndex ((btype, pkind, mklval, base, bend, stmts) as input) =
       (* Now try again *)
       beforeIndex res1
 
-  | _ -> E.s (E.unimp "beforeIndex on unexpected pointer kind %a"
+  | _ -> E.s (unimp "beforeIndex on unexpected pointer kind %a"
                 N.d_opointerkind pkind)
 
 (******* Start of *******)
@@ -1603,7 +1629,7 @@ let rec pkStartOf (lv: lval)
           let (res, stmts'') = pkStartOf lv lvt lvk' base' bend' in
           (res, stmts' @ stmts'')
           
-      | _ -> E.s (E.unimp "pkStartOf: %a" N.d_opointerkind lvk)
+      | _ -> E.s (unimp "pkStartOf: %a" N.d_opointerkind lvk)
     end
   | TFun _ -> begin
               (* Taking the address of a function is a special case. Since 
@@ -1618,7 +1644,7 @@ let rec pkStartOf (lv: lval)
           mkFexp3 (mkPointerTypeKind lvt lvk) start fb zero, []
   end
         
-  | _ -> E.s (E.unimp "pkStartOf on a non-array and non-function: %a"
+  | _ -> E.s (unimp "pkStartOf on a non-array and non-function: %a"
                 d_plaintype lvt)
 
 let varStartInput (vi: varinfo) = 
@@ -1931,8 +1957,8 @@ let rec castTo (fe: fexp) (newt: typ)
           finishDoe acc', L(newt, newkind, castP p')
 
       | N.ROString, (N.FSeq|N.FSeqN) -> 
-        ignore (E.warn "Warning: wes-is-lazy cast from ROSTRING -> FSEQ[N]") ;
-        ignore (E.warn "castTo(%a -> %a.@!%a@!%a)" 
+        ignore (warn "Warning: wes-is-lazy cast from ROSTRING -> FSEQ[N]") ;
+        ignore (warn "castTo(%a -> %a.@!%a@!%a)" 
                  N.d_opointerkind oldk N.d_opointerkind newkind 
                  d_fexp fe
                  d_plaintype oldt)       ;
@@ -1955,7 +1981,7 @@ let rec castTo (fe: fexp) (newt: typ)
               (doe, FM(newt, newkind, castP p, zero, zero))
 
       | _, _ -> 
-          E.s (E.unimp "castTo(%a -> %a.@!%a@!%a)" 
+          E.s (unimp "castTo(%a -> %a.@!%a@!%a)" 
                  N.d_opointerkind oldk N.d_opointerkind newkind 
                  d_fexp fe
                  d_plaintype oldt)      
@@ -2056,7 +2082,7 @@ let rec checkMem (why: checkLvWhy)
                   ToWrite (Lval (addOffsetLval (Field(fi, NoOffset)) whatlv))
                   (* sometimes in Asm outputs we pretend that we write 0 *)
               | ToWrite (Const(CInt(0, _, _))) -> ToRead
-              | ToWrite e -> E.s (E.unimp "doCheckTags (%a)" d_exp e)
+              | ToWrite e -> E.s (unimp "doCheckTags (%a)" d_exp e)
               | ToSizeOf -> why
             in
             doCheckTags newwhy newwhere fi.ftype pkind acc
@@ -2069,7 +2095,7 @@ let rec checkMem (why: checkLvWhy)
           | _ -> begin (* We are reading or writing an array *)
               let len = 
                 match lo with Some len -> len 
-                | _ -> E.s (E.unimp "Reading or writing an incomplete type") in
+                | _ -> E.s (unimp "Reading or writing an incomplete type") in
             (* Make an interator variable for this function *)
               withIterVar !currentFunction
                 (fun it -> 
@@ -2084,7 +2110,7 @@ let rec checkMem (why: checkLvWhy)
                                                               NoOffset)) 
                                            whatlv))
                       | ToWrite e -> 
-                          E.s (E.unimp "doCheckTags: write (%a)" d_exp e)
+                          E.s (unimp "doCheckTags: write (%a)" d_exp e)
                       | ToSizeOf -> why
                     in
                     doCheckTags whyelem
@@ -2109,7 +2135,7 @@ let rec checkMem (why: checkLvWhy)
               ToWrite x -> checkLeanStackPointer x :: acc
             | _ -> acc
           end
-      | _ -> E.s (E.unimp "unexpected type in doCheckTags: %a\n" d_type t)
+      | _ -> E.s (unimp "unexpected type in doCheckTags: %a\n" d_type t)
     in
   (* See first what we need in order to check tags *)
     let zeroAndCheckTags = 
@@ -2165,7 +2191,7 @@ let rec checkReturnValue
         match kindOfType ptype with
           N.Wild|N.Index|N.Seq|N.SeqN -> fb
         | N.FSeq|N.FSeqN -> fe
-        | _ -> E.s (E.unimp "checkReturn: unexpected kind of fat type")
+        | _ -> E.s (unimp "checkReturn: unexpected kind of fat type")
       in
       checkFatStackPointer ptr nullIfInt :: acc
 
@@ -2174,7 +2200,7 @@ let rec checkReturnValue
       (* Better have an lvalue *)
       let lv = match e with
         Lval lv -> lv
-      | _ -> E.s (E.unimp "checkReturnValue: return comp not an lval")
+      | _ -> E.s (unimp "checkReturnValue: return comp not an lval")
       in
       List.fold_left 
         (fun acc f -> 
@@ -2183,7 +2209,7 @@ let rec checkReturnValue
         acc
         comp.cfields
         
-  | _ -> E.s (E.unimp "checkReturnValue: type\n")
+  | _ -> E.s (unimp "checkReturnValue: type\n")
       
 
 (********** Initialize variables ***************)
@@ -2288,7 +2314,7 @@ let rec initializeType
             (* Write a zero at the very end *)
         (match unrollType bt with
           TInt((IChar|ISChar|IUChar), _) -> ()
-        | _ -> E.s (E.unimp "NULLTERM array of base type %a" d_type bt));
+        | _ -> E.s (unimp "NULLTERM array of base type %a" d_type bt));
         fun lv acc -> 
           mkSet (addOffsetLval 
                    (Index(BinOp(MinusA, l, one, intType), NoOffset)) lv)
@@ -2322,7 +2348,7 @@ let rec initializeType
           (fun (bestsofar, bestval) f -> 
             let bitsthis = 
               try bitsSizeOf f.ftype with Not_found -> 
-                E.s (E.unimp "initializing union with open fields")
+                E.s (unimp "initializing union with open fields")
             in
             if bitsthis > bestval then
               (Some f, bitsthis)
@@ -2330,7 +2356,7 @@ let rec initializeType
               (bestsofar, bestval)) (None, -1) comp.cfields in
       let toinit = 
         match maxfld with Some f -> f 
-        | _ -> E.s (E.unimp "cannot find widest field in union %s" comp.cname)
+        | _ -> E.s (unimp "cannot find widest field in union %s" comp.cname)
       in
       (* ignore (E.log "Will initialize field %s (with size %d)\n" 
                 toinit.fname themax); *)
@@ -2339,7 +2365,7 @@ let rec initializeType
         initone (addOffsetLval (Field(toinit, NoOffset)) lv) acc 
     end
 
-  | _ -> E.s (E.unimp "initializeType (for type %a)" d_plaintype t)
+  | _ -> E.s (unimp "initializeType (for type %a)" d_plaintype t)
 
     
     
@@ -2401,10 +2427,10 @@ let rec stringLiteral (s: string) (strt: typ) : stmt list * fexp =
       let regarea = 
         registerArea
           [ integer registerAreaTaggedInt;
-            voidStarResult; zero ] [] 
+            voidStarResult; zero ] !extraGlobInit
       in
       (* Add the registration to the global initializer *)
-      extraGlobInit := regarea @ !extraGlobInit;
+      if regarea != !extraGlobInit then extraGlobInit := regarea;
       ([], FM (fixChrPtrType, N.Wild,
                result, 
                castVoidStar result, zero))
@@ -2418,10 +2444,10 @@ let rec stringLiteral (s: string) (strt: typ) : stmt list * fexp =
         registerArea
           [ integer registerAreaSeqInt;
             castVoidStar (Lval (var tmp)); 
-            castVoidStar theend ] []
+            castVoidStar theend ] !extraGlobInit
       in
       (* Add the registration to the global initializer *)
-      extraGlobInit := regarea @ !extraGlobInit;
+      if regarea != !extraGlobInit then extraGlobInit := regarea;
       let res = 
         match k with 
           N.Safe | N.String | N.ROString -> 
@@ -2755,7 +2781,7 @@ and boxstmt (s: Cil.stmt) : block =
   try
     match s.skind with 
     | Break _ | Continue _ | Goto _ -> [s]
-    | Return (None, l) -> currentLoc := l;unregisterStmt () :: [ s ]
+    | Return (None, l) -> currentLoc := l; unregisterStmt () :: [ s ]
 
     | Return (Some e, l) -> 
         currentLoc := l;
@@ -2801,7 +2827,7 @@ and boxstmt (s: Cil.stmt) : block =
 
 
 and boxinstr (ins: instr) : stmt list = 
-  if debug then
+  if debugInstr then
     ignore (E.log "Boxing %a\n" d_instr ins);
   try
     match ins with
@@ -2828,7 +2854,7 @@ and boxinstr (ins: instr) : stmt list =
         let (ftret, ftargs, isva) =
           match ft with 
             TFun(fret, fargs, isva, _) -> (fret, fargs, isva) 
-          | _ -> E.s (E.unimp "call of a non-function: %a @!: %a" 
+          | _ -> E.s (unimp "call of a non-function: %a @!: %a" 
                         d_plainexp f' d_plaintype ft) 
         in
         let leavealone, isallocate = 
@@ -2874,7 +2900,7 @@ and boxinstr (ins: instr) : stmt list =
                   let (_, doa'', a2) = fexp2exp fa' doa in
                   let (doresta, resta') = doArgs resta [] in
                   (doa'' @ doresta, a2 :: resta')
-              | _ -> E.s (E.unimp "too few arguments in call to %a" d_exp f)
+              | _ -> E.s (unimp "too few arguments in call to %a" d_exp f)
             in
             doArgs args ftargs  
         in
@@ -2997,7 +3023,7 @@ and boxlval (b, off) : (typ * N.opointerkind * lval * exp * exp * stmt list) =
               else
                (* Make sure it is not a table type *)
                 t, doaddr, addr'base, addr'end, newk
-          | _ -> E.s (E.unimp "Mem but no pointer type: %a@!addr= %a@!"
+          | _ -> E.s (unimp "Mem but no pointer type: %a@!addr= %a@!"
                         d_plaintype addrt d_plainexp addr)
         in
         (addrt1, addrkind, (fun o -> (Mem addr', o)), 
@@ -3137,7 +3163,7 @@ and boxexpf (e: exp) : stmt list * fexp =
         | _, N.Scalar, N.Scalar -> 
             (doe1 @ doe2, L(restyp', N.Scalar, BinOp(bop,e1',e2',restyp')))
               
-        | _, _, _ -> E.s (E.unimp "boxBinOp: %a@!et1=%a@!et2=%a@!" 
+        | _, _, _ -> E.s (unimp "boxBinOp: %a@!et1=%a@!et2=%a@!" 
                             d_binop bop d_plaintype et1 d_plaintype et2)
     end
           
@@ -3156,11 +3182,11 @@ and boxexpf (e: exp) : stmt list * fexp =
         let t' = fixupType t in
         ([], L(uintType, N.Scalar, SizeOf(t')))
 
-    (* Intercept the case when we do sizeof an lvalue. This way we can avoid 
-     * trying to check the safety of reads that might be triggered if we view 
-     * the lvalue as an expression *)
           
     | SizeOfE (Lval lv) -> 
+        (* Intercept the case when we do sizeof an lvalue. This way we can 
+         * avoid trying to check the safety of reads that might be triggered 
+         * if we view the lvalue as an expression  *)
         (* ignore (E.log "boxexpf: %a\n" d_plainlval lv); *)
         let lvt, lvkind, lv', baseaddr, len, dolv = boxlval lv in
         ([], L(uintType, N.Scalar, SizeOfE(Lval lv')))
@@ -3182,7 +3208,7 @@ and boxexpf (e: exp) : stmt list * fexp =
         let res, doaddrof = pkAddrOf lv' lvt lvkind baseaddr bend in
         (dolv @ doaddrof, res)
           
-    (* StartOf is like an AddrOf except for typing issues. *)
+          (* StartOf is like an AddrOf except for typing issues. *)
     | StartOf lv -> begin
         let (lvt, lvkind, lv', baseaddr, bend, dolv) = boxlval lv in
         (* Check that variables whose address is taken are flagged *)
@@ -3191,11 +3217,11 @@ and boxexpf (e: exp) : stmt list * fexp =
             E.s (bug "addrof not set for %s (startof)" vi.vname)
         | _ -> ());
         let res, dostartof = pkStartOf lv' lvt lvkind baseaddr bend in
-(*        ignore (E.log "result of StartOf: %a@!" d_fexp res); *)
+        (*        ignore (E.log "result of StartOf: %a@!" d_fexp res); *)
         (dolv, res)
     end
     | Question (e1, e2, e3) ->       
-        let (_, doe1, e1') = boxexp (CastE(intType, e)) in
+        let (_, doe1, e1') = boxexp (CastE(intType, e1)) in
         let (et2, doe2, e2') = boxexp e2 in
         let (et3, doe3, e3') = boxexp e3 in
         let result = mkFexp1 et2 (Question (e1', e2', e3')) in
@@ -3213,7 +3239,7 @@ and boxinit (ei: init) : init =
       SingleInit e ->
         let e't, doe, e', e'base, e'len = boxexpSplit e in
         if doe <> [] then
-          E.s (E.unimp "Non-pure initializer %a\n"  d_exp e);
+          E.s (unimp "Non-pure initializer %a\n"  d_exp e);
         SingleInit e'
 
     | CompoundInit (t, initl) -> 
@@ -3292,7 +3318,7 @@ and boxfunctionexp (f : exp) =
       (rest, dolv @ [checkFunctionPointer (AddrOf(lv')) lvbase lvkind], 
        Lval(lv'))
       
-  | _ -> E.s (E.unimp "Unexpected function expression")
+  | _ -> E.s (unimp "Unexpected function expression")
 
 
 
@@ -3358,14 +3384,12 @@ let boxFile file =
         | GDecl (vi, l) -> boxglobal vi false None l
         | GVar (vi, init, l) -> boxglobal vi true init l
         | GType (n, t, l) -> 
-            if debug then
-              ignore (E.log "Boxing GType(%s)\n" n);
+            if debug then ignore (E.log "Boxing GType(%s)\n" n);
             let tnew = fixupType t in
             theFile := GType (n, tnew, l) :: !theFile
                                                
         | GFun (f, l) -> 
-            if debug then
-              ignore (E.log "Boxing GFun(%s)\n" f.svar.vname);
+            if debug then ignore (E.log "Boxing GFun(%s)\n" f.svar.vname);
             (* Run the oneret first so that we have always a single return 
              * where to place the finalizers  *)
             Oneret.oneret f;
@@ -3448,8 +3472,7 @@ let boxFile file =
     end
 
   and boxglobal vi isdef init (l: location) =
-    if debug then
-      ignore (E.log "Boxing GVar(%s)\n" vi.vname);
+    if debug then ignore (E.log "Boxing GVar(%s)\n" vi.vname);
     (* Leave alone some functions *)
     let origType = vi.vtype in
     if not (H.mem leaveAlone vi.vname) &&
