@@ -2080,38 +2080,20 @@ perl-gcc: mustbelinux mustbemanju perlclean
 # http://www.isc.org/products/BIND/
 
 #BINDSRC := /usr/local/src/bind-9.2.0
-BINDSRC := /home/weimer/bind-9.2.2rc1
 
-bindclean:
-	cd $(BINDSRC); make clean
-	-cd $(BINDSRC); find . \( \
-		-name '*cil.c' -o \
-		-name '*.exe' -o \
-		-name '*.i' -o \
-		-name '*.o' -o \
-		-name '*.obj' -o \
-		-name '*cabs.c' -o \
-		-name '*_comb*.c' \
-	      	\) -exec rm -f {} \;
+BIG_EXAMPLES := ../../big-examples/
 
-bind: mustbegcc mustbelinux mustbemanju bindclean
-	cd $(BINDSRC) ; make -e \
-              CC="$(CCURED) " \
-              MAKE="make -e" \
-                LD="$(CILLY) --merge --verbose --commPrintLn " \
-                AR="$(CILLY) --mode=AR --merge --verbose " \
-                RANLIB="echo" 
+bindclean: mustbegcc mustbelinux mustbemanju
+	cd $(BIG_EXAMPLES); $(MAKE) bindclean
+
+bind: mustbegcc mustbelinux mustbemanju 
+	cd $(BIG_EXAMPLES) ; $(MAKE) bind
 
 bind-noclean: mustbegcc mustbelinux mustbemanju
-	cd $(BINDSRC) ; make -e \
-              CC="$(CCURED) " \
-              MAKE="make -e" \
-                LD="$(CILLY) --merge --verbose --commPrintLn " \
-                AR="$(CILLY) --mode=AR --merge --verbose " \
-                RANLIB="echo" 
+	cd $(BIG_EXAMPLES) ; $(MAKE) bind-noclean
 
-bind-gcc: mustbelinux mustbemanju bindclean
-	cd $(BINDSRC) ; make -e CC=gcc
+bind-gcc: mustbegcc mustbelinux mustbemanju 
+	cd $(BIG_EXAMPLES)/bind ; $(MAKE)
 
 #### ------------- WU-FTPD -------------------------
 
