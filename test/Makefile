@@ -447,6 +447,13 @@ testmodel/%: $(SMALL1)/%.c $(SMALL1)/modelextern.c
                          $(CFLAGS) $(EXEOUT)$*.exe $*.c modelextern.c
 	cd $(SMALL1); ./$*.exe
 
+testwrapper/%: $(SMALL1)/%.c $(SMALL1)/wrapperextern.c 
+	cd $(SMALL1); $(CCURED) \
+                         $(STANDARDPATCH) \
+                         --leavealone=wrapperextern --merge \
+                         $(CFLAGS) $(EXEOUT)$*.exe $*.c wrapperextern.c
+	cd $(SMALL1); ./$*.exe
+
 combine%: 
 	cd $(SMALL1); \
           $(CCURED) $(CFLAGS) \

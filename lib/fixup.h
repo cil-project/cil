@@ -143,12 +143,58 @@ extern long double __builtin_fabsl(long double);
   #pragma boxvararg_printf("fprintf", 2)
 
 
-
+  void * __SAFE __startof(void *ptr); // Get the start of a pointer
+  void * __SAFE __endof(void *ptr);
+  void * __SAFE __ptrof(void *ptr);
+  void *        __mkptr(void * __SAFE ptr, void *phome);
+  int __strlen(void *ptr);
 
   #pragma boxpoly("__startof")
-  void *__startof(void *ptr) __BOXMODEL; // Get the start of a pointer
   #pragma boxpoly("__endof")
-  void *__endof(void *) __BOXMODEL;
+  #pragma boxpoly("__ptrof")
+  #pragma boxpoly("__mkptr")
+  #pragma boxpoly("__strlen")
+/*  #pragma boxpoly("__startof_model")
+  #pragma boxpoly("__endof_model")
+  #pragma boxpoly("__mkptr_model")
+  #pragma boxpoly("__strlen_model")
+*/
+
+/*  static inline
+  void * __SAFE __startof_model(void *ptr)
+  {
+    ((char*)ptr)--;      
+    return 0;      
+  }
+  #pragma boxmodelof("__startof_model", "__startof")
+
+  static inline
+  void * __SAFE __endof_model(void *ptr)
+  {
+    ((char*)ptr)++;      
+    return 0;      
+  }
+  #pragma boxmodelof("__endof_model", "__endof")
+
+  static inline
+  int __strlen_model(void *ptr)
+  {
+    __endof(ptr);
+    return 0;      
+  }
+  #pragma boxmodelof("__strlen_model", "__strlen")
+*/
+
+  #pragma boxpoly("__mkptr")
+  static inline
+  void *__mkptr(void * __SAFE ptr, void *phome)
+  {
+    return ((char*)phome) + ( ((char*)ptr) - ((char*)phome) );    
+  }
+  //#pragma boxmodelof("__mkptr_model", "__mkptr")
+
+
+
   #pragma boxpoly("ccured_kind_of")
   char *  ccured_kind_of(void *);
   #pragma boxalloc("malloc", nozero, sizein(1))
