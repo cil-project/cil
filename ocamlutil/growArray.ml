@@ -41,19 +41,23 @@ let max_init_index (ga: 'a t) : int =
 let reset_max_init_index (ga: 'a t) : unit =
   ga.gaMaxInitIndex <- -1
 
-let get (ga: 'a t) (r: int) : 'a = 
+let getg (ga: 'a t) (r: int) : 'a = 
   let len = Array.length ga.gaData in
   if r >= len then 
-    growTheArray ga len r "get";
+    growTheArray ga len r "getg";
 
   ga.gaData.(r)
 
-let set (ga: 'a t) (r: int) (what: 'a) : unit = 
+let setg (ga: 'a t) (r: int) (what: 'a) : unit = 
   let len = Array.length ga.gaData in
   if r >= len then 
-    growTheArray ga len r "set";
+    growTheArray ga len r "setg";
   if r > max_init_index ga then ga.gaMaxInitIndex <- r;
   ga.gaData.(r) <- what
+
+let get (ga: 'a t) (r: int) : 'a = Array.get ga.gaData r
+
+let set (ga: 'a t) (r: int) (what: 'a) : unit = Array.set ga.gaData r what
 
 let make (initsz: int) (fill: 'a fill) : 'a t = 
   { gaFill = fill;

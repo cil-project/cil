@@ -32,22 +32,33 @@ val max_init_index : 'a t -> int
 val reset_max_init_index : 'a t -> unit
 (** [GrowArray.reset_init a] resets the max_init_index. *)
 
-val get : 'a t -> int -> 'a
-(** [GrowArray.get a n] returns the element number [n] of array [a].
+val getg : 'a t -> int -> 'a
+(** [GrowArray.getg a n] returns the element number [n] of array [a].
    The first element has number 0.
    The last element has number [GrowArray.length a - 1].
 
    If [n] is outside the range 0 to [(GrowArray.max_init_index a)],
-   then the array grows to at least [n] and yields the default value.
-   You can also write [a.(n)] instead of [GrowArray.get a n]. *)
+   then the array grows to at least [n] and yields the default value. *)
 
-val set : 'a t -> int -> 'a -> unit
-(** [GrowArray.set a n x] modifies array [a] in place, replacing
+val setg : 'a t -> int -> 'a -> unit
+(** [GrowArray.setg a n x] modifies array [a] in place, replacing
    element number [n] with [x].
 
    If [n] is outside the range 0 to [(GrowArray.max_init_index a)],
-   then the array grows to at least [n] and yields the default value.
-   You can also write [a.(n) <- x] instead of [GrowArray.set a n x]. *)
+   then the array grows to at least [n] and yields the default value. *)
+
+val get : 'a t -> int -> 'a
+(** [GrowArray.get a n] returns the element number [n] of grow array [a].
+
+   Raise [Invalid_argument "Array.get"]  if [n] is outside the range
+   of the underlying array. *)
+
+val set : 'a t -> int -> 'a -> unit
+(** [GrowArray.set a n x] modifies grow array [a] in place, replacing
+   element number [n] with [x].
+
+   Raise [Invalid_argument "Array.set"] if [n] is outside the range
+   of the underlying array. *)
         
 val make : int -> 'a fill -> 'a t
 (** [GrowArray.make n x] returns a fresh growable array of size
