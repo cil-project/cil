@@ -17,10 +17,15 @@ use RegTest;
 print "Test infrastructure for SafeC\n";
 
 # Create out customized test harness
-my $TEST = SafecRegTest->new();
+my $TEST = SafecRegTest->new(AvailParams => {"run" => 1, 
+                                             "parse" => 1, 
+                                             "solve" => 1, 
+                                             "print" => 1, 
+                                             "box" => 1},
+                             LogFile => "safec.log");
 
 my @runpattern = 
-    ("^Run.+ ([.\\d]+)ms" => sub { $_[1]->{run} = $_[2]; });
+    ("^Run.+ ([.\\d]+)ms" => sub { $_[1]->{"run"} = $_[2]; });
 
 # Now add tests
 $TEST->addTest("hashtest", @runpattern);
@@ -41,7 +46,11 @@ $TEST->doit();
 exit(0);
 
 
+###
+###
+###
 ### Specialize RegTest
+###
 package SafecRegTest;
 
 use strict;
@@ -58,9 +67,6 @@ sub new {
     my $class = ref($proto) || $proto;
     my $self = $class->SUPER::new(@_);
 
-    if(! defined($self->{option}->{log})) {
-        $self->{logFile} = "safec.log";
-    }
     return $self;
 }
 
@@ -70,7 +76,7 @@ sub extraOptions {
     my @supopt = $self->SUPER::extraOptions();
     return (
         @supopt,
-        "--safec=s",
+        "--safecdebug!",
             );
 }
 
@@ -81,9 +87,11 @@ sub extraHelpMessage {
     my ($scriptname, $extra) = $self->SUPER::extraHelpMessage();
     return ("testsafec",
             $extra . << "EOF");
-  Default log file is safec.log
 
-SafeC test harness
+Additional arguments for SafeC test harness
+  --safecdebug         Use the debug versions of everything (default is false)
+
+  Default log file is safec.log
 EOF
 }
 
@@ -104,10 +112,15 @@ sub startParsingLog {
 }
 
 
+sub availableParameters {
+    my($self) = @_;
+    return %::availpars;
+}
+
 sub addTest {
     my($self, $name, %patterns) = @_;
     
-    my $theargs = " ";
+    my $theargs = defined($self->{option}->{safecdebug}) ? " " : " RELEASE=1 ";
 
     my %commonerrors = 
         ("^make: \\*\\*\\*" => 
@@ -120,15 +133,21 @@ sub addTest {
                  }
              }},
 
-         "Syntax error" => sub { $_[0]->{ErrorCode} = 1000; },
+    "Syntax error" => sub { $_[1]->{ErrorCode} = 1000; },
+    
+    "^Error: Cabs2cil" => sub { $_[1]->{ErrorCode} = 1001; },
+    
+    "^FrontC finished conversion" => sub { $_[1]->{instage} = 1002; },
+    
+    "^Solving constraints" => sub { $_[1]->{instage} = 1003; },
+    
+    "^Error: Boxing" => sub { $_[1]->{ErrorCode} = 1004; },
 
-         "^Error: Cabs2cil" => sub { $_[1]->{ErrorCode} = 1001; },
-
-         "^FrontC finished conversion" => sub { $_[1]->{instage} = 1002; },
-
-         "^Solving constraints" => sub { $_[1]->{instage} = 1003; },
-
-         "^Error: Boxing" => sub { $_[1]->{ErrorCode} = 1004; },
+         # Collect some more parameters
+    "^parse\\s+([\\.\\d]+) s" => sub { $_[1]->{parse} = $_[2];},
+    "^print.+\\s+([\\.\\d]+) s" => sub { $_[1]->{print} += $_[2];},
+    "^box\\s+([\\.\\d]+) s" => sub { $_[1]->{box} += $_[2];},
+    "^\\s+simple solver\\s+([\\.\\d]+) s" => sub { $_[1]->{solve} += $_[2];},
 
          );
     my $k;
