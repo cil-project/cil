@@ -171,7 +171,7 @@ INC=/I
 CPPSTART=cl /Dx86_WIN32 /D_MSVC /E /TC /I./lib /FI fixup.h /DBEFOREBOX
 CPPOUT= %i >%o
 CPP=$(CPPSTART) $(CPPOUT)
-EXTRAARGS += -msvc
+EXTRAARGS += --safec=-msvc
 endif
 
 ifdef RELEASE
@@ -194,12 +194,19 @@ SAFECC+= --box
 endif
 ifdef INFERBOX
 SAFECC+= --inferbox
+else
+ifndef MANUALBOX
+SAFECC+= --safec=-boxdefaultwild
+endif
+endif
+ifdef MANUALBOX
+EXTRAARGS+= $(DEF)MANUALBOX
 endif
 ifdef NO_TAGS
 SAFECC+= $(DEF)NO_TAGS
 endif
 ifdef CHECK
-EXTRAARGS += -check
+EXTRAARGS += --safec=-check
 endif
 ifdef RELEASE
 SAFECC+= --release
@@ -217,7 +224,7 @@ ifdef OPTIM
 SAFECC += --optim
 endif
 
-SAFECC+= $(EXTRAARGS:%= --safec=%)
+SAFECC+= $(EXTRAARGS)
 
     # Now the rules to make the library
 ifdef _MSVC

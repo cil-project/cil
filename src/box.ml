@@ -135,25 +135,18 @@ let extractPointerTypeAttribute al =
   let rec loop = function
       [] -> P.Unknown
     | a :: al -> begin
-        match a with
-          AId("safe") -> P.Safe
-        | AId("wild") -> P.Wild
-        | AId("index") -> P.Index
-        | AId("fseq") -> P.FSeq
-        | AId("seq") -> P.Seq
-        | _ -> loop al
+        match P.attr2k a with
+          P.Unknown -> loop al
+        | k -> k
     end
   in
   loop al
           
 
 let kindOfType t = 
+  (* Since t was fixed up it has a qualifier if it is a pointer *)
   match extractPointerTypeAttribute (typeAttrs t) with
-    P.Unknown -> begin
-        match unrollType t with
-          TPtr _ -> if !defaultIsWild then P.Wild else P.Safe
-        | _ -> P.Scalar
-    end
+    P.Unknown -> P.Scalar
   | res -> res
 
 
@@ -254,6 +247,14 @@ let rec fixupType t =
                isva, dropAttribute a (ACons("__format__",[])))
       | _ -> E.s (E.bug "fixupType")
   end
+  | TPtr(t', a) -> begin
+      (* Add the default pointer qualifier if none present *)
+      match extractPointerTypeAttribute a with
+        P.Unknown -> 
+          let kres = if !defaultIsWild then P.Wild else P.Safe in
+          fixit (TPtr(t', addAttribute (P.k2attr kres) a))
+      | k -> fixit t
+  end
   | _ -> fixit t
 
 and fixit t = 
@@ -278,19 +279,13 @@ and fixit t =
                 let fixed = 
                   TComp 
                     (mkCompInfo true tname 
-                       (fun _ -> [ ("_p", TPtr(fixed', a), []); 
+                       (fun _ -> [ ("_p", TPtr(fixed', a),
+                                    []); 
                                    ("_b", voidPtrType, [])]) 
                        [])
                 in
-                let pattr = 
-                  match pkind with 
-                    P.Wild -> AId("wild") 
-                  | P.FSeq -> AId("fseq")
-                  | P.Index -> AId("index")
-                  | _ -> E.s (E.bug "fixit:fatp")
-                in
                 theFile := GType(tname, fixed) :: !theFile;
-                let tres = TNamed(tname, fixed, [pattr]) in
+                let tres = TNamed(tname, fixed, [P.k2attr pkind]) in
                 H.add fixedTypes (typeSig fixed) tres;
                 tres
 
@@ -467,15 +462,7 @@ and tagLength (t: typ) : (exp * exp) = (* Call only for a isCompleteType *)
 
 (**** Make a pointer type of a certain kind *)
 let mkPointerTypeKind (bt: typ) (k: P.pointerkind) = 
-  let k2attr = function
-      P.Safe -> AId("safe")
-    | P.Index -> AId("index")
-    | P.Wild -> AId("wild")
-    | P.Seq -> AId("seq")
-    | P.FSeq -> AId("fseq")
-    | _ -> E.s (E.unimp "mkPointerKind")
-  in
-  fixupType (TPtr(bt, [k2attr k]))
+  fixupType (TPtr(bt, [P.k2attr k]))
 
 
 
@@ -691,16 +678,6 @@ let makeTagAssignInit (iter: varinfo) vi : stmt list =
 
 (****** the CHECKERS ****)
 
-(* Define WILD away *)
-let _ = theFile := GText("#define WILD\n#define FSEQ") :: !theFile
-
-(* First create some types for the libraries *)
-let fatWildVoidPtr     = fixupType (TPtr(TVoid [], [AId("wild")]))
-let fatVoidPtr  = 
-  match fatWildVoidPtr with
-    TNamed(_, x, _) -> x
-  | _ -> E.s (E.bug "fatVoidPtr")
-let fseqChrPtrType     = fixupType (TPtr(TInt(IChar, []), [AId("fseq")]))
 
 let checkSafeRetFatFun = 
   let fdec = emptyFunction "CHECK_SAFERETFAT" in
@@ -983,6 +960,8 @@ let offsetOfFirstScalar (t: typ) : exp =
         in
         List.fold_left doOneField None comp.cfields
     end
+    | TArray (bt, _, _) -> 
+        theOffset (addOffset (Index(zero, NoOffset)) sofar) bt
     | _ -> E.s (E.unimp "offsetOfFirstScalar")
   in
   match theOffset NoOffset t with
@@ -1090,6 +1069,7 @@ let checkMem (towrite: exp option)
              (lvt: typ) (pkind: P.pointerkind) : stmt list = 
   (* Fetch the length field in a temp variable. But do not create the 
    * variable until certain that it is needed *)
+  (* ignore (E.log "checkMem: lvt: %a\n" d_plaintype lvt); *)
   let lenExp : exp option ref = ref None in
   let getLenExp = 
     fun () -> begin
@@ -1444,10 +1424,9 @@ and boxlval (b, off) : (typ * P.pointerkind * lval * exp * exp * stmt list) =
   in
   let toIndexSeq ((btype, pkind, mklval, base, bend, stmts) as input) = 
     match pkind with
-      P.Wild -> input (* No change if we are in a tagged area *)
-
-    | P.Safe -> 
-        let (elemtype, pkind, base, bend) = arrayPointerToIndex btype mklval in
+    | (P.Safe|P.Wild) -> 
+        let (elemtype, pkind, base, bend) = 
+          arrayPointerToIndex btype pkind (mklval NoOffset) base in
         (elemtype, pkind, mklval, base, bend, stmts)
 
     | _ -> E.s (E.unimp "toIndex on unexpected pointer kind %a"
@@ -1461,7 +1440,8 @@ and boxlval (b, off) : (typ * P.pointerkind * lval * exp * exp * stmt list) =
     match 
       (match unrollType btype with
         TComp comp when comp.cstruct -> comp.cfields
-      | _ -> []) with
+      | _ -> []) 
+    with
       f1 :: f2 :: [] when (f1.fname = "_size" && f2.fname = "_array") -> 
         begin
         (* A sized array *)
@@ -1508,16 +1488,20 @@ and boxlval (b, off) : (typ * P.pointerkind * lval * exp * exp * stmt list) =
 (*  ignore (E.log "Done lval: pkind=%a@!" P.d_pointerkind pkind); *)
   (btype, pkind, mklval NoOffset, base, bend, stmts)
       
-and arrayPointerToIndex (t: typ) (mklval: offset -> lval) = 
+(* Given an array type return the element type, pointer kind, base and bend *)
+and arrayPointerToIndex (t: typ) (k: P.pointerkind) 
+                        (lv: lval) (base: exp) = 
   match unrollType t with
-    TArray(elemt, _, a) when (filterAttributes "sized" a <> []) -> 
-      (elemt, P.Index, mkAddrOf (mklval NoOffset), zero)
+    TArray(elemt, _, a) when k = P.Wild -> 
+      (elemt, P.Wild, base, zero)
+
+  | TArray(elemt, _, a) when (filterAttributes "sized" a <> []) -> 
+      (elemt, P.Index, mkAddrOf lv, zero)
 
     (* If it is not sized then better have a length *)
   | TArray(elemt, Some alen, a) -> 
-      (elemt, P.Seq, mkAddrOf (mklval NoOffset), 
-       BinOp(PlusPI, mkAddrOf (mklval NoOffset), alen, 
-             TPtr(elemt, []),lu))
+      (elemt, P.Seq, mkAddrOf lv, 
+       BinOp(PlusPI, mkAddrOf lv, alen, TPtr(elemt, []), lu))
 
   | _ -> E.s (E.bug "arrayPointerToIndex on a non-array (%a)" 
                 d_plaintype t)
@@ -1551,28 +1535,32 @@ and boxexpf (e: exp) : stmt list * fexp =
     end
     | Const (CStr s, cloc) -> 
        (* Make a global variable that stores this one, so that we can attach 
-        * a tag to it  *
-        let l = 1 + String.length s in 
-        let newt = tagType (TArray(charType, Some (integer l), [])) in
-        let gvar = makeGlobalVar (newStringName ()) newt in
-        gvar.vstorage <- Static;
-        let varinit, dfield = 
-          makeTagCompoundInit newt (Some (Const(CStr s, cloc))) in
-        theFile := GVar (gvar, Some varinit) :: !theFile;
-        let fatChrPtrType = fixupType charPtrType in
-        let result = StartOf (Var gvar, Field(dfield, NoOffset)) in
-        ([], FM (fatChrPtrType, P.Wild,
-                 result, 
-                 doCast result (typeOf result) voidPtrType, zero))
-          *)
-        (* For now all string constants are transformed into FSEQ pointers *)
-        let l = ((1 + String.length s) + 3) land (lnot 3) in
-        let tmp = makeTempVar !currentFunction charPtrType in
-        ([mkSet (var tmp) (Const (CStr s, cloc))], 
-         FM(fseqChrPtrType, P.FSeq,
-            Lval (var tmp), 
-            BinOp(PlusPI, Lval (var tmp), integer l, charPtrType, lu), 
-            zero))
+        * a tag to it  *)
+        if !defaultIsWild then
+          let l = 1 + String.length s in 
+          let newt = tagType (TArray(charType, Some (integer l), [])) in
+          let gvar = makeGlobalVar (newStringName ()) newt in
+          gvar.vstorage <- Static;
+          let varinit, dfield = 
+            makeTagCompoundInit newt (Some (Const(CStr s, cloc))) in
+          theFile := GVar (gvar, Some varinit) :: !theFile;
+          let fatChrPtrType = fixupType charPtrType in
+          let result = StartOf (Var gvar, Field(dfield, NoOffset)) in
+          ([], FM (fatChrPtrType, P.Wild,
+                   result, 
+                   doCast result (typeOf result) voidPtrType, zero))
+        else
+          (* For now all string constants are transformed into FSEQ pointers *)
+          let l = ((1 + String.length s) + 3) land (lnot 3) in
+          let tmp = makeTempVar !currentFunction charPtrType in
+          let fseqChrPtrType     = 
+            fixupType (TPtr(TInt(IChar, []), [AId("fseq")]))
+          in
+          ([mkSet (var tmp) (Const (CStr s, cloc))], 
+           FM(fseqChrPtrType, P.FSeq,
+              Lval (var tmp), 
+              BinOp(PlusPI, Lval (var tmp), integer l, charPtrType, lu), 
+              zero))
                 
           
           
@@ -1667,7 +1655,7 @@ and boxexpf (e: exp) : stmt list * fexp =
               match lvkind with
                 P.Safe -> 
                   let (_, pkind, base, bend) = 
-                    arrayPointerToIndex lvt (fun o -> addOffsetLval o lv')
+                    arrayPointerToIndex lvt lvkind lv' baseaddr
                   in
                   let pres = mkPointerTypeKind t pkind in
                   if pkind = P.Seq then
@@ -1960,16 +1948,22 @@ let fixupGlobName vi =
     end
 
 
-(* Create the preamble (in reverse order) *)
-let preamble = 
+(* Create the preamble (in reverse order). Must create it every time because 
+ * we must consider the effect of "defaultIsWild" *)
+let checkFunctionDecls = !theFile
+let preamble () = 
+  (* Define WILD away *)
+  theFile := GText("#define WILD\n#define FSEQ") :: checkFunctionDecls;
   (** Create some more fat types *)
   ignore (fixupType (TPtr(TInt(IChar, []), [AId("wild")])));
   ignore (fixupType (TPtr(TInt(IChar, [AId("const")]), [AId("wild")])));
+  ignore (fixupType (TPtr(TVoid([]), [AId("wild")])));
   ignore (fixupType (TPtr(TVoid([AId("const")]), [AId("wild")])));
   let startFile = !theFile in
-  GText ("#include \"safec.h\"\n") :: 
-  GText ("// Include the definition of the checkers\n") ::
-  startFile
+  theFile := 
+     GText ("#include \"safec.h\"\n") :: 
+     GText ("// Include the definition of the checkers\n") ::
+     startFile
 
 (* In some cases we might need to create a function to initialize some 
  * globals *)
@@ -2218,7 +2212,7 @@ let boxFile file =
   in
   H.clear taggedTypes;
   (* Create the preamble *)
-  theFile := preamble;
+  preamble ();
   interceptCasts := false;
   (* Now the orgininal file *)
   List.iter doGlobal file.globals;

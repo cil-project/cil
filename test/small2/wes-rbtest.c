@@ -1,4 +1,4 @@
-#if 1
+#ifndef MANUALBOX
 #define WILD
 #define SAFE
 #define TAGGED

@@ -355,6 +355,23 @@ let ptrAttrCustom printnode = function
     | a -> None
 
 
+let k2attr = function
+    Safe -> AId("safe")
+  | Index -> AId("index")
+  | Wild -> AId("wild")
+  | Seq -> AId("seq")
+  | FSeq -> AId("fseq")
+  | _ -> E.s (E.unimp "k2attr")
+
+let attr2k = function
+    AId("safe") -> Safe
+  | AId("wild") -> Wild
+  | AId("index") -> Index
+  | AId("fseq") -> FSeq
+  | AId("seq") -> Seq
+  | _ -> Unknown
+    
+
 (**** Garbage collection of nodes ****)
 (* I guess it is safe to call this even if you are not done with the whole 
  * program. Some not-yet-used globals will be collected but they will be 
