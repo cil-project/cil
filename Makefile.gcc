@@ -7,9 +7,9 @@ COMPILERNAME=GNUCC
 CC=gcc
 ifdef RELEASE
 # sm: I'll leave this here, but only use it for compiling our runtime lib
-CFLAGS=-x c -D_GNUCC -Wall -O3 -fomit-frame-pointer -DRELEASE
+CFLAGS=-D_GNUCC -Wall -O3 -fomit-frame-pointer -DRELEASE
 else
-CFLAGS=-x c -D_GNUCC -Wall  -g -ggdb -D_DEBUG
+CFLAGS=-D_GNUCC -Wall  -g -ggdb -D_DEBUG
 endif
 
 OPT_O2=-O2
@@ -34,7 +34,7 @@ ifndef PATCHECHO
   PATCHECHO=echo
 endif
 
-LIB=ar 
+AR=ar 
 LIBOUT=-r 
 
 # The system include files to be patched

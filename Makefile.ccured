@@ -152,7 +152,7 @@ $(CCUREDLIB) : lib/safec.c lib/safec.h lib/safeccheck.h lib/splay.c $(GCLIB)
 	else \
 		rm -f $@; echo "not using GC"; \
 	fi
-	$(LIB) $(LIBOUT)$@ obj/safec.$(OBJEXT) obj/splay.$(OBJEXT)
+	$(AR) $(LIBOUT)$@ obj/safec.$(OBJEXT) obj/splay.$(OBJEXT)
 ifdef _GNUCC
 	ranlib $@
 endif
@@ -183,6 +183,8 @@ ifdef _MSVC
                                              $(MAKEOVERRIDES) 
 endif
 
+quickbuild:  $(EXECUTABLE)$(EXE)
+
 cleanincludes: 
 	$(PATCHER) --dest=$(CCUREDHOME)/include --clean
 
@@ -191,4 +193,4 @@ includes: cleanincludes
                    --dest=$(CCUREDHOME)/include \
 	           $(foreach file,$(PATCH_SYSINCLUDES), --sfile=$(file))
 
-clean: cleanincludes cleanocaml rmlibrary
+clean: cleanincludes cleancaml rmlibrary

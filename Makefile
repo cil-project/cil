@@ -6,13 +6,17 @@
 setup:
 	make -f Makefile.ccured setup $(MAKEOVERRIDES)
 
+quickbuild:
+	make -f Makefile.ccured quickbuild $(MAKEOVERRIDES)
+
 # sm: find and remove all the intermediate files from translation
 clean:
-	make -f Makefile.ccured clean CLEANING=1 $(MAKEOVERRIDES)
-	find test \( \
+	-make -f Makefile.ccured clean CLEANING=1 $(MAKEOVERRIDES)
+	-find test \( \
 		-name '*cil.c' -o \
 		-name '*box.c' -o \
 		-name '*cured.c' -o \
+		-name '*.exe' -o \
 		-name '*.i' -o \
 		-name '*_ppp.c' -o \
 		-name '*.origi' -o \

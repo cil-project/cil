@@ -45,7 +45,7 @@ class heapifyAnalyzeVisitor f alloc free = object
     let varlist = ref [] in  (* a list of (var,id) pairs *)
     List.iter (fun vi ->  (* find all local vars with arrays *)
 			let result = ref false in 
-      visitCilType (new containsArray result) vi.vtype ;
+      ignore (visitCilType (new containsArray result) vi.vtype);
       if !result then begin (* this local var contains an array *)
 				varlist := (vi,!counter) :: !varlist ; (* add it to the list *)
 				incr counter (* put the next such var in the next slot *)
@@ -99,7 +99,7 @@ class sgAnalyzeVisitor f push pop get_ra set_ra = object
 	method vfunc fundec = 
 		let needs_guarding = List.fold_left (fun acc vi ->
 			acc || let result = ref false in
-			visitCilType (new containsArray result) vi.vtype ;
+			ignore (visitCilType (new containsArray result) vi.vtype);
 			!result) false fundec.slocals in
 		if needs_guarding then begin
 			let ra_tmp = makeLocalVar fundec "return_address" voidPtrType in

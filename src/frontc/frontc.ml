@@ -49,15 +49,15 @@ end
 let args : (string * Arg.spec * string) list =
 [
   "--cabsout", Arg.String set_output, "Output file";
-  "-cabsindent", Arg.Int Cprint.set_tab, "Identation step";
-  "-cabswidth", Arg.Int Cprint.set_width, "Page width";
-  "-cabscounters", Arg.Unit (fun _ -> Cprint.printCounters := true),
+  "--cabsindent", Arg.Int Cprint.set_tab, "Identation step";
+  "--cabswidth", Arg.Int Cprint.set_width, "Page width";
+  "--cabscounters", Arg.Unit (fun _ -> Cprint.printCounters := true),
                    "Print invocation counters for functions";
-  "-printComments", Arg.Unit (fun _ -> Cprint.printComments := true),
+  "--printComments", Arg.Unit (fun _ -> Cprint.printComments := true),
              "print cabs tree structure in comments in cabs output";
-  "-patchFile", Arg.String (fun pf -> patchFileName := pf),
+  "--patchFile", Arg.String (fun pf -> patchFileName := pf),
              "name the file containing patching transformations";
-  "-printProtos", Arg.Unit (fun _ -> doPrintProtos := true),
+  "--printProtos", Arg.Unit (fun _ -> doPrintProtos := true),
              "print prototypes to safec.proto.h after parsing";
 ]
 

@@ -5,9 +5,9 @@ COMPILERNAME=MSVC
 
 CC=cl
 ifdef RELEASE
-CFLAGS=/DEBUG /D_DEBUG /D_MSVC /TC /Ox /Ob2 /G6
+CFLAGS=/DRELEASE /D_MSVC /Ox /Ob2 /G6
 else
-CFLAGS=/DEBUG /DRELEASE /D_MSVC /TC /Zi /MLd
+CFLAGS=/D_DEBUG /D_MSVC /Zi /MLd
 endif
 CONLY=/c
 
@@ -28,7 +28,7 @@ CPP=$(CPPSTART) /FI fixup.h %i $(CPPOUT)
 
 PATCHECHO=echo
 
-LIB=lib 
+AR=lib 
 LIBOUT=/OUT:
 
 # The system include files to be patched
