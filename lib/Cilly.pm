@@ -195,21 +195,6 @@ sub collectOneArgument {
     if($arg eq "--flatten_linker_scripts") {
         $self->{FLATTEN_LINKER_SCRIPTS} = 1; return 1;
     }
-    if($arg =~ m|--keep=(.+)$|) {
-        $self->{KEEPDIR} = $1;
-        if(! -d $self->{KEEPDIR}) {
-            die "Cannot find directory $self->{KEEPDIR}";
-        }
-        return 1;
-    }
-    if($arg eq '--keep') {
-	#treat as "--keep=."
-        $self->{KEEPDIR} = ".";
-        if(! -d $self->{KEEPDIR}) {
-            die "Cannot find directory $self->{KEEPDIR}";
-        }
-        return 1;
-    }
     if($arg eq '--nomerge') {
         $self->{SEPARATE} = 1;
         return 1;
@@ -226,8 +211,16 @@ sub collectOneArgument {
         $self->{KEEPMERGED} = 1;
         return 1;
     }
+
+    if($arg =~ m|--save-temps=(.+)$|) {
+        if(! -d $1) {
+            die "Cannot find directory $1";
+        }
+        $self->{SAVE_TEMPS} = $1;
+        return 1;
+    }
     if($arg eq '--save-temps') {
-        $self->{SAVE_TEMPS} = 1;
+        $self->{SAVE_TEMPS} = '.';
         return 1;
     }
     if($arg =~ m|--leavealone=(.+)$|)  {
@@ -311,8 +304,9 @@ Options:
                then GNUCC mode is assumed.
   --help (or -help) Prints this help message.
   --verbose    Prints a lot of information about what is being done.
-  --keep       Keep temporary files.
-  --keep=xxx   Keep temporary files in the given directory.
+  --save-temps Keep temporary files in the current directory.
+  --save-temps=xxx Keep temporary files in the given directory.
+  
   --nomerge    Apply CIL separately to each source file as they are compiled. 
                By default CIL is applied to the whole program during linking.
   --merge      Apply CIL to the merged program.
@@ -1117,8 +1111,8 @@ sub cilOutputFile {
     croak 'bad argument count' unless @_ == 3;
     my ($self, $basis, $suffix) = @_;
 
-    if ($self->{KEEPDIR}) {
-	return new KeptFile($basis, $suffix, $self->{KEEPDIR});
+    if (defined $self->{SAVE_TEMPS}) {
+	return new KeptFile($basis, $suffix, $self->{SAVE_TEMPS});
     } else {
 	return $self->outputFile($basis, $suffix);
     }
@@ -1129,8 +1123,8 @@ sub outputFile {
     confess 'bad argument count' unless @_ == 3;
     my ($self, $basis, $suffix) = @_;
 
-    if ($self->{SAVE_TEMPS}) {
-	return new KeptFile($basis, $suffix, '.');
+    if (defined $self->{SAVE_TEMPS}) {
+	return new KeptFile($basis, $suffix,  $self->{SAVE_TEMPS});
     } else {
 	return new TempFile($basis, $suffix);
     }
@@ -1610,7 +1604,8 @@ sub new {
             '-W[-a-z]*$' => { TYPE => 'CC' },
             '-g' => { TYPE => 'ALLARGS' },
 	    "-save-temps" => { TYPE => 'ALLARGS',
-			       RUN => sub { $stub->{SAVE_TEMPS} = 1; } },
+			       RUN => sub { if(! defined $stub->{SAVE_TEMPS}) {
+                                                $stub->{SAVE_TEMPS} = '.'; } }},
 	    '--?print-' => { TYPE => 'SPECIAL' },
 	    '-dump' => { TYPE => 'SPECIAL' },
             "-l" => { TYPE => 'LINK' },
