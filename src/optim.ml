@@ -1032,13 +1032,13 @@ and peepholeReplace (chk : instr) : instr =
 	  [CastE (_,StartOf (a, aoff)); CastE (_, AddrOf(b,Index(zero,boff))) ] ,_) 
     when a=b && aoff=boff -> raise PeepholeRemovable
 
-  | Call (_, Lval(Var{vname="CHECK_FATSTACKPOINTER"},_), [a;b],_)
+  | Call (_, Lval(Var{vname="CHECK_STOREFATPTR"},_), [a;b],_)
       when (compareWithoutCasts a b) -> raise PeepholeRemovable
 
   | Call (_, Lval(Var{vname="CHECK_BOUNDS"},_), [lo;hi;mid;_],_) 
       when intervalContainsExp lo hi mid -> raise PeepholeRemovable
 
-  | Call (_, Lval(Var{vname="CHECK_LEANSTACKPOINTER"},_), [e],_)
+  | Call (_, Lval(Var{vname="CHECK_STOREPTR"},_), [e],_)
       when expEqual e zero -> raise PeepholeRemovable
   | _ -> chk
 
@@ -1152,8 +1152,8 @@ and checkImplies (a : instr) (b : instr) : bool =
   let showInfo = ref false in
   let ret = 
   match a, b with
-    Call (_,Lval(Var{vname="CHECK_UBOUND_OR_NULL"},_),[b1;p1;_],_),
-    Call (_,Lval(Var{vname="CHECK_UBOUND_OR_NULL"},_),[b2;p2;_],_) ->
+    Call (_,Lval(Var{vname="CHECK_UBOUNDNULL"},_),[b1;p1;_],_),
+    Call (_,Lval(Var{vname="CHECK_UBOUNDNULL"},_),[b2;p2;_],_) ->
       showInfo := true;
       (expEqual b1 b2) &&
       (compareExp p1 p2) >= Some 0
@@ -1219,7 +1219,7 @@ and isSimilar (a : instr) (b : instr) : bool =
   match a,b with
     Call (_,Lval(Var ax,_),argsa,_) , Call (_,Lval(Var bx,_),argsb,_) ->
       if (false && amandebug && 
-	  ax.vname="CHECK_LEANSTACKPOINTER" && bx.vname="CHECK_LEANSTACKPOINTER" &&
+	  ax.vname="CHECK_STOREPTR" && bx.vname="CHECK_STOREPTR" &&
 	  not (expListEqual argsa argsb))
       then doMarshal [argsa;argsb];
       ax.vname = bx.vname &&

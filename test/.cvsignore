@@ -3,6 +3,10 @@ linux
 safec.log
 safec.log.?
 
+optstats.results
+optstats.results.?
+optstats.log
+
 *.o
 *.obj
 *.exe

@@ -77,7 +77,7 @@ scary
 scary*.s
 ope.m
 *cured.c
-*cured.optim.c
+*.optim.c
 *.stackdump
 fmtstr
 bisonerror

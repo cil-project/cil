@@ -846,7 +846,7 @@ let checkUBoundFun =
 
 (* sm: check ubound, or allow NULL pointer (modified from above) *)
 let checkUBoundOrNullFun =
-  let fdec = emptyFunction "CHECK_UBOUND_OR_NULL" in
+  let fdec = emptyFunction "CHECK_UBOUNDNULL" in
   let argbend  = makeVarinfo "bend" voidPtrType in
   let argp  = makeVarinfo "p" voidPtrType in
   let argpl  = makeVarinfo "pl" uintType in
@@ -923,8 +923,8 @@ let checkFatPointerWrite =
         castVoidStar where;
         castVoidStar whatbase; castVoidStar whatp;]
 
-let checkFatStackPointer =
-  let fdec = emptyFunction "CHECK_FATSTACKPOINTER" in
+let checkStoreFatPtr =
+  let fdec = emptyFunction "CHECK_STOREFATPTR" in
   let argb  = makeVarinfo "b" voidPtrType in
   let argp  = makeVarinfo "isptr" voidPtrType in
   fdec.svar.vtype <-
@@ -937,8 +937,8 @@ let checkFatStackPointer =
       [ castVoidStar whatp; castVoidStar nullIfInt;]
 
 
-let checkLeanStackPointer =
-  let fdec = emptyFunction "CHECK_LEANSTACKPOINTER" in
+let checkStorePtr =
+  let fdec = emptyFunction "CHECK_STOREPTR" in
   let argp  = makeVarinfo "p" voidPtrType in
   fdec.svar.vtype <-
      TFun(voidType, [ argp; ], false, []);
@@ -949,8 +949,8 @@ let checkLeanStackPointer =
     call None (Lval(var fdec.svar))
       [ castVoidStar whatp;]
 
-let checkNotBelowStackPointer =
-  let fdec = emptyFunction "CHECK_NOTBELOWSTACK" in
+let checkReturnPtr =
+  let fdec = emptyFunction "CHECK_RETURNPTR" in
   let argp  = makeVarinfo "p" voidPtrType in
   fdec.svar.vtype <-
      TFun(voidType, [ argp; ], false, []);
@@ -961,8 +961,8 @@ let checkNotBelowStackPointer =
     call None (Lval(var fdec.svar))
       [ castVoidStar whatp;]
 
-let checkNotBelowStackPointerFat =
-  let fdec = emptyFunction "CHECK_NOTBELOWSTACKFAT" in
+let checkReturnFatPtr =
+  let fdec = emptyFunction "CHECK_RETURNFATPTR" in
   let argp  = makeVarinfo "p" voidPtrType in
   let argb  = makeVarinfo "b" voidPtrType in
   fdec.svar.vtype <-
@@ -2438,7 +2438,7 @@ let rec checkMem (why: checkLvWhy)
                      whatb whatp (getLenExp ()),
                    acc)
               else
-                CConsL (checkFatStackPointer whatp whatb, acc)
+                CConsL (checkStoreFatPtr whatp whatb, acc)
       end 
       | TComp (comp, _) -> (* A Struct or a union. Note that this means that 
                             * for unions we check all pointers in all fields, 
@@ -2503,7 +2503,7 @@ let rec checkMem (why: checkLvWhy)
                        * area. All other areas contain only fat pointers *)
           begin
             match why with
-              ToWrite x -> CConsL (checkLeanStackPointer x, acc)
+              ToWrite x -> CConsL (checkStorePtr x, acc)
             | _ -> acc
           end
       | _ -> E.s (unimp "unexpected type in doCheckTags: %a\n" d_type t)
@@ -2558,7 +2558,7 @@ let rec checkReturnValue
     TInt _ | TEnum _ | TFloat _ | TVoid _ -> before
   | TPtr (t, _) -> 
       (* This is a lean pointer *) 
-      CConsR (before, checkNotBelowStackPointer e)
+      CConsR (before, checkReturnPtr e)
 
   | TComp (comp, _) when isFatComp comp -> 
       let ptype, ptr, fb, fe = readFieldsOfFat e typ in
@@ -2569,7 +2569,7 @@ let rec checkReturnValue
         | N.FSeq|N.FSeqN -> fe
         | _ -> E.s (unimp "checkReturn: unexpected kind of fat type")
       in
-      CConsR (before, checkNotBelowStackPointerFat ptr nullIfInt)
+      CConsR (before, checkReturnFatPtr ptr nullIfInt)
 
     (* A regular struct *)                                          
   | TComp (comp, _) when comp.cstruct ->

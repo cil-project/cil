@@ -412,15 +412,15 @@ hashtest: test/small2/hashtest.c
                  $(PCCDIR)/src/hash.c \
                  ../small2/hashtest.c \
                  $(EXEOUT)hashtest.exe
-	$(PCCTEST)/hashtest.exe
+	cd $(PCCTEST); sh -c "hashtest.exe $(HUFFINPUT)"
 
-hufftest-optimvariant.%: mustbegcc
+hashtest-optimvariant.%: mustbegcc
 	cd $(PCCTEST); \
            $(OPTIMVARIANT) \
                  hashtest.exe_combcured.$*.optim.c \
                  $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
                  $(EXEOUT)hashtest.exe
-	$(PCCTEST)/hashtest.exe $(HUFFINPUT)
+	cd $(PCCTEST); sh -c "hashtest.exe $(HUFFINPUT)"
 
 
 rbtest: test/small2/rbtest.c 
