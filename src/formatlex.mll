@@ -203,8 +203,8 @@ let hex_escape = '\\' ['x' 'X'] hexdigit hexdigit
 let oct_escape = '\\' octdigit  octdigit octdigit
 
 
-(* The arguments are of the form %l$foo *)
-let argname = (':' ident)?
+(* The arguments are of the form %l:foo *)
+let argname = ':' ident
 
 rule initial =
 	parse 	blank			{ initial lexbuf}

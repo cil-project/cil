@@ -693,31 +693,42 @@ should not normally be called by the user.
  \subsection{Interpreted Constructors and Deconstructors}
 
  Interpreted constructors and deconstructors are a facility for constructing
-CIL constructs using a pattern with holes that can be filled with a variety of
-kinds of elements. The pattern is a string that uses the C syntax to represent
-C language elements. For example, the following construct:
+and deconstructing CIL constructs using a pattern with holes that can be
+filled with a variety of kinds of elements. The pattern is a string that uses
+the C syntax to represent C language elements. For example, the following
+code:
 \begin{code}
 Formatcil.cType "void * const (*)(int x)"
 \end{verbatim}\end{code}
 
- will construct the internal representation of the type of pointer to function
- with an integer argument and a {void * const} as result: 
+ is an alternative way to construct the internal representation of the type of pointer to function
+with an integer argument and a {void * const} as result: 
 \begin{code}
 TPtr(TFun(TVoid [Attr("const", [])],
           [ ("x", TInt(IInt, []), []) ], false, []), [])
 \end{verbatim}\end{code}
 
- Similarly you can construct expressions and instructions. The pattern string
-can also contain a number of placeholders which are replaced during
-construction with CIL items passed as additional argument to the construction
-function. For example, the \t{\%e:id} placeholder means that the argument
-labeled ``id'' (expected to be of form \t{Fe exp}) will supply the expression
-to replace the placeholder. For example, the following code constructs an
-increment instruction:
+ The advantage of the interpreted constructors is that you can use familiar C
+syntax to construct CIL abstract-syntax trees. 
+
+ You can construct this way types, lvalues, expressions, instructions and
+statements. The pattern string can also contain a number of placeholders that
+are replaced during construction with CIL items passed as additional argument
+to the construction function. For example, the \t{\%e:id} placeholder means
+that the argument labeled ``id'' (expected to be of form \t{Fe exp}) will
+supply the expression to replace the placeholder. For example, the following
+code constructs an increment instruction:
 \begin{code}
 Formatcil.cInstr "%v:x = %v:x + %e:something"
         [ ("something", Fe some_exp);
           ("x", Fv some_varinfo) ]
+\end{verbatim}\end{code}
+
+ An alternative way to construct the same CIL instruction is:
+\begin{code}
+Set((Var some_varinfo, NoOffset),
+    BinOp(PlusA, Lval (Var some_varinfo, NoOffset),
+          some_exp, intType))
 \end{verbatim}\end{code}
 
  See \ciltyperef{formatArg} for a definition of the placeholders that are
@@ -734,7 +745,7 @@ the required type. If it is then the result is \t{Some []} otherwise it is
 \t{None}. Furthermore, for the purpose of the interpreted deconstructors
 placeholders in patterns match anything of the right type. For example, 
 \begin{code}
-Formatcil.dType "void * (*)(%F)" t
+Formatcil.dType "void * (*)(%F:t)" t
 \end{verbatim}\end{code}
 
  will match any function pointer type, independent of the type and number of
@@ -748,30 +759,30 @@ syntax, but only a substantial fragment chosen to simplify the parsing. The
 following is the syntax that is supported:
 \begin{verbatim}
 Expressions:
-  E ::= %e | %d | %g | n | L | ( E ) | Unop E | E Binop E 
+  E ::= %e:ID | %d:ID | %g:ID | n | L | ( E ) | Unop E | E Binop E 
         | sizeof E | sizeof ( T ) | alignof E  | alignof ( T ) 
         | & L | ( T ) E 
 
 Unary operators:
-  Unop ::= + | - | ~ | %u
+  Unop ::= + | - | ~ | %u:ID
 
 Binary operators:
   Binop ::= + | - | * | / | << | >> | & | ``|'' | ^ 
-          | == | != | < | > | <= | >= | %b
+          | == | != | < | > | <= | >= | %b:ID
 
 Lvalues:
-  L ::= %l | %v Offset | * E | (* E) Offset | E -> ident Offset 
+  L ::= %l:ID | %v:ID Offset | * E | (* E) Offset | E -> ident Offset 
 
 Offsets:
-  Offset ::= empty | %o | . ident Offset | [ E ] Offset
+  Offset ::= empty | %o:ID | . ident Offset | [ E ] Offset
 
 Types:
   T ::= Type_spec Attrs Decl
 
 Type specifiers:
   Type_spec ::= void | char | unsigned char | short | unsigned short
-            | int | unsigned int | long | unsigned long | %k | float 
-            | double | struct %c | union %c 
+            | int | unsigned int | long | unsigned long | %k:ID | float 
+            | double | struct %c:ID | union %c:ID 
 
 
 Declarators:
@@ -784,13 +795,13 @@ Direct declarators:
                  | ( Attrs Decl )( Parameters )
 
 Optional expressions
-  Exp_opt ::= empty | E | %eo
+  Exp_opt ::= empty | E | %eo:ID
 
 Formal parameters
-  Parameters ::= empty | ... | %va | %f | T | T , Parameters
+  Parameters ::= empty | ... | %va:ID | %f:ID | T | T , Parameters
 
 List of attributes
-  Attrs ::= empty | %A | Attrib Attrs
+  Attrs ::= empty | %A:ID | Attrib Attrs
 
 Attributes
   Attrib ::= const | restrict | volatile | __attribute__ ( ( GAttr ) )
@@ -799,30 +810,30 @@ GCC Attributes
   GAttr ::= ident | ident ( AttrArg_List )
 
 Lists of GCC Attribute arguments:
-  AttrArg_List ::= AttrArg | %P | AttrArg , AttrArg_List
+  AttrArg_List ::= AttrArg | %P:ID | AttrArg , AttrArg_List
 
 GCC Attribute arguments  
-  AttrArg ::= %p | ident | ident ( AttrArg_List )
+  AttrArg ::= %p:ID | ident | ident ( AttrArg_List )
 
 Instructions
-  Instr ::= %i ; | L = E ; | L Binop= E | Callres L ( Args )
+  Instr ::= %i:ID ; | L = E ; | L Binop= E | Callres L ( Args )
 
 Actual arguments
-   Args ::= empty | %E | E | E , Args
+   Args ::= empty | %E:ID | E | E , Args
 
 Call destination
-   Callres ::= empty | L = | %lo
+   Callres ::= empty | L = | %lo:ID
 
 Statements
-  Stmt ::= %s | if ( E ) then Stmt ; | if ( E ) then Stmt else Stmt ;
+  Stmt ::= %s:ID | if ( E ) then Stmt ; | if ( E ) then Stmt else Stmt ;
        | return Exp_opt | break ; | continue ; | { Stmt_list } 
        | while (E ) Stmt | Instr_list 
 
 Lists of statements
-   Stmt_list ::= empty | %S | Stmt Stmt_list  
+   Stmt_list ::= empty | %S:ID | Stmt Stmt_list  
 
 List of instructions
-   Instr_list ::= Instr | %I | Instr Instr_list
+   Instr_list ::= Instr | %I:ID | Instr Instr_list
 \end{verbatim}
 
 Notes regarding the syntax:
@@ -831,7 +842,7 @@ Notes regarding the syntax:
 uppercase initial
 
 \item All of the patterns consist of the \t{\%} character followed by one or
-two letters, followed optionally by ``:'' and an indentifier. For each such
+two letters, followed by ``:'' and an indentifier. For each such
 pattern there is a corresponding constructor of the \ciltyperef{formatArg}
 type, whose name is the letter 'F' followed by the same one or two letters as
 in the pattern. That constructor is used by the user code to pass a
@@ -849,6 +860,9 @@ length of an array).
 \item Unlike in calls to \t{printf}, the pattern \%g is used for strings. 
 
 \item The usual precedence and associativity rules as in C apply 
+
+\item The pattern string can contain newlines and comments, using both the
+\t{/* ... */} style as well as the \t{//} one. 
 
 \item When matching a ``cast'' pattern of the form \t{( T ) E}, the
 deconstructor will match even expressions that do not have the actual cast but
@@ -879,8 +893,22 @@ corresponding placeholder to the entire list of attributes, including
  
 \item All instruction-patterns must be terminated by semicolon
 
-\item The autoincrement and autodecrement instructions are not supported.
+\item The autoincrement and autodecrement instructions are not supported. Also
+not supported are complex expressions, the \t{&&} and \t{||} shortcut
+operators, and a number of other more complex instructions or statements. In
+general, the patterns support only constructs that can be represented directly
+in CIL.
 
+\item The pattern argument identifiers are not used during deconstruction.
+Instead, the result contains a sequence of values in the same order as the
+appearance of pattern arguments in the pattern.
+
+\item You cannot construc declarations (except for function formals in
+prototypes)
+
+\item The pattern cannot refer to variables (because it does not know about
+any particular program). Instead you should fill in the variable names using
+pattern arguments. 
 \end{itemize}
 
  The following function are defined in the \t{Formatcil} module for
@@ -890,26 +918,49 @@ constructing and deconstructing:
 \item \formatcilvalref{cType} constructs \ciltyperef{typ}.
 \item \formatcilvalref{cLval} constructs \ciltyperef{lval}.
 \item \formatcilvalref{cInstr} constructs \ciltyperef{instr}.
-\item \formatcilvalref{cStmt} constructs \ciltyperef{stmt}.
+\item \formatcilvalref{cStmt} and \formatcilvalref{cStmts} construct \ciltyperef{stmt}.
 \item \formatcilvalref{dExp} deconstructs \ciltyperef{exp}.
 \item \formatcilvalref{dType} deconstructs \ciltyperef{typ}.
 \item \formatcilvalref{dLval} deconstructs \ciltyperef{lval}.
 \item \formatcilvalref{dInstr} deconstructs \ciltyperef{lval}.
 \end{itemize}
 
- 
+ Below is an example using interpreted constructors. This example generates
+the CIL representation of code that scans an array backwards and initializes
+every even-index element with an expression:
+\begin{code}
+Formatcil.cStmts
+  "%v:idx = sizeof(%v:array) / sizeof(%v:array[0]) - 1;
+   while(%v:idx >= 0) {
+     // Some statements to be run for all the elements of the array
+     %S:init
+     if(! (%v:idx & 1)) 
+       %v:array[%v:idx] = %e:init_even;
+     /* Do not forget to decrement the index variable */
+     %v:idx = %v:idx - 1;
+   }"
+  [ ("array", Fv myarray); 
+    ("idx", Fv (makeTempVar myfunc intType));
+    ("init", FS [stmt1; stmt2; stmt3]);
+    ("init_even", Fe init_expr_for_even_elements) ]
+\end{verbatim}\end{code}
+
+ To write the same CIL statement directly in CIL would take much more effort.
+Note that the pattern is parsed only once and the result (a function that
+takes the arguments and constructs the statement) is memoized. 
+
   \subsubsection{Performance considerations for interpreted constructors}
  
- Parsing the patterns is done with a LALR parser and it takes time. To improve
-performance the constructors and deconstructors memoize the parsed patterns
-and will only compile a pattern once. Also all construction and deconstruction
-functions can be applied partially to the pattern string to produce a function
-that can be later used directly to construct or deconstruct. This function
-appears to be an order of magnitude slower than if the construction is done
-using the CIL constructors (without memoization the process would be two
-orders of magnitude slower.) However, the convenience of interpreted
-constructor might make them a viable choice in many situations when
-performance is not paramount (e.g. prototyping).
+ Parsing the patterns is done with a LALR parser and it takes some time. To
+improve performance the constructors and deconstructors memoize the parsed
+patterns and will only compile a pattern once. Also all construction and
+deconstruction functions can be applied partially to the pattern string to
+produce a function that can be later used directly to construct or
+deconstruct. This function appears to be about two times slower than if the
+construction is done using the CIL constructors (without memoization the
+process would be one order of magnitude slower.) However, the convenience of
+interpreted constructor might make them a viable choice in many situations
+when performance is not paramount (e.g. prototyping).
 
 
  \subsection{Printing and Debugging support}
@@ -1515,7 +1566,6 @@ but the first one. This is not so bad because GCC itself would not like it.
 GCC. For example, when you use variable-length arrays, CIL turns them into
 calls to \t{alloca}. This means that they are deallocated when the function
 returns and not when the local scope ends. 
-\end{itemize}
 
 \item CIL cannot parse a line containing an empty #pragma.
 
@@ -1541,6 +1591,7 @@ sign specification; you could argue that this should not be allowed anyway):
 typedef signed char __s8;
 __s8 unsigned uchartest; // This is unsigned char for gcc
 \end{verbatim}\end{code}
+\end{itemize}
 
   \section{Using the merger}\label{sec-merger}\cutname{merger.html}
 
@@ -2096,8 +2147,10 @@ Necula}.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
-\item {\bf January 17, 2003}: {\bf Released version 1.0.5}
+\item {\bf January 6, 2003}: {\bf Released version 1.0.5}
 \item {\bf January 4, 2003}: Changed the interface for the Formatcil module.
+  Now the placeholders in the pattern have names. Also expanded the
+  documentation of the Formatcil module.
   Now the placeholders in the pattern have names.
 \item {\bf January 3, 2003}: Extended the \t{rmtmps} module to also remove
   unused labels that are generated in the conversion to CIL. This reduces the
