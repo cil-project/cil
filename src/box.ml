@@ -2440,7 +2440,7 @@ let rec checkMem (why: checkLvWhy)
     (* Now the tag checking. We only care about pointers. We keep track of 
      * what we write in each field and we check pointers in a special way.  *)
     let rec doCheckTags (why: checkLvWhy) (where: lval) 
-        (t: typ) (pkind: N.opointerkind) (acc: stmt clist) : stmt clist = 
+                        (t: typ) (pkind: N.opointerkind) (acc: stmt clist) : stmt clist = 
       match unrollType t with 
       | (TInt _ | TFloat _ | TEnum _) -> acc
       | TComp (comp, _) when isFatComp comp -> begin (* A fat pointer *)
@@ -2463,7 +2463,9 @@ let rec checkMem (why: checkLvWhy)
               else
                 CConsL (checkFatStackPointer whatp whatb, acc)
       end 
-      | TComp (comp, _) when comp.cstruct -> (* A Struct *)
+      | TComp (comp, _) -> (* A Struct or a union. Note that this means that 
+                            * for unions we check all pointers in all fields, 
+                            * even if we end up checking some more that once *)
           let doOneField acc fi = 
             let newwhere = addOffsetLval (Field(fi, NoOffset)) where in
             let newwhy = 
