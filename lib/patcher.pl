@@ -123,6 +123,9 @@ my $hadError = 0;
 foreach my $patch (@patches) {
     # It was optional
     if(defined $patch->{FLAGS}->{optional}) { next; }
+    # It was for another system
+    if(defined $patch->{FLAGS}->{system} &&
+       $patch->{FLAGS}->{system} ne $^O) { next; }
     # Its group was done
     if(defined $patch->{FLAGS}->{group}) {
         if(! defined $groups{$patch->{FLAGS}->{group}}) {
@@ -415,6 +418,11 @@ sub applyPatches {
         if(defined $infile && $in !~ m|$infile$|) {
 #            print "Will not use patch ", 
 #                  &lineDirective($patch->{PATCHFILE},$patch->{PATCHLINENO});
+            $patch->{USE} = 0;
+        }
+        # Disable the system specific patterns
+        if(defined $patch->{FLAGS}->{system} &&
+           $patch->{FLAGS}->{system} ne $^O) {
             $patch->{USE} = 0;
         }
         
