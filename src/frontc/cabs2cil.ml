@@ -1101,9 +1101,9 @@ let rec doSpecList (specs: A.spec_elem list)
         
         (* as each name,value pair is determined, this is called *)
         let rec processName kname i rest = begin
-          (* add the name to the environment, but with a faked 'typ' field; we 
-          * don't know the full type yet (since that includes all of the tag 
-          * values), but we won't need them in here  *)
+          (* add the name to the environment, but with a faked 'typ' field; 
+           * we don't know the full type yet (since that includes all of the 
+           * tag values), but we won't need them in here  *)
           addLocalToEnv kname (EnvEnum (i, res));
           
           (* add this tag to the list so that it ends up in the real 
@@ -1135,13 +1135,6 @@ let rec doSpecList (specs: A.spec_elem list)
         let fields = loop zero eil in
         (* Now set the right set of items *)
         enum.eitems <- List.map (fun (_, x) -> x) fields;
-(*
-        (* Now we have the real host type. Set the environment properly *)
-        List.iter
-          (fun (n, (newname, fieldidx)) -> 
-            addLocalToEnv n (EnvEnum (fieldidx, res)))
-          fields;
-*)
         (* Record the enum name in the environment *)
         addLocalToEnv (kindPlusName "enum" n'') (EnvTyp res);
         (* And define the tag *)
@@ -2617,13 +2610,11 @@ and doInitializer
         end
         | _ -> E.s (error "Invalid designator in initialization of array")
       in
-      (* Maybe the first initializer is a compound, then that is the 
-       * initializer for the entire array *)
       let acc', inits, nextidx, restinitl = 
         (* If we are initializing an array of characters, and the initializer 
          * is a string without braces around it, then put braces so that the 
          * entire string initializes one array *)
-        let initl' = 
+        let initl1 = 
           match initl with
             (A.NEXT_INIT, 
              A.SINGLE_INIT(A.CONSTANT (A.CONST_STRING s)) as sinit) 
@@ -2633,7 +2624,18 @@ and doInitializer
              (A.NEXT_INIT, A.COMPOUND_INIT ([sinit])) :: restinitl
           | _ -> initl
         in
-        match initl' with
+        (* Sometimes we have a cast in front of a compound (in GCC). 
+         * This appears as a single initializer. Ignore the cast *)
+        let initl2 = 
+          match initl1 with
+            (A.NEXT_INIT, 
+             A.SINGLE_INIT (A.CAST (_, A.COMPOUND_INIT ci))) :: rest -> 
+               (A.NEXT_INIT, A.COMPOUND_INIT ci) :: rest
+          | _ -> initl1
+        in
+        (* Maybe the first initializer is a compound, then that is the 
+         * initializer for the entire array  *)
+        match initl2 with
           (A.NEXT_INIT, A.COMPOUND_INIT initl_e) :: restinitl -> 
             let acc', inits, nextidx, rest' = 
               initArray 0 [] acc initl_e in
@@ -2643,7 +2645,7 @@ and doInitializer
               
         | _ -> (* Otherwise it is the initializer for some elements, starting 
                 * with the first one. Consume as much as we need *)
-            initArray 0 [] acc initl' 
+            initArray 0 [] acc initl2 
       in
       let newt = (* Maybe we have a length now *)
         match n with 
@@ -2713,28 +2715,39 @@ and doInitializer
             E.s (error "INDEX designator in struct\n");
         | _ -> E.s (error "Invalid designator for struct")
       in
+      (* Sometimes we have a cast in front of a compound (in GCC). This 
+       * appears as a single initializer. Ignore the cast  *)
+      let initl1 = 
+        match initl with
+          (A.NEXT_INIT, 
+           A.SINGLE_INIT (A.CAST (_, A.COMPOUND_INIT ci))) :: rest -> 
+             (A.NEXT_INIT, A.COMPOUND_INIT ci) :: rest
+        | _ -> initl
+      in
       (* Maybe the first initializer is a compound, then that is the 
        * initializer for the entire array *)
-        match initl with
-          (A.NEXT_INIT, A.COMPOUND_INIT initl_e) :: restinitl -> 
-            let acc', inits, rest' = 
-              initStructUnion comp.cfields [] acc initl_e in
-            if rest' <> [] then
-              E.s (warn "Unused initializers\n");
-            acc', CompoundInit(typ, inits), typ, restinitl
-
-           (* Maybe it is a single initializer. If we are not inside an 
+      match initl1 with
+        (A.NEXT_INIT, A.COMPOUND_INIT initl_e) :: restinitl -> 
+          let acc', inits, rest' = 
+            initStructUnion comp.cfields [] acc initl_e in
+          if rest' <> [] then
+            E.s (warn "Unused initializers\n");
+          acc', CompoundInit(typ, inits), typ, restinitl
+            
+            (* Maybe it is a single initializer. If we are not inside an 
             * aggregate then that is the initializer for the whole thing *)
-        | (A.NEXT_INIT, A.SINGLE_INIT oneinit) :: [] when not inaggregate -> 
+      | (A.NEXT_INIT, A.SINGLE_INIT oneinit) :: [] when not inaggregate ->
+          begin
             let se, init', t' = doExp isconst oneinit (AExp(Some typ)) in
             (se @@ acc), SingleInit (doCastT init' t' typ), typ, []
+          end
             
-           (* Otherwise, we start initializing fields *)
-        | _ -> 
-            let acc', inits, restinitl = 
-              initStructUnion comp.cfields [] acc initl 
-            in
-            acc', CompoundInit(typ, inits), typ, restinitl
+            (* Otherwise, we start initializing fields *)
+      | _ -> 
+          let acc', inits, restinitl = 
+            initStructUnion comp.cfields [] acc initl1 
+          in
+          acc', CompoundInit(typ, inits), typ, restinitl
   end
    (* REGULAR TYPE *)
   | typ' -> begin

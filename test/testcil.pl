@@ -227,8 +227,7 @@ $TEST->add2Tests("m88k", "_GNUCC=1");
 
 $TEST->add2Tests("vortex", "_GNUCC=1");
   $TEST->add2Group("vortex", "slow");
-  $TEST->addBadComment("vortex-cil", "wrong input data");
-  $TEST->addBadComment("vortex-inferbox", "missing WRAPPERS");
+  $TEST->addBadComment("vortex-inferbox", "function pointers");
 
 $TEST->add3Tests("apache/gzip");
    $TEST->add3Group("apache/gzip", "apache", "slow");
