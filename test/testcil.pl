@@ -264,6 +264,7 @@ $TEST->addTests("testrun/void", "_GNUCC=1", ['cil']);
 $TEST->addTests("test/restrict", "EXTRAARGS=-std=c9x _GNUCC=1", ['cil']);
 $TEST->addTests("test/restrict1", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/rmtmps1", "", ['cil']);
+$TEST->addTests("testrun/rmtmps2", "_GNUCC=1", ['cil']);
 $TEST->addTests("test/proto1", "", ['cil']);
 $TEST->addTests("testrun/struct1", "", ['cil']);
 $TEST->addTests("testrun/voidarg", "", ['cil']);

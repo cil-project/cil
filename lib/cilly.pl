@@ -69,7 +69,7 @@ sub applyCil {
 
     if($self->{VERBOSE}) { print "Cilly compiling $src to $cilfile\n"; }
     
-    my $cmd = $CilCompiler::compiler;
+    my $cmd = "$CilCompiler::compiler ";
     
     if($self->{MODENAME} eq "MSVC") {
         $cmd .= " --MSVC ";
