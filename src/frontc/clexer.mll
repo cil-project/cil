@@ -311,6 +311,7 @@ let floatraw = (intnum? fraction)
 			|(intnum exponent)
 			|(intnum? fraction exponent)
 			|(intnum '.') 
+                        |(intnum '.' exponent) 
 let floatnum = floatraw floatsuffix?
 
 let ident = (letter|'_')(letter|decdigit|'_')* 
