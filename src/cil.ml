@@ -1856,7 +1856,12 @@ let gccBuiltins : (string, typ * typ list) H.t =
   H.add h "__builtin_constant_p" (intType, [ intType ]);
   H.add h "__builtin_fabs" (doubleType, [ doubleType ]);
   H.add h "__builtin_va_end" (voidType, [ TBuiltin_va_list [] ]);
-  H.add h "__builtin_stdarg_start" (voidType, [ intType; intType ]);
+  (* When we parse builtin_stdarg_start, we drop the second argument *)
+  H.add h "__builtin_stdarg_start" (voidType, [ TBuiltin_va_list []; ]);
+  (* When we parse builtin_va_arg we change its interface *)
+  H.add h "__builtin_va_arg" (voidType, [ TBuiltin_va_list [];
+                                          uintType; (* Sizeof the type *)
+                                          voidPtrType; (* Ptr to res *) ]);
   h
 
 (** A printer interface for CIL trees. Create instantiations of 
@@ -2182,13 +2187,20 @@ class defaultCilPrinterClass : cilPrinter = object (self)
               ++ text ";"
               
     end
-    | Call(result, Lval(Var vi, NoOffset), [dest; SizeOf t], l) 
+      (* In cabs2cil we have turned the call to builtin_va_arg into a 
+       * three-argument call: the last argument is the address of the 
+       * destination *)
+    | Call(None, Lval(Var vi, NoOffset), [dest; SizeOf t; adest], l) 
         when vi.vname = "__builtin_va_arg" -> 
+          let rec stripCast = function 
+              CastE (_, e) -> stripCast e
+            | e -> e in
+          let destlv = match stripCast adest with 
+            AddrOf destlv -> destlv
+          | _ -> E.s (E.error "Encountered unexpected call to %s\n" vi.vname)
+          in
           self#pLineDirective l
-	    ++ (match result with
-	      None -> nil
-	    | Some lv ->
-		self#pLval () lv ++ text " = ")
+	    ++ self#pLval () destlv ++ text " = "
                    
             (* Now the function name *)
             ++ text "__builtin_va_arg"

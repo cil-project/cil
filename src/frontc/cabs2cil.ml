@@ -3256,6 +3256,15 @@ and doExp (isconst: bool)    (* In a constant *)
         let argTypesList = argsToList argTypes in
         (* Drop certain qualifiers from the result type *)
         let resType' = resType in 
+        (* Before we do the arguments we try to intercept a few builtins *)
+        let isVarArgBuiltin = 
+          match f'' with 
+            Lval (Var fv, NoOffset) ->
+              fv.vname = "__builtin_stdarg_start" ||
+              fv.vname = "__builtin_va_arg" 
+            | _ -> false
+        in
+          
         (* Do the arguments. In REVERSE order !!! Both GCC and MSVC do this *)
         let rec loopArgs 
             : (string * typ * attributes) list * A.expression list 
@@ -3263,9 +3272,10 @@ and doExp (isconst: bool)    (* In a constant *)
             | ([], []) -> (empty, [])
 
             | args, [] -> 
-                ignore (warnOpt 
-                          "Too few arguments in call to %a. Filling with 0."
-                          d_exp f');
+                if not isVarArgBuiltin then 
+                  ignore (warnOpt 
+                            "Too few arguments in call to %a. Filling with 0."
+                            d_exp f');
                 (* Pretend we have a few NULL arguments *)
                 let makeOneArg ((_, at, _)) = 
                   match makeZeroInit at with
@@ -3281,7 +3291,7 @@ and doExp (isconst: bool)    (* In a constant *)
                 (ss @@ sa, a'' :: args')
                   
             | ([], args) -> (* No more types *)
-                if not isvar && argTypes != None then 
+                if not isvar && argTypes != None && not isVarArgBuiltin then 
                   (* Do not give a warning for functions without a prototype*)
                   ignore (warnOpt "Too many arguments in call to %a" d_exp f');
                 let rec loop = function
@@ -3294,33 +3304,65 @@ and doExp (isconst: bool)    (* In a constant *)
                 loop args
         in
         let (sargs, args') = loopArgs (argTypesList, args) in
+        let what'', args'', is__builtin_va_arg = 
+          match f'' with 
+            Lval(Var fv, NoOffset) -> begin
+              if fv.vname = "__builtin_va_arg" then begin
+                match args' with 
+                  marker :: SizeOf resTyp :: _ -> begin
+                    (* Make a variable of the desired type *)
+                    let destlv, destlvtyp = 
+                      match what with 
+                        ASet (lv, lvt) -> lv, lvt
+                      | _ -> var (newTempVar resTyp), resTyp
+                    in
+                    ASet (destlv, destlvtyp), 
+                    [marker; SizeOf resTyp; AddrOf destlv],
+                    true
+                  end
+                | _ -> 
+                    ignore (warn "Invalid call to %s\n" fv.vname);
+                    what, args', false
+              end else
+                what, args', false
+            end
+          | _ -> what, args', false
+        in
         begin
-          match what with 
+          match what'' with 
             ADrop -> 
               finishExp 
-                (sf @@ sargs +++ (Call(None,f'',args', !currentLoc)))
+                (sf @@ sargs +++ (Call(None,f'',args'', !currentLoc)))
                 (integer 0) intType
               (* Set to a variable of corresponding type *)
           | ASet(lv, vtype) -> 
-              finishExp 
-                (sf @@ sargs                                         
-                 +++ (Call(Some lv,f'',args', !currentLoc)))
-                (Lval(lv))
-                vtype
+              (* Make an exception here for __builtin_va_arg *)
+              if is__builtin_va_arg then 
+                finishExp 
+                  (sf @@ sargs                                         
+                           +++ (Call(None,f'',args'', !currentLoc)))
+                  (Lval(lv))
+                  vtype
+              else
+                finishExp 
+                  (sf @@ sargs                                         
+                           +++ (Call(Some lv,f'',args'', !currentLoc)))
+                  (Lval(lv))
+                  vtype
 
           | _ -> begin
               (* Must create a temporary *)
-              match f'', args' with     (* Some constant folding *)
+              match f'', args'' with     (* Some constant folding *)
                 Lval(Var fv, NoOffset), [Const _] 
                   when fv.vname = "__builtin_constant_p" ->
                     finishExp (sf @@ sargs) (integer 1) intType
               | _ -> 
                   let tmp, restyp' = 
-                    match what with
+                    match what'' with
                       AExp (Some t) -> newTempVar t, t
                     | _ -> newTempVar resType', resType'
                   in
-                  let i = Call(Some (var tmp),f'',args', !currentLoc) in
+                  let i = Call(Some (var tmp),f'',args'', !currentLoc) in
                   finishExp (sf @@ sargs +++ i) (Lval(var tmp)) restyp'
           end
         end

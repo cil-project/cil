@@ -187,13 +187,14 @@ of a pointer or the particular alignment rules for structure fields. (This
 means, of course, that you should re-run \t{./configure} when you move CIL to
 another machine.)
 
- CIL also depends on how the compiler implements the variable argument
-functions. Most notably, {\bf Note: CIL does not work with gcc version 2.96
-because of the way in which it implements varargs.}. You should not use
-version 2.96 because \ahref{http://gcc.gnu.org/gcc-2.96.html}{it was not a
-formal gcc release}, just a (buggy) developement version. You should upgrade
-your gcc to version 3.2 or to 2.95.3 (which actually appears to be much faster
-than 3.2). We have tested CIL on the following compilers:
+% CIL also depends on how the compiler implements the variable argument
+%functions. 
+%Most notably, {\bf Note: CIL does not work with gcc version 2.96
+%because of the way in which it implements varargs.}. You should not use
+%version 2.96 because \ahref{http://gcc.gnu.org/gcc-2.96.html}{it was not a
+%formal gcc release}, just a (buggy) developement version. You should upgrade
+%your gcc to version 3.2 or to 2.95.3 (which actually appears to be much faster
+%than 3.2). We have tested CIL on the following compilers:
 
 \begin{itemize}
 \item On Windows, \t{cl} compiler version 12.00.8168 and 13.00.9466. 
@@ -1542,6 +1543,23 @@ local variables cannot have the \t{const} qualifier.
 \section{Known Bugs and Limitations}
 
 \begin{itemize}
+
+\item In the new versions of \t{glibc} there is a function
+  \t{\_\_builtin\_va\_arg} that takes a type as its second argument. CIL
+  handles that through a slight trick. As it parses the function it changes a
+  call like:
+\begin{verbatim}
+  mytype x = __builtin_va_arg(marker, mytype)
+\end{verbatim}
+ into 
+\begin{verbatim}
+ mytype x;
+ __builtin_va_arg(marker, sizeof(mytype), &x);
+\end{verbatim}
+
+ The latter form is used internally in CIL. However, the CIL pretty printer
+ will try to emit the original code. 
+
 
 \item The implementation of \t{bitsSizeOf} does not take into account the
 packing pragmas. However it was tested to be accurate on cygwin/gcc-2.95.3,
