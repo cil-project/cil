@@ -128,7 +128,7 @@ ifdef NEWOPTIM
 endif
 ifneq ($(INFERBOX),none)
   CCURED+= --curetype=$(INFERBOX) $(DEF)INFERBOX
-  CCURED+= --emitinfer 
+  CCURED+= --emitbrowser
   ifeq ($(INFERBOX),wild)
     # sm: some of my edg-related source changes need to know whether
     # they're being processed for the all-WILD mode
@@ -199,8 +199,11 @@ endif
 ifdef PRINTSTAGES
   CCURED+= --stages
 endif
-ifdef EMITBROWSER
-  CCURED+= --emitbrowser
+ifdef EMITINFER
+  CCURED+= --emitinfer
+endif
+ifdef EMITINFERDETAIL
+  CCURED+= --emitinfer --emitGraphDetailLevel=3
 endif
 ifdef BROWSER_SOURCE_FILE_SIZE
   CCURED+= --browserSourceFileSize=$(BROWSER_SOURCE_FILE_SIZE)
