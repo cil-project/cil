@@ -35,3 +35,4 @@ and sccInfo = (int list * int list) list (* list of (# back edges * nodes in a S
 
 val add_ssa_info: cfgInfo -> unit
 val stronglyConnectedComponents: cfgInfo -> sccInfo 
+val prune_cfg: cfgInfo -> cfgInfo

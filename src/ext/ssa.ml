@@ -380,8 +380,42 @@ let add_dom_def_info (f: cfgInfo): unit =
   in
   search(start)
   
-    
+   
+
+let prune_cfg (f: cfgInfo): cfgInfo = 
+ let size = f.size in 
+ let reachable = Array.make size false in
+ let worklist = ref([f.start]) in
+ while (!worklist != []) do 
+   let h = List.hd !worklist in
+   worklist := List.tl !worklist;
+   reachable.(h) <- true;
+   List.iter (fun s -> if (reachable.(s) = false) then worklist := s::!worklist; 
+	     ) f.successors.(h);
+ done;
+ let dummyblock = {  bstmt = mkEmptyStmt ();
+                     instrlist = [];
+                     livevars = [] } 
+ in
+ let successors = Array.init size (fun i -> List.filter (fun s -> reachable.(s)) f.successors.(i)) in
+ let predecessors = Array.init size (fun i -> List.filter (fun s -> reachable.(s)) f.predecessors.(i)) in
+ let blocks = Array.init size (fun i -> if reachable.(i) then f.blocks.(i) else dummyblock) in
+ let result: cfgInfo = 
+        { name = f.name;
+          start = f.start;
+          size = f.size;
+          successors = successors;
+          predecessors = predecessors;
+          blocks = blocks;
+          nrRegs = f.nrRegs;
+          regToVarinfo = f.regToVarinfo;
+        }
+ in
+ result
+ 
+ 
 let add_ssa_info (f: cfgInfo): unit = 
+  let f = prune_cfg f in
   let d_reg () (r: int) = 
     dprintf "%s(%d)" f.regToVarinfo.(r).vname r
   in

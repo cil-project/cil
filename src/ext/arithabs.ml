@@ -578,7 +578,7 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
             with Not_found -> assert false) in 
           
           (* Compute the control flow graph info, for SSA computation *)
-          let cfgi = fundecToCFGInfo fdec in 
+          let cfgi = S.prune_cfg (fundecToCFGInfo fdec) in 
           cfgInfo <- Some cfgi;
           (* Call here the SSA function to fill-in the cfgInfo *)
           S.add_ssa_info cfgi;
@@ -890,6 +890,7 @@ let feature : featureDescr =
          S.regToVarinfo = Array.create 0 dummyFunDec.svar;
         }
       in
+      let ci = S.prune_cfg ci in
       nrNodes := 0;
       IH.iter (fun idx cn -> 
         let cnlistToNodeList (cnl: (string, CG.callnode) H.t) : int list = 
