@@ -713,8 +713,10 @@ smAddTest("combine_samefn");
 smAddTest("combine_node_alloc");
 smAddTest("combine_sbump");
 smAddTest("combine_sbumpB");
-smFailTest("renaming problems again",
-           "combine_sbumpB MERGEINLINES=1");
+smAddTest("combine_sbumpB MERGEINLINES=1");
+smAddTest("combine_allocate");
+smFailTest("still more merger problems...",
+           "combine_allocate MERGEINLINES=1");
 
 # tests of things implemented for EDG compatibility
 smAddTest("mergestruct");
