@@ -263,6 +263,7 @@ $TEST->add3Tests("scott/typeof", "_GNUCC=1");
 $TEST->add3Tests("scott/funcname", "_GNUCC=1");
 $TEST->add3Tests("scott-nolink/asmfndecl", "_GNUCC=1");
 $TEST->add3Tests("scott/litstruct", "_GNUCC=1");
+$TEST->add3Tests("scott/xlsubr");
 $TEST->add1Test("scott/main", "_GNUCC=1");
 
 # $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug

@@ -3181,6 +3181,22 @@ and boxinstr (ins: instr) : stmt clist =
         in
         append dolv (append doe3 (CConsR (check, mkSet lv' e3)))
 
+        (* Check if the result is a heapified variable *)
+    | Call (Some (vi, iscast), f, args, l) 
+        when H.mem heapifiedLocals vi.vname -> 
+          currentLoc := l;
+          let newb, newoff = H.find heapifiedLocals vi.vname in
+          (* Make a temporary variable with the same type *)
+          let tmp = makeTempVar !currentFunction vi.vtype in
+          (* Fix its type *)
+          tmp.vtype <- fixupType tmp.vtype;
+          (* Add a separate call to initialize the temporary *)
+          let stmt1 = boxinstr (Call (Some (tmp, iscast), f, args, l)) in
+          (* Now add an assignment *)
+          let stmt2 = boxinstr (Set ((newb, newoff),
+                                     Lval (var tmp), l)) in
+          append stmt1 stmt2
+
     | Call(vio, f, args, l) ->
         currentLoc := l;
         let (ft, dof, f', fkind) = 
@@ -3895,7 +3911,7 @@ let boxFile file =
                 (fun v (acc_s, acc_t) -> 
                   if hasAttribute "heapify" v.vattr then begin
                     ignore (warn "Moving local %s to the heap." v.vname);
-                    let newfield = (v.vname, v.vtype, v.vattr) in
+                    let newfield = (v.vname, fixupType v.vtype, v.vattr) in
                     let istagged = 
                       match N.nodeOfAttrlist v.vattr with 
                         Some n -> n.N.kind = N.Wild
@@ -3930,7 +3946,8 @@ let boxFile file =
                       ("__heapified" ^ kind) 
                       (TPtr(TComp (hCompInfo, []), 
                             if istagged then [N.k2attr N.Wild] else [])) in
-                  (* Now insert the call to malloc *)
+                  (* Now insert the call to malloc. It will be processed 
+                   * properly when the body is boxed later *)
                   let callmalloc = 
                     call (Some (heapVar, true)) 
                       (Lval(var mallocFun.svar)) 
@@ -3945,9 +3962,14 @@ let boxFile file =
                     hCompInfo.cfields;
                   (* Initialize the things to free *)
                   heapifiedFree :=
-                     (* sm: a better solution is to say heapVar._p-4, but I don't *)
-                     (* quite know how in cil (it's getting ahold of _p that's hard) *)
-                     call None (Lval (var (if istagged then free_wFun.svar else freeFun.svar)))
+                     (* sm: a better solution is to say heapVar._p-4, but I 
+                      * don't  *)
+                     (* quite know how in cil (it's getting ahold of _p 
+                      * that's hard)  *)
+                     call None 
+                       (Lval (var 
+                                (if istagged then free_wFun.svar 
+                                else freeFun.svar)))
                        [Lval (var heapVar)] 
                      :: !heapifiedFree;
                   CConsL (callmalloc, body)
@@ -3956,7 +3978,12 @@ let boxFile file =
               doHeapify true heapifiedFields_tagged 
                 (doHeapify false heapifiedFields_safe newbody)
             in
-            (* Fixup the types of the locals  *)
+            (* Remove the heapified locals *)
+            f.slocals <- 
+               List.filter 
+                 (fun l -> not (H.mem heapifiedLocals l.vname)) 
+                 f.slocals;
+            (* Fixup the types of the remaining locals  *)
             List.iter 
               (fun l -> 
                 let newa, newt = moveAttrsFromDataToType l.vattr l.vtype in
