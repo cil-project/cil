@@ -1305,8 +1305,10 @@ let iterExp (f: exp -> unit) (body: stmt) : unit =
     | Switch (e, s) -> fExp e; fStmt s
     | Instr(Set(lv,e,_)) -> fLval lv; fExp e
     | Instr(Call(_,f,args,_)) -> fExp f; List.iter fExp args
-    | Instr(Asm(_,_,_,ins,_)) -> 
+    | Instr(Asm(_,_,outs,ins,_)) -> begin
+        List.iter (fun (_, lv) -> fLval lv) outs;    (* sm: bugfix 3/17/01 *)
         List.iter (fun (_, e) -> fExp e) ins
+      end
   in
   fStmt body
 
@@ -1341,9 +1343,12 @@ begin
     | Return(Some e) -> fExp e
     | Switch (e, s) -> fExp e; fStmt s
     | Instr(Set(lv,e,_)) -> fLval lv; fExp e
-    | Instr(Call(_,f,args,_)) -> fExp f; List.iter fExp args
-    | Instr(Asm(_,_,_,ins,_)) ->
+    | Instr(Call(None,f,args,_)) -> fExp f; List.iter fExp args
+    | Instr(Call((Some v),fn,args,_)) -> f v; fExp fn; List.iter fExp args  (* sm: bugfix 3/17/01 *)
+    | Instr(Asm(_,_,outs,ins,_)) -> begin
+        List.iter (fun (_, lv) -> fLval lv) outs;
         List.iter (fun (_, e) -> fExp e) ins
+      end
   in
   fStmt body
 end;;
@@ -1777,7 +1782,14 @@ begin
             if (not v.vreferenced) then begin
               (trace "usedVar" (dprintf "*removing* unused: var decl[%d]: %s\n"
                                        v.vid v.vname));
-              false   (* remove it *)        
+              if ((String.length v.vname) < 3 ||
+                  (String.sub v.vname 0 3) <> "tmp") then
+                (* sm: if I'd had this to begin with, it would have been
+                 * a little easier to track down the bug where I didn't
+                 * check the function return-value destination *)
+                (ignore (printf "WARNING: removing unused source variable %s\n"
+                                v.vname));
+              false   (* remove it *)
             end
             else 
               true    (* keep it *)

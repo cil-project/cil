@@ -3,6 +3,7 @@
 #
 # 3/06/01 sm: made the rules depend on environment variable ARCHOS,
 #             so I can say x86_LINUX
+# 3/17/01 sm: replaced a few more instances of x86_WIN32 with $(ARCHOS)
 
 # Debugging. Set ECHO= to debug this Makefile 
 ECHO = @
@@ -108,6 +109,20 @@ CILDIR=$(BASEDIR)/cil
 _GNUCC=1
 endif
 
+# sm: I keep getting bit by this
+ifndef COMPUTERNAME
+# sm: why doesn't this do what the manual says?
+#HMM=$(error "wtf")
+HMM="you_have_to_set_the_COMPUTERNAME_environment_variable"
+BASEDIR=$(HMM)
+SAFECCDIR=$(HMM)
+PCCDIR=$(HMM)
+TVDIR=$(HMM)
+CILDIR=$(HMM)
+_GNUCC=$(HMM)
+endif
+
+
 ######################
 .PHONY : spec
 spec : $(EXECUTABLE)$(EXE)
@@ -192,6 +207,10 @@ ifdef TV
 SAFECC+= --tv="$(TV)"
 TVEXE=trval
 endif
+# sm: pass tracing directives on 'make' command line like TRACE=usedVars
+ifdef TRACE
+SAFECC+= --tr="$(TRACE)"
+endif
 SAFECC+= $(EXTRAARGS:%= --safec=%)
 
     # Now the rules to make the library
@@ -224,7 +243,6 @@ $(SAFECLIB) : $(SAFECCDIR)/cil/lib/safec.c
 	# $(CC) $(LIB) $(LIBOUT)$(SAFECLIB) $(OBJOUT)$(OBJDIR)/safec.o 
 	# But this works. 
 	ar -r $(SAFECLIB) $(OBJDIR)/safec.o
-	ar -r $(SAFECLIB) $(OBJDIR)/safec.o
 endif
 
 
@@ -244,7 +262,7 @@ PCCCOMP=_MSVC
 endif
 
 testpcc/% : $(PCCDIR)/src/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
-	cd $(SAFECCDIR)/cil/test/PCCout; $(SAFECC) --keep=. $(DEF)x86_WIN32 \
+	cd $(SAFECCDIR)/cil/test/PCCout; $(SAFECC) --keep=. $(DEF)$(ARCHOS) \
                   $(DEF)$(PCCTYPE) $(CONLY) \
                   $(PCCDIR)/src/$*.c \
                   $(OBJOUT)$(notdir $*).o
@@ -394,7 +412,7 @@ hufftest: test/small2/hufftest.c $(EXECUTABLE)$(EXE) \
                                  $(SAFECLIB) $(SAFEMAINLIB) $(TVEXE)
 	rm -f $(PCCTEST)/hufftest.exe
 	cd $(PCCTEST); $(HUFFCOMPILE) \
-                 $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) $(DEF)$(PCCCOMP) \
+                 $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) $(DEF)$(PCCCOMP) \
                  $(DOOPT) \
                  $(INC)$(PCCDIR)/src \
                  $(PCCDIR)/src/io.c \
@@ -408,7 +426,7 @@ hufftest: test/small2/hufftest.c $(EXECUTABLE)$(EXE) \
 
 wes-rbtest: test/small2/wes-rbtest.c $(EXECUTABLE)$(EXE) $(TVEXE)
 	rm -f $(PCCTEST)/wes-rbtest.exe
-	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) \
+	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  $(DOOPT) \
                  $(INC)$(PCCDIR)/src \
                  ../small2/wes-rbtest.c \
@@ -417,7 +435,7 @@ wes-rbtest: test/small2/wes-rbtest.c $(EXECUTABLE)$(EXE) $(TVEXE)
 
 wes-hashtest: test/small2/wes-hashtest.c $(EXECUTABLE)$(EXE) $(TVEXE)
 	rm -f $(PCCTEST)/wes-hashtest.exe
-	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) \
+	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  $(DOOPT) \
                  $(INC)$(PCCDIR)/src \
                  ../small2/wes-hashtest.c \

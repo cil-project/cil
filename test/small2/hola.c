@@ -20,11 +20,12 @@ int getc_unlocked (FILE *fp)
 
 int main()
 { 
-  int x;
+  int x,y;
   x = printf("hola senior.\n");
   x += printf("what is ascii for accented o and tilde n?\n");
   x++;
   printf("x = %d\n", x);
+  y = printf("hmm\n");
   return x?0:x;
 }
 

@@ -339,6 +339,8 @@ and instr =
                          (* See the GCC specification for the meaning of ASM. 
                           * If the source is MS VC then only the templates 
                           * are used *)
+                         (* sm: I've added a notes.txt file which contains more
+                          * information on interpreting Asm instructions *)
   | Asm        of string list *         (* templates (CR-separated) *)
                   bool *                (* if it is volatile *)
                   (string * lval) list * (* outputs must be lvals with 

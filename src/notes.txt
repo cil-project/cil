@@ -1,0 +1,44 @@
+Additional documentation for this directory
+===========================================
+
+Inline assembler directives: instr's "Asm":
+-------------------------------------------
+[sm 3/17/01 15:33]
+from gcc manual I think the format is:
+
+  asm [volatile] ("...template..."
+                  : "c1" (o1), "c2" (o2), ..., "cN" (oN)
+                  : "d1" (i1), "d2" (i2), ..., "dM" (iM)
+                  : "r1", "r2", ..., "nL" );
+
+where the parts are
+
+  volatile (optional): when present, the assembler instruction
+    cannot be removed, moved, or otherwise optimized
+    
+  template: a string, with %0, %1, %2, etc. in the string to refer
+    to the input and output expressions .. I think they're numbered
+    consecutively, but the docs don't specify
+    
+  "ci" (oi): pairs of constraint-string and output-lval; the 
+    constraint specifies that the register used must have some
+    property, like being a floating-point register; the constraint
+    string for outputs also has "=" to indicate it is written, or
+    "+" to indicate it is both read and written; 'oi' is the
+    name of a C lvalue (probably a variable name) to be used as
+    the output destination
+    
+  "dj" (ij): pairs of constraint and input expression; the constraint
+    is similar to the "ci"s.  the 'ij' is an arbitrary C expression
+    to be loaded into the corresponding register
+
+  "rk": registers to be regarded as "clobbered" by the instruction;
+    "memory" may be specified for arbitrary memory effects
+
+an example (from gcc manual):
+
+  asm volatile ("movc3 %0,%1,%2"
+                : /* no outputs */
+                : "g" (from), "g" (to), "g" (count)
+                : "r0", "r1", "r2", "r3", "r4", "r5");
+
