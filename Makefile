@@ -339,9 +339,12 @@ ifdef USER_SCOTT
 
   # making my patch module the default for me
   TRACE=patch
-  NEWPATCH=1
 endif
 
+# bite the bullet and make it the default
+ifndef OLDPATCH
+  NEWPATCH=1
+endif
 
 ifdef PROFILE
 SAFECC+= --profile 
