@@ -1,5 +1,11 @@
-extern int printf(const char * format, ...);
-#pragma ccuredvararg("printf", printf(1))
+#ifndef printf
+  /* sm: this works with gcc-2.95 */
+  extern int printf(const char * format, ...);
+  #pragma ccuredvararg("printf", printf(1))
+#else
+  /* but in gcc-3 headers it's a macro.. */
+  #include <stdio.h>        /* printf */
+#endif
 
 extern void exit(int);
 
