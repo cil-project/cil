@@ -13,6 +13,18 @@ module VS = Set.Make (struct
 let getUseDefFunctionRef: (exp -> VS.t * VS.t) ref = 
   ref (fun _ -> (VS.empty, VS.empty))
 
+(** Say if you want to consider a variable use *)
+let considerVariableUse: (varinfo -> bool) ref = 
+  ref (fun _ -> true)
+
+
+(** Say if you want to consider a variable def *)
+let considerVariableDef: (varinfo -> bool) ref = 
+  ref (fun _ -> true)
+
+(** Save if you want to consider a variable addrof as a use *)
+let considerVariableAddrOfAsUse: (varinfo -> bool) ref = 
+  ref (fun _ -> true)
 
 let varUsed: VS.t ref = ref VS.empty
 let varDefs: VS.t ref = ref VS.empty
@@ -20,16 +32,27 @@ let varDefs: VS.t ref = ref VS.empty
 class useDefVisitorClass : cilVisitor = object (self)
   inherit nopCilVisitor
       
-  (** this will be invoked on variable definitions only ! *)
+  (** this will be invoked on variable definitions only because we intercept 
+   * all uses of variables in expressions ! *)
   method vvrbl (v: varinfo) = 
-    varDefs := VS.add v !varDefs;
+    if (!considerVariableDef) v then 
+      varDefs := VS.add v !varDefs;
     SkipChildren
 
   method vexpr = function
       Lval (Var v, off) -> 
         ignore (visitCilOffset (self :> cilVisitor) off);
-        varUsed := VS.add v !varUsed;
+        if (!considerVariableUse) v then
+          varUsed := VS.add v !varUsed;
         SkipChildren (* So that we do not see the v *)
+
+    | AddrOf (Var v, off) 
+    | StartOf (Var v, off) -> 
+        ignore (visitCilOffset (self :> cilVisitor) off);
+        if (!considerVariableAddrOfAsUse) v then 
+          varUsed := VS.add v !varUsed;
+        SkipChildren
+
     | _ -> DoChildren
 
   (* For function calls, do the transitive variable read/defs *)

@@ -67,6 +67,11 @@ let p ?(ind=0) (fmt : ('a,unit,doc) format) : 'a =
   Pretty.gprintf f fmt
 
 
+(** Variables whose address is taken are ignores. Set this to true if you 
+ * want references to the address of such variables to be printed as the only 
+ * accesses of the variable *)
+let treatAddressOfAsRead = true
+
 (** The globals written, indexed by Id of the function variable. Each inner 
  * table is indexed by the global id *)
 let globalsWritten: (varinfo IH.t) IH.t = IH.create 13
@@ -123,11 +128,11 @@ class gwVisitorClass : cilVisitor = object (self)
 
       (* We pretend that when we see the address of a global, we are reading 
        * from the variable. Note that these variables will not be among those 
-       * that we "considerVariable"
+       * that we "considerVariable" so, there will be no writing to them *)
     | StartOf (Var v, NoOffset) 
-    | AddrOf (Var v, NoOffset) when v.vglob -> 
+    | AddrOf (Var v, NoOffset) when treatAddressOfAsRead && v.vglob -> 
         IH.replace !currentGlobalsRead v.vid v;
-        DoChildren  *)
+        DoChildren 
 
     | _ -> DoChildren
 
@@ -221,10 +226,17 @@ let fundecToCFGInfo (fdec: fundec) : S.cfgInfo =
 
       | _ -> VS.empty, VS.empty);
 
+
+  Usedef.considerVariableUse := 
+    (fun v -> considerVariable v);
+  Usedef.considerVariableDef := 
+    (fun v -> considerVariable v);
+  Usedef.considerVariableAddrOfAsUse := 
+    (fun v -> treatAddressOfAsRead);
+
   (* Filter out the variables we do not care about *)
   let vsToRegList (vs: VS.t) : int list = 
-    VS.fold (fun v acc -> 
-      if considerVariable v then (varToReg v) :: acc else acc) vs [] 
+    VS.fold (fun v acc -> (varToReg v) :: acc) vs [] 
   in
   List.iter 
     (fun s -> 
@@ -362,16 +374,17 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
           E.s (E.bug "%a: varUse: varRenameState does not know anything about %s" 
                  d_loc !currentLoc v.vname )
       in
-      (*
-      (if v.vaddrof && v.vglob then 
+      (if v.vaddrof then begin
+        assert treatAddressOfAsRead;
         "addrof_"
-      else "") ^ *)
+      end else "") ^ 
       (if freshId = 0 then 
         v.vname
       else
         v.vname ^ "___" ^ string_of_int freshId)
         
     method private variableDef (state: int IH.t) (v: varinfo) : string = 
+      assert (not v.vaddrof);
       IH.replace state v.vid (freshVarId ());
       let n = self#variableUse state v in
       freshVars <- n :: freshVars;
@@ -397,11 +410,11 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
 
 
       | AddrOf (Var v, NoOffset) 
-      | StartOf (Var v, NoOffset) when v.vglob -> 
-          text "(@rand)"
-(*
-          text (self#variableUse varRenameState v)
-*)
+      | StartOf (Var v, NoOffset) -> 
+          if treatAddressOfAsRead then 
+            text (self#variableUse varRenameState v)
+          else
+            text "(@rand)"
 
 
       | e -> super#pExp () e
