@@ -1770,7 +1770,7 @@ emacs: mustbegcc mustbelinux mustbemanju emacsclean
 emacs-noclean: mustbegcc mustbelinux mustbemanju
 	cd $(EMACSSRC) ; make CC="$(CILLY)"
 
-sendmail-gcc: mustbelinux mustbemanju emacsclean
+emacs-gcc: mustbelinux mustbemanju emacsclean
 	cd $(EMACSSRC) ; make CC=gcc
 
 #### ------------- PERL ----------------------------
