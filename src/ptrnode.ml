@@ -88,6 +88,8 @@ type node =
 and pointerkind = 
     Safe
   | Scalar (* not actually a pointer *)
+  | Seq    (* A three word pointer, like Index but with the length in the 
+            * pointer itself *)
   | FSeq
   | BSeq
   | String
@@ -144,6 +146,7 @@ let d_pointerkind () = function
   | BSeq -> text "BSEQ"
   | String -> text "STRING" 
   | Index -> text "INDEX"
+  | Seq -> text "SEQ"
   | Wild -> text "WILD" 
   | Unknown -> text "UNKNOWN" 
 

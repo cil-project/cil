@@ -422,7 +422,7 @@ let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) =
   | TInt _, TBitfield _ -> (nt, e)
 
 
-  | _ -> E.s (E.unimp "castTo %a -> %a@!" d_type ot d_type nt)
+  | _ -> E.s (E.unimp "cabs2cil: castTo %a -> %a@!" d_type ot d_type nt)
 
 (* A cast that is used for conditional expressions. Pointers are Ok *)
 let checkBool (ot : typ) (e : exp) : bool =
