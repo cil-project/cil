@@ -49,6 +49,10 @@ let  algo = George
 let fastMode       = ref false
 
 
+(** Whether to print identation or not (for faster printing and smaller 
+  * output) *)
+let printIndent = ref true
+
 (******************************************************************************)	
 (* The doc type and constructors *)
 
@@ -359,7 +363,7 @@ let emitDoc
   in
   (* Print indentation if wantIndent was previously flagged ; reset this flag *)
   let indentIfNeeded () =
-    if !wantIndent then ignore (
+    if !printIndent && !wantIndent then ignore (
       match !aligns with
 	[] -> failwith "Ran out of aligns"
       | x :: _ -> 

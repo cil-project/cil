@@ -227,6 +227,8 @@ val withPrintDepth : int -> (unit -> unit) -> unit
     everything is replaced with ellipsis *)
 val printDepth   : int ref
 
+val printIndent  : bool ref  (** If false then does not indent *)
+
 
 (** If set to [true] then optional breaks are taken only when the document 
     has exceeded the given width. This means that the printout will looked 
