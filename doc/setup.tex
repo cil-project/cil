@@ -10,8 +10,8 @@
 \maketitle
 
  This document is intended to get you started with OCAML and the other tools
-that are necessary for CCured and other projects. These tools work on Linux
-and Windows (NT4.0, 2000, XP and also less reliably on 95/98/Me).
+that are necessary for CCured and other projects of ours. These tools work on
+Linux and Windows (NT4.0, 2000, XP and also less reliably on 95/98/Me).
 
  If you use Linux then you can go directly to Section~\ref{sec-ocaml}.
 
@@ -44,20 +44,6 @@ c:/WinNT/system32. You can verify that you got it right if you get
 that cygwin knows how to work with NTFS's file permissions.
 \end{itemize}
 
-
- \subsection{Customize \t{ssh}}\label{sec-win-ssh}
-
- Set the environment variable \t{HOME} to point to your home directory. I use
- \t{C:\backslash Necula}. 
-
- For some strange reason \t{ssh} does not see this \t{HOME} variable and
-insists on looking at \t{/home/necula} instead. So I create a link as follows:
-\begin{verbatim}
-bash
-cd /
-mkdir home
-ln -s /cygdrive/c/Necula /home/necula
-\end{verbatim}
 
 \section{Get OCaml}\label{sec-ocaml}
 
@@ -104,156 +90,10 @@ To test your ocaml distribution, try:
  or to \t{x86\_LINUX} (if you are on Linux)
 
 
-\section{Configure CVS}
+\section{If you need CVS access} 
 
- \subsection{\t{.cvsrc}}
+ See the \ahref{cvssetup.html}{separate instructions}.
 
- Create a \home{/.cvsrc} file with two lines in it: 
-\begin{verbatim}
-cvs -q
-update -d
-\end{verbatim}
-
- \subsection{Using CVS with \t{ssh}}
-
- Note: these instructions appear to work even on Windows with the \t{ssh} and
-\t{cvs} that ships with \t{cygwin} (provided that you have installed
-\t{cygwin} and \t{ssh} as discussed in Section~\ref{sec-win-ssh}).
-
- Set the environment variable \t{CVS\_RSH} to \t{ssh}. 
-
- Now you can use cvs with ssh but you will have to type the remote password
- everytime you run cvs. 
-
- If you want to be able to use \t{ssh} without typing a password everytime
-here is what you can do. There are two cases based on the version of the SSH
-protocol that your \t{ssh} uses. {\bf Note that the version of \t{ssh} that
-comes with cygwin uses protocol 2.}
-
-\begin{itemize}
-\item For SSH protocol 1
-  \begin{itemize}
-  \item If you have an RSA private key that is already authorized on 
-        the server, copy it to \t{\home{}/.ssh/identity} and you 
-        should be done.
-  \item Otherwise
-     \begin{enumerate}
-       \item Run \t{ssh-keygen} to create a private key. 
-        Choose a passphrase and
-        remember it. If you do not have a passphrase then anybody who gets
-        access to your machine will also be able to log in to the server.
-       \item Copy the public key to the server (say manju.cs.berkeley.edu)
-             \begin{verbatim}
-             cd ~
-             scp .ssh/identity.pub manju:~/.ssh/newpublicid
-             ssh manju
-             cd .ssh
-             cat newpublicid >> authorized_keys
-             \end{verbatim}
-    \end{enumerate}
-  \end{itemize}
- 
-\item For SSH protocol 2
-
-  \begin{itemize}
-  \item If you have a DSA private key that is already authorized on 
-        the server, copy it to \t{\home{}/.ssh/id\_dsa} and you 
-        should be done.
-  \item Otherwise
-     \begin{enumerate}
-       \item Run \t{ssh-keygen -t dsa} to create a private key. 
-        Choose a passphrase and remember it. 
-        If you do not have a passphrase then anybody who gets
-        access to your machine will also be able to log in to the server.
-       \item Copy the public key to the server (say manju.cs.berkeley.edu).
-          Make sure you append the key to {\bf authorized\_keys2}, not to {\bf
-          authorized\_keys}.  
-             \begin{verbatim}
-             cd ~
-             scp .ssh/id_dsa.pub manju:~/.ssh/newpublicid
-             ssh manju
-             cd .ssh
-             cat newpublicid >> authorized_keys2
-             \end{verbatim}
-     \end{enumerate}
-  \end{itemize}
-
-
-\item If you want you can even start an agent to do the authentication for
-you. The steps are different for Linux or Windows:
-   \begin{itemize}
-     \item On Linux or on Windows if you work from within \t{bash} you can run
-        \begin{verbatim} 
-           source `ssh-agent`
-           ssh-add
-        \end{verbatim}
-
-       The first step starts the agent and the second on loads your identity
-       in the agent. In this latter step you will be asked to enter your
-       passphrase. 
-     \item At the Windows command prompt (\t{cmd.exe}) you cannot just run
-       those commands. Instead you have to download
-       \ahref{http://raw.cs.berkeley.edu/winssh-agent.cmd}{this batch file
-       ({\bf do not execute it})},  
-       put it somewhere in your path and then run it instead of the above
-       sequence of commands. 
-   \end{itemize}
-
-\end{itemize}
-
-\section{Using CVS}
-
- You should read the rest only if you have not used CVS before. 
-
- CVS is used to synchronize changes to the project across multiple
-developers.  See the CVS website for detailed information
-
-  \ahrefurl{http://www.cvshome.org/}
-  
-There are a few common commands you'll need.  Each of these is to be run
-in the base 'cil' directory (the one with 'regrtest'):
-
-\begin{itemize}
-\item \t{cvs [-n] update -d [filename]}
-
-    This retrieves any changes recently committed by others.  This is
-    usually necessary before you can commit your own changes.  It is a
-    good idea to run the fast regression test ('regrtest') before and
-    after doing "cvs update" so you can know whether it was you or the
-    update which broke something.
-
-    The optional -n flag tells CVS to not actually change any of your
-    files.  This is useful for querying the status of the repository.
-
-    The -d argument tells cvs to create on your machine any new directories
-    that somebody might have checked in. By default cvs does not create new
-    directories. This flag is so useful that many people find it useful to
-    create a \home{/.cvsrc} file with one line containing "update -d" in it.
-    This way you don't have to specify the flag all the time.
-
-    If you specify a filename (after cd'ing to the directory containing it),
-    only that file will be updated, otherwise everything in the current
-    directory and below is updated. Run this in the top-level project
-    directory to update the entire project. A useful idiom for undoing all of
-    your changes is "cd dir; rm file; cvs update file".
-
-    
-\item \t{cvs commit [filename]}
-
-    This pushes your changes into the repository, so that the next time
-    someone does "cvs update" they will get your changes.  Please try to
-    only commit when the regression test script passes.
-    
-    If you specify a filename, only that file will be committed, otherwise
-    everything in the current directory and below is checked in. Run this in
-    the top-level project directory to check all of your changes in.
-
-\item  \t{cvs add filename}
-
-    This adds a new file to the repository.  It isn't visible in the
-    repository until you do a commit.
-\end{itemize}
- 
 
 \section{Useful Links}
 \begin{itemize}
@@ -263,137 +103,11 @@ in the base 'cil' directory (the one with 'regrtest'):
         
   \item Documentation and sources for Ocaml: 
         \ahrefurl{http://caml.inria.fr/ocaml/} 
-
-
-  \item Documentation and sources for CVS:
-        \ahrefurl{http://www.cvshome.org/}
-
   \item Manual for GNU make:
         \ahrefurl{http://www.gnu.org/manual/make/html\_chapter/make\_toc.html}
 
     
  \end{itemize}
 
-\end{document}
 
-% \subsection{Get \t{cvs}}
-%
-% At some point the version of \t{cvs} that comes with cygwin was either old or
-%had problems with CRLF. A version of \t{cvs} for Windows that I've had success
-%with can be found at
-%
-% \ahrefurl{http://raw.cs.berkeley.edu/cvs.exe}
-%
-% Copy that file in \t{C:\\Programs\\cygwin\\bin} (thus overwriting the version
-%of cvs that comes with cygwin).
-%
-% \subsection{Get \t{perl}}
-%
-% Go to \ahrefurl{http://www.activestate.com} and download ActivePerl. Follow
-%the instructions. Put the directory that contains the perl executable in your
-%PATH. 
-%
-% \subsection{Get \t{ssh}}
-%
-%It has been observed that the cygwin version of ssh doesn't behave well
-%with cvs because of some CR-LF translation problems. Hence, you will need 
-%putty, puttygen, pageant, pscp and plink, all of which are available from:
-%
-%  \ahrefurl{http://www.chiark.greenend.org.uk/\home{sgtatham}/putty/download.html}
-%
-%All of the following steps are necessary to get CVS over SSH working:
-%\begin{itemize}
-%\item Download all components of the Putty suite and put them in a directory.
-%Add that directory to the PATH.
-%
-%\item Run puttygen to create a key pair. Then save the private key in a file,
-%say \t{C:/Necula/.ssh/putty\_private}. Copy the public key that puttygen
-%displays and save it to a file,  say \t{C:/Necula/.ssh/putty\_public}.
-%
-%\item Setup pageant (putty ssh-agent): Add a shortcut to the following command
-%line (add/change paths as necessary) in your startup folder:
-%
-%\begin{verbatim}
-%      pageant.exe  C:\Necula\.ssh\putty_private
-%\end{verbatim}
-%
-% or equivalently remember to run the above command every time you log in on
-%the Windows machine before you try to use cvs. 
-%
-%\item Add your public key in the "\t{authorized\_keys}" file on the CVS server:
-%   One way to do this is to use the following command line:
-%
-%\begin{verbatim}
-%       plink -ssh -pw your-password username@cvs-host "cat >> ~/.ssh/authorized_keys" <  C:\Necula\.ssh\putty_public
-%\end{verbatim}
-%  
-%   This appends your identity.pub file to \t{\home{}/.ssh/authorized\_keys}
-%   file on the server. You may do this in any other way you like. You {\bf
-%   have} to type your password on the command line if you do it this way,
-%   though.
-%
-%\item Create a "session profile" in putty for the CVS server:
-%  \begin{itemize}
-%  \item Start putty to see the configuration screen with a category tree on
-%   the left 
-%  \item Session category: fill in the hostname (brooksie) and protocol (SSH) 
-%  \item Connection category: Fill in the auto-login-username field
-%  \item Connection/SSH category: Check "allow agent forwarding"
-%  \item Session category: Save this session under a name (say, "brooksie")
-%  \end{itemize}
-%
-%
-%\item Test your session:
-%  \begin{itemize}
-%  \item Start pageant if its not already running. It should ask you for a
-%    password for your private key (identity). 
-%  \item Execute the ls command on the server:
-%
-%\begin{verbatim}
-%             plink @brooksie "ls -a"
-%\end{verbatim}
-%
-%     The command should execute without asking for a password and return to the 
-%     windows prompt after executing "ls -a"
-%
-%   \item Also, the command-line
-%\begin{verbatim}
-%           putty @brooksie
-%\end{verbatim}
-%     should log you in directly now.
-%  \end{itemize}
-%
-%\item Set the environment variables on your Windows machine. Note that these
-%are different than the usual UNIX settings. The @brooksie part means "use the
-%brooksie session from putty"
-%
-%\begin{verbatim}
-%       CVSROOT=:ext:@brooksie:/home/cvs-repository
-%       CVS_RSH=plink
-%\end{verbatim}
-%
-%\item At this point you should be able to run cvs:
-%
-%\begin{verbatim}
-%      cvs checkout cil
-%\end{verbatim}
-%
-%\item If you have previously been using cvs in pserver mode, cvs might have
-%created CVS/Root files in all subdirectories under its control. This file
-%simply stores the value of the CVSROOT environment variable when you had
-%checked-out the project for the first time. If CVS finds this file, it seems
-%to ignore the environment CVSROOT variable and as a result, might be using
-%pserver mode without letting you know.
-%   
-%   A solution is to delete all the CVS/Root files.
-%
-%   Another symptom of the CVS/Root problem is the following error message:
-%   cvs checkout: warning: unrecognized response `SSH-1.5-1.2.26' from cvs server
-%   cvs checkout: warning: unrecognized response `Protocol mismatch.' from cvs	
-%   server
-%
-%   Again, deleting the CVS/Root files should work.
-%
-%
-%(Send corrections/comments/questions to \mailto{ab@amanb.net})
-%\end{itemize}
+\end{document}

@@ -2762,8 +2762,18 @@ and doExp (isconst: bool)    (* In a constant *)
           
     | A.BINARY((A.AND|A.OR), e1, e2) -> begin
         let ce = doCondExp isconst e in
+        (* We must normalize the result to 0 or 1 *)
         match ce with
-          CEExp (se, e) -> finishExp se e intType
+          CEExp (se, Const(CInt64(i, _, _))) -> 
+            finishExp se (if i == Int64.zero then zero else one) intType
+        | CEExp (se, e) ->
+            let e' = 
+              let te = typeOf e in
+              let _, zte = castTo intType te zero in
+              BinOp((if isPointerType te then NeP else Ne),
+                    e, zte, te)
+            in
+            finishExp se e' intType
         | _ -> 
             let tmp = var (newTempVar intType) in
             finishExp (compileCondExp ce
@@ -3047,7 +3057,8 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
   let doArithmetic () = 
     let tres = arithmeticConversion t1 t2 in
     (* Keep the operator since it is arithmetic *)
-    tres, constFoldBinOp false bop (doCastT e1 t1 tres) (doCastT e2 t2 tres) tres
+    tres, 
+    constFoldBinOp false bop (doCastT e1 t1 tres) (doCastT e2 t2 tres) tres
   in
   let doArithmeticComp () = 
     let tres = arithmeticConversion t1 t2 in
@@ -3102,11 +3113,14 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
       when isArithmeticType t1 && isArithmeticType t2 -> 
         doArithmeticComp ()
   | PlusA when isPointerType t1 && isIntegralType t2 -> 
-      t1, constFoldBinOp false PlusPI e1 (doCastT e2 t2 (integralPromotion t2)) t1
+      t1, 
+      constFoldBinOp false PlusPI e1 (doCastT e2 t2 (integralPromotion t2)) t1
   | PlusA when isIntegralType t1 && isPointerType t2 -> 
-      t2, constFoldBinOp false PlusPI e2 (doCastT e1 t1 (integralPromotion t1)) t2
+      t2, 
+      constFoldBinOp false PlusPI e2 (doCastT e1 t1 (integralPromotion t1)) t2
   | MinusA when isPointerType t1 && isIntegralType t2 -> 
-      t1, constFoldBinOp false MinusPI e1 (doCastT e2 t2 (integralPromotion t2)) t1
+      t1, 
+      constFoldBinOp false MinusPI e1 (doCastT e2 t2 (integralPromotion t2)) t1
   | (MinusA|Le|Lt|Ge|Gt|Eq|Ne) when isPointerType t1 && isPointerType t2 ->
       pointerComparison e1 t1 e2 t2
   | (Eq|Ne) when isPointerType t1 && isZero e2 -> 
