@@ -713,7 +713,8 @@ sub link {
         if (!defined($ENV{CILLY_DONT_LINK_AFTER_MERGE})) {
           if($self->{VERBOSE}) { print STDERR "Linking into $dest\n"; }
           # Not merging. Regular linking.
-          return $self->link_after_cil($psrcs, $dest, $ppargs, $ccargs, $ldargs);
+          return $self->link_after_cil($psrcs, $dest, 
+                                       $ppargs, $ccargs, $ldargs);
         }
         else {
           return 0;   # sm: is this value used??
@@ -1434,7 +1435,7 @@ sub new {
       CPP => ($::docxx ? $::cxx : $::cc) . " -D_GNUCC -E ",
       DEFARG  => "-D",
       INCARG => "-I",
-      DEBUGARG => "-g",
+      DEBUGARG => "-g -ggdb",
       OPTIMARG => "-O4",
       CPROFILEARG => "-pg ",
       LPROFILEARG => "-pg ",
@@ -1467,6 +1468,8 @@ sub new {
                                    push @{$stub->{CCARGS}}, $_[1]; }},
             "-o" => { ONEMORE => 1, TYPE => 'OUT' },
             "-p" => { TYPE => 'LINKCC' },
+            "-pg" => { TYPE => 'LINKCC' },
+            "-a" => { TYPE => 'LINKCC' },
             "-W" => { TYPE => 'CC' },
             "-g" => { RUN => sub { push @{$stub->{CCARGS}}, $_[1];
                                    push @{$stub->{LINKARGS}}, $_[1]; }},

@@ -2390,7 +2390,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         proto ++ body
           
     | GType (typ, l) ->
-        self#pLineDirective l ++
+        self#pLineDirective ~forcefile:true l ++
           text "typedef "
           ++ (self#pType (Some (text typ.tname)) () typ.ttype)
           ++ chr ';'
@@ -2417,7 +2417,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           if comp.cstruct then "struct", "str", "uct"
           else "union",  "uni", "on"
         in
-        self#pLineDirective l ++
+        self#pLineDirective ~forcefile:true l ++
           text su1 ++ (align ++ text su2 ++ chr ' ' ++ text n
                          ++ text " {" ++ line
                          ++ ((docList line (self#pFieldDecl ())) () 
@@ -2431,7 +2431,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           text (compFullName comp) ++ text ";"
 
     | GVar (vi, io, l) ->
-        self#pLineDirective l ++
+        self#pLineDirective ~forcefile:true l ++
           self#pVDecl () vi
           ++ chr ' '
           ++ (match io with
@@ -2521,7 +2521,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
              (self#pLineDirective l) ++ (self#pVDecl () fdec.svar) 
                ++ chr ';' ++ line
            else nil in
-         fprint out 80 (proto ++ (self#pLineDirective l));
+         fprint out 80 (proto ++ (self#pLineDirective ~forcefile:true l));
          (* Temporarily remove the function attributes *)
          fdec.svar.vattr <- [];
          fprint out 80 (self#pFunDecl () fdec);               
@@ -2529,7 +2529,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
      | GVar (vi, Some i, l) -> 
          fprint out 80 
-           (self#pLineDirective l ++
+           (self#pLineDirective ~forcefile:true l ++
               self#pVDecl () vi
               ++ text " = " 
               ++ (let islong = 
