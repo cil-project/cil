@@ -237,15 +237,81 @@ and splitNameForAlpha (lookupname: string) : (string * string * int) =
 
 (** Handling of types and tag definitions *)
 
-
 (* Collect the type and tag definitions in a file. For each definition, keep 
  * its kind, its original name, a specifier and a name. If the kind is EType 
  * then the specifier and name are as given by the TYPEDEF. If the kinds is a 
- * tag kind then the name ie empty and the specifier has one element which is 
+ * tag kind then the name is empty and the specifier has one element which is 
  * the definition of the tag *)
 type typeTagDef = envKind * string * specifier * name * cabsloc
 let fileTypeTags: (envKind * string, specifier * name * cabsloc) H.t 
     = H.create 53
+
+(* Put some effort into replacing type names with types. But since we can 
+ * easily get confused in the presence of attributes, do it only when it is 
+ * easy *)
+let debugApplyNames = false
+let rec applyNamesToSpecName 
+          (s: specifier) 
+          (((ns, dt, al) as nm) : name) : specifier * name = 
+    (* Go through the specifiers and see if you find a defined type. Raise 
+     * Not_found if cannot make the change. Whether or not this is possible 
+     * does not depend on nm *)
+    let rec loopSpec = function
+        [] -> [], nm
+      | (SpecType (Tnamed s)) :: rests -> begin
+          (* Find how is this type defined *)
+          let sdef, (_, tdt, ta), _ = 
+            H.find fileTypeTags (EType, s) in  (* raises Not_found *)
+          (* We don't like attributes in sdef *)
+          if ta <> [] || List.exists (function SpecAttr _ -> true 
+            | _ -> false) sdef then 
+            begin
+              if debugApplyNames then
+                ignore (E.log "applyNames: not replacing %s because it has attributes"
+                          s);
+              raise Not_found;
+            end;
+          (* Plug the dt instead of JUSTBASE in ndef, but only there are no 
+            * attributes modifying JUSTBASE *)
+          let rec plug (hasattr: bool) = function
+              JUSTBASE -> (if hasattr then raise Not_found); dt
+            | PARENTYPE (prea, tdt, posta) -> 
+                PARENTYPE (prea, plug (prea <> [] || posta <> []) tdt, posta)
+            | ARRAY(tdt, e) -> ARRAY(plug false tdt, e)
+            | PTR (al, tdt) -> PTR (al, plug (al <> []) tdt)
+            | PROTO (dt, args, isva) -> PROTO (plug false dt, args, isva)
+          in
+          if debugApplyNames then
+            ignore (E.log "Applied name %s\n" s);
+          (List.filter (function SpecTypedef -> false | _ -> true) sdef) 
+          @ rests, (ns, plug false tdt, al)
+      end
+          
+      | s :: rests -> 
+          let rests', n' = loopSpec rests in
+          s :: rests', n'
+    in
+    try
+      loopSpec s
+    with Not_found -> 
+      s, nm
+        
+let applyNamesToFieldGroup ((s, nl) as fgl) = 
+  match nl with 
+  | [] -> fgl
+        (* Do the first name and get the changed s' *)
+  | (nm, e) :: restnl ->
+      let s', nm' = applyNamesToSpecName s nm in
+      let restnl' = 
+        List.map 
+          (fun (nm, e) -> 
+            let s'', nm'' = applyNamesToSpecName s nm in
+            assert (s'' = s');
+            (nm'', e)) 
+          restnl
+      in
+      (s', (nm', e) :: restnl')
+
   
 class collectTypeTagDefsClass  : cabsVisitor = object (self)
   inherit nopCabsVisitor
@@ -262,7 +328,9 @@ class collectTypeTagDefsClass  : cabsVisitor = object (self)
       match d with 
       | TYPEDEF ((s, nl), l) -> 
           List.iter (fun ((n, _, _) as nm) -> 
-            H.add fileTypeTags (EType, n) (s, nm, !visitorLocation)) nl;
+            let s', nm' = applyNamesToSpecName s nm in
+(*            ignore (E.log "Adding typedef of %s to fileTypeTags\n" n); *)
+            H.add fileTypeTags (EType, n) (s', nm', !visitorLocation)) nl;
           DoChildren
             
       | _ -> DoChildren
@@ -276,12 +344,14 @@ class collectTypeTagDefsClass  : cabsVisitor = object (self)
     (match ts with 
       Tstruct (n, Some flds) -> 
         if n <> "" then 
+          let flds' = List.map applyNamesToFieldGroup flds in
           H.add fileTypeTags (EStruct, n) 
-            ([SpecType ts], emptyName, !visitorLocation)
+            ([SpecType (Tstruct(n, Some flds'))], emptyName, !visitorLocation)
     | Tunion (n, Some flds) -> 
         if n <> "" then
+          let flds' = List.map applyNamesToFieldGroup flds in
           H.add fileTypeTags (EUnion, n) 
-            ([SpecType ts], emptyName, !visitorLocation)
+            ([SpecType (Tunion(n, Some flds'))], emptyName, !visitorLocation)
     | Tenum (n, Some eil) ->
         if n <> "" then   
           H.add fileTypeTags (EEnum, n) 
@@ -295,10 +365,7 @@ let collectTypeTagDefs = new collectTypeTagDefsClass
 
 
 
-(* Put some effort into replacing type names with types. But since we can 
- * easily get confused in the presence of attributes, do it only when it is 
- * easy *)
-let applyTypeNames ((k:envKind), (n:string)) (s, n, l) = ()
+
 
 (* Equality constraints *)
 type eqConstraint = envKind * string * string
@@ -361,6 +428,7 @@ and compareFieldGroupLists acc fgl1 fgl2 =
 let globalTypeTags : (envKind * string, typeTagDef) H.t = H.create 111
 
 let dumpGlobalTypeTags (msg: string) = 
+  Cprint.force_new_line ();
   let old = !Cprint.out in
   Cprint.out := stderr;
   Cprint.print msg;
@@ -371,6 +439,23 @@ let dumpGlobalTypeTags (msg: string) =
     Cprint.print_name nm;
     Cprint.print ")\n")
     globalTypeTags;
+  Cprint.force_new_line ();
+  flush !Cprint.out;
+  Cprint.out := old
+  
+let dumpFileTypeTags (msg: string) = 
+  Cprint.force_new_line ();
+  let old = !Cprint.out in
+  Cprint.out := stderr;
+  Cprint.print msg;
+  H.iter (fun (k, n) (specs, nm, _) -> 
+    Cprint.print ("Node(" ^ ek2text k ^ "," ^ n ^ ") -> ");
+    Cprint.print_specifiers specs;
+    Cprint.print ",";
+    Cprint.print_name nm;
+    Cprint.print ")\n")
+    fileTypeTags;
+  Cprint.force_new_line ();
   flush !Cprint.out;
   Cprint.out := old
   
@@ -480,8 +565,7 @@ let findTypeTagNames (f: Cabs.file) =
   H.clear fileTypeTags;
   (* Collect the type and tags defined in this file *)
   ignore (visitCabsFile collectTypeTagDefs f);
-  (* Apply type names when possible *)
-  H.iter applyTypeNames fileTypeTags;
+  if debugTypes then dumpFileTypeTags "fileTypeTags before collect:\n";
   (* Now collect and solve the constraint graph *)
   constructConstraintGraph ();
   (* Now assign names to types and tags *)
@@ -530,7 +614,7 @@ let findTypeTagNames (f: Cabs.file) =
         H.add globalTypeTags defkn (defk, defn', defspec', defname', defloc)
       end)
     fileTypeTags;
-  if debugTypes then dumpGlobalTypeTags "globalTypeTags"
+  if debugTypes then dumpGlobalTypeTags "globalTypeTags:\n"
   
 
 
