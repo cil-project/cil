@@ -5,6 +5,12 @@
 
 #define ISC_FORMAT_PRINTF(fmt, args) __attribute__((__format__(__printf__, fmt, args)))
 
+struct mystruct {
+  int   i;
+  char *s;
+};
+
+#define CCURED_PRINTF(fmt) __attribute__((__boxvararg__(sizeof(struct mystruct))))
 typedef struct dns_rdatacallbacks {
         /*
          * dns_load_master calls this when it has rdatasets to commit.
@@ -13,12 +19,14 @@ typedef struct dns_rdatacallbacks {
         /*
          * dns_load_master / dns_rdata_fromtext call this to issue a error.
          */
-        void    (*error)(struct dns_rdatacallbacks *, const char * , ...) 
+        void    (CCURED_PRINTF(3) *error)(struct dns_rdatacallbacks *,
+                                          const char * , ...) 
           ISC_FORMAT_PRINTF(2,3) ; 
         /*
          * dns_load_master / dns_rdata_fromtext call this to issue a warning.
          */
-        void    (*warn)(struct dns_rdatacallbacks *, const char * , ...) 
+        void    (CCURED_PRINTF(3) *warn)(struct dns_rdatacallbacks *,
+                                         const char * , ...) 
           ISC_FORMAT_PRINTF(2,3) ; 
 
         /*
