@@ -545,6 +545,12 @@ and exp =
 
   | SizeOfE    of exp                   
     (** sizeof(<expression>) *)
+
+  | SizeOfStr  of string
+    (** sizeof(string_literal). We separate this case out because this is the 
+      * only instance in which a string literal should not be treated as 
+      * having type pointer to character. *)
+
   | AlignOf    of typ                   
     (** This corresponds to the GCC __alignof_. Has [unsigned int] type *)
   | AlignOfE   of exp 
@@ -2084,9 +2090,9 @@ exception SizeOfError of typ
  * call {!Cil.initCIL}. Remember that on GCC sizeof(void) is 1! *)
 val bitsSizeOf: typ -> int
 
-(** The size of a type, in bytes. Does not raises {!Cil.SizeOfError} but uses 
- * instead a sizeof expression. This function is architecture dependent, so 
- * you should only call this after you call {!Cil.initCIL}. *)
+(* The size of a type, in bytes. Returns a constant expression or a "sizeof" 
+ * expression if it cannot compute the size. This function is architecture 
+ * dependent, so you should only call this after you call {!Cil.initCIL}.  *)
 val sizeOf: typ -> exp
 
 (** The minimum alignment (in bytes) for a type. This function is 

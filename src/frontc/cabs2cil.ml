@@ -2538,7 +2538,7 @@ and doExp (isconst: bool)    (* In a constant *)
     match e with
     | A.NOTHING when what = ADrop -> finishExp empty (integer 0) intType
     | A.NOTHING ->
-        let res = Const(CStr("exp_nothing")) in
+        let res = StartOfString "exp_nothing" in
         finishExp empty res (typeOf res)
 
     (* Do the potential lvalues first *)
@@ -2706,7 +2706,7 @@ and doExp (isconst: bool)    (* In a constant *)
                   s
               with Not_found -> s
             in
-            let res = Const(CStr s') in
+            let res = StartOfString s' in
             finishExp empty res (typeOf res)
               
         | A.CONST_CHAR s ->
@@ -2736,7 +2736,7 @@ and doExp (isconst: bool)    (* In a constant *)
             with e -> begin
               ignore (E.log "float_of_string %s (%s)\n" str 
                         (Printexc.to_string e));
-              let res = Const(CStr("booo CONS_FLOAT")) in
+              let res = StartOfString "booo CONS_FLOAT" in
               finishExp empty res (typeOf res)
             end
         end
@@ -2744,7 +2744,16 @@ and doExp (isconst: bool)    (* In a constant *)
 
     | A.TYPE_SIZEOF (bt, dt) ->
         let typ = doOnlyType bt dt in
-        finishExp empty (SizeOf(typ)) uintType
+        finishExp empty (SizeOf(typ)) !typeOfSizeOf
+
+      (* Intercept the sizeof("string") *)
+    | A.EXPR_SIZEOF (A.CONSTANT (A.CONST_STRING s)) -> begin
+        (* Process the string first *)
+        match doExp isconst (A.CONSTANT (A.CONST_STRING s)) (AExp None) with 
+          _, StartOfString s, _ -> 
+            finishExp empty (SizeOfStr s) !typeOfSizeOf
+        | _ -> E.s (bug "cabs2cil: sizeOfStr")
+    end
 
     | A.EXPR_SIZEOF e ->
         (* Allow non-constants in sizeof *)
@@ -2759,7 +2768,7 @@ and doExp (isconst: bool)    (* In a constant *)
                                          * array we must drop the StartOf  *)
             StartOf(lv) -> SizeOfE (Lval(lv))
 
-          | StartOfString s -> SizeOfE (Const(CStr s))
+          | StartOfString s -> SizeOfStr s
 
                 (* Maybe we are taking the sizeof a variable-sized array *)
           | Lval (Var vi, NoOffset) -> begin
@@ -2769,7 +2778,7 @@ and doExp (isconst: bool)    (* In a constant *)
           end
           | _ -> SizeOfE e'
         in
-        finishExp empty size uintType
+        finishExp empty size !typeOfSizeOf
 
     | A.TYPE_ALIGNOF (bt, dt) ->
         let typ = doOnlyType bt dt in
@@ -2786,7 +2795,7 @@ and doExp (isconst: bool)    (* In a constant *)
           match e' with                 (* If we are taking the sizeof an
                                          * array we must drop the StartOf  *)
             StartOf(lv) -> Lval(lv)
-          | StartOfString s -> Const(CStr s)
+(*          | StartOfString s -> Const(CStr s) *)
           | _ -> e'
         in
         finishExp empty (AlignOfE(e'')) uintType

@@ -24,6 +24,8 @@ int main()
   //This fails because the CIL conversion drops the char* cast.
   if( sizeof((char*)"Hello, world.") != 4 )  E(5);
 
+  printf("%d\n", sizeof("ertewrtert"));
+  
   SUCCESS;
 }
 

@@ -467,6 +467,8 @@ and checkExp (isconst: bool) (e: exp) : typ =
           let te = checkExp false e in
           checkExp isconst (SizeOf(te))
 
+      | SizeOfStr s -> uintType
+
       | AlignOf(t) -> begin
           (* Sizeof cannot be applied to certain types *)
           checkType t CTSizeof;

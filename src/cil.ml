@@ -395,6 +395,11 @@ and exp =
                                          * change types *)
 
   | SizeOfE    of exp                   (** sizeof(<expression>) *)
+  | SizeOfStr  of string
+    (** sizeof(string_literal). We separate this case out because this is the 
+      * only instance in which a string literal should not be treated as 
+      * having type pointer to character. *)
+
   | AlignOf    of typ                   (** Has [unsigned int] type *)
   | AlignOfE   of exp 
 
@@ -1181,6 +1186,7 @@ let wcharType = ref voidType
 
 (* An integer type that is the type of sizeof. Initialized by initCIL *)
 let typeOfSizeOf = ref voidType
+let kindOfSizeOf = ref IUInt
 
 (** Returns true if and only if the given integer type is signed. *)
 let isSigned = function
@@ -1608,7 +1614,7 @@ let getParenthLevel = function
                                         (* Lvals *)
   | Lval(Mem _ , _) -> 20                   
   | Lval(Var _, (Field _|Index _)) -> 20
-  | SizeOf _ | SizeOfE _ -> 20
+  | SizeOf _ | SizeOfE _ | SizeOfStr _ -> 20
   | AlignOf _ | AlignOfE _ -> 20
 
   | Lval(Var _, NoOffset) -> 0        (* Plain variables *)
@@ -1773,7 +1779,7 @@ let rec typeOf (e: exp) : typ =
 
   | Const(CReal (_, fk, _)) -> TFloat(fk, [])
   | Lval(lv) -> typeOfLval lv
-  | SizeOf _ | SizeOfE _ -> !typeOfSizeOf
+  | SizeOf _ | SizeOfE _ | SizeOfStr _ -> !typeOfSizeOf
   | AlignOf _ | AlignOfE _ -> !typeOfSizeOf
   | UnOp (_, _, t) -> t
   | BinOp (_, _, _, t) -> t
@@ -1994,6 +2000,9 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         text "sizeof(" ++ self#pType None () t ++ chr ')'
     | SizeOfE (e) -> 
         text "sizeof(" ++ self#pExp () e ++ chr ')'
+    | SizeOfStr s -> 
+        text "sizeof(" ++ d_const () (CStr s) ++ chr ')'
+
     | AlignOf (t) -> 
         text "__alignof__(" ++ self#pType None () t ++ chr ')'
     | AlignOfE (e) -> 
@@ -3121,7 +3130,9 @@ class plainCilPrinterClass =
   | SizeOf (t) -> 
       text "sizeof(" ++ self#pType None () t ++ chr ')'
   | SizeOfE (e) -> 
-      text "sizeof(" ++ self#pExp () e ++ chr ')'
+      text "sizeofE(" ++ self#pExp () e ++ chr ')'
+  | SizeOfStr (s) -> 
+      text "sizeofStr(" ++ d_const () (CStr s) ++ chr ')'
   | AlignOf (t) -> 
       text "__alignof__(" ++ self#pType None () t ++ chr ')'
   | AlignOfE (e) -> 
@@ -3466,6 +3477,8 @@ and childrenExp (vis: cilVisitor) (e: exp) : exp =
   | SizeOfE e1 -> 
       let e1' = vExp e1 in
       if e1' != e1 then SizeOfE e1' else e
+  | SizeOfStr s -> e
+
   | AlignOf t -> 
       let t' = vTyp t in
       if t' != t then AlignOf t' else e
@@ -4155,7 +4168,7 @@ let rec isConstant = function
   | Lval (Var vi, NoOffset) -> 
       (vi.vglob && isArrayType vi.vtype || isFunctionType vi.vtype)
   | Lval _ -> false
-  | SizeOf _ | SizeOfE _ | AlignOf _ | AlignOfE _ -> true
+  | SizeOf _ | SizeOfE _ | SizeOfStr _ | AlignOf _ | AlignOfE _ -> true
   | CastE (_, e) -> isConstant e
   | AddrOf (Var vi, off) | StartOf (Var vi, off)
         -> vi.vglob && isConstantOff off
@@ -4619,12 +4632,12 @@ and constFold (machdep: bool) (e: exp) : exp =
   | SizeOf t when machdep -> begin
       try
         let bs = bitsSizeOf t in
-        kinteger IUInt (bs / 8)
+        kinteger !kindOfSizeOf (bs / 8)
       with SizeOfError _ -> e
   end
   | SizeOfE e when machdep -> constFold machdep (SizeOf (typeOf e))
-
-  | AlignOf t when machdep -> kinteger IUInt (alignOf_int t)
+  | SizeOfStr s when machdep -> kinteger !kindOfSizeOf (1 + String.length s)
+  | AlignOf t when machdep -> kinteger !kindOfSizeOf (alignOf_int t)
   | AlignOfE e when machdep -> constFold machdep (AlignOf (typeOf e))
 
   | CastE (t, e) -> begin
@@ -5306,7 +5319,8 @@ let initCIL () =
       E.s(E.unimp "initCIL: cannot find the right ikind for size %d\n" sz)
   in      
   upointType := TInt(findIkind true !theMachine.M.sizeof_ptr, []);
-  typeOfSizeOf := TInt(findIkind true !theMachine.M.sizeof_sizeof, []);
+  kindOfSizeOf := findIkind true !theMachine.M.sizeof_sizeof;
+  typeOfSizeOf := TInt(!kindOfSizeOf, []);
   wcharType := TInt(findIkind false !theMachine.M.sizeof_wchar, []);
   nextGlobalVID := 1;
   nextCompinfoKey := 1
