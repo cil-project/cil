@@ -726,7 +726,12 @@ let instrumentProgram (f: file) : unit =
         Set (var startNodeStacks, StartOf (var startNodeStacksArray),
              locUnknown)
       in
-      let newStmt = mkStmt (Instr [addrsInstr; stacksInstr; initInstr]) in
+      let newStmt =
+        if List.length !startNodes = 0 then
+          mkStmtOneInstr initInstr
+        else
+          mkStmt (Instr [addrsInstr; stacksInstr; initInstr])
+      in
       fdec.sbody.bstmts <- newStmt :: fdec.sbody.bstmts;
       addCall mainNode (getFunctionNode initFun.vname) None
   | None ->
