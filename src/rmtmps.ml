@@ -5,7 +5,7 @@ open Pretty
 open Trace
 open Cil
 module H = Hashtbl
-
+module E = Errormsg
 
 (* COPIED FROM cil.ml *)
 (* the default visitor does nothing at each node, but does *)
@@ -138,8 +138,8 @@ class removeTempsVis (usedTypes : (typ,bool) H.t)
             (* sm: if I'd had this to begin with, it would have been
              * a little easier to track down the bug where I didn't
              * check the function return-value destination *)
-            (ignore (printf "WARNING: removing unused source variable %s\n"
-                            v.vname));
+            (ignore (E.warn "Removing unused source variable %s\n"
+                       v.vname));
           false   (* remove it *)
         end
         else

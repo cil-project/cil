@@ -497,12 +497,15 @@ ENGINE_OTHERS="$(CILDIR)/$(SAFEMAINLIB)"
 TRANSLF_OTHERS="$(CILDIR)/$(SAFEMAINLIB)"
 endif
 endif
+PCCSAFECC=$(SAFECC) --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) --combine \
+                    --keep=$(CILDIR)/test/PCCout \
+                    --nobox=pccbox
 pcc : defaulttarget
-	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.o
+#	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.o
 	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.exe
 	-rm $(PCCDIR)/bin/*.exe
 	make -C $(PCCDIR) \
-             CC="$(SAFECC) --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) --combine --keep=$(CILDIR)/test/PCCout $(CONLY)" \
+             CC="$(PCCSAFECC) $(CONLY)" \
              LD="$(SAFECC) $(MSLINK) --combine --keep=$(CILDIR)/test/PCCout" \
              USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
              COMPILER=$(PCCCOMP) \
@@ -1234,7 +1237,9 @@ ijpeg-noclean: defaulttarget mustbegcc
 
 #### SPEC95 gcc
 GCCDIR=$(SPECDIR)/126.gcc
-GCCSAFECC=$(SAFECC) --combine --keep=safeccout
+GCCSAFECC=$(SAFECC) --combine --keep=safeccout \
+                    --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)
+
 
 gccclean: 	
 	cd $(GCCDIR)/src; make clean
