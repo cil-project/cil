@@ -1848,8 +1848,9 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                       ++ unalign)
           ++ chr '}'
 
-  (* dump initializers *)
+  (* dump initializers to a file. *)
   method dInit (out: out_channel) (ind: int) (i: init) = 
+    (* Dump an array *)
     let dumpArray (bt: typ) (il: 'a list) (getelem: 'a -> init) = 
       let onALine = (* How many elements on a line *)
         match unrollType bt with TComp _ | TArray _ -> 1 | _ -> 4
@@ -3160,16 +3161,38 @@ and childrenInit (vis: cilVisitor) (i: init) : init =
       if e' != e then SingleInit e' else i
   | CompoundInit (t, initl) ->
       let t' = fTyp t in
+      (* Collect the new initializer list, in reverse. We prefer two 
+       * traversals to ensure tail-recursion. *)
+      let newinitl : (offset * init) list ref = ref [] in
+      (* Keep track whether the list has changed *)
+      let hasChanged = ref false in
       let doOneInit ((o, i) as oi) = 
         let o' = visitCilOffset vis o in
         let i' = fInit i in
-        if o' != o || i' != i then (o', i') else oi 
+        let newio = 
+          if o' != o || i' != i then 
+            begin hasChanged := true; (o', i') end else oi 
+        in
+        newinitl := newio :: !newinitl
       in
-      let initl' = mapNoCopy doOneInit initl in
+      List.iter doOneInit initl;
+      let initl' = if !hasChanged then List.rev !newinitl else initl in
       if t' != t || initl' != initl then CompoundInit (t', initl') else i
+
   | ArrayInit (bt, len, initl) ->
       let bt' = fTyp bt in
-      let initl' = mapNoCopy fInit initl in
+      (* Collect the new initializer list, in reverse. We prefer two 
+       * traversals to ensure tail-recursion. *)
+      let newinitl : init list ref = ref [] in
+      (* Keep track whether the list has changed *)
+      let hasChanged = ref false in
+      List.iter (fun i -> let i' = fInit i in
+                          let i'' = 
+                            if i' != i then 
+                              begin hasChanged := true; i' end else i
+                          in
+                          newinitl := i'' :: !newinitl) initl;
+      let initl' = if !hasChanged then List.rev !newinitl else initl in
       if bt' != bt || initl' != initl then ArrayInit(bt', len, initl') else i
 
   
