@@ -45,8 +45,9 @@ include Makefile.ocaml
 ##### Settings that depend on the computer we are on
 ##### Make sure the COMPUTERNAME environment variable is set
 ifeq ($(COMPUTERNAME), RAW)   # George's workstation
-SAFECCDIR=C:/Necula/SafeC
-PCCDIR=../../Source/Touchstone/PCC
+BASEDIR=C:/Necula
+SAFECCDIR=$(BASEDIR)/SafeC
+PCCDIR=$(BASEDIR)/Source/Touchstone/PCC
 endif
 ifeq ($(COMPUTERNAME), FETA) # George's home machine
 SAFECCDIR=D:/Necula/SafeC
@@ -63,12 +64,6 @@ export EXTRAARGS
 export BOX
 ifndef _GNUCC
 _MSVC = 1			# Use the MSVC compiler by default
-endif
-
-ifdef BOX
-SRCEXT=box
-else
-SRCEXT=cil
 endif
 
 ifdef _GNUCC
@@ -109,12 +104,21 @@ CCL += /FI safec.h
 endif
 
 
-SAFECC=perl $(SAFECCDIR)/cil/lib/safecc.pl --cabs --cil
+SAFECC=perl $(SAFECCDIR)/cil/lib/safecc.pl
+ifndef NOCABS
+SAFECC+= --cabs
+endif
+ifndef NOCIL
+SAFECC+= --cil
+endif	
 ifdef BOX
 SAFECC+= --box
 endif
 ifdef RELEASE
 SAFECC+= --release
+endif
+ifdef TV
+SAFECC+= --tv
 endif
 
 
@@ -135,30 +139,29 @@ PCCCOMP=_MSVC
 endif
 
 testpcc/% : $(PCCDIR)/src/%.c $(EXECUTABLE)$(EXE) 
-	$(SAFECC) --keep=$(PCCTEST) $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) $(CONLY) \
+	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)x86_WIN32 \
+                  $(DEF)$(PCCTYPE) $(CONLY) \
                   $(PCCDIR)/src/$*.c \
-                  $(OUT)$(PCCTEST)/$(notdir $*).o
+                  $(OUT)$(notdir $*).o
 
-HASHTESTMAIN=test/small1/hashtest.c
-hashtest: $(HASHTESTMAIN) $(EXECUTABLE)$(EXE)
+hashtest: test/small1/hashtest.c $(EXECUTABLE)$(EXE)
 	rm -f $(PCCTEST)/hashtest.exe
-	$(SAFECC) --keep=$(PCCTEST) $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) \
+	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) \
                  $(DOOPT) \
                  $(INC)$(PCCDIR)/src \
                  $(PCCDIR)/src/hash.c \
-                 $(HASHTESTMAIN) \
-                 $(EXEOUT)$(PCCTEST)/hashtest.exe
+                 ../small1/hashtest.c \
+                 $(EXEOUT)hashtest.exe
 	$(PCCTEST)/hashtest.exe
 
-RBTESTMAIN=test/small1/rbtest.c
-rbtest: $(RBTESTMAIN) $(EXECUTABLE)$(EXE)
-	rm -f $(PCCTEST)/hashtest.exe
-	$(SAFECC) --keep=$(PCCTEST) $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) \
+rbtest: test/small1/rbtest.c $(EXECUTABLE)$(EXE)
+	rm -f $(PCCTEST)/rbtest.exe
+	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) \
                  $(DOOPT) \
                  $(INC)$(PCCDIR)/src \
                  $(PCCDIR)/src/redblack.c \
-                 $(RBTESTMAIN) \
-                 $(EXEOUT)$(PCCTEST)/rbtest.exe
+                 ../small1/rbtest.c \
+                 $(EXEOUT)rbtest.exe
 	$(PCCTEST)/rbtest.exe
 
 testallpcc: $(EXECUTABLE)$(EXE)
@@ -176,7 +179,7 @@ runpcc:
 ############ Small tests
 SMALL1=test/small1
 test/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE)
-	$(SAFECC) $(SMALL1)/$*.c $(CONLY) $(DOOPT) $(ASMONLY)$(SMALL1)/$*.s
+	cd $(SMALL1); $(SAFECC) $*.c $(CONLY) $(DOOPT) $(ASMONLY)$*.s
 
 
 ### Generic test
@@ -189,8 +192,7 @@ testdir/% : $(EXECUTABLE)$(EXE)
 
 ################## Linux device drivers
 testlinux/% : $(EXECUTABLE)$(EXE) test/linux/%.cpp
-	$(SAFECC) -o test/linux/$*.o \
-                  test/linux/$*.cpp 
+	cd test/linux; $(SAFECC) -o $*.o $*.cpp 
 
 testqp : testlinux/qpmouse
 testserial: testlinux/generic_serial
