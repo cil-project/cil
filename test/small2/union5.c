@@ -26,7 +26,7 @@ union supp {
 
 int main() {
   union supp *p;
-  if(! HAS_KIND(p, "SAFE")) E(1);
+  if(! HAS_KIND(p, SAFE_KIND)) E(1);
 
   SUCCESS;
 }

@@ -68,7 +68,8 @@ extern long double __builtin_fabsl(long double);
   #pragma boxvararg_printf("fprintf", 2)
 
   #pragma boxpoly("ccured_kind_of")
-  char *  ccured_kind_of(void *);
+  int  ccured_kind_of(void *);
+
   #pragma boxalloc("malloc", nozero, sizein(1))
   #pragma boxpoly("free")
   #pragma boxalloc("alloca", nozero, sizein(1))

@@ -301,6 +301,8 @@ $TEST->add3Tests("testrun/polyapply1");
 $TEST->add3Tests("testrun/polyapply2");
 $TEST->add3Tests("testrun/polyapply3");
 $TEST->add3Tests("testrun/polyrec");
+$TEST->addTests("testrun/polylist", "", ['inferbox']);
+$TEST->addTests("testrun/polystruct", "", ['inferbox']);
 $TEST->add3Tests("testrun/label1");
 $TEST->add3Tests("testrun/label2");
 $TEST->add3Tests("testrun/label3");

@@ -22,7 +22,7 @@ int main() {
   {
     // ERROR(2):Stack address
     int *t = &local; t += (&global - t);
-    if(! HAS_KIND(t, "SEQ")) E(2);
+    if(! HAS_KIND(t, SEQ_KIND)) E(2);
     gptr = t; // Should fail
     local = *(gptr + (&local - gptr));
   }
@@ -33,7 +33,7 @@ int main() {
   {
     // ERROR(3):Stack address
     int *t = (int**)&local; // t is WILD now
-    if(! HAS_KIND(t, "WILD")) E(3);
+    if(! HAS_KIND(t, WILD_KIND)) E(3);
     t += (&global - t); gptr = t; // Should fail
   }
 #endif
@@ -45,7 +45,7 @@ int main() {
     int *f = &local;
     int *s = &local; s += (&global - s); // s is SEQ
     f ++; // f has type FSEQ
-    if(! HAS_KIND(f, "FSEQ")) E(4);
+    if(! HAS_KIND(f, FSEQ_KIND)) E(4);
     f = s; //Actually we fail here because s is below its home
     gptr = f; // Should fail
   }
