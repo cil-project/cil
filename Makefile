@@ -2362,3 +2362,8 @@ tort/compat/%: $(CTORTDIR)/compat/%.c mustbemanju mustbegcc
 	$(CTORTDIR)/compat/a.exe
 
 
+# ping, from netkit-base-0.17
+PINGDIR := $(CCUREDHOME)/test/ping
+
+ping:
+	cd $(PINGDIR); rm -f ping.o; make CC="$(CCURED) $(STANDARDPATCH)"

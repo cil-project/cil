@@ -1384,7 +1384,7 @@ let setTypeAttrs t a =
   | TFun (r, args, v, _) -> TFun(r,args,v,a)
 
 
-(* This stuff is to handle a GCC extension where you can request integers *)
+(* sm: This stuff is to handle a GCC extension where you can request integers *)
 (* of specific widths using the "mode" attribute syntax; for example:     *)
 (*   typedef int int8_t __attribute__ ((__mode__ (  __QI__ ))) ;          *)
 (* The cryptic "__QI__" defines int8_t to be 8 bits wide, instead of the  *)
@@ -1419,7 +1419,8 @@ begin
       | (IUInt, "__pointer__")-> TInt(IUInt, existAttrs)
       | (IUInt, "__DI__")     -> TInt(IULongLong, existAttrs)
 
-      | _ -> (ignore (error "GCC width mode applied to unexpected type, or unexpected mode")); t
+      | _ -> (ignore (error "GCC width mode %s applied to unexpected type, or unexpected mode"
+                            mode)); t
     end
   | _ -> (ignore (error "GCC width mode applied to unexpected type")); t
 end

@@ -117,6 +117,7 @@ extern long double __builtin_fabsl(long double);
   };
   #pragma cilnoremove("union printf_format")
 
+  // there's more of these in ccured_GNUCC.patch..
   #pragma boxvararg_printf("printf", 1)
   #pragma boxvararg_printf("vprintf", 1)      // sm: this fixes a problem with rbtest when rmtmps is disabled ...
   #pragma boxvararg_printf("fprintf", 2)
@@ -278,6 +279,16 @@ extern long double __builtin_fabsl(long double);
     return 0;
   }
   #pragma boxmodelof("execv_model", "execv")
+
+  // for ping; need a model so I get to write a wrapper, where
+  // I can emulate optarg as optarg_f
+  static inline int getopt_model(int argc, char **argv, char const *optstring)
+  {
+    // need length of argv
+    __endof(argv);
+    return 0;
+  }
+  #pragma boxmodelof("getopt_model", "getopt")
 
 #endif
 
