@@ -20,14 +20,21 @@ let lu = locUnknown
 let isSome = function Some _ -> true | _ -> false
 
 
-(**** Stuff that we use while converting to new CIL
+(**** Stuff that we use while converting to new CIL 
 let mkSet (lv:lval) (e: exp) : stmt = mkStmt (Instr [Set(lv, e), lu])
 let call lvo f args : stmt = mkStmt (Instr [Call(lvo,f,args), lu])
 let skip = mkEmptyStmt ()
 let mkAsm tmpls isvol outputs inputs clobs = 
       mkStmt (Instr [Asm(tmpls, isvol, outputs, inputs, clobs), lu])
-let mkInstr i l = mkStmt (Instr [(i, l)])
-*)  
+let mkInstr i l : stmt = mkStmt (Instr [(i, l)])
+let mkSeq (bl: stmt list) : stmt list = concatBlocks bl []
+let body2block (x: ostmt) : stmt list = 
+  match x with
+    Block b -> b
+  | Skip -> []
+  | _ -> E.s (E.unimp "body2block:")
+let block2body (x: stmt list) : ostmt = Block x
+*)
 
 (**** Stuff that we use with the old CIL *)
 type stmt = ostmt  
@@ -39,6 +46,9 @@ let mkAsm tmpls isvol outputs inputs clobs =
 let mkInstr i l = Instrs(i, l)
 let mkForIncr = mkForIncrO
 let mkFor = mkForO
+let body2block (x: ostmt) = [x]
+let block2body (x: ostmt list) : ostmt = mkSeq x
+
 
 (*** End stuff for old CIL *)
 
@@ -1913,7 +1923,7 @@ let checkMem (towrite: exp option)
                    ~first: zero
                    ~stopat: len
                    ~incr: one
-                   ~body: initone) :: acc)
+                   ~body: initone) @ acc)
         end
     end
 
@@ -2006,7 +2016,7 @@ let rec initForType
             (fun iter ->
               let doforarray (off: offset) (what: exp) (acc: stmt list) = 
                 mkForIncr iter zero l one 
-                  (doit (Field(a, Index (Lval(var iter), off))) what []) :: acc
+                  (doit (Field(a, Index (Lval(var iter), off))) what []) @ acc
               in
               let doaddrforarray (off: offset) = 
                 E.s (E.bug "OPEN arrays inside arrays ???") 
@@ -2054,7 +2064,7 @@ let rec initForType
           (fun iter -> 
             let doforarray (off: offset) (what: exp) (acc: stmt list) = 
               mkForIncr iter zero l one 
-                (doit (Index (Lval(var iter), off)) what []) :: acc
+                (doit (Index (Lval(var iter), off)) what []) @ acc
             in
             let doaddrforarray (off: offset) = 
               E.s (E.bug "OPEN arrays inside arrays ???") 
@@ -2101,7 +2111,7 @@ let initializeVar (withivar: (varinfo -> 'a) -> 'a) (* Allocate an iteration
           mkForIncr iter zero (doCast tagwords intType) one 
             [mkSet (Var v, Field(tfld, Index (Lval(var iter), NoOffset))) 
                 zero ]
-          ::
+          @
           acc
         else
           acc))
@@ -2174,7 +2184,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
                                         doCast tmpvar charPtrType, 
                                         integer 4, charPtrType))
                             ptrtype)
-    | _ -> Skip
+    | _ -> skip
   in
 
   (* Save the pointer value *)
@@ -2186,7 +2196,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
         let fptr, fbase, fendo = getFieldsOfFat vtype in
         (mkSet (Var vi, Field(fbase, NoOffset))
            (doCast tmpvar voidPtrType))
-    | _ -> Skip
+    | _ -> skip
   in
 
   (* Set the size if necessary *)
@@ -2198,7 +2208,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
                          mone, uintPtrType)), 
                NoOffset) 
           nrdatawords
-    | _ -> Skip
+    | _ -> skip
   in
 
   (* Now the remainder of the initialization *)
@@ -2225,7 +2235,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
               zero (* offset *) ] ::
           []  
         else
-          [Skip]
+          [skip]
     | N.Safe -> 
         (* Check that we have allocated enough for at least 1 elem. *)
         let check_enough = 
@@ -2266,14 +2276,15 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
         in
         savetheend ::
         mkFor 
-          ~start:Skip
+          ~start:[skip]
           ~guard:(BinOp(Le, BinOp(PlusA, 
                                   doCast tmpvar uintType, 
                                   SizeOf(ptrtype), uintType),
                         doCast theend uintType, intType))
-          ~next:(mkSet (var tmpp) 
-                   (BinOp(IndexPI, tmpvar, one, ptrtype)))
-          ~body:initone ::
+          ~next:[(mkSet (var tmpp) 
+                   (BinOp(IndexPI, tmpvar, one, ptrtype)))]
+          ~body:initone 
+        @
         (if k = N.FSeqN || k = N.SeqN then [putnullterm] else [])
 
     | N.String -> (* Allocate this as SeqN, with a null term *)
@@ -2290,13 +2301,13 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
       N.Seq | N.SeqN -> begin
         let fptr, fbase, fendo = getFieldsOfFat vtype in
         match fendo with
-          None -> Skip
+          None -> skip
         | Some fend -> mkSet (Var vi, Field(fend, NoOffset)) tmpvar
       end
     | N.FSeq | N.FSeqN -> 
         let fptr, fbase, fendo = getFieldsOfFat vtype in
         mkSet (Var vi, Field(fbase, NoOffset)) tmpvar
-    | _ -> Skip
+    | _ -> skip
   in
   alloc :: adjust_ptr :: assign_p :: 
   assign_base :: setsz :: (init @ [assign_end])
@@ -2377,7 +2388,57 @@ let fixupGlobName vi =
 
 
     (************* STATEMENTS **************)
-let rec boxostmt (s : ostmt) : ostmt = 
+(*
+let rec boxblock (b: block) : block = 
+  List.fold_left (fun acc s -> concatBlocks acc (boxstmt s)) [] b 
+*)
+(*
+and boxstmt (s: Cil.stmt) : block = 
+   * Keep the original statement, but maybe modify its kind. This way we 
+   * maintain the labels and we have no need to change the Gotos and the 
+   * cases in the Switch *
+  match s.skind with 
+    Return (None, _) | Break _ | Continue _ | Goto _ -> [s]
+  | Return (Some e, l) -> 
+      let retType =
+        match !currentFunction.svar.vtype with 
+          TFun(tRes, _, _, _) -> tRes
+        | _ -> E.s (E.bug "Current function's type is not TFun")
+      in 
+      let (doe', e') = boxexpf e in
+      let (doe'', e'') = castTo e' retType doe' in
+      let (et, doe2, e2) = fexp2exp e'' doe'' in
+      let doe'' =
+        if mustCheckReturn retType then
+          doe2 @ [doCheckFat checkSafeRetFatFun e2 et]
+        else
+          doe2
+      in
+      s.skind <- Instr [];  * Make it empty but keep it first to preserve 
+                             * the labels and the gotos *
+      s :: doe2 @ [ mkStmt (Return (Some e2, l)) ]
+
+  | Loop (b, l) -> 
+      s.skind <- Loop (boxblock b, l);
+      [ s ] 
+
+  | If(be, t, e, l) -> 
+      let (_, doe, e') = boxexp (CastE(intType, be)) in
+      s.skind <- Instr [];
+      s :: doe @ [ mkStmt (If(e', boxblock t, boxblock e, l)) ]
+  | Instr il -> 
+      * Do each instruction in turn *
+      let b = List.fold_left (fun acc (i,l) -> acc @ boxinstr i l) [] il in
+      s.skind <- Instr [];
+      concatBlocks (s :: b) []
+  | Switch (e, b, cases, l) -> 
+      * Cases are preserved *
+      let (_, doe, e') = boxexp (CastE(intType, e)) in
+      s.skind <- Instr [];
+      s :: doe @ [ mkStmt (Switch (e', boxblock b, cases, l)) ]
+      *)  
+
+let rec boxostmt (s : Cil.ostmt) : ostmt = 
   try
     match s with 
       Sequence sl -> mkSeq (List.map boxostmt sl)
@@ -2388,9 +2449,7 @@ let rec boxostmt (s : ostmt) : ostmt =
     | Loops s -> Loops (boxostmt s)
           
     | IfThenElse (e, st, sf, l) -> 
-        (* Signal that we have to do a cast *)
         let (_, doe, e') = boxexp (CastE(intType, e)) in
-          (* We allow casts from pointers to integers here *)
         mkSeq (doe @ [IfThenElse (e', boxostmt st, boxostmt sf, l)])
           
     | Switchs (e, s, l) -> 
@@ -2398,7 +2457,7 @@ let rec boxostmt (s : ostmt) : ostmt =
         mkSeq (doe @ [Switchs (e', boxostmt s, l)])
 
     | Returns (Some e, l) -> 
-        let retType = (* Already fixed *)
+        let retType =
           match !currentFunction.svar.vtype with 
             TFun(tRes, _, _, _) -> tRes
           | _ -> E.s (E.bug "Current function's type is not TFun")
@@ -2406,30 +2465,28 @@ let rec boxostmt (s : ostmt) : ostmt =
         let (doe', e') = boxexpf e in
         let (doe'', e'') = castTo e' retType doe' in
         let (et, doe2, e2) = fexp2exp e'' doe'' in
-        let doe'' = (* Add the check *)
+        let doe'' =
           if mustCheckReturn retType then
             doe2 @ [doCheckFat checkSafeRetFatFun e2 et]
           else
             doe2
         in
         mkSeq (doe2 @ [Returns (Some e2, l)])
-    | Instrs (i, l) -> boxinstr i l
-    | Block b -> Block (boxblock b)
+    | Instrs (i, l) -> mkSeq (boxinstr i l)
+(*    | Block b -> Block (boxblock b) *)
   with e -> begin
     ignore (E.log "boxostmt (%s) in %s\n" 
               (Printexc.to_string e) !currentFunction.svar.vname);
     Instrs(dInstr (dprintf "booo_statement(%a)" d_ostmt s), lu)
   end
+and boxfbody (fb: ostmt) : stmt list = 
+(*
+  boxblock (body2block fb)
+*)
+  [boxostmt fb]
 
-and boxblock (b: block) : block = 
-  List.fold_left (fun acc s -> concatBlocks acc (boxstmt s)) [] b 
 
-and boxstmt (s: Cil.stmt) : block = 
-  match s.skind with 
-    Return (None, l) -> [s]
-  | _ -> E.s (E.unimp "boxstmt: blocks")
-
-and boxinstr (ins: instr) (l: location): ostmt = 
+and boxinstr (ins: instr) (l: location): stmt list = 
   if debug then
     ignore (E.log "Boxing %a\n" d_instr ins);
   try
@@ -2448,7 +2505,7 @@ and boxinstr (ins: instr) (l: location): ostmt =
               checkWrite e3 lv' lvbase lvend lvt lvkind
           | _ -> []
         in
-        mkSeq (dolv @ doe3 @ check @ [mkSet lv' e3])
+        dolv @ doe3 @ check @ [mkSet lv' e3]
 
     | Call(vi, f, args) ->
         let (ft, dof, f') = boxfunctionexp f in
@@ -2532,8 +2589,8 @@ and boxinstr (ins: instr) (l: location): ostmt =
                     let tmp = makeTempVar !currentFunction ftret' in
                     Some (tmp, false), 
                     vi.vtype,
-                    [boxinstr (Set((Var vi, NoOffset), 
-                                   Lval (var tmp))) l]
+                    boxinstr (Set((Var vi, NoOffset), 
+                                   Lval (var tmp))) l
                   else
                     Some (vi, iscast), vi.vtype, []
 
@@ -2542,8 +2599,8 @@ and boxinstr (ins: instr) (l: location): ostmt =
                   Some (tmp, iscast), 
                   dfld.ftype,
                   (* Call boxinstr to add the necessary cast *)
-                  [boxinstr (Set((Var vi, NoOffset),
-                                 Lval (var tmp))) l]
+                  boxinstr (Set((Var vi, NoOffset),
+                                Lval (var tmp))) l
               | _ -> E.s (E.bug "Result of call is not a variable")
           end
         in
@@ -2558,7 +2615,7 @@ and boxinstr (ins: instr) (l: location): ostmt =
               | _ -> E.s (E.bug "Allocator cannot be subroutine")
           end
         in
-        mkSeq (dof @ doargs @ finishcall)
+        dof @ doargs @ finishcall
 
     | Asm(tmpls, isvol, outputs, inputs, clobs) ->
         let rec doOutputs = function
@@ -2589,13 +2646,13 @@ and boxinstr (ins: instr) (l: location): ostmt =
               (doe @ doins, (c, e') :: ins)
         in
         let (doins, inputs') = doInputs inputs in
-        mkSeq (doouts @ doins @ 
-               [mkAsm tmpls isvol outputs inputs clobs])
+        doouts @ doins @ 
+        [mkAsm tmpls isvol outputs inputs clobs]
             
   with e -> begin
     ignore (E.log "boxinstr (%s):%a (in %s)\n" 
               (Printexc.to_string e) d_instr ins !currentFunction.svar.vname);
-    mkInstr (dInstr (dprintf "booo_instruction(%a)" d_instr ins)) lu
+    [mkInstr (dInstr (dprintf "booo_instruction(%a)" d_instr ins)) lu]
   end
 
 (* Given an lvalue, generate all the stuff needed to construct a pointer to 
@@ -2604,7 +2661,7 @@ and boxinstr (ins: instr) (l: location): ostmt =
  * component (for pointer kinds other than Safe) and the third component (for 
  * pointer kinds Seq). We also compute a list of statements that must be 
  * executed to check the bounds.  *)
-and boxlval (b, off) : (typ * N.pointerkind * lval * exp * exp * ostmt list) = 
+and boxlval (b, off) : (typ * N.pointerkind * lval * exp * exp * stmt list) = 
   let debuglval = false in
   (* As we go along the offset we keep track of the basetype and the pointer 
    * kind, along with the current base expression and a function that can be 
@@ -2689,7 +2746,7 @@ and boxlval (b, off) : (typ * N.pointerkind * lval * exp * exp * ostmt list) =
       
     (* Box an expression and return the fexp version of the result. If you do 
      * not care about an fexp, you can call the wrapper boxexp *)
-and boxexpf (e: exp) : ostmt list * fexp = 
+and boxexpf (e: exp) : stmt list * fexp = 
   try
     match e with
     | Lval (lv) -> 
@@ -2847,7 +2904,7 @@ and boxGlobalInit e et =
       Compound(ct, [ (None, e'); (None, 
                                   castVoidStar e'base)])
 
-and fexp2exp (fe: fexp) (doe: ostmt list) : expRes = 
+and fexp2exp (fe: fexp) (doe: stmt list) : expRes = 
   match fe with
     L (t, pk, e') -> (t, doe, e')       (* Done *)
   | FS (t, pk, e') -> (t, doe, e')      (* Done *)
@@ -2984,9 +3041,9 @@ let boxFile file =
             (* Check that we do not take the address of a formal. If we 
              * actually do then we must make that formal a true local and 
              * create another formal  *)
-            let newformals, newbody =
+            let newformals, (newbody : stmt list) =
               let rec loopFormals = function
-                  [] -> [], [f.sbody]
+                  [] -> [], body2block f.sbody
                 | form :: restf ->
                     let r1, r2 = loopFormals restf in
                     if form.vaddrof then begin
@@ -3039,14 +3096,15 @@ let boxFile file =
               f.slocals;
             currentFunction := f;           (* so that maxid and locals can be
                                                * updated in place *)
-            f.sbody <- mkSeq newbody;
+            f.sbody <- block2body newbody;
         (* Do the body *)
-            let boxbody = boxostmt f.sbody in
+            let boxbody : stmt list = boxfbody f.sbody in
         (* Initialize the locals *)
             let inilocals = 
               List.fold_left 
-                (initializeVar (withIterVar f)) [boxbody] f.slocals in
-            f.sbody <- mkSeq inilocals;
+                (initializeVar (withIterVar f)) 
+                boxbody f.slocals in
+            f.sbody <- block2body inilocals;
             theFile := GFun (f, l) :: !theFile
                                         
         | (GAsm _ | GText _ | GPragma _) as g -> theFile := g :: !theFile
@@ -3116,7 +3174,8 @@ let boxFile file =
   let doGlobal x = 
     try doGlobal x with e -> begin
       ignore (E.log "boxglobal (%s)\n" (Printexc.to_string e));
-      theFile := GAsm (sprint 2 (dprintf "booo_global %a" d_global x), lu) :: !theFile
+      theFile := 
+         GAsm (sprint 2 (dprintf "booo_global %a" d_global x), lu) :: !theFile
     end 
   in
   extraGlobInit := [];
@@ -3132,7 +3191,7 @@ let boxFile file =
       None -> 
         if !extraGlobInit <> [] then
           let gi = getGlobInit file in
-          gi.sbody <- mkSeq !extraGlobInit;
+          gi.sbody <- block2body !extraGlobInit;
           Some gi
         else
           None
@@ -3141,7 +3200,8 @@ let boxFile file =
           GFun(gi, _) :: rest -> 
             theFile := rest; (* Take out the global initializer (last thing 
                                 added) *)
-            gi.sbody <- mkSeq (gi.sbody :: !extraGlobInit);
+            gi.sbody <- 
+               block2body (body2block gi.sbody @ !extraGlobInit);
             Some gi
         | _ -> E.s (E.bug "box: Cannot find global initializer\n")
     end

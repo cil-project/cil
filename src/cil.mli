@@ -362,29 +362,6 @@ and instr =
                   (string * exp) list * (* inputs with constraints *)
                   string list           (* register clobbers *)
 
-(**** STATEMENTS. Mostly structural information. DEPRECATED !!! ****)
-and ostmt = 
-  | Skip                                (* empty statement *)
-  | Sequence of ostmt list               (* Use mkSeq to make a Sequence. This 
-                                         * will optimize the result and will 
-                                         * make sure that there are no 
-                                         * trailing Default of Label or Case *)
-  | Loops of ostmt                       (* A loop. When stmt is done the 
-                                         * control starts back with stmt. 
-                                         * Ends with break or a Goto outside.*)
-  | IfThenElse of exp * ostmt * ostmt * location    (* if *)
-  | Labels of string 
-  | Gotos of string
-  | Returns of exp option * location
-  | Switchs of exp * ostmt * location    (* no work done to break this appart *)
-  | Cases of int * location             (* The case expressions are resolved *)
-  | Defaults
-  | Breaks
-  | Continues
-  | Instrs of instr * location
-
-  | Block of block                      (* Just a placeholder to allow us to 
-                                         * mix blocks and statements *)
 
 (* STATEMENTS. 
  * The statement is the structural unit in the control flow graph. Use mkStmt 
@@ -597,18 +574,23 @@ val mkSeq: ostmt list -> ostmt
 
 
     (* Make a while loop. Can contain Break or Continue *)
-val mkWhileO: guard:exp -> body:ostmt list -> ostmt
+val mkWhileO: guard:exp -> body:ostmt list -> ostmt list
+val mkWhile: guard:exp -> body:block -> block
 
     (* Make a for loop for(i=start; i<past; i += incr) { ... }. The body 
      * should not contain Break or Continue !!!. Can be used with i a pointer 
      * or an integer. Start and done must have the same type but incr 
      * must be an integer *)
 val mkForIncrO:  iter:varinfo -> first:exp -> stopat:exp -> incr:exp 
-                 -> body:ostmt list -> ostmt
+                 -> body:ostmt list -> ostmt list
+val mkForIncr:  iter:varinfo -> first:exp -> stopat:exp -> incr:exp 
+                 -> body:stmt list -> stmt list
 
     (* Make a for loop for(start; guard; next) { ... }. The body should not 
      * contain Break or Continue !!! *) 
-val mkForO: start:ostmt -> guard:exp -> next:ostmt -> body: ostmt list -> ostmt
+val mkForO: start:ostmt list -> guard:exp -> next:ostmt list -> 
+           body: ostmt list -> ostmt list
+val mkFor: start:block -> guard:exp -> next:block -> body: block -> block
  
 
 

@@ -756,32 +756,63 @@ let mkSeq sl =
 
 
 
-let mkWhileO (guard:exp) (body: ostmt list) : ostmt = 
+let mkWhileO (guard:exp) (body: ostmt list) : ostmt list = 
   (* Do it like this so that the pretty printer recognizes it *)
-  Loops (Sequence (IfThenElse(guard, Skip, Breaks, lu) :: body))
+  [ Loops (Sequence (IfThenElse(guard, Skip, Breaks, lu) :: body)) ]
+
+let mkWhile (guard:exp) (body: stmt list) : stmt list = 
+  (* Do it like this so that the pretty printer recognizes it *)
+  [ mkStmt (Loop (mkStmt (If(guard, 
+                             [ mkEmptyStmt () ], 
+                             [ mkStmt (Break lu)], lu)) ::
+                  body, lu)) ]
 
 
-let mkForO (start: ostmt) (guard: exp) (next: ostmt) 
-          (body: ostmt list) : ostmt = 
-  mkSeq 
-    (start ::
-     mkWhileO guard (body @ [next]) :: [])
+let mkForO (start: ostmt list) (guard: exp) (next: ostmt list) 
+           (body: ostmt list) : ostmt list = 
+  [ mkSeq 
+      (start @
+       mkWhileO guard (body @ next)) ]
+
+let mkFor (start: stmt list) (guard: exp) (next: stmt list) 
+          (body: stmt list) : stmt list = 
+  concatBlocks
+    start
+    (mkWhile guard (concatBlocks body next))
+
 
 
 let mkForIncrO (iter: varinfo) (first: exp) (past: exp) (incr: exp) 
-    (body: ostmt list) : ostmt = 
+    (body: ostmt list) : ostmt list = 
       (* See what kind of operator we need *)
-      let compop, nextop = 
-        match unrollType iter.vtype with
-          TPtr _ -> LtP, PlusPI
-        | _ -> Lt, PlusA
-      in
-      mkForO (Instrs(Set (var iter, first), lu))
-        (BinOp(compop, Lval(var iter), past, intType))
-        (Instrs(Set (var iter, 
-                    (BinOp(nextop, Lval(var iter), incr, iter.vtype))), lu))
-        body
+  let compop, nextop = 
+    match unrollType iter.vtype with
+      TPtr _ -> LtP, PlusPI
+    | _ -> Lt, PlusA
+  in
+  mkForO [Instrs(Set (var iter, first), lu)]
+    (BinOp(compop, Lval(var iter), past, intType))
+    [Instrs(Set (var iter, 
+                 (BinOp(nextop, Lval(var iter), incr, iter.vtype))), lu)]
+    body
+    
+let mkForIncr (iter: varinfo) (first: exp) (past: exp) (incr: exp) 
+    (body: stmt list) : stmt list = 
+      (* See what kind of operator we need *)
+  let compop, nextop = 
+    match unrollType iter.vtype with
+      TPtr _ -> LtP, PlusPI
+    | _ -> Lt, PlusA
+  in
+  mkFor 
+    [ mkStmt (Instr [(Set (var iter, first), lu)]) ]
+    (BinOp(compop, Lval(var iter), past, intType))
+    [ mkStmt (Instr [(Set (var iter, 
+                           (BinOp(nextop, Lval(var iter), incr, iter.vtype))), 
+                      lu)])]
+    body
   
+
 
 
 (* the name of the C function we call to get ccgr ASTs
@@ -1327,9 +1358,9 @@ and d_stmt (next: stmt) (break: stmt) (cont: stmt) () (s: stmt) =
         d_stmtkind s next break cont () s.skind)
 
 and d_label () = function
-    Label (s, _) -> dprintf "%s:" s
-  | Case (i, _) -> dprintf "case %d:" i
-  | Default _ -> text "default:"
+    Label (s, _) -> dprintf "%s: " s
+  | Case (i, _) -> dprintf "case %d: " i
+  | Default _ -> text "default: "
 
 and d_block (break: stmt) (cont: stmt) () blk = 
   let rec dofirst () = function
