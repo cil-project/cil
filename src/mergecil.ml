@@ -115,6 +115,11 @@ type 'a node =
                                  * the node of this name *)
     } 
 
+let d_nloc () (lo: (location * int) option) : P.doc = 
+  match lo with 
+    None -> P.text "None"
+  | Some (l, idx) -> P.dprintf "Some(%d at %a)" idx d_loc l
+
 (* Make a node with a self loop. This is quite tricky. *)
 let mkSelfNode (eq: (int * string, 'a node) H.t) (* The equivalence table *)
                (syn: (string, 'a node) H.t) (* The synonyms table *)
@@ -239,13 +244,33 @@ let getNode    (eq: (int * string, 'a node) H.t)
                (syn: (string, 'a node) H.t)
                (fidx: int) (name: string) (data: 'a) 
                (l: (location * int) option) = 
+  let debugGetNode = false in
+  if debugGetNode then 
+    ignore (E.log "getNode(%s(%d), %a)\n"
+              name fidx d_nloc l);
   try
     let res = H.find eq (fidx, name) in
-    (* Maybe we have a better location now *)
-    if res.nloc = None && l != None then res.nloc <- l;
+
+    (match res.nloc, l with 
+      (* Maybe we have a better location now *)
+      None, Some _ -> res.nloc <- l
+    | Some (old_l, old_idx), Some (l, idx) -> 
+        if old_idx != idx then 
+          ignore (warn "Duplicate definition of node %s(%d) at indices %d(%a) and %d(%a)"
+                    name fidx old_idx d_loc old_l idx d_loc l)
+        else
+          ()
+
+    | _, _ -> ());
+    if debugGetNode then 
+      ignore (E.log "  node alredy found\n");
     find false res (* No path compression *)
-  with Not_found -> 
-    mkSelfNode eq syn fidx name data l
+  with Not_found -> begin
+    let res = mkSelfNode eq syn fidx name data l in
+    if debugGetNode then 
+      ignore (E.log "   made a new one\n");
+    res
+  end
 
 
 
@@ -334,6 +359,10 @@ let emittedFunDefn: (string, fundec * location * int) H.t = H.create 113
 (* and same for variable definitions; name maps to GVar fields *)
 let emittedVarDefn: (string, varinfo * init option * location) H.t = H.create 113
 
+(** A mapping from the new names to the original names. Used in PASS2 when we 
+ * rename variables. *)
+let originalVarNames: (string, string) H.t = H.create 113
+
 (* Initialize the module *)
 let init () = 
   H.clear tAlpha;
@@ -368,7 +397,9 @@ let init () =
   H.clear emittedCompDecls;
   
   H.clear emittedFunDefn;
-  H.clear emittedVarDefn
+  H.clear emittedVarDefn;
+
+  H.clear originalVarNames
 
 
 (* Some enumerations have to be turned into an integer. We implement this by
@@ -1209,6 +1240,7 @@ let oneFilePass2 (f: file) =
               !currentFidx f.fileName);
   currentDeclIdx := 0; (* Even though we don't need it anymore *)
   H.clear varUsedAlready;
+  H.clear originalVarNames;
   (* If we find inline functions that are used before being defined, and thus 
    * before knowing that we can throw them away, then we mark this flag so 
    * that we can make another pass over the file *)
@@ -1228,6 +1260,8 @@ let oneFilePass2 (f: file) =
         (* Maybe it is static. Rename it then *)
         if vi.vstorage = Static then begin
           let newName = newAlphaName vAlpha vi.vname in
+          (* Remember the original name *)
+          H.add originalVarNames newName vi.vname;
           if debugMerge then ignore (E.log "renaming %s at %a to %s\n"
                                            vi.vname d_loc vloc newName);
           vi.vname <- newName;
@@ -1302,9 +1336,13 @@ let oneFilePass2 (f: file) =
       | GFun (fdec, l) as g -> 
           currentLoc := l;
           incr currentDeclIdx;
-          let origname = fdec.svar.vname in
           (* We apply the renaming *)
           fdec.svar <- processVarinfo fdec.svar l;
+          (* Get the original name. *)
+          let origname = 
+            try H.find originalVarNames fdec.svar.vname 
+            with Not_found -> fdec.svar.vname
+          in
           let fdec' = 
             match visitCilGlobal renameVisitor g with 
               [GFun(fdec', _)] -> fdec' 
@@ -1386,6 +1424,10 @@ let oneFilePass2 (f: file) =
                 (Some (l, !currentDeclIdx))
             in
             if debugInlines then begin
+              ignore (E.log "Created node %s(%d) with loc=%a. declidx=%d\n"
+                        inode.nname inode.nfidx
+                        d_nloc inode.nloc
+                        !currentDeclIdx);
               ignore (E.log 
                         "Looking for previous definition of inline %s(%d)\n"
                         origname !currentFidx); 
