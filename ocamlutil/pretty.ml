@@ -39,7 +39,9 @@ let aman_no_output = (aman && (mode = "SkipOutput"))
 let aman_no_fit    = (aman && (mode = "SkipFit"))
 
 let george = true
-
+let george_no_scan = george && false
+let george_no_emit = george && (george_no_scan || false)
+let george_no_out  = george && (george_no_scan || george_no_emit || false)
 
 let noBreaks = ref false  (* Replace all soft breaks with space *)
 let noAligns = ref false (* Whether to obey align/unalign *)
@@ -70,7 +72,7 @@ let line       = Line
 let break      = Break  (* Line *) (* Aman's benchmarking goo *)
 
 
-let nest n d   = Spaces n ++ align ++ d ++ unalign
+let nest n d   = (if n > 0 then Spaces n else nil) ++ align ++ d ++ unalign
 
 let  seq sep f dl = 
   let rec loop = function
@@ -431,19 +433,40 @@ type align =
                                   * cell that must be set to true when the 
                                   * break is taken. These ref cells are also 
                                   * int the "breaks" list  *)
-      mutable deltaFromPrev: int (* The column of this alignment mark - the 
-                                  * column of the previous mark *)
+            deltaFromPrev: int ref; (* The column of this alignment mark - 
+                                     * the column of the previous mark. 
+                                     * Shared with the deltaToNext of the 
+                                     * previous active align  *)
+             deltaToNext: int ref  (* The column of the next alignment mark - 
+                                    * the columns of this one. Shared with 
+                                    * deltaFromPrev of the next active align *)
     } 
       
-let mkAlign (deltacol: int) = 
-  { gainBreak = 0; isTaken = ref false; deltaFromPrev = deltacol; }
+(* We use references to avoid the need to pass data around all the time *)
+let aligns: align list ref =  (* The current stack of active alignment marks, 
+                               * with the top at the head. Never empty.  *)
+  ref [{ gainBreak = 0; isTaken = ref false; 
+         deltaFromPrev = ref 0; deltaToNext = ref 0; }]
 
 let topAlignAbsCol = ref 0 (* The absolute column of the top alignment *)
 
-(* We use references to avoid the need to pass data around all the time *)
-let aligns: align list ref = 
-  ref [mkAlign 0] (* The current stack of active alignment marks, with the 
-                    * top at the head. Never empty. *)
+let pushAlign (abscol: int) = 
+  let topalign = List.hd !aligns in
+  let res = 
+    { gainBreak = 0; isTaken = ref false; 
+      deltaFromPrev = topalign.deltaToNext; (* Share with the previous *)
+      deltaToNext = ref 0; (* Allocate a new ref *)} in
+  aligns := res :: !aligns;
+  res.deltaFromPrev := abscol - !topAlignAbsCol;
+  topAlignAbsCol := abscol
+
+let popAlign () = 
+  match !aligns with
+    top :: t when t != [] -> 
+      aligns := t; 
+      topAlignAbsCol := !topAlignAbsCol - !(top.deltaFromPrev)
+  | _ -> failwith "Unmatched unalign\n"
+
 
 (* Keep a list of ref cells for the breaks, in the same order that we see 
  * them in the document *)
@@ -464,6 +487,30 @@ let newline (abscol: int) =
   !topAlignAbsCol                          (* This is the new column *)
 
 
+
+(* Choose the align with the best gain. We outght to find a better way to 
+ * keep the aligns sorted, especially since they gain never changes (when the 
+ * align is the top align) *)
+let chooseBestGain () : align option =        
+  let bestGain = ref 0 in
+  let breakingAlign: align option ref = ref None in
+  let rec loop = function
+      [] -> ()
+    | a :: resta -> 
+        if a.gainBreak > !bestGain then begin
+          bestGain := a.gainBreak;
+          breakingAlign := Some a;
+        end;
+        loop resta
+  in
+  !breakingAlign
+
+
+(* Another one that chooses the break associated with the current align only *)
+let chooseLastGain () : align option = 
+  let topalign = List.hd !aligns in
+  if topalign.gainBreak > 0 then Some topalign else None
+
 (* We have just advanced to a new column. See if we must take a line break *)
 let movingRight (abscol: int) : int = 
   (* Keep taking the best break until we get back to the left of maxCol or no 
@@ -472,51 +519,25 @@ let movingRight (abscol: int) : int =
     if abscol < !maxCol then abscol else 
     begin
       (* Find the best gain there is out there *)
-      let bestGain = ref 0 in
-      let breakingAlign : align option ref = ref None (* the align with the 
-          * best gain *)
-      in
-      let breakingAlignNext: align option ref = ref None (* The align that is 
-                                                          * on top of the 
-                                                          * best one in the 
-                                                          * stack  *)
-      in
-      let rec loop (next: align option) = function
-          [] -> ()
-        | a :: resta -> 
-            if a.gainBreak > !bestGain then begin
-              bestGain := a.gainBreak;
-              breakingAlign := Some a;
-              breakingAlignNext := next
-            end;
-            loop (Some a) resta
-      in
-      loop None !aligns;
-      
-      if !bestGain = 0 then begin
-        (* No breaks are available. Take all breaks from now on *)
-        breakAllMode := true;
-        abscol
-      end else begin
-        let breakingAlign = 
-          match !breakingAlign with
-            Some x -> x 
-          | None -> failwith "Have a gain but can't find the align" in
-        breakingAlign.isTaken := true;
-        breakingAlign.gainBreak <- 0;
-        if debug then 
-          fprintf "Taking break at %d. gain=%d\n" abscol !bestGain;
-        (* Now adjust the align that follows the one taken, and maybe also the 
-        * topAlignAbsCol *)
-        match !breakingAlignNext with
-          None -> (* We are taking the break of the top align *) 
-            tryAgain (abscol - !bestGain)
-        | Some next -> begin
-            next.deltaFromPrev <- next.deltaFromPrev - !bestGain;
-            (* We must have moved the top align left also *)
-            topAlignAbsCol := !topAlignAbsCol - !bestGain;
-            tryAgain (abscol - !bestGain)
-        end
+      match chooseBestGain () with 
+        None -> begin
+          (* No breaks are available. Take all breaks from now on *)
+          breakAllMode := true;
+          abscol
+        end 
+      | Some breakingAlign -> begin
+          let topalign = List.hd !aligns in
+          if debug then 
+            fprintf "Taking break at %d. gain=%d\n" 
+              abscol breakingAlign.gainBreak;
+          breakingAlign.isTaken := true;
+          breakingAlign.gainBreak <- 0;
+          if breakingAlign != topalign then begin
+            breakingAlign.deltaToNext := 
+               !(breakingAlign.deltaToNext) - breakingAlign.gainBreak;
+            topAlignAbsCol := !topAlignAbsCol - breakingAlign.gainBreak
+          end;
+          tryAgain (abscol - breakingAlign.gainBreak)
       end
     end
   in
@@ -535,20 +556,8 @@ let rec scan (abscol: int) (d: doc) : int =
   | CText (d, s) -> 
       let sl = String.length s in 
       movingRight ((scan abscol d) + sl)
-  | Align -> 
-      let topAlign = mkAlign (abscol - !topAlignAbsCol) in
-      aligns :=  topAlign :: !aligns;
-      topAlignAbsCol := abscol;
-      abscol
-  | Unalign -> begin
-      match !aligns with
-        top :: t when t != [] -> 
-          aligns := t; 
-          topAlignAbsCol := !topAlignAbsCol - top.deltaFromPrev;
-          abscol
-
-      | _ -> failwith "Unmatched unalign\n"
-  end
+  | Align -> pushAlign abscol; abscol
+  | Unalign -> popAlign (); abscol 
   | Line -> (* A forced line break *) newline abscol
 
 
@@ -561,7 +570,7 @@ let rec scan (abscol: int) (d: doc) : int =
         takenref := true;
         newline abscol 
       end else begin
-        (* If there was a previous break there it stay not taken, forever *)
+        (* If there was a previous break there it stays not taken, forever *)
         topalign.isTaken <- takenref;
         topalign.gainBreak <- 1 + abscol - !topAlignAbsCol;
         movingRight (1 + abscol)
@@ -581,7 +590,7 @@ let emitDoc
       [] -> failwith "Ran out of aligns"
     | x :: _ -> 
         emitString "\n" 1;
-        emitString " "  x;
+        if x > 0 then emitString " "  x;
         x
   in
     
@@ -590,7 +599,7 @@ let emitDoc
       Nil -> abscol
     | Concat (d1, d2) -> loop (loop abscol d1) d2
     | Spaces n -> 
-        emitString " " n;
+        if n > 0 then emitString " " n;
         abscol + n
 
     | Text s -> 
@@ -639,13 +648,23 @@ let fprint =
   else if george then 
     fun chn width doc -> begin
       maxCol := width;
-      ignore (scan 0 doc);
-      breaks := List.rev !breaks;
-      ignore (emitDoc 
-                (fun s nrcopies -> 
-                  for i = 1 to nrcopies do
-                    output_string chn s
-                  done) doc)
+      if george_no_scan then () 
+      else
+        begin
+          ignore (scan 0 doc);
+          if george_no_emit then ()
+          else begin
+            breaks := List.rev !breaks;
+            ignore (emitDoc 
+                      (fun s nrcopies -> 
+                        if george_no_out then () else
+                        for i = 1 to nrcopies do
+                          output_string chn s
+                        done) doc)
+          end
+        end;
+      breaks := []; (* We must do this especially if we don't do emit (which 
+                     * consumes breaks) because otherwise we waste memory *)
     end
   else
     fun chn width doc ->
@@ -689,7 +708,7 @@ let alignDepth = ref 0
 let gprintf (finish : doc -> doc)  
     (format : ('a, unit, doc) format) : 'a =
   let format = (Obj.magic format : string) in
-  
+
   (* Record the starting align depth *)
   let startAlignDepth = !alignDepth in
   (* Special concatenation functions *)
@@ -725,7 +744,9 @@ let gprintf (finish : doc -> doc)
     skipChars (succ i)
                                         (* the main collection function *)
   and collect (acc: doc) (i: int) = 
-    if i >= flen then Obj.magic (dfinish acc) else begin
+    if i >= flen then begin
+      Obj.magic (dfinish acc) 
+    end else begin
       let c = fget i in
       if c = '%' then begin
         let j = skip_args (succ i) in

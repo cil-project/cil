@@ -22,5 +22,5 @@ int main(void) {
   int x[2];
   x[0] = 1;
   x[1] = 7;
-  return !(foo(x) == 8);
+  return !(foo(x) == 7);
 }

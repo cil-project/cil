@@ -1064,7 +1064,7 @@ li: defaulttarget mustbegcc
             <$(LIDIR)/data/train/input/train.lsp \
             >$(LIDIR)/data/train/input/train.out"
 
-licombined: defaulttarget mustbegcc
+li-combined: defaulttarget mustbegcc
 	cd $(LIDIR)/src; \
             $(SAFECC) trial_li_all.c $(LIEXTRA) $(EXEOUT)trial_li_all.exe
 
@@ -1108,6 +1108,11 @@ go: defaulttarget mustbegcc
                              LD="$(GOSAFECC)" \
                              EXTRA_LIBS=$(GOEXTRA)
 	$(GODIR)/exe/base/go.ultra 50 9
+
+go-combined: defaulttarget mustbegcc
+	cd $(GODIR)/exe/base; \
+	   $(SAFECC) $(CONLY) go.ultra_all.c
+
 
 go-noclean: defaulttarget mustbegcc
 	cd $(GODIR)/src; \
@@ -1180,6 +1185,9 @@ m88k-noclean: defaulttarget mustbegcc
                              EXTRA_LIBS=$(M88EXTRA) 
 #	sh -c "time $(M88DIR)/exe/base/m88ksim.ultra"
 
+m88k-combined: defaulttarget mustbegcc
+	cd $(M88DIR)/exe/base; \
+            $(SAFECC) m88ksim.ultra_all.c $(CONLY)
 
 ### SPEC95 ijpeg
 IJPEGDIR=$(SPECDIR)/132.ijpeg
