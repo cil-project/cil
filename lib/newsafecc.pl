@@ -17,6 +17,19 @@ Usage: safecc [args] [cargs]
 
 args: 
   --help       Prints this help message
+  --verbose    Prints a lot of information about what is being done
+  --mode=xxx   What tool to emulate: 
+                gcc     - GNU CC
+                mscl    - MS VC cl compiler
+                mslink  - MS VC link linker
+               By default it chooses between mscl and gcc based on the form of
+               the command line arguments
+
+  --patch=xxx  Patches before the preprocessor with the given specification
+  --combine    Combine all the sources into one file
+
+The rest are safec specific arguments:
+
   --cil        Uses the CIL version of the file (default)
   --box        Uses the BOX version of the file
   --inferbox   Infers the pointer types
@@ -27,10 +40,8 @@ args:
   --safec=xxx  Passes xxx to the safec executable. Multiple occurences of 
                --safec should be used to add more arguments.
   --tr=flag    Passes "-tr flag" (tracing flag) to the safec executable.
-  --patch=xxx  Patches before the preprocessor with the given specification
-  --combine    Combine all the sources into one file
- It detects from the form of the command line arguments whether GCC or MSVC
- should be used.
+
+Send bugs to necula\@cs.berkeley.edu.
 EOL
 }
 
@@ -56,6 +67,7 @@ my $operation = "TOEXE";
    #        "TOEXE"    - link to executable (default)
 my $output = "";                # The file where the result must be placed
 
+my $verbose = 0;
 my $doBox = 0;
 my $doInferBox = 0;
 my $doOptim=0;
@@ -260,6 +272,20 @@ sub collectArguments {
         if($arg =~ m|^--patch=?(.*)$|) { # Whether to patch
             &preparePatchFile($1); next;
         }
+        if($arg =~ m|--mode|) {
+            my $mode;
+            if($arg =~ m|--mode=?(.+)$|)  {
+                $mode = $1;
+            } else {
+                $mode = shift @ARGV;
+            }
+            # Now set the compiler mode
+            &setCompilerMode($mode, $arg);
+            next;
+        }
+        if($arg eq "--verbose") {
+            $verbose = 1; next;
+        }
         if($arg =~ m|^--keep=(.+)$|) { # Where to keep the outputs
             $keepDir = $1; next;
         }
@@ -297,8 +323,8 @@ sub collectArguments {
         }
         # weimer: this regexp does not catch /unix/path/to/file
         # as an MSVC extension
-        if($arg =~ m|^/[^/]+$|) {
-            &setCompilerMode("msvc", $arg);
+        if($arg =~ m|^/[^/]+$| && ! defined($compiler)) {
+            &setCompilerMode("mscl", $arg);
         }
         if(! defined $compiler) {     # Must be a source file, since we have
                                       # not seen an option yet
@@ -478,14 +504,17 @@ sub runShell {
 
 sub setCompilerMode {
     my ($mode, $arg) = @_;
-    if(defined $compiler && $compiler->{NAME} ne $mode) {
-        die "Found a $mode argument ($arg) while in $compiler mode";
+    if(defined $compiler && $compiler->{MODENAME} ne $mode) {
+        die "Found a $mode argument ($arg) while in $compiler->{NAME} mode";
     }
-    if($mode eq "msvc") {
-        $compiler = MSVC->new; return;
+    if($mode eq "mscl") {
+        $compiler = MSCL->new; return;
     }
     if($mode eq "gcc") {
         $compiler = GCC->new; return;
+    }
+    if($mode eq "mslink") {
+        $compiler = MSLINK->new; return;
     }
     die "Don't know about compiler $mode\n";
 }
@@ -756,7 +785,7 @@ sub combineSourcesLink {
         if($ext eq ".c" || $ext eq ".i") {
             push @tocombine, $src; next;
         }
-        die "I don't know how to combine $(link) src\n";
+        die "I don't know how to combine (link) $src\n";
     }
     # Now call the combiner 
     my $outfile = $compiler->linkOutputFile();
@@ -838,9 +867,9 @@ sub safecPreprocessor {
 
 ###########################################################################
 ####
-#### MSVC specific code
+#### MS CL specific code
 ####
-package MSVC;
+package MSCL;
 
 use strict;
 use File::Basename;
@@ -851,7 +880,8 @@ sub new {
     # Create $self
 
     my $self = 
-    { NAME => 'msvc',
+    { NAME => 'Microsoft cl compiler',
+      MODENAME => 'mscl',
       DEFARG  => "/D",
       INCARG  => "/I",
       DEBUGARG => "/Zi /MLd /DEBUG",
@@ -878,8 +908,6 @@ sub new {
 # additional word.
 #
           ["[^/]" => { TYPE => "SOURCE" },
-           "/OUT:" => { RUN => sub { my ($f) = ($_[0] =~ m|/OUT:(.+)|);
-                                     $outarg = "/Fe$f"; }},
            "/O" => { TYPE => "CC" },
            "/G" => { TYPE => "CC" },
            "/[DI]" => { TYPE => "PREPROC"},
@@ -896,7 +924,7 @@ sub new {
            "/c" => { RUN => sub { $operation = "TOOBJ"; }},
            "/(Q|Z|J|nologo|TC|TP|w|W|Yd|Zm)" => { TYPE => "CC" },
            "/v(d|m)" => { TYPE => "CC" },
-           "/[MF]" => { TYPE => "LINK" },
+           "/[MF]" => { TYPE => "CC" },
            "/link" => { RUN => sub { push @linkargs, "/link", @ARGV;
                                      @ARGV = (); } },
            "/"  => { RUN => 
@@ -919,7 +947,7 @@ sub cpp {
 #                                       "(\\.c)|(\\.cc)|(\\.cpp)|(\\.i)");
     my ($sbase, $sdir, $sext) = fileparse($src, 
                                        "(\\.c)|(\\.cc)|(\\.cpp)|(\\.i)");
-    my $cmd = "cl /P /D_MSVC " . join(' ', @ppargs);
+    my $cmd = "cl /nologo /P /D_MSVC " . join(' ', @ppargs);
     &::runShell("$cmd $src");
     # MSVC cannot be told where to put the output. But we know that it
     # puts it in the current directory
@@ -941,14 +969,14 @@ sub cpp {
 
 # Now run the real compilation
 sub compile {
-    my $cmd = "cl /D_MSVC /c " .
+    my $cmd = "cl /nologo /D_MSVC /c " .
         join(' ', @ccargs) . " " . 
             join(' ', @sources) . " $outarg";
     &::runShell($cmd);
 }
 
 sub link {
-    my $cmd = "cl /D_MSVC " .
+    my $cmd = "cl /nologo /D_MSVC " .
         join(' ', @ccargs) . " " . 
             join(' ', @linkargs) . " " .
                 join(' ', @sources) . " $outarg";
@@ -981,6 +1009,86 @@ sub linkOutputFile {
     if($outarg =~ m|/Fe(.+)|) {
         return $1;
     }
+    die "I do not know what is the link output file\n";
+}
+
+#########################################################################
+###
+###  MS LINK speciific code
+###
+####
+package MSLINK;
+
+use strict;
+use File::Basename;
+
+sub new {
+    my ($proto, %args) = @_;
+    my $class = ref($proto) || $proto;
+    # Create $self
+
+    my $self = 
+    { NAME => 'Microsoft linker',
+      MODENAME => 'mslink',
+      DEFARG  => " ??DEFARG",
+      INCARG  => " ??INCARG",
+      DEBUGARG => "/DEBUG",
+      OPTIMARG => "",
+      OBJEXT => "obj",
+      LIBEXT => ".lib",   # Library extension (without the .)
+      EXEEXT => ".exe",  # Executable extension (with the .)
+      LINEPATTERN => "", 
+
+      OPTIONS => 
+          ["[^/]" => { TYPE => "SOURCE" },
+           "/OUT:" => { TYPE => 'OUT' },
+           "/"  => { TYPE => 'LINK' },
+           ],
+      };
+    bless $self, $class;
+    return $self;
+}
+
+
+
+## Now run the real compilation
+#sub compile {
+#    my $cmd = "cl /D_MSVC /c " .
+#        join(' ', @ccargs) . " " . 
+#            join(' ', @sources) . " $outarg";
+#    &::runShell($cmd);
+#}
+
+# Compile and link
+sub link {
+    my $cmd = "cl /nologo /D_MSVC " .
+        join(' ', @sources) . " /link $outarg " . join(' ', @linkargs) ;
+    &::runShell($cmd);
+}
+
+
+## Emit a line # directive
+#sub lineDirective {
+#    my ($self, $fileName, $lineno) = @_;
+#    return "#line $lineno \"$fileName\"\n";
+#}
+
+## The name of the output file
+#sub compileOutputFile {
+#    my($self, $src) = @_;
+#    if($outarg =~ m|/Fo(.+)|) {
+#        return $1;
+#    }
+#    my ($base, $dir, $ext) = fileparse($src, 
+#                                       "(\\.c)|(\\.cc)|(\\.cpp)|(\\.i)");
+#    if(! defined($ext) || $ext eq "") { # Not a C source
+#        die "objectOutputFile: not a C source file\n";
+#    }
+#    return "$dir/$base.obj";
+#}
+
+sub linkOutputFile {
+    my($self, $src) = @_;
     if($outarg =~ m|/OUT:(.+)|) {
         return $1;
     }
@@ -1001,7 +1109,8 @@ sub new {
     # Create $self
 
     my $self = 
-    { NAME => 'gcc',
+    { NAME => 'GNU CC',
+      MODENAME => 'gcc',
       DEFARG  => "-D",
       INCARG => "-I",
       DEBUGARG => "-g",

@@ -540,7 +540,9 @@ and combine_def def global = begin
                
   | OLDFUNDEF (name, decs, body) ->
       (declare_id name global;
-      OLDFUNDEF(combine_single_name name, List.map (fun dec -> combine_name_group dec) decs, List.map combineBlkElem body))
+      OLDFUNDEF(combine_single_name name, 
+                List.map (fun dec -> combine_name_group dec) decs, 
+                List.map combineBlkElem body))
        
   | DECDEF names ->
       (declare_ids names global;

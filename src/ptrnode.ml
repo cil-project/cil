@@ -325,6 +325,7 @@ let kindOfAttrlist al =
 type whichAttr = 
     AtPtr  (* In a pointer type *)
   | AtArray  (* In an array type *)
+  | AtOpenArray (* In an array type without a size *)
   | AtVar (* For a variable *)
   | AtOther (* Anything else *)
 
@@ -375,11 +376,13 @@ let replacePtrNodeAttrList where al =
       AtPtr -> 
         if !foundNode <> "" then !foundNode 
         else if !defaultIsWild then "wild" else "safe" 
-    | AtArray -> 
+    | (AtArray | AtOpenArray) -> 
         if !foundNode = "index" then "sized" 
         else if !foundNode = "seqn" then "nullterm" 
         else if !foundNode = "fseqn" then "nullterm" 
         else if !foundNode = "string" then "nullterm" 
+        else if !foundNode = "wild" then "wild" 
+        else if where = AtOpenArray then "sized" 
         else !foundNode
     | AtVar ->
         if !foundNode = "wild" then "tagged" 

@@ -272,7 +272,8 @@ let dropConst t =
         in
         TNamed(n, loop t, dropit isptr a)
     | TPtr (t', a) -> TPtr(loop t', dropit N.AtPtr a)
-    | TArray (t', l, a) -> TArray(loop t', l, dropit N.AtArray a)
+    | TArray (t', (Some _ as l), a) -> TArray(loop t', l, dropit N.AtArray a)
+    | TArray (t', None, a) -> TArray(loop t', None, dropit N.AtOpenArray a)
     | TComp comp as t -> t
     | TForward (comp, a) -> TForward (comp, dropit N.AtOther a)
     | TEnum (n, f, a) -> TEnum (n, f, dropit N.AtOther a)
@@ -934,6 +935,11 @@ let arrayPointerToIndex (t: typ) (k: N.pointerkind)
       in
       (elemt, knd, mkAddrOf lv, 
        BinOp(IndexPI, mkAddrOf lv, alen', TPtr(elemt, [])))
+
+  | TArray(elemt, None, a) -> 
+      (* Not WILD and not SIZED *)
+      E.s (E.bug "arrayPointIndex on a unsized array: %a\n"
+             d_lval lv)
 
   | _ -> E.s (E.bug "arrayPointerToIndex on a non-array (%a)" 
                 d_plaintype t)

@@ -320,28 +320,7 @@ testpcc/% : $(PCCDIR)/src/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
                   $(PCCDIR)/src/$*.c \
                   $(OBJOUT)$(notdir $*).o
 
-testallpcc: $(EXECUTABLE)$(EXE) $(TVEXE) $(SAFECLIB) $(SAFEMAINLIB) 
-	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.o
-	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.exe
-	make -C $(PCCDIR) \
-             CC="$(SAFECC) --keep=$(CILDIR)/test/PCCout $(CONLY)" \
-             USE_JAVA= USE_JUMPTABLE= TYPE=$(PCCTYPE) \
-             COMPILER=$(PCCCOMP) \
-             ENGINE_OTHERS="C:$(SAFECLIB) C:$(SAFEMAINLIB)" \
-             TRANSLF_OTHERS="C:$(SAFECLIB) C:$(SAFEMAINLIB)" \
-	     defaulttarget 
 
-combinepcc: $(EXECUTABLE)$(EXE) $(TVEXE) $(SAFECLIB) $(SAFEMAINLIB) 
-	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.o
-	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.exe
-	make -C $(PCCDIR) \
-             CC="$(SAFECC) --combine --keep=$(CILDIR)/test/PCCout $(CONLY)" \
-             LD="$(SAFECC) --combine --keep=$(CILDIR)/test/PCCout" \
-             USE_JAVA= USE_JUMPTABLE= TYPE=$(PCCTYPE) \
-             COMPILER=$(PCCCOMP) \
-             ENGINE_OTHERS="C:$(SAFECLIB) C:$(SAFEMAINLIB)" \
-             TRANSLF_OTHERS="C:$(SAFECLIB) C:$(SAFEMAINLIB)" \
-	     defaulttarget 
 
 testallspj: $(EXECUTABLE)$(EXE) $(TVEXE) $(SAFECLIB) $(SAFEMAINLIB) 
 	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.o
@@ -354,12 +333,26 @@ testallspj: $(EXECUTABLE)$(EXE) $(TVEXE) $(SAFECLIB) $(SAFEMAINLIB)
              TRANSLF_OTHERS="C:$(SAFECLIB) C:$(SAFEMAINLIB)" \
 	     defaulttarget 
 
+ifdef _MSVC
+MSLINK=--mode=mslink
+endif
+combinepcc: $(EXECUTABLE)$(EXE) $(TVEXE) $(SAFECLIB) $(SAFEMAINLIB) 
+	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.o
+	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.exe
+	make -C $(PCCDIR) \
+             CC="$(SAFECC) --patch=$(CILDIR)/lib/$(PATCHFILE) --combine --keep=$(CILDIR)/test/PCCout $(CONLY)" \
+             LD="$(SAFECC) $(MSLINK) --combine --keep=$(CILDIR)/test/PCCout" \
+             USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
+             COMPILER=$(PCCCOMP) \
+             ENGINE_OTHERS="C:$(SAFECLIB) C:$(SAFEMAINLIB)" \
+             TRANSLF_OTHERS="C:$(SAFECLIB) C:$(SAFEMAINLIB)" \
+	     defaulttarget 
+
 .PHONY : allpcc
 allpcc: $(EXECUTABLE)$(EXE) $(SAFEMAINLIB) $(SAFECLIB)
 	cd $(PCCTEST); \
            $(SAFECC) --keep=. \
                  $(DOOPT) \
-                 --patch=../../lib/$(PATCHFILE)\
                  ../PCC/bin/engine.x86_WIN32_MSVC._DEBUG.exe.c \
                  $(EXEOUT)allengine.exe
 
