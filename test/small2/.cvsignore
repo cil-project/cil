@@ -8,6 +8,8 @@ hola
 *_ppp.c
 *.origi
 *_all.c
+*.pdb
+*.ilk
 comb
 ocamlprof*
 voidfree

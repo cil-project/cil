@@ -1037,7 +1037,7 @@ health : defaulttarget
                     $(HEALTHARGS) \
                     CC="$(COMBINESAFECC) \
 			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
-	cd $(HEALTHDIR); ./health.exe
+	cd $(HEALTHDIR); sh -c "time ./health.exe 5 500 1 1"
 
 
 
@@ -1090,11 +1090,12 @@ BISORTDIR=test/olden/bisort
 ifdef _MSVC
 BISORTARGS = _MSVC=1
 endif
-bisort : defaulttarget
+bisort : defaulttarget mustbegcc
 	cd $(BISORTDIR); \
                make PLAIN=1 clean defaulttarget \
                     $(BISORTARGS) \
                     CC="$(COMBINESAFECC) \
+                        --nobox=trusted_bisort \
 			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
 	cd $(BISORTDIR); ./bisort.exe 100 1
 

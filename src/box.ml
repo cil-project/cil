@@ -2294,10 +2294,10 @@ let rec castTo (fe: fexp) (newt: typ)
               (doe, FM(newt, newkind, castP p, zero, zero))
 
       | _, _ -> 
-          E.s (unimp "castTo(%a -> %a.@!%a@!%a)" 
+          E.s (unimp "castTo(%a -> %a.@!%a@!:%a@!->%a)" 
                  N.d_opointerkind oldk N.d_opointerkind newkind 
                  d_fexp fe
-                 d_plaintype oldt)      
+                 d_plaintype oldt d_plaintype newt)      
   end
 
 
@@ -3911,6 +3911,9 @@ let boxFile file =
             currentLoc := l;
             if showGlobals then ignore (E.log "Boxing GFun(%s) at %a\n" 
                                           f.svar.vname d_loc l);
+            (match f.svar.vtype with
+              TFun (_, _, true, _) -> E.s (unimp "Cannot box vararg function %s. Put it ina nobox module" f.svar.vname)
+            | _ -> ());
             (* Run the oneret first so that we have always a single return 
              * where to place the finalizers  *)
             Oneret.oneret f;
