@@ -672,7 +672,8 @@ module BlockChunk =
 
         (* We can duplicate a chunk if it has a few simple statements, and if 
          * it does not have cases *)
-    let canDuplicate (c: chunk) =
+    let canDuplicate (c: chunk) = isEmpty c
+(*
       let oneStmt (count: int) (s: stmt) : int = 
         if s.labels != [] then 
           1000
@@ -687,12 +688,13 @@ module BlockChunk =
       c.cases == [] &&
       5 >= ((List.fold_left oneStmt 0 c.stmts) + 
               List.length c.postins)
-      
+*)      
 
     (* We can drop a chunk if it does not have labels inside *)
-    let canDrop (c: chunk) = 
+    let canDrop (c: chunk) = isEmpty c
+(*
       List.for_all canDropStatement c.stmts
-
+*)
     let loopChunk (body: chunk) : chunk = 
       (* Make the statement *)
       let loop = mkStmt (Loop (c2block body, !currentLoc)) in
