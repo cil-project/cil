@@ -2053,13 +2053,20 @@ bindclean:
 	      	\) -exec rm -f {} \;
 
 bind: mustbegcc mustbelinux mustbemanju bindclean
-	cd $(BINDSRC) ; make -e CC="$(CCURED)" MAKE="make -e" \
+	cd $(BINDSRC) ; make -e \
+              CC="$(CCURED) --curetype=infer $(STANDARDPATCH)" \
+              MAKE="make -e" \
                 LD="$(CILLY) --merge --verbose --commPrintLn " \
                 AR="$(CILLY) --mode=AR --merge --verbose " \
                 RANLIB="echo" 
 
 bind-noclean: mustbegcc mustbelinux mustbemanju
-	cd $(BINDSRC) ; make -e CC="$(CCURED)"
+	cd $(BINDSRC) ; make -e \
+              CC="$(CCURED) --curetype=infer $(STANDARDPATCH)" \
+              MAKE="make -e" \
+                LD="$(CILLY) --merge --verbose --commPrintLn " \
+                AR="$(CILLY) --mode=AR --merge --verbose " \
+                RANLIB="echo" 
 
 bind-gcc: mustbelinux mustbemanju bindclean
 	cd $(BINDSRC) ; make -e CC=gcc
