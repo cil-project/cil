@@ -375,18 +375,6 @@ let tryFinally
 
 
 
-(** The state information that the GUI must display is viewed abstractly as a 
- * set of registers. *)
-type registerInfo = {
-    rName: string; (** The name of the register *)
-    rGroup: string; (** The name of the group to which this register belongs.*)
-    rOneLineVal: Pretty.doc;(** The value to be displayed on one line *)
-    rExpandedVal: (unit -> registerInfo list) option; 
-    (** The value to be displayed about a register when expanded *)
-} 
-
-
-
 let valOf : 'a option -> 'a = function
     None -> raise (Failure "Util.valOf")
   | Some x -> x
