@@ -422,7 +422,6 @@ begin
         H.iter (fun id n -> all := n :: !all) idNode;
         List.sort (fun n1 n2 -> compare n1.id n2.id) !all) ()
   in
-  printShortTypes := true;
   let count : int ref = ref 0 in
   try
     Stats.time "printnodes"
@@ -435,7 +434,6 @@ begin
     (trace "sm" (dprintf "printing failed on iteration %d\n" !count));
     raise e
   );
-  printShortTypes := false;
 end
 
 let nodeOfAttrlist al = 

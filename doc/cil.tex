@@ -443,318 +443,29 @@ to write your analysis and transformation.
 \section{CIL API Documentation}\label{sec-api} 
 
  The CIL API is documented in the file \t{src/cil.mli}. We also have an
-\ahref{api/index.html}{online documentation} extracted from \t{cil.mli}. In
-the rest of this section we give an overview of the essential parts of the API
-and we provice pointers to the online documentation. 
+\ahref{api/index.html}{online documentation} extracted from \t{cil.mli}. We
+index below the main types that are used to represent C programs in CIL: 
 
- The parser for both the GCC and MSVC front-ends can be invoked as
-\t{Frontc.parse: string -> unit -> Cil.file}. This function must be given the
-name of a preprocessed C file and will return the top-level data structure
-that describes a whole source file. By default the parsing and elaboration
-into CIL is done as for GCC source. If you want to use MSVC source you must
-set the \t{Cil.msvcMode: bool ref} to \t{true} and must also invoke the
-function \t{Frontc.setMSVCMode: unit -> unit}. 
-
- \subsection{Globals}
-
- The result of the elaboration will return a \ciltyperef{file}. The main
-contents of a \ciltyperef{file} is a list of global declarations and
-definitions represented with the type \ciltyperef{global}.
-
- There are several kinds of global declarations and definitions. You can
-declare type names (the \t{typedef} of C), structure, union and enumeration
-tags. You can have variable declarations and definitions (with optional
-initializers), function prototypes and function definitions. The other kinds
-of globals are pragmas, inline assembly statements that can appear at global
-scope and text to be printed verbatim in the output file. For each global item
-CIL stores the source location where it appears (using the type
-\ciltyperef{location}).
-
- Generally the declaration of a type or a composite type tag must appear
-before the first use in the file. Similarly, the definition or the declaration
-of a variable or function must appear before its use in a file. 
-
- CIL supports pragmas only at the top level and pragmas use the rich
-language of attributes (described in \secref{attrib}).  
-
- A distinguished global is an optional global initializer function. If it
-exists then it can contain statements that must be executed before the program
-is started. Each CIL file can contain a global initializer. If the file also
-contains the definition of \t{main} then CIL will insert a call to the global
-initializer. 
-
- CIL exports the iterators \cilvalref{mapGlobals}, \cilvalref{iterGlobals} and
-\cilvalref{foldGlobals}. You can also use the \cilvalref{dummyFile} when you
-need a \ciltyperef{file} as a placeholder. 
- 
- \subsection{Types}
-
- A C type is represented in CIL using the type \ciltyperef{typ}. Among types we
-differentiate the integral types (with different kinds denoting the sign and
-precision), floating point types, enumeration types, array and pointer types,
-and function types. 
-
- CIL exports a number of useful constants that denote common types:
- \cilvalref{voidType}, \cilvalref{intType}, \cilvalref{uintType}, 
- \cilvalref{longType}, \cilvalref{charType}, \cilvalref{charPtrType}, 
- \cilvalref{charConstPtrType} (pointer to a constant character), 
- \cilvalref{voidPtrType}, \cilvalref{intPtrType}, \cilvalref{doubleType}.
-
- Using the TNamed constructor you can refer to type names. All uses of type
-names must be preceeded by a GType global that defines the name. If you want
-to examine a type you should use the \cilvalref{unrollType} function to make
-sure that all uses of TNamed are removed.
-
- At the moment CIL assumes that \t{char} is 1 byte, \t{short} is 2 bytes,
-\t{int} and \t{long} are 4 bytes and \t{long long} is 8 bytes. A pointer is 4
-bytes. CIL contains functions that can compute the size of a type (in bits)
-\cilvalref{bitsSizeOf}, the alignment of a type (in bytes)
-\cilvalref{alignOff\_int}, and can convert an offset into a start and width
-(both in bits) using the function \cilvalref{bitsOffset}. At the moment these
-functions do not take into account the \t{packed} attributes and pragmas. 
-
- The most delicate issue for C types is that recursion that is possible by
-using structures and pointers. To address this issue we have a more complex
-representation for structured types (struct and union). Each such type is
-represented using the \ciltyperef{compinfo} type. For each composite type the
-\t{compinfo} structure must be declared at top level using \t{GCompTag} and
-all references to it must share the same copy of the structure. Each
-\t{compinfo} has a unique key that you can use to avoid going into an infinite
-loop when scanning a type. Note that if all you need is to scan the definition
-of each composite type once, you can do that by scanning all top-level
-\t{GCompType}. If you want to change the name of a \t{compinfo} you must use
-the \cilvalref{setCompName} in order to ensure that the unique key is updated
-accordingly. 
-
- Each \t{compinfo} also contains a list of fields. A field is represented
-using a \ciltyperef{fieldinfo} type. The \t{fieldinfo} structure itself has a
-pointer to the host \t{compinfo}. Fields, just like variables, can have
-attributes asociated with the field itself (stored in the \t{fieldinfo}
-structure) or associated with the type of the field (stored along with the
-type of the field). 
-
- Constructing a \t{compinfo} can be tricky since it must contain field that
-must refer to the host \t{compinfo} and furthermore the type of the field
-might need to refer to the \t{compinfo} for recursive types. Use the
-\cilvalref{mkCompInfo} function to create a \t{compinfo}. You can easily fetch
-the \t{fieldinfo} for a given field in a structure with
-\cilvalref{getCompField}. 
-
- Enumeration are represented using a \ciltyperef{enuminfo} type. Each instance
-of this type must be declared with a global \t{GEnumTag}. All references to
-the enumeration type must share the same copy of \t{enuminfo}.
-
- There are a number of functions for querying the kind of a type. These are
- \cilvalref{isIntegralType}, 
- \cilvalref{isArithmeticType}, 
- \cilvalref{isPointerType}, 
- \cilvalref{isFunctionType}, 
- \cilvalref{isArrayType}. 
-
- There are two easy ways to scan a type. First, you can use the
-\cilvalref{existsType} to return a boolean answer about a type. This function
-is controled by a user-provided function that is queried for each type that is
-used to construct the current type. The function can specify whether to
-terminate the scan with a boolean result or to continue the scan for the
-nested types. 
-
- The other method for scanning types is provided by the visitor interface (see
- \secref{visitor}). 
-
-\medskip
-
- If you want to compare types (or to use them as hash-values) then you should
-use instead type signatures (represented as \ciltyperef{typsig}). These
-contain the same information as types but canonicalized such that simple Ocaml
-structural equality will tell whether two types are equal. Use
-\cilvalref{typeSig} to compute the signature of a type. If you want to ignore
-certain type attributes then use \cilvalref{typeSigWithAttrs}. 
-
-
- \subsection{Variables}  
-
- Each local or global variable is represented by a unique \ciltyperef{varinfo}
-structure. A global \t{varinfo} can be introduced with the \t{GDecl} or
-\t{GVar} or \t{GFun} globals. A local varinfo can be introduced as part of a
-function definition. 
-
- All references to a given global or local variable must refer to the same
-copy of \t{varinfo}. Each \t{varinfo} has a unique identifier that can be use
-to index maps and hashtables. The identifier for globals is constructed by
-hashing the name and the identifier for locals is an integer between 0 and the
-number of locals in the function. 
-
- It is very important that you construct \t{varinfo} structures using only one
- of the following functions:
 \begin{itemize}
-\item \cilvalref{makeGlobalVar} - to make a global variable
-\item \cilvalref{makeTempVar} - to make a temporary local variable whose name
-will be generated so that to avoid conflict with other locals. 
-\item \cilvalref{makeLocalVar} - like \t{makeTempVar} but you can specify the
-exact name to be used. 
-\item \cilvalref{makeFormalVar} - make a new formal argument. This is added
-both to the formal arguments and to the locals of the host function. 
+\item \ahref{api/index_types.html}{An index of all types}
+\item \ahref{api/index_values.html}{An index of all values}
+\item \ciltyperef{file} is the representation of a file.
+\item \ciltyperef{global} is the representation of a global declaration or
+definitions. 
+\item \ciltyperef{typ} is the representation of a type.
+\item \ciltyperef{compinfo} is the representation of a structure or a union
+type
+\item \ciltyperef{fieldinfo} is the representation of a field in a structure
+or a union
+\item \ciltyperef{enuminfo} is the representation of an enumeration type. 
+\item \ciltyperef{varinfo} is the representation of a variable 
+\item \ciltyperef{lval} is the representation of an lvalue
+\item \ciltyperef{exp} is the representation of an expression without
+side-effects
+\item \ciltyperef{instr} is the representation of an instruction (with
+side-effects but without control-flow)
+\item \ciltyperef{stmt} is the representation of a control-flow statement
 \end{itemize}
-
-
- \subsection{Lvalues} 
-
- Lvalues are the sublanguage of expressions that can appear at the left of an
-assignment or as operand to the address-of operator. In C the sytax for
-lvalues is not always a good indication of the meaning of the lvalue. For
-example the C l-value
-\begin{verbatim}
-a[0][1][2]
-\end{verbatim}
-
- might involve 1, 2 or 3 memory reads when used in an expression context,
-depending on the declared type of the variable \t{a}. If \t{a} has type \t{int
-[4][4][4]} then we have one memory read from somewhere inside the area that
-stores the array \t{a}. On the other hand if \t{a} has type \t{int ***} then
-the expression really means \t{*(*(*(a + 0) + 1) + 2)}, in which case it is
-clear that it involves three separate memory operations. To make it easy to
-tell what an lvalue means CIL represents lvalues as a host object and an
-offset (see \ciltyperef{lval}). The host object (represented as
-\ciltyperef{lhost}) can be a local or global variable or can be the object
-pointed-to by a pointer expression. The offset (represented as
-\ciltyperef{offset}) is a sequence of field or array index designators.
-
- Both the typing rules and the meaning of an lvalue is very precisely
-specified in CIL. 
-
- The following are a few useful function for operating on lvalues:
-\begin{itemize}
-\item \cilvalref{mkMem} - makes an lvalue of \t{Mem} kind. Use this to ensure
-that certain equivalent forms of lvalues are canonized. For example, \t{*&x =
-x}. 
-\item \cilvalref{typeOfLval} - the type of an lvalue
-\item \cilvalref{typeOffset} - the type of an offset, given the type of the
-host. 
-\item \cilvalref{addOffset} and \cilvalref{addOffsetLval} - entend sequences
-of offsets.
-\end{itemize}
-
- \subsection{Expressions}
-
- The CIL expression language contains only the side-effect free expressions of
-C. They are represented as the type \ciltyperef{exp}. There are several
-interesting aspects of CIL expressions: 
-
- Integer and floating point constants can carry their textual representation.
-This way the integer 15 can be printed as 0xF if that is how it occured in the
-source. 
-
- CIL uses 64 bits to represent the integer constants and also stores the width
-of the integer type. Care must be taken to ensure that the constant is
-representable with the given width. Use the functions \cilvalref{kinteger},
-\cilvalref{kinteger64} and \cilvalref{integer} to construct constant
-expressions. CIL predefines the constants \cilvalref{zero},
-\cilvalref{one} and \cilvalref{mone} (for -1). 
-
- Use the functions \cilvalref{isConstant} and \cilvalref{isInteger} to test if
-an expression is a constant and a constant integer respectively.
-
- CIL keeps the type of all unary and binary expressions. You can think of that
-type qualifying the operator. Furthermore there are different operators for
-arithmetic and comparisons on arithemtic types and on pointers. 
-
- Another unusual aspect of CIL is that the implicit convertion between an
-expression of array type and one of pointer type is made explicit, using the
-\t{StartOf} expression constructor (which is not printed). If you apply the
-\t{AddrOf} constructor to an lvalue of type \t{T} then you will be getting an
-expression of type \t{TPtr(T)}.
-
- You can find the type of an expression with \cilvalref{typeOf}. 
-
- You can perform constant folding on expressions using the function
-\cilvalref{constFold}. 
-
- \medskip
-
- A special kind of expressions are those that can appear as initializers for
-global variables (initialization of local variables is turned into
-assignments). The initializers are represented as type \ciltyperef{init}. You
-can create initializers with \cilvalref{makeZeroInit} and you can conveniently
-scan compound initializers them with \cilvalref{foldLeftCompound}. 
-
- \subsection{Functions}
-
- A function definition is always introduced with a \t{GFun} constructor at the
-top level. All the information about the function is stored into a
-\ciltyperef{fundec}. Some of the information (e.g. its name, type,
-storage, attributes) is stored as a \t{varinfo} that is a field of the
-\t{fundec}. To refer to the function from the expression language you must use
-the \t{varinfo}. 
-
- The function definition contains, in addition to the body, a list of all the
-local variables and separately a list of the formals. Both kind of variables
-can be refered to in the body of the function. The formals must also be shared
-with the formals that appear in the function type. For that reason, to
-manipulate formals you should use the provided functions
-\cilvalref{makeFormalVar} and \cilvalref{setFormals}. 
-
- \subsection{Statements}
-
-CIL statements are represented using the type \ciltyperef{stmt}. Every
-statement has a (possibly empty) list of labels. A label is represented by the
-type \ciltyperef{label} which indicates if it is a C label (i.e.
-potentially the target of a \t{goto} statement), or if the statement
-associated with the label is actually a clause of a switch statement. The
-\ciltyperef{stmtkind} field of a statement indicates what kind of statement it is. 
-
-An instruction (\ciltyperef{instr}) is a statement that has no local
-(intraprocedural) control flow. It can be either an assignment,
-function call, or an inline assembly instruction. 
-
-The other statement kinds (\ciltyperef{stmtkind}) capture the usual C constructs
-for structuring control flow. CIL can resolve \t{Break} and \t{Continue} to
-\t{Goto} if required, but leaving them as they are makes code-motion
-transformations (e.g. loop unrolling) easier. A \t{Return} statement
-optionally records the return value. Every function in CIL has at least one
-\t{Return} statement. An \t{If} statement records the condition, which is an
-expression, together with the two branches, which are lists of statements. CIL
-has only one looping construct -- a while loop whose condition is always true;
-we always use \t{Break} statements to exit from loops. A \t{Switch} statement
-records all the statements in it, together with pointers to the beginning of
-the various clauses.
-
-CIL also comes with support for control-flow graphs. The \t{sid} field in
-\t{stmt} can be
-used to give unique numbers to statements, and the \t{succ} and \t{pred}
-fields can be used to maintain a list of successors and predeccors for every
-statement. 
-
- \subsection{Printing and Debugging support}
- 
-The Modules \moduleref{Pretty} and \moduleref{Errormsg} contain respectively
-utilities for pretty printing and reporting errors. 
-
-A document (of type \ptyperef{doc}) contains all the information about the the material to
-be printed. Alongwith the actual printing content, it contains linebreak and
-alignment information.
-A document can be constructed using various constructors (for example, the
-constructor \pvalref{num} constructors a document containing a number), or
-somewhat more easily using the fprintf-sytle style interface provided by
-\pvalref{dprintf}. After a document is constructed, it can be printed to a
-channel using the function \pvalref{fprint}, or to a string using the function
-\pvalref{sprint}.
-
-The type \etyperef{info} is used to store information (such as location)
-pertaining to an error. The flag \evalref{debugFlag} is used to
-enable/disable error reporting statements. The error reporting functions are
-\evalref{error}, \evalref{bug} and \evalref{unimp}, which only differ in the
-mesage they print. The arguments to these functions are the same as that of
-\pvalref{eprintf}. However, these functions must always be used in conjunction
-with \evalref{s}, for example:
-\verb#E.s (E.bug "different lengths (%d != %d)" l1 l2)#.
- All these functions raise the exception \t{Error}. A related function
-\evalref{warn} does not raise this exception.
-All of the error and warning reporting functions can also print a 
-context. To register a context printing function use \evalref{pushContext}. To 
-remove the last registered one use \evalref{popContext}. If one of the error 
-reporting functions is called it will invoke all currently registered 
-context reporting functions in the reverse order they were registered.
-
 
 
  \subsection{Using the visitor}\label{sec-visitor}
@@ -798,6 +509,17 @@ methods. Take a look for example at the visitor defined in the module
 the files of a composite type. use visitGlobal to visit the [GCompTag] that
 defines the fields.
 \end{itemize}
+
+ \subsection{Printing and Debugging support}
+ 
+The Modules \moduleref{Pretty} and \moduleref{Errormsg} contain respectively
+utilities for pretty printing and reporting errors and provide a convenient
+\t{printf}-like interface. 
+
+ Additionally, CIL defines for each major type a pretty-printing function that
+you can use in conjunction with the \moduleref{Pretty} interface. See
+\cilvalref{currentLoc} for details. 
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
 \subsection{Attributes}\label{sec-attrib}

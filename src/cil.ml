@@ -49,18 +49,11 @@ module M = Machdep
 let msvcMode = ref false              (* Whether the pretty printer should 
                                        * print output for the MS VC 
                                        * compiler. Default is GCC *)
-let charIsUnsigned = ref false        (* Whether CHAR is unsigned. Default 
-                                       * false *)
-let ilongFitsUInt = ref false         (* Whether a signed long can fit an 
-                                       * unsigned integer. True only if a 
-                                       * long uses more bits than an int  *)
 
 let printLn= ref true                 (* Whether to print line numbers *)
 let printLnComment= ref false
  
 let debugConstFold = false
-
-let printShortTypes = ref false
 
 (** The Abstract Syntax of CIL *)
 

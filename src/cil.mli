@@ -5,22 +5,32 @@
  *
  *)
 
-(* The constraints specified in this file are checked in the module Check. 
- * Take a look there for a precise specification of the invariants that a 
- * Cil.file must satisfy *)
-
-
+(** CIL API Documentation. An html version of this document can be found at 
+ * http://manju.cs.berkeley.edu/cil. *)
 
 (** This module defines the abstract syntax of CIL. It also provides utility 
-    functions for traversing the CIL data structures, and pretty-printing 
-    them.*)
+ * functions for traversing the CIL data structures, and pretty-printing 
+ * them. The parser for both the GCC and MSVC front-ends can be invoked as 
+ * [Frontc.parse: string -> unit ->] {!Cil.file}. This function must be given 
+ * the name of a preprocessed C file and will return the top-level data 
+ * structure that describes a whole source file. By default the parsing and 
+ * elaboration into CIL is done as for GCC source. If you want to use MSVC 
+ * source you must set the {!Cil.msvcMode} to [true] and must also invoke the 
+ * function [Frontc.setMSVCMode: unit -> unit]. *)
 
 
-(** The Abstract Syntax of CIL *)
+(** {b The Abstract Syntax of CIL} *)
 
 
-(** The top-level representation of a CIL source file. Its main contents is 
-    the list of global declarations and definitions. *)
+(** The top-level representation of a CIL source file (and the result of the 
+ * parsing and elaboration). Its main contents is the list of global 
+ * declarations and definitions. You can iterate over the globals in a 
+ * {!Cil.file} using the following iterators: {!Cil.mapGlobals}, 
+ * {!Cil.iterGlobals} and {!Cil.foldGlobals}. You can also use the 
+ * {!Cil.dummyFile} when you need a {!Cil.file} as a placeholder. For each 
+ * global item CIL stores the source location where it appears (using the 
+ * type {!Cil.location}) *)
+
 type file = 
     { mutable fileName: string;   (** The complete file name *)
       mutable globals: global list; (** List of globals as they will appear 
@@ -37,11 +47,13 @@ type file =
           you create a global initialization CIL will try to insert code in 
           main to call it. *)
     } 
+(** Top-level representation of a C souce file *)
 
+(** {b Globals}. The main type for representing global declarations and 
+ * definitions. A list of these form a CIL file. The order of globals in the 
+ * file is generally important. *)
 
-(** The main type for representing global declarations and definitions. A list 
-    of these form a CIL file. The order of globals in the file is generally 
-    important. *)
+(** A global declaration or definition *)
 and global =
   | GType of string * typ * location    
     (** A typedef. All uses of type names (through the [TNamed] constructor) 
@@ -89,21 +101,40 @@ and global =
                                             top level. E.g., this way you can 
                                             put comments in the output.  *)
 
+(** {b Types}. A C type is represented in CIL using the type {!Cil.typ}. 
+ * Among types we differentiate the integral types (with different kinds 
+ * denoting the sign and precision), floating point types, enumeration types, 
+ * array and pointer types, and function types. Every type is associated with 
+ * a list of attributes, which are always kept in sorted order. Use 
+ * {!Cil.addAttribute} and {!Cil.addAttributes} to construct list of 
+ * attributes. If you want to inspect a type, you should use 
+ * {!Cil.unrollType} to see through the uses of named types. 
+*)
+(** CIL is configured at build-time with the sizes and alignments of the 
+ * underlying compiler (GCC or MSVC). CIL contains functions that can compute 
+ * the size of a type (in bits) {!Cil.bitsSizeOf}, the alignment of a type 
+ * (in bytes) {!Cil.alignOf_int}, and can convert an offset into a start and 
+ * width (both in bits) using the function {!Cil.bitsOffset}. At the moment 
+ * these functions do not take into account the [packed] attributes and 
+ * pragmas. *)
 
-(** The various types available. Every type is associated with a list of 
- * attributes, which are always kept in sorted order. Use {!Cil.addAttribute} 
- * and {!Cil.addAttributes} to construct list of attributes. If you want to 
- * inspect a type, you should use {!Cil.unrollType} to see through the uses 
- * of named types. *)
 and typ =
-    TVoid of attributes   (** Void type *)
-  | TInt of ikind * attributes (** An integer type. The kind specifies 
-                                       the sign and width. *)
-  | TFloat of fkind * attributes (** A floating-point type. The kind 
-                                         specifies the precision. *)
+    TVoid of attributes   (** Void type. Also predefined as {!Cil.voidType} *)
+  | TInt of ikind * attributes 
+     (** An integer type. The kind specifies the sign and width. Several 
+      * useful variants are predefined as {!Cil.intType}, {!Cil.uintType}, 
+      * {!Cil.longType}, {!Cil.charType}. *)
+
+
+  | TFloat of fkind * attributes 
+     (** A floating-point type. The kind specifies the precision. You can 
+      * also use the predefined constant {!Cil.doubleType}. *)
 
   | TPtr of typ * attributes  
-           (** Pointer type. *)
+           (** Pointer type. Several useful variants are predefined as 
+            * {!Cil.charPtrType}, {!Cil.charConstPtrType} (pointer to a 
+            * constant character), {!Cil.voidPtrType}, 
+            * {!Cil.intPtrType}  *)
 
   | TArray of typ * exp option * attributes
            (** Array type. It indicates the base type and the array length. *)
@@ -125,13 +156,15 @@ and typ =
            * are in addition to those given when the type name was defined. *)
 
   | TComp of compinfo * attributes
-          (** A reference to a struct or a union type. All references to the 
-             same struct or union must share the same compinfo among them and 
-             with a [GCompTag] global that preceeds all uses (except maybe 
-             those that are pointers to the composite type). The attributes 
-             given are those pertaining to this use of the type and are in 
-             addition to the attributes that were given at the definition of 
-             the type and which are stored in the compinfo.  *)
+(** The most delicate issue for C types is that recursion that is possible by 
+ * using structures and pointers. To address this issue we have a more 
+ * complex representation for structured types (struct and union). Each such 
+ * type is represented using the {!Cil.compinfo} type. For each composite 
+ * type the {!Cil.compinfo} structure must be declared at top level using 
+ * [GCompTag] and all references to it must share the same copy of the 
+ * structure. The attributes given are those pertaining to this use of the 
+ * type and are in addition to the attributes that were given at the 
+ * definition of the type and which are stored in the {!Cil.compinfo}. *)
 
   | TEnum of enuminfo * attributes
            (** A reference to an enumeration type. All such references must
@@ -139,6 +172,34 @@ and typ =
                preceeds all uses. The attributes refer to this use of the 
                enumeration and are in addition to the attributes of the 
                enumeration itself, which are stored inside the enuminfo  *)
+
+
+(**
+ There are a number of functions for querying the kind of a type. These are
+ {!Cil.isIntegralType}, 
+ {!Cil.isArithmeticType}, 
+ {!Cil.isPointerType}, 
+ {!Cil.isFunctionType}, 
+ {!Cil.isArrayType}. 
+
+ There are two easy ways to scan a type. First, you can use the
+{!Cil.existsType} to return a boolean answer about a type. This function
+is controled by a user-provided function that is queried for each type that is
+used to construct the current type. The function can specify whether to
+terminate the scan with a boolean result or to continue the scan for the
+nested types. 
+
+ The other method for scanning types is provided by the visitor interface (see
+ {!Cil.cilVisitor}).
+
+ If you want to compare types (or to use them as hash-values) then you should
+use instead type signatures (represented as {!Cil.typsig}). These
+contain the same information as types but canonicalized such that simple Ocaml
+structural equality will tell whether two types are equal. Use
+{!Cil.typeSig} to compute the signature of a type. If you want to ignore
+certain type attributes then use {!Cil.typeSigWithAttrs}. 
+
+*)
 
 
 (** Various kinds of integers *)
@@ -162,11 +223,13 @@ and fkind =
   | FDouble     (** [double] *)
   | FLongDouble (** [long double] *)
 
+(** {b Attributes.} *)
+
+and attribute = Attr of string * attrparam list
 (** An attribute has a name and some optional parameters. The name should not 
  * start or end with underscore. When CIL parses attribute names it will 
  * strip leading and ending underscores (to ensure that the multitude of GCC 
  * attributes such as const, __const and __const__ all mean the same thing.) *)
-and attribute = Attr of string * attrparam list
 
 (** Attributes are lists sorted by the attribute name. Use the functions 
  * {!Cil.addAttribute} and {!Cil.addAttributes} to insert attributes in an 
@@ -189,104 +252,153 @@ and attrparam =
   | ABinOp of binop * attrparam * attrparam
 
 
-(** Information about a composite type (a struct or a union). Use 
-    {!Cil.mkCompInfo} 
-    to create non-recursive or (potentially) recursive versions of this. Make 
-    sure you have a [GCompTag] for each one of these.  *)
+(** {b Structures.} The {!Cil.compinfo} describes the definition of a 
+ * structure or union type. Each such {!Cil.compinfo} must be defined at the 
+ * top-level using the [GCompTag] constructor and must be shared by all 
+ * references to this type (using either the [TComp] type constructor or from 
+ * the definition of the fields. 
+
+   If all you need is to scan the definition of each 
+ * composite type once, you can do that by scanning all top-level [GCompTag]. 
+
+ * Constructing a {!Cil.compinfo} can be tricky since it must contain fields 
+ * that might refer to the host {!Cil.compinfo} and furthermore the type of 
+ * the field might need to refer to the {!Cil.compinfo} for recursive types. 
+ * Use the {!Cil.mkCompInfo} function to create a {!Cil.compinfo}. You can 
+ * easily fetch the {!Cil.fieldinfo} for a given field in a structure with 
+ * {!Cil.getCompField}. *)
+
+(** The definition of a structure or union type. *)
 and compinfo = {
-    mutable cstruct: bool;              (** True if struct, False if union *)
-    mutable cname: string;              (** The name. Always non-empty. Use 
-                                         * {!Cil.compSetName} to set the name 
-                                         * and the key simulateneously. Use 
-                                         * {!Cil.compFullName} to get the 
-                                         * full name of a comp (along with 
-                                         * the struct or union) *)
-    mutable ckey: int;                  (** A unique integer constructed from 
-                                         * the name. Use {!Hashtbl.hash} on 
-                                         * the string returned by 
-                                         * {!Cil.compFullName}. All compinfo 
-                                         * for a given key are shared. *)
-    mutable cfields: fieldinfo list;    (** Information about the fields *) 
-    mutable cattr:   attributes;        (** The attributes that are defined at
-                                            the same time as the composite
-                                            type *)
-    mutable creferenced: bool;          (** True if used. Initially set to 
-                                         * false *)
+    mutable cstruct: bool;              
+   (** True if struct, False if union *)
+    mutable cname: string;              
+   (** The name. Always non-empty. Use {!Cil.compSetName} to set the name and 
+    * the key simultaneously. Use {!Cil.compFullName} to get the full name of 
+    * a comp (along with the struct or union) *)
+    mutable ckey: int;                  
+    (** A unique integer constructed from the name. Use {!Hashtbl.hash} on 
+     * the string returned by {!Cil.compFullName}, or better yet use 
+     * {!Cil.compSetName}. All compinfo for a given key are shared. *)
+    mutable cfields: fieldinfo list;    
+    (** Information about the fields *) 
+    mutable cattr:   attributes;        
+    (** The attributes that are defined at the same time as the composite 
+     * type. These attributes can be supplemented individually at each 
+     * reference to this [compinfo] using the [TComp] type constructor. *)
+    mutable creferenced: bool;          
+    (** True if used. Initially set to false. *)
   }
+
+(** {b Structure fields.} The {!Cil.fieldinfo} structure is used to describe 
+ * a structure or union field. Fields, just like variables, can have 
+ * attributes asociated with the field itself or associated with the type of 
+ * the field (stored along with the type of the field). *)
 
 (** Information about a struct/union field *)
 and fieldinfo = { 
-    mutable fcomp: compinfo;            (** The compinfo of the host. Note 
-                                            that this must be shared with the 
-                                            host since there can be only one 
-                                            compinfo for a given id *)
-    mutable fname: string;              (** The name of the field. Might be 
-                                         * the value of 
-                                         * {!Cil.missingFieldName} in which 
-                                         * case it must be a bitfield and is 
-                                         * not printed and it does not 
-                                         * participate in initialization *)
-    mutable ftype: typ;                 (** The type *)
-    mutable fbitfield: int option;      (** If a bitfield then ftype should be 
-                                            an integer type *)
-    mutable fattr: attributes;          (** The attributes for this field 
-                                          * (not for its type) *)
+    mutable fcomp: compinfo;            
+     (** The host structure that contains this field. There can be only one 
+      * [compinfo] that contains the field. *)
+    mutable fname: string;              
+    (** The name of the field. Might be the value of {!Cil.missingFieldName} 
+     * in which case it must be a bitfield and is not printed and it does not 
+     * participate in initialization *)
+    mutable ftype: typ;     
+    (** The type *)
+    mutable fbitfield: int option;      
+    (** If a bitfield then ftype should be an integer type and the width of 
+     * the bitfield must be 0 or a positive integer smaller or equal to the 
+     * width of the integer type. A field of width 0 is used in C to control 
+     * the alignment of fields. *)
+    mutable fattr: attributes;          
+    (** The attributes for this field (not for its type) *)
 }
 
 
 
-(** Information about an enumeration. This is shared by all references to an
-    enumeration. Make sure you have a [GEnumTag] for each of of these.   *)
+(** {b Enumerations.} Information about an enumeration. This is shared by all 
+ * references to an enumeration. Make sure you have a [GEnumTag] for each of 
+ * of these. *)
+
+(** Information about an enumeration *)
 and enuminfo = {
-    mutable ename: string;              (** The name. Always non-empty *)
-    mutable eitems: (string * exp) list;(** Items with names and values. This
-                                            list should be non-empty. The item
-                                            values must be compile-time
-                                            constants. *)
-    mutable eattr: attributes;         (** Attributes *)
-    mutable ereferenced: bool;         (** True if used. Initially set to false*)
+    mutable ename: string;              
+    (** The name. Always non-empty. *)
+    mutable eitems: (string * exp) list;
+    (** Items with names and values. This list should be non-empty. The item 
+     * values must be compile-time constants. *)
+    mutable eattr: attributes;         
+    (** The attributes that are defined at the same time as the enumeration 
+     * type. These attributes can be supplemented individually at each 
+     * reference to this [enuminfo] using the [TEnum] type constructor. *)
+    mutable ereferenced: bool;         
+    (** True if used. Initially set to false*)
 }
 
+(** {b Variables.} 
+ Each local or global variable is represented by a unique {!Cil.varinfo}
+structure. A global {!Cil.varinfo} can be introduced with the [GDecl] or
+[GVar] or [GFun] globals. A local varinfo can be introduced as part of a
+function definition. 
+
+ All references to a given global or local variable must refer to the same
+copy of the [varinfo]. Each [varinfo] has a unique identifier that can be use
+to index maps and hashtables. The identifier for globals is constructed by
+hashing the name and the identifier for locals is an integer between 0 and the
+number of locals in the function. 
+
+ It is very important that you construct [varinfo] structures using only one
+ of the following functions:
+- {!Cil.makeGlobalVar} : to make a global variable
+- {!Cil.makeTempVar} : to make a temporary local variable whose name
+will be generated so that to avoid conflict with other locals. 
+- {!Cil.makeLocalVar} : like {!Cil.makeTempVar} but you can specify the
+exact name to be used. 
+- {!Cil.makeFormalVar} : make a new formal argument. This is added
+both to the formal arguments and to the locals of the host function. 
 
 
-(** Information about a variable. These structures are shared by all 
- * references to the variable. So, you can change the name easily, for 
- * example. Use one of the {!Cil.makeLocalVar}, {!Cil.makeTempVar} or 
- * {!Cil.makeGlobalVar} to create instances of this data structure. *)
+ A [varinfo] is also used in a function type to denote the list of formals. 
+
+*)
+
+(** Information about a variable. *)
 and varinfo = { 
-    mutable vname: string;		(** The name of the variable. Cannot 
-                                          * be empty. *)
-    mutable vtype: typ;                 (** The declared type of the 
-                                          * variable. *)
-    mutable vattr: attributes;          (** A list of attributes associated 
-                                          * with the variable. *)
-    mutable vstorage: storage;          (** The storage-class *)
-    (* The other fields are not used in varinfo when they appear in the formal 
-     * argument list in a [TFun] type *)
+    mutable vname: string;		
+    (** The name of the variable. Cannot be empty. It is primarily your 
+     * responsibility to ensure the uniqueness of a variable name. For local 
+     * variables {!Cil.makeTempVar} helps you ensure that the name is unique. 
+     *)
 
+    mutable vtype: typ;                 
+    (** The declared type of the variable. *)
 
-    mutable vglob: bool;	        (** True if this is a global variable*)
+    mutable vattr: attributes;          
+    (** A list of attributes associated with the variable.*)
+    mutable vstorage: storage;          
+    (** The storage-class *)
 
-    mutable vdecl: location;            (** Location of variable declaration *)
+    mutable vglob: bool;	        
+    (** True if this is a global variable*)
 
-    mutable vid: int;  (** A unique integer identifier. For globals this is a 
-                           hash of the name. Locals are numbered from 0 
-                           starting with the formal arguments. This field 
-                           will be set for you if you use one of the 
-                           {!Cil.makeFormalVar}, {!Cil.makeLocalVar}, 
-                           {!Cil.makeTempVar} or 
-                           {!Cil.makeGlobalVar}.  *)
-    mutable vaddrof: bool;              (** True if the address of this
-                                            variable is taken. CIL will set 
-                                         * these flags when it parses C, but 
-                                         * you should make sure to set the 
-                                         * flag whenever your transformation 
-                                         * create [AddrOf] expression. *)
+    mutable vdecl: location;            
+    (** Location of variable declaration. Not yet implemented. *)
 
-    mutable vreferenced: bool;          (** True if this variable is ever 
-                                            referenced. This is computed by 
-                                            [removeUnusedVars]. It is safe to 
-                                            just initialize this to False *)
+    mutable vid: int;  
+    (** A unique integer identifier. For globals this is a hash of the name. 
+     * Locals are numbered from 0 starting with the formal arguments. This 
+     * field will be set for you if you use one of the {!Cil.makeFormalVar}, 
+     * {!Cil.makeLocalVar}, {!Cil.makeTempVar} or {!Cil.makeGlobalVar}. *)
+
+    mutable vaddrof: bool;              
+    (** True if the address of this variable is taken. CIL will set these 
+     * flags when it parses C, but you should make sure to set the flag 
+     * whenever your transformation create [AddrOf] expression. *)
+
+    mutable vreferenced: bool;          
+    (** True if this variable is ever referenced. This is computed by 
+     * [removeUnusedVars]. It is safe to just initialize this to False *)
 }
 
 (** Storage-class information *)
@@ -298,60 +410,95 @@ and storage =
     Extern                              
 
 
+(** {b Expressions.} The CIL expression language contains only the side-effect free expressions of
+C. They are represented as the type {!Cil.exp}. There are several
+interesting aspects of CIL expressions: 
+
+ Integer and floating point constants can carry their textual representation.
+This way the integer 15 can be printed as 0xF if that is how it occured in the
+source. 
+
+ CIL uses 64 bits to represent the integer constants and also stores the width
+of the integer type. Care must be taken to ensure that the constant is
+representable with the given width. Use the functions {!Cil.kinteger},
+{!Cil.kinteger64} and {!Cil.integer} to construct constant
+expressions. CIL predefines the constants {!Cil.zero},
+{!Cil.one} and {!Cil.mone} (for -1). 
+
+ Use the functions {!Cil.isConstant} and {!Cil.isInteger} to test if
+an expression is a constant and a constant integer respectively.
+
+ CIL keeps the type of all unary and binary expressions. You can think of that
+type qualifying the operator. Furthermore there are different operators for
+arithmetic and comparisons on arithemtic types and on pointers. 
+
+ Another unusual aspect of CIL is that the implicit convertion between an
+expression of array type and one of pointer type is made explicit, using the
+[StartOf] expression constructor (which is not printed). If you apply the
+[AddrOf}]constructor to an lvalue of type [T] then you will be getting an
+expression of type [TPtr(T)].
+
+ You can find the type of an expression with {!Cil.typeOf}. 
+
+ You can perform constant folding on expressions using the function
+{!Cil.constFold}. 
+*)
+
 (** Expressions (Side-effect free)*)
 and exp =
     Const      of constant              (** Constant *)
   | Lval       of lval                  (** Lvalue *)
-  | SizeOf     of typ                   (** sizeof(<type>). Has [unsigned 
-                                         * int] type (ISO 6.5.3.4). This is 
-                                         * not turned into a constant because 
-                                         * some transformations might want to 
-                                         * change types *)
+  | SizeOf     of typ                   
+    (** sizeof(<type>). Has [unsigned int] type (ISO 6.5.3.4). This is not 
+     * turned into a constant because some transformations might want to 
+     * change types *)
 
-  | SizeOfE    of exp                   (** sizeof(<expression>) *)
-  | AlignOf    of typ                   (** Has [unsigned int] type *)
+  | SizeOfE    of exp                   
+    (** sizeof(<expression>) *)
+  | AlignOf    of typ                   
+    (** This corresponds to the GCC __alignof_. Has [unsigned int] type *)
   | AlignOfE   of exp 
 
                                         
-  | UnOp       of unop * exp * typ      (** Unary operation. Includes 
-                                            the type of the result *)
+  | UnOp       of unop * exp * typ     
+    (** Unary operation. Includes the type of the result. *)
 
   | BinOp      of binop * exp * exp * typ
-                                        (** Binary operation. Includes the 
-                                            type of the result. The arithemtic
-                                            conversions are made  explicit
-                                            for the arguments *)
-  | CastE      of typ * exp            (** Use {!Cil.mkCast} to make casts *)
+    (** Binary operation. Includes the type of the result. The arithemtic 
+     * conversions are made explicit for the arguments. *)
 
-  | AddrOf     of lval                 (** Always use {!Cil.mkAddrOf} to 
-                                        * construct one of these. Apply to an 
-                                        * lvalue of type [T] yields an 
-                                        * expression of type [TPtr(T)] *)
+  | CastE      of typ * exp            
+    (** Use {!Cil.mkCast} to make casts.  *)
 
-  | StartOf    of lval   (** There is no C correspondent for this. C has 
-                          * implicit coercions from an array to the address 
-                          * of the first element. [StartOf] is used in CIL to 
-                          * simplify type checking and is just an explicit 
-                          * form of the above mentioned implicit conversion. 
-                          * It is not printed. Given an lval of type 
-                          * [TArray(T)] produces an expression of type 
-                          * [TPtr(T)]. *)
+  | AddrOf     of lval                 
+    (** Always use {!Cil.mkAddrOf} to construct one of these. Apply to an 
+     * lvalue of type [T] yields an expression of type [TPtr(T)] *)
 
+  | StartOf    of lval   
+    (** Conversion from an array to a pointer to the beginning of the array. 
+     * Given an lval of type [TArray(T)] produces an expression of type 
+     * [TPtr(T)]. In C this operation is implicit, the [StartOf] operator is 
+     * not printed. We have it in CIL because it makes the typing rules 
+     * simpler. *)
+
+(** {b Constants.} *)
 
 (** Literal constants *)
 and constant =
   | CInt64 of int64 * ikind * string option 
-                 (** Integer constant. Give the ikind (see ISO9899 6.1.3.2) 
-                  * and the textual representation, if available. Use 
-                  * {!Cil.integer} or {!Cil.kinteger} to create these. Watch 
-                  * out for integers that cannot be represented on 64 bits. 
-                  * OCAML does not give Overflow exceptions. *)
-  | CStr of string (** String constant *)
-  | CChr of char   (** Character constant *)
-  | CReal of float * fkind * string option (** Floating point constant. Give
-                                               the fkind (see ISO 6.4.4.2) and
-                                               also the textual representation,
-                                               if available *)
+    (** Integer constant. Give the ikind (see ISO9899 6.1.3.2) and the 
+     * textual representation, if available. (This allows us to print a 
+     * constant as, for example, 0xF instead of 15.) Use {!Cil.integer} or 
+     * {!Cil.kinteger} to create these. Watch out for integers that cannot be 
+     * represented on 64 bits. OCAML does not give Overflow exceptions. *)
+  | CStr of string 
+    (** String constant. The escape characters inside the string have been 
+     * alredy interpreted. *)
+  | CChr of char   
+    (** Character constant *)
+  | CReal of float * fkind * string option 
+     (** Floating point constant. Give the fkind (see ISO 6.4.4.2) and also 
+      * the textual representation, if available. *)
 
 (** Unary operators *)
 and unop =
@@ -397,15 +544,53 @@ and binop =
   | BXor                                (** exclusive-or *)
   | BOr                                 (** inclusive-or *)
 
+(** {b Lvalues.} Lvalues are the sublanguage of expressions that can appear at the left of an assignment or as operand to the address-of operator. 
+In C the sytax for lvalues is not always a good indication of the meaning 
+of the lvalue. For example the C value
+{v  
+a[0][1][2]
+ v}
+ might involve 1, 2 or 3 memory reads when used in an expression context,
+depending on the declared type of the variable [a]. If [a] has type [int
+\[4\]\[4\]\[4\]] then we have one memory read from somewhere inside the area 
+that stores the array [a]. On the other hand if [a] has type [int ***] then
+the expression really means [* ( * ( * (a + 0) + 1) + 2)], in which case it is
+clear that it involves three separate memory operations. 
 
+An lvalue denotes the contents of a range of memory addresses. This range 
+is denoted as a host object along with an offset within the object. The 
+host object can be of two kinds: a local or global variable, or an object 
+whose address is in a pointer expression. We distinguish the two cases so 
+that we can tell quickly whether we are accessing some component of a 
+variable directly or we are accessing a memory location through a pointer.
+To make it easy to 
+tell what an lvalue means CIL represents lvalues as a host object and an
+offset (see {!Cil.lval}). The host object (represented as
+{!Cil.lhost}) can be a local or global variable or can be the object
+pointed-to by a pointer expression. The offset (represented as
+{!Cil.offset}) is a sequence of field or array index designators.
 
+ Both the typing rules and the meaning of an lvalue is very precisely
+specified in CIL. 
 
-(** An lvalue denotes the contents of a range of memory addresses. This range 
- * is denoted as a host object along with an offset within the object. The 
- * host object can be of two kinds: a local or global variable, or an object 
- * whose address is in a pointer expression. We distinguish the two cases so 
- * that we can tell quickly whether we are accessing some component of a 
- * variable directly or we are accessing a memory location through a pointer.*)
+ The following are a few useful function for operating on lvalues:
+- {!Cil.mkMem} - makes an lvalue of [Mem] kind. Use this to ensure
+that certain equivalent forms of lvalues are canonized. 
+For example, [*&x = x]. 
+- {!Cil.typeOfLval} - the type of an lvalue
+- {!Cil.typeOffset} - the type of an offset, given the type of the
+host. 
+- {!Cil.addOffset} and {!Cil.addOffsetLval} - entend sequences
+of offsets.
+
+The following equivalences hold {v 
+Mem(AddrOf(Mem a, aoff)), off   = Mem a, aoff + off 
+Mem(AddrOf(Var v, aoff)), off   = Var v, aoff + off 
+AddrOf (Mem a, NoOffset)        = a                 
+ v}
+
+*)
+(** An lvalue *)
 and lval =
     lhost * offset
 
@@ -445,36 +630,50 @@ and offset =
                        * to be the type of the array element *)
 
 
-
-(* The following equivalences hold *)
-(* Mem(AddrOf(Mem a, aoff)), off   = Mem a, aoff + off                *)
-(* Mem(AddrOf(Var v, aoff)), off   = Var v, aoff + off                *)
-(* AddrOf (Mem a, NoOffset)        = a                                *)
-
-(** Initializers for global variables.  You can create an initializer with 
- * {!Cil.makeZeroInit}. *)
+(** {b Initializers.} 
+A special kind of expressions are those that can appear as initializers for
+global variables (initialization of local variables is turned into
+assignments). The initializers are represented as type {!Cil.init}. You
+can create initializers with {!Cil.makeZeroInit} and you can conveniently
+scan compound initializers them with {!Cil.foldLeftCompound}. 
+*)
+(** Initializers for global variables. *)
 and init = 
   | SingleInit   of exp   (** A single initializer *)
   | CompoundInit   of typ * (offset * init) list
-            (** Used only for initializers of structures, unions and arrays. 
-             * The offsets are all of the form [Field(f, NoOffset)] or 
-             * [Index(i, NoOffset)] and specify the field or the index being 
-             * initialized. For structures and arrays all fields (indices) 
-             * must have an initializer (except the unnamed bitfields), in 
-             * the proper order. This is necessary since the offsets are not 
-             * printed. For unions there must be exactly one initializer. If 
-             * the initializer is not for the first field then a field 
-             * designator is printed, so you better be on GCC since MSVC does 
-             * not understand this. You can scan an initializer list with 
-             * {!Cil.foldLeftCompound}. *)
+    (** Used only for initializers of structures, unions and arrays. The 
+     * offsets are all of the form [Field(f, NoOffset)] or [Index(i, 
+     * NoOffset)] and specify the field or the index being initialized. For 
+     * structures and arrays all fields (indices) must have an initializer 
+     * (except the unnamed bitfields), in the proper order. This is necessary 
+     * since the offsets are not printed. For unions there must be exactly 
+     * one initializer. If the initializer is not for the first field then a 
+     * field designator is printed, so you better be on GCC since MSVC does 
+     * not understand this. You can scan an initializer list with 
+     * {!Cil.foldLeftCompound}. *)
 
+(** {b Function definitions.} 
+A function definition is always introduced with a [GFun] constructor at the
+top level. All the information about the function is stored into a
+{!Cil.fundec}. Some of the information (e.g. its name, type,
+storage, attributes) is stored as a {!Cil.varinfo} that is a field of the
+[fundec]. To refer to the function from the expression language you must use
+the [varinfo]. 
+
+ The function definition contains, in addition to the body, a list of all the
+local variables and separately a list of the formals. Both kind of variables
+can be refered to in the body of the function. The formals must also be shared
+with the formals that appear in the function type. For that reason, to
+manipulate formals you should use the provided functions
+{!Cil.makeFormalVar} and {!Cil.setFormals}. 
+*)
 (** Function definitions. *)
 and fundec =
     { mutable svar:     varinfo;        
          (** Holds the name and type as a variable, so we can refer to it 
           * easily from the program. All references to this function either 
           * in a function call or in a prototype must point to the same 
-          * varinfo. *)
+          * [varinfo]. *)
       mutable sformals: varinfo list;   
         (** Formals. These must be shared with the formals that appear in the 
          * type of the function. Use {!Cil.setFormals} or 
@@ -502,24 +701,39 @@ and block =
    } 
 
 
-(** Statements. 
-    The statement is the structural unit in the control flow graph. Use mkStmt 
-    to make a statement and then fill in the fields. *)
-and stmt = {
-    mutable labels: label list;        (** Whether the statement starts with 
-                                           some labels, case statements or 
-                                           default statement *)
-    mutable skind: stmtkind;           (** The kind of statement *)
+(** {b Statements}. 
+CIL statements are the strutural elements that make the CFG. They are 
+represented using the type {!Cil.stmt}. Every
+statement has a (possibly empty) list of labels. The
+{!Cil.stmtkind} field of a statement indicates what kind of statement it 
+is.
 
-    (* Now some additional control flow information. Initially this is not 
-     * filled in. *)
-    mutable sid: int;                  (** A number (>= 0) that is unique 
-                                           in a function. *)
-    mutable succs: stmt list;          (** The successor statements. They can 
-                                           always be computed from the skind 
-                                           and the context in which this 
-                                           statement appears *)
-    mutable preds: stmt list;          (** The inverse of the succs function*)
+CIL also comes with support for control-flow graphs. The [sid] field in
+[stmt] can be
+used to give unique numbers to statements, and the [succs] and [preds]
+fields can be used to maintain a list of successors and predeccors for every
+statement. 
+
+ Use {!Cil.mkStmt} to make a statement and the fill-in the fields. 
+*)
+(** Statements. *)
+and stmt = {
+    mutable labels: label list;        
+    (** Whether the statement starts with some labels, case statements or 
+     * default statements. *)
+
+    mutable skind: stmtkind;           
+    (** The kind of statement *)
+
+    mutable sid: int;                  
+    (** A number (>= 0) that is unique in a function. Filled in only after 
+     * the CFG is computed. *)
+    mutable succs: stmt list;          
+    (** The successor statements. They can always be computed from the skind 
+     * and the context in which this statement appears. Filled in only after 
+     * the CFG is computed. *)
+    mutable preds: stmt list;          
+    (** The inverse of the succs function. *)
   } 
 
 (** Labels *)
@@ -533,63 +747,65 @@ and label =
 
 
 
-(* The various kinds of statements *)
+(** The various kinds of control-flow statements statements *)
 and stmtkind = 
-  | Instr  of instr list               (** A group of instructions that do not 
-                                           contain control flow. Control
-                                           implicitly falls through. *)
-  | Return of exp option * location     (** The return statement. This is a 
-                                            leaf in the CFG. *)
+  | Instr  of instr list               
+  (** A group of instructions that do not contain control flow. Control 
+   * implicitly falls through. *)
 
-  | Goto of stmt ref * location         (** A goto statement. Appears from 
-                                            actual goto's in the code. *)
-  | Break of location                   (** A break to the end of the nearest 
-                                             enclosing Loop or Switch *)
-  | Continue of location                (** A continue to the start of the 
-                                            nearest enclosing [Loop] *)
-  | If of exp * block * block * location (** A conditional. 
-                                             Two successors, the "then" and 
-                                             the "else" branches. Both 
-                                             branches  fall-through to the 
-                                             successor of the If statement *)
+  | Return of exp option * location     
+   (** The return statement. This is a leaf in the CFG. *)
+
+  | Goto of stmt ref * location         
+   (** A goto statement. Appears from actual goto's in the code or from 
+    * goto's that have been inserted during elaboration. The reference 
+    * points to the statement that is the target of the Goto. This means that 
+    * you have to update the reference whenever you replace the target 
+    * statement. *)
+
+  | Break of location                   
+   (** A break to the end of the nearest enclosing Loop or Switch *)
+
+  | Continue of location                
+   (** A continue to the start of the nearest enclosing [Loop] *)
+  | If of exp * block * block * location 
+   (** A conditional. Two successors, the "then" and the "else" branches. 
+    * Both branches fall-through to the successor of the If statement. *)
+
   | Switch of exp * block * (stmt list) * location  
-                                       (** A switch statement. The block 
-                                           contains within all of the cases. 
-                                           We also have direct pointers to the 
-                                           statements that implement the 
-                                           cases. Which cases they implement 
-                                           you can get from the labels of the 
-                                           statement *)
+   (** A switch statement. The statements that implement the cases can be 
+    * reached through the provided list. For each such target you can find 
+    * among its labels what cases it implements. The statements that 
+    * implement the cases are somewhere within the provided [block]. *)
 
-  | Loop of block * location            (** A [while(1)] loop *)
+  | Loop of block * location            
+    (** A [while(1)] loop. The termination test is implemented in the body of 
+     * a loop using a [Break] statement *)
 
-  | Block of block                      (** Just a block of statements. Use it 
-                                            as a way to keep some attributes 
-                                            local *)
+  | Block of block                      
+    (** Just a block of statements. Use it as a way to keep some block 
+     * attributes local *)
     
+(** {b Instructions}. 
+ An instruction {!Cil.instr} is a statement that has no local
+(intraprocedural) control flow. It can be either an assignment,
+function call, or an inline assembly instruction. *)
 
-(** Instructions. They may cause effects directly but may not have control
-    flow.*)
+(** Instructions. *)
 and instr =
-    Set        of lval * exp * location  (** An assignment. A cast is present 
-                                             if the exp has different type 
-                                             from lval *)
+    Set        of lval * exp * location  
+   (** An assignment. The type of the expression is guaranteed to be the same 
+    * with that of the lvalue *)
   | Call       of lval option * exp * exp list * location
- 			 (** optional: result is an lval. A cast might be 
-                             necessary if the declared result type of the 
-                             function is not the same as that of the 
-                             destination. If the function is declared then 
-                             casts are inserted for those arguments that 
-                             correspond to declared formals. (The actual 
-                             number of arguments might be smaller or larger 
-                             than the declared number of arguments. C allows 
-                             this.) If the type of the result variable is not 
-                             the same as the declared type of the function 
-                             result then an implicit cast exists.  *)
+   (** A function call with the (optional) result placed in an lval. It is 
+    * possible that the returned type of the function is not identical to 
+    * that of the lvalue. In that case a cast is printed. The type of the 
+    * actual arguments are identical to those of the declared formals. The 
+    * number of arguments is the same as that of the declared formals, except 
+    * for vararg functions.  *)
 
-                         (* See the GCC specification for the meaning of ASM. 
-                          * If the source is MS VC then only the templates 
-                          * are used *)
+    (** See the GCC specification for the meaning of ASM. If the source is MS 
+     * VC then only the templates are used *)
                          (* sm: I've added a notes.txt file which contains more
                           * information on interpreting Asm instructions *)
   | Asm        of attributes * (* Really only const and volatile can appear 
@@ -619,8 +835,58 @@ and location = {
 }
 
 
-(***** TYPES *****)
-(** Manipulating types *)
+(** {b Values for manipulating globals} *)
+
+(** Make an empty function *)
+val emptyFunction: string -> fundec
+
+(** Update the formals of a [fundec] and make sure that the function type 
+    shares them *)
+val setFormals: fundec -> varinfo list -> unit
+
+(** Set the types of arguments and results as given by the function type 
+    passed as the second argument *)
+val setFunctionType: fundec -> typ -> unit
+
+(** A dummy function declaration handy when you need one as a placeholder. It 
+ * contains inside a dummy varinfo. *)
+val dummyFunDec: fundec
+
+(** A dummy file *)
+val dummyFile: file
+
+(** Get the global initializer and create one if it does not already exist *)
+val getGlobInit: file -> fundec  
+
+(** Iterate over all globals, including the global initializer *)
+val iterGlobals: file -> (global -> unit) -> unit
+
+(** Fold over all globals, including the global initializer *)
+val foldGlobals: file -> ('a -> global -> 'a) -> 'a -> 'a
+
+(** Map over all globals, including the global initializer and change things 
+    in place *)
+val mapGlobals: file -> (global -> global) -> unit
+
+(** {b Values for manipulating initializers} *)
+
+
+(** Make a initializer for zero-ing a data type ***)
+val makeZeroInit: typ -> init
+
+
+(** Fold over the list of initializers in a Compound. [doinit] is called on 
+    every present initializer, even if it is of compound type. This is much 
+    like [List.fold_left] except we also pass the type of the initializer *)
+val foldLeftCompound: 
+    doinit: (offset -> init -> typ -> 'a -> 'a) ->
+    ct: typ ->
+    initl: (offset * init) list ->
+    acc: 'a -> 'a
+
+
+
+(** {b Values for manipulating types} *****)
 
 (** void *)
 val voidType: typ
@@ -740,7 +1006,7 @@ type existsAction =
 val existsType: (typ -> existsAction) -> typ -> bool
 
 
-(***** Type signatures ****)
+(** {b Type signatures} ****)
 
 (** Type signatures. Two types are identical iff they have identical 
  * signatures. These contain the same information as types but canonicalized. 
@@ -770,18 +1036,8 @@ val setTypeSigAttrs: attributes -> typsig -> typsig
 (** Get the top-level attributes of a signature *)
 val typeSigAttrs: typsig -> attributes
 
-(** Compute the type of an expression *)
-val typeOf: exp -> typ
-
-(** Compute the type of an lvalue *)
-val typeOfLval: lval -> typ
-
-(** Compute the type of an offset from a bast type *)
-val typeOffset: typ -> offset -> typ 
-
-
-
-(*** LVALUES ***)
+(*********************************************************)
+(**  LVALUES *)
 
 (** Make a varinfo (for use in a TFun). Use other functions to make locals 
     and globals *)
@@ -817,19 +1073,26 @@ val addOffsetLval: offset -> lval -> lval
 (** [addOffset o1 o2] adds [o1] to the end of [o2]. *)
 val addOffset:     offset -> offset -> offset
 
+(** Compute the type of an lvalue *)
+val typeOfLval: lval -> typ
 
-(***** EXPRESSIONS *****)
+(** Compute the type of an offset from a bast type *)
+val typeOffset: typ -> offset -> typ 
+
+
+(*******************************************************)
+(** {b Values for manipulating expressions} *)
 
 
 (* Construct integer constants *)
 
-(* 0 *)
+(** 0 *)
 val zero: exp
 
-(* 1 *)
+(** 1 *)
 val one: exp
 
-(* -1 *)
+(** -1 *)
 val mone: exp
 
 
@@ -902,7 +1165,11 @@ val mkCastT: e:exp -> oldt:typ -> newt:typ -> exp
 (** Like {!Cil.mkCastT} but uses typeOf to get [oldt] *)  
 val mkCast: e:exp -> newt:typ -> exp 
 
-(***** STATEMENTS ****)
+(** Compute the type of an expression *)
+val typeOf: exp -> typ
+
+(**********************************************)
+(** {b Values for manipulating statments} *)
 
 (** Construct a statement, given its kind. Initialize the [sid] field to -1,
     and [labels], [succs] and [preds] to the empty list *)
@@ -926,59 +1193,27 @@ val dummyInstr: instr
 
 (** A statement consisting of just [dummyInstr] *)
 val dummyStmt: stmt
+
+(** Make a while loop. Can contain Break or Continue *)
+val mkWhile: guard:exp -> body:stmt list -> stmt list
+
+(** Make a for loop for(i=start; i<past; i += incr) \{ ... \}. The body 
+    can contain Break but not Continue. Can be used with i a pointer 
+    or an integer. Start and done must have the same type but incr 
+    must be an integer *)
+val mkForIncr:  iter:varinfo -> first:exp -> stopat:exp -> incr:exp 
+                 -> body:stmt list -> stmt list
+
+(** Make a for loop for(start; guard; next) \{ ... \}. The body can 
+    contain Break but not Continue !!! *) 
+val mkFor: start:stmt list -> guard:exp -> next: stmt list -> 
+                                       body: stmt list -> stmt list
+ 
+
+
   
-(***** INITIALIZERS ****)
-
-
-(*** Make a initializer for zero-ing a data type ***)
-val makeZeroInit: typ -> init
-
-
-(** Fold over the list of initializers in a Compound. [doinit] is called on 
-    every present initializer, even if it is of compound type. This is much 
-    like [List.fold_left] except we also pass the type of the initializer *)
-val foldLeftCompound: 
-    doinit: (offset -> init -> typ -> 'a -> 'a) ->
-    ct: typ ->
-    initl: (offset * init) list ->
-    acc: 'a -> 'a
-
-
-(**** GLOBALS ****)
-
-
-(** Make an empty function *)
-val emptyFunction: string -> fundec
-
-(** Update the formals of a [fundec] and make sure that the function type 
-    shares them *)
-val setFormals: fundec -> varinfo list -> unit
-
-(** Set the types of arguments and results as given by the function type 
-    passed as the second argument *)
-val setFunctionType: fundec -> typ -> unit
-
-(** A dummy function declaration handy when you need one as a placeholder. It 
- * contains inside a dummy varinfo. *)
-val dummyFunDec: fundec
-
-(** A dummy file *)
-val dummyFile: file
-
-(** Get the global initializer and create one if it does not already exist *)
-val getGlobInit: file -> fundec  
-
-(** Iterate over all globals, including the global initializer *)
-val iterGlobals: file -> (global -> unit) -> unit
-
-(** Fold over all globals, including the global initializer *)
-val foldGlobals: file -> ('a -> global -> 'a) -> 'a -> 'a
-
-(** Map over all globals, including the global initializer and change things 
-    in place *)
-val mapGlobals: file -> (global -> global) -> unit
-
-(***** ATTRIBUTES *****)
+(**************************************************)
+(** {b Values for manipulating attributes} *)
 
 (** Various classes of attributes *)
 type attributeClass = 
@@ -1036,11 +1271,25 @@ val typeAddAttributes: attribute list -> typ -> typ
     their uses *)
 val typeRemoveAttributes: string list -> typ -> typ
 
-             
+(** Use this to intercept all attributes when they are printed. If the 
+ * functional argument returns [Some d] then [d] is used as the external form 
+ * of the attribute. Otherwise the attribute is printed normally. *)
+val setCustomPrintAttribute: 
+    (attribute -> Pretty.doc option) -> unit
 
+(** Like {!Cil.setCustomPrintAttribute} but adds the given function to the 
+ * beginning of the chain of custom attribute printers but only for the 
+ * duration of executing the function passed as the second argument when 
+ * applied to the third argument *)
+val setCustomPrintAttributeScope: 
+    (attribute -> Pretty.doc option) -> ('a -> 'b) -> 'a -> 'b
+
+
+             
 (******************
  ******************  VISITOR
  ******************)
+(** {b The visitor} *)
 
 (** Different visiting actions. 'a will be instantiated with [exp], [instr],
     etc. *)
@@ -1062,11 +1311,6 @@ type 'a visitAction =
                                            function on the node *)
 
 
-
-(* sm/gn: cil visitor interface for traversing Cil trees. *)
-(* Use visitCilStmt and/or visitCilFile to use this. *)
-(* Some of the nodes are changed in place if the children are changed. Use 
- * one of Change... actions if you want to copy the node *)
 
 (** A visitor interface for traversing CIL trees. Create instantiations of 
  * this type by specializing the class {!Cil.nopCilVisitor}. *)
@@ -1175,36 +1419,54 @@ val visitCilAttributes: cilVisitor -> attribute list -> attribute list
 
 
 
-(** Make a while loop. Can contain Break or Continue *)
-val mkWhile: guard:exp -> body:stmt list -> stmt list
 
-(** Make a for loop for(i=start; i<past; i += incr) \{ ... \}. The body 
-    can contain Break but not Continue. Can be used with i a pointer 
-    or an integer. Start and done must have the same type but incr 
-    must be an integer *)
-val mkForIncr:  iter:varinfo -> first:exp -> stopat:exp -> incr:exp 
-                 -> body:stmt list -> stmt list
+(** {b Utility functions} *)
 
-(** Make a for loop for(start; guard; next) \{ ... \}. The body can 
-    contain Break but not Continue !!! *) 
-val mkFor: start:stmt list -> guard:exp -> next: stmt list -> 
-                                       body: stmt list -> stmt list
- 
+(** Whether the pretty printer should print output for the MS VC compiler.
+   Default is GCC *)
+val msvcMode: bool ref               
 
+(** Whether to print line numbers *)
+val printLn: bool ref
 
+(** Whether to print line numbers in comments*)
+val printLnComment: bool ref
 
-(**** Utility functions ******)
+(** {b Debugging support} *)
 
-(**** PRETTY PRINTING ***) 
+(** A reference to the current location. If you are careful to set this to 
+ * the current location then you can use some built-in logging functions that 
+ * will print the location. *)
+val currentLoc: location ref
 
-(* location *)
+(** CIL has a faily easy to use mechanism for printing error messages. This 
+ * mechanism is built on top of the pretty-printer mechanism (see 
+ * {!Pretty.doc}) and the error-message modules (see {!Errormsg.error}). 
+
+ Here is a typical example for printing a log message: {v 
+ignore (Errormsg.log "Expression %a is not positive (at %s:%i)\n"
+                        d_exp e loc.file loc.line)
+ v}
+
+ and here is an example of how you print a fatal error message that stop the 
+* execution: {v 
+Errormsg.s (Errormsg.bug "Why am I here?")
+ v}
+
+ Notice that you can use C format strings with some extension. The most 
+useful extension is "%a" that means to consumer the next two argument from 
+the argument list and to apply the first to [unit] and then to the second 
+and to print the resulting {!Pretty.doc}. For each major type in CIL there is 
+a corresponding function that pretty-prints an element of that type:
+*)
+
 (** Pretty-print a location *)
 val d_loc: unit -> location -> Pretty.doc
 
-(** Pretty-print the current location *)
+(** Pretty-print the {!Cil.currentLoc} *)
 val d_thisloc: unit -> Pretty.doc
 
-(** Pretty-print an integer *)
+(** Pretty-print an integer of a given kind *)
 val d_ikind: unit -> ikind -> Pretty.doc
 
 (** Pretty-print a floating-point value *)
@@ -1216,15 +1478,8 @@ val d_storage: unit -> storage -> Pretty.doc
 (** Pretty-print a constant *)
 val d_const: unit -> constant -> Pretty.doc
 
-  (* When we print types for consumption by another compiler we must be 
-   * careful to avoid printing multiple type definitions *)
-val printShortTypes: bool ref (* Prints "struct n" instead of the fields *)
-
 (** Pretty-print a type *)
 val d_type: unit -> typ -> Pretty.doc
-
-
-(* exp *)
 
 (** Pretty-print an expression *)
 val d_exp: unit -> exp -> Pretty.doc
@@ -1266,52 +1521,42 @@ val d_fun_decl: unit -> fundec -> Pretty.doc
 (** Pretty-print a variable declaration *)
 val d_videcl: unit -> varinfo -> Pretty.doc
 
-(** Pretty-print an entire file *)
+(** Pretty-print an entire file. Here you give the channel where the printout
+ * should be sent. *)
 val printFile: out_channel -> file -> unit
-
-(** Use this to intercept all attributes when they are printed. If your 
-    function returns [Some d] then [d] is used as the external form of the 
-     attribute. Otherwise the attribute is printed normally. *)
-val setCustomPrintAttribute: 
-    (attribute -> Pretty.doc option) -> unit
-
-(** Like {!Cil.setCustomPrintAttribute} but adds the given function to the 
- * beginning of the chain of custom attribute printers but only for the 
- * duration of executing the function passed as the second argument when 
- * applied to the third argument *)
-val setCustomPrintAttributeScope: 
-    (attribute -> Pretty.doc option) -> ('a -> 'b) -> 'a -> 'b
 
 
 (* the following error message producing functions also print a location in 
  * the code. use Errormsg.bug and Errormsg.unimp if you do not want that *)
 
-(** Like [Errormsg.bug] except that location information is also printed *)
+(** Like {!Errormsg.bug} except that {!Cil.currentLoc} is also printed *)
 val bug: ('a,unit,Pretty.doc) format -> 'a
 
-(** Like [Errormsg.unimp] except that location information is also printed *)
+(** Like {!Errormsg.unimp} except that {!Cil.currentLoc}is also printed *)
 val unimp: ('a,unit,Pretty.doc) format -> 'a
 
-(** Like [Errormsg.error] except that location information is also printed *)
+(** Like {!Errormsg.error} except that {!Cil.currentLoc} is also printed *)
 val error: ('a,unit,Pretty.doc) format -> 'a
 
-(** Like [error] except that it explicitly takes a location argument, instead 
-    of using the current location *)
+(** Like {!Cil.error} except that it explicitly takes a location argument, 
+ * instead of using the {!Cil.currentLoc} *)
 val errorLoc: location -> ('a,unit,Pretty.doc) format -> 'a  
 
-(** Like [Errormsg.warn] except that location information is also printed *)
+(** Like {!Errormsg.warn} except that {!Cil.currentLoc} is also printed *)
 val warn: ('a,unit,Pretty.doc) format -> 'a
 
-(** Like [Errormsg.warn] except that location information and context 
+(** Like {!Errormsg.warn} except that {!Cil.currentLoc} and context 
     is also printed *)
 val warnContext: ('a,unit,Pretty.doc) format -> 'a
 
-(** Like [warn] except that it explicitly takes a location argument, instead 
-    of using the current location *)
+(** Like {!Cil.warn} except that it explicitly takes a location argument, 
+ * instead of using the {!Cil.currentLoc} *)
 val warnLoc: location -> ('a,unit,Pretty.doc) format -> 'a  
 
-   (* Some plain pretty-printers. Unlike the above these expose all the 
-    * details of the internal representation *)
+(** Sometimes you do not want to see the syntactic sugar that the above 
+ * pretty-printing functions add. In that case you can use the following 
+ * pretty-printing functions. But note that the output of these functions is 
+ * not valid C *)
 
 (** Pretty-print the internal representation of an expression *)
 val d_plainexp: unit -> exp -> Pretty.doc
@@ -1332,7 +1577,7 @@ val d_plaintype: unit -> typ -> Pretty.doc
 val d_global: unit -> global -> Pretty.doc
 
 
-(* ALPHA conversion *)
+(** ALPHA conversion *)
 (** Create a new name based on a given name. The new name is formed from a 
     prefix (obtained from the given name by stripping a suffix consisting of _ 
     followed by only digits), followed by a '_' and then by a positive integer 
@@ -1370,21 +1615,6 @@ val peepHole1: (instr -> instr list option) -> stmt list -> unit
  **)
 
      
-type offsetAcc = 
-    { oaFirstFree: int;   (** The first free bit *)
-      oaLastFieldStart: int;   (** Where the previous field started *)
-      oaLastFieldWidth: int;   (** The width of the previous field. Might not 
-                                   be same as FirstFree - FieldStart because 
-                                   of internal padding *)
-      oaPrevBitPack: (int * ikind * int) option; (** If the previous fields 
-                                                     were packed bitfields, 
-                                                     the bit where packing 
-                                                     has started, the ikind 
-                                                     of the bitfield and the 
-                                                     width of the ikind *)
-    } 
-val offsetOfFieldAcc: fi: fieldinfo ->
-                      sofar: offsetAcc -> offsetAcc 
 (** Raised when one of the bitsSizeOf functions cannot compute the size of a 
     type. This can happen because the type contains array-length expressions 
     that we don't know how to compute or because it is a type whose size is 
@@ -1405,32 +1635,18 @@ val alignOf_int: typ -> int
    width (also expressed in bits) *)
 val bitsOffset: typ -> offset -> int * int
 
-(** Whether the pretty printer should print output for the MS VC compiler.
-   Default is GCC *)
-val msvcMode: bool ref               
-
-(** A few machine-dependent configuration options *)
-
-
-(** Whether to print line numbers *)
-val printLn: bool ref
-
-(** Whether to print line numbers in comments*)
-val printLnComment: bool ref
 
 (** Represents a location that cannot be determined *)
 val locUnknown: location
 
-(** A reference to the current location *)
-val currentLoc: location ref
 
-(** Generate an [exp] to be used in case of errors *)
+(** Generate an {!Cil.exp} to be used in case of errors. *)
 val dExp: Pretty.doc -> exp 
 
-(** Generate an [instr] to be used in case of errors *)
+(** Generate an {!Cil.instr} to be used in case of errors. *)
 val dInstr: Pretty.doc -> location -> instr
 
-(** Generate a [global] to be used in case of errors *)
+(** Generate a {!Cil.global} to be used in case of errors. *)
 val dGlobal: Pretty.doc -> location -> global
 
 (** Like map but try not to make a copy of the list *)
