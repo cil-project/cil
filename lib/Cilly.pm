@@ -143,7 +143,7 @@ sub collectArgumentList {
 
     # Scan and process the arguments
     while($#args >= 0) {
-        my $arg = $self->fetchEscapedArg(\@args);
+        my $arg = $self->fetchNextArg(\@args);
         if(! defined($arg)) {
             last;
         }
@@ -157,22 +157,10 @@ sub collectArgumentList {
     }
 }
 
-# Grab the next argument and escape it if necessary
-sub fetchEscapedArg {
+# Grab the next argument
+sub fetchNextArg {
     my ($self, $pargs) = @_;
-    my $arg = shift @{$pargs};
-        # Drop the empty arguments
-    if($arg =~ m|^\s*$|) { 
-        if($#{$pargs} > 0) {
-            return $self->fetchEscapedArg($pargs); 
-        } else {
-            return undef;
-        }
-    }
-        # See if it contains spaces
-    $arg =~ s|(\s)|\\$1|g;
-    $arg =~ s|(\")|\\\"|g;
-    return $arg;
+    return shift @{$pargs};
 }
 
 # Collecting arguments. Take a look at one argument. If we understand it then
@@ -339,12 +327,11 @@ EOF
 sub straight_linktolib {
     my ($self, $psrcs, $dest, $ppargs, $ccargs, $ldargs) = @_;
     my @sources = ref($psrcs) ? @{$psrcs} : ($psrcs);
-    $dest = $dest eq "" ? "" : $self->{OUTLIB} . $dest;
+    my @dest = $dest eq "" ? () : ($self->{OUTLIB} . $dest);
     # Pass the linkargs last because some libraries must be passed after
     # the sources
-    my $cmd = $self->{LDLIB} . " $dest " . 
-        join(' ', @{$ppargs}, @{$ccargs}, @sources, @{$ldargs});
-    return $self->runShell($cmd);
+    my @cmd = (@{$self->{LDLIB}}, @dest, @{$ppargs}, @{$ccargs}, @sources, @{$ldargs});
+    return $self->runShell(@cmd);
 }
 
 # Customize the linking into libraries
@@ -378,7 +365,7 @@ sub linktolib {
         close(TRUEOBJS);
     }
     if(@{$tomerge} == 1) { # Just copy the file over
-        (!system("cp -f ${$tomerge}[0] $dest"))
+        (!system('cp', '-f', ${$tomerge}[0], $dest))
             || die "Cannot copy ${$tomerge}[0] to $dest\n";
         return ;
     }
@@ -389,17 +376,17 @@ sub linktolib {
     my ($base, $dir, $ext) = fileparse($dest, "(\\.[^.]+)");
     
     # Now prepare the command line for invoking cilly
-    my ($cmd, $aftercil) = $self->MergeCommand ($psrcs, $dir, $base);
-    $cmd .= " ";
+    my ($aftercil, @cmd) = $self->MergeCommand ($psrcs, $dir, $base);
+    die unless $cmd[0];
 
     if($self->{MODENAME} eq "MSVC") {
-        $cmd .= " --MSVC ";
+        push @cmd, "--MSVC";
     }
     if($self->{VERBOSE}) {
-        $cmd .= " --verbose ";
+        push @cmd, "--verbose";
     }
     if(defined $self->{CILARGS}) {
-        $cmd .=  join(' ', @{$self->{CILARGS}}) . " ";
+        push @cmd, @{$self->{CILARGS}};
     }
     # Eliminate duplicates
     
@@ -411,13 +398,13 @@ sub linktolib {
             print TOMERGE "$fl\n";
         }
         close(TOMERGE);
-        $cmd .= " --extrafiles $extraFile ";
+        push @cmd, '--extrafiles', $extraFile;
     } else {
-        $cmd .= join(' ', @{$tomerge}) . " ";
+        push @cmd, @{$tomerge};
     }
-    $cmd .= " --mergedout $dest";
+    push @cmd, "--mergedout", $dest;
     # Now run cilly
-    return $self->runShell($cmd);
+    return $self->runShell(@cmd);
 }
 
 ############
@@ -523,9 +510,9 @@ sub straight_preprocess {
         $self->MSVC::msvc_preprocess($src, $dest, $ppargs);
     } else {
 #        print Dumper($self);
-        my $cmd = $self->{CPP} . " " . 
-            join(' ', @{$ppargs}) . " $src " . $self->{OUTCPP} . $dest;
-        $self->runShell($cmd);
+        my @cmd = (@{$self->{CPP}}, @{$ppargs},
+		   $src, $self->{OUTCPP}, $dest);
+        $self->runShell(@cmd);
         
     }
     return $dest;
@@ -586,11 +573,11 @@ sub compile {
 sub straight_compile {
     my ($self, $src, $dest, $ppargs, $ccargs) = @_;
     if($self->{VERBOSE}) { print STDERR "Compiling $src into $dest\n"; }
-    $dest = $dest eq "" ? "" : $self->{OUTOBJ} . $dest;
+    my @dest = $dest eq "" ? () : ($self->{OUTOBJ}, $dest);
     my $forcec = $self->{FORCECSOURCE};
-    my $cmd = $self->{CC} . " " . join(' ', @{$ppargs}, @{$ccargs}) .  
-        " $dest $forcec$src";
-    return $self->runShell($cmd);
+    my @cmd = (@{$self->{CC}}, @{$ppargs}, @{$ccargs},
+	       @dest, "$forcec$src");
+    return $self->runShell(@cmd);
 }
 
 # This is compilation after CIL
@@ -605,10 +592,10 @@ sub compile_cil {
 sub assemble {
     my ($self, $src, $dest, $ppargs, $ccargs) = @_;
     if($self->{VERBOSE}) { print STDERR "Assembling $src\n"; }
-    $dest = $dest eq "" ? "" : $self->{OUTOBJ} . $dest;
-    my $cmd = $self->{CC} . " " . join(' ', @{$ppargs}, @{$ccargs}) .  
-        " $dest $src";
-    return $self->runShell($cmd);
+    my @dest = $dest eq "" ? () : ($self->{OUTOBJ}, $dest);
+    my @cmd = (@{$self->{CC}}, @{$ppargs}, @{$ccargs},
+	       @dest, $src);
+    return $self->runShell(@cmd);
 }
 
 
@@ -619,12 +606,12 @@ sub assemble {
 sub straight_link {
     my ($self, $psrcs, $dest, $ppargs, $ccargs, $ldargs) = @_;
     my @sources = ref($psrcs) ? @{$psrcs} : ($psrcs);
-    $dest = $dest eq "" ? "" : $self->{OUTEXE} . $dest;
+    my @dest = $dest eq "" ? () : ($self->{OUTEXE}, $dest);
     # Pass the linkargs last because some libraries must be passed after
     # the sources
-    my $cmd = $self->{LD} . " $dest " . 
-        join(' ', @{$ppargs}, @{$ccargs}, @sources, @{$ldargs});
-    return $self->runShell($cmd);
+    my @cmd = (@{$self->{LD}}, @dest,
+	       @{$ppargs}, @{$ccargs}, @sources, @{$ldargs});
+    return $self->runShell(@cmd);
 }
 
 #
@@ -776,17 +763,16 @@ sub applyCil {
     my ($base, $dir, $ext) = fileparse($dest, "(\\.[^.]+)");
     
     # Now prepare the command line for invoking cilly
-    my ($cmd, $aftercil) = $self->CillyCommand ($ppsrc, $dir, $base);
-    $cmd .= " ";
+    my ($aftercil, @cmd) = $self->CillyCommand ($ppsrc, $dir, $base);
 
     if($self->{MODENAME} eq "MSVC") {
-        $cmd .= " --MSVC ";
+        push @cmd, '--MSVC';
     }
     if($self->{VERBOSE}) {
-        $cmd .= " --verbose ";
+        push @cmd, '--verbose';
     }
     if(defined $self->{CILARGS}) {
-        $cmd .=  join(' ', @{$self->{CILARGS}}) . " ";
+        push @cmd, @{$self->{CILARGS}};
     }
 
     # Add the arguments
@@ -797,15 +783,15 @@ sub applyCil {
             print TOMERGE "$fl\n";
         }
         close(TOMERGE);
-        $cmd .= " --extrafiles $extraFile ";
+        push @cmd, '--extrafiles', $extraFile;
     } else {
-        $cmd .= join(' ', @srcs) . " ";
+        push @cmd, @srcs;
     }
     if(@srcs > 1 && $self->{KEEPMERGED}) {
-        $cmd .= " --mergedout $dir$base" . ".c ";
+        push @cmd, '--mergedout', "$dir$base" . '.c';
     }
     # Now run cilly
-    $self->runShell($cmd);
+    $self->runShell(@cmd);
 
     # Tell the caller where we put the output
     return $aftercil;
@@ -859,13 +845,12 @@ sub doit {
     # Maybe we must preprocess only
     if($self->{OPERATION} eq "TOI") {
         # Then we do not do anything
-	my @cmd = ($self->{CPP},
+	my @cmd = (@{$self->{CPP}},
 		   @{$self->{PPARGS}}, @{$self->{CCARGS}}, 
 		   @{$self->{CFILES}}, @{$self->{SFILES}});
-	push @cmd, $self->{OUTARG} if defined $self->{OUTARG};
+	push @cmd, @{$self->{OUTARG}} if defined $self->{OUTARG};
 
-        my $cmd = join(' ', @cmd);
-        return $self->runShell($cmd);
+        return $self->runShell(@cmd);
     }
     # We expand some libraries names. Maybe they just contain some 
     # new object files
@@ -957,7 +942,7 @@ sub compilerArgument {
         &classDebug("Try match with $key\n");
         if($arg =~ m|^$key|) {
           &classDebug(" match with $key\n");
-          my $fullarg = $arg;
+          my @fullarg = ($arg);
           my $onemore;
           if(defined $action->{'ONEMORE'}) {
               &classDebug("  expecting one more\n");
@@ -966,9 +951,9 @@ sub compilerArgument {
               ($realarg, $onemore) = ($arg =~ m|^($key)(.+)$|);
               if(! defined $onemore) {
                   # Grab the next argument
-                  $onemore = $self->fetchEscapedArg($pargs);
+                  $onemore = $self->fetchNextArg($pargs);
                   $onemore = &quoteIfNecessary($onemore);
-                  $fullarg .= " $onemore";
+                  push @fullarg, $onemore;
               } else {
                   $onemore = &quoteIfNecessary($onemore);
               }
@@ -977,46 +962,46 @@ sub compilerArgument {
           # Now see what action we must perform
           my $argument_done = 1;
           if(defined $action->{'RUN'}) {
-              &{$action->{'RUN'}}($self, $fullarg, $onemore, $pargs);
+              &{$action->{'RUN'}}($self, @fullarg, $onemore, $pargs);
               $argument_done = 1;
           }
           if(defined $action->{'TYPE'}) {
               &classDebug("  type=$action->{TYPE}\n");
               if($action->{TYPE} eq "PREPROC") {
-                  push @{$self->{PPARGS}}, $fullarg; return 1;
+                  push @{$self->{PPARGS}}, @fullarg; return 1;
               }
               if($action->{TYPE} eq "CC") {
-                  push @{$self->{CCARGS}}, $fullarg; return 1;
+                  push @{$self->{CCARGS}}, @fullarg; return 1;
               }
               if($action->{TYPE} eq "LINKCC") {
-                  push @{$self->{CCARGS}}, $fullarg; 
-                  push @{$self->{LINKARGS}}, $fullarg; return 1;
+                  push @{$self->{CCARGS}}, @fullarg; 
+                  push @{$self->{LINKARGS}}, @fullarg; return 1;
               }
               if($action->{TYPE} eq "ALLARGS") {
-                  push @{$self->{PPARGS}}, $fullarg;
-                  push @{$self->{CCARGS}}, $fullarg; 
-                  push @{$self->{LINKARGS}}, $fullarg; return 1;
+                  push @{$self->{PPARGS}}, @fullarg;
+                  push @{$self->{CCARGS}}, @fullarg; 
+                  push @{$self->{LINKARGS}}, @fullarg; return 1;
               }
               if($action->{TYPE} eq "LINK") {
-                  push @{$self->{LINKARGS}}, $fullarg; return 1;
+                  push @{$self->{LINKARGS}}, @fullarg; return 1;
               }
               if($action->{TYPE} eq "CSOURCE") {
-                  push @{$self->{CFILES}}, $fullarg; return 1;
+                  push @{$self->{CFILES}}, @fullarg; return 1;
               }
               if($action->{TYPE} eq "ASMSOURCE") {
-                  push @{$self->{SFILES}}, $fullarg; return 1;
+                  push @{$self->{SFILES}}, @fullarg; return 1;
               }
               if($action->{TYPE} eq "OSOURCE") {
-                  push @{$self->{OFILES}}, $fullarg; return 1;
+                  push @{$self->{OFILES}}, @fullarg; return 1;
               }
               if($action->{TYPE} eq "ISOURCE") {
-                  push @{$self->{IFILES}}, $fullarg; return 1;
+                  push @{$self->{IFILES}}, @fullarg; return 1;
               }
               if($action->{TYPE} eq 'OUT') {
                   if(defined($self->{OUTARG})) {
-                      print "Warning: output file is multiply defined: $self->{OUTARG} and $fullarg\n";
+                      print "Warning: output file is multiply defined: @{$self->{OUTARG}} and @fullarg\n";
                   }
-                  $self->{OUTARG} = $fullarg; return 1;
+                  $self->{OUTARG} = [@fullarg]; return 1;
               }
               print "  Do not understand TYPE\n"; return 1;
           }
@@ -1030,7 +1015,7 @@ sub compilerArgument {
 
 
 sub runShell {
-    my ($self, $cmd) = @_;
+    my ($self, @cmd) = @_;
 
     # sm: I want this printed to stderr instead of stdout
     # because the rest of 'make' output goes there and this
@@ -1038,14 +1023,14 @@ sub runShell {
     # sm: removed conditional on verbose since there's already
     # so much noise in the output, and this is the *one* piece
     # of information I *always* end up digging around for..
-    if($self->{TRACE_COMMANDS}) { print STDERR "$cmd\n"; }
+    if($self->{TRACE_COMMANDS}) { print STDERR "@cmd\n"; }
 
     # weimer: let's have a sanity check
-    my $code = system($cmd);
+    my $code = system { $cmd[0] } @cmd;
     if ($code != 0) {
         # sm: now that we always print, don't echo the command again,
         # since that makes the output more confusing
-	#die "Possible error with $cmd!\n";
+	#die "Possible error with @cmd!\n";
 	$code >>= 8;    # extract exit code portion
 
         exit $code;
@@ -1082,13 +1067,13 @@ sub new {
     my $self = 
     { NAME => 'Microsoft cl compiler',
       MODENAME => 'MSVC',
-      CC => 'cl /nologo /D_MSVC /c',
-      CPP => 'cl /nologo /D_MSVC /P',
-      LD => 'cl /nologo /D_MSVC',
+      CC => ['cl', '/nologo', '/D_MSVC', '/c'],
+      CPP => ['cl', '/nologo', '/D_MSVC', '/P'],
+      LD => ['cl', '/nologo', '/D_MSVC'],
       DEFARG  => "/D",
       INCARG  => "/I",
-      DEBUGARG => "/Zi /MLd /DEBUG",
-      OPTIMARG => "/Ox /G6 ",
+      DEBUGARG => ['/Zi', '/MLd', '/DEBUG'],
+      OPTIMARG => ['/Ox', '/G6'],
       OBJEXT => "obj",
       LIBEXT => "lib",   # Library extension (without the .)
       EXEEXT => ".exe",  # Executable extension (with the .)
@@ -1157,8 +1142,8 @@ sub msvc_preprocess {
     my ($sbase, $sdir, $sext) = 
         fileparse($src, 
                   "(\\.c)|(\\.cc)|(\\.cpp)|(\\.i)");
-    my $cmd = "cl /nologo /P /D_MSVC " . join(' ', @{$ppargs});
-    $res = $self->runShell("$cmd $src");
+    my @cmd = ('cl', '/nologo', '/P', '/D_MSVC', @{$ppargs});
+    $res = $self->runShell(@cmd, $src);
     # MSVC cannot be told where to put the output. But we know that it
     # puts it in the current directory
     my $msvcout = "./$sbase.i";
@@ -1215,7 +1200,7 @@ sub lineDirective {
 # The name of the output file
 sub compileOutputFile {
     my($self, $src) = @_;
-    if($self->{OUTARG} =~ m|/Fo(.+)|) {
+    if("@{$self->{OUTARG}}" =~ m|/Fo(.+)|) {
         return $1;
     }
     my ($base, $dir, $ext) = 
@@ -1234,7 +1219,7 @@ sub assembleOutputFile {
 
 sub linkOutputFile {
     my($self, $src) = @_;
-    if($self->{OUTARG} =~ m|/Fe(.+)|) {
+    if("@{$self->{OUTARG}}" =~ m|/Fe(.+)|) {
         return $1;
     }
     return "a.exe";
@@ -1274,17 +1259,17 @@ sub new {
     my $self = 
     { NAME => 'Microsoft linker',
       MODENAME => 'mslink',
-      CC => 'no_compiler_in_mslink_mode',
-      CPP => 'no_compiler_in_mslink_mode',
-      LD => 'cl /nologo',
-      DEFARG  => " ??DEFARG",
-      INCARG  => " ??INCARG",
-      DEBUGARG => "/DEBUG",
-      OPTIMARG => "",
+      CC => ['no_compiler_in_mslink_mode'],
+      CPP => ['no_compiler_in_mslink_mode'],
+      LD => ['cl', '/nologo'],
+      DEFARG  => "??DEFARG",
+      INCARG  => "??INCARG",
+      DEBUGARG => ['/DEBUG'],
+      OPTIMARG => [],
       OBJEXT => "obj",
       LIBEXT => "lib",   # Library extension (without the .)
       EXEEXT => ".exe",  # Executable extension (with the .)
-      OUTOBJ => " ??OUTOBJ",
+      OUTOBJ => "??OUTOBJ",
       OUTEXE => "/OUT:",
       LINEPATTERN => "", 
 
@@ -1308,7 +1293,7 @@ sub forceIncludeArg {  # Same as for CL
 
 sub linkOutputFile {
     my($self, $src) = @_;
-    if($self->{OUTARG} =~ m|/OUT:(.+)|) {
+    if("@{$self->{OUTARG}}" =~ m|/OUT:(.+)|) {
         return $1;
     }
     die "I do not know what is the link output file\n";
@@ -1334,17 +1319,17 @@ sub new {
     my $self = 
     { NAME => 'Archiver',
       MODENAME => 'ar',
-      CC => 'no_compiler_in_ar_mode',
-      CPP => 'no_compiler_in_ar_mode',
-      LDLIB => 'ar crv',
-      DEFARG  => " ??DEFARG",
-      INCARG  => " ??INCARG",
-      DEBUGARG => "??DEBUGARG",
-      OPTIMARG => "",
+      CC => ['no_compiler_in_ar_mode'],
+      CPP => ['no_compiler_in_ar_mode'],
+      LDLIB => ['ar', 'crv'],
+      DEFARG  => "??DEFARG",
+      INCARG  => '??INCARG',
+      DEBUGARG => ['??DEBUGARG'],
+      OPTIMARG => [],
       OBJEXT => "o",
       LIBEXT => "a",   # Library extension (without the .)
       EXEEXT => "",  # Executable extension (with the .)
-      OUTOBJ => " ??OUTOBJ",
+      OUTOBJ => "??OUTOBJ",
       OUTLIB => "",  # But better be first
       LINEPATTERN => "", 
 
@@ -1366,7 +1351,7 @@ sub arArguments {
     # We got here for the first non -- argument. 
     # Will handle all arguments at once
     if($self->{VERBOSE}) {
-        print "AR called with $arg ", join(' ', @{$pargs}), "\n";
+        print "AR called with $arg @{$pargs}\n";
     }
 
     #The r flag is required:
@@ -1384,8 +1369,9 @@ sub arArguments {
     {
 	# Command is "cr":
         # Get the name of the library
-        $self->{OUTARG} = shift @{$pargs};
-        unlink $self->{OUTARG};
+	my $out = shift @{$pargs};
+        $self->{OUTARG} = [$out];
+        unlink $out;
     }
     else
     {
@@ -1393,28 +1379,29 @@ sub arArguments {
         # not replace it, unless the library does not exist
         
         # Get the name of the library
-        $self->{OUTARG} = shift @{$pargs};
+	my $out = shift @{$pargs};
+        $self->{OUTARG} = [$out];
         
         #The library is both an input and an output.
         #To avoid problems with reading and writing the same file, move the
         #current version of the library out of the way first.
-        if(-f $self->{OUTARG}) {
+        if(-f $out) {
 
-            my $temp_name = $self->{OUTARG} . "_old.a";
+            my $temp_name = $out . "_old.a";
             if($self->{VERBOSE}) {
-        	print "Copying $self->{OUTARG} to $temp_name so we can add "
+        	print "Copying $out to $temp_name so we can add "
                     . "to it.\n";
             }
             if(-f $temp_name) {
                 unlink $temp_name;
             }
-            rename $self->{OUTARG}, $temp_name;
+            rename $out, $temp_name;
 
             #now use $temp_name as the input.  $self->{OUTARG} will,
             # as usual, be the output.
             push @{$self->{OFILES}}, $temp_name;
         } else {
-            warn "Library $self->{OUTARG} not found; creating.";
+            warn "Library $out not found; creating.";
         }
 
     }
@@ -1430,7 +1417,7 @@ sub arArguments {
 sub linkOutputFile {
     my($self, $src) = @_;
     if(defined $self->{OUTARG}) {
-        return $self->{OUTARG};
+        return "@{$self->{OUTARG}}";
     }
     die "I do not know what is the link output file\n";
 }
@@ -1462,22 +1449,22 @@ sub new {
       MODENAME => 'GNUCC',  # do not change this since it is used in code
       # sm: added -O since it's needed for inlines to be merged instead of causing link errors
       # sm: removed -O to ease debugging; will address "inline extern" elsewhere
-      CC => $::cc . " -D_GNUCC -c",
-      LD => $::cc . " -D_GNUCC ",
-      LDLIB => "ld -r -o ",
-      CPP =>  $::cc . " -D_GNUCC -E ",
+      CC => [$::cc, '-D_GNUCC', '-c'],
+      LD => [$::cc, '-D_GNUCC'],
+      LDLIB => ['ld', '-r', '-o'],
+      CPP =>  [$::cc, '-D_GNUCC', '-E'],
       DEFARG  => "-D",
       INCARG => "-I",
-      DEBUGARG => "-g -ggdb",
-      OPTIMARG => "-O4",
-      CPROFILEARG => "-pg ",
-      LPROFILEARG => "-pg ",
+      DEBUGARG => ['-g', '-ggdb'],
+      OPTIMARG => ['-O4'],
+      CPROFILEARG => '-pg',
+      LPROFILEARG => '-pg',
       OBJEXT => "o",
       LIBEXT => "a",
       EXEEXT => "",
-      OUTOBJ => "-o ",
-      OUTEXE => "-o ",
-      OUTCPP => "-o ",
+      OUTOBJ => '-o',
+      OUTEXE => '-o',
+      OUTCPP => '-o',
       FORCECSOURCE => "",
       LINEPATTERN => "^#\\s+(\\d+)\\s+\"(.+)\"",
       
@@ -1620,7 +1607,7 @@ sub parseLinkerScript {
 
 sub forceIncludeArg { 
     my($self, $what) = @_;
-    return "-include $what";
+    return ('-include', $what);
 }
 
 
@@ -1633,7 +1620,7 @@ sub lineDirective {
 # The name of the output file
 sub compileOutputFile {
     my($self, $src) = @_;
-    if(defined $self->{OUTARG} && $self->{OUTARG} =~ m|^-o\s*(\S.+)$| && $self->{OPERATION} eq 'TOOBJ') {
+    if(defined $self->{OUTARG} && "@{$self->{OUTARG}}" =~ m|^-o\s*(\S.+)$| && $self->{OPERATION} eq 'TOOBJ') {
         return $1;
     }
     my ($base, $dir, $ext) = 
@@ -1652,7 +1639,7 @@ sub assembleOutputFile {
 
 sub linkOutputFile {
     my($self, $src) = @_;
-    if(defined $self->{OUTARG} && $self->{OUTARG} =~ m|-o\s*(\S.+)|) {
+    if(defined $self->{OUTARG} && "@{$self->{OUTARG}}" =~ m|-o\s*(\S.+)|) {
         return $1;
     }
     return "a.out";

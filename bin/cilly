@@ -100,8 +100,8 @@ sub helpMessage {
 
 The following are the arguments of the Cilly process
 EOF
-   my $cmd = $CilCompiler::compiler . " -help";
-   $self->runShell($cmd); 
+   my @cmd = ($CilCompiler::compiler, '-help');
+   $self->runShell(@cmd); 
 }
 
 
@@ -109,27 +109,27 @@ sub CillyCommand {
     my ($self, $ppsrc, $dir, $base) = @_;
 
     my $aftercil = "$dir$base" . "cil.c";
-    my $cmd = $CilCompiler::compiler;
+    my @cmd = ($CilCompiler::compiler);
     if(defined $ENV{OCAMLDEBUG}) {
         my @idirs = ("src", "src/frontc", "src/ccured", "src/ext", 
                      "obj/$::archos");
-        $cmd = "ocamldebug -emacs " . 
-            join(" ", map { "-I $::cilhome/$_" } @idirs) . " " . $cmd;
+	my @iflags = map { ('-I', "$::cilhome/$_") } @idirs;
+        unshift @cmd, 'ocamldebug', '-emacs', @iflags;
     }
-    if($::docxx) { 
-        $cmd .= " --cxx";
+    if($::docxx) {
+        push @cmd, '--cxx';
     }
     if($self->{CABSONLY}) {
         $aftercil = "$dir$base" . "cabs.c";
-        $cmd .= " --cabsonly $aftercil";
+        push @cmd, '--cabsonly', $aftercil;
     }
-    return ($cmd . " --out $aftercil", $aftercil);
+    return ($aftercil, @cmd, '--out', $aftercil);
 }
 
 sub MergeCommand {
     my ($self, $ppsrc, $dir, $base) = @_;
 
-    return ($CilCompiler::compiler, "");
+    return ('', $CilCompiler::compiler);
 }
 
 
