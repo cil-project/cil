@@ -65,3 +65,5 @@ Callback.register "get_dummy_types" getDummyTypes;
 
 (* initalize CIL *)
 C.initCIL ();
+
+
