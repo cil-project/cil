@@ -202,7 +202,11 @@ CC=$(CCL) $(CONLY)
 ifeq ($(COMPUTERNAME), FETA)
 SAFECC=perl $(CILDIR)/lib/newsafecc.pl
 else
+ifeq ($(COMPUTERNAME), brooksie)
+SAFECC=perl $(CILDIR)/lib/newsafecc.pl
+else
 SAFECC=perl $(CILDIR)/lib/safecc.pl
+endif
 endif
 
 ifdef SHOWCABS
