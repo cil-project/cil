@@ -577,7 +577,13 @@ let rec compareWithoutCasts e1 e2 : bool =
   | _,_ -> e1 = e2
 
 
-(* Compare exp's *)
+(* Simplify exps in some way *)
+let rec simplifyExp e : exp =
+  match e with
+    CastE (_,e) -> e
+  | _ -> e
+
+(* Compare exp's for equality *)
 let rec expEqual e1 e2 : bool=
   e1 == e2 ||
   match e1,e2 with
@@ -631,6 +637,24 @@ and offsetEqual off1 off2 : bool =
   | Index (i1,off1), Index (i2,off2) -> (expEqual i1 i2) && (offsetEqual off1 off2)
   | Field (f1,off1), Field (f2,off2) -> f1.fname = f2.fname && (offsetEqual off1 off2)
   | _ -> false
+
+
+(* Compare exp's for lt / gt / = *)
+let compareExp e1 e2 : int option =
+  let b =
+  if (expEqual e1 e2) then Some 0
+  else match e1,e2 with
+    Const (CInt32 (a,_,_)), Const (CInt32 (b,_,_)) -> 
+      Some (if a < b then -1 else if a=b then 0 else 1)
+  | _ -> None
+  in
+  if amandebug then begin
+    pr "";
+    ignore (Pretty.printf "compare %a , %a = %s\n" 
+	      d_exp e1 d_exp e2 (match b with None -> "(no-idea)" | Some n -> string_of_int n));
+  end;
+  b
+
 (******************************************************************************)
 
 (* See comments in eliminateRedundancy *)
@@ -667,6 +691,12 @@ let rec eliminateRedundancy (f : fundec) : fundec =
     
     if amandebug then pr "------- Function %s contains %d nodes and %d CHECKS\n" f.svar.vname !numNodes countCheckInstrs;
 
+    (* Show variables *)
+    if amandebug then begin
+      List.iter (fun v -> pr "Var %d: %s vaddrof:%b\n" v.vid v.vname v.vaddrof ) 
+	(f.sformals @ f.slocals);
+    end;
+
     (* When processing a CHECK, I find all the other redundant CHECKs and flag them.
        i.e. All the simultaneously flagged elements are identical, and good 
        candidates for elimination *)
@@ -688,7 +718,7 @@ let rec eliminateRedundancy (f : fundec) : fundec =
 
 	  (* Some temporary stuff for inspection by a ocamlmktop manufactured toplvl *)
 	  
-          if i = 28 && false then begin
+          if i = 1 then begin
             pr "************ MARSHALLING TO op.m *********************\n";
             let chn = open_out_bin "op.m" in
             (* Marshal.to_channel chn !checkInstrs.(i) [Marshal.No_sharing];*)
@@ -927,21 +957,20 @@ and peepholeReplace (chk : instr) : instr =
    TODO: Ah.. doesn't quite work 
 *)
 and intervalContainsExp (lo:exp) (hi:exp) (mid:exp) : bool =
-  match lo,hi with
-    CastE (_, StartOf (a,NoOffset)), 
-    CastE (_, BinOp (IndexPI,StartOf (b,NoOffset), Const n,_)) 
-      when a = b
-    -> (match mid with 
-      CastE(_, StartOf(c,Index(Const m,NoOffset)))
-      when a=c && m<n -> 
-	(* pr "!!!! "; *)
-	true
-    | CastE(_, StartOf _)
-      -> (* pr "#$#$ "; *)
-	false
-    | _ -> (* pr "Nope :-(  "; *) false)
-  | _ -> (* pr "No "; *) false
-
+  let lo = simplifyExp lo  in
+  let hi = simplifyExp hi  in
+  let mid= simplifyExp mid in
+  match lo,hi,mid with
+    StartOf lv, 
+    BinOp (IndexPI, StartOf lvv, c,_),
+    AddrOf ((_,lvioff) as lvi)
+    when lv = lvv && lv = (stripOffset lvi) ->
+      (match getOutermostOffset lvioff with
+	Index (c2, NoOffset) ->
+	  ((compareExp c2 zero) >= Some 0) &&
+	  ((compareExp c  c2)   = Some 1)
+      |	_ -> false);      
+  | _ -> false
 
 
 (* minLatticeValue:
@@ -962,7 +991,7 @@ and minLatticeValue (inst : instr) : lattice =
 	   (Mem _,_) -> true
          | (_, off) -> 
 	     match (getOutermostOffset off) with
-	       Index _ -> true
+	       Index _ -> false (* ab: I changed it to false ... I think array set operations cant change values of other variables *)
 	     | _ -> false)))
       then latCheckNeeded
       else latCheckNotNeeded
@@ -1104,12 +1133,22 @@ and getCheckedLvals (check : instr) : lval list =
     | Question (e1,e2,e3) -> 
 	(getLvalsFromExp e1) @ (getLvalsFromExp e2) @ (getLvalsFromExp e3)
     | CastE (_,e1) -> getLvalsFromExp e1
-    | AddrOf lv -> (try getLvalsFromExp (Lval (stripOffset lv)) with _ -> [])
+    | AddrOf ((_,off) as lv) -> 
+	let off = getOutermostOffset off in begin
+	  match off with 
+	    NoOffset -> []
+	  | Index (i, _) -> 
+	      (getLvalsFromExp i) @ getLvalsFromExp (Lval (stripOffset lv)) 
+	  | Field _ -> 
+	      getLvalsFromExp (Lval (stripOffset lv))
+	end
     | StartOf lv -> getLvalsFromExp (Lval lv)
     | Lval ((Mem e1, NoOffset) as lv) -> lv :: (getLvalsFromExp e1)
     | Lval ((Var v, NoOffset) as lv) -> [lv]
-    | Lval ((_, Field _) as lv) -> lv :: (getLvalsFromExp (Lval (stripOffset lv)))
-    | Lval ((_, Index _) as lv) -> lv :: (getLvalsFromExp (Lval (stripOffset lv)))
+    | Lval ((_, Field _) as lv) -> 
+	lv :: (getLvalsFromExp (Lval (stripOffset lv)))
+    | Lval ((_, Index (i,_)) as lv) -> 
+	lv :: (getLvalsFromExp i) @ (getLvalsFromExp (Lval (stripOffset lv)))
   in  
   match check with
     Call (_,Lval(Var checkName,_),args,_) -> 
