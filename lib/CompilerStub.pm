@@ -337,8 +337,11 @@ sub runShell {
         # sm: now that we always print, don't echo the command again,
         # since that makes the output more confusing
 	#die "Possible error with $cmd!\n";
-	exit($code >> 8);    # extract exit code portion
+	$code >>= 8;    # extract exit code portion
+
+        exit $code;
     } 
+    return $code;
 }
 
 sub quoteIfNecessary {

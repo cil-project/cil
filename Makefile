@@ -1584,11 +1584,24 @@ reiserfs-combined: mustbegcc mustbelinux \
 
 
 ################# THE LINUX KERNEL
+LINUXSRC := /usr/src/linux-cil
 mustbemanju: 
-ifneq ($(HOST), manju)
-	@echo This test case works only on manju; exit 3
-endif
+	if ! test -d $(LINUXSRC) ; then  \
+                echo You dont have the Linux sources; exit 3; fi
 
-linux: mustbegcc mustbelinux mustbemanju
-	cd /usr/src/linux-cil ; \
-	    make clean ; make CC="$(CCURED)" 
+CILLY := perl $(CCUREDHOME)/lib/cilly.pl --verbose
+
+linuxclean: 
+	cd $(LINUXSRC); make clean
+	-cd $(LINUXSRC); find . \( \
+		-name '*cil.c' -o \
+		-name '*.exe' -o \
+		-name '*.i' -o \
+		-name '*.o' -o \
+		-name '*.obj' -o \
+		-name '*cabs.c' -o \
+		-name '*_comb*.c' \
+	      	\) -exec rm {} \;
+
+linux: mustbegcc mustbelinux mustbemanju linuxclean
+	cd $(LINUXSRC) ; make -k CC="$(CILLY)" 

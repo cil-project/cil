@@ -68,15 +68,25 @@ sub compile {
         if($self->{VERBOSE}) {
             $cmd .= " --verbose ";
         }
-        $cmd .= join(' ', @{$ppargs});
         # Make a name for the CIL file
         my $cilfile = "$dir$base" . "cil.c";
         $self->runShell("$cmd $src -o $cilfile");
 
         # Now preprocess and compile again
-        return $self->SUPER::preprocess_compile($cilfile, 
-                                                $dest, $ppargs, $ccargs);
+        my $res = $self->SUPER::preprocess_compile($cilfile, 
+                                                   $dest, $ppargs, $ccargs);
+        return 0;
     }
 
 }
 
+# We need to customize the collection of arguments
+sub collectOneArgument {
+    my($self, $arg, $pargs) = @_;
+    # See if the super class understands this
+    if($self->SUPER::collectOneArgument($arg, $pargs)) { return 1; }
+    if($arg =~ m|--nofail|)  {
+        $self->{NOFAIL} = 1; return 1;
+    }
+    return 0;
+}
