@@ -56,14 +56,15 @@ PATCH_SYSINCLUDES := ctype.h fcntl.h grp.h malloc.h netdb.h pwd.h signal.h \
 # dsw & sm: DON'T DO THIS.  See comment in ccured_GNUCC.patch, search for 'sys/io.h'.
 # PATCH_SYSINCLUDES += sys/io.h
 
-# matth: this file is only in Cygwin
+# matth: reent.h is only in Cygwin, and Cygwin defines struct sigaction 
+# in sys/signal.h:
 ifeq ($(ARCHOS), x86_WIN32)
-PATCH_SYSINCLUDES += sys/reent.h
+PATCH_SYSINCLUDES += sys/reent.h sys/signal.h
 endif
 
-# matth: this file is not in Cygwin
-ifneq ($(ARCHOS), x86_WIN32)
-PATCH_SYSINCLUDES +=  nl_types.h
+# matth: these files are not in Cygwin
+ifeq ($(ARCHOS), x86_LINUX)
+PATCH_SYSINCLUDES +=  nl_types.h bits/sigaction.h
 endif
 
 
