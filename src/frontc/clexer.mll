@@ -96,24 +96,28 @@ let init_lexicon _ =
 	]
 
 let add_type name =
-	StringHashtbl.add lexicon name (NAMED_TYPE name)
+(*   ignore (print_string ("adding type name " ^ name ^ "\n")); *)
+   StringHashtbl.add lexicon name (NAMED_TYPE name)
 
 let context : string list list ref = ref []
 
 let push_context _ = context := []::!context
 
 let pop_context _ = 
-	match !context with
-	[] -> raise (InternalError "Empty context stack")
+  match !context with
+    [] -> raise (InternalError "Empty context stack")
 	| con::sub ->
 		(context := sub;
-		List.iter (fun name -> StringHashtbl.remove lexicon name) con)
+		List.iter (fun name -> 
+                           (* ignore (print_string ("removing lexicon for " ^ name ^ "\n")); *)
+                            StringHashtbl.remove lexicon name) con)
 
 let add_identifier name =
 	match !context with
 	[] -> () (* Just ignore raise (InternalError "Empty context stack") *)
 	| con::sub ->
 		(context := (name::con)::sub;
+(*                print_string ("adding IDENT for " ^ name ^ "\n"); *)
 		StringHashtbl.add lexicon name (IDENT name))
 
 

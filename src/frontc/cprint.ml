@@ -538,7 +538,7 @@ and print_expression (exp : expression) (lvl : int) =
 	  print_expression exp' lvl';
 	  print txt
       | _ ->
-	  print txt;
+	  print txt; space (); (* Print the space to avoid --5 *)
 	  print_expression exp' lvl')
   | BINARY (op, exp1, exp2) ->
 			(*if (op = SUB) && (lvl <= lvl') then print "(";*)

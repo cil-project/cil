@@ -298,8 +298,10 @@ let doDeclaration (spec: specifier) (nl: name list) : definition =
   end else
     if nl = [] then
       ONLYTYPEDEF ng
-    else
+    else begin
+      List.iter (fun (n, _, _, _) -> Clexer.add_identifier n) names;
       DECDEF ng
+    end
 
 let doFunctionDecl (n: name) (pardecl: single_name list) (va: bool) : name = 
   injectTypeName (PROTO(NO_TYPE, pardecl, va, false)) n
@@ -846,7 +848,7 @@ direct_decl: /* (* ISO 6.7.5 *) */
     msqual_list_opt IDENT          { nameOfIdent $2 $1 } 
                                    /* (* We want to be able to redefine named 
                                     * types as variable names *) */
-|   msqual_list_opt NAMED_TYPE     {Clexer.add_identifier $2;
+|   msqual_list_opt NAMED_TYPE     {(* Clexer.add_identifier $2; *)
                                      ($2, 
                                       (if $1 = [] then NO_TYPE
                                        else ATTRTYPE (NO_TYPE, $1)), 

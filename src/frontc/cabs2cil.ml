@@ -253,26 +253,8 @@ let mkAddrOfAndMark ((b, off) as lval) : exp =
   
 
 
-(******** GLOBAL TYPES **************)
-let typedefs_old : (string, typ) H.t = H.create 113 
-   (* We keep in typedefs both the real type definitions, in which case the 
-    * result type is a TNamed and also all the encountered composite types 
-    * for the purpose of resolving forward references. In this latter case 
-    * the key is "struct n" or "union n" or "enum n" *)
-
-
    (* Keep a set of self compinfo for composite types *)
 let compInfoNameEnv : (string, compinfo) H.t = H.create 113
-(*
-let recordTypeName n t = H.add typedefs n t
-
-let findTypeName_old n = 
-  try
-    H.find typedefs n
-  with Not_found -> begin
-    E.s (E.unimp "Cannot find type %s\n" n)
-  end
- *)
 
 let lookupTypeNoError (kind: string) 
                       (n: string) : typ = 
@@ -1013,7 +995,8 @@ and doType (a : attribute list) = function
   | A.NAMED_TYPE n -> begin
       match lookupType "type" n with 
         (TNamed _) as x -> x
-      | typ -> TNamed(n, typ, a)
+      | typ -> E.s (E.bug "Named type %s is not mapped correctly\n" n)
+          (* TNamed(n, typ, a) *)
   end
   | A.TYPEOF e -> 
       let (c, _, t) = doExp false e (AExp None) in
@@ -1166,8 +1149,9 @@ and doExp (isconst: bool)    (* In a constant *)
            (* e.str = (& e + off(str)). If e = (be + beoff) then e.str = (be 
             * + beoff + off(str))  *)
     | A.MEMBEROF (e, str) -> 
-        if isconst then
-          E.s (E.unimp "MEMBEROF in constant");
+        (* member of is actually allowed if we only take the address *)
+        (* if isconst then
+          E.s (E.unimp "MEMBEROF in constant");  *)
         let (se, e', t') = doExp false e (AExp None) in
         let lv = 
           match e' with Lval x -> x 
@@ -1705,17 +1689,23 @@ and doExp (isconst: bool)    (* In a constant *)
         let (resType, argTypes, isvar, f'') = 
           match unrollType ft' with
             TFun(rt,at,isvar,a) -> (rt,at,isvar,f')
-          | TPtr(TFun(rt,at,isvar,a),_) -> (* Make the function pointer 
+          | TPtr (t, _) -> begin
+              match unrollType t with 
+                TFun(rt,at,isvar,a) -> (* Make the function pointer 
                                             * explicit  *)
-              let f'' = 
-                match f' with
-                  StartOf lv -> Lval(lv)
-                | _ -> Lval(Mem(f'), NoOffset)
-              in
-              (rt,at,isvar, f'')
-          | x -> E.s (E.unimp 
-                        "Unexpected type of the called function %a: %a" 
-                        d_exp f' d_type x)
+                  let f'' = 
+                    match f' with
+                      StartOf lv -> Lval(lv)
+                    | _ -> Lval(Mem(f'), NoOffset)
+                  in
+                  (rt,at,isvar, f'')
+              | x -> E.s (E.unimp 
+                            "Unexpected type of the called function %a: %a" 
+                            d_exp f' d_type x)
+          end
+          | x ->  E.s (E.unimp 
+                         "Unexpected type of the called function %a: %a" 
+                         d_exp f' d_type x)
         in
         (* Drop certain qualifiers from the result type *)
         let resType' =  
