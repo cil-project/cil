@@ -647,28 +647,54 @@ let isPrintf reso orig_func args = begin
   | _ -> None
 end
 
-(* Do a statement *)
-let rec doStmt (s: ostmt) = 
+(* Do a statement. OLD *)
+let rec doOStmt (s: ostmt) : ostmt = 
   match s with 
-    (Skip | Labels _ | Cases _ | Defaults | Break | Continue | Gotos _) -> s
-  | Sequence sl -> Sequence (List.map doStmt sl)
-  | Loops s -> Loops (doStmt s)
+    (Skip | Labels _ | Cases _ | Defaults | Breaks | Continues | Gotos _) -> s
+  | Sequence sl -> Sequence (List.map doOStmt sl)
+  | Loops s -> Loops (doOStmt s)
   | IfThenElse (e, s1, s2, l) -> 
-      IfThenElse (doExpAndCast e intType, doStmt s1, doStmt s2, l)
-  | Switchs (e, s, l) -> Switchs (doExpAndCast e intType, doStmt s, l)
+      IfThenElse (doExpAndCast e intType, doOStmt s1, doOStmt s2, l)
+  | Switchs (e, s, l) -> Switchs (doExpAndCast e intType, doOStmt s, l)
   | Returns (None, _) -> s
   | Returns (Some e, l) -> 
       Returns (Some (doExpAndCast e !currentResultType), l)
-  | Instrs (Asm _, _) -> s
-  | Instrs (Set (lv, e), l) -> 
+  | Instrs (i, l) -> 
+      let i' = doInstr i l in
+      Instrs (i', l)
+  | Block blk -> Block (doBlock blk)
+
+and doBlock blk = 
+  List.map doStmt blk
+
+and doStmt (s: stmt) : stmt = 
+  (match s.skind with 
+    Goto _ | Break _ | Continue _ -> ()
+  | Return (None, _) -> ()
+  | Return (Some e, l) -> 
+      s.skind <- Return (Some (doExpAndCast e !currentResultType), l)
+  | Instr il -> 
+      s.skind <- Instr (List.map (fun (i,l) -> doInstr i l, l) il)
+  | Loop (b, l) -> 
+      s.skind <- Loop (doBlock b, l)
+  | If(e, b1, b2, l) -> 
+      s.skind <- If (doExpAndCast e intType, doBlock b1, doBlock b2, l)
+  | Switch (e, b, cases, l) -> 
+      s.skind <- Switch(doExpAndCast e intType, doBlock b, cases, l));
+  s
+
+and doInstr (i:instr) (l: location) : instr = 
+  match i with
+  | Asm _ -> i
+  | Set (lv, e) -> 
       let lv', lvn = doLvalue lv true in
       (* Now process the copy *)
 (*      ignore (E.log "Setting lv=%a\n lvt=%a (ND=%d)" 
                 d_plainlval lv d_plaintype (typeOfLval lv) lvn.N.id); *)
       let e' = doExpAndCast e lvn.N.btype in
-      Instrs (Set (lv', e'), l)
+      Set (lv', e')
 
-  | Instrs (Call (reso, orig_func, args), l) -> 
+  | Call (reso, orig_func, args) -> 
       let args = 
         match isPrintf reso orig_func args with
           Some(o) -> o
@@ -720,7 +746,7 @@ let rec doStmt (s: ostmt) =
                                rt, N.dummyNode) destvi.vtype !callId)
 	end 
       end;
-      Instrs (Call(reso, func', loopArgs formals args), l)
+      Call(reso, func', loopArgs formals args)
   
       
 (* Now do the globals *)
@@ -790,7 +816,7 @@ let doGlobal (g: global) : global =
           (* Do the other locals *)
           List.iter doVarinfo fdec.slocals;
           (* Do the body *)
-          fdec.sbody <- doStmt fdec.sbody;
+          fdec.sbody <- doOStmt fdec.sbody;
           g
       | GPragma _ -> g (* Should never be reached *)
   end

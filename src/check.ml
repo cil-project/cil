@@ -524,7 +524,7 @@ and checkStmto (s: ostmt) =
       | _ -> dprintf "checkStmto: %a" d_ostmt s)
     (fun _ -> 
       match s with
-        Skip | Break | Continue | Defaults | Cases _ -> ()
+        Skip | Breaks | Continues | Defaults | Cases _ -> ()
       | Sequence ss -> List.iter checkStmto ss
       | Loops s -> checkStmto s
       | Labels l -> begin

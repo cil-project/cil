@@ -376,8 +376,8 @@ and ostmt =
   | Switchs of exp * ostmt * location   (* no work done to break this appart *)
   | Cases of int * location            (* The case expressions are resolved *)
   | Defaults
-  | Break
-  | Continue
+  | Breaks
+  | Continues
   | Instrs of instr * location
 
   | Block of block                      (* Just a placeholder to allow us to 
@@ -405,9 +405,12 @@ and stmtkind =
                                          * contain control flow stuff *)
   | Return of exp option * location     (* The optional return *)
 
-  | Goto of stmt ref * location         (* One successor, the target of an 
-                                         * explicit goto or a break or a 
-                                         * continue statement. *)
+  | Goto of stmt ref * location         (* A goto statement. Appears from 
+                                         * actual goto's in the code. *)
+  | Break of location                   (* A break to the end of the nearest 
+                                         * enclosing Loop or Switch *)
+  | Continue of location                (* A continue to the start of the 
+                                         * nearest enclosing Loop *)
   | If of exp * block * block * location (* Two successors, the "then" and the 
                                           * "else" branches. Both branches 
                                           * fall-through to the successor of 
@@ -591,7 +594,34 @@ let mkEmptyStmt () = mkStmt (Instr [])
 let dummyStmt = 
   mkStmt (Instr [(Asm(["dummy statement!!"], false, [], [], []), lu)])
 
- 
+
+let concatBlocks (b1: block) (b2: block) : block =  
+      (* Try to compress statements *)
+  let rec compress (leftover: stmt) = function
+      [] -> if leftover == dummyStmt then [] else [leftover]
+    | ({skind=Instr il} as s) :: rest ->
+        if leftover == dummyStmt then
+          compress s rest
+        else
+          if s.labels == [] then
+            match leftover.skind with 
+              Instr previl -> 
+                leftover.skind <- Instr (previl @ il);
+                compress leftover rest
+            | _ -> E.s (E.bug "cabs2cil: compress")
+          else
+                (* This one has labels. Cannot attach to prev *)
+            leftover :: compress s rest
+        | s :: rest -> 
+            let res = s :: compress dummyStmt rest in
+            if leftover == dummyStmt then
+              res
+            else
+              leftover :: res
+  in
+  compress dummyStmt (b1 @ b2)
+
+
 let structId = ref 0 (* Find a better way to generate new names *)
 let newTypeName n = 
   incr structId;
@@ -726,17 +756,19 @@ let mkSeq sl =
 
 
 
-let mkWhile (guard:exp) (body: ostmt list) : ostmt = 
+let mkWhileO (guard:exp) (body: ostmt list) : ostmt = 
   (* Do it like this so that the pretty printer recognizes it *)
-  Loops (Sequence (IfThenElse(guard, Skip, Break, lu) :: body))
+  Loops (Sequence (IfThenElse(guard, Skip, Breaks, lu) :: body))
 
-let mkFor (start: ostmt) (guard: exp) (next: ostmt) (body: ostmt list) : ostmt = 
+
+let mkForO (start: ostmt) (guard: exp) (next: ostmt) 
+          (body: ostmt list) : ostmt = 
   mkSeq 
     (start ::
-     mkWhile guard (body @ [next]) :: [])
+     mkWhileO guard (body @ [next]) :: [])
 
 
-let mkForIncr (iter: varinfo) (first: exp) (past: exp) (incr: exp) 
+let mkForIncrO (iter: varinfo) (first: exp) (past: exp) (incr: exp) 
     (body: ostmt list) : ostmt = 
       (* See what kind of operator we need *)
       let compop, nextop = 
@@ -744,7 +776,7 @@ let mkForIncr (iter: varinfo) (first: exp) (past: exp) (incr: exp)
           TPtr _ -> LtP, PlusPI
         | _ -> Lt, PlusA
       in
-      mkFor (Instrs(Set (var iter, first), lu))
+      mkForO (Instrs(Set (var iter, first), lu))
         (BinOp(compop, Lval(var iter), past, intType))
         (Instrs(Set (var iter, 
                     (BinOp(nextop, Lval(var iter), incr, iter.vtype))), lu))
@@ -1261,7 +1293,7 @@ and d_ostmt () s =
     Skip -> dprintf ";"
   | Sequence(lst) -> dprintf "@[{ @[@!%a@]@!}@]" 
         (docList line (d_ostmt ())) lst
-  | Loops(Sequence(IfThenElse(e,Skip,Break,_) :: rest)) -> 
+  | Loops(Sequence(IfThenElse(e,Skip,Breaks,_) :: rest)) -> 
       dprintf "wh@[ile (%a)@!%a@]" d_exp e d_ostmt (Sequence rest)
   | Loops(stmt) -> 
       dprintf "wh@[ile (1)@!%a@]" d_ostmt stmt
@@ -1273,8 +1305,8 @@ and d_ostmt () s =
   | Labels(s) -> dprintf "%s:" s
   | Cases(i,_) -> dprintf "case %d: " i
   | Gotos(s) -> dprintf "goto %s;" s
-  | Break  -> dprintf "break;"
-  | Continue -> dprintf "continue;"
+  | Breaks  -> dprintf "break;"
+  | Continues -> dprintf "continue;"
   | Returns(None,_) -> text "return;"
   | Returns(Some e,_) -> dprintf "return (%a);" d_exp e
   | Switchs(e,s,_) -> dprintf "@[switch (%a)@!%a@]" d_exp e d_ostmt s
@@ -1283,11 +1315,16 @@ and d_ostmt () s =
   | Block blk -> (d_block invalidStmt invalidStmt) () blk
 
 and d_stmt (next: stmt) (break: stmt) (cont: stmt) () (s: stmt) = 
-  dprintf "%a%a"
+  dprintf "%a%t"
     (* print the labels *)
     (docList line (fun l -> d_label () l)) s.labels
-    (* print the statement itself *)
-    (d_stmtkind s next break cont) s.skind
+    (* print the statement itself. If the labels are non-empty and the 
+     * statement is empty, print a semicolon  *)
+    (fun _ ->
+      if s.skind = Instr [] && s.labels <> [] then
+        text ";"
+      else
+        d_stmtkind s next break cont () s.skind)
 
 and d_label () = function
     Label (s, _) -> dprintf "%s:" s
@@ -1300,9 +1337,10 @@ and d_block (break: stmt) (cont: stmt) () blk =
     | [x] -> d_stmt invalidStmt break cont () x
     | x :: rest -> dorest nil x rest
   and dorest acc prev = function
-      [] -> acc ++ line ++ (d_stmt invalidStmt break cont () prev)
+      [] -> acc ++ (d_stmt invalidStmt break cont () prev)
     | x :: rest -> 
-        dorest (acc ++ line ++ (d_stmt x break cont () prev)) x rest
+        dorest (acc ++ (d_stmt x break cont () prev) ++ line)
+                  x rest
   in
   dprintf "@[{ @[@!%a@]@!}@]" dofirst blk
 
@@ -1310,10 +1348,9 @@ and d_stmtkind (this:stmt)
                (next: stmt) (break: stmt) (cont: stmt) () = function
     Return(None, _) -> text "return;"
   | Return(Some e, _) -> dprintf "return (%a);" d_exp e
-  | Goto (sref, _) -> 
-      if !sref == break then text "break;" else
-      if !sref == cont then text "continue;" else
-      d_goto !sref
+  | Goto (sref, _) -> d_goto !sref
+  | Break _ -> text "break;"
+  | Continue _ -> text "continue;"
   | Instr il -> 
       dprintf "@[%a@]" 
         (docList line (fun (i, l) -> d_instr () i)) il
@@ -1723,7 +1760,7 @@ begin
 
   and fOStmt s = if (vis#vostmt s) then fOStmt' s
   and fOStmt' = begin function
-      (Skip|Break|Continue|Labels _|Gotos _
+      (Skip|Breaks |Continues|Labels _|Gotos _
        |Cases _|Defaults|Returns (None,_)) -> ()
     | Sequence s -> List.iter fOStmt s
     | Loops s -> fOStmt s
@@ -2478,3 +2515,4 @@ let offsetOf (fi: fieldinfo) (startcomp: int) : int * int =
   (lastoff.oaLastFieldStart, lastoff.oaLastFieldWidth)
       
  
+    

@@ -42,7 +42,7 @@ let rec nullChecksOptimStmt (s:Cil.ostmt) (nnl:Cil.lval list) =
   | Switchs(_,_,_) | Cases(_) | Defaults -> 
       (s,nnl)
 (*      E.s (E.unimp "OPTIM cannot handle switch, case, default yet")*)
-  | Break | Continue -> (s,nnl)
+  | Breaks | Continues -> (s,nnl)
   | Instrs(i, l) -> (match i with
       Call(_,Lval(Var x,_),args) when x.vname = "CHECK_NULL" ->
         (* args must be a list of one element -- the exp which we

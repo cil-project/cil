@@ -379,8 +379,8 @@ and ostmt =
   | Switchs of exp * ostmt * location    (* no work done to break this appart *)
   | Cases of int * location             (* The case expressions are resolved *)
   | Defaults
-  | Break
-  | Continue
+  | Breaks
+  | Continues
   | Instrs of instr * location
 
   | Block of block                      (* Just a placeholder to allow us to 
@@ -415,9 +415,11 @@ and stmtkind =
                                          * leaf in the CFG. *)
 
   | Goto of stmt ref * location         (* A goto statement. Appears from 
-                                         * actual goto's in the code or from 
-                                         * continue and break statements. *)
-
+                                         * actual goto's in the code. *)
+  | Break of location                   (* A break to the end of the nearest 
+                                         * enclosing Loop or Switch *)
+  | Continue of location                (* A continue to the start of the 
+                                         * nearest enclosing Loop *)
   | If of exp * block * block * location (* Two successors, the "then" and the 
                                           * "else" branches. Both branches 
                                           * fall-through to the successor of 
@@ -535,6 +537,10 @@ val doubleType: typ
 
 
 val mkStmt: stmtkind -> stmt
+
+(* use this instead of List.@ because you get fewer basic blocks *)
+val concatBlocks: block -> block -> block
+
 val mkEmptyStmt: unit -> stmt
 val dummyStmt: stmt
   
@@ -591,18 +597,18 @@ val mkSeq: ostmt list -> ostmt
 
 
     (* Make a while loop. Can contain Break or Continue *)
-val mkWhile: guard:exp -> body:ostmt list -> ostmt
+val mkWhileO: guard:exp -> body:ostmt list -> ostmt
 
     (* Make a for loop for(i=start; i<past; i += incr) { ... }. The body 
      * should not contain Break or Continue !!!. Can be used with i a pointer 
      * or an integer. Start and done must have the same type but incr 
      * must be an integer *)
-val mkForIncr:  iter:varinfo -> first:exp -> stopat:exp -> incr:exp 
-                -> body:ostmt list -> ostmt
+val mkForIncrO:  iter:varinfo -> first:exp -> stopat:exp -> incr:exp 
+                 -> body:ostmt list -> ostmt
 
     (* Make a for loop for(start; guard; next) { ... }. The body should not 
      * contain Break or Continue !!! *) 
-val mkFor: start:ostmt -> guard:exp -> next:ostmt -> body: ostmt list -> ostmt
+val mkForO: start:ostmt -> guard:exp -> next:ostmt -> body: ostmt list -> ostmt
  
 
 

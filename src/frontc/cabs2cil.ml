@@ -325,9 +325,9 @@ module StatementChunk =
     let skipChunk : chunk = s2c [Skip]
 
     (* A break *)
-    let breakChunk (l: location) : chunk = s2c [Break]
+    let breakChunk (l: location) : chunk = s2c [Breaks]
 
-    let continueChunk (l: location) : chunk = s2c [Continue]
+    let continueChunk (l: location) : chunk = s2c [Continues]
 
     (* A loop *)
     let loopChunk (body: chunk) : chunk = 
@@ -362,16 +362,16 @@ module StatementChunk =
         | IfThenElse (_, _, _, _) | Block _ -> 100
         | Labels _ -> 10000
         | Switchs _ -> 100
-        | (Gotos _|Returns _|Cases _|Defaults|Break|Continue|Instrs _) -> 1
+        | (Gotos _|Returns _|Cases _|Defaults|Breaks|Continues|Instrs _) -> 1
       and costMany sl = List.fold_left (fun acc s -> acc + costOne s) 0 sl
       in
       costMany (c2s c) <= 3
         
     let canDrop (c: chunk) = (* We can drop a statement only if it does not 
-                                * contain label definitions  *)
+                              * contain label definitions  *)
       let rec dropOne = function
           (Skip | Gotos _ | Returns _| Cases _ | Defaults | 
-          Break | Continue | Instrs _) -> true
+          Breaks | Continues | Instrs _) -> true
         | Sequence sl -> List.for_all dropOne sl
         | _ -> false
       in
@@ -386,10 +386,11 @@ module BlockChunk =
         postins: (instr * location) list; (* Some instructions to append at 
                                            * the ends of statements (in 
                                            * reverse order)  *)
-        fixbreak: stmt -> unit;         (* A function that will fix all the 
-                                         * Goto due to Break statements *)
-        fixcont: stmt -> unit;          (* Same for Continue statements *)
-
+(*
+        fixbreak: stmt -> unit;         * A function that will fix all the 
+                                         * Goto due to Break statements *
+        fixcont: stmt -> unit;          * Same for Continue statements *
+*)
                                         (* A list of case statements at the 
                                          * outer level *)
         cases: (label * stmt) list
@@ -397,7 +398,7 @@ module BlockChunk =
 
     let empty = 
       { stmts = []; postins = []; cases = [];
-        fixbreak = (fun _ -> ()); fixcont = (fun _ -> ()) }
+        (* fixbreak = (fun _ -> ()); fixcont = (fun _ -> ()) *) }
 
     let isEmpty (c: chunk) = 
       c.postins == [] && c.stmts == []
@@ -431,33 +432,12 @@ module BlockChunk =
     (* Append two chunks. Never refer to the original chunks after you call 
      * this. And especially never share c2 with somebody else *)
     let (@@) (c1: chunk) (c2: chunk) = 
-      (* Try to compress statements *)
-      let rec compress (leftover: stmt) = function
-          [] -> if leftover == dummyStmt then [] else [leftover]
-        | ({skind=Instr il} as s) :: rest ->
-            if leftover == dummyStmt then
-              compress s rest
-            else
-              if s.labels == [] then
-                match leftover.skind with 
-                  Instr previl -> 
-                    leftover.skind <- Instr (previl @ il);
-                    compress leftover rest
-                | _ -> E.s (E.bug "cabs2cil: compress")
-              else
-                (* This one has labels. Cannot attach to prev *)
-                leftover :: compress s rest
-        | s :: rest -> 
-            let res = s :: compress dummyStmt rest in
-            if leftover == dummyStmt then
-              res
-            else
-              leftover :: res
-      in
-      { stmts = compress dummyStmt (pushPostIns c1 @ c2.stmts);
+      { stmts = concatBlocks (pushPostIns c1) c2.stmts;
         postins = c2.postins;
+(*
         fixbreak = (fun b -> c1.fixbreak b; c2.fixbreak b);
         fixcont = (fun b -> c1.fixcont b; c2.fixcont b); 
+*)
         cases = c1.cases @ c2.cases;
       } 
 
@@ -466,8 +446,10 @@ module BlockChunk =
     let returnChunk (e: exp option) (l: location) : chunk = 
       { stmts = [ mkStmt (Return(e, l)) ];
         postins = [];
+(*
         fixcont = (fun _ -> ());
         fixbreak = (fun _ -> ());
+*)
         cases = []
       }
 
@@ -475,8 +457,10 @@ module BlockChunk =
       
       { stmts = [ mkStmt(If(be, pushPostIns t, pushPostIns e, l))];
         postins = [];
+(*
         fixbreak = (fun b -> t.fixbreak b; e.fixbreak b);
         fixcont = (fun b -> t.fixcont b; e.fixcont b);
+*)
         cases = t.cases @ e.cases;
       } 
 
@@ -502,36 +486,44 @@ module BlockChunk =
     let loopChunk (body: chunk) : chunk = 
       (* Make the statement *)
       let loop = mkStmt (Loop (pushPostIns body, lu)) in
-      (* Fix the continue statements *)
-      body.fixcont loop;
-      (* Now add a new statement at the end as the target of break *)
+      (* Fix the continue statements 
+      body.fixcont loop; *)
+      (* Now add a new statement at the end as the target of break 
       let n = mkEmptyStmt () in
-      body.fixbreak n;
-      { stmts = [ loop; n ];
+      body.fixbreak n; *)
+      { stmts = [ loop (* ; n *) ];
         postins = [];
-        fixbreak = (fun b -> ());
-        fixcont = (fun b -> ());
+(*        fixbreak = (fun b -> ());
+        fixcont = (fun b -> ()); *)
         cases = body.cases;
       } 
       
     let breakChunk (l: location) : chunk = 
-      (* Make a statement reference *)
+      (* Make a statement reference
       let bref = ref dummyStmt in
       { stmts = [ mkStmt (Goto (bref, l)) ];
         postins = [];
         fixbreak = (fun b -> bref := b);
         fixcont  = (fun c -> ());
         cases = [];
+      }  *)
+      { stmts = [ mkStmt (Break l) ];
+        postins = [];
+        cases = [];
       } 
       
     let continueChunk (l: location) : chunk = 
-      (* Make a statement reference *)
+      (* Make a statement reference 
       let bref = ref dummyStmt in
       { stmts = [ mkStmt (Goto (bref, l)) ];
         postins = [];
         fixcont = (fun b -> bref := b);
         fixbreak  = (fun c -> ());
         cases = [];
+      } *)
+      { stmts = [ mkStmt (Continue l) ];
+        postins = [];
+        cases = []
       } 
 
         (* Keep track of the gotos *)
@@ -588,8 +580,10 @@ module BlockChunk =
       addGoto ln gref;
       { stmts = [ mkStmt (Goto (gref, l)) ];
         postins = [];
+(*
         fixbreak = (fun b -> ());
         fixcont = (fun b -> ());
+*)
         cases = [];
       }
 
@@ -611,13 +605,15 @@ module BlockChunk =
       let switch = mkStmt (Switch (e, pushPostIns body, 
                                    List.map (fun (_, s) -> s) body.cases, 
                                    l)) in
-      (* Now add a new statement at the end as the target of break *)
+      (* Now add a new statement at the end as the target of break
       let n = mkEmptyStmt () in
-      body.fixbreak n;
-      { stmts = [ switch; n ];
+      body.fixbreak n; *)
+      { stmts = [ switch (* ; n *) ];
         postins = [];
+(*
         fixbreak = (fun b -> ());
         fixcont = body.fixcont;
+*)
         cases = [];
       } 
 
