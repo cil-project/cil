@@ -119,11 +119,16 @@ sub new {
     }
     
     # Scan and process the arguments
+    $self->setDefaultArguments;
     collectArgumentList($self, @args);
 
 #    print Dumper($self);
 
     return $self;
+}
+
+# Hook to let subclasses set/override default arguments
+sub setDefaultArguments {
 }
 
 # work through an array of arguments, processing each one
