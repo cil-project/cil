@@ -304,8 +304,8 @@
 
 // ideally we could handle this better..
 // hack: 'restrict' is a problem with glibc 2.2
-#define __restrict
-#define restrict
+// #define __restrict
+// #define restrict
 
 
 // sm: I think it's a bad idea to try to match signal's declaration since it's

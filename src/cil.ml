@@ -2179,7 +2179,7 @@ let _ =
     | Attr("aconst", []) when not !msvcMode -> 
         Some (text "__attribute__((__const__))")
     | Attr("volatile", []) -> Some (text "volatile")
-    | Attr("restrict", []) -> Some (text "restrict")
+    | Attr("restrict", []) -> Some (text "__restrict")
     | Attr("missingproto", []) -> Some (text "/* missing proto */")
     | Attr("cdecl", []) when !msvcMode -> Some (text "__cdecl")
     | Attr("stdcall", []) when !msvcMode -> Some (text "__stdcall")

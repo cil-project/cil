@@ -792,6 +792,7 @@ and print_attribute (name,args) =
     print "("; if name = "__attribute__" then print "(";
     (match args with
       [VARIABLE "aconst"] -> print "const"
+    | [VARIABLE "restrict"] -> print "__restrict"
     | _ -> print_commas false (fun e -> print_expression e 1) args);
     print ")"; if name = "__attribute__" then print ")"
   end

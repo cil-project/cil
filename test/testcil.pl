@@ -227,6 +227,7 @@ $TEST->addTests("testrun/returnvoid", "", ['cil']);
 $TEST->addTests("testrun/returnvoid1", "", ['cil']);
 $TEST->addTests("testrun/void", "_GNUCC=1", ['cil']);
 $TEST->addTests("test/restrict", "EXTRAARGS=-std=c9x _GNUCC=1", ['cil']);
+$TEST->addTests("test/restrict1", "_GNUCC=1", ['cil']);
    
 # Tests that are expected to fail
 $TEST->add2TestsFail("testrun/failubound1", "", "Failure .+: Ubound");
