@@ -1493,6 +1493,7 @@ sub new {
             "-ansi" => { TYPE => "PREPROC" },
             "-c" => { RUN => sub { $stub->{OPERATION} = "TOOBJ"; }},
             "-x" => { ONEMORE => 1, TYPE => "CC" },
+	    "-v" => { TYPE => 'ALLARGS' },
             "^-e\$" => { ONEMORE => 1, TYPE => 'LINK' },
             "^-T\$" => { ONEMORE => 1, TYPE => 'LINK' },
              # GCC defines some more macros if the optimization is On so pass
