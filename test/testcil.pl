@@ -102,21 +102,23 @@ my $inferbox = "infer";
 $TEST->newTest(
     Name => "!inittests0",
     Dir => "..",
-    Cmd => "make setup");
+    Cmd => "make setup",
+    Group => ['ALWAYS']);
 $TEST->newTest(
     Name => "!inittests2",
     Dir => "..",
-    Cmd => "make setup _GNUCC=1");
+    Cmd => "make setup _GNUCC=1",
+    Group => ['ALWAYS']);
 
 $TEST->newTest(
     Name => "apache!1setup",
     Dir => "..",
-    Groups => ["apache", "slow"],
+    Group => ["apache", "slow"],
     Cmd => "make apachesetup");
 $TEST->newTest(
     Name => "apache!2setup",
     Dir => "..",
-    Groups => ["apache", "slow"],
+    Group => ["apache", "slow"],
     Cmd => "make apachesetup _GNUCC=1");
     
 # Now add tests
