@@ -1576,9 +1576,9 @@ class nopCilVisitor: cilVisitor
  * not change the list of globals.  *)
 val visitCilFile: cilVisitor -> file -> unit
 
-(** A visitor for the whole file that does not change the globals (but maybe 
- * changes things inside the globals. Use this function instead of 
- * {!Cil.visitCilFile} whenever appropriate because it is more efficient for 
+(** A visitor for the whole file that does not change the globals (but maybe
+ * changes things inside the globals). Use this function instead of
+ * {!Cil.visitCilFile} whenever appropriate because it is more efficient for
  * long files. *)
 val visitCilFileSameGlobals: cilVisitor -> file -> unit
 
