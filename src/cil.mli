@@ -772,8 +772,15 @@ val kinteger: ikind -> int -> exp
 (** Construct an integer of a given kind, using OCaml's int64 type. *)
 val kinteger64: ikind -> int64 -> exp
 
+(** Truncates an integer to ensure it is within the range 
+    for the requested kind *)
+val truncateInteger64: ikind -> int64 -> int64
+
+(** Like kinteger64 but first uses truncateInteger64. *)
+val kinteger64Truncate: ikind -> int64 -> exp
+
 (** Construct an integer of the first kind that is big enough. Use only for 
-    positive integers *)
+    positive integers! *)
 val integerKinds: ikind list -> int64 -> exp
 
 (** Construct an integer of kind IInt. *)

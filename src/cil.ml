@@ -65,6 +65,7 @@ let locUnknown = { line = -1; file = ""; }
 (* A reference to the current location *)
 let currentLoc : location ref = ref locUnknown
 
+let debugConstFold = false
 
 let printShortTypes = ref false
 
@@ -691,15 +692,46 @@ let printLine (forcefile: bool) (l : location) : string =
 let kinteger (k: ikind) (i: int) = Const (CInt64(Int64.of_int i, k,  None))
 let kinteger64 (k: ikind) (i: int64) =  Const (CInt64(i, k,  None))
 
+(* Represents an integer as for a given kind. Some truncation might be 
+ * necessary *)
+let truncateInteger64 (k: ikind) (i: int64) = 
+  let nrBits, signed = 
+    match k with 
+    | IChar|ISChar -> 8, true
+    | IUChar -> 8, false
+    | IShort -> 16, true
+    | IUShort -> 16, false
+    | IInt | ILong -> 32, true
+    | IUInt | IULong -> 32, false
+    | ILongLong -> 64, true
+    | IULongLong -> 64, false
+  in
+  if nrBits = 64 then 
+    i
+  else begin
+    let i1 = Int64.shift_left i (64 - nrBits) in
+    let i2 = 
+      if signed then Int64.shift_right i1 (64 - nrBits) 
+      else Int64.shift_right_logical i1 (64 - nrBits)
+    in
+    if i2 <> i then 
+      ignore (E.warn "Truncating integer %s to %s\n" 
+                (Int64.format "0x%x" i) (Int64.format "0x%x" i2));
+    i2
+  end
+
+let kinteger64Truncate (k: ikind) (i: int64) : exp = 
+  Const (CInt64(truncateInteger64 k i, k,  None))
+
 (* Construct an integer of the first kinds that fits. i must be POSITIVE *)
 let integerKinds (k: ikind list) (i: int64) : exp = 
   let rec loop = function
   | ((IInt | ILong) as k) :: _ when i < Int64.shift_left (Int64.of_int 1) 31 ->
-      kinteger64 k i
+      kinteger64Truncate k i
   | ((IUInt | IULong) as k) :: _ when i < Int64.shift_left (Int64.of_int 1) 32 -> 
-      kinteger64 k i
-  | (ILongLong as k) :: _ when i < Int64.shift_left (Int64.of_int 1) 63 -> kinteger64 k i
-  | (IULongLong as k) :: _ -> kinteger64 k i
+      kinteger64Truncate k i
+  | (ILongLong as k) :: _ when i < Int64.shift_left (Int64.of_int 1) 63 -> kinteger64Truncate k i
+  | (IULongLong as k) :: _ -> kinteger64Truncate k i
   | _ :: rest -> loop rest
   | [] -> E.s (E.unimp "Cannot represent the integer %s\n" (Int64.to_string i))
   in
@@ -3420,7 +3452,7 @@ and constFold (machdep: bool) (e: exp) : exp =
     BinOp(bop, e1, e2, tres) -> constFoldBinOp machdep bop e1 e2 tres
   | UnOp(Neg, e1, tres) -> begin
       match constFold machdep e1 with
-        Const(CInt64(i,_,_)) -> integer64 (Int64.neg i)
+        Const(CInt64(i,ik,_)) -> kinteger64Truncate ik (Int64.neg i)
       | _ -> e
   end
         (* Characters are integers *)
@@ -3452,7 +3484,7 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
                                         IInt, None))
         | CastE(TInt (ik, ta), e) -> begin
             match mkInt e with
-              Const(CInt64(i, _, _)) -> Const(CInt64(i, ik, None))
+              Const(CInt64(i, _, _)) -> kinteger64Truncate ik i 
             | e' -> CastE(TInt(ik, ta), e')
         end
         | e -> e
@@ -3484,17 +3516,17 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
       | IndexPI, e1'', Const(CInt64(z,_,_)) when z = Int64.zero -> e1''
       | MinusPI, e1'', Const(CInt64(z,_,_)) when z = Int64.zero -> e1''
       | PlusA, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
-          kinteger64 ik1 (Int64.add i1 i2)
+          kinteger64Truncate ik1 (Int64.add i1 i2)
       | MinusA, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
-          kinteger64 ik1 (Int64.sub i1 i2)
+          kinteger64Truncate ik1 (Int64.sub i1 i2)
       | Mult, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
-          kinteger64 ik1 (Int64.mul i1 i2)
+          kinteger64Truncate ik1 (Int64.mul i1 i2)
       | Div, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> begin
-          try kinteger64 ik1 (Int64.div i1 i2)
+          try kinteger64Truncate ik1 (Int64.div i1 i2)
           with Division_by_zero -> BinOp(bop, e1', e2', tres)
       end
       | Mod, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> begin
-          try kinteger64 ik1 (Int64.rem i1 i2)
+          try kinteger64Truncate ik1 (Int64.rem i1 i2)
           with Division_by_zero -> BinOp(bop, e1', e2', tres) 
       end
       | BAnd, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
@@ -3507,9 +3539,9 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
           integer64 (Int64.shift_left i1 (Int64.to_int i2))
       | Shiftrt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,IInt,_)) -> 
           if isunsigned ik1 then 
-            kinteger64 ik1 (Int64.shift_right_logical i1 (Int64.to_int i2))
+            kinteger64Truncate ik1 (Int64.shift_right_logical i1 (Int64.to_int i2))
           else
-            kinteger64 ik1 (Int64.shift_right i1 (Int64.to_int i2))
+            kinteger64Truncate ik1 (Int64.shift_right i1 (Int64.to_int i2))
 
       | Eq, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
           integer (if i1 = i2 then 1 else 0)
@@ -3528,6 +3560,8 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
           integer (if i1 <> i2 && ge (isunsigned ik1) i1 i2 then 1 else 0)
       | _ -> BinOp(bop, e1', e2', tres)
     in
+    if debugConstFold then 
+      ignore (E.log "Folded %a to %a\n" d_exp (BinOp(bop, e1', e2', tres)) d_exp newe);
     newe
   end else
     BinOp(bop, e1', e2', tres)
