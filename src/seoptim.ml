@@ -7,7 +7,7 @@ open Clist
 module E = Errormsg
 module H = Hashtbl
 
-let debug = true
+let debug = false
 
 
 (* A list of functions to be forcefully removed from the file. This only work 
@@ -35,7 +35,8 @@ let elimOne (name: string) =
 
 
 (* The checks that we have seen. Indexed by the name of the check and the 
- * list of arguments *)
+ * list of arguments. The data is an indication of whether any argument 
+ * depends on memory  *)
 let checks : (string * exp list, bool) H.t = H.create 29
 
 let resetChecks () = H.clear checks
@@ -57,7 +58,13 @@ let setMemory () =
   let depids = ref [] in
   H.iter (fun id v -> if snd v then depids := id :: !depids) regFile;
   (* And remove them from the register file *)
-  List.iter (fun id -> H.remove regFile id) !depids
+  List.iter (fun id -> H.remove regFile id) !depids;
+
+  (* Do the same thing for the checks *) 
+  let depkeys = ref [] in
+  H.iter (fun key v -> if v then depkeys := key :: !depkeys) checks;
+  List.iter (fun key -> H.remove checks key) !depkeys
+
 
 let dependsOnMem = ref false
 
@@ -117,15 +124,17 @@ let doOneInstr (acc: instr clist) (i: instr) : instr clist =
         else begin
           if debug then ignore (E.log "Looking at call to %s\n" check.vname);
           (* Rewrite the arguments *)
+          let dependsOnMem = ref false in
           let args' = List.fold_right 
               (fun a acc -> 
-                let a', _ = rewriteExp a in
+                let a', dm = rewriteExp a in
+                if dm then dependsOnMem := true;
                 a' :: acc) args []
           in
           if H.mem checks (check.vname, args') then 
             false
           else begin
-            H.add checks (check.vname, args') true;
+            H.add checks (check.vname, args') !dependsOnMem;
             true
           end
         end
