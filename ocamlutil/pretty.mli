@@ -154,10 +154,25 @@ val d_list: string -> (unit -> 'a -> doc) -> unit -> 'a list -> doc
 (** Formats an array. A separator and a function that prints an array
     element. The default separator is a comma. *)
 val docArray: ?sep:doc -> (int -> 'a -> doc) -> unit -> 'a array -> doc
- 
+
 (** Prints an ['a option] with [None] or [Some] *)
 val docOpt: (unit -> 'a -> doc) -> unit -> 'a option -> doc
 
+(** Format maps. *)
+module MakeMapPrinter :
+  functor (Map: Map.S) -> sig
+    (** Format a map, analogous to docList. *)
+    val docMap: ?sep:doc -> (Map.key -> 'a -> doc) -> unit -> 'a Map.t -> doc
+
+    (** Format a map, analogous to d_list. *)
+    val d_map: ?dmaplet:(doc -> doc -> doc)
+               -> string
+               -> (unit -> Map.key -> doc)
+               -> (unit -> 'a -> doc)
+               -> unit
+               -> 'a Map.t
+               -> doc
+  end
 
 (** A function that is useful with the [printf]-like interface *)
 val insert: unit -> doc -> doc

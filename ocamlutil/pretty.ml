@@ -162,6 +162,24 @@ let d_list (sep:string) (doit:unit -> 'a -> doc) () (elts:'a list) : doc =
     (doit () elt) in
   (docList ~sep:(text sep) internalDoit () elts)
 
+(** Format maps *)
+module MakeMapPrinter = functor (Map: Map.S) -> struct
+  let docMap ?(sep=chr ',')
+              (doit: Map.key -> 'a -> doc) () (maplets: 'a Map.t) : doc =
+    Map.fold
+      (fun k d acc ->
+	(if acc==nil then acc else acc ++ sep)
+	  ++ (doit k d))
+      maplets
+      nil
+
+  let dmaplet d0 d1 = d0 ++ (text " |-> ") ++ d1
+
+  let d_map ?(dmaplet=dmaplet) (sep:string) dkey dval =
+    let doit = fun k d -> dmaplet (dkey () k) (dval () d) in
+    docMap ~sep:(text sep) doit
+end
+
 
 (******************************************************************************)	
 (* Some debugging stuff *)
