@@ -65,7 +65,8 @@ BEGIN {
     $CilCompiler::mtime_asm = int((stat("$CilCompiler::base.asm.exe"))[9]);
     $CilCompiler::mtime_byte = int((stat("$CilCompiler::base.byte.exe"))[9]);
     $CilCompiler::use_debug = 
-        grep('--bytecode', @ARGV) ||
+         grep(/--bytecode/, @ARGV) ||
+         grep(/--ocamldebug/, @ARGV) ||
         ($CilCompiler::mtime_asm < $CilCompiler::mtime_byte);
     $CilCompiler::compiler = 
         $CilCompiler::base . 
