@@ -1,5 +1,5 @@
 # .gdbinit
 
-file deepcopy1.exe
+file rtti5.exe
 break main
 run

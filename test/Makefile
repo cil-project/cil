@@ -656,6 +656,10 @@ ifdef TARGETS_DEP_QUICKBUILD
   TARGET_DEP := 
 endif
 
+ifndef NOPRINTLN
+ NOPRINTLN := --commPrintLn
+endif
+
 # sm: attempt at a single rule for my testing purposes
 scott/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 	rm -f $(TESTDIR)/small2/$*
