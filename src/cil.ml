@@ -187,8 +187,11 @@ and unop =
 
 (* binary operations *)
 and binop =
-    Plus
-  | Minus
+    PlusA                               (* arithemtic + *)
+  | PlusPI                              (* pointer + integer *)
+  | MinusA                              (* arithemtic - *)
+  | MinusPI                             (* pointer - integer *)
+  | MinusPP                             (* pointer - pointer *)
   | Mult
   | Div
   | Mod
@@ -196,13 +199,9 @@ and binop =
   | Shiftlt                             (* shift left *)
   | Shiftrt                             (* shift right *)
 
-  | Lt
-  | Gt
-  | Le
-  | Ge
+  | Lt| Gt| Le| Ge| Eq | Ne             (* arithemtic comparisons *)
 
-  | Eq
-  | Ne
+  | LtP| GtP| LeP| GeP| EqP| NeP        (* pointer comparisons *)
 
   | BAnd                                (* bitwise and *)
   | BXor                                (* exclusive-or *)
@@ -677,11 +676,12 @@ let getParenthLevel = function
   | BinOp((BOr|BXor|BAnd),_,_,_,_) -> bitwiseLevel (* 75 *)
 
                                         (* Comparisons *)
-  | BinOp((Eq|Ne|Gt|Lt|Ge|Le),_,_,_,_) -> 70
+  | BinOp((Eq|Ne|Gt|Lt|Ge|Le|EqP|NeP|GtP|LtP|GeP|LeP),_,_,_,_) -> 70
                                         (* Additive. Shifts can have higher 
                                          * level but I want parentheses 
                                          * around them *)
-  | BinOp((Minus|Plus|Shiftlt|Shiftrt),_,_,_,_)  -> additiveLevel (* 60 *)
+  | BinOp((MinusA|MinusPP|MinusPI|PlusA|PlusPI|Shiftlt|Shiftrt),_,_,_,_)  
+    -> additiveLevel (* 60 *)
 
                                         (* Multiplicative *)
   | BinOp((Div|Mod|Mult),_,_,_,_) -> 40
@@ -892,19 +892,19 @@ and d_exp () e =
 
 and d_binop () b =
   match b with
-    Plus -> text "+"
-  | Minus -> text "-"
+    PlusA | PlusPI -> text "+"
+  | MinusA | MinusPP | MinusPI -> text "-"
   | Mult -> text "*"
   | Div -> text "/"
   | Mod -> text "%"
   | Shiftlt -> text "<<"
   | Shiftrt -> text ">>"
-  | Lt -> text "<"
-  | Gt -> text ">"
-  | Le -> text "<="
-  | Ge -> text ">="
-  | Eq -> text "=="
-  | Ne -> text "!="
+  | Lt | LtP -> text "<"
+  | Gt | GtP -> text ">"
+  | Le | LeP -> text "<="
+  | Ge | GeP -> text ">="
+  | Eq | EqP -> text "=="
+  | Ne | NeP -> text "!="
   | BAnd -> text "&"
   | BXor -> text "^"
   | BOr -> text "|"
@@ -983,12 +983,13 @@ and d_instr () i =
   | Set(lv,e,lo) -> begin
       (* Be nice to some special cases *)
       match e with
-        BinOp((Plus),Lval(lv'),Const(CInt(1,_,_),_),_,_) 
+        BinOp((PlusA|PlusPI),Lval(lv'),Const(CInt(1,_,_),_),_,_) 
           when lv == lv' -> 
           dprintf "%a ++;" d_lval lv
-      | BinOp(Minus,Lval(lv'),Const(CInt(1,_,_),_),_,_) when lv == lv' -> 
+      | BinOp((MinusA|MinusPI),Lval(lv'),
+              Const(CInt(1,_,_),_),_,_) when lv == lv' -> 
           dprintf "%a --;" d_lval lv
-      | BinOp((Plus|Minus|BAnd|BOr|BXor|
+      | BinOp((PlusA|PlusPI|MinusA|MinusPP|MinusPI|BAnd|BOr|BXor|
                Mult|Div|Mod|Shiftlt|Shiftrt) as bop,
               Lval(lv'),e,_,_) when lv == lv' -> 
           dprintf "%a %a= %a;" d_lval lv d_binop bop d_exp e
@@ -1372,7 +1373,7 @@ let isArithmeticType t =
 
 let isPointerType t = 
   match unrollType t with
-    (TPtr _ | TArray _) -> true
+    TPtr _ -> true
   | _ -> false
 
 
@@ -1399,7 +1400,8 @@ let setTypeAttrs t a =
   | TNamed (n, t, _) -> TNamed(n, t, a)
   | TPtr (t', _) -> TPtr(t', a)
   | TArray (t', l, _) -> TArray(t', l, a)
-  | TComp (iss, n, f, _, self) -> fixRecursiveType (TComp(iss, n,f,a,self))
+  | TComp (iss, n, f, _, self) -> 
+      fixRecursiveType (TComp(iss, n,f,a,self))
   | TForward (iss, n, self, _) -> TForward (iss, n, self, a)
   | TEnum (n, f, _) -> TEnum (n, f, a)
   | TFun (r, args, v, _) -> TFun(r,args,v,a)
@@ -1503,7 +1505,7 @@ let foldLeftCompound (doexp: offset option -> exp -> typ -> 'a -> 'a)
           (acc: 'a) : 'a  =
         let incrementIdx = function
             Const(CInt(n, ik, _), l) -> Const(CInt(n + 1, ik, None), l)
-          | e -> BinOp(Plus, e, one, intType, lu)
+          | e -> BinOp(PlusA, e, one, intType, lu)
         in
         match initl with
           [] -> acc

@@ -4,6 +4,11 @@ open Pretty
 
 
   (* Attributes must be sorted *)
+type ctxAttr = 
+    CALocal                             (* Attribute of a local variable *)
+  | CAGlobal                            (* Attribute of a global variable *)
+  | CAType                              (* Attribute of a type *)
+
 let checkAttributes (attrs: attribute list) : unit = 
   let aName = function (* Attribute name *)
       AId s -> s | ACons (s, _) -> s
@@ -96,7 +101,11 @@ type ctxType =
   | CTFRes                              (* In a function result type *)
   | CTArray                             (* In an array type *)
   | CTPtr                               (* In a pointer type *)
-  | CTOther                             (* Somewhere else *)
+  | CTExp                               (* In an expression, as the type of 
+                                         * the result of binary operators, or 
+                                         * in a cast *)
+  | CTSizeof                            (* In a sizeof *)
+  | CTDecl                              (* In a typedef, or a declaration *)
 
   (* Check a type *)
 let rec checkType (t: typ) (ctx: ctxType) = 
@@ -105,7 +114,9 @@ let rec checkType (t: typ) (ctx: ctxType) =
       TVoid _ -> ctx = CTPtr || ctx = CTFRes
     | TBitfield _ ->  ctx = CTStruct  (* bitfields only in structures *)
     | TNamed (_, t, a) -> checkContext t
-    | TArray _ -> ctx <> CTPtr && ctx <> CTFArg && ctx <> CTFRes
+    | TArray _ -> 
+        (ctx = CTStruct || ctx = CTUnion || ctx = CTSizeof || ctx = CTDecl)
+    | TComp _ -> ctx <> CTExp 
     | _ -> true
   in
   ignore (checkContext t || (E.s (E.bug "Type used in wrong context")));
@@ -138,7 +149,8 @@ let rec checkType (t: typ) (ctx: ctxType) =
             E.s (E.bug "Invalid TForward(%s)" n);
           checkType t' ctx
 
-      | _ -> E.s (E.bug "TForward does not point to TComp"))
+      | _ -> E.s (E.bug "TForward does not point to TComp but to %a"
+                    d_plaintype !tr))
 
   | TComp(iss, n, fields, a, tr) -> begin
       (* Make sure the self pointer is set properly *)
@@ -203,75 +215,271 @@ let rec checkType (t: typ) (ctx: ctxType) =
                   not ta.vaddrof) then
             E.s (E.bug "Invalid argument varinfo")) targs
 
-and checkLval (lv: lval) : typ = typeOfLval lv
-        
-and checkExpType (isconstt: bool) (e: exp) (t: typ) = ()
+(* Check that a type is a promoted integral type *)
+and checkIntegralType (t: typ) = 
+  checkType t CTExp;
+  match unrollType t with
+    TInt _ -> ()
+  | _ -> E.s (E.bug "Non-integral type")
 
+(* Check that a type is a promoted arithmetic type *)
+and checkArithmeticType (t: typ) = 
+  checkType t CTExp;
+  match unrollType t with
+    TInt _ | TFloat _ -> ()
+  | _ -> E.s (E.bug "Non-arithmetic type")
+
+(* Check that a type is a promoted boolean type *)
+and checkBooleanType (t: typ) = 
+  checkType t CTExp;
+  match unrollType t with
+    TInt _ | TFloat _ | TPtr _ -> ()
+  | _ -> E.s (E.bug "Non-boolean type")
+
+
+(* Check that a type is a pointer type *)
+and checkPointerType (t: typ) = 
+  checkType t CTExp;
+  match unrollType t with
+    TPtr _ -> ()
+  | _ -> E.s (E.bug "Non-pointer type")
+
+
+and typeMatch (t1: typ) (t2: typ) = 
+  if typeSig t1 <> typeSig t2 then
+    E.s (E.bug "Type mismatch:@!    %a@!and %a@!" d_type t1 d_type t2)
+
+and checkLval (isconst: bool) (lv: lval) : typ = 
+  match lv with
+    Var vi, off -> 
+      checkVariable vi; 
+      checkOffset vi.vtype off
+
+  | Mem addr, off -> begin
+      if isconst then
+        E.s (E.bug "Memory operation in constant");
+      let ta = checkExp false addr in
+      match unrollType ta with
+        TPtr (t, _) -> checkOffset t off
+      | _ -> E.s (E.bug "Mem on a non-pointer")
+  end
+
+and checkOffset basetyp = function
+    NoOffset -> basetyp
+  | Index (ei, o) -> 
+      checkExpType false ei intType; checkOffset basetyp o
+  | Field (fi, o) -> 
+      (* Make sure we have seen the type of the host *)
+      (match !(fi.fcomp) with
+        TComp(iss, n, fields, _, tr) as t -> 
+          checkType t CTStruct; (* Check the type *)
+          (* Check that this exact field is part of the host *)
+          if not (List.exists (fun f -> f == fi) fields) then
+            E.s (E.bug "Field %s not part of %s" fi.fname n)
+      | _ -> E.s (E.bug "Field %s is not part of TComp" fi.fname));
+      checkOffset fi.ftype o
+
+  | First o -> begin
+      match unrollType basetyp with
+        TArray (t, _, _) -> checkOffset t o
+      | t -> E.s (E.bug "typeOffset: First on a non-array: %a" d_plaintype t)
+  end
+        
+and checkExpType (isconst: bool) (e: exp) (t: typ) =
+  let t' = checkExp isconst e in (* compute the type *)
+  typeMatch t' t
+
+and checkExp (isconst: bool) (e: exp) : typ = 
+  E.withContext 
+    (fun _ -> dprintf "check%s: %a" 
+        (if isconst then "Const" else "Exp") d_exp e)
+    (fun _ ->
+      match e with
+        Const(CInt (_, ik, _), _) -> TInt(ik, [])
+      | Const(CChr _, _) -> charType
+      | Const(CStr _, _) -> charPtrType 
+      | Const(CReal (_, fk, _), _) -> TFloat(fk, [])
+      | Lval(lv) -> 
+          if isconst then
+            E.s (E.bug "Lval in constant");
+          checkLval isconst lv
+
+      | SizeOf(t, _) -> begin
+          (* Sizeof cannot be applied to certain types *)
+          checkType t CTSizeof;
+          match unrollType t with
+            (TFun _ | TVoid _ | TBitfield _) -> 
+              E.s (E.bug "Invalid operand for sizeof")
+          | _ -> uintType
+      end
+      | UnOp (Neg, e, tres, _) -> 
+          checkArithmeticType tres; checkExpType isconst e tres; tres
+
+      | UnOp (BNot, e, tres, _) -> 
+          checkIntegralType tres; checkExpType isconst e tres; tres
+
+      | UnOp (LNot, e, tres, _) -> 
+          let te = checkExp isconst e in
+          checkBooleanType te;
+          checkIntegralType tres; (* Must check that t is well-formed *)
+          typeMatch tres intType;
+          tres
+
+      | BinOp (bop, e1, e2, tres, _) -> begin
+          let t1 = checkExp isconst e1 in
+          let t2 = checkExp isconst e2 in
+          match bop with
+            (Mult | Div | Eq |Ne|Lt|Le|Ge|Gt) -> 
+              typeMatch t1 t2; checkArithmeticType tres; 
+              typeMatch t1 tres; tres
+          | Mod|BAnd|BOr|BXor -> 
+              typeMatch t1 t2; checkIntegralType tres;
+              typeMatch t1 tres; tres
+          | Shiftlt | Shiftrt -> 
+              typeMatch t1 tres; checkIntegralType t1; 
+              checkIntegralType t2; tres
+          | (PlusA | MinusA) -> 
+                typeMatch t1 t2; typeMatch t1 tres;
+                checkArithmeticType tres; tres
+          | (PlusPI | MinusPI) -> 
+              checkPointerType tres;
+              typeMatch t1 tres;
+              checkIntegralType t2;
+              tres
+          | (MinusPP | EqP | NeP | LtP | LeP | GeP | GtP)  -> 
+              checkPointerType t1; checkPointerType t2;
+              typeMatch tres intType; 
+              tres
+      end
+      | Question (eb, et, ef, _) -> 
+          let tb = checkExp isconst eb in
+          checkBooleanType tb;
+          let tt = checkExp isconst et in
+          let tf = checkExp isconst ef in
+          typeMatch tt tt;
+          tt
+
+      | AddrOf (lv, _) -> begin
+          let tlv = checkLval isconst lv in
+          (* Only certain types can be in AddrOf *)
+          match unrollType tlv with
+          | TArray _ -> E.s (E.bug "AddrOf on an array")
+          | TBitfield _ -> E.s (E.bug "AddrOf on a bitfield")
+          | TVoid _ -> E.s (E.bug "AddrOf on void")
+          | (TInt _ | TFloat _ | TPtr _ | TComp _ | TFun _ ) -> 
+              TPtr(tlv, [])
+          | TEnum _ -> intPtrType
+          | _ -> E.s (E.bug "AddrOf on unknown type")
+      end
+
+      | StartOf lv -> begin
+          let tlv = checkLval isconst lv in
+          match unrollType tlv with
+            TArray (t,_, _) -> TPtr(t, [])
+          | TFun _ as t -> TPtr(t, [])
+          | _ -> E.s (E.bug "typeOf: StartOf on a non-array or non-function")
+      end
+            
+      | Compound (t, initl) -> 
+          checkType t CTSizeof;
+          let checkOneExp (oo: offset option) (ei: exp) (et: typ) _ : unit = 
+            (match oo with
+              None -> ()
+            | Some o -> 
+                let ot = checkOffset t o in
+                typeMatch et ot);
+            checkExpType isconst ei et
+          in
+          (* foldLeftCompound will check that t is a TComp or a TArray *)
+          foldLeftCompound checkOneExp t initl ();
+          t
+
+      | CastE (tres, e, _) -> begin
+          let et = checkExp isconst e in
+          checkType tres CTExp;
+          (* Not all types can be cast *)
+          match unrollType et with
+            TArray _ -> E.s (E.bug "Cast of an array type")
+          | TFun _ -> E.s (E.bug "Cast of a function type")
+          | TComp _ -> E.s (E.bug "Cast of a composite type")
+          | TVoid _ -> E.s (E.bug "Cast of a void type")
+          | _ -> tres
+      end)
+    () (* The argument of withContext *)
 
 and checkStmt (s: stmt) = 
-  match s with
-    Skip | Break | Continue | Default | Case _ -> ()
-  | Sequence ss -> List.iter checkStmt ss
-  | Loop s -> checkStmt s
-  | Label l -> begin
-      if H.mem labels l then
-        E.s (E.bug "Multiply defined label %s" l);
-      H.add labels l ()
-  end
-  | Goto l -> H.add gotos l ()
-  | IfThenElse (e, st, sf) -> 
-      checkExpType false e intType;
-      checkStmt st;
-      checkStmt sf
-  | Return re -> begin
-      match re, !currentReturnType with
-        None, TVoid _  -> ()
-      | _, TVoid _ -> E.s (E.bug "Invalid return value")
-      | None, _ -> E.s (E.bug "Invalid return value")
-      | Some re', rt' -> checkExpType false re' rt'
-  end
-  | Switch (e, s) -> 
-      checkExpType false e intType;
-      checkStmt s
-
-  | Instr (Set (dest, e, _)) -> 
-      let t = checkLval dest in
-      (* Not all types can be assigned to *)
-      (match unrollType t with
-        TFun _ -> E.s (E.bug "Assignment to a function type")
-      | TArray _ -> E.s (E.bug "Assignment to an array type")
-      | TVoid _ -> E.s (E.bug "Assignment to a void type")
-      | _ -> ());
-      checkExpType false e t
-
-  | Instr (Call(dest, what, args, _)) -> 
-      let (rt, formals, isva) = 
-        match unrollType (typeOf what) with
-          TFun(rt, formals, isva, _) -> rt, formals, isva
-        | _ -> E.s (E.bug "Call to a non-function")
-      in
+  E.withContext 
+    (fun _ -> 
+      (* Print context only for certain small statements *)
+      match s with 
+        Sequence _ | Loop _ | IfThenElse _ | Switch _  -> nil
+      | _ -> dprintf "checkStmt: %a" d_stmt s)
+    (fun _ -> 
+      match s with
+        Skip | Break | Continue | Default | Case _ -> ()
+      | Sequence ss -> List.iter checkStmt ss
+      | Loop s -> checkStmt s
+      | Label l -> begin
+          if H.mem labels l then
+            E.s (E.bug "Multiply defined label %s" l);
+          H.add labels l ()
+      end
+      | Goto l -> H.add gotos l ()
+      | IfThenElse (e, st, sf) -> 
+          let te = checkExp false e in
+          checkBooleanType te;
+          checkStmt st;
+          checkStmt sf
+      | Return re -> begin
+          match re, !currentReturnType with
+            None, TVoid _  -> ()
+          | _, TVoid _ -> E.s (E.bug "Invalid return value")
+          | None, _ -> E.s (E.bug "Invalid return value")
+          | Some re', rt' -> checkExpType false re' rt'
+      end
+      | Switch (e, s) -> 
+          checkExpType false e intType;
+          checkStmt s
+            
+      | Instr (Set (dest, e, _)) -> 
+          let t = checkLval false dest in
+          (* Not all types can be assigned to *)
+          (match unrollType t with
+            TFun _ -> E.s (E.bug "Assignment to a function type")
+          | TArray _ -> E.s (E.bug "Assignment to an array type")
+          | TVoid _ -> E.s (E.bug "Assignment to a void type")
+          | _ -> ());
+          checkExpType false e t
+            
+      | Instr (Call(dest, what, args, _)) -> 
+          let (rt, formals, isva) = 
+            match unrollType (typeOf what) with
+              TFun(rt, formals, isva, _) -> rt, formals, isva
+            | _ -> E.s (E.bug "Call to a non-function")
+          in
       (* Now check the return value*)
-      (match dest, unrollType rt with
-        None, TVoid _ -> ()
-      | Some _, TVoid _ -> E.s (E.bug "Call of subroutine is assigned")
-      | None, _ -> E.s (E.bug "Call of function is not assigned")
-      | Some destvi, _ -> 
-          checkVariable destvi;
-          if typeSig destvi.vtype <> typeSig rt then
-            E.s (E.bug "Mismatch at return type in call"));
+          (match dest, unrollType rt with
+            None, TVoid _ -> ()
+          | Some _, TVoid _ -> E.s (E.bug "Call of subroutine is assigned")
+          | None, _ -> () (* "Call of function is not assigned" *)
+          | Some destvi, _ -> 
+              checkVariable destvi;
+              if typeSig destvi.vtype <> typeSig rt then
+                E.s (E.bug "Mismatch at return type in call"));
       (* Now check the arguments *)
-      let rec loopArgs formals args = 
-        match formals, args with
-          [], _ when (isva || args = []) -> ()
-        | fo :: formals, a :: args -> 
-            checkExpType false a fo.vtype;
-            loopArgs formals args
-
-        | _, _ -> E.s (E.bug "Not enough arguments")
-      in
-      loopArgs formals args
-          
-  | Instr (Asm _) -> ()  (* Not yet implemented *)
+          let rec loopArgs formals args = 
+            match formals, args with
+              [], _ when (isva || args = []) -> ()
+            | fo :: formals, a :: args -> 
+                checkExpType false a fo.vtype;
+                loopArgs formals args
+                  
+            | _, _ -> E.s (E.bug "Not enough arguments")
+          in
+          loopArgs formals args
+            
+      | Instr (Asm _) -> ())  (* Not yet implemented *)
+    () (* The argument to withContext *)
   
 let rec checkGlobal = function
     GAsm _ -> ()
@@ -279,11 +487,17 @@ let rec checkGlobal = function
   | GType (n, t) -> 
       E.withContext (fun _ -> dprintf "GType(%s)" n)
         (fun _ ->
-          checkType t CTOther;
-          if H.mem typeDefs n then
-            E.s (E.bug "Type %s is multiply defined" n);
-          defineName n;
-          H.add typeDefs n t)
+          checkType t CTDecl;
+          if n <> "" then begin
+            if H.mem typeDefs n then
+              E.s (E.bug "Type %s is multiply defined" n);
+            defineName n;
+            H.add typeDefs n t
+          end else begin
+            match unrollType t with
+              TComp _ -> ()
+            | _ -> E.s (E.bug "Empty type name for type %a" d_type t)
+          end)
         ()
 
   | GDecl vi -> 
@@ -297,7 +511,7 @@ let rec checkGlobal = function
           else begin
             defineVariable vi; 
             checkAttributes vi.vattr;
-            checkType vi.vtype CTOther;
+            checkType vi.vtype CTDecl;
             if not (vi.vglob &&
                     vi.vstorage <> Register) then
               E.s (E.bug "Invalid declaration of %s" vi.vname)
@@ -351,17 +565,17 @@ let rec checkGlobal = function
           begin try
             startEnv ();
             (* Do the locals *)
-            let doLocal v = 
+            let doLocal tctx v = 
               if not 
                   (v.vid >= 0 && v.vid <= fd.smaxid && not v.vglob &&
                    v.vstorage <> Extern) then
                 E.s (E.bug "Invalid local %s in %s" v.vname fname);
-              checkType v.vtype CTOther;
+              checkType v.vtype tctx;
               checkAttributes v.vattr;
               defineVariable v
             in
-            List.iter doLocal fd.sformals;
-            List.iter doLocal fd.slocals;
+            List.iter (doLocal CTFArg) fd.sformals;
+            List.iter (doLocal CTDecl) fd.slocals;
             checkStmt fd.sbody;
             (* Now check that all gotos have a target *)
             H.iter 

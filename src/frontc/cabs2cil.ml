@@ -161,18 +161,7 @@ let newTempVar typ =
     "const" variable *)
   let stripConst t =
     let a = typeAttrs t in
-    let rec loop = function
-        [] -> []
-      | AId("const") :: rest -> loop rest
-      | (x :: rest) as i -> 
-          let rest' = loop rest in
-          if rest' == rest then i else x :: rest'
-    in
-    let a' = loop a in
-    if a == a' then
-      t
-    else
-      setTypeAttrs t a'
+    setTypeAttrs t (dropAttribute a (AId("const")))
   in
   alphaConvertAndAddToEnv 
     { vname = "tmp";  (* addNewVar will make the name fresh *)
@@ -213,7 +202,7 @@ let findTypeName n =
     E.s (E.unimp "Cannot find type %s\n" n)
   end
 
-(* Create the self ref cell and add it to the map map *)
+(* Create the self ref cell and add it to the map *)
 let createCompSelfCell (iss: bool) (n: string) = 
   (* Add to the self cell set *)
   let key = (if iss then "struct " else "union ") ^ n in
@@ -229,43 +218,24 @@ let createCompSelfCell (iss: bool) (n: string) =
    (* kind is either "struct" or "union" or "enum" and n is a name *)
 let findCompType kind n a = 
   let key = kind ^ " " ^ n in
-  try
-    typeAddAttributes a (H.find typedefs key) (* already defined. Just use 
-                                              * that one, but add the 
-                                              * attributes  *)
-  with Not_found -> begin
-    (* This is a forward reference *)
+  let makeForward () = 
+    (* This is a forward reference, either because we have not seen this 
+     * struct already or because we want to create a version with different 
+     * attributes  *)
     let iss =  (* is struct or union *)
       if kind = "enum" then E.s (E.unimp "Forward reference for enum %s" n)
-      else if kind = "struct" then true
-      else false
+      else if kind = "struct" then true else false
     in
     let self = createCompSelfCell iss n in
     TForward (iss, n, self, a)
-  end
+  in
+  try
+    let old = H.find typedefs key in (* already defined  *)
+    let olda = typeAttrs old in
+    if olda = a then old else makeForward ()
+  with Not_found -> makeForward ()
   
   
-(* We have found a definition of a composite type. Record it for later use 
- * and fix its self cell *)
-let finishCompType t = 
-  match t with 
-    TEnum (n, _, _) -> recordTypeName ("enum " ^ n) t; t
-  | TComp (iss, n, flds, a, _) -> begin (* Ignore the given self cell *)
-      (* There must be a self cell create for this already *)
-      let key = (if iss then "struct " else "union ") ^ n in
-      let self = 
-        try H.find selfCells key 
-        with Not_found -> E.s (E.bug "No self cell defined for %s" key)
-      in
-      let res = fixRecursiveType (TComp(iss, n, flds, a, self)) in
-      (* Now add it to the typedefs *)
-      recordTypeName key res;
-      (* And take it out from selfCells *)
-      H.remove selfCells key;
-      res
-  end
-  | _ -> E.s (E.bug "finishCompType on a non-comp type")
-
 
 
 (**** Occasionally we see structs with no name and no fields *)
@@ -445,7 +415,7 @@ let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) =
   | TFun _, TPtr(TFun _, _) -> (nt, e)
 
 
-  | TBitfield _, TInt _ -> (nt, e)
+  | TBitfield _, TInt _ -> (nt, CastE(nt,e,lu))
   | TInt _, TBitfield _ -> (nt, e)
 
 
@@ -623,7 +593,8 @@ and doType (a : attribute list) = function
       let fields = loop 0 eil in
       let res = TEnum (n, loop 0 eil, a) in
       List.iter (fun (n,fieldidx) -> recordEnumField n fieldidx res) fields;
-      finishCompType res
+      recordTypeName ("enum " ^ n) res; 
+      res
 
 (*
   | A.CONST bt -> doType (AId("const") :: a) bt
@@ -682,7 +653,14 @@ and makeCompType (iss: bool)
       (* Drop volatile from struct *)
   let a = dropAttribute a (AId("volatile")) in
   let a = dropAttribute a (AId("const")) in
-  finishCompType (TComp(iss, n, flds, a, self))
+      (* There must be a self cell create for this already *)
+  let key = (if iss then "struct " else "union ") ^ n in
+  let res = fixRecursiveType (TComp(iss, n, flds, a, self)) in
+      (* Now add it to the typedefs *)
+  recordTypeName key res;
+      (* And take it out from selfCells *)
+  H.remove selfCells key;
+  res
 
   
      (* Process an expression and in the process do some type checking, 
@@ -988,7 +966,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
                 : (offset option * exp) list * exp = 
               let incrementIdx = function
                   Const(CInt(n, ik, _), l) -> Const(CInt(n + 1, ik, None), l)
-                | e -> BinOp(Plus, e, one, intType, lu)
+                | e -> BinOp(PlusA, e, one, intType, lu)
               in
               match initl with
                 [] -> [], nextidx
@@ -1118,7 +1096,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
                       d_plainexp e')
     end
     | A.UNARY((A.PREINCR|A.PREDECR) as uop, e) -> 
-        let uop' = if uop = A.PREINCR then Plus else Minus in
+        let uop' = if uop = A.PREINCR then PlusA else MinusA in
         let (se, e', t) = doExp e (AExp None) in
         let lv = 
           match e' with 
@@ -1133,7 +1111,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
           
     | A.UNARY((A.POSINCR|A.POSDECR) as uop, e) -> 
       (* If we do not drop the result then we must save the value *)
-        let uop' = if uop = A.POSINCR then Plus else Minus in
+        let uop' = if uop = A.POSINCR then PlusA else MinusA in
         let (se, e', t) = doExp e (AExp None) in
         let lv = 
           match e' with 
@@ -1168,8 +1146,8 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
     | A.BINARY((A.ADD|A.SUB|A.MUL|A.DIV|A.MOD|A.BAND|A.BOR|A.XOR|
       A.SHL|A.SHR|A.EQ|A.NE|A.LT|A.GT|A.GE|A.LE) as bop, e1, e2) -> 
         let bop' = match bop with
-          A.ADD -> Plus
-        | A.SUB -> Minus
+          A.ADD -> PlusA
+        | A.SUB -> MinusA
         | A.MUL -> Mult
         | A.DIV -> Div
         | A.MOD -> Mod
@@ -1195,8 +1173,8 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
       A.MOD_ASSIGN|A.BAND_ASSIGN|A.BOR_ASSIGN|A.SHL_ASSIGN|
       A.SHR_ASSIGN|A.XOR_ASSIGN) as bop, e1, e2) -> 
         let bop' = match bop with          
-          A.ADD_ASSIGN -> Plus
-        | A.SUB_ASSIGN -> Minus
+          A.ADD_ASSIGN -> PlusA
+        | A.SUB_ASSIGN -> MinusA
         | A.MUL_ASSIGN -> Mult
         | A.DIV_ASSIGN -> Div
         | A.MOD_ASSIGN -> Mod
@@ -1419,8 +1397,10 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
      integer 0, intType)
   end
     
+(* bop is always the arithmetic version. Change it to the appropriate pointer 
+ * version if necessary *)
 and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
-  let constFold e1' e2' tres = 
+  let constFold bop' e1' e2' tres = 
     if isIntegralType tres then
       let newe = 
         let rec mkInt = function
@@ -1428,10 +1408,10 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
           | CastE(TInt _, e, _) -> mkInt e
           | e -> e
         in
-        match bop, mkInt e1', mkInt e2' with
-          Plus, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
+        match bop', mkInt e1', mkInt e2' with
+          PlusA, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
             integer (i1 + i2)
-        | Minus, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
+        | MinusA, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
             integer (i1 - i2)
         | Mult, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
             integer (i1 * i2)
@@ -1465,21 +1445,28 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
       in
       tres, newe
     else
-      tres, BinOp(bop, e1', e2', tres, lu)
+      tres, BinOp(bop', e1', e2', tres, lu)
   in
   let doArithmetic () = 
     let tres = arithmeticConversion t1 t2 in
-    constFold (doCast e1 t1 tres) (doCast e2 t2 tres) tres
+    (* Keep the operator since it is arithmetic *)
+    constFold bop (doCast e1 t1 tres) (doCast e2 t2 tres) tres
   in
   let doArithmeticComp () = 
     let tres = arithmeticConversion t1 t2 in
-    constFold (doCast e1 t1 tres) (doCast e2 t2 tres) intType
+    (* Keep the operator since it is arithemtic *)
+    constFold bop (doCast e1 t1 tres) (doCast e2 t2 tres) intType
   in
   let doIntegralArithmetic () = 
     let tres = unrollType (arithmeticConversion t1 t2) in
     match tres with
-      TInt _ -> constFold (doCast e1 t1 tres) (doCast e2 t2 tres) tres
+      TInt _ -> constFold bop (doCast e1 t1 tres) (doCast e2 t2 tres) tres
     | _ -> E.s (E.unimp "%a operator on a non-integer type" d_binop bop)
+  in
+  let bop2point = function
+      MinusA -> MinusPP
+    | Eq -> EqP | Ge -> GeP | Ne -> NeP | Gt -> GtP | Le -> LtP | Lt -> LtP
+    | _ -> E.s (E.bug "bop2point")
   in
   match bop with
     (Mult|Div) -> doArithmetic ()
@@ -1492,26 +1479,26 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
       else
         let t1' = integralPromotion t1 in
         let t2' = integralPromotion t2 in
-        constFold (doCast e1 t1 t1') (doCast e2 t2 t2') t1'
+        constFold bop (doCast e1 t1 t1') (doCast e2 t2 t2') t1'
 
-  | (Plus|Minus) 
+  | (PlusA|MinusA) 
       when isArithmeticType t1 && isArithmeticType t2 -> doArithmetic ()
   | (Eq|Ne|Lt|Le|Ge|Gt) 
       when isArithmeticType t1 && isArithmeticType t2 -> doArithmeticComp ()
-  | Plus when isPointerType t1 && isIntegralType t2 -> 
-      constFold e1 (doCast e2 t2 (integralPromotion t2)) t1
-  | Plus when isIntegralType t1 && isPointerType t2 -> 
-      constFold (doCast e1 t1 (integralPromotion t1)) e2 t2
-  | Minus when isPointerType t1 && isIntegralType t2 -> 
-      constFold e1 (doCast e2 t2 (integralPromotion t2)) t1
-  | (Minus|Le|Lt|Ge|Gt|Eq|Ne) when isPointerType t1 && isPointerType t2 ->
-      constFold e1 e2 intType
+  | PlusA when isPointerType t1 && isIntegralType t2 -> 
+      constFold PlusPI e1 (doCast e2 t2 (integralPromotion t2)) t1
+  | PlusA when isIntegralType t1 && isPointerType t2 -> 
+      constFold PlusPI e2 (doCast e1 t1 (integralPromotion t1)) t2
+  | MinusA when isPointerType t1 && isIntegralType t2 -> 
+      constFold MinusPI e1 (doCast e2 t2 (integralPromotion t2)) t1
+  | (MinusA|Le|Lt|Ge|Gt|Eq|Ne) when isPointerType t1 && isPointerType t2 ->
+      constFold (bop2point bop) e1 e2 intType
   | (Eq|Ne) when isPointerType t1 && 
                  (match e2 with Const(CInt(0,_,_),_) -> true | _ -> false) -> 
-      constFold e1 (doCast e2 t2 t1) intType
+      constFold (bop2point bop) e1 (doCast e2 t2 t1) intType
   | (Eq|Ne) when isPointerType t2 && 
                  (match e1 with Const(CInt(0,_,_),_) -> true | _ -> false) -> 
-      constFold (doCast e1 t1 t2) e2 intType
+      constFold (bop2point bop) (doCast e1 t1 t2) e2 intType
   | _ -> E.s (E.unimp "doBinOp: %a\n" d_plainexp (BinOp(bop,e1,e2,intType,lu)))
 
 (* A special case for conditionals *)
@@ -1802,7 +1789,7 @@ let convFile dl =
         let createTypedef ((_,_,(n,nbt,a,_)) : A.single_name) = 
           try
             let newTyp = doType (doAttrList a) nbt in
-          (* Register the type *)
+            (* Register the type *)
             recordTypeName n newTyp;
             theFile := GType (n, newTyp) :: !theFile
           with e -> begin
@@ -1818,7 +1805,8 @@ let convFile dl =
     | A.ONLYTYPEDEF (bt,_,_) -> begin
         try
           let newTyp = doType [] bt in
-        (* doType will register the type. Put a special GType in the file *)
+          (* doType will register the type. Put a special GType in the file *)
+          ignore (E.log "ONLYTYPEDEF %a\n" d_plaintype newTyp);
           theFile := GType ("", newTyp) :: !theFile
         with e -> begin
           ignore (E.log "Error on A.ONLYTYPEDEF (%s)\n"

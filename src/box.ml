@@ -899,17 +899,12 @@ and boxexpf (e: exp) : stmt list * fexp =
         let (et1, doe1, e1') = boxexp e1 in
         let (et2, doe2, e2') = boxexp e2 in
         match bop, isFatType et1, isFatType et2 with
-        | (Plus|Minus), true, false -> 
+        | (PlusPI|MinusPI), true, false -> 
             let ptype = (getPtrFieldOfFat et1).ftype in
             (doe1 @ doe2, F2 (restyp', 
                               BinOp(bop, readPtrField e1' et1, e2', ptype, l),
                               readBaseField e1' et1))
-        | (Plus), false, true -> 
-            let ptype = (getPtrFieldOfFat et2).ftype in
-            (doe1 @ doe2, F2 (restyp', 
-                              BinOp(bop, e1', readPtrField e2' et2, ptype, l),
-                              readBaseField e2' et2))
-        | (Minus|Eq|Ne|Le|Lt|Ge|Gt), true, true -> 
+        | (MinusPP|EqP|NeP|LeP|LtP|GeP|GtP), true, true -> 
             (doe1 @ doe2, 
              L(restyp', BinOp(bop, readPtrField e1' et1, 
                               readPtrField e2' et2, restyp', l)))
