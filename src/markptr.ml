@@ -59,11 +59,6 @@ let rec doType (t: typ) (p: N.place)
           let n = N.newNode p nextidx bt' a in
           TArray (bt', len, n.N.attr), i'
   end
-      (* old array code: 
-      let bt', i' = doType bt p nextidx in
-      if bt == bt' then t, i' 
-      else TArray(bt', len, a), i'
-        *)
           
   | TComp comp -> 
       if H.mem doneComposites comp.ckey then
@@ -210,9 +205,9 @@ let doVarinfo vi =
   let t', _ = doType vi.vtype place 1 in
   vi.vtype <- t';
   (* Associate a node with the variable itself. Use index = 0 *)
-  let n = N.getNode place 0 vi.vtype [] in
+  let n = N.getNode place 0 vi.vtype vi.vattr in
   (* Add this to the variable attributes *)
-  vi.vattr <- addAttribute (ACons("_ptrnode", [AInt n.N.id])) vi.vattr
+  vi.vattr <- n.N.attr
     
 (* Do an expression. Return an expression, a type and a node. The node is 
  * only meaningful if the type is a TPtr _. In that case the node is also 

@@ -272,6 +272,8 @@ let kindOfAttrlist al =
         | AId "seq" -> Seq, UserSpec
         | AId "fseq" -> FSeq, UserSpec
         | AId "wild" -> Wild, UserSpec
+        | AId "sized" -> Index, UserSpec
+        | AId "tagged" -> Wild, UserSpec
         | _ -> loop al
     end    
   in
@@ -279,8 +281,15 @@ let kindOfAttrlist al =
     
 
 (* Replace the ptrnode attribute with the actual qualifier attribute *)
-let replacePtrNodeAttrList isptr al = 
-  let foundNode : pointerkind ref = ref Unknown in
+type whichAttr = 
+    AtPtr  (* In a pointer type *)
+  | AtArray  (* In an array type *)
+  | AtVar (* For a variable *)
+  | AtOther (* Anything else *)
+
+
+let replacePtrNodeAttrList where al = 
+  let foundNode : string ref = ref "" in
   let rec loop = function
       [] -> []
     | a :: al -> begin
@@ -288,34 +297,48 @@ let replacePtrNodeAttrList isptr al =
           ACons("_ptrnode", [AInt n]) -> begin
               try 
                 let nd = H.find idNode n in
-                foundNode := nd.kind;
-                if nd.kind = Unknown then
-                  ignore (E.warn "Found node %d with kind Unkown\n" n);
+                let found = 
+                  if nd.kind = Unknown then begin
+                    ignore (E.warn "Found node %d with kind Unkown\n" n);
+                    ""
+                  end else 
+                    match k2attr nd.kind with
+                      AId s -> s
+                    | _ -> E.s (E.bug "replacePtrNodeAttrList")
+                in
+                foundNode := found;
                 loop al
               with Not_found -> begin
                 ignore (E.warn "Cannot find node %d\n" n);
                 loop al
               end
           end
-        | AId "safe" -> foundNode := Safe; loop al
-        | AId "index" -> foundNode := Index; loop al
-        | AId "seq" -> foundNode := Seq; loop al
-        | AId "fseq" -> foundNode := FSeq; loop al
-        | AId "wild" -> foundNode := Wild; loop al
+        | AId "safe" -> foundNode := "safe"; loop al
+        | AId "index" -> foundNode := "index"; loop al
+        | AId "seq" -> foundNode := "seq"; loop al
+        | AId "fseq" -> foundNode := "fseq"; loop al
+        | AId "wild" -> foundNode := "wild"; loop al
+        | AId "sized" -> foundNode := "sized"; loop al
+        | AId "tagged" -> foundNode := "tagged"; loop al
         | _ -> a :: loop al
     end
   in 
-  let al' = loop al in
+  let al' = loop al in (* Get the filtered attributes *)
   let kres = 
-    if !foundNode <> Unknown then !foundNode 
-    else 
-      if isptr then
-        if !defaultIsWild then Wild else Safe 
-      else
-        Unknown
+    match where with
+      AtPtr -> 
+        if !foundNode <> "" then !foundNode 
+        else if !defaultIsWild then "wild" else "safe" 
+    | AtArray -> 
+        if !foundNode = "index" then "sized" 
+        else !foundNode
+    | AtVar ->
+        if !foundNode = "wild" then "tagged" 
+        else !foundNode
+    | AtOther -> !foundNode
   in
-  if kres <> Unknown then 
-    addAttribute (k2attr kres) al' 
+  if kres <> "" then 
+    addAttribute (AId(kres)) al' 
   else 
     al'
 

@@ -250,27 +250,29 @@ let fixedTypes : (typsig, typ) H.t = H.create 17
 
 (* Get rid of all Const attributes *)
 let dropConst t =
- let dropit isptr a = 
-   P.replacePtrNodeAttrList isptr (dropAttribute a (AId("const"))) in
- let rec loop t = 
-   match t with 
-     TVoid a -> TVoid (dropit false a)
-   | TInt (i, a) -> TInt (i, dropit false a)
-   | TFloat (f, a) -> TFloat (f, dropit false a)
-   | TBitfield (i, s, a) -> TBitfield (i, s, dropit false a)
-   | TNamed (n, t, a) -> 
-       let isptr = match unrollType t with TPtr _ -> true | _ -> false in
-       TNamed(n, loop t, dropit isptr a)
-   | TPtr (t', a) -> TPtr(loop t', dropit true a)
-   | TArray (t', l, a) -> TArray(loop t', l, dropit false a)
-   | TComp comp as t -> t
-   | TForward (comp, a) -> TForward (comp, dropit false a)
-   | TEnum (n, f, a) -> TEnum (n, f, dropit false a)
-   | TFun (r, args, v, a) -> 
-       List.iter (fun a -> a.vtype <- loop a.vtype) args;
-       TFun(loop r, args, v, dropit false a)
- in
- loop t
+  let dropit where a = 
+    P.replacePtrNodeAttrList where (dropAttribute a (AId("const"))) in
+  let rec loop t = 
+    match t with 
+      TVoid a -> TVoid (dropit P.AtOther a)
+    | TInt (i, a) -> TInt (i, dropit P.AtOther a)
+    | TFloat (f, a) -> TFloat (f, dropit P.AtOther a)
+    | TBitfield (i, s, a) -> TBitfield (i, s, dropit P.AtOther a)
+    | TNamed (n, t, a) -> 
+        let isptr = 
+          match unrollType t with TPtr _ -> P.AtPtr | _ -> P.AtOther 
+        in
+        TNamed(n, loop t, dropit isptr a)
+    | TPtr (t', a) -> TPtr(loop t', dropit P.AtPtr a)
+    | TArray (t', l, a) -> TArray(loop t', l, dropit P.AtArray a)
+    | TComp comp as t -> t
+    | TForward (comp, a) -> TForward (comp, dropit P.AtOther a)
+    | TEnum (n, f, a) -> TEnum (n, f, dropit P.AtOther a)
+    | TFun (r, args, v, a) -> 
+        List.iter (fun a -> a.vtype <- loop a.vtype) args;
+        TFun(loop r, args, v, dropit P.AtOther a)
+  in
+  loop t
 
 (***************** Handling of pointer qualifiers *****************)
 let isFatComp (comp: compinfo) = 
@@ -2162,7 +2164,7 @@ let boxFile file =
         List.iter 
           (fun l -> 
             let newa, newt = moveAttrsFromDataToType l.vattr l.vtype in
-            l.vattr <- newa;
+            l.vattr <- P.replacePtrNodeAttrList P.AtVar newa;
             l.vtype <- fixupType newt;
 
             (* sm: eliminate the annoying warnings about taking the address
@@ -2245,7 +2247,8 @@ let boxFile file =
       (* Remove the format attribute from functions that we do not leave
        * alone  *)
       let newa, newt = moveAttrsFromDataToType vi.vattr vi.vtype in
-      vi.vattr <- dropAttribute newa (ACons("__format__", []));
+      vi.vattr <- P.replacePtrNodeAttrList P.AtVar 
+           (dropAttribute newa (ACons("__format__", [])));
       vi.vtype <- fixupType newt;
     end;
           (* If the type has changed and this is a global variable then we
