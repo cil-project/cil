@@ -1,0 +1,236 @@
+#!/usr/bin/perl -w
+use strict;
+use FindBin;
+
+# Deltadriver is a wrapper script for running delta and idmin
+# end-to-end with a minimum of effort, by Daniel Wilkerson.
+
+# FIX: Should share at least timestamp code with delta.
+
+# Feature: Would be nice if when you restarted it, it figured out
+# where it left off and kept going.
+
+# Feature: The delta log file is fun to watch, it tells you exactly
+# what you want to know.  On the other hand, this log file tells you
+# too little.
+
+# Global State ****************
+
+my $verbose = 0;                # Be more verbose.
+my $unclean_dir = 0;            # Allow to run even if the directory is full of junk.
+my @ignore_files = ();          # Files to ignore when checking for an unclean directory.
+my %num_runs = (top_form=>2, line=>3); # Num runs to try at each granularity.
+my $arg;                        # Argument to current external command.
+
+my $shortlogmsgsize = 39;       # Length of a "short" log message.
+my $starttime = time;           # The time we started.
+chomp (my $this_dir = `pwd`);   # The current directory.
+my $logfile = "log";            # Logging of main driver events.
+
+# External programs.
+my $diff = "diff";              # Program that returns 0 if args are identical files, 1 ow.
+my $indent = "indent";          # Pretty-printer filter.
+my $delta = "$FindBin::Bin/delta"; # Delta debugging.
+my $idmin = "$FindBin::Bin/idmin"; # Identifier minimizer.
+
+# Identifier minimizer's C/C++ reserved word file.
+my $idents_cxx = "$FindBin::Bin/../test/idmin/idents_cxx";
+
+my $test = "test";              # The script to run as the test.
+
+# Messages.
+my $title_line = <<END
+    Deltadriver uses delta, idmin and indent to minimize interesting C
+    files, by Daniel Wilkerson.
+END
+    ;
+
+my $help_message = <<END
+
+    $title_line
+    You cannot use this script as a filter.  Name the files to be
+    operated as command line arguments.
+    -test=<testscript> Specify the test script, defaults to $test
+    -top_form=<n> Number of runs at C top-level form granularity, default $num_runs{top_form}
+    -line=<n> Number of runs at line granularity, default $num_runs{line}
+    -delta=<script> Scipt to use as delta, defaults to $delta
+    -idmin=<script> Scipt to use as idmin, defaults to $idmin
+    -idents_cxx=<file> C/C++ reserved word file for idmin, defaults to $idents_cxx
+    -unclean_dir Run even if the directory is full of junk
+    -ignore_file=<file> Ignore this file when checking for an unclean directory
+    -log=<file> Log file for main events
+    -verbose Get more verbose output
+    -help Get help
+
+END
+;
+
+# Functions ****************
+
+sub output(@) {
+    my ($message) = @_;
+#    print $message, "\n";
+    log_msg_time($message);
+}
+
+sub run(@) {
+    my ($command) = @_;
+    output($command);
+    my $err = system $command;
+    die "FAILURE code ", ($err>>8), ", stopping.\n" if $err;
+}
+
+sub parse_command_line {
+    my $str;
+    my @non_flags = ();
+    while(defined ($str = shift @ARGV)) {
+        if ($str=~/^-([^=]+)(=(.+))?/) {
+            my ($flag, $argument) = ($1, $3);
+            if ($flag eq "help") {
+                print $help_message;
+                exit 0;
+            } elsif ($flag eq "verbose") {
+                $verbose++;
+            } elsif ($flag eq "unclean_dir") {
+                $unclean_dir++;
+            } elsif ($flag eq "ignore_file") {
+                push @ignore_files, $argument;
+            } elsif ($flag eq "test") {
+                $test = $argument;
+            } elsif ($flag eq "delta") {
+                $delta = $argument;
+            } elsif ($flag eq "idmin") {
+                $idmin = $argument;
+            } elsif ($flag eq "log") {
+                $logfile = $argument;
+            } else {die "Illegal flag: $flag \n"}
+        } else {push @non_flags, $str;}
+    }
+    $logfile = "${this_dir}/$logfile" if $logfile!~m|^/|; # Make absolute.
+    push @ARGV, @non_flags;
+    die "Do not yet support operating on more than one file." if 1<@ARGV;
+    #  my $args = join (" ", @ARGV);
+    $arg = $ARGV[0];
+}
+
+sub check_dir_clean {
+    my %list;
+    foreach (split " ", `ls`) {$list{$_}++}
+    if ($logfile=~m|/([^/]*)$|) {
+        push @ignore_files, $1;
+    }
+    push @ignore_files, $test, $arg, "makefile", "Makefile", "RCS";
+    foreach (@ignore_files) {delete $list{$_}}
+    die <<END if (scalar keys %list > 0 and ! $unclean_dir)
+
+    ERROR: Unknown files in directory: ${\(join (",", keys %list))}.
+
+    NOTE: deltadriver makes a mess.  It is recommended that you run it
+    in a directory containing at most your test script $test and your
+    input $arg, and perhaps a makefile or RCS directory.  To
+    overrride, supply -unclean_dir as a flag.
+
+END
+    ;
+}
+
+sub dhms_from_seconds {
+    my ($total_seconds) = @_;
+    my $sec = $total_seconds % 60;
+
+    my $total_minutes = ($total_seconds - $sec) / 60;
+    die unless $total_minutes == (int $total_minutes);
+    my $min = $total_minutes % 60;
+
+    my $total_hours = ($total_minutes - $min) / 60;
+    die unless $total_hours == (int $total_hours);
+    my $hours = $total_hours % 24;
+
+    my $days = ($total_hours - $hours) / 24;
+    die unless $days == (int $days);
+
+    return ($days, $hours, $min, $sec);
+}
+
+sub timestamp {
+    my $now = time;             # Get a timestamp in seconds.
+    my $elapsed = $now - $starttime; # Make relative to start time.
+    my ($d,$h,$m,$s) = dhms_from_seconds($elapsed); # Convert to more familiar format.
+    my $elapsed_dhms = sprintf("%02d:%02d:%02d", $h, $m, $s); # Format.
+    if ($d > 0) {
+        my $day_str = "$d day";
+        $day_str .= "s" if $d > 1;
+        $day_str .= ", ";
+        $elapsed_dhms = $day_str . $elapsed_dhms;
+    }
+    my $timestr = scalar localtime($now); # Format as abolute.
+    return sprintf("%d, %s\t%s", $elapsed, $elapsed_dhms, $timestr);
+}
+
+sub log_msg {
+    my ($message) = @_;
+    open LOG, ">>${logfile}" or die $!;
+    print LOG $message, "\n";
+    close LOG or die $!;
+}
+
+sub log_msg_time {
+    my ($message) = @_;
+    if (length $message > $shortlogmsgsize or $message=~/\n$/) { # Long message.
+        log_msg("\n**** driver: ". timestamp());
+        log_msg($message);
+    } else {                    # Short message.
+        log_msg(sprintf("**** driver: %-${shortlogmsgsize}s %s", $message, timestamp()));
+    }
+}
+
+sub minimize {
+}
+
+# Main ****************
+
+parse_command_line();
+#print "\n$title_line\n" if $verbose;
+output "\n$title_line" if $verbose;
+check_dir_clean();
+
+# Reduce using delta.
+output "Minimizing using delta";
+my $j=0;
+my $min;
+foreach my $granularity ("top_form", "line") {
+    for(my $i=0; $i<$num_runs{$granularity}; ++$i) {
+        $min = "min${j}_${granularity}.c";
+        ++$j;
+        run "$delta -granularity=$granularity -test=$test -cp_minimal=$min ".
+            "-quiet -log=$logfile $arg";
+        my $command = "$diff $arg $min &>/dev/null";
+        output $command;
+        my $err = system $command;
+        if ($err==0) {
+            output "Input $arg and output $min are identical.  ".
+                "Skipping the rest of this granularity, since we cannot ".
+                    "make progress.";
+            last;
+        } elsif ($err!=1<<8) {
+            die "Strange error code from $diff:". ($err>>8);
+        }
+        $arg = $min;            # Use output from this time for next time.
+    }
+}
+
+output "Minimizing identifiers using $idmin.";
+$min = "min${j}_id.c";
+++$j;
+run "$idmin -ignore=$idents_cxx -smoosh $arg > $min";
+$arg = $min;                    # Use output from this time for next time.
+run "$test $arg";               # Check it still works.
+
+output "Pretty-printing using $indent.";
+$min = "min${j}_indent.c";
+++$j;
+run "$indent < $arg > $min";
+$arg = $min;                    # Use output from this time for next time.
+run "$test $arg";               # Check it still works.
+
+output "Done; final output is in $arg"; # Success.
