@@ -1403,6 +1403,8 @@ let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
              (if isadef then CombineFundef else CombineOther) 
              oldvi.vtype vi.vtype;
       with Failure reason -> 
+        ignore (E.log "old type = %a\n" d_plaintype oldvi.vtype);
+        ignore (E.log "new type = %a\n" d_plaintype vi.vtype);
         E.s (error "Declaration of %s does not match previous declaration from %a (%s)." 
                vi.vname d_loc oldloc reason)
     end;
