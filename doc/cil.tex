@@ -1650,9 +1650,9 @@ int __attribute__ ((__mode__ (  __DI__ ))) i64;
  This compiler has few extensions, so there is not much to say here.
 
 \begin{enumerate}
-\item Why does the following code return 0 and not -1? (Answer: because of a bug in
-Microsoft Visual C. It thinks that the shift is unsigned just because the
-second operator is unsigned. CIL reproduces this bug for MSVC.)
+\item Why does the following code return 0 and not -1? (Answer: because of a
+bug in Microsoft Visual C. It thinks that the shift is unsigned just because
+the second operator is unsigned. CIL reproduces this bug for MSVC.)
 
 \begin{verbatim}
  return -3 >> (8 * sizeof(int));
@@ -1660,7 +1660,8 @@ second operator is unsigned. CIL reproduces this bug for MSVC.)
 
 \item Unnamed fields in a structure seem really strange at first. It seems
 that Microsoft Visual C introduced this extension, then GCC picked it up (but
-in the process implemented it wrongly: in GCC the field \t{y} overlaps with \t{x}!).
+in the process implemented it wrongly: in GCC the field \t{y} overlaps with
+\t{x}!).
 
 \begin{cilcode}[local]
 struct {
