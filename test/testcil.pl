@@ -220,6 +220,7 @@ $TEST->add3Tests("test/cast2");
 $TEST->add2Tests("test/cast4", "_GNUCC=1");
 $TEST->addTestsFail("test/cast5", "Failure UBOUND", ['inferbox', 'box']);
 $TEST->addTestsFail("test/cast6", "Failure UBOUND", ['inferbox', 'box']);
+$TEST->addTests("testrun/cast7", "", ['inferbox']);
 $TEST->add3Tests("test/constprop");
 $TEST->addTests("testrun/const1", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/const2", "", ['cil']);
