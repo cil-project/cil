@@ -2471,19 +2471,19 @@ code returns 2.
 \item In the example below there is one copy of ``bar'' and two copies of
   ``pbar'' (static prototypes at block scope have file scope, while for all
   other types they have block scope).  
-int foo() {
-   static bar();
-   static (*pbar)() = bar;
-   
-}
 
-static bar() { 
-  return 1;
-}
+\begin{cilcode}[global]
+  int foo() {
+     static bar();
+     static (*pbar)() = bar;
 
-static (*pbar)() = NULL;
-\begin{cilcode}
+  }
 
+  static bar() { 
+    return 1;
+  }
+
+  static (*pbar)() = 0;
 \end{cilcode}
 
 \end{enumerate}
