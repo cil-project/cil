@@ -26,8 +26,8 @@ int explicit_gc();
 #define DATASIZE 16   // This is the size of the data that is reserved in
                       // each node
 
-//#define ITERS 500000
-#define ITERS 1
+#define ITERS 500000
+//#define ITERS 1
 
 // had to make these global since spreading the functionality
 // across several functions
