@@ -3151,6 +3151,9 @@ and createLocal (specs: A.spec_elem list)
                   Lval (var savelen), uintType) in
           (* Register the length *)
           H.add varSizeArrays vi.vid len;
+          (* There can be no initializer for this *)
+          if e != A.NO_INIT then 
+            E.s (error "Variable-sized array cannot have initializer");
           se0 +++ (Set(var savelen, len, !currentLoc)) 
             (* Initialize the variable *)
             +++ (Call(Some(var vi), Lval(var allocaFun.svar), 
