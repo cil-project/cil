@@ -67,3 +67,6 @@ val visitCabsName: cabsVisitor -> nameKind
 val visitCabsFile: cabsVisitor -> Cabs.file -> Cabs.file
 
 
+
+(** Set by the visitor to the current location *)
+val visitorLocation: Cabs.cabsloc ref

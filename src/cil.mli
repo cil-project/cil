@@ -540,53 +540,9 @@ type file =
     } 
 	(* global function decls, global variable decls *)
 
-val locUnknown: location
-(* A reference to the current location *)
-val currentLoc: location ref
-
-val d_loc: unit -> location -> Pretty.doc
-val d_thisloc: unit -> Pretty.doc  (* the currentLoc *)
-
-(* the following error message producing functions also print a location in 
- * the code. use Errormsg.bug and Errormsg.unimp if you do not want that *)
-val bug: ('a,unit,Pretty.doc) format -> 'a
-val unimp: ('a,unit,Pretty.doc) format -> 'a
-val error: ('a,unit,Pretty.doc) format -> 'a
-val errorLoc: location -> ('a,unit,Pretty.doc) format -> 'a  
-val unimp: ('a,unit,Pretty.doc) format -> 'a  
-val warn: ('a,unit,Pretty.doc) format -> 'a
-val warnLoc: location -> ('a,unit,Pretty.doc) format -> 'a  
 
 
-
-(* Construct an integer of a given kind. *)
-val kinteger: ikind -> int -> exp
-val kinteger64: ikind -> int64 -> exp
-
-(* Construct an integer of the first kind that is big enough. Use only for 
- * positive integers *)
-val integerKinds: ikind list -> int64 -> exp
-
-(* Construct an integer of kind IInt. *)
-val integer: int -> exp
-val integer64: int64 -> exp
-
-
-val hexinteger: int -> exp
-             
-val zero: exp
-val one: exp
-val mone: exp
-
-(* Do constant folding *)    
-val constFold: exp -> exp
-
-(* And a special case for binary operations *)
-val constFoldBinOp: binop -> exp -> exp -> typ -> exp
-
-(* Increment an expression. Can be arithmetic or pointer type *) 
-val increm: exp -> int -> exp
-
+(***** TYPES *****)
 (** Manipulating types *)
 
 (** Constructs a void type with no attributes *)
@@ -606,41 +562,10 @@ val intPtrType: typ
 val uintPtrType: typ
 val doubleType: typ
 
-(* An integer type that fits pointers. We hardwire to unsigned long for now *)
+(** An integer type that fits pointers. We hardwire to unsigned long for now *)
 val upointType: typ
 
-val isInteger: exp -> int64 option
-val isZero: exp -> bool
 
-val mkStmt: stmtkind -> stmt
-val mkBlock: stmt list -> block
-
-val mkStmtOneInstr: instr -> stmt
-
-(* use this instead of List.@ because you get fewer basic blocks *)
-val compactStmts: stmt list -> stmt list
-
-val mkEmptyStmt: unit -> stmt
-val dummyInstr: instr
-val dummyStmt: stmt
-  
-(* Generate fresh names from a prefix 
-val newTypeName: string -> string
-*)
-
-val isCompleteType: typ -> bool  (* Returns true if this is a complete type. 
-                                  * This means that sizeof(t) makes sense. 
-                                  * Incomplete types are not yet defined 
-                                  * structures and empty arrays. *)
-
-
-(* Get the full name of a comp *)
-val compFullName: compinfo -> string
-
-(* Set the name of a composite type. Also changes the key *)
-val compSetName: compinfo -> string -> unit
-
- 
 (** Creates a a (potentially recursive) composite type **)
 val mkCompInfo: bool ->       (* whether it is a struct or a union *)
                string ->     (* empty for anonymous structures *)
@@ -652,18 +577,129 @@ val mkCompInfo: bool ->       (* whether it is a struct or a union *)
                attribute list -> compinfo
 
 
-(* Scans a type by applying the function on all elements. Care is taken to 
- * apply the function only once on each composite type, thus avoiding 
- * circularity. When the function returns ExistsTrue, the scan stops with true 
- * *)
-type existsAction = 
-    ExistsTrue                          (* We have found it *)
-  | ExistsFalse                         (* Stop processing this branch *)
-  | ExistsMaybe                         (* This node is not what we are 
-                                         * looking for but maybe its 
-                                         * successors are *)
+(** Get the full name of a comp *)
+val compFullName: compinfo -> string
 
-val existsType: (typ -> existsAction) -> typ -> bool
+(** Set the name of a composite type. Also changes the key *)
+val compSetName: compinfo -> string -> unit
+
+
+val isCompleteType: typ -> bool  (* Returns true if this is a complete type. 
+                                  * This means that sizeof(t) makes sense. 
+                                  * Incomplete types are not yet defined 
+                                  * structures and empty arrays. *)
+
+
+val unrollType: typ -> typ   (* Might drop some attributes !! *)
+
+ 
+val isIntegralType: typ -> bool
+val isArithmeticType: typ -> bool
+val isPointerType: typ -> bool
+val isFunctionType: typ -> bool
+val isArrayType: typ -> bool
+
+
+(***** Type signatures ****)
+
+     (** Type signatures. Two types are identical iff they have identical 
+      * signatures *)
+type typsig = 
+    TSArray of typsig * exp option * attribute list
+  | TSPtr of typsig * attribute list
+  | TSComp of bool * string * attribute list
+  | TSFun of typsig * typsig list * bool * attribute list
+  | TSEnum of string * attribute list
+  | TSBase of typ
+
+val d_typsig: unit -> typsig -> Pretty.doc
+
+(* Compute a type signature *)
+val typeSig: typ -> typsig
+(* Like typeSig but customize the incorporation of attributes *)
+val typeSigWithAttrs: (attribute list -> attribute list) -> typ -> typsig
+
+(* Replace the attributes of a signature (only at top level) *)
+val setTypeSigAttrs: attribute list -> typsig -> typsig 
+(* Get the top-level attributes of a signature *)
+val typeSigAttrs: typsig -> attribute list
+
+(**** Compute the type of an expression ****)
+val typeOf: exp -> typ
+val typeOfLval: lval -> typ
+val typeOffset: typ -> offset -> typ  (* Give the base type *)
+
+
+
+(*** LVALUES ***)
+
+   (* Make a varinfo (for use in a TFun). Use other functions to make locals 
+    * and globals *)
+val makeVarinfo: string -> typ -> varinfo
+
+  (* Make a formal variable for a function. Insert it in both the sformals 
+   * and the type of the function. You can optionally specify where to insert 
+   * this one. If where = "^" then it is inserted first. If where = "$" then 
+   * it is inserted last. Otherwise where must be the name of a formal after 
+   * which to insert this. By default it is inserted at the end. *)
+val makeFormalVar: fundec -> ?where:string -> string -> typ -> varinfo
+
+   (* Make a local variable and add it to a function's slocals (only if 
+    * insert = true) *)
+val makeLocalVar: fundec -> ?insert:bool -> string -> typ -> varinfo
+
+   (* Make a temporary variable and add it to a function's slocals *)
+val makeTempVar: fundec -> ?name: string -> typ -> varinfo
+
+
+   (* Make a global variable. Your responsibility to make sure that the name 
+    * is unique *) 
+val makeGlobalVar: string -> typ -> varinfo
+
+
+ (* Add an offset at the end of an lv *)      
+val addOffsetLval: offset -> lval -> lval 
+val addOffset:     offset -> offset -> offset
+
+
+
+
+(***** EXPRESSIONS *****)
+
+
+(** Construct integer constants *)
+val zero: exp
+val one: exp
+val mone: exp
+
+(* Construct an integer of a given kind. *)
+val kinteger: ikind -> int -> exp
+val kinteger64: ikind -> int64 -> exp
+
+(* Construct an integer of the first kind that is big enough. Use only for 
+ * positive integers *)
+val integerKinds: ikind list -> int64 -> exp
+
+(* Construct an integer of kind IInt. *)
+val integer: int -> exp
+val integer64: int64 -> exp
+
+val isInteger: exp -> int64 option
+val isZero: exp -> bool
+
+(* Do constant folding *)    
+val constFold: exp -> exp
+
+(* And a special case for binary operations *)
+val constFoldBinOp: binop -> exp -> exp -> typ -> exp
+
+(* Increment an expression. Can be arithmetic or pointer type *) 
+val increm: exp -> int -> exp
+
+
+
+val hexinteger: int -> exp
+
 
 val var: varinfo -> lval
 
@@ -682,95 +718,126 @@ val mkMem: addr:exp -> off:offset -> lval
 
 val mkString: string -> exp
 
+(* Construct a cast *)
+val doCastT: e:exp -> oldt:typ -> newt:typ -> exp
+val doCast: e:exp -> newt:typ -> exp (* Like doCastT but use typeOf to get 
+                                      * oldt *)  
 
-    (* Make a while loop. Can contain Break or Continue *)
-val mkWhile: guard:exp -> body:stmt list -> stmt list
+(***** STATEMENTS ****)
 
-    (* Make a for loop for(i=start; i<past; i += incr) { ... }. The body 
-     * can contain Break but not Continue !!!. Can be used with i a pointer 
-     * or an integer. Start and done must have the same type but incr 
-     * must be an integer *)
-val mkForIncr:  iter:varinfo -> first:exp -> stopat:exp -> incr:exp 
-                 -> body:stmt list -> stmt list
+val mkStmt: stmtkind -> stmt
+val mkBlock: stmt list -> block
 
-    (* Make a for loop for(start; guard; next) { ... }. The body can 
-     * contain Break but not Continue !!! *) 
-val mkFor: start:stmt list -> guard:exp -> next: stmt list -> 
-                                       body: stmt list -> stmt list
- 
+val mkStmtOneInstr: instr -> stmt
 
+(* use this instead of List.@ because you get fewer basic blocks *)
+val compactStmts: stmt list -> stmt list
 
+val mkEmptyStmt: unit -> stmt
+val dummyInstr: instr
+val dummyStmt: stmt
+  
 
-(**** Utility functions ******)
-val unrollType: typ -> typ   (* Might drop some attributes !! *)
-
-(* 
-  Pretty Printing
- *)
-
-(* location *)
-val d_loc: unit -> location -> Pretty.doc
-val d_ikind: unit -> ikind -> Pretty.doc
-val d_fkind: unit -> fkind -> Pretty.doc
-val d_storage: unit -> storage -> Pretty.doc
-val d_const: unit -> constant -> Pretty.doc
-
-
-  (* When we print types for consumption by another compiler we must be 
-   * careful to avoid printing multiple type definitions *)
-val printShortTypes: bool ref (* Prints "struct n" instead of the fields *)
-val d_type: unit -> typ -> Pretty.doc
-
-
-(* exp *)
-
-val d_exp: unit -> exp -> Pretty.doc
-val d_init: unit -> init -> Pretty.doc
-val d_binop: unit -> binop -> Pretty.doc
+(***** INITIALIZERS ****)
 
 
 
-val d_attr: unit -> attribute -> Pretty.doc
-val d_attrarg: unit -> attrarg -> Pretty.doc
-val d_attrlist: bool -> unit -> attribute list -> Pretty.doc (* Whether it 
-                                                              * comes before 
-                                                              * or after 
-                                                              * stuff  *) 
-val d_stmt: unit -> stmt -> Pretty.doc
-val d_block: unit -> block -> Pretty.doc
-val d_lval: unit -> lval -> Pretty.doc
-val d_instr: unit -> instr -> Pretty.doc
-val d_fun_decl: unit -> fundec -> Pretty.doc
-val d_videcl: unit -> varinfo -> Pretty.doc
-val printFile: out_channel -> file -> unit
 
-(* Use setCustomPrint to intercept all attributes as are printed. If your 
- * function returns Some d then d is used as the external form of the 
- * attribute. Otherwise the attribute is printed normally. *)
-val setCustomPrintAttribute: 
-    (attribute -> Pretty.doc option) -> unit
-
-(* Like the above but _adds_ the given function to the begining of the chain 
- * of custom attribute printers but only for the duration of executing the 
- * function passed as the second argument on the third argument *)
-val setCustomPrintAttributeScope: 
-    (attribute -> Pretty.doc option) -> ('a -> 'b) -> 'a -> 'b
+(*** Make a initializer for zeroe-ing a data type ***)
+val makeZeroInit: typ -> init
 
 
-(* removeUnusedTemps moved to rmtmps.mli *)
+(* Fold over the list of initializers in a Compound. doinit is called on 
+ * every present initializer, even if it is of compound type. This is much 
+ * like a a List.fold_left except we also pass the type of the initializer *)
+val foldLeftCompound: 
+    (doinit: offset -> init -> typ -> 'a -> 'a) ->
+     ct: typ ->
+    initl: init list ->
+    acc: 'a -> 'a
 
 
-   (* Some plain pretty-printers. Unlike the above these expose all the 
-    * details of the internal representation *)
-val d_plainexp: unit -> exp -> Pretty.doc
-val d_plaininit: unit -> init -> Pretty.doc
-val d_plainlval: unit -> lval -> Pretty.doc
-val d_plainoffset: unit -> offset -> Pretty.doc
-val d_plaintype: unit -> typ -> Pretty.doc
-val d_global: unit -> global -> Pretty.doc
+(**** GLOBALS ****)
+
+
+
+   (* Make an empty function *)
+val emptyFunction: string -> fundec
+
+   (* Update the formals of a fundec and make sure that the function type 
+    * shares them *)
+val setFormals: fundec -> varinfo list -> unit
+
+   (* Set the types of arguments and results as given by the function type 
+    * passed as the second argument *)
+val setFunctionType: fundec -> typ -> unit
+
+    (* A dummy function declaration handy for initialization *)
+val dummyFunDec: fundec
+val dummyFile: file
+
+val getGlobInit: file -> fundec  (* Get the global initializer and create one 
+                                  * if it does not already exist *)
+
+
+(* Iterate over all globals, including the global initializer *)
+val iterGlobals: file -> (global -> unit) -> unit
+
+(* Fold over all globals, including the global initializer *)
+val foldGlobals: file -> ('a -> global -> 'a) -> 'a -> 'a
+
+(* Map over all globals, including the global initializer and change things 
+ * in place *)
+val mapGlobals: file -> (global -> global) -> unit
+
+
+(***** ATTRIBUTES *****)
+
+type attributeClass = 
+    AttrName of bool 
+        (* Attribute of a name. If argument is true and we are on MSVC then 
+         * the attribute is printed using __declspec as part of the storage 
+         * specifier  *)
+  | AttrFunType of bool 
+        (* Attribute of a function type. If argument is true and we are on 
+         * MSVC then the attribute is printed just before the function name *)
+  | AttrType  (* Attribute of a type *)
+
+(* This table contains the mapping of predefined attributes to classes. 
+ * Extend this table with more attributes as you need. This table is used to 
+ * determine how to associate attributes with names or type during cabs2cil 
+ * conversion *)
+val attributeHash: (string, attributeClass) Hashtbl.t
+(* Partition the attributes into classes *)
+val partitionAttributes:  default:attributeClass -> 
+                         attribute list -> attribute list * (* AttrName *)
+                                           attribute list * (* AttrFunType *)
+                                           attribute list   (* AttrType *)
+
+(** Construct sorted lists of attributes ***)
+val addAttribute: attribute -> attribute list -> attribute list
+val addAttributes: attribute list -> attribute list -> attribute list
+val dropAttribute: attribute list -> attribute -> attribute list
+
+
+(* Retains attributes AId or ACons with the named constructor *)
+val filterAttributes: string -> attribute list -> attribute list
+
+(* true if the named attribute appears in the attribute list *)
+val hasAttribute: string -> attribute list -> bool
+
+val typeAttrs: typ -> attribute list
+
+val setTypeAttrs: typ -> attribute list -> typ (* Resets the attributes *)
+
+
+val typeAddAttributes: attribute list -> typ -> typ
+val typeRemoveAttributes: attribute list -> typ -> typ
+
+             
 
 (******************
- ******************
+ ******************  VISITOR
  ******************)
 
 (* Different visiting actions. 'a will be instantiated with exp, instr, etc. *)
@@ -849,163 +916,118 @@ val doVisitList: vis: cilVisitor ->
                  children: (cilVisitor -> 'a -> 'a) ->
                  node: 'a -> 'a list
 
-   (* Make a varinfo (for use in a TFun). Use other functions to make locals 
-    * and globals *)
-val makeVarinfo: string -> typ -> varinfo
-
-  (* Make a formal variable for a function. Insert it in both the sformals 
-   * and the type of the function. You can optionally specify where to insert 
-   * this one. If where = "^" then it is inserted first. If where = "$" then 
-   * it is inserted last. Otherwise where must be the name of a formal after 
-   * which to insert this. By default it is inserted at the end. *)
-val makeFormalVar: fundec -> ?where:string -> string -> typ -> varinfo
-
-   (* Make a local variable and add it to a function's slocals (only if 
-    * insert = true) *)
-val makeLocalVar: fundec -> ?insert:bool -> string -> typ -> varinfo
-
-   (* Make a temporary variable and add it to a function's slocals *)
-val makeTempVar: fundec -> ?name: string -> typ -> varinfo
 
 
-   (* Make a global variable. Your responsibility to make sure that the name 
-    * is unique *) 
-val makeGlobalVar: string -> typ -> varinfo
+(* Scans a type by applying the function on all elements. Care is taken to 
+ * apply the function only once on each composite type, thus avoiding 
+ * circularity. When the function returns ExistsTrue, the scan stops with true 
+ * *)
+type existsAction = 
+    ExistsTrue                          (* We have found it *)
+  | ExistsFalse                         (* Stop processing this branch *)
+  | ExistsMaybe                         (* This node is not what we are 
+                                         * looking for but maybe its 
+                                         * successors are *)
+
+val existsType: (typ -> existsAction) -> typ -> bool
 
 
-   (* Make an empty function *)
-val emptyFunction: string -> fundec
+    (* Make a while loop. Can contain Break or Continue *)
+val mkWhile: guard:exp -> body:stmt list -> stmt list
 
-   (* Update the formals of a fundec and make sure that the function type 
-    * shares them *)
-val setFormals: fundec -> varinfo list -> unit
+    (* Make a for loop for(i=start; i<past; i += incr) { ... }. The body 
+     * can contain Break but not Continue !!!. Can be used with i a pointer 
+     * or an integer. Start and done must have the same type but incr 
+     * must be an integer *)
+val mkForIncr:  iter:varinfo -> first:exp -> stopat:exp -> incr:exp 
+                 -> body:stmt list -> stmt list
 
-   (* Set the types of arguments and results as given by the function type 
-    * passed as the second argument *)
-val setFunctionType: fundec -> typ -> unit
-
-    (* A dummy function declaration handy for initialization *)
-val dummyFunDec: fundec
-val dummyFile: file
-
-val getGlobInit: file -> fundec  (* Get the global initializer and create one 
-                                  * if it does not already exist *)
-
-
-(* Iterate over all globals, including the global initializer *)
-val iterGlobals: file -> (global -> unit) -> unit
-
-(* Fold over all globals, including the global initializer *)
-val foldGlobals: file -> ('a -> global -> 'a) -> 'a -> 'a
-
-(* Map over all globals, including the global initializer and change things 
- * in place *)
-val mapGlobals: file -> (global -> global) -> unit
-
-(**** Compute the type of an expression ****)
-val typeOf: exp -> typ
-val typeOfLval: lval -> typ
-val typeOffset: typ -> offset -> typ  (* Give the base type *)
+    (* Make a for loop for(start; guard; next) { ... }. The body can 
+     * contain Break but not Continue !!! *) 
+val mkFor: start:stmt list -> guard:exp -> next: stmt list -> 
+                                       body: stmt list -> stmt list
+ 
 
 
 
-(* Some expressions to be used in case of errors *)
-val dExp: Pretty.doc -> exp 
-val dInstr: Pretty.doc -> location -> instr
-val dGlobal: Pretty.doc -> location -> global
+(**** Utility functions ******)
 
- (* Add an offset at the end of an lv *)      
-val addOffsetLval: offset -> lval -> lval 
-val addOffset:     offset -> offset -> offset
+(**** PRETTY PRINTING ***) 
 
+(* location *)
+val d_loc: unit -> location -> Pretty.doc
+val d_thisloc: unit -> Pretty.doc  (* the currentLoc *)
 
 
-val isIntegralType: typ -> bool
-val isArithmeticType: typ -> bool
-val isPointerType: typ -> bool
-val isFunctionType: typ -> bool
-val isArrayType: typ -> bool
 
-type attributeClass = 
-    AttrName of bool 
-        (* Attribute of a name. If argument is true and we are on MSVC then 
-         * the attribute is printed using __declspec as part of the storage 
-         * specifier  *)
-  | AttrFunType of bool 
-        (* Attribute of a function type. If argument is true and we are on 
-         * MSVC then the attribute is printed just before the function name *)
-  | AttrType  (* Attribute of a type *)
-
-(* This table contains the mapping of predefined attributes to classes. 
- * Extend this table with more attributes as you need. This table is used to 
- * determine how to associate attributes with names or type during cabs2cil 
- * conversion *)
-val attributeHash: (string, attributeClass) Hashtbl.t
-(* Partition the attributes into classes *)
-val partitionAttributes:  default:attributeClass -> 
-                         attribute list -> attribute list * (* AttrName *)
-                                           attribute list * (* AttrFunType *)
-                                           attribute list   (* AttrType *)
-
-(** Construct sorted lists of attributes ***)
-val addAttribute: attribute -> attribute list -> attribute list
-val addAttributes: attribute list -> attribute list -> attribute list
-val dropAttribute: attribute list -> attribute -> attribute list
+val d_ikind: unit -> ikind -> Pretty.doc
+val d_fkind: unit -> fkind -> Pretty.doc
+val d_storage: unit -> storage -> Pretty.doc
+val d_const: unit -> constant -> Pretty.doc
 
 
-(* Retains attributes AId or ACons with the named constructor *)
-val filterAttributes: string -> attribute list -> attribute list
-
-(* true if the named attribute appears in the attribute list *)
-val hasAttribute: string -> attribute list -> bool
-
-val typeAttrs: typ -> attribute list
-
-val setTypeAttrs: typ -> attribute list -> typ (* Resets the attributes *)
+  (* When we print types for consumption by another compiler we must be 
+   * careful to avoid printing multiple type definitions *)
+val printShortTypes: bool ref (* Prints "struct n" instead of the fields *)
+val d_type: unit -> typ -> Pretty.doc
 
 
-val typeAddAttributes: attribute list -> typ -> typ
-val typeRemoveAttributes: attribute list -> typ -> typ
+(* exp *)
 
-     (* Type signatures. Two types are identical iff they have identical 
-      * signatures *)
-type typsig = 
-    TSArray of typsig * exp option * attribute list
-  | TSPtr of typsig * attribute list
-  | TSComp of bool * string * attribute list
-  | TSFun of typsig * typsig list * bool * attribute list
-  | TSEnum of string * attribute list
-  | TSBase of typ
-
-val d_typsig: unit -> typsig -> Pretty.doc
-
-(* Compute a type signature *)
-val typeSig: typ -> typsig
-(* Like typeSig but customize the incorporation of attributes *)
-val typeSigWithAttrs: (attribute list -> attribute list) -> typ -> typsig
-
-(* Replace the attributes of a signature (only at top level) *)
-val setTypeSigAttrs: attribute list -> typsig -> typsig 
-(* Get the top-level attributes of a signature *)
-val typeSigAttrs: typsig -> attribute list
-
-(* Construct a cast *)
-val doCastT: e:exp -> oldt:typ -> newt:typ -> exp
-val doCast: e:exp -> newt:typ -> exp (* Like doCastT but use typeOf to get 
-                                      * oldt *)  
-
-(*** Make a initializer for zeroe-ing a data type ***)
-val makeZeroInit: typ -> init
+val d_exp: unit -> exp -> Pretty.doc
+val d_init: unit -> init -> Pretty.doc
+val d_binop: unit -> binop -> Pretty.doc
 
 
-(* Fold over the list of initializers in a Compound. doinit is called on 
- * every present initializer, even if it is of compound type. This is much 
- * like a a List.fold_left except we also pass the type of the initializer *)
-val foldLeftCompound: 
-    (doinit: offset -> init -> typ -> 'a -> 'a) ->
-     ct: typ ->
-    initl: init list ->
-    acc: 'a -> 'a
+
+val d_attr: unit -> attribute -> Pretty.doc
+val d_attrarg: unit -> attrarg -> Pretty.doc
+val d_attrlist: bool -> unit -> attribute list -> Pretty.doc (* Whether it 
+                                                              * comes before 
+                                                              * or after 
+                                                              * stuff  *) 
+val d_stmt: unit -> stmt -> Pretty.doc
+val d_block: unit -> block -> Pretty.doc
+val d_lval: unit -> lval -> Pretty.doc
+val d_instr: unit -> instr -> Pretty.doc
+val d_fun_decl: unit -> fundec -> Pretty.doc
+val d_videcl: unit -> varinfo -> Pretty.doc
+val printFile: out_channel -> file -> unit
+
+(* Use setCustomPrint to intercept all attributes as are printed. If your 
+ * function returns Some d then d is used as the external form of the 
+ * attribute. Otherwise the attribute is printed normally. *)
+val setCustomPrintAttribute: 
+    (attribute -> Pretty.doc option) -> unit
+
+(* Like the above but _adds_ the given function to the begining of the chain 
+ * of custom attribute printers but only for the duration of executing the 
+ * function passed as the second argument on the third argument *)
+val setCustomPrintAttributeScope: 
+    (attribute -> Pretty.doc option) -> ('a -> 'b) -> 'a -> 'b
+
+
+(* the following error message producing functions also print a location in 
+ * the code. use Errormsg.bug and Errormsg.unimp if you do not want that *)
+val bug: ('a,unit,Pretty.doc) format -> 'a
+val unimp: ('a,unit,Pretty.doc) format -> 'a
+val error: ('a,unit,Pretty.doc) format -> 'a
+val errorLoc: location -> ('a,unit,Pretty.doc) format -> 'a  
+val unimp: ('a,unit,Pretty.doc) format -> 'a  
+val warn: ('a,unit,Pretty.doc) format -> 'a
+val warnLoc: location -> ('a,unit,Pretty.doc) format -> 'a  
+
+
+
+   (* Some plain pretty-printers. Unlike the above these expose all the 
+    * details of the internal representation *)
+val d_plainexp: unit -> exp -> Pretty.doc
+val d_plaininit: unit -> init -> Pretty.doc
+val d_plainlval: unit -> lval -> Pretty.doc
+val d_plainoffset: unit -> offset -> Pretty.doc
+val d_plaintype: unit -> typ -> Pretty.doc
+val d_global: unit -> global -> Pretty.doc
+
 
 
 (* ALPHA conversion *)
@@ -1068,14 +1090,6 @@ val sizeOf: typ -> exp
 
 val offsetOf: fi:fieldinfo -> startcomp: int -> int * int
 
-(* Like map but try not to make a copy of the list *)
-val mapNoCopy: ('a -> 'a) -> 'a list -> 'a list
-(* Like map but each call can return a list. Try not to make a copy of the 
- * list *)
-val mapNoCopyList: ('a -> 'a list) -> 'a list -> 'a list
-
-
-
 
 (* A few globals that control the interpretation of C source *)
 val msvcMode: bool ref               (* Whether the pretty printer should 
@@ -1089,5 +1103,22 @@ val ilongFitsUInt: bool ref         (* Whether a signed long can fit an
 
 val printLn: bool ref                   (* Whether to print line numbers *)
 val printLnComment: bool ref            (* Whether to print line numbers in comments*)
+
+
+val locUnknown: location
+(* A reference to the current location *)
+val currentLoc: location ref
+
+
+(* Some expressions to be used in case of errors *)
+val dExp: Pretty.doc -> exp 
+val dInstr: Pretty.doc -> location -> instr
+val dGlobal: Pretty.doc -> location -> global
+(* Like map but try not to make a copy of the list *)
+val mapNoCopy: ('a -> 'a) -> 'a list -> 'a list
+(* Like map but each call can return a list. Try not to make a copy of the 
+ * list *)
+val mapNoCopyList: ('a -> 'a list) -> 'a list -> 'a list
+
 
 

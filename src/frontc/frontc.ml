@@ -127,7 +127,6 @@ and parse_to_cabs_inner (fname : string) =
       Stats.time "parse"
         (Cparser.file Clexer.initial) lexbuf in
     close_in file;
-    if !E.verboseFlag then ignore (E.log "Frontc finished parsing %s\n" fname);
     cabs
   with (Sys_error msg) -> begin
     ignore (E.log "Cannot open %s : %s\n" fname msg);

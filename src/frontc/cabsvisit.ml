@@ -52,15 +52,21 @@ class type cabsVisitor = object
   method vEnterScope: unit -> unit
   method vExitScope: unit -> unit
 end
-        
+    
+let visitorLocation = ref { filename = ""; lineno = -1; }
+    
         (* a default visitor which does nothing to the tree *)
 class nopCabsVisitor : cabsVisitor = object
   method vexpr (e:expression) = DoChildren
   method vinitexpr (e:init_expression) = DoChildren
-  method vstmt (s: statement) = DoChildren
+  method vstmt (s: statement) = 
+    visitorLocation := get_statementloc s;
+    DoChildren
   method vblock (b: block) = DoChildren
   method vvar (s: string) = s
-  method vdef (d: definition) = DoChildren
+  method vdef (d: definition) = 
+    visitorLocation := get_definitionloc d;
+    DoChildren
   method vtypespec (ts: typeSpecifier) = DoChildren
   method vdecltype (dt: decl_type) = DoChildren
   method vname k (s:specifier) (n: name) = DoChildren

@@ -26,11 +26,11 @@ type envKind =
   | EVar                                (* A variable or enumeration item *)
 
 let ek2text = function
-    EType -> "EType"
-  | EStruct -> "EStruct"
-  | EUnion -> "EUnion"
-  | EEnum -> "EEnum"
-  | EVar -> "EVar"
+    EType -> "type"
+  | EStruct -> "struct"
+  | EUnion -> "union"
+  | EEnum -> "enum"
+  | EVar -> "variable"
 
 let env: (envKind * string, string) H.t = H.create 111
 
@@ -243,7 +243,7 @@ and splitNameForAlpha (lookupname: string) : (string * string * int) =
  * then the specifier and name are as given by the TYPEDEF. If the kinds is a 
  * tag kind then the name ie empty and the specifier has one element which is 
  * the definition of the tag *)
-type typeTagDef = envKind * string * specifier * name
+type typeTagDef = envKind * string * specifier * name * cabsloc
 let fileTypeTags : typeTagDef list ref = ref []
   
 class collectTypeTagDefsClass  : cabsVisitor = object (self)
@@ -256,15 +256,18 @@ class collectTypeTagDefsClass  : cabsVisitor = object (self)
 
   method vdef d = 
     if !scopeDepth > 0 then SkipChildren else
-    match d with 
-    | TYPEDEF ((s, nl), l) -> 
-        List.iter (fun ((n, _, _) as nm) -> 
-          fileTypeTags := (EType, n, s, nm) :: !fileTypeTags) nl;
-        DoChildren
-
-    | _ -> DoChildren
-
-  (* Don't go into blocks *)      
+    begin
+      visitorLocation := get_definitionloc d;
+      match d with 
+      | TYPEDEF ((s, nl), l) -> 
+          List.iter (fun ((n, _, _) as nm) -> 
+            fileTypeTags := (EType, n, s, nm, !visitorLocation) 
+               :: !fileTypeTags) nl;
+          DoChildren
+            
+      | _ -> DoChildren
+    end
+      (* Don't go into blocks *)      
   method vblock _ = SkipChildren
       
         (* And defined structure, union and enumeration tags *)
@@ -272,14 +275,20 @@ class collectTypeTagDefsClass  : cabsVisitor = object (self)
     let emptyName = ("", JUSTBASE, []) in
     (match ts with 
       Tstruct (n, Some flds) -> 
-        fileTypeTags := 
-           (EStruct, n, [SpecType ts], emptyName) :: !fileTypeTags
+        if n <> "" then 
+          fileTypeTags := 
+             (EStruct, n, [SpecType ts], 
+              emptyName, !visitorLocation) :: !fileTypeTags
     | Tunion (n, Some flds) -> 
-        fileTypeTags := 
-           (EUnion, n, [SpecType ts], emptyName) :: !fileTypeTags
-    | Tenum (n, Some eil) ->  
-        fileTypeTags := 
-           (EEnum, n, [SpecType ts], emptyName) :: !fileTypeTags
+        if n <> "" then
+          fileTypeTags := 
+             (EUnion, n, [SpecType ts], 
+              emptyName, !visitorLocation) :: !fileTypeTags
+    | Tenum (n, Some eil) ->
+        if n <> "" then   
+          fileTypeTags := 
+             (EEnum, n, [SpecType ts], 
+              emptyName, !visitorLocation) :: !fileTypeTags
     | _ -> ());
     DoChildren
 
@@ -300,14 +309,27 @@ let rec compareSpecs
   if rest1 <> rest2 then raise Not_found;
   match ts1, ts2 with 
     [SpecType ts1], [SpecType ts2] -> begin
-      (* We don't go into the definition of a struct here *)
+      (* We don't go into the definition of a struct here, except if it is 
+       * anonymous *)
       match ts1, ts2 with 
         Tstruct (s1, fg1), Tstruct (s2, fg2) -> 
-          (EStruct, s1, s2) :: acc
+          if s1 = "" && s2 = "" then 
+            compareFieldGroupLists acc fg1 fg2
+          else
+            if s1 = "" || s2 = "" then raise Not_found else
+            (EStruct, s1, s2) :: acc
       | Tunion (s1, fg1), Tunion (s2, fg2) -> 
-          (EUnion, s1, s2) :: acc
+          if s1 = "" && s2 = "" then 
+            compareFieldGroupLists acc fg1 fg2
+          else
+            if s1 = "" || s2 = "" then raise Not_found else
+            (EUnion, s1, s2) :: acc
       | Tenum (s1, el1), Tenum (s2, el2) -> 
-          (EEnum, s1, s2) :: acc
+          if s1 = "" && s2 = "" then 
+            if el1 = el2 then acc else raise Not_found
+          else
+            if s1 = "" || s2 = "" then raise Not_found else
+            (EEnum, s1, s2) :: acc
       | Tnamed t1, Tnamed t2 -> 
           (EType, t1, t2) :: acc
       | TtypeofT (s1, dt1), TtypeofT (s2, dt2) -> 
@@ -318,10 +340,15 @@ let rec compareSpecs
     end
   | _ -> if ts1 = ts2 then acc else raise Not_found
   
-let compareFieldGroups acc (s1, fg1) (s2, fg2) = 
+and compareFieldGroups acc (s1, fg1) (s2, fg2) = 
   if fg1 <> fg2 then raise Not_found;
   compareSpecs s1 s2 acc
 
+and compareFieldGroupLists acc fgl1 fgl2 =
+  match fgl1, fgl2 with 
+    Some fgl1, Some fgl2 -> List.fold_left2 compareFieldGroups [] fgl1 fgl2
+  | None, None -> acc
+  | _, _ -> raise Not_found
       
 
 (* Store some global definitions for typeTags. For each orignal name and kind 
@@ -332,7 +359,7 @@ let globalTypeTags : (envKind * string, typeTagDef) H.t = H.create 111
 let dumpGlobalTypeTags (msg: string) = 
   Cprint.out := stderr;
   Cprint.print msg;
-  H.iter (fun (k, n) (_, n', specs, nm) -> 
+  H.iter (fun (k, n) (_, n', specs, nm, _) -> 
     Cprint.print ("Node(" ^ ek2text k ^ "," ^ n ^ ") -> " ^ n' ^ ",");
     Cprint.print_specifiers specs;
     Cprint.print ",";
@@ -370,11 +397,11 @@ let dumpGraph (msg: string) =
     
 let constructConstraintGraph (tt: typeTagDef list) = 
   H.clear constraintGraph; nodeId := 0;
-  let doOne (defk, defn, defspec, ((_, def_dt, def_a) as defname)) = 
+  let doOne (defk, defn, defspec, ((_, def_dt, def_a) as defname), defloc) = 
     (* All previous typeTagDefs for the same original name *)
     let old = H.find_all globalTypeTags (defk, defn)  in
     List.iter
-      (fun (_, oldn, oldspec, ((_, old_dt, old_a) as oldname)) -> 
+      (fun (_, oldn, oldspec, ((_, old_dt, old_a) as oldname), oldloc) -> 
         (* Make a node *)
         let node = getNode (defk, oldn, defn) in
         (* This node must be made eq *)
@@ -392,14 +419,14 @@ let constructConstraintGraph (tt: typeTagDef list) =
                 match oldspec, defspec with 
                   [SpecType (Tstruct (_, Some ofg))], 
                   [SpecType (Tstruct (_, Some nfg))] -> 
-                    List.fold_left2 compareFieldGroups [] ofg nfg
+                    compareFieldGroupLists [] (Some ofg) (Some nfg)
                 | _ -> E.s (E.bug "compareTypeTags(struct)")
             end
             | EUnion -> begin
                 match oldspec, defspec with 
                   [SpecType (Tunion (_, Some ofg))], 
                   [SpecType (Tunion (_, Some nfg))] -> 
-                    List.fold_left2 compareFieldGroups [] ofg nfg
+                    compareFieldGroupLists [] (Some ofg) (Some nfg)
                 | _ -> E.s (E.bug "compareTypeTags(union)")
             end
             | EEnum -> begin
@@ -441,23 +468,28 @@ let findTypeTagNames (f: Cabs.file) =
   constructConstraintGraph tt_list;
   (* Now assign names to types and tags *)
   List.iter 
-    (fun (defk, defn, defspec, defname) -> 
+    (fun (defk, defn, defspec, defname, defloc) -> 
       begin
         let defkn = (defk, defn) in
         (* Find the first old name that matches *)
+        let oldnames = H.find_all globalTypeTags defkn in
         let matches = 
           List.filter 
-            (fun (_, on, _, _) -> let n = getNode (defk, on, defn) in n.eq)
-            (H.find_all globalTypeTags defkn) in
+            (fun (_, on, _, _, _) -> let n = getNode (defk, on, defn) in n.eq)
+            oldnames in
         match matches with
           [] -> (* No match. Use a new name *)
             let defn' = newAlphaName defk defn in
             H.add env defkn defn';
+            if oldnames <> [] then 
+              ignore (E.warn "%s:%d: Conflicting redefinition of %s %s"
+                        defloc.filename defloc.lineno
+                        (ek2text defk) defn);
             if debugTypes then 
               ignore (E.log "fresh name for %s -> %s\n" defn defn')
               
 
-        | (_, on, _, _) :: rest -> 
+        | (_, on, _, _, _) :: rest -> 
             if debugTypes then
               ignore (E.log "reusing name for %s -> %s\n" defn on);
             if rest <> [] then 
@@ -470,14 +502,14 @@ let findTypeTagNames (f: Cabs.file) =
   (* Add new new names to globalTypeTags. Must do it this late because we 
    * must rename the typeTags and only now we have the whole renaming *)
   List.iter 
-    (fun (defk, defn, defspec, defname) -> 
+    (fun (defk, defn, defspec, defname, defloc) -> 
       let defkn = (defk, defn) in
       if not (H.mem reused defkn) then begin
         let defn' = lookup defk defn in
         let defspec' = visitCabsSpecifier renameVisitor defspec in
         let nk = match defk with EType -> NType | _ -> NVar in
         let defname' = visitCabsName renameVisitor nk defspec' defname in
-        H.add globalTypeTags defkn (defk, defn', defspec', defname')
+        H.add globalTypeTags defkn (defk, defn', defspec', defname', defloc)
       end)
     tt_list;
   if debugTypes then dumpGlobalTypeTags "globalTypeTags"
@@ -577,11 +609,11 @@ let merge (files : Cabs.file list) : Cabs.file =
             
 
       | FUNDEF ((s, (n, dt, a)), b, l) as d -> 
-         (* On MSVC force inline functions to be static. Otherwise the 
-          * compiler might complain that the function is declared with 
-          * multiple bodies  *)
+          currentLoc := l;
+         (* Force inline functions to be static. Otherwise the compiler might 
+          * complain that the function is declared with multiple bodies  *)
           let s' = 
-            if !Cprint.msvcMode && isInline s && not (isStatic s) then
+            if isInline s && not (isStatic s) then
               SpecStorage STATIC :: s else s
           in
           if isStatic s' then begin
@@ -592,14 +624,27 @@ let merge (files : Cabs.file list) : Cabs.file =
           end;
           let d' = renameDefinition d in
           (* Try to drop duplicate inline functions *)
-          if isInline s' then 
-            if H.mem globalDefinitions d' then 
-              () (* Drop it *)
-            else begin
-              H.add globalDefinitions d' true;
+          if isInline s' then begin
+            assert (isStatic s');
+            (* But beware that we have changed the name. Make a defintion 
+             * with the original name for purpose of searching in existing 
+             * definitions. If the function was recursive then we are 
+             * guaranteed not to find it.  *)
+            let d'' = match d' with 
+              FUNDEF ((s', (_, dt', a')), b', l') -> 
+                FUNDEF ((s', (n, dt', a')), b', l')
+            | _ -> E.s (E.bug "rename FUNDEF")
+            in
+            if H.mem globalDefinitions d'' then begin
+              H.add env (EVar, n) n (* Set the name back to original *)
+            end else begin
+              (* Add the definition only if the name is the original (the 
+               * first definition) *)
+              if lookup EVar n = n then 
+                H.add globalDefinitions d' true;
               theProgram := d' :: !theProgram
             end
-          else
+          end else
             theProgram := d' :: !theProgram
 
 
