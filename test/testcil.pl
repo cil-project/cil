@@ -162,8 +162,8 @@ $TEST->add3Tests("testrun/memcpy1");
 $TEST->add3Tests("testrun/label1");
 $TEST->add3Tests("testrun/label2");
 $TEST->add3Tests("testrun/label3");
-$TEST->add3Tests("testrun/addrof");
-$TEST->add3Tests("testrun/addrof2");
+$TEST->add3Tests("testrun/addrof", "MANUALBOX=1");
+$TEST->add3Tests("testrun/addrof2", "MANUALBOX=1");
 $TEST->add3Tests("wes-hashtest", "", @runpattern);
 $TEST->add3Tests("wes-rbtest", "", @runpattern);
 $TEST->add1Test("test/alloc-manualinferbox",
