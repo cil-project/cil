@@ -48,7 +48,7 @@ open Cil
 open Trace
 
 
-let debugGlobal = true
+let debugGlobal = false
 
 (* Leave a certain global alone. Use a negative number to disable. *)
 let nocil: int ref = ref (-1)
@@ -140,57 +140,13 @@ let isOldStyleVarArgTypeName n =
  * First we convert 'AB\nD' into the list [ 65 ; 66 ; 10 ; 68 ], then we
  * multiply and add to get the desired value. 
  *)
-let isHex chr =
-  match chr with
-    '0'..'9' | 'a'..'z' | 'A'..'Z' -> true
-  | _ -> false
-(* returns the value of the escape, and a pointer to the first list element 
-   after the escape. *)
-let rec parseHex lst acc : (int64 * char list) = 
-  match lst with 
-    c :: rest when isHex c -> 
-      parseHex rest 
-	(Int64.add (Int64.mul acc (Int64.of_int 16))
-	           (Cabs.valueOfDigit c) )
-  | _ -> acc, lst
-
-let char_to_64 c = Int64.of_int (Char.code c)
-let rec scan_string lst = match lst with
-  | '\\' :: 'n' :: rest -> char_to_64 '\n' :: (scan_string rest) 
-  | '\\' :: 't' :: rest -> char_to_64 '\t' :: (scan_string rest) 
-  | '\\' :: 'r' :: rest -> char_to_64 '\r' :: (scan_string rest) 
-  | '\\' :: 'b' :: rest -> char_to_64 '\b' :: (scan_string rest) 
-  | '\\' :: '\\' :: rest -> char_to_64 '\\' :: (scan_string rest) 
-  | '\\' :: '\'' :: rest -> char_to_64 '\'' :: (scan_string rest) 
-  | '\\' :: '\034' :: rest -> char_to_64 '\034' :: (scan_string rest)  (* double-quote *)
-  | '\\' :: c3 :: c2 :: c1 :: rest when c1 >= '0' && c1 <= '9' && 
-                                  c2 >= '0' && c2 <= '9' &&
-                                  c3 >= '0' && c3 <= '9' -> 
-                  (Int64.of_int ((Char.code c1 - Char.code '0') +
-				 (Char.code c2 - Char.code '0') * 8 + 
-                                 (Char.code c3 - Char.code '0') * 64))
-                  :: (scan_string rest)
-  | '\\' :: c2 :: c1 :: rest when c1 >= '0' && c1 <= '9' && 
-                                  c2 >= '0' && c2 <= '9' -> 
-                  (Int64.of_int ((Char.code c1 - Char.code '0') +
-                                 (Char.code c2 - Char.code '0') * 8))
-                  :: (scan_string rest)
-  | '\\' :: c :: rest when c >= '0' && c <= '9' -> 
-                  (Int64.of_int (Char.code c - Char.code '0'))
-                  :: (scan_string rest)
-  | '\\' :: 'x' :: rest -> 
-      let valueOfEscape, remainder = parseHex rest Int64.zero in
-      valueOfEscape :: (scan_string remainder)
-  | hd :: tl -> char_to_64 hd :: (scan_string tl)
-  | [] -> [] 
 
 (* Given a character constant (like 'a' or 'abc') both as a string
  * and as a list of characters, turn it into a CIL constant. *)
-let interpret_character_constant str old_char_list =
-  let new_char_list = scan_string old_char_list in 
+let interpret_character_constant str char_list =
   let value = List.fold_left 
-      (fun acc elt -> Int64.add (Int64.shift_left acc 8) elt)
-      Int64.zero new_char_list in
+      (fun acc elt -> Int64.add (Int64.shift_left acc 8) (Int64.of_int (Char.code elt)))
+      Int64.zero char_list in
   if value < (Int64.of_int 256) then
     (CChr(Char.chr (Int64.to_int value))),(TInt(IChar,[]))
   else begin
@@ -3974,7 +3930,6 @@ and doInit
         List.map 
           (fun c -> 
             let cs = String.make 1 c in
-            let cs = Escape.escape_string cs in 
             (A.NEXT_INIT, 
              A.SINGLE_INIT(A.CONSTANT 
                              (A.CONST_CHAR cs)))) chars in

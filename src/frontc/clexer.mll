@@ -212,21 +212,20 @@ let error msg =
 
 
 (*** escape character management ***)
-let scan_escape str =
-  match str with
-    "n" -> '\n'
-  | "r" -> '\r'
-  | "t" -> '\t'
-  | "b" -> '\b'
-  | "f" -> '\012'  (* ASCII code 12 *)
-  | "v" -> '\011'  (* ASCII code 11 *)
-  | "a" -> '\007'  (* ASCII code 7 *)
-  | "e" -> '\027'  (* ASCII code 27. This is a GCC extension *)
-  | "'" -> '\''    
-  | "\""-> '"'     (* '"' *)
-  | "?" -> '?'
-  | "\\" -> '\\' 
-  | _ -> error ("Unrecognized escape sequence: \\" ^ str)
+let scan_escape = function
+    'n' -> '\n'
+  | 'r' -> '\r'
+  | 't' -> '\t'
+  | 'b' -> '\b'
+  | 'f' -> '\012'  (* ASCII code 12 *)
+  | 'v' -> '\011'  (* ASCII code 11 *)
+  | 'a' -> '\007'  (* ASCII code 7 *)
+  | 'e' -> '\027'  (* ASCII code 27. This is a GCC extension *)
+  | '\'' -> '\''    
+  | '"'-> '"'     (* '"' *)
+  | '?' -> '?'
+  | '\\' -> '\\' 
+  | other -> error ("Unrecognized escape sequence: \\" ^ (String.make 1 other))
 
 let scan_hex_escape str =
   let radix = Int64.of_int 16 in
@@ -350,7 +349,7 @@ rule initial =
                                                      ("str: " ^ 
                                                       Printexc.to_string e))}
 |		"L\""			{ (* weimer: wchar_t string literal *)
-                                          try CST_WSTRING(wstr lexbuf, currentLoc ())
+                                          try CST_WSTRING(str lexbuf, currentLoc ())
                                           with e -> 
                                              raise (InternalError 
                                                      ("wide string: " ^ 
@@ -476,37 +475,17 @@ and str = parse
                                          cur :: (str lexbuf)}
 |	oct_escape	{let cur = scan_oct_escape (Lexing.lexeme lexbuf) in 
                                          cur :: (str lexbuf)}
-|	"\\0"		{Int64.zero :: (str lexbuf)}
-|	escape		{let cur = scan_escape (String.sub
-					  (Lexing.lexeme lexbuf) 1 1) in 
+|	escape		{let cur = scan_escape (Lexing.lexeme_char lexbuf 1) in 
                          Int64.of_int (Char.code cur) :: (str lexbuf)}
 |	_		{let cur: int64 list = Cabs.explodeStringToInts
                                                 (Lexing.lexeme lexbuf) in 
                            cur @ (str lexbuf)} 
 
-and wstr = parse
-        '"'             {[]} (* no nul terminiation in CST_WSTRING *)
-
-|	hex_escape	{let cur = scan_hex_escape (Lexing.lexeme lexbuf) in 
-                                        cur :: (wstr lexbuf)}
-|	oct_escape	{let cur = scan_oct_escape (Lexing.lexeme lexbuf) in 
-                                         cur :: (wstr lexbuf)}
-|	"\\0"		{Int64.zero :: (wstr lexbuf)}
-|	escape		{let cur:char = scan_escape (String.sub
-					  (Lexing.lexeme lexbuf) 1 1) in 
-                           Int64.of_int (Char.code cur) :: (wstr lexbuf)}
-|	_		{let cur: int64 list = Cabs.explodeStringToInts
-                                                (Lexing.lexeme lexbuf) in 
-                           cur @ (wstr lexbuf)} 
-
 and chr =  parse
     '\''	        {""}
-(*matth: we evaluate hex and oct escapes in cabs2cil.  *)
 |	hex_escape	{let cur = Lexing.lexeme lexbuf in cur ^ (chr lexbuf)}
 |	oct_escape	{let cur = Lexing.lexeme lexbuf in cur ^ (chr lexbuf)}
-|	"\\0"		{(String.make 1 (Char.chr 0)) ^ (chr lexbuf)}
-|	escape		{let cur = scan_escape (String.sub
-					  (Lexing.lexeme lexbuf) 1 1) in 
+|	escape		{let cur = scan_escape (Lexing.lexeme_char lexbuf 1) in 
                          let cur': string = String.make 1 cur in
                                             cur' ^ (chr lexbuf)}
 |   _			{let cur = Lexing.lexeme lexbuf in cur ^ (chr lexbuf)} 
