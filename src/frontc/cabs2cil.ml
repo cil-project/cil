@@ -1566,10 +1566,10 @@ let rec collectInitializer
             
 
 type stackElem = 
-    InArray of offset * typ * int * int (* offset of parent, 
-                                           base type, length, current. If the 
-                                         * array length is unspecified we use 
-                                         * Int.max_int  *)
+    InArray of offset * typ * int * int ref (* offset of parent, 
+                                              base type, length, current index. If the 
+                                             * array length is unspecified we use 
+                                             * Int.max_int  *)
   | InComp  of offset * compinfo * fieldinfo list (* offset of parent, 
                                                    base comp, current fields *)
     
@@ -1615,13 +1615,13 @@ and normalSubobj (so: subobj) : unit =
     [] -> so.soOff <- so.curOff; so.soTyp <- so.curTyp 
         (* The array is over *)
   | InArray (parOff, bt, leno, current) :: rest ->
-      if leno = current then begin (* The array is over *)
+      if leno = !current then begin (* The array is over *)
         if debugInit then ignore (E.log "Past the end of array\n");
         so.stack <- rest; 
         advanceSubobj so
       end else begin
         so.soTyp <- bt;
-        so.soOff <- addOffset (Index(integer current, NoOffset)) parOff
+        so.soOff <- addOffset (Index(integer !current, NoOffset)) parOff
       end
 
         (* The fields are over *)
@@ -1643,8 +1643,9 @@ and advanceSubobj (so: subobj) : unit =
   | [] -> if debugInit then ignore (E.log "Setting eof to true\n"); 
           so.eof <- true 
   | InArray (parOff, bt, leno, current) :: rest -> 
-      if debugInit then ignore (E.log "  Advancing to [%d]\n" (current + 1));
-      so.stack <- InArray (parOff, bt, leno, current + 1) :: rest;
+      if debugInit then ignore (E.log "  Advancing to [%d]\n" (!current + 1));
+      (* so.stack <- InArray (parOff, bt, leno, current + 1) :: rest; *)
+      incr current;
       normalSubobj so
 
         (* The fields are over *)
@@ -3644,49 +3645,6 @@ and doCondExp (isconst: bool)
       let (se, e, t) as rese = doExp isconst e (AExp None) in
       ignore (checkBool t e);
       CEExp (se, constFold isconst e)
-(*
-(* A special case for conditionals *)
-and doConditionOld (isconst: bool) (* If we are in constants, we do our best to 
-                                 * eliminate the conditional *)
-                (e: A.expression) 
-                (st: chunk)
-                (sf: chunk) : chunk = 
-  match e with 
-  | A.BINARY(A.AND, e1, e2) ->
-      let (sf1, sf2) = 
-        (* If sf is small then will copy it *)
-        try (sf, duplicateChunk sf) 
-        with Failure _ -> 
-          let lab = newLabelName "_L" in
-          (gotoChunk lab lu, consLabel lab sf !currentLoc false)
-      in
-      let st' = doConditionOld isconst e2 st sf1 in
-      let sf' = sf2 in
-      doConditionOld isconst e1 st' sf'
-
-  | A.BINARY(A.OR, e1, e2) ->
-      let (st1, st2) = 
-        (* If st is small then will copy it *)
-        try (st, duplicateChunk st) 
-        with Failure _ -> 
-          let lab = newLabelName "_L" in
-          (gotoChunk lab lu, consLabel lab st !currentLoc false)
-      in
-      let st' = st1 in
-      let sf' = doConditionOld isconst e2 st2 sf in
-      doConditionOld isconst e1 st' sf'
-
-  | A.UNARY(A.NOT, e) -> doConditionOld isconst e sf st
-
-  | _ -> begin
-      let (se, e, t) as rese = doExp isconst e (AExp None) in
-      ignore (checkBool t e);
-      match constFold isconst e with 
-        Const(CInt64(i,_,_)) when i <> Int64.zero && canDrop sf -> se @@ st
-      | Const(CInt64(z,_,_)) when z = Int64.zero && canDrop st -> se @@ sf
-      | _ -> se @@ ifChunk e !currentLoc st sf
-  end
-*)
 
 and compileCondExp (ce: condExpRes) (st: chunk) (sf: chunk) : chunk = 
   match ce with 
@@ -3748,7 +3706,7 @@ and doInitializer
 
   (* Setup the pre-initializer *)
   let topPreInit = ref NoInitPre in
-  if debugInit then 
+  if true || debugInit then 
     ignore (E.log "\nStarting a new initializer for %s : %a\n" 
               vi.vname d_type vi.vtype);
   let topSetupInit (o: offset) (e: exp) = 
@@ -3776,12 +3734,17 @@ and doInitializer
       end
     | _ -> vi.vtype
   in
+  if true then 
+    ignore (E.log "Collecting the initializer for %s\n" vi.vname);
   let init = collectInitializer !topPreInit typ' in
+  if true then 
+    ignore (E.log "Finished the initializer for %s\n" vi.vname);
   acc, init, typ'
 
 
   
-(* Consume some initializers *)
+(* Consume some initializers. Watch out here. Make sure we use only 
+ * tail-recursion because these things can be big.  *)
 and doInit
     (isconst: bool)  
     (setone: offset -> exp -> unit) (* Use to announce an intializer *)
@@ -3863,7 +3826,7 @@ and doInit
       let so' = makeSubobj so.host so.soTyp so.soOff in 
       (* Go inside the array *)
       let leno = integerArrayLength leno in
-      so'.stack <- [InArray(so'.curOff, bt, leno, 0)];
+      so'.stack <- [InArray(so'.curOff, bt, leno, ref 0)];
       normalSubobj so';
       let acc', initl' = doInit isconst setone so' acc charinits in
       if initl' <> [] then 
@@ -3900,7 +3863,7 @@ and doInit
       let so' = makeSubobj so.host so.soTyp so.soOff in 
       (* Go inside the array *)
       let leno = integerArrayLength leno in
-      so'.stack <- [InArray(so'.curOff, bt, leno, 0)];
+      so'.stack <- [InArray(so'.curOff, bt, leno, ref 0)];
       normalSubobj so';
       let acc', initl' = doInit isconst setone so' acc charinits in
       if initl' <> [] then 
@@ -3915,7 +3878,7 @@ and doInit
   | TArray(bt, leno, al), (A.NEXT_INIT, A.SINGLE_INIT oneinit) :: restil  -> 
       (* Grab the length if there is one *)
       let leno = integerArrayLength leno in
-      so.stack <- InArray(so.soOff, bt, leno, 0) :: so.stack; 
+      so.stack <- InArray(so.soOff, bt, leno, ref 0) :: so.stack; 
       normalSubobj so;
       (* Start over with the fields *)
       doInit isconst setone so acc allinitl
@@ -3957,7 +3920,7 @@ and doInit
       let so' = makeSubobj so.host so.soTyp so.soOff in 
       (* Go inside the array *)
       let leno = integerArrayLength leno in
-      so'.stack <- [InArray(so'.curOff, bt, leno, 0)];
+      so'.stack <- [InArray(so'.curOff, bt, leno, ref 0)];
       normalSubobj so';
       let acc', initl' = doInit isconst setone so' acc initl in
       if initl' <> [] then 
@@ -4055,7 +4018,7 @@ and doInit
                   if nextidx' < 0 || nextidx' >= ilen then
                     E.s (error "INDEX designator is outside bounds");
                   so.stack <- 
-                     InArray(so.soOff, bt, ilen, nextidx') :: so.stack;
+                     InArray(so.soOff, bt, ilen, ref nextidx') :: so.stack;
                   normalSubobj so;
                   address whatnext (acc @@ doidx)
                     
@@ -4794,6 +4757,13 @@ and assignInit (lv: lval)
         ~ct:t
         ~initl:initl
         ~acc:acc
+  | ArrayInit (bt, len, initl) -> 
+      let idx = ref ( -1 ) in
+      List.fold_left
+        (fun acc i -> 
+          assignInit (addOffsetLval (Index(integer !idx, NoOffset)) lv) i bt acc)
+        acc
+        initl
 
   (* Now define the processors for body and statement *)
 and doBody (blk: A.block) : chunk = 

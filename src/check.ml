@@ -539,6 +539,13 @@ and checkInit  (i: init) : typ =
     (fun _ ->
       match i with
         SingleInit e -> checkExp true e
+      | ArrayInit (bt, len, initl) -> begin
+          checkType bt CTSizeof;
+          if List.length initl > len then 
+            ignore (warn "Too many initializers in array");
+          List.iter (fun i -> checkInitType i bt) initl;
+          TArray(bt, Some (integer len), [])
+      end
       | CompoundInit (ct, initl) -> begin
           checkType ct CTSizeof;
           (match unrollType ct with

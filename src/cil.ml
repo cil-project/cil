@@ -522,6 +522,11 @@ and init =
              * not understand this. You can scan an initializer list with 
              * {!Cil.foldLeftCompound}. *)
 
+  | ArrayInit of typ * int * init list
+    (** The new form of initializer for arrays. Give the base type and the 
+     *  length of the array, followed by a list of initializers in order. The 
+     * list might be shorter than the array.  *)
+
 (** Function definitions. *)
 and fundec =
     { mutable svar:     varinfo;        
@@ -1200,6 +1205,19 @@ let rec unrollType = function   (* Might drop some attributes !! *)
     TNamed (r, _) -> unrollType r.ttype
   | x -> x
 
+let rec unrollTypeDeep = function   (* Might drop some attributes !! *)
+    TNamed (r, _) -> unrollTypeDeep r.ttype
+  | TPtr(t, a) -> TPtr(unrollTypeDeep t, a)
+  | TArray(t, l, a) -> TArray(unrollTypeDeep t, l, a)
+  | TFun(rt, args, isva, a) -> 
+      TFun (unrollTypeDeep rt, 
+            (match args with 
+              None -> None
+            | Some argl -> 
+                Some (List.map (fun (an,at,aa) -> (an, unrollTypeDeep at, aa)) argl)), 
+            isva, a)
+  | x -> x
+
 let isVoidType t = 
   match unrollType t with
     TVoid _ -> true
@@ -1584,6 +1602,7 @@ and typeOfInit (i: init) : typ =
   match i with 
     SingleInit e -> typeOf e
   | CompoundInit (t, _) -> t
+  | ArrayInit (bt, len, _) -> TArray(bt, Some (integer len), [])
 
 and typeOfLval = function
     Var vi, off -> typeOffset vi.vtype off
@@ -1807,7 +1826,12 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                       ++ ((docList (chr ',' ++ break) d_oneInit) () initl) 
                       ++ unalign)
           ++ chr '}'
-          
+    | ArrayInit (_, _, il) -> 
+        chr '{' ++ (align 
+                      ++ ((docList (chr ',' ++ break) (self#pInit ())) () il) 
+                      ++ unalign)
+          ++ chr '}'
+        
   (*** INSTRUCTIONS ****)
   method pInstr () (i:instr) =       (* imperative instruction *)
     match i with
@@ -2693,6 +2717,14 @@ class plainCilPrinterClass =
         in
         dprintf "CI(@[%a,@?%a@])" self#pOnlyType t
           (docList (chr ',' ++ break) d_plainoneinit) initl
+    | ArrayInit (t, len, initl) -> 
+        let idx = ref (- 1) in
+        let d_plainoneinit i = 
+          incr idx;
+          text "[" ++ num !idx ++ text "] = " ++ self#pInit () i
+        in
+        dprintf "AI(@[%a,%d,@?%a@])" self#pOnlyType t len
+          (docList (chr ',' ++ break) d_plainoneinit) initl
            
   method pLval () (lv: lval) =  
     match lv with 
@@ -3031,6 +3063,10 @@ and childrenInit (vis: cilVisitor) (i: init) : init =
       in
       let initl' = mapNoCopy doOneInit initl in
       if t' != t || initl' != initl then CompoundInit (t', initl') else i
+  | ArrayInit (bt, len, initl) ->
+      let bt' = fTyp bt in
+      let initl' = mapNoCopy fInit initl in
+      if bt' != bt || initl' != initl then ArrayInit(bt', len, initl') else i
 
   
 and visitCilLval (vis: cilVisitor) (lv: lval) : lval =

@@ -2490,3 +2490,9 @@ PINGDIR := $(CCUREDHOME)/test/ping
 ping:
 	cd $(PINGDIR); rm -f ping.o; make CC="$(CCURED) $(STANDARDPATCH)"
 
+
+big-arrays : mustbemanju
+	cd /usr/src/big-examples/; $(CCURED) --verbose --stages --separate \
+               $(STANDARDPATCH) \
+	       $(CONLY) $(CFLAGS) big-arrays.c
+	echo SUCCESS

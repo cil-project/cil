@@ -149,8 +149,8 @@ and global =
  * a list of attributes, which are always kept in sorted order. Use 
  * {!Cil.addAttribute} and {!Cil.addAttributes} to construct list of 
  * attributes. If you want to inspect a type, you should use 
- * {!Cil.unrollType} to see through the uses of named types. 
-*)
+ * {!Cil.unrollType} or {!Cil.unrollTypeDeep} to see through the uses of 
+ * named types. *)
 (** CIL is configured at build-time with the sizes and alignments of the 
  * underlying compiler (GCC or MSVC). CIL contains functions that can compute 
  * the size of a type (in bits) {!Cil.bitsSizeOf}, the alignment of a type 
@@ -196,8 +196,9 @@ and typ =
            * in the file by a [GType] global. This is printed as just the 
            * type name. The actual referred type is not printed here and is 
            * carried only to simplify processing. To see through a sequence 
-           * of named type references, use {!Cil.unrollType}. The attributes 
-           * are in addition to those given when the type name was defined. *)
+           * of named type references, use {!Cil.unrollType} or 
+           * {!Cil.unrollTypeDeep}. The attributes are in addition to those 
+           * given when the type name was defined. *)
 
   | TComp of compinfo * attributes
 (** The most delicate issue for C types is that recursion that is possible by 
@@ -708,7 +709,12 @@ and init =
      * For arrays, however, we allow you to give only a prefix of the 
      * initializers. You can scan an initializer list with 
      * {!Cil.foldLeftCompound} or with {!Cil.foldLeftCompoundAll}. *)
-
+ 
+  | ArrayInit of typ * int * init list
+    (** The new form of initializer for arrays. Give the base type and the 
+     *  length of the array, followed by a list of initializers in order. The 
+     * list might be shorter than the array.  *)
+   
 (** {b Function definitions.} 
 A function definition is always introduced with a [GFun] constructor at the
 top level. All the information about the function is stored into a
@@ -1108,8 +1114,14 @@ val compSetName: compinfo -> string -> unit
    structures and empty arrays. *)
 val isCompleteType: typ -> bool  
 
-(** Unroll a type (Some attributes may be dropped)*)
+(** Unroll a type until it exposes a non 
+ * [TNamed]. Will drop the top-level attributes appearing in [TNamed]!!! *)
 val unrollType: typ -> typ   (* Might drop some attributes !! *)
+
+(** Unroll all the TNamed in a type (even under type constructors such as 
+ * [TPtr], [TFun] or [TArray]. Does not unroll the types of fields in [TComp] 
+ * types. *)
+val unrollTypeDeep: typ -> typ   (* Might drop some attributes !! *)
 
 (** True if the argument is an integral type (i.e. integer or enum) *)
 val isIntegralType: typ -> bool
