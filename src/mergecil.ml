@@ -104,7 +104,8 @@ let rec find (pathcomp: bool) (nd: 'a node) =
     nd
   else begin
     let res = find pathcomp nd.nrep in
-    if false && pathcomp then nd.nrep <- res; (* Compress the paths *)
+    if false && pathcomp && nd.nrep != res then 
+      nd.nrep <- res; (* Compress the paths *)
     res
   end
 
@@ -160,6 +161,8 @@ let findReplacement
       None (* No replacement if this is the representative of its class *)
     else 
       let rep = find pathcomp nd in
+      if rep != rep.nrep then 
+        E.s (bug "find does not return the representative\n");
       Some (rep.ndata, rep.nfidx)
   with Not_found -> 
     None
@@ -475,18 +478,7 @@ and matchCompInfo (oldfidx: int) (oldci: compinfo)
           let newtype = 
             combineTypes CombineOther oldfidx oldf.ftype fidx f.ftype
           in
-          if debugMerge then
-            let mustwarn = 
-              match oldf.ftype, newtype with 
-                TNamed (t, _), TNamed (t', _) -> t.tname <> t'.tname
-              | TNamed _, _ -> true
-              | _, TNamed _ -> true
-            | _, _ -> false
-            in
-            ignore (E.log "changing type %a(%d) into %a(%d)\n"
-                      d_type oldf.ftype oldfidx
-                      d_type newtype fidx);
-            oldf.ftype <- newtype;
+          oldf.ftype <- newtype;
           ) oldci.cfields ci.cfields
       with Failure reason -> begin 
         (* Our assumption was wrong. Forget the isomorphism *)
@@ -600,21 +592,23 @@ class renameVisitorClass = object (self)
     end
 
           
-        (* The use of a type *)
+        (* The use of a type. Change only those types whose underlying info 
+         * is not a root. *)
   method vtype (t: typ) = 
     match t with 
       TComp (ci, a) when not ci.creferenced -> begin
         match findReplacement true sEq !currentFidx ci.cname with
           None -> DoChildren
-        | Some (ci', _) -> 
-            ci'.creferenced <- true;
+        | Some (ci', oldfidx) -> 
+            if false && debugMerge then 
+              ignore (E.log "Renaming %s(%d) to %s(%d)\n"
+                        ci.cname !currentFidx ci'.cname oldfidx);
             ChangeTo (TComp (ci', visitCilAttributes (self :> cilVisitor) a))
       end
     | TEnum (ei, a) when not ei.ereferenced -> begin
         match findReplacement true eEq !currentFidx ei.ename with
           None -> DoChildren
         | Some (ei', _) -> 
-            ei'.ereferenced <- true;
             ChangeTo (TEnum (ei', visitCilAttributes (self :> cilVisitor) a))
       end
 
@@ -622,7 +616,6 @@ class renameVisitorClass = object (self)
         match findReplacement true tEq !currentFidx ti.tname with
           None -> DoChildren
         | Some (ti', _) -> 
-            ti'.treferenced <- true;
             ChangeTo (TNamed (ti', visitCilAttributes (self :> cilVisitor) a))
     end
         
@@ -751,6 +744,20 @@ let rec oneFilePass1 (f:file) : unit =
                                  * undefind comp tags *)
             ignore (getNode tEq tSyn !currentFidx t.tname t 
                       (Some (l, !currentDeclIdx)))
+          else begin (* Go inside and clean the referenced flag for the 
+                      * declared tags *)
+            match t.ttype with 
+              TComp (ci, _) -> 
+                ci.creferenced <- false;
+                (* Create a node for it *)
+                ignore (getNode sEq sSyn !currentFidx ci.cname ci None)
+                
+            | TEnum (ei, _) -> 
+                ei.ereferenced <- false;
+                ignore (getNode eEq eSyn !currentFidx ei.ename ei None);
+
+            | _ -> E.s (bug "Anonymous Gtype is not TComp")
+          end
 
       | GCompTag (ci, l) -> 
           incr currentDeclIdx;
@@ -956,11 +963,22 @@ let oneFilePass2 (f: file) =
             match findReplacement true sEq !currentFidx ci.cname with
               None -> 
                 (* A new one, we must rename it and keep the definition *)
+                (* Make sure this is root *)
+                (try 
+                  let nd = H.find sEq (!currentFidx, ci.cname) in
+                  if nd.nrep != nd then 
+                    E.s (bug "Setting creferenced for struct %s(%d) which is not root!\n"
+                           ci.cname !currentFidx);
+                with Not_found -> begin
+                  E.s (bug "Setting creferenced for struct %s(%d) which is not in the sEq!\n"
+                         ci.cname !currentFidx);
+                end);
                 ci.cname <- newAlphaName sAlpha ci.cname;
+                ci.creferenced <- true; 
                 ci.ckey <- H.hash (compFullName ci);
+                (* Now we should visit the fields as well *)
                 pushGlobals (visitCilGlobal renameVisitor g)
             | Some (oldci, oldfidx) -> begin
-                oldci.creferenced <- true;
                 (* We are not the representative. Drop this declaration 
                  * because we'll not be using it. *)
                 ()
@@ -975,10 +993,11 @@ let oneFilePass2 (f: file) =
             match findReplacement true eEq !currentFidx ei.ename with 
               None -> (* We must rename it *)
                 ei.ename <- newAlphaName eAlpha ei.ename;
+                ei.ereferenced <- true;
                 pushGlobals (visitCilGlobal renameVisitor g);
             | Some (ei', _) -> (* Drop this since we are reusing it from 
                                 * before *)
-                ei'.ereferenced <- true
+                ()
           end
       end
       | GType (ti, l) as g -> begin
@@ -993,10 +1012,11 @@ let oneFilePass2 (f: file) =
               match findReplacement true tEq !currentFidx ti.tname with 
                 None -> (* We must rename it and keep it *)
                   ti.tname <- newAlphaName tAlpha ti.tname;
+                  ti.treferenced <- true;
                   pushGlobals (visitCilGlobal renameVisitor g);
               | Some (ti', _) ->(* Drop this since we are reusing it from 
-                                 * before*)
-                    ti'.treferenced <- true
+                                 * before *)
+                    ()
             end
           end
       end

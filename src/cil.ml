@@ -2997,7 +2997,7 @@ and childrenGlobal (vis: cilVisitor) (g: global) : global =
       t.ttype <- visitCilType vis t.ttype;
       g
 
-  | GEnumTag (enum, _) -> g
+  | GEnumTag (enum, _) -> g (* Nothing to visit *)
   | GCompTag (comp, _) ->
       (trace "visit" (dprintf "visiting global comp %s\n" comp.cname));
       (* Do the types of the fields *)
