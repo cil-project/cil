@@ -27,6 +27,8 @@ this bug in doBinOp in cabs2cil.
 
  - the restrict attribute is dropped in cabs2cil
 
+ - struct and union must share the name space
+
 CCURED
 ==============
 

@@ -346,8 +346,8 @@ let alphaTable : (string, int ref) H.t = H.create 307 (* vars and enum tags.
 
 (* To keep different name scopes different, we add prefixes to names 
  * specifying the kind of name: the kind can be one of "" for variables or 
- * enum tags, "struct" for structures, "enum" for enumerations, "union" for 
- * union types, or "type" for types *)
+ * enum tags, "struct" for structures and unions (they share the name space), 
+ * "enum" for enumerations, or "type" for types *)
 let kindPlusName (kind: string)
                  (origname: string) : string =
   if kind = "" then origname else
@@ -4016,6 +4016,8 @@ and doInit
       advanceSubobj so; 
       doInit isconst setone so (acc @@ se) restil
 
+  | t, (A.NEXT_INIT, _) :: _ -> 
+      E.s (unimp "doInit: unexpected NEXT_INIT for %a\n" d_type t);
 
    (* We have a designator *)        
   | _, (what, ie) :: restil when what != A.NEXT_INIT -> 
@@ -4109,7 +4111,8 @@ and doInit
       in
       expandRange (fun x -> x) what
   
-  | _ -> E.s (bug "doInit: cases")
+  | t, (what, ie) :: _ -> 
+      E.s (bug "doInit: cases for t=%a" d_type t) 
 
 
 (* Create and add to the file (if not already added) a global. Return the 

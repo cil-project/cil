@@ -8,7 +8,7 @@
  * All rights reserved.  Permission to use, copy, modify and distribute
  * this software for research purposes only is hereby granted, 
  * provided that the following conditions are met: 
- * 1. XSRedistributions of source code must retain the above copyright notice, 
+ * 1. Redistributions of source code must retain the above copyright notice, 
  * this list of conditions and the following disclaimer. 
  * 2. Redistributions in binary form must reproduce the above copyright notice, 
  * this list of conditions and the following disclaimer in the documentation 
@@ -35,7 +35,7 @@ open Cil
 module E = Errormsg
 module H = Hashtbl
 
-let debugMerge = true
+let debugMerge = false
 let debugInlines = false && debugMerge
 
 (* Try to merge structure with the same name. However, do not complain if 
@@ -44,8 +44,9 @@ let mergeSynonyms = true
 
 
 (* Try to merge definitions of inline functions. They can appear in multiple 
- * files and we would like them all to be the same *)
-let mergeInlines = true
+ * files and we would like them all to be the same. This can slow down the 
+ * merger an order of magnitude !!! *)
+let mergeInlines = false
 
 (* Check that s starts with the prefix p *)
 let prefix p s = 
@@ -64,17 +65,15 @@ type 'a node =
     { nname: string;   (* The actual name *)
       nfidx: int;      (* The file index *)
       ndata: 'a;       (* Data associated with the node *)
-      mutable nloc: location option;  (* location where defined. If None then 
-                                       * it means that this node actually 
-                                       * DOES NOT have a definition in the 
-                                       * given file. In rare occasions we 
-                                       * need to talk in a given file about 
-                                       * types that are not defined in that 
-                                       * file. This happens with undefiend 
-                                       * structures but also due to 
-                                       * cross-contamination of types in a 
-                                       * few of the cases of combineType (see 
-                                       * the definition of combineTypes) *)
+      mutable nloc: (location * int) option;  
+      (* location where defined and index within the file of the definition. 
+       * If None then it means that this node actually DOES NOT appear in the 
+       * given file. In rare occasions we need to talk in a given file about 
+       * types that are not defined in that file. This happens with undefiend 
+       * structures but also due to cross-contamination of types in a few of 
+       * the cases of combineType (see the definition of combineTypes). We 
+       * try never to choose as representatives nodes without a definition. 
+       * WE also choose the representative the one that appears earliest *)
       mutable nrep: 'a node;  (* A pointer to another node in its class (one 
                                * closer to the representative). The nrep node 
                                * is always in an earlier file, except for the 
@@ -89,7 +88,8 @@ type 'a node =
 (* Make a node with a self loop. This is quite tricky. *)
 let mkSelfNode (eq: (int * string, 'a node) H.t) (* The equivalence table *)
                (syn: (string, 'a node) H.t) (* The synonyms table *)
-               (fidx: int) (name: string) (data: 'a) (l: location option) = 
+               (fidx: int) (name: string) (data: 'a) 
+               (l: (location * int) option) = 
   let res = { nname = name; nfidx = fidx; ndata = data; nloc = l;
               nrep  = Obj.magic 1; nmergedSyns = false; } in
   res.nrep <- res; (* Make the self cycle *)
@@ -124,7 +124,23 @@ let union (nd1: 'a node) (nd2: 'a node) : unit -> unit =
   let rep, norep = (* Choose the representative *)
     if (nd1.nloc != None) =  (nd2.nloc != None) then 
       (* They have the same defined status. Choose the earliest *)
-      if nd1.nfidx < nd2.nfidx then nd1, nd2 else nd2, nd1
+      if nd1.nfidx < nd2.nfidx then nd1, nd2 
+      else if nd1.nfidx > nd2.nfidx then nd2, nd1
+      else (* In the same file. Choose the one with the earliest index *) begin
+        match nd1.nloc, nd2.nloc with 
+          Some (_, didx1), Some (_, didx2) -> 
+            if didx1 < didx2 then nd1, nd2 else
+            if didx1 > didx2 then nd2, nd1 
+            else begin
+              ignore (warn 
+                        "Merging two elements in the same file with the same idx within the file");
+              nd1, nd2
+            end
+        | _, _ -> (* both none. Does not matter which one we choose. Should 
+                   * not happen though. *)
+            ignore (warn "Merging two undefined elements in the same file: %s and %s\n" nd1.nname nd2.nname);
+            nd1, nd2
+      end
     else (* One is defined, the other is not. Choose the defined one *)
       if nd1.nloc != None then nd1, nd2 else nd2, nd1
   in
@@ -152,7 +168,8 @@ let findReplacement
  * representative *)
 let getNode    (eq: (int * string, 'a node) H.t)
                (syn: (string, 'a node) H.t)
-               (fidx: int) (name: string) (data: 'a) (l: location option) = 
+               (fidx: int) (name: string) (data: 'a) 
+               (l: (location * int) option) = 
   try
     let res = H.find eq (fidx, name) in
     (* Maybe we have a better location now *)
@@ -180,8 +197,7 @@ let dumpGraph (what: string) (eq: (int * string, 'a node) H.t) : unit =
 
 (* For each name space we define a set of equivalence classes *)
 let vEq: (int * string, varinfo node) H.t = H.create 111 (* Vars *)
-let sEq: (int * string, compinfo node) H.t = H.create 111 (* Structs *)
-let uEq: (int * string, compinfo node) H.t = H.create 111 (* Unions *)
+let sEq: (int * string, compinfo node) H.t = H.create 111 (* Struct + union *)
 let eEq: (int * string, enuminfo node) H.t = H.create 111 (* Enums *)
 let tEq: (int * string, typeinfo node) H.t = H.create 111 (* Type names*)
 let iEq: (int * string, varinfo node) H.t = H.create 111 (* Inlines *)
@@ -191,7 +207,6 @@ let iEq: (int * string, varinfo node) H.t = H.create 111 (* Inlines *)
 let vSyn: (string, varinfo node) H.t = H.create 111 (* Not actually used *)
 let iSyn: (string, varinfo node) H.t = H.create 111 (* Inlines *)
 let sSyn: (string, compinfo node) H.t = H.create 111
-let uSyn: (string, compinfo node) H.t = H.create 111
 let eSyn: (string, enuminfo node) H.t = H.create 111
 let tSyn: (string, typeinfo node) H.t = H.create 111
 
@@ -205,8 +220,9 @@ let inlineBodies : (P.doc, varinfo node) H.t = H.create 111
 
 (** A number of alpha conversion tables *)
 let vAlpha : (string, int ref) H.t = H.create 57 (* Variables *)
-let sAlpha : (string, int ref) H.t = H.create 57 (* Structures *)
-let uAlpha : (string, int ref) H.t = H.create 57 (* Unions *)
+let sAlpha : (string, int ref) H.t = H.create 57 (* Structures and unions 
+                                                   * have the same name space 
+                                                   *)
 let eAlpha : (string, int ref) H.t = H.create 57 (* Enumerations *)
 let tAlpha : (string, int ref) H.t = H.create 57 (* Type names *)
 
@@ -226,6 +242,8 @@ let theFile      = ref []
 (* The idnex of the current file being scanned *)
 let currentFidx = ref 0 
 
+let currentDeclIdx = ref 0 (* The index of the definition in a file *)
+
 let pushGlobal (g: global) : unit = 
     match g with 
       GType _ | GCompTag _ | GEnumTag _ -> theFileTypes := g :: !theFileTypes
@@ -237,7 +255,6 @@ let pushGlobals gl = List.iter pushGlobal gl
 let init () = 
   H.clear tAlpha;
   H.clear sAlpha;
-  H.clear uAlpha;
   H.clear eAlpha;
   H.clear vAlpha;
 
@@ -245,14 +262,12 @@ let init () =
 
   H.clear vEq;
   H.clear sEq;
-  H.clear uEq;
   H.clear eEq;
   H.clear tEq;
   H.clear iEq;
 
   H.clear vSyn;
   H.clear sSyn;
-  H.clear uSyn;
   H.clear eSyn;
   H.clear tSyn;
   H.clear iSyn;
@@ -263,7 +278,8 @@ let init () =
   H.clear formalNames;
   H.clear inlineBodies;
 
-  currentFidx := 0
+  currentFidx := 0;
+  currentDeclIdx := 0
 
 
       
@@ -418,11 +434,10 @@ and matchCompInfo (oldfidx: int) (oldci: compinfo)
   if oldci.cstruct <> ci.cstruct then 
     raise (Failure "(different struct/union types)");
   (* See if we have a mapping already *)
-  let eqH, synH = if ci.cstruct then sEq, sSyn else uEq, uSyn in
   (* Make the nodes if not already made. Actually return the 
   * representatives *)
-  let oldcinode = getNode eqH synH oldfidx oldci.cname oldci None in
-  let    cinode = getNode eqH synH    fidx    ci.cname    ci None in 
+  let oldcinode = getNode sEq sSyn oldfidx oldci.cname oldci None in
+  let    cinode = getNode sEq sSyn    fidx    ci.cname    ci None in 
   if oldcinode == cinode then (* We already know they are the same *)
         ()
   else begin
@@ -575,35 +590,39 @@ class renameVisitorClass = object (self)
 
       (* This is a variable use. See if we must change it *)
   method vvrbl (vi: varinfo) : varinfo visitAction = 
-    if not vi.vglob then DoChildren else
+    if not vi.vglob || vi.vreferenced then DoChildren else
     begin
       match findReplacement true vEq !currentFidx vi.vname with
         None -> DoChildren
-      | Some (vi', _) -> ChangeTo vi'
+      | Some (vi', _) -> 
+          vi'.vreferenced <- true; 
+          ChangeTo vi'
     end
 
           
         (* The use of a type *)
   method vtype (t: typ) = 
     match t with 
-      TComp (ci, a) -> begin
-        let eqH = if ci.cstruct then sEq else uEq in
-        match findReplacement true eqH !currentFidx ci.cname with
+      TComp (ci, a) when not ci.creferenced -> begin
+        match findReplacement true sEq !currentFidx ci.cname with
           None -> DoChildren
         | Some (ci', _) -> 
+            ci'.creferenced <- true;
             ChangeTo (TComp (ci', visitCilAttributes (self :> cilVisitor) a))
       end
-    | TEnum (ei, a) -> begin
+    | TEnum (ei, a) when not ei.ereferenced -> begin
         match findReplacement true eEq !currentFidx ei.ename with
           None -> DoChildren
         | Some (ei', _) -> 
+            ei'.ereferenced <- true;
             ChangeTo (TEnum (ei', visitCilAttributes (self :> cilVisitor) a))
       end
 
-    | TNamed (ti, a) -> begin
+    | TNamed (ti, a) when not ti.treferenced -> begin
         match findReplacement true tEq !currentFidx ti.tname with
           None -> DoChildren
         | Some (ti', _) -> 
+            ti'.treferenced <- true;
             ChangeTo (TNamed (ti', visitCilAttributes (self :> cilVisitor) a))
     end
         
@@ -613,17 +632,20 @@ class renameVisitorClass = object (self)
   method voffs = function
       Field (f, o) -> begin
         (* See if the compinfo was changed *)
-        let eqH = if f.fcomp.cstruct then sEq else uEq in
-        match findReplacement true eqH !currentFidx f.fcomp.cname with
-          None -> DoChildren (* We did not replace it *)
-        | Some (ci', _) -> begin
-            try
-              let f' = 
-                List.find (fun fld -> fld.fname = f.fname) ci'.cfields in
-              ChangeDoChildrenPost (Field (f', o), fun x -> x)
-            with Not_found -> 
-              E.s (bug "Cannot find field %s in replacement for %s(%d)\n"
-                     f.fname (compFullName f.fcomp) !currentFidx)
+        if f.fcomp.creferenced then 
+          DoChildren
+        else begin
+          match findReplacement true sEq !currentFidx f.fcomp.cname with
+            None -> DoChildren (* We did not replace it *)
+          | Some (ci', _) -> begin
+              try
+                let f' = 
+                  List.find (fun fld -> fld.fname = f.fname) ci'.cfields in
+                ChangeDoChildrenPost (Field (f', o), fun x -> x)
+              with Not_found -> 
+                E.s (bug "Cannot find field %s in replacement for %s(%d)\n"
+                       f.fname (compFullName f.fcomp) !currentFidx)
+          end
         end
       end
     | _ -> DoChildren
@@ -638,24 +660,25 @@ let renameVisitor = new renameVisitorClass
 (* 2. For all declarations of globals unify their types. In the process 
  * construct a set of equivalence classes on type names, structure and 
  * enumeration tags  *)
+(* 3. We clean the referenced flags *)
 
 let rec oneFilePass1 (f:file) : unit = 
   if debugMerge || !E.verboseFlag then 
     ignore (E.log "Pre-merging (%d) %s\n" !currentFidx f.fileName);
-
+  currentDeclIdx := 0;
   if f.globinitcalled || f.globinit <> None then
     E.s (E.warn "Merging file %s has global initializer" f.fileName);
 
   (* We scan each file and we look at all global varinfo. We see if globals 
    * with the same name have been encountered before and we merge those types 
    * *)
-  let matchVarinfo (vi: varinfo) (l: location) = 
+  let matchVarinfo (vi: varinfo) (l: location * int) = 
     ignore (registerAlphaName vAlpha vi.vname);
     (* Make a node for it and put it in vEq *)
     let vinode = mkSelfNode vEq vSyn !currentFidx vi.vname vi (Some l) in
     try
       let oldvinode = find true (H.find vEnv vi.vname) in 
-      let oldloc = 
+      let oldloc, _ = 
         match oldvinode.nloc with
           None -> E.s (bug "old variable is undefined")
         | Some l -> l
@@ -697,19 +720,23 @@ let rec oneFilePass1 (f:file) : unit =
     (function 
       | GDecl (vi, l) | GVar (vi, _, l) -> 
           currentLoc := l;
+          incr currentDeclIdx;
+          vi.vreferenced <- false;
           if vi.vstorage <> Static then 
-            matchVarinfo vi l
+            matchVarinfo vi (l, !currentDeclIdx)
       | GFun (fdec, l) -> 
           currentLoc := l;
+          incr currentDeclIdx;
           (* Save the names of the formal arguments *)
           let _, args, _, _ = splitFunctionType fdec.svar in
           H.add formalNames (!currentFidx, fdec.svar.vname) 
             (List.map (fun f -> f.vname) (argsToList args));
           (* Force inline functions to be static *) 
+          fdec.svar.vreferenced <- false;
           if fdec.sinline && fdec.svar.vstorage = NoStorage then 
             fdec.svar.vstorage <- Static;
           if fdec.svar.vstorage <> Static then begin
-            matchVarinfo fdec.svar l
+            matchVarinfo fdec.svar (l, !currentDeclIdx)
           end else begin
             if fdec.sinline && mergeInlines then 
               (* Just create the nodes for inline functions *)
@@ -718,15 +745,23 @@ let rec oneFilePass1 (f:file) : unit =
           end
               (* Make nodes for the defiend type and structure tags *)
       | GType (t, l) ->
+          incr currentDeclIdx;
+          t.treferenced <- false; 
           if t.tname <> "" then (* The empty names are just for introducing 
                                  * undefind comp tags *)
-            ignore (getNode tEq tSyn !currentFidx t.tname t (Some l))
+            ignore (getNode tEq tSyn !currentFidx t.tname t 
+                      (Some (l, !currentDeclIdx)))
 
       | GCompTag (ci, l) -> 
-          let eqH, synH = if ci.cstruct then sEq, sSyn else uEq, uSyn in
-          ignore (getNode eqH synH !currentFidx ci.cname ci (Some l))
+          incr currentDeclIdx;
+          ci.creferenced <- false;
+          ignore (getNode sEq sSyn !currentFidx ci.cname ci 
+                    (Some (l, !currentDeclIdx)))
       | GEnumTag (ei, l) -> 
-          ignore (getNode eEq eSyn !currentFidx ei.ename ei (Some l))
+          incr currentDeclIdx;
+          ei.ereferenced <- false;
+          ignore (getNode eEq eSyn !currentFidx ei.ename ei 
+                    (Some (l, !currentDeclIdx)))
 
       | _ -> ())
     f.globals
@@ -792,27 +827,42 @@ let matchInlines (oldfidx: int) (oldi: varinfo)
      * We have checked only the types so far *)
     ()
   end
-  
+
+(***********************************************************8
+ *
+ *  PASS 2
+ *
+ *
+ ************************************************************)  
   (* Now we go once more through the file and we rename the globals that we 
    * keep. We also scan the entire body and we replace references to the 
-   * representative types or variables *)
+   * representative types or variables. We set the referenced flags once we 
+   * replaced the names. *)
 let oneFilePass2 (f: file) = 
   if debugMerge || !E.verboseFlag then 
     ignore (E.log "Final merging phase (%d): %s\n" 
               !currentFidx f.fileName);
+  currentDeclIdx := 0; (* Even though we don't need it anymore *)
   let processOneGlobal (g: global) : unit = 
       (* Process a varinfo. Reuse an old one, or rename it if necessary *)
     let processVarinfo (vi: varinfo) (vloc: location) : varinfo =  
       (* Maybe it is static. Rename it then *)
-      if vi.vstorage = Static then begin
-        vi.vname <- newAlphaName vAlpha vi.vname;
-        vi.vid <- H.hash vi.vname;
-        vi
-      end else begin
-        (* Find the representative *)
-        match findReplacement true vEq !currentFidx vi.vname with
-          None -> vi
-        | Some (vi', _) -> vi'
+      if vi.vreferenced then 
+        vi (* Already done *)
+      else begin
+        if vi.vstorage = Static then begin
+          vi.vname <- newAlphaName vAlpha vi.vname;
+          vi.vid <- H.hash vi.vname;
+          vi.vreferenced <- true;
+          vi
+        end else begin
+          (* Find the representative *)
+          match findReplacement true vEq !currentFidx vi.vname with
+            None -> vi
+          | Some (vi', _) -> 
+              vi'.vreferenced <- true;
+              vi'
+        end
       end
     in
     try
@@ -900,33 +950,36 @@ let oneFilePass2 (f: file) =
               
       | GCompTag (ci, l) as g -> begin
           currentLoc := l;
-          let eqH, alphaH = 
-            if ci.cstruct then sEq, sAlpha else uEq, uAlpha 
-          in
-          match findReplacement true sEq !currentFidx ci.cname with
-            None -> 
-              (* A new one, we must rename it and keep the definition *)
-              ci.cname <- newAlphaName alphaH ci.cname;
-              ci.ckey <- H.hash (compFullName ci);
-              pushGlobals (visitCilGlobal renameVisitor g)
-          | Some (oldci, oldfidx) -> begin
-              (* We are not the representative *)
-              (* See if the old one is empty and the new one is not *)
-              if oldci.cfields = [] then begin
-                E.s (bug "The representative for %s(%d) is %s(%d) and is not defined" (compFullName ci) !currentFidx (compFullName oldci) 
-                       oldfidx)
-              end else (* It is an old structure that is not empty. Drop this 
-                        * declaration because we'll not be using it. *)
+          if ci.creferenced then 
+            () 
+          else begin
+            match findReplacement true sEq !currentFidx ci.cname with
+              None -> 
+                (* A new one, we must rename it and keep the definition *)
+                ci.cname <- newAlphaName sAlpha ci.cname;
+                ci.ckey <- H.hash (compFullName ci);
+                pushGlobals (visitCilGlobal renameVisitor g)
+            | Some (oldci, oldfidx) -> begin
+                oldci.creferenced <- true;
+                (* We are not the representative. Drop this declaration 
+                 * because we'll not be using it. *)
                 ()
-          end
-      end  
+            end
+          end  
+      end
       | GEnumTag (ei, l) as g -> begin
           currentLoc := l;
-          match findReplacement true eEq !currentFidx ei.ename with 
-            None -> (* We must rename it *)
-              ei.ename <- newAlphaName eAlpha ei.ename;
-              pushGlobals (visitCilGlobal renameVisitor g);
-          | Some _ -> () (* Drop this since we are reusing it from before *)
+          if ei.ereferenced then 
+            () 
+          else begin
+            match findReplacement true eEq !currentFidx ei.ename with 
+              None -> (* We must rename it *)
+                ei.ename <- newAlphaName eAlpha ei.ename;
+                pushGlobals (visitCilGlobal renameVisitor g);
+            | Some (ei', _) -> (* Drop this since we are reusing it from 
+                                * before *)
+                ei'.ereferenced <- true
+          end
       end
       | GType (ti, l) as g -> begin
           currentLoc := l;
@@ -934,11 +987,17 @@ let oneFilePass2 (f: file) =
                                        * undefined structure *)
             pushGlobals (visitCilGlobal renameVisitor g);
           end else begin
-            match findReplacement true tEq !currentFidx ti.tname with 
-              None -> (* We must rename it and keep it *)
-                ti.tname <- newAlphaName tAlpha ti.tname;
-                pushGlobals (visitCilGlobal renameVisitor g);
-            | Some _ -> () (* Drop this since we are reusing it from before *)
+            if ti.treferenced then 
+              () 
+            else begin
+              match findReplacement true tEq !currentFidx ti.tname with 
+                None -> (* We must rename it and keep it *)
+                  ti.tname <- newAlphaName tAlpha ti.tname;
+                  pushGlobals (visitCilGlobal renameVisitor g);
+              | Some (ti', _) ->(* Drop this since we are reusing it from 
+                                 * before*)
+                    ti'.treferenced <- true
+            end
           end
       end
       | g -> pushGlobals (visitCilGlobal renameVisitor g)
@@ -963,7 +1022,6 @@ let merge (files: file list) (newname: string) : file =
   (* Now maybe try to force synonyms to be equal *)
   if mergeSynonyms then begin
     doMergeSynonyms sSyn sEq matchCompInfo;
-    doMergeSynonyms uSyn uEq matchCompInfo;
     doMergeSynonyms eSyn eEq matchEnumInfo;
     doMergeSynonyms tSyn tEq matchTypeInfo;
     if mergeInlines then begin 
@@ -977,8 +1035,7 @@ let merge (files: file list) (newname: string) : file =
   (* Now maybe dump the graph *)
   if debugMerge then begin
     dumpGraph "type" tEq;
-    dumpGraph "struct" sEq;
-    dumpGraph "union" uEq;
+    dumpGraph "struct and union" sEq;
     dumpGraph "enum" eEq;
     dumpGraph "variable" vEq;
     if mergeInlines then dumpGraph "inline" iEq;
