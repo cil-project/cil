@@ -21,7 +21,7 @@ MLYS        =
 # ast clex cparse
 # sm: trace: utility for debug-time printfs
 MODULES     = pretty trace errormsg stats util cil check ptrnode \
-              simplesolve secondsolve thirdsolve globinit box markptr \
+              simplesolve secondsolve thirdsolve wildsolve globinit box markptr \
               rmtmps
 EXECUTABLE  = $(OBJDIR)/safec
 CAMLUSEUNIX = 1
@@ -152,7 +152,7 @@ _MSVC = 1			# Use the MSVC compiler by default
 endif
 
 ifdef _GNUCC
-DEBUGCCL=gcc -x c -O0 -g -ggdb -D_GNUCC 
+DEBUGCCL=gcc -Wall -x c -O0 -g -ggdb -D_GNUCC 
 RELEASECCL=gcc -x c -O3 -fomit-frame-pointer -D_RELEASE -D_GNUCC -Wall 
 #LIB=lib
 #LIBOUT=-o
@@ -251,6 +251,12 @@ endif
 ifeq ($(INFERBOX), 3)
     SAFECC+= --safec=-solver --safec=third
 endif
+ifeq ($(INFERBOX), wild)
+    SAFECC+= --safec=-solver --safec=wild
+endif
+ifeq ($(INFERBOX), wildsafe)
+    SAFECC+= --safec=-solver --safec=wildsafe
+endif
 
 ifdef INFERBOX
 BOX=1
@@ -303,7 +309,8 @@ endif
 ifneq ($(COMPUTERNAME), RAW)   # George's workstation
 ifneq ($(COMPUTERNAME), FETA)   # George's workstation
 ifdef _GNUCC
-  ifndef NO_GC
+  #ifndef NO_GC
+  ifdef USE_GC
     # enable the garbage collector by default for gcc
     SAFECC+= $(DEF)USE_GC
     DEBUGCCL+= $(DEF)USE_GC
@@ -571,7 +578,7 @@ hufftest: test/small2/hufftest.c $(EXECUTABLE)$(EXE) \
                  $(PCCDIR)/src/huffman.c \
                  $(PCCDIR)/src/hash.c \
                  ../small2/hufftest.c \
-                 $(HUFFOTHERS) \
+                 $(HUFFOTHERS) -lm \
                  $(EXEOUT)hufftest.exe
 	cd $(PCCTEST); ./hufftest.exe \
                              $(CILDIR)/src/frontc/cparser.output
@@ -701,7 +708,7 @@ COMBINESAFECC = $(SAFECC) --combine $(DOOPT)
 
 # Barnes-Hut
 BHDIR=test/bh
-bh : defaulttarget mustbegcc
+bh : mustbegcc
 	cd $(BHDIR); rm code.exe; make CC="$(COMBINESAFECC)"
 	echo  >$(BHDIR)/data.in
 	echo  >>$(BHDIR)/data.in
@@ -728,7 +735,7 @@ spec-compress : defaulttarget
               <$(COMPRESSDIR)/exe/base/input.data \
               >$(COMPRESSDIR)/exe/base/output.txt
 
-compress : defaulttarget $(COMPRESSDIR)/src/combine-compress.c
+compress : $(COMPRESSDIR)/src/combine-compress.c
 	rm -f $(COMPRESSDIR)/combine-compress.exe
 	cd $(COMPRESSDIR)/src ; $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  $(DOOPT) \
@@ -750,7 +757,7 @@ li: defaulttarget mustbegcc
 	cd $(LIDIR)/src; \
             make build CC="$(LISAFECC) $(CONLY)" \
                        LD="$(LISAFECC)" 
-	$(LIDIR)/src/trial_li \
+	time $(LIDIR)/src/trial_li \
             <$(LIDIR)/data/train/input/train.lsp \
             >$(LIDIR)/data/train/input/train.out
 
