@@ -136,6 +136,9 @@ cillib: $(OBJDIR)/cil.$(CMXA) $(OBJDIR)/libcil.a
 # WW: this "libmaincil" thing causes "make distrib" to fail
 OCAML_CIL_LIB_MODULES := $(MODULES:maincil=) maincil
 
+#sfg: this libmaincil thing is necessary to libcil.a and maincil breaks it
+OCAML_CIL_C_LIB_MODULES := $(MODULES:maincil=) libmaincil
+
 # Build an OCAML library (CMA / CMXA) that exports our Cil stuff
 $(OBJDIR)/cil.$(CMXA): $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
 	$(CAMLLINK) -a -o $@ $^
@@ -144,7 +147,7 @@ $(OBJDIR)/cil.$(CMXA): $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
 # be called from C code; this is like the target above, except
 # it is callable from C instead of from Ocaml
 ifeq ($(NATIVECAML),1)
-$(OBJDIR)/libcil.a: $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.cmx)
+$(OBJDIR)/libcil.a: $(OCAML_CIL_C_LIB_MODULES:%=$(OBJDIR)/%.cmx)
 	ocamlopt -output-obj -o $@ unix.cmxa str.cmxa $^
 else
 $(OBJDIR)/libcil.a:

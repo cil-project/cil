@@ -91,7 +91,7 @@ let getDummyTypes () : typ * typ =
   ( TPtr(TVoid [], []), TInt(IInt, []) )
 ;;
 
-(* register some functions - these may be called form C code *)
+(* register some functions - these may be called from C code *)
 Callback.register "cil_parse" parseOneFile;
 Callback.register "cil_unparse" unparseToStdout;
 Callback.register "unroll_type_deep" unrollTypeDeep;
