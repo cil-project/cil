@@ -1,5 +1,5 @@
 # .gdbinit
 
-file model1.exe
+file wrapper2.exe
 break main
 run
