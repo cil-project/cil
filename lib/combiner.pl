@@ -80,9 +80,12 @@ sub link {
         push @othersources, $src;
     }
     # Now invoke the combiner
-    my $cmd = "$Combiner::combiner -o $dest" . "_all.c " . 
+    my $cmd = "$Combiner::combiner -o $dest" . $Combiner::combext . 
         join(' ', @tocombine);
     $self->runShell($cmd);
+
+    print "Created the combined file $dest$Combiner::combext\n";
+    # Now we have combined things. Call a linker
 }
 
 
