@@ -4291,6 +4291,9 @@ if test "${with_arithabs+set}" = set; then
 
 fi;
 
+# Smalloc.ml is distributed by {matth,nks}@cs.berkeley.edu as part of Scrash.
+features="$features smalloc=no"
+
 for f_val in $features
 do
    f=`echo $f_val | sed -e s%=.*$%%`

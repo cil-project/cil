@@ -52,6 +52,9 @@ endif
 ifdef USE_ARITHABS
   CILLY_FEATURES += arithabs
 endif
+ifdef USE_SMALLOC
+  CILLY_FEATURES += smalloc
+endif
 
     # Now rules to make cilly
 CILLY_LIBRARY_MODULES = pretty inthash errormsg trace stats util clist \
@@ -197,6 +200,9 @@ ifdef USE_RAND
 endif
 ifdef USE_ARITHABS
 	echo "   Arithabs.feature;" >>$@
+endif
+ifdef USE_SMALLOC
+	echo "   Smalloc.feature;" >> $@  
 endif
 	echo "]"   >>$@ 
 # Must delete maincil.d and remake it, because it may have been made

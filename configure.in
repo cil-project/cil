@@ -464,7 +464,10 @@ AC_ARG_WITH(rand,
 AC_ARG_WITH(arithabs,
     AC_HELP_STRING([--with-arithabs],
                    [enable the arithmetic abstraction]))
-   
+
+# Smalloc.ml is distributed by {matth,nks}@cs.berkeley.edu as part of Scrash.
+features="$features smalloc=no"
+
 for f_val in $features
 do
    f=`echo $f_val | sed -e s%=.*$%%`
