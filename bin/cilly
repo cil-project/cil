@@ -43,6 +43,8 @@ use Cilly;
 $::default_is_merge = 0;
 my $stub = CilCompiler->new(@ARGV);
 
+$stub->setVersion ();
+
 # print Dumper($stub);
 $stub->doit();
 

@@ -50,7 +50,9 @@ let nextArg () =
 let getArg (argno: int) (args: formatArg list) = 
   try 
     List.nth args argno
-  with _ -> E.s (bug "Format string does not have enough arguments\n")
+  with _ -> 
+    E.s (bug "Pattern string %s does not have enough arguments\n"
+           !Formatlex.currentPattern)
 
 let wrongArgType (which: int) (expected: string) (found: formatArg) = 
   E.s (bug "Expecting %s argument (%d) and found %a\n" 

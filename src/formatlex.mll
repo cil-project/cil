@@ -63,7 +63,7 @@ let startLine = ref 0 (* the position in the buffer where the current line
 (* The current lexing buffer *)
 let currentLexBuf = ref (Lexing.from_string "")
     
-let currentProg = ref ""
+let currentPattern = ref ""
 
 (* Weimer: Sun Dec  9 18:13:58  2001
  * Rupak reports that scrolling too many errors can lock up his
@@ -83,13 +83,13 @@ let display_error msg token_start token_end =
                         ^ (string_of_int adjEnd) 
                   ^ "]"
      ^ " : " ^ msg ^ " : " ^ 
-     String.sub !currentProg token_start (token_end - token_start + 1));
+     String.sub !currentPattern token_start (token_end - token_start + 1));
   output_string stderr "\n";
   flush stderr
 
 let init ~(prog: string) : Lexing.lexbuf =
   H.clear keywords;
-  currentProg := prog;
+  currentPattern := prog;
   List.iter 
     (fun (key, token) -> H.add keywords key token)
     [ ("const", CONST); ("__const", CONST); ("__const__", CONST);

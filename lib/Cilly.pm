@@ -467,6 +467,9 @@ sub preprocess_before_cil {
            $self->{IDASHDOT}) {
             unshift @args, "-I.";
         }
+        if(! defined($self->{VERSION})) {
+            $self->setVersion();
+        }
         unshift @args,
             map { my $dir = $_;
                   $self->{INCARG} . $dir . "/" . $self->{VERSION} }

@@ -820,6 +820,8 @@ bound to {\bf all} attributes in the list. For example, the pattern \t{"const
 corresponding placeholder to the entire list of attributes, including
 \t{const}. 
  
+\item All instruction-patterns must be terminated by semicolon
+
 \end{itemize}
 
  The following function are defined in the \t{Formatcil} module for
@@ -1918,6 +1920,7 @@ Necula}.
 
 \section{Changes}
 \begin{itemize}
+\item {\bf May 25, 2002}: Added interpreted constructors and destructors.
 \item {\bf May 17, 2002}: Changed the representation of functions to move the
 ``inline'' information to the varinfo. This way we can print the ``inline''
 even in declarations which is what gcc does. 
