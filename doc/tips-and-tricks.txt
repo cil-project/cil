@@ -193,7 +193,7 @@ file and position the cursor at the right line.  It's called
 
 ; after doing M-x map-hashline-back once, now ctl+alt+p will
 ; go back through successive layers
-(global-set-key [(control meta p)] run-previous-M-x-command )
+(global-set-key [(control meta p)] 'run-previous-M-x-command )
 
 
 --------------------- navigating .infer files ------------------
