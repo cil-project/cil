@@ -1,4 +1,5 @@
 #include "testharness.h"
+extern void abort();
 
 // from c-torture
 static inline

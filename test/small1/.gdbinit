@@ -1,5 +1,5 @@
 # .gdbinit
 
-file func2.exe
+file hufftest.exe
 break main
 run
