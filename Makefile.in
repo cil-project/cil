@@ -53,8 +53,8 @@ endif
     # Now rules to make cilly
 CILLY_LIBRARY_MODULES = pretty errormsg trace stats util clist \
               cilutil escape \
-              cabs cabsvisit cprint lexerhack cparser clexer  \
-              cilversion machdep cil formatparse formatlex formatcil cabs2cil \
+              cabs cabsvisit cprint lexerhack machdep cparser clexer  \
+              cilversion cil formatparse formatlex formatcil cabs2cil \
               patch frontc check mergecil logcalls logwrites rmtmps \
 	      callgraph epicenter heapify \
               setp uref steensgaard olf dummy ptranal \
@@ -146,6 +146,7 @@ $(OBJDIR)/machdep.ml : src/machdep.c configure.in Makefile.cil.in
 	$(OBJDIR)/machdep.exe >>$@
 	echo "}"          >>$@
 	echo "let gccHas__builtin_va_list = @HAVE_BUILTIN_VA_LIST@" >>$@
+	echo "let __thread_is_keyword = @THREAD_IS_KEYWORD@"  >>$@
 
 #
 # Create the version information module

@@ -164,7 +164,12 @@ let init_lexicon _ =
       ("__builtin_va_list", 
        fun _ -> NAMED_TYPE ("__builtin_va_list", currentLoc ()));
       ("__builtin_va_arg", fun loc -> BUILTIN_VA_ARG loc);
-      ("__thread", fun loc -> THREAD loc);
+      (* On some versions of GCC __thread is a regular identifier *)
+      ("__thread", fun loc -> 
+                      if Machdep.__thread_is_keyword then 
+                         THREAD loc
+                       else 
+                         IDENT ("__thread", loc));
     ]
 
 (* Mark an identifier as a type name. The old mapping is preserved and will 

@@ -344,6 +344,11 @@ AC_MSG_CHECKING([for gcc version])
 AC_CHECK_TYPE(__builtin_va_list,
               HAVE_BUILTIN_VA_LIST=true,
               HAVE_BUILTIN_VA_LIST=false)
+AC_MSG_CHECKING([if __thread is a keyword])
+AC_COMPILE_IFELSE([int main(int __thread) { return 0; }],
+                  THREAD_IS_KEYWORD=false,
+                  THREAD_IS_KEYWORD=true)
+AC_MSG_RESULT($THREAD_IS_KEYWORD)
 
 # ----------- some stuff 'autoscan' put here --------------
 # (autoscan is part of the autoconf distribution)
@@ -480,6 +485,7 @@ AC_SUBST(CCURED_VERSION)
 AC_SUBST(CYCLES_PER_USEC)
 AC_SUBST(HAS_PERFCOUNT)
 AC_SUBST(HAVE_BUILTIN_VA_LIST)
+AC_SUBST(THREAD_IS_KEYWORD)
 
 # finish the configure script and generate various files; ./configure
 # will apply variable substitutions to <filename>.in to generate <filename>;
