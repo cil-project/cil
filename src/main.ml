@@ -51,7 +51,6 @@ open Trace
 
 let outChannel : out_channel option ref = ref None
 let mergedChannel : out_channel option ref = ref None
-let keepFiles = ref false
 let dumpFCG = ref false
 let testcil = ref ""
 
@@ -255,7 +254,6 @@ let rec theMain () =
              "the name of the output CIL file";
     "--warnall", Arg.Unit (fun _ -> E.warnFlag := true),
                  "Show all warnings";
-    "--keep", Arg.Unit (fun _ -> keepFiles := true), "Keep intermediate files";
     "--MSVC", Arg.Unit (fun _ ->   C.msvcMode := true;
                                    F.setMSVCMode ();
                                    if not Machdep.hasMSVC then

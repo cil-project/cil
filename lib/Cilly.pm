@@ -200,8 +200,6 @@ sub collectOneArgument {
         if(! -d $self->{KEEPDIR}) {
             die "Cannot find directory $self->{KEEPDIR}";
         }
-	#The cilly process ignores this flag, but maybe some extension uses it.
-        push @{$self->{CILARGS}}, "--keep";
         return 1;
     }
     if($arg eq '--keep') {
@@ -210,7 +208,6 @@ sub collectOneArgument {
         if(! -d $self->{KEEPDIR}) {
             die "Cannot find directory $self->{KEEPDIR}";
         }
-        push @{$self->{CILARGS}}, "--keep";
         return 1;
     }
     if($arg eq '--nomerge') {
@@ -312,9 +309,10 @@ Options:
                 AR      - GNU ar
                This option must be the first one! If it is not found there
                then GNUCC mode is assumed.
-  --help (or -help) Prints this help message
-  --verbose    Prints a lot of information about what is being done
-  --keep=xxx   Keep temporary files in the given directory
+  --help (or -help) Prints this help message.
+  --verbose    Prints a lot of information about what is being done.
+  --keep       Keep temporary files.
+  --keep=xxx   Keep temporary files in the given directory.
   --nomerge    Apply CIL separately to each source file as they are compiled. 
                By default CIL is applied to the whole program during linking.
   --merge      Apply CIL to the merged program.
