@@ -642,6 +642,7 @@ smAddTest("mergeinline");
 smAddTest("mergestruct");
 smAddTest("test-bad/globstackptr $box");
 smAddTest("test-bad/ehstack $box");
+smAddTest("test-bad/setjmp $box");
 
 # test of strings (need more!)
 smFailTest("unsound user annotation RWSTRING", "badd/ovwrnull $box");
@@ -747,8 +748,7 @@ smAddTest("apache/gzip");
 # does not work: complains of many incompatible type redefinitions
 #runTest $make apache/rewrite
 
-# BEGIN from George
-# This block of tests was transferred from testsafec.pl to
+# The following block of tests was transferred from testsafec.pl to
 # the regrtest script, and now has been transferred back.
 # I keep it here because for each test I just run one mode
 # (whichever mode has shown itself to be possibly an issue in
@@ -802,7 +802,7 @@ smAddTest("test/structassign");
 smAddTest("test/tags");
 smAddTest("test/task");
 smAddTest("test/voidstar");
-# END from George
+# end copied block of tests
 
 # more random stuff
 smAddTest("scott/funcname $gcc");

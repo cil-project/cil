@@ -2202,22 +2202,33 @@ class defaultCilPrinterClass : cilPrinter = object (self)
             None -> nil
           | Some i -> text " = " ++ (self#pInit () i))
           ++ chr ';'
-          
+      
+    (* print global variable 'extern' declarations, and function prototypes *)    
     | GVarDecl (vi, l) -> (
         (* sm: don't print boxmodels; avoids gcc warnings *)
         if (hasAttribute "boxmodel" vi.vattr) then
           (text ("// omitted boxmodel GVarDecl " ^ vi.vname ^ "\n"))
-            (* sm: also don't print declarations for gcc builtins *)
-            (* this doesn't do what I want, I don't know why *)
-        else if startsWith "__builtin_" vi.vname && not !print_CIL_Input then (
+
+        (* sm: also don't print declarations for gcc builtins *)
+        (* this doesn't do what I want, I don't know why *)
+        else if startsWith "__builtin_" vi.vname && not !print_CIL_Input then
           (text ("// omitted gcc builtin " ^ vi.vname ^ "\n"))
-            )
+
+        (* sm: don't print the prototype for _setjmp_w because I have *)
+        (* written a wrapper macro, and that macro would expand in the *)
+        (* prototype as well, causing a syntax error *)
+        else if ((vi.vname = "_setjmp_w" ||
+                  vi.vname = "setjmp_w" ||
+                  vi.vname = "__sigsetjmp_w") && (not !print_CIL_Input))  then
+          (text ("// omitted prototype for " ^ vi.vname ^ "\n"))
+
         else (
           self#pLineDirective l ++
             (self#pVDecl () vi)
             ++ chr ';'
-            )
-            )
+        )
+      )
+
     | GAsm (s, l) ->
         self#pLineDirective l ++
           text ("__asm__(\"" ^ escape_string s ^ "\");")
