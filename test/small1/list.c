@@ -64,6 +64,7 @@ PLIST insert(PLIST l, void * WILD el, int pos) {
 int exists(PLIST l, void * WILD el) {
   while(l && l->car != el) {
     l= l->cdr;
+    l ++;
   }
   return (l != 0);
 }

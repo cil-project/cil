@@ -247,6 +247,11 @@ let addEdge (start: node) (dest: node) (callid: int) =
   end
 
 
+let removeSucc n sid = 
+  n.succ <- List.filter (fun e -> e.eto.id <> sid) n.succ
+
+let removePred n pid = 
+  n.pred <- List.filter (fun e -> e.efrom.id <> pid) n.pred
 
 
 (**** Garbage collection of nodes ****)
@@ -291,7 +296,18 @@ let gc () =
     (fun n -> 
       if not n.mark then begin
         H.remove idNode n.id;
-        H.remove placeId n.where
-      end else n.mark <- false) !all
+        H.remove placeId n.where;
+        (* Remove this edge from all predecessors that are kept *)
+        List.iter 
+          (fun ep -> 
+            let p = ep.efrom in 
+            if p.mark then removeSucc p n.id) n.pred;
+        List.iter
+          (fun es -> 
+            let s = es.eto in
+            if s.mark then removePred s n.id) n.succ;
+      end) !all;
+  (* Now clear the mark *)
+  List.iter (fun n -> n.mark <- false) !all
         
       

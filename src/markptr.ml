@@ -296,7 +296,11 @@ and expToType (e,et,en) t (callid: int) =
   match etn == N.dummyNode, tn == N.dummyNode with
     true, true -> e
   | false, true -> e (* Ignore casts of pointer to non-pointer *)
-  | false, false -> N.addEdge etn tn callid; e
+  | false, false -> 
+      if isZero e then 
+        tn.N.null <- true (* Do not add an edge *)
+      else
+        N.addEdge etn tn callid; e
   | true, false -> 
       (* Cast of non-pointer to a pointer. Check for zero *)
       (if isZero e then
