@@ -287,7 +287,7 @@ and combine_defs defs global = begin
           (reform_defs rest) (*skip this def *) 
         else
           let combined_def = combine_def def global in
-            combined_def :: (reform_defs rest)
+          combined_def :: (reform_defs rest)
       end
   in 
   reform_defs defs 
@@ -307,8 +307,9 @@ and remove_anon_id id = begin
   
   if (((String.length id) >= 6) && ((String.sub id 0 6) = "__anon")) then
     ""
-  else
-    id
+  else (
+
+    id)
 end
 
 and remove_anon_type typ = begin
@@ -334,10 +335,12 @@ and remove_anon_type typ = begin
   | VOLATILE typ' -> VOLATILE (remove_anon_type typ')
 *)
   | ATTRTYPE (typ', a) -> ATTRTYPE(remove_anon_type typ', a)
+  | NAMED_TYPE id -> NAMED_TYPE (lookup_id id)
   | _ -> typ
 end    
 
 and remove_anon_name (id, typ, attr, exp) = begin
+  
   (id, remove_anon_type typ, attr, exp)
 end  
       
@@ -441,6 +444,7 @@ and already_declared def = begin
               false)))
               
   | TYPEDEF names ->
+      
       if tag_defined names then
         true
       else
@@ -611,3 +615,28 @@ begin
                   (fun defs' -> combine_defs defs' true) 
                   files)
 end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
