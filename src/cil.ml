@@ -433,6 +433,7 @@ let charType = TInt(IChar, [])
 let charPtrType = TPtr(charType,[])
 let voidPtrType = TPtr(voidType, [])
 let intPtrType = TPtr(intType, [])
+let uintPtrType = TPtr(uintType, [])
 let doubleType = TFloat(FDouble, [])
 
 let structId = ref 0 (* Find a better way to generate new names *)
@@ -1232,8 +1233,8 @@ let makeLocalVar fdec name typ =
   fdec.slocals <- fdec.slocals @ [vi];
   vi
 
-let makeTempVar fdec typ = 
-  let name = "tmp" ^ (string_of_int (1 + fdec.smaxid)) in
+let makeTempVar fdec ?(name = "tmp") typ = 
+  let name = name ^ (string_of_int (1 + fdec.smaxid)) in
   makeLocalVar fdec name typ
 
 
@@ -1277,7 +1278,7 @@ let rec typeOf (e: exp) : typ =
   | Const(CLInt (_, ik, _),_) -> TInt(ik, [])
   | Const(CReal (_, fk, _), _) -> TFloat(fk, [])
   | Lval(lv) -> typeOfLval lv
-  | SizeOf _ -> intType
+  | SizeOf _ -> uintType
   | UnOp (_, _, t, _) -> t
   | BinOp (_, _, _, t, _) -> t
   | Question (_, e2, _, _) -> typeOf e2

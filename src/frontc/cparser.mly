@@ -774,7 +774,7 @@ init_declarator_list:                       /* ISO 6.7 */
 ;
 init_declarator:                             /* ISO 6.7 */
     declarator                          { $1 }
-|   declarator EQ init_expression       { applyInitializer $3 $1 }
+|   declarator EQ init_expression { applyInitializer $3 $1 }
 ;
 
 decl_spec_list:                         /* ISO 6.7 */

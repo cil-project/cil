@@ -202,18 +202,18 @@ let isFatType t =
     TComp(true, _, [p;b],_,_) when p.fname = "_p" && b.fname = "_b" -> true
   | _ -> false
 
-let getPtrFieldOfFat t = 
+let getPtrFieldOfFat t : fieldinfo = 
   match unrollType t with
     TComp(true, _, [p;b],_, _) when p.fname = "_p" && b.fname = "_b" -> p
   | _ -> E.s (E.bug "getPtrFieldOfFat %a\n" d_type t)
 
-let getBaseFieldOfFat t = 
+let getBaseFieldOfFat t : fieldinfo  = 
   match unrollType t with
     TComp(true, _, [p;b], _, _) when p.fname = "_p" && b.fname = "_b" -> b
   | _ -> E.s (E.bug "getBaseFieldOfFat %a\n" d_type t)
 
 
-let rec readPtrBaseField e et =     
+let rec readPtrBaseField (e: exp) et =     
   if isFatType et then
     let fptr  = getPtrFieldOfFat et in
     let fbase = getBaseFieldOfFat et in
@@ -258,13 +258,13 @@ let setFatPointer (t: typ) (p: typ -> exp) (b: exp) : stmt list * lval =
      mkSet (Var tmp, Field(fbase,NoOffset)) b ], 
      (Var tmp, NoOffset))
       
-let readPtrField e t = 
+let readPtrField (e: exp) (t: typ) : exp = 
   let (tptr, ptr, base) = readPtrBaseField e t in ptr
       
-let readBaseField e t = 
+let readBaseField (e: exp) (t: typ) : exp = 
   let (tptr, ptr, base) = readPtrBaseField e t in base
 
-let fromPtrToBase e = 
+let fromPtrToBase e : exp = 
   let rec replacePtrBase = function
       Field(fip, NoOffset) when fip.fname = "_p" ->
         (* Find the fat type that this belongs to *)
@@ -342,14 +342,14 @@ let tagType (t: typ) : typ =
         let words = (bytes + 3) lsr 2 in
         let tagwords = (words + 15) lsr 4 in
         mkCompType true ""
-          [ ("_len", intType);
+          [ ("_len", uintType);
             ("_data", t);
             ("_tags", TArray(intType, 
                              Some (integer tagwords), []))
           ] []
       with Not_found -> begin (* An incomplete type *)
         mkCompType true ""
-          [ ("_len", intType);
+          [ ("_len", uintType);
             ("_data", t); ] []
       end
     in
@@ -384,7 +384,7 @@ let makeTagCompoundInit tagged datainit =
   in
   Compound (tagged, 
                   (* Now the length *)
-            (None, integer words) ::
+            (None, Const(CInt(words, IUInt, None), lu)) ::
             (match datainit with 
               None -> []
             | Some e -> [(None, e)]))
@@ -397,7 +397,8 @@ let makeTagAssignInit tagged vi =
   let dfld, lfld, tfld, words, tagwords = splitTagType tagged in
   let rec loopTags idx = 
     if idx >= tagwords then 
-      [mkSet (Var vi, Field(lfld, NoOffset)) (integer words)] 
+      [mkSet (Var vi, Field(lfld, NoOffset)) 
+          (Const(CInt(words, IUInt, None), lu))] 
     else
       (mkSet (Var vi, Field(tfld, First (Index (integer idx, NoOffset)))) zero)
       :: loopTags (idx + 1)
@@ -419,10 +420,18 @@ let checkSafeFatLeanCastFun =
   fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
   fdec
 
+let checkFunctionPointer = 
+  let fdec = emptyFunction "CHECK_FUNCTIONPOINTER" in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
+  fun whatp whatb -> 
+    call None (Lval(var fdec.svar)) [whatp; whatb]
+  
 let checkFetchLength = 
   let fdec = emptyFunction "CHECK_FETCHLENGTH" in
   let argb  = makeLocalVar fdec "b" voidPtrType in
-  fdec.svar.vtype <- TFun(intType, [ argb ], false, []);
+  fdec.svar.vtype <- TFun(uintType, [ argb ], false, []);
   fun tmplen base -> 
     call (Some tmplen) (Lval (var fdec.svar))
       [ base ]
@@ -430,8 +439,8 @@ let checkFetchLength =
 let checkFetchTagStart = 
   let fdec = emptyFunction "CHECK_FETCHTAGSTART" in
   let argb  = makeLocalVar fdec "b" voidPtrType in
-  let argl  = makeLocalVar fdec "l" intType in
-  fdec.svar.vtype <- TFun(intPtrType, [ argb; argl ], false, []);
+  let argl  = makeLocalVar fdec "l" uintType in
+  fdec.svar.vtype <- TFun(voidPtrType, [ argb; argl ], false, []);
   fun tmplen base len -> 
     call (Some tmplen) (Lval (var fdec.svar))
       [ base; len ]
@@ -465,9 +474,9 @@ let getHostIfBitfield lv t =
 let checkBounds = 
   let fdec = emptyFunction "CHECK_CHECKBOUNDS" in
   let argb  = makeLocalVar fdec "b" voidPtrType in
-  let argl  = makeLocalVar fdec "l" intType in
+  let argl  = makeLocalVar fdec "l" uintType in
   let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argpl  = makeLocalVar fdec "pl" intType in
+  let argpl  = makeLocalVar fdec "pl" uintType in
   fdec.svar.vtype <- TFun(voidType, [ argb; argl; argp; argpl ], false, []);
   fun tmplen base lv t ->
     let lv', lv't = getHostIfBitfield lv t in
@@ -479,7 +488,7 @@ let checkZeroTags =
   let fdec = emptyFunction "CHECK_ZEROTAGS" in
   let argb  = makeLocalVar fdec "b" voidPtrType in
   let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argpl  = makeLocalVar fdec "pl" intType in
+  let argpl  = makeLocalVar fdec "pl" uintType in
   let argt  = makeLocalVar fdec "t" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argb; argp; argpl; argt ], false, []);
   fun base tagStart lv t ->
@@ -525,10 +534,10 @@ let checkFatPointerWrite =
 let checkMem (towrite: exp option) 
              (lv: lval) (base: exp) (t: typ) : stmt list = 
   (* Fetch the length field in a temp variable *)
-  let len = makeTempVar !currentFunction intType in
+  let len = makeTempVar !currentFunction ~name:"_tlen" uintType in
   let lenExp = Lval(var len) in
   (* And the start of tags in another temp variable *)
-  let tagStart = makeTempVar !currentFunction intPtrType in
+  let tagStart = makeTempVar !currentFunction ~name:"_ttags" voidPtrType in
   let tagStartExp = Lval(var tagStart) in
   (* Now the tag checking. We only care about pointers. We keep track of what 
    * we write in each field and we check pointers in a special way. *)
@@ -537,13 +546,13 @@ let checkMem (towrite: exp option)
     | (TInt _ | TFloat _ | TEnum _ | TBitfield _ ) -> acc
     | TComp(true, _, [p;b], _, _) (* A fat pointer *)
         when p.fname = "_p" && b.fname = "_b" -> begin
-          let wherep = readPtrField (Lval where) t in
           match towrite with
             None -> (* a read *)
-              (checkFatPointerRead base wherep tagStartExp) :: acc
+              (checkFatPointerRead base (AddrOf(where, lu)) tagStartExp) :: acc
           | Some towrite -> (* a write *)
               let _, whatp, whatb = readPtrBaseField towrite t in
-              (checkFatPointerWrite base wherep whatb whatp tagStartExp) :: acc
+              (checkFatPointerWrite base (AddrOf(where, lu)) 
+                 whatb whatp tagStartExp) :: acc
         end 
     | TComp(true, _, flds, _, _) -> 
         let doOneField acc fi = 
@@ -558,8 +567,11 @@ let checkMem (towrite: exp option)
           doCheckTags newtowrite newwhere fi.ftype acc
         in
         List.fold_left doOneField acc flds
-            
-    | _ -> E.s (E.unimp "unexpected type in doCheckTags")
+
+(*            
+    | TFun _ when towrite = None -> acc
+*)
+    | _ -> E.s (E.unimp "unexpected type in doCheckTags: %a\n" d_type t)
   in
   let zeroTags = 
     match towrite with 
@@ -650,13 +662,13 @@ and boxinstr (ins: instr) : stmt =
         let check = 
           match lv' with
             Mem _, _ -> checkWrite e' lv' lvbase rest
-          | Var _, off when containsIndex off -> checkWrite e' lv' lvbase rest
+          | Var vi, off when mustBeTagged vi -> checkWrite e' lv' lvbase rest
           | _ -> []
         in
         mkSeq (dolv @ doe @ check @ [Instr(Set(lv', e', l))])
 
     | Call(vi, f, args, l) ->
-        let (ft, dof, f') = boxexp f in
+        let (ft, dof, f') = boxfunctionexp f in
         let (ftret, ftargs, isva) =
           match ft with 
             TFun(fret, fargs, isva, _) -> (fret, fargs, isva) 
@@ -833,11 +845,11 @@ and boxexpf (e: exp) : stmt list * fexp =
     match e with
     | Lval (lv) -> 
         let rest, dolv, lv', lvbase = boxlval lv in
-        let check = (* Check a read if it is in memory of if the offset 
-                     * contains an Index  *)
+        let check = (* Check a read if it is in memory of if it comes from a 
+                     * tagged variable *)
           match lv' with
             Mem _, _ -> checkRead lv' lvbase rest
-          | Var _, off when containsIndex off -> checkRead lv' lvbase rest
+          | Var vi, off when mustBeTagged vi -> checkRead lv' lvbase rest
           | _, _ -> []
         in
         if isFatType rest then
@@ -1030,6 +1042,16 @@ and boxexpSplit (e: exp) =
       let (tptr, ptr, base) = readPtrBaseField e'' et in
       (tptr, doe @ caste, ptr, base)
 
+
+and boxfunctionexp (f : exp) = 
+  match f with
+    Lval(Var vi, NoOffset) -> boxexp f
+  | Lval(Mem base, NoOffset) -> 
+      let rest, dolv, lv', lvbase = boxlval (Mem base, NoOffset) in
+      (rest, dolv @ [checkFunctionPointer (AddrOf(lv', lu)) lvbase], 
+       Lval(lv'))
+      
+  | _ -> E.s (E.unimp "Unexpected function expression")
 
     (* Cast an fexp to another one. Accumulate necessary statements to doe *)
 and castTo (fe: fexp) (newt: typ) (doe: stmt list) : stmt list * fexp = 
