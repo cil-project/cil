@@ -656,7 +656,10 @@ ifdef _GNUCC
 HUFFOTHERS += -lm
 endif
 hufftest: test/small2/hufftest.c defaulttarget
-	rm -f $(PCCTEST)/hufftest.exe
+	rm -f $(PCCTEST)/hufftest.exe \
+              $(PCCTEST)/huffman.compressed \
+              $(PCCTEST)/huffman.code \
+              $(PCCTEST)/huffman.freq
 	cd $(PCCTEST); $(HUFFCOMPILE) \
                  $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) $(DEF)$(PCCCOMP) \
                  $(DOOPT) \

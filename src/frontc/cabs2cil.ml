@@ -2521,15 +2521,16 @@ and doTypedef ((specs, nl): A.name_group) =
       try
         let newTyp, tattr = 
           doType AttrType bt (A.PARENTYPE(attrs, ndt, a))  in
+        let newTyp' = typeAddAttributes tattr newTyp in
         (* Create a new name for the type. Use the same name space as that of 
         * variables to avoid confusion between variable names and types. This 
         * is actually necessary in some cases.  *)
         let n' = newAlphaName true "" n in
-        let namedTyp = TNamed(n', newTyp, tattr) in
+        let namedTyp = TNamed(n', newTyp', []) in
         (* Register the type. register it as local because we might be in a 
         * local context  *)
         addLocalToEnv (kindPlusName "type" n) (EnvTyp namedTyp);
-        theFile := GType (n', newTyp, lu) :: !theFile
+        theFile := GType (n', newTyp', lu) :: !theFile
       with e -> begin
         ignore (E.log "Error on A.TYPEDEF (%s)\n"
                   (Printexc.to_string e));

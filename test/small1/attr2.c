@@ -17,9 +17,10 @@ __attribute__((section(".t1sec"))) char t1[5], t2[6];
 
 
 /* A pointer toa function that does not return */
-void (__attribute__((section(".modinfo"))) * pexit)(int err)  __attribute__((noreturn)) __attribute__((section(".modinfo"))) ;
-     
-void main() {
+void ( * pexit)(int err)  __attribute__((noreturn)) ;
+
+
+int main() {
   printk("fooo");
   { int k = __module_parm_vidmem[3]; }
   do_exit(5);
