@@ -1394,14 +1394,16 @@ let rec boxstmt (s : stmt) : stmt =
             TFun(tRes, _, _, _) -> tRes
           | _ -> E.s (E.bug "Current function's type is not TFun")
         in 
-        let (et, doe, e') = boxexp e in
-        let doe' = (* Add the check *)
+        let (doe', e') = boxexpf e in
+        let (doe'', e'') = castTo e' retType doe' in
+        let (et, doe2, e2) = fexp2exp e'' doe'' in
+        let doe'' = (* Add the check *)
           if mustCheckReturn retType then
-            doe @ [doCheckFat checkSafeRetFatFun e' et]
+            doe2 @ [doCheckFat checkSafeRetFatFun e2 et]
           else
-            doe
+            doe2
         in
-        mkSeq (doe' @ [Return (Some e', l)])
+        mkSeq (doe2 @ [Return (Some e2, l)])
     | Instr (i, l) -> boxinstr i l
   with e -> begin
     ignore (E.log "boxstmt (%s)\n" (Printexc.to_string e));
@@ -1565,7 +1567,7 @@ and boxlval (b, off) : (typ * P.pointerkind * lval * exp * exp * stmt list) =
 (*  ignore (E.log "Lval=%a@!startinput=%a\n" 
             d_lval (b, off) P.d_pointerkind pkind); *)
   (* Check index when we switch from Index to Safe *)
-  let toSafe ((btype, pkind, mklval, base, bend, stmts) as input) = 
+  let beforeField ((btype, pkind, mklval, base, bend, stmts) as input) = 
     match pkind with
       P.Wild -> input (* No change if we are in a tagged area *)
     | P.Safe -> input (* No change if already safe *)
@@ -1594,7 +1596,7 @@ and boxlval (b, off) : (typ * P.pointerkind * lval * exp * exp * stmt list) =
     | _ -> E.s (E.unimp "toSafe on unexpected pointer kind %a"
                   P.d_pointerkind pkind)
   in
-  let toIndexSeq ((btype, pkind, mklval, base, bend, stmts) as input) = 
+  let beforeIndex ((btype, pkind, mklval, base, bend, stmts) as input) = 
     match pkind with
     | (P.Safe|P.Wild) -> 
         let (elemtype, pkind, base, bend) = 
@@ -1629,28 +1631,27 @@ and boxlval (b, off) : (typ * P.pointerkind * lval * exp * exp * stmt list) =
     | _ -> input
   in
   (* Now do the offsets *)
+  let startinput = goIntoTypes startinput in
   let rec doOffset ((btype, _, _, _, _, _) as input) = function
-      NoOffset -> goIntoTypes input
+      NoOffset -> input
 
     | Field (f, resto) -> 
-        let (_, pkind, mklval, base, bend, stmts) = 
-          toSafe (goIntoTypes input) in
+        let (_, pkind, mklval, base, bend, stmts) = beforeField input in
         (* Prepare for the rest of the offset *)
         let next = 
           (f.ftype, pkind, (fun o -> mklval (Field(f, o))), base, bend, 
            stmts) in
-        doOffset next resto
+        doOffset (goIntoTypes next) resto
 
     | Index (e, resto) -> 
-        let (btype, pkind, mklval, base, bend, stmts) = 
-          toIndexSeq (goIntoTypes input) in
+        let (btype, pkind, mklval, base, bend, stmts) = beforeIndex input in
         (* Do the index *)
         let (_, doe, e') = boxexp e in
         (* Prepare for the rest of the offset *)
         let next = 
           (btype, pkind, (fun o -> mklval (Index(e', o))), base, bend, stmts) 
         in
-        doOffset next resto
+        doOffset (goIntoTypes next) resto
   in
   let (btype, pkind, mklval, base, bend, stmts) = doOffset startinput off in
 (*  ignore (E.log "Done lval: pkind=%a@!" P.d_pointerkind pkind); *)
