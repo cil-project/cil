@@ -39,7 +39,8 @@ let rec can_cast from_k to_k =
     false (one_step_cast from_k)
 
 (* helper functions *)
-let ecast_edges_only l = List.filter (fun e -> e.ekind = ECast || e.ekind = ECompat) l 
+let ecast_edges_only l = List.filter (fun e -> e.ekind = ECast) l 
+let ecompat_edges_only l = List.filter (fun e -> e.ekind = ECompat) l 
 let non_safe_edges_only l = List.filter (fun e -> e.ekind <> ESafe) l 
 let ecastandenull_edges_only l = 
   List.filter (fun e -> e.ekind = ECast || e.ekind = ENull) l 
@@ -144,6 +145,16 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    * Turn all bad casts into Wild Pointers. 
    *)
   Hashtbl.iter (fun id cur ->
+    let make_wild n e =
+      if n.kind = ROString then begin
+        ()
+      end else if n.kind <> Wild && set_outside n then begin
+        E.s (E.bug "Solver: bad annotation (should be wild because of cast)@!%a" d_node n)
+      end else begin
+        assert(not(set_outside n) || n.kind = Wild) ;
+        update n Wild (BadCast e)
+      end
+    in 
     (* pick out all successors of our current node *)
     List.iter (fun e -> 
       let n_from, n_to = e.efrom, e.eto in
@@ -158,20 +169,22 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
         ()
       end else begin
         (* must be wild! *)
-        let make_wild n =
-          if n.kind = ROString then begin
-            ()
-          end else if n.kind <> Wild && set_outside n then begin
-            E.s (E.bug "Solver: bad annotation (should be wild because of cast)@!%a" d_node n)
-          end else begin
-            assert(not(set_outside n) || n.kind = Wild) ;
-            update n Wild (BadCast e)
-          end
-        in 
-        make_wild e.efrom ;
-        make_wild e.eto ;
+        make_wild e.efrom e ;
+        make_wild e.eto e ;
       end
     ) (ecast_edges_only cur.succ) ;
+   (* also, the nodes related by ECompat edges must either have the same
+    * type or be wild! *)
+    List.iter (fun e ->
+      let n_from, n_to = e.efrom, e.eto in
+      let t_from, t_to = e.efrom.btype, e.eto.btype in 
+      if not (Simplesolve.type_congruent n_from.btype n_from.kind 
+                                     n_to.btype n_to.kind) then begin
+        (* must make both WILD! *)
+        make_wild e.efrom e ;
+        make_wild e.eto e ;
+      end
+    ) (ecompat_edges_only cur.succ) ;
   ) node_ht ;
 
   (* Step 5

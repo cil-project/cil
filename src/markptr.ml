@@ -722,10 +722,7 @@ let rec doStmt (s: stmt) =
                      (Const(CStr("a call return"))) (* this does not matter *)
                      rtn vin  !callId)
 	    | true, true -> ()
-      | true, false when destvi.vname = "pvar" -> 
-	         ignore (E.warn "Node mismatch on return of %s(%d) = %a(%d).VIT=%a\n" 
-			     destvi.vname vin.N.id d_exp func' rtn.N.id d_plaintype destvi.vtype)
-	    | _ -> E.s (E.bug "Node mismatch on return of %s(%d) = %a(%d).VIT=%a\n" 
+	    | _ -> ignore (E.warn "Node mismatch on return of %s(%d) = %a(%d).VIT=%a\n" 
 			     destvi.vname vin.N.id d_exp func' rtn.N.id d_plaintype destvi.vtype)
 	end 
       end;
