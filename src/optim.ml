@@ -27,6 +27,12 @@ let kill : bool array ref = ref [| |] (* array of bool, representing KILL sets *
 let inNode : exp list array ref = ref[| |] (* dataflow info at the entry of a node. Array of flowVal *)
 let outNode : exp list array ref = ref[| |] (* dataflow info at the exit of a node. Array of flowVal *)
 let allVals : exp list ref = ref [] (* list of all flow values. To be used as TOP in dataflow analysis *)
+
+(* Some statistics that we can use to brag about later *)
+let stats_total      = ref 0 (* Total CHECKs seen *) 
+let stats_nc_removed = ref 0 (* removed by null check remover *)
+let stats_removed    = ref 0 (* removed by the redundancy eliminator *)
+
 (*------------------------------------------------------------*)
 (* Notes regarding CFG computation:
    1) Initially only succs and preds are computed. sid's are filled in
@@ -317,11 +323,17 @@ let rec optimInstr (l: instr list) nnl : instr list =
       (* args is a list of one element *)
           let arg = List.hd args in
           let checkExp = (match arg with CastE(_,e) -> e | _ -> arg) in
-          if (List.mem checkExp nnl) then optimInstr tl nnl (* remove redundant check*)
+	  stats_total := !stats_total + 1;
+          if (List.mem checkExp nnl) then begin
+	    stats_nc_removed := !stats_nc_removed + 1;
+	    optimInstr tl nnl (* remove redundant check*)
+	  end
           else first::optimInstr tl (checkExp::nnl) (* add to the list of valid non-null exp *)
       | Call(_,Lval(Var x,_),args,l)  (* Don't invalidate for well-behaved functions *)
         when ((String.length x.vname) > 6 &&
-              (String.sub x.vname 0 6)="CHECK_") -> first::optimInstr tl nnl
+              (String.sub x.vname 0 6)="CHECK_") -> 
+		stats_total := !stats_total + 1;
+		first::optimInstr tl nnl
       | Call _ -> (* invalidate everything *)
           first::optimInstr tl []
 
@@ -518,6 +530,20 @@ let rec getOutermostOffset (off : offset) =
   | Index (_, off) -> getOutermostOffset off
     
 
+(* Helper function that strips the outermost offset of an lval
+   e.g. a[3].z[3] -> a[3].z -> a[3] -> a -> invalid_arg!
+*)
+let stripOffset (lv : lval) : lval =
+  let rec butlastOffset (off : offset) =
+    match off with
+      NoOffset -> invalid_arg "butlastOffset (in stripOffset) should not be called on NoOffset"
+    |	Index (_, NoOffset)
+    |	Field (_, NoOffset) -> NoOffset
+    |	Index (e, off2) -> Index (e, butlastOffset off2)
+    |	Field (f, off2) -> Field (f, butlastOffset off2)
+  in
+  match lv with (mv, off) -> (mv, butlastOffset off)
+
 (* Returns -1 if not found *)
 let find_in_array (array : 'a array) (element : 'a) : int =  
   let ubound = Array.length array in
@@ -549,10 +575,6 @@ let rec compareWithoutCasts e1 e2 : bool =
 
 
 (******************************************************************************)
-
-(* Some statistics that we can use to brag about later *)
-let stats_removed = ref 0
-let stats_kept    = ref 0
 
 (* See comments in eliminateRedundancy *)
 let checkInstrs : instr array ref = ref [||]
@@ -596,6 +618,8 @@ let rec eliminateRedundancy (f : fundec) : fundec =
     (* Am I done? This should end up as an array of true's *)
     checkProcessed := Array.make countCheckInstrs false;
 
+    (* stats_total := !stats_total + countCheckInstrs; *)
+
     (* Process each CHECK Call  *)
     for i=0 to (countCheckInstrs - 1) do
       if not (!checkProcessed.(i)) then begin (* Skip the already-processed ones *)
@@ -604,6 +628,16 @@ let rec eliminateRedundancy (f : fundec) : fundec =
 	if amandebug then begin 
 	  pr "";
 	  ignore (printf "Processing %d: %a\n" i d_instr !checkInstrs.(i));
+
+	  (* Some temporary stuff for inspection by a ocamlmktop manufactured toplvl *)
+	  
+          if i = 27 then begin
+            pr "************ MARSHALLING TO op.m *********************\n";
+            let chn = open_out_bin "op.m" in
+            Marshal.to_channel chn !checkInstrs.(i) [Marshal.No_sharing];
+            close_out chn
+          end
+	  
 	end;
 
 	(* Get a list of all the Lvals that are used in the arguments to
@@ -681,9 +715,6 @@ let rec eliminateRedundancy (f : fundec) : fundec =
 	    !nodes;
 	  
 	end (* if markSimilar .. else ... *)
-	else begin
-	   stats_kept := !stats_kept + 1;
-	end;
 	
       end (* if not checkProcessed *)
       else
@@ -770,7 +801,6 @@ and removeRedundancies (cin_start : lattice) instList node_number =
 		  pr "%s %d kept (lattice = %s)\n" (getCallName h2) 
 		    index (getLatValDescription cin_local.latType);
 
-		stats_kept := !stats_kept + 1;
 		(match h2 with
 		  Call (Some (Var var,NoOffset),_,_,loc) ->
 		    if cin_local.latWeight = wtLIVE (* IMPORTANT: re-use the same live-variable *)
@@ -789,7 +819,6 @@ and removeRedundancies (cin_start : lattice) instList node_number =
 
 (* removePeephole:
    Uses peephole optimization to remove CHECKs.
-   Subtracts from the stats_kept count, so it must be called after removeRedundancies
 *)
 and removePeephole instList =
   (List.fold_right 
@@ -797,11 +826,42 @@ and removePeephole instList =
        try 
 	 (peepholeReplace inst) :: acc 
        with PeepholeRemovable ->
-	 stats_kept := !stats_kept - 1;
 	 stats_removed := !stats_removed + 1;
 	 if amandebug then pr "%s removed by peephole \n" (getCallName inst) ;
 	 acc)
      instList [])
+
+and expEqual e1 e2 : bool=
+  e1 == e2 ||
+  match e1,e2 with
+    Const a, Const b -> a = b
+  | SizeOf a, SizeOf b -> a = b
+  | SizeOfE e1, SizeOfE e2 -> expEqual e1 e2
+  | AlignOf a, AlignOf b -> a = b
+  | AlignOfE e1, AlignOfE e2 -> expEqual e1 e2
+  | BinOp (op1,ea1,ea2,t1), BinOp (op2,eb1,eb2,t2) -> 
+      op1=op2 && (expEqual ea1 eb1) && (expEqual ea2 eb2) && t1=t2
+  | UnOp (op1,ea1,t1), UnOp (op2,eb1,t2) -> 
+      op1=op2 && (expEqual ea1 eb1) && t1=t2
+  | Question (ea1,ea2,ea3), Question (eb1,eb2,eb3) ->
+      (expEqual ea1 eb1) && (expEqual ea2 eb2) && (expEqual ea3 eb3)
+  | CastE (t1,e1), CastE (t2,e2) -> t1=t2 && (expEqual e1 e2)
+  | Lval a, Lval b -> lvalEqual a b
+  | Lval a, AddrOf ((bb,bo) as b) ->
+    (match getOutermostOffset bo with 
+      Index (zero,NoOffset) -> expEqual e1 (Lval (stripOffset b))
+    | _ -> false)
+  | AddrOf lv1, AddrOf lv2 -> lvalEqual lv1 lv2
+  | AddrOf lv1, StartOf lv2 -> lvalEqual lv1 lv2  (* ?? *)
+  | StartOf lv1, AddrOf lv2 -> expEqual e2 e1
+  | StartOf lv1, StartOf lv2 -> lvalEqual lv1 lv2 
+  | _,_ -> e1=e2
+
+and lvalEqual lv1 lv2 : bool=
+  lv1 == lv2 ||
+  match lv1, lv2 with
+    (Var v1, NoOffset), (Var v2, NoOffset) -> v1=v2
+  | _,_ -> lv1=lv2
 
 
 (* peepholeReplace:
@@ -813,6 +873,8 @@ and peepholeReplace (chk : instr) : instr =
     Call (_, Lval(Var{vname="CHECK_POSITIVE"},_), [Const (CInt32 (c,_,_))],_) 
     when c >= Int32.zero -> raise PeepholeRemovable
 
+  | Call (_, Lval(Var{vname="CHECK_LBOUND"},_), [a;b],_) 
+    when expEqual a b -> raise PeepholeRemovable
   | Call (_, Lval(Var{vname="CHECK_LBOUND"},_),
 	  [CastE (_,StartOf (a, aoff)); CastE (_, AddrOf(b,Index(zero,boff))) ] ,_) 
     when a=b && aoff=boff -> raise PeepholeRemovable
@@ -1016,22 +1078,7 @@ and getCheckedLvals (check : instr) : lval list =
     | Lval ((Var v, NoOffset) as lv) -> [lv]
     | Lval ((_, Field _) as lv) -> lv :: (getLvalsFromExp (Lval (stripOffset lv)))
     | Lval ((_, Index _) as lv) -> lv :: (getLvalsFromExp (Lval (stripOffset lv)))
-
-  (* Helper function that strips the outermost offset of an lval
-     e.g. a[3].z[3] -> a[3].z -> a[3] -> a -> invalid_arg!
-  *)
-  and stripOffset (lv : lval) : lval=
-    let rec butlastOffset (off : offset) =
-      match off with
-	NoOffset -> invalid_arg "butlastOffset (in stripOffset) should not be called on NoOffset"
-      |	Index (_, NoOffset)
-      |	Field (_, NoOffset) -> NoOffset
-      |	Index (e, off2) -> Index (e, butlastOffset off2)
-      |	Field (f, off2) -> Field (f, butlastOffset off2)
-    in
-    match lv with (mv, off) -> (mv, butlastOffset off)
-  in
-  
+  in  
   match check with
     Call (_,Lval(Var checkName,_),args,_) -> 
       let someargs =
@@ -1106,10 +1153,13 @@ and removeCheck (checkName : string) (i : instr list) : instr list =
 
 
 let getStatistics () : string =
-  let k = !stats_kept in
+  let t = !stats_total in
   let r = !stats_removed in
+  let n = !stats_nc_removed in
   let (//) a b = (float_of_int a) /. (float_of_int b) in
-  Printf.sprintf "CHECK Redundancy- %d kept (%.2f%%), %d removed (%.2f%%), total %d" k (100 * k // (k+r)) r (100 * r // (k+r)) (k+r)
+  Printf.sprintf 
+    "\n  Total CHECKs \t\t %d\n  Null-check-remover \t %d removed\n  Redundancy eliminator  %d removed\n  Summary \t\t %d (%.2f%%) removed, %d (%.2f%%) kept\n"
+    t n r (n+r) (100*(n+r)//t) (t-n-r) (100*(t-n-r) // t)
    
 
 (*  ,,---.     	       |                    |                          	      *)
