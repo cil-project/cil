@@ -133,6 +133,15 @@ TVDIR=$(BASEDIR)/TransVal
 CILDIR=$(BASEDIR)/cil
 _GNUCC=1
 endif
+ifeq ($(COMPUTERNAME), madrone_amanb) # Aman's *top
+BASEDIR=/home/amanb/safec
+SAFECCDIR=$(BASEDIR)
+PCCDIR=$(SAFECCDIR)/cil/test/PCC
+TVDIR=$(BASEDIR)/TransVal
+CILDIR=$(BASEDIR)/cil
+_GNUCC=1
+USE_GC=1
+endif
 
 # sm: I keep getting bit by this
 ifndef COMPUTERNAME
