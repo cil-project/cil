@@ -1526,7 +1526,8 @@ let castTo (fe: fexp) (newt: typ)
 
       | N.String, (N.FSeqN|N.FSeq) ->
           let p', b', bend', acc' = stringToFseq p b bend [] in
-          finishDoe acc', FM(newt, newkind, castP p', b', bend')  
+          finishDoe acc', FM(newt, newkind, castP p', bend', zero) 
+          (* wes: was ( p', b', bend') at the end *)
 
       | N.String, (N.SeqN|N.Seq) ->
           let p', b', bend', acc' = stringToSeq p b bend [] in
