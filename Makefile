@@ -57,6 +57,9 @@ OCAML_CIL_LIB_MODULES = $(MODULES:main=)
 # Additional things to clean
 EXTRACLEAN += $(OBJDIR)/*.obj $(OBJDIR)/*.a $(OBJDIR)/*.o
 
+
+setup: defaulttarget includes
+
     # Include now the common set of rules for OCAML
     # This file will add the rules to make $(EXECUTABLE).$(EXE)
 include Makefile.ocaml
@@ -275,11 +278,17 @@ endif
 ifdef NOREMAKE
 defaulttarget : 
 else
-defaulttarget : $(EXECUTABLE)$(EXE) $(SAFECLIB) $(CILLIB)
+ifdef RELEASE
+defaulttarget_debug : 
+	echo Making first CCured in DEBUG mode
+	make RELEASE=
+else
+defaulttarget_debug :
+endif
+defaulttarget : defaulttarget_debug $(EXECUTABLE)$(EXE) $(SAFECLIB) $(CILLIB)
 endif
 
 
-setup: defaulttarget includes
 
 
 SAFECC=perl $(CCUREDHOME)/lib/safecc.pl
