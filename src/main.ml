@@ -209,19 +209,25 @@ let rec theMain () =
   in
   (*********** COMMAND LINE ARGUMENTS *****************)
   (* Construct the arguments for the features configured from the Makefile *)
+  let blankLine = ("", Arg.Unit (fun _ -> ()), "") in
   let featureArgs = 
     List.fold_right
-      (fun fdesc acc -> 
-        ("", Arg.Unit (fun _ -> ()), "") ::
-        ("--do" ^ fdesc.C.fd_name, 
-         Arg.Unit (fun _ -> fdesc.C.fd_enabled := true), 
-         "enable " ^ fdesc.C.fd_description) ::
-        ("--dont" ^ fdesc.C.fd_name, 
-         Arg.Unit (fun _ -> fdesc.C.fd_enabled := false), 
-         "disable " ^ fdesc.C.fd_description) ::
-        fdesc.C.fd_extraopt @ acc)
+      (fun fdesc acc ->
+	if !(fdesc.C.fd_enabled) then
+          (* The feature is enabled by default *)
+          blankLine ::
+          ("--dont" ^ fdesc.C.fd_name, Arg.Clear(fdesc.C.fd_enabled), 
+           " Disable " ^ fdesc.C.fd_description) ::
+          fdesc.C.fd_extraopt @ acc
+	else
+          (* Disabled by default *)
+          blankLine ::
+          ("--do" ^ fdesc.C.fd_name, Arg.Set(fdesc.C.fd_enabled), 
+           " Enable " ^ fdesc.C.fd_description) ::
+          fdesc.C.fd_extraopt @ acc
+      )
       features
-      []
+      [blankLine]
   in
   let featureArgs = 
     ("", Arg.Unit (fun () -> ()), "\n\t\tCIL Features") :: featureArgs 
