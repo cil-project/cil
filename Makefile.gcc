@@ -51,7 +51,7 @@ PATCH_SYSINCLUDES := ctype.h fcntl.h grp.h malloc.h netdb.h pwd.h signal.h \
                      stdarg.h stdio.h stdlib.h string.h \
                      time.h unistd.h varargs.h arpa/inet.h \
 		     sys/fcntl.h sys/ioctl.h sys/socket.h sys/stat.h sys/uio.h \
-                     sys/types.h sys/cdefs.h glob.h nl_types.h
+                     sys/types.h sys/cdefs.h glob.h
 
 # dsw & sm: DON'T DO THIS.  See comment in ccured_GNUCC.patch, search for 'sys/io.h'.
 # PATCH_SYSINCLUDES += sys/io.h
@@ -59,6 +59,11 @@ PATCH_SYSINCLUDES := ctype.h fcntl.h grp.h malloc.h netdb.h pwd.h signal.h \
 # matth: this file is only in Cygwin
 ifeq ($(ARCHOS), x86_WIN32)
 PATCH_SYSINCLUDES += sys/reent.h
+endif
+
+# matth: this file is not in Cygwin
+ifneq ($(ARCHOS), x86_WIN32)
+PATCH_SYSINCLUDES +=  nl_types.h
 endif
 
 
