@@ -806,7 +806,7 @@ sub compileOutputFile {
         fileparse($src, 
                   "(\\.c)|(\\.cc)|(\\.cpp)|(\\.i)|(\\.[s|S])");
     if(! defined($ext) || $ext eq "") { # Not a C source
-        die "objectOutputFile: not a C source file. Extension: $ext\n";
+        die "objectOutputFile: not a C source file: $src\n";
     }
     return "$base.o"; # In the current directory
 }
