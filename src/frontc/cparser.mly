@@ -204,7 +204,7 @@ end
 %type <Cabs.definition> global
 
 
-%type <Cabs.attribute list> attributes attributes_with_asm
+%type <Cabs.attribute list> attributes attributes_with_asm asmattr
 %type <Cabs.statement> statement
 %type <Cabs.constant> constant
 %type <Cabs.expression> expression opt_expression
@@ -584,10 +584,10 @@ statement:
 		                 {GOTO ($3, $1)}
 |   location GOTO STAR comma_expression SEMICOLON 
                                  { COMPGOTO (smooth_expression $4, $1) }
-|   location ASM maybevol LPAREN asmtemplate asmoutputs RPAREN SEMICOLON
+|   location ASM asmattr LPAREN asmtemplate asmoutputs RPAREN SEMICOLON
                         { let (outs,ins,clobs) = $6 in
-                          ASM ($5, $3, outs, ins, clobs, $1) }
-|   location MSASM               { ASM ([$2], false, [], [], [], $1)}
+                          ASM ($3, $5, outs, ins, clobs, $1) }
+|   location MSASM               { ASM ([], [$2], [], [], [], $1)}
 |   location error   SEMICOLON   { (NOP $1)}
 ;
 
@@ -983,9 +983,10 @@ paren_attr_list_ne:
 |  LPAREN error RPAREN                   { [] }
 ;
 /*** GCC ASM instructions ***/
-maybevol:
-     /* empty */                        { false }
-|    VOLATILE                           { true }
+asmattr:
+     /* empty */                        { [] }
+|    VOLATILE  asmattr                  { ("volatile", []) :: $2 }
+|    CONST asmattr                      { ("const", []) :: $2 } 
 ;
 asmtemplate: 
     CST_STRING                          { [$1] }

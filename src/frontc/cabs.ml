@@ -165,10 +165,14 @@ and statement =
  | LABEL of string * statement * cabsloc
  | GOTO of string * cabsloc
  | COMPGOTO of expression * cabsloc (* GCC's "goto *exp" *)
- (* template, whether volatile, list of constraints and expressions for 
-  * outputs and for inputs. The final list contains the clobbered registers  *)
- | ASM of string list * bool * (string * expression) list 
-       * (string * expression) list * string list * cabsloc
+
+ | ASM of attribute list * (* typically only volatile and const *)
+         string list * (* template *)
+       (string * expression) list * (* list of constraints and expressions for 
+                                   * outputs *)
+       (string * expression) list * (* same for inputs *)
+       string list * (* clobbered registers *)
+       cabsloc
        
 and for_clause = 
    FC_EXP of expression

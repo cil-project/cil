@@ -135,6 +135,7 @@ $TEST->add2Tests("testrun/asm1", "_GNUCC=1");
                          "Unimplemented inline assmebly");
 $TEST->addTests("test/asm2", "_GNUCC=1", ['cil']);
 $TEST->addTests("test/asm3", "_GNUCC=1", ['cil']);
+$TEST->addTests("test/asm4", "_GNUCC=1", ['cil']);
 
 $TEST->add3Tests("testrun/offsetof");
 $TEST->addTests("testrun/question", "", ['cil']);

@@ -715,7 +715,7 @@ and print_statement stat =
   | COMPGOTO (exp, loc) -> 
       setLoc(loc);
       print ("goto *"); print_expression exp 1; print ";"; new_line ()
-  | ASM (tlist, isvol, outs, ins, clobs, loc) ->
+  | ASM (attrs, tlist, outs, ins, clobs, loc) ->
       setLoc(loc);
       let print_asm_operand (cnstr, e) =
         print_string cnstr; space (); print_expression e 100
@@ -725,7 +725,8 @@ and print_statement stat =
         print_list (fun () -> new_line()) print tlist; (* templates *)
         print "};"
       end else begin
-        print "__asm__ "; if isvol then print "__volatile__ ";
+        print "__asm__ "; 
+        print_attributes attrs;
         print "(";
         print_list (fun () -> new_line()) print_string tlist; (* templates *)
         if outs <> [] || ins <> [] || clobs <> [] then begin

@@ -408,8 +408,9 @@ and instr =
                           * are used *)
                          (* sm: I've added a notes.txt file which contains more
                           * information on interpreting Asm instructions *)
-  | Asm        of string list *         (* templates (CR-separated) *)
-                  bool *                (* if it is volatile *)
+  | Asm        of attribute list * (* Really only const and volatile can appear 
+                               * here *)
+                  string list *         (* templates (CR-separated) *)
                   (string * lval) list * (* outputs must be lvals with 
                                           * constraints. I would like these 
                                           * to be actually variables, but I 
@@ -783,7 +784,7 @@ let mkBlock (slst: stmt list) : block =
 let mkEmptyStmt () = mkStmt (Instr [])
 let mkStmtOneInstr (i: instr) = mkStmt (Instr [i])
 
-let dummyInstr = (Asm(["dummy statement!!"], false, [], [], [], lu))
+let dummyInstr = (Asm([], ["dummy statement!!"], [], [], [], lu))
 let dummyStmt =  mkStmt (Instr [dummyInstr])
 
 let compactStmts (b: stmt list) : stmt list =  
@@ -1838,7 +1839,7 @@ and d_instr () i =
                           ++ unalign)
         ++ text ");"
 
-  | Asm(tmpls, isvol, outs, ins, clobs, l) ->
+  | Asm(attrs, tmpls, outs, ins, clobs, l) ->
       if !msvcMode then
         d_line l
           ++ text "__asm {"
@@ -1848,8 +1849,9 @@ and d_instr () i =
           ++ text "};"
       else
         d_line l
-          ++ text ("__asm__ " ^
-                   (if isvol then "__volatile__(" else "("))
+          ++ text ("__asm__ ") 
+          ++ d_attrlist () attrs 
+          ++ text " ("
           ++ (align
                 ++ (docList line
                       (fun x -> text ("\"" ^ escape_string x ^ "\""))
@@ -3035,7 +3037,7 @@ let dExp: doc -> exp =
   fun d -> Const(CStr(sprint 80 d))
 
 let dInstr: doc -> location -> instr = 
-  fun d l -> Asm([sprint 80 d], false, [], [], [], l)
+  fun d l -> Asm([], [sprint 80 d], [], [], [], l)
 
 let dGlobal: doc -> location -> global = 
   fun d l -> GAsm(sprint 80 d, l)

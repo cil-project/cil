@@ -425,8 +425,9 @@ and instr =
                           * are used *)
                          (* sm: I've added a notes.txt file which contains more
                           * information on interpreting Asm instructions *)
-  | Asm        of string list *         (* templates (CR-separated) *)
-                  bool *                (* if it is volatile *)
+  | Asm        of attribute list * (* Really only const and volatile can appear 
+                               * here *)
+                  string list *         (* templates (CR-separated) *)
                   (string * lval) list * (* outputs must be lvals with 
                                           * constraints. I would like these 
                                           * to be actually variables, but I 
@@ -435,8 +436,9 @@ and instr =
                   (string * exp) list * (* inputs with constraints *)
                   string list *         (* register clobbers *)
                   location
-        (** An inline assembly instruction. The arguments are (1) templates 
-            (CR-separated), (2) whether it is volatile, (3) a list of 
+        (** An inline assembly instruction. The arguments are (1) a list of 
+            attributes (only const and volatile can appear here and only for 
+            GCC), (2) templates (CR-separated), (3) a list of 
             outputs, each of which is an lvalue with a constraint, (4) a list 
             of input expressions along with constraints, (5) clobbered 
             registers, and (5) location information *)

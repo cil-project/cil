@@ -932,6 +932,11 @@ let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) =
   | TInt _, TEnum _ -> (nt, e)
   | TEnum _, TEnum _ -> (nt, e)
 
+  | TEnum _, TPtr _ -> (nt, doCastT e ot nt)
+  | TPtr _, TEnum _ -> 
+      ignore (warn "Casting a pointer into an enumeration type");
+      (nt, doCastT e ot nt)
+
     (* The expression is evaluated for its side-effects *)
   | (TInt _ | TEnum _ | TPtr _ ), TVoid _ -> (ot, e)
 
@@ -3939,9 +3944,10 @@ and doStatement (s : A.statement) : chunk =
         end
     end
 
-    | A.ASM (tmpls, isvol, outs, ins, clobs, loc) -> 
+    | A.ASM (asmattr, tmpls, outs, ins, clobs, loc) -> 
         (* Make sure all the outs are variables *)
         let loc' = convLoc loc in
+        let attr' = doAttributes asmattr in
         currentLoc := loc';
         let temps : (lval * varinfo) list ref = ref [] in
         let stmts : chunk ref = ref empty in
@@ -3966,7 +3972,7 @@ and doStatement (s : A.statement) : chunk =
             ins              
         in
         !stmts @@
-        (i2c (Asm(tmpls, isvol, outs', ins', clobs, loc')))
+        (i2c (Asm(attr', tmpls, outs', ins', clobs, loc')))
   with e -> begin
     (ignore (E.log "Error in doStatement (%s)\n" (Printexc.to_string e)));
     consLabel "booo_statement" empty (convLoc (A.get_statementloc s))

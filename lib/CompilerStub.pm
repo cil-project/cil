@@ -895,6 +895,7 @@ sub new {
             "-g" => { RUN => sub { push @{$stub->{CCARGS}}, $_[1];
                                    push @{$stub->{LINKARGS}}, $_[1]; }},
             "-l" => { TYPE => 'LINK' },
+            "-L" => { TYPE => 'LINK' },
             "-f" => { TYPE => 'LINKCC' },
             "-r" => { TYPE => 'LINK' },
             "-m" => { TYPE => 'LINKCC' },

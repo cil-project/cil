@@ -1716,36 +1716,16 @@ sendmailclean:
 	      	\) -exec rm -f {} \;
 
 sendmail: mustbegcc mustbelinux mustbemanju sendmailclean
-	cd $(SENDMAILSRC) ; make -k CC="$(CILLY)"
+	cd $(SENDMAILSRC) ; make CC="$(CILLY)"
 
 sendmail-noclean: mustbegcc mustbelinux mustbemanju
-	cd $(SENDMAILSRC) ; make -k CC="$(CILLY)"
+	cd $(SENDMAILSRC) ; make CC="$(CILLY)"
 
 sendmail-gcc: mustbelinux mustbemanju linuxclean
-	cd $(SENDMAILSRC) ; make -k CC=gcc
+	cd $(SENDMAILSRC) ; make CC=gcc
 
 #### GIMP AND FRIENDS
-JPEGSRC :=/usr/local/src/jpeg-6b
-
-jpegclean:
-	cd $(JPEGSRC); make clean
-	-cd $(JPEGSRC); find . \( \
-		-name '*cil.c' -o \
-		-name '*.exe' -o \
-		-name '*.i' -o \
-		-name '*.o' -o \
-		-name '*.obj' -o \
-		-name '*cabs.c' -o \
-		-name '*_comb*.c' \
-	      	\) -exec rm -f {} \;
-
-jpeg: mustbegcc mustbemanju mustbelinux jpegclean
-	cd $(JPEGSRC); make -k CC="$(CILLY)" 
-
-
-
 ZLIBSRC := /usr/local/src/zlib-1.1.3
-
 zlibclean:
 	cd $(ZLIBSRC); make clean
 	-cd $(ZLIBSRC); find . \( \
@@ -1759,5 +1739,124 @@ zlibclean:
 	      	\) -exec rm -f {} \;
 
 zlib: mustbegcc mustbemanju mustbelinux zlibclean
-	cd $(ZLIBSRC); make -k CC="$(CILLY)" test
+	cd $(ZLIBSRC); make CC="$(CILLY)" test
+
+
+TIFFSRC := /usr/local/src/tiff-v3.5.5
+tiffclean:
+	cd $(TIFFSRC); make clean
+	-cd $(TIFFSRC); find . \( \
+		-name '*cil.c' -o \
+		-name '*.exe' -o \
+		-name '*.i' -o \
+		-name '*.o' -o \
+		-name '*.obj' -o \
+		-name '*cabs.c' -o \
+		-name '*_comb*.c' \
+	      	\) -exec rm -f {} \;
+
+# To install tiff make sure you get and install v3.4pics.tar.gz
+# This will create a pics subdirectory 
+# Then run test_pics.sh -f pics/*.tif
+# This will create the .rpt files to be used later in comparisons
+tiff:  mustbegcc mustbemanju mustbelinux tiffclean
+	cd $(TIFFSRC); make CC="$(CILLY)"; make test
+
+
+tiff-gcc:  mustbegcc mustbemanju mustbelinux tiffclean
+	cd $(TIFFSRC); make CC="gcc"; make test 
+
+
+
+JPEGSRC :=/usr/local/src/jpeg-6b
+jpegclean:
+	cd $(JPEGSRC); make clean
+	-cd $(JPEGSRC); find . \( \
+		-name '*cil.c' -o \
+		-name '*.exe' -o \
+		-name '*.i' -o \
+		-name '*.o' -o \
+		-name '*.obj' -o \
+		-name '*cabs.c' -o \
+		-name '*_comb*.c' \
+	      	\) -exec rm -f {} \;
+
+jpeg: mustbegcc mustbemanju mustbelinux jpegclean
+	cd $(JPEGSRC); make CC="$(CILLY)"; make test
+
+jpeg-gcc: mustbegcc mustbemanju mustbelinux jpegclean
+	cd $(JPEGSRC); make CC=gcc; make test
+
+
+# Make zlib first
+# Create link ../zlib -> ../zlib-0.0.0
+# Create link ../libpng -> ../libpng-0.0.0
+# Create link ./scripts/makefile.std ./Makefile
+# We do not use the makefile for linux because we do
+# not want to use DLLs
+LIBPNGSRC :=/usr/local/src/libpng-1.0.8
+libpngclean:
+	cd $(LIBPNGSRC); make clean
+	-cd $(LIBPNGSRC); find . \( \
+		-name '*cil.c' -o \
+		-name '*.exe' -o \
+		-name '*.i' -o \
+		-name '*.o' -o \
+		-name '*.obj' -o \
+		-name '*cabs.c' -o \
+		-name '*_comb*.c' \
+	      	\) -exec rm -f {} \;
+
+libpng: mustbegcc mustbemanju mustbelinux libpngclean
+	cd $(LIBPNGSRC); make CC="$(CILLY)"; make test
+
+libpng-gcc: mustbegcc mustbemanju mustbelinux libpngclean
+	cd $(LIBPNGSRC); make CC=gcc; make test
+
+
+
+# MPEG
+MPEGSRC :=/usr/local/src/mpeg_lib-1.3.1
+mpegclean:
+	cd $(MPEGSRC); make clean
+	-cd $(MPEGSRC); find . \( \
+		-name '*cil.c' -o \
+		-name '*.exe' -o \
+		-name '*.i' -o \
+		-name '*.o' -o \
+		-name '*.obj' -o \
+		-name '*cabs.c' -o \
+		-name '*_comb*.c' \
+	      	\) -exec rm -f {} \;
+
+mpeg: mustbegcc mustbemanju mustbelinux mpegclean
+	cd $(MPEGSRC); make CC="$(CILLY)"; ./mpegtest test.mpg
+
+mpeg-gcc: mustbegcc mustbemanju mustbelinux mpegclean
+	cd $(MPEGSRC); make CC=gcc;  ./mpegtest test.mpg
+
+
+
+
+# GLIB
+GLIBSRC :=/usr/local/src/glib-1.2.9
+glibclean:
+	cd $(GLIBSRC); make clean
+	-cd $(GLIBSRC); find . \( \
+		-name '*cil.c' -o \
+		-name '*.exe' -o \
+		-name '*.i' -o \
+		-name '*.o' -o \
+		-name '*.obj' -o \
+		-name '*cabs.c' -o \
+		-name '*_comb*.c' \
+	      	\) -exec rm -f {} \;
+
+glib: mustbegcc mustbemanju mustbelinux glibclean
+	cd $(GLIBSRC); make -k CC="$(CILLY)"; 
+
+glib-gcc: mustbegcc mustbemanju mustbelinux glibclean
+	cd $(GLIBSRC); make CC=gcc; 
+
+
 
