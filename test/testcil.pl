@@ -314,6 +314,7 @@ $TEST->addTests("test-bad1/polystruct", "", ['inferbox']);
 $TEST->addTests("test-bad/fseq1fail", "", ['inferbox']);
 $TEST->addTests("test-bad/seqalign", "", ['inferbox']);
 $TEST->addTests("test-bad/globinit", "", ['inferbox']);
+$TEST->addTests("test-bad/index1", "", ['inferbox']);
 $TEST->add3Tests("testrun/label1");
 $TEST->add3Tests("testrun/label2");
 $TEST->add3Tests("testrun/label3");
