@@ -673,6 +673,8 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
       match g with 
         GFun (fdec, l) -> 
           currentFundec <- fdec;
+          if debugRename then 
+            ignore (E.log "Renaming for function %s\n" fdec.svar.vname);
 
           (* Make sure we use one return at most *)
           Oneret.oneret fdec;
@@ -774,6 +776,14 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
             | _ -> (* No definitions *)
                 ()
             );
+            
+            if debugRename then 
+              ignore (E.log "At end of block %d:\n   @[%a@]\n"
+                        i
+                        (docList ~sep:line
+                           (fun (v, id) -> 
+                             dprintf "%s: %d" v.vname id))
+                        (vhToList varRenameState));
             
             blockEndData.(i) <- VH.copy varRenameState;
           ) 
