@@ -221,6 +221,7 @@ $TEST->add3Tests("test/enum");
 $TEST->add3Tests("testrun/enum2");
 $TEST->add3Tests("test/format1");
 $TEST->add3Tests("test/func");
+$TEST->addTests("test/funcarg", "", ['cil']);
 $TEST->add3Tests("testrun/func2");
 $TEST->add3Tests("testrun/func3");
 $TEST->add3Tests("testrun/func4");

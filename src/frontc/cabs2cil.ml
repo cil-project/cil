@@ -2270,7 +2270,7 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
         exitScope ();
         (* Turn [] types into pointers in the arguments and the result type. 
          * Turn function types into pointers to respective. This simplifies 
-         * our life a lot *)
+         * our life a lot, and is what the standard requires. *)
         let rec fixupArgumentTypes (argidx: int) (args: varinfo list) : unit = 
           match args with
             [] -> ()

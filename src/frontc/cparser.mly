@@ -897,7 +897,8 @@ abs_direct_decl: /* (* ISO 6.7.6. We do not support optional declarator for
 |   abs_direct_decl_opt bracket_comma_expression
                                    { ARRAY($1, smooth_expression $2) }
 |   abs_direct_decl_opt LBRACKET RBRACKET  { ARRAY($1, NOTHING) }
-|   abs_direct_decl parameter_list_startscope rest_par_list RPAREN
+/*(* The next shoudl be abs_direct_decl_opt but we get conflicts *)*/
+|   abs_direct_decl  parameter_list_startscope rest_par_list RPAREN
                                    { let (params, isva) = $3 in
                                      Clexer.pop_context ();
                                      PROTO ($1, params, isva)
