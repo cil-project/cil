@@ -417,7 +417,7 @@ init_expression:
 			{VARIABLE $1}
 |   SIZEOF expression
 			{EXPR_SIZEOF $2}
-|   SIZEOF LPAREN type_name RPAREN               /* !!! */
+|   SIZEOF LPAREN type_name RPAREN              
 			{TYPE_SIZEOF $3}
 |   PLUS init_expression
 			{UNARY (PLUS, $2)}
@@ -449,7 +449,7 @@ init_expression:
 			{MEMBEROF ($1, $3)}
 |   LPAREN init_comma_expression RPAREN
 			{(smooth_expression $2)}
-|   LPAREN type_name RPAREN init_expression %prec CAST   /* !!! */
+|   LPAREN type_name RPAREN init_expression %prec CAST  
 			{CAST ($2, $4)}
 |   init_expression LPAREN opt_expression RPAREN
 			{CALL ($1, list_expression $3)}
@@ -545,7 +545,7 @@ expression:
 			{VARIABLE $1}
 |		SIZEOF expression
 			{EXPR_SIZEOF $2}
-|	 	SIZEOF LPAREN type_name RPAREN   /* !!! */
+|	 	SIZEOF LPAREN type_name RPAREN  
 			{TYPE_SIZEOF $3}
 |		PLUS expression
 			{UNARY (PLUS, $2)}
@@ -579,7 +579,7 @@ expression:
 			{GNU_BODY $2}
 |		LPAREN comma_expression RPAREN
 			{(smooth_expression $2)}
-|		LPAREN type_name RPAREN expression %prec CAST   /* !!!! */
+|		LPAREN type_name RPAREN expression %prec CAST 
 			{CAST ($2, $4)}
 |		expression LPAREN opt_expression RPAREN
 			{CALL ($1, list_expression $3)}
