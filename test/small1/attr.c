@@ -1,3 +1,6 @@
+struct tm {
+  int x;
+};
 
 /* Various ways to place attributes */
 char * __cdecl asctime1(const struct tm *);

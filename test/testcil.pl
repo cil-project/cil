@@ -56,6 +56,12 @@ my %commonerrors =
     "^print.+\\s+([\\.\\d]+) s" => sub { $_[1]->{print} += $_[2];},
     "^box\\s+([\\.\\d]+) s" => sub { $_[1]->{box} += $_[2];},
     "^\\s+simple solver\\s+([\\.\\d]+) s" => sub { $_[1]->{solve} += $_[2];},
+         # Now error messages
+    "^(Bug: .+)\$" => sub { $_[1]->{ErrorMsg} = $_[2]; },
+    "^(Unimplemented: .+)\$" => sub { $_[1]->{ErrorMsg} = $_[2]; },
+    "^(.+ : error .+)\$" => sub { $_[1]->{ErrorMsg} = $_[2]; },
+    "^(.+:\\d+: .+)\$" => sub { $_[1]->{ErrorMsg} = $_[2]; },
+    "^(.+: fatal error.+)\$" => sub { $_[1]->{ErrorMsg} = $_[2]; },
 
          );
 
