@@ -1,0 +1,226 @@
+#*
+#* Description:
+#*
+#* Copyright (c) 2000 by
+#*  George C. Necula	necula@cs.berkeley.edu
+#*   
+#* All rights reserved.  Permission to use, copy, modify and distribute
+#* this software for research purposes only is hereby granted, 
+#* provided that the following conditions are met: 
+#* 1.  Redistributions of source code must retain the above copyright notice, 
+#* this list of conditions and the following disclaimer. 
+#* 2. Redistributions in binary form must reproduce the above copyright notice, 
+#* this list of conditions and the following disclaimer in the documentation 
+#* and/or other materials provided with the distribution. 
+#* 3. The name of the authors may not be used to endorse or promote products derived from 
+#* this software without specific prior written permission. 
+#*
+#* DISCLAIMER:
+#* THIS SOFTWARE IS PROVIDED BY THE AUTHORS ``AS IS'' AND ANY EXPRESS OR IMPLIED 
+#* WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF 
+#* MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+#* IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY DIRECT, INDIRECT, 
+#* INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, 
+#* BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS 
+#* OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY 
+#* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+#* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF 
+#* THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#*
+#*
+  
+  # Generic Makefile for Ocaml projects
+  # Written by necula@cs.berkeley.edu
+  # 
+  # Set the following before including this file
+  # 
+  # ARCHOS     - the architecture x86_WIN32, x86_LINUX
+  # RELEASE    - if set then will use the native compiler
+  # CAMLUSEUNIX- if set then will link the unix library
+  # UNSAFE     - if set then will turn off safety checks (only with RELEASE)
+
+  # SOURCEDIRS - the source directories
+  # OBJDIR     - the directory where to put all object files
+  # MLLS       - the base names of .mll files (no directory)
+  # MLYS       - the base names of .mly files (no directory)
+  # MODULES    - the base names of the modules in the order in which they
+  #              must be linked
+  # EXECUTABLE - the name of the executable to create
+  #
+CAMLLEX = ocamllex
+CAMLYACC= ocamlyacc
+CAMLDEP = ocamldep
+
+CAMLFLAGS    =-I $(OBJDIR)
+
+ECHO = @
+
+ifdef RELEASE
+ CAMLC          = ocamlopt
+ CAMLLINK       = ocamlopt
+ CMO            = cmx
+ CMXA           = cmxa
+ EXEEXT         = .asm
+ MOVEAFTERCAMLC = cmi cmx $(OBJ)
+else
+ CAMLC          = ocamlc -g
+ CAMLLINK       = ocamlc -custom -g
+ CMO            = cmo
+ CMXA           = cma
+ EXEEXT         = .byte
+ MOVEAFTERCAMLC = cmi cmo
+endif
+
+ifdef UNSAFE 
+ CAMLC          := $(CAMLC) -unsafe -noassert
+endif
+
+
+      # Now some architecture dependent stuff
+ifndef ARCHOS
+  export ARCHOS = x86_LINUX
+endif
+ifeq ($(ARCHOS), x86_WIN32)
+  EXE		= $(EXEEXT).exe
+  OBJ   	= obj
+  ifdef CAMLUSEUNIX
+    UNIXLIBS	+= unix.$(CMXA) %CAMLLIB%/libunix.lib wsock32.lib
+  endif
+endif
+ifeq ($(ARCHOS), x86_LINUX)
+  EXE           = $(EXEEXT)
+  OBJ           = o
+  ifdef CAMLUSEUNIX
+    UNIXLIBS	+= unix.$(CMXA) -cclib -lunix
+  endif
+endif
+ifeq ($(ARCHOS), SUNOS)
+  EXE           = $(EXEEXT)
+  OBJ           = o
+  ifdef CAMLUSEUNIX
+    UNIXLIBS	+= unix.$(CMXA) -cclib -lunix
+  endif
+endif
+ifndef EXE
+I don''t know what to do with ARCHOS = $(ARCHOS)
+endif
+
+
+export EXE
+
+
+#  Libs to use - include the Num libs
+CAMLLIBS += nums.$(CMXA) $(PARSELIBS) $(UNIXLIBS) -cclib -lnums
+
+    # Allow searching for .ml and .mli
+vpath %.mll $(SOURCEDIRS)
+vpath %.mly $(SOURCEDIRS)
+vpath %.ml  $(SOURCEDIRS) $(OBJDIR)
+vpath %.mli $(SOURCEDIRS) $(OBJDIR)
+
+DEPENDDIR  = $(OBJDIR)/.depend
+
+#  Secondaries are intermediates that we don't want make to delete
+#  By giving the right names to secondary files we tell make where to make
+#  them if they are not already made. VERY USEFUL!!
+.SECONDARY : $(MLLS:%.mll=$(OBJDIR)/%.ml) $(MLYS:%.mly=$(OBJDIR)/%.ml) \
+             $(MLYS:%.mly=$(OBJDIR)/%.mli)
+
+             # Run the lexer generator
+             # Move the result to the OBJDIR directory
+$(OBJDIR)/%.ml: %.mll
+	$(CAMLLEX) $<
+	$(ECHO)mv -f $(basename $<).ml $(OBJDIR)
+
+             # Run the parser generator
+             # Move the result to the $(OBJDIR) directory.
+$(OBJDIR)/%.ml $(OBJDIR)/%.mli: %.mly
+	$(CAMLYACC) $(CAMLYACCFLAGS) $<
+	$(ECHO)mv -f $(basename $<).ml $(basename $<).mli $(OBJDIR)
+
+         # Compile an MLI file
+$(OBJDIR)/%.cmi: %.mli
+	@echo Compiling interface $<
+	$(ECHO)$(CAMLC) $(CAMLFLAGS) -c $<
+	$(ECHO)if test $(OBJDIR) != $(<D) ;then \
+                   mv -f $(basename $<).cmi $(OBJDIR) \
+        ;fi
+
+         # Compile an ML file
+$(OBJDIR)/%.$(CMO): %.ml
+	@echo Compiling $< 
+	$(ECHO)if test $(OBJDIR) != $(<D) ;then \
+                 if test -f $(OBJDIR)/$(*F).cmi ;then \
+                      mv -f $(OBJDIR)/$(*F).cmi $(<D) \
+                 ;fi \
+        ;fi
+	$(ECHO)if $(CAMLC) $(CAMLFLAGS) -c $< ;then \
+	   if test $(OBJDIR) != $(<D) ;then \
+              if test -f $(basename $<).cmi ;then \
+                mv -f $(foreach ext,$(MOVEAFTERCAMLC), $(basename $<).$(ext)) \
+                      $(OBJDIR) \
+              ;fi \
+           ;fi ; exit 0 \
+        ;else \
+	   if test $(OBJDIR) != $(<D) ;then \
+                mv -f $(foreach ext,$(MOVEAFTERCAMLC), $(basename $<).$(ext)) \
+                      $(OBJDIR) \
+           ;fi ; exit 1 \
+        ;fi
+
+             # Compile C files
+$(OBJDIR)/%.$(OBJ): %.c
+	@echo Compiling C file $<
+	$(ECHO)$(CAMLC) $(CAMLFLAGS) -c $<
+	$(ECHO)mv -f $(basename $<).$(OBJ) $(OBJDIR)
+
+             # Linking
+$(EXECUTABLE)$(EXE) : $(MODULES:%=$(OBJDIR)/%.$(CMO)) 
+	@echo Linking $@
+	$(ECHO)$(CAMLLINK) -o $@ $(CAMLLIBS) $^
+
+
+#	Phonies should be "remade" even if someone mistakenly creates them
+.PHONY: clean realclean
+clean:
+	-rm -f $(foreach ext, cmi cmo cmx cmxa exe, $(OBJDIR)/*.$(ext))
+	-rm -f $(OBJDIR)/*.$(OBJ)
+	-rm -f $(EXECUTABLE)$(EXE)
+	-rm -f camlprim0.obj        
+
+realclean: clean
+	-rm -f $(DEPENDDIR)/*.d $(DEPENDDIR)/*.di
+	-rm -f $(MLLS:%.mll=$(OBJDIR)/%.ml) $(MLYS:%.mly=$(OBJDIR)/%.ml) \
+               $(MLYS:%.mly=$(OBJDIR)/%.mli)
+
+# Automatic dependency generation (see GNU info for details)
+#
+# Each .ml file has a .d (dependency file) which is automatically
+# generated and included by the rules below.  The perl script replaces
+# directory paths with $(OBJDIR)/
+#
+# Dependencies for .mli files reside in corresponding .di files.
+#
+
+FIXDEPEND:=perl -e \
+	'while(<>) { \
+	     s%[^/\\ :]+[/\\]% %g; \
+	     s%([^ :\\\n]+)%\$$(OBJDIR)/$$1%g; \
+	     print $$_;}'
+
+DEPINCLUDES= -I $(OBJDIR) $(SOURCEDIRS:%=-I %)
+$(DEPENDDIR)/%.d: %.ml
+	@echo Generating dependency information for $<
+	@$(CAMLDEP) $(DEPINCLUDES) $< | \
+	$(FIXDEPEND) > $@
+
+$(DEPENDDIR)/%.di: %.mli
+	@echo Generating dependency information for $<
+	@$(CAMLDEP) $(DEPINCLUDES) $< | \
+	$(FIXDEPEND) > $@
+
+-include $(MODULES:%=$(DEPENDDIR)/%.d)
+-include $(MODULES:%=$(DEPENDDIR)/%.di)
+
+
+

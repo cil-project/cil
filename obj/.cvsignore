@@ -1,0 +1,10 @@
+*.obj
+*.exe
+*.cmi
+*.cmo
+*.cmx
+*.cma
+safecc
+clexer.ml
+cparser.ml
+cparser.mli
