@@ -10,10 +10,8 @@ struct nlm_rqst {
 
 int main() {
 
-  //  struct nlm_rqst s;
-  //  if(sizeof(s) != sizeof(struct nlm_rqst)) E(1);
+  struct nlm_rqst s;
+  if(sizeof(s) != sizeof(struct nlm_rqst)) E(1);
 
-  return system_utsname;
-  
   SUCCESS;
 }

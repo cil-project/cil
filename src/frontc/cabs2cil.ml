@@ -69,23 +69,64 @@ let convLoc (l : cabsloc) =
 
 
 (*** EXPRESSIONS *************)
-let pullTypesForward = false (* If true then all type declarations are pulled 
-                             * to the beginning of the file, followed by the 
-                             * variable declarations *)
-                             (* gn: turned this off because sometimes a type 
-                                declaration refers to sizeof variables in array                                lengths *)
+
+(* We want to bring all type declarations before the data declarations. This 
+ * is needed for code of the following form: 
+
+   int f(); // Prototype without arguments
+   typedef int FOO;
+   int f(FOO x) { ... }
+
+   In CIL the prototype also lists the type of the argument as being FOO, 
+   which is undefined. 
+
+   There is one catch with this scheme. If the type contains an array whose 
+   length refers to variables then those variables must be declared before 
+   the type *)
+
+let pullTypesForward = true
                                         (* We collect here the program *)
 let theFile : global list ref = ref []
 let theFileTypes : global list ref = ref []
 
 let initGlobals () = theFile := []; theFileTypes := []
+
+    (* Scan a type and collect the variables that are refered *)
+class getVarsInGlobalClass (pacc: varinfo list ref) = object
+  inherit nopCilVisitor
+  method vvrbl (vi: varinfo) = 
+    pacc := vi :: !pacc;
+    SkipChildren
+
+  method vglob = function
+      GType _ | GCompTag _ -> DoChildren
+    | _ -> SkipChildren
+      
+end
+
+let getVarsInGlobal (g : global) : varinfo list = 
+  let pacc : varinfo list ref = ref [] in
+  let v : cilVisitor = new getVarsInGlobalClass pacc in
+  ignore (visitCilGlobal v g);
+  !pacc
+
 let pushGlobal (g: global) = 
   if not pullTypesForward then theFile := g :: !theFile else
-  match g with 
-    GType _ | GCompTag _ | GEnumTag _ 
-  | GPragma (Attr("pack", _), _) -> theFileTypes := g :: !theFileTypes
-  | _ -> theFile := g :: !theFile
-    
+  begin
+    (* Collect a list of variables that are refered from the type *)
+    let varsintype : (varinfo list * location) option = 
+      match g with 
+        GType (_, _, l) | GCompTag (_, l) -> Some (getVarsInGlobal g, l)
+      | GEnumTag (_, l) | GPragma (Attr("pack", _), l) -> Some ([], l)
+      | _ -> None (* Does not go with the types *)
+    in
+    match varsintype with 
+      None -> theFile := g :: !theFile
+    | Some (vl, loc) -> 
+        theFileTypes := 
+           g :: (List.fold_left (fun acc v -> GDecl(v, loc) :: acc) 
+                                !theFileTypes vl) 
+  end
     
 (* Keep track of some variable ids that must be turned into definitions. We 
  * do this when we encounter what appears a definition of a global but 
@@ -4088,47 +4129,48 @@ let convFile fname dl =
         globals := GType("", TComp(ci, []), locUnknown) :: !globals
       end) compInfoNameEnv;
 
-  (* Now go through the file and find all function prototypes. Then look 
-     inside their argument list and collect all composite types. If those types
-     appear for the first time we must add a forward declaration to them. This 
-     can happen when we have a prototype without arguments, followed by the 
-     declaration of a composite type, followed by the defintion of the 
-     function. Since the prototype will now refer to the composite type, we
-     get a warning about a forward declaration in the argument list of a 
-     prototype *)
-  let compSoFar : (int, bool) H.t = H.create 113 in
-  let rec loop acc = function
-      [] -> acc
-    | (GDecl (v, l) as g) :: rest -> begin
-        let acc' = 
-          match v.vtype with
-            TFun(rt, args, isva, a) -> 
-              List.fold_left (fun acc' a -> 
-                let pacc = ref acc' in
-                let doOne = function
-                  TComp(ci, _) -> 
-                    if not (H.mem compSoFar ci.ckey) then begin
-                      H.add compSoFar ci.ckey true;
-                      pacc := GType ("", TComp(ci, []), l) :: !pacc
-                    end;
-                    ExistsMaybe
-                  | _ -> ExistsMaybe
-                in
-                ignore (existsType doOne a.vtype);
-                !pacc) acc args
-          | _ -> acc
-        in
-        loop (g :: acc') rest
-    end
-    | (GCompTag (ci, _) as g):: rest -> 
-        H.add compSoFar ci.ckey true;
-        loop (g :: acc) rest
-
-    | g :: rest -> loop (g :: acc) rest
-  in
-  globals := List.rev (loop [] !globals);
-  H.clear compSoFar;
-
+  if not pullTypesForward then begin
+    (* Now go through the file and find all function prototypes. Then look 
+     * inside their argument list and collect all composite types. If those 
+     * types appear for the first time we must add a forward declaration to 
+     * them. This can happen when we have a prototype without arguments, 
+     * followed by the declaration of a composite type, followed by the 
+     * defintion of the function. Since the prototype will now refer to the 
+     * composite type, we get a warning about a forward declaration in the 
+     * argument list of a prototype  *)
+    let compSoFar : (int, bool) H.t = H.create 113 in
+    let rec loop acc = function
+        [] -> acc
+      | (GDecl (v, l) as g) :: rest -> begin
+          let acc' = 
+            match v.vtype with
+              TFun(rt, args, isva, a) -> 
+                List.fold_left (fun acc' a -> 
+                  let pacc = ref acc' in
+                  let doOne = function
+                      TComp(ci, _) -> 
+                        if not (H.mem compSoFar ci.ckey) then begin
+                          H.add compSoFar ci.ckey true;
+                          pacc := GType ("", TComp(ci, []), l) :: !pacc
+                        end;
+                        ExistsMaybe
+                    | _ -> ExistsMaybe
+                  in
+                  ignore (existsType doOne a.vtype);
+                  !pacc) acc args
+            | _ -> acc
+          in
+          loop (g :: acc') rest
+      end
+      | (GCompTag (ci, _) as g):: rest -> 
+          H.add compSoFar ci.ckey true;
+          loop (g :: acc) rest
+            
+      | g :: rest -> loop (g :: acc) rest
+    in
+    globals := List.rev (loop [] !globals);
+    H.clear compSoFar;
+  end;
   H.clear noProtoFunctions;
   H.clear mustTurnIntoDef;  
   H.clear alreadyDefined;
