@@ -901,7 +901,7 @@ sub doit {
     }
 
     # Turn everything into OBJ files
-    my @tolink = (@{$self->{OFILES}});
+    my @tolink = ();
 
     foreach $file (@{$self->{IFILES}}, @{$self->{CFILES}}) {
         $out = $self->compileOutputFile($file);
@@ -915,6 +915,9 @@ sub doit {
         $self->assemble($file, $out, $self->{PPARGS}, $self->{CCARGS});
         push @tolink, $out;
     }
+    # Now add the original object files. Put them last because libraries like
+    # to be last.
+    push @tolink, @{$self->{OFILES}};
 
     # See if we must stop after compilation
     if($self->{OPERATION} eq "TOOBJ") {
