@@ -11,3 +11,21 @@ int foo(int x)
 
 // same thing for globals
 int myglobal = 3;
+
+
+// another inline func to collide with those in other file
+__inline static int func();
+
+__inline static int func()
+{
+  return 3;
+}
+
+int otherFunc()
+{
+  return func();
+}
+
+
+
+

@@ -57,7 +57,7 @@ let usePathCompression = false
 (* Try to merge definitions of inline functions. They can appear in multiple 
  * files and we would like them all to be the same. This can slow down the 
  * merger an order of magnitude !!! *)
-let mergeInlines = true
+let mergeInlines = false
 
 let mergeInlinesRepeat = mergeInlines && true
 
@@ -1198,7 +1198,10 @@ let oneFilePass2 (f: file) =
         vi (* Already done *)
       else begin
         if vi.vstorage = Static then begin
-          vi.vname <- newAlphaName vAlpha vi.vname;
+          let newName = newAlphaName vAlpha vi.vname in
+          if debugMerge then ignore (E.log "renaming %s at %a to %s\n"
+                                           vi.vname d_loc vloc newName);
+          vi.vname <- newName;
           vi.vid <- H.hash vi.vname;
           vi.vreferenced <- true;
           vi

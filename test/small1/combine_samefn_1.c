@@ -18,7 +18,28 @@ int foo(int xxx)
 int myglobal __attribute__((mayPointToStack)) = 3;
 
 
+// give two inlines, which look like results of merging
+__inline static int func()
+{
+  return 3;
+}
+
+__inline static int func___0();
+__inline static int func___0()
+{
+  return 3;
+}
+
+
+// defined in combine_samefn_2.c
+int otherFunc();
+
+
 int main()
 {
-  return foo(5) - 18 + myglobal - 3;
+  int ret = func() + func___0() - 6;    // 0
+  ret += foo(5) - 18 + myglobal - 3;    // 0
+  ret += otherFunc() - 3;               // 0
+  return ret;
 }
+

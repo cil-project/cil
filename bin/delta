@@ -50,6 +50,12 @@ my $quiet = 0;                  # Prints go to /dev/null.
 my $suffix = ".c";              # For now, our input files are .c files.
 my $test = "./test";            # The script to run as the test.
 
+# when true, all operations on input file are in-place:
+#   - don't make a new directory
+#   - overwrite the original input file with our constructed inputs
+my $in_place = 0;
+my $start_file;                 # name of input/output file for in_place
+
 my $help_message = <<"END"
 
     Delta Debugging
@@ -70,6 +76,8 @@ my $help_message = <<"END"
     -log=<file>              Log file for main events
     -quiet                   Say nothing
     -verbose                 Get more verbose output
+    -in_place                Overwrite start-file with inputs
+
     -help                    Get help
 
     The test program accepts a single argument, the name of the candidate
@@ -77,7 +85,7 @@ my $help_message = <<"END"
     and it can make temporary files/directories in that directory.  It
     should return zero for a candidate that exhibits the desired property,
     and nonzero for one that does not.
-    
+
     Example test program (delta will retain a line containing "foo"):
       #!/bin/sh
       grep 'foo' <"\$1" >/dev/null
@@ -100,31 +108,61 @@ sub test {
     }
 
     render_tmpinput();
-    output " $tmpinput";
-    my $arena = "$tmpdir/arena";
-    die if system "rm -rf $arena/*";    # sm: added -r so I can make directories in the arena
-    my $input = "$tmpdir/$tmpinput";
-    my $arena_input = "input$suffix";
-    link $input, "$arena/$arena_input";
-    # $test gets fully qualified in parse_command_line()
-    my $result = ! system "cd $arena; $test $arena_input";
+    
+    my $result;
+    my $input;
+    if (!$in_place) {
+      output " $tmpinput";
+      my $arena = "$tmpdir/arena";
+      die if system "rm -rf $arena/*";    # sm: added -r so I can make directories in the arena
+      $input = "$tmpdir/$tmpinput";
+      my $arena_input = "input$suffix";
+      link $input, "$arena/$arena_input";
+      # $test gets fully qualified in parse_command_line()
+      $result = ! system "cd $arena; $test $arena_input";
+    }
+    else {
+      # for in_place, the test program is free to ignore the argument
+      # (since it will be known ahead of time) but I'll pass it anyway
+      $result = ! system "$test $start_file";
+      $input = $start_file;
+    }
 
     # Keep around info only for successful runs.
     if ($result) {
         my $size = (split " ", `wc -l $input`)[0];
         output "\tSUCCESS, lines: $size ****************\n";
         log_msg_time("$tmpinput, lines: $size");
-        $last_successful_tmpinput = $tmpinput;
+        if (!$in_place) {
+          $last_successful_tmpinput = $tmpinput;
+        }
+        else {
+          # make a single copy of the latest successful file
+          $last_successful_tmpinput = "${start_file}.ok";
+          system("cp ${start_file} $last_successful_tmpinput");
+        }
     } else {
         output "\n";
-        unlink $input;
+        unlink $input unless $in_place;
     }
     return $test_cache{$mark_signature} = $result;
 }
 
+# given @current_markers, create a new file by writing the proper
+# subset of @chunks to a file; yield its name in $tmpinput
 sub render_tmpinput {
-    $tmpinput = unused_tempfile();
-    open TMPINPUT, ">${tmpdir}/$tmpinput" or die $!;
+    if ($in_place) {
+      # I can't just say $tmpinput = $start_file and be done with it,
+      # because in many places $tmpdir/ is prefixed (and I don't want
+      # to say $tmpdir="." because I want $start_file to possibly be
+      # an absolute path.
+      open TMPINPUT, ">$start_file" or die $!;
+      $tmpinput = $start_file;
+    }
+    else {
+      $tmpinput = unused_tempfile();
+      open TMPINPUT, ">${tmpdir}/$tmpinput" or die $!;
+    }
     foreach my $marker (@current_markers) {
         for (my $i=$marker->{start}; $i<$marker->{stop}; ++$i) {
             print TMPINPUT $chunks[$i];
@@ -210,29 +248,40 @@ sub parse_command_line {
                 $suffix = $argument;
             } elsif ($flag eq "log") {
                 $logfile = $argument;
+            } elsif ($flag eq "in_place") {
+                $in_place = 1;
             } else {die "Illegal flag: $flag \n"}
         } else {push @non_flags, $str;}
     }
     # Cleaning up.
     die "You specified both verbose and quiet." if $verbose && $quiet;
     push @ARGV, @non_flags;
-    
+
     # fully qualify $test if it's not already
     if ($test !~ m"^/") {
       $test = "$this_dir/$test";
     }
-    
+
     # sm: I like a usage string when I give no arguments but it doesn't
     # make sense to read interactively (stdin is a tty)
     if ((@ARGV == 0) && (-t STDIN)) {
       output $help_message;
       exit(0);
     }
+
+    if ($in_place) {
+      if (@ARGV != 1) {
+        die "Must give exactly one explicit input file for -in_place."
+      }
+      $start_file = $ARGV[0];
+    }
 }
 
 sub render_settings {
     my $out = "delta settings:\n";
-    $out .= "\ttemporary directory: $tmpdir\n";
+    if (!$in_place) {
+        $out .= "\ttemporary directory: $tmpdir\n";
+    }
     $out .= "\tgranularity: $granularity\n";
     my $input_str;
     if (scalar @ARGV > 0) {
@@ -371,6 +420,9 @@ sub done {
         output "Copying minimal run to $cp_minimal\n";
         die "cp failed" if system "cp ${tmpdir}/${last_successful_tmpinput} $cp_minimal";
     }
+    if ($in_place) {
+        system("cp $last_successful_tmpinput $start_file");
+    }
     log_msg_time("delta done");
     exit 0;
 }
@@ -378,8 +430,10 @@ sub done {
 # Main ****************
 
 parse_command_line();
-select_tmpdir();
-$logfile = "${tmpdir}/$logfile" if $logfile!~m|^/|; # Make absolute.
+select_tmpdir() unless $in_place;
+if (!$in_place) {
+  $logfile = "${tmpdir}/$logfile" if $logfile!~m|^/|; # Make absolute.
+}
 my $settings = render_settings();
 log_msg($settings);
 if ($verbose) {
