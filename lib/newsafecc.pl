@@ -380,14 +380,18 @@ sub processSources {
         $afterpp = "$dir$base.i";
         push @ppargs, $compiler->forceIncludeArg("$bindir/fixup.h");
         $compiler->cpp($src, $afterpp);
-        # Now see if we must need to patch the file
+        # Now see if we must patch the file
         my $afterPatchExtension = ".i";
         if($#patches >= 0) {
             &patchFile($dir, $base, ".i");
         } 
         # Now run our own preprocessor
-        my $src = &safecPreprocessor($dir, $base, $afterPatchExtension);
-        push @newsources, $src;
+        if(! $doCombine) {
+            push @newsources, 
+                 &safecPreprocessor($dir, $base, $afterPatchExtension);
+        } else {
+            push @newsources, "$dir$base$afterPatchExtension";
+        }
     }
     @sources = @newsources;
 }
@@ -748,7 +752,7 @@ sub combineSourcesLink {
                 push @objfiles, $src; next;
             }
         }
-        if($ext eq ".c") {
+        if($ext eq ".c" || $ext eq ".i") {
             push @tocombine, $src; next;
         }
         die "I don't know how to combine $src\n";
