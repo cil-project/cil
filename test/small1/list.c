@@ -4,9 +4,11 @@
 #if 1
 #define WILD
 #define SAFE
+#define TAGGED
 #else
 #define WILD __attribute__((wild))
 #define SAFE __attribute__((safe))
+#define TAGGED __attribute__((tagged))
 #endif
 
 typedef struct list {

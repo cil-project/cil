@@ -375,6 +375,18 @@ rbtest: test/small2/rbtest.c $(EXECUTABLE)$(EXE) \
                  $(EXEOUT)rbtest.exe
 	$(PCCTEST)/rbtest.exe
 
+btreetest: test/small2/testbtree.c \
+           test/small2/btree.c \
+                                 $(EXECUTABLE)$(EXE) \
+                                 $(SAFECLIB) $(SAFEMAINLIB)  $(TVEXE)
+	rm -f test/small2/btreetest.exe
+	cd test/small2; $(SAFECC) --keep=. \
+                 $(DOOPT) \
+                 btree.c testbtree.c \
+                 $(EXEOUT)btreetest.exe
+	test/small2/btreetest.exe
+
+
 # sm: this is my little test program
 hola: test/small2/hola.c $(EXECUTABLE)$(EXE) \
                                  $(SAFECLIB) $(SAFEMAINLIB)  $(TVEXE)
