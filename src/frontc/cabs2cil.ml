@@ -789,6 +789,9 @@ let arithmeticConversion    (* c.f. ISO 6.3.1.8 *)
   end
 
 let conditionalConversion (e2: exp) (t2: typ) (e3: exp) (t3: typ) : typ =
+  let is_char k = match k with
+    IChar | ISChar | IUChar -> true
+  | _ -> false in 
   let tresult =  (* ISO 6.5.15 *)
     match unrollType t2, unrollType t3 with
       (TInt _ | TEnum _ | TFloat _), 
@@ -800,8 +803,17 @@ let conditionalConversion (e2: exp) (t2: typ) (e3: exp) (t3: typ) : typ =
     | TPtr(TVoid _, _), TPtr(_, _) -> t3
     | TPtr(t2'', _), TPtr(t3'', _) 
           when typeSig t2'' = typeSig t3'' -> t2
+    (* weimer: added to handle  ``string ? string : "NULL"''.
+     * A better solution would be to compute the typesig above without
+     * considering 'const'. *)
+    | TPtr(TInt(k1,_),_), TPtr(TInt(k2,_), _) when 
+        is_char k1 && is_char k2 -> t2
     | TPtr(_, _), TInt _ when isZero e3 -> t2
     | TInt _, TPtr _ when isZero e2  -> t3
+      (* weimer: give a better error message here *)
+    | TPtr(t2'', _), TPtr(t3'', _) when typeSig t2'' <> typeSig t3'' ->
+            E.s (error "A.QUESTION %a does not match %a"
+              d_type (unrollType t2) d_type (unrollType t3))
     | _, _ -> E.s (error "A.QUESTION for non-scalar type")
   in
   tresult
