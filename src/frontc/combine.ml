@@ -83,7 +83,10 @@ and combine_specs (specs: spec_elem list) =
               Tunion (lookup_tag n, Some (combine_fields flds))
           | Tenum (n, None) -> Tenum(lookup_tag n, None)
           | Tenum (n, Some es) -> Tenum(lookup_tag n, Some (combine_enums es))
-          | Ttypeof e -> Ttypeof (combine_expression e)
+          | TtypeofE e -> TtypeofE (combine_expression e)
+          | TtypeofT (s,d) -> 
+              let s', d' = combine_only_type (s, d) in
+              TtypeofT (s', d')
           | ts -> ts)
     | SpecAttr attr -> SpecAttr (combineAttr attr) 
   in

@@ -550,6 +550,11 @@ type_spec:   /* ISO 6.7.2 */
 |   ENUM          LBRACE enum_list maybecomma RBRACE
                     { Tenum ("", Some $3) }
 |   NAMED_TYPE      { Tnamed $1 }
+|   TYPEOF LPAREN expression RPAREN 
+                                        { TtypeofE $3 } 
+|   TYPEOF LPAREN type_name RPAREN    
+                                        { let s, d = $3 in
+                                          TtypeofT (s, d) } 
 ;
 struct_decl_list: /* (* ISO 6.7.2. Except that we allow empty structs. We 
                       * also allow missing field names. *)
@@ -688,7 +693,6 @@ type_name: /* (* ISO 6.7.6 *) */
                                  ($1, d) 
                                }
 | decl_spec_list               { ($1, JUSTBASE) }
-| TYPEOF expression            { ([SpecType (Ttypeof $2)], JUSTBASE) } 
 ;
 abstract_decl: /* (* ISO 6.7.6. *) */
   pointer_opt abs_direct_decl attributes  { applyPointer $1 $2, $3 }

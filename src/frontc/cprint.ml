@@ -256,7 +256,8 @@ and print_type_spec = function
       else print_fields ("union " ^ n) flds
   | Tenum (n, None) -> print ("enum " ^ n ^ " ")
   | Tenum (n, Some enum_items) -> print_enum n enum_items
-  | Ttypeof e -> print "__typeof__("; print_expression e 1; print ")"
+  | TtypeofE e -> print "__typeof__("; print_expression e 1; print ") "
+  | TtypeofT (s,d) -> print "__typeof__("; print_onlytype (s, d); print ") "
 
 
 (* This is the main printer for declarations. It is easy bacause the 

@@ -1042,11 +1042,16 @@ let rec doSpecList (specs: A.spec_elem list)
         addLocalToEnv (kindPlusName "enum" n'') (EnvTyp res);
         res
           
-    | [A.Ttypeof e] -> 
+    | [A.TtypeofE e] -> 
         let (c, _, t) = doExp false e (AExp None) in
         if not (isEmpty c) then
-          E.s (error "typeof for a non-pure expression\n");
+          E.s (warn "typeof for a non-pure expression\n");
         t
+
+    | [A.TtypeofT (specs, dt)] -> 
+        let typ = doOnlyType specs dt in
+        typ
+
     | _ -> 
         E.s (error "Bad combination of type specifiers")
   in

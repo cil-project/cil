@@ -38,7 +38,8 @@ type typeSpecifier = (* Merge all specifiers into one type *)
   | Tstruct of string * name_group list option  (* None if an old type *)
   | Tunion of string * name_group list option   (* None if an old type *)
   | Tenum of string * enum_item list option    (* None if an old type *)
-  | Ttypeof of expression                      (* GCC __typeof__ *)
+  | TtypeofE of expression                      (* GCC __typeof__ *)
+  | TtypeofT of spec_elem list * decl_type       (* GCC __typeof__ *)
 
 and storage =
     NO_STORAGE | AUTO | STATIC | EXTERN | REGISTER
