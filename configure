@@ -2717,34 +2717,69 @@ done
 # MY_AC_CONFIG_FILES(filename)
 # do AC_CONFIG_FILES(filename, chmod a-w filename)
 
-{ ac_config_files="$ac_config_files Makefile"
- }
-{ ac_config_files="$ac_config_files test/Makefile"
- }
-{ ac_config_files="$ac_config_files Makefile.cil"
- }
-{ ac_config_files="$ac_config_files lib/cilly.pl"
- }
-{ ac_config_files="$ac_config_files lib/ccured.pl"
- }
-{ ac_config_files="$ac_config_files lib/scaninfer"
- }
-{ ac_config_files="$ac_config_files lib/scaninfer.bat"
- }
+{
+  if test -f Makefile.in; then
+    ac_config_files="$ac_config_files Makefile"
 
-#  AC_CONFIG_FILES(Makefile, chmod a-w Makefile)
-#  AC_CONFIG_FILES(test/Makefile, chmod a-w test/Makefile)
-#  AC_CONFIG_FILES(Makefile.cil, chmod a-w Makefile.cil)
-#  AC_CONFIG_FILES(lib/cilly.pl, chmod a-w lib/cilly.pl)
-#  AC_CONFIG_FILES(lib/ccured.pl, chmod a-w lib/ccured.pl)
-#  AC_CONFIG_FILES(lib/scaninfer, chmod a-w lib/scaninfer)
-#  AC_CONFIG_FILES(lib/scaninfer.bat, chmod a-w lib/scaninfer.bat)
+  else
+    true
+    #echo "skipping [Makefile] because it's not in this distribution"
+  fi
+}
+{
+  if test -f test/Makefile.in; then
+    ac_config_files="$ac_config_files test/Makefile"
 
-#  AC_CONFIG_FILES(Makefile test/Makefile Makefile.cil lib/cilly.pl \
-#                  lib/ccured.pl lib/scaninfer lib/scaninfer.bat,
-#                  chmod a-w $config_files Makefile test/Makefile \
-#                      Makefile.cil lib/cilly.pl lib/ccured.pl \
-#                      lib/scaninfer lib/scaninfer.bat)
+  else
+    true
+    #echo "skipping [test/Makefile] because it's not in this distribution"
+  fi
+}
+{
+  if test -f Makefile.cil.in; then
+    ac_config_files="$ac_config_files Makefile.cil"
+
+  else
+    true
+    #echo "skipping [Makefile.cil] because it's not in this distribution"
+  fi
+}
+{
+  if test -f lib/cilly.pl.in; then
+    ac_config_files="$ac_config_files lib/cilly.pl"
+
+  else
+    true
+    #echo "skipping [lib/cilly.pl] because it's not in this distribution"
+  fi
+}
+{
+  if test -f lib/ccured.pl.in; then
+    ac_config_files="$ac_config_files lib/ccured.pl"
+
+  else
+    true
+    #echo "skipping [lib/ccured.pl] because it's not in this distribution"
+  fi
+}
+{
+  if test -f lib/scaninfer.in; then
+    ac_config_files="$ac_config_files lib/scaninfer"
+
+  else
+    true
+    #echo "skipping [lib/scaninfer] because it's not in this distribution"
+  fi
+}
+{
+  if test -f lib/scaninfer.bat.in; then
+    ac_config_files="$ac_config_files lib/scaninfer.bat"
+
+  else
+    true
+    #echo "skipping [lib/scaninfer.bat] because it's not in this distribution"
+  fi
+}
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -2855,7 +2890,7 @@ rm -f confdef2opt.sed
 : ${CONFIG_STATUS=./config.status}
 ac_clean_files_save=$ac_clean_files
 ac_clean_files="$ac_clean_files $CONFIG_STATUS"
-{ echo "$as_me:2858: creating $CONFIG_STATUS" >&5
+{ echo "$as_me:2893: creating $CONFIG_STATUS" >&5
 echo "$as_me: creating $CONFIG_STATUS" >&6;}
 cat >$CONFIG_STATUS <<_ACEOF
 #! $SHELL
@@ -3022,7 +3057,7 @@ cat >>$CONFIG_STATUS <<\EOF
     echo "$ac_cs_version"; exit 0 ;;
   --he | --h)
     # Conflict between --help and --header
-    { { echo "$as_me:3025: error: ambiguous option: $1
+    { { echo "$as_me:3060: error: ambiguous option: $1
 Try \`$0 --help' for more information." >&5
 echo "$as_me: error: ambiguous option: $1
 Try \`$0 --help' for more information." >&2;}
@@ -3050,12 +3085,12 @@ Try \`$0 --help' for more information." >&2;}
   'lib/scaninfer.bat' ) CONFIG_FILES="$CONFIG_FILES lib/scaninfer.bat" ;;
 
   # This is an error.
-  -*) { { echo "$as_me:3053: error: unrecognized option: $1
+  -*) { { echo "$as_me:3088: error: unrecognized option: $1
 Try \`$0 --help' for more information." >&5
 echo "$as_me: error: unrecognized option: $1
 Try \`$0 --help' for more information." >&2;}
    { (exit 1); exit 1; }; } ;;
-  *) { { echo "$as_me:3058: error: invalid argument: $1" >&5
+  *) { { echo "$as_me:3093: error: invalid argument: $1" >&5
 echo "$as_me: error: invalid argument: $1" >&2;}
    { (exit 1); exit 1; }; };;
   esac
@@ -3283,7 +3318,7 @@ done; }
   esac
 
   if test x"$ac_file" != x-; then
-    { echo "$as_me:3286: creating $ac_file" >&5
+    { echo "$as_me:3321: creating $ac_file" >&5
 echo "$as_me: creating $ac_file" >&6;}
     rm -f "$ac_file"
   fi
@@ -3301,7 +3336,7 @@ echo "$as_me: creating $ac_file" >&6;}
       -) echo $tmp/stdin ;;
       [\\/$]*)
          # Absolute (can't be DOS-style, as IFS=:)
-         test -f "$f" || { { echo "$as_me:3304: error: cannot find input file: $f" >&5
+         test -f "$f" || { { echo "$as_me:3339: error: cannot find input file: $f" >&5
 echo "$as_me: error: cannot find input file: $f" >&2;}
    { (exit 1); exit 1; }; }
          echo $f;;
@@ -3314,7 +3349,7 @@ echo "$as_me: error: cannot find input file: $f" >&2;}
            echo $srcdir/$f
          else
            # /dev/null tree
-           { { echo "$as_me:3317: error: cannot find input file: $f" >&5
+           { { echo "$as_me:3352: error: cannot find input file: $f" >&5
 echo "$as_me: error: cannot find input file: $f" >&2;}
    { (exit 1); exit 1; }; }
          fi;;

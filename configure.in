@@ -239,7 +239,14 @@ AC_SUBST(HAS_MSVC)
 # MY_AC_CONFIG_FILES(filename)
 # do AC_CONFIG_FILES(filename, chmod a-w filename)
 define([MY_AC_CONFIG_FILES],
-[{ AC_CONFIG_FILES([$1], chmod a-w [$1]) }])
+[{ 
+  if test -f [$1].in; then
+    AC_CONFIG_FILES([$1], chmod a-w [$1]) 
+  else
+    true
+    #echo "skipping [$1] because it's not in this distribution"
+  fi
+}])
 
 MY_AC_CONFIG_FILES(Makefile)
 MY_AC_CONFIG_FILES(test/Makefile)
