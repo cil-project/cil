@@ -52,7 +52,7 @@ let parse fname =
       end
     | None -> ());
     (* Now convert to CIL *)
-    let cil = Stats.time "conv" Cabs2cil.convFile cabs in
+    let cil = Stats.time "conv" Cabs2cil.convFile fname cabs in
     ignore (E.log "FrontC finished conversion to CIL\n");
     cil
   with (Sys_error msg) -> begin

@@ -420,7 +420,10 @@ type global =
   | GPragma of string                   (* Pragmas at top level. Unparsed *)
     
 
-type file = global list
+type file = 
+    { mutable fileName: string;
+      mutable globals: global list;
+    } 
 	(* global function decls, global variable decls *)
 
 
@@ -1166,7 +1169,7 @@ and d_fielddecl () fi =
     fi.ftype
     d_attrlistpost fi.fattr
        
-let printFile (out : out_channel) (globs : file) = 
+let printFile (out : out_channel) file = 
   printDepth := 99999;  (* We don't want ... in the output *)
   (* If we are in RELEASE mode then we do not print indentation *)
   printIndent := false;
@@ -1191,7 +1194,7 @@ let printFile (out : out_channel) (globs : file) =
   | GAsm s -> dprintf "__asm__(\"%s\");@!" (escape_string s)
   | GPragma s -> dprintf "%s@!" s
   in
-  List.iter (fun g -> print (d_global () g ++ line)) globs;
+  List.iter (fun g -> print (d_global () g ++ line)) file.globals;
   noRedefinitions := false;
   H.clear definedTypes
 
@@ -1343,7 +1346,9 @@ let emptyFunction name =
 
     (* A dummy function declaration handy for initialization *)
 let dummyFunDec = emptyFunction "@dummy"
-
+let dummyFile = 
+  { globals = [];
+    fileName = "<dummy>";}
 
 
 
@@ -1397,15 +1402,16 @@ let dStmt : doc -> stmt =
   function d -> Instr(Asm([sprint 80 d], false, [], [], []))
 
 
+let rec addOffset toadd (off: offset) : offset =
+  match off with
+    NoOffset -> toadd
+  | Field(fid', offset) -> Field(fid', addOffset toadd offset)
+  | First offset -> First (addOffset toadd offset)
+  | Index(e, offset) -> Index(e, addOffset toadd offset)
+
  (* Add an offset at the end of an lv *)      
-let addOffset toadd (b, off) : lval =
- let rec loop = function
-     NoOffset -> toadd
-   | Field(fid', offset) -> Field(fid', loop offset)
-   | First offset -> First (loop offset)
-   | Index(e, offset) -> Index(e, loop offset)
- in
- b, loop off
+let addOffsetLval toadd (b, off) : lval =
+ b, addOffset toadd off
 
 
 
@@ -1416,7 +1422,7 @@ let mkMem (addr: exp) (off: offset) : exp =
     match addr with
       StartOf(lv) -> begin
         match unrollType (typeOfLval lv) with
-        | TArray _ -> Lval(addOffset (First off) lv)
+        | TArray _ -> Lval(addOffsetLval (First off) lv)
         | TFun _ when off == NoOffset -> Lval lv (* addr *)
         | _ -> E.s (E.bug "mkMem: invalid use of StartOf")
       end
@@ -1590,7 +1596,7 @@ let rec makeZeroCompoundInit t =
 
 
 (**** Fold over the list of initializers in a Compound ****)
-let foldLeftCompound (doexp: offset option -> exp -> typ -> 'a -> 'a)
+let foldLeftCompound (doexp: offset -> exp -> typ -> 'a -> 'a)
     (ct: typ) 
     (initl: (offset option * exp) list)
     (acc: 'a) : 'a = 
@@ -1607,16 +1613,17 @@ let foldLeftCompound (doexp: offset option -> exp -> typ -> 'a -> 'a)
         match initl with
           [] -> acc
         | (io, ie) :: restinitl ->
-            let nextidx', thisexpt = 
+            let nextidx', thisoff, thisexpt = 
               match io with
-                None -> incrementIdx nextidx, bt
-              | Some (First(Index(idxe, restof))) -> 
+                None -> 
+                  incrementIdx nextidx, First(Index(nextidx, NoOffset)), bt
+              | Some (First(Index(idxe, restof)) as off) -> 
                   let t = typeOffset bt restof in
-                  incrementIdx idxe, t
+                  incrementIdx idxe, off, t
               | _ -> E.s (E.unimp "Unexpected offset in array initializer")
             in
             (* Now do the initializer expression *)
-            let acc' = doexp io ie thisexpt acc in
+            let acc' = doexp thisoff ie thisexpt acc in
             foldArray nextidx' restinitl acc'
       in
       foldArray zero initl acc
@@ -1630,27 +1637,27 @@ let foldLeftCompound (doexp: offset option -> exp -> typ -> 'a -> 'a)
         match initl with 
           [] -> acc   (* We are done *)
         | (io, ie) :: restinitl ->
-            let nextfields, thisexpt = 
+            let nextfields, thisoff, thisexpt = 
               match io with
                 None -> begin
                   match nextflds with
                     [] -> E.s (E.unimp "Too many initializers")
-                  | x :: xs -> xs, x.ftype
+                  | x :: xs -> xs, Field(x, NoOffset), x.ftype
                 end
-              | Some (Field(fld, restof)) -> 
+              | Some (Field(fld, restof) as off) -> 
                   let rec findField = function
                       [] -> E.s 
                           (E.unimp "Cannot find designated field %s" fld.fname)
                     | f :: restf when f.fname = fld.fname -> 
                         let t = typeOffset fld.ftype restof in
-                        restf, t
+                        restf, off, t
                     | _ :: restf -> findField restf
                   in
                   findField allflds
               | _ -> E.s (E.unimp "Unexpected offset in structure initializer")
             in
             (* Now do the initializer expression *)
-            let acc' = doexp io ie thisexpt acc in
+            let acc' = doexp thisoff ie thisexpt acc in
             foldFields allflds nextfields restinitl acc'
       in
       foldFields comp.cfields comp.cfields initl acc

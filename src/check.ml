@@ -464,17 +464,14 @@ and checkExp (isconst: bool) (e: exp) : typ =
           match unrollType tlv with
             TArray (t,_, _) -> TPtr(t, [])
           | TFun _ as t -> TPtr(t, [])
-          | _ -> E.s (E.bug "typeOf: StartOf on a non-array or non-function")
+          | _ -> E.s (E.bug "StartOf on a non-array or non-function")
       end
             
       | Compound (t, initl) -> 
           checkType t CTSizeof;
-          let checkOneExp (oo: offset option) (ei: exp) (et: typ) _ : unit = 
-            (match oo with
-              None -> ()
-            | Some o -> 
-                let ot = checkOffset t o in
-                typeMatch et ot);
+          let checkOneExp (oo: offset) (ei: exp) (et: typ) _ : unit = 
+            let ot = checkOffset t oo in
+            typeMatch et ot;
             checkExpType isconst ei et
           in
           (* foldLeftCompound will check that t is a TComp or a TArray *)
@@ -681,7 +678,7 @@ let rec checkGlobal = function
 
 
 let checkFile fl = 
-  List.iter (fun g -> try checkGlobal g with _ -> ()) fl;
+  List.iter (fun g -> try checkGlobal g with _ -> ()) fl.globals;
   (* Check that for all TForward there is a definition *)
   (try
     H.iter 

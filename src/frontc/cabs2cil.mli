@@ -1,2 +1,2 @@
 
-val convFile : Cabs.file -> Cil.file
+val convFile : string -> Cabs.file -> Cil.file

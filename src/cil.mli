@@ -416,7 +416,10 @@ type global =
   | GPragma of string                   (* Pragmas at top level. Unparsed *)
     
 
-type file = global list
+type file = 
+    { mutable fileName: string;   (* the complete file name *)
+      mutable globals: global list;
+    } 
 	(* global function decls, global variable decls *)
 
 
@@ -584,7 +587,7 @@ val emptyFunction: string -> fundec
 
     (* A dummy function declaration handy for initialization *)
 val dummyFunDec: fundec
-
+val dummyFile: file
 
 
 
@@ -600,7 +603,8 @@ val dExp: Pretty.doc -> exp
 val dStmt: Pretty.doc -> stmt
 
  (* Add an offset at the end of an lv *)      
-val addOffset: offset -> lval -> lval 
+val addOffsetLval: offset -> lval -> lval 
+val addOffset:     offset -> offset -> offset
 
 
   (* Make a Mem, while optimizing StartOf. The type of the addr must be 
@@ -639,9 +643,10 @@ val doCast: e:exp -> oldt:typ -> newt:typ -> exp
 val makeZeroCompoundInit: typ -> exp
 
 
-(**** Fold over the list of initializers in a Compound ****)
+(* Fold over the list of initializers in a Compound. doexp is called on every 
+ * present initializer, even if it is of compound type. *)
 val foldLeftCompound: 
-    (doexp: offset option -> exp -> typ -> 'a -> 'a) ->
+    (doexp: offset -> exp -> typ -> 'a -> 'a) ->
      ct: typ ->
     initl: (offset option * exp) list ->
     acc: 'a -> 'a

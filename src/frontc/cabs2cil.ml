@@ -745,8 +745,6 @@ and doExp (isconst: bool)    (* In a constant *)
           end
     end
     | A.INDEX (e1, e2) -> begin
-        if isconst then 
-          E.s (E.unimp "INDEX in constant");
         (* Recall that doExp turns arrays into StartOf pointers *)
         let (se1, e1', t1) = doExp false e1 (AExp None) in
         let (se2, e2', t2) = doExp false e2 (AExp None) in
@@ -793,7 +791,7 @@ and doExp (isconst: bool)    (* In a constant *)
             TComp comp -> findField str comp.cfields
           | _ -> E.s (E.unimp "expecting a struct with field %s" str)
         in
-        let lv' = Lval(addOffset (Field(fid, NoOffset)) lv) in
+        let lv' = Lval(addOffsetLval (Field(fid, NoOffset)) lv) in
         finishExp se lv' fid.ftype
           
        (* e->str = * (e + off(str)) *)
@@ -1681,7 +1679,7 @@ and doAssign (lv: lval) : exp -> stmt list = function
               [], [] -> []
             | f :: fil, (None, e) :: el -> 
                 let res = loop (fil, el) in
-                (doAssign (addOffset (Field(f, NoOffset)) lv) e) @ res
+                (doAssign (addOffsetLval (Field(f, NoOffset)) lv) e) @ res
             | _, _ -> E.s (E.unimp "fields in doAssign")
           in
           loop (comp.cfields, initl)
@@ -1878,7 +1876,7 @@ let makeGlobalVarinfo (vi: varinfo) =
 
     
 (* Translate a file *)
-let convFile dl = 
+let convFile fname dl = 
   ignore (E.log "Cabs2cil conversion\n");
   (* Clean up the global types *)
   theFile := [];
@@ -2044,6 +2042,8 @@ let convFile dl =
   in
   List.iter doOneGlobal dl;
   (* We are done *)
-  List.rev (! theFile)
+  { fileName = fname;
+    globals  = List.rev (! theFile);
+  } 
 
 

@@ -52,6 +52,10 @@ let prefix p s =
   let ls = String.length s in
   lp <= ls && String.sub s 0 lp = p
 
+let rec isZero = function
+    Const(CInt(0, _, _), _) -> true
+  | CastE(_, e, _) -> isZero e
+  | _ -> false
 
 
   (* We collect here the new file *)
@@ -251,6 +255,7 @@ and fixit t =
 
 (**** We know in what function we are ****)
 let currentFunction : fundec ref  = ref dummyFunDec
+let currentFile     : file ref = ref dummyFile
 
     (* Test if a type is FAT *)
 let isFatType t = 
@@ -308,6 +313,8 @@ let rec readPtrBaseField (e: exp) et =
           let e2t, e2', e2'' = readPtrBaseField e2 et in
           let   _, e3', e3'' = readPtrBaseField e3 et in
           (Question(e1,e2',e3', lq), Question(e1,e2'',e3'', lq))
+      | Compound (t, [_, p; _, b]) when isFatType t -> 
+          p, b
       | _ -> E.s (E.unimp "split _p field offset: %a" d_plainexp e)
     in
     (fptr.ftype, ptre, basee)
@@ -356,7 +363,7 @@ let mustCheckReturn tret =
 
 
    (* Test if we have changed the type *)
-let rec typeHasChanged t =
+let rec typeContainsFats t =
   existsType 
     (function TComp comp -> 
       begin
@@ -492,15 +499,15 @@ let makeTagCompoundInit tagged datainit =
             (match datainit with 
               None -> []
             | Some e -> [(None, e)]))
-            (* Leave the rest alone since it will be initializer with 0 *)
+            (* Leave the rest alone since it will be initialized with 0 *)
     ,
   dfld
 
 
 (* Generates code that initializes vi. Needs "iter", an integer variable to 
  * be used as a for loop index *)
-let makeTagAssignInit tagged (iter: varinfo) vi : stmt list = 
-  let dfld, lfld, tfld, words, tagwords = splitTagType tagged in
+let makeTagAssignInit (iter: varinfo) vi : stmt list = 
+  let dfld, lfld, tfld, words, tagwords = splitTagType vi.vtype in
   (* Write the length *)
   mkSet (Var vi, Field(lfld, NoOffset)) words ::
   (* And the loop *)
@@ -579,7 +586,7 @@ let getHostIfBitfield lv t =
       let lv't = typeOfLval lv' in
       (match unrollType lv't with 
         TComp comp when comp.cstruct -> 
-          if List.exists (fun f -> typeHasChanged f.ftype) comp.cfields then
+          if List.exists (fun f -> typeContainsFats f.ftype) comp.cfields then
             E.s (E.unimp "%s contains both bitfields and pointers" 
                    (compFullName comp))
       | _ -> E.s (E.bug "getHost: bitfield not in a struct"));
@@ -707,12 +714,12 @@ let checkMem (towrite: exp option)
         end 
     | TComp comp when comp.cstruct -> 
         let doOneField acc fi = 
-          let newwhere = addOffset (Field(fi, NoOffset)) where in
+          let newwhere = addOffsetLval (Field(fi, NoOffset)) where in
           let newtowrite = 
             match towrite with 
               None -> None
             | Some (Lval whatlv) -> 
-                Some (Lval (addOffset (Field(fi, NoOffset)) whatlv))
+                Some (Lval (addOffsetLval (Field(fi, NoOffset)) whatlv))
             | _ -> E.s (E.unimp "doCheckTags")
           in
           doCheckTags newtowrite newwhere fi.ftype acc
@@ -972,7 +979,7 @@ and boxlval (b, off) : (typ * stmt list * lval * exp) =
             NoOffset, vi.vtype, off
         in
         let baseaddr = 
-          match vi.vtype with
+          match tbase with
             TArray _ -> StartOf(Var vi, offbase)
           | _ -> AddrOf((Var vi, offbase), lu)
         in
@@ -1130,12 +1137,12 @@ and boxexpf (e: exp) : stmt list * fexp =
           (Var vi, _) when not vi.vaddrof && not vi.vglob -> 
             E.s (E.bug "addrof not set for %s (startof)" vi.vname)
         | _ -> ());
-      (* The result type. *)
+        (* The result type. *)
         let ptrtype, res = 
           match unrollType lvt with
             TArray(t, _, _) -> 
               fixupType (TPtr(t, [])),
-              AddrOf(addOffset (First(Index(zero, NoOffset))) lv', lu) 
+              AddrOf(addOffsetLval (First(Index(zero, NoOffset))) lv', lu) 
           | TFun _ -> 
               fixupType (TPtr(lvt, [])),
               StartOf lv'
@@ -1158,21 +1165,25 @@ and boxexpf (e: exp) : stmt list * fexp =
           
     | Compound (t, initl) as t' -> 
         let t' = fixupType t in
-        let doOneInit (oo, ei) = (oo, boxGlobalInit ei) in
-        ([], L(t', Compound(t', List.map doOneInit initl)))
+        (* Construct a new initializer list *)
+        let doOneInit (off: offset) (ei: exp) (tei: typ) acc = 
+          (None, boxGlobalInit ei tei) :: acc
+        in
+        let newinitl = List.rev (foldLeftCompound doOneInit t initl []) in
+        ([], L(t', Compound(t', newinitl)))
   with exc -> begin
     ignore (E.log "boxexpf (%s)\n" (Printexc.to_string exc));
     ([], L(charPtrType, dExp (dprintf "booo_exp: %a" d_exp e)))
   end 
             
           
-and boxGlobalInit e = 
-  let et = fixupType (typeOf e) in
+and boxGlobalInit e et = 
+  let et' = fixupType et in
   let (e't, doe, e', e'base) = boxexpSplit e in
   if doe <> [] then
     E.s (E.unimp "Non-pure initializer %a\n"  d_exp e);
-  if isFatType et then
-    Compound(et, [ (None, e'); (None, e'base)])
+  if isFatType et' then
+    Compound(et', [ (None, e'); (None, e'base)])
   else
     e'
 
@@ -1207,7 +1218,7 @@ and boxexp (e : exp) : expRes =
 and boxexpSplit (e: exp) = 
   let (doe, fe') = boxexpf e in
   match fe' with
-    L(lt, e') -> (lt, doe, e', e')
+    L(lt, e') -> (lt, doe, e', doCast e' lt voidPtrType)
   | F2(ft,p,b) -> ((getPtrFieldOfFat ft).ftype, doe, p, b)
   | _  ->
       let (et, caste, e'') = fexp2exp fe' doe in
@@ -1232,11 +1243,6 @@ and castTo (fe: fexp) (newt: typ) (doe: stmt list) : stmt list * fexp =
       (doe, L(newt, doCast e lt newt))
   | L(lt, e), true -> (* LEAN -> FAT *)
       let ptype = (getPtrFieldOfFat newt).ftype in
-      let rec isZero = function
-          Const(CInt(0, _, _), _) -> true
-        | CastE(_, e, _) -> isZero e
-        | _ -> false
-      in
       if not (isZero e) then
         ignore (E.warn "Casting scalar (%a) to pointer (in %s)!" 
                   d_exp e !currentFunction.svar.vname);
@@ -1295,7 +1301,7 @@ and fromPtrToBase e =
 
 
 let fixupGlobName vi = 
-  if vi.vglob && vi.vstorage <> Static && typeHasChanged vi.vtype &&
+  if vi.vglob && vi.vstorage <> Static && typeContainsFats vi.vtype &&
     not (List.exists (fun la -> la = vi.vname) leaveAlone) then
     let nlen = String.length vi.vname in
     if nlen <= 4 || String.sub vi.vname (nlen - 4) 4 <> "_fp_" then
@@ -1312,9 +1318,69 @@ let preamble =
   GPragma ("#include \"safec.h\"\n") :: 
   GPragma ("// Include the definition of the checkers\n") ::
   startFile
-  
-let boxFile globals =
+
+(* In some cases we might need to create a function to initialize some 
+ * globals *)
+let fileInit : (fundec * varinfo) option ref = ref None
+let addGlobalInitializer (glob:varinfo) 
+                         (startoff: offset) (startt: typ) (init: exp) = 
+  (* See if we have created an initializer already *)
+  let finit, itervar = 
+    match !fileInit with 
+      Some (f, v) -> f, v
+    | None -> begin
+        let f = emptyFunction ("__boxinit_" ^ 
+                               (Filename.chop_extension
+                                  (Filename.basename !currentFile.fileName))) 
+        in
+        (* Now make an iterator variable *)
+        let iter = makeTempVar f ~name:"iter" intType in
+        fileInit := Some (f, iter);
+        f, iter
+    end
+  in
+  (* Set the current function to be the initialization function. We know that 
+   * we must be outside any functions now *)
+  currentFunction := finit;
+  (* Compute the base for this global *)
+  let globbase = 
+    match startt with
+      TArray _ -> StartOf(Var glob, startoff)
+    | _ -> AddrOf((Var glob, startoff), lu)
+  in
+  (* If we are here the initializer better be a Compound since it contains 
+   * fat initializers inside (which are Compounds themselves) *)
+  let rec initone (baseoff: offset) off what t acc = 
+    match what with
+      Compound (t, initl) -> 
+        (* If this is a fat thing then we must call FATPOINTERWRITE, except 
+         * if this global does not have tags *)
+        let acc' = 
+          if isFatType t && startoff <> NoOffset then
+            (List.rev 
+               (checkMem (Some what)
+                  (Var glob, (addOffset off baseoff))
+                  globbase
+                  t)) @ acc
+          else acc 
+        in
+        foldLeftCompound (initone (addOffset off baseoff)) t initl acc'
+    | _ -> mkSet (Var glob, addOffset off baseoff) what :: acc
+  in
+  let inits = 
+    initone NoOffset startoff init startt [finit.sbody] 
+  in 
+(*    match init with 
+    Compound(t, initl) -> 
+      foldLeftCompound (initone startoff) t initl [finit.sbody]
+    | _ -> E.s (E.bug "global initializer not a Compound")
+  in *)
+  finit.sbody <- mkSeq (List.rev inits)
+             
+let boxFile file =
   ignore (E.log "Boxing file\n");
+  fileInit := None;
+  currentFile := file;
   let rec doGlobal g = 
     match g with
                                         (* We ought to look at pragmas to see 
@@ -1384,7 +1450,7 @@ let boxFile globals =
             in
             let newtype = tagType l.vtype in
             l.vtype <- newtype;
-            (makeTagAssignInit newtype iter l) @ stmacc
+            (makeTagAssignInit iter l) @ stmacc
         in
         let inilocals = List.fold_left tagLocal [] f.slocals in
         f.sbody <- mkSeq (inilocals @ [boxstmt f.sbody]);
@@ -1407,24 +1473,43 @@ let boxFile globals =
            * also change its name *)
     fixupGlobName vi;
     (* Prepare the data initializer. Catch the case when we are initialing an 
-     * array of char with a string  *)
-    let init' = 
+     * array of char with a string. If the initializer contains fats then we 
+     * set fats to Some _ and init' to None  *)
+    let init', fats = 
       match init with
-        None -> None
+        None -> None, None
       | Some e -> begin
           match e with
             Const(CStr _, _) when 
             (match unrollType origType with 
               TArray(TInt((IUChar|ISChar|IChar), _), _, _) -> true 
-            | _ -> false) -> Some e
-          | _ -> Some (boxGlobalInit e)
+            | _ -> false) -> Some e, None
+          | _ ->
+              let e' = boxGlobalInit e origType in
+              (* See if init' contains fat pointers *)
+              let rec expContainsFats = function
+                  Compound(t, [_, p; _, b]) when isFatType t ->
+                    not (isZero b)
+                | Compound(t, ilist) -> 
+                    List.exists (fun (_, e) -> expContainsFats e) ilist
+                | _ -> false
+              in
+              if expContainsFats e' then
+                (* But we do not consider NULL a fat, since it is Ok for it 
+                 * to have tags = 0 *)
+                None, Some e'
+              else
+                Some e', None
       end
     in
     (* Tag some globals *)
     if not (mustBeTagged vi) then
-      if isdef then
+      if isdef then begin
+        (* See if we have fats *)
+        (match fats with None -> () 
+        | Some fats -> addGlobalInitializer vi NoOffset vi.vtype fats);
         theFile := GVar(vi, init') :: !theFile
-      else
+      end else
         theFile := GDecl vi :: !theFile
     else begin
       vi.vtype <- tagType vi.vtype;
@@ -1434,10 +1519,18 @@ let boxFile globals =
           (* Make the initializer *)
           (* Add it to the tag initializer *)
         let varinit = 
-          if vi.vstorage = Extern then None 
-          else
+          if vi.vstorage = Extern 
+          then None 
+          else begin
+            (match fats with
+              Some fats' ->  
+                let dfld, lfld, _, _, _ = splitTagType vi.vtype in
+                addGlobalInitializer 
+                  vi (Field(dfld, NoOffset)) dfld.ftype fats'
+            | _ -> ()); 
             let (x, _) = makeTagCompoundInit vi.vtype init' in
             Some x
+          end
         in
         theFile := GVar(vi, varinit) :: !theFile
       end
@@ -1455,14 +1548,20 @@ let boxFile globals =
   (* Create the preamble *)
   theFile := preamble;
   (* Now the orgininal file *)
-  List.iter doGlobal globals;
+  List.iter doGlobal file.globals;
+  (* See if we must append the initializer *)
+  (match !fileInit with 
+    None -> ()
+  | Some (f, _) -> 
+      ignore (E.warn "Added global initializer %s" f.svar.vname);
+      theFile := GFun f :: !theFile);
   let res = List.rev (!theFile) in
   (* Clean up global hashes to avoid retaining garbage *)
   H.clear hostsOfBitfields;
   H.clear typeNames;
   H.clear fixedTypes;
   H.clear taggedTypes;
-  res
+  {file with globals = res}
 
   
       
