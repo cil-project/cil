@@ -460,6 +460,7 @@ $TEST->addTests("testrun/unrolltype", "", ['inferbox']);
 $TEST->addTests("testrun/wrapper2", "", ['cil', 'inferbox', 'box']);
 $TEST->addTests("testrun/fseqn1", "", ['inferbox']);
 $TEST->addTests("testrun/ubound1", "", ['inferbox']);
+$TEST->addTests("test/longunion", "", ['inferbox']);
 # $TEST->addTests("testrun/seqn1", "", ['inferbox']);
 
 #
