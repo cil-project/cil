@@ -11,6 +11,7 @@ int * wild;
 int * fseq;
 int * seq;
 
+// Set the kinds of the above pointers
 void setkinds(void) {
   wild = (int **)&wild;
   fseq ++;
@@ -26,7 +27,7 @@ void setkinds(void) {
   // wild.
   #define CHECK_KIND(p, kind) \
      !strcmp(KIND_OF(p), \
-             (sizeof(wild) == sizeof(safe) ? "__WILD" : kind))
+             (sizeof(wild) == sizeof(safe) ? "WILD" : kind))
 #else
   #define KIND_OF(p) "SAFE"
   #define CHECK_KIND(p, kind) 1
