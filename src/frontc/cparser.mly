@@ -224,7 +224,7 @@ end
 %type <Cabs.spec_elem list * Cabs.decl_type> type_name
 %type <Cabs.block> block
 %type <string list> local_labels local_label_names
-%type <string list> old_parameter_list
+%type <string list> old_parameter_list_ne
 
 %type <Cabs.init_name> init_declarator
 %type <Cabs.init_name list> init_declarator_list
@@ -260,16 +260,22 @@ global:
 | location ASM LPAREN string_list RPAREN SEMICOLON
                                         { GLOBASM ($4, $1) }
 | location PRAGMA attr                  { PRAGMA ($3, $1) }
-| location error SEMICOLON { PRAGMA (VARIABLE "parse_error", $1) }
 /* (* Old-style function prototype. This should be somewhere else, like in
     * "declaration". For now we keep it at global scope only because in local
     * scope it looks too much like a function call  *) */
-| location   IDENT LPAREN old_parameter_list RPAREN old_pardef_list SEMICOLON
+| location  IDENT LPAREN old_parameter_list_ne RPAREN old_pardef_list SEMICOLON
                            { (* Convert pardecl to new style *)
                              let pardecl, isva = doOldParDecl $4 $6 in
                              (* Make the function declarator *)
                              doDeclaration $1 []
                                [(($2, PROTO(JUSTBASE, pardecl,isva), []),
+                                 NO_INIT)]
+                            }
+/* (* Old style function prototype, but without any arguments *) */
+| location  IDENT LPAREN RPAREN  SEMICOLON
+                           { (* Make the function declarator *)
+                             doDeclaration $1 []
+                               [(($2, PROTO(JUSTBASE,[],false), []),
                                  NO_INIT)]
                             }
 /* transformer for a toplevel construct */
@@ -282,6 +288,7 @@ global:
     checkConnective($6);
     EXPRTRANSFORMER($4, $8, $1)
   }
+| location error SEMICOLON { PRAGMA (VARIABLE "parse_error", $1) }
 ;
 
 id_or_typename:
@@ -323,11 +330,11 @@ expression:
 		        {UNARY (NOT, $2)}
 |		TILDE expression
 		        {UNARY (BNOT, $2)}
-|		PLUS_PLUS expression %prec CAST
+|		PLUS_PLUS expression                    %prec CAST
 		        {UNARY (PREINCR, $2)}
 |		expression PLUS_PLUS
 		        {UNARY (POSINCR, $1)}
-|		MINUS_MINUS expression %prec CAST
+|		MINUS_MINUS expression                  %prec CAST
 		        {UNARY (PREDECR, $2)}
 |		expression MINUS_MINUS
 		        {UNARY (POSDECR, $1)}
@@ -550,7 +557,7 @@ statement:
 |   location comma_expression SEMICOLON
 	        	{COMPUTATION (smooth_expression $2, $1)}
 |   location block               {BLOCK ($2, $1)}
-|   location IF paren_comma_expression statement %prec IF
+|   location IF paren_comma_expression statement                    %prec IF
                 	{IF (smooth_expression $3, $4, NOP $1, $1)}
 |   location IF paren_comma_expression statement ELSE statement
 	                {IF (smooth_expression $3, $4, $6, $1)}
@@ -764,16 +771,20 @@ old_proto_decl:
                                             (n, applyPointer $1 decl, a) }
 ;
 direct_old_proto_decl:
-  direct_decl LPAREN old_parameter_list RPAREN old_pardef_list
+  direct_decl LPAREN old_parameter_list_ne RPAREN old_pardef_list
                                    { let par_decl, isva = doOldParDecl $3 $5 in
                                      let n, decl = $1 in
                                      (n, PROTO(decl, par_decl, isva), [])
                                    }
+| direct_decl LPAREN                       RPAREN
+                                   { let n, decl = $1 in
+                                     (n, PROTO(decl, [], false), [])
+                                   }
 ;
 
-old_parameter_list: 
+old_parameter_list_ne:
 |  IDENT                                       { [$1] }
-|  IDENT COMMA old_parameter_list              { let rest = $3 in
+|  IDENT COMMA old_parameter_list_ne           { let rest = $3 in
                                                  ($1 :: rest) }
 ;
 
@@ -874,12 +885,22 @@ function_def_start:  /* (* ISO 6.9.1 *) */
                            }
 
 /* (* No return type and old-style parameter list *) */
-| location        IDENT LPAREN old_parameter_list RPAREN old_pardef_list
+| location        IDENT LPAREN old_parameter_list_ne RPAREN old_pardef_list
                            { (* Convert pardecl to new style *)
                              let pardecl, isva = doOldParDecl $4 $6 in
                              (* Make the function declarator *)
                              let fdec = ($2, 
                                          PROTO(JUSTBASE, pardecl,isva), []) in
+                             announceFunctionName fdec;
+                             (* Default is int type *)
+                             let defSpec = [SpecType Tint] in
+                             ($1, defSpec, fdec) 
+                            }
+/* (* No return type and no parameters *) */
+| location        IDENT LPAREN                      RPAREN
+                           { (* Make the function declarator *)
+                             let fdec = ($2, 
+                                         PROTO(JUSTBASE, [], false), []) in
                              announceFunctionName fdec;
                              (* Default is int type *)
                              let defSpec = [SpecType Tint] in
@@ -939,7 +960,7 @@ attr:
 |   PLUS expression    	                 {UNARY (PLUS, $2)}
 |   MINUS expression 		        {UNARY (MINUS, $2)}
 |   STAR expression		        {UNARY (MEMOF, $2)}
-|   AND expression				%prec ADDROF
+|   AND expression				                 %prec ADDROF
 	                                {UNARY (ADDROF, $2)}
 |   EXCLAM expression		        {UNARY (NOT, $2)}
 |   TILDE expression		        {UNARY (BNOT, $2)}

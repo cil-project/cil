@@ -516,6 +516,7 @@ let mkStartOfAndMark ((b, off) as lval) : exp =
 let compInfoNameEnv : (string, compinfo) H.t = H.create 113
 let enumInfoNameEnv : (string, enuminfo) H.t = H.create 113
 
+
 let lookupTypeNoError (kind: string) 
                       (n: string) : typ * location = 
   let kn = kindPlusName kind n in
@@ -1437,7 +1438,7 @@ let fieldsToInit
   in
   (* If it is a union we only initialize one field *)
   match flds2 with 
-    [] -> E.s (unimp "Initializing empty structure")
+    [] -> []
   | (f :: rest) as toinit -> 
       if comp.cstruct then toinit else [f]
         
@@ -4528,7 +4529,7 @@ let convFile fname dl =
   H.iter 
     (fun key ci -> 
       if ci.cfields = [] then begin
-        ignore (E.warn "%s used but not defined" key);
+        ignore (E.warn "%s empty or not defined" key);
         globals := GType("", TComp(ci, []), locUnknown) :: !globals
       end) compInfoNameEnv;
 
