@@ -1,3 +1,5 @@
+(** A bunch of generally useful functions *)
+
 exception GotSignal of int
 
 val withTimeout : float -> (* Seconds for timeout *)

@@ -34,7 +34,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  *)
-
+(** Utility functions for error-reporting *)
 
 (** A channel for printing log messages *)
 val logChannel : out_channel ref
