@@ -535,7 +535,10 @@ sub preprocess_after_cil {
 sub straight_preprocess {
     my ($self, $src, $dest, $ppargs) = @_;
     confess "bad dest: $dest" unless $dest->isa('OutputFile');
-    if($self->{VERBOSE}) { print STDERR "Preprocessing $src\n"; }
+    if($self->{VERBOSE}) {
+	my $srcname = ref $src ? $src->filename : $src;
+	print STDERR "Preprocessing $srcname\n";
+    }
     if($self->{MODENAME} eq "MSVC") {
         $self->MSVC::msvc_preprocess($src, $dest, $ppargs);
     } else {
