@@ -568,11 +568,20 @@ let checkFetchLength =
       [ castVoidStar ptr; 
         castVoidStar base ]
 
-let checkFetchStringLength = 
+let checkFetchStringEnd = 
   let fdec = emptyFunction "CHECK_FETCHSTRINGEND" in
   let args  = makeLocalVar fdec "s" charPtrType in
   fdec.svar.vstorage <- Static;
   fdec.svar.vtype <- TFun(voidPtrType, [ args; ], false, []);
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
+  fdec
+
+let checkStringMax = 
+  let fdec = emptyFunction "CHECK_STRINGMAX" in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  fdec.svar.vstorage <- Static;
+  fdec.svar.vtype <- TFun(uintType, [ argp; argb ], false, []);
   checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
   fdec
 
@@ -1276,7 +1285,7 @@ let stringToSeq (p: exp) (b: exp) (bend: exp) (acc: stmt list)
   (* Make a new temporary variable *)
   let tmpend = makeTempVar !currentFunction voidPtrType in
   p, p,  (Lval (var tmpend)),
-  call (Some (tmpend, false)) (Lval (var checkFetchStringLength.svar))
+  call (Some (tmpend, false)) (Lval (var checkFetchStringEnd.svar))
     [ p ] :: acc
 
 let stringToFseq (p: exp) (b: exp) (bend: exp) (acc: stmt list) 
@@ -1284,7 +1293,7 @@ let stringToFseq (p: exp) (b: exp) (bend: exp) (acc: stmt list)
   (* Make a new temporary variable *)
   let tmpend = makeTempVar !currentFunction voidPtrType in
   p, (Lval (var tmpend)), zero,
-  call (Some (tmpend, false)) (Lval (var checkFetchStringLength.svar))
+  call (Some (tmpend, false)) (Lval (var checkFetchStringEnd.svar))
     [ p ] :: acc
 
   
@@ -1298,6 +1307,13 @@ let fseqNToString (p: exp) (desttyp: typ) (b: exp) (bend: exp) (acc: stmt list)
   (* Conversion to a string is with a bounds check *)
   fseqToSafe p desttyp b bend acc
 
+let wildToROString (p: exp) (b: exp) (bend: exp) (acc: stmt list) 
+    : exp * exp * exp * stmt list =
+  (* Make a new temporary variable to hold the end of the area *)
+  p, zero, zero, 
+  call None (Lval (var checkStringMax.svar))
+    [ castVoidStar p; b ] :: acc
+  
 
 let checkWild (p: exp) (basetyp: typ) (b: exp) (blen: exp) : stmt = 
   (* This is almost like indexToSafe, except that we have the length already 
@@ -1528,7 +1544,8 @@ let castTo (fe: fexp) (newt: typ)
       in
       match oldk, newkind with
         (* SCALAR, SAFE -> SCALAR, SAFE *)
-        (N.Scalar|N.Safe|N.String|N.ROString), (N.Scalar|N.Safe|N.String|N.ROString) -> 
+        (N.Scalar|N.Safe|N.String), 
+        (N.Scalar|N.Safe|N.String|N.ROString) -> 
           (doe, L(newt, newkind, castP p))
 
         (* SAFE -> WILD. Only allowed for function pointers because we do not 
@@ -1635,9 +1652,9 @@ let castTo (fe: fexp) (newt: typ)
           let p', b', bend', acc' = stringToSeq p b bend [] in
           finishDoe acc', FM(newt, newkind, castP p', b', bend')  
 
-      | N.Wild, N.String -> 
-        ignore (E.warn "Warning: wishful thinking cast from WILD -> STRING") ;
-          (doe, L(newt, newkind, castP p))
+      | N.Wild, N.ROString -> 
+          let p', b', bend', acc' = wildToROString p b bend [] in
+          finishDoe acc', L(newt, newkind, castP p')
 
       | N.ROString, (N.FSeq|N.FSeqN) -> 
         ignore (E.warn "Warning: wes-is-lazy cast from ROSTRING -> FSEQ[N]") ;
@@ -2722,7 +2739,7 @@ let wrap_printf vi = begin
     [] -> []
   | hd :: tl when is_string hd -> 
     let our_tmpend = makeTempVar our_fundec voidPtrType in
-    Instr(Call(Some(our_tmpend,false),(Lval(var checkFetchStringLength.svar)),[hd]) ,lu)
+    Instr(Call(Some(our_tmpend,false),(Lval(var checkFetchStringEnd.svar)),[hd]) ,lu)
       :: make_our_checks tl
   | hd :: tl -> make_our_checks tl 
   in
