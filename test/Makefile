@@ -712,7 +712,7 @@ espresso:
 
 
 
-HUFFCOMPILE := $(CCURED) $(DEF)NOVARARG --keep=. 
+HUFFCOMPILE := $(CCURED) $(DEF)NOVARARG --keep=. --keepmerged
 # HUFFCOMPILE := cl /MLd
 ifdef _GNUCC
   HUFFOTHERS += -lm
@@ -831,7 +831,7 @@ apache/% : $(APACHETEST)/mod_%.c
 # benchmark's Makefile (helps to ensure consistency between the
 # non-ccured build and the ccured build, and also some programs
 # take too long on -O3)
-COMBINECCURED := $(CCURED) 
+COMBINECCURED := $(CCURED) --keepmerged
 
 # sm: trying to collapse where are specifications are
 PATCHARG := `$(PATCHECHO) $(STANDARDPATCH)`
@@ -851,7 +851,8 @@ bh:  mustbegcc
 
 bh-combined:  mustbegcc
 	cd $(BHDIR); \
-	    $(CCURED) code.exe_comb.c trusted_bh.c $(EXEOUT)code.exe
+	    $(CCURED) --leavealone=trusted_bh \
+                      code.exe_comb.c trusted_bh.c $(EXEOUT)code.exe
 	make runbh $(MAKEOVERRIDES)
 
 bh-optimvariant.%: mustbegcc
@@ -1445,7 +1446,9 @@ gzip-build: gzip-clean
 	cd $(GZIPDIR)/src; $(CCURED)  $(GZIPSOURCES) $(EXEOUT)gzip.exe
 
 gzip-run:
-	cd $(GZIPDIR)/src; ./gzip.exe trees.c
+	cd $(GZIPDIR)/src; time ./gzip.exe trees.c
+
+gzip-noclean: gzip-build gzip-run
 
 gzip: gzip-clean gzip-build gzip-run
 

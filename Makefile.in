@@ -43,16 +43,6 @@ MODULES     += $(CILLY_MODULES)
 
 
 
-   # Now the stuff for merger
-MERGER_MODULES  = pretty errormsg stats util \
-              cabs cprint cabsvisit merger clexer cparser \
-              mainmerger
-MERGER_CMODULES = 
-MERGER_LIBS     = unix
-
-# No need to add anything new to SOURCEDIRS, MLLS, MLYS
-MODULES += merger mainmerger
-
     # Include now the common set of rules for OCAML
 include Makefile.ocaml
 
@@ -66,21 +56,13 @@ PROJECT_LIBS       = $(CILLY_LIBS)
 cilly: $(PROJECT_EXECUTABLE)
 include Makefile.ocaml.build
 
-   # And rules to make the merger
-PROJECT_EXECUTABLE = $(OBJDIR)/merger$(EXE)
-PROJECT_MODULES    = $(MERGER_MODULES)
-PROJECT_CMODULES   = $(MERGER_CMODULES)
-PROJECT_LIBS       = $(MERGER_LIBS)
-merger: $(PROJECT_EXECUTABLE)
-include Makefile.ocaml.build
 
-
-quickbuild: machdep cilly merger
+quickbuild: machdep cilly
 
 # Setup also makes the native code versions
 setup: machdep
-	$(MAKE) -r -f Makefile.cil cilly merger $(MAKEOVERRIDES) NATIVECAML= 
-	$(MAKE) -r -f Makefile.cil cilly merger $(MAKEOVERRIDES) NATIVECAML=1
+	$(MAKE) -r -f Makefile.cil cilly $(MAKEOVERRIDES) NATIVECAML= 
+	$(MAKE) -r -f Makefile.cil cilly $(MAKEOVERRIDES) NATIVECAML=1
 
 # Create the machine dependency module
 # If the cl command cannot be run then the MSVC part will be identical to GCC
@@ -176,20 +158,19 @@ DISTRIB_SRC = pretty.ml pretty.mli errormsg.ml errormsg.mli \
               util.ml clist.ml clist.mli \
 	      cil.ml cil.mli check.ml check.mli \
 	      rmtmps.ml rmtmps.mli \
-	      testcil.ml maincil.ml machdep.c
+	      testcil.ml mergecil.ml mergecil.mli maincil.ml machdep.c
 
 DISTRIB_SRC_FRONTC = cabs.ml cprint.ml clexer.mli clexer.mll \
 		     cparser.mly cabsvisit.ml cabsvisit.mli \
-                     merger.ml mainmerger.ml \
 		     cabs2cil.ml cabs2cil.mli frontc.ml frontc.mli
 
 DISTRIB_SRC_EXT = logcalls.ml logcalls.mli \
                   logwrites.ml heapify.ml 
 
-DISTRIB_LIB = CompilerStub.pm.in Merger.pm
+DISTRIB_LIB = Cilly.pm
 
-DISTRIB_BIN = cilly.in cilly.bat.in \
-              patcher.in patcher.bat.in
+DISTRIB_BIN = cilly cilly.bat.in \
+              patcher patcher.bat.in
 
 DISTRIB_SMALL1=hello.c func.c init.c init1.c wchar1.c vararg1.c testharness.h 
 

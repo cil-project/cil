@@ -36,7 +36,7 @@ module E = Errormsg
 module H = Hashtbl
 
 let debugMerge = false
-let debugInlines = false && debugMerge
+let debugInlines = false
 
 (* Try to merge structure with the same name. However, do not complain if 
  * they are not the same *)
@@ -116,9 +116,10 @@ let rec find (pathcomp: bool) (nd: 'a node) =
  * function for undoing the union. Make sure that between the union and the 
  * undo you do not do path compression *)
 let union (nd1: 'a node) (nd2: 'a node) : 'a node * (unit -> unit) = 
-  if nd1 == nd2 then
-    E.s (bug "unioning two identical nodes for %s(%d)" 
-           nd1.nname nd1.nfidx);
+  if nd1 == nd2 then begin
+      E.s (bug "unioning two identical nodes for %s(%d)" 
+             nd1.nname nd1.nfidx)
+  end;
   (* Move to the representatives *)
   let nd1 = find true nd1 in
   let nd2 = find true nd2 in 
@@ -148,7 +149,15 @@ let union (nd1: 'a node) (nd2: 'a node) : 'a node * (unit -> unit) =
   let oldrep = norep.nrep in
   norep.nrep <- rep; 
   rep, (fun () -> norep.nrep <- oldrep)
-      
+(*      
+let union (nd1: 'a node) (nd2: 'a node) : 'a node * (unit -> unit) = 
+  if nd1 == nd2 && nd1.nname = "!!!intEnumInfo!!!" then begin
+    ignore (warn "unioning two identical nodes for %s(%d)" 
+              nd1.nname nd1.nfidx);
+    nd1, fun x -> x
+  end else
+    union nd1 nd2
+*)
 (* Find the representative for a node and compress the paths in the process *)
 let findReplacement
     (pathcomp: bool)
@@ -254,6 +263,12 @@ let pushGlobal (g: global) : unit =
     
 let pushGlobals gl = List.iter pushGlobal gl
     
+
+(* Remember the composite types that we have already declared *)
+let emittedCompDecls: (string, bool) H.t = H.create 113
+(* Remember the variables also *)
+let emittedVarDecls: (string, bool) H.t = H.create 113
+
 (* Initialize the module *)
 let init () = 
   H.clear tAlpha;
@@ -282,11 +297,25 @@ let init () =
   H.clear inlineBodies;
 
   currentFidx := 0;
-  currentDeclIdx := 0
+  currentDeclIdx := 0;
+
+  H.clear emittedVarDecls;
+  H.clear emittedCompDecls
 
 
-      
-
+(* Some enumerations have to be turned into an integer. We implement this by 
+ * introducing a special enumeration type which we'll recognize later to be 
+ * an integer *)
+let intEnumInfo = 
+  { ename = "!!!intEnumInfo!!!"; (* This is otherwise invalid *)
+    eitems = [];
+    eattr = [];
+    ereferenced = false;
+  }
+(* And add it to the equivalence graph *)
+let intEnumInfoNode = 
+  getNode eEq eSyn 0 intEnumInfo.ename intEnumInfo 
+                     (Some (locUnknown, 0))
 
     (* Combine the types. Raises the Failure exception with an error message. 
      * isdef says whether the new type is for a definition *)
@@ -334,8 +363,9 @@ let rec combineTypes (what: combineWhat)
       TFloat (combineFK oldfk fk, addAttributes olda a)
 
   | TEnum (oldei, olda), TEnum (ei, a) ->
+      (* Matching enumerations always succeeds. But sometimes it maps both 
+       * enumerations to integers *)
       matchEnumInfo oldfidx oldei fidx ei;
-      (* If we get here we were succesfull *)
       TEnum (oldei, addAttributes olda a) 
 
 
@@ -513,30 +543,39 @@ and matchEnumInfo (oldfidx: int) (oldei: enuminfo)
     let oldfidx = oldeinode.nfidx in
     let ei = einode.ndata in
     let fidx = einode.nfidx in
-    (* We do not have a mapping. They better be defined in the same way *)
-    if List.length oldei.eitems <> List.length ei.eitems then 
-      raise (Failure "(different number of enumeration elements)");
-    (* We check that they are defined in the same way. This is a fairly 
-     * conservative check. *)
-    List.iter2 
-      (fun (old_iname, old_iv) (iname, iv) -> 
-        if old_iname <> iname then 
-          raise (Failure "(different names for enumeration items)");
-        let samev = 
-          match constFold true old_iv, constFold true iv with 
-            Const(CInt64(oldi, _, _)), Const(CInt64(i, _, _)) -> oldi = i
-          | _ -> false
-        in
-        if not samev then 
-          raise (Failure "(different values for enumeration items)"))
-      oldei.eitems ei.eitems;
-    (* Set the representative *)
-    let newrep, _ = union oldeinode einode in
-    (* We get here if the enumerations match *)
-    newrep.ndata.eattr <- addAttributes oldei.eattr ei.eattr;
-    (*        if debugMerge then 
-          ignore (E.log "  Renaming enum %s to %s\n" ei.ename  oldei.ename);*)
-    ()
+    (* Try to match them. But if you cannot just make them both integers *)
+    try
+      (* We do not have a mapping. They better be defined in the same way *)
+      if List.length oldei.eitems <> List.length ei.eitems then 
+        raise (Failure "(different number of enumeration elements)");
+      (* We check that they are defined in the same way. This is a fairly 
+      * conservative check. *)
+      List.iter2 
+        (fun (old_iname, old_iv) (iname, iv) -> 
+          if old_iname <> iname then 
+            raise (Failure "(different names for enumeration items)");
+          let samev = 
+            match constFold true old_iv, constFold true iv with 
+              Const(CInt64(oldi, _, _)), Const(CInt64(i, _, _)) -> oldi = i
+            | _ -> false
+          in
+          if not samev then 
+            raise (Failure "(different values for enumeration items)"))
+        oldei.eitems ei.eitems;
+      (* Set the representative *)
+      let newrep, _ = union oldeinode einode in
+      (* We get here if the enumerations match *)
+      newrep.ndata.eattr <- addAttributes oldei.eattr ei.eattr;
+      ()
+    with Failure msg -> begin
+      (* Get here if you cannot merge two enumeration nodes *)
+      if oldeinode != intEnumInfoNode then begin
+        let _ = union oldeinode intEnumInfoNode in ()
+      end;
+      if einode != intEnumInfoNode then begin
+        let _ = union einode intEnumInfoNode in ()
+      end;
+    end
   end
 
       
@@ -610,7 +649,11 @@ class renameVisitorClass = object (self)
         match findReplacement true eEq !currentFidx ei.ename with
           None -> DoChildren
         | Some (ei', _) -> 
-            ChangeTo (TEnum (ei', visitCilAttributes (self :> cilVisitor) a))
+            if ei' == intEnumInfo then 
+              (* This is actually our friend intEnumInfo *)
+              ChangeTo (TInt(IInt, visitCilAttributes (self :> cilVisitor) a))
+            else
+              ChangeTo (TEnum (ei', visitCilAttributes (self :> cilVisitor) a))
       end
 
     | TNamed (ti, a) when not ti.treferenced -> begin
@@ -643,6 +686,7 @@ class renameVisitorClass = object (self)
         end
       end
     | _ -> DoChildren
+
 end
 
 let renameVisitor = new renameVisitorClass
@@ -722,7 +766,7 @@ let rec oneFilePass1 (f:file) : unit =
   in
   List.iter
     (function 
-      | GDecl (vi, l) | GVar (vi, _, l) -> 
+      | GVarDecl (vi, l) | GVar (vi, _, l) -> 
           currentLoc := l;
           incr currentDeclIdx;
           vi.vreferenced <- false;
@@ -854,6 +898,7 @@ let matchInlines (oldfidx: int) (oldi: varinfo)
  *
  *
  ************************************************************)  
+
   (* Now we go once more through the file and we rename the globals that we 
    * keep. We also scan the entire body and we replace references to the 
    * representative types or variables. We set the referenced flags once we 
@@ -878,26 +923,34 @@ let oneFilePass2 (f: file) =
         end else begin
           (* Find the representative *)
           match findReplacement true vEq !currentFidx vi.vname with
-            None -> vi
-          | Some (vi', _) -> 
-              vi'.vreferenced <- true;
+            None -> vi (* This is the representative *)
+          | Some (vi', _) -> (* Reuse some previous one *)
+              vi'.vreferenced <- true; (* Mark it as done already *)
+              vi'.vaddrof <- vi.vaddrof || vi'.vaddrof;
               vi'
         end
       end
     in
     try
       match g with 
-      | GDecl (vi, l) as g -> 
+      | GVarDecl (vi, l) as g -> 
           currentLoc := l;
           let vi' = processVarinfo vi l in
-          if vi != vi' then (* Drop this declaration *) () else
-          pushGlobals (visitCilGlobal renameVisitor g)
+          if vi != vi' then (* Drop this declaration *) () 
+          else if H.mem emittedVarDecls vi'.vname then (* No need to keep it *)
+            ()
+          else begin
+            H.add emittedVarDecls vi'.vname true; (* Remember that we emitted 
+                                                   * it  *)
+            pushGlobals (visitCilGlobal renameVisitor g)
+          end
             
       | GVar (vi, init, l) as g -> 
           currentLoc := l;
           let vi' = processVarinfo vi l in
           (* We must keep this definition even if we reuse this varinfo, 
           * because maybe the previous one was a declaration *)
+          H.add emittedVarDecls vi.vname true; (* Remember that we emitted it *)
           pushGlobals (visitCilGlobal renameVisitor (GVar(vi', init, l)))
             
       | GFun (fdec, l) as g -> 
@@ -948,10 +1001,11 @@ let oneFilePass2 (f: file) =
             let inode = 
               getNode vEq vSyn !currentFidx fdec.svar.vname fdec.svar None 
             in
-            if debugInlines then 
+            if debugInlines then begin
               ignore (E.log 
                         "Looking for previous definition of inline %s(%d)\n"
                         origname !currentFidx); 
+            end;
             try
               let oldinode = H.find inlineBodies printout in
               if debugInlines then
@@ -990,6 +1044,8 @@ let oneFilePass2 (f: file) =
                 ci.creferenced <- true; 
                 ci.ckey <- H.hash (compFullName ci);
                 (* Now we should visit the fields as well *)
+                H.add emittedCompDecls ci.cname true; (* Remember that we 
+                                                       * emitted it  *)
                 pushGlobals (visitCilGlobal renameVisitor g)
             | Some (oldci, oldfidx) -> begin
                 (* We are not the representative. Drop this declaration 
@@ -1007,30 +1063,50 @@ let oneFilePass2 (f: file) =
               None -> (* We must rename it *)
                 ei.ename <- newAlphaName eAlpha ei.ename;
                 ei.ereferenced <- true;
+                (* And we must rename the items to using the same name space 
+                 * as the variables *)
+                ei.eitems <- 
+                   List.map
+                     (fun (n, i) -> newAlphaName vAlpha n, i)
+                     ei.eitems;
                 pushGlobals (visitCilGlobal renameVisitor g);
             | Some (ei', _) -> (* Drop this since we are reusing it from 
                                 * before *)
                 ()
           end
       end
+      | GCompTagDecl (ci, l) -> begin
+          currentLoc := l; (* This is here just to introduce an undefined 
+                            * structure. But maybe the structure was defined 
+                            * already.  *)
+          if H.mem emittedCompDecls ci.cname then 
+            () (* It was already declared *)
+          else begin
+            H.add emittedCompDecls ci.cname true;
+            (* Keep it as a declaration *)
+            pushGlobals (visitCilGlobal renameVisitor g);
+          end
+      end
+
+      | GEnumTagDecl (ei, l) -> 
+          currentLoc := l;
+          (* Keep it as a declaration *)
+          pushGlobals (visitCilGlobal renameVisitor g)
+          
+
       | GType (ti, l) as g -> begin
           currentLoc := l;
-          if ti.tname = "" then begin (* This is here just to introduce an 
-                                       * undefined structure *)
-            pushGlobals (visitCilGlobal renameVisitor g);
-          end else begin
-            if ti.treferenced then 
-              () 
-            else begin
-              match findReplacement true tEq !currentFidx ti.tname with 
-                None -> (* We must rename it and keep it *)
-                  ti.tname <- newAlphaName tAlpha ti.tname;
-                  ti.treferenced <- true;
-                  pushGlobals (visitCilGlobal renameVisitor g);
-              | Some (ti', _) ->(* Drop this since we are reusing it from 
-                                 * before *)
-                    ()
-            end
+          if ti.treferenced then 
+            () 
+          else begin
+            match findReplacement true tEq !currentFidx ti.tname with 
+              None -> (* We must rename it and keep it *)
+                ti.tname <- newAlphaName tAlpha ti.tname;
+                ti.treferenced <- true;
+                pushGlobals (visitCilGlobal renameVisitor g);
+            | Some (ti', _) ->(* Drop this since we are reusing it from 
+                * before *)
+                  ()
           end
       end
       | g -> pushGlobals (visitCilGlobal renameVisitor g)
@@ -1090,6 +1166,7 @@ let merge (files: file list) (newname: string) : file =
       globinitcalled = false } in
   init (); (* Make the GC happy *)
   res
+
 
 
 

@@ -171,7 +171,8 @@ $TEST->add3Tests("testrun/caserange", "_GNUCC=1");
 if (!$egcs) {
   $TEST->add3Tests("test/attr");
   $TEST->add3Tests("test/attr2", "_GNUCC=1");
-      $TEST->addBadComment("test/attr2-box", "Format is a fat pointer to string");
+      $TEST->addBadComment("test/attr2-box", 
+                           "Format is a fat pointer to string");
   $TEST->add3Tests("test/attr3", "_GNUCC=1");
   $TEST->add3Tests("testrun/attr4", "_GNUCC=1");
   $TEST->addTests("testrun/attr5", "_GNUCC=1", ['cil']);
@@ -329,6 +330,9 @@ $TEST->addTests("combine14", "", ['cil']);
 $TEST->addTests("combine15", "", ['cil']);
 $TEST->addTests("combine16", "", ['cil']);
 $TEST->addTests("combine18", "", ['cil']);
+$TEST->addTests("combineenum1", "", ['cil']);
+$TEST->addTests("combineenum2", "", ['cil']);
+$TEST->addTests("combineenum3", "", ['cil']);
 
 $TEST->addTests("arcombine", "_GNUCC=1", ['cil']);
 $TEST->add2Tests("testrun/funptr1");
@@ -396,6 +400,7 @@ $TEST->addTestsFail("testrun/fseq1", "", "Failure: Lbound",
 $TEST->addTestsFail("testrun/string1", "", "Failure: Ubound", ['inferbox']);
 $TEST->addTestsFail("testrun/fseq3", "", "Failure: Integer arithmetic overflow", ['inferbox']);
 $TEST->addTests("test-bad/badpoly", "_GNUCC=1", [ 'inferbox' ]);
+$TEST->addTests("test-bad/polylist", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/poly2", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/castnoedge", "_GNUCC=1", [ 'inferbox' ]);
 
@@ -652,9 +657,10 @@ smAddTest("scott/getpwnam $box $gcc");
 
 smAddTest("test-bad/execv $box $gcc");
 $TEST->setField(smAddTest("scott/popen $box $gcc"),
-                "FailDiagnosis", "inferred glob_t probably has unanticipated type");
+                "FailDiagnosis", 
+                "inferred glob_t probably has unanticipated type");
 smAddTest("scott/memset_int $box");
-smAddTest("scott/printfllong $box");
+smAddTest("scott/printfllong $box $gcc");
 smAddTest("test-bad/replydirname $box");
 smAddTest("test-bad/boundaries $box");
 smAddTest("scott/stat $box");

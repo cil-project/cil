@@ -87,10 +87,7 @@ and global =
   | GType of typeinfo * location    
     (** A typedef. All uses of type names (through the [TNamed] constructor) 
         must be preceeded in the file by a definition of the name. The string 
-        is the defined name. If the string is empty then this global is 
-        printed as a type-only declaration, useful for introducing 
-        declarations of structure tags. In turn this is useful only when your 
-        file refers to pointers to such undefined structures or unions. *)
+        is the defined name and always not-empty. *)
 
   | GCompTag of compinfo * location     
     (** Defines a struct/union tag with some fields. There must be one of 
@@ -100,13 +97,21 @@ and global =
         broken into individual definitions with the innermost structure 
         defined first. *)
 
+  | GCompTagDecl of compinfo * location
+    (** Declares a struct/union tag. Use as a forward declaration. This is 
+      * printed without the fields.  *)
+
   | GEnumTag of enuminfo * location
    (** Declares an enumeration tag with some fields. There must be one of 
       these for each enumeration tag that you use (through the [TEnum] 
       constructor) since this is the only context in which the items are 
       printed. *)
 
-  | GDecl of varinfo * location
+  | GEnumTagDecl of enuminfo * location
+    (** Declares an enumeration tag. Use as a forward declaration. This is 
+      * printed without the items.  *)
+
+  | GVarDecl of varinfo * location
    (** A variable declaration (not a definition). If the variable has a 
        function type then this is a prototype. There can be at most one 
        declaration and at most one definition for a given variable. If both 
@@ -716,7 +721,7 @@ class type cilVisitor = object
   method vvdec: varinfo -> varinfo visitAction  
     (** Invoked for each variable declaration. The subtrees to be traversed 
      * are those corresponding to the type and attributes of the variable. 
-     * Note that variable declarations are all the [GVar], [GDecl], [GFun], 
+     * Note that variable declarations are all the [GVar], [GVarDecl], [GFun], 
      * all the [varinfo] in formals of function types, and the formals and 
      * locals for function definitions. This means that the list of formals 
      * in a function definition will be traversed twice, once as part of the 
@@ -806,8 +811,10 @@ let get_globalLoc (g : global) =
   | GFun(_,l) -> (l)
   | GType(_,l) -> (l)
   | GEnumTag(_,l) -> (l) 
+  | GEnumTagDecl(_,l) -> (l) 
   | GCompTag(_,l) -> (l) 
-  | GDecl(_,l) -> (l) 
+  | GCompTagDecl(_,l) -> (l) 
+  | GVarDecl(_,l) -> (l) 
   | GVar(_,_,l) -> (l)
   | GAsm(_,l) -> (l)
   | GPragma(_,l) -> (l) 
@@ -1622,7 +1629,7 @@ let invalidStmt = mkStmt (Instr [])
 class type cilPrinter = object
   method pVDecl: unit -> varinfo -> doc
     (** Invoked for each variable declaration. Note that variable 
-     * declarations are all the [GVar], [GDecl], [GFun], all the [varinfo] in 
+     * declarations are all the [GVar], [GVarDecl], [GFun], all the [varinfo] in 
      * formals of function types, and the formals and locals for function 
      * definitions. *)
 
@@ -2147,12 +2154,9 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           
     | GType (typ, l) ->
         self#pLineDirective l ++
-        if typ.tname = "" then
-          self#pType None () typ.ttype ++ chr ';'
-        else
           text "typedef "
-            ++ (self#pType (Some (text typ.tname)) () typ.ttype)
-            ++ chr ';'
+          ++ (self#pType (Some (text typ.tname)) () typ.ttype)
+          ++ chr ';'
 
     | GEnumTag (enum, l) ->
         self#pLineDirective l ++
@@ -2165,6 +2169,10 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                     ++ text "," ++ break)
                 () enum.eitems)
           ++ unalign ++ break ++ text "};"
+
+    | GEnumTagDecl (enum, l) -> (* This is a declaration of a tag *)
+        self#pLineDirective l ++
+          text ("enum " ^ enum.ename ^ ";")
 
     | GCompTag (comp, l) -> (* This is a definition of a tag *)
         let n = comp.cname in
@@ -2181,6 +2189,10 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           ++ line ++ text "}" ++
           (self#pAttrs () comp.cattr) ++ text ";"
 
+    | GCompTagDecl (comp, l) -> (* This is a declaration of a tag *)
+        self#pLineDirective l ++
+          text (compFullName comp) ++ text ";"
+
     | GVar (vi, io, l) ->
         self#pLineDirective l ++
           self#pVDecl () vi
@@ -2190,10 +2202,10 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           | Some i -> text " = " ++ (self#pInit () i))
           ++ chr ';'
           
-    | GDecl (vi, l) -> (
+    | GVarDecl (vi, l) -> (
         (* sm: don't print boxmodels; avoids gcc warnings *)
         if (hasAttribute "boxmodel" vi.vattr) then
-          (text ("// omitted boxmodel GDecl " ^ vi.vname ^ "\n"))
+          (text ("// omitted boxmodel GVarDecl " ^ vi.vname ^ "\n"))
             (* sm: also don't print declarations for gcc builtins *)
             (* this doesn't do what I want, I don't know why *)
         else if startsWith "__builtin_" vi.vname && not !print_CIL_Input then (
@@ -2215,7 +2227,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         (* also don't print the 'combiner' pragma *)
         (* nor 'cilnoremove' *)
         let suppress = 
-          not !print_CIL_Input && 
+          not !print_CIL_Input && not !msvcMode && 
           ((startsWith "box" an) ||
           (startsWith "ccured" an) ||
           (an = "merger") ||
@@ -3196,16 +3208,16 @@ and childrenGlobal (vis: cilVisitor) (g: global) : global =
       t.ttype <- visitCilType vis t.ttype;
       g
 
-  | GEnumTag (enum, _) -> g (* Nothing to visit *)
+  | GEnumTag _ | GEnumTagDecl _ | GCompTagDecl _ -> g (* Nothing to visit *)
   | GCompTag (comp, _) ->
       (trace "visit" (dprintf "visiting global comp %s\n" comp.cname));
       (* Do the types of the fields *)
       List.iter (fun fi -> fi.ftype <- visitCilType vis fi.ftype) comp.cfields;
       g
 
-  | GDecl(v, l) -> 
+  | GVarDecl(v, l) -> 
       let v' = visitCilVarDecl vis v in
-      if v' != v then GDecl (v', l) else g
+      if v' != v then GVarDecl (v', l) else g
   | GVar (v, inito, l) -> 
       let v' = visitCilVarDecl vis v in
       let inito' = 
@@ -3239,11 +3251,25 @@ let getGlobInit (fl: file) =
   match fl.globinit with 
     Some f -> f
   | None -> begin
-      let base = Filename.basename fl.fileName in
+      (* Sadly, we cannot use the Filename library because it does not like 
+       * function names with multiple . in them *)
+      let len = String.length fl.fileName in
+      (* Find the last path separator and record the first . that we see, 
+       * going backwards *)
+      let lastDot = ref len in
+      let rec findLastPathSep i = 
+        if i < 0 then -1 else
+        let c = String.get fl.fileName i in
+        if c = '/' || c = '\\' then i
+        else begin
+          if c = '.' && !lastDot = len then 
+            lastDot := i;
+          findLastPathSep (i - 1)
+        end
+      in
+      let lastPathSep = findLastPathSep (len - 1) in
       let basenoext = 
-        try
-          Filename.chop_extension base
-        with _ -> base
+        String.sub fl.fileName (lastPathSep + 1) (!lastDot - lastPathSep - 1) 
       in
       let f = 
         emptyFunction 

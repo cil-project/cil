@@ -437,3 +437,13 @@ extern long double __builtin_fabsl(long double);
   #define __endof(p) p
 #endif
 
+
+#ifdef CCURED
+/* We add a mechanism for casting arbitrarily without penalty. This is unsound. 
+ * Use only when you know what you are doing. */
+#pragma boxpoly("trusted_cast")
+void * trusted_cast(void * p);
+#else
+#define trusted_cast(p)       (p)
+#endif
+

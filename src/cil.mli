@@ -90,10 +90,7 @@ and global =
   | GType of typeinfo * location    
     (** A typedef. All uses of type names (through the [TNamed] constructor) 
         must be preceeded in the file by a definition of the name. The string 
-        is the defined name. If the string is empty then this global is 
-        printed as a type-only declaration, useful for introducing 
-        declarations of structure tags. In turn this is useful only when your 
-        file refers to pointers to such undefined structures or unions. *)
+        is the defined name and always not-empty. *)
 
   | GCompTag of compinfo * location     
     (** Defines a struct/union tag with some fields. There must be one of 
@@ -103,13 +100,21 @@ and global =
         broken into individual definitions with the innermost structure 
         defined first. *)
 
+  | GCompTagDecl of compinfo * location
+    (** Declares a struct/union tag. Use as a forward declaration. This is 
+      * printed without the fields.  *)
+
   | GEnumTag of enuminfo * location
    (** Declares an enumeration tag with some fields. There must be one of 
       these for each enumeration tag that you use (through the [TEnum] 
       constructor) since this is the only context in which the items are 
       printed. *)
 
-  | GDecl of varinfo * location
+  | GEnumTagDecl of enuminfo * location
+    (** Declares an enumeration tag. Use as a forward declaration. This is 
+      * printed without the items.  *)
+
+  | GVarDecl of varinfo * location
    (** A variable declaration (not a definition). If the variable has a 
        function type then this is a prototype. There can be at most one 
        declaration and at most one definition for a given variable. If both 
@@ -388,7 +393,7 @@ and typeinfo = {
 
 (** {b Variables.} 
  Each local or global variable is represented by a unique {!Cil.varinfo}
-structure. A global {!Cil.varinfo} can be introduced with the [GDecl] or
+structure. A global {!Cil.varinfo} can be introduced with the [GVarDecl] or
 [GVar] or [GFun] globals. A local varinfo can be introduced as part of a
 function definition. 
 
@@ -1424,7 +1429,7 @@ class type cilVisitor = object
   method vvdec: varinfo -> varinfo visitAction  
     (** Invoked for each variable declaration. The subtrees to be traversed 
      * are those corresponding to the type and attributes of the variable. 
-     * Note that variable declarations are all the [GVar], [GDecl], [GFun], 
+     * Note that variable declarations are all the [GVar], [GVarDecl], [GFun], 
      * all the [varinfo] in formals of function types, and the formals and 
      * locals for function definitions. This means that the list of formals 
      * in a function definition will be traversed twice, once as part of the 
@@ -1592,7 +1597,7 @@ val d_const: unit -> constant -> Pretty.doc
 class type cilPrinter = object
   method pVDecl: unit -> varinfo -> Pretty.doc
     (** Invoked for each variable declaration. Note that variable 
-     * declarations are all the [GVar], [GDecl], [GFun], all the [varinfo] in 
+     * declarations are all the [GVar], [GVarDecl], [GFun], all the [varinfo] in 
      * formals of function types, and the formals and locals for function 
      * definitions. *)
 

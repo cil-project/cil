@@ -358,14 +358,9 @@ and checkTypeInfo (isadef: defuse) ti =
     | _, _ -> 
         ignore (warnContext "Use of type %s before its definition\n" ti.tname))
   with Not_found -> begin (* This is the first time we see it *)
+    if ti.tname = "" then
+      ignore (warnContext "typeinfo with empty name");
     checkType ti.ttype CTDecl;
-    if ti.tname = "" then begin 
-      (* We can have forward declarations for compinfo and enuminfo *)
-      match unrollType ti.ttype with
-        TComp (ci, _) -> checkCompInfo Forward ci
-      | TEnum (ei, _) -> checkEnumInfo Forward ei
-      | _ -> E.s (warnContext "Empty type name for type %a" d_type ti.ttype)
-    end;
     (* Add it to the map before we go on *)
     H.add typUsed ti.tname (ti, ref isadef);
   end
@@ -755,14 +750,22 @@ let rec checkGlobal = function
       currentLoc := l;
       checkCompInfo Defined comp;
 
+  | GCompTagDecl (comp, l) -> 
+      currentLoc := l;
+      checkCompInfo Forward comp;
+
   | GEnumTag (enum, l) -> 
       currentLoc := l;
       checkEnumInfo Defined enum
 
-  | GDecl (vi, l) -> 
+  | GEnumTagDecl (enum, l) -> 
+      currentLoc := l;
+      checkEnumInfo Forward enum
+
+  | GVarDecl (vi, l) -> 
       currentLoc := l;
       (* We might have seen it already *)
-      E.withContext (fun _ -> dprintf "GDecl(%s)" vi.vname)
+      E.withContext (fun _ -> dprintf "GVarDecl(%s)" vi.vname)
         (fun _ -> 
           (* If we have seen this vid already then it must be for the exact 
            * same varinfo *)
@@ -783,7 +786,7 @@ let rec checkGlobal = function
       (* Maybe this is the first occurrence *)
       E.withContext (fun _ -> dprintf "GVar(%s)" vi.vname)
         (fun _ -> 
-          checkGlobal (GDecl (vi, l));
+          checkGlobal (GVarDecl (vi, l));
           (* Check the initializer *)
           begin match init with
             None -> ()
@@ -803,7 +806,7 @@ let rec checkGlobal = function
       let fname = vi.vname in
       E.withContext (fun _ -> dprintf "GFun(%s)" fname)
         (fun _ -> 
-          checkGlobal (GDecl (vi, l));
+          checkGlobal (GVarDecl (vi, l));
           (* Check that the argument types in the type are identical to the 
            * formals *)
           let rec loopArgs targs formals = 

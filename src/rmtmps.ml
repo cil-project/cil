@@ -227,7 +227,7 @@ begin
   let globalDecls : (string, bool) H.t = H.create 17 in
   iterGlobals file
     (function
-        GDecl (v, _) ->
+        GVarDecl (v, _) ->
           (H.add globalDecls v.vname true)
       | _ -> ()
     );
@@ -325,53 +325,51 @@ begin
               )
             )
 
+          | GCompTagDecl (ci, _) -> 
+              if (ci.creferenced) then begin
+                (trace "usedType" (dprintf "keeping fwd decl of %s\n"
+                                     ci.cname));
+
+                (* should not have to trace from here *) 
+                (* retain this type definition *)
+                true
+              end else begin 
+                (trace "usedType" (dprintf "removing fwd decl of %s\n"
+                                     ci.cname));
+                false
+              end
+          | GEnumTagDecl (ei, _) -> 
+              if (ei.ereferenced) then begin
+                (trace "usedType" (dprintf "keeping fwd decl of enum %s\n"
+                                     ei.ename));
+                
+                (* should not have to trace from here *) 
+                (* retain this type definition *)
+                true
+              end else begin
+                (trace "usedType" (dprintf "removing fwd decl of enum %s\n"
+                                     ei.ename));
+                false
+              end
+
           | GType(t, _) -> (
-              if (t.tname = "") then (
-                (* it should be forward structure declaration *)
-                match t.ttype with
-                | TComp(c, _) -> (
-                    if (c.creferenced) then (
-                      (trace "usedType" (dprintf "keeping fwd decl of %s\n"
-                                                 c.cname));
-
-                      (* should not have to trace from here *)
-                      (*ignore (visitCilType vis t);*)
-
-                      (* retain this type definition *)
-                      true
-                    )                        
-                    else (
-                      (trace "usedType" (dprintf "removing fwd decl of %s\n"
-                                                 c.cname));
-                      false
-                    )
+              (* this is a typedef *)
+              if t.treferenced  || H.mem forceToKeep ("type " ^ t.tname) 
+              then (
+                (trace "usedType" (dprintf "keeping typedef %s\n" t.tname));
+                (* I think we don't need to trace again during sweep, because *)
+                (* all tracing of types should have finished during mark phase *)
+                (*(visitCilType vis t);*)           (* root; trace it *)
+                true                            (* used; keep it *)
                   )
-                | _ -> (
-                  (* don't know what this is.. *)
-                  (trace "usedType"
-                    (dprintf "removing/ignoring bad GType %a\n" d_type t.ttype));
-                  false
-                )
-              )
               else (
-                (* this is a typedef *)
-                if t.treferenced  || H.mem forceToKeep ("type " ^ t.tname) 
-                then (
-                  (trace "usedType" (dprintf "keeping typedef %s\n" t.tname));
-                  (* I think we don't need to trace again during sweep, because *)
-                  (* all tracing of types should have finished during mark phase *)
-                  (*(visitCilType vis t);*)           (* root; trace it *)
-                  true                            (* used; keep it *)
-                )
-                else (
-                  (* not used, remove it *)
-                  (trace "usedType" (dprintf "removing typedef %s\n" t.tname));
-                  false
-                )
+                (* not used, remove it *)
+                (trace "usedType" (dprintf "removing typedef %s\n" t.tname));
+                false
+                  )
               )
-            )
 
-          | GDecl(v, _) -> (
+          | GVarDecl(v, _) -> (
               if v.vreferenced || H.mem forceToKeep v.vname then begin
                 trace "usedVar" (dprintf "keeping global: %s\n" v.vname);
 

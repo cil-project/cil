@@ -1,4 +1,4 @@
-#include <testharness.h>
+#include "testharness.h"
 #include <stdio.h>
 
 void BuildWord(char * pchWord) {

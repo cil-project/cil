@@ -234,7 +234,7 @@ let pushGlobal (g: global) =
       None -> theFile := g :: !theFile
     | Some (vl, loc) -> 
         theFileTypes := 
-           g :: (List.fold_left (fun acc v -> GDecl(v, loc) :: acc) 
+           g :: (List.fold_left (fun acc v -> GVarDecl(v, loc) :: acc) 
                                 !theFileTypes vl) 
   end
     
@@ -253,7 +253,7 @@ let popGlobals () =
   let rec revonto (tail: global list) = function
       [] -> tail
 
-    | GDecl (vi, l) :: rest 
+    | GVarDecl (vi, l) :: rest 
       when vi.vstorage != Extern && H.mem mustTurnIntoDef vi.vid -> 
         H.remove mustTurnIntoDef vi.vid;
         revonto (GVar (vi, None, l) :: tail) rest
@@ -388,9 +388,10 @@ let newAlphaName (globalscope: bool) (* The name should have global scope *)
 
   
 let structId = ref 0
-let anonStructName n = 
+let anonStructName (k: string) (suggested: string) = 
   incr structId;
-  "__anon" ^ n ^ (string_of_int (!structId))
+  "__anon" ^ k ^ (if suggested <> "" then "_"  ^ suggested else "") 
+  ^ "_" ^ (string_of_int (!structId))
 
 
 let constrExprId = ref 0
@@ -1777,9 +1778,17 @@ let afterConversion (c: chunk) : chunk =
   peepHole2 collapseCallCast sl;
   { c with stmts = sl; postins = [] }
 
+(***** Try to suggest a name for the anonymous structures *)
+let suggestAnonName (nl: A.name list) = 
+  match nl with 
+    [] -> ""
+  | (n, _, _) :: _ -> n
 
 (****** TYPE SPECIFIERS *******)
-let rec doSpecList (specs: A.spec_elem list) 
+let rec doSpecList (suggestedAnonName: string) (* This string will be part of 
+                                                * the names for anonymous 
+                                                * structures and enums  *)
+                   (specs: A.spec_elem list) 
        (* Returns the base type, the storage, whether it is inline and the 
         * (unprocessed) attributes *)
     : typ * storage * bool * A.attribute list =
@@ -1926,7 +1935,7 @@ let rec doSpecList (specs: A.spec_elem list)
         if n = "" then E.s (error "Missing struct tag on incomplete struct");
         findCompType "struct" n []
     | [A.Tstruct (n, Some nglist)] -> (* A definition of a struct *)
-      let n' = if n <> "" then n else anonStructName "struct" in
+      let n' = if n <> "" then n else anonStructName "struct" suggestedAnonName in
       (* Use the attributes now *)
       let a = !attrs in 
       attrs := [];
@@ -1936,7 +1945,7 @@ let rec doSpecList (specs: A.spec_elem list)
         if n = "" then E.s (error "Missing union tag on incomplete union");
         findCompType "union" n []
     | [A.Tunion (n, Some nglist)] -> (* A definition of a union *)
-        let n' = if n <> "" then n else anonStructName "union" in
+        let n' = if n <> "" then n else anonStructName "union" suggestedAnonName in
         (* Use the attributes now *)
         let a = !attrs in 
         attrs := [];
@@ -1947,7 +1956,7 @@ let rec doSpecList (specs: A.spec_elem list)
         findCompType "enum" n []
 
     | [A.Tenum (n, Some eil)] -> (* A definition of an enum *)
-        let n' = if n <> "" then n else anonStructName "enum" in
+        let n' = if n <> "" then n else anonStructName "enum" suggestedAnonName in
         (* make a new name for this enumeration *)
         let n'' = newAlphaName true "enum" n' in
         (* Create the enuminfo, or use one that was created already for a 
@@ -2235,9 +2244,9 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
             (args', !newisva)
           end else (args, isva)
         in
-        let doOneArg (s, n) = 
-          let s' = doSpecList s in
-          makeVarInfo false locUnknown s' n
+        let doOneArg (s, ((n, _, _) as nm)) = 
+          let s' = doSpecList n s in
+          makeVarInfo false locUnknown s' nm
         in
         let targs = 
           match List.map doOneArg args'  with
@@ -2306,7 +2315,7 @@ and isVariableSizedArray (dt: A.decl_type)
   | Some (se, e) -> Some (dt', se, e)
 
 and doOnlyType (specs: A.spec_elem list) (dt: A.decl_type) : typ = 
-  let bt',sto,inl,attrs = doSpecList specs in
+  let bt',sto,inl,attrs = doSpecList "" specs in
   if sto <> NoStorage || inl then
     E.s (error "Storage or inline specifier in type only");
   let tres, nattr = doType AttrType bt' (A.PARENTYPE(attrs, dt, [])) in
@@ -2326,9 +2335,14 @@ and makeCompType (isstruct: bool)
   (* Create the self cell for use in fields and forward references. Or maybe 
    * one exists already from a forward reference  *)
   let comp = createCompInfo isstruct n' in
-  let doFieldGroup ((s: A.spec_elem list), (nl: 'n list)) : 'a list =
+  let doFieldGroup ((s: A.spec_elem list), 
+                    (nl: (A.name * A.expression option ) list)) : 'a list =
     (* Do the specifiers exactly once *)
-    let bt, sto, inl, attrs = doSpecList s in
+    let sugg = match nl with 
+      [] -> ""
+    | ((n, _, _), _) :: _ -> n
+    in
+    let bt, sto, inl, attrs = doSpecList sugg s in
     (* Do the fields *)
     let makeFieldInfo
         (((n,ndt,a) : A.name), (widtho : A.expression option))
@@ -2831,7 +2845,7 @@ and doExp (isconst: bool)    (* In a constant *)
                * variable  *)
               let newvar = "__constr_expr_" ^ string_of_int (!constrExprId) in
               incr constrExprId;
-              let spec_res = doSpecList s' in
+              let spec_res = doSpecList "" s' in
               let se1 = 
                 if !scopes == [] then begin
                   ignore (createGlobal spec_res ((newvar, dt', []), ie'));
@@ -3201,7 +3215,7 @@ and doExp (isconst: bool)    (* In a constant *)
                 proto.vstorage <- Extern;
                 H.add noProtoFunctions proto.vid true;
                 (* Add it to the file as well *)
-                pushGlobal (GDecl (proto, !currentLoc));
+                pushGlobal (GVarDecl (proto, !currentLoc));
                 (empty, Lval(var proto), ftype)
               end
             end
@@ -4191,7 +4205,7 @@ and createGlobal (specs : (typ * storage * bool * A.attribute list))
           end;
         if not alreadyInEnv then begin (* Only one declaration *)
           (* If it has function type it is a prototype *)
-          pushGlobal (GDecl (vi, !currentLoc));
+          pushGlobal (GVarDecl (vi, !currentLoc));
           vi
         end else begin
           if debugGlobal then 
@@ -4250,7 +4264,7 @@ and createLocal ((_, sto, _, _) as specs)
           (* Maybe the initializer refers to the function itself. 
              Push a prototype for the function, just in case. Hopefully,
              if does not refer to the locals *)
-          pushGlobal (GDecl (!currentFunctionVI, !currentLoc));
+          pushGlobal (GVarDecl (!currentFunctionVI, !currentLoc));
           Some ie'
         end
       in
@@ -4332,7 +4346,12 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
   | A.DECDEF ((s, nl), loc) ->
       currentLoc := convLoc(loc);
       (* Do the specifiers exactly once *)
-      let spec_res = doSpecList s in
+      let sugg = 
+        match nl with 
+          [] -> ""
+        | ((n, _, _), _) :: _ -> n
+      in
+      let spec_res = doSpecList sugg s in
       (* Do all the variables and concatenate the resulting statements *)
       let doOneDeclarator (acc: chunk) (n: init_name) = 
         if isglobal then begin
@@ -4407,7 +4426,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
             
             H.clear varSizeArrays;
             
-            let bt,sto,inl,attrs = doSpecList specs in
+            let bt,sto,inl,attrs = doSpecList n specs in
             (* Do not process transparent unions in function definitions.
             * We'll do it later *)
             transparentUnionArgs := [];
@@ -4674,7 +4693,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
 and doTypedef ((specs, nl): A.name_group) = 
   try
     (* Do the specifiers exactly once *)
-    let bt, sto, inl, attrs = doSpecList specs in
+    let bt, sto, inl, attrs = doSpecList (suggestAnonName nl) specs in
     if sto <> NoStorage || inl then
       E.s (error "Storage or inline specifier not allowed in typedef");
     let createTypedef ((n,ndt,a) : A.name) =
@@ -4713,34 +4732,40 @@ and doTypedef ((specs, nl): A.name_group) =
 
 and doOnlyTypedef (specs: A.spec_elem list) : unit = 
   try
-    let bt, sto, inl, attrs = doSpecList specs in
+    let bt, sto, inl, attrs = doSpecList "" specs in
     if sto <> NoStorage || inl then 
       E.s (error "Storage or inline specifier not allowed in typedef");
     let restyp, nattr = doType AttrType bt (A.PARENTYPE(attrs, 
                                                         A.JUSTBASE, [])) in
     if nattr <> [] then
       ignore (warn "Ignoring identifier attribute");
-           (* doSpec will register the type. Put a special GType in the file *)
-    (* Move some attributes from the defined type into composite types *)
-    let restyp = 
-      match restyp with 
-        TComp(ci, al) -> 
-          (* Check that we had a definition of a compTag here *)
-          if List.exists 
-              (function 
-                  A.SpecType(A.Tstruct(_, Some _)) -> true
-                | A.SpecType(A.Tunion(_, Some _)) -> true
-                | _ -> false) specs then 
-            begin
-              ci.cattr <- cabsAddAttributes ci.cattr al; 
-              TComp (ci, [])
-            end
-          else
-            restyp
-      | _ -> restyp
+           (* doSpec will register the type. *)
+    (* See if we are defining a composite or enumeration type, and in that 
+     * case move the attributes from the defined type into the composite type 
+     * *)
+    let isadef = 
+      List.exists 
+        (function 
+            A.SpecType(A.Tstruct(_, Some _)) -> true
+          | A.SpecType(A.Tunion(_, Some _)) -> true
+          | A.SpecType(A.Tenum(_, Some _)) -> true
+          | _ -> false) specs
     in
-    pushGlobal (GType ({tname = ""; ttype = restyp; treferenced = false },
-                       !currentLoc))
+    match restyp with 
+      TComp(ci, al) -> 
+        if isadef then begin
+          ci.cattr <- cabsAddAttributes ci.cattr al; 
+          (* The GCompTag was already added *)
+        end else (* Add a GCompTagDecl *)
+          pushGlobal (GCompTagDecl(ci, !currentLoc))
+    | TEnum(ei, al) -> 
+        if isadef then begin
+          ei.eattr <- cabsAddAttributes ei.eattr al;
+        end else
+          pushGlobal (GEnumTagDecl(ei, !currentLoc))
+    | _ -> 
+        ignore (warn "Ignoring un-named typedef that does not introduce a struct or enumeration type\n")
+            
   with e -> begin
     ignore (E.log "Error on A.ONLYTYPEDEF (%s)\n"
               (Printexc.to_string e));
@@ -5093,8 +5118,7 @@ let convFile ((fname : string), (dl : Cabs.definition list)) : Cil.file =
     (fun key ci -> 
       if ci.cfields = [] then begin
         ignore (E.warnOpt "%s empty or not defined" key);
-        globals := GType({ tname = ""; ttype =TComp(ci, []);
-                           treferenced = false}, locUnknown) :: !globals
+        globals := GCompTagDecl(ci, locUnknown) :: !globals
       end) compInfoNameEnv;
 
   H.clear noProtoFunctions;

@@ -326,12 +326,10 @@ sub preprocess_compile {
         }
         my $out    = $self->preprocessOutputFile($src);
         $out = $self->preprocess($src, $out, $ppargs);
-        $src = $out;
-        $ext = ".i";
-        # fall-through to compilation
+        return $self->compile($out, $dest, $ppargs, $ccargs);
     }
     if($ext eq ".i") {
-        $self->compile($src, $dest, $ppargs, $ccargs);
+        return $self->compile($src, $dest, $ppargs, $ccargs);
     }
 }
 
@@ -452,7 +450,9 @@ sub compile {
     print OUT "#pragma merger($mtime, \"$toprintsrc\", \"" . 
         join(' ', @{$ccargs}), "\")\n";
     open(IN, "<$src") || die "Cannot read $src";
-    print OUT <IN>; 
+    while(<IN>) {
+        print OUT $_;
+    }
     close(OUT);
     close(IN);
     return $res;
@@ -505,46 +505,55 @@ sub straight_link {
     return $self->runShell($cmd);
 }
 
+#
+# See if some libraries are actually lists of files
+sub expandLibraries {
+    my ($self, $psrcs) = @_;
+
+    my @tolink = @{$psrcs};
+
+    # Go through the sources and replace all libraries with the files that
+    # they contain
+    my @tolink1 = ();
+    while($#tolink >= 0) {
+        my $src = shift @tolink;
+#        print "Looking at $src\n";
+        # See if the source is a library. Then maybe we should get instead the 
+        # list of files
+        if($src =~ m|\.$self->{LIBEXT}$| && -f "$src.files") {
+            open(FILES, "<$src.files") || die "Cannot read $src.files";
+            while(<FILES>) {
+                # Put them back in the "tolink" to process them recursively
+                if($_ =~ m|\n$|) {
+                    chop;
+                }
+                unshift @tolink, $_;
+            }
+            close(FILES);
+            next;
+        }
+        # This is not for us
+        push @tolink1, $src;
+        next;
+    }
+    $psrcs = \@tolink1;
+}
 
 # Customize the linking
 sub link {
     my($self, $psrcs, $dest, $ppargs, $ccargs, $ldargs) = @_;
-    if($self->{VERBOSE}) { print "Linking into $dest\n"; }
     if($self->{SEPARATE}) {
+        if($self->{VERBOSE}) { print "Linking into $dest\n"; }
         # Not merging. Regular linking.
         return $self->link_after_cil($psrcs, $dest, $ppargs, $ccargs, $ldargs);
     }
     # We must merging
+    if($self->{VERBOSE}) { print "Merging saved sources into $dest\n"; }
     
     # Now collect the files to be merged
     my $src;
     my @sources = ref($psrcs) ? @{$psrcs} : ($psrcs);
-    # Go through the sources and replace all libraries with the files that
-    # they contain
-    my @sources1 = ();
-    while($#sources >= 0) {
-        my $src = shift @sources;
-#        print "Looking at $src\n";
-        # See if the source is a library. Then maybe we should get instead the 
-        # list of files
-        if($src =~ m|\.$self->{LIBEXT}$|) {
-            if(-f "$src.files") {
-                open(FILES, "<$src.files") || die "Cannot read $src.files";
-                while(<FILES>) {
-                    # Put them back in the sources to process them recursively
-                    if($_ =~ m|\n$|) {
-                        chop;
-                    }
-                    unshift @sources, $_;
-                }
-                close(FILES);
-                next;
-            }
-        }
-        push @sources1, $src;
-        next;
-    }
-    @sources = @sources1;
+
 #    print "Sources are @sources\n";
     my @tomerge = ();
     my @othersources = ();
@@ -575,7 +584,7 @@ sub link {
         push @othersources, $src;
     }
 
-    my $mergedobj = $dest . "_comb.o";
+    my $mergedobj = $dest . "_comb.$self->{OBJEXT}";
     $self->applyCilAndCompile(\@tomerge, $mergedobj, $ppargs, $ccargs); 
     push @othersources, $mergedobj;
 
@@ -597,7 +606,7 @@ sub applyCilAndCompile {
     my ($base, $dir, $ext) = fileparse($dest, "(\\.[^.]+)");
     
     # Now prepare the command line for invoking cilly
-    my ($cmd, $aftercil) = $self->CillyCommand ($dir, $base);
+    my ($cmd, $aftercil) = $self->CillyCommand ($ppsrc, $dir, $base);
     $cmd .= " ";
 
     if($self->{MODENAME} eq "MSVC") {
@@ -669,10 +678,19 @@ sub doit {
                       $self->{OUTARG});
         return $self->runShell($cmd);
     }
-    # If only one source then apply CIL directly
-    if($self->{OPERATION} eq "TOEXE" &&
-       @{$self->{CFILES}} + @{$self->{IFILES}} == 1) {
-#        $self->{SEPARATE} = 1; 
+    # We expand some libraries names. Maybe they just contain some 
+    # new object files
+    $self->expandLibraries($self->{OFILES});
+
+    # Try to guess whether to run in the separate mode. In that case 
+    # we can go ahead with the compilation, without having to save 
+    # files
+    if($self->{OPERATION} eq "TOEXE" && # We are linking to an executable
+        # Not more than one source including object files since they may 
+        # be disguised sources
+       @{$self->{CFILES}} + @{$self->{IFILES}} + @{$self->{OFILES}} == 1) {
+        # But maybe we have some object files that are actually saved sources
+        $self->{SEPARATE} = 1; 
     }
 
     # Turn everything into OBJ files
@@ -1193,6 +1211,7 @@ sub new {
           [ "[^-].*\\.(c|cpp|cc)\$" => { TYPE => 'CSOURCE' },
             "[^-].*\\.(s|S)\$" => { TYPE => 'ASMSOURCE' },
             "[^-].*\\.i\$" => { TYPE => 'ISOURCE' },
+            "[^-].*\\.a\$" => { TYPE => 'LIBSOURCE' },
             # .o files can be linker scripts
             "[^-]" => { RUN => sub { &GNUCC::parseLinkerScript(@_); }},
             "-E"   => { RUN => sub { $stub->{OPERATION} = "TOI"; }},
