@@ -16,7 +16,8 @@
 # endif
 
 # If you do not want to use the garbage collector uncomment the next line
-# NO_GC=1
+# Note that the garbage collector is not available on _MSVC anyway
+# NOGC=1
 
 
 # You must set ARCHOS to either x86_WIN32 or to x86_LINUX. 

@@ -124,6 +124,10 @@ ifdef MANUALBOX
   CCURED+= $(DEF)MANUALBOX
 endif
 
+# Disable the GC for MSVC
+ifdef _MSVC
+NOGC:= 1
+endif
 ifdef NOGC
   CCURED+= --nogc
 endif
