@@ -380,6 +380,9 @@ ifdef OPTIM
 SAFECC += --optim
 endif
 
+# Timing code
+TIME = perl $(CILDIR)/lib/time.pl -T 5
+
 # sm: can't figure out why passing this via EXTRAARGS screws
 # up other things (e.g. -DMANUALBOX)
 # update: reason was we were modifying EXTRAARGS in here -- we
@@ -1091,10 +1094,26 @@ bh: defaulttarget mustbegcc
 	echo  >>$(BHDIR)/data.in
 	echo  >>$(BHDIR)/data.in
 	echo  >>$(BHDIR)/data.in
-	cd $(BHDIR); sh -c "time ./code < data.in > data.out"
+	cd $(BHDIR); sh -c "time code < data.in > data.out"
 	@true "sm: added next line to compare output to expected output"
 #	cd $(BHDIR); sh -c "perl normalize.pl < data.out | diff data.cil.out - | head"
 
+bh-combined: defaulttarget mustbegcc
+	cd $(BHDIR); \
+	    $(SAFECC) code_all.c bhbox.c $(EXEOUT)code.exe
+	echo  >$(BHDIR)/data.in
+	echo  >>$(BHDIR)/data.in
+	echo  >>$(BHDIR)/data.in
+	echo  >>$(BHDIR)/data.in
+	echo  >>$(BHDIR)/data.in
+	echo  >>$(BHDIR)/data.in
+	echo  >>$(BHDIR)/data.in
+	echo  >>$(BHDIR)/data.in
+	echo  >>$(BHDIR)/data.in
+	echo  >>$(BHDIR)/data.in
+	echo  >>$(BHDIR)/data.in
+	echo  >>$(BHDIR)/data.in
+	cd $(BHDIR); sh -c "time code < data.in >dat.out"
 
 # Power pricing
 PWDIR=test/olden/power

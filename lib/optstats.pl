@@ -45,7 +45,7 @@
 	   ""
 	   );
 
-@tests  = (
+%tests  = (
 #	   "hola",     # Just a sanity check
 	   "perimeter",
   	   "bh",
@@ -58,8 +58,8 @@
 	   ""
 	   );
 
-$makecmd = "INFERBOX=4 OPTIM=1 RELEASE=1";
-$makecil = "RELEASE=1";
+$makecmd = "INFERBOX=4 OPTIM=1 RELEASE=1 _GNUCC=1";
+$makecil = "RELEASE=1 _GNUCC=1";
 
 $matchtime = "user\\s*(\\d+)m([0-9.]+)s";
 $calctime  = "\$1 * 60 + \$2";
@@ -150,7 +150,8 @@ for ($i=0; $i<$#checks; $i++) {
 	$diff_frac_sum = 0;	
 	$abort_time = time + $maxtime;
 	for ($iter=0; ($iter<$iterations) && (time < $abort_time); $iter++) {
-	    if (`make $tests[$j] $makecmd 2>&1` =~ m/$matchtime/) {
+            my $res = `make $tests[$j] $makecmd 2>&1`;
+	    if ($res =~ m/$matchtime/) {
 		$original_time=eval ($calctime);
 		if ($original_time < 0.001) {
 		    print "*";

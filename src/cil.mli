@@ -836,8 +836,15 @@ val visitCilInit: cilVisitor -> init -> init
 val visitCilStmt: cilVisitor -> stmt -> stmt
 val visitCilBlock: cilVisitor -> block -> block
 
-
-
+(* And some generic visitors. The above are built with these *)
+val doVisit: vis: cilVisitor ->
+             startvisit: ('a -> 'a visitAction) ->
+             children: (cilVisitor -> 'a -> 'a) ->
+             node: 'a -> 'a
+val doVisitList: vis: cilVisitor ->
+                 startvisit: ('a -> 'a list visitAction) ->
+                 children: (cilVisitor -> 'a -> 'a) ->
+                 node: 'a -> 'a list
 
 
    (* Make a local variable and add it to a function *)

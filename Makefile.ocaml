@@ -234,11 +234,11 @@ FIXDEPEND:=perl -e \
 	     s%[^/\\ :]+[/\\]% %g; \
 	     s%([^ :\\\n]+)%\$$(OBJDIR)/$$1%g; \
 	     print $$_;}'
-
+# FIXDEPEND:=cat
 DEPINCLUDES= -I $(OBJDIR) $(SOURCEDIRS:%=-I %)
 $(DEPENDDIR)/%.d: %.ml
 	@echo Generating dependency information for $<
-	$(ECHO)$(CAMLDEP) $(DEPINCLUDES) $< | $(FIXDEPEND) > $@
+	$(ECHO)$(CAMLDEP) $(DEPINCLUDES) $< | tee | $(FIXDEPEND) > $@
 
 $(DEPENDDIR)/%.di: %.mli
 	@echo Generating dependency information for $<
