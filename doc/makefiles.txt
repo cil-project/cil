@@ -116,3 +116,26 @@ every command executed which has a side effect.  Without this you'll
 just see English descriptions of what's happening.
 
 
+------------- stylistic conventions ----------
+For the most part, we try to use ":=" instead of "=".  Basically, ":="
+evaluates its right-hand-side the moment it's parsed, whereas the
+RHS of "=" is evaluated every time the variable is referenced.  We
+find it's easier to predict how ":=" will behave, so unless the delayed
+evaluation of "=" is really desired, use ":=".
+
+Please indent the bodies of "ifdef..endif".  This works fine, and
+makes the files much easier to read.  (I'm not going to explore here
+the theology behind how *much* to indent...)
+
+
+-------------- references --------------
+Main Cil docs:
+  http://raw.cs.berkeley.edu/ccured/cil/index.html
+  
+GNU Make manual:
+  http://www.gnu.org/manual/make/html_chapter/make_toc.html
+  
+"Recursive Make Considered Harmful", an interesting and informative
+article about how to use and misuse make:
+  http://www.tip.net.au/~millerp/rmch/recu-make-cons-harm.html
+
