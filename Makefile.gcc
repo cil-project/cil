@@ -48,5 +48,9 @@ PATCH_SYSINCLUDES := ctype.h fcntl.h malloc.h netdb.h pwd.h signal.h \
 		     sys/fcntl.h sys/ioctl.h sys/socket.h sys/stat.h sys/uio.h \
                      glob.h
 
+# matth: this file is only in Cygwin
+ifeq ($(ARCHOS), x86_WIN32)
+PATCH_SYSINCLUDES += sys/reent.h
+endif
 
 
