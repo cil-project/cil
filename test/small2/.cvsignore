@@ -142,3 +142,5 @@ gdb.log
 decl_inl
 tagfile
 .gdbinit
+monthname
+floatarg

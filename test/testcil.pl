@@ -675,12 +675,13 @@ smAddTest("badd/nullfield $manualbox");
 smAddTest("scott/constfold");
 smAddTest("scott/mode_sizes $gcc");       # mode(__QI__) stuff
 smAddTest("scott-nolink/brlock $gcc");
-smAddTest("scott/qsort_wild $box");
+smFailTest("wants qsort_ssww", "scott/qsort_wild $box");
 smAddTest("scott/regparm0 $gcc");         # this works, unfortunately..
 smAddTest("scott/unscomp");               # kernel/fs/buffer.c
 smAddTest("scott/suppress_optim $box");
 smAddTest("scott/suppress_optim $wildbox");
 smAddTest("scott/suppress_optim $wildbox TAGALLFNS=1");
+smAddTest("testrun/bug1 $box");
 
 # current problematic test cases
 smAddTest("scott/complex_float $box");
