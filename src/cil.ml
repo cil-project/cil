@@ -594,7 +594,7 @@ class type cilVisitor = object
   method vexpr : exp -> exp visitAction          (* expression *)
   method vlval : lval -> lval visitAction        (* lval (base is 1st field) *)
   method voffs : offset -> offset visitAction    (* lval offset *)
-  method vinst : instr -> instr visitAction      (* imperative instruction *)
+  method vinst : instr -> instr list visitAction (* imperative instruction  *)
   method vstmt : stmt -> stmt visitAction        (* constrol-flow statement. 
                                                   * Changed in place. *)
   method vblock : block -> block visitAction     (* a block. Replaced in 
@@ -2204,7 +2204,7 @@ let doVisit (vis: cilVisitor)
         ChangeDoChildrenPost (node', _) -> node'
       | _ -> node
       in
-      let nodepost = children vis node in
+      let nodepost = children vis nodepre in
       match action with
         ChangeDoChildrenPost (_, f) -> f nodepost
       | _ -> nodepost
@@ -2215,6 +2215,35 @@ let rec mapNoCopy (f: 'a -> 'a) = function
       let i' = f i in
       let resti' = mapNoCopy f resti in
       if i' != i || resti' != resti then i' :: resti' else li 
+
+let rec mapNoCopyList (f: 'a -> 'a list) = function
+    [] -> []
+  | (i :: resti) as li -> 
+      let il' = f i in
+      let resti' = mapNoCopyList f resti in
+      match il' with
+        [i'] when i' == i && resti' == resti -> li
+      | _ -> il' @ resti'
+
+(* A visitor for lists *)
+let doVisitList (vis: cilVisitor)
+                (startvisit: 'a -> 'a list visitAction)
+                (children: cilVisitor -> 'a -> 'a)
+                (node: 'a) : 'a list = 
+  let action = startvisit node in
+  match action with
+    SkipChildren -> [node]
+  | ChangeTo nodes' -> nodes'
+  | _ -> 
+      let nodespre = match action with
+        ChangeDoChildrenPost (nodespre, _) -> nodespre
+      | _ -> [node]
+      in
+      let nodespost = mapNoCopy (children vis) nodespre in
+      match action with
+        ChangeDoChildrenPost (_, f) -> f nodespost
+      | _ -> nodespost
+  
 
 let rec visitCilExpr (vis: cilVisitor) (e: exp) : exp = 
   doVisit vis vis#vexpr childrenExp e
@@ -2306,8 +2335,8 @@ and childrenOffset (vis: cilVisitor) (off: offset) : offset =
       if e' != e || o' != o then Index (e', o') else off
   | NoOffset -> off
 
-and visitCilInstr (vis: cilVisitor) (i: instr) : instr =
-  doVisit vis vis#vinst childrenInstr i
+and visitCilInstr (vis: cilVisitor) (i: instr) : instr list =
+  doVisitList vis vis#vinst childrenInstr i
 and childrenInstr (vis: cilVisitor) (i: instr) : instr =
   let fExp = visitCilExpr vis in
   let fLval = visitCilLval vis in
@@ -2363,7 +2392,7 @@ and childrenStmt (vis: cilVisitor) (s: stmt) : stmt =
         (* Don't do stmts, but we better not change those *)
         if e' != e || b' != b then Switch (e', b', stmts, l) else s.skind
     | Instr il -> 
-        let il' = mapNoCopy fInst il in
+        let il' = mapNoCopyList fInst il in
         if il' != il then Instr il' else s.skind
     | Block b -> 
         let b' = fBlock b in 
@@ -2433,8 +2462,8 @@ and childrenVarDecl (vis : cilVisitor) (v : varinfo) : varinfo =
   v.vtype <- visitCilType vis v.vtype;
   v
 
-let rec visitCilFunction (vis : cilVisitor) (f : fundec) : fundec =
-  doVisit vis vis#vfunc childrenFunction f 
+let rec visitCilFunction (vis : cilVisitor) (f : fundec) : unit =
+  ignore (doVisit vis vis#vfunc childrenFunction f)
 and childrenFunction (vis : cilVisitor) (f : fundec) : fundec =
   f.svar <- visitCilVarDecl vis f.svar; (* hit the function name *)
   (* visit local declarations *)
@@ -2448,8 +2477,8 @@ let rec visitCilGlobal (vis: cilVisitor) (g: global) : global =
 and childrenGlobal (vis: cilVisitor) (g: global) : global =
   match g with
   | GFun (f, l) -> 
-      let f' = visitCilFunction vis f in
-      if f' != f then GFun (f', l) else g
+      visitCilFunction vis f;
+      g
   | GType(s, t, l) ->
       let t' = visitCilType vis t in
       if t' != t then GType (s, t', l) else g
@@ -2481,7 +2510,7 @@ let visitCilFile (vis : cilVisitor) (f : file) : file =
   (* the global initializer *)
   (match f.globinit with
     None -> ()
-  | Some g -> f.globinit <- Some (visitCilFunction vis g));
+  | Some g -> visitCilFunction vis g);
   (trace "visitCilFile" (dprintf "finished %s\n" f.fileName));
   f
 
@@ -2849,10 +2878,15 @@ let mkAddrOf ((b, off) as lval) : exp =
     TArray _ -> StartOf lval
   | TFun _ -> StartOf lval
   | _ -> begin
+      (* Never take the address of a register variable *)
       (match lval with
         Var vi, off when vi.vstorage = Register -> vi.vstorage <- NoStorage
       | _ -> ());
-      AddrOf(lval)
+      (* Try to optimize some cases *)
+      match lval with
+        Mem e, NoOffset -> e
+      | b, Index(z, NoOffset) when isZero z -> StartOf (b, NoOffset)
+      | _ -> AddrOf(lval)
   end
 
 let isIntegralType t = 

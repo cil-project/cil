@@ -1,6 +1,5 @@
-extern void printf(char * fmt, ...);
+#include "testharness.h"
 
-#define E(n) { printf("Error: %d\n", n); return n; }
 int main() {
   int a = 0, b = 10;
   int * pi;
@@ -50,6 +49,6 @@ int main() {
     if((int)pa != 16 + 8 * sizeof(double) + 5) E(8)
   }
 
-  printf("Success\n");
+  SUCCESS;
   return 0;
 }

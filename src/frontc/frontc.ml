@@ -192,8 +192,7 @@ let parse fname =
     (trace "sm" (dprintf "beginning conversion to Cil\n"));
     let cil = Stats.time "conv" (Cabs2cil.convFile fname) cabs in
     if !doPrintProtos then (printPrototypes cabs);
-    ignore (E.log "FrontC finished conversion of %s to CIL (%d defns)\n"
-                  fname (List.length cabs));
+    ignore (E.log "FrontC finished conversion of %s to CIL\n" fname);
     cil
 
 

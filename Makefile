@@ -23,7 +23,7 @@ MLYS        =
 MODULES     = pretty trace errormsg stats util clist \
               cil logcalls check ptrnode \
               solveutil solver globinit \
-              oneret box markptr \
+              oneret boxsplit box markptr \
               rmtmps optim
 EXECUTABLE  = $(OBJDIR)/safec
 CAMLUSEUNIX = 1

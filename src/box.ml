@@ -1368,7 +1368,7 @@ let pkAddrOf (lv: lval)
   match lvk with
     N.Safe -> mkFexp1 ptrtype (mkAddrOf lv), empty
   | (N.Index | N.Wild | N.FSeq | N.FSeqN | N.Seq | N.SeqN ) -> 
-      mkFexp3 ptrtype (AddrOf(lv)) fb fe, empty
+      mkFexp3 ptrtype (mkAddrOf(lv)) fb fe, empty
   | _ -> E.s (bug "pkAddrOf(%a)" N.d_opointerkind lvk)
          
          
@@ -1931,7 +1931,7 @@ let getFunctionDescriptor (vi: varinfo) : exp =
                                    SingleInit (integer nrformals) ])),
              !currentLoc)) :: !descriptorDefinitions;
     let pfunfld = List.nth descrInfo.cfields 1 in
-    let res = AddrOf (Var descr, Field(pfunfld, NoOffset)) in
+    let res = mkAddrOf (Var descr, Field(pfunfld, NoOffset)) in
     H.add functionDescriptors vi.vid res;
     res
   end
@@ -1945,7 +1945,7 @@ let rec pkStartOf
               (fe: exp) : (fexp * stmt clist) = 
   match unrollType lvt with
     TArray(t, _, _) -> begin
-      let newp = AddrOf(addOffsetLval (Index(zero, NoOffset)) lv) in
+      let newp = mkAddrOf (addOffsetLval (Index(zero, NoOffset)) lv) in
       match lvk with
         N.Safe -> 
           let (_, pkind, base, bend) = 
@@ -2066,12 +2066,12 @@ let rec checkBounds
     | N.Wild -> (* We'll need to read the length anyway since we need it for 
                    * working with the tags *)
         let docheck = 
-          checkWild (AddrOf(lv')) lv't base (mktmplen ()) in
+          checkWild (mkAddrOf lv') lv't base (mktmplen ()) in
         single docheck
           
     | N.Index -> 
         let _, _, _, docheck = 
-          indexToSafe (AddrOf(lv')) (TPtr(lv't, [])) base bend empty in
+          indexToSafe (mkAddrOf(lv')) (TPtr(lv't, [])) base bend empty in
         rev docheck
           
     | (N.FSeq|N.FSeqN) ->
@@ -2084,7 +2084,7 @@ let rec checkBounds
             base
         in
         let _, _, _, docheck = 
-          fseqToSafe (AddrOf(lv')) (TPtr(lv't, [])) base' bend empty in
+          fseqToSafe (mkAddrOf(lv')) (TPtr(lv't, [])) base' bend empty in
         rev docheck
           
     | (N.Seq|N.SeqN) ->
@@ -2097,7 +2097,7 @@ let rec checkBounds
             bend
         in
         let _, _, _, docheck = 
-          seqToSafe (AddrOf(lv')) (TPtr(lv't, [])) base bend' empty in
+          seqToSafe (mkAddrOf(lv')) (TPtr(lv't, [])) base bend' empty in
         rev docheck
           
     | N.Safe | N.String | N.ROString -> begin
@@ -2414,7 +2414,7 @@ let rec checkMem (why: checkLvWhy)
               if pkind = N.Wild then
                 CConsL 
                   (checkFatPointerRead base 
-                     (AddrOf(where)) (getLenExp ()),
+                     (mkAddrOf(where)) (getLenExp ()),
                    acc)
               else
                 acc
@@ -2422,7 +2422,7 @@ let rec checkMem (why: checkLvWhy)
               let _, whatp, whatb, _ = readFieldsOfFat towrite t in
               if pkind = N.Wild then
                 CConsL
-                  (checkFatPointerWrite base (AddrOf(where)) 
+                  (checkFatPointerWrite base (mkAddrOf(where)) 
                      whatb whatp (getLenExp ()),
                    acc)
               else
@@ -3372,7 +3372,7 @@ and boxinstr (ins: instr) : stmt clist =
                 boxlval (Mem base, NoOffset) in
               (rest, CConsR (dolv, 
                              checkFunctionPointer 
-                               (AddrOf(lv')) 
+                               (mkAddrOf(lv')) 
                                lvbase lvkind (List.length args)), 
                Lval(lv'), 
                lvkind)
@@ -4020,7 +4020,6 @@ and boxexpSplit (e: exp) =
       (tptr, append doe caste, ptr, base, bend)
 
 
-
 (* a hashtable of functions that we have already made wrappers for *)
 let wrappedFunctions = H.create 15
 
@@ -4303,6 +4302,8 @@ let boxFile file =
                toList (append inilocals (fromList f.sbody.bstmts));
             H.clear heapifiedLocals;
             heapifiedFree := [];
+            (* Split the local variables *)
+(*            Boxsplit.splitLocals f; *)
             (* Drop it if it is just a model *)
             if not (hasAttribute "boxmodel" f.svar.vattr) then 
               theFile := consGlobal (GFun (f, l)) !theFile

@@ -785,23 +785,26 @@ type 'a visitAction =
 (* Some of the nodes are changed in place if the children are changed. Use 
  * one of Change... actions if you want to copy the node *)
 class type cilVisitor = object
-  method vvrbl : varinfo -> varinfo visitAction  (* variable use. Replaced in 
-                                                  * place.  *)
-  method vvdec : varinfo -> varinfo visitAction  (* variable declaration. 
-                                                  * Replaced in place. *)
-  method vexpr : exp -> exp visitAction          (* expression *)
-  method vlval : lval -> lval visitAction        (* lval (base is 1st field) *)
-  method voffs : offset -> offset visitAction    (* lval offset *)
-  method vinst : instr -> instr visitAction      (* imperative instruction *)
-  method vstmt : stmt -> stmt visitAction        (* constrol-flow statement. 
-                                                  * Changed in place. *)
-  method vblock : block -> block visitAction     (* a block. Replaced in 
-                                                  * place. *)
-  method vfunc : fundec -> fundec visitAction    (* function definition. 
-                                                  * Replaced in place. *)
-  method vglob : global -> global visitAction    (* global (vars, types,etc.)*)
-  method vinit : init -> init visitAction        (* initializers for globals *)
-  method vtype : typ -> typ visitAction          (* use of some type *)
+  method vvrbl: varinfo -> varinfo visitAction  (* variable use. Replaced in 
+                                                 * place.  *)
+  method vvdec: varinfo -> varinfo visitAction  (* variable declaration. 
+                                                 * Replaced in place. *)
+  method vexpr: exp -> exp visitAction          (* expression *)
+  method vlval: lval -> lval visitAction        (* lval (base is 1st field) *)
+  method voffs: offset -> offset visitAction    (* lval offset *)
+  method vinst: instr -> instr list visitAction (* imperative instruction. 
+                                                 * Can produce multiple 
+                                                 * instruction for each input 
+                                                 * instruction. *)
+  method vstmt: stmt -> stmt visitAction        (* constrol-flow statement. 
+                                                 * Changed in place. *)
+  method vblock: block -> block visitAction     (* a block. Replaced in 
+                                                 * place. *)
+  method vfunc: fundec -> fundec visitAction    (* function definition. 
+                                                 * Replaced in place. *)
+  method vglob: global -> global visitAction    (* global (vars, types,etc.)*)
+  method vinit: init -> init visitAction        (* initializers for globals *)
+  method vtype: typ -> typ visitAction          (* use of some type *)
 end
 
 class nopCilVisitor : cilVisitor
@@ -812,10 +815,10 @@ val visitCilFile: cilVisitor -> file -> file
 val visitCilExpr: cilVisitor -> exp -> exp
 val visitCilLval: cilVisitor -> lval -> lval
 val visitCilOffset: cilVisitor -> offset -> offset
-val visitCilInstr: cilVisitor -> instr -> instr
+val visitCilInstr: cilVisitor -> instr -> instr list
 val visitCilType: cilVisitor -> typ -> typ
 val visitCilVarDecl: cilVisitor -> varinfo -> varinfo
-val visitCilFunction: cilVisitor -> fundec -> fundec
+val visitCilFunction: cilVisitor -> fundec -> unit (* Change in place *)
 val visitCilGlobal: cilVisitor -> global -> global
 val visitCilInit: cilVisitor -> init -> init
 val visitCilStmt: cilVisitor -> stmt -> stmt
