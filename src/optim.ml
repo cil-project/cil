@@ -40,26 +40,32 @@ let rec nullChecksOptimStmt (s:Cil.stmt) (nnl:Cil.lval list) =
        List.filter (function x -> List.mem x nnl2) nnl1)
   | Label(_) | Goto(_) | Return(_) -> (s,nnl)
   | Switch(_,_,_) | Case(_) | Default -> 
-      E.s (E.unimp "OPTIM cannot handle switch, case, default yet")
+      (s,nnl)
+(*      E.s (E.unimp "OPTIM cannot handle switch, case, default yet")*)
   | Break | Continue -> (s,nnl)
   | Instr(i, l) -> (match i with
       Call(_,Lval(Var x,_),args) when x.vname = "CHECK_NULL" ->
-        (* args must be a list of one element -- the lvalue which we
+        (* args must be a list of one element -- the exp which we
            have to ensure is non-null *)
+        (* if the arg is not a (possibly casted) lval, we don't
+           try to remove it *)
         let arg = List.hd args in
-        let checkLval = 
-          (match arg with
-            CastE(_,Lval e) -> e (* Remove the cast, if any *)
-          | Lval e -> e
-          | _ -> E.s (E.bug "OPTIM cannot work with something\
-                        that is not a Lval or a CastE(...Lval...)\n")) 
-        in
-        if (List.mem checkLval nnl) then
-          (Skip,nnl)
-        else 
-          (s,checkLval::nnl)
+        (match arg with
+          CastE(_,Lval _) | Lval _ ->  
+            let checkLval = 
+              (match arg with
+                CastE(_,Lval e) -> e (* Remove the cast, if any *)
+              | Lval e -> e
+              | _ -> E.s (E.bug "Should not reach here\n"))
+            in
+            if (List.mem checkLval nnl) then
+              (Skip,nnl)
+            else 
+              (s,checkLval::nnl)
+        | _ -> (s,nnl))
     | Call(_,Lval(Var x,_),args) 
-      when (String.sub x.vname 0 6)="CHECK_" -> (s,nnl)
+      when ((String.length x.vname) > 6 && 
+            (String.sub x.vname 0 6)="CHECK_") -> (s,nnl)
     | Call _ -> (s,[])
     | Asm _ -> (s,nnl) 
     | Set(lv,e) -> (* remove the lv from nnl *)
