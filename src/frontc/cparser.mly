@@ -404,11 +404,208 @@ maybecomma:
 
 /* *** Expressions *** */
 
-
-expression:
-        	constant
-		        {CONSTANT (fst $1), snd $1}
+primary_expression:                     /*(* 6.5.1. *)*/
 |		IDENT
+		        {VARIABLE (fst $1), snd $1}
+|        	constant
+		        {CONSTANT (fst $1), snd $1}
+|		paren_comma_expression
+		        {smooth_expression (fst $1), snd $1}
+;
+postfix_expression:                     /*(* 6.5.2 *)*/
+|               primary_expression     
+                        { $1 }
+|		postfix_expression bracket_comma_expression
+			{INDEX (fst $1, smooth_expression $2), snd $1}
+|		postfix_expression LPAREN arguments RPAREN
+			{CALL (fst $1, $3), snd $1}
+|               BUILTIN_VA_ARG LPAREN expression COMMA type_name RPAREN
+                        { let b, d = $5 in
+                          CALL (VARIABLE "__builtin_va_arg", 
+                                [fst $3; TYPE_SIZEOF (b, d)]), $1 }
+|		postfix_expression DOT id_or_typename
+		        {MEMBEROF (fst $1, $3), snd $1}
+|		postfix_expression ARROW id_or_typename   
+		        {MEMBEROFPTR (fst $1, $3), snd $1}
+|		postfix_expression PLUS_PLUS
+		        {UNARY (POSINCR, fst $1), snd $1}
+|		postfix_expression MINUS_MINUS
+		        {UNARY (POSDECR, fst $1), snd $1}
+/* (* We handle GCC constructor expressions *) */
+|		LPAREN type_name RPAREN LBRACE initializer_list_opt RBRACE
+		        { CAST($2, COMPOUND_INIT $5), $1 }
+;
+
+unary_expression:   /*(* 6.5.3 *)*/
+|               postfix_expression
+                        { $1 }
+|		PLUS_PLUS unary_expression
+		        {UNARY (PREINCR, fst $2), $1}
+|		MINUS_MINUS unary_expression
+		        {UNARY (PREDECR, fst $2), $1}
+|		SIZEOF unary_expression
+		        {EXPR_SIZEOF (fst $2), $1}
+|	 	SIZEOF LPAREN type_name RPAREN
+		        {let b, d = $3 in TYPE_SIZEOF (b, d), $1}
+|		ALIGNOF unary_expression
+		        {EXPR_ALIGNOF (fst $2), $1}
+|	 	ALIGNOF LPAREN type_name RPAREN
+		        {let b, d = $3 in TYPE_ALIGNOF (b, d), $1}
+|		PLUS unary_expression
+		        {UNARY (PLUS, fst $2), $1}
+|		MINUS unary_expression
+		        {UNARY (MINUS, fst $2), $1}
+|		STAR unary_expression
+		        {UNARY (MEMOF, fst $2), $1}
+|		AND unary_expression				
+		        {UNARY (ADDROF, fst $2), $1}
+|		EXCLAM unary_expression
+		        {UNARY (NOT, fst $2), $1}
+|		TILDE unary_expression
+		        {UNARY (BNOT, fst $2), $1}
+;
+
+cast_expression:   /*(* 6.5.4 *)*/
+|              unary_expression 
+                         { $1 }
+|		LPAREN type_name RPAREN cast_expression
+		         { CAST($2, SINGLE_INIT (fst $4)), $1 }
+|		LPAREN block RPAREN
+		        { GNU_BODY (fst3 $2), $1 }
+;
+
+multiplicative_expression:  /*(* 6.5.5 *)*/
+|               cast_expression
+                         { $1 }
+|		multiplicative_expression STAR cast_expression
+			{BINARY(MUL, fst $1, fst $3), snd $1}
+|		multiplicative_expression SLASH cast_expression
+			{BINARY(DIV, fst $1, fst $3), snd $1}
+|		multiplicative_expression PERCENT cast_expression
+			{BINARY(MOD, fst $1, fst $3), snd $1}
+;
+
+additive_expression:  /*(* 6.5.6 *)*/
+|               multiplicative_expression
+                        { $1 }
+|		additive_expression PLUS multiplicative_expression
+			{BINARY(ADD, fst $1, fst $3), snd $1}
+|		additive_expression MINUS multiplicative_expression
+			{BINARY(SUB, fst $1, fst $3), snd $1}
+;
+
+shift_expression:      /*(* 6.5.7 *)*/
+|               additive_expression
+                         { $1 }
+|		shift_expression  INF_INF additive_expression
+			{BINARY(SHL, fst $1, fst $3), snd $1}
+|		shift_expression  SUP_SUP additive_expression
+			{BINARY(SHR, fst $1, fst $3), snd $1}
+;
+
+
+relational_expression:   /*(* 6.5.8 *)*/
+|               shift_expression
+                        { $1 }
+|		relational_expression INF shift_expression
+			{BINARY(LT, fst $1, fst $3), snd $1}
+|		relational_expression SUP shift_expression
+			{BINARY(GT, fst $1, fst $3), snd $1}
+|		relational_expression INF_EQ shift_expression
+			{BINARY(LE, fst $1, fst $3), snd $1}
+|		relational_expression SUP_EQ shift_expression
+			{BINARY(GE, fst $1, fst $3), snd $1}
+;
+
+equality_expression:   /*(* 6.5.9 *)*/
+|              relational_expression
+                        { $1 }
+|		equality_expression EQ_EQ relational_expression
+			{BINARY(EQ, fst $1, fst $3), snd $1}
+|		equality_expression EXCLAM_EQ relational_expression
+			{BINARY(NE, fst $1, fst $3), snd $1}
+;
+
+
+bitwise_and_expression:   /*(* 6.5.10 *)*/
+|               equality_expression
+                       { $1 }
+|		bitwise_and_expression AND equality_expression
+			{BINARY(BAND, fst $1, fst $3), snd $1}
+;
+
+bitwise_xor_expression:   /*(* 6.5.11 *)*/
+|               bitwise_and_expression
+                       { $1 }
+|		bitwise_xor_expression CIRC bitwise_and_expression
+			{BINARY(XOR, fst $1, fst $3), snd $1}
+;
+
+bitwise_or_expression:   /*(* 6.5.12 *)*/
+|               bitwise_xor_expression
+                        { $1 } 
+|		bitwise_or_expression PIPE bitwise_xor_expression
+			{BINARY(BOR, fst $1, fst $3), snd $1}
+;
+
+logical_and_expression:   /*(* 6.5.13 *)*/
+|               bitwise_or_expression
+                        { $1 }
+|		logical_and_expression AND_AND bitwise_or_expression
+			{BINARY(AND, fst $1, fst $3), snd $1}
+;
+
+logical_or_expression:   /*(* 6.5.14 *)*/
+|               logical_and_expression
+                        { $1 }
+|		logical_or_expression PIPE_PIPE logical_and_expression
+			{BINARY(OR, fst $1, fst $3), snd $1}
+;
+
+conditional_expression:    /*(* 6.5.15 *)*/
+|               logical_or_expression
+                         { $1 }
+|		logical_or_expression QUEST opt_expression COLON conditional_expression
+			{QUESTION (fst $1, $3, fst $5), snd $1}
+;
+
+
+assignment_expression:     /*(* 6.5.16 *)*/
+|               conditional_expression
+                         { $1 }
+|		unary_expression EQ assignment_expression
+			{BINARY(ASSIGN, fst $1, fst $3), snd $1}
+|		unary_expression PLUS_EQ assignment_expression
+			{BINARY(ADD_ASSIGN, fst $1, fst $3), snd $1}
+|		unary_expression MINUS_EQ assignment_expression
+			{BINARY(SUB_ASSIGN, fst $1, fst $3), snd $1}
+|		unary_expression STAR_EQ assignment_expression
+			{BINARY(MUL_ASSIGN, fst $1, fst $3), snd $1}
+|		unary_expression SLASH_EQ assignment_expression
+			{BINARY(DIV_ASSIGN, fst $1, fst $3), snd $1}
+|		unary_expression PERCENT_EQ assignment_expression
+			{BINARY(MOD_ASSIGN, fst $1, fst $3), snd $1}
+|		unary_expression AND_EQ assignment_expression
+			{BINARY(BAND_ASSIGN, fst $1, fst $3), snd $1}
+|		unary_expression PIPE_EQ assignment_expression
+			{BINARY(BOR_ASSIGN, fst $1, fst $3), snd $1}
+|		unary_expression CIRC_EQ assignment_expression
+			{BINARY(XOR_ASSIGN, fst $1, fst $3), snd $1}
+|		unary_expression INF_INF_EQ assignment_expression	
+			{BINARY(SHL_ASSIGN, fst $1, fst $3), snd $1}
+|		unary_expression SUP_SUP_EQ assignment_expression
+			{BINARY(SHR_ASSIGN, fst $1, fst $3), snd $1}
+;
+
+expression_new:           /*(* 6.5.17 *)*/
+                assignment_expression
+                        { $1 }
+;
+                            
+expression:
+        	constant     /*x*/
+		        {CONSTANT (fst $1), snd $1}
+|		IDENT    /*x*/
 		        {VARIABLE (fst $1), snd $1}
 |		SIZEOF expression
 		        {EXPR_SIZEOF (fst $2), $1}
@@ -430,17 +627,17 @@ expression:
 		        {UNARY (NOT, fst $2), $1}
 |		TILDE expression
 		        {UNARY (BNOT, fst $2), $1}
-|		PLUS_PLUS expression                    %prec CAST
+|		PLUS_PLUS expression                    %prec CAST  /*x*/
 		        {UNARY (PREINCR, fst $2), $1}
-|		expression PLUS_PLUS
+|		expression PLUS_PLUS    /*x*/
 		        {UNARY (POSINCR, fst $1), snd $1}
-|		MINUS_MINUS expression                  %prec CAST
+|		MINUS_MINUS expression                  %prec CAST   /*x*/
 		        {UNARY (PREDECR, fst $2), $1}
-|		expression MINUS_MINUS
+|		expression MINUS_MINUS    /*x*/
 		        {UNARY (POSDECR, fst $1), snd $1}
-|		expression ARROW id_or_typename
+|		expression ARROW id_or_typename    /*x*/
 		        {MEMBEROFPTR (fst $1, $3), snd $1}
-|		expression DOT id_or_typename
+|		expression DOT id_or_typename         /*x*/
 		        {MEMBEROF (fst $1, $3), snd $1}
 |		LPAREN block RPAREN
 		        { GNU_BODY (fst3 $2), $1 }
@@ -514,7 +711,7 @@ expression:
 			{BINARY(SHL_ASSIGN, fst $1, fst $3), snd $1}
 |		expression SUP_SUP_EQ expression
 			{BINARY(SHR_ASSIGN, fst $1, fst $3), snd $1}
-|		LPAREN type_name RPAREN expression
+|		LPAREN type_name RPAREN expression %prec CAST
 		         { CAST($2, SINGLE_INIT (fst $4)), $1 }
 /* (* We handle GCC constructor expressions *) */
 |		LPAREN type_name RPAREN LBRACE initializer_list_opt RBRACE
