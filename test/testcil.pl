@@ -664,7 +664,7 @@ $TEST->newTest(
     Name => "ftpd-inferbox",
     Dir => ".",
     Cmd => "make ftpd " . $TEST->testCommandExtras("INFERBOX=infer"),
-    Enabled => 0,
+    Enabled => 1,      # sm: 9/09/02 05:02: it works!
     Group => ['vslow'],
     Patterns => \%commonerrors);
 
