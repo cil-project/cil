@@ -1551,14 +1551,7 @@ and boxlval (b, off) : (typ * P.pointerkind * lval * exp * exp * stmt list) =
   let (btype, pkind, mklval, base, bend, stmts) as startinput = 
     match b with
       Var vi -> 
-(*        ignore (E.log "Doing boxlval %s. attr = %a\n" vi.vname
-                  (d_attrlist true) vi.vattr); *)
-        let vkind = 
-          if filterAttributes "tagged" vi.vattr  <> [] then 
-            P.Wild 
-          else P.Safe 
-        in
-        vi.vtype, vkind, (fun o -> (Var vi, o)), zero, zero, []
+        vi.vtype, P.Safe, (fun o -> (Var vi, o)), zero, zero, []
     | Mem addr -> 
         let (addrt, doaddr, addr', addr'base, addr'len) = boxexpSplit addr in
         let addrt', pkind = 
@@ -1628,7 +1621,7 @@ and boxlval (b, off) : (typ * P.pointerkind * lval * exp * exp * stmt list) =
         end
     | f1 :: f2 :: _ when (f1.fname = "_len" && f2.fname = "_data") -> begin
         (* A tagged data. Only wild pointers inside *)
-        if pkind != P.Wild then
+        if pkind = P.Wild then
           E.s (E.bug "Tagged data inside a tagged area");
         (f2.ftype, P.Wild, (fun o -> mklval (Field(f2, o))),
           mkAddrOf (mklval(Field(f2,NoOffset))), zero, stmts)
