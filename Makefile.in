@@ -84,7 +84,7 @@ setup: cilversion machdep
 # If the cl command cannot be run then the MSVC part will be identical to GCC
 .PHONY : machdep
 machdep: $(OBJDIR)/machdep.ml 
-$(OBJDIR)/machdep.ml : src/machdep.c configure.in
+$(OBJDIR)/machdep.ml : src/machdep.c configure.in Makefile.cil
 	rm -f $@
 	echo "(* This module was generated automatically by code in Makefile.cil and machdep.c *)" >$@
 # Now generate the type definition
@@ -117,6 +117,7 @@ $(OBJDIR)/machdep.ml : src/machdep.c configure.in
 	echo "let msvc = {" >>$@
 	$(OBJDIR)/machdep.exe >>$@
 	echo "}"          >>$@
+	echo "let gccHas__builtin_va_list = @HAVE_BUILTIN_VA_LIST@" >>$@
 
 #
 # Create the version information module

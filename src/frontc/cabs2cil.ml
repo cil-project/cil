@@ -1950,7 +1950,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
 
      (* Now the other type specifiers *)
     | [A.Tnamed n] -> begin
-        if n = "__builtin_va_list" then 
+        if n = "__builtin_va_list" && Machdep.gccHas__builtin_va_list then 
           TBuiltin_va_list []
         else
           let t = 
@@ -2932,7 +2932,7 @@ and doExp (isconst: bool)    (* In a constant *)
               (A.QUESTION (e1, A.UNARY(A.ADDROF, e2), A.UNARY(A.ADDROF, e3)))
               what
         | A.VARIABLE s when 
-               isOldStyleVarArgName s 
+            isOldStyleVarArgName s 
             && (match !currentFunctionFDEC.svar.vtype with 
                    TFun(_, _, true, _) -> true | _ -> false) ->
             (* We are in an old-style variable argument function and we are 
@@ -3358,7 +3358,7 @@ and doExp (isconst: bool)    (* In a constant *)
                     ignore (warn "Invalid call to %s\n" fv.vname);
                     f'',what, args', false
 
-              (* We have to turn uses of __builtin_varargs_starts into uses 
+              (* We have to turn uses of __builtin_varargs_start into uses 
                * of __builtin_stdarg_start (because we have dropped the 
                * __builtin_va_alist argument from this function *)
 

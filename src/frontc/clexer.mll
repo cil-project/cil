@@ -137,7 +137,8 @@ let init_lexicon _ =
       ("__declspec", fun loc -> DECLSPEC loc);
       (* weimer: some files produced by 'GCC -E' expect this type to be
        * defined *)
-      ("__builtin_va_list", fun _ -> NAMED_TYPE ("__builtin_va_list", currentLoc ()));
+      ("__builtin_va_list", 
+       fun _ -> NAMED_TYPE ("__builtin_va_list", currentLoc ()));
       ("__builtin_va_arg", fun loc -> BUILTIN_VA_ARG loc);
     ]
 

@@ -281,16 +281,10 @@ fi
 # -------------------- GCC --------------
 #
 
-#AC_MSG_CHECKING([for gcc version])
-#gccver=`gcc -dumpversion`
-#AC_MSG_RESULT([$gccver])
-#if test "${gccver}" == "2.96" ;then
-#    AC_MSG_WARN([
-#      CIL and CCured may not work correctly with gcc 2.96, especially when
-#      using variable argument functions. Gcc 2.96 was a developement version,
-#      not a real release. Use gcc 2.95.3 or 3.x.
-#    ])
-#fi
+AC_MSG_CHECKING([for gcc version])
+AC_CHECK_TYPE(__builtin_va_list,
+              HAVE_BUILTIN_VA_LIST=true,
+              HAVE_BUILTIN_VA_LIST=false)
 
 # ----------- some stuff 'autoscan' put here --------------
 # (autoscan is part of the autoconf distribution)
@@ -355,6 +349,7 @@ AC_SUBST(CIL_VERSION_MAJOR)
 AC_SUBST(CIL_VERSION_MINOR)
 AC_SUBST(CIL_VERSION_REV)
 AC_SUBST(CIL_VERSION)
+AC_SUBST(HAVE_BUILTIN_VA_LIST)
 
 # finish the configure script and generate various files; ./configure
 # will apply variable substitutions to <filename>.in to generate <filename>;

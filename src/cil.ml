@@ -1863,18 +1863,23 @@ let gccBuiltins : (string, typ * typ list) H.t =
   let funType rt argTypes = 
     TFun(rt, Some (List.map (fun t -> ("", t, [])) argTypes), false, [])
   in
+  (* See if we have builtin_va_list *)
+  let hasbva = Machdep.gccHas__builtin_va_list in
   (* When we parse builtin_next_arg we drop the second argument *)
-  H.add h "__builtin_next_arg" (TBuiltin_va_list [], [ ]);
+  H.add h "__builtin_next_arg" 
+    ((if hasbva then TBuiltin_va_list [] else voidPtrType), []);
   H.add h "__builtin_constant_p" (intType, [ intType ]);
   H.add h "__builtin_fabs" (doubleType, [ doubleType ]);
-  H.add h "__builtin_va_end" (voidType, [ TBuiltin_va_list [] ]);
-  H.add h "__builtin_varargs_start" (voidType, [ TBuiltin_va_list [] ]);
-  (* When we parse builtin_stdarg_start, we drop the second argument *)
-  H.add h "__builtin_stdarg_start" (voidType, [ TBuiltin_va_list []; ]);
-  (* When we parse builtin_va_arg we change its interface *)
-  H.add h "__builtin_va_arg" (voidType, [ TBuiltin_va_list [];
-                                          uintType; (* Sizeof the type *)
-                                          voidPtrType; (* Ptr to res *) ]);
+  if hasbva then begin
+    H.add h "__builtin_va_end" (voidType, [ TBuiltin_va_list [] ]);
+    H.add h "__builtin_varargs_start" (voidType, [ TBuiltin_va_list [] ]);
+    (* When we parse builtin_stdarg_start, we drop the second argument *)
+    H.add h "__builtin_stdarg_start" (voidType, [ TBuiltin_va_list []; ]);
+    (* When we parse builtin_va_arg we change its interface *)
+    H.add h "__builtin_va_arg" (voidType, [ TBuiltin_va_list [];
+                                            uintType; (* Sizeof the type *)
+                                            voidPtrType; (* Ptr to res *) ]);
+  end;
   h
 
 (** A printer interface for CIL trees. Create instantiations of 
