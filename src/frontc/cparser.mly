@@ -1,6 +1,6 @@
-/* NOTE: This parser is based on a parser written by Hugues Casse. Since then 
-   I have changed it in numerous ways to the point where it probably does not
-   resemble Hugues's original one at all */
+/*(* NOTE: This parser is based on a parser written by Hugues Casse. Since 
+   * then I have changed it in numerous ways to the point where it probably 
+   * does not resemble Hugues's original one at all  *)*/
 %{
 open Cabs
 let version = "Cparser V3.0b 10.9.99 Hugues CassÅÈ"
@@ -44,8 +44,30 @@ let list_expression expr =
 
 let currentFunctionName = ref "<outside any function>"
     
-let announceFunctionName ((n, _, _):name) =
+let announceFunctionName ((n, decl, _):name) =
   Clexer.add_identifier n;
+  (* Start a context that includes the parameter names and the whole body. 
+   * Will pop when we finish parsing the function body *)
+  Clexer.push_context ();
+  (* Go through all the parameter names and mark them as identifiers *)
+  let rec findProto = function
+      PROTO (d, args, _) when isJUSTBASE d -> 
+        List.iter (fun (_, (an, _, _)) -> Clexer.add_identifier an) args
+
+    | PROTO (d, _, _) -> findProto d
+    | PARENTYPE (_, d, _) -> findProto d
+    | PTR (_, d) -> findProto d
+    | ARRAY (d, _) -> findProto d
+    | _ -> parse_error "Cannot find the prototype in a function definition";
+           raise Parsing.Parse_error 
+
+  and isJUSTBASE = function
+      JUSTBASE -> true
+    | PARENTYPE (_, d, _) -> isJUSTBASE d
+    | BITFIELD _ -> true
+    | _ -> false
+  in
+  findProto decl;
   currentFunctionName := n
 
 
@@ -240,7 +262,7 @@ global:
 | location PRAGMA attr                  { PRAGMA ($3, $1) }
 | location error SEMICOLON { PRAGMA (CONSTANT(CONST_STRING "error"), $1) }
 ;
-typename:
+id_or_typename:
     IDENT				{$1}
 |   NAMED_TYPE				{$1}
 ;
@@ -286,13 +308,9 @@ expression:
 		        {UNARY (PREDECR, $2)}
 |		expression MINUS_MINUS
 		        {UNARY (POSDECR, $1)}
-|		expression ARROW IDENT
+|		expression ARROW id_or_typename
 		        {MEMBEROFPTR ($1, $3)}
-|		expression ARROW NAMED_TYPE
-		        {MEMBEROFPTR ($1, $3)}
-|		expression DOT IDENT
-		        {MEMBEROF ($1, $3)}
-|		expression DOT NAMED_TYPE
+|		expression DOT id_or_typename
 		        {MEMBEROF ($1, $3)}
 |		LPAREN block RPAREN
 		        { GNU_BODY $2 }
@@ -539,8 +557,8 @@ decl_spec_list:                         /* ISO 6.7 */
 |   INLINE decl_spec_list_opt           { SpecInline :: $2 }
 |   attribute decl_spec_list_opt        { SpecAttr $1 :: $2 }
 ;
-/* In most cases if we see a NAMED_TYPE we must shift it. Thus we declare 
- * NAMED_TYPE to have right associativity */
+/* (* In most cases if we see a NAMED_TYPE we must shift it. Thus we declare 
+    * NAMED_TYPE to have right associativity  *) */
 decl_spec_list_opt: 
     /* empty */                         { [] } %prec NAMED_TYPE
 |   decl_spec_list                      { $1 }
@@ -564,20 +582,20 @@ type_spec:   /* ISO 6.7.2 */
 |   DOUBLE          { Tdouble }
 |   SIGNED          { Tsigned }
 |   UNSIGNED        { Tunsigned }
-|   STRUCT typename 
+|   STRUCT id_or_typename 
                     { Tstruct ($2, None) }
-|   STRUCT typename LBRACE struct_decl_list RBRACE
+|   STRUCT id_or_typename LBRACE struct_decl_list RBRACE
                     { Tstruct ($2, Some $4) }
 |   STRUCT           LBRACE struct_decl_list RBRACE
                     { Tstruct ("", Some $3) }
-|   UNION typename 
+|   UNION id_or_typename 
                     { Tunion ($2, None) }
-|   UNION typename LBRACE struct_decl_list RBRACE
+|   UNION id_or_typename LBRACE struct_decl_list RBRACE
                     { Tunion ($2, Some $4) }
 |   UNION          LBRACE struct_decl_list RBRACE
                     { Tunion ("", Some $3) }
-|   ENUM typename   { Tenum ($2, None) }
-|   ENUM typename LBRACE enum_list maybecomma RBRACE
+|   ENUM id_or_typename   { Tenum ($2, None) }
+|   ENUM id_or_typename LBRACE enum_list maybecomma RBRACE
                     { Tenum ($2, Some $4) }
 |   ENUM          LBRACE enum_list maybecomma RBRACE
                     { Tenum ("", Some $3) }
@@ -634,11 +652,9 @@ declarator:  /* (* ISO 6.7.5. Plus Microsoft declarators.*) */
 ;
 
 direct_decl: /* (* ISO 6.7.5 *) */
-    IDENT                          { ($1, JUSTBASE) }
-
                                    /* (* We want to be able to redefine named 
                                     * types as variable names *) */
-|   NAMED_TYPE                     { ($1, JUSTBASE) }
+|   id_or_typename                 { ($1, JUSTBASE) }
 
 |   LPAREN attributes declarator RPAREN       
                                    { let (n,decl,al) = $3 in
@@ -649,13 +665,38 @@ direct_decl: /* (* ISO 6.7.5 *) */
                                      (n, ARRAY(decl, smooth_expression $3)) }
 |   direct_decl LBRACKET RBRACKET  { let (n, decl) = $1 in
                                      (n, ARRAY(decl, NOTHING)) }
+/*
 |   direct_decl LPAREN parameter_list RPAREN 
                                    { let (n, decl) = $1 in
                                      (n, PROTO(decl, $3, false)) }
 |   direct_decl LPAREN parameter_list_ne COMMA ELLIPSIS RPAREN
                                    { let (n, decl) = $1 in
                                      (n, PROTO(decl, $3, true)) }
+*/
+|   direct_decl parameter_list_startscope rest_par_list RPAREN
+                                   { let (n, decl) = $1 in
+                                     let (params, isva) = $3 in
+                                     Clexer.pop_context ();
+                                     (n, PROTO(decl, params, isva))
+                                   } 
 ;
+parameter_list_startscope: 
+    LPAREN                         { Clexer.push_context () }
+;
+rest_par_list:
+|   /* empty */                    { ([], false) }
+|   parameter_decl rest_par_list1  { let (params, isva) = $2 in 
+                                     ($1 :: params, isva) 
+                                   }
+;
+rest_par_list1: 
+    /* empty */                         { ([], false) }
+|   COMMA ELLIPSIS                      { ([], true) }
+|   COMMA parameter_decl rest_par_list1 { let (params, isva) = $3 in 
+                                          ($2 :: params, isva)
+                                        }  
+;    
+
 parameter_list_ne: /* (* ISO 6.7.5 *) */
 |   parameter_decl                        { [$1] }
 |   parameter_list_ne COMMA parameter_decl   { $1 @ [$3] }
@@ -686,6 +727,7 @@ direct_old_proto_decl:
 
 old_parameter_list: 
 |  IDENT                                       { [$1] }
+/* |  NAMED_TYPE                                  { [ $1 ] } */
 |  error                                       { [] }
 |  old_parameter_list COMMA IDENT              { $1 @ [$3]} 
 ;
@@ -730,9 +772,9 @@ abstract_decl: /* (* ISO 6.7.6. *) */
 | pointer                                 { applyPointer $1 JUSTBASE, [] }
 ;
 
-abs_direct_decl: /* ISO 6.7.6. We do not support optional declarator for 
-                  * functions. Plus Microsoft attributes. See the discussion 
-                  * for declarator.  */
+abs_direct_decl: /* (* ISO 6.7.6. We do not support optional declarator for 
+                     * functions. Plus Microsoft attributes. See the 
+                     * discussion for declarator. *) */
 |   LPAREN attributes abstract_decl RPAREN
                                    { let d, a = $3 in
                                      PARENTYPE ($2, d, a)
@@ -741,21 +783,31 @@ abs_direct_decl: /* ISO 6.7.6. We do not support optional declarator for
 |   abs_direct_decl_opt LBRACKET comma_expression RBRACKET
                                    { ARRAY($1, smooth_expression $3) }
 |   abs_direct_decl_opt LBRACKET RBRACKET  { ARRAY($1, NOTHING) }
+|   abs_direct_decl parameter_list_startscope rest_par_list RPAREN
+                                   { let (params, isva) = $3 in
+                                     Clexer.pop_context ();
+                                     PROTO ($1, params, isva)
+                                   } 
+/*
 |   abs_direct_decl LPAREN parameter_list RPAREN 
                                    { PROTO($1, $3, false) }
-|   abs_direct_decl LPAREN parameter_list ELLIPSIS RPAREN
+|   abs_direct_decl LPAREN parameter_list_ne COMMA ELLIPSIS RPAREN
                                    { PROTO($1, $3, true) }
+*/
 ;
 abs_direct_decl_opt:
     abs_direct_decl                 { $1 }
 |   /* empty */                     { JUSTBASE }
 ;
 function_def:  /* (* ISO 6.9.1 *) */
-  function_def_start block    
+  function_def_start block   
           { let (loc, specs, decl) = $1 in
             currentFunctionName := "<__FUNCTION__ used outside any functions>";
+            Clexer.pop_context (); (* The context pushed by 
+                                    * announceFunctionName *)
             doFunctionDef loc specs decl $2
           } 
+
 
 function_def_start:  /* (* ISO 6.9.1 *) */
   location decl_spec_list declarator   
@@ -822,10 +874,9 @@ attribute:
 /* (* We want to allow certain strange things that occur in pragmas, so we 
     * cannot use directly the language of expressions *) */ 
 attr: 
-    IDENT                                { VARIABLE $1 }
+|   id_or_typename                       { VARIABLE $1 }
 |   IDENT COLON CST_INT                  { VARIABLE ($1 ^ ":" ^ $3) }
 |   DEFAULT COLON CST_INT                { VARIABLE ("default:" ^ $3) }
-|   NAMED_TYPE                           { VARIABLE $1 }
                                          /* (* use a VARIABLE "" so that the 
                                              * parentheses are printed *) */
 |   IDENT LPAREN  RPAREN                 { CALL(VARIABLE $1, [VARIABLE ""]) }
