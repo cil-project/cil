@@ -538,6 +538,14 @@ let strstr str qry : bool =
   in
   ql <= sl && loop 0 0
      
+(* compareWithoutCasts:
+   Strip the casts and compare the expressions
+*)
+let rec compareWithoutCasts e1 e2 : bool =
+  match e1,e2 with
+    CastE (_, e1), _ -> compareWithoutCasts e1 e2
+  | _, CastE (_, e2) -> compareWithoutCasts e1 e2
+  | _,_ -> e1 = e2
 
 
 (******************************************************************************)
@@ -614,14 +622,13 @@ let rec eliminateRedundancy (f : fundec) : fundec =
 	  List.iter (fun lv -> ignore (printf "%a " d_lval lv)) !checkLvals;
 	  if !checkHasAliasedVar then ignore (printf " (checkHasAliasedVar)");
 	  ignore (printf "\n");
-	end;    
-
-
-        (* Reset cin, cout *)
-	Array.iteri (fun i _ -> cin.(i) <- latUnknown ; cout.(i) <- latUnknown) cin;
+	end;
 
         (* Flag the similar CHECKs. Skip ahead if there is nothing redundant *)
 	if (markSimilar i) > 1 then begin
+          (* Reset cin, cout *)
+	  Array.iteri (fun i _ -> cin.(i) <- latUnknown ; cout.(i) <- latUnknown) cin;
+
 	  (* Mark all the similar ones as "processed" *)
 	  Array.iteri (fun i a -> !checkProcessed.(i) <- !checkProcessed.(i) || a) !checkFlags;
 	  
@@ -664,16 +671,19 @@ let rec eliminateRedundancy (f : fundec) : fundec =
 	  
 	  if amandebug then pr "Reached fixed point in %d iterations\n" !nIter;
 
-	end; (* if markSimilar .. else ... *)
-
-	(* Now, actually remove the redundant CHECKs *)
-	for i=0 to (!numNodes - 1) do
-	  match !nodes.(i).skind with
-	    Instr instList -> (* CHECKs are only contained in instr lists *)
-	      !nodes.(i).skind <- 
-		Instr (removeRedundancies cin.(i) instList i)
-	  | _ -> ()
-	done; (* for *)
+     	  (* Now, actually remove the redundant CHECKs *)
+	  Array.iteri
+	    (fun i nd ->
+	      match nd.skind with
+	      Instr instList -> 
+		nd.skind <- Instr (removeRedundancies cin.(i) instList i)
+	      |	_ -> ())
+	    !nodes;
+	  
+	end (* if markSimilar .. else ... *)
+	else begin
+	   stats_kept := !stats_kept + 1;
+	end;
 	
       end (* if not checkProcessed *)
       else
@@ -682,6 +692,15 @@ let rec eliminateRedundancy (f : fundec) : fundec =
 	  ignore (printf "Skipping %d: %a\n" i d_instr !checkInstrs.(i));
 	end
     done; (* for i ... *)
+
+    (* Do peephole optimization *)
+    Array.iteri
+      (fun i nd -> 
+	match nd.skind with
+	  Instr instList ->
+	    nd.skind <- Instr (removePeephole instList)
+	| _ -> ())
+      !nodes;
 
   end; (* if useRedundancyElimination ... *)
   f (* Return the same thing, mutated *)
@@ -747,8 +766,6 @@ and removeRedundancies (cin_start : lattice) instList node_number =
 	
 	  | Unknown | Needed -> (* This CHECK can't be removed.
 				   We have to recompute cin. *)
-	      try 
-		let h2 = peepholeReplace h2 in (* throws an exception if h2 can be removed *)
 		if amandebug then 
 		  pr "%s %d kept (lattice = %s)\n" (getCallName h2) 
 		    index (getLatValDescription cin_local.latType);
@@ -762,11 +779,6 @@ and removeRedundancies (cin_start : lattice) instList node_number =
 		| Call (None,_,_,_) ->
 		    removeRedundanciesLoop latCheckNotNeeded t (h2 :: filteredList)
 		| _ -> raise (Failure "non-Call in checkInstrs array"))
-
-	      with PeepholeRemovable ->		  
-		if amandebug then pr "%s removed by peephole \n" (getCallName h2) ;
-		stats_removed := !stats_removed + 1;
-		removeRedundanciesLoop cin_local t filteredList
 	end
 	else (* This instr is not a candidate for elimination.
 		It could be a Set, Call or Asm... so recompute the new cin.
@@ -775,6 +787,22 @@ and removeRedundancies (cin_start : lattice) instList node_number =
   in
   removeRedundanciesLoop cin_start instList []
 
+(* removePeephole:
+   Uses peephole optimization to remove CHECKs.
+   Subtracts from the stats_kept count, so it must be called after removeRedundancies
+*)
+and removePeephole instList =
+  (List.fold_right 
+     (fun inst acc -> 
+       try 
+	 (peepholeReplace inst) :: acc 
+       with PeepholeRemovable ->
+	 stats_kept := !stats_kept - 1;
+	 stats_removed := !stats_removed + 1;
+	 if amandebug then pr "%s removed by peephole \n" (getCallName inst) ;
+	 acc)
+     instList [])
+
 
 (* peepholeReplace:
    Returns a peephole-optimized replacement for a given CHECK.
@@ -782,7 +810,6 @@ and removeRedundancies (cin_start : lattice) instList node_number =
 *)
 and peepholeReplace (chk : instr) : instr =
   match chk with
-
     Call (_, Lval(Var{vname="CHECK_POSITIVE"},_), [Const (CInt32 (c,_,_))],_) 
     when c >= Int32.zero -> raise PeepholeRemovable
 
@@ -791,7 +818,7 @@ and peepholeReplace (chk : instr) : instr =
     when a=b && aoff=boff -> raise PeepholeRemovable
 
   | Call (_, Lval(Var{vname="CHECK_FATSTACKPOINTER"},_), [a;b],_)
-      when a = b -> raise PeepholeRemovable
+      when (compareWithoutCasts a b) -> raise PeepholeRemovable
 
   | Call (_, Lval(Var{vname="CHECK_BOUNDS"},_), [lo;hi;mid;_],_) 
       when intervalContainsExp lo hi mid -> raise PeepholeRemovable
