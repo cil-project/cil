@@ -695,6 +695,14 @@ compress : defaulttarget $(COMPRESSDIR)/src/combine-compress.c
                  $(EXEOUT)combine-compress.exe
 	sh -c "time $(COMPRESSDIR)/src/combine-compress.exe < $(COMPRESSDIR)/src/input.data > $(COMPRESSDIR)/src/combine-compress.out"
 
+newcompress: defaulttarget
+ifndef _GNUCC
+	@echo Compress can only be done with _GNUCC=1
+else
+	cd $(COMPRESSDIR)/src; \
+             make CC="$(COMBINESAFECC)" build
+endif
+
 LIDIR=$(SPECDIR)/130.li
 li: defaulttarget
 	cd $(LIDIR)/src; make build CC="$(SAFECC) --combine --keep=combine $(CONLY)" \ LD="$(SAFECC) --combine --keep=combine" 
