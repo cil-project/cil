@@ -237,7 +237,8 @@ let kindOfAttrlist al =
         match a with
           AId "safe" -> Safe, UserSpec
         | AId "index" -> Index, UserSpec
-        | AId "seq" -> FSeq, UserSpec
+        | AId "seq" -> Seq, UserSpec
+        | AId "fseq" -> FSeq, UserSpec
         | AId "wild" -> Wild, UserSpec
         | ACons("_ptrnode", [AInt n]) -> begin
             (* See if there is a UserSpec *)
@@ -343,6 +344,7 @@ let ptrAttrCustom printnode = function
     | AId("ronly") -> Some (text "RONLY")
     | AId("safe") -> Some (text "SAFE")
     | AId("seq") -> Some (text "SEQ")
+    | AId("fseq") -> Some (text "FSEQ")
     | AId("index") -> Some (text "INDEX")
     | AId("stack") -> Some (text "STACK")
     | AId("opt") -> Some (text "OPT")

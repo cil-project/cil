@@ -79,6 +79,7 @@ type offsetRes =
 
 
 (*** Helpers *)            
+let castVoidStar e = doCast e (typeOf e) voidPtrType
 
 let prefix p s = 
   let lp = String.length p in
@@ -155,6 +156,7 @@ let extractPointerTypeAttribute al =
           AId("safe") -> P.Safe
         | AId("wild") -> P.Wild
         | AId("index") -> P.Index
+        | AId("fseq") -> P.FSeq
         | AId("seq") -> P.Seq
         | _ -> loop al
     end
@@ -288,7 +290,7 @@ and fixit t =
           let fixed = 
             match pkind with
                P.Safe -> TPtr(fixed', a)
-            | (P.Wild|P.Index) -> 
+            | (P.Wild|P.Index|P.FSeq) -> 
                 let tname  = newTypeName "fatp_" fixed' in (* The name *)
                 let fixed = 
                   TComp 
@@ -298,7 +300,12 @@ and fixit t =
                        [])
                 in
                 let pattr = 
-                  match pkind with P.Wild -> AId("wild") | _ -> AId("index") in
+                  match pkind with 
+                    P.Wild -> AId("wild") 
+                  | P.FSeq -> AId("fseq")
+                  | P.Index -> AId("index")
+                  | _ -> E.s (E.bug "fixit:fatp")
+                in
                 theFile := GType(tname, fixed) :: !theFile;
                 let tres = TNamed(tname, fixed, [pattr]) in
                 H.add fixedTypes (typeSig fixed) tres;
@@ -596,10 +603,10 @@ let setFatPointer (t: typ) (p: typ -> exp) (b: exp) (e: exp)
   let setend = 
     match fendo with
       None -> []
-    | Some fend -> [mkSet (Var tmp, Field(fend,NoOffset)) e]
+    | Some fend -> [mkSet (Var tmp, Field(fend,NoOffset)) (castVoidStar e)]
   in
   ( mkSet (Var tmp, Field(fptr,NoOffset)) p' ::
-   mkSet (Var tmp, Field(fbase,NoOffset)) b  :: setend, 
+   mkSet (Var tmp, Field(fbase,NoOffset)) (castVoidStar b)  :: setend, 
    (Var tmp, NoOffset))
       
 let readPtrField (e: exp) (t: typ) : exp = 
@@ -712,7 +719,6 @@ let fatVoidPtr  =
     TNamed(_, x, _) -> x
   | _ -> E.s (E.bug "fatVoidPtr")
 
-let castVoidStar e = doCast e (typeOf e) voidPtrType
 
 let checkSafeRetFatFun = 
   let fdec = emptyFunction "CHECK_SAFERETFAT" in
@@ -729,6 +735,14 @@ let checkIndexFun =
   let argb  = makeLocalVar fdec "b" voidPtrType in
   let arge  = makeLocalVar fdec "e" uintType in
   fdec.svar.vtype <- TFun(voidType, [ argp; argb; arge ], false, []);
+  fdec.svar.vstorage <- Static;
+  theFile := GDecl fdec.svar :: !theFile;
+  fdec
+  
+let checkPositiveFun = 
+  let fdec = emptyFunction "CHECK_POSITIVE" in
+  let argx  = makeLocalVar fdec "x" intType in
+  fdec.svar.vtype <- TFun(voidType, [ argx; ], false, []);
   fdec.svar.vstorage <- Static;
   theFile := GDecl fdec.svar :: !theFile;
   fdec
@@ -831,18 +845,42 @@ type checkWhat =
     CheckNull of exp
   | CheckBoundsIndex
   | CheckBoundsSeq
+  | CheckBoundsFSeq
   | CheckNothing
 
 let checkBoundsFun = 
   let fdec = emptyFunction "CHECK_CHECKBOUNDS" in
   let argb  = makeLocalVar fdec "b" voidPtrType in
-  let argl  = makeLocalVar fdec "l" uintType in
+  let argbl  = makeLocalVar fdec "bl" uintType in
   let argp  = makeLocalVar fdec "p" voidPtrType in
   let argpl  = makeLocalVar fdec "pl" uintType in
-  fdec.svar.vtype <- TFun(voidType, [ argb; argl; argp; argpl ], false, []);
+  fdec.svar.vtype <- TFun(voidType, [ argb; argbl; argp; argpl ], false, []);
   fdec.svar.vstorage <- Static;
   theFile := GDecl fdec.svar :: !theFile;
   fdec
+
+let checkBoundsEndFun = 
+  let fdec = emptyFunction "CHECK_CHECKBOUNDSEND" in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  let argbend  = makeLocalVar fdec "bend" voidPtrType in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argpl  = makeLocalVar fdec "pl" uintType in
+  fdec.svar.vtype <- TFun(voidType, [ argb; argbend; argp; argpl ], false, []);
+  fdec.svar.vstorage <- Static;
+  theFile := GDecl fdec.svar :: !theFile;
+  fdec
+
+
+let checkBoundsFSeqFun = 
+  let fdec = emptyFunction "CHECK_CHECKBOUNDFSEQ" in
+  let argbend  = makeLocalVar fdec "bend" voidPtrType in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argpl  = makeLocalVar fdec "pl" uintType in
+  fdec.svar.vtype <- TFun(voidType, [ argbend; argp; argpl ], false, []);
+  fdec.svar.vstorage <- Static;
+  theFile := GDecl fdec.svar :: !theFile;
+  fdec
+
 
 let checkBounds : (unit -> exp) -> exp -> exp -> lval -> typ 
                   -> P.pointerkind -> stmt = 
@@ -855,13 +893,14 @@ let checkBounds : (unit -> exp) -> exp -> exp -> lval -> typ
   let checkNullFun = fdec in
 
   (* And now the null check *)
-  fun mktmplen base blen lv lvt pkind ->
+  fun mktmplen base bend lv lvt pkind ->
     let lv', lv't = getHostIfBitfield lv lvt in
     (* Do not check the bounds when we access variables without array 
      * indexing  *)
     let mustCheck =
       match pkind with
         (P.Wild|P.Index) -> CheckBoundsIndex
+      | P.FSeq -> CheckBoundsFSeq
       | P.Safe -> begin
           match lv' with
             Mem addr, _ -> CheckNull addr
@@ -881,11 +920,17 @@ let checkBounds : (unit -> exp) -> exp -> exp -> lval -> typ
             castVoidStar (AddrOf(lv', lu));
             SizeOf(lv't, lu) ]
     | CheckBoundsSeq -> 
-        call None (Lval (var checkBoundsFun.svar))
+        call None (Lval (var checkBoundsEndFun.svar))
           [ castVoidStar base; 
-            blen;
+            castVoidStar bend;
             castVoidStar (AddrOf(lv', lu));
             SizeOf(lv't, lu) ]
+    | CheckBoundsFSeq ->
+        call None (Lval (var checkBoundsFSeqFun.svar))
+          [ castVoidStar base;
+            castVoidStar (AddrOf(lv', lu));
+            SizeOf(lv't, lu) ]
+
 
 (* Compute the offset of first scalar field in a thing to be written. Raises 
  * Not_found if there is no scalar *)
@@ -1348,9 +1393,16 @@ and boxlval (b, off) : (typ * P.pointerkind * lval * exp * exp * stmt list) =
                        SizeOf (btype, lu)]])
     | P.Seq -> 
         (btype, P.Safe, mklval, zero, zero,
-         stmts @ [call None (Lval (var checkBoundsFun.svar))
+         stmts @ [call None (Lval (var checkBoundsEndFun.svar))
                      [ castVoidStar base;
                        bend;
+                       castVoidStar (mkAddrOf (mklval NoOffset));
+                       SizeOf (btype, lu)]])
+
+    | P.FSeq -> 
+        (btype, P.Safe, mklval, zero, zero,
+         stmts @ [call None (Lval (var checkBoundsFSeqFun.svar))
+                     [ castVoidStar base;
                        castVoidStar (mkAddrOf (mklval NoOffset));
                        SizeOf (btype, lu)]])
 
@@ -1430,7 +1482,9 @@ and arrayPointerToIndex (t: typ) (mklval: offset -> lval) =
 
     (* If it is not sized then better have a length *)
   | TArray(elemt, Some alen, a) -> 
-      (elemt, P.Seq, mkAddrOf (mklval NoOffset), alen)
+      (elemt, P.Seq, mkAddrOf (mklval NoOffset), 
+       BinOp(PlusPI, mkAddrOf (mklval NoOffset), alen, 
+             TPtr(elemt, []),lu))
 
   | _ -> E.s (E.bug "arrayPointerToIndex on a non-array (%a)" 
                 d_plaintype t)
@@ -1502,6 +1556,14 @@ and boxexpf (e: exp) : stmt list * fexp =
             (doe1 @ doe2, W3 (restyp', P.Seq,
                               BinOp(bop, ptr, e2', ptype, l),
                               base, bend))
+        | (PlusPI|MinusPI), P.FSeq, P.Scalar -> 
+            let ptype, ptr, base, _ = readFieldsOfFat e1' et1 in
+            let docheck = 
+              [call None (Lval (var checkPositiveFun.svar)) [ e2' ]]
+            in
+            (doe1 @ doe2 @ docheck, 
+             F2 (restyp', P.FSeq, BinOp(bop, ptr, e2', ptype, l), base))
+
         | (MinusPP|EqP|NeP|LeP|LtP|GeP|GtP), _, _ -> 
             (doe1 @ doe2, 
              L(restyp', P.Scalar,
@@ -1710,7 +1772,39 @@ and castTo (fe: fexp) (newt: typ)
     doe @ [checkFetchEnd tmp eb], 
     W3(newt, P.Seq, ep, eb, Lval(var tmp))
   in
-    
+  let seqToSafe (oldk: P.pointerkind) 
+                (ep: exp) (eptype: typ) (eb: exp) (ebend: exp) = 
+    let base_newt =
+      match unrollType newt with
+        TPtr(x, _) -> x
+      | _ -> E.s (E.bug "castTo: expected pointer type")
+    in
+    let ckeckfun, checkargs = 
+      match oldk with
+        P.Index -> 
+          checkIndexFun, 
+          [ castVoidStar ep;  castVoidStar eb;
+            SizeOf (base_newt, lu)]
+      | P.Seq -> 
+          checkBoundsEndFun, 
+          [ castVoidStar eb; castVoidStar ebend;
+            castVoidStar ep; SizeOf (base_newt, lu)]
+          
+      | P.FSeq -> 
+          checkBoundsFSeqFun,
+          [ castVoidStar eb; 
+            castVoidStar ep; SizeOf (base_newt, lu)]
+          
+      | _ -> E.s (E.bug "seqToSafe")
+    in
+    let doe' = 
+      doe @ 
+      [call None (Lval (var checkIndexFun.svar))
+          [ castVoidStar ep;  castVoidStar eb;
+            SizeOf (base_newt, lu)]]
+    in
+    (doe', L(newt, newkind, doCast ep eptype newt))
+  in
   match fe, newkind with
     (* LEAN -> LEAN *)
   | L(lt, (P.Scalar|P.Safe), e) , (P.Scalar|P.Safe) -> 
@@ -1741,55 +1835,45 @@ and castTo (fe: fexp) (newt: typ)
       in
       (doe', F2 (newt, newkind, newp, newbase))
   
+(***** FAT2 -> LEAN ******)
   (* FAT -> SCALAR *)
   | F1(oldt, (P.Index|P.Wild), e), P.Scalar ->
       (doe, L(newt, newkind, CastE(newt, readPtrField e oldt, lu)))
 
-  | F2(oldt, (P.Index|P.Wild), ep, eb), P.Scalar ->
+  | F2(oldt, (P.Index|P.Wild|P.FSeq), ep, eb), P.Scalar ->
       (doe, L(newt, newkind, CastE(newt, ep, lu)))
-  | FC(oldt, (P.Index|P.Wild), prevt, _, e), P.Scalar ->
+  | FC(oldt, (P.Index|P.Wild|P.FSeq), prevt, _, e), P.Scalar ->
       (doe, L(newt, newkind, CastE(newt, readPtrField e prevt, lu)))
   | W1(oldt, P.Seq, e), P.Scalar -> 
       (doe, L(newt, newkind, CastE(newt, readPtrField e oldt, lu)))
   | W3(oldt, P.Seq, ep, _, _), P.Scalar -> 
       (doe, L(newt, newkind, CastE(newt, ep, lu)))
 
-  (* INDEX -> SAFE. Must do bounds checking *)
-  | F1(oldt, P.Index, e), P.Safe ->
-      let (base_oldt, p, b, _) = readFieldsOfFat e oldt in
-      let base_newt =
-        match unrollType newt with
-          TPtr(x, _) -> x
-        | _ -> E.s (E.bug "castTo: expected pointer type")
-      in
-      let doe' = 
-        doe @ 
-        [call None (Lval (var checkIndexFun.svar))
-            [ castVoidStar p;  castVoidStar b;
-              SizeOf (base_newt, lu)]]
-      in
-      (doe', L(newt, newkind, doCast p base_oldt newt))
+  (* INDEX, FSEQ -> SAFE. Must do bounds checking *)
+  | F1(oldt, ((P.Index|P.FSeq) as oldk), e), P.Safe ->
+      let (base_oldt, p, b, bend) = readFieldsOfFat e oldt in
+      seqToSafe oldk p base_oldt b zero
+      
+  | F2(oldt, ((P.Index|P.FSeq) as oldk), ep, eb), P.Safe -> 
+      let pfld, _, _ = getFieldsOfFat oldt in
+      seqToSafe oldk ep pfld.ftype eb zero
 
+
+(****** FAT3 -> LEAN *******)
   (* SEQ -> SAFE. Must do bounds checking *)
   | W1(oldt, P.Seq, e), P.Safe ->
-      let (base_oldt, p, b, bl) = readFieldsOfFat e oldt in
-      let base_newt =
-        match unrollType newt with
-          TPtr(x, _) -> x
-        | _ -> E.s (E.bug "castTo: expected pointer type")
-      in
-      let doe' = 
-        doe @ 
-        [call None (Lval (var checkBoundsFun.svar))
-            [ castVoidStar b; bl; castVoidStar p; SizeOf (base_newt, lu)]]
-      in
-      (doe', L(newt, newkind, doCast p base_oldt newt))
+      let (base_oldt, p, b, bend) = readFieldsOfFat e oldt in
+      seqToSafe P.Seq p base_oldt b bend
+  | W3(oldt, P.Seq, ep, eb, ebend), P.Safe ->
+      let pfld, _, _ = getFieldsOfFat oldt in
+      seqToSafe P.Seq ep pfld.ftype eb ebend
 
+
+(******* FAT2 -> FAT2 *******)
   (* INDEX -> SEQ *)
   | F1(oldt, P.Index, e), P.Seq -> 
       let _, ep, eb, _ = readFieldsOfFat e oldt in
       indexToSeq ep eb
-
   | F2(oldt, P.Index, ep, eb), P.Seq -> indexToSeq ep eb
   | FC(oldt, P.Index, prevt, _, e), P.Seq -> 
       castTo (F1(prevt, P.Index, e)) newt doe
