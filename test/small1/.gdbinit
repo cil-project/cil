@@ -1,5 +1,5 @@
 # .gdbinit
 
-file deepcopy1.exe
+file func2.exe
 break main
 run
