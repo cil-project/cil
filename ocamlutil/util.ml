@@ -50,6 +50,12 @@ let docHash (one: 'a -> 'b -> doc) () (h: ('a, 'b) Hashtbl.t) =
     
 
 
+let hash_to_list (h: ('a, 'b) Hashtbl.t) : ('a * 'b) list =
+  Hashtbl.fold
+    (fun key data acc -> (key, data) :: acc)
+    h
+    []
+
 let anticompare a b = compare b a
 ;;
 
