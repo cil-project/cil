@@ -1330,33 +1330,47 @@ let rec collectInitializer
         in
         let rec collect (idx: int) = 
           if idx >= len then [] 
-          else (if idx > !pMaxIdx then makeZeroInit bt 
-                else collectInitializer !pArray.(idx) bt) :: collect (idx + 1)
+          else
+            let thisi = 
+              if idx > !pMaxIdx then makeZeroInit bt 
+              else collectInitializer !pArray.(idx) bt
+            in
+            (Index(integer idx, NoOffset), thisi) :: collect (idx + 1)
         in
         CompoundInit (thistype, collect 0)
 
-    | TComp (comp, _), CompoundPre (pMaxIdx, pArray) -> 
-        if not comp.cstruct && !pMaxIdx != 0 then 
-          E.s (unimp "Can initialize only first field in unions");
+    | TComp (comp, _), CompoundPre (pMaxIdx, pArray) when comp.cstruct ->
         let rec collect (idx: int) = function
             [] -> []
           | f :: restf -> 
               if f.fname = missingFieldName then 
                 collect (idx + 1) restf
               else 
-                (if idx > !pMaxIdx then 
-                  makeZeroInit f.ftype
-                else
-                  collectInitializer !pArray.(idx) f.ftype)
-              
-                :: collect (idx + 1) restf
+                let thisi = 
+                  if idx > !pMaxIdx then 
+                    makeZeroInit f.ftype
+                  else
+                    collectInitializer !pArray.(idx) f.ftype
+                in
+                (Field(f, NoOffset), thisi) :: collect (idx + 1) restf
         in
-        let toinit = 
-          match comp.cfields with 
-            [] -> []
-          | f :: _ -> if comp.cstruct then comp.cfields else [f]
+        CompoundInit (thistype, collect 0 comp.cfields)
+
+    | TComp (comp, _), CompoundPre (pMaxIdx, pArray) when not comp.cstruct ->
+        (* Find the field to initialize *)
+        let rec findField (idx: int) = function
+            [] -> E.s (bug "collectInitializer: union")
+          | _ :: rest when idx < !pMaxIdx && !pArray.(idx) = NoInitPre -> 
+              findField (idx + 1) rest
+          | f :: _ when idx = !pMaxIdx -> 
+              Field(f, NoOffset), 
+              collectInitializer !pArray.(idx) f.ftype
+          | _ -> E.s (error "Can initialize only one field for union")
         in
-        CompoundInit (thistype, collect 0 toinit)
+        if !msvcMode && !pMaxIdx != 0 then 
+          ignore (warn "On MSVC we can initialize only the first field of a union");
+        CompoundInit (thistype, [ findField 0 comp.cfields ])
+
     | _ -> E.s (unimp "collectInitializer")
                       
         
@@ -2172,6 +2186,38 @@ and makeCompType (isstruct: bool)
   addLocalToEnv (kindPlusName kind n) (EnvTyp res);
   (* Now create a typedef with just this type *)
   res
+
+and preprocessCast (specs: A.specifier) 
+                   (dt: A.decl_type) 
+                   (ie: A.init_expression) 
+  : A.specifier * A.decl_type * A.init_expression = 
+  let typ = doOnlyType specs dt in
+  (* If we are casting to a union type then we have to treat this as a 
+   * constructor expression. This is to handle the gcc extension that allows 
+   * cast from a type of a field to the type of the union  *)
+  let ie' = 
+    match unrollType typ, ie with
+      TComp (c, _), A.SINGLE_INIT _ when not c.cstruct -> 
+        A.COMPOUND_INIT [(A.INFIELD_INIT ("___matching_field", 
+                                          A.NEXT_INIT), 
+                          ie)]
+    | _, _ -> ie
+  in
+  (* Maybe specs contains an unnamed composite. Replace with the name so that 
+   * when we do again the specs we get the right name  *)
+  let specs1 = 
+    match typ with
+      TComp (ci, _) -> 
+        List.map 
+          (function 
+              A.SpecType (A.Tstruct ("", flds)) -> 
+                A.SpecType (A.Tstruct (ci.cname, None))
+            | A.SpecType (A.Tunion ("", flds)) -> 
+                A.SpecType (A.Tunion (ci.cname, None))
+            | s -> s) specs
+    | _ -> specs
+  in
+  specs1, dt, ie' 
   
      (* Process an expression and in the process do some type checking, 
       * extract the effects as separate statements  *)
@@ -2539,23 +2585,14 @@ and doExp (isconst: bool)    (* In a constant *)
         finishExp empty (AlignOfE(e'')) uintType
 
     | A.CAST ((specs, dt), ie) ->
-        let typ = doOnlyType specs dt in
+        let s', dt', ie' = preprocessCast specs dt ie in
+        (* We know now that we can do s' and dt' many times *)
+        let typ = doOnlyType s' dt' in
         let what' =
           match what with
             AExp (Some _) -> AExp (Some typ)
           | ADrop -> ADrop
           | _ -> AExp None
-        in
-        (* If we are casting to a union type then we have to treat this as a 
-         * constructor expression. This is to handle the gcc extension that 
-         * allows cast from a type of a field to the type of the union *)
-        let ie' = 
-          match unrollType typ, ie with
-            TComp (c, _), A.SINGLE_INIT _ when not c.cstruct -> 
-              A.COMPOUND_INIT [(A.INFIELD_INIT ("___matching_field", 
-                                                A.NEXT_INIT), 
-                                ie)]
-          | _, _ -> ie
         in
         let (se, e', t') = 
           match ie' with
@@ -2566,27 +2603,13 @@ and doExp (isconst: bool)    (* In a constant *)
                * variable  *)
               let newvar = "__constr_expr_" ^ string_of_int (!constrExprId) in
               incr constrExprId;
-              (* Maybe specs contains an unnamed composite. Replace with the 
-               * name *)
-              let specs1 = 
-                match typ with
-                  TComp (ci, _) -> 
-                    List.map 
-                      (function 
-                          A.SpecType (A.Tstruct ("", flds)) -> 
-                            A.SpecType (A.Tstruct (ci.cname, None))
-                        | A.SpecType (A.Tunion ("", flds)) -> 
-                            A.SpecType (A.Tunion (ci.cname, None))
-                        | s -> s) specs
-                | _ -> specs
-              in
-              let spec_res = doSpecList specs1 in
+              let spec_res = doSpecList s' in
               let se1 = 
                 if !scopes == [] then begin
-                  ignore (createGlobal spec_res ((newvar, dt, []), ie'));
+                  ignore (createGlobal spec_res ((newvar, dt', []), ie'));
                   empty
                 end else
-                  createLocal spec_res ((newvar, dt, []), ie') 
+                  createLocal spec_res ((newvar, dt', []), ie') 
               in
               (* Now pretend that e is just a reference to the newly created 
                * variable *)
@@ -3542,16 +3565,25 @@ and doInit
   : chunk * (A.initwhat * A.init_expression) list = 
 
   let whoami () = d_lval () (Var so.host, so.soOff) in
-      (* Sometimes we have a cast in front of a compound (in GCC). This 
-       * appears as a single initializer. Ignore the cast  *)
+  
   let initl1 = 
     match initl with
+    | (A.NEXT_INIT, 
+       A.SINGLE_INIT (A.CAST ((s, dt), ie))) :: rest -> 
+         let s', dt', ie' = preprocessCast s dt ie in
+         (A.NEXT_INIT, A.SINGLE_INIT (A.CAST ((s', dt'), ie'))) :: rest
+    | _ -> initl
+  in
+      (* Sometimes we have a cast in front of a compound (in GCC). This 
+       * appears as a single initializer. Ignore the cast  *)
+  let initl2 = 
+    match initl1 with
       (what, 
        A.SINGLE_INIT (A.CAST (_, A.COMPOUND_INIT ci))) :: rest -> 
          (what, A.COMPOUND_INIT ci) :: rest
-    | _ -> initl
+    | _ -> initl1
   in
-  let allinitl = initl1 in
+  let allinitl = initl2 in
 
   if debugInit then begin
     ignore (E.log "doOneInit for %t %s (current %a). Looking at: " whoami
@@ -3678,7 +3710,6 @@ and doInit
                                                      A.NEXT_INIT), 
                                       A.SINGLE_INIT oneinit)])] 
                       when not ci.cstruct -> 
-      ignore (E.log "Doing matching field");                
       (* Do the expression to find its type *)
       let _, _, t' = doExp isconst oneinit (AExp None) in
       let tsig = typeSigWithAttrs (fun _ -> []) t' in

@@ -183,7 +183,7 @@ $TEST->add3Tests("testrun/bitfield2");
 $TEST->add3Tests("test/box1");
 $TEST->add3Tests("test/cast1");
 $TEST->add3Tests("test/cast2");
-$TEST->add2Tests("test/cast4");
+$TEST->add2Tests("test/cast4", "_GNUCC=1");
 $TEST->add3Tests("test/constprop");
 $TEST->addTests("testrun/const1", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/const2", "", ['cil']);

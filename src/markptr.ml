@@ -480,7 +480,7 @@ and doInit (i: init) : init * typ =
         (* Construct a new initializer list *)
       let doOneInit (off: offset) (ei: init) (tei: typ) acc = 
         let ei', _ = doInit ei in
-        ei' :: acc
+        (off, ei') :: acc
       in
       let newinitl = List.rev (foldLeftCompound doOneInit t' initl []) in
       CompoundInit (t', newinitl), t'

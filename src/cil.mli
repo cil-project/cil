@@ -322,20 +322,6 @@ and exp =
                                             produces an expression of type 
                                             TPtr(T). *)
 
-(** Initializers for global variables *)
-and init = 
-  | SingleInit   of exp                 (** A single initializer, might be of 
-                                            compound type *)
-  | CompoundInit   of typ * init list
-                                        (** Used only for initializers of 
-                                            structures, unions and arrays. For 
-                                            a structure we have a list of 
-                                            initializers for a prefix of all 
-                                            fields, for a union we have one 
-                                            initializer for the first field, 
-                                            and for an array we have some 
-                                            prefix of the initializers *)
-
 
 (* L-Values denote contents of memory addresses. A memory address is 
  * expressed as a base plus an offset. The base address can be the start 
@@ -580,6 +566,23 @@ type global =
   | GText of string                     (** Some text (printed verbatim) at 
                                             top level. E.g., this way you can 
                                             put comments in the output.  *)
+
+
+(** Initializers for global variables *)
+and init = 
+  | SingleInit   of exp                 (** A single initializer, might be of 
+                                            compound type *)
+  | CompoundInit   of typ * (offset * init) list
+            (** Used only for initializers of structures, unions and arrays. 
+             The offsets are all of the form Field(f, NoOffset) or Index(i, 
+             NoOffset) and specify the field or the index being 
+             initialized. For structures and arrays all fields (indices) 
+             must have an initializer (except the unnamed bitfields), in 
+             the proper order. This is necessary since the offsets are not 
+             printed. For unions there must be exactly one initializer. If 
+             the initializer is not for the first field then a field 
+             designator is printed, so you better be on GCC since MSVC does 
+             not understand this. *)
     
 (** Files *)
 type file = 
@@ -887,7 +890,7 @@ val makeZeroInit: typ -> init
 val foldLeftCompound: 
     (doinit: offset -> init -> typ -> 'a -> 'a) ->
     ct: typ ->
-    initl: init list ->
+    initl: (offset * init) list ->
     acc: 'a -> 'a
 
 

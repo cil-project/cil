@@ -15,7 +15,7 @@ my $tmpdir  = "cilcode.tmp";
 my $htmloutdir = "examples";
 my $outdir  = "html/cil/$htmloutdir";
 
-my $cilly = "perl ../lib/cilly.pl --keepunused";
+my $cilly = "perl ../lib/cilly.pl";
 
 my $preambleLocal = <<EOF;
 int main(void) {
@@ -71,7 +71,7 @@ code fragment\n";
         my $cilfile = "$tmpdir/ex$testnr" . "cil.c";
         open(CIL, "<$cilfile") || die "Cannot find CIL file for $testnr";
         my $exfile = "$outdir/ex$testnr.txt";
-        open(OUT, ">$exfile") || die "Cannot write OUT file for $testnr";
+        open(OUT, ">$exfile") || die "Cannot write OUT file for $testnr ($exfile)";
         while(<CIL>) {
             print OUT $_;
         }

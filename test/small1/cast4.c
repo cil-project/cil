@@ -26,6 +26,8 @@ int main() {
 
     if(f((un)s) != 1) E(4);
   }
+
+  if(glob.i != 6) E(5);
   
   SUCCESS;
 }

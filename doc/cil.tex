@@ -337,7 +337,44 @@ to be used as lvalues:
 \item All types are computed and explicit casts are inserted for all
 promotions and conversions that a compiler must insert:
 
+\item CIL will turn old-style function definition (without prototype) into
+new-style definitions. This will make the compiler less forgiving when
+checking function calls, and will catch for example cases when a function is
+called with too few arguments. This happens in old-style code for the purpose
+of implementing variable argument functions. To make the code compile after
+CIL we insert dummy arguments for the missing ones:
+\begin{cilcode}[global]
+#include <stdio.h>
+int f(s1, s2) char *s1, *s2; {
+  printf(s1, s2);
+}
+
+int main() {
+    f("hello \%s!\n", "world");
+    f("hello again\n"); // f called with only one argument
+}
+\end{cilcode}
  
+\item Since CIL sees the source after preprocessing the code after CIL does
+not contain the comments and the preprocessing directives.
+
+\item CIL will remove from the source file those type declarations, local
+variables and inline functions that are not used in the file. This means that
+your analysis does not have to see all the ugly stuff that comes from the
+header files: 
+\begin{cilcode}[global]
+#include <stdio.h>
+
+typedef int unused_type;
+
+inline char unused_inline (void) { return 0; }
+
+int main() {
+  int unused_local;
+  printf("Hello world\n"); // Only printf will be kept from stdio.h     
+}
+\end{cilcode}
+
 \end{enumerate}
 
 \section{CIL API Documentation}\label{sec-cil} 
@@ -765,20 +802,6 @@ returns and not when the local scope ends.
 \begin{itemize}
 \item \t{long} and \t{int} are 32-bit, \t{short} is 16 bits. 
 
-\item CIL will turn old-style function definition (without prototype) into
-new-style definitions. This will make the compiler less forgiving when
-checking function calls. This means that some code that used to compile before
-will not compile afterwards. For example, the following code compiles (and
-yields an undefined result) but it will not compile after CIL. 
-\begin{cilcode}[global]
-int f(i1, i2) int i1, i2 {
-  return i1 + i2;
-}
-
-int main() {
-    return f(5, 6) + f(5); // f called with only one argument
-}
-\end{cilcode}
  
 
 \end{itemize}
@@ -1249,8 +1272,7 @@ int main() {
 }
 \end{cilcode}
 
-
-\item Another one with constructed literals. This one woudl not go through GCC
+\item Another one with constructed literals. This one would not go through GCC
 (but goes through CIL). This code returns 2.
 
 \begin{cilcode}[local]
@@ -1334,6 +1356,24 @@ definition is ignore (treated like a prototype) and the answer is 4.
 
  CIL will misbehave on this example, if the optimizations are turned off (it
  always returns 3).
+
+\item GCC allows you to cast an object of a type T into a union as long as the
+union has a field of that type:
+\begin{cilcode}[global]
+union u { 
+   int i; 
+   struct s { 
+      int i1, i2;
+   } s;
+};
+
+union u x = (union u)6;
+
+int main() {
+  struct s y = {1, 2};
+  union u  z = (union u)y;
+}
+\end{cilcode}
 
 \end{enumerate}
 

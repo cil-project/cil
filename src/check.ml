@@ -478,15 +478,71 @@ and checkInit  (i: init) : typ =
     (fun _ ->
       match i with
         SingleInit e -> checkExp true e
-      | CompoundInit (t, initl) -> 
-          checkType t CTSizeof;
-          let checkOneInit (oo: offset) (ei: init) (et: typ) _ : unit = 
-            let ot = checkOffset t oo in
-            checkInitType ei ot
-          in
-          (* foldLeftCompound will check that t is a TComp or a TArray *)
-          foldLeftCompound checkOneInit t initl ();
-          t)
+      | CompoundInit (ct, initl) -> begin
+          checkType ct CTSizeof;
+          (match unrollType ct with
+            TArray(bt, Some (Const(CInt64(len, _, _))), _) -> 
+              let rec loopIndex i = function
+                  [] -> 
+                    if i <> len then 
+                      ignore (warn "Wrong number of initializers in array")
+
+                | (Index(Const(CInt64(i', _, _)), NoOffset), ei) :: rest -> 
+                    if i' <> i then 
+                      ignore (warn "Initializer for index %s when %s was expected\n"
+                                (Int64.format "%d" i') (Int64.format "%d" i));
+                    checkInitType ei bt;
+                    loopIndex (Int64.succ i) rest
+                | _ :: rest -> 
+                    ignore (warn "Malformed initializer for array element")
+              in
+              loopIndex Int64.zero initl
+          | TArray(_, _, _) -> 
+              ignore (warn "Malformed initializer for array")
+          | TComp (comp, _) -> 
+              if comp.cstruct then
+                let rec loopFields 
+                    (nextflds: fieldinfo list) 
+                    (initl: (offset * init) list) : unit = 
+                  match nextflds, initl with 
+                    [], [] -> ()   (* We are done *)
+                  | f :: restf, (Field(f', NoOffset), i) :: resti -> 
+                      if f.fname <> f'.fname then 
+                        ignore (warn "Expected initializer for field %s and found one for %s\n" f.fname f'.fname);
+                      checkInitType i f.ftype;
+                      loopFields restf resti
+                  | [], _ :: _ -> 
+                      ignore (warn "Too many initializers for struct")
+                  | _ :: _, [] -> 
+                      ignore (warn "Too few initializers for struct")
+                  | _, _ -> 
+                      ignore (warn "Malformed initializer for struct")
+                in
+                loopFields
+                  (List.filter (fun f -> f.fname <> missingFieldName) 
+                     comp.cfields) 
+                  initl
+
+              else (* UNION *)
+                if comp.cfields == [] then begin
+                  if initl != [] then 
+                    ignore (warn "Initializer for empty union not empty");
+                end else begin
+                  match initl with 
+                    [(Field(f, NoOffset), ei)] -> 
+                      if f.fcomp != comp then 
+                        ignore (bug "Wrong designator for union initializer");
+                      if !msvcMode && f != List.hd comp.cfields then
+                        ignore (warn "On MSVC you can only initialize the first field of a union");
+                      checkInitType ei f.ftype
+                      
+                  | _ -> 
+                      ignore (warn "Malformed initializer for union")
+                end
+          | _ -> 
+              E.s (warn "Type of Compound is not array or struct or union"));
+          ct
+      end)
     () (* The arguments of withContext *)
 
 

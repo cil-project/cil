@@ -308,19 +308,6 @@ and exp =
                                          * produces an expression of type 
                                          * TPtr(T). *)
 
-(* Initializers for global variables *)
-and init = 
-  | SingleInit   of exp                 (* A single initializer, might be of 
-                                         * compound type *)
-                                        (* Used only for initializers of 
-                                         * structures, unions and arrays. For 
-                                         * a structure we have a list of 
-                                         * initializers for a prefix of all 
-                                         * fields, for a union we have one 
-                                         * initializer for the first field, 
-                                         * and for an array we have some 
-                                         * prefix of the initializers *)
-  | CompoundInit   of typ * init list
 
 (* L-Values denote contents of memory addresses. A memory address is 
  * expressed as a base plus an offset. The base address can be the start 
@@ -553,6 +540,23 @@ type global =
   | GText of string                     (* Some text (printed verbatim) at 
                                          * top level. E.g., this way you can 
                                          * put comments in the output.  *)
+    
+
+(** Initializers for global variables *)
+and init = 
+  | SingleInit   of exp                 (** A single initializer, might be of 
+                                            compound type *)
+  | CompoundInit   of typ * (offset * init) list
+            (* Used only for initializers of structures, unions and arrays. 
+             * The offsets are all of the form Field(f, NoOffset) or Index(i, 
+             * NoOffset) and specify the field or the index being 
+             * initialized. For structures and arrays all fields (indices) 
+             * must have an initializer (except the unnamed bitfields), in 
+             * the proper order. This is necessary since the offsets are not 
+             * printed. For unions there must be exactly one initializer. If 
+             * the initializer is not for the first field then a field 
+             * designator is printed, so you better be on GCC since MSVC does 
+             * not understand this. *)
     
 
 type file = 
@@ -1651,8 +1655,31 @@ and d_init () = function
       dprintf "{@[%a@]}"
         (docList (chr ',' ++ break) dinit) initl
 *)
+      let printDesignator = 
+        if not !msvcMode then begin
+          (* Print only for union when we do not initialize the first field *)
+          match unrollType t, initl with
+            TComp(ci, _), [(Field(f, NoOffset), _)] -> 
+              if ci.cfields != [] && (List.hd ci.cfields).fname = f.fname then
+                true
+              else
+                false
+          | _ -> false
+        end else 
+          false 
+      in
+      let d_oneInit = function
+          Field(f, NoOffset), i -> 
+            (if printDesignator then 
+              text ("." ^ f.fname ^ " = ") 
+            else nil) ++ d_init () i
+        | Index(e, NoOffset), i -> 
+            (if printDesignator then 
+              text "[" ++ d_exp () e ++ text "] = " else nil) ++ d_init () i
+        | _ -> E.s (unimp "Trying to print malformed initializer")
+      in
       chr '{' ++ (align 
-                    ++ ((docList (chr ',' ++ break) (d_init ())) () initl) 
+                    ++ ((docList (chr ',' ++ break) d_oneInit) () initl) 
                     ++ unalign)
         ++ chr '}'
 
@@ -2125,8 +2152,11 @@ let rec d_plainexp () = function
 and d_plaininit () = function
     SingleInit e -> dprintf "SI(%a)" d_exp e
   | CompoundInit (t, initl) -> 
+      let d_plainoneinit (o, i) = 
+        d_plainoffset () o ++ text " = " ++ d_plaininit () i
+      in
       dprintf "CI(@[%a,@?%a@])" d_plaintype t
-        (docList (chr ',' ++ break) (d_plaininit ())) initl
+        (docList (chr ',' ++ break) d_plainoneinit) initl
 
 and d_plainlval () = function
   | Var vi, o -> dprintf "Var(@[%s,@?%a@])" vi.vname d_plainoffset o
@@ -2501,7 +2531,12 @@ and childrenInit (vis: cilVisitor) (i: init) : init =
       if e' != e then SingleInit e' else i
   | CompoundInit (t, initl) ->
       let t' = fTyp t in
-      let initl' = mapNoCopy fInit initl in
+      let doOneInit ((o, i) as oi) = 
+        let o' = visitCilOffset vis o in
+        let i' = fInit i in
+        if o' != o || i' != i then (o', i') else oi 
+      in
+      let initl' = mapNoCopy doOneInit initl in
       if t' != t || initl' != initl then CompoundInit (t', initl') else i
 
   
@@ -3693,7 +3728,7 @@ let rec makeZeroInit (t: typ) : init =
         List.fold_right
           (fun f acc -> 
             if f.fname <> missingFieldName then 
-              makeZeroInit f.ftype :: acc
+              (Field(f, NoOffset), makeZeroInit f.ftype) :: acc
             else
               acc)
           comp.cfields []
@@ -3704,9 +3739,10 @@ let rec makeZeroInit (t: typ) : init =
       let fstfield = 
         match comp.cfields with
           f :: _ -> f
-        | [] -> E.s (E.unimp "Cannot create init for empty union")
+        | [] -> E.s (unimp "Cannot create init for empty union")
       in
-      CompoundInit(t, [makeZeroInit fstfield.ftype])
+      CompoundInit(t, [(Field(fstfield, NoOffset), 
+                        makeZeroInit fstfield.ftype)])
 
   | TArray(bt, Some len, _) as t' -> 
       let n = 
@@ -3716,10 +3752,10 @@ let rec makeZeroInit (t: typ) : init =
       in
       let initbt = makeZeroInit bt in
       let rec loopElems acc i = 
-        if i >= n then acc
-        else loopElems (initbt :: acc) (i + 1) 
+        if i <= 0 then acc
+        else loopElems ((Index(integer i, NoOffset), initbt) :: acc) (i - 1) 
       in
-      CompoundInit(t', loopElems [] 0)
+      CompoundInit(t', loopElems [] (n - 1))
   | TPtr _ as t -> SingleInit(CastE(t, zero))
   | _ -> E.s (E.unimp "makeZeroCompoundInit: %a" d_plaintype t)
 
@@ -3728,61 +3764,19 @@ let rec makeZeroInit (t: typ) : init =
 let foldLeftCompound 
     ~(doinit: offset -> init -> typ -> 'a -> 'a)
     ~(ct: typ) 
-    ~(initl: init list)
+    ~(initl: (offset * init) list)
     ~(acc: 'a) : 'a = 
   match unrollType ct with
     TArray(bt, _, _) -> 
-      let rec foldArray  
-          (nextidx: exp) 
-          (initl: init list)
-          (acc: 'a) : 'a  =
-        let incrementIdx = function
-            Const(CInt64(n, ik, _)) -> Const(CInt64(Int64.succ n, ik, None))
-          | e -> BinOp(PlusA, e, one, intType)
-        in
-        match initl with
-          [] -> acc
-        | ie :: restinitl ->
-            (* Now do the initializer expression *)
-            let acc' = doinit (Index(nextidx, NoOffset)) ie bt acc in
-            foldArray (incrementIdx nextidx) restinitl acc'
-      in
-      foldArray zero initl acc
+      List.fold_left (fun acc (o, i) -> doinit o i bt acc) acc initl
 
   | TComp (comp, _) -> 
-      if comp.cstruct then
-        let rec foldFields 
-            (nextflds: fieldinfo list) 
-            (initl: init list)
-            (acc: 'a) : 'a = 
-          match initl with 
-            [] -> acc   (* We are done *)
-          | ie :: restinitl ->
-              let nextfields, thisfield = 
-                begin
-                  match nextflds with
-                    [] -> E.s (E.unimp "Too many initializers")
-                  | x :: xs -> xs, x
-                end
-              in
-              (* Now do the initializer expression *)
-              let acc' = 
-                doinit (Field(thisfield, NoOffset)) ie thisfield.ftype acc 
-              in
-              foldFields nextfields restinitl acc'
-        in
-        foldFields 
-          (List.filter (fun f -> f.fname <> missingFieldName) comp.cfields) 
-          initl acc
-      else
-        (* UNION *)
-        let oneinit, firstfield = 
-          match initl, comp.cfields with
-            [x], f :: _  -> x, f
-          | _ -> E.s (E.bug "Compound for union should have only one init")
-        in
-        doinit (Field(firstfield, NoOffset)) oneinit firstfield.ftype acc
-        
+      let getTypeOffset = function
+          Field(f, NoOffset) -> f.ftype
+        | _ -> E.s (bug "foldLeftCompound: malformed initializer")
+      in
+      List.fold_left 
+        (fun acc (o, i) -> doinit o i (getTypeOffset o) acc) acc initl
 
   | _ -> E.s (E.unimp "Type of Compound is not array or struct or union")
 

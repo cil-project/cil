@@ -1530,11 +1530,11 @@ let makeTagCompoundInit (tagged: typ)
   let dfld, lfld, tfld, words, _ = splitTagType tagged in
   CompoundInit (tagged, 
                   (* Now the length *)
-                SingleInit words ::
+                (Field(lfld, NoOffset), SingleInit words) ::
                 (match datainit with 
                   None -> []
-                | Some e -> [e]))
-            (* Leave the rest alone since it will be initialized with 0 *)
+                | Some e -> [(Field(dfld, NoOffset), e)]))
+    (* Leave the rest alone since it will be initialized with 0 *)
     ,
   dfld
 
@@ -1928,16 +1928,24 @@ let getFunctionDescriptor (vi: varinfo) : exp =
                               (TComp (descrInfo, [])) in
     (* Register it *)
     theFile := consGlobal (GDecl (descr, !currentLoc)) !theFile;
+    let lenfld, pfunfld, nrargsfld = 
+      match descrInfo.cfields with
+        [l; f; a] -> l, f, a
+      | _ -> E.s (bug "getFunctionDescriptor")
+    in
     descriptorDefinitions :=
       (GVar (descr,
              Some (CompoundInit (TComp (descrInfo, []),
-                                 [ SingleInit zero;
-                                   SingleInit 
-                                     (doCast 
-                                        (AddrOf (Var vi, 
+                                 [ (Field(lenfld, NoOffset), SingleInit zero);
+                                   (Field(pfunfld, NoOffset), 
+                                    SingleInit 
+                                      (doCast 
+                                         (AddrOf (Var vi, 
                                                   NoOffset))
-                                     (TPtr(TFun(voidType,None,false, []),[])));
-                                   SingleInit (integer nrformals) ])),
+                                         (TPtr(TFun(voidType,None,
+                                                    false, []),[]))));
+                                    (Field(nrargsfld, NoOffset),
+                                           SingleInit (integer nrformals))])),
              !currentLoc)) :: !descriptorDefinitions;
     let pfunfld = List.nth descrInfo.cfields 1 in
     let res = mkAddrOf (Var descr, Field(pfunfld, NoOffset)) in
@@ -3898,7 +3906,7 @@ and boxinit (ei: init) : init =
         let t' = fixupType t in
         (* Construct a new initializer list *)
         let doOneInit (off: offset) (ei: init) (tei: typ) acc = 
-          boxinit ei :: acc
+          (off, boxinit ei) :: acc
         in
         let newinitl = List.rev (foldLeftCompound doOneInit t initl []) in
         CompoundInit (t', newinitl)
