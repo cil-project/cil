@@ -107,6 +107,9 @@ type keepers = {
 (* rapid transfer of control when we find a malformed pragma *)
 exception Bad_pragma
 
+let ccureddeepcopystring = "ccureddeepcopy"
+(* Save this length so we don't recompute it each time. *)
+let ccureddeepcopystring_length = String.length ccureddeepcopystring
 
 (* CIL and CCured define several pragmas which prevent removal of
  * various global symbols.  Here we scan for those pragmas and build
@@ -171,9 +174,12 @@ let categorizePragmas file =
 	    List.iter processArg args
 	  end
 
+      (*** Begin CCured-specific checks:  ***)
+      (* these pragmas indirectly require that we keep the function named in
+	  -- the first arguments of boxmodelof and ccuredwrapperof, and
+	  -- the third argument of ccureddeepcopy*. *)
       | GPragma (Attr("boxmodelof" as directive, attribute :: _), location)
-      | GPragma (Attr("ccuredwrapperof" as directive, attribute :: _), location) -> 
-	  (* these pragmas indirectly require that we keep the named function *)
+      | GPragma (Attr("ccuredwrapperof" as directive, attribute :: _), location) ->
 	  begin
 	    match attribute with
 	    | AStr name ->
@@ -181,7 +187,18 @@ let categorizePragmas file =
 	    | _ ->
 		badPragma location directive
 	  end
-
+      | GPragma (Attr(directive, _ :: _ :: attribute :: _), location)
+           when String.length directive > ccureddeepcopystring_length
+	       && (Str.first_chars directive ccureddeepcopystring_length)
+	           = ccureddeepcopystring ->
+	  begin
+	    match attribute with
+	    | AStr name ->
+		H.add keepers.defines name ()
+	    | _ ->
+		badPragma location directive
+	  end
+      (** end CCured-specific stuff **)
       |	_ ->
 	  ()
   in
