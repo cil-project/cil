@@ -43,7 +43,7 @@ open Cil
 open Trace
 
 
-let debugGlobal = true
+let debugGlobal = false
 
 
 
@@ -1291,7 +1291,7 @@ let conditionalConversion (t2: typ) (t3: typ) : typ =
 
 (* Some utilitites for doing initializers *)
 
-let debugInit = true
+let debugInit = false
 
 type preInit = 
   | NoInitPre
@@ -1369,16 +1369,23 @@ let rec collectInitializer
               | _ -> E.s (error "Initialing non-constant-length array")
           end
         in
-        let rec collect (idx: int) = 
-          if idx >= len then [] 
+        if !pMaxIdx >= len then 
+          E.s (E.bug "collectInitializer: too many initializers(%d >= %d)\n"
+                 !pMaxIdx len);
+        (* len could be extremely big. So try to use tail recursion to avoid 
+         * stack overflow. Start from the end *)
+        (* Make one zero initializer to be used next *)
+        let oneZeroInit = makeZeroInit bt in
+        let rec collect (acc: (offset * init) list) (idx: int) = 
+          if idx = -1 then acc
           else
             let thisi = 
-              if idx > !pMaxIdx then makeZeroInit bt 
+              if idx > !pMaxIdx then oneZeroInit
               else collectInitializer !pArray.(idx) bt
             in
-            (Index(integer idx, NoOffset), thisi) :: collect (idx + 1)
+            collect ((Index(integer idx, NoOffset), thisi) :: acc) (idx - 1)
         in
-        CompoundInit (thistype, collect 0)
+        CompoundInit (thistype, collect [] (len - 1))
 
     | TComp (comp, _), CompoundPre (pMaxIdx, pArray) when comp.cstruct ->
         let rec collect (idx: int) = function
@@ -3658,8 +3665,6 @@ and doInit
         Cprint.out := old);
     ignore (E.log "\n");
   end;
-  ignore (E.log "length(allinitl) = %d\n"
-            (List.length allinitl));
   match unrollType so.soTyp, allinitl with 
     _, [] -> acc, [] (* No more initializers return *)
 
@@ -3785,7 +3790,6 @@ and doInit
       * array elements *)
   | TArray (bt, leno, _), (A.NEXT_INIT, A.COMPOUND_INIT initl) :: restil -> 
       (* Create a separate object for the array *)
-      ignore (E.log "array with compound initializer\n");
       let so' = makeSubobj so.host so.soTyp so.soOff in 
       (* Go inside the array *)
       let leno = integerArrayLength leno in
@@ -3795,12 +3799,9 @@ and doInit
       if initl' <> [] then 
         ignore (warn "Too many initializers for array %t" whoami);
       (* Advance past the array *)
-      ignore (E.log "advance past array\n");
       advanceSubobj so;
       (* Continue *)
-      ignore (E.log "continue after array\n");
       let res = doInit isconst setone so acc' restil in
-      ignore (E.log "finish continue after array\n");
       res
 
    (* We have a designator that tells us to select the matching union field. 
@@ -4030,14 +4031,11 @@ and createGlobal (specs : (typ * storage * bool * A.attribute list))
       end
     end
   with e -> begin
-    raise e
-(*
     ignore (E.log "error in createGlobal(%s): %s\n" n
               (Printexc.to_string e));
     pushGlobal (dGlobal (dprintf "booo - error in global %s (%t)" 
                            n d_thisloc) !currentLoc);
     dummyFunDec.svar
-*)
   end
 (*
           ignore (E.log "Env after processing global %s is:@!%t@!" 
