@@ -143,3 +143,32 @@ let list_init (len : int) (init_fun : int -> 'a) : 'a list =
   in
   loop (len - 1) []
 ;;
+
+
+(** Some handling of registers *)
+type 'a growArray = {
+            gaFill: 'a; (** Stuff to use to fill in the array as it grows *)
+    mutable gaData: 'a array;
+  } 
+
+let growTheArray (ga: 'a growArray) (toidx: int) : unit = 
+  if toidx >= Array.length ga.gaData then begin
+    let data' = Array.create (toidx + 1) ga.gaFill in
+    Array.blit ga.gaData 0 data' 0 (Array.length ga.gaData);
+    ga.gaData <- data';
+  end
+
+let getReg (ga: 'a growArray) (r: int) : 'a = 
+  growTheArray ga r;
+  ga.gaData.(r)
+
+let setReg (ga: 'a growArray) (r: int) (what: 'a) : unit = 
+  growTheArray ga r;
+  ga.gaData.(r) <- what
+
+let newGrowArray (initsz: int) (fill: 'a) : 'a growArray = 
+  { gaFill = fill;
+    gaData = Array.create initsz fill }
+
+let copyGrowArray (ga: 'a growArray) : 'a growArray = 
+  { ga with gaData = Array.copy ga.gaData } 
