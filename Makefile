@@ -23,6 +23,7 @@ quickbuild:
 # sm: find and remove all the intermediate files from translation
 clean:
 	-make -f Makefile.ccured clean CLEANING=1 $(MAKEOVERRIDES)
+	rm -rf cil-distrib.tar.gz cil-api.tar.gz cil-distrib
 	-find test \( \
 		-name '*cil.c' -o \
 		-name '*box.c' -o \
