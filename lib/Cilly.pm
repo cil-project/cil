@@ -425,7 +425,7 @@ sub preprocess_compile {
     my ($base, $dir, $ext) = fileparse($src, "\\.[^.]+");
     if($ext eq ".c" || $ext eq ".cpp" || $ext eq ".cc") {
         if($self->leaveAlone($src)) {
-            print "LEaving alone $src\n";
+            print "Leaving alone $src\n";
             # We leave this alone. So just compile as usual
             return $self->straight_compile($src, $dest, $ppargs, $ccargs);
         }
@@ -530,7 +530,7 @@ sub straight_preprocess {
 sub compile {
     my($self, $src, $dest, $ppargs, $ccargs) = @_;
     if($self->{SEPARATE}) {
-        # Now invoke CIL and compile after wards
+        # Now invoke CIL and compile afterwards
         return $self->applyCilAndCompile([$src], $dest, $ppargs, $ccargs); 
     }
     # We are merging
@@ -553,6 +553,7 @@ sub compile {
     # sm: made the following output unconditional following the principle
     # that by default you should be able to see every file getting written
     # during a build (otherwise you don't know who to ask to be --verbose)
+    # update: and then someone reverted it to conditional... why?
     if($self->{VERBOSE}) { print STDERR "Saving source $src into $outfile\n"; }
     open(OUT, ">$outfile") || die "Cannot create $outfile";
     my $toprintsrc = $src; $toprintsrc =~ s|\\|/|g;
