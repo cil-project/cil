@@ -92,7 +92,12 @@ and storage =
 
 (* Information about a struct/union field *)
 and fieldinfo = { 
-    fstruct: string;                    (* The name of the host struct/union*)
+    fcomp: typ ref;                     (* A pointer to the host composite 
+                                         * type. This ref cell is shared 
+                                         * between everybody refering 
+                                         * indirectly to the same composite 
+                                         * type. See the discussion for TComp 
+                                         * and TForward *)
     fname: string;                      (* The name of the field. Might be 
                                          * "___missing_field_name" in which 
                                          * case it is not printed *)
@@ -100,36 +105,51 @@ and fieldinfo = {
     mutable fattr: attribute list;
 }
 
-(* what is the type of an expression? *)
+(* what is the type of an expression? Keep all attributes sorted. Use 
+ * addAttribute and addAttributes to construct list of attributes *)
 and typ =
     TVoid of attribute list
   | TInt of ikind * attribute list
   | TBitfield of ikind * int * attribute list
   | TFloat of fkind * attribute list
-           (* name, tags with values, attributes *)
+           (* name, tags with values, attributes. The tag list should be 
+            * non-empty  *)
   | TEnum of string * (string * int) list * attribute list
 
-  | TPtr of typ * attribute list        (* Pointer type *)
+  | TPtr of typ * attribute list        (* Pointer type. The attributes refer 
+                                         * to the  *)
 
               (* base type and length *)
   | TArray of typ * exp option * attribute list
 
-               (* name, fields, attributes. Use mkStruct or mkUnion to 
-                * construct these easily  *) 
-  | TStruct of string * fieldinfo list * attribute list 
-  | TUnion of string * fieldinfo list * attribute list
+               (* Structs and Unions: isstruct, name, fields, attributes, 
+                * self cell. use mkCompType and mkRecCompType to create 
+                * non-recursive or (potentially) recursive versions of this *)
+  | TComp of bool * string * fieldinfo list * attribute list * typ ref
+               (* The field list can be empty *)
+               (* The name is never empty. mkCompType will create a unique 
+                * name for anonymous types *)
+               (* Composite types can be part of circular type structure. 
+                * Thus a struct and a union can be referred in a TForward. 
+                * The trailing ref cell is shared between ALL forward 
+                * references to this type and it always points to the 
+                * composite type. This is like a self parameter. Use 
+                * fixRecursiveType when you create copies of a TComp that 
+                * might be recursive *)
+  | TForward of bool * string * typ ref * attribute list
+                (* TForward (isstruct, name, self cell) The attributes are in 
+                 * addition to those of the composite type *)
 
                (* result, args, isVarArg, attributes *)
   | TFun of typ * varinfo list * bool * attribute list
 
-           (* A reference to a struct or a union. The argument is "struct x" 
-            * or "union x". The reference is resolved using the hash table 
-            * "forwardTypeMap"  *)
-  | TForward of string
-
   | TNamed of string * typ * attribute list (* From a typedef. The attributes 
                                              * are in addition to the 
                                              * attributes of the named type  *)
+           (* A reference to a struct or a union. The argument is "struct x" 
+            * or "union x". The reference is resolved using the hash table 
+            * "forwardTypeMap"  *)
+
 
 (* kinds of integers *)
 and ikind = 
@@ -403,18 +423,85 @@ let newTypeName n =
   incr structId;
   "@anon" ^ n ^ (string_of_int (!structId))
 
-let mkCompType (isstruct: bool) 
-               (n: string) (fspec: (string * typ) list) 
-               (a: attribute list) = 
+
+(** Construct sorted lists of attributes ***)
+let rec addAttribute a al = 
+    let an = match a with
+        AId s -> s
+      | ACons (s, _) -> s
+      | _ -> E.s (E.unimp "Unexpected attribute at top level")
+    in 
+    let rec insertSorted = function
+        [] -> [a]
+      | (a0 :: rest) as l -> 
+          let an0 =
+            match a0 with
+              AId s -> s
+            | ACons (s, _) -> s
+            | _ -> E.s (E.unimp "Unexpected attribute at top level")
+          in 
+          if an < an0 then a :: l
+          else if an > an0 then a0 :: insertSorted rest
+          else if a = a0 then l else a :: l
+    in
+    insertSorted al
+
+and addAttributes al0 al = 
+    if al0 == [] then al else
+    if al  == [] then al0 else
+    List.fold_left (fun acc a -> addAttribute a acc) al al0
+
+and dropAttribute al a = 
+  let rec amatch a a' = 
+    match a, a' with
+      AId s, AId s' when s = s' -> true
+    | AInt n, AInt n' when n = n' -> true
+    | AStr s, AStr s' when s = s' -> true
+    | AVar vi, AVar vi' when vi.vid = vi'.vid -> true
+    | ACons (s, args), ACons(s', args') when
+        s = s' && (List.for_all2 amatch args args') -> true
+    | _ -> false
+  in
+  List.filter (fun a' -> not (amatch a a')) al
+
+
+
+(** Creates a a (potentially recursive) composite type **)
+let rec mkRecCompType 
+               (isstruct: bool) 
+               (n: string)   (* empty for anonymous structures *)
+               (* fspec is a function that when given the name of the 
+                * struture and a forward representation of the structure type 
+                * constructs the type of the fields. The function can ignore 
+                * this argument if not constructing a recursive type  *)
+               (mkfspec: string -> typ -> (string * typ) list) 
+               (a: attribute list) =
+   (* make an new name for anonymous structs *)
    let n = if n = "" then 
      newTypeName (if isstruct then "struct" else "union") else n in
+   (* Make a new self cell and a forward reference *)
+   let self = ref voidType in
+   let tforward = TForward (isstruct, n, self, []) in
    let flds = 
-       List.map (fun (fn, ft) -> { fname = fn; 
+       List.map (fun (fn, ft) -> { fname = fn;
                                    ftype = ft;
-                                   fstruct = n;
-                                   fattr = [] }) fspec in
-   if isstruct then TStruct (n, flds, a) else TUnion (n, flds, a)
+                                   fcomp = self;
+                                   fattr = [] }) (mkfspec n tforward) in
+   let res = TComp (isstruct, n, flds, a, self) in
+   self := res;
+   res
 
+(* A simpler version for the non-recursive case *)
+and mkCompType isstruct n fspec attr = 
+   mkRecCompType isstruct n (fun _ _ -> fspec) attr
+
+(* Fixes the self reference. Important to call after creating a copy of a 
+ * struct that might be recursive *)
+and fixRecursiveType t = 
+    match t with 
+      TComp (_, _, _, _, self) -> self := t; t
+    | _ -> E.s (E.bug "fixRecursiveType called on a non-struct")
+ 
                                    
 let var vi : lval = (Var vi, NoOffset)
 let mkSet lv e = Instr(Set(lv,e,lu))
@@ -443,6 +530,7 @@ let mkSeq sl =
   | sl' -> Sequence(sl')
 
 
+(*
 let forwardTypeMap : (string, typ) H.t = H.create 113
 let clearForwardMap () = H.clear forwardTypeMap
 let resolveForwardType n = 
@@ -456,19 +544,20 @@ let resolveForwardType n =
 let addForwardType key t = 
   H.add forwardTypeMap key t
 
-    (* Use this every time you redefine a struct or a union, to make sure all 
-     * the TForward see the change *)
+    * Use this every time you redefine a struct or a union, to make sure all 
+     * the TForward see the change *
 let replaceForwardType key t = 
   try
     H.remove forwardTypeMap key;
     H.add forwardTypeMap key t
-  with Not_found -> ()                  (* Do nothing if not already in *)
+  with Not_found -> ()                  * Do nothing if not already in *
+*)
 
 
 (**** Utility functions ******)
-let rec unrollType = function
-    TNamed (_, r,_) -> unrollType r
-  | TForward n -> unrollType (resolveForwardType n)
+let rec unrollType = function   (* Might drop some attributes !! *)
+    TNamed (_, r, _) -> unrollType r
+  | TForward (_, n, self, _)  -> unrollType !self
   | x -> x
 
 
@@ -493,7 +582,8 @@ let escape_char c =
   in
   match c with
     '\n' -> "\\n"
-  | '"' -> "\\\""  (* '"' *)
+  | '\034' -> "\\\""   (* This is the doublequote in ASCII since otherwise it 
+                          bothers the CAML fontification in emacs *)
   | '\'' -> "\\'"
   | '\r' -> "\\r"
   | '\t' -> "\\t"
@@ -612,7 +702,7 @@ let getParenthLevel = function
   (* When we print types for consumption by another compiler we must be 
    * careful to avoid printing multiple type definitions *)
 let noRedefinitions = ref false
-let definedTypes : (string, bool) H.t = H.create 17
+let definedTypes : ((string * string), bool) H.t = H.create 17
 let canPrintName n =
   (not !noRedefinitions) || 
   (try begin
@@ -654,29 +744,26 @@ let rec d_decl (docName: unit -> doc) () this =
       dprintf "%a %t : %d%a" d_ikind ikind docName i d_attrlistpost a
   | TFloat(fkind, a) -> dprintf "%a%a %t" d_fkind fkind 
         d_attrlistpost a docName
-  | TStruct (n,fi,a) -> 
+  | TComp (iss, n,fi,a,self) -> 
       let n' = 
         if String.length n >= 5 && String.sub n 0 5 = "@anon" then "" else n in
-      if n' = "" || canPrintName ("struct " ^ n') then
-        dprintf "str@[uct %s%a {@!%a@]@!} %t" n' d_attrlistpost a
+      let su, su1, su2 = 
+        if iss then "struct", "str", "uct"
+        else        "union",  "uni", "on"
+      in
+      if n' = "" || canPrintName (su, n') then
+        dprintf "%s@[%s %s%a {@!%a@]@!} %t" su1 su2 n' d_attrlistpost a
           (docList line (d_fielddecl ())) fi docName
       else
-        dprintf "struct %s %t" n' docName
-  | TUnion (n,fi,a) -> 
-      let n' = 
-        if String.length n >= 5 && String.sub n 0 5 = "@anon" then "" else n in
-      if n' = "" || canPrintName ("union " ^ n') then
-        dprintf "uni@[on %s%a {@!%a@]@!} %t" n' d_attrlistpost a
-          (docList line (d_fielddecl ())) fi docName
-      else
-        dprintf "union %s %t" n' docName
-
-  | TForward n -> dprintf "%s %t" n docName
+        dprintf "%s%s %s %t" su1 su2 n' docName
+  | TForward (iss, n, _, a) -> 
+      let su = if iss then "struct" else "union" in
+      dprintf "%s %s %a%t" su n d_attrlistpre a docName
 
   | TEnum (n, kinds, a) -> 
       let n' = 
         if String.length n >= 5 && String.sub n 0 5 = "@anon" then "" else n in
-      if n' = "" || canPrintName ("enum " ^ n') then
+      if n' = "" || canPrintName ("enum", n') then
         dprintf "enum@[ %s%a {%a@]@?} %t" n' d_attrlistpost a
           (docList line (fun (n,i) -> dprintf "%s = %d,@?" n i)) kinds
           docName
@@ -738,9 +825,6 @@ let rec d_decl (docName: unit -> doc) () this =
 (* Only a type (such as for a cast) *)        
 and d_type () t = d_decl (fun _ -> nil) () t
 
-and d_fieldinfo () f =
-  dprintf "/* %s:%s:%a */" f.fstruct f.fname d_type f.ftype
-    
 
 (* exp *)
 
@@ -1078,7 +1162,9 @@ and d_plaintype () = function
       dprintf "TBitfield(@[%a,@?%d,@?%a@])" d_ikind ikind i d_attrlistpost a
   | TNamed (n, t, a) ->
       dprintf "TNamed(@[%s,@?%a,@?%a@])" n d_plaintype t d_attrlistpost a
-  | TForward n -> dprintf "TForward(%s)" n
+  | TForward(iss, n, _, a) -> 
+      dprintf "TForward(%s %s, _, %a)" 
+        (if iss then "struct" else "union") n d_attrlistpost a
   | TPtr(t, a) -> dprintf "TPtr(@[%a,@?%a@])" d_plaintype t d_attrlistpost a
   | TArray(t,l,a) -> 
       let dl = match l with 
@@ -1092,13 +1178,9 @@ and d_plaintype () = function
         (docList (chr ',' ++ break) 
            (fun a -> dprintf "%s: %a" a.vname d_plaintype a.vtype)) args
         (if isva then "..." else "") d_attrlistpost a
-  | TStruct(n,flds,a) -> 
-      dprintf "TStruct(@[%s,@?%a,@?%a@])" n
-        (docList (chr ',' ++ break) 
-           (fun f -> dprintf "%s : %a" f.fname d_plaintype f.ftype)) flds
-        d_attrlistpost a
-  | TUnion(n,flds,a) -> 
-      dprintf "TUnion(@[%s,@?%a,@?%a@])" n
+  | TComp(iss,n,flds,a,self) -> 
+      dprintf "TComp(@[%s %s,@?%a,@?%a@])" 
+        (if iss then "struct" else "union") n
         (docList (chr ',' ++ break) 
            (fun f -> dprintf "%s : %a" f.fname d_plaintype f.ftype)) flds
         d_attrlistpost a
@@ -1123,8 +1205,8 @@ let rec intSizeOf = function            (* Might raise Not_found *)
   | TPtr _ ->  4
   | TArray(t, Some (Const(CInt(l,_,_),_)),_) -> (intSizeOf t) * l
   | TNamed(_, r, _) -> intSizeOf r
-  | TForward r -> intSizeOf (resolveForwardType r)
-  | TStruct(_,flds,_) -> 
+  | TForward(_, _, rt, _) -> intSizeOf !rt
+  | TComp(true, _, flds, _, _) -> 
       let rec loop = function
           [] -> 0
         | f :: flds -> align (intSizeOf f.ftype) + loop flds
@@ -1231,39 +1313,6 @@ let dummyFunDec = emptyFunction "@dummy"
 
 
 
-     (* Type signatures. Two types are identical iff they have identical 
-      * signatures *)
-type typsig = 
-    TSArray of typsig * exp option * attribute list
-  | TSPtr of typsig * attribute list
-  | TSStruct of string * attribute list
-  | TSUnion of string * attribute list
-  | TSFun of typsig * (typsig * attribute list) list * bool * attribute list
-  | TSBase of typ
-
-(* Compute a type signature *)
-let rec typeSig t = 
-  match t with 
-  | (TInt _ | TFloat _ | TEnum _ | TBitfield _ | TVoid _) -> TSBase t
-  | TPtr (t, a) -> TSPtr (typeSig t, a)
-  | TArray (t,l,a) -> TSArray(typeSig t, l, a)
-  | TStruct (n, _, a) -> TSStruct (n, a)
-  | TUnion (n, _, a) -> TSUnion (n, a)
-  | TFun(rt,args,isva,a) -> TSFun(typeSig rt, 
-                                  List.map (fun vi -> (typeSig vi.vtype, 
-                                                       vi.vattr)) args,
-                                  isva, a)
-  | TNamed(_, t, _) -> typeSig t (* !!! Dropping arguments here *)
-  | TForward n -> begin
-      let l = String.length n in
-      try
-        if String.sub n 0 1 = "s" then 
-          TSStruct(String.sub n 7 (l - 7), [])
-        else
-          TSUnion(String.sub n 6 (l - 6), [])
-      with _ -> E.s (E.bug "Invalid TForward(%s)" n)
-  end
-      
 let dExp : doc -> exp = 
   function d -> Const(CStr(sprint 80 d),lu)
 
@@ -1339,15 +1388,6 @@ and typeOffset basetyp = function
   end
 
 
-let rec doCast (e: exp) (oldt: typ) (newt: typ) = 
-  match e with
-    CastE(oldt', e', _) -> doCast e' (typeOf e') newt
-  | _ -> 
-      if typeSig oldt = typeSig newt then
-        e
-      else
-        CastE(newt, e,lu)
-
 
 let isIntegralType t = 
   match unrollType t with
@@ -1366,17 +1406,16 @@ let isPointerType t =
   | _ -> false
 
 
-let typeAttrs = function
+let rec typeAttrs = function
     TVoid a -> a
   | TInt (_, a) -> a
   | TFloat (_, a) -> a
   | TBitfield (_, _, a) -> a
-  | TNamed (n, _, a) -> a
+  | TNamed (n, t, a) -> addAttributes a (typeAttrs t)
   | TPtr (_, a) -> a
   | TArray (_, _, a) -> a
-  | TStruct (_, _, a) -> a
-  | TUnion (_, _, a) -> a
-  | TForward _ -> []
+  | TComp (_, _, _, a, _) -> a
+  | TForward (_, _, rt, a) -> addAttributes a (typeAttrs !rt)
   | TEnum (_, _, a) -> a
   | TFun (_, _, _, a) -> a
 
@@ -1390,22 +1429,71 @@ let setTypeAttrs t a =
   | TNamed (n, t, _) -> TNamed(n, t, a)
   | TPtr (t', _) -> TPtr(t', a)
   | TArray (t', l, _) -> TArray(t', l, a)
-  | TStruct (n, f, _) -> TStruct(n,f,a)
-  | TUnion (n, f, _) -> TUnion(n, f, a)
-  | TForward _ -> t
+  | TComp (iss, n, f, _, self) -> fixRecursiveType (TComp(iss, n,f,a,self))
+  | TForward (iss, n, self, _) -> TForward (iss, n, self, a)
   | TEnum (n, f, _) -> TEnum (n, f, a)
   | TFun (r, args, v, _) -> TFun(r,args,v,a)
 
 
-let dropAttribute al a = 
-  let rec amatch a a' = 
-    match a, a' with
-      AId s, AId s' when s = s' -> true
-    | AInt n, AInt n' when n = n' -> true
-    | AStr s, AStr s' when s = s' -> true
-    | AVar vi, AVar vi' when vi.vid = vi'.vid -> true
-    | ACons (s, args), ACons(s', args') when
-        s = s' && (List.for_all2 amatch args args') -> true
-    | _ -> false
-  in
-  List.filter (fun a' -> not (amatch a a')) al
+let typeAddAttributes a0 t = 
+  if a0 == [] then t else
+  let add a = addAttributes a0 a in
+  match t with 
+    TVoid a -> TVoid (add a)
+  | TInt (ik, a) -> TInt (ik, add a)
+  | TFloat (fk, a) -> TFloat (fk, a)
+  | TBitfield (i, s, a) -> TBitfield (i, s, add a)
+  | TEnum (n, t, a) -> TEnum (n, t, add a)
+  | TPtr (t, a) -> TPtr (t, add a)
+  | TArray (t, l, a) -> TArray (t, l, add a)
+  | TFun (t, args, isva, a) -> TFun(t, args, isva, add a)
+  | TComp (iss, n, f, a, self) -> 
+      fixRecursiveType (TComp(iss, n, f, add a, self))
+  | TForward (iss, n, self, a) -> TForward (iss, n, self, add a)
+  | TNamed (n, t, a) -> TNamed (n, t, add a)
+
+     (* Type signatures. Two types are identical iff they have identical 
+      * signatures *)
+type typsig = 
+    TSArray of typsig * exp option * attribute list
+  | TSPtr of typsig * attribute list
+  | TSComp of bool * string * attribute list
+  | TSFun of typsig * (typsig * attribute list) list * bool * attribute list
+  | TSBase of typ
+
+(* Compute a type signature *)
+let rec typeSig t = 
+  match t with 
+  | (TInt _ | TFloat _ | TEnum _ | TBitfield _ | TVoid _) -> TSBase t
+  | TPtr (t, a) -> TSPtr (typeSig t, a)
+  | TArray (t,l,a) -> TSArray(typeSig t, l, a)
+  | TComp (iss, n, _, a, _) -> TSComp (iss, n, a)
+  | TFun(rt,args,isva,a) -> TSFun(typeSig rt, 
+                                  List.map (fun vi -> (typeSig vi.vtype, 
+                                                       vi.vattr)) args,
+                                  isva, a)
+  | TNamed(_, t, a) -> typeSigAddAttrs a (typeSig t)
+
+  (* Follow the self pointer to get the real name and attributes *)
+  | TForward (iss, n, rt, a) -> typeSigAddAttrs a (typeSig !rt)
+      
+and typeSigAddAttrs a0 t = 
+  if a0 == [] then t else
+  match t with 
+    TSBase t -> TSBase (typeAddAttributes a0 t)
+  | TSPtr (ts, a) -> TSPtr (ts, addAttributes a0 a)
+  | TSArray (ts, l, a) -> TSArray(ts, l, addAttributes a0 a)
+  | TSComp (iss, n, a) -> TSComp (iss, n, addAttributes a0 a)
+  | TSFun(ts, tsargs, isva, a) -> TSFun(ts, tsargs, isva, addAttributes a0 a)
+
+
+
+let rec doCast (e: exp) (oldt: typ) (newt: typ) = 
+  match e with
+    CastE(oldt', e', _) -> doCast e' (typeOf e') newt
+  | _ -> 
+      if typeSig oldt = typeSig newt then
+        e
+      else
+        CastE(newt, e,lu)
+

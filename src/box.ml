@@ -59,7 +59,7 @@ let makeNewTypeName base =
 
    (* Make a type name, for use in type defs *)
 let rec typeName = function
-    TForward n -> typeName (resolveForwardType n)
+    TForward (_, _, self, _)  -> typeName !self
   | TNamed (n, _, _) -> n
   | TVoid(_) -> "void"
   | TInt(IInt,_) -> "int"
@@ -79,12 +79,10 @@ let rec typeName = function
   | TEnum (n, _, _) -> 
       if String.sub n 0 1 = "@" then makeNewTypeName "enum"
       else "enum_" ^ n
-  | TStruct (n, _, _) -> 
-      if String.sub n 0 1 = "@" then makeNewTypeName "struct"
-      else "struct_" ^ n
-  | TUnion (n, _, _) -> 
-      if String.sub n 0 1 = "@" then makeNewTypeName "union"
-      else "union_" ^ n
+  | TComp (iss, n, _, _, _) -> 
+      let su = if iss then "struct" else "union" in
+      if String.sub n 0 1 = "@" then makeNewTypeName su
+      else su ^ "_" ^ n
   | TFun _ -> makeNewTypeName "fun"
   | _ -> makeNewTypeName "type"
 
@@ -148,16 +146,8 @@ and fixit t =
           let fixed' = fixupType t' in
           let tname  = newFatPointerName fixed' in (* The name *)
           let fixed = 
-            TStruct(tname, [ { fstruct = tname;
-                               fname   = "_p";
-                               ftype   = TPtr(fixed', a);
-                               fattr   = [];
-                             };
-                             { fstruct = tname;
-                               fname   = "_b";
-                               ftype   = TPtr(TVoid ([]), []);
-                               fattr   = [];
-                             }; ], []) 
+            mkCompType true tname 
+              [ ("_p", TPtr(fixed', a)); ("_b", voidPtrType)] []
           in
           let tres = TNamed(tname, fixed, []) in
           H.add fixedTypes (typeSig fixed) fixed; (* We add fixed ourselves. 
@@ -170,25 +160,14 @@ and fixit t =
             
       | TForward _ ->  t              (* Don't follow TForward *)
       | TNamed (n, t', a) -> TNamed (n, fixupType t', a)
-            
-      | TStruct(n, flds, a) -> begin
-          let r = 
-            TStruct(n, 
-                    List.map 
-                      (fun fi -> 
-                        {fi with ftype = fixupType fi.ftype}) flds,
-                    a) in
-          replaceForwardType ("struct " ^ n) r;
-          r
-      end
-      | TUnion (n, flds, a) -> 
-          let r = 
-            TUnion(n, 
-                   List.map (fun fi -> 
-                     {fi with ftype = fixupType fi.ftype}) flds,
-                   a) in
-          replaceForwardType ("union " ^ n) r;
-          r
+          
+      | TComp (iss, n, flds, self, a) -> 
+          fixRecursiveType 
+            (TComp(iss, n, 
+                   List.map 
+                     (fun fi -> 
+                       {fi with ftype = fixupType fi.ftype}) flds,
+                   self, a)) 
             
       | TArray(t', l, a) -> TArray(fixupType t', l, a)
             
@@ -217,17 +196,17 @@ let currentFunction : fundec ref  = ref dummyFunDec
     (* Test if a type is FAT *)
 let isFatType t = 
   match unrollType t with
-    TStruct(_, [p;b],_) when p.fname = "_p" && b.fname = "_b" -> true
+    TComp(true, _, [p;b],_,_) when p.fname = "_p" && b.fname = "_b" -> true
   | _ -> false
 
 let getPtrFieldOfFat t = 
   match unrollType t with
-    TStruct(_, [p;b],_) when p.fname = "_p" && b.fname = "_b" -> p
+    TComp(true, _, [p;b],_, _) when p.fname = "_p" && b.fname = "_b" -> p
   | _ -> E.s (E.bug "getPtrFieldOfFat %a\n" d_type t)
 
 let getBaseFieldOfFat t = 
   match unrollType t with
-    TStruct(_, [p;b],_) when p.fname = "_p" && b.fname = "_b" -> b
+    TComp(true, _, [p;b], _, _) when p.fname = "_p" && b.fname = "_b" -> b
   | _ -> E.s (E.bug "getBaseFieldOfFat %a\n" d_type t)
 
 
@@ -284,17 +263,12 @@ let readBaseField e t =
 
 let fromPtrToBase e = 
   let rec replacePtrBase = function
-      Field(fip, NoOffset) when fip.fname = "_p" -> begin
+      Field(fip, NoOffset) when fip.fname = "_p" ->
         (* Find the fat type that this belongs to *)
-        try
-          let fat = 
-            H.find fixedTypes 
-              (typeSig (TForward ("struct " ^ fip.fstruct))) in
-          let bfield = getBaseFieldOfFat fat in
-          Field(bfield, NoOffset)
-        with Not_found -> 
-          E.s (E.unimp "Field %s is not a component of a fat type" fip.fname)
-      end
+        let fat = ! (fip.fcomp) in
+        let bfield = getBaseFieldOfFat fat in
+        Field(bfield, NoOffset)
+
     | Field(f', o) -> Field(f',replacePtrBase o)
     | _ -> E.s (E.unimp "Cannot find the _p field to replace in %a\n"
                   d_plainexp e)
@@ -315,9 +289,9 @@ let mustCheckReturn tret =
    (* Test if we have changed the type *)
 let rec typeHasChanged t =
   match unrollType t with
-    TStruct(_, [p;b],_) when p.fname = "_p" && b.fname = "_b" -> true
-  | TStruct(_, flds, _) -> List.exists (fun f -> typeHasChanged f.ftype) flds
-  | TUnion(_, flds, _) -> List.exists (fun f -> typeHasChanged f.ftype) flds
+    TComp(true, _, [p;b], _, _) when p.fname = "_p" && b.fname = "_b" -> true
+  | TComp(_, _, flds, _, _) -> 
+                         List.exists (fun f -> typeHasChanged f.ftype) flds
   | TArray(t, _, _) -> typeHasChanged t
   | TFun(rt, args, _, _) -> begin
       typeHasChanged rt ||
@@ -334,7 +308,7 @@ let mustBeTagged v =
   let rec containsArray t = 
     match unrollType t with 
       TArray _ -> true
-    | TStruct(_, flds, _) -> 
+    | TComp(true, _, flds, _, _) -> 
         List.exists (fun f -> containsArray f.ftype) flds
     | TPtr _ -> false
     | (TInt _ | TEnum _ | TFloat _ | TBitfield _ ) -> false
@@ -377,7 +351,7 @@ let tagType (t: typ) : (typ * fieldinfo * fieldinfo * fieldinfo *
   in
   let tfld, lfld, dfld = 
     match unrollType newtype with
-      TStruct (_, [tfld; lfld; dfld], _) -> tfld, lfld, dfld
+      TComp (true, _, [tfld; lfld; dfld], _, _) -> tfld, lfld, dfld
     | _ -> E.s (E.bug "tagLocal")
   in
             (* Now create the initializer *)
@@ -494,9 +468,9 @@ let bitsForType iswrite t =
         if      sz <= 4 then pushBit bLean acc
         else if sz <= 8 then pushBit bLean (pushBit bLean acc)
         else E.s (E.unimp "TagOfType: large scalar")
-    | TStruct (_, [p;b], _) when p.fname = "_p" && b.fname = "_b" -> 
+    | TComp (true, _, [p;b], _, _) when p.fname = "_p" && b.fname = "_b" -> 
         pushBit bBase (pushBit bPtr acc)
-    | TStruct (_, flds, _) -> 
+    | TComp (false, _, flds, _, _) -> 
         List.fold_left (fun acc f -> tagOfType acc f.ftype) acc flds
     | TNamed (_, t, _) -> tagOfType acc t
     | t -> E.s (E.unimp "tagOfType: %a" d_plaintype t)
@@ -530,10 +504,11 @@ let checkMem (towrite: exp option)
           let rec doCheckWrite (what: exp) (t: typ) acc = 
             match unrollType t with 
             | (TInt _ | TFloat _ | TEnum _ ) -> acc
-            | TStruct(_, [p;b], _) when p.fname = "_p" && b.fname = "_b" -> 
-                let (_, p, b) = readPtrBaseField what t in
-                (call None theCheck [ p; b]) :: acc
-            | TStruct (_, flds, _) -> 
+            | TComp(true, _, [p;b], _, _) 
+                when p.fname = "_p" && b.fname = "_b" -> 
+                  let (_, p, b) = readPtrBaseField what t in
+                  (call None theCheck [ p; b]) :: acc
+            | TComp(true, _, flds, _, _) -> 
                 let lv = 
                   match what with 
                     Lval x -> x
@@ -742,7 +717,7 @@ and boxlval (b, off) : (typ * stmt list * lval * exp) =
           if mustBeTagged vi then
             let dataf = 
               match unrollType vi.vtype with
-                TStruct(_, [_; _; df], _) -> df
+                TComp(true, _, [_; _; df], _, _) when df.fname = "_data" -> df
               | _ -> E.s (E.bug "addrOf but no tagged type")
             in
             Field(dataf, NoOffset), dataf.ftype, Field(dataf, off)
@@ -1034,17 +1009,12 @@ and readBaseField e t =
 
 and fromPtrToBase e = 
   let rec replacePtrBase = function
-      Field(fip, NoOffset) when fip.fname = "_p" -> begin
+      Field(fip, NoOffset) when fip.fname = "_p" ->
         (* Find the fat type that this belongs to *)
-        try
-          let fat = 
-            H.find fixedTypes 
-              (typeSig (TForward ("struct " ^ fip.fstruct))) in
-          let bfield = getBaseFieldOfFat fat in
-          Field(bfield, NoOffset)
-        with Not_found -> 
-          E.s (E.unimp "Field %s is not a component of a fat type" fip.fname)
-      end
+        let fat = ! (fip.fcomp) in
+        let bfield = getBaseFieldOfFat fat in
+        Field(bfield, NoOffset)
+
     | Field(f', o) -> Field(f',replacePtrBase o)
     | _ -> E.s (E.unimp "Cannot find the _p field to replace in %a\n"
                   d_plainexp e)

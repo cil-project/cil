@@ -211,12 +211,15 @@ let currentFunctionName : string ref = ref "no_function"
 
 (******** GLOBAL TYPES **************)
 let typedefs : (string, typ) H.t = H.create 113 
+   (* We keep in typedefs both the real type definitions, in which case the 
+    * result type is a TNamed and also all the encountered composite types 
+    * for the purpose of resolving forward references. In this latter case 
+    * the key is "struct n" or "union n" or "enum n" *)
 
-   (* Keep a list of unresolved types. Maybe they are forward references *)
-let forwardTypes : string list ref = ref []
+   (* Keep a set of self cells for incomplete composite types *)
+let selfCells : (string, typ ref) H.t = H.create 113
 
-let recordTypeName n t = 
-  H.add typedefs n t
+let recordTypeName n t = H.add typedefs n t
 
 let findTypeName n = 
   try
@@ -225,28 +228,58 @@ let findTypeName n =
     E.s (E.unimp "Cannot find type %s\n" n)
   end
 
-let recordCompType t = 
-  let key = 
-    match t with
-      TStruct(n, _, _) -> "struct " ^ n
-    | TUnion(n, _, _) -> "union " ^ n
-    | _ -> E.s (E.bug "recordCompType")
-  in
-  H.add typedefs key t;
-  (* Resolve some incomplete types *)
-  if (List.exists (fun x -> x = key) !forwardTypes) then
-    addForwardType key t
+(* Create the self ref cell and add it to the map map *)
+let createCompSelfCell (iss: bool) (n: string) = 
+  (* Add to the self cell set *)
+  let key = (if iss then "struct " else "union ") ^ n in
+  try
+    H.find selfCells key (* Only if not already in *)
+  with Not_found -> begin
+    (* Create a self ref cell *)
+    let self = ref voidType in
+    H.add selfCells key self;
+    self
+  end
 
-   (* kind is either "struct" or "union" and n is a name *)
-let findCompType kind n = 
+   (* kind is either "struct" or "union" or "enum" and n is a name *)
+let findCompType kind n a = 
   let key = kind ^ " " ^ n in
   try
-    H.find typedefs key
+    typeAddAttributes a (H.find typedefs key) (* already defined. Just use 
+                                              * that one, but add the 
+                                              * attributes  *)
   with Not_found -> begin
-    forwardTypes := key :: !forwardTypes;
-    TForward key
+    (* This is a forward reference *)
+    let iss =  (* is struct or union *)
+      if kind = "enum" then E.s (E.unimp "Forward reference for enum %s" n)
+      else if kind = "struct" then true
+      else false
+    in
+    let self = createCompSelfCell iss n in
+    TForward (iss, n, self, a)
   end
   
+  
+(* We have found a definition of a composite type. Record it for later use 
+ * and fix its self cell *)
+let finishCompType t = 
+  match t with 
+    TEnum (n, _, _) -> recordTypeName ("enum " ^ n) t; t
+  | TComp (iss, n, flds, a, _) -> begin (* Ignore the given self cell *)
+      (* There must be a self cell create for this already *)
+      let key = (if iss then "struct " else "union ") ^ n in
+      let self = 
+        try H.find selfCells key 
+        with Not_found -> E.s (E.bug "No self cell defined for %s" key)
+      in
+      let res = fixRecursiveType (TComp(iss, n, flds, a, self)) in
+      (* Now add it to the typedefs *)
+      recordTypeName key res;
+      (* And take it out from selfCells *)
+      H.remove selfCells key;
+      res
+  end
+  | _ -> E.s (E.bug "finishCompType on a non-comp type")
 
 
 
@@ -376,8 +409,8 @@ let conditionalConversion (e2: exp) (t2: typ) (e3: exp) (t3: typ) : typ =
       (TInt _ | TEnum _ | TBitfield _ | TFloat _), 
       (TInt _ | TEnum _ | TBitfield _ | TFloat _) -> 
         arithmeticConversion t2 t3 
-    | TStruct(n2, _, _), TStruct(n3, _, _) when n2 = n3 -> t2
-    | TUnion(n2, _, _), TUnion(n3, _, _) when n2 = n3 -> t2
+    | TComp(iss2, n2, _, _, _), TComp(iss3, n3, _, _, _) 
+          when iss2 = iss3 && n2 = n3 -> t2
     | TPtr(_, _), TPtr(TVoid _, _) -> t2
     | TPtr(TVoid _, _), TPtr(_, _) -> t3
     | TPtr(t2'', _), TPtr(t3'', _) 
@@ -396,8 +429,8 @@ let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) =
   match ot, nt with
     TNamed(_,r, _), _ -> castTo r nt e
   | _, TNamed(_,r, _) -> castTo ot r e
-  | TForward(rt), _ -> castTo (resolveForwardType rt) nt e
-  | _, TForward(rt) -> castTo ot (resolveForwardType rt) e
+  | TForward(_, _, self, _), _ -> castTo !self nt e
+  | _, TForward(_, _, self, _) -> castTo ot !self e
   | TInt(ikindo,_), TInt(ikindn,_) -> 
       (nt, if ikindo == ikindn then e else CastE(nt, e, lu))
 
@@ -452,27 +485,15 @@ let doNameGroup (sng: A.single_name -> 'a)
   List.map (fun n -> sng (bt,s,n)) nl
 
 
-let rec makeFieldInfo (host: string) 
-                     ((bt,st,(n,nbt,a,e)) : A.single_name) : fieldinfo = 
-  let rec removeNamed = function
-      TNamed (_, t, _) -> removeNamed t
-    | TPtr(t,a) -> TPtr(removeNamed t, a)
-    | t -> t
-  in
-  { fstruct  =  host;
-    fname    =  n;
-    ftype    =  doType [] nbt;
-    fattr    =  List.map doAttr a;
-  } 
 
-and makeVarInfo (isglob: bool) 
+let rec makeVarInfo (isglob: bool) 
                 (ldecl: location)
                 ((bt,st,(n,nbt,a,e)) : A.single_name) : varinfo = 
   { vname    = n;
     vid      = newVarId n isglob;
     vglob    = isglob;
     vstorage = doStorage st;
-    vattr    = List.map doAttr a;
+    vattr    = doAttrList a;
     vdecl    = ldecl;
     vtype    = doType [] nbt;
     vaddrof  = false;
@@ -496,6 +517,9 @@ and doAttr : A.attribute -> attribute = function
         | _ -> E.s (E.unimp "ACons")
       in
       ACons (s, List.map attrOfExp el)
+
+and doAttrList (al: A.attribute list) : attribute list = 
+  List.fold_left (fun acc a -> addAttribute (doAttr a) acc) [] al
 
 and doStorage = function
     A.NO_STORAGE -> NoStorage
@@ -549,31 +573,17 @@ and doType (a : attribute list) = function
 
   | A.STRUCT n -> 
       if n = "" then E.s (E.unimp "Missing struct tag");
-      findCompType "struct" n
+      findCompType "struct" n a
 
   | A.STRUCTDEF (n, nglist) -> (* This introduces a new type always *)
-      let n = if n = "" then newTypeName "struct" else n in
-      let flds = 
-        List.concat (List.map (doNameGroup (makeFieldInfo n)) nglist) in
-      (* Drop volatile from struct *)
-      let a = dropAttribute a (AId("volatile")) in
-      let a = dropAttribute a (AId("const")) in
-      let tp = TStruct (n, flds, a) in
-      recordCompType tp; 
-      tp
+      makeCompType true n nglist a
 
   | A.UNION n -> 
       if n = "" then E.s (E.unimp "Missing union tag");
-      findCompType "union" n
+      findCompType "union" n a
 
   | A.UNIONDEF (n, nglist) -> (* This introduces a new type always *)
-      let n = if n = "" then newTypeName "union" else n in
-      let flds = 
-        List.concat (List.map (doNameGroup (makeFieldInfo n)) nglist) in
-      let tp = TUnion (n, flds, a) in
-      recordCompType tp; 
-      tp
-
+      makeCompType false n nglist a
 
   | A.PROTO (bt, snlist, isvararg, _) ->
       (* Turn [] types into pointers in the arguments and the result type. 
@@ -600,7 +610,10 @@ and doType (a : attribute list) = function
       TFun (tres, targs, isvararg, a')
 
   | A.OLD_PROTO _ -> E.s (E.unimp "oldproto")
-  | A.ENUM n -> TEnum (n, [], a)
+  | A.ENUM n ->
+      if n = "" then E.s (E.unimp "Missing enum tag");
+      findCompType "enum" n a
+
   | A.ENUMDEF (n, eil) -> 
       let n = if n = "" then newTypeName "enum" else n in
       let rec loop i = function
@@ -622,7 +635,8 @@ and doType (a : attribute list) = function
       let fields = loop 0 eil in
       let res = TEnum (n, loop 0 eil, a) in
       List.iter (fun (n,fieldidx) -> recordEnumField n fieldidx res) fields;
-      res
+      finishCompType res
+
 (*
   | A.CONST bt -> doType (AId("const") :: a) bt
   | A.VOLATILE bt -> doType (AId("volatile") :: a) bt
@@ -659,6 +673,29 @@ and doType (a : attribute list) = function
         E.s (E.unimp "typeof for a non-pure expression\n");
       t
 
+and makeCompType (iss: bool)
+                 (n: string)
+                 (nglist: A.name_group list) 
+                 (a: attribute list) = 
+  let n = if n = "" then 
+    newTypeName (if iss then "struct" else "union") else n in
+      (* Create the self cell for use in fields and forward references. Or 
+       * maybe one exists already from a forward reference *)
+  let self = createCompSelfCell iss n in
+      (* Do the fields *)
+  let makeFieldInfo ((bt,st,(n,nbt,a,e)) : A.single_name) : fieldinfo = 
+    { fcomp    =  self;
+      fname    =  n;
+      ftype    =  doType [] nbt;
+      fattr    =  doAttrList a;
+    } 
+  in
+  let flds = List.concat (List.map (doNameGroup makeFieldInfo) nglist) in
+      (* Drop volatile from struct *)
+  let a = dropAttribute a (AId("volatile")) in
+  let a = dropAttribute a (AId("const")) in
+  finishCompType (TComp(iss, n, flds, a, self))
+
   
      (* Process an expression and in the process do some type checking, 
       * extract the effects as separate statements  *)
@@ -689,10 +726,10 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
             (se @ [mkSet lv e''], e, t)
     end
   in
-  let findField strname n fidlist = 
+  let findField n fidlist = 
     try
       List.find (fun fid -> n = fid.fname) fidlist
-    with Not_found -> E.s (E.unimp "Cannot find field %s in %s" n strname)
+    with Not_found -> E.s (E.unimp "Cannot find field %s" n)
   in
   try
     match e with
@@ -755,8 +792,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         in
         let fid = 
           match unrollType t' with
-            TStruct (n, fil, _) -> findField n str fil
-          | TUnion (n, fil, _) -> findField n str fil
+            TComp (_, _, fil, _, _) -> findField str fil
           | _ -> E.s (E.unimp "expecting a struct with field %s" str)
         in
         let lv' = Lval(addOffset (Field(fid, NoOffset)) lv) in
@@ -773,8 +809,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         in
         let fid = 
           match unrollType pointedt with 
-            TStruct (n, fil, _) -> findField n str fil
-          | TUnion (n, fil, _) -> findField n str fil
+            TComp(_, _, fil, _, _) -> findField str fil
           | x -> 
               E.s (E.unimp 
                      "expecting a struct with field %s. Found %a. t1 is %a" 
@@ -903,7 +938,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
               | A.FIELD_INIT (fn, i) ->
                   let fld = 
                     match unrollType bt with 
-                      TStruct(_, flds, _) -> begin
+                      TComp(true, _, flds, _, _) -> begin
                         try
                           List.find (fun f -> f.fname = fn) flds
                         with Not_found ->
@@ -981,7 +1016,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
             match what with (* Peek at the expected return type *)
               AExp (Some typ) -> begin
                 match unrollType typ with 
-                  TStruct(n,flds,_) -> 
+                  TComp(true, n,flds,_,_) -> 
                     let offinits = initFields flds flds initl in
                     finishExp !slist
                               (Compound(typ, offinits)) 
@@ -1231,7 +1266,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
             end
           | _ -> doExp f (AExp None) 
         in
-      (* Get the result type and the argument types *)
+        (* Get the result type and the argument types *)
         let (resType, argTypes, isvar, f'') = 
           match unrollType ft' with
             TFun(rt,at,isvar,a) -> (rt,at,isvar,f')
@@ -1242,21 +1277,21 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
                         "Unexpected type of the called function %a: %a" 
                         d_exp f' d_type x)
         in
-      (* Do the arguments *)
+        (* Do the arguments. In REVERSE order !!! Both GCC and MSVC do this *)
         let rec loopArgs 
             : varinfo list * A.expression list 
           -> (stmt list * exp list) = function
             | ([], []) -> ([], [])
             | (varg :: atypes, a :: args) -> 
+                let (ss, args') = loopArgs (atypes, args) in
                 let (sa, a', att) = doExp a (AExp None) in
                 let (at'', a'') = castTo att varg.vtype a' in
-                let (ss, args') = loopArgs (atypes, args) in
-                (sa @ ss, a'' :: args')
+                (ss @ sa, a'' :: args')
                   
             | ([], a :: args) when isvar -> (* No more types *)
-                let (sa, a', at) = doExp a (AExp None) in
                 let (ss, args') = loopArgs ([], args) in
-                (sa @ ss, a' :: args')
+                let (sa, a', at) = doExp a (AExp None) in
+                (ss @ sa, a' :: args')
             | _ -> E.s (E.unimp 
                           "Too few or too many arguments in call to %a" 
                           d_exp f')
@@ -1291,8 +1326,8 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
     | A.COMMA el -> 
         let rec loop sofar = function
             [e] -> 
-              let (se, e', t') = doExp e (AExp None) in
-              finishExp (sofar @ se) e' t'
+              let (se, e', t') = doExp e what in (* Pass on the action *)
+              finishExp (sofar @ se) e' t' (* does not hurt to do it twice *)
           | e :: rest -> 
               let (se, _, _) = doExp e ADrop in
               loop (sofar @ se) rest
@@ -1352,40 +1387,6 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
               let (se3, _, _) = doExp e3 (ASet(lv, lvt)) in
               finishExp (doCondition e1 se2 se3) (Lval(lv)) tresult
     end
-(*              
-
-
-    | A.QUESTION (e1, e2, e3) -> begin (* what is not ADrop *)
-        let se3, lv, tlv = 
-          let (se3,e3',t3') = doExp e3 what in (* e2 might be NOTHING *)
-          match what with 
-            ASet (lv, tlv) -> se3, lv, tlv
-          | AExp _ -> begin 
-              (* Get the place where e3 was placed *) 
-              match e3' with 
-                Lval(lv) -> se3, lv, t3'
-              | _ -> 
-                  let tmp = var (newTempVar t3') in
-                  se3 @ [mkSet tmp e3'], tmp, t3'
-          end
-          | ADrop -> E.s (E.bug "question")
-        in
-        let stats = 
-          if e2 = A.NOTHING then (* A GNU C thing *)
-            (* Now store e1 *)
-            let (se1, _, _) = doExp e1 (ASet(lv, tlv)) in
-            se1 @ [IfThenElse(Lval(lv), Skip, mkSeq se3)]
-          else
-            let (se2,_,_) = doExp e2 (ASet(lv,tlv)) in
-            doCondition e1 se2 se3
-        in
-        (* Do some constant folding *)
-        match stats, what with
-          [Instr(Set(lv', e', _))], AExp _ when lv' == lv -> 
-            finishExp [] e' tlv
-        | _, _ -> finishExp stats (Lval(lv)) tlv
-    end
-*)
 
     | A.GNU_BODY b -> begin
         (* Find the last A.COMPUTATION *)
@@ -1632,7 +1633,7 @@ and doAssign (lv: lval) : exp -> stmt list = function
           in
           loop (0, initl)
 
-      | TStruct(_, fil, _) ->  
+      | TComp(true, _, fil, _, _) ->  
           let rec loop = function
               [], [] -> []
             | f :: fil, (None, e) :: el -> 
@@ -1786,6 +1787,7 @@ let convFile dl =
   (* Clean up the global types *)
   theFile := [];
   H.clear typedefs;
+  H.clear selfCells;
   H.clear enumFields;
   (* Setup the built-ints *)
   ignore (addNewVar { vname = "__builtin_constant_p";
@@ -1811,7 +1813,7 @@ let convFile dl =
       A.TYPEDEF ng -> 
         let createTypedef ((_,_,(n,nbt,a,_)) : A.single_name) = 
           try
-            let newTyp = doType (List.map doAttr a) nbt in
+            let newTyp = doType (doAttrList a) nbt in
           (* Register the type *)
             recordTypeName n newTyp;
             theFile := GType (n, newTyp) :: !theFile
@@ -1904,7 +1906,7 @@ let convFile dl =
             startScope ();
             let formals' = List.map addNewVar formals in
             let ftype = TFun(returnType, formals', isvararg, a) in
-            let fattr = List.map doAttr funattr in
+            let fattr = doAttrList funattr in
             let fstorage = doStorage st in
             (* Add the function itself to the environment. Just in case we 
              * have recursion and no prototype.  *)
