@@ -695,6 +695,8 @@ smAddTest("scott/uninit_tmp");
 smAddTest("test-tagfile $wildbox TAGFILE=tagfile.txt");
 smFailTest("descriptor for static function is not static",
            "test-tagfile $wildbox TAGFILE=tagfile.txt EXTRAARGS=-DSTATIC_FUNC");
+smFailTest("pointer arithmetic on safe pointer",
+           "scott/monthname $box");
 
 # tests of things implemented for EDG compatibility
 smAddTest("mergestruct");
