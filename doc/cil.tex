@@ -764,6 +764,23 @@ returns and not when the local scope ends.
  And some limitations that are not really bugs:
 \begin{itemize}
 \item \t{long} and \t{int} are 32-bit, \t{short} is 16 bits. 
+
+\item CIL will turn old-style function definition (without prototype) into
+new-style definitions. This will make the compiler less forgiving when
+checking function calls. This means that some code that used to compile before
+will not compile afterwards. For example, the following code compiles (and
+yields an undefined result) but it will not compile after CIL. 
+\begin{cilcode}[global]
+int f(i1, i2) int i1, i2 {
+  return i1 + i2;
+}
+
+int main() {
+    return f(5, 6) + f(5); // f called with only one argument
+}
+\end{cilcode}
+ 
+
 \end{itemize}
 
 

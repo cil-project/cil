@@ -1255,7 +1255,8 @@ let debugInit = false
 type preInit = 
   | NoInitPre
   | SinglePre of exp 
-  | CompoundPre of int ref * preInit array ref
+  | CompoundPre of int ref (* the maximum used index *)
+                 * preInit array ref (* an array with initializers *)
 
 (* Instructions on how to handle designators *)
 type handleDesignators = 
@@ -2540,22 +2541,29 @@ and doExp (isconst: bool)    (* In a constant *)
     | A.CAST ((specs, dt), ie) ->
         let typ = doOnlyType specs dt in
         let what' =
-          match e with
-            (* We treat the case when e is COMPOUND differently
-            A.CONSTANT (A.CONST_COMPOUND _) -> AExp (Some typ) *)
-          | _ -> begin
-              match what with
-                AExp (Some _) -> AExp (Some typ)
-              | ADrop -> ADrop
-              | _ -> AExp None
-          end
+          match what with
+            AExp (Some _) -> AExp (Some typ)
+          | ADrop -> ADrop
+          | _ -> AExp None
+        in
+        (* If we are casting to a union type then we have to treat this as a 
+         * constructor expression. This is to handle the gcc extension that 
+         * allows cast from a type of a field to the type of the union *)
+        let ie' = 
+          match unrollType typ, ie with
+            TComp (c, _), A.SINGLE_INIT _ when not c.cstruct -> 
+              A.COMPOUND_INIT [(A.INFIELD_INIT ("___matching_field", 
+                                                A.NEXT_INIT), 
+                                ie)]
+          | _, _ -> ie
         in
         let (se, e', t') = 
-          match ie with
+          match ie' with
             A.SINGLE_INIT e -> doExp isconst e what'
           | A.NO_INIT -> E.s (error "missing expression in cast")
-          | A.COMPOUND_INIT il -> begin
-              (* Pretend that we are declaring and initializing a brand new variablel *)
+          | A.COMPOUND_INIT _ -> begin
+              (* Pretend that we are declaring and initializing a brand new 
+               * variable  *)
               let newvar = "__constr_expr_" ^ string_of_int (!constrExprId) in
               incr constrExprId;
               (* Maybe specs contains an unnamed composite. Replace with the 
@@ -2575,10 +2583,10 @@ and doExp (isconst: bool)    (* In a constant *)
               let spec_res = doSpecList specs1 in
               let se1 = 
                 if !scopes == [] then begin
-                  ignore (createGlobal spec_res ((newvar, dt, []), ie));
+                  ignore (createGlobal spec_res ((newvar, dt, []), ie'));
                   empty
                 end else
-                  createLocal spec_res ((newvar, dt, []), ie) 
+                  createLocal spec_res ((newvar, dt, []), ie') 
               in
               (* Now pretend that e is just a reference to the newly created 
                * variable *)
@@ -2597,8 +2605,7 @@ and doExp (isconst: bool)    (* In a constant *)
         let (t'', e'') = 
           match typ with
             TVoid _ when what = ADrop -> (t', e') (* strange GNU thing *)
-          |  _ -> 
-              castTo t' typ e'
+          |  _ -> castTo t' typ e'
         in
         finishExp se e'' t''
           
@@ -2974,10 +2981,18 @@ and doExp (isconst: bool)    (* In a constant *)
         let rec loopArgs 
             : varinfo list * A.expression list 
           -> (chunk * exp list) = function
-            | (args, []) -> 
-                if args <> [] then
-                  ignore (warn "Too few arguments in call to %a" d_exp f');
-                (empty, [])
+            | ([], []) -> (empty, [])
+
+            | args, [] -> 
+                ignore (warn "Too few arguments in call to %a. Filling with 0."
+                          d_exp f');
+                (* Pretend we have a few NULL arguments *)
+                let makeOneArg (a: varinfo) = 
+                  match makeZeroInit a.vtype with
+                    SingleInit e -> e
+                  | _ -> E.s (unimp "Creating composite missing argument")
+                in
+                (empty, List.map makeOneArg args)
 
             | (varg :: atypes, a :: args) -> 
                 let (ss, args') = loopArgs (atypes, args) in
@@ -3492,8 +3507,8 @@ and doInitializer
     if newinit != !topPreInit then topPreInit := newinit
   in
   let acc, restl = 
-      let so = makeSubobj vi vi.vtype NoOffset in
-      doInit vi.vglob topSetupInit so empty [ (A.NEXT_INIT, inite) ] 
+    let so = makeSubobj vi vi.vtype NoOffset in
+    doInit vi.vglob topSetupInit so empty [ (A.NEXT_INIT, inite) ] 
   in
   if restl <> [] then 
     ignore (warn "Ignoring some initializers");
@@ -3562,7 +3577,7 @@ and doInit
   | _, (A.NEXT_INIT, _) :: _ when so.eof -> acc, allinitl
     
 
-        (* If we are at an array of characters and the initializer it a 
+        (* If we are at an array of characters and the initializer is a 
          * string literal (optionally enclosed in braces) then explore the 
          * string into characters *)
   | TArray(bt, leno, _), 
@@ -3656,6 +3671,28 @@ and doInit
       (* Continue *)
       doInit isconst setone so acc' restil
 
+   (* We have a designator that tells us to select the matching union field. 
+    * This is to support a GCC extension *)
+  | TComp(ci, _), [(A.NEXT_INIT,
+                    A.COMPOUND_INIT [(A.INFIELD_INIT ("___matching_field", 
+                                                     A.NEXT_INIT), 
+                                      A.SINGLE_INIT oneinit)])] 
+                      when not ci.cstruct -> 
+      ignore (E.log "Doing matching field");                
+      (* Do the expression to find its type *)
+      let _, _, t' = doExp isconst oneinit (AExp None) in
+      let tsig = typeSigWithAttrs (fun _ -> []) t' in
+      let rec findField = function
+          [] -> E.s (error "Cannot find matching union field in cast")
+        | fi :: rest when typeSigWithAttrs (fun _ -> []) fi.ftype = tsig -> fi
+        | _ :: rest -> findField rest
+      in
+      let fi = findField ci.cfields in
+      (* Change the designator and redo *)
+      doInit isconst setone so acc [(A.INFIELD_INIT (fi.fname, A.NEXT_INIT),
+                                     A.SINGLE_INIT oneinit)]
+        
+
         (* A structure with a composite initializer. We initialize the fields*)
   | TComp (comp, _), (A.NEXT_INIT, A.COMPOUND_INIT initl) :: restil ->
       (* Create a separate subobject iterator *)
@@ -3679,6 +3716,7 @@ and doInit
       (* Move on *)
       advanceSubobj so; 
       doInit isconst setone so (acc @@ se) restil
+
 
    (* We have a designator *)        
   | _, (what, ie) :: restil when what != A.NEXT_INIT -> 
