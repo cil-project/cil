@@ -4,6 +4,9 @@
 # Debugging. Set ECHO= to debug this Makefile 
 ECHO = @
 
+# Directory containing the *.cm[io] files for odoc.
+ODOC_DIR=/usr/local/ocaml-current/lib/ocaml/odoc
+
 ifdef RELEASE
   NATIVECAML := 1
 endif
@@ -73,7 +76,7 @@ testcil: $(EXECUTABLE)$(EXE)
 odoc:
 	rm -rf doc/cil-api
 	mkdir doc/cil-api
-	odoc -d doc/cil-api -g odoc_fhtml.cmo -t "CIL API Documentation" \
+	odoc -d doc/cil-api -g $(ODOC_DIR)/odoc_fhtml.cmo -t "CIL API Documentation" \
 	     -I obj src/cil.mli src/errormsg.mli src/clist.mli \
 	  	    src/pretty.mli src/stats.mli
 
