@@ -332,9 +332,9 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     List.iter (fun e -> 
       let (k1,k2,f) = can_cast e.efrom e.eto in
       let why = if f then 
-                  PolyCast(e.efrom.btype,e.eto.btype)
+                  PolyCast(e)
                 else
-                  BadCast(e.efrom.btype,e.eto.btype) 
+                  BadCast(e) 
         in
       ignore (update_kind e.eto k1 why) ;
       ignore (update_kind e.efrom k2 why) ;
@@ -406,6 +406,8 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       n.kind <- Safe ;
       n.why_kind <- Unconstrained 
     end) node_ht ;
+
+  ignore (E.log "Finished solving constraints\n");
 
 end
 

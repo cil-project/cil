@@ -14,6 +14,10 @@ let currentResultType = ref voidType
 
 let callId = ref (-1)  (* Each call site gets a new ID *)
 
+
+(* A number of functions will be treated polymorphically *)
+let polyFunc : (string, bool) H.t = H.create 7
+
 (* if some enclosing context [like the attributes for a field] says that
  * this array should be sized ... we do not want to forget it! *)
 let addArraySizedAttribute arrayType enclosingAttr =
@@ -389,12 +393,7 @@ let rec doStmt (s: stmt) =
       Instr (Set (lv', e'), l)
 
   | Instr (Call (reso, orig_func, args), l) -> 
-      let is_polymorphic v =
-        v.vname = "free" ||
-        v.vname = "malloc" ||
-        v.vname = "calloc" ||
-        v.vname = "calloc_fseq" ||
-        v.vname = "realloc" in
+      let is_polymorphic v = H.mem polyFunc v.vname in
       let func = begin (* check and see if it is malloc *)
         match orig_func with
           (Lval(Var(v),x)) when is_polymorphic v -> 
@@ -465,7 +464,15 @@ let rec doStmt (s: stmt) =
 (* Now do the globals *)
 let doGlobal (g: global) : global = 
   match g with
-    (GText _ | GPragma _ | GAsm _) -> g
+    (GText _ | GAsm _) -> g
+  | GPragma (a, _) as g -> begin
+      (match a with
+        ACons("boxpoly", [ AStr(s) ]) -> 
+          ignore (E.log "Will treat %s as polymorphic\n" s); 
+          H.add polyFunc s true
+      | _ -> ());
+      g
+    end
   | GType (n, t, l) -> 
       let t', _ = doType t (N.PType n) 0 in
       GType (n, t', l)
@@ -498,6 +505,9 @@ let doGlobal (g: global) : global =
 let markFile fl = 
   currentFileName := fl.fileName;
   E.hadErrors := false;
+  H.clear polyFunc;
+  List.iter (fun s -> H.add polyFunc s true) 
+    ["free"; "malloc"; "calloc"; "calloc_fseq"; "realloc"];
   let newGlobals = List.map doGlobal fl.globals in
   ignore (E.log "Markptr: %s\n"
             (if !E.hadErrors then "Error" else "Success"));
@@ -514,14 +524,15 @@ let printFile (c: out_channel) fl =
       output_string c "#if 0\n/* Now the graph */\n";
       (* N.gc ();   *)
       (* N.simplify ();   *)
-      N.printGraph c;
-      output_string c "/* End of graph */\n";
+      (* N.printGraph c; 
+      output_string c "/* End of graph */\n"; *)
       output_string c "/* Now the solved graph (simplesolve) */\n";
       Stats.time "simple solver" Simplesolve.solve N.idNode ; 
       N.printGraph c;
       output_string c "/* End of solved graph*/\n#endif\n";
       ) 
     fl ;
-  Cil.setCustomPrint (N.ptrAttrCustom false)
-    (fun fl -> Cil.printFile c fl) fl 
+  (* Cil.setCustomPrint (N.ptrAttrCustom false)
+    (fun fl -> Cil.printFile c fl) fl; *)
+  ()
 
