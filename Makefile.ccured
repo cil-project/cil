@@ -153,32 +153,27 @@ PATCHEDHEADERS := $(foreach file, $(PATCH_SYSINCLUDES), \
                     $(CCUREDHOME)/include/$(COMPILERVERSION)/$(file))
 
 ######################
-.PHONY : combiner cilly presetup all setup includes cleanincludes
+.PHONY : presetup all setup includes cleanincludes
 
-combiner:
-	$(MAKE) -r -f Makefile.combiner $(MAKEOVERRIDES)
-
-cilly: 
-	$(MAKE) -r -f Makefile.cil $(MAKEOVERRIDES)
 
 libraries: $(CCUREDLIB) $(PATCHEDHEADERS)
 
-all: combiner cilly $(EXECUTABLE)$(EXE) libraries
+all: $(EXECUTABLE)$(EXE) libraries
 
 
 #foo := $(shell echo "PATCHEDHEADERS = $(PATCHEDHEADERS)" 1>&2; echo hi)
 
 setup:
-	$(MAKE) -f Makefile.ccured all $(MAKEOVERRIDES) NATIVECAML= 
-	$(MAKE) -f Makefile.ccured all $(MAKEOVERRIDES) NATIVECAML=1 RELEASELIB=1
+	$(MAKE) -r -f Makefile.ccured all $(MAKEOVERRIDES) NATIVECAML= 
+	$(MAKE) -r -f Makefile.ccured all $(MAKEOVERRIDES) NATIVECAML=1 RELEASELIB=1
 ifdef _MSVC
-	$(MAKE) -f Makefile.ccured libraries _GNUCC=1 NATIVECAML= \
+	$(MAKE) -r -f Makefile.ccured libraries _GNUCC=1 NATIVECAML= \
                                              $(MAKEOVERRIDES) 
-	$(MAKE) -f Makefile.ccured libraries _GNUCC=1 NATIVECAML=1 RELEASELIB=1 \
+	$(MAKE) -r -f Makefile.ccured libraries _GNUCC=1 NATIVECAML=1 RELEASELIB=1 \
                                              $(MAKEOVERRIDES) 
 endif
 
-quickbuild:  combiner $(EXECUTABLE)$(EXE) libraries
+quickbuild:  $(EXECUTABLE)$(EXE) libraries
 
 # the patch template file
 PATCHTEMPLATE := $(CCUREDHOME)/lib/ccured_$(COMPILERNAME).patch

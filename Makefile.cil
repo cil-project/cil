@@ -34,13 +34,20 @@ EXTRACLEAN += $(OBJDIR)/*.obj $(OBJDIR)/*.a $(OBJDIR)/*.o
 include Makefile.ocaml
 
 
+
+quickbuild: $(EXECUTABLE)$(EXE)
+
+setup:
+	$(MAKE) -r -f Makefile.cil all $(MAKEOVERRIDES) NATIVECAML= 
+	$(MAKE) -r -f Makefile.cil all $(MAKEOVERRIDES) NATIVECAML=1
+
+all:  quickbuild cillib
 # Build an OCAML library (CMA / CMXA) that exports our Cil stuff
 cillib: $(OBJDIR)/cil.$(CMXA)
 
 OCAML_CIL_LIB_MODULES = $(MODULES:main=)
 $(OBJDIR)/cil.$(CMXA): $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
 	$(CAMLLINK) -a -o $@ $^
-
 
 # Test cil
 ifdef _MSVC

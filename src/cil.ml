@@ -115,8 +115,8 @@ and fieldinfo = {
                                          * host since there can be only one 
                                          * compinfo for a given id *)
     mutable fname: string;              (* The name of the field. Might be 
-                                         * "___missing_field_name" in which 
-                                         * case it is not printed *)
+                                         * the value of missingFieldName in 
+                                         * which case it is not printed  *)
     mutable ftype: typ;
     mutable fbitfield: int option;      (* If a bitfield then ftype should be 
                                          * an integer type *)
@@ -895,6 +895,8 @@ let compSetName comp n =
   comp.ckey <- H.hash (compFullName comp)
 
  
+let missingFieldName = "___missing_field_name"
+
 (** Creates a a (potentially recursive) composite type. Make sure you add a 
   * GTag for it to the file! **)
 let mkCompInfo
@@ -1719,8 +1721,9 @@ and d_lval () lv =
     | NoOffset -> dobase ()
     | Field (fi, o) -> 
         d_offset (fun _ -> dobase () ++ text "." ++ text fi.fname) o
-    | Index (Const(CInt64(z,_,_)), NoOffset) when z = Int64.zero -> 
+(*    | Index (Const(CInt64(z,_,_)), NoOffset) when z = Int64.zero -> 
         text "(*" ++ dobase () ++ text ")"
+*)
     | Index (e, o) ->
         d_offset (fun _ -> dobase () ++ text "[" ++ d_exp () e ++ text "]") o
   in
@@ -2048,7 +2051,7 @@ and d_videcl () vi =
 and d_fielddecl () fi = 
   (d_decl 
      (fun _ -> 
-       text (if fi.fname = "___missing_field_name" then "" else fi.fname))
+       text (if fi.fname = missingFieldName then "" else fi.fname))
      DNString () fi.ftype)
     ++ text " "
     ++ (match fi.fbitfield with None -> nil 

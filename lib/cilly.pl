@@ -48,6 +48,9 @@ sub preprocess {
     return $self->SUPER::preprocess($src, $dest, \@newppargs);
 }
 
+sub usage {
+    print "cilly [options] [gcc_or_mscl arguments]\n";
+}
 
 # Customize the compilation
 # SRC is preprocessed already but may be already cilly-fied

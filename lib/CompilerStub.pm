@@ -86,12 +86,6 @@ sub collectOneArgument {
     if($arg eq "--help") {
         $self->printHelp(); exit 1;
     }
-    if($arg eq "--bytecode") {
-        $self->{NATIVECAML} = 0; return 1;
-    }
-    if($arg eq "--releaselib") {
-        $self->{RELEASELIB} = 1; return 1;
-    }
     if($arg eq "--verbose") {
         $self->{VERBOSE} = 1; return 1;
     }
@@ -119,8 +113,6 @@ Options:
                This option must be the first one! If it is not found there
                then GNUCC mode is assumed.
   --help       Prints this help message
-  --bytecode   Invoke the bytecode (as opposed to native code) boxer
-  --releaselib Link with the release version of the CCured runtime library
   --verbose    Prints a lot of information about what is being done
   --keep=xxx   Keep temporary files in the given directory
 EOF

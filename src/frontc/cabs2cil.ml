@@ -1036,6 +1036,115 @@ let conditionalConversion (e2: exp) (t2: typ) (e3: exp) (t3: typ) : typ =
   in
   tresult
 
+(* Some utilitites for doing initializers *)
+
+let debugInit = false
+
+type preInit = 
+  | NoInitPre
+  | SinglePre of exp 
+  | CompoundPre of int ref * preInit array ref
+
+
+(* Set an initializer *)
+let rec setOneInit (this: preInit)
+                   (o: offset) (e: exp) : preInit = 
+  match o with 
+    NoOffset -> SinglePre e
+  | _ -> 
+      let idx, (* Index in the current comp *)
+          restoff (* Rest offset *) =
+        match o with 
+        | Index(Const(CInt64(i,_,_)), off) -> Int64.to_int i, off
+        | Field (f, off) -> 
+            (* Find the index of the field *)
+            let rec loop (idx: int) = function
+                [] -> E.s (bug "Cannot find field %s" f.fname)
+              | f' :: _ when f'.fname = f.fname -> idx
+              | _ :: restf -> loop (idx + 1) restf
+            in
+            loop 0 f.fcomp.cfields, off
+        | _ -> E.s (bug "setOneInit: non-constant index")
+      in
+      let pMaxIdx, pArray = 
+        match this  with 
+          NoInitPre  -> (* No initializer so far here *)
+            ref idx, ref (Array.create 32 NoInitPre)
+              
+        | CompoundPre (pMaxIdx, pArray) -> 
+            if !pMaxIdx < idx then begin 
+              pMaxIdx := idx;
+              (* Maybe we also need to grow the array *)
+              if Array.length !pArray <= idx then begin
+                let newarray = Array.make (32 + idx) NoInitPre in
+                Array.blit !pArray 0 newarray 0 (Array.length !pArray);
+                pArray := newarray
+              end
+            end;
+            pMaxIdx, pArray
+        | SinglePre e -> 
+            E.s (unimp "Index %d is already initialized" idx)
+      in
+      let this' = setOneInit !pArray.(idx) restoff e in
+      !pArray.(idx) <- this';
+      CompoundPre (pMaxIdx, pArray)
+
+
+let rec collectInitializer 
+    (this: preInit) 
+    (thistype: typ) : init = 
+  if this = NoInitPre then makeZeroInit thistype
+  else
+    match unrollType thistype, this with 
+    | _ , SinglePre e -> SingleInit e
+    | TArray (bt, leno, _), CompoundPre (pMaxIdx, pArray) -> 
+        let len = 
+          match leno with
+            None -> E.s (bug "collectInitializer: open array")
+          | Some n' -> begin
+              match constFold true n' with
+              | Const(CInt64(ni, _, _)) when ni > Int64.zero -> 
+                  Int64.to_int ni
+              | _ -> E.s (error "Initialing non-constant-length array")
+          end
+        in
+        let rec collect (idx: int) = 
+          if idx >= len then [] 
+          else (if idx > !pMaxIdx then makeZeroInit bt 
+                else collectInitializer !pArray.(idx) bt) :: collect (idx + 1)
+        in
+        CompoundInit (thistype, collect 0)
+
+    | TComp (comp, _), CompoundPre (pMaxIdx, pArray) -> 
+        let toinit = 
+          match comp.cfields with
+            [] -> []
+          | f :: _ -> if comp.cstruct then comp.cfields else [f]
+        in
+        (* Do not initialize anonymoud fields *)
+        let toinit = List.filter 
+            (fun f -> f.fname != missingFieldName) toinit in
+        if not comp.cstruct && !pMaxIdx != 0 then 
+          E.s (unimp "Can initialize only first field in unions");
+        let rec collect (idx: int) = function
+            [] -> []
+          | f :: restf -> 
+              (if idx > !pMaxIdx then 
+                makeZeroInit f.ftype
+              else
+                collectInitializer !pArray.(idx) f.ftype)
+              
+              :: collect (idx + 1) restf
+        in
+        CompoundInit (thistype, collect 0 comp.cfields)
+    | _ -> E.s (unimp "collectInitializer")
+                      
+        
+            
+        
+      
+  
+                   
 
 (* Utility ***)
 let rec replaceLastInList 
@@ -2692,119 +2801,99 @@ and doPureExp (e : A.expression) : exp =
   if isNotEmpty se then
    E.s (error "doPureExp: not pure");
   e'
+    
+and doInitializer
+    (isconst: bool) (* Is supposed to be a constant ? *)
+    (typ: typ) 
+    (inite: A.init_expression) 
+   (* Return the accumulated chunk, the intializer and the new type (might be 
+    * different for arrays) *)
+  : chunk * init * typ = 
 
-(* Process an initializer. *)
-and doInitializer 
+  (* Setup the pre-initializer *)
+  let topPreInit = ref NoInitPre in
+  if debugInit then 
+    ignore (E.log "Starting a new initialized for type %a\n" d_type typ);
+  let topSetupInit (o: offset) (e: exp) = 
+    if debugInit then 
+      ignore (E.log " %a := %a\n"  d_lval (Mem zero, o) d_exp e);
+    let newinit = setOneInit !topPreInit o e in
+    if newinit != !topPreInit then topPreInit := newinit
+  in
+  let acc, restl = 
+    doOneInit isconst topSetupInit typ empty [ (A.NEXT_INIT, inite) ] in
+  if restl <> [] then 
+    ignore (warn "Ignoring some initializers");
+  (* Now see if we must fix the type *)
+  let typ' = 
+    match unrollType typ with 
+      TArray(bt, None, al) -> begin
+        match !topPreInit with 
+          CompoundPre (pMaxIdx, _) -> 
+            TArray (bt, Some (integer (1 + !pMaxIdx)), al)
+        | _ -> E.s (bug "doInitialized: open array")
+      end
+    | _ -> typ
+  in
+  let init = collectInitializer !topPreInit typ' in
+  acc, init, typ'
+
+
+
+and doOneInit
   (isconst: bool)
-  (inaggregate: bool) (* Are we inside of an aggregate ? *)
+  (setone: offset -> exp -> unit) (* Call this function once you have 
+                                   * discovered an initializer *)
   (typ: typ) (* expected type *)
   (acc: chunk) (* Accumulate here the chunk so far *)
   (initl: (A.initwhat * A.init_expression) list) (* Some initializers, might 
                                                   * consume one or more  *)
 
-    (* Return some statements, the initializer expression with the new type 
-     * (might be different for arrays), and the residual initializers *)
-  : chunk * init * typ * (A.initwhat * A.init_expression) list = 
+    (* Return some statements, and the residual initializers. *)
+  : chunk * (A.initwhat * A.init_expression) list = 
 
   (* Look at the type to be initialized *)
-   (* ARRAYS *)
+   (*************** ARRAYS *****************)
   match unrollType typ with 
-  | TArray(elt,n,a) as oldt -> 
+  | TArray(elt,n,a) as oldt -> begin
       (* Grab the length if there is one *)
       let leno = 
         match n with
           None -> None
         | Some n' -> begin
             match constFold true n' with
-            | Const(CInt64(ni, _, _)) -> Some (Int64.to_int ni)
-            | _ -> E.s (error "Cannot understand the length of the array being initialized\n")
+            | Const(CInt64(ni, _, _)) when ni > Int64.zero -> 
+                Some (Int64.to_int ni)
+            | _ -> E.s (error "Initialing non-constant-length array")
         end
       in
       let rec initArray 
-         (nextidx: int) (* The index of the element to be initialized next *)
-         (sofar: init list) (* Array elements already initialized, in reverse 
-                            * order  *)
-         (acc: chunk) 
-         (initl: (A.initwhat * A.init_expression) list)
-                     (* Return the array elements, the nextidx and the 
+          (iscurrent: bool)  (* If the current object should be handling the 
+                              * designators *)
+          (setone: offset -> exp -> unit)
+          (nextidx: int) (* The index of the element to be initialized next *)
+          (acc: chunk) 
+          (initl: (A.initwhat * A.init_expression) list)
+                     (* Return the array elements, and the 
                       * remaining initializers *)
-         : chunk * init list * int * (A.initwhat * A.init_expression) list = 
+         : chunk * (A.initwhat * A.init_expression) list = 
         let isValidIndex (i: int) = 
           match leno with Some len -> i < len | _ -> true
         in
         match initl with
-           (* Check if we are done *)
-        | _ when initl = [] || not (isValidIndex nextidx) ->
-            (* If the initializer ended prematurely we must fill the rest of 
-             * the array with zeros *)
-            let sofar', nextidx' = 
-              match leno with 
-              | Some len when nextidx < len -> 
-                (* Initialize with zero the skipped elements *)
-                  let rec loop i acc = 
-                    if i = len then acc
-                    else loop (i + 1) (makeZeroInit elt :: acc)
-                  in
-                  loop nextidx sofar,  len
-              | _ -> sofar, nextidx
-            in
-            acc, List.rev sofar', nextidx', initl
-              
-        | (A.ATINDEXRANGE_INIT (idxs, idxe), ie) :: restinitl -> 
-            (* Turn this into many copies of ATINDEX_INIT. Ignore for now the 
-             * case when the initializer has side-effects *)
-            let (doidxs, idxs', _) = 
-              doExp isconst idxs (AExp(Some intType)) in
-            let (doidxe, idxe', _) = 
-              doExp isconst idxe (AExp(Some intType)) in
-            let s, e, dorange = 
-              match constFold true idxs', constFold true idxe' with
-                Const(CInt64(s, _, _)), 
-                Const(CInt64(e, _, _)) -> 
-                  Int64.to_int s, Int64.to_int e, doidxs @@ doidxe
-              | _ -> E.s (error 
-                       "INDEX initialization designator is not a constant")
-            in
-            if s > e then 
-              E.s (error "start index larger than end index in range initializer");
-            let rec loop restinitl (i: int) = 
-              if i = s then restinitl else
-              loop ((A.NEXT_INIT, ie) :: restinitl) (i - 1)
-            in
-            let restinitl = loop restinitl e in
-            (* Now add the one for the start *)
-            let restinitl = 
-              (A.ATINDEX_INIT (A.CONSTANT (A.CONST_INT (string_of_int s)),
-                               A.NEXT_INIT),
-               ie) :: restinitl in
-            initArray nextidx sofar (acc @@ dorange) restinitl
-              
-            
-           (* Check if we have a field designator *)         
-        | (A.ATINDEX_INIT (idxe, A.NEXT_INIT), ie) :: restinitl ->
-            let nextidx', doidx = 
-              let (doidx, idxe', _) = 
-                doExp isconst idxe (AExp(Some intType)) in
-              match constFold true idxe' with
-                Const(CInt64(x, _, _)) -> Int64.to_int x, doidx
-              | _ -> E.s (error 
-                       "INDEX initialization designator is not a constant")
-            in
-            if nextidx' < nextidx || not (isValidIndex nextidx') then begin
-              E.s (error "INDEX init designator is too large (%d >= %d)\n"
-                     nextidx' nextidx);
-            end;
-            (* Initialize with zero the skipped elements *)
-            let rec loop i acc = 
-              if i = nextidx' then acc
-              else loop (i + 1) (makeZeroInit elt :: acc)
-            in
-            (* now recurse *)
-            initArray nextidx' (loop nextidx sofar) 
-              (acc @@ doidx) 
-              ((A.NEXT_INIT, ie) :: restinitl)
-              
-        (* Now do the regular case *)
+          (* If the initializers are over, return *)
+        | [] -> acc, initl
+          (* If we are not current and we see a designator return *)
+        | (what, _) :: _ when what != A.NEXT_INIT && not iscurrent -> 
+            acc, initl
+          (* If we don't have a designator but the array is over, return *)
+        | (A.NEXT_INIT, _) :: _ when not (isValidIndex nextidx) -> 
+            acc, initl
+
+        | (A.INFIELD_INIT (fn, _), _) :: _ -> 
+            E.s (error "Field designator %s in array" fn)
+
+          (* Now do the regular case *)
         | (A.NEXT_INIT, ie) :: restinitl -> begin
             (* If the element type is Char and the initializer is a string 
              * literal, split the string into characters, including the 
@@ -2830,132 +2919,190 @@ and doInitializer
                       (A.NEXT_INIT, 
                        A.SINGLE_INIT(A.CONSTANT 
                                        (A.CONST_CHAR cs)))) chars in
-                (* Now enclose the newly created initializers into braces *)
-                initArray nextidx sofar acc (inits' @ restinitl)
+                initArray iscurrent setone nextidx acc (inits' @ restinitl)
             | _ ->   
                 (* Recurse and consume some initializers for the purpose of 
                  * initializing one element *)
 (*                ignore (E.log "Do the array init for %d\n" nextidx); *)
-                let acc', ie', _, initl' = 
-                  doInitializer false true elt acc initl in
+                let acc', initl' = 
+                  doOneInit isconst 
+                    (fun o e -> setone (Index(integer nextidx, o)) e)
+                    elt acc initl in
                 (* And continue with the array *)
-                initArray (nextidx + 1) 
-                  (ie' :: sofar) 
+                initArray iscurrent setone (nextidx + 1) 
                   acc'
                   initl'
         end
-        | _ -> E.s (error "Invalid designator in initialization of array")
-      in
-      let acc', inits, nextidx, restinitl = 
-        (* If we are initializing an array of characters, and the initializer 
-         * is a string without braces around it, then put braces so that the 
-         * entire string initializes one array *)
-        let initl1 = 
-          match initl with
-            (A.NEXT_INIT, 
-             A.SINGLE_INIT(A.CONSTANT (A.CONST_STRING s)) as sinit) 
-            :: restinitl 
-               when (match unrollType elt with 
-                      TInt((IChar|ISChar|IUChar), _) -> true | _ -> false) ->
-             (A.NEXT_INIT, A.COMPOUND_INIT ([sinit])) :: restinitl
-          | _ -> initl
-        in
-        (* Sometimes we have a cast in front of a compound (in GCC). 
-         * This appears as a single initializer. Ignore the cast *)
-        let initl2 = 
-          match initl1 with
-            (A.NEXT_INIT, 
-             A.SINGLE_INIT (A.CAST (_, A.COMPOUND_INIT ci))) :: rest -> 
-               (A.NEXT_INIT, A.COMPOUND_INIT ci) :: rest
-          | _ -> initl1
-        in
-        (* Maybe the first initializer is a compound, then that is the 
-         * initializer for the entire array  *)
-        match initl2 with
-          (A.NEXT_INIT, A.COMPOUND_INIT initl_e) :: restinitl -> 
-            let acc', inits, nextidx, rest' = 
-              initArray 0 [] acc initl_e in
-            if rest' <> [] then
-              ignore (warn "Unused initializers\n");
-            acc', inits, nextidx, restinitl
-              
-        | _ -> (* Otherwise it is the initializer for some elements, starting 
-                * with the first one. Consume as much as we need *)
-            initArray 0 [] acc initl2 
-      in
-      let newt = (* Maybe we have a length now *)
-        match n with 
-          None -> TArray(elt, Some(integer nextidx), a)
-        | Some _ -> oldt 
-      in
-      acc', CompoundInit(newt, inits), newt, restinitl
-  (* STRUCT or UNION *)
-  | TComp (comp, a) ->  begin
-      let rec initStructUnion
-         (nextflds: fieldinfo list) (* Remaining fields *)
-         (sofar: init list) (* The initializer expressions so far, in reverse 
-                             * order *)
-         (acc: chunk)
-         (initl: (A.initwhat * A.init_expression) list) 
-       
-          (* Return the list of initializer expressions and the remaining 
-           * initializers  *)
-         : chunk * init list * (A.initwhat * A.init_expression) list = 
-        match initl with
-          (* Check if we are done *)
-        | _ when 
-          (initl = [] || nextflds = [] ||
-                 (* For unions only the first field is initialized *)
-            (not comp.cstruct && List.length sofar = 1)) -> 
-              (* Finish the structures that we have started *)
-              let sofar' = 
-                if comp.cstruct && nextflds <> [] then
-                  List.fold_left (fun sofar f -> makeZeroInit f.ftype :: sofar)
-                    sofar nextflds
-                else sofar
-              in
-              acc, List.rev sofar', initl
 
-          (* Check if we have a field designator *)
-        | (A.INFIELD_INIT (fn, A.NEXT_INIT), ie) :: restinitl 
-                                                      when comp.cstruct ->
-            let nextflds', sofar' = 
-              let rec findField (sofar: init list) = function
-                  [] -> E.s (error "Cannot find designated field %s"  fn)
-                | f :: restf when f.fname = fn -> f :: restf, sofar
-                      
-                      (* Initialize with zero the skipped fields *)
-                | f :: restf -> findField (makeZeroInit f.ftype :: sofar) restf
-              in
-              findField sofar nextflds 
+              (* Check if we have an index designator *)         
+        | (A.ATINDEX_INIT (idxe, A.NEXT_INIT), ie) :: restinitl -> 
+            let nextidx', doidx = 
+              let (doidx, idxe', _) = 
+                doExp isconst idxe (AExp(Some intType)) in
+              match constFold true idxe', isNotEmpty doidx with
+                Const(CInt64(x, _, _)), false -> Int64.to_int x, doidx
+              | _ -> E.s (error 
+                   "INDEX initialization designator is not a constant")
             in
-            (* Now recurse *)
-            initStructUnion nextflds' sofar' 
-              acc
+            if not (isValidIndex nextidx') then begin
+              E.s (error "INDEX init designator is too large (%d)\n"
+                       nextidx');
+            end;
+            initArray iscurrent setone nextidx' (acc @@ doidx) 
               ((A.NEXT_INIT, ie) :: restinitl)
 
+        | (A.ATINDEXRANGE_INIT (idxs, idxe), ie) :: restinitl -> 
+            let (doidxs, idxs', _) = 
+              doExp isconst idxs (AExp(Some intType)) in
+            let (doidxe, idxe', _) = 
+              doExp isconst idxe (AExp(Some intType)) in
+            if isNotEmpty doidxs || isNotEmpty doidxe then 
+              E.s (error "Range designators are not constants\n");
+            let first, last, dorange = 
+              match constFold true idxs', constFold true idxe' with
+                Const(CInt64(s, _, _)), 
+                Const(CInt64(e, _, _)) -> 
+                  Int64.to_int s, Int64.to_int e, doidxs @@ doidxe
+              | _ -> E.s (error 
+                 "INDEX_RANGE initialization designator is not a constant")
+            in
+            if first < 0 || first > last || not (isValidIndex last) then 
+              E.s (error 
+                     "start index larger than end index in range initializer");
+            (* Do just the last (so we can continue properly) one but with a 
+            * more powerful setone function *)
+            let setoneRange (o: offset) (e: exp) = 
+              match o with 
+                Index(_, off) -> (* Strip the top level Index *)
+                  let rec loop (i: int) = 
+                    if i > last then () else begin
+                      setone (Index(integer i, off)) e;
+                      loop (i + 1)
+                    end
+                  in
+                  loop first
+              | _ -> E.s (bug "setoneRange")
+            in
+            initArray iscurrent setoneRange last (acc @@ dorange) 
+              ((A.NEXT_INIT, ie) :: restinitl)
+              
+        | _ -> E.s (error "Invalid designator in initialization of array")
+      in
+      (*
+       *
+       * DO THE ARRAY
+       *
+       *)
+      (* If we are initializing an array of characters, and the initializer 
+       * is a string without braces around it, then put braces so that the 
+       * entire string initializes one array  *)
+      let initl1 = 
+        match initl with
+          (A.NEXT_INIT, 
+           A.SINGLE_INIT(A.CONSTANT (A.CONST_STRING s)) as sinit) 
+          :: restinitl 
+               when (match unrollType elt with 
+                 TInt((IChar|ISChar|IUChar), _) -> true | _ -> false) ->
+                   (A.NEXT_INIT, A.COMPOUND_INIT ([sinit])) :: restinitl
+        | _ -> initl
+      in
+      (* Sometimes we have a cast in front of a compound (in GCC). 
+      * This appears as a single initializer. Ignore the cast *)
+      let initl2 = 
+        match initl1 with
+          (A.NEXT_INIT, 
+           A.SINGLE_INIT (A.CAST (_, A.COMPOUND_INIT ci))) :: rest -> 
+             (A.NEXT_INIT, A.COMPOUND_INIT ci) :: rest
+        | _ -> initl1
+      in
+      (* Maybe the first initializer is a compound, then that is the 
+      * initializer for the entire array  *)
+      match initl2 with
+        (A.NEXT_INIT, A.COMPOUND_INIT initl_e) :: restinitl -> 
+          let acc', rest' =
+            (* Make this array the current one *)
+            initArray true setone 0 acc initl_e in
+          if rest' <> [] then
+            ignore (warn "Unused initializers in array\n");
+          acc', restinitl
+            
+      | _ -> (* Otherwise it is the initializer for some elements, starting 
+              * with the first one. Consume as much as we need *)
+          initArray false setone 0 acc initl2 
+  end (********* TArray **********)
+
+  (**************** STRUCT or UNION *****************)
+  | TComp (comp, a) ->  begin
+      (* For union we initialize only the first field *)
+      let toinit = 
+        match comp.cfields with
+          [] -> []
+        | f :: _ -> if comp.cstruct then comp.cfields else [f]
+      in
+      (* Do not initialize anonymoud fields *)
+      let toinit = List.filter (fun f -> f.fname != missingFieldName) toinit in
+      let rec initStructUnion
+          (iscurrent: bool) (* True if this is the current object *)
+          (nextflds: fieldinfo list) (* Remaining fields *)
+          (acc: chunk)
+          (initl: (A.initwhat * A.init_expression) list) 
+          
+          (* Return the statements and the remaining initializers *)
+         : chunk * (A.initwhat * A.init_expression) list = 
+        match initl with
+          (* If the initializers are over, return *)
+        | [] -> acc, initl
+          (* If we are not current and we see a designator return *)
+        | (what, _) :: _ when what != A.NEXT_INIT && not iscurrent -> 
+            acc, initl
+          (* If we don't have a designator but the fields are over, return *)
+        | (A.NEXT_INIT, _) :: _ when nextflds = [] -> 
+            acc, initl
+
+
            (* Now the regular case *)
-         
         | (A.NEXT_INIT, _) :: _  ->
-            let nextflds', thisexpt = 
-              match nextflds with
-                [] -> E.s (error "Too many initializers")
-              | x :: xs -> 
-(*                  ignore (E.log "Do the comp init for %s\n" x.fname); *)
-                  xs, x.ftype
+            let thisf, nextflds' = 
+              match nextflds with [] -> E.s (bug "Too many initializers")
+              | x :: xs -> x, xs
             in
              (* Now do the expression. Give it a chance to consume some 
               * initializers  *)
-            let acc', ie', _, initl' = 
-              doInitializer isconst true thisexpt acc initl in
-             (* And continue with the remaining fields *)
-            initStructUnion nextflds' (ie' :: sofar) acc' initl'
+            let acc', initl' = 
+              doOneInit isconst 
+                (fun o e -> setone (Field(thisf, o)) e)
+                thisf.ftype acc initl in
+            (* And continue with the remaining fields *)
+            initStructUnion iscurrent nextflds' acc' initl'
 
-           (* And the error case *)
-        | (A.ATINDEX_INIT _, _) :: _ -> 
-            E.s (error "INDEX designator in struct\n");
-        | _ -> E.s (error "Invalid designator for struct")
+          (* Check if we have a field designator *)
+        | (A.INFIELD_INIT (fn, A.NEXT_INIT), ie) :: restinitl -> 
+            let nextflds' = 
+              let rec findField = function
+                  [] -> E.s (error "Cannot find designated field %s"  fn)
+                | f :: restf when f.fname = fn -> f :: restf
+                | _ :: restf -> findField restf
+              in
+              findField comp.cfields
+            in
+            (* Now recurse *)
+            initStructUnion iscurrent 
+              nextflds'
+              acc
+              ((A.NEXT_INIT, ie) :: restinitl)
+
+        | ((A.ATINDEX_INIT _ | A.ATINDEXRANGE_INIT _), _) :: _ -> 
+            E.s (error "Index designator in structure %s" 
+                   (compFullName comp))
+
+        | (A.INFIELD_INIT _, _) :: _ -> 
+            E.s (unimp "Nested designators")
       in
+      (*
+       *
+       * DO COMPOSITE 
+       *
+       *)
       (* Sometimes we have a cast in front of a compound (in GCC). This 
        * appears as a single initializer. Ignore the cast  *)
       let initl1 = 
@@ -2966,51 +3113,60 @@ and doInitializer
         | _ -> initl
       in
       (* Maybe the first initializer is a compound, then that is the 
-       * initializer for the entire array *)
+       * initializer for the entire struct or union *)
       match initl1 with
         (A.NEXT_INIT, A.COMPOUND_INIT initl_e) :: restinitl -> 
-          let acc', inits, rest' = 
-            initStructUnion comp.cfields [] acc initl_e in
+          (* This becomes the current object *)
+          let acc', rest' = initStructUnion true comp.cfields acc initl_e in
           if rest' <> [] then
             E.s (warn "Unused initializers\n");
-          acc', CompoundInit(typ, inits), typ, restinitl
+          acc', restinitl
             
-            (* Maybe it is a single initializer. If we are not inside an 
-            * aggregate then that is the initializer for the whole thing *)
-      | (A.NEXT_INIT, A.SINGLE_INIT oneinit) :: [] when not inaggregate ->
-          begin
-            let se, init', t' = doExp isconst oneinit (AExp(Some typ)) in
-            (se @@ acc), SingleInit (doCastT init' t' typ), typ, []
-          end
-            
+      | (A.NEXT_INIT, A.SINGLE_INIT oneinit) :: restl -> begin
+          (* There could be two cases here. Either this is an initializer for 
+           * the entire struct or for the first field *)
+          let se, init', t' = doExp isconst oneinit (AExp None) in
+          match unrollType t' with
+            TComp (comp', _) when comp'.ckey = comp.ckey -> 
+              setone NoOffset (doCastT init' t' typ);
+              (se @@ acc), restl
+          | _ -> (* Not for the whole struct. Initialize the fields *)
+              let acc', restinitl = 
+                initStructUnion false toinit acc initl1 in
+              acc', restinitl
+      end
             (* Otherwise, we start initializing fields *)
       | _ -> 
-          let acc', inits, restinitl = 
-            initStructUnion comp.cfields [] acc initl1 
-          in
-          acc', CompoundInit(typ, inits), typ, restinitl
-  end
+          let acc', restinitl = 
+            initStructUnion false toinit acc initl1 in
+          acc', restinitl
+
+  end (***** TComp *****)
+
    (* REGULAR TYPE *)
   | typ' -> begin
-      let oneinit, restinitl = 
-        match initl with 
-          (A.NEXT_INIT, A.SINGLE_INIT oneinit) :: restinitl -> 
-            oneinit, restinitl
-
-        (* We can have an optional brace *)
-        | (A.NEXT_INIT, 
-           A.COMPOUND_INIT [A.NEXT_INIT, 
-                             A.SINGLE_INIT oneinit]) :: restinitl -> 
-            oneinit, restinitl
-        | _ -> E.s (error "Cannot find the initializer\n")
+      let doScalar oneinit = 
+        let se, init', t' = doExp isconst oneinit (AExp(Some typ')) in
+        setone NoOffset (doCastT init' t' typ');
+        se @@ acc
       in
-      let se, init', t' = doExp isconst oneinit (AExp(Some typ')) in
-      (se @@ acc), SingleInit (doCastT init' t' typ'), typ', restinitl
+      match initl with 
+        (* We are never current while looking at a scalar. If we see a 
+        * designator return  *)
+      | (what, _) :: _ when what != A.NEXT_INIT -> 
+            acc, initl
+
+      | (A.NEXT_INIT, A.SINGLE_INIT oneinit) :: restinitl -> 
+          doScalar oneinit, restinitl
+
+            (* We can have an optional brace *)
+      | (A.NEXT_INIT, 
+         A.COMPOUND_INIT [A.NEXT_INIT, 
+                           A.SINGLE_INIT oneinit]) :: restinitl -> 
+         doScalar oneinit, restinitl
+
+      | _ -> E.s (error "Cannot find the initializer for scalar\n")
   end
-
-
-
-
 
 and createGlobal (specs: A.spec_elem list) 
                  (((n,ndt,a),inite) : A.init_name) : unit = 
@@ -3038,10 +3194,7 @@ and createGlobal (specs: A.spec_elem list)
       if inite = A.NO_INIT then 
         None
       else 
-        let se, ie', et, restinitl = 
-          doInitializer true false vi.vtype empty [ (A.NEXT_INIT, inite) ] in
-        if restinitl <> [] then
-          E.s (error "Unused initializer in createGlobal\n");
+        let se, ie', et = doInitializer true vi.vtype inite in
         (* Maybe we now have a better type *)
         vi.vtype <- et;
         if isNotEmpty se then 
@@ -3115,10 +3268,7 @@ and createLocal (specs: A.spec_elem list)
         if e = A.NO_INIT then 
           None
         else begin 
-          let se, ie', et, restinitl = 
-            doInitializer true false vi.vtype empty [ (A.NEXT_INIT, e) ] in
-          if restinitl <> [] then
-            E.s (error "Unused initializer in createGlobal\n");
+          let se, ie', et = doInitializer true vi.vtype e in
           (* Maybe we now have a better type *)
           vi.vtype <- et;
           if isNotEmpty se then 
@@ -3174,8 +3324,8 @@ and createLocal (specs: A.spec_elem list)
       if e = A.NO_INIT then
         se1 (* skipChunk *)
       else begin
-        let se4, ie', et, _ = 
-          doInitializer false false vi.vtype se1 [ (A.NEXT_INIT, e) ] in
+        let se4, ie', et = doInitializer false vi.vtype e in
+        let se5 = se1 @@ se4 in
         (match vi.vtype, ie', et with 
             (* We have a length now *)
           TArray(_,None, _), _, TArray(_, Some _, _) -> vi.vtype <- et
@@ -3802,7 +3952,7 @@ let convFile fname dl =
         ignore (E.warn "%s used but not defined" key);
         (* MSVC does not like structures with no fields *)
         if !msvcMode then 
-          ci.cfields <- [{ fcomp = ci; fname = "___missing_field_name"; 
+          ci.cfields <- [{ fcomp = ci; fname = missingFieldName; 
                            ftype = intType; fbitfield = Some 0;
                            fattr = []}];
         globals := GCompTag(ci, locUnknown) :: !globals
@@ -3820,3 +3970,4 @@ let convFile fname dl =
   } 
 
 
+    

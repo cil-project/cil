@@ -99,7 +99,8 @@ and fieldinfo = {
                                             host since there can be only one 
                                             compinfo for a given id *)
     mutable fname: string;              (** The name of the field. Might be 
-                                            "___missing_field_name" in which 
+                                            the value of missingFieldName 
+                                            in which 
                                             case it is not printed *)
     mutable ftype: typ;                 (** The type *)
     mutable fbitfield: int option;      (** If a bitfield then ftype should be 
@@ -648,6 +649,9 @@ val mkCompInfo: bool ->      (* whether it is a struct or a union *)
                   constructing a recursive type.  *)
                attribute list -> compinfo
 
+
+(* This is a constant used as the name of a missing field *)
+val missingFieldName: string 
 
 (** Get the full name of a comp *)
 val compFullName: compinfo -> string

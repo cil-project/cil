@@ -9,10 +9,17 @@
 # sm: moved this before setup and am now arranging things so this
 # can be the primary target; must rethink what 'setup' means
 quickbuild:
-	make -f Makefile.ccured quickbuild $(MAKEOVERRIDES)
+	make -r -f Makefile.ccured   quickbuild $(MAKEOVERRIDES)
+	make -r -f Makefile.cil      quickbuild $(MAKEOVERRIDES)
+	make -r -f Makefile.combiner quickbuild $(MAKEOVERRIDES)
 
 setup:
-	make -f Makefile.ccured setup $(MAKEOVERRIDES)
+	make -r -f Makefile.ccured   setup $(MAKEOVERRIDES)
+	make -r -f Makefile.cil      setup $(MAKEOVERRIDES)
+	make -r -f Makefile.combiner setup $(MAKEOVERRIDES)
+
+
+
 
 # sm: find and remove all the intermediate files from translation
 # sm: removed *box.c from those removed since test/PCC/src/pccbox.c should be kept
