@@ -863,6 +863,21 @@ use CIL and let CIL translate them into clean C code.
 
 \begin{enumerate}
 
+\item Why does the following code return 0 for most values of \t{x}? (This
+should be easy.)
+
+\begin{cilcode}[local]
+  int x;
+  return x == (1 && x);
+\end{cilcode}
+
+\item Why does the following code return 0? (Answer: because \t{sizeof} is
+unsigned, thus the result of the subtraction is unsigned, thus the shift is logical.)
+
+\begin{cilcode}[local]
+ return ((1 - sizeof(int)) >> 4);
+\end{cilcode}
+
 \item Scoping rules can be tricky. This function returns 5.
 
 \begin{cilcode}[global]
@@ -954,6 +969,13 @@ strange things:
   return &(x ? y : z) - & (x++, x);
 \end{cilcode}
 
+\item GCC lets you omit the second component of a conditional expression.
+
+\begin{cilcode}[local]
+  extern int f();
+  return f() ? : -1; // Returns the result of f unless it is 0
+\end{cilcode}
+
 \item Computed jumps can be tricky. CIL compiles them away in a fairly clean
 way but you are on your own if you try to jump into another function this way.
 
@@ -993,6 +1015,36 @@ int main(void){
 
  \subsection{Microsoft VC ugliness}
 
+ This compiler has few extensions, so there is not much to say here.
+
+\begin{enumerate}
+\item Why does the following code return 0 and not -1? (Answer: because of a bug in
+Microsoft Visual C. It thinks that the shift is unsigned just because the
+second operator is unsigned. CIL reproduces this bug for MSVC.)
+
+\begin{verbatim}
+ return -3 >> (8 * sizeof(int));
+\end{verbatim}
+
+\item Unnamed fields in a structure seem really strange at first. It seems
+that Microsoft Visual C introduced this extension, then GCC picked it up (but
+in the process implemented it wrongly: in GCC the field \t{y} overlaps with \t{x}!).
+
+\begin{cilcode}[local]
+struct {
+  int x;
+  struct {
+     int y, z;
+     struct {
+       int u, v;
+     };
+ };
+} a;
+return a.x + a.y + a.z + a.u + a.v;
+\end{cilcode}
+
+
+\end{enumerate}
 
 \section{Credits}
 

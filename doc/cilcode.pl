@@ -63,7 +63,8 @@ while(<>) {
         }
         close(TSTSRC);
         print "\\end{verbatim}\n";
-        print "See the \\ahref{$htmloutdir/ex$testnr.txt}{CIL output} for this code\n";
+        print "See the \\ahref{$htmloutdir/ex$testnr.txt}{CIL output} for this
+code fragment\n";
         # Now run cilly
         system("$cilly -c $tmpdir/ex$testnr.c -o $tmpdir/ex$testnr.o");
         # Now repackage the CIL file
