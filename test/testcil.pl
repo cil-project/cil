@@ -1415,7 +1415,8 @@ sub addTestsFail {
 sub add2TestsFail {
     my($self, $name, $extraargs, $failpattern) = @_;
     return $self->addTestsFail($name, $extraargs, $failpattern, 
-                               ['box', 'inferbox']);
+                               [ 'box', 
+                                'inferbox']);
 }
 
 sub addBadComment {
@@ -1427,7 +1428,7 @@ sub addBadComment {
 sub add3Comment {
     my ($self, $name, $comm) = @_;
     $self->addComment($name . "-cil", $comm);
-    $self->addComment($name . "-box", $comm);
+    // $self->addComment($name . "-box", $comm);
     $self->addComment($name . "-inferbox", $comm);
 }
 
