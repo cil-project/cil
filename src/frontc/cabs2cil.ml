@@ -2414,8 +2414,10 @@ and doExp (isconst: bool)    (* In a constant *)
    * essentially doExp should never return things of type TFun or TArray *)
   let processArrayFun e t = 
     match e, unrollType t with
-      Lval(lv), TArray(tbase, _, a) -> mkStartOfAndMark lv, TPtr(tbase, a)
-    | Lval(lv), TFun _  -> mkAddrOfAndMark lv, TPtr(t, [])
+      (Lval(lv) | CastE(_, Lval lv)), TArray(tbase, _, a) -> 
+        mkStartOfAndMark lv, TPtr(tbase, a)
+    | (Lval(lv) | CastE(_, Lval lv)), TFun _  -> 
+        mkAddrOfAndMark lv, TPtr(t, [])
     | _, (TArray _ | TFun _) -> 
         E.s (error "Array or function expression is not lval: %a@!"
                d_plainexp e)
@@ -2761,8 +2763,16 @@ and doExp (isconst: bool)    (* In a constant *)
           match typ with
             TVoid _ when what = ADrop -> (t', e') (* strange GNU thing *)
           |  _ -> 
-              let res = castTo t' typ e' in (* Do this to check the cast *)
-              typ, CastE(typ, e') ; (*But put the cast in there *)
+              (* Do this to check the cast *)
+              let newtyp, newexp = castTo t' typ e' in 
+              (* If castTo decided not to put the cast in, we'll put it, 
+               * except if it is to a union type. *)
+              let forceCast = 
+                match unrollType typ with 
+                  TComp(ci, _) when not ci.cstruct -> false
+                | _ -> newexp == e'
+              in
+              newtyp, (if forceCast then  CastE(typ, newexp) else newexp)
         in
         finishExp se e'' t''
           
@@ -2849,7 +2859,8 @@ and doExp (isconst: bool)    (* In a constant *)
             (* ignore (E.log "ADDROF on %a : %a\n" d_plainexp e'
                       d_plaintype t); *)
             match e' with 
-              Lval x -> finishExp se (mkAddrOfAndMark x) (TPtr(t, []))
+             ( Lval x | CastE(_, Lval x)) -> 
+               finishExp se (mkAddrOfAndMark x) (TPtr(t, []))
 
             | StartOf (lv) ->
                 let tres = TPtr(typeOfLval lv, []) in (* pointer to array *)
