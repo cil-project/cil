@@ -347,6 +347,12 @@ sub dump_markers {
 
 sub increase_granularity {
   output "\nIncrease granularity\n";
+  
+  if (-f "DELTA-STOP") {
+    output "Stopping because DELTA-STOP file exists\n";
+    return 0;
+  }
+
   output "Before ";
   dump_markers();
   my @newmarkers = ();

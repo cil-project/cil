@@ -23,6 +23,14 @@ usage: $0 test-script [options] file [file [...]]
 The collection of input files is minimized as much as possible,
 such that the test-script continues to return true.
 
+When the script is run with a source file as an argument, it
+should do any single-file integrity checks on that file.  Then,
+it should proceed to check the entire build, on the assumption
+that all other files have already passed their integrity checks.
+
+When the script is run with no arguments, it should check integrity
+of all files and then check the build.
+
 Options:
   -level=n       When topformflattening, flatten to level n [$level]
   -u             Undo the last invocation, by copying the *.bak files
@@ -32,28 +40,11 @@ EOF
   exit(0);
 }
 
-=pod
-UNIMPLEMENTED:
-
-When the script is run with a source file as an argument, it
-should do any single-file integrity checks on that file.  That
-check will be done first after a given file is modified.
-
-Then the script is run with the argument "all", meaning it should
-treat all files as having passed their respective integrity checks,
-and the process of a whole should now be checked.
-
-When the script is run with no arguments, it should check integrity
-of all files and then check the build.
-=cut
-
-
-
 while ($ARGV[0] =~ m"^-") {
   if ($ARGV[0] =~ m"^-level=") {
     $level = ($ARGV[0] =~ m"=(\d+)");
   }
-  if ($ARGV[0] eq "-u") {
+  elsif ($ARGV[0] eq "-u") {
     $undo = 1;
   }
   else {
@@ -104,6 +95,11 @@ if (system($script) != 0) {
 for $fn (@files) {
   diagnostic("applying delta to $fn");
   run("$delta -in_place -test=$script $fn");
+  
+  if (-f "DELTA-STOP") {
+    diagnostic("Stopping because DELTA-STOP exists");
+    exit(0);
+  }
 }
 
 print("multidelta is finished\n");

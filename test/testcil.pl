@@ -711,7 +711,10 @@ smFailTest("problem with over-aggressive pointer checks?",
            "scott/ptrarith INFERBOX=infer");
 smAddTest("combine_samefn");
 smAddTest("combine_node_alloc");
-smAddTest("combine_sbump");       # fails when mergeInlines set to true in mergecil.ml
+smAddTest("combine_sbump");
+smAddTest("combine_sbumpB");
+smFailTest("renaming problems again",
+           "combine_sbumpB MERGEINLINES=1");
 
 # tests of things implemented for EDG compatibility
 smAddTest("mergestruct");
