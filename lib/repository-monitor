@@ -7,6 +7,7 @@ $home = $ENV{HOME};
 $ph = "$home/public_html";
 $statusFilename = "$ph/status.txt";      # what I am doing now
 $logFilename = "$ph/log.txt";            # all output gets appended here
+$sleepTime = 60;                         # seconds to sleep while waiting
 
 # cause ctrl-c to bail (this doesn't work?)
 sub intHandler {
@@ -99,7 +100,7 @@ while (1) {
     # nothing changed; wait for 5 minutes (don't change status,
     # so we keep prior build success/fail info)
     diagnostic ("nothing changed");
-    sleep(300);
+    sleep($sleepTime);
     next;
   }
 
@@ -114,7 +115,7 @@ while (1) {
   # rebuild the system
   if (!logrun("make clean setup", "$ph/build.txt")) {
     status("build failed; waiting for repository to change");
-    sleep(300);
+    sleep($sleepTime);
     next;
   }
 
