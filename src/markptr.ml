@@ -354,7 +354,39 @@ let rec doStmt (s: stmt) =
       let e' = expToType eres lvn.N.btype (-1) in
       Instr (Set (lv', e', l))
 
-  | Instr (Call (reso, func, args, l)) -> 
+  | Instr (Call (reso, orig_func, args, l)) -> 
+      let is_polymorphic v =
+        v.vname = "malloc" ||
+        v.vname = "calloc" ||
+        v.vname = "realloc" in
+      let func = begin (* check and see if it is malloc *)
+        match orig_func with
+          (Lval(Var(v),x)) when is_polymorphic v -> 
+            (* now we have to do a lot of work to make a copy of this
+             * function with all of the _ptrnode attributes stripped so 
+             * that it will get a new node in the graph correctly *) 
+            let strip a = dropAttribute a (ACons("_ptrnode",[])) in
+            let rec new_type t = begin match t with
+              TVoid(a) -> TVoid(strip a)
+            | TInt(i,a) -> TInt(i, strip a)
+            | TBitfield(i,j,a) -> TBitfield(i,j, strip a)
+            | TFloat(f,a) -> TFloat(f, strip a)
+            | TEnum(s,l,a) -> TEnum(s,l, strip a)
+            | TPtr(t,a) -> TPtr(new_type t, strip a)
+            | TArray(t,e,a) -> TArray(new_type t,e,strip a)
+            | TComp(c) -> TComp({ c with cattr = strip c.cattr}) 
+            | TForward(c,a) -> TForward({c with cattr = strip c.cattr}, strip a)
+            | TFun(t,v,b,a) -> TFun(new_type t,v,b,strip a)
+            | TNamed(s,t,a) -> TNamed(s,new_type t,strip a)
+            end in 
+            let new_vtype = new_type v.vtype in
+            (* this is the bit where we actually make this call unique *)
+            let new_varinfo = makeGlobalVar 
+              (v.vname ^ "/*" ^ (string_of_int (!callId + 1)) ^ "*/") new_vtype in
+              doVarinfo new_varinfo ;  
+              (Lval(Var(new_varinfo),x)) 
+        | _ -> orig_func
+      end in
       let func', funct, funcn = doExp func in
       let (rt, formals, isva) = 
         match unrollType funct with
@@ -379,8 +411,10 @@ let rec doStmt (s: stmt) =
                 ignore (E.warn "Call of subroutine is assigned")
             | None, _ -> () (* "Call of function is not assigned" *)
             | Some destvi, _ -> 
-                N.addEdge (nodeOfType rt) (nodeOfType destvi.vtype) 
-                  N.ECast !callId
+                N.addEdge 
+                  (nodeOfType rt)
+                  (nodeOfType destvi.vtype) 
+                  N.ECast !callId  
           end;
           Instr (Call(reso, func', loopArgs formals args, l))
       end
@@ -433,13 +467,13 @@ let printFile (c: out_channel) fl =
   Cil.setCustomPrint (N.ptrAttrCustom true)
     (fun fl ->
       Cil.printFile c fl;
-      output_string c "/* Now the graph\n";
+      output_string c "#if 0\n/* Now the graph */\n";
      (*N.gc ();   *)
       N.simplify (); 
       N.printGraph c;
-      output_string c " End of graph*/\n";
-      output_string c "/* Now the solved graph (simplesolve)\n";
+      output_string c "/* End of graph */\n";
+      output_string c "/* Now the solved graph (simplesolve) */\n";
       Stats.time "simple solver" Simplesolve.solve N.idNode ; 
       N.printGraph c;
-      output_string c " End of solved graph*/\n";)
+      output_string c "/* End of solved graph*/\n#endif\n";)
     fl

@@ -79,6 +79,10 @@ type node =
       (* The rest are the computed results of constraint resolution *)
       mutable kind: pointerkind;
       mutable why_kind : whykind;
+      mutable sized : bool ;            (* An array may be SIZED at which
+                                         * point it has a length field
+                                         * stored right before it. This
+                                         * leads to INDEX pointers. *)
       
       mutable mark: bool;               (* For mark-and-sweep GC of nodes. 
                                          * Most of the time is false *)
@@ -166,7 +170,7 @@ let d_whykind () = function
   | Unconstrained -> text "unconstrained"
 
 let d_node () n = 
-  dprintf "%d : %a (%s%s%s%s%s%s) (@[%a@])@! K=%a/%a T=%a@!  S=@[%a@]@!  P=@[%a@]@!" 
+  dprintf "%d : %a (%s%s%s%s%s%s%s) (@[%a@])@! K=%a/%a T=%a@!  S=@[%a@]@!  P=@[%a@]@!" 
     n.id d_placeidx n.where
     (if n.onStack then "stack," else "")
     (if n.updated then "upd," else "")
@@ -174,6 +178,7 @@ let d_node () n =
     (if n.arith then "arith," else "")
     (if n.null  then "null," else "")
     (if n.intcast  then "int," else "")
+    (if n.sized  then "sized," else "")
     (docList (chr ',' ++ break)
        (fun n -> num n.id)) n.pointsto
     d_pointerkind n.kind
@@ -278,6 +283,7 @@ let newNode (p: place) (idx: int) (bt: typ) (a: attribute list) : node =
             succ = [];
             kind = kind;
             why_kind = why_kind; 
+            sized = false ;
             pointsto = [];
             mark = false;
             pred = []; } in

@@ -23,6 +23,8 @@ open Ptrnode
 let rec type_congruent (t1 : typ) (q1 : pointerkind) 
                        (t2 : typ) (q2 : pointerkind) = begin
   (* t[n] and struct { t ; t[n-1] ; } are congruent *)
+  let t1 = unrollType t1 in
+  let t2 = unrollType t2 in 
   let array_helper_function t eo al x = begin
     match eo with
       Some(Const(CInt(n,a,b),c)) when n > 1 -> begin
@@ -59,20 +61,14 @@ let rec type_congruent (t1 : typ) (q1 : pointerkind)
         (fields_match c2.cfields c1.cfields)
     end
 
+    (* a structure with one element is equal to that element *)
+  | TComp(c1),_ when ((List.length c1.cfields) = 1) ->
+    let f1 = List.hd c1.cfields in type_congruent f1.ftype q1 t2 q2 
+  | _,TComp(c2) when ((List.length c2.cfields) = 1) ->
+    let f2 = List.hd c2.cfields in type_congruent t1 q1 f2.ftype q2
+
     (* structures match if all of their fields match in order *)
   | TComp(c1),TComp(c2) when (c1.cstruct) && (c2.cstruct) -> 
-    (c1.cname = c2.cname) || 
-    List.for_all2 (fun f1 f2 -> type_congruent f1.ftype q1 f2.ftype q2) 
-      c1.cfields c2.cfields
-  | TForward(c1,_),TForward(c2,_) when (c1.cstruct) && (c2.cstruct) -> 
-    (c1.cname = c2.cname) || 
-    List.for_all2 (fun f1 f2 -> type_congruent f1.ftype q1 f2.ftype q2) 
-      c1.cfields c2.cfields
-  | TForward(c1,_),TComp(c2) when (c1.cstruct) && (c2.cstruct) -> 
-    (c1.cname = c2.cname) || 
-    List.for_all2 (fun f1 f2 -> type_congruent f1.ftype q1 f2.ftype q2) 
-      c1.cfields c2.cfields
-  | TComp(c1),TForward(c2,_) when (c1.cstruct) && (c2.cstruct) -> 
     (c1.cname = c2.cname) || 
     List.for_all2 (fun f1 f2 -> type_congruent f1.ftype q1 f2.ftype q2) 
       c1.cfields c2.cfields
@@ -100,28 +96,27 @@ let rec type_congruent (t1 : typ) (q1 : pointerkind)
   | TFun(_),TFun(_) -> true
   | TPtr(_),TPtr(_) -> true
 
-  | TNamed(_,t1,_),_ -> type_congruent t1 q1 t2 q2
-  | _,TNamed(_,t2,_) -> type_congruent t1 q1 t2 q2
-
   | _ -> false
 end
 
 (* returns the first n elements of l *)
 let rec sublist l n = begin
-  if n <= 0 then l 
+  if n <= 0 then [] 
   else match l with
       [] -> []
   | hd :: tl -> hd :: (sublist tl (n-1))
 end
 
 (* do we have t1,q1 <= t2,q2 (as in infer.tex)? *)
-let subtype (t1 : typ) (q1 : pointerkind) 
+let rec subtype (t1 : typ) (q1 : pointerkind) 
             (t2 : typ) (q2 : pointerkind) =
+  let t1 = unrollType t1 in
+  let t2 = unrollType t2 in 
   if (type_congruent t1 q1 t2 q2) then
     true
   else match (t1,t2) with 
     (* t1 x t2 x t3 ... <= t1 x t2, general case  *)
-    TComp(c1),TComp(c2) -> begin
+    TComp(c1),TComp(c2) when c1.cstruct && c2.cstruct -> begin
       (* is t2 congruent to a prefix of t1? *)
       (* we'll do it the expensive way: try all prefices of t1 *)
       let found_one = ref false in 
@@ -134,17 +129,28 @@ let subtype (t1 : typ) (q1 : pointerkind)
       done ; !found_one
     end
     (* t1 x t2 <= t1 *)
-  | TComp(c1),_ -> begin
+  | TComp(c1),_ when c1.cstruct -> begin
     (* this is true if t2 is congruent to some prefix of c1, as above *)
       let found_one = ref false in 
       for l = 1 to (List.length c1.cfields) do 
         if (not (!found_one)) then begin
           let prefix_struct_c1 = { c1 with cfields = (sublist c1.cfields l) } in
-          if (type_congruent t2 q2 (TComp(prefix_struct_c1)) q1) then
+          if (type_congruent (TComp(prefix_struct_c1)) q1) t2 q2 then
             found_one := true
         end
       done ; !found_one
-  end
+    end
+    (* x <= a + b  iff x <= a && x <= b *)
+   | _,TComp(c2) when not c2.cstruct -> begin
+      (* E.warn "special forall case!\n" ;  *)
+      List.for_all (fun elt -> subtype t1 q1 elt.ftype q2) c2.cfields 
+   end
+    (* a+b <= x    iff a <= x || b <= x *)
+   | TComp(c1),_ when not c1.cstruct -> begin
+      (* E.warn "special exist case!\n" ;  *)
+      List.exists (fun elt -> subtype elt.ftype q1 t2 q2) c1.cfields 
+   end
+
   | _,_ -> false
 
 (* see infer.tex : this predicate checks to see if the little attributes
@@ -156,9 +162,7 @@ let q_predicate (n1 : node) (n2 : node) = true
     ((not n1.intcast) || (n2.intcast)) *)
 
 let is_malloc n = match n.where with
-    PGlob("malloc"),_ -> true
-  | PGlob("calloc"),_ -> true
-  | PGlob("realloc"),_ -> true
+    PGlob(s),_ when String.contains s '*' -> true
   | _ -> false
 
 (* returns a pair of pointerkinds p1,p2 such that if we assign the
@@ -166,15 +170,19 @@ let is_malloc n = match n.where with
 let can_cast (n1 : node) (n2 : node) = begin
   let t1 = n1.btype in
   let t2 = n2.btype in 
-  if is_malloc n2 then
+  if is_malloc n1 then
     (Safe,Safe)
   else if subtype t1 Safe t2 Safe then
     (Safe,Safe)
   else if subtype t1 Safe 
      (TArray(t2,(Some(Const(CInt(1024,ILong,None),locUnknown))),[])) Safe then
     (Seq,Seq)
-  else
+  else begin
+(*    E.warn "Cannot cast %a <= %a\n" 
+      d_type (unrollType t1 )
+      d_type (unrollType t2 ) ; *)
     (Wild,Wild)
+  end
 end
 
 let solve (node_ht : (int,node) Hashtbl.t) = begin
@@ -311,8 +319,8 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     let cur = List.hd !worklist in
     (* pick out all successors of our current node *)
     List.iter (fun e -> 
-      let (k1,k2) = can_cast e.eto e.efrom in
-      let why = BadCast(e.eto.btype,e.efrom.btype) in
+      let (k1,k2) = can_cast e.efrom e.eto in
+      let why = BadCast(e.efrom.btype,e.eto.btype) in
       ignore (update_kind e.eto k1 why) ;
       ignore (update_kind e.efrom k2 why) ;
     ) (ecast_edges_only cur.succ) ;
