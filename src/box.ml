@@ -2849,7 +2849,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
   let tmpp = makeTempVar !currentFunction ptrtype in
   let tmpvar = Lval(var tmpp) in
   let alloc = call (Some (tmpp, true)) f (ai.aiNewSize allocsz args) in
-  (* Adjust the allocation pointer *)
+  (* Adjust the allocation pointer past the size prefix (if any) *)
   let adjust_ptr = 
     match kno_t with
       N.Index | N.Wild -> 
@@ -2860,9 +2860,9 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
     | _ -> mkEmptyStmt ()
   in
 
-  (* Save the pointer value *)
+  (* Save the pointer value into the final result *)
   let assign_p = mkSet (Var vi, ptroff) tmpvar in
-  (* And the base, if necessary *)
+  (* And the base, if necessary. This one is equal to the pointer value *)
   let assign_base = 
     match k with 
       N.Wild | N.Seq | N.SeqN | N.Index -> begin
@@ -2875,7 +2875,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
     | _ -> mkEmptyStmt ()
   in
 
-  (* Set the size if necessary *)
+  (* Store the size in memory if necessary *)
   let setsz = 
     match kno_t with
       N.Wild | N.Index -> 
@@ -2890,12 +2890,8 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
   (* Now the remainder of the initialization *)
   let init = 
     (* Put nullterm *)
-    let putnullterm = 
-      mkSet (Mem(BinOp(PlusPI,
-                       doCast tmpvar charPtrType,
-                       BinOp(MinusA, nrdatabytes, one, intType), 
-                       charPtrType)),
-             NoOffset)
+    let putnullterm (theend: exp) = 
+      mkSet (Mem(doCast theend charPtrType), NoOffset)
         (doCast zero charType)
     in
     match kno_t with
@@ -2952,9 +2948,9 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
               (mkFor 
                  ~start:[mkEmptyStmt ()]
                  ~guard:(BinOp(Le, BinOp(PlusA, 
-                                         doCast tmpvar uintType, 
-                                         SizeOf(ptrtype), uintType),
-                               doCast theend uintType, intType))
+                                         doCast tmpvar upointType, 
+                                         SizeOf(ptrtype), upointType),
+                               doCast theend upointType, intType))
                  ~next:[mkSet (var tmpp) 
                            (BinOp(IndexPI, tmpvar, one, ptrtype))]
                  ~body:(toList initone))
@@ -2962,17 +2958,28 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
         CConsL(savetheend, 
                append initializeAll
                  (if k = N.FSeqN || k = N.SeqN then 
-                   single putnullterm else empty))
+                   single 
+                     (mkSet (Mem(BinOp(MinusPI,
+                                       doCast theend charPtrType,
+                                       one, charPtrType)), NoOffset)
+                        (doCast zero charType))
+                 else empty))
 
     | N.String -> (* Allocate this as SeqN, with a null term *)
         ignore (warn "Allocation of string. Use FSEQN instead. (%a)"
                   d_lval (var vi));
-        single putnullterm
+        single (mkSet (Mem(BinOp(PlusPI,
+                                   doCast tmpvar charPtrType,
+                                   BinOp(MinusA, nrdatabytes, one, intType), 
+                                   charPtrType)), NoOffset)
+                  (doCast zero charType))
 
     | _ -> E.s (bug "pkAllocate: init")
   in
   (* Now assign the end if necessary. We do it this late because in the case 
-   * of sequences we now know the precise end of the allocated sequence  *)
+   * of sequences we now know the precise end of the allocated sequence. For 
+   * them the tmp variable has iterated over a number of instances of the 
+   * type and has stopped when there is not more room for one more instance. *)
   let assign_end = 
     match k with 
       N.Seq | N.SeqN | N.FSeq | N.FSeqN -> begin

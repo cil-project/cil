@@ -275,6 +275,8 @@ $TEST->add3Tests("scott/argv");
 $TEST->add1Test("scott/main", "_GNUCC=1");
 $TEST->add1Test("scott/globalprob", "_GNUCC=1");
 $TEST->add1Test("scott/bisonerror", "_GNUCC=1");
+$TEST->add1Test("scott/cmpzero");
+$TEST->add1Test("scott/xcheckers", "_GNUCC=1");
 
 # $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug
 # my $tst = $TEST->getTest("apache/gzip-inferbox");
