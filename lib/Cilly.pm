@@ -567,7 +567,7 @@ sub straight_preprocess {
     } else {
 #        print Dumper($self);
         my @cmd = (@{$self->{CPP}}, @{$ppargs},
-		   $src, "$self->{OUTCPP}$dest->{filename}");
+		   $src, $self->makeOutArguments($self->{OUTCPP}, $dest));
         $self->runShell(@cmd);
         
     }
@@ -626,12 +626,26 @@ sub compile {
     return $res;
 } 
 
+sub makeOutArguments { 
+    my ($self, $which, $dest) = @_;
+    $dest = $dest->{filename} if ref $dest;
+    if($self->{MODENAME} eq "MSVC") { 
+        # A single argument
+        return ("$which$dest");
+    } else {
+        return ($which, $dest);
+    }
+}
 # This is the actual invocation of the underlying compiler. You should not
 # override this 
 sub straight_compile {
     my ($self, $src, $dest, $ppargs, $ccargs) = @_;
-    if($self->{VERBOSE}) { print STDERR 'Compiling ', $src->filename, ' into ', $dest->filename, "\n"; }
-    my @dest = $dest eq "" ? () : ("$self->{OUTOBJ}$dest->{filename}");
+    if($self->{VERBOSE}) { 
+        print STDERR 'Compiling ', $src->filename, ' into ', 
+        $dest->filename, "\n"; 
+    }
+    my @dest = 
+        $dest eq "" ? () : $self->makeOutArguments($self->{OUTOBJ}, $dest);
     my @forcec = @{$self->{FORCECSOURCE}};
     my @cmd = (@{$self->{CC}}, @{$ppargs}, @{$ccargs},
 	       @dest, @forcec, $src);
@@ -650,7 +664,8 @@ sub compile_cil {
 sub assemble {
     my ($self, $src, $dest, $ppargs, $ccargs) = @_;
     if($self->{VERBOSE}) { print STDERR "Assembling $src\n"; }
-    my @dest = $dest eq "" ? () : ("$self->{OUTOBJ}$dest->{filename}");
+    my @dest = 
+        $dest eq "" ? () : $self->makeOutArguments($self->{OUTOBJ}, $dest);
     my @cmd = (@{$self->{CC}}, @{$ppargs}, @{$ccargs},
 	       @dest, $src);
     return $self->runShell(@cmd);
@@ -664,7 +679,8 @@ sub assemble {
 sub straight_link {
     my ($self, $psrcs, $dest, $ppargs, $ccargs, $ldargs) = @_;
     my @sources = ref($psrcs) ? @{$psrcs} : ($psrcs);
-    my @dest = $dest eq "" ? () : ("$self->{OUTEXE}$dest");
+    my @dest = 
+        $dest eq "" ? () : $self->makeOutArguments($self->{OUTEXE}, $dest);
     # Pass the linkargs last because some libraries must be passed after
     # the sources
     my @cmd = (@{$self->{LD}}, @dest,
@@ -1770,7 +1786,8 @@ sub compileOutputFile {
 	unless $src =~ /\.($::cilbin|c|cc|cpp|i|s|S)$/;
     
     if ($self->{OPERATION} eq 'TOOBJ') {
-	if (defined $self->{OUTARG} && "@{$self->{OUTARG}}" =~ m|^-o\s*(\S.+)$|) {
+	if (defined $self->{OUTARG} 
+            && "@{$self->{OUTARG}}" =~ m|^-o\s*(\S.+)$|) {
 	    return new OutputFile($src, $1);
 	} else {
 	    return new KeptFile($src, $self->{OBJEXT}, '.');

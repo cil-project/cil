@@ -1115,11 +1115,13 @@ attribute:
 |   VOLATILE                            { ("volatile",[]), $1 }
 ;
 
-/* sm: I need something that just includes __attribute__ and nothing more,
- * to support them appearing between the 'struct' keyword and the type name */
+/* (* sm: I need something that just includes __attribute__ and nothing more,
+ *  to support them appearing between the 'struct' keyword and the type name. 
+ * Actually, a declspec can appear there as well (on MSVC) *)  */
 just_attribute:
     ATTRIBUTE LPAREN paren_attr_list_ne RPAREN
                                         { ("__attribute__", $3) }
+|   DECLSPEC paren_attr_list_ne         { ("__declspec", $2) }
 ;
 
 /* this can't be empty, b/c I folded that possibility into the calling

@@ -1361,7 +1361,7 @@ let attributeHash: (string, attributeClass) H.t =
   List.iter (fun a -> H.add table a (AttrName true))
     [ "thread"; "naked"; "dllimport"; "dllexport"; "noreturn";
       "selectany"; "allocate"; "nothrow"; "novtable"; "property";
-      "uuid" ];
+      "uuid"; "align" ];
 
   List.iter (fun a -> H.add table a (AttrFunType false))
     [ "format"; "regparm"; "longcall" ];
@@ -2603,14 +2603,16 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           if comp.cstruct then "struct", "str", "uct"
           else "union",  "uni", "on"
         in
+        let sto_mod, rest_attr = separateStorageModifiers comp.cattr in
         self#pLineDirective ~forcefile:true l ++
-          text su1 ++ (align ++ text su2 ++ chr ' ' ++ text n
+          text su1 ++ (align ++ text su2 ++ chr ' ' ++ (self#pAttrs () sto_mod)
+                         ++ text n
                          ++ text " {" ++ line
                          ++ ((docList line (self#pFieldDecl ())) () 
                                comp.cfields)
                          ++ unalign)
           ++ line ++ text "}" ++
-          (self#pAttrs () comp.cattr) ++ text ";\n"
+          (self#pAttrs () rest_attr) ++ text ";\n"
 
     | GCompTagDecl (comp, l) -> (* This is a declaration of a tag *)
         self#pLineDirective l ++
@@ -2897,6 +2899,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     | "missingproto", [] -> text "/* missing proto */", false
     | "cdecl", [] when !msvcMode -> text "__cdecl", false
     | "stdcall", [] when !msvcMode -> text "__stdcall", false
+    | "fastcall", [] when !msvcMode -> text "__fastcall", false
     | "declspec", args when !msvcMode -> 
         text "__declspec(" 
           ++ docList (chr ',') (self#pAttrParam ()) () args
