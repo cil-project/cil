@@ -30,6 +30,15 @@ struct __attribute__((packed)) D {
 //  };
 
 
+typedef unsigned long ULONG;
+typedef int WCHAR;
+typedef struct __attribute__((packed, aligned(4))) _INFORMATION {
+     ULONG FileAttributes;
+     ULONG FileNameLength;
+     WCHAR FileName[1];
+} INFORMATION, *PINFORMATION;
+
+
 int main()
 {
   return 0;
