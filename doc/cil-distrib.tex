@@ -84,7 +84,11 @@ FilenameXXXXXXXXXXXXXXXXXXXXXXXXX \= DescriptionXXX \kill
 
 \section{Installation}
 
-You will need OCaml release 3.02 or higher to build CIL. 
+You will need OCaml release 3.02 or higher to build CIL. CIL has been tested
+on Linux and on Windows (where it can behave at either Microsoft Visual C or
+gcc). If you want to use CIL on Windows then you must get the source-code
+OCaml distribution and compile it yourself using the cygwin tools (as opposed
+to getting the Win32 native-code version of OCaml).
 
 \begin{enumerate}
 \item Unzip and untar the source distribution. This will create a directory
@@ -113,6 +117,12 @@ Online documentation of the CIL API is available~\ahref{cil-api}{here}. This
 documentation is also included in the distribution, in the \t{doc}
 subdirectory. 
 
+\section{Credits}
+
+ CIL was develped starting from Hugues Casse's \t{frontc} front-end for C
+although all the files from the \t{frontc} distribution have been changed
+heavily. 
+ 
 \end{document}
 
 

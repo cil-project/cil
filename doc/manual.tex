@@ -3,6 +3,9 @@
 
 \def\t#1{{\tt #1}}
 \def\DYNAMIC{\t{DYNAMIC}}
+\def\secref#1{Section~\ref{sec-#1}}
+\def\chref#1{Chapter~\ref{ch-#1}}
+
 \title{CCured: User Manual}
 
 % Make sure that all documents show up in the main frame
@@ -17,13 +20,17 @@ code with runtime checks to catch memory safety violations at run time. As a
 novel enhancement, the system infers when some (or all!) of the checks can be
 safely omitted.
 
-The translator itself is written in Ocaml (a dialect of ML).  There is
-also a Perl script, safecc.pl, which functions as a drop-in
+ The translator itself is written in Ocaml (a dialect of ML).  There is
+also a Perl script, ccured.pl, which functions as a drop-in
 replacement for 'cc', so that software packages' existing Makefiles
 can be used unmodified.  Finally, various runtime functions (including
 the Boehm-Weiser conservative garbage collector) are provided by C
-code which we write and is linked with the translated executable.
+code which we write and is linked with the translated executable. If you want
+to look at the implementation of CCured then you might want to learn first
+about the C Intermediate Language (\ahrefurl{cil}) that CCured is using:
+ 
 
+ 
 \chapter{Using CCured}
 
  CCured consists of several components: an Ocaml application that does the
@@ -31,7 +38,7 @@ main work, a set of Perl scripts that are used to invoke the CCured
 application, and a set of header and run-time library files. 
 
  To use CCured you should put the \t{lib} directory in your \t{PATH} (see
-Chapter \ref{ch-start}) and then you can invoke the CCured wrapper as follows:
+\chref{start}) and then you can invoke the CCured wrapper as follows:
 \begin{verbatim}
 perl -S ccured.pl [options]
 \end{verbatim}
@@ -63,14 +70,14 @@ the release version is used.
 \item \t{--verbose} Prints lots of messages about what is going on.
 \item \t{--combine} This tells CCured to first attempt to collect into one
 source file all of the sources that make your application, and then to apply
-CCured on the resulting source. To see how this is accomplished, see Chapter
-\ref{ch-combiner}. This option is normally used when you use CCured with a
-Makefile. 
+CCured on the resulting source. To see how this is accomplished, see
+\chref{combiner}. This option is normally used when you use CCured with a
+Makefile.
 \item \t{--nocure=xxx}. Do not cure the files whose basename is "xxx". This is
 used in combination with the \t{--combine} option.
 \item \t{--includedir=xxx}. Override the include files with those in the given
 directory. The given directory is the same name that was given an an argument
-to the patcher (see Chapter \label{ch-patcher}). In particular this means that
+to the patcher (see Chapter \chref{patcher}). In particular this means that
 that directory contains subdirectories named based on the current compiler
 version. The patcher creates those directories. 
 \item \t{--usecabs}. Do not cure, but instead just parse the source and print
@@ -119,7 +126,7 @@ perl -S ccured.pl --curetype=infer test/small1/hello.c -o hello
 
  While it is possible to use CCured using just the \t{ccured.pl} script we
 have found it easier to write a \t{Makefile} that contains invocations of
-\t{ccured.pl}. See Chapter \ref{ch-start} for how to configure the
+\t{ccured.pl}. See \chref{start} for how to configure the
 \t{Makefile}. 
  
  To use the \t{make} interface you use the following command:
@@ -615,9 +622,47 @@ an Apache module of average size and get it up and running. Some of that
 time is spend reading the module's documentation so that it can be loaded
 and tested correctly. Good luck!
 
-\chapter{Customizing CCured}
+\chapter{Controlling CCured}
 
-  \section{Polymorphic functions}
+ There are three ways to control the operation of CCured: modify the cured
+code, insert type annotations, insert pragmas. 
+ 
+ \section{CCured Type Annotations}
+
+ 
+
+  \section{CCured Pragmas}\label{sec-pragma}
+ 
+ The following pragmas are recognized by CCured. Note that pragmas can only
+appear in between global declarations. Some of them are discussed in more
+detail in following sections:
+\begin{enumerate}
+\item \t{#pragma box(off)} - Turn off curing
+\item \t{#pragma box(on)} - Turn curing back on
+\item \t{#pragma nobox("myfunc")} - Turn curing off for the function
+\t{myfunc} 
+\item \t{#pragma boxtext(...)} - CCured will turn this pragma into the \t{...}
+text in the cured file
+\item \t{#pragma boxpoly("myfunc")} - CCured will treat the \t{myfunc}
+function polymorphically. See \secref{poly}.
+\item \t{#pragma boxalloc("malloc", nozero, sizein(1))} - CCured will treat
+\t{malloc} as an allocation function whose length is passed in the first
+argument and which does not zero the allocated area.  See \secref{malloc}.
+\item \t{#pragma boxalloc("calloc", zero, sizemul(1,2))} - CCured will treat
+\t{calloc} as an allocation function whose length is passed are the product of
+the first two arguments and which does zero the allocated area.   See
+\secref{malloc}.
+\item \t{#pragma boxvararg("myfunc", sizeof(union myfunc\_arguments))} -
+Declares \t{myfunc} to be a variable argument function that can be passed a
+variable number of arguments each having one of the types of the fields of
+\t{union myfunc\_arguments}. See \secref{vararg}.
+\item \t{#pragma boxvararg\_printf("myprintf", 2)} - Declares \t{myprintf} to
+be a printf-like function whose format string is in the second argument.
+ See \secref{vararg}.
+\end{enumerate}
+
+ 
+  \section{Polymorphic functions}\label{sec-poly}
 
  C programmers use \t{void *} to implement parametric polymorphism. Take for
 example the simple \t{identity} function defined below:
@@ -653,7 +698,42 @@ the termination of the process. Note that you can construct a program whose
 size will grow exponentially if you have a chain of polymorphic functions that
 call each other several times. 
 
-  \section{Models for external functions}
+  \section{User-defined memory allocators}\label{sec-malloc}
+
+ If your program has a user-defined memory allocator which is used to allocate
+multiple kinds of pointers then its return type will be \t{WILD} and so will
+be all of the pointers you allocate with it. Declaring such a function to be
+polymorphic will likely not help because the function is probably using a
+global data structure (the allocation buffer) that is shared by all
+polymorphic copies of the function. 
+
+ CCured allows you to declare a function to be a user-defined memory allocator
+using one of the following pragmas:
+\begin{verbatim}
+#pragma boxalloc("myfunc", <zerospec>, <sizespec>)
+<zerospec> ::= zero | nozero
+<sizespec> ::= sizein(k) | sizemul(k1, k2)
+\end{verbatim}
+
+ The \t{zero} argument means that the allocator zeroes the allocated area. The
+\t{sizein(k)} argument means that the allocator is passed the size (in bytes)
+of the area to be allocated in argument number $k$ (couting starts at 1). The
+\t{sizemul(k1, k2)} argument means that the allocator allocates a number of
+bytes equal to the product of the arguments number $k1$ and $k2$. 
+
+ For example the following are the pragmas for the standard library allocators
+\t{malloc} and \t{calloc}:
+\begin{verbatim}
+void* malloc(unsigned int size);
+#pragma boxalloc("malloc", nozero, sizein(1))
+void* calloc(unsigned int nr_elems, unsigned int size);
+#pragma boxalloc("calloc", zero, sizemul(1, 2))
+\end{verbatim}
+
+ Note that declaring a function an allocator has the effect of also making it
+polymorphic and its definition is excluded from the cure. 
+
+  \section{Models for external functions}\label{sec-model}
 
  When CCured handles an external function it does not assume anything about
 its behavior. A good example is the \t{fgets} function from the C library:
@@ -716,7 +796,7 @@ processed the calls to the polymorphic model lead to new instances of the
 model function. 
  
 
-       \section{Variable argument functions}
+       \section{Variable argument functions}\label{sec-vararg}
 
  CCured supports variable-argument functions written using the \t{<stdarg.h>}
 macros. There are two kinds of variable-argument functions in C: 
@@ -907,7 +987,7 @@ replacement for \t{fscanf} from above.
  will likely change in the future}
 
 
-    \chapter{Using the patcher}
+    \chapter{Using the patcher}\label{ch-patcher}
 
  Occasionally for the purposes of CCured we have needed to modify slightly the
 standard include files. So, we developed a simple mechanism that allows us to
@@ -1235,6 +1315,7 @@ the script with:
 \end{verbatim}
 
 And of course, report these to us!
+
 
         \chapter{Getting Started}\label{ch-start}
 
