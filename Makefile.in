@@ -56,7 +56,7 @@ ifdef USE_SMALLOC
   CILLY_FEATURES += smalloc
 endif
 ifdef USE_CQUALANN
-  CILLYFEATURES += cqualann
+  CILLY_FEATURES += cqualann
 endif
 
     # Now rules to make cilly
@@ -208,7 +208,7 @@ endif
 ifdef USE_SMALLOC
 	echo "   Smalloc.feature;" >> $@  
 endif
-ifdef USE_CQUAL_ANN
+ifdef USE_CQUALANN
 	echo "   Cqualann.feature;" >> $@  
 endif
 	echo "]"   >>$@ 
