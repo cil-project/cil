@@ -592,11 +592,28 @@ let checkBounds =
   theFile := GDecl fdec.svar :: !theFile;
   fun tmplen base lv t ->
     let lv', lv't = getHostIfBitfield lv t in
-    call None (Lval (var fdec.svar))
-      [ castVoidStar base; 
-        tmplen; 
-        castVoidStar (AddrOf(lv', lu));
-        SizeOf(lv't, lu) ]
+    (* Do not check the bounds when we access variables without array 
+     * indexing  *)
+    let mustCheck = 
+      match lv' with
+        Var vi, off -> 
+          let rec hasIndex = function
+            | Index _ -> true
+            | NoOffset -> false
+            | First o -> true (* in an array. Might be of length 0 *)
+            | Field (_, o) -> hasIndex o
+          in
+          hasIndex off
+      | Mem _, _ -> true
+    in
+    if mustCheck then
+      call None (Lval (var fdec.svar))
+        [ castVoidStar base; 
+          tmplen; 
+          castVoidStar (AddrOf(lv', lu));
+          SizeOf(lv't, lu) ]
+    else
+      Skip
 
   
 let checkZeroTags = 
@@ -706,16 +723,31 @@ let checkMem (towrite: exp option)
 *)
     | _ -> E.s (E.unimp "unexpected type in doCheckTags: %a\n" d_type t)
   in
-  let zeroTags = 
-    match towrite with 
-      None -> Skip
-    | Some _ -> checkZeroTags base tagStartExp lv t
+  (* See first what we need in order to check tags *)
+  let zeroAndCheckTags = 
+    let zeroTags = 
+      match towrite with 
+        None -> Skip
+      | Some _ -> checkZeroTags base tagStartExp lv t
+    in
+    zeroTags :: 
+    (doCheckTags towrite lv t [])
   in
-  (checkFetchLength len base) ::
-  (checkBounds lenExp base lv t) ::
-  (checkFetchTagStart tagStart base lenExp) ::
-  zeroTags ::
-  (doCheckTags towrite lv t [])
+  (* Now we know if we need to look at the tags *)
+  let check_1 = 
+    match zeroAndCheckTags with
+      [] | [Skip] -> []
+    | _ -> (checkFetchTagStart tagStart base lenExp) :: zeroAndCheckTags
+  in
+  (* Now see if we need to do bounds checking *)
+  let check_0 = 
+    match checkBounds lenExp base lv t, check_1 with
+      Skip, [] -> []  (* Don't even fetch the length *)
+    | cb, _ -> (checkFetchLength len base) :: cb :: check_1
+  in
+  check_0
+  
+  
           
     (* Check a write *)
 let checkRead = checkMem None

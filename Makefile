@@ -160,18 +160,29 @@ SAFECC+= $(EXTRAARGS:%= --safec=%)
 
     # Now the rules to make the library
 ifdef _MSVC
+ifdef RELEASE
 SAFECLIB=/Necula/SafeC/cil/obj/safec.lib
-$(SAFECLIB) : $(SAFECCDIR)/cil/lib/safec.c
-	cl /O2 /Zi /I./lib /c $(DEF)_MSVC $(OBJOUT)$(OBJDIR)/safec.o $<
+else
+SAFECLIB=/Necula/SafeC/cil/obj/safecdebug.lib
+SAFECLIBARG=$(DEF)_DEBUG
+endif
+$(SAFECLIB) : $(SAFECCDIR)/cil/lib/safec.c \
+              $(SAFECCDIR)/cil/lib/safec.h \
+              $(SAFECCDIR)/cil/lib/safeccheck.h
+	cl /O2 /Zi /I./lib /c $(DEF)_MSVC $(SAFECLIBARG) \
+                                          $(OBJOUT)$(OBJDIR)/safec.o $<
 	lib /OUT:$(SAFECLIB) $(OBJDIR)/safec.o 
+
 SAFEMAINLIB=/Necula/SafeC/cil/obj/safecmain.lib
-$(SAFEMAINLIB) : $(SAFECCDIR)/cil/lib/safecmain.c
+$(SAFEMAINLIB) : $(SAFECCDIR)/cil/lib/safecmain.c \
+                 $(SAFECCDIR)/cil/lib/safec.h \
+                 $(SAFECCDIR)/cil/lib/safeccheck.h
 	cl /O2 /Zi /I./lib /c $(DEF)_MSVC $(OBJOUT)$(OBJDIR)/safecmain.o $<
 	lib /OUT:$(SAFEMAINLIB) $(OBJDIR)/safecmain.o 
 endif
 ifdef _GNUCC
 SAFECLIB=$(OBJDIR)/safeclib.a
-$(SAFECLIBRARY) : $(SAFECCDIR)/cil/lib/safec.c
+$(SAFECLIB) : $(SAFECCDIR)/cil/lib/safec.c
 	$(CC) $(OBJOUT)$(OBJDIR)/safec.o $<
 	$(LIB) $(LIBOUT)$(SAFECLIB) $(OBJOUT)$(OBJDIR)/safec.o 
 endif
