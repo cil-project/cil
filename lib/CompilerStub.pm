@@ -63,6 +63,7 @@ sub new {
     # Scan and process the arguments
     while($#args >= 0) {
         my $arg = shift @args; # Grab the next one
+        if($arg =~ m|^\s*$|) { next; }
         if(! $self->collectOneArgument($arg, \@args)) {
             print "Warning: Unknown argument $arg\n";
             push @{$self->{CCARGS}}, $arg;
@@ -247,71 +248,75 @@ sub classDebug {
 
 sub compilerArgument {
     my($self, $options, $arg, $pargs) = @_;
-    
     &classDebug("Classifying arg: $arg\n");
     my $idx = 0;
-    for($idx=0; $idx < $#{$options}; $idx += 2) {
+    for($idx=0; $idx < $#$options; $idx += 2) {
         my $key = ${$options}[$idx];
         my $action = ${$options}[$idx + 1];
         &classDebug("Try match with $key\n");
         if($arg =~ m|^$key|) {
           &classDebug(" match with $key\n");
+          my $fullarg = $arg;
           my $onemore;
           if(defined $action->{'ONEMORE'}) {
               &classDebug("  expecting one more\n");
-              if($arg eq $key) { # Grab the next argument
+              # Maybe the next arg is attached
+              my $realarg;
+              ($realarg, $onemore) = ($arg =~ m|^($key)(.+)$|);
+              if(! defined $onemore) {
+                  # Grab the next argument
                   $onemore = shift @{$pargs};
-                } else { # The next argument is actually attached
-                    ($arg, $onemore) = ($arg =~ m|^($key)(.+)$|);
-                }
-                $onemore = &quoteIfNecessary($onemore);
+                  $onemore = &quoteIfNecessary($onemore);
+                  $fullarg .= " $onemore";
+              } else {
+                  $onemore = &quoteIfNecessary($onemore);
+              }
+              &classDebug(" onemore=$onemore\n");
           }
-          &classDebug(" onemore=$onemore\n");
-          my $fullarg = defined($onemore) ? "$arg $onemore" : $arg;
           # Now see what action we must perform
           my $argument_done = 1;
-            if(defined $action->{'RUN'}) {
-                &{$action->{'RUN'}}($fullarg, $onemore);
-                $argument_done = 1;
-            }
-            if(defined $action->{'TYPE'}) {
-                &classDebug("  type=$action->{TYPE}\n");
-                if($action->{TYPE} eq "PREPROC") {
-                    push @{$self->{PPARGS}}, $fullarg; return 1;
-                }
-                if($action->{TYPE} eq "CC") {
-                    push @{$self->{CCARGS}}, $fullarg; return 1;
-                }
-                if($action->{TYPE} eq "LINKCC") {
-                    push @{$self->{CCARGS}}, $fullarg; 
-                    push @{$self->{LINKARGS}}, $fullarg; return 1;
-                }
-                if($action->{TYPE} eq "LINK") {
-                    push @{$self->{LINKARGS}}, $fullarg; return 1;
-                }
-                if($action->{TYPE} eq "CSOURCE") {
-                    push @{$self->{CFILES}}, $fullarg; return 1;
-                }
-                if($action->{TYPE} eq "OSOURCE") {
-                    push @{$self->{OFILES}}, $fullarg; return 1;
-                }
-                if($action->{TYPE} eq "ISOURCE") {
-                    push @{$self->{IFILES}}, $fullarg; return 1;
-                }
-                if($action->{TYPE} eq 'OUT') {
-                    if(defined($self->{OUTARG})) {
-                        print "Warning: output file is multiply defined: $self->{OUTARG} and $fullarg\n";
-                    }
-                    $self->{OUTARG} = $fullarg; return 1;
-                }
-                print "  Do not understand TYPE\n"; return 1;
-            }
-            if($argument_done) { return 1; }
-            print "Don't know what to do with option $arg\n"; 
-            return 0;
-        }
-    }
-    return 0;
+          if(defined $action->{'RUN'}) {
+              &{$action->{'RUN'}}($fullarg, $onemore);
+              $argument_done = 1;
+          }
+          if(defined $action->{'TYPE'}) {
+              &classDebug("  type=$action->{TYPE}\n");
+              if($action->{TYPE} eq "PREPROC") {
+                  push @{$self->{PPARGS}}, $fullarg; return 1;
+              }
+              if($action->{TYPE} eq "CC") {
+                  push @{$self->{CCARGS}}, $fullarg; return 1;
+              }
+              if($action->{TYPE} eq "LINKCC") {
+                  push @{$self->{CCARGS}}, $fullarg; 
+                  push @{$self->{LINKARGS}}, $fullarg; return 1;
+              }
+              if($action->{TYPE} eq "LINK") {
+                  push @{$self->{LINKARGS}}, $fullarg; return 1;
+              }
+              if($action->{TYPE} eq "CSOURCE") {
+                  push @{$self->{CFILES}}, $fullarg; return 1;
+              }
+              if($action->{TYPE} eq "OSOURCE") {
+                  push @{$self->{OFILES}}, $fullarg; return 1;
+              }
+              if($action->{TYPE} eq "ISOURCE") {
+                  push @{$self->{IFILES}}, $fullarg; return 1;
+              }
+              if($action->{TYPE} eq 'OUT') {
+                  if(defined($self->{OUTARG})) {
+                      print "Warning: output file is multiply defined: $self->{OUTARG} and $fullarg\n";
+                  }
+                  $self->{OUTARG} = $fullarg; return 1;
+              }
+              print "  Do not understand TYPE\n"; return 1;
+          }
+          if($argument_done) { return 1; }
+          print "Don't know what to do with option $arg\n"; 
+          return 0;
+      }
+   }
+   return 0;
 }
 
 
@@ -726,6 +731,8 @@ sub new {
             "-f" => { TYPE => 'LINKCC' },
             "-r" => { TYPE => 'LINK' },
             "-m" => { TYPE => 'LINKCC' },
+            "-Xlinker" => { ONEMORE => 1, TYPE => 'LINK' },
+            "-nostdlib" => { TYPE => 'LINK' },
             "-traditional" => { TYPE => 'PREPROC' },
             ],
                                   
@@ -762,7 +769,7 @@ sub compileOutputFile {
 
 sub linkOutputFile {
     my($self, $src) = @_;
-    if($self->{OUTARG} =~ m|-o (.+)|) {
+    if($self->{OUTARG} =~ m|-o\s*(\S.+)|) {
         return $1;
     }
     return "a.out";

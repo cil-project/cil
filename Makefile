@@ -1569,7 +1569,8 @@ ide-cd: mustbegcc mustbelinux $(LINUXMODULELIB)
 REISERFSDIR := test/linux/reiserfs
 reiserfs: mustbegcc mustbelinux $(LINUXMODULELIB)
 	cd $(REISERFSDIR); ( make clean && \
-           make CC="$(CCURED) $(LINUXPATCH) --entryPoint='init_reiserfs_fs'" ) ;
+           make CC="$(CCURED) --combine \
+                       $(LINUXPATCH) --entryPoint='init_reiserfs_fs'" ) ;
 	cd $(LINUXMODULELIBDIR) ; make reiserfs_cured.o
 
 ################# THE LINUX KERNEL

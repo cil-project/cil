@@ -782,10 +782,6 @@ val kinteger: ikind -> int -> exp
     OCaml integers are 31 bits and are guaranteed to fit in an IInt *)
 val integer: int -> exp
 
-(** Construct an integer of the first kind that is big enough. Use only for 
-    positive integers!!! *)
-val integerKinds: ikind list -> int64 -> exp
-
 
 (** True if the given expression is a (possibly cast'ed) 
     character or an integer constant *)

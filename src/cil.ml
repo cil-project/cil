@@ -725,21 +725,6 @@ let kinteger64 (k: ikind) (i: int64) : exp =
 (* Construct an integer of a given kind. *)
 let kinteger (k: ikind) (i: int) = kinteger64 k (Int64.of_int i)
 
-(* Construct an integer of the first kinds that fits. i must be POSITIVE *)
-let integerKinds (k: ikind list) (i: int64) : exp = 
-  let rec loop = function
-  | ((IInt | ILong) as k) :: _ when i < Int64.shift_left (Int64.of_int 1) 31 ->
-      kinteger64 k i
-  | ((IUInt | IULong) as k) :: _ when i < Int64.shift_left (Int64.of_int 1) 32
-    ->  kinteger64 k i
-  | (ILongLong as k) :: _ when i < Int64.shift_left (Int64.of_int 1) 63 -> 
-      kinteger64 k i
-  | (IULongLong as k) :: _ -> kinteger64 k i
-  | _ :: rest -> loop rest
-  | [] -> E.s (E.unimp "Cannot represent the integer %s\n" (Int64.to_string i))
-  in
-  loop k 
-
 (* Construct an integer. Use only for values that fit on 31 bits *)
 let integer (i: int) = Const (CInt64(Int64.of_int i, IInt, None))
             

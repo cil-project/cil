@@ -1801,7 +1801,28 @@ and doExp (isconst: bool)    (* In a constant *)
                 else
                   toInt (Int64.of_int 10) Int64.zero 0
               in
-              let res = integerKinds kinds i in
+              (* Construct an integer of the first kinds that fits. i must be 
+               * POSITIVE  *)
+              let res = 
+                let rec loop = function
+                  | ((IInt | ILong) as k) :: _ 
+                      when i < Int64.shift_left (Int64.of_int 1) 31 ->
+                        kinteger64 k i
+                  | ((IUInt | IULong) as k) :: _ 
+                     when i < Int64.shift_left (Int64.of_int 1) 32
+                    ->  kinteger64 k i
+                  | (ILongLong as k) :: _ 
+                     when i <= Int64.sub (Int64.shift_left 
+                                              (Int64.of_int 1) 63) 
+                                          (Int64.of_int 1) -> 
+                       kinteger64 k i
+                  | (IULongLong as k) :: _ -> kinteger64 k i
+                  | _ :: rest -> loop rest
+                  | [] -> E.s (E.unimp "Cannot represent the integer %s\n" 
+                                 (Int64.to_string i))
+                in
+                loop kinds 
+              in
               finishExp empty res (typeOf res)
             with e -> begin
               ignore (E.log "int_of_string %s (%s)\n" str 
