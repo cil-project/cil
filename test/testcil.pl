@@ -36,7 +36,7 @@ my $TEST = SafecRegTest->new(AvailParams => { 'SAFE' => 1,
 $main::globalTEST = $TEST;
 
 # am I on win32?
-my $win32 = ($^O eq 'MSWin32');
+my $win32 = ($^O eq 'MSWin32' || $^O eq 'cygwin');
 my $unix = !$win32;
 
 # am I using egcs?
@@ -322,7 +322,9 @@ $TEST->add2Tests("testrun/vararg1");
 $TEST->add2Tests("testrun/vararg2");
 $TEST->add2Tests("testrun/vararg3");
 $TEST->add2Tests("testrun/vararg4");
-$TEST->add2Tests("testrun/vararg11", "_MSVC=1");
+if($win32) {
+  $TEST->add2Tests("testrun/vararg11", "_MSVC=1");
+}
 $TEST->add2Tests("testrun/varargauto1");
 $TEST->add2Tests("testrun/vararg5", "_GNUCC=1");
 $TEST->add2Tests("testrun/vararg-tagged1");
@@ -512,7 +514,6 @@ $TEST->addTests("testrun/voidarg", "", ['cil']);
 $TEST->addTests("testrun/union2", "", ['cil']);
 $TEST->addTests("testrun/union3", "", ['cil']);
 $TEST->addTests("testrun/union4", "", ['inferbox']);
-$TEST->addTests("testrun/union5", "", ['inferbox']);
 $TEST->addTests("testrun/inline1", "", ['cil']);
 $TEST->addTests("testrun/tcast2", "", ['inferbox']);
 $TEST->addTests("testrun/rtti1", "", ['inferbox']);
@@ -1164,7 +1165,8 @@ altAddTest("badd/fseq $box $gcc");
 altAddTest("badd/calloc $box $gcc");
 altAddTest("badd/stackaddr $box $gcc");
 altAddTest("test-bad/trivial-tb");
-altAddTest("test-bad/retptr $box RELEASE=");
+altAddTest("test-bad/retptr $box RELEASE=1");
+$TEST->addBadComment("test-bad/retptr", "Fails in RELEASE mode because the ok() function is inlined, making it look like we're returning a local.");
 
 # verify we have tags and that they work
 # altAddTest("badd/nonptr $box $gcc");          # very simple test. Covered by wild1

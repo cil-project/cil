@@ -299,6 +299,7 @@ let parse_error (msg: string) : 'a =
     output_string stderr "Too many errors. Aborting.\n" ;
     exit 1 
   end;
+  hadErrors := true;
   raise Parsing.Parse_error
 
 
