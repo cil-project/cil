@@ -1091,7 +1091,7 @@ and minLatticeValue (inst : instr) : lattice =
 	then  latCheckNotNeeded (* CHECK's are non-clobbering *)
 	else  latCheckNeeded    (* Other functions may clobber *)
     | Call _ -> latCheckNeeded 
-    | Asm  _ -> latCheckNeeded
+    | Asm  _ -> latCheckNeeded 
 
 
 (* evalCin:

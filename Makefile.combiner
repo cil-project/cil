@@ -5,9 +5,6 @@
 ECHO = @
 
 
-# First stuff that makes the executable 
-# Define the ARCHOS in your environemt : [x86_LINUX, x86_WIN32, SUNOS]
-
 SOURCEDIRS  = src src/frontc
 OBJDIR      = obj
 MLLS        = clexer.mll
@@ -29,6 +26,6 @@ EXTRACLEAN += $(OBJDIR)/*.obj $(OBJDIR)/*.a $(OBJDIR)/*.o
 
 
     # Include now the common set of rules for OCAML
-    # This file will add the rules to make $(EXECUTABLE).$(EXE)
+    # This file will add the rules to make $(EXECUTABLE)$(EXE)
 include Makefile.ocaml
 

@@ -673,6 +673,15 @@ let mainWrapper_fs =
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fdec
 
+let mainWrapper_ff =   
+  let fdec = emptyFunction "_mainWrapper_ff" in
+  let argc  = makeVarinfo "argc" intType in
+  let argv  = makeVarinfo "argv" (TPtr(charPtrType, [])) in
+  fdec.svar.vtype <- TFun(intType, [ argc; argv ], false, []);
+  checkFunctionDecls := 
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
+  fdec
+
 let mainWrapper_fq =   
   let fdec = emptyFunction "_mainWrapper_fq" in
   let argc  = makeVarinfo "argc" intType in
@@ -1009,6 +1018,16 @@ let checkPositiveFun =
   fdec.svar.vtype <- TFun(voidType, [ argx; ], false, []);
   fdec.svar.vstorage <- Static;
   (declareGlobalChecker fdec);
+  fdec
+
+let checkAdvanceFun = 
+  let fdec = emptyFunction "CHECK_ADVANCE" in
+  let argp = makeVarinfo "p" charPtrType in
+  let argx  = makeVarinfo "x" intType in
+  fdec.svar.vtype <- TFun(voidType, [ argp; argx; ], false, []);
+  fdec.svar.vstorage <- Static;
+  checkFunctionDecls := 
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fdec
 
 
@@ -2001,7 +2020,8 @@ let pkArithmetic (ep: exp)
       mkFexp3 et (BinOp(bop, ptr, e2, ptype)) fb fe, empty
   | (N.FSeq|N.FSeqN|N.FSeqT|N.FSeqNT) ->
       mkFexp3 et (BinOp(bop, ptr, e2, ptype)) fb fe, 
-      single (call None (Lval (var checkPositiveFun.svar)) [ e2 ])
+      single (call None (Lval (var checkAdvanceFun.svar)) 
+                [ doCastT ptr ptype charPtrType; e2 ])
       
   | N.Safe ->
       if isZero e2 then 
@@ -4329,6 +4349,7 @@ let boxFile file =
       | "main_qw" -> mainWrapper_qw
       | "main_fw" -> mainWrapper_fw
       | "main_fq" -> mainWrapper_fq
+      | "main_ff" -> mainWrapper_ff
       | _ -> E.s (E.unimp "Din't expect to mangle the name of main to %s"
                     !mangledMainName)
     in

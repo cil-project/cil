@@ -7,7 +7,8 @@ exception ParseError of string
 let rec parse_to_cabs fname =
   let cabs = 
     try
-      ignore (E.log "Frontc is parsing %s\n" fname);
+      if !E.verboseFlag then 
+        ignore (E.log "Frontc is parsing %s\n" fname);
       flush !E.logChannel;
       let file = open_in fname in
       E.hadErrors := false;
@@ -16,7 +17,8 @@ let rec parse_to_cabs fname =
         Stats.time "parse"
           (Cparser.file Clexer.initial) lexbuf in
       close_in file;
-      ignore (E.log "Frontc finished parsing %s\n" fname);
+      if !E.verboseFlag then 
+        ignore (E.log "Frontc finished parsing %s\n" fname);
       cabs
     with (Sys_error msg) -> begin
       ignore (E.log "Cannot open %s : %s\n" fname msg);

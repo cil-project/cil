@@ -480,10 +480,10 @@ type fundec =
       mutable sbody: block;             (* the body *)
       mutable sinline: bool;            (* Whether the function is inline or 
                                          * not *)
-			mutable smaxstmtid : int option;  (* max id of a (reachable)
-																			   * statement in this function, if
-			                                   * we have computed it.
-																				 * range = 0 ... (smaxstmtid-1) *)
+      mutable smaxstmtid : int option;  (* max id of a (reachable) statement 
+                                         * in this function, if we have 
+                                         * computed it. range = 0 ... 
+                                         * (smaxstmtid-1)  *)
     }
 
 type global =
@@ -711,6 +711,10 @@ val var: varinfo -> lval
    * type ptr(T). It optimizes somewhat expressions like "& v" and "& v[0]"  *)
 val mkAddrOf: lval -> exp               
 
+  (** Like mkAddrOf except if the type of lval is an array then it uses 
+    * StartOf. This is the right operation for getting a pointer to the start 
+    * of the storage denoted by lval. *)
+val mkAddrOrStartOf: lval -> exp
 
   (* Make a Mem, while optimizing AddrOf. The type of the addr must be 
    * TPtr(t) and the type of the resulting lval is t. Note that in CIL the 
@@ -751,8 +755,7 @@ val dummyStmt: stmt
 val makeZeroInit: typ -> init
 
 
-(* Fol
- over the list of initializers in a Compound. doinit is called on 
+(* Fol over the list of initializers in a Compound. doinit is called on 
  * every present initializer, even if it is of compound type. This is much 
  * like a a List.fold_left except we also pass the type of the initializer *)
 val foldLeftCompound: 
@@ -1083,16 +1086,23 @@ type offsetAcc =
     } 
 val offsetOfFieldAcc: fi: fieldinfo ->
                       sofar: offsetAcc -> offsetAcc 
-        
-(* The size of a type, in bits. If struct or array then trailing padding is 
- * added *)
-val flagSizeOfErrors: bool ref
+
+(** Raised when one of the bitsSizeOf functions cannot compute the size of a 
+ * type. This can happen because the type contains array-length expressions 
+ * that we don't know how to compute or because it is a type whose size is 
+ * not defined (e.g. TVoid or TFun)  *)        
+exception SizeOfError of typ
+
 val bitsSizeOf: typ -> int
 val sizeOf: typ -> exp
             
+(** The minimum alignment (in bytes) for a type *)
+val alignOf_int: typ -> int
 
+(** Converts an offset into a number of bits from the base address and a 
+  width (also expressed in bits) *)
+val bitsOffset: typ -> offset -> int * int
 
-val offsetOf: fi:fieldinfo -> startcomp: int -> int * int
 
 
 (* A few globals that control the interpretation of C source *)

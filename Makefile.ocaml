@@ -72,6 +72,7 @@ ifdef RELEASE
  CMXA           = cmxa
  EXEEXT         = .asm
  MOVEAFTERCAMLC = cmi cmx $(OBJ)
+ COMPILETOWHAT  = native code
 else 
  CAMLC          = ocamlc -g $(COMPILEFLAGS)
  CAMLLINK       = ocamlc -custom -g $(LINKFLAGS)
@@ -79,6 +80,7 @@ else
  CMXA           = cma
  EXEEXT         = .byte
  MOVEAFTERCAMLC = cmi cmo
+ COMPILETOWHAT  = bytecode
 endif
 endif
 
@@ -87,33 +89,10 @@ ifdef UNSAFE
 endif
 
 
-      # Now some architecture dependent stuff
-ifndef ARCHOS
-  export ARCHOS = x86_LINUX
-endif
-ifeq ($(ARCHOS), x86_WIN32)
-  EXE		= $(EXEEXT).exe
-  OBJ   	= o
-  ifdef CAMLUSEUNIX
-    UNIXLIBS	+= unix.$(CMXA) -cclib -lunix
-  endif
-endif
-ifeq ($(ARCHOS), x86_LINUX)
-  EXE           = $(EXEEXT).exe
-  OBJ           = o
-  ifdef CAMLUSEUNIX
-    UNIXLIBS	+= unix.$(CMXA) -cclib -lunix
-  endif
-endif
-ifeq ($(ARCHOS), SUNOS)
-  EXE           = $(EXEEXT).exe
-  OBJ           = o
-  ifdef CAMLUSEUNIX
-    UNIXLIBS	+= unix.$(CMXA) -cclib -lunix
-  endif
-endif
-ifndef EXE
-I don''t know what to do with ARCHOS = $(ARCHOS)
+EXE		= $(EXEEXT).exe
+OBJ   	= o
+ifdef CAMLUSEUNIX
+  UNIXLIBS	+= unix.$(CMXA) -cclib -lunix
 endif
 
 
@@ -164,7 +143,7 @@ $(OBJDIR)/%.cmi: %.mli
 
          # Compile an ML file
 $(OBJDIR)/%.$(CMO): %.ml
-	@echo Compiling $< 
+	@echo Compiling $< to $(COMPILETOWHAT)
 	$(ECHO)if test $(OBJDIR) != $(<D) ;then \
                  if test -f $(OBJDIR)/$(*F).cmi ;then \
                       mv -f $(OBJDIR)/$(*F).cmi $(<D) \
@@ -192,7 +171,7 @@ $(OBJDIR)/%.$(OBJ): %.c
 
              # Linking
 $(EXECUTABLE)$(EXE) : $(MODULES:%=$(OBJDIR)/%.$(CMO)) 
-	@echo Linking $@
+	@echo Linking $(COMPILETOWHAT) $@
 	$(ECHO)$(CAMLLINK) -o $@ $(CAMLLIBS) $^
 
 

@@ -40,12 +40,7 @@ clean:
 
 # build ocamldoc documentation tree
 odoc:
-	mkdir odoc 2>/dev/null || true
-	odoc -d odoc -html -t "CCured Module Documentation" \
-	     -I obj src/*.mli src/frontc/*.mli
-
-# don't be confused by presence of odoc/ directory
-.PHONY: odoc
+	make -f Makefile.ccured odoc $(MAKEOVERRIDES)
 
 CCURED := perl $(CCUREDHOME)/lib/ccured.pl 
 PATCHER := perl $(CCUREDHOME)/lib/patcher.pl
@@ -53,6 +48,11 @@ PATCHER := perl $(CCUREDHOME)/lib/patcher.pl
 # Now do the user-specific customization
 # It is Ok if this file does not exist
 -include $(CCUREDHOME)/.ccuredrc
+
+# By default we are on Linux
+ifndef ARCHOS
+ARCHOS := x86_WIN32
+endif
 
 # By default use the old patcher
 ifndef NEWPATCH
@@ -80,6 +80,10 @@ PATCHER += --mode=$(COMPILERNAME)
 export EXTRAARGS
 export INFERBOX
 
+ifndef INFERBOX
+INFERBOX:=none
+endif
+
 STANDARDPATCH := --includedir=$(CCUREDHOME)/include
 
 # CCURED contains arguments that are passed to ccured.pl
@@ -91,16 +95,13 @@ CCURED+= $(EXTRAARGS)
 ifdef USER_SCOTT
   # I like -g always
   CCURED+= -g
-  # currently the #line directives are inaccurate, so
-  # they are counterproductive
-  #CCURED+= --noPrintLn
 
   # trace patching process
   #TRACE=patch
 endif
 
 
-ifdef INFERBOX
+ifneq ($(INFERBOX),none)
   MANUALBOX := 1
   CCURED+= --curetype=$(INFERBOX) $(DEF)INFERBOX
   CCURED+= --emitinfer 
@@ -757,7 +758,7 @@ ifdef _MSVC
 endif
 perimeter: 
 	cd $(PERIMDIR); \
-               make PLAIN=1 clean  \
+               make PLAIN=1 clean defaulttarget  \
                     $(PERIMARGS) \
                     CC="$(COMBINESAFECC) \
 			$(PATCHARG)"
@@ -779,7 +780,7 @@ voronoi :
 	cd $(VORONDIR); sh -c "time ./voronoi.exe 60000 1"
 
 # Traveling salesman
-TSPDIR := test/olden/tspx
+TSPDIR := test/olden/tsp
 ifdef _MSVC
   TSPARGS := _MSVC=1
 endif
@@ -1057,7 +1058,7 @@ vortex-tv:
 ### SPEC95 m88ksim
 M88DIR := $(SPECDIR)/124.m88ksim
 M88SAFECC := $(CCURED) --combine $(PATCHARG) \
-               --nocure=m88k_trusted --noPrintInferbox
+               --nocure=m88k_trusted
 m88kclean: 	
 	cd $(M88DIR)/src; make clean
 	cd $(M88DIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
@@ -1120,7 +1121,6 @@ ijpeg-noclean:  mustbegcc
 
 #### SPEC95 gcc
 GCCDIR := $(SPECDIR)/126.gcc
-# sm: --noPrintInferbox works around an infinite loop in our data structure
 GCCSAFECC := $(CCURED) --combine $(PATCHARG)
 
 

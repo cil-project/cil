@@ -22,3 +22,5 @@ safec.log.?
 *.stackdump
 *_all.c
 
+testingcil.c
+testcil.random

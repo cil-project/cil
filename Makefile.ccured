@@ -1,15 +1,11 @@
 # toplevel Makefile for CCured project
 # author: George Necula
 #
-# 3/06/01 sm: made the rules depend on environment variable ARCHOS,
-#             so I can say x86_LINUX
-# 3/17/01 sm: replaced a few more instances of x86_WIN32 with $(ARCHOS)
 
 # Debugging. Set ECHO= to debug this Makefile 
 ECHO := @
 
 # First stuff that makes the executable 
-# Define the ARCHOS in your environemt : [x86_LINUX, x86_WIN32, SUNOS]
 
 SOURCEDIRS  := src
 OBJDIR      := obj
@@ -43,7 +39,7 @@ EXTRACLEAN += $(OBJDIR)/*.obj $(OBJDIR)/*.a $(OBJDIR)/*.o
 
 
     # Include now the common set of rules for OCAML
-    # This file will add the rules to make $(EXECUTABLE).$(EXE) along with 
+    # This file will add the rules to make $(EXECUTABLE)$(EXE) along with 
     # cleancaml and realcleancaml
 include Makefile.ocaml
 
@@ -179,6 +175,13 @@ $(PATCHEDHEADERS): $(CCUREDHOME)/lib/patcher.pl $(PATCHTEMPLATE)
 	$(PATCHER) --patch=$(PATCHTEMPLATE) \
                    --dest=$(CCUREDHOME)/include \
 	           $(foreach file,$(PATCH_SYSINCLUDES), --sfile=$(file))
+
+# don't be confused by presence of odoc/ directory
+.PHONY: odoc
+odoc:
+	mkdir odoc 2>/dev/null || true
+	odoc -d odoc -html -t "CCured Module Documentation" \
+	     -I obj src/*.mli src/frontc/*.mli
 
 clean: cleancaml
 	$(PATCHER) --dest=$(CCUREDHOME)/include --clean

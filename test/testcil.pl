@@ -17,11 +17,7 @@ use RegTest;
 print "Test infrastructure for SafeC\n";
 
 # Create our customized test harness
-my $TEST = SafecRegTest->new(AvailParams => {"run" => 1, 
-                                             "parse" => 1, 
-                                             "solve" => 1, 
-                                             "print" => 1, 
-                                             "box" => 1},
+my $TEST = SafecRegTest->new(AvailParams => {},
                              LogFile => "safec.log",
                              CommandName => "testsafec");
 
@@ -29,13 +25,15 @@ my $TEST = SafecRegTest->new(AvailParams => {"run" => 1,
 # interpret the error 
 
 # Stages:
+#  1000 - Start (scripts, preprocessors, etc.)
 #  1001 - Parsing
 #  1002 - cabs2cil
 #  1003 - collecting constraints
 #  1004 - solving constraints
 #  1005 - Boxing file
-#  1006 - Compilation
-#  1007 - Running 
+#  1006 - Optimization
+#  1007 - Compilation
+#  1008 - Running 
 
 my @runpattern = 
     ("^Run.+ ([.\\d]+)ms" => sub { $_[1]->{"run"} = $_[2]; });
@@ -43,41 +41,39 @@ my @runpattern =
 my %commonerrors = 
     ("^Parsing " => sub { $_[1]->{instage} = 1001; },
 
+     "^Converting CABS" => sub { $_[1]->{instage} = 1002; },
+
      "^Collecting constraints" => sub { $_[1]->{instage} = 1003; },
 
      "^Solving constraints" => sub { $_[1]->{instage} = 1004; },
 
-     "^Boxing file" => sub { $_[1]->{instage} = 1005; },
+     "^Adding run-time checks" => sub { $_[1]->{instage} = 1005; },
 
-     "^Cure complete" => sub { $_[1]->{instage} = 1006; },
+     "^Optimizing checks" => sub { $_[1]->{instage} = 1006; },
 
-     "^Error: Boxing" => sub { $_[1]->{ErrorCode} = 1005; },
+     "^Cure complete" => sub { $_[1]->{instage} = 1007; },
 
+     "^Linked the cured program" => sub { $_[1]->{instage} = 1008; },
 
+# We are seeing an error from make. Try to classify it based on the stage
+# in which we are
      "^make: \\*\\*\\*" => 
      sub { 
          if($_[1]->{ErrorCode} == 0) {
-             if($_[1]->{instage} == 0) {
-                 $_[1]->{ErrorCode} = 2;
-             } else {
-                 $_[1]->{ErrorCode} = $_[1]->{instage};
-             }
+             $_[1]->{ErrorCode} = $_[1]->{instage};
          }},
-    "stackdump: Dumping stack trace" => sub { $_[1]->{ErrorCode} = 1006; },
     
     "Syntax error" => sub { $_[1]->{ErrorCode} = 1000; },
     
-    "^Error: Cabs2cil" => sub { $_[1]->{ErrorCode} = 1002; },
-    
-    
-
          # Collect some more parameters
          # Now error messages
     "^(Bug: .+)\$" => sub { $_[1]->{ErrorMsg} = $_[2]; },
+    "^(Error: .+)\$" => sub { $_[1]->{ErrorMsg} = $_[2]; },
     "^(Unimplemented: .+)\$" => sub { $_[1]->{ErrorMsg} = $_[2]; },
     "^(.+ : error .+)\$" => sub { $_[1]->{ErrorMsg} = $_[2]; },
     "^(.+:\\d+: [^w].+)\$" => sub { $_[1]->{ErrorMsg} = $_[2]; },
     "^(.+: fatal error.+)\$" => sub { $_[1]->{ErrorMsg} = $_[2]; },
+    "^stackdump: Dumping stack trace" => sub { $_[1]->{ErrorMsg} = $_[2]; },
 
     );
 
@@ -144,7 +140,7 @@ $TEST->add3Tests("testrun/init1");
 $TEST->addTests("testrun/init2", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/init3", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/init4", "_GNUCC=1", ['cil']);
-$TEST->add3Tests("test/initial", "_GNUCC=1");
+$TEST->addTests("testrun/initial", "_GNUCC=1", ['cil']);
 $TEST->add3Tests("test/jmp_buf");
 $TEST->add3Tests("test/linux_atomic", "_GNUCC=1");
   $TEST->addBadComment("test/linux_atomic-box", "strange C code");
@@ -222,6 +218,10 @@ $TEST->add2TestsFail("testrun/failsprintf3", "", "Failure: Non-pointer");
 $TEST->add2TestsFail("testrun/failsscanf1", "", "Failure: Ubound");
 $TEST->add2TestsFail("testrun/simon6", "", "Failure: Non-pointer");
     
+$TEST->add2TestsFail("testrun/infer1", "", "Failure: ");
+$TEST->add2TestsFail("testrun/fseq1", "", "Failure: Decrement FSEQ");
+$TEST->addTestsFail("testrun/string1", "", "Failure: ", ['inferbox']);
+
 #
 # OLDEN benchmarks
 #
@@ -281,10 +281,8 @@ $TEST->add2Tests("vortex", "_GNUCC=1");
   $TEST->addBadComment("vortex-inferbox", "function pointers");
 
 
-$TEST->add3Tests("apache/gzip");
-   $TEST->add3Group("apache/gzip", "apache", "slow");
-#   $TEST->addBadComment("apache/gzip-inferbox", "BUG");
-#   $TEST->addBadComment("apache/gzip-box", "BUG");
+$TEST->add2Tests("apache/gzip");
+   $TEST->add2Group("apache/gzip", "apache", "slow");
 #$TEST->add3Tests("apache/rewrite");
 #   $TEST->addBadComment("apache/rewrite-cil", "missing main");
 #   $TEST->add3Group("apache/rewrite", "apache");
@@ -342,6 +340,17 @@ $TEST->addTests("scott/errorinfn", "", ['cil']);
 
 
 # print Dumper($TEST);
+
+# Disable most tests
+#foreach my $tst (keys %{$TEST->{tests}}) {
+#    if($tst ne "testrun/failnull1-inferbox") {
+#        print "Disabling $tst\n";
+#        $TEST->{tests}->{$tst}->{Enabled} = 0;
+#    } else {
+#        print "Enabling $tst\n";
+#        $TEST->{tests}->{$tst}->{Enabled} = 1;
+#    }
+#}
 
 # Now invoke it
 $TEST->doit();
@@ -407,18 +416,21 @@ sub errorHeading {
     my($self, $err) = @_;
     return "Not executed" if $err == -1;
     return "Success" if $err == 0;
-    return "Parse error" if $err == 1000;
+    return "Preprocessor error" if $err == 1000;
+    return "Parse error" if $err == 1001;
     return "Cabs2cil error" if $err == 1002;
     return "Collecting constraints error" if $err == 1003;
     return "Constraint solving error" if $err == 1004;
     return "Boxing error" if $err == 1005;
-    return "Compilation error" if $err == 1006;
-    return "Execution error" if $err == 1007;
-    return $self->SUPER::errorHeading();
+    return "Optimization error" if $err == 1006;
+    return "Compilation error" if $err == 1007;
+    return "Execution error" if $err == 1008;
+    return $self->SUPER::errorHeading($err);
 }
 
 sub startParsingLog {
     my($self, $tst) = @_;
+    $tst->{instage} = 1000;
     $tst->{ErrorCode} = 0;
 }
 
@@ -429,7 +441,7 @@ sub availableParameters {
 }
 
 
-# Add a number of tests them. 
+# Add a number of tests. 
 # name is the base name of the tests
 # extrargs are passed on the command line for each test
 # kinds must be a list containint: cil, inferbox, box
@@ -438,7 +450,7 @@ sub addTests {
     my($self, $name, $extraargs, $pkinds, %extrafields) = @_;
 
     my $theargs = defined($self->{option}->{safecdebug}) 
-        ? " " : " RELEASE=1 OPTIM=1 ";
+        ? " " : " OPTIM=1 RELEASE=1 ";
     $theargs .= " $extraargs ";
     if(defined $self->{option}->{noremake}) {
         $theargs .= " NOREMAKE=1";

@@ -3,13 +3,6 @@ typedef double real;
 #define DIM 3
 typedef real vector[3], matrix[DIM][DIM];
 
-typedef struct _node {
-  short int type;
-  real mass;
-  vector pos;
-  struct _node *next;
-} node, *nodeptr;
-
 
 void multiply(matrix a, matrix b) {
   int i, j;
@@ -26,3 +19,4 @@ void multiply(matrix a, matrix b) {
     }
   }
 }
+

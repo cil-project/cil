@@ -189,11 +189,8 @@ let parse fname =
   let cabs = parse_to_cabs fname in
   (* Now convert to CIL *)
   fun _ ->
-    (trace "sm" (dprintf "beginning conversion to Cil\n"));
     let cil = Stats.time "conv" (Cabs2cil.convFile fname) cabs in
     if !doPrintProtos then (printPrototypes cabs);
-    if !E.verboseFlag then 
-      ignore (E.log "FrontC finished conversion of %s to CIL\n" fname);
     cil
 
 

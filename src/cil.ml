@@ -2960,6 +2960,12 @@ let mkAddrOf ((b, off) as lval) : exp =
   | _ -> AddrOf lval
 
 
+let mkAddrOrStartOf (lv: lval) : exp = 
+  match unrollType (typeOfLval lv) with 
+    TArray _ -> StartOf lv
+  | _ -> mkAddrOf lv
+
+
   (* Make a Mem, while optimizing AddrOf. The type of the addr must be 
    * TPtr(t) and the type of the resulting lval is t. Note that in CIL the 
    * implicit conversion between a function and a pointer to a function does 
@@ -3252,7 +3258,6 @@ let rec isCompleteType t =
   | _ -> true
 
 
-(* removeUnusedTemps has been moved to rmtmps.ml *)  
 
 let debugAlpha = false
 (*** Alpha conversion ***)
@@ -3260,7 +3265,7 @@ let debugAlpha = false
  * prefix (obtained from the given name by stripping a suffix consisting of _ 
  * followed by only digits), followed by a '_' and then by a positive integer 
  * suffix. The first argument is a table mapping name prefixes with the 
- * largest suffix used so far for that prefix. The largest suffix is one when 
+b * largest suffix used so far for that prefix. The largest suffix is one when 
  * only the version without suffix has been used. *)
 let rec newAlphaName (alphaTable: (string, int ref) H.t)
                      (lookupname: string) : string = 
@@ -3329,10 +3334,48 @@ let docAlphaTable (alphaTable: (string, int ref) H.t) =
  ** MACHINE DEPENDENT PART
  **
  **)
+exception SizeOfError of typ
 
+        
+(* Get the minimum aligment in bytes for a given type *)
+let rec alignOf_int = function
+  | TInt((IChar|ISChar|IUChar), _) -> 1
+  | TInt((IShort|IUShort), _) -> 2
+  | TInt((IInt|IUInt), _) -> 4
+  | TInt((ILong|IULong), _) -> 4
+  | TInt((ILongLong|IULongLong), _) -> 8
+  | TEnum _ -> 4 (* !!! is this correct ? *)
+  | TFloat(FFloat, _) -> 4
+  | TFloat((FDouble|FLongDouble), _) -> 8
+  | TNamed (_, t, _) -> alignOf_int t
+  | TArray (t, _, _) -> alignOf_int t
+  | TPtr _ -> 4
+        (* For composite types get the maximum alignment of any field inside *)
+  | TComp (c, _) ->
+      (* On GCC the zero-width fields do not contribute to the alignment. On 
+       * MSVC only those zero-width that _do_ appear after other 
+       * bitfields contribute to the alignment. So we drop those that 
+       * do not occur after othe bitfields *)
+      let rec dropZeros (afterbitfield: bool) = function
+        | f :: rest when f.fbitfield = Some 0 && not afterbitfield -> 
+            dropZeros afterbitfield rest
+        | f :: rest -> f :: dropZeros (f.fbitfield <> None) rest
+        | [] -> []
+      in
+      let fields = dropZeros false c.cfields in
+      List.fold_left 
+        (fun sofar f -> 
+          (* Bitfields with zero width do not contribute to the alignment in 
+           * GCC *)
+          if not !msvcMode && f.fbitfield = Some 0 then sofar else
+          max sofar (alignOf_int f.ftype)) 1 fields
+        (* These are some error cases *)
+  | (TFun _ | TVoid _) as t -> raise (SizeOfError t)
+      
+  
      
 type offsetAcc = 
-    { oaFirstFree: int;   (* The first free bit *)
+    { oaFirstFree: int;        (* The first free bit *)
       oaLastFieldStart: int;   (* Where the previous field started *)
       oaLastFieldWidth: int;   (* The width of the previous field. Might not 
                                 * be same as FirstFree - FieldStart because 
@@ -3345,95 +3388,184 @@ type offsetAcc =
                                                    * width of the ikind *)
     } 
 
-let rec offsetOfFieldAcc (fi: fieldinfo) 
-                         (sofar: offsetAcc) : offsetAcc = 
+
+(* GCC version *)
+(* Does not use the sofar.oaPrevBitPack *)
+let rec offsetOfFieldAcc_GCC (fi: fieldinfo) 
+                             (sofar: offsetAcc) : offsetAcc = 
   (* field type *)
   let ftype = unrollType fi.ftype in
-  match ftype, fi.fbitfield, sofar.oaPrevBitPack with (* Check for a bitfield 
-                                                       * that fits in the 
-                                                       * current pack after 
-                                                       * some other bitfields 
-                                                       * *)
-    TInt(ikthis, _), Some wdthis, Some (packstart, ikprev, wdpack)
-      when ((not !msvcMode || ikthis = ikprev) && 
-            packstart + wdpack >= sofar.oaFirstFree + wdthis) ->
+  let ftypeAlign = 8 * alignOf_int ftype in
+  let ftypeBits = bitsSizeOf ftype in
+(*
+  if fi.fcomp.cname = "comp2898" then 
+    ignore (E.log "offsetOfFieldAcc_GCC(%s of %s:%a%a,firstFree=%d,pack=%a)\n" 
+              fi.fname fi.fcomp.cname 
+              d_type ftype
+              insert
+              (match fi.fbitfield with
+                None -> nil
+              | Some wdthis -> dprintf ":%d" wdthis)
+              sofar.oaFirstFree 
+              insert
+              (match sofar.oaPrevBitPack with 
+                None -> text "None"
+              | Some (packstart, _, wdpack) -> 
+                  dprintf "Some(packstart=%d,wd=%d)"
+                    packstart wdpack));
+*)
+  match ftype, fi.fbitfield with
+    (* A width of 0 means that we must end the current packing. It seems that 
+     * GCC pads only up to the alignment boundary for the type of this field. 
+     * *)
+  | _, Some 0 -> 
+      let firstFree      = addTrailing sofar.oaFirstFree ftypeBits in
+      { oaFirstFree      = firstFree;
+        oaLastFieldStart = firstFree;
+        oaLastFieldWidth = 0;
+        oaPrevBitPack    = None }
+
+    (* A bitfield cannot span the alignment unit of its type *)
+  | _, Some wdthis 
+      when (sofar.oaFirstFree + wdthis - 1) / ftypeAlign 
+            <> sofar.oaFirstFree / ftypeAlign  -> 
+        (* Pad and redo *)
+        offsetOfFieldAcc_GCC fi
+          { oaFirstFree      = addTrailing sofar.oaFirstFree ftypeAlign;
+            oaLastFieldStart = sofar.oaLastFieldStart;
+            oaLastFieldWidth = sofar.oaLastFieldWidth;
+            oaPrevBitPack    = None }
+        
+   (* Try a simple method. Just put it down after we made certain that it 
+    * does not span its alignment *)
+  | _, Some wdthis -> 
+      { oaFirstFree      = sofar.oaFirstFree + wdthis;
+        oaLastFieldStart = sofar.oaFirstFree; 
+        oaLastFieldWidth = wdthis;
+        oaPrevBitPack    = None
+      } 
+
+     (* Non-bitfield *)
+  | _, None -> 
+      (* Align this field *)
+      let newStart = addTrailing sofar.oaFirstFree ftypeAlign  in
+      { oaFirstFree = newStart + ftypeBits;
+        oaLastFieldStart = newStart;
+        oaLastFieldWidth = ftypeBits;
+        oaPrevBitPack = None;
+      } 
+
+(* MSVC version *)
+and offsetOfFieldAcc_MSVC (fi: fieldinfo) 
+                              (sofar: offsetAcc) : offsetAcc = 
+  (* field type *)
+  let ftype = unrollType fi.ftype in
+  let ftypeAlign = 8 * alignOf_int ftype in
+  let ftypeBits = bitsSizeOf ftype in
+(*
+  ignore (E.log "offsetOfFieldAcc_MSVC(%s of %s:%a%a,firstFree=%d, pack=%a)\n" 
+            fi.fname fi.fcomp.cname 
+            d_type ftype
+            insert
+            (match fi.fbitfield with
+              None -> nil
+            | Some wdthis -> dprintf ":%d" wdthis)
+            sofar.oaFirstFree 
+            insert
+            (match sofar.oaPrevBitPack with 
+              None -> text "None"
+            | Some (prevpack, _, wdpack) -> dprintf "Some(prev=%d,wd=%d)"
+                  prevpack wdpack));
+*)
+  match ftype, fi.fbitfield, sofar.oaPrevBitPack with
+    (* Ignore zero-width bitfields that come after non-bitfields *)
+  | TInt (ikthis, _), Some 0, None -> 
+      let firstFree      = sofar.oaFirstFree in
+      { oaFirstFree      = firstFree;
+        oaLastFieldStart = firstFree;
+        oaLastFieldWidth = 0;
+        oaPrevBitPack    = None }
+
+    (* If we are in a bitpack and we see a bitfield for a type with the 
+     * different width than the pack, then we finish the pack and retry *)
+  | _, Some _, Some (packstart, _, wdpack) when wdpack != ftypeBits ->
+      let firstFree = 
+        if sofar.oaFirstFree = packstart then packstart else
+        packstart + wdpack
+      in
+      offsetOfFieldAcc_MSVC fi
+        { oaFirstFree      = addTrailing firstFree ftypeAlign;
+          oaLastFieldStart = sofar.oaLastFieldStart;
+          oaLastFieldWidth = sofar.oaLastFieldWidth;
+          oaPrevBitPack    = None }
+
+    (* A width of 0 means that we must end the current packing. *)
+  | TInt (ikthis, _), Some 0, Some (packstart, _, wdpack) -> 
+      let firstFree = 
+        if sofar.oaFirstFree = packstart then packstart else
+        packstart + wdpack
+      in
+      let firstFree      = addTrailing firstFree ftypeAlign in
+      { oaFirstFree      = firstFree;
+        oaLastFieldStart = firstFree;
+        oaLastFieldWidth = 0;
+        oaPrevBitPack    = Some (firstFree, ikthis, ftypeBits) }
+
+   (* Check for a bitfield that fits in the current pack after some other 
+    * bitfields *)
+  | TInt(ikthis, _), Some wdthis, Some (packstart, ikprev, wdpack)
+      when  packstart + wdpack >= sofar.oaFirstFree + wdthis ->
               { oaFirstFree = sofar.oaFirstFree + wdthis;
                 oaLastFieldStart = sofar.oaFirstFree; 
                 oaLastFieldWidth = wdthis;
                 oaPrevBitPack = sofar.oaPrevBitPack
               } 
 
-  | _, _, Some (packstart, _, wdpack) -> (* Finisqh up the bitfield pack and 
-                                       * restart *)
-      offsetOfFieldAcc fi
-        { oaFirstFree = packstart + wdpack;
+
+  | _, _, Some (packstart, _, wdpack) -> (* Finish up the bitfield pack and 
+                                          * restart. *)
+      let firstFree = 
+        if sofar.oaFirstFree = packstart then packstart else
+        packstart + wdpack
+      in
+      offsetOfFieldAcc_MSVC fi
+        { oaFirstFree      = addTrailing firstFree ftypeAlign;
           oaLastFieldStart = sofar.oaLastFieldStart;
           oaLastFieldWidth = sofar.oaLastFieldWidth;
-          oaPrevBitPack = None }
-  | _ -> 
-      (* no active bitfield pack. Compute the internalPadding. Returns the 
-       * alignment boundary for internal padding for the current field  *)
-      let rec internalPaddingAlign = function 
-          TInt((IChar|ISChar|IUChar), _) -> 1
-        | TInt((IShort|IUShort), _) -> 2
-        | TInt((IInt|IUInt), _) -> 4
-        | TInt((ILong|IULong), _) -> 4
-        | TInt((ILongLong|IULongLong), _) -> 4  (* !!! is this correct *)
-        | TEnum _ -> 4 (* !!! Is this correct? *)
-        | TFloat(FFloat, _) -> 4
-        | TFloat((FDouble|FLongDouble), _) -> 8
-        | TNamed (_, t, _) -> internalPaddingAlign t
-        | TComp (comp, a) -> 4 (* Is this correct ? *)
-        | TArray _ -> 4 (* Is this correct ? *)
-        | TPtr _ -> 4
-        | (TVoid _ | TFun _) -> E.s (E.bug "internalPaddingAlign")
-      in
-      let internPad = (internalPaddingAlign ftype) lsl 3 in
-      let newStart = 
-        (sofar.oaFirstFree + internPad - 1) land (lnot (internPad - 1)) in
-      (* ignore (E.log "firstFree = %d, internPad = %d, newStart = %d\n"
-                sofar.oaFirstFree internPad newStart); *)
-      (* Now compute the width of this field *)
-      let mkRes thiswd btpack = 
-        { oaFirstFree = newStart + thiswd;
-          oaLastFieldStart = sofar.oaFirstFree;
-          oaLastFieldWidth = thiswd;
-          oaPrevBitPack = btpack }
-      in
-      match unrollType ftype, fi.fbitfield with
-        TInt(ik, a), Some wd -> 
-          let wdpack = bitsSizeOf (TInt(ik, a)) in
-          { oaFirstFree = newStart + wd;
-            oaLastFieldStart = newStart;
-            oaLastFieldWidth = wd;
-            oaPrevBitPack = Some (newStart, ik, wdpack); }
-      | _ ->
-          let wd = bitsSizeOf ftype in
-          (* ignore (E.log "non-bitfield (%a): wd=%d\n"
-                    d_type ftype wd); *)
-          { oaFirstFree = newStart + wd;
-            oaLastFieldStart = newStart;
-            oaLastFieldWidth = wd;
-            oaPrevBitPack = None;
-          } 
+          oaPrevBitPack    = None }
 
-(* should we make a big noise when we cannot take the size of something? *)
-and flagSizeOfErrors = ref true 
-        
+        (* No active bitfield pack. But we are seeing a bitfield. *)
+  | TInt(ikthis, _), Some wdthis, None -> 
+      let firstFree     = addTrailing sofar.oaFirstFree ftypeAlign in
+      { oaFirstFree     = firstFree + wdthis;
+        oaLastFieldStart = firstFree;
+        oaLastFieldWidth = wdthis;
+        oaPrevBitPack = Some (firstFree, ikthis, ftypeBits); }
+
+     (* No active bitfield pack. Non-bitfield *)
+  | _, None, None -> 
+      (* Align this field *)
+      let firstFree = addTrailing sofar.oaFirstFree ftypeAlign  in
+      { oaFirstFree = firstFree + ftypeBits;
+        oaLastFieldStart = firstFree;
+        oaLastFieldWidth = ftypeBits;
+        oaPrevBitPack = None;
+      } 
+
+  | _, Some _, None -> E.s (E.bug "offsetAcc")
+
+
+and offsetOfFieldAcc (fi: fieldinfo) 
+                     (sofar: offsetAcc) : offsetAcc = 
+  if !msvcMode then offsetOfFieldAcc_MSVC fi sofar
+  else offsetOfFieldAcc_GCC fi sofar
+
 (* The size of a type, in bits. If struct or array then trailing padding is 
  * added *)
 and bitsSizeOf t = 
   match t with 
-    TInt((IChar|ISChar|IUChar), _) -> 8
-  | TInt((IShort|IUShort), _) -> 16
-  | TInt((IInt|IUInt), _) -> 32
-  | TInt((ILong|IULong), _) -> 32
-  | TInt((ILongLong|IULongLong), _) -> 64
-  | TEnum _ -> 32 (* !!! is this correct ? *)
-  | TFloat(FFloat, _) -> 32
-  | TFloat((FDouble|FLongDouble), _) -> 64
+    TInt _ | TFloat _ | TEnum _ | TPtr _ -> 8 * alignOf_int t
   | TNamed (_, t, _) -> bitsSizeOf t
-  | TPtr _ -> 32
   | TComp (comp, _) when comp.cfields = [] -> 
       raise Not_found (*abstract type*)
   | TComp (comp, _) when comp.cstruct -> (* Struct *)
@@ -3448,7 +3580,12 @@ and bitsSizeOf t =
         List.fold_left (fun acc fi -> offsetOfFieldAcc fi acc) 
           startAcc comp.cfields 
       in
-      addTrailing lastoff.oaFirstFree
+      if !msvcMode && lastoff.oaFirstFree = 0 && comp.cfields <> [] then
+          (* On MSVC if we have just a zero-width bitfields then the length 
+           * is 32 and is not padded  *)
+        32
+      else
+        addTrailing lastoff.oaFirstFree (8 * alignOf_int t)
         
   | TComp (comp, _) -> (* when not comp.cstruct *)
         (* Get the maximum of all fields *)
@@ -3464,55 +3601,72 @@ and bitsSizeOf t =
           if lastoff.oaFirstFree > acc then
             lastoff.oaFirstFree else acc) 0 comp.cfields in
         (* Add trailing by simulating adding an extra field *)
-      addTrailing max
+      addTrailing max (8 * alignOf_int t)
 
   | TArray(t, Some (Const(CInt64(l,_,_))),_) -> 
-      addTrailing ((bitsSizeOf t) * (Int64.to_int l))
+      addTrailing ((bitsSizeOf t) * (Int64.to_int l)) (8 * alignOf_int t)
 
-  | TArray(t, None, _) -> raise Not_found
-        
-  | TArray _ -> 
-      if (!flagSizeOfErrors) then 
-        E.s (E.unimp "sizeOfInt for non-constant length array:@!%a" d_type t)
-      else
-        raise Not_found
-	| TFun _ -> 32
-  | TVoid _ -> 
-      if (!flagSizeOfErrors) then
-        E.s (E.bug "bitsSizeOf void")
-      else
-        raise Not_found
+  | (TArray(_, None, _) | TArray(_, Some _, _) | 
+    TFun _ | TVoid _) -> raise (SizeOfError t)
 
 
-and addTrailing nrbits = 
-    let roundto = 32 in
+and addTrailing nrbits roundto = 
     (nrbits + roundto - 1) land (lnot (roundto - 1))
 
 and sizeOf t = 
   try
     integer ((bitsSizeOf t) lsr 3)
-  with Not_found -> SizeOf(t)
+  with SizeOfError _ -> SizeOf(t)
 
  
+let bitsOffset (baset: typ) (off: offset) : int * int = 
+  let rec loopOff (baset: typ) (width: int) (start: int) = function
+      NoOffset -> start, width
+    | Index(e, off) -> begin
+        let ei = 
+          match isInteger e with
+            Some i64 -> Int64.to_int i64
+          | None -> raise (SizeOfError baset)
+        in
+        let bt = 
+          match unrollType baset with
+            TArray(bt, _, _) -> bt
+          | _ -> E.s (E.bug "bitsOffset: Index on a non-array")
+        in
+        let bitsbt = bitsSizeOf bt in
+        loopOff bt bitsbt (start + ei * bitsbt) off
+    end
+    | Field(f, off) when not f.fcomp.cstruct -> 
+        (* All union fields start at offset 0 *)
+        loopOff f.ftype (bitsSizeOf f.ftype) start off
 
-let offsetOf (fi: fieldinfo) (startcomp: int) : int * int = 
-  (* Construct a list of fields preceeding and including this one *)
-  let prevflds = 
-    let rec loop = function
-        [] -> E.s (E.bug "Cannot find field %s\n" fi.fname)
-      | fi' :: _ when fi' == fi -> [fi']
-      | fi' :: rest -> fi' :: loop rest
-    in
-    loop fi.fcomp.cfields
+    | Field(f, off) -> 
+        (* Construct a list of fields preceeding and including this one *)
+        let prevflds = 
+          let rec loop = function
+              [] -> E.s (E.bug "Cannot find field %s\n" f.fname)
+            | fi' :: _ when fi' == f -> [fi']
+            | fi' :: rest -> fi' :: loop rest
+          in
+          loop f.fcomp.cfields
+        in
+        let lastoff =
+          List.fold_left (fun acc fi' -> offsetOfFieldAcc fi' acc)
+            { oaFirstFree      = 0; (* Start at 0 because each struct is done 
+                                     * separately *)
+              oaLastFieldStart = 0;
+              oaLastFieldWidth = 0;
+              oaPrevBitPack    = None } prevflds
+        in
+        (* ignore (E.log "Field %s of %s: start=%d, lastFieldStart=%d\n"
+                  f.fname f.fcomp.cname start lastoff.oaLastFieldStart); *)
+        loopOff f.ftype lastoff.oaLastFieldWidth 
+               (start + lastoff.oaLastFieldStart) off
   in
-  let lastoff =
-    List.fold_left (fun acc fi' -> offsetOfFieldAcc fi' acc)
-      { oaFirstFree = startcomp;
-        oaLastFieldStart = 0;
-        oaLastFieldWidth = 0;
-        oaPrevBitPack = None } prevflds
-  in
-  (lastoff.oaLastFieldStart, lastoff.oaLastFieldWidth)
+  loopOff baset (bitsSizeOf baset) 0 off
+        
+
+
 
 
 (* A visitor that makes a deep copy of a function body *)
@@ -3599,7 +3753,7 @@ class copyFunctionVisitor (newname: string) = object (self)
     (* Do the children *)
     ChangeDoChildrenPost (s', fun x -> x)
 
-      (* Copy blocks since they are shared *)
+      (* Copy blocks since they are mutable *)
   method vblock (b: block) = 
     ChangeDoChildrenPost ({b with bstmts = b.bstmts}, fun x -> x)
 

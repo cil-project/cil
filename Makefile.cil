@@ -5,8 +5,6 @@
 ECHO = @
 
 
-# First stuff that makes the executable 
-# Define the ARCHOS in your environemt : [x86_LINUX, x86_WIN32, SUNOS]
 
 SOURCEDIRS  = src src/frontc
 OBJDIR      = obj
@@ -15,7 +13,7 @@ MLYS        = cparser.mly
 MODULES     = pretty errormsg trace stats util clist \
               cabs cprint clexer cparser cabsvisit \
               cil cabs2cil frontc check logcalls logwrites rmtmps \
-	      cfg heapify maincil
+	            cfg heapify testcil maincil
 
 EXECUTABLE  = $(OBJDIR)/cilly
 CAMLUSEUNIX = 1
@@ -30,7 +28,7 @@ EXTRACLEAN += $(OBJDIR)/*.obj $(OBJDIR)/*.a $(OBJDIR)/*.o
 
 
     # Include now the common set of rules for OCAML
-    # This file will add the rules to make $(EXECUTABLE).$(EXE)
+    # This file will add the rules to make $(EXECUTABLE)$(EXE)
 include Makefile.ocaml
 
 
@@ -43,4 +41,17 @@ cillib: $(OBJDIR)/cil.$(CMXA)
 OCAML_CIL_LIB_MODULES = $(MODULES:main=)
 $(OBJDIR)/cil.$(CMXA): $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
 	$(CAMLLINK) -a -o $@ $^
+
+
+# Test cil
+ifdef _MSVC
+TESTCILARG=--MSVC -testcil "bash -c ./msvctestcil"
+else
+TESTCILARG=       -testcil "bash -c ./gcctestcil"
+endif
+
+testcil: $(EXECUTABLE)$(EXE)	
+	       cd test; ../$(EXECUTABLE)$(EXE) $(TESTCILARG)
+
+
 

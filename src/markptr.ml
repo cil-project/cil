@@ -1007,7 +1007,7 @@ class processVarargClass (fdec: fundec) = object
                            fvi.vname)
         in
         if fvi.vname = "__ccured_va_start" then begin
-          match getNthArg 0, getNthArg 1 with 
+          match getNthArg 0, getNthArg 2 with 
             Lval (Var markervi, NoOffset),
             AddrOf (Var last, NoOffset) -> begin
               let markerdescrt = 

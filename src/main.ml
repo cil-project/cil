@@ -10,6 +10,7 @@ let outChannel : out_channel option ref = ref None
 let keepFiles = ref false
 let heapify = ref false
 let stackguard = ref false
+let testcil = ref ""
 
 let preproc = ref ""                    (* The preprocess command *)
 exception Done_Processing
@@ -144,6 +145,8 @@ let rec theMain () =
 					"apply the `stackguard' transformation";
     "-nodebug", Arg.String (setDebugFlag false), 
                       "<xxx> turns off debugging flag xxx";
+    "-testcil", Arg.String (fun s -> testcil := s), 
+          "test CIL using the give compiler";
     "-log", Arg.String openLog, "the name of the log file";
     "-o", Arg.String outFile, "the name of the output CIL file";
 
@@ -171,7 +174,10 @@ let rec theMain () =
     Stats.reset ();
     Arg.parse argDescr recordFile usageMsg;
     files := List.rev !files;
-    List.iter processOneFile !files;
+    if !testcil <> "" then begin
+      Testcil.doit !testcil
+    end else 
+      List.iter processOneFile !files;
   end
 ;;
                                         (* Define a wrapper for main to 

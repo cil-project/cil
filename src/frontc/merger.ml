@@ -449,11 +449,13 @@ let constructConstraintGraph () =
       old
   in
   H.iter doOne fileTypeTags;
-  (* Now we can have constraint pairs for undefined "struct foo". If they both 
-   * have the same name then mark them as equal *)
+  (* Now we can have constraint pairs when at least one is an undefined 
+   * struct and the  other is a defined or undefined struct with the same 
+   * name *)
   H.iter (fun (k,on,nn) nd -> 
-    if on = nn && not nd.eq && not (H.mem fileTypeTags (k, nn)) 
-               && not (H.mem globalTypeTags (k, on)) then
+    if on = nn then
+      if not (H.mem fileTypeTags (k, nn)) ||
+         not (H.mem globalTypeTags (k, on)) then
       nd.eq <- true) constraintGraph;
  
   if debugTypes then dumpGraph " before pushing";

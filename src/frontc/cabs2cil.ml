@@ -530,24 +530,7 @@ module BlockChunk =
         cases = t.cases @ e.cases;
       } 
 
-    let canDuplicate (c: chunk) = 
-                        (* We can duplicate a statement if it is small and 
-                         * does not contain label definitions  
-      let rec cost = function
-          [] -> 0
-        | s :: rest -> 
-            let one = 
-              if s.labels <> [] then 100 else
-              match s.skind with
-                Instr il -> List.length il
-              | Goto _ | Return _ -> 1
-              | _ -> 100
-            in
-            one + cost rest
-      in
-      cost c.stmts + List.length c.postins <= 3
-                           *)
-      false (* Do not duplicate because we get too much sharing *)
+    let canDuplicate (c: chunk) = false
 
     let canDrop (c: chunk) = false
 
@@ -2639,7 +2622,20 @@ and doInitializer
         match initl with
            (* Check if we are done *)
         | _ when initl = [] || not (isValidIndex nextidx) ->
-            acc, List.rev sofar, nextidx, initl
+            (* If the initializer ended prematurely we must fill the rest of 
+             * the array with zeros *)
+            let sofar', nextidx' = 
+              match leno with 
+              | Some len when nextidx < len -> 
+                (* Initialize with zero the skipped elements *)
+                  let rec loop i acc = 
+                    if i = len then acc
+                    else loop (i + 1) (makeZeroInit elt :: acc)
+                  in
+                  loop nextidx sofar,  len
+              | _ -> sofar, nextidx
+            in
+            acc, List.rev sofar', nextidx', initl
               
         | (A.ATINDEXRANGE_INIT (idxs, idxe), ie) :: restinitl -> 
             (* Turn this into many copies of ATINDEX_INIT. Ignore for now the 
@@ -2798,20 +2794,25 @@ and doInitializer
           (initl = [] || nextflds = [] ||
                  (* For unions only the first field is initialized *)
             (not comp.cstruct && List.length sofar = 1)) -> 
-              acc, List.rev sofar, initl
+              (* Finish the structures that we have started *)
+              let sofar' = 
+                if comp.cstruct && nextflds <> [] then
+                  List.fold_left (fun sofar f -> makeZeroInit f.ftype :: sofar)
+                    sofar nextflds
+                else sofar
+              in
+              acc, List.rev sofar', initl
 
           (* Check if we have a field designator *)
         | (A.INFIELD_INIT (fn, A.NEXT_INIT), ie) :: restinitl 
                                                       when comp.cstruct ->
             let nextflds', sofar' = 
               let rec findField (sofar: init list) = function
-                  [] -> E.s 
-                      (error "Cannot find designated field %s"  fn)
-                | f :: restf when f.fname = fn -> 
-                    f :: restf, sofar
+                  [] -> E.s (error "Cannot find designated field %s"  fn)
+                | f :: restf when f.fname = fn -> f :: restf, sofar
                       
-                | f :: restf -> 
-                    findField (makeZeroInit f.ftype :: sofar) restf
+                      (* Initialize with zero the skipped fields *)
+                | f :: restf -> findField (makeZeroInit f.ftype :: sofar) restf
               in
               findField sofar nextflds 
             in
@@ -3381,6 +3382,8 @@ let convFile fname dl =
   H.clear compInfoNameEnv;
   H.clear mustTurnIntoDef;
   H.clear alreadyDefined;
+  if !E.verboseFlag || !Util.printStages then 
+    ignore (E.log "Converting CABS->CIL\n");
   (* Setup the built-ins *)
   let _ =
     let fdec = emptyFunction "__builtin_constant_p" in
@@ -3581,6 +3584,49 @@ let convFile fname dl =
               fdec.sbody.bstmts <- newbody;
               setFormals fdec newformals; (* To make sure sharing with the
                                            * type is proper *)
+
+              (* Now see whether we can fall through to the end of the 
+               * function *)
+              let rec stmtFallsThrough (s: stmt) = 
+                match s.skind with
+                  Instr _ -> true
+                | Return _ | Break _ | Continue _ -> false
+                | Goto _ -> false
+                | If (_, b1, b2, _) -> 
+                    blockFallsThrough b1 || blockFallsThrough b2
+                | Switch (e, b, targets, _) -> true (* Conservative *)
+                | Loop _ -> true (* Conservative *)
+                | Block b -> blockFallsThrough b
+              and blockFallsThrough b = 
+                let rec fall = function
+                    [] -> true
+                  | s :: rest -> 
+                      if stmtFallsThrough s then fall rest else labels rest
+                        (* If we are not falling thorough then maybe there 
+                         * are labels who are *)
+                and labels = function
+                    [] -> false
+                  | s :: rest when s.labels <> [] -> fall (s :: rest)
+                  | _ :: rest -> labels rest
+                in
+                fall b.bstmts
+              in
+              if blockFallsThrough fdec.sbody then begin
+                let retval = 
+                  match unrollType returnType with
+                    TVoid _ -> None
+                  | (TInt _ | TEnum _ | TFloat _ | TPtr _) as rt -> 
+                      Some (doCastT zero intType rt)
+                  | _ ->
+                      E.s (unimp "Body of function %s falls-through and cannot find an appropriate return value\n" fdec.svar.vname)
+                in
+                fdec.sbody.bstmts <- 
+                   fdec.sbody.bstmts 
+                        @ [mkStmt (Return(retval, !currentLoc))]
+              end;
+                
+
+              
 
 (*              ignore (E.log "The env after finishing the body of %s:\n%t\n"
                         n docEnv); *)
