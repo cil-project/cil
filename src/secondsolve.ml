@@ -73,7 +73,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
 
   let update_kind n k why = 
     if (height k) > (height n.kind) then begin
-      if (n.why_kind = UserSpec || n.locked) then begin
+      if (n.why_kind = UserSpec || (n.locked && k <> Wild)) then begin
         (if (!warn) then ignore (E.warn "Pointer Kind Inference would upgrade to %a for\n%a" d_pointerkind k d_node n)) ;
         false
       end else begin
