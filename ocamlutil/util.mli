@@ -57,6 +57,8 @@ val mapNoCopyList: ('a -> 'a list) -> 'a list -> 'a list
 
 val filterNoCopy: ('a -> bool) -> 'a list -> 'a list
 
+(**** Now in growArray.mli
+
 (** Growable arrays *)
 type 'a growArrayFill =
     Elem of 'a
@@ -87,6 +89,8 @@ val growArray_iteri:  (int -> 'a -> unit) -> 'a growArray -> unit
 
 val growArray_foldl: ('acc -> 'a -> 'acc) -> 'acc ->'a growArray -> 'acc
 (** Fold left over the initialized elements of the array *)
+
+****)
 
 (** hasPrefix prefix str returns true with str starts with prefix *)
 val hasPrefix: string -> string -> bool
