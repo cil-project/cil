@@ -2518,7 +2518,7 @@ EOF
 fi
 done
 
-ac_config_files="$ac_config_files Makefile"
+ac_config_files="$ac_config_files Makefile test/Makefile"
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
 # tests run on this system so they can be shared between configure
@@ -2815,14 +2815,15 @@ Try \`$0 --help' for more information." >&2;}
 
   # Handling of arguments.
   'Makefile' ) CONFIG_FILES="$CONFIG_FILES Makefile" ;;
+  'test/Makefile' ) CONFIG_FILES="$CONFIG_FILES test/Makefile" ;;
 
   # This is an error.
-  -*) { { echo "$as_me:2820: error: unrecognized option: $1
+  -*) { { echo "$as_me:2821: error: unrecognized option: $1
 Try \`$0 --help' for more information." >&5
 echo "$as_me: error: unrecognized option: $1
 Try \`$0 --help' for more information." >&2;}
    { (exit 1); exit 1; }; } ;;
-  *) { { echo "$as_me:2825: error: invalid argument: $1" >&5
+  *) { { echo "$as_me:2826: error: invalid argument: $1" >&5
 echo "$as_me: error: invalid argument: $1" >&2;}
    { (exit 1); exit 1; }; };;
   esac
@@ -3047,7 +3048,7 @@ done; }
   esac
 
   if test x"$ac_file" != x-; then
-    { echo "$as_me:3050: creating $ac_file" >&5
+    { echo "$as_me:3051: creating $ac_file" >&5
 echo "$as_me: creating $ac_file" >&6;}
     rm -f "$ac_file"
   fi
@@ -3065,7 +3066,7 @@ echo "$as_me: creating $ac_file" >&6;}
       -) echo $tmp/stdin ;;
       [\\/$]*)
          # Absolute (can't be DOS-style, as IFS=:)
-         test -f "$f" || { { echo "$as_me:3068: error: cannot find input file: $f" >&5
+         test -f "$f" || { { echo "$as_me:3069: error: cannot find input file: $f" >&5
 echo "$as_me: error: cannot find input file: $f" >&2;}
    { (exit 1); exit 1; }; }
          echo $f;;
@@ -3078,7 +3079,7 @@ echo "$as_me: error: cannot find input file: $f" >&2;}
            echo $srcdir/$f
          else
            # /dev/null tree
-           { { echo "$as_me:3081: error: cannot find input file: $f" >&5
+           { { echo "$as_me:3082: error: cannot find input file: $f" >&5
 echo "$as_me: error: cannot find input file: $f" >&2;}
    { (exit 1); exit 1; }; }
          fi;;
@@ -3132,4 +3133,4 @@ if test "$no_create" != yes; then
   $ac_cs_success || { (exit 1); exit 1; }
 fi
 
-chmod a-w Makefile
+chmod a-w Makefile test/Makefile

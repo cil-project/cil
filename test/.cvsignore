@@ -30,3 +30,4 @@ testingcil.c
 testcil.random
 __log*
 testsafec.smlog
+Makefile

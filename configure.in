@@ -118,9 +118,10 @@ AC_SUBST(CCUREDHOME)
 
 dnl  finish the configure script and generate various files; ./configure
 dnl  will apply variable substitutions to <filename>.in to generate <filename>
-AC_OUTPUT(Makefile)
+AC_OUTPUT(Makefile test/Makefile)
 
 dnl  I find it useful to mark generated files as read-only so I don't
 dnl  accidentally edit them (and them lose my changes when ./configure
-dnl  runs again)
-chmod a-w Makefile
+dnl  runs again); certainly there's a way to write a function which does
+dnl  both AC_OUTPUT and chmod a-w, but I don't know how yet
+chmod a-w Makefile test/Makefile
