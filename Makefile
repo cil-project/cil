@@ -738,25 +738,27 @@ spec-compress : defaulttarget
               <$(COMPRESSDIR)/exe/base/input.data \
               >$(COMPRESSDIR)/exe/base/output.txt
 
-old-compress : defaulttarget $(COMPRESSDIR)/src/combine-compress.c
-	rm -f $(COMPRESSDIR)/combine-compress.exe
-	cd $(COMPRESSDIR)/src ; $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
-                 $(DOOPT) \
-                 combine-compress.c \
-                 $(EXEOUT)combine-compress.exe
-	sh -c "time $(COMPRESSDIR)/src/combine-compress.exe < $(COMPRESSDIR)/src/input.data > $(COMPRESSDIR)/src/combine-compress.out"
-
-compress: defaulttarget mustbegcc
+compress-noclean: defaulttarget mustbegcc
 	cd $(COMPRESSDIR)/src; make CC="$(COMBINESAFECC)" build
 	echo "14000000 q 2231" >$(COMPRESSDIR)/exe/base/input.data 
 	sh -c "time $(COMPRESSDIR)/exe/base/compress95.v8 < $(COMPRESSDIR)/exe/base/input.data > $(COMPRESSDIR)/src/combine-compress.out"
 
-cleancompress: defaulttarget mustbegcc
-	cd $(COMPRESSDIR)/src; make clean
+compress: defaulttarget mustbegcc
+	cd $(COMPRESSDIR)/src; make CC="$(COMBINESAFECC)" clean build
+	echo "14000000 q 2231" >$(COMPRESSDIR)/exe/base/input.data 
+	sh -c "time $(COMPRESSDIR)/exe/base/compress95.v8 < $(COMPRESSDIR)/exe/base/input.data > $(COMPRESSDIR)/src/combine-compress.out"
 
 LIDIR=$(SPECDIR)/130.li
 LISAFECC=$(SAFECC) --combine --keep=safeccout
 li: defaulttarget mustbegcc
+	cd $(LIDIR)/src; \
+            make clean build CC="$(LISAFECC) $(CONLY)" \
+                             LD="$(LISAFECC)" 
+	time $(LIDIR)/src/trial_li \
+            <$(LIDIR)/data/train/input/train.lsp \
+            >$(LIDIR)/data/train/input/train.out
+
+li-noclean: defaulttarget mustbegcc
 	cd $(LIDIR)/src; \
             make build CC="$(LISAFECC) $(CONLY)" \
                        LD="$(LISAFECC)" 
@@ -768,12 +770,6 @@ liclean:
 	cd $(LIDIR)/src; make clean
 	cd $(LIDIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi trial_li_all.c
 
-liinfer: li
-	cd $(LIDIR)/src ; $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
-                 $(DOOPT) \
-                 trial_li.c \
-                 $(EXEOUT)trial_li.exe
-
 
 ### SPEC95 GO
 GODIR=$(SPECDIR)/099.go
@@ -783,7 +779,15 @@ goclean:
 	cd $(GODIR)/src; make clean
 	cd $(GODIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
 
+
 go: defaulttarget mustbegcc
+	cd $(GODIR)/src; \
+            make clean build CC="$(GOSAFECC) $(CONLY)" \
+                             LD="$(GOSAFECC)" 
+	$(GODIR)/exe/base/go_ultra \
+            <$(GODIR)/data/train/input/2stone9.in
+
+go-noclean: defaulttarget mustbegcc
 	cd $(GODIR)/src; \
             make build CC="$(GOSAFECC) $(CONLY)" \
                        LD="$(GOSAFECC)" 
@@ -801,6 +805,13 @@ vortexclean:
 	cd $(VODIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
 
 vortex: defaulttarget mustbegcc
+	cd $(VORDIR)/src; \
+            make clean build CC="$(VORSAFECC) $(CONLY)" \
+                             LD="$(VORSAFECC)" 
+	$(VORDIR)/exe/base/vortex_ultra \
+            <$(VORDIR)/data/train/input/2stone9.in
+
+vortex-noclean: defaulttarget mustbegcc
 	cd $(VORDIR)/src; \
             make build CC="$(VORSAFECC) $(CONLY)" \
                        LD="$(VORSAFECC)" 

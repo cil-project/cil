@@ -234,7 +234,7 @@ sub add3Tests {
 
     $self->newTest(Name => $name . "-box",
                    Dir => "..",
-                   Cmd => "make " . $name . " BOX=1 " . $theargs,
+                   Cmd => "make " . $name . " INFERBOX=wild " . $theargs,
                    Group => ["box"],
                    Patterns => \%patterns);
 
