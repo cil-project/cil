@@ -307,7 +307,7 @@ $TEST->add3Tests("testrun/polyapply3");
 $TEST->add3Tests("testrun/polyrec");
 $TEST->addTests("testrun/polylist", "", ['inferbox']);
 $TEST->addTests("test-bad1/polystruct", "", ['inferbox']);
-$TEST->addTests("test-bad1/fseqfail", "", ['inferbox']);
+# $TEST->addTests("test-bad1/fseqfail", "", ['inferbox']);
 $TEST->addTests("test-bad/fseq1fail", "", ['inferbox']);
 $TEST->addTests("test-bad/globinit", "", ['inferbox']);
 $TEST->add3Tests("testrun/label1");
@@ -449,7 +449,7 @@ $TEST->addTests("scott/funptr1", "", ['inferbox']);
 $TEST->addTests("testrun/unrolltype", "", ['inferbox']);
 $TEST->addTests("testrun/wrapper2", "", ['cil', 'inferbox', 'box']);
 $TEST->addTests("testrun/fseqn1", "", ['inferbox']);
-$TEST->addTests("testrun/seqn1", "", ['inferbox']);
+# $TEST->addTests("testrun/seqn1", "", ['inferbox']);
 
 #
 # OLDEN benchmarks
@@ -558,11 +558,6 @@ sub smAddTest {
   return $tname;
 }
 
-sub addCXXTest {
-    my $tname = &smAddTest(@_);
-    my $self = $main::globalTEST;
-    $self->addGroups($tname, 'cxx');
-}
 
 # here 'why' is a human-readable explanation for why the test fails,
 # rather than a regexp to match the error message because:
@@ -582,12 +577,6 @@ sub smFailTest {
   $main::globalTEST->addBadComment($tname, $why);
 
   return $tname;
-}
-
-sub failCXXTest {
-    my $tname = &smFailTest(@_);
-    my $self = $main::globalTEST;
-    $self->addGroups($tname, 'cxx');
 }
 
 
@@ -926,13 +915,6 @@ smAddTest("scott/errorinfn");
 smAddTest("scott/unionassign $box");
 smAddTest("scott/unionassign $wildbox");
 
-# C++ tests
-# sm: most of these fail for me, with parse errors..
-failCXXTest("parse error", "cxx/hello");
-failCXXTest("parse error", "cxx/exc1");
-failCXXTest("parse error", "cxx/exspec1");
-failCXXTest("parse error", "cxx/structname");
-failCXXTest("parse error", "cxx/class1");
 
 # $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug
 # my $tst = $TEST->getTest("apache/gzip-inferbox");

@@ -198,8 +198,6 @@ let rec theMain () =
                      "turns on consistency checking of CIL";
     "--nocheck", Arg.Unit (fun _ -> Util.doCheck := false),
                      "turns off consistency checking of CIL";
-    "--cxx", Arg.Unit (fun _ -> C.cxxMode := true; F.setCxxMode ()),
-                     "turns on the C++ mode";
     "--logcalls", Arg.Unit (fun _ -> Util.logCalls := true),
                      "turns on generation of code to log function calls in CIL";
     "--logwrites", Arg.Unit (fun _ -> Util.logWrites := true),

@@ -636,10 +636,9 @@ begin
     PTR(tattr, ttype) ->
       (mustEq pattr tattr);
       (unifyDeclType ptype ttype)
-  | PROTO(ptype, pformals, pva, pexc),
-    PROTO(ttype, tformals, tva, texc) ->
+  | PROTO(ptype, pformals, pva),
+    PROTO(ttype, tformals, tva) ->
       (mustEq pva tva);
-      (mustEq pexc texc);
       (unifyDeclType ptype ttype) @
       (unifySingleNames pformals tformals)
   | _ -> (

@@ -32,7 +32,6 @@ let cabslu = {lineno = -10; filename = "cabs loc unknown";}
 let curLoc = ref cabslu
 
 let msvcMode = ref false
-let cxxMode  = ref false
 
 let printLn = ref true
 let printLnComment = ref false
@@ -290,20 +289,12 @@ and print_decl (n: string) = function
       print "[";
       if e <> NOTHING then print_expression e 1;
       print "]"
-  | PROTO(d, args, isva, exc_spec) ->
+  | PROTO(d, args, isva) ->
       comprint "proto(";
       print_decl n d;
       print "(";
       print_params args isva;
       print ")";
-      if !cxxMode then begin
-        match exc_spec with
-          None -> ()
-        | Some l -> 
-            print " throw(";
-            print_list (fun _ -> print ",") print_onlytype l;
-            print ")"
-      end;
       comprint ")"
 
 
@@ -931,14 +922,6 @@ and print_def def =
       print " }";
       force_new_line()
 
-  | LINKAGE (what, defs, loc) -> 
-      setLoc loc;
-      print "extern "; print_string what; print " {"; 
-         force_new_line(); indent ();
-         List.iter print_def defs;
-         unindent ();
-      print "} "; print_string ("/* extern " ^ what ^ " */");
-      force_new_line ()
 
 (* sm: print a comment if the printComments flag is set *)
 and comprint (str : string) : unit =

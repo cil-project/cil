@@ -36,26 +36,13 @@
  * want this interface is to avoid confusing make with freshly generated 
  * interface files *)
 
-(*
-type handle =
-	bool * in_channel * string * string * int * int * out_channel * string
-*)
 
 val init: filename:string -> inchannel:in_channel -> Lexing.lexbuf
 
-(*
-val current_handle: handle ref
-
-val get_buffer: handle ref -> string -> int -> int
-*)
 
 (* Display an error given two positions int he parsing buffer *)
 val display_error: string -> int -> int -> unit
 
-(*
-val lineno: handle -> int
-val file_name: handle -> string
-*)
 
 val currentFile: string ref
 val currentLine: int ref 

@@ -50,7 +50,6 @@ let msvcMode = ref false              (* Whether the pretty printer should
                                        * print output for the MS VC 
                                        * compiler. Default is GCC *)
 
-let cxxMode = ref false
 
 let printLn= ref true                 (* Whether to print line numbers *)
 let printLnComment= ref false
@@ -2700,7 +2699,6 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     | "volatile", [] -> text "volatile", false
     | "restrict", [] -> text "__restrict", false
     | "missingproto", [] -> text "/* missing proto */", false
-    | "clinkage", [] when !cxxMode -> nil, false
     | "cdecl", [] when !msvcMode -> text "__cdecl", false
     | "stdcall", [] when !msvcMode -> text "__stdcall", false
     | "declspec", args when !msvcMode -> 

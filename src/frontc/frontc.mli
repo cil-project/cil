@@ -35,9 +35,6 @@
 val setMSVCMode: unit -> unit
 
 
-  (** Signal that we are in C++ mode *)
-val setCxxMode: unit -> unit
-
    (* Parse a file in *)
 exception ParseError of string
 

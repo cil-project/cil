@@ -79,26 +79,6 @@ let gotoTargetHash: (string, int) H.t = H.create 13
 let gotoTargetNextAddr: int ref = ref 0
 
 
-(********** EXTERNAL LINKAGE *********)
-(* We keep a stack of linkage declarations (whether it is C) *)
-let linkageStack : bool list ref = ref []
-let currentLinkageIsC = ref false (* We get here only in C++, so by default we 
-                                   * are in C++ *)
-let pushExternLinkage (what: string) = 
-  if what = "C" then begin
-    linkageStack := !currentLinkageIsC :: !linkageStack;
-    currentLinkageIsC := true
-  end else if what = "C++" then begin
-    linkageStack := !currentLinkageIsC :: !linkageStack;
-    currentLinkageIsC := false
-  end else
-    E.s (unimp "Linkage specification %s not supported\n" what)
-
-let popExternLinkage () = 
-  match !linkageStack with 
-    [] -> E.s (bug "empty linkage stack")
-  | c :: rest -> currentLinkageIsC := c; linkageStack := rest
-
 (********** TRANSPARENT UNION ******)
 (* Check if a type is a transparent union, and return the first field if it 
  * is *)
@@ -1384,10 +1364,6 @@ let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
     oldvi, true
       
   with Not_found -> begin (* A new one.  *)
-    (* See if we must set its linkage specification *)
-    if !cxxMode && !currentLinkageIsC then begin
-      vi.vattr <- addAttribute (Attr("clinkage",[])) vi.vattr
-    end;
     (* Announce the name to the alpha conversion table. This will not 
      * actually change the name of the vi. See the definition of 
      * alphaConvertVarAndAddToEnv *)
@@ -2201,9 +2177,7 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
         in
         doDeclType (TArray(bt, lo, [])) acc d
 
-    | A.PROTO (d, args, isva, exc) -> 
-        if exc != None && !cxxMode then 
-          ignore (E.warn "dropping exception specification");
+    | A.PROTO (d, args, isva) -> 
         (* Start a scope for the parameter names *)
         enterScope ();
         (* Intercept the old-style use of varargs.h. On GCC this means that 
@@ -2299,7 +2273,7 @@ and isVariableSizedArray (dt: A.decl_type)
     | PTR (al, dt) -> PTR (al, findArray dt)
     | JUSTBASE -> JUSTBASE
     | PARENTYPE (prea, dt, posta) -> PARENTYPE (prea, findArray dt, posta)
-    | PROTO (dt, f, a, exc) -> PROTO (findArray dt, f, a, exc)
+    | PROTO (dt, f, a) -> PROTO (findArray dt, f, a)
   in
   let dt' = findArray dt in
   match !res with 
@@ -4097,8 +4071,8 @@ and createLocal ((_, sto, _, _) as specs)
   (* Check if we are declaring a function *)
   let rec isProto (dt: decl_type) : bool = 
     match dt with
-    | PROTO (JUSTBASE, _, _, _) -> true
-    | PROTO (x, _, _, _) -> isProto x
+    | PROTO (JUSTBASE, _, _) -> true
+    | PROTO (x, _, _) -> isProto x
     | PARENTYPE (_, x, _) -> isProto x
     | ARRAY (x, _) -> isProto x
     | PTR (_, x) -> isProto x
@@ -4563,19 +4537,6 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
           end)
         () (* argument of E.withContext *)
     end (* FUNDEF *)
-
-  | LINKAGE (what, defs, loc) -> 
-      currentLoc := convLoc(loc);
-      if not isglobal || not !cxxMode then 
-        E.s (unimp "Linkage declarations are supported only in C++ and at top-level");
-      pushExternLinkage what;
-      List.iter
-        (fun d -> 
-          let s = doDecl true d in
-          if isNotEmpty s then 
-            E.s (bug "doDecl returns non-empty statement for global")) defs;
-      popExternLinkage ();
-      empty
 
   | _ -> E.s (error "unexpected form of declaration")
 

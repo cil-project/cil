@@ -83,11 +83,8 @@ and decl_type =
                                            * never a PTR. *)
  | PTR of attribute list * decl_type      (* Prints "* attrs decl" *)
  | PROTO of decl_type * single_name list * bool 
-            * (specifier * decl_type) list option
                                           (* Prints "decl (args[, ...])".
-                                           * decl is never a PTR. The last 
-                                           * one is the C++ exception 
-                                           * specification *)
+                                           * decl is never a PTR.*)
 
 (* The base type and the storage are common to all names. Each name might
  * contain type or storage modifiers *)
@@ -134,7 +131,6 @@ and definition =
  (* expression transformer: source and destination *)
  | EXPRTRANSFORMER of expression * expression * cabsloc
 
- | LINKAGE of string * definition list * cabsloc
 
 (* the string is a file name, and then the list of toplevel forms *)
 and file = string * definition list
@@ -312,7 +308,6 @@ begin
   | PRAGMA(_, l) -> l
   | TRANSFORMER(_, _, l) -> l
   | EXPRTRANSFORMER(_, _, l) -> l
-  | LINKAGE(_, _, l) -> l
 end
 
 open Pretty
