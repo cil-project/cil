@@ -438,8 +438,9 @@ string_list:
 wstring_list:
     CST_WSTRING                         { $1 }
 |   wstring_list one_string             { $1 ^ $2 }
+|   wstring_list CST_WSTRING            { $1 ^ $2 }
 /* Only the first string in the list needs an L, so L"a" "b" is the same
- * as L"ab". */
+ * as L"ab" or L"a" L"b". */
 
 one_string: 
     CST_STRING				{$1}

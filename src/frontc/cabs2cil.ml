@@ -2502,9 +2502,10 @@ and doExp (isconst: bool)    (* In a constant *)
 
         | A.CONST_WSTRING wstr ->
             let len = String.length wstr in 
-            let dest = String.make (len * 2) '\000' in 
+            let wide_factor = (bitsSizeOf (wcharType)) / 8 in
+            let dest = String.make (len * wide_factor) '\000' in 
             for i = 0 to len-1 do 
-              dest.[i*2] <- wstr.[i] ;
+              dest.[i*wide_factor] <- wstr.[i] ;
             done ; 
             (* weimer: this turns L"Hi" into "H\0i\0", but in order to
              * make sure that L"Hi"[1] is the same as L'i', we must
