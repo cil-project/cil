@@ -1680,7 +1680,7 @@ val newAlphaName: alphaTable:(string, int ref) Hashtbl.t ->
     used to index into the hashtable. The next result value is a separator 
     (either empty or _)  *)
 val splitNameForAlpha: lookupname:string -> string * string * int
-val docAlphaTable: alphaTable:(string, int ref) Hashtbl.t -> Pretty.doc
+val docAlphaTable: unit -> (string, int ref) Hashtbl.t -> Pretty.doc
 
 (**
  ***

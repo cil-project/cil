@@ -10,7 +10,7 @@ int main() {
   
   // (&a) is a pointer to an array of 10 integers,
   // a is a pointer to integer
-  if ((void*)((&a)+1) != (void *)(a+10))  E(1);
+  if ((int)((&a)+1) != (int)(a+10))  E(1);
 
   pa = & a;
   if(& (pa[0][5]) != & a[5]) E(2);

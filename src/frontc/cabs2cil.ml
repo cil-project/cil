@@ -514,8 +514,8 @@ let alphaConvertVarAndAddToEnv (addtoenv: bool) (vi: varinfo) : varinfo =
       addGlobalToEnv vi.vname (EnvVar newvi)
     else
       addLocalToEnv vi.vname (EnvVar newvi));
-  (* ignore (E.log "After adding %s alpha table is: %t\n"
-            newvi.vname docAlphaTable); *)
+(*  ignore (E.log "After adding %s alpha table is: %a\n"
+            newvi.vname docAlphaTable alphaTable); *)
   newvi
 
 
@@ -1182,7 +1182,8 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
           * adjusted types *)
           List.iter2 
             (fun oldarg arg -> 
-              if oldarg.vname = "" then oldarg.vname <- arg.vname;
+              (* Update the names *)
+              if arg.vname <> "" then oldarg.vname <- arg.vname;
               oldarg.vattr <- addAttributes oldarg.vattr arg.vattr;
               oldarg.vtype <- 
                  combineTypes 
@@ -4248,8 +4249,8 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
             (* Do not process transparent unions in function definitions.
             * We'll do it later *)
             transparentUnionArgs := [];
-            let ftyp, funattr = doType (AttrName false) bt
-                (A.PARENTYPE(attrs, dt, a)) in
+            let ftyp, funattr = 
+              doType (AttrName false) bt (A.PARENTYPE(attrs, dt, a)) in
 
             (* If this is the definition of an extern inline then we change 
              * its name, by adding the suffix __extinline. We also make it 
@@ -4296,6 +4297,11 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                   vreferenced = false;   (* sm *)
                 }
             in
+(*            if thisFunctionVI.vname = "insertEntry" then 
+              ignore (E.log "makefunvar:%s@! type=%a@! vattr=%a@!"
+                        n d_type thisFunctionVI.vtype 
+                        d_attrlist thisFunctionVI.vattr);
+*)
             (* If it is extern inline then we add it to the global 
              * environment for the original name as well. This will ensure 
              * that all uses of this function will refer to the renamed 
@@ -4329,8 +4335,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
             (* Now fix the names of the formals in the type of the function 
             * as well *)
             thisFunctionVI.vtype <- ftype;
-            (*              ignore (E.log "makefunvar:%s@! type=%a@! vattr=%a@!"
-                        n d_plaintype ftype (d_attrlist true) funattr); *)
+
             if H.mem alreadyDefined thisFunctionVI.vid then
               E.s (error "There is a definition already for %s" n);
             currentFunctionVI := thisFunctionVI;

@@ -4133,7 +4133,7 @@ and splitNameForAlpha ~(lookupname: string) : (string * string * int) =
     (lookupname, "", -1)
 
 
-let docAlphaTable ~(alphaTable: (string, int ref) H.t) = 
+let docAlphaTable () (alphaTable: (string, int ref) H.t) = 
   let acc : (string * int) list ref = ref [] in
   H.iter (fun k d -> acc := (k, !d) :: !acc) alphaTable;
   docList line (fun (k, d) -> dprintf "  %s -> %d" k d) () !acc
