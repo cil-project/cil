@@ -81,6 +81,13 @@ TVDIR=$(BASEDIR)/TransVal
 CILDIR=$(BASEDIR)/cil
 _GNUCC=1
 endif
+ifeq ($(COMPUTERNAME), fuji) # Rahul's laptop
+BASEDIR=/home/sprahul/research
+SAFECCDIR=$(BASEDIR)/safec
+PCCDIR=$(BASEDIR)/PCC
+TVDIR=$(BASEDIR)/TransVal
+CILDIR=$(BASEDIR)/cil
+endif
 
 ######################
 .PHONY : spec
