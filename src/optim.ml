@@ -7,19 +7,26 @@ open Cil
 module E=Errormsg
 
 let debug = false
+
 (*-----------------------------------------------------------------*)
 let dummyStmt = {labels = []; sid = -1; skind = Break {line = -1;col = -1;file = ""};
                   succs= []; preds = []} (* a place holder so that we can create
                                          an array of stmts *)
-let sCount = ref 0   (* to generate consecutive sid *)
+let sCount = ref 0   (* to generate consecutive sid's *)
 let numNodes = ref 0 (* number of nodes in the CFG *)
-let nodes = ref [| |] (* ordered nodes of the CFG. Eg. for forward problems,
-                         reverse depth-first postorder *)
-let markedNodes = ref [] (* Used in dfs for recording visited nodes *)
+let nodes = ref [| |] (* ordered nodes of the CFG *)
+let markedNodes = ref [] (* Used in DFS for recording visited nodes *)
+let gen = ref [| |] (* array of exp list, representing GEN sets *)
+let kill = ref [| |] (* array of bool, representing KILL sets *) 
+                     (* see comment in nullChecksOptim why they are bool's *)
+let inNode = ref[| |] (* dataflow info at the entry of a node. Array of flowVal *)
+let outNode = ref[| |] (* dataflow info at the exit of a node. Array of flowVal *)
+let allVals = ref [] (* list of all flow values. To be used as TOP in dataflow analysis *)
 (*------------------------------------------------------------*)
 (* Notes regarding CFG computation:
-   1) Initially only succs and preds are computed. sid are filled in
-      later in whatever order is suitable.
+   1) Initially only succs and preds are computed. sid's are filled in
+      later, in whatever order is suitable (e.g. for forward problems, reverse
+      depth-first postorder).
    2) If a stmt (return, break or continue) has no successors, then 
       function return must follow.
       No predecessors means it is the start of the function
@@ -33,8 +40,7 @@ let markedNodes = ref [] (* Used in dfs for recording visited nodes *)
    None means the succ is the function return. It does not mean the break/cont
    is invalid. We assume the validity has already been checked.
 *)
-(* At the end of CFG computation, numNodes = total number of CFG nodes 
- * (stmts) *)
+(* At the end of CFG computation, numNodes = total number of CFG nodes *)
 let rec cfgBlock blk (next:stmt option) (break:stmt option) (cont:stmt option) =
   match blk with
     [] -> ();
@@ -106,9 +112,15 @@ and printCfgStmt s =
   ignore (printf "Preds: ");
   List.iter (function s -> ignore (printf "%d " s.sid)) s.preds; 
   ignore (printf "\n");
+  ignore (printf "Gen:\n ");
+  List.iter (function e -> ignore (printf "%a\n" d_exp e)) (!gen).(s.sid);
+  ignore (printf "\n");
+  ignore (printf "Kill: "); 
+  if (!kill).(s.sid) then ignore (printf "true\n") else ignore(printf "false\n");
+
   match s.skind  with 
   | If (test, blk1, blk2, _) -> 
-      ignore (printf "Cond: %a\n" d_exp test);
+      ignore (printf "Cond: %a\n" d_plainexp test);
       printCfgBlock blk1; printCfgBlock blk2
   | Switch(test,blk,_,_) -> 
       ignore (printf "Switch: %a\n" d_exp test);
@@ -135,7 +147,152 @@ and dfs s =
   end
 
 (*-----------------------------------------------------------------*)
+(* Print all the CHECK_NULL arguments (without a cast if there is one).
+   For debugging purposes *)
+
+let rec printChecksBlock blk = 
+  List.iter printChecksStmt blk
+
+and printChecksStmt s =
+  match s.skind with 
+    Instr l -> List.iter (function (i,_) -> printChecksInstr i) l
+  | Return _ | Continue _ | Break _ | Goto _ -> ()
+  | If (e,blk1,blk2,_) -> printChecksBlock blk1; printChecksBlock blk2;
+  | Switch (e,blk,_,_) -> printChecksBlock blk
+  | Loop (blk,_) -> printChecksBlock blk
+
+and printChecksInstr i =
+  match i with 
+    Call (_,Lval(Var x,_),args) when x.vname = "CHECK_NULL" ->
+       (* args must be a list of one element -- the exp which we have 
+          to ensure is non-null *)
+      let arg = List.hd args in
+       (* remove the cast if it has one *)
+      (match arg with
+        CastE(_,e) -> ignore (printf "%a\n\n%a\n" d_exp e d_plainexp e)
+      | _ -> ignore (printf "%a\n\n%a\n" d_exp arg d_plainexp arg));
+      ignore (printf "------------------------------------\n")
+  | _ -> ()
+
+(*-----------------------------------------------------------------*)          
+
+(* Find the union of two sets (represented by lists) *)
+let rec union l1 l2 = 
+  match l1 with
+    [] -> l2
+  | hd::tl -> 
+      if (List.mem hd l2) then union tl l2 
+      else hd::union tl l2
+
+and intersect l1 l2 = []
+and intersectAll l = []
+
+(* For accumulating the GEN and KILL of a sequence of instructions *)
+let instrGen = ref []
+let instrKill = ref false
+
+(* Reads "nodes" and side-effects "gen","kill" and "allVals" *)
+let rec createGenKill () = 
+  allVals := [];
+  Array.iteri createGenKillForNode !nodes
+    
+and createGenKillForNode i s =
+  instrGen := []; instrKill := false;
+  match s.skind with 
+    Instr l ->  createGenKillForInstrList i (List.map (function (ins,l) -> ins) l) (* TODO *)
+  | _ -> (!gen).(i) <- []; (!kill).(i) <- false
+        
+and createGenKillForInstrList i (l:instr list) = 
+  (match l with
+    [] -> (!gen).(i) <- !instrGen; (!kill).(i) <- !instrKill
+  | hd::tl -> let (g,k) = createGenKillForInstr hd in
+    if (k) then begin
+      instrGen := []; instrKill := true;
+    end else begin
+      instrGen := union !instrGen g
+    end;
+    createGenKillForInstrList i tl);
+  (!gen).(i) <- !instrGen; 
+  (!kill).(i) <- !instrKill;
+  allVals := union !allVals !instrGen (* update list of possible flow values *)
+
+                                         
+and createGenKillForInstr i = 
+  match i with 
+    Asm _ -> ([],false)
+  | Set _ -> ([],true) (* invalidate everything *)
+  | Call(_,Lval(Var x,_),args) when x.vname = "CHECK_NULL" ->
+      (* args is a list of one element *)
+      let arg = List.hd args in
+      (match arg with
+        CastE(_,e) -> ([e],false)
+      | _ -> ([arg],false))
+  | Call(_,Lval(Var x,_),args) (* Don't invalidate set if function is 
+                                  * something we know behaves well *)
+    when ((String.length x.vname) > 6 && 
+          (String.sub x.vname 0 6)="CHECK_") -> ([],false)
+  | Call _ -> ([],true) (* Otherwise invalidate everything *)
+
+
+(*-----------------------------------------------------------------*)
 let nullChecksOptim f =
+  (* Notes regarding CHECK_NULL optimization:
+     1) Argument of CHECK_NULL is an exp. We maintain a list of exp's
+        known to be non-null and flow it over the CFG.
+     2) In absence of aliasing info, any assignment kills *all* exps's
+        known to be non-null. Therefore GEN is a list, but KILL is 
+        a bool.
+  *)
+  (* TODO: 1) Use better data structures. Lists are inefficient.
+           2) Use node-ordering information combined with worklist 
+           3) Even basic aliasing information (eg. based on types) would be useful
+           4) Take the predicate in If statements into account
+  *)
+
+  if debug then  begin
+    ignore (printf "----------------------------------------------\n");
+    ignore (printf "Arguments (with casts removed) of all CHECK_NULL arguments\n");
+    printChecksBlock f.sbody;
+  end;
+
+  (* Order nodes by revers depth-first postorder *)
+  sCount := !numNodes-1;
+  nodes := Array.create !numNodes dummyStmt; (* allocate space *)
+  orderBlock f.sbody; (* assign sid *)
+
+  (* Create gen and kill for all nodes *)
+  gen := Array.create !numNodes [];  (* allocate space *)
+  kill := Array.create !numNodes false; (* allocate space *)
+  createGenKill ();
+
+  if debug then printCfgBlock f.sbody;
+  if debug then begin
+    ignore (printf "-------------------------------\n");
+    ignore (printf "All dataflow values\n");
+    List.iter (function e -> ignore (printf "%a\n" d_exp e)) !allVals
+  end;
+
+  (* Now carry out the actual data flow *)
+
+  (* Set IN = [] for the start node. All other IN's and OUT's are TOP *)
+
+  inNode := Array.create !numNodes [];
+  outNode := Array.create !numNodes !allVals;
+  
+  let changed = ref true in  (* to detect if fix-point has been reached *)
+  while !changed do
+    changed := false;
+    for i = 0 to (!numNodes-1) do
+      let old = (!outNode).(i) in
+      let tmpIn = intersectAll (List.map (function s -> (!outNode).(s.sid)) (!nodes).(i).preds) in
+      if (!kill).(i) then
+        (!outNode).(i) <- (!gen).(i)
+      else
+        (!outNode).(i) <- union (!gen).(i) tmpIn;
+      if old <> (!outNode).(i) then changed := true
+    done
+  done;
+
   f
 
 (*------------------------------------------------------------*)
@@ -147,15 +304,11 @@ let optimFun f =
     ignore (printf "Analyzing %s\n" f.svar.vname);
   end;
 
-  (* Fill in the CFG information*)
+  (* Fill in the CFG information (succs and pred only)*)
   numNodes := 0;
   cfgBlock f.sbody None None None;
-  sCount := !numNodes-1;
-  nodes := Array.create !numNodes dummyStmt;
-  orderBlock f.sbody; (* assign sid *)
-  
-  if debug then printCfgBlock f.sbody;
-  
+
+
   let optimizedF = ref f in
   (* Carry out the optimizations, one at a time *)
 
