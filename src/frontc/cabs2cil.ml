@@ -424,9 +424,7 @@ and doType (a : attribute list) = function
       (* Turn [] types into pointers in the arguments and the result type. 
        * This simplifies our life a lot  *)
       let arrayToPtr = function
-          TArray(t,None,attr) -> TPtr(t, AId("const") :: attr)
-        | TArray(_,Some _ ,_) -> 
-            E.s (E.unimp "Complete array type in argument list")
+          TArray(t,_,attr) -> TPtr(t, AId("const") :: attr)
         | x -> x
       in
       let targs = 
