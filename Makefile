@@ -1522,8 +1522,6 @@ yacr-optimvariant.%: mustbegcc
                  $(EXEOUT)yacr2
 	cd $(YACRDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                       do make test; done"
-
-
 ################# LINUX
 LINUX_INCLUDES := $(CCUREDHOME)/test/linux/include
 LINUX_TOPATCH := asm/uaccess.h asm/atomic.h asm/bitops.h \
@@ -1548,6 +1546,7 @@ LINUXMODULELIB := $(LINUXMODULELIBDIR)/ccured_LinuxModule_release.o
 $(LINUXMODULELIB) : 
 	cd $(CCUREDHOME)/test/linux ; make
 
+################# LINUX DEVICE DRIVERS
 SBULLDIR := test/linux/sbull
 sbull: mustbegcc mustbelinux $(LINUXMODULELIB)
 	cd $(SBULLDIR); ( make clean && make .depend && \
@@ -1571,3 +1570,13 @@ reiserfs: mustbegcc mustbelinux $(LINUXMODULELIB)
 	cd $(REISERFSDIR); ( make clean && \
            make CC="$(CCURED) $(LINUXPATCH) --entryPoint='init_reiserfs_fs'" ) ;
 	cd $(LINUXMODULELIBDIR) ; make reiserfs_cured.o
+
+################# THE LINUX KERNEL
+mustbemanju: 
+ifneq ($(HOST), manju)
+	@echo This test case works only on manju; exit 3
+endif
+
+linux: mustbegcc mustbelinux mustbemanju
+	cd /usr/src/linux-cil ; \
+	    make clean ; make CC="$(CCURED)" 
