@@ -52,11 +52,8 @@ open Trace
 let outChannel : out_channel option ref = ref None
 let mergedChannel : out_channel option ref = ref None
 let keepFiles = ref false
-let heapify = ref false
-let stackguard = ref false
 let doCallGraph = ref false
 let dumpFCG = ref false
-let makeCFG = ref false
 let testcil = ref ""
 
 let ptrAnalysis = ref false
@@ -84,25 +81,37 @@ let parseOneFile (fname: string) : C.file =
 
 (** These are the statically-configured features. To these we append the 
   * features defined in Feature_config.ml (from Makefile) *)
-let features : C.featureDescr list = 
-  [ Logcalls.feature;
-    Logwrites.feature;
-  ] 
-  @ Feature_config.features 
-
-
-let rec processOneFile (cil: C.file) =
-  try begin
-
-    if !makeCFG then (
-      ignore (Partial.calls_end_basic_blocks cil) ; 
-      ignore (Partial.globally_unique_vids cil) ; 
-      Cil.iterGlobals cil (fun glob -> match glob with
+  
+let makeCFGFeature : C.featureDescr = 
+  { C.fd_name = "makeCFG";
+    C.fd_enabled = Util.makeCFG;
+    C.fd_description = "make the program look more like a CFG" ;
+    C.fd_extraopt = [];
+    C.fd_doit = (fun f -> 
+      ignore (Partial.calls_end_basic_blocks f) ; 
+      ignore (Partial.globally_unique_vids f) ; 
+      Cil.iterGlobals f (fun glob -> match glob with
         Cil.GFun(fd,_) -> Cil.prepareCFG fd ;
                       (* jc: blockinggraph depends on this "true" arg *)
                       ignore (Cil.computeCFGInfo fd true)
-      | _ -> ()) ;
-    );
+      | _ -> ()) 
+    ) 
+  } 
+
+let features : C.featureDescr list = 
+  [ Logcalls.feature;
+    Logwrites.feature;
+    Heapify.feature1;
+    Heapify.feature2;
+    Oneret.feature;
+    makeCFGFeature; 
+    Partial.feature;
+    Simplemem.feature;
+  ] 
+  @ Feature_config.features 
+
+let rec processOneFile (cil: C.file) =
+  try begin
 
     if !doCallGraph then (
       let graph:Callgraph.callgraph = (Callgraph.computeGraph cil) in
@@ -118,14 +127,6 @@ let rec processOneFile (cil: C.file) =
       ignore (CK.checkFile [] cil);
     end;
 
-    if (!heapify) then begin
-      Heapify.default_heapify cil 
-    end ;
-    
-    if (!stackguard) then begin
-      Heapify.default_stackguard cil 
-    end ;
-      
     if (!ptrAnalysis) then begin
       Ptranal.analyze_file cil;
       Ptranal.compute_results (!ptrResults);
@@ -231,7 +232,7 @@ let rec theMain () =
   let featureArgs = 
     List.fold_right
       (fun fdesc acc -> 
-        ("", Arg.Unit (fun _ -> ()), "\n") ::
+        ("", Arg.Unit (fun _ -> ()), "") ::
         ("--do" ^ fdesc.C.fd_name, 
          Arg.Unit (fun _ -> fdesc.C.fd_enabled := true), 
          "enable " ^ fdesc.C.fd_description) ::
@@ -267,12 +268,8 @@ let rec theMain () =
                      "print the results of the alias analysis"; 
     "--ptr_mono", Arg.Unit (fun _ -> Ptranal.analyze_mono := true),
                     "run alias analysis monomorphically"; 
-    "--heapify", Arg.Unit (fun _ -> heapify := true),
-					"apply the `heapify' transformation";
-    "--stackguard", Arg.Unit (fun _ -> stackguard := true),
-					"apply the `stackguard' transformation";    "--cppcanon", Arg.Unit (fun _ -> Canonicalize.cpp_canon := true),
-		       "Fix some C-isms so that the result is C++ compliant.";
-
+    "--cppcanon", Arg.Unit (fun _ -> Canonicalize.cpp_canon := true),
+     "Fix some C-isms so that the result is C++ compliant.";
     "--nodebug", Arg.String (setDebugFlag false),
                       "<xxx> turns off debugging flag xxx";
     "--testcil", Arg.String (fun s -> testcil := s),
@@ -311,8 +308,6 @@ let rec theMain () =
                "output is the slice of #pragma cilnoremove(sym) symbols";
     "--doCallGraph", Arg.Unit (fun _ -> doCallGraph := true),
                "compute and print a static call graph" ;
-    "--makeCFG", Arg.Unit (fun _ -> makeCFG := true),
-          "make the file look more like a CFG";
     "--epicenter", Arg.String (fun s -> doEpicenter := true; epicenterName := s),
                "<name>: do an epicenter slice starting from function <name>";
     "--hops", Arg.Int (fun n -> epicenterHops := n),

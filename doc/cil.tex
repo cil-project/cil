@@ -1448,10 +1448,6 @@ by MSVC.
 functions as are called. Implemented in \t{src/logcalls.ml}.
 \item \t{--logwrites}. Insert code in the processed source to print the
 address of all memory writes. Implemented in \t{src/logwrites.ml}.
-\item \t{--heapify}. Apply the heapify transformation.
-                     Implemented in \t{src/heapify.ml}.
-\item \t{--heapify}. Apply the StackGuard transformation.
-                     Implemented in \t{src/stackguard.ml}.
 \item \t{--warnall}. Print all the warnings.
 \item \t{--log=xxx}. Set \t{xxx} to be the name of the log file for the CIL
 application. By default \t{stderr} is used.
@@ -1492,7 +1488,6 @@ despite most kinds of C casts)
 \item Handles function pointers 
 \end{enumerate}
 
-
 The analysis itself is factored into two components: \t{ptranal.ml},
 which walks over the CIL file and generates constraints, and
 \t{golf.ml}, which solves the constraints. The analysis is invoked
@@ -1506,7 +1501,14 @@ The constructed points-to graph supports several kinds of queries,
 including alias queries (may two expressions be aliased?) and
 points-to queries (to what set of locations may an expression point?).
 
-% Simon : could you talk a bit more about the interface here?
+% Main Interface
+The main interface with the alias analysis is as follows:
+\begin{enumerate}
+\item \t{Ptranal.may\_alias : Cil.exp -> Cil.exp -> bool}. If \t{true}, the
+two expressions may have the same value. 
+\item \t{Ptranal.resolve\_funptr : Cil.exp -> (Cil.fundec list)}. Returns
+the list of functions to which the given expression may point. 
+\end{enumerate} 
 
 % Controlling the analysis
 The precision of the analysis can be customized by changing the values
@@ -1544,7 +1546,147 @@ analysis will print out the points-to set of each variable in the
 program. This will essentially serialize the points-to graph.
 \end{enumerate}
 
+\subsection{StackGuard}
+
+The module \t{heapify.ml} contains a transformation similar to the one
+described in ``StackGuard: Automatic Adaptive Detection and Prevention of
+Buffer-Overflow Attacks'', {\em Proceedings of the 7th USENIX Security
+Conference}. In essence it modifies the program to maintain a separate
+stack for return addresses. Even if a buffer overrun attack occurs the
+actual correct return address will be taken from the special stack. 
+
+Although it does work, this CIL module is provided mainly as an example of
+how to perform a simple source-to-source program analysis and
+transformation. As an optimization only functions that contain a dangerous
+local array make use of the special return address stack. 
+
+For a concrete example, you can see how {\t cilly --dostackGuard}
+transforms the following dangerous code: 
+
+\begin{cilcode}[global] --dostackGuard
+  int dangerous() {
+    char array[10];
+    scanf("%s",array); // possible buffer overrun!
+  }
+
+  int main () {
+    return dangerous();
+  }
+\end{cilcode}
+
+
+\subsection{Heapify}
  
+The module \t{heapify.ml} also contains a transformation that moves all
+dangerous local arrays to the heap. This also prevents a number of buffer
+overruns. 
+
+For a concrete example, you can see how {\t cilly --doheapify}
+transforms the following dangerous code: 
+
+\begin{cilcode}[global] --doheapify
+  int dangerous() {
+    char array[10];
+    scanf("%s",array); // possible buffer overrun!
+  }
+
+  int main () {
+    return dangerous();
+  }
+\end{cilcode}
+
+\subsection{One Return}
+
+The module \t{oneret.ml} contains a transformation the ensures that all
+function bodies have at most one return statement. This simplifies a number
+of analyses by providing a canonical exit-point. 
+
+For a concrete example, you can see how {\t cilly --dooneRet}
+transforms the following code: 
+
+\begin{cilcode}[global] --dooneRet
+  int foo (int predicate) {
+    if (predicate <= 0) {
+      return 1;
+    } else {
+      if (predicate > 5)
+        return 2;
+      return 3;
+    }
+  }
+\end{cilcode}
+
+\subsection{Control-Flow Graphs}
+
+CIL can reduce high-level C control-flow constructs like \t{switch} and
+\t{continue} to lower-level \t{goto}s. This completely eliminates some
+possible classes of statements from the program and may make the result
+easier to analyze (e.g., it simplifies data-flow analysis). 
+
+For a concrete example, you can see how {\t cilly --domakeCFG}
+transforms the following code (note the fall-through in case 1): 
+
+\begin{cilcode}[global] --domakeCFG
+  int foo (int predicate) {
+    int x = 0;
+    switch (predicate) {
+      case 0: return 111;
+      case 1: x = x + 1;
+      case 2: return (x+3);
+      case 3: break;
+      default: return 222;
+    }
+    return 333;
+  }
+\end{cilcode}
+
+\subsection{Partial Evaluation and Constant Folding} 
+
+The \t{partial.ml} module provides a simple interprocedural partial
+evaluation and constant folding data-flow analysis and transformation. This
+transformation requires the {\t --domakeCFG} option. 
+
+For a concrete example, you can see how {\t cilly --domakeCFG --dopartial}
+transforms the following code (note the eliminated \t{if} branch and the
+partial optimization of \t{foo}): 
+
+\begin{cilcode}[global] --domakeCFG --dopartial
+  int foo(int x, int y) {
+    int unknown;
+    if (unknown)
+      return y+2;     
+    return x+3;      
+  }
+
+  int main () {
+    int a,b,c;
+    a = foo(5,7) + foo(6,7);
+    b = 4;
+    c = b * b;      
+    if (b > c)     
+      return b-c;
+    else
+      return b+c; 
+  }
+\end{cilcode}
+
+\subsection{Simple Memory Operations} 
+
+The \t{simplemem.ml} module allows CIL lvalues that contain memory accesses
+to be even futher simplified via the introduction of well-typed
+temporaries. After this transformation all lvalues involve at
+most one memory reference. 
+
+For a concrete example, you can see how {\t cilly --dosimpleMem} 
+transforms the following code:
+
+\begin{cilcode}[global] --dosimpleMem
+  int main () {
+    int ***three;
+    int **two;
+    ***three = **two; 
+  } 
+\end{cilcode}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Controlling CIL}
@@ -2286,6 +2428,12 @@ Necula}.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf March 10, 2003}: {\bf Released version 1.0.9}
+\item {\bf March 10, 2003}: Unified and documented a large number of CIL
+Library Modules: oneret, simplemem, makecfg, heapify, stackguard, partial.
+Also documented the main client interface for the pointer analysis. 
+\item {\bf February 18, 2003}: Fixed a bug in logwrites that was causing it
+to produce invalid C code on writes to bitfields. Thanks, David Park. 
 \item {\bf February 15, 2003}: {\bf Released version 1.0.8}
 \item {\bf February 15, 2003}: PDF versions of the manual and API are
 available for those who would like to print them out. 

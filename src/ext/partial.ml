@@ -608,7 +608,7 @@ module MakePartial =
           state
 
       | Block(b) ->
-          if List.length stmt.succs > 1 then begin
+          if debug && List.length stmt.succs > 1 then begin
             ignore (Pretty.printf "(%a) has successors [%a]@!"
               d_stmt stmt 
               (docList (chr '@') (d_stmt ()))
@@ -638,7 +638,8 @@ module MakePartial =
           end
       | _ -> () 
       ) ;
-      Printf.printf "Dataflow: at most %d statements in program\n" !num_stmts ; 
+      (if debug then 
+      Printf.printf "Dataflow: at most %d statements in program\n" !num_stmts); 
 
       (* create a priority queue in which to store statements *) 
       let worklist = Heap.create !num_stmts in
@@ -661,7 +662,7 @@ module MakePartial =
 
         (* we must recompute the ordering and the predecessor information
          * because we may have changed it by removing IFs *)
-        Printf.printf "Dataflow: Topological Sorting & Reachability\n" ;
+        (if debug then Printf.printf "Dataflow: Topological Sorting & Reachability\n" );
         toposort c initial_stmt ;  
 
         let initial_si = get_sinfo initial_stmt in
@@ -740,15 +741,14 @@ module MakePartial =
             end 
           end
         done ;
-        Printf.printf "Dataflow: Pass %d Complete\n" !passes ;
-        flush stdout ;
+        (if debug then Printf.printf "Dataflow: Pass %d Complete\n" !passes) ;
         if !changed_cfg then begin
-          Printf.printf "Dataflow: Restarting (CFG Changed)\n" ;
+          (if debug then Printf.printf "Dataflow: Restarting (CFG Changed)\n") ;
           changed_cfg := false 
         end else 
           finished := true 
       done ;
-      Printf.printf "Dataflow: Completed (%d passes)\n" !passes 
+      (if debug then Printf.printf "Dataflow: Completed (%d passes)\n" !passes) 
 
     end 
     
@@ -797,6 +797,18 @@ let partial (f : Cil.file) (assumptions : (Cil.lval * Cil.exp) list) =
       Printf.printf "Error in Partial: %s\n" (Printexc.to_string e) ;
       raise e
     end 
+
+let feature : featureDescr = 
+  { fd_name = "partial";
+    fd_enabled = Util.doPartial;
+    fd_description = "interprocedural partial evaluation and constant folding" ;
+    fd_extraopt = [];
+    fd_doit = (function (f: file) -> 
+      if not !Util.makeCFG then begin
+        Errormsg.s (Errormsg.error "--dopartial: you must also specify --domakeCFG\n")
+      end ; 
+      partial f [] ) ;
+  } 
 
 (*
  *

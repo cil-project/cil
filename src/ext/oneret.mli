@@ -40,3 +40,4 @@
  * Replace all the other returns with Goto. Make sure that there is a return 
  * if the function is supposed to return something. *)
 val oneret: Cil.fundec -> unit
+val feature : Cil.featureDescr 

@@ -121,3 +121,11 @@ let simplemem (f : file) =
     f
   with e -> Printf.printf "Exception in Simplemem.simplemem: %s\n"
     (Printexc.to_string e) ; raise e
+
+let feature : featureDescr = 
+  { fd_name = "simpleMem";
+    fd_enabled = Util.doSimpleMem;
+    fd_description = "simplify all memory expressions" ;
+    fd_extraopt = [];
+    fd_doit = (function (f: file) -> ignore (simplemem f)) ;
+  } 

@@ -146,4 +146,13 @@ let oneret (f: Cil.fundec) : unit =
   f.sbody <- scanBlock true f.sbody
         
       
-  
+let feature : featureDescr = 
+  { fd_name = "oneRet";
+    fd_enabled = Util.doOneRet;
+    fd_description = "make each function have at most one 'return'" ;
+    fd_extraopt = [];
+    fd_doit = (function (f: file) -> 
+      Cil.iterGlobals f (fun glob -> match glob with
+        Cil.GFun(fd,_) -> oneret fd; 
+      | _ -> ()))
+  } 

@@ -42,7 +42,16 @@ let logCalls = ref false (* Whether to produce a log with all the function
                           * calls made *)
 let logWrites = ref false (* Whether to produce a log with all the mem 
                           * writes made *)
-
+let doPartial = ref false (* Whether to do partial evaluation and constant 
+                          * folding *)                          
+let doSimpleMem = ref false (* reduce complex memory expressions so that
+                          * they contain at most one lval *) 
+let doOneRet = ref false (* make a functions have at most one 'return' *)
+let doStackGuard = ref false (* instrument function calls and returns to
+maintain a separate stack for return addresses *)
+let doHeapify = ref false (* move stack-allocated arrays to the heap *)
+let makeCFG = ref false (* turn the input CIL file into something more like
+                          * a CFG *)
 let printStats = ref false
 
 (* when 'sliceGlobal' is set, then when 'rmtmps' runs, only globals*)

@@ -38,14 +38,16 @@ if(! -d $tmpdir) {
 }
 my $incode = 0;
 my $opt;
+my $cil_options;
 
 binmode STDOUT;
 
 my $lineno = 0;
 while(<>) {
     $lineno ++;
-    if(! $incode && $_ =~ m|^\\begin{cilcode}\[(.*)\]$|) {
+    if(! $incode && $_ =~ m|^\\begin{cilcode}\[(.*)\](.*)$|) {
         $opt = $1;
+        $cil_options = $2;
         $incode = 1;
         print STDERR "\n***Found CIL code at line $lineno\n";
         open(TSTSRC, ">$tmpdir/ex$testnr.c") 
@@ -71,7 +73,7 @@ while(<>) {
             print "See the \\ahref{$htmloutdir/ex$testnr.txt}{CIL output} for this
 code fragment\n";
             # Now run cilly
-            my $cmd = "$cilly -c $tmpdir/ex$testnr.c -o $tmpdir/ex$testnr.o";
+            my $cmd = "$cilly $cil_options -c $tmpdir/ex$testnr.c -o $tmpdir/ex$testnr.o";
             # print "$cmd\n";
             if(system($cmd)) {
                 die "Error running CIL for $tmpdir/ex$testnr.c";
