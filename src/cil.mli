@@ -577,9 +577,11 @@ val d_binop: unit -> binop -> Pretty.doc
 
 
 val d_attr: unit -> attribute -> Pretty.doc
-val d_attrlist: bool -> attribute list -> Pretty.doc (* Whether it comes 
-                                                      * before or after stuff 
-                                                      * *)
+val d_attrlist: bool -> unit -> attribute list -> Pretty.doc (* Whether it 
+                                                              * comes before 
+                                                              * or after 
+                                                              * stuff  *) 
+       
 val d_lval: unit -> lval -> Pretty.doc
 val d_instr: unit -> instr -> Pretty.doc
 val d_stmt: unit -> stmt -> Pretty.doc

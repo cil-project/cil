@@ -1550,7 +1550,15 @@ and boxlval (b, off) : (typ * P.pointerkind * lval * exp * exp * stmt list) =
    * used to recreate the lval. *)
   let (btype, pkind, mklval, base, bend, stmts) as startinput = 
     match b with
-      Var vi -> vi.vtype, P.Safe, (fun o -> (Var vi, o)), zero, zero, []
+      Var vi -> 
+(*        ignore (E.log "Doing boxlval %s. attr = %a\n" vi.vname
+                  (d_attrlist true) vi.vattr); *)
+        let vkind = 
+          if filterAttributes "tagged" vi.vattr  <> [] then 
+            P.Wild 
+          else P.Safe 
+        in
+        vi.vtype, vkind, (fun o -> (Var vi, o)), zero, zero, []
     | Mem addr -> 
         let (addrt, doaddr, addr', addr'base, addr'len) = boxexpSplit addr in
         let addrt', pkind = 
@@ -1620,7 +1628,7 @@ and boxlval (b, off) : (typ * P.pointerkind * lval * exp * exp * stmt list) =
         end
     | f1 :: f2 :: _ when (f1.fname = "_len" && f2.fname = "_data") -> begin
         (* A tagged data. Only wild pointers inside *)
-        if pkind = P.Wild then
+        if pkind != P.Wild then
           E.s (E.bug "Tagged data inside a tagged area");
         (f2.ftype, P.Wild, (fun o -> mklval (Field(f2, o))),
           mkAddrOf (mklval(Field(f2,NoOffset))), zero, stmts)
@@ -2148,7 +2156,9 @@ let boxFile file =
           )
           f.slocals;
         (* We fix the formals only if the function is not vararg *)
-        List.iter (fun l -> l.vtype <- fixupType l.vtype) f.sformals;
+        List.iter (fun l -> 
+          l.vattr <- P.replacePtrNodeAttrList P.AtVar l.vattr;
+          l.vtype <- fixupType l.vtype) f.sformals;
         currentFunction := f;           (* so that maxid and locals can be
                                          * updated in place *)
         (* Check that we do not take the address of a formal. If we actually
@@ -2161,8 +2171,8 @@ let boxFile file =
                 let r1, r2 = loopFormals restf in
                 if form.vaddrof then begin
                   let tmp = makeTempVar f form.vtype in
-                    (* Now take it out of the locals and replace it with the
-                       * current formal. It is not worth optimizing this one *)
+                  (* Now take it out of the locals and replace it with the 
+                   * current formal. It is not worth optimizing this one  *)
                   f.slocals <-
                      form ::
                      (List.filter (fun x -> x.vid <> tmp.vid) f.slocals);

@@ -1050,7 +1050,7 @@ and d_attr () = function
   | ACons(s,al) -> dprintf "%s(%a)" s
         (docList (chr ',') (d_attr ())) al
           
-and d_attrlist pre al = (* Whether it comes before or after stuff *)
+and d_attrlist pre () al = (* Whether it comes before or after stuff *)
   (* Take out the special attributes *)
   let rec loop remaining = function
       [] -> begin
@@ -1072,8 +1072,8 @@ and d_attrlist pre al = (* Whether it comes before or after stuff *)
   else
     if pre then res ++ text " " else text " " ++ res
     
-and d_attrlistpre () a = d_attrlist true a
-and d_attrlistpost () a = d_attrlist false a
+and d_attrlistpre () al = d_attrlist true () al
+and d_attrlistpost () al = d_attrlist false () al
 
 (* lvalue *)
 and d_lvalprec contextprec () lv = 
@@ -1310,7 +1310,8 @@ and d_plainoffset () = function
 
 and d_plaintype () = function
     TVoid a -> dprintf "TVoid(@[%a@])" d_attrlistpost a
-  | TInt(ikind, a) -> dprintf "TInt(@[%a,@?%a@])" d_ikind ikind d_attrlistpost a
+  | TInt(ikind, a) -> dprintf "TInt(@[%a,@?%a@])" 
+        d_ikind ikind d_attrlistpost a
   | TFloat(fkind, a) -> 
       dprintf "TFloat(@[%a,@?%a@])" d_fkind fkind d_attrlistpost a
   | TBitfield(ikind,i,a) -> 
