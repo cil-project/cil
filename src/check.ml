@@ -816,7 +816,7 @@ let rec checkGlobal = function
         (fun _ -> 
           checkGlobal (GVarDecl (vi, l));
           (* Check the initializer *)
-          begin match init with
+          begin match init.init with
             None -> ()
           | Some i -> ignore (checkInitType i vi.vtype)
           end;

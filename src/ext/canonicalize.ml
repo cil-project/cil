@@ -82,7 +82,7 @@ class canonicalizeVisitor = object(self)
 
   (* move variable declarations around *) 
   method vglob g = match g with 
-    GVar(v, Some init, l) -> 
+    GVar(v, ({init = Some _} as inito), l) ->
       (* A definition.  May have been moved to an earlier position. *)
       if H.mem alreadyDefined v then begin
 	ignore (E.warn "Duplicate definition of %s at %a.\n" 
@@ -97,11 +97,11 @@ class canonicalizeVisitor = object(self)
 		    v.vname d_storage oldS);
 	  v.vstorage <- Extern;	  
 	  let newv = {v with vstorage = oldS} in
-	  ChangeDoChildrenPost([GVar(newv, Some init, l)], (fun g -> g) )
+	  ChangeDoChildrenPost([GVar(newv, inito, l)], (fun g -> g) )
 	end else
 	  DoChildren
       end
-  | GVar(v, None, l)
+  | GVar(v, {init=None}, l)
   | GVarDecl(v, l) when not (isFunctionType v.vtype) -> begin
       (* A declaration.  May have been moved to an earlier position. *)
       if H.mem alreadyDefined v || H.mem alreadyDeclared v then 

@@ -229,8 +229,8 @@ texdoc: doc/cilpp.tex
 	cd doc/html/cil; hevea -exec xxdate.exe ../../cilpp
 	cd doc/html/cil; mv cilpp.html cil.html
 	cd doc/html/cil; hacha -o ciltoc.html cil.html
-	cp doc/cilindex.html doc/html/cil/index.html
-	cp doc/cilheader.html doc/html/cil
+	cp -f doc/cilindex.html doc/html/cil/index.html
+	cp -f doc/cilheader.html doc/html/cil
 
 pdfdoc: doc/cilpp.tex 
 	cd doc; echo "\def\cilversion{@CIL_VERSION@}" >cil.version.tex

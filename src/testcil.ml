@@ -223,7 +223,7 @@ let testSizeOf () =
     let t = select !typeChoices in
     (* Create a global with that type *)
     let g = makeGlobalVar (newName "g") t in
-    addGlobal (GVar(g, None, lu));
+    addGlobal (GVar(g, {init=None}, lu));
     addStatement (mkStmtOneInstr(Call(None, Lval(var memsetFun.svar),
                                       [ mkAddrOrStartOf (var g); zero;
                                         SizeOfE(Lval(var g))], lu)));
@@ -362,13 +362,13 @@ let createFile () =
   !main.svar.vtype <- TFun(intType, None, false, []);
   mainRetVal := makeGlobalVar "retval" intType;
 
-  addGlobal (GVar(!mainRetVal, None, lu));
+  addGlobal (GVar(!mainRetVal, {init=None}, lu));
   addGlobal (GText("#include \"testcil.h\"\n"));
   addStatement (mkStmtOneInstr(Set(var !mainRetVal, zero, lu)));
 
   (* Add prototype for printf *)
-  addGlobal (GVar(printfFun.svar, None, lu));
-  addGlobal (GVar(memsetFun.svar, None, lu));
+  addGlobal (GVar(printfFun.svar, {init=None}, lu));
+  addGlobal (GVar(memsetFun.svar, {init=None}, lu));
 
   (* now fill in the composites and the code of main. For simplicity we add 
    * the statements of main in reverse order *)

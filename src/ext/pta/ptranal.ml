@@ -349,7 +349,7 @@ let analyze_global (g : global ) : unit =
     | GVar (v,init,l) -> 
 	begin
 	  all_globals := v :: (!all_globals);
-	  match init with
+	  match init.init with
 	    | Some i ->
 		A.assign (analyze_var_decl(v)) (analyze_init(i))
 	    | None ->

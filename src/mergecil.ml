@@ -1341,7 +1341,7 @@ let oneFilePass2 (f: file) =
               let prevVar, prevInitOpt, prevLoc =
                 (H.find emittedVarDefn vi'.vname) in
               (* previously defined; same initializer? *)
-              if (equalInitOpts prevInitOpt init) then (
+              if (equalInitOpts prevInitOpt init.init) then (
                 (trace "mergeGlob"
                   (P.dprintf "dropping global var %s at %a in favor of the one at %a\n"
                              vi'.vname  d_loc l  d_loc prevLoc));
@@ -1359,7 +1359,7 @@ let oneFilePass2 (f: file) =
               )
             with Not_found -> (
               (* no previous definition *)
-              (H.add emittedVarDefn vi'.vname (vi', init, l));
+              (H.add emittedVarDefn vi'.vname (vi', init.init, l));
               true     (* emit it *)
             )
           in

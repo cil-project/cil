@@ -371,6 +371,10 @@ NEWLINE="\\
 # Give a list of features with the defaults
 features="blockinggraph=no"
 
+AC_ARG_WITH(blockinggraph,
+    AC_HELP_STRING([--with-blockinggraph],
+                   [enable the blocking graph feature]))
+   
 for f_val in $features
 do
    f=`echo $f_val | sed -e s%=.*$%%`

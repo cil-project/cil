@@ -139,10 +139,12 @@ and global =
        prototype shares the varinfo with the fundec of the definition. Either 
        has storage Extern or there must be a definition in this file *)
 
-  | GVar  of varinfo * init option * location
-     (** A variable definition. Can have an initializer. There can be at most 
-         one definition for a variable in an entire program. Cannot have 
-         storage Extern or function type.  *)
+  | GVar  of varinfo * initinfo * location
+     (** A variable definition. Can have an initializer. The initializer is 
+      * updateable so that you can change it without requiring to recreate 
+      * the list of globals. There can be at most one definition for a 
+      * variable in an entire program. Cannot have storage Extern or function 
+      * type. *)
 
   | GFun of fundec * location           
      (** A function definition. *)
@@ -758,16 +760,14 @@ and init =
      * For arrays, however, we allow you to give only a prefix of the 
      * initializers. You can scan an initializer list with 
      * {!Cil.foldLeftCompound} or with {!Cil.foldLeftCompoundAll}. *)
-(* Turned off for now 
-  | ArrayInit of typ * int * init list
-    (** The new form of initializer for arrays. Give the base type and the 
-     *  length of the array, followed by a list of initializers in order. The 
-     * list might be shorter than the array. We want to use something cheaper 
-     * for array initializers because they can be huge. They also do not have 
-     * the corner cases of struct/union initializers where once certain 
-     * fields can have initializers. *)
-*)
-   
+
+
+(** We want to be able to update an initializer in a global variable, so we 
+ * define it as a mutable field *)
+and initinfo = {
+    mutable init : init option;
+  } 
+
 (** {b Function definitions.} 
 A function definition is always introduced with a [GFun] constructor at the
 top level. All the information about the function is stored into a

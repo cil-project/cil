@@ -197,9 +197,9 @@ let addCheck (f: Cil.file) : unit =
         (TFun(voidType, Some [], false, [])) in
     stackOverflow.vstorage <- Extern;
     f.globals <- 
-       GVar(stackThreshholdVar, None, locUnknown) ::
-       GVar(computeStackThreshhold, None, locUnknown) ::
-       GVar(stackOverflow, None, locUnknown) :: f.globals;
+       GVar(stackThreshholdVar, {init=None}, locUnknown) ::
+       GVar(computeStackThreshhold, {init=None}, locUnknown) ::
+       GVar(stackOverflow, {init=None}, locUnknown) :: f.globals;
     (* Now scan and instrument each function definition *)
     List.iter
       (function 

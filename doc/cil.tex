@@ -1,4 +1,4 @@
-\documentclass{article}
+\documentclass{article} 
 
 \usepackage{hevea}
 
@@ -2428,6 +2428,12 @@ Necula}.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf April 7, 2003}: Changed the representation of the \cilvalref{GVar}
+global constructor. Now it is possible to update the initializer without
+reconstructing the global (which in turn it would require reconstructing the
+list of globals that make up a program). We did this because it is often
+tempting to use \cilvalref{visitCilFileSameGlobals} and the \cilvalref{GVar}
+was the only global that could not be updated in place. 
 \item {\bf March 10, 2003}: {\bf Released version 1.0.9}
 \item {\bf March 10, 2003}: Unified and documented a large number of CIL
 Library Modules: oneret, simplemem, makecfg, heapify, stackguard, partial.

@@ -146,10 +146,13 @@ and global =
        prototype shares the varinfo with the fundec of the definition. Either 
        has storage Extern or there must be a definition in this file *)
 
-  | GVar  of varinfo * init option * location
-     (** A variable definition. Can have an initializer. There can be at most 
-         one definition for a variable in an entire program. Cannot have 
-         storage Extern or function type.  *)
+  | GVar  of varinfo * initinfo * location
+     (** A variable definition. Can have an initializer. The initializer is 
+      * updateable so that you can change it without requiring to recreate 
+      * the list of globals. There can be at most one definition for a 
+      * variable in an entire program. Cannot have storage Extern or function 
+      * type. *)
+
 
   | GFun of fundec * location           
      (** A function definition. *)
@@ -558,12 +561,14 @@ and init =
              * designator is printed, so you better be on GCC since MSVC does 
              * not understand this. You can scan an initializer list with 
              * {!Cil.foldLeftCompound}. *)
-(*
-  | ArrayInit of typ * int * init list
-    (** The new form of initializer for arrays. Give the base type and the 
-     *  length of the array, followed by a list of initializers in order. The 
-     * list might be shorter than the array.  *)
-*)
+
+(** We want to be able to update an initializer in a global variable, so we 
+ * define it as a mutable field *)
+and initinfo = {
+    mutable init : init option;
+  } 
+
+
 (** Function definitions. *)
 and fundec =
     { mutable svar:     varinfo;        
@@ -2626,7 +2631,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         self#pLineDirective ~forcefile:true l ++
           self#pVDecl () vi
           ++ chr ' '
-          ++ (match io with
+          ++ (match io.init with
             None -> nil
           | Some i -> text " = " ++ 
                 (let islong = 
@@ -2703,21 +2708,22 @@ class defaultCilPrinterClass : cilPrinter = object (self)
          fdec.svar.vattr <- oldattr;
          output_string out "\n"
 
-     | GVar (vi, Some i, l) -> 
+     | GVar (vi, {init = Some i}, l) -> begin
          fprint out 80 
            (self#pLineDirective ~forcefile:true l ++
               self#pVDecl () vi
               ++ text " = " 
               ++ (let islong = 
-                   match i with
-                     CompoundInit (_, il) when List.length il >= 8 -> true
-                   | _ -> false 
-                 in
-                 if islong then 
-                   line ++ self#pLineDirective l ++ text "  " 
-                 else nil)); 
+                match i with
+                  CompoundInit (_, il) when List.length il >= 8 -> true
+                | _ -> false 
+              in
+              if islong then 
+                line ++ self#pLineDirective l ++ text "  " 
+              else nil)); 
          self#dInit out 3 i;
          output_string out ";\n"
+     end
 
      | g -> fprint out 80 (self#pGlobal () g)
 
@@ -3871,13 +3877,13 @@ and childrenGlobal (vis: cilVisitor) (g: global) : global =
       if v' != v then GVarDecl (v', l) else g
   | GVar (v, inito, l) -> 
       let v' = visitCilVarDecl vis v in
-      let inito' = 
-        match inito with
-          None -> None 
-        | Some i -> let i' = visitCilInit vis i in 
-          if i' != i then Some i' else inito
-      in
-      if v' != v || inito' != inito then GVar (v', inito', l) else g
+      (match inito.init with
+        None -> ()
+      | Some i -> let i' = visitCilInit vis i in 
+        if i' != i then inito.init <- Some i');
+
+      if v' != v then GVar (v', inito, l) else g
+
   | GPragma (a, l) -> begin
       match visitCilAttributes vis [a] with
         [a'] -> if a' != a then GPragma (a', l) else g

@@ -233,7 +233,7 @@ let popGlobals () =
     | GVarDecl (vi, l) :: rest 
       when vi.vstorage != Extern && H.mem mustTurnIntoDef vi.vid -> 
         H.remove mustTurnIntoDef vi.vid;
-        revonto (GVar (vi, None, l) :: tail) rest
+        revonto (GVar (vi, {init = None}, l) :: tail) rest
 
     | x :: rest -> revonto (x :: tail) rest
   in
@@ -2719,8 +2719,8 @@ and doExp (isconst: bool)    (* In a constant *)
             in
             (* Add the definition for the array *)
             cabsPushGlobal (GVar(ws, 
-                                 Some (CompoundInit(ws_t,
-                                                    loop 0 wstr)),
+                                 {init = Some (CompoundInit(ws_t,
+                                                            loop 0 wstr))},
                                  !currentLoc));
             finishExp empty (StartOf(Var ws, NoOffset))
               (TPtr(wchar_t, []))
@@ -4319,7 +4319,7 @@ and createGlobal (specs : (typ * storage * bool * A.attribute list))
           E.s (error "%s is extern and with initializer" vi.vname);
         H.add alreadyDefined vi.vname !currentLoc;
         H.remove mustTurnIntoDef vi.vid;
-        cabsPushGlobal (GVar(vi, init, !currentLoc));
+        cabsPushGlobal (GVar(vi, {init = init}, !currentLoc));
         vi
       end else begin
         if not (isFunctionType vi.vtype) 
@@ -4397,7 +4397,7 @@ and createLocal ((_, sto, _, _) as specs)
         end
       in
       (* It is possible that the initializer refers to the *)
-      cabsPushGlobal (GVar(vi, init, !currentLoc));
+      cabsPushGlobal (GVar(vi, {init = init}, !currentLoc));
       empty
 
   (* Maybe we have an extern declaration. Make it a global *)
