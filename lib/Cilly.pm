@@ -1378,38 +1378,55 @@ sub arArguments {
     if($self->{VERBOSE}) {
         print "AR called with $arg ", join(' ', @{$pargs}), "\n";
     }
-    if($arg !~ m|c| || $arg !~ m|r| || $#{$pargs} < 0) {
-        if($arg !~ m|r|) {
-            die "AR implements only the r or cr operations";
-        }
 
-        # if the command is "r" alone, we should add to the current library, 
+    #The r flag is required:
+    if($arg !~ m|r| || $#{$pargs} < 0) {
+	die "Error: CCured's AR mode implements only the r and cr operations.";
+    }
+    if($arg =~ /[^crv]/) {
+	die "Error: CCured's AR mode supports only the c, r, and v flags.";
+    }
+    if($arg =~ v) {
+	$self->{VERBOSE} = 1;
+    }
+
+    if($arg =~ c)
+    {
+	# Command is "cr":
+        # Get the name of the library
+        $self->{OUTARG} = shift @{$pargs};
+        unlink $self->{OUTARG};
+    }
+    else
+    {
+	# if the command is "r" alone, we should add to the current library, 
         # not replace it, unless the library does not exist
         
         # Get the name of the library
         $self->{OUTARG} = shift @{$pargs};
         
-#        if(-f $self->{OFILES}) {
-            #The library is both an input and an output:
+        #The library is both an input and an output.
+        #To avoid problems with reading and writing the same file, move the
+        #current version of the library out of the way first.
         if(-f $self->{OUTARG}) {
+
+            my $temp_name = $self->{OUTARG} . "_old.a";
             if($self->{VERBOSE}) {
-                print "The library $self->{OUTARG} exists. Will add to it\n";
+        	print "Copying $self->{OUTARG} to $temp_name so we can add "
+                    . "to it.\n";
             }
-            push @{$self->{OFILES}}, $self->{OUTARG};
+            if(-f $temp_name) {
+                unlink $temp_name;
+            }
+            rename $self->{OUTARG}, $temp_name;
+
+            #now use $temp_name as the input.  $self->{OUTARG} will,
+            # as usual, be the output.
+            push @{$self->{OFILES}}, $temp_name;
         } else {
             warn "Library $self->{OUTARG} not found; creating.";
         }
-#        }
-#        else
-#        {  #library doesn't exist yet.  Warn the user and behave like "ar cr"
-#            warn "Library $self->{OUTARG} not found; creating.";
-#        }
-    }
-    else
-    {
-        # Get the name of the library
-        $self->{OUTARG} = shift @{$pargs};
-        unlink $self->{OUTARG};
+
     }
         
     # The rest of the arguments must be object files
