@@ -452,7 +452,10 @@ $TEST->addTests("test/bind-used-not-defined", "", ['inferbox']); # Superseeded
 $TEST->addTests("testrun/oneret", "", ['inferbox']);
 $TEST->addTests("test/bind-too-many", "", ['inferbox']);
 $TEST->addTests("testrun/split1", "", ['inferbox']);
-$TEST->add3Tests("testrun/rmtmps-attr");
+$TEST->addTests("testrun/rmtmps-attr", "", ['cil']);
+   $TEST->addBadComment("testrun/rmtmps-attr-cil", 
+                        "A limitation of our support for attributes");
+ 
 $TEST->add3Tests("testrun/vsp");
 $TEST->addTests("testrun/vsp1", "", ['inferbox']);
 $TEST->addTests("testrun/strtoul", "", ['inferbox']);
