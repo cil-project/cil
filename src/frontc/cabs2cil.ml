@@ -505,6 +505,7 @@ let mkStartOfAndMark ((b, off) as lval) : exp =
 
    (* Keep a set of self compinfo for composite types *)
 let compInfoNameEnv : (string, compinfo) H.t = H.create 113
+let enumInfoNameEnv : (string, enuminfo) H.t = H.create 113
 
 let lookupTypeNoError (kind: string) 
                       (n: string) : typ * location = 
@@ -533,6 +534,20 @@ let createCompInfo (iss: bool) (n: string) : compinfo =
     res
   end
 
+(* Create the self ref cell and add it to the map *)
+let createEnumInfo (n: string) : enuminfo = 
+  (* Add to the self cell set *)
+  try
+    H.find enumInfoNameEnv n (* Only if not already in *)
+  with Not_found -> begin
+    (* Create a enuminfo *)
+    let enum = { ename = n; eitems = []; 
+                 eattr = []; ereferenced = false; } in
+    H.add enumInfoNameEnv n enum;
+    enum
+  end
+
+
    (* kind is either "struct" or "union" or "enum" and n is a name *)
 let findCompType kind n a = 
   let key = kind ^ " " ^ n in
@@ -540,12 +555,13 @@ let findCompType kind n a =
     (* This is a forward reference, either because we have not seen this 
      * struct already or because we want to create a version with different 
      * attributes  *)
-    let iss =  (* is struct or union *)
-      if kind = "enum" then E.s (error "Forward reference for enum %s" n)
-      else if kind = "struct" then true else false
-    in
-    let self = createCompInfo iss n in
-    TComp (self, a)
+    if kind = "enum" then 
+      let enum = createEnumInfo n in
+      TEnum (enum, a)
+    else 
+      let iss = if kind = "struct" then true else false in
+      let self = createCompInfo iss n in
+      TComp (self, a)
   in
   try
     let old, _ = lookupTypeNoError kind n in (* already defined  *)
@@ -1656,14 +1672,14 @@ let rec doSpecList (specs: A.spec_elem list)
         let n' = if n <> "" then n else anonStructName "enum" in
         (* make a new name for this enumeration *)
         let n'' = newAlphaName true "enum" n' in
-        (* Create the enuminfo *)
-        let enum = { ename = n''; eitems = []; 
-                     eattr = []; ereferenced = false; } in
+        (* Create the enuminfo, or use one that was created already for a 
+         * forward reference *)
+        let enum = createEnumInfo n'' in 
         let res = TEnum (enum, []) in
 
         (* sm: start a scope for the enum tag values, since they *
         * can refer to earlier tags *)
-        (enterScope ());
+        enterScope ();
         
         (* as each name,value pair is determined, this is called *)
         let rec processName kname i rest = begin
@@ -4186,6 +4202,7 @@ let convFile fname dl =
   E.hadErrors := false;
   initGlobals();
   H.clear compInfoNameEnv;
+  H.clear enumInfoNameEnv;
   H.clear mustTurnIntoDef;
   H.clear alreadyDefined;
   annonCompFieldNameId := 0;
@@ -4289,15 +4306,11 @@ let convFile fname dl =
                   None -> None
                 | Some fl -> 
                     Some (List.map (alphaConvertVarAndAddToEnv true) fl) in
-              ignore (E.log "after adding formals in %s: lookupEnv = %b\n"
-                        n (H.mem env n));
               let formalsList' = argsToList formals' in
               let ftype = TFun(returnType, formals', isvararg, funta) in
               (* Now fix the names of the formals in the type of the function 
                * as well *)
               thisFunctionVI.vtype <- ftype;
-              ignore (E.log "Before makeGlobaVarinfo: ftype= %a\n"
-                        d_plaintype ftype);
 (*              ignore (E.log "makefunvar:%s@! type=%a@! vattr=%a@!"
                         n d_plaintype ftype (d_attrlist true) funattr); *)
               if H.mem alreadyDefined thisFunctionVI.vid then
@@ -4497,6 +4510,7 @@ let convFile fname dl =
   H.clear mustTurnIntoDef;  
   H.clear alreadyDefined;
   H.clear compInfoNameEnv;
+  H.clear enumInfoNameEnv;
   (* We are done *)
   { fileName = fname;
     globals  = !globals;

@@ -172,6 +172,7 @@ $TEST->addTests("testrun/const3", "", ['cil']);
 $TEST->addTests("testrun/const4", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/const5", "_GNUCC=1", ['cil']);
 $TEST->add3Tests("test/enum");
+$TEST->add3Tests("testrun/enum2");
 $TEST->add3Tests("test/format1");
 $TEST->add3Tests("test/func");
 $TEST->add3Tests("testrun/func2");
@@ -287,6 +288,7 @@ $TEST->addTests("testrun/struct1", "", ['cil']);
 $TEST->addTests("testrun/voidarg", "", ['cil']);
 $TEST->addTests("testrun/union2", "", ['cil']);
 $TEST->addTests("testrun/union3", "", ['cil']);
+$TEST->addTests("test/cpp-2", "", ['cil']);
 
 if($^O eq 'MsWin32') {
     $TEST->addTests("testrun/extern_init", "_MSVC=1", ['cil']);   
