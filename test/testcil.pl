@@ -736,6 +736,8 @@ smAddTest("scott/arrayexpand INFERBOX=infer");
 smAddTest("scott/byteprintf INFERBOX=infer");
 smFailTest("inference bug with function pointers",
            "scott/bufferlinegetter INFERBOX=infer");
+smFailTest("arithmetic on a null pointer",
+           "scott/null_pointer_field INFERBOX=infer");
 
 # tests of things implemented for EDG compatibility
 smAddTest("mergestruct");
