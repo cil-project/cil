@@ -55,6 +55,10 @@ let george_no_scan = george && false
 let george_no_emit = george && (george_no_scan || false)
 let george_no_out  = george && (george_no_scan || george_no_emit || false)
 
+(* use MARSHALWRITE=filename to marshal the document to the specified file *)
+let marshalFilename = (try Sys.getenv ("MARSHALWRITE") with Not_found -> "")
+
+
 
 let noBreaks = ref false  (* Replace all soft breaks with space *)
 let noAligns = ref false (* Whether to obey align/unalign *)
@@ -1060,40 +1064,69 @@ let writeChar (c : char) = function
   | QBuffer buf -> Buffer.add_char buf c
 
 
+
+let rec writeIndent_out n chn =
+  if n > 0 then begin
+    output_char chn ' ';
+    writeIndent_out (n - 1) chn
+  end 
+let rec writeIndent_buf n buf =
+  if n > 0 then begin
+    Buffer.add_char buf ' ';
+    writeIndent_buf (n - 1) buf
+  end
+let writeIndent (n : int) = function
+    QOut_channel chn -> writeIndent_out n chn     
+  | QBuffer buf -> writeIndent_buf n buf
+
+
 (* Calculate qalignData.sizes *)
 type docStream = unit -> doc
-let makeDocStream doc =
+
+let qPreprocess doc width =
   let stack = ref [doc] in
-  let rec getNext = function () -> match !stack with
+  
+  let rec getNext  () = match !stack with
     doc :: rest -> begin 
       stack := rest;
       match doc with
-	Nil -> getNext ()
-      | Text _ | (* Spaces _ | *) Line | Break | Align | Unalign -> doc
-      |	Concat (d1,d2) -> 
+       	Concat (d1,d2) -> 
 	  stack := d1 :: (d2 :: !stack);
 	  getNext ()
       |	CText (d,s) ->
 	  stack := d :: (Text s :: !stack);
 	  getNext ()
+      |	Nil -> getNext ()
+      | Text _ | Line | Break | Align | Unalign -> doc
     end
   | _ -> nil
-  in getNext
-
-let qPreprocess doc width =
-  let docstr = makeDocStream doc in
+  (*
+     let rec getNext  () = 
+     let rec processStackElement doc = 
+     match doc with
+     Nil -> getNext ()
+     |	Text _ | Line | Break | Align | Unalign -> doc
+     |	Concat (d1,d2) ->
+     stack := d2 :: !stack;
+     processStackElement d1
+     |	CText (d,s) ->
+     stack := Text s :: !stack;
+     processStackElement d
+     in
+     match !stack with
+     doc :: rest -> begin 
+     stack := rest;
+     processStackElement doc
+     end
+     | _ -> nil
+  *)
+  in
+  let docstr = getNext in
   let breakList : int ref list ref = ref [] in
   let updateBreakList = ref false in
-  (* let prevBrk : qbrkData ref = ref nil in *)
   let rec getSize (acc : int) : int  =
     match docstr () with
-      Nil -> acc
-    | Text s -> getSize (acc + String.length s)
-(*     | Spaces n -> getSize (acc + n) *)
-    | Line -> 
-	if (!updateBreakList) then breakList := (ref (-1)) :: !breakList;
-	updateBreakList := false; 
-	getSize 0
+      Text s -> getSize (acc + String.length s)
     | Break -> 
 	if (!updateBreakList) then breakList := (ref (-1)) :: !breakList 
 	else updateBreakList := true; 
@@ -1110,6 +1143,11 @@ let qPreprocess doc width =
 	(*if !updateBreakList then breakList := (ref (-1)) :: !breakList;
 	updateBreakList := false; *)
 	acc
+    | Line -> 
+	if (!updateBreakList) then breakList := (ref (-1)) :: !breakList;
+	updateBreakList := false; 
+	getSize 0
+    | Nil -> acc
     | _ -> raise (Failure "docStream returned nonleaf")
   in 
   let _ = getSize 0 in begin
@@ -1120,53 +1158,50 @@ let qPreprocess doc width =
 
 
 let qprint qchn width doc = 
-  let curPos = ref 0 in
+  (* let curPos = ref 0 in *)
   let alignStack  = ref [0] in
   let breakList :  int ref list ref = ref (qPreprocess doc width) in
   let breakLine () = begin
     writeChar '\n' qchn;
-    for i=1 to (List.hd !alignStack) do writeChar ' ' qchn done;
-    curPos := List.hd !alignStack 
+    (* for i=1 to (List.hd !alignStack) do writeChar ' ' qchn done;*)
+    writeIndent (List.hd !alignStack) qchn; (* AB: Why doesn't this make it faster ? *)
+    List.hd !alignStack 
   end in
-  let decide2break () = begin
+  let decide2break curPos = begin
     match !breakList with
       size :: rest -> 
 	breakList := rest;
-	(!curPos > width) || 
+	(curPos > width) || 
 	if (!size <= 0) then false
-	else (width <= !curPos + !size)
+	else (width <= curPos + !size)
     | _ -> raise (Failure "breakList contains too few breaks")
   end  in
-  let rec qprintLoop = function
-      Nil -> ()
+  let rec qprintLoop curPos = function
+      Nil -> curPos
     | Text s -> 
-	let len = String.length s in 
-	curPos := !curPos + len;
-	writeString s qchn
-(*    | Spaces n -> 
-	curPos := !curPos + n;
-	for i=1 to n do writeChar ' ' qchn done *)
-    | Concat (d1, d2) -> qprintLoop d1; qprintLoop d2
-    | CText (d,s) -> qprintLoop d; qprintLoop (Text s)
+	writeString s qchn;
+	curPos + String.length s
+    | Concat (d1, d2) -> qprintLoop (qprintLoop curPos d1) d2
+    | CText (d,s) -> qprintLoop (qprintLoop curPos d) (Text s)
     | Break -> 
 	(* if (!curPos + 10 >= width) then begin *)
-	if decide2break () then begin
-	  (* fprintf "*TAKEN*";*)
+	if (decide2break curPos) then begin
 	  breakLine()
 	end
 	else begin
-	  (* fprintf "*OPEN*"; *)
-	  curPos := !curPos + 1;
-	  writeChar ' ' qchn
+	  writeChar ' ' qchn;
+	  curPos + 1	    
 	end	  
     | Line -> 
-	(* writeChar '/' qchn; *)
 	breakLine ()
     | Align -> 
-	alignStack := !curPos :: !alignStack
-    | Unalign -> alignStack := List.tl !alignStack
+	alignStack := curPos :: !alignStack;
+	curPos
+    | Unalign -> 
+	alignStack := List.tl !alignStack;
+	curPos
   in 
-  qprintLoop doc
+  ignore (qprintLoop 0 doc)
   
 
 
@@ -1184,8 +1219,42 @@ let qsprint width doc =
 
 
 
-let fprint = if use_Qversion then qfprint else fprint_old
-let sprint = if use_Qversion then qsprint else sprint_old
+let fprint_no_marshal = if use_Qversion then qfprint else fprint_old
+let sprint_no_marshal = if use_Qversion then qsprint else sprint_old
+
+let marshal_chn = if (marshalFilename = "") then stdout else begin
+  fprintf "Marshaling doc to file (append/create): %s\n" marshalFilename;  
+  (* AB: Why the @#$#@$ doesn't this work ? *)
+  (*
+  (open_out_gen 
+     [Open_append; Open_creat] 
+     666 marshalFilename);
+  *)
+  open_out_bin marshalFilename 
+end
+
+
+let fprint = if (marshalFilename = "") 
+then fprint_no_marshal 
+else begin
+  fun chn width doc ->
+    let mchn = marshal_chn  in
+    Marshal.to_channel mchn doc [Marshal.No_sharing];
+    flush mchn;
+    fprint_no_marshal chn width doc
+end
+
+let sprint = if (marshalFilename = "") 
+then sprint_no_marshal 
+else begin
+  fun width doc ->
+    let mchn = marshal_chn  in
+    Marshal.to_channel mchn doc [Marshal.No_sharing];
+    flush mchn;
+    sprint_no_marshal width doc
+end
+
+
 
 (*
 let fprint = qfprint
