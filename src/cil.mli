@@ -974,8 +974,10 @@ val prepareCFG: fundec -> unit
 (** Compute the CFG information for all statements in a fundec and return a 
   * list of the statements. The input fundec cannot have [Brake], [Switch], 
   * [Default], or [Continue] {!Cil.stmtkind}s or {!Cil.label}s. Use
-  * !{Cil.prepareCFG} to transform them away. *)
-val computeCFGInfo: fundec -> stmt list
+  * !{Cil.prepareCFG} to transform them away.  The second argument should
+  * be [true] if you wish a global statement number, [false] if you wish a
+  * local (per-function) statement numbering. *)
+val computeCFGInfo: fundec -> bool -> stmt list
 
 
 (** Create a deep copy of a function. There shoudl be no sharing between the 

@@ -4763,9 +4763,10 @@ let prepareCFG (fd : fundec) : unit =
       (fun () -> failwith "prepareCFG: continue with no enclosing loop") (-1)
 
 (* make the cfg and return a list of statements *)
-let computeCFGInfo (f : fundec) : stmt list =
+let computeCFGInfo (f : fundec) (global_numbering : bool) : stmt list =
   let clear_it = new clear in 
-  sid_counter := 0 ; 
+  if not global_numbering then 
+    sid_counter := 0 ; 
   statements := [];
   ignore (visitCilBlock clear_it f.sbody) ;
   f.smaxstmtid <- Some (!sid_counter) ;

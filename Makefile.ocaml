@@ -156,7 +156,7 @@ endif
 # to make the optimized versions of some of the tools, so detect
 # now whether they're installed, and if so, set OPT to ".opt"
 # (otherwise set it to "")
-OPT := $(shell which ocamlopt.opt ocamlc.opt >/dev/null 2>&1 && echo .opt)
+#OPT := $(shell which ocamlopt.opt ocamlc.opt >/dev/null 2>&1 && echo .opt)
 
 ifdef PROFILE
 # NATIVECAML	= 1
