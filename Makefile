@@ -220,6 +220,12 @@ endif
 
 # ----------- below here are rules for building benchmarks --------
 
+OPTIMVARIANT:= $(CC) $(DEF)_$(COMPILERNAME) \
+                 $(DEF)CIL \
+                 $(DEF)CCURED \
+                 $(INC)$(CCUREDHOME)/lib \
+                 $(OPT_O2)
+
 # use this dependency for those targets that must be built with GCC
 mustbegcc :
 ifndef _GNUCC
@@ -706,25 +712,23 @@ BHDIR := test/olden/bh
 bh:  mustbegcc
 	cd $(BHDIR); rm -f code.exe *.o; \
                make CC="$(COMBINECCURED) --nocure=trusted_bh $(PATCHARG)"
-	echo  >$(BHDIR)/data.in
-	echo  >>$(BHDIR)/data.in
-	echo  >>$(BHDIR)/data.in
-	echo  >>$(BHDIR)/data.in
-	echo  >>$(BHDIR)/data.in
-	echo  >>$(BHDIR)/data.in
-	echo  >>$(BHDIR)/data.in
-	echo  >>$(BHDIR)/data.in
-	echo  >>$(BHDIR)/data.in
-	echo  >>$(BHDIR)/data.in
-	echo  >>$(BHDIR)/data.in
-	echo  >>$(BHDIR)/data.in
-	cd $(BHDIR); sh -c "time ./code < data.in > data.out"
-	@true "sm: added next line to compare output to expected output"
-#	cd $(BHDIR); sh -c "perl normalize.pl < data.out | diff data.cil.out - | head"
+	make runbh $(MAKEOVERRIDES)
 
 bh-combined:  mustbegcc
 	cd $(BHDIR); \
-	    $(CCURED) code_all.c trusted_bh.c $(EXEOUT)code.exe
+	    $(CCURED) code.exe_comb.c trusted_bh.c $(EXEOUT)code.exe
+	make runbh $(MAKEOVERRIDES)
+
+bh-optimvariant.%: mustbegcc
+	cd $(BHDIR); \
+           $(OPTIMVARIANT) \
+                 code.exe_combcured.$*.optim.c \
+                 trusted_bh.c \
+                 $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
+                 $(EXEOUT)code.exe
+	make runbh $(MAKEOVERRIDES)
+
+runbh:
 	echo  >$(BHDIR)/data.in
 	echo  >>$(BHDIR)/data.in
 	echo  >>$(BHDIR)/data.in
@@ -737,7 +741,10 @@ bh-combined:  mustbegcc
 	echo  >>$(BHDIR)/data.in
 	echo  >>$(BHDIR)/data.in
 	echo  >>$(BHDIR)/data.in
-	cd $(BHDIR); sh -c "time code < data.in >dat.out"
+	cd $(BHDIR); sh -c "time ./code.exe < data.in >dat.out"
+	@true "sm: added next line to compare output to expected output"
+#	cd $(BHDIR); sh -c "perl normalize.pl < data.out | diff data.cil.out - | head"
+
 
 # Power pricing
 PWDIR := test/olden/power
@@ -750,14 +757,10 @@ power:  mustbegcc
                     CC="$(COMBINECCURED) $(PATCHARG)"
 	cd $(PWDIR); sh -c "time ./power.exe"
 
-power-removed%: mustbegcc
+power-optimvariant.%: mustbegcc
 	cd $(PWDIR); \
-           $(CC) $(DEF)_$(COMPILERNAME) \
-                 $(DEF)CIL \
-                 $(DEF)CCURED \
-                 $(INC)$(CCUREDHOME)/lib \
-                 $(OPT_O2) \
-	         power.exe_combcured.$*.optim.c \
+           $(OPTIMVARIANT) \
+                 power.exe_combcured.$*.optim.c \
                  $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
                  $(EXEOUT)power.exe
 	cd $(PWDIR); sh -c "time ./power.exe"
@@ -781,6 +784,14 @@ health:
 			 $(PATCHARG)"
 	cd $(HEALTHDIR); sh -c "time ./health$(LDEXT) 5 500 1 1"
 
+health-optimvariant.%: mustbegcc
+	cd $(HEALTHDIR); \
+           $(OPTIMVARIANT) \
+                 health.exe_combcured.$*.optim.c \
+                 trusted_health.c \
+                 $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
+                 $(EXEOUT)health.exe
+	cd $(HEALTHDIR); sh -c "time ./health$(LDEXT) 5 500 1 1"
 
 
 # Perimeter of regions in images
@@ -796,6 +807,13 @@ perimeter:
 			$(PATCHARG)"
 	cd $(PERIMDIR); sh -c "time ./perimeter.exe"
 
+perimeter-optimvariant.%: mustbegcc
+	cd $(PERIMDIR); \
+           $(OPTIMVARIANT) \
+                 perimeter.exe_combcured.$*.optim.c \
+                 $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
+                 $(EXEOUT)perimeter.exe
+	cd $(PERIMDIR); sh -c "time ./perimeter.exe"
 
 # Voronoi diagrams
 VORONDIR := test/olden/voronoi
@@ -827,6 +845,15 @@ tsp:
 			$(PATCHARG)"
 	cd $(TSPDIR); sh -c "time ./tsp.exe"
 
+tsp-optimvariant.%: mustbegcc
+	cd $(TSPDIR); \
+           $(OPTIMVARIANT) \
+                 tsp.exe_combcured.$*.optim.c \
+                 $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
+                 $(EXEOUT)tsp.exe
+	cd $(TSPDIR); sh -c "time ./tsp.exe"
+
+
 
 # Bitonic sort
 BISORTDIR := test/olden/bisort
@@ -842,6 +869,14 @@ bisort :  mustbegcc
 			$(PATCHARG)"
 	cd $(BISORTDIR); sh -c "time ./bisort.exe 100"
 
+bisort-optimvariant.%: mustbegcc
+	cd $(BISORTDIR); \
+           $(OPTIMVARIANT) \
+                 bisort.exe_combcured.$*.optim.c \
+                 trusted_bisort.c \
+                 $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
+                 $(EXEOUT)bisort.exe
+	cd $(BISORTDIR); sh -c "time ./bisort.exe 100"
 
 
 
@@ -949,6 +984,15 @@ compress:  mustbegcc
                make CC="$(COMBINECCURED) $(PATCHARG)" clean build
 	cd $(COMPRESSDIR)/src; sh -c "time ./compress < input.data > combine-compress.out"
 
+compress-optimvariant.%: mustbegcc
+	cd $(COMPRESSDIR)/src; \
+           $(OPTIMVARIANT) \
+                 compress.exe_combcured.$*.optim.c \
+                 $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
+                 $(EXEOUT)compress.exe
+	cd $(COMPRESSDIR)/src; sh -c "time ./compress < input.data > combine-compress.out"
+
+
 LIDIR := $(SPECDIR)/130.li
 LISAFECC := $(CCURED) --combine $(PATCHARG)
 li:  mustbegcc
@@ -996,7 +1040,7 @@ go:  mustbegcc
 	cd $(GODIR)/src; \
             make clean build CC="$(GOSAFECC) $(CONLY)" \
                              LD="$(GOSAFECC)"
-	sh -c "time $(GODIR)/src/go 50 9"
+	cd $(GODIR)/src; sh -c "time ./go 50 9"
 
 go-combined:  mustbegcc
 	cd $(GODIR)/src; \
@@ -1009,6 +1053,14 @@ go-noclean:  mustbegcc
                        LD="$(GOSAFECC)" \
                              EXTRA_LIBS=$(GOEXTRA) 
 	sh -c "time $(GODIR)/src/go 50 9"
+
+go-optimvariant.%: mustbegcc
+	cd $(GODIR)/src; \
+           $(OPTIMVARIANT) \
+                 go.exe_combcured.$*.optim.c \
+                 $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
+                 $(EXEOUT)compress.exe
+	cd $(GODIR)/src; sh -c "time ./go 50 9"
 
 
 
