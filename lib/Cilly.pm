@@ -263,7 +263,15 @@ sub collectOneArgument {
             # Drop spaces and empty lines
             my ($middle) = ($_ =~ m|\s*(\S.*\S)\s*|);
             if($middle ne "") {
-                push @respArgs, $middle;
+                # Sometimes we have multiple arguments in one line :-()
+                if($middle =~ m|\s| &&
+                   $middle !~ m|[\"]|) { 
+                      # Contains spaces and no quotes
+                    my @middles = split(/\s+/, $middle);
+                    push @respArgs, @middles;
+                } else {
+                    push @respArgs, $middle;
+                }
 #                print "Arg:$middle\n";
             }
         }
@@ -623,7 +631,7 @@ sub compile {
 sub straight_compile {
     my ($self, $src, $dest, $ppargs, $ccargs) = @_;
     if($self->{VERBOSE}) { print STDERR 'Compiling ', $src->filename, ' into ', $dest->filename, "\n"; }
-    my @dest = $dest eq "" ? () : ($self->{OUTOBJ}, $dest);
+    my @dest = $dest eq "" ? () : ("$self->{OUTOBJ}$dest->{filename}");
     my @forcec = @{$self->{FORCECSOURCE}};
     my @cmd = (@{$self->{CC}}, @{$ppargs}, @{$ccargs},
 	       @dest, @forcec, $src);
@@ -642,7 +650,7 @@ sub compile_cil {
 sub assemble {
     my ($self, $src, $dest, $ppargs, $ccargs) = @_;
     if($self->{VERBOSE}) { print STDERR "Assembling $src\n"; }
-    my @dest = $dest eq "" ? () : ($self->{OUTOBJ}, $dest);
+    my @dest = $dest eq "" ? () : ("$self->{OUTOBJ}$dest->{filename}");
     my @cmd = (@{$self->{CC}}, @{$ppargs}, @{$ccargs},
 	       @dest, $src);
     return $self->runShell(@cmd);
@@ -1157,6 +1165,7 @@ package MSVC;
 
 use strict;
 use File::Basename;
+use Data::Dumper;
 
 sub new {
     my ($proto, $stub) = @_;
@@ -1223,7 +1232,8 @@ sub new {
            "/(E|EP|P)" => { RUN => sub { push @{$stub->{PPARGS}}, $_[1]; 
                                          $stub->{OPERATION} = "PREPROC"; }},
            "/c" => { RUN => sub { $stub->{OPERATION} = "TOOBJ"; }},
-           "[/\\-](Q|Z|J|nologo|TC|TP|w|W|Yd|Zm)" => { TYPE => "CC" },
+           "[/\\-](Q|Z|J|nologo|w|W|Yd|Zm)" => { TYPE => "CC" },
+           "[/\\-](TC|TP)" => { TYPE => "PREPROC" },
            "/v(d|m)" => { TYPE => "CC" },
            "/F" => { TYPE => "CC" },
            "/M"   => { TYPE => 'LINKCC' },
@@ -1243,24 +1253,26 @@ sub new {
 sub msvc_preprocess {
     my($self, $src, $dest, $ppargs) = @_;
     my $res;
+    my $srcname = ref $src ? $src->filename : $src;
     my ($sbase, $sdir, $sext) = 
-        fileparse($src, 
+        fileparse($srcname, 
                   "(\\.c)|(\\.cc)|(\\.cpp)|(\\.i)");
     my @cmd = ('cl', '/nologo', '/P', '/D_MSVC', @{$ppargs});
-    $res = $self->runShell(@cmd, $src);
+    $res = $self->runShell(@cmd, $srcname);
     # MSVC cannot be told where to put the output. But we know that it
     # puts it in the current directory
     my $msvcout = "./$sbase.i";
     # Check file equivalence by making sure that all elements of the stat
     # structure are the same, except for the access time.
     my @st1 = stat $msvcout; $st1[8] = 0;
-    my @st2 = stat $dest; $st2[8] = 0;
+    my @st2 = stat $dest->{filename}; $st2[8] = 0;
+    # print Dumper(\@st1, \@st2);
     if($msvcout ne $dest->{filename}) {
         while($#st1 >= 0) {
             if(shift @st1 != shift @st2) {
 #                print "$msvcout is NOT the same as $afterpp\n";
                 if($self->{VERBOSE}) {
-                    print STDERR "Copying $msvcout to $dest->{filename}\n";
+                    print STDERR "Copying $msvcout to $dest->{filename} (MSVC_preprocess)\n";
                 }
                 unlink $dest;
                 File::Copy::copy($msvcout, $dest->filename);
@@ -1316,7 +1328,7 @@ sub compileOutputFile {
 	    return new KeptFile($src, $self->{OBJEXT}, '.');
 	}
     } else {
-        die "compileOutputfile";
+        die "compileOutputfile: operation is not TOOBJ";
 	return $self->outputFile($src, $self->{OBJEXT});
     }
 }

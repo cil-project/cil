@@ -137,6 +137,8 @@ let init_lexicon _ =
       ("__fastcall", fun _ -> MSATTR ("__fastcall", currentLoc ()));
       ("__w64", fun _ -> MSATTR("__w64", currentLoc ()));
       ("__declspec", fun loc -> DECLSPEC loc);
+      ("__forceinline", fun loc -> INLINE loc); (* !! we turn forceinline 
+                                                 * into inline *)
       (* weimer: some files produced by 'GCC -E' expect this type to be
        * defined *)
       ("__builtin_va_list", 

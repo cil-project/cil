@@ -340,7 +340,9 @@ let rec filterBEStmts (elts : blockElement list) : statement list =
 %type <string * Cabs.decl_type> direct_decl
 %type <Cabs.decl_type> abs_direct_decl abs_direct_decl_opt
 %type <Cabs.decl_type * Cabs.attribute list> abstract_decl
-%type <attribute list list * cabsloc> pointer pointer_opt /* Each element is a "* <type_quals_opt>" */
+
+ /* (* Each element is a "* <type_quals_opt>". *) */
+%type <attribute list list * cabsloc> pointer pointer_opt
 %type <Cabs.cabsloc> location
 %type <Cabs.spec_elem * cabsloc> cvspec
 %%
@@ -972,7 +974,7 @@ pointer: /* (* ISO 6.7.5 *) */
 ;
 pointer_opt:
    /**/                          { [], currentLoc () }
-|  pointer                           { $1 }
+|  pointer                       { $1 }
 ;
 
 type_name: /* (* ISO 6.7.6 *) */
