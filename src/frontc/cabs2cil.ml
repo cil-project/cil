@@ -249,6 +249,8 @@ type envdata =
                                          * for this category is "label foo" *)
 
 let env : (string, envdata * location) H.t = H.create 307
+(* We also keep a global environment. This is always a subset of the env *)
+let genv : (string, envdata * location) H.t = H.create 307
 
  (* In the scope we keep the original name, so we can remove them from the
   * hash table easily *)
@@ -280,7 +282,9 @@ let addLocalToEnv (n: string) (d: envdata) =
 
 
 let addGlobalToEnv (k: string) (d: envdata) : unit = 
-  H.add env k (d, !currentLoc)
+  H.add env k (d, !currentLoc);
+  (* Also add it to the global environment *)
+  H.add genv k (d, !currentLoc)
   
   
 
@@ -415,6 +419,11 @@ let exitScope () =
  * raise Not_found  *)
 let lookupVar (n: string) : varinfo * location = 
   match H.find env n with
+    (EnvVar vi), loc -> vi, loc
+  | _ -> raise Not_found
+        
+let lookupGlobalVar (n: string) : varinfo * location = 
+  match H.find genv n with
     (EnvVar vi), loc -> vi, loc
   | _ -> raise Not_found
         
@@ -1135,8 +1144,11 @@ let rec combineTypes (oldt: typ) (t: typ) : typ =
  * Returns the varinfo to use (might be the old one), and an indication 
  * whether the variable exists already in the environment *)
 let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
-  try (* See if already defined *)
-    let oldvi, oldloc = lookupVar vi.vname in
+  try (* See if already defined, in the global environment. We could also 
+       * look it up in the whole environment but in that case we might see a 
+       * local. This can happen when we declare an extern variable with 
+       * global scope but we are in a local scope. *)
+    let oldvi, oldloc = lookupGlobalVar vi.vname in
     (* It was already defined. We must reuse the varinfo. But clean up the 
      * storage.  *)
     let newstorage = 
@@ -3636,8 +3648,10 @@ and doInit
   | _ -> E.s (bug "doInit: cases")
 
 
+(* Create and add to the file (if not already added) a global. Return the 
+ * varinfo *)
 and createGlobal (specs: A.spec_elem list) 
-                 (((n,ndt,a),inite) : A.init_name) : unit = 
+                 (((n,ndt,a),inite) : A.init_name) : varinfo = 
   try
     if debugGlobal then 
       ignore (E.log "createGlobal: %s\n" n);
@@ -3658,7 +3672,6 @@ and createGlobal (specs: A.spec_elem list)
         );
     end;
     let vi, alreadyInEnv = makeGlobalVarinfo (inite != A.NO_INIT) vi in
-
             (* Do the initializer and complete the array type if necessary *)
     let init : init option = 
       if inite = A.NO_INIT then 
@@ -3680,6 +3693,7 @@ and createGlobal (specs: A.spec_elem list)
       if debugGlobal then 
         ignore (E.log " global %s was already defined\n" vi.vname);
       (* Do not declare it again *)
+      vi
     with Not_found -> begin
       (* Not already defined *)
       if debugGlobal then 
@@ -3698,7 +3712,8 @@ and createGlobal (specs: A.spec_elem list)
           E.s (error "%s is extern and with initializer" vi.vname);
         H.add alreadyDefined vi.vid !currentLoc;
         H.remove mustTurnIntoDef vi.vid;
-        pushGlobal (GVar(vi, init, !currentLoc))
+        pushGlobal (GVar(vi, init, !currentLoc));
+        vi
       end else begin
         if not (isFunctionType vi.vtype) 
            && not (H.mem mustTurnIntoDef vi.vid) then 
@@ -3708,15 +3723,19 @@ and createGlobal (specs: A.spec_elem list)
         if not alreadyInEnv then begin (* Only one declaration *)
           (* If it has function type it is a prototype *)
           pushGlobal (GDecl (vi, !currentLoc));
-        end else
+          vi
+        end else begin
           if debugGlobal then 
             ignore (E.log " already in env %s\n" vi.vname);
+          vi
+        end
       end
     end
   with e -> begin
     ignore (E.log "error in CollectGlobal (%s)\n" n);
     pushGlobal (dGlobal (dprintf "booo - error in global %s (%t)" 
-                           n d_thisloc) !currentLoc)
+                           n d_thisloc) !currentLoc);
+    dummyFunDec.svar
   end
 (*
           ignore (E.log "Env after processing global %s is:@!%t@!" 
@@ -3771,12 +3790,18 @@ and createLocal (specs: A.spec_elem list)
 
   (* Maybe we have an extern declaration. Make it a global *)
   | _ when A.isExtern specs ->
-      createGlobal specs init_name;
+      let vi = createGlobal specs init_name in
+      (* Add it to the local environment to ensure that it shadows previous 
+       * local variables *)
+      ignore (E.log "Created vi=%s for extern %s\n" vi.vname n);
+      addLocalToEnv n (EnvVar vi);
       empty
 
   (* Maybe we have a function prototype in local scope. Make it global *)
   | _ when isProto ndt -> 
-      createGlobal specs init_name;
+      let vi = createGlobal specs init_name in 
+      (* Add it to the environment to shadow previous decls *)
+      addLocalToEnv n (EnvVar vi);
       empty
     
   | _ -> 
@@ -4009,7 +4034,8 @@ and doStatement (s : A.statement) : chunk =
         let s' = doStatement s in
         let loc' = convLoc loc in
         currentLoc := loc';
-        let s'' = consLabContinue (doCondition false e skipChunk (breakChunk loc'))
+        let s'' = 
+          consLabContinue (doCondition false e skipChunk (breakChunk loc'))
         in
         exitLoop ();
         loopChunk (s' @@ s'')
@@ -4227,7 +4253,7 @@ let convFile fname dl =
 
     | A.DECDEF ((s, nl), loc) ->
         currentLoc := convLoc(loc);
-        List.iter (createGlobal s) nl
+        List.iter (fun n -> ignore (createGlobal s n)) nl
 
     | A.GLOBASM (s,loc) ->
         currentLoc := convLoc(loc);

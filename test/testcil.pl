@@ -238,6 +238,7 @@ $TEST->add3Tests("test/scope4");
 $TEST->add3Tests("testrun/scope5", "_GNUCC=1");
 $TEST->add3Tests("testrun/scope6");
 $TEST->add3Tests("testrun/scope8");
+$TEST->addTests("testrun/scope9", "", ['cil']);
 $TEST->add3Tests("test/voidstar");
 $TEST->add3Tests("testrun/memcpy1");
 $TEST->add3Tests("testrun/memset1");
