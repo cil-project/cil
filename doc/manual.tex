@@ -181,9 +181,11 @@ what you want:
 
 TODO: Add some info about putting new packages into the repository.
 
-Once a package is in the repository and has its own Makefile target,
-you can run the translator on it.  I'll use the 6/29/01 version of ftpd
-as my example.
+Once a package is in the repository and has its own Makefile target, you can
+run the translator on it. To create a Makefile target for a package you
+typically add to cil/Makefile a target that just invokes make on the package's
+own Makefile with the CC variable bound to ``perl ccured.pl --combine''. I'll
+use the 6/29/01 version of ftpd as my example.
 
 First we try to run it without our tool involved:
 

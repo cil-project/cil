@@ -771,37 +771,6 @@ let arithmeticConversion    (* c.f. ISO 6.3.1.8 *)
       | _, _ -> E.s (error "arithmeticConversion")
   end
 
-let conditionalConversion (e2: exp) (t2: typ) (e3: exp) (t3: typ) : typ =
-  let is_char k = match k with
-    IChar | ISChar | IUChar -> true
-  | _ -> false in 
-  let tresult =  (* ISO 6.5.15 *)
-    match unrollType t2, unrollType t3 with
-      (TInt _ | TEnum _ | TFloat _), 
-      (TInt _ | TEnum _ | TFloat _) -> 
-        arithmeticConversion t2 t3 
-    | TComp (comp2,_), TComp (comp3,_) 
-          when comp2.ckey = comp3.ckey -> t2 
-    | TPtr(_, _), TPtr(TVoid _, _) -> t2
-    | TPtr(TVoid _, _), TPtr(_, _) -> t3
-    | TPtr _, TPtr _ when typeSig t2 = typeSig t3 -> t2
-    | TPtr _, TInt _ when isZero e3 -> t2
-    | TInt _, TPtr _ when isZero e2  -> t3
-
-          (* When we compare two pointers of diffent type, we combine them 
-           * using the same algorith when combining multiple declarations of 
-           * a global *)
-    | (TPtr _) as t2', (TPtr _ as t3') ->
-        try combineTypes t2' t3'
-        with Failure msg -> begin
-          ignore (warn "A.QUESTION %a does not match %a"
-                    d_type (unrollType t2) d_type (unrollType t3));
-          t2 (* Just pick one *)
-        end
-    | _, _ -> E.s (error "A.QUESTION for invalid combination of types")
-  in
-  tresult
-
   
 let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) = 
   if typeSig ot = typeSig nt then (ot, e) else
@@ -1021,6 +990,38 @@ let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
 
     alphaConvertVarAndAddToEnv true vi, false
   end 
+
+let conditionalConversion (e2: exp) (t2: typ) (e3: exp) (t3: typ) : typ =
+  let is_char k = match k with
+    IChar | ISChar | IUChar -> true
+  | _ -> false in 
+  let tresult =  (* ISO 6.5.15 *)
+    match unrollType t2, unrollType t3 with
+      (TInt _ | TEnum _ | TFloat _), 
+      (TInt _ | TEnum _ | TFloat _) -> 
+        arithmeticConversion t2 t3 
+    | TComp (comp2,_), TComp (comp3,_) 
+          when comp2.ckey = comp3.ckey -> t2 
+    | TPtr(_, _), TPtr(TVoid _, _) -> t2
+    | TPtr(TVoid _, _), TPtr(_, _) -> t3
+    | TPtr _, TPtr _ when typeSig t2 = typeSig t3 -> t2
+    | TPtr _, TInt _ when isZero e3 -> t2
+    | TInt _, TPtr _ when isZero e2  -> t3
+
+          (* When we compare two pointers of diffent type, we combine them 
+           * using the same algorith when combining multiple declarations of 
+           * a global *)
+    | (TPtr _) as t2', (TPtr _ as t3') -> begin
+        try combineTypes t2' t3'
+        with Failure msg -> begin
+          ignore (warn "A.QUESTION %a does not match %a"
+                    d_type (unrollType t2) d_type (unrollType t3));
+          t2 (* Just pick one *)
+        end
+    end
+    | _, _ -> E.s (error "A.QUESTION for invalid combination of types")
+  in
+  tresult
 
 
 (* Utility ***)
