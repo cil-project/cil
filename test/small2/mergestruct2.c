@@ -1,0 +1,21 @@
+// mergestruct2.c
+// other half of mergestruct1.c
+
+struct B {
+  int y;
+};
+
+// connect A and B
+struct B *connection;
+
+// refer to B::y
+int main()
+{
+  int whatever;
+
+  whatever = connection->y;
+  whatever += foo();    // for the heck of it
+  
+  return whatever-whatever;
+}
+
