@@ -261,7 +261,7 @@ sub patchOneFile {
         }
     }
     close(PPOUT);
-    if($absname eq "" || ! -f $absname) {
+    if($absname eq "") {
         die "Cannot find the absolute name of $fname1 in $preprocfile.i\n";
     }
     unlink "$preprocfile.c";
@@ -276,6 +276,9 @@ sub patchOneFile {
         }
         # print "Converted $fileName to $newName\n";
         close(WINNAME) || die "Cannot run cygpath to convert $absname";
+    }
+    if(! -f $absname) { #matth: we need to do this test after calling cygpath
+        die "Cannot find the absolute name of $fname1 (\"$absname\")\n";
     }
     print "   Absolute name is $absname\n";
     # Decide where to put the result
