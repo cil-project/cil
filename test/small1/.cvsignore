@@ -1,4 +1,4 @@
-*.cil
+p*.cil
 *.cabs
 *.box
 *cured.c
