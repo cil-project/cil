@@ -1,6 +1,6 @@
 Name: cil
 Version: @CIL_VERSION@
-Release: 1
+Release: 2
 License: BSD
 URL: http://manju.cs.berkeley.edu/cil/
 Source0: %{name}-%{version}.tar.gz

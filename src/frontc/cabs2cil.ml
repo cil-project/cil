@@ -3329,15 +3329,9 @@ and doExp (isconst: bool)    (* In a constant *)
             | args, [] -> 
                 if not isVarArgBuiltin then 
                   ignore (warnOpt 
-                            "Too few arguments in call to %a. Filling with 0."
+                            "Too few arguments in call to %a."
                             d_exp f');
-                (* Pretend we have a few NULL arguments *)
-                let makeOneArg ((_, at, _)) = 
-                  match makeZeroInit at with
-                    SingleInit e -> e
-                  | _ -> E.s (unimp "Creating composite missing argument")
-                in
-                (empty, List.map makeOneArg args)
+		(empty, [])
 
             | ((_, at, _) :: atypes, a :: args) -> 
                 let (ss, args') = loopArgs (atypes, args) in
