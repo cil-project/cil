@@ -42,11 +42,12 @@ CILLY_MODULES = pretty errormsg trace stats util clist \
               cilversion machdep cil formatparse formatlex formatcil cabs2cil \
               patch frontc check mergecil logcalls logwrites rmtmps \
 	      callgraph epicenter heapify stackoverflow \
-              canonicalize testcil maincil
+              setp uref steensgaard golf dummy ptranal \
+	      canonicalize testcil maincil
 CILLY_CMODULES =
 CILLY_LIBS     = unix str
 
-SOURCEDIRS  += src src/frontc src/ext
+SOURCEDIRS  += src src/frontc src/ext src/ext/pta
 MLLS        += clexer.mll formatlex.mll
 MLYS        += cparser.mly formatparse.mly
 MODULES     += $(CILLY_MODULES) libmaincil

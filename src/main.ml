@@ -57,6 +57,9 @@ let stackguard = ref false
 let doCallGraph = ref false
 let testcil = ref ""
 
+let ptrAnalysis = ref false
+let ptrResults = ref false
+
 let doEpicenter = ref false
 let epicenterName = ref ""
 let epicenterHops = ref 0
@@ -111,6 +114,11 @@ let rec processOneFile (cil: C.file) =
       Heapify.default_stackguard cil 
     end ;
       
+    if (!ptrAnalysis) then begin
+      Ptranal.analyze_file cil;
+      Ptranal.compute_results (!ptrResults);	
+    end;		
+
     if (!Canonicalize.cpp_canon) then begin
       Canonicalize.canonicalize cil
     end ;
@@ -211,6 +219,14 @@ let rec theMain () =
                      "turns on generation of code to log function calls in CIL";
     "--logwrites", Arg.Unit (fun _ -> Util.logWrites := true),
                      "turns on generation of code to log memory writes in CIL";
+    "--ptr_analysis",Arg.Unit (fun _ -> ptrAnalysis := true),
+                     "turns on alias analysis";
+    "--ptr_unify", Arg.Unit (fun _ -> Ptranal.no_sub := true),
+                  "make the alias analysis unification-based";
+    "--ptr_results", Arg.Unit (fun _ -> ptrResults := true),
+                     "print the results of the alias analysis"; 
+    "--ptr_mono", Arg.Unit (fun _ -> Ptranal.analyze_mono := true),
+                    "run alias analysis monomorphically"; 
     "--heapify", Arg.Unit (fun _ -> heapify := true),
 					"apply the `heapify' transformation";
     "--stackguard", Arg.Unit (fun _ -> stackguard := true),
