@@ -346,6 +346,8 @@ $TEST->addTests("test-bad/globinit", "", ['inferbox']);
 $TEST->addTests("test-bad/index1", "", ['inferbox']);
 $TEST->addTests("test-bad/nonptr1", 
                 "EXTRAARGS=--logNonPointers", ['inferbox']);
+$TEST->addTests("test-bad/asm1", 
+                "EXTRAARGS=--allowInlineAssembly", ['inferbox']);
 $TEST->addTests("test-bad/fieldaddr", "", ['inferbox']);
 $TEST->add3Tests("testrun/label1");
 $TEST->add3Tests("testrun/label2");

@@ -661,9 +661,6 @@ and matchCompInfo (oldfidx: int) (oldci: compinfo)
       end);
     (* We get here when we succeeded checking that they are equal *)
     newrep.ndata.cattr <- addAttributes oldci.cattr ci.cattr;
-(*        if debugMerge then 
-          ignore (E.log " Renaming %s to %s\n" (compFullName ci) oldci.cname);
-*)
     ()
   end
 
@@ -745,8 +742,6 @@ and matchTypeInfo (oldfidx: int) (oldti: typeinfo)
       raise (Failure msg)
     end);
     let _ = union oldtnode tnode in
-(*        if debugMerge then 
-          ignore (E.log " Renaming type name %s to %s\n" n oldn); *)
     ()
   end
 
@@ -988,7 +983,7 @@ class renameVisitorClass = object (self)
         None -> DoChildren
       | Some (vi', oldfidx) -> 
           if debugMerge then 
-              ignore (E.log "Renaming var %s(%d) to %s(%d)\n"
+              ignore (E.log "Renaming use of var %s(%d) to %s(%d)\n"
                         vi.vname !currentFidx vi'.vname oldfidx);
           vi'.vreferenced <- true; 
           H.add varUsedAlready vi'.vname ();
@@ -1004,8 +999,8 @@ class renameVisitorClass = object (self)
         match findReplacement true sEq !currentFidx ci.cname with
           None -> DoChildren
         | Some (ci', oldfidx) -> 
-            if false && debugMerge then 
-              ignore (E.log "Renaming %s(%d) to %s(%d)\n"
+            if debugMerge then 
+              ignore (E.log "Renaming use of %s(%d) to %s(%d)\n"
                         ci.cname !currentFidx ci'.cname oldfidx);
             ChangeTo (TComp (ci', visitCilAttributes (self :> cilVisitor) a))
       end

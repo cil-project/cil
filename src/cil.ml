@@ -3881,19 +3881,27 @@ and childrenGlobal (vis: cilVisitor) (g: global) : global =
 (* Iterate over all globals, including the global initializer *)
 let iterGlobals (fl: file)
                 (doone: global -> unit) : unit =
-  List.iter doone fl.globals;
+  let doone' g = 
+      currentLoc := get_globalLoc g;
+      doone g
+  in
+  List.iter doone' fl.globals;
   (match fl.globinit with
     None -> ()
-  | Some g -> doone (GFun(g, locUnknown)))
+  | Some g -> doone' (GFun(g, locUnknown)))
 
 (* Fold over all globals, including the global initializer *)
 let foldGlobals (fl: file) 
                 (doone: 'a -> global -> 'a) 
                 (acc: 'a) : 'a = 
-  let acc' = List.fold_left doone acc fl.globals in
+  let doone' acc g = 
+      currentLoc := get_globalLoc g;
+      doone acc g
+  in
+  let acc' = List.fold_left doone' acc fl.globals in
   (match fl.globinit with
     None -> acc'
-  | Some g -> doone acc' (GFun(g, locUnknown)))
+  | Some g -> doone' acc' (GFun(g, locUnknown)))
 
 
 (* A visitor for the whole file that does not change the globals *)
@@ -5032,7 +5040,8 @@ let uniqueVarNames (f: file) : unit =
           (try
             let oldid = H.find globalNames vi.vname in
             if oldid <> vi.vid then 
-              E.s (E.bug "The name %s is used for two distinct globals. One of them is defined at %a" vi.vname d_loc l);
+              ignore (warn "The name %s is used for two distinct globals" 
+                        vi.vname);
             (* Here if we have used this name already. Go ahead *)
             ()
           with Not_found -> begin
