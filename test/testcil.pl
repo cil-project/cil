@@ -300,8 +300,8 @@ if (!$egcs) {
 $TEST->addTests("testrun/comma1", "_GNUCC=1", ['cil']);
 $TEST->add3Tests("test/retval");
 $TEST->add3Tests("test/seq");
-$TEST->addTestsFail("test/seq2", "Lbound", ['inferbox']);
-$TEST->addTestsFail("test/fseq4fail", "Decrement FSEQ", ['inferbox']);
+$TEST->addTestsFail("test/seq2", "Failure LBOUND", ['inferbox']);
+$TEST->addTestsFail("test/fseq4fail", "Failure DECFSEQ", ['inferbox']);
 $TEST->add3Tests("testrun/sized");
 $TEST->addTestsFail("testrun/sized2", "", 
     "Initializing SIZED open array", ['inferbox']);
@@ -377,7 +377,7 @@ $TEST->addTests("testrun/addrof3", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/addrof4", "", ['inferbox']);
 $TEST->add3Tests("testrun/lval1", "_GNUCC=1");
 $TEST->add3Tests("testrun/bind1", "EXTRAARGS=--assumePrintf");
-$TEST->add3Tests("test/bind2");
+$TEST->add3Tests("test/bind2", "EXTRAARGS=--allowInlineAssembly");
 # $TEST->add3Tests("testmodel/model1");
 # $TEST->add3Tests("testmodel/modelpoly");
 $TEST->add2Tests("testwrapper/wrapper1");
@@ -488,7 +488,7 @@ $TEST->addTests("testrun/openssl-bounds", "", ['inferbox']);
                         "FSEQ2SAFE prevents code that should be legal.");
 
 
-$TEST->addTestsFail("testrun/struct3", "", "Non-pointer", ['inferbox']);
+$TEST->addTestsFail("testrun/struct3", "", "Failure NONPTR", ['inferbox']);
 
 if($win32) {
     $TEST->addTests("testrun/extern_init", "_MSVC=1", ['cil']);   
@@ -496,40 +496,40 @@ if($win32) {
 $TEST->addTests("testrun/extern1", "", ['cil']);
 
 # Tests that are expected to fail
-$TEST->add2TestsFail("testrun/failubound1", "", "Failure: Ubound");
-$TEST->add2TestsFail("testrun/failnull1", "", "Failure:");
-$TEST->add2TestsFail("testrun/failprintf1", "", "Failure: Non-pointer");
-$TEST->add2TestsFail("testrun/failprintf2", "", "Failure: Non-pointer");
-$TEST->add2TestsFail("testrun/failprintf3", "", "Failure: type mismatch");
-$TEST->add2TestsFail("testrun/failprintf4", "", "Failure: type mismatch");
+$TEST->add2TestsFail("testrun/failubound1", "", "Failure UBOUND");
+$TEST->add2TestsFail("testrun/failnull1", "", "Failure NULL");
+$TEST->add2TestsFail("testrun/failprintf1", "", "Failure NONPTR");
+$TEST->add2TestsFail("testrun/failprintf2", "", "Failure NONPTR");
+$TEST->add2TestsFail("testrun/failprintf3", "", "Failure VARARGBAD");
+$TEST->add2TestsFail("testrun/failprintf4", "", "Failure VARARGBAD");
 $TEST->add2TestsFail("testrun/failprintf5", "", 
-                     "Failure: Ubound");
-$TEST->add2TestsFail("testrun/failprintf6", "", "Failure: type mismatch");
-$TEST->add2TestsFail("testrun/demo1", "", "Failure: Ubound");
-$TEST->add2TestsFail("testrun/demo2", "", "Failure: Lbound");
-$TEST->add2TestsFail("testrun/demo3", "", "Failure: Ubound");
-$TEST->add2TestsFail("testrun/demo4", "", "Failure: Lbound");
+                     "Failure UBOUND");
+$TEST->add2TestsFail("testrun/failprintf6", "", "Failure VARARGBAD");
+$TEST->add2TestsFail("testrun/demo1", "", "Failure UBOUND");
+$TEST->add2TestsFail("testrun/demo2", "", "Failure LBOUND");
+$TEST->add2TestsFail("testrun/demo3", "", "Failure UBOUND");
+$TEST->add2TestsFail("testrun/demo4", "", "Failure LBOUND");
 
 # $TEST->add2TestsFail("testmodel/noproto1", "", "Function pointer");
 # $TEST->add2TestsFail("testmodel/noproto2", "", "Failure: Non-pointer");
 # $TEST->add2Tests("testmodel/noproto");
 
-$TEST->add2TestsFail("testrun/failsprintf1", "", "Failure: Ubound");
-$TEST->add2TestsFail("testrun/failsprintf2", "", "Failure: ");
-$TEST->add2TestsFail("testrun/failsprintf3", "", "Failure: Non-pointer");
+$TEST->add2TestsFail("testrun/failsprintf1", "", "Failure UBOUND");
+$TEST->add2TestsFail("testrun/failsprintf2", "", "Failure NONPTR");
+$TEST->add2TestsFail("testrun/failsprintf3", "", "Failure NONPTR");
 
-$TEST->add2TestsFail("testrun/failsscanf1", "", "Failure: Ubound");
+$TEST->add2TestsFail("testrun/failsscanf1", "", "Failure UBOUND");
     $TEST->addBadComment("testrun/failsscanf1-box", "Missing wrappers");
-$TEST->add2TestsFail("testrun/simon6", "", "Failure:");
+$TEST->add2TestsFail("testrun/simon6", "", "Failure NONPTR");
     
-$TEST->add2TestsFail("testrun/infer1", "", "Failure: ");
+$TEST->add2TestsFail("testrun/infer1", "", "Failure ");
     $TEST->addBadComment("testrun/infer1-inferbox", "Unsound solver casting of SEQ pointers");
-$TEST->addTestsFail("testrun/fseq1", "", "Failure: Decrement FSEQ", 
+$TEST->addTestsFail("testrun/fseq1", "", "Failure DECFSEQ", 
                     ['inferbox']);
-$TEST->addTestsFail("testrun/fseq1", "", "Failure: Lbound", 
+$TEST->addTestsFail("testrun/fseq1", "", "Failure LBOUND", 
                     ['box']);
-$TEST->addTestsFail("testrun/string1", "", "Failure: Ubound", ['inferbox']);
-$TEST->addTestsFail("testrun/fseq3", "", "Failure: Non-pointer", ['inferbox']);
+$TEST->addTestsFail("testrun/string1", "", "Failure UBOUND", ['inferbox']);
+$TEST->addTestsFail("testrun/fseq3", "", "Failure NONPTR", ['inferbox']);
 $TEST->addTests("test-bad/badpoly", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/polyfunptr", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/polylist", "_GNUCC=1", [ 'inferbox' ]);
