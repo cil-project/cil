@@ -270,6 +270,7 @@ $TEST->add3Tests("testrun/linux_signal", "_GNUCC=1");
 $TEST->add3Tests("test/li");
 $TEST->add3Tests("test/li1", "_GNUCC=1");
 $TEST->add3Tests("test/list");
+$TEST->addTests('testrun/longBlock', '', ['cil']);
 $TEST->add2Tests("testrun/perror");
 $TEST->add2Tests("testrun/perror1");
 $TEST->add2Tests("test/pure");

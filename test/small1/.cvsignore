@@ -35,6 +35,8 @@ a.out
 vararg.out
 array.a.files
 *.browser
+*.cmi
+*.cmo
 
 test-bad.err test-bad.out
 *optimcured*.c

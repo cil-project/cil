@@ -523,6 +523,16 @@ testrun/% : $(SMALL1)/%.c
 	cd $(SMALL1); ./$*.exe
 	echo SUCCESS
 
+CAMLC := ocamlc
+ARCHOS := @ARCHOS@
+OBJDIR := ../obj/$(ARCHOS)
+CMXA := cma
+
+testrun/% : $(SMALL1)/%.ml
+	$(CAMLC) -I $(OBJDIR) cil.$(CMXA) $(EXEOUT) $(basename $<).exe $<
+	$(basename $<).exe
+	echo SUCCESS
+
 test_withtrusted/% : $(SMALL1)/%.c $(SMALL1)/%_trusted.c
 	cd $(SMALL1); $(CCURED) --leavealone=$*_trusted  --commPrintLn \
 	       $(CFLAGS) $(EXEOUT)$*.exe $*.c $*_trusted.c 
