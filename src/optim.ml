@@ -420,8 +420,8 @@ let latUnknown        = 0
 let latCheckNotNeeded = 1
 let latCheckNeeded    = 2
 
-let amandebug = true
-let amanDontRemove = true
+let amandebug = false
+let amanDontRemove = false
 
 let stats_removed = ref 0
 let stats_kept    = ref 0
