@@ -375,6 +375,7 @@ let mkAddrOfAndMark ((b, off) as lval) : exp =
   | _ -> ());
   mkAddrOf lval
   
+(* Call only on arrays *)
 let mkStartOfAndMark ((b, off) as lval) : exp = 
   (* Mark the vaddrof flag if b is a variable *)
   (match b with 
@@ -1551,9 +1552,9 @@ and doExp (isconst: bool)    (* In a constant *)
           (e : A.expression) 
           (what: expAction) : (chunk * exp * typ) = 
   (* A subexpression of array type is automatically turned into StartOf(e). 
-   * Similarly an expression of function type is turned into StartOf. So 
+   * Similarly an expression of function type is turned into AddrOf. So 
    * essentially doExp should never return things of type TFun or TArray *)
-  let processStartOf e t = 
+  let processArrayFun e t = 
     match e, unrollType t with
       Lval(lv), TArray(tbase, _, a) -> mkStartOfAndMark lv, TPtr(tbase, a)
     | Lval(lv), TFun _  -> mkAddrOfAndMark lv, TPtr(t, [])
@@ -1567,7 +1568,7 @@ and doExp (isconst: bool)    (* In a constant *)
     match what with 
       ADrop -> (se, e, t)
     | AExp _ -> 
-        let (e', t') = processStartOf e t in
+        let (e', t') = processArrayFun e t in
         (se, e', t')
 
     | ASet (lv, lvt) -> begin
@@ -1575,7 +1576,7 @@ and doExp (isconst: bool)    (* In a constant *)
         match e with 
           Lval(lv') when lv == lv' -> (se, e, t)
         | _ -> 
-            let (e', t') = processStartOf e t in
+            let (e', t') = processArrayFun e t in
             let (t'', e'') = castTo t' lvt e' in
             (se +++ (Set(lv, e'', !currentLoc)), e'', t'')
     end
@@ -1972,7 +1973,11 @@ and doExp (isconst: bool)    (* In a constant *)
                 let tres = TPtr(typeOfLval lv, []) in
                 finishExp se (mkStartOfAndMark lv) tres
                   
-                  
+              (* Function names are converted into pointers to the function. 
+               * Taking the address-of again does not change things *)
+            | AddrOf (Var v, NoOffset) when isFunctionType v.vtype ->
+                finishExp se e' t
+
             | _ -> E.s (error "Expected lval for ADDROF. Got %a@!"
                           d_plainexp e')
         end
@@ -2236,8 +2241,8 @@ and doExp (isconst: bool)    (* In a constant *)
                                             * explicit  *)
                   let f'' = 
                     match f' with
-                      StartOf lv -> Lval(lv)
-                    | _ -> Lval(Mem(f'), NoOffset)
+                      AddrOf lv -> Lval(lv)
+                    | _ -> Lval(mkMem f' NoOffset)
                   in
                   (rt,at,isvar, f'')
               | x -> 

@@ -107,6 +107,16 @@ type ctxType =
   | CTSizeof                            (* In a sizeof *)
   | CTDecl                              (* In a typedef, or a declaration *)
 
+let d_context () = function
+    CTStruct -> text "CTStruct"
+  | CTUnion -> text "CTUnion"
+  | CTFArg -> text "CTFArg"
+  | CTFRes -> text "CTFRes"
+  | CTArray -> text "CTArray"
+  | CTPtr -> text "CTPtr"
+  | CTExp -> text "CTExp"
+  | CTSizeof -> text "CTSizeof"
+  | CTDecl -> text "CTDecl"
 
 let compInfoNameEnv : (string, unit) H.t = H.create 17
 let compInfoIdEnv : (int, compinfo) H.t = H.create 117
@@ -128,12 +138,14 @@ let rec checkType (t: typ) (ctx: ctxType) =
       TVoid _ -> ctx = CTPtr || ctx = CTFRes
     | TNamed (_, t, a) -> checkContext t
     | TArray _ -> 
-        (ctx = CTStruct || ctx = CTUnion || ctx = CTSizeof || ctx = CTDecl)
+        (ctx = CTStruct || ctx = CTUnion 
+         || ctx = CTSizeof || ctx = CTDecl || ctx = CTArray || ctx = CTPtr)
     | TComp _ -> ctx <> CTExp 
     | _ -> true
   in
   if not (checkContext t) then 
-    ignore (E.warn "Type used in wrong context");
+    ignore (E.warn "Type (%a) used in wrong context. Expected context: %a"
+              d_plaintype t d_context ctx);
   match t with
     TVoid a -> checkAttributes a
   | TInt (ik, a) -> checkAttributes a
@@ -315,15 +327,6 @@ and checkOffset basetyp : offset -> typ = function
         ignore (E.warn "Field %s not part of %s" 
                   fi.fname (compFullName fi.fcomp));
       checkOffset fi.ftype o
-(*
-  | Index (ei, o) -> 
-      checkExpType false ei intType; checkOffset basetyp o
-  | First o -> begin
-      match unrollType basetyp with
-        TArray (t, _, _) -> checkOffset t o
-      | t -> E.s (E.bug "typeOffset: First on a non-array: %a" d_plaintype t)
-  end
-*)
         
 and checkExpType (isconst: bool) (e: exp) (t: typ) =
   let t' = checkExp isconst e in (* compute the type *)
@@ -450,8 +453,7 @@ and checkExp (isconst: bool) (e: exp) : typ =
           let tlv = checkLval isconst lv in
           match unrollType tlv with
             TArray (t,_, _) -> TPtr(t, [])
-          | TFun _ as t -> TPtr(t, [])
-          | _ -> E.s (E.bug "StartOf on a non-array or non-function")
+          | _ -> E.s (E.bug "StartOf on a non-array")
       end
             
       | CastE (tres, e) -> begin

@@ -300,20 +300,17 @@ and exp =
                                         * type T yields an expression of type 
                                         * Ptr(T) *)
 
-  | StartOf    of lval                  (* There is no C correspondent for
-                                         * this. C has implicit coercions
-                                         * from an array to the address of
-                                         * the first element and from a
-                                         * function to the start address of
-                                         * the function. StartOf is used in
-                                         * CIL to simplify type checking and
-                                         * is just an explicit form of the
-                                         * above mentioned implicit
-                                         * convertions. Given an lval or type 
-                                         * Fun... produces an expression of 
-                                         * type TPtr(Fun ...), and given an 
-                                         * lval of type TArray(T) produces an 
-                                         * expression of type TPtr(T). *)
+  | StartOf    of lval                  (* There is no C correspondent for 
+                                         * this. C has implicit coercions 
+                                         * from an array to the address of 
+                                         * the first element. StartOf is used 
+                                         * in CIL to simplify type checking 
+                                         * and is just an explicit form of 
+                                         * the above mentioned implicit 
+                                         * convertion. It is not printed. 
+                                         * Given an lval of type TArray(T) 
+                                         * produces an expression of type 
+                                         * TPtr(T). *)
 
 (* Initializers for global variables *)
 and init = 
@@ -381,7 +378,6 @@ and offset =
 
 
 (* The following equivalences hold *)
-(* Mem(StartOf lv), NoOffset = StartOf (lv) if lv is a function *)
 (* Mem(AddrOf(Mem a, aoff)), off   = Mem a, aoff + off                *)
 (* Mem(AddrOf(Var v, aoff)), off   = Var v, aoff + off                *)
 (* AddrOf (Mem a, NoOffset)        = a                                *)
@@ -670,16 +666,16 @@ val existsType: (typ -> existsAction) -> typ -> bool
 
 val var: varinfo -> lval
 
-  (* Make an AddrOf (or a StartOf for a function). Given an lval of type T 
-   * will give back an expression of type ptr(T) *)
+  (* Make an AddrOf. Given an lval of type T will give back an expression of 
+   * type ptr(T). It optimizes somewhat expressions like "& v" and "& v[0]"  *)
 val mkAddrOf: lval -> exp               
 
 
   (* Make a Mem, while optimizing AddrOf. The type of the addr must be 
    * TPtr(t) and the type of the resulting lval is t. Note that in CIL the 
-   * implicit conversion between a function and a pointer to a function (or 
-   * an array and the pointer to the first element) does not apply. You must 
-   * do the conversion yourself using StartOf  *)
+   * implicit conversion between an array and the pointer to the first 
+   * element does not apply. You must do the conversion yourself using 
+   * StartOf *)
 val mkMem: addr:exp -> off:offset -> lval
 
 
@@ -1045,6 +1041,7 @@ val sizeOf: typ -> exp
 val offsetOf: fi:fieldinfo -> startcomp: int -> int * int
 
 
-(* sm: a little optimization of my own.. *)
+(* sm: a little optimization of my own.. 
 val rewriteExprs: file -> (exp -> exp) -> (lval -> lval) -> unit
 val simplifyExprs: file -> unit
+*)

@@ -1162,6 +1162,9 @@ and fixit t =
               if sized then begin
                 addArraySize newarray
               end else begin
+                (match l with Some z when isZero z ->
+                  ignore (warn "Unsized array of length 0\n");
+                | _ -> ());
                 newarray
               end
             in
@@ -1364,13 +1367,33 @@ let pkAddrOf (lv: lval)
              (lvk: N.opointerkind)  (* The kind of the AddrOf pointer *)
              (fb: exp)
              (fe: exp) : (fexp * stmt clist) = 
-  let ptrtype = mkPointerTypeKind lvt lvk in
-  match lvk with
-    N.Safe -> mkFexp1 ptrtype (mkAddrOf lv), empty
-  | (N.Index | N.Wild | N.FSeq | N.FSeqN | N.Seq | N.SeqN ) -> 
-      mkFexp3 ptrtype (mkAddrOf(lv)) fb fe, empty
-  | _ -> E.s (bug "pkAddrOf(%a)" N.d_opointerkind lvk)
-         
+  match unrollType lvt with
+  | TFun _ -> begin
+      (* Taking the address of a function is a special case. Since fuctions 
+       * are not tagged the type of the the pointer is Safe. If we are in 
+       * defaultIsWild then we must make a Wild pointer out of it  *)
+      let start = AddrOf lv in
+      let thetype = mkPointerTypeKind lvt lvk in
+      match lvk with
+        N.Safe -> mkFexp3 thetype start zero zero, empty
+      | N.Wild -> mkFexp3 thetype start fb zero, empty
+      | _ -> E.s (bug "pkAddrOf function: %a" N.d_opointerkind lvk) 
+(*
+      match lv with
+        Var vi, NoOffset when !N.defaultIsWild -> 
+          mkFexp3 (mkPointerTypeKind lvt N.Wild) start start zero, empty
+      | _ -> 
+          mkFexp3 (mkPointerTypeKind lvt lvk) start fb zero, empty
+*)
+  end
+  | _ -> begin      
+      let ptrtype = mkPointerTypeKind lvt lvk in
+      match lvk with
+        N.Safe -> mkFexp1 ptrtype (mkAddrOf lv), empty
+      | (N.Index | N.Wild | N.FSeq | N.FSeqN | N.Seq | N.SeqN ) -> 
+          mkFexp3 ptrtype (mkAddrOf(lv)) fb fe, empty
+      | _ -> E.s (bug "pkAddrOf(%a)" N.d_opointerkind lvk)
+  end
          
 (* Given an array type return the element type, pointer kind, base and bend *)
 let arrayPointerToIndex (t: typ) 
@@ -1382,7 +1405,7 @@ let arrayPointerToIndex (t: typ)
       (elemt, N.Wild, base, zero)
 
   | TArray(elemt, _, a) when (filterAttributes "sized" a <> []) -> 
-      (elemt, N.Index, mkAddrOf lv, zero)
+      (elemt, N.Index, StartOf lv, zero)
 
     (* If it is not sized then better have a length *)
   | TArray(elemt, Some alen, a) -> 
@@ -1395,8 +1418,8 @@ let arrayPointerToIndex (t: typ)
           N.SeqN, BinOp(MinusA, alen, one, intType)
         end else N.Seq, alen 
       in
-      (elemt, knd, mkAddrOf lv, 
-       BinOp(IndexPI, mkAddrOf lv, alen', TPtr(elemt, [])))
+      (elemt, knd, StartOf lv, 
+       BinOp(IndexPI, StartOf lv, alen', TPtr(elemt, [])))
 
   | TArray(elemt, None, a) -> 
       (* Not WILD and not SIZED *)
@@ -1925,7 +1948,7 @@ let getFunctionDescriptor (vi: varinfo) : exp =
                                  [ SingleInit zero;
                                    SingleInit 
                                      (doCast 
-                                        (StartOf (Var vi, 
+                                        (AddrOf (Var vi, 
                                                   NoOffset))
                                      (TPtr(TFun(voidType,[],false, []), [])));
                                    SingleInit (integer nrformals) ])),
@@ -1969,26 +1992,7 @@ let rec pkStartOf
           
       | _ -> E.s (unimp "pkStartOf: %a" N.d_opointerkind lvk)
     end
-  | TFun _ -> begin
-      (* Taking the address of a function is a special case. Since fuctions 
-       * are not tagged the type of the the pointer is Safe. If we are in 
-       * defaultIsWild then we must make a Wild pointer out of it  *)
-      let start = StartOf lv in
-      let thetype = mkPointerTypeKind lvt lvk in
-      match lvk with
-        N.Safe -> mkFexp3 thetype start zero zero, empty
-      | N.Wild -> mkFexp3 thetype start fb zero, empty
-      | _ -> E.s (bug "pkStartOf function: %a" N.d_opointerkind lvk) 
-(*
-      match lv with
-        Var vi, NoOffset when !N.defaultIsWild -> 
-          mkFexp3 (mkPointerTypeKind lvt N.Wild) start start zero, empty
-      | _ -> 
-          mkFexp3 (mkPointerTypeKind lvt lvk) start fb zero, empty
-*)
-  end
-        
-  | _ -> E.s (unimp "pkStartOf on a non-array and non-function: %a"
+  | _ -> E.s (unimp "pkStartOf on a non-array: %a"
                 d_plaintype lvt)
 
 let varStartInput (vi: varinfo) = 

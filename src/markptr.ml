@@ -876,14 +876,15 @@ and doInstr (i:instr) : instr =
       (* Do the function as if we were to take its address *)
       let pfunc, pfunct, pfuncn = 
         match func with 
-          Lval lv -> doExp (StartOf lv)
+          Lval lv -> doExp (mkAddrOf lv)
         | _ -> E.s (unimp "Called function is not an lvalue")
       in
       (* Now fetch out the real function and its type *)
-      let func', funct = 
-        match pfunc, pfunct with
-          StartOf lv, TPtr (bt, _) -> Lval lv, bt
-        | _ -> E.s (bug "Expected a StartOf here")
+      let func' = Lval (mkMem pfunc NoOffset) in
+      let funct =
+        match pfunct with
+          TPtr ((TFun _ as funct), _) -> funct
+        | _ -> E.s (bug "Expected a function pointer here")
       in
       let (rt, formals, isva) = 
         match unrollType funct with
