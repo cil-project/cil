@@ -408,14 +408,14 @@ let checkSafeMemComp =
                       mkCheck "CHECK_SAFEREADCOMP" 2; |] in
   let writeChecks = [| mkCheck "CHECK_SAFEWRITECOMP" 1; 
                        mkCheck "CHECK_SAFEWRITECOMP" 2; |] in
-  fun isread words -> 
+  fun iswrite words -> 
     if words > 2 || words < 1 then
       E.s (E.unimp "checkSafeReadComp not available for %d words\n" words)
     else
-      if isread then
-        readChecks.(words - 1)
-      else
+      if iswrite then
         writeChecks.(words - 1)
+      else
+        readChecks.(words - 1)
           
 let checkSafeReadLean = 
   let fdec = emptyFunction "CHECK_SAFEREADLEAN" in
@@ -438,12 +438,19 @@ let checkSafeWriteLean =
   fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
   fdec
   
+let checkWritePointer = 
+  let fdec = emptyFunction "CHECK_SAFEWRITEPOINTER" in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
+  fdec
+  
 
  (* Given a type compute a list of tags for its components *)
 
-let bitsForType isread t = 
+let bitsForType iswrite t = 
   (* Mask and value for the various kinds of data *)
-  let bLean = (if isread then 0 else 3), 0 in
+  let bLean = (if iswrite then 3 else 0), 0 in
   let bPtr  = 3, 2 in
   let bBase = 3, 1 in (* Leave this with 1 in LSB so we can recognize it 
                          easily *)
@@ -478,28 +485,63 @@ let bitsForType isread t =
   finishAcc (tagOfType (0,0,0,[]) t)
 
     (* Check a read *)
-let checkMem (isread: bool) (lv: lval) (base: exp) (t: typ) : stmt list = 
+let checkMem (towrite: exp option) 
+             (lv: lval) (base: exp) (t: typ) : stmt list = 
+  let iswrite, towrite = 
+    match towrite with
+      None -> false, zero
+    | Some e -> true, e
+  in
   match unrollType t with 
-    TFun _ when isread -> 
+    TFun _ when not iswrite -> 
         [call None (Lval(var checkSafeReadFun.svar))
             (CastE(voidPtrType, AddrOf(lv, lu), lu) :: base :: [])]
   | _ ->
-      let (nrWords, tags) = bitsForType isread t in
+      (* For a write also verify that we do not write stack pointers to the 
+       * heap *)
+      let checkwrite = 
+        if iswrite then
+          let theCheck = Lval(var checkWritePointer.svar) in
+          let rec doCheckWrite (what: exp) (t: typ) acc = 
+            match unrollType t with 
+            | (TInt _ | TFloat _ | TEnum _ ) -> acc
+            | TStruct(_, [p;b], _) when p.fname = "_p" && b.fname = "_b" -> 
+                let (_, p, b) = readPtrBaseField what t in
+                (call None theCheck [ p; b]) :: acc
+            | TStruct (_, flds, _) -> 
+                let lv = 
+                  match what with 
+                    Lval x -> x
+                  | _ -> E.s (E.unimp "checkwrite on a non-lval")
+                in
+                let doField acc f = 
+                  doCheckWrite (Lval(addOffset (Field(f, NoOffset)) lv))
+                               f.ftype acc
+                in
+                List.fold_left doField acc flds
+            | _ -> E.s (E.unimp "unexpected type in checkwrite")
+          in
+          doCheckWrite towrite t []
+        else [] 
+      in
+      let (nrWords, tags) = bitsForType iswrite t in
       let tlen = (List.length tags) lsr 1 in
       if nrWords = 1 then (* A lean memory operation *)
         let theCheck = 
-          if isread then checkSafeReadLean else checkSafeWriteLean in
-        [call None (Lval(var theCheck.svar))
-            (CastE(voidPtrType, AddrOf(lv, lu), lu) :: base :: [])]
+          if iswrite then checkSafeWriteLean else checkSafeReadLean in
+        (call None (Lval(var theCheck.svar))
+            (CastE(voidPtrType, AddrOf(lv, lu), lu) :: base :: [])) ::
+        checkwrite
       else
-        let theCheck = checkSafeMemComp isread tlen in
-        [call None (Lval(var theCheck.svar)) 
+        let theCheck = checkSafeMemComp iswrite tlen in
+        (call None (Lval(var theCheck.svar)) 
             (CastE(voidPtrType, AddrOf(lv, lu), lu) :: base ::
-             (integer nrWords) :: (List.map hexinteger tags))]
+             (integer nrWords) :: (List.map hexinteger tags))) ::
+        checkwrite
           
     (* Check a write *)
-let checkRead = checkMem true 
-let checkWrite = checkMem false
+let checkRead = checkMem None
+let checkWrite e = checkMem (Some e)
 
 (* A major hack for MSVC *)
 let getIOBFunction = 
@@ -565,7 +607,7 @@ and boxinstr (ins: instr) : stmt =
         let (_, doe, e') = boxexp e in
         let check = 
           match lv' with
-            Mem _, _ -> checkWrite lv' lvbase rest
+            Mem _, _ -> checkWrite e' lv' lvbase rest
           | _ -> []
         in
         mkSeq (dolv @ doe @ check @ [Instr(Set(lv', e', l))])
@@ -620,7 +662,7 @@ and boxinstr (ins: instr) : stmt =
               let (lvt, dolv, lv', lvbase) = boxlval lv in
               let check = 
                 match lv' with
-                  Mem _, _ -> checkRead lv' lvbase lvt
+                  Mem _, _ -> checkWrite (integer 0) lv' lvbase lvt
                 | _ -> []
               in
               if isFatType lvt then
