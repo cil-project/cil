@@ -839,6 +839,24 @@ let error (fmt : ('a,unit,doc) format) : 'a =
   in
   Pretty.gprintf f fmt
 
+let unimp (fmt : ('a,unit,doc) format) : 'a = 
+  let f d = 
+    E.hadErrors := true; 
+    ignore (eprintf "@!%t: Unimplemented: %a@!" 
+              d_thisloc insert d);
+    raise E.Error
+  in
+  Pretty.gprintf f fmt
+
+let bug (fmt : ('a,unit,doc) format) : 'a = 
+  let f d = 
+    E.hadErrors := true; 
+    ignore (eprintf "@!%t: Bug: %a@!" 
+              d_thisloc insert d);
+    raise E.Error
+  in
+  Pretty.gprintf f fmt
+
 let errorLoc (loc: location) (fmt : ('a,unit,doc) format) : 'a = 
   let f d = 
     E.hadErrors := true; 

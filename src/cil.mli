@@ -61,8 +61,13 @@ val currentLoc: location ref
 val d_loc: unit -> location -> Pretty.doc
 val d_thisloc: unit -> Pretty.doc  (* the currentLoc *)
 
+(* the following error message producing functions also print a location in 
+ * the code. use Errormsg.bug and Errormsg.unimp if you do not want that *)
+val bug: ('a,unit,Pretty.doc) format -> 'a
+val unimp: ('a,unit,Pretty.doc) format -> 'a
 val error: ('a,unit,Pretty.doc) format -> 'a
 val errorLoc: location -> ('a,unit,Pretty.doc) format -> 'a  
+val unimp: ('a,unit,Pretty.doc) format -> 'a  
 val warn: ('a,unit,Pretty.doc) format -> 'a
 val warnLoc: location -> ('a,unit,Pretty.doc) format -> 'a  
 
