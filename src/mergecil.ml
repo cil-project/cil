@@ -311,11 +311,14 @@ let vEnv : (string, varinfo node) H.t = H.create 111
 (* A set of inline functions indexed by their printout ! *)
 let inlineBodies : (P.doc, varinfo node) H.t = H.create 111
 
-(** A number of alpha conversion tables *)
+(** A number of alpha conversion tables. We ought to keep one table for each 
+ * name space. Unfortunately, because of the way the C lexer works, type 
+ * names must be different from any other names!! We use only vAlpha. *)
 let vAlpha : (string, alphaTableData ref) H.t = H.create 57 (* Variables *)
-let sAlpha : (string, alphaTableData ref) H.t = H.create 57 (* Structures and unions 
-                                                   * have the same name space 
-                                                   *)
+let sAlpha : (string, alphaTableData ref) H.t = H.create 57 (* Structures and 
+                                                             * unions have 
+                                                             * the same name 
+                                                             * space *)
 let eAlpha : (string, alphaTableData ref) H.t = H.create 57 (* Enumerations *)
 let tAlpha : (string, alphaTableData ref) H.t = H.create 57 (* Type names *)
 
@@ -1555,7 +1558,7 @@ let oneFilePass2 (f: file) =
                   E.s (bug "Setting creferenced for struct %s(%d) which is not in the sEq!\n"
                          ci.cname !currentFidx);
                 end);
-                let newname, _ = newAlphaName sAlpha None ci.cname in
+                let newname, _ = newAlphaName (if false then sAlpha else vAlpha) None ci.cname in
                 ci.cname <- newname;
                 ci.creferenced <- true; 
                 ci.ckey <- H.hash (compFullName ci);
@@ -1578,7 +1581,7 @@ let oneFilePass2 (f: file) =
           else begin
             match findReplacement true eEq !currentFidx ei.ename with 
               None -> (* We must rename it *)
-                let newname, _ = newAlphaName eAlpha None ei.ename in
+                let newname, _ = newAlphaName (if false then eAlpha else vAlpha) None ei.ename in
                 ei.ename <- newname;
                 ei.ereferenced <- true;
                 (* And we must rename the items to using the same name space 
@@ -1626,7 +1629,7 @@ let oneFilePass2 (f: file) =
           else begin
             match findReplacement true tEq !currentFidx ti.tname with 
               None -> (* We must rename it and keep it *)
-                let newname, _ = newAlphaName tAlpha None ti.tname in
+                let newname, _ = newAlphaName (if false then tAlpha else vAlpha) None ti.tname in
                 ti.tname <- newname;
                 ti.treferenced <- true;
                 mergePushGlobals (visitCilGlobal renameVisitor g);

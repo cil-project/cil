@@ -437,6 +437,7 @@ $TEST->addTests("combine17", "", ['cil']);
 $TEST->addTests("combine18", "", ['cil']);
 $TEST->addTests("combine20", "", ['cil']);
 $TEST->addTests("combine21", "", ['cil']);
+$TEST->addTests("combinelibrik", "", ['cil']);
 $TEST->addTests("combineenum1", "", ['cil']);
 $TEST->addTests("combineenum2", "", ['cil']);
 $TEST->addTests("combineenum3", "", ['cil']);
