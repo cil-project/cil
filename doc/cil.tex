@@ -1440,11 +1440,80 @@ whitespace-separated named of additional files to process.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Library of CIL Modules}
 
- We are developing a suite of module that use CIL for program analyses and
+ We are developing a suite of modules that use CIL for program analyses and
 transformations that we have found useful. You can use these modules directly
-on your code, or generally as insiration for writing similar modules. A
+on your code, or generally as inspiration for writing similar modules. A
 particularly big and complex application written on top of CIL is CCured
 (\ahrefurl{../ccured/index.html}).
+
+\subsection{Points-to Analysis}
+
+The module \t{ptranal.ml} contains a context-sensitive, interprocedural
+points-to analysis for CIL. The analysis has the following
+characteristics:
+
+\begin{enumerate}
+\item Not based on C types (inferred pointer relationships are sound
+despite most kinds of C casts)
+\item One level of subtyping 
+\item One level of context sensitivity
+\item Monomorphic type structures
+\item Field insensitive (fields of structs are conflated)
+\item Demand-driven (points-to queries are solved on demand)
+\item Handles function pointers 
+\end{enumerate}
+
+
+The analysis itself is factored into two components: \t{ptranal.ml},
+which walks over the CIL file and generates constraints, and
+\t{golf.ml}, which solves the constraints. The analysis is invoked
+with the function \t{Ptranal.analyze_file: Cil.file -> unit}. This
+function builds the points-to graph for the CIL file and stores it
+internally. There is currently no facility for clearing internal
+state, so \t{Ptranal.analyze_file} should only be called once.
+
+% Interface for querying the points-to graph...
+The constructed points-to graph supports several kinds of queries,
+including alias queries (may two expressions be aliased?) and
+points-to queries (to what set of locations may an expression point?).
+
+% Simon : could you talk a bit more about the interface here?
+
+% Controlling the analysis
+The precision of the analysis can be customized by changing the values
+of several flags:
+
+\begin{enumerate}
+\item \t{Ptranal.no_sub : bool ref}. If \t{true}, subtyping is
+disabled.
+\item \t{Ptranal.analyze_mono : bool ref}. If \t{true}, context
+sensitivity is disabled and the analysis is effectively monomorphic.
+\item \t{Ptranal.smart_aliases : bool ref}. If \t{true}, ``smart''
+disambiguation of aliases is enabled. Otherwise, aliases are computed
+by intersecting points-to sets (this is an experimental feature).
+\end{enumerate}
+
+In practice, the best precision/efficiency tradeoff is achieved by
+setting \t{Ptranal.no_sub} to \t{false}, \t{Ptranal.analyze_mono} to
+\t{true}, and \t{Ptranal.smart_aliases} to \t{false}. These are the
+default values of the flags.
+
+There are also a few flags that can be used to inspect or serialize
+the results of the analysis:
+
+\begin{enumerate}
+\item \t{Ptranal.print_constraints : bool ref}. If \t{true}, the
+analysis will print each constraint as it is generated.
+\item \t{Ptranal.print_types : bool ref}. If \t{true}, the analysis
+will print the inferred type of each variable in the program. If
+\t{Ptranal.analyze_mono} and \t{Ptranal.no_sub} are both \t{true},
+this output is sufficient to reconstruct the points-to graph. One nice
+feature is that there is a pretty printer for recursive types, so the
+print routine doesn't loop.
+\item \t{Ptranal.compute_results : bool ref}. If \t{true}, the
+analysis will print out the points-to set of each variable in the
+program. This will essentially serialize the points-to graph.
+\end{enumerate}
 
  
 
