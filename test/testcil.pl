@@ -8,7 +8,7 @@ use Getopt::Long;           # Command-line option processing
 use File::Basename;         # File name parsing
 use Cwd;                    # Directory navigation
 use strict;
-use Data::Dumper;
+# use Data::Dumper;
 use FindBin;
 use lib "$FindBin::Bin";
 
@@ -128,7 +128,7 @@ exit(0);
 package SafecRegTest;
 
 use strict;
-use Data::Dumper;
+# use Data::Dumper;
 
 BEGIN {
     use RegTest;
