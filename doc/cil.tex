@@ -2099,6 +2099,9 @@ Necula}.
 \item {\bf January 17, 2003}: {\bf Released version 1.0.5}
 \item {\bf January 4, 2003}: Changed the interface for the Formatcil module.
   Now the placeholders in the pattern have names.
+\item {\bf January 3, 2003}: Extended the \t{rmtmps} module to also remove
+  unused labels that are generated in the conversion to CIL. This reduces the
+  number of warnings that you get from \t{gcc} afterwards.
 \item {\bf December 17, 2002}: Fixed a few bugs in CIL related to the
   representation of string literals. Now they have type array of characters
   and we {\bf have added the StartOfString expression constructor} to denote
