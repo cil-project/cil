@@ -582,7 +582,9 @@ smAddTest("bad/nullfield $manualbox");
 smAddTest("scott/constfold");
           
 # test of strings (need more!)
-smFailTest("obvious buffer overrun not detected", "bad/ovwrnull $box");
+smFailTest("manual annotation of RWSTRING seems to be ignored", 
+           "bad/ovwrnull $box");
+smAddTest("test-bad/strloop2 INFERBOX=paper");     # =infer doesn't infer RWSTRING
 
 # tests of function models
 smAddTest("scott/memcpy $box");
