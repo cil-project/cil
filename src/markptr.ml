@@ -128,10 +128,6 @@ let boxModels: (string, fundec) H.t = H.create 15 (* Map the name of the
                                                     * the model *)
 
 
-(* We need a function that copies a CIL function. *)
-let copyFunction (f: fundec) (newname: string) = 
-  visitCilFunction (new copyFunctionVisitor(newname)) f
-  
 
 (* We keep track of a number of type that we should not unroll *)
 let dontUnrollTypes : (string, bool) H.t = H.create 19

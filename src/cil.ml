@@ -3799,3 +3799,8 @@ class copyFunctionVisitor (newname: string) = object (self)
 
   method vglob _ = E.s (bug "copyFunction should not be used on globals")
 end
+
+(* We need a function that copies a CIL function. *)
+let copyFunction (f: fundec) (newname: string) : fundec = 
+  visitCilFunction (new copyFunctionVisitor(newname)) f
+  

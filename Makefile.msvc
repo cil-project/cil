@@ -3,13 +3,15 @@
 #
 COMPILERNAME=MSVC
 
-CC:=cl
+CC:=cl /nologo
 ifdef RELEASE
-  CFLAGS:=/DRELEASE /D_MSVC /Ox /Ob2 /G6 /nologo
+  CFLAGS:=/DRELEASE /D_MSVC /Ox /Ob2 /G6
 else
-  CFLAGS:=/D_DEBUG /D_MSVC /Zi /MLd /nologo
+  CFLAGS:=/D_DEBUG /D_MSVC /Zi /MLd
 endif
 CONLY:=/c
+
+OPT_O2:= /Ox /Ob2 /G6
 
 OBJOUT:=/Fo
 OBJEXT:=obj

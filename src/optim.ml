@@ -1347,12 +1347,12 @@ and removeCheck (checkName : string) (i : instr list) : instr list =
 
 
 
-let getStatistics () : string =
+let getStatistics () : doc =
   let t = !stats_total in
   let r = !stats_removed in
   let n = !stats_nc_removed in
   let (//) a b = (float_of_int a) /. (float_of_int b) in
-  Printf.sprintf 
+  dprintf
     "\n  Total CHECKs \t\t %d\n  Null-check-remover \t %d removed\n  Redundancy eliminator  %d removed\n  Summary \t\t %d (%.2f%%) removed, %d (%.2f%%) kept\n"
     t n r (n+r) (100*(n+r)//t) (t-n-r) (100*(t-n-r) // t)
    
@@ -1373,7 +1373,7 @@ let getStatistics () : string =
 
 (*------------------------------------------------------------*)
 (* Carry out a series of optimizations on a function definition *)
-
+let checkToRemove = ref None
 let optimFun (f : fundec) (isGlobinit : bool) =
   if debug then begin
     ignore (printf "===================================\n");
@@ -1390,12 +1390,9 @@ let optimFun (f : fundec) (isGlobinit : bool) =
   (* Carry out the optimizations, one at a time *)
 
   (* Remove all checks ... useful to see which tests make a difference *)
-  (try let rm = Sys.getenv "REDREMOVEALL" in
-  if rm = "1" then
-    optimizedF := eliminateAllChecks !optimizedF ""
-  else
-    optimizedF := eliminateAllChecks !optimizedF rm
-  with _ -> ());
+  (match !checkToRemove with 
+    None -> ()
+  | Some check -> optimizedF := eliminateAllChecks !optimizedF check);
 
   if isGlobinit then    
     optimizedF := numberNodesAndPeephole !optimizedF

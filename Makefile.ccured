@@ -130,6 +130,13 @@ else
 	$(AR) $(LIBOUT)$@ $(GCLIB) obj/safec.$(OBJEXT) obj/splay.$(OBJEXT) 
 endif
 
+# we need to know what the patcher will think the compiler's version is
+COMPILERVERSION := $(shell $(PATCHER) --dumpversion)
+
+# names all of the patched include files, so we can have a proper dependency
+PATCHEDHEADERS := $(foreach file, $(PATCH_SYSINCLUDES), \
+                    $(CCUREDHOME)/include/$(COMPILERVERSION)/$(file))
+
 ######################
 .PHONY : combiner cilly presetup all setup includes cleanincludes
 
@@ -139,20 +146,14 @@ combiner:
 cilly: 
 	$(MAKE) -r -f Makefile.cil $(MAKEOVERRIDES)
 
-libraries: $(CCUREDLIB)
+libraries: $(CCUREDLIB) $(PATCHEDHEADERS)
 
 all: combiner cilly $(EXECUTABLE)$(EXE) libraries
 
-# we need to know what the patcher will think the compiler's version is
-COMPILERVERSION := $(shell $(PATCHER) --dumpversion)
-
-# names all of the patched include files, so we can have a proper dependency
-PATCHEDHEADERS := $(foreach file, $(PATCH_SYSINCLUDES), \
-                    $(CCUREDHOME)/include/$(COMPILERVERSION)/$(file))
 
 #foo := $(shell echo "PATCHEDHEADERS = $(PATCHEDHEADERS)" 1>&2; echo hi)
 
-setup: $(PATCHEDHEADERS)
+setup:
 	$(MAKE) -f Makefile.ccured all $(MAKEOVERRIDES) RELEASE= 
 	$(MAKE) -f Makefile.ccured all $(MAKEOVERRIDES) RELEASE=1
 ifdef _MSVC

@@ -526,7 +526,7 @@ type fundec =
       mutable smaxid: int;              (** Max local id. Starts at 0 *)
       mutable sbody: block;             (** Body *)
       mutable sinline: bool;            (** Whether the function is inline*)
-      mutable smaxstmtid : int option;  (** max id of a (reachable) statement
+      mutable smaxstmtid: int option;  (** max id of a (reachable) statement
                                             in this function, if we have 
                                             computed it. 
                                             range = 0 ... (smaxstmtid-1) *)
@@ -1021,8 +1021,8 @@ end
 (** Default Visitor. Traverses the CIL tree without modifying anything *)
 class nopCilVisitor: cilVisitor
 
-(** A visitor that makes a deep copy of a function body *)
-class copyFunctionVisitor: string -> cilVisitor
+(** A function that makes a deep copy of a function body. Pass a new name *)
+val copyFunction: fundec -> string -> fundec
 
 (* other cil constructs *)
 

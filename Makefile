@@ -28,7 +28,7 @@ clean:
 		-name '*cil.c' -o \
 		-name '*box.c' -o \
 		-name '*cured.c' -o \
-                -name '*cured.optim.c' -o \
+                -name '*cured.*optim.c' -o \
 		-name '*.exe' -o \
 		-name '*.i' -o \
 		-name '*_ppp.c' -o \
@@ -124,6 +124,7 @@ endif
 ifdef MANUALBOX
   CCURED+= $(DEF)MANUALBOX
 endif
+
 
 ifdef NOGC
   CCURED+= --nogc
@@ -687,7 +688,7 @@ apache/% : $(APACHETEST)/mod_%.c
 # benchmark's Makefile (helps to ensure consistency between the
 # non-ccured build and the ccured build, and also some programs
 # take too long on -O3)
-COMBINESAFECC := $(CCURED) --combine
+COMBINECCURED := $(CCURED) --combine
 
 # sm: trying to collapse where are specifications are
 PATCHARG := `$(PATCHECHO) $(STANDARDPATCH)`
@@ -699,7 +700,7 @@ PATCHARG := `$(PATCHECHO) $(STANDARDPATCH)`
 BHDIR := test/olden/bh
 bh:  mustbegcc
 	cd $(BHDIR); rm -f code.exe *.o; \
-               make CC="$(COMBINESAFECC) --nocure=trusted_bh $(PATCHARG)"
+               make CC="$(COMBINECCURED) --nocure=trusted_bh $(PATCHARG)"
 	echo  >$(BHDIR)/data.in
 	echo  >>$(BHDIR)/data.in
 	echo  >>$(BHDIR)/data.in
@@ -741,12 +742,25 @@ endif
 power:  mustbegcc
 	cd $(PWDIR); \
                make PLAIN=1 clean defaulttarget \
-                    CC="$(COMBINESAFECC) $(PATCHARG)"
+                    CC="$(COMBINECCURED) $(PATCHARG)"
+	cd $(PWDIR); sh -c "time ./power.exe"
+
+power-removed%: mustbegcc
+	cd $(PWDIR); \
+           $(CC) $(DEF)_$(COMPILERNAME) \
+                 $(DEF)CIL \
+                 $(DEF)CCURED \
+                 $(INC)$(CCUREDHOME)/lib \
+                 $(OPT_O2) \
+	         power.exe_combcured.$*.optim.c \
+                 $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
+                 $(EXEOUT)power.exe
 	cd $(PWDIR); sh -c "time ./power.exe"
 
 power-combined :  mustbegcc
 	cd $(PWDIR); \
-             $(CCURED) power.exe_all.c $(EXEOUT)power.exe
+             $(CCURED) power.exe_comb.c $(EXEOUT)power.exe
+
 
 # Health care simulation
 HEALTHDIR=test/olden/health
@@ -757,7 +771,7 @@ health:
 	cd $(HEALTHDIR); \
                make PLAIN=1 clean defaulttarget \
                     $(HEALTHARGS) \
-                    CC="$(COMBINESAFECC) \
+                    CC="$(COMBINECCURED) \
                         --nocure=trusted_health \
 			 $(PATCHARG)"
 	cd $(HEALTHDIR); sh -c "time ./health$(LDEXT) 5 500 1 1"
@@ -773,7 +787,7 @@ perimeter:
 	cd $(PERIMDIR); \
                make PLAIN=1 clean defaulttarget  \
                     $(PERIMARGS) \
-                    CC="$(COMBINESAFECC) \
+                    CC="$(COMBINECCURED) \
 			$(PATCHARG)"
 	cd $(PERIMDIR); sh -c "time ./perimeter.exe"
 
@@ -787,7 +801,7 @@ voronoi :
 	cd $(VORONDIR); \
                make PLAIN=1 clean voronoi.exe \
                     $(VORONARGS) \
-                    CC="$(COMBINESAFECC) \
+                    CC="$(COMBINECCURED) \
                         --nocure=trusted_voronoi \
 			$(PATCHARG)"
 	cd $(VORONDIR); sh -c "time ./voronoi.exe 60000 1"
@@ -804,7 +818,7 @@ tsp:
 	cd $(TSPDIR); \
                make PLAIN=1 clean defaulttarget \
                     $(TSPARGS) \
-                    CC="$(COMBINESAFECC) \
+                    CC="$(COMBINECCURED) \
 			$(PATCHARG)"
 	cd $(TSPDIR); sh -c "time ./tsp.exe"
 
@@ -818,7 +832,7 @@ bisort :  mustbegcc
 	cd $(BISORTDIR); \
                make PLAIN=1 clean defaulttarget \
                     $(BISORTARGS) \
-                    CC="$(COMBINESAFECC) \
+                    CC="$(COMBINECCURED) \
                         --nocure=trusted_bisort \
 			$(PATCHARG)"
 	cd $(BISORTDIR); sh -c "time ./bisort.exe 100"
@@ -827,7 +841,7 @@ bisort :  mustbegcc
 
 
 OLDENMSTDIR := test/olden/mst
-OLDENMSTSAFECC := $(COMBINESAFECC) $(PATCHARG)
+OLDENMSTSAFECC := $(COMBINECCURED) $(PATCHARG)
 ifdef _MSVC
   OLDENMSTSAFECC += $(DEF)WIN32 $(DEF)MSDOS
   MSTARGS := _MSVC=1
@@ -922,12 +936,12 @@ old-compress :  $(COMPRESSDIR)/src/combine-compress.c
 	cd $(COMPRESSDIR)/src; sh -c "time ./combine-compress.exe < input.data > combine-compress.out"
 
 compress-noclean:  mustbegcc
-	cd $(COMPRESSDIR)/src; make CC="$(COMBINESAFECC)" build
+	cd $(COMPRESSDIR)/src; make CC="$(COMBINECCURED)" build
 	cd $(COMPRESSDIR)/src; sh -c "time ./compress < input.data > combine-compress.out"
 
 compress:  mustbegcc
 	cd $(COMPRESSDIR)/src; \
-               make CC="$(COMBINESAFECC) $(PATCHARG)" clean build
+               make CC="$(COMBINECCURED) $(PATCHARG)" clean build
 	cd $(COMPRESSDIR)/src; sh -c "time ./compress < input.data > combine-compress.out"
 
 LIDIR := $(SPECDIR)/130.li
