@@ -269,7 +269,8 @@ odoc:
              -html \
              -t "CIL API Documentation (version @CIL_VERSION@)" \
 	     -I $(OBJDIR) \
-                    ocamlutil/pretty.mli ocamlutil/errormsg.mli src/clist.mli \
+                    ocamlutil/pretty.mli ocamlutil/errormsg.mli \
+                    ocamlutil/clist.mli \
 	  	    ocamlutil/stats.mli src/cil.mli src/formatcil.mli
 
 doc/cilpp.tex: doc/cilcode.pl doc/cil.tex 
@@ -300,7 +301,8 @@ pdfdoc: doc/cilpp.tex
              -latex \
              -t "CIL API Documentation (version @CIL_VERSION@)" \
 	     -I $(OBJDIR) \
-                    ocamlutil/pretty.mli ocamlutil/errormsg.mli src/clist.mli \
+                    ocamlutil/pretty.mli ocamlutil/errormsg.mli \
+                    ocamlutil/clist.mli \
 	  	    ocamlutil/stats.mli src/cil.mli src/formatcil.mli
 	cd doc ; TEXINPUTS="$$TEXINPUTS:/usr/local/lib/ocaml/ocamldoc:/usr/lib/ocaml/ocamldoc" pdflatex cil-api.tex
 	cd doc ; mv cil-api.pdf html/cil/CIL-API.pdf
@@ -329,8 +331,7 @@ DISTRIB_ROOT = README LICENSE INSTALL Makefile.cil.in  \
 	       configure configure.in install-sh config.guess config.sub \
 	       cil.spec cil.spec.in
 
-DISTRIB_SRC = clist.ml clist.mli \
-	      cilutil.ml cil.ml cil.mli check.ml check.mli \
+DISTRIB_SRC = cilutil.ml cil.ml cil.mli check.ml check.mli \
 	      rmtmps.ml rmtmps.mli formatlex.mll formatparse.mly \
 	      formatcil.mli formatcil.ml testcil.ml \
 	      mergecil.ml mergecil.mli maincil.ml machdep.c \
@@ -339,7 +340,7 @@ DISTRIB_SRC = clist.ml clist.mli \
 
 DISTRIB_OCAMLUTIL = pretty.ml pretty.mli errormsg.ml errormsg.mli \
                     trace.ml trace.mli stats.ml stats.mli util.ml util.mli \
-                    inthash.ml \
+                    inthash.ml clist.ml clist.mli \
                     perfcount.c.in Makefile.ocaml Makefile.ocaml.build
 
 
