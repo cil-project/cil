@@ -3302,7 +3302,7 @@ let offsetOf (fi: fieldinfo) (startcomp: int) : int * int =
     in
     loop fi.fcomp.cfields
   in
-  let lastoff = 
+  let lastoff =
     List.fold_left (fun acc fi' -> offsetOfFieldAcc fi' acc)
       { oaFirstFree = startcomp;
         oaLastFieldStart = 0;
@@ -3310,7 +3310,108 @@ let offsetOf (fi: fieldinfo) (startcomp: int) : int * int =
         oaPrevBitPack = None } prevflds
   in
   (lastoff.oaLastFieldStart, lastoff.oaLastFieldWidth)
-      
- 
-    
 
+
+
+(* ---------- expression rewriter ------------ *)
+(* rewrite an entire cil file, replacing every expression with the one *)
+(* given by 'rewrite'; expressions are visited in postorder *)
+let rewriteExprs (cil : file) (rewriteExp : exp -> exp) 
+                              (rewriteLval : lval -> lval) : unit =
+begin
+  let rec doGlobal (g : global) : unit =
+    match g with
+    | GFun(f, _) -> (doFundec f)
+    | _ -> ()
+
+  and doFundec (f : fundec) : unit =
+    (doBlock f.sbody)
+
+  and doBlock (b : block) : unit =
+    (List.iter doStmt b)
+
+  and doStmt (s : stmt) : unit =
+    (s.skind <- (doStmtkind s.skind))
+
+  and doStmtkind (s : stmtkind) : stmtkind =
+    match s with
+    | Instr(lst) -> Instr(List.map doInstr lst)
+    | Return(Some(e), loc) -> Return(Some(doExp e), loc)
+    | If(e, b1, b2, loc) ->
+        doBlock b1;
+        doBlock b2;
+        If(doExp e, b1, b2, loc)
+    | Switch(e, b1, b2, loc) ->
+        doBlock b1;
+        doBlock b2;
+        Switch(doExp e, b1, b2, loc)
+    | Loop(b, loc) ->
+        doBlock b;
+        Loop(b, loc)
+    | _ -> s     (* other forms are not changed *)
+
+  and doInstr (i : instr) : instr =
+    match i with
+    | Set(lv, e, loc) -> Set(doLval lv, doExp e, loc)
+    | Call(Some(lv), func, args, loc)
+        -> Call(Some(doLval lv), doExp func, List.map doExp args, loc)
+    | Call(None, func, args, loc)
+        -> Call(None, doExp func, List.map doExp args, loc)
+    | _ -> i     (* leave asms alone.. *)
+
+  and doLval ((base, offs) : lval) : lval =
+    let modified : lval =
+      (match base with
+       | Mem(e) -> Mem(doExp e)
+       | _ -> base     (* leave vars alone *)
+      ),
+      (doOffset offs)
+    in
+    (* user's turn *)
+    rewriteLval modified
+
+  and doOffset (offs : offset) : offset =
+    match offs with
+    | NoOffset -> NoOffset
+    | Field(fi, o) -> Field(fi, doOffset o)
+    | Index(e, o) -> Index(doExp e, doOffset o)
+
+  and doExp (e : exp) : exp =
+    (* first, visit subexpressions *)
+    let modified : exp =
+      match e with
+      | Lval(lv) -> Lval(doLval lv)
+      | SizeOfE(e) -> SizeOfE(doExp e)
+      | AlignOfE(e) -> AlignOfE(doExp e)
+      | UnOp(op, e, t) -> UnOp(op, doExp e, t)
+      | BinOp(op, e1, e2, t) -> BinOp(op, doExp e1, doExp e2, t)
+      | Question(e1, e2, e3) -> Question(doExp e1, doExp e2, doExp e3)
+      | CastE(t, e) -> CastE(t, doExp e)
+      | AddrOf(lv) -> AddrOf(doLval lv)
+      | StartOf(lv) -> StartOf(doLval lv)
+      | _ -> e       (* other things that don't have subexprs *)
+    in
+    (* now let the user have a crack at it *)
+    rewriteExp modified
+
+  in
+  (List.iter doGlobal cil.globals);
+  match cil.globinit with
+  | Some(f) -> (doFundec f)
+  | _ -> ()
+end
+
+
+(* sm: attempt a little optimization by simplifying some addrof exprs *)
+let simplifyExprs (cil : file) : unit =
+begin
+  let rewriteExpr (e : exp) : exp = e in
+
+  let rewriteLval (lv : lval) : lval =
+    match lv with
+    | (Mem(AddrOf(lv)), ofs) -> addOffsetLval ofs lv
+    | _ -> lv
+  in
+
+  rewriteExprs cil rewriteExpr rewriteLval
+end

@@ -997,8 +997,10 @@ val bitsSizeOf: typ -> int
 val sizeOf: typ -> exp
             
 
- 
-val offsetOf: fi:fieldinfo -> startcomp: int -> int * int 
-      
- 
 
+val offsetOf: fi:fieldinfo -> startcomp: int -> int * int
+
+
+(* sm: a little optimization of my own.. *)
+val rewriteExprs: file -> (exp -> exp) -> (lval -> lval) -> unit
+val simplifyExprs: file -> unit

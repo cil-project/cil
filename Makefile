@@ -335,7 +335,7 @@ ifdef USER_SCOTT
 
   # currently the #line directives are inaccurate, so
   # they are counterproductive
-  SAFECC+= --safec=-noPrintLn
+  #SAFECC+= --safec=-noPrintLn
 
   # trace patching process
   #TRACE=patch
@@ -1160,7 +1160,7 @@ health: defaulttarget
                     CC="$(COMBINESAFECC) \
                         --nobox=trusted_health \
 			 $(PATCHARG)"
-	cd $(HEALTHDIR); sh -c "time ./health.exe 5 500 1 1"
+	cd $(HEALTHDIR); sh -c "time ./health$(LDEXT) 5 500 1 1"
 
 
 
@@ -1221,7 +1221,7 @@ bisort : defaulttarget mustbegcc
                     CC="$(COMBINESAFECC) \
                         --nobox=trusted_bisort \
 			$(PATCHARG)"
-	cd $(BISORTDIR); sh -c "time ./bisort.exe 100 1"
+	cd $(BISORTDIR); sh -c "time ./bisort.exe 100"
 
 
 
@@ -1264,7 +1264,7 @@ treeadd: defaulttarget mustbegcc
 	cd $(TREEADDIR); \
             make clean treeadd CC="$(TREEADDSAFECC)" \
                        LD="$(TREEADDSAFECC)"
-	cd $(TREEADDIR); sh -c "time ./treeadd.exe 21 1"
+	cd $(TREEADDIR); sh -c "time ./treeadd$(LDEXT) 21 1"
 
 NEWBISORTDIR=test/olden/newbisort
 NEWBISORTSAFECC=$(SAFECC) --combine --keep=safeccout  \
@@ -1476,7 +1476,7 @@ vortex-tv:
 M88DIR=$(SPECDIR)/124.m88ksim
 M88SAFECC=$(SAFECC) --combine --keep=safeccout \
                     $(PATCHARG) \
-                    --nobox=m88k_trusted
+                    --nobox=m88k_trusted --noPrintInferbox
 m88kclean: 	
 	cd $(M88DIR)/src; make clean
 	cd $(M88DIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
@@ -1507,7 +1507,7 @@ m88k-combined: defaulttarget mustbegcc
 IJPEGDIR=$(SPECDIR)/132.ijpeg
 IJPEGSAFECC=$(SAFECC) --combine --keep=safeccout  \
                   $(PATCHARG) \
-                  --nobox=ijpeg_trusted $(NOPRINTLN)
+                  --nobox=ijpeg_trusted -include ijpeg.fixup.h
 ifeq ($(ARCHOS), x86_WIN32)
 IJPEGSAFECC += -DWIN32 -DMSDOS
 endif
@@ -1520,7 +1520,7 @@ ijpeg: defaulttarget mustbegcc
             make clean build CC="$(IJPEGSAFECC) $(CONLY)" \
                              LD="$(IJPEGSAFECC)"
 	sh -c "time $(IJPEGDIR)/src/ijpeg \
-            -image_file $(IJPEGDIR)/data/ref/input/penguin.ppm \
+            -image_file $(IJPEGDIR)/data/ref/input/vigo.ppm \
             -GO"
 
 ijpeg-combined: defaulttarget mustbegcc
@@ -1542,7 +1542,8 @@ ijpeg-noclean: defaulttarget mustbegcc
 
 #### SPEC95 gcc
 GCCDIR=$(SPECDIR)/126.gcc
-GCCSAFECC=$(SAFECC) --combine --keep=safeccout \
+# sm: --noPrintInferbox works around an infinite loop in our data structure
+GCCSAFECC=$(SAFECC) --combine --keep=safeccout --noPrintInferbox \
                     $(PATCHARG)
 
 

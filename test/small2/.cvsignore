@@ -68,3 +68,8 @@ memcpy
 open
 constdecl
 mknod
+realloc
+strchr
+getopt
+scary
+scary*.s

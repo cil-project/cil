@@ -1,5 +1,5 @@
 # .gdbinit
 
-file fgets
+file realloc
 break main
 run

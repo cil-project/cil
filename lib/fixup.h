@@ -104,3 +104,18 @@
 // hack: 'restrict' is a problem with glibc 2.2
 #define __restrict
 #define restrict
+
+
+// sm: I think it's a bad idea to try to match signal's declaration since it's
+// such an unusual type; and it doesn't use any types that aren't built-in
+#ifdef BEFOREBOX
+  typedef void (*_box_sig_fn)(int);
+  _box_sig_fn signal_model(int signum, _box_sig_fn fn) __BOXMODEL("signal");
+  _box_sig_fn signal_model(int signum, _box_sig_fn fn)
+  {
+    // flow argument to result
+    return fn;
+  }
+#endif // BEFOREBOX
+
+
