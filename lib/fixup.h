@@ -193,7 +193,7 @@ extern long double __builtin_fabsl(long double);
 
 //These functions do not do any error checking:
 
-  void * __SAFE  __ptrof(void *ptr);
+  void * __SAFE  __ptrof_nocheck(void *ptr);
   // Type inference:  no constraints.
   // In the wrapper:  returns ptr._p.
 
@@ -218,6 +218,11 @@ extern long double __builtin_fabsl(long double);
 
 //These functions may call fp_fail:
 
+  void * __SAFE  __ptrof(void *ptr);
+  // Type inference:  no constraints.
+  // In the wrapper:  returns ptr._p.
+  //                 Calls fp_fail if ptr is out of bounds.
+
   int __strlen(void *ptr);      
   // Type inference:  ptr must allow forwards arithmetic; also sets the
   //                    reachString flag.
@@ -241,6 +246,7 @@ extern long double __builtin_fabsl(long double);
 
 
   #pragma boxpoly("__ptrof")
+  #pragma boxpoly("__ptrof_nocheck")
   #pragma boxpoly("__startof")
   #pragma boxpoly("__endof")
   #pragma boxpoly("__mkptr")
@@ -280,7 +286,7 @@ extern long double __builtin_fabsl(long double);
     // waiting on rest until need them..
   #endif
 
-
+/*
   // sm: taking a stab at strchr's model
   static inline
   char* strchr_model(char* dest, int c)
@@ -298,7 +304,7 @@ extern long double __builtin_fabsl(long double);
   }
   #pragma cilnoremove("strdup_model")
   #pragma boxmodelof("strdup_model", "strdup")
-
+*/
   // sm: I cannot force return value to be fseq if 's' is ...
   static inline char *strpbrk_model(const char *s, const char *accept)
   {
