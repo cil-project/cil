@@ -514,13 +514,9 @@ let compute_alias_frequency () : unit =
 type absloc = A.absloc
 
 let rec lvalueVarinfo (vi : varinfo) : A.lvalue =
-  try
-    H.find lvalue_hash vi
-  with 
-      Not_found -> failwith ( Pretty.sprint ~width:80 (Pretty.dprintf 
-          "lvalueVarinfo unable to find varinfo for %s in lvalue_hash"
-          vi.vname ))
-and lvalueLval (lv : lval) : A.lvalue =
+  H.find lvalue_hash vi
+
+let rec lvalueLval (lv : lval) : A.lvalue =
   match lv with
     | (Var vi, _) -> lvalueVarinfo vi
     | (Mem e, _) -> A.deref (A.rvalue (lvalueExp e))
