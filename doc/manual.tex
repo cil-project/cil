@@ -417,7 +417,7 @@ the real \t{printf} function.
 
  To declare a function to be \t{printf}-like use the following pragma:
 \begin{verbatim}
-#pragma boxvararg_printf("printf", sizeof(union printf_format), 0)
+#pragma boxvararg_printf("printf", 0)
 \end{verbatim}
 
  where the last argument is the index of the format argument in the argument

@@ -10,7 +10,16 @@ open Pretty
 open Trace
 module E = Errormsg
 
-let safe_voidstar = true
+let safe_voidstar = false
+
+(* Apply a function to all successors and predecessors in the graph *)
+let rec depth_first_bidir 
+    (f: node -> bool) (* Says whether we need to recurse *) 
+    (n: node) = 
+  if f n then begin
+    List.iter (fun e -> depth_first_bidir f e.eto) n.succ;
+    List.iter (fun e -> depth_first_bidir f e.efrom) n.pred;
+  end
 
 (* are the given two types congurent? see infer.tex 
  * also remember that two wild pointers are always considered congruent *)
@@ -197,7 +206,8 @@ let rec is_p n other_n = match n.where with
 (* This "solver" turns almost all nodes WILD *)
 let wild_solve (node_ht : (int,node) Hashtbl.t) = begin
   Hashtbl.iter (fun id n -> 
-    if (n.kind <> ROString) then begin
+    try (* Raise Not_found if we cannot make it Wild. We leave it alone then *)
+      if n.kind = ROString then raise Not_found;
       (* Do not make WILD those functions that are not cast and are not used 
        * without prototype *)
       if (match n.btype with TFun _ -> true | _ -> false) &&
@@ -205,15 +215,32 @@ let wild_solve (node_ht : (int,node) Hashtbl.t) = begin
          (match n.where with PGlob _, 0 -> true 
                           | PStatic _, 0 -> true 
                           | _ -> false) &&
-         (not (hasFlag n pkNoPrototype) && n.succ=[] && n.pred=[]) then begin
-           n.kind <- Safe;
-           n.why_kind <- Default
-         end else begin
-           n.kind <- Wild ; 
-           n.why_kind <- Default 
-         end
-    end
-  ) node_ht 
+         (not (hasFlag n pkNoPrototype) && n.succ=[] && n.pred=[]) then
+        begin n.kind <- Safe; n.why_kind <- Default; raise Not_found end;
+      (* Do not make WILD the va_lists *)
+      (match unrollType n.btype with 
+        TComp(ci, _)
+          when ci.cname = "__ccured_va_list" -> 
+            n.kind <- Safe; n.why_kind <- Default; raise Not_found
+      | _ -> ());
+      n.kind <- Wild ; 
+      n.why_kind <- Default 
+    with Not_found -> ()) node_ht;
+
+  (* Now scan one more time and make sure that we turn all predecessors and 
+   * successors of SAFE nodes into SAFE nodes *)
+  Hashtbl.iter 
+    (fun id n -> 
+      if n.kind = Safe then begin
+        n.kind <- Wild; (* To ensure that we recurse *)
+        depth_first_bidir 
+          (fun n' -> 
+            if n'.kind <> Safe && n'.kind <> ROString then 
+              begin  n'.kind <- Safe; true end 
+            else false) n
+      end)
+    node_ht;
+
 end
 
 (* This solver-wrapper should be run after another actual solver. It makes
@@ -264,4 +291,5 @@ let table_interface (node_ht : (int,node) Hashtbl.t) = begin
   done;
   (trace "sm" (dprintf "end of table_interface\n"));
 end
+
 

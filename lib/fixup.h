@@ -95,6 +95,8 @@
 
 // Now specify some special pragmas
 #ifdef BEFOREBOX
+  #pragma boxpoly("__endof")
+  void *__endof(void *);
   #pragma boxalloc("malloc", nozero, sizein(0))
   #pragma boxalloc("alloca", nozero, sizein(0))
   #pragma boxalloc("calloc", zero, sizemul(0,1))
@@ -106,11 +108,11 @@
   };
   #define PRINTF_FUNCTION(name, format_idx) _Pragma boxvararg_printf(name, sizeof(union printf_format), format_idx)
 
-  PRINTF_FUNCTION("printf", 0)
-  PRINTF_FUNCTION("fprintf", 1)
-  PRINTF_FUNCTION("snprintf", 2)
-  PRINTF_FUNCTION("syslog", 1)
-  PRINTF_FUNCTION("sprintf", 1)
+  #pragma boxvararg_printf("printf", 0)
+  #pragma boxvararg_printf("fprintf", 1)
+  #pragma boxvararg_printf("snprintf", 2)
+  #pragma boxvararg_printf("syslog", 1)
+  #pragma boxvararg_printf("sprintf", 1)
 
   // We want to force sprintf to carry a length
   static inline

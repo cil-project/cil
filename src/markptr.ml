@@ -194,23 +194,6 @@ let rec doType (t: typ) (p: N.place)
                               * varinfo for polymorphic functions *)
             i') i0 args 
       in
-      (* See if it is a printf function 
-      (try
-        if isva then 
-          match p with 
-            N.PGlob s -> begin
-              let formatidx = H.find printfFunc s in
-              let formatarg = List.nth args formatidx in
-              let nd = nodeOfType formatarg.vtype in
-              if nd == N.dummyNode then
-                ignore (E.log "no node found\n")
-              else begin
-                nd.N.kind <- N.ROString; 
-                nd.N.why_kind <- N.PrintfArg
-              end
-            end
-          | _ -> ()
-      with _ -> ()); *)
       let newtp = TFun(restyp', args, isva, a) in
       newtp, i'
 
@@ -480,7 +463,7 @@ and doOffset (off: offset) (n: N.node) : offset * N.node =
 
   
 (* Now model an assignment of a processed expression into a type *)
-and expToType (e,et,en) t (callid: int) (polycast: bool) : exp = 
+and expToType (e,et,en) t (callid: int) : exp = 
   let etn = nodeOfType et in
   let tn  = nodeOfType t in
 (*  ignore (E.log "expToType e=%a (NS=%d) -> TD=%a (ND=%d)\n"
@@ -525,8 +508,7 @@ and expToType (e,et,en) t (callid: int) (polycast: bool) : exp =
           end else begin
 (*            ignore (E.log "Setting %a : %a -> %d\n"
                       d_plainexp e d_plaintype et desttn.N.id); *)
-            N.addEdge etn desttn 
-              (if polycast then N.ECast (* PolyCast *) else N.ECast) callid; 
+            N.addEdge etn desttn N.ECast callid; 
             e
           end
         in
@@ -547,12 +529,12 @@ and expToType (e,et,en) t (callid: int) (polycast: bool) : exp =
 and doExpAndCast e t = 
   (* Get rid of cascades of casts of 0 *)
   let e' = if isZero e then zero else e in
-  expToType (doExp e') t (-1) false
+  expToType (doExp e') t (-1)
 
-and doExpAndCastCall e t callid ispolyarg = 
+and doExpAndCastCall e t callid = 
   (* Get rid of cascades of casts of 0 *)
   let e' = if isZero e then zero else e in
-  expToType (doExp e') t callid ispolyarg
+  expToType (doExp e') t callid
 
 
 let debugInstantiate = false
@@ -639,7 +621,7 @@ let instantiatePolyFunc (fvi: varinfo) : varinfo * bool =
 
 (*********************** VARARG ********************************)
 
-let debugVararg = true
+let debugVararg = false
 
 (* Compute the signature of a type for comparing arguments *)
 let argumentTypeSig (t: typ) = 
@@ -711,6 +693,8 @@ let getVarargKinds (descrt: typ) : vaKind list =
       []
       kinds
   in
+  if kinds == [] then 
+    ignore (warn "Empty descriptor for vararg function");
   kinds
 
 (* May raise Not_found *)
@@ -751,6 +735,8 @@ let fetchVarargGlobals () =
         g2lval
   in
   g1, g2
+
+let printfFormatUnion : compinfo option ref = ref None
 
 (* take apart a format string and return a list of int/pointer type choices *)
 let rec parseFormatString f start = begin
@@ -825,7 +811,6 @@ let handleFormatString
     | _ -> false
   with Not_found -> false
 
-
   
 (* Prepare the argument in a call to a vararg function *)
 let prepareVarargArguments
@@ -895,7 +880,8 @@ let prepareVarargArguments
     in
     instr, args'
       
-  with Not_found -> [], args
+  with Not_found -> E.s (error "Call to vararg function %a without descriptor"
+                           d_exp func)
         
 
 (* Create the type for storing the vararg information *)
@@ -1275,15 +1261,16 @@ and doFunctionCall
         a' :: loopArgs [] args
                 
     | fo :: formals, a :: args -> 
-        (* See if this is a polymorphic argument *)
-        let ispolyarg = 
+        (* See if this is a polymorphic argument. Then strip the cast to 
+         * void* *)
+        let a' = 
           match ispoly, unrollType fo.vtype with
             true, TPtr(TVoid _, _) -> true
           | _, _ -> false
         in
         (*            ignore (E.log "Call arg %a: %a -> %s\n" 
                       d_exp a' d_plaintype (typeOf a') fo.vname); *)
-        let a' = doExpAndCastCall a fo.vtype !callId ispolyarg in
+        let a' = doExpAndCastCall a fo.vtype !callId in
         a' :: loopArgs formals args
                 
     | _, _ -> E.s (E.unimp "Markptr: not enough arguments in call to %a"
@@ -1308,18 +1295,20 @@ and doFunctionCall
         * can call expToType. *)
         ignore (expToType (Const(CStr("a call return")),
                            rt, N.dummyNode) (typeOfLval dest') 
-                  !callId polyRet)
+                  !callId)
     end 
   end;
+  (* Now do the arguments *)
+  let args'' = loopArgs formals args' in
   (* Take a look at a few special functions *)
   (match func' with 
     Lval(Var v, NoOffset) -> begin
-      match args' with
+      match args'' with
         [a] -> 
           if matchPolyName "__endof" v.vname then begin
             let n = nodeOfType (typeOf a) in
             if n == N.dummyNode then
-              E.s (error "Call to __endof on a non pointer");
+              E.s (error "Call to __endof on a non pointer: %a" d_plainexp a);
             setPosArith n (* To make sure we have an end *)
           end else if matchPolyName "__startof" v.vname then begin
             let n = nodeOfType (typeOf a) in
@@ -1330,7 +1319,7 @@ and doFunctionCall
       | _ -> ()
     end
   | _ -> ());
-  preinstr @ [Call(reso, func', loopArgs formals args', l)]
+  preinstr @ [Call(reso, func', args'', l)]
 
 
 let doFunctionBody (fdec: fundec) = 
@@ -1386,10 +1375,19 @@ let doGlobal (g: global) : global =
       | Attr("box", [AId("off")]) -> boxing := false
 
       | Attr("boxvararg", [AStr s; ASizeOf t]) -> 
+          if debugVararg then 
+            ignore (E.log "Will treat %s as a vararg function\n" s);
           applyToFunction s 
             (addFunctionTypeAttribute (Attr("boxvararg", [ASizeOf t])))
 
-      | Attr("boxvararg_printf", [AStr s; ASizeOf t; AInt format_idx]) -> 
+      | Attr("boxvararg_printf", [AStr s; AInt format_idx]) -> 
+          let t = 
+            match !printfFormatUnion with 
+              Some ci -> TComp(ci, [])
+            | None -> E.s (error "Have not yet seen the union printf_format")
+          in
+          if debugVararg then 
+            ignore (E.log "Will treat %s as a printf-like function\n" s);
           applyToFunction s 
             (fun vi -> 
               addFunctionTypeAttribute 
@@ -1423,6 +1421,9 @@ let doGlobal (g: global) : global =
           if not comp.cstruct &&
             hasAttribute "safeunion" comp.cattr then
             comp.cstruct <- true;
+          (* Watch for the definition of the "printf_format" *)
+          if not comp.cstruct && comp.cname = "printf_format" then 
+            printfFormatUnion := Some comp;
           GCompTag (comp, l)
   
       | GDecl (vi, l) -> 

@@ -574,7 +574,7 @@ let replacePtrNodeAttrList where al =
               let nd = H.find idNode n in
               let found = 
                 if nd.kind = Unknown then begin
-                  ignore (E.warn "Found node %d with kind Unkown\n" n);
+                  ignore (E.warn "Found node %d with kind Unknown\n" n);
                   ""
                 end else 
                   match k2attr nd.kind with
