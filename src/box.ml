@@ -1878,12 +1878,69 @@ and castTo (fe: fexp) (newt: typ)
   end
       
 
+let mangledNames : (string, unit) H.t = H.create 123
 let fixupGlobName vi = 
-  if vi.vglob && vi.vstorage <> Static && typeContainsFats vi.vtype &&
-    not (List.exists (fun la -> la = vi.vname) leaveAlone) then
-    let nlen = String.length vi.vname in
-    if nlen <= 4 || String.sub vi.vname (nlen - 4) 4 <> "_fp_" then
-      vi.vname <- vi.vname ^ "_fp_"
+  (* Scan a type and compute a list of qualifiers that distinguish the 
+   * various possible combinations of qualifiers *)
+  let rec qualNames acc = function
+      TInt _ | TFloat _ | TBitfield _ | TVoid _ | TEnum _ -> acc
+    | TPtr(t', _) as t -> begin
+        match kindOfType t with
+          P.Safe -> qualNames ("s" :: acc) t' 
+        | P.Wild -> "w" :: acc (* Don't care about what it points to *)
+        | P.Index -> qualNames ("i" :: acc) t' 
+        | P.Seq -> qualNames ("q" :: acc) t' 
+        | P.FSeq -> qualNames ("f" :: acc) t' 
+        | P.Scalar -> acc
+        | _ -> E.s (E.bug "qualNames")
+    end
+    | TArray(t', _, a) -> 
+        let acc' = 
+          (* Choose the attributes so that "s" is always the C represent *)
+          if filterAttributes "sized" a <> [] then "l" :: acc else "s" :: acc
+        in
+        qualNames acc' t'
+    | TFun(tres, args, _, _) -> 
+        let acc' = qualNames acc tres in
+        List.fold_left (fun acc a -> qualNames acc a.vtype) acc' args 
+
+    | TNamed (_, t, _) -> qualNames acc t
+
+    (* We only go into struct that we created as part of "sized" or "seq" or 
+     * "fatp" *)
+    | TComp comp -> begin
+        try
+          let data_type = 
+            match comp.cfields with
+              [p;b] when p.fname = "_p" && b.fname = "_b" -> p.ftype
+            | [p;b;e] when p.fname = "_p" && b.fname = "_b" && e.fname = "_e" 
+              -> p.ftype
+            | [s;a] when s.fname = "_size" && a.fname = "_array" -> a.ftype
+            | _ -> raise Not_found
+          in
+          qualNames acc data_type
+        with Not_found -> acc
+    end
+    | TForward _ -> acc (* Do not go into recursive structs *)
+  in
+  if vi.vglob && vi.vstorage <> Static && 
+    not (List.exists (fun la -> la = vi.vname) leaveAlone) &&
+    not (H.mem mangledNames vi.vname) then 
+    begin
+      let quals = qualNames [] vi.vtype in
+      let rec allSafe = function (* Only default qualifiers *)
+          [] -> true
+        | "s" :: rest -> allSafe rest
+        | _ -> false
+      in
+      let newname = 
+        if allSafe quals then vi.vname 
+        else 
+          vi.vname ^ "_" ^ (List.fold_left (fun acc x -> x ^ acc) "" quals)
+      in
+      H.add mangledNames newname ();
+      vi.vname <- newname
+    end
 
 
 (* Create the preamble (in reverse order) *)
