@@ -369,15 +369,15 @@ and hash = parse
 | intnum	{ (* We are seeing a GCC line number *)
                   currentLine := int_of_string (Lexing.lexeme lexbuf) - 1;
                   (* A file name must follow *)
-		  gccfile lexbuf }
+		  file lexbuf }
 | "line"        { hash lexbuf } (* MSVC line number info *)
 | "pragma"      { PRAGMA }
 | _	        { endline lexbuf}
 
-and gccfile =
+and file =
 	parse 
         '\n'		        {newline (); initial lexbuf}
-|	blank			{gccfile lexbuf}
+|	blank			{file lexbuf}
 |	'"' [^ '"']* '"' 	{ (* '"' *)
                                  currentFile := 
                                     (rem_quotes (Lexing.lexeme lexbuf));
