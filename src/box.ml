@@ -116,9 +116,9 @@ let rec fixupType t =
                                          * that we only pass lean pointers to 
                                          * them *)
   | TFun (_, _, true, _) -> t
-    (* Sometimes we find a function type without arguments (a prototype that 
-     * we have done before). Do the regular fixit and then put the argument 
-     * names back.  *)
+    (* Sometimes we find a function type without arguments or with arguments 
+     * with different names (a prototype that we have done before). Do the 
+     * regular fixit and then put the argument names back.  *)
   | TFun (_, args, _, _) -> begin
       match fixit t with
         TFun (rt, args', isva, a) -> 
@@ -364,7 +364,7 @@ let splitTagType tagged =
   let dfld, lfld, tfld = 
     match unrollType tagged with
       TComp (true, _, [lfld; dfld; tfld], _, _) -> dfld, lfld, tfld
-    | _ -> E.s (E.bug "splitTagType. No tags.")
+    | _ -> E.s (E.bug "splitTagType. No tags: %a\n" d_plaintype tagged)
   in
   let bytes = 
     try intSizeOf dfld.ftype 
@@ -383,10 +383,10 @@ let makeTagCompoundInit tagged datainit =
   Compound (tagged, 
                   (* Now the length *)
             (None, integer words) ::
-                  (* Now the real initializer *)
-            (None, datainit) ::
-                  (* Now the tags *)
-            (None, makeZeroCompoundInit tfld.ftype) :: [])
+            (match datainit with 
+              None -> []
+            | Some e -> [(None, e)]))
+            (* Leave the rest alone since it will be initializer with 0 *)
     ,
   dfld
 
@@ -509,9 +509,10 @@ let bitsForType iswrite t =
         else E.s (E.unimp "TagOfType: large scalar")
     | TComp (true, _, [p;b], _, _) when p.fname = "_p" && b.fname = "_b" -> 
         pushBit bBase (pushBit bPtr acc)
-    | TComp (false, _, flds, _, _) -> 
+    | TComp (true, _, flds, _, _) -> 
         List.fold_left (fun acc f -> tagOfType acc f.ftype) acc flds
     | TNamed (_, t, _) -> tagOfType acc t
+    | TForward (_, _, self, _) -> tagOfType acc !self
     | t -> E.s (E.unimp "tagOfType: %a" d_plaintype t)
   in
   let finishAcc (idx, currentmask, currentvalue, acc) = 
@@ -702,7 +703,21 @@ and boxinstr (ins: instr) : stmt =
             in
             doArgs args ftargs  
         in
-        mkSeq (dof @ doargs @ [call vi f' args'])
+        (* Maybe the result is tagged *)
+        let vi', setvi = 
+          match vi with
+            None -> vi, []
+          | Some vi -> begin
+              match boxlval (Var vi, NoOffset) with
+                (_, _, (Var _, NoOffset), _) -> Some vi, []
+              | (tv, [], ((Var _, Field(dfld, NoOffset)) as newlv), _) -> 
+                  let tmp = makeTempVar !currentFunction dfld.ftype in
+                  Some tmp, [boxinstr (Set((Var vi, NoOffset), 
+                                           Lval (var tmp), lu))]
+              | _ -> E.s (E.bug "Result of call is not a variable")
+          end
+        in
+        mkSeq (dof @ doargs @ ((call vi' f' args') :: setvi))
 
     | Asm(tmpls, isvol, outputs, inputs, clobs) ->
         let rec doOutputs = function
@@ -810,151 +825,154 @@ and boxoffset (off: offset) (basety: typ) : offsetRes =
     (* Box an expression and return the fexp version of the result. If you do 
      * not care about an fexp, you can call the wrapper boxexp *)
 and boxexpf (e: exp) : stmt list * fexp = 
-  match e with
-  | Lval (lv) -> 
-      let rest, dolv, lv', lvbase = boxlval lv in
-      let check = (* Check a read if it is in memory of if the offset contains 
-                     an Index *)
-        match lv' with
-          Mem _, _ -> checkRead lv' lvbase rest
-        | Var _, off when containsIndex off -> checkRead lv' lvbase rest
-        | _, _ -> []
-      in
-      if isFatType rest then
-        (dolv @ check, F1(rest, Lval(lv')))
-      else
-        (dolv @ check, L(rest, Lval(lv')))
-
-  | Const (CInt (_, ik, _), _) -> ([], L(TInt(ik, []), e))
-  | Const ((CChr _), _) -> ([], L(charType, e))
-  | Const (CReal (_, fk, _), _) -> ([], L(TFloat(fk, []), e))
-  | CastE (t, e, l) -> begin
-      let t' = fixupType t in
-      let (doe, fe') = boxexpf e in
-      (* Put e into a variable *)
-      castTo fe' t' doe
-  end
-  | Const (CStr s, cloc) -> 
-      (* Make a global variable that stores this one, so that we can attach a 
-       * tag to it *)
-      let l = 1 + String.length s in 
-      let newt = tagType (TArray(charType, Some (integer l), [])) in
-      let gvar = makeGlobalVar (makeNewTypeName "___string") newt in
-      gvar.vstorage <- Static;
-      (* Build an initializer *)
-      let varinit, dfield = makeTagCompoundInit newt (Const(CStr s, cloc)) in
-      theFile := GVar (gvar, Some varinit) :: !theFile;
-      let fatChrPtrType = fixupType charPtrType in
-      let result = Lval(Var gvar, Field(dfield, NoOffset)) in
-      ([], F2 (fatChrPtrType, result, CastE(voidPtrType, result, lu)))
-
-
-  | UnOp (uop, e, restyp, l) -> 
-      let restyp' = fixupType restyp in
-      let (et, doe, e') = boxexp e in
-      assert (not (isFatType restyp'));
-          (* The result is never a pointer *)
-      (doe, L(restyp', UnOp(uop, e', restyp', l)))
-
-  | BinOp (bop, e1, e2, restyp, l) -> begin
-      let restyp' = fixupType restyp in
-      let (et1, doe1, e1') = boxexp e1 in
-      let (et2, doe2, e2') = boxexp e2 in
-      match bop, isFatType et1, isFatType et2 with
-      | (Plus|Minus), true, false -> 
-          let ptype = (getPtrFieldOfFat et1).ftype in
-          (doe1 @ doe2, F2 (restyp', 
-                            BinOp(bop, readPtrField e1' et1, e2', ptype, l),
-                            readBaseField e1' et1))
-      | (Plus), false, true -> 
-          let ptype = (getPtrFieldOfFat et2).ftype in
-          (doe1 @ doe2, F2 (restyp', 
-                            BinOp(bop, e1', readPtrField e2' et2, ptype, l),
-                            readBaseField e2' et2))
-      | (Minus|Eq|Ne|Le|Lt|Ge|Gt), true, true -> 
-          (doe1 @ doe2, 
-           L(restyp', BinOp(bop, readPtrField e1' et1, 
-                                 readPtrField e2' et2, restyp', l)))
-
-      | _, false, false -> 
-          (doe1 @ doe2, L(restyp', BinOp(bop,e1',e2',restyp', l)))
-
-      | _, _, _ -> E.s (E.unimp "boxBinOp: %a@!et1=%a@!et2=%a@!" 
-                          d_binop bop d_plaintype et1 d_plaintype et2)
-  end
-
-  | SizeOf (t, l) -> 
-      let t' = fixupType t in
-      ([], L(intType, SizeOf(t', l)))
-
-   (* Intercept references of _iob. A major hack !!!!! *)
-  | AddrOf ((Var vi,
-             First(Index(Const(CInt _, _) as n, NoOffset))) as lv, 
-            _) when !msvcMode && vi.vname = "_iob_fp_" 
-    -> 
-      let (lvt, _, _, _) = boxlval lv in  (* Just to get the type*)
-      let tres = fixupType (TPtr(lvt, [])) in
-      let tmp1 = makeTempVar !currentFunction fatVoidPtr in
-      let tmp2 = makeTempVar !currentFunction tres in
-      let seq  = 
-        [ boxstmt (call (Some tmp1) (Lval(var getIOBFunction.svar)) [ n ]);
-          boxstmt (assign tmp2 (CastE(tres, Lval(var tmp1), lu))) ] in
-      (seq, F1(tres, Lval(var tmp2)))
-
-  | AddrOf (lv, l) ->
-      let (lvt, dolv, lv', baseaddr) = boxlval lv in
-      (* Check that variables whose address is taken are flagged *)
-      (match lv' with
-        (Var vi, _) when not vi.vaddrof -> 
-          E.s (E.bug "addrof not set for %s" vi.vname)
-      | _ -> ());
-      (* The result type. *)
-      let ptrtype = 
-        match lvt with
-          TArray(t, _, _) -> fixupType (TPtr(t, [])) 
-        | _ -> fixupType (TPtr(lvt, []))
-      in
-      (dolv, F2 (ptrtype, AddrOf(lv', l), baseaddr))
-
-    (* StartOf is like an AddrOf except for typing issues. *)
-  | StartOf lv -> 
-      let (lvt, dolv, lv', baseaddr) = boxlval lv in
-      (* Check that variables whose address is taken are flagged *)
-      (match lv' with
-        (Var vi, _) when not vi.vaddrof -> 
-          E.s (E.bug "addrof not set for %s" vi.vname)
-      | _ -> ());
-      (* The result type. *)
-      let ptrtype = 
-        match unrollType lvt with
-          TArray(t, _, _) -> fixupType (TPtr(t, [])) 
-        | _ -> E.s (E.unimp "StartOf on a non-array")
-      in
-      (dolv, F2 (ptrtype, AddrOf(addOffset (Index(zero, NoOffset)) lv', lu),
-                 baseaddr))
-
-  | Question (e1, e2, e3, l) ->       
-      let (_, doe1, e1') = boxexp (CastE(intType, e1, lu)) in
-      let (et2, doe2, e2') = boxexp e2 in
-      let (et3, doe3, e3') = boxexp e3 in
-      let result = 
-        if isFatType et2 then 
-          F1 (et2, Question (e1', e2', e3', l))
+  try
+    match e with
+    | Lval (lv) -> 
+        let rest, dolv, lv', lvbase = boxlval lv in
+        let check = (* Check a read if it is in memory of if the offset 
+                     * contains an Index  *)
+          match lv' with
+            Mem _, _ -> checkRead lv' lvbase rest
+          | Var _, off when containsIndex off -> checkRead lv' lvbase rest
+          | _, _ -> []
+        in
+        if isFatType rest then
+          (dolv @ check, F1(rest, Lval(lv')))
         else
-          L  (et2, Question (e1', e2', e3', l))
-      in
-      (doe1 @ doe2 @ doe3, result)
+          (dolv @ check, L(rest, Lval(lv')))
+            
+    | Const (CInt (_, ik, _), _) -> ([], L(TInt(ik, []), e))
+    | Const (CLInt _,  _) -> E.s (E.unimp "boxexp: CLInt")
+    | Const ((CChr _), _) -> ([], L(charType, e))
+    | Const (CReal (_, fk, _), _) -> ([], L(TFloat(fk, []), e))
+    | CastE (t, e, l) -> begin
+        let t' = fixupType t in
+        let (doe, fe') = boxexpf e in
+      (* Put e into a variable *)
+        castTo fe' t' doe
+    end
+    | Const (CStr s, cloc) -> 
+      (* Make a global variable that stores this one, so that we can attach a 
+         * tag to it *)
+        let l = 1 + String.length s in 
+        let newt = tagType (TArray(charType, Some (integer l), [])) in
+        let gvar = makeGlobalVar (makeNewTypeName "___string") newt in
+        gvar.vstorage <- Static;
+      (* Build an initializer *)
+        let varinit, dfield = 
+          makeTagCompoundInit newt (Some (Const(CStr s, cloc))) in
+        theFile := GVar (gvar, Some varinit) :: !theFile;
+        let fatChrPtrType = fixupType charPtrType in
+        let result = Lval(Var gvar, Field(dfield, NoOffset)) in
+        ([], F2 (fatChrPtrType, result, CastE(voidPtrType, result, lu)))
+          
+          
+    | UnOp (uop, e, restyp, l) -> 
+        let restyp' = fixupType restyp in
+        let (et, doe, e') = boxexp e in
+        assert (not (isFatType restyp'));
+          (* The result is never a pointer *)
+        (doe, L(restyp', UnOp(uop, e', restyp', l)))
+          
+    | BinOp (bop, e1, e2, restyp, l) -> begin
+        let restyp' = fixupType restyp in
+        let (et1, doe1, e1') = boxexp e1 in
+        let (et2, doe2, e2') = boxexp e2 in
+        match bop, isFatType et1, isFatType et2 with
+        | (Plus|Minus), true, false -> 
+            let ptype = (getPtrFieldOfFat et1).ftype in
+            (doe1 @ doe2, F2 (restyp', 
+                              BinOp(bop, readPtrField e1' et1, e2', ptype, l),
+                              readBaseField e1' et1))
+        | (Plus), false, true -> 
+            let ptype = (getPtrFieldOfFat et2).ftype in
+            (doe1 @ doe2, F2 (restyp', 
+                              BinOp(bop, e1', readPtrField e2' et2, ptype, l),
+                              readBaseField e2' et2))
+        | (Minus|Eq|Ne|Le|Lt|Ge|Gt), true, true -> 
+            (doe1 @ doe2, 
+             L(restyp', BinOp(bop, readPtrField e1' et1, 
+                              readPtrField e2' et2, restyp', l)))
+              
+        | _, false, false -> 
+            (doe1 @ doe2, L(restyp', BinOp(bop,e1',e2',restyp', l)))
+              
+        | _, _, _ -> E.s (E.unimp "boxBinOp: %a@!et1=%a@!et2=%a@!" 
+                            d_binop bop d_plaintype et1 d_plaintype et2)
+    end
+          
+    | SizeOf (t, l) -> 
+        let t' = fixupType t in
+        ([], L(intType, SizeOf(t', l)))
+          
+   (* Intercept references of _iob. A major hack !!!!! *)
+    | AddrOf ((Var vi,
+               First(Index(Const(CInt _, _) as n, NoOffset))) as lv, 
+              _) when !msvcMode && vi.vname = "_iob_fp_" 
+      -> 
+        let (lvt, _, _, _) = boxlval lv in  (* Just to get the type*)
+        let tres = fixupType (TPtr(lvt, [])) in
+        let tmp1 = makeTempVar !currentFunction fatVoidPtr in
+        let tmp2 = makeTempVar !currentFunction tres in
+        let seq  = 
+          [ boxstmt (call (Some tmp1) (Lval(var getIOBFunction.svar)) [ n ]);
+            boxstmt (assign tmp2 (CastE(tres, Lval(var tmp1), lu))) ] in
+        (seq, F1(tres, Lval(var tmp2)))
+          
+    | AddrOf (lv, l) ->
+        let (lvt, dolv, lv', baseaddr) = boxlval lv in
+      (* Check that variables whose address is taken are flagged *)
+        (match lv' with
+          (Var vi, _) when not vi.vaddrof -> 
+            E.s (E.bug "addrof not set for %s" vi.vname)
+        | _ -> ());
+      (* The result type. *)
+        let ptrtype = 
+          match lvt with
+            TArray(t, _, _) -> fixupType (TPtr(t, [])) 
+          | _ -> fixupType (TPtr(lvt, []))
+        in
+        (dolv, F2 (ptrtype, AddrOf(lv', l), baseaddr))
+          
+    (* StartOf is like an AddrOf except for typing issues. *)
+    | StartOf lv -> 
+        let (lvt, dolv, lv', baseaddr) = boxlval lv in
+      (* Check that variables whose address is taken are flagged *)
+        (match lv' with
+          (Var vi, _) when not vi.vaddrof -> 
+            E.s (E.bug "addrof not set for %s" vi.vname)
+        | _ -> ());
+      (* The result type. *)
+        let ptrtype = 
+          match unrollType lvt with
+            TArray(t, _, _) -> fixupType (TPtr(t, [])) 
+          | _ -> E.s (E.unimp "StartOf on a non-array")
+        in
+        (dolv, F2 (ptrtype, AddrOf(addOffset (Index(zero, NoOffset)) lv', lu),
+                   baseaddr))
 
-  | Compound (t, initl) as t' -> 
-      let t' = fixupType t in
-      let doOneInit (oo, ei) = (oo, boxGlobalInit ei) in
-      ([], L(t', Compound(t', List.map doOneInit initl)))
-
-  | _ -> begin
-      ignore (E.log "boxexp: %a\n" d_exp e);
-      ([], L (charPtrType, dExp (dprintf "booo expression(%a)" d_exp e)))
-  end
-
+    | Question (e1, e2, e3, l) ->       
+        let (_, doe1, e1') = boxexp (CastE(intType, e1, lu)) in
+        let (et2, doe2, e2') = boxexp e2 in
+        let (et3, doe3, e3') = boxexp e3 in
+        let result = 
+          if isFatType et2 then 
+            F1 (et2, Question (e1', e2', e3', l))
+          else
+            L  (et2, Question (e1', e2', e3', l))
+        in
+        (doe1 @ doe2 @ doe3, result)
+          
+    | Compound (t, initl) as t' -> 
+        let t' = fixupType t in
+        let doOneInit (oo, ei) = (oo, boxGlobalInit ei) in
+        ([], L(t', Compound(t', List.map doOneInit initl)))
+  with exc -> begin
+    ignore (E.log "boxexpf (%s)\n" (Printexc.to_string exc));
+    ([], L(charPtrType, dExp (dprintf "booo_exp: %a" d_exp e)))
+  end 
+            
+          
 and boxGlobalInit e = 
   let et = fixupType (typeOf e) in
   let (e't, doe, e', e'base) = boxexpSplit e in
@@ -1077,12 +1095,6 @@ let boxFile globals =
         if debug then
           ignore (E.log "Boxing GVar(%s)\n" vi.vname); 
         vi.vtype <- fixupType vi.vtype;
-        let isFuncType = 
-          match unrollType vi.vtype with
-            TFun _ -> true
-          | TPtr (TFun _, _) -> true
-          | _ -> false
-        in
           (* If the type has changed and this is a global variable then we
            * also change its name *)
         if vi.vglob && vi.vstorage <> Static && typeHasChanged vi.vtype then
@@ -1101,14 +1113,11 @@ let boxFile globals =
           let varinit = 
             if vi.vstorage = Extern then None 
             else
-              (* prepare the data initializer. Since we must initialize the 
-               * tags we must create an initializer if there isn't one *)
+              (* prepare the data initializer. *)
               let init' = 
-                try
-                  match init with
-                    None -> makeZeroCompoundInit vi.vtype 
-                  | Some e -> boxGlobalInit e
-                with e -> dExp (dprintf "booo_init(%s)" (Printexc.to_string e))
+                match init with
+                  None -> None
+                | Some e -> Some (boxGlobalInit e)
               in
               let (x, _) = makeTagCompoundInit newtyp init' in
               Some x
@@ -1133,10 +1142,17 @@ let boxFile globals =
         if f.svar.vglob && f.svar.vstorage <> Static 
             && typeHasChanged f.svar.vtype then
           f.svar.vname <- f.svar.vname ^ "_fp_";
-        (* Fixup the types of the remaining locals *)
+        (* Fixup the types of the locals  *)
         List.iter (fun l -> l.vtype <- fixupType l.vtype) f.slocals;
+        List.iter (fun l -> l.vtype <- fixupType l.vtype) f.sformals;
         currentFunction := f;           (* so that maxid and locals can be 
                                          * updated in place *)
+        (* Check that we do not take the address of a formal *)
+        (match f.svar.vtype with
+          TFun (_, args, _, _) -> 
+            if List.exists (fun x -> x.vaddrof) args then
+              E.s (E.unimp "AddrOf on a formal")
+        | _ -> E.s (E.bug "type of %s is not a function" f.svar.vname));
         (* Now we must take all locals whose address is taken and turn their 
            types into structures with tags and length field *)
         let tagLocal stmacc l = 

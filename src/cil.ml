@@ -29,6 +29,7 @@ module H = Hashtbl
 
  - all integer constants have the proper type attached to them
 
+ - the function arguments with array type are changed into pointers.
 *)
 (*
  * Note: you may *NOT* change the order of the fields or the order in
@@ -359,8 +360,17 @@ type fundec =
     { svar:     varinfo;                (* Holds the name and type as a 
                                          * variable, so we can refer to it 
                                          * easily from the program *)
-      mutable slocals: varinfo list;    (* locals, includes the arguments 
-                                         * included in the type of svar *)
+      mutable sformals: varinfo list;   (* These are copies of the arguments 
+                                         * in the function type. Do not make 
+                                         * copies of these because the body 
+                                         * refers to them. They get ids from 
+                                         * 0 to nrArgs - 1. If the type of 
+                                         * the svar changes use synchFormals 
+                                         * to restore the sharing. *)
+      mutable slocals: varinfo list;    (* locals, DOES NOT include the 
+                                         * sformals. Ids start at nrArgs. Do 
+                                         * not make copies of these because 
+                                         * the body refers to them *)
       mutable smaxid: int;              (* max local id. Starts at 0 *)
       mutable sbody: stmt;              (* the body *)
     } 
@@ -526,30 +536,6 @@ let mkSeq sl =
     [] -> Skip
   | [s] -> s
   | sl' -> Sequence(sl')
-
-
-(*
-let forwardTypeMap : (string, typ) H.t = H.create 113
-let clearForwardMap () = H.clear forwardTypeMap
-let resolveForwardType n = 
-  try
-    H.find forwardTypeMap n
-  with Not_found -> begin
-    ignore (E.log "Warning: Cannot resolve forward type %s\n" n);
-    voidType
-  end
-
-let addForwardType key t = 
-  H.add forwardTypeMap key t
-
-    * Use this every time you redefine a struct or a union, to make sure all 
-     * the TForward see the change *
-let replaceForwardType key t = 
-  try
-    H.remove forwardTypeMap key;
-    H.add forwardTypeMap key t
-  with Not_found -> ()                  * Do nothing if not already in *
-*)
 
 
 (**** Utility functions ******)
@@ -1074,19 +1060,8 @@ and d_fun_decl () f =
     (d_decl (fun _ -> dprintf "%a%s" d_attrlistpre pre' f.svar.vname)) 
     f.svar.vtype
     d_attrlistpost post
-    (* locals. But eliminate first the formal arguments *)
-    (docList line (fun vi -> d_videcl () vi ++ text ";"))
-       (let nrArgs = 
-         match f.svar.vtype with
-           TFun(_, args, _, _) -> List.length args
-         | _ -> E.s (E.bug "non-function type")
-       in
-       let rec drop n = function
-           l when n = 0 -> l
-         | [] -> E.s (E.bug "Too few locals")
-         | _ :: rest -> drop (n - 1) rest
-       in
-       drop nrArgs f.slocals)
+    (* locals. *)
+    (docList line (fun vi -> d_videcl () vi ++ text ";")) f.slocals
     (* the body *)
     d_stmt f.sbody
 
@@ -1204,10 +1179,17 @@ let rec intSizeOf = function            (* Might raise Not_found *)
   | TArray(t, Some (Const(CInt(l,_,_),_)),_) -> (intSizeOf t) * l
   | TNamed(_, r, _) -> intSizeOf r
   | TForward(_, _, rt, _) -> intSizeOf !rt
-  | TComp(true, _, flds, _, _) -> 
+  | TComp(true, _, flds, _, _) -> (* STRUCT *)
       let rec loop = function
           [] -> 0
         | f :: flds -> align (intSizeOf f.ftype) + loop flds
+      in
+      loop flds
+  | TComp(false, _, flds, _, _) -> (* UNION *)
+      let max x y = if x > y then x else y in
+      let rec loop = function
+          [] -> 0
+        | f :: flds -> max (align (intSizeOf f.ftype)) (loop flds)
       in
       loop flds
   | _ -> raise Not_found
@@ -1303,6 +1285,7 @@ let emptyFunction name =
   { svar  = makeGlobalVar name (TFun(voidType, [], false,[]));
     smaxid = 0;
     slocals = [];
+    sformals = [];
     sbody = Skip;
   } 
 
@@ -1515,7 +1498,7 @@ let rec makeZeroCompoundInit t =
       in
       Compound(t', loopElems [] 0)
   | TPtr _ as t -> CastE(t, zero, lu)
-  | _ -> E.s (E.unimp "makeZeroCompoundInit")
+  | _ -> E.s (E.unimp "makeZeroCompoundInit: %a" d_plaintype t)
 
 
 (**** Fold over the list of initializers in a Compound ****)

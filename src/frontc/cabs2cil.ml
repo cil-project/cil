@@ -52,8 +52,8 @@ let startFile () =
 
 
      (* Eliminate all locals from the alphaTable. Return the maxlocal id and 
-      * the list of locals *)
-let endFunction () : (int * varinfo list) = 
+      * the list of locals (but remove the arguments first) *)
+let endFunction (formals: varinfo list) : (int * varinfo list) = 
   let rec loop revlocals = function
       [] -> revlocals
     | lvi :: t -> H.remove alphaTable lvi.vname; loop (lvi :: revlocals) t
@@ -61,7 +61,16 @@ let endFunction () : (int * varinfo list) =
   let revlocals = loop [] !locals in
   let maxid = !localId + 1 in
   resetLocals ();
-  (maxid, revlocals)
+  let rec drop formals locals = 
+    match formals, locals with
+      [], l -> l
+    | f :: formals, l :: locals -> 
+        if f != l then 
+          E.s (E.bug "formals are not in locals");
+        drop formals locals
+    | _ -> E.s (E.bug "Too few locals")
+  in
+  (maxid, drop formals revlocals)
 
 let startScope () = 
   scopes := (ref []) :: !scopes
@@ -148,13 +157,17 @@ let addNewVar vi =
       if oldvi.vstorage = Extern  && vi.vstorage = NoStorage then begin
           (* We'll add the new version instead. *)
         H.remove env vi.vname;
-        let newvi' = {vi with vname = oldvi.vname} in
+        let newvi' = {vi with vname = oldvi.vname} in (* Keep the previously 
+                                                       * alpha converted name 
+                                                       *)
         H.add env vi.vname newvi';
         newvi'
       end else begin
         if vi.vstorage = Extern && (oldvi.vstorage = NoStorage ||
                                     oldvi.vstorage = Extern) then
-          oldvi               (* Don't add a new version *)
+          {vi with vname = oldvi.vname} (* Keep the old one in the 
+                                         * environment, but allow this copy 
+                                         * (with the good name) *)
         else
           match vi.vtype, oldvi.vtype with
                                         (* function prototypes are not 
@@ -588,9 +601,10 @@ and doType (a : attribute list) = function
   | A.PROTO (bt, snlist, isvararg, _) ->
       (* Turn [] types into pointers in the arguments and the result type. 
        * This simplifies our life a lot  *)
-      let arrayToPtr = function
-          TArray(t,_,attr) -> TPtr(t, AId("const") :: attr)
-        | x -> x
+      let arrayToPtr t = 
+        match unrollType t with
+          TArray(t,_,attr) -> TPtr(t, attr)
+        | _ -> t
       in
       let targs = 
         match List.map (makeVarInfo false locUnknown) snlist  with
@@ -602,8 +616,10 @@ and doType (a : attribute list) = function
          function *)
       let bt', a' = 
         match bt with
-          A.ATTRTYPE (bt', ["stdcall", []]) -> bt', AId("stdcall") :: a
-        | A.ATTRTYPE (bt', ["cdecl", []]) -> bt', AId("cdecl") :: a
+          A.ATTRTYPE (bt', ["stdcall", []]) -> 
+            bt', addAttribute (AId("stdcall")) a
+        | A.ATTRTYPE (bt', ["cdecl", []]) -> 
+            bt', addAttribute (AId("cdecl")) a
         | _ -> bt, a
       in
       let tres = arrayToPtr (doType [] bt') in
@@ -1883,14 +1899,6 @@ let convFile dl =
            (* Reset the local identifier so that formals are created with the 
             * proper IDs  *)
             resetLocals ();
-           (* See if this is inline 
-            let isinline, funattr' = 
-              match List.partition 
-                     (function ("inline", []) -> true 
-                              | _ -> false) funattr with
-                [], _ -> false, funattr
-              | _, rest -> true, rest
-            in *)
                                         (* Do the type *)
             let (returnType, formals, isvararg, a) = 
               match unrollType (doType [] bt') with 
@@ -1906,8 +1914,6 @@ let convFile dl =
             startScope ();
             let formals' = List.map addNewVar formals in
             let ftype = TFun(returnType, formals', isvararg, a) in
-            let fattr = doAttrList funattr in
-            let fstorage = doStorage st in
             (* Add the function itself to the environment. Just in case we 
              * have recursion and no prototype.  *)
             (* Make a variable out of it and put it in the environment *)
@@ -1917,9 +1923,9 @@ let convFile dl =
                 vglob = true;
                 vid   = newVarId n true;
                 vdecl = lu;
-                vattr = fattr;
+                vattr = doAttrList funattr;
                 vaddrof = false;
-                vstorage = fstorage;
+                vstorage = doStorage st;
               } 
             in
             ignore (addNewVar thisFunctionVI);
@@ -1927,10 +1933,11 @@ let convFile dl =
             let s = doBody body in
             (* Finish everything *)
             exitScope ();
-            let (nrlocals, locals) = endFunction () in
+            let (maxid, locals) = endFunction formals' in
             let fdec = { svar      = thisFunctionVI;
                          slocals  = locals;
-                         smaxid   = nrlocals;
+                         sformals = formals';
+                         smaxid   = maxid;
                          sbody    = (match mkSeq s with (Sequence _) as x -> x 
                                      | x -> Sequence [x]);
                        } 
