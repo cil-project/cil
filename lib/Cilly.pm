@@ -437,7 +437,7 @@ sub linktolib {
 
 # THIS IS THE ENTRY POINT FOR COMPILING SOURCE FILES
 sub preprocess_compile {
-    my ($self, $src, $dest, $ppargs, $ccargs) = @_;
+    my ($self, $src, $dest, $early_ppargs, $ppargs, $ccargs) = @_;
     &mydebug("preprocess_compile(src=$src, dest=$dest)\n");
     confess "bad dest: $dest" unless $dest->isa('OutputFile');
 
@@ -446,10 +446,10 @@ sub preprocess_compile {
         if($self->leaveAlone($src)) {
             print "Leaving alone $src\n";
             # We leave this alone. So just compile as usual
-            return $self->straight_compile($src, $dest, $ppargs, $ccargs);
+            return $self->straight_compile($src, $dest, $early_ppargs, $ppargs, $ccargs);
         }
         my $out    = $self->preprocessOutputFile($src);
-        $out = $self->preprocess($src, $out, $ppargs);
+        $out = $self->preprocess($src, $out, [@{$early_ppargs}, @{$ppargs}]);
         return $self->compile($out, $dest, $ppargs, $ccargs);
     }
     if($ext eq ".i") {
@@ -882,6 +882,7 @@ sub doit {
     if($self->{OPERATION} eq "TOI" || $self->{OPERATION} eq 'SPECIAL') {
         # Then we do not do anything
 	my @cmd = (@{$self->{CPP}},
+		   @{$self->{EARLY_PPARGS}},
 		   @{$self->{PPARGS}}, @{$self->{CCARGS}}, 
 		   @{$self->{CFILES}}, @{$self->{SFILES}});
 	push @cmd, @{$self->{OUTARG}} if defined $self->{OUTARG};
@@ -922,7 +923,8 @@ sub doit {
 
     foreach $file (@{$self->{IFILES}}, @{$self->{CFILES}}) {
         $out = $self->compileOutputFile($file);
-        $self->preprocess_compile($file, $out, 
+        $self->preprocess_compile($file, $out,
+				  $self->{EARLY_PPARGS},
                                   $self->{PPARGS}, $self->{CCARGS});
         push @tolink, $out;
     }
@@ -1003,46 +1005,49 @@ sub compilerArgument {
           }
           if(defined $action->{'TYPE'}) {
               &classDebug("  type=$action->{TYPE}\n");
-              if($action->{TYPE} eq "PREPROC") {
+              if($action->{TYPE} eq 'EARLY_PREPROC') {
+                  push @{$self->{EARLY_PPARGS}}, @fullarg; return 1;
+              }
+              elsif($action->{TYPE} eq "PREPROC") {
                   push @{$self->{PPARGS}}, @fullarg; return 1;
               }
-              if($action->{TYPE} eq 'SPECIAL') {
+              elsif($action->{TYPE} eq 'SPECIAL') {
                   push @{$self->{PPARGS}}, @fullarg;
 		  $self->{OPERATION} = 'SPECIAL';
 		  return 1;
               }
-              if($action->{TYPE} eq "CC") {
+              elsif($action->{TYPE} eq "CC") {
                   push @{$self->{CCARGS}}, @fullarg; return 1;
               }
-              if($action->{TYPE} eq "LINKCC") {
+              elsif($action->{TYPE} eq "LINKCC") {
                   push @{$self->{CCARGS}}, @fullarg; 
                   push @{$self->{LINKARGS}}, @fullarg; return 1;
               }
-              if($action->{TYPE} eq "ALLARGS") {
+              elsif($action->{TYPE} eq "ALLARGS") {
                   push @{$self->{PPARGS}}, @fullarg;
                   push @{$self->{CCARGS}}, @fullarg; 
                   push @{$self->{LINKARGS}}, @fullarg; return 1;
               }
-              if($action->{TYPE} eq "LINK") {
+              elsif($action->{TYPE} eq "LINK") {
                   push @{$self->{LINKARGS}}, @fullarg; return 1;
               }
-              if($action->{TYPE} eq "CSOURCE") {
+              elsif($action->{TYPE} eq "CSOURCE") {
 		  OutputFile->protect(@fullarg);
                   push @{$self->{CFILES}}, @fullarg; return 1;
               }
-              if($action->{TYPE} eq "ASMSOURCE") {
+              elsif($action->{TYPE} eq "ASMSOURCE") {
 		  OutputFile->protect(@fullarg);
                   push @{$self->{SFILES}}, @fullarg; return 1;
               }
-              if($action->{TYPE} eq "OSOURCE") {
+              elsif($action->{TYPE} eq "OSOURCE") {
 		  OutputFile->protect(@fullarg);
                   push @{$self->{OFILES}}, @fullarg; return 1;
               }
-              if($action->{TYPE} eq "ISOURCE") {
+              elsif($action->{TYPE} eq "ISOURCE") {
 		  OutputFile->protect(@fullarg);
                   push @{$self->{IFILES}}, @fullarg; return 1;
               }
-              if($action->{TYPE} eq 'OUT') {
+              elsif($action->{TYPE} eq 'OUT') {
                   if(defined($self->{OUTARG})) {
                       print "Warning: output file is multiply defined: @{$self->{OUTARG}} and @fullarg\n";
                   }
@@ -1556,6 +1561,18 @@ sub new {
             "[^-]" => { RUN => sub { &GNUCC::parseLinkerScript(@_); }},
             "-E"   => { RUN => sub { $stub->{OPERATION} = "TOI"; }},
             "-[DI]" => { ONEMORE => 1, TYPE => "PREPROC" },
+            '-U$' => { TYPE => 'PREPROC', ONEMORE => 1 },
+            '-undef$' => { TYPE => 'PREPROC' },
+            '-w$' => { TYPE => 'PREPROC' },
+	    '-M$' => { TYPE => 'SPECIAL' },
+	    '-MM$' => { TYPE => 'SPECIAL' },
+	    '-MF$' => { TYPE => 'EARLY_PREPROC', ONEMORE => 1 },
+	    '-MG$' => { TYPE => 'EARLY_PREPROC' },
+	    '-MP$' => { TYPE => 'EARLY_PREPROC' },
+	    '-MT$' => { TYPE => 'EARLY_PREPROC', ONEMORE => 1 },
+	    '-MQ$' => { TYPE => 'EARLY_PREPROC', ONEMORE => 1 },
+	    '-MD$' => { TYPE => 'EARLY_PREPROC' },
+	    '-MMD$' => { TYPE => 'EARLY_PREPROC' },
             "-include" => { ONEMORE => 1, TYPE => "PREPROC" },  # sm
             "-ansi" => { TYPE => "PREPROC" },
             "-c" => { RUN => sub { $stub->{OPERATION} = "TOOBJ"; }},
