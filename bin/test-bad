@@ -130,6 +130,7 @@ while [ $i -le $numcases ]; do
               $CCURED $CFLAGS -DERROR=$i $tmpname.c ${OUTFLAG}${tmpname}$OUTEXT
   # cat test-bad.out test-bad.err
   status=$?
+  runit=1
   if [ $status != 0 ]; then
     if [ $i = 0 ] ;then
       echo "The 0th iteration failed to CURE! It is supposed to succeed."
@@ -146,41 +147,42 @@ while [ $i -le $numcases ]; do
       else
          echo "The ${i}th iteration failed to CURE. We expected some failure!"
       fi
-      i=`expr $i + 1`
-      continue
+      runit=0
     fi
   fi
 
   # run it
-  echo "./$tmpname$OUTEXT"
-  rm -f test-bad.out test-bad.err
-  if $CCUREDHOME/bin/teetwo test-bad.out test-bad.err ./$tmpname$OUTEXT ; then
-    # cat test-bad.out test-bad.err
-    if [ $i = 0 ]; then
-      # expected success on 0th iteration
-      echo "(succeeded as expected)"
-    else
-      # unexpected success on >0th iteration
-      echo "The ${i}th iteration did not fail!  It is supposed to fail."
-      exit 2
-    fi
-  else
-    # cat test-bad.out test-bad.err
-    if [ $i = 0 ]; then
-      # unexpected failure on 0th iteration
-      echo "The 0th iteration failed! It is supposed to succeed."
-      #cat $tmpname.c
-      exit 2
-    else
-      # expected failure on >0th iteration
-      if [ "x$themsg" != "x" ] ;then
-         echo "grep \"$themsg\" test-bad.out test-bad.err"
-         if ! grep "$themsg" test-bad.out test-bad.err ;then
-            echo "The ${i}th iteration failed but cannot find:$themsg"
-            exit 3
-         fi
+  if [ $runit != 0 ]; then 
+    echo "./$tmpname$OUTEXT"
+    rm -f test-bad.out test-bad.err
+    if $CCUREDHOME/bin/teetwo test-bad.out test-bad.err ./$tmpname$OUTEXT ; then
+      # cat test-bad.out test-bad.err
+      if [ $i = 0 ]; then
+        # expected success on 0th iteration
+        echo "(succeeded as expected)"
+      else
+        # unexpected success on >0th iteration
+        echo "The ${i}th iteration did not fail!  It is supposed to fail."
+        exit 2
       fi
-      echo "(failed as expected)"
+    else
+      # cat test-bad.out test-bad.err
+      if [ $i = 0 ]; then
+        # unexpected failure on 0th iteration
+        echo "The 0th iteration failed! It is supposed to succeed."
+        #cat $tmpname.c
+        exit 2
+      else
+        # expected failure on >0th iteration
+        if [ "x$themsg" != "x" ] ;then
+           echo "grep \"$themsg\" test-bad.out test-bad.err"
+           if ! grep "$themsg" test-bad.out test-bad.err ;then
+              echo "The ${i}th iteration failed but cannot find:$themsg"
+              exit 3
+           fi
+        fi
+        echo "(failed as expected)"
+      fi
     fi
   fi
 
@@ -189,7 +191,6 @@ while [ $i -le $numcases ]; do
     echo "bailing after 0th iteration because TESTBADONCE is set"
     exit 0
   fi
-
   if [ "$RUNONLY" != "" ]; then
     echo "bailing after ${RUNONLY}th iteration because RUNONLY is set"
     exit 0
