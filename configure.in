@@ -372,3 +372,4 @@ CCured/CIL configuration:
   gcc to use                  CC                 $CC
   default compiler            DEFAULT_COMPILER   $DEFAULT_COMPILER
 EOF
+# END
