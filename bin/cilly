@@ -1,6 +1,5 @@
 #!/usr/bin/perl
 # A simple use of the CompilerStub.
-# @do_not_edit@ bin/cilly.pl.in
 #
 #
 #
@@ -34,8 +33,11 @@
 #
 use strict;
 use Data::Dumper;
+use FindBin;
+use lib "$FindBin::Bin";
 
-use lib "@CILHOME@/lib"; # The libraries are in the lib directory
+# Read the configuration script
+use CilConfig;
 
 use Merger;
 
@@ -52,7 +54,7 @@ use File::Basename;
 use strict;
 BEGIN {
     @CilCompiler::ISA = qw(Merger);
-    $CilCompiler::base = "@CILHOME@/obj/@ARCHOS@/cilly";
+    $CilCompiler::base = "$::cilhome/obj/$::archos/cilly";
     # Use the most recent version of cilly
     $CilCompiler::mtime_asm = int((stat("$CilCompiler::base.asm.exe"))[9]);
     $CilCompiler::mtime_byte = int((stat("$CilCompiler::base.byte.exe"))[9]);

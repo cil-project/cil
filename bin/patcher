@@ -36,15 +36,13 @@ use File::Basename;
 use File::Copy;
 use Getopt::Long;           # Command-line option processing
 use Data::Dumper;
-
-my $gcc = "@CC@";
+use FindBin;
+use lib "$FindBin::Bin";
+# Read the configuration script
+use CilConfig;
 
 $::iswin32 = $^O eq 'MSWin32' || $^O eq 'cygwin';
 
-#
-#if($^O eq 'MSWin32') {
-#    require Win32;
-#}
 
 # Set filename parsing according to current operating system.
 File::Basename::fileparse_set_fstype($^O);
@@ -191,7 +189,7 @@ sub findCompilerVersion {
     $cversion = 0;
     if($option{mode} eq "GNUCC") {
         $cname = "GNU CC";
-        open(VER, "$gcc -dumpversion $ppargs|") 
+        open(VER, "$::gcc -dumpversion $ppargs|") 
             || die "Cannot start $cname";
         while(<VER>) {
             # sm: had to modify this to match "egcs-2.91.66", which is
@@ -245,7 +243,7 @@ sub patchOneFile {
     print TOPREPROC "#include $fname1\n";
     close(TOPREPROC);
     if($option{mode} eq "GNUCC") {
-        (!system("$gcc -E $ppargs $preprocfile.c >$preprocfile.i")) 
+        (!system("$::gcc -E $ppargs $preprocfile.c >$preprocfile.i")) 
             || die "Cannot run the GCC preprocessor";
     } elsif($option{mode} eq "MSVC") {
         (!system("cl /nologo /P $ppargs $preprocfile.c"))
