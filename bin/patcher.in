@@ -1,4 +1,4 @@
-#!perl
+#!/usr/bin/perl
 # A Perl script that patches a bunch of files
 #
 #

@@ -1,4 +1,4 @@
-#!perl
+#!/usr/bin/perl
 # A simple use of the CompilerStub.
 # @do_not_edit@ bin/cilly.pl.in
 #
