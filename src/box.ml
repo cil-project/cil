@@ -264,6 +264,7 @@ and fixit t =
 (**** We know in what function we are ****)
 let currentFunction : fundec ref  = ref dummyFunDec
 let currentFile     : file ref = ref dummyFile
+let currentFileId     = ref 0
 
     (* Test if a type is FAT *)
 let isFatType t = 
@@ -346,21 +347,7 @@ let readPtrField (e: exp) (t: typ) : exp =
 let readBaseField (e: exp) (t: typ) : exp = 
   let (tptr, ptr, base) = readPtrBaseField e t in base
 
-let fromPtrToBase e : exp = 
-  let rec replacePtrBase = function
-      Field(fip, NoOffset) when fip.fname = "_p" ->
-        (* Find the fat type that this belongs to *)
-        let bfield = getBaseFieldOfFat (TComp(fip.fcomp)) in
-        Field(bfield, NoOffset)
 
-    | Field(f', o) -> Field(f',replacePtrBase o)
-    | _ -> E.s (E.unimp "Cannot find the _p field to replace in %a\n"
-                  d_plainexp e)
-  in
-  match e with
-    Lval (b, off) -> Lval(b, replacePtrBase off)
-  | _ -> E.s (E.unimp "replacing _p with _b in a non-lval")
-  
    (* Test if we must check the return value *)
 let mustCheckReturn tret =
   checkReturn &&
@@ -561,9 +548,24 @@ let checkFetchLength =
   let argb  = makeLocalVar fdec "b" voidPtrType in
   fdec.svar.vtype <- TFun(uintType, [ argp; argb ], false, []);
   theFile := GDecl fdec.svar :: !theFile;
-  fun tmplen lv base -> 
+  fun tmplen base -> 
+    let ptr = 
+      let rec replaceBasePtr = function
+          Field(fip, NoOffset) when fip.fname = "_b" ->
+             (* Find the fat type that this belongs to *)
+            let pfield = getPtrFieldOfFat (TComp(fip.fcomp)) in
+            Field(pfield, NoOffset)
+
+        | Field(f', o) -> Field(f',replaceBasePtr o)
+        | _ -> raise Not_found
+      in
+      match base with
+        Lval (b, off) -> 
+          begin try Lval(b, replaceBasePtr off) with Not_found -> base end
+      | _ -> base
+    in
     call (Some tmplen) (Lval (var fdec.svar))
-      [ castVoidStar (AddrOf(lv, lu)); 
+      [ castVoidStar ptr; 
         castVoidStar base ]
 
 let checkFetchTagStart = 
@@ -794,7 +796,7 @@ let checkMem (towrite: exp option)
     match checkBounds getLenExp base lv t, check_1 with
       Skip, [] -> []  (* Don't even fetch the length *)
     | cb, _ -> 
-        (checkFetchLength (getVarOfExp (getLenExp ())) lv base) 
+        (checkFetchLength (getVarOfExp (getLenExp ())) base) 
         :: cb :: check_1
   in
   check_0
@@ -819,8 +821,8 @@ let interceptId = ref 0
 let interceptCastFunction = 
   let fdec = emptyFunction "__scalar2pointer" in
   let argl = makeLocalVar fdec "l" ulongType in
-  let argf = makeLocalVar fdec "fname" charPtrType in
-  let argid = makeLocalVar fdec "id" intType in
+  let argf = makeLocalVar fdec "fid" intType in
+  let argid = makeLocalVar fdec "lid" intType in
   fdec.svar.vtype <- TFun(voidPtrType, [ argl; argf; argid ], false, []);
   theFile := GDecl fdec.svar :: !theFile;
   fdec
@@ -1319,7 +1321,7 @@ and castTo (fe: fexp) (newt: typ) (doe: stmt list) : stmt list * fexp =
           doe @
           [call (Some tmp) (Lval(var interceptCastFunction.svar)) 
               [ e ;
-                Const (CStr !currentFile.fileName, lu);
+                integer !currentFileId;
                 integer !interceptId
               ]
           ]
@@ -1360,21 +1362,6 @@ and readPtrField e t =
       
 and readBaseField e t = 
   let (tptr, ptr, base) = readPtrBaseField e t in base
-
-and fromPtrToBase e = 
-  let rec replacePtrBase = function
-      Field(fip, NoOffset) when fip.fname = "_p" ->
-        (* Find the fat type that this belongs to *)
-        let bfield = getBaseFieldOfFat (TComp(fip.fcomp)) in
-        Field(bfield, NoOffset)
-
-    | Field(f', o) -> Field(f',replacePtrBase o)
-    | _ -> E.s (E.unimp "Cannot find the _p field to replace in %a\n"
-                  d_plainexp e)
-  in
-  match e with
-    Lval (b, off) -> Lval(b, replacePtrBase off)
-  | _ -> E.s (E.unimp "replacing _p with _b in a non-lval")
 
 
 let fixupGlobName vi = 
@@ -1458,6 +1445,13 @@ let boxFile file =
   ignore (E.log "Boxing file\n");
   fileInit := None;
   currentFile := file;
+  (* Compute a small file ID *)
+  let _ = 
+    let h = H.hash file.fileName in
+    let h16 = (h lxor (h lsr 16)) land 0xFFFF in
+    currentFileId := h16;
+    ignore (E.log "File %s has id 0x%04x\n" file.fileName h16)
+  in
   let rec doGlobal g = 
     match g with
                                         (* We ought to look at pragmas to see 
