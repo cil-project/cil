@@ -222,9 +222,6 @@ let formalNames: (int * string, string list) H.t = H.create 111
 let theFileTypes = ref [] 
 let theFile      = ref []
 
-(* Keep track of the type infos that we have already defined.This is 
- * necessary because C does not allow forward declaration for type names *)
-let alreadyDefinedTypeNames = (String, unit) H.t = H.create 111
 
 (* The idnex of the current file being scanned *)
 let currentFidx = ref 0 
@@ -262,7 +259,6 @@ let init () =
 
   theFile := [];
   theFileTypes := [];
-  H.clear alreadyDefinedTypeNames;
 
   H.clear formalNames;
   H.clear inlineBodies;
