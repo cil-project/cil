@@ -1084,7 +1084,7 @@ class renameInlineVisitorClass = object (self)
           with Not_found -> vi.vname
         in
         (* Now see if this must be replaced *)
-        match findReplacement true vEq !currentFidx origname with 
+        match findReplacement true vEq !currentFidx origname with
           None -> DoChildren
         | Some (vi', _) -> ChangeTo [GVarDecl (vi', l)]
       end

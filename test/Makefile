@@ -274,6 +274,14 @@ ifdef TAGFILE
   CCURED+= --wildTagTheseFns=$(TAGFILE)
 endif
 
+# sm: this will make gcc warnings into errors; it's almost never
+# what we want, but for a particular testcase (combine_copyptrs)
+# I need it to show the difference between something which works
+# and something which will cause inference problems later
+ifdef WARNINGS_ARE_ERRORS
+  CFLAGS += -Werror
+endif
+
 
 # enable the new tree-based patcher
 ifdef NEWPATCH

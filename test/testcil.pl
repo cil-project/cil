@@ -720,8 +720,9 @@ smAddTest("combine_allocate MERGEINLINES=1");
 smAddTest("combine_theFunc");
 smAddTest("combine_theFunc MERGEINLINES=1");
 smAddTest("combine_syserr");
-smFailTest("globals are reordered improperly",
-           "combine_syserr MERGEINLINES=1");
+smAddTest("combine_syserr MERGEINLINES=1");
+smAddTest("combine_copyptrs WARNINGS_ARE_ERRORS=1");
+smAddTest("combine_copyptrs WARNINGS_ARE_ERRORS=1 MERGEINLINES=1");
 
 # tests of things implemented for EDG compatibility
 smAddTest("mergestruct");
