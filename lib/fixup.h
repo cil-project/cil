@@ -148,6 +148,7 @@ extern long double __builtin_fabsl(long double);
   void * __SAFE __ptrof(void *ptr);
   void *        __mkptr(void * __SAFE ptr, void *phome);
   int __strlen(void *ptr);
+  int __noninteger(void *ptr);  //returns 0 if ptr does not point to a real memory location.
 
   #pragma boxpoly("__startof")
   #pragma boxpoly("__endof")
