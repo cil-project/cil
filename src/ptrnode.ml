@@ -101,11 +101,6 @@ and whykind = (* why did we give it this kind? *)
   | BoolFlag
   | Default
   | UserSpec
-    BadCast of typ * typ
-  | SpreadFromEdge of node 
-  | SpreadPointsTo of node
-  | BoolFlag
-  | Default
 
 and edge = 
     { mutable efrom:    node;
