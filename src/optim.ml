@@ -1,6 +1,6 @@
 (* Written by S. P. Rahul *)
 
-(* Optimizes the placement of boxing code *)
+(* Optimizes the placement of boxing checks *)
 
 open Pretty
 open Cil
@@ -117,6 +117,12 @@ and printCfgStmt s =
   ignore (printf "\n");
   ignore (printf "Kill: "); 
   if (!kill).(s.sid) then ignore (printf "true\n") else ignore(printf "false\n");
+  ignore (printf "In:\n ");
+  List.iter (function e -> ignore (printf "%a\n" d_exp e)) (!inNode).(s.sid);
+  ignore (printf "\n");
+  ignore (printf "Out:\n ");
+  List.iter (function e -> ignore (printf "%a\n" d_exp e)) (!outNode).(s.sid);
+  ignore (printf "\n");
 
   match s.skind  with 
   | If (test, blk1, blk2, _) -> 
@@ -183,10 +189,21 @@ let rec union l1 l2 =
   | hd::tl -> 
       if (List.mem hd l2) then union tl l2 
       else hd::union tl l2
+                 
+and intersect l1 l2 =
+  match l1 with
+    [] -> []
+  | hd::tl -> 
+      if (List.mem hd l2) then hd::intersect tl l2
+      else intersect tl l2
+          
+and intersectAll l = 
+  match l with
+    [] -> []
+  | [s] -> s
+  | hd::tl -> intersect hd (intersectAll tl)
 
-and intersect l1 l2 = []
-and intersectAll l = []
-
+(*-----------------------------------------------------------------*)        
 (* For accumulating the GEN and KILL of a sequence of instructions *)
 let instrGen = ref []
 let instrKill = ref false
@@ -235,6 +252,30 @@ and createGenKillForInstr i =
 
 
 (*-----------------------------------------------------------------*)
+(* Remove redundant CHECK_NULLs from a list of instr. Essentially a
+   basic-block optimization *)
+(* nnl (for NotNullList) is a list of expressions guaranteed to be not null
+   on entry to l *)
+let rec optimInstr (l: (instr * location) list) nnl = 
+  match l with
+    [] -> []
+  | ((first,firstLoc) as hd)::tl -> 
+      match first with 
+        Asm _ -> hd::optimInstr tl nnl
+      | Set _ -> hd::optimInstr tl [] (* Kill everything *)
+      | Call(_,Lval(Var x,_),args) when x.vname = "CHECK_NULL" ->
+      (* args is a list of one element *)
+          let arg = List.hd args in
+          let checkExp = (match arg with CastE(_,e) -> e | _ -> arg) in
+          if (List.mem checkExp nnl) then optimInstr tl nnl (* remove redundant check*)
+          else hd::optimInstr tl (checkExp::nnl) (* add to the list of valid non-null exp *)
+      | Call(_,Lval(Var x,_),args)  (* Don't invalidate for well-behaved functions *)
+        when ((String.length x.vname) > 6 && 
+              (String.sub x.vname 0 6)="CHECK_") -> hd::optimInstr tl nnl
+      | Call _ -> (* invalidate everything *)
+          hd::optimInstr tl []
+  
+(*-----------------------------------------------------------------*)
 let nullChecksOptim f =
   (* Notes regarding CHECK_NULL optimization:
      1) Argument of CHECK_NULL is an exp. We maintain a list of exp's
@@ -245,7 +286,9 @@ let nullChecksOptim f =
   *)
   (* TODO: 1) Use better data structures. Lists are inefficient.
            2) Use node-ordering information combined with worklist 
-           3) Even basic aliasing information (eg. based on types) would be useful
+           3) Even basic aliasing information would be useful:
+              (a) Program variables cannot alias one another
+              (b) Aliased locations must have the same type
            4) Take the predicate in If statements into account
   *)
 
@@ -254,7 +297,7 @@ let nullChecksOptim f =
     ignore (printf "Arguments (with casts removed) of all CHECK_NULL arguments\n");
     printChecksBlock f.sbody;
   end;
-
+  
   (* Order nodes by revers depth-first postorder *)
   sCount := !numNodes-1;
   nodes := Array.create !numNodes dummyStmt; (* allocate space *)
@@ -265,19 +308,13 @@ let nullChecksOptim f =
   kill := Array.create !numNodes false; (* allocate space *)
   createGenKill ();
 
-  if debug then printCfgBlock f.sbody;
-  if debug then begin
-    ignore (printf "-------------------------------\n");
-    ignore (printf "All dataflow values\n");
-    List.iter (function e -> ignore (printf "%a\n" d_exp e)) !allVals
-  end;
-
   (* Now carry out the actual data flow *)
 
   (* Set IN = [] for the start node. All other IN's and OUT's are TOP *)
-
-  inNode := Array.create !numNodes [];
+  inNode := Array.create !numNodes !allVals;
+  (!inNode).(0) <- [];
   outNode := Array.create !numNodes !allVals;
+
   
   let changed = ref true in  (* to detect if fix-point has been reached *)
   while !changed do
@@ -285,6 +322,7 @@ let nullChecksOptim f =
     for i = 0 to (!numNodes-1) do
       let old = (!outNode).(i) in
       let tmpIn = intersectAll (List.map (function s -> (!outNode).(s.sid)) (!nodes).(i).preds) in
+      (!inNode).(i) <- tmpIn;
       if (!kill).(i) then
         (!outNode).(i) <- (!gen).(i)
       else
@@ -293,6 +331,25 @@ let nullChecksOptim f =
     done
   done;
 
+  if debug then printCfgBlock f.sbody;
+  if debug then begin
+    ignore (printf "-------------------------------\n");
+    ignore (printf "All dataflow values\n");
+    List.iter (function e -> ignore (printf "%a\n" d_exp e)) !allVals
+  end;
+
+  (* Optimize every block based on the IN and OUT sets *)
+
+  (* For CHECK_NULL optimization, we only have to remove the redundant 
+     CHECK_NULLS. Therefore, we only optimize stmt with skind Instr (...)
+  *)
+  
+  Array.iter (function s -> 
+    match s.skind with 
+      Instr l -> s.skind <- Instr(optimInstr l (!inNode).(s.sid)) 
+    | _ -> ())
+    !nodes;
+  
   f
 
 (*------------------------------------------------------------*)
@@ -341,17 +398,3 @@ let optimFile file =
   
   file
 (*------------------------------------------------------------*)
-    
-
-  
-
-
-
-
-
-
-
-
-
-
-
