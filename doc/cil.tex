@@ -1700,6 +1700,9 @@ Necula}.
 
 \section{Changes}
 \begin{itemize}
+\item {\bf May 17, 2002}: Changed the representation of functions to move the
+``inline'' information to the varinfo. This way we can print the ``inline''
+even in declarations which is what gcc does. 
 \item {\bf May 15, 2002}: Changed the visitor for initializers to make two
 tail-recursive passes (the second is a \t{List.rev} and only done if one of
 the initializers change). This prevents \t{Stack_Overflow} for large
@@ -1709,7 +1712,7 @@ CIL.
 mode even on machines that do not have MSVC. The machine-dependent parameters
 for GCC will be used in that case. 
 \item {\bf May 11, 2002}: Changed the representation of formals in function
-types. Now the function type is purely functions. 
+types. Now the function type is purely functional. 
 \item {\bf May 4, 2002}: Added the function
 \cilvalref{visitCilFileSameGlobals} and changed \cilvalref{visitCilFile} to be
 tail recursive. This prevents stack overflow on huge files.
