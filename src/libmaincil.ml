@@ -42,7 +42,7 @@ module C = Cil
 module E = Errormsg
 
 (* print a Cil 'file' to stdout *)
-let unparsetostdout (cil : C.file) : unit =
+let unparseToStdout (cil : C.file) : unit =
 begin
   C.dumpFile C.defaultCilPrinter stdout cil
 end;;
@@ -53,10 +53,15 @@ begin
   Frontc.parse fname ()
 end;;
 
+let getDummyTypes () : C.typ * C.typ =
+  ( C.TPtr(C.TVoid [], []), C.TInt(C.IInt, []) )
+;;
+
 (* register some functions - these may be called form C code *)
 Callback.register "cil_parse" parseOneFile;
-Callback.register "cil_unparse" unparsetostdout;
+Callback.register "cil_unparse" unparseToStdout;
 Callback.register "unroll_type_deep" C.unrollTypeDeep;
+Callback.register "get_dummy_types" getDummyTypes;
 
 (* initalize CIL *)
 C.initCIL ();
