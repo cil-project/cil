@@ -86,9 +86,11 @@ ifndef NEWPATCH
   OLDPATCH := 1
 endif
 
-# By default use GCC, unless you set _MSVC on the command line on in .ccuredrc
+# Set the compiler, as in ../Makefile.in
 ifndef _MSVC
-  _GNUCC := 1
+  ifndef _GNUCC 
+     @DEFAULT_COMPILER@=1
+  endif
 endif
 
 # Now include the compiler specific stuff
@@ -455,6 +457,7 @@ testwrapper/%: $(SMALL1)/%.c $(SMALL1)/wrapperextern.c
                          --leavealone=wrapperextern --merge \
                          $(CFLAGS) $(EXEOUT)$*.exe $*.c wrapperextern.c
 	cd $(SMALL1); ./$*.exe
+
 
 combine%: $(SMALL1)/combine%_1.c
 	cd $(SMALL1); \

@@ -137,17 +137,51 @@ extern long double __builtin_fabsl(long double);
 // Now specify some special pragmas
 #ifdef CCURED
 
-  // there's more of these in ccured_GNUCC.patch..
-  #pragma boxvararg_printf("printf", 1)
-  #pragma boxvararg_printf("vprintf", 1)      // sm: this fixes a problem with rbtest when rmtmps is disabled ...
-  #pragma boxvararg_printf("fprintf", 2)
+  //
+  //Define FP_FAIL for use in wrappers:
+  //
+  #if !defined(RELEASELIB) && !defined(FP_FAIL_IS_VERBOSE)
+    #define FP_FAIL_IS_VERBOSE
+  #endif
+
+  #if defined(FP_FAIL_IS_VERBOSE)
+    #define FP_FAIL_EXTRA_PARAMS , char *file, int line
+    #define FP_FAIL_EXTRA_ARGS , file, line
+    #define FILE_AND_LINE , FILEFUNC, LINEFUNC
+    #define FP_FAIL_STR(s) fp_fail_str(s, __FILE__, __LINE__)
+    #define FP_FAIL(code) fp_fail(code, __FILE__, __LINE__)
+  #else
+    #define FP_FAIL_EXTRA_PARAMS
+    #define FP_FAIL_EXTRA_ARGS
+    #define FILE_AND_LINE
+    #define FP_FAIL_STR(s) fp_fail_str(s)
+    #define FP_FAIL(code) fp_fail(code)
+  #endif
+
+  #ifndef NORETURN
+    #ifdef _MSVC
+      #define NORETURN __declspec(noreturn)
+    #else
+      #define NORETURN __attribute__((noreturn))
+    #endif
+  #endif
+
+  // declaration of our failure functions
+  // fail with a given error message
+  NORETURN  void fp_fail_str(char *str  FP_FAIL_EXTRA_PARAMS);
+
+  // fail with a given code, which maps to a message
+  NORETURN  void fp_fail(int msgId  FP_FAIL_EXTRA_PARAMS);
 
 
-  void * __SAFE __startof(void *ptr); // Get the start of a pointer
+  //
+  // Define primative wrapper functions:
+  //
+  void * __SAFE __startof(void *ptr); 
   void * __SAFE __endof(void *ptr);
   void * __SAFE __ptrof(void *ptr);
   void *        __mkptr(void * __SAFE ptr, void *phome);
-  int __strlen(void *ptr);
+  int __strlen(void *ptr);      //calls fp_fail if not nul-terminated
   int __noninteger(void *ptr);  //returns 0 if ptr does not point to a real memory location.
 
   #pragma boxpoly("__startof")
@@ -155,44 +189,21 @@ extern long double __builtin_fabsl(long double);
   #pragma boxpoly("__ptrof")
   #pragma boxpoly("__mkptr")
   #pragma boxpoly("__strlen")
+  #pragma boxpoly("__noninteger")
 
-
-/*  static inline
-  void * __SAFE __startof_model(void *ptr)
-  {
-    ((char*)ptr)--;      
-    return 0;      
-  }
-  #pragma boxmodelof("__startof_model", "__startof")
-
+  //Helper routine:
   static inline
-  void * __SAFE __endof_model(void *ptr)
-  {
-    ((char*)ptr)++;      
-    return 0;      
+  void __assert_noninteger(void *ptr) {
+    if (!__noninteger(ptr)){
+      FP_FAIL(15/*FAIL_NONPOINTER*/);
+    }
   }
-  #pragma boxmodelof("__endof_model", "__endof")
-
-  static inline
-  int __strlen_model(void *ptr)
-  {
-    __endof(ptr);
-    return 0;      
-  }
-  #pragma boxmodelof("__strlen_model", "__strlen")
-*/
 
 
-  static inline
-  void *__mkptr_model(void * __SAFE ptr, void *phome)
-  {
-    //    return ((char*)phome) + ( ((char*)ptr) - ((char*)phome) );    
-    return phome;    
-  }
-  #pragma boxmodelof("__mkptr_model", "__mkptr")
-  #pragma boxpoly("__mkptr_model")
-
-
+  // there's more of these in ccured_GNUCC.patch..
+  #pragma boxvararg_printf("printf", 1)
+  #pragma boxvararg_printf("vprintf", 1)      // sm: this fixes a problem with rbtest when rmtmps is disabled ...
+  #pragma boxvararg_printf("fprintf", 2)
 
   #pragma boxpoly("ccured_kind_of")
   char *  ccured_kind_of(void *);

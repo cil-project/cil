@@ -2412,12 +2412,13 @@ let d_global () = function
 
   | GPragma (Attr(an, args), l) ->
       (* sm: suppress printing pragmas that gcc does not understand *)
-      (* assume anything starting with "box" is ours *)
+      (* assume anything starting with "box" or "ccured" is ours *)
       (* also don't print the 'combiner' pragma *)
       (* nor 'cilnoremove' *)
       let suppress = 
         not !print_CIL_Input && 
         ((startsWith "box" an) ||
+         (startsWith "ccured" an) ||
          (an = "merger") ||
          (an = "cilnoremove")) in
       let d =
@@ -3037,12 +3038,13 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
     | GPragma (Attr(an, args), l) ->
         (* sm: suppress printing pragmas that gcc does not understand *)
-        (* assume anything starting with "box" is ours *)
+        (* assume anything starting with "box" or "ccured" is ours *)
         (* also don't print the 'combiner' pragma *)
         (* nor 'cilnoremove' *)
         let suppress = 
           not !print_CIL_Input && 
           ((startsWith "box" an) ||
+          (startsWith "ccured" an) ||
           (an = "merger") ||
           (an = "cilnoremove")) in
         let d =

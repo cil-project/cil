@@ -68,6 +68,10 @@ class clearRefBitsVis = object
         H.add forceToKeep s true;
         SkipChildren
 
+    | GPragma (Attr("ccuredwrapperof", AStr s :: _), _) -> 
+        H.add forceToKeep s true;
+        SkipChildren
+
     | _ -> DoChildren
 
 end
