@@ -3465,13 +3465,10 @@ and createGlobal (specs: A.spec_elem list)
          * extern const GUID __declspec(selectany) \
          *  MOUNTDEV_MOUNTED_DEVICE_GUID = { 0x53f5630d, 0xb6bf, 0x11d0, { \
          *  0x94, 0xf2, 0x00, 0xa0, 0xc9, 0x1e, 0xfb, 0x8b } };
-         * So we allow "extern" + "initializer" if "selectany" is
-         * around. 
-         * weimer: Sun Dec  9 12:52:22  2001
-         * Sadly, sometimes MSVC code doesn't even have "selectany". 
-         * *)
+         * So we allow "extern" + "initializer" if "const" is
+         * around. *)
         if vi.vstorage = Extern && 
-            not(hasAttribute "selectany" (typeAttrs vi.vtype)) &&
+            not(hasAttribute "aconst" (typeAttrs vi.vtype)) &&
             not !msvcMode then 
           E.s (error "%s is extern and with initializer" vi.vname);
         H.add alreadyDefined vi.vid !currentLoc;

@@ -874,7 +874,8 @@ let attributeHash: (string, attributeClass) H.t =
                                                          * assembly for a 
                                                          * global *)];
   List.iter (fun a -> H.add table a (AttrName true))
-    [ "thread"; "naked"; "dllimport"; "dllexport"; "noreturn" ];
+    [ "thread"; "naked"; "dllimport"; "dllexport"; "noreturn";
+      "selectany" ];
   List.iter (fun a -> H.add table a (AttrFunType false))
     [ "format"; "regparm"; "longcall" ];
   List.iter (fun a -> H.add table a (AttrFunType true))

@@ -267,7 +267,11 @@ $TEST->addTests("testrun/struct1", "", ['cil']);
 $TEST->addTests("testrun/voidarg", "", ['cil']);
 $TEST->addTests("testrun/union2", "", ['cil']);
 $TEST->addTests("testrun/union3", "", ['cil']);
-   
+
+if($^O eq 'MsWin32') {
+    $TEST->addTests("testrun/extern_init", "_MSVC=1", ['cil']);   
+}
+
 # Tests that are expected to fail
 $TEST->add2TestsFail("testrun/failubound1", "", "Failure .+: Ubound");
 $TEST->add2TestsFail("testrun/failnull1", "", "Failure .+: Non-pointer");
