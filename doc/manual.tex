@@ -1360,44 +1360,18 @@ ocaml and configure ssh. For this, please follow the directions at
 
 \section{Get the C-Cured sources via CVS}
 
-You'll need CVS (Concurrent Version System) installed; version 1.10 or
-greater is recommended.  If you don't have it (try "which cvs"), you can
-get it from
+ The CCured sources live on \t{manju.cs.berkeley.edu}. Ask Scott McPeak
+(\mailto{smcpeak@cs.berkeley.edu} for an account that allows you to use CVS. 
 
-  \ahrefurl{http://www.cvshome.org/}
-
-Next you'll need an account on brooksie.cs.berkeley.edu; talk to Rahul
-(\mailto{sprahul@cs.berkeley.edu}) to get an account.
-
-Next, configure your cvs to use 'ssh' as your connection method.  If you're
-using csh/tcsh, use
+ Assuming you have already setup \t{cvs} and \t{ssh} as discussed in
+\ahrefurl{setup.html}, you can check out the sources in a subdirectory \t{cil}
+as follows:
 
 \begin{verbatim}
-  setenv CVS_RSH ssh
-\end{verbatim}
-
-  
-and for sh/bash, use
-
-\begin{verbatim}
-  export CVS_RSH=ssh
-\end{verbatim}
-
-This should probably be put into your .cshrc or .bashrc so it gets run
-every time the shell starts.
-
-Now, checkout the repository.  As an example, here's how I do it:
-
-
-\begin{verbatim}
-  % cvs -d :ext:smcpeak@brooksie.cs:/home/cvs-repository checkout cil
+  % cvs -d :ext:smcpeak@manju.cs:/home/cvs-repository checkout cil
                 ^^^^^^^
          use your username instead
 \end{verbatim}
-
-This will checkout all the sources into a new directory called cil/, off
-the current directory.
-
 
 \section{Set your environment variables}
 

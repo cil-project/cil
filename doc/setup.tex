@@ -13,8 +13,7 @@
 that are necessary for CCured and other projects. These tools work on Linux
 and Windows (2k, XP and also less reliably on 95/98/Me).
 
- If you use Linux then presumably you already have Perl and cvs installed and
-you can go directly to Section~\ref{sec-ocaml}.
+ If you use Linux then you can go directly to Section~\ref{sec-ocaml}.
 
 \section{If you want to use Windows}
 
@@ -25,145 +24,38 @@ we might be able to avoid these but for now you are better off with them.).
 Here is what I (George) do to install Cygwin. You need a good network
 connection for this. 
 \begin{itemize}
-\item Create a directory \t{C:\\Download\\cygwin}
+\item Create a directory \t{C:\backslash Download\backslash cygwin}
 \item Go to \ahrefurl{http://sources.redhat.com/cygwin} and click \t{Install
 cygwin} icon. Download \t{setup.exe} to the directory you just created.
-\item Run \t{setup.exe} and select ``Download to local directory''. This will
-take a while (~ 30 minutes)
+\item Run \t{setup.exe} and select ``Download to local directory''. Select all
+the packages. This will take a while (~ 30 minutes)
 \item Run \t{setup.exe} again and not select to ``Install from local
-directory''. It is best to {\bf deselect} the \t{cvs} and \t{tetex} packages.
-The \t{cvs} version that comes with \t{cygwin} seems to have some problems. At
-some point in the future they will be fixed, I suppose. 
-\item I choose \t{C:\\Programs\\cygwin} as the home for \t{cygwin}, I use
-\t{DOS} as the default text file and I choose ``Install for All''.
-\item Add \t{C:\\Programs\\cygwin\\bin} to your PATH. You must put it first in
-the ``System Variables'' PATH (In Control Panel/System/Advanced/Environment
-Variables''. Essentially this must come before the default c:/WinNT/system32.
-You can verify that you got it right if you get \t{/usr/bin/find} when you run
-\t{which find}. 
+directory''. It is best to {\bf deselect} the \t{tetex} package since I found
+it to interfere with other installations of Latex.
+\item I choose \t{C:\backslash Programs\backslash cygwin} 
+as the home for \t{cygwin}, I use \t{DOS} as the default text file and I
+choose ``Install for All''. 
+\item Add \t{C:\backslash Programs\backslash cygwin\backslash bin} to your
+PATH. You must put it first in the ``System Variables'' PATH (In Control Panel/System/Advanced/Environment
+Variables'' and {\bf put it first} so that it comes before the default
+c:/WinNT/system32. You can verify that you got it right if you get
+\t{/usr/bin/find} when you run \t{which find}. 
 \end{itemize}
 
- \subsection{Get \t{cvs}}
 
- At some point the version of \t{cvs} that comes with cygwin was either old or
-had problems with CRLF. A version of \t{cvs} for Windows that I've had success
-with can be found at
+ \subsection{Customize \t{ssh}}\label{sec-win-ssh}
 
- \ahrefurl{http://raw.cs.berkeley.edu/cvs.exe}
+ Set the environment variable \t{HOME} to point to your home directory. I use
+ \t{C:\backslash Necula}. 
 
- Copy that file in \t{C:\\Programs\\cygwin\\bin} (thus overwriting the version
-of cvs that comes with cygwin).
-
- \subsection{Get \t{perl}}
-
- Go to \ahrefurl{http://www.activestate.com} and download ActivePerl. Follow
-the instructions. Put the directory that contains the perl executable in your
-PATH. 
-
- \subsection{Get \t{ssh}}
-
-It has been observed that the cygwin version of ssh doesn't behave well
-with cvs because of some CR-LF translation problems. Hence, you will need 
-putty, puttygen, pageant, pscp and plink, all of which are available from:
-
-  \ahrefurl{http://www.chiark.greenend.org.uk/\home{sgtatham}/putty/download.html}
-
-All of the following steps are necessary to get CVS over SSH working:
-\begin{itemize}
-\item Download all components of the Putty suite and put them in a directory.
-Add that directory to the PATH.
-
-\item Run puttygen to create a key pair. Then save the private key in a file,
-say \t{C:/Necula/.ssh/putty\_private}. Copy the public key that puttygen
-displays and save it to a file,  say \t{C:/Necula/.ssh/putty\_public}.
-
-\item Setup pageant (putty ssh-agent): Add a shortcut to the following command
-line (add/change paths as necessary) in your startup folder:
-
+ For some strange reason \t{ssh} does not see this \t{HOME} variable and
+insists on looking at \t{/home/necula} instead. So I create a link as follows:
 \begin{verbatim}
-      pageant.exe  C:\Necula\.ssh\putty_private
+bash
+cd /
+mkdir home
+ln -s /cygdrive/c/Necula /home/necula
 \end{verbatim}
-
- or equivalently remember to run the above command every time you log in on
-the Windows machine before you try to use cvs. 
-
-\item Add your public key in the "\t{authorized\_keys}" file on the CVS server:
-   One way to do this is to use the following command line:
-
-\begin{verbatim}
-       plink -ssh -pw your-password username@cvs-host "cat >> ~/.ssh/authorized_keys" <  C:\Necula\.ssh\putty_public
-\end{verbatim}
-  
-   This appends your identity.pub file to \t{\home{}/.ssh/authorized\_keys}
-   file on the server. You may do this in any other way you like. You {\bf
-   have} to type your password on the command line if you do it this way,
-   though.
-
-\item Create a "session profile" in putty for the CVS server:
-  \begin{itemize}
-  \item Start putty to see the configuration screen with a category tree on
-   the left 
-  \item Session category: fill in the hostname (brooksie) and protocol (SSH) 
-  \item Connection category: Fill in the auto-login-username field
-  \item Connection/SSH category: Check "allow agent forwarding"
-  \item Session category: Save this session under a name (say, "brooksie")
-  \end{itemize}
-
-
-\item Test your session:
-  \begin{itemize}
-  \item Start pageant if its not already running. It should ask you for a
-    password for your private key (identity). 
-  \item Execute the ls command on the server:
-
-\begin{verbatim}
-	     plink @brooksie "ls -a"
-\end{verbatim}
-
-     The command should execute without asking for a password and return to the 
-     windows prompt after executing "ls -a"
-
-   \item Also, the command-line
-\begin{verbatim}
-	   putty @brooksie
-\end{verbatim}
-     should log you in directly now.
-  \end{itemize}
-
-\item Set the environment variables on your Windows machine. Note that these
-are different than the usual UNIX settings. The @brooksie part means "use the
-brooksie session from putty"
-
-\begin{verbatim}
-       CVSROOT=:ext:@brooksie:/home/cvs-repository
-       CVS_RSH=plink
-\end{verbatim}
-
-\item At this point you should be able to run cvs:
-
-\begin{verbatim}
-      cvs checkout cil
-\end{verbatim}
-
-\item If you have previously been using cvs in pserver mode, cvs might have
-created CVS/Root files in all subdirectories under its control. This file
-simply stores the value of the CVSROOT environment variable when you had
-checked-out the project for the first time. If CVS finds this file, it seems
-to ignore the environment CVSROOT variable and as a result, might be using
-pserver mode without letting you know.
-   
-   A solution is to delete all the CVS/Root files.
-
-   Another symptom of the CVS/Root problem is the following error message:
-   cvs checkout: warning: unrecognized response `SSH-1.5-1.2.26' from cvs server
-   cvs checkout: warning: unrecognized response `Protocol mismatch.' from cvs	
-   server
-
-   Again, deleting the CVS/Root files should work.
-
-
-(Send corrections/comments/questions to \mailto{ab@amanb.net})
-\end{itemize}
 
 
 \section{Get OCaml}\label{sec-ocaml}
@@ -210,50 +102,54 @@ To test your ocaml distribution, try:
  Set the \t{ARCHOS} variable to either \t{x86\_WIN32} (if you are on Windows)
  or to \t{x86\_LINUX} (if you are on Linux)
 
-\section{Get the C-Cured sources via CVS}
 
-You'll need CVS (Concurrent Version System) installed; version 1.10 or
-greater is recommended.  If you don't have it (try "which cvs"), you can
-get it from
+\section{Configure CVS}
 
-  \ahrefurl{http://www.cvshome.org/}
+ \subsection{\t{.cvsrc}}
 
-Next you'll need an account on brooksie.cs.berkeley.edu; talk to Rahul
-(\mailto{sprahul@cs.berkeley.edu}) to get an account.
-
-Next, configure your cvs to use 'ssh' as your connection method.  If you're
-using csh/tcsh, use
-
+ Create a \home{/.cvsrc} file with two lines in it: 
 \begin{verbatim}
-  setenv CVS_RSH ssh
+cvs -q
+update -d
 \end{verbatim}
 
-  
-and for sh/bash, use
+ \subsection{Using CVS with \t{ssh}}
 
+ Note: these instructions appear to work even on Windows with the \t{ssh} and
+\t{cvs} that ships with \t{cygwin} (provided that you have installed
+\t{cygwin} and \t{ssh} as discussed in Section~\ref{sec-win-ssh}).
+
+ Set the environment variable \t{CVS\_RSH} to \t{ssh}. 
+
+ If you want to be able to use \t{ssh} without typing a password everytime
+ here is what you can do:
+
+\begin{itemize}
+\item If you have an RSA private key that is already authorized on the server,
+copy it to \t{\home{}/.ssh/identity} and you should be done.
+\item Otherwise
+   \begin{enumerate}
+     \item Run \t{ssh-keygen} to create a private key. Choose a passphrase and
+      remember it. If you do not have a passphrase then anybody who gets
+      access to your machine will also be able to log in to the server.
+     \item Copy the public key to the server (say manju.cs.berkeley.edu)
 \begin{verbatim}
-  export CVS_RSH=ssh
+cd ~
+scp .ssh/identity.pub manju:~/.ssh/newpublicid
+ssh manju
+cd .ssh
+cat newpublicid >> authorized_keys
 \end{verbatim}
 
-This should probably be put into your .cshrc or .bashrc so it gets run
-every time the shell starts.
+   \end{enumerate}
 
-Now, checkout the repository.  As an example, here's how I do it:
+\item If you want you can even start an agent to do the authentication for
+you. Documentation to come.
+\end{itemize}
 
+ You should read the rest only if you have not used CVS before. 
 
-\begin{verbatim}
-  % cvs -d :ext:smcpeak@brooksie.cs:/home/cvs-repository checkout cil
-                ^^^^^^^
-         use your username instead
-\end{verbatim}
-
-This will checkout all the sources into a new directory called cil/, off
-the current directory.
-
-
-
-\section{Using CVS}
-CVS is used to synchronize changes to the project across multiple
+ CVS is used to synchronize changes to the project across multiple
 developers.  See the CVS website for detailed information
 
   \ahrefurl{http://www.cvshome.org/}
@@ -309,16 +205,12 @@ in the base 'cil' directory (the one with 'regrtest'):
    \ahrefurl{http://www.dcs.napier.ac.uk/course-notes/sml/manual.html}
 
         
-
   \item Documentation and sources for Ocaml: 
         \ahrefurl{http://caml.inria.fr/ocaml/} 
 
-        
 
   \item Documentation and sources for CVS:
         \ahrefurl{http://www.cvshome.org/}
-
-    
 
   \item Manual for GNU make:
         \ahrefurl{http://www.gnu.org/manual/make/html\_chapter/make\_toc.html}
@@ -327,3 +219,125 @@ in the base 'cil' directory (the one with 'regrtest'):
  \end{itemize}
 
 \end{document}
+
+% \subsection{Get \t{cvs}}
+%
+% At some point the version of \t{cvs} that comes with cygwin was either old or
+%had problems with CRLF. A version of \t{cvs} for Windows that I've had success
+%with can be found at
+%
+% \ahrefurl{http://raw.cs.berkeley.edu/cvs.exe}
+%
+% Copy that file in \t{C:\\Programs\\cygwin\\bin} (thus overwriting the version
+%of cvs that comes with cygwin).
+%
+% \subsection{Get \t{perl}}
+%
+% Go to \ahrefurl{http://www.activestate.com} and download ActivePerl. Follow
+%the instructions. Put the directory that contains the perl executable in your
+%PATH. 
+%
+% \subsection{Get \t{ssh}}
+%
+%It has been observed that the cygwin version of ssh doesn't behave well
+%with cvs because of some CR-LF translation problems. Hence, you will need 
+%putty, puttygen, pageant, pscp and plink, all of which are available from:
+%
+%  \ahrefurl{http://www.chiark.greenend.org.uk/\home{sgtatham}/putty/download.html}
+%
+%All of the following steps are necessary to get CVS over SSH working:
+%\begin{itemize}
+%\item Download all components of the Putty suite and put them in a directory.
+%Add that directory to the PATH.
+%
+%\item Run puttygen to create a key pair. Then save the private key in a file,
+%say \t{C:/Necula/.ssh/putty\_private}. Copy the public key that puttygen
+%displays and save it to a file,  say \t{C:/Necula/.ssh/putty\_public}.
+%
+%\item Setup pageant (putty ssh-agent): Add a shortcut to the following command
+%line (add/change paths as necessary) in your startup folder:
+%
+%\begin{verbatim}
+%      pageant.exe  C:\Necula\.ssh\putty_private
+%\end{verbatim}
+%
+% or equivalently remember to run the above command every time you log in on
+%the Windows machine before you try to use cvs. 
+%
+%\item Add your public key in the "\t{authorized\_keys}" file on the CVS server:
+%   One way to do this is to use the following command line:
+%
+%\begin{verbatim}
+%       plink -ssh -pw your-password username@cvs-host "cat >> ~/.ssh/authorized_keys" <  C:\Necula\.ssh\putty_public
+%\end{verbatim}
+%  
+%   This appends your identity.pub file to \t{\home{}/.ssh/authorized\_keys}
+%   file on the server. You may do this in any other way you like. You {\bf
+%   have} to type your password on the command line if you do it this way,
+%   though.
+%
+%\item Create a "session profile" in putty for the CVS server:
+%  \begin{itemize}
+%  \item Start putty to see the configuration screen with a category tree on
+%   the left 
+%  \item Session category: fill in the hostname (brooksie) and protocol (SSH) 
+%  \item Connection category: Fill in the auto-login-username field
+%  \item Connection/SSH category: Check "allow agent forwarding"
+%  \item Session category: Save this session under a name (say, "brooksie")
+%  \end{itemize}
+%
+%
+%\item Test your session:
+%  \begin{itemize}
+%  \item Start pageant if its not already running. It should ask you for a
+%    password for your private key (identity). 
+%  \item Execute the ls command on the server:
+%
+%\begin{verbatim}
+%             plink @brooksie "ls -a"
+%\end{verbatim}
+%
+%     The command should execute without asking for a password and return to the 
+%     windows prompt after executing "ls -a"
+%
+%   \item Also, the command-line
+%\begin{verbatim}
+%           putty @brooksie
+%\end{verbatim}
+%     should log you in directly now.
+%  \end{itemize}
+%
+%\item Set the environment variables on your Windows machine. Note that these
+%are different than the usual UNIX settings. The @brooksie part means "use the
+%brooksie session from putty"
+%
+%\begin{verbatim}
+%       CVSROOT=:ext:@brooksie:/home/cvs-repository
+%       CVS_RSH=plink
+%\end{verbatim}
+%
+%\item At this point you should be able to run cvs:
+%
+%\begin{verbatim}
+%      cvs checkout cil
+%\end{verbatim}
+%
+%\item If you have previously been using cvs in pserver mode, cvs might have
+%created CVS/Root files in all subdirectories under its control. This file
+%simply stores the value of the CVSROOT environment variable when you had
+%checked-out the project for the first time. If CVS finds this file, it seems
+%to ignore the environment CVSROOT variable and as a result, might be using
+%pserver mode without letting you know.
+%   
+%   A solution is to delete all the CVS/Root files.
+%
+%   Another symptom of the CVS/Root problem is the following error message:
+%   cvs checkout: warning: unrecognized response `SSH-1.5-1.2.26' from cvs server
+%   cvs checkout: warning: unrecognized response `Protocol mismatch.' from cvs	
+%   server
+%
+%   Again, deleting the CVS/Root files should work.
+%
+%
+%(Send corrections/comments/questions to \mailto{ab@amanb.net})
+%\end{itemize}
