@@ -55,6 +55,7 @@ fi
 # the ./configure script will expect $CC to be set right
 AC_PROG_CC
 
+AC_PROG_INSTALL
 
 
 # find system type (using this macro means we must include
@@ -460,6 +461,7 @@ define([MY_AC_CONFIG_EXE_FILES],
 }])
 
 MY_AC_CONFIG_FILES(Makefile)
+MY_AC_CONFIG_FILES(cil.spec)
 MY_AC_CONFIG_FILES(lib/gc/GNUCC/Makefile)
 MY_AC_CONFIG_FILES(test/Makefile)
 MY_AC_CONFIG_FILES(Makefile.cil)

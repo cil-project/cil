@@ -30,3 +30,4 @@ TEMP_ccured_distrib
 .gdbinit
 autom4te*.cache
 config.h
+cil.spec

@@ -159,7 +159,11 @@ $(OBJDIR)/cilversion.ml: configure.in Makefile.cil.in
 
 # build two libraries
 .PHONY: cillib
+ifeq ($(NATIVECAML),1)
 cillib: $(OBJDIR)/cil.$(CMXA) $(OBJDIR)/libcil.a
+else
+cillib: $(OBJDIR)/cil.$(CMXA)
+endif
 
 
 $(OBJDIR)/feature_config.ml: Makefile.cil.in config.status
@@ -283,7 +287,8 @@ TOP_DIR = $(TEMP_DIR)/cil
 DISTRIB_ROOT = README LICENSE INSTALL Makefile.cil.in  \
                Makefile.ocaml Makefile.ocaml.build \
 	       config.h.in Makefile.gcc Makefile.msvc \
-	       configure configure.in install-sh config.guess config.sub  
+	       configure configure.in install-sh config.guess config.sub \
+	       cil.spec cil.spec.in
 
 DISTRIB_SRC = pretty.ml pretty.mli errormsg.ml errormsg.mli \
               trace.ml trace.mli stats.ml stats.mli \
@@ -323,7 +328,7 @@ DISTRIB_BIN = CilConfig.pm.in cilly cilly.bat.in \
 
 DISTRIB_SMALL1=hello.c func.c init.c init1.c wchar1.c vararg1.c testharness.h 
 
-distrib-nocheck: doc
+distrib-nocheck: doc $(DISTRIB_ROOT)
         # Create the distribution from scratch
 	rm -rf $(TEMP_DIR)
 	mkdir $(TEMP_DIR)
@@ -409,3 +414,35 @@ quicktest: $(patsubst %,test/%,func init init1) \
 
 .PHONY: check
 check: quicktest
+
+
+########################################################################
+
+
+INSTALL = @INSTALL@
+INSTALL_DATA = @INSTALL_DATA@
+
+prefix = @prefix@
+exec_prefix = @exec_prefix@
+libdir = @libdir@
+pkglibdir = $(libdir)/cil
+datadir = @datadir@
+pkgdatadir = $(datadir)/cil
+
+all_mli := $(filter %.mli, $(DISTRIB_SRC) $(DISTRIB_SRC_FRONTC) $(DISTRIB_SRC_EXT) $(DISTRIB_SRC_EXT_PTA))
+install_mli := $(filter $(OCAML_CIL_LIB_MODULES:=.mli), $(all_mli))
+install_cmi := $(install_mli:%.mli=$(OBJDIR)/%.cmi)
+install_cma := $(addprefix $(OBJDIR)/cil., cma cmxa a)
+
+install: $(install_cmi) $(install_cma)
+	$(INSTALL) -d $(DESTDIR)$(pkglibdir)
+	$(INSTALL_DATA) $(install_cma) $(DESTDIR)$(pkglibdir)
+	$(INSTALL_DATA) $(install_cmi) $(DESTDIR)$(pkglibdir)
+	$(INSTALL) -d $(DESTDIR)$(pkgdatadir)
+	$(INSTALL_DATA) $(addprefix lib/, $(filter %.pm, $(DISTRIB_LIB))) $(DESTDIR)$(pkgdatadir)
+
+cil.spec: cil.spec.in
+	./config.status $@
+
+rpms: distrib
+	rpmbuild -ta $(CIL_TAR_GZ)
