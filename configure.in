@@ -127,15 +127,11 @@ ocamlDownloadInstructions="
       Then come back here and re-run ./configure."
 
 # required major/minor. 
-# (OCaml 3.04 would work if you changed a few places in the code)
+# required major/minor
 reqMaj=3
-reqMin=07
-
-# latest known-good major/minor; all versions between 'req'
-# and 'known' are expected to be ok
+reqMin=08
 knownMaj=3
-knownMin=07
-
+knownMin=08
 AC_MSG_CHECKING(ocaml version is at least $reqMaj.$reqMin)
 if binaryExists ocamlc; then
   # what version?
@@ -151,22 +147,20 @@ if binaryExists ocamlc; then
 
   # I would think autoconf would already have a facility for doing
   # these kinds of major/minor version checks, but I can't find it
-  if test "$major" -gt $reqMaj -o \
-          "$major" -ge $reqMaj -a "$minor" -ge $reqMin; then
+  if test $major -gt $reqMaj -o $major -ge $reqMaj -a $minor -ge $reqMin; then
     AC_MSG_RESULT([version is $ver, ok])
 
     # sm: added this test when we found that CCured needed to be changed
     # a little when 3.06 came out (it had previously worked with 3.04)
-    if test "$major" -gt $knownMaj -o \
-            "$major" -ge $knownMaj -a "$minor" -gt "$knownMin"; then
-      AC_MSG_WARN([Your ocaml version is $ver, but the latest version CCured
+    if test "$major" -gt $knownMaj -o "$major" -ge $knownMaj -a "$minor" -gt $knownMin; then
+      AC_MSG_WARN([Your ocaml version is $ver, but the latest version this program
                    is known to work with is $knownMaj.$knownMin.  If you have
                    trouble compiling, please try using an earlier version
-                   or see if there is a later version of CCured.])
+                   or see if there is a later version of this program.])
     fi
   else
     AC_MSG_ERROR([
-      I found OCaml version $ver; CCured requires at least $reqMaj.$reqMin.
+      I found OCaml version $ver; this program requires at least $reqMaj.$reqMin.
       Please download a newer OCaml distribution.
       $ocamlDownloadInstructions
     ])
@@ -190,7 +184,7 @@ if binaryExists ocamlc; then
 else
   AC_MSG_ERROR([
       The "ocamlc" OCaml compiler was not found in the path.  Most of
-      CCured is written in the OCaml language, so its compiler is required.
+      this program is written in the OCaml language, so its compiler is required.
       $ocamlDownloadInstructions
   ])
 fi

@@ -2518,15 +2518,11 @@ ocamlDownloadInstructions="
       Then come back here and re-run ./configure."
 
 # required major/minor.
-# (OCaml 3.04 would work if you changed a few places in the code)
+# required major/minor
 reqMaj=3
-reqMin=07
-
-# latest known-good major/minor; all versions between 'req'
-# and 'known' are expected to be ok
+reqMin=08
 knownMaj=3
-knownMin=07
-
+knownMin=08
 echo "$as_me:$LINENO: checking ocaml version is at least $reqMaj.$reqMin" >&5
 echo $ECHO_N "checking ocaml version is at least $reqMaj.$reqMin... $ECHO_C" >&6
 if binaryExists ocamlc; then
@@ -2543,32 +2539,30 @@ if binaryExists ocamlc; then
 
   # I would think autoconf would already have a facility for doing
   # these kinds of major/minor version checks, but I can't find it
-  if test "$major" -gt $reqMaj -o \
-          "$major" -ge $reqMaj -a "$minor" -ge $reqMin; then
+  if test $major -gt $reqMaj -o $major -ge $reqMaj -a $minor -ge $reqMin; then
     echo "$as_me:$LINENO: result: version is $ver, ok" >&5
 echo "${ECHO_T}version is $ver, ok" >&6
 
     # sm: added this test when we found that CCured needed to be changed
     # a little when 3.06 came out (it had previously worked with 3.04)
-    if test "$major" -gt $knownMaj -o \
-            "$major" -ge $knownMaj -a "$minor" -gt "$knownMin"; then
-      { echo "$as_me:$LINENO: WARNING: Your ocaml version is $ver, but the latest version CCured
+    if test "$major" -gt $knownMaj -o "$major" -ge $knownMaj -a "$minor" -gt $knownMin; then
+      { echo "$as_me:$LINENO: WARNING: Your ocaml version is $ver, but the latest version this program
                    is known to work with is $knownMaj.$knownMin.  If you have
                    trouble compiling, please try using an earlier version
-                   or see if there is a later version of CCured." >&5
-echo "$as_me: WARNING: Your ocaml version is $ver, but the latest version CCured
+                   or see if there is a later version of this program." >&5
+echo "$as_me: WARNING: Your ocaml version is $ver, but the latest version this program
                    is known to work with is $knownMaj.$knownMin.  If you have
                    trouble compiling, please try using an earlier version
-                   or see if there is a later version of CCured." >&2;}
+                   or see if there is a later version of this program." >&2;}
     fi
   else
     { { echo "$as_me:$LINENO: error:
-      I found OCaml version $ver; CCured requires at least $reqMaj.$reqMin.
+      I found OCaml version $ver; this program requires at least $reqMaj.$reqMin.
       Please download a newer OCaml distribution.
       $ocamlDownloadInstructions
     " >&5
 echo "$as_me: error:
-      I found OCaml version $ver; CCured requires at least $reqMaj.$reqMin.
+      I found OCaml version $ver; this program requires at least $reqMaj.$reqMin.
       Please download a newer OCaml distribution.
       $ocamlDownloadInstructions
     " >&2;}
@@ -2602,12 +2596,12 @@ echo "$as_me: error:
 else
   { { echo "$as_me:$LINENO: error:
       The \"ocamlc\" OCaml compiler was not found in the path.  Most of
-      CCured is written in the OCaml language, so its compiler is required.
+      this program is written in the OCaml language, so its compiler is required.
       $ocamlDownloadInstructions
   " >&5
 echo "$as_me: error:
       The \"ocamlc\" OCaml compiler was not found in the path.  Most of
-      CCured is written in the OCaml language, so its compiler is required.
+      this program is written in the OCaml language, so its compiler is required.
       $ocamlDownloadInstructions
   " >&2;}
    { (exit 1); exit 1; }; }
