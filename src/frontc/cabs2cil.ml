@@ -2047,6 +2047,8 @@ and doAttr (a: A.attribute) : attribute list =
                    List.map ae args)
         | A.EXPR_SIZEOF e -> ASizeOfE (ae e)
         | A.TYPE_SIZEOF (bt, dt) -> ASizeOf (doOnlyType bt dt)
+        | A.EXPR_ALIGNOF e -> AAlignOfE (ae e)
+        | A.TYPE_ALIGNOF (bt, dt) -> AAlignOf (doOnlyType bt dt)
         | A.BINARY(abop, aa1, aa2) -> 
             ABinOp (convBinOp abop, ae aa1, ae aa2)
         | A.UNARY(A.PLUS, aa) -> ae aa

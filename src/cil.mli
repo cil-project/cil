@@ -297,6 +297,8 @@ and attrparam =
                                              parentheses are not printed. *)
   | ASizeOf of typ                       (** A way to talk about types *)
   | ASizeOfE of attrparam
+  | AAlignOf of typ
+  | AAlignOfE of attrparam
   | AUnOp of unop * attrparam
   | ABinOp of binop * attrparam * attrparam
 

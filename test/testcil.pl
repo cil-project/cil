@@ -187,6 +187,7 @@ if (!$egcs) {
   $TEST->add3Tests("testrun/attr4", "_GNUCC=1");
   $TEST->addTests("testrun/attr5", "_GNUCC=1", ['cil']);
 }
+$TEST->addTests("test/attr6", "_GNUCC=1", ['cil']);
 $TEST->add3Tests("test/bh1");
 $TEST->add3Tests("test/bitfield");
 $TEST->add3Tests("testrun/bitfield3");
@@ -567,6 +568,38 @@ $TEST->add2Tests("perf/perfseq");
 $TEST->add2Tests("perf/perfwild");
 $TEST->add2Tests("perf/perfrtti");
 
+
+# VSLOW tests
+$TEST->addTests("ftpd", "", ['cil']);
+  $TEST->addGroups("ftpd-cil", 'vslow');
+$TEST->addTests("linux", "", ['cil']);
+  $TEST->addGroups("linux-cil", 'vslow');
+$TEST->addTests("linux-merge3", "", ['cil']);
+  $TEST->addGroups("linux-merge3-cil", 'vslow');
+$TEST->addTests("sendmail", "", ['cil', 'inferbox']);
+  $TEST->addGroups("sendmail-cil", 'vslow');
+  $TEST->addGroups("sendmail-inferbox", 'vslow');
+$TEST->addTests("emacs", "", ['cil']);
+  $TEST->addGroups("emacs-cil", 'vslow');
+$TEST->addTests("perl", "", ['cil']);
+  $TEST->addGroups("perl-cil", 'vslow');
+$TEST->addTests("bind", "", ['cil']);
+  $TEST->addGroups("bind-cil", 'vslow');
+$TEST->addTests("wuftpd", "", ['cil']);
+  $TEST->addGroups("wuftpd-cil", 'vslow');
+$TEST->addTests("openssh", "", ['cil']);
+  $TEST->addGroups("openssh-cil", 'vslow');
+$TEST->addTests("apache", "", ['cil']);
+  $TEST->addGroups("apache-cil", 'vslow');
+# GIMP and friends
+$TEST->newTest(
+    Name => 'gimp-all-world',
+    Dir => ".",
+    Cmd => "make gimp-all-world LD_LIBRARY_PATH=/home/necula/cil/gimp/lib",
+    Group => ['vslow'],
+    Patterns => \%commonerrors);
+$TEST->addTests("ping", "", ['cil']);
+  $TEST->addGroups("ping-cil", 'vslow');
 
 
 # -------------- scott's testcases --------------

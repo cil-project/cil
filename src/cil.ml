@@ -237,6 +237,8 @@ and attrparam =
                                              parentheses are not printed. *)
   | ASizeOf of typ                       (** A way to talk about types *)
   | ASizeOfE of attrparam
+  | AAlignOf of typ
+  | AAlignOfE of attrparam
   | AUnOp of unop * attrparam
   | ABinOp of binop * attrparam * attrparam
 
@@ -2774,6 +2776,8 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           ++ text ")"
     | ASizeOfE a -> text "sizeof(" ++ self#pAttrParam () a ++ text ")"
     | ASizeOf t -> text "sizeof(" ++ self#pType None () t ++ text ")"
+    | AAlignOfE a -> text "__alignof__(" ++ self#pAttrParam () a ++ text ")"
+    | AAlignOf t -> text "__alignof__(" ++ self#pType None () t ++ text ")"
     | AUnOp(u,a1) -> 
         let d_unop () u =
           match u with
@@ -3665,6 +3669,12 @@ and childrenAttribute (vis: cilVisitor) (a: attribute) : attribute =
     | ASizeOfE e -> 
         let e' = doarg e in
         if e' != e then ASizeOfE e' else aa
+    | AAlignOf t -> 
+        let t' = fTyp t in
+        if t' != t then AAlignOf t' else aa
+    | AAlignOfE e -> 
+        let e' = doarg e in
+        if e' != e then AAlignOfE e' else aa
     | AUnOp (uo, e1) -> 
         let e1' = doarg e1 in
         if e1' != e1 then AUnOp (uo, e1') else aa

@@ -2001,10 +2001,10 @@ emacsclean:
 	      	\) -exec rm -f {} \;
 
 emacs: mustbegcc mustbelinux mustbemanju emacsclean
-	cd $(EMACSSRC) ; make CC="$(CCURED)"
+	cd $(EMACSSRC) ; make CC="$(CILLY) --separate -DCIL_HACKS"
 
 emacs-noclean: mustbegcc mustbelinux mustbemanju
-	cd $(EMACSSRC) ; make CC="$(CCURED)"
+	cd $(EMACSSRC) ; make CC="$(CILLY) --separate -DCIL_HACKS"
 
 emacs-gcc: mustbelinux mustbemanju emacsclean
 	cd $(EMACSSRC) ; make CC=gcc
@@ -2030,10 +2030,10 @@ perlclean:
 	      	\) -exec rm -f {} \;
 
 perl: mustbegcc mustbelinux mustbemanju perlclean
-	cd $(PERLSRC) ; make CC="$(CILLY)"
+	cd $(PERLSRC) ; make CC="$(CILLY) --separate"
 
 perl-noclean: mustbegcc mustbelinux mustbemanju
-	cd $(PERLSRC) ; make CC="$(CILLY)"
+	cd $(PERLSRC) ; make CC="$(CILLY) --separate"
 
 perl-gcc: mustbelinux mustbemanju perlclean
 	cd $(PERLSRC) ; make CC=gcc
