@@ -715,8 +715,10 @@ smAddTest("combine_sbump");
 smAddTest("combine_sbumpB");
 smAddTest("combine_sbumpB MERGEINLINES=1");
 smAddTest("combine_allocate");
-smFailTest("still more merger problems...",
-           "combine_allocate MERGEINLINES=1");
+smAddTest("combine_allocate MERGEINLINES=1");
+smAddTest("combine_theFunc");
+smFailTest("still more merger problems",
+           "combine_theFunc MERGEINLINES=1");
 
 # tests of things implemented for EDG compatibility
 smAddTest("mergestruct");

@@ -192,7 +192,8 @@ let union (nd1: 'a node) (nd2: 'a node) : 'a node * (unit -> unit) =
               (* sm: it does happen quite a bit when, e.g. merging STLport with
                * some client source; I'm disabling the warning since it supposedly
                * is harmless anyway, so is useless noise *)
-              (*ignore (warn "Merging two undefined elements in the same file: %s and %s\n" nd1.nname nd2.nname);*)
+              (* sm: re-enabling on claim it now will probably not happen *)
+              ignore (warn "Merging two undefined elements in the same file: %s and %s\n" nd1.nname nd2.nname);
               nd1, nd2
         end
       else (* One is defined, the other is not. Choose the defined one *)
