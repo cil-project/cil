@@ -128,7 +128,9 @@ ifdef NEWOPTIM
 endif
 ifneq ($(INFERBOX),none)
   CCURED+= --curetype=$(INFERBOX) $(DEF)INFERBOX
-  CCURED+= --emitbrowser
+  ifndef NOEMITBROWSER
+     CCURED+= --emitbrowser
+  endif
   ifeq ($(INFERBOX),wild)
     # sm: some of my edg-related source changes need to know whether
     # they're being processed for the all-WILD mode
