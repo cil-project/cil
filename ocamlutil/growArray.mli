@@ -30,7 +30,8 @@ val max_init_index : 'a t -> int
     Returns -1 if no writes have been made. *)
 
 val reset_max_init_index : 'a t -> unit
-(** [GrowArray.reset_init a] resets the max_init_index. *)
+(** [GrowArray.reset_init a] resets the max_init_index. You should probably
+   use [GrowArray.clear a] instead if you also want to delete the contents. *)
 
 val getg : 'a t -> int -> 'a
 (** [GrowArray.getg a n] returns the element number [n] of array [a].
@@ -65,6 +66,11 @@ val make : int -> 'a fill -> 'a t
    at least [n] with default value specified by [x].
 
    Raise [Invalid_argument] if [n < 0] or [n > Sys.max_array_length]. *)
+
+val clear: 'a t -> unit 
+(** [GrowArray.clear a] clears the contents of the array and sets 
+   max_init_index to -1.  Suspension thunks will be rerun to regenerate the 
+   initial values of the array. *)
 
 val copy : 'a t -> 'a t
 (** [GrowArray.copy a] returns a copy of [a], that is, a fresh array

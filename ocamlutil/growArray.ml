@@ -67,6 +67,20 @@ let make (initsz: int) (fill: 'a fill) : 'a t =
     | Susp f -> Array.init initsz f
     end; }
 
+let clear (ga: 'a t) : unit =
+  (* This assumes the user hasn't used the raw "set" on any value past
+     max_init_index.  Maybe we shouldn't trust max_init_index here?? *) 
+  if ga.gaMaxInitIndex >= 0 then begin
+    begin match ga.gaFill with 
+        Elem x -> Array.fill ga.gaData 0 (ga.gaMaxInitIndex+1) x
+      | Susp f -> 
+          for i = 0 to ga.gaMaxInitIndex do 
+            Array.set ga.gaData i (f i)
+          done
+    end;
+    ga.gaMaxInitIndex <- -1
+  end
+
 let copy (ga: 'a t) : 'a t = 
   { ga with gaData = Array.copy ga.gaData } 
 
