@@ -93,7 +93,9 @@ sub addTest {
     OneTest->new($self, $name . "-inferbox",
                  Dir => "..",
                  Cmd => "make " . $name . " BOX=1 INFERBOX=1 " . $theargs,
-                 Group => ["box", "infer"]);
+                 Group => ["box", "infer"], 
+                 Patterns => {"^Run btreetest in ([.\\d]+)ms" => 
+                               sub { $self->{spd} = $1; }});
 }
 
 
