@@ -606,6 +606,7 @@ $TEST->add2Tests("perf/perfrtti");
 #$TEST->addTests("apache", "", ['cil']);
 #  $TEST->addGroups("apache-cil", 'vslow');
 
+
 #
 # GIMP and friends
 #
@@ -615,7 +616,7 @@ $TEST->newTest(
     Enabled => 0,
     Cmd => "make gimpall-world LD_LIBRARY_PATH=$FindBin::Bin/../gimp/lib",
     Group => ['vslow'],
-    Patterns => []);
+    Patterns => \%commonerrors);
 
 #
 # Apache CIL-ified

@@ -1979,12 +1979,11 @@ linux-clean3:
 ######################## SENDMAIL
 # source available at www.sendmail.org
 
+ifndef BIG_EXAMPLES_DIR
+BIG_EXAMPLES_DIR:=../../big-examples
+endif
 
 sendmail: mustbegcc 
-ifndef BIG_EXAMPLES_DIR
-	@echo "You should BIG_EXAMPLES_DIR.  I'll assume it's ../../big-examples."
-	BIG_EXAMPLES_DIR=../../big-examples
-endif
 ifeq ($(INFERBOX),none)
 	$(MAKE) -C $(BIG_EXAMPLES_DIR) sendmail-cil
 else
