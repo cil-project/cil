@@ -6,4 +6,7 @@ camlprim0.obj
 *.pdb
 *.s
 *.asm
-
+*.out
+allheaders
+allcfiles
+allmlfiles

@@ -77,7 +77,11 @@ type varinfo = {
                                          * that this is always set, always 
                                          * use mkAddrOf to construct an AddrOf
                                            *)
-} 
+
+    (* sm: is this var referenced?  this is computed by removeUnusedVars *)
+    (* it is safe to just initialize this to false *)
+    mutable vreferenced: bool;
+}
 
                                         (* Storage-class information *)
 and storage = 

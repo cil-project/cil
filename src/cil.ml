@@ -83,7 +83,10 @@ type varinfo = {
     mutable vattr: attribute list;
     mutable vstorage: storage;
     mutable vaddrof: bool;              (* Has its address taken *)
-} 
+
+    (* sm: is this var referenced?  this is computed by removeUnusedVars *)
+    mutable vreferenced: bool;
+}
 
                                         (* Storage-class information *)
 and storage = 
@@ -888,6 +891,7 @@ let rec d_decl (docName: unit -> doc) () this =
                       vattr = [];
                       vdecl = lu;
                       vaddrof = false; 
+                      vreferenced = false;   (* sm *)
                       vstorage = NoStorage; } ] 
         | _ -> args
       in
@@ -1286,7 +1290,7 @@ and d_plaintype () = function
 
 
  (* Scan all the expressions in a statement *)
-let iterExp (f: exp -> unit) (body: stmt) : unit = 
+let iterExp (f: exp -> unit) (body: stmt) : unit =
   let rec fExp e = f e; fExp' e
   and fExp' = function
       (Const _|SizeOf _) -> ()
@@ -1322,6 +1326,44 @@ let iterExp (f: exp -> unit) (body: stmt) : unit =
   fStmt body
 
 
+ (* Scan all the variables in a statement *)
+ (* sm: want to rewrite this using visitor *)
+let iterVar (f: varinfo -> unit) (body: stmt) : unit =
+begin
+  let rec fExp = function
+      (Const _|SizeOf _) -> ()
+    | Lval lv -> fLval lv
+    | UnOp(_,e,_,_) -> fExp e
+    | BinOp(_,e1,e2,_,_) -> fExp e1; fExp e2
+    | Question (e1, e2, e3, _) -> fExp e1; fExp e2; fExp e3
+    | CastE(_, e,_) -> fExp e
+    | Compound (_, initl) -> List.iter (fun (_, e) -> fExp e) initl
+    | AddrOf (lv,_) -> fLval lv
+    | StartOf (lv) -> fLval lv
+
+  and fLval = function
+      Var v, off -> f v; fOff off        (* visit *)
+    | Mem e, off -> fExp e; fOff off
+  and fOff = function
+      Field (_, o) -> fOff o
+    | Index (e, o) -> fExp e; fOff o
+    | First o -> fOff o
+    | NoOffset -> ()
+  and fStmt = function
+      (Skip|Break|Continue|Label _|Goto _|Case _|Default|Return None) -> ()
+    | Sequence s -> List.iter fStmt s
+    | Loop s -> fStmt s
+    | IfThenElse (e, s1, s2) -> fExp e; fStmt s1; fStmt s2
+    | Return(Some e) -> fExp e
+    | Switch (e, s) -> fExp e; fStmt s
+    | Instr(Set(lv,e,_)) -> fLval lv; fExp e
+    | Instr(Call(_,f,args,_)) -> fExp f; List.iter fExp args
+    | Instr(Asm(_,_,_,ins,_)) ->
+        List.iter (fun (_, e) -> fExp e) ins
+  in
+  fStmt body
+end;;
+
 
    (* Make a local variable and add it to a function *)
 let makeLocalVar fdec name typ = 
@@ -1334,19 +1376,20 @@ let makeLocalVar fdec name typ =
              vattr = [];
              vstorage = NoStorage;
              vaddrof = false;
+             vreferenced = false;    (* sm *)
            }  in
   fdec.slocals <- fdec.slocals @ [vi];
   vi
 
-let makeTempVar fdec ?(name = "tmp") typ = 
+let makeTempVar fdec ?(name = "tmp") typ =
   let name = name ^ (string_of_int (1 + fdec.smaxid)) in
   makeLocalVar fdec name typ
 
 
-   (* Make a global variable. Your responsibility to make sure that the name 
-    * is unique *) 
-let makeGlobalVar name typ = 
-  let vi = { vname = name; 
+   (* Make a global variable. Your responsibility to make sure that the name
+    * is unique *)
+let makeGlobalVar name typ =
+  let vi = { vname = name;
              vid   = H.hash name;
              vglob = true;
              vtype = typ;
@@ -1354,6 +1397,7 @@ let makeGlobalVar name typ =
              vattr = [];
              vstorage = NoStorage;
              vaddrof = false;
+             vreferenced = false;    (* sm *)
            }  in
   vi
 
@@ -1710,8 +1754,55 @@ let rec isCompleteType t =
 (* sm: taking a stab at removing extra temporaries *)
 let removeUnusedTemps (f : file) =
 begin
-  (trace "sm" (dprintf "printing file %s\n" f.fileName));
-  (List.iter (
+  (* (trace "usedVar" (dprintf "printing file %s\n" f.fileName)); *)
+  (List.iter
+    (function
+      GFun f -> begin
+        (* name *)
+        (tracei "usedVar" (dprintf "function: %s\n" f.svar.vname));
+
+        (* declared variables: clear the 'referenced' bits *)
+        (List.iter
+          (fun (v : varinfo) ->
+            (* (trace "sm" (dprintf "var decl[%d]: %s\n" v.vid v.vname)); *)
+            v.vreferenced <- false
+          )
+          f.slocals);
+
+        (* referenced used variables: mark them *)
+        (* iterVar (f: varinfo -> unit) (body: stmt) : unit *)
+        (iterVar
+          (fun (v : varinfo) ->
+            if (not v.vglob) then begin
+              (* (trace "sm" (dprintf "var ref[%d]: %s\n" v.vid v.vname)); *)
+              v.vreferenced <- true
+            end
+            else ()
+          )
+          f.sbody);
+
+        (* check the 'referenced' bits *)
+        f.slocals <- (List.filter
+          (fun (v : varinfo) ->
+            if (not v.vreferenced) then begin
+              (trace "usedVar" (dprintf "*removing* unused: var decl[%d]: %s\n"
+                                       v.vid v.vname));
+              false   (* remove it *)        
+            end
+            else 
+              true    (* keep it *)
+          )
+          f.slocals);
+
+        (traceOutdent "usedVar")
+      end
+    | _ -> ()
+    )
+    f.globals);
+  ()
+end;;
+
+(*
     fun (g : global) ->
     begin
       match g with
@@ -1720,10 +1811,7 @@ begin
         end
       | _ -> ()
     end)
-    f.globals);  
-  ()
-end;;
-
+*)
 
 (**
  **

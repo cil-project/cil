@@ -12,9 +12,9 @@ typedef struct {
 int __uflow(FILE *fp);
 int getc_unlocked (FILE *fp)
 {
-  return  fp->ptr >= fp->end;
-//  return  fp->ptr >= fp->end ?  __uflow(fp)
-//                             :  * ((unsigned char *)( fp->ptr++ ));
+//  return  fp->ptr >= fp->end;
+  return  fp->ptr >= fp->end ?  __uflow(fp)
+                             :  * ((unsigned char *)( fp->ptr++ ));
 }
 
 

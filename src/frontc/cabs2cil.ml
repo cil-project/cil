@@ -174,6 +174,7 @@ let newTempVar typ =
       vdecl = locUnknown;
       vattr = [];
       vaddrof = false;
+      vreferenced = false;   (* sm *)
       vstorage = NoStorage;
     } 
 
@@ -454,7 +455,8 @@ let rec makeVarInfo (isglob: bool)
     vdecl    = ldecl;
     vtype    = doType [] nbt;
     vaddrof  = false;
-  } 
+    vreferenced = false;   (* sm *)
+  }
 
 
 and doAttr : A.attribute -> attribute = function
@@ -2013,7 +2015,8 @@ let convFile fname dl =
                   vattr = doAttrList funattr;
                   vaddrof = false;
                   vstorage = doStorage st;
-                } 
+                  vreferenced = false;   (* sm *)
+                }
             in
             if alreadyDef then
               E.s (E.unimp "There is a definition already for %s" n);
