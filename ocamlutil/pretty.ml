@@ -66,6 +66,7 @@ type doc =
 let nil  = Nil
 let text s        = Text s
 let num  i        = text (string_of_int i)
+let real f        = text (string_of_float f)
 let chr  c        = text (String.make 1 c) 
 let align         = Align
 let unalign       = Unalign
@@ -331,7 +332,11 @@ let rec scan (abscol: int) (d: doc) : int =
         movingRight (1 + abscol)
       end
     
-      
+
+(** Keep a running counter of the newlines we are taking. You can read and 
+  * reset this from user code, if you want *)
+let countNewLines = ref 0
+
 (* The actual function that takes a document and prints it *)
 let emitDoc 
     (emitString: string -> int -> unit) (* emit a number of copies of a 
@@ -348,6 +353,7 @@ let emitDoc
       [] -> failwith "Ran out of aligns"
     | x :: _ ->
 	emitString "\n" 1;
+        incr countNewLines;
 	wantIndent := true;
 	x
   in
@@ -458,6 +464,7 @@ let emitDoc
 (* Print a document on a channel *)
 let fprint (chn: out_channel) ~(width: int) doc =
   maxCol := width;
+  breaks := [];
   ignore (scan 0 doc);
   breaks := List.rev !breaks;
   ignore (emitDoc 
@@ -471,6 +478,7 @@ let fprint (chn: out_channel) ~(width: int) doc =
 (* Print the document to a string *)
 let sprint ~(width : int)  doc : string = 
   maxCol := width;
+  breaks := [];
   ignore (scan 0 doc);
   breaks := List.rev !breaks;
   let buf = Buffer.create 1024 in
@@ -650,7 +658,7 @@ let gprintf (finish : doc -> doc)
               in
               collect newacc (i + 2)
           | '!' ->                        (* hard-line break *)
-              collect (dconcat acc (line)) (i + 2)
+              collect (dconcat acc line) (i + 2)
           | '?' ->                        (* soft line break *)
               collect (dconcat acc (break)) (i + 2)
 	  | '<' ->                        (* left-flushed *)
@@ -662,7 +670,7 @@ let gprintf (finish : doc -> doc)
         end else
           invalid_arg "dprintf: incomplete format @"
       end else if c = '\n' then begin
-        collect (dconcat acc (line)) (i + 1)
+        collect (dconcat acc line) (i + 1)
       end else
         literal acc i
     end
@@ -699,25 +707,6 @@ let fprintf chn format =
 
 let printf format = fprintf stdout format
 let eprintf format = fprintf stderr format
-
-
-(* sm: I just don't get ML ... *)
-(* let sprintf (f: (doc, unit, doc) format) : string =*)
-(*   ( * make a doc * ) *)
-(*   let d:doc = (dprintf f) in*)
-(*   ( * make a string * ) *)
-(*   (sprint 1000000 d)*)
-
-(* let failwithf (f: ('a, unit, doc) format) : 'a =*)
-(*   let d:doc = (dprintf f) in*)
-(*   let s:string = (sprint 1000000 d) in*)
-(*   raise (Failure s)*)
-
-
-(*
-let sprintf format = gprintf (fun x -> sprint 80 x) format
-let printf  format = gprintf (fun x -> fprint stdout 80 x) format
-*)
 
 
 
