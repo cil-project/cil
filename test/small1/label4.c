@@ -1,3 +1,5 @@
+#include "testharness.h"
+
 // From c-torture
 
 int expect_do1 = 1, expect_do2 = 2;

@@ -1,5 +1,5 @@
 # .gdbinit
 
-file failprintf1.exe
+file noproto.exe
 break main
 run

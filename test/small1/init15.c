@@ -1,3 +1,5 @@
+#include "testharness.h"
+
 typedef struct {int x, y;} brlock_read_lock_t;
 
 #define NR_CPUS           4

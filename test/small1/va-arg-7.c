@@ -1,3 +1,4 @@
+void exit(int);
 // From c-torture
 /* Origin: Franz Sirl <Franz.Sirl-kernel@lauterbach.com> */
 

@@ -441,12 +441,10 @@ testrun/% : $(SMALL1)/%.c
 
 
 testmodel/%: $(SMALL1)/%.c $(SMALL1)/modelextern.c 
-	cd $(SMALL1); \
-            $(CC) $(CONLY) $(OBJOUT)modelextern.$(OBJEXT) modelextern.c
 	cd $(SMALL1); $(CCURED) \
                          $(STANDARDPATCH) \
                          --leavealone=modelextern --merge \
-                         $(CFLAGS) $(EXEOUT)$*.exe $*.c modelextern.$(OBJEXT)
+                         $(CFLAGS) $(EXEOUT)$*.exe $*.c modelextern.c
 	cd $(SMALL1); ./$*.exe
 
 combine%: 

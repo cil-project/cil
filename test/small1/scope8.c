@@ -1,3 +1,5 @@
+#include "testharness.h"
+
 // from c-torture
 static inline
 p (int *p)

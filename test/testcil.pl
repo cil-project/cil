@@ -353,6 +353,10 @@ $TEST->add2TestsFail("testrun/failprintf5", "",
                      "Failure: Non-terminated string");
 $TEST->add2TestsFail("testrun/failprintf6", "", "Failure: type mismatch");
 
+$TEST->add2TestsFail("testmodel/noproto1", "", "Function pointer");
+$TEST->add2TestsFail("testmodel/noproto2", "", "Failure: Non-pointer");
+# $TEST->add2Tests("testmodel/noproto");
+
 # sm: worksforme: $TEST->add2TestsFail("testrun/failsprintf1", "", "Failure .+: Ubound");
 $TEST->add2Tests("testrun/failsprintf1", "");
 $TEST->add2TestsFail("testrun/failsprintf2", "", "Failure: ");
@@ -589,7 +593,7 @@ smAddTest("scott/mknod $box");
 smAddTest("badd/nullfield $manualbox");
 smAddTest("scott/constfold");
 smAddTest("scott/mode_sizes");       # mode(__QI__) stuff
-smFailTest("compile problem with brlock.c", "scott/brlock");
+smAddTest("scott-nolink/brlock");
 
 # test of strings (need more!)
 smFailTest("unsound user annotation RWSTRING", "badd/ovwrnull $box");
