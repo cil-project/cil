@@ -1786,9 +1786,9 @@ linux-merge2: mustbegcc mustbelinux mustbemanju
 
 linux-merge3: mustbegcc mustbelinux mustbemanju 
 	cd $(LINUX_MERGE_SRC) ; \
-           make CC="$(CILLY) --merge --verbose  " \
+           make CC="$(CILLY) --merge --verbose  --commPrintLn " \
                 HOSTCC="$(CILLY) --merge --verbose " \
-                LD="$(CILLY) --merge --verbose  " \
+                LD="$(CILLY) --merge --verbose --commPrintLn " \
                 AR="$(CILLY) --mode=AR --merge --verbose "
 
 

@@ -4512,5 +4512,63 @@ let initCIL () =
        uintType
     
 
+(* We want to bring all type declarations before the data declarations. This 
+ * is needed for code of the following form: 
+
+   int f(); // Prototype without arguments
+   typedef int FOO;
+   int f(FOO x) { ... }
+
+   In CIL the prototype also lists the type of the argument as being FOO, 
+   which is undefined. 
+
+   There is one catch with this scheme. If the type contains an array whose 
+   length refers to variables then those variables must be declared before 
+   the type *)
+
+let pullTypesForward = true
 
   
+    (* Scan a type and collect the variables that are refered *)
+class getVarsInGlobalClass (pacc: varinfo list ref) = object
+  inherit nopCilVisitor
+  method vvrbl (vi: varinfo) = 
+    pacc := vi :: !pacc;
+    SkipChildren
+
+  method vglob = function
+      GType _ | GCompTag _ -> DoChildren
+    | _ -> SkipChildren
+      
+end
+
+let getVarsInGlobal (g : global) : varinfo list = 
+  let pacc : varinfo list ref = ref [] in
+  let v : cilVisitor = new getVarsInGlobalClass pacc in
+  ignore (visitCilGlobal v g);
+  !pacc
+
+let pushGlobal (g: global) 
+               ~(types:global list ref)
+               ~(variables: global list ref) = 
+  if not pullTypesForward then 
+    variables := g :: !variables
+  else
+    begin
+      (* Collect a list of variables that are refered from the type. Return 
+       * Some if the global should go with the types and None if it should go 
+       * to the variables. *)
+      let varsintype : (varinfo list * location) option = 
+        match g with 
+          GType (_, l) | GCompTag (_, l) -> Some (getVarsInGlobal g, l)
+        | GEnumTag (_, l) | GPragma (Attr("pack", _), l) 
+        | GCompTagDecl (_, l) | GEnumTagDecl (_, l) -> Some ([], l)
+        | _ -> None (* Does not go with the types *)
+      in
+      match varsintype with 
+      None -> variables := g :: !variables
+    | Some (vl, loc) -> 
+        types := 
+           g :: (List.fold_left (fun acc v -> GVarDecl(v, loc) :: acc) 
+                                !types vl) 
+  end

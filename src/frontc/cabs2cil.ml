@@ -180,64 +180,16 @@ let interpret_character_constant str old_char_list =
 
 (*** EXPRESSIONS *************)
 
-(* We want to bring all type declarations before the data declarations. This 
- * is needed for code of the following form: 
-
-   int f(); // Prototype without arguments
-   typedef int FOO;
-   int f(FOO x) { ... }
-
-   In CIL the prototype also lists the type of the argument as being FOO, 
-   which is undefined. 
-
-   There is one catch with this scheme. If the type contains an array whose 
-   length refers to variables then those variables must be declared before 
-   the type *)
-
-let pullTypesForward = true
                                         (* We collect here the program *)
 let theFile : global list ref = ref []
 let theFileTypes : global list ref = ref []
 
 let initGlobals () = theFile := []; theFileTypes := []
 
-    (* Scan a type and collect the variables that are refered *)
-class getVarsInGlobalClass (pacc: varinfo list ref) = object
-  inherit nopCilVisitor
-  method vvrbl (vi: varinfo) = 
-    pacc := vi :: !pacc;
-    SkipChildren
-
-  method vglob = function
-      GType _ | GCompTag _ -> DoChildren
-    | _ -> SkipChildren
-      
-end
-
-let getVarsInGlobal (g : global) : varinfo list = 
-  let pacc : varinfo list ref = ref [] in
-  let v : cilVisitor = new getVarsInGlobalClass pacc in
-  ignore (visitCilGlobal v g);
-  !pacc
-
-let pushGlobal (g: global) = 
-  if not pullTypesForward then theFile := g :: !theFile else
-  begin
-    (* Collect a list of variables that are refered from the type *)
-    let varsintype : (varinfo list * location) option = 
-      match g with 
-        GType (_, l) | GCompTag (_, l) -> Some (getVarsInGlobal g, l)
-      | GEnumTag (_, l) | GPragma (Attr("pack", _), l) -> Some ([], l)
-      | _ -> None (* Does not go with the types *)
-    in
-    match varsintype with 
-      None -> theFile := g :: !theFile
-    | Some (vl, loc) -> 
-        theFileTypes := 
-           g :: (List.fold_left (fun acc v -> GVarDecl(v, loc) :: acc) 
-                                !theFileTypes vl) 
-  end
     
+let cabsPushGlobal (g: global) = 
+  pushGlobal g ~types:theFileTypes ~variables:theFile
+
 (* Keep track of some variable ids that must be turned into definitions. We 
  * do this when we encounter what appears a definition of a global but 
  * without initializer. We leave it a declaration because maybe down the road 
@@ -582,30 +534,32 @@ let lookupType (kind: string)
   with Not_found -> 
     E.s (error "Cannot find type %s (kind:%s)\n" n kind)
 
-(* Create the self ref cell and add it to the map *)
-let createCompInfo (iss: bool) (n: string) : compinfo = 
+(* Create the self ref cell and add it to the map. Return also an indication 
+ * if this is a new one. *)
+let createCompInfo (iss: bool) (n: string) : compinfo * bool = 
   (* Add to the self cell set *)
   let key = (if iss then "struct " else "union ") ^ n in
   try
-    H.find compInfoNameEnv key (* Only if not already in *)
+    H.find compInfoNameEnv key, false (* Only if not already in *)
   with Not_found -> begin
     (* Create a compinfo *)
     let res = mkCompInfo iss n (fun _ -> []) [] in
     H.add compInfoNameEnv key res;
-    res
+    res, true
   end
 
-(* Create the self ref cell and add it to the map *)
-let createEnumInfo (n: string) : enuminfo = 
+(* Create the self ref cell and add it to the map. Return an indication 
+ * whether this is a new one. *)
+let createEnumInfo (n: string) : enuminfo * bool = 
   (* Add to the self cell set *)
   try
-    H.find enumInfoNameEnv n (* Only if not already in *)
+    H.find enumInfoNameEnv n, false (* Only if not already in *)
   with Not_found -> begin
     (* Create a enuminfo *)
     let enum = { ename = n; eitems = []; 
                  eattr = []; ereferenced = false; } in
     H.add enumInfoNameEnv n enum;
-    enum
+    enum, true
   end
 
 
@@ -617,11 +571,15 @@ let findCompType kind n a =
      * struct already or because we want to create a version with different 
      * attributes  *)
     if kind = "enum" then 
-      let enum = createEnumInfo n in
+      let enum, isnew = createEnumInfo n in
+      if isnew then
+        cabsPushGlobal (GEnumTagDecl (enum, !currentLoc));
       TEnum (enum, a)
     else 
       let iss = if kind = "struct" then true else false in
-      let self = createCompInfo iss n in
+      let self, isnew = createCompInfo iss n in
+      if isnew then 
+        cabsPushGlobal (GCompTagDecl (self, !currentLoc));
       TComp (self, a)
   in
   try
@@ -1956,7 +1914,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
         (* Use the attributes now *)
         let a = !attrs in 
         attrs := [];
-        let enum = createEnumInfo n'' in 
+        let enum, _ = createEnumInfo n'' in 
         enum.eattr <- doAttributes a;
         let res = TEnum (enum, []) in
 
@@ -2003,14 +1961,16 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
         (* Record the enum name in the environment *)
         addLocalToEnv (kindPlusName "enum" n'') (EnvTyp res);
         (* And define the tag *)
-        pushGlobal (GEnumTag (enum, !currentLoc));
+        cabsPushGlobal (GEnumTag (enum, !currentLoc));
         res
         
           
     | [A.TtypeofE e] -> 
         let (c, _, t) = doExp false e (AExp None) in
+(*
         if not (isEmpty c) then
           ignore (warn "typeof for a non-pure expression\n");
+*)
         t
 
     | [A.TtypeofT (specs, dt)] -> 
@@ -2326,7 +2286,7 @@ and makeCompType (isstruct: bool)
   let n' = newAlphaName true kind n in
   (* Create the self cell for use in fields and forward references. Or maybe 
    * one exists already from a forward reference  *)
-  let comp = createCompInfo isstruct n' in
+  let comp, _ = createCompInfo isstruct n' in
   let doFieldGroup ((s: A.spec_elem list), 
                     (nl: (A.name * A.expression option ) list)) : 'a list =
     (* Do the specifiers exactly once *)
@@ -2400,7 +2360,7 @@ and makeCompType (isstruct: bool)
   let toplevel_typedef = false in
   let res = TComp (comp, []) in
   (* Create a typedef for this one *)
-  pushGlobal (GCompTag (comp, !currentLoc));
+  cabsPushGlobal (GCompTag (comp, !currentLoc));
 
       (* There must be a self cell created for this already *)
   addLocalToEnv (kindPlusName kind n) (EnvTyp res);
@@ -2782,9 +2742,10 @@ and doExp (isconst: bool)    (* In a constant *)
         (* Allow non-constants in sizeof *)
         let (se, e', t) = doExp false e (AExp None) in
         (* !!!! The book says that the expression is not evaluated, so we
-           * drop the potential side-effects *)
+           * drop the potential side-effects 
         if isNotEmpty se then
           ignore (warn "Warning: Dropping side-effect in EXPR_SIZEOF\n");
+*)
         let size =
           match e' with                 (* If we are taking the sizeof an
                                          * array we must drop the StartOf  *)
@@ -2807,9 +2768,10 @@ and doExp (isconst: bool)    (* In a constant *)
     | A.EXPR_ALIGNOF e ->
         let (se, e', t) = doExp false e (AExp None) in
         (* !!!! The book says that the expression is not evaluated, so we
-           * drop the potential side-effects *)
+           * drop the potential side-effects 
         if isNotEmpty se then
-          ignore (warn "Warning: Dropping side-effect in EXPR_SIZEOF\n");
+          ignore (warn "Warning: Dropping side-effect in EXPR_ALIGNOF\n");
+*)
         let e'' =
           match e' with                 (* If we are taking the sizeof an
                                          * array we must drop the StartOf  *)
@@ -3207,7 +3169,7 @@ and doExp (isconst: bool)    (* In a constant *)
                 proto.vstorage <- Extern;
                 H.add noProtoFunctions proto.vid true;
                 (* Add it to the file as well *)
-                pushGlobal (GVarDecl (proto, !currentLoc));
+                cabsPushGlobal (GVarDecl (proto, !currentLoc));
                 (empty, Lval(var proto), ftype)
               end
             end
@@ -4181,7 +4143,7 @@ and createGlobal (specs : (typ * storage * bool * A.attribute list))
           E.s (error "%s is extern and with initializer" vi.vname);
         H.add alreadyDefined vi.vid !currentLoc;
         H.remove mustTurnIntoDef vi.vid;
-        pushGlobal (GVar(vi, init, !currentLoc));
+        cabsPushGlobal (GVar(vi, init, !currentLoc));
         vi
       end else begin
         if not (isFunctionType vi.vtype) 
@@ -4191,7 +4153,7 @@ and createGlobal (specs : (typ * storage * bool * A.attribute list))
           end;
         if not alreadyInEnv then begin (* Only one declaration *)
           (* If it has function type it is a prototype *)
-          pushGlobal (GVarDecl (vi, !currentLoc));
+          cabsPushGlobal (GVarDecl (vi, !currentLoc));
           vi
         end else begin
           if debugGlobal then 
@@ -4203,7 +4165,7 @@ and createGlobal (specs : (typ * storage * bool * A.attribute list))
   with e -> begin
     ignore (E.log "error in createGlobal(%s): %s\n" n
               (Printexc.to_string e));
-    pushGlobal (dGlobal (dprintf "booo - error in global %s (%t)" 
+    cabsPushGlobal (dGlobal (dprintf "booo - error in global %s (%t)" 
                            n d_thisloc) !currentLoc);
     dummyFunDec.svar
   end
@@ -4250,12 +4212,12 @@ and createLocal ((_, sto, _, _) as specs)
           (* Maybe the initializer refers to the function itself. 
              Push a prototype for the function, just in case. Hopefully,
              if does not refer to the locals *)
-          pushGlobal (GVarDecl (!currentFunctionVI, !currentLoc));
+          cabsPushGlobal (GVarDecl (!currentFunctionVI, !currentLoc));
           Some ie'
         end
       in
       (* It is possible that the initializer refers to the *)
-      pushGlobal (GVar(vi, init, !currentLoc));
+      cabsPushGlobal (GVar(vi, init, !currentLoc));
       empty
 
   (* Maybe we have an extern declaration. Make it a global *)
@@ -4359,7 +4321,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
 
   | A.GLOBASM (s,loc) when isglobal ->
       currentLoc := convLoc(loc);
-      pushGlobal (GAsm (s, !currentLoc));
+      cabsPushGlobal (GAsm (s, !currentLoc));
       empty
         
   | A.PRAGMA (a, loc) when isglobal -> begin
@@ -4371,7 +4333,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
             | ACons (s, args) -> Attr (s, args)
             | _ -> E.s (error "Unexpected attribute in #pragma")
           in
-          pushGlobal (GPragma (a'', !currentLoc));
+          cabsPushGlobal (GPragma (a'', !currentLoc));
           empty
 
       | _ -> E.s (error "Too many attributes in pragma")
@@ -4664,12 +4626,12 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
             
             (*              ignore (E.log "The env after finishing the body of %s:\n%t\n"
                         n docEnv); *)
-            pushGlobal (GFun (fdec, funloc));
+            cabsPushGlobal (GFun (fdec, funloc));
             empty
           with e -> begin
             ignore (E.log "error in collectFunction %s: %s\n"
                       n (Printexc.to_string e));
-            pushGlobal (GAsm("error in function " ^ n, !currentLoc));
+            cabsPushGlobal (GAsm("error in function " ^ n, !currentLoc));
             empty
           end)
         () (* argument of E.withContext *)
@@ -4697,11 +4659,11 @@ and doTypedef ((specs, nl): A.name_group) =
         (* Register the type. register it as local because we might be in a
         * local context  *)
         addLocalToEnv (kindPlusName "type" n) (EnvTyp (TNamed(ti, [])));
-        pushGlobal (GType (ti, !currentLoc))
+        cabsPushGlobal (GType (ti, !currentLoc))
       with e -> begin
         ignore (E.log "Error on A.TYPEDEF (%s)\n"
                   (Printexc.to_string e));
-        pushGlobal (GAsm ("booo_typedef:" ^ n, !currentLoc))
+        cabsPushGlobal (GAsm ("booo_typedef:" ^ n, !currentLoc))
       end
     in
     List.iter createTypedef nl
@@ -4713,7 +4675,7 @@ and doTypedef ((specs, nl): A.name_group) =
         [] -> "<missing name>"
       | (n, _, _) :: _ -> n
     in
-    pushGlobal (GAsm ("booo_typedef: " ^ fstname, !currentLoc))
+    cabsPushGlobal (GAsm ("booo_typedef: " ^ fstname, !currentLoc))
   end
 
 and doOnlyTypedef (specs: A.spec_elem list) : unit = 
@@ -4743,19 +4705,19 @@ and doOnlyTypedef (specs: A.spec_elem list) : unit =
           ci.cattr <- cabsAddAttributes ci.cattr al; 
           (* The GCompTag was already added *)
         end else (* Add a GCompTagDecl *)
-          pushGlobal (GCompTagDecl(ci, !currentLoc))
+          cabsPushGlobal (GCompTagDecl(ci, !currentLoc))
     | TEnum(ei, al) -> 
         if isadef then begin
           ei.eattr <- cabsAddAttributes ei.eattr al;
         end else
-          pushGlobal (GEnumTagDecl(ei, !currentLoc))
+          cabsPushGlobal (GEnumTagDecl(ei, !currentLoc))
     | _ -> 
         ignore (warn "Ignoring un-named typedef that does not introduce a struct or enumeration type\n")
             
   with e -> begin
     ignore (E.log "Error on A.ONLYTYPEDEF (%s)\n"
               (Printexc.to_string e));
-    pushGlobal (GAsm ("booo_typedef", !currentLoc))
+    cabsPushGlobal (GAsm ("booo_typedef", !currentLoc))
   end
 
 and assignInit (lv: lval) 
@@ -5090,7 +5052,7 @@ let convFile ((fname : string), (dl : Cabs.definition list)) : Cil.file =
             _ :: rest -> theFile := rest
           | _ -> ());
           (* Insert in the file a GText *)
-          pushGlobal (GText(Buffer.contents buff))
+          cabsPushGlobal (GText(Buffer.contents buff))
     end 
   in
   List.iter doOneGlobal dl;
@@ -5099,14 +5061,18 @@ let convFile ((fname : string), (dl : Cabs.definition list)) : Cil.file =
   (* Now go through the used composite types and find those that are not 
    * defined. Add a forward declaration for them at the beginning of the 
    * file. This will prevent certain errors when such types are used in local 
-   * scopes *)
+   * scopes 
+
+   * gn: this is not necessary anymore because we add GCompTagDecl always 
+   * eagerly.
+   * 
   H.iter 
     (fun key ci -> 
       if ci.cfields = [] then begin
         ignore (E.warnOpt "%s empty or not defined" key);
         globals := GCompTagDecl(ci, locUnknown) :: !globals
       end) compInfoNameEnv;
-
+  *)
   H.clear noProtoFunctions;
   H.clear mustTurnIntoDef;  
   H.clear alreadyDefined;

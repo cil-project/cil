@@ -388,7 +388,8 @@ sub linktolib {
     if(defined $self->{CILARGS}) {
         $cmd .=  join(' ', @{$self->{CILARGS}}) . " ";
     }
-
+    # Eliminate duplicates
+    
     # Add the arguments
     if(@{$tomerge} > 20) {
         my $extraFile = "___extra_files";
@@ -663,16 +664,20 @@ sub separateTrueObjects {
         my $fstline = <IN>;
         if($fstline =~ m|\#pragma merger\((\d+)| || $fstline =~ m|CIL|) {
             if($1 == $mtime) { # It is ours
-                push @tomerge, $combsrc; 
-                # See if there is a a trueobjs file also
-                my $trueobjs = $combsrc . "_trueobjs";
-                if(-f "$trueobjs") {
-                    open(TRUEOBJS, "<$trueobjs") || die "Cannot read $trueobjs";
-                    while(<TRUEOBJS>) {
-                        chop;
-                        push @othersources, $_;
+                # See if we have this already
+                if(! grep { $_ eq $src } @tomerge) { # It is ours
+                    push @tomerge, $combsrc; 
+                    # See if there is a a trueobjs file also
+                    my $trueobjs = $combsrc . "_trueobjs";
+                    if(-f "$trueobjs") {
+                        open(TRUEOBJS, "<$trueobjs") 
+                            || die "Cannot read $trueobjs";
+                        while(<TRUEOBJS>) {
+                            chop;
+                            push @othersources, $_;
+                        }
+                        close(TRUEOBJS);
                     }
-                    close(TRUEOBJS);
                 }
                 next;
             }

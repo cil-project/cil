@@ -269,12 +269,10 @@ let currentFidx = ref 0
 
 let currentDeclIdx = ref 0 (* The index of the definition in a file *)
 
-let pushGlobal (g: global) : unit = 
-    match g with 
-      GType _ | GCompTag _ | GEnumTag _ -> theFileTypes := g :: !theFileTypes
-    | _ -> theFile := g :: !theFile
+let mergePushGlobal (g: global) : unit = 
+  pushGlobal g ~types:theFileTypes ~variables:theFile
     
-let pushGlobals gl = List.iter pushGlobal gl
+let mergePushGlobals gl = List.iter mergePushGlobal gl
     
 
 (* Remember the composite types that we have already declared *)
@@ -986,7 +984,7 @@ let oneFilePass2 (f: file) =
           else begin
             H.add emittedVarDecls vi'.vname true; (* Remember that we emitted 
                                                    * it  *)
-            pushGlobals (visitCilGlobal renameVisitor g)
+            mergePushGlobals (visitCilGlobal renameVisitor g)
           end
             
       | GVar (vi, init, l) as g -> 
@@ -995,7 +993,7 @@ let oneFilePass2 (f: file) =
           (* We must keep this definition even if we reuse this varinfo, 
           * because maybe the previous one was a declaration *)
           H.add emittedVarDecls vi.vname true; (* Remember that we emitted it*)
-          pushGlobals (visitCilGlobal renameVisitor (GVar(vi', init, l)))
+          mergePushGlobals (visitCilGlobal renameVisitor (GVar(vi', init, l)))
             
       | GFun (fdec, l) as g -> 
           currentLoc := l;
@@ -1068,10 +1066,10 @@ let oneFilePass2 (f: file) =
             with Not_found -> begin
               if debugInlines then ignore (E.log " Not found\n");
               H.add inlineBodies printout inode;
-              pushGlobal g'
+              mergePushGlobal g'
             end
           end else
-            pushGlobal g'
+            mergePushGlobal g'
               
       | GCompTag (ci, l) as g -> begin
           currentLoc := l;
@@ -1097,7 +1095,7 @@ let oneFilePass2 (f: file) =
                 (* Now we should visit the fields as well *)
                 H.add emittedCompDecls ci.cname true; (* Remember that we 
                                                        * emitted it  *)
-                pushGlobals (visitCilGlobal renameVisitor g)
+                mergePushGlobals (visitCilGlobal renameVisitor g)
             | Some (oldci, oldfidx) -> begin
                 (* We are not the representative. Drop this declaration 
                  * because we'll not be using it. *)
@@ -1120,7 +1118,7 @@ let oneFilePass2 (f: file) =
                    List.map
                      (fun (n, i) -> newAlphaName vAlpha n, i)
                      ei.eitems;
-                pushGlobals (visitCilGlobal renameVisitor g);
+                mergePushGlobals (visitCilGlobal renameVisitor g);
             | Some (ei', _) -> (* Drop this since we are reusing it from 
                                 * before *)
                 ()
@@ -1135,14 +1133,14 @@ let oneFilePass2 (f: file) =
           else begin
             H.add emittedCompDecls ci.cname true;
             (* Keep it as a declaration *)
-            pushGlobals (visitCilGlobal renameVisitor g);
+            mergePushGlobal g;
           end
       end
 
       | GEnumTagDecl (ei, l) -> 
           currentLoc := l;
           (* Keep it as a declaration *)
-          pushGlobals (visitCilGlobal renameVisitor g)
+          mergePushGlobal g
           
 
       | GType (ti, l) as g -> begin
@@ -1154,18 +1152,19 @@ let oneFilePass2 (f: file) =
               None -> (* We must rename it and keep it *)
                 ti.tname <- newAlphaName tAlpha ti.tname;
                 ti.treferenced <- true;
-                pushGlobals (visitCilGlobal renameVisitor g);
+                mergePushGlobals (visitCilGlobal renameVisitor g);
             | Some (ti', _) ->(* Drop this since we are reusing it from 
                 * before *)
                   ()
           end
       end
-      | g -> pushGlobals (visitCilGlobal renameVisitor g)
+      | g -> mergePushGlobals (visitCilGlobal renameVisitor g)
   with e -> begin
     ignore (E.log "error when merging global: %s\n" (Printexc.to_string e));
-    pushGlobal (GText (P.sprint 80 (P.dprintf "/* error at %t:" d_thisloc)));
-    pushGlobal g;
-    pushGlobal (GText ("*************** end of error*/"));
+    mergePushGlobal (GText (P.sprint 80 
+                              (P.dprintf "/* error at %t:" d_thisloc)));
+    mergePushGlobal g;
+    mergePushGlobal (GText ("*************** end of error*/"));
         
   end
   in

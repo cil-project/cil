@@ -959,6 +959,16 @@ val computeCFGInfo: fundec -> stmt list
  * copy and the riginal function *)
 val copyFunction: fundec -> string -> fundec 
 
+
+(** CIL keeps the types at the begining of the file and the variables at the 
+ * end of the file. This function will take a global and add it to the 
+ * corresponding stack. Its operation is actually more complicated because if 
+ * the global declares a type that contains references to variables (e.g. in 
+ * sizeof in an array length) then it will also add declarations for the 
+ * variables to the types stack *)
+val pushGlobal: global -> types: global list ref 
+                       -> variables: global list ref -> unit
+
 (** {b Values for manipulating initializers} *)
 
 
