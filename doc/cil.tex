@@ -81,9 +81,10 @@ to about 1,000,000 lines of code that we tested it on. It is also able to
 process the few Microsoft NT device drivers that we have had access to. CIL
 was tested against GCC's c-torture testsuite and (except for the tests
 involving complex numbers and inner functions, which CIL does not currently
-implement) CIL passes most of the tests. In fact it passes more tests that
-\t{gcc 2.95.3}! A total of 1400 regression test cases are run automatically on
-each change to the CIL sources.
+implement) CIL passes most of the tests. Specifically CIL fails 23 tests out
+of the 904 c-torture tests that it should pass. GCC itself fails 19 tests. A
+total of 1400 regression test cases are run automatically on each change to
+the CIL sources.
 
 \section{Compiling C to CIL}\label{sec-cabs2cil}
 

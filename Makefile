@@ -2151,15 +2151,17 @@ gimpall-world:
 CTORTDIR := /usr/local/src/gcc/gcc/testsuite/gcc.c-torture
 # CILLY := gcc
 tort/compile/%: $(CTORTDIR)/compile/%.c mustbemanju mustbegcc
-	$(CILLY) $(CTORTDIR)/compile/$*.c -c -o $(CTORTDIR)/compile/$*.o
+	cd $(CTORTDIR)/compile; $(CILLY) $*.c -c -o $*.o
 
 tort/execute/%: $(CTORTDIR)/execute/%.c mustbemanju mustbegcc
-	$(CILLY) $(CTORTDIR)/execute/$*.c -o $(CTORTDIR)/compile/a.exe
+	rm -f $(CTORTDIR)/execute/a.exe
+	cd $(CTORTDIR)/execute; $(CILLY) $*.c -o a.exe
 	echo Cure complete
-	$(CTORTDIR)/compile/a.exe
+	$(CTORTDIR)/execute/a.exe
 
 tort/compat/%: $(CTORTDIR)/compat/%.c mustbemanju mustbegcc
-	$(CILLY) $(CTORTDIR)/compat/$*.c -o $(CTORTDIR)/compile/a.exe
+	rm -f $(CTORTDIR)/compat/a.exe
+	cd $(CTORTDIR)/compat; $(CILLY) $*.c -o a.exe
 	echo Cure complete
-	$(CTORTDIR)/compile/a.exe
+	$(CTORTDIR)/compat/a.exe
 

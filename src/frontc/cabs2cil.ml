@@ -1054,20 +1054,40 @@ let checkBool (ot : typ) (e : exp) : bool =
 
 
 (* Do types *)
-    (* Combine the types. Raises the Failure exception with an error message.*)
-let rec combineTypes (oldt: typ) (t: typ) : typ = 
+    (* Combine the types. Raises the Failure exception with an error message. 
+     * isdef says whether the new type is for a definition *)
+type combineWhat = 
+    CombineFundef (* The new definition is for a function definition. The old 
+                   * is for a prototype *)
+  | CombineFunarg (* Comparing a function argument type with an old prototype 
+                   * arg *)
+  | CombineFunret (* Comparing the return of a function with that from an old 
+                   * prototype *)
+  | CombineOther
+
+let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ = 
   match oldt, t with
   | TVoid olda, TVoid a -> TVoid (addAttributes olda a)
   | TInt (oldik, olda), TInt (ik, a) -> 
       let combineIK oldk k = 
         if oldk == k then oldk else
-        raise (Failure "different integer types")
+        (* GCC allows a function definition to have a more precise integer 
+         * type than a prototype that says "int" *)
+        if not !msvcMode && oldk = IInt && bitsSizeOf t <= 32 then 
+          k
+        else
+          raise (Failure "different integer types")
       in
       TInt (combineIK oldik ik, addAttributes olda a)
   | TFloat (oldfk, olda), TFloat (fk, a) -> 
       let combineFK oldk k = 
         if oldk == k then oldk else
-        raise (Failure "different floating point types")
+        (* GCC allows a function definition to have a more precise integer 
+         * type than a prototype that says "double" *)
+        if not !msvcMode && oldk = FDouble && k = FFloat then 
+          k
+        else
+          raise (Failure "different floating point types")
       in
       TFloat (combineFK oldfk fk, addAttributes olda a)
   | TEnum (oldei, olda), TEnum (ei, a) -> 
@@ -1086,7 +1106,7 @@ let rec combineTypes (oldt: typ) (t: typ) : typ =
       then TComp (oldci, addAttributes olda a)
       else raise (Failure "different struct/union types")
   | TArray (oldbt, oldsz, olda), TArray (bt, sz, a) -> 
-      let newbt = combineTypes oldbt bt in
+      let newbt = combineTypes CombineOther oldbt bt in
       let newsz = 
         if oldsz = sz then sz else
         match oldsz, sz with
@@ -1097,12 +1117,15 @@ let rec combineTypes (oldt: typ) (t: typ) : typ =
       TArray (newbt, newsz, addAttributes olda a)
         
   | TPtr (oldbt, olda), TPtr (bt, a) -> 
-      TPtr (combineTypes oldbt bt, addAttributes olda a)
+      TPtr (combineTypes CombineOther oldbt bt, addAttributes olda a)
         
   | TFun (_, _, _, [Attr("missingproto",_)]), TFun _ -> t
         
   | TFun (oldrt, oldargs, oldva, olda), TFun (rt, args, va, a) ->
-      let newrt = combineTypes oldrt rt in
+      let newrt = combineTypes 
+          (if what = CombineFundef then CombineFunret else CombineOther) 
+          oldrt rt 
+      in
       if oldva != va then 
         raise (Failure "diferent vararg specifiers");
       (* If one does not have arguments, believe the one with the 
@@ -1121,7 +1144,11 @@ let rec combineTypes (oldt: typ) (t: typ) : typ =
             (fun oldarg arg -> 
               if oldarg.vname = "" then oldarg.vname <- arg.vname;
               oldarg.vattr <- addAttributes oldarg.vattr arg.vattr;
-              oldarg.vtype <- combineTypes oldarg.vtype arg.vtype)
+              oldarg.vtype <- 
+                 combineTypes 
+                   (if what = CombineFundef then 
+                     CombineFunarg else CombineOther) 
+                   oldarg.vtype arg.vtype)
             oldargslist argslist;
           oldargs
         end
@@ -1133,12 +1160,12 @@ let rec combineTypes (oldt: typ) (t: typ) : typ =
         
         (* Unroll first the new type *)
   | _, TNamed (n, t, a) -> 
-      let res = combineTypes oldt t in
+      let res = combineTypes what oldt t in
       typeAddAttributes a res
         
         (* And unroll the old type as well if necessary *)
   | TNamed (oldn, oldt, a), _ -> 
-      let res = combineTypes oldt t in
+      let res = combineTypes what oldt t in
       typeAddAttributes a res
         
   | _ -> raise (Failure "different type constructors")
@@ -1172,7 +1199,10 @@ let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
     oldvi.vattr <- addAttributes oldvi.vattr vi.vattr;
     begin 
       try
-        oldvi.vtype <- combineTypes oldvi.vtype vi.vtype
+        oldvi.vtype <- 
+           combineTypes 
+             (if isadef then CombineFundef else CombineOther) 
+             oldvi.vtype vi.vtype
       with Failure reason -> 
         E.s (error "Declaration of %s does not match previous declaration from %a (%s)." 
                vi.vname d_loc oldloc reason)
@@ -1207,7 +1237,7 @@ let conditionalConversion (t2: typ) (t3: typ) : typ =
            * using the same algorith when combining multiple declarations of 
            * a global *)
     | (TPtr _) as t2', (TPtr _ as t3') -> begin
-        try combineTypes t2' t3'
+        try combineTypes CombineOther t2' t3' 
         with Failure msg -> begin
           ignore (warn "A.QUESTION %a does not match %a"
                     d_type (unrollType t2) d_type (unrollType t3));
@@ -4003,6 +4033,8 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
   | A.EXPRTRANSFORMER (_, _, _) -> 
       E.s (E.bug "EXPRTRANSFORMER in cabs2cil input")
         
+  (* If there are multiple definitions of extern inline, turn all but the 
+   * first into a prototype *)
   | A.FUNDEF (((specs,(n,dt,a)) : A.single_name),
               (body : A.block), loc) 
       when isglobal && isExtern specs && isInline specs 
@@ -4067,7 +4099,8 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                   let oldvi, _ = lookupVar n in
                   if oldvi.vname <> n' then E.s (bug "extern inline redefinition: %s (expected %s)"
                                                    oldvi.vname n');
-                  H.remove env n; H.remove genv n
+                  H.remove env n; H.remove genv n;
+                  H.remove env n'; H.remove genv n'
                 with Not_found -> ());
                 n, sto 
               end
