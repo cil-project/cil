@@ -1113,6 +1113,7 @@ let charType = TInt(IChar, [])
 
 let charPtrType = TPtr(charType,[])
 let charConstPtrType = TPtr(TInt(IChar, [Attr("const", [])]),[])
+let stringLiteralType = ref charPtrType
 
 let voidPtrType = TPtr(voidType, [])
 let intPtrType = TPtr(intType, [])
@@ -1808,7 +1809,7 @@ let rec typeOf (e: exp) : typ =
     (* The type of a string is a pointer to characters ! The only case when 
      * you would want it to be an array is as an argument to sizeof, but we 
      * have SizeOfStr for that *)
-  | Const(CStr s) -> charPtrType
+  | Const(CStr s) -> !stringLiteralType
 
   | Const(CReal (_, fk, _)) -> TFloat(fk, [])
   | Lval(lv) -> typeOfLval lv
@@ -5424,6 +5425,14 @@ let computeCFGInfo (f : fundec) (global_numbering : bool) : stmt list =
 let initCIL () = 
   (* Set the machine *)
   theMachine := if !msvcMode then M.msvc else M.gcc;
+  (* Pick type for string literals *)
+  stringLiteralType := if !theMachine.M.const_string_literals then
+    begin
+      prerr_endline "string literals are const char *";
+      charConstPtrType
+    end
+  else
+    charPtrType;
   (* Find the right ikind given the size *)
   let findIkind (unsigned: bool) (sz: int) : ikind = 
     (* Test the most common sizes first *)

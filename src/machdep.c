@@ -49,10 +49,12 @@
 
 #ifdef _GNUCC
 #define LONGLONG long long
+#define CONST_STRING_LITERALS "true"
 #endif
 
 #ifdef _MSVC
 #define LONGLONG __int64
+#define CONST_STRING_LITERALS "false"
 #endif
 
 /* The type for the machine dependency structure is generated from the
@@ -108,6 +110,10 @@ int main() {
          ((char)0xff) > 0 ? "true" : "false");
 
 
+  // Whether string literals contain constant characters
+  puts("\t const_string_literals = " CONST_STRING_LITERALS ";");
+
+
   // endianity
   {
     int e = 0x11223344;
@@ -115,11 +121,6 @@ int main() {
            (0x44 == *(char*)&e) ? "true" :
            ((0x11 == *(char*)&e) ? "false" : (exit(1), "false")));
   }
+
   exit(0);
 } 
-
-  
- 
- 
-
- 
