@@ -231,6 +231,11 @@ $TEST->add3Tests("scott/rmunused");
 $TEST->add3Tests("scott/simplewild");
 $TEST->add3Tests("scott/lexnum");
 
+$TEST->add3Tests("scott/transpunion");
+$TEST->add3Tests("scott/oldstyle");
+$TEST->add3Tests("scott/typeof");
+$TEST->add3Tests("scott/asmfndecl");
+
 # $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug
 # my $tst = $TEST->getTest("apache/gzip-inferbox");
 # print Dumper($tst);
