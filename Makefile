@@ -53,6 +53,14 @@ EXTRACLEAN += $(OBJDIR)/*.obj $(OBJDIR)/*.a $(OBJDIR)/*.o
     # This file will add the rules to make $(EXECUTABLE).$(EXE)
 include Makefile.ocaml
 
+# ww: build an OCAML library (CMA / CMXA) that exports our Cil stuff
+# kudos to George for this lovely patsubst code ...
+cillib: $(OBJDIR)/cil.$(CMXA)
+
+$(OBJDIR)/cil.$(CMXA): $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
+	$(CAMLLINK) -a -o $@ $^
+
+
 # Now do the machine-specific customization
 -include $(CCUREDHOME)/.ccuredrc
 
@@ -225,6 +233,8 @@ else
   #  - modify the commands which build $(CCUREDLIB) so they
   #    include gc.a
   GCLIB =
+gctest:
+
 endif
 
 CCURED+= $(EXTRAARGS)
@@ -296,17 +306,20 @@ defaulttarget : $(EXECUTABLE)$(EXE)
 endif
 
 combiner:
-	make -f Makefile.combiner RELEASE=$(RELEASE)
+	$(MAKE) -f Makefile.combiner $(MAKEFLAGS)
 
 cilly: 
-	make -f Makefile.cil RELEASE=$(RELEASE)
+	$(MAKE) -f Makefile.cil $(MAKEFLAGS)
 
 presetup: 
 	rm -rf $(CCUREDLIB)
 
-setup: presetup  $(CCUREDLIB) gctest combiner cilly defaulttarget includes
+all: presetup  $(CCUREDLIB) gctest combiner cillib \
+       cilly defaulttarget includes
 
-
+setup: 
+	$(MAKE) all $(MAKEFLAGS) RELEASE= 
+	$(MAKE) all $(MAKEFLAGS) RELEASE=1
 
 
 # sm: my options
@@ -430,31 +443,7 @@ endif
 
 
 # ----------- above here is configuration -------------------
-# ----------- below here are rules to build the translator ---------
-# (actually, mostly they're in the MODULES line above and in Makefile.ocaml)
 
-.PHONY : defaulttarget
-ifdef NOREMAKE
-defaulttarget: 
-else
-defaulttarget: $(EXECUTABLE)$(EXE) $(CCUREDLIB) $(CILLIB) $(PATCHFILE2) 
-endif
-
-.PHONY: trval
-trval: 
-	make -C $(TVDIR)
-	make -C $(TVDIR) RELEASE=1
-
-# ww: build an OCAML library (CMA / CMXA) that exports our Cil stuff
-# kudos to George for this lovely patsubst code ...
-$(EXECUTABLE)$(EXE): $(OBJDIR)/cil.$(CMXA)
-
-$(OBJDIR)/cil.$(CMXA): $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
-	$(CAMLLINK) -a -o $@ $^
-
-
-
-# ----------- above here are rules for building the translator ----------
 # ----------- below here are rules for building benchmarks --------
 
 mustbegcc :
