@@ -66,10 +66,15 @@ include Makefile.ocaml.build
 quickbuild: cilversion machdep cilly
 
 # Setup also makes the native code versions
+#
+# sm: cillib is only built with NATIVECAML=1 because it builds libcil.a,
+# which requires native-code .cmx compiled modules... could break it
+# into two targets so we build cil.cma both ways, but no one is using
+# cil.cma now so I'll leave it alone
 setup: cilversion machdep
 	$(MAKE) -r -f Makefile.cil cilly $(MAKEOVERRIDES) NATIVECAML= 
 	$(MAKE) -r -f Makefile.cil cilly $(MAKEOVERRIDES) NATIVECAML=1
-	$(MAKE) -r -f Makefile.cil cillib $(MAKEOVERRIDES)
+	$(MAKE) -r -f Makefile.cil cillib $(MAKEOVERRIDES) NATIVECAML=1
 
 # Create the machine dependency module
 # If the cl command cannot be run then the MSVC part will be identical to GCC
@@ -126,16 +131,25 @@ $(OBJDIR)/cilversion.ml: configure.in
 .PHONY: cillib
 cillib: $(OBJDIR)/cil.$(CMXA) $(OBJDIR)/libcil.a
 
+# list of modules to use for building a library; remove 'maincil'
+# and add 'libmaincil'
+OCAML_CIL_LIB_MODULES := $(MODULES:maincil=) libmaincil
+
 # Build an OCAML library (CMA / CMXA) that exports our Cil stuff
-OCAML_CIL_LIB_MODULES = $(MODULES:main=)
 $(OBJDIR)/cil.$(CMXA): $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
 	$(CAMLLINK) -a -o $@ $^
 
 # sm: for Simon: build a library of CIL functions which can
 # be called from C code; this is like the target above, except
 # it is callable from C instead of from Ocaml
+ifeq ($(NATIVECAML),1)
 $(OBJDIR)/libcil.a: $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.cmx)
 	ocamlopt -output-obj -o $@ unix.cmxa str.cmxa $^
+else
+$(OBJDIR)/libcil.a:
+	@echo "Can only build $@ when NATIVECAML is 1."
+	exit 2
+endif
 
 # Test cil
 ifdef _MSVC
