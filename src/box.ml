@@ -918,11 +918,17 @@ let arrayPointerToIndex (t: typ) (k: N.pointerkind)
 
     (* If it is not sized then better have a length *)
   | TArray(elemt, Some alen, a) -> 
-      let knd =
-        if filterAttributes "nullterm" a <> [] then N.SeqN else N.Seq 
+      let knd, alen' =
+        if filterAttributes "nullterm" a <> [] then begin
+          (match unrollType elemt with
+            TInt((IChar|IUChar|ISChar), _) -> ()
+          | _ -> E.s (E.warn "NULLTERM array of %a\n" d_type elemt));
+          (* Leave null for the null character *)
+          N.SeqN, BinOp(MinusA, alen, one, intType)
+        end else N.Seq, alen 
       in
       (elemt, knd, mkAddrOf lv, 
-       BinOp(IndexPI, mkAddrOf lv, alen, TPtr(elemt, [])))
+       BinOp(IndexPI, mkAddrOf lv, alen', TPtr(elemt, [])))
 
   | _ -> E.s (E.bug "arrayPointerToIndex on a non-array (%a)" 
                 d_plaintype t)
@@ -944,7 +950,7 @@ let pkStartOf (lv: lval)
           in
           let pres = mkPointerTypeKind t pkind in
           if pkind = N.Seq || pkind = N.SeqN then
-            mkFexp3 pres newp base f3, []
+            mkFexp3 pres newp base bend, []
           else
             mkFexp2 pres newp base, []
       | N.Wild -> 
@@ -1260,14 +1266,14 @@ let beforeField ((btype, pkind, mklval, base, bend, stmts) as input) =
       (btype, N.Safe, mklval, zero, zero,
        stmts @ docheck)
         
-  | N.Seq -> 
+  | (N.Seq|N.SeqN) -> 
       let _, _, _, docheck = 
         seqToSafe (mkAddrOf (mklval NoOffset)) (TPtr(btype,[])) base bend []
       in
       (btype, N.Safe, mklval, zero, zero,
        stmts @ docheck)
         
-  | N.FSeq -> 
+  | (N.FSeq|N.FSeqN) -> 
       let _, _, _, docheck = 
         fseqToSafe (mkAddrOf (mklval NoOffset)) (TPtr(btype,[])) base bend []
       in
@@ -1311,7 +1317,7 @@ let stringLiteral (s: string) (strt: typ) =
                result, 
                doCast result (typeOf result) voidPtrType, zero))
   | N.Seq | N.Safe | N.FSeq | N.String | N.SeqN | N.FSeqN -> 
-      let l = ((1 + String.length s) + 3) land (lnot 3) in
+      let l = (if k = N.FSeqN || k = N.SeqN then 0 else 1) + String.length s in
       let tmp = makeTempVar !currentFunction charPtrType in
             (* Make it a SEQ for now *)
       let res = 
