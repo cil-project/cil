@@ -675,6 +675,7 @@ let mone      = integer (-1)
 
 let rec isInteger = function
   | Const(CInt32 (n,_,_)) -> Some n
+  | Const(CChr c) -> Some (Int32.of_int (Char.code c))
   | CastE(_, e) -> isInteger e
   | _ -> None
         

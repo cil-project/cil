@@ -2406,9 +2406,9 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
   | (MinusA|Le|Lt|Ge|Gt|Eq|Ne) when isPointerType t1 && isPointerType t2 ->
       pointerComparison e1 t1 e2 t2
   | (Eq|Ne) when isPointerType t1 && isZero e2 -> 
-      pointerComparison e1 t1 (doCastT e2 t2 t1) t1
+      pointerComparison e1 t1 (doCastT zero intType t1) t1
   | (Eq|Ne) when isPointerType t2 && isZero e1 -> 
-      pointerComparison (doCastT e1 t1 t2) t2 e2 t2
+      pointerComparison (doCastT zero intType t2) t2 e2 t2
 
 
   | (Eq|Ne|Le|Lt|Ge|Gt|Eq|Ne) when isPointerType t1 && isArithmeticType t2 ->
