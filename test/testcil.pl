@@ -148,6 +148,7 @@ $TEST->newTest(
 $TEST->addTests("testrun/const-array-init", "WARNINGS_ARE_ERRORS=1", ['cil']);
 $TEST->addTests("testrun/warnings-noreturn", "WARNINGS_ARE_ERRORS=1", ['cil']);
 $TEST->addTests("testrun/warnings-empty", "WARNINGS_ARE_ERRORS=1", ['cil']);
+$TEST->addTests("testrun/warnings-unused-label", "WARNINGS_ARE_ERRORS=1", ['cil']);
 $TEST->addTests("test_withtrusted/deepcopy1", "", ['inferbox']);
 $TEST->addTests("test_withtrusted/deepcopy2", "", ['inferbox']);
 $TEST->addTests("testrun/pointsto", "", ['inferbox']);
