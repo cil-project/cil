@@ -1,4 +1,4 @@
-extern int printf(const char*, ...);
+#include "testharness.h"
 
 typedef struct {
   int f1;

@@ -1,6 +1,4 @@
-
-extern void exit(int);
-extern int printf(const char*, ...);
+#include "testharness.h"
 
 // Testing some ugly switch cases
 int foo(int x, int y) {

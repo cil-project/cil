@@ -1,6 +1,5 @@
 // Example with computed labels
-
-extern void printf(char *fmt, ...);
+#include "testharness.h"
 
 int main() {
 
