@@ -1393,80 +1393,80 @@ and d_lval () lv =
         d_offset (fun _ -> dprintf "%t.%s" dobase fi.fname) o
     | Index (Const(CInt32(z,_,_)), NoOffset) when z = Int32.zero -> 
         dprintf "(*%t)" dobase
-    | Index (e, o) -> 
+    | Index (e, o) ->
         d_offset (fun _ -> dprintf "%t[%a]" dobase d_exp e) o
   in
   match lv with
     Var vi, o -> d_offset (fun _ -> text vi.vname) o
-  | Mem e, Field(fi, o) -> 
-      d_offset (fun _ -> 
+  | Mem e, Field(fi, o) ->
+      d_offset (fun _ ->
         dprintf "%a->%s" (d_expprec arrowLevel) e fi.fname) o
 (*  | Mem e, NoOffset -> dprintf "(*%a)" (d_expprec derefStarLevel) e *)
-  | Mem e, o -> 
+  | Mem e, o ->
       d_offset (fun _ -> dprintf "(*%a)" (d_expprec derefStarLevel) e) o
-        
+
 and d_instr () i =
   match i with
   | Set(lv,e,l) -> begin
       (* Be nice to some special cases *)
       match e with
-        BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt32(one,_,_)),_) 
-          when lv == lv' && one = Int32.one -> 
-          dprintf "%a ++;" d_lval lv
+        BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt32(one,_,_)),_)
+          when lv == lv' && one = Int32.one ->
+          dprintf "\n%s@!%a ++;" (printLine l) d_lval lv
       | BinOp((MinusA|MinusPI),Lval(lv'),
-              Const(CInt32(one,_,_)), _) when lv == lv' && one = Int32.one -> 
-          dprintf "%a --;" d_lval lv
+              Const(CInt32(one,_,_)), _) when lv == lv' && one = Int32.one ->
+          dprintf "\n%s@!%a --;" (printLine l) d_lval lv
       | BinOp((PlusA|PlusPI|IndexPI|MinusA|MinusPP|MinusPI|BAnd|BOr|BXor|
                Mult|Div|Mod|Shiftlt|Shiftrt) as bop,
-              Lval(lv'),e,_) when lv == lv' -> 
-          dprintf "%a %a= %a;" d_lval lv d_binop bop d_exp e
-      | _ -> dprintf "%a = %a;" d_lval lv d_exp e
+              Lval(lv'),e,_) when lv == lv' ->
+          dprintf "\n%s@!%a %a= %a;" (printLine l) d_lval lv d_binop bop d_exp e
+      | _ -> dprintf "\n%s@!%a = %a;" (printLine l) d_lval lv d_exp e
   end
   | Call(vio,e,args,l) ->
-      dprintf "%t%t(@[%a@]);" 
-        (fun _ -> match vio with 
-          None -> nil | 
-          Some (vi, iscast) -> 
+      dprintf "\n%s@!%t%t(@[%a@]);" (printLine l)
+        (fun _ -> match vio with
+          None -> nil |
+          Some (vi, iscast) ->
             if iscast then
-              dprintf "%s = (%a)" vi.vname d_type vi.vtype 
-            else 
+              dprintf "%s = (%a)" vi.vname d_type vi.vtype
+            else
               dprintf "%s = " vi.vname)
-        (fun _ -> match e with Lval(Var _, _) -> d_exp () e 
+        (fun _ -> match e with Lval(Var _, _) -> d_exp () e
         | _ -> dprintf "(%a)" d_exp e)
-	(docList (chr ',' ++ break) (d_exp ())) args
+        (docList (chr ',' ++ break) (d_exp ())) args
 
   | Asm(tmpls, isvol, outs, ins, clobs, l) ->
       if !msvcMode then
-        dprintf "__asm {@[%a@]};@!"  (docList line text) tmpls
+        dprintf "\n%s@!__asm {@[%a@]};@!" (printLine l) (docList line text) tmpls
       else
-        dprintf "__asm__ %s(@[%a%a%a%a@]);@!"
+        dprintf "\n%s@!__asm__ %s(@[%a%a%a%a@]);@!" (printLine l)
           (if isvol then "__volatile__" else "")
-          (docList line 
+          (docList line
              (fun x -> dprintf "\"%s\"" (escape_string x))) tmpls
-          insert 
-          (if outs = [] && ins = [] && clobs = [] then 
+          insert
+          (if outs = [] && ins = [] && clobs = [] then
             nil
-          else 
-            dprintf ": %a" (docList (chr ',' ++ break) 
+          else
+            dprintf ": %a" (docList (chr ',' ++ break)
                               (fun (c, lv) -> dprintf "\"%s\" (%a)"
                                   (escape_string c) d_lval lv)) outs)
           insert
           (if ins = [] && clobs = [] then
             nil
           else
-            dprintf ": %a" (docList (chr ',' ++ break) 
+            dprintf ": %a" (docList (chr ',' ++ break)
                               (fun (c, e) -> dprintf "\"%s\" (%a)"
                                   (escape_string c) d_exp e)) ins)
-          insert 
+          insert
           (if clobs = [] then nil
           else
-            dprintf ": %a" (docList (chr ',' ++ break) 
-                              (fun x -> dprintf "\"%s\"" (escape_string x))) 
+            dprintf ": %a" (docList (chr ',' ++ break)
+                              (fun x -> dprintf "\"%s\"" (escape_string x)))
               clobs)
-       
 
-and d_stmt_next (next: stmt) () (s: stmt) = 
-  dprintf "%s@!%a%t" (printLine (get_stmtLoc s.skind))
+
+and d_stmt_next (next: stmt) () (s: stmt) =
+  dprintf "%a%t"
     (* print the labels *)
     (docList line (fun l -> d_label () l)) s.labels
     (* print the statement itself. If the labels are non-empty and the 
@@ -1499,40 +1499,40 @@ and d_block () blk =
   dprintf "@[{ @[@!%a@]@!}@]" dofirst blk
 
 and d_stmtkind (next: stmt) () = function
-    Return(None, _) -> text "return;"
-  | Return(Some e, _) -> dprintf "return (%a);" d_exp e
-  | Goto (sref, _) -> d_goto !sref
-  | Break _ -> text "break;"
-  | Continue _ -> text "continue;"
+    Return(None, l) -> dprintf "\n%s@!return;" (printLine l)
+  | Return(Some e, l) -> dprintf "\n%s@!return (%a);" (printLine l) d_exp e
+  | Goto (sref, l) -> d_goto !sref
+  | Break l -> dprintf "\n%s@!break;" (printLine l)
+  | Continue l -> dprintf "\n%s@!continue;" (printLine l)
 (*  | Instr [] -> text "/* empty block */" *)
-  | Instr il -> 
-      dprintf "@[%a@]" 
+  | Instr il ->
+      dprintf "@[%a@]"
         (docList line (fun i -> d_instr () i)) il
-  | If(be,t,[],_) -> 
-      dprintf "if@[ (%a)@!%a@]" d_exp be d_block t
-  | If(be,t,[{skind=Goto(gref,_);labels=[]} as s],_) 
-      when !gref == next -> 
-      dprintf "if@[ (%a)@!%a@]" d_exp be d_block t
-  | If(be,[],e,_) -> 
-      dprintf "if@[ (%a)@!%a@]" d_exp (UnOp(LNot,be,intType)) d_block e
-  | If(be,[{skind=Goto(gref,_);labels=[]} as s],e,_) 
-      when !gref == next -> 
-      dprintf "if@[ (%a)@!%a@]" d_exp  (UnOp(LNot,be,intType)) 
+  | If(be,t,[],l) ->
+      dprintf "\n%s@!if@[ (%a)@!%a@]" (printLine l) d_exp be d_block t
+  | If(be,t,[{skind=Goto(gref,_);labels=[]} as s],l)
+      when !gref == next ->
+      dprintf "\n%s@!if@[ (%a)@!%a@]" (printLine l) d_exp be d_block t
+  | If(be,[],e,l) ->
+      dprintf "\n%s@!if@[ (%a)@!%a@]" (printLine l) d_exp (UnOp(LNot,be,intType)) d_block e
+  | If(be,[{skind=Goto(gref,_);labels=[]} as s],e,l)
+      when !gref == next ->
+      dprintf "\n%s@!if@[ (%a)@!%a@]" (printLine l) d_exp  (UnOp(LNot,be,intType))
           d_block e
-  | If(be,t,e,_) -> 
-      dprintf "@[if@[ (%a)@!%a@]@!el@[se@!%a@]@]" 
+  | If(be,t,e,l) ->
+      dprintf "\n%s@!@[if@[ (%a)@!%a@]@!el@[se@!%a@]@]" (printLine l)
         d_exp be d_block t d_block e
-  | Switch(e,b,_,_) -> 
-      dprintf "@[switch (%a)@!%a@]" d_exp e d_block b
+  | Switch(e,b,_,l) ->
+      dprintf "\n%s@!@[switch (%a)@!%a@]" (printLine l) d_exp e d_block b
 (*
-  | Loop(b, l) -> 
+  | Loop(b, l) ->
       See if the first thing in the block is a "if e then skip else break"
       let rec findBreakExp = function
-  | Loop({skind=If(e,[],[{skind=Goto (gref,_)} as brk],_)} :: rest, _) 
-    when !gref == next && brk.labels == [] -> 
+  | Loop({skind=If(e,[],[{skind=Goto (gref,_)} as brk],_)} :: rest, _)
+    when !gref == next && brk.labels == [] ->
       dprintf "wh@[ile (%a)@!%a@]" d_exp e d_block rest
-*)          
-  | Loop(b, _) -> 
+*)
+  | Loop(b, l) ->
       (* Maybe the first thing is a conditional *)
       try
         let term, body =
@@ -1550,9 +1550,9 @@ and d_stmtkind (next: stmt) () = function
             end
           | _ -> raise Not_found
         in
-        dprintf "wh@[ile (%a)@!%a@]" d_exp term d_block body
-      with Not_found -> 
-        dprintf "wh@[ile (1)@!%a@]" d_block b
+        dprintf "\n%s@!wh@[ile (%a)@!%a@]" (printLine l) d_exp term d_block body
+      with Not_found ->
+        dprintf "\n%s@!wh@[ile (1)@!%a@]" (printLine l) d_block b
 
         
 
