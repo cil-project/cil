@@ -243,6 +243,7 @@ and constant =
   | CONST_CHAR of string
   | CONST_STRING of string
   | CONST_WSTRING of string
+  | CONST_BOOL of bool
 
 and init_expression =
   | NO_INIT
