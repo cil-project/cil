@@ -20,8 +20,11 @@
 **	2.1e	9.1.99	Hugues Cassé	Fix, recognize and correctly display '\0'.
 *)
 
+open Cil
 open Cabs
 let version = "Cprint 2.1e 9.1.99 Hugues Cassé"
+
+let lu = {line = -1; col = -1; file = "loc unknown";}
 
 let msvcMode = ref false
 
@@ -624,7 +627,7 @@ and print_expression (exp : expression) (lvl : int) =
       print ("->" ^ fld)
   | GNU_BODY blk ->
       print "(";
-      print_statement (BLOCK blk);
+      print_statement (BLOCK (blk, {line = -1; col = -1; file = "";}));
       print ")" in
   if lvl > lvl' then print ")" else ()
     
@@ -634,14 +637,14 @@ and print_expression (exp : expression) (lvl : int) =
 *)
 and print_statement stat =
   match stat with
-    NOP ->
+    NOP (loc) ->
       print ";";
       new_line ()
-  | COMPUTATION exp ->
+  | COMPUTATION (exp, loc) ->
       print_expression exp 0;
       print ";";
       new_line ()
-  | BLOCK blk ->
+  | BLOCK (blk, loc) ->
       new_line ();
       print "{";
       indent ();
@@ -653,33 +656,33 @@ and print_statement stat =
       unindent ();
       print "}";
       new_line ();
-  | SEQUENCE (s1, s2) ->
+  | SEQUENCE (s1, s2, loc) ->
       print_statement s1;
       print_statement s2;
-  | IF (exp, s1, s2) ->
+  | IF (exp, s1, s2, loc) ->
       print "if(";
       print_expression exp 0;
       print ")";
       print_substatement s1;
-      if s2 = NOP
-      then ()
-      else begin
-	print "else";
-	print_substatement s2;
-      end
-  | WHILE (exp, stat) ->
+      (match s2 with
+      | NOP(_) -> ()
+      | _ -> begin
+          print "else";
+          print_substatement s2;
+        end)
+  | WHILE (exp, stat, loc) ->
       print "while(";
       print_expression exp 0;
       print ")";
       print_substatement stat
-  | DOWHILE (exp, stat) ->
+  | DOWHILE (exp, stat, loc) ->
       print "do";
       print_substatement stat;
       print "while(";
       print_expression exp 0;
       print ");";
       new_line ();
-  | FOR (exp1, exp2, exp3, stat) ->
+  | FOR (exp1, exp2, exp3, stat, loc) ->
       print "for(";
       print_expression exp1 0;
       print ";";
@@ -690,11 +693,11 @@ and print_statement stat =
       print_expression exp3 0;
       print ")";
       print_substatement stat
-  | BREAK ->
+  | BREAK (loc)->
       print "break;"; new_line ()
-  | CONTINUE ->
+  | CONTINUE (loc) ->
       print "continue;"; new_line ()
-  | RETURN exp ->
+  | RETURN (exp, loc) ->
       print "return";
       if exp = NOTHING
       then ()
@@ -704,32 +707,32 @@ and print_statement stat =
       end;
       print ";";
       new_line ()
-  | SWITCH (exp, stat) ->
+  | SWITCH (exp, stat, loc) ->
       print "switch(";
       print_expression exp 0;
       print ")";
       print_substatement stat
-  | CASE (exp, stat) ->
+  | CASE (exp, stat, loc) ->
       unindent ();
       print "case ";
       print_expression exp 1;
       print ":";
       indent ();
       print_substatement stat
-  | DEFAULT stat ->
+  | DEFAULT (stat, loc) ->
       unindent ();
       print "default :";
       indent ();
       print_substatement stat
-  | LABEL (name, stat) ->
+  | LABEL (name, stat, loc) ->
       print (name ^ ":");
       space ();
       print_substatement stat
-  | GOTO name ->
+  | GOTO (name, loc) ->
       print ("goto " ^ name ^ ";");
       new_line ()
-  | ASM (tlist, isvol, outs, ins, clobs) ->
-      let print_asm_operand (cnstr, e) = 
+  | ASM (tlist, isvol, outs, ins, clobs, loc) ->
+      let print_asm_operand (cnstr, e) =
         print_string cnstr; space (); print_expression e 100
       in
       if !msvcMode then begin
@@ -738,7 +741,7 @@ and print_statement stat =
         print "};"
       end else begin
         print "__asm__ "; if isvol then print "__volatile__ ";
-        print "("; 
+        print "(";
         print_list (fun () -> new_line()) print_string tlist;(* templates *)
           print ":"; space ();
         print_commas false print_asm_operand outs;
@@ -747,7 +750,7 @@ and print_statement stat =
         if clobs <> [] then begin
           print ":"; space ();
           print_commas false print_string clobs
-        end;
+        end;                                
         print ");"
       end
 and print_substatement stat =
@@ -833,14 +836,14 @@ and print_defs defs =
 	  prev := true);
       print_def def)
     defs
-    
+
 and print_def def =
   match def with
     FUNDEF (proto, body) ->
       print_single_name proto;
-      print_statement (BLOCK body);
+      print_statement (BLOCK (body, lu));
       force_new_line ();
-      
+
   | DECDEF names ->
       print_name_group names;
       print ";";

@@ -9,39 +9,40 @@
 **		if it isn't, this a multiplication.
 **
 ** IMPLEMENT:
-**		(1) Old-parameter passing style with an exception: 
+**		(1) Old-parameter passing style with an exception:
 **                  the first old-style
 **		parameter name can't be a type name.
-**		(2) GNU __attribute__ modifier, 
+**		(2) GNU __attribute__ modifier,
 **                  GNU ({ }) statement in expression form.
 **
 ** HISTORY
 **	1.0	2.19.99	Hugues Cassé	First version.
-**	2.0	3.22.99	Hugues Cassé	Large simplification 
+**	2.0	3.22.99	Hugues Cassé	Large simplification
 **                                      about declarations.
-**					"register" parameters added, 
+**					"register" parameters added,
 **                                      function pointers,
 **					GCC attributes, typedef full supported.
-**	2.1	4.23.99	Hugues Cassé	GNU Statement embedded statements 
+**	2.1	4.23.99	Hugues Cassé	GNU Statement embedded statements
 **                                      managed.
 **		a	&x == y was analyzed as ADDROF(EQ(x, y)) corrected
 **                      into the right form EQ(ADDROF(x), y)
 **		b	typedef struct ID ... ID; is now accepted.
 **		c	{v1, v2, v3, } now accepted.
-**		d	Spaced string components now accepted. 
+**		d	Spaced string components now accepted.
 **                      Example: "Hel" "lo !".
-**	3.0	6.1.99	Hugues Cassé	Solve fully the problem of 
-**                                      local/field/parameter with the same 
+**	3.0	6.1.99	Hugues Cassé	Solve fully the problem of
+**                                      local/field/parameter with the same
 **                                      identifier to a typedef.
 **	a		  const and volatile accepted for basic types
 **			  for fields and only-types.
 **	b	10.9.99	Hugues Cassé	Correct priorities of type algebra:
-**			   ()() > * > []. Add typalg.c for testing it.	
+**			   ()() > * > []. Add typalg.c for testing it.
 **
 **      George Necula. 12/12/00: extended the syntax to process GNU C
 **      George Necula. 1/4/00: completely rewrote the parsing of types
 */
 %{
+open Cil
 open Cabs
 let version = "Cparser V3.0b 10.9.99 Hugues Cassé"
 
@@ -661,39 +662,71 @@ block_item_list:
 ;
 
 statement:
-    SEMICOLON		{NOP}  
+    SEMICOLON		{NOP {line = (Clexer.lineno !Clexer.current_handle); 
+    			 col = -1;                        
+    			 file = (Clexer.file_name !Clexer.current_handle);}}
 |   comma_expression SEMICOLON
-			{COMPUTATION (smooth_expression $1)}			
-|   block		{BLOCK $1}					
+			{COMPUTATION ((smooth_expression $1),
+			 	      {line = (Clexer.lineno !Clexer.current_handle); col = -1;
+			 	       file = (Clexer.file_name !Clexer.current_handle)})}
+|   block		{BLOCK ($1, {line = (Clexer.lineno !Clexer.current_handle); col = -1;
+			 	     file = (Clexer.file_name !Clexer.current_handle)})}
 |   IF LPAREN comma_expression RPAREN statement %prec IF
-			{IF (smooth_expression $3, $5, NOP)}
+			{IF (smooth_expression $3, $5,
+			NOP{line = (Clexer.lineno !Clexer.current_handle); col = -1; file = (Clexer.file_name !Clexer.current_handle);},
+			{line = (Clexer.lineno !Clexer.current_handle); col = -1;
+			 file = (Clexer.file_name !Clexer.current_handle)})}
 |   IF LPAREN comma_expression RPAREN statement ELSE statement
-			{IF (smooth_expression $3, $5, $7)}
+			{IF (smooth_expression $3, $5, $7,
+		        {line = (Clexer.lineno !Clexer.current_handle); col = -1;
+			 file = (Clexer.file_name !Clexer.current_handle)})}
 |   SWITCH LPAREN comma_expression RPAREN statement
-                        {SWITCH (smooth_expression $3, $5)}
+                        {SWITCH (smooth_expression $3, $5,
+		        {line = (Clexer.lineno !Clexer.current_handle); col = -1;
+			 file = (Clexer.file_name !Clexer.current_handle)})}
 |   WHILE LPAREN comma_expression RPAREN statement
-			{WHILE (smooth_expression $3, $5)}
+			{WHILE (smooth_expression $3, $5,
+		        {line = (Clexer.lineno !Clexer.current_handle); col = -1;
+			 file = (Clexer.file_name !Clexer.current_handle)})}
 |   DO statement WHILE LPAREN comma_expression RPAREN SEMICOLON
-			{DOWHILE (smooth_expression $5, $2)}
+			{DOWHILE (smooth_expression $5, $2,
+		        {line = (Clexer.lineno !Clexer.current_handle); col = -1;
+			 file = (Clexer.file_name !Clexer.current_handle)})}
 |   FOR LPAREN opt_expression SEMICOLON opt_expression
 		SEMICOLON opt_expression RPAREN statement
-			{FOR ($3, $5, $7, $9)}
+			{FOR ($3, $5, $7, $9,
+		        {line = (Clexer.lineno !Clexer.current_handle); col = -1;
+			 file = (Clexer.file_name !Clexer.current_handle)})}
 |   IDENT COLON statement
-			{LABEL ($1, $3)}			
+			{LABEL ($1, $3,
+		        {line = (Clexer.lineno !Clexer.current_handle); col = -1;
+			 file = (Clexer.file_name !Clexer.current_handle)})}
 |   CASE expression COLON
-			{CASE ($2, NOP)}
+			{CASE ($2, NOP{line = (Clexer.lineno !Clexer.current_handle); col = -1;
+			 file = (Clexer.file_name !Clexer.current_handle)},
+		        {line = (Clexer.lineno !Clexer.current_handle); col = -1;
+			 file = (Clexer.file_name !Clexer.current_handle)})}
 |   DEFAULT COLON
-			{DEFAULT NOP}		
-|   RETURN SEMICOLON	{RETURN NOTHING}		     
+			{DEFAULT (NOP{line = (Clexer.lineno !Clexer.current_handle); col = -1;
+			 file = (Clexer.file_name !Clexer.current_handle)}, {line = (Clexer.lineno !Clexer.current_handle); col = -1;
+			 file = (Clexer.file_name !Clexer.current_handle)})}
+|   RETURN SEMICOLON	{RETURN (NOTHING, {line = (Clexer.lineno !Clexer.current_handle); col = -1;
+			 file = (Clexer.file_name !Clexer.current_handle)})}      
 |   RETURN expression SEMICOLON
-			{RETURN $2}		
-|   BREAK SEMICOLON	{BREAK}						
-|   CONTINUE SEMICOLON	{CONTINUE}				
+			{RETURN ($2, {line = (Clexer.lineno !Clexer.current_handle); col = -1;
+			 file = (Clexer.file_name !Clexer.current_handle)})}
+|   BREAK SEMICOLON	{BREAK {line = (Clexer.lineno !Clexer.current_handle); col = -1;
+			 file = (Clexer.file_name !Clexer.current_handle)}}
+|   CONTINUE SEMICOLON	{CONTINUE {line = (Clexer.lineno !Clexer.current_handle); col = -1;
+			 file = (Clexer.file_name !Clexer.current_handle)}}
 |   GOTO IDENT SEMICOLON
-			{GOTO $2}				
-|   gnuasm  SEMICOLON   { $1 } 
-|   MSASM               { ASM ([$1], false, [], [], []) }
-|   error   SEMICOLON   { NOP }
+			{GOTO ($2, {line = (Clexer.lineno !Clexer.current_handle); col = -1;
+			 file = (Clexer.file_name !Clexer.current_handle)})}
+|   gnuasm  SEMICOLON   { $1} 
+|   MSASM               { ASM ([$1], false, [], [], [], {line = (Clexer.lineno !Clexer.current_handle); col = -1;
+			 file = (Clexer.file_name !Clexer.current_handle)}) }
+|   error   SEMICOLON   { (NOP {line = (Clexer.lineno !Clexer.current_handle); col = -1;
+			 file = (Clexer.file_name !Clexer.current_handle)}) }
 ;
 
 
@@ -1038,7 +1071,8 @@ attr_args_ne:
 gnuasm: 
    ASM maybevol LPAREN asmtemplate asmoutputs RPAREN
                         { let (outs,ins,clobs) = $5 in
-                          ASM ($4, $2, outs, ins, clobs) }
+                          ASM ($4, $2, outs, ins, clobs, {line = Clexer.lineno !Clexer.current_handle;
+                          col = -1; file = Clexer.file_name !Clexer.current_handle}) }
 ;
 maybevol:
      /* empty */                        { false }

@@ -229,40 +229,40 @@ and combineBlkElem = function
 *)
 and combine_statement stat =
   match stat with
-    NOP ->
-      NOP
-  | COMPUTATION exp ->
-      COMPUTATION(combine_expression exp)  
-  | BLOCK blk ->
-      BLOCK(List.map combineBlkElem blk)
-  | SEQUENCE (s1, s2) ->
-      SEQUENCE(combine_statement s1, combine_statement s2)
-  | IF (exp, s1, s2) ->
-      IF(combine_expression exp, combine_substatement s1, combine_substatement s2)
-  | WHILE (exp, stat) ->
-      WHILE(combine_expression exp, combine_substatement stat)
-  | DOWHILE (exp, stat) ->
-      DOWHILE(combine_expression exp, combine_substatement stat)
-  | FOR (exp1, exp2, exp3, stat) ->
-      FOR(combine_expression exp1, combine_expression exp2, combine_expression exp3, combine_substatement stat)
-  | BREAK ->
-      BREAK
-  | CONTINUE ->
-      CONTINUE
-  | RETURN exp ->
-      RETURN (combine_expression exp) 
-  | SWITCH (exp, stat) ->
-      SWITCH(combine_expression exp, combine_substatement stat)
-  | CASE (exp, stat) ->
-      CASE(combine_expression exp, combine_substatement stat)
-  | DEFAULT stat ->
-      DEFAULT(combine_substatement stat)
-  | LABEL (name, stat) ->
-      LABEL(name, combine_substatement stat)
-  | GOTO name ->
-      GOTO(name)    
-  | ASM (tlist, isvol, outs, ins, clobs) ->
-      ASM(tlist, isvol, outs, ins, clobs)   
+    NOP loc->
+      NOP loc
+  | COMPUTATION (exp, loc) ->
+      COMPUTATION(combine_expression exp, loc)
+  | BLOCK (blk, loc) ->
+      BLOCK(List.map combineBlkElem blk, loc)
+  | SEQUENCE (s1, s2, loc) ->
+      SEQUENCE(combine_statement s1, combine_statement s2, loc)
+  | IF (exp, s1, s2, loc) ->
+      IF(combine_expression exp, combine_substatement s1, combine_substatement s2, loc)
+  | WHILE (exp, stat, loc) ->
+      WHILE(combine_expression exp, combine_substatement stat, loc)
+  | DOWHILE (exp, stat, loc) ->
+      DOWHILE(combine_expression exp, combine_substatement stat, loc)
+  | FOR (exp1, exp2, exp3, stat, loc) ->
+      FOR(combine_expression exp1, combine_expression exp2, combine_expression exp3, combine_substatement stat, loc)
+  | BREAK(loc) ->
+      BREAK(loc) 
+  | CONTINUE (loc)->
+      CONTINUE (loc)
+  | RETURN (exp, loc) ->
+      RETURN (combine_expression exp, loc)
+  | SWITCH (exp, stat, loc) ->
+      SWITCH(combine_expression exp, combine_substatement stat, loc)
+  | CASE (exp, stat, loc) ->
+      CASE(combine_expression exp, combine_substatement stat, loc)
+  | DEFAULT (stat, loc) ->
+      DEFAULT(combine_substatement stat, loc)
+  | LABEL (name, stat, loc) ->
+      LABEL(name, combine_substatement stat, loc)
+  | GOTO (name, loc) ->
+      GOTO(name, loc)
+  | ASM (tlist, isvol, outs, ins, clobs, loc) ->
+      ASM(tlist, isvol, outs, ins, clobs, loc)   
            
 and combine_substatement stat =
   combine_statement stat
