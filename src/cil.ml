@@ -315,22 +315,13 @@ and offset =
                                          * type *)
     (* [Field(f, off)](a, struct {f : T, ...}) = [off](a + offsetof(f), T) *)
 
-  | First      of offset                (* An explicit cast from arrays to 
-                                         * the first element. This has no 
-                                         * source-level equivalent *)
-    (* [First off](a, array (T)) = [off](a, T) *)
-
-  | Index      of exp * offset          (* l + e + offset. *)
-    (* [Index(e, off)](a, T) = [off](a + e * sizeof(T), T) *)
-
+  | Index    of exp * offset           (* l[e] + offset. l must be an array 
+                                        * and l[e] has the element type *)
+    (* [Index(e, off)](a, array(T)) = [off](a + e * sizeof(T), T) *)
 
 (* the following equivalences hold *)
 (* Index(0, off) = off                                                 *)
 (* Mem(StartOf lv), NoOffset = StartOf (lv) if lv is a function *)
-(* Mem(StartOf(Mem a, aoff)), off = Mem(a, aoff + First + off)  if Mem a, aoff 
- * is an array       *)
-(* Mem(StartOf(Var v, aoff)), off = Var(a, aoff + First + off)  if Var v, aoff 
- * is an array      *)
 (* Mem(AddrOf(Mem a, aoff)), off   = Mem(a, aoff + off)                *)
 (* Mem(AddrOf(Var v, aoff)), off   = Var(v, aoff + off)                *)
 
@@ -758,7 +749,7 @@ let getParenthLevel = function
 
                                         (* Lvals *)
   | Lval(Mem _ , _) -> 20                   
-  | Lval(Var _, (Field _|Index _|First _)) -> 20
+  | Lval(Var _, (Field _|Index _)) -> 20
   | SizeOf _ -> 20
 
   | Lval(Var _, NoOffset) -> 0        (* Plain variables *)
@@ -960,7 +951,6 @@ and d_exp () e =
             let rec d_offset () = function
               | NoOffset -> dprintf "=%a" d_exp e
               | Field (fi, o) -> dprintf ".%s%a" fi.fname d_offset o
-              | First (o) -> d_offset () o
               | Index (e, o) -> dprintf "[%a]%a" d_exp e d_offset o
             in
             d_offset () o
@@ -1038,9 +1028,6 @@ and d_lval () lv =
     | Field (fi, o) -> 
         d_offset (fun _ -> dprintf "%t.%s" dobase fi.fname) o
     | Index (Const(CInt(0,_,_),_), NoOffset) -> dprintf "(*%t)" dobase
-    | First (NoOffset) -> dprintf "(*%t)" dobase
-    | First (Index _ as o) -> d_offset dobase o
-    | First o -> d_offset (fun _ -> dprintf "%t[0]" dobase) o
     | Index (e, o) -> 
         d_offset (fun _ -> dprintf "%t[%a]" dobase d_exp e) o
   in
@@ -1246,7 +1233,6 @@ and d_plainoffset () = function
   | Field(fi,o) -> 
       dprintf "Field(@[%s:%a,@?%a@])" 
         fi.fname d_plaintype fi.ftype d_plainoffset o
-  | First o -> dprintf "First(%a)" d_plainoffset o
   | Index(e, o) -> dprintf "Index(@[%a,@?%a@])" d_plainexp e d_plainoffset o
 
 and d_plaintype () = function
@@ -1309,7 +1295,6 @@ let iterExp (f: exp -> unit) (body: stmt) : unit =
   and fOff = function
       Field (_, o) -> fOff o
     | Index (e, o) -> fExp e; fOff o
-    | First o -> fOff o
     | NoOffset -> ()
   and fStmt = function
       (Skip|Break|Continue|Label _|Goto _|Case _|Default|Return None) -> ()
@@ -1347,7 +1332,6 @@ begin
   and fOff = function
       Field (_, o) -> fOff o
     | Index (e, o) -> fExp e; fOff o
-    | First o -> fOff o
     | NoOffset -> ()
   and fStmt = function
       (Skip|Break|Continue|Label _|Goto _|Case _|Default|Return None) -> ()
@@ -1452,13 +1436,12 @@ and typeOfLval = function
 
 and typeOffset basetyp = function
     NoOffset -> basetyp
-  | Index (_, o) -> typeOffset basetyp o
-  | Field (fi, o) -> typeOffset fi.ftype o
-  | First o -> begin
+  | Index (_, o) -> begin
       match unrollType basetyp with
         TArray (t, _, _) -> typeOffset t o
-      | t -> E.s (E.bug "typeOffset: First on a non-array: %a" d_plaintype t)
-  end
+      | t -> E.s (E.bug "typeOffset: Index on a non-array: %a" d_plaintype t)
+  end 
+  | Field (fi, o) -> typeOffset fi.ftype o
 
 
 
@@ -1473,7 +1456,6 @@ let rec addOffset toadd (off: offset) : offset =
   match off with
     NoOffset -> toadd
   | Field(fid', offset) -> Field(fid', addOffset toadd offset)
-  | First offset -> First (addOffset toadd offset)
   | Index(e, offset) -> Index(e, addOffset toadd offset)
 
  (* Add an offset at the end of an lv *)      
@@ -1485,20 +1467,29 @@ let addOffsetLval toadd (b, off) : lval =
   (* Make a Mem, while optimizing StartOf. The type of the addr must be 
    * TPtr(t) and the type of the resulting expression is t *)
 let mkMem (addr: exp) (off: offset) : exp =  
+  let isarray = (* Maybe the addr is the start of an array *)
+    match addr with 
+      StartOf(lv) when 
+      (match unrollType (typeOfLval lv) with TArray _ -> true | _ -> false)
+        -> Some lv
+    | _ -> None
+  in
   let res = 
-    match addr with
-      StartOf(lv) -> begin
-        match unrollType (typeOfLval lv) with
-        | TArray _ -> Lval(addOffsetLval (First off) lv)
-        | TFun _ when off == NoOffset -> Lval lv (* addr *)
-        | _ -> E.s (E.bug "mkMem: invalid use of StartOf")
-      end
-    | _ -> Lval(Mem addr, off)
+    match isarray, off with
+      Some lv, Index _ -> (* index on an array *)
+        Lval(addOffsetLval off lv)
+    | Some lv, _ -> (* non-index on an array *)
+        Lval(addOffsetLval (Index(zero, off)) lv)
+    | None, Index(ei, resto) -> (* index on a non-array *)
+        Lval(Mem (BinOp(PlusPI, addr, ei, typeOf addr, lu)), resto) 
+    | None, _ -> (* non-index on a non-array *)
+        Lval(Mem addr, off)
   in
 (*  ignore (E.log "memof : %a\nresult = %a\n" 
             d_plainexp addr d_plainexp res); *)
   res
           
+
 
 let mkAddrOf ((b, off) as lval) : exp = 
   (* Mark the vaddrof flag if b is a variable *)
@@ -1692,8 +1683,8 @@ let foldLeftCompound (doexp: offset -> exp -> typ -> 'a -> 'a)
             let nextidx', thisoff, thisexpt = 
               match io with
                 None -> 
-                  incrementIdx nextidx, First(Index(nextidx, NoOffset)), bt
-              | Some (First(Index(idxe, restof)) as off) -> 
+                  incrementIdx nextidx, Index(nextidx, NoOffset), bt
+              | Some (Index(idxe, restof) as off) -> 
                   let t = typeOffset bt restof in
                   incrementIdx idxe, off, t
               | _ -> E.s (E.unimp "Unexpected offset in array initializer")
@@ -1744,7 +1735,6 @@ let foldLeftCompound (doexp: offset -> exp -> typ -> 'a -> 'a)
 let rec isCompleteType t = 
   match unrollType t with 
   | TArray(t, None, _) -> false
-(*  | TComp comp when comp.cfields = [] -> false *)
   | TComp comp -> (* Struct or union *)
       List.for_all (fun fi -> isCompleteType fi.ftype) comp.cfields
   | _ -> true
@@ -1810,7 +1800,7 @@ end;;
           (trace "sm" (dprintf "function: %s\n" f.svar.vname))
         end
       | _ -> ()
-    end)
+    end
 *)
 
 (**
@@ -1833,6 +1823,7 @@ type offsetAcc =
                                                    * of the bitfield and the 
                                                    * width of the ikind *)
     } 
+
 let rec offsetOfFieldAcc (fi: fieldinfo) 
                          (sofar: offsetAcc) : offsetAcc = 
   (* field type *)
@@ -1909,7 +1900,7 @@ let rec offsetOfFieldAcc (fi: fieldinfo)
 (* The size of a type, in bits. If struct or array then trailing padding is 
  * added *)
 and bitsSizeOf t = 
-	match t with 
+  match t with 
     TInt((IChar|ISChar|IUChar), _) -> 8
   | TInt((IShort|IUShort), _) -> 16
   | TInt((IInt|IUInt), _) -> 32
@@ -1978,6 +1969,7 @@ and sizeOf t =
             
 
  
+
 let offsetOf (fi: fieldinfo) (startcomp: int) : int * int = 
   (* Construct a list of fields preceeding and including this one *)
   let prevflds = 

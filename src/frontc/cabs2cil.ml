@@ -766,7 +766,7 @@ and doExp (isconst: bool)    (* In a constant *)
                      d_plaintype t1 d_plaintype t2)
         in
         (* Do some optimization of StartOf *)
-        finishExp se (mkMem e1'' (Index(e2'',NoOffset))) tresult
+        finishExp se (mkMem e1'' (Index(e2'', NoOffset))) tresult
 
     end      
     | A.UNARY (A.MEMOF, e) -> 
@@ -938,7 +938,7 @@ and doExp (isconst: bool)    (* In a constant *)
                     | _ -> E.s (E.unimp "Index designator for a non-array")
                   in
                   let off, t = initToOffset elt i in
-                  First (Index (doPureExp intType ei, off)), t
+                  Index (doPureExp intType ei, off), t
 
               | A.FIELD_INIT (fn, i) ->
                   let fld = 
@@ -1010,7 +1010,7 @@ and doExp (isconst: bool)    (* In a constant *)
                     | A.INDEX_INIT (idxe, i') -> 
                         let idxe' = doPureExp intType idxe in
                         let off, t = initToOffset elt i' in
-                        incrementIdx idxe', Some(First(Index(idxe', off))), t
+                        incrementIdx idxe', Some (Index(idxe', off)), t
                   in
                   (* Now do the initializer *)
                   let ie'= doPureExp thisexpt ie in

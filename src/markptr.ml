@@ -271,10 +271,18 @@ and doOffset (off: offset) (n: N.node) : offset * N.node =
       let nextn = fieldOfNode n fi in
       let newo, newn = doOffset resto nextn in
       Field(fi, newo), newn
+(*
   | First resto -> 
       let nextn = firstOfNode n in
       let newo, newn = doOffset resto nextn in
       First newo, newn
+  | Index(e, resto) -> begin
+      n.N.posarith <- true;
+      let newo, newn = doOffset resto n in
+      let e', et, _ = doExp e in
+      Index(e', newo), newn
+  end
+*)
   | Index(e, resto) -> begin
       n.N.posarith <- true;
       let newo, newn = doOffset resto n in

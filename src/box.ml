@@ -309,9 +309,14 @@ let rec readPtrBaseField (e: exp) et =
       | Index(e, o) ->
           let po, bo = compOffsets o in
           Index(e, po), Index(e, bo)
+(*
+      | Index(e, o) ->
+          let po, bo = compOffsets o in
+          Index(e, po), Index(e, bo)
       | First o -> 
           let po, bo = compOffsets o in
           First po, First bo
+*)
     in
     let ptre, basee = 
       match e with
@@ -512,7 +517,7 @@ let makeTagAssignInit (iter: varinfo) vi : stmt list =
   mkSet (Var vi, Field(lfld, NoOffset)) words ::
   (* And the loop *)
   mkForIncr iter zero tagwords one 
-    [mkSet (Var vi, Field(tfld, First (Index (Lval(var iter), NoOffset)))) 
+    [mkSet (Var vi, Field(tfld, Index (Lval(var iter), NoOffset))) 
         zero ]
   ::
   []
@@ -589,7 +594,10 @@ let getHostIfBitfield lv t =
           Field(fi, NoOffset) -> NoOffset
         | Field(fi, off) -> Field(fi, getHost off)
         | Index(e, off) -> Index(e, getHost off)
+(*
+        | Index(e, off) -> Index(e, getHost off)
         | First(off) -> First(getHost off)
+*)
         | NoOffset -> E.s (E.bug "a TBitfield that is not a bitfield")
       in
       let lv' = lvbase, getHost lvoff in
@@ -624,7 +632,7 @@ let checkBounds : (unit -> exp) -> exp -> lval -> typ -> stmt =
           let rec hasIndex = function
             | Index _ -> true
             | NoOffset -> false
-            | First o -> true (* in an array. Might be of length 0 *)
+(*            | First o -> true in an array. Might be of length 0 *)
             | Field (_, o) -> hasIndex o
           in
           hasIndex off
@@ -845,8 +853,8 @@ let interceptCastFunction =
 (* Check if an offset contains a non-zero index *)
 let rec containsIndex = function
     NoOffset -> false
-  | First o -> containsIndex o
   | Field (_, o) -> containsIndex o
+(*  | Index (Const(CInt(0, _, _), _), o) -> containsIndex o *)
   | Index (Const(CInt(0, _, _), _), o) -> containsIndex o
   | Index _ -> true
 
@@ -1071,15 +1079,16 @@ and boxoffset (off: offset) (basety: typ) : offsetRes =
   | NoOffset ->
       (basety, [], NoOffset)
 
+  | Field (fi, resto) ->
+      (* The type of fi has been changed already *)
+      let (rest, doresto, off') = boxoffset resto fi.ftype in
+      (rest, doresto, doField fi off')
+(*
   | Index (e, resto) -> 
       let (_, doe, e') = boxexp e in
       let (rest', doresto, off') = boxoffset resto basety in
       (rest', doe @ doresto, Index(e', off'))
 
-  | Field (fi, resto) ->
-      (* The type of fi has been changed already *)
-      let (rest, doresto, off') = boxoffset resto fi.ftype in
-      (rest, doresto, doField fi off')
   | First o -> 
       let etype = 
         match unrollType basety with
@@ -1088,7 +1097,17 @@ and boxoffset (off: offset) (basety: typ) : offsetRes =
       in
       let (rest, doresto, off') = boxoffset o etype in
       (rest, doresto, First off')
-
+*)
+  | Index (e, resto) -> 
+      let etype = 
+        match unrollType basety with
+          TArray (x, _, _) -> x
+        | _ -> E.s (E.bug "Index on a non-array.@!T=%a\n" d_plaintype basety)
+      in
+      let (_, doe, e') = boxexp e in
+      let (rest', doresto, off') = boxoffset resto etype in
+      (rest', doe @ doresto, Index (e', off'))
+      
     (* Box an expression and return the fexp version of the result. If you do 
      * not care about an fexp, you can call the wrapper boxexp *)
 and boxexpf (e: exp) : stmt list * fexp = 
@@ -1169,7 +1188,7 @@ and boxexpf (e: exp) : stmt list * fexp =
           
    (* Intercept references of _iob. A major hack !!!!! *)
     | AddrOf ((Var vi,
-               First(Index(Const(CInt _, _) as n, NoOffset))) as lv, 
+               Index(Const(CInt _, _) as n, NoOffset)) as lv, 
               _) when !msvcMode && vi.vname = "_iob_fp_" 
       -> 
         let (lvt, _, _, _) = boxlval lv in  (* Just to get the type*)
@@ -1210,7 +1229,7 @@ and boxexpf (e: exp) : stmt list * fexp =
           match unrollType lvt with
             TArray(t, _, _) -> 
               fixupType (TPtr(t, [])),
-              AddrOf(addOffsetLval (First(Index(zero, NoOffset))) lv', lu) 
+              AddrOf(addOffsetLval (Index(zero, NoOffset)) lv', lu) 
           | TFun _ -> 
               fixupType (TPtr(lvt, [])),
               StartOf lv'
@@ -1287,7 +1306,7 @@ and fexp2exp (fe: fexp) (doe: stmt list) : expRes =
        doe @ caste, 
        Lval(Mem (CastE(TPtr(newt, []), 
                        AddrOf (tmp, lu), lu)),
-            Index(zero, NoOffset)))
+            NoOffset))
 
 
     (* Box an expression and resolve the fexp into statements *)

@@ -316,22 +316,13 @@ and offset =
                                          * type *)
     (* [Field(f, off)](a, struct {f : T, ...}) = [off](a + offsetof(f), T) *)
 
-  | First      of offset                (* An explicit cast from arrays to 
-                                         * the first element. This has no 
-                                         * source-level equivalent *)
-    (* [First off](a, array (T)) = [off](a, T) *)
-
-  | Index      of exp * offset          (* l + e + offset. *)
-    (* [Index(e, off)](a, T) = [off](a + e * sizeof(T), T) *)
+  | Index    of exp * offset           (* l[e] + offset. l must be an array 
+                                         * and l[e] has the element type *)
+    (* [Index(e, off)](a, array(T)) = [off](a + e * sizeof(T), T) *)
 
 
 (* the following equivalences hold *)
-(* Index(0, off) = off                                                 *)
 (* Mem(StartOf lv), NoOffset = StartOf (lv) if lv is a function *)
-(* Mem(StartOf(Mem a, aoff)), off = Mem(a, aoff + First + off)  if Mem a, aoff 
- * is an array       *)
-(* Mem(StartOf(Var v, aoff)), off = Var(a, aoff + First + off)  if Var v, aoff 
- * is an array      *)
 (* Mem(AddrOf(Mem a, aoff)), off   = Mem(a, aoff + off)                *)
 (* Mem(AddrOf(Var v, aoff)), off   = Var(v, aoff + off)                *)
 
@@ -639,7 +630,7 @@ val addOffset:     offset -> offset -> offset
   (* Make a Mem, while optimizing StartOf. The type of the addr must be 
    * TPtr(t) and the type of the resulting expression is t *)
 val mkMem: addr:exp -> off:offset -> exp
-          
+
 
 val isIntegralType: typ -> bool
 val isArithmeticType: typ -> bool

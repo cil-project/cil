@@ -338,7 +338,13 @@ and checkLval (isconst: bool) (lv: lval) : typ =
 and checkOffset basetyp : offset -> typ = function
     NoOffset -> basetyp
   | Index (ei, o) -> 
-      checkExpType false ei intType; checkOffset basetyp o
+      checkExpType false ei intType; 
+      begin
+        match unrollType basetyp with
+          TArray (t, _, _) -> checkOffset t o
+        | t -> E.s (E.bug "typeOffset: Index on a non-array: %a" d_plaintype t)
+      end
+
   | Field (fi, o) -> 
       (* Make sure we have seen the type of the host *)
       if not (H.mem compInfoIdEnv fi.fcomp.ckey) then
@@ -350,12 +356,15 @@ and checkOffset basetyp : offset -> typ = function
         ignore (E.warn "Field %s not part of %s" 
                   fi.fname (compFullName fi.fcomp));
       checkOffset fi.ftype o
-
+(*
+  | Index (ei, o) -> 
+      checkExpType false ei intType; checkOffset basetyp o
   | First o -> begin
       match unrollType basetyp with
         TArray (t, _, _) -> checkOffset t o
       | t -> E.s (E.bug "typeOffset: First on a non-array: %a" d_plaintype t)
   end
+*)
         
 and checkExpType (isconst: bool) (e: exp) (t: typ) =
   let t' = checkExp isconst e in (* compute the type *)
