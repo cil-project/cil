@@ -205,7 +205,7 @@ let wild_solve (node_ht : (int,node) Hashtbl.t) = begin
          (match n.where with PGlob _, 0 -> true 
                           | PStatic _, 0 -> true 
                           | _ -> false) &&
-         (not n.noPrototype && n.succ = [] && n.pred = []) then begin
+         (not (hasFlag n pkNoPrototype) && n.succ=[] && n.pred=[]) then begin
            n.kind <- Safe;
            n.why_kind <- Default
          end else begin
@@ -245,7 +245,7 @@ let table_interface (node_ht : (int,node) Hashtbl.t) = begin
   while (not !finished) do
     finished := true ;
     Hashtbl.iter (fun id n ->
-      if n.interface then begin
+      if hasFlag n pkInterface then begin
         table_this_node n ;
       end ;
       if isT n.kind then begin

@@ -41,24 +41,12 @@ let matchPolyName (lookingfor: string) (lookin: string) =
   else lookin = lookingfor
 
 (* weimer: utility function to ease the transition between our flag formats *)
-let setPosArith n = begin
-  n.N.posarith <- true ; N.setFlag n N.pkPosArith ;
-end
-let setArith n = begin
-  n.N.arith <- true ; N.setFlag n N.pkArith ;
-end
-let setNull n = begin
-  n.N.null <- true ; N.setFlag n N.pkNull ;
-end
-let setUpdated n = begin
-  n.N.updated <- true ; N.setFlag n N.pkUpdated ;
-end
-let setIntCast n = begin
-  n.N.intcast <- true ; N.setFlag n N.pkIntCast ;
-end
-let setInterface n = begin
-  n.N.interface <- true ; N.setFlag n N.pkInterface ;
-end
+let setPosArith n = begin N.setFlag n N.pkPosArith end
+let setArith n = begin N.setFlag n N.pkArith end
+let setNull n = begin N.setFlag n N.pkNull  end
+let setUpdated n = begin N.setFlag n N.pkUpdated end
+let setIntCast n = begin N.setFlag n N.pkIntCast end
+let setInterface n = begin N.setFlag n N.pkInterface end
 
 (* A number of functions will be treated polymorphically. In that case store 
  * their original type. When we process the type of a polymorphic function we 
@@ -991,7 +979,7 @@ and doInstr (i:instr) : instr =
          * allocation) do not work together *)
         if ispoly || isprintf != None then 
           E.s (error "Calling polymorphic (or allocation) function %a without proper prototype" d_exp func);
-        pfuncn.N.noPrototype <- true;
+        N.setFlag pfuncn N.pkNoPrototype ; 
       end;
       (* Now check the arguments *)
       let rec loopArgs formals args = 
@@ -1003,7 +991,7 @@ and doInstr (i:instr) : instr =
             (* Do the arguments because they might contain pointer types *)
             let a', _, an = doExp a in
             if an != N.dummyNode && not isva  then
-              an.N.noPrototype <- true;
+							N.setFlag an N.pkNoPrototype ; 
             a' :: loopArgs [] args
 
         | fo :: formals, a :: args -> 

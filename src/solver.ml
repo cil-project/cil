@@ -193,7 +193,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
   Hashtbl.iter (fun id n -> 
     (* Add in starting flag conditions. For example, we can identify
      * strings. *)
-    if n.interface && is_char_pointer n then begin
+    if hasFlag n pkInterface && is_char_pointer n then begin
       (* the user had something to say here *)
       if (set_outside n) then begin
         match n.kind with
@@ -306,7 +306,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    *)
   if show_steps then ignore (E.log "Solver: Step 5  (bad casts)\n") ;
   Hashtbl.iter (fun id cur ->
-    if cur.noPrototype then 
+    if hasFlag cur pkNoPrototype then 
       update cur Wild BoolFlag;
     (* First, what should we do when we think something should be wild? *)
     let make_wild n e =

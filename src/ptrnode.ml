@@ -68,30 +68,9 @@ type node =
 
       mutable flags: int; 
 
-      mutable onStack: bool;            (* Whether might contain stack 
-                                         * addresses *)
-      mutable updated: bool;            (* Whether it is used in a write 
-                                         * operation *)
-      mutable posarith: bool;           (* Whether this is used as an array 
-                                         * base address in a [e] operation or 
-                                         * obviously positive things are 
-                                         * added to it. We assume that the 
-                                         * programmer uses the notation [e] 
-                                         * to indicate positive indices e. *)
       mutable mustHaveEnd: bool;        (* If this is SAFE at the very end, 
                                          * make it FSEQ *)
-      mutable arith: bool;              (* Whenever things are added to this 
-                                         * pointer, but we don't know that 
-                                         * they are positive *)
-      mutable null: bool;               (* The number 0 might be stored in 
-                                         * this pointer  *)
-      mutable intcast: bool;            (* Some integer other than 0 is 
-                                         * stored in this pointer *)
 
-      mutable noPrototype: bool;        (* Used as an argument in a function 
-                                         * without prototype or a function 
-                                         * what is invoked with more 
-                                         * arguments than it has declared *)
       mutable succ: edge list;          (* All edges with "from" = this node *)
       mutable pred: edge list;          (* All edges with "to" = this node *)
 
@@ -100,7 +79,6 @@ type node =
                                          * This is needed because we cannot 
                                          * have wild pointers to memory 
                                          * containing safe pointers. *)
-      mutable interface: bool;          (* Is part of the interface *)
       
       (* The rest are the computed results of constraint resolution *)
       mutable kind: opointerkind;
@@ -110,9 +88,6 @@ type node =
                                          * stored right before it. This
                                          * leads to INDEX pointers. *)
       
-      mutable can_reach_string: bool;  (* used by the solvers *)
-      mutable can_reach_seq: bool;     (* used by the solvers *)
-      mutable can_reach_index: bool;   (* used by the solvers *)
       mutable locked: bool;            (* do not change this kind later *)
       mutable mark: bool;               (* For mark-and-sweep GC of nodes. 
                                          * Most of the time is false *)
@@ -315,25 +290,19 @@ let d_node () n =
      ++ text " : " 
      ++ d_placeidx () n.where
      ++ text " ("
-     ++ text ((if n.onStack || hasFlag n pkOnStack then "stack," else "") ^
-              (if n.updated || hasFlag n pkUpdated then "upd," else "") ^
-              (if n.posarith || hasFlag n pkPosArith 
-              then "posarith," else "") ^
-              (if n.arith || hasFlag n pkArith then "arith," else "") ^
-              (if n.null || hasFlag n pkNull then "null," else "") ^
-              (if n.intcast || hasFlag n pkIntCast then "int," else "") ^
+     ++ text ((if hasFlag n pkOnStack then "stack," else "") ^
+              (if hasFlag n pkUpdated then "upd," else "") ^
+              (if hasFlag n pkPosArith then "posarith," else "") ^
+              (if hasFlag n pkArith then "arith," else "") ^
+              (if hasFlag n pkNull then "null," else "") ^
+              (if hasFlag n pkIntCast then "int," else "") ^
               (if n.mustHaveEnd then "mustend," else "") ^
-              (if n.noPrototype || hasFlag n pkNoPrototype 
-              then "noproto," else "") ^
-              (if n.interface || hasFlag n pkInterface 
-              then "interf," else "") ^
+              (if hasFlag n pkNoPrototype then "noproto," else "") ^
+              (if hasFlag n pkInterface then "interf," else "") ^
               (if n.sized  then "sized," else "") ^
-              (if n.can_reach_string || hasFlag n pkReachString 
-              then "reach_s," else "") ^
-              (if n.can_reach_seq    || hasFlag n pkReachSeq    
-              then "reach_q," else "") ^
-              (if n.can_reach_index  || hasFlag n pkReachIndex  
-              then "reach_i," else ""))
+              (if hasFlag n pkReachString then "reach_s," else "") ^
+              (if hasFlag n pkReachSeq    then "reach_q," else "") ^
+              (if hasFlag n pkReachIndex  then "reach_i," else ""))
     ++ text ") ("
     ++ (align 
           ++ (docList (chr ',' ++ break)
@@ -680,15 +649,7 @@ let newNode (p: place) (idx: int) (bt: typ) (al: attribute list) : node =
             attr    = addAttribute (Attr("_ptrnode", [AInt !nextId])) al;
             where   = where;
             flags   = 0 ;
-            onStack = false;
-            updated = false;
-            arith   = false;
             mustHaveEnd = false;
-            posarith= false;
-            null    = false;
-            intcast = false;
-            noPrototype = false;
-            interface = false;
             locked = false;
             succ = [];
             kind = kind;
@@ -696,9 +657,6 @@ let newNode (p: place) (idx: int) (bt: typ) (al: attribute list) : node =
             sized = false ;
             pointsto = [];
             mark = false;
-            can_reach_string = false;
-            can_reach_seq = false;
-            can_reach_index = false;
             pred = []; } in
 
 (*  ignore (E.log "Created new node(%d) at %a\n" n.id d_placeidx where); *)
