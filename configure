@@ -309,7 +309,7 @@ ac_includes_default="\
 # include <unistd.h>
 #endif"
 
-ac_subst_vars='CIL_FEATURES_DEFINES NEWLINE SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os CPP EGREP LIBOBJS ARCHOS CCUREDHOME CILHOME HAS_MSVC DEFAULT_COMPILER CIL_VERSION_MAJOR CIL_VERSION_MINOR CIL_VERSION_REV CIL_VERSION CCURED_VERSION_MAJOR CCURED_VERSION_MINOR CCURED_VERSION_REV CCURED_VERSION CYCLES_PER_USEC HAS_PERFCOUNT HAVE_BUILTIN_VA_LIST THREAD_IS_KEYWORD LTLIBOBJS'
+ac_subst_vars='CIL_FEATURES_DEFINES NEWLINE SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os CPP EGREP LIBOBJS ARCHOS CCUREDHOME CILHOME HAS_MSVC DEFAULT_COMPILER DEFAULT_CIL_MODE CIL_VERSION_MAJOR CIL_VERSION_MINOR CIL_VERSION_REV CIL_VERSION CCURED_VERSION_MAJOR CCURED_VERSION_MINOR CCURED_VERSION_REV CCURED_VERSION CYCLES_PER_USEC HAS_PERFCOUNT HAVE_BUILTIN_VA_LIST THREAD_IS_KEYWORD LTLIBOBJS'
 ac_subst_files=''
 
 # Initialize some variables set by options.
@@ -2478,6 +2478,7 @@ binaryExists() {
 CCUREDHOME=`pwd`
 
 DEFAULT_COMPILER=_GNUCC
+DEFAULT_CIL_MODE=GNUCC
 
 # is the microsoft compiler available?
 # hmm.. I think we should check the version or something, because
@@ -2490,6 +2491,7 @@ if "$CC" 2>&1 | grep "Microsoft" >/dev/null; then
 echo "${ECHO_T}found, set as default" >&6
   HAS_MSVC=yes
   DEFAULT_COMPILER=_MSVC
+  DEFAULT_CIL_MODE=MSVC
 else
   if cl 2>&1 | grep "Microsoft" >/dev/null ;then
      echo "$as_me:$LINENO: result: found" >&5
@@ -4286,6 +4288,7 @@ done
 
 
 
+
 # finish the configure script and generate various files; ./configure
 # will apply variable substitutions to <filename>.in to generate <filename>;
 # I find it useful to mark generated files as read-only so I don't
@@ -5061,6 +5064,7 @@ s,@CCUREDHOME@,$CCUREDHOME,;t t
 s,@CILHOME@,$CILHOME,;t t
 s,@HAS_MSVC@,$HAS_MSVC,;t t
 s,@DEFAULT_COMPILER@,$DEFAULT_COMPILER,;t t
+s,@DEFAULT_CIL_MODE@,$DEFAULT_CIL_MODE,;t t
 s,@CIL_VERSION_MAJOR@,$CIL_VERSION_MAJOR,;t t
 s,@CIL_VERSION_MINOR@,$CIL_VERSION_MINOR,;t t
 s,@CIL_VERSION_REV@,$CIL_VERSION_REV,;t t

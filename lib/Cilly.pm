@@ -93,7 +93,7 @@ sub new {
         exit 0;
     }
     # Look for the --mode argument first. If not found it is GCC
-    my $mode = 'GNUCC';
+    my $mode = $::default_mode;
     {
         my @args1 = ();
         foreach my $arg (@args) {

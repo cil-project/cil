@@ -423,11 +423,20 @@ clean: cleancaml
 	rm -f $(OBJDIR)/machdep.ml
 
 
+# Now include the compiler specific stuff
+ifdef _MSVC
+  include Makefile.msvc
+else
+  ifdef _GNUCC
+    include Makefile.gcc
+  endif
+endif
+
 test/%: 
-	bin/cilly -c test/small1/$*.c -o test/small1/$*.o
+	bin/cilly $(CONLY) test/small1/$*.c $(OBJOUT)test/small1/$*.o
 
 testrun/%: 
-	bin/cilly test/small1/$*.c -o test/small1/$*
+	bin/cilly test/small1/$*.c $(OBJOUT)test/small1/$*
 	test/small1/$*
 
 

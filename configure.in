@@ -92,6 +92,7 @@ binaryExists() {
 CCUREDHOME=`pwd`
 
 DEFAULT_COMPILER=_GNUCC
+DEFAULT_CIL_MODE=GNUCC
 
 # is the microsoft compiler available?
 # hmm.. I think we should check the version or something, because
@@ -102,6 +103,7 @@ if "$CC" 2>&1 | grep "Microsoft" >/dev/null; then
   AC_MSG_RESULT([found, set as default])
   HAS_MSVC=yes
   DEFAULT_COMPILER=_MSVC
+  DEFAULT_CIL_MODE=MSVC
 else
   if cl 2>&1 | grep "Microsoft" >/dev/null ;then
      AC_MSG_RESULT(found)
@@ -482,6 +484,7 @@ AC_SUBST(CCUREDHOME)
 AC_SUBST(CILHOME)
 AC_SUBST(HAS_MSVC)
 AC_SUBST(DEFAULT_COMPILER)
+AC_SUBST(DEFAULT_CIL_MODE)
 AC_SUBST(CIL_VERSION_MAJOR)
 AC_SUBST(CIL_VERSION_MINOR)
 AC_SUBST(CIL_VERSION_REV)

@@ -3,3 +3,4 @@ use lib "@CILHOME@/lib"; # The libraries are in the lib directory
 $::archos    = "@ARCHOS@";
 $::cc        = "@CC@";
 $::cilhome   = "@CILHOME@";
+$::default_mode = "@DEFAULT_CIL_MODE@";
