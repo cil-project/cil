@@ -724,14 +724,18 @@ let dumpSymbols () =
   IH.iter (fun i k -> ignore (E.log " %s -> %d\n" k i)) symbolNames;
   ()
 
+let newSymbol (n: string) : symbol = 
+  assert(not (H.mem registeredSymbolNames n));
+  let id = !nextSymbolId in
+  incr nextSymbolId;
+  H.add registeredSymbolNames n id;
+  IH.add symbolNames id n;
+  id
+
 let registerSymbolName (n: string) : symbol = 
   try H.find registeredSymbolNames n
   with Not_found -> begin
-    let id = !nextSymbolId in
-    incr nextSymbolId;
-    H.add registeredSymbolNames n id;
-    IH.add symbolNames id n;
-    id
+    newSymbol n
   end
 
 (** Register a range of symbols. The mkname function will be invoked for 
@@ -740,7 +744,8 @@ let registerSymbolRange (count: int) (mkname: int -> string) : symbol =
   if count < 0 then E.s (E.bug "registerSymbolRange: invalid counter");
   let first = !nextSymbolId in
   for i = 0 to count - 1 do 
-    ignore (registerSymbolName (mkname i))
+    let res = registerSymbolName (mkname i) in
+    assert(i + first = res)
   done;
   first
     

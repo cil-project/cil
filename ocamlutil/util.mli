@@ -257,6 +257,11 @@ val registerSymbolName: string -> symbol
 val registerSymbolRange: int -> (int -> string) -> symbol
 
 
+(** Make a fresh symbol. Give the name also, which ought to be distinct from 
+ * existing symbols. This is different from registerSymbolName in that it 
+ * always creates a new symbol. *)
+val newSymbol: string -> symbol
+
 (** Reset the state of the symbols to the program startup state *)
 val resetSymbols: unit -> unit
 
