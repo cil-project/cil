@@ -61,9 +61,9 @@ BEGIN {
              ? ".asm.exe" : ".byte.exe");
     # For some strange reason on Windows the bytecode versions must be passed
     # as an argument to themselves
-    if($::iswin32 && ($Merger::mtime_asm < $Merger::mtime_byte)) {
-        $Merger::merger .= " " . $Merger::merger;
-    }
+#    if($::iswin32 && ($Merger::mtime_asm < $Merger::mtime_byte)) {
+#        $Merger::merger .= " " . $Merger::merger;
+#    }
 #    print "asm: $Merger::mtime_asm, byte: $Merger::mtime_byte. Choose: $Merger::merger\n";
 }
 
@@ -304,9 +304,21 @@ sub link {
         $cmd .= " --MSVC ";
     }
     if($self->{VERBOSE}) {
-            $cmd .= " --verbose ";
+        $cmd .= " --verbose ";
+    }
+    # If the number of files to merge is larger than 25 then put them into a
+    # file 
+    if(@tomerge > 20) {
+        my $extraFile = "__merger_extra_files";
+        open(TOMERGE, ">$extraFile") || die $!;
+        foreach my $fl (@tomerge) {
+            print TOMERGE "$fl\n";
         }
-    $cmd .= join(' ', @tomerge);
+        close(TOMERGE);
+        $cmd .= " --extrafiles $extraFile";
+    } else {
+        $cmd .= join(' ', @tomerge);
+    }
     $self->runShell($cmd);
     
 

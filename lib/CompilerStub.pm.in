@@ -42,82 +42,12 @@ use strict;
 use File::Basename;
 use File::Copy;
 use Data::Dumper;
-#if($^O eq 'MSWin32') {
-#    require Win32;
-#}
 
-my $linker_script_debug = 0;
-
-sub parse_linker_script {
-  my ($filename) = @_;
-  my @return_list = ();
-  if ($filename=~/\.o$/) {
-    warn "parsing OBJECT FILE:$filename ****************\n" if $linker_script_debug;
-    open OBJFILE, $filename or die $!;
-    my $line = <OBJFILE>;
-    if ($line=~/^INPUT/) {
-      warn "\tYES an INPUT file.\n" if $linker_script_debug;
-      # Stick each line from the file onto our list.
-      while(defined ($line = <OBJFILE>)) {
-        chomp $line;
-        my ($listed_filename) = ($line=~/^(\S+)/);
-        if (defined $listed_filename && (length $listed_filename > 0)) {
-          warn "FILE LINE:$line:\n" if $linker_script_debug;
-          push @return_list, $listed_filename;
-        } else {
-          warn "EMPTY LINE:$line:\n" if $linker_script_debug;
-        }
-      }
-      warn "Contained the following files:", join (":", @return_list), ":\n" if $linker_script_debug;
-    } else {
-      warn "\tNOT an INPUT file.\n" if $linker_script_debug;
-    }
-    close OBJFILE or die $!;
-  }
-  return @return_list;
-}
 
 # Pass to new a list of command arguments
 sub new {
     my ($proto, @args) = @_;
 
-    # ****************************************************************
-    # If there are any linker script files on the argument line, we
-    # get their contents and paste them here and fake that they were
-    # on the command line.  dsw
-    {
-      warn "ARGS:", join (":", @args), ":\n" if $linker_script_debug;
-      my $flatten_scripts = 0;
-      for(my $i=0; $i<@args; ++$i) {
-        if ($args[$i] eq "--flatten_linker_scripts") {
-          splice (@args, $i, 1); # Remove this flag.
-          $flatten_scripts = 1;
-        }
-      }
-      warn "ARGS:", join (":", @args), ":\n" if $linker_script_debug;
-      if ($flatten_scripts) {
-        warn "\tFlatten linker scripts.\n";
-        for (my $i=0; $i<@args; ++$i) {
-          my @input_files = parse_linker_script($args[$i]);
-          if (0<@input_files) {
-            # If we found something, splice it in.  Otherwise, it was a
-            # normal file.
-            warn "INPUT FILES:", join(":", @input_files), ":\n" if $linker_script_debug;
-            warn "SPLICE BEFORE:", join(":", @args), ":\n" if $linker_script_debug;
-            splice (@args, $i, 1, @input_files);
-            $i--; # Have to re-read starting at the first one we just
-                  # spliced in.
-            warn "SPLICE AFTER:", join(":", @args), ":\n" if $linker_script_debug;
-            warn "i:$i\n" if $linker_script_debug;
-          } else {
-            warn "NO SPLICE\n" if $linker_script_debug;
-          }
-        }
-      } else {
-        warn "**************** FLATTEN NO.\n" if $linker_script_debug;
-      }
-    }
-    # ****************************************************************
 
     my $class = ref($proto) || $proto;
 
@@ -228,6 +158,9 @@ sub collectOneArgument {
     }
     if($arg eq "--verbose") {
         $self->{VERBOSE} = 1; return 1;
+    }
+    if($arg eq "--flatten_linker_scripts") {
+        $self->{FLATTEN_LINKER_SCRIPTS} = 1; return 1;
     }
     if($arg =~ m|--keep=(.+)$|) {
         $self->{KEEPDIR} = $1;
@@ -906,7 +839,8 @@ sub new {
           [ "[^-].*\\.(c|cpp|cc)\$" => { TYPE => 'CSOURCE' },
             "[^-].*\\.(s|S)\$" => { TYPE => 'ASMSOURCE' },
             "[^-].*\\.i\$" => { TYPE => 'ISOURCE' },
-            "[^-]" => { TYPE => 'OSOURCE' },
+            # .o files can be linker scripts
+            "[^-]" => { RUN => sub { &GNUCC::parseLinkerScript(@_); }},
             "-E"   => { RUN => sub { $stub->{OPERATION} = "TOI"; }},
             "-[DI]" => { ONEMORE => 1, TYPE => "PREPROC" },
             "-include" => { ONEMORE => 1, TYPE => "PREPROC" },  # sm
@@ -937,6 +871,73 @@ sub new {
       };
     bless $self, $class;
     return $self;
+}
+
+my $linker_script_debug = 0;
+
+sub parseLinkerScript {
+  my ($filename) = @_;
+  my @return_list = ();
+  if ($filename=~/\.o$/) {
+    warn "parsing OBJECT FILE:$filename ****************\n" if $linker_script_debug;
+    open OBJFILE, $filename or die $!;
+    my $line = <OBJFILE>;
+    if ($line=~/^INPUT/) {
+      warn "\tYES an INPUT file.\n" if $linker_script_debug;
+      # Stick each line from the file onto our list.
+      while(defined ($line = <OBJFILE>)) {
+        chomp $line;
+        my ($listed_filename) = ($line=~/^(\S+)/);
+        if (defined $listed_filename && (length $listed_filename > 0)) {
+          warn "FILE LINE:$line:\n" if $linker_script_debug;
+          push @return_list, $listed_filename;
+        } else {
+          warn "EMPTY LINE:$line:\n" if $linker_script_debug;
+        }
+      }
+      warn "Contained the following files:", join (":", @return_list), ":\n" if $linker_script_debug;
+    } else {
+      warn "\tNOT an INPUT file.\n" if $linker_script_debug;
+    }
+    close OBJFILE or die $!;
+  }
+  return @return_list;
+}
+
+$linker_script_debug = 0;
+sub parseLinkerScript {
+    my($self, $filename, $onemore, $pargs) = @_;
+    
+    if(! defined($self->{FLATTEN_LINKER_SCRIPTS}) ||
+       $filename !~ /\.o$/) {
+      NotAScript:
+        warn "$filename is not a linker script\n" if $linker_script_debug;
+        push @{$self->{OFILES}}, $filename; 
+        return 1;
+    }
+    warn "parsing OBJECT FILE:$filename ****************\n" if
+        $linker_script_debug;
+    my $objfile; # Must be local because it is recursive
+    open $objfile, $filename or die $!;
+    my $line = <$objfile>;
+    if ($line !~ /^INPUT/) {
+        close $objfile or die $!;
+        goto NotAScript;
+    }
+    warn "\tYES an INPUT file.\n" if $linker_script_debug;
+    # Process recursively each line from the file
+    while(defined ($line = <$objfile>)) {
+        chomp $line;
+        my @filenames = split(/\s+/, $line);
+        foreach my $listed_filename (@filenames) {
+            warn "LISTED FILE:$listed_filename:\n" if $linker_script_debug;
+            # Process it recursively because it could be a script itself
+            if($listed_filename eq ")") { last ; }
+            $self->parseLinkerScript($listed_filename, $onemore, $pargs);
+        } 
+        warn "EMPTY LINE:$line:\n" if $linker_script_debug;
+    }
+    close $objfile or die $!;
 }
 
 sub forceIncludeArg { 
