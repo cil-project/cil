@@ -316,7 +316,10 @@ sub runShell {
     # sm: I want this printed to stderr instead of stdout
     # because the rest of 'make' output goes there and this
     # way I can capture to a coherent file
-    if($self->{VERBOSE}) { print STDERR "$cmd\n"; }
+    # sm: removed conditional on verbose since there's already
+    # so much noise in the output, and this is the *one* piece
+    # of information I *always* end up digging around for..
+    if(1 || $self->{VERBOSE}) { print STDERR "$cmd\n"; }
 
     # weimer: let's have a sanity check
     if (system($cmd)) {
@@ -677,7 +680,7 @@ sub new {
     my $self = 
     { NAME => 'GNU CC',
       MODENAME => 'GNUCC',  # do not change this since it is used in code
-      CC => "gcc -D_GNUCC -c ",
+      CC => "gcc -D_GNUCC -c -O ",  # sm: added -O since it's needed for inlines to be merged instead of causing link errors
       LD => "gcc -D_GNUCC ",
       CPP => "gcc -D_GNUCC -E ",
       DEFARG  => "-D",
