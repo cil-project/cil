@@ -662,8 +662,6 @@ smAddTest("scott/suppress_optim $box");
 smAddTest("scott/complex_float $box");
 smAddTest("mergeinline");
 smFailTest("z2 is removed improperly",
-           "testexe/structs_comb $box");
-smFailTest("z2 is removed improperly",
            "test/addrofparam $box");
 smAddTest("scott-nolink/name-capture-bitand $box");
 smAddTest("scott-nolink/wildfun2 $box");
