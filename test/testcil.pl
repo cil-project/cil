@@ -1190,6 +1190,7 @@ altFailTest("FSEQ incompleteness", "scott/bloop $box");
 altAddTest("scott/funcptr3 INFERBOX=infer");
 altAddTest("scott/structattr");
 altAddTest("scott/neg64");
+altAddTest("testc/arrayinitsize");
 
 
 # $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug

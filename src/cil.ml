@@ -4836,6 +4836,12 @@ let rec makeZeroInit (t: typ) : init =
         else loopElems ((Index(integer i, NoOffset), initbt) :: acc) (i - 1) 
       in
       CompoundInit(t', loopElems [] (n - 1))
+
+  | TArray (bt, None, at) as t' ->
+      (* Unsized array, allow it and fill it in later 
+       * (see cabs2cil.ml, collectInitializer) *)
+      CompoundInit (t', [])
+
   | TPtr _ as t -> SingleInit(CastE(t, zero))
   | x -> E.s (unimp "Cannot initialize type: %a" d_type x)
 

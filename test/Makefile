@@ -590,7 +590,7 @@ arcombine: mustbegcc
 # weimer: test, compile and run
 testc/% : $(SMALL1)/%.c  
 	cd $(SMALL1); $(CCURED) --nomerge  \
-	       $(CFLAGS) $(EXEOUT)$*.exe $*.c ; ./$*.exe
+	       $(CFLAGS) $(EXEOUT)$*.exe $*.c && ./$*.exe
 
 # Aman's optim tests
 OPTIMTESTDIR := $(TESTDIR)/optim

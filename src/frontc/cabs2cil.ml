@@ -1515,19 +1515,26 @@ let rec setOneInit (this: preInit)
       CompoundPre (pMaxIdx, pArray)
 
 
-let rec collectInitializer 
-    (this: preInit) 
-    (thistype: typ) : init = 
-  if this = NoInitPre then makeZeroInit thistype
+(* collect a CIL initializer, given the original syntactic initializer
+ * 'preInit'; this returns a type too, since initialization of an array
+ * with unspecified size actually changes the array's type
+ * (ANSI C, 6.7.8, para 22) *)
+let rec collectInitializer
+    (this: preInit)
+    (thistype: typ) : (init * typ) =
+  if this = NoInitPre then (makeZeroInit thistype), thistype
   else
     match unrollType thistype, this with 
-    | _ , SinglePre e -> SingleInit e
-    | TArray (bt, leno, _), CompoundPre (pMaxIdx, pArray) -> 
-        let len = 
-          try lenOfArray leno 
-          with LenOfArray -> begin
-            E.s (error "Initializing non-constant-length array\n")
-          end
+    | _ , SinglePre e -> SingleInit e, thistype
+    | TArray (bt, leno, at), CompoundPre (pMaxIdx, pArray) -> 
+        let (len, newtype) =
+          (* normal case: use array's declared length, newtype=thistype *)
+          try (lenOfArray leno, thistype)
+
+          (* unsized array case, length comes from initializers *)
+          with LenOfArray ->
+            (!pMaxIdx + 1,
+             TArray (bt, Some (integer (!pMaxIdx + 1)), at))
         in
         if !pMaxIdx >= len then 
           E.s (E.bug "collectInitializer: too many initializers(%d >= %d)\n"
@@ -1548,14 +1555,14 @@ let rec collectInitializer
         let rec collect (acc: (offset * init) list) (idx: int) = 
           if idx = -1 then acc
           else
-            let thisi = 
+            let thisi =
               if idx > !pMaxIdx then oneZeroInit
-              else collectInitializer !pArray.(idx) bt
+              else (fst (collectInitializer !pArray.(idx) bt))
             in
             collect ((Index(integer idx, NoOffset), thisi) :: acc) (idx - 1)
         in
         
-        CompoundInit (thistype, collect [] endAt)
+        CompoundInit (thistype, collect [] endAt), newtype
 
     | TComp (comp, _), CompoundPre (pMaxIdx, pArray) when comp.cstruct ->
         let rec collect (idx: int) = function
@@ -1568,11 +1575,11 @@ let rec collectInitializer
                   if idx > !pMaxIdx then 
                     makeZeroInit f.ftype
                   else
-                    collectInitializer !pArray.(idx) f.ftype
+                    collectFieldInitializer !pArray.(idx) f
                 in
                 (Field(f, NoOffset), thisi) :: collect (idx + 1) restf
         in
-        CompoundInit (thistype, collect 0 comp.cfields)
+        CompoundInit (thistype, collect 0 comp.cfields), thistype
 
     | TComp (comp, _), CompoundPre (pMaxIdx, pArray) when not comp.cstruct ->
         (* Find the field to initialize *)
@@ -1582,16 +1589,22 @@ let rec collectInitializer
               findField (idx + 1) rest
           | f :: _ when idx = !pMaxIdx -> 
               Field(f, NoOffset), 
-              collectInitializer !pArray.(idx) f.ftype
+              collectFieldInitializer !pArray.(idx) f
           | _ -> E.s (error "Can initialize only one field for union")
         in
         if !msvcMode && !pMaxIdx != 0 then 
           ignore (warn "On MSVC we can initialize only the first field of a union");
-        CompoundInit (thistype, [ findField 0 comp.cfields ])
+        CompoundInit (thistype, [ findField 0 comp.cfields ]), thistype
 
     | _ -> E.s (unimp "collectInitializer")
                       
-        
+and collectFieldInitializer 
+    (this: preInit)
+    (f: fieldinfo) : init =
+  (* collect, and rewrite type *)
+  let init,newtype = (collectInitializer this f.ftype) in
+  f.ftype <- newtype;
+  init
             
 
 type stackElem = 
@@ -3879,10 +3892,10 @@ and doInitializer
   in
   if debugInit then 
     ignore (E.log "Collecting the initializer for %s\n" vi.vname);
-  let init = collectInitializer !topPreInit typ' in
-  if debugInit then 
+  let (init, typ'') = collectInitializer !topPreInit typ' in
+  if debugInit then
     ignore (E.log "Finished the initializer for %s\n" vi.vname);
-  acc, init, typ'
+  acc, init, typ''
 
 
   
