@@ -1938,28 +1938,29 @@ let rec initForType
         [s; a] when s.fname = "_size" && a.fname = "_array" ->
               (* Sized arrays *)
               (* ignore (E.log "Initializing sized for %s\n" v.vname); *)
-          let bt, l, thissize = match unrollType a.ftype with
-            TArray(bt, Some l, _) when not (isZero l) -> 
-              bt, l,
-              (BinOp(Mult, doCast l uintType, SizeOf(bt), uintType))
- 
-          | TArray(bt, _, _) -> begin
-              match endo with
-                Some e -> 
+          let bt, l, thissize = 
+            match unrollType a.ftype with
+              TArray(bt, Some l, _) when not (isZero l) -> 
+                bt, l,
+                (BinOp(Mult, doCast l uintType, SizeOf(bt), uintType))
+                  
+            | TArray(bt, _, _) -> begin
+                match endo with
+                  Some e -> 
                   (* We know the end of the area *)
-                  let sz = 
-                    BinOp(MinusA, e, 
-                          doCast (addrof (Field(a, NoOffset))) uintType, 
-                          uintType) in
-                  bt, 
-                  (BinOp(Div, sz, SizeOf(bt), uintType)), 
-                  sz
-
-              | None -> 
-                  ignore (E.warn "Initializing SIZED open array with length 0: %a" d_exp (addrof (Field(s, NoOffset))));
-                  bt, zero, zero
-          end
-          | _ -> E.s (E.bug "SIZED array is not an array\n")
+                    let sz = 
+                      BinOp(MinusA, e, 
+                            doCast (addrof (Field(a, NoOffset))) uintType, 
+                            uintType) in
+                    bt, 
+                    (BinOp(Div, sz, SizeOf(bt), uintType)), 
+                    sz
+                      
+                | None -> 
+                    ignore (E.warn "Initializing SIZED open array with length 0: %a" d_exp (addrof (Field(s, NoOffset))));
+                    bt, zero, zero
+            end
+            | _ -> E.s (E.bug "SIZED array is not an array\n")
           in
           let dothissize = doit (Field(s, NoOffset)) thissize acc in
               (* Prepare the "doit" function for the base type *)
@@ -1967,7 +1968,7 @@ let rec initForType
             (fun iter ->
               let doforarray (off: offset) (what: exp) (acc: stmt list) = 
                 mkForIncr iter zero l one 
-                  (doit (Index (Lval(var iter), off)) what []) :: acc
+                  (doit (Field(a, Index (Lval(var iter), off))) what []) :: acc
               in
               let doaddrforarray (off: offset) = 
                 E.s (E.bug "OPEN arrays inside arrays ???") 
