@@ -1486,6 +1486,18 @@ let castTo (fe: fexp) (newt: typ)
             when (match unrollType oldt 
                      with TPtr(TFun _, _) -> true | _ -> false) -> 
               (doe, mkFexp2 newt (castP p) zero)
+
+        (* SAFE -> FSEQ *)          
+      | N.Safe, N.FSeq -> 
+          let p' = castP p in
+          (doe, FM (newt, newkind, p', BinOp(PlusPI, p', one, newPointerType),
+                    zero))
+          
+        (* SAFE -> SEQ *)          
+      | N.Safe, N.Seq -> 
+          let p' = castP p in
+          (doe, FM (newt, newkind, p', p', 
+                    BinOp(PlusPI, p', one, newPointerType)))
           
         (* SCALAR -> INDEX, WILD, SEQ, FSEQ *)
       | N.Scalar, (N.Index|N.Wild|N.Seq|N.FSeq|N.FSeqN|N.SeqN) ->
