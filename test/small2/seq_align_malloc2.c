@@ -17,7 +17,7 @@ struct a_struct {
 #endif
 
 #define CCURED_TRUSTED_CAST(t, what) \
-        IFCCURED(((t)trusted_cast((void*)(what))), ((t)(what)))
+        IFCCURED(((t)__trusted_cast((void*)(what))), ((t)(what)))
 
 // imitate an allocator
 void *make_a_struct(int num, size_t size) {
