@@ -43,7 +43,7 @@ let aman_no_fit    = (aman && (mode = "SkipFit"))
    ALGO=george
    ALGO=aman   (default)
 *)
-let envAlgo = let s = (try Sys.getenv ("ALGO") with Not_found -> "aman") in if (s <> "george") && (s <> "old") then "aman" else s
+let envAlgo = let s = (try Sys.getenv ("ALGO") with Not_found -> "aman") in if (s <> "aman") && (s <> "old") then "george" else s
 
 let use_old_version = (envAlgo = "old") || (envAlgo = "george")
 let use_Qversion = (not use_old_version) && (envAlgo = "aman")
