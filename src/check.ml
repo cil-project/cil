@@ -293,28 +293,31 @@ and checkCompInfo (isadef: defuse) comp =
     (* Add it to the map before we go on *)
     H.add compUsed comp.ckey (comp, ref isadef);
     H.add compNames fullname ();
-    checkAttributes comp.cattr;
-    let fctx = if comp.cstruct then CTStruct else CTUnion in
-    let rec checkField f =
-      if not 
-          (f.fcomp == comp &&  (* Each field must share the self cell of 
-                                * the host *)
-           f.fname <> "") then
-        ignore (warn "Self pointer not set in field %s of %s" 
-                  f.fname fullname);
-      checkType f.ftype fctx;
-      (* Check the bitfields *)
-      (match unrollType f.ftype, f.fbitfield with
-      | TInt (ik, a), Some w -> 
-          checkAttributes a;
-          if w < 0 || w >= bitsSizeOf (TInt(ik, a)) then
-            ignore (warn "Wrong width (%d) in bitfield" w)
-      | _, Some w -> 
-          ignore (E.error "Bitfield on a non integer type\n")
-      | _ -> ());
-      checkAttributes f.fattr
-    in
-    List.iter checkField comp.cfields
+    (* Do not check the compinfo unless this is a definition *)
+    if isadef = Defined then begin
+      checkAttributes comp.cattr;
+      let fctx = if comp.cstruct then CTStruct else CTUnion in
+      let rec checkField f =
+        if not 
+            (f.fcomp == comp &&  (* Each field must share the self cell of 
+             * the host *)
+             f.fname <> "") then
+          ignore (warn "Self pointer not set in field %s of %s" 
+                    f.fname fullname);
+        checkType f.ftype fctx;
+        (* Check the bitfields *)
+        (match unrollType f.ftype, f.fbitfield with
+        | TInt (ik, a), Some w -> 
+            checkAttributes a;
+            if w < 0 || w >= bitsSizeOf (TInt(ik, a)) then
+              ignore (warn "Wrong width (%d) in bitfield" w)
+        | _, Some w -> 
+            ignore (E.error "Bitfield on a non integer type\n")
+        | _ -> ());
+        checkAttributes f.fattr
+      in
+      List.iter checkField comp.cfields
+    end
   end
 
 
@@ -349,9 +352,11 @@ and checkTypeInfo (isadef: defuse) ti =
     (match !olddef, isadef with 
       Defined, Defined -> 
         ignore (warnContext "Multiple definition of type %s\n" ti.tname)
-    | Defined, _ -> ()
+    | Defined, Used -> ()
+    | Used, Defined -> 
+        ignore (warnContext "Use of type %s before its definition\n" ti.tname)
     | _, _ -> 
-        ignore (warnContext "Use of type %s before its definition\n" ti.tname))
+        ignore (warnContext "Bug in checkTypeInfo for %s\n" ti.tname))
   with Not_found -> begin (* This is the first time we see it *)
     if ti.tname = "" then
       ignore (warnContext "typeinfo with empty name");
