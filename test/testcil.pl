@@ -59,6 +59,8 @@ my %commonerrors =
 
          );
 
+my $inferbox = 3;
+
 # Now add tests
 $TEST->add3Tests("apache/gzip");
 $TEST->add3Tests("apache/rewrite");
@@ -100,7 +102,7 @@ $TEST->add3Tests("test/voidstar");
 $TEST->add3Tests("wes-hashtest", "", @runpattern);
 $TEST->add3Tests("wes-rbtest", "", @runpattern);
 $TEST->add1Test("test/alloc-manualinferbox",
-                "test/alloc INFERBOX=2 MANUALBOX=1",
+                "test/alloc INFERBOX=$inferbox MANUALBOX=1",
                 %commonerrors);
 
 # $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug
@@ -214,7 +216,7 @@ sub add3Tests {
 
     $self->newTest(Name => $name . "-inferbox",
                    Dir => "..",
-                   Cmd => "make " . $name . " INFERBOX=2 " . $theargs,
+                   Cmd => "make " . $name . " INFERBOX=$inferbox " . $theargs,
                    Group => ["box", "infer"], 
                    Patterns => \%patterns);
 }
