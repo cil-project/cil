@@ -40,6 +40,7 @@ module E = Errormsg
 module CG = Callgraph
 module H = Hashtbl 
 module U = Util
+module IH = Inthash
 
 let debug = false
 
@@ -60,6 +61,36 @@ let p ?(ind=0) (fmt : ('a,unit,doc) format) : 'a =
   in
   Pretty.gprintf f fmt
 
+(** Keep track of the globals we have dumped in this file *)
+let globalsDumped: unit IH.t = IH.create 13
+
+(** have a visitor for preprocessing the function bodies *)
+let globalsRead: varinfo IH.t = IH.create 13
+let globalsWritten: varinfo IH.t = IH.create 13
+
+let considerGlobal (v: varinfo) : bool = 
+  v.vglob && not v.vaddrof && isIntegralType v.vtype
+
+class preVisitorClass : cilVisitor = object (self) 
+  inherit nopCilVisitor
+
+  method vexpr = function
+      Lval (Var v, _) when considerGlobal v -> 
+        IH.replace globalsRead v.vid v;
+        DoChildren
+
+    | _ -> DoChildren
+
+  method vinst = function
+      Set ((Var v, _), _, _) 
+    | Call (Some (Var v, _), _, _, _) when considerGlobal v -> 
+        IH.replace globalsWritten v.vid v;
+        DoChildren
+    | _ -> DoChildren
+end
+
+let preVisitor = new preVisitorClass
+
 (** We define a new printer *)
 class absPrinterClass (callgraph: CG.callgraph) : cilPrinter = object (self) 
   inherit defaultCilPrinterClass as super
@@ -75,11 +106,13 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter = object (self)
           d_unop uop self#pExp e1
     | CastE (t, e) -> self#pExp () e
     | Lval (Mem _, _) -> text "(rand)"
+    | Lval (Var v, _) when v.vaddrof -> text "(rand)"
     | e -> super#pExp () e
 
   method pInstr () = function
       Set ((Mem _, _), _, _)  (* ignore writes *) 
     | Asm _ -> nil
+    | Set ((Var v, _), _, _) when v.vaddrof -> nil
     | Call (Some (Mem _, _), f, args, loc) -> 
         super#pInstr () (Call (None, f, args, loc))
     | Call (None, f, args, _) -> 
@@ -149,12 +182,17 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter = object (self)
           with Not_found -> E.s (E.bug "Cannot find call graph info for %s"
                                    fdec.svar.vname)
         in
-        
+        IH.clear globalsRead;
+        IH.clear globalsWritten;
+        ignore (visitCilBlock preVisitor fdec.sbody);
+
         (* The header *)
-        ignore (p "<function %s\n  <formals %a>\n  <locals %a>\n  <calls %a>\n  <calledby %a>\n"
+        ignore (p "<function %s\n  <formals %a>\n  <locals %a>\n  <globalsread %a>\n  <globalswritten %a>\n  <calls %a>\n  <calledby %a>\n"
           fdec.svar.vname
           (d_list "," (fun () v -> text v.vname)) fdec.sformals
           (d_list "," (fun () v -> text v.vname)) fdec.slocals
+          (d_list "," (fun () (_, v) -> text v.vname)) (IH.tolist globalsRead)
+          (d_list "," (fun () (_, v) -> text v.vname)) (IH.tolist globalsWritten)
           (U.docHash (fun k _ -> text k)) cg_node.CG.cnCallees
           (U.docHash (fun k _ -> text k)) cg_node.CG.cnCallers);
 
@@ -164,7 +202,16 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter = object (self)
         (* The end *)
         ignore (p "\n>\n\n")
 
-     | _ -> ()
+    (* Emit the globals whose address is not taken *)
+    | GVarDecl (vi, l) | GVar (vi, _, l) when 
+        not vi.vaddrof && isIntegralType vi.vtype 
+          && not (IH.mem globalsDumped vi.vid) 
+      -> 
+        IH.add globalsDumped vi.vid ();
+        pd (self#pLineDirective ~forcefile:true l);
+        ignore (p "<global %s>\n" vi.vname)
+        
+    | _ -> ()
 end
 
 
@@ -186,6 +233,7 @@ let feature : featureDescr =
       Simplify.feature.fd_doit f;
 
       let absPrinter: cilPrinter = new absPrinterClass graph in 
+      IH.clear globalsDumped;
       iterGlobals f
         (arithAbs absPrinter););
     fd_post_check = false;
