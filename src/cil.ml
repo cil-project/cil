@@ -14,6 +14,9 @@ module H = Hashtbl
  * of the syntactic sugar is removed and type checking is performed. CIL has 
  * the following properties:
 
+ - has a pretty printer that should print valid source. There is also a 
+ * pretty printer that prints abstract syntax (for debugging)
+
  - all local variables are pulled to the start of a function. Their names are 
  * changed to be unique and to avoid conflicts with global variables
 
@@ -23,6 +26,9 @@ module H = Hashtbl
 
  - all implicit integer promotions, argument promotions and arithmetic 
  * conversions are turned into explicit casts.
+
+ - all integer constants have the proper type attached to them
+
 *)
 (*
  * Note: you may *NOT* change the order of the fields or the order in
@@ -33,6 +39,7 @@ module H = Hashtbl
 (* TODO
    - inner struct/union/enum/typedef tags
    - clean up attributes
+   - functions vs. function pointers
    - type of sizeof is hardwired to UInt
    - integerFits is hardwired to true
 *)
@@ -130,7 +137,8 @@ and attribute =
 and constant =
   | CInt of int * ikind * string option  (* Give the ikind (see ISO9899 
                                           * 6.4.4.1) and the textual 
-                                          * representation, if available  *)
+                                          * representation, if available. Use 
+                                          * "integer" to create these  *)
   | CLInt of int64 * ikind * string option
   | CStr of string
   | CChr of char 
@@ -234,7 +242,8 @@ and lbase =
 
 
   | Mem        of exp                   (* denotes an address expressed as an 
-                                         * expression *)
+                                         * expression. Use mkMem to make 
+                                         * these  *)
     (* [Mem e] = (e, T) if typeOf(e) = Ptr(T) *)
 
 and offset = 
