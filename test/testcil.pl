@@ -703,7 +703,7 @@ $TEST->newTest(
     Name => "sendmail-inferbox",
     Dir => ".",
     Cmd => "make sendmail " . $TEST->testCommandExtras("INFERBOX=infer"),
-    Enabled => 0,
+    Enabled => 1,
     Group => ['vslow'],
     Patterns => \%commonerrors);
 
