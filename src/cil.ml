@@ -42,6 +42,7 @@ module H = Hashtbl
    - functions vs. function pointers
    - type of sizeof is hardwired to UInt
    - integerFits is hardwired to true
+   - in cabs2cil we drop the volatile sometimes
 *)
 
 (* where did some construct originally appear in the source code? *)
@@ -94,7 +95,9 @@ and typ =
   | TInt of ikind * attribute list
   | TBitfield of ikind * int * attribute list
   | TFloat of fkind * attribute list
-  | TNamed of string * typ              (* From a typedef *)
+  | TNamed of string * typ * attribute list (* From a typedef. The attributes 
+                                             * are in addition to the 
+                                             * attributes of the named type  *)
   | TPtr of typ * attribute list        (* Pointer type *)
 
               (* base type and length *)
@@ -286,8 +289,11 @@ and instr =
                           * are used *)
   | Asm        of string list *         (* templates (CR-separated) *)
                   bool *                (* if it is volatile *)
-                  (string * varinfo) list * (* outputs must be variables with 
-                                             * constraints  *)
+                  (string * lval) list * (* outputs must be lvals with 
+                                          * constraints. I would like these 
+                                          * to be actually variables, but I 
+                                          * run into some trouble with ASMs 
+                                          * in the Linux sources  *)
                   (string * exp) list * (* inputs with constraints *)
                   string list           (* register clobbers *)
 
@@ -424,7 +430,7 @@ let replaceForwardType key t =
 
 (**** Utility functions ******)
 let rec unrollType = function
-    TNamed (_, r) -> unrollType r
+    TNamed (_, r,_) -> unrollType r
   | TForward n -> unrollType (resolveForwardType n)
   | x -> x
 
@@ -650,7 +656,7 @@ let rec d_decl (docName: unit -> doc) () this =
       let args' = 
         match args with 
             [] -> [ { vname = "";
-                      vtype = voidType;
+                      vtype = if isvararg then voidPtrType else voidType;
                       vid   = 0;
                       vglob = false;
                       vattr = [];
@@ -669,7 +675,7 @@ let rec d_decl (docName: unit -> doc) () this =
         ()
         restyp
 
-  | TNamed (n, _) -> dprintf "%s %t" n docName
+  | TNamed (n, _, a) -> dprintf "%a %s %t" d_attrlist a n docName
 
 
 (* Only a type (such as for a cast) *)        
@@ -844,8 +850,8 @@ and d_instr () i =
             nil
           else 
             dprintf ": %a" (docList (chr ',' ++ break) 
-                              (fun (c, vi) -> dprintf "\"%s\" (%s)"
-                                  (escape_string c) vi.vname)) outs)
+                              (fun (c, lv) -> dprintf "\"%s\" (%a)"
+                                  (escape_string c) d_lval lv)) outs)
           insert
           (if ins = [] && clobs = [] then
             nil
@@ -984,8 +990,8 @@ and d_plaintype () = function
       dprintf "TFloat(@[%a,@?%a@])" d_fkind fkind d_attrlist a
   | TBitfield(ikind,i,a) -> 
       dprintf "TBitfield(@[%a,@?%d,@?%a@])" d_ikind ikind i d_attrlist a
-  | TNamed (n, t) ->
-      dprintf "TNamed(@[%s,@?%a@])" n d_plaintype t
+  | TNamed (n, t, a) ->
+      dprintf "TNamed(@[%s,@?%a,@?%a@@])" n d_plaintype t d_attrlist a
   | TForward n -> dprintf "TForward(%s)" n
   | TPtr(t, a) -> dprintf "TPtr(@[%a,@?%a@])" d_plaintype t d_attrlist a
   | TArray(t,l,a) -> 
@@ -1030,7 +1036,7 @@ let rec intSizeOf = function            (* Might raise Not_found *)
   | TEnum _ ->  4
   | TPtr _ ->  4
   | TArray(t, Some (Const(CInt(l,_,_),_)),_) -> (intSizeOf t) * l
-  | TNamed(_, r) -> intSizeOf r
+  | TNamed(_, r, _) -> intSizeOf r
   | TForward r -> intSizeOf (resolveForwardType r)
   | TStruct(_,flds,_) -> 
       let rec loop = function
@@ -1139,53 +1145,6 @@ let dummyFunDec = emptyFunction "@dummy"
 
 
 
-
-  (* Type comparison *
-let rec sameType t1 t2 = 
-  match t1, t2 with
-    TInt _, TInt _ -> t1 = t2
-  | TVoid _, TVoid _ -> t1 = t2
-  | TFloat _, TFloat _ -> t1 = t2
-  | TEnum _, TEnum _ -> t1 = t2
-  | TBitfield _, TBitfield _ -> t1 = t2
-  | TPtr(t1,a1), TPtr(t2,a2) -> sameType t1 t2 && a1 = a2
-  | TArray(t1,l1,a1), TArray(t2,l2,a2) -> sameType t1 t2 && l1 = l2 && a1 = a2
-  | TStruct(n1,_,a1), TStruct(n2,_,a2) -> n1 = n2 && a1 = a2
-  | TUnion(n1,_,a1), TUnion(n2,_,a2) -> n1 = n2 && a1 = a2
-  | TNamed(_, t1), _ -> sameType t1 t2
-  | TFun(t1,args1,isva1,a1), TFun(t2,args2,isva2,a2) -> 
-      sameType t1 t2 && a1 = a2 && isva1 = isva2 &&
-      let rec sameArgs = function
-          [], [] -> true
-        | arg1 :: args1, arg2 :: args2 -> 
-            sameType arg1.vtype arg2.vtype && arg1.vattr = arg2.vattr
-              && sameArgs (args1, args2)
-        | _ -> false
-      in
-      sameArgs (args1, args2)
-
-  | _, TNamed(_, t2) -> sameType t1 t2
-  | TIncomplete tr1, _ -> sameType !tr1 t2
-  | _, TIncomplete tr2 -> sameType t1 !tr2
-  | _, _ -> false
-*)
- (* A hash code function for types. Guaranteed to return the same thing for 
-  * two types that compare with sameType *
-let rec hashType (t: typ) : int =
-  match t with
-    (TVoid _|TInt _|TFloat _|TEnum _|TBitfield _) -> H.hash t
-  | TStruct (n, _, _, a) -> H.hash ("s", n, a)
-  | TUnion (n, _, _, a) -> H.hash ("u", n, a)
-  | TPtr (t', a) -> H.hash ("p", hashType t', a)
-  | TArray (t',l,a) -> H.hash ("a", hashType t', l, a)
-  | TFun (tr, args, isva, a) -> 
-      H.hash ("f", hashType tr, isva, a, 
-              List.map (fun arg -> (hashType arg.vtype, arg.vattr)) args)
-  | TNamed (_, t) -> hashType t
-  | TIncomplete tr -> hashType !tr
-
-*)
-
      (* Type signatures. Two types are identical iff they have identical 
       * signatures *)
 type typsig = 
@@ -1208,7 +1167,7 @@ let rec typeSig t =
                                   List.map (fun vi -> (typeSig vi.vtype, 
                                                        vi.vattr)) args,
                                   isva, a)
-  | TNamed(_, t) -> typeSig t
+  | TNamed(_, t, _) -> typeSig t
   | TForward n -> begin
       let l = String.length n in
       try
@@ -1326,7 +1285,7 @@ let typeAttrs = function
   | TInt (_, a) -> a
   | TFloat (_, a) -> a
   | TBitfield (_, _, a) -> a
-  | TNamed (n, _) -> []
+  | TNamed (n, _, a) -> a
   | TPtr (_, a) -> a
   | TArray (_, _, a) -> a
   | TStruct (_, _, a) -> a
@@ -1342,7 +1301,7 @@ let setTypeAttrs t a =
   | TInt (i, _) -> TInt (i, a)
   | TFloat (f, _) -> TFloat (f, a)
   | TBitfield (i, s, _) -> TBitfield (i, s, a)
-  | TNamed (n, _) -> t
+  | TNamed (n, t, _) -> TNamed(n, t, a)
   | TPtr (t', _) -> TPtr(t', a)
   | TArray (t', l, _) -> TArray(t', l, a)
   | TStruct (n, f, _) -> TStruct(n,f,a)
@@ -1352,3 +1311,15 @@ let setTypeAttrs t a =
   | TFun (r, args, v, _) -> TFun(r,args,v,a)
 
 
+let dropAttribute al a = 
+  let rec amatch a a' = 
+    match a, a' with
+      AId s, AId s' when s = s' -> true
+    | AInt n, AInt n' when n = n' -> true
+    | AStr s, AStr s' when s = s' -> true
+    | AVar vi, AVar vi' when vi.vid = vi'.vid -> true
+    | ACons (s, args), ACons(s', args') when
+        s = s' && (List.for_all2 amatch args args') -> true
+    | _ -> false
+  in
+  List.filter (fun a' -> not (amatch a a')) al

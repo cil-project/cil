@@ -63,7 +63,7 @@ let makeNewTypeName base =
    (* Make a type name, for use in type defs *)
 let rec typeName = function
     TForward n -> typeName (resolveForwardType n)
-  | TNamed (n, _) -> n
+  | TNamed (n, _, _) -> n
   | TVoid(_) -> "void"
   | TInt(IInt,_) -> "int"
   | TInt(IUInt,_) -> "uint"
@@ -114,7 +114,7 @@ let newFatPointerName t =
 let rec fixupType t = 
   match t with
     TForward n -> t
-  | TNamed (n, t) -> TNamed(n, fixupType t) (* Keep the Named types *)
+  | TNamed (n, t, a) -> TNamed(n, fixupType t, a) (* Keep the Named types *)
     (* Sometimes we find a function type without arguments (a prototype that 
      * we have done before). Put the argument names back *)
   | TFun (_, args, _, _) -> begin
@@ -154,7 +154,7 @@ and fixit t =
                                fattr   = [];
                              }; ], []) 
           in
-          let tres = TNamed(tname, fixed) in
+          let tres = TNamed(tname, fixed, []) in
           H.add fixedTypes (typeSig fixed) fixed; (* We add fixed ourselves. 
                                                    * The TNamed will be added 
                                                    * after doit  *)
@@ -164,7 +164,7 @@ and fixit t =
       end
             
       | TForward _ ->  t              (* Don't follow TForward *)
-      | TNamed (n, t') -> TNamed (n, fixupType t')
+      | TNamed (n, t', a) -> TNamed (n, fixupType t', a)
             
       | TStruct(n, flds, a) -> begin
           let r = 
@@ -258,7 +258,7 @@ let tagTypeInit sz =                    (* sz is the sizeOf the data *)
                            ftype   = intType;
                            fattr   = [];
                          }; ], []) in
-      let t' = TNamed(tname, t) in
+      let t' = TNamed(tname, t, []) in
       H.add tagTypes tagwords t';
       theFile := GType(tname, t) :: !theFile;
       t'
@@ -405,16 +405,17 @@ and boxinstr (ins: instr) =
         mkSeq (dof @ doargs @ [call vi f' args'])
 
     | Asm(tmpls, isvol, outputs, inputs, clobs) ->
-        let rec checkOutputs = function
-            [] -> ()
-          | (c, vi) :: rest -> 
-              if isFatType vi.vtype then
-                ignore (E.log "Warning: fat output %s in %a\n"
-                          vi.vname 
+        let rec doOutputs = function
+            [] -> [], []
+          | (c, lv) :: rest -> 
+              let (lvt, dolv, lv', _) = boxlval lv in
+              if isFatType lvt then
+                ignore (E.log "Warning: fat output in %a\n"
                           d_instr ins);
-              checkOutputs rest
+              let (doouts, outs) = doOutputs rest in
+              (dolv @ doouts, (c, lv') :: outs)
         in
-        checkOutputs outputs;
+        let (doouts, outputs') = doOutputs outputs in
         let rec doInputs = function
             [] -> [], []
           | (c, ei) :: rest -> 
@@ -426,8 +427,8 @@ and boxinstr (ins: instr) =
               (doe @ doins, (c, e') :: ins)
         in
         let (doins, inputs') = doInputs inputs in
-        mkSeq (doins @ 
-               [Instr(Asm(tmpls, isvol, outputs, inputs', clobs))])
+        mkSeq (doouts @ doins @ 
+               [Instr(Asm(tmpls, isvol, outputs', inputs', clobs))])
             
   with e -> begin
     ignore (E.log "boxinstr (%s)\n" (Printexc.to_string e));

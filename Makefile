@@ -145,6 +145,7 @@ PCCCOMP=_MSVC
 endif
 testallpcc: $(EXECUTABLE)$(EXE)
 	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.o
+	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.exe
 	make -C $(PCCDIR) \
              CC="$(SAFECC) --keep=$(SAFECCDIR)/cil/test/PCC $(CONLY)" \
              USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
@@ -184,4 +185,4 @@ testlinux/% : $(EXECUTABLE)$(EXE) test/linux/%.cpp
                   test/linux/$*.cpp 
 
 testqp : testlinux/qpmouse
-
+testserial: testlinux/generic_serial

@@ -207,7 +207,7 @@ let gnu_body_result : (A.statement * ((exp * typ) option ref)) ref
 
 (*** When we do statements we need to know the current return type *)
 let currentReturnType : typ ref = ref (TVoid([]))
-
+let currentFunctionName : string ref = ref "no_function"
 
 (******** GLOBAL TYPES **************)
 let typedefs : (string, typ) H.t = H.create 113
@@ -400,8 +400,8 @@ let conditionalConversion (e2: exp) (t2: typ) (e3: exp) (t3: typ) : typ =
 let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) = 
   if typeSig ot = typeSig nt then (ot, e) else
   match ot, nt with
-    TNamed(_,r), _ -> castTo r nt e
-  | _, TNamed(_,r) -> castTo ot r e
+    TNamed(_,r, _), _ -> castTo r nt e
+  | _, TNamed(_,r, _) -> castTo ot r e
   | TForward(rt), _ -> castTo (resolveForwardType rt) nt e
   | _, TForward(rt) -> castTo ot (resolveForwardType rt) e
   | TInt(ikindo,_), TInt(ikindn,_) -> 
@@ -461,7 +461,7 @@ let doNameGroup (sng: A.single_name -> 'a)
 let rec makeFieldInfo (host: string) 
                      ((bt,st,(n,nbt,a,e)) : A.single_name) : fieldinfo = 
   let rec removeNamed = function
-      TNamed (_, t) -> removeNamed t
+      TNamed (_, t, _) -> removeNamed t
     | TPtr(t,a) -> TPtr(removeNamed t, a)
     | t -> t
   in
@@ -496,7 +496,24 @@ and doAttr : A.attribute -> attribute = function
             with Not_found -> 
               AId n
           end
-        | A.CONSTANT (A.CONST_STRING s) -> AStr s
+        | A.CONSTANT (A.CONST_STRING s) -> 
+            (* Maybe we burried __FUNCTION__ in there *)
+            let s' = 
+              try
+                let start = String.index s (Char.chr 0) in
+                let l = String.length s in
+                let tofind = (String.make 1 (Char.chr 0)) ^ "__FUNCTION__" in
+                let past = start + String.length tofind in
+                if past <= l &&
+                   String.sub s start (String.length tofind) = tofind then
+                  (if start > 0 then String.sub s 0 start else "") ^
+                  !currentFunctionName ^
+                  (if past < l then String.sub s past (l - past) else "")
+                else
+                  s
+              with Not_found -> s
+            in
+            AStr s'
         | A.CONSTANT (A.CONST_INT str) -> AInt (int_of_string str)
         | _ -> E.s (E.unimp "ACons")
       in
@@ -560,6 +577,9 @@ and doType (a : attribute list) = function
       let n = if n = "" then newTypeName "struct" else n in
       let flds = 
         List.concat (List.map (doNameGroup (makeFieldInfo n)) nglist) in
+      (* Drop volatile from struct *)
+      let a = dropAttribute a (AId("volatile")) in
+      let a = dropAttribute a (AId("const")) in
       let tp = TStruct (n, flds, a) in
       recordCompType tp; 
       tp
@@ -638,7 +658,7 @@ and doType (a : attribute list) = function
   | A.NAMED_TYPE n -> begin
       match findTypeName n with
         (TNamed _) as x -> x
-      | typ -> TNamed(n, typ)
+      | typ -> TNamed(n, typ, a)
   end
   | A.TYPEOF e -> 
       let (se, _, t) = doExp e (AExp None) in
@@ -850,7 +870,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
             end
         end
           (* This is not intended to be a constant. It can have expressions 
-             * with side-effects inside *)
+           * with side-effects inside *)
         | A.CONST_COMPOUND el -> begin
             let slist : stmt list ref = ref [] in
             let doPureExp t e = 
@@ -916,7 +936,13 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
               se1, typ
           | _ -> [],  doType [] bt
         in
-        let (se, e', t) = doExp e (AExp None) in
+        (* We treat the case when e is COMPOUND differently *)
+        let what' = 
+          match e with 
+            A.CONSTANT (A.CONST_COMPOUND _) -> Some typ
+          | _ -> None
+        in
+        let (se, e', t) = doExp e (AExp what') in
         let (t'', e'') = 
           match typ with
             TVoid _ when what = ADrop -> (t, e') (* strange GNU thing *)
@@ -1100,19 +1126,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
                 ignore (E.log 
                           "Warning: Calling function %s without prototype\n"
                           n);
-                let ftype = TFun(intType,
-                                 (let rec mkn n = 
-                                   if n = List.length args then [] else 
-                                   { vname = "";
-                                     vglob = false;
-                                     vtype = intType;
-                                     vid   = n;
-                                     vattr = [];
-                                     vdecl = lu;
-                                     vaddrof = false;
-                                     vstorage = NoStorage; } :: mkn (n + 1)
-                                 in mkn 0), 
-                                 false, []) in
+                let ftype = TFun(intType, [], true, []) in
                 (* Add a prototype *)
                 let proto = makeGlobalVar n ftype in 
                 let proto = addNewVar proto in
@@ -1200,9 +1214,6 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         in
         finishExp (doCondition e1 se2 se3) (integer 0) intType
           
-    | A.QUESTION (e1, A.NOTHING, e3) -> (* A GNU thing *)
-        E.s (E.unimp " e1 ? : e3 not yet implemented")
-
     | A.QUESTION (e1, e2, e3) -> begin (* what is not ADrop *)
                     (* Do these only to collect the types  *)
         let se2, e2', t2' = 
@@ -1641,14 +1652,7 @@ and doStatement (s : A.statement) : stmt list =
                 | _ -> E.s (E.unimp "Expected lval for ASM outputs")
               in
               stmts := se :: !stmts;
-              match lv with 
-                Var vi, NoOffset -> (c, vi)(* already var *)
-              | _ -> begin
-                  let tmp = newTempVar t in
-                    temps := (lv, tmp) :: !temps;
-                  (c, tmp)
-              end)
-            outs
+              (c, lv)) outs 
         in
       (* Get the side-effects out of expressions *)
         let ins' = 
@@ -1660,9 +1664,7 @@ and doStatement (s : A.statement) : stmt list =
             ins
         in
         List.concat (List.rev !stmts) @ 
-        (Instr(Asm(tmpls, isvol, outs', ins', clobs)) ::
-         (List.map (fun (lv, vi) -> 
-           Instr(Set(lv,Lval(var vi),lu))) !temps))
+        [Instr(Asm(tmpls, isvol, outs', ins', clobs))]
   with e -> begin
     (ignore (E.log "Error in doStatement (%s)\n" (Printexc.to_string e)));
     [Label "booo_statement"]
@@ -1779,7 +1781,8 @@ let convFile dl =
               | x -> E.s (E.bug "non-function type: %a." d_type x)
             in
             (* Record the returnType for doStatement *)
-            currentReturnType := returnType;
+            currentFunctionName := n;
+            currentReturnType   := returnType;
             (* Setup the environment. Add the formals to the locals. Maybe 
              * they need alpha-conv *)
             startScope ();

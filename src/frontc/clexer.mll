@@ -84,6 +84,7 @@ let init_lexicon _ =
                 ("__asm__", ASM); ("asm", ASM);
                 ("__typeof__", TYPEOF);
                 ("__volatile__", VOLATILE);
+                ("__FUNCTION__", FUNCTION__);
                 (**** MS VC ***)
                 ("__int64", INT64);
                 ("_cdecl",  CDECL); ("__cdecl", CDECL);

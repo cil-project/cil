@@ -234,7 +234,7 @@ let apply_qual ((t1, q1) : base_type * modifier list)
 %token WHILE DO FOR
 %token IF ELSE
 
-%token ATTRIBUTE INLINE ASM TYPEOF
+%token ATTRIBUTE INLINE ASM TYPEOF FUNCTION__
 %token STDCALL CDECL
 %token <string> MSASM
 %token <string> PRAGMA
@@ -287,7 +287,8 @@ let apply_qual ((t1, q1) : base_type * modifier list)
 %type <Cabs.definition list * Cabs.statement> body
 %type <Cabs.statement> statement opt_stats stats
 %type <Cabs.constant> constant
-%type <Cabs.expression> expression init_expression opt_expression
+%type <Cabs.expression> expression opt_expression 
+%type <Cabs.expression> init_expression opt_init_expression
 %type <Cabs.expression list> comma_expression init_comma_expression
 %type <Cabs.single_name list * bool> parameters
 %type <string * Cabs.base_type> param_dec
@@ -875,19 +876,100 @@ enum_name:
 
 /*** Expressions ****/
 
-/* Separate initializer expresion because they have the special 
- * structure initializer */
+/* We cannot add compound initializers to expressions because it conflicts 
+ * with the GNU BODY expression. Thus we duplicate the entire expression 
+ * language, except for the body and with the compound initializer added */
 init_expression:
-     LBRACE init_comma_expression RBRACE
+    LBRACE init_comma_expression RBRACE
 			{CONSTANT (CONST_COMPOUND (List.rev $2))}
-/*
-|    LPAREN init_expression RPAREN
-                        {$2}
-|    LPAREN only_type RPAREN init_expression
-                        {CAST ($2, $4)}
-*/
-|    expression		{$1}
+|   constant
+			{CONSTANT $1}		
+|   IDENT
+			{VARIABLE $1}
+|   SIZEOF expression
+			{EXPR_SIZEOF $2}
+|   SIZEOF LPAREN only_type RPAREN
+			{TYPE_SIZEOF $3}
+|   PLUS init_expression
+			{UNARY (PLUS, $2)}
+|   MINUS init_expression
+			{UNARY (MINUS, $2)}
+|   STAR init_expression
+			{UNARY (MEMOF, $2)}
+|   AND init_expression				%prec ADDROF
+			{UNARY (ADDROF, $2)}
+|   EXCLAM init_expression
+			{UNARY (NOT, $2)}
+|   TILDE init_expression
+			{UNARY (BNOT, $2)}
+|   PLUS_PLUS init_expression %prec CAST
+			{UNARY (PREINCR, $2)}
+|   init_expression PLUS_PLUS
+			{UNARY (POSINCR, $1)}
+|   MINUS_MINUS init_expression %prec CAST
+			{UNARY (PREDECR, $2)}
+|   init_expression MINUS_MINUS
+			{UNARY (POSDECR, $1)}
+|   init_expression ARROW IDENT
+			{MEMBEROFPTR ($1, $3)}
+|   init_expression ARROW NAMED_TYPE
+			{MEMBEROFPTR ($1, $3)}
+|   init_expression DOT IDENT
+			{MEMBEROF ($1, $3)}
+|   init_expression DOT NAMED_TYPE
+			{MEMBEROF ($1, $3)}
+|   LPAREN init_comma_expression RPAREN
+			{(smooth_expression $2)}
+|   LPAREN only_type RPAREN init_expression %prec CAST
+			{CAST ($2, $4)}
+|   init_expression LPAREN opt_expression RPAREN
+			{CALL ($1, list_expression $3)}
+|   init_expression LBRACKET comma_expression RBRACKET
+			{INDEX ($1, smooth_expression $3)}
+|   init_expression QUEST opt_init_expression COLON init_expression
+			{QUESTION ($1, $3, $5)}
+|   init_expression PLUS init_expression
+			{BINARY(ADD ,$1 , $3)}
+|   init_expression MINUS init_expression
+			{BINARY(SUB ,$1 , $3)}
+|   init_expression STAR init_expression
+			{BINARY(MUL ,$1 , $3)}
+|   init_expression SLASH init_expression
+			{BINARY(DIV ,$1 , $3)}
+|   init_expression PERCENT init_expression
+			{BINARY(MOD ,$1 , $3)}
+|   init_expression AND_AND init_expression
+			{BINARY(AND ,$1 , $3)}
+|   init_expression PIPE_PIPE init_expression
+			{BINARY(OR ,$1 , $3)}
+|   init_expression AND init_expression
+			{BINARY(BAND ,$1 , $3)}
+|   init_expression PIPE init_expression
+			{BINARY(BOR ,$1 , $3)}
+|   init_expression CIRC init_expression
+			{BINARY(XOR ,$1 , $3)}
+|   init_expression EQ_EQ init_expression
+			{BINARY(EQ ,$1 , $3)}
+|   init_expression EXCLAM_EQ init_expression
+			{BINARY(NE ,$1 , $3)}
+|   init_expression INF init_expression
+			{BINARY(LT ,$1 , $3)}	
+|   init_expression SUP init_expression
+			{BINARY(GT ,$1 , $3)}
+|   init_expression INF_EQ init_expression
+			{BINARY(LE ,$1 , $3)}
+|   init_expression SUP_EQ init_expression
+			{BINARY(GE ,$1 , $3)}
+|   init_expression  INF_INF init_expression
+			{BINARY(SHL ,$1 , $3)}
+|   init_expression  SUP_SUP init_expression
+			{BINARY(SHR ,$1 , $3)}		
 ;
+opt_init_expression:
+    /* empty */                                   { NOTHING }
+|   init_expression                               { $1 }
+; 
+
 init_comma_expression:
     init_expression	                          {[$1]}
 |   init_comma_expression COMMA init_expression	  {$3::$1}
@@ -1022,6 +1104,9 @@ constant:
 string_list:
     CST_STRING				{$1}
 |   string_list CST_STRING		{$1 ^ $2}
+|   string_list FUNCTION__              {$1 ^ 
+                                          (String.make 1 (Char.chr 0)) ^ 
+                                          "__FUNCTION__"}
 ;
 
 
