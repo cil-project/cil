@@ -119,7 +119,7 @@ and unop =
 (* binary operations *)
 and binop =
     Plus
-  | Index                               (* Just like Plus but the first 
+  | Advance                             (* Just like Plus but the first 
                                          * operand is a pointer and the next 
                                          * is an integer. Only so that we can 
                                          * print it using [ ... ] when it 
@@ -155,8 +155,12 @@ and exp =
   | BinOp      of binop * exp * exp * typ * location (* also have the type of 
                                                       * the result *)
   | CastE      of typ * exp * location
+  | Compound   of typ * exp list        (* Used for initializers of *)
   | AddrOf     of lval * location
-  | Compound   of typ * exp list        (* Used for initializers of 
+  | StartOf    of lval                  (* To be used for lval's that denote 
+                                         * array. The expression denotes the 
+                                         * address of the first element *)
+
                                          * structured types *)
 (* L-Values denote contents of memory addresses *)
 and lval =
@@ -166,6 +170,7 @@ and lval =
 and offset = 
   | NoOffset
   | Field      of fieldinfo * offset    (* l.f + offset *)
+  | Index      of exp * offset          (* l + e + offset *)
   | CastO      of typ * offset          (* ((t)l) + offset *)
 
 (**** INSTRUCTIONS. May cause effects directly but may not have control flow.*)
@@ -469,7 +474,7 @@ and getParenthLevel = function
                                          * comparisons  *)
   | BinOp((BOr|BXor|BAnd|Shiftlt|Shiftrt),_,_,_,_) -> 7
                                         (* Additive *)
-  | BinOp((Minus|Plus|Index),_,_,_,_)  -> 6
+  | BinOp((Minus|Plus|Advance),_,_,_,_)  -> 6
                                         (* Multiplicative *)
   | BinOp((Div|Mod|Mult),_,_,_,_) -> 4
 
@@ -515,15 +520,15 @@ and d_exp () e =
         (d_expprec level) e1 d_binop b (d_expprec level) e2
   | CastE(t,e,l) -> dprintf "(%a)%a" d_type t (d_expprec level) e
   | SizeOf (t, l) -> dprintf "sizeof(%a)" d_type t
-  | AddrOf(lv,lo) -> dprintf "& %a" (d_lvalprec 2) lv
   | Compound (t, el) -> dprintf "(%a) {@[%a@]}" d_type t
         (docList (chr ',' ++ break) (d_exp ())) el
+  | AddrOf(lv,lo) -> dprintf "& %a" (d_lvalprec 2) lv
   
 
 and d_binop () b =
   match b with
     Plus -> text "+"
-  | Index -> text "+"
+  | Advance -> text "+"
   | Minus -> text "-"
   | Mult -> text "*"
   | Div -> text "/"
@@ -576,7 +581,7 @@ and d_plainexp () = function
 
 and d_plainlval () = function
   | Var(vi,o,l) -> dprintf "Var(@[%s,@?%a@])" vi.vname d_plainoffset o
-  | Mem(BinOp(Index,e1,e2,_,_),o,l) -> 
+  | Mem(BinOp(Advance,e1,e2,_,_),o,l) -> 
       dprintf "Mem(@[Idx(@[%a,@?%a@],@?%a@])" 
         d_plainexp e1 d_plainexp e2 d_plainoffset o
   | Mem(e,o,l) -> dprintf "Mem(@[%a,@?%a@])" d_plainexp e d_plainoffset o
@@ -640,7 +645,7 @@ and d_lval () lv =
   in
   match lv with
     Var(vi,o,_) -> d_offset (fun _ -> text vi.vname) o
-  | Mem(BinOp(Index,e1,e2,_,_),o,_) -> 
+  | Mem(BinOp(Advance,e1,e2,_,_),o,_) -> 
       d_offset (fun _ -> dprintf "%a[%a]" (d_expprec 3) e1 d_exp e2) o
   | Mem(e,Field(fi, o),_) -> 
       d_offset (fun _ -> dprintf "%a->%s" (d_expprec 3) e fi.fname) o
@@ -653,11 +658,11 @@ and d_instr () i =
   | Set(lv,e,lo) -> begin
       (* Be nice to some special cases *)
       match e with
-        BinOp((Plus|Index),Lval(lv'),Const(CInt(1,_),_),_,_) when lv == lv' -> 
+        BinOp((Plus|Advance),Lval(lv'),Const(CInt(1,_),_),_,_) when lv == lv' -> 
           dprintf "%a ++;" d_lval lv
       | BinOp(Minus,Lval(lv'),Const(CInt(1,_),_),_,_) when lv == lv' -> 
           dprintf "%a --;" d_lval lv
-      | BinOp((Plus|Index|Minus|BAnd|BOr|BXor|
+      | BinOp((Plus|Advance|Minus|BAnd|BOr|BXor|
                Mult|Div|Mod|Shiftlt|Shiftrt) as bop,
               Lval(lv'),e,_,_) when lv == lv' -> 
           dprintf "%a %a= %a;" d_lval lv d_binop bop d_exp e

@@ -416,22 +416,22 @@ and boxoffset (off: offset) (basety: typ) : offsetRes =
   | NoOffset ->
       (basety, [], NoOffset)
 (*
-  | Index (e, resto) when isFatType basety ->
+  | Advance (e, resto) when isFatType basety ->
       let fptr = getPtrFieldOfFat basety in
       let (rest, doo, off') = boxoffset off fptr.ftype in
       (rest, doo, Field(fptr, off'))
 *)
 (*
-  | Index (e, resto) -> 
+  | Advance (e, resto) -> 
       let rest =                   
         match basety with
           TPtr (t, _) -> t
         | TArray (t, _, _) -> t
-        | _ -> E.s (E.bug "Index for type %a" d_type basety)
+        | _ -> E.s (E.bug "Advance for type %a" d_type basety)
       in
       let (_, doe, e') = boxexp e in
       let (rest', doresto, off') = boxoffset resto basety in
-      (rest', doe @ doresto, Index(e', off'))
+      (rest', doe @ doresto, Advance(e', off'))
 *)
 
   | Field (fi, resto) ->
@@ -516,14 +516,14 @@ and boxexp (e : exp) : expRes =
       let (et1, doe1, e1') = boxexp e1 in
       let (et2, doe2, e2') = boxexp e2 in
       match bop, isFatType et1, isFatType et2 with
-      | (Plus|Index), true, false -> 
+      | (Plus|Advance), true, false -> 
           let doset, reslv =
             setFatPointer restyp' 
                           (fun t -> 
                             BinOp(bop, readPtrField e1' et1, e2', t, l))
                           (readBaseField e1' et1) in
           (restyp', doe1 @ doe2 @ doset, Lval(reslv))
-      | (Plus|Index), false, true -> 
+      | (Plus|Advance), false, true -> 
           let doset, reslv =
             setFatPointer restyp' 
                           (fun t -> 
