@@ -381,7 +381,7 @@ $TEST->addTestsFail("testrun/fseq1", "", "Failure: Lbound",
                     ['box']);
 $TEST->addTestsFail("testrun/string1", "", "Failure: Ubound", ['inferbox']);
 $TEST->addTestsFail("testrun/fseq3", "", "Failure: Integer arithmetic overflow", ['inferbox']);
-
+$TEST->addTests("test-bad/badpoly", "_GNUCC=1", [ 'inferbox', 'box' ]);
 #
 # OLDEN benchmarks
 #
@@ -481,7 +481,7 @@ sub smAddTest {
 
   my %patterns = %commonerrors;
   my $tst = $self->newTest(Name => $tname,
-                           Dir => ".",      # changed from ".." moving to test/Makefile
+                           Dir => ".",
                            Cmd => "make $command" . $self->testCommandExtras(""),
                            Group => ['quick'],
                            Patterns => \%patterns);

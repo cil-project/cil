@@ -32,6 +32,7 @@ if [ "$1" = "" ]; then
   # good to have at least 1 positional arg so when it's missing I
   # can easily tell, and print this message
   echo "usage: CCUREDHOME=... CCURED=... CFLAGS=... $0 source-file.c"
+  echo "You can also set RUNONLY=n to run only the nth iteration"
   exit 0
 fi
 srcfile="$1"
@@ -52,7 +53,15 @@ echo "there are $numcases failure cases in this file"
 
 # iterate through the cases; first case (0) is where no errors are present
 i=0
+if [ "$RUNONLY" != "" ] ;then
+   i=$RUNONLY
+fi
 while [ $i -le $numcases ]; do
+  echo
+  echo
+  echo "********************** Iteration $i"
+  echo
+  echo
   # generate a temporary file; first hide the ERROR tags which identify
   # the current test, then remove all remaining ERROR lines
   # (syntax for errors has parentheses so if I have >=10 cases I don't
@@ -63,15 +72,10 @@ while [ $i -le $numcases ]; do
                  | grep -v ERROR > "$tmpname.c"
   chmod a-w "$tmpname.c"
 
-  echo
-  echo
-  echo "********************** Iteration $i"
-  echo
-  echo
   # Grab the errorline for this test case
   themsg=`cat "$srcfile" | grep "ERROR($i).*:" | sed "s/^.*ERROR.*://" `
   if [ "x$themsg" != "x" ] ;then 
-     echo "Expecting: $themsg"
+     echo "Expecting error message:$themsg"
   fi
 
   # compile this with our tool
@@ -85,6 +89,7 @@ while [ $i -le $numcases ]; do
       exit $status
     else
       if [ "x$themsg" != "x" ] ;then
+         echo grep "$themsg" test-bad.out
          if ! grep "$themsg" test-bad.out ;then
             echo "The ${i}th iteration failed to CURE but cannot find: $themsg"
             exit 3
@@ -121,9 +126,11 @@ while [ $i -le $numcases ]; do
       if [ "x$themsg" != "x" ] ;then
          # Run it again to get its output
          rm -f test-bad.out
-         ./$tmpname 1>&2 2>test-bad.out 
+         echo "./$tmpname >test-bad.out"
+         ./$tmpname >test-bad.out 
+         echo grep "$themsg" test-bad.out
          if ! grep "$themsg" test-bad.out ;then
-            echo "The ${i}th iteration failed but cannot find: $themsg"
+            echo "The ${i}th iteration failed but cannot find:$themsg"
             exit 3
          fi
       fi
@@ -134,6 +141,11 @@ while [ $i -le $numcases ]; do
   # possibly bail after 0th
   if [ "$TESTBADONCE" != "" ]; then
     echo "bailing after 0th iteration because TESTBADONCE is set"
+    exit 0
+  fi
+
+  if [ "$RUNONLY" != "" ]; then
+    echo "bailing after ${RUNONLY}th iteration because RUNONLY is set"
     exit 0
   fi
 
