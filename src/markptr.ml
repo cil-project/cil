@@ -242,7 +242,7 @@ let rec doExp (e: exp) =
       let t', _ = doType t (N.anonPlace()) 0 in
       SizeOf (t'), uintType, N.dummyNode
 
-        (* arithemtic binop *)
+        (* arithmetic binop *)
   | BinOp (((PlusA|MinusA|Mult|Div|Mod|Shiftlt|Shiftrt|Lt|Gt|Le|Ge|Eq|Ne|BAnd|BXor|BOr|LtP|GtP|LeP|GeP|EqP|NeP|MinusPP) as bop), 
            e1, e2, tres) -> 
              BinOp(bop, doExpAndCast e1 tres,
@@ -250,17 +250,23 @@ let rec doExp (e: exp) =
        (* pointer arithmetic *)
   | BinOp (((PlusPI|MinusPI) as bop), e1, e2, tres) -> 
       let e1', e1t, e1n = doExp e1 in
-      (match signOf 
-          (match bop with PlusPI -> e2 | _ -> UnOp(Neg, e2, intType)) with
+      let sign = 
+        signOf 
+          (match bop with PlusPI -> e2 | _ -> UnOp(Neg, e2, intType)) 
+      in
+      (match sign with
         SLiteral 0 -> ()
       | SPos -> e1n.N.posarith <- true
       | SLiteral n when n > 0 -> e1n.N.posarith <- true
       | _ -> 
           (* if l.line = -1000 then Was created from p[e] 
-            e1n.N.posarith <- true
-          else *)
-            e1n.N.arith <- true);
-      BinOp (bop, e1', doExpAndCast e2 intType, e1t), e1t, e1n
+             e1n.N.posarith <- true
+             else *)
+          e1n.N.arith <- true);
+      if sign = SLiteral 0 then
+          e1', e1t, e1n
+        else
+          BinOp (bop, e1', doExpAndCast e2 intType, e1t), e1t, e1n
       
       
   | CastE (newt, e) -> 
@@ -272,6 +278,15 @@ let rec doExp (e: exp) =
        * to attach a node *)
       let newt', _ = doType charPtrType (N.anonPlace ()) 0 in
       CastE (newt', e), newt', nodeOfType newt'
+
+  | Compound (t, initl) -> 
+      let t', _ = doType t (N.anonPlace ()) 0 in
+        (* Construct a new initializer list *)
+      let doOneInit (off: offset) (ei: exp) (tei: typ) acc = 
+        (None, doExpAndCast ei tei) :: acc
+      in
+      let newinitl = List.rev (foldLeftCompound doOneInit t' initl []) in
+      Compound (t', newinitl), t', nodeOfType t'
       
   | _ -> (e, typeOf e, N.dummyNode)
 
@@ -459,10 +474,6 @@ let doGlobal (g: global) : global =
       let init' = 
         match init with
           None -> None
-              (* Catch the case of a string that initializes an array *)
-        | Some (Const(CStr _)) when
-          (match vi.vtype with TArray _ -> true | _ -> false) -> 
-            init
         | Some i -> Some (doExpAndCast i vi.vtype)
       in
       GVar (vi, init', l)

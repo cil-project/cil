@@ -2261,29 +2261,30 @@ let boxFile file =
     let init', fats = 
       match init with
         None -> None, None
-      | Some e -> begin
-          match e with
-            Const(CStr _) when 
-            (match unrollType origType with 
-              TArray(TInt((IUChar|ISChar|IChar), _), _, _) -> true 
-            | _ -> false) -> Some e, None
-          | _ ->
-              let e' = boxGlobalInit e origType in
+      | Some e -> 
+          (* See if e contains pointers. Then we move it to an initializer 
+           * function *)
+          let hasPointers = 
+            existsType 
+              (fun t ->
+                match t with 
+                  TPtr _ -> ExistsTrue
+                | _ -> ExistsMaybe) origType in
+          let e' = boxGlobalInit e origType in
               (* See if init' contains fat pointers *)
-              let rec expContainsFats = function
-                  Compound(t, [_, p; _, b]) when isFatType t ->
-                    not (isZero b)
-                | Compound(t, ilist) -> 
-                    List.exists (fun (_, e) -> expContainsFats e) ilist
-                | _ -> false
-              in
-              if expContainsFats e' then
+          let rec expContainsFats = function
+              Compound(t, [_, p; _, b]) when isFatType t ->
+                not (isZero b)
+            | Compound(t, ilist) -> 
+                List.exists (fun (_, e) -> expContainsFats e) ilist
+            | _ -> false
+          in
+          if expContainsFats e' then
                 (* But we do not consider NULL a fat, since it is Ok for it 
-                 * to have tags = 0 *)
-                None, Some e'
-              else
-                Some e', None
-      end
+                   * to have tags = 0 *)
+            None, Some e'
+          else
+            Some e', None
     in
     (* Tag some globals *)
     if not (mustBeTagged vi) then

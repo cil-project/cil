@@ -372,9 +372,6 @@ and checkExpType (isconst: bool) (e: exp) (t: typ) =
                          * array of characters  *)
     if typeSig t' <> typeSig t then 
       match e, t with
-        Const(CStr s), 
-        TArray(TInt(IChar, _), Some (Const(CInt(l, _, _))), _) when
-        String.length s = l - 1 -> ()
       | _ -> typeMatch t' t
   end else
     typeMatch t' t

@@ -1969,19 +1969,37 @@ let convFile fname dl =
                 None
               else 
                 let (se, e', et) = doExp true e (AExp (Some vi.vtype)) in
-                let (_, e'') = castTo et vi.vtype e' in
-                (match vi.vtype, e', et with (* See if we have a length now *)
-                  TArray(TInt((IChar|IUChar|ISChar), _) as bt, None, a),
-                  Const(CStr s), _ -> 
-                    vi.vtype <- TArray(bt, 
-                                       Some (integer (String.length s + 1)),
-                                       a)
-                | TArray(bt, None, a), _, TArray(_, Some _, _) -> 
-                    vi.vtype <- et
-                | _ -> ());
                 if se <> [] then 
                   E.s (E.unimp "global initializer");
-                Some e''
+                let (_, e'') = castTo et vi.vtype e' in
+                match vi.vtype, e', et with (* See if we have a length now *)
+                  TArray(TInt((IChar|IUChar|ISChar), _) as bt, None, a),
+                  Const(CStr s), _ -> 
+                    (* Change arrays initialized with strings into array 
+                     * initializers *)
+                    vi.vtype <- TArray(bt, 
+                                       Some (integer (String.length s + 1)),
+                                       a);
+                    let addOne c acc = 
+                      (None, 
+                       Const(CInt(c, IChar, 
+                                  Some ("'" ^ Char.escaped (Char.chr c) 
+                                        ^ "'")))) :: acc
+                    in
+                    let rec allChars i acc = 
+                      if i < 0 then acc
+                      else allChars (i - 1) 
+                          (addOne (Char.code (String.get s i)) acc)
+                    in
+                    Some (Compound(vi.vtype, 
+                                   allChars (String.length s - 1) 
+                                     (addOne 0 [])))
+                    
+                | TArray(bt, None, a), _, TArray(_, Some _, _) -> 
+                    vi.vtype <- et;
+                    Some e''
+
+                | _ ->  Some e''
             in
             let vi, alreadyDef = makeGlobalVarinfo vi in
             if not alreadyDef then begin(* Do not add declarations after def *)
