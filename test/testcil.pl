@@ -198,7 +198,7 @@ $TEST->add3Tests("perimeter");
 $TEST->add3Tests("tsp");
    $TEST->add3Group("tsp", "olden");
 $TEST->add3Tests("bisort");
-   $TEST->add3Group("bisort", "olden", "bad");
+   $TEST->add3Group("bisort", "olden");
 $TEST->add3Tests("mst");
    $TEST->add3Group("mst", "olden");
    $TEST->addBadComment("mst-inferbox", "UBOUND");

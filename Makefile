@@ -1112,8 +1112,9 @@ bisort : defaulttarget
                make PLAIN=1 clean defaulttarget \
                     $(BISORTARGS) \
                     CC="$(COMBINESAFECC) \
+                        --nobox=trusted_bisort \
 			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
-	cd $(BISORTDIR); ./bisort.exe 100 1
+	cd $(BISORTDIR); sh -c "time ./bisort.exe 250000 0"
 
 
 
