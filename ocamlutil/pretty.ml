@@ -76,7 +76,9 @@ let break         = Break
 
 let (++) d1 d2 = Concat (d1, d2)
 
-let indent n d   = text " " ++ align ++ d ++ unalign
+(* Ben Liblit fix *)
+let indent n d = text (String.make n ' ') ++ (align ++ (d ++ unalign))
+
 
 
 (* Format a sequence. The first argument is a separator *)
