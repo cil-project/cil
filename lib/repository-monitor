@@ -96,6 +96,12 @@ while (1) {
     die("cvs update failed\n");
   }
 
+  # remove lines indicated files unknown to cvs
+  @changes = grep(!/^\?/, @changes);
+
+  # or modified locally (because I'm debugging this script..)
+  @changes = grep(!/^M/, @changes);
+
   if (@changes == 0) {
     # nothing changed; wait for 5 minutes (don't change status,
     # so we keep prior build success/fail info)
