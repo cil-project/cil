@@ -15,12 +15,12 @@ setup:
 	make -f Makefile.ccured setup $(MAKEOVERRIDES)
 
 # sm: find and remove all the intermediate files from translation
+# sm: removed *box.c from those removed since test/PCC/src/pccbox.c should be kept
 clean:
 	-make -f Makefile.ccured clean CLEANING=1 $(MAKEOVERRIDES)
 	rm -rf cil-distrib.tar.gz cil-api.tar.gz cil-distrib
 	-find test \( \
 		-name '*cil.c' -o \
-		-name '*box.c' -o \
 		-name '*cured.c' -o \
                 -name '*cured.*optim.c' -o \
 		-name '*.exe' -o \
@@ -801,20 +801,9 @@ bh-optimvariant.%: mustbegcc
                  $(EXEOUT)code.exe
 	make runbh $(MAKEOVERRIDES)
 
+# sm: rather than make it every time, I've added data.in (with 12 CRs)
+# to the repository
 runbh:
-	echo  >$(BHDIR)/data.in
-	echo  >>$(BHDIR)/data.in
-	echo  >>$(BHDIR)/data.in
-	echo  >>$(BHDIR)/data.in
-	echo  >>$(BHDIR)/data.in
-	echo  >>$(BHDIR)/data.in
-	echo  >>$(BHDIR)/data.in
-	echo  >>$(BHDIR)/data.in
-	echo  >>$(BHDIR)/data.in
-	echo  >>$(BHDIR)/data.in
-	echo  >>$(BHDIR)/data.in
-	echo  >>$(BHDIR)/data.in
-
 	cd $(BHDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                              do time ./code.exe < data.in >data.out ; done"
 	@true "sm: added next line to compare output to expected output"
@@ -1006,9 +995,9 @@ treeadd-clean:
 
 treeadd:  mustbegcc
 	cd $(TREEADDIR); \
-            make clean treeadd CC="$(TREEADDSAFECC)" \
-                       LD="$(TREEADDSAFECC)"
-	cd $(TREEADDDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
+            make clean treeadd.exe CC="$(TREEADDSAFECC)" \
+                                   LD="$(TREEADDSAFECC)"
+	cd $(TREEADDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                    do time ./treeadd.exe 21 1; done"
 
 NEWBISORTDIR := test/olden/newbisort
@@ -1047,9 +1036,9 @@ em3d-clean:
 
 em3d:  mustbegcc
 	cd $(EM3DDIR); \
-            make clean em3d CC="$(EM3DDSAFECC)" \
-                            LD="$(EM3DDSAFECC)"
-	cd $(TREEADDDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
+            make clean em3d.exe CC="$(EM3DDSAFECC)" \
+                                LD="$(EM3DDSAFECC)"
+	cd $(EM3DDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                    do time ./em3d.exe 2000 100 6; done"
 
 
