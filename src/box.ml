@@ -632,7 +632,14 @@ let freeFun =
   fdec.svar.vtype <- TFun(voidType, [ argp ], false, []);
   fdec
 
-let mainWrapper =   
+(* sm: for tagged heapified areas; this isn't the best soln, but it works *)
+let free_wFun =
+  let fdec = emptyFunction "free_w" in
+  let argp  = makeLocalVar fdec "area" voidPtrType in   (* e.g. this ptr type is wrong *)
+  fdec.svar.vtype <- TFun(voidType, [ argp ], false, []);
+  fdec
+
+let mainWrapper =
   let fdec = emptyFunction "_mainWrapper" in
   let argc  = makeLocalVar fdec "argc" intType in
   let argv  = makeLocalVar fdec "argv" (TPtr(charPtrType, [])) in
@@ -3937,8 +3944,10 @@ let boxFile file =
                                 Field(fi, NoOffset))) 
                     hCompInfo.cfields;
                   (* Initialize the things to free *)
-                  heapifiedFree := 
-                     call None (Lval (var freeFun.svar))
+                  heapifiedFree :=
+                     (* sm: a better solution is to say heapVar._p-4, but I don't *)
+                     (* quite know how in cil (it's getting ahold of _p that's hard) *)
+                     call None (Lval (var (if istagged then free_wFun.svar else freeFun.svar)))
                        [Lval (var heapVar)] 
                      :: !heapifiedFree;
                   CConsL (callmalloc, body)

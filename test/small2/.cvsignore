@@ -49,3 +49,5 @@ jpeg_compress_struct
 funcptr2
 argv
 ctype
+heapify
+

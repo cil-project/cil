@@ -655,7 +655,7 @@ hola: scott/hola
 # sm: attempt at a single rule for my testing purposes
 scott/%: test/small2/%.c defaulttarget
 	rm -f test/small2/$*
-	cd test/small2; $(CC) $(CONLY) $(WARNALL) $(DEF)$(ARCHOS) $*.c
+	cd test/small2; $(CC) $(CONLY) $(WARNALL) $(DEF)$(ARCHOS) $(DEF)PLAIN_GCC $*.c
 	cd test/small2; $(SAFECC) --verbose --keep=. $(DEF)$(ARCHOS) \
                  `$(PATCHECHO) --patch=../../lib/$(PATCHFILE)` \
                  $(DOOPT) $(WARNALL) $(NOPRINTLN) \
