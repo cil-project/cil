@@ -463,6 +463,15 @@ let addPointsToType (n: node) (t: typ) =
   | Some n' -> addPointsTo n n'
   | _ -> ()
 
+(* weimer: find the node that points to this one *)
+let nodeThatPointsTo (child : node) = 
+  let answer = ref None in
+  Hashtbl.iter (fun id parent -> 
+    if List.mem child parent.pointsto then
+      answer := Some(parent)
+  ) idNode ;
+  !answer
+
 let stripT = function
   | WildT -> Wild
   | SeqT -> Seq
@@ -531,6 +540,14 @@ let kindOfAttrlist al =
         | Attr ("string", []) -> String, UserSpec
         | Attr ("rostring", []) -> ROString, UserSpec
         | Attr ("nullterm", []) -> String, UserSpec
+        (* weimer: also look in "nodes" to find the kind *)
+        | Attr ("_ptrnode", [AInt n]) -> begin
+              let nd = H.find idNode n in
+              if nd.kind = Unknown then (* not useful *)
+                loop al
+              else
+                nd.kind, nd.why_kind
+            end
         | _ -> loop al
     end    
   in

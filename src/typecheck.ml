@@ -8,19 +8,53 @@ module E = Errormsg
 
 let loc = ref locUnknown (* global location: where are we typechecking? *)
 
-(* Return the target type and the kind of a pointer type. *)
-let kind_of_ptr_type t =
-  match unrollType t with
-  | TPtr(targ,al) -> 
-      let kind, why = kindOfAttrlist al in 
-      targ, kind
-  | TArray(targ,_,al) -> 
-      let kind, why = kindOfAttrlist al in 
-      targ, kind
-  | TFun(_,_,_,al) -> 
-      let kind, why = kindOfAttrlist al in 
-      t, kind
+(* For a probably-pointer P, we want to determine:
+ *  (a) the Cil.type associated with *P
+ *  (b) the pointer kind associated with P
+ *  (c) the pointer kind associated with &P
+ * Can raise Failure. 
+ *)
+let rec kind_of_ptr_type t =
+  let targ, al = match unrollType t with
+  | TPtr(targ,al) -> targ, al
+  | TArray(targ,_,al) -> targ, al
+  | TFun(_,_,_,al) -> t, al 
   | _ -> failwith "not a pointer"
+  in let kind, why = kindOfAttrlist al in 
+  (targ, kind, Unknown)
+and kind_of_ptr_exp e =
+  match e with
+  | UnOp(op,e1,tau) -> kind_of_ptr_type tau
+  | BinOp(op,e1,e2,tau) -> kind_of_ptr_type tau
+  | Question(e1,e2,e3) -> kind_of_ptr_exp e2 
+  | CastE(tau,e) -> kind_of_ptr_type tau 
+  | Lval(lv) -> kind_of_ptr_lval lv 
+  | AddrOf(lv) -> 
+      let a,b,c = kind_of_ptr_lval lv in
+      (typeOfLval lv),c,Unknown
+  | StartOf(lv) -> kind_of_ptr_lval lv
+  | _ -> kind_of_ptr_type (typeOf e)
+and kind_of_ptr_lval l = match l with
+  | Var(vi),o -> 
+    let a,b,c = kind_of_ptr_type vi.vtype in 
+    let kind, why = kindOfAttrlist vi.vattr in  (* & information *)
+    kind_of_ptr_offset o (a,b,kind)
+  | Mem(e),o -> 
+    let et = typeOf e in 
+    let lt = typeOfLval l in
+    let la,lb,lc = kind_of_ptr_type lt in
+    let ea,eb,ec = kind_of_ptr_type et in
+    kind_of_ptr_offset o (la,lb,eb)
+and kind_of_ptr_offset o (a,b,c) =
+  match o with
+  | NoOffset -> (a,b,c)
+  | Field(fi,o') -> 
+      let a,b,c = kind_of_ptr_type fi.ftype in
+      let kind, why = kindOfAttrlist fi.fattr in
+      kind_of_ptr_offset o' (a,b,kind)
+  | Index(e,o') -> 
+      let a',b',c' = kind_of_ptr_type a in
+      (a',b',b)
 
 (* Check to make sure that the given type (and everything it can point to)
  * is WILD. *)
@@ -67,7 +101,8 @@ let typecheck_type tau other_list =
 let typecheck_pointer_arithmetic a b e =
   (* a = pointer, b = integer, e = whole expression *)
   try
-    let ptr_target, ptr_kind = kind_of_ptr_type (typeOf a) in
+    let ptr_target, ptr_kind, ptr_addr_kind = 
+      kind_of_ptr_exp a in
     let okay = 
     match ptr_kind with
     | Safe -> false
@@ -101,21 +136,23 @@ class typecheck = object
       CastE(to_type, from_exp) -> begin
         let from_type = typeOf(from_exp) in 
         try begin
-          let to_target, to_kind = kind_of_ptr_type to_type in
+          let to_target, to_kind, to_addr_kind = 
+            kind_of_ptr_type to_type in
           try begin
-            let from_target, from_kind = kind_of_ptr_type from_type in
+            let from_target, from_kind, from_addr_kind = 
+              kind_of_ptr_exp from_exp in
             (* check a cast from one pointer to another *)
             let okay = 
             match from_kind, to_kind with
               Safe, Safe -> Type.subtype to_target from_target 
             | Safe, Seq 
             | Safe, FSeq ->
-                let n = (bitsSizeOf(to_target) / bitsSizeOf(from_target)) + 1 in
+                let n = (bitsSizeOf(from_target) / bitsSizeOf(to_target)) + 1 in
                 Type.subtype from_target 
                     (TArray(to_target, Some(integer n), [])) 
             | Seq, Safe 
             | FSeq, Safe -> 
-                let n = (bitsSizeOf(from_target) / bitsSizeOf(to_target)) + 1 in
+                let n = (bitsSizeOf(to_target) / bitsSizeOf(from_target)) + 1 in
                 Type.subtype to_target 
                     (TArray(from_target, Some(integer n), [])) 
             | Seq, Seq 
@@ -139,7 +176,7 @@ class typecheck = object
                 d_opointerkind from_kind d_opointerkind to_kind 
                 d_type from_type d_type to_type d_exp e)
           end with _ -> begin
-            (* to is a pointer, from is not *)
+            (* 'to' is a pointer, 'from' is not *)
             match to_kind with
               Safe | String | ROString ->  (* from must be 0 *)
                 if isZero from_exp then

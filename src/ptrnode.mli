@@ -235,6 +235,9 @@ val isT: opointerkind -> bool
 (* Add the TABLE flag to a pointer kind *)
 val addT: opointerkind -> opointerkind
 
+(* weimer: find the node that points to this one *)
+val nodeThatPointsTo : node -> (node option)
+
 (* Remove the TABLE flag from a pointer kind *)
 val stripT: opointerkind -> opointerkind
 
