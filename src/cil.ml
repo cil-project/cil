@@ -3868,8 +3868,12 @@ and childrenGlobal (vis: cilVisitor) (g: global) : global =
   | GEnumTag _ | GEnumTagDecl _ | GCompTagDecl _ -> g (* Nothing to visit *)
   | GCompTag (comp, _) ->
       (trace "visit" (dprintf "visiting global comp %s\n" comp.cname));
-      (* Do the types of the fields *)
-      List.iter (fun fi -> fi.ftype <- visitCilType vis fi.ftype) comp.cfields;
+      (* Do the types and attirbutes of the fields *)
+      let fieldVisit = fun fi -> 
+        fi.ftype <- visitCilType vis fi.ftype;
+        fi.fattr <- visitCilAttributes vis fi.fattr
+      in
+      List.iter fieldVisit comp.cfields;
       g
 
   | GVarDecl(v, l) -> 
