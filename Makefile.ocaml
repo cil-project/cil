@@ -9,21 +9,21 @@
 #* provided that the following conditions are met: 
 #* 1.  Redistributions of source code must retain the above copyright notice, 
 #* this list of conditions and the following disclaimer. 
-#* 2. Redistributions in binary form must reproduce the above copyright notice, 
-#* this list of conditions and the following disclaimer in the documentation 
-#* and/or other materials provided with the distribution. 
-#* 3. The name of the authors may not be used to endorse or promote products derived from 
-#* this software without specific prior written permission. 
+#* 2. Redistributions in binary form must reproduce the above copyright 
+#* notice, this list of conditions and the following disclaimer in the 
+#* documentation and/or other materials provided with the distribution. 
+#* 3. The name of the authors may not be used to endorse or promote products 
+#* derived from this software without specific prior written permission. 
 #*
 #* DISCLAIMER:
-#* THIS SOFTWARE IS PROVIDED BY THE AUTHORS ``AS IS'' AND ANY EXPRESS OR IMPLIED 
-#* WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF 
-#* MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+#* THIS SOFTWARE IS PROVIDED BY THE AUTHORS ``AS IS'' AND ANY EXPRESS OR 
+#* IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES 
+#* OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
 #* IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY DIRECT, INDIRECT, 
 #* INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, 
 #* BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS 
-#* OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY 
-#* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+#* OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON 
+#* ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
 #* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF 
 #* THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #*
@@ -32,23 +32,87 @@
   # Generic Makefile for Ocaml projects
   # Written by necula@cs.berkeley.edu
   # 
-  # Set the following before including this file
+  # Features: 
+  #   - keeps byproducts of building in a separate directory
+  #   - handles dependencies automatically
+  #   - user specifies just what modules go into a project and 
+  #     everything else is done automatically
+  #   - you can use one Makefile for several Ocaml projects
+  #   
+  # You must include this file in your Makefile. Before the include point 
+  # you must defined the following variables (which are glob al for all Ocaml 
+  # projects specified in one Makefile):
   # 
-  # ARCHOS     - the architecture x86_WIN32, x86_LINUX
+  # OBJDIR     - the directory where to put all object files. This directory 
+  #              must exist (default obj)
+  # DEPENDDIR  - the directory where to put dependency files. This directory 
+  #              must exist.  (default obj/.depend)
   # NATIVECAML - if set then will use the native compiler
   # UNSAFE     - if set then will turn off safety checks (only with NATIVECAML)
 
-  # SOURCEDIRS - the source directories
-  # OBJDIR     - the directory where to put all object files
-  # DEPENDDIR  - the directory where to put dependency files
-  # MLLS       - the base names of .mll files (no directory)
-  # MLYS       - the base names of .mly files (no directory)
-  # MODULES    - the base names of the modules in the order in which they
-  #              must be linked
-  # EXECUTABLE - the name of the executable to create
-  # CAMLLIBS   - a list of CAML libraries to use. 
-  #              For each, will add %.$(CMXZ) -cclibs -l%
-  # EXTRACLEAN - additional things to pass to "rm" for the "clean" target
+  # MODULES    - a list of all modules for all projects defined in the 
+  #              Makefile. Give only the basenames (no directory, 
+  #              no extension).  This is used to create the dependencies.
+  # SOURCEDIRS - a list of all directories containing sources for all 
+  #              projects defined in a Makefile. This is used to set vpath.
+  # MLLS       - a list of all .mll (ocamllex input) files for all 
+  #              projects defined in the Makefile. 
+  # MLYS       - a list of all .mly (ocamlyacc input) files for all 
+  #              projects defined in the Makefile. 
+  # ECHO       - if specifically set to nothing then it will print 
+  #              all of the commands issued. Set this in the command line
+  #              if you want to see what is going on.
+  #
+  # After you set all of the above you must do the following for EACH separate 
+  # executable that you want to build.
+  #
+  # Define the following:
+  # PROJECT_EXECUTABLE - the name of the executable you want to build. To take 
+  #                      advantage of the naming scheme that separates the 
+  #                      bytecode version and the native version, use the 
+  #                      $(EXE) variable which is defined to either .byte.exe 
+  #                      or .asm.exe. I typically put the executable in 
+  #                      $(OBJDIR) as well.
+  # PROJECT_MODULES    - the base names of the modules that make this 
+  #                      executable in the order in which they must be
+  #                      passed to the linker. Make sure that all of
+  #                      the names mentioned here are also mentioned in 
+  #                      MODULES.
+  # PROJECT_CMODULES   - same as modules but for the C modules. These
+  #                      do not need to be mentioned in MODULES
+  # PROJECT_LIBS       - the base names of the libraries that you 
+  #                      want to link in the executable.
+  #
+  #
+  # Then include Makefile.ocaml.build to generate a customized
+  # rule for making your executable.
+  #
+  # Example:
+  # 
+  # OBJDIR     = obj
+  # DEPENDDIR  = obj/.depend
+  # SOURCEDIRS = src src/special
+  # MLLS       = mylex 
+  # MLYS       = myparse
+  #
+  # MODULES    = mod11 mod12 mod21 modcommon
+  #
+  #  # Rules for project 1
+  # PROJECT_EXECUTABLE = $(OBJDIR)/proj1$(EXE)
+  # PROJECT_MODULES    = mod11 mod12 modcommon
+  # PROJECT_CMODULES   =  
+  # PROJEC_LIBS        = unix
+  # include Makefile.ocaml.build
+  #
+  #
+  #  # Rules for project 2 
+  # PROJECT_EXECUTABLE = $(OBJDIR)/proj2$(EXE)
+  # PROJECT_MODULES    = mod21 modcommon
+  # PROJECT_CMODULES   =  
+  # PROJEC_LIBS        = unix str
+  # include Makefile.ocaml.build
+
+
 CAMLLEX = ocamllex
 CAMLYACC= ocamlyacc -v
 CAMLDEP = ocamldep
@@ -168,7 +232,7 @@ $(OBJDIR)/%.ml $(OBJDIR)/%.mli: %.mly
 	$(CAMLYACC) $(CAMLYACCFLAGS) $<
 	$(AT)mv -f $(basename $<).ml $(basename $<).mli $(OBJDIR)
 
-         # Compile an MLI file
+         # Compile an MLI file. After compilation move the result to OBJDIR
 $(OBJDIR)/%.cmi: %.mli
 	@$(NARRATIVE) Compiling interface $<
 	$(AT)$(CAMLC) $(CAMLFLAGS) -c $<
@@ -177,7 +241,9 @@ $(OBJDIR)/%.cmi: %.mli
                    mv -f $(basename $<).cmi $(OBJDIR) \
         ;fi
 
-         # Compile an ML file
+         # Compile an ML file. Before invoking CAMLC we copy to the source
+         # directory the .cmi file (if one exists). After compilation we 
+         # copy to $(OBJDIR) the .cmi and the result of compilation.
 $(OBJDIR)/%.$(CMO): %.ml
 	@$(NARRATIVE) "Compiling $< to $(COMPILETOWHAT)"
 	$(ECHO)if test $(OBJDIR) != $(<D) ;then \
@@ -210,14 +276,20 @@ $(OBJDIR)/%.$(OBJ): %.c
 	$(AT)$(CAMLC) $(CAMLFLAGS) -c $< -o $@
 	$(AT)mv -f $(basename $(notdir $<)).$(OBJ) $(OBJDIR)
 
-             # Linking
-$(EXECUTABLE)$(EXE) : $(MODULES:%=$(OBJDIR)/%.$(CMO)) \
-                      $(CMODULES:%=$(OBJDIR)/%.$(OBJ)) 
-	@$(NARRATIVE) Linking $(COMPILETOWHAT) $@
-	$(AT)$(CAMLLINK) -o $@ \
-                    $(CAMLLIBS:%=%.$(CMXA)) \
-                    $(CAMLLIBS:%=-cclib -l%) \
-                    $^
+      # This is a generic function that builds your project
+      # See start of this file for usage instructions
+      # 
+# 
+
+define make-ocaml-project
+$(PROJECT_EXECUTABLE) : $(PROJECT_MODULES:%=$(OBJDIR)/%.$(CMO)) $(PROJECT_CMODULES:%=$(OBJDIR)/%.$(OBJ))
+	@$(NARRATIVE) Linking $(COMPILETOWHAT) $$@
+	$(AT)$(CAMLLINK) -o $$@ \
+                    $(PROJECT_LIBS:%=%.$(CMXA)) \
+                    $(PROJECT_LIBS:%=-cclib -l%) \
+                    $$^
+endef
+
 
 #	Phonies should be "remade" even if someone mistakenly creates them
 .PHONY: cleancaml
@@ -232,7 +304,6 @@ cleancaml:
 		-name '*.o' -o \
 		-name '*.obj' \
 	\) -exec rm {} \;
-	-rm -f $(EXTRACLEAN)
 	-rm -f $(DEPENDDIR)/*.d $(DEPENDDIR)/*.di
 	-rm -f $(MLLS:%.mll=$(OBJDIR)/%.ml) \
                $(MLLS:%.mll=$(OBJDIR)/%.mli) \
