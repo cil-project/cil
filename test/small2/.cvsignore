@@ -2,7 +2,8 @@ hola
 *cil.c
 *infer.c
 *box.c
-*.cabs
+*cabs.c
+*.pdb
 *.i
 *_ppp.c
 *.origi
