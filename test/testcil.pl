@@ -795,12 +795,12 @@ $TEST->newTest(
     Patterns => \%commonerrors);
 
 
-# -------------- scott's testcases --------------
+# -------------- alternate testcase interface ---------------
 # sm: trying to make a regrtest-like interface
 # 'args' should include things like "INFERBOX=infer" to specify operating mode
-sub smAddTest {
+sub altAddTest {
   if (scalar(@_) != 1) {
-    print STDERR "wrong number of args to smAddTest: @_\n";
+    print STDERR "wrong number of args to altAddTest: @_\n";
     exit 2;
   }
 
@@ -825,7 +825,7 @@ sub smAddTest {
 #   - I don't care if the error message changes while it's a failing test
 #   - sometimes the message is machine- or compiler-dependent
 #   - I want a human-readable explanation
-sub smFailTest {
+sub altFailTest {
   my ($why, $command) = @_;
 
   if (!$command) {
@@ -834,7 +834,7 @@ sub smFailTest {
       exit 2;
   }
 
-  my $tname = smAddTest($command);
+  my $tname = altAddTest($command);
   $main::globalTEST->addBadComment($tname, $why);
 
   return $tname;
@@ -849,23 +849,23 @@ my $table =     "INFERBOX=wild TABLE=A";
 my $gcc =       "_GNUCC=1";     # sm: not sure where/why this is needed
 
 # self-contained tests of specific things which had problems before
-smAddTest("scott/multiplestatics");
-smAddTest("scott/regbeforeassign $box");
-smAddTest("scott/partialbracket");
-smAddTest("scott/enuminit");
-smAddTest("scott/staticafternostorage $box");
-smAddTest("scott/voidfree $box");
-smAddTest("scott/recursetype $box");
-smAddTest("scott/rmunused $box $gcc");
-smAddTest("scott/simplewild $box");
-smAddTest("scott/ptrtolocal $wildbox");
-smAddTest("scott/tprintf $box");
-smAddTest("scott/rmunused2 $box");
+altAddTest("scott/multiplestatics");
+altAddTest("scott/regbeforeassign $box");
+altAddTest("scott/partialbracket");
+altAddTest("scott/enuminit");
+altAddTest("scott/staticafternostorage $box");
+altAddTest("scott/voidfree $box");
+altAddTest("scott/recursetype $box");
+altAddTest("scott/rmunused $box $gcc");
+altAddTest("scott/simplewild $box");
+altAddTest("scott/ptrtolocal $wildbox");
+altAddTest("scott/tprintf $box");
+altAddTest("scott/rmunused2 $box");
 
-smAddTest("scott/gimpdouble");
-smAddTest("scott/struct_cs");
+altAddTest("scott/gimpdouble");
+altAddTest("scott/struct_cs");
 
-$TEST->setField(smAddTest("scott/tprintf $wildbox"), "FailDiagnosis", <<'EOF');
+$TEST->setField(altAddTest("scott/tprintf $wildbox"), "FailDiagnosis", <<'EOF');
 
   Failure of this test case usually indicates the stdin/out/err
   section of the patch file (lib/ccured_???.patch) does not exactly
@@ -873,18 +873,18 @@ $TEST->setField(smAddTest("scott/tprintf $wildbox"), "FailDiagnosis", <<'EOF');
 
 EOF
 
-smAddTest("scott/ptrmanip $wildbox");
-smAddTest("scott/bogus_redef");
-smAddTest("scott/s59");
-smAddTest("scott/putc $gcc");
-smAddTest("scott/putc $wildbox $gcc");
-smAddTest("scott/lexnum");
-smAddTest("scott/ctype");
-smAddTest("scott/ctype $box");
-smAddTest("test-bad/wildfun $box");
+altAddTest("scott/ptrmanip $wildbox");
+altAddTest("scott/bogus_redef");
+altAddTest("scott/s59");
+altAddTest("scott/putc $gcc");
+altAddTest("scott/putc $wildbox $gcc");
+altAddTest("scott/lexnum");
+altAddTest("scott/ctype");
+altAddTest("scott/ctype $box");
+altAddTest("test-bad/wildfun $box");
 
 # verify results of inference
-$TEST->setField(smAddTest("scott/ptrkinds $box"), "AfterSuccessScript", <<'EOF');
+$TEST->setField(altAddTest("scott/ptrkinds $box"), "AfterSuccessScript", <<'EOF');
 
   grepBoth() {
     grep -w $2 $1 | grep -w $3
@@ -907,205 +907,206 @@ $TEST->setField(smAddTest("scott/ptrkinds $box"), "AfterSuccessScript", <<'EOF')
 EOF
 
 # similar to ptrkinds failure
-smAddTest("scott/argv $box");
+altAddTest("scott/argv $box");
 
 # function pointers don't work with inferred wildness
-smAddTest("scott/funcptr");
-smAddTest("scott/funcptr $wildbox");
-smAddTest("scott/funcptr $box");
+altAddTest("scott/funcptr");
+altAddTest("scott/funcptr $wildbox");
+altAddTest("scott/funcptr $box");
 
 # transparent unions are a problem for network apps
-smAddTest("scott/transpunion $gcc");
-smAddTest("scott/sockaddr $gcc");
+altAddTest("scott/transpunion $gcc");
+altAddTest("scott/sockaddr $gcc");
 
 # test of recent __HEAPIFY annotation
-smAddTest("scott/heapify $box");
-smAddTest("scott/heapify $wildbox");
+altAddTest("scott/heapify $box");
+altAddTest("scott/heapify $wildbox");
 
 # misc...
-smAddTest("scott/constdecl");
-smAddTest("scott/oldstyle");
-smAddTest("scott/typeof $gcc");
-smAddTest("scott/asmfndecl $gcc");
-smAddTest("scott/xlsubr $box");
-smAddTest("scott/open $gcc");
-smAddTest("scott/ioctl $box $gcc");
-smAddTest("scott/stralloc $box $gcc");
-smAddTest("scott/mknod $box $gcc");
-smAddTest("badd/nullfield $manualbox");
-smAddTest("scott/constfold");
-smAddTest("scott/mode_sizes $gcc");       # mode(__QI__) stuff
-smAddTest("scott-nolink/brlock $gcc");
-smAddTest("scott/qsort_wild $box");
-smAddTest("scott/regparm0 $gcc");         # this works, unfortunately..
-smAddTest("scott/unscomp");               # kernel/fs/buffer.c
-smAddTest("scott/suppress_optim $box");
-smAddTest("scott/suppress_optim $wildbox");
-smFailTest("makes too many things tagged; this changed when matth modified "
+altAddTest("scott/constdecl");
+altAddTest("scott/oldstyle");
+altAddTest("scott/typeof $gcc");
+altAddTest("scott/asmfndecl $gcc");
+altAddTest("scott/xlsubr $box");
+altAddTest("scott/open $gcc");
+altAddTest("scott/ioctl $box $gcc");
+altAddTest("scott/stralloc $box $gcc");
+altAddTest("scott/mknod $box $gcc");
+altAddTest("badd/nullfield $manualbox");
+altAddTest("scott/constfold");
+altAddTest("scott/mode_sizes $gcc");       # mode(__QI__) stuff
+altAddTest("scott-nolink/brlock $gcc");
+altAddTest("scott/qsort_wild $box");
+altAddTest("scott/regparm0 $gcc");         # this works, unfortunately..
+altAddTest("scott/unscomp");               # kernel/fs/buffer.c
+altAddTest("scott/suppress_optim $box");
+altFailTest("missing __mkptr_string_ww",
+           "scott/suppress_optim $wildbox");
+altFailTest("makes too many things tagged; this changed when matth modified "
            . "the way main() gets its arguments wrapped, and we haven't "
            . "cared enough about TAGALLFNS=1 to fix it",
            "scott/suppress_optim $wildbox TAGALLFNS=1");
-smAddTest("testrun/bug1 $box");
-smAddTest("scott/structs_edg_stl_ccuredlib_test $box");
-smAddTest("misc-tests");
-smAddTest("scott/chararr1 $box");
-smAddTest("scott/chararr2 $box");
-smAddTest("scott/thing");
-smAddTest("scott/strerror1 $box");
-smAddTest("scott/bsearch $box");
-smAddTest("scott/signal $box");
-smAddTest("scott/getaddrinfo $box");
-smAddTest("test-bad/sin_zero $box");
-smAddTest("scott/getopt $box");
-smAddTest("scott/glob $box");
+altAddTest("testrun/bug1 $box");
+altAddTest("scott/structs_edg_stl_ccuredlib_test $box");
+altAddTest("misc-tests");
+altAddTest("scott/chararr1 $box");
+altAddTest("scott/chararr2 $box");
+altAddTest("scott/thing");
+altAddTest("scott/strerror1 $box");
+altAddTest("scott/bsearch $box");
+altAddTest("scott/signal $box");
+altAddTest("scott/getaddrinfo $box");
+altAddTest("test-bad/sin_zero $box");
+altAddTest("scott/getopt $box");
+altAddTest("scott/glob $box");
 
 # current problematic test cases
-smAddTest("scott/complex_float $box");
-smAddTest("mergeinline");
-smAddTest("test/addrofparam $box");
-smAddTest("scott-nolink/name-capture-bitand $box");
-smAddTest("scott-nolink/wildfun2 $box");
-smAddTest("scott/dblarg.int $box");       # this yields a warning that might be a problem
-smAddTest("scott/decl_inl $box");         # produces a gcc warning I'd like to silence
-smFailTest("infers a safe ptr argument to __throw_setup",
-           "doThrowFv $wildbox UNTAGGEDFNS=1");
-smAddTest("scott/uninit_tmp");
-smAddTest("test-tagfile $wildbox TAGFILE=tagfile.txt");
-smAddTest("test-tagfile $wildbox TAGFILE=tagfile.txt EXTRAARGS=-DSTATIC_FUNC");
-smAddTest("scott/monthname $box");
-smFailTest("problem with gcc coercions",
+altAddTest("scott/complex_float $box");
+altAddTest("mergeinline");
+altAddTest("test/addrofparam $box");
+altAddTest("scott-nolink/name-capture-bitand $box");
+altAddTest("scott-nolink/wildfun2 $box");
+altAddTest("scott/dblarg.int $box");       # this yields a warning that might be a problem
+altAddTest("scott/decl_inl $box");         # produces a gcc warning I'd like to silence
+altAddTest("doThrowFv $wildbox UNTAGGEDFNS=1");
+altAddTest("scott/uninit_tmp");
+altAddTest("test-tagfile $wildbox TAGFILE=tagfile.txt");
+altAddTest("test-tagfile $wildbox TAGFILE=tagfile.txt EXTRAARGS=-DSTATIC_FUNC");
+altAddTest("scott/monthname $box");
+altFailTest("problem with gcc coercions",
            "scott/floatarg INFERBOX=wild TAGALLFNS=1");
-smFailTest("problem with over-aggressive pointer checks?",
+altFailTest("problem with over-aggressive pointer checks?",
            "scott/ptrarith INFERBOX=infer");
-smAddTest("combine_samefn");
-smAddTest("combine_node_alloc");
-smAddTest("combine_sbump");
-smAddTest("combine_sbumpB");
-smAddTest("combine_sbumpB MERGEINLINES=1");
-smAddTest("combine_allocate");
-smAddTest("combine_allocate MERGEINLINES=1");
-smAddTest("combine_theFunc");
-smAddTest("combine_theFunc MERGEINLINES=1");
-smAddTest("combine_syserr");
-smAddTest("combine_syserr MERGEINLINES=1");
-smAddTest("combine_copyptrs WARNINGS_ARE_ERRORS=1");
-smAddTest("combine_copyptrs WARNINGS_ARE_ERRORS=1 MERGEINLINES=1");
-smAddTest("merge-twice");
-smAddTest("scott/arrayexpand INFERBOX=infer");
-smAddTest("scott/byteprintf INFERBOX=infer");
-smAddTest("scott/bufferlinegetter INFERBOX=infer");
-smAddTest("scott/null_pointer_field INFERBOX=infer");
-smAddTest("scott/closefunc INFERBOX=infer");
-smAddTest("scott/sockunion INFERBOX=infer");
+altAddTest("combine_samefn");
+altAddTest("combine_node_alloc");
+altAddTest("combine_sbump");
+altAddTest("combine_sbumpB");
+altAddTest("combine_sbumpB MERGEINLINES=1");
+altAddTest("combine_allocate");
+altAddTest("combine_allocate MERGEINLINES=1");
+altAddTest("combine_theFunc");
+altAddTest("combine_theFunc MERGEINLINES=1");
+altAddTest("combine_syserr");
+altAddTest("combine_syserr MERGEINLINES=1");
+altAddTest("combine_copyptrs WARNINGS_ARE_ERRORS=1");
+altAddTest("combine_copyptrs WARNINGS_ARE_ERRORS=1 MERGEINLINES=1");
+altFailTest("problem with deepcopy?",
+            "merge-twice");
+altAddTest("scott/arrayexpand INFERBOX=infer");
+altAddTest("scott/byteprintf INFERBOX=infer");
+altAddTest("scott/bufferlinegetter INFERBOX=infer");
+altAddTest("scott/null_pointer_field INFERBOX=infer");
+altAddTest("scott/closefunc INFERBOX=infer");
+altAddTest("scott/sockunion INFERBOX=infer");
 
 # tests of things implemented for EDG compatibility
-smAddTest("mergestruct");
-smAddTest("test-bad/globstackptr $box");
-smAddTest("test-bad/ehstack $box");
-smAddTest("test-bad/setjmp $box");
-smAddTest("combinetaggedfn $wildbox SEPARATE=1 UNTAGGEDFNS=1");
+altAddTest("mergestruct");
+altAddTest("test-bad/globstackptr $box");
+altAddTest("test-bad/ehstack $box");
+altAddTest("test-bad/setjmp $box");
+altAddTest("combinetaggedfn $wildbox SEPARATE=1 UNTAGGEDFNS=1");
 
 # test of strings (need more!)
-smAddTest("badd/ovwrnull $box");
-smAddTest("test-bad/strloop2 $box");
+altAddTest("badd/ovwrnull $box");
+altAddTest("test-bad/strloop2 $box");
 
 # tests of function models
-smAddTest("scott/memcpy $box");
-smAddTest("scott/realloc $box");
-smAddTest("scott/strchr $box");
-smAddTest("scott/models $box");
+altAddTest("scott/memcpy $box");
+altAddTest("scott/realloc $box");
+altAddTest("scott/strchr $box");
+altAddTest("scott/models $box");
 
 # tests of things in safec.c
-smAddTest("scott/qsort $box");
-smAddTest("scott/strpbrk $box");
-smFailTest("needs a deep-mangled wrapper?", "scott/fgets $box");
-smAddTest("test-bad/sockets $box $gcc");
+altAddTest("scott/qsort $box");
+altAddTest("scott/strpbrk $box");
+altFailTest("needs a deep-mangled wrapper?", "scott/fgets $box");
+altAddTest("test-bad/sockets $box $gcc");
 
 # more stuff, mostly from ftpd
 if ($TEST->{option}->{safecdebug}) {
-  smAddTest("scott/reply $box");
+  altAddTest("scott/reply $box");
 }
 else {
-  smFailTest("problem with __extinline and varargs", "scott/reply $box");
+  altFailTest("problem with __extinline and varargs", "scott/reply $box");
 }
 
 # works on my machine; works on manju now too apparently
-smAddTest("scott/getpwnam $box $gcc");
+altAddTest("scott/getpwnam $box $gcc");
 
-smAddTest("test-bad/execv $box $gcc");
-smAddTest("scott/popen $box $gcc");
-smAddTest("scott/memset_int $box");
-smAddTest("scott/printfllong $box $gcc");
-smAddTest("test-bad/replydirname $box");
-smAddTest("test-bad/boundaries $box");
-smAddTest("scott/stat $box");
-smAddTest("scott/scanf $box");
+altAddTest("test-bad/execv $box $gcc");
+altAddTest("scott/popen $box $gcc");
+altAddTest("scott/memset_int $box");
+altAddTest("scott/printfllong $box $gcc");
+altAddTest("test-bad/replydirname $box");
+altAddTest("test-bad/boundaries $box");
+altAddTest("scott/stat $box");
+altAddTest("scott/scanf $box");
 
 # simple self-contained thing
-smAddTest("hola");
-smAddTest("hola $box");
+altAddTest("hola");
+altAddTest("hola $box");
 
 # a few things that should fail
-smAddTest("badd/lbound $box $gcc");
-smAddTest("badd/ubound $box $gcc");
-smAddTest("badd/fseq $box $gcc");
-smAddTest("badd/calloc $box $gcc");
-smAddTest("badd/stackaddr $box $gcc");
-smAddTest("test-bad/trivial-tb");
-smAddTest("test-bad/retptr $box RELEASE=");
+altAddTest("badd/lbound $box $gcc");
+altAddTest("badd/ubound $box $gcc");
+altAddTest("badd/fseq $box $gcc");
+altAddTest("badd/calloc $box $gcc");
+altAddTest("badd/stackaddr $box $gcc");
+altAddTest("test-bad/trivial-tb");
+altAddTest("test-bad/retptr $box RELEASE=");
 
 # verify we have tags and that they work
-# smAddTest("badd/nonptr $box $gcc");          # very simple test. Covered by wild1
-smAddTest("scott/arraytags $box $gcc");     # this one is pretty hairy
+# altAddTest("badd/nonptr $box $gcc");          # very simple test. Covered by wild1
+altAddTest("scott/arraytags $box $gcc");     # this one is pretty hairy
 
 # simple test of combiner
-smAddTest("comb $gcc");
-smAddTest("comb $box $gcc");
+altAddTest("comb $gcc");
+altAddTest("comb $box $gcc");
 
 # test combiner's ability to detect inconsistency
-smAddTest("baddef");
+altAddTest("baddef");
 
 # test for lean fats ("table")
-smAddTest("scott/ptrtolocal $table");
-smAddTest("scott/ptrinint $table");
-smAddTest("scott/simplewild $table");
-smAddTest("scott/ptrmanip $table");
-smAddTest("scott/regthenprintf $table");
-smAddTest("scott/twoprintfs $table");
-smAddTest("scott/nested $table");
+altAddTest("scott/ptrtolocal $table");
+altAddTest("scott/ptrinint $table");
+altAddTest("scott/simplewild $table");
+altAddTest("scott/ptrmanip $table");
+altAddTest("scott/regthenprintf $table");
+altAddTest("scott/twoprintfs $table");
+altAddTest("scott/nested $table");
 
 # These take too long if we turn off strings
 ## hashtest and rbtest with TABLE
 my $iters = "EXTRAARGS=-DITERS=100";
-#$TEST->setField(smAddTest("rbtest $table $iters"),
+#$TEST->setField(altAddTest("rbtest $table $iters"),
 #                "FailDiagnosis", "Maybe ARCHOS isn't set right?");
-#smAddTest("hashtest $table $iters");
+#altAddTest("hashtest $table $iters");
 
 # red-black tree
-smAddTest("rbtest $iters");
-smAddTest("rbtest $box $iters");
+altAddTest("rbtest $iters");
+altAddTest("rbtest $box $iters");
 
-smAddTest("wes-rbtest $iters");
-smAddTest("wes-rbtest $box $iters");
+altAddTest("wes-rbtest $iters");
+altAddTest("wes-rbtest $box $iters");
 
 # hashtable
 $iters = "EXTRAARGS=-DITERS=10000";
-smAddTest("hashtest $iters");
-smAddTest("hashtest $box $iters");
-smAddTest("hashtest $wildbox $iters");
+altAddTest("hashtest $iters");
+altAddTest("hashtest $box $iters");
+altAddTest("hashtest $wildbox $iters");
 
-smAddTest("wes-hashtest $iters");
-smAddTest("wes-hashtest $box $iters");
+altAddTest("wes-hashtest $iters");
+altAddTest("wes-hashtest $box $iters");
 
-smAddTest("hashtest $box $iters MAXCOMPAT=1");
+altAddTest("hashtest $box $iters MAXCOMPAT=1");
 
 # some piece of PCC
-smAddTest("testpcc/parseobject EXTRAARGS=--no-idashi");
+altAddTest("testpcc/parseobject EXTRAARGS=--no-idashi");
 
 # apache modules; set is needed for next one
-$TEST->setField(smAddTest("apache!1setup"), 'Cmd', "make apachesetup");
-$TEST->setField(smAddTest("apache!2setup"), 'Cmd', "make apachesetup");
-smAddTest("apache/gzip");
+$TEST->setField(altAddTest("apache!1setup"), 'Cmd', "make apachesetup");
+$TEST->setField(altAddTest("apache!2setup"), 'Cmd', "make apachesetup");
+altAddTest("apache/gzip");
 
 # does not work: complains of many incompatible type redefinitions
 #runTest $make apache/rewrite
@@ -1116,73 +1117,73 @@ smAddTest("apache/gzip");
 # (whichever mode has shown itself to be possibly an issue in
 # the past, or CIL-only when I have no data), so it's faster
 # than the add3Tests above.
-smAddTest("test/list");
-smAddTest("test/alloc");
-smAddTest("test/array1");
+altAddTest("test/list");
+altAddTest("test/alloc");
+altAddTest("test/array1");
 
 if ($egcs) {
   # these fail because I'm using egcs instead of gcc 2.95
-  smFailTest("parse error on cil output", "test/attr");
-  smFailTest("cast specifies function type", "test/attr $wildbox");
-  smFailTest("parse error on cil output", "test/attr3");
-  smFailTest("cast specifies function type", "test/attr3 $wildbox");
+  altFailTest("parse error on cil output", "test/attr");
+  altFailTest("cast specifies function type", "test/attr $wildbox");
+  altFailTest("parse error on cil output", "test/attr3");
+  altFailTest("cast specifies function type", "test/attr3 $wildbox");
 }
 else {
-  smAddTest("test/attr");
-  smAddTest("test/attr $wildbox");
-  smAddTest("test/attr3");
-  smAddTest("test/attr3 $wildbox");
+  altAddTest("test/attr");
+  altAddTest("test/attr $wildbox");
+  altAddTest("test/attr3");
+  altAddTest("test/attr3 $wildbox");
 }
 
-smAddTest("test/attr4 $box");
-smAddTest("test/bitfield");
-smAddTest("test/box1");
-smAddTest("test/cast1");
-smAddTest("test/constprop");
-smAddTest("test/enum");
-smAddTest("test/format1");
-smAddTest("test/func");
-smAddTest("test/globals");
-smAddTest("test/init");
-smAddTest("test/init $box");
-smAddTest("test/initial");
-smAddTest("test/jmp_buf");
-smAddTest("test/linux_atomic");
-smAddTest("test/list");
-smAddTest("test/pointers");
-smAddTest("test/printf");
-smAddTest("test/retval");
-smAddTest("test/seq");
-smAddTest("test/sized");
-smAddTest("test/sizeof");
-smAddTest("test/smallstring");
-smAddTest("test/static");
-smAddTest("test/strcpy");
-smAddTest("test/string");
-smAddTest("test/struct_init");
-smAddTest("test/structassign");
-smAddTest("test/tags");
-smAddTest("test/task");
-smAddTest("test/voidstar");
+altAddTest("test/attr4 $box");
+altAddTest("test/bitfield");
+altAddTest("test/box1");
+altAddTest("test/cast1");
+altAddTest("test/constprop");
+altAddTest("test/enum");
+altAddTest("test/format1");
+altAddTest("test/func");
+altAddTest("test/globals");
+altAddTest("test/init");
+altAddTest("test/init $box");
+altAddTest("test/initial");
+altAddTest("test/jmp_buf");
+altAddTest("test/linux_atomic");
+altAddTest("test/list");
+altAddTest("test/pointers");
+altAddTest("test/printf");
+altAddTest("test/retval");
+altAddTest("test/seq");
+altAddTest("test/sized");
+altAddTest("test/sizeof");
+altAddTest("test/smallstring");
+altAddTest("test/static");
+altAddTest("test/strcpy");
+altAddTest("test/string");
+altAddTest("test/struct_init");
+altAddTest("test/structassign");
+altAddTest("test/tags");
+altAddTest("test/task");
+altAddTest("test/voidstar");
 # end copied block of tests
 
 # more random stuff
-smAddTest("scott/funcname $gcc");
-smAddTest("scott/litstruct $gcc");
-smAddTest("scott/main $gcc");
-smAddTest("scott/globalprob $gcc");
-smAddTest("scott/bisonerror $gcc");
-smAddTest("scott/cmpzero");
-smAddTest("scott/kernel1 $gcc");
-smAddTest("scott/kernel2 $gcc");
-smAddTest("scott/xcheckers $gcc");
-smAddTest("scott/memberofptr $gcc");
-smAddTest("scott/invalredef $gcc");
-smAddTest("scott/invalredef2 $gcc");
-smAddTest("scott/errorinfn");
-smAddTest("scott/unionassign $box");
-smAddTest("scott/unionassign $wildbox");
-smAddTest("scott/readv $box");
+altAddTest("scott/funcname $gcc");
+altAddTest("scott/litstruct $gcc");
+altAddTest("scott/main $gcc");
+altAddTest("scott/globalprob $gcc");
+altAddTest("scott/bisonerror $gcc");
+altAddTest("scott/cmpzero");
+altAddTest("scott/kernel1 $gcc");
+altAddTest("scott/kernel2 $gcc");
+altAddTest("scott/xcheckers $gcc");
+altAddTest("scott/memberofptr $gcc");
+altAddTest("scott/invalredef $gcc");
+altAddTest("scott/invalredef2 $gcc");
+altAddTest("scott/errorinfn");
+altAddTest("scott/unionassign $box");
+altAddTest("scott/unionassign $wildbox");
+altAddTest("scott/readv $box");
 
 
 # $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug
