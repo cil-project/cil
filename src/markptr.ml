@@ -1150,9 +1150,12 @@ let solver = ref "simple"
 let printFile (c: out_channel) fl = 
   Cil.setCustomPrintAttributeScope (N.ptrAttrCustom true)
     (fun fl ->
+      (* AB: These flags are no longer used by Pretty *)
+(*
       let o_noal = !noAligns in
       let o_nobr = !noBreaks in
       noAligns := true; noBreaks := true;
+*)
       Stats.time "printMarkedfile" (Cil.printFile c) fl;
       output_string c "#if 0\n/* Now the graph */\n";
       (* N.gc ();   *)
@@ -1161,7 +1164,9 @@ let printFile (c: out_channel) fl =
       output_string c "/* End of graph */\n"; *)
       output_string c "/* Now the solved graph (simplesolve) */\n";
       Stats.time "printgraph" N.printGraph c;
+(*
       noAligns := o_noal; noBreaks := o_nobr;
+*)
       output_string c "/* End of solved graph*/\n#endif\n";
       ) 
     fl ;

@@ -325,17 +325,17 @@ let d_node () n =
     (if n.can_reach_string || hasFlag n pkReachString then "reach_s," else "")
     (if n.can_reach_seq    || hasFlag n pkReachSeq    then "reach_q," else "")
     (if n.can_reach_index  || hasFlag n pkReachIndex  then "reach_i," else "")
-    (docList (chr ',' ++ break)
+    (docList (chr ',' ++ (break))
        (fun n -> num n.id)) n.pointsto
     d_opointerkind n.kind
     d_whykind n.why_kind
     d_type n.btype
-    (docList (chr ',' ++ break)
+    (docList (chr ',' ++ (break))
        (fun e -> dprintf "%d:%a%a" e.eto.id
            d_ekind e.ekind
            insert (if e.ecallid >= 0 then dprintf "(%d)" e.ecallid else nil)))
     n.succ
-    (docList (chr ',' ++ break)
+    (docList (chr ',' ++ (break))
        (fun e -> dprintf "%d:%a%a" e.efrom.id
            d_ekind e.ekind
            insert (if e.ecallid >= 0 then dprintf "(%d)" e.ecallid else nil)))
