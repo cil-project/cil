@@ -194,12 +194,21 @@ $(PATCHEDHEADERS): $(CCUREDHOME)/lib/patcher.pl $(PATCHTEMPLATE)
                    --dest=$(CCUREDHOME)/include \
 	           $(foreach file,$(PATCH_SYSINCLUDES), --sfile=$(file))
 
-# don't be confused by presence of odoc/ directory
-.PHONY: odoc
-odoc:
-	mkdir odoc 2>/dev/null || true
-	odoc -d odoc -html -t "CCured Module Documentation" \
-	     -I obj src/*.mli src/frontc/*.mli
+
+# Documentation generated from latex files using "hevea"
+texdoc:
+	rm -rf doc/html/ccured
+	-mkdir doc/html/ccured
+	cd doc/html/ccured; hevea -exec xxdate.exe ../../ccured
+	cd doc/html/ccured; hevea -exec xxdate.exe ../../ccured
+	cd doc/html/ccured; hacha -o ccuredtoc.html ccured.html
+	cp doc/ccuredindex.html doc/html/ccured/index.html
+	cp doc/ccuredheader.html doc/html/ccured
+
+CCUREDHTMLDEST := /usr/local/apache-1.3.22/htdocs/ccured
+doc: texdoc odoc
+	if test -d $(CCUREDHTMLDEST); then \
+           cp -rf doc/html/ccured/* $(CCUREDHTMLDEST); fi
 
 clean: cleancaml
 	$(PATCHER) --dest=$(CCUREDHOME)/include --clean

@@ -49,10 +49,10 @@ clean:
 
 # build ocamldoc documentation tree
 
-.PHONY: odoc cil-distrib quickbuild setup clean
-odoc:
-	make -f Makefile.ccured odoc $(MAKEOVERRIDES)
-	make -f Makefile.cil odoc $(MAKEOVERRIDES)
+.PHONY: doc cil-distrib quickbuild setup clean
+doc:
+	make -f Makefile.cil doc $(MAKEOVERRIDES)
+	make -f Makefile.ccured doc $(MAKEOVERRIDES)
 
 cil-distrib:
 	make -f Makefile.cil cil-distrib $(MAKEOVERRIDES)
