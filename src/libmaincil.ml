@@ -61,7 +61,7 @@ class unrollVisitorClass = object (self)
   method vvdec (vi : varinfo) : varinfo visitAction = 
     begin
       vi.vtype <- unrollTypeDeep vi.vtype;
-(*      ChangeTo vi *)
+      E.log "varinfo for %s in file '%s' line %d byte %d\n" vi.vname vi.vdecl.file vi.vdecl.line vi.vdecl.byte;
       SkipChildren
     end
     
@@ -77,14 +77,16 @@ class unrollVisitorClass = object (self)
                 (*ChangeTo [g]*)
                 SkipChildren
               end              
-        | _ -> SkipChildren
+        | _ -> DoChildren
     end
 end;;
+
+
 let unrollVisitor = new unrollVisitorClass;;
 
 (* open and parse a C file into a Cil 'file', unroll all typedefs *)
 let parseOneFile (fname: string) : file =
-  let ast = Frontc.parse fname () in
+  let ast : file = Frontc.parse fname () in
     begin
       visitCilFile unrollVisitor ast;
       ast
