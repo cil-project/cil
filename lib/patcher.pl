@@ -297,7 +297,7 @@ sub preparePatchFile {
                 foreach $patt (@all_patterns) {
                     # Maybe the @__pattern__@ string appears in the replacement
                     my $pattern_repl = join('', @{$patt});
-                    my $nrlines = 1 + int(@{$patt});
+                    my $nrlines = int(@{$patt});
                     my $local_repl = $replacement;
                     $local_repl =~ s/\@__pattern__\@/$pattern_repl/g;
                     # Strip the spaces from patterns
@@ -325,7 +325,7 @@ sub preparePatchFile {
     close(PFILE) ||
         die "Cannot close patch file $pFile\n";
     print "Loaded patches from $pFile\n";
-#    print Dumper(\@patches); die "Here\n";
+    # print Dumper(\@patches); die "Here\n";
     
 }
 
