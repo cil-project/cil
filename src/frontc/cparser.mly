@@ -861,6 +861,9 @@ struct_decl_list: /* (* ISO 6.7.2. Except that we allow empty structs. We
 |  decl_spec_list                 SEMICOLON struct_decl_list
                                          { (fst $1, 
                                             [(missingFieldDecl, None)]) :: $3 }
+/*(* GCC allows extra semicolons *)*/
+|                                 SEMICOLON struct_decl_list
+                                         { $2 }
 |  decl_spec_list field_decl_list SEMICOLON struct_decl_list
                                           { (fst $1, $2) 
                                             :: $4 }
