@@ -1488,6 +1488,7 @@ sub new {
       OUTOBJ => "-o ",
       OUTEXE => "-o ",
       OUTCPP => "-o ",
+      FORCECSOURCE => "",
       LINEPATTERN => "^#\\s+(\\d+)\\s+\"(.+)\"",
       
       OPTIONS => 
