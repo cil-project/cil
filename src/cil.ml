@@ -2897,7 +2897,10 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
     (* sm: here's another one I don't want to see gcc warnings about.. *)
     | "mayPointToStack", _ when not !print_CIL_Input 
-      -> text "/*mayPointToStack*/", false
+    (* [matth: may be inside another comment.]
+      -> text "/*mayPointToStack*/", false 
+    *)
+      -> text "", false
 
     | _ -> (* This is the dafault case *)
         (* Add underscores to the name *)
