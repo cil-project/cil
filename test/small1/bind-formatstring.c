@@ -43,6 +43,7 @@ typedef struct cfg_listelt cfg_listelt_t;
 typedef struct ns_aclconfctx ns_aclconfctx_t;
 void (*isc_assertion_failed) (char const *, int, isc_assertiontype_t,
 			      char const *);
+
 isc_log_t *dns_lctx;
 void (cfg_obj_log) (cfg_obj_t * obj, isc_log_t * lctx, int level,
 		    char const *fmt, ...);

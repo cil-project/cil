@@ -424,7 +424,7 @@ $TEST->addTests("testrun/rtti4", "", ['inferbox']);
 $TEST->addTests("testrun/rtti5", "", ['inferbox']);
 $TEST->addTests("testrun/rttioo", "", ['inferbox']);
 $TEST->addTests("testrun/rttioo2", "", ['inferbox']);
-$TEST->addTests("test/bind-formatstring", "", ['inferbox']);
+$TEST->addTests("test/bind-formatstring", "EXTRAARGS=--assumePrintf", ['inferbox']);
 $TEST->addTests("testrun/pointerdiff", "", ['cil', 'inferbox', 'box']);
    $TEST->addBadComment("testrun/pointerdiff-inferbox", 
                         "A pointer that is not read should not be bound-checked");
