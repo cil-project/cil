@@ -1159,7 +1159,8 @@ let mustBeTagged v =
                         * how to put the tag. Plus, function pointers should 
                         * have a length = 0 so we cannot write there *)
   else
-    if !N.defaultIsWild then
+    (* See if it make sense to tag this one *)
+    let taggable = 
       if v.vglob then 
         if v.vstorage = Static then 
           v.vaddrof || containsArray v.vtype
@@ -1168,8 +1169,9 @@ let mustBeTagged v =
                    take their address somewhere else *)
       else
         v.vaddrof || containsArray v.vtype
-    else
-      (filterAttributes "tagged" v.vattr) <> []
+    in
+    taggable &&
+    (!N.defaultIsWild ||(filterAttributes "tagged" v.vattr) <> [])
 
 
 (* Create a compound initializer for a tagged type *)
