@@ -549,7 +549,7 @@ val mkWhile: guard:exp -> body:stmt list -> stmt
      * should not contain Break or Continue !!!. Can be used with i a pointer 
      * or an integer. Start and done must have the same type but incr 
      * must be an integer *)
-val mkForIncr:  iter:varinfo -> first:exp -> past:exp -> incr:exp 
+val mkForIncr:  iter:varinfo -> first:exp -> stopat:exp -> incr:exp 
                 -> body:stmt list -> stmt
 
     (* Make a for loop for(start; guard; next) { ... }. The body should not 

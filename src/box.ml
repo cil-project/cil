@@ -259,6 +259,8 @@ let bitfieldCompinfo comp =
     List.exists (fun fi -> containsPointer fi.ftype) comp.cfields 
   then begin
     (* Go over the fields and collect consecutive bitfields *)
+(*    ignore (E.log "Bundling the bitfields of %s\n"
+              (compFullName comp)); *)
     let rec loopFields prev prevbits = function
         [] -> List.rev (bundleBitfields prevbits prev)
       | f :: rest -> begin
@@ -288,16 +290,6 @@ let bitfieldCompinfo comp =
     comp.cfields <- (loopFields [] [] comp.cfields)
   end
 
-(* Change the field accesses to take into accound the extra structs *)
-let doField (fi: fieldinfo) (off: offset) =
-  if off = NoOffset then
-    try
-      let host, this = H.find hostsOfBitfields (fi.fcomp.ckey, fi.fname) in
-      Field (host, Field (this, NoOffset))
-    with Not_found ->
-      Field (fi, off)
-  else
-    Field (fi, off)
 
 (***** Convert some pointers in types to fat pointers ************)
 let sizedArrayTypes : (typsig, typ) H.t = H.create 123
@@ -1155,15 +1147,15 @@ let getHostIfBitfield lv t =
           Field(fi, NoOffset) -> NoOffset
         | Field(fi, off) -> Field(fi, getHost off)
         | Index(e, off) -> Index(e, getHost off)
-        | NoOffset -> E.s (E.bug "a TBitfield that is not a bitfield")
+        | NoOffset -> E.s (E.bug "a TBitfield that is not a field")
       in
       let lv' = lvbase, getHost lvoff in
       let lv't = typeOfLval lv' in
       (match unrollType lv't with 
         TComp comp when comp.cstruct -> 
           if List.exists (fun f -> typeContainsFats f.ftype) comp.cfields then
-            E.s (E.unimp "%s contains both bitfields and pointers" 
-                   (compFullName comp))
+            E.s (E.unimp "%s contains both bitfields and pointers.@!LV=%a@!T=%a@!" 
+                   (compFullName comp) d_plainlval lv d_plaintype t)
       | _ -> E.s (E.bug "getHost: bitfield not in a struct"));
       lv', lv't
     end
@@ -1195,11 +1187,11 @@ let offsetOfFirstScalar (t: typ) : exp =
   in
   match theOffset NoOffset t with
     None -> raise Not_found
-  | Some NoOffset -> CastE(uintType, zero)
+  | Some NoOffset -> kinteger IUInt 0 
   | Some off -> 
       let scalar = Mem (doCastT zero intType (TPtr (t, []))), off in
       let addrof = mkAddrOf scalar in
-      CastE(uintType, addrof)
+      doCast addrof uintType
 
   
 let checkZeroTags base lenExp lv t = 
@@ -1581,7 +1573,7 @@ let castTo (fe: fexp) (newt: typ)
                   [ p ;integer !currentFileId; integer !interceptId ]
               ]
             end else 
-              CastE(voidPtrType, zero), doe
+              doCast zero voidPtrType, doe
           in
           (doe', FM (newt, newkind, castP p, newbase, zero))
 
@@ -1669,6 +1661,14 @@ let castTo (fe: fexp) (newt: typ)
           *)
 
        (******* UNIMPLEMENTED ********)
+      | N.String, N.Wild 
+            when 
+          (match p with 
+            Const(CStr s) when prefix "booo_exp: " s -> true 
+          | _ -> false) -> (* This occurs because such strings are generated 
+                            * in case of error *)
+              (doe, FM(newt, newkind, castP p, zero, zero))
+
       | _, _ -> 
           E.s (E.unimp "castTo(%a -> %a.@!%a@!%a)" 
                  N.d_pointerkind oldk N.d_pointerkind newkind 
@@ -1677,7 +1677,26 @@ let castTo (fe: fexp) (newt: typ)
   end
 
 
-
+(* For each function cache some iterator variables. *)
+let iterVars : (int, varinfo list ref) H.t = H.create 13
+let withIterVar (f: fundec) (doit: varinfo -> 'a) : 'a = 
+  let avail = 
+    try  H.find iterVars f.svar.vid
+    with Not_found -> begin
+      let iters = ref [] in
+      H.add iterVars f.svar.vid iters; 
+      iters
+    end
+  in
+  let newv = 
+    match !avail with
+      v :: resta -> avail := resta; v
+    | [] -> makeTempVar f ~name:"iter" intType
+  in
+  let res = doit newv in
+  avail := newv :: !avail;
+  res
+  
   
 let checkMem (towrite: exp option) 
              (lv: lval) (base: exp) (bend: exp)
@@ -1741,10 +1760,41 @@ let checkMem (towrite: exp option)
         in
         List.fold_left doOneField acc comp.cfields
 
-    | TArray(bt, _, a) 
-        when (match unrollType bt with
-          (TInt _ | TFloat _ | TEnum _ | TBitfield _ ) -> true | _ -> false) 
-      -> acc
+    | TArray(bt, lo, a) -> begin
+        match unrollType bt with
+          TInt _ | TFloat _ | TEnum _ | TBitfield _ -> acc
+        | _ -> begin (* We are reading or writing an array *)
+            let len = 
+              match lo with Some len -> len 
+              | _ -> E.s (E.unimp "Reading or writing an incomplete type") in
+            (* Make an interator variable for this function *)
+            withIterVar !currentFunction
+              (fun it -> 
+                let itvar = Lval (var it) in
+                (* make the body to initialize one element *)
+                let initone = 
+                  let towriteelem = 
+                    match towrite with
+                      None -> None
+                    | Some (Lval whatlv) -> 
+                        Some (Lval (addOffsetLval (Index(itvar, NoOffset)) 
+                                      whatlv))
+                    | Some e -> E.s (E.unimp "doCheckTags: write (%a)" d_exp e)
+                  in
+                  doCheckTags towriteelem
+                    (addOffsetLval (Index(itvar, NoOffset)) where)
+                    bt
+                    pkind (* ??? *)
+                    []
+                in
+                (mkForIncr 
+                   ~iter: it
+                   ~first: zero
+                   ~stopat: len
+                   ~incr: one
+                   ~body: initone) :: acc)
+        end
+    end
 
     | TPtr(_, _) -> (* This can only happen if we are writing to an untagged 
                      * area. All other areas contain only fat pointers *)
@@ -1786,21 +1836,12 @@ let checkWrite e = checkMem (Some e)
 
 
 (********** Initialize variables ***************)
-let iterVars : (int, varinfo) H.t = H.create 13
-let makeIterVar f = 
-  fun () -> 
-    try
-      H.find iterVars f.svar.vid
-    with Not_found -> begin
-      let i = makeTempVar f ~name:"iter" intType in
-      H.add iterVars f.svar.vid i;
-      i
-    end
 
     (* Scan the type for arrays. Maybe they must be SIZED or NULLTERM *)
 let rec initForType 
                  (t: typ) 
-                 (mkivar: unit -> varinfo)
+                 (withivar: (varinfo -> 'a) -> 'a) (* Allocate temporarily an 
+                                                    * iteration variable *)
                  (mustZero: bool)  (* The area is not zeroed already *)
                  (endo: exp option) (* The end of the home area. To be used 
                                      * for initializing arrays of size 0 *)
@@ -1839,20 +1880,22 @@ let rec initForType
           in
           let dothissize = doit (Field(s, NoOffset)) thissize acc in
               (* Prepare the "doit" function for the base type *)
-          let iter = mkivar () in (* Hopefully not nested *)
-          let doforarray (off: offset) (what: exp) (acc: stmt list) = 
-            mkForIncr iter zero l one 
-              (doit (Index (Lval(var iter), off)) what []) :: acc
-          in
-          let doaddrforarray (off: offset) = 
-            E.s (E.bug "OPEN arrays inside arrays ???") 
-          in
-          initForType bt mkivar mustZero endo 
-            doforarray doaddrforarray dothissize
+          withivar 
+            (fun iter ->
+              let doforarray (off: offset) (what: exp) (acc: stmt list) = 
+                mkForIncr iter zero l one 
+                  (doit (Index (Lval(var iter), off)) what []) :: acc
+              in
+              let doaddrforarray (off: offset) = 
+                E.s (E.bug "OPEN arrays inside arrays ???") 
+              in
+              initForType bt withivar mustZero endo 
+                doforarray doaddrforarray dothissize)
+
       | _ -> (* A regular struct. Do all the fields in sequence *)
           List.fold_left 
             (fun acc fld -> 
-              initForType fld.ftype mkivar mustZero endo
+              initForType fld.ftype withivar mustZero endo
                 (fun off what acc -> doit (Field(fld, off)) what acc)
                 (fun off -> addrof (Field(fld, off)))
                 acc)
@@ -1868,7 +1911,7 @@ let rec initForType
       in
       List.fold_left 
         (fun acc fld -> 
-          initForType fld.ftype mkivar mustZero endo
+          initForType fld.ftype withivar mustZero endo
             doforunion
             (fun off -> addrof (Field(fld, off)))
             acc)
@@ -1885,15 +1928,17 @@ let rec initForType
       end else
             (* Initialize all elements *)
             (* Prepare the "doit" function for the base type *)
-        let iter = mkivar () in (* Hopefully not nested *)
-        let doforarray (off: offset) (what: exp) (acc: stmt list) = 
-          mkForIncr iter zero l one 
-            (doit (Index (Lval(var iter), off)) what []) :: acc
-        in
-        let doaddrforarray (off: offset) = 
-          E.s (E.bug "OPEN arrays inside arrays ???") 
-        in
-        initForType bt mkivar mustZero endo doforarray doaddrforarray acc
+        withivar
+          (fun iter -> 
+            let doforarray (off: offset) (what: exp) (acc: stmt list) = 
+              mkForIncr iter zero l one 
+                (doit (Index (Lval(var iter), off)) what []) :: acc
+            in
+            let doaddrforarray (off: offset) = 
+              E.s (E.bug "OPEN arrays inside arrays ???") 
+            in
+            initForType bt withivar 
+              mustZero endo doforarray doaddrforarray acc)
           
   | TPtr (bt, a) -> begin
           (* If a non-wild pointer then initialize to zero *)
@@ -1914,7 +1959,8 @@ let rec initForType
 
 
 (* Create and accumulate the initializer for a variable *)
-let initializeVar (mkivar: unit -> varinfo) 
+let initializeVar (withivar: (varinfo -> 'a) -> 'a) (* Allocate an iteration 
+                                                     * varible temporarily *)
                   (acc: stmt list)
                   (v: varinfo) 
                    : stmt list = 
@@ -1922,21 +1968,22 @@ let initializeVar (mkivar: unit -> varinfo)
   if mustBeTagged v then begin
    (* Generates code that initializes vi. Needs "iter", an integer variable 
     * to be used as a for loop index  *)
-    let iter = mkivar () in
-    let dfld, lfld, tfld, words, tagwords = splitTagType v.vtype in
-    (* Write the length *)
-    mkSet (Var v, Field(lfld, NoOffset)) words ::
-    (* And the loop to initialize the tags with zero *)
-    (if not v.vglob then
-      mkForIncr iter zero (doCast tagwords intType) one 
-        [mkSet (Var v, Field(tfld, Index (Lval(var iter), NoOffset))) 
-            zero ]
-      ::
-      acc
-    else
-      acc)
+    withivar
+      (fun iter -> 
+        let dfld, lfld, tfld, words, tagwords = splitTagType v.vtype in
+        (* Write the length *)
+        mkSet (Var v, Field(lfld, NoOffset)) words ::
+        (* And the loop to initialize the tags with zero *)
+        (if not v.vglob then
+          mkForIncr iter zero (doCast tagwords intType) one 
+            [mkSet (Var v, Field(tfld, Index (Lval(var iter), NoOffset))) 
+                zero ]
+          ::
+          acc
+        else
+          acc))
   end else begin
-    initForType v.vtype mkivar (not v.vglob) None
+    initForType v.vtype withivar (not v.vglob) None
       (fun off what acc -> mkSet (Var v, off) what :: acc)
       (fun off -> mkAddrOf (Var v, off))
       acc
@@ -2024,7 +2071,7 @@ let pkAllocate (ai:  allocinfo) (* Information about the allocation function *)
     match k with
       N.Wild | N.Index -> 
         mkSet (Mem(BinOp(PlusA, 
-                         CastE (uintPtrType, tmpvar),
+                         doCast tmpvar uintPtrType,
                          mone, uintPtrType)), 
                NoOffset) 
           nrdatawords
@@ -2067,7 +2114,7 @@ let pkAllocate (ai:  allocinfo) (* Information about the allocation function *)
                            nrdatabytes, uintType) in
         (* Now initialize. *)
         let inits = 
-          initForType basetype (makeIterVar !currentFunction) mustZero
+          initForType basetype (withIterVar !currentFunction) mustZero
             (Some theend)
             (fun off what acc -> mkSet (Mem tmpvar, off) what :: acc)
             (fun off -> mkAddrOf (Mem tmpvar, off))
@@ -2086,6 +2133,14 @@ let pkAllocate (ai:  allocinfo) (* Information about the allocation function *)
         in
         (* Now initialize. Use the tmp variable to iterate over a number of 
          * copies  *)
+        let initone = 
+          initForType basetype 
+            (withIterVar !currentFunction) mustZero
+            None
+            (fun off what acc -> mkSet (Mem tmpvar, off) what :: acc)
+            (fun off -> mkAddrOf (Mem tmpvar, off))
+            []
+        in
         savetheend ::
         mkFor 
           ~start:Skip
@@ -2095,11 +2150,7 @@ let pkAllocate (ai:  allocinfo) (* Information about the allocation function *)
                         doCast theend uintType, intType))
           ~next:(mkSet (var tmpp) 
                    (BinOp(IndexPI, tmpvar, one, ptrtype)))
-          ~body:(initForType basetype (makeIterVar !currentFunction) mustZero
-                   None
-                   (fun off what acc -> mkSet (Mem tmpvar, off) what :: acc)
-                   (fun off -> mkAddrOf (Mem tmpvar, off))
-                   []) ::
+          ~body:initone ::
         (if k = N.FSeqN || k = N.SeqN then [putnullterm] else [])
 
     | N.String -> (* Allocate this as SeqN, with a null term *)
@@ -2214,6 +2265,7 @@ let rec boxstmt (s : stmt) : stmt =
     | Loop s -> Loop (boxstmt s)
           
     | IfThenElse (e, st, sf, l) -> 
+        (* Signal that we have to do a cast *)
         let (_, doe, e') = boxexp (CastE(intType, e)) in
           (* We allow casts from pointers to integers here *)
         mkSeq (doe @ [IfThenElse (e', boxstmt st, boxstmt sf, l)])
@@ -2240,7 +2292,8 @@ let rec boxstmt (s : stmt) : stmt =
         mkSeq (doe2 @ [Return (Some e2, l)])
     | Instr (i, l) -> boxinstr i l
   with e -> begin
-    ignore (E.log "boxstmt (%s)\n" (Printexc.to_string e));
+    ignore (E.log "boxstmt (%s) in %s\n" 
+              (Printexc.to_string e) !currentFunction.svar.vname);
     dStmt (dprintf "booo_statement(%a)" d_stmt s)
   end
 
@@ -2398,7 +2451,8 @@ and boxinstr (ins: instr) (l: location): stmt =
                [Instr(Asm(tmpls, isvol, outputs', inputs', clobs), l)])
             
   with e -> begin
-    ignore (E.log "boxinstr (%s)\n" (Printexc.to_string e));
+    ignore (E.log "boxinstr (%s):%a (in %s)\n" 
+              (Printexc.to_string e) d_instr ins !currentFunction.svar.vname);
     dStmt (dprintf "booo_instruction(%a)" d_instr ins)
   end
 
@@ -2432,26 +2486,26 @@ and boxlval (b, off) : (typ * N.pointerkind * lval * exp * exp * stmt list) =
               d_lval (b, off) N.d_pointerkind pkind); 
   (* As we go along we need to go into tagged and sized types. *)
   let goIntoTypes ((btype, pkind, mklval, base, bend, stmts) as input) = 
-    match 
-      (match unrollType btype with
-        TComp comp when comp.cstruct -> comp.cfields
-      | _ -> []) 
-    with
-      f1 :: f2 :: [] when (f1.fname = "_size" && f2.fname = "_array") -> 
-        begin
-        (* A sized array *)
-          if pkind != N.Safe then
-            E.s (E.bug "Sized array in a non-safe area");
-          (f2.ftype, N.Safe, (fun o -> mklval (Field(f2, o))), 
-           zero, zero, stmts)
-        end
-    | f1 :: f2 :: _ when (f1.fname = "_len" && f2.fname = "_data") -> begin
-        (* A tagged data. Only wild pointers inside *)
-        if pkind = N.Wild then
-          E.s (E.bug "Tagged data inside a tagged area");
-        (f2.ftype, N.Wild, (fun o -> mklval (Field(f2, o))),
-          mkAddrOf (mklval(Field(f2,NoOffset))), zero, stmts)
-    end 
+    match unrollType btype with
+      TComp comp when comp.cstruct -> begin
+        match comp.cfields with
+          f1 :: f2 :: [] when (f1.fname = "_size" && f2.fname = "_array") -> 
+            begin
+            (* A sized array *)
+              if pkind != N.Safe then
+                E.s (E.bug "Sized array in a non-safe area");
+              (f2.ftype, N.Safe, (fun o -> mklval (Field(f2, o))), 
+               zero, zero, stmts)
+            end
+        | f1 :: f2 :: _ when (f1.fname = "_len" && f2.fname = "_data") ->
+            (* A tagged data. Only wild pointers inside *)
+            if pkind = N.Wild then
+              E.s (E.bug "Tagged data inside a tagged area");
+            (f2.ftype, N.Wild, (fun o -> mklval (Field(f2, o))),
+             mkAddrOf (mklval(Field(f2,NoOffset))), zero, stmts)
+
+        | _ -> input
+      end 
     | _ -> input
   in
   (* Now do the offsets *)
@@ -2461,9 +2515,15 @@ and boxlval (b, off) : (typ * N.pointerkind * lval * exp * exp * stmt list) =
 
     | Field (f, resto) -> 
         let (_, pkind, mklval, base, bend, stmts) = beforeField input in
+        let addf o = 
+          try
+            let host, this = H.find hostsOfBitfields (f.fcomp.ckey, f.fname) in
+            Field (host, Field(this, o))
+          with Not_found -> Field (f, o)
+        in
         (* Prepare for the rest of the offset *)
         let next = 
-          (f.ftype, pkind, (fun o -> mklval (Field(f, o))), base, bend, 
+          (f.ftype, pkind, (fun o -> mklval (addf o)), base, bend, 
            stmts) in
         doOffset (goIntoTypes next) resto
 
@@ -2513,11 +2573,10 @@ and boxexpf (e: exp) : stmt list * fexp =
 
     | Const (CStr _) -> 
         (* means that we have not yet run markptr. *)
-        boxexpf (CastE (TPtr(TInt(IChar, []), 
-                             if !N.defaultIsWild then 
-                               [AId("wild")] else [AId("fseq")]), 
-                        e))
-
+        boxexpf (CastE(TPtr(TInt(IChar, []), 
+                            if !N.defaultIsWild then 
+                              [AId("wild")] else [AId("fseq")]),
+                       e))
 
     | CastE (t, e) -> begin
         let t' = fixupType t in
@@ -2570,11 +2629,11 @@ and boxexpf (e: exp) : stmt list * fexp =
         let t' = fixupType t in
         ([], L(uintType, N.Scalar, SizeOf(t')))
 
-    | SizeOfE (e) -> 
+    | SizeOfE (e) -> begin
         let (et, doe, e') = boxexp e in
         (* Drop all size-effects from this SizeOf *)
         ([], L(uintType, N.Scalar, SizeOfE(e')))
-        
+    end
     | AddrOf (lv) ->
         let (lvt, lvkind, lv', baseaddr, bend, dolv) = boxlval lv in
         (* Check that variables whose address is taken are flagged as such, 
@@ -2599,7 +2658,7 @@ and boxexpf (e: exp) : stmt list * fexp =
         (dolv, res)
     end
     | Question (e1, e2, e3) ->       
-        let (_, doe1, e1') = boxexp (CastE(intType, e1)) in
+        let (_, doe1, e1') = boxexp (CastE(intType, e)) in
         let (et2, doe2, e2') = boxexp e2 in
         let (et3, doe3, e3') = boxexp e3 in
         let result = mkFexp1 et2 (Question (e1', e2', e3')) in
@@ -2614,7 +2673,8 @@ and boxexpf (e: exp) : stmt list * fexp =
         let newinitl = List.rev (foldLeftCompound doOneInit t initl []) in
         ([], L(t', N.Scalar, Compound(t', newinitl)))
   with exc -> begin
-    ignore (E.log "boxexpf (%s)\n" (Printexc.to_string exc));
+    ignore (E.log "boxexpf (%s): %a in %s\n" 
+              (Printexc.to_string exc) d_exp e !currentFunction.svar.vname);
     ([], L(charPtrType, N.String, dExp (dprintf "booo_exp: %a" d_exp e)))
   end 
             
@@ -2659,8 +2719,7 @@ and fexp2exp (fe: fexp) (doe: stmt list) : expRes =
       in
       (newt,
        doe @ caste, 
-       Lval(Mem (CastE(TPtr(newt, []), 
-                       AddrOf (tmp))),
+       Lval(Mem (doCast (mkAddrOf tmp) (TPtr(newt, []))), 
             NoOffset))
 
     (* Box an expression and resolve the fexp into statements *)
@@ -2840,7 +2899,7 @@ let boxFile file =
         (* Initialize the locals *)
             let inilocals = 
               List.fold_left 
-                (initializeVar (makeIterVar f)) [boxbody] f.slocals in
+                (initializeVar (withIterVar f)) [boxbody] f.slocals in
             f.sbody <- mkSeq inilocals;
             theFile := GFun (f, l) :: !theFile
                                         
@@ -2879,9 +2938,9 @@ let boxFile file =
     if isdef && vi.vstorage <> Extern then begin
       extraGlobInit := 
          initializeVar 
-           (fun () ->
+           (fun x ->
              let gi = getGlobInit file in
-             makeIterVar gi ()) !extraGlobInit vi;
+             withIterVar gi x) !extraGlobInit vi;
     end;
     (* Tag some globals. We should probably move this code into the 
      * initializeVar but for now we keep it here *)

@@ -59,8 +59,6 @@ my %commonerrors =
 
          );
 
-my $debug = defined($TEST->{option}->{safecdebug}) ? " " : " RELEASE=1 ";
-
 # Now add tests
 $TEST->add3Tests("hashtest", @runpattern);
 $TEST->add3Tests("wes-hashtest", @runpattern);
@@ -70,12 +68,25 @@ $TEST->add3Tests("btreetest", @runpattern);
 $TEST->add3Tests("apache/gzip");
 $TEST->add3Tests("apache/rewrite");
 $TEST->add3Tests("test/string");
+$TEST->add3Tests("test/linux_atomic");
+$TEST->add3Tests("test/jmp_buf");
 $TEST->add3Tests("test/smallstring");
 $TEST->add3Tests("test/init");
+$TEST->add3Tests("test/initial");
 $TEST->add3Tests("test/sizeof");
 $TEST->add3Tests("test/alloc");
+$TEST->add3Tests("test/enum");
+$TEST->add3Tests("test/list");
+$TEST->add3Tests("test/seq");
+$TEST->add3Tests("test/func");
+$TEST->add3Tests("test/attr");
+$TEST->add3Tests("test/retval");
+$TEST->add3Tests("test/constprop");
+$TEST->add3Tests("test/globals");
+$TEST->add3Tests("test/bitfield");
+$TEST->add3Tests("test/structassign");
 $TEST->add1Test("test/alloc-manualinferbox",
-                "test/alloc INFERBOX=1 MANUALBOX=1 $debug",
+                "test/alloc INFERBOX=1 MANUALBOX=1",
                 %commonerrors);
 
 # $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug

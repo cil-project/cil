@@ -1840,12 +1840,15 @@ and typeSigAddAttrs a0 t =
 
 
 
-let doCastT (e: exp) (oldt: typ) (newt: typ) = 
+let rec doCastT (e: exp) (oldt: typ) (newt: typ) = 
   (* Do not remove old casts because they are conversions !!! *)
   if typeSig oldt = typeSig newt then
     e
   else
-    CastE(newt,e)
+    (* If the new type is a Bitfield then cast to the base type *)
+    match newt with
+      TBitfield (ik, _, a) -> doCastT e oldt (TInt(ik, a))
+    | _ -> CastE(newt,e)
 
 let doCast (e: exp) (newt: typ) = 
   doCastT e (typeOf e) newt
