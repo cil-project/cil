@@ -56,7 +56,6 @@ my %commonerrors =
                                      $_[1]->{parse} = $_[2];},
     "^print.+\\s+([\\.\\d]+) s" => sub { $_[1]->{print} += $_[2];},
     "^box\\s+([\\.\\d]+) s" => sub { $_[1]->{box} += $_[2];},
-    "^\\s+simple solver\\s+([\\.\\d]+) s" => sub { $_[1]->{solve} += $_[2];},
          # Now error messages
     "^(Bug: .+)\$" => sub { $_[1]->{ErrorMsg} = $_[2]; },
     "^(Unimplemented: .+)\$" => sub { $_[1]->{ErrorMsg} = $_[2]; },
@@ -193,7 +192,9 @@ $TEST->add3Tests("wes-rbtest", "", @runpattern);
 $TEST->add1Test("test/alloc-manualinferbox",
                 "test/alloc INFERBOX=$inferbox MANUALBOX=1",
                 %commonerrors);
-
+$TEST->add2TestFail("testrun/failubound1", "Failure: Ubound");
+$TEST->add2TestFail("testrun/failnull1", "Failure: Non-pointer");
+    
 #
 # OLDEN benchmarks
 #
@@ -386,7 +387,7 @@ sub errorHeading {
     return "Boxing error" if $err == 1004;
     return "Compilation error" if $err == 1005;
     return "Execution error" if $err == 1006;
-    return "Error $err";
+    return $self->SUPER::errorHeading();
 }
 
 sub startParsingLog {
@@ -473,6 +474,33 @@ sub add1Test {
                    Group => ["cil"],
                    Patterns => \%patterns);
 }
+
+sub add2TestFail {
+    my($self, $name, $args, $failpattern, %patterns) = @_;
+    
+    my $theargs = 
+        defined($self->{option}->{safecdebug}) ? $args : " $args RELEASE=1 ";
+
+    my $k;
+    my %patterns = %commonerrors;
+
+    $self->newTest(Name => $name . "-box",
+                   Dir => "..",
+                   Cmd => "make " . $name . " INFERBOX=wild " . $theargs,
+                   Group => ["cil"],
+                   MustFail => $failpattern,
+                   Patterns => \%patterns);
+
+
+    $self->newTest(Name => $name . "-inferbox",
+                   Dir => "..",
+                   Cmd => "make " . $name . " INFERBOX=$inferbox " . $theargs,
+                   Group => ["infer"], 
+                   MustFail => $failpattern,
+                   Patterns => \%patterns);
+
+}
+
 
 sub addBadComment {
     my($self, $name, $comm) = @_;

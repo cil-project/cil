@@ -2061,7 +2061,7 @@ let rec checkBounds
     let lv', lv't = getHostIfBitfield lv lvt in
     (* Do not check the bounds when we access variables without array 
      * indexing  *)
-    ignore (E.log "Check bounds: pkind=%a\n" N.d_opointerkind pkind);
+    (* ignore (E.log "Check bounds: pkind=%a\n" N.d_opointerkind pkind); *)
     match pkind with
     | N.Wild -> (* We'll need to read the length anyway since we need it for 
                    * working with the tags *)
@@ -2100,13 +2100,13 @@ let rec checkBounds
           seqToSafe (mkAddrOf(lv')) (TPtr(lv't, [])) base bend' empty in
         rev docheck
           
-    | N.Safe | N.String | N.ROString -> begin
+    | N.Safe | N.String | N.ROString -> empty (* begin
         match lv' with
           Mem addr, _ -> 
            single (call None (Lval (var checkNullFun.svar)) 
                      [ castVoidStar addr ])
         | _, _ -> empty
-    end
+    end *)
 
     | _ -> E.s (bug "Unexpected pointer kind in checkBounds(%a)"
                   N.d_opointerkind pkind)
@@ -2380,7 +2380,8 @@ type checkLvWhy =
 let rec checkMem (why: checkLvWhy) 
                  (lv: lval) (base: exp) (bend: exp)
                  (lvt: typ) (pkind: N.opointerkind) : stmt clist = 
-  ignore (E.log "checkMem: lv=%a@!  lvt: %a\n" d_plainlval lv d_plaintype lvt);
+(*  ignore (E.log "checkMem: lv=%a@!  lvt: %a@!" 
+            d_plainlval lv d_plaintype lvt); *)
   (* Maybe it is a table. In that case, get the true base and end *)
   (* See if a table pointer *)
   let newk = N.stripT pkind in 
@@ -3729,8 +3730,16 @@ and boxlval1 (b, off) : (typ * N.opointerkind * lval * exp * exp * stmt clist)=
           | _ -> E.s (unimp "Mem but no pointer type: %a@!addr= %a@!"
                         d_plaintype addrt d_plainexp addr)
         in
+        (* If the kind of the address is safe we must do a null check *)
+        let doaddr2 = 
+          if addrkind = N.Safe then 
+            CConsR (doaddr1,
+                    call None (Lval (var checkNullFun.svar)) 
+                      [ castVoidStar addr' ])
+          else doaddr1
+        in
         (addrt1, addrkind, (fun o -> (mkMem addr' o)), 
-         addrbase1, addrend1, doaddr1)
+         addrbase1, addrend1, doaddr2)
   in
   if debuglval then
     ignore (E.log "Lval=%a@!startinput=%a\n" 

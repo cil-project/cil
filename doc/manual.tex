@@ -989,31 +989,38 @@ It has been observed that the cygwin version of ssh doesn't behave well
 with cvs because of some CR-LF translation problems. Hence, you will need 
 putty, puttygen, pageant, pscp and plink, all of which are available from:
 
-  \ahrefurl{http://www.chiark.greenend.org.uk/~sgtatham/putty/download.html}
+  \ahrefurl{http://www.chiark.greenend.org.uk/\home{sgtatham}/putty/download.html}
 
 All of the following steps are necessary to get CVS over SSH working:
 \begin{itemize}
-\item Create a key pair if you dont already have one using puttygen. You will
-end up with the public and private key files "identity" and "identity.pub" in
-a directory named \t{\%HOMEPATH\%/.ssh}
+\item Download all components of the Putty suite and put them in a directory.
+Add that directory to the PATH.
+
+\item Run puttygen to create a key pair. Then save the private key in a file,
+say \t{C:/Necula/.ssh/putty\_private}. Copy the public key that puttygen
+displays and save it to a file,  say \t{C:/Necula/.ssh/putty\_public}.
 
 \item Setup pageant (putty ssh-agent): Add a shortcut to the following command
-line (add/change paths as necessary) in your startup folder -
+line (add/change paths as necessary) in your startup folder:
 
 \begin{verbatim}
-      pageant.exe  C:\.ssh\identity 
+      pageant.exe  C:\Necula\.ssh\putty_private
 \end{verbatim}
 
-c. Add your public key in the "\t{authorized\_keys}" file on the CVS server:
-   Use the following command line:
+ or equivalently remember to run the above command every time you log in on
+the Windows machine before you try to use cvs. 
+
+\item Add your public key in the "\t{authorized\_keys}" file on the CVS server:
+   One way to do this is to use the following command line:
 
 \begin{verbatim}
-       plink -ssh -pw your-password username@cvs-host "cat >> ~/.ssh/authorized_keys" <  C:\.ssh\identity.pub
+       plink -ssh -pw your-password username@cvs-host "cat >> ~/.ssh/authorized_keys" <  C:\Necula\.ssh\putty_public
 \end{verbatim}
   
-   This appends your identity.pub file to \t{\home{}/.ssh/authorized\_keys} file
-   on the server. You may do this in any other way you like. You {\bf have} to
-   type your password on the command line if you do it this way, though.
+   This appends your identity.pub file to \t{\home{}/.ssh/authorized\_keys}
+   file on the server. You may do this in any other way you like. You {\bf
+   have} to type your password on the command line if you do it this way,
+   though.
 
 \item Create a "session profile" in putty for the CVS server:
   \begin{itemize}
@@ -1228,8 +1235,8 @@ in the base 'cil' directory (the one with 'regrtest'):
     The -d argument tells cvs to create on your machine any new directories
     that somebody might have checked in. By default cvs does not create new
     directories. This flag is so useful that many people find it useful to
-    create a ~/.cvsrc file with one line containing "update -d" in it. This way
-    you don't have to specify the flag all the time.
+    create a \home{/.cvsrc} file with one line containing "update -d" in it.
+    This way you don't have to specify the flag all the time.
 
     If you specify a filename (after cd'ing to the directory containing it),
     only that file will be updated, otherwise everything in the current
