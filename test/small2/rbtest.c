@@ -89,7 +89,7 @@ void doTreeStuff(int letGcFree)
 
 
 
-int main(int argc /* , char*argv[] */)  /* Drop this to avoid changing name*/
+int main(int argc /* char*argv[] */)  /* Drop this to avoid changing name*/
 {
   /* Test hash tables */
   double clk;
