@@ -34,7 +34,7 @@
   #define __HEAPIFY
   #define __DUMMYDEFN
   #define __BOXMODEL(fname)
-  #define __NOBOX(block)
+  #define __NOBOX(block) { block }
 #else
   #define __WILD   __attribute__((wild))
   #define __SAFE   __attribute__((safe))
