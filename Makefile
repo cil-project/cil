@@ -655,3 +655,11 @@ compress : defaulttarget
 	$(COMPRESSDIR)/exe/base/compress95.v8 \
               <$(COMPRESSDIR)/exe/base/input.data \
               >$(COMPRESSDIR)/exe/base/output.txt
+
+
+LIDIR=$(SPECDIR)/130.li
+li: defaulttarget
+	cd $(LIDIR)/src; make build
+	$(LIDIR)/src/trial_li \
+            <$(LIDIR)/data/train/input/train.lsp \
+            >$(LIDIR)/data/train/input/train.out
