@@ -2932,6 +2932,7 @@ and doExp (isconst: bool)    (* In a constant *)
         let tresult, result = doBinOp bop' e1' t1 e2' t2 in
         finishExp (se1 @@ se2) result tresult
           
+          (* assignment operators *)
     | A.BINARY((A.ADD_ASSIGN|A.SUB_ASSIGN|A.MUL_ASSIGN|A.DIV_ASSIGN|
       A.MOD_ASSIGN|A.BAND_ASSIGN|A.BOR_ASSIGN|A.SHL_ASSIGN|
       A.SHR_ASSIGN|A.XOR_ASSIGN) as bop, e1, e2) -> begin
@@ -2975,9 +2976,12 @@ and doExp (isconst: bool)    (* In a constant *)
              in
              let (se2, e2', t2) = doExp false e2 (AExp None) in
              let tresult, result = doBinOp bop' e1' t1 e2' t2 in
-             finishExp (se1 @@ se2 +++ (Set(lv1, result, !currentLoc)))
+             let _, result' = castTo tresult t1 result in
+             (* The type of the result is the type of the left-hand side  *) 
+             finishExp (se1 @@ se2 +++ 
+                        (Set(lv1, result', !currentLoc)))
                e1'
-               tresult
+               t1 
            end
         | _ -> E.s (error "Unexpected left operand for assignment with arith")
       end

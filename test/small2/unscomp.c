@@ -15,9 +15,14 @@ int main()
     printf("no -- this is wrong\n");
     return 2;
   }
-  else {
-    printf("yes this is right\n");
+
+  // Now a similar thing. The result of the subtraction is unsigned
+  // and so is the comparison
+  offset = 50;
+  if(offset - size < 0) {
+    printf("This is also wrong\n"); return 3;
   }
-  
+
+  printf("yes this is right\n");
   return 0;
 }
