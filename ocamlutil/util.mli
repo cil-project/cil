@@ -80,13 +80,13 @@ val hasPrefix: string -> string -> bool
 
 
 (** Given a ref cell, produce a thunk that later restores it to its current value *)
-val restoreRef: 'a ref -> unit -> unit
+val restoreRef: ?deepCopy:('a -> 'a) -> 'a ref -> unit -> unit
 
 (** Given a hash table, produce a thunk that later restores it to its current value *)
-val restoreHash: ('a, 'b) Hashtbl.t -> unit -> unit
+val restoreHash: ?deepCopy:('b -> 'b) -> ('a, 'b) Hashtbl.t -> unit -> unit
 
 (** Given an array, produce a thunk that later restores it to its current value *)
-val restoreArray: 'a array -> unit -> unit
+val restoreArray: ?deepCopy:('a -> 'a) -> 'a array -> unit -> unit
 
 
 (** Given a list of thunks, produce a thunk that runs them all *)

@@ -272,17 +272,26 @@ let hasPrefix (prefix: string) (what: string) : bool =
 
 
 
-let restoreRef (r: 'a ref) : (unit -> unit) = 
-  let old = !r in
+let restoreRef ?(deepCopy=(fun x -> x)) (r: 'a ref) : (unit -> unit) = 
+  let old = deepCopy !r in
   (fun () -> r := old)
 
-let restoreHash (h: ('a, 'b) H.t) : (unit -> unit) = 
-  let old = H.copy h in
-  (fun () -> 
-    hash_copy_into old h)
+let restoreHash ?deepCopy (h: ('a, 'b) H.t) : (unit -> unit) = 
+  let old = 
+    match deepCopy with 
+      None -> H.copy h 
+    | Some f -> 
+        let old = H.create 13 in 
+        H.iter (fun k d -> H.add old k (f d)) h;
+        old
+  in
+  (fun () -> hash_copy_into old h)
 
-let restoreArray (a: 'a array) : (unit -> unit) = 
+let restoreArray ?deepCopy (a: 'a array) : (unit -> unit) = 
   let old = Array.copy a in
+  (match deepCopy with 
+    None -> ()
+  | Some f -> Array.iteri (fun i v -> old.(i) <- f v) old);
   (fun () -> Array.blit old 0 a 0 (Array.length a))
 
 let runThunks (l: (unit -> unit) list) : (unit -> unit) = 
