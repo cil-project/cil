@@ -1253,7 +1253,7 @@ let rec typeSig t =
                                   List.map (fun vi -> (typeSig vi.vtype, 
                                                        vi.vattr)) args,
                                   isva, a)
-  | TNamed(_, t, _) -> typeSig t
+  | TNamed(_, t, _) -> typeSig t (* !!! Dropping arguments here *)
   | TForward n -> begin
       let l = String.length n in
       try

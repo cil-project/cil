@@ -139,8 +139,9 @@ and fixit t =
     let doit t =
       match t with 
         (TInt _|TEnum _|TFloat _|TVoid _|TBitfield _) -> t
+(*
       | TPtr ((TFun _) as t', a) -> 
-          TPtr (fixupType t', a)        (* Pointers to functions are lean *)
+          TPtr (fixupType t', a)         Pointers to functions are lean *)
 
       | TPtr (t', a) -> begin
         (* Now do the base type *)
@@ -154,7 +155,7 @@ and fixit t =
                              };
                              { fstruct = tname;
                                fname   = "_b";
-                               ftype   = TPtr(TVoid ([]), a);
+                               ftype   = TPtr(TVoid ([]), []);
                                fattr   = [];
                              }; ], []) 
           in
@@ -808,8 +809,9 @@ and boxexpf (e: exp) : stmt list * fexp =
       else
         (dolv @ check, L(rest, Lval(lv')))
 
-  | Const ((CInt _ | CChr _), _) -> ([], L(intType, e))
-  | Const (CReal _, _) -> ([], L(doubleType, e))
+  | Const (CInt (_, ik, _), _) -> ([], L(TInt(ik, []), e))
+  | Const ((CChr _), _) -> ([], L(charType, e))
+  | Const (CReal (_, fk, _), _) -> ([], L(TFloat(fk, []), e))
   | CastE (t, e, l) -> begin
       let t' = fixupType t in
       let (doe, fe') = boxexpf e in
@@ -857,7 +859,7 @@ and boxexpf (e: exp) : stmt list * fexp =
       let (et1, doe1, e1') = boxexp e1 in
       let (et2, doe2, e2') = boxexp e2 in
       match bop, isFatType et1, isFatType et2 with
-      | (Plus), true, false -> 
+      | (Plus|Minus), true, false -> 
           let ptype = (getPtrFieldOfFat et1).ftype in
           (doe1 @ doe2, F2 (restyp', 
                             BinOp(bop, readPtrField e1' et1, e2', ptype, l),
@@ -875,7 +877,8 @@ and boxexpf (e: exp) : stmt list * fexp =
       | _, false, false -> 
           (doe1 @ doe2, L(restyp', BinOp(bop,e1',e2',restyp', l)))
 
-      | _, _, _ -> E.s (E.unimp "boxBinOp")
+      | _, _, _ -> E.s (E.unimp "boxBinOp: %a@!et1=%a@!et2=%a@!" 
+                          d_binop bop d_plaintype et1 d_plaintype et2)
   end
 
   | SizeOf (t, l) -> 
