@@ -164,8 +164,8 @@ ifdef NOGC
   CCURED+= --nogc
 endif
 
-ifdef MAXCOMPAT
-  CCURED+= --maxCompat
+ifdef MAXSPLIT
+  CCURED+= --maxSplit
 endif
 ifeq ($(TABLE), A)
   CCURED+= --tableAll

@@ -1090,7 +1090,7 @@ altAddTest("hashtest $wildbox $iters");
 altAddTest("wes-hashtest $iters");
 altAddTest("wes-hashtest $box $iters");
 
-altAddTest("hashtest $box $iters MAXCOMPAT=1");
+altAddTest("hashtest $box $iters MAXSPLIT=1");
 
 # some piece of PCC
 altAddTest("testpcc/parseobject EXTRAARGS=--no-idashi");
