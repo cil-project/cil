@@ -21,7 +21,7 @@ MLYS        =
 # ast clex cparse
 # sm: trace: utility for debug-time printfs
 MODULES     = pretty trace errormsg stats util clist \
-              cil logcalls check ptrnode \
+              cil cfg logcalls check ptrnode \
               solveutil solver globinit \
               oneret boxsplit boxstats box markptr \
               rmtmps optim

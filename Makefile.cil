@@ -15,7 +15,7 @@ MLYS        = cparser.mly
 MODULES     = pretty errormsg trace stats util clist \
               cabs cprint clexer cparser cabsvisit \
               cil cabs2cil frontc check logcalls rmtmps \
-	      heapify maincil
+	      cfg heapify maincil
 
 EXECUTABLE  = $(OBJDIR)/cilly
 CAMLUSEUNIX = 1
