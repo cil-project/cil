@@ -360,17 +360,18 @@ type fundec =
     { svar:     varinfo;                (* Holds the name and type as a 
                                          * variable, so we can refer to it 
                                          * easily from the program *)
-      mutable sformals: varinfo list;   (* These are copies of the arguments 
-                                         * in the function type. Do not make 
-                                         * copies of these because the body 
-                                         * refers to them. They get ids from 
-                                         * 0 to nrArgs - 1. If the type of 
-                                         * the svar changes use synchFormals 
-                                         * to restore the sharing. *)
+      mutable sformals: varinfo list;   (* These are the formals. There are 
+                                         * other formals in the type of the 
+                                         * svar, but these are referred from 
+                                         * the body and these are printed in 
+                                         * the argument list for function 
+                                         * definitions. Do not make copies of 
+                                         * these because the body refers to 
+                                         * them.  *)
       mutable slocals: varinfo list;    (* locals, DOES NOT include the 
-                                         * sformals. Ids start at nrArgs. Do 
-                                         * not make copies of these because 
-                                         * the body refers to them *)
+                                         * sformals. Do not make copies of 
+                                         * these because the body refers to 
+                                         * them  *)
       mutable smaxid: int;              (* max local id. Starts at 0 *)
       mutable sbody: stmt;              (* the body *)
     } 
@@ -1052,6 +1053,12 @@ and d_fun_decl () f =
       [], _ -> false, pre
     | _, pre' -> true, pre'
   in
+    (* Make sure that the formals in the type agree with the real ones *)
+  (match unrollType f.svar.vtype with
+    TFun (restyp, args, isva, a) -> 
+      if args != f.sformals then 
+        f.svar.vtype <- TFun(restyp, f.sformals, isva, a)
+  | _ -> E.s (E.bug "Type of %s is not a function\n" f.svar.vname));
   dprintf "%s%a%a %a@!{ @[%a@!%a@]@!}" 
     (if isinline then 
       if !msvcMode then "__inline " else "inline " else "")
