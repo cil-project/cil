@@ -215,6 +215,17 @@ rule initial =
 |		hexnum			{CST_INT (Lexing.lexeme lexbuf)}
 |		octnum			{CST_INT (Lexing.lexeme lexbuf)}
 |		intnum			{CST_INT (Lexing.lexeme lexbuf)}
+
+|             "<<="                   {INF_INF_EQ}
+|             ">>="                   {SUP_SUP_EQ}
+|             "*="                    {STAR_EQ}
+|             "/="                    {SLASH_EQ}
+|             "&="                    {AND_EQ}
+|             "|="                    {PIPE_EQ}
+|             "^="                    {CIRC_EQ}
+|             "%="                    {PERCENT_EQ}
+
+
 |		"..."			{ELLIPSIS}
 |		"-="			{MINUS_EQ}
 |		"+="			{PLUS_EQ}
