@@ -1,5 +1,5 @@
 # .gdbinit
 
-file test-bad-tmp
+file popen
 break main
 run

@@ -122,6 +122,10 @@
     int             f_int;
     double          f_double;
     char * __ROSTRING f_string;
+    #ifdef _GNUCC
+      // sm: needed for ftpd's file-length printout
+      long long     f_longlong;
+    #endif
   };
 
   #pragma boxvararg_printf("printf", 1)
