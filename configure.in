@@ -344,7 +344,6 @@ case "$target" in
 esac
 CILHOME=$CCUREDHOME
 
-
 # We will use substitution variables whose definition contains newlines. The
 # problem is that when config.status runs, it wants to break the series of
 # substitution commands for sed into fragments based on line count. We could
@@ -359,6 +358,7 @@ CILHOME=$CCUREDHOME
 
 NEWLINE="\\
 "
+
 
 #
 # CIL/CCured features
