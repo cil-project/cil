@@ -110,6 +110,7 @@ $TEST->add3Tests("test/alloc");
 $TEST->add3Tests("test/apachebits");
 $TEST->add3Tests("testrun/apachebuf");
 $TEST->add3Tests("testrun/apachefptr");
+$TEST->add3Tests("testrun/asm1");
 $TEST->addTests("testrun/question", "", ['cil']);
 $TEST->add3Tests("test/argcast");
 $TEST->add3Tests("test/ciarray1");
