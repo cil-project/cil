@@ -1246,7 +1246,7 @@ let proj_ref (t : tau) : tau =
   match U.deref t with
     | Pair p -> p.ptr
     | Var v -> raise NoContents
-    | _ -> raise WellFormed
+    | _ ->  raise WellFormed
 
 (* Project out the second (fun) component of a pair. If the argument [t] has
  no discovered structure, create it on the fly by adding constraints. *)
@@ -1824,14 +1824,16 @@ let may_alias (t1 : tau) (t2 : tau) : bool =
       begin
 	match (find (proj_ref t1)) with
 	  | Ref r -> r.rl
-	  | _ -> raise WellFormed
+	  | Var v -> raise NoContents
+	  | _ ->  raise WellFormed
       end
     in
     let l2 =
       begin  
 	match (find (proj_ref t2)) with
 	  | Ref r -> r.rl
-	  | _ -> raise WellFormed
+	  | Var v -> raise NoContents
+	  | _ ->raise WellFormed
       end
     in
 (*      Printf.printf "checking whether %s and %s are aliased\n" (string_of_tau t1) (string_of_tau t2); *)
