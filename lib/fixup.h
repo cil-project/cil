@@ -118,6 +118,7 @@ extern long double __builtin_fabsl(long double);
   #pragma cilnoremove("union printf_format")
 
   #pragma boxvararg_printf("printf", 1)
+  #pragma boxvararg_printf("vprintf", 1)      // sm: this fixes a problem with rbtest when rmtmps is disabled ...
   #pragma boxvararg_printf("fprintf", 2)
 
 

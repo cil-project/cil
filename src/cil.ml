@@ -2233,6 +2233,9 @@ let _ =
     (* sm: I've now encountered a problem with mode(__hi__)... *)
     (* I don't know what's going on, but let's try disabling all "mode"..*)
     | Attr("mode", [AId tag]) -> Some ((text "/* mode(") ++ (text tag) ++ (text ") */"))
+    (* sm: also suppress "format" because we seem to print it in *)
+    (* a way gcc does not like *)
+    | Attr("format", _) -> Some (text "/* format attribute */")
     | _ -> None
   in
   setCustomPrintAttribute d_attrcustombase

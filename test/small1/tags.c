@@ -23,7 +23,7 @@ int *fooptr = 5;
 extern extarr[];
 extern struct {
   int i1, i2;
-  int a[];
+  int a[4];      // sm: this was a[], but that's an error right??
 } extstruct;
 
 

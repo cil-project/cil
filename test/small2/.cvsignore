@@ -105,7 +105,9 @@ replydirname
 boundaries
 constfold
 hufftable
-
 scanf
 rusage
 bzero
+memset_int
+rmunused2
+

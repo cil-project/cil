@@ -55,8 +55,7 @@ let removed_temps = ref []
 (* You construct it with a hash table, which is already partially *)
 (* marked; this visitor destructively updates the hash table. *)
 (* The hash table is used to track which typedef names are used. *)
-class removeTempsVis (*(usedTypes : (typ,bool) H.t)*)
-                     (usedTypedefs : (string,bool) H.t) = object (self)
+class removeTempsVis (usedTypedefs : (string,bool) H.t) = object (self)
   inherit nopCilVisitor
 
   method vvrbl (v : varinfo) = begin
@@ -170,37 +169,32 @@ let removeUnusedTemps (file : file) =
   if !keepUnused then () else
 begin
   if (traceActive "disableTmpRemoval") then
-    (trace "disableTmpRemoval" (dprintf "trace removal disabled\n"))
+    (trace "disableTmpRemoval" (dprintf "temp removal disabled\n"))
   else
-
-
-  (* associate with every 'typ' whether it is referred-to *)
-  (* by a global variable or function *)
-  (*let usedTypes : (typ, bool) H.t = H.create 17 in*)
-
-  (* and similarly for every typedef name *)
-  let usedTypedefs : (string, bool) H.t = H.create 17 in
 
   if (traceActive "printCilTree") then (
     (printFile stdout file)
   );
 
-  H.clear forceToKeep;
+  (* find every global function prototype *)
+  let globalDecls : (string, bool) H.t = H.create 17 in
+  iterGlobals file
+    (function
+        GDecl (v, _) ->
+          (H.add globalDecls v.vname true)
+      | _ -> ()
+    );
 
-  (* begin by clearing all the 'referenced' bits *)
+  (* for every typedef name, this records whether it is needed *)
+  let usedTypedefs : (string, bool) H.t = H.create 17 in
+
+  (* begin by clearing all the 'referenced' bits, and noting all *)
+  (* those declarations that are marked 'cilnoremove' *)
+  H.clear forceToKeep;
   ignore (visitCilFile (new clearRefBitsVis) file);
 
   (* create the visitor object *)
-  let vis = (new removeTempsVis (*usedTypes*) usedTypedefs) in
-
-  (* this was here before, and it might still be useful later *)
-  (*
-    iterGlobals file
-      (function
-          GDecl (v, _) -> ignore (E.log " %s referenced=%b\n"
-                                    v.vname v.vreferenced)
-        | _ -> ());
-  *)
+  let vis = (new removeTempsVis usedTypedefs) in
 
   (* iterate over the list of globals in reverse, marking things *)
   (* as reachable if they are reachable from the roots, and *)
@@ -222,10 +216,33 @@ begin
         (* now examine the head *)
         let retainHead = match hd with
           | GFun(f,_) -> (
-              if (f.svar.vreferenced ||
-                  (not (isInlineFunc f)) ||
-                  H.mem forceToKeep f.svar.vname) then (
-                (trace "usedVar" (dprintf "keeping func: %s\n" f.svar.vname));
+              let keepIt = ref false in
+              let reason = ref "not needed" in
+
+              if (f.svar.vreferenced) then (
+                keepIt := true;
+                reason := "vreferenced flag is set"
+              )
+              else if (H.mem globalDecls f.svar.vname) then (
+                (* sm: this isn't entirely ideal; we keep all inlines that *)
+                (* have prototypes.  under normal situations it is very *)
+                (* unusual to forward-declare an inline, but our combiner *)
+                (* emits prototypes for some (most? all?) inlines... *)
+                keepIt := true;
+                reason := "saw a prototype"
+              )
+              else if (not (isInlineFunc f)) then (
+                keepIt := true;
+                reason := "not an inline function"
+              )
+              else if (H.mem forceToKeep f.svar.vname) then (
+                keepIt := true;
+                reason := "of noremove pragma"
+              );
+              
+              if (!keepIt) then (
+                (trace "usedVar" (dprintf "keeping func: %s because %s\n" 
+                                          f.svar.vname !reason));
                 ignore (visitCilFunction vis f);    (* root: trace it *)
                 true
               )
@@ -250,7 +267,7 @@ begin
 
           | GCompTag(c, _) -> (
               let kind = if (c.cstruct) then "struct" else "union" in
-              if c.creferenced || H.mem forceToKeep (kind ^ " " ^ c.cname) 
+              if c.creferenced || H.mem forceToKeep (kind ^ " " ^ c.cname)
               then (
                 (trace "usedType" (dprintf "keeping %s %s\n" kind c.cname));
                 true
@@ -311,7 +328,7 @@ begin
           | GDecl(v, _) -> (
               if v.vreferenced || H.mem forceToKeep v.vname then begin
                 trace "usedVar" (dprintf "keeping global: %s\n" v.vname);
-                
+
                 (* since it's referenced, use it as a root for the type dependency *)
                 ignore (visitCilVarDecl vis v);
 
@@ -339,6 +356,7 @@ begin
     | [] -> []
   in
 
+  (* print which original source variables were removed *)
   file.globals <- (revLoop file.globals) ;
   if !removed_temps <> [] then begin
     let len = List.length !removed_temps in
