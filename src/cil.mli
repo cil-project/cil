@@ -790,12 +790,14 @@ val isInteger: exp -> int64 option
     constant with value zero *)
 val isZero: exp -> bool
 
-(** Do constant folding on an expression*)    
-val constFold: exp -> exp
+(** Do constant folding on an expression. If the first argument is true then 
+    will also compute machine-dependent expressions such as sizeof *)    
+val constFold: bool -> exp -> exp
 
 (** Do constant folding on a binary operation. The bulk of the work done by 
-    [constFold] is done here *)
-val constFoldBinOp: binop -> exp -> exp -> typ -> exp
+    [constFold] is done here. If the first argument is true then 
+    will also compute machine-dependent expressions such as sizeof *)
+val constFoldBinOp: bool -> binop -> exp -> exp -> typ -> exp
 
 (** Increment an expression. Can be arithmetic or pointer type *) 
 val increm: exp -> int -> exp

@@ -1089,7 +1089,7 @@ let rec fixupFunctionType (funcid: int) (fkind: N.opointerkind) (t: typ) =
 and fixupOneArgumentType (funcid, argid) (t: typ) : typ = 
   match unrollType t with
     TComp _ when kindOfType t = N.Wild -> t (* Already WILD pointer *)
-  | (TInt _ | TEnum _ | TFloat _) when bitsSizeOf t <= 32 -> 
+  | (TInt _ | TEnum _ | TFloat _) when (try bitsSizeOf t <= 32 with _ -> false) -> 
       if funcid >= 0 then 
         H.add boxedArguments (funcid, argid) t;
       !wildpVoidType 
@@ -1666,23 +1666,28 @@ let takeAddressOfBitfield (lv: lval) (t: typ) : exp =
 (* Compute the offset of first scalar field in a thing to be written. Raises 
  * Not_found if there is no scalar *)
 let offsetOfFirstScalar (t: typ) : exp = 
-  let rec theOffset sofar t = 
+  let rec theOffset (sofar: offset) t : offset option = 
     match unrollType t with
       (TInt _ | TFloat _ | TEnum _) -> Some sofar
     | TPtr _ -> None
     | TComp (comp, _) when isFatComp comp -> None
     | TComp (comp, _) when comp.cstruct -> begin
-        let containsBitfield = ref false in
         let doOneField acc fi = 
           match acc, fi.ftype with
-            None, TInt _ when fi.fbitfield <> None -> 
-              containsBitfield := true; None
+            None, TInt _ when fi.fbitfield <> None -> None
           | None, _ -> 
               theOffset (addOffset (Field(fi, NoOffset)) sofar) fi.ftype
           | Some _, _ -> acc
         in
         List.fold_left doOneField None comp.cfields
     end
+    | TComp (comp, _) -> begin (* UNION *)
+        (* Do it for the first field only *)
+        match comp.cfields with 
+          [] -> None
+        | fi :: _ -> theOffset (addOffset (Field(fi, NoOffset)) sofar) fi.ftype
+    end
+
     | TArray (bt, _, _) -> 
         theOffset (addOffset (Index(zero, NoOffset)) sofar) bt
     | _ -> E.s (unimp "offsetOfFirstScalar")
@@ -2458,7 +2463,7 @@ let rec checkMem (why: checkLvWhy)
               else
                 CConsL (checkFatStackPointer whatp whatb, acc)
       end 
-      | TComp (comp, _) when comp.cstruct -> 
+      | TComp (comp, _) when comp.cstruct -> (* A Struct *)
           let doOneField acc fi = 
             let newwhere = addOffsetLval (Field(fi, NoOffset)) where in
             let newwhy = 
@@ -2516,7 +2521,7 @@ let rec checkMem (why: checkLvWhy)
       end
             
       | TPtr(_, _) -> (* This can only happen if we are writing to an untagged 
-                         * area. All other areas contain only fat pointers *)
+                       * area. All other areas contain only fat pointers *)
           begin
             match why with
               ToWrite x -> CConsL (checkLeanStackPointer x, acc)
@@ -2524,28 +2529,32 @@ let rec checkMem (why: checkLvWhy)
           end
       | _ -> E.s (unimp "unexpected type in doCheckTags: %a\n" d_type t)
     in
-  (* See first what we need in order to check tags *)
-    let zeroAndCheckTags = 
-    (* Call doCheckTags anyway because even for safe writes it needs to check 
-       * when pointers are written *)
-      let dotags = doCheckTags why inlv.lv inlv.lvt inlv.plvk inlv.lvstmts in
-      if inlv.plvk = N.Wild then
-        match why with 
-        | ToWrite _ -> 
-            CConsL(checkZeroTags inlv.lvb (getLenExp ()) inlv.lv inlv.lvt,
-                   dotags)
-        | _ -> dotags
-      else
-        dotags
+    (* See first what we need in order to check tags *)
+    let checkTags = 
+      (* Take a look at the type involved. If it does not contain pointers 
+       * then we don't need to check anything *)
+      if existsType (function TPtr _ -> ExistsTrue | _ -> ExistsMaybe) inlv.lvt then begin
+        (* Call doCheckTags anyway because even for safe writes it needs to check 
+         * when pointers are written *)
+        doCheckTags why inlv.lv inlv.lvt inlv.plvk inlv.lvstmts
+      end else
+        inlv.lvstmts
     in
-  (* Now see if we need to do bounds checking *)
+    (* For a write through a WILD pointer also zero the tags *)
+    let zeroAndCheckTags = 
+      match inlv.plvk, why with 
+        N.Wild, ToWrite _ -> 
+          CConsL(checkZeroTags inlv.lvb (getLenExp ()) inlv.lv inlv.lvt, checkTags)
+      | _ -> checkTags
+    in
+    (* Now see if we need to do bounds checking *)
     let iswrite = (match why with ToWrite _ -> true | _ -> false) in
     let checkb = 
       append 
         (checkBounds iswrite getLenExp inlv) 
         zeroAndCheckTags 
     in
-  (* See if we need to generate the length *)
+    (* See if we need to generate the length *)
     (match !lenExp with
       None -> checkb
     | Some _ -> 
@@ -2747,7 +2756,7 @@ let rec initializeType
         List.fold_left 
           (fun (bestsofar, bestval) f -> 
             let bitsthis = 
-              try bitsSizeOf f.ftype with Not_found -> 
+              try bitsSizeOf f.ftype with SizeOfError _ -> 
                 E.s (unimp "initializing union with open fields")
             in
             if bitsthis > bestval then

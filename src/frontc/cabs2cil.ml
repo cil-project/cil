@@ -2452,20 +2452,20 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
   let doArithmetic () = 
     let tres = arithmeticConversion t1 t2 in
     (* Keep the operator since it is arithmetic *)
-    tres, constFoldBinOp bop (doCastT e1 t1 tres) (doCastT e2 t2 tres) tres
+    tres, constFoldBinOp false bop (doCastT e1 t1 tres) (doCastT e2 t2 tres) tres
   in
   let doArithmeticComp () = 
     let tres = arithmeticConversion t1 t2 in
     (* Keep the operator since it is arithemtic *)
     intType, 
-    constFoldBinOp bop (doCastT e1 t1 tres) (doCastT e2 t2 tres) intType
+    constFoldBinOp false bop (doCastT e1 t1 tres) (doCastT e2 t2 tres) intType
   in
   let doIntegralArithmetic () = 
     let tres = unrollType (arithmeticConversion t1 t2) in
     match tres with
       TInt _ -> 
         tres,
-        constFoldBinOp bop (doCastT e1 t1 tres) (doCastT e2 t2 tres) tres
+        constFoldBinOp false bop (doCastT e1 t1 tres) (doCastT e2 t2 tres) tres
     | _ -> E.s (error "%a operator on a non-integer type" d_binop bop)
   in
   let bop2point = function
@@ -2483,7 +2483,7 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
       | _, _ -> t1
     in
     intType,
-    constFoldBinOp (bop2point bop) (doCastT e1 t1 commontype) 
+    constFoldBinOp false (bop2point bop) (doCastT e1 t1 commontype) 
       (doCastT e2 t2 commontype) intType
   in
 
@@ -2499,7 +2499,7 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
         let t1' = integralPromotion t1 in
         let t2' = integralPromotion t2 in
         t1', 
-        constFoldBinOp bop (doCastT e1 t1 t1') (doCastT e2 t2 t2') t1'
+        constFoldBinOp false bop (doCastT e1 t1 t1') (doCastT e2 t2 t2') t1'
 
   | (PlusA|MinusA) 
       when isArithmeticType t1 && isArithmeticType t2 -> doArithmetic ()
@@ -2507,11 +2507,11 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
       when isArithmeticType t1 && isArithmeticType t2 -> 
         doArithmeticComp ()
   | PlusA when isPointerType t1 && isIntegralType t2 -> 
-      t1, constFoldBinOp PlusPI e1 (doCastT e2 t2 (integralPromotion t2)) t1
+      t1, constFoldBinOp false PlusPI e1 (doCastT e2 t2 (integralPromotion t2)) t1
   | PlusA when isIntegralType t1 && isPointerType t2 -> 
-      t2, constFoldBinOp PlusPI e2 (doCastT e1 t1 (integralPromotion t1)) t2
+      t2, constFoldBinOp false PlusPI e2 (doCastT e1 t1 (integralPromotion t1)) t2
   | MinusA when isPointerType t1 && isIntegralType t2 -> 
-      t1, constFoldBinOp MinusPI e1 (doCastT e2 t2 (integralPromotion t2)) t1
+      t1, constFoldBinOp false MinusPI e1 (doCastT e2 t2 (integralPromotion t2)) t1
   | (MinusA|Le|Lt|Ge|Gt|Eq|Ne) when isPointerType t1 && isPointerType t2 ->
       pointerComparison e1 t1 e2 t2
   | (Eq|Ne) when isPointerType t1 && isZero e2 -> 
@@ -2605,7 +2605,7 @@ and doInitializer
         match n with
           None -> None
         | Some n' -> begin
-            match constFold n' with
+            match constFold true n' with
             | Const(CInt64(ni, _, _)) -> Some (Int64.to_int ni)
             | _ -> E.s (error "Cannot understand the length of the array being initialized\n")
         end
@@ -2648,7 +2648,7 @@ and doInitializer
             let (doidxe, idxe', _) = 
               doExp isconst idxe (AExp(Some intType)) in
             let s, e, dorange = 
-              match constFold idxs', constFold idxe' with
+              match constFold true idxs', constFold true idxe' with
                 Const(CInt64(s, _, _)), 
                 Const(CInt64(e, _, _)) -> 
                   Int64.to_int s, Int64.to_int e, doidxs @@ doidxe
@@ -2675,7 +2675,7 @@ and doInitializer
             let nextidx', doidx = 
               let (doidx, idxe', _) = 
                 doExp isconst idxe (AExp(Some intType)) in
-              match constFold idxe' with
+              match constFold true idxe' with
                 Const(CInt64(x, _, _)) -> Int64.to_int x, doidx
               | _ -> E.s (error 
                        "INDEX initialization designator is not a constant")
@@ -3266,7 +3266,7 @@ and doStatement (s : A.statement) : chunk =
         let (se, e', et) = doExp false e (AExp None) in
         if isNotEmpty se then
           E.s (error "Case statement with a non-constant");
-        caseRangeChunk [constFold e'] loc' (doStatement s)
+        caseRangeChunk [constFold true e'] loc' (doStatement s)
             
     | A.CASERANGE (el, eh, s, loc) -> 
         let loc' = convLoc loc in
@@ -3276,7 +3276,7 @@ and doStatement (s : A.statement) : chunk =
         if isNotEmpty sel || isNotEmpty seh then
           E.s (error "Case statement with a non-constant");
         let il, ih = 
-          match constFold el', constFold eh' with
+          match constFold true el', constFold true eh' with
             Const(CInt64(il, _, _)), Const(CInt64(ih, _, _)) -> 
               Int64.to_int il, Int64.to_int ih
           | _ -> E.s (unimp "Cannot understand the constants in case range")

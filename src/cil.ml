@@ -3062,297 +3062,6 @@ let existsType (f: typ -> existsAction) (t: typ) : bool =
   in
   loop t
           
-  
-
-(*** Constant folding ***)
-let rec constFold (e: exp) : exp = 
-  match e with
-    BinOp(bop, e1, e2, tres) -> constFoldBinOp bop e1 e2 tres
-  | UnOp(Neg, e1, tres) -> begin
-      match constFold e1 with
-        Const(CInt64(i,_,_)) -> integer64 (Int64.neg i)
-      | _ -> e
-  end
-        (* Characters are integers *)
-  | Const(CChr c) -> Const(CInt64(Int64.of_int (Char.code c), 
-                                  IInt, None))
-  | _ -> e
-
-and constFoldBinOp bop e1 e2 tres = 
-  let e1' = constFold e1 in
-  let e2' = constFold e2 in
-  if isIntegralType tres then begin
-    let newe = 
-      let rec mkInt = function
-          Const(CChr c) -> Const(CInt64(Int64.of_int (Char.code c), 
-                                        IInt, None))
-        | CastE(TInt (ik, ta), e) -> begin
-            match mkInt e with
-              Const(CInt64(i, _, _)) -> Const(CInt64(i, ik, None))
-            | e' -> CastE(TInt(ik, ta), e')
-        end
-        | e -> e
-      in
-      let tk = 
-        match unrollType tres with
-          TInt(ik, _) -> ik
-        | TEnum _ -> IInt
-        | _ -> E.s (bug "constFoldBinOp")
-      in
-      (* See if the result is unsigned *)
-      let isunsigned = function
-          (IUInt | IUChar | IUShort | IULong | IULongLong) -> true
-        | _ -> false
-      in
-      let ge (unsigned: bool) (i1: int64) (i2: int64) : bool = 
-        if unsigned then 
-          let l1 = Int64.shift_right_logical i1 1 in
-          let l2 = Int64.shift_right_logical i2 1 in (* Both positive now *)
-          (l1 > l2) || (l1 = l2 && 
-                        Int64.logand i1 Int64.one >= Int64.logand i2 Int64.one)
-        else i1 >= i2
-      in
-      (* Assume that the necessary promotions have been done *)
-      match bop, mkInt e1', mkInt e2' with
-      | PlusA, Const(CInt64(z,_,_)), e2'' when z = Int64.zero -> e2''
-      | PlusA, e1'', Const(CInt64(z,_,_)) when z = Int64.zero -> e1''
-      | PlusPI, e1'', Const(CInt64(z,_,_)) when z = Int64.zero -> e1''
-      | IndexPI, e1'', Const(CInt64(z,_,_)) when z = Int64.zero -> e1''
-      | MinusPI, e1'', Const(CInt64(z,_,_)) when z = Int64.zero -> e1''
-      | PlusA, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
-          kinteger64 ik1 (Int64.add i1 i2)
-      | MinusA, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
-          kinteger64 ik1 (Int64.sub i1 i2)
-      | Mult, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
-          kinteger64 ik1 (Int64.mul i1 i2)
-      | Div, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> begin
-          try kinteger64 ik1 (Int64.div i1 i2)
-          with Division_by_zero -> BinOp(bop, e1', e2', tres)
-      end
-      | Mod, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> begin
-          try kinteger64 ik1 (Int64.rem i1 i2)
-          with Division_by_zero -> BinOp(bop, e1', e2', tres) 
-      end
-      | BAnd, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
-          kinteger64 ik1 (Int64.logand i1 i2)
-      | BOr, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
-          kinteger64 ik1 (Int64.logor i1 i2)
-      | BXor, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
-          kinteger64 ik1 (Int64.logxor i1 i2)
-      | Shiftlt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,IInt,_)) -> 
-          integer64 (Int64.shift_left i1 (Int64.to_int i2))
-      | Shiftrt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,IInt,_)) -> 
-          if isunsigned ik1 then 
-            kinteger64 ik1 (Int64.shift_right_logical i1 (Int64.to_int i2))
-          else
-            kinteger64 ik1 (Int64.shift_right i1 (Int64.to_int i2))
-
-      | Eq, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
-          integer (if i1 = i2 then 1 else 0)
-      | Ne, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
-          integer (if i1 <> i2 then 1 else 0)
-      | Le, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 ->
-          integer (if ge (isunsigned ik1) i2 i1 then 1 else 0)
-
-      | Ge, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 ->
-          integer (if ge (isunsigned ik1) i1 i2 then 1 else 0)
-
-      | Lt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 ->
-          integer (if i1 <> i2 && ge (isunsigned ik1) i2 i1 then 1 else 0)
-
-      | Gt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 ->
-          integer (if i1 <> i2 && ge (isunsigned ik1) i1 i2 then 1 else 0)
-      | _ -> BinOp(bop, e1', e2', tres)
-    in
-    newe
-  end else
-    BinOp(bop, e1', e2', tres)
-
-
-(* Try to do an increment, with constant folding *)
-let increm (e: exp) (i: int) =
-  let et = typeOf e in
-  let bop = if isPointerType et then PlusPI else PlusA in
-  constFold (BinOp(bop, e, integer i, et))
-      
-  
-
-(*** Make a initializer for zeroe-ing a data type ***)
-let rec makeZeroInit (t: typ) : init = 
-  match unrollType t with
-    TInt (ik, _) -> SingleInit (Const(CInt64(Int64.zero, ik, None)))
-  | TFloat(fk, _) -> SingleInit(Const(CReal(0.0, fk, None)))
-  | TEnum _ -> SingleInit zero
-  | TComp (comp, _) as t' when comp.cstruct -> 
-      CompoundInit (t', 
-                    List.map (fun f -> makeZeroInit f.ftype) 
-                      comp.cfields)
-  | TComp (comp, _) as t' when not comp.cstruct -> 
-      let fstfield = 
-        match comp.cfields with
-          f :: _ -> f
-        | [] -> E.s (E.unimp "Cannot create init for empty union")
-      in
-      CompoundInit(t, [makeZeroInit fstfield.ftype])
-
-  | TArray(bt, Some len, _) as t' -> 
-      let n = 
-        match constFold len with
-          Const(CInt64(n, _, _)) -> Int64.to_int n
-        | _ -> E.s (E.unimp "Cannot understand length of array")
-      in
-      let initbt = makeZeroInit bt in
-      let rec loopElems acc i = 
-        if i >= n then acc
-        else loopElems (initbt :: acc) (i + 1) 
-      in
-      CompoundInit(t', loopElems [] 0)
-  | TPtr _ as t -> SingleInit(CastE(t, zero))
-  | _ -> E.s (E.unimp "makeZeroCompoundInit: %a" d_plaintype t)
-
-
-(**** Fold over the list of initializers in a Compound ****)
-let foldLeftCompound 
-    ~(doinit: offset -> init -> typ -> 'a -> 'a)
-    ~(ct: typ) 
-    ~(initl: init list)
-    ~(acc: 'a) : 'a = 
-  match unrollType ct with
-    TArray(bt, _, _) -> 
-      let rec foldArray  
-          (nextidx: exp) 
-          (initl: init list)
-          (acc: 'a) : 'a  =
-        let incrementIdx = function
-            Const(CInt64(n, ik, _)) -> Const(CInt64(Int64.succ n, ik, None))
-          | e -> BinOp(PlusA, e, one, intType)
-        in
-        match initl with
-          [] -> acc
-        | ie :: restinitl ->
-            (* Now do the initializer expression *)
-            let acc' = doinit (Index(nextidx, NoOffset)) ie bt acc in
-            foldArray (incrementIdx nextidx) restinitl acc'
-      in
-      foldArray zero initl acc
-
-  | TComp (comp, _) -> 
-      if comp.cstruct then
-        let rec foldFields 
-            (allflds: fieldinfo list) 
-            (nextflds: fieldinfo list) 
-            (initl: init list)
-            (acc: 'a) : 'a = 
-          match initl with 
-            [] -> acc   (* We are done *)
-          | ie :: restinitl ->
-              let nextfields, thisfield = 
-                begin
-                  match nextflds with
-                    [] -> E.s (E.unimp "Too many initializers")
-                  | x :: xs -> xs, x
-                end
-              in
-              (* Now do the initializer expression *)
-              let acc' = 
-                doinit (Field(thisfield, NoOffset)) ie thisfield.ftype acc in
-              foldFields allflds nextfields restinitl acc'
-        in
-        foldFields comp.cfields comp.cfields initl acc
-      else
-        (* UNION *)
-        let oneinit, firstfield = 
-          match initl, comp.cfields with
-            [x], f :: _  -> x, f
-          | _ -> E.s (E.bug "Compound for union should have only one init")
-        in
-        doinit (Field(firstfield, NoOffset)) oneinit firstfield.ftype acc
-        
-
-  | _ -> E.s (E.unimp "Type of Compound is not array or struct or union")
-
-
-
-let rec isCompleteType t =
-  match unrollType t with
-  | TArray(t, None, _) -> false
-  | TArray(t, Some z, _) when isZero z -> false
-  | TComp (comp, _) -> (* Struct or union *)
-      List.for_all (fun fi -> isCompleteType fi.ftype) comp.cfields
-  | _ -> true
-
-
-
-let debugAlpha = false
-(*** Alpha conversion ***)
-(* Create a new name based on a given name. The new name is formed from a 
- * prefix (obtained from the given name by stripping a suffix consisting of _ 
- * followed by only digits), followed by a '_' and then by a positive integer 
- * suffix. The first argument is a table mapping name prefixes with the 
-b * largest suffix used so far for that prefix. The largest suffix is one when 
- * only the version without suffix has been used. *)
-let rec newAlphaName (alphaTable: (string, int ref) H.t)
-                     (lookupname: string) : string = 
-  let prefix, sep, suffix = splitNameForAlpha lookupname in
-  (* ignore (E.log "newAlphaName(%s). P=%s, S=%d\n" lookupname prefix suffix);
-     *)
-  if debugAlpha then
-    ignore (E.log "Alpha conv: %s %s %d. " prefix sep suffix);
-  let newname = 
-    try
-      let rc = H.find alphaTable prefix in
-      if debugAlpha then
-        ignore (E.log " Old suffix %d. " !rc);
-      let newsuffix, sep = 
-        if suffix > !rc then suffix, sep else !rc + 1, "_" in
-      rc := newsuffix;
-      prefix ^ sep ^ (string_of_int newsuffix)
-    with Not_found -> begin (* First variable with this prefix *)
-      H.add alphaTable prefix (ref suffix);
-      if debugAlpha then ignore (E.log " First seen. ");
-      lookupname  (* Return the original name *)
-    end
-  in
-  if debugAlpha then
-    ignore (E.log " Res=: %s\n" newname);
-  newname
-  
-(* Strip the suffix. Return the prefix, the separator (empty or _) and a 
- * numeric suffix (-1 if the separator is empty or if _ is the last thing in 
- * the name) *)
-and splitNameForAlpha (lookupname: string) : (string * string * int) = 
-  (* Split the lookup name into a prefix, a separator (empty or _) and a 
-   * suffix. The suffix is numberic and is separated by _ from the prefix  *)
-  try
-    let under_idx = String.rindex lookupname '_' in
-    let l = String.length lookupname in
-    (* Check that we have only digits following the underscore *)
-    if under_idx = l - 1 then raise Not_found;
-    (* If we have a 0 right after the _ and more characters after that then 
-     * we consider that we do not have a suffix *)
-    if String.get lookupname (under_idx + 1) = '0' &&
-       under_idx < l - 2 then raise Not_found;
-    let rec collectSuffix (acc: int) (i: int) = 
-      if i = l then 
-        (String.sub lookupname 0 under_idx, "_", acc)
-      else
-        let c = Char.code (String.get lookupname i) - Char.code '0' in
-        if c >= 0 && c <= 9 then 
-          collectSuffix (10 * acc + c) (i + 1)
-        else
-          raise Not_found
-    in
-    collectSuffix 0 (under_idx + 1)
-  with Not_found -> (* No suffix in the name *)
-    (lookupname, "", -1)
-
-
-let docAlphaTable (alphaTable: (string, int ref) H.t) = 
-  let acc : (string * int) list ref = ref [] in
-  H.iter (fun k d -> acc := (k, !d) :: !acc) alphaTable;
-  docList line (fun (k, d) -> dprintf "  %s -> %d" k d) () !acc
-
-
 (**
  **
  ** MACHINE DEPENDENT PART
@@ -3627,11 +3336,14 @@ and bitsSizeOf t =
         (* Add trailing by simulating adding an extra field *)
       addTrailing max (8 * alignOf_int t)
 
-  | TArray(t, Some (Const(CInt64(l,_,_))),_) -> 
-      addTrailing ((bitsSizeOf t) * (Int64.to_int l)) (8 * alignOf_int t)
+  | TArray(t, Some len, _) -> begin
+      match constFold true len with 
+        Const(CInt64(l,_,_)) -> 
+          addTrailing ((bitsSizeOf t) * (Int64.to_int l)) (8 * alignOf_int t)
+      | _ -> raise (SizeOfError t)
+  end
 
-  | (TArray(_, None, _) | TArray(_, Some _, _) | 
-    TFun _ | TVoid _) -> raise (SizeOfError t)
+  | TArray (_, None, _) | TFun _ | TVoid _ -> raise (SizeOfError t)
 
 
 and addTrailing nrbits roundto = 
@@ -3643,7 +3355,7 @@ and sizeOf t =
   with SizeOfError _ -> SizeOf(t)
 
  
-let bitsOffset (baset: typ) (off: offset) : int * int = 
+and bitsOffset (baset: typ) (off: offset) : int * int = 
   let rec loopOff (baset: typ) (width: int) (start: int) = function
       NoOffset -> start, width
     | Index(e, off) -> begin
@@ -3690,6 +3402,309 @@ let bitsOffset (baset: typ) (off: offset) : int * int =
   loopOff baset (bitsSizeOf baset) 0 off
         
 
+
+
+(*** Constant folding. If machdep is true then fold even sizeof operations ***)
+and constFold (machdep: bool) (e: exp) : exp = 
+  match e with
+    BinOp(bop, e1, e2, tres) -> constFoldBinOp machdep bop e1 e2 tres
+  | UnOp(Neg, e1, tres) -> begin
+      match constFold machdep e1 with
+        Const(CInt64(i,_,_)) -> integer64 (Int64.neg i)
+      | _ -> e
+  end
+        (* Characters are integers *)
+  | Const(CChr c) -> Const(CInt64(Int64.of_int (Char.code c), 
+                                  IInt, None))
+  | SizeOf t when machdep -> begin
+      try
+        let bs = bitsSizeOf t in
+        kinteger IUInt (bs / 32)
+      with SizeOfError _ -> e
+  end
+  | SizeOfE e when machdep -> constFold machdep (SizeOf (typeOf e))
+
+  | CastE (t, e) -> begin
+      match constFold machdep e, t with 
+        Const(CInt64(i,k,_)), TInt(nk,_) -> Const(CInt64(i,nk,None))
+      | e', _ -> CastE (t, e')
+  end
+
+  | _ -> e
+
+and constFoldBinOp (machdep: bool) bop e1 e2 tres = 
+  let e1' = constFold machdep e1 in
+  let e2' = constFold machdep e2 in
+  if isIntegralType tres then begin
+    let newe = 
+      let rec mkInt = function
+          Const(CChr c) -> Const(CInt64(Int64.of_int (Char.code c), 
+                                        IInt, None))
+        | CastE(TInt (ik, ta), e) -> begin
+            match mkInt e with
+              Const(CInt64(i, _, _)) -> Const(CInt64(i, ik, None))
+            | e' -> CastE(TInt(ik, ta), e')
+        end
+        | e -> e
+      in
+      let tk = 
+        match unrollType tres with
+          TInt(ik, _) -> ik
+        | TEnum _ -> IInt
+        | _ -> E.s (bug "constFoldBinOp")
+      in
+      (* See if the result is unsigned *)
+      let isunsigned = function
+          (IUInt | IUChar | IUShort | IULong | IULongLong) -> true
+        | _ -> false
+      in
+      let ge (unsigned: bool) (i1: int64) (i2: int64) : bool = 
+        if unsigned then 
+          let l1 = Int64.shift_right_logical i1 1 in
+          let l2 = Int64.shift_right_logical i2 1 in (* Both positive now *)
+          (l1 > l2) || (l1 = l2 && 
+                        Int64.logand i1 Int64.one >= Int64.logand i2 Int64.one)
+        else i1 >= i2
+      in
+      (* Assume that the necessary promotions have been done *)
+      match bop, mkInt e1', mkInt e2' with
+      | PlusA, Const(CInt64(z,_,_)), e2'' when z = Int64.zero -> e2''
+      | PlusA, e1'', Const(CInt64(z,_,_)) when z = Int64.zero -> e1''
+      | PlusPI, e1'', Const(CInt64(z,_,_)) when z = Int64.zero -> e1''
+      | IndexPI, e1'', Const(CInt64(z,_,_)) when z = Int64.zero -> e1''
+      | MinusPI, e1'', Const(CInt64(z,_,_)) when z = Int64.zero -> e1''
+      | PlusA, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
+          kinteger64 ik1 (Int64.add i1 i2)
+      | MinusA, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
+          kinteger64 ik1 (Int64.sub i1 i2)
+      | Mult, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
+          kinteger64 ik1 (Int64.mul i1 i2)
+      | Div, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> begin
+          try kinteger64 ik1 (Int64.div i1 i2)
+          with Division_by_zero -> BinOp(bop, e1', e2', tres)
+      end
+      | Mod, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> begin
+          try kinteger64 ik1 (Int64.rem i1 i2)
+          with Division_by_zero -> BinOp(bop, e1', e2', tres) 
+      end
+      | BAnd, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
+          kinteger64 ik1 (Int64.logand i1 i2)
+      | BOr, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
+          kinteger64 ik1 (Int64.logor i1 i2)
+      | BXor, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
+          kinteger64 ik1 (Int64.logxor i1 i2)
+      | Shiftlt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,IInt,_)) -> 
+          integer64 (Int64.shift_left i1 (Int64.to_int i2))
+      | Shiftrt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,IInt,_)) -> 
+          if isunsigned ik1 then 
+            kinteger64 ik1 (Int64.shift_right_logical i1 (Int64.to_int i2))
+          else
+            kinteger64 ik1 (Int64.shift_right i1 (Int64.to_int i2))
+
+      | Eq, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
+          integer (if i1 = i2 then 1 else 0)
+      | Ne, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
+          integer (if i1 <> i2 then 1 else 0)
+      | Le, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 ->
+          integer (if ge (isunsigned ik1) i2 i1 then 1 else 0)
+
+      | Ge, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 ->
+          integer (if ge (isunsigned ik1) i1 i2 then 1 else 0)
+
+      | Lt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 ->
+          integer (if i1 <> i2 && ge (isunsigned ik1) i2 i1 then 1 else 0)
+
+      | Gt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 ->
+          integer (if i1 <> i2 && ge (isunsigned ik1) i1 i2 then 1 else 0)
+      | _ -> BinOp(bop, e1', e2', tres)
+    in
+    newe
+  end else
+    BinOp(bop, e1', e2', tres)
+
+
+(* Try to do an increment, with constant folding *)
+let increm (e: exp) (i: int) =
+  let et = typeOf e in
+  let bop = if isPointerType et then PlusPI else PlusA in
+  constFold false (BinOp(bop, e, integer i, et))
+      
+  
+
+(*** Make a initializer for zeroe-ing a data type ***)
+let rec makeZeroInit (t: typ) : init = 
+  match unrollType t with
+    TInt (ik, _) -> SingleInit (Const(CInt64(Int64.zero, ik, None)))
+  | TFloat(fk, _) -> SingleInit(Const(CReal(0.0, fk, None)))
+  | TEnum _ -> SingleInit zero
+  | TComp (comp, _) as t' when comp.cstruct -> 
+      CompoundInit (t', 
+                    List.map (fun f -> makeZeroInit f.ftype) 
+                      comp.cfields)
+  | TComp (comp, _) as t' when not comp.cstruct -> 
+      let fstfield = 
+        match comp.cfields with
+          f :: _ -> f
+        | [] -> E.s (E.unimp "Cannot create init for empty union")
+      in
+      CompoundInit(t, [makeZeroInit fstfield.ftype])
+
+  | TArray(bt, Some len, _) as t' -> 
+      let n = 
+        match constFold true len with
+          Const(CInt64(n, _, _)) -> Int64.to_int n
+        | _ -> E.s (E.unimp "Cannot understand length of array")
+      in
+      let initbt = makeZeroInit bt in
+      let rec loopElems acc i = 
+        if i >= n then acc
+        else loopElems (initbt :: acc) (i + 1) 
+      in
+      CompoundInit(t', loopElems [] 0)
+  | TPtr _ as t -> SingleInit(CastE(t, zero))
+  | _ -> E.s (E.unimp "makeZeroCompoundInit: %a" d_plaintype t)
+
+
+(**** Fold over the list of initializers in a Compound ****)
+let foldLeftCompound 
+    ~(doinit: offset -> init -> typ -> 'a -> 'a)
+    ~(ct: typ) 
+    ~(initl: init list)
+    ~(acc: 'a) : 'a = 
+  match unrollType ct with
+    TArray(bt, _, _) -> 
+      let rec foldArray  
+          (nextidx: exp) 
+          (initl: init list)
+          (acc: 'a) : 'a  =
+        let incrementIdx = function
+            Const(CInt64(n, ik, _)) -> Const(CInt64(Int64.succ n, ik, None))
+          | e -> BinOp(PlusA, e, one, intType)
+        in
+        match initl with
+          [] -> acc
+        | ie :: restinitl ->
+            (* Now do the initializer expression *)
+            let acc' = doinit (Index(nextidx, NoOffset)) ie bt acc in
+            foldArray (incrementIdx nextidx) restinitl acc'
+      in
+      foldArray zero initl acc
+
+  | TComp (comp, _) -> 
+      if comp.cstruct then
+        let rec foldFields 
+            (allflds: fieldinfo list) 
+            (nextflds: fieldinfo list) 
+            (initl: init list)
+            (acc: 'a) : 'a = 
+          match initl with 
+            [] -> acc   (* We are done *)
+          | ie :: restinitl ->
+              let nextfields, thisfield = 
+                begin
+                  match nextflds with
+                    [] -> E.s (E.unimp "Too many initializers")
+                  | x :: xs -> xs, x
+                end
+              in
+              (* Now do the initializer expression *)
+              let acc' = 
+                doinit (Field(thisfield, NoOffset)) ie thisfield.ftype acc in
+              foldFields allflds nextfields restinitl acc'
+        in
+        foldFields comp.cfields comp.cfields initl acc
+      else
+        (* UNION *)
+        let oneinit, firstfield = 
+          match initl, comp.cfields with
+            [x], f :: _  -> x, f
+          | _ -> E.s (E.bug "Compound for union should have only one init")
+        in
+        doinit (Field(firstfield, NoOffset)) oneinit firstfield.ftype acc
+        
+
+  | _ -> E.s (E.unimp "Type of Compound is not array or struct or union")
+
+
+
+let rec isCompleteType t =
+  match unrollType t with
+  | TArray(t, None, _) -> false
+  | TArray(t, Some z, _) when isZero z -> false
+  | TComp (comp, _) -> (* Struct or union *)
+      List.for_all (fun fi -> isCompleteType fi.ftype) comp.cfields
+  | _ -> true
+
+
+
+let debugAlpha = false
+(*** Alpha conversion ***)
+(* Create a new name based on a given name. The new name is formed from a 
+ * prefix (obtained from the given name by stripping a suffix consisting of _ 
+ * followed by only digits), followed by a '_' and then by a positive integer 
+ * suffix. The first argument is a table mapping name prefixes with the 
+b * largest suffix used so far for that prefix. The largest suffix is one when 
+ * only the version without suffix has been used. *)
+let rec newAlphaName (alphaTable: (string, int ref) H.t)
+                     (lookupname: string) : string = 
+  let prefix, sep, suffix = splitNameForAlpha lookupname in
+  (* ignore (E.log "newAlphaName(%s). P=%s, S=%d\n" lookupname prefix suffix);
+     *)
+  if debugAlpha then
+    ignore (E.log "Alpha conv: %s %s %d. " prefix sep suffix);
+  let newname = 
+    try
+      let rc = H.find alphaTable prefix in
+      if debugAlpha then
+        ignore (E.log " Old suffix %d. " !rc);
+      let newsuffix, sep = 
+        if suffix > !rc then suffix, sep else !rc + 1, "_" in
+      rc := newsuffix;
+      prefix ^ sep ^ (string_of_int newsuffix)
+    with Not_found -> begin (* First variable with this prefix *)
+      H.add alphaTable prefix (ref suffix);
+      if debugAlpha then ignore (E.log " First seen. ");
+      lookupname  (* Return the original name *)
+    end
+  in
+  if debugAlpha then
+    ignore (E.log " Res=: %s\n" newname);
+  newname
+  
+(* Strip the suffix. Return the prefix, the separator (empty or _) and a 
+ * numeric suffix (-1 if the separator is empty or if _ is the last thing in 
+ * the name) *)
+and splitNameForAlpha (lookupname: string) : (string * string * int) = 
+  (* Split the lookup name into a prefix, a separator (empty or _) and a 
+   * suffix. The suffix is numberic and is separated by _ from the prefix  *)
+  try
+    let under_idx = String.rindex lookupname '_' in
+    let l = String.length lookupname in
+    (* Check that we have only digits following the underscore *)
+    if under_idx = l - 1 then raise Not_found;
+    (* If we have a 0 right after the _ and more characters after that then 
+     * we consider that we do not have a suffix *)
+    if String.get lookupname (under_idx + 1) = '0' &&
+       under_idx < l - 2 then raise Not_found;
+    let rec collectSuffix (acc: int) (i: int) = 
+      if i = l then 
+        (String.sub lookupname 0 under_idx, "_", acc)
+      else
+        let c = Char.code (String.get lookupname i) - Char.code '0' in
+        if c >= 0 && c <= 9 then 
+          collectSuffix (10 * acc + c) (i + 1)
+        else
+          raise Not_found
+    in
+    collectSuffix 0 (under_idx + 1)
+  with Not_found -> (* No suffix in the name *)
+    (lookupname, "", -1)
+
+
+let docAlphaTable (alphaTable: (string, int ref) H.t) = 
+  let acc : (string * int) list ref = ref [] in
+  H.iter (fun k d -> acc := (k, !d) :: !acc) alphaTable;
+  docList line (fun (k, d) -> dprintf "  %s -> %d" k d) () !acc
 
 
 

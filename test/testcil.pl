@@ -342,7 +342,7 @@ $TEST->addTests("scott/invalredef", "_GNUCC=1", ['cil']);
 $TEST->addTests("scott/invalredef2", "_GNUCC=1", ['cil']);
 $TEST->add3Tests("scott/stralloc", "_GNUCC=1", ['cil']);
 $TEST->addTests("scott/errorinfn", "", ['cil']);
-
+$TEST->addTests("scott/unionassign", "", ['inferbox', 'box']);
 # $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug
 # my $tst = $TEST->getTest("apache/gzip-inferbox");
 # print Dumper($tst);
