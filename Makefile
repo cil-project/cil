@@ -583,7 +583,7 @@ hola: scott/hola
 scott/%: test/small2/%.c defaulttarget
 	rm -f test/small2/$*
 	cd test/small2; $(CC) $(CONLY) $(DEF)$(ARCHOS) $*.c
-	cd test/small2; $(SAFECC) --keep=. $(DEF)$(ARCHOS) \
+	cd test/small2; $(SAFECC) --verbose --keep=. $(DEF)$(ARCHOS) \
                  `$(PATCHECHO) --patch=../../lib/$(PATCHFILE)` \
                  $(DOOPT) $(WARNALL) \
                  $*.c \
