@@ -209,6 +209,8 @@ and unop =
 and binop =
     PlusA                               (* arithemtic + *)
   | PlusPI                              (* pointer + integer *)
+  | IndexPI                             (* pointer[integer]. The integer is 
+                                         * very likely positive *)
   | MinusA                              (* arithemtic - *)
   | MinusPI                             (* pointer - integer *)
   | MinusPP                             (* pointer - pointer *)
@@ -779,7 +781,8 @@ let getParenthLevel = function
                                         (* Additive. Shifts can have higher 
                                          * level but I want parentheses 
                                          * around them *)
-  | BinOp((MinusA|MinusPP|MinusPI|PlusA|PlusPI|Shiftlt|Shiftrt),_,_,_)  
+  | BinOp((MinusA|MinusPP|MinusPI|PlusA|
+           PlusPI|IndexPI|Shiftlt|Shiftrt),_,_,_)  
     -> additiveLevel (* 60 *)
 
                                         (* Multiplicative *)
@@ -1021,7 +1024,7 @@ and d_exp () e =
 
 and d_binop () b =
   match b with
-    PlusA | PlusPI -> text "+"
+    PlusA | PlusPI | IndexPI -> text "+"
   | MinusA | MinusPP | MinusPI -> text "-"
   | Mult -> text "*"
   | Div -> text "/"
@@ -1102,13 +1105,13 @@ and d_instr () i =
   | Set(lv,e) -> begin
       (* Be nice to some special cases *)
       match e with
-        BinOp((PlusA|PlusPI),Lval(lv'),Const(CInt(1,_,_)),_) 
+        BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt(1,_,_)),_) 
           when lv == lv' -> 
           dprintf "%a ++;" d_lval lv
       | BinOp((MinusA|MinusPI),Lval(lv'),
               Const(CInt(1,_,_)), _) when lv == lv' -> 
           dprintf "%a --;" d_lval lv
-      | BinOp((PlusA|PlusPI|MinusA|MinusPP|MinusPI|BAnd|BOr|BXor|
+      | BinOp((PlusA|PlusPI|IndexPI|MinusA|MinusPP|MinusPI|BAnd|BOr|BXor|
                Mult|Div|Mod|Shiftlt|Shiftrt) as bop,
               Lval(lv'),e,_) when lv == lv' -> 
           dprintf "%a %a= %a;" d_lval lv d_binop bop d_exp e
@@ -1600,7 +1603,7 @@ let mkMem (addr: exp) (off: offset) : exp =
     | Some lv, _ -> (* non-index on an array *)
         Lval(addOffsetLval (Index(zero, off)) lv)
     | None, Index(ei, resto) -> (* index on a non-array *)
-        Lval(Mem (BinOp(PlusPI, addr, ei, typeOf addr)), resto) 
+        Lval(Mem (BinOp(IndexPI, addr, ei, typeOf addr)), resto) 
     | None, _ -> (* non-index on a non-array *)
         Lval(Mem addr, off)
   in
@@ -1766,7 +1769,8 @@ let increm (e: exp) (i: int) =
       match e with
         Const(CInt(ei, eik, _)) -> 
           Some (Const(CInt(ei + i * sign, eik, None)))
-      | BinOp(((PlusA|MinusA|PlusPI|MinusPI) as bop), e1, e2, t) -> begin
+      | BinOp(((PlusA|MinusA|PlusPI|IndexPI|MinusPI) as bop), 
+              e1, e2, t) -> begin
           let newe2sign = 
             if bop = MinusA || bop = MinusPI then - sign else sign
           in

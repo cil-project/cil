@@ -435,7 +435,7 @@ and checkExp (isconst: bool) (e: exp) : typ =
           | (PlusA | MinusA) -> 
                 typeMatch t1 t2; typeMatch t1 tres;
                 checkArithmeticType tres; tres
-          | (PlusPI | MinusPI) -> 
+          | (PlusPI | MinusPI | IndexPI) -> 
               checkPointerType tres;
               typeMatch t1 tres;
               checkIntegralType t2;

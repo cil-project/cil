@@ -204,6 +204,10 @@ and unop =
 and binop =
     PlusA                               (* arithemtic + *)
   | PlusPI                              (* pointer + integer *)
+  | IndexPI                             (* pointer[integer]. The difference 
+                                         * form PlusPI is that in this case 
+                                         * the integer is very likely 
+                                         * positive *)
   | MinusA                              (* arithemtic - *)
   | MinusPI                             (* pointer - integer *)
   | MinusPP                             (* pointer - pointer *)

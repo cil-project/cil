@@ -649,7 +649,7 @@ let checkPositiveFun =
 let pkArithmetic (ep: exp)
                  (et: typ)
                  (ek: P.pointerkind) (* kindOfType et *)
-                 (bop: binop)  (* Either PlusPI or MinusPI *)
+                 (bop: binop)  (* Either PlusPI or MinusPI or IndexPI *)
                  (e2: exp) : (fexp * stmt list) = 
   let ptype, ptr, f2, f3 = readFieldsOfFat ep et in
   match ek with
@@ -1658,7 +1658,7 @@ and arrayPointerToIndex (t: typ) (k: P.pointerkind)
     (* If it is not sized then better have a length *)
   | TArray(elemt, Some alen, a) -> 
       (elemt, P.Seq, mkAddrOf lv, 
-       BinOp(PlusPI, mkAddrOf lv, alen, TPtr(elemt, [])))
+       BinOp(IndexPI, mkAddrOf lv, alen, TPtr(elemt, [])))
 
   | _ -> E.s (E.bug "arrayPointerToIndex on a non-array (%a)" 
                 d_plaintype t)
@@ -1713,7 +1713,7 @@ and boxexpf (e: exp) : stmt list * fexp =
             let res = 
               FM(fixChrPtrType, k,
                  Lval (var tmp), 
-                 BinOp(PlusPI, Lval (var tmp), integer l, charPtrType), 
+                 BinOp(IndexPI, Lval (var tmp), integer l, charPtrType), 
                  Lval (var tmp))
             in
             ([mkSet (var tmp) (Const (CStr s))], res)
@@ -1746,7 +1746,7 @@ and boxexpf (e: exp) : stmt list * fexp =
         let (et1, doe1, e1') = boxexp e1 in
         let (et2, doe2, e2') = boxexp e2 in
         match bop, kindOfType et1, kindOfType et2 with
-        | (PlusPI|MinusPI), pk1, P.Scalar -> 
+        | (PlusPI|MinusPI|IndexPI), pk1, P.Scalar -> 
             let (res, doarith) = pkArithmetic e1' et1 pk1 bop e2' in
             (doe1 @ doe2 @ doarith, res)
         | (MinusPP|EqP|NeP|LeP|LtP|GeP|GtP), _, _ -> 

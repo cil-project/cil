@@ -243,26 +243,27 @@ let rec doExp (e: exp) =
       SizeOf (t'), uintType, N.dummyNode
 
         (* arithmetic binop *)
-  | BinOp (((PlusA|MinusA|Mult|Div|Mod|Shiftlt|Shiftrt|Lt|Gt|Le|Ge|Eq|Ne|BAnd|BXor|BOr|LtP|GtP|LeP|GeP|EqP|NeP|MinusPP) as bop), 
+  | BinOp (((PlusA|MinusA|Mult|Div|Mod|Shiftlt|Shiftrt|
+    Lt|Gt|Le|Ge|Eq|Ne|BAnd|BXor|BOr|LtP|GtP|LeP|GeP|EqP|NeP|MinusPP) as bop), 
            e1, e2, tres) -> 
              BinOp(bop, doExpAndCast e1 tres,
                    doExpAndCast e2 tres, tres), tres, N.dummyNode
        (* pointer arithmetic *)
-  | BinOp (((PlusPI|MinusPI) as bop), e1, e2, tres) -> 
+  | BinOp (((PlusPI|MinusPI|IndexPI) as bop), e1, e2, tres) -> 
       let e1', e1t, e1n = doExp e1 in
       let sign = 
         signOf 
-          (match bop with PlusPI -> e2 | _ -> UnOp(Neg, e2, intType)) 
+          (match bop with PlusPI|IndexPI -> e2 | _ -> UnOp(Neg, e2, intType)) 
       in
       (match sign with
         SLiteral 0 -> ()
       | SPos -> e1n.N.posarith <- true
       | SLiteral n when n > 0 -> e1n.N.posarith <- true
       | _ -> 
-          (* if l.line = -1000 then Was created from p[e] 
+          if bop = IndexPI then (*  Was created from p[e] *)
              e1n.N.posarith <- true
-             else *)
-          e1n.N.arith <- true);
+          else 
+            e1n.N.arith <- true);
       if sign = SLiteral 0 then
           e1', e1t, e1n
         else

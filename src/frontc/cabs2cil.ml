@@ -1972,14 +1972,18 @@ let convFile fname dl =
                 if se <> [] then 
                   E.s (E.unimp "global initializer");
                 let (_, e'') = castTo et vi.vtype e' in
-                match vi.vtype, e', et with (* See if we have a length now *)
-                  TArray(TInt((IChar|IUChar|ISChar), _) as bt, None, a),
+                match vi.vtype, e', et with
+                  TArray(TInt((IChar|IUChar|ISChar), _) as bt, oldl, a),
                   Const(CStr s), _ -> 
                     (* Change arrays initialized with strings into array 
                      * initializers *)
-                    vi.vtype <- TArray(bt, 
-                                       Some (integer (String.length s + 1)),
-                                       a);
+                    (match oldl with 
+                      None ->  (* See if we have a length now *)
+                        vi.vtype <- TArray(bt, 
+                                           Some (integer 
+                                                   (String.length s + 1)),
+                                           a)
+                    | _ -> ());
                     let addOne c acc = 
                       (None, 
                        Const(CInt(c, IChar, 
