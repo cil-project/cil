@@ -1267,3 +1267,10 @@ allcc1: defaulttarget mustbegcc
 
 combinetest: defaulttarget
 	cd test/small1; $(SAFECC) --combine /Fet.exe t.c t1.c
+
+obj/prettytest.exe: src/pretty.mli src/pretty.ml src/prettytest.ml
+	$(CAMLC) -I src -o obj/prettytest.exe src/pretty.mli src/pretty.ml src/prettytest.ml
+
+prettytest:  obj/prettytest.exe
+	time obj/prettytest.exe ; echo
+
