@@ -370,10 +370,17 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
             (docList ~sep:break (self#pExp ())) 
             (args @ (List.map (fun v -> Lval (Var v, NoOffset)) grt))
             
-      | Call (None, f, args, _) -> 
-          dprintf "(%a @[%a@]);" 
-            self#pExp f
-            (docList ~sep:break (self#pExp ())) args
+      | Call (None, Lval (Var f, NoOffset), args, _) -> 
+          let gwt: varinfo list = getGlobalsWrittenTransitive f in
+          let grt: varinfo list = getGlobalsReadTransitive f in
+          dprintf "%a = (%s @[%a@]);"
+            (docList 
+               (fun v -> 
+                 text (self#variableDef varRenameState v)))
+            gwt
+            f.vname
+            (docList ~sep:break (self#pExp ())) 
+            (args @ (List.map (fun v -> Lval (Var v, NoOffset)) grt))
             
       | _ -> nil (* Ignore the other instructions *)        
             
