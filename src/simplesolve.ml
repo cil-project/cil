@@ -222,6 +222,8 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     List.filter (fun e -> e.ekind = ECast || e.ekind = ENull) l in
   let eCNI_edges_only l = List.filter (fun e -> e.ekind = ECast || 
     e.ekind = ENull || e.ekind = EIndex) l in
+  let eNI_edges_only l = List.filter (fun e ->
+    e.ekind = ENull || e.ekind = EIndex) l in
 
   (* Setup:
    *        int *x,*y,*z;
@@ -395,8 +397,8 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       let f = (fun n -> if (update_kind n cur.kind why) then 
                           finished := false) in
       let contaminated_list = 
-        (List.map (fun e -> e.efrom) (eCNI_edges_only cur.pred)) @ 
-        (List.map (fun e -> e.eto) (ecast_edges_only cur.succ)) in
+        (List.map (fun e -> e.efrom) (eCNI_edges_only cur.pred)) (* @ 
+        (List.map (fun e -> e.eto) (ecast_edges_only cur.succ) ) *) in
       List.iter f contaminated_list ;
       (* mark all cast edges at least equal to this! *)
 
