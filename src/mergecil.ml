@@ -836,17 +836,21 @@ let oneFilePass2 (f: file) =
           let g' = GFun(fdec', l) in
           (* Now restore the parameter names *)
           let _, args, _, _ = splitFunctionType fdec'.svar in
-          let oldnames = 
-            try H.find formalNames (!currentFidx, origname)
-            with Not_found -> E.s (bug "Cannot find %s in formalNames"
-                                     fdec.svar.vname)
+          let oldnames, foundthem = 
+            try H.find formalNames (!currentFidx, origname), true
+            with Not_found -> begin
+              ignore (warnOpt "Cannot find %s in formalNames" origname);
+              [], false
+            end
           in
-          let argl = argsToList args in
-          if List.length oldnames <> List.length argl then 
-            E.s (unimp "After merging the function has more arguments");
-          List.iter2
-            (fun oldn a -> if oldn <> "" then a.vname <- oldn)
-            oldnames argl;
+          if foundthem then begin
+            let argl = argsToList args in
+            if List.length oldnames <> List.length argl then 
+              E.s (unimp "After merging the function has more arguments");
+            List.iter2
+              (fun oldn a -> if oldn <> "" then a.vname <- oldn)
+              oldnames argl;
+          end;
           
           if fdec'.sinline && mergeInlines then begin
             let printout = 
