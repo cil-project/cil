@@ -6,6 +6,7 @@ safec.log.?
 optstats.results
 optstats.results.?
 optstats.log
+*.report
 
 *.o
 *.obj

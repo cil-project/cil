@@ -12,13 +12,16 @@ ifdef RELEASE
   NATIVECAML := 1
 endif
 
+MACHDEP := machdep
+
 SOURCEDIRS  = src src/frontc
 OBJDIR      = obj
 MLLS        = clexer.mll
 MLYS        = cparser.mly
 MODULES     = pretty errormsg trace stats util clist \
               cabs cprint clexer cparser cabsvisit \
-              cil cabs2cil frontc check logcalls logwrites rmtmps \
+              $(MACHDEP) cil cabs2cil \
+              frontc check logcalls logwrites rmtmps \
 	      cfg heapify simplemem oneret testcil unionfind type maincil
 
 EXECUTABLE  = $(OBJDIR)/cilly
@@ -38,18 +41,40 @@ ifneq ($(ARCHOS), x86_LINUX)
 endif
 endif
 
+
     # Include now the common set of rules for OCAML
     # This file will add the rules to make $(EXECUTABLE)$(EXE)
 include Makefile.ocaml
 
 
-quickbuild: $(EXECUTABLE)$(EXE)
+quickbuild: machdep $(EXECUTABLE)$(EXE)
 	$(MAKE) -r -f Makefile.merger  quickbuild $(MAKEOVERRIDES)
 
-setup:
+setup: machdep
 	$(MAKE) -r -f Makefile.cil all $(MAKEOVERRIDES) NATIVECAML= 
 	$(MAKE) -r -f Makefile.cil all $(MAKEOVERRIDES) NATIVECAML=1
 	$(MAKE) -r -f Makefile.merger setup $(MAKEOVERRIDES)
+
+# Create the machine dependency module
+# If the cl command cannot be run then the MSVC part will be identical to GCC
+.PHONY : machdep
+machdep: $(OBJDIR)/$(MACHDEP).ml 
+$(OBJDIR)/$(MACHDEP).ml : src/machdep.c
+	rm -f $@
+	echo "(* This module was generated automatically by code in machdep.c *)" >$@
+	if ! gcc -D_GNUCC $< -o $(OBJDIR)/$(MACHDEP).exe ;then \
+            rm -f $@; exit 1 \
+        ;fi
+	echo "module GCC = struct" >>$@
+	$(OBJDIR)/machdep.exe >>$@
+	echo "end"          >>$@
+	if cl /D_MSVC $< /Fe $(OBJDIR)/$(MACHDEP).exe ;then \
+           echo "let hasMSVC = true" >>@ \
+        ;else echo "let hasMSVC = false" >>$@ ;fi
+	echo "module MSVC = struct" >>$@
+	$(OBJDIR)/machdep.exe >>$@
+	echo "end"          >>$@
+
 
 all:  quickbuild cillib
 # Build an OCAML library (CMA / CMXA) that exports our Cil stuff
@@ -61,9 +86,9 @@ $(OBJDIR)/cil.$(CMXA): $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
 
 # Test cil
 ifdef _MSVC
-TESTCILARG=--MSVC -testcil "bash msvctestcil"
+TESTCILARG=--MSVC --testcil "bash msvctestcil"
 else
-TESTCILARG=       -testcil "bash gcctestcil"
+TESTCILARG=       --testcil "bash gcctestcil"
 endif
 
 .PHONY: testcil
@@ -165,3 +190,4 @@ distrib: doc
 
 
 clean: cleancaml
+	rm -f $(OBJDIR)/$(MACHDEP).ml

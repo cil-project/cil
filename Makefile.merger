@@ -23,7 +23,7 @@ CAMLLIBS    = unix
 # to them, and therefore compiling fails without them.  for example,
 # cprint says 'Open Cil' and uses its Location; Cil in turn refers
 # to Pretty
-MODULES     += trace clist cil
+MODULES     += trace clist machdep cil
 
 
 # Additional things to clean

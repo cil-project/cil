@@ -1409,12 +1409,8 @@ val bitsOffset: typ -> offset -> int * int
    Default is GCC *)
 val msvcMode: bool ref               
 
-(** Whether CHAR is unsigned. Default false *)
-val charIsUnsigned: bool ref
+(** A few machine-dependent configuration options *)
 
-(** Whether a signed long can fit an  unsigned integer. True only if a long
-    uses more bits than an int  *)
-val ilongFitsUInt: bool ref
 
 (** Whether to print line numbers *)
 val printLn: bool ref

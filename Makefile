@@ -1778,6 +1778,8 @@ emacs-gcc: mustbelinux mustbemanju emacsclean
 # source available at www.perl.com/pub/a/language/info/software.html#sourcecode
 
 PERLSRC := /usr/local/src/perl-5.6.1
+# Must edit the config.sh to change the definition of cc
+#
 
 perlclean:
 	cd $(PERLSRC); make clean
@@ -1795,7 +1797,7 @@ perl: mustbegcc mustbelinux mustbemanju perlclean
 	cd $(PERLSRC) ; make CC="$(CILLY)"
 
 perl-noclean: mustbegcc mustbelinux mustbemanju
-	cd $(PERLSRC) ; make CC="$(CILLY)
+	cd $(PERLSRC) ; make CC="$(CILLY)"
 
 perl-gcc: mustbelinux mustbemanju perlclean
 	cd $(PERLSRC) ; make CC=gcc
@@ -2253,4 +2255,5 @@ tort/compat/%: $(CTORTDIR)/compat/%.c mustbemanju mustbegcc
 	cd $(CTORTDIR)/compat; $(CILLY) $*.c -o a.exe
 	echo Cure complete
 	$(CTORTDIR)/compat/a.exe
+
 

@@ -110,8 +110,12 @@ let rec theMain () =
     "--out", Arg.String outFile, "the name of the output CIL file";
 
     "--keep", Arg.Unit (fun _ -> keepFiles := true), "Keep intermediate files";
-    "--MSVC", Arg.Unit (fun _ -> C.msvcMode := true;
-                                F.setMSVCMode ()),
+    "--MSVC", Arg.Unit (fun _ -> if Machdep.hasMSVC then begin
+                                   C.msvcMode := true;
+                                   F.setMSVCMode ()
+                                  end else 
+                                     E.s (E.error "MSVC mode is not supported on this build\n")
+        ),
              "Produce MSVC output. Default is GNU";
     "--stages", Arg.Unit (fun _ -> Util.printStages := true),
                "print the stages of the algorithm as they happen";

@@ -990,8 +990,10 @@ let arithmeticConversion    (* c.f. ISO 6.3.1.8 *)
       | _, TInt(IULong, _) -> checkToInt t1'; t2'
 
                     
-      | TInt(ILong,_), TInt(IUInt,_) when not !ilongFitsUInt -> TInt(IULong,[])
-      | TInt(IUInt,_), TInt(ILong,_) when not !ilongFitsUInt -> TInt(IULong,[])
+      | TInt(ILong,_), TInt(IUInt,_) 
+            when bitsSizeOf t1' <= bitsSizeOf t2' -> TInt(IULong,[])
+      | TInt(IUInt,_), TInt(ILong,_) 
+            when bitsSizeOf t2' <= bitsSizeOf t1' -> TInt(IULong,[])
             
       | TInt(ILong, _), _ -> checkToInt t2'; t1'
       | _, TInt(ILong, _) -> checkToInt t1'; t2'
@@ -1815,10 +1817,10 @@ and makeVarInfo
                 (bt, sto, inline, attrs)
                 (n,ndt,a) 
       : varinfo = 
-  if inline then
-    ignore (warn "inline for a non-function: %s" n);
   let vtype, nattr = 
     doType (AttrName false) bt (A.PARENTYPE(attrs, ndt, a)) in
+  if inline && not (isFunctionType vtype) then
+    ignore (warn "inline for a non-function: %s" n);
   { vname    = n;
     vid      = newVarId n isglob;
     vglob    = isglob;

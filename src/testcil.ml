@@ -5,6 +5,24 @@ module E = Errormsg
 
 let lu = locUnknown
 
+(* If you have trouble try to reproduce the problem on a smaller type. Try 
+ * limiting the maxNesting and integerKinds *)
+let integerKinds = [ IChar; ISChar; IUChar; IInt; IUInt; IShort; IUShort;
+                     ILong; IULong; ILongLong; IULongLong ] 
+let floatKinds = [ FFloat; FDouble ] 
+    
+let baseTypes = 
+       (List.map (fun ik -> (1, fun _ -> TInt(ik, []))) integerKinds)
+     @ (List.map (fun fk -> (1, fun _ -> TFloat(fk, []))) floatKinds)
+
+
+(* Make a random struct *)
+let maxNesting  = ref 3  (* Maximum number of levels for struct nesting *)
+let maxFields   = ref 8  (* The maximum number of fields in a struct *)
+let useBitfields = ref false
+let useZeroBitfields = ref true
+
+
 
 (* Collect here the globals *)
 let globals: global list ref = ref []
@@ -109,20 +127,6 @@ let typeChoices : typ selection list ref = ref []
 
 let baseTypeChoices : typ selection list ref = ref []
 
-let integerKinds = [ IChar; ISChar; IUChar; IInt; IUInt; IShort; IUShort;
-                     ILong; IULong; ILongLong; IULongLong ] 
-let floatKinds = [ FFloat; FDouble ] 
-    
-let baseTypes = 
-       (List.map (fun ik -> (1, fun _ -> TInt(ik, []))) integerKinds)
-     @ (List.map (fun fk -> (1, fun _ -> TFloat(fk, []))) floatKinds)
-
-
-(* Make a random struct *)
-let maxNesting  = ref 3  (* Maximum number of levels for struct nesting *)
-let maxFields   = ref 8  (* The maximum number of fields in a struct *)
-let useBitfields = ref false
-let useZeroBitfields = ref true
 
 let currentNesting = ref 0
 let mkCompType (iss: bool) =  
@@ -178,7 +182,8 @@ let mkArrayType () =
   
 
 let testSizeOf () = 
-  let doOne () = 
+  let doOne (i: int) = 
+(*    ignore (E.log "doOne %d\n" i); *)
     (* Make a random type *)
     let t = select !typeChoices in
     (* Create a global with that type *)
@@ -188,6 +193,7 @@ let testSizeOf () =
                                       [ mkAddrOrStartOf (var g); zero;
                                         SizeOfE(Lval(var g))], lu)));
     try
+(*      if i = 0 then ignore (E.log "0: %a\n" d_plaintype t); *)
       let bsz = 
         try bitsSizeOf t  (* This is what we are testing *)
         with e -> begin
@@ -196,10 +202,12 @@ let testSizeOf () =
           raise (Failure "")
         end
       in
+(*      ignore (E.log "1 "); *)
       if bsz mod 8 <> 0 then begin
         ignore (E.log "bitsSizeOf did not return a multiple of 8\n");
         raise (Failure "");
       end;
+(*      ignore (E.log "2 "); *)
       (* Check the offset of all fields in there *)
       let rec checkOffsets (lv: lval) (lvt: typ) = 
         match lvt with
@@ -250,12 +258,14 @@ let testSizeOf () =
             addStatement s
       in
       checkOffsets (var g) t;
+(*      ignore (E.log "3 ");*)
       (* Now check the size of *)
       let s = mkStmtOneInstr (Call(None, Lval(var checkSizeOfFun.svar),
                                    [ SizeOfE (Lval (var g));
                                      integer (bitsSizeOf t);
                                      Const(CStr(g.vname)) ], lu)) in
       addStatement s;
+(*      ignore (E.log "10\n"); *)
     with _ -> ()
   in
 
@@ -270,7 +280,7 @@ let testSizeOf () =
   useBitfields := false;
   maxFields := 4;
   for i = 0 to 100 do 
-    doOne ()
+    doOne i
   done;
                    
   (* Now test the bitfields. *)
@@ -279,7 +289,7 @@ let testSizeOf () =
   useBitfields := true;
 
   for i = 0 to 100 do
-    doOne ()
+    doOne i
   done;
 
   (* Now make it a bit more complicated *)
@@ -287,16 +297,15 @@ let testSizeOf () =
      List.map (fun ik -> (1, fun _ -> TInt(ik, []))) 
        [IInt; ILong; IUInt; IULong ];
   useBitfields := true;
-
   for i = 0 to 100 do
-    doOne ()
+    doOne i
   done;
 
   (* An really complicated now *)
   baseTypeChoices := baseTypes;
   useBitfields := true;
   for i = 0 to 100 do 
-    doOne ()
+    doOne i
   done;
 
   ()

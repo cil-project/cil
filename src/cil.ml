@@ -43,6 +43,8 @@ module H = Hashtbl
    - integerFits is hardwired to true
 *)
 
+module M = Machdep
+
 (* A few globals that control the interpretation of C source *)
 let msvcMode = ref false              (* Whether the pretty printer should 
                                        * print output for the MS VC 
@@ -1327,7 +1329,6 @@ let addrOfLevel = 30
 let bitwiseLevel = 75
 let additiveLevel = 60
 let getParenthLevel = function
-(*  | Question _ -> 80 *)
                                         (* Bit operations. *)
   | BinOp((BOr|BXor|BAnd),_,_,_) -> bitwiseLevel (* 75 *)
 
@@ -1516,11 +1517,10 @@ let rec typeOf (e: exp) : typ =
   | Const(CStr _) -> charPtrType 
   | Const(CReal (_, fk, _)) -> TFloat(fk, [])
   | Lval(lv) -> typeOfLval lv
-  | SizeOf _ | SizeOfE _ -> uintType
-  | AlignOf _ | AlignOfE _ -> uintType
+  | SizeOf _ | SizeOfE _ -> typeOfSizeof ()
+  | AlignOf _ | AlignOfE _ -> typeOfSizeof ()
   | UnOp (_, _, t) -> t
   | BinOp (_, _, _, t) -> t
-(*  | Question (_, e2, _) -> typeOf e2 *)
   | CastE (t, _) -> t
   | AddrOf (lv) -> TPtr(typeOfLval lv, [])
   | StartOf (lv) -> begin
@@ -1529,6 +1529,13 @@ let rec typeOf (e: exp) : typ =
      | _ -> E.s (E.bug "typeOf: StartOf on a non-array")
   end
       
+and typeOfSizeof () = 
+  if (if !msvcMode then M.MSVC.ikind_sizeof_is_long 
+                   else M.GCC.ikind_sizeof_is_long) then 
+    TInt(IULong, [])
+  else
+    uintType
+    
 and typeOfInit (i: init) : typ = 
   match i with 
     SingleInit e -> typeOf e
@@ -1746,13 +1753,6 @@ and d_exp () e =
         ++ (d_expprec level () e2)
         ++ unalign
 
-(*  | Question (e1, e2, e3) ->
-      (d_expprec level () e1)
-        ++ text " ? "
-        ++ (d_expprec level () e2)
-        ++ text " : " 
-        ++ (d_expprec level () e3)
-*)
   | CastE(t,e) -> 
       text "(" 
         ++ d_type () t
@@ -2631,10 +2631,6 @@ and childrenExp (vis: cilVisitor) (e: exp) : exp =
   | BinOp (bo, e1, e2, t) -> 
       let e1' = vExp e1 in let e2' = vExp e2 in let t' = vTyp t in
       if e1' != e1 || e2' != e2 || t' != t then BinOp(bo, e1',e2',t') else e
-(*  | Question (e1, e2, e3) -> 
-      let e1' = vExp e1 in let e2' = vExp e2 in let e3' = vExp e3 in
-      if e1' != e1 || e2' != e2 || e3' != e3 then Question(e1',e2',e3') else e
-*)
   | CastE (t, e1) ->           
       let t' = vTyp t in let e1' = vExp e1 in
       if t' != t || e1' != e1 then CastE(t', e1') else e
@@ -3301,8 +3297,6 @@ let rec isConstant = function
         -> vi.vglob && isConstantOff off
   | AddrOf (Mem e, off) | StartOf(Mem e, off) 
         -> isConstant e && isConstantOff off
-(*  | Question (e1, e2, e3) -> 
-      isConstant e1 && isConstant e2 && isConstant e3 *)
 
 and isConstantOff = function
     NoOffset -> true
@@ -3367,16 +3361,25 @@ exception SizeOfError of typ
 (* Get the minimum aligment in bytes for a given type *)
 let rec alignOf_int = function
   | TInt((IChar|ISChar|IUChar), _) -> 1
-  | TInt((IShort|IUShort), _) -> 2
-  | TInt((IInt|IUInt), _) -> 4
-  | TInt((ILong|IULong), _) -> 4
-  | TInt((ILongLong|IULongLong), _) -> 8
-  | TEnum _ -> 4 (* !!! is this correct ? *)
+  | TInt((IShort|IUShort), _) -> 
+      if !msvcMode then M.MSVC.sizeof_short else M.GCC.sizeof_short
+  | TInt((IInt|IUInt), _) ->
+      if !msvcMode then M.MSVC.sizeof_int else M.GCC.sizeof_int
+  | TInt((ILong|IULong), _) ->
+      if !msvcMode then M.MSVC.sizeof_long else M.GCC.sizeof_long
+  | TInt((ILongLong|IULongLong), _) -> 
+      if !msvcMode then M.MSVC.alignof_longlong else M.GCC.alignof_longlong
+  | TEnum _ -> 
+      if !msvcMode then M.MSVC.sizeof_enum else M.GCC.sizeof_enum
   | TFloat(FFloat, _) -> 4
-  | TFloat((FDouble|FLongDouble), _) -> 8
+  | TFloat(FDouble, _) ->
+      if !msvcMode then M.MSVC.alignof_double else M.GCC.alignof_double
+  | TFloat(FLongDouble, _) -> 
+      if !msvcMode then M.MSVC.alignof_longdouble else M.GCC.alignof_longdouble
   | TNamed (_, t, _) -> alignOf_int t
   | TArray (t, _, _) -> alignOf_int t
-  | TPtr _ -> 4
+  | TPtr _ ->
+      if !msvcMode then M.MSVC.sizeof_ptr else M.GCC.sizeof_ptr
         (* For composite types get the maximum alignment of any field inside *)
   | TComp (c, _) ->
       (* On GCC the zero-width fields do not contribute to the alignment. On 
@@ -3425,7 +3428,18 @@ let rec offsetOfFieldAcc_GCC (fi: fieldinfo)
   let ftypeAlign = 8 * alignOf_int ftype in
   let ftypeBits = bitsSizeOf ftype in
 (*
-  if fi.fcomp.cname = "comp2898" then 
+  if fi.fcomp.cname = "comp2468" ||
+     fi.fcomp.cname = "comp2469" ||
+     fi.fcomp.cname = "comp2470" ||
+     fi.fcomp.cname = "comp2471" ||
+     fi.fcomp.cname = "comp2472" ||
+     fi.fcomp.cname = "comp2473" ||
+     fi.fcomp.cname = "comp2474" ||
+     fi.fcomp.cname = "comp2475" ||
+     fi.fcomp.cname = "comp2476" ||
+     fi.fcomp.cname = "comp2477" ||
+     fi.fcomp.cname = "comp2478" then
+
     ignore (E.log "offsetOfFieldAcc_GCC(%s of %s:%a%a,firstFree=%d,pack=%a)\n" 
               fi.fname fi.fcomp.cname 
               d_type ftype
@@ -3446,25 +3460,24 @@ let rec offsetOfFieldAcc_GCC (fi: fieldinfo)
      * GCC pads only up to the alignment boundary for the type of this field. 
      * *)
   | _, Some 0 -> 
-      let firstFree      = addTrailing sofar.oaFirstFree ftypeBits in
+      let firstFree      = addTrailing sofar.oaFirstFree ftypeAlign in
       { oaFirstFree      = firstFree;
         oaLastFieldStart = firstFree;
         oaLastFieldWidth = 0;
         oaPrevBitPack    = None }
 
-    (* A bitfield cannot span the alignment unit of its type *)
+    (* A bitfield cannot span more alignment boundaries of its type than the 
+     * type itself *)
   | _, Some wdthis 
-      when (sofar.oaFirstFree + wdthis - 1) / ftypeAlign 
-            <> sofar.oaFirstFree / ftypeAlign  -> 
-        (* Pad and redo *)
-        offsetOfFieldAcc_GCC fi
-          { oaFirstFree      = addTrailing sofar.oaFirstFree ftypeAlign;
-            oaLastFieldStart = sofar.oaLastFieldStart;
-            oaLastFieldWidth = sofar.oaLastFieldWidth;
+      when (sofar.oaFirstFree + wdthis + ftypeAlign - 1) / ftypeAlign 
+            - sofar.oaFirstFree / ftypeAlign > ftypeBits / ftypeAlign -> 
+          let start = addTrailing sofar.oaFirstFree ftypeAlign in    
+          { oaFirstFree      = start + wdthis;
+            oaLastFieldStart = start;
+            oaLastFieldWidth = wdthis;
             oaPrevBitPack    = None }
         
-   (* Try a simple method. Just put it down after we made certain that it 
-    * does not span its alignment *)
+   (* Try a simple method. Just put the field down *)
   | _, Some wdthis -> 
       { oaFirstFree      = sofar.oaFirstFree + wdthis;
         oaLastFieldStart = sofar.oaFirstFree; 
@@ -3591,7 +3604,14 @@ and offsetOfFieldAcc ~(fi: fieldinfo)
  * added *)
 and bitsSizeOf t = 
   match t with 
-    TInt _ | TFloat _ | TEnum _ | TPtr _ -> 8 * alignOf_int t
+    (* For long long sometimes the alignof and sizeof are different *)
+  | TInt((ILongLong|IULongLong), _) -> 
+      8 * (if !msvcMode then M.MSVC.sizeof_longlong else M.GCC.sizeof_longlong)
+  | TFloat(FDouble, _) -> 8 * 8
+  | TFloat(FLongDouble, _) ->
+      8 * (if !msvcMode then M.MSVC.sizeof_longdouble 
+                        else M.GCC.sizeof_longdouble)
+  | TInt _ | TFloat _ | TEnum _ | TPtr _ -> 8 * alignOf_int t
   | TNamed (_, t, _) -> bitsSizeOf t
   | TComp (comp, _) when comp.cfields = [] -> 
       raise Not_found (*abstract type*)
@@ -3767,6 +3787,8 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
       (* See if the result is unsigned *)
       let isunsigned = function
           (IUInt | IUChar | IUShort | IULong | IULongLong) -> true
+        | IChar when (if !msvcMode then M.MSVC.char_is_unsigned 
+                                   else M.GCC.char_is_unsigned) -> true
         | _ -> false
       in
       let ge (unsigned: bool) (i1: int64) (i2: int64) : bool = 
