@@ -1298,13 +1298,13 @@ val compFullName: compinfo -> string
 val isCompleteType: typ -> bool  
 
 (** Unroll a type until it exposes a non 
- * [TNamed]. Will drop the top-level attributes appearing in [TNamed]!!! *)
-val unrollType: typ -> typ   (* Might drop some attributes !! *)
+ * [TNamed]. Will collect all attributes appearing in [TNamed]!!! *)
+val unrollType: typ -> typ  
 
 (** Unroll all the TNamed in a type (even under type constructors such as 
  * [TPtr], [TFun] or [TArray]. Does not unroll the types of fields in [TComp] 
- * types. *)
-val unrollTypeDeep: typ -> typ   (* Might drop some attributes !! *)
+ * types. Will collect all attributes *)
+val unrollTypeDeep: typ -> typ 
 
 (** True if the argument is an integral type (i.e. integer or enum) *)
 val isIntegralType: typ -> bool

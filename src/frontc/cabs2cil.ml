@@ -646,7 +646,7 @@ let createEnumInfo (n: string) : enuminfo * bool =
 
 
    (* kind is either "struct" or "union" or "enum" and n is a name *)
-let findCompType kind n a = 
+let findCompType (kind: string) (n: string) (a: attributes) = 
   let key = kind ^ " " ^ n in
   let makeForward () = 
     (* This is a forward reference, either because we have not seen this 
@@ -1476,6 +1476,10 @@ let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
                vi.vname d_loc oldloc reason)
     end;
       
+    (* Found an old one. Keep the location always from the definition *)
+    if isadef then begin 
+      oldvi.vdecl <- vi.vdecl;
+    end;
     oldvi, true
       
   with Not_found -> begin (* A new one.  *)
@@ -2168,7 +2172,7 @@ and makeVarInfoCabs
   vi.vstorage <- sto;
   vi.vattr <- nattr;
   vi.vdecl <- ldecl;
-  (* ignore (E.log "Created local %s : %a\n" vi.vname d_type vi.vtype); *)
+  ignore (E.log "Created varinfo %s : %a\n" vi.vname d_type vi.vtype); 
   vi
 
 (* Process a local variable declaration and allow variable-sized arrays *)
@@ -2301,7 +2305,13 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
         let a1n, a1f, a1t = partitionAttributes AttrType a1' in
         let a2' = doAttributes a2 in
         let a2n, a2f, a2t = partitionAttributes nameortype a2' in
+(*
+        ignore (E.log "doType: %a @[a1n=%a@!a1f=%a@!a1t=%a@!a2n=%a@!a2f=%a@!a2t=%a@]@!" d_loc !currentLoc d_attrlist a1n d_attrlist a1f d_attrlist a1t d_attrlist a2n d_attrlist a2f d_attrlist a2t);
+*)
         let bt' = cabsTypeAddAttributes a1t bt in
+(*
+        ignore (E.log "bt' = %a\n" d_type bt');
+*)
         let bt'', a1fadded = 
           match unrollType bt with 
             TFun _ -> cabsTypeAddAttributes a1f bt', true
@@ -2335,6 +2345,9 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
                        d_attrlist a2f);
               restyp
         in
+(*
+           ignore (E.log "restyp' = %a\n" d_type restyp');
+*)
         (* Now add the name attributes and return *)
         restyp', cabsAddAttributes a1n (cabsAddAttributes a2n nattr)
 

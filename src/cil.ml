@@ -1520,22 +1520,96 @@ let copyCompInfo (ci: compinfo) (n: string) : compinfo =
   ci'
 
 (**** Utility functions ******)
-let rec unrollType = function   (* Might drop some attributes !! *)
-    TNamed (r, _) -> unrollType r.ttype
-  | x -> x
 
-let rec unrollTypeDeep = function   (* Might drop some attributes !! *)
-    TNamed (r, _) -> unrollTypeDeep r.ttype
-  | TPtr(t, a) -> TPtr(unrollTypeDeep t, a)
-  | TArray(t, l, a) -> TArray(unrollTypeDeep t, l, a)
-  | TFun(rt, args, isva, a) -> 
-      TFun (unrollTypeDeep rt, 
-            (match args with 
-              None -> None
-            | Some argl -> 
-                Some (List.map (fun (an,at,aa) -> (an, unrollTypeDeep at, aa)) argl)), 
-            isva, a)
-  | x -> x
+let rec typeAttrs = function
+    TVoid a -> a
+  | TInt (_, a) -> a
+  | TFloat (_, a) -> a
+  | TNamed (t, a) -> addAttributes a (typeAttrs t.ttype)
+  | TPtr (_, a) -> a
+  | TArray (_, _, a) -> a
+  | TComp (comp, a) -> addAttributes comp.cattr a
+  | TEnum (enum, a) -> addAttributes enum.eattr a
+  | TFun (_, _, _, a) -> a
+  | TBuiltin_va_list a -> a
+
+
+let setTypeAttrs t a =
+  match t with
+    TVoid _ -> TVoid a
+  | TInt (i, _) -> TInt (i, a)
+  | TFloat (f, _) -> TFloat (f, a)
+  | TNamed (t, _) -> TNamed(t, a)
+  | TPtr (t', _) -> TPtr(t', a)
+  | TArray (t', l, _) -> TArray(t', l, a)
+  | TComp (comp, _) -> TComp (comp, a)
+  | TEnum (enum, _) -> TEnum (enum, a)
+  | TFun (r, args, v, _) -> TFun(r,args,v,a)
+  | TBuiltin_va_list _ -> TBuiltin_va_list a
+
+
+let typeAddAttributes a0 t =
+begin
+  match a0 with
+  | [] ->
+      (* no attributes, keep same type *)
+      t
+  | _ ->
+      (* anything else: add a0 to existing attributes *)
+      let add (a: attributes) = addAttributes a0 a in
+      match t with
+        TVoid a -> TVoid (add a)
+      | TInt (ik, a) -> TInt (ik, add a)
+      | TFloat (fk, a) -> TFloat (fk, add a)
+      | TEnum (enum, a) -> TEnum (enum, add a)
+      | TPtr (t, a) -> TPtr (t, add a)
+      | TArray (t, l, a) -> TArray (t, l, add a)
+      | TFun (t, args, isva, a) -> TFun(t, args, isva, add a)
+      | TComp (comp, a) -> TComp (comp, add a)
+      | TNamed (t, a) -> TNamed (t, add a)
+      | TBuiltin_va_list a -> TBuiltin_va_list (add a)
+end
+
+let typeRemoveAttributes (anl: string list) t = 
+  let drop (al: attributes) = dropAttributes anl al in
+  match t with 
+    TVoid a -> TVoid (drop a)
+  | TInt (ik, a) -> TInt (ik, drop a)
+  | TFloat (fk, a) -> TFloat (fk, drop a)
+  | TEnum (enum, a) -> TEnum (enum, drop a)
+  | TPtr (t, a) -> TPtr (t, drop a)
+  | TArray (t, l, a) -> TArray (t, l, drop a)
+  | TFun (t, args, isva, a) -> TFun(t, args, isva, drop a)
+  | TComp (comp, a) -> TComp (comp, drop a)
+  | TNamed (t, a) -> TNamed (t, drop a)
+  | TBuiltin_va_list a -> TBuiltin_va_list (drop a)
+
+let unrollType (t: typ) : typ = 
+  let rec withAttrs (al: attributes) (t: typ) : typ =     
+    match t with 
+      TNamed (r, a') -> withAttrs (addAttributes al a') r.ttype
+    | x -> typeAddAttributes al x
+  in
+  withAttrs [] t
+
+let rec unrollTypeDeep (t: typ) : typ = 
+  let rec withAttrs (al: attributes) (t: typ) : typ =     
+    match t with 
+      TNamed (r, a') -> withAttrs (addAttributes al a') r.ttype
+    | TPtr(t, a') -> TPtr(unrollTypeDeep t, addAttributes al a')
+    | TArray(t, l, a') -> TArray(unrollTypeDeep t, l, addAttributes al a')
+    | TFun(rt, args, isva, a') -> 
+        TFun (unrollTypeDeep rt, 
+              (match args with 
+                None -> None
+              | Some argl -> 
+                  Some (List.map (fun (an,at,aa) -> 
+                  (an, unrollTypeDeep at, aa)) argl)), 
+              isva, 
+              addAttributes al a')
+    | x -> typeAddAttributes al x
+  in
+  withAttrs [] t
 
 let isVoidType t = 
   match unrollType t with
@@ -1754,68 +1828,6 @@ let separateStorageModifiers (al: attribute list) =
       stom', rest
 
 
-let rec typeAttrs = function
-    TVoid a -> a
-  | TInt (_, a) -> a
-  | TFloat (_, a) -> a
-  | TNamed (t, a) -> addAttributes a (typeAttrs t.ttype)
-  | TPtr (_, a) -> a
-  | TArray (_, _, a) -> a
-  | TComp (comp, a) -> addAttributes comp.cattr a
-  | TEnum (enum, a) -> addAttributes enum.eattr a
-  | TFun (_, _, _, a) -> a
-  | TBuiltin_va_list a -> a
-
-
-let setTypeAttrs t a =
-  match t with
-    TVoid _ -> TVoid a
-  | TInt (i, _) -> TInt (i, a)
-  | TFloat (f, _) -> TFloat (f, a)
-  | TNamed (t, _) -> TNamed(t, a)
-  | TPtr (t', _) -> TPtr(t', a)
-  | TArray (t', l, _) -> TArray(t', l, a)
-  | TComp (comp, _) -> TComp (comp, a)
-  | TEnum (enum, _) -> TEnum (enum, a)
-  | TFun (r, args, v, _) -> TFun(r,args,v,a)
-  | TBuiltin_va_list _ -> TBuiltin_va_list a
-
-
-let typeAddAttributes a0 t =
-begin
-  match a0 with
-  | [] ->
-      (* no attributes, keep same type *)
-      t
-  | _ ->
-      (* anything else: add a0 to existing attributes *)
-      let add (a: attributes) = addAttributes a0 a in
-      match t with
-        TVoid a -> TVoid (add a)
-      | TInt (ik, a) -> TInt (ik, add a)
-      | TFloat (fk, a) -> TFloat (fk, add a)
-      | TEnum (enum, a) -> TEnum (enum, add a)
-      | TPtr (t, a) -> TPtr (t, add a)
-      | TArray (t, l, a) -> TArray (t, l, add a)
-      | TFun (t, args, isva, a) -> TFun(t, args, isva, add a)
-      | TComp (comp, a) -> TComp (comp, add a)
-      | TNamed (t, a) -> TNamed (t, add a)
-      | TBuiltin_va_list a -> TBuiltin_va_list (add a)
-end
-
-let typeRemoveAttributes (anl: string list) t = 
-  let drop (al: attributes) = dropAttributes anl al in
-  match t with 
-    TVoid a -> TVoid (drop a)
-  | TInt (ik, a) -> TInt (ik, drop a)
-  | TFloat (fk, a) -> TFloat (fk, drop a)
-  | TEnum (enum, a) -> TEnum (enum, drop a)
-  | TPtr (t, a) -> TPtr (t, drop a)
-  | TArray (t, l, a) -> TArray (t, l, drop a)
-  | TFun (t, args, isva, a) -> TFun(t, args, isva, drop a)
-  | TComp (comp, a) -> TComp (comp, drop a)
-  | TNamed (t, a) -> TNamed (t, drop a)
-  | TBuiltin_va_list a -> TBuiltin_va_list (drop a)
 
 (* Compute a type signature *)
 let rec typeSigWithAttrs doattr t = 
