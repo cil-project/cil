@@ -531,7 +531,8 @@ let mkStartOfAndMark ((b, off) as lval) : exp =
   (match b with 
     Var vi -> vi.vaddrof <- true
   | _ -> ());
-  StartOf lval
+  let res = StartOf lval in
+  res
   
 
 

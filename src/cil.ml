@@ -2600,7 +2600,7 @@ class plainCilPrinterClass =
     
   (* Some plain pretty-printers. Unlike the above these expose all the 
    * details of the internal representation *)
-  method dExp () = function
+  method pExp () = function
     Const(c) -> 
       text "Const(" ++ d_const () c ++ text ")"
   | Lval(lv) -> 
@@ -2611,9 +2611,33 @@ class plainCilPrinterClass =
         ++ text ")"
         
   | CastE(t,e) -> dprintf "CastE(@[%a,@?%a@])" self#pOnlyType t self#pExp e
+
+  | UnOp(u,e1,_) -> 
+      let d_unop () u =
+        match u with
+          Neg -> text "-"
+        | BNot -> text "~"
+        | LNot -> text "!"
+      in
+      dprintf "UnOp(@[%a,@?%a@])"
+        d_unop u self#pExp e1
+          
+  | BinOp(b,e1,e2,_) -> 
+      dprintf "%a(@[%a,@?%a@])" d_binop b
+        self#pExp e1 self#pExp e2
+
+  | SizeOf (t) -> 
+      text "sizeof(" ++ self#pType None () t ++ chr ')'
+  | SizeOfE (e) -> 
+      text "sizeof(" ++ self#pExp () e ++ chr ')'
+  | AlignOf (t) -> 
+      text "__alignof__(" ++ self#pType None () t ++ chr ')'
+  | AlignOfE (e) -> 
+      text "__alignof__(" ++ self#pExp () e ++ chr ')'
+
   | StartOf lv -> dprintf "StartOf(%a)" self#pLval lv
   | AddrOf (lv) -> dprintf "AddrOf(%a)" self#pLval lv
-  | e -> d_exp () e
+
 
 
   method private d_plainoffset () = function
