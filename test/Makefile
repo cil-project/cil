@@ -537,7 +537,7 @@ else
 endif
 
 testrun/% : $(SMALL1)/%.ml
-	$(CAMLC) -I $(OBJDIR) cil.$(CMXA) $(EXEOUT) $(basename $<).exe $<
+	$(CAMLC) -noautolink -I $(OBJDIR) cil.$(CMXA) $(EXEOUT) $(basename $<).exe $<
 	$(basename $<).exe
 	echo SUCCESS
 
