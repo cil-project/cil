@@ -644,8 +644,11 @@ and matchCompInfo (oldfidx: int) (oldci: compinfo)
         let msg = 
           P.sprint ~width:80
             (P.dprintf
-               "\n\tFailed assumption that %s and %s are isomorphic %s"
-               (compFullName oldci) (compFullName ci) reason) in
+               "\n\tFailed assumption that %s and %s are isomorphic %s@!%a@!%a"
+               (compFullName oldci) (compFullName ci) reason 
+               dn_global (GCompTag(oldci,locUnknown))
+               dn_global (GCompTag(ci,locUnknown)))
+               in
         raise (Failure msg)
       end);
     (* We get here when we succeeded checking that they are equal *)
@@ -778,7 +781,7 @@ let rec oneFilePass1 (f:file) : unit =
             oldvinode.nfidx oldvi.vtype  
             !currentFidx vi.vtype;
         with (Failure reason) -> begin
-          ignore (warn "Incompatible declaration for %s (%d). Previous was at %a (%d) %s " 
+          ignore (error "Incompatible declaration for %s (%d). Previous was at %a (%d) %s " 
                     vi.vname !currentFidx d_loc oldloc oldvinode.nfidx reason);
           raise Not_found
         end
