@@ -1524,7 +1524,7 @@ let fseqToSafe (p: exp) (desttyp: typ) (b: exp) (bend: exp) (acc: stmt clist)
   in
   p, zero, zero, 
   CConsL (call None (Lval (var checkUBoundFun.svar))
-            [ castVoidStar b;  
+            [ castVoidStar bend;   (* sm: bugfix: was 'b' *)
               castVoidStar p; SizeOf (baset)],
           acc)
     
