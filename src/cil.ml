@@ -217,7 +217,7 @@ and attrarg =
 
 (* literal constants *)
 and constant =
-  | CInt32 of int32 * ikind * string option 
+  | CInt64 of int64 * ikind * string option 
                  (* Give the ikind (see ISO9899 6.1.3.2) and the textual 
                   * representation, if available. Use "integer" or "kinteger" 
                   * to create these. Watch out for integers that cannot be 
@@ -679,20 +679,18 @@ let printLine (l : location) : string =
    !str
 
 (* Construct an integer of a given kind. *)
-let kinteger (k: ikind) (i: int) = Const (CInt32(Int32.of_int i, k,  None))
-let kinteger32 (k: ikind) (i: int32) =  Const (CInt32(i, k,  None))
+let kinteger (k: ikind) (i: int) = Const (CInt64(Int64.of_int i, k,  None))
+let kinteger64 (k: ikind) (i: int64) =  Const (CInt64(i, k,  None))
 
 (* Construct an integer of the first kinds that fits. i must be POSITIVE *)
 let integerKinds (k: ikind list) (i: int64) : exp = 
   let rec loop = function
   | ((IInt | ILong) as k) :: _ when i < Int64.shift_left (Int64.of_int 1) 31 ->
-      kinteger32 k (Int64.to_int32 i)
+      kinteger64 k i
   | ((IUInt | IULong) as k) :: _ when i < Int64.shift_left (Int64.of_int 1) 32 -> 
-      kinteger32 k (Int64.to_int32 i)
-  | (ILongLong as k) :: _ when i < Int64.shift_left (Int64.of_int 1) 31 -> 
-      kinteger32 k (Int64.to_int32 i) (* !! We need 64 bit integer for this *)
-  | (IULongLong as k) :: _ when i < Int64.shift_left (Int64.of_int 1) 32 -> 
-      kinteger32 k (Int64.to_int32 i) (* !! We need 64 bit integer for this *)
+      kinteger64 k i
+  | (ILongLong as k) :: _ when i < Int64.shift_left (Int64.of_int 1) 63 -> kinteger64 k i
+  | (IULongLong as k) :: _ -> kinteger64 k i
   | _ :: rest -> loop rest
   | [] -> E.s (E.unimp "Cannot represent the integer %s\n" (Int64.to_string i))
   in
@@ -700,23 +698,23 @@ let integerKinds (k: ikind list) (i: int64) : exp =
 
 (* Construct an integer. Use only for values that fit on 31 bits *)
 let integer (i: int) = kinteger IInt i
-let integer32 (i: int32) = kinteger32 IInt i
+let integer64 (i: int64) = kinteger64 IInt i
 
 let hexinteger (i: int) = 
-    Const (CInt32(Int32.of_int i, IInt, Some (Printf.sprintf "0x%08X" i)))
+    Const (CInt64(Int64.of_int i, IInt, Some (Printf.sprintf "0x%08X" i)))
              
 let zero      = integer 0
 let one       = integer 1
 let mone      = integer (-1)
 
 let rec isInteger = function
-  | Const(CInt32 (n,_,_)) -> Some n
-  | Const(CChr c) -> Some (Int32.of_int (Char.code c))
+  | Const(CInt64 (n,_,_)) -> Some n
+  | Const(CChr c) -> Some (Int64.of_int (Char.code c))
   | CastE(_, e) -> isInteger e
   | _ -> None
         
 
-let rec isZero (e: exp) : bool = isInteger e = Some Int32.zero
+let rec isZero (e: exp) : bool = isInteger e = Some Int64.zero
 
 let voidType = TVoid([])
 let intType = TInt(IInt,[])
@@ -1097,16 +1095,16 @@ let d_const () c =
     | _ -> ""
   in
   match c with
-    CInt32(_, _, Some s) -> text s (* Always print the text if there is one *)
-  | CInt32(i, ik, None) -> 
+    CInt64(_, _, Some s) -> text s (* Always print the text if there is one *)
+  | CInt64(i, ik, None) -> 
       (* Watch out here for negative integers that we should be printing as 
        * large positive ones *)
-      if i < Int32.zero 
+      if i < Int64.zero 
           && (match ik with 
             IUInt | IULong | IULongLong -> true | _ -> false) then
-        text ("0x" ^ Int32.format "%x" i ^ suffix ik)
+        text ("0x" ^ Int64.format "%x" i ^ suffix ik)
       else
-        text (Int32.to_string i ^ suffix ik)
+        text (Int64.to_string i ^ suffix ik)
   | CStr(s) -> text ("\"" ^ escape_string s ^ "\"")
   | CChr(c) -> text ("'" ^ escape_char c ^ "'")
   | CReal(_, _, Some s) -> text s
@@ -1305,7 +1303,7 @@ let typeSigAttrs = function
 (**** Compute the type of an expression ****)
 let rec typeOf (e: exp) : typ = 
   match e with
-  | Const(CInt32 (_, ik, _)) -> TInt(ik, [])
+  | Const(CInt64 (_, ik, _)) -> TInt(ik, [])
   | Const(CChr _) -> charType
   | Const(CStr _) -> charPtrType 
   | Const(CReal (_, fk, _)) -> TFloat(fk, [])
@@ -1680,7 +1678,7 @@ and d_lval () lv =
     | NoOffset -> dobase ()
     | Field (fi, o) -> 
         d_offset (fun _ -> dobase () ++ text "." ++ text fi.fname) o
-    | Index (Const(CInt32(z,_,_)), NoOffset) when z = Int32.zero -> 
+    | Index (Const(CInt64(z,_,_)), NoOffset) when z = Int64.zero -> 
         text "(*" ++ dobase () ++ text ")"
     | Index (e, o) ->
         d_offset (fun _ -> dobase () ++ text "[" ++ d_exp () e ++ text "]") o
@@ -1700,15 +1698,15 @@ and d_instr () i =
   | Set(lv,e,l) -> begin
       (* Be nice to some special cases *)
       match e with
-        BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt32(one,_,_)),_)
-          when lv == lv' && one = Int32.one ->
+        BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt64(one,_,_)),_)
+          when lv == lv' && one = Int64.one ->
           (* dprintf "\n%s@!%a ++;" (printLine l) d_lval lv *)
           d_line l
            ++ d_lval () lv
            ++ text " ++;"
 
       | BinOp((MinusA|MinusPI),Lval(lv'),
-              Const(CInt32(one,_,_)), _) when lv == lv' && one = Int32.one ->
+              Const(CInt64(one,_,_)), _) when lv == lv' && one = Int64.one ->
 (*
           dprintf "\n%s@!%a --;" (printLine l) d_lval lv
 *)
@@ -2966,10 +2964,10 @@ let rec constFold (e: exp) : exp =
     BinOp(bop, e1, e2, tres) -> constFoldBinOp bop e1 e2 tres
   | UnOp(Neg, e1, tres) -> begin
       match constFold e1 with
-        Const(CInt32(i,_,_)) -> integer32 (Int32.neg i)
+        Const(CInt64(i,_,_)) -> integer64 (Int64.neg i)
       | _ -> e
   end
-  | Const(CChr c) -> Const(CInt32(Int32.of_int (Char.code c), 
+  | Const(CChr c) -> Const(CInt64(Int64.of_int (Char.code c), 
                                   IInt, None))
   | _ -> e
 
@@ -2979,7 +2977,7 @@ and constFoldBinOp bop e1 e2 tres =
   if isIntegralType tres then
     let newe = 
       let rec mkInt = function
-          Const(CChr c) -> Const(CInt32(Int32.of_int (Char.code c), 
+          Const(CChr c) -> Const(CInt64(Int64.of_int (Char.code c), 
                                         IInt, None))
         | CastE(TInt _, e) -> mkInt e
         | e -> e
@@ -2991,55 +2989,55 @@ and constFoldBinOp bop e1 e2 tres =
         | _ -> false
       in
       match bop, mkInt e1', mkInt e2' with
-        PlusA, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) -> 
-          integer32 (Int32.add i1 i2)
-      | PlusA, Const(CInt32(z,_,_)), e2'' when z = Int32.zero -> e2''
-      | PlusA, e1'', Const(CInt32(z,_,_)) when z = Int32.zero -> e1''
-      | PlusPI, e1'', Const(CInt32(z,_,_)) when z = Int32.zero -> e1''
-      | IndexPI, e1'', Const(CInt32(z,_,_)) when z = Int32.zero -> e1''
-      | MinusPI, e1'', Const(CInt32(z,_,_)) when z = Int32.zero -> e1''
-      | MinusA, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) -> 
-          integer32 (Int32.sub i1 i2)
-      | Mult, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) -> 
-          integer32 (Int32.mul i1 i2)
-      | Div, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) -> begin
-          try integer32 (Int32.div i1 i2)
+        PlusA, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) -> 
+          integer64 (Int64.add i1 i2)
+      | PlusA, Const(CInt64(z,_,_)), e2'' when z = Int64.zero -> e2''
+      | PlusA, e1'', Const(CInt64(z,_,_)) when z = Int64.zero -> e1''
+      | PlusPI, e1'', Const(CInt64(z,_,_)) when z = Int64.zero -> e1''
+      | IndexPI, e1'', Const(CInt64(z,_,_)) when z = Int64.zero -> e1''
+      | MinusPI, e1'', Const(CInt64(z,_,_)) when z = Int64.zero -> e1''
+      | MinusA, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) -> 
+          integer64 (Int64.sub i1 i2)
+      | Mult, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) -> 
+          integer64 (Int64.mul i1 i2)
+      | Div, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) -> begin
+          try integer64 (Int64.div i1 i2)
           with Division_by_zero -> 
             E.s (unimp "Division by zero while constant folding")
       end
-      | Mod, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) -> begin
-          try integer32 (Int32.rem i1 i2)
+      | Mod, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) -> begin
+          try integer64 (Int64.rem i1 i2)
           with Division_by_zero -> 
             E.s (unimp "Division by zero while constant folding")
       end
-      | BAnd, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) -> 
-          integer32 (Int32.logand i1 i2)
-      | BOr, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) -> 
-          integer32 (Int32.logor i1 i2)
-      | BXor, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) -> 
-          integer32 (Int32.logxor i1 i2)
-      | Shiftlt, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) -> 
-          integer32 (Int32.shift_left i1 (Int32.to_int i2))
-      | Shiftrt, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) -> 
+      | BAnd, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) -> 
+          integer64 (Int64.logand i1 i2)
+      | BOr, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) -> 
+          integer64 (Int64.logor i1 i2)
+      | BXor, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) -> 
+          integer64 (Int64.logxor i1 i2)
+      | Shiftlt, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) -> 
+          integer64 (Int64.shift_left i1 (Int64.to_int i2))
+      | Shiftrt, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) -> 
           if isunsigned then 
-            integer32 (Int32.shift_right_logical i1 (Int32.to_int i2))
+            integer64 (Int64.shift_right_logical i1 (Int64.to_int i2))
           else
-            integer32 (Int32.shift_right i1 (Int32.to_int i2))
+            integer64 (Int64.shift_right i1 (Int64.to_int i2))
 
-      | Eq, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) -> 
+      | Eq, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) -> 
           integer (if i1 = i2 then 1 else 0)
-      | Ne, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) -> 
+      | Ne, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) -> 
           integer (if i1 <> i2 then 1 else 0)
-      | Le, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) 
+      | Le, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) 
             when not isunsigned -> 
           integer (if i1 <= i2 then 1 else 0)
-      | Ge, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) 
+      | Ge, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) 
             when not isunsigned -> 
           integer (if i1 >= i2 then 1 else 0)
-      | Lt, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) 
+      | Lt, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) 
             when not isunsigned -> 
           integer (if i1 < i2 then 1 else 0)
-      | Gt, Const(CInt32(i1,_,_)),Const(CInt32(i2,_,_)) 
+      | Gt, Const(CInt64(i1,_,_)),Const(CInt64(i2,_,_)) 
             when not isunsigned -> 
           integer (if i1 > i2 then 1 else 0)
       | _ -> BinOp(bop, e1', e2', tres)
@@ -3060,7 +3058,7 @@ let increm (e: exp) (i: int) =
 (*** Make a initializer for zeroe-ing a data type ***)
 let rec makeZeroInit (t: typ) : init = 
   match unrollType t with
-    TInt (ik, _) -> SingleInit (Const(CInt32(Int32.zero, ik, None)))
+    TInt (ik, _) -> SingleInit (Const(CInt64(Int64.zero, ik, None)))
   | TFloat(fk, _) -> SingleInit(Const(CReal(0.0, fk, None)))
   | TEnum _ -> SingleInit zero
   | TComp (comp, _) as t' when comp.cstruct -> 
@@ -3078,7 +3076,7 @@ let rec makeZeroInit (t: typ) : init =
   | TArray(bt, Some len, _) as t' -> 
       let n = 
         match constFold len with
-          Const(CInt32(n, _, _)) -> Int32.to_int n
+          Const(CInt64(n, _, _)) -> Int64.to_int n
         | _ -> E.s (E.unimp "Cannot understand length of array")
       in
       let initbt = makeZeroInit bt in
@@ -3103,7 +3101,7 @@ let foldLeftCompound (doinit: offset -> init -> typ -> 'a -> 'a)
           (initl: init list)
           (acc: 'a) : 'a  =
         let incrementIdx = function
-            Const(CInt32(n, ik, _)) -> Const(CInt32(Int32.succ n, ik, None))
+            Const(CInt64(n, ik, _)) -> Const(CInt64(Int64.succ n, ik, None))
           | e -> BinOp(PlusA, e, one, intType)
         in
         match initl with
@@ -3375,8 +3373,8 @@ and bitsSizeOf t =
         (* Add trailing by simulating adding an extra field *)
       addTrailing max
 
-  | TArray(t, Some (Const(CInt32(l,_,_))),_) -> 
-      addTrailing ((bitsSizeOf t) * (Int32.to_int l))
+  | TArray(t, Some (Const(CInt64(l,_,_))),_) -> 
+      addTrailing ((bitsSizeOf t) * (Int64.to_int l))
 
   | TArray(t, None, _) -> raise Not_found
         

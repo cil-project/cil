@@ -1509,8 +1509,8 @@ and makeCompType (isstruct: bool)
             TInt (ikind, a) -> ()
           | _ -> E.s (error "Base type for bitfield is not an integer type"));
           match doExp true w (AExp None) with
-            (c, Const(CInt32(i,_,_)),_) when isEmpty c -> 
-              Some (Int32.to_int i)
+            (c, Const(CInt64(i,_,_)),_) when isEmpty c -> 
+              Some (Int64.to_int i)
           | _ -> E.s (error "bitfield width is not an integer constant")
       end
     in
@@ -1927,7 +1927,7 @@ and doExp (isconst: bool)    (* In a constant *)
           let tres = integralPromotion t in
           let e'' = 
             match e' with
-            | Const(CInt32(i, _, _)) -> integer32 (Int32.neg i)
+            | Const(CInt64(i, _, _)) -> integer64 (Int64.neg i)
             | _ -> UnOp(Neg, doCastT e' t tres, tres)
           in
           finishExp se e'' tres
@@ -2369,8 +2369,8 @@ and doExp (isconst: bool)    (* In a constant *)
           let e3'' = doCastT e3' t3' tresult in
           let resexp = 
             match e1' with
-              Const(CInt32(i, _, _)) when i <> Int32.zero -> e2''
-            | Const(CInt32(z, _, _)) when z = Int32.zero -> e3''
+              Const(CInt64(i, _, _)) when i <> Int64.zero -> e2''
+            | Const(CInt64(z, _, _)) when z = Int64.zero -> e3''
             | _ -> Question(e1', e2'', e3'')
           in
           finishExp se1 resexp tresult
@@ -2582,8 +2582,8 @@ and doCondition (e: A.expression)
       let (se, e, t) as rese = doExp false e (AExp None) in
       ignore (checkBool t e);
       match e with 
-        Const(CInt32(i,_,_)) when i <> Int32.zero && canDrop sf -> se @@ st
-      | Const(CInt32(z,_,_)) when z = Int32.zero && canDrop st -> se @@ sf
+        Const(CInt64(i,_,_)) when i <> Int64.zero && canDrop sf -> se @@ st
+      | Const(CInt64(z,_,_)) when z = Int64.zero && canDrop st -> se @@ sf
       | _ -> se @@ ifChunk e !currentLoc st sf
   end
 
@@ -2616,7 +2616,7 @@ and doInitializer
           None -> None
         | Some n' -> begin
             match constFold n' with
-            | Const(CInt32(ni, _, _)) -> Some (Int32.to_int ni)
+            | Const(CInt64(ni, _, _)) -> Some (Int64.to_int ni)
             | _ -> E.s (error "Cannot understand the length of the array being initialized\n")
         end
       in
@@ -2646,9 +2646,9 @@ and doInitializer
               doExp isconst idxe (AExp(Some intType)) in
             let s, e, dorange = 
               match constFold idxs', constFold idxe' with
-                Const(CInt32(s, _, _)), 
-                Const(CInt32(e, _, _)) -> 
-                  Int32.to_int s, Int32.to_int e, doidxs @@ doidxe
+                Const(CInt64(s, _, _)), 
+                Const(CInt64(e, _, _)) -> 
+                  Int64.to_int s, Int64.to_int e, doidxs @@ doidxe
               | _ -> E.s (error 
                        "INDEX initialization designator is not a constant")
             in
@@ -2673,7 +2673,7 @@ and doInitializer
               let (doidx, idxe', _) = 
                 doExp isconst idxe (AExp(Some intType)) in
               match constFold idxe' with
-                Const(CInt32(x, _, _)) -> Int32.to_int x, doidx
+                Const(CInt64(x, _, _)) -> Int64.to_int x, doidx
               | _ -> E.s (error 
                        "INDEX initialization designator is not a constant")
             in
@@ -3269,8 +3269,8 @@ and doStatement (s : A.statement) : chunk =
           E.s (error "Case statement with a non-constant");
         let il, ih = 
           match constFold el', constFold eh' with
-            Const(CInt32(il, _, _)), Const(CInt32(ih, _, _)) -> 
-              Int32.to_int il, Int32.to_int ih
+            Const(CInt64(il, _, _)), Const(CInt64(ih, _, _)) -> 
+              Int64.to_int il, Int64.to_int ih
           | _ -> E.s (unimp "Cannot understand the constants in case range")
         in
         if il > ih then 

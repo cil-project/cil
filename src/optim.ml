@@ -716,7 +716,7 @@ let rec compareExp e1 e2 : int option =
 and compareExpOp e1 op e2 : bool =
   let isAdd op = (op = PlusA || op = PlusPI || op = IndexPI) in
   match e1,e2 with
-    Const (CInt32 (a,_,_)), Const (CInt32 (b,_,_)) -> op a b
+    Const (CInt64 (a,_,_)), Const (CInt64 (b,_,_)) -> op a b
   | Const _, _ 
   | _, Const _ -> false
   | BinOp (op1,ea,eb,_), BinOp(op2,ec,ed,_) 
@@ -1014,8 +1014,8 @@ and removePeephole instList =
 *)
 and peepholeReplace (chk : instr) : instr =
   match chk with
-    Call (_, Lval(Var{vname="CHECK_POSITIVE"},_), [Const (CInt32 (c,_,_))],_) 
-    when c >= Int32.zero -> raise PeepholeRemovable
+    Call (_, Lval(Var{vname="CHECK_POSITIVE"},_), [Const (CInt64 (c,_,_))],_) 
+    when c >= Int64.zero -> raise PeepholeRemovable
 
   | Call (_, Lval(Var{vname="CHECK_LBOUND"},_), [a;b],_) 
     when expEqual a b -> raise PeepholeRemovable

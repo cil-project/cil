@@ -222,13 +222,12 @@ and attrarg =
 
 (* literal constants *)
 and constant =
-  | CInt32 of int32 * ikind * string option 
+  | CInt64 of int64 * ikind * string option 
                  (* Give the ikind (see ISO9899 6.1.3.2) and the textual 
                   * representation, if available. Use "integer" or "kinteger" 
                   * to create these. Watch out for integers that cannot be 
-                  * represented on 32 bits. OCAML does not give Overflow 
+                  * represented on 64 bits. OCAML does not give Overflow 
                   * exceptions. *)
-
   | CStr of string
   | CChr of char 
   | CReal of float * fkind * string option(* Give the fkind (see ISO 6.4.4.2) 
@@ -572,7 +571,7 @@ type file =
 
 (* Construct an integer of a given kind. *)
 val kinteger: ikind -> int -> exp
-val kinteger32: ikind -> int32 -> exp
+val kinteger64: ikind -> int64 -> exp
 
 (* Construct an integer of the first kind that is big enough. Use only for 
  * positive integers *)
@@ -580,7 +579,7 @@ val integerKinds: ikind list -> int64 -> exp
 
 (* Construct an integer of kind IInt. *)
 val integer: int -> exp
-val integer32: int32 -> exp
+val integer64: int64 -> exp
 
 
 val hexinteger: int -> exp
@@ -614,7 +613,7 @@ val doubleType: typ
 (* An integer type that fits pointers. We hardwire to unsigned long for now *)
 val upointType: typ
 
-val isInteger: exp -> int32 option
+val isInteger: exp -> int64 option
 val isZero: exp -> bool
 
 val mkStmt: stmtkind -> stmt

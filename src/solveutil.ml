@@ -25,7 +25,7 @@ let rec type_congruent (t1 : typ) (q1 : opointerkind)
 
   let array_helper_function t eo al x = begin
     match eo with
-      Some(Const(CInt32(n,a,b))) when n > Int32.one -> begin
+      Some(Const(CInt64(n,a,b))) when n > Int64.one -> begin
         let our_compinfo = {
           cstruct = true ;
           cname = "" ;
@@ -40,7 +40,7 @@ let rec type_congruent (t1 : typ) (q1 : opointerkind)
               fbitfield = None;
               fattr = [] ; } ;
             { fcomp = our_compinfo ; fname = "" ;
-              ftype = TArray(t,(Some(Const(CInt32(Int32.pred n,a,b)))),[]) ;
+              ftype = TArray(t,(Some(Const(CInt64(Int64.pred n,a,b)))),[]) ;
               fbitfield = None;
               fattr = [] ; } ] ; 
         type_congruent t q1 (TComp(our_compinfo, [])) q2
@@ -57,7 +57,7 @@ let rec type_congruent (t1 : typ) (q1 : opointerkind)
       (type_congruent typ1 q1 typ2 q2) ->
         begin
           match (expr1, expr2) with
-            Some(Const(CInt32(val1, _, _))), Some(Const(CInt32(val2, _, _))) ->
+            Some(Const(CInt64(val1, _, _))), Some(Const(CInt64(val2, _, _))) ->
               val1 = val2
           | _ -> false
         end
@@ -93,12 +93,12 @@ let rec type_congruent (t1 : typ) (q1 : opointerkind)
   | (x,TArray(t,eo,al)) when (type_congruent x q1 t q2) ->
       begin
         match eo with
-          Some(Const(CInt32(one,_,_))) when one = Int32.one -> true
+          Some(Const(CInt64(one,_,_))) when one = Int64.one -> true
         | _ -> false
       end
   | (TArray(t,eo,al),x) when (type_congruent x q2 t q1) -> begin
     match eo with
-      Some(Const(CInt32(one,_,_))) when one = Int32.one -> true
+      Some(Const(CInt64(one,_,_))) when one = Int64.one -> true
     | _ -> false
   end
 

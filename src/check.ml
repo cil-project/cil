@@ -347,7 +347,7 @@ and checkExp (isconst: bool) (e: exp) : typ =
         (if isconst then "Const" else "Exp") d_exp e)
     (fun _ ->
       match e with
-      | Const(CInt32 (_, ik, _)) -> TInt(ik, [])
+      | Const(CInt64 (_, ik, _)) -> TInt(ik, [])
       | Const(CChr _) -> charType
       | Const(CStr _) -> charPtrType 
       | Const(CReal (_, fk, _)) -> TFloat(fk, [])

@@ -94,7 +94,7 @@ let set_outside n =
  * a big K and checking t_from <= t_to[K]. *)
 let sequence_condition t_from t_to = 
   subtype t_from Safe 
-    (TArray(t_to,(Some(Const(CInt32(Int32.of_int 1024,
+    (TArray(t_to,(Some(Const(CInt64(Int64.of_int 1024,
                                     ILong,None)))),[])) Safe 
 
 
