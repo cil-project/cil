@@ -148,7 +148,10 @@ doc: texdoc odoc
 # This will create a file cil.tar.gz. It includes the HTML documentation 
 # so that people can use it even if they don't have ocamldoc, hevea etc. 
 
-.PHONY: distrib
+.PHONY: distrib distrib-nocheck checkdistrib
+
+## Make a distribution and check it
+distrib: distrib-nocheck checkdistrib
 
 # Work in a temporary directory
 TEMP_DIR = TEMP_cil-distrib
@@ -170,20 +173,21 @@ DISTRIB_SRC = pretty.ml pretty.mli errormsg.ml errormsg.mli \
 
 DISTRIB_SRC_FRONTC = cabs.ml cprint.ml clexer.mli clexer.mll \
 		     cparser.mly cxxlexer.mll cxxparser.mly \
-		     cabs2cil.ml cabs2cil.mli frontc.ml frontc.mli
+		     cabs2cil.ml cabs2cil.mli frontc.ml frontc.mli \
+	             cabsvisit.mli cabsvisit.ml patch.mli patch.ml
 
 DISTRIB_SRC_EXT = logcalls.ml logcalls.mli \
                   astslicer.ml simplemem.ml heap.ml partial.ml \
                   logwrites.ml heapify.ml
 
-DISTRIB_LIB = Cilly.pm ccuredannot.h
+DISTRIB_LIB = Cilly.pm
 
 DISTRIB_BIN = CilConfig.pm.in cilly cilly.bat.in \
               patcher patcher.bat.in
 
 DISTRIB_SMALL1=hello.c func.c init.c init1.c wchar1.c vararg1.c testharness.h 
 
-distrib: doc
+distrib-nocheck: doc
         # Create the distribution from scratch
 	rm -rf $(TEMP_DIR)
 	mkdir $(TEMP_DIR)
@@ -236,6 +240,7 @@ distrib: doc
 ## Check a distribution
 checkdistrib:
 	cd $(TOP_DIR) && ./configure && $(MAKE) && $(MAKE) quicktest
+
 
 clean: cleancaml
 	rm -f $(OBJDIR)/machdep.ml
