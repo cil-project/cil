@@ -4463,7 +4463,7 @@ let getCompField (cinfo:compinfo) (fieldName:string) : fieldinfo =
 
 let rec mkCastT ~(e: exp) ~(oldt: typ) ~(newt: typ) = 
   (* Do not remove old casts because they are conversions !!! *)
-  if typeSig oldt = typeSig newt then begin
+  if Util.equals (typeSig oldt) (typeSig newt) then begin
     e
   end else begin
     (* Watch out for constants *)
