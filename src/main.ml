@@ -101,9 +101,9 @@ let makeCFGFeature : C.featureDescr =
 let features : C.featureDescr list = 
   [ Logcalls.feature;
     Logwrites.feature;
-    Heapify.feature1;
+    Oneret.feature;    (* there is a dependency between oneret and *)
+    Heapify.feature1;  (* heapify! they both change return statements *)
     Heapify.feature2;
-    Oneret.feature;
     makeCFGFeature; 
     Partial.feature;
     Simplemem.feature;

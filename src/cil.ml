@@ -4841,7 +4841,7 @@ let rec makeZeroInit (t: typ) : init =
       in
       CompoundInit(t', loopElems [] (n - 1))
   | TPtr _ as t -> SingleInit(CastE(t, zero))
-  | _ -> E.s (E.unimp "makeZeroCompoundInit: %a" d_plaintype t)
+  | x -> E.s (unimp "Cannot initialize type: %a" d_type x)
 
 
 (**** Fold over the list of initializers in a Compound. In the case of an 
