@@ -150,7 +150,7 @@ $(OBJDIR)/cil.$(CMXA): $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
 # be called from C code; this is like the target above, except
 # it is callable from C instead of from Ocaml
 ifeq ($(NATIVECAML),1)
-$(OBJDIR)/libcil.a: $(OCAML_CIL_C_LIB_MODULES:%=$(OBJDIR)/%.cmx)
+$(OBJDIR)/libcil.a: $(OCAML_CIL_C_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
 	ocamlopt -output-obj -o $@ unix.cmxa str.cmxa $^
 else
 $(OBJDIR)/libcil.a:
@@ -226,7 +226,8 @@ DISTRIB_SRC = pretty.ml pretty.mli errormsg.ml errormsg.mli \
 	      cil.ml cil.mli check.ml check.mli \
 	      rmtmps.ml rmtmps.mli formatlex.mll formatparse.mly \
 	      formatcil.mli formatcil.ml testcil.ml \
-	      mergecil.ml mergecil.mli maincil.ml machdep.c
+	      mergecil.ml mergecil.mli maincil.ml machdep.c \
+	      libmaincil.ml
 
 DISTRIB_SRC_FRONTC = cabs.ml cprint.ml clexer.mli clexer.mll \
 		     cparser.mly \
