@@ -1,37 +1,37 @@
 TODO list as of 3/6 (George leaves for Japan)
 
-(1) Make malloc() and friends (calloc(), etc.) get a new node at each
+X(1) Make malloc() and friends (calloc(), etc.) get a new node at each
     callsite. See markprt.ml. 
 (2) Make a file with global declarations of common functions like strcpy().
     These declarations should include pointer annotations and should be
     used instead of the ones that appear in the source.
-(3) Add support for multiple files and separate compilation. Idea: store
+X(3) Add support for multiple files and separate compilation. Idea: store
     the preprocessed source and the compiler flags in a fake .o file. Wait
     until the linking step (when all of the .o files are available at once)
     to actually compile, make the graph, infer the types, and so on.
-(4) Create a more complete example of boxing and inference (e.g.,
+X(4) Create a more complete example of boxing and inference (e.g.,
     hashtest).
-(5) Actually implement some simple constraint solver to infer annotations.
-(6) Modify the boxing code to use the constraint-solver results.
-(7) Have some way to handle memory management (i.e., write a garbage
-    collector).
+X(5) Actually implement some simple constraint solver to infer annotations.
+X(6) Modify the boxing code to use the constraint-solver results.
+X(7) Have some way to handle memory management (i.e., write a garbage
+     collector).
 (8) Handle variable argument functions.
-(9) Find some way to describe [recursive] types at runtime and use them as
-    tags. 
-(10) Consider collapsing A->B->C constraints to A->C if there are no other
+?(9) Find some way to describe [recursive] types at runtime and use them as
+     tags. 
+X(10) Consider collapsing A->B->C constraints to A->C if there are no other
     nodes that touch B. 
 
-(11) The combiner should first rewrite the body of a definition before
+X(11) The combiner should first rewrite the body of a definition before
    checking if it was already encountered. 
 
 
- - casting of function pointers is problematic. For each cast a wrapper should
+X - casting of function pointers is problematic. For each cast a wrapper should
    be written instead! 
 
- - functions with pointer return type but missing returns are a safety
+X - functions with pointer return type but missing returns are a safety
    problem.
 
- - uninintialized local variables are a problem.
+X - uninintialized local variables are a problem.
 
  - vararg functions are a problem. By definition, they involve taking the
    address of a formal argument. BOX sees this and and makes a copy of that
@@ -41,7 +41,7 @@ TODO list as of 3/6 (George leaves for Japan)
    copy them back upon return. This should not be a problem because in most
    C compilers the caller cannot see the effects on the actual arguments.
 
- - We must turn on alignment on a 32-bit boundary. Otherwise, MSVC pads the
+X - We must turn on alignment on a 32-bit boundary. Otherwise, MSVC pads the
    tagged structures (sometimes) and puts an extra word between the length and
    the data. The padding is fixed for now in safeccheck.h
 
@@ -51,4 +51,21 @@ TODO list as of 3/6 (George leaves for Japan)
    overwrite the base part of the pointer to be read with 0. But this might
    have undesired side-effects.
 
- - handle gcc's __PRETTY_FUNCTION__
+X - handle gcc's __PRETTY_FUNCTION__
+
+Front-end
+ - trigraph sequences (??:, ...) ISO 5.2.1.1
+ - name spaces for struct/enum/union are the same ISO 6.2.3
+ - check integer conversion ISO 6.3.1.1
+ - character constants (type, value, escapes) ISO 6.4.4.4
+ - string literals (value, escapes) ISO 6.4.5
+ - punctuation tokens ISO 6.4.6
+ - default argument promotions in function calls ISO 6.5.2.2
+ - compound literals ISO 6.5.2.5. Missing fields initialized to 0!!
+ - check that long long is properly done in type specs ISO 6.7.2
+ - Initialization ISO 6.7.8
+
+CIL:
+X - take TBitfield out of types
+ - allow an lval to the left of a call
+ - bitfields of size 0 !

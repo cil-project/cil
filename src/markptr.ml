@@ -113,7 +113,7 @@ let theFile: global list ref = ref []
 let rec doType (t: typ) (p: N.place) 
                (nextidx: int) : typ * int = 
   match t with 
-    (TVoid _ | TInt _ | TFloat _ | TBitfield _ | TEnum _ ) -> t, nextidx
+    (TVoid _ | TInt _ | TFloat _ | TEnum _ ) -> t, nextidx
   | TPtr (bt, a) -> begin
       match N.nodeOfAttrlist a with
         Some n -> TPtr (bt, a), nextidx (* Already done *)
@@ -719,7 +719,7 @@ end
 
 (*** Handle memcpy function ***)
 let isMemcpy 
-    (reso: (varinfo * bool) option) 
+    (reso: lval option) 
     (f: exp) 
     (args: exp list)
 
@@ -913,13 +913,13 @@ and doInstr (i:instr) : instr =
         | Some _, TVoid _ -> 
             ignore (warn "Call of subroutine is assigned")
         | None, _ -> () (* "Call of function is not assigned" *)
-        | Some (destvi, iscast), _ -> begin
+        | Some dest, _ -> begin
             (* Do the lvalue, just so that the type is done *)
-            let _ = doLvalue (Var destvi, NoOffset) true in
+            let dest', _ = doLvalue dest true in
             (* Add the cast. Make up a phony expression and a node so that we 
              * can call expToType. *)
             ignore (expToType (Const(CStr("a call return")),
-                               rt, N.dummyNode) destvi.vtype !callId)
+                               rt, N.dummyNode) (typeOfLval dest') !callId)
 	end 
       end;
       Call(reso, func', loopArgs formals args, l)

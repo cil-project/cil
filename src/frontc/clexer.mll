@@ -84,7 +84,8 @@ let init_lexicon _ =
       ("__typeof__", TYPEOF); ("__typeof", TYPEOF); ("typeof", TYPEOF); 
       ("__alignof__", ALIGNOF);
       ("__volatile__", VOLATILE);
-      ("__FUNCTION__", FUNCTION__);
+      ("__FUNCTION__", FUNCTION__); 
+      ("__func__", FUNCTION__); (* ISO 6.4.2.2 *)
       ("__PRETTY_FUNCTION__", PRETTY_FUNCTION__);
       ("__label__", LABEL__);
       (*** weimer: GCC arcana ***)
@@ -270,10 +271,11 @@ let octdigit = ['0'-'7']
 let hexdigit = ['0'-'9' 'a'-'f' 'A'-'F']
 let letter = ['a'- 'z' 'A'-'Z']
 
-let usuffix = ['u' 'U']
-let lsuffix = ['l' 'L']
-let intsuffix = (lsuffix|usuffix|(lsuffix lsuffix)|(usuffix lsuffix lsuffix)|(usuffix lsuffix)|(lsuffix usuffix))?
 let floatsuffix = ['f' 'F' 'l' 'L']
+
+let usuffix = ['u' 'U']
+let lsuffix = "l"|"L"|"ll"|"LL"
+let intsuffix = lsuffix | usuffix | usuffix lsuffix | lsuffix usuffix
 
 let intnum = decdigit+ intsuffix?
 let octnum = '0' octdigit+ intsuffix?

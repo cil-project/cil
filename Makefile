@@ -562,9 +562,10 @@ testpcc/% : $(PCCDIR)/src/%.c defaulttarget
 ifdef _MSVC
 MSLINK=--mode=mscl
 endif
-PCCSAFECC=$(SAFECC) --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) --combine \
+PCCSAFECC=$(SAFECC) $(DEF)CCURED \
+                    --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) --combine \
                     --keep=$(CILDIR)/test/PCCout \
-                    --nobox=pccbox
+                    --nobox=pccbox --nobox=alloc
 pcc : defaulttarget
 #	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.o
 	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.exe

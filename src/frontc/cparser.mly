@@ -64,7 +64,6 @@ let announceFunctionName ((n, decl, _):name) =
   and isJUSTBASE = function
       JUSTBASE -> true
     | PARENTYPE (_, d, _) -> isJUSTBASE d
-    | BITFIELD _ -> true
     | _ -> false
   in
   findProto decl;
@@ -212,7 +211,7 @@ let doOldParDecl (names: string list)
 
 %type <spec_elem list> decl_spec_list
 %type <typeSpecifier> type_spec
-%type <Cabs.name_group list> struct_decl_list
+%type <Cabs.field_group list> struct_decl_list
 
 
 %type <Cabs.name> old_proto_decl
@@ -229,8 +228,9 @@ let doOldParDecl (names: string list)
 
 %type <Cabs.init_name> init_declarator
 %type <Cabs.init_name list> init_declarator_list
-%type <Cabs.name> declarator field_decl
-%type <Cabs.name list> field_decl_list
+%type <Cabs.name> declarator
+%type <Cabs.name * expression option> field_decl
+%type <(Cabs.name * expression option) list> field_decl_list
 %type <string * Cabs.decl_type> direct_decl
 %type <Cabs.decl_type> abs_direct_decl abs_direct_decl_opt
 %type <Cabs.decl_type * Cabs.attribute list> abstract_decl
@@ -619,7 +619,8 @@ struct_decl_list: /* (* ISO 6.7.2. Except that we allow empty structs. We
                    */
    /* empty */                           { [] }
 |  decl_spec_list                 SEMICOLON struct_decl_list
-                                         { ($1, [missingFieldDecl]) :: $3 }
+                                         { ($1, 
+                                            [(missingFieldDecl, None)]) :: $3 }
 |  decl_spec_list field_decl_list SEMICOLON struct_decl_list
                                           { ($1, $2) 
                                             :: $4 }
@@ -631,17 +632,9 @@ field_decl_list: /* (* ISO 6.7.2 *) */
 |   field_decl COMMA field_decl_list     { $1 :: $3 }
 ;
 field_decl: /* (* ISO 6.7.2. Except that we allow unnamed fields. *) */
-|   declarator                            { $1 }
-|   declarator COLON expression            
-             { (match $1 with
-                  (n, JUSTBASE, a) -> ( n, BITFIELD $3, a)
-                | (n, d, _) -> Cprint.print_decl n d;
-                            parse_error "bitfield not on an integer type"; 
-                            raise Parsing.Parse_error) 
-             } 
-|              COLON expression   { let (n, _, a) = missingFieldDecl in
-                                    (n, BITFIELD $2, a)
-                                  } 
+|   declarator                           { ($1, None) }
+|   declarator COLON expression          { ($1, Some $3) }    
+|              COLON expression          { (missingFieldDecl, Some $2) }
 ;
 
 enum_list: /* (* ISO 6.7.2.2 *) */

@@ -265,10 +265,6 @@ and print_decl (n: string) = function
       print_attributes al1; space ();
       print_decl n d; space ();
       print_attributes al2; print ")"
-  | BITFIELD e -> 
-      if n <> "___missing_field_name" then print n;
-      print " : ";
-      print_expression e 1
   | PTR (al, d) -> 
       print "* ";
       print_attributes al; space ();
@@ -285,19 +281,19 @@ and print_decl (n: string) = function
       print ")"
 
 
-and print_fields  id (flds : name_group list) =
+and print_fields  id (flds : field_group list) =
   print id;
   if flds = [] then ()
   else begin
     print " {";
     indent ();
     List.iter
-      (fun fld -> print_name_group fld; print ";"; new_line ())
+      (fun fld -> print_field_group fld; print ";"; new_line ())
       flds;
     unindent ();
     print "} "
   end
-      
+
 and print_enum id items =
   print ("enum " ^ id);
   if items = []
@@ -341,6 +337,16 @@ and print_name_group (specs, names) =
   print_specifiers specs;
   print_commas false print_name names
     
+and print_field_group (specs, fields) =
+  print_specifiers specs;
+  print_commas false print_field fields
+    
+
+and print_field (name, widtho) = 
+  print_name name;
+  (match widtho with 
+    None -> ()
+  | Some w -> print " : ";  print_expression w 1)
 
 and print_init_name_group (specs, names) =
   print_specifiers specs;

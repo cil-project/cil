@@ -259,7 +259,6 @@ and baseTypeName = function
   | TFun _ -> "fun"
   | TPtr(t, _) -> "p_" ^ baseTypeName t
   | TArray(t, _, _) -> "a_" ^ baseTypeName t
-  | _ -> "type"
 
 
 (**** Inspect the boxing style attribute *)
@@ -303,9 +302,7 @@ let bitfieldCompinfo comp =
   let containsPointer t = 
     existsType (function TPtr _ -> ExistsTrue | _ -> ExistsMaybe) t in
   if comp.cstruct &&
-    List.exists (fun fi -> 
-      match fi.ftype with 
-        TBitfield _ -> true | _ -> false) comp.cfields &&
+    List.exists (fun fi -> fi.fbitfield <> None) comp.cfields &&
     List.exists (fun fi -> containsPointer fi.ftype) comp.cfields 
   then begin
     (* Go over the fields and collect consecutive bitfields *)
@@ -314,9 +311,10 @@ let bitfieldCompinfo comp =
     let rec loopFields prev prevbits = function
         [] -> List.rev (bundleBitfields prevbits prev)
       | f :: rest -> begin
-          match f.ftype with
-            TBitfield _ -> loopFields prev (f :: prevbits) rest
-          | _ -> loopFields (f :: (bundleBitfields prevbits prev)) [] rest
+          if f.fbitfield <> None then 
+            loopFields prev (f :: prevbits) rest
+          else
+            loopFields (f :: (bundleBitfields prevbits prev)) [] rest
       end
     and bundleBitfields bitfields prev = 
       if bitfields = [] then prev else
@@ -326,12 +324,14 @@ let bitfieldCompinfo comp =
       let bundle = 
         mkCompInfo true bname
           (fun _ -> 
-            List.map (fun f -> f.fname, f.ftype, f.fattr) bitfields) [] 
+            List.map (fun f -> f.fname, f.ftype, 
+                               f.fbitfield, f.fattr) bitfields) [] 
       in
       (* Add it to the file *)
       theFile := consGlobal (GCompTag (bundle, !currentLoc)) !theFile;
       let bfinfo = 
         { fname = bname; ftype = TComp (bundle, []); 
+          fbitfield = None;
           fattr = []; fcomp = comp } in
       (* Go over the previous bitfields and add them to the host map *)
       List.iter2 (fun oldbf newbf -> 
@@ -365,7 +365,6 @@ let getNodeAttributes t =
       TVoid a -> TVoid (dropit N.AtOther a)
     | TInt (i, a) -> TInt (i, dropit N.AtOther a)
     | TFloat (f, a) -> TFloat (f, dropit N.AtOther a)
-    | TBitfield (i, s, a) -> TBitfield (i, s, dropit N.AtOther a)
     | TNamed (n, t, a) -> 
         let isptr = 
           match unrollType t with TPtr _ -> N.AtPtr | _ -> N.AtOther 
@@ -758,7 +757,7 @@ let checkFetchLength =
   checkFunctionDecls := 
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fun tmplen ptr base -> 
-    call (Some (tmplen, false)) (Lval (var fdec.svar))
+    call (Some (var tmplen)) (Lval (var fdec.svar))
       [ castVoidStar ptr; 
         castVoidStar base ]
 
@@ -792,7 +791,7 @@ let checkFetchEnd =
   fun tmplen base -> 
     let ptr = ptrOfBase base in (* we used to use this and worked, but when 
                                  * we added tables stoped working *)
-    call (Some (tmplen, false)) (Lval (var fdec.svar))
+    call (Some (var tmplen)) (Lval (var fdec.svar))
       [ castVoidStar ptr; 
         castVoidStar base ]
 
@@ -1105,7 +1104,7 @@ and fixit t =
     with Not_found -> begin
       let fixed = 
         match t with 
-          (TInt _|TEnum _|TFloat _|TVoid _|TBitfield _) -> t
+          (TInt _|TEnum _|TFloat _|TVoid _) -> t
               
         | TPtr (t', a) -> begin
             (* Extract the boxing style attribute *)
@@ -1123,7 +1122,7 @@ and fixit t =
                 let tcomp = 
                     mkCompInfo true tname 
                     (fun _ -> 
-                      List.map (fun (n,tf) -> (n, tf newType, []))
+                      List.map (fun (n,tf) -> (n, tf newType, None, []))
                         (pkFields pkind))
                     []
                 in
@@ -1226,10 +1225,11 @@ and addArraySize t =
     let newtypecomp = 
          mkCompInfo true tname
            (fun _ -> 
-             [ ("_size", uintType, []); (* Don't pack the first field or else 
-                                         * the whole variable will be packed 
-                                         * against the preceeding one *)
-               ("_array", complt, packAttr); ]) []
+             [ ("_size", uintType, None, []); (* Don't pack the first field 
+                                               * or else the whole variable 
+                                               * will be packed against the 
+                                               * preceeding one  *)
+               ("_array", complt, None, packAttr); ]) []
     in
     (* Register the new tag *)
     theFile := consGlobal (GCompTag (newtypecomp, !currentLoc)) !theFile;
@@ -1265,12 +1265,13 @@ and tagType (t: typ) : typ =
         let tagComp = 
            mkCompInfo true tname
              (fun _ -> 
-               [ ("_len", uintType, []); (* Don't pack the first field,or 
-                                          * else the entire thing will be 
-                                          * packed against the preceeding one *)
-                 ("_data", t, tagAttr);
+               [ ("_len", uintType, None, []); (* Don't pack the first 
+                                                * field,or else the entire 
+                                                * thing will be packed 
+                                                * against the preceeding one  *)
+                 ("_data", t, None, tagAttr);
                  ("_tags", TArray(intType, 
-                                  Some tagWords, []), tagAttr);
+                                  Some tagWords, []), None, tagAttr);
                ])
              []
         in
@@ -1292,8 +1293,8 @@ and tagType (t: typ) : typ =
         let tagComp = 
            mkCompInfo true tname
              (fun _ -> 
-               [ ("_len", uintType, []);
-                 ("_data", complt, []); ]) [] in
+               [ ("_len", uintType, None, []);
+                 ("_data", complt, None, []); ]) [] in
         (* Register the type *)
         theFile := consGlobal (GCompTag (tagComp, !currentLoc)) !theFile;
         TComp (tagComp, [])
@@ -1547,6 +1548,27 @@ let makeTagCompoundInit (tagged: typ)
  * purpose of checking). This is only Ok if the host does not contain pointer 
  * fields *)
 let getHostIfBitfield (lv: lval) (t: typ) : lval * typ = 
+  let (lvbase, lvoff) = lv in
+  (* See if it is a bitfield and if yet, return the host *)
+  let rec getHost = function
+      Field (fi, NoOffset) -> 
+        if fi.fbitfield <> None then NoOffset else raise Not_found
+    | Field (fi, o) -> Field (fi, getHost o)
+    | Index (e, o) -> Index(e, getHost o)
+    | NoOffset -> raise Not_found
+  in
+  try
+    let lv' = lvbase, getHost lvoff in
+    let lv't = typeOfLval lv' in
+    (match unrollType lv't with 
+      TComp (comp, _) when comp.cstruct -> 
+        if List.exists (fun f -> typeContainsFats f.ftype) comp.cfields then
+          E.s (unimp "%s contains both bitfields and pointers.@!LV=%a@!T=%a@!" 
+                 (compFullName comp) d_plainlval lv d_plaintype t)
+    | _ -> E.s (bug "getHost: bitfield not in a struct"));
+    lv', lv't
+  with Not_found -> lv, t
+(*
   match unrollType t with
     TBitfield (ik, wd, a) -> begin
       let lvbase, lvoff = lv in
@@ -1567,7 +1589,7 @@ let getHostIfBitfield (lv: lval) (t: typ) : lval * typ =
       lv', lv't
     end
   | _ -> lv, t
-
+*)
 
 (* Now a routine to take the address of a field *)
 let takeAddressOfBitfield (lv: lval) (t: typ) : exp = 
@@ -1586,7 +1608,8 @@ let offsetOfFirstScalar (t: typ) : exp =
         let containsBitfield = ref false in
         let doOneField acc fi = 
           match acc, fi.ftype with
-            None, TBitfield _ -> containsBitfield := true; None
+            None, TInt _ when fi.fbitfield <> None -> 
+              containsBitfield := true; None
           | None, _ -> 
               theOffset (addOffset (Field(fi, NoOffset)) sofar) fi.ftype
           | Some _, _ -> acc
@@ -1696,7 +1719,7 @@ let stringToSeq (p: exp) (b: exp) (bend: exp) (acc: stmt clist)
   (* Make a new temporary variable *)
   let tmpend = makeTempVar !currentFunction voidPtrType in
   p, p,  (Lval (var tmpend)),
-  CConsL (call (Some (tmpend, false)) (Lval (var checkFetchStringEnd.svar))
+  CConsL (call (Some (var tmpend)) (Lval (var checkFetchStringEnd.svar))
             [ p ],
           acc)
 
@@ -1705,7 +1728,7 @@ let stringToFseq (p: exp) (b: exp) (bend: exp) (acc: stmt clist)
   (* Make a new temporary variable *)
   let tmpend = makeTempVar !currentFunction voidPtrType in
   p, p, (Lval (var tmpend)), 
-  CConsL (call (Some (tmpend, false)) (Lval (var checkFetchStringEnd.svar))
+  CConsL (call (Some (var tmpend)) (Lval (var checkFetchStringEnd.svar))
             [ p ],
           acc)
 
@@ -1746,13 +1769,13 @@ let fromTable (oldk: N.opointerkind)
     let tmpb = makeTempVar !currentFunction voidPtrType in
     let tmpe = makeTempVar !currentFunction voidPtrType in
     tmpb, tmpe,
-    call (Some (tmpb, false)) (Lval (var checkFindHomeEndFun.svar))
+    call (Some (var tmpb)) (Lval (var checkFindHomeEndFun.svar))
       [ integer kind ; castVoidStar p; mkAddrOf (var tmpe) ]
   in
   let fetchHome (kind: int) (p: exp) : varinfo * stmt = 
     let tmpb = makeTempVar !currentFunction voidPtrType in
     tmpb,
-    call (Some (tmpb, false)) (Lval (var checkFindHomeFun.svar))
+    call (Some (var tmpb)) (Lval (var checkFindHomeFun.svar))
       [ integer kind; castVoidStar p ]
   in
   match oldk with
@@ -1866,9 +1889,9 @@ let getFunctionDescriptor (vi: varinfo) : exp =
           let descrInfo = 
             mkCompInfo true "__functionDescriptor"
               (fun _ -> 
-                [ ("_len", uintType, []);
-                  ("_pfun", TPtr(TFun(voidType,[],false, []), []), []);
-                  ("_nrargs", uintType, []) ]) 
+                [ ("_len", uintType, None, []);
+                  ("_pfun", TPtr(TFun(voidType,[],false, []), []), None, []);
+                  ("_nrargs", uintType, None, []) ]) 
               []
           in
           (* Register the tag *)
@@ -2188,7 +2211,7 @@ let rec castTo (fe: fexp) (newt: typ)
               let tmp = makeTempVar !currentFunction voidPtrType in
               Lval(var tmp),
               CConsR (doe,
-                      call (Some (tmp, false)) 
+                      call (Some (var tmp)) 
                         (Lval(var interceptCastFunction.svar)) 
                         [ p ;integer !currentFileId; integer !interceptId ])
             end else 
@@ -2371,8 +2394,7 @@ let rec checkMem (why: checkLvWhy)
     let rec doCheckTags (why: checkLvWhy) (where: lval) 
         (t: typ) (pkind: N.opointerkind) (acc: stmt clist) : stmt clist = 
       match unrollType t with 
-      | (TInt _ | TFloat _ | TEnum _ | TBitfield _ ) -> acc
-(*    | TFun _ -> acc *)
+      | (TInt _ | TFloat _ | TEnum _) -> acc
       | TComp (comp, _) when isFatComp comp -> begin (* A fat pointer *)
           match why with
             ToRead -> (* a read *)
@@ -2413,7 +2435,7 @@ let rec checkMem (why: checkLvWhy)
             
       | TArray(bt, lo, a) -> begin
           match unrollType bt with
-            TInt _ | TFloat _ | TEnum _ | TBitfield _ -> acc
+            TInt _ | TFloat _ | TEnum _ -> acc
           | _ -> begin (* We are reading or writing an array *)
               let len = 
                 match lo with Some len -> len 
@@ -2508,7 +2530,7 @@ let rec checkReturnValue
     (* Return the accumulated statements *)
     stmt clist = 
   match unrollType typ with
-    TInt _ | TBitfield _ | TEnum _ | TFloat _ | TVoid _ -> before
+    TInt _ | TEnum _ | TFloat _ | TVoid _ -> before
   | TPtr (t, _) -> 
       (* This is a lean pointer *) 
       CConsR (before, checkNotBelowStackPointer e)
@@ -2555,7 +2577,7 @@ let rec initializeType
      * accumulator  *)
     : (lval -> stmt clist -> stmt clist) =
   match unrollType t with
-    TInt _ | TFloat _ | TBitfield _ | TEnum _ -> (fun lv acc -> acc)
+    TInt _ | TFloat _ | TEnum _ -> (fun lv acc -> acc)
   | TFun _ -> (fun lv acc -> acc) (* Probably a global function prototype *)
   | TVoid _ -> fun lv acc -> acc (* allocating and returning a void* *)
   | TPtr (bt, a) -> begin
@@ -2823,14 +2845,15 @@ let rec stringLiteral (s: string) (strt: typ) : stmt clist * fexp =
 
 (*************** Handle Allocation ***********)
 let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
-               (vi:  varinfo)   (* Where to put the result *)
+               (dest:  lval)   (* Where to put the result *)
                (f:  exp)        (* The allocation function *)
                (args: exp list) (* The arguments passed to the allocation *) 
     : stmt clist =
   (*(trace "malloc" (dprintf "Al@[location call of %a.@?type(vi) = %a@!@] vtype = %a@!"*)
   (*                         d_exp f d_plaintype vi.vtype*)
   (*                         d_plaintype vtype));*)
-  let k = kindOfType vi.vtype in
+  let destt = typeOfLval dest in
+  let k = kindOfType destt in
   let kno_t = N.stripT k in
   (* Get the size *)
   let sz = ai.aiGetSize args in
@@ -2844,14 +2867,14 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
   let nrdatabytes = wrdsToBytes nrdatawords in
 
   (* Find the pointer type and the offset where to save it *)
-  let ptrtype, ptroff = 
+  let ptrtype, dest_ptr = 
     match k with 
       N.Wild | N.Seq | N.FSeq | N.SeqN | N.FSeqN | N.Index -> 
-        let fptr, fbase, fendo = getFieldsOfFat vi.vtype in 
-        fptr.ftype, Field(fptr, NoOffset)
+        let fptr, fbase, fendo = getFieldsOfFat destt in 
+        fptr.ftype, addOffsetLval (Field(fptr, NoOffset)) dest
     | N.Safe | N.String 
     | N.WildT | N.SeqT | N.FSeqT | N.SeqNT | N.FSeqNT | N.IndexT 
-      -> vi.vtype, NoOffset
+      -> destt, dest
     | _ -> E.s (unimp "pkAllocate: ptrtype (%a)" N.d_opointerkind k)
   in
   (* Get the base type *)
@@ -2875,7 +2898,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
       (* Call the allocation function and put the result in a temporary *)
   let tmpp = makeTempVar !currentFunction ptrtype in
   let tmpvar = Lval(var tmpp) in
-  let alloc = call (Some (tmpp, true)) f (ai.aiNewSize allocsz args) in
+  let alloc = call (Some (var tmpp)) f (ai.aiNewSize allocsz args) in
   (* Adjust the allocation pointer past the size prefix (if any) *)
   let adjust_ptr = 
     match kno_t with
@@ -2888,14 +2911,14 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
   in
 
   (* Save the pointer value into the final result *)
-  let assign_p = mkSet (Var vi, ptroff) tmpvar in
+  let assign_p = mkSet dest_ptr tmpvar in
   (* And the base, if necessary. This one is equal to the pointer value *)
   let assign_base = 
     match k with 
       N.Wild | N.Seq | N.SeqN | N.Index -> begin
-        let fptr, fbaseo, fendo = getFieldsOfFat vi.vtype in
+        let fptr, fbaseo, fendo = getFieldsOfFat destt in
         match fbaseo with
-          Some fbase -> (mkSet (Var vi, Field(fbase, NoOffset))
+          Some fbase -> (mkSet (addOffsetLval (Field(fbase, NoOffset)) dest)
                            (doCast tmpvar voidPtrType))
         | _ -> mkEmptyStmt ()
       end
@@ -2993,7 +3016,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
 
     | N.String -> (* Allocate this as SeqN, with a null term *)
         ignore (warn "Allocation of string. Use FSEQN instead. (%a)"
-                  d_lval (var vi));
+                  d_lval dest);
         single (mkSet (Mem(BinOp(PlusPI,
                                    doCast tmpvar charPtrType,
                                    BinOp(MinusA, nrdatabytes, one, intType), 
@@ -3009,10 +3032,11 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
   let assign_end = 
     match k with 
       N.Seq | N.SeqN | N.FSeq | N.FSeqN -> begin
-        let fptr, fbase, fendo = getFieldsOfFat vi.vtype in
+        let fptr, fbase, fendo = getFieldsOfFat destt in
         match fendo with
           None -> mkEmptyStmt ()
-        | Some fend -> mkSet (Var vi, Field(fend, NoOffset)) tmpvar
+        | Some fend -> 
+            mkSet (addOffsetLval (Field(fend, NoOffset)) dest) tmpvar
       end
     | _ -> mkEmptyStmt ()
   in
@@ -3026,11 +3050,11 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
             registerAreaTaggedInt else registerAreaSizedInt
         in
         registerArea [ integer areaKind;
-                       castVoidStar (Lval (Var vi, ptroff));
+                       castVoidStar (Lval dest_ptr);
                        zero ] empty
     | N.Seq | N.SeqN | N.FSeq | N.FSeqN -> 
         registerArea [ integer registerAreaSeqInt;
-                       castVoidStar (Lval (Var vi, ptroff));
+                       castVoidStar (Lval dest_ptr);
                        castVoidStar tmpvar ] empty
     | _ -> E.s (bug "pkAllocate: register_area: %a" N.d_opointerkind k)
   in        
@@ -3064,7 +3088,7 @@ let fixupGlobName vi =
   (* Scan a type and compute a list of qualifiers that distinguish the
    * various possible combinations of qualifiers *)
    let rec qualNames acc = function
-      TInt _ | TFloat _ | TBitfield _ | TVoid _ | TEnum _ -> acc
+      TInt _ | TFloat _ | TVoid _ | TEnum _ -> acc
     | TPtr(t', _) as t -> 
         let pk = kindOfType t in
         pkQualName pk acc (fun acc' -> qualNames acc' t')
@@ -3125,7 +3149,7 @@ let fixupGlobName vi =
 
 (*** Intercept some function calls *****)
 let interceptCall 
-    (reso: (varinfo * bool) option)
+    (reso: lval option)
     (func: exp)
     (args: exp list) : stmt = 
   call reso func args
@@ -3225,10 +3249,13 @@ and boxinstr (ins: instr) : stmt clist =
         append dolv (append doe3 (CConsR (check, mkSet lv' e3)))
 
         (* Check if the result is a heapified variable *)
-    | Call (Some (vi, iscast), f, args, l) 
+    | Call (Some (Var vi, NoOffset), f, args, l) 
         when H.mem heapifiedLocals vi.vname -> 
           currentLoc := l;
           let newb, newoff = H.find heapifiedLocals vi.vname in
+          let stmt1 = boxinstr (Call (Some (newb, newoff), f, args, l)) in
+          stmt1
+(*
           (* Make a temporary variable with the same type *)
           let tmp = makeTempVar !currentFunction vi.vtype in
           (* Fix its type *)
@@ -3239,7 +3266,7 @@ and boxinstr (ins: instr) : stmt clist =
           let stmt2 = boxinstr (Set ((newb, newoff),
                                      Lval (var tmp), l)) in
           append stmt1 stmt2
-
+*)
     | Call(vio, f, args, l) ->
         currentLoc := l;
         let (ft, dof, f', fkind) = 
@@ -3383,8 +3410,51 @@ and boxinstr (ins: instr) : stmt clist =
               | _ -> single (call None f' args')
                 
             end
-
-          | Some (vi, _) -> begin
+          | Some destlv -> begin
+              (* Always go through a temporary to ensure the we do the right 
+               * checks when we write the destination. We fix the return type 
+               * again because maybe it is for a polymorphic function and it 
+               * didn't get fixed before. *)
+              let tmp = makeTempVar !currentFunction (fixupType ftret) in
+              (* Now do the call itself *)
+              let thecall = 
+                match isallocate with
+                  None -> single (interceptCall (Some(var tmp)) f' args')
+                | Some ai -> pkAllocate ai (var tmp) f' args'
+              in
+              (* Now use boxinstr to do the code after Call properly *)
+              let aftercall = boxinstr (Set(destlv, Lval (var tmp), l)) in
+              (* Now put them together *)
+              append thecall aftercall
+          end
+(*              
+              let (lvt, lvkind, lv', lvbase, lvend, dolv) = boxlval destlv in
+              let iscast = typeSigBox(ftret) <> typeSigBox lvt in
+              (* See if at least one of the types is a composite type. In 
+              * that case we cannot use casts.  *)
+              let somecomp = 
+                match unrollType lvt, unrollType ftret with
+                  TComp _, _ -> true
+                | _, TComp _ -> true
+                | _ -> false
+              in
+              match isallocate with
+                None -> 
+                  if somecomp && iscast then 
+                    CConsL(interceptCall (Some(var tmp)) f' args',
+                           (* Use boxinstr to do the proper cast and the 
+                            * proper checks  *)
+                           append 
+                             dolv
+                             (boxinstr (Set(lv', Lval (var tmp), l)))) 
+                  else
+                    CConsR(dolv, interceptCall (Some lv') f' args')
+                                                          
+              | Some ai -> 
+                  append dolv (pkAllocate ai lv' f' args')
+          end
+*)              
+(*
              (* If the destination variable gets tags then we must put the 
               * result of the call into a temporary first  *)
              (* Compute the destination of the call and some code to use 
@@ -3434,6 +3504,7 @@ and boxinstr (ins: instr) : stmt clist =
               | Some ai -> 
                   append (pkAllocate ai vi1 f' args') setvi1
           end
+*)
         in
         append dof (append doargs finishcall)
 
@@ -3992,7 +4063,8 @@ let boxFile file =
                 (fun v (acc_s, acc_t) -> 
                   if hasAttribute "heapify" v.vattr then begin
                     ignore (warn "Moving local %s to the heap." v.vname);
-                    let newfield = (v.vname, fixupType v.vtype, v.vattr) in
+                    let newfield = (v.vname, fixupType v.vtype, 
+                                    None, v.vattr) in
                     let istagged = 
                       match N.nodeOfAttrlist v.vattr with 
                         Some n -> n.N.kind = N.Wild
@@ -4009,7 +4081,8 @@ let boxFile file =
             in
             let newbody = 
               let doHeapify (istagged: bool) 
-                            (hFields: (string * typ * attribute list) list) 
+                            (hFields: (string * typ * 
+                                       int option * attribute list) list) 
                             (body: stmt clist) : stmt clist = 
                 if hFields = [] then body 
                 else begin
@@ -4030,7 +4103,7 @@ let boxFile file =
                   (* Now insert the call to malloc. It will be processed 
                    * properly when the body is boxed later *)
                   let callmalloc = 
-                    call (Some (heapVar, true)) 
+                    call (Some (var heapVar)) 
                       (Lval(var mallocFun.svar)) 
                       [ SizeOfE (Lval (Mem (Lval (var heapVar)), NoOffset)) ] 
                   in
@@ -4249,7 +4322,7 @@ let boxFile file =
     (* Now build a body that calls the wrapper *)
     main.sbody <- 
        mkStmtOneInstr 
-         (Call (Some (exitcode, false), Lval (var mainWrapperFun.svar),
+         (Call (Some (var exitcode), Lval (var mainWrapperFun.svar),
                 [ Lval (var argc); Lval (var argv) ], lu))
        ::
        mkStmt (Return (Some (Lval (var exitcode)), lu)) 

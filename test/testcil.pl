@@ -117,6 +117,7 @@ $TEST->add3Tests("test/box1");
 $TEST->add3Tests("test/cast1");
 $TEST->add3Tests("test/cast2");
 $TEST->add3Tests("test/constprop");
+$TEST->add1Test("testrun/const1");
 $TEST->add3Tests("test/enum");
 $TEST->add3Tests("test/format1");
 $TEST->add3Tests("test/func");

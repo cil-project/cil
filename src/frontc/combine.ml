@@ -217,6 +217,17 @@ let processDeclName
   end
 
 (* --------------------- equality functions -------------------- *)
+
+(* Generic comparison of lists *)
+let rec equal_lists (eqone: 'a -> 'a -> bool) 
+                (l1: 'a list)
+                (l2: 'a list) = 
+    match l1, l2 with
+      [], [] -> true
+    | h1 :: t1, h2 :: t2 -> eqone h1 h2 && equal_lists eqone t1 t2
+    | _ -> false
+
+
 (* sm: fairly detailed (though still not complete) comparison of
  * declarations for the purpose of detecting inconsistency between
  * different source files; I'm sure this kind of comparison must
@@ -254,13 +265,13 @@ begin
   | Tstruct(n1, None), Tstruct(n2, None) -> (n1 = n2)
   | Tstruct(n1, Some fields1), Tstruct(n2, Some fields2) ->
       n1 = n2 &&
-      (tagequal || (equal_name_group_lists fields1 fields2))
+      (tagequal || (equal_field_group_lists fields1 fields2))
   | Tstruct (n1, _), Tstruct(n2, _) -> tagequal && n1 = n2
 
   | Tunion(n1, None), Tunion(n2, None) -> (n1 = n2)
   | Tunion(n1, Some fields1), Tunion(n2, Some fields2) ->
       n1 = n2 &&
-      (tagequal || (equal_name_group_lists fields1 fields2))
+      (tagequal || (equal_field_group_lists fields1 fields2))
   | Tunion (n1, _), Tunion(n2, _) -> tagequal && n1 = n2
 
   | Tenum(n1, None), Tenum(n2, None) -> (n1 = n2)
@@ -280,34 +291,54 @@ begin
   | _,_ -> false
 end
 
+
 and equal_enum_item_lists (fields1 : enum_item list)
                           (fields2 : enum_item list) : bool =
+  equal_lists 
+    (fun (tag1, e1) (tag2, e2) -> tag1 = tag2 && e1 = e2)
+    fields1
+    fields2
+(*
 begin
   match fields1, fields2 with
   | [], [] -> true
   | (tag1, e1) :: rest1, (tag2, e2) :: rest2 ->
-      (tag1 = tag2) && e1 = e2 &&
+       &&
       (equal_enum_item_lists rest1 rest2)
 
   | _, _ -> false
 end
+*)
 
-and equal_name_group_lists (fields1 : name_group list)
-                           (fields2 : name_group list) : bool =
+and equal_field_group_lists (fields1 : field_group list)
+                            (fields2 : field_group list) : bool =
+  equal_lists
+    (fun (specs1, flds1) (specs2, flds2) ->
+      equal_spec_lists true specs1 specs2 &&
+      equal_field_lists flds1 flds2)
+    fields1
+    fields2
+(*
 begin
   match (fields1, fields2) with
   | [], [] -> true
   | (specs1, names1) :: rest1, (specs2, names2) :: rest2 -> (
       (equal_spec_lists true specs1 specs2) &&
-      (equal_name_lists names1 names2) &&
-      (equal_name_group_lists rest1 rest2)
+      (equal_field_lists names1 names2) &&
+      (equal_field_group_lists rest1 rest2)
     )          
   | _, _ -> false
 end
-
+*)
 and equal_spec_lists (tagequal: bool)  (* Trust tag equality *) 
                      (specs1 : spec_elem list)
                      (specs2 : spec_elem list) : bool =
+  equal_lists
+    (fun s1 s2 -> equal_specs tagequal s1 s2)
+    specs1
+    specs2
+
+(*
 begin
   match (specs1, specs2) with
   | [], [] -> true
@@ -317,10 +348,15 @@ begin
     )
   | _, _ -> false
 end
+*)
 
 and equal_name_lists (names1 : name list) 
                      (names2 : name list) : bool =
-begin
+  equal_lists
+    (fun n1 n2 -> equal_names n1 n2) 
+    names1
+    names2
+(*
   match (names1, names2) with
   | [], [] -> true
   | n1 :: rest1, n2 :: rest2 -> (
@@ -328,8 +364,15 @@ begin
       (equal_name_lists rest1 rest2)
     )
   | _, _ -> false
-end
+*)
 
+and equal_field_lists (flds1: (name * expression option) list)
+                      (flds2: (name * expression option) list) =
+  equal_lists
+    (fun (n1, w1) (n2, w2) -> equal_names n1 n2 && w1 = w2)
+    flds1
+    flds2
+                      
 and equal_names (n1 : name) (n2 : name) : bool =
 begin
   let (id1, dtype1, _) = n1 in
@@ -348,7 +391,6 @@ begin
   | PARENTYPE(_, p1, _), PARENTYPE(_, p2, _) ->
       (* continuing to ignore attributes.. *)
       (equal_decltypes p1 p2)
-  | BITFIELD e1, BITFIELD e2 -> e1 = e2
   | ARRAY(elt1, sz1), ARRAY(elt2, sz2) ->
       sz1 = sz2 &&
       (equal_decltypes elt1 elt2)
@@ -536,9 +578,13 @@ and alpha_attrs al =
  * struct/union/enum tags and about the enum items *)
 and doSpecs (isglobal: bool) (* Whether we are at global scope *)
             (se: spec_elem list) : spec_elem list =
-  let doFields (ngl: name_group list) = 
-    let doOneField ((id, typ, al): name) =
-      (id, alpha_decl_type typ, alpha_attrs al)
+  let doFields (ngl: field_group list) = 
+    let doOneField (((id, typ, al): name), widtho) =
+      let doWidth = function
+          None -> None
+        | Some w -> Some (alpha_expression w)
+      in
+      ((id, alpha_decl_type typ, alpha_attrs al), doWidth widtho)
     in
     let doNameGroup (specs, ng) = 
       (doSpecs false specs, List.map doOneField ng)
@@ -648,7 +694,6 @@ and doSpecs (isglobal: bool) (* Whether we are at global scope *)
 
 and alpha_decl_type = function
   | JUSTBASE -> JUSTBASE
-  | BITFIELD exp -> BITFIELD (alpha_expression exp)
   | PROTO (typ, pars, ell) -> 
       PROTO(alpha_decl_type typ, alpha_params pars, ell)
   | PTR (attrs, typ) -> PTR(alpha_attrs attrs, alpha_decl_type typ)

@@ -116,8 +116,8 @@ let addCompatEdges (n1: node) =
   (* Process a pair of type which are in ECast or ECompat relationship *)
   and doTypePair (t1: typ) (t2: typ) = 
     match t1, t2 with
-    | (TInt _ | TFloat _ | TEnum _ | TBitfield _), 
-      (TInt _ | TFloat _ | TEnum _ | TBitfield _) -> ()
+    | (TInt _ | TFloat _ | TEnum _), 
+      (TInt _ | TFloat _ | TEnum _) -> ()
 
     | TPtr (bt1, a1), TPtr (bt2, a2) -> begin
         match nodeOfAttrlist a1, nodeOfAttrlist a2 with 

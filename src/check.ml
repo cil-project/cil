@@ -126,7 +126,6 @@ let rec checkType (t: typ) (ctx: ctxType) =
   (* Check that it appears in the right context *)
   let rec checkContext = function
       TVoid _ -> ctx = CTPtr || ctx = CTFRes
-    | TBitfield _ ->  ctx = CTStruct  (* bitfields only in structures *)
     | TNamed (_, t, a) -> checkContext t
     | TArray _ -> 
         (ctx = CTStruct || ctx = CTUnion || ctx = CTSizeof || ctx = CTDecl)
@@ -139,11 +138,6 @@ let rec checkType (t: typ) (ctx: ctxType) =
     TVoid a -> checkAttributes a
   | TInt (ik, a) -> checkAttributes a
   | TFloat (_, a) -> checkAttributes a
-  | TBitfield (ik, w, a) -> 
-      checkAttributes a;
-      if w < 0 || w >= bitsSizeOf (TInt(ik, a)) then
-        ignore (E.warn "Wrong width (%d) in bitfield" w)
-
   | TPtr (t, a) -> checkAttributes a;  checkType t CTPtr
 
   | TNamed (n, t, a) -> 
@@ -231,9 +225,6 @@ and typeMatch (t1: typ) (t2: typ) =
     (* Allow free interchange of TInt and TEnum *)
       TInt (IInt, _), TEnum _ -> ()
     | TEnum _, TInt (IInt, _) -> ()
-    (* Allow free interchange of TInt and TBitfield *)
-    | TInt (ik, _), TBitfield (ik', _, _) when ik = ik' -> ()
-    | TBitfield (ik', _, _), TInt (ik, _) when ik = ik' -> ()
 
     | _, _ -> ignore (E.warn "Type mismatch:@!    %a@!and %a@!" 
                         d_type t1 d_type t2)
@@ -267,6 +258,15 @@ and checkCompInfo comp =
         ignore (E.warn "Self pointer not set in field %s of %s" 
                   f.fname fullname);
       checkType f.ftype fctx;
+      (* Check the bitfields *)
+      (match unrollType f.ftype, f.fbitfield with
+      | TInt (ik, a), Some w -> 
+          checkAttributes a;
+          if w < 0 || w >= bitsSizeOf (TInt(ik, a)) then
+            ignore (E.warn "Wrong width (%d) in bitfield" w)
+      | _, Some w -> 
+          ignore (E.error "Bitfield on a non integer type\n")
+      | _ -> ());
       checkAttributes f.fattr
     in
     List.iter checkField comp.cfields
@@ -357,7 +357,7 @@ and checkExp (isconst: bool) (e: exp) : typ =
           (* Sizeof cannot be applied to certain types *)
           checkType t CTSizeof;
           (match unrollType t with
-            (TFun _ | TVoid _ | TBitfield _) -> 
+            (TFun _ | TVoid _) -> 
               ignore (E.warn "Invalid operand for sizeof")
           | _ ->());
           uintType
@@ -370,7 +370,7 @@ and checkExp (isconst: bool) (e: exp) : typ =
           (* Sizeof cannot be applied to certain types *)
           checkType t CTSizeof;
           (match unrollType t with
-            (TFun _ | TVoid _ | TBitfield _) -> 
+            (TFun _ | TVoid _) -> 
               ignore (E.warn "Invalid operand for sizeof")
           | _ ->());
           uintType
@@ -436,7 +436,7 @@ and checkExp (isconst: bool) (e: exp) : typ =
           let tlv = checkLval isconst lv in
           (* Only certain types can be in AddrOf *)
           match unrollType tlv with
-          | TArray _ | TBitfield _ | TVoid _ -> 
+          | TArray _ | TVoid _ -> 
               E.s (E.bug "AddrOf on improper type");
               
           | (TInt _ | TFloat _ | TPtr _ | TComp _ | TFun _ ) -> 
@@ -562,10 +562,9 @@ and checkInstr (i: instr) =
         None, TVoid _ -> ()
       | Some _, TVoid _ -> ignore (E.warn "Call of subroutine is assigned")
       | None, _ -> () (* "Call of function is not assigned" *)
-      | Some (destvi, iscast), rt' -> 
-          checkVariable destvi;
-          if typeSig destvi.vtype <> typeSig rt then
-            if iscast then 
+      | Some destlv, rt' -> 
+          let desttyp = checkLval false destlv in
+          if typeSig desttyp <> typeSig rt then
                   (* Not all types can be cast *)
               (match rt' with
                 TArray _ -> E.s (E.warn "Cast of an array type")
@@ -573,12 +572,7 @@ and checkInstr (i: instr) =
               | TComp _ -> E.s (E.warn "Cast of a composite type")
               | TVoid _ -> E.s (E.warn "Cast of a void type")
 
-              | _ -> ())
-            else
-              ignore (E.log "Type mismatch at function return value\n")
-          else
-            if iscast then 
-              ignore (E.log "Call is marked \"iscast\" even though it shouldn't\n"));
+              | _ -> ()));
           (* Now check the arguments *)
       let rec loopArgs formals args = 
         match formals, args with

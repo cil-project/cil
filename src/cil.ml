@@ -114,6 +114,8 @@ and fieldinfo = {
                                          * "___missing_field_name" in which 
                                          * case it is not printed *)
     mutable ftype: typ;
+    mutable fbitfield: int option;      (* If a bitfield then ftype should be 
+                                         * an integer type *)
     mutable fattr: attribute list;
 }
 
@@ -155,7 +157,6 @@ and enuminfo = {
 and typ =
     TVoid of attribute list
   | TInt of ikind * attribute list
-  | TBitfield of ikind * int * attribute list
   | TFloat of fkind * attribute list
 
            (* A reference to an enumeration type. All such references must 
@@ -380,11 +381,11 @@ and instr =
     Set        of lval * exp * location  (* An assignment. A cast is present 
                                           * if the exp has different type 
                                           * from lval *)
-  | Call       of (varinfo * bool) option * exp * exp list * location
- 			 (* optional: result temporary variable and an 
-                          * indication that a cast is necessary (the declared 
-                          * type of the function is not the same as that of 
-                          * the result), the function value, argument list, 
+  | Call       of lval option * exp * exp list * location
+ 			 (* optional: result temporary variable. A cast might 
+                          * be necessary if the declared result type of the 
+                          * function is not the same as that of the 
+                          * destination, the function value, argument list, 
                           * location. If the function is declared then casts 
                           * are inserted for those arguments that correspond 
                           * to declared formals. (The actual number of 
@@ -662,6 +663,22 @@ let printLine (l : location) : string =
 let kinteger (k: ikind) (i: int) = Const (CInt32(Int32.of_int i, k,  None))
 let kinteger32 (k: ikind) (i: int32) =  Const (CInt32(i, k,  None))
 
+(* Construct an integer of the first kinds that fits. i must be POSITIVE *)
+let integerKinds (k: ikind list) (i: int64) : exp = 
+  let rec loop = function
+  | ((IInt | ILong) as k) :: _ when i < Int64.shift_left (Int64.of_int 1) 31 ->
+      kinteger32 k (Int64.to_int32 i)
+  | ((IUInt | IULong) as k) :: _ when i < Int64.shift_left (Int64.of_int 1) 32 -> 
+      kinteger32 k (Int64.to_int32 i)
+  | (ILongLong as k) :: _ when i < Int64.shift_left (Int64.of_int 1) 31 -> 
+      kinteger32 k (Int64.to_int32 i) (* !! We need 64 bit integer for this *)
+  | (IULongLong as k) :: _ when i < Int64.shift_left (Int64.of_int 1) 32 -> 
+      kinteger32 k (Int64.to_int32 i) (* !! We need 64 bit integer for this *)
+  | _ :: rest -> loop rest
+  | [] -> E.s (E.unimp "Cannot represent the integer %s\n" (Int64.to_string i))
+  in
+  loop k 
+
 (* Construct an integer. Use only for values that fit on 31 bits *)
 let integer (i: int) = kinteger IInt i
 let integer32 (i: int32) = kinteger32 IInt i
@@ -847,7 +864,8 @@ let mkCompInfo
                 * representation of the structure type constructs the type of 
                 * the fields. The function can ignore this argument if not 
                 * constructing a recursive type.  *)
-               (mkfspec: typ -> (string * typ * attribute list) list) 
+               (mkfspec: typ -> (string * typ * 
+                                 int option * attribute list) list) 
                (a: attribute list) : compinfo =
    (* make an new name for anonymous structs *)
    if n = "" then 
@@ -862,10 +880,12 @@ let mkCompInfo
    let self = ref voidType in
    let tforward = TComp (comp, []) in
    let flds = 
-       List.map (fun (fn, ft, fa) -> { fcomp = comp;
-                                       ftype = ft;
-                                       fname = fn;
-                                       fattr = fa }) (mkfspec tforward) in
+       List.map (fun (fn, ft, fb, fa) -> 
+          { fcomp = comp;
+            ftype = ft;
+            fname = fn;
+            fbitfield = fb;
+            fattr = fa }) (mkfspec tforward) in
    comp.cfields <- flds;
    comp
 
@@ -1155,8 +1175,161 @@ let separateStorageModifiers (al: attribute list) =
                                              if args = [] then [AId(an)] else
                                              [ACons(an, args)])) stom in
     stom', rest
+
+
+let rec typeAttrs = function
+    TVoid a -> a
+  | TInt (_, a) -> a
+  | TFloat (_, a) -> a
+  | TNamed (n, t, a) -> addAttributes a (typeAttrs t)
+  | TPtr (_, a) -> a
+  | TArray (_, _, a) -> a
+  | TComp (comp, a) -> addAttributes comp.cattr a
+  | TEnum (enum, a) -> addAttributes enum.eattr a
+  | TFun (_, _, _, a) -> a
+
+
+let setTypeAttrs t a =
+  match t with
+    TVoid _ -> TVoid a
+  | TInt (i, _) -> TInt (i, a)
+  | TFloat (f, _) -> TFloat (f, a)
+  | TNamed (n, t, _) -> TNamed(n, t, a)
+  | TPtr (t', _) -> TPtr(t', a)
+  | TArray (t', l, _) -> TArray(t', l, a)
+  | TComp (comp, _) -> TComp (comp, a)
+  | TEnum (enum, _) -> TEnum (enum, a)
+  | TFun (r, args, v, _) -> TFun(r,args,v,a)
+
+
+let typeAddAttributes a0 t = 
+  if a0 == [] then t else
+  let add a = addAttributes a0 a in
+  match t with 
+    TVoid a -> TVoid (add a)
+  | TInt (ik, a) -> TInt (ik, add a)
+  | TFloat (fk, a) -> TFloat (fk, add a)
+  | TEnum (enum, a) -> TEnum (enum, add a)
+  | TPtr (t, a) -> TPtr (t, add a)
+  | TArray (t, l, a) -> TArray (t, l, add a)
+  | TFun (t, args, isva, a) -> TFun(t, args, isva, add a)
+  | TComp (comp, a) -> TComp (comp, add a)
+  | TNamed (n, t, a) -> TNamed (n, t, add a)
+
+let typeRemoveAttributes (a0: attribute list) t = 
+  let drop (al: attribute list) = dropAttributes a0 al in
+  match t with 
+    TVoid a -> TVoid (drop a)
+  | TInt (ik, a) -> TInt (ik, drop a)
+  | TFloat (fk, a) -> TFloat (fk, drop a)
+  | TEnum (enum, a) -> TEnum (enum, drop a)
+  | TPtr (t, a) -> TPtr (t, drop a)
+  | TArray (t, l, a) -> TArray (t, l, drop a)
+  | TFun (t, args, isva, a) -> TFun(t, args, isva, drop a)
+  | TComp (comp, a) -> TComp (comp, drop a)
+  | TNamed (n, t, a) -> TNamed (n, t, drop a)
+
+
+     (* Type signatures. Two types are identical iff they have identical 
+      * signatures *)
+type typsig = 
+    TSArray of typsig * exp option * attribute list
+  | TSPtr of typsig * attribute list
+  | TSComp of bool * string * attribute list
+  | TSFun of typsig * typsig list * bool * attribute list
+  | TSEnum of string * attribute list
+  | TSBase of typ
+
+(* Compute a type signature *)
+let rec typeSigWithAttrs doattr t = 
+  let typeSig = typeSigWithAttrs doattr in
+  match t with 
+  | (TInt _ | TFloat _ | TVoid _) -> TSBase t
+  | TEnum (enum, a) -> TSEnum (enum.ename, doattr a)
+  | TPtr (t, a) -> TSPtr (typeSig t, doattr a)
+  | TArray (t,l,a) -> TSArray(typeSig t, l, doattr a)
+  | TComp (comp, a) -> 
+      TSComp (comp.cstruct, comp.cname, doattr (addAttributes comp.cattr a))
+  | TFun(rt,args,isva,a) -> TSFun(typeSig rt, 
+                                  List.map (fun vi -> (typeSig vi.vtype)) args,
+                                  isva, doattr a)
+  | TNamed(_, t, a) -> typeSigAddAttrs (doattr a) (typeSig t)
+      
+and typeSigAddAttrs a0 t = 
+  if a0 == [] then t else
+  match t with 
+    TSBase t -> TSBase (typeAddAttributes a0 t)
+  | TSPtr (ts, a) -> TSPtr (ts, addAttributes a0 a)
+  | TSArray (ts, l, a) -> TSArray(ts, l, addAttributes a0 a)
+  | TSComp (iss, n, a) -> TSComp (iss, n, addAttributes a0 a)
+  | TSEnum (n, a) -> TSEnum (n, addAttributes a0 a)
+  | TSFun(ts, tsargs, isva, a) -> TSFun(ts, tsargs, isva, addAttributes a0 a)
+
+
+let typeSig t = typeSigWithAttrs (fun al -> al) t
+
+(* Remove the attribute from the top-level of the type signature *)
+let setTypeSigAttrs (a: attribute list) = function
+    TSBase t -> TSBase (setTypeAttrs t a)
+  | TSPtr (ts, _) -> TSPtr (ts, a)
+  | TSArray (ts, l, _) -> TSArray(ts, l, a)
+  | TSComp (iss, n, _) -> TSComp (iss, n, a)
+  | TSEnum (n, _) -> TSEnum (n, a)
+  | TSFun (ts, tsargs, isva, _) -> TSFun (ts, tsargs, isva, a)
+
+
+let typeSigAttrs = function
+    TSBase t -> typeAttrs t
+  | TSPtr (ts, a) -> a
+  | TSArray (ts, l, a) -> a
+  | TSComp (iss, n, a) -> a
+  | TSEnum (n, a) -> a
+  | TSFun (ts, tsargs, isva, a) -> a
   
 
+(**** Compute the type of an expression ****)
+let rec typeOf (e: exp) : typ = 
+  match e with
+  | Const(CInt32 (_, ik, _)) -> TInt(ik, [])
+  | Const(CChr _) -> charType
+  | Const(CStr _) -> charPtrType 
+  | Const(CReal (_, fk, _)) -> TFloat(fk, [])
+  | Lval(lv) -> typeOfLval lv
+  | SizeOf _ | SizeOfE _ -> uintType
+  | AlignOf _ | AlignOfE _ -> uintType
+  | UnOp (_, _, t) -> t
+  | BinOp (_, _, _, t) -> t
+  | Question (_, e2, _) -> typeOf e2
+  | CastE (t, _) -> t
+  | AddrOf (lv) -> TPtr(typeOfLval lv, [])
+  | StartOf (lv) -> begin
+      match unrollType (typeOfLval lv) with
+        TArray (t,_, _) -> TPtr(t, [])
+      | TFun _ as t -> TPtr(t, [])
+     | _ -> E.s (E.bug "typeOf: StartOf on a non-array or non-function")
+  end
+      
+and typeOfInit (i: init) : typ = 
+  match i with 
+    SingleInit e -> typeOf e
+  | CompoundInit (t, _) -> t
+
+and typeOfLval = function
+    Var vi, off -> typeOffset vi.vtype off
+  | Mem addr, off -> begin
+      match unrollType (typeOf addr) with
+        TPtr (t, _) -> typeOffset t off
+      | _ -> E.s (E.bug "typeOfLval: Mem on a non-pointer")
+  end
+
+and typeOffset basetyp = function
+    NoOffset -> basetyp
+  | Index (_, o) -> begin
+      match unrollType basetyp with
+        TArray (t, _, _) -> typeOffset t o
+      | t -> E.s (E.bug "typeOffset: Index on a non-array")
+  end 
+  | Field (fi, o) -> typeOffset fi.ftype o
 
 
 (* Print attributes in a custom way *)
@@ -1222,7 +1395,7 @@ let rec d_decl (docName: unit -> doc) (dnwhat: docNameWhat) () this =
         ++ d_attrlistpost () a 
         ++ text " "
         ++ docName ()
-
+(*
   | TBitfield(ikind,i,a) -> 
       (* dprintf "%a%a %t : %d" d_ikind ikind d_attrlistpost a docName i *)
      d_ikind () ikind 
@@ -1231,7 +1404,7 @@ let rec d_decl (docName: unit -> doc) (dnwhat: docNameWhat) () this =
         ++ docName () 
         ++ text " : " 
         ++ num i
- 
+*) 
   | TFloat(fkind, a) -> 
      (* dprintf "%a%a %t" d_fkind fkind d_attrlistpost a docName *)
     d_fkind () fkind 
@@ -1311,7 +1484,6 @@ and d_type () t =
       TVoid a -> TVoid (fixthem a)
     | TInt (ik, a) -> TInt (ik, fixthem a)
     | TFloat (fk, a) -> TFloat (fk, fixthem a)
-    | TBitfield (ik, w, a) -> TBitfield (ik, w, fixthem a)
     | TNamed (n, t, a) -> TNamed (n, t, fixthem a)
     | TPtr (bt, a) -> TPtr (bt, fixthem a)
     | TArray (bt, lo, a) -> TArray (bt, lo, fixthem a)
@@ -1550,7 +1722,7 @@ and d_instr () i =
             ++ text ";"
 
   end
-  | Call(vio,e,args,l) ->
+  | Call(dest,e,args,l) ->
 (*
       dprintf "\n%s@!%t%t(@[%a@]);" (printLine l)
         (fun _ -> match vio with
@@ -1565,13 +1737,16 @@ and d_instr () i =
         (docList (chr ',' ++ break) (d_exp ())) args
 *)
        d_line l
-         ++ (match vio with
+         ++ (match dest with
                None -> nil
-             | Some (vi, iscast) ->
-                if iscast then
-              text (vi.vname ^ " = (") ++ d_type () vi.vtype ++ text ")"
-            else
-              text (vi.vname ^ " = "))
+             | Some lv -> 
+                 d_lval () lv ++ text " = " ++
+                   (* Maybe we need to print a cast *)
+                   (let destt = typeOfLval lv in
+                   match unrollType (typeOf e) with
+                     TFun (rt, _, _, _) when typeSig rt <> typeSig destt ->
+                       text "(" ++ d_type () destt ++ text ")"
+                   | _ -> nil))
         (* Now the function name *)
         ++ (match e with Lval(Var _, _) -> d_exp () e
                        | _ -> text "(" ++ d_exp () e ++ text ")")
@@ -1845,6 +2020,14 @@ and d_fun_decl () f = begin
   text (if f.sinline then "__inline " else "")
     ++ d_videcl () f.svar
     ++ line
+    ++ text "{ "
+    ++ (align
+          (* locals. *)
+          ++ (docList line (fun vi -> d_videcl () vi ++ text ";") () f.slocals)
+          ++ line ++ line
+          (* the body *)
+          ++ d_block () f.sbody)
+    ++ line
     ++if (hasAttribute "dummydefn" f.svar.vattr) then (
         (trace "dummydefn" (dprintf "omitting %s because it is a dummy definition\n" f.svar.vname));
         text "; /* omitted because is dummydefn */" ++ line
@@ -1942,8 +2125,6 @@ and d_plaintype () (t: typ) =
         d_ikind ikind d_attrlistpost a
   | TFloat(fkind, a) -> 
       dprintf "TFloat(@[%a,@?%a@])" d_fkind fkind d_attrlistpost a
-  | TBitfield(ikind,i,a) -> 
-      dprintf "TBitfield(@[%a,@?%d,@?%a@])" d_ikind ikind i d_attrlistpost a
   | TNamed (n, t, a) ->
       dprintf "TNamed(@[%s,@?%a,@?%a@])" n scanType t d_attrlistpost a
   | TPtr(t, a) -> dprintf "TPtr(@[%a,@?%a@])" scanType t d_attrlistpost a
@@ -2074,11 +2255,11 @@ begin
   match i with
   | Set(lv,e, _) -> fLval lv; fExp e
   | Call(None,f,args, _) -> fExp f; (List.iter fExp args)
-  | Call((Some (v, _)),fn,args, _) -> (
-      (ignore (vis#vvrbl v));
+  | Call((Some lv),fn,args, _) -> 
+      (fLval lv);
       (fExp fn);
       (List.iter fExp args)
-    )
+
   | Asm(_,_,outs,ins,_,_) -> begin
       (List.iter (fun (_, lv) -> fLval lv) outs);
       (List.iter (fun (_, e) -> fExp e) ins)
@@ -2551,49 +2732,6 @@ let rec peepHole2  (* Process two statements and possibly replace them both *)
 
 
 
-(**** Compute the type of an expression ****)
-let rec typeOf (e: exp) : typ = 
-  match e with
-  | Const(CInt32 (_, ik, _)) -> TInt(ik, [])
-  | Const(CChr _) -> charType
-  | Const(CStr _) -> charPtrType 
-  | Const(CReal (_, fk, _)) -> TFloat(fk, [])
-  | Lval(lv) -> typeOfLval lv
-  | SizeOf _ | SizeOfE _ -> uintType
-  | AlignOf _ | AlignOfE _ -> uintType
-  | UnOp (_, _, t) -> t
-  | BinOp (_, _, _, t) -> t
-  | Question (_, e2, _) -> typeOf e2
-  | CastE (t, _) -> t
-  | AddrOf (lv) -> TPtr(typeOfLval lv, [])
-  | StartOf (lv) -> begin
-      match unrollType (typeOfLval lv) with
-        TArray (t,_, _) -> TPtr(t, [])
-      | TFun _ as t -> TPtr(t, [])
-     | _ -> E.s (E.bug "typeOf: StartOf on a non-array or non-function")
-  end
-      
-and typeOfInit (i: init) : typ = 
-  match i with 
-    SingleInit e -> typeOf e
-  | CompoundInit (t, _) -> t
-
-and typeOfLval = function
-    Var vi, off -> typeOffset vi.vtype off
-  | Mem addr, off -> begin
-      match unrollType (typeOf addr) with
-        TPtr (t, _) -> typeOffset t off
-      | _ -> E.s (E.bug "typeOfLval: Mem on a non-pointer")
-  end
-
-and typeOffset basetyp = function
-    NoOffset -> basetyp
-  | Index (_, o) -> begin
-      match unrollType basetyp with
-        TArray (t, _, _) -> typeOffset t o
-      | t -> E.s (E.bug "typeOffset: Index on a non-array: %a" d_plaintype t)
-  end 
-  | Field (fi, o) -> typeOffset fi.ftype o
 
 
 
@@ -2658,12 +2796,12 @@ let mkAddrOf ((b, off) as lval) : exp =
 
 let isIntegralType t = 
   match unrollType t with
-    (TInt _ | TEnum _ | TBitfield _) -> true
+    (TInt _ | TEnum _) -> true
   | _ -> false
 
 let isArithmeticType t = 
   match unrollType t with
-    (TInt _ | TEnum _ | TBitfield _ | TFloat _) -> true
+    (TInt _ | TEnum _ | TFloat _) -> true
   | _ -> false
     
 
@@ -2678,117 +2816,6 @@ let isFunctionType t =
   | _ -> false
 
 
-let rec typeAttrs = function
-    TVoid a -> a
-  | TInt (_, a) -> a
-  | TFloat (_, a) -> a
-  | TBitfield (_, _, a) -> a
-  | TNamed (n, t, a) -> addAttributes a (typeAttrs t)
-  | TPtr (_, a) -> a
-  | TArray (_, _, a) -> a
-  | TComp (comp, a) -> addAttributes comp.cattr a
-  | TEnum (enum, a) -> addAttributes enum.eattr a
-  | TFun (_, _, _, a) -> a
-
-
-let setTypeAttrs t a =
-  match t with
-    TVoid _ -> TVoid a
-  | TInt (i, _) -> TInt (i, a)
-  | TFloat (f, _) -> TFloat (f, a)
-  | TBitfield (i, s, _) -> TBitfield (i, s, a)
-  | TNamed (n, t, _) -> TNamed(n, t, a)
-  | TPtr (t', _) -> TPtr(t', a)
-  | TArray (t', l, _) -> TArray(t', l, a)
-  | TComp (comp, _) -> TComp (comp, a)
-  | TEnum (enum, _) -> TEnum (enum, a)
-  | TFun (r, args, v, _) -> TFun(r,args,v,a)
-
-
-let typeAddAttributes a0 t = 
-  if a0 == [] then t else
-  let add a = addAttributes a0 a in
-  match t with 
-    TVoid a -> TVoid (add a)
-  | TInt (ik, a) -> TInt (ik, add a)
-  | TFloat (fk, a) -> TFloat (fk, add a)
-  | TBitfield (i, s, a) -> TBitfield (i, s, add a)
-  | TEnum (enum, a) -> TEnum (enum, add a)
-  | TPtr (t, a) -> TPtr (t, add a)
-  | TArray (t, l, a) -> TArray (t, l, add a)
-  | TFun (t, args, isva, a) -> TFun(t, args, isva, add a)
-  | TComp (comp, a) -> TComp (comp, add a)
-  | TNamed (n, t, a) -> TNamed (n, t, add a)
-
-let typeRemoveAttributes (a0: attribute list) t = 
-  let drop (al: attribute list) = dropAttributes a0 al in
-  match t with 
-    TVoid a -> TVoid (drop a)
-  | TInt (ik, a) -> TInt (ik, drop a)
-  | TFloat (fk, a) -> TFloat (fk, drop a)
-  | TBitfield (i, s, a) -> TBitfield (i, s, drop a)
-  | TEnum (enum, a) -> TEnum (enum, drop a)
-  | TPtr (t, a) -> TPtr (t, drop a)
-  | TArray (t, l, a) -> TArray (t, l, drop a)
-  | TFun (t, args, isva, a) -> TFun(t, args, isva, drop a)
-  | TComp (comp, a) -> TComp (comp, drop a)
-  | TNamed (n, t, a) -> TNamed (n, t, drop a)
-
-     (* Type signatures. Two types are identical iff they have identical 
-      * signatures *)
-type typsig = 
-    TSArray of typsig * exp option * attribute list
-  | TSPtr of typsig * attribute list
-  | TSComp of bool * string * attribute list
-  | TSFun of typsig * typsig list * bool * attribute list
-  | TSEnum of string * attribute list
-  | TSBase of typ
-
-(* Compute a type signature *)
-let rec typeSigWithAttrs doattr t = 
-  let typeSig = typeSigWithAttrs doattr in
-  match t with 
-  | (TInt _ | TFloat _ | TBitfield _ | TVoid _) -> TSBase t
-  | TEnum (enum, a) -> TSEnum (enum.ename, doattr a)
-  | TPtr (t, a) -> TSPtr (typeSig t, doattr a)
-  | TArray (t,l,a) -> TSArray(typeSig t, l, doattr a)
-  | TComp (comp, a) -> 
-      TSComp (comp.cstruct, comp.cname, doattr (addAttributes comp.cattr a))
-  | TFun(rt,args,isva,a) -> TSFun(typeSig rt, 
-                                  List.map (fun vi -> (typeSig vi.vtype)) args,
-                                  isva, doattr a)
-  | TNamed(_, t, a) -> typeSigAddAttrs (doattr a) (typeSig t)
-      
-and typeSigAddAttrs a0 t = 
-  if a0 == [] then t else
-  match t with 
-    TSBase t -> TSBase (typeAddAttributes a0 t)
-  | TSPtr (ts, a) -> TSPtr (ts, addAttributes a0 a)
-  | TSArray (ts, l, a) -> TSArray(ts, l, addAttributes a0 a)
-  | TSComp (iss, n, a) -> TSComp (iss, n, addAttributes a0 a)
-  | TSEnum (n, a) -> TSEnum (n, addAttributes a0 a)
-  | TSFun(ts, tsargs, isva, a) -> TSFun(ts, tsargs, isva, addAttributes a0 a)
-
-
-let typeSig t = typeSigWithAttrs (fun al -> al) t
-
-(* Remove the attribute from the top-level of the type signature *)
-let setTypeSigAttrs (a: attribute list) = function
-    TSBase t -> TSBase (setTypeAttrs t a)
-  | TSPtr (ts, _) -> TSPtr (ts, a)
-  | TSArray (ts, l, _) -> TSArray(ts, l, a)
-  | TSComp (iss, n, _) -> TSComp (iss, n, a)
-  | TSEnum (n, _) -> TSEnum (n, a)
-  | TSFun (ts, tsargs, isva, _) -> TSFun (ts, tsargs, isva, a)
-
-
-let typeSigAttrs = function
-    TSBase t -> typeAttrs t
-  | TSPtr (ts, a) -> a
-  | TSArray (ts, l, a) -> a
-  | TSComp (iss, n, a) -> a
-  | TSEnum (n, a) -> a
-  | TSFun (ts, tsargs, isva, a) -> a
 
 
 let rec doCastT (e: exp) (oldt: typ) (newt: typ) = 
@@ -2796,10 +2823,7 @@ let rec doCastT (e: exp) (oldt: typ) (newt: typ) =
   if typeSig oldt = typeSig newt then
     e
   else
-    (* If the new type is a Bitfield then cast to the base type *)
-    match newt with
-      TBitfield (ik, _, a) -> doCastT e oldt (TInt(ik, a))
-    | _ -> CastE(newt,e)
+    CastE(newt,e)
 
 let doCast (e: exp) (newt: typ) = 
   doCastT e (typeOf e) newt
@@ -2940,7 +2964,7 @@ let rec makeZeroInit (t: typ) : init =
   match unrollType t with
     TInt (ik, _) -> SingleInit (Const(CInt32(Int32.zero, ik, None)))
   | TFloat(fk, _) -> SingleInit(Const(CReal(0.0, fk, None)))
-  | (TEnum _ | TBitfield _) -> SingleInit zero
+  | TEnum _ -> SingleInit zero
   | TComp (comp, _) as t' when comp.cstruct -> 
       CompoundInit (t', 
                     List.map (fun f -> makeZeroInit f.ftype) 
@@ -3136,10 +3160,12 @@ let rec offsetOfFieldAcc (fi: fieldinfo)
                          (sofar: offsetAcc) : offsetAcc = 
   (* field type *)
   let ftype = unrollType fi.ftype in
-  match ftype, sofar.oaPrevBitPack with (* Check for a bitfield that fits in 
-                                         * the current pack after some other 
-                                         * bitfields  *)
-    TBitfield(ikthis, wdthis, _), Some (packstart, ikprev, wdpack)
+  match ftype, fi.fbitfield, sofar.oaPrevBitPack with (* Check for a bitfield 
+                                                       * that fits in the 
+                                                       * current pack after 
+                                                       * some other bitfields 
+                                                       * *)
+    TInt(ikthis, _), Some wdthis, Some (packstart, ikprev, wdpack)
       when ((not !msvcMode || ikthis = ikprev) && 
             packstart + wdpack >= sofar.oaFirstFree + wdthis) ->
               { oaFirstFree = sofar.oaFirstFree + wdthis;
@@ -3148,7 +3174,7 @@ let rec offsetOfFieldAcc (fi: fieldinfo)
                 oaPrevBitPack = sofar.oaPrevBitPack
               } 
 
-  | _, Some (packstart, _, wdpack) -> (* Finish up the bitfield pack and 
+  | _, _, Some (packstart, _, wdpack) -> (* Finisqh up the bitfield pack and 
                                        * restart *)
       offsetOfFieldAcc fi
         { oaFirstFree = packstart + wdpack;
@@ -3165,8 +3191,6 @@ let rec offsetOfFieldAcc (fi: fieldinfo)
         | TInt((ILong|IULong), _) -> 4
         | TInt((ILongLong|IULongLong), _) -> 4  (* !!! is this correct *)
         | TEnum _ -> 4 (* !!! Is this correct? *)
-        | TBitfield(ik, _, a) -> 
-            internalPaddingAlign (TInt(ik, a)) (* Is this correct ? *)
         | TFloat(FFloat, _) -> 4
         | TFloat((FDouble|FLongDouble), _) -> 8
         | TNamed (_, t, _) -> internalPaddingAlign t
@@ -3187,8 +3211,8 @@ let rec offsetOfFieldAcc (fi: fieldinfo)
           oaLastFieldWidth = thiswd;
           oaPrevBitPack = btpack }
       in
-      match unrollType ftype with
-        TBitfield(ik, wd, a) -> 
+      match unrollType ftype, fi.fbitfield with
+        TInt(ik, a), Some wd -> 
           let wdpack = bitsSizeOf (TInt(ik, a)) in
           { oaFirstFree = newStart + wd;
             oaLastFieldStart = newStart;
@@ -3217,7 +3241,6 @@ and bitsSizeOf t =
   | TInt((ILong|IULong), _) -> 32
   | TInt((ILongLong|IULongLong), _) -> 64
   | TEnum _ -> 32 (* !!! is this correct ? *)
-  | TBitfield(ik, wd, a) -> wd
   | TFloat(FFloat, _) -> 32
   | TFloat((FDouble|FLongDouble), _) -> 64
   | TNamed (_, t, _) -> bitsSizeOf t
@@ -3277,14 +3300,9 @@ and addTrailing nrbits =
     (nrbits + roundto - 1) land (lnot (roundto - 1))
 
 and sizeOf t = 
-    match unrollType t with
-      TBitfield _ -> E.s (E.bug "sizeOf(bitfield) not allowed")
-    | t' -> begin
-        try
-          integer ((bitsSizeOf t') lsr 3)
-        with Not_found -> SizeOf(t')
-    end
-            
+  try
+    integer ((bitsSizeOf t) lsr 3)
+  with Not_found -> SizeOf(t)
 
  
 
@@ -3309,3 +3327,4 @@ let offsetOf (fi: fieldinfo) (startcomp: int) : int * int =
       
  
     
+

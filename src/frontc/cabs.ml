@@ -35,8 +35,8 @@ type typeSpecifier = (* Merge all specifiers into one type *)
   | Tsigned
   | Tunsigned
   | Tnamed of string
-  | Tstruct of string * name_group list option  (* Some if a definition *)
-  | Tunion of string * name_group list option   (* Some if a definition *)
+  | Tstruct of string * field_group list option  (* Some if a definition *)
+  | Tunion of string * field_group list option   (* Some if a definition *)
   | Tenum of string * enum_item list option    (* Some if a definition *)
   | TtypeofE of expression                      (* GCC __typeof__ *)
   | TtypeofT of spec_elem list * decl_type       (* GCC __typeof__ *)
@@ -68,7 +68,6 @@ and decl_type =
                                            * contain attributes for the
                                            * identifier or attributes for the
                                            * enclosing type.  *)
- | BITFIELD of expression                 (* Prints "name : exp" *)
  | ARRAY of decl_type * expression        (* Prints "decl [ exp ]". decl is
                                            * never a PTR. *)
  | PTR of attribute list * decl_type      (* Prints "* attrs decl" *)
@@ -79,6 +78,8 @@ and decl_type =
 (* The base type and the storage are common to all names. Each name might
  * contain type or storage modifiers *)
 and name_group = spec_elem list * name list
+
+and field_group = spec_elem list * (name * expression option) list
 
 and init_name_group = spec_elem list * init_name list
 

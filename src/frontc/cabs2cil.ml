@@ -758,9 +758,6 @@ let integralPromotion (t : typ) : typ = (* c.f. ISO 6.3.1.1 *)
     TInt ((IShort|IUShort|IChar|ISChar|IUChar), a) -> TInt(IInt, a)
   | TInt _ -> t
   | TEnum (_, a) -> TInt(IInt, a)
-  | TBitfield((IShort|IChar|ISChar), _, a) -> TInt(IInt, a)
-  | TBitfield((IUShort|IUChar), _, a) -> TInt(IUInt, a)
-  | TBitfield(i, _, a) -> TInt(ILong, a)
   | _ -> E.s (error "integralPromotion")
   
 
@@ -808,8 +805,8 @@ let arithmeticConversion    (* c.f. ISO 6.3.1.8 *)
 let conditionalConversion (e2: exp) (t2: typ) (e3: exp) (t3: typ) : typ =
   let tresult =  (* ISO 6.5.15 *)
     match unrollType t2, unrollType t3 with
-      (TInt _ | TEnum _ | TBitfield _ | TFloat _), 
-      (TInt _ | TEnum _ | TBitfield _ | TFloat _) -> 
+      (TInt _ | TEnum _ | TFloat _), 
+      (TInt _ | TEnum _ | TFloat _) -> 
         arithmeticConversion t2 t3 
     | TComp (comp2,_), TComp (comp3,_) 
           when comp2.ckey = comp3.ckey -> t2 
@@ -854,12 +851,8 @@ let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) =
   | TInt _, TEnum _ -> (nt, e)
   | TEnum _, TEnum _ -> (nt, e)
 
-  | TBitfield _, (TInt _ | TEnum _ | TBitfield _)-> (nt, e)
-  | (TInt _ | TEnum _), TBitfield _ -> (nt, e)
-
-
     (* The expression is evaluated for its side-effects *)
-  | (TInt _ | TEnum _ | TBitfield _ | TPtr _ ), TVoid _ -> (ot, e)
+  | (TInt _ | TEnum _ | TPtr _ ), TVoid _ -> (ot, e)
 
   (* Even casts between structs are allowed when we are only modifying some 
    * attributes *)
@@ -873,7 +866,6 @@ let checkBool (ot : typ) (e : exp) : bool =
     TInt _ -> true
   | TPtr _ -> true
   | TEnum _ -> true
-  | TBitfield _ -> true
   | TFloat _ -> true
   |  _ -> E.s (error "castToBool %a" d_type ot)
 
@@ -1063,14 +1055,13 @@ let rec replaceLastInList
 let afterConversion (c: chunk) : chunk = 
   (* Now scan the statements and find Instr blocks *)
   let collapseCallCast = function
-      Call(Some(vi, false), f, args, l),
-      Set((Var destv, NoOffset), 
-                CastE (newt, Lval(Var vi', NoOffset)), _) 
+      Call(Some(Var vi, NoOffset), f, args, l),
+      Set(destlv, CastE (newt, Lval(Var vi', NoOffset)), _) 
       when (not vi.vglob && 
             String.length vi.vname >= 3 &&
             String.sub vi.vname 0 3 = "tmp" &&
             vi' == vi) 
-      -> Some [Call(Some(destv, true), f, args, l)]
+      -> Some [Call(Some destlv, f, args, l)]
     | _ -> None
   in
   (* First add in the postins *)
@@ -1409,18 +1400,6 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
         (* Now add the name attributes and return *)
         restyp', addAttributes a1n (addAttributes a2n nattr)
 
-    | A.BITFIELD e -> 
-        let ikind, a = 
-          match unrollType bt with 
-            TInt (ikind, a) -> ikind, a
-          | _ -> E.s (error "Base type for bitfield is not an integer type")
-        in
-        let width = match doExp true e (AExp None) with
-          (c, Const(CInt32(i,_,_)),_) when isEmpty c -> Int32.to_int i
-        | _ -> E.s (error "bitfield width is not an integer constant")
-        in
-        TBitfield (ikind, width, a), acc
-
     | A.PTR (al, d) -> 
         let al' = doAttributes al in
         let an, af, at = partitionAttributes AttrType al' in
@@ -1507,7 +1486,7 @@ and doOnlyType (specs: A.spec_elem list) (dt: A.decl_type) : typ =
 
 and makeCompType (iss: bool)
                  (n: string)
-                 (nglist: A.name_group list) 
+                 (nglist: A.field_group list) 
                  (a: attribute list) = 
   (* Make a new name for the structure *)
   let kind = if iss then "struct" else "union" in
@@ -1517,16 +1496,31 @@ and makeCompType (iss: bool)
   let comp = createCompInfo iss n' in
   (* Do the fields *)
   let makeFieldInfo (s: A.spec_elem list) 
-                    ((n,ndt,a) : A.name) : fieldinfo = 
+                    (((n,ndt,a) : A.name), (widtho : A.expression option))
+      : fieldinfo = 
     let bt, sto, inl, attrs = doSpecList s in
     if sto <> NoStorage || inl then 
       E.s (error "Storage or inline not allowed for fields");
     let ftype, nattr = doType (AttrName false) 
                               bt (A.PARENTYPE(attrs, ndt, a)) in 
-    { fcomp    =  comp;
-      fname    =  n;
-      ftype    =  ftype;
-      fattr    =  nattr;
+    let width = 
+      match widtho with 
+        None -> None
+      | Some w -> begin
+          (match unrollType ftype with
+            TInt (ikind, a) -> ()
+          | _ -> E.s (error "Base type for bitfield is not an integer type"));
+          match doExp true w (AExp None) with
+            (c, Const(CInt32(i,_,_)),_) when isEmpty c -> 
+              Some (Int32.to_int i)
+          | _ -> E.s (error "bitfield width is not an integer constant")
+      end
+    in
+    { fcomp     =  comp;
+      fname     =  n;
+      ftype     =  ftype;
+      fbitfield =  width;
+      fattr     =  nattr;
     } 
   in
   let flds = List.concat (List.map (doNameGroup makeFieldInfo) nglist) in
@@ -1627,8 +1621,8 @@ and doExp (isconst: bool)    (* In a constant *)
         let se = se1 @@ se2 in
         let (e1'', e2'', tresult) = 
           match unrollType t1, unrollType t2 with
-            TPtr(t1e,_), (TInt _|TEnum _ |TBitfield _) -> e1', e2', t1e
-          | (TInt _|TEnum _|TBitfield _), TPtr(t2e,_) -> e2', e1', t2e
+            TPtr(t1e,_), (TInt _|TEnum _) -> e1', e2', t1e
+          | (TInt _|TEnum _), TPtr(t2e,_) -> e2', e1', t2e
           | _ -> 
               E.s (error 
                      "Expecting a pointer type in index:@! t1=%a@!t2=%a@!"
@@ -1707,7 +1701,7 @@ and doExp (isconst: bool)    (* In a constant *)
             (* See if it is octal or hex *)
             let octalhex = (l >= 1 && String.get str 0 = '0') in 
             (* The length of the suffix and a list of possible kinds. See ISO 
-             * 6.1.3.2 *)
+             * 6.4.4.1 *)
             let hasSuffix = hasSuffix str in
             let suffixlen, kinds = 
               if hasSuffix "ULL" || hasSuffix "LLU" then
@@ -1722,13 +1716,15 @@ and doExp (isconst: bool)    (* In a constant *)
               else if hasSuffix "U" then
                 1, [IUInt; IULong; IULongLong]
               else
-                0, if octalhex 
+                0, if octalhex || true (* !!! This is against the ISO but it 
+                                        * is what GCC and MSVC do !!! *)
                    then [IInt; IUInt; ILong; IULong; ILongLong; IULongLong]
                    else [IInt; ILong; IUInt; ILongLong]
             in
-            (* Convert to integer. To check for overflow we do the arithmetic 
-             * on Int64 *)
-            let rec toInt (base: int64) (acc: int64) (idx: int) : int32 = 
+            (* Convert to integer. To prevent overflow we do the arithmetic 
+             * on Int64 . Even then we might loose the case when not even 64 
+             * bits are enough!! *)
+            let rec toInt (base: int64) (acc: int64) (idx: int) : int64 = 
               let doAcc (what: int) = 
                 let acc' = 
                   Int64.add (Int64.mul base acc)  (Int64.of_int what)
@@ -1736,10 +1732,11 @@ and doExp (isconst: bool)    (* In a constant *)
                 toInt base acc' (idx + 1)
               in 
               if idx >= l - suffixlen then begin
-                (* Now check if we can convert back to Int32 *)
-                if Int64.shift_right_logical acc 32 <> Int64.zero then
-                  E.s (unimp "Integer constant too large: %s" str);
-                Int64.to_int32 acc
+                (* We know what we need only handle positive integers. The 
+                 * lexer takes care of the - sign *)
+                if acc < Int64.zero then 
+                  E.s (unimp "Integer constant does not fit on 64 bits: %s" str);
+                acc
               end else 
                 let ch = String.get str idx in
                 if ch >= '0' && ch <= '9' then
@@ -1762,16 +1759,7 @@ and doExp (isconst: bool)    (* In a constant *)
                 else
                   toInt (Int64.of_int 10) Int64.zero 0
               in
-              (* We assume that we are on a machine where int and long are 
-               * the same width and also that the constant is positive (the 
-               * lexer would have taken care of any - signs). Thus we know we 
-               * fit in the prefered kind. *)
-              let k =
-                match kinds with 
-                  k :: _ -> k 
-                | _ -> E.s (bug "no kinds for constant %s" str)
-              in
-              let res = kinteger32 k i in
+              let res = integerKinds kinds i in
               finishExp empty res (typeOf res)
             with e -> begin
               ignore (E.log "int_of_string %s (%s)\n" str 
@@ -2258,8 +2246,8 @@ and doExp (isconst: bool)    (* In a constant *)
                          d_exp f' d_type x)
         in
         (* Drop certain qualifiers from the result type *)
-        let resType' =  
-          typeRemoveAttributes [Attr("cdecl", [])] resType in
+        let resType' = resType in (* 
+          typeRemoveAttributes [Attr("cdecl", [])] resType in *)
         (* Do the arguments. In REVERSE order !!! Both GCC and MSVC do this *)
         let rec loopArgs 
             : varinfo list * A.expression list 
@@ -2300,11 +2288,10 @@ and doExp (isconst: bool)    (* In a constant *)
                 (sf @@ sargs +++ (Call(None,f'',args', !currentLoc)))
                 (integer 0) intType
               (* Set to a variable of corresponding type *)
-          | ASet((Var vi, NoOffset) as lv, vtype) -> 
-              let mustCast = typeSig resType' <> typeSig vtype in
+          | ASet(lv, vtype) -> 
               finishExp 
                 (sf @@ sargs                                         
-                 +++ (Call(Some (vi, mustCast),f'',args', !currentLoc)))
+                 +++ (Call(Some lv,f'',args', !currentLoc)))
                 (Lval(lv))
                 vtype
 
@@ -2315,14 +2302,12 @@ and doExp (isconst: bool)    (* In a constant *)
                   when fv.vname = "__builtin_constant_p" ->
                     finishExp (sf @@ sargs) (integer 1) intType
               | _ -> 
-                  let tmp, restyp', iscast = 
+                  let tmp, restyp' = 
                     match what with
-                      AExp (Some t) -> 
-                        newTempVar t, t, 
-                        typeSig t <> typeSig resType'
-                    | _ -> newTempVar resType', resType', false
+                      AExp (Some t) -> newTempVar t, t
+                    | _ -> newTempVar resType', resType'
                   in
-                  let i = Call(Some (tmp, iscast),f'',args', !currentLoc) in
+                  let i = Call(Some (var tmp),f'',args', !currentLoc) in
                   finishExp (sf @@ sargs +++ i) (Lval(var tmp)) restyp'
           end
         end

@@ -924,8 +924,6 @@ let rec typeIdentifier (t: typ) : string =
 and typeId = function
     TInt(ik, a) -> ikId ik ^ attrsId a
   | TVoid a -> "V" ^ attrsId a
-  | TBitfield (ik, w, a) ->  "B" ^ ikId ik ^ 
-                             string_of_int w ^ attrsId a
   | TFloat (fk, a) -> fkId fk ^ attrsId a
   | TEnum _ -> ikId IInt (* !!! *)
   | TNamed (_, t, a) -> typeId (typeAddAttributes a t)

@@ -33,9 +33,11 @@ let rec type_congruent (t1 : typ) (q1 : opointerkind)
         our_compinfo.cfields <- 
           [ { fcomp = our_compinfo ; fname = "" ;
               ftype = t ;
+              fbitfield = None;
               fattr = [] ; } ;
             { fcomp = our_compinfo ; fname = "" ;
               ftype = TArray(t,(Some(Const(CInt32(Int32.pred n,a,b)))),[]) ;
+              fbitfield = None;
               fattr = [] ; } ] ; 
         type_congruent t q1 (TComp(our_compinfo, [])) q2
       end

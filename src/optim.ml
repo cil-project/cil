@@ -726,9 +726,9 @@ and removeRedundancies (cin_start : lattice) instList node_number =
 	      then removeRedundanciesLoop cin_local t (h2 :: filteredList) 
 	      else
 		(match h with 
-		  Call (Some (var2,_),_,_,loc) -> (* replace with an assignment: var2 = var *) 
+		  Call (Some destlv,_,_,loc) -> (* replace with an assignment: var2 = var *) 
 		    removeRedundanciesLoop cin_local t 
-		      ((Set ((Var var2, NoOffset), 
+		      ((Set (destlv, 
 			     Lval (Var var, NoOffset), loc)) :: filteredList)
 		| _ -> raise (Failure "non-Call in checkInstrs array"))
 
@@ -750,7 +750,7 @@ and removeRedundancies (cin_start : lattice) instList node_number =
 
 		stats_kept := !stats_kept + 1;
 		(match h2 with
-		  Call (Some (var,_),_,_,loc) ->
+		  Call (Some (Var var,NoOffset),_,_,loc) ->
 		    if cin_local.latWeight = wtLIVE (* IMPORTANT: re-use the same live-variable *)
 		    then removeRedundanciesLoop cin_local t (h2 :: filteredList)
 		    else removeRedundanciesLoop (latLive var) t (h2 :: filteredList)
@@ -843,7 +843,7 @@ and evalCout (nd : stmt) cin_start  = (* TODO: Look at the args of the check *)
 	if index >= 0 && !checkFlags.(index)  (* Is this a flagged CHECK? *)
 	then 
 	  match !checkInstrs.(index) with
-	    Call (Some (var, _),_,_,_) -> 
+	    Call (Some (Var var, NoOffset),_,_,_) -> 
 	      (* If some variable already holds a live value, use the same *)
 	      if cin_local.latWeight = wtLIVE 
 	      then evalCoutLoop cin_local t

@@ -118,6 +118,8 @@ and fieldinfo = {
                                          * "___missing_field_name" in which 
                                          * case it is not printed *)
     mutable ftype: typ;
+    mutable fbitfield: int option;      (* If a bitfield then ftype should be 
+                                         * an integer type *)
     mutable fattr: attribute list;
 }
 
@@ -159,7 +161,6 @@ and enuminfo = {
 and typ =
     TVoid of attribute list
   | TInt of ikind * attribute list
-  | TBitfield of ikind * int * attribute list
   | TFloat of fkind * attribute list
 
            (* A reference to an enumeration type. All such references must
@@ -383,11 +384,11 @@ and instr =
     Set        of lval * exp * location  (* An assignment. A cast is present 
                                           * if the exp has different type 
                                           * from lval *)
-  | Call       of (varinfo * bool) option * exp * exp list * location
- 			 (* optional: result temporary variable and an 
-                          * indication that a cast is necessary (the declared 
-                          * type of the function is not the same as that of 
-                          * the result), the function value, argument list, 
+  | Call       of lval option * exp * exp list * location
+ 			 (* optional: result temporary variable. A cast might 
+                          * be necessary if the declared result type of the 
+                          * function is not the same as that of the 
+                          * destination, the function value, argument list, 
                           * location. If the function is declared then casts 
                           * are inserted for those arguments that correspond 
                           * to declared formals. (The actual number of 
@@ -559,6 +560,10 @@ type file =
 val kinteger: ikind -> int -> exp
 val kinteger32: ikind -> int32 -> exp
 
+(* Construct an integer of the first kind that is big enough. Use only for 
+ * positive integers *)
+val integerKinds: ikind list -> int64 -> exp
+
 (* Construct an integer of kind IInt. *)
 val integer: int -> exp
 val integer32: int32 -> exp
@@ -631,7 +636,7 @@ val mkCompInfo: bool ->       (* whether it is a struct or a union *)
                 * representation of the structure type constructs the type of 
                 * the fields. The function can ignore this argument if not 
                 * constructing a recursive type.  *)
-               (typ -> (string * typ * attribute list) list) ->
+               (typ -> (string * typ * int option * attribute list) list) ->
                attribute list -> compinfo
 
 
