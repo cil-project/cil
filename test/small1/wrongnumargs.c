@@ -6,7 +6,8 @@ void f(s1, s2) char *s1, *s2;
 }
 
 int main(int argc, char** argv) {
-  f("hello there: %s!\n", "wow");
+  f("hello %S!\n", "wow");	  
+  f("hello there: %s!\n", "wow", "hey there");
   f("hello again!\n");
 }
 

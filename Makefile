@@ -1721,6 +1721,8 @@ linux-gcc: mustbelinux mustbemanju linuxclean
 	cd $(LINUXSRC); make -k CC=gcc HOSTCC=gcc
 
 ######################## SENDMAIL
+# source available at www.sendmail.org
+
 SENDMAILSRC := /usr/local/src/sendmail-8.12.1/obj.Linux.2.4.5.i686/sendmail
 
 sendmailclean:
@@ -1744,6 +1746,59 @@ sendmail-noclean: mustbegcc mustbelinux mustbemanju
 sendmail-gcc: mustbelinux mustbemanju linuxclean
 	cd $(SENDMAILSRC) ; make CC=gcc
 
+#### ------------- EMACS ---------------------------
+
+# source available at ftp.gnu.org/gnu/emacs
+
+EMACSSRC := /usr/local/src/emacs-21.1
+
+emacsclean:
+	cd $(EMACSSRC); make clean
+	-cd $(EMACSSRC); find . \( \
+		-name '*cil.c' -o \
+		-name '*.exe' -o \
+		-name '*.i' -o \
+		-name '*.o' -o \
+		-name '*.obj' -o \
+		-name '*cabs.c' -o \
+		-name '*_comb*.c' \
+	      	\) -exec rm -f {} \;
+
+emacs: mustbegcc mustbelinux mustbemanju emacsclean
+	cd $(EMACSSRC) ; make CC="$(CILLY)"
+
+emacs-noclean: mustbegcc mustbelinux mustbemanju
+	cd $(EMACSSRC) ; make CC="$(CILLY)"
+
+sendmail-gcc: mustbelinux mustbemanju emacsclean
+	cd $(EMACSSRC) ; make CC=gcc
+
+#### ------------- PERL ----------------------------
+
+# source available at www.perl.com/pub/a/language/info/software.html#sourcecode
+
+PERLSRC := /usr/local/src/perl-5.6.1
+
+perlclean:
+	cd $(PERLSRC); make clean
+	-cd $(PERLSRC); find . \( \
+		-name '*cil.c' -o \
+		-name '*.exe' -o \
+		-name '*.i' -o \
+		-name '*.o' -o \
+		-name '*.obj' -o \
+		-name '*cabs.c' -o \
+		-name '*_comb*.c' \
+	      	\) -exec rm -f {} \;
+
+perl: mustbegcc mustbelinux mustbemanju perlclean
+	cd $(PERLSRC) ; make CC="$(CILLY)"
+
+perl-noclean: mustbegcc mustbelinux mustbemanju
+	cd $(PERLSRC) ; make CC="$(CILLY)
+
+perl-gcc: mustbelinux mustbemanju perlclean
+	cd $(PERLSRC) ; make CC=gcc
 
 #### ------------- GIMP AND FRIENDS ----------------
 
