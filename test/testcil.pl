@@ -21,6 +21,7 @@ my $TEST = SafecRegTest->new(AvailParams => { 'SAFE' => 1,
                                               'FSEQ' => 1,
                                               'RUN' => 1,
                                               'CURE' => 1,
+                                              'NODES' => 1,
                                               'SUCCESS' => 0},
                              LogFile => "safec.log",
                              CommandName => "testsafec");
@@ -108,6 +109,8 @@ my %commonerrors =
               => sub { $_[1]->{WILD} = $_[2]; },
     "^ptrkinds:\\s+FSEQ - \\d+ \\(\\s*(\\d+)\\%" 
               => sub { $_[1]->{FSEQ} = $_[2]; },
+
+    "contains (\\d+) nodes" => sub { $_[1]->{NODES} = $_[2]; },
 
     "^user\\s+(\\d+)m([\\d.]+)s"
               => sub { $_[1]->{RUN} = 60 * $_[2] + $_[3]; },
