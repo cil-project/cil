@@ -64,6 +64,21 @@ let tryFinally
   final (Some res)
 
 
+(* Memoize *)
+let memoize (h: ('a, 'b) Hashtbl.t) 
+            (arg: 'a) 
+            (f: 'a -> 'b) : 'b = 
+  try
+    Hashtbl.find h arg
+  with Not_found -> begin
+    let res = f arg in
+    Hashtbl.add h arg res;
+    res
+  end
+
+(* Just another name for memoize *)
+let findOrAdd h arg f = memoize h arg f
+
 let doCxxPP = ref false
 
 let libDir = ref ""
