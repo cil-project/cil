@@ -373,6 +373,8 @@ $TEST->add3Tests("test/bind2");
 $TEST->add2Tests("testwrapper/wrapper1");
 $TEST->add2Tests("testwrapper/wrapperpoly");
 $TEST->addTests("test-bad-wrapper/wrapper1", "", ['inferbox']);
+$TEST->addTests("test-bad-wrapper/wrapper2", "", ['inferbox']);
+$TEST->addTests("test-bad/wrapper2", "", ['inferbox']);
 $TEST->addTests("testrun/decl1", "_GNUCC=1", ['cil']);
 $TEST->addTests("wes-hashtest", "", ['cil', 'inferbox']);
 $TEST->add3Tests("wes-rbtest", "");
