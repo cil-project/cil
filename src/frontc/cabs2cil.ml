@@ -72,6 +72,13 @@ let convLoc (l : cabsloc) =
     ignore (E.log "convLoc at %s:%d\n" l.filename l.lineno);
   {line = l.lineno; file = l.filename;}
 
+
+let oldStyleVarArgName () = 
+  if !msvcMode then "va_alist" else "__builtin_va_alist"
+
+let oldStyleVarArgTypeName () = 
+  if !msvcMode then "va_list" else "__builtin_va_alist_t"
+
 (* Weimer
  * multi-character character constants
  * In MSCV, this code works:
@@ -1943,8 +1950,32 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
     | A.PROTO (d, args, isva) -> 
         (* Start a scope for the parameter names *)
         enterScope ();
+        (* Intercept the old-style use of varargs.h. On GCC this means that 
+         * we have ellipsis and a last argument "builtin_va_alist: 
+         * builtin_va_alist_t". On MSVC we do not have the ellipsis and we 
+         * have a last argument "va_alist: va_list" *)
+        let args', isva' = 
+          if args != [] && !msvcMode = not isva then begin
+            let newisva = ref isva in 
+            let rec doLast = function
+                [([A.SpecType (A.Tnamed atn)], (an, A.JUSTBASE, []))] 
+                  when atn = oldStyleVarArgTypeName () && 
+                       an = oldStyleVarArgName () -> begin
+                         (* Turn it into a vararg *)
+                         newisva := true;
+                         (* And forget about this argument *)
+                         []
+                       end
+                         
+              | a :: rest -> a :: doLast rest
+              | [] -> []
+            in
+            let args' = doLast args in
+            (args', !newisva)
+          end else (args, isva)
+        in
         let targs = 
-          match List.map (makeVarInfo false locUnknown) args  with
+          match List.map (makeVarInfo false locUnknown) args'  with
           | [] -> None (* No argument list *)
           | [t] when (match t.vtype with TVoid _ -> true | _ -> false) -> 
               Some []
@@ -1979,7 +2010,7 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
             TArray(t,_,attr) -> TPtr(t, attr)
           | _ -> bt
         in
-        doDeclType (TFun (tres, targs, isva, [])) acc d
+        doDeclType (TFun (tres, targs, isva', [])) acc d
 
   in
   doDeclType bt [] dt
@@ -2180,8 +2211,12 @@ and doExp (isconst: bool)    (* In a constant *)
           | EnvEnum (tag, typ), _ ->
               finishExp empty tag typ
           | _ -> raise Not_found
-        with Not_found ->
-          E.s (error "Cannot resolve variable %s.\n" n)
+        with Not_found -> begin
+          if n = oldStyleVarArgName () then 
+            E.s (error "Cannot resolve variable %s. This could be a CIL bug due to the handling of old-style variable argument functions.\n" n)
+          else 
+            E.s (error "Cannot resolve variable %s.\n" n)
+        end
     end
     | A.INDEX (e1, e2) -> begin
         (* Recall that doExp turns arrays into StartOf pointers *)
@@ -2556,6 +2591,47 @@ and doExp (isconst: bool)    (* In a constant *)
             doExp false 
               (A.QUESTION (e1, A.UNARY(A.ADDROF, e2), A.UNARY(A.ADDROF, e3)))
               what
+        | A.VARIABLE s when 
+               s = oldStyleVarArgName () 
+            && (match !currentFunctionVI.vtype with 
+                   TFun(_, Some args, true, _) -> true | _ -> false) ->
+            (* We are in an old-style variable argument function and we are 
+             * taking the address of the argument that was removed while 
+             * processing the function type. We compute the address based on 
+             * the address of the last real argument *)
+            let rec getLast = function
+                [] -> E.s (unimp "old-style variable argument function without real arguments")
+              | [a] -> a
+              | _ :: rest -> getLast rest 
+            in
+            let last = getLast 
+                (match !currentFunctionVI.vtype with
+                  TFun(_, Some args, _, _) -> args
+                | _ -> E.s (bug "cabs2cil: ADDROF")) in
+            if !msvcMode then begin
+              let res = mkAddrOf (var last) in
+              let tres = typeOf res in
+              let tres', res' = castTo tres charPtrType res in
+              (* Now we must add to this address to point to the next 
+              * argument. Round up to a multiple of 4  *)
+              let sizeOfLast = 
+                (((bitsSizeOf last.vtype) + 31) / 32) * 4
+              in
+              let res'' = 
+                BinOp(PlusPI, res', kinteger IUInt sizeOfLast, tres')
+              in
+              finishExp empty res'' tres'
+            end else begin (* On GCC the only reliable way to do this is to 
+                          * call builtin_next_arg. If we take the address of 
+                          * a local we are going to get the address of a copy 
+                          * of the local ! *)
+                
+              doExp isconst
+                (A.CALL (A.VARIABLE "__builtin_next_arg", 
+                         [A.CONSTANT (A.CONST_INT "0")]))
+                what
+            end
+
         | (A.VARIABLE _ | A.UNARY (A.MEMOF, _) | (* Regular lvalues *)
            A.INDEX _ | A.MEMBEROF _ | A.MEMBEROFPTR _ | 
            A.CAST (_, A.COMPOUND_INIT _)) -> begin

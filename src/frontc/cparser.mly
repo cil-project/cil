@@ -90,7 +90,8 @@ let doFunctionDef (loc: cabsloc)
 
 
 let doOldParDecl (names: string list)
-                 ((pardefs: name_group list), (isva: bool)) : single_name list * bool =
+                 ((pardefs: name_group list), (isva: bool)) 
+    : single_name list * bool =
   let findOneName n =
     (* Search in pardefs for the definition for this parameter *)
     let rec loopGroups = function
@@ -105,7 +106,8 @@ let doOldParDecl (names: string list)
     in
     loopGroups pardefs
   in
-  (List.map findOneName names, isva)
+  let args = List.map findOneName names in
+  (args, isva)
 
 let checkConnective (s : string) : unit =
 begin
