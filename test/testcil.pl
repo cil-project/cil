@@ -430,6 +430,7 @@ $TEST->addTests("testrun/rtti7", "", ['inferbox']);
 $TEST->addTests("testrun/rttioo", "", ['inferbox']);
 $TEST->addTests("testrun/rttioo2", "", ['inferbox']);
 $TEST->addTests("test/bind-cannot-convert", "", ['inferbox']);
+$TEST->addTests("test/bind-too-many", "", ['inferbox']);
 $TEST->addTests("test/bind-formatstring", "EXTRAARGS=--assumePrintf", ['inferbox']);
 $TEST->addTests("test/bind-empty-chain", "", ['inferbox']);
 $TEST->addTests("test/bind-safe-wild", "EXTRAARGS=--assumePrintf", ['inferbox']);
