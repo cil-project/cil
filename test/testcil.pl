@@ -210,6 +210,7 @@ $TEST->add3Tests("testrun/label3");
 $TEST->add3Tests("testrun/tablebug", "TABLE=A");
 $TEST->add3Tests("testrun/addrof", "MANUALBOX=1");
 $TEST->add3Tests("testrun/addrof2", "MANUALBOX=1");
+$TEST->addTests("testrun/addrof3", "_GNUCC=1", ['cil']);
 $TEST->add3Tests("testrun/lval1", "_GNUCC=1");
 $TEST->add3Tests("testmodel/model1");
 $TEST->add3Tests("testmodel/modelpoly");

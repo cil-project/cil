@@ -2400,7 +2400,8 @@ and doExp (isconst: bool)    (* In a constant *)
               (A.QUESTION (e1, A.UNARY(A.ADDROF, e2), A.UNARY(A.ADDROF, e3)))
               what
         | (A.VARIABLE _ | A.UNARY (A.MEMOF, _) | (* Regular lvalues *)
-           A.INDEX _ | A.MEMBEROF _ | A.MEMBEROFPTR _ ) -> begin
+           A.INDEX _ | A.MEMBEROF _ | A.MEMBEROFPTR _ | 
+           A.CAST (_, A.COMPOUND_INIT _)) -> begin
             let (se, e', t) = doExp false e (AExp None) in
             (* ignore (E.log "ADDROF on %a : %a\n" d_plainexp e'
                       d_plaintype t); *)
