@@ -158,7 +158,7 @@ $TEST->addBadComment("testrun/hostent2-inferbox",
 $TEST->add3Tests("btreetest");
 $TEST->add3Tests("hashtest");
 $TEST->add3Tests("rbtest");
-$TEST->add3Tests("hufftest");
+$TEST->add2Tests("hufftest");
 $TEST->add3Tests("test/alloc");
 $TEST->add3Tests("test/apachebits");
 $TEST->add3Tests("testrun/apachebuf");
@@ -557,27 +557,27 @@ $TEST->add2Tests("testrun/stringsize");
 #
 # OLDEN benchmarks
 #
-$TEST->add3Tests("bh", "_GNUCC=1");
-   $TEST->add3Group("bh", "slow", "olden");
+$TEST->add2Tests("bh", "_GNUCC=1");
+   $TEST->add2Group("bh", "slow", "olden");
 
-$TEST->add3Tests("power", "_GNUCC=1");
-   $TEST->add3Group("power", "olden");
+$TEST->add2Tests("power", "_GNUCC=1");
+   $TEST->add2Group("power", "olden");
 
-$TEST->add3Tests("health", "_GNUCC=1");
-   $TEST->add3Group("health", "olden");
+$TEST->add2Tests("health", "_GNUCC=1");
+   $TEST->add2Group("health", "olden");
 
 $TEST->add3Tests("perimeter");
    $TEST->add3Group("perimeter", "olden");
 $TEST->add3Tests("tsp");
    $TEST->add3Group("tsp", "olden");
-$TEST->add3Tests("bisort", "_GNUCC=1");
-   $TEST->add3Group("bisort", "olden");
+$TEST->add2Tests("bisort", "_GNUCC=1");
+   $TEST->add2Group("bisort", "olden");
 $TEST->add2Tests("mst");
    $TEST->add2Group("mst", "olden");
-$TEST->add3Tests("em3d", "_GNUCC=1");
-   $TEST->add3Group("em3d", "olden");
-$TEST->add3Tests("treeadd", "_GNUCC=1");
-   $TEST->add3Group("treeadd", "olden");
+$TEST->add2Tests("em3d", "_GNUCC=1");
+   $TEST->add2Group("em3d", "olden");
+$TEST->add2Tests("treeadd", "_GNUCC=1");
+   $TEST->add2Group("treeadd", "olden");
 
 # PTR INTENSIVE BENCHMARKS 
 $TEST->add2Tests("anagram", "_GNUCC=1");
@@ -597,11 +597,11 @@ $TEST->add2Tests("yacr", "_GNUCC=1");
 $TEST->add2Tests("li", "_GNUCC=1");
   $TEST->add2Group("li", "slow", "spec");
 
-$TEST->add3Tests("compress", "_GNUCC=1");
-  $TEST->add3Group("compress", "slow", "spec");
+$TEST->add2Tests("compress", "_GNUCC=1");
+  $TEST->add2Group("compress", "slow", "spec");
 
-$TEST->add3Tests("go", "_GNUCC=1");
-   $TEST->add3Group("go", "slow", "spec");
+$TEST->add2Tests("go", "_GNUCC=1");
+   $TEST->add2Group("go", "slow", "spec");
 
 $TEST->add2Tests("ijpeg", "_GNUCC=1");
   $TEST->add2Group("ijpeg", "slow", "spec");

@@ -1,4 +1,3 @@
-#include "testharness.h"
 
 /* We must strip all of the "const" qualifiers in structs that are used for 
  * locals */
@@ -16,5 +15,5 @@ int main()
   struct foo f = { 1, 2, 3, 4, 5, 6 };
   int x;
   x = values[0];
-  SUCCESS;
+  exit(0);
 }
