@@ -510,7 +510,7 @@ and doType (a : attribute list) = function
           TInt (ikind, _) -> ikind
         | _ -> E.s (E.unimp "Base type for bitfield is not an integer type")
       in
-      let width = match doExp e (AExp None) with
+      let width = match doExp true e (AExp None) with
         ([], Const(CInt(i,_,_),_), _) -> i
       | _ -> E.s (E.unimp "bitfield width is not an integer")
       in
@@ -522,7 +522,10 @@ and doType (a : attribute list) = function
       let lo = 
         match len with 
           A.NOTHING -> None 
-        | _ -> Some (doPureExp len)
+        | _ -> 
+            let len' = doPureExp len in
+            let _, len'' = castTo (typeOf len') intType len' in
+            Some len''
       in
       TArray (doType [] bt, lo, a)
 
@@ -582,7 +585,7 @@ and doType (a : attribute list) = function
 
         | (kname, e) :: rest ->
             let i = 
-              match doExp e (AExp None) with
+              match doExp true e (AExp None) with
                 [], Const(CInt(i,_,_),_), _ -> i
               | [], UnOp(Neg,Const(CInt(i,_,_), _),_,_), _ -> - i
               | _ -> E.s (E.unimp "enum with initializer")
@@ -627,7 +630,7 @@ and doType (a : attribute list) = function
       | typ -> TNamed(n, typ, a)
   end
   | A.TYPEOF e -> 
-      let (se, _, t) = doExp e (AExp None) in
+      let (se, _, t) = doExp false e (AExp None) in
       if se <> [] then
         E.s (E.unimp "typeof for a non-pure expression\n");
       t
@@ -675,7 +678,9 @@ and makeCompType (iss: bool)
   
      (* Process an expression and in the process do some type checking, 
       * extract the effects as separate statements  *)
-and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) = 
+and doExp (isconst: bool)    (* In a constant *)
+          (e : A.expression) 
+          (what: expAction) : (stmt list * exp * typ) = 
   (* A subexpression of array type is automatically turned into StartOf(e). 
    * Similarly an expression of function type is turned into StartOf *)
   let processStartOf e t = 
@@ -738,9 +743,11 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
           end
     end
     | A.INDEX (e1, e2) -> begin
-      (* Recall that doExp turns arrays into StartOf pointers *)
-        let (se1, e1', t1) = doExp e1 (AExp None) in
-        let (se2, e2', t2) = doExp e2 (AExp None) in
+        if isconst then 
+          E.s (E.unimp "INDEX in constant");
+        (* Recall that doExp turns arrays into StartOf pointers *)
+        let (se1, e1', t1) = doExp false e1 (AExp None) in
+        let (se2, e2', t2) = doExp false e2 (AExp None) in
         let se = se1 @ se2 in
         let (e1'', e2'', tresult) = 
           match unrollType t1, unrollType t2 with
@@ -756,7 +763,9 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
 
     end      
     | A.UNARY (A.MEMOF, e) -> 
-        let (se, e', t) = doExp e (AExp None) in
+        if isconst then
+          E.s (E.unimp "MEMOF in constant");
+        let (se, e', t) = doExp false e (AExp None) in
         let tresult = 
           match unrollType t with
           | TPtr(te, _) -> te
@@ -770,7 +779,9 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
            (* e.str = (& e + off(str)). If e = (be + beoff) then e.str = (be 
             * + beoff + off(str))  *)
     | A.MEMBEROF (e, str) -> 
-        let (se, e', t') = doExp e (AExp None) in
+        if isconst then
+          E.s (E.unimp "MEMBEROF in constant");
+        let (se, e', t') = doExp false e (AExp None) in
         let lv = 
           match e' with Lval x -> x 
           | _ -> E.s (E.unimp "Expected an lval in MEMDEROF")
@@ -785,7 +796,9 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
           
        (* e->str = * (e + off(str)) *)
     | A.MEMBEROFPTR (e, str) -> 
-        let (se, e', t') = doExp e (AExp None) in
+        if isconst then
+          E.s (E.unimp "MEMBEROFPTR in constant");
+        let (se, e', t') = doExp false e (AExp None) in
         let pointedt = 
           match unrollType t' with
             TPtr(t1, _) -> t1
@@ -903,7 +916,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         | A.CONST_COMPOUND initl -> begin
             let slist : stmt list ref = ref [] in
             let doPureExp t e = 
-              let (se, e', t') = doExp e (AExp(Some t)) in
+              let (se, e', t') = doExp true e (AExp(Some t)) in
               if se <> [] then
                 slist := !slist @ se;
               doCast e' t' t
@@ -1028,7 +1041,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         finishExp [] (SizeOf(typ, lu)) uintType
           
     | A.EXPR_SIZEOF e -> 
-        let (se, e', t) = doExp e (AExp None) in
+        let (se, e', t) = doExp isconst e (AExp None) in
         (* !!!! The book says that the expression is not evaluated, so we 
            * drop the potential size-effects *)
         if se <> [] then 
@@ -1045,7 +1058,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         let se1, typ = 
           match bt with
             A.TYPEOF et ->              (* might have side-effects *)
-              let (se1, _, typ) = doExp e (AExp None) in
+              let (se1, _, typ) = doExp isconst e (AExp None) in
               se1, typ
           | _ -> [],  doType [] bt
         in
@@ -1055,7 +1068,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
             A.CONSTANT (A.CONST_COMPOUND _) -> Some typ
           | _ -> None
         in
-        let (se, e', t) = doExp e (AExp what') in
+        let (se, e', t) = doExp isconst e (AExp what') in
         let (t'', e'') = 
           match typ with
             TVoid _ when what = ADrop -> (t, e') (* strange GNU thing *)
@@ -1064,7 +1077,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         finishExp (se1 @ se) e'' t''
           
     | A.UNARY(A.MINUS, e) -> 
-        let (se, e', t) = doExp e (AExp None) in
+        let (se, e', t) = doExp isconst e (AExp None) in
         if isIntegralType t then
           let tres = integralPromotion t in
           let e'' = 
@@ -1080,7 +1093,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
             E.s (E.unimp "Unary - on a non-arithmetic type")
         
     | A.UNARY(A.BNOT, e) -> 
-        let (se, e', t) = doExp e (AExp None) in
+        let (se, e', t) = doExp isconst e (AExp None) in
         if isIntegralType t then
           let tres = integralPromotion t in
           let e'' = UnOp(BNot, doCast e' t tres, tres, lu) in
@@ -1088,11 +1101,11 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         else
           E.s (E.unimp "Unary ~ on a non-integral type")
           
-    | A.UNARY(A.PLUS, e) -> doExp e what 
+    | A.UNARY(A.PLUS, e) -> doExp isconst e what 
           
           
     | A.UNARY(A.ADDROF, e) -> begin
-        let (se, e', t) = doExp e (AExp None) in
+        let (se, e', t) = doExp isconst e (AExp None) in
         match e' with 
           Lval x -> finishExp se (AddrOf(x, lu)) (TPtr(t, []))
         | CastE (t', Lval x, _) -> 
@@ -1108,7 +1121,9 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
     end
     | A.UNARY((A.PREINCR|A.PREDECR) as uop, e) -> 
         let uop' = if uop = A.PREINCR then PlusA else MinusA in
-        let (se, e', t) = doExp e (AExp None) in
+        if isconst then
+          E.s (E.unimp "PREINCR or PREDECR in constant");
+        let (se, e', t) = doExp false e (AExp None) in
         let lv = 
           match e' with 
             Lval x -> x
@@ -1121,9 +1136,11 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
           tresult   (* Should this be t instead ??? *)
           
     | A.UNARY((A.POSINCR|A.POSDECR) as uop, e) -> 
-      (* If we do not drop the result then we must save the value *)
+        if isconst then
+          E.s (E.unimp "POSTINCR or POSTDECR in constant");
+        (* If we do not drop the result then we must save the value *)
         let uop' = if uop = A.POSINCR then PlusA else MinusA in
-        let (se, e', t) = doExp e (AExp None) in
+        let (se, e', t) = doExp false e (AExp None) in
         let lv = 
           match e' with 
             Lval x -> x
@@ -1143,7 +1160,9 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
           tresult   (* Should this be t instead ??? *)
           
     | A.BINARY(A.ASSIGN, e1, e2) -> 
-        let (se1, e1', lvt) = doExp e1 (AExp None) in
+        if isconst then
+          E.s (E.unimp "ASSIGN in constant");
+        let (se1, e1', lvt) = doExp false e1 (AExp None) in
         let lv, lvt' = 
           match e1' with 
             Lval x -> x, lvt
@@ -1151,7 +1170,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
           | _ -> E.s (E.unimp "Expected lval for assignment. Got %a\n"
                         d_plainexp e1')
         in
-        let (se2, e'', t'') = doExp e2 (ASet(lv, lvt')) in
+        let (se2, e'', t'') = doExp false e2 (ASet(lv, lvt')) in
         finishExp (se1 @ se2) (Lval(lv)) lvt'
           
     | A.BINARY((A.ADD|A.SUB|A.MUL|A.DIV|A.MOD|A.BAND|A.BOR|A.XOR|
@@ -1175,14 +1194,16 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         | A.GE -> Ge
         | _ -> E.s (E.bug "binary +")
         in
-        let (se1, e1', t1) = doExp e1 (AExp None) in
-        let (se2, e2', t2) = doExp e2 (AExp None) in
+        let (se1, e1', t1) = doExp isconst e1 (AExp None) in
+        let (se2, e2', t2) = doExp isconst e2 (AExp None) in
         let tresult, result = doBinOp bop' e1' t1 e2' t2 in
         finishExp (se1 @ se2) result tresult
           
     | A.BINARY((A.ADD_ASSIGN|A.SUB_ASSIGN|A.MUL_ASSIGN|A.DIV_ASSIGN|
       A.MOD_ASSIGN|A.BAND_ASSIGN|A.BOR_ASSIGN|A.SHL_ASSIGN|
       A.SHR_ASSIGN|A.XOR_ASSIGN) as bop, e1, e2) -> 
+        if isconst then
+          E.s (E.unimp "op_ASSIGN in constant");
         let bop' = match bop with          
           A.ADD_ASSIGN -> PlusA
         | A.SUB_ASSIGN -> MinusA
@@ -1196,12 +1217,12 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         | A.SHR_ASSIGN -> Shiftrt
         | _ -> E.s (E.bug "binary +=")
         in
-        let (se1, e1', t1) = doExp e1 (AExp None) in
+        let (se1, e1', t1) = doExp false e1 (AExp None) in
         let lv1 = 
           match e1' with Lval x -> x
           | _ -> E.s (E.unimp "Expected lval for assignment")
         in
-        let (se2, e2', t2) = doExp e2 (AExp None) in
+        let (se2, e2', t2) = doExp false e2 (AExp None) in
         let tresult, result = doBinOp bop' e1' t1 e2' t2 in
         finishExp (se1 @ se2 @ [mkSet lv1 result])
           (Lval(lv1))
@@ -1216,7 +1237,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
           
     | A.UNARY(A.NOT, e) -> 
         let tmp = var (newTempVar intType) in
-        let (se, e', t) as rese = doExp e (AExp None) in
+        let (se, e', t) as rese = doExp isconst e (AExp None) in
         ignore (checkBool t e');
         finishExp se (UnOp(LNot, e', intType, lu)) intType
 (*   We could use this code but it consuses the translation validation
@@ -1227,6 +1248,8 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
 *)
           
     | A.CALL(f, args) -> 
+        if isconst then
+          E.s (E.unimp "CALL in constant");
         let (sf, f', ft') = 
           match f with                  (* Treat the VARIABLE case separate 
                                          * becase we might be calling a 
@@ -1248,7 +1271,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
                 ([], Lval(var proto), ftype)
               end
             end
-          | _ -> doExp f (AExp None) 
+          | _ -> doExp false f (AExp None) 
         in
         (* Get the result type and the argument types *)
         let (resType, argTypes, isvar, f'') = 
@@ -1273,13 +1296,13 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
             | ([], []) -> ([], [])
             | (varg :: atypes, a :: args) -> 
                 let (ss, args') = loopArgs (atypes, args) in
-                let (sa, a', att) = doExp a (AExp None) in
+                let (sa, a', att) = doExp false a (AExp None) in
                 let (at'', a'') = castTo att varg.vtype a' in
                 (ss @ sa, a'' :: args')
                   
             | ([], a :: args) when isvar -> (* No more types *)
                 let (ss, args') = loopArgs ([], args) in
-                let (sa, a', at) = doExp a (AExp None) in
+                let (sa, a', at) = doExp false a (AExp None) in
                 (ss @ sa, a' :: args')
             | _ -> E.s (E.unimp 
                           "Too few or too many arguments in call to %a" 
@@ -1313,23 +1336,27 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         end
           
     | A.COMMA el -> 
+        if isconst then 
+          E.s (E.unimp "COMMA in constant");
         let rec loop sofar = function
             [e] -> 
-              let (se, e', t') = doExp e what in (* Pass on the action *)
+              let (se, e', t') = doExp false e what in (* Pass on the action *)
               finishExp (sofar @ se) e' t' (* does not hurt to do it twice *)
           | e :: rest -> 
-              let (se, _, _) = doExp e ADrop in
+              let (se, _, _) = doExp false e ADrop in
               loop (sofar @ se) rest
           | [] -> E.s (E.unimp "empty COMMA expression")
         in
         loop [] el
           
     | A.QUESTION (e1,e2,e3) when what = ADrop -> 
-        let (se3,_,_) = doExp e3 ADrop in
+        if isconst then
+          E.s (E.bug "QUESTION with ADrop in constant");
+        let (se3,_,_) = doExp false e3 ADrop in
         let se2 = 
           match e2 with 
             A.NOTHING -> [Skip]
-          | _ -> let (se2,_,_) = doExp e2 ADrop in se2
+          | _ -> let (se2,_,_) = doExp false e2 ADrop in se2
         in
         finishExp (doCondition e1 se2 se3) (integer 0) intType
           
@@ -1337,22 +1364,24 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
                     (* Do these only to collect the types  *)
         let se2, e2', t2' = 
           match e2 with 
-            A.NOTHING -> (* A GNU thing. Use e1 as e2 *) doExp e1 (AExp None)
-          | _ -> doExp e2 (AExp None) in 
-        let se3, e3', t3' = doExp e3 (AExp None) in
+            A.NOTHING -> (* A GNU thing. Use e1 as e2 *) 
+              doExp isconst e1 (AExp None)
+          | _ -> doExp isconst e2 (AExp None) in 
+        let se3, e3', t3' = doExp isconst e3 (AExp None) in
         let tresult = conditionalConversion e2' t2' e3' t3' in
         match e2 with 
           A.NOTHING -> 
               let tmp = var (newTempVar tresult) in
-              let (se1, _, _) = doExp e1 (ASet(tmp, tresult)) in
-              let (se3, _, _) = doExp e3 (ASet(tmp, tresult)) in
+              let (se1, _, _) = doExp isconst e1 (ASet(tmp, tresult)) in
+              let (se3, _, _) = doExp isconst e3 (ASet(tmp, tresult)) in
               finishExp (se1 @ [IfThenElse(Lval(tmp), Skip, 
                                            mkSeq se3)])
                 (Lval(tmp))
                 tresult
         | _ -> 
-            if se2 = [] && se3 = [] then begin (* Use the Question *)
-              let se1, e1', t1 = doExp e1 (AExp None) in
+            if se2 = [] && se3 = [] && isconst then begin 
+                                       (* Use the Question *)
+              let se1, e1', t1 = doExp isconst e1 (AExp None) in
               ignore (checkBool t1 e1');
               let e2'' = doCast e2' t2' tresult in
               let e3'' = doCast e3' t3' tresult in
@@ -1372,8 +1401,8 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
                     var tmp, tresult
               in
               (* Now do e2 and e3 for real *)
-              let (se2, _, _) = doExp e2 (ASet(lv, lvt)) in
-              let (se3, _, _) = doExp e3 (ASet(lv, lvt)) in
+              let (se2, _, _) = doExp isconst e2 (ASet(lv, lvt)) in
+              let (se3, _, _) = doExp isconst e3 (ASet(lv, lvt)) in
               finishExp (doCondition e1 se2 se3) (Lval(lv)) tresult
     end
 
@@ -1588,7 +1617,7 @@ and doCondition (e: A.expression)
   | A.UNARY(A.NOT, e) -> doCondition e sf st
 
   | _ -> begin
-      let (se, e, t) as rese = doExp e (AExp None) in
+      let (se, e, t) as rese = doExp false e (AExp None) in
       ignore (checkBool t e);
       match e with 
         Const(CInt(i,_,_),_) when i <> 0 && canDrop sf -> se @ st
@@ -1597,7 +1626,7 @@ and doCondition (e: A.expression)
   end
 
 and doPureExp (e : A.expression) : exp = 
-  let (se, e', _) = doExp e (AExp None) in
+  let (se, e', _) = doExp true e (AExp None) in
   if se <> [] then
    E.s (E.unimp "doPureExp: not pure");
   e'
@@ -1612,7 +1641,7 @@ and doDecl : A.definition -> stmt list = function
         if e = A.NOTHING then
           [Skip]
         else
-          let (se, e', et) = doExp e (AExp (Some vi.vtype)) in
+          let (se, e', et) = doExp false e (AExp (Some vi.vtype)) in
           (match vi.vtype, et with (* We have a length now *)
             TArray(_,None, _), TArray(_, Some _, _) -> vi.vtype <- et
           | _, _ -> ());
@@ -1683,11 +1712,11 @@ and doStatement (s : A.statement) : stmt list =
     | A.COMPUTATION e -> 
         let (lasts, data) = !gnu_body_result in
         if lasts == s then begin      (* This is the last in a GNU_BODY *)
-          let (s', e', t') = doExp e (AExp None) in
+          let (s', e', t') = doExp false e (AExp None) in
           data := Some (e', t');      (* Record the result *)
           s'
         end else
-          let (s', _, _) = doExp e ADrop in
+          let (s', _, _) = doExp false e ADrop in
             (* drop the side-effect free expression *)
           s'
             
@@ -1711,8 +1740,8 @@ and doStatement (s : A.statement) : stmt list =
         [Loop(mkSeq (s' @ s''))]
           
     | A.FOR(e1,e2,e3,s) -> begin
-        let (se1, _, _) = doExp e1 ADrop in
-        let (se3, _, _) = doExp e3 ADrop in
+        let (se1, _, _) = doExp false e1 ADrop in
+        let (se3, _, _) = doExp false e3 ADrop in
         startLoop false;
         let s' = doStatement s in
         let s'' = labContinue () :: se3 in
@@ -1730,18 +1759,18 @@ and doStatement (s : A.statement) : stmt list =
           
     | A.RETURN A.NOTHING -> [Return None]
     | A.RETURN e -> 
-        let (se, e', et) = doExp e (AExp None) in
+        let (se, e', et) = doExp false e (AExp None) in
         let (et'', e'') = castTo et (!currentReturnType) e' in
         se @ [Return (Some e'')]
                
     | A.SWITCH (e, s) -> 
-        let (se, e', et) = doExp e (AExp None) in
+        let (se, e', et) = doExp false e (AExp None) in
         let (et'', e'') = castTo et (TInt(IInt,[])) e' in
         let s' = doStatement s in
         se @ [Switch (e'', mkSeq s')]
                
     | A.CASE (e, s) -> 
-        let (se, e', et) = doExp e (AExp None) in
+        let (se, e', et) = doExp false e (AExp None) in
           (* let (et'', e'') = castTo et (TInt(IInt,[])) e' in *)
         let i = 
           match se, e' with
@@ -1767,7 +1796,7 @@ and doStatement (s : A.statement) : stmt list =
         let outs' = 
           List.map 
             (fun (c, e) -> 
-              let (se, e', t) = doExp e (AExp None) in
+              let (se, e', t) = doExp false e (AExp None) in
               let lv = 
                 match e' with Lval x -> x
                 | _ -> E.s (E.unimp "Expected lval for ASM outputs")
@@ -1779,7 +1808,7 @@ and doStatement (s : A.statement) : stmt list =
         let ins' = 
           List.map 
             (fun (c, e) -> 
-              let (se, e', et) = doExp e (AExp None) in
+              let (se, e', et) = doExp false e (AExp None) in
               stmts := se :: !stmts;
               (c, e'))
             ins
@@ -1899,7 +1928,7 @@ let convFile dl =
               if e = A.NOTHING then 
                 None
               else 
-                let (se, e', et) = doExp e (AExp (Some vi.vtype)) in
+                let (se, e', et) = doExp true e (AExp (Some vi.vtype)) in
                 let (_, e'') = castTo et vi.vtype e' in
                 (match et with (* We have a length now *)
                   TArray(_, Some _, _) -> vi.vtype <- et

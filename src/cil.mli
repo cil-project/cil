@@ -239,7 +239,11 @@ and exp =
   | Question   of exp * exp * exp * location (* e1 ? e2 : e3. Sometimes we 
                                               * cannot turn this into a 
                                               * conditional statement (e.g. 
-                                              * in global initializers) *)
+                                              * in global initializers). This 
+                                              * is only allowed inside 
+                                              * constant initializers.!!! In 
+                                              * all other places it must bne 
+                                              * turned into IfThenElse *)
   | CastE      of typ * exp * location  (* Use doCast to make casts *)
 
                                         (* Used only for initializers of 

@@ -409,9 +409,12 @@ and checkExp (isconst: bool) (e: exp) : typ =
           let t1 = checkExp isconst e1 in
           let t2 = checkExp isconst e2 in
           match bop with
-            (Mult | Div | Eq |Ne|Lt|Le|Ge|Gt) -> 
+            (Mult | Div) -> 
               typeMatch t1 t2; checkArithmeticType tres; 
               typeMatch t1 tres; tres
+          | (Eq|Ne|Lt|Le|Ge|Gt) -> 
+              typeMatch t1 t2; checkArithmeticType t1; 
+              typeMatch tres intType; tres
           | Mod|BAnd|BOr|BXor -> 
               typeMatch t1 t2; checkIntegralType tres;
               typeMatch t1 tres; tres
@@ -433,6 +436,8 @@ and checkExp (isconst: bool) (e: exp) : typ =
               tres
       end
       | Question (eb, et, ef, _) -> 
+          if not isconst then
+            ignore (E.warn "Question operator not in a constant\n");
           let tb = checkExp isconst eb in
           checkBooleanType tb;
           let tt = checkExp isconst et in

@@ -181,7 +181,7 @@ testallpcc: $(EXECUTABLE)$(EXE) $(TVEXE) $(SAFECLIB) $(SAFEMAINLIB)
 	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.exe
 	make -C $(PCCDIR) \
              CC="$(SAFECC) --keep=$(SAFECCDIR)/cil/test/PCCout $(CONLY)" \
-             USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
+             USE_JAVA= USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
              COMPILER=$(PCCCOMP) \
              ENGINE_OTHERS="C:$(SAFECLIB) C:$(SAFEMAINLIB)" \
              TRANSLF_OTHERS="C:$(SAFECLIB) C:$(SAFEMAINLIB)" \
@@ -191,7 +191,7 @@ runpcc:
 ifdef _GNUCC
 	rm $(PCCDIR)/bin/*_MSVC*
 endif
-	cd $(PCCDIR)/test; test.cmd fact
+	cd $(PCCDIR)/test; test.cmd fact --save-temps=pccout --gory
 
 ############ Small tests
 SMALL1=test/small1
