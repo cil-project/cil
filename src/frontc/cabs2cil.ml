@@ -3896,18 +3896,10 @@ and doInitializer
   in
   if restl <> [] then 
     ignore (warn "Ignoring some initializers");
-  (* Now see if we must fix the type *)
-  let typ' = 
-    match unrollType vi.vtype with 
-      TArray(bt, None, al) -> begin
-        match !topPreInit with 
-          CompoundPre (pMaxIdx, _) -> 
-            TArray (bt, Some (integer (1 + !pMaxIdx)), al)
-        | NoInitPre -> (* This is an array of zero elements *)
-            TArray (bt, Some zero, al)
-        | _ -> E.s (bug "doInitializer: singleInit for array")
-      end
-    | _ -> vi.vtype
+  (* sm: we used to do array-size fixups here, but they only worked
+   * for toplevel array types; now, collectInitializer does the job,
+   * including for nested array types *)
+  let typ' = unrollType vi.vtype
   in
   if debugInit then 
     ignore (E.log "Collecting the initializer for %s\n" vi.vname);
