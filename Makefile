@@ -1673,7 +1673,7 @@ endif
 
 linuxclean: 
 	cd $(LINUXSRC); make clean
-	-cd $(LINUXSRC); find . \( \
+	-cd $(LINUXSRC); chmod -R a+w * ; find . \( \
 		-name '*cil.c' -o \
 		-name '*.exe' -o \
 		-name '*.i' -o \
