@@ -324,7 +324,7 @@ let movingRight (abscol: int) : int =
 let printDepth = ref 10000000 (* WRW: must see whole thing *)
 let alignDepth = ref 0
 
-let useAlignDepth = false
+let useAlignDepth = true
 
 (** Start an align. Return true if we ahve just passed the threshhold *)
 let enterAlign () = 
