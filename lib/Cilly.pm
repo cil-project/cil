@@ -729,7 +729,7 @@ sub link {
     if(@{$tomerge} > 1 && $self->{KEEPMERGED}) {
         my $canReuse = 1;
         my $combFile = $dest . "_comb.c";
-        my @tmp = stat($combFile); my $combFileMtime = $tmp[9];
+        my @tmp = stat($combFile); my $combFileMtime = $tmp[9] || 0;
         foreach my $mrg (@{$tomerge}) {
             my @tmp = stat($mrg); my $mtime = $tmp[9];
             if($mtime >= $combFileMtime) { goto DoMerge; }
@@ -1633,7 +1633,7 @@ sub lineDirective {
 # The name of the output file
 sub compileOutputFile {
     my($self, $src) = @_;
-    if($self->{OUTARG} =~ m|^-o\s*(\S.+)$| && $self->{OPERATION} eq 'TOOBJ') {
+    if(defined $self->{OUTARG} && $self->{OUTARG} =~ m|^-o\s*(\S.+)$| && $self->{OPERATION} eq 'TOOBJ') {
         return $1;
     }
     my ($base, $dir, $ext) = 
