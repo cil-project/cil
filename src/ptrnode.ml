@@ -330,6 +330,8 @@ type whichAttr =
 
 
 let replacePtrNodeAttrList where al = 
+(*  ignore (E.log "replacePtrNode: %a\n"
+            (d_attrlist true) al); *)
   let foundNode : string ref = ref "" in
   let rec loop = function
       [] -> []

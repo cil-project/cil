@@ -85,7 +85,7 @@ type offsetRes =
       
 
 (*** Helpers *)            
-let castVoidStar e = doCast e (typeOf e) voidPtrType
+let castVoidStar e = doCast e voidPtrType
 
 let prefix p s = 
   let lp = String.length p in
@@ -1006,6 +1006,14 @@ let rec typeContainsFats t =
       | _ -> ExistsMaybe)
     t
 
+(* See if a type contains arrays *)
+let containsArray t =
+  existsType 
+    (function 
+        TArray _ -> ExistsTrue 
+      | TPtr _ -> ExistsFalse
+      | _ -> ExistsMaybe) t
+
 (* Create tags for types along with the newly created fields and initializers 
  * for tags and for the length  *)
 (* Check whether the type contains an embedded array *)
@@ -1027,13 +1035,6 @@ let mustBeTagged v =
                         * have a length = 0 so we cannot write there *)
   else
     if !N.defaultIsWild then
-      let rec containsArray t =
-        existsType 
-          (function 
-              TArray _ -> ExistsTrue 
-            | TPtr _ -> ExistsFalse
-            | _ -> ExistsMaybe) t
-      in
       if v.vglob then 
         if v.vstorage = Static then 
           v.vaddrof || containsArray v.vtype
@@ -1130,7 +1131,7 @@ let offsetOfFirstScalar (t: typ) : exp =
     None -> raise Not_found
   | Some NoOffset -> CastE(uintType, zero)
   | Some off -> 
-      let scalar = Mem (doCast zero intType (TPtr (t, []))), off in
+      let scalar = Mem (doCastT zero intType (TPtr (t, []))), off in
       let addrof = mkAddrOf scalar in
       CastE(uintType, addrof)
 
@@ -1310,7 +1311,7 @@ let stringLiteral (s: string) (strt: typ) =
       let result = StartOf (Var gvar, Field(dfield, NoOffset)) in
       ([], FM (fixChrPtrType, N.Wild,
                result, 
-               doCast result (typeOf result) voidPtrType, zero))
+               castVoidStar result, zero))
   | N.Seq | N.Safe | N.FSeq | N.String | N.SeqN | N.FSeqN -> 
       let l = (if k = N.FSeqN || k = N.SeqN then 0 else 1) + String.length s in
       let tmp = makeTempVar !currentFunction charPtrType in
@@ -1345,17 +1346,30 @@ let pkArithmetic (ep: exp)
              d_exp ep)
   | N.String -> 
       (* Arithmetic on strings is tricky. We must first convert to a FSeq and 
-       * then do arithmetic and then convert back *)
+       * then do arithmetic. We leave it a SeqN to be converted back to 
+       * string late if necessary *)
       let p', b', bend', acc' = stringToSeq ptr f2 f3 [] in
-      let p'' = BinOp(bop, p', e2, ptype) in
-      let p2, b2, bend2, acc2 = seqNToString p'' ptype b' bend' acc' in
-      mkFexp1 et p2, (List.rev acc2)
+      (* Change the type from String into a SeqN pointer *)
+      let ptype' = 
+        match ptype with
+          TPtr((TInt((IChar|ISChar|IUChar), _) as bt), ptra) -> 
+            TPtr(bt, 
+                 addAttribute (N.k2attr N.SeqN)
+                   (dropAttribute ptra (N.k2attr N.String)))
+        | _ -> E.s (E.bug "String pointer kind but base type is not char")
+      in
+      (* And recompute the right type for the result *)
+      let et' = fixupType ptype' in
+(*      ignore (E.log "pkArith: %a\n" d_plaintype ptype'); *)
+      let p'' = BinOp(bop, p', e2, ptype') in
+      mkFexp3 et' p'' b' bend', List.rev acc'
       
   | _ -> E.s (E.bug "pkArithmetic(%a)" N.d_pointerkind ek)
         
 
 
-let checkBounds (mktmplen: unit -> exp)
+let checkBounds (iswrite: bool) 
+                (mktmplen: unit -> exp)
                 (base: exp)
                 (bend: exp)
                 (lv: lval)
@@ -1377,13 +1391,29 @@ let checkBounds (mktmplen: unit -> exp)
       List.rev docheck
 
   | (N.FSeq|N.FSeqN) ->
+      let base' = 
+        if pkind = N.FSeqN && not iswrite then 
+          (* Allow reading of the trailing 0 *)
+          castVoidStar (BinOp(PlusPI, 
+                              doCast base charPtrType, one, charPtrType))
+        else
+          base
+      in
       let _, _, _, docheck = 
-        fseqToSafe (AddrOf(lv')) (TPtr(lv't, [])) base bend [] in
+        fseqToSafe (AddrOf(lv')) (TPtr(lv't, [])) base' bend [] in
       List.rev docheck
 
   | (N.Seq|N.SeqN) ->
+      let bend' = 
+        if pkind = N.SeqN && not iswrite then 
+          (* Allow reading of the trailing 0 *)
+          castVoidStar (BinOp(PlusPI, 
+                              doCast bend charPtrType, one, charPtrType))
+        else
+          bend
+      in
       let _, _, _, docheck = 
-        seqToSafe (AddrOf(lv')) (TPtr(lv't, [])) base bend [] in
+        seqToSafe (AddrOf(lv')) (TPtr(lv't, [])) base bend' [] in
       List.rev docheck
         
   | N.Safe | N.String -> begin
@@ -1425,7 +1455,7 @@ let castTo (fe: fexp) (newt: typ)
             pfield.ftype 
       in
       (* Cast the pointer expression to the new pointer type *)
-      let castP (p: exp) = doCast p (typeOf p) newPointerType in
+      let castP (p: exp) = doCast p newPointerType in
       (* Converts a reversed accumulator to doe *)
       let finishDoe (acc: stmt list) = doe @ (List.rev acc) in
       let oldt, oldk, p, b, bend = 
@@ -1644,8 +1674,10 @@ let checkMem (towrite: exp option)
       dotags
   in
   (* Now see if we need to do bounds checking *)
+  let iswrite = (match towrite with Some _ -> true | _ -> false) in
   let checkb = 
-    (checkBounds getLenExp base bend lv lvt pkind) @ zeroAndCheckTags in
+    (checkBounds iswrite getLenExp base bend lv lvt pkind) 
+    @ zeroAndCheckTags in
   (* See if we need to generate the length *)
   (match !lenExp with
     None -> checkb
@@ -1908,7 +1940,7 @@ and boxinstr (ins: instr) (l: location): stmt =
  * pointer kinds Seq). We also compute a list of statements that must be 
  * executed to check the bounds.  *)
 and boxlval (b, off) : (typ * N.pointerkind * lval * exp * exp * stmt list) = 
-
+  let debuglval = false in
   (* As we go along the offset we keep track of the basetype and the pointer 
    * kind, along with the current base expression and a function that can be 
    * used to recreate the lval. *)
@@ -1926,8 +1958,9 @@ and boxlval (b, off) : (typ * N.pointerkind * lval * exp * exp * stmt list) =
         in
         (addrt', pkind, (fun o -> (Mem addr', o)), addr'base, addr'len, doaddr)
   in
-(*  ignore (E.log "Lval=%a@!startinput=%a\n" 
-            d_lval (b, off) N.d_pointerkind pkind); *)
+  if debuglval then
+    ignore (E.log "Lval=%a@!startinput=%a\n" 
+              d_lval (b, off) N.d_pointerkind pkind); 
   (* As we go along we need to go into tagged and sized types. *)
   let goIntoTypes ((btype, pkind, mklval, base, bend, stmts) as input) = 
     match 
@@ -1976,7 +2009,8 @@ and boxlval (b, off) : (typ * N.pointerkind * lval * exp * exp * stmt list) =
         doOffset (goIntoTypes next) resto
   in
   let (btype, pkind, mklval, base, bend, stmts) = doOffset startinput off in
-(*  ignore (E.log "Done lval: pkind=%a@!" N.d_pointerkind pkind); *)
+  if debuglval then
+    ignore (E.log "Done lval: pkind=%a@!" N.d_pointerkind pkind);
   (btype, pkind, mklval NoOffset, base, bend, stmts)
       
     (* Box an expression and return the fexp version of the result. If you do 
@@ -1985,13 +2019,15 @@ and boxexpf (e: exp) : stmt list * fexp =
   try
     match e with
     | Lval (lv) -> 
+        (* ignore (E.log "boxexpf: %a\n" d_plainlval lv); *)
         let lvt, lvkind, lv', baseaddr, len, dolv = boxlval lv in
         let check = (* Check a read if it is in memory or if it comes from a 
-                     * tagged variable *)
+                     * variable that contains arrays or that is tagged 
+                       *)
           match lv' with
             Mem _, _ -> 
               checkRead lv' baseaddr len lvt lvkind
-          | Var vi, off when mustBeTagged vi -> 
+          | Var vi, off when containsArray vi.vtype || mustBeTagged vi -> 
               checkRead lv' baseaddr len lvt lvkind
           | _, _ -> []
         in
@@ -2119,7 +2155,7 @@ and boxGlobalInit e et =
     None -> e'
   | Some ct -> 
       Compound(ct, [ (None, e'); (None, 
-                                  doCast e'base (typeOf e'base) voidPtrType)])
+                                  castVoidStar e'base)])
 
 and fexp2exp (fe: fexp) (doe: stmt list) : expRes = 
   match fe with
@@ -2211,7 +2247,7 @@ let initializeVar (mkivar: unit -> varinfo)
     mkSet (Var v, Field(lfld, NoOffset)) words ::
     (* And the loop to initialize the tags with zero *)
     (if not v.vglob then
-      mkForIncr iter zero (doCast tagwords (typeOf tagwords) intType) one 
+      mkForIncr iter zero (doCast tagwords intType) one 
         [mkSet (Var v, Field(tfld, Index (Lval(var iter), NoOffset))) 
             zero ]
       ::
@@ -2237,7 +2273,7 @@ let initializeVar (mkivar: unit -> varinfo)
               in
               let dothissize = 
                 doit (Field(s, NoOffset)) 
-                  (BinOp(Mult, doCast l (typeOf l) uintType, 
+                  (BinOp(Mult, doCast l uintType, 
                          SizeOf(bt), uintType))
                   acc in
               (* Prepare the "doit" function for the base type *)
@@ -2284,7 +2320,7 @@ let initializeVar (mkivar: unit -> varinfo)
           | _ -> true) 
         in
         if mustinit then
-          doit NoOffset (doCast zero intType t) acc
+          doit NoOffset (doCastT zero intType t) acc
         else 
           acc
       end
@@ -2339,7 +2375,7 @@ let boxFile file =
         | _ -> ());
         theFile := g :: !theFile
       end
-    | _ -> 
+    | _ -> begin
         if not !boxing then theFile := g :: !theFile else
         match g with
 
@@ -2367,7 +2403,9 @@ let boxFile file =
                 l.vtype <- fixupType newt;
                 if mustBeTagged l then
                   l.vtype <- tagType l.vtype;
-                
+                (* ignore (E.log "Local %s: %a. A=%a\n" l.vname
+                          d_plaintype l.vtype
+                          (d_attrlist true) l.vattr); *)
             (* sm: eliminate the annoying warnings about taking the address
              * of a 'register' variable, by removing the 'register' storage
              * class for any variable with 'wild' attribute and 'named' type *)
@@ -2426,6 +2464,7 @@ let boxFile file =
             theFile := GFun (f, l) :: !theFile
                                         
         | (GAsm _ | GText _ | GPragma _) as g -> theFile := g :: !theFile
+    end
 
   and boxglobal vi isdef init (l: location) =
     if debug then

@@ -235,7 +235,7 @@ let doVarinfo vi =
   (* Do the type of the variable. Start the index at 1 *)
   let t', _ = doType vi_vtype place 1 in
   vi.vtype <- t';
-(*  ignore (E.log "Did varinfo: %s. T=%a\n" vi.vname
+  (* ignore (E.log "Did varinfo: %s. T=%a\n" vi.vname
             d_plaintype vi.vtype); *)
   (* Associate a node with the variable itself. Use index = 0 *)
   let n = N.getNode place 0 vi.vtype vi.vattr in
@@ -638,7 +638,7 @@ let doGlobal (g: global) : global =
       | _ -> ());
       g
     end
-  | _ -> 
+  | _ -> begin
       if not !boxing then g
       else match g with
       | GText _ | GAsm _ -> g
@@ -692,7 +692,7 @@ let doGlobal (g: global) : global =
           fdec.sbody <- doStmt fdec.sbody;
           g
       | GPragma _ -> g (* Should never be reached *)
-      
+  end
       
 (* Now do the file *)      
 let markFile fl = 

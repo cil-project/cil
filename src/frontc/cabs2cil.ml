@@ -404,28 +404,28 @@ let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) =
   | TForward(comp, _), _ -> castTo (TComp comp) nt e
   | _, TForward(comp, _) -> castTo ot (TComp comp) e
   | TInt(ikindo,_), TInt(ikindn,_) -> 
-      (nt, if ikindo == ikindn then e else doCast e ot nt)
+      (nt, if ikindo == ikindn then e else doCastT e ot nt)
 
-  | TPtr (told, _), TPtr(tnew, _) -> (nt, doCast e ot nt)
+  | TPtr (told, _), TPtr(tnew, _) -> (nt, doCastT e ot nt)
 
   | TInt _, TPtr _ when
       (match e with Const(CInt(0,_,_)) -> true | _ -> false) -> 
-        (nt, doCast e ot nt)
+        (nt, doCastT e ot nt)
 
-  | TInt _, TPtr _ -> (nt, doCast e ot nt)
+  | TInt _, TPtr _ -> (nt, doCastT e ot nt)
 
-  | TPtr _, TInt _ -> (nt, doCast e ot nt)
+  | TPtr _, TInt _ -> (nt, doCastT e ot nt)
 
-  | TArray _, TPtr _ -> (nt, doCast e ot nt)
+  | TArray _, TPtr _ -> (nt, doCastT e ot nt)
 
   | TArray(t1,_,_), TArray(t2,None,_) when typeSig t1 = typeSig t2 -> (nt, e)
 
   | TPtr _, TArray(_,_,_) -> (nt, e)
 
   | TEnum _, TInt _ -> (nt, e)
-  | TFloat _, TInt _ -> (nt, doCast e ot nt)
-  | TInt _, TFloat _ -> (nt, doCast e ot nt)
-  | TFloat _, TFloat _ -> (nt, doCast e ot nt)
+  | TFloat _, TInt _ -> (nt, doCastT e ot nt)
+  | TInt _, TFloat _ -> (nt, doCastT e ot nt)
+  | TFloat _, TFloat _ -> (nt, doCastT e ot nt)
   | TInt _, TEnum _ -> (nt, e)
   | TEnum _, TEnum _ -> (nt, e)
 
@@ -937,7 +937,7 @@ and doExp (isconst: bool)    (* In a constant *)
               let (se, e', t') = doExp true e (AExp(Some t)) in
               if se <> [] then
                 slist := !slist @ se;
-              doCast e' t' t
+              doCastT e' t' t
             in
             (* Now recurse to find the complete offset and the type  *)
             let rec initToOffset (bt: typ) = function
@@ -1101,7 +1101,7 @@ and doExp (isconst: bool)    (* In a constant *)
           let e'' = 
             match e' with
             | Const(CInt(i, _, _)) -> integer (- i)
-            | _ -> UnOp(Neg, doCast e' t tres, tres)
+            | _ -> UnOp(Neg, doCastT e' t tres, tres)
           in
           finishExp se e'' tres
         else
@@ -1114,7 +1114,7 @@ and doExp (isconst: bool)    (* In a constant *)
         let (se, e', t) = doExp isconst e (AExp None) in
         if isIntegralType t then
           let tres = integralPromotion t in
-          let e'' = UnOp(BNot, doCast e' t tres, tres) in
+          let e'' = UnOp(BNot, doCastT e' t tres, tres) in
           finishExp se e'' tres
         else
           E.s (E.unimp "Unary ~ on a non-integral type")
@@ -1149,7 +1149,7 @@ and doExp (isconst: bool)    (* In a constant *)
           | _ -> E.s (E.unimp "Expected lval for ++ or --")
         in
         let tresult, result = doBinOp uop' (Lval(lv)) t one intType in
-        finishExp (se @ [mkSet lv (doCast result tresult t)])
+        finishExp (se @ [mkSet lv (doCastT result tresult t)])
           (Lval(lv))
           tresult   (* Should this be t instead ??? *)
           
@@ -1173,7 +1173,7 @@ and doExp (isconst: bool)    (* In a constant *)
           else
             se, Lval(lv)
         in
-        finishExp (se' @ [mkSet lv (doCast opresult tresult t)])
+        finishExp (se' @ [mkSet lv (doCastT opresult tresult t)])
           result
           tresult   (* Should this be t instead ??? *)
           
@@ -1401,8 +1401,8 @@ and doExp (isconst: bool)    (* In a constant *)
                                        (* Use the Question *)
               let se1, e1', t1 = doExp isconst e1 (AExp None) in
               ignore (checkBool t1 e1');
-              let e2'' = doCast e2' t2' tresult in
-              let e3'' = doCast e3' t3' tresult in
+              let e2'' = doCastT e2' t2' tresult in
+              let e3'' = doCastT e3' t3' tresult in
               let resexp = 
                 match e1' with
                   Const(CInt(i, _, _)) when i <> 0 -> e2''
@@ -1508,17 +1508,17 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
   let doArithmetic () = 
     let tres = arithmeticConversion t1 t2 in
     (* Keep the operator since it is arithmetic *)
-    constFold bop (doCast e1 t1 tres) (doCast e2 t2 tres) tres
+    constFold bop (doCastT e1 t1 tres) (doCastT e2 t2 tres) tres
   in
   let doArithmeticComp () = 
     let tres = arithmeticConversion t1 t2 in
     (* Keep the operator since it is arithemtic *)
-    constFold bop (doCast e1 t1 tres) (doCast e2 t2 tres) intType
+    constFold bop (doCastT e1 t1 tres) (doCastT e2 t2 tres) intType
   in
   let doIntegralArithmetic () = 
     let tres = unrollType (arithmeticConversion t1 t2) in
     match tres with
-      TInt _ -> constFold bop (doCast e1 t1 tres) (doCast e2 t2 tres) tres
+      TInt _ -> constFold bop (doCastT e1 t1 tres) (doCastT e2 t2 tres) tres
     | _ -> E.s (E.unimp "%a operator on a non-integer type" d_binop bop)
   in
   let bop2point = function
@@ -1535,8 +1535,8 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
       | _, TPtr(TVoid _, _) -> t1
       | _, _ -> t1
     in
-    constFold (bop2point bop) (doCast e1 t1 commontype) 
-                              (doCast e2 t2 commontype) intType
+    constFold (bop2point bop) (doCastT e1 t1 commontype) 
+                              (doCastT e2 t2 commontype) intType
   in
 
   match bop with
@@ -1550,7 +1550,7 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
       else
         let t1' = integralPromotion t1 in
         let t2' = integralPromotion t2 in
-        constFold bop (doCast e1 t1 t1') (doCast e2 t2 t2') t1'
+        constFold bop (doCastT e1 t1 t1') (doCastT e2 t2 t2') t1'
 
   | (PlusA|MinusA) 
       when isArithmeticType t1 && isArithmeticType t2 -> doArithmetic ()
@@ -1558,19 +1558,19 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
       when isArithmeticType t1 && isArithmeticType t2 -> 
         doArithmeticComp ()
   | PlusA when isPointerType t1 && isIntegralType t2 -> 
-      constFold PlusPI e1 (doCast e2 t2 (integralPromotion t2)) t1
+      constFold PlusPI e1 (doCastT e2 t2 (integralPromotion t2)) t1
   | PlusA when isIntegralType t1 && isPointerType t2 -> 
-      constFold PlusPI e2 (doCast e1 t1 (integralPromotion t1)) t2
+      constFold PlusPI e2 (doCastT e1 t1 (integralPromotion t1)) t2
   | MinusA when isPointerType t1 && isIntegralType t2 -> 
-      constFold MinusPI e1 (doCast e2 t2 (integralPromotion t2)) t1
+      constFold MinusPI e1 (doCastT e2 t2 (integralPromotion t2)) t1
   | (MinusA|Le|Lt|Ge|Gt|Eq|Ne) when isPointerType t1 && isPointerType t2 ->
       pointerComparison e1 e2
   | (Eq|Ne) when isPointerType t1 && 
                  (match e2 with Const(CInt(0,_,_)) -> true | _ -> false) -> 
-      pointerComparison e1 (doCast e2 t2 t1)
+      pointerComparison e1 (doCastT e2 t2 t1)
   | (Eq|Ne) when isPointerType t2 && 
                  (match e1 with Const(CInt(0,_,_)) -> true | _ -> false) -> 
-      pointerComparison (doCast e1 t1 t2) e2
+      pointerComparison (doCastT e1 t1 t2) e2
   | _ -> E.s (E.unimp "doBinOp: %a\n" d_plainexp (BinOp(bop,e1,e2,intType)))
 
 (* A special case for conditionals *)

@@ -36,7 +36,9 @@ $TEST->addTest("wes-rbtest", @runpattern);
 $TEST->addTest("btreetest", @runpattern);
 $TEST->addTest("apache/gzip");
 $TEST->addTest("apache/rewrite");
-$TEST->addTest("test/box1");
+$TEST->addTest("test/string");
+$TEST->addTest("test/smallstring");
+$TEST->addTest("test/init");
 
 # $TEST->addTest("test/t");
 

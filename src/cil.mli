@@ -718,8 +718,9 @@ type typsig =
 val typeSig: typ -> typsig
 
 (* Construct a cast *)
-val doCast: e:exp -> oldt:typ -> newt:typ -> exp
-  
+val doCastT: e:exp -> oldt:typ -> newt:typ -> exp
+val doCast: e:exp -> newt:typ -> exp (* Like doCastT but use typeOf to get 
+                                      * oldt *)  
 
 (*** Make a compound initializer for zeroe-ing a data type ***)
 val makeZeroCompoundInit: typ -> exp
