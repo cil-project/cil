@@ -261,6 +261,17 @@ global:
                                         { GLOBASM ($4, $1) }
 | location PRAGMA attr                  { PRAGMA ($3, $1) }
 | location error SEMICOLON { PRAGMA (CONSTANT(CONST_STRING "error"), $1) }
+/* (* Old-style function prototype. This should be somewhere else, like in 
+    * "declaration". For now we keep it at global scope only because in local 
+    * scope it looks too much like a function call  *) */
+| location   IDENT LPAREN old_parameter_list RPAREN old_pardef_list SEMICOLON
+                           { (* Convert pardecl to new style *)
+                             let pardecl = doOldParDecl $4 $6 in
+                             (* Make the function declarator *)
+                             doDeclaration $1 [] 
+                               [(($2, PROTO(JUSTBASE, pardecl,false), []),
+                                 NO_INIT)]
+                            } 
 ;
 id_or_typename:
     IDENT				{$1}
@@ -419,6 +430,7 @@ initializer_list_opt:
 ;
 initializer: 
     init_designators EQ init_expression { ($1, $3) }
+|   alt_init_designators COLON init_expression { ($1, $3) }
 |                       init_expression { (NEXT_INIT, $1) }
 ;
 init_designators: 
@@ -432,7 +444,9 @@ init_designators_opt:
    /* empty */                          { NEXT_INIT }
 |  init_designators                     { $1 }
 ;
-
+alt_init_designators:  /*(* GCC supports these strange things *)*/
+   IDENT                                { INFIELD_INIT($1, NEXT_INIT) }
+;
 
 
 opt_expression:
@@ -523,10 +537,6 @@ statement:
 |   location error   SEMICOLON   { (NOP $1)}
 ;
 
-
-/*******************************************************/
-/* This is an attempt to clean up the handling of types*/
-/*******************************************************/
 
 declaration:                                /* ISO 6.7.*/
     location decl_spec_list init_declarator_list SEMICOLON
@@ -665,14 +675,6 @@ direct_decl: /* (* ISO 6.7.5 *) */
                                      (n, ARRAY(decl, smooth_expression $3)) }
 |   direct_decl LBRACKET RBRACKET  { let (n, decl) = $1 in
                                      (n, ARRAY(decl, NOTHING)) }
-/*
-|   direct_decl LPAREN parameter_list RPAREN 
-                                   { let (n, decl) = $1 in
-                                     (n, PROTO(decl, $3, false)) }
-|   direct_decl LPAREN parameter_list_ne COMMA ELLIPSIS RPAREN
-                                   { let (n, decl) = $1 in
-                                     (n, PROTO(decl, $3, true)) }
-*/
 |   direct_decl parameter_list_startscope rest_par_list RPAREN
                                    { let (n, decl) = $1 in
                                      let (params, isva) = $3 in
@@ -788,12 +790,6 @@ abs_direct_decl: /* (* ISO 6.7.6. We do not support optional declarator for
                                      Clexer.pop_context ();
                                      PROTO ($1, params, isva)
                                    } 
-/*
-|   abs_direct_decl LPAREN parameter_list RPAREN 
-                                   { PROTO($1, $3, false) }
-|   abs_direct_decl LPAREN parameter_list_ne COMMA ELLIPSIS RPAREN
-                                   { PROTO($1, $3, true) }
-*/
 ;
 abs_direct_decl_opt:
     abs_direct_decl                 { $1 }
@@ -841,7 +837,6 @@ function_def_start:  /* (* ISO 6.9.1 *) */
                              ($1, defSpec, fdec) 
                             }
 ;
-
 
 /*** GCC attributes ***/
 attributes:
