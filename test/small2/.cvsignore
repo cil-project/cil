@@ -166,3 +166,4 @@ signal
 seq_align_malloc
 bsearch
 readv
+getaddrinfo

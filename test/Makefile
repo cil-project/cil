@@ -641,7 +641,7 @@ scott/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 	cd $(TESTDIR)/small2; $(CC) $(CONLY) $(WARNALL) $*.c
 	cd $(TESTDIR)/small2; $(CCURED) --separate --keep=. \
                  `$(PATCHECHO) $(STANDARDPATCH)` \
-                 $(CFLAGS) `true $(WARNALL)` $(NOPRINTLN) \
+                 $(CFLAGS) $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*
 	sh -c "time $(TESTDIR)/small2/$*"

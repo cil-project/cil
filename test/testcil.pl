@@ -840,6 +840,7 @@ smAddTest("scott/thing");
 smAddTest("scott/strerror1 $box");
 smAddTest("scott/bsearch $box");
 smAddTest("scott/signal $box");
+smAddTest("scott/getaddrinfo $box");
 
 # current problematic test cases
 smAddTest("scott/complex_float $box");

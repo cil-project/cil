@@ -31,3 +31,4 @@ testsafec.smlog
 Makefile
 __scalar2pointer.txt
 safec.*
+make.out
