@@ -192,7 +192,7 @@ let d_whykind () = function
   | Unconstrained -> text "unconstrained"
 
 let d_node () n = 
-  dprintf "%d : %a (%s%s%s%s%s%s%s%s%s) (@[%a@])@! K=%a/%a T=%a@!  S=@[%a@]@!  P=@[%a@]@!" 
+  dprintf "%d : %a (%s%s%s%s%s%s%s%s) (@[%a@])@! K=%a/%a T=%a@!  S=@[%a@]@!  P=@[%a@]@!" 
     n.id d_placeidx n.where
     (if n.onStack then "stack," else "")
     (if n.updated then "upd," else "")
