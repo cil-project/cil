@@ -392,8 +392,8 @@ let mkFexp1 (t: typ) (e: exp) =
   let k = kindOfType t in
   match k with
     (N.Safe|N.Scalar|N.String) -> L  (t, k, e)
-  | (N.Index|N.Wild|N.FSeq|N.Seq) -> FS (t, k, e)
-  | _ -> E.s (E.bug "mkFexp1")
+  | (N.Index|N.Wild|N.FSeq|N.FSeqN|N.Seq|N.SeqN) -> FS (t, k, e)
+  | _ -> E.s (E.bug "mkFexp1(%a)" N.d_pointerkind k)
 
 let mkFexp2 (t: typ) (ep: exp) (eb: exp) = 
   let k = kindOfType t in
