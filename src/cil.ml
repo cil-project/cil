@@ -3172,13 +3172,14 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         let name' = text "*" ++ printAttributes a ++ name in
         let name'' = if paren then text "(" ++ name' ++ text ")" else name' in
         self#pType 
-          (DNStuff name')
+          (DNStuff name'')
           () 
           bt
 
     | TArray (elemt, lo, a) -> 
         let name' = 
-          if a == [] then name else 
+          if a == [] then name else
+          if dnwhat = DNNothing then printAttributes a else 
           text "(" ++ printAttributes a ++ name ++ text ")" 
         in
         self#pType 
@@ -3192,6 +3193,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     | TFun (restyp, args, isvararg, a) -> 
         let name' = 
           if a == [] then name else 
+          if dnwhat = DNNothing then printAttributes a else
           text "(" ++ printAttributes a ++ name ++ text ")" 
         in
         self#pType 
