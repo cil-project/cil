@@ -127,9 +127,6 @@ STANDARDPATCH := --includedir=$(CCUREDHOME)/include
 # specified EXTRAARGS on the command line
 CCURED+= $(EXTRAARGS)
 
-ifdef NEWOPTIM
-  CCURED += --optimize --newoptim
-endif
 ifneq ($(INFERBOX),none)
   CCURED+= --curetype=$(INFERBOX) $(DEF)INFERBOX
   ifdef NOEMITBROWSER
@@ -191,7 +188,7 @@ ifdef ANNOT
   CCURED+= --annotate
 endif
 ifdef OPTIM
-  CCURED+= --optimize
+  CCURED += --optimize --newoptim
 endif
 ifdef ANN
   CCURED+= --annotate
@@ -224,7 +221,7 @@ ifdef CABSONLY
   CCURED+= --cabsonly
   CILLY+= --cabsonly
 endif
-ifdef CCUREd_FAIL_IS_VERBOSE
+ifdef CCURED_FAIL_IS_VERBOSE
   # note that we also add this to CCUREDLIBARG in Makefile.ccured; this
   # affects the instrumented code *and* the support library
   CCURED+= $(DEF)CCURED_FAIL_IS_VERBOSE
@@ -321,6 +318,11 @@ ifdef NEWPATCH
 
   # and turn off the other patcher
   PATCHECHO := true
+endif
+
+# Enable profiling
+ifdef PROFILE
+  CCURED+= -pg
 endif
 
 # sm: use this instead of "sh ./testit" for those self-tests which can't
