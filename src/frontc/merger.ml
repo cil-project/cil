@@ -240,7 +240,7 @@ let rec newAlphaName (kind: envKind)
 
 
 (* Strip the suffix. Return the prefix, the separator (empty or ___) and a 
- * numeric suffix (-1 if the separator is empty or if ____ is the last thing 
+ * numeric suffix (-1 if the separator is empty or if ___ is the last thing 
  * in the name)  *)
 and splitNameForAlpha (lookupname: string) : (string * string * int) = 
   (* Split the lookup name into a prefix, a separator (empty or ___) and a 
