@@ -70,10 +70,12 @@ CCUREDHOME=`pwd`
 AC_MSG_CHECKING(for msvc cl.exe (optional))
 if binaryExists cl; then
   AC_MSG_RESULT(found)
+  DEFAULT_COMPILER=_MSVC
   HAS_MSVC=yes
 else
   AC_MSG_RESULT(not found)
   HAS_MSVC=no
+  DEFAULT_COMPILER=_GNUCC
 fi
 
 # is ocaml available?
@@ -226,6 +228,7 @@ AC_SUBST(CCUREDHOME)
 AC_SUBST(CILHOME)
 AC_SUBST(do_not_edit)
 AC_SUBST(HAS_MSVC)
+AC_SUBST(DEFAULT_COMPILER)
 
 # finish the configure script and generate various files; ./configure
 # will apply variable substitutions to <filename>.in to generate <filename>;
@@ -270,8 +273,9 @@ AC_OUTPUT()
 cat <<EOF
 
 CCured/CIL configuration:
-  architecture/OS:            ARCHOS       $ARCHOS
-  source tree root:           CCUREDHOME   $CCUREDHOME
-  (optional) cl.exe found:    HAS_MSVC     $HAS_MSVC
-  gcc to use                  CC           $CC
+  architecture/OS:            ARCHOS             $ARCHOS
+  source tree root:           CCUREDHOME         $CCUREDHOME
+  (optional) cl.exe found:    HAS_MSVC           $HAS_MSVC
+  gcc to use                  CC                 $CC
+  default compiler            DEFAULT_COMPILER   $DEFAULT_COMPILER
 EOF

@@ -7,6 +7,8 @@
 .PHONY: setup quickbuild doc distrib machdep
 ECHO = @
 
+@DEFAULT_COMPILER@=1
+
 # Directory containing the *.cm[io] files for odoc.
 ODOC_DIR=/usr/local/src/ocamldoc
 CILHTMLDEST=/usr/local/apache-1.3.22/htdocs/cil

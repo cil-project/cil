@@ -9,9 +9,6 @@ The build rules are spread out among several Makefiles:
                  of command-line arguments (e.g. INFERBOX=infer),
                  and has rules for all the tests/benchmarks
 
-  .ccuredrc    - user-specific customizations to Makefile; this gets
-                 included by Makefile near the top of Makefile
-                 
   Makefile.gcc - definitions of make variables that specify the syntax
                  of invoking gcc; for example, it has "INC := -I",
                  meaning -I is the option to name include directories

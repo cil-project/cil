@@ -39,8 +39,13 @@ let debugMerge = false
 
 (* Try to merge structure with the same name. However, do not complain if 
  * they are not the same *)
-
 let mergeSynonyms = true
+
+
+(* Try to merge definitions of inline functions. They can appear in multiple 
+ * files and we would like them all to be the same *)
+let mergeInlines = true
+
 
 (* Check that s starts with the prefix p *)
 let prefix p s = 
@@ -179,10 +184,12 @@ let sEq: (int * string, compinfo node) H.t = H.create 111 (* Structs *)
 let uEq: (int * string, compinfo node) H.t = H.create 111 (* Unions *)
 let eEq: (int * string, enuminfo node) H.t = H.create 111 (* Enums *)
 let tEq: (int * string, (string * typ) node) H.t = H.create 111 (* Type names*)
+let iEq: (int * string, varinfo node) H.t = H.create 111 (* Inlines *)
         
 (* Sometimes we want to merge synonims. We keep some tables indexed by names. 
  * Each name is mapped to multiple exntries *)
 let vSyn: (string, varinfo node) H.t = H.create 111 (* Not actually used *)
+let iSyn: (string, varinfo node) H.t = H.create 111 (* Inlines *)
 let sSyn: (string, compinfo node) H.t = H.create 111
 let uSyn: (string, compinfo node) H.t = H.create 111
 let eSyn: (string, enuminfo node) H.t = H.create 111
@@ -195,6 +202,8 @@ let vEnv : (string, varinfo node) H.t = H.create 111
 (* A file-local environment for type names *)
 let tEnv : (string, string * typ)  H.t = H.create 111
 
+(* A set of inline functions indexed by their printout ! *)
+let inlineBodies : (P.doc, varinfo node) H.t = H.create 111
 
 (** A number of alpha conversion tables *)
 let vAlpha : (string, int ref) H.t = H.create 57 (* Variables *)
@@ -208,7 +217,7 @@ let tAlpha : (string, int ref) H.t = H.create 57 (* Type names *)
  * arguments. They might change during merging of function types if the 
  * prototype occurs after the function definition and uses different names. 
  * We'll restore the names at the end *)
-let formalNames: (string, string list) H.t = H.create 111
+let formalNames: (int * string, string list) H.t = H.create 111
 
 
   (* Accumulate here the globals in the merged file *)
@@ -241,17 +250,20 @@ let init () =
   H.clear uEq;
   H.clear eEq;
   H.clear tEq;
+  H.clear iEq;
 
   H.clear vSyn;
   H.clear sSyn;
   H.clear uSyn;
   H.clear eSyn;
   H.clear tSyn;
+  H.clear iSyn;
 
   theFile := [];
   theFileTypes := [];
 
   H.clear formalNames;
+  H.clear inlineBodies;
 
   currentFidx := 0
 
@@ -635,7 +647,7 @@ let rec oneFilePass1 (f:file) : unit =
     (* Make a node for it and put it in vEq *)
     let vinode = mkSelfNode vEq vSyn !currentFidx vi.vname vi (Some l) in
     try
-      let oldvinode = H.find vEnv vi.vname in 
+      let oldvinode = find true (H.find vEnv vi.vname) in 
       let oldloc = 
         match oldvinode.nloc with
           None -> E.s (bug "old variable is undefined")
@@ -668,7 +680,7 @@ let rec oneFilePass1 (f:file) : unit =
         end
       in
       oldvi.vstorage <- newstorage;
-      let _ = union (find true oldvinode) (find true vinode) in ()
+      let _ = union oldvinode vinode in ()
     with Not_found -> (* Not present in the previous files. Remember it for 
                        * later  *)
       H.add vEnv vi.vname vinode
@@ -682,17 +694,20 @@ let rec oneFilePass1 (f:file) : unit =
             matchVarinfo vi l
       | GFun (fdec, l) -> 
           currentLoc := l;
+          (* Save the names of the formal arguments *)
+          let _, args, _, _ = splitFunctionType fdec.svar in
+          H.add formalNames (!currentFidx, fdec.svar.vname) 
+            (List.map (fun f -> f.vname) (argsToList args));
           (* Force inline functions to be static *) 
           if fdec.sinline && fdec.svar.vstorage = NoStorage then 
             fdec.svar.vstorage <- Static;
           if fdec.svar.vstorage <> Static then begin
-            (* Save the names of the formals *)
-            begin 
-              let _, args, _, _ = splitFunctionType fdec.svar in
-              H.add formalNames fdec.svar.vname 
-                (List.map (fun f -> f.vname) (argsToList args))
-            end;
             matchVarinfo fdec.svar l
+          end else begin
+            if fdec.sinline then 
+              (* Just create the nodes for inline functions *)
+              ignore (getNode iEq iSyn !currentFidx 
+                        fdec.svar.vname fdec.svar None)
           end
               (* Make nodes for the defiend type and structure tags *)
       | GType (n, t, l) ->
@@ -743,6 +758,31 @@ let doMergeSynonyms
       ()
     end)
     syn
+
+
+let matchInlines (oldfidx: int) (oldi: varinfo) 
+                 (fidx: int) (i: varinfo) = 
+  let oldinode = getNode iEq iSyn oldfidx oldi.vname oldi None in
+  let    inode = getNode iEq iSyn    fidx    i.vname    i None in
+  if oldinode == inode then 
+    () 
+  else begin
+    (* Replace with the representative data *)
+    let oldi = oldinode.ndata in
+    let oldfidx = oldinode.nfidx in
+    let i = inode.ndata in
+    let fidx = inode.nfidx in
+    (* There is an old definition. We must combine the types. Do this first 
+     * because it might fail *)
+    oldi.vtype <- 
+       combineTypes CombineOther 
+         oldfidx oldi.vtype fidx i.vtype;
+    (* We get here if we have success *)
+    (* Combine the attributes as well *)
+    oldi.vattr <- addAttributes oldi.vattr i.vattr;
+    let _ = union oldinode inode in 
+    ()
+  end
   
   (* Now we go once more through the file and we rename the globals that we 
    * keep. We also scan the entire body and we replace references to the 
@@ -783,30 +823,51 @@ let oneFilePass2 (f: file) =
             
       | GFun (fdec, l) as g -> 
           currentLoc := l;
-          let vi' = processVarinfo fdec.svar l in
-          (* We keep it anyway. Like a definition. *)
+          let origname = fdec.svar.vname in
+          (* Find the node for this one *)
+          let inode = getNode iEq iSyn !currentFidx origname fdec.svar None in
+
+            (* We apply the renaming *)
+          fdec.svar <- processVarinfo fdec.svar l;
           let fdec' = 
             match visitCilGlobal renameVisitor g with 
               [GFun(fdec', _)] -> fdec' 
             | _ -> E.s (unimp "renameVisitor for GFun returned something else")
           in
+          let g' = GFun(fdec', l) in
           (* Now restore the parameter names *)
-          if fdec.svar.vstorage <> Static then begin
-            let _, args, _, _ = splitFunctionType fdec'.svar in
-            let oldnames = 
-              try H.find formalNames fdec.svar.vname 
-              with Not_found -> E.s (bug "Cannot find %s in formalNames"
-                                       fdec.svar.vname)
-            in
-            let argl = argsToList args in
-            if List.length oldnames <> List.length argl then 
-              E.s (unimp "After merging the function has more arguments");
-            List.iter2
-              (fun oldn a -> if oldn <> "" then a.vname <- oldn)
-              oldnames argl
-          end;
-          pushGlobal (GFun(fdec', l))
-            
+          let _, args, _, _ = splitFunctionType fdec'.svar in
+          let oldnames = 
+            try H.find formalNames (!currentFidx, origname)
+            with Not_found -> E.s (bug "Cannot find %s in formalNames"
+                                     fdec.svar.vname)
+          in
+          let argl = argsToList args in
+          if List.length oldnames <> List.length argl then 
+            E.s (unimp "After merging the function has more arguments");
+          List.iter2
+            (fun oldn a -> if oldn <> "" then a.vname <- oldn)
+            oldnames argl;
+          
+          if fdec'.sinline then begin
+            (* Temporarily restore the name *)
+            let newname = fdec'.svar.vname in
+            fdec'.svar.vname <- origname;
+            let printout = d_global () g' in
+            fdec'.svar.vname <- newname;
+            try
+              let oldinode = H.find inlineBodies printout in
+              (* We found an inline. Outght to merge their nodes *)
+              if oldinode != inode then 
+                let _ = union oldinode inode in ();
+              () (* Drop this definition *)
+            with Not_found -> begin
+              H.add inlineBodies printout inode;
+              pushGlobal g'
+            end
+          end else
+            pushGlobal g'
+              
       | GCompTag (ci, l) as g -> begin
           currentLoc := l;
           let eqH, alphaH = 
@@ -883,6 +944,12 @@ let merge (files: file list) (newname: string) : file =
     doMergeSynonyms uSyn uEq matchCompInfo;
     doMergeSynonyms eSyn eEq matchEnumInfo;
     doMergeSynonyms tSyn tEq matchTypeInfo;
+    if mergeInlines then begin 
+      (* Copy all the nodes from the iEq to vEq as well. This is needed 
+       * because vEq will be used for variable renaming *)
+      H.iter (fun k n -> H.add vEq k n) iEq;
+      doMergeSynonyms iSyn iEq matchInlines;
+    end
   end;
 
   (* Now maybe dump the graph *)
@@ -891,6 +958,7 @@ let merge (files: file list) (newname: string) : file =
     dumpGraph "struct" sEq;
     dumpGraph "union" uEq;
     dumpGraph "enum" eEq;
+    dumpGraph "inline" iEq;
   end;
   (* Make the second pass over the files. This is when we start rewriting the 
    * file *)
