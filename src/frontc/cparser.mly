@@ -158,9 +158,10 @@ begin
   else ()
 end
 
+(* takes a not-nul-terminated list, and converts it to a string. *)
 let rec intlist_to_string (str: int64 list):string =
   match str with
-    [] -> ""
+    [] -> ""  (* add nul-termination *)
   | value::rest ->
       let this_char = 
 	if (compare value (Int64.of_int 255) > 0) 
@@ -499,11 +500,11 @@ constant:
 string_constant:
 /* Now that we know this constant isn't part of a wstring, convert it
    back to a string for easy viewing. */
-    string_list                         {intlist_to_string ($1 @[Int64.zero]) }
+    string_list                         {intlist_to_string $1 }
 ;
 one_string_constant:
 /* Don't concat multiple strings.  For asm templates. */
-    CST_STRING                          {intlist_to_string ($1 @[Int64.zero]) }
+    CST_STRING                          {intlist_to_string $1 }
 ;
 string_list:
     one_string                          { $1 }
