@@ -32,6 +32,14 @@
 (* Pretty printer *)
 
 let debug = false
+let aman           = false
+let aman_no_layout = aman && false
+let aman_no_output = aman && false
+let aman_no_fit    = aman && true
+
+
+
+
 let printIndent = ref true
 
 let fprintf x = Printf.fprintf stderr x
@@ -55,7 +63,7 @@ let chr  c     = Text (String.make 1 c)
 let align      = Align
 let unalign    = Unalign
 let line       = Line
-let break      = Break
+let break      = Break (* Break *) (* Aman's benchmarking goo *)
 
 
 let nest n d   = text (String.make n ' ') ++ align ++ d ++ unalign
@@ -133,7 +141,9 @@ let printData breaks =
 
 
 
-let fit start accString width = 
+let fit (start: 'a) 
+        (accString: 'a -> string -> 'a)
+        (width: int) = 
   let width = if width = 0 then 99999 else width in
                                         (* A flag to say that we shouldn't try 
                                          * to perform the expensive line 
@@ -325,7 +335,7 @@ let fit start accString width =
   (* scan *)
   in
   let indentLen = ref 0 in
-  let doString acc s = 
+  let doString (acc: 'a) (s: string) : 'a = 
     let ind = !indentLen in
     let acc' = if ind > 0 then begin
       indentLen := 0; accString acc (String.make ind ' ') end else acc in
@@ -357,17 +367,28 @@ let fit start accString width =
   in
   function doc -> 
     let scanCont _ _ _ =  
-      allBreaks := List.rev (!allBreaks);
+      allBreaks := List.rev (!allBreaks); 
       layout start doc
     in
-    scan [ref 0] [] 0 scanCont doc
+    if aman_no_layout then (* Aman's benchmarking goo *)
+      scan [ref 0] [] 0 (fun _ _ _ -> start) doc
+    else
+      scan [ref 0] [] 0 scanCont doc
+    
 
 
 let flushOften = ref true
 
-let fprint chn width doc = 
-  fit () (fun _ s -> output_string chn s;
-                     if !flushOften then flush chn) width doc
+(* Aman's benchmarking goo *)
+let fprint = 
+  if aman_no_output then 
+    fun chn width doc -> fit () (fun _ _ -> ()) width doc
+  else if aman_no_fit then
+    fun chn width doc -> ()
+  else
+    fun chn width doc ->
+      fit () (fun _ s -> output_string chn s;
+        if !flushOften then flush chn) width doc
 
 let sprint width doc =
   fit "" (fun acc s -> acc ^ s) width doc
@@ -542,7 +563,6 @@ let fprintf chn format =
   if !flushOften then flush chn;
   res
 	(* weimeric hack ends *)
-	
 
 let printf format = fprintf stdout format
 let eprintf format = fprintf stderr format
@@ -557,3 +577,4 @@ let withPrintDepth dp thunk =
   printDepth := dp;
   thunk ();
   printDepth := opd
+

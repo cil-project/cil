@@ -88,3 +88,6 @@
 
 // ideally we could handle this better..
 #define __PRETTY_FUNCTION__ "__PRETTY_FUNCTION__ (disabled)"
+
+
+// Now define some models

@@ -74,7 +74,9 @@ let d_fexp () = function
 let leaveAlone : (string, bool) H.t =
   let h = H.create 17 in
   List.iter (fun s -> H.add h s true)
-    [ "sscanf"; "fscanf"; "_CrtDbgReport"; "fprintf"; "printf"; "sprintf" ];
+    [ "sscanf"; "scanf";
+      "fscanf"; "_CrtDbgReport"; 
+      "fprintf"; "printf"; "sprintf" ];
   h
 
 
@@ -824,7 +826,7 @@ let checkPositiveFun =
 
 let rec fixupType t = 
   match t with
-    TComp (true, _, _) -> t
+    TComp (true, _, _) -> t (* Leave alone the forward definitions *)
     (* Keep the Named types
   | TNamed _ -> begin
      match getNodeAttributes t with
@@ -832,17 +834,20 @@ let rec fixupType t =
       | _ -> E.s (E.bug "fixupType")
    end  *)
 
-    (* Sometimes when we do a function, we might find a similar done function 
-     * type but with different argument names (since such function types have 
-     * the same signature). In this case put the argument names back. But 
-     * copy the arg while doing so to avoid clobbering the hashed copy. *)
-  | TFun (_, args, _, _) -> begin
+  (* Do not hash function types because they contain arguments whose types 
+   * change later *)
+  | TFun (rt, args, isva, a) -> begin
+      List.iter (fun argvi -> argvi.vtype <- fixupType argvi.vtype) args;
+      let res = TFun(fixupType rt, args, isva, a) in
+      res
+(*
       match fixit t with
         TFun (rt, args', isva, a) -> 
           TFun(rt,
                List.map2 (fun a a' -> {a' with vname = a.vname;}) args args',
                isva, dropAttribute a (Attr("__format__",[]))) 
       | _ -> E.s (E.bug "fixupType")
+*)
   end 
   | _ -> fixit t
 
@@ -860,9 +865,9 @@ and fixit t =
           (TInt _|TEnum _|TFloat _|TVoid _|TBitfield _) -> t
               
         | TPtr (t', a) -> begin
-          (* Now do the base type *)
+            (* Now do the base type *)
             let fixed' = fixupType t' in
-          (* Extract the boxing style attribute *)
+            (* Extract the boxing style attribute *)
             let pkind = kindOfType t in 
             let newType = TPtr(fixed', a) in
             let fixed = 
@@ -881,12 +886,13 @@ and fixit t =
                 in
                 theFile := GType(tname, tstruct, lu) :: !theFile;
                 let tres = TNamed(tname, tstruct, [N.k2attr pkind]) in
+                (* Add this to ensure that we do not try to box it twice *)
                 H.add fixedTypes (typeSigBox tstruct) tres;
                 tres
             in
-          (* We add fixed ourselves. The TNamed will be added after doit  *)
-            H.add fixedTypes (typeSigBox fixed) fixed; 
-            H.add fixedTypes (typeSigBox (TPtr(fixed', a))) fixed;
+            (* We add fixed ourselves. The TNamed will be added after doit  *)
+            (* H.add fixedTypes (typeSigBox fixed) fixed; *)
+            (* H.add fixedTypes (typeSigBox (TPtr(fixed', a))) fixed; *)
             fixed
         end
               
@@ -904,6 +910,8 @@ and fixit t =
                 fi.ftype <- fixupType newt) 
               comp.cfields;
             bitfieldCompinfo comp;
+            (* Save the fixed comp so we don't redo it later *)
+            H.add fixedTypes (typeSigBox t) t;
             t
               
         | TArray(t', l, a) -> 
@@ -928,7 +936,7 @@ and fixit t =
             res
       in
 (*    H.add fixedTypes ts fixed; *)
-      H.add fixedTypes (typeSigBox fixed) fixed;
+(*      H.add fixedTypes (typeSigBox fixed) fixed; *)
 (*    ignore (E.log "Id of %a\n is %s\n" d_plaintype t (N.typeIdentifier t));*)
       fixed
     end
@@ -1274,7 +1282,7 @@ let makeTagCompoundInit (tagged: typ)
  * bitfield like an access to the entire host that contains it (for the 
  * purpose of checking). This is only Ok if the host does not contain pointer 
  * fields *)
-let getHostIfBitfield lv t = 
+let getHostIfBitfield (lv: lval) (t: typ) : lval * typ = 
   match unrollType t with
     TBitfield (ik, wd, a) -> begin
       let lvbase, lvoff = lv in
@@ -1296,6 +1304,11 @@ let getHostIfBitfield lv t =
     end
   | _ -> lv, t
 
+
+(* Now a routine to take the address of a field *)
+let takeAddressOfBitfield (lv: lval) (t: typ) : exp = 
+  let lv', t' = getHostIfBitfield lv t in
+  mkAddrOf lv'
 
 (* Compute the offset of first scalar field in a thing to be written. Raises 
  * Not_found if there is no scalar *)
@@ -1335,7 +1348,7 @@ let checkZeroTags base lenExp lv t =
     let offexp = offsetOfFirstScalar lv't in
     call None (Lval (var checkZeroTagsFun.svar))
       [ castVoidStar base; lenExp ;
-        castVoidStar (AddrOf(lv')); 
+        castVoidStar (mkAddrOf lv'); 
         SizeOf(lv't); offexp ] 
   with Not_found -> 
     mkEmptyStmt ()
@@ -2117,7 +2130,7 @@ let rec checkMem (why: checkLvWhy)
     | Some _ -> 
         let ptr = ptrOfBase base in
         (checkFetchLength (getVarOfExp (getLenExp ())) 
-                          (mkAddrOf lv) base) :: checkb)
+                          (takeAddressOfBitfield lv lvt) base) :: checkb)
   end
   
           
