@@ -12,7 +12,7 @@ OBJDIR      = obj
 MLLS        = 
 MLYS        = 
 # ast clex cparse
-MODULES     = pretty errormsg stats cil check box
+MODULES     = pretty errormsg stats cil check ptrnode markptr box
 EXECUTABLE  = $(OBJDIR)/safec
 CAMLUSEUNIX = 1
 ifdef RELEASE
@@ -141,6 +141,9 @@ SAFECC+= --cil
 endif	
 ifdef BOX
 SAFECC+= --box
+endif
+ifdef INFERBOX
+SAFECC+= --inferbox
 endif
 ifdef NO_TAGS
 SAFECC+= $(DEF)NO_TAGS

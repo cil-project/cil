@@ -519,6 +519,13 @@ and dropAttribute al a =
   in
   List.filter (fun a' -> not (amatch a a')) al
 
+and filterAttributes s al = 
+  let amatch = function
+    AId s' when s = s' -> true
+  | ACons (s', _) when s = s' -> true
+  | _ -> false
+  in
+  List.filter amatch al
 
 (* Get the full name of a comp *)
 let compFullName comp = 
@@ -782,6 +789,18 @@ let rec separateAttributes (pre, post) = function
       separateAttributes (pre, a :: post) rest
 let separateAttributes a = separateAttributes ([], []) a    
 
+(* Print attributes in a custom way *)
+let d_attrcustom : (attribute -> Pretty.doc option) ref = 
+  let d_attrcustombase = function
+    | AId("const") -> Some (text "const")
+    | AId("inline") -> Some (text "inline")
+    | AId("volatile") -> Some (text "volatile")
+    | AId("cdecl") when !msvcMode -> Some (text "__cdecl")
+    | AId("stdcall") when !msvcMode -> Some (text "__stdcall")
+    | _ -> None
+  in
+  ref d_attrcustombase
+
 let rec d_decl (docName: unit -> doc) () this = 
   let parenth outer_t doc = 
     let typ_strength = function         (* binding strength of type 
@@ -984,17 +1003,11 @@ and d_attrlist pre al = (* Whether it comes before or after stuff *)
               (docList (chr ',' ++ break) 
                  (fun a -> dprintf "%a" d_attr a)) al 
       end
-    | (AId("const")) :: rest -> 
-        dprintf "const %a" insert (loop remaining rest)
-    | (AId("inline")) :: rest -> 
-        dprintf "inline %a" insert (loop remaining rest)
-    | (AId("volatile")) :: rest -> 
-        dprintf "volatile %a" insert (loop remaining rest)
-    | (AId("cdecl")) :: rest when !msvcMode -> 
-        dprintf "__cdecl %a" insert (loop remaining rest)
-    | (AId("stdcall")) :: rest when !msvcMode -> 
-        dprintf "__stdcall %a" insert (loop remaining rest)
-    | x :: rest -> loop (x :: remaining) rest
+    | x :: rest -> begin
+        match !d_attrcustom x with
+          Some xd -> dprintf "%a %a" insert xd insert (loop remaining rest)
+        | None -> loop (x :: remaining) rest
+    end
   in
   let res = loop [] al in
   if res = nil then

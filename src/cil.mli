@@ -470,6 +470,8 @@ val addAttribute: attribute -> attribute list -> attribute list
 val addAttributes: attribute list -> attribute list -> attribute list
 val dropAttribute: attribute list -> attribute -> attribute list
 
+(* Retains attributes AId or ACons with the named constructor *)
+val filterAttributes: string -> attribute list -> attribute list
 
 (* Get the full name of a comp *)
 val compFullName: compinfo -> string
@@ -547,6 +549,7 @@ val d_fkind: unit -> fkind -> Pretty.doc
 val d_storage: unit -> storage -> Pretty.doc
 val d_const: unit -> constant -> Pretty.doc
 
+
   (* When we print types for consumption by another compiler we must be 
    * careful to avoid printing multiple type definitions *)
 val noRedefinitions: bool ref
@@ -557,9 +560,15 @@ val d_type: unit -> typ -> Pretty.doc
 
 val d_exp: unit -> exp -> Pretty.doc
 val d_binop: unit -> binop -> Pretty.doc
+
+
+(* Set this function to intercept attributes as are printed. *)
+val d_attrcustom: (attribute -> Pretty.doc option) ref
+
 val d_attr: unit -> attribute -> Pretty.doc
-val d_attrlist: bool -> attribute list -> Pretty.doc (* Whether it comes before or 
-                                               * after stuff  *)
+val d_attrlist: bool -> attribute list -> Pretty.doc (* Whether it comes 
+                                                      * before or after stuff 
+                                                      * *)
 val d_lval: unit -> lval -> Pretty.doc
 val d_instr: unit -> instr -> Pretty.doc
 val d_stmt: unit -> stmt -> Pretty.doc
