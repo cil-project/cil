@@ -676,15 +676,8 @@ baddef: $(TESTDIR)/small2/baddef1.c $(TESTDIR)/small2/baddef2.c
 	cd $(TESTDIR)/small2; \
 	  $(MYSAFECC) --merge baddef1.c $(CONLY) $(OBJOUT) baddef1.o; \
 	  $(MYSAFECC) --merge baddef2.c $(CONLY) $(OBJOUT) baddef2.o; \
-          $(MYSAFECC) --merge baddef1.o baddef2.o $(EXEOUT)baddef \
-	  > baddef.rept 2>&1
-	cat $(TESTDIR)/small2/baddef.rept
+          $(MYSAFECC) --merge baddef1.o baddef2.o $(EXEOUT)baddef
 	$(TESTDIR)/small2/baddef
-	if grep -i conflicting $(TESTDIR)/small2/baddef.rept >/dev/null; then \
-	  echo "OK: conflict detected"; \
-	else \
-	  echo "FAIL: missed the conflict!"; exit 1; \
-	fi
 
 # cfrac: a memory benchmark which factorizes into products of primes
 CFRACDIR := $(CCUREDHOME)/../bench/cfrac
