@@ -1,3 +1,4 @@
+# -*- Mode: makefile -*-
 # Makefile.in for running the test cases for the CCured compiler
 # Use from the test directory !!!
 # author: George Necula

@@ -580,8 +580,12 @@ $TEST->addTests("linux-merge3", "", ['cil']);
 $TEST->addTests("sendmail", "", ['cil', 'inferbox']);
   $TEST->addGroups("sendmail-cil", 'vslow');
   $TEST->addGroups("sendmail-inferbox", 'vslow');
-$TEST->addTests("emacs", "", ['cil']);
-  $TEST->addGroups("emacs-cil", 'vslow');
+$TEST->newTest(
+    Name => "emacs",
+    Dir => ".",
+    Cmd => "make emacs",
+    Group => ['vslow'],
+    Patterns => []);
 $TEST->addTests("perl", "", ['cil']);
   $TEST->addGroups("perl-cil", 'vslow');
 $TEST->addTests("bind", "", ['cil']);
@@ -594,11 +598,11 @@ $TEST->addTests("apache", "", ['cil']);
   $TEST->addGroups("apache-cil", 'vslow');
 # GIMP and friends
 $TEST->newTest(
-    Name => 'gimp-all-world',
+    Name => "gimp-all-world",
     Dir => ".",
     Cmd => "make gimp-all-world LD_LIBRARY_PATH=/home/necula/cil/gimp/lib",
     Group => ['vslow'],
-    Patterns => \%commonerrors);
+    Patterns => []);
 $TEST->addTests("ping", "", ['cil']);
   $TEST->addGroups("ping-cil", 'vslow');
 
