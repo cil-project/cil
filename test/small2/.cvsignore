@@ -35,3 +35,6 @@ putc
 bogus_redef
 cof
 lexnum
+funcptr
+ptrkinds
+

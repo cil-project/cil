@@ -1,5 +1,5 @@
 # .gdbinit
 
-file fprintf
+file funcptr
 break main
 run
