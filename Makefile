@@ -38,6 +38,14 @@ clean:
 		-name '*_comb*.c' \
 	\) -exec rm {} \;
 
+# build ocamldoc documentation tree
+odoc:
+	-mkdir odoc 2>/dev/null
+	odoc -d odoc -html -I obj src/*.mli src/frontc/*.mli
+
+# don't be confused by presence of odoc/ directory
+.PHONY: odoc
+
 CCURED := perl $(CCUREDHOME)/lib/ccured.pl 
 PATCHER := perl $(CCUREDHOME)/lib/patcher.pl
 
