@@ -3558,6 +3558,9 @@ and constFold (machdep: bool) (e: exp) : exp =
   end
   | SizeOfE e when machdep -> constFold machdep (SizeOf (typeOf e))
 
+  | AlignOf t when machdep -> kinteger IUInt (alignOf_int t)
+  | AlignOfE e when machdep -> constFold machdep (AlignOf (typeOf e))
+
   | CastE (t, e) -> begin
       match constFold machdep e, unrollType t with 
         (* Might truncate silently *)
