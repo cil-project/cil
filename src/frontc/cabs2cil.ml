@@ -385,9 +385,9 @@ let conditionalConversion (e2: exp) (t2: typ) (e3: exp) (t3: typ) : typ =
     | TPtr(t2'', _), TPtr(t3'', _) 
           when typeSig t2'' = typeSig t3'' -> t2
     | TPtr(_, _), TInt _ when 
-            (match e3 with Const(CInt(0,_,_),_) -> true | _ -> false) -> t2
+            (match e3 with Const(CInt(0,_,_)) -> true | _ -> false) -> t2
     | TInt _, TPtr _ when 
-              (match e2 with Const(CInt(0,_,_),_) -> true | _ -> false) -> t3
+              (match e2 with Const(CInt(0,_,_)) -> true | _ -> false) -> t3
     | _, _ -> E.s (E.unimp "A.QUESTION")
   in
   tresult
@@ -406,7 +406,7 @@ let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) =
   | TPtr (told, _), TPtr(tnew, _) -> (nt, doCast e ot nt)
 
   | TInt _, TPtr _ when
-      (match e with Const(CInt(0,_,_),_) -> true | _ -> false) -> 
+      (match e with Const(CInt(0,_,_)) -> true | _ -> false) -> 
         (nt, doCast e ot nt)
 
   | TInt _, TPtr _ -> (nt, doCast e ot nt)
@@ -528,7 +528,7 @@ and doType (a : attribute list) = function
         | _ -> E.s (E.unimp "Base type for bitfield is not an integer type")
       in
       let width = match doExp true e (AExp None) with
-        ([], Const(CInt(i,_,_),_), _) -> i
+        ([], Const(CInt(i,_,_)),_) -> i
       | _ -> E.s (E.unimp "bitfield width is not an integer")
       in
       TBitfield (ikind, width, a)
@@ -742,7 +742,7 @@ and doExp (isconst: bool)    (* In a constant *)
     | A.NOTHING when what = ADrop -> finishExp [] (integer 0) intType
     | A.NOTHING ->
         ignore (E.log "doExp nothing\n");
-        finishExp [] (Const(CStr("exp_nothing"),lu)) (TPtr(TInt(IChar,[]),[]))
+        finishExp [] (Const(CStr("exp_nothing"))) (TPtr(TInt(IChar,[]),[]))
 
     (* Do the potential lvalues first *)          
     | A.VARIABLE n -> begin
@@ -832,7 +832,7 @@ and doExp (isconst: bool)    (* In a constant *)
           
           
     | A.CONSTANT ct -> begin
-        let finishCt c t = finishExp [] (Const(c, lu)) t in
+        let finishCt c t = finishExp [] (Const(c)) t in
         let hasSuffix str = 
           let l = String.length str in
           fun s -> 
@@ -868,7 +868,7 @@ and doExp (isconst: bool)    (* In a constant *)
             try
               let i = int_of_string baseint in
               let res = integerKinds i kinds (Some str) in
-              finishCt res (typeOf (Const(res, lu)))
+              finishCt res (typeOf (Const(res)))
             with e -> begin
               ignore (E.log "int_of_string %s (%s)\n" str 
                         (Printexc.to_string e));
@@ -1003,8 +1003,8 @@ and doExp (isconst: bool)    (* In a constant *)
                      (* Return also the nextidx *)
                 : (offset option * exp) list * exp = 
               let incrementIdx = function
-                  Const(CInt(n, ik, _), l) -> Const(CInt(n + 1, ik, None), l)
-                | e -> BinOp(PlusA, e, one, intType, lu)
+                  Const(CInt(n, ik, _)) -> Const(CInt(n + 1, ik, None))
+                | e -> BinOp(PlusA, e, one, intType)
               in
               match initl with
                 [] -> [], nextidx
@@ -1053,7 +1053,7 @@ and doExp (isconst: bool)    (* In a constant *)
           
     | A.TYPE_SIZEOF bt -> 
         let typ = doType [] bt in
-        finishExp [] (SizeOf(typ, lu)) uintType
+        finishExp [] (SizeOf(typ)) uintType
           
     | A.EXPR_SIZEOF e -> 
         let (se, e', t) = doExp isconst e (AExp None) in
@@ -1067,7 +1067,7 @@ and doExp (isconst: bool)    (* In a constant *)
             StartOf(lv) -> typeOfLval lv
           | _ -> t
         in
-        finishExp [] (SizeOf(t', lu)) uintType
+        finishExp [] (SizeOf(t')) uintType
           
     | A.CAST (bt, e) -> 
         let se1, typ = 
@@ -1097,13 +1097,13 @@ and doExp (isconst: bool)    (* In a constant *)
           let tres = integralPromotion t in
           let e'' = 
             match e' with
-            | Const(CInt(i, _, _), _) -> integer (- i)
-            | _ -> UnOp(Neg, doCast e' t tres, tres, lu)
+            | Const(CInt(i, _, _)) -> integer (- i)
+            | _ -> UnOp(Neg, doCast e' t tres, tres)
           in
           finishExp se e'' tres
         else
           if isArithmeticType t then
-            finishExp se (UnOp(Neg,e',t,lu)) t
+            finishExp se (UnOp(Neg,e',t)) t
           else
             E.s (E.unimp "Unary - on a non-arithmetic type")
         
@@ -1111,7 +1111,7 @@ and doExp (isconst: bool)    (* In a constant *)
         let (se, e', t) = doExp isconst e (AExp None) in
         if isIntegralType t then
           let tres = integralPromotion t in
-          let e'' = UnOp(BNot, doCast e' t tres, tres, lu) in
+          let e'' = UnOp(BNot, doCast e' t tres, tres) in
           finishExp se e'' tres
         else
           E.s (E.unimp "Unary ~ on a non-integral type")
@@ -1123,9 +1123,9 @@ and doExp (isconst: bool)    (* In a constant *)
         let (se, e', t) = doExp isconst e (AExp None) in
         match e' with 
           Lval x -> finishExp se (mkAddrOf x) (TPtr(t, []))
-        | CastE (t', Lval x, _) -> 
+        | CastE (t', Lval x) -> 
             finishExp se (CastE(TPtr(t', []),
-                                (mkAddrOf x), lu)) (TPtr(t', []))
+                                (mkAddrOf x))) (TPtr(t', []))
         | StartOf (lv) -> (* !!! is this correct ? *)
             let tres = TPtr(typeOfLval lv, []) in
             finishExp se (mkAddrOf lv) tres
@@ -1142,7 +1142,7 @@ and doExp (isconst: bool)    (* In a constant *)
         let lv = 
           match e' with 
             Lval x -> x
-          | CastE (_, Lval x, _) -> x
+          | CastE (_, Lval x) -> x
           | _ -> E.s (E.unimp "Expected lval for ++ or --")
         in
         let tresult, result = doBinOp uop' (Lval(lv)) t one intType in
@@ -1159,7 +1159,7 @@ and doExp (isconst: bool)    (* In a constant *)
         let lv = 
           match e' with 
             Lval x -> x
-          | CastE (_, Lval x, _) -> x
+          | CastE (_, Lval x) -> x
           | _ -> E.s (E.unimp "Expected lval for ++ or --")
         in
         let tresult, opresult = doBinOp uop' (Lval(lv)) t one intType in
@@ -1181,7 +1181,7 @@ and doExp (isconst: bool)    (* In a constant *)
         let lv, lvt' = 
           match e1' with 
             Lval x -> x, lvt
-          | CastE (_, Lval x, _) -> x, typeOfLval x
+          | CastE (_, Lval x) -> x, typeOfLval x
           | _ -> E.s (E.unimp "Expected lval for assignment. Got %a\n"
                         d_plainexp e1')
         in
@@ -1254,7 +1254,7 @@ and doExp (isconst: bool)    (* In a constant *)
         let tmp = var (newTempVar intType) in
         let (se, e', t) as rese = doExp isconst e (AExp None) in
         ignore (checkBool t e');
-        finishExp se (UnOp(LNot, e', intType, lu)) intType
+        finishExp se (UnOp(LNot, e', intType)) intType
 (*   We could use this code but it consuses the translation validation
         finishExp 
           (doCondition e [mkSet tmp (integer 0)] [mkSet tmp (integer 1)])
@@ -1328,13 +1328,13 @@ and doExp (isconst: bool)    (* In a constant *)
           match what with 
             ADrop -> 
               finishExp 
-                (sf @ sargs @ [Instr(Call(None,f'',args',lu))])
+                (sf @ sargs @ [Instr(Call(None,f'',args'), lu)])
                 (integer 0) intType
               (* Set to a variable of corresponding type *)
           | ASet((Var vi, NoOffset) as lv, vtype) 
               when (typeSig resType = typeSig vtype) -> 
                 finishExp 
-                  (sf @ sargs @ [Instr(Call(Some vi,f'',args',lu))])
+                  (sf @ sargs @ [Instr(Call(Some vi,f'',args'), lu)])
                   (Lval(lv))
                   vtype
           | _ -> begin
@@ -1345,7 +1345,7 @@ and doExp (isconst: bool)    (* In a constant *)
                     finishExp (sf @ sargs) (integer 1) intType
               | _ -> 
                   let tmp = newTempVar resType in
-                  let i = Instr(Call(Some tmp,f'',args',lu)) in
+                  let i = Instr(Call(Some tmp,f'',args'), lu) in
                   finishExp (sf @ sargs @ [i]) (Lval(var tmp)) resType
           end
         end
@@ -1390,7 +1390,7 @@ and doExp (isconst: bool)    (* In a constant *)
               let (se1, _, _) = doExp isconst e1 (ASet(tmp, tresult)) in
               let (se3, _, _) = doExp isconst e3 (ASet(tmp, tresult)) in
               finishExp (se1 @ [IfThenElse(Lval(tmp), Skip, 
-                                           mkSeq se3)])
+                                           mkSeq se3, lu)])
                 (Lval(tmp))
                 tresult
         | _ -> 
@@ -1402,9 +1402,9 @@ and doExp (isconst: bool)    (* In a constant *)
               let e3'' = doCast e3' t3' tresult in
               let resexp = 
                 match e1' with
-                  Const(CInt(i, _, _), _) when i <> 0 -> e2''
-                | Const(CInt(0, _, _), _) -> e3''
-                | _ -> Question(e1', e2'', e3'', lu)
+                  Const(CInt(i, _, _)) when i <> 0 -> e2''
+                | Const(CInt(0, _, _)) -> e3''
+                | _ -> Question(e1', e2'', e3'')
               in
               finishExp se1 resexp tresult
             end else (* Use a conditional *)
@@ -1459,48 +1459,48 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
     if isIntegralType tres then
       let newe = 
         let rec mkInt = function
-            Const(CChr c, _) -> Const(CInt(Char.code c, IInt, None),lu)
-          | CastE(TInt _, e, _) -> mkInt e
+            Const(CChr c) -> Const(CInt(Char.code c, IInt, None))
+          | CastE(TInt _, e) -> mkInt e
           | e -> e
         in
         match bop', mkInt e1', mkInt e2' with
-          PlusA, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
+          PlusA, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
             integer (i1 + i2)
-        | MinusA, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
+        | MinusA, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
             integer (i1 - i2)
-        | Mult, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
+        | Mult, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
             integer (i1 * i2)
-        | Div, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
+        | Div, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
             integer (i1 / i2)
-        | Mod, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
+        | Mod, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
             integer (i1 mod i2)
-        | BAnd, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
+        | BAnd, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
             integer (i1 land i2)
-        | BOr, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
+        | BOr, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
             integer (i1 lor i2)
-        | BXor, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
+        | BXor, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
             integer (i1 lxor i2)
-        | Shiftlt, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
+        | Shiftlt, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
             integer (i1 lsl i2)
-        | Shiftrt, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
+        | Shiftrt, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
             integer (i1 lsr i2)
-        | Eq, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
+        | Eq, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
             integer (if i1 = i2 then 1 else 0)
-        | Ne, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
+        | Ne, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
             integer (if i1 <> i2 then 1 else 0)
-        | Le, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
+        | Le, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
             integer (if i1 <= i2 then 1 else 0)
-        | Ge, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
+        | Ge, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
             integer (if i1 >= i2 then 1 else 0)
-        | Lt, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
+        | Lt, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
             integer (if i1 < i2 then 1 else 0)
-        | Gt, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
+        | Gt, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
             integer (if i1 > i2 then 1 else 0)
-        | _ -> BinOp(bop', e1', e2', tres, lu)
+        | _ -> BinOp(bop', e1', e2', tres)
       in
       tres, newe
     else
-      tres, BinOp(bop', e1', e2', tres, lu)
+      tres, BinOp(bop', e1', e2', tres)
   in
   let doArithmetic () = 
     let tres = arithmeticConversion t1 t2 in
@@ -1563,12 +1563,12 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
   | (MinusA|Le|Lt|Ge|Gt|Eq|Ne) when isPointerType t1 && isPointerType t2 ->
       pointerComparison e1 e2
   | (Eq|Ne) when isPointerType t1 && 
-                 (match e2 with Const(CInt(0,_,_),_) -> true | _ -> false) -> 
+                 (match e2 with Const(CInt(0,_,_)) -> true | _ -> false) -> 
       pointerComparison e1 (doCast e2 t2 t1)
   | (Eq|Ne) when isPointerType t2 && 
-                 (match e1 with Const(CInt(0,_,_),_) -> true | _ -> false) -> 
+                 (match e1 with Const(CInt(0,_,_)) -> true | _ -> false) -> 
       pointerComparison (doCast e1 t1 t2) e2
-  | _ -> E.s (E.unimp "doBinOp: %a\n" d_plainexp (BinOp(bop,e1,e2,intType,lu)))
+  | _ -> E.s (E.unimp "doBinOp: %a\n" d_plainexp (BinOp(bop,e1,e2,intType)))
 
 (* A special case for conditionals *)
 and doCondition (e: A.expression) 
@@ -1580,7 +1580,7 @@ and doCondition (e: A.expression)
         Skip -> 0
       | Sequence sl -> costMany sl
       | Loop stmt -> 100
-      | IfThenElse (_, _, _) -> 100
+      | IfThenElse (_, _, _, _) -> 100
       | Label _ -> 10000
       | Switch _ -> 100
       | (Goto _|Return _|Case _|Default|Break|Continue|Instr _) -> 1
@@ -1635,9 +1635,9 @@ and doCondition (e: A.expression)
       let (se, e, t) as rese = doExp false e (AExp None) in
       ignore (checkBool t e);
       match e with 
-        Const(CInt(i,_,_),_) when i <> 0 && canDrop sf -> se @ st
-      | Const(CInt(0,_,_),_) when canDrop st -> se @ sf
-      | _ -> se @ [IfThenElse(e, mkSeq st, mkSeq sf)]
+        Const(CInt(i,_,_)) when i <> 0 && canDrop sf -> se @ st
+      | Const(CInt(0,_,_)) when canDrop st -> se @ sf
+      | _ -> se @ [IfThenElse(e, mkSeq st, mkSeq sf, lu)]
   end
 
 and doPureExp (e : A.expression) : exp = 
@@ -1662,7 +1662,7 @@ and doDecl : A.definition -> stmt list = function
             TArray(_,None, _), _, TArray(_, Some _, _) -> vi.vtype <- et
             (* Initializing a local array *)
           | TArray(TInt((IChar|IUChar|ISChar), _) as bt, None, a),
-               Const(CStr s, _), _ -> 
+               Const(CStr s), _ -> 
                  vi.vtype <- TArray(bt, 
                                     Some (integer (String.length s + 1)),
                                     a)
@@ -1710,21 +1710,21 @@ and doAssign (lv: lval) : exp -> stmt list = function
   end
 
    (* An array initialized with a string *)
-  | Const(CStr s, l) as e -> begin
+  | Const(CStr s) as e -> begin
       let lvt = typeOfLval lv in
       match unrollType lvt with 
         TArray(_, Some _, _) ->
           (* See if strncpy was already declared *)
           if not (H.mem env "strncpy") then begin
-            theFile := GDecl strncpyFun.svar :: !theFile;
+            theFile := GDecl (strncpyFun.svar, lu) :: !theFile;
             H.add env "strncpy" strncpyFun.svar
           end;
           [Instr(Call(None, Lval (var strncpyFun.svar),
-                      [ StartOf lv; e; SizeOf (lvt, l) ], l))]
+                      [ StartOf lv; e; SizeOf (lvt) ]), lu)]
       | TArray(_, None, _) -> E.s (E.unimp "initialization with a string")
-      | _ -> [Instr(Set(lv, e, l))]
+      | _ -> [Instr(Set(lv, e), lu)]
   end
-  | e -> [Instr(Set(lv, e, lu))]
+  | e -> [Instr(Set(lv, e), lu)]
 
   (* Now define the processors for body and statement *)
 and doBody (b : A.body) : stmt list = 
@@ -1795,28 +1795,28 @@ and doStatement (s : A.statement) : stmt list =
           
     | A.CONTINUE -> [doContinue ()]
           
-    | A.RETURN A.NOTHING -> [Return None]
+    | A.RETURN A.NOTHING -> [Return (None, lu)]
     | A.RETURN e -> 
         let (se, e', et) = doExp false e (AExp None) in
         let (et'', e'') = castTo et (!currentReturnType) e' in
-        se @ [Return (Some e'')]
+        se @ [Return (Some e'', lu)]
                
     | A.SWITCH (e, s) -> 
         let (se, e', et) = doExp false e (AExp None) in
         let (et'', e'') = castTo et (TInt(IInt,[])) e' in
         let s' = doStatement s in
-        se @ [Switch (e'', mkSeq s')]
+        se @ [Switch (e'', mkSeq s', lu)]
                
     | A.CASE (e, s) -> 
         let (se, e', et) = doExp false e (AExp None) in
           (* let (et'', e'') = castTo et (TInt(IInt,[])) e' in *)
         let i = 
           match se, e' with
-            [], Const (CInt (i,_, _), _) -> i
-          | [], Const (CChr c, _) -> Char.code c
+            [], Const (CInt (i,_, _)) -> i
+          | [], Const (CChr c) -> Char.code c
           | _ -> E.s (E.unimp "non-int case")
         in
-        Case i :: (doStatement s)
+        Case (i,lu) :: (doStatement s)
                     
     | A.DEFAULT s -> 
         Default :: (doStatement s)
@@ -1852,7 +1852,7 @@ and doStatement (s : A.statement) : stmt list =
             ins
         in
         List.concat (List.rev !stmts) @ 
-        [Instr(Asm(tmpls, isvol, outs', ins', clobs))]
+        [Instr(Asm(tmpls, isvol, outs', ins', clobs), lu)]
   with e -> begin
     (ignore (E.log "Error in doStatement (%s)\n" (Printexc.to_string e)));
     [Label "booo_statement"]
@@ -1894,9 +1894,9 @@ let makeGlobalVarinfo (vi: varinfo) =
     let rec alreadyDef = ref false in
     let rec loop = function
         [] -> []
-      | (GVar (vi', i') as g) :: rest when vi'.vid = vi.vid -> 
+      | (GVar (vi', i', l) as g) :: rest when vi'.vid = vi.vid -> 
           if i' = None then
-            GDecl vi' :: loop rest
+            GDecl (vi', l) :: loop rest
           else begin
             alreadyDef := true;
             g :: rest (* No more defs *)
@@ -1936,11 +1936,11 @@ let convFile fname dl =
             let newTyp = doType (doAttrList a) nbt in
             (* Register the type *)
             recordTypeName n newTyp;
-            theFile := GType (n, newTyp) :: !theFile
+            theFile := GType (n, newTyp, lu) :: !theFile
           with e -> begin
             ignore (E.log "Error on A.TYPEDEF (%s)\n"
                       (Printexc.to_string e));
-            theFile := GAsm ("booo_typedef:" ^ n) :: !theFile
+            theFile := GAsm ("booo_typedef:" ^ n, lu) :: !theFile
           end
         in
         ignore (doNameGroup createTypedef ng)
@@ -1951,11 +1951,11 @@ let convFile fname dl =
         try
           let newTyp = doType [] bt in
           (* doType will register the type. Put a special GType in the file *)
-          theFile := GType ("", newTyp) :: !theFile
+          theFile := GType ("", newTyp, lu) :: !theFile
         with e -> begin
           ignore (E.log "Error on A.ONLYTYPEDEF (%s)\n"
                     (Printexc.to_string e));
-          theFile := GAsm ("booo_typedef") :: !theFile
+          theFile := GAsm ("booo_typedef", lu) :: !theFile
         end
     end
     | A.DECDEF ng -> 
@@ -1972,7 +1972,7 @@ let convFile fname dl =
                 let (_, e'') = castTo et vi.vtype e' in
                 (match vi.vtype, e', et with (* See if we have a length now *)
                   TArray(TInt((IChar|IUChar|ISChar), _) as bt, None, a),
-                  Const(CStr s, _), _ -> 
+                  Const(CStr s), _ -> 
                     vi.vtype <- TArray(bt, 
                                        Some (integer (String.length s + 1)),
                                        a)
@@ -1987,16 +1987,16 @@ let convFile fname dl =
             if not alreadyDef then begin(* Do not add declarations after def *)
               if vi.vstorage = Extern then 
                 if init = None then 
-                  theFile := GDecl vi :: !theFile
+                  theFile := GDecl (vi, lu) :: !theFile
                 else
                   E.s (E.unimp "%s is extern and with initializer" vi.vname)
               else
-                theFile := GVar(vi, init) :: !theFile
+                theFile := GVar(vi, init,lu) :: !theFile
             end
           with e -> begin
             ignore (E.log "error in CollectGlobal (%s)\n" 
                       (Printexc.to_string e));
-            theFile := GAsm("booo - error in global " ^ n) :: !theFile
+            theFile := GAsm("booo - error in global " ^ n,lu) :: !theFile
           end
 (*
           ignore (E.log "Env after processing global %s is:@!%t@!" 
@@ -2007,8 +2007,8 @@ let convFile fname dl =
         in
         ignore (doNameGroup createGlobal ng)
           
-    | A.GLOBASM s -> theFile := GAsm s :: !theFile
-    | A.PRAGMA a -> theFile := GPragma (doAttr a) :: !theFile
+    | A.GLOBASM s -> theFile := GAsm (s, lu) :: !theFile
+    | A.PRAGMA a -> theFile := GPragma (doAttr a, lu) :: !theFile
 
     | A.FUNDEF (((bt,st,(n,bt',funattr,_)) : A.single_name), 
                  (body : A.body)) -> 
@@ -2063,11 +2063,11 @@ let convFile fname dl =
                                      | x -> Sequence [x]);
                        } 
             in
-            theFile := GFun fdec :: !theFile
+            theFile := GFun (fdec,lu) :: !theFile
           with e -> begin
             ignore (E.log "error in collectFunction %s: %s\n" 
                       n (Printexc.to_string e));
-            theFile := GAsm("error in function ") :: !theFile
+            theFile := GAsm("error in function ", lu) :: !theFile
           end
         end
     | A.OLDFUNDEF _ -> E.s (E.unimp "OLDFUNDEF")

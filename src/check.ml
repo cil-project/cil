@@ -372,8 +372,8 @@ and checkExpType (isconst: bool) (e: exp) (t: typ) =
                          * array of characters  *)
     if typeSig t' <> typeSig t then 
       match e, t with
-        Const(CStr s, _), 
-        TArray(TInt(IChar, _), Some (Const(CInt(l, _, _), _)), _) when
+        Const(CStr s), 
+        TArray(TInt(IChar, _), Some (Const(CInt(l, _, _))), _) when
         String.length s = l - 1 -> ()
       | _ -> typeMatch t' t
   end else
@@ -388,16 +388,16 @@ and checkExp (isconst: bool) (e: exp) : typ =
         (if isconst then "Const" else "Exp") d_exp e)
     (fun _ ->
       match e with
-        Const(CInt (_, ik, _), _) -> TInt(ik, [])
-      | Const(CChr _, _) -> charType
-      | Const(CStr _, _) -> charPtrType 
-      | Const(CReal (_, fk, _), _) -> TFloat(fk, [])
+        Const(CInt (_, ik, _)) -> TInt(ik, [])
+      | Const(CChr _) -> charType
+      | Const(CStr _) -> charPtrType 
+      | Const(CReal (_, fk, _)) -> TFloat(fk, [])
       | Lval(lv) -> 
           if isconst then
             ignore (E.warn "Lval in constant");
           checkLval isconst lv
 
-      | SizeOf(t, _) -> begin
+      | SizeOf(t) -> begin
           (* Sizeof cannot be applied to certain types *)
           checkType t CTSizeof;
           (match unrollType t with
@@ -406,20 +406,20 @@ and checkExp (isconst: bool) (e: exp) : typ =
           | _ ->());
           uintType
       end
-      | UnOp (Neg, e, tres, _) -> 
+      | UnOp (Neg, e, tres) -> 
           checkArithmeticType tres; checkExpType isconst e tres; tres
 
-      | UnOp (BNot, e, tres, _) -> 
+      | UnOp (BNot, e, tres) -> 
           checkIntegralType tres; checkExpType isconst e tres; tres
 
-      | UnOp (LNot, e, tres, _) -> 
+      | UnOp (LNot, e, tres) -> 
           let te = checkExp isconst e in
           checkBooleanType te;
           checkIntegralType tres; (* Must check that t is well-formed *)
           typeMatch tres intType;
           tres
 
-      | BinOp (bop, e1, e2, tres, _) -> begin
+      | BinOp (bop, e1, e2, tres) -> begin
           let t1 = checkExp isconst e1 in
           let t2 = checkExp isconst e2 in
           match bop with
@@ -449,7 +449,7 @@ and checkExp (isconst: bool) (e: exp) : typ =
               typeMatch tres intType;
               tres
       end
-      | Question (eb, et, ef, _) -> 
+      | Question (eb, et, ef) -> 
           if not isconst then
             ignore (E.warn "Question operator not in a constant\n");
           let tb = checkExp isconst eb in
@@ -459,7 +459,7 @@ and checkExp (isconst: bool) (e: exp) : typ =
           typeMatch tt tf;
           tt
 
-      | AddrOf (lv, _) -> begin
+      | AddrOf (lv) -> begin
           let tlv = checkLval isconst lv in
           (* Only certain types can be in AddrOf *)
           match unrollType tlv with
@@ -492,7 +492,7 @@ and checkExp (isconst: bool) (e: exp) : typ =
           foldLeftCompound checkOneExp t initl ();
           t
 
-      | CastE (tres, e, _) -> begin
+      | CastE (tres, e) -> begin
           let et = checkExp isconst e in
           checkType tres CTExp;
           (* Not all types can be cast *)
@@ -523,23 +523,23 @@ and checkStmt (s: stmt) =
           H.add labels l ()
       end
       | Goto l -> H.add gotos l ()
-      | IfThenElse (e, st, sf) -> 
+      | IfThenElse (e, st, sf,_) -> 
           let te = checkExp false e in
           checkBooleanType te;
           checkStmt st;
           checkStmt sf
-      | Return re -> begin
+      | Return (re,_) -> begin
           match re, !currentReturnType with
             None, TVoid _  -> ()
           | _, TVoid _ -> ignore (E.warn "Invalid return value")
           | None, _ -> ignore (E.warn "Invalid return value")
           | Some re', rt' -> checkExpType false re' rt'
       end
-      | Switch (e, s) -> 
+      | Switch (e, s, _) -> 
           checkExpType false e intType;
           checkStmt s
             
-      | Instr (Set (dest, e, _)) -> 
+      | Instr (Set (dest, e), _) -> 
           let t = checkLval false dest in
           (* Not all types can be assigned to *)
           (match unrollType t with
@@ -549,7 +549,7 @@ and checkStmt (s: stmt) =
           | _ -> ());
           checkExpType false e t
             
-      | Instr (Call(dest, what, args, _)) -> 
+      | Instr (Call(dest, what, args), _) -> 
           let (rt, formals, isva) = 
             match checkExp false what with
               TFun(rt, formals, isva, _) -> rt, formals, isva
@@ -575,14 +575,14 @@ and checkStmt (s: stmt) =
           in
           loopArgs formals args
             
-      | Instr (Asm _) -> ())  (* Not yet implemented *)
+      | Instr (Asm _, _) -> ())  (* Not yet implemented *)
     () (* The argument to withContext *)
   
 let rec checkGlobal = function
     GAsm _ -> ()
   | GPragma _ -> ()
   | GText _ -> ()
-  | GType (n, t) -> 
+  | GType (n, t, _) -> 
       E.withContext (fun _ -> dprintf "GType(%s)" n)
         (fun _ ->
           checkType t CTDecl;
@@ -598,7 +598,7 @@ let rec checkGlobal = function
           end)
         ()
 
-  | GDecl vi -> 
+  | GDecl (vi, _) -> 
       (* We might have seen it already *)
       E.withContext (fun _ -> dprintf "GDecl(%s)" vi.vname)
         (fun _ -> 
@@ -616,11 +616,11 @@ let rec checkGlobal = function
           end)
         ()
         
-  | GVar (vi, init) -> 
+  | GVar (vi, init, l) -> 
       (* Maybe this is the first occurrence *)
       E.withContext (fun _ -> dprintf "GVar(%s)" vi.vname)
         (fun _ -> 
-          checkGlobal (GDecl vi);
+          checkGlobal (GDecl (vi, l));
           (* Check the initializer *)
           begin match init with
             None -> ()
@@ -629,13 +629,13 @@ let rec checkGlobal = function
         ()
         
 
-  | GFun fd -> begin
+  | GFun (fd, l) -> begin
       (* Check if this is the first occurrence *)
       let vi = fd.svar in
       let fname = vi.vname in
       E.withContext (fun _ -> dprintf "GFun(%s)" fname)
         (fun _ -> 
-          checkGlobal (GDecl vi);
+          checkGlobal (GDecl (vi, l));
           (* Check that the argument types in the type match the formals *)
           let rec loopArgs targs formals = 
             match targs, formals with

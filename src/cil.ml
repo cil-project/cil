@@ -231,9 +231,9 @@ and binop =
 
 (* expressions, no side effects *)
 and exp =
-    Const      of constant * location
+    Const      of constant
   | Lval       of lval                  (* l-values *)
-  | SizeOf     of typ * location        (* Has UInt type ! (ISO 6.5.3.4). 
+  | SizeOf     of typ                   (* Has UInt type ! (ISO 6.5.3.4). 
                                          * Only sizeof for types is 
                                          * available. This is not turned into 
                                          * a constant because some 
@@ -241,23 +241,23 @@ and exp =
                                          * change types *) 
 
                                         (* Give the type of the result *)
-  | UnOp       of unop * exp * typ * location 
+  | UnOp       of unop * exp * typ
 
                                         (* Give the type of the result. The 
                                          * arithemtic conversions are made 
                                          * explicit for the arguments *)
-  | BinOp      of binop * exp * exp * typ * location
+  | BinOp      of binop * exp * exp * typ
 
-  | Question   of exp * exp * exp * location (* e1 ? e2 : e3. Sometimes we 
-                                              * cannot turn this into a 
-                                              * conditional statement (e.g. 
-                                              * in global initializers) *)
-  | CastE      of typ * exp * location  (* Use doCast to make casts *)
+  | Question   of exp * exp * exp      (* e1 ? e2 : e3. Sometimes we cannot 
+                                        * turn this into a conditional 
+                                        * statement (e.g. in global 
+                                        * initializers)  *)
+  | CastE      of typ * exp            (* Use doCast to make casts *)
 
                                         (* Used only for initializers of 
                                          * structures and arrays.  *) 
   | Compound   of typ * (offset option * exp) list
-  | AddrOf     of lval * location
+  | AddrOf     of lval
 
   | StartOf    of lval                  (* There is no C correspondent for 
                                          * this. C has implicit coercions 
@@ -327,10 +327,10 @@ and offset =
 
 (**** INSTRUCTIONS. May cause effects directly but may not have control flow.*)
 and instr =
-    Set        of lval * exp * location  (* An assignment. A cast is present 
+    Set        of lval * exp             (* An assignment. A cast is present 
                                           * if the exp has different type 
                                           * from lval *)
-  | Call       of varinfo option * exp * exp list * location
+  | Call       of varinfo option * exp * exp list
 			 (* result temporary variable, 
                             function value, argument list, location. Casts 
                           * are inserted for arguments *)
@@ -358,17 +358,16 @@ and stmt =
   | Loop of stmt                        (* A loop. When stmt is done the 
                                          * control starts back with stmt. 
                                          * Ends with break or a Goto outside.*)
-  | IfThenElse of exp * stmt * stmt     (* if *)
+  | IfThenElse of exp * stmt * stmt * location    (* if *)
   | Label of string 
   | Goto of string
-  | Return of exp option
-  | Switch of exp * stmt                (* no work done to break this appart *)
-  | Case of int                         (* The case expressions are resolved *)
+  | Return of exp option * location
+  | Switch of exp * stmt * location     (* no work done to break this appart *)
+  | Case of int * location              (* The case expressions are resolved *)
   | Default 
   | Break
   | Continue
-  | Instr of instr
-  | Line of string * int                (* A line-number marker *)
+  | Instr of instr * location
         
 type fundec = 
     { svar:     varinfo;                (* Holds the name and type as a 
@@ -391,11 +390,11 @@ type fundec =
     } 
 
 type global = 
-    GFun of fundec                      (* A function definition. Cannot have 
+    GFun of fundec * location           (* A function definition. Cannot have 
                                          * storage Extern *)
-  | GType of string * typ               (* A typedef *)
+  | GType of string * typ * location    (* A typedef *)
 
-  | GDecl of varinfo                    (* A variable declaration. Might be a 
+  | GDecl of varinfo * location         (* A variable declaration. Might be a 
                                          * prototype. There might be at most 
                                          * one declaration and at most one 
                                          * definition for a given variable. 
@@ -406,14 +405,15 @@ type global =
                                          * Either has storage Extern or 
                                          * there must be a definition (Gvar 
                                          * or GFun) in this file  *)
-  | GVar  of varinfo * exp option       (* A variable definition. Might have 
+  | GVar  of varinfo * exp option * location      
+                                        (* A variable definition. Might have 
                                          * an initializer. There must be at 
                                          * most one definition for a variable 
                                          * in an entire program. Cannot have 
                                          * storage Extern *)
-  | GAsm of string                      (* Global asm statement. These ones 
+  | GAsm of string * location           (* Global asm statement. These ones 
                                          * can contain only a template *)
-  | GPragma of attribute                (* Pragmas at top level. Use the same 
+  | GPragma of attribute * location     (* Pragmas at top level. Use the same 
                                          * syntax as attributes *)
   | GText of string                     (* Some text (printed verbatim) at 
                                          * top level. E.g., this way you can 
@@ -484,10 +484,10 @@ let integerKinds (i: int) (posskinds: ikind list) (s: string option) =
   loop posskinds
           
 
-let integer i = Const (integerKinds i [IInt] None, lu)(* For now only ints *)
-let kinteger (k: ikind) (i: int) = Const (CInt(i, k,  None), lu)
+let integer i = Const (integerKinds i [IInt] None)(* For now only ints *)
+let kinteger (k: ikind) (i: int) = Const (CInt(i, k,  None))
 let hexinteger i = 
-    Const (integerKinds i [IInt] (Some (Printf.sprintf "0x%08X" i)), lu)
+    Const (integerKinds i [IInt] (Some (Printf.sprintf "0x%08X" i)))
              
 let zero      = integer 0
 let one       = integer 1
@@ -614,11 +614,11 @@ let rec unrollType = function   (* Might drop some attributes !! *)
 
                                    
 let var vi : lval = (Var vi, NoOffset)
-let mkSet lv e = Instr(Set(lv,e,lu))
+let mkSet lv e = Instr(Set(lv,e), lu)
 let assign vi e = mkSet (var vi) e
-let call res f args = Instr(Call(res,f,args,lu))
+let call res f args = Instr(Call(res,f,args), lu)
 
-let mkString s = Const(CStr s, lu)
+let mkString s = Const(CStr s)
 
     (* Make a sequence out of a list of statements *)
 let mkSeq sl = 
@@ -643,7 +643,7 @@ let mkSeq sl =
 
 let mkWhile (guard:exp) (body: stmt list) : stmt = 
   (* Do it like this so that the pretty printer recognizes it *)
-  Loop (Sequence (IfThenElse(guard, Skip, Break) :: body))
+  Loop (Sequence (IfThenElse(guard, Skip, Break, lu) :: body))
 
 let mkFor (start: stmt) (guard: exp) (next: stmt) (body: stmt list) : stmt = 
   mkSeq 
@@ -660,9 +660,9 @@ let mkForIncr (iter: varinfo) (first: exp) (past: exp) (incr: exp)
         | _ -> Lt, PlusA
       in
       mkFor (mkSet (var iter) first)
-        (BinOp(compop, Lval(var iter), past, intType, lu))
+        (BinOp(compop, Lval(var iter), past, intType))
         (mkSet (var iter) 
-           (BinOp(nextop, Lval(var iter), incr, iter.vtype, lu)))
+           (BinOp(nextop, Lval(var iter), incr, iter.vtype)))
         body
   
 
@@ -772,24 +772,24 @@ let getParenthLevel = function
 
   | Question _ -> 80
                                         (* Bit operations. *)
-  | BinOp((BOr|BXor|BAnd),_,_,_,_) -> bitwiseLevel (* 75 *)
+  | BinOp((BOr|BXor|BAnd),_,_,_) -> bitwiseLevel (* 75 *)
 
                                         (* Comparisons *)
-  | BinOp((Eq|Ne|Gt|Lt|Ge|Le|EqP|NeP|GtP|LtP|GeP|LeP),_,_,_,_) -> 70
+  | BinOp((Eq|Ne|Gt|Lt|Ge|Le|EqP|NeP|GtP|LtP|GeP|LeP),_,_,_) -> 70
                                         (* Additive. Shifts can have higher 
                                          * level but I want parentheses 
                                          * around them *)
-  | BinOp((MinusA|MinusPP|MinusPI|PlusA|PlusPI|Shiftlt|Shiftrt),_,_,_,_)  
+  | BinOp((MinusA|MinusPP|MinusPI|PlusA|PlusPI|Shiftlt|Shiftrt),_,_,_)  
     -> additiveLevel (* 60 *)
 
                                         (* Multiplicative *)
-  | BinOp((Div|Mod|Mult),_,_,_,_) -> 40
+  | BinOp((Div|Mod|Mult),_,_,_) -> 40
 
                                         (* Unary *)
-  | CastE(_,_,_) -> 30
-  | AddrOf(_,_) -> 30
+  | CastE(_,_) -> 30
+  | AddrOf(_) -> 30
   | StartOf(_) -> 30
-  | UnOp((Neg|BNot|LNot),_,_,_) -> 30
+  | UnOp((Neg|BNot|LNot),_,_) -> 30
 
                                         (* Lvals *)
   | Lval(Mem _ , _) -> 20                   
@@ -979,9 +979,9 @@ and d_expprec contextprec () e =
 and d_exp () e = 
   let level = getParenthLevel e in
   match e with
-    Const(c,l) -> dprintf "%a" d_const c
+    Const(c) -> dprintf "%a" d_const c
   | Lval(l) -> dprintf "%a" d_lval l
-  | UnOp(u,e1,_,l) -> 
+  | UnOp(u,e1,_) -> 
       let d_unop () u =
         match u with
           Neg -> text "-"
@@ -990,14 +990,14 @@ and d_exp () e =
       in
       dprintf "%a %a" d_unop u (d_expprec level) e1
 
-  | BinOp(b,e1,e2,_,l) -> 
+  | BinOp(b,e1,e2,_) -> 
       dprintf "@[%a %a@?%a@]" 
         (d_expprec level) e1 d_binop b (d_expprec level) e2
-  | Question (e1, e2, e3, _) -> 
+  | Question (e1, e2, e3) -> 
       dprintf "%a ? %a : %a"
         (d_expprec level) e1 (d_expprec level) e2 (d_expprec level) e3
-  | CastE(t,e,l) -> dprintf "(%a)%a" d_type t (d_expprec level) e
-  | SizeOf (t, l) -> dprintf "sizeof(%a)" d_type t
+  | CastE(t,e) -> dprintf "(%a)%a" d_type t (d_expprec level) e
+  | SizeOf (t) -> dprintf "sizeof(%a)" d_type t
   | Compound (t, initl) -> 
       (* We do not print the type of the Compound *)
       let dinit = function
@@ -1014,7 +1014,7 @@ and d_exp () e =
       in
       dprintf "{@[%a@]}"
         (docList (chr ',' ++ break) dinit) initl
-  | AddrOf(lv,lo) -> 
+  | AddrOf(lv) -> 
       dprintf "& %a" (d_lvalprec addrOfLevel) lv
 
   | StartOf(lv) -> d_lval () lv
@@ -1084,7 +1084,7 @@ and d_lval () lv =
     | NoOffset -> dobase ()
     | Field (fi, o) -> 
         d_offset (fun _ -> dprintf "%t.%s" dobase fi.fname) o
-    | Index (Const(CInt(0,_,_),_), NoOffset) -> dprintf "(*%t)" dobase
+    | Index (Const(CInt(0,_,_)), NoOffset) -> dprintf "(*%t)" dobase
     | Index (e, o) -> 
         d_offset (fun _ -> dprintf "%t[%a]" dobase d_exp e) o
   in
@@ -1099,22 +1099,22 @@ and d_lval () lv =
         
 and d_instr () i =
   match i with
-  | Set(lv,e,lo) -> begin
+  | Set(lv,e) -> begin
       (* Be nice to some special cases *)
       match e with
-        BinOp((PlusA|PlusPI),Lval(lv'),Const(CInt(1,_,_),_),_,_) 
+        BinOp((PlusA|PlusPI),Lval(lv'),Const(CInt(1,_,_)),_) 
           when lv == lv' -> 
           dprintf "%a ++;" d_lval lv
       | BinOp((MinusA|MinusPI),Lval(lv'),
-              Const(CInt(1,_,_),_),_,_) when lv == lv' -> 
+              Const(CInt(1,_,_)), _) when lv == lv' -> 
           dprintf "%a --;" d_lval lv
       | BinOp((PlusA|PlusPI|MinusA|MinusPP|MinusPI|BAnd|BOr|BXor|
                Mult|Div|Mod|Shiftlt|Shiftrt) as bop,
-              Lval(lv'),e,_,_) when lv == lv' -> 
+              Lval(lv'),e,_) when lv == lv' -> 
           dprintf "%a %a= %a;" d_lval lv d_binop bop d_exp e
       | _ -> dprintf "%a = %a;" d_lval lv d_exp e
   end
-  | Call(vio,e,args,loc) ->
+  | Call(vio,e,args) ->
       (* Maybe we need to print a cast *)
       dprintf "%s%a(@[%a@]);" 
         (match vio with 
@@ -1158,7 +1158,7 @@ and d_stmt () s =
                   dangling elses. ASM gives some problems with MSVC so 
                   bracket them as well  *) 
     match a with
-      IfThenElse _ | Loop _ | Instr(Asm _) | Switch _ -> 
+      IfThenElse _ | Loop _ | Instr(Asm _, _) | Switch _ -> 
         Sequence [a]
     | _ -> a
   in
@@ -1166,26 +1166,25 @@ and d_stmt () s =
     Skip -> dprintf ";"
   | Sequence(lst) -> dprintf "@[{ @[@!%a@]@!}@]" 
         (docList line (d_stmt ())) lst
-  | Loop(Sequence(IfThenElse(e,Skip,Break) :: rest)) -> 
+  | Loop(Sequence(IfThenElse(e,Skip,Break,_) :: rest)) -> 
       dprintf "wh@[ile (%a)@!%a@]" d_exp e d_stmt (Sequence rest)
   | Loop(stmt) -> 
       dprintf "wh@[ile (1)@!%a@]" d_stmt stmt
-  | IfThenElse(e,a,(Skip|Sequence([Skip]))) -> 
+  | IfThenElse(e,a,(Skip|Sequence([Skip])),_) -> 
       dprintf "if@[ (%a)@!%a@]" d_exp e d_stmt (doThen a)
-  | IfThenElse(e,a,b) -> 
+  | IfThenElse(e,a,b,_) -> 
       dprintf "@[if@[ (%a)@!%a@]@!el@[se@!%a@]@]" 
         d_exp e d_stmt (doThen a) d_stmt b
   | Label(s) -> dprintf "%s:" s
-  | Case(i) -> dprintf "case %d: " i
+  | Case(i,_) -> dprintf "case %d: " i
   | Goto(s) -> dprintf "goto %s;" s
   | Break  -> dprintf "break;"
   | Continue -> dprintf "continue;"
-  | Return(None) -> text "return;"
-  | Return(Some e) -> dprintf "return (%a);" d_exp e
-  | Switch(e,s) -> dprintf "@[switch (%a)@!%a@]" d_exp e d_stmt s
+  | Return(None,_) -> text "return;"
+  | Return(Some e,_) -> dprintf "return (%a);" d_exp e
+  | Switch(e,s,_) -> dprintf "@[switch (%a)@!%a@]" d_exp e d_stmt s
   | Default -> dprintf "default:"
-  | Instr(i) -> d_instr () i
-  | Line (f, n) -> dprintf "# %d %s\n" n f
+  | Instr(i,_) -> d_instr () i
 
 
         
@@ -1250,20 +1249,20 @@ let printFile (out : out_channel) file =
   H.clear definedTypes;
   noRedefinitions := true;
   let d_global () = function
-      GFun fundec -> d_fun_decl () fundec ++ line
-    | GType (str, typ) -> 
+      GFun (fundec, _) -> d_fun_decl () fundec ++ line
+    | GType (str, typ, _) -> 
         if str = "" then
           dprintf "%a;@!" (d_decl (fun _ -> nil)) typ
         else 
           dprintf "typedef %a;@!" (d_decl (fun _ -> text str)) typ
 
-  | GVar (vi, eo) -> dprintf "%a %a;"
+  | GVar (vi, eo, _) -> dprintf "%a %a;"
         d_videcl vi 
         insert (match eo with None -> nil | Some e -> 
                 dprintf " = %a" d_exp e)
-  | GDecl vi -> dprintf "%a;" d_videcl vi 
-  | GAsm s -> dprintf "__asm__(\"%s\");@!" (escape_string s)
-  | GPragma a -> dprintf "#pragma %a@!" d_attr a
+  | GDecl (vi, _) -> dprintf "%a;" d_videcl vi 
+  | GAsm (s, _) -> dprintf "__asm__(\"%s\");@!" (escape_string s)
+  | GPragma (a, _) -> dprintf "#pragma %a@!" d_attr a
   | GText s  -> text s
   in
   List.iter (fun g -> print (d_global () g ++ line)) file.globals;
@@ -1288,11 +1287,11 @@ let printFileWithCustom (out: out_channel)
    (* Some plain pretty-printers. Unlike the above these expose all the 
     * details of the internal representation *)
 let rec d_plainexp () = function
-    Const(c,_) -> dprintf "Const(%a)" d_const c
+    Const(c) -> dprintf "Const(%a)" d_const c
   | Lval(lv) -> dprintf "Lval(@[%a@])" d_plainlval lv
-  | CastE(t,e,_) -> dprintf "CastE(@[%a,@?%a@])" d_plaintype t d_plainexp e
+  | CastE(t,e) -> dprintf "CastE(@[%a,@?%a@])" d_plaintype t d_plainexp e
   | StartOf lv -> dprintf "StartOf(%a)" d_plainlval lv
-  | AddrOf (lv, _) -> dprintf "AddrOf(%a)" d_plainlval lv
+  | AddrOf (lv) -> dprintf "AddrOf(%a)" d_plainlval lv
   | e -> d_exp () e
 
 and d_plainlval () = function
@@ -1352,12 +1351,12 @@ let iterExp (f: exp -> unit) (body: stmt) : unit =
   and fExp' = function
       (Const _|SizeOf _) -> ()
     | Lval lv -> fLval lv
-    | UnOp(_,e,_,_) -> fExp e
-    | BinOp(_,e1,e2,_,_) -> fExp e1; fExp e2
-    | Question (e1, e2, e3, _) -> fExp e1; fExp e2; fExp e3
-    | CastE(_, e,_) -> fExp e
+    | UnOp(_,e,_) -> fExp e
+    | BinOp(_,e1,e2,_) -> fExp e1; fExp e2
+    | Question (e1, e2, e3) -> fExp e1; fExp e2; fExp e3
+    | CastE(_, e) -> fExp e
     | Compound (_, initl) -> List.iter (fun (_, e) -> fExp e) initl
-    | AddrOf (lv,_) -> fLval lv
+    | AddrOf (lv) -> fLval lv
     | StartOf (lv) -> fLval lv
 
   and fLval = function
@@ -1368,15 +1367,16 @@ let iterExp (f: exp -> unit) (body: stmt) : unit =
     | Index (e, o) -> fExp e; fOff o
     | NoOffset -> ()
   and fStmt = function
-      (Skip|Break|Continue|Label _|Goto _|Case _|Default|Return None) -> ()
+      (Skip|Break|Continue|Label _|Goto _
+    |Case _|Default|Return (None, _)) -> ()
     | Sequence s -> List.iter fStmt s
     | Loop s -> fStmt s
-    | IfThenElse (e, s1, s2) -> fExp e; fStmt s1; fStmt s2
-    | Return(Some e) -> fExp e
-    | Switch (e, s) -> fExp e; fStmt s
-    | Instr(Set(lv,e,_)) -> fLval lv; fExp e
-    | Instr(Call(_,f,args,_)) -> fExp f; List.iter fExp args
-    | Instr(Asm(_,_,outs,ins,_)) -> begin
+    | IfThenElse (e, s1, s2, _) -> fExp e; fStmt s1; fStmt s2
+    | Return(Some e, _) -> fExp e
+    | Switch (e, s, _) -> fExp e; fStmt s
+    | Instr(Set(lv,e),_) -> fLval lv; fExp e
+    | Instr(Call(_,f,args), _) -> fExp f; List.iter fExp args
+    | Instr(Asm(_,_,outs,ins,_), _) -> begin
         List.iter (fun (_, lv) -> fLval lv) outs;    (* sm: bugfix 3/17/01 *)
         List.iter (fun (_, e) -> fExp e) ins
       end
@@ -1393,10 +1393,10 @@ begin
   and fExp' = function
       (Const _|SizeOf _) -> ()
     | Lval lv -> fLval lv
-    | UnOp(_,e,_,_) -> fExp e
-    | BinOp(_,e1,e2,_,_) -> fExp e1; fExp e2
-    | Question (e1, e2, e3, _) -> fExp e1; fExp e2; fExp e3
-    | CastE(_, e,_) -> fExp e
+    | UnOp(_,e,_) -> fExp e
+    | BinOp(_,e1,e2,_) -> fExp e1; fExp e2
+    | Question (e1, e2, e3) -> fExp e1; fExp e2; fExp e3
+    | CastE(_, e) -> fExp e
     | Compound (_, initl) ->
         List.iter
           (function
@@ -1404,7 +1404,7 @@ begin
             | (Some ofs, e) -> fOff ofs; fExp e
           )
           initl
-    | AddrOf (lv,_) -> fLval lv
+    | AddrOf (lv) -> fLval lv
     | StartOf (lv) -> fLval lv
 
   and fLval lv = (vis#vlval lv); fLval' lv
@@ -1423,9 +1423,9 @@ begin
    * where I could see none .. *)  
   and fInst (i:instr) : unit = (vis#vinst i); fInst' i; ()
   and fInst' (i:instr) : unit = match i with
-    | Set(lv,e,_) -> fLval lv; fExp e
-    | Call(None,f,args,_) -> fExp f; List.iter fExp args
-    | Call((Some v),fn,args,_) -> fVrbl v; fExp fn; List.iter fExp args  (* sm: bugfix 3/17/01 *)
+    | Set(lv,e) -> fLval lv; fExp e
+    | Call(None,f,args) -> fExp f; List.iter fExp args
+    | Call((Some v),fn,args) -> fVrbl v; fExp fn; List.iter fExp args 
     | Asm(_,_,outs,ins,_) -> begin
         List.iter (fun (_, lv) -> fLval lv) outs;
         List.iter (fun (_, e) -> fExp e) ins
@@ -1433,13 +1433,13 @@ begin
 
   and fStmt s = (vis#vstmt s); fStmt' s
   and fStmt' = begin function
-      (Skip|Break|Continue|Label _|Goto _|Case _|Default|Return None) -> ()
+      (Skip|Break|Continue|Label _|Goto _|Case _|Default|Return (None,_)) -> ()
     | Sequence s -> List.iter fStmt s
     | Loop s -> fStmt s
-    | IfThenElse (e, s1, s2) -> fExp e; fStmt s1; fStmt s2
-    | Return(Some e) -> fExp e
-    | Switch (e, s) -> fExp e; fStmt s
-    | Instr(i) -> (fInst i); ()
+    | IfThenElse (e, s1, s2, _) -> fExp e; fStmt s1; fStmt s2
+    | Return(Some e, _) -> fExp e
+    | Switch (e, s, _) -> fExp e; fStmt s
+    | Instr(i, _) -> (fInst i); ()
   end
 
   in
@@ -1458,10 +1458,10 @@ begin
 
   and fGlob g = vis#vglob g; fGlob' g
   and fGlob' = function
-    GFun f -> fFunc f
+    GFun (f, _) -> fFunc f
   (* GDecl isn't visited because vvrbl is for *uses* *)
-  | GVar (v, None) -> vis#vvrbl v
-  | GVar (v, Some e) -> vis#vvrbl v; vis#vexpr e
+  | GVar (v, None, _) -> vis#vvrbl v
+  | GVar (v, Some e, _) -> vis#vvrbl v; vis#vexpr e
   | _ -> ()
 
   in List.iter fGlob f.globals
@@ -1526,18 +1526,18 @@ let dummyFile =
 (**** Compute the type of an expression ****)
 let rec typeOf (e: exp) : typ = 
   match e with
-    Const(CInt (_, ik, _), _) -> TInt(ik, [])
-  | Const(CChr _, _) -> charType
-  | Const(CStr _, _) -> charPtrType 
-  | Const(CReal (_, fk, _), _) -> TFloat(fk, [])
+    Const(CInt (_, ik, _)) -> TInt(ik, [])
+  | Const(CChr _) -> charType
+  | Const(CStr _) -> charPtrType 
+  | Const(CReal (_, fk, _)) -> TFloat(fk, [])
   | Lval(lv) -> typeOfLval lv
   | SizeOf _ -> uintType
-  | UnOp (_, _, t, _) -> t
-  | BinOp (_, _, _, t, _) -> t
-  | Question (_, e2, _, _) -> typeOf e2
-  | CastE (t, _, _) -> t
+  | UnOp (_, _, t) -> t
+  | BinOp (_, _, _, t) -> t
+  | Question (_, e2, _) -> typeOf e2
+  | CastE (t, _) -> t
   | Compound (t, _) -> t
-  | AddrOf (lv, _) -> TPtr(typeOfLval lv, [])
+  | AddrOf (lv) -> TPtr(typeOfLval lv, [])
   | StartOf (lv) -> begin
       match typeOfLval lv with
         TArray (t,_, _) -> TPtr(t, [])
@@ -1565,10 +1565,10 @@ and typeOffset basetyp = function
 
 
 let dExp : doc -> exp = 
-  function d -> Const(CStr(sprint 80 d),lu)
+  function d -> Const(CStr(sprint 80 d))
 
 let dStmt : doc -> stmt = 
-  function d -> Instr(Asm([sprint 80 d], false, [], [], []))
+  function d -> Instr(Asm([sprint 80 d], false, [], [], []), lu)
 
 
 let rec addOffset toadd (off: offset) : offset =
@@ -1600,7 +1600,7 @@ let mkMem (addr: exp) (off: offset) : exp =
     | Some lv, _ -> (* non-index on an array *)
         Lval(addOffsetLval (Index(zero, off)) lv)
     | None, Index(ei, resto) -> (* index on a non-array *)
-        Lval(Mem (BinOp(PlusPI, addr, ei, typeOf addr, luindex)), resto) 
+        Lval(Mem (BinOp(PlusPI, addr, ei, typeOf addr)), resto) 
     | None, _ -> (* non-index on a non-array *)
         Lval(Mem addr, off)
   in
@@ -1618,7 +1618,7 @@ let mkAddrOf ((b, off) as lval) : exp =
   match unrollType (typeOfLval lval) with
     TArray _ -> StartOf lval
   | TFun _ -> StartOf lval
-  | _ -> AddrOf(lval, lu)
+  | _ -> AddrOf(lval)
 
 let isIntegralType t = 
   match unrollType t with
@@ -1722,7 +1722,7 @@ let rec doCast (e: exp) (oldt: typ) (newt: typ) =
   if typeSig oldt = typeSig newt then
     e
   else
-    CastE(newt,e,lu)
+    CastE(newt,e)
 
 
 type existsAction = 
@@ -1764,9 +1764,9 @@ let increm (e: exp) (i: int) =
   else 
     let rec tryIncrem e sign = 
       match e with
-        Const(CInt(ei, eik, _), l) -> 
-          Some (Const(CInt(ei + i * sign, eik, None), l))
-      | BinOp(((PlusA|MinusA|PlusPI|MinusPI) as bop), e1, e2, t, l) -> begin
+        Const(CInt(ei, eik, _)) -> 
+          Some (Const(CInt(ei + i * sign, eik, None)))
+      | BinOp(((PlusA|MinusA|PlusPI|MinusPI) as bop), e1, e2, t) -> begin
           let newe2sign = 
             if bop = MinusA || bop = MinusPI then - sign else sign
           in
@@ -1774,14 +1774,14 @@ let increm (e: exp) (i: int) =
             None -> begin
               match tryIncrem e1 sign with
                 None -> None
-              | Some e1' -> Some (BinOp(bop, e1', e2, t, l))
+              | Some e1' -> Some (BinOp(bop, e1', e2, t))
             end
-          | Some e2' -> Some (BinOp(bop, e1, e2', t, l))
+          | Some e2' -> Some (BinOp(bop, e1, e2', t))
       end
-      | UnOp(Neg, e', t, l) -> begin
+      | UnOp(Neg, e', t) -> begin
           match tryIncrem e' (- sign) with
             None -> None
-          | Some e'' -> Some (UnOp(Neg, e'', t, l))
+          | Some e'' -> Some (UnOp(Neg, e'', t))
       end
       | _ -> None
     in
@@ -1789,7 +1789,7 @@ let increm (e: exp) (i: int) =
       None -> 
         let et = typeOf e in
         let bop = if isPointerType et then PlusPI else PlusA in
-        BinOp(bop, e, integer i, et, lu)
+        BinOp(bop, e, integer i, et)
     | Some e' -> e'
   
 
@@ -1798,21 +1798,21 @@ let increm (e: exp) (i: int) =
 (*** Make a compound initializer for zeroe-ing a data type ***)
 let rec makeZeroCompoundInit t = 
   match unrollType t with
-    TInt (ik, _) -> Const(CInt(0, ik, None), lu)
-  | TFloat(fk, _) -> Const(CReal(0.0, fk, None), lu)
+    TInt (ik, _) -> Const(CInt(0, ik, None))
+  | TFloat(fk, _) -> Const(CReal(0.0, fk, None))
   | (TEnum _ | TBitfield _) -> zero
   | TComp comp as t' when comp.cstruct -> 
       Compound (t', 
                 List.map (fun f -> None, makeZeroCompoundInit f.ftype) 
                   comp.cfields)
-  | TArray(bt, Some (Const(CInt(n, _, _), _)), _) as t' -> 
+  | TArray(bt, Some (Const(CInt(n, _, _))), _) as t' -> 
       let initbt = makeZeroCompoundInit bt in
       let rec loopElems acc i = 
         if i >= n then acc
         else loopElems ((None, initbt) :: acc) (i + 1) 
       in
       Compound(t', loopElems [] 0)
-  | TPtr _ as t -> CastE(t, zero, lu)
+  | TPtr _ as t -> CastE(t, zero)
   | _ -> E.s (E.unimp "makeZeroCompoundInit: %a" d_plaintype t)
 
 
@@ -1828,8 +1828,8 @@ let foldLeftCompound (doexp: offset -> exp -> typ -> 'a -> 'a)
           (initl: (offset option * exp) list)
           (acc: 'a) : 'a  =
         let incrementIdx = function
-            Const(CInt(n, ik, _), l) -> Const(CInt(n + 1, ik, None), l)
-          | e -> BinOp(PlusA, e, one, intType, lu)
+            Const(CInt(n, ik, _)) -> Const(CInt(n + 1, ik, None))
+          | e -> BinOp(PlusA, e, one, intType)
         in
         match initl with
           [] -> acc
@@ -2091,7 +2091,7 @@ and bitsSizeOf t =
         (* Add trailing by simulating adding an extra field *)
       addTrailing max
 
-  | TArray(t, Some (Const(CInt(l,_,_),_)),_) -> 
+  | TArray(t, Some (Const(CInt(l,_,_))),_) -> 
       addTrailing ((bitsSizeOf t) * l)
 
   | TArray(t, None, _) -> raise Not_found
@@ -2112,7 +2112,7 @@ and sizeOf t =
     | t' -> begin
         try
           integer ((bitsSizeOf t') lsr 3)
-        with Not_found -> SizeOf(t', lu)
+        with Not_found -> SizeOf(t')
     end
             
 

@@ -27,7 +27,7 @@ let rec type_congruent (t1 : typ) (q1 : pointerkind)
   let t2 = unrollType t2 in 
   let array_helper_function t eo al x = begin
     match eo with
-      Some(Const(CInt(n,a,b),c)) when n > 1 -> begin
+      Some(Const(CInt(n,a,b))) when n > 1 -> begin
         let our_compinfo = {
           cstruct = true ;
           cname = "" ;
@@ -40,7 +40,7 @@ let rec type_congruent (t1 : typ) (q1 : pointerkind)
               ftype = t ;
               fattr = [] ; } ;
             { fcomp = our_compinfo ; fname = "" ;
-              ftype = TArray(t,(Some(Const(CInt(n-1,a,b),c))),[]) ;
+              ftype = TArray(t,(Some(Const(CInt(n-1,a,b)))),[]) ;
               fattr = [] ; } ] ; 
         type_congruent t q1 (TComp(our_compinfo)) q2
       end
@@ -77,12 +77,12 @@ let rec type_congruent (t1 : typ) (q1 : pointerkind)
     (* t and t[1] are the same *)
   | (x,TArray(t,eo,al)) when (type_congruent x q1 t q2) -> begin
     match eo with
-      Some(Const(CInt(1,_,_),_)) -> true
+      Some(Const(CInt(1,_,_))) -> true
     | _ -> false
   end
   | (TArray(t,eo,al),x) when (type_congruent x q2 t q1) -> begin
     match eo with
-      Some(Const(CInt(1,_,_),_)) -> true
+      Some(Const(CInt(1,_,_))) -> true
     | _ -> false
   end
 
@@ -182,7 +182,7 @@ let can_cast (n1 : node) (n2 : node) = begin
     if subtype t1 Safe t2 Safe then
     (Safe,Safe,false)
   else if subtype t1 Safe 
-     (TArray(t2,(Some(Const(CInt(1024,ILong,None),locUnknown))),[])) Safe then
+     (TArray(t2,(Some(Const(CInt(1024,ILong,None)))),[])) Safe then
     (Seq,Seq,false)
   else begin
 (*    E.warn "Cannot cast %a <= %a\n" 

@@ -226,9 +226,9 @@ and binop =
 
 (* expressions, no side effects *)
 and exp =
-    Const      of constant * location
+    Const      of constant
   | Lval       of lval                  (* l-values *)
-  | SizeOf     of typ * location        (* Has UInt type ! (ISO 6.5.3.4).
+  | SizeOf     of typ                   (* Has UInt type ! (ISO 6.5.3.4).
                                          * Only sizeof for types is
                                          * available. This is not turned into
                                          * a constant because some
@@ -236,27 +236,26 @@ and exp =
                                          * change types *)
 
                                         (* Give the type of the result *)
-  | UnOp       of unop * exp * typ * location
+  | UnOp       of unop * exp * typ
 
                                         (* Give the type of the result. The
                                          * arithemtic conversions are made
                                          * explicit for the arguments *)
-  | BinOp      of binop * exp * exp * typ * location
+  | BinOp      of binop * exp * exp * typ
 
-  | Question   of exp * exp * exp * location (* e1 ? e2 : e3. Sometimes we
-                                              * cannot turn this into a
-                                              * conditional statement (e.g.
-                                              * in global initializers). This
-                                              * is only allowed inside
-                                              * constant initializers.!!! In
-                                              * all other places it must bne
-                                              * turned into IfThenElse *)
-  | CastE      of typ * exp * location  (* Use doCast to make casts *)
+  | Question   of exp * exp * exp      (* e1 ? e2 : e3. Sometimes we cannot 
+                                        * turn this into a conditional 
+                                        * statement (e.g. in global 
+                                        * initializers). This is only allowed 
+                                        * inside constant initializers.!!! In 
+                                        * all other places it must bne turned 
+                                        * into IfThenElse  *)
+  | CastE      of typ * exp            (* Use doCast to make casts *)
 
                                         (* Used only for initializers of
                                          * structures and arrays.  *)
   | Compound   of typ * (offset option * exp) list
-  | AddrOf     of lval * location       (* Alpways use mkAddrOf to construct
+  | AddrOf     of lval                 (* Alpways use mkAddrOf to construct
                                          * one of these *)
 
   | StartOf    of lval                  (* There is no C correspondent for
@@ -328,10 +327,10 @@ and offset =
 
 (**** INSTRUCTIONS. May cause effects directly but may not have control flow.*)
 and instr =
-    Set        of lval * exp * location  (* An assignment. A cast is present 
+    Set        of lval * exp             (* An assignment. A cast is present 
                                           * if the exp has different type 
                                           * from lval *)
-  | Call       of varinfo option * exp * exp list * location
+  | Call       of varinfo option * exp * exp list
 			 (* result temporary variable, 
                             function value, argument list, location. Casts 
                           * are inserted for arguments *)
@@ -361,17 +360,16 @@ and stmt =
   | Loop of stmt                        (* A loop. When stmt is done the 
                                          * control starts back with stmt. 
                                          * Ends with break or a Goto outside.*)
-  | IfThenElse of exp * stmt * stmt     (* if *)
+  | IfThenElse of exp * stmt * stmt * location    (* if *)
   | Label of string 
   | Goto of string
-  | Return of exp option
-  | Switch of exp * stmt                (* no work done to break this appart *)
-  | Case of int                         (* The case expressions are resolved *)
+  | Return of exp option * location
+  | Switch of exp * stmt * location     (* no work done to break this appart *)
+  | Case of int * location              (* The case expressions are resolved *)
   | Default
   | Break
   | Continue
-  | Instr of instr
-  | Line of string * int                (* A line-number marker *)
+  | Instr of instr * location
 
 type fundec =
     { svar:     varinfo;                (* Holds the name and type as a
@@ -394,11 +392,11 @@ type fundec =
     }
 
 type global =
-    GFun of fundec                      (* A function definition. Cannot have 
+    GFun of fundec * location           (* A function definition. Cannot have 
                                          * storage Extern *)
-  | GType of string * typ               (* A typedef *)
+  | GType of string * typ * location    (* A typedef *)
 
-  | GDecl of varinfo                    (* A variable declaration. Might be a 
+  | GDecl of varinfo * location         (* A variable declaration. Might be a 
                                          * prototype. There might be at most 
                                          * one declaration and at most one 
                                          * definition for a given variable. 
@@ -409,14 +407,15 @@ type global =
                                          * Either has storage Extern or 
                                          * there must be a definition (Gvar 
                                          * or GFun) in this file  *)
-  | GVar  of varinfo * exp option       (* A variable definition. Might have 
+  | GVar  of varinfo * exp option * location
+                                        (* A variable definition. Might have 
                                          * an initializer. There must be at 
                                          * most one definition for a variable 
                                          * in an entire program. Cannot have 
                                          * storage Extern *)
-  | GAsm of string                      (* Global asm statement. These ones 
+  | GAsm of string * location           (* Global asm statement. These ones 
                                          * can contain only a template *)
-  | GPragma of attribute                (* Pragmas at top level. Use the same 
+  | GPragma of attribute * location     (* Pragmas at top level. Use the same 
                                          * syntax as attributes *)
   | GText of string                     (* Some text (printed verbatim) at 
                                          * top level. E.g., this way you can 

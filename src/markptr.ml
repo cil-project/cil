@@ -159,18 +159,18 @@ let startOfNode (n: N.node) =
 type sign = SPos | SNeg | SAny | SLiteral of int
 
 let rec signOf = function
-    Const(CInt(n, _, _), _) -> SLiteral n
-  | Const(CChr c, _) -> SLiteral (Char.code c)
+    Const(CInt(n, _, _)) -> SLiteral n
+  | Const(CChr c) -> SLiteral (Char.code c)
   | SizeOf _ -> SPos (* We do not compute it now *)
-  | UnOp (Neg, e, _, _) -> begin
+  | UnOp (Neg, e, _) -> begin
       match signOf e with
         SPos -> SNeg
       | SLiteral n -> SLiteral (- n)
       | SNeg -> SNeg
       | _ -> SAny
   end
-  | UnOp (LNot, e, _, _) -> SPos
-  | BinOp (PlusA, e1, e2, _, _) -> begin
+  | UnOp (LNot, e, _) -> SPos
+  | BinOp (PlusA, e1, e2, _) -> begin
       match signOf e1, signOf e2 with
         SPos, SPos -> SPos
       | SLiteral n, SPos when n >= 0 -> SPos
@@ -181,7 +181,7 @@ let rec signOf = function
       | SNeg, SLiteral n when n <= 0 -> SNeg
       | _ -> SAny
   end
-  | BinOp (MinusA, e1, e2, _, _) -> begin
+  | BinOp (MinusA, e1, e2, _) -> begin
       match signOf e1, signOf e2 with
         SPos, SNeg -> SPos
       | SLiteral n, SNeg when n >= 0 -> SPos
@@ -226,52 +226,52 @@ let rec doExp (e: exp) =
       let lv', lvn = doLvalue lv false in
       Lval lv', lvn.N.btype, nodeOfType lvn.N.btype
 
-  | AddrOf (lv, l) -> 
+  | AddrOf (lv) -> 
       let lv', lvn = doLvalue lv false in
-      AddrOf (lv', l), TPtr(lvn.N.btype, lvn.N.attr), lvn
+      AddrOf (lv'), TPtr(lvn.N.btype, lvn.N.attr), lvn
 
   | StartOf lv -> 
       let lv', lvn = doLvalue lv false in
       let next = startOfNode lvn in
       StartOf lv', TPtr(next.N.btype, next.N.attr), next
 
-  | UnOp (uo, e, tres, l) -> (* tres is an arithmetic type *)
-      UnOp(uo, doExpAndCast e tres, tres, l), tres, N.dummyNode
+  | UnOp (uo, e, tres) -> (* tres is an arithmetic type *)
+      UnOp(uo, doExpAndCast e tres, tres), tres, N.dummyNode
 
-  | SizeOf (t, l) ->
+  | SizeOf (t) ->
       let t', _ = doType t (N.anonPlace()) 0 in
-      SizeOf (t', l), uintType, N.dummyNode
+      SizeOf (t'), uintType, N.dummyNode
 
         (* arithemtic binop *)
   | BinOp (((PlusA|MinusA|Mult|Div|Mod|Shiftlt|Shiftrt|Lt|Gt|Le|Ge|Eq|Ne|BAnd|BXor|BOr|LtP|GtP|LeP|GeP|EqP|NeP|MinusPP) as bop), 
-           e1, e2, tres, l) -> 
+           e1, e2, tres) -> 
              BinOp(bop, doExpAndCast e1 tres,
-                   doExpAndCast e2 tres, tres, l), tres, N.dummyNode
+                   doExpAndCast e2 tres, tres), tres, N.dummyNode
        (* pointer arithmetic *)
-  | BinOp (((PlusPI|MinusPI) as bop), e1, e2, tres, l) -> 
+  | BinOp (((PlusPI|MinusPI) as bop), e1, e2, tres) -> 
       let e1', e1t, e1n = doExp e1 in
       (match signOf 
-          (match bop with PlusPI -> e2 | _ -> UnOp(Neg, e2, intType, lu)) with
+          (match bop with PlusPI -> e2 | _ -> UnOp(Neg, e2, intType)) with
         SLiteral 0 -> ()
       | SPos -> e1n.N.posarith <- true
       | SLiteral n when n > 0 -> e1n.N.posarith <- true
       | _ -> 
-          if l.line = -1000 then (* Was created from p[e] *)
+          (* if l.line = -1000 then Was created from p[e] 
             e1n.N.posarith <- true
-          else
+          else *)
             e1n.N.arith <- true);
-      BinOp (bop, e1', doExpAndCast e2 intType, e1t, l), e1t, e1n
+      BinOp (bop, e1', doExpAndCast e2 intType, e1t), e1t, e1n
       
       
-  | CastE (newt, e, l) -> 
+  | CastE (newt, e) -> 
       let newt', _ = doType newt (N.anonPlace ()) 0 in
-      CastE (newt', doExpAndCast e newt', l), newt', nodeOfType newt'
+      CastE (newt', doExpAndCast e newt'), newt', nodeOfType newt'
 
-  | Const (CStr s, l) as e -> 
+  | Const (CStr s) as e -> 
       (* Add a cast in front of all strings. This way we have a place where 
        * to attach a node *)
       let newt', _ = doType charPtrType (N.anonPlace ()) 0 in
-      CastE (newt', e, l), newt', nodeOfType newt'
+      CastE (newt', e), newt', nodeOfType newt'
       
   | _ -> (e, typeOf e, N.dummyNode)
 
@@ -319,12 +319,12 @@ and doOffset (off: offset) (n: N.node) : offset * N.node =
 (* Now model an assignment of a processed expression into a type *)
 and expToType (e,et,en) t (callid: int) = 
   let rec isZero = function
-      Const(CInt(0, _, _), _) -> true
-    | CastE(_, e, _) -> isZero e
+      Const(CInt(0, _, _)) -> true
+    | CastE(_, e) -> isZero e
     | _ -> false
   in
   let isString = function
-      Const(CStr(_),_) -> true
+      Const(CStr(_)) -> true
     | _ -> false
   in
   let etn = nodeOfType et in
@@ -358,21 +358,21 @@ let rec doStmt (s: stmt) =
     (Skip | Label _ | Case _ | Default | Break | Continue | Goto _) -> s
   | Sequence sl -> Sequence (List.map doStmt sl)
   | Loop s -> Loop (doStmt s)
-  | IfThenElse (e, s1, s2) -> 
-      IfThenElse (doExpAndCast e intType, doStmt s1, doStmt s2)
-  | Switch (e, s) -> Switch (doExpAndCast e intType, doStmt s)
-  | Return None -> s
-  | Return (Some e) -> 
-      Return (Some (doExpAndCast e !currentResultType))
-  | Instr (Asm _) -> s
-  | Instr (Set (lv, e, l)) -> 
+  | IfThenElse (e, s1, s2, l) -> 
+      IfThenElse (doExpAndCast e intType, doStmt s1, doStmt s2, l)
+  | Switch (e, s, l) -> Switch (doExpAndCast e intType, doStmt s, l)
+  | Return (None, _) -> s
+  | Return (Some e, l) -> 
+      Return (Some (doExpAndCast e !currentResultType), l)
+  | Instr (Asm _, _) -> s
+  | Instr (Set (lv, e), l) -> 
       let lv', lvn = doLvalue lv true in
       let eres = doExp e in
       (* Now process the copy *)
       let e' = expToType eres lvn.N.btype (-1) in
-      Instr (Set (lv', e', l))
+      Instr (Set (lv', e'), l)
 
-  | Instr (Call (reso, orig_func, args, l)) -> 
+  | Instr (Call (reso, orig_func, args), l) -> 
       let is_polymorphic v =
         v.vname = "free" ||
         v.vname = "malloc" ||
@@ -440,7 +440,7 @@ let rec doStmt (s: stmt) =
                   (nodeOfType destvi.vtype) 
                   N.ECast !callId  
           end;
-          Instr (Call(reso, func', loopArgs formals args, l))
+          Instr (Call(reso, func', loopArgs formals args), l)
       end
             
      
@@ -450,23 +450,23 @@ let rec doStmt (s: stmt) =
 let doGlobal (g: global) : global = 
   match g with
     (GText _ | GPragma _ | GAsm _) -> g
-  | GType (n, t) -> 
+  | GType (n, t, l) -> 
       let t', _ = doType t (N.PType n) 0 in
-      GType (n, t')
-  | GDecl vi -> doVarinfo vi; g
-  | GVar (vi, init) -> 
+      GType (n, t', l)
+  | GDecl (vi, _) -> doVarinfo vi; g
+  | GVar (vi, init, l) -> 
       doVarinfo vi;
       let init' = 
         match init with
           None -> None
               (* Catch the case of a string that initializes an array *)
-        | Some (Const(CStr _, _)) when
+        | Some (Const(CStr _)) when
           (match vi.vtype with TArray _ -> true | _ -> false) -> 
             init
         | Some i -> Some (doExpAndCast i vi.vtype)
       in
-      GVar (vi, init')
-  | GFun fdec -> 
+      GVar (vi, init', l)
+  | GFun (fdec, l) -> 
       doVarinfo fdec.svar;
       currentFunctionName := fdec.svar.vname;
       (match fdec.svar.vtype with

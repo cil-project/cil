@@ -32,23 +32,24 @@ let rec nullChecksOptimStmt (s:Cil.stmt) (nnl:Cil.lval list) =
       let (l',nnl') = nullChecksOptimSeq l nnl in (mkSeq l',nnl')
   | Loop(s) -> 
       let (s',_) = nullChecksOptimStmt s [] in (Loop(s'),[])
-  | IfThenElse(e,s1,s2) ->
+  | IfThenElse(e,s1,s2,l) ->
       (* TODO: consider the predicate *)
       let (s1',nnl1) = nullChecksOptimStmt s1 nnl in
       let (s2',nnl2) = nullChecksOptimStmt s2 nnl in
-      (IfThenElse(e,s1',s2'),List.filter (function x -> List.mem x nnl2) nnl1)
+      (IfThenElse(e,s1',s2',l),
+       List.filter (function x -> List.mem x nnl2) nnl1)
   | Label(_) | Goto(_) | Return(_) -> (s,nnl)
-  | Switch(_,_) | Case(_) | Default -> 
+  | Switch(_,_,_) | Case(_) | Default -> 
       E.s (E.unimp "OPTIM cannot handle switch, case, default yet")
   | Break | Continue -> (s,nnl)
-  | Instr(i) -> (match i with
-      Call(_,Lval(Var x,_),args,_) when x.vname = "CHECK_NULL" ->
+  | Instr(i, l) -> (match i with
+      Call(_,Lval(Var x,_),args) when x.vname = "CHECK_NULL" ->
         (* args must be a list of one element -- the lvalue which we
            have to ensure is non-null *)
         let arg = List.hd args in
         let checkLval = 
           (match arg with
-            CastE(_,Lval e,_) -> e (* Remove the cast, if any *)
+            CastE(_,Lval e) -> e (* Remove the cast, if any *)
           | Lval e -> e
           | _ -> E.s (E.bug "OPTIM cannot work with something\
                         that is not a Lval or a CastE(...Lval...)\n")) 
@@ -57,11 +58,11 @@ let rec nullChecksOptimStmt (s:Cil.stmt) (nnl:Cil.lval list) =
           (Skip,nnl)
         else 
           (s,checkLval::nnl)
-    | Call(_,Lval(Var x,_),args,_) 
+    | Call(_,Lval(Var x,_),args) 
       when (String.sub x.vname 0 6)="CHECK_" -> (s,nnl)
     | Call _ -> (s,[])
     | Asm _ -> (s,nnl) 
-    | Set(lv,e,_) -> (* remove the lv from nnl *)
+    | Set(lv,e) -> (* remove the lv from nnl *)
         (s,List.filter (function x -> x<>lv) nnl))
                 
 and nullChecksOptimSeq l nnl =
@@ -105,7 +106,7 @@ let optimFile file =
   (* Replace every function definition by its optimized version*)
   file.globals <- List.map 
       (function 
-          GFun(f) -> GFun(optimFun f)
+          GFun(f,l) -> GFun(optimFun f, l)
         | _ as other -> other)
       file.globals;
   
