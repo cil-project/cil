@@ -199,8 +199,15 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
 
       (* handle points-to information *)
       List.iter (fun n ->
-        (if cur.kind = Wild then update n Wild (SpreadPointsTo n)) ;
+        (if cur.kind = Wild then update n Wild (SpreadPointsTo cur)) ;
       ) cur.pointsto ;
+
+      (* push wild *)
+      if (cur.kind = Wild) then begin
+        match nodeOfAttrlist (typeAttrs cur.btype) with
+          Some(n) -> update n Wild (SpreadPointsTo cur)
+        | None -> ()
+      end ;
 
       (* handle array types *)
       if (cur.kind = Index || cur.kind = FSeqN || cur.kind = SeqN) then begin
