@@ -605,7 +605,6 @@ let compactBlock (b: block) : block =
   in
   compress dummyStmt b
 
-
 let structId = ref 0 (* Find a better way to generate new names *)
 let newTypeName n = 
   incr structId;

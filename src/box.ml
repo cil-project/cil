@@ -1,4 +1,4 @@
-open Cil
+open Cil 
 open Pretty 
 open Trace
 
@@ -24,7 +24,7 @@ let isSome = function Some _ -> true | _ -> false
 let mkSet (lv:lval) (e: exp) : stmt = mkStmt (Instr [Set(lv, e), lu])
 let call lvo f args : stmt = mkStmt (Instr [Call(lvo,f,args), lu])
 let mkAsm tmpls isvol outputs inputs clobs = 
-      mkStmt (Instr [Asm(tmpls, isvol, outputs, inputs, clobs), lu])
+  mkStmt (Instr [Asm(tmpls, isvol, outputs, inputs, clobs), lu])
 let mkInstr i l : stmt = mkStmt (Instr [(i, l)])
 
 
@@ -136,13 +136,6 @@ let boxallocPragma (name: string) (args: attribute list) : unit =
   H.add allocFunctions name ai
 
 
-(* Add malloc and calloc
-let _ = boxallocPragma "malloc" [  
-let _ = boxallocPragma "alloca" [ AId("nozero"); 
-                                  ACons("sizein", [AInt 0])] 
-let _ = boxallocPragma "calloc" [ AId("zero"); 
-                                  ACons("sizemul", [AInt 0; AInt 1])] 
-*) 
 
 let getAllocInfo fname = 
   try
@@ -545,6 +538,7 @@ let checkNullFun =
   let argp  = makeLocalVar fdec "p" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argp ], false, []);
   fdec.svar.vstorage <- Static;
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
   fdec
 
 let checkSafeRetFatFun = 
@@ -553,6 +547,7 @@ let checkSafeRetFatFun =
   let argb  = makeLocalVar fdec "b" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
   fdec.svar.vstorage <- Static;
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
   fdec
     
   
@@ -564,6 +559,7 @@ let checkSafeFatLeanCastFun =
   let argb  = makeLocalVar fdec "b" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
   fdec.svar.vstorage <- Static;
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
   fdec
 
 let checkFunctionPointer = 
@@ -572,6 +568,7 @@ let checkFunctionPointer =
   let argb  = makeLocalVar fdec "b" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
   fdec.svar.vstorage <- Static;
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
   fun whatp whatb whatkind -> 
     if whatkind = N.Safe then
       call None (Lval(var checkNullFun.svar)) [ castVoidStar whatp ]
@@ -1174,6 +1171,49 @@ let mustBeTagged v =
     taggable &&
     (!N.defaultIsWild || (filterAttributes "tagged" v.vattr) <> [])
 
+
+(*** Check to see if a variable must be registered as the scope is entered *)
+let mustBeRegistered (vi: varinfo) : bool = 
+  (* For now *)
+  mustBeTagged vi || containsArray vi.vtype
+
+(* A few constants *)
+let registerAreaTaggedInt = 0
+let registerAreaSizedInt  = 1
+let registerAreaSeqInt    = 2
+
+let registerAreaFun =   
+  let fdec = emptyFunction "CHECK_REGISTERAREA" in
+  let argi  = makeLocalVar fdec "k" intType in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  let arge  = makeLocalVar fdec "e" voidPtrType in
+  fdec.svar.vtype <- TFun(voidType, [ argi; argb; arge; ], false, []);
+  fdec.svar.vstorage <- Static;
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
+  fdec
+
+let unregisterAreaFun =   
+  let fdec = emptyFunction "CHECK_UNREGISTERAREA" in
+  let argi  = makeLocalVar fdec "k" intType in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  let arge  = makeLocalVar fdec "e" voidPtrType in
+  fdec.svar.vtype <- TFun(voidType, [ argi; argb; arge; ], false, []);
+  fdec.svar.vstorage <- Static;
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
+  fdec
+
+
+(* Everytime you register a variable, save here the unregister code *)  
+let unregisterAreas : stmt list ref = ref []
+
+(* Produce a statement to register an area and saves the code to unregister 
+ * the area *)
+let registerArea (args: exp list) 
+                 (acc: stmt list) : stmt list = 
+  unregisterAreas := 
+     (call None (Lval(var unregisterAreaFun.svar)) args) :: !unregisterAreas;
+  let reg = call None (Lval(var registerAreaFun.svar)) args in
+  reg :: acc
 
 (* Create a compound initializer for a tagged type *)
 let splitTagType tagged = 
@@ -2102,6 +2142,12 @@ let rec initForType
             | _ -> E.s (E.bug "SIZED array is not an array\n")
           in
           let dothissize = doit (Field(s, NoOffset)) thissize acc in
+          (* Now register the sized array *)
+          let acc' = 
+            registerArea [ integer registerAreaSizedInt;
+                          castVoidStar (addrof (Field(a, NoOffset)));
+                          castVoidStar zero ] dothissize 
+          in
               (* Prepare the "doit" function for the base type *)
           withivar 
             (fun iter ->
@@ -2110,10 +2156,10 @@ let rec initForType
                   (doit (Field(a, Index (Lval(var iter), off))) what []) @ acc
               in
               let doaddrforarray (off: offset) = 
-                E.s (E.bug "OPEN arrays inside arrays ???") 
+                E.s (E.bug "OPEN arrays inside SIZED arrays ???") 
               in
               initForType bt withivar mustZero endo 
-                doforarray doaddrforarray dothissize)
+                doforarray doaddrforarray acc')
 
       | _ -> (* A regular struct. Do all the fields in sequence *)
           List.fold_left 
@@ -2149,6 +2195,13 @@ let rec initForType
         | _ -> E.s (E.unimp "NULLTERM array of base type %a" d_type bt));
         doit (Index(BinOp(MinusA, l, one, intType), NoOffset)) zero acc
       end else
+        (* Register the array begining and the end *)
+        let acc' = 
+          registerArea 
+            [ integer registerAreaSeqInt;
+              castVoidStar (addrof NoOffset);
+              castVoidStar (addrof (Index(l, NoOffset))) ] acc
+        in
             (* Initialize all elements *)
             (* Prepare the "doit" function for the base type *)
         withivar
@@ -2158,10 +2211,13 @@ let rec initForType
                 (doit (Index (Lval(var iter), off)) what []) @ acc
             in
             let doaddrforarray (off: offset) = 
-              E.s (E.bug "OPEN arrays inside arrays ???") 
+              (* We are registering arrays inside arrays. Right now we 
+               * register only the first array !! *)
+              ignore (E.warn "Array inside array. Registering only one elem.");
+              addrof (Index(zero, NoOffset))
             in
             initForType bt withivar 
-              mustZero endo doforarray doaddrforarray acc)
+              mustZero endo doforarray doaddrforarray acc')
           
   | TPtr (bt, a) -> begin
           (* If a non-wild pointer then initialize to zero *)
@@ -2184,7 +2240,7 @@ let rec initForType
 
 (* Create and accumulate the initializer for a variable *)
 let initializeVar (withivar: (varinfo -> 'a) -> 'a) (* Allocate an iteration 
-                                                     * varible temporarily *)
+                                                     * variable temporarily *)
                   (acc: stmt list)
                   (v: varinfo) 
                    : stmt list = 
@@ -2195,6 +2251,14 @@ let initializeVar (withivar: (varinfo -> 'a) -> 'a) (* Allocate an iteration
     withivar
       (fun iter -> 
         let dfld, lfld, tfld, words, tagwords = splitTagType v.vtype in
+        (* Prepare the registration *)
+        let acc' = 
+          registerArea
+            [ integer registerAreaTaggedInt; 
+              castVoidStar (mkAddrOf (Var v, Field(dfld, NoOffset)));
+              castVoidStar zero ]
+            acc
+        in
         (* Write the length *)
         mkSet (Var v, Field(lfld, NoOffset)) words ::
         (* And the loop to initialize the tags with zero *)
@@ -2203,15 +2267,16 @@ let initializeVar (withivar: (varinfo -> 'a) -> 'a) (* Allocate an iteration
             [mkSet (Var v, Field(tfld, Index (Lval(var iter), NoOffset))) 
                 zero ]
           @
-          acc
+          acc'
         else
-          acc))
+          acc'))
   end else begin
     initForType v.vtype withivar (not v.vglob) None
       (fun off what acc -> mkSet (Var v, off) what :: acc)
       (fun off -> mkAddrOf (Var v, off))
       acc
   end
+
 
 
 (*************** Handle Allocation ***********)
@@ -2495,7 +2560,9 @@ and boxstmt (s: Cil.stmt) : block =
     * cases in the Switch *)
   try
     match s.skind with 
-      Return (None, _) | Break _ | Continue _ | Goto _ -> [s]
+    | Break _ | Continue _ | Goto _ -> [s]
+    | Return (None, l) -> !unregisterAreas @ [ s ]
+
     | Return (Some e, l) -> 
         let retType =
           match !currentFunction.svar.vtype with 
@@ -2511,9 +2578,8 @@ and boxstmt (s: Cil.stmt) : block =
           else
             doe2
         in
-        s.skind <- Instr [];  (* Make it empty but keep it first to preserve 
-                                 * the labels and the gotos *)
-        s :: doe'' @ [ mkStmt (Return (Some e2, l)) ]
+        s.skind <- Instr [];  
+        s :: doe'' @ !unregisterAreas @ [ mkStmt (Return (Some e2, l)) ]
                       
     | Loop (b, l) -> 
         s.skind <- Loop (boxblock b, l);
@@ -3088,6 +3154,10 @@ let boxFile file =
         | GFun (f, l) -> 
             if debug then
               ignore (E.log "Boxing GFun(%s)\n" f.svar.vname);
+            (* Run the oneret first so that we have always a single return 
+             * where to place the finalizers  *)
+            Oneret.oneret f;
+            unregisterAreas := [];
             (* Fixup the return type as well, except if it is a vararg *)
             f.svar.vtype <- fixupType f.svar.vtype;
             (* If the type has changed and this is a global function then we 
@@ -3153,14 +3223,19 @@ let boxFile file =
             currentFunction := f;           (* so that maxid and locals can be
                                                * updated in place *)
             f.sbody <- newbody;
-            (* Do the body *)
-            let boxbody : block = boxblock f.sbody in
-            (* Initialize the locals *)
+            (* Initialize and register the locals. Since we do this before 
+             * boxing we will not initialize the temporaries created during 
+             * boxing. But then we know that those are always defiend before 
+             * use. We must initialize the locals before we do the body 
+             * because the initialization produces the code for unregistering 
+             * the locals, which we need when we encounter the Return *)
             let inilocals = 
               List.fold_left 
                 (initializeVar (withIterVar f)) 
-                boxbody f.slocals in
-            f.sbody <- inilocals;
+                [] f.slocals in
+            (* Do the body now *)
+            let boxbody : block = boxblock f.sbody in
+            f.sbody <- inilocals @ boxbody;
             theFile := GFun (f, l) :: !theFile
                                         
         | (GAsm _ | GText _ | GPragma _) as g -> theFile := g :: !theFile
@@ -3257,7 +3332,7 @@ let boxFile file =
           GFun(gi, _) :: rest -> 
             theFile := rest; (* Take out the global initializer (last thing 
                                 added) *)
-            gi.sbody <- compactBlock (gi.sbody @ !extraGlobInit);
+            gi.sbody <- compactBlock (!extraGlobInit @ gi.sbody);
             Some gi
         | _ -> E.s (E.bug "box: Cannot find global initializer\n")
     end
