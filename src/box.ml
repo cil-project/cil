@@ -1912,8 +1912,10 @@ and boxfunctionexp (f : exp) =
       (* Sometimes it is possible that we have not seen this varinfo. Maybe 
        * it was introduced by the type inferencer to mark an independent copy 
        * of the function *)
-      vi.vtype <- fixupType vi.vtype;
-      fixupGlobName vi;
+      if not (List.exists (fun s -> s = vi.vname) leaveAlone) then begin
+        vi.vtype <- fixupType vi.vtype;
+        fixupGlobName vi
+      end;
       boxexp f
    end
   | Lval(Mem base, NoOffset) -> 
