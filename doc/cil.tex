@@ -2689,7 +2689,15 @@ Necula}.
  
 \section{Changes}\label{sec-changes}
 \begin{itemize}
-\item {\bf March 11. 2004} : Fixed a bug in the Cil.copyFunction function. The
+\item {\bf April 5, 2004}: {\bf Released version 1.2.5}
+\item {\bf April 5, 2004}: Fixed a bug involving statements mixed between
+declarations containing initializers. Now we make sure that the initializers
+are run in the proper order with respect to the statements.
+\item {\bf April 5, 2004}: Fixed a bug in the merger. The merger was keeping
+separate alpha renaming talbes (namespaces) for variables and types. This
+means that it might end up with a type and a variable named the same way, if
+they come from different files, which breaks an important CIL invariant.
+\item {\bf March 11, 2004} : Fixed a bug in the Cil.copyFunction function. The
 new local variables were not getting fresh IDs. 
 \item {\bf March 5, 2004}: Fixed a bug in the handling of static function
   prototypes in a block scope. They used to be renamed. Now we just consider
