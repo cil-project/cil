@@ -1242,7 +1242,7 @@ let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
         oldvi.vtype <- 
            combineTypes 
              (if isadef then CombineFundef else CombineOther) 
-             oldvi.vtype vi.vtype
+             oldvi.vtype vi.vtype;
       with Failure reason -> 
         E.s (error "Declaration of %s does not match previous declaration from %a (%s)." 
                vi.vname d_loc oldloc reason)
@@ -4250,16 +4250,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
             transparentUnionArgs := [];
             let ftyp, funattr = doType (AttrName false) bt
                 (A.PARENTYPE(attrs, dt, a)) in
-            (* Extra the information from the type *)
-            let (returnType, formals, isvararg, funta) =
-              match unrollType ftyp with
-                TFun(rType, formals, isvararg, a) ->
-                  (rType, formals, isvararg, a)
-              | x -> E.s (error "non-function type: %a." d_type x)
-            in
-            (* Record the returnType for doStatement *)
-            currentReturnType   := returnType;
-            
+
             (* If this is the definition of an extern inline then we change 
              * its name, by adding the suffix __extinline. We also make it 
              * static *)
@@ -4305,12 +4296,27 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                   vreferenced = false;   (* sm *)
                 }
             in
-
             (* If it is extern inline then we add it to the global 
              * environment for the original name as well. This will ensure 
              * that all uses of this function will refer to the renamed 
              * function *)
             addGlobalToEnv n (EnvVar thisFunctionVI);
+
+            (* makeGlobalVarinfo might have changed the type of the function 
+             * (when combining it with the type of the prototype). So get the 
+             * type only now. *)
+            (* Extract the information from the type *)
+            let (returnType, formals, isvararg, funta) =
+              match unrollType thisFunctionVI.vtype with
+                TFun(rType, formals, isvararg, a) ->
+                  (rType, formals, isvararg, a)
+              | x -> E.s (error "non-function type: %a." d_type x)
+            in
+            (* Record the returnType for doStatement *)
+            currentReturnType   := returnType;
+            
+
+            
 
             (* Add the formals to the environment *)
             let formals' =
