@@ -2572,7 +2572,8 @@ and boxexpf (e: exp) : stmt list * fexp =
 
     | SizeOfE (e) -> 
         let (et, doe, e') = boxexp e in
-        (doe, L(uintType, N.Scalar, SizeOfE(e')))
+        (* Drop all size-effects from this SizeOf *)
+        ([], L(uintType, N.Scalar, SizeOfE(e')))
         
     | AddrOf (lv) ->
         let (lvt, lvkind, lv', baseaddr, bend, dolv) = boxlval lv in
