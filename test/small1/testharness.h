@@ -13,7 +13,7 @@ int * seq;
 
 // Set the kinds of the above pointers
 void setkinds(void) {
-  wild = (int **)&wild;
+  wild = (int *)&wild;
   fseq ++;
   seq -= 2;
 }

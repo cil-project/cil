@@ -1301,8 +1301,6 @@ and makeVarInfo
   let bt, sto, inline, attrs = doSpecList s in
   let vtype, nattr = 
     doType (AttrName false) bt (A.PARENTYPE(attrs, ndt, a)) in
-(*  ignore (E.log "makevar:%s@! type=%a@! vattr=%a@!"
-            n d_plaintype vtype (d_attrlist true) nattr); *)
   { vname    = n;
     vid      = newVarId n isglob;
     vglob    = isglob;
@@ -1386,13 +1384,13 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
                                          * typedef *)
            (bt: typ)                    (* The base type *)
            (dt: A.decl_type) 
-  (* Returns the new type and the accumulated name (or type if nameoftype = 
-   * AttrType) attributes *)
+  (* Returns the new type and the accumulated name (or type attribute 
+    if nameoftype =  AttrType) attributes *)
   : typ * attribute list = 
   (* Now do the declarator type. But remember that the structure of the 
    * declarator type is as printed, meaning that it is the reverse of the 
    * right one *)
-  let rec doDecl (bt: typ) (acc: attribute list) = function
+  let rec doDeclType (bt: typ) (acc: attribute list) = function
       A.JUSTBASE -> bt, acc
     | A.PARENTYPE (a1, d, a2) -> 
         let a1' = doAttributes a1 in
@@ -1406,7 +1404,7 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
           | _ -> bt', false
         in
         (* Now recurse *)
-        let restyp, nattr = doDecl bt'' acc d in
+        let restyp, nattr = doDeclType bt'' acc d in
         (* Add some more type attributes *)
         let restyp = typeAddAttributes a2t restyp in
         (* See if we can add some more type attributes *)
@@ -1440,7 +1438,7 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
         let al' = doAttributes al in
         let an, af, at = partitionAttributes AttrType al' in
         (* Now recurse *)
-        let restyp, nattr = doDecl (TPtr(bt, at)) acc d in
+        let restyp, nattr = doDeclType (TPtr(bt, at)) acc d in
         (* See if we can do anything with function type attributes *)
         let restyp' = 
           match unrollType restyp with
@@ -1466,7 +1464,7 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
               let _, len'' = castTo (typeOf len') intType len' in
               Some len''
         in
-        doDecl (TArray(bt, lo, [])) acc d
+        doDeclType (TArray(bt, lo, [])) acc d
 
     | A.PROTO (d, args, isva) -> 
         (* Start a scope for the parameter names *)
@@ -1504,10 +1502,16 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
             TArray(t,_,attr) -> TPtr(t, attr)
           | _ -> bt
         in
-        doDecl (TFun (tres, targs, isva, [])) acc d
+        doDeclType (TFun (tres, targs, isva, [])) acc d
 
   in
-  doDecl bt [] dt
+  doDeclType bt [] dt
+
+(* If this is a declarator for a variable size array then turn it into a 
+   pointer type and a length *)
+and isVariableSizedArray (dt: A.decl_type) 
+    : (A.decl_type * A.expression) option = 
+  None
 
 and doOnlyType (specs: A.spec_elem list) (dt: A.decl_type) : typ = 
   let bt',sto,inl,attrs = doSpecList specs in
