@@ -1541,6 +1541,11 @@ let castTo (fe: fexp) (newt: typ)
             let (_, p, b, bend) = readFieldsOfFat e prevt in
             oldt, oldk, p, b, bend (* Drop the cast *)
       in
+      let is_zero fexp = 
+        match fexp with
+          L(t,k,CastE(_,Const(CInt(0,_,_)))) -> true
+        | _ -> false
+      in
       match oldk, newkind with
         (* SCALAR, SAFE -> SCALAR, SAFE *)
         (N.Scalar|N.Safe|N.String|N.ROString), 
@@ -1559,6 +1564,11 @@ let castTo (fe: fexp) (newt: typ)
           let p' = castP p in
           (doe, FM (newt, newkind, p', BinOp(PlusPI, p', one, newPointerType),
                     zero))
+
+        (* weimer: SAFE -> FSEQN only when the SAFE is 0 *)
+      | N.Safe, N.FSeqN when is_zero fe  ->
+          let p' = castP p in
+          (doe, FM (newt, newkind, p', zero, zero))
           
         (* SAFE -> SEQ *)          
       | N.Safe, N.Seq -> 

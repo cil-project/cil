@@ -212,8 +212,9 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
   (* _(5)_
    * All other nodes are safe. *)
   Hashtbl.iter (fun id n -> 
-    if n.kind = Unknown then
-       ignore (update_kind n Safe Unconstrained) 
+    if n.kind = Unknown then begin
+      ignore (update_kind n Safe Unconstrained)
+    end
   ) node_ht ;
 
 end
