@@ -103,6 +103,7 @@ and pointerkind =
 
 and whykind = (* why did we give it this kind? *)
     BadCast of typ * typ
+  | PolyCast of typ * typ
   | SpreadFromEdge of node 
   | SpreadPointsTo of node
   | BoolFlag
@@ -162,6 +163,7 @@ let d_ekind () = function
 
 let d_whykind () = function
     BadCast(t1,t2) -> dprintf "cast(%a<= %a)" d_type t1 d_type t2
+  | PolyCast(t1,t2) -> dprintf "polymorphic(%a<= %a)" d_type t1 d_type t2
   | BoolFlag -> text "from_flag"
   | SpreadFromEdge(n) -> dprintf "spread_from_edge(%d)" n.id
   | SpreadPointsTo(n) -> dprintf "spread_points_to(%d)" n.id

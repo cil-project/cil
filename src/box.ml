@@ -1895,8 +1895,9 @@ and castTo (fe: fexp) (newt: typ)
 
        (******* UNIMPLEMENTED ********)
       | _, _ -> 
-          E.s (E.unimp "castTo(%a -> %a. %a)" 
+          E.s (E.unimp "castTo(%a -> %a.@!%a@!%a)" 
                  P.d_pointerkind oldk P.d_pointerkind newkind 
+                 d_fexp fe
                  d_plaintype oldt)      
   end
       

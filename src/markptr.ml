@@ -480,8 +480,8 @@ let printFile (c: out_channel) fl =
     (fun fl ->
       Cil.printFile c fl;
       output_string c "#if 0\n/* Now the graph */\n";
-     (*N.gc ();   *)
-      N.simplify (); 
+      (* N.gc ();   *)
+      (* N.simplify ();   *)
       N.printGraph c;
       output_string c "/* End of graph */\n";
       output_string c "/* Now the solved graph (simplesolve) */\n";

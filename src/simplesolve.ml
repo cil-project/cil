@@ -160,8 +160,18 @@ let q_predicate (n1 : node) (n2 : node) = true
     ((not n1.null) || (n2.null)) && 
     ((not n1.intcast) || (n2.intcast)) *)
 
-let is_polymorphic n = match n.where with
+(* a predicate to determine if a polymorphic function call is involved *)
+let rec is_p n other_n = match n.where with
     PGlob(s),_ when String.contains s '*' -> true
+  | (PAnon(_),0) |
+    (PLocal(_,_,_),1) -> 
+      if ((List.length n.succ) = 1) &&
+         ((List.length n.pred) = 1) then begin
+         if (List.hd n.succ).eto = other_n then
+           is_p (List.hd n.pred).efrom n
+         else
+           is_p (List.hd n.succ).eto n
+      end else false
   | _ -> false
 
 (* returns a pair of pointerkinds p1,p2 such that if we assign the
@@ -169,18 +179,19 @@ let is_polymorphic n = match n.where with
 let can_cast (n1 : node) (n2 : node) = begin
   let t1 = n1.btype in
   let t2 = n2.btype in 
-  if is_polymorphic n1 || is_polymorphic n2 then
-    (Safe,Safe)
-  else if subtype t1 Safe t2 Safe then
-    (Safe,Safe)
+    if subtype t1 Safe t2 Safe then
+    (Safe,Safe,false)
   else if subtype t1 Safe 
      (TArray(t2,(Some(Const(CInt(1024,ILong,None),locUnknown))),[])) Safe then
-    (Seq,Seq)
+    (Seq,Seq,false)
   else begin
 (*    E.warn "Cannot cast %a <= %a\n" 
       d_type (unrollType t1 )
       d_type (unrollType t2 ) ; *)
-    (Wild,Wild)
+  if is_p n1 n2 || is_p n2 n1 then
+    (Safe,Safe,true)
+  else 
+    (Wild,Wild,false)
   end
 end
 
@@ -294,16 +305,26 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     worklist := List.tl !worklist 
   done ;
 
+  let moving_up k1 k2 =
+    if k1 = k2 || k2 = Unknown then false
+    else match k1 with
+      Unknown -> true
+    | Safe -> true
+    | FSeq -> k2 = Seq || k2 = Index || k2 = Wild
+    | BSeq -> k2 = Seq || k2 = Index || k2 = Wild
+    | Seq -> k2 = Index || k2 = Wild
+    | Index -> k2 = Seq || k2 = Wild
+    | Wild -> false
+    | String | Scalar -> E.s (E.bug "cannot handle strings/scalars in simplesolve")
+  in
+
   (* OK, now we have all of those attributes propagated. Now it's time to
    * assign qualifiers to the pointers. *)
   (* Step 1: Look at all of the arrows and see if any are "bad casts".*)
   let update_kind n k why =
-    if (n.kind = Unknown) ||
-       ((n.kind = Safe) && (k <> Safe)) ||
-       ((n.kind = Seq) && (k <> Seq) && (k <> Safe)) ||
-       ((n.kind = Index) && (k <> Index) && (k <> Safe)) then begin
+    if (moving_up n.kind k)  then begin
         if (n.why_kind = UserSpec) then begin
-          ignore (E.warn "Pointer Kind Inference would override user-specified kind for\n%a" d_node n) ;
+          ignore (E.warn "Pointer Kind Inference would upgrade user-specified kind for\n%a" d_node n) ;
           false
         end else begin
           n.kind <- k ;
@@ -318,8 +339,12 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     let cur = List.hd !worklist in
     (* pick out all successors of our current node *)
     List.iter (fun e -> 
-      let (k1,k2) = can_cast e.efrom e.eto in
-      let why = BadCast(e.efrom.btype,e.eto.btype) in
+      let (k1,k2,f) = can_cast e.efrom e.eto in
+      let why = if f then 
+                  PolyCast(e.efrom.btype,e.eto.btype)
+                else
+                  BadCast(e.efrom.btype,e.eto.btype) 
+        in
       ignore (update_kind e.eto k1 why) ;
       ignore (update_kind e.efrom k2 why) ;
     ) (ecast_edges_only cur.succ) ;
@@ -348,13 +373,31 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     worklist := List.tl !worklist 
   done ;
 
-  (* now take all of the arith/posarith/intcast pointers and make them seq *)
+  
+  (* now take all of the posarith/intcast pointers and make them fseq *)
   Hashtbl.iter (fun id n -> all := n :: !all) node_ht ;
   while (!worklist <> []) do
     (* pick out our current node *)
     let cur = List.hd !worklist in
     (* arithmetic can make something an index *)
-    if (cur.arith || cur.posarith || cur.intcast) then begin
+    if (cur.posarith) then begin
+      ignore (update_kind cur FSeq BoolFlag)
+    end ;
+    (* being the target of an EIndex edge can as well *)
+    List.iter (fun e -> 
+      if e.ekind = EIndex then 
+        ignore (update_kind cur FSeq (SpreadFromEdge(e.efrom)))
+      ) cur.pred ;
+    worklist := List.tl !worklist 
+  done ;
+
+  (* now take all of the arith pointers and make them seq *)
+  Hashtbl.iter (fun id n -> all := n :: !all) node_ht ;
+  while (!worklist <> []) do
+    (* pick out our current node *)
+    let cur = List.hd !worklist in
+    (* arithmetic can make something an index *)
+    if (cur.arith || cur.intcast) then begin
       ignore (update_kind cur Seq BoolFlag)
     end ;
     (* being the target of an EIndex edge can as well *)
