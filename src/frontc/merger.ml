@@ -13,8 +13,9 @@ let currentLoc: cabsloc ref = ref { lineno = -1; filename = "<no file>" }
 
 
 (****************** ENVIRONMENTS ***********************)
-(* For each file we keep an environment. This one grows as we descend in 
- * local scopes. At the end of the file will contain the renaming of toplevel 
+(* For each file we keep an environment. This one grows and shrinks as we 
+ * descend in local scopes. It is initialized at the begining of each file 
+ * and at the end of each the file will contain the renaming of toplevel 
  * file-scope constructs *)
 (* We have different kinds of names being declared *)
 type envKind = 
@@ -26,8 +27,9 @@ type envKind =
 
 let env: (envKind * string, string) H.t = H.create 111
 
-(* The fresh names that we created *)
-let fresh: (envKind * string, string) H.t = H.create 111
+(* The reused names that we created for file-scope names. This will be 
+ * initialized before each file *)
+let reused: (envKind * string, string) H.t = H.create 111
 
 (* A list of things to do when you exit a scope *)
 type undoElement = 
@@ -66,20 +68,35 @@ let scopeDepth = ref 0 (* 0 means that we are at top level scope *)
       (* Apply renaming to a name, if at top level. If not at top level then 
        * just add it to the environment *)
 let changeName 
-    (k: envKind) (n: string) (mkitem: string -> 'a) 
+    (isdef: bool) (* Is it a definition or just a reference of a tag. For 
+                   * variables always true *)
+    (k: envKind) 
+    (n: string) 
+    (mkitem: string -> 'a)
     : 'a visitAction = 
-  if !scopeDepth = 0 then 
-    let n' = lookup k n in
-    if n <> n' then 
-      ChangeDoChildrenPost (mkitem n', fun x -> x)
-    else
-      DoChildren
-  else begin
+  if isdef && !scopeDepth > 0 then begin
+    (* This is a definition on inner scope, so ignore the previous 
+       declarations and keep this definition *) 
     addLocalToEnv k n n;
     DoChildren
+  end else begin
+    (* This is either at top level or not a definition of a name *)
+    let n' = lookup k n in
+    ChangeDoChildrenPost (mkitem n', fun x -> x)
   end
 
-class renameKeepDefsClass : cabsVisitor = object (self)
+let renameReuse = ref false (* If true then while renaming it will replace 
+                             * the tag definitions for reused names with tag 
+                             * references *)
+let reuseDefs (k: envKind) 
+              (n: string) 
+              (defs: 'a option) : 'a option = 
+  if !scopeDepth = 0 && !renameReuse && H.mem reused (k, n) then begin
+    None
+  end else
+    defs
+
+class renameClass : cabsVisitor = object (self)
   inherit nopCabsVisitor
 
       (* Use of a variable. Always try to rename *)
@@ -94,24 +111,33 @@ class renameKeepDefsClass : cabsVisitor = object (self)
       (* Definition of a name *)
   method vname (k: nameKind) (s: specifier) (n, dt, a) = 
     match k with 
-      NType -> changeName EType n (fun n' -> (n', dt, a))
+      NType -> changeName true EType n (fun n' -> (n', dt, a))
     | NField -> DoChildren
-    | NVar -> changeName EVar n (fun n' -> (n', dt, a))
+    | NVar -> changeName true EVar n (fun n' -> (n', dt, a))
               
 
         (* And declared structure, union and enumeration tags *)
   method vtypespec ts = 
     try
       match ts with 
-        Tstruct (n, defs) -> changeName EStruct n (fun n' -> Tstruct(n', defs))
-      | Tunion (n, defs) -> changeName EUnion n (fun n' -> Tunion(n', defs))
-      | Tenum (n, defs) -> changeName EEnum n (fun n' -> Tenum(n', defs))
-      | Tnamed n -> changeName EType n (fun n' -> Tnamed n')
+        Tstruct (n, defs) -> 
+          let isdef = defs <> None in
+          let defs' = reuseDefs EStruct n defs in
+          changeName isdef EStruct n (fun n' -> Tstruct(n', defs'))
+      | Tunion (n, defs) -> 
+          let isdef = defs <> None in
+          let defs' = reuseDefs EUnion n defs in
+          changeName isdef EUnion n (fun n' -> Tunion(n', defs'))
+      | Tenum (n, defs) -> 
+          let isdef = defs <> None in
+          let defs' = reuseDefs EEnum n defs in
+          changeName isdef EEnum n (fun n' -> Tenum(n', defs'))
+      | Tnamed n -> 
+          changeName false EType n (fun n' -> Tnamed n')
       | _ -> DoChildren
     with Not_found -> DoChildren
 end
-let renameKeepDefsVisitor : cabsVisitor = new renameKeepDefsClass
-let renameVisitor = renameKeepDefsVisitor
+let renameVisitor = new renameClass
 
 (************** ALPHA CONVERSION ********************)
 (* Global names are split into a prefix, a ___ (3 underscores) separator and 
@@ -266,9 +292,9 @@ let findTypeTagNames (f: Cabs.file) =
   fileTypeTags := [];
   ignore (visitCabsFile collectTypeTagDefs f);
   let tt_list = List.rev !fileTypeTags in
-  (ignore (E.log "typeTags= ");
+(*  (ignore (E.log "typeTags= ");
    List.iter (fun (k, n, _, _) -> ignore (E.log "%s," n)) tt_list;
-   ignore (E.log "\n"));
+   ignore (E.log "\n")); *)
 
   (* Rename a type tag but leave the defined name alone *)
   let renameTT (defk, defn, defspec, defname) = 
@@ -276,8 +302,8 @@ let findTypeTagNames (f: Cabs.file) =
     H.add env defnk defn; (* Leave the defined name alone *)
     let tt' = 
       let nk = match defk with EType -> NType | _ -> NVar in
-      let defspec' = visitCabsSpecifier renameKeepDefsVisitor defspec in
-      let defname' = visitCabsName renameKeepDefsVisitor nk defspec' defname in
+      let defspec' = visitCabsSpecifier renameVisitor defspec in
+      let defname' = visitCabsName renameVisitor nk defspec' defname in
       (defk, defn, defspec', defname')
     in
     H.remove env defnk; (* Undo the last change *)
@@ -293,26 +319,27 @@ let findTypeTagNames (f: Cabs.file) =
         let defnk = (defk, defn) in
         (* Leave this one alone if we have already decided to assign a fresh 
          * name to it *)
-        if not (H.mem fresh defnk) then begin
-          (* See if it is renamed or not *)
-          let renamed_o = try Some (H.find env defnk) with Not_found -> None
-          in 
-          (* Now find if we can reuse some name or if the previous reuse is 
-           * fine *)
+
+        (* See if it is already named or not *)
+        let oldname_o = try Some (H.find env defnk) with Not_found -> None in
+
+        (* Skip those that have a name that is not reused *)
+        if oldname_o == None || H.mem reused defnk then begin
           let tt' = renameTT tt in
           let rec loop = function
               [] -> (* No definition matches. Make a new name for this one *)
-                ignore (E.log "No matches for %s\n" defn);
+(*                ignore (E.log "No matches for %s\n" defn); *)
                 let n' = newAlphaName defk defn in
-                H.add fresh defnk n';
+                H.remove reused defnk;
                 H.add env defnk n';
                 renameTableChanged := true
 
             | (ttold, oldname) :: rest when ttold = tt' -> 
                 (* We found a match *)
-                (match renamed_o with
+                (match oldname_o with
                   None -> (* Not already renamed *)
-                    ignore (E.log "Found a match for %s\n" defn);
+(*                    ignore (E.log "Found a match for %s\n" defn); *)
+                    H.add reused defnk oldname;
                     H.add env defnk oldname;
                     renameTableChanged := true
 
@@ -335,11 +362,13 @@ let findTypeTagNames (f: Cabs.file) =
   List.iter 
     (fun ((defk, defn, defspec, defname) as tt) -> 
       let defnk = (defk, defn) in
-      try
-        let n' = H.find fresh defnk in
-        let tt' = renameTT tt in 
-        H.add globalTypeTags defnk (tt', n')
-      with Not_found -> ())
+      if not (H.mem reused defnk) then begin
+        try
+          let n' = H.find env defnk in
+          let tt' = renameTT tt in 
+          H.add globalTypeTags defnk (tt', n')
+        with Not_found -> E.s (E.bug "non-reused name is not fresh: %s" defn)
+      end)
     tt_list
 
 (*********** COLLECT GLOBALS **********************)
@@ -380,9 +409,11 @@ let merge (files : Cabs.file list) : Cabs.file =
   theProgram := [];
   let doOneFile (f: Cabs.file) = 
     H.clear env; (* Start with a brand new environment *)
-    H.clear fresh;
+    H.clear reused;
+    renameReuse := false;
     (* Find the new names for type and tags *)
     findTypeTagNames f;
+    renameReuse := true;
     (* Now apply the new names and while doing that remove some global 
      * declarations *)
     let doOneDefinition = function
@@ -422,12 +453,15 @@ let merge (files : Cabs.file list) : Cabs.file =
           let rec loop = function
               [] -> []
             | ((n, dt, a) as nm) :: rest -> 
-                let n' = lookup EType n in 
-                if n = n' then loop rest
-                else visitCabsName renameVisitor NType s' nm :: loop rest
+                if H.mem reused (EType, n) then 
+                  loop rest
+                else
+                  visitCabsName renameVisitor NType s' nm :: loop rest
           in
           let nl' = loop nl in
-          theProgram := TYPEDEF ((s', nl'), l) :: !theProgram
+          theProgram := 
+             (if nl == [] then ONLYTYPEDEF (s',l) else TYPEDEF ((s', nl'), l))
+             :: !theProgram
                   
       | d -> theProgram := (visitCabsDefinition renameVisitor d) @ !theProgram
     in
@@ -440,6 +474,6 @@ let merge (files : Cabs.file list) : Cabs.file =
   theProgram := [];
   H.clear globals;
   H.clear env;
-  H.clear fresh;
+  H.clear reused;
   res
 

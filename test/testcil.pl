@@ -171,6 +171,7 @@ $TEST->add3Tests("test/scope2");
 $TEST->add3Tests("test/scope3");
 $TEST->add3Tests("test/scope4");
 $TEST->add3Tests("testrun/scope5", "_GNUCC=1");
+$TEST->add3Tests("testrun/scope6");
 $TEST->add3Tests("test/voidstar");
 $TEST->add3Tests("testrun/memcpy1");
 $TEST->add3Tests("testrun/memset1");
@@ -192,6 +193,9 @@ $TEST->add3Tests("wes-hashtest", "");
 $TEST->add3Tests("wes-rbtest", "");
 $TEST->addTests("test/alloc", "MANUALBOX=1", ['inferbox']);
 $TEST->add3Tests("testrun/addr-array");
+$TEST->addTests("combine1_3", "", ['cil']);
+$TEST->addTests("combine2_3", "", ['cil']);
+$TEST->addTests("combine3_3", "", ['cil']);
 
 # Tests that are expected to fail
 $TEST->add2TestsFail("testrun/failubound1", "", "Failure: Ubound");
