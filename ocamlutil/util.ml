@@ -185,6 +185,11 @@ type 'a growArrayFill =
 type 'a growArray = {
             gaFill: 'a growArrayFill;
             (** Stuff to use to fill in the array as it grows *)
+
+    mutable gaMaxInitIndex: int;
+            (** Maximum index that was written to. -1 if no writes have 
+             * been made.  *)
+
     mutable gaData: 'a array;
   } 
 
@@ -213,10 +218,12 @@ let getReg (ga: 'a growArray) (r: int) : 'a =
 
 let setReg (ga: 'a growArray) (r: int) (what: 'a) : unit = 
   growTheArray ga r "set";
+  if r > ga.gaMaxInitIndex then ga.gaMaxInitIndex <- r;
   ga.gaData.(r) <- what
 
 let newGrowArray (initsz: int) (fill: 'a growArrayFill) : 'a growArray = 
   { gaFill = fill;
+    gaMaxInitIndex = -1;
     gaData = begin match fill with
       Elem x -> Array.create initsz x
     | Susp f -> Array.init initsz f

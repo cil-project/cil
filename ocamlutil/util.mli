@@ -52,10 +52,17 @@ type 'a growArrayFill =
 type 'a growArray = {
             gaFill: 'a growArrayFill;
             (** Stuff to use to fill in the array as it grows *)
+
+    mutable gaMaxInitIndex: int;
+            (** Maximum index that was written to. -1 if no writes have 
+             * been made.  *)
+
     mutable gaData: 'a array;
   } 
 
 val newGrowArray: int -> 'a growArrayFill -> 'a growArray
+(** [newGrowArray initsz fillhow] *)
+
 val getReg: 'a growArray -> int -> 'a
 val setReg: 'a growArray -> int -> 'a -> unit
 val copyGrowArray: 'a growArray -> 'a growArray
