@@ -601,6 +601,9 @@ of the children have changed.
 \item Replace the subtree rooted at the node with another tree.
 \item Replace the subtree with another tree, then descend into the children
 and rebuild the node if necessary and then invoke a user-specified function. 
+\item In addition to all of the above actions then visitor can specify that
+some instructions should be queued to be inserted before the current
+instruction or statement being visited. 
 \end{itemize}
 
  By writing visitors you can customize the program traversal and

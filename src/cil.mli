@@ -1467,7 +1467,10 @@ type 'a visitAction =
 
 
 (** A visitor interface for traversing CIL trees. Create instantiations of 
- * this type by specializing the class {!Cil.nopCilVisitor}. *)
+ * this type by specializing the class {!Cil.nopCilVisitor}. Each of the 
+ * specialized visiting functions can also call the [queueInstr] to specify 
+ * that some instructions should be inserted before the current instruction 
+ * or statement. *)
 class type cilVisitor = object
   method vvdec: varinfo -> varinfo visitAction  
     (** Invoked for each variable declaration. The subtrees to be traversed 
@@ -1519,6 +1522,14 @@ class type cilVisitor = object
                                                  * visit it.  *)
   method vattr: attribute -> attribute list visitAction 
     (** Attribute. Each attribute can be replaced by a list *)
+
+    (** Add here instructions while visiting to queue them to 
+     * preceede the current statement or instruction being processed *)
+  method queueInstr: instr list -> unit
+
+    (** Gets the queue of instructions and resets the queue *)
+  method unqueueInstr: unit -> instr list
+
 end
 
 (** Default Visitor. Traverses the CIL tree without modifying anything *)

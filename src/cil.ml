@@ -717,6 +717,7 @@ type 'a visitAction =
 (** A visitor interface for traversing CIL trees. Create instantiations of 
  * this type by specializing the class {!Cil.nopCilVisitor}. *)
 class type cilVisitor = object
+
   method vvdec: varinfo -> varinfo visitAction  
     (** Invoked for each variable declaration. The subtrees to be traversed 
      * are those corresponding to the type and attributes of the variable. 
@@ -767,6 +768,14 @@ class type cilVisitor = object
                                                  * visit it.  *)
   method vattr: attribute -> attribute list visitAction 
     (** Attribute. Each attribute can be replaced by a list *)
+
+    (** Add here instructions while visiting to queue them to 
+     * preceede the current statement or instruction being processed *)
+  method queueInstr: instr list -> unit
+
+    (** Gets the queue of instructions and resets the queue *)
+  method unqueueInstr: unit -> instr list
+
 end
 
 (* the default visitor does nothing at each node, but does *)
@@ -787,6 +796,17 @@ class nopCilVisitor : cilVisitor = object
   method vinit (i:init) = DoChildren        (* global initializers *)
   method vtype (t:typ) = DoChildren         (* use of some type *)
   method vattr (a: attribute) = DoChildren
+
+  val mutable instrQueue = []
+      
+  method queueInstr (il: instr list) = 
+    List.iter (fun i -> instrQueue <- i :: instrQueue) il
+
+  method unqueueInstr () = 
+    let res = List.rev instrQueue in
+    instrQueue <- [];
+    res
+
 end
 
 let lu = locUnknown
@@ -3047,9 +3067,12 @@ and childrenOffset (vis: cilVisitor) (off: offset) : offset =
 and visitCilInstr (vis: cilVisitor) (i: instr) : instr list =
   let oldloc = !currentLoc in
   currentLoc := (get_instrLoc i);
+  if vis#unqueueInstr () <> [] then 
+    ignore (warn "visitCilInstr: loosing some accumInstr\n");
   let res = doVisitList vis vis#vinst childrenInstr i in
   currentLoc := oldloc;
-  res
+  (* See if we have accumulated some instructions *)
+  vis#unqueueInstr () @ res
 
 and childrenInstr (vis: cilVisitor) (i: instr) : instr =
   let fExp = visitCilExpr vis in
@@ -3082,6 +3105,8 @@ and childrenInstr (vis: cilVisitor) (i: instr) : instr =
 and visitCilStmt (vis: cilVisitor) (s: stmt) : stmt =
   let oldloc = !currentLoc in
   currentLoc := (get_stmtLoc s.skind) ;
+  if vis#unqueueInstr () <> [] then 
+    ignore (warn "visitCilStmt: loosing some accumInstr\n");
   let res = doVisit vis vis#vstmt childrenStmt s in
   currentLoc := oldloc;
   res
@@ -3092,22 +3117,32 @@ and childrenStmt (vis: cilVisitor) (s: stmt) : stmt =
   let fOff o = (visitCilOffset vis o) in
   let fBlock b = visitCilBlock vis b in
   let fInst i = visitCilInstr vis i in
+  (* Will save the new instructions that were generated *)
+  let savedInstr : instr list ref = ref [] in
   (* Just change the statement kind *)
   let skind' = 
     match s.skind with
       Break _ | Continue _ | Goto _ | Return (None, _) -> s.skind
     | Return (Some e, l) -> 
         let e' = fExp e in
+        (* Save the accumulated instructions *)
+        savedInstr := vis#unqueueInstr ();
         if e' != e then Return (Some e', l) else s.skind
     | Loop (b, l) -> 
         let b' = fBlock b in
         if b' != b then Loop (b', l) else s.skind
     | If(e, s1, s2, l) -> 
-        let e' = fExp e in let s1'= fBlock s1 in let s2'= fBlock s2 in
+        let e' = fExp e in 
+        (* Save the accumulated instructions *)
+        savedInstr := vis#unqueueInstr ();
+        let s1'= fBlock s1 in let s2'= fBlock s2 in
         if e' != e || s1' != s1 || s2' != s2 then 
           If(e', s1', s2', l) else s.skind
     | Switch (e, b, stmts, l) -> 
-        let e' = fExp e in let b' = fBlock b in
+        let e' = fExp e in 
+        (* Save the accumulated instructions *)
+        savedInstr := vis#unqueueInstr ();
+        let b' = fBlock b in
         (* Don't do stmts, but we better not change those *)
         if e' != e || b' != b then Switch (e', b', stmts, l) else s.skind
     | Instr il -> 
@@ -3119,6 +3154,8 @@ and childrenStmt (vis: cilVisitor) (s: stmt) : stmt =
   in
   if skind' != s.skind then s.skind <- skind';
   (* Visit the labels *)
+  if vis#unqueueInstr () <> [] then 
+    ignore (warn "childrenStmt: loosing some accumulated instructions");
   let labels' = 
     let fLabel = function
         Case (e, l) as lb -> 
@@ -3129,7 +3166,17 @@ and childrenStmt (vis: cilVisitor) (s: stmt) : stmt =
     mapNoCopy fLabel s.labels
   in
   if labels' != s.labels then s.labels <- labels';
-  s (* Always return the same statement *)
+  (* Accumulate the instructions produced while doing the labels *)
+  let toPrepend = !savedInstr @ vis#unqueueInstr () in
+  (* Now see if we have saved some instructions *)
+  match toPrepend with 
+    [] -> s (* Return the same statement *)
+  | _ -> 
+      (* Make our statement contain the instructions to prepend *)
+      s.skind <- Block { battrs = []; bstmts = [ mkStmt (Instr toPrepend);
+                                                 mkStmt skind' ] };
+      s 
+      
     
  
 and visitCilBlock (vis: cilVisitor) (b: block) : block = 
