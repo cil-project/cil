@@ -1852,7 +1852,7 @@ and doExp (isconst: bool)    (* In a constant *)
         (* !!!! The book says that the expression is not evaluated, so we
            * drop the potential side-effects *)
         if isNotEmpty se then
-          ignore (E.log "Warning: Dropping side-effect in EXPR_SIZEOF\n");
+          ignore (warn "Warning: Dropping side-effect in EXPR_SIZEOF\n");
         let e'' =
           match e' with                 (* If we are taking the sizeof an
                                          * array we must drop the StartOf  *)
@@ -1870,7 +1870,7 @@ and doExp (isconst: bool)    (* In a constant *)
         (* !!!! The book says that the expression is not evaluated, so we
            * drop the potential side-effects *)
         if isNotEmpty se then
-          ignore (E.log "Warning: Dropping side-effect in EXPR_SIZEOF\n");
+          ignore (warn "Warning: Dropping side-effect in EXPR_SIZEOF\n");
         let e'' =
           match e' with                 (* If we are taking the sizeof an
                                          * array we must drop the StartOf  *)
