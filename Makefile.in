@@ -77,8 +77,8 @@ quickbuild: machdep cilly merger
 
 # Setup also makes the native code versions
 setup: machdep
-	$(MAKE) -r -f Makefile.cil quickbuild $(MAKEOVERRIDES) NATIVECAML= 
-	$(MAKE) -r -f Makefile.cil quickbuild $(MAKEOVERRIDES) NATIVECAML=1
+	$(MAKE) -r -f Makefile.cil cilly merger $(MAKEOVERRIDES) NATIVECAML= 
+	$(MAKE) -r -f Makefile.cil cilly merger $(MAKEOVERRIDES) NATIVECAML=1
 
 # Create the machine dependency module
 # If the cl command cannot be run then the MSVC part will be identical to GCC
@@ -186,6 +186,8 @@ DISTRIB_SRC_EXT = logcalls.ml logcalls.mli \
 
 DISTRIB_LIB = CompilerStub.pm Merger.pm cilly.pl.in patcher.pl
 
+DISTRIB_SMALL1=hello.c func.c init.c init1.c wchar1.c vararg1.c testharness.h 
+
 distrib: doc
         # Create the distribution from scratch
 	rm -rf $(TEMP_DIR)
@@ -203,16 +205,24 @@ distrib: doc
               $(TOP_DIR)/obj/.depend \
               $(TOP_DIR)/obj/x86_WIN32 \
               $(TOP_DIR)/obj/x86_LINUX \
-              $(TOP_DIR)/test
+              $(TOP_DIR)/test \
+              $(TOP_DIR)/test/small1
+
 	cp $(patsubst %,%,$(DISTRIB_ROOT)) $(TOP_DIR)
-        # Change Makefile.cil into Makefile
-	mv $(TOP_DIR)/Makefile.cil.in $(TOP_DIR)/Makefile.in
+        # Add a new Makefile which invokes Makefile.cil
+	echo "#This Makefile is a wrapper for Makefile.cil">$(TOP_DIR)/Makefile
+	echo "setup: setup" >>$(TOP_DIR)/Makefile
+	echo "%: " >>$(TOP_DIR)/Makefile
+# note that we have a TAB in the next line
+	echo '	if ! test -f Makefile.cil ;then echo Run configure first ;fi'>>$(TOP_DIR)/Makefile
+	echo '	make -f Makefile.cil $$*' >>$(TOP_DIR)/Makefile
 
 	cp $(patsubst %,src/%,$(DISTRIB_SRC)) $(TOP_DIR)/src
 	cp $(patsubst %,src/ext/%,$(DISTRIB_SRC_EXT)) $(TOP_DIR)/src/ext
 	cp $(patsubst %,src/frontc/%,$(DISTRIB_SRC_FRONTC)) \
 		$(TOP_DIR)/src/frontc
 	cp $(patsubst %,lib/%,$(DISTRIB_LIB)) $(TOP_DIR)/lib
+	cp $(patsubst %,test/small1/%,$(DISTRIB_SMALL1)) $(TOP_DIR)/test/small1
 
 	cp -r doc/html/cil/* $(TOP_DIR)/doc
 # Delete all CVS directories
@@ -224,12 +234,21 @@ distrib: doc
 
 	if test -d $(CILHTMLDEST); then \
                 cp -f cil.tar.gz $(CILHTMLDEST); fi
-	rm -rf $(TEMP_DIR)
+#	rm -rf $(TEMP_DIR)
 
 clean: cleancaml
 	rm -f $(OBJDIR)/machdep.ml
 
 
+test/%: 
+	perl lib/cilly.pl -c test/small1/$*.c -o test/small1/$*.o
+
+testrun/%: 
+	perl lib/cilly.pl test/small1/$*.c -o test/small1/$*
+	test/small1/$*
 
 
 
+.PHONY: quicktest
+quicktest: $(patsubst %,test/%,func init init1) \
+           $(patsubst %,testrun/%,hello wchar1 vararg1)

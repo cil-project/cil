@@ -419,6 +419,7 @@ test/% : $(SMALL1)/%.c
 	cd $(SMALL1); $(CCURED)   \
                $(STANDARDPATCH) \
 	       $(CONLY) $(CFLAGS) $(ASMONLY)$*.s $*.c 
+	echo SUCCESS
 
 testnopatch/% : $(SMALL1)/%.c 
 	cd $(SMALL1); $(CCURED)   \
@@ -435,6 +436,7 @@ testrun/% : $(SMALL1)/%.c
                $(STANDARDPATCH) \
 	       $(CFLAGS) $(EXEOUT)$*.exe $*.c
 	cd $(SMALL1); ./$*.exe
+	echo SUCCESS
 
 
 
