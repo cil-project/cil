@@ -225,15 +225,15 @@ extern long double __builtin_fabsl(long double);
   //                    terminating nul.
   //                  Calls fp_fail if ptr is null or not nul-terminated.
 
-  void __write_at_least(void *ptr, unsigned int len);  
+  void __write_at_least(void *ptr, unsigned int n);  
   // Type inference:  ptr must allow forwards arithmetic.
-  // In the wrapper:  Verifies that we can write the next len bytes of ptr. In
-  //                    WILDs, also clears the tags for the next len bytes.
+  // In the wrapper:  Verifies that we can write the next n bytes of ptr. In
+  //                    WILDs, also clears the tags for the next n bytes.
   //                  Calls fp_fail if ptr is null or not long enough.
 
-  void __copytags(void *dest, void* src, unsigned int len);  
+  void __copytags(void *dest, void* src, unsigned int n);  
   // Type inference:  ptr must allow forwards arithmetic.
-  // In the wrapper:  Verifies that we can read/write the next len bytes
+  // In the wrapper:  Verifies that we can read/write the next n bytes
   //                    of both dest and src.  In WILDs, also copys the
   //                    appropriate tags from src to dest.
   //                  Calls fp_fail if either dest or src is null or not long
