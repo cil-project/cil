@@ -77,7 +77,7 @@ while [ $i -le $numcases ]; do
   # lines 
   echo "generating test $i"
   rm -f $tmpname.c 2>/dev/null
-  (echo "# 1 \"$srcfile\""; cat "$srcfile") | \
+  (echo "# 1 \"$srcfile\""; echo "#define ERROR $i"; cat "$srcfile") | \
        sed "s|ERROR($i)|(selected: $i)|" | \
        perl -e 'my $ln = 0; while(<>) { $ln ++; if($_ =~ m|ERROR\(|) { print "# $ln\n"; } else { print $_; }}' \
          > "$tmpname.c"
