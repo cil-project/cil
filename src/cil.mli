@@ -465,7 +465,12 @@ val mkCompInfo: bool ->       (* whether it is a struct or a union *)
                (typ -> (string * typ * attribute list) list) ->
                attribute list -> compinfo
 
-                                   
+
+(* Scans a type by applying the function on all elements. Care is taken to 
+ * apply the function only once on each composite type, thus avoiding 
+ * circularity. When the function returns true, the scan stops with true *)
+val existsType: (typ -> bool) -> typ -> bool
+
 val var: varinfo -> lval
 val mkSet: lval -> exp -> stmt
 val assign: varinfo -> exp -> stmt

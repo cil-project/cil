@@ -1493,6 +1493,31 @@ let rec doCast (e: exp) (oldt: typ) (newt: typ) =
         CastE(newt, e,lu)
 
 
+let existsType (f: typ -> bool) t = 
+  let memo : (int, unit) H.t = H.create 17 in  (* Memo table *)
+  let rec loop t = 
+    f t ||
+    (match t with 
+      TNamed (_, t', _) -> loop t'
+    | TForward (c, a) -> loopComp c
+    | TComp c -> loopComp c
+    | TArray (t', _, _) -> loop t'
+    | TPtr (t', _) -> loop t'
+    | TFun (rt, args, _, _) -> 
+        loop rt &&
+        List.exists (fun a -> loop a.vtype) args
+    | _ -> false)
+  and loopComp c = 
+    try
+      H.find memo c.ckey; 
+      (* We are looping, the answer must be false *)
+      false
+    with Not_found -> 
+      H.add memo c.ckey ();
+      List.exists (fun f -> loop f.ftype) c.cfields
+  in
+  loop t
+          
   
 
 (*** Make a compound initializer for zeroe-ing a data type ***)

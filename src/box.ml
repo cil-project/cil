@@ -72,6 +72,7 @@ let rec newTypeName prefix t =
   with Not_found -> 
     H.add typeNames n (ref 0);
     n
+
  (* Make a type name, for use in type defs *)
 and baseTypeName = function
     TForward (comp, _)  -> baseTypeName (TComp comp)
@@ -110,6 +111,68 @@ let newStringName () =
 
 (**** FIXUP TYPE ***)
 let fixedTypes : (typsig, typ) H.t = H.create 17
+
+
+(* Since we cannot take the address of a bitfield we will do bounds checking 
+ * and tag zeroeing for an access to a bitfield as if the access were to the 
+ * entire struct that contains the field. But this might lead to problems if 
+ * the same struct contains both pointers and bitfields. In that case we 
+ * coalesce all consecutive bitfields into a substructure *)
+
+(* For each bitfield that was coalesced we map (the id of the host and the 
+ * field name) to the fieldinfo for the host and the fieldinfo inside the 
+ * host *)
+let hostsOfBitfields : (int * string, fieldinfo * fieldinfo) H.t = H.create 17
+let bundleid = ref 0
+let bitfieldCompinfo comp = 
+  let containsPointer t = 
+    existsType (function TPtr _ -> true | _ -> false) t in
+  if comp.cstruct &&
+    List.exists (fun fi -> 
+      match fi.ftype with 
+        TBitfield _ -> true | _ -> false) comp.cfields &&
+    List.exists (fun fi -> containsPointer fi.ftype) comp.cfields 
+  then begin
+    (* Go over the fields and collect consecutive bitfields *)
+    let rec loopFields prev prevbits = function
+        [] -> List.rev (bundleBitfields prevbits prev)
+      | f :: rest -> begin
+          match f.ftype with
+            TBitfield _ -> loopFields prev (f :: prevbits) rest
+          | _ -> loopFields (f :: (bundleBitfields prevbits prev)) [] rest
+      end
+    and bundleBitfields bitfields prev = 
+      if bitfields = [] then prev else
+      let bname = "bits_" ^ (string_of_int !bundleid) in
+      incr bundleid;
+      let bitfields = List.rev bitfields in
+      let bundle = 
+        mkCompInfo true bname
+          (fun _ -> 
+            List.map (fun f -> f.fname, f.ftype, f.fattr) bitfields) [] 
+      in
+      let bfinfo = 
+        { fname = bname; ftype = TComp bundle; fattr = []; fcomp = comp } in
+      (* Go over the previous bitfields and add them to the host map *)
+      List.iter2 (fun oldbf newbf -> 
+        H.add hostsOfBitfields (comp.ckey, oldbf.fname) (bfinfo, newbf))
+        bitfields
+        bundle.cfields;
+      bfinfo :: prev
+    in
+    comp.cfields <- List.rev (loopFields [] [] comp.cfields)
+  end
+
+(* Change the field accesses to take into accound the extra structs *)
+let doField (fi: fieldinfo) (off: offset) =
+  if off = NoOffset then
+    try
+      let host, this = H.find hostsOfBitfields (fi.fcomp.ckey, fi.fname) in
+      Field (host, Field (this, NoOffset))
+    with Not_found ->
+      Field (fi, off)
+  else
+    Field (fi, off)
 
 
 (***** Convert all pointers in types for fat pointers ************)
@@ -168,6 +231,7 @@ and fixit t =
       | TComp comp -> 
           (* Change the fields in place, so that everybody sees the change *)
           List.iter (fun fi -> fi.ftype <- fixupType fi.ftype) comp.cfields;
+          bitfieldCompinfo comp;
           t
             
       | TArray(t', l, a) -> TArray(fixupType t', l, a)
@@ -294,11 +358,15 @@ let mustCheckReturn tret =
 
    (* Test if we have changed the type *)
 let rec typeHasChanged t =
-  match unrollType t with
-    TComp comp -> begin
+  existsType 
+    (function TComp comp -> begin
       match comp.cfields with
         [p;b] when comp.cstruct && p.fname = "_p" && b.fname = "_b" -> true
-      | _ -> List.exists (fun f -> typeHasChanged f.ftype) comp.cfields
+      | _ -> false
+    end | _ -> false)
+    t
+(*
+    List.exists (fun f -> typeHasChanged f.ftype) comp.cfields
     end
   | TArray(t, _, _) -> typeHasChanged t
   | TFun(rt, args, _, _) -> begin
@@ -307,13 +375,17 @@ let rec typeHasChanged t =
   end
   | TPtr (t, _) -> typeHasChanged t
   | _ -> false
-
+*)
 
 (* Create tags for types along with the newly created fields and initializers 
  * for tags and for the length  *)
 (* Check whether the type contains an embedded array *)
 let mustBeTagged v = 
   let rec containsArray t = 
+    existsType 
+      (function TArray _ -> true | _ -> false) t
+  in
+(*
     match unrollType t with 
       TArray _ -> true
     | TComp comp -> 
@@ -322,6 +394,7 @@ let mustBeTagged v =
     | (TInt _ | TEnum _ | TFloat _ | TBitfield _ ) -> false
     | _ -> E.s (E.unimp "containsArray: %a" d_plaintype t)
   in
+*)
   if v.vglob then 
     match v.vtype with 
       TFun _ -> false 
@@ -880,7 +953,7 @@ and boxoffset (off: offset) (basety: typ) : offsetRes =
   | Field (fi, resto) ->
       (* The type of fi has been changed already *)
       let (rest, doresto, off') = boxoffset resto fi.ftype in
-      (rest, doresto, Field(fi, off'))
+      (rest, doresto, doField fi off')
   | First o -> 
       let etype = 
         match unrollType basety with
@@ -1175,8 +1248,8 @@ let preamble =
   ignore (fixupType (charPtrType));
   ignore (fixupType (TPtr(TInt(IChar, [AId("const")]), [])));
   let startFile = !theFile in
-  GPragma ("// Include the definition of the checkers\n") ::
   GPragma ("#include \"safec.h\"\n") :: 
+  GPragma ("// Include the definition of the checkers\n") ::
   startFile
   
 let boxFile globals =
@@ -1299,7 +1372,15 @@ let boxFile globals =
   theFile := preamble;
   (* Now the orgininal file *)
   List.iter doGlobal globals;
-  List.rev (!theFile)
+  let res = List.rev (!theFile) in
+  (* Clean up global hashes to avoid retaining garbage *)
+  H.clear hostsOfBitfields;
+  H.clear typeNames;
+  H.clear fixedTypes;
+  H.clear taggedTypes;
+  res
+
+  
       
 
 

@@ -239,10 +239,14 @@ and checkPointerType (t: typ) =
 
 and typeMatch (t1: typ) (t2: typ) = 
   if typeSig t1 <> typeSig t2 then
-    (* Allow interchange of TInt and TEnum *)
     match unrollType t1, unrollType t2 with
-      TInt _, TEnum _ -> ()
-    | TEnum _, TInt _ -> ()
+    (* Allow interchange of TInt and TEnum *)
+      TInt (IInt, _), TEnum _ -> ()
+    | TEnum _, TInt (IInt, _) -> ()
+    (* Allow interchange of TInt and TBitfield *)
+    | TInt (ik, _), TBitfield (ik', _, _) when ik = ik' -> ()
+    | TBitfield (ik', _, _), TInt (ik, _) when ik = ik' -> ()
+
     | _, _ -> ignore (E.warn "Type mismatch:@!    %a@!and %a@!" 
                         d_type t1 d_type t2)
 
