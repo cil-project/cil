@@ -221,7 +221,7 @@ extern long double __builtin_fabsl(long double);
   void * __SAFE  __ptrof(void *ptr);
   // Type inference:  no constraints.
   // In the wrapper:  returns ptr._p.
-  //                 Calls fp_fail if ptr is out of bounds.
+  //                 Calls fp_fail if ptr is nonnull and out of bounds.
 
   int __strlen(void *ptr);      
   // Type inference:  ptr must allow forwards arithmetic; also sets the
