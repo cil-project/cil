@@ -1266,9 +1266,8 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
           raise (Failure "different floating point types")
       in
       TFloat (combineFK oldfk fk, cabsAddAttributes olda a)
-  | TEnum (oldei, olda), TEnum (ei, a) -> 
-      if oldei.ename = ei.ename then TEnum (ei, cabsAddAttributes olda a) else
-      raise (Failure  "different enumeration tags")
+  | TEnum (_, olda), TEnum (ei, a) -> 
+      TEnum (ei, cabsAddAttributes olda a)
         
         (* Strange one. But seems to be handled by GCC *)
   | TEnum (oldei, olda) , TInt(IInt, a) -> TEnum(oldei, 
