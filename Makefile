@@ -131,7 +131,7 @@ ifdef TV
 SAFECC+= --tv="$(TV)"
 TVEXE=trval
 endif
-SAFECC+= --safec="$(EXTRAARGS)"
+SAFECC+= $(EXTRAARGS:%= --safec=%)
 
 
 

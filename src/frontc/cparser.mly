@@ -226,6 +226,12 @@ let rec injectType inner = function
 let injectTypeName (inner: base_type) ((n,bt,a,i) : name) : name = 
   (n, injectType inner bt, a, i)
 
+let structId = ref 0
+let anonStructName n = 
+  incr structId;
+  "__anon" ^ n ^ (string_of_int (!structId))
+
+
 let applyPointer (ptspecs: specifier list) ((n,bt,a,i) : name) : name = 
   (* Inner specification first *)
   let rec loop acc = function
@@ -820,18 +826,18 @@ type_spec:   /* ISO 6.7.2 */
 |   STRUCT typename LBRACE struct_decl_list RBRACE
                     { Tstruct ($2, Some $4) }
 |   STRUCT           LBRACE struct_decl_list RBRACE
-                    { Tstruct ("", Some $3) }
+                    { Tstruct (anonStructName "struct", Some $3) }
 |   UNION typename 
                     { Tunion ($2, None) }
 |   UNION typename LBRACE struct_decl_list RBRACE
                     { Tunion ($2, Some $4) }
 |   UNION          LBRACE struct_decl_list RBRACE
-                    { Tunion ("", Some $3) }
+                    { Tunion (anonStructName "union", Some $3) }
 |   ENUM typename   { Tenum ($2, None) }
 |   ENUM typename LBRACE enum_list maybecomma RBRACE
                     { Tenum ($2, Some $4) }
 |   ENUM          LBRACE enum_list maybecomma RBRACE
-                    { Tenum ("", Some $3) }
+                    { Tenum (anonStructName "enum", Some $3) }
 |   NAMED_TYPE      { Tnamed $1 }
 ;
 struct_decl_list: /* ISO 6.7.2. Except that we allow empty structs. We also 

@@ -388,35 +388,34 @@ let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) =
   | TForward(comp, _), _ -> castTo (TComp comp) nt e
   | _, TForward(comp, _) -> castTo ot (TComp comp) e
   | TInt(ikindo,_), TInt(ikindn,_) -> 
-      (nt, if ikindo == ikindn then e else CastE(nt, e, lu))
+      (nt, if ikindo == ikindn then e else doCast e ot nt)
 
-  | TPtr (told, _), TPtr(tnew, _) -> (nt, CastE(nt, e, lu))
+  | TPtr (told, _), TPtr(tnew, _) -> (nt, doCast e ot nt)
 
   | TInt _, TPtr _ when
       (match e with Const(CInt(0,_,_),_) -> true | _ -> false) -> 
-        (nt, (CastE(nt, e, lu)))
+        (nt, doCast e ot nt)
 
-  | TInt _, TPtr _ -> (nt, (CastE(nt,e,lu)))
+  | TInt _, TPtr _ -> (nt, doCast e ot nt)
 
-  | TPtr _, TInt _ -> (nt, (CastE(nt,e,lu)))
+  | TPtr _, TInt _ -> (nt, doCast e ot nt)
 
-  | TArray _, TPtr _ -> (nt, (CastE(nt,e,lu)))
+  | TArray _, TPtr _ -> (nt, doCast e ot nt)
 
   | TArray(t1,_,_), TArray(t2,None,_) when typeSig t1 = typeSig t2 -> (nt, e)
 
   | TPtr _, TArray(_,_,_) -> (nt, e)
 
   | TEnum _, TInt _ -> (nt, e)
-  | TFloat _, TInt _ -> (nt, (CastE(nt,e,lu)))
-  | TInt _, TFloat _ -> (nt, (CastE(nt,e,lu)))
-  | TFloat _, TFloat _ -> (nt, (CastE(nt,e,lu)))
-  | TInt _, TEnum _ -> (intType, e)
-  | TEnum _, TEnum _ -> (intType, e)
+  | TFloat _, TInt _ -> (nt, doCast e ot nt)
+  | TInt _, TFloat _ -> (nt, doCast e ot nt)
+  | TFloat _, TFloat _ -> (nt, doCast e ot nt)
+  | TInt _, TEnum _ -> (nt, e)
+  | TEnum _, TEnum _ -> (nt, e)
 
-  | TFun _, TPtr(TFun _, _) -> (nt, e)
+(*  | TFun _, TPtr(TFun _, _) -> (nt, e) *)
 
-
-  | TBitfield _, TInt _ -> (nt, CastE(nt,e,lu))
+  | TBitfield _, TInt _ -> (nt, e)
   | TInt _, TBitfield _ -> (nt, e)
 
 
@@ -528,14 +527,14 @@ and doType (a : attribute list) = function
       TArray (doType [] bt, lo, a)
 
   | A.STRUCT n -> 
-      if n = "" then E.s (E.unimp "Missing struct tag");
+      if n = "" then E.s (E.bug "Missing struct tag");
       findCompType "struct" n a
 
   | A.STRUCTDEF (n, nglist) -> (* This introduces a new type always *)
       makeCompType true n nglist a
 
   | A.UNION n -> 
-      if n = "" then E.s (E.unimp "Missing union tag");
+      if n = "" then E.s (E.bug "Missing union tag");
       findCompType "union" n a
 
   | A.UNIONDEF (n, nglist) -> (* This introduces a new type always *)
@@ -570,11 +569,11 @@ and doType (a : attribute list) = function
 
   | A.OLD_PROTO _ -> E.s (E.unimp "oldproto")
   | A.ENUM n ->
-      if n = "" then E.s (E.unimp "Missing enum tag");
+      if n = "" then E.s (E.bug "Missing enum tag");
       findCompType "enum" n a
 
   | A.ENUMDEF (n, eil) -> 
-      let n = if n = "" then newTypeName "enum" else n in
+      if n = "" then E.s (E.bug "Missing enum tag");
       let rec loop i = function
           [] -> []
         | (kname, A.NOTHING) :: rest -> 
@@ -637,8 +636,6 @@ and makeCompType (iss: bool)
                  (n: string)
                  (nglist: A.name_group list) 
                  (a: attribute list) = 
-  let n = if n = "" then 
-    newTypeName (if iss then "struct" else "union") else n in
       (* Create the self cell for use in fields and forward references. Or 
        * maybe one exists already from a forward reference *)
   let comp = createCompInfo iss n in
@@ -651,7 +648,19 @@ and makeCompType (iss: bool)
     } 
   in
   let flds = List.concat (List.map (doNameGroup makeFieldInfo) nglist) in
-  comp.cfields <- flds;
+  if comp.cfields <> [] then begin
+    (* This appears to be a multiply defined structure. This can happen from 
+     * a construct like "typedef struct foo { ... } A, B;". This is dangerous 
+     * because at the time B is processed some forward references in { ... } 
+     * appear as backward references, which coild lead to circularity in 
+     * the type structure. We do a thourough check and then we reuse the type 
+     * for A *)
+    let fieldsSig fs = List.map (fun f -> typeSig f.ftype) fs in 
+    if fieldsSig comp.cfields <> fieldsSig flds then
+      ignore (E.warn "%s seems to be multiply defined" (compFullName comp))
+  end else 
+    comp.cfields <- flds;
+
       (* Drop volatile from struct *)
   let a = dropAttribute a (AId("volatile")) in
   let a = dropAttribute a (AId("const")) in

@@ -190,7 +190,7 @@ let rec fixupType t =
           TFun(rt,
                List.map2 (fun a a' -> {a' with vname = a.vname}) args args',
                isva, a)
-      | _ -> E.s (E.bug "1")
+      | _ -> E.s (E.bug "fixupType")
   end
   | _ -> fixit t
 
@@ -199,7 +199,7 @@ and fixit t =
   try
     H.find fixedTypes ts 
   with Not_found -> begin
-    let doit t =
+    let fixed = 
       match t with 
         (TInt _|TEnum _|TFloat _|TVoid _|TBitfield _) -> t
 
@@ -243,7 +243,6 @@ and fixit t =
           let res = TFun(fixupType rt, args', isva, a) in
           res
     in
-    let fixed = doit t in
     H.add fixedTypes ts fixed;
     H.add fixedTypes (typeSig fixed) fixed;
     fixed
@@ -1000,19 +999,20 @@ and boxexpf (e: exp) : stmt list * fexp =
         castTo fe' t' doe
     end
     | Const (CStr s, cloc) -> 
-      (* Make a global variable that stores this one, so that we can attach a 
-         * tag to it *)
+       (* Make a global variable that stores this one, so that we can attach 
+        * a tag to it  *)
         let l = 1 + String.length s in 
         let newt = tagType (TArray(charType, Some (integer l), [])) in
         let gvar = makeGlobalVar (newStringName ()) newt in
         gvar.vstorage <- Static;
-      (* Build an initializer *)
+        (* Build an initializer *)
         let varinit, dfield = 
           makeTagCompoundInit newt (Some (Const(CStr s, cloc))) in
         theFile := GVar (gvar, Some varinit) :: !theFile;
         let fatChrPtrType = fixupType charPtrType in
-        let result = Lval(Var gvar, Field(dfield, NoOffset)) in
-        ([], F2 (fatChrPtrType, result, CastE(voidPtrType, result, lu)))
+        let result = StartOf (Var gvar, Field(dfield, NoOffset)) in
+        ([], F2 (fatChrPtrType, result, 
+                 doCast result (typeOf result) voidPtrType))
           
           
     | UnOp (uop, e, restyp, l) -> 
@@ -1273,7 +1273,7 @@ let boxFile globals =
     | GType (n, t) as g -> 
         if debug then
           ignore (E.log "Boxing GType(%s)\n" n);
-        let tnew = fixupType t in (* Do this first *)
+        let tnew = fixupType t in
         theFile := GType (n, tnew) :: !theFile
 
     | GFun f -> 
@@ -1344,27 +1344,27 @@ let boxFile globals =
         theFile := GVar(vi, init) :: !theFile
       else
         theFile := GDecl vi :: !theFile
-    else if not isdef && vi.vstorage <> Extern then
-      theFile := GDecl vi :: !theFile
     else begin
+      vi.vtype <- tagType vi.vtype;
+      if not isdef && vi.vstorage <> Extern then
+        theFile := GDecl vi :: !theFile
+      else begin
           (* Make the initializer *)
-          (* tag the type, but don't change it yet *)
-      let newtyp = tagType vi.vtype in
           (* Add it to the tag initializer *)
-      let varinit = 
-        if vi.vstorage = Extern then None 
-        else
+        let varinit = 
+          if vi.vstorage = Extern then None 
+          else
               (* prepare the data initializer. *)
-          let init' = 
-            match init with
-              None -> None
-            | Some e -> Some (boxGlobalInit e)
-          in
-          let (x, _) = makeTagCompoundInit newtyp init' in
-          Some x
-      in
-      vi.vtype <- newtyp;
-      theFile := GVar(vi, varinit) :: !theFile
+            let init' = 
+              match init with
+                None -> None
+              | Some e -> Some (boxGlobalInit e)
+            in
+            let (x, _) = makeTagCompoundInit vi.vtype init' in
+            Some x
+        in
+        theFile := GVar(vi, varinit) :: !theFile
+      end
     end
   in
   if debug then

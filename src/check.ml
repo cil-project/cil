@@ -121,7 +121,7 @@ let compInfoIdEnv : (int, compinfo) H.t = H.create 117
 (* Keep track of all TForward that we have see *)
 let compForwards : (int, compinfo) H.t = H.create 117
 (* Keep track of all definitions that we have seen *)
-let compDefined : (int, unit) H.t = H.create 117
+let compDefined : (int, compinfo) H.t = H.create 117
 
  
     
@@ -138,15 +138,16 @@ let rec checkType (t: typ) (ctx: ctxType) =
     | TComp _ -> ctx <> CTExp 
     | _ -> true
   in
-  ignore (checkContext t || (E.s (E.bug "Type used in wrong context")));
+  if not (checkContext t) then 
+    ignore (E.warn "Type used in wrong context");
   match t with
     TVoid a -> checkAttributes a
   | TInt (ik, a) -> checkAttributes a
   | TFloat (_, a) -> checkAttributes a
   | TBitfield (ik, w, a) -> 
       checkAttributes a;
-      ignore ((w >= 0 && w <= bitsSizeOf (TInt(ik, a))) || 
-               E.s (E.bug "Wrong width (%d) in bitfield" w))
+      if w < 0 || w >= bitsSizeOf (TInt(ik, a)) then
+        ignore (E.warn "Wrong width (%d) in bitfield" w)
 
   | TPtr (t, a) -> checkAttributes a;  checkType t CTPtr
 
@@ -155,32 +156,55 @@ let rec checkType (t: typ) (ctx: ctxType) =
          * one used in the definition. We assume that the type is checked *)
       (try
         let oldt = H.find typeDefs n in
-        if oldt != t &&
-          typeSig oldt <> typeSig t then
-          E.s (E.bug "Named type %s is inconsistent" n)
-      with Not_found -> ());
+        if oldt != t && typeSig oldt <> typeSig t then
+          ignore (E.warn "Named type %s is inconsistent" n)
+      with Not_found -> 
+        ignore (E.warn "Named type %s is undefined\n" n));
       checkAttributes a
 
   | TForward (comp, a) -> 
       checkAttributes a;
-      checkCompInfo comp;
-      (* Mark it as a forward *)
+      (* Mark it as a forward. We'll check it later. If we try to check it 
+       * now we might encounter undefined types *)
       H.add compForwards comp.ckey comp
 
   | TComp comp -> 
       checkCompInfo comp;
-      (* Mark it as a definition *)
-      H.add compDefined comp.ckey ()
+      (* Mark it as a definition. We'll use this later to check the forwards *)
+      H.add compDefined comp.ckey comp;
+      (* Check for circularity *)
+      let memo : (int, unit) H.t = H.create 17 in
+      let rec checkCircularity = function
+          TComp c ->
+            if H.mem memo c.ckey then
+              E.s (E.bug "Circular type structure through %s and %s" 
+                     (compFullName comp) 
+                     (compFullName c));
+            H.add memo c.ckey ();
+            List.iter (fun f -> checkCircularity f.ftype) c.cfields
+
+        | TForward _ -> () (* Stop checking here since circularity is allowed 
+                            * with a TForward *)
+        | TArray (bt, _, _) -> checkCircularity bt
+        | TPtr (bt, _) -> checkCircularity bt
+        | TNamed (_, bt, _) -> checkCircularity bt
+        | TFun (bt, args, _, _) -> 
+            checkCircularity bt;
+            List.iter (fun a -> checkCircularity a.vtype) args
+        | (TInt _ | TFloat _ | TEnum _ | TBitfield _ | TVoid _) -> ()
+      in
+      begin try checkCircularity t with _ -> () end
 
   | TEnum (n, tags, a) -> begin
       checkAttributes a;
-      ignore (n <> "" || E.s (E.bug "Enum with empty tag"));
+      if n = "" then
+        E.s (E.bug "Enum with empty tag");
       try
         let t' = H.find enumTags n in
         (* If we have seen one with the same name then it must be the same 
          * one  *)
         if t != t' then 
-          E.s (E.bug "Redefinition of enum %s" n)
+          ignore (E.warn "Redefinition of enum %s" n)
       with Not_found -> 
         (* Add it to the enumTags *)
         H.add enumTags n t;
@@ -205,21 +229,21 @@ let rec checkType (t: typ) (ctx: ctxType) =
                   ta.vstorage <> Extern &&
                   ta.vstorage <> Static &&
                   not ta.vaddrof) then
-            E.s (E.bug "Invalid argument varinfo")) targs
+            ignore (E.warn "Invalid argument varinfo")) targs
 
 (* Check that a type is a promoted integral type *)
 and checkIntegralType (t: typ) = 
   checkType t CTExp;
   match unrollType t with
     TInt _ -> ()
-  | _ -> E.s (E.bug "Non-integral type")
+  | _ -> ignore (E.warn "Non-integral type")
 
 (* Check that a type is a promoted arithmetic type *)
 and checkArithmeticType (t: typ) = 
   checkType t CTExp;
   match unrollType t with
     TInt _ | TFloat _ -> ()
-  | _ -> E.s (E.bug "Non-arithmetic type")
+  | _ -> ignore (E.warn "Non-arithmetic type")
 
 (* Check that a type is a promoted boolean type *)
 and checkBooleanType (t: typ) = 
@@ -240,10 +264,10 @@ and checkPointerType (t: typ) =
 and typeMatch (t1: typ) (t2: typ) = 
   if typeSig t1 <> typeSig t2 then
     match unrollType t1, unrollType t2 with
-    (* Allow interchange of TInt and TEnum *)
+    (* Allow free interchange of TInt and TEnum *)
       TInt (IInt, _), TEnum _ -> ()
     | TEnum _, TInt (IInt, _) -> ()
-    (* Allow interchange of TInt and TBitfield *)
+    (* Allow free interchange of TInt and TBitfield *)
     | TInt (ik, _), TBitfield (ik', _, _) when ik = ik' -> ()
     | TBitfield (ik', _, _), TInt (ik, _) when ik = ik' -> ()
 
@@ -285,6 +309,9 @@ and checkCompInfo comp =
   end
     
 
+(* Check an lvalue. If isconst then the lvalue appears in a context where 
+ * only a compile-time constant can appear. Return the type of the lvalue. 
+ * See the typing rule from cil.mli *)
 and checkLval (isconst: bool) (lv: lval) : typ = 
   match lv with
     Var vi, off -> 
@@ -300,6 +327,9 @@ and checkLval (isconst: bool) (lv: lval) : typ =
       | _ -> E.s (E.bug "Mem on a non-pointer")
   end
 
+(* Check an offset. The basetype is the type of the object referenced by the 
+ * base. Return the type of the lvalue constructed from a base value of right 
+ * type and the offset. See the typing rules from cil.mli *)
 and checkOffset basetyp : offset -> typ = function
     NoOffset -> basetyp
   | Index (ei, o) -> 
@@ -335,6 +365,9 @@ and checkExpType (isconst: bool) (e: exp) (t: typ) =
   end else
     typeMatch t' t
 
+(* Check an expression. isconst specifies if the expression occurs in a 
+ * context where only a compile-time constant can occur. Return the computed 
+ * type of the expression *)
 and checkExp (isconst: bool) (e: exp) : typ = 
   E.withContext 
     (fun _ -> dprintf "check%s: %a" 
@@ -404,7 +437,7 @@ and checkExp (isconst: bool) (e: exp) : typ =
           checkBooleanType tb;
           let tt = checkExp isconst et in
           let tf = checkExp isconst ef in
-          typeMatch tt tt;
+          typeMatch tt tf;
           tt
 
       | AddrOf (lv, _) -> begin
@@ -647,8 +680,15 @@ let checkFile fl =
   (* Check that for all TForward there is a definition *)
   (try
     H.iter 
-      (fun k comp -> if not (H.mem compDefined k) then 
-        E.s (E.bug "Compinfo %s is not defined" (compFullName comp))) 
+      (fun k comp -> 
+        try
+          let cdef = H.find compDefined k in
+          if cdef != comp then 
+            ignore (E.warn "Compinfo for %s not shared (forwards)"
+                      (compFullName comp))
+        with Not_found -> 
+          ignore (E.warn "Compinfo %s is referenced but not defined" 
+                    (compFullName comp))) 
       compForwards
   with _ -> ());
   (* Clean the hashes to let the GC do its job *)

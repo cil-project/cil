@@ -1469,7 +1469,6 @@ let rec typeSig t =
                                   isva, a)
   | TNamed(_, t, a) -> typeSigAddAttrs a (typeSig t)
 
-  (* Follow the self pointer to get the real name and attributes *)
   | TForward (comp, a) -> typeSigAddAttrs a (typeSig (TComp comp))
       
 and typeSigAddAttrs a0 t = 
