@@ -157,6 +157,14 @@ extern long double __builtin_fabsl(long double);
     #define FP_FAIL_IS_VERBOSE
   #endif
 
+  #ifdef _GNUCC
+    #define FILEFUNC (__FILE__ ":" __FUNCTION__)
+    #define LINEFUNC __LINE__
+  #else
+    #define FILEFUNC __FILE__
+    #define LINEFUNC __LINE__
+  #endif
+
   #if defined(FP_FAIL_IS_VERBOSE)
     #define FP_FAIL_EXTRA_PARAMS , char *file, int line
     #define FP_FAIL_EXTRA_ARGS , file, line
@@ -402,7 +410,7 @@ extern long double __builtin_fabsl(long double);
     int *anIntPtr;
   };
   #pragma boxvararg("ioctl", sizeof(union ioctl_format))
-
+/*
   // for test/small2/execv.c
   static inline int execv_model(char *path, char **argv)
   {
@@ -412,7 +420,7 @@ extern long double __builtin_fabsl(long double);
     return 0;
   }
   #pragma boxmodelof("execv_model", "execv")
-
+*/
   // for ping; need a model so I get to write a wrapper, where
   // I can emulate optarg as optarg_f
   static inline int getopt_model(int argc, char **argv, char const *optstring)
@@ -435,7 +443,7 @@ extern long double __builtin_fabsl(long double);
 #endif
 
 
-
+/*
 // sm: I think it's a bad idea to try to match signal's declaration since it's
 // such an unusual type; and it doesn't use any types that aren't built-in
 
@@ -452,7 +460,7 @@ extern long double __builtin_fabsl(long double);
   #pragma boxmodelof("signal_model", "signal")
 
 #endif // CCURED
-
+*/
 
 #ifndef CCURED
   #define __startof(p) p
