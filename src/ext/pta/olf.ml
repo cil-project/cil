@@ -1162,7 +1162,7 @@ let may_alias (t1 : tau) (t2 : tau) : bool =
 	  | _ ->raise WellFormed
       end
     in
-      not (C.is_empty (C.inter (collect_ptset l1) (collect_ptset l2)))
+      (equal_tau t1 t2) or (not (C.is_empty (C.inter (collect_ptset l1) (collect_ptset l2))))
   with
     | NoContents -> false
     | ReachedTop -> raise UnknownLocation
