@@ -84,27 +84,24 @@ PATCHER +=--mode=$(COMPILERNAME)
 CCUREDLIB := obj/ccured_$(COMPILEREXT).$(LIBEXT)
 
 # garbage collector options
-ifdef _MSVC
-  # No garbage collection on MSVC for now
-NOGC:= 1
-endif
+#ifdef _MSVC
+#  # No garbage collection on MSVC for now
+#NOGC:= 1
+#endif
 
-ifndef NOGC
-  GCLIB := $(CCUREDHOME)/lib/gc/$(COMPILERNAME)/gc.$(LIBEXT)
-  ifdef _MSVC 
-    GCMAKE := nmake /f ../NT_MAKEFILE
-  else
-    GCMAKE := make -f ../Makefile srcdir=..
-  endif
+GCLIB := $(CCUREDHOME)/lib/gc/$(COMPILERNAME)/gc.$(LIBEXT)
+ifdef _MSVC 
+  GCMAKE := make -f Makefile.msvc srcdir=..
+else
+  GCMAKE := make -f ../Makefile srcdir=..
+endif
 # pretend it's only dependent on one file; that's not true of course,
 # but we rarely (ever?) modify the gc's sources, and one dependency
 # is better than none (which causes recompile every time!)
 $(GCLIB): $(CCUREDHOME)/lib/gc/mark.c
 	cd $(CCUREDHOME)/lib/gc/$(COMPILERNAME); $(GCMAKE)
-	cd $(CCUREDHOME)/lib/gc/$(COMPILERNAME); ./gctest
-else
- CFLAGS+= $(DEF)CCURED_NO_GC
-endif
+	cd $(CCUREDHOME)/lib/gc/$(COMPILERNAME); \
+            rm -f gc.log; ./gctest; if test -f gc.log ;then cat gc.log; fi
 
 # sm: enabling this causes the syslog(2) call in safec.c to be omitted
 ifdef NO_FPFAIL_SYSLOG
@@ -126,14 +123,11 @@ $(CCUREDLIB) : lib/safec.c lib/safec.h lib/safeccheck.h lib/splay.c $(GCLIB)
                     $(OBJOUT)obj/safec.$(OBJEXT) lib/safec.c
 	$(CC) $(CFLAGS) $(INC)./lib $(CONLY) $(CCUREDLIBARG) \
                     $(OBJOUT)obj/splay.$(OBJEXT) lib/splay.c
-	if echo $(GCLIB) | grep / >/dev/null; then \
-		cp -f $(GCLIB) $@; echo "using GC"; \
-	else \
-		rm -f $@; echo "not using GC"; \
-	fi
-	$(AR) $(LIBOUT)$@ obj/safec.$(OBJEXT) obj/splay.$(OBJEXT)
 ifdef _GNUCC
-	ranlib $@
+	cp -f $(GCLIB) $@
+	ar -rs $@                  obj/safec.$(OBJEXT) obj/splay.$(OBJEXT) 
+else
+	$(AR) $(LIBOUT)$@ $(GCLIB) obj/safec.$(OBJEXT) obj/splay.$(OBJEXT) 
 endif
 
 ######################
@@ -191,8 +185,11 @@ odoc:
 clean: cleancaml
 	$(PATCHER) --dest=$(CCUREDHOME)/include --clean
 	rm -f $(CCUREDLIB)
-
-gcclean:
+	make -C $(CCUREDHOME)/lib/gc clean
 	cd $(CCUREDHOME)/lib/gc; \
 	     	rm -f $(foreach COMP, GNUCC MSVC, \
                      $(foreach EXT, exe o a obj lib, $(COMP)/*.$(EXT)))
+testgc:
+	rm -f $(GCLIB)
+	make
+	objdump --syms $(CCUREDLIB) | grep GC_
