@@ -963,7 +963,7 @@ sub classDebug {
 }
 
 sub mydebug {
-    if(1) { print @_; }
+    if(0) { print @_; }
 }
 
 sub compilerArgument {
