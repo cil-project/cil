@@ -166,6 +166,7 @@ $TEST->add3Tests("power", "_GNUCC=1");
 $TEST->add3Tests("health", "_GNUCC=1");
    $TEST->add3Group("health", "slow");
    $TEST->addBadComment("health-inferbox", "Crashes");
+   $TEST->addBadComment("health-cil", "don't know how to run");
    $TEST->addBadComment("health-box", "Bug in BOX");
 
 $TEST->add3Tests("perimeter");
@@ -190,6 +191,7 @@ $TEST->add3Tests("go", "_GNUCC=1");
 
 $TEST->add2Tests("ijpeg", "_GNUCC=1");
   $TEST->add2Group("ijpeg", "slow");
+  $TEST->addBadComment("ijpeg-cil", "EOF / read error??");
   $TEST->addBadComment("ijpeg-inferbox", "CRASHES");
 
 $TEST->add2Tests("vortex", "_GNUCC=1");

@@ -20,7 +20,7 @@ MLLS        =
 MLYS        = 
 # ast clex cparse
 # sm: trace: utility for debug-time printfs
-MODULES     = pretty trace errormsg stats util cil check ptrnode \
+MODULES     = pretty trace errormsg stats util cil logcalls check ptrnode \
               solveutil simplesolve secondsolve thirdsolve solver globinit \
               oneret box markptr \
               rmtmps optim
