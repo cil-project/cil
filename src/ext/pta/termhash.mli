@@ -33,6 +33,6 @@
  *
  *)
 type 'a term_hash
-val create : unit -> term_hash
-val find : term_hash -> int list -> 'a
-val insert : term_hash -> int list -> 'a -> bool
+val create : unit -> 'a term_hash
+val find : 'a term_hash -> int list -> 'a
+val insert : 'a term_hash -> int list -> 'a -> bool
