@@ -3099,6 +3099,13 @@ class defaultCilPrinterClass : cilPrinter = object (self)
       | DNStuff d -> d
       | DNPtrStuff d -> d
     in
+    let kindOf (t: typ) = 
+      match t with
+        TPtr _ -> 1
+      | TArray _ -> 2
+      | TFun _ -> 3
+      | _ -> 0
+    in
     (* Print the docName with some attributes preceedign it, maybe with 
      * parentheses *)
     let parenthname (a: attribute list) = 
@@ -3120,6 +3127,14 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                               * because gcc does not like them here *)
           text "/*" ++ self#pAttrs () a ++ text "*/"
       | DNString s, a -> self#pAttrs () a ++ text s
+    in
+    let printAttributes (a: attributes) = 
+      match dnwhat, a with 
+        DNNothing, [] -> nil
+      | DNNothing, _ :: _ -> (* Cannot print the attributes in this case 
+                              * because gcc does not like them here *)
+          text "/*" ++ self#pAttrs () a ++ text "*/"
+      | _, _ -> self#pAttrs () a
     in
     match t with 
     TVoid a ->
@@ -3151,14 +3166,23 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           ++ self#pAttrs () a 
           ++ name
     | TPtr (bt, a)  -> 
+        (* Parenthesize the ( * attr name) if a pointer to a function or an 
+         * array *)
+        let paren = match bt with TFun _ | TArray _ -> true | _ -> false in
+        let name' = text "*" ++ printAttributes a ++ name in
+        let name'' = if paren then text "(" ++ name' ++ text ")" else name' in
         self#pType 
-          (DNPtrStuff (text "* " ++ parenthname a))
+          (DNStuff name')
           () 
           bt
 
     | TArray (elemt, lo, a) -> 
+        let name' = 
+          if a == [] then name else 
+          text "(" ++ printAttributes a ++ name ++ text ")" 
+        in
         self#pType 
-          (DNStuff (parenthname a
+          (DNStuff (name'
                       ++ text "[" 
                       ++ (match lo with None -> nil | Some e -> self#pExp () e)
                       ++ text "]"))
@@ -3166,9 +3190,13 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           elemt
           
     | TFun (restyp, args, isvararg, a) -> 
+        let name' = 
+          if a == [] then name else 
+          text "(" ++ printAttributes a ++ name ++ text ")" 
+        in
         self#pType 
           (DNStuff 
-             (parenthname a
+             (name'
                 ++ text "("
                 ++ (align 
                       ++ (if args = Some [] && isvararg then 

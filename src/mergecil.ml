@@ -110,12 +110,12 @@ let rec find (pathcomp: bool) (nd: 'a node) =
   end
 
 
-(* Union two nodes. We prefer as the representative a node defined earlier. 
- * We try not to use as representatives nodes that are not defined in their 
- * files. We return a function for undoing the union. 
- * Make sure that between the union and the undo you do not do path 
- * compression  *)
-let union (nd1: 'a node) (nd2: 'a node) : unit -> unit = 
+(* Union two nodes and return the new representative. We prefer as the 
+ * representative a node defined earlier. We try not to use as 
+ * representatives nodes that are not defined in their files. We return a 
+ * function for undoing the union. Make sure that between the union and the 
+ * undo you do not do path compression *)
+let union (nd1: 'a node) (nd2: 'a node) : 'a node * (unit -> unit) = 
   if nd1 == nd2 then
     E.s (bug "unioning two identical nodes for %s(%d)" 
            nd1.nname nd1.nfidx);
@@ -147,7 +147,7 @@ let union (nd1: 'a node) (nd2: 'a node) : unit -> unit =
   in
   let oldrep = norep.nrep in
   norep.nrep <- rep; 
-  fun () -> norep.nrep <- oldrep
+  rep, (fun () -> norep.nrep <- oldrep)
       
 (* Find the representative for a node and compress the paths in the process *)
 let findReplacement
@@ -462,7 +462,7 @@ and matchCompInfo (oldfidx: int) (oldci: compinfo)
     (* We check that they are defined in the same way. While doing this there 
      * might be recursion and we have to watch for going into an infinite 
      * loop. So we add the assumption that they are equal *)
-    let undo = union oldcinode cinode in
+    let newrep, undo = union oldcinode cinode in
     (* We check the fields but watch for Failure. We only do the check when 
      * the lengths are the same. Due to the code above this the other 
      * possibility is that one of the length is 0, in which case we reuse the 
@@ -478,6 +478,7 @@ and matchCompInfo (oldfidx: int) (oldci: compinfo)
           let newtype = 
             combineTypes CombineOther oldfidx oldf.ftype fidx f.ftype
           in
+          (* Change the type in the representative *)
           oldf.ftype <- newtype;
           ) oldci.cfields ci.cfields
       with Failure reason -> begin 
@@ -491,7 +492,7 @@ and matchCompInfo (oldfidx: int) (oldci: compinfo)
         raise (Failure msg)
       end);
     (* We get here when we succeeded checking that they are equal *)
-    oldci.cattr <- addAttributes oldci.cattr ci.cattr;
+    newrep.ndata.cattr <- addAttributes oldci.cattr ci.cattr;
 (*        if debugMerge then 
           ignore (E.log " Renaming %s to %s\n" (compFullName ci) oldci.cname);
 *)
@@ -529,10 +530,10 @@ and matchEnumInfo (oldfidx: int) (oldei: enuminfo)
         if not samev then 
           raise (Failure "(different values for enumeration items)"))
       oldei.eitems ei.eitems;
-    (* We get here if the enumerations match *)
-    oldei.eattr <- addAttributes oldei.eattr ei.eattr;
     (* Set the representative *)
-    let _ = union oldeinode einode in
+    let newrep, _ = union oldeinode einode in
+    (* We get here if the enumerations match *)
+    newrep.ndata.eattr <- addAttributes oldei.eattr ei.eattr;
     (*        if debugMerge then 
           ignore (E.log "  Renaming enum %s to %s\n" ei.ename  oldei.ename);*)
     ()
@@ -678,19 +679,28 @@ let rec oneFilePass1 (f:file) : unit =
       in
       let oldvi     = oldvinode.ndata in
       (* There is an old definition. We must combine the types. Do this first 
-      * because it might fail  *)
-      (try
-        oldvi.vtype <- 
-           combineTypes CombineOther 
-             oldvinode.nfidx oldvi.vtype  
-             !currentFidx vi.vtype;
-      with (Failure reason) -> begin
-        ignore (warn "Incompatible declaration for %s. Previous was at %a %s" 
-                  vi.vname d_loc oldloc reason);
-        raise Not_found
-      end);
-      (* Combine the attributes as well *)
-      oldvi.vattr <- addAttributes oldvi.vattr vi.vattr;
+       * because it might fail *)
+      let newtype = 
+        try
+          combineTypes CombineOther 
+            oldvinode.nfidx oldvi.vtype  
+            !currentFidx vi.vtype;
+        with (Failure reason) -> begin
+          ignore (warn "Incompatible declaration for %s. Previous was at %a %s" 
+                    vi.vname d_loc oldloc reason);
+          raise Not_found
+        end
+      in
+      let newrep, _ = union oldvinode vinode in 
+      (* We do not want to turn non-"const" globals into "const" one. That 
+       * can happen if one file declares the variable a non-const while 
+       * others declare it as "const". *)
+      if hasAttribute "const" (typeAttrs vi.vtype) != 
+         hasAttribute "const" (typeAttrs oldvi.vtype) then begin
+        newrep.ndata.vtype <- typeRemoveAttributes ["const"] newtype;
+      end else begin
+        newrep.ndata.vtype <- newtype;
+      end;
       (* clean up the storage.  *)
       let newstorage = 
         if vi.vstorage = oldvi.vstorage || vi.vstorage = Extern then 
@@ -702,8 +712,9 @@ let rec oneFilePass1 (f:file) : unit =
           vi.vstorage
         end
       in
-      oldvi.vstorage <- newstorage;
-      let _ = union oldvinode vinode in ()
+      newrep.ndata.vstorage <- newstorage;
+      newrep.ndata.vattr <- addAttributes oldvi.vattr vi.vattr;
+      ()
     with Not_found -> (* Not present in the previous files. Remember it for 
                        * later  *)
       H.add vEnv vi.vname vinode
@@ -715,8 +726,10 @@ let rec oneFilePass1 (f:file) : unit =
           currentLoc := l;
           incr currentDeclIdx;
           vi.vreferenced <- false;
-          if vi.vstorage <> Static then 
-            matchVarinfo vi (l, !currentDeclIdx)
+          if vi.vstorage <> Static then begin
+            matchVarinfo vi (l, !currentDeclIdx);
+          end
+
       | GFun (fdec, l) -> 
           currentLoc := l;
           incr currentDeclIdx;
