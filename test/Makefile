@@ -194,6 +194,9 @@ endif
 ifdef PRINTSTAGES
   CCURED+= --stages
 endif
+ifdef EMITBROWSER
+  CCURED+= --emitbrowser
+endif
 ifdef FP_FAIL_IS_VERBOSE
   # note that we also add this to CCUREDLIBARG in Makefile.ccured; this
   # affects the instrumented code *and* the support library
