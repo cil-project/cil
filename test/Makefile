@@ -1679,8 +1679,8 @@ ifndef LINUXSRC
   LINUXSRC := /usr/src/linux-cil
 endif
 mustbemanju: 
-	if ! test -d $(LINUXSRC) ; then  \
-                echo You dont have the Linux sources; exit 3; fi
+	@if ! test -d $(LINUXSRC) ; then  \
+                echo You dont have the Linux sources in $(LINUXSRC); exit 3; fi
 
 CILLY := perl $(CCUREDHOME)/bin/cilly.pl
 ifdef NOLINES
@@ -1708,14 +1708,17 @@ linuxclean:
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
 
+# sm: removed the -k option to make since I want it to stop
+# when there's an error
+
 linux: mustbegcc mustbelinux mustbemanju linuxclean
-	cd $(LINUXSRC) ; make -k CC="$(CILLY)" HOSTCC="$(CILLY)" bzImage
+	cd $(LINUXSRC) ; make CC="$(CILLY)" HOSTCC="$(CILLY)" bzImage
 
 linux-noclean:  mustbegcc mustbelinux mustbemanju
-	cd $(LINUXSRC) ; make -k CC="$(CILLY)" HOSTCC="$(CILLY)"
+	cd $(LINUXSRC) ; make CC="$(CILLY)" HOSTCC="$(CILLY)"
 
 linux-gcc: mustbelinux mustbemanju linuxclean
-	cd $(LINUXSRC); make -k CC=gcc HOSTCC=gcc
+	cd $(LINUXSRC); make CC=gcc HOSTCC=gcc
 
 ######################## SENDMAIL
 # source available at www.sendmail.org
