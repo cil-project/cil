@@ -963,6 +963,22 @@ val dummyFunDec: fundec
 (** A dummy file *)
 val dummyFile: file
 
+(** Write a {!Cil.file} in binary form to the filesystem. The file can be
+ * read back in later using {!Cil.loadBinaryFile}, possibly saving parsing
+ * time. The second argument is the name of the file that should be
+ * created. *)
+val saveBinaryFile : file -> string -> unit
+
+(** Write a {!Cil.file} in binary form to the filesystem. The file can be
+ * read back in later using {!Cil.loadBinaryFile}, possibly saving parsing
+ * time. Does not close the channel. *)
+val saveBinaryFileChannel : file -> out_channel -> unit
+
+(** Read a {!Cil.file} in binary form from the filesystem. The first
+ * argument is the name of a file previously created by
+ * {!Cil.saveBinaryFile}. *)
+val loadBinaryFile : string -> file 
+
 (** Get the global initializer and create one if it does not already exist *)
 val getGlobInit: file -> fundec  
 

@@ -3216,6 +3216,20 @@ let dummyFile =
     globinit = None;
     globinitcalled = false}
 
+let saveBinaryFile (cil_file : file) (filename : string) =
+  let outchan = open_out_bin filename in
+  Marshal.to_channel outchan cil_file [] ;
+  close_out outchan 
+
+let saveBinaryFileChannel (cil_file : file) (outchan : out_channel) =
+  Marshal.to_channel outchan cil_file [] 
+
+let loadBinaryFile (filename : string) : file = 
+  let inchan = open_in_bin filename in
+  let cil_file = (Marshal.from_channel inchan : file) in
+  close_in inchan ;
+  cil_file
+
 
 (* Take the name of a file and make a valid symbol name out of it. There are 
  * a few chanracters that are not valid in symbols *)
