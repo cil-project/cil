@@ -279,3 +279,16 @@ let tryFinally
     raise e
   end
 
+
+
+
+(** The state information that the GUI must display is viewed abstractly as a 
+ * set of registers. *)
+type registerInfo = {
+    rName: string; (** The name of the register *)
+    rGroup: string; (** The name of the group to which this register belongs. 
+                     * The special group {!Engine.machineRegisterGroup} 
+                     * contains the machine registers. *)
+    rVal: Pretty.doc; (** The value to be displayed about a register *)
+} 
+

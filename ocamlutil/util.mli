@@ -94,3 +94,14 @@ val tryFinally:
                           * used when an exception is thrown *)
     'a -> 'b
 
+
+(** The state information that the UI must display is viewed abstractly as a 
+ * set of registers. *)
+type registerInfo = {
+    rName: string; (** The name of the register *)
+    rGroup: string; (** The name of the group to which this register belongs. 
+                     * The special group {!Engine.machineRegisterGroup} 
+                     * contains the machine registers, which are displayed in 
+                     * a special window. *)
+    rVal: Pretty.doc; (** The value to be displayed about a register *)
+} 
