@@ -104,6 +104,7 @@ type registerInfo = {
                      * contains the machine registers, which are displayed in 
                      * a special window. *)
     rVal: Pretty.doc; (** The value to be displayed about a register *)
+    rOneLineVal: Pretty.doc option (** The value to be displayed on one line *)
 } 
 
 
