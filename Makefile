@@ -1618,7 +1618,7 @@ prettytest:  obj/prettytest.exe
 	time obj/prettytest.exe ; echo
 
 constrainttest:
-	ocamlc -o obj/constraint.exe src/constraint.ml
+	$(CAMLC) -o obj/constraint.exe src/constraint.ml
 	obj/constraint.exe
 
 ### ftpd-BSD-0.3.2-5
