@@ -1137,7 +1137,7 @@ val isSigned: ikind -> bool
  * composite type. The resulting compinfo has the field "cdefined" only if 
  * the list of fields is non-empty. *)
 val mkCompInfo: bool ->      (* whether it is a struct or a union *)
-               string ->     (* empty for anonymous structures *)
+               string ->     (* name of the composite type; cannot be empty *)
                (compinfo -> (string * typ * int option * attributes) list) ->
                (* a function that when given a forward 
                   representation of the structure type constructs the type of 
