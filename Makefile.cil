@@ -5,7 +5,7 @@
 ECHO = @
 
 # Directory containing the *.cm[io] files for odoc.
-ODOC_DIR=/usr/local/ocaml-current/lib/ocaml/odoc
+ODOC_DIR=/usr/local/src/ocamldoc
 CILHTMLDEST=/usr/local/apache-1.3.22/htdocs/cil
 
 ifdef RELEASE
@@ -76,7 +76,7 @@ testcil: $(EXECUTABLE)$(EXE)
 odoc:
 	-rm -rf doc/html/cil/api
 	-mkdir doc/html/cil/api
-	-odoc -d doc/html/cil/api \
+	-ocamldoc -d doc/html/cil/api -v -stars \
              -g $(ODOC_DIR)/odoc_fhtml.cmo \
              -t "CIL API Documentation" \
 	     -I obj src/cil.mli src/errormsg.mli src/clist.mli \

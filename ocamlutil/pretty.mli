@@ -37,10 +37,11 @@
 - Constructs for printing lists and arrays
 
  Pretty-printing occurs in two stages:
-- Construct a [doc] object that encodes all of the elements to be printed 
+- Construct a {!Pretty.doc} object that encodes all of the elements to be 
+  printed 
   along with alignment specifiers and optional and mandatory newlines
-- Format the [doc] to a certain width and emit it as a string, to an output 
-  stream or pass it to a user-defined function
+- Format the {!Pretty.doc} to a certain width and emit it as a string, to an 
+  output stream or pass it to a user-defined function
 
  The formatting algorithm is not optimal but it does a pretty good job while 
  still operating in linear time. The original version was based on a pretty 
@@ -49,18 +50,12 @@
 
 (** API *)
 
-
-(* I have no idea why ocamldoc misreads my comments on cygwin. I seem to be 
- * able to solve the problem by putting some [a] in some places *)
-(* sm: I removed some of the [a]'s and it still works.. *)
-
-
-(** The type of unformated documents. Elements of this type can be
-    constructed in two ways. Either with a number of constructor shown below, 
-    or using the [dprintf] function with a [printf]-like interface. The 
-    [dprintf] method is slightly slower so we do not use it for large jobs 
-    such as the output routines for a compiler. But we use it for small jobs 
-    such as logging and error messages. **)
+(** The type of unformated documents. Elements of this type can be 
+ * constructed in two ways. Either with a number of constructor shown below, 
+ * or using the {!Pretty.dprintf} function with a [printf]-like interface. 
+ * The {!Pretty.dprintf} method is slightly slower so we do not use it for 
+ * large jobs such as the output routines for a compiler. But we use it for 
+ * small jobs such as logging and error messages. **)
 type doc
 
 
@@ -87,18 +82,18 @@ val text         : string -> doc
 val num          : int    -> doc
 
 
-(** A document that prints a character. This is just like [text] 
+(** A document that prints a character. This is just like {!Pretty.text}
     with a one-character string. *)
 val chr          : char   -> doc
 
 
 (** A document that consists of a mandatory newline. This is just like [(text
     "\n")]. The new line will be indented to the current indentation level,
-    unless you use [leftflush] right after this. *)
+    unless you use {!Pretty.leftflush} right after this. *)
 val line         : doc
 
-(** Use after a [line] to prevent the indentation. Whatever follows next will
-    be flushed left. Indentation resumes on the next line. *)
+(** Use after a {!Pretty.line} to prevent the indentation. Whatever follows 
+ * next will be flushed left. Indentation resumes on the next line. *)
 val leftflush    : doc
 
 
@@ -125,29 +120,18 @@ val unalign: doc
     with the specified number of spaces. *)
 val indent: int -> doc -> doc
 
-(** Formats a sequence
-   @param sep A separator
-   @param doit A function that converts an element to a document 
-   @param elements The list to be converted to a document
- *)
+(** Formats a sequence. [sep] is a separator, [doit] is a function that 
+ * converts an element to a document. *)
 val seq: sep:doc -> doit:('a ->doc) -> elements:'a list -> doc
 
 
 (** An alternative function for printing a list. The [unit] argument is there 
-    to make this function more easily usable with the [dprintf] interface.
-
-   @param sep A separator
-   @param doit A function that converts an element to a document 
-   @param elements The list to be converted to a document
-*)
+ * to make this function more easily usable with the {!Pretty.dprintf} 
+ * interface. *)
 val docList: doc -> ('a -> doc) -> unit -> 'a list -> doc
 
-(** Formats an array. 
-
-   @param sep A separator
-   @param doit A function that converts an element to a document 
-   @param elements The array to be converted to a document
-*)
+(** Formats an array. A separator and a function that prints an array 
+    element *)
 val docArray: doc -> (int -> 'a -> doc) -> unit -> 'a array -> doc
  
 (** Prints an ['a option] with [None] or [Some] *)
@@ -157,61 +141,43 @@ val docOpt: (unit -> 'a -> doc) -> unit -> 'a option -> doc
 (** A function that is useful with the [printf]-like interface *)
 val insert       : unit -> doc -> doc
 
-(* The next few functions provide an alternative method for constructing 
-    [doc] objects. In each of these functions there is a format string 
+val dprintf: ('a, unit, doc) format -> 'a  
+(** This function provides an alternative method for constructing 
+    [doc] objects. The first argument for this function is a format string 
     argument (of type [('a, unit, doc) format]; if you insist on 
     understanding what that means see the module [Printf]). The format string 
     is like that for the [printf] function in C, except that it understands a 
-    few more formatting controls, all starting with the \@ character. 
+    few more formatting controls, all starting with the @ character. 
 
  The following special formatting characters are understood (these do not 
  correspond to arguments of the function):
--  \@\[ Inserts an [align]. Every format string must have matching 
-        [align] and [unalign]. 
--  \@\] Inserts an [unalign].
--  \@!  Inserts a [line]. Just like "\n"
--  \@?  Inserts a [break].
--  \@<  Inserts a [leftflush]. Should be used immediately after \@! or "\n"
--  \@\@ : inserts a \@ character
+-  @\[ Inserts an {!Pretty.align}. Every format string must have matching 
+        {!Pretty.align} and {!Pretty.unalign}. 
+-  @\] Inserts an {!Pretty.unalign}.
+-  @!  Inserts a {!Pretty.line}. Just like "\n"
+-  @?  Inserts a {!Pretty.break}.
+-  @<  Inserts a {!Pretty.leftflush}. 
+       Should be used immediately after @! or "\n"
+-  @@ : inserts a @ character
 
  In addition to the usual [printf] % formatting characters the following two 
  new characters are supported:
 - %t Corresponds to an argument of type [unit -> doc]. This argument is 
      invoked to produce a document
 - %a Corresponds to {b two} arguments. The first of type [unit -> 'a -> doc] 
-     and the second of type {'a}. (The extra [unit] is do to the 
+     and the second of type ['a]. (The extra [unit] is do to the 
      peculiarities of the built-in support for format strings in Ocaml. It 
      turns out that it is not a major problem.) Here is an example of how 
      you use this:
-{v
- 
- dprintf "if %a then %a else %a" d_exp e1 d_stmt s2 d_stmt s3
-}
 
- with the following types: {v
-e1: expression
-d_exp: unit -> expression -> doc
-s2: statement
-s3: statement
-d_stmt: unit -> statement -> doc
-}
-
- Note how the [unit] argument must be accounted for in the user-defined 
- printing functions. 
-*)
-
-
-
-(** The basic function for constructing a [doc] using format strings
- Example: 
- [dprintf "Name=%s, SSN=%7d, Children=\@\[%a\@\]\n"
+{v dprintf "Name=%s, SSN=%7d, Children=\@\[%a\@\]\n"
              pers.name pers.ssn (docList (chr ',' ++ break) text)
-             pers.children]
+             pers.children v}
+
+ The result of [dprintf] is a {!Pretty.doc}. You can format the document and 
+ emit it using the functions {!Pretty.fprint} and {!Pretty.sprint}.
+
 *)
-val dprintf: ('a, unit, doc) format -> 'a  
-
-
-(** Next come functions that perform the formatting and emit the result *)
 
 (** Format the document to the given width and emit it to the given channel *)
 val fprint: out_channel -> width:int -> doc -> unit
@@ -219,17 +185,17 @@ val fprint: out_channel -> width:int -> doc -> unit
 (** Format the document to the given width and emit it as a string *)
 val sprint: width:int -> doc -> string
 
-(** Formats the [doc] and prints it to the given channel *)
+(** Like {!Pretty.dprintf} followed by {!Pretty.fprint} *)
 val fprintf: out_channel -> ('a, unit, doc) format -> 'a  
 
-(** Like [fprintf stdout] *)
+(** Like {!Pretty.fprintf} applied to [stdout] *)
 val printf: ('a, unit, doc) format -> 'a 
 
-(** Like [fprintf stderr] *)
+(** Like {!Pretty.fprintf} applied to [stderr] *)
 val eprintf: ('a, unit, doc) format -> 'a 
 
-(** Like [dprintf] but more general. It also has a function that is invoked 
-  * on the constructed document but before any formatting is done. *) 
+(** Like {!Pretty.dprintf} but more general. It also takes a function that is 
+ * invoked on the constructed document but before any formatting is done. *) 
 val gprintf: (doc -> doc) -> ('a, unit, doc) format -> 'a
 
 
@@ -245,9 +211,6 @@ val printDepth   : int ref
     more ragged but it will be faster *)
 val fastMode  : bool ref 
 
-val flushOften   : bool ref  (* If true the it flushes after every print *)
+val flushOften   : bool ref  (** If true the it flushes after every print *)
 
 val withPrintDepth : int -> (unit -> unit) -> unit
-
-(** A descriptive string with version, flags etc. *)
-val getAboutString : unit -> string

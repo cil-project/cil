@@ -224,22 +224,22 @@ let testSizeOf () =
             let setLv (v: exp) = 
               match lvt with
                 TFloat (FFloat, _) -> 
-                  Set((Mem (doCast (AddrOf lv) intPtrType), NoOffset),
+                  Set((Mem (mkCast (AddrOf lv) intPtrType), NoOffset),
                       v, lu)
               | TFloat (FDouble, _) -> 
-                  Set((Mem (doCast (AddrOf lv) 
+                  Set((Mem (mkCast (AddrOf lv) 
                               (TPtr(TInt(IULongLong, []), []))), NoOffset),
-                      doCast v (TInt(IULongLong, [])), lu)
+                      mkCast v (TInt(IULongLong, [])), lu)
 
               | (TPtr _ | TInt((IULongLong|ILongLong), _)) -> 
-                  Set(lv, doCast v lvt, lu)
+                  Set(lv, mkCast v lvt, lu)
               | _ -> Set(lv, v, lu)
             in
             let ucharPtrType = TPtr(TInt(IUChar, []), []) in
             let s = 
               mkStmt (Instr ([ setLv mone;
                                Call(None, Lval(var checkOffsetFun.svar),
-                                    [ doCast (mkAddrOrStartOf (var g))
+                                    [ mkCast (mkAddrOrStartOf (var g))
                                              ucharPtrType;
                                       SizeOfE (Lval(var g));
                                       integer start; 

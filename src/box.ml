@@ -242,7 +242,7 @@ type offsetRes =
       
 
 (*** Helpers *)            
-let castVoidStar e = doCast e voidPtrType
+let castVoidStar e = mkCast e voidPtrType
 
 let prefix p s = 
   let lp = String.length p in
@@ -1279,13 +1279,13 @@ and tagType (t: typ) : typ =
 and tagLength (sz: exp) : (exp * exp) =
   (* First the number of words *)
    BinOp(Shiftrt, 
-        BinOp(PlusA, doCast sz uintType, kinteger IUInt 3, uintType),
+        BinOp(PlusA, mkCast sz uintType, kinteger IUInt 3, uintType),
         integer 2, uintType),
   (* Now the number of tag words. At 1 tag bit/ word we can fit the tags for 
    * 128 bytes into one tag word. *)
   BinOp(Shiftrt, 
         BinOp(PlusA, 
-              doCast sz uintType, kinteger IUInt 127, uintType),
+              mkCast sz uintType, kinteger IUInt 127, uintType),
         integer 7, uintType)
     
 
@@ -1595,7 +1595,7 @@ let getRangeOfBitfields (lv: lval) (t: typ) : exp * exp =
                        hostoff)
           in
           BinOp(PlusPI, 
-                doCast (mkAddrOf beforelval) charPtrType, 
+                mkCast (mkAddrOf beforelval) charPtrType, 
                 SizeOfE (Lval(beforelval)),
                 charPtrType)
     in
@@ -1609,15 +1609,15 @@ let getRangeOfBitfields (lv: lval) (t: typ) : exp * exp =
           if debugBitfields then 
             ignore (E.log "  last in host\n");
           BinOp(PlusPI, 
-                doCast (mkAddrOf (lvbase, hostoff)) charPtrType, 
+                mkCast (mkAddrOf (lvbase, hostoff)) charPtrType, 
                 SizeOfE (Lval(lvbase, hostoff)),
                 charPtrType)
     in
     
     (castVoidStar start, 
      BinOp(MinusPP, 
-           doCast after charPtrType,
-           doCast start charPtrType, intType))
+           mkCast after charPtrType,
+           mkCast start charPtrType, intType))
   with Not_found ->
     (mkAddrOf lv, SizeOf t)
 
@@ -1654,9 +1654,9 @@ let offsetOfFirstScalar (t: typ) : exp =
     None -> raise Not_found
   | Some NoOffset -> kinteger IUInt 0 
   | Some off -> 
-      let scalar = mkMem (doCastT zero intType (TPtr (t, []))) off in
+      let scalar = mkMem (mkCastT zero intType (TPtr (t, []))) off in
       let addrof = mkAddrOf scalar in
-      doCast addrof uintType
+      mkCast addrof uintType
 
   
 let checkZeroTags base lenExp lv t = 
@@ -1939,7 +1939,7 @@ let getFunctionDescriptor (vi: varinfo) : exp =
                                  [ (Field(lenfld, NoOffset), SingleInit zero);
                                    (Field(pfunfld, NoOffset), 
                                     SingleInit 
-                                      (doCast 
+                                      (mkCast 
                                          (AddrOf (Var vi, 
                                                   NoOffset))
                                          (TPtr(TFun(voidType,None,
@@ -2005,7 +2005,7 @@ let pkArithmetic (ep: exp)
   | (N.FSeq|N.FSeqN|N.FSeqT|N.FSeqNT) ->
       mkFexp3 et (BinOp(bop, ptr, e2, ptype)) fb fe, 
       single (call None (Lval (var checkAdvanceFun.svar)) 
-                [ doCastT ptr ptype charPtrType; e2 ])
+                [ mkCastT ptr ptype charPtrType; e2 ])
       
   | N.Safe ->
       if isZero e2 then 
@@ -2072,7 +2072,7 @@ let rec checkBounds
           if lv.plvk = N.FSeqN && not iswrite then 
           (* Allow reading of the trailing 0 *)
             castVoidStar (BinOp(PlusPI, 
-                                doCast lv.lvb charPtrType, one, charPtrType))
+                                mkCast lv.lvb charPtrType, one, charPtrType))
           else
             lv.lvb
         in
@@ -2085,7 +2085,7 @@ let rec checkBounds
           if lv.plvk = N.SeqN && not iswrite then 
           (* Allow reading of the trailing 0 *)
             castVoidStar (BinOp(PlusPI, 
-                                doCast lv.lve charPtrType, one, charPtrType))
+                                mkCast lv.lve charPtrType, one, charPtrType))
           else
             lv.lve
         in
@@ -2132,7 +2132,7 @@ let rec castTo (fe: fexp) (newt: typ)
       let doe1, fe = fromTableFexp fe in
       let doe = append doe doe1 in
       (* Cast the pointer expression to the new pointer type *)
-      let castP (p: exp) = doCast p newPointerType in
+      let castP (p: exp) = mkCast p newPointerType in
       (* Converts a reversed accumulator to doe *)
       let finishDoe (acc: stmt clist) = append doe (rev acc) in
       let oldt, oldk, p, b, bend = breakFexp fe in
@@ -2221,7 +2221,7 @@ let rec castTo (fe: fexp) (newt: typ)
                         (Lval(var interceptCastFunction.svar)) 
                         [ p ;integer !currentFileId; integer !interceptId ])
             end else 
-              doCast zero voidPtrType, doe
+              mkCast zero voidPtrType, doe
           in
           (doe', FM (newt, newkind, castP p, newbase, zero))
 
@@ -2609,7 +2609,7 @@ let rec initializeType
       in
       if mustinit then
         
-        fun lv acc -> CConsL (mkSet lv (doCastT zero intType t), acc)
+        fun lv acc -> CConsL (mkSet lv (mkCastT zero intType t), acc)
       else 
         fun lv acc -> acc
   end
@@ -2632,7 +2632,7 @@ let rec initializeType
             let l, thissize = 
               match sizeo with
                 Some l when not (isZero l) -> 
-                  l, (BinOp(Mult, doCast l uintType, SizeOf(bt), uintType))
+                  l, (BinOp(Mult, mkCast l uintType, SizeOf(bt), uintType))
                     
               | _ -> begin
                   match endo with
@@ -2640,7 +2640,7 @@ let rec initializeType
                           (* We know the end of the area *)
                       let sz = 
                         BinOp(MinusA, e, 
-                              doCast (mkAddrOf thearraylv) uintType, 
+                              mkCast (mkAddrOf thearraylv) uintType, 
                               uintType) in
                     (BinOp(Div, sz, SizeOf(bt), uintType)), 
                     sz
@@ -2778,7 +2778,7 @@ let initializeVar (withivar: (varinfo -> 'a) -> 'a) (* Allocate an iteration
            (if not v.vglob then
              append
                (fromList
-                  (mkForIncr iter zero (doCast tagwords intType) one 
+                  (mkForIncr iter zero (mkCast tagwords intType) one 
                      [mkSet (Var v, Field(tfld, 
                                           Index (Lval(var iter), 
                                                  NoOffset))) 
@@ -2897,7 +2897,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
   let nrdatawords, nrtagwords = tagLength sz in
   (* Words to bytes converter *)
   let wrdsToBytes wrds = 
-    BinOp(Shiftlt, doCast wrds uintType, integer 2, uintType) in
+    BinOp(Shiftlt, mkCast wrds uintType, integer 2, uintType) in
   let nrdatabytes = wrdsToBytes nrdatawords in
 
   (* Find the pointer type and the offset where to save it *)
@@ -2937,8 +2937,8 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
   let adjust_ptr = 
     match kno_t with
       N.Index | N.Wild -> 
-        mkSet (var tmpp) (doCast (BinOp(IndexPI, 
-                                        doCast tmpvar charPtrType, 
+        mkSet (var tmpp) (mkCast (BinOp(IndexPI, 
+                                        mkCast tmpvar charPtrType, 
                                         integer 4, charPtrType))
                             ptrtype)
     | _ -> mkEmptyStmt ()
@@ -2953,7 +2953,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
         let fptr, fbaseo, fendo = getFieldsOfFat destt in
         match fbaseo with
           Some fbase -> (mkSet (addOffsetLval (Field(fbase, NoOffset)) dest)
-                           (doCast tmpvar voidPtrType))
+                           (mkCast tmpvar voidPtrType))
         | _ -> mkEmptyStmt ()
       end
     | _ -> mkEmptyStmt ()
@@ -2964,7 +2964,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
     match kno_t with
       N.Wild | N.Index -> 
         mkSet (Mem(BinOp(PlusA, 
-                         doCast tmpvar uintPtrType,
+                         mkCast tmpvar uintPtrType,
                          mone, uintPtrType)), 
                NoOffset) 
           nrdatawords
@@ -2975,8 +2975,8 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
   let init = 
     (* Put nullterm *)
     let putnullterm (theend: exp) = 
-      mkSet (mkMem (doCast theend charPtrType) NoOffset)
-        (doCast zero charType)
+      mkSet (mkMem (mkCast theend charPtrType) NoOffset)
+        (mkCast zero charType)
     in
     match kno_t with
       N.Wild -> 
@@ -2995,10 +2995,10 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
         (* Check that we have allocated enough for at least 1 elem. *)
         let check_enough = 
           call None (Lval (var checkPositiveFun.svar))
-            [ BinOp(MinusA, doCast nrdatabytes intType, 
-                    doCast (SizeOf(basetype)) intType, intType) ] in
+            [ BinOp(MinusA, mkCast nrdatabytes intType, 
+                    mkCast (SizeOf(basetype)) intType, intType) ] in
         (* Compute the end *)
-        let theend = BinOp(PlusPI, doCast tmpvar uintType,
+        let theend = BinOp(PlusPI, mkCast tmpvar uintType,
                            nrdatabytes, uintType) in
         (* Now initialize. *)
         let inits = 
@@ -3012,7 +3012,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
         let savetheend, theend = 
           let tmpend = makeTempVar !currentFunction uintType in
           mkSet (var tmpend)
-            (BinOp(PlusPI, doCast tmpvar uintType,
+            (BinOp(PlusPI, mkCast tmpvar uintType,
                    nrdatabytes, uintType)),
           Lval (var tmpend)
         in
@@ -3025,15 +3025,15 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
         in
         let initializeAll = 
           if initone = empty then 
-            single (mkSet (var tmpp) (doCast theend ptrtype))
+            single (mkSet (var tmpp) (mkCast theend ptrtype))
           else 
             fromList
               (mkFor 
                  ~start:[mkEmptyStmt ()]
                  ~guard:(BinOp(Le, BinOp(PlusA, 
-                                         doCast tmpvar upointType, 
+                                         mkCast tmpvar upointType, 
                                          SizeOf(ptrtype), upointType),
-                               doCast theend upointType, intType))
+                               mkCast theend upointType, intType))
                  ~next:[mkSet (var tmpp) 
                            (BinOp(IndexPI, tmpvar, one, ptrtype))]
                  ~body:(toList initone))
@@ -3043,19 +3043,19 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
                  (if k = N.FSeqN || k = N.SeqN then 
                    single 
                      (mkSet (Mem(BinOp(MinusPI,
-                                       doCast theend charPtrType,
+                                       mkCast theend charPtrType,
                                        one, charPtrType)), NoOffset)
-                        (doCast zero charType))
+                        (mkCast zero charType))
                  else empty))
 
     | N.String | N.ROString -> (* Allocate this as SeqN, with a null term *)
         ignore (warn "Allocation of string. Use FSEQN instead. (%a)"
                   d_lval dest);
         single (mkSet (Mem(BinOp(PlusPI,
-                                   doCast tmpvar charPtrType,
+                                   mkCast tmpvar charPtrType,
                                    (charArrayEndpOffset nrdatabytes),
                                    charPtrType)), NoOffset)
-                  (doCast zero charType))
+                  (mkCast zero charType))
 
     | _ -> E.s (bug "pkAllocate: init")
   in

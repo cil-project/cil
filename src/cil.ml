@@ -71,10 +71,10 @@ type file =
                                         in the printed file *)
       mutable globinit: fundec option;  
       (** An optional global initializer function. This is a function where 
-          you can put stuff that must be executed before the program is 
-          started. This function, is conceptually at the end of the file, 
-          although it is not part of the globals list. Use getGlobInit to 
-          create/get one. *)
+       * you can put stuff that must be executed before the program is 
+       * started. This function, is conceptually at the end of the file, 
+       * although it is not part of the globals list. Use {!Cil.getGlobInit} 
+       * to create/get one. *)
       mutable globinitcalled: bool;     
       (** Whether the global initialization function is called in main. This 
           should always be false if there is no global initializer. When 
@@ -88,7 +88,7 @@ type file =
     important. *)
 and global =
   | GType of string * typ * location    
-    (** A typedef. All uses of type names (through the TNamed constructor) 
+    (** A typedef. All uses of type names (through the [TNamed] constructor) 
         must be preceeded in the file by a definition of the name. The string 
         is the defined name. If the string is empty then this global is 
         printed as a type-only declaration, useful for introducing 
@@ -97,7 +97,7 @@ and global =
 
   | GCompTag of compinfo * location     
     (** Defines a struct/union tag with some fields. There must be one of 
-        these for each struct/union tag that you use (through the TComp 
+        these for each struct/union tag that you use (through the [TComp] 
         constructor) since this is the only context in which the fields are 
         printed. Consequently nested structure tag definitions must be 
         broken into individual definitions with the innermost structure 
@@ -105,7 +105,7 @@ and global =
 
   | GEnumTag of enuminfo * location
    (** Declares an enumeration tag with some fields. There must be one of 
-      these for each enumeration tag that you use (through the TEnum 
+      these for each enumeration tag that you use (through the [TEnum] 
       constructor) since this is the only context in which the items are 
       printed. *)
 
@@ -134,10 +134,11 @@ and global =
                                             put comments in the output.  *)
 
 
-(** The various types available. Every type is associated with a list of
-    attributes, which are always kept in sorted order. Use addAttribute and
-    addAttributes to construct list of attributes. If you want to inspect a 
-    type, you should use unrollType to see through the uses of named types. *)
+(** The various types available. Every type is associated with a list of 
+ * attributes, which are always kept in sorted order. Use {!Cil.addAttribute} 
+ * and {!Cil.addAttributes} to construct list of attributes. If you want to 
+ * inspect a type, you should use {!Cil.unrollType} to see through the uses 
+ * of named types. *)
 and typ =
     TVoid of attributes   (** Void type *)
   | TInt of ikind * attributes (** An integer type. The kind specifies 
@@ -152,25 +153,25 @@ and typ =
            (** Array type. It indicates the base type and the array length. *)
 
   | TFun of typ * varinfo list option * bool * attributes
-          (** Function type. Indicates the type of the result, the 
-              formal arguments (None if no arguments were specified, as in a
-              function whose definition or prototype we have not seen; 
-              Some [] means void). Use argsToList to obtain a list of 
-              arguments. The boolean indicates if it is a variable-argument 
-              function *)
+          (** Function type. Indicates the type of the result, the formal 
+           * arguments ([None] if no arguments were specified, as in a 
+           * function whose definition or prototype we have not seen; [Some 
+           * \[\]] means void). Use {!Cil.argsToList} to obtain a list of 
+           * arguments. The boolean indicates if it is a variable-argument 
+           * function. *)
 
   | TNamed of string * typ * attributes 
           (* The use of a named type. Each such type name must be preceeded 
-             in the file by a GType global. This is printed as just the type 
-             name. The actual referred type is not printed here and is 
-             carried only to simplify processing. To see through a sequence 
-             of named type references, use unrollType. The attributes are in 
-             addition to those given when the type name was defined. *)
+           * in the file by a [GType] global. This is printed as just the 
+           * type name. The actual referred type is not printed here and is 
+           * carried only to simplify processing. To see through a sequence 
+           * of named type references, use {!Cil.unrollType}. The attributes 
+           * are in addition to those given when the type name was defined. *)
 
   | TComp of compinfo * attributes
           (** A reference to a struct or a union type. All references to the 
              same struct or union must share the same compinfo among them and 
-             with a GCompTag global that preceeds all uses (except maybe 
+             with a [GCompTag] global that preceeds all uses (except maybe 
              those that are pointers to the composite type). The attributes 
              given are those pertaining to this use of the type and are in 
              addition to the attributes that were given at the definition of 
@@ -178,7 +179,7 @@ and typ =
 
   | TEnum of enuminfo * attributes
            (** A reference to an enumeration type. All such references must
-               share the enuminfo among them and with a GEnumTag global that 
+               share the enuminfo among them and with a [GEnumTag] global that 
                preceeds all uses. The attributes refer to this use of the 
                enumeration and are in addition to the attributes of the 
                enumeration itself, which are stored inside the enuminfo  *)
@@ -186,61 +187,70 @@ and typ =
 
 (** Various kinds of integers *)
 and ikind = 
-    IChar       (** char *)
-  | ISChar      (** signed char *)
-  | IUChar      (** unsigned char *)
-  | IInt        (** int *)
-  | IUInt       (** unsigned int *)
-  | IShort      (** short *)
-  | IUShort     (** unsigned short *)
-  | ILong       (** long *)
-  | IULong      (** unsigned long *)
-  | ILongLong   (** long long (or _int64 on Microsoft Visual C) *)
-  | IULongLong  (** unsigned long long (or unsigned _int64 on Microsoft 
+    IChar       (** [char] *)
+  | ISChar      (** [signed char] *)
+  | IUChar      (** [unsigned char] *)
+  | IInt        (** [int] *)
+  | IUInt       (** [unsigned int] *)
+  | IShort      (** [short] *)
+  | IUShort     (** [unsigned short] *)
+  | ILong       (** [long] *)
+  | IULong      (** [unsigned long] *)
+  | ILongLong   (** [long long] (or [_int64] on Microsoft Visual C) *)
+  | IULongLong  (** [unsigned long long] (or [unsigned _int64] on Microsoft 
                     Visual C) *)
 
 (** Various kinds of floating-point numbers*)
 and fkind = 
-    FFloat      (** float *)
-  | FDouble     (** double *)
-  | FLongDouble (** long double *)
+    FFloat      (** [float] *)
+  | FDouble     (** [double] *)
+  | FLongDouble (** [long double] *)
 
-(** An attribute has a name and some optional arguments *)
+(** An attribute has a name and some optional parameters *)
 and attribute = Attr of string * attrparam list
 
 (** Attributes are lists sorted by the attribute name *)
 and attributes = attribute list
 
-(** The type of information contained in an attributes *)
+(** The type of parameters in attributes *)
 and attrparam = 
-  | AInt of int    
-  | AStr of string 
-  | AVar of varinfo 
-  | ACons of string * attrparam list       (** Constructed attributes *)
+  | AInt of int                          (** An integer constant *)
+  | AStr of string                       (** A string constant *)
+  | AVar of varinfo                      (** A reference to a variable *)
+  | ACons of string * attrparam list       (** Constructed attributes. These 
+                                             are printed [foo(a1,a2,...,an)]. 
+                                             The list of parameters can be 
+                                             empty and in that case the 
+                                             parentheses are not printed. *)
   | ASizeOf of typ                       (** A way to talk about types *)
   | ASizeOfE of attrparam
   | AUnOp of unop * attrparam
   | ABinOp of binop * attrparam * attrparam
 
 
-(** Information about a composite type (a struct or a union). Use mkCompInfo 
+(** Information about a composite type (a struct or a union). Use 
+    {!Cil.mkCompInfo} 
     to create non-recursive or (potentially) recursive versions of this. Make 
-    sure you have a GCompTag for each one of these.  *)
+    sure you have a [GCompTag] for each one of these.  *)
 and compinfo = {
     mutable cstruct: bool;              (** True if struct, False if union *)
     mutable cname: string;              (** The name. Always non-empty. Use 
-                                            compSetName to set the name and 
-                                            the key. Use compFullName to get 
-                                            the full name of a comp  *)
-    mutable ckey: int;                  (** A unique integer. Use Hashtbl.hash 
-                                            on the string returned by
-                                            compFullName. All compinfo for a
-                                            given key are shared.  *)
+                                         * {!Cil.compSetName} to set the name 
+                                         * and the key simulateneously. Use 
+                                         * {!Cil.compFullName} to get the 
+                                         * full name of a comp (along with 
+                                         * the struct or union) *)
+    mutable ckey: int;                  (** A unique integer constructed from 
+                                         * the name. Use {!Hashtbl.hash} on 
+                                         * the string returned by 
+                                         * {!Cil.compFullName}. All compinfo 
+                                         * for a given key are shared. *)
     mutable cfields: fieldinfo list;    (** Information about the fields *) 
     mutable cattr:   attributes;        (** The attributes that are defined at
                                             the same time as the composite
                                             type *)
-    mutable creferenced: bool;          (** True if used. Initially set to false *)
+    mutable creferenced: bool;          (** True if used. Initially set to 
+                                         * false *)
   }
 
 (** Information about a struct/union field *)
@@ -250,19 +260,22 @@ and fieldinfo = {
                                             host since there can be only one 
                                             compinfo for a given id *)
     mutable fname: string;              (** The name of the field. Might be 
-                                            the value of missingFieldName 
-                                            in which 
-                                            case it is not printed *)
+                                         * the value of 
+                                         * {!Cil.missingFieldName} in which 
+                                         * case it must be a bitfield and is 
+                                         * not printed and it does not 
+                                         * participate in initialization *)
     mutable ftype: typ;                 (** The type *)
     mutable fbitfield: int option;      (** If a bitfield then ftype should be 
                                             an integer type *)
-    mutable fattr: attributes;      
+    mutable fattr: attributes;          (** The attributes for this field 
+                                          * (not for its type) *)
 }
 
 
 
 (** Information about an enumeration. This is shared by all references to an
-    enumeration. Make sure you have a GEnumTag for each of of these.   *)
+    enumeration. Make sure you have a [GEnumTag] for each of of these.   *)
 and enuminfo = {
     mutable ename: string;              (** The name. Always non-empty *)
     mutable eitems: (string * exp) list;(** Items with names and values. This
@@ -276,16 +289,19 @@ and enuminfo = {
 
 
 (** Information about a variable. These structures are shared by all 
-    references to the variable. So, you can change the name easily, for 
-    example. Use one of the makeLocalVar, makeTempVar or makeGlobalVar to 
-    create instances of this data structure. *)
+ * references to the variable. So, you can change the name easily, for 
+ * example. Use one of the {!Cil.makeLocalVar}, {!Cil.makeTempVar} or 
+ * {!Cil.makeGlobalVar} to create instances of this data structure. *)
 and varinfo = { 
-    mutable vname: string;		(** The name of the variable *)
-    mutable vtype: typ;                 (** The declared type *)
-    mutable vattr: attributes;          (** A list of attributes *)
-    mutable vstorage: storage;          (** The storage-class*)
-    (* The other fields are not used in varinfo as they appear in the formal 
-     * argument list in a TFun type *)
+    mutable vname: string;		(** The name of the variable. Cannot 
+                                          * be empty. *)
+    mutable vtype: typ;                 (** The declared type of the 
+                                          * variable. *)
+    mutable vattr: attributes;          (** A list of attributes associated 
+                                          * with the variable. *)
+    mutable vstorage: storage;          (** The storage-class *)
+    (* The other fields are not used in varinfo when they appear in the formal 
+     * argument list in a [TFun] type *)
 
 
     mutable vglob: bool;	        (** True if this is a global variable*)
@@ -296,70 +312,224 @@ and varinfo = {
                            hash of the name. Locals are numbered from 0 
                            starting with the formal arguments. This field 
                            will be set for you if you use one of the 
-                           makeFormal, makeLocalVar, makeTempVar or 
-                           makeGlobalVar  *)
+                           {!Cil.makeFormalVar}, {!Cil.makeLocalVar}, 
+                           {!Cil.makeTempVar} or 
+                           {!Cil.makeGlobalVar}.  *)
     mutable vaddrof: bool;              (** True if the address of this
-                                            variable is taken. To ensure
-                                            that this is always set, always
-                                            use mkAddrOf to construct an AddrOf
-                                         *)
+                                            variable is taken. CIL will set 
+                                         * these flags when it parses C, but 
+                                         * you should make sure to set the 
+                                         * flag whenever your transformation 
+                                         * create [AddrOf] expression. *)
 
     mutable vreferenced: bool;          (** True if this variable is ever 
                                             referenced. This is computed by 
-                                            removeUnusedVars. It is safe to 
+                                            [removeUnusedVars]. It is safe to 
                                             just initialize this to False *)
 }
 
 (** Storage-class information *)
 and storage = 
-    NoStorage |                         (** The default storage *)
-    Static |                            
+    NoStorage |                         (** The default storage. Nothing is 
+                                         * printed  *)
+    Static |                           
     Register |                          
     Extern                              
 
 
-(** Initializers for global variables *)
+(** Expressions (Side-effect free)*)
+and exp =
+    Const      of constant              (** Constant *)
+  | Lval       of lval                  (** Lvalue *)
+  | SizeOf     of typ                   (** sizeof(<type>). Has [unsigned 
+                                         * int] type (ISO 6.5.3.4). This is 
+                                         * not turned into a constant because 
+                                         * some transformations might want to 
+                                         * change types *)
+
+  | SizeOfE    of exp                   (** sizeof(<expression>) *)
+  | AlignOf    of typ                   (** Has [unsigned int] type *)
+  | AlignOfE   of exp 
+
+                                        
+  | UnOp       of unop * exp * typ      (** Unary operation. Includes 
+                                            the type of the result *)
+
+  | BinOp      of binop * exp * exp * typ
+                                        (** Binary operation. Includes the 
+                                            type of the result. The arithemtic
+                                            conversions are made  explicit
+                                            for the arguments *)
+  | CastE      of typ * exp            (** Use {!Cil.mkCast} to make casts *)
+
+  | AddrOf     of lval                 (** Always use {!Cil.mkAddrOf} to 
+                                        * construct one of these. Apply to an 
+                                        * lvalue of type [T] yields an 
+                                        * expression of type [TPtr(T)] *)
+
+  | StartOf    of lval   (** There is no C correspondent for this. C has 
+                          * implicit coercions from an array to the address 
+                          * of the first element. [StartOf] is used in CIL to 
+                          * simplify type checking and is just an explicit 
+                          * form of the above mentioned implicit conversion. 
+                          * It is not printed. Given an lval of type 
+                          * [TArray(T)] produces an expression of type 
+                          * [TPtr(T)]. *)
+
+
+(** Literal constants *)
+and constant =
+  | CInt64 of int64 * ikind * string option 
+                 (** Integer constant. Give the ikind (see ISO9899 6.1.3.2) 
+                  * and the textual representation, if available. Use 
+                  * {!Cil.integer} or {!Cil.kinteger} to create these. Watch 
+                  * out for integers that cannot be represented on 64 bits. 
+                  * OCAML does not give Overflow exceptions. *)
+  | CStr of string (** String constant *)
+  | CChr of char   (** Character constant *)
+  | CReal of float * fkind * string option (** Floating point constant. Give
+                                               the fkind (see ISO 6.4.4.2) and
+                                               also the textual representation,
+                                               if available *)
+
+(** Unary operators *)
+and unop =
+    Neg                                 (** Unary minus *)
+  | BNot                                (** Bitwise complement (~) *)
+  | LNot                                (** Logical Not (!) *)
+
+(** Binary operations *)
+and binop =
+    PlusA                               (** arithmetic + *)
+  | PlusPI                              (** pointer + integer *)
+  | IndexPI                             (** pointer + integer but only when 
+                                         * it arises from an expression 
+                                         * [e\[i\]] when [e] is a pointer and 
+                                         * not an array. This is semantically 
+                                         * the same as PlusPI but CCured uses 
+                                         * this as a hint that the integer is 
+                                         * probably positive. *)
+  | MinusA                              (** arithmetic - *)
+  | MinusPI                             (** pointer - integer *)
+  | MinusPP                             (** pointer - pointer *)
+  | Mult                                (** * *)
+  | Div                                 (** / *)
+  | Mod                                 (** % *)
+  | Shiftlt                             (** shift left *)
+  | Shiftrt                             (** shift right *)
+
+  | Lt                                  (** <  (arithmetic comparison) *)
+  | Gt                                  (** >  (arithmetic comparison) *)  
+  | Le                                  (** <= (arithmetic comparison) *)
+  | Ge                                  (** >  (arithmetic comparison) *)
+  | Eq                                  (** == (arithmetic comparison) *)
+  | Ne                                  (** != (arithmetic comparison) *)            
+
+  | LtP                                 (** <  (pointer comparison) *)
+  | GtP                                 (** >  (pointer comparison) *)
+  | LeP                                 (** <= (pointer comparison) *)
+  | GeP                                 (** >= (pointer comparison) *)
+  | EqP                                 (** == (pointer comparison) *)
+  | NeP                                 (** != (pointer comparison) *)
+
+  | BAnd                                (** bitwise and *)
+  | BXor                                (** exclusive-or *)
+  | BOr                                 (** inclusive-or *)
+
+
+
+
+(** An lvalue denotes the contents of a range of memory addresses. This range 
+ * is denoted as a host object along with an offset within the object. The 
+ * host object can be of two kinds: a local or global variable, or an object 
+ * whose address is in a pointer expression. We distinguish the two cases so 
+ * that we can tell quickly whether we are accessing some component of a 
+ * variable directly or we are accessing a memory location through a pointer.*)
+and lval =
+    lhost * offset
+
+(** The host part of an {!Cil.lval}. *)
+and lhost = 
+  | Var        of varinfo    
+    (** The host is a variable. *)
+
+  | Mem        of exp        
+    (** The host is an object of type [T] when the expression has pointer 
+     * [TPtr(T)]. *)
+
+
+(** The offset part of an {!Cil.lval}. Each offset can be applied to certain 
+  * kinds of lvalues and its effect is that it advances the starting address 
+  * of the lvalue and changes the denoted type, essentially focussing to some 
+  * smaller lvalue that is contained in the original one. *)
+and offset = 
+  | NoOffset          (** No offset. Can be applied to any lvalue and does 
+                        * not change either the starting address or the type. 
+                        * This is used when the lval consists of just a host 
+                        * or as a terminator in a list of other kinds of 
+                        * offsets. *)
+
+  | Field      of fieldinfo * offset    
+                      (** A field offset. Can be applied only to an lvalue 
+                       * that denotes a structure or a union that contains 
+                       * the mentioned field. This advances the offset to the 
+                       * beginning of the mentioned field and changes the 
+                       * type to the type of the mentioned field. *)
+
+  | Index    of exp * offset
+                     (** An array index offset. Can be applied only to an 
+                       * lvalue that denotes an array. This advances the 
+                       * starting address of the lval to the beginning of the 
+                       * mentioned array element and changes the denoted type 
+                       * to be the type of the array element *)
+
+
+
+(* The following equivalences hold *)
+(* Mem(AddrOf(Mem a, aoff)), off   = Mem a, aoff + off                *)
+(* Mem(AddrOf(Var v, aoff)), off   = Var v, aoff + off                *)
+(* AddrOf (Mem a, NoOffset)        = a                                *)
+
+(** Initializers for global variables.  You can create an initializer with 
+ * {!Cil.makeZeroInit}. *)
 and init = 
-  | SingleInit   of exp                 (** A single initializer, might be of 
-                                            compound type *)
+  | SingleInit   of exp   (** A single initializer *)
   | CompoundInit   of typ * (offset * init) list
             (** Used only for initializers of structures, unions and arrays. 
-             The offsets are all of the form Field(f, NoOffset) or Index(i, 
-             NoOffset) and specify the field or the index being 
-             initialized. For structures and arrays all fields (indices) 
-             must have an initializer (except the unnamed bitfields), in 
-             the proper order. This is necessary since the offsets are not 
-             printed. For unions there must be exactly one initializer. If 
-             the initializer is not for the first field then a field 
-             designator is printed, so you better be on GCC since MSVC does 
-             not understand this. *)
+             * The offsets are all of the form [Field(f, NoOffset)] or 
+             * [Index(i, NoOffset)] and specify the field or the index being 
+             * initialized. For structures and arrays all fields (indices) 
+             * must have an initializer (except the unnamed bitfields), in 
+             * the proper order. This is necessary since the offsets are not 
+             * printed. For unions there must be exactly one initializer. If 
+             * the initializer is not for the first field then a field 
+             * designator is printed, so you better be on GCC since MSVC does 
+             * not understand this. You can scan an initializer list with 
+             * {!Cil.foldLeftCompound}. *)
 
-(** Function Declarations *)
+(** Function definitions. *)
 and fundec =
-    { mutable svar:     varinfo;        (** Holds the name and type as a
-                                            variable, so we can refer to it
-                                            easily from the program *)
-      mutable sformals: varinfo list;   (** Formals. These must 
-                                            be shared with the formals that 
-                                            appear in the type of the 
-                                            function. Use setFormals or 
-                                            makeFormalVar or setFunctionType 
-                                            to set these formals and ensure 
-                                            that they are reflected in the 
-                                            function type. Do not make copies 
-                                            of these because the body refers 
-                                            to them. *)
-      mutable slocals: varinfo list;    (** Locals. Does not include the
-                                            sformals. Do not make copies of
-                                            these because the body refers to
-                                            them  *)
-      mutable smaxid: int;              (** Max local id. Starts at 0 *)
-      mutable sbody: block;             (** Body *)
-      mutable sinline: bool;            (** Whether the function is inline*)
-      mutable smaxstmtid: int option;  (** max id of a (reachable) statement
-                                            in this function, if we have 
-                                            computed it. 
-                                            range = 0 ... (smaxstmtid-1) *)
+    { mutable svar:     varinfo;        
+         (** Holds the name and type as a variable, so we can refer to it 
+          * easily from the program. All references to this function either 
+          * in a function call or in a prototype must point to the same 
+          * varinfo. *)
+      mutable sformals: varinfo list;   
+        (** Formals. These must be shared with the formals that appear in the 
+         * type of the function. Use {!Cil.setFormals} or 
+         * {!Cil.makeFormalVar} or {!Cil.setFunctionType} to set these 
+         * formals and ensure that they are reflected in the function type. 
+         * Do not make copies of these because the body refers to them. *)
+      mutable slocals: varinfo list;    
+        (** Locals. Does not include the sformals. Do not make copies of 
+         * these because the body refers to them. *)
+      mutable smaxid: int;           (** Max local id. Starts at 0 *)
+      mutable sbody: block;          (** The function body. *)
+      mutable sinline: bool;         (** Whether the function is inline *)
+      mutable smaxstmtid: int option;  (** max id of a (reachable) statement 
+                                        * in this function, if we have 
+                                        * computed it. range = 0 ... 
+                                        * (smaxstmtid-1) *)
     }
 
 
@@ -393,10 +563,10 @@ and stmt = {
 
 (** Labels *)
 and label = 
-    Label of string * location * bool   (* A real label.*)
-		(** If the bool is "true", the label is from the input source program.
-		 * If the bool is "false", the label was created by CIL or some
-		 * other transformation *)
+    Label of string * location * bool   
+          (** A real label. If the bool is "true", the label is from the 
+           * input source program. If the bool is "false", the label was 
+           * created by CIL or some other transformation *)
   | Case of exp * location              (** A case statement *)
   | Default of location                 (** A default statement *)
 
@@ -415,7 +585,7 @@ and stmtkind =
   | Break of location                   (** A break to the end of the nearest 
                                              enclosing Loop or Switch *)
   | Continue of location                (** A continue to the start of the 
-                                            nearest enclosing Loop *)
+                                            nearest enclosing [Loop] *)
   | If of exp * block * block * location (** A conditional. 
                                              Two successors, the "then" and 
                                              the "else" branches. Both 
@@ -430,7 +600,7 @@ and stmtkind =
                                            you can get from the labels of the 
                                            statement *)
 
-  | Loop of block * location            (** A "while(1)" loop *)
+  | Loop of block * location            (** A [while(1)] loop *)
 
   | Block of block                      (** Just a block of statements. Use it 
                                             as a way to keep some attributes 
@@ -479,164 +649,6 @@ and instr =
             of input expressions along with constraints, (5) clobbered 
             registers, and (5) location information *)
 
-(** Expressions (Side-effect free)*)
-and exp =
-    Const      of constant              (** Constant *)
-  | Lval       of lval                  (** Lvalue *)
-  | SizeOf of typ                       (** sizeof(<type>). Has UInt type
-                                            (ISO 6.5.3.4). This is not
-                                            turned into a constant because some
-                                            transformations might want to 
-                                            change types *)
-
-  | SizeOfE    of exp                   (** sizeof(<expression>) *)
-  | AlignOf    of typ                   (** Has UInt type *)
-  | AlignOfE   of exp 
-
-                                        
-  | UnOp       of unop * exp * typ      (** Unary operation. Includes 
-                                            the type of the result *)
-
-  | BinOp      of binop * exp * exp * typ
-                                        (** Binary operation. Includes the 
-                                            type of the result. The arithemtic
-                                            conversions are made  explicit
-                                            for the arguments *)
-  | CastE      of typ * exp            (** Use doCast to make casts *)
-
-  | AddrOf     of lval                 (** Always use mkAddrOf to construct
-                                           one of these. Apply to an lvalue of 
-                                           type T yields an expression of type 
-                                           Ptr(T) *)
-
-  | StartOf    of lval                  (** There is no C correspondent for 
-                                            this. C has implicit coercions 
-                                            from an array to the address of 
-                                            the first element. StartOf is used 
-                                            in CIL to simplify type checking 
-                                            and is just an explicit form of 
-                                            the above mentioned implicit 
-                                            conversion. It is not printed. 
-                                            Given an lval of type TArray(T) 
-                                            produces an expression of type 
-                                            TPtr(T). *)
-
-
-(** Literal constants *)
-and constant =
-  | CInt64 of int64 * ikind * string option 
-                 (** Integer constant. Give the ikind (see ISO9899 6.1.3.2) and
-                     the textual representation, if available. Use "integer" or
-                     "kinteger" to create these. Watch out for integers that
-                     cannot be represented on 64 bits. OCAML does not give
-                     Overflow exceptions. *)
-  | CStr of string (** String constant *)
-  | CChr of char   (** Character constant *)
-  | CReal of float * fkind * string option (** Floating point constant. Give
-                                               the fkind (see ISO 6.4.4.2) and
-                                               also the textual representation,
-                                               if available *)
-
-(* L-Values denote contents of memory addresses. A memory address is 
- * expressed as a base plus an offset. The base address can be the start 
- * address of storage for a local or global variable or, in general, any 
- * pointer expression. We distinguish the two cases so that we can tell 
- * quickly whether we are accessing some component of a variable directly or 
- * we are accessing a memory location through a pointer. *)
-
-(** Lvalues. An lvalue consists of a base and an offset *)
-and lval =
-    lbase * offset
-
-(* The meaning of an lval is expressed as a function "[lval] = (a, T)" that
- * returns a memory address "a" and a type "T" of the object stored starting
- * at the address "a".  *)
-
-(* The meaning of an lbase is expressed as a similar function. *)
-
-(* The meaning of an offset is expressed as a function "[offset](a, T) = (a', 
- * T')" where (a, T) is the meaning of the base to be used with the offset. 
- * The result is another address and another base type  *)
-
-(* With this notation we define
-  
-      [(lbase, offset)] = [offset] [lbase]   (where juxtaposition is just 
-                                              function application)
-*)
-and lbase = 
-  | Var        of varinfo               (** denotes the address & v, or if v 
-                                            is an array then just v *)
-    (* [Var v] = (&v, typeOf(v)) *)
-
-
-  | Mem        of exp                   (** denotes an address expressed as an 
-                                            expression. Use mkMem to make 
-                                            these  *)
-    (* [Mem e] = (e, T) if typeOf(e) = Ptr(T) *)
-
-and offset = 
-  | NoOffset                            (** l *)
-    (* [NoOffset](a, T) = (a, T) *)
-
-  | Field      of fieldinfo * offset    (** l.f + offset. l must be a struct 
-                                            or an union and l.f is the element 
-                                            type *)
-    (* [Field(f, off)](a, struct {f : T, ...}) = [off](a + offsetof(f), T) *)
-
-  | Index    of exp * offset           (** l[e] + offset. l must be an array 
-                                           and l[e] has the element type *)
-    (* [Index(e, off)](a, array(T)) = [off](a + e * sizeof(T), T) *)
-
-
-(** Unary operations *)
-and unop =
-    Neg                                 (** Unary minus *)
-  | BNot                                (** Bitwise complement (~) *)
-  | LNot                                (** Logical Not (!) *)
-
-(** Binary operations *)
-and binop =
-    PlusA                               (** arithmetic + *)
-  | PlusPI                              (** pointer + integer *)
-  | IndexPI                             (** pointer[integer]. The difference 
-                                           form PlusPI is that in this case 
-                                           the integer is very likely 
-                                           positive *)
-  | MinusA                              (** arithemtic - *)
-  | MinusPI                             (** pointer - integer *)
-  | MinusPP                             (** pointer - pointer *)
-  | Mult                                (** * *)
-  | Div                                 (** / *)
-  | Mod                                 (** % *)
-  | Shiftlt                             (** shift left *)
-  | Shiftrt                             (** shift right *)
-
-  | Lt                                  (** <  (arithmetic comparison) *)
-  | Gt                                  (** >  (arithmetic comparison) *)  
-  | Le                                  (** <= (arithmetic comparison) *)
-  | Ge                                  (** >  (arithmetic comparison) *)
-  | Eq                                  (** == (arithmetic comparison) *)
-  | Ne                                  (** != (arithmetic comparison) *)            
-
-  | LtP                                 (** <  (pointer comparison) *)
-  | GtP                                 (** >  (pointer comparison) *)
-  | LeP                                 (** <= (pointer comparison) *)
-  | GeP                                 (** >= (pointer comparison) *)
-  | EqP                                 (** == (pointer comparison) *)
-  | NeP                                 (** != (pointer comparison) *)
-
-  | BAnd                                (** bitwise and *)
-  | BXor                                (** exclusive-or *)
-  | BOr                                 (** inclusive-or *)
-
-
-
-
-
-(* The following equivalences hold *)
-(* Mem(AddrOf(Mem a, aoff)), off   = Mem a, aoff + off                *)
-(* Mem(AddrOf(Var v, aoff)), off   = Var v, aoff + off                *)
-(* AddrOf (Mem a, NoOffset)        = a                                *)
 
 
 (** Describes a location in a source file *)
@@ -659,47 +671,85 @@ let argsToList : varinfo list option -> varinfo list = function
 
 
 
-(* Different visiting actions. 'a will be instantiated with exp, instr, etc. *)
+(** Different visiting actions. 'a will be instantiated with [exp], [instr],
+    etc. *)
 type 'a visitAction = 
-    SkipChildren                        (* Do not visit the children. Return 
-                                         * the node as it is *)
-  | ChangeTo of 'a                      (* Replace the expression with the 
-                                         * given one *)
-  | DoChildren                          (* Continue with the children of this 
-                                         * node. Rebuild the node on return 
-                                         * if any of the children changes 
-                                         * (use == test) *)
-  | ChangeDoChildrenPost of 'a * ('a -> 'a) (* First consider that the entire 
-                                          * exp is replaced by the first 
-                                          * paramenter. Then continue with 
-                                          * the children. On return rebuild 
-                                          * the node if any of the children 
-                                          * has changed and then apply the 
-                                          * function on the node *)
+    SkipChildren                        (** Do not visit the children. Return 
+                                            the node as it is. *)
+  | DoChildren                          (** Continue with the children of this 
+                                            node. Rebuild the node on return 
+                                            if any of the children changes 
+                                            (use == test) *)
+  | ChangeTo of 'a                      (** Replace the expression with the 
+                                            given one *)
+  | ChangeDoChildrenPost of 'a * ('a -> 'a) (** First consider that the entire 
+                                           exp is replaced by the first 
+                                           parameter. Then continue with 
+                                           the children. On return rebuild 
+                                           the node if any of the children 
+                                           has changed and then apply the 
+                                           function on the node *)
+
 
 
 (* sm/gn: cil visitor interface for traversing Cil trees. *)
 (* Use visitCilStmt and/or visitCilFile to use this. *)
 (* Some of the nodes are changed in place if the children are changed. Use 
  * one of Change... actions if you want to copy the node *)
+
+(** A visitor interface for traversing CIL trees. Create instantiations of 
+ * this type by specializing the class {!Cil.nopCilVisitor}. *)
 class type cilVisitor = object
-  method vvrbl : varinfo -> varinfo visitAction  (* variable use *)
-  method vvdec : varinfo -> varinfo visitAction  (* variable declaration *)
-  method vexpr : exp -> exp visitAction          (* expression *)
-  method vlval : lval -> lval visitAction        (* lval (base is 1st field) *)
-  method voffs : offset -> offset visitAction    (* lval offset *)
-  method vinst : instr -> instr list visitAction (* imperative instruction  *)
-  method vstmt : stmt -> stmt visitAction        (* constrol-flow statement. 
-                                                  * Changed in place. *)
-  method vblock : block -> block visitAction     (* a block. Replaced in 
-                                                  * place. *)
-  method vfunc : fundec -> fundec visitAction    (* function definition. 
-                                                  * Replaced in place. *)
-  method vglob : global -> global list visitAction  (* global (vars, 
-                                                     * types,etc.)  *)
-  method vinit : init -> init visitAction        (* initializers for globals *)
-  method vtype : typ -> typ visitAction          (* use of some type *)
-  method vattr : attribute -> attribute list visitAction (* An attribute *)
+  method vvdec: varinfo -> varinfo visitAction  
+    (** Invoked for each variable declaration. The subtrees to be traversed 
+     * are those corresponding to the type and attributes of the variable. 
+     * Note that variable declarations are all the [GVar], [GDecl], [GFun], 
+     * all the [varinfo] in formals of function types, and the formals and 
+     * locals for function definitions. This means that the list of formals 
+     * in a function definition will be traversed twice, once as part of the 
+     * function type and second as part of the formals in a function 
+     * definition. *)
+
+  method vvrbl: varinfo -> varinfo visitAction  
+    (** Invoked on each variable use. Here only the [SkipChildren] and 
+     * [ChangeTo] actions make sense since there are no subtrees. Note that 
+     * the type and attributes of the variable are not traversed for a 
+     * variable use *)
+
+  method vexpr: exp -> exp visitAction          
+    (** Invoked on each expression occurence. The subtrees are the 
+     * subexpressions, the types (for a [Cast] or [SizeOf] expression) or the 
+     * variable use. *)
+
+  method vlval: lval -> lval visitAction        
+    (** Invoked on each lvalue occurence *)
+
+  method voffs: offset -> offset visitAction    
+    (** Invoked on each offset occurrence *)
+
+  method vinst: instr -> instr list visitAction 
+    (** Invoked on each instruction occurrence. The [ChangeTo] action can 
+     * replace this instruction with a list of instructions *)
+
+  method vstmt: stmt -> stmt visitAction        
+    (** Control-flow statement. *)
+
+  method vblock: block -> block visitAction     (** Block. Replaced in 
+                                                    place. *)
+  method vfunc: fundec -> fundec visitAction    (** Function definition. 
+                                                    Replaced in place. *)
+  method vglob: global -> global list visitAction (** Global (vars, types,
+                                                      etc.)  *)
+  method vinit: init -> init visitAction        (** Initializers for globals *)
+  method vtype: typ -> typ visitAction          (** Use of some type. Note 
+                                                 * that for structure/union 
+                                                 * and enumeration types the 
+                                                 * definition of the 
+                                                 * composite type is not 
+                                                 * visited. Use [vglob] to 
+                                                 * visit it.  *)
+  method vattr: attribute -> attribute list visitAction 
+    (** Attribute. Each attribute can be replaced by a list *)
 end
 
 (* the default visitor does nothing at each node, but does *)
@@ -998,7 +1048,7 @@ let missingFieldName = "___missing_field_name"
   * GTag for it to the file! **)
 let mkCompInfo
                (isstruct: bool) 
-               (n: string)   (* empty for anonymous structures *)
+               (n: string)  
                (* fspec is a function that when given a forward 
                 * representation of the structure type constructs the type of 
                 * the fields. The function can ignore this argument if not 
@@ -1009,8 +1059,6 @@ let mkCompInfo
    (* make an new name for anonymous structs *)
    if n = "" then 
      E.s (E.bug "mkCompInfo: missing structure name\n");
-(*
-     newTypeName (if isstruct then "struct" else "union") else n in *)
    (* Make a new self cell and a forward reference *)
    let comp = 
      { cstruct = isstruct; cname = ""; ckey = 0; cfields = [];
@@ -3266,15 +3314,15 @@ let getCompField (cinfo:compinfo) (fieldName:string) : fieldinfo =
   (List.find (fun fi -> fi.fname = fieldName) cinfo.cfields)
 
 
-let rec doCastT ~(e: exp) ~(oldt: typ) ~(newt: typ) = 
+let rec mkCastT ~(e: exp) ~(oldt: typ) ~(newt: typ) = 
   (* Do not remove old casts because they are conversions !!! *)
   if typeSig oldt = typeSig newt then
     e
   else
     CastE(newt,e)
 
-let doCast ~(e: exp) ~(newt: typ) = 
-  doCastT e (typeOf e) newt
+let mkCast ~(e: exp) ~(newt: typ) = 
+  mkCastT e (typeOf e) newt
 
 type existsAction = 
     ExistsTrue                          (* We have found it *)

@@ -944,7 +944,7 @@ let prepareVarargArguments
                             (fun (_,_,tau,_) -> d_type () tau)) argkinds )
               end
             in
-            let a' = doCastT a t kt in
+            let a' = mkCastT a t kt in
             (arg_idx - 1, k_idx :: indices, a' :: args)
           end else
             (arg_idx - 1, indices, a :: args))

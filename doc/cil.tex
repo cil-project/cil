@@ -8,6 +8,7 @@
 \def\apiref#1#2#3{\ahref{api/#1.html\##2#3}{#1.#3}}
 \def\ciltyperef#1{\apiref{Cil}{TYPE}{#1}}
 \def\cilvalref#1{\apiref{Cil}{VAL}{#1}}
+\def\cilvisit#1{\apiref{Cil.cilVisitor}{#1}}
 
 %----------------------------------------------------------------------
 % MACROS
@@ -463,9 +464,19 @@ CIL stores the source location where it appears (using the type
 before the first use in the file. Similarly, the definition or the declaration
 of a variable or function must appear before its use in a file. 
 
- CIL supports pragmas only at the top level and pragmas share the rich
+ CIL supports pragmas only at the top level and pragmas use the rich
 language of attributes (described in \secref{attrib}).  
 
+ A distinguished global is an optional global initializer function. If it
+exists then it can contain statements that must be executed before the program
+is started. Each CIL file can contain a global initializer. If the file also
+contains the definition of \t{main} then CIL will insert a call to the global
+initializer. 
+
+ CIL exports the iterators \cilvalref{mapGlobals}, \cilvalref{iterGlobals} and
+\cilvalref{foldGlobals}. You can also use the \cilvalref{dummyFile} when you
+need a \ciltyperef{file} as a placeholder. 
+ 
  \subsection{Types}
 
  A C type is represented in CIL using the type \ciltyperef{typ}. Among types we
@@ -475,7 +486,7 @@ and function types.
 
  CIL exports a number of useful constants that denote common types:
  \cilvalref{voidType}, \cilvalref{intType}, \cilvalref{uintType}, 
-\cilvalref{longType}, \cilvalref{charType}, \cilvalref{charPtrType}, 
+ \cilvalref{longType}, \cilvalref{charType}, \cilvalref{charPtrType}, 
  \cilvalref{charConstPtrType} (pointer to a constant character), 
  \cilvalref{voidPtrType}, \cilvalref{intPtrType}, \cilvalref{doubleType}.
 
@@ -488,38 +499,189 @@ sure that all uses of TNamed are removed.
 \t{int} and \t{long} are 4 bytes and \t{long long} is 8 bytes. A pointer is 4
 bytes. CIL contains functions that can compute the size of a type (in bits)
 \cilvalref{bitsSizeOf}, the alignment of a type (in bytes)
-\cilvalref{alignOff_int}, and can convert an offset into a start and width
+\cilvalref{alignOff\_int}, and can convert an offset into a start and width
 (both in bits) using the function \cilvalref{bitsOffset}. At the moment these
 functions do not take into account the \t{packed} attributes and pragmas. 
 
- compinfo 
+ The most delicate issue for C types is that recursion that is possible by
+using structures and pointers. To address this issue we have a more complex
+representation for structured types (struct and union). Each such type is
+represented using the \ciltyperef{compinfo} type. For each composite type the
+\t{compinfo} structure must be declared at top level using \t{GCompTag} and
+all references to it must share the same copy of the structure. Each
+\t{compinfo} has a unique key that you can use to avoid going into an infinite
+loop when scanning a type. Note that if all you need is to scan the definition
+of each composite type once, you can do that by scanning all top-level
+\t{GCompType}. If you want to change the name of a \t{compinfo} you must use
+the \cilvalref{setCompName} in order to ensure that the unique key is updated
+accordingly. 
 
+ Each \t{compinfo} also contains a list of fields. A field is represented
+using a \ciltyperef{fieldinfo} type. The \t{fieldinfo} structure itself has a
+pointer to the host \t{compinfo}. Fields, just like variables, can have
+attributes asociated with the field itself (stored in the \t{fieldinfo}
+structure) or associated with the type of the field (stored along with the
+type of the field). 
 
- enuminfo
+ Constructing a \t{compinfo} can be tricky since it must contain field that
+must refer to the host \t{compinfo} and furthermore the type of the field
+might need to refer to the \t{compinfo} for recursive types. Use the
+\cilvalref{mkCompInfo} function to create a \t{compinfo}. You can easily fetch
+the \t{fieldinfo} for a given field in a structure with
+\cilvalref{getCompField}. 
 
+ Enumeration are represented using a \ciltyperef{enuminfo} type. Each instance
+of this type must be declared with a global \t{GEnumTag}. All references to
+the enumeration type must share the same copy of \t{enuminfo}.
 
- \subsection{Attributes}
+ There are a number of functions for querying the kind of a type. These are
+ \cilvalref{isIntegralType}, 
+ \cilvalref{isArithmeticType}, 
+ \cilvalref{isPointerType}, 
+ \cilvalref{isFunctionType}, 
+ \cilvalref{isArrayType}. 
 
- Each type can have a set of attributes (described in \secref{attrib}). They
-are represented using the type \ciltypref{attribute}. An attribute consists of
-a name and a number of arguments (represented using the type
-\ciltyperef{attrarg}). Almost any expression can be used as an attribute
-argument. Attributes are stored in lists sorted by the name of the attribute.
-Use the function \cilvalref{typeAttrs} to retrieve the attributes of a type
-and the functions \cilvalref{addAttribute} and \cilvalref{addAttributes} to
-add attributes. Alternatively you can use \cilvalref{typeAddAttributes} to add
-an attribute to a type (and return the new type).
+ There are two easy ways to scan a type. First, you can use the
+\cilvalref{existsType} to return a boolean answer about a type. This function
+is controled by a user-provided function that is queried for each type that is
+used to construct the current type. The function can specify whether to
+terminate the scan with a boolean result or to continue the scan for the
+nested types. 
+
+ The other method for scanning types is provided by the visitor interface (see
+ \secref{visitor}). 
+
+\medskip
+
+ If you want to compare types (or to use them as hash-values) then you should
+use instead type signatures (represented as \ciltyperef{typsig}). These
+contain the same information as types but canonicalized such that simple Ocaml
+structural equality will tell whether two types are equal. Use
+\cilvalref{typeSig} to compute the signature of a type. If you want to ignore
+certain type attributes then use \cilvalref{typeSigWithAttrs}. 
 
 
  \subsection{Variables}  
 
- 
+ Each local or global variable is represented by a unique \ciltyperef{varinfo}
+structure. A global \t{varinfo} can be introduced with the \t{GDecl} or
+\t{GVar} or \t{GFun} globals. A local varinfo can be introduced as part of a
+function definition. 
+
+ All references to a given global or local variable must refer to the same
+copy of \t{varinfo}. Each \t{varinfo} has a unique identifier that can be use
+to index maps and hashtables. The identifier for globals is constructed by
+hashing the name and the identifier for locals is an integer between 0 and the
+number of locals in the function. 
+
+ It is very important that you construct \t{varinfo} structures using only one
+ of the following functions:
+\begin{itemize}
+\item \cilvalref{makeGlobalVar} - to make a global variable
+\item \cilvalref{makeTempVar} - to make a temporary local variable whose name
+will be generated so that to avoid conflict with other locals. 
+\item \cilvalref{makeLocalVar} - like \t{makeTempVar} but you can specify the
+exact name to be used. 
+\item \cilvalref{makeFormalVar} - make a new formal argument. This is added
+both to the formal arguments and to the locals of the host function. 
+\end{itemize}
+
+
+ \subsection{Lvalues} 
+
+ Lvalues are the sublanguage of expressions that can appear at the left of an
+assignment or as operand to the address-of operator. In C the sytax for
+lvalues is not always a good indication of the meaning of the lvalue. For
+example the C l-value
+\begin{verbatim}
+a[0][1][2]
+\end{verbatim}
+
+ might involve 1, 2 or 3 memory reads when used in an expression context,
+depending on the declared type of the variable \t{a}. If \t{a} has type \t{int
+[4][4][4]} then we have one memory read from somewhere inside the area that
+stores the array \t{a}. On the other hand if \t{a} has type \t{int ***} then
+the expression really means \t{*(*(*(a + 0) + 1) + 2)}, in which case it is
+clear that it involves three separate memory operations. To make it easy to
+tell what an lvalue means CIL represents lvalues as a host object and an
+offset (see \ciltyperef{lval}). The host object (represented as
+\ciltyperef{lhost}) can be a local or global variable or can be the object
+pointed-to by a pointer expression. The offset (represented as
+\ciltyperef{offset}) is a sequence of field or array index designators.
+
+ Both the typing rules and the meaning of an lvalue is very precisely
+specified in CIL. 
+
+ The following are a few useful function for operating on lvalues:
+\begin{itemize}
+\item \cilvalref{mkMem} - makes an lvalue of \t{Mem} kind. Use this to ensure
+that certain equivalent forms of lvalues are canonized. For example, \t{*&x =
+x}. 
+\item \cilvalref{typeOfLval} - the type of an lvalue
+\item \cilvalref{typeOffset} - the type of an offset, given the type of the
+host. 
+\item \cilvalref{addOffset} and \cilvalref{addOffsetLval} - entend sequences
+of offsets.
+\end{itemize}
 
  \subsection{Expressions}
 
+ The CIL expression language contains only the side-effect free expressions of
+C. They are represented as the type \ciltyperef{exp}. There are several
+interesting aspects of CIL expressions: 
+
+ Integer and floating point constants can carry their textual representation.
+This way the integer 15 can be printed as 0xF if that is how it occured in the
+source. 
+
+ CIL uses 64 bits to represent the integer constants and also stores the width
+of the integer type. Care must be taken to ensure that the constant is
+representable with the given width. Use the functions \cilvalref{kinteger},
+\cilvalref{kinteger64} and \cilvalref{integer} to construct constant
+expressions. CIL predefines the constants \cilvalref{zero},
+\cilvalref{one} and \cilvalref{mone} (for -1). 
+
+ Use the functions \cilvalref{isConstant} and \cilvalref{isInteger} to test if
+an expression is a constant and a constant integer respectively.
+
+ CIL keeps the type of all unary and binary expressions. You can think of that
+type qualifying the operator. Furthermore there are different operators for
+arithmetic and comparisons on arithemtic types and on pointers. 
+
+ Another unusual aspect of CIL is that the implicit convertion between an
+expression of array type and one of pointer type is made explicit, using the
+\t{StartOf} expression constructor (which is not printed). If you apply the
+\t{AddrOf} constructor to an lvalue of type \t{T} then you will be getting an
+expression of type \t{TPtr(T)}.
+
+ You can find the type of an expression with \cilvalref{typeOf}. 
+
+ You can perform constant folding on expressions using the function
+\cilvalref{constFold}. 
+
+ \medskip
+
+ A special kind of expressions are those that can appear as initializers for
+global variables (initialization of local variables is turned into
+assignments). The initializers are represented as type \ciltyperef{init}. You
+can create initializers with \cilvalref{makeZeroInit} and you can conveniently
+scan compound initializers them with \cilvalref{foldLeftCompound}. 
 
  \subsection{Functions}
 
+ A function definition is always introduced with a \t{GFun} constructor at the
+top level. All the information about the function is stored into a
+\ciltyperef{fundec}. Some of the information (e.g. its name, type,
+storage, attributes) is stored as a \t{varinfo} that is a field of the
+\t{fundec}. To refer to the function from the expression language you must use
+the \t{varinfo}. 
+
+ The function definition contains, in addition to the body, a list of all the
+local variables and separately a list of the formals. Both kind of variables
+can be refered to in the body of the function. The formals must also be shared
+with the formals that appear in the function type. For that reason, to
+manipulate formals you should use the provided functions
+\cilvalref{makeFormalVar} and \cilvalref{setFormals}. 
 
  \subsection{Statements}
 
@@ -527,8 +689,260 @@ an attribute to a type (and return the new type).
  \subsection{Debugging and Printing Support}
  
 
- \subsection{Using the visitor}
+ \subsection{Using the visitor}\label{sec-visitor}
 
+ One of the most useful tools exported by the CIL API is an implementation of
+the visitor pattern for CIL programs. The visiting engine scans depth-first
+the structure of a CIL program and at each node is queries a user-provided
+visitor structure whether it should do one of the following operations: 
+\begin{itemize}
+\item Ignore this node and all its descendants
+\item Descend into all of the children and when done rebuild the node if any
+of the children have changed. 
+\item Replace the subtree rooted at the node with another tree.
+\item Replace the subtree with another tree, then descend into the children
+and rebuild the node if necessary and then invoke a user-specified function. 
+\end{itemize}
+
+ By writing visitors you can customize the program traversal and
+transformation. One major limitation of the visiting engine is that it does
+not propagate information from one node to another. Each visitor must use its
+own private data to achieve this effect if necessary. 
+
+ Each visitor is an object that is an instance of a class of type \cilvisit{}.
+The most convenient way to obtain such classes is to specialize the
+\apiref{Cil.nopCilVisitor}{} class (which just traverses the tree doing
+nothing). Any given specialization typically overrides only a few of the
+methods. Take a look for example at the visitor defined in the module
+\t{logwrites.ml}. Another, more elaborate example of a visitor is the
+[copyFunctionVisitor] defined in \t{cil.ml}.
+
+ Once you have defined a visitor you can invoke it with one of the functions:
+\begin{itemize}
+\item \cilvalref{visitCilFile} - visit a file
+\item \cilvalref{visitCilGlobal} - visit a global
+\item \cilvalref{visitCilFunction} - visit a function definition
+\item \cilvalref{visitCilExp} - visit an expression
+\item \cilvalref{visitCilLval} - visit an lvalue
+\item \cilvalref{visitCilInstr} - visit an instruction
+\item \cilvalref{visitCilStmt} - visit a statement
+\item \cilvalref{visitCilType} - visit a type. Note that this does not visit
+the files of a composite type. use visitGlobal to visit the [GCompTag] that
+defines the fields.
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
+\subsection{Attributes}\label{sec-attrib}
+
+ In CIL you can attach attributes to types and to names (variables, functions
+and fields). Attributes are represented using the type \ciltyperef{attribute}.
+An attribute consists of a name and a number of arguments (represented using
+the type \ciltyperef{attrparam}). Almost any expression can be used as an
+attribute argument. Attributes are stored in lists sorted by the name of the
+attribute. To maintain list sortedness, use the functions
+\cilvalref{typeAttrs} to retrieve the attributes of a type and the functions
+\cilvalref{addAttribute} and \cilvalref{addAttributes} to add attributes.
+Alternatively you can use \cilvalref{typeAddAttributes} to add an attribute to
+a type (and return the new type).
+
+ GCC already has extensive support for attributes, and CIL extends this
+support to user-defined attributes. A GCC attribute has the syntax:
+ 
+\begin{verbatim}
+ gccattribute ::= __attribute__((attribute))    (Note the double parentheses)
+\end{verbatim}
+
+ Since GCC and MSVC both support various flavors of each attribute (with or
+without leading or trailing \_) we first strip ALL leading and trailing \_
+from the attribute name (but not the identified in [ACons] parameters in
+\ciltyperef{attrparam}). When we print attributes, for GCC we add two leading
+and two trailing \_; for MSVC we add just two leading \_.
+ 
+ There is support in CIL so that you can control the printing of attributes
+(see \cilvalref{setCustomPrintAttribute} and
+\cilvalref{setCustomPrintAttributeScope}). This custom-printing support is now
+used to print the "const" qualifier as "\t{const}" and not as
+"\t{\_\_attribute\_\_((const))}".
+
+
+ The attributes are specified in declarations. This is unfortunate since the C
+syntax for declarations is already quite complicated and after writing the
+parser and elaborator for declarations I am convinced that few C programmers
+understand it completely. Anyway, this seems to be the easiest way to support
+attributes. 
+
+ Name attributes must be specified at the very end of the declaration, just
+before the \t{=} for the initializer or before the \t{,} the separates a
+declaration in a group of declarations or just before the \t{;} that
+terminates the declaration. A name attribute for a function being defined can
+be specified just before the brace that starts the function body.
+
+ For example (in the following examples \t{A1},...,\t{An} are type attributes
+and \t{N} is a name attribute (each of these uses the \t{\_\_attribute\_\_} syntax):
+
+\begin{verbatim}
+ int x N;
+ int x N, * y N = 0, z[] N;
+ extern void exit() N;
+ int fact(int x) N { ... }
+\end{verbatim}
+
+
+ Type attributes can be specified along with the type using the following
+ rules: 
+\begin{enumerate}
+ \item The type attributes for a base type (int, float, named type, reference
+    to struct or union or enum) must be specified immediately following the
+    type (actually it is Ok to mix attributes with the specification of the
+    type, in between unsigned and int for example).
+
+  For example:
+\begin{verbatim}
+  int A1 x N;  /* A1 applies to the type int. An example is an attribute
+                   "even" restricting the type int to even values. */
+  struct foo A1 A2 x; // Both A1 and A2 apply to the struct foo type
+\end{verbatim}
+ 
+ \item The type attributes for a pointer type must be specified immediately
+ after the * symbol.
+\begin{verbatim}
+ /* A pointer (A1) to an int (A2) */
+ int A2 * A1 x;
+ /* A pointer (A1) to a pointer (A2) to a float (A3) */
+ float A3 * A2 * A1 x;
+\end{verbatim}
+
+
+ Note: The attributes for base types and for pointer types are a strict
+ extension of the ANSI C type qualifiers (const, volatile and restrict). In
+ fact CIL treats these qualifiers as attributes. 
+
+  \item The attributes for a function type or for an array type can be
+     specified using parenthesized declarators.
+
+   For example:
+\begin{verbatim}
+   /* A function (A1) from int (A2) to float (A3) */
+   float A3 (A1 f)(int A2);
+
+   /* An array (A1) of int (A2) */
+   int A2 (A1 x0)[]
+
+   /* Array (A1) of pointers (A2) to functions (A3) that take an int (A4) and 
+    * return a pointer (A5) to int (A6)  */
+   int A6 * A5 (A3 * A2 (A1 x1)[5])(int A4);
+
+
+   /* A function (A4) that takes a float (A5) and returns a pointer (A6) to an 
+    * int (A7) */
+   extern int A7 * A6 (A4 x2)(float A5 x);
+
+   /* A function (A1) that takes a int (A2) and that returns a pointer (A3) to 
+    * a function (A4) that takes a float (A5) and returns a pointer (A6) to an 
+    * int (A7) */
+   int A7 * A6 (A4 * A3 (A1 x3)(int A2 x))(float A5) {
+      return & x2;
+   }
+\end{verbatim}
+
+\end{enumerate}
+
+ Note: ANSI C does not allow the specification of type qualifiers for function
+and array types, although it allows for the parenthesized declarator. With
+just a bit of thought (looking at the first few examples above) I hope that
+the placement of attributes for function and array types will seem intuitive.
+
+ This extension is not without problems however. If you want to refer just to
+a type (in a cast for example) then you leave the name out. But this leads to
+strange conflicts due to the parentheses that we introduce to scope the
+attributes. Take for example the type of x0 from above. It should be written
+as: 
+ 
+\begin{verbatim}
+        int A2 (A1 )[]
+\end{verbatim}
+
+ But this will lead most C parsers into deep confusion because the parentheses
+around A1 will be confused for parentheses of a function designator. To push
+this problem around (I don't know a solution) whenever we are about to print a
+parenthesized declarator with no name but with attributes, we comment out the
+attributes so you can see them (for whatever is worth) without confusing the
+compiler. For example, here is how we would print the above type:
+
+\begin{verbatim}
+        int A2 /*(A1 )*/[]
+\end{verbatim}
+
+ \paragraph{Handling of predefined GCC attributes}
+
+ GCC already supports attributes in a lot of places in declarations. The only
+place where we support attributes and GCC does not is right before the \{ that
+starts a function body. 
+
+ GCC classifies its attributes in attributes for functions, for variables and
+for types, although the latter category is only usable in definition of struct
+or union types and is not nearly as powerful as the CIL type attributes. We
+have made an effort to reclassify GCC attributes as name and type attributes
+(they only apply for function types). Here is what we came up with:
+
+\begin{itemize}
+  \item GCC name attributes:
+   
+   section, constructor, destructor, unused, weak, no\_instrument\_function,
+   noreturn, alias, no\_check\_memory\_usage, dllinport, dllexport, exception,
+   model
+
+      Note: the "noreturn" attribute would be more appropriately qualified as a
+      function type attribute. But we classify it as a name attribute to make
+      it easier to support a similarly named MSVC attribute. 
+  
+  \item GCC function type attributes:
+
+    fconst (printed as "const"), format, regparm, stdcall,
+    cdecl, longcall
+
+  I was not able to completely decipher the position in which these attributes
+  must go. So, the CIL elaborator knows these names and applies the following
+  rules: 
+  \begin{itemize}
+  \item All of the name attributes that appear in the specifier part (i.e. at
+  the beginning) of a declaration are associated with all declared names. 
+
+  \item All of the name attributes that appear at the end of a declarator are
+  associated with the particular name being declared.
+
+  \item More complicated is the handling of the function type attributes, since
+     there can be more than one function in a single declaration (a function
+     returning a pointer to a function). Lacking any real understanding of how
+     GCC handles this, I attach the function type attribute to the "nearest"
+     function. This means that if a pointer to a function is "nearby" the
+     attribute will be correctly associated with the function. In truth I pray
+     that nobody uses declarations as that of x3 above. 
+  \end{itemize}
+\end{itemize}
+
+\paragraph{Handling of predefined MSVC attributes}
+
+  MSVC has two kinds of attributes, declaration modifiers to be printed before
+  the storage specifier using the notation "\t{\_\_declspec(...)}" and a few
+  function type attributes, printed almost as our CIL function type
+  attributes. 
+
+   The following are the name attributes that are printed using
+   \t{\_\_declspec} right before the storage designator of the declaration:
+   thread, naked, dllimport, dllexport, noreturn
+
+
+   The following are the function type attributes supported by MSVC: 
+   fastcall, cdecl, stdcall
+
+   It is not worth going into the obscure details of where MSVC accepts these
+   type attributes. The parser thinks it knows these details and it pulls
+   these attributes from whereever they might be placed. The important thing
+   is that MSVC will accept if we print them according to the rules of the CIL
+   attributes ! 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{The CIL Driver}\label{sec-driver}
 
  We have packaged CIL as an application \t{cilly} that contains certain
@@ -1091,219 +1505,6 @@ ignored).
  The replacement text can contain the special keyword \t{@\_\_pattern\_\_@},
 which is substituted with the pattern that matched. 
 
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
-\section{Using attributes with CIL}\label{sec-attrib}
-
- In CIL you can attach attributes to types and to names (variables, functions
-and fields). The following syntax of attributes is currently supported: 
-
-\begin{verbatim}
- attribute ::= IDENT | IDENT ( [attrarg ,]+ )
- attrarg   ::= IDENT | IDENT ( [attrarg ,]+) | "STRING" | INT
-             | attrarg binop attrarg | unop attrarg
-             | sizeof attrarg | sizeof type
-\end{verbatim}
-
- The attribute names (IDENT above) must start with a letter and should not
-start or end with underscore.
-
- The attributes are specified in declarations. This is unfortunate since the C
-syntax for declarations is already quite complicated and after writing the
-parser and elaborator for declarations I am convinced that few C programmers
-understand it completely. Anyway, this seems to be the easiest way to support
-attributes. 
-
- Name attributes must be specified at the very end of the declaration, just
-before the = for the initializer or before the , the separates a declaration
-in a group of declarations or just before the ; that terminates the
-declaration. A name attribute for a function being defined can be specified
-just before the brace that starts the function body. 
-
- For example (in the following examples A1,...,An are type attributes and N
-  is a name attribute. We'll talk soon about how these attributes can be
-  written in the source program): 
-
-\begin{verbatim}
- int x N1;
- int x Nx, * y Ny = 0, z[] Nz;
- extern void exit() N;
- int fact(int x) N { ... }
-\end{verbatim}
-
-
- Type attributes can be specified along with the type using the following
- rules: 
-\begin{enumerate}
- \item The type attributes for a base type (int, float, named type, reference
-    to struct or union or enum) must be specified immediately following the
-    type (actually it is Ok to mix attributes with the specification of the
-    type, in between unsigned and int for example).
-
-  For example:
-\begin{verbatim}
-  int A1 x N1;  /* A1 applies to the type int. An example is an attribute
-                   "even" restricting the type int to even values. */
-  struct foo A1 A2 x; // Both A1 and A2 apply to the struct foo type
-\end{verbatim}
- 
- \item The type attributes for a pointer type must be specified immediately
- after the * symbol.
-\begin{verbatim}
- /* A pointer (A1) to an int (A2) */
- int A2 * A1 x;
- /* A pointer (A1) to a pointer (A2) to a float (A3) */
- float A3 * A2 * A1 x;
-\end{verbatim}
-
-
- Note: The attributes for base types and for pointer types are a strict
- extension of the ANSI C type qualifiers (const, volatile and restrict). In
- fact the is special support to parse these qualifiers as attributes. 
-
-  \item The attributes for a function type or for an array type can be
-     specified using parenthesized declarators.
-
-   For example:
-\begin{verbatim}
-   /* A function (A1) from int (A2) to float (A3) */
-   float A3 (A1 f)(int A2);
-
-   /* An array (A1) of int (A2) */
-   int A2 (A1 x0)[]
-
-   /* Array (A1) of pointers (A2) to functions (A3) that take an int (A4) and 
-    * return a pointer (A5) to int (A6)  */
-   int A6 * A5 (A3 * A2 (A1 x1)[5])(int A4);
-
-
-   /* A function (A4) that takes a float (A5) and returns a pointer (A6) to an 
-    * int (A7) */
-   extern int A7 * A6 (A4 x2)(float A5 x);
-
-   /* A function (A1) that takes a int (A2) and that returns a pointer (A3) to 
-    * a function (A4) that takes a float (A5) and returns a pointer (A6) to an 
-    * int (A7) */
-   int A7 * A6 (A4 * A3 (A1 x3)(int A2 x))(float A5) {
-      return & x2;
-   }
-\end{verbatim}
-
-\end{enumerate}
-
- Note: ANSI C does not allow the specification of type qualifiers for function
-and array types, although it allows for the parenthesized declarator. With
-just a bit of thought (looking at the first few examples above) I hope that
-the placement of attributes for function and array types will seem intuitive.
-
- This extension is not without problems however. If you want to refer just to
-a type (in a cast for example) then you leave the name out. But this leads to
-strange conflicts due to the parentheses that we introduce to scope the
-attributes. Take for example the type of x0 from above. It should be written
-as: 
- 
-\begin{verbatim}
-        int A2 (A1 )[]
-\end{verbatim}
-
- But this will lead most C parsers into deep confusion because the parentheses
-around A1 will be confused for parentheses of a function designator. To push
-this problem around (I don't know a solution) whenever we are about to print a
-parenthesized declarator with no name but with attributes, we comment out the
-attributes so you can see them (for whatever is worth) without confusing the
-compiler. For example, here is how we would print the above type:
-
-\begin{verbatim}
-        int A2 /*(A1 )*/[]
-\end{verbatim}
-
- 
- \subsection{Source-level representation of attributes}
-
- GCC already has extensive support for attributes, so we are going to extend
-it to handle arbitrary attributes. A GCC attribute has the syntax:
- 
-\begin{verbatim}
- gccattribute ::= __attribute__((attribute))    (Note the double parentheses)
-\end{verbatim}
-
- Since GCC and MSVC both support various flavors of each attribute (with or
-without leading or trailing \_) we first strip ALL leading and trailing \_ from
-the attribute name (the IDENT in the non-terminal "attribute", but not the
-IDENT in the attribute arguments "attrarg"). When we print attributes, for GCC
-we add two leading and two trailing \_; for MSVC we add just two leading \_.
- 
- There is support in CIL so that you can control the printing of attributes.
-This custom-printing support is now used to print the "const" qualifier as
-"\t{const}" and not "\t{\_\_attribute\_\_((const))}". 
-
-
- \subsection{Handling of predefined GCC attributes}
-
- GCC already supports attributes in a lot of places in declarations. The only
-place where we support attributes and GCC does not is right before the \{ that
-starts a function body. 
-
- GCC classifies its attributes in attributes for functions, for variables and
-for types, although the latter category is only usable in definition of struct
-or union types and is not nearly as powerful as the CIL type attributes. We
-have made an effort to reclassify GCC attributes in name and type attributes
-(they only apply for function types). Here is what we came up with:
-
-\begin{itemize}
-  \item GCC name attributes:
-   
-   section, constructor, destructor, unused, weak, no\_instrument\_function,
-   noreturn, alias, no\_check\_memory\_usage, dllinport, dllexport, exception,
-   model
-
-      Note: the "noreturn" attribute would be more appropriately qualified as a
-      function type attribute. But we classify it as a name attribute to make
-      it easier to support a similarly named MSVC attribute. 
-  
-  \item GCC function type attributes:
-
-    fconst (printed as "const"), format, regparm, stdcall,
-    cdecl, longcall
-
-  I was not able to completely decipher the position in which these attributes
-  must go. So, the CIL elaborator knows these names and applies the following
-  rules: 
-  \begin{itemize}
-  \item All of the name attributes that appear anywhere in the declaration are
-  collected and associated with the declared name. This was easy since each
-  declaration declares exactly one name.
-
-  \item More complicated is the handling of the function type attributes, since
-     there can be more than one function in a single declaration (a function
-     returning a pointer to a function). Lacking any real understanding of how
-     GCC handles this, I attach the function type attribute to the "nearest"
-     function. This means that if a pointer to a function is "nearby" the
-     attribute will be correctly associated with the function. In truth I pray
-     that nobody uses declarations as that of x3 above. 
-  \end{itemize}
-\end{itemize}
-
-\subsection{Handling of predefined MSVC attributes}
-
-  MSVC has two kinds of attributes, declaration modifiers to be printed before
-  the storage specifier using the notation "\t{\_\_declspec(...)}" and a few
-  function type attributes, printed almost as our CIL function type
-  attributes. 
-
-   The following are the name attributes that are printed using
-   \t{\_\_declspec} right before the storage designator of the declaration:
-   thread, naked, dllimport, dllexport, noreturn
-
-
-   The following are the function type attributes supported by MSVC: 
-   fastcall, cdecl, stdcall
-
-   It is not worth going into the obscure details of where MSVC accepts these
-   type attributes. The parser thinks it knows these details and it pulls
-   these attributes from whereever they might be placed. The important thing
-   is that MSVC will accept if we print them according to the rules of the CIL
-   attributes ! 
 
 \section{Who Says C is Simple?}\label{sec-simplec}
 
