@@ -138,7 +138,9 @@ val getLocation: unit -> location
 val parse_error: string -> (* A message *) 
                  unit
 
+(** An unknown location for use when you need one but you don't have one *)
 val locUnknown: location
+
 
 val startParsing: string -> Lexing.lexbuf (* Call this function to start 
                                            * parsing *)
