@@ -1376,7 +1376,7 @@ sub addTests {
         if($kind eq 'box') {
             $thisargs .= "  INFERBOX=wild ";
         }
-        $thisargs .= ' NOEMITBROWSER=1 ';
+        $thisargs .= ' NOEMITBROWSER=1 ';  
         my $tst =
             $self->newTest(Name => $name . "-" . $kind,
                            Dir => ".",
