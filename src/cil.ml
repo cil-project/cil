@@ -2794,16 +2794,31 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           ++ name
     | TPtr (bt, a)  -> 
         (* Parenthesize the ( * attr name) if a pointer to a function or an 
-         * array. However, don't do this on MSVC, because the __stdcall 
-         * attributes of the function must appear "__stdcall *f" *)
-        let paren = not !msvcMode && 
-                    match bt with TFun _ | TArray _ -> true | _ -> false in
+         * array. However, on MSVC the __stdcall modifier must appear right 
+         * before the pointer constructor "(__stdcall *f)". We push them into 
+         * the parenthesis. *)
+        let (paren: doc option), (bt': typ) = 
+          match bt with 
+            TFun(rt, args, isva, fa) when !msvcMode -> 
+              let an, af', at = partitionAttributes ~default:AttrType fa in
+              (* We take the af' and we put them into the parentheses *)
+              Some (text "(" ++ printAttributes af'), 
+              TFun(rt, args, isva, addAttributes an at)
+
+          | TFun _ | TArray _ -> Some (text "("), bt
+
+          | _ -> None, bt
+        in
         let name' = text "*" ++ printAttributes a ++ name in
-        let name'' = if paren then text "(" ++ name' ++ text ")" else name' in
+        let name'' = (* Put the parenthesis *)
+          match paren with 
+            Some p -> p ++ name' ++ text ")" 
+          | _ -> name' 
+        in
         self#pType 
           (Some name'')
           () 
-          bt
+          bt'
 
     | TArray (elemt, lo, a) -> 
         let name' = 
