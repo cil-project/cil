@@ -498,7 +498,7 @@ let rec stripConstLocalType (t: typ) : typ =
         (fun f -> 
           let t' = stripConstLocalType f.ftype in
           if t' != t then begin
-            ignore (warn "Stripping \"const\" from field %s of %s\n" 
+            ignore (warnOpt "Stripping \"const\" from field %s of %s\n" 
                       f.fname (compFullName ci));
             f.ftype <- t'
           end)
