@@ -147,7 +147,8 @@ let setLoc (l : cabsloc) =
     if (l.lineno <> !curLoc.lineno) || l.filename <> !curLoc.filename then 
       begin
         let oldspaces = !spaces in
-        if !printLnComment then print "//" else print "//#";
+        (* sm: below, we had '//#' instead of '#', which means printLnComment was disregarded *)
+        if !printLnComment then print "//" else print "#";
         if !msvcMode then print "line";
         print " ";
         print (string_of_int l.lineno);

@@ -5,7 +5,7 @@ int global_com1 = 5;
 
 int foo_com1(int x)
 {
-  return x + global_com1;
+  return x + global_com1 + sizeof(int*);
 }
   
 int *globalPtr;
@@ -15,3 +15,9 @@ void hpfy()
   int local __HEAPIFY;
   globalPtr = &local;
 }
+
+int foo2_com1(int x)
+{
+  return x + global_com1 + sizeof(int*);
+}
+
