@@ -187,7 +187,14 @@ clean:
 	-rm -f $(foreach ext, cmi cmo cmx cmxa exe, $(OBJDIR)/*.$(ext))
 	-rm -f $(OBJDIR)/*.$(OBJ)
 	-rm -f $(EXECUTABLE)$(EXE)
-	-rm -f camlprim0.obj  $(EXTRACLEAN)      
+	-rm -f camlprim0.obj  $(EXTRACLEAN)
+	@echo " "
+	@echo "reminder: consider 'make realclean' if 'make clean' isn't doing enough."
+
+# sm: I added that reminder to 'clean' after spending 20 minutes debugging
+# the build process until I discovered that stale dependency files were 
+# killing my builds; the reminder would have made 'make realclean' the 2nd
+# thing to try, thus saving 20 minutes
 
 realclean: clean
 	-rm -f $(DEPENDDIR)/*.d $(DEPENDDIR)/*.di

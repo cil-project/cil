@@ -46,3 +46,5 @@ TODO list as of 3/6 (George leaves for Japan)
  - Right now when we try to read a pointer and we don't find one in tags, we
    overwrite the base part of the pointer to be read with 0. But this might
    have undesired side-effects.
+
+ - handle gcc's __PRETTY_FUNCTION__
