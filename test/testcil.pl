@@ -463,6 +463,7 @@ $TEST->addTests("testrun/pointerdiff", "", ['cil', 'inferbox', 'box']);
 $TEST->addTests("test/cpp-2", "", ['cil']);
    $TEST->addBadComment("test/cpp-2-cil", 
                         "Bug in parser (empty pragmas)");
+$TEST->addTests("testrun/field1", "", ['inferbox']);
 
 $TEST->addTests("testrun/openssl-bounds", "", ['inferbox']);
    $TEST->addBadComment("testrun/openssl-bounds-inferbox", 

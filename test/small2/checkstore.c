@@ -50,12 +50,12 @@ int main() {
   storeToStack(&local);
 
   // This should fail
-  gptr = &local; // ERROR(1):Stack address
+  gptr = &local; // ERROR(1):Storing stack address
 
   // Play a trick with pointer arithemtic (SEQ)
 #if ERROR == 2
   {
-    // ERROR(2):Stack address
+    // ERROR(2):Storing stack address
     int *t = &local; t += (&global - t);
     if(! HAS_KIND(t, SEQ_KIND)) E(2);
     gptr = t; // Should fail
@@ -66,7 +66,7 @@ int main() {
   // The same trick with WILD
 #if ERROR == 3
   {
-    // ERROR(3):Stack address
+    // ERROR(3):Storing stack address
     int *t = (int**)&local; // t is WILD now
     if(! HAS_KIND(t, WILD_KIND)) E(3);
     t += (&global - t); gptr = t; // Should fail
@@ -101,8 +101,8 @@ int main() {
       int * i3;
     } gstr;
     struct str1 res = { 0, &global, &global };//ERROR(5):Error 5
-    struct str1 res = { 0, &local, &global };//ERROR(6):Stack address
-    struct str1 res = { 0, &global, &local };//ERROR(7):Stack address
+    struct str1 res = { 0, &local, &global };//ERROR(6):Storing stack address
+    struct str1 res = { 0, &global, &local };//ERROR(7):Storing stack address
     gstr = res;
     E(5);
   }
@@ -115,8 +115,8 @@ int main() {
       int *a[4];
     } garr;
     struct strarr res = { &global, &global, &global };//ERROR(8):Error 8
-    struct strarr res = { 0, &local, &global };//ERROR(9):Stack address
-    struct strarr res = { 0, &global, &local };//ERROR(10):Stack address
+    struct strarr res = { 0, &local, &global };//ERROR(9):Storing stack address
+    struct strarr res = { 0, &global, &local };//ERROR(10):Storing stack address
     garr = res;
     E(8);
   }
@@ -130,8 +130,8 @@ int main() {
       struct { int *a1, *a2, *a3; } b;
     } gun;
     union un res = { &global, &global, &global };//ERROR(11):Error 11
-    union un res = { 0, &local, &global };//ERROR(12):Stack address
-    union un res = { 0, &global, &local };//ERROR(13):Stack address
+    union un res = { 0, &local, &global };//ERROR(12):Storing stack address
+    union un res = { 0, &global, &local };//ERROR(13):Storing stack address
     gun = res;
     E(11);
   }

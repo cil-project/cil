@@ -65,7 +65,7 @@ int main() {
     v1 = malloc(sizeof(*v1));
     *v1 = malloc(sizeof(**v1));
     **v1 = malloc(sizeof(***v1));
-    ***v1 = &i; //ERROR(5):Stack
+    ***v1 = &i; //ERROR(5):Storing stack address
     v2 = v1;
     v3 = v2; 
     return ****v3; 

@@ -32,7 +32,7 @@ int main(int argc, char **argv)
   e1.next = &e2;
 
   // but not this
-  e1.otherPointer = &e2.x;      // ERROR(1): Stack address
+  e1.otherPointer = &e2.x;      // ERROR(1): Storing stack address
 
   return 0;
 }
