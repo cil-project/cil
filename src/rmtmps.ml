@@ -588,7 +588,7 @@ end
 let uninteresting =
   let names = [
     (* Cil.makeTempVar *)
-    "tmp";
+    "__cil_tmp";
     
     (* sm: I don't know where it comes from but these show up all over. *)
     (* this doesn't seem to do what I wanted.. *)

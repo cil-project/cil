@@ -3297,7 +3297,7 @@ let makeLocalVar fdec ?(insert = true) name typ =
   vi
 
 
-let makeTempVar fdec ?(name = "tmp") typ : varinfo =
+let makeTempVar fdec ?(name = "__cil_tmp") typ : varinfo =
   let name = name ^ (string_of_int (1 + fdec.smaxid)) in
   makeLocalVar fdec name typ
 
