@@ -228,51 +228,51 @@ and binop =
 and exp =
     Const      of constant * location
   | Lval       of lval                  (* l-values *)
-  | SizeOf     of typ * location        (* Has UInt type ! (ISO 6.5.3.4). 
-                                         * Only sizeof for types is 
-                                         * available. This is not turned into 
-                                         * a constant because some 
-                                         * transformations might want to 
-                                         * change types *) 
+  | SizeOf     of typ * location        (* Has UInt type ! (ISO 6.5.3.4).
+                                         * Only sizeof for types is
+                                         * available. This is not turned into
+                                         * a constant because some
+                                         * transformations might want to
+                                         * change types *)
 
                                         (* Give the type of the result *)
-  | UnOp       of unop * exp * typ * location 
+  | UnOp       of unop * exp * typ * location
 
-                                        (* Give the type of the result. The 
-                                         * arithemtic conversions are made 
+                                        (* Give the type of the result. The
+                                         * arithemtic conversions are made
                                          * explicit for the arguments *)
   | BinOp      of binop * exp * exp * typ * location
 
-  | Question   of exp * exp * exp * location (* e1 ? e2 : e3. Sometimes we 
-                                              * cannot turn this into a 
-                                              * conditional statement (e.g. 
-                                              * in global initializers). This 
-                                              * is only allowed inside 
-                                              * constant initializers.!!! In 
-                                              * all other places it must bne 
+  | Question   of exp * exp * exp * location (* e1 ? e2 : e3. Sometimes we
+                                              * cannot turn this into a
+                                              * conditional statement (e.g.
+                                              * in global initializers). This
+                                              * is only allowed inside
+                                              * constant initializers.!!! In
+                                              * all other places it must bne
                                               * turned into IfThenElse *)
   | CastE      of typ * exp * location  (* Use doCast to make casts *)
 
-                                        (* Used only for initializers of 
-                                         * structures and arrays.  *) 
+                                        (* Used only for initializers of
+                                         * structures and arrays.  *)
   | Compound   of typ * (offset option * exp) list
-  | AddrOf     of lval * location       (* Alpways use mkAddrOf to construct 
+  | AddrOf     of lval * location       (* Alpways use mkAddrOf to construct
                                          * one of these *)
 
-  | StartOf    of lval                  (* There is no C correspondent for 
-                                         * this. C has implicit coercions 
-                                         * from an array to the address of 
-                                         * the first element and from a 
-                                         * function to the start address of 
-                                         * the function. StartOf is used in 
-                                         * CIL to simplify type checking and 
-                                         * is just an explicit form of the 
-                                         * above mentioned implicit 
-                                         * convertions. You can use mkAddrOf 
+  | StartOf    of lval                  (* There is no C correspondent for
+                                         * this. C has implicit coercions
+                                         * from an array to the address of
+                                         * the first element and from a
+                                         * function to the start address of
+                                         * the function. StartOf is used in
+                                         * CIL to simplify type checking and
+                                         * is just an explicit form of the
+                                         * above mentioned implicit
+                                         * convertions. You can use mkAddrOf
                                          * to construct one of these *)
 
 
-(* L-Values denote contents of memory addresses. A memory address is 
+(* L-Values denote contents of memory addresses. A memory address is
  * expressed as a base plus an offset. The base address can be the start 
  * address of storage for a local or global variable or, in general, any 
  * expression. We distinguish the two cases to avoid gratuituous introduction 
@@ -280,16 +280,16 @@ and exp =
  * otherwise. *)
 
 and lval =
-    lbase * offset  
+    lbase * offset
 
-(* The meaning of an lval is expressed as a function "[lval] = (a, T)" that 
- * returns a memory address "a" and a type "T" of the object storred starting 
+(* The meaning of an lval is expressed as a function "[lval] = (a, T)" that
+ * returns a memory address "a" and a type "T" of the object storred starting
  * at the address "a".  *)
 
 (* The meaning of an lbase is expressed as a similar function. *)
 
-(* The meaning of an offset is expressed as a function "[offset](a, T) = (a', 
- * T')" whose result also depends on a base address "a" and a base type "T". 
+(* The meaning of an offset is expressed as a function "[offset](a, T) = (a',
+ * T')" whose result also depends on a base address "a" and a base type "T".
  * The result is another address and another base type  *)
 
 (* With this notation we define
@@ -367,32 +367,32 @@ and stmt =
   | Return of exp option
   | Switch of exp * stmt                (* no work done to break this appart *)
   | Case of int                         (* The case expressions are resolved *)
-  | Default 
+  | Default
   | Break
   | Continue
   | Instr of instr
-        
-type fundec = 
-    { svar:     varinfo;                (* Holds the name and type as a 
-                                         * variable, so we can refer to it 
+
+type fundec =
+    { svar:     varinfo;                (* Holds the name and type as a
+                                         * variable, so we can refer to it
                                          * easily from the program *)
-      mutable sformals: varinfo list;   (* These are the formals. There are 
-                                         * other formals in the type of the 
-                                         * svar, but these are referred from 
-                                         * the body and these are printed in 
-                                         * the argument list for function 
-                                         * definitions. Do not make copies of 
-                                         * these because the body refers to 
+      mutable sformals: varinfo list;   (* These are the formals. There are
+                                         * other formals in the type of the
+                                         * svar, but these are referred from
+                                         * the body and these are printed in
+                                         * the argument list for function
+                                         * definitions. Do not make copies of
+                                         * these because the body refers to
                                          * them.  *)
-      mutable slocals: varinfo list;    (* locals, DOES NOT include the 
-                                         * sformals. Do not make copies of 
-                                         * these because the body refers to 
+      mutable slocals: varinfo list;    (* locals, DOES NOT include the
+                                         * sformals. Do not make copies of
+                                         * these because the body refers to
                                          * them  *)
       mutable smaxid: int;              (* max local id. Starts at 0 *)
       mutable sbody: stmt;              (* the body *)
-    } 
+    }
 
-type global = 
+type global =
     GFun of fundec                      (* A function definition. Cannot have 
                                          * storage Extern *)
   | GType of string * typ               (* A typedef *)
@@ -425,10 +425,25 @@ type global =
 type file = 
     { mutable fileName: string;   (* the complete file name *)
       mutable globals: global list;
-    } 
+    } ;;
 	(* global function decls, global variable decls *)
 
 
+(* sm: cil visitor interface for traversing Cil trees *)
+(* no provision for modifying trees at this time *)
+(* use visitCilStmt and/or visitCilFile to use this *)
+(* I'd like to export cil.ml's default nopCilVisitor, but I don't know how *)
+class type cilVisitor = object
+  method vvrbl : varinfo -> unit     (* variable *)
+  method vexpr : exp -> unit         (* expression *)
+  method vlval : lval -> unit        (* lval (base is 1st field) *)
+  method voffs : offset -> unit      (* lval offset *)
+  method vinst : instr -> unit       (* imperative instruction *)
+  method vstmt : stmt -> unit        (* constrol-flow statement *)
+  method vfunc : fundec -> unit      (* function definition *)
+  method vfuncPost : fundec -> unit  (*   postorder version *)
+  method vglob : global -> unit      (* global (vars, types, etc.) *)
+end;;
 
 
 (* Selects the proper integer kind *)
@@ -591,6 +606,12 @@ val d_plaintype: unit -> typ -> Pretty.doc
  (* Scan all the expressions in a statement *)
 val iterExp: (exp -> unit) -> stmt -> unit
 
+
+(* visit all nodes in a Cil statement tree in preorder *)
+val visitCilStmt : cilVisitor -> stmt -> unit;;
+
+(* visit an entire file *)
+val visitCilFile : cilVisitor -> file -> unit;;
 
 
    (* Make a local variable and add it to a function *)

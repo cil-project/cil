@@ -23,6 +23,9 @@ val traceAddSys : string -> unit
 
 (* query whether a particular subsystem is being traced *)
 val traceActive : string -> bool
+   
+(* add several systems, separated by commas *)
+val traceAddMulti : string -> unit
 
 
 (* current indentation level for tracing *)

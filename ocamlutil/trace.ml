@@ -23,6 +23,32 @@ let traceActive (subsys : string) : bool =
 ;;
 
 
+let rec parseString (str : string) (delim : char) : string list =
+begin
+  if (not (String.contains str delim)) then 
+    if ((String.length str) = 0) then
+      [] 
+    else
+      [str]
+
+  else
+    let d = ((String.index str delim) + 1) in
+    if (d = 1) then
+      (* leading delims are eaten *)
+      (parseString (String.sub str d ((String.length str) - d)) delim)
+    else
+      (String.sub str 0 (d-1)) ::
+        (parseString (String.sub str d ((String.length str) - d)) delim)
+end;;
+
+let traceAddMulti (systems : string) : unit =
+begin
+  let syslist = (parseString systems ',') in
+  (List.iter traceAddSys syslist)
+end;;
+
+
+
 (* --------- traceIndent --------- *)
 let traceIndentLevel : int ref = ref 0;;
 

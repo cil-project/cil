@@ -425,7 +425,39 @@ type file =
     } 
 	(* global function decls, global variable decls *)
 
+(* sm: cil visitor interface for traversing Cil trees *)
+(* no provision for modifying trees at this time *)
+class type cilVisitor = object
+  method vvrbl : varinfo -> unit     (* variable *)
+  method vexpr : exp -> unit         (* expression *)
+  method vlval : lval -> unit        (* lval (base is 1st field) *)
+  method voffs : offset -> unit      (* lval offset *)
+  method vinst : instr -> unit       (* imperative instruction *)
+  method vstmt : stmt -> unit        (* constrol-flow statement *)
+  method vfunc : fundec -> unit      (* function definition *)
+  method vfuncPost : fundec -> unit  (*   postorder version *)
+  method vglob : global -> unit      (* global (vars, types, etc.) *)
+end;;
 
+(* the default visitor does nothing at each node *)
+class nopCilVisitor = object
+  method vvrbl (v:varinfo) = ()     (* variable *)
+  method vexpr (e:exp) = ()         (* expression *)
+  method vlval (l:lval) = ()        (* lval (base is 1st field) *)
+  method voffs (o:offset) = ()      (* lval offset *)
+  method vinst (i:instr) = ()       (* imperative instruction *)
+  method vstmt (s:stmt) = ()        (* constrol-flow statement *)
+  method vfunc (f:fundec) = ()      (* function definition *)
+  method vfuncPost (f:fundec) = ()  (*   postorder version *)
+  method vglob (g:global) = ()      (* global (vars, types, etc.) *)
+end;;
+
+(* as an example, here is a visitor that visits expressions *)
+(* note how objects capture constructor arguments for use later *)
+class cilExprVisitor (ve : exp -> unit) = object
+  inherit nopCilVisitor
+  method vexpr e = (ve e)           (* call the ctor arg *)
+end;;
 
 
 
@@ -1313,51 +1345,94 @@ let iterExp (f: exp -> unit) (body: stmt) : unit =
   fStmt body
 
 
- (* Scan all the variables in a statement *)
- (* sm: want to rewrite this using visitor *)
-let iterVar (f: varinfo -> unit) (body: stmt) : unit =
+(* visit all nodes in a Cil statement tree in preorder *)
+let visitCilStmt (vis: cilVisitor) (body: stmt) : unit =
 begin
-  let rec fExp = function
+  let fVrbl v = (vis#vvrbl v) in
+
+  let rec fExp e = (vis#vexpr e); fExp' e
+  and fExp' = function
       (Const _|SizeOf _) -> ()
     | Lval lv -> fLval lv
     | UnOp(_,e,_,_) -> fExp e
     | BinOp(_,e1,e2,_,_) -> fExp e1; fExp e2
     | Question (e1, e2, e3, _) -> fExp e1; fExp e2; fExp e3
     | CastE(_, e,_) -> fExp e
-    | Compound (_, initl) -> List.iter (fun (_, e) -> fExp e) initl
+    | Compound (_, initl) ->
+        List.iter
+          (function
+              (None, e) -> fExp e
+            | (Some ofs, e) -> fOff ofs; fExp e
+          )
+          initl
     | AddrOf (lv,_) -> fLval lv
     | StartOf (lv) -> fLval lv
 
-  and fLval = function
-      Var v, off -> f v; fOff off        (* visit *)
+  and fLval lv = (vis#vlval lv); fLval' lv
+  and fLval' = function
+      Var v, off -> fVrbl v; fOff off
     | Mem e, off -> fExp e; fOff off
-  and fOff = function
+
+  and fOff o = (vis#voffs o); fOff' o
+  and fOff' = function
       Field (_, o) -> fOff o
     | Index (e, o) -> fExp e; fOff o
     | NoOffset -> ()
-  and fStmt = function
+
+  (* I don't know why I had to specify the types here and nowhere
+   * else .. the compiler complained of partial applications
+   * where I could see none .. *)  
+  and fInst (i:instr) : unit = (vis#vinst i); fInst' i; ()
+  and fInst' (i:instr) : unit = match i with
+    | Set(lv,e,_) -> fLval lv; fExp e
+    | Call(None,f,args,_) -> fExp f; List.iter fExp args
+    | Call((Some v),fn,args,_) -> fVrbl v; fExp fn; List.iter fExp args  (* sm: bugfix 3/17/01 *)
+    | Asm(_,_,outs,ins,_) -> begin
+        List.iter (fun (_, lv) -> fLval lv) outs;
+        List.iter (fun (_, e) -> fExp e) ins
+      end
+
+  and fStmt s = (vis#vstmt s); fStmt' s
+  and fStmt' = begin function
       (Skip|Break|Continue|Label _|Goto _|Case _|Default|Return None) -> ()
     | Sequence s -> List.iter fStmt s
     | Loop s -> fStmt s
     | IfThenElse (e, s1, s2) -> fExp e; fStmt s1; fStmt s2
     | Return(Some e) -> fExp e
     | Switch (e, s) -> fExp e; fStmt s
-    | Instr(Set(lv,e,_)) -> fLval lv; fExp e
-    | Instr(Call(None,f,args,_)) -> fExp f; List.iter fExp args
-    | Instr(Call((Some v),fn,args,_)) -> f v; fExp fn; List.iter fExp args  (* sm: bugfix 3/17/01 *)
-    | Instr(Asm(_,_,outs,ins,_)) -> begin
-        List.iter (fun (_, lv) -> fLval lv) outs;
-        List.iter (fun (_, e) -> fExp e) ins
-      end
+    | Instr(i) -> (fInst i); ()
+  end
+
   in
   fStmt body
 end;;
 
 
+let visitCilFile (vis : cilVisitor) (f : file) : unit =
+begin
+  let rec fFunc f = begin
+    vis#vfunc f;                (* preorder visit *)
+    vis#vvrbl f.svar;           (* hit the function name *)
+    visitCilStmt vis f.sbody;   (* visit the body *)
+    vis#vfuncPost f             (* postorder visit *)
+  end
+
+  and fGlob g = vis#vglob g; fGlob' g
+  and fGlob' = function
+    GFun f -> fFunc f
+  (* GDecl isn't visited because vvrbl is for *uses* *)
+  | GVar (v, None) -> vis#vvrbl v
+  | GVar (v, Some e) -> vis#vvrbl v; vis#vexpr e
+  | _ -> ()
+
+  in List.iter fGlob f.globals
+end;;
+
+
    (* Make a local variable and add it to a function *)
-let makeLocalVar fdec name typ = 
+let makeLocalVar fdec name typ =
   fdec.smaxid <- 1 + fdec.smaxid;
-  let vi = { vname = name; 
+  let vi = { vname = name;
              vid   = fdec.smaxid;
              vglob = false;
              vtype = typ;
@@ -1737,83 +1812,69 @@ let foldLeftCompound (doexp: offset -> exp -> typ -> 'a -> 'a)
 
 
 
-let rec isCompleteType t = 
-  match unrollType t with 
+let rec isCompleteType t =
+  match unrollType t with
   | TArray(t, None, _) -> false
   | TComp comp -> (* Struct or union *)
       List.for_all (fun fi -> isCompleteType fi.ftype) comp.cfields
   | _ -> true
 
-  
+
   
 (* sm: taking a stab at removing extra temporaries *)
-let removeUnusedTemps (f : file) =
-begin
-  (* (trace "usedVar" (dprintf "printing file %s\n" f.fileName)); *)
-  (List.iter
-    (function
-      GFun f -> begin
-        (* name *)
-        (tracei "usedVar" (dprintf "function: %s\n" f.svar.vname));
+class removeTempsVis = object
+  inherit nopCilVisitor
+  method vfunc (f : fundec) = begin
+    (* name *)
+    (tracei "usedVar" (dprintf "function: %s\n" f.svar.vname));
 
-        (* declared variables: clear the 'referenced' bits *)
-        (List.iter
-          (fun (v : varinfo) ->
-            (* (trace "sm" (dprintf "var decl[%d]: %s\n" v.vid v.vname)); *)
-            v.vreferenced <- false
-          )
-          f.slocals);
+    (* declared variables: clear the 'referenced' bits *)
+    (List.iter
+      (fun (v : varinfo) ->
+        (* (trace "sm" (dprintf "var decl[%d]: %s\n" v.vid v.vname)); *)
+        v.vreferenced <- false
+      )
+      f.slocals)
+  end
 
-        (* referenced used variables: mark them *)
-        (* iterVar (f: varinfo -> unit) (body: stmt) : unit *)
-        (iterVar
-          (fun (v : varinfo) ->
-            if (not v.vglob) then begin
-              (* (trace "sm" (dprintf "var ref[%d]: %s\n" v.vid v.vname)); *)
-              v.vreferenced <- true
-            end
-            else ()
-          )
-          f.sbody);
+  method vvrbl (v : varinfo) = begin
+    if (not v.vglob) then begin
+      (* (trace "sm" (dprintf "var ref[%d]: %s\n" v.vid v.vname)); *)
+      v.vreferenced <- true
+    end;
+    ()
+  end
 
-        (* check the 'referenced' bits *)
-        f.slocals <- (List.filter
-          (fun (v : varinfo) ->
-            if (not v.vreferenced) then begin
-              (trace "usedVar" (dprintf "*removing* unused: var decl[%d]: %s\n"
-                                       v.vid v.vname));
-              if ((String.length v.vname) < 3 ||
-                  (String.sub v.vname 0 3) <> "tmp") then
-                (* sm: if I'd had this to begin with, it would have been
-                 * a little easier to track down the bug where I didn't
-                 * check the function return-value destination *)
-                (ignore (printf "WARNING: removing unused source variable %s\n"
-                                v.vname));
-              false   (* remove it *)
-            end
-            else 
-              true    (* keep it *)
-          )
-          f.slocals);
+  method vfuncPost (f : fundec) = begin
+    (* check the 'referenced' bits *)
+    f.slocals <- (List.filter
+      (fun (v : varinfo) ->
+        if (not v.vreferenced) then begin
+          (trace "usedVar" (dprintf "*removing* unused: var decl[%d]: %s\n"
+                                   v.vid v.vname));
+          if ((String.length v.vname) < 3 ||
+              (String.sub v.vname 0 3) <> "tmp") then
+            (* sm: if I'd had this to begin with, it would have been
+             * a little easier to track down the bug where I didn't
+             * check the function return-value destination *)
+            (ignore (printf "WARNING: removing unused source variable %s\n"
+                            v.vname));
+          false   (* remove it *)
+        end
+        else
+          true    (* keep it *)
+      )
+      f.slocals);
 
-        (traceOutdent "usedVar")
-      end
-    | _ -> ()
-    )
-    f.globals);
-  ()
+    (traceOutdent "usedVar")
+  end
 end;;
 
-(*
-    fun (g : global) ->
-    begin
-      match g with
-        GFun f -> begin
-          (trace "sm" (dprintf "function: %s\n" f.svar.vname))
-        end
-      | _ -> ()
-    end
-*)
+let removeUnusedTemps (file : file) =
+begin
+  visitCilFile (new removeTempsVis) file
+end;;
+
 
 (**
  **
