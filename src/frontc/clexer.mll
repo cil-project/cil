@@ -304,6 +304,11 @@ let wstr_to_warray wstr =
   res := !res ^ "}" ;
   !res
 *)
+
+(* Pragmas get explicit end-of-line tokens.
+ * Elsewhere they are silently discarded as whitespace. *)
+let pragmaLine = ref false
+
 }
 
 let decdigit = ['0'-'9']
@@ -350,7 +355,14 @@ rule initial =
                                           initial lexbuf}
 |               "//"                    { endline lexbuf }
 |		blank			{initial lexbuf}
-|               '\n'                    { E.newline (); initial lexbuf }
+|               '\n'                    { E.newline ();
+                                          if !pragmaLine then
+                                            begin
+                                              pragmaLine := false;
+                                              PRAGMA_EOL
+                                            end
+                                          else
+                                            initial lexbuf }
 |		'#'			{ hash lexbuf}
 |               "_Pragma" 	        { PRAGMA (currentLoc ()) }
 |		'\''			{ CST_CHAR (chr lexbuf, currentLoc ())}
@@ -462,7 +474,7 @@ and hash = parse
                   (* A file name must follow *)
 		  file lexbuf }
 | "line"        { hash lexbuf } (* MSVC line number info *)
-| "pragma"      { PRAGMA (currentLoc ()) }
+| "pragma"      { pragmaLine := true; PRAGMA (currentLoc ()) }
 | _	        { endline lexbuf}
 
 and file =  parse 

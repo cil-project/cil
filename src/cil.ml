@@ -2656,9 +2656,12 @@ class defaultCilPrinterClass : cilPrinter = object (self)
            (an = "merger") ||
            (an = "cilnoremove")) in
         let d =
-          if args = [] then
-            text an
-          else
+	  match an, args with
+	  | _, [] ->
+              text an
+	  | "weak", [ACons (symbol, [])] ->
+	      text "weak " ++ text symbol
+	  | _ ->
             text (an ^ "(")
               ++ docList (chr ',') (self#pAttrParam ()) () args
               ++ text ")"

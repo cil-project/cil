@@ -258,6 +258,7 @@ let rec filterBEStmts (elts : blockElement list) : statement list =
 %token<Cabs.cabsloc> DECLSPEC
 %token<string * Cabs.cabsloc> MSASM MSATTR
 %token<Cabs.cabsloc> PRAGMA
+%token PRAGMA_EOL
 
 /* sm: cabs tree transformation specification keywords */
 %token<Cabs.cabsloc> AT_TRANSFORM AT_TRANSFORMEXPR AT_SPECIFIER AT_EXPR
@@ -365,7 +366,7 @@ global:
 | function_def                          { $1 } 
 | ASM LPAREN string_constant RPAREN SEMICOLON
                                         { GLOBASM (fst $3, $1) }
-| PRAGMA attr				{ PRAGMA ($2, $1) }
+| PRAGMA attr PRAGMA_EOL		{ PRAGMA ($2, $1) }
 /* (* Old-style function prototype. This should be somewhere else, like in
     * "declaration". For now we keep it at global scope only because in local
     * scope it looks too much like a function call  *) */
@@ -1125,12 +1126,14 @@ just_attributes:
     * cannot use directly the language of expressions *) */ 
 attr: 
 |   id_or_typename                       { VARIABLE $1 }
+|   IDENT IDENT                          { CALL(VARIABLE (fst $1), [VARIABLE (fst $2)]) }
 |   IDENT COLON CST_INT                  { VARIABLE (fst $1 ^ ":" ^ fst $3) }
 |   DEFAULT COLON CST_INT                { VARIABLE ("default:" ^ fst $3) }
                                          /* (* use a VARIABLE "" so that the 
                                              * parentheses are printed *) */
 |   IDENT LPAREN  RPAREN                 { CALL(VARIABLE (fst $1), [VARIABLE ""]) }
 |   IDENT paren_attr_list_ne             { CALL(VARIABLE (fst $1), $2) }
+
 |   CST_INT                              { CONSTANT(CONST_INT (fst $1)) }
 |   string_constant                      { CONSTANT(CONST_STRING (fst $1)) }
                                            /*(* Const when it appears in 
