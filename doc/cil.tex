@@ -2009,6 +2009,9 @@ Necula}.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf September 10, 2002}: Fixed bug in conversion to CIL. Now we drop
+all ``const'' qualifiers from the types of locals, even from the fields of
+local structures or elements of arrays.
 \item {\bf September 7, 2002}: Extended visitor interface to distinguish visitng
   offsets inside lvalues from offsets inside initializer lists.
 \item {\bf September 7, 2002}: {\bf Released version 1.0.1}

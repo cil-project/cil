@@ -270,7 +270,7 @@ $TEST->add2Tests("testrun/vararg5", "_GNUCC=1");
 if (!$egcs) {
   $TEST->add2Tests("testrun/vararg6");
 }
-$TEST->add2Tests("testrun/vararg7", "_GNUCC=1");
+$TEST->add2Tests("test/vararg7", "_GNUCC=1");
 $TEST->addTests("testrun/vararg8", "", ['inferbox']);
 $TEST->add2Tests("testrun/va-arg-1", "_GNUCC=1");
 $TEST->add2Tests("testrun/va-arg-2", "_GNUCC=1");
@@ -339,7 +339,7 @@ $TEST->add3Tests("testrun/addrof", "MANUALBOX=1");
 $TEST->add3Tests("testrun/addrof2", "MANUALBOX=1");
 $TEST->addTests("testrun/addrof3", "_GNUCC=1", ['cil']);
 $TEST->add3Tests("testrun/lval1", "_GNUCC=1");
-$TEST->add3Tests("testrun/bind1", "EXTRAARGS=-assumePrintf");
+$TEST->add3Tests("testrun/bind1", "EXTRAARGS=--assumePrintf");
 $TEST->add3Tests("test/bind2");
 $TEST->add3Tests("testmodel/model1");
 $TEST->add3Tests("testmodel/modelpoly");

@@ -457,12 +457,65 @@ let alphaConvertVarAndAddToEnv (addtoenv: bool) (vi: varinfo) : varinfo =
   newvi
 
 
+(* Strip the "const" from the type. It is unfortunate that const variables 
+ * can only be set in initialization. Once we decided to move all 
+ * declarations to the top of the functions, we have no way of setting a 
+ * "const" variable. Furthermore, if the type of the variable is an array or 
+ * a struct we must recursively strip the "const" from fields and array 
+ * elements. *)
+let rec stripConstLocalType (t: typ) : typ = 
+  let dc a = dropAttribute "const" a in
+  match t with 
+  | TPtr (bt, a) -> 
+      (* We want to be able to detect by pointer equality if the type has 
+       * changed. So, don't realloc the type unless necessary. *)
+      let a' = dc a in if a != a' then TPtr(bt, a') else t
+  | TInt (ik, a) -> 
+      let a' = dc a in if a != a' then TInt(ik, a') else t
+  | TFloat(fk, a) -> 
+      let a' = dc a in if a != a' then TFloat(fk, a') else t
+  | TNamed (ti, a) -> 
+      (* We must go and drop the consts from the typeinfo as well ! *)
+      let t' = stripConstLocalType ti.ttype in
+      if t != t' then begin
+        ignore (warn "Stripping \"const\" from typedef %s\n" ti.tname);
+        ti.ttype <- t'
+      end;
+      let a' = dc a in if a != a' then TNamed(ti, a') else t
+
+  | TEnum (ei, a) -> 
+      let a' = dc a in if a != a' then TEnum(ei, a') else t
+      
+  | TArray(bt, leno, a) -> 
+      (* We never assign to the array. So, no need to change the const. But 
+       * we must change it on the base type *)
+      let bt' = stripConstLocalType bt in
+      if bt' != bt then TArray(bt', leno, a) else t
+
+  | TComp(ci, a) -> (* Again, no need to change the a. But we must change the 
+                     * fields. *)
+      List.iter 
+        (fun f -> 
+          let t' = stripConstLocalType f.ftype in
+          if t' != t then begin
+            ignore (warn "Stripping \"const\" from field %s of %s\n" 
+                      f.fname (compFullName ci));
+            f.ftype <- t'
+          end)
+        ci.cfields;
+      t
+
+    (* We never assign functions either *)
+  | TFun(rt, args, va, a) -> t
+  | TVoid _ -> E.s (bug "cabs2cil: stripConstLocalType: void")
+  | TBuiltin_va_list a -> 
+      let a' = dc a in if a != a' then TBuiltin_va_list a' else t
+
+            
+        
+
 (* Create a new temporary variable *)
 let newTempVar typ = 
-  (* Strip the "const" from the type. It is unfortunate that const variables 
-    can only be set in initialization. Once we decided to move all 
-    declarations to the top of the functions, we have no way of setting a 
-    "const" variable *)
   let stripConst t =
     let a = typeAttrs t in
     let a1 = dropAttribute "const" a in
@@ -470,14 +523,15 @@ let newTempVar typ =
   in
   if !currentFunctionFDEC == dummyFunDec then 
     E.s (bug "newTempVar called outside a function");
+  let t' = stripConstLocalType typ in
   (* Start with the name "tmp". THe alpha converter will fix it *)
-  let vi = makeVarinfo false "tmp" (stripConst typ) in
+  let vi = makeVarinfo false "tmp" t' in
   alphaConvertVarAndAddToEnv false  vi (* Do not add to the environment *)
 (*
     { vname = "tmp";  (* addNewVar will make the name fresh *)
       vid   = newVarId "tmp" false;
       vglob = false;
-      vtype = stripConst typ;
+      vtype = t';
       vdecl = locUnknown;
       vinline = false;
       vattr = [];
@@ -1983,32 +2037,15 @@ and makeVarInfoCabs
     ignore (error "inline for a non-function: %s" n);
   let t = 
     if not isglob then 
-      typeRemoveAttributes ["const"] vtype
+      stripConstLocalType vtype
     else vtype
   in
   let vi = makeVarinfo isglob n t in
   vi.vstorage <- sto;
   vi.vattr <- nattr;
   vi.vdecl <- ldecl;
+  (* ignore (E.log "Created local %s : %a\n" vi.vname d_type vi.vtype); *)
   vi
-(*
-
-  { vname    = n;
-    vid      = newVarId n isglob;
-    vglob    = isglob;
-    vstorage = sto;
-    vattr    = nattr;
-    vdecl    = ldecl;
-    vinline  = false;
-    (* Remove the const qualifier from local variables because they are 
-       initialized through assignments *)
-    vtype    = if not isglob then 
-                  typeRemoveAttributes ["const"] vtype
-               else vtype;
-    vaddrof  = false;
-    vreferenced = false;   (* sm *)
-  }
-*)
 
 (* Process a local variable declaration and allow variable-sized arrays *)
 and makeVarSizeVarInfo (ldecl: location) 
@@ -4099,7 +4136,7 @@ and createGlobal (specs : (typ * storage * bool * A.attribute list))
                     n docAlphaTable)
 *)
 
-(* Must catch the Static local variables.Make them global *)
+(* Must catch the Static local variables. Make them global *)
 and createLocal ((_, sto, _, _) as specs)
                 (((n, ndt, a) as name, (e: A.init_expression)) as init_name) 
   : chunk =
@@ -4163,6 +4200,7 @@ and createLocal ((_, sto, _, _) as specs)
        * it is a variable size variable *)
       let vi,se0,len,isvarsize = 
         makeVarSizeVarInfo !currentLoc specs (n, ndt, a) in
+
       let vi = alphaConvertVarAndAddToEnv true vi in        (* Replace vi *)
       let se1 = 
         if isvarsize then begin (* Variable-sized array *) 
@@ -4197,7 +4235,7 @@ and createLocal ((_, sto, _, _) as specs)
         se1 (* skipChunk *)
       else begin
         let se4, ie', et = doInitializer vi e in
-        let se5 = se1 @@ se4 in
+        (* Fix the length *)
         (match vi.vtype, ie', et with 
             (* We have a length now *)
           TArray(_,None, _), _, TArray(_, Some _, _) -> vi.vtype <- et
@@ -4209,7 +4247,7 @@ and createLocal ((_, sto, _, _) as specs)
                                   a)
         | _, _, _ -> ());
         (* Now create assignments instead of the initialization *)
-        se4 @@ (assignInit (Var vi, NoOffset) ie' et empty)
+        se1 @@ se4 @@ (assignInit (Var vi, NoOffset) ie' et empty)
       end
           
           
@@ -4292,7 +4330,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
              * need this throughout the code to create temporaries. *)
             currentFunctionFDEC := 
                { svar     = makeGlobalVar "@tempname@" voidType;
-                 slocals  = []; (* For now we'll put hre both the locals and 
+                 slocals  = []; (* For now we'll put here both the locals and 
                                  * the formals. Then "endFunction" will 
                                  * separate them *)
                  sformals = []; (* Not final yet *)
@@ -4312,6 +4350,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
             * We'll do it later *)
             transparentUnionArgs := [];
 
+            (* Fix the NAME and the STORAGE *)
             let _ = 
               let bt,sto,inl,attrs = doSpecList n specs in
               !currentFunctionFDEC.svar.vinline <- inl;
@@ -4359,19 +4398,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
             (* Make a variable out of it and put it in the environment *)
             !currentFunctionFDEC.svar <- 
                fst (makeGlobalVarinfo true !currentFunctionFDEC.svar);
-(*                
-                { vname = n';
-                  vtype = ftyp;
-                  vglob = true;
-                  vid   = newVarId n true;
-                  vdecl = lu;
-                  vinline = inl;
-                  vattr = funattr;
-                  vaddrof = false;
-                  vstorage = sto';
-                  vreferenced = false;   (* sm *)
-                }
-*)
+
             (* If it is extern inline then we add it to the global 
              * environment for the original name as well. This will ensure 
              * that all uses of this function will refer to the renamed 
@@ -4390,7 +4417,8 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
             (* makeGlobalVarinfo might have changed the type of the function 
              * (when combining it with the type of the prototype). So get the 
              * type only now. *)
-            (* Extract the information from the type *)
+
+            (**** Process the TYPE and the FORMALS ***)
             let _ = 
               let (returnType, formals_t, isvararg, funta) =
                 splitFunctionTypeVI !currentFunctionFDEC.svar 
@@ -4406,17 +4434,10 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                     let f = makeVarinfo false fn ft in
                     f.vdecl <- !currentLoc;
                     f.vattr <- fa;
-                    (*
-                    { vname = fn; vtype = ft; vattr = fa; 
-                    vglob = false; vid = newVarId fn false; 
-                    vinline = false;
-                    vreferenced = false; vaddrof = false;
-                    vstorage = NoStorage; vdecl = !currentLoc; }
-                    *)
                     alphaConvertVarAndAddToEnv true f)
                   (argsToList formals_t)
               in
-              (* Recreate the type *)
+              (* Recreate the type based on the formals. *)
               let ftype = TFun(returnType, 
                                Some (List.map (fun f -> (f.vname,
                                                          f.vtype, 
@@ -4449,11 +4470,13 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
               fixbackFormals 0 !currentFunctionFDEC.sformals;
               transparentUnionArgs := [];
             in
+
             (********** Now do the BODY *************)
             let _ = 
               let stmts = doBody body in
               (* Finish everything *)
               exitScope ();
+
               (* Now fill in the computed goto statement with cases. Do this 
                * before mkFunctionbody which resolves the gotos *)
               (match !gotoTargetData with
@@ -4524,16 +4547,6 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                    (List.rev !currentFunctionFDEC.slocals);
             setMaxId !currentFunctionFDEC;
  
-(* in
-            let fdec = { svar     = thisFunctionVI;
-                         slocals  = locals;
-                         sformals = formals;
-                         smaxid   = maxid;
-                         sbody    = mkFunctionBody stm;
-			 smaxstmtid = None;
-                       }
-            in
-*)
             (* Now go over the types of the formals and pull out the formals 
              * with transparent union type. Replace them with some shadow 
              * parameters and then add assignments  *)
