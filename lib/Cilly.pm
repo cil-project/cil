@@ -917,12 +917,7 @@ sub applyCil {
     if(@srcs > 20) {
         my $extraFile = "___extra_files";
         open(TOMERGE, ">$extraFile") || die $!;
-        #FRANJO added the following on February 15th, 2005
-        #REASON: extrafiles was TempFIle=HASH(0x12345678) 
-        # instead of actual filename
-        my @normalized = @srcs ;
-        $_ = (ref $_ ? $_->filename : $_) foreach @normalized;
-        foreach my $fl (@normalized) {
+        foreach my $fl (@srcs) {
             print TOMERGE "$fl\n";
         }
         close(TOMERGE);
