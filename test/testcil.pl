@@ -1212,6 +1212,7 @@ altAddTest("scott/structattr3");
 altAddTest("scott/enumerator_sizeof");
 altAddTest("testrun/decl_mix_stmt");
 altFailTest("output makes GCC unhappy", "scott/enumattr");
+altFailTest("alignment-related unsoundness", "scott/alignprob $box");
 
 
 # $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug
