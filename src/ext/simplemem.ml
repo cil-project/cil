@@ -45,7 +45,7 @@ open Cil
 let thefunc = ref None 
 
 (* build up a list of assignments to temporary variables *)
-let assignment_list = ref (ref [])
+let assignment_list = ref []
 
 (* turn "int a[5][5]" into "int ** temp" *)
 let rec array_to_pointer tau = 
@@ -57,7 +57,7 @@ let rec array_to_pointer tau =
 let make_temp tau = 
   let tau = array_to_pointer tau in 
   match !thefunc with
-    Some(fundec) -> makeTempVar fundec ~name:"mem_temp" tau
+    Some(fundec) -> makeTempVar fundec ~name:("mem_") tau
   | None -> failwith "simplemem: temporary needed outside a function"
 
 (* separate loffsets into "scalar addition parts" and "memory parts" *)
@@ -82,17 +82,15 @@ let rec handle_lvalue (lb,lo) =
   | Mem(e) -> 
       begin
         let new_vi = make_temp (typeOf e) in
-        !assignment_list := (new_vi, e, !currentLoc) 
-          :: ! (!assignment_list) ;
+        assignment_list := (Set((Var(new_vi),NoOffset),e,!currentLoc)) 
+          :: !assignment_list ;
         handle_loffset (Mem(Lval(Var(new_vi),NoOffset)),NoOffset) lo
       end
 and handle_loffset lv lo = 
   match lo with
     NoOffset -> lv
-  | Field(f,o) -> 
-      handle_loffset (addOffsetLval (Field(f,NoOffset)) lv) o
-  | Index(exp,o) -> 
-      handle_loffset (addOffsetLval (Index(exp,NoOffset)) lv) o
+  | Field(f,o) -> handle_loffset (addOffsetLval (Field(f,NoOffset)) lv) o
+  | Index(exp,o) -> handle_loffset (addOffsetLval (Index(exp,NoOffset)) lv) o
 
 (* the transformation is implemented as a Visitor *)
 class simpleVisitor = object 
@@ -102,39 +100,19 @@ class simpleVisitor = object
     thefunc := Some(fundec) ;
     DoChildren
 
-  method vlval lv = 
-    ChangeDoChildrenPost(lv,
+  method vlval lv = ChangeDoChildrenPost(lv,
       (fun lv -> handle_lvalue lv))
 
-  method vinst i = 
-		(* this "my_alist" idiocy is to make sure that temporary statements
-		 * that get generated to deal with, e.g., the predicate of an
-		 * 'if' statement get put before the 'if' statement and not inside
-		 * one of the branches *)
-		let my_alist = ref [] in
-		assignment_list := my_alist ;
-    ChangeDoChildrenPost([i],
-      (fun i_list -> 
-        let new_instr_list = List.map (fun (vi,e,loc) ->
-          Set((Var(vi),NoOffset),e,loc)) 
-            (List.rev !my_alist) in
-        new_instr_list @ i_list))
+  method vinst i = ChangeDoChildrenPost([i], 
+      (fun i_list -> i_list))
 
-  method vstmt s = 
-		let my_alist = ref [] in
-		assignment_list := my_alist ;
-    ChangeDoChildrenPost(s,
-      (fun s -> 
-        if !my_alist = [] then s
-        else begin
-          let new_instr_list = List.map (fun (vi,e,loc) ->
-            Set((Var(vi),NoOffset),e,loc)) 
-              (List.rev !my_alist) in
-          let new_stmt = mkStmt (Instr(new_instr_list)) in 
-          let new_block = mkBlock ([new_stmt ; s ;]) in
-          mkStmt (Block(new_block))
-        end
-    ))
+  method vstmt s = ChangeDoChildrenPost(s,
+      (fun s -> s))
+
+  method unqueueInstr () = 
+      let result = List.rev !assignment_list in
+      assignment_list := [] ;
+      result 
 end
 
 (* Main entry point: apply the transformation to a file *)
