@@ -1101,8 +1101,8 @@ let d_const () c =
       IUInt -> "U"
     | ILong -> "L"
     | IULong -> "UL"
-    | ILongLong -> "LL"
-    | IULongLong -> "ULL"
+    | ILongLong -> if !msvcMode then "L" else "LL"
+    | IULongLong -> if !msvcMode then "UL" else "ULL"
     | _ -> ""
   in
   match c with

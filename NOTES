@@ -16,6 +16,11 @@ Front-end
  - check that long long is properly done in type specs ISO 6.7.2
  - Initialization ISO 6.7.8
 
+- "make RELEASE=1" insists of recompiling all of the ml files when cil.ml changes.
+
+- MSVC has a bug in the handling of shift operators: arithemtic conversions
+are applies on both operands instead of just integral promotions. We duplicate
+this bug in doBinOp in bacs2cil.
 
 
 CCURED
