@@ -82,6 +82,14 @@ let parseOneFile (fname: string) : C.file =
   );
   cil
 
+(** These are the statically-configured features. To these we append the 
+  * features defined in Feature_config.ml (from Makefile) *)
+let features : C.featureDescr list = 
+  [ Logcalls.feature;
+    Logwrites.feature;
+  ] 
+  @ Feature_config.features 
+
 
 let rec processOneFile (cil: C.file) =
   try begin
@@ -100,10 +108,6 @@ let rec processOneFile (cil: C.file) =
       (Callgraph.printGraph stdout graph)
     );
     
-    if !dumpFCG then (
-      (Blockinggraph.makeAndDumpFunctionCallGraph cil)
-    );
-    
     if !doEpicenter then (
       (Epicenter.sliceFile cil !epicenterName !epicenterHops)
     );
@@ -113,14 +117,6 @@ let rec processOneFile (cil: C.file) =
       ignore (CK.checkFile [] cil);
     end;
 
-    if (!Util.logCalls) then begin
-      Logcalls.logCalls cil 
-    end ; 
-    
-    if (!Util.logWrites) then begin
-      Logwrites.logWrites cil 
-    end ; 
-    
     if (!heapify) then begin
       Heapify.default_heapify cil 
     end ;
@@ -138,6 +134,15 @@ let rec processOneFile (cil: C.file) =
       Canonicalize.canonicalize cil
     end ;
       
+    (* Scan all the features configured from the Makefile and, if they are 
+     * enabled then run them on the current file *)
+    List.iter 
+      (fun fdesc -> 
+        if ! (fdesc.C.fd_enabled) then 
+          fdesc.C.fd_doit cil)
+      features;
+
+
     (* sm: enabling this by default, since I think usually we
      * want 'cilly' transformations to preserve annotations; I
      * can easily add a command-line flag if someone sometimes
@@ -219,6 +224,25 @@ let rec theMain () =
     Pretty.printDepth := n
   in
   (*********** COMMAND LINE ARGUMENTS *****************)
+  (* Construct the arguments for the features configured from the Makefile *)
+  let featureArgs = 
+    List.fold_right
+      (fun fdesc acc -> 
+        ("", Arg.Unit (fun _ -> ()), "\n") ::
+        ("--do" ^ fdesc.C.fd_name, 
+         Arg.Unit (fun _ -> fdesc.C.fd_enabled := true), 
+         "enable " ^ fdesc.C.fd_description) ::
+        ("--dont" ^ fdesc.C.fd_name, 
+         Arg.Unit (fun _ -> fdesc.C.fd_enabled := false), 
+         "disable " ^ fdesc.C.fd_description) ::
+        fdesc.C.fd_extraopt @ acc)
+      features
+      []
+  in
+  let featureArgs = 
+    ("", Arg.Unit (fun () -> ()), "\n\t\tCIL Features") :: featureArgs 
+  in
+    
   let argDescr = [
     "--verbose", Arg.Unit (fun _ -> E.verboseFlag := true),
                 "turn on verbose mode";
@@ -230,10 +254,6 @@ let rec theMain () =
                      "turns on consistency checking of CIL";
     "--nocheck", Arg.Unit (fun _ -> Util.doCheck := false),
                      "turns off consistency checking of CIL";
-    "--logcalls", Arg.Unit (fun _ -> Util.logCalls := true),
-                     "turns on generation of code to log function calls in CIL";
-    "--logwrites", Arg.Unit (fun _ -> Util.logWrites := true),
-                     "turns on generation of code to log memory writes in CIL";
     "--ptr_analysis",Arg.Unit (fun _ -> ptrAnalysis := true),
                      "turns on alias analysis";
     "--ptr_unify", Arg.Unit (fun _ -> Ptranal.no_sub := true),
@@ -286,8 +306,6 @@ let rec theMain () =
                "output is the slice of #pragma cilnoremove(sym) symbols";
     "--doCallGraph", Arg.Unit (fun _ -> doCallGraph := true),
                "compute and print a static call graph" ;
-    "--dumpFCG", Arg.Unit (fun _ -> dumpFCG := true),
-               "compute and print a static call graph, George style" ;
     "--makeCFG", Arg.Unit (fun _ -> makeCFG := true),
           "make the file look more like a CFG";
     "--epicenter", Arg.String (fun s -> doEpicenter := true; epicenterName := s),
@@ -302,7 +320,7 @@ let rec theMain () =
 
     "--extrafiles", Arg.String parseExtraFile,
     "<filename>: the name of a file that contains a list of additional files to process, separated by whitespace of newlines";
-  ] @ F.args in
+  ] @ F.args @ featureArgs in
   begin
     (* this point in the code is the program entry point *)
 

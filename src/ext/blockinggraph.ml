@@ -378,7 +378,14 @@ let makeFunctionCallGraph (f: Cil.file) : unit =
     f.globals
 
 
-let makeAndDumpFunctionCallGraph (f: file) = 
-  makeFunctionCallGraph f;
-  markBlockingFunctions ();
-  makeAndDumpBlockingGraphs ();
+let feature : featureDescr = 
+  { fd_name = "FCG";
+    fd_enabled = ref false;
+    fd_description = "computing and printing a static call graph";
+    fd_extraopt = [];
+    fd_doit = 
+    (function (f : file) ->
+      makeFunctionCallGraph f;
+      markBlockingFunctions ();
+      makeAndDumpBlockingGraphs ())
+  } 

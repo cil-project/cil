@@ -717,6 +717,26 @@ and location = {
 
 
 
+(** To be able to add/remove features easily, each feature should be package 
+   * as an interface with the following interface. These features should be *)
+type featureDescr = {
+    fd_enabled: bool ref; 
+    (** The enable flag. Set to default value  *)
+
+    fd_name: string; 
+    (** This is used to construct an option "--doxxx" and "--dontxxx" that 
+     * enable and disable the feature  *)
+
+    fd_description: string; 
+    (* A longer name that can be used to document the new options  *)
+
+    fd_extraopt: (string * Arg.spec * string) list; 
+    (** Additional command line options *)
+
+    fd_doit: (file -> unit);
+    (** This performs the transformation *)
+}
+
 let locUnknown = { line = -1; file = ""; byte = -1; }
 (* A reference to the current location *)
 let currentLoc : location ref = ref locUnknown

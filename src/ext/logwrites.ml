@@ -88,6 +88,14 @@ class logWriteVisitor = object
 
 end
 
-let logWrites (f: file) : unit = 
-  let lwVisitor = new logWriteVisitor in
-  visitCilFileSameGlobals lwVisitor f
+let feature : featureDescr = 
+  { fd_name = "logwrites";
+    fd_enabled = Util.logWrites;
+    fd_description = "generation of code to log memory writes";
+    fd_extraopt = [];
+    fd_doit = 
+    (function (f: file) -> 
+      let lwVisitor = new logWriteVisitor in
+      visitCilFileSameGlobals lwVisitor f)
+  } 
+

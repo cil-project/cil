@@ -308,7 +308,7 @@ ac_includes_default="\
 # include <unistd.h>
 #endif"
 
-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os CPP EGREP LIBOBJS ARCHOS CCUREDHOME CILHOME HAS_MSVC DEFAULT_COMPILER CIL_VERSION_MAJOR CIL_VERSION_MINOR CIL_VERSION_REV CIL_VERSION HAVE_BUILTIN_VA_LIST LTLIBOBJS'
+ac_subst_vars='NEWLINE SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os CPP EGREP LIBOBJS ARCHOS CCUREDHOME CILHOME HAS_MSVC DEFAULT_COMPILER CIL_VERSION_MAJOR CIL_VERSION_MINOR CIL_VERSION_REV CIL_VERSION HAVE_BUILTIN_VA_LIST CIL_FEATURES_DEFINES LTLIBOBJS'
 ac_subst_files=''
 
 # Initialize some variables set by options.
@@ -1256,6 +1256,9 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 
 
+
+NEWLINE="\\
+"
 
 # sm: require a late-enough autoconf; this is the version number
 # that's on manju, so I assume it's ok
@@ -3809,9 +3812,46 @@ echo "$as_me: error:
 esac
 CILHOME=$CCUREDHOME
 
+#
+# CIL/CCured features
+#
+#
+
+# Set the defaults
+
+
+# Give a list of features with the defaults
+features="blockinggraph=no"
+
+for f_val in $features
+do
+   f=`echo $f_val | sed -e s%=.*$%%`
+   echo "$as_me:$LINENO: checking whether to use CIL feature $f" >&5
+echo $ECHO_N "checking whether to use CIL feature $f... $ECHO_C" >&6
+   # default value from "features"
+   defval=`echo $f_val | sed -e s%^.*=%%`
+   # current value
+   getcurval="echo \${with_$f:=$defval}"
+   curval=`eval $getcurval`
+   echo "$as_me:$LINENO: result: $curval" >&5
+echo "${ECHO_T}$curval" >&6
+   if test $curval = yes ;then
+      CIL_FEATURES="$CIL_FEATURES $f"
+   fi
+done
+
+## Now produce the CIL_FEATURES_DEFINES
+CIL_FEATURES_DEFINES=""
+# Convert to upper case
+for f in `echo $CIL_FEATURES | tr a-z A-Z`
+do
+   CIL_FEATURES_DEFINES="${CIL_FEATURES_DEFINES}@NEWLINE@export USE_$f=yes"
+done
+
 # ----------------- finish up -------------------
 # names of the variables that get substituted in files; for example,
 # write @ARCHOS@ somewhere in a written file to get it substituted
+
 
 
 
@@ -4538,6 +4578,7 @@ if test -n "\$CONFIG_FILES"; then
   # Protect against being on the right side of a sed subst in config.status.
   sed 's/,@/@@/; s/@,/@@/; s/,;t t\$/@;t t/; /@;t t\$/s/[\\\\&,]/\\\\&/g;
    s/@@/,@/; s/@@/@,/; s/@;t t\$/,;t t/' >\$tmp/subs.sed <<\\CEOF
+s,@NEWLINE@,$NEWLINE,;t t
 s,@SHELL@,$SHELL,;t t
 s,@PATH_SEPARATOR@,$PATH_SEPARATOR,;t t
 s,@PACKAGE_NAME@,$PACKAGE_NAME,;t t
@@ -4600,6 +4641,7 @@ s,@CIL_VERSION_MINOR@,$CIL_VERSION_MINOR,;t t
 s,@CIL_VERSION_REV@,$CIL_VERSION_REV,;t t
 s,@CIL_VERSION@,$CIL_VERSION,;t t
 s,@HAVE_BUILTIN_VA_LIST@,$HAVE_BUILTIN_VA_LIST,;t t
+s,@CIL_FEATURES_DEFINES@,$CIL_FEATURES_DEFINES,;t t
 s,@LTLIBOBJS@,$LTLIBOBJS,;t t
 CEOF
 
@@ -4855,5 +4897,6 @@ CCured/CIL configuration:
   gcc to use                  CC                 $CC
   default compiler            DEFAULT_COMPILER   $DEFAULT_COMPILER
   CIL version                 CIL_VERSION        $CIL_VERSION
+  CIL features                CIL_FEATURES       $CIL_FEATURES
 EOF
 

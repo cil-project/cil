@@ -58,7 +58,7 @@ int main() {
   printf("\t sizeof_long      = %d;\n", sizeof(long));
   printf("\t sizeof_longlong  = %d;\n", sizeof(LONGLONG));
   printf("\t sizeof_ptr       = %d;\n", sizeof(int *));
-  printf("\t sizeof_enum      = %d;\n", sizeof(enum { ONE, TWO }));
+  printf("\t sizeof_enum      = %d;\n", sizeof(enum e { ONE, TWO }));
   printf("\t sizeof_longdouble  = %d;\n", sizeof(long double));
   printf("\t sizeof_wchar     = %d;\n", sizeof(wchar_t));
   printf("\t sizeof_sizeof    = %d;\n", sizeof(sizeof(int)));

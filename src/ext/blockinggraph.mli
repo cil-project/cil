@@ -37,4 +37,4 @@
 
 (* This module finds and analyzes yield points. *)
 
-val makeAndDumpFunctionCallGraph: Cil.file -> unit
+val feature: Cil.featureDescr

@@ -526,6 +526,7 @@ let gprintf (finish : doc -> doc)
       (match fget j with 
         '%' -> true 
       | '@' -> true 
+      | '\n' -> true
       | _ -> false) then
         collect (dctext1 acc (String.sub format i (j-i))) j
       else

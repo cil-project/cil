@@ -10,6 +10,10 @@ ECHO = @
 
 all:  quickbuild cillib
 
+# Now add the defines for the CIL features
+@CIL_FEATURES_DEFINES@
+
+
 # look out for outdated Makefile; if it's out of date, this will automatically
 # re-run ./config.status, then re-exec make with the same arguments
 Makefile.cil: config.status Makefile.cil.in 
@@ -38,15 +42,22 @@ endif
 OBJDIR      := obj/$(ARCHOS)
 DEPENDDIR   := obj/.depend
 
+CILLY_FEATURES :=
+ifdef USE_BLOCKINGGRAPH
+  CILLY_FEATURES += blockinggraph
+endif
 
     # Now rules to make cilly
 CILLY_MODULES = pretty errormsg trace stats util clist \
               cabs cabsvisit cprint cparser clexer  \
               cilversion machdep cil formatparse formatlex formatcil cabs2cil \
               patch frontc check mergecil logcalls logwrites rmtmps \
-	      callgraph epicenter heapify blockinggraph \
+	      callgraph epicenter heapify \
               setp uref steensgaard golf dummy ptranal \
-              canonicalize heap partial testcil maincil
+              canonicalize heap partial testcil \
+	      $(CILLY_FEATURES) \
+	      feature_config \
+              maincil
 CILLY_CMODULES =
 CILLY_LIBS     = unix str
 
@@ -139,6 +150,23 @@ $(OBJDIR)/cilversion.ml: configure.in Makefile.cil.in
 # build two libraries
 .PHONY: cillib
 cillib: $(OBJDIR)/cil.$(CMXA) $(OBJDIR)/libcil.a
+
+
+$(OBJDIR)/feature_config.ml: Makefile.cil.in config.status
+	rm -f $(OBJDIR)/feature_config.*
+	echo "(* This module was generated automatically by code in Makefile.in *)" >$@
+# The Cilly feature options. A list of Cil.featureDescr 
+	echo "open Cil"   >>$@ 
+	echo "let features : featureDescr list = [" >> $@
+ifdef USE_BLOCKINGGRAPH
+	echo "   Blockinggraph.feature;" >> $@  
+endif
+	echo "]"   >>$@ 
+
+
+
+
+
 
 OCAML_CIL_LIB_MODULES := $(CILLY_MODULES)
 
