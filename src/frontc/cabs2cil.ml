@@ -2997,7 +2997,9 @@ and doInitializer
         match !topPreInit with 
           CompoundPre (pMaxIdx, _) -> 
             TArray (bt, Some (integer (1 + !pMaxIdx)), al)
-        | _ -> E.s (bug "doInitialized: open array")
+        | NoInitPre -> (* This is an array of zero elements *)
+            TArray (bt, Some zero, al)
+        | _ -> E.s (bug "doInitializer: singleInit for array")
       end
     | _ -> vi.vtype
   in
