@@ -142,7 +142,13 @@ let endEnv () =
 let currentReturnType : typ ref = ref voidType
 
 (* A map of labels in the current function *)
-let labels : (string, unit) H.t = H.create 17
+let labels: (string, unit) H.t = H.create 17
+
+(* A list of statements seen in the current function *)
+let statements: stmt list ref = ref []
+
+(* A list of the targets of Gotos *)
+let targets: stmt list ref = ref []
 
 (*** TYPES ***)
 (* Cetain types can only occur in some contexts, so keep a list of context *)
@@ -666,10 +672,17 @@ and checkStmt (s: stmt) =
         | _ -> () (* Not yet implemented *)
       in
       List.iter checkLabel s.labels;
+      (* See if we have seen this statement before *)
+      if List.memq s !statements then 
+        ignore (warn "Statement is shared");
+      (* Remember that we have seen this one *)
+      statements := s :: !statements;
       match s.skind with
         Break _ | Continue _ -> ()
       | Goto (gref, l) -> 
           currentLoc := l;
+          (* Remember it as a target *)
+          targets := !gref :: !targets;
           if not (List.exists (function Label _ -> true | _ -> false) 
                     !gref.labels) then
             ignore (warn "Goto to block without a label\n")
@@ -692,9 +705,27 @@ and checkStmt (s: stmt) =
           checkBlock bf
       | Switch (e, b, cases, l) -> 
           currentLoc := l;
-          (* Do not check cases for now *)
           checkExpType false e intType;
-          checkBlock b
+          (* Remember the statements so far *)
+          let prevStatements = !statements in
+          checkBlock b;
+          (* Now make sure that all the cases do occur in that block *)
+          List.iter
+            (fun c -> 
+              if not (List.exists (function Case _ -> true | _ -> false) 
+                        c.labels) then
+                ignore (warn "Case in switch statment without a \"case\"\n");
+              (* Make sure it is in there *)
+              let rec findCase = function
+                | l when l == prevStatements -> (* Not found *)
+                    ignore (warnContext 
+                              "Cannot find target of switch statement")
+                | [] -> E.s (E.bug "Check: findCase")
+                | c' :: rest when c == c' -> () (* Found *)
+                | _ :: rest -> findCase rest
+              in
+              findCase !statements)
+            cases;
             
       | Instr il -> List.iter checkInstr il)
     () (* argument of withContext *)
@@ -878,8 +909,18 @@ let rec checkGlobal = function
             in
             List.iter (doLocal CTFArg) fd.sformals;
             List.iter (doLocal CTDecl) fd.slocals;
+            statements := [];
+            targets := [];
             checkBlock fd.sbody;
             H.clear labels;
+            (* Now verify that we have scanned all targets *)
+            List.iter 
+              (fun t -> if not (List.memq t !statements) then 
+                ignore (warnContext
+                          "Target statement does not appear in function body"))
+              !targets;
+            statements := [];
+            targets := [];
             (* Done *)
             endEnv ()
           with e -> 
