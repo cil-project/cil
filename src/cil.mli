@@ -610,6 +610,7 @@ val mkStmtOneInstr: instr -> stmt
 val compactBlock: block -> block
 
 val mkEmptyStmt: unit -> stmt
+val dummyInstr: instr
 val dummyStmt: stmt
   
 (* Generate fresh names from a prefix 

@@ -724,8 +724,8 @@ let mkStmt (sk: stmtkind) : stmt =
 let mkEmptyStmt () = mkStmt (Instr [])
 let mkStmtOneInstr (i: instr) = mkStmt (Instr [i])
 
-let dummyStmt = 
-  mkStmt (Instr [(Asm(["dummy statement!!"], false, [], [], [], lu))])
+let dummyInstr = (Asm(["dummy statement!!"], false, [], [], [], lu))
+let dummyStmt =  mkStmt (Instr [dummyInstr])
 
 let compactBlock (b: block) : block =  
       (* Try to compress statements. Scan the list of statements and remember 
