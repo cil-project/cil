@@ -644,6 +644,15 @@ scott/%: test/small2/%.c defaulttarget
                  $(EXEOUT)$*
 	test/small2/$*
 
+scott-nolink/%: test/small2/%.c defaulttarget
+	rm -f test/small2/$*
+	cd test/small2; $(CC) $(CONLY) $(WARNALL) $(DEF)$(ARCHOS) $*.c
+	cd test/small2; $(SAFECC) $(CONLY) --verbose --keep=. $(DEF)$(ARCHOS) \
+                 `$(PATCHECHO) --patch=../../lib/$(PATCHFILE)` \
+                 $(DOOPT) $(WARNALL) \
+                 $*.c \
+                 $(EXEOUT)$*
+
 
 # sm: trivial test of combiner
 MYSAFECC = $(SAFECC) --keep=. $(DEF)$(ARCHOS)

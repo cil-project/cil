@@ -236,8 +236,7 @@ $TEST->add3Tests("scott/lexnum");
 $TEST->add3Tests("scott/transpunion", "_GNUCC=1");
 $TEST->add3Tests("scott/oldstyle");
 $TEST->add3Tests("scott/typeof", "_GNUCC=1");
-$TEST->add3Tests("scott/asmfndecl", "_GNUCC=1");
-  $TEST->add3BadComment("scott/asmfndecl", "feature not implemented");
+$TEST->add3Tests("scott-nolink/asmfndecl", "_GNUCC=1");
 
 # $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug
 # my $tst = $TEST->getTest("apache/gzip-inferbox");
