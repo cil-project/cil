@@ -392,6 +392,7 @@ and doExpAndCastCall e t callid =
 (* We will accumulate the marked globals in here *)
 let theFile : global list ref = ref []
 
+let debugInstantiate = false
 
 let instantiatePolyFunc (vi: varinfo) : varinfo * bool =
   (* The args might be shared with other declarations and with formals for 
@@ -404,15 +405,28 @@ let instantiatePolyFunc (vi: varinfo) : varinfo * bool =
               isva, fa)
     | _ -> E.s (E.bug "instantiating a non-function (%s)\n" vi.vname)
   in
+  let old_name = vi.vname in
+  if debugInstantiate then
+    ignore (E.log "Instantiating function %s\n" old_name);
   let res, ispoly = 
     try
       let origtypref = H.find polyFunc vi.vname in
+      if debugInstantiate then
+        ignore (E.log "   poly function %s\n"
+                  vi.vname);
       let origtype = (* Copy the type and remember it *)
         match !origtypref with
-          Some t -> shallowCopyFunctionType t
+          Some t -> 
+            if debugInstantiate then
+              ignore (E.log "  Not the first time. Copying: %a\n"
+                        d_plaintype t);
+            shallowCopyFunctionType t
         | None -> 
             let copiedtype = shallowCopyFunctionType vi.vtype in
-            origtypref := Some copiedtype;
+            if debugInstantiate then
+              ignore (E.log "  The first time. Made template: %a\n"
+                        d_plaintype copiedtype);
+            origtypref := Some vi.vtype;
             copiedtype
       in
       let newvi = 
@@ -422,10 +436,25 @@ let instantiatePolyFunc (vi: varinfo) : varinfo * bool =
                           vi.vname)}  in
       incr polyId;
       newvi, true
-    with Not_found -> vi, false
+    with Not_found -> 
+      if debugInstantiate then
+        ignore (E.log "  not polymorphic\n");
+      vi, false    (* Not polymorphic *)
   in
-    (* Not polymorphic *)
   doVarinfo res;
+  if debugInstantiate then begin
+    ignore (E.log " After instantiatePoly: %s T=%a\n"
+              res.vname d_plaintype res.vtype);
+    (* Check the template, again *)
+    try
+      let origtypref = H.find polyFunc old_name in
+      match !origtypref with
+        Some t -> 
+          ignore (E.log "  and the template is now: %a\n"
+                    d_plaintype t)
+      | None -> E.s (E.bug " there should be a template\n")
+    with Not_found -> ()
+  end;
   res, ispoly
 
 (* Do a statement *)
@@ -475,24 +504,20 @@ let rec doStmt (s: stmt) =
             let a' = doExpAndCastCall a fo.vtype !callId in
             a' :: loopArgs formals args
         | _, _ -> E.s (E.bug "Not enough arguments")
-      in begin
-          begin
+      in  begin
           (* Now check the return value*)
-            match reso, unrollType rt with
-              None, TVoid _ -> ()
-            | Some _, TVoid _ -> 
-                ignore (E.warn "Call of subroutine is assigned")
-            | None, _ -> () (* "Call of function is not assigned" *)
-            | Some destvi, _ -> 
-                N.addEdge 
-                  (nodeOfType rt)
-                  (nodeOfType destvi.vtype) 
-                  N.ECast !callId  
-          end;
-          Instr (Call(reso, func', loopArgs formals args), l)
-      end
-            
-     
+        match reso, unrollType rt with
+          None, TVoid _ -> ()
+        | Some _, TVoid _ -> 
+            ignore (E.warn "Call of subroutine is assigned")
+        | None, _ -> () (* "Call of function is not assigned" *)
+        | Some destvi, _ -> 
+            N.addEdge 
+              (nodeOfType rt)
+              (nodeOfType destvi.vtype) 
+              N.ECast !callId  
+      end;
+      Instr (Call(reso, func', loopArgs formals args), l)
   
       
 (* Now do the globals *)
@@ -512,7 +537,7 @@ let doGlobal (g: global) : global =
       GType (n, t', l)
 
   | GDecl (vi, _) -> 
-(*      ignore (E.log "Found GDecl of %s. T=%a\n" vi.vname
+      (* ignore (E.log "Found GDecl of %s. T=%a\n" vi.vname
                 d_plaintype vi.vtype); *)
       if not (H.mem polyFunc vi.vname) then doVarinfo vi; 
       g
@@ -537,13 +562,11 @@ let doGlobal (g: global) : global =
            * node is used for a formal as we used in a type. So we put the 
            * formals inside a type and we do it like that *)
           let typWithFormals = TFun(rt, fdec.sformals, isva, fa) in
-          (* ignore (E.log "Before formals:%s :  %a\n"
-                    fdec.svar.vname d_plaintype typWithFormals); *)
+(*          ignore (E.log "Before formals:%s :  %a\n"
+                    fdec.svar.vname d_plaintype typWithFormals);  *)
           let _ = doType typWithFormals (N.PGlob fdec.svar.vname) 1 in
-          (* ignore (E.log "After formals:%s :  %a\n"
-                    fdec.svar.vname d_plaintype typWithFormals); *)
-(*          if ispoly then
-            fdec.svar.vtype <- TFun(rt, fdec.sformals, isva, fa); *)
+(*          ignore (E.log "After formals:%s :  %a\n"
+                    fdec.svar.vname d_plaintype typWithFormals);  *)
           currentResultType := rt
       | _ -> E.s (E.bug "Not a function")); 
       (* Do the other locals *)
