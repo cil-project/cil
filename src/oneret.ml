@@ -7,6 +7,8 @@ open Pretty
 
 module E = Errormsg
 
+let dummyVisitor = new nopCilVisitor
+
 let oneret (f: Cil.fundec) : unit = 
   let fname = f.svar.vname in
   (* Get the return type *)
@@ -19,12 +21,13 @@ let oneret (f: Cil.fundec) : unit =
   (* Does it return anything ? *)
   let hasRet = match retTyp with TVoid _ -> false | _ -> true in
   (* Memoize the return result variable. Use only if hasRet *)
+  let lastloc = ref locUnknown in 
   let retVar : varinfo option ref = ref None in
   let getRetVar (x: unit) : varinfo = 
     match !retVar with
       Some rv -> rv
     | None -> begin
-        let rv = makeLocalVar f "retres" retTyp in
+        let rv = makeLocalVar f "__retres" retTyp in (* don't collide *)
         retVar := Some rv;
         rv
     end
@@ -39,7 +42,7 @@ let oneret (f: Cil.fundec) : unit =
       let rv = 
         if hasRet then Some (Lval(Var (getRetVar ()), NoOffset)) else None
       in
-      let sr = mkStmt (Return (rv, locUnknown)) in
+      let sr = mkStmt (Return (rv, !lastloc)) in
       retStmt := sr;
       sr
     end else
@@ -52,7 +55,7 @@ let oneret (f: Cil.fundec) : unit =
                            * time to add the return statement *)
         let rs = getRetStmt () in
         if !haveGoto then
-          rs.labels <- (Label("return_label", locUnknown)) :: rs.labels;
+          rs.labels <- (Label("return_label", !lastloc)) :: rs.labels;
         [rs]
 
     | [] -> []
@@ -94,6 +97,8 @@ let oneret (f: Cil.fundec) : unit =
     { bstmts = scanStmts mainbody b.bstmts; battrs = b.battrs; }
 
   in
+  ignore (visitCilBlock dummyVisitor f.sbody) ; (* sets CurrentLoc *)
+  lastloc := !currentLoc ;  (* last location in the function *)
   f.sbody <- scanBlock true f.sbody
         
       
