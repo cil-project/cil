@@ -300,7 +300,10 @@ $(PROJECT_EXECUTABLE) : $(PROJECT_MODULES:%=$(OBJDIR)/%.$(CMO)) $(PROJECT_CMODUL
 endef
 
 
-#	Phonies should be "remade" even if someone mistakenly creates them
+# ("PHONY" targets are "remade" even if someone mistakenly creates them)
+# sm: the 'find' command in obj/ should leave it with just two directories,
+# each of which is empty, i.e. the state just after a checkout; that's why
+# I added '*.ml' and '*.mli', to delete outputs from ocamllex and ocamlyacc
 .PHONY: cleancaml
 cleancaml:
 	-find obj \( \
@@ -311,6 +314,9 @@ cleancaml:
 		-name '*.cmxa' -o \
 		-name '*.exe' -o \
 		-name '*.o' -o \
+		-name '*.a' -o \
+		-name '*.ml' -o \
+		-name '*.mli' -o \
 		-name '*.obj' \
 	\) -exec rm {} \;
 	-rm -f $(DEPENDDIR)/*.d $(DEPENDDIR)/*.di
@@ -341,6 +347,14 @@ $(DEPENDDIR)/%.di: %.mli
 	@$(NARRATIVE) Generating dependency information for $<
 	@$(COMMAND) $(CAMLDEP) $(DEPINCLUDES) $<
 	$(ECHO)$(CAMLDEP) $(DEPINCLUDES) $< | $(FIXDEPEND) > $@
+
+# sm: it turns out there's a variable which lists all the goals
+# specified on the command line; I'll use this to set CLEANING
+# (which is not set anywhere else, currently)
+ifeq ($(MAKECMDGOALS),clean)
+  #$(warning "Skipping dependency rules because we're cleaning")
+  CLEANING := 1
+endif
 
 ifndef CLEANING
 -include $(MODULES:%=$(DEPENDDIR)/%.d)
