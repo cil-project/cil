@@ -20,6 +20,11 @@ void separator() {}
 void GC_gcollect(void);
 
 
+// wtf?
+int LibTkn;
+int LibTkn010;
+
+
 int main()
 {
   // here's a local int to point at

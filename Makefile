@@ -1173,7 +1173,8 @@ go-noclean: defaulttarget mustbegcc
 
 ### SPEC95 vortex
 VORDIR=$(SPECDIR)/147.vortex
-VORSAFECC=$(SAFECC) --combine   --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) --keep=safeccout
+#VORSAFECC=$(SAFECC) --combine   --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) --keep=safeccout
+VORSAFECC=$(SAFECC)  --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) --keep=safeccout
 
 vortexclean: 	
 	cd $(VORDIR)/src; make clean
