@@ -892,8 +892,6 @@ go: defaulttarget mustbegcc
 	cd $(GODIR)/src; \
             make clean build CC="$(GOSAFECC) $(CONLY)" \
                              LD="$(GOSAFECC)" 
-	# spr: go requires 2 cmd line args. Arbitrary values (5 and 6) chosen, for now.
-	# spr: go does not seem to use stdin. Why are we redirecting a file to stdin?
 	$(GODIR)/exe/base/go.ultra 5 6 \
             <$(GODIR)/data/train/input/2stone9.in
 
@@ -901,8 +899,6 @@ go-noclean: defaulttarget mustbegcc
 	cd $(GODIR)/src; \
             make build CC="$(GOSAFECC) $(CONLY)" \
                        LD="$(GOSAFECC)" 
-	# spr: go requires 2 cmd line args. Arbitrary values (5 and 6) chosen, for now.
-	# spr: go does not seem to use stdin. Why are we redirecting a file to stdin?
 	$(GODIR)/exe/base/go.ultra 5 6\
             <$(GODIR)/data/train/input/2stone9.in
 
