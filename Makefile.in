@@ -199,6 +199,10 @@ ifdef USE_ARITHABS
 	echo "   Arithabs.feature;" >>$@
 endif
 	echo "]"   >>$@ 
+# Must delete maincil.d and remake it, because it may have been made
+# before feature_config existed.
+	rm -f $(DEPENDDIR)/maincil.d
+	$(MAKE) $(DEPENDDIR)/maincil.d
 
 
 

@@ -8,7 +8,9 @@ int main(int a) {
 }
 
 int main1(int a) {
-  int i = 0;;
-  while(a<5) { i ++; }
+  int k = 0;;
+  while(a<5) {
+    k ++;
+  }
 }
                 

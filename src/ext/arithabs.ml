@@ -304,6 +304,11 @@ module VH = Hashtbl.Make(struct
                            let equal v1 v2 = v1.vid = v2.vid
                          end)
 
+let vhToList (vh: 'a VH.t) : (varinfo * 'a) list = 
+  VH.fold (fun v id acc -> (v, id) :: acc) vh []
+
+let debugRename = false
+
 (** We define a new printer *)
 class absPrinterClass (callgraph: CG.callgraph) : cilPrinter = 
 
@@ -388,6 +393,13 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
           end)
         b.S.livevars;
       
+      if debugRename then 
+        ignore (E.log "At start of block %d:\n   @[%a@]\n"
+                  b.S.bstmt.sid
+                  (docList ~sep:line
+                     (fun (v, id) -> 
+                       dprintf "%s: %d" v.vname id))
+                  (vhToList varRenameState));
       ()
     
     (** This is called for reading from a variable we consider (meaning that 
@@ -399,11 +411,18 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
           E.s (E.bug "%a: varUse: varRenameState does not know anything about %s" 
                  d_loc !currentLoc v.vname )
       in
+      if debugRename then 
+        ignore (E.log "At %a: variableUse(%s) : %d\n" 
+                  d_loc !currentLoc v.vname freshId);
       variableName v freshId
         
     method private variableDef (state: int VH.t) (v: varinfo) : string = 
       assert (not v.vaddrof);
-      VH.replace state v (freshVarId ());
+      let newid = freshVarId () in 
+      VH.replace state v newid;
+      if debugRename then 
+        ignore (E.log "At %a: variableDef(%s) : %d\n" 
+                  d_loc !currentLoc v.vname newid);
       let n = self#variableUse state v in
       freshVars <- n :: freshVars;
       n
@@ -438,12 +457,16 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
       | e -> super#pExp () e
             
     method pInstr () = function
-      | Set ((Var v, NoOffset), e, _) when considerVariable v -> 
+      | Set ((Var v, NoOffset), e, l) when considerVariable v -> 
+          currentLoc := l;
+          (* We must do the use first *)
+          let use = self#pExp () e in 
           text (self#variableDef varRenameState v) 
-            ++ text "=" ++ self#pExp () e ++ text ";"
+            ++ text "=" ++ use ++ text ";"
             
       | Call (Some (Var v, NoOffset), 
-              Lval (Var f, NoOffset), args, _) ->
+              Lval (Var f, NoOffset), args, l) ->
+          currentLoc := l;
           let gwt: varinfo list = getGlobalsWrittenTransitive f in
           let grt: varinfo list = getGlobalsReadTransitive f in
 
@@ -463,7 +486,8 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
             f.vname
             insert argdoc
             
-      | Call (None, Lval (Var f, NoOffset), args, _) -> 
+      | Call (None, Lval (Var f, NoOffset), args, l) -> 
+          currentLoc := l;
           let gwt: varinfo list = getGlobalsWrittenTransitive f in
           let grt: varinfo list = getGlobalsReadTransitive f in
           (* Prepare the arguments first *)
@@ -489,7 +513,7 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
       ignore (p ~ind:ind "%s\n" epilogue)
         
     method dStmt (out: out_channel) (ind: int) (s: stmt) : unit = 
-
+      currentLoc := get_stmtLoc s.skind;
       (* Initialize the renamer for this statement *)
       lastFreshId := blockStartData.(s.sid);
       assert (!lastFreshId >= 0);
@@ -556,9 +580,8 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
             | [] -> E.s (E.bug "Header block %d has no predecessors" s.sid)
           in
           let pend: int VH.t = blockEndData.(p) in
-          let allvars: (varinfo * int) list = 
-            VH.fold (fun v id acc -> (v, id) :: acc) pend []
-          in
+          let allvars: (varinfo * int) list = vhToList pend in 
+
           let nonphi: (varinfo * int) list = 
             List.filter 
               (fun (v, _) -> 
@@ -766,7 +789,8 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
 
         ignore (p "%sfunction %s\n  %sformals %a%s\n  %sglobalsreadtransitive %a%s\n  %sglobalswrittentransitive %a%s\n  %slocals %a%s\n  %suninitlocals %a%s\n  %sglobalsread %a%s\n  %sglobalswritten %a%s\n  %scalls %a%s\n  %scalledby %a%s\n  %a"
           prologue fdec.svar.vname
-          prologue (docList (fun v -> text v.vname)) fdec.sformals epilogue
+          prologue (docList (fun v -> text (variableName v 0))) 
+                  fdec.sformals epilogue
           prologue (d_list "," (fun () v -> text (variableName v 0))) 
                   (getGlobalsReadTransitive fdec.svar) epilogue
           prologue (d_list "," (fun () v -> text (variableName v 0)))
@@ -1034,6 +1058,8 @@ let feature : featureDescr =
                     oneScc.S.nodes epilogue
 		    epilogue))
         scc;
+
+
    );
         
         
