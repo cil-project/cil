@@ -1112,6 +1112,15 @@ can use the following printing functions:
 \end{itemize}
 
 
+ CIL has certain internal consistency invariants. For example, all references
+to a global variable must point to the same \t{varinfo} structure. This
+ensures that one can rename the variable by changing the name in the
+\t{varinfo}. These constraints are mentioned in the API documentation. There
+is also a consistency checker in file \t{src/check.ml}. If you suspect that
+your transformation is breaking these constraints then you can pass the
+\t{--check} option to cilly and this will ensure that the consistency checker
+is run after each transformation. 
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
 \subsection{Attributes}\label{sec-attrib}\cutname{attributes.html}
 
