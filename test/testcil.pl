@@ -489,6 +489,8 @@ $TEST->addTests("test-bad/union2", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/voidstarint", "", ['inferbox']);
 $TEST->addTests("test-bad/override", "", [ 'inferbox' ]);
 $TEST->addTests("test-bad/wild1", "_GNUCC=1", [ 'inferbox' ]);
+$TEST->addTests("test-bad/union4", "", [ 'inferbox' ]);
+$TEST->addTests("test-bad/union6", "", [ 'inferbox' ]);
 $TEST->addTests("scott/union5", "", ['inferbox']);
 $TEST->addTests("scott/funptr1", "", ['inferbox']);
 $TEST->addTests("testrun/unrolltype", "", ['inferbox']);
