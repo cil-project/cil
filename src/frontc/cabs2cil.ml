@@ -70,7 +70,7 @@ let alphaTable : (string, int ref) H.t = H.create 307 (* vars and enum tags.
                                                        * For composite types 
                                                        * we have names like 
                                                        * "struct foo" or 
-                                                       * "type bar" *)
+                                                       * "union bar" *)
 
 (* To keep different name scopes different, we add prefixes to names 
  * specifying the kind of name: the kind can be one of "" for variables or 
@@ -502,9 +502,9 @@ module BlockChunk =
         cases = [];
       }
 
-    let caseChunk (i: int) (l: location) (next: chunk) = 
+    let caseChunk (e: exp) (l: location) (next: chunk) = 
       let fst, stmts' = getFirstInChunk next in
-      let lb = Case (i, l) in
+      let lb = Case (e, l) in
       fst.labels <- lb :: fst.labels;
       { next with stmts = stmts'; cases = (lb, fst) :: next.cases}
         
@@ -954,8 +954,8 @@ and doType (a : attribute list) = function
       (* as each name,value pair is determined, this is called *)
       let rec processName kname i rest = begin
         (* add the name to the environment, but with a faked 'typ' field; *)
-        (* we don't know the full type yet (since that includes all *)
-        (* of the tag values), but we won't need them in here *)
+        (* we don't know the full type yet (since that includes all of the 
+         * tag values), but we won't need them in here  *)
         (addLocalToEnv kname (EnvEnum (i, TEnum (n', [], a))));
 
         (* add this tag to the list so that it ends up in the real *)
@@ -1325,19 +1325,6 @@ and doExp (isconst: bool)    (* In a constant *)
               finishCt (CStr("booo CONS_FLOAT")) (TPtr(TInt(IChar,[]),[]))
             end
         end
-          (* This is not intended to be a constant. It can have expressions 
-           * with side-effects inside *
-        | A.CONST_COMPOUND initl -> begin
-            match what with
-              AExp (Some typ) -> 
-                let s, i, t, restinitl = 
-                  doInitializer typ empty [A.NO_INIT, e] in
-                if restinitl <> [] then
-                  E.s (E.warn "Unused initializers\n");
-                finishExp s e t
-
-            | _ -> E.s (E.unimp "CONST_COMPUND. Not AExp")
-        end *)
     end          
     | A.TYPE_SIZEOF bt -> 
         let typ = doType [] bt in
@@ -2125,11 +2112,20 @@ and doInitializer
   end
    (* REGULAR TYPE *)
   | typ' -> begin
-      match initl with 
-        (A.NEXT_INIT, A.SINGLE_INIT oneinit) :: restinitl -> 
-          let se, init', t' = doExp isconst oneinit (AExp(Some typ')) in
-          (se @@ acc), SingleInit (doCastT init' t' typ'), typ', restinitl
-      | _ -> E.s (E.unimp "Cannot find the initializer\n")
+      let oneinit, restinitl = 
+        match initl with 
+          (A.NEXT_INIT, A.SINGLE_INIT oneinit) :: restinitl -> 
+            oneinit, restinitl
+
+        (* We can have an optional brace *)
+        | (A.NEXT_INIT, 
+           A.COMPOUND_INIT [A.NEXT_INIT, 
+                             A.SINGLE_INIT oneinit]) :: restinitl -> 
+            oneinit, restinitl
+        | _ -> E.s (E.unimp "Cannot find the initializer\n")
+      in
+      let se, init', t' = doExp isconst oneinit (AExp(Some typ')) in
+      (se @@ acc), SingleInit (doCastT init' t' typ'), typ', restinitl
   end
 
 
@@ -2183,8 +2179,7 @@ and createGlobal ((_,_,(n,nbt,a,e)) as sname : A.single_name) =
           theFile := GVar(vi, init, lu) :: !theFile
     end
   with e -> begin
-    ignore (E.log "error in CollectGlobal (%s)\n" 
-              (Printexc.to_string e));
+    ignore (E.log "error in CollectGlobal (%s)\n" n);
     theFile := GAsm("booo - error in global " ^ n,lu) :: !theFile
   end
 (*
@@ -2205,7 +2200,6 @@ and createLocal = function
       (* Add it to the environment as a local so that the name goes out of 
        * scope properly *)
       addLocalToEnv n (EnvVar vi);
-      ignore (E.log "static local: %s\n" vi.vname);
       let init : init option = 
         if e = A.NO_INIT then 
           None
@@ -2262,8 +2256,10 @@ and doTypedef (ng: A.name_group) =
   let createTypedef ((_,_,(n,nbt,a,_)) : A.single_name) = 
     try
       let newTyp = doType (doAttrList a) nbt in
-            (* Create a new name for the type *)
-      let n' = newAlphaName "type" n in
+            (* Create a new name for the type. Use the same name space as 
+             * that of variables to avoid confusion between variable names 
+             * and types. This is actually necessary in some cases. *)
+      let n' = newAlphaName "" n in
       let namedTyp = TNamed(n', newTyp, []) in
             (* Register the type. register it as local because we might be in 
              * a local context *)
@@ -2451,14 +2447,7 @@ and doStatement (s : A.statement) : chunk =
                
     | A.CASE (e, s) -> 
         let (se, e', et) = doExp false e (AExp None) in
-          (* let (et'', e'') = castTo et (TInt(IInt,[])) e' in *)
-        let i = 
-          match se, e' with
-            ch, Const (CInt (i,_, _)) when isEmpty ch -> i
-          | ch, Const (CChr c) when isEmpty ch -> Char.code c
-          | _ -> E.s (E.unimp "non-int case")
-        in
-        caseChunk i lu (doStatement s)
+        se @@ caseChunk (constFold e') lu (doStatement s)
                     
     | A.DEFAULT s -> defaultChunk lu (doStatement s)
                      

@@ -434,7 +434,7 @@ and block = stmt list
 
 and label = 
     Label of string * location          (* A real label *)
-  | Case of int * location              (* A case statement *)
+  | Case of exp * location              (* A case statement *)
   | Default of location                 (* A default statement *)
 
 

@@ -422,7 +422,7 @@ and stmtkind =
 
 and label = 
     Label of string * location          (* A real label *)
-  | Case of int * location              (* A case statement *)
+  | Case of exp * location              (* A case statement *)
   | Default of location                 (* A default statement *)
         
 type fundec = 
@@ -1295,7 +1295,7 @@ and d_stmt () (s: stmt) = (* A version that is easier to call *)
 
 and d_label () = function
     Label (s, _) -> dprintf "%s: " s
-  | Case (i, _) -> dprintf "case %d: " i
+  | Case (e, _) -> dprintf "case %a: " d_exp e
   | Default _ -> text "default: "
 
 and d_block () blk = 
@@ -1577,32 +1577,6 @@ begin
     end
 end
 
-(*
-and visitCilOStmt (vis: cilVisitor) (body: ostmt) : unit =
-begin
-  let rec fExp e = (visitCilExpr vis e)
-  and fLval lv = (visitCilLval vis lv)
-  and fOff o = (visitCilOffset vis o)
-  and fInst i = (visitCilInstr vis i) 
-  and fStmt (s: stmt) = (visitCilStmt vis s)
-
-  and fOStmt s = if (vis#vostmt s) then fOStmt' s
-  and fOStmt' = begin function
-      (Skip|Breaks |Continues|Labels _|Gotos _
-       |Cases _|Defaults|Returns (None,_)) -> ()
-    | Sequence s -> List.iter fOStmt s
-    | Loops s -> fOStmt s
-    | IfThenElse (e, s1, s2, _) -> fExp e; fOStmt s1; fOStmt s2
-    | Returns(Some e, _) -> fExp e
-    | Switchs (e, s, _) -> fExp e; fOStmt s
-    | Instrs(i, _) -> fInst i
-    | Block blk -> List.iter fStmt blk
-  end
-
-  in
-  fOStmt body
-end
-*)
 
 (* visit all nodes in a Cil statement tree in preorder *)
 and visitCilStmt (vis: cilVisitor) (s: stmt) : unit =
@@ -1622,6 +1596,8 @@ and visitCilStmt (vis: cilVisitor) (s: stmt) : unit =
     | Switch (e, b, _, _) -> fExp e; fBlock b
     | Instr il -> List.iter fInst il
   in
+  (* Visit the labels *)
+  List.iter (function Case (e, _) -> fExp e | _ -> ()) s.labels;
   fStmt s
     
  

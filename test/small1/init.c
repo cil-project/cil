@@ -12,6 +12,9 @@ static char *usageplocal = "Usage";
 static char usageescape = 'C';
 
 char *usagep = "Usage non-local";
+char *usagep1 = { "Usage in a brace" };
+int  g = { 6 } ;
+
 char usages[] = "Usage string";
 char strange[] = { "several" };
 

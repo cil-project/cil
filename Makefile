@@ -918,15 +918,15 @@ vortex: defaulttarget mustbegcc
 	cd $(VORDIR)/src; \
             make clean build CC="$(VORSAFECC) $(CONLY)" \
                              LD="$(VORSAFECC)" 
-	$(VORDIR)/exe/base/vortex_ultra \
-            <$(VORDIR)/data/train/input/2stone9.in
+	$(VORDIR)/exe/base/vortex.ultra \
+            <$(VORDIR)/data/test/input/vortex.raw
 
 vortex-noclean: defaulttarget mustbegcc
 	cd $(VORDIR)/src; \
             make build CC="$(VORSAFECC) $(CONLY)" \
                        LD="$(VORSAFECC)" 
-	$(VORDIR)/exe/base/vortex_ultra \
-            <$(VORDIR)/data/train/input/2stone9.in
+	$(VORDIR)/exe/base/vortex.ultra \
+            <$(VORDIR)/data/test/input/vortex.raw
 
 ### SPEC95 m88ksim
 M88DIR=$(SPECDIR)/124.m88ksim
@@ -938,8 +938,8 @@ m88kclean:
 
 m88k: defaulttarget mustbegcc
 	cd $(M88DIR)/src; \
-            make build CC="$(M88SAFECC) $(CONLY)" \
-                       LD="$(M88SAFECC)" 
+            make clean build CC="$(M88SAFECC) $(CONLY)" \
+                             LD="$(M88SAFECC)" 
 	$(M88DIR)/exe/base/m88ksim.ultra
 
 ### SPEC95 ijpeg
@@ -952,8 +952,8 @@ ijpegclean:
 
 ijpeg: defaulttarget mustbegcc
 	cd $(IJPEGDIR)/src; \
-            make build CC="$(IJPEGSAFECC) $(CONLY)" \
-                       LD="$(IJPEGSAFECC)" 
+            make clean build CC="$(IJPEGSAFECC) $(CONLY)" \
+                             LD="$(IJPEGSAFECC)" 
 	$(IJPEGDIR)/exe/base/vortex_ultra \
             <$(IJPEGDIR)/data/train/input/2stone9.in
 

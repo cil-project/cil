@@ -16,6 +16,7 @@
 *)
 
 open Cabs
+module E = Errormsg
 
 (* Hash tables for combiner *)
 
@@ -47,21 +48,19 @@ let rec combine_type typ =
   | BITFIELD (bt, exp) -> BITFIELD(combine_type bt, combine_expression exp)
   | FLOAT size -> FLOAT size
   | DOUBLE size -> DOUBLE size
-  | NAMED_TYPE id -> NAMED_TYPE (lookup_id id)
+  | NAMED_TYPE id -> NAMED_TYPE (lookup_id "type" id)
   | ENUM id -> ENUM (lookup_tag id)
   | ENUMDEF (id, items) -> ENUMDEF (lookup_tag id, items)
   | STRUCT id -> STRUCT (lookup_tag id)
-  | STRUCTDEF (id, flds) -> STRUCTDEF (lookup_tag id, combine_fields flds)
+  | STRUCTDEF (id, flds) -> 
+      STRUCTDEF (lookup_tag id, combine_fields flds)
   | UNION id -> UNION(lookup_tag id)
-  | UNIONDEF (id, flds) -> UNIONDEF(lookup_tag id, combine_fields flds) 
-  | PROTO (typ, pars, ell, x) -> PROTO(combine_type typ, combine_params pars, ell, x)
-(*  | OLD_PROTO (typ, pars, ell, x) -> OLD_PROTO(combine_type typ, combine_old_params pars, ell, x)*)
+  | UNIONDEF (id, flds) -> 
+      UNIONDEF(lookup_tag id, combine_fields flds) 
+  | PROTO (typ, pars, ell, x) -> 
+      PROTO(combine_type typ, combine_params pars, ell, x)
   | PTR typ -> PTR(combine_type typ)
   | ARRAY (typ, dim) -> ARRAY(combine_type typ, combine_expression dim)
-(*
-  | CONST typ -> CONST(combine_type typ)
-  | VOLATILE typ -> VOLATILE(combine_type typ)
-*)
   | ATTRTYPE (typ, a) -> 
       let combineOne (s, el) =
         (s, List.map combine_expression el)
@@ -82,7 +81,7 @@ and combine_fields flds = begin
                 (List.map (fun (id, typ, attr, exp) -> id) names)) flds) in
   begin
     List.iter (fun id -> Hashtbl.add lMap id id) ids;
-    let flds' = List.map (fun fld -> combine_name_group fld) flds in 
+    let flds' = List.map (fun fld -> combine_name_group "" fld) flds in 
     List.iter (fun id -> Hashtbl.remove lMap id) ids;
     flds'
   end
@@ -140,32 +139,26 @@ and combine_onlytype typ =
   combine_type typ
 
 (* ATTRIBUTES ARE ADDED BACK *)    
-and combine_name ((id, typ, attr, exp) : name) = begin
+and combine_name (kind: string) ((id, typ, attr, exp) : name) = begin
  if id = "___missing_field_name"
   then
     (id, combine_type typ, attr, combine_init_expression exp)
   else
-    (lookup_id id, combine_type typ, attr, combine_init_expression exp)
+    (lookup_id kind id, combine_type typ, attr, combine_init_expression exp)
 end
         
-and combine_name_group (typ, sto, names) =
-  (combine_type typ, sto, List.map combine_name names)
+and combine_name_group (kind: string) (typ, sto, names) =
+  (combine_type typ, sto, List.map (combine_name kind) names)
     
-and combine_single_name (typ, sto, name) =
-  (combine_type typ, sto, combine_name name) 
+and combine_single_name (kind: string) (typ, sto, name) =
+  (combine_type typ, sto, combine_name kind name) 
 
 (* Raymond added declare_id lookup_id *)
 and combine_params (pars : single_name list) = begin
-  List.iter (fun name -> declare_id name false) pars;
-  List.map (fun single_name -> combine_single_name single_name) pars
+  List.iter (fun name -> declare_id "" name false) pars;
+  List.map (fun single_name -> combine_single_name "" single_name) pars
 end
 
-(* Raymond added declare_id and lookup_id here *)    
-and combine_old_params pars = begin
-  List.iter (fun id -> 
-    declare_id (NO_TYPE, NO_STORAGE, (id, NO_TYPE, [], NO_INIT)) false) pars;
-  List.map lookup_id pars
-end
         
 and combine_exps exps =
   List.map combine_expression exps
@@ -213,7 +206,7 @@ and combine_expression (exp : expression) : expression =
       | CONST_STRING s -> CONST_STRING s))
 
   | VARIABLE name -> 
-      VARIABLE(lookup_id name)
+      VARIABLE(lookup_id "" name)
   | EXPR_SIZEOF exp ->
       EXPR_SIZEOF (combine_expression exp)
   | TYPE_SIZEOF typ ->
@@ -329,18 +322,12 @@ and remove_anon_type typ = begin
       ENUMDEF (remove_anon_id id, items)
   | PROTO (typ', pars, ell, x) -> 
       PROTO(remove_anon_type typ', pars, ell, x)
-(*  | OLD_PROTO (typ', pars, ell, x) -> 
-      OLD_PROTO(remove_anon_type typ', pars, ell, x)*)
   | PTR typ' -> 
       PTR(remove_anon_type typ')
   | ARRAY (typ', dim) -> 
       ARRAY(remove_anon_type typ', dim)
-(*
-  | CONST typ' -> CONST (remove_anon_type typ')
-  | VOLATILE typ' -> VOLATILE (remove_anon_type typ')
-*)
   | ATTRTYPE (typ', a) -> ATTRTYPE(remove_anon_type typ', a)
-  | NAMED_TYPE id -> NAMED_TYPE (lookup_id id)
+  | NAMED_TYPE id -> NAMED_TYPE (lookup_id "type" id)
   | _ -> typ
 end    
 
@@ -414,23 +401,6 @@ and already_declared def = begin
               (Hashtbl.add gDefTable def 1;
               false)))
               
-(*  | OLDFUNDEF ((typ, sto, name), decs, body) ->
-      (match sto with
-        STATIC ->
-          (try 
-            ignore(Hashtbl.find fDefTable def);
-            true
-          with Not_found ->
-              (Hashtbl.add fDefTable def 1;
-              false))
-      | _ -> 
-          (try
-            ignore(Hashtbl.find gDefTable def);
-            true
-          with Not_found ->
-              (Hashtbl.add gDefTable def 1;
-              false)))
-  *)
   | DECDEF (typ, sto, names) ->
       (match sto with
         STATIC  ->
@@ -490,7 +460,9 @@ and find_newId id = begin
 end
 
 (* declare an id and add that to the mapping table *)
-and declare_id (typ, sto, (id, typ', attr, exp)) global = begin
+and declare_id (kind: string) (typ, sto, (id, typ', attr, exp)) global 
+    : unit = begin
+  let id = if kind = "" then id else kind ^ " " ^ id in
   (*prerr_endline ("declare id: " ^ id);*)
   if global then 
     begin
@@ -549,8 +521,8 @@ end
 
 (* declare_ids are used for a name_group. 
    For simplicity, it is calling declare_id *)  
-and declare_ids (typ, sto, names) global = begin      
-  List.iter (fun name -> declare_id (typ, sto, name) global) names
+and declare_ids (kind: string) (typ, sto, names) global = begin      
+  List.iter (fun name -> declare_id kind (typ, sto, name) global) names
 end
 
 (* if global, we do a check on duplicate definition.
@@ -571,26 +543,22 @@ and combine_def def global = begin
         else
           sto
       in
-      (declare_id (typ, sto', name) global;
-      let n = combine_single_name(typ, sto, name)  (* force evaluation *)
+      (declare_id "" (typ, sto', name) global;
+      let n = combine_single_name "" (typ, sto, name)  (* force evaluation *)
       in
         FUNDEF(n, List.map combineBlkElem body))
                
-(*  | OLDFUNDEF (name, decs, body) ->
-      (declare_id name global;
-      OLDFUNDEF(combine_single_name name, List.map (fun dec -> combine_name_group dec) decs, List.map combineBlkElem body))
-   *)    
   | DECDEF names ->
-      (declare_ids names global;
-      DECDEF(combine_name_group names))
+      (declare_ids "" names global;
+      DECDEF(combine_name_group "" names))
        
   | TYPEDEF (typ, sto, names) ->
-      (declare_ids (typ, STATIC, names) global;
-      TYPEDEF(combine_name_group (typ, sto, names)))
+      (declare_ids "type" (typ, STATIC, names) global;
+      TYPEDEF(combine_name_group "type" (typ, sto, names)))
       
   | ONLYTYPEDEF (typ, sto, names) ->
-      (declare_ids (typ, STATIC, names) global;
-      ONLYTYPEDEF(combine_name_group (typ, sto, names)))
+      (declare_ids "type" (typ, STATIC, names) global;
+      ONLYTYPEDEF(combine_name_group "type" (typ, sto, names)))
         
   | GLOBASM asm -> 
       GLOBASM asm 
@@ -600,18 +568,29 @@ and combine_def def global = begin
 end
   
 (* look up id from Mapping tables *)
-and lookup_id id = begin
-  try
-    Hashtbl.find lMap id
-  with Not_found ->
+and lookup_id (kind: string) id = begin
+  let id' = if kind = "" then id else kind ^ " " ^ id in
+  let newid' = 
     try
-      Hashtbl.find fMap id
+      Hashtbl.find lMap id'
     with Not_found ->
       try
-        Hashtbl.find gMap id
+        Hashtbl.find fMap id'
       with Not_found ->
-        (*prerr_endline ("Undeclared id: " ^ id);*)
-        id
+        try
+          Hashtbl.find gMap id'
+        with Not_found ->
+          (*prerr_endline ("Undeclared id: " ^ id);*)
+          id'
+  in
+  if kind = "" then 
+    newid'
+  else
+    let lk = String.length kind in
+    let lnew = String.length newid' in
+    if lnew <= lk + 1 then 
+      E.s (E.bug "lookup_id: %s" id');
+    String.sub newid' (lk + 1) (lnew - lk - 1)
 end
         
 let combine (files : Cabs.file list) : Cabs.file =

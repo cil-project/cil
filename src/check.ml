@@ -539,6 +539,7 @@ and checkStmt (s: stmt) =
             if H.mem labels ln then
               ignore (E.warn "Multiply defined label %s" ln);
             H.add labels ln ()
+        | Case (e, _) -> checkExpType true e intType
         | _ -> () (* Not yet implemented *)
       in
       List.iter checkLabel s.labels;
