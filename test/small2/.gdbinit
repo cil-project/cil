@@ -1,5 +1,5 @@
 # .gdbinit
 
-file popen
+file models
 break main
 run

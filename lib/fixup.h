@@ -256,10 +256,29 @@ extern long double __builtin_fabsl(long double);
   {\
       elt_type *end = __endof(base);\
       return;\
-  } 
+  }
 
 
   #pragma boxexported("main")
+     
+
+  // stuff for test/small2/ioctl.c
+  union ioctl_format {
+    int anInt;
+    int *anIntPtr;
+  };
+  #pragma boxvararg("ioctl", sizeof(union ioctl_format))
+
+  // for test/small2/execv.c
+  static inline int execv_model(char *path, char **argv)
+  {
+    // make sure I can tell how long the 'path' and 'argv' arrays are
+    __endof(path);
+    __endof(argv);
+    return 0;
+  }
+  #pragma boxmodelof("execv_model", "execv")
+
 #endif
 
 
@@ -283,7 +302,7 @@ extern long double __builtin_fabsl(long double);
 
 
 #ifndef CCURED
-#define __startof(p) p
-#define __endof(p) p
+  #define __startof(p) p
+  #define __endof(p) p
 #endif
 

@@ -455,6 +455,11 @@ $TEST->add2Tests("apache/gzip");
 # sm: trying to make a regrtest-like interface
 # 'args' should include things like "INFERBOX=infer" to specify operating mode
 sub smAddTest {
+  if (scalar(@_) != 1) {
+    print STDERR "wrong number of args to smAddTest: @_\n";
+    exit 2;
+  }
+
   my $self = $main::globalTEST;
   my ($command) = @_;
   my ($name, $args) = ($command =~ /^(\S+) ?(.*)$/);     # name is first word
@@ -575,23 +580,22 @@ smAddTest("scott/typeof $gcc");
 smAddTest("scott/asmfndecl $gcc");
 smAddTest("scott/xlsubr $box");
 smAddTest("scott/open");
-smFailTest("need ioctl descriptor?", "scott/ioctl $box");
+smAddTest("scott/ioctl $box");
 smAddTest("scott/stralloc $box $gcc");
 smAddTest("scott/mknod $box");
 smAddTest("bad/nullfield $manualbox");
 smAddTest("scott/constfold");
-          
+
 # test of strings (need more!)
-smAddTest("bad/ovwrnull $box");      # this still doesn't work; annotation ignored..
-smFailTest("not inferring RWSTRING, so semantics are different..",
-           "test-bad/strloop2 INFERBOX=paper");     # =infer doesn't infer RWSTRING
+smFailTest("arbitrary string writes being allowed",
+           "bad/ovwrnull $box");
+smAddTest("test-bad/strloop2 $box");
 
 # tests of function models
 smAddTest("scott/memcpy $box");
 smAddTest("scott/realloc $box");
 smAddTest("scott/strchr $box");
-smFailTest("new inference causes different wrappers to be needed",
-           "scott/models $box");
+smAddTest("scott/models $box");
 
 # tests of things in safec.c
 smAddTest("scott/qsort $box");
@@ -615,7 +619,7 @@ else {
   smAddTest("scott/getpwnam $box");
 }
 
-smFailTest("execv bug", "scott/execv $box");
+smAddTest("test-bad/execv $box");
 $TEST->setField(smAddTest("scott/popen $box"),
                 "FailDiagnosis", "inferred glob_t probably has unanticipated type");
 smAddTest("scott/memset_int $box");
