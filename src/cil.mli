@@ -643,6 +643,8 @@ For example, [*&x = x].
 host. 
 - {!Cil.addOffset} and {!Cil.addOffsetLval} - entend sequences
 of offsets.
+- {!Cil.removeOffset} and {!Cil.removeOffsetLval} - shrink sequences
+of offsets.
 
 The following equivalences hold {v 
 Mem(AddrOf(Mem a, aoff)), off   = Mem a, aoff + off 
@@ -1264,6 +1266,16 @@ val addOffsetLval: offset -> lval -> lval
 
 (** [addOffset o1 o2] adds [o1] to the end of [o2]. *)
 val addOffset:     offset -> offset -> offset
+
+(** Remove ONE offset from the end of an lvalue. Returns the lvalue with the 
+ * trimmed offset and the final offset. If the final offset is [NoOffset] 
+ * then the original [lval] did not have an offset. *)
+val removeOffsetLval: lval -> lval * offset
+
+(** Remove ONE offset from the end of an offset sequence. Returns the 
+ * trimmed offset and the final offset. If the final offset is [NoOffset] 
+ * then the original [lval] did not have an offset. *)
+val removeOffset:   offset -> offset * offset
 
 (** Compute the type of an lvalue *)
 val typeOfLval: lval -> typ

@@ -53,6 +53,8 @@ __inline static otherChar *copyptrs___0 (char *first,
 					 struct true_type const *_8);
 __inline static Type has_trivial___0 (void)
 {
+  Type *pFoo;
+  return *pFoo;
 }
 __inline static otherChar *
 copy_aux___0 (char

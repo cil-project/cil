@@ -3860,7 +3860,7 @@ let dInstr: doc -> location -> instr =
 let dGlobal: doc -> location -> global = 
   fun d l -> GAsm(sprint 80 d, l)
 
-let rec addOffset toadd (off: offset) : offset =
+let rec addOffset (toadd: offset) (off: offset) : offset =
   match off with
     NoOffset -> toadd
   | Field(fid', offset) -> Field(fid', addOffset toadd offset)
@@ -3870,6 +3870,21 @@ let rec addOffset toadd (off: offset) : offset =
 let addOffsetLval toadd (b, off) : lval =
  b, addOffset toadd off
 
+let rec removeOffset (off: offset) : offset * offset = 
+  match off with 
+    NoOffset -> NoOffset, NoOffset
+  | Field(f, NoOffset) -> NoOffset, off
+  | Index(i, NoOffset) -> NoOffset, off
+  | Field(f, restoff) -> 
+      let off', last = removeOffset restoff in
+      Field(f, off'), last
+  | Index(i, restoff) -> 
+      let off', last = removeOffset restoff in
+      Index(i, off'), last
+
+let removeOffsetLval ((b, off): lval) : lval * offset = 
+  let off', last = removeOffset off in
+  (b, off'), last
 
   (* Make an AddrOf. Given an lval of type T will give back an expression of 
    * type ptr(T)  *)
