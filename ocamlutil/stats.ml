@@ -58,6 +58,22 @@ let print chn msg =
   List.iter (prTree 0) [ top ];
   Printf.fprintf chn "Timing used %s\n"
     (if !do_use_performance_counters then "performance counters" else "Unix.time");
+  let gc = Gc.quick_stat () in 
+  let printM (w: float) : string = 
+    Printf.sprintf "%.2fM" (w *. 4.0 /. 1000000.0)
+  in
+  Printf.fprintf chn 
+    "Memory statistics: total=%s, max=%s, minor=%s, major=%s, promoted=%s\n    minor collections=%d  major collections=%d compactions=%d\n"
+    (printM (gc.Gc.minor_words +. gc.Gc.major_words 
+               -. gc.Gc.promoted_words))
+    (printM (float_of_int gc.Gc.top_heap_words))
+    (printM gc.Gc.minor_words)
+    (printM gc.Gc.major_words)
+    (printM gc.Gc.promoted_words)
+    gc.Gc.minor_collections
+    gc.Gc.major_collections
+    gc.Gc.compactions;
+    
   ()
         
   
