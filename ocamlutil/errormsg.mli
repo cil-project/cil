@@ -66,7 +66,6 @@ val getPosition: unit -> int * string * int (* Line number, file name,
                                                current byte count in file *)
 
 
-
 (* The parser needs to access functions in the lexer. But since the lexer 
  * depends on the parser module we store here the pointers *)
 val push_context: (unit -> unit) ref (* Start a context *)
