@@ -182,16 +182,11 @@ distrib: doc
 	cp $(patsubst %,lib/%,$(DISTRIB_LIB)) $(TEMP_DIR)/cil/lib
 
 	cp -r doc/html/cil/* $(TEMP_DIR)/cil/doc
-	cd $(TEMP_DIR); tar cfz cil.tar.gz cil; cp cil.tar.gz ..
+	cd $(TEMP_DIR); tar cfz cil.tar.gz cil
 
 	if test -d $(CILHTMLDEST); then \
                 cp -f $(TEMP_DIR)/cil.tar.gz $(CILHTMLDEST); fi
 	rm -rf $(TEMP_DIR)
-
-	if test -d $(CILHTMLDEST); then \
-                cp -rf doc/html/cil/* $(CILHTMLDEST); fi
-
-
 
 clean: cleancaml
 	rm -f $(OBJDIR)/machdep.ml
