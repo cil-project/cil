@@ -3169,7 +3169,50 @@ let fixupGlobName vi =
 
 class unsafeVisitorClass = object
   inherit nopCilVisitor
+
+  method vlval (lv: lval) : lval visitAction =
+    (* Do everything after we handle the children *)
+    (* Add offset to go into fat types *)
+    let rec fixLastOffset (lv: lval) : lval = 
+      let t = typeOfLval lv in
+      match unrollType t with
+        TComp (comp, _) when comp.cstruct -> begin
+          match comp.cfields with
+            (* A sized array *)
+            f1 :: f2 :: [] when (f1.fname = "_size" && f2.fname = "_array") -> 
+              fixLastOffset (addOffsetLval (Field(f2, NoOffset)) lv)
+            (* A tagged struct *)
+          | f1 :: f2 :: _ when (f1.fname = "_len" && f2.fname = "_data") ->
+              fixLastOffset (addOffsetLval (Field(f2, NoOffset)) lv)
+          | f1 :: _ when f1.fname = "_p" -> 
+              fixLastOffset (addOffsetLval (Field(f1, NoOffset)) lv)
+        end
+      | _ -> lv
+    in
+    let rec fixOffsets (lv: lval) (off: offset) = 
+      match off with 
+        NoOffset -> lv
+      | Field (fi, off) -> 
+          fixOffsets 
+            (fixLastOffset (addOffsetLval (Field (fi, NoOffset)) lv))
+            off
+      | Index (e, off) -> 
+          fixOffsets 
+            (fixLastOffset (addOffsetLval (Index (e, NoOffset)) lv))
+            off
+    in
+    let doafter (lv: lval) = 
+      match lv with
+        Var v, off -> 
+          let lv0 = fixLastOffset (Var v, NoOffset) in
+          fixOffsets lv0 off
+      | Mem e, off -> 
+          let lv0 = fixLastOffset (Mem e, NoOffset) in
+          fixOffsets lv0 off
+    in
+    ChangeDoChildrenPost (lv, doafter)
 end
+
 let unsafeVisitor = new unsafeVisitorClass
 
 (*** Intercept some function calls *****)
