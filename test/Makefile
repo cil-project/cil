@@ -2509,3 +2509,12 @@ big-arrays : mustbemanju
 misc-tests:
 	cd $(CCUREDHOME)/test/misc; \
 	  make clean all CILLY_EXE=$(CCUREDHOME)/obj/$(ARCHOS)/cilly.byte.exe
+
+# sm: test ability to merge already-merged files
+merge-twice:
+	$(CCUREDHOME)/bin/merger.pl --ccured --out small2/merged-once.c \
+	  --in small2/merge-twice-[12].c
+	gcc -c -w small2/merged-once.c
+	$(CCUREDHOME)/bin/merger.pl --ccured --out small2/merged-twice.c \
+	  --in small2/merged-once.c small2/merge-twice-3.c
+	gcc -c -w small2/merged-twice.c
