@@ -1,5 +1,5 @@
 # .gdbinit
 
-file vararg-tmp
-break main
+file badpoly-tmp
+break trueMain
 run
