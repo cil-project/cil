@@ -14,8 +14,8 @@ module P = Pretty
  * single function: which functions it calls, and which
  * functions call it *)
 type callnode = {
-  (* the function this node describes *)
-  cnInfo: varinfo;
+  (* name of the function this node describes *)
+  cnName: string;
 
   (* set of functions this one calls *)
   cnCallees: (string, callnode) Hashtbl.t;
@@ -59,16 +59,15 @@ class cgComputer = object(self)
 
   (* given the name of a function, retrieve its callnode; this
    * will create a node if one doesn't already exist *)
-  method getNode (info:varinfo) : callnode =
+  method getNode (name:string) : callnode =
   begin
-    let name = info.vname in
     try
       (Hashtbl.find graph name)
 
     with Not_found -> (
       (* make a new node *)
       let ret:callnode = {
-        cnInfo = info;
+        cnName = name;
         cnCallees = (Hashtbl.create 5);
         cnCallers = (Hashtbl.create 5);
       }  in
@@ -83,7 +82,7 @@ class cgComputer = object(self)
   method vfunc (f:fundec) : fundec visitAction =
   begin
     (trace "callgraph" (P.dprintf "entering function %s\n" f.svar.vname));
-    curFunc <- (Some (self#getNode f.svar));
+    curFunc <- (Some (self#getNode f.svar.vname));
     DoChildren
   end
 
@@ -100,13 +99,13 @@ class cgComputer = object(self)
         match lval with
         | Lval(Var(vi),NoOffset) -> (
             (* get the callee's node *)
-            let callee:callnode = (self#getNode vi) in
+            let callee:callnode = (self#getNode vi.vname) in
             (trace "callgraph" (P.dprintf "I see a call by %s to %s\n"
-                                  caller.cnInfo.vname callee.cnInfo.vname));
+                                          caller.cnName callee.cnName));
 
             (* add one entry to each node's appropriate list *)
-            (add_if caller.cnCallees callee.cnInfo.vname callee);
-            (add_if callee.cnCallers caller.cnInfo.vname caller)
+            (add_if caller.cnCallees callee.cnName callee);
+            (add_if callee.cnCallers caller.cnName caller)
           )
         | _ ->
           (trace "callgraph" (P.dprintf "ignoring indirect call: %a\n"
@@ -149,12 +148,11 @@ end
 
 (*
  *
- * Copyright (c) 2001-2002 by
+ * Copyright (c) 2001 by
  *  George C. Necula	necula@cs.berkeley.edu
  *  Scott McPeak        smcpeak@cs.berkeley.edu
  *  Wes Weimer          weimer@cs.berkeley.edu
- *  Ben Liblit          liblit@cs.berkeley.edu
- *
+ *   
  * All rights reserved.  Permission to use, copy, modify and distribute
  * this software for research purposes only is hereby granted, 
  * provided that the following conditions are met: 

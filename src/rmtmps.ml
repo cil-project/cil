@@ -1,10 +1,9 @@
 (*
  *
- * Copyright (c) 2001-2002 by
+ * Copyright (c) 2001 by
  *  George C. Necula	necula@cs.berkeley.edu
  *  Scott McPeak        smcpeak@cs.berkeley.edu
  *  Wes Weimer          weimer@cs.berkeley.edu
- *  Ben Liblit          liblit@cs.berkeley.edu
  *   
  * All rights reserved.  Permission to use, copy, modify and distribute
  * this software for research purposes only is hereby granted, 
@@ -42,513 +41,437 @@ module E = Errormsg
 module U = Util
 
 
-
-(***********************************************************************
- *
- *  Clearing of "referenced" bits
- *
- *)
-
+(* Keep a list of names that we don't want removed. These are either names of 
+ * variables or functions, or names of types (preceeded by "type ") or 
+ * struct/union (preceeded by "struct " or "union ") *)
+let forceToKeep : (string, bool) H.t = H.create 111
 
 (* simple visitor to clear the 'referenced' bits *)
 class clearRefBitsVis = object
   inherit nopCilVisitor (* in CIL *)
 
-  method vvdec (v: varinfo) =
+  method vvdec (v: varinfo) = begin
+    (* declared variables: clear the 'referenced' bits *)
+    (* assume declaration preceed all uses *)
     v.vreferenced <- false;
-    SkipChildren
+    DoChildren
+  end
 
-  method vglob global =
-    match global with
-    | GType (info, _) ->
-	info.treferenced <- false;
-	SkipChildren
-    | GEnumTag (info, _)
-    | GEnumTagDecl (info, _) ->
-	info.ereferenced <- false;
-	SkipChildren
-    | GCompTag (info, _)
-    | GCompTagDecl (info, _) ->
-	info.creferenced <- false;
-	SkipChildren
-    | GVar _
-    | GFun _ ->
-	DoChildren
-    | _ ->
-	SkipChildren
+  method vglob = function
+      GPragma (Attr("cilnoremove", args), _) -> 
+        List.iter 
+          (function AStr s -> H.add forceToKeep s true
+            | _ -> ignore (warn "Invalid argument to pragma cilnoremove"))
+          args;
+        SkipChildren
 
-  method vblock _ = SkipChildren
-  method vinit _ = SkipChildren
-  method vtype _ = SkipChildren
+    | GPragma (Attr("boxmodelof", AStr s :: _), _) -> 
+        H.add forceToKeep s true;
+        SkipChildren
+
+    | GPragma (Attr("ccuredwrapperof", AStr s :: _), _) -> 
+        H.add forceToKeep s true;
+        SkipChildren
+
+    | GCompTag (ci, _) -> ci.creferenced <- false; SkipChildren
+    | GEnumTag (ei, _) -> ei.ereferenced <- false; SkipChildren
+    | GType (ti, _) -> ti.treferenced <- false;  SkipChildren
+
+    | _ -> DoChildren
+
+
+  method vblock b = SkipChildren (* Save time and do not go into blocks *)
+  method vinit i = SkipChildren
+  method vtype t = SkipChildren
 end
 
 
-let clearReferencedBits =
-  visitCilFileSameGlobals new clearRefBitsVis
 
+let isInlineFunc (f: fundec) : bool = f.svar.vinline
 
-
-(***********************************************************************
- *
- *  Scanning and categorization of pragmas
- *
+(* weimer Mon Dec 10 16:28:11  2001
+ * This huge list of removed temporaries is annoying to look at. Let's
+ * spruce it up a bit.
  *)
-
-
-(* collections of names of things to keep *)
-type collection = (string, unit) H.t
-type keepers = {
-    typedefs : collection;
-    enums : collection;
-    structs : collection;
-    unions : collection;
-    defines : collection;
-  }
-
-
-(* rapid transfer of control when we find a malformed pragma *)
-exception Bad_pragma
-
-
-(* CIL and CCured define several pragmas which prevent removal of
- * various global symbols.  Here we scan for those pragmas and build
- * up collections of the corresponding symbols' names.
- *)
-
-let categorizePragmas file =
-
-  (* names of things which should be retained *)
-  let keepers = {
-    typedefs = H.create 0;
-    enums = H.create 0;
-    structs = H.create 0;
-    unions = H.create 0;
-    defines = H.create 1
-  } in
-  
-  (* populate these name collections in light of each pragma *)
-  let considerPragma =
-
-    let badPragma location pragma =
-      ignore (warnLoc location "Invalid argument to pragma %s" pragma)
-    in
-    
-    function
-      | GPragma (Attr ("cilnoremove" as directive, args), location) ->
-	  (* a very flexible pragma: can retain typedefs, enums,
-	   * structs, unions, or globals (functions or variables) *)
-	  begin
-	    let processArg arg =
-	      try
-		match arg with
-		| AStr specifier ->
-		    (* isolate and categorize one symbol name *)
-		    let collection, name =
-		      (* Two words denotes a typedef, enum, struct, or
-		       * union, as in "type foo" or "enum bar".  A
-		       * single word denotes a global function or
-		       * variable. *)
-		      let whitespace = Str.regexp "[ \t]+" in
-		      let words = Str.split whitespace specifier in
-		      match words with
-		      | ["type"; name] ->
-			  keepers.typedefs, name
-		      | ["enum"; name] ->
-			  keepers.enums, name
-		      | ["struct"; name] ->
-			  keepers.structs, name
-		      | ["union"; name] ->
-			  keepers.unions, name
-		      | [name] ->
-			  keepers.defines, name
-		      | _ ->
-			  raise Bad_pragma
-		    in
-		    H.add collection name ()
-		| _ ->
-		    raise Bad_pragma
-	      with Bad_pragma ->
-		badPragma location directive
-	    in
-	    List.iter processArg args
-	  end
-
-      | GPragma (Attr("boxmodelof" as directive, attribute :: _), location)
-      | GPragma (Attr("ccuredwrapperof" as directive, attribute :: _), location) -> 
-	  (* these pragmas indirectly require that we keep the named function *)
-	  begin
-	    match attribute with
-	    | AStr name ->
-		H.add keepers.defines name ()
-	    | _ ->
-		badPragma location directive
-	  end
-
-      |	_ ->
-	  ()
-  in
-  iterGlobals file considerPragma;
-  keepers
-
-
-
-(***********************************************************************
- *
- *  Function body elimination from pragmas
- *
- *)
-
-
-(* When performing global slicing, any functions not explicitly marked
- * as pragma roots are reduced to mere declarations.  This leaves one
- * with a reduced source file that still compiles to object code, but
- * which contains the bodies of only explicitly retained functions.
- *)
-
-let amputateFunctionBodies keptGlobals file =
-  let considerGlobal = function
-    | GFun ({svar = {vname = name} as info}, location)
-      when not (H.mem keptGlobals name) ->
-	trace "usedGlobal" (dprintf "slicing: reducing to prototype: function %s\n" name);
-	GVarDecl (info, location)
-    | other ->
-	other
-  in
-  mapGlobals file considerGlobal
-
-
-
-(***********************************************************************
- *
- *  Root collection from pragmas
- *
- *)
-
-
-let markPragmaRoots keepers file =
-
-  (* check each global against the appropriate "keep" list *)
-  let considerGlobal global =
-    match global with
-    | GType ({tname = name} as info, _) ->
-	if H.mem keepers.typedefs name then
-	  begin
-	    trace "usedType" (dprintf "marking root (pragma): typedef %s\n" name);
-	    info.treferenced <- true
-	  end
-    | GEnumTag ({ename = name} as info, _) ->
-	if H.mem keepers.enums name then
-	  begin
-	    trace "usedType" (dprintf "marking root (pragma): enum %s\n" name);
-	    info.ereferenced <- true
-	  end
-    | GCompTag ({cname = name; cstruct = structure} as info, _) ->
-	let collection = if structure then keepers.structs else keepers.unions in
-	if H.mem collection name then
-	  begin
-	    trace "usedType" (dprintf "marking root (pragma): compound %s\n" name);
-	    info.creferenced <- true
-	  end
-    | GVar ({vname = name} as info, _, _)
-    | GFun ({svar = {vname = name} as info}, _) ->
-	if H.mem keepers.defines name then
-	  begin
-	    trace "usedGlobal" (dprintf "marking root (pragma): global %s\n" name);
-	    info.vreferenced <- true
-	  end
-    | _ ->
-	()
-  in
-  iterGlobals file considerGlobal
-
-
-
-(***********************************************************************
- *
- *  Root collection from external linkage
- *
- *)
-
-
-(* Exported roots are those global symbols which are visible to the
- * linker and dynamic loader.  For variables, this consists of
- * anything that is not "static".  For functions, this consists of:
- *
- * - functions declared extern inline
- * - functions declared neither inline nor static
- * - functions bearing a "constructor" or "destructor" attribute
- *)
-
-let markExportedRoots file =
-  let considerGlobal =
-    let mark info =
-      trace "usedGlobal" (dprintf "marking root (external linkage): global %s\n" info.vname);
-      info.vreferenced <- true
-    in
-    function
-      | GVar ({vstorage = storage} as info, _, _)
-	when storage != Static ->
-	  mark info
-      | GFun ({svar = {vinline = true; vstorage = Extern} as info}, _)
-      | GFun ({svar = {vinline = false; vstorage = NoStorage} as info}, _) ->
-	  mark info
-      |	GFun ({svar = {vattr = attributes} as info}, _)
-	when
-	  let rec isExportingAttribute = function
-	    | Attr ("constructor", []) -> true
-	    | Attr ("destructor", []) -> true
-	    | _ -> false
-	  in
-	  List.exists isExportingAttribute attributes
-	  ->
-	    mark info
-      | _ ->
-	  ()
-  in
-  iterGlobals file considerGlobal
-
-
-
-(***********************************************************************
- *
- *  Transitive reachability closure from roots
- *
- *)
+let removed_temps = ref [] 
 
 
 (* This visitor recursively marks all reachable types and variables as used. *)
-class markReachableVisitor globalMap = object (self)
+(* You construct it with a hash table, which is already partially *)
+(* marked; this visitor destructively updates the hash table. *)
+(* The hash table is used to track which typedef names are used. *)
+class removeTempsVis (usedTypedefs : (string,bool) H.t) = object (self)
   inherit nopCilVisitor
 
-  method vvrbl v =
-    if not v.vreferenced then
-      begin
-	v.vreferenced <- true;
-	
-	let name = v.vname in
-	if v.vglob then
-	  trace "usedGlobal" (dprintf "marking transitive use: global %s\n" name)
-	else
-	  trace "usedLocal" (dprintf "marking transitive use: local %s\n" name);
-	
-        (* If this is a global, we need to keep everything used in its
-	 * definition and declarations. *)
-	if v.vglob then
-	  begin
-	    trace "usedGlobal" (dprintf "descending: global %s\n" name);
-	    let descend global =
-	      ignore (visitCilGlobal (self :> cilVisitor) global)
-	    in
-	    let globals = Hashtbl.find_all globalMap name in
-	    List.iter descend globals
-	  end;
-	
-	v.vreferenced <- true
-      end;
-    SkipChildren
+  method vvrbl (v : varinfo) = begin
+    if (not (v.vglob)) then (
+      (trace "usedLocal" (dprintf "local var ref: %s\n" v.vname))
+    )
+    else (
+      (trace "usedVar" (dprintf "global var ref: %s\n" v.vname))
+    );
+    v.vreferenced <- true;
+    DoChildren
+  end
 
-  method vtype typ =
-    let old : bool =
-      match typ with
-      | TEnum(e, _) ->
-	  let old = e.ereferenced in
-	  if not old then
-	    begin
-	      trace "usedType" (dprintf "marking transitive use: enum %s\n" e.ename);
-	      e.ereferenced <- true
-	    end;
-	  old
+  method vtype (t : typ) = begin
+    match t with
+    | TEnum(e, _) -> (
+        (* mark this enum as used, and recurse, only if it *)
+        (* hasn't already been marked *)
+        if (not e.ereferenced) then (
+          e.ereferenced <- true;
+          DoChildren    (* recurse (though actually recursing into an enum does nothing) *)
+        )
+        else (
+          SkipChildren   (* don't recurse *)
+        )
+      )
 
-      | TComp(c, _) ->
-	  let old = c.creferenced in
-          if not old then
-            begin
-	      trace "usedType" (dprintf "marking transitive use: compound %s\n" c.cname);
-	      c.creferenced <- true;
+    | TComp(c, _) -> (
+        (* same logic as with TEnum *)
+        if (not c.creferenced) then (
+          c.creferenced <- true;
+          
+          (* to recurse, we must ask explicitly *)
+          List.iter 
+            (fun f -> 
+              ignore (visitCilType (self :> cilVisitor) f.ftype)) c.cfields;
 
-              (* to recurse, we must ask explicitly *)
-	      let recurse f = ignore (visitCilType (self :> cilVisitor) f.ftype) in
-	      List.iter recurse c.cfields
-	    end;
-	  old
+          DoChildren   (* this actually does nothing *)
+        )
+        else (
+          SkipChildren
+        )
+      )
 
-      | TNamed(ti, _) ->
-	  let old = ti.treferenced in
-          if not old then
-	    begin
-	      trace "usedType" (dprintf "marking transitive use: typedef %s\n" ti.tname);
-	      ti.treferenced <- true;
-	      
-	      (* recurse deeper into the type referred-to by the typedef *)
-	      (* to recurse, we must ask explicitly *)
-	      ignore (visitCilType (self :> cilVisitor) ti.ttype);
-	    end;
-	  old
+    | TNamed(ti, _) -> (
+        (* again same logic as above, though this time the 'then' *)
+        (* and 'else' branches reverse roles.. :) *)
+        (* see if this typedef name has already been marked *)
+        if ti.treferenced then (
+          (* already marked, don't recurse further *)
+          SkipChildren
+        )
+        else (
+          (trace "usedType" (dprintf "marking used typedef: %s\n" ti.tname));
 
-      | _ ->
-          (* for anything else, just look inside it *)
-	  false
+          (* not already marked; first mark the typedef name *)
+          ti.treferenced <- true;
+
+          (* recurse deeper into the type referred-to by the typedef *)
+          (* to recurse, we must ask explicitly *)
+          ignore (visitCilType (self :> cilVisitor) ti.ttype);
+
+          DoChildren
+        )
+      )
+
+    | _ -> (
+        (* for anything else, just look inside it *)
+        DoChildren
+      )
+  end
+
+  method vfunc (f : fundec) = 
+    (* Do everything after the function is visited *)
+    let doafter (f: fundec) = 
+      (* check the 'referenced' bits on the locals *)
+      f.slocals <- 
+         (List.filter
+            (fun (v : varinfo) ->
+              if (not v.vreferenced) then begin
+                (trace "usedLocal" 
+                   (dprintf "removing unused: var decl: %s\n" v.vname));
+                if ((String.length v.vname) < 3 ||
+                (String.sub v.vname 0 3) <> "tmp") then
+                  (* sm: if I'd had this to begin with, it would have been
+                   * a little easier to track down the bug where I didn't
+                   * check the function return-value destination *)
+                  removed_temps := (f.svar.vname ^ "::" ^ v.vname) ::
+                    !removed_temps ;
+                  (* (ignore (E.warn "Removing unused source variable %s"
+                             v.vname)); *)
+                false   (* remove it *)
+              end
+              else
+                true    (* keep it *)
+            )
+            f.slocals);
+      f
     in
-    if old then
-      SkipChildren
-    else
-      DoChildren
+    ChangeDoChildrenPost (f, doafter)
+
 end
-
-
-let markReachable file =
-  (* build a mapping from global names back to their definitions & declarations *)
-  let globalMap = Hashtbl.create 1 in
-  let considerGlobal global =
-    match global with
-    | GFun ({svar = info}, _)
-    | GVar (info, _, _)
-    | GVarDecl (info, _) ->
-	Hashtbl.add globalMap info.vname global
-    | _ ->
-	()
-  in
-  iterGlobals file considerGlobal;
-
-  (* mark everything reachable from the global roots *)
-  let visitor = new markReachableVisitor globalMap in
-  let considerGlobal global =
-    match global with
-    | GType ({treferenced = true}, _)
-    | GEnumTag ({ereferenced = true}, _)
-    | GCompTag ({creferenced = true}, _)
-    | GVar ({vreferenced = true}, _, _)
-    | GFun ({svar = {vreferenced = true}}, _) ->
-	ignore (visitCilGlobal visitor global)
-    | _ ->
-	()
-  in
-  iterGlobals file considerGlobal
-
-
-
-(***********************************************************************
- *
- *  Removal of unused symbols
- *
- *)
-
-
-(* regular expression matching names of uninteresting locals *)
-let uninteresting =
-  let names = [
-    (* Cil.makeTempVar *)
-    "tmp";
-
-    (* various macros in glibc's <bits/string2.h> *)		   
-    "__result";
-    "__s"; "__s1"; "__s2";
-    "__s1_len"; "__s2_len";
-    "__retval"; "__len";
-
-    (* various macros in glibc's <ctype.h> *)
-    "__c"; "__res";
-  ] in
-
-  (* optional alpha renaming *)
-  let alpha = "\\(___[0-9]+\\)?" in
-  
-  let pattern = "\\(" ^ (String.concat "\\|" names) ^ "\\)" ^ alpha ^ "$" in
-  Str.regexp pattern
-
-
-let removeUnmarked file =
-  let removedLocals = ref [] in
-  
-  let filterGlobal = function
-    (* unused global types are simply removed *)
-    | GType ({treferenced = false; tname = name}, _)
-    | GCompTag ({creferenced = false; cname = name}, _)
-    | GCompTagDecl ({creferenced = false; cname = name}, _)
-    | GEnumTag ({ereferenced = false; ename = name}, _)
-    | GEnumTagDecl ({ereferenced = false; ename = name}, _) ->
-	trace "usedType" (dprintf "removing type: %s\n" name);
-	false
-
-    (* unused global variables and functions are simply removed *)
-    | GVar ({vreferenced = false; vname = name}, _, _)
-    | GVarDecl ({vreferenced = false; vname = name}, _)
-    | GFun ({svar = {vreferenced = false; vname = name}}, _) ->
-	trace "usedGlobal" (dprintf "removing global: %s\n" name);
-	false
-
-    (* retained functions may wish to discard some unused locals *)
-    | GFun (func, _) ->
-	let rec filterLocal local =
-	  if not local.vreferenced then
-	    begin
-	      (* along the way, record the interesting locals that were removed *)
-	      let name = local.vname in
-	      trace "usedLocal" (dprintf "removing local: %s\n" name);
-	      if not (Str.string_match uninteresting name 0) then
-		removedLocals := (func.svar.vname ^ "::" ^ name) :: !removedLocals;
-	    end;
-	  local.vreferenced
-	in
-	func.slocals <- List.filter filterLocal func.slocals;
-	true
-
-    (* all other globals are retained *)
-    | _ ->
-	true
-  in
-  file.globals <- List.filter filterGlobal file.globals;
-  !removedLocals
-
-
-(***********************************************************************
- *
- *  Exported interface
- *
- *)
-
-
-type rootsMarker = Cil.file -> unit
-
-let defaultRootsMarker = markExportedRoots
 
 
 let keepUnused = ref false
 
-let rec removeUnusedTemps ?(markRoots : rootsMarker = defaultRootsMarker) file =
-  if !keepUnused || traceActive "disableTmpRemoval" then
-    trace "disableTmpRemoval" (dprintf "temp removal disabled\n")
-  else
-    begin
-      if traceActive "printCilTree" then
-	dumpFile defaultCilPrinter stdout file;
+(* this traces which variables are used, from the set    *)
+(* of root declarations, which are:                      *)
+(*   - non-inline function definitions                   *)
+(*   - non-extern global variable declarations           *)
+(*   - inline funcs & extern globals that are referenced *)
+(* it only works if we visit toplevel decls in reverse order *)
+let rec removeUnusedTemps (file : file) =
+  if (!keepUnused || (traceActive "disableTmpRemoval")) then
+    (trace "disableTmpRemoval" (dprintf "temp removal disabled\n")) else
+begin
+  if (traceActive "printCilTree") then (
+    (dumpFile defaultCilPrinter stdout file)
+  );
 
-      (* begin by clearing all the 'referenced' bits *)
-      clearReferencedBits file;
+  (* begin by clearing all the 'referenced' bits, and noting all *)
+  (* those declarations that are marked 'cilnoremove' *)
+  H.clear forceToKeep;
 
-      (* digest any pragmas that would create additional roots *)
-      let keepers = categorizePragmas file in
+  (removeUnusedTempsInner file)
+end
 
-      (* if slicing, remove the bodies of non-kept functions *)
-      if !Util.sliceGlobal then
-	amputateFunctionBodies keepers.defines file;
+and removeUnusedTempsInner (file : file) =
+begin
+  visitCilFileSameGlobals (new clearRefBitsVis) file;
 
-      (* build up the root set *)
-      markPragmaRoots keepers file;
-      markRoots file;
+  (* find every global function prototype *)
+  let globalDecls : (string, bool) H.t = H.create 17 in
+  iterGlobals file
+    (function
+        GVarDecl (v, _) ->
+          (H.add globalDecls v.vname true)
+      | _ -> ()
+    );
 
-      (* mark everything reachable from the global roots *)
-      markReachable file;
+  (* for every typedef name, this records whether it is needed *)
+  let usedTypedefs : (string, bool) H.t = H.create 17 in
 
-      (* take out the trash *)
-      let removedLocals = removeUnmarked file in
+  (* create the visitor object *)
+  let vis = (new removeTempsVis usedTypedefs) in
 
-      (* print which original source variables were removed *)
-      if removedLocals != [] then
-	let count = List.length removedLocals in
-	if count > 2000 then 
-	  ignore (E.warn "%d unused local variables removed" count)
-	else
-	  ignore (E.warn "%d unused local variables removed:@!%a"
-		    count (docList (chr ',' ++ break) text) removedLocals)
-    end
+  (* iterate over the list of globals in reverse, marking things *)
+  (* as reachable if they are reachable from the roots, and *)
+  (* removing ultimately unreachable toplevel constructs *)
+
+  (* process the tail first; going backwards is the key *)
+  (* to keeping this dependency analysis simple, since it *)
+  (* means we will always process all of the uses of a *)
+  (* variable or type, before we finally see the declaration *)
+  let revGlobals = List.rev file.globals in
+
+  let rec revLoop (acc: global list) (revlst : global list) : global list =
+    match revlst with
+    | hd::tl -> (
+        (* the 'trace' calls below are actually quite inexpensive *)
+        (* (when the corresponding flag is off), because they are only *)
+        (* encountered at once per toplevel construct; so, I leave *)
+        (* them uncommented *)
+
+        (* if only OCaml included a "return" construct, I wouldn't have
+         * to resort to a non-functional style here *)
+        let replacement: global option ref = ref None in
+
+        (* now examine the head *)
+        let retainHead = match hd with
+          (* global function definition *)
+          | GFun(f,l) -> (
+              let keepIt = ref false in
+              let reason = ref "not needed" in
+
+              if (H.mem forceToKeep f.svar.vname) then (
+                keepIt := true;
+                reason := "of noremove pragma"
+              )
+              else if (f.svar.vreferenced) then (
+                if (!U.sliceGlobal) then (
+                  (* when slicing globals, referenced flag is enough to keep
+                   * the prototype, but not the body; replace the body with
+                   * a prototype (given that this functions is referenced) *)
+                  replacement := Some(GVarDecl(f.svar, l));
+                  keepIt := false;
+                  reason := "replaced by prototype";
+                )
+                else (
+                  keepIt := true;
+                  reason := "vreferenced flag is set"
+                )
+              )
+              else if (not !U.sliceGlobal) then (
+                (* if we're not slicing, then functions which the linker makes *)
+                (* visible are part of the root set*)
+                if (H.mem globalDecls f.svar.vname) then (
+                  (* sm: this isn't entirely ideal; we keep all inlines that *)
+                  (* have prototypes.  under normal situations it is very *)
+                  (* unusual to forward-declare an inline, but our combiner *)
+                  (* emits prototypes for some (most? all?) inlines... *)
+                  keepIt := true;
+                  reason := "saw a prototype"
+                )
+                else if (not (isInlineFunc f)) then (
+                  keepIt := true;
+                  reason := "not an inline function"
+                )
+              )
+              else (
+                (* if we *are* slicing, then no spontaneous roots *)
+              );
+
+              if (!keepIt) then (
+                (trace "usedVar" (dprintf "keeping func: %s because %s\n"
+                                          f.svar.vname !reason));
+                ignore (visitCilFunction vis f);    (* root: trace it *)
+                true
+              )
+              else (
+                (* this will be deleted; don't trace *)
+                (trace "usedVar" (dprintf "removing func: %s (%s)\n" 
+                                          f.svar.vname !reason));
+                false
+              )
+            )
+
+          (* enum declaration *)
+          | GEnumTag(e, _) -> (
+              if e.ereferenced ||
+                 H.mem forceToKeep ("enum " ^ e.ename) then (
+                (trace "usedType" (dprintf "keeping enum %s\n" e.ename));
+                true
+              )
+              else (
+                (trace "usedType" (dprintf "removing enum %s\n" e.ename));
+                false
+              )
+            )
+
+          (* structure declaration *)
+          | GCompTag(c, _) -> (
+              let kind = if (c.cstruct) then "struct" else "union" in
+              if c.creferenced || H.mem forceToKeep (kind ^ " " ^ c.cname)
+              then (
+                (trace "usedType" (dprintf "keeping %s %s\n" kind c.cname));
+                true
+              )
+              else (
+                (trace "usedType" (dprintf "removing %s %s\n" kind c.cname));
+                false
+              )
+            )
+
+          (* forward structure declaration *)
+          | GCompTagDecl (ci, _) ->
+              if (ci.creferenced) then begin
+                (trace "usedType" (dprintf "keeping fwd decl of %s\n"
+                                     ci.cname));
+
+                (* should not have to trace from here *)
+                (* retain this type definition *)
+                true
+              end else begin
+                (trace "usedType" (dprintf "removing fwd decl of %s\n"
+                                     ci.cname));
+                false
+              end
+
+          (* forward enum declaration *)
+          | GEnumTagDecl (ei, _) ->
+              if (ei.ereferenced) then begin
+                (trace "usedType" (dprintf "keeping fwd decl of enum %s\n"
+                                     ei.ename));
+
+                (* should not have to trace from here *)
+                (* retain this type definition *)
+                true
+              end else begin
+                (trace "usedType" (dprintf "removing fwd decl of enum %s\n"
+                                     ei.ename));
+                false
+              end
+
+          (* typedef *)
+          | GType(t, _) -> (
+              if t.treferenced  || H.mem forceToKeep ("type " ^ t.tname)
+              then (
+                (trace "usedType" (dprintf "keeping typedef %s\n" t.tname));
+                (* I think we don't need to trace again during sweep, because *)
+                (* all tracing of types should have finished during mark phase *)
+                (*(visitCilType vis t);*)           (* root; trace it *)
+                true                                (* used; keep it *)
+              )
+              else (
+                (* not used, remove it *)
+                (trace "usedType" (dprintf "removing typedef %s\n" t.tname));
+                false
+              )
+            )
+
+          (* global variable 'extern' declaration *)
+          | GVarDecl(v, _) -> (
+              if v.vreferenced || H.mem forceToKeep v.vname then begin
+                trace "usedVar" (dprintf "keeping global decl: %s\n" v.vname);
+
+                (* since it's referenced, use it as a root for the type dependency *)
+                ignore (visitCilVarDecl vis v);
+
+                (* it's referenced: keep it *)
+                true
+              end else (
+                (trace "usedVar" (dprintf "removing global decl: %s\n" v.vname));
+                false
+              )
+            )
+
+          (* global variable definition, i.e. no 'extern' *)
+          | GVar(v, _, _) -> (
+              if (v.vreferenced ||                 (* referenced *)
+                  H.mem forceToKeep v.vname ||     (* explicitly asked for it *)
+                  (not !U.sliceGlobal)) then (     (* not slicing: keep all globals *)
+                (* keep it *)
+                ignore (visitCilGlobal vis hd);
+                true
+              )
+              else (
+                (* when slicing, only keep things which the user asked for or *)
+                (* are referenced, which isn't this one *)
+                (trace "usedVar" (dprintf "slicing: removing global var: %s\n"
+                                          v.vname));
+                false
+              )
+            )
+
+          (* something else: keep it *)
+          | _ -> (
+              ignore (visitCilGlobal vis hd);
+              true
+            )
+        in
+
+        match !replacement with
+        | Some(r) ->
+            (* put in the replacement instead of 'hd' *)
+            (revLoop (r :: acc) tl)
+        | _ ->
+            if (retainHead) then
+              (revLoop (hd :: acc) tl)     (* keep 'hd' *)
+            else
+              revLoop acc tl               (* drop head *)
+      )
+
+    | [] -> acc
+  in
+
+  (* print which original source variables were removed *)
+  file.globals <- revLoop [] revGlobals ;
+  if !removed_temps <> [] then begin
+    let len = List.length !removed_temps in
+    if len > 20 then 
+      (ignore (E.warn "%d unused source variables removed" len))
+    else 
+      (ignore (E.warn "Removed unused source variables:@!%a"
+        (docList (chr ',' ++ break) text) !removed_temps)) ;
+    removed_temps := [] 
+  end
+end
+
+
+(*
+let hack_Cil_d_global () (g : Cil.global) =
+  Cil.d_global g
+*)

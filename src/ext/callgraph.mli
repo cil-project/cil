@@ -10,8 +10,8 @@
  * single function: which functions it calls, and which
  * functions call it *)
 type callnode = {
-  (* the function this node describes *)
-  cnInfo: Cil.varinfo;
+  (* name of the function this node describes *)
+  cnName: string;
 
   (* set of functions this one calls *)
   cnCallees: (string, callnode) Hashtbl.t;
@@ -37,11 +37,10 @@ val printGraph : out_channel -> callgraph -> unit
 
 (*
  *
- * Copyright (c) 2001-2002 by
+ * Copyright (c) 2001 by
  *  George C. Necula	necula@cs.berkeley.edu
  *  Scott McPeak        smcpeak@cs.berkeley.edu
  *  Wes Weimer          weimer@cs.berkeley.edu
- *  Ben Liblit          liblit@cs.berkeley.edu
  *   
  * All rights reserved.  Permission to use, copy, modify and distribute
  * this software for research purposes only is hereby granted, 
