@@ -555,7 +555,8 @@ and print_expression (exp : expression) (lvl : int) =
 	CONST_INT i -> print i
       | CONST_FLOAT r -> print r
       | CONST_CHAR c -> print ("'" ^ (escape_string c) ^ "'")
-      | CONST_STRING s -> print_string s)
+      | CONST_STRING s -> print_string s
+      | CONST_WSTRING s -> print "W" ; print_string s)
 
   | VARIABLE name ->
       comprint "variable";

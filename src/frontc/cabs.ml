@@ -222,6 +222,7 @@ and constant =
   | CONST_FLOAT of string (* the textual representaton *)
   | CONST_CHAR of string
   | CONST_STRING of string
+  | CONST_WSTRING of string
 
 and init_expression =
   | NO_INIT

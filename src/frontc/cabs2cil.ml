@@ -2499,6 +2499,19 @@ and doExp (isconst: bool)    (* In a constant *)
               finishCt (CStr("booo CONS_INT")) (TPtr(TInt(IChar,[]),[]))
             end
           end
+
+        | A.CONST_WSTRING wstr ->
+            let len = String.length wstr in 
+            let dest = String.make (len * 2) '\000' in 
+            for i = 0 to len-1 do 
+              dest.[i*2] <- wstr.[i] ;
+            done ; 
+            (* weimer: this turns L"Hi" into "H\0i\0", but in order to
+             * make sure that L"Hi"[1] is the same as L'i', we must
+             * cast the result to a wchar_t pointer (so that the pointer
+             * artimetic correctly moves over wide characters) *)
+            finishExp empty (CastE(wcharPtrType,Const(CStr(dest)))) wcharPtrType
+
         | A.CONST_STRING s -> 
             (* Maybe we burried __FUNCTION__ in there *)
             let s' = 
@@ -3649,6 +3662,42 @@ and doInit
       let acc', initl' = doInit isconst setone so' acc charinits in
       if initl' <> [] then 
         ignore (warn "Too many initializers for character array %t" whoami);
+      (* Advance past the array *)
+      advanceSubobj so;
+      (* Continue *)
+      doInit isconst setone so acc' restil
+
+        (* If we are at an array of WIDE characters and the initializer is a 
+         * WIDE string literal (optionally enclosed in braces) then explore
+         * the WIDE string into characters *)
+  (* [weimer] Wed Jan 30 15:38:05 PST 2002
+   * Despite what the compiler says, this match case is used and it is
+   * important. *)
+  | TArray(bt, leno, _), 
+      (A.NEXT_INIT, 
+       (A.SINGLE_INIT(A.CONSTANT (A.CONST_WSTRING s))|
+       A.COMPOUND_INIT 
+         [(A.NEXT_INIT, 
+           A.SINGLE_INIT(A.CONSTANT 
+                           (A.CONST_WSTRING s)))])) :: restil
+     when (match unrollType bt with wcharType -> true | _ -> false) 
+    -> 
+      let chars = explodeString true s in
+      let charinits = 
+        List.map 
+          (fun c -> 
+            (A.NEXT_INIT, 
+             A.SINGLE_INIT(A.CONSTANT (A.CONST_INT 
+             (string_of_int (Char.code c)))))) chars in
+      (* Create a separate object for the array *)
+      let so' = makeSubobj so.host so.soTyp so.soOff in 
+      (* Go inside the array *)
+      let leno = integerArrayLength leno in
+      so'.stack <- [InArray(so'.curOff, bt, leno, 0)];
+      normalSubobj so';
+      let acc', initl' = doInit isconst setone so' acc charinits in
+      if initl' <> [] then 
+        ignore (warn "Too many initializers for wchar_t array %t" whoami);
       (* Advance past the array *)
       advanceSubobj so;
       (* Continue *)

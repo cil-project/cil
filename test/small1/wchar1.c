@@ -1,7 +1,8 @@
 #include "testharness.h"
 
 int main() {
-  char * w = L"Hello" L", world";
+  short * wbase = L"Hello" L", world";
+  char *w = wbase;
   char * s =  "Hello" ", world";
   int i;
 

@@ -942,6 +942,12 @@ val charType: typ
 (** char * *)
 val charPtrType: typ
 
+(** wchar_t *)
+val wcharType: typ
+
+(** wchar_t * *)
+val wcharPtrType: typ
+
 (** char const * *)
 val charConstPtrType: typ
 

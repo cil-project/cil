@@ -257,11 +257,14 @@ let scan_hex_escape str =
 		   + (get_value (String.get str 1))
 	           ))
 let scan_oct_escape str =
-  String.make 1 (Char.chr (
-		 (get_value (String.get str 0)) * 64
+  (* weimer: wide-character constants like L'\400' may be bigger than
+   * 256 (in fact, may be up to 511), so Char.chr cannot be used directly *)
+  let the_value = (get_value (String.get str 0)) * 64
 		   + (get_value (String.get str 1)) * 8
-		   + (get_value (String.get str 2))
-	           ))
+		   + (get_value (String.get str 2)) in
+  if the_value < 256 then String.make 1 (Char.chr the_value )
+  else (String.make 1 (Char.chr (the_value / 256))) ^
+       (String.make 1 (Char.chr (the_value mod 256)))
 
 (* ISO standard locale-specific function to convert a wide character
  * into a sequence of normal characters. Here we work on strings. 
@@ -273,6 +276,17 @@ let wbtowc wstr =
     dest.[i*2] <- wstr.[i] ;
   done ;
   dest
+
+(* This function converst the "Hi" in L"Hi" to { L'H', L'i', L'\0' } *)
+let wstr_to_warray wstr =
+  let len = String.length wstr in
+  let res = ref "{ " in
+  for i = 0 to len-1 do
+    res := !res ^ (Printf.sprintf "L'%c', " wstr.[i])
+  done ;
+  res := !res ^ "}" ;
+  !res
+
 }
 
 let decdigit = ['0'-'9']
@@ -316,7 +330,7 @@ rule initial =
 |		'\''			{ CST_CHAR (chr lexbuf)}
 |		"L'"			{ (* weimer: wide character constant *)
                                           let wcc = chr lexbuf in 
-                                          CST_STRING (wbtowc wcc) }
+                                          CST_CHAR wcc }
 |		'"'			{ (* '"' *)
                                           try CST_STRING (str lexbuf)
                                           with e -> 
@@ -325,7 +339,7 @@ rule initial =
                                                       Printexc.to_string e))}
 |		"L\""			{ (* weimer: wchar_t string literal *)
                                           try let wstr = str lexbuf in
-                                              CST_STRING(wbtowc wstr)
+                                              CST_WSTRING(wstr)
                                           with e -> 
                                              raise (InternalError 
                                                      ("wide string: " ^ 

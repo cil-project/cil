@@ -128,6 +128,7 @@ end
 %token <string> CST_INT
 %token <string> CST_FLOAT
 %token <string> CST_STRING
+%token <string> CST_WSTRING
 %token <string> NAMED_TYPE
 
 %token EOF
@@ -206,7 +207,7 @@ end
 %type <Cabs.init_expression> init_expression
 %type <Cabs.expression list> comma_expression paren_comma_expression arguments
 %type <Cabs.expression list> bracket_comma_expression
-%type <string> string_list
+%type <string> string_list wstring_list
 
 %type <Cabs.initwhat * Cabs.init_expression> initializer
 %type <(Cabs.initwhat * Cabs.init_expression) list> initializer_list
@@ -428,11 +429,18 @@ constant:
 |   CST_FLOAT				{CONST_FLOAT $1}
 |   CST_CHAR				{CONST_CHAR $1}
 |   string_list				{CONST_STRING $1}
+|   wstring_list			{CONST_WSTRING $1}
 ;
 string_list:
     one_string                          { $1 }
 |   string_list one_string              { $1 ^ $2 }
 ;
+wstring_list:
+    CST_WSTRING                         { $1 }
+|   wstring_list one_string             { $1 ^ $2 }
+/* Only the first string in the list needs an L, so L"a" "b" is the same
+ * as L"ab". */
+
 one_string: 
     CST_STRING				{$1}
 |   FUNCTION__                          {!currentFunctionName}
