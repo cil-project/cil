@@ -1,25 +1,34 @@
-
-
 type cfgInfo = {
     start   : int;          
     size    : int;    
-    successors    : int list array; (* the successor function *)
-    predecessors  : int list array; (* the prdecessor function *)
-    blocks: block array;
-    nrRegs: int
+    blocks: cfgBlock array; (** Dominating blocks must come first *)
+    successors: int list array; (* block indices *)
+    predecessors: int list array;   
+    mutable nrRegs: int;
+    mutable regToVarinfo: Cil.varinfo array; (** Map register IDs to varinfo *)
   } 
 
-and block = reg list * statement list
+(** A block corresponds to a statement *)
+and cfgBlock = { 
+    bstmt: Cil.stmt;
+
+    (* We abstract the statement as a list of def/use instructions *)
+    instrlist: instruction list;
+    mutable livevars: (reg * int) list;  
+    (** For each variable ID that is live at the start of the block, the 
+     * block whose definition reaches this point. If that block is the same 
+     * as the current one, then the variable is a phi variable *)
+  }
   
-and statement = reg list * reg list
+and instruction = (reg list * reg list) 
+  (* lhs variables, variables on rhs.  *)
+
 
 and reg = int
 
+type idomInfo = int array  (* immediate dominator *)
 
-and idomInfo = int array  (* immediate dominator *)
+and dfInfo = (int list) array  (* dominance frontier *)
 
-and dfInfo = (int list) array (* dominance frontier *)
 
-val compute_idom: cfgInfo -> idomInfo
-val dominance_frontier: cfgInfo -> dfInfo
 val add_ssa_info: cfgInfo -> unit

@@ -59,7 +59,8 @@ CILLY_LIBRARY_MODULES = pretty inthash errormsg trace stats util clist \
               cabs cabsvisit cprint lexerhack machdep cparser clexer  \
               cilversion cil formatparse formatlex formatcil cabs2cil \
               patch frontc check mergecil \
-              dataflow dominators usedef logcalls logwrites rmtmps \
+              dataflow dominators bitmap ssa \
+              usedef logcalls logwrites rmtmps \
 	      callgraph epicenter heapify \
               setp uref steensgaard olf dummy ptranal \
               canonicalize heap oneret partial simplemem simplify \

@@ -1,4 +1,6 @@
 module B=Bitmap
+open Cil
+open Pretty
     
 (* Globalsread, Globalswritten should be closed under call graph *)
 
@@ -12,22 +14,36 @@ module StringOrder =
   
 module StringSet = Set.Make (StringOrder)
 
+
 type cfgInfo = {
     start   : int;          
     size    : int;    
-    successors    : int list array; 
-    predecessors  : int list array;   
-    blocks: block array;
-    nrRegs: int
+    blocks: cfgBlock array; (** Dominating blocks must come first *)
+    successors: int list array; (* block indices *)
+    predecessors: int list array;   
+    mutable nrRegs: int;
+    mutable regToVarinfo: varinfo array; (** Map register IDs to varinfo *)
   } 
 
-and block = reg list * statement list 
+(** A block corresponds to a statement *)
+and cfgBlock = { 
+    bstmt: Cil.stmt;
+
+    (* We abstract the statement as a list of def/use instructions *)
+    instrlist: instruction list;
+    mutable livevars: (reg * int) list;  
+    (** For each variable ID that is live at the start of the block, the 
+     * block whose definition reaches this point. If that block is the same 
+     * as the current one, then the variable is a phi variable *)
+  }
   
-and statement = reg list * reg list
+and instruction = (reg list * reg list) 
+  (* lhs variables, variables on rhs.  *)
+
 
 and reg = int
 
-and idomInfo = int array  (* immediate dominator *)
+type idomInfo = int array  (* immediate dominator *)
 
 and dfInfo = (int list) array  (* dominance frontier *)
 
@@ -222,9 +238,11 @@ let add_phi_functions_info (flowgraph: cfgInfo) : unit =
 
   let defs = Array.init size (fun i -> B.init nrRegs (fun j -> false)) in 
   for i = 0 to size-1 do 
-    List.iter (fun (lhs,rhs) ->
-      List.iter (fun (r: reg) -> B.set defs.(i) r true) lhs;
-	      ) (snd flowgraph.blocks.(i))
+    List.iter 
+      (fun (lhs,rhs) ->
+        List.iter (fun (r: reg) -> B.set defs.(i) r true) lhs;
+      ) 
+      flowgraph.blocks.(i).instrlist
   done;
   let iterCount = ref 0 in
   let hasAlready = Array.create size 0 in 
@@ -260,9 +278,11 @@ let add_phi_functions_info (flowgraph: cfgInfo) : unit =
   for i = 0 to nrRegs - 1 do
     List.iter (fun node -> result.(node) <- i::result.(node);) dfPlus.(i) 
   done;
-(* result contains for each node, the list of variables that need phi definition *)
+(* result contains for each node, the list of variables that need phi 
+ * definition *)
   for i = 0 to size-1 do
-    flowgraph.blocks.(i) <- (result.(i),snd flowgraph.blocks.(i)); 
+    flowgraph.blocks.(i).livevars <- 
+      List.map (fun r -> (r, i)) result.(i);
   done
     
   
@@ -281,31 +301,45 @@ let add_dom_def_info (f: cfgInfo): unit =
     if (idom.(i) != -1) then children.(idom.(i)) <- i :: children.(idom.(i));
   done; 
   
+  (* For each variable, maintain a stack of blocks that define it. When you 
+   * process a block, the top of the stack is the closest dominator that 
+   * defines the variable *)
   let s = Array.make nrRegs ([start]) in 
   
   let rec search (x: int): unit = (* x is a graph node *)
-    List.iter (fun (r: reg) -> s.(r) <- x::s.(r) ) (fst blocks.(x));
+    (* Push the current block for the phi variables *)
+    List.iter 
+      (fun ((r: reg), dr) -> 
+        if x = dr then s.(r) <- x::s.(r)) 
+      blocks.(x).livevars;
 
-    for i = 0 to nrRegs-1 do
-      ignore(List.hd s.(i)); (* this is the dom def info for reg i in block x *)
-    done;
+    (* Clear livevars *)
+    blocks.(x).livevars <- [];
     
+    (* Compute livevars *)
+    for i = 0 to nrRegs-1 do
+      match s.(i) with 
+      | [] -> assert false
+      | fst :: _ -> 
+          blocks.(x).livevars <- (i, fst) :: blocks.(x).livevars
+    done;
+
+    (* Update s for the children *)
     List.iter 
       (fun (lhs,rhs) ->
 	List.iter (fun (lreg: reg) -> s.(lreg) <- x::s.(lreg) ) lhs; 
-      ) (snd blocks.(x));
+      ) 
+      blocks.(x).instrlist;
     
         
+    (* Go and do the children *)
     List.iter search children.(x);
     
-
-    List.iter (fun (r: reg) -> s.(r) <- List.tl s.(r) ) (fst blocks.(x));
-    
-    List.iter 
-      (fun (lhs,rhs) ->
-	List.iter (fun (lreg: reg) -> s.(lreg) <- List.tl s.(lreg) ) lhs; 
-      ) (snd blocks.(x));
-    
+    (* Then we pop x, whenever it is on top of a stack *)
+    Array.iteri (fun i istack -> 
+      match istack with 
+        x' :: rest when x' = x -> s.(i) <- rest
+      | _ -> ()) s;
   in
   search(start)
   

@@ -41,8 +41,9 @@ module CG = Callgraph
 module H = Hashtbl 
 module U = Util
 module IH = Inthash
-
 module VS = Usedef.VS
+
+module S = Ssa
 
 let debug = false
 
@@ -78,14 +79,14 @@ let currentGlobalsRead: (varinfo IH.t) ref = ref (IH.create 13)
 
 let globalsReadTransitive: (varinfo IH.t) IH.t = IH.create 13
 
-let considerGlobal (v: varinfo) : bool = 
-  v.vglob && not v.vaddrof && isIntegralType v.vtype
+let considerVariable (v: varinfo) : bool = 
+  not v.vaddrof && isIntegralType v.vtype
 
 class gwVisitorClass : cilVisitor = object (self) 
   inherit nopCilVisitor
 
   method vexpr = function
-      Lval (Var v, _) when considerGlobal v -> 
+      Lval (Var v, _) when v.vglob && considerVariable v -> 
         IH.replace !currentGlobalsRead v.vid v;
         DoChildren
 
@@ -93,7 +94,7 @@ class gwVisitorClass : cilVisitor = object (self)
 
   method vinst = function
       Set ((Var v, _), _, _) 
-    | Call (Some (Var v, _), _, _, _) when considerGlobal v -> 
+    | Call (Some (Var v, _), _, _, _) when v.vglob && considerVariable v -> 
         IH.replace !currentGlobalsWritten v.vid v;
         DoChildren
     | _ -> DoChildren
@@ -101,128 +102,381 @@ end
 
 let gwVisitor = new gwVisitorClass
 
+
+(** Functions can be defined or just declared *)
+type funinfo = 
+    Decl of varinfo
+  | Def of fundec
+
+(* All functions indexed by the variable ID *)
+let allFunctions: funinfo IH.t = IH.create 13
+
+
+(** Compute the SSA form *)
+ 
+
+
+    
+let fundecToCFGInfo (fdec: fundec) : S.cfgInfo = 
+  (* Go over the statments and make sure they are numbered properly *)
+  let count = ref 0 in
+  List.iter (fun s -> s.sid <- !count; incr count) fdec.sallstmts;
+
+  let start: stmt = 
+    match fdec.sbody.bstmts with
+      [] -> E.s (E.bug "Function %s with no body" fdec.svar.vname)
+    | fst :: _ -> fst
+  in
+  if start.sid <> 0 then 
+    E.s (E.bug "The first block must have index 0");
+  
+  
+  let ci = 
+    { S.start = start.sid;
+      S.size  = !count;
+      S.successors = Array.make !count [];
+      S.predecessors = Array.make !count [];
+      S.blocks = Array.make !count { S.bstmt = start; 
+                                     S.instrlist = [];
+                                     S.livevars = [] };
+      S.nrRegs = 0;
+      S.regToVarinfo = Array.make 0 dummyFunDec.svar;
+    } 
+  in
+
+  (* Map a variable to a register *)
+  let varToRegMap: S.reg IH.t = IH.create 13 in 
+  let regToVarMap: varinfo IH.t = IH.create 13 in 
+  let varToReg (v: varinfo) : S.reg = 
+    try IH.find varToRegMap v.vid
+    with Not_found -> 
+      let res = ci.S.nrRegs in 
+      ci.S.nrRegs <- 1 + ci.S.nrRegs;
+      IH.add varToRegMap v.vid res;
+      IH.add regToVarMap res v;
+      res
+  in
+  (* For functions, we use the transitively computed set of globals and 
+   * locals as the use/def *)
+  Usedef.getUseDefFunctionRef := 
+    (fun f ->
+      match f with 
+        Lval (Var fv, NoOffset) -> 
+          let varDefs = ref VS.empty in 
+          let varUsed = ref VS.empty in 
+          (try 
+            let gw = IH.find globalsWrittenTransitive fv.vid in
+            IH.iter 
+              (fun _ g -> varDefs := VS.add g !varDefs) gw
+          with Not_found -> (* Do not have a definition for it *)
+            ());
+          (* Now look for globals read *)
+          (try 
+            let gr = IH.find globalsReadTransitive fv.vid in 
+            IH.iter
+              (fun _ g -> varUsed := VS.add g !varUsed) gr
+          with Not_found -> ());
+
+          !varUsed, !varDefs
+
+      | _ -> VS.empty, VS.empty);
+
+  let vsToRegList (vs: VS.t) : int list = 
+    VS.fold (fun v acc -> varToReg v :: acc) vs [] 
+  in
+  List.iter 
+    (fun s -> 
+      ci.S.successors.(s.sid) <- List.map (fun s' -> s'.sid) s.succs;
+      ci.S.predecessors.(s.sid) <- List.map (fun s' -> s'.sid) s.preds;
+      ci.S.blocks.(s.sid) <- begin
+        let instrs: (S.reg list * S.reg list) list = 
+          match s.skind with 
+            Instr il -> 
+              (* Each instruction is transformed independently *)
+              List.map (fun i -> 
+                let vused, vdefs = Usedef.computeUseDefInstr i in 
+                (vsToRegList vdefs, vsToRegList vused)) il
+                
+          | Return (Some e, _) 
+          | If (e, _, _, _) 
+          | Switch (e, _, _, _) ->
+              let vused = Usedef.computeUseExp e in 
+              [ ([], vsToRegList vused) ]
+                
+          | Break _ | Continue _ | Goto _ | Block _ | Loop _ | Return _ -> [ ]
+          | TryExcept _ | TryFinally _ -> assert false
+        in
+        { S.bstmt = s;
+          S.instrlist = instrs;
+          S.livevars = []; (* Will be filled in later *)
+        }
+      end
+    ) fdec.sallstmts;
+
+  (* Set the mapping from registers to variables *)
+  ci.S.regToVarinfo <-
+    Array.make ci.S.nrRegs dummyFunDec.svar;
+  IH.iter (fun rid v -> 
+    ci.S.regToVarinfo.(rid) <- v) regToVarMap;
+
+  ci
+
+
+
 let globalsDumped = IH.create 13
 
 (** We define a new printer *)
-class absPrinterClass (callgraph: CG.callgraph) : cilPrinter = object (self) 
-  inherit defaultCilPrinterClass as super
+class absPrinterClass (callgraph: CG.callgraph) : cilPrinter = 
 
-  val mutable idomData: stmt option IH.t = IH.create 13
+  let lastFreshId= ref 0 in 
+  let freshVarId () = incr lastFreshId; !lastFreshId in
+  
 
-  method pExp () = function
-    | Const (CInt64(i, _, _)) -> text (Int64.to_string i)
-    | Const (CStr _) -> text "(rand)"
-    | BinOp (bop, e1, e2, _) -> 
-        dprintf "(%a @[%a@?%a@])" 
-          d_binop bop
-          self#pExp e1 self#pExp e2
-    | UnOp (uop, e1, _) -> 
-        dprintf "(%a @[%a@])"
-          d_unop uop self#pExp e1
-    | CastE (t, e) -> self#pExp () e
-    | Lval (Mem _, _) -> text "(rand)"
-    | Lval (Var v, _) when v.vaddrof -> text "(rand)"
-    | e -> super#pExp () e
+  object (self) 
+    inherit defaultCilPrinterClass as super
+        
+    val mutable idomData: stmt option IH.t = IH.create 13
 
-  method pInstr () = function
-      Set ((Mem _, _), _, _)  (* ignore writes *) 
-    | Asm _ -> nil
-    | Set ((Var v, _), _, _) when v.vaddrof -> nil
-    | Call (Some (Mem _, _), f, args, loc) -> 
-        super#pInstr () (Call (None, f, args, loc))
-    | Call (None, f, args, _) -> 
-        dprintf "(%a @[%a@])" 
-          self#pExp f
-          (docList ~sep:break (self#pExp ())) args
-    | Call (Some v, f, args, _) -> 
-        dprintf "%a = (%a @[%a@])" 
-          self#pExp (Lval v)
-          self#pExp f
-          (docList ~sep:break (self#pExp ())) args
+    val mutable cfgInfo: S.cfgInfo option = None 
 
-    | i -> super#pInstr () i
+        (** For each block end, a mapping from IDs of variables that were 
+         * defined in this block, to their fresh ID *)
+    val mutable blockEndData: int IH.t array = 
+      Array.make 0 (IH.create 13)
+
+        (** For each block start, remember the starting newFreshId as we 
+         * start the block *)
+    val mutable blockStartData: int array = 
+      Array.make 0 (-1) 
 
 
-  method dBlock (out: out_channel) (ind: int) (b: block) : unit = 
-    ignore (p ~ind:ind "<block\n");
-    List.iter (self#dStmt out (ind+ 2)) b.bstmts;
-    ignore (p ~ind:ind ">\n")
+    val mutable varRenameState: int IH.t = IH.create 13
 
-  method dStmt (out: out_channel) (ind: int) (s: stmt) : unit = 
-    pd (self#pLineDirective (get_stmtLoc s.skind));
-    (* Lookup its dominator *)
-    let idom: doc = 
-      match Dominators.getIdom idomData s with 
-        Some dom -> num dom.sid
-      | None -> nil
-    in
-    ignore (p ~ind:ind
-              "<stmt %d <succs %a> <preds %a> <idom %a>\n"
-              s.sid (** Statement id *)
-              (d_list "," (fun _ s' -> num s'.sid)) s.succs
-              (d_list "," (fun _ s' -> num s'.sid)) s.preds
-              insert idom);
-    (* Now the statement kind *)
-    let ind = ind + 2 in 
-    (match s.skind with 
-    | Instr il -> 
-        List.iter 
-          (fun i -> 
-            pd ~ind:ind (self#pInstr () i ++ line))
-          il
-    | Block b -> List.iter (self#dStmt out ind) b.bstmts
-    | Goto (s, _) -> ignore (p ~ind:ind "goto %d\n" !s.sid)
-    | Return (None, _) -> ignore (p ~ind:ind "return;\n")
-    | Return (Some e, _) -> ignore (p ~ind:ind "return %a;\n" self#pExp e);
-    | If(e, b1, b2, _) -> 
-        ignore (p ~ind:ind "<if %a\n" self#pExp e);
-        self#dBlock out (ind + 2) b1;
-        self#dBlock out (ind + 2) b2;
-        ignore (p ~ind:ind ">\n")
 
-    | Loop (b, _, Some co, Some br) -> 
-        ignore (p ~ind:ind "<loop <cont %d> <break %d>\n" co.sid br.sid);
-        List.iter (self#dStmt out (ind+ 2)) b.bstmts;
-        ignore (p ~ind:ind ">\n")
-
-     (* The other cases should have been removed already *)
-    | _ -> E.s (E.unimp "try except"));
-
-    (* The termination *)
-    let ind = ind - 2 in
-    ignore (p ~ind:ind ">\n")
+    method private initVarRenameState (b: S.cfgBlock) =
+      IH.clear varRenameState;
+      
+      (* Convert livevars, to use varinfo *)
+      (* Initialize it based on the livevars info in the block *)
+      List.iter 
+        (fun (rid, defblk) -> 
+          let v = 
+            match cfgInfo with
+              None -> assert false
+            | Some cfg -> cfg.S.regToVarinfo.(rid)
+          in
+          if defblk = b.S.bstmt.sid then
+            IH.add varRenameState v.vid (freshVarId ())
+          else begin 
+            let fid = 
+              try IH.find blockEndData.(defblk) v.vid
+              with Not_found -> 
+                E.s (E.bug "Cannot find data for variable %s in block %d"
+                       v.vname defblk)
+            in
+            IH.add varRenameState v.vid fid
+          end)
+        b.S.livevars;
+      
+      ()
+        
+    method private variableUse (v: varinfo) : doc = 
+      let freshId = 
+        try IH.find varRenameState v.vid
+        with Not_found -> 
+          E.s (E.bug "varRenameState does not know anything about %s" v.vname)
+      in
+      text (v.vname ^ "___" ^ string_of_int freshId)
+        
+    method private variableDef (v: varinfo) : doc = 
+      IH.replace varRenameState v.vid (freshVarId ());
+      self#variableUse v
     
-              
-  method dGlobal (out: out_channel) (g: global) : unit = 
-    match g with 
-      GFun (fdec, l) -> 
-        pd (self#pLineDirective ~forcefile:true l);
-        prepareCFG fdec;
-        ignore (computeCFGInfo fdec true);
-        let cg_node: CG.callnode = 
-          try H.find callgraph fdec.svar.vname
-          with Not_found -> E.s (E.bug "Cannot find call graph info for %s"
-                                   fdec.svar.vname)
-        in
-        (* Now compute the immediate dominators *)
-        idomData <- Dominators.computeIDom fdec;
+    method pExp () = function
+      | Const (CInt64(i, _, _)) -> text (Int64.to_string i)
+      | Const (CStr _) -> text "(rand)"
+      | BinOp (bop, e1, e2, _) -> 
+          dprintf "(%a @[%a@?%a@])" 
+            d_binop bop
+            self#pExp e1 self#pExp e2
+      | UnOp (uop, e1, _) -> 
+          dprintf "(%a @[%a@])"
+            d_unop uop self#pExp e1
+      | CastE (t, e) -> self#pExp () e (* Ignore casts *)
+            
+      | Lval (Var v, NoOffset) when considerVariable v -> self#variableUse v
+            
+            (* We ignore all other Lval *)
+      | Lval _ -> text "(rand)"
+            
+      | e -> super#pExp () e
+            
+    method pInstr () = function
+      | Set ((Var v, NoOffset), e, _) when considerVariable v -> 
+          self#variableDef v ++ text "=" ++ self#pExp () e
+            
+      | Call (Some (Var v, NoOffset), f, args, _)  when considerVariable v -> 
+          self#variableDef v ++ text "=" ++ 
+            dprintf "(%a @[%a@])" 
+            self#pExp f
+            (docList ~sep:break (self#pExp ())) args
+            
+      | Call (None, f, args, _) -> 
+          dprintf "(%a @[%a@])" 
+            self#pExp f
+            (docList ~sep:break (self#pExp ())) args
+            
+      | _ -> nil (* Ignore the other instructions *)        
+            
 
-        let glob_read =
-          (try IH.find globalsRead fdec.svar.vid
-          with Not_found -> assert false) in
-        let glob_read_trans = 
-          (try IH.find globalsReadTransitive fdec.svar.vid
-          with Not_found -> assert false) in 
+    method dBlock (out: out_channel) (ind: int) (b: block) : unit = 
+      ignore (p ~ind:ind "<block\n");
+      List.iter (self#dStmt out (ind+ 2)) b.bstmts;
+      ignore (p ~ind:ind ">\n")
+        
+    method dStmt (out: out_channel) (ind: int) (s: stmt) : unit = 
 
+      (* Initialize the renamer for this statement *)
+      lastFreshId := blockStartData.(s.sid);
+      assert (!lastFreshId >= 0);
 
-        let glob_written = 
-          (try IH.find globalsWritten fdec.svar.vid
-          with Not_found -> assert false) in 
-        let glob_written_trans = 
-          (try IH.find globalsWrittenTransitive fdec.svar.vid
-          with Not_found -> assert false) in 
+      let blk = 
+        match cfgInfo with
+          Some cfg -> cfg.S.blocks.(s.sid)
+        | None -> assert false
+      in
+      self#initVarRenameState blk;
+
+      pd (self#pLineDirective (get_stmtLoc s.skind));
+      (* Lookup its dominator *)
+      let idom: doc = 
+        match Dominators.getIdom idomData s with 
+          Some dom -> num dom.sid
+        | None -> nil
+      in
+      ignore (p ~ind:ind
+                "<stmt %d <succs %a> <preds %a> <idom %a>\n"
+                s.sid (** Statement id *)
+                (d_list "," (fun _ s' -> num s'.sid)) s.succs
+                (d_list "," (fun _ s' -> num s'.sid)) s.preds
+                insert idom);
+      (* Now the statement kind *)
+      let ind = ind + 2 in 
+      (match s.skind with 
+      | Instr il -> 
+          List.iter 
+            (fun i -> 
+              pd ~ind:ind (self#pInstr () i ++ line))
+            il
+      | Block b -> List.iter (self#dStmt out ind) b.bstmts
+      | Goto (s, _) -> ignore (p ~ind:ind "goto %d\n" !s.sid)
+      | Return (None, _) -> ignore (p ~ind:ind "return;\n")
+      | Return (Some e, _) -> ignore (p ~ind:ind "return %a;\n" self#pExp e);
+      | If(e, b1, b2, _) -> 
+          ignore (p ~ind:ind "<if %a\n" self#pExp e);
+          self#dBlock out (ind + 2) b1;
+          self#dBlock out (ind + 2) b2;
+          ignore (p ~ind:ind ">\n")
+            
+      | Loop (b, _, Some co, Some br) -> 
+          ignore (p ~ind:ind "<loop <cont %d> <break %d>\n" co.sid br.sid);
+          List.iter (self#dStmt out (ind+ 2)) b.bstmts;
+          ignore (p ~ind:ind ">\n")
+            
+            (* The other cases should have been removed already *)
+      | _ -> E.s (E.unimp "try except"));
+      
+      (* The termination *)
+      let ind = ind - 2 in
+      ignore (p ~ind:ind ">\n")
+        
+        
+    method dGlobal (out: out_channel) (g: global) : unit = 
+      match g with 
+        GFun (fdec, l) -> 
+          (* Make sure we use one return at most *)
+          Oneret.oneret fdec;
+          
+          (* Now compute the immediate dominators. This will fill in the CFG 
+           * info as well *)
+          idomData <- Dominators.computeIDom fdec;
+          
+          (** Get the callgraph node for this function *)
+          let cg_node: CG.callnode = 
+            try H.find callgraph fdec.svar.vname
+            with Not_found -> E.s (E.bug "Cannot find call graph info for %s"
+                                     fdec.svar.vname)
+          in
+          
+          (** Get the globals read and written *)
+          let glob_read =
+            (try IH.find globalsRead fdec.svar.vid
+            with Not_found -> assert false) in
+          let glob_read_trans = 
+            (try IH.find globalsReadTransitive fdec.svar.vid
+            with Not_found -> assert false) in 
+          
+          
+          let glob_written = 
+            (try IH.find globalsWritten fdec.svar.vid
+            with Not_found -> assert false) in 
+          let glob_written_trans = 
+            (try IH.find globalsWrittenTransitive fdec.svar.vid
+            with Not_found -> assert false) in 
+          
+          (* Compute the control flow graph info, for SSA computation *)
+          let cfgi = fundecToCFGInfo fdec in 
+          cfgInfo <- Some cfgi;
+          (* Call here the SSA function to fill-in the cfgInfo *)
+          S.add_ssa_info cfgi;
+
+          (* Now do the SSA renaming. *)
+          
+          (* Remember the return block *)
+          let retBlk: int option ref = ref None in 
+          
+          lastFreshId := 0;
+
+          Array.iteri (fun i (b: S.cfgBlock) -> 
+            (* compute the initial state *)
+            blockStartData.(i) <- !lastFreshId;
+            
+            (* Initialize the renaming state *)
+            self#initVarRenameState b;
+            
+            (* Now scan the block and keep track of the definitions *)
+            (match b.S.bstmt.skind with 
+              Instr il -> begin
+                List.iter
+                  (fun i -> 
+                    match i with 
+                      Set ((Var v, NoOffset), _, _) 
+                    | Call (Some (Var v, NoOffset), _, _, _) 
+                      when considerVariable v ->
+                        IH.replace varRenameState v.vid (freshVarId ())
+                    | _ -> ())
+                  il
+              end
+            | Return _ -> 
+                assert (!retBlk = None);
+                retBlk := Some i
+                    
+            | _ -> (* No definitions *)
+                ()
+            );
+            
+            blockEndData.(i) <- varRenameState;
+          ) 
+          (match cfgInfo with 
+           Some cfg -> cfg.S.blocks
+         | _ -> assert false);
+          
+          (** For each basic block *)
+        
             
         (* The header *)
+        pd (self#pLineDirective ~forcefile:true l);
+
         ignore (p "<function %s\n  <formals %a>\n  <locals %a>\n  <globalsread %a>\n  <globalsreadtransitive %a>\n  <globalswritten %a>\n  <globalswrittentransitive %a>\n  <calls %a>\n  <calledby %a>\n"
           fdec.svar.vname
           (d_list "," (fun () v -> text v.vname)) fdec.sformals
@@ -255,112 +509,6 @@ end
 
 let arithAbs (absPrinter: cilPrinter) (g: global) = 
   dumpGlobal absPrinter !arithAbsOut g
-
-(** Functions can be defined or just declared *)
-type funinfo = 
-    Decl of varinfo
-  | Def of fundec
-
-(* All functions indexed by the variable ID *)
-let allFunctions: funinfo IH.t = IH.create 13
-
-
-(** Compute the SSA form *)
-type ssaInfo = phiblock array * reg list
-(* array of blocks with renaming of variables after introduction of phi 
- * statements * list of new locals *)
- 
-and cfgInfo = {
-    start   : int;          
-    size    : int;    
-    successors    : int list array; 
-    predecessors  : int list array;   
-    blocks: block array;
-  } 
-
-and block = instruction list
-  
-and instruction = (reg list * reg list) (* lhs variable, variables on rhs. This is the only abstraction that we need to perform SSA conversion *)
-
-and reg = string  
-
-and phiblock = phi_instruction list * instruction list
-
-and phi_instruction = (reg * reg list)
-
-    
-let fundecToCFGInfo (fdec: fundec) = 
-  (* Go over the statments and make sure they are numbered properly *)
-  let count = ref 0 in
-  List.iter (fun s -> s.sid <- !count; incr count) fdec.sallstmts;
-
-  let start: stmt = 
-    match fdec.sbody.bstmts with
-      [] -> E.s (E.bug "Function %s with no body" fdec.svar.vname)
-    | fst :: _ -> fst
-  in
-  let ci = 
-    { start = start.sid;
-      size  = !count;
-      successors = Array.make !count [];
-      predecessors = Array.make !count [];
-      blocks = Array.make !count []
-    } 
-  in
-
-  (* For functions, we use the transitively computed set of globals and 
-   * locals as the use/def *)
-  Usedef.getUseDefFunctionRef := 
-    (fun f ->
-      match f with 
-        Lval (Var fv, NoOffset) -> 
-          let varDefs = ref VS.empty in 
-          let varUsed = ref VS.empty in 
-          (try 
-            let gw = IH.find globalsWrittenTransitive fv.vid in
-            IH.iter 
-              (fun _ g -> varDefs := VS.add g !varDefs) gw
-          with Not_found -> (* Do not have a definition for it *)
-            ());
-          (* Now look for globals read *)
-          (try 
-            let gr = IH.find globalsReadTransitive fv.vid in 
-            IH.iter
-              (fun _ g -> varUsed := VS.add g !varUsed) gr
-          with Not_found -> ());
-
-          !varUsed, !varDefs
-
-      | _ -> VS.empty, VS.empty);
-
-  let vsToList (vs: VS.t) : string list = 
-    VS.fold (fun v acc -> v.vname :: acc) 
-      vs [] 
-  in
-  List.iter 
-    (fun s -> 
-      ci.successors.(s.sid) <- List.map (fun s' -> s'.sid) s.succs;
-      ci.predecessors.(s.sid) <- List.map (fun s' -> s'.sid) s.preds;
-      ci.blocks.(s.sid) <- begin
-        match s.skind with 
-          Instr il -> 
-            (* Each instruction is transformed independently *)
-            List.map (fun i -> 
-              let vused, vdefs = Usedef.computeUseDefInstr i in 
-              (vsToList vdefs, vsToList vused)) il
-
-        | Return (Some e, _) 
-        | If (e, _, _, _) 
-        | Switch (e, _, _, _) ->
-            let vused = Usedef.computeUseExp e in 
-            [ ([], vsToList vused) ]
-
-        | Break _ | Continue _ | Goto _ | Block _ | Loop _ | Return _ -> [ ]
-        | TryExcept _ | TryFinally _ -> assert false
-      end
-    ) fdec.sallstmts;
-
-  ci
 
 let feature : featureDescr = 
   { fd_name = "arithabs";
@@ -510,8 +658,6 @@ let feature : featureDescr =
       in
       fixedpoint ();
       
-
-      (* Now compute the SSA form *)
 
       let absPrinter: cilPrinter = new absPrinterClass graph in 
       IH.clear globalsDumped;
