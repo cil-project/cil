@@ -1,5 +1,5 @@
 # .gdbinit
 
-file funcptr
+file jpeg_compress_struct
 break main
 run

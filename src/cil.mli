@@ -49,7 +49,9 @@ val ilongFitsUInt : bool ref         (* Whether a signed long can fit an
                                        * long uses more bits than an int  *)
 val newCil : bool ref
 
-type location = { 
+val printLn : bool ref                 (* true to print #line directoves *)
+
+type location = {
     line: int;				(* -1 means "do not know" *)
     file: string; 
 }

@@ -288,10 +288,16 @@ trval: $(TVDIR)/obj/transval.asm.exe
 SAFECC=perl $(CILDIR)/lib/safecc.pl
 
 
-# sm: I like -g always
+# sm: my options
 ifdef USER_SCOTT
+  # I like -g always
   SAFECC+= -g
+
+  # currently the #line directives are inaccurate, so
+  # they are counterproductive
+  NOPRINTLN= --safec=-noPrintLn
 endif
+
 
 ifdef PROFILE
 SAFECC+= --profile 
@@ -1177,7 +1183,7 @@ m88k-noclean: defaulttarget mustbegcc
 IJPEGDIR=$(SPECDIR)/132.ijpeg
 IJPEGSAFECC=$(SAFECC) --combine --keep=safeccout  \
                   --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) \
-                  --nobox=ijpegbox
+                  --nobox=ijpegbox $(NOPRINTLN)
 ifdef BOX
 IJPEGEXTRA=$(CILDIR)/$(SAFEMAINLIB)
 else

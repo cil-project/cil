@@ -40,4 +40,8 @@ ptrkinds
 transpunion
 sockaddr
 oldstyle
-
+typeof
+asmfndecl
+qsort
+memset_sizeof
+jpeg_compress_struct
