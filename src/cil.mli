@@ -1705,7 +1705,7 @@ val d_const: unit -> constant -> Pretty.doc
 
 
 (** A printer interface for CIL trees. Create instantiations of 
- * this type by specializing the class {!Cil.defaultCilPrinter}. *)
+ * this type by specializing the class {!Cil.defaultCilPrinterClass}. *)
 class type cilPrinter = object
   method pVDecl: unit -> varinfo -> Pretty.doc
     (** Invoked for each variable declaration. Note that variable 
