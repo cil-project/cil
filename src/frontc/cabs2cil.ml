@@ -1516,8 +1516,9 @@ let rec collectInitializer
     | TArray (bt, leno, _), CompoundPre (pMaxIdx, pArray) -> 
         let len = 
           try lenOfArray leno 
-          with LenOfArray -> 
+          with LenOfArray -> begin
             E.s (error "Initializing non-constant-length array\n")
+          end
         in
         if !pMaxIdx >= len then 
           E.s (E.bug "collectInitializer: too many initializers(%d >= %d)\n"
@@ -1582,8 +1583,10 @@ let rec collectInitializer
             
 
 type stackElem = 
-    InArray of offset * typ * int option * int (* offset of parent, 
-                                                  base type, length, current *)
+    InArray of offset * typ * int * int (* offset of parent, 
+                                           base type, length, current. If the 
+                                         * array length is unspecified we use 
+                                         * Int.max_int  *)
   | InComp  of offset * compinfo * fieldinfo list (* offset of parent, 
                                                    base comp, current fields *)
     
@@ -1629,7 +1632,7 @@ and normalSubobj (so: subobj) : unit =
     [] -> so.soOff <- so.curOff; so.soTyp <- so.curTyp 
         (* The array is over *)
   | InArray (parOff, bt, leno, current) :: rest ->
-      if leno = Some current then begin (* The array is over *)
+      if leno = current then begin (* The array is over *)
         if debugInit then ignore (E.log "Past the end of array\n");
         so.stack <- rest; 
         advanceSubobj so
@@ -1697,22 +1700,16 @@ let fieldsToInit
       if comp.cstruct then toinit else [f]
         
 
-let integerArrayLength (leno: exp option) : int option = 
+let integerArrayLength (leno: exp option) : int = 
   match leno with
-    None -> None
-  | Some n' -> begin
-      match constFold true n' with
-      | Const(CInt64(ni, _, _)) when ni > Int64.zero -> 
-          Some (Int64.to_int ni)
-      | len -> E.s (error "Initializing non-constant-length array\n  length=%a\n"
-                    d_exp len)
+    None -> max_int
+  | Some len -> begin
+      try lenOfArray leno 
+      with LenOfArray -> 
+        E.s (error "Initializing non-constant-length array\n  length=%a\n"
+               d_exp len)
   end
   
-let isValidIndex (leno: int option) (idx: int) = 
-  idx >= 0 &&
-  (match leno with 
-  | Some len when idx >= len -> false
-  | _ -> true)
 
 
 let annonCompFieldNameId = ref 0
@@ -4058,7 +4055,7 @@ and doInit
           | A.ATINDEX_INIT(idx, whatnext) -> begin
               match unrollType so.soTyp with 
                 TArray (bt, leno, _) -> 
-                  let leno = integerArrayLength leno in
+                  let ilen = integerArrayLength leno in
                   let nextidx', doidx = 
                     let (doidx, idxe', _) = 
                       doExp true idx (AExp(Some intType)) in
@@ -4067,10 +4064,10 @@ and doInit
                     | _ -> E.s (error 
                       "INDEX initialization designator is not a constant")
                   in
-                  if not (isValidIndex leno nextidx') then
+                  if nextidx' < 0 || nextidx' >= ilen then
                     E.s (error "INDEX designator is outside bounds");
                   so.stack <- 
-                     InArray(so.soOff, bt, leno, nextidx') :: so.stack;
+                     InArray(so.soOff, bt, ilen, nextidx') :: so.stack;
                   normalSubobj so;
                   address whatnext (acc @@ doidx)
                     

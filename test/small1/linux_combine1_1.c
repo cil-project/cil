@@ -43,7 +43,6 @@ struct adfs_discmap;
 struct iw_statistics;
 struct minix_super_block;
 struct nls_table;
-# 26 "/home/weimer/linux/include/asm/ptrace.h"
 struct pt_regs {
    long ebx ;
    long ecx ;
@@ -61,146 +60,84 @@ struct pt_regs {
    long esp ;
    int xss ;
 };
-# 36 "/home/weimer/linux/include/linux/posix_types.h"
 struct __anonstruct___kernel_fd_set_1 {
    unsigned long fds_bits[(int )(1024U / (8U * sizeof(unsigned long )))] ;
 };
-# 36
 typedef struct __anonstruct___kernel_fd_set_1 __kernel_fd_set;
-# 44
 typedef int __kernel_key_t;
-# 10 "/home/weimer/linux/include/asm/posix_types.h"
 typedef unsigned short __kernel_dev_t;
-# 11
 typedef unsigned long __kernel_ino_t;
-# 12
 typedef unsigned short __kernel_mode_t;
-# 13
 typedef unsigned short __kernel_nlink_t;
-# 14
 typedef long __kernel_off_t;
-# 15
 typedef int __kernel_pid_t;
-# 19
 typedef unsigned int __kernel_size_t;
-# 20
 typedef int __kernel_ssize_t;
-# 22
 typedef long __kernel_time_t;
-# 23
 typedef long __kernel_suseconds_t;
-# 24
 typedef long __kernel_clock_t;
-# 29
 typedef unsigned int __kernel_uid32_t;
-# 30
 typedef unsigned int __kernel_gid32_t;
-# 36
 typedef long long __kernel_loff_t;
-# 39
 struct __anonstruct___kernel_fsid_t_2 {
    int val[2] ;
 };
-# 39
 typedef struct __anonstruct___kernel_fsid_t_2 __kernel_fsid_t;
-# 4 "/home/weimer/linux/include/asm/types.h"
 typedef unsigned short umode_t;
-# 12
 typedef unsigned char __u8;
-# 14
 typedef short __s16;
-# 15
 typedef unsigned short __u16;
-# 17
 typedef int __s32;
-# 18
 typedef unsigned int __u32;
-# 21
 typedef long long __s64;
-# 22
 typedef unsigned long long __u64;
-# 31
 typedef unsigned char u8;
-# 34
 typedef unsigned short u16;
-# 37
 typedef unsigned int u32;
-# 13 "/home/weimer/linux/include/linux/types.h"
 typedef __kernel_fd_set fd_set;
-# 14
 typedef __kernel_dev_t dev_t;
-# 15
 typedef __kernel_ino_t ino_t;
-# 16
 typedef __kernel_mode_t mode_t;
-# 17
 typedef __kernel_nlink_t nlink_t;
-# 18
 typedef __kernel_off_t off_t;
-# 19
 typedef __kernel_pid_t pid_t;
-# 21
 typedef __kernel_key_t key_t;
-# 22
 typedef __kernel_suseconds_t suseconds_t;
-# 25
 typedef __kernel_uid32_t uid_t;
-# 26
 typedef __kernel_gid32_t gid_t;
-# 45
 typedef __kernel_loff_t loff_t;
-# 54
 typedef __kernel_size_t size_t;
-# 59
 typedef __kernel_ssize_t ssize_t;
-# 69
 typedef __kernel_time_t time_t;
-# 74
 typedef __kernel_clock_t clock_t;
-# 84
 typedef unsigned short u_short;
-# 86
 typedef unsigned long u_long;
-# 101
 typedef __u32 u_int32_t;
-# 102
 typedef __s32 int32_t;
-# 16 "/home/weimer/linux/include/linux/list.h"
 struct list_head {
    struct list_head *next ;
    struct list_head *prev ;
 };
-# 22 "/home/weimer/linux/include/asm/atomic.h"
 struct __anonstruct_atomic_t_3 {
    int volatile   counter ;
 };
-# 22
 typedef struct __anonstruct_atomic_t_3 atomic_t;
-# 47 "/home/weimer/linux/include/asm/page.h"
 struct __anonstruct_pgd_t_6 {
    unsigned long pgd ;
 };
-# 47
 typedef struct __anonstruct_pgd_t_6 pgd_t;
-# 52
 struct __anonstruct_pgprot_t_7 {
    unsigned long pgprot ;
 };
-# 52
 typedef struct __anonstruct_pgprot_t_7 pgprot_t;
-# 21 "/home/weimer/linux/include/asm/spinlock.h"
 struct __anonstruct_spinlock_t_8 {
    unsigned int volatile   lock ;
 };
-# 21
 typedef struct __anonstruct_spinlock_t_8 spinlock_t;
-# 116
 struct __anonstruct_rwlock_t_9 {
    unsigned int volatile   lock ;
 };
-# 116
 typedef struct __anonstruct_rwlock_t_9 rwlock_t;
-# 68 "/home/weimer/linux/include/asm/vm86.h"
 struct vm86_regs {
    long ebx ;
    long ecx ;
@@ -230,11 +167,9 @@ struct vm86_regs {
    unsigned short gs ;
    unsigned short __gsh ;
 };
-# 98
 struct revectored_struct {
    unsigned long __map[8] ;
 };
-# 102
 struct vm86_struct {
    struct vm86_regs regs ;
    unsigned long flags ;
@@ -243,7 +178,6 @@ struct vm86_struct {
    struct revectored_struct int_revectored ;
    struct revectored_struct int21_revectored ;
 };
-# 13 "/home/weimer/linux/include/asm/math_emu.h"
 struct info {
    long ___orig_eip ;
    long ___ret_from_system_call ;
@@ -267,7 +201,6 @@ struct info {
    long ___vm86_fs ;
    long ___vm86_gs ;
 };
-# 275 "/home/weimer/linux/include/asm/processor.h"
 struct i387_fsave_struct {
    long cwd ;
    long swd ;
@@ -279,7 +212,6 @@ struct i387_fsave_struct {
    long st_space[20] ;
    long status ;
 };
-# 287
 struct i387_fxsave_struct {
    unsigned short cwd ;
    unsigned short swd ;
@@ -295,7 +227,6 @@ struct i387_fxsave_struct {
    long xmm_space[32] ;
    long padding[56] ;
 } __attribute__((__aligned__(16))) ;
-# 303
 struct i387_soft_struct {
    long cwd ;
    long swd ;
@@ -314,19 +245,15 @@ struct i387_soft_struct {
    struct info *info ;
    unsigned long entry_eip ;
 };
-# 317
 union i387_union {
    struct i387_fsave_struct fsave ;
    struct i387_fxsave_struct fxsave ;
    struct i387_soft_struct soft ;
 };
-# 323
 struct __anonstruct_mm_segment_t_10 {
    unsigned long seg ;
 };
-# 323
 typedef struct __anonstruct_mm_segment_t_10 mm_segment_t;
-# 358
 struct thread_struct {
    unsigned long esp0 ;
    unsigned long eip ;
@@ -347,14 +274,11 @@ struct thread_struct {
    int ioperm ;
    unsigned long io_bitmap[33] ;
 };
-# 72 "/home/weimer/linux/include/linux/wait.h"
 struct __wait_queue_head {
    spinlock_t lock ;
    struct list_head task_list ;
 };
-# 80
 typedef struct __wait_queue_head wait_queue_head_t;
-# 12 "/home/weimer/linux/include/asm/statfs.h"
 struct statfs {
    long f_type ;
    long f_bsize ;
@@ -367,19 +291,15 @@ struct statfs {
    long f_namelen ;
    long f_spare[6] ;
 };
-# 19 "/home/weimer/linux/include/linux/uio.h"
 struct iovec {
    void *iov_base ;
    __kernel_size_t iov_len ;
 };
-# 11 "/home/weimer/linux/include/linux/socket.h"
 typedef unsigned short sa_family_t;
-# 17
 struct sockaddr {
    sa_family_t sa_family ;
    char sa_data[14] ;
 };
-# 33
 struct msghdr {
    void *msg_name ;
    int msg_namelen ;
@@ -389,22 +309,18 @@ struct msghdr {
    __kernel_size_t msg_controllen ;
    unsigned int msg_flags ;
 };
-# 125
 struct ucred {
    __u32 pid ;
    __u32 uid ;
    __u32 gid ;
 };
-# 49 "/home/weimer/linux/include/linux/net.h"
 enum __anonenum_socket_state_11 {
     SS_FREE = 0, 
     SS_UNCONNECTED = 1, 
     SS_CONNECTING = 2, 
     SS_CONNECTED = 3, 
     SS_DISCONNECTING = 4,  };
-# 49
 typedef enum __anonenum_socket_state_11 socket_state;
-# 65
 struct socket {
    socket_state state ;
    unsigned long flags ;
@@ -417,7 +333,6 @@ struct socket {
    short type ;
    unsigned char passcred ;
 };
-# 87
 struct proto_ops {
    int family ;
    int (*release)(struct socket *sock ) ;
@@ -447,9 +362,7 @@ struct proto_ops {
    ssize_t (*sendpage)(struct socket *sock , struct page *page , int offset ,
                        size_t size , int flags ) ;
 };
-# 67 "/home/weimer/linux/include/linux/kdev_t.h"
 typedef unsigned short kdev_t;
-# 15 "/home/weimer/linux/include/linux/mount.h"
 struct vfsmount {
    struct dentry *mnt_mountpoint ;
    struct dentry *mnt_root ;
@@ -465,13 +378,11 @@ struct vfsmount {
    struct list_head mnt_list ;
    uid_t mnt_owner ;
 };
-# 24 "/home/weimer/linux/include/linux/dcache.h"
 struct qstr {
    unsigned char const   *name ;
    unsigned int len ;
    unsigned int hash ;
 };
-# 66
 struct dentry {
    atomic_t d_count ;
    unsigned int d_flags ;
@@ -491,7 +402,6 @@ struct dentry {
    void *d_fsdata ;
    unsigned char d_iname[16] ;
 };
-# 86
 struct dentry_operations {
    int (*d_revalidate)(struct dentry * , int  ) ;
    int (*d_hash)(struct dentry * , struct qstr * ) ;
@@ -500,19 +410,16 @@ struct dentry_operations {
    void (*d_release)(struct dentry * ) ;
    void (*d_iput)(struct dentry * , struct inode * ) ;
 };
-# 53 "/home/weimer/linux/include/asm/rwsem.h"
 struct rw_semaphore {
    long count ;
    spinlock_t wait_lock ;
    struct list_head wait_list ;
 };
-# 44 "/home/weimer/linux/include/asm/semaphore.h"
 struct semaphore {
    atomic_t count ;
    int sleepers ;
    wait_queue_head_t wait ;
 };
-# 228 "/home/weimer/linux/include/linux/fs.h"
 struct buffer_head {
    struct buffer_head *b_next ;
    unsigned long b_blocknr ;
@@ -537,7 +444,6 @@ struct buffer_head {
    struct inode *b_inode ;
    struct list_head b_inode_buffers ;
 };
-# 5 "/home/weimer/linux/include/linux/pipe_fs_i.h"
 struct pipe_inode_info {
    wait_queue_head_t wait ;
    char *base ;
@@ -550,16 +456,13 @@ struct pipe_inode_info {
    unsigned int r_counter ;
    unsigned int w_counter ;
 };
-# 7 "/home/weimer/linux/include/linux/minix_fs_i.h"
 union __anonunion_u_12 {
    __u16 i1_data[16] ;
    __u32 i2_data[16] ;
 };
-# 7
 struct minix_inode_info {
    union __anonunion_u_12 u ;
 };
-# 22 "/home/weimer/linux/include/linux/ext2_fs_i.h"
 struct ext2_inode_info {
    __u32 i_data[15] ;
    __u32 i_flags ;
@@ -579,7 +482,6 @@ struct ext2_inode_info {
    __u32 i_high_size ;
    int i_new_inode : 1 ;
 };
-# 4 "/home/weimer/linux/include/linux/hpfs_fs_i.h"
 struct hpfs_inode_info {
    unsigned long mmu_private ;
    ino_t i_parent_dir ;
@@ -598,26 +500,18 @@ struct hpfs_inode_info {
    struct semaphore i_sem ;
    loff_t **i_rddir_off ;
 };
-# 13 "/home/weimer/linux/include/linux/ntfs_fs_i.h"
 typedef u32 ntfs_u32;
-# 23
 typedef __kernel_mode_t ntmode_t;
-# 27
 typedef uid_t ntfs_uid_t;
-# 31
 typedef gid_t ntfs_gid_t;
-# 35
 typedef __kernel_size_t ntfs_size_t;
-# 64
 struct __anonstruct_index_14 {
    int recordsize ;
    int clusters_per_record ;
 };
-# 64
 union __anonunion_u_13 {
    struct __anonstruct_index_14 index ;
 };
-# 64
 struct ntfs_inode_info {
    unsigned long mmu_private ;
    struct ntfs_sb_info *vol ;
@@ -630,7 +524,6 @@ struct ntfs_inode_info {
    int *records ;
    union __anonunion_u_13 u ;
 };
-# 8 "/home/weimer/linux/include/linux/msdos_fs_i.h"
 struct msdos_inode_info {
    unsigned long mmu_private ;
    int i_start ;
@@ -641,14 +534,12 @@ struct msdos_inode_info {
    struct inode *i_fat_inode ;
    struct list_head i_fat_hash ;
 };
-# 39 "/home/weimer/linux/include/linux/umsdos_fs_i.h"
 struct dir_locking_info {
    wait_queue_head_t p ;
    short looking ;
    short creating ;
    long pid ;
 };
-# 50
 struct umsdos_inode_info {
    struct msdos_inode_info msdos_info ;
    struct dir_locking_info dir_info ;
@@ -656,19 +547,16 @@ struct umsdos_inode_info {
    int i_is_hlink ;
    off_t pos ;
 };
-# 7 "/home/weimer/linux/include/linux/iso_fs_i.h"
 struct iso_inode_info {
    unsigned int i_first_extent ;
    unsigned char i_file_format ;
    unsigned long i_next_section_ino ;
    off_t i_section_size ;
 };
-# 95 "/home/weimer/linux/include/linux/nfs.h"
 struct nfs_fh {
    unsigned short size ;
    unsigned char data[64] ;
 };
-# 11 "/home/weimer/linux/include/linux/nfs_fs_i.h"
 struct nfs_inode_info {
    __u64 fsid ;
    __u64 fileid ;
@@ -694,27 +582,22 @@ struct nfs_inode_info {
    struct inode *hash_prev ;
    unsigned long nextscan ;
 };
-# 90
 struct nfs_lock_info {
    u32 state ;
    u32 flags ;
    struct nlm_host *host ;
 };
-# 7 "/home/weimer/linux/include/linux/sysv_fs_i.h"
 struct sysv_inode_info {
    u32 i_data[13] ;
 };
-# 88 "/home/weimer/linux/include/linux/time.h"
 struct timeval {
    time_t tv_sec ;
    suseconds_t tv_usec ;
 };
-# 17 "/home/weimer/linux/include/linux/affs_fs_i.h"
 struct affs_ext_key {
    u32 ext ;
    u32 key ;
 };
-# 25
 struct affs_inode_info {
    u32 i_opencnt ;
    struct semaphore i_link_lock ;
@@ -733,12 +616,10 @@ struct affs_inode_info {
    u32 i_lastalloc ;
    int i_pa_cnt ;
 };
-# 16 "/home/weimer/linux/include/linux/ufs_fs_i.h"
 union __anonunion_i_u1_16 {
    __u32 i_data[15] ;
    __u8 i_symlink[60] ;
 };
-# 16
 struct ufs_inode_info {
    union __anonunion_i_u1_16 i_u1 ;
    __u64 i_size ;
@@ -751,43 +632,32 @@ struct ufs_inode_info {
    __u16 i_osync ;
    __u32 i_lastfrag ;
 };
-# 20 "/home/weimer/linux/include/linux/efs_fs_i.h"
 struct extent_s {
    unsigned int ex_magic : 8 ;
    unsigned int ex_bn : 24 ;
    unsigned int ex_length : 8 ;
    unsigned int ex_offset : 24 ;
 };
-# 20
 union extent_u {
    unsigned char raw[8] ;
    struct extent_s cooked ;
 };
-# 20
 typedef union extent_u efs_extent;
-# 59
 struct efs_inode_info {
    int numextents ;
    int lastextent ;
    efs_extent extents[12] ;
 };
-# 198 "/home/weimer/linux/include/linux/coda.h"
 typedef u_long VolumeId;
-# 199
 typedef u_long VnodeId;
-# 200
 typedef u_long Unique_t;
-# 206
 struct ViceFid {
    VolumeId Volume ;
    VnodeId Vnode ;
    Unique_t Unique ;
 };
-# 233
 typedef u_int32_t vuid_t;
-# 234
 typedef u_int32_t vgid_t;
-# 239
 struct coda_cred {
    vuid_t cr_uid ;
    vuid_t cr_euid ;
@@ -798,7 +668,6 @@ struct coda_cred {
    vgid_t cr_sgid ;
    vgid_t cr_fsgid ;
 };
-# 19 "/home/weimer/linux/include/linux/coda_fs_i.h"
 struct coda_inode_info {
    struct ViceFid c_fid ;
    u_short c_flags ;
@@ -808,18 +677,14 @@ struct coda_inode_info {
    struct coda_cred c_cached_cred ;
    unsigned int c_cached_perm ;
 };
-# 6 "/home/weimer/linux/include/linux/romfs_fs_i.h"
 struct romfs_inode_info {
    unsigned long i_metasize ;
    unsigned long i_dataoffset ;
 };
-# 16 "/home/weimer/linux/include/linux/shmem_fs.h"
 struct __anonstruct_swp_entry_t_17 {
    unsigned long val ;
 };
-# 16
 typedef struct __anonstruct_swp_entry_t_17 swp_entry_t;
-# 20
 struct shmem_inode_info {
    spinlock_t lock ;
    unsigned long max_index ;
@@ -829,7 +694,6 @@ struct shmem_inode_info {
    int locked ;
    struct list_head list ;
 };
-# 30
 struct shmem_sb_info {
    unsigned long max_blocks ;
    unsigned long free_blocks ;
@@ -837,7 +701,6 @@ struct shmem_sb_info {
    unsigned long free_inodes ;
    spinlock_t stat_lock ;
 };
-# 18 "/home/weimer/linux/include/linux/smb_fs_i.h"
 struct smb_inode_info {
    unsigned int open ;
    __u16 fileid ;
@@ -847,7 +710,6 @@ struct smb_inode_info {
    unsigned long closed ;
    unsigned int openers ;
 };
-# 19 "/home/weimer/linux/include/linux/hfs_fs_i.h"
 struct hfs_inode_info {
    int magic ;
    unsigned long mmu_private ;
@@ -861,7 +723,6 @@ struct hfs_inode_info {
    int tz_secondswest ;
    void (*d_drop_op)(struct dentry * , ino_t  ) ;
 };
-# 13 "/home/weimer/linux/include/linux/adfs_fs_i.h"
 struct adfs_inode_info {
    unsigned long mmu_private ;
    unsigned long parent_id ;
@@ -871,28 +732,18 @@ struct adfs_inode_info {
    unsigned int attr ;
    int stamped : 1 ;
 };
-# 15 "/home/weimer/linux/include/linux/qnxtypes.h"
 typedef __u16 qnx4_nxtnt_t;
-# 16
 typedef __u8 qnx4_ftype_t;
-# 18
 struct __anonstruct_qnx4_xtnt_t_18 {
    __u32 xtnt_blk ;
    __u32 xtnt_size ;
 };
-# 18
 typedef struct __anonstruct_qnx4_xtnt_t_18 qnx4_xtnt_t;
-# 23
 typedef __u16 qnx4_mode_t;
-# 24
 typedef __u16 qnx4_muid_t;
-# 25
 typedef __u16 qnx4_mgid_t;
-# 26
 typedef __u32 qnx4_off_t;
-# 27
 typedef __u16 qnx4_nlink_t;
-# 19 "/home/weimer/linux/include/linux/qnx4_fs_i.h"
 struct qnx4_inode_info {
    char i_reserved[16] ;
    qnx4_off_t i_size ;
@@ -912,7 +763,6 @@ struct qnx4_inode_info {
    __u8 i_status ;
    unsigned long mmu_private ;
 };
-# 11 "/home/weimer/linux/include/linux/reiserfs_fs_i.h"
 struct reiserfs_inode_info {
    __u32 i_key[4] ;
    int i_version ;
@@ -925,20 +775,16 @@ struct reiserfs_inode_info {
    struct list_head i_prealloc_list ;
    int nopack ;
 };
-# 12 "/home/weimer/linux/include/linux/bfs_fs_i.h"
 struct bfs_inode_info {
    unsigned long i_dsk_ino ;
    unsigned long i_sblock ;
    unsigned long i_eblock ;
 };
-# 24 "/home/weimer/linux/include/linux/udf_fs_i.h"
 struct __anonstruct_lb_addr_19 {
    __u32 logicalBlockNum ;
    __u16 partitionReferenceNum ;
 };
-# 24
 typedef struct __anonstruct_lb_addr_19 lb_addr;
-# 31
 struct udf_inode_info {
    long i_uatime ;
    long i_umtime ;
@@ -955,7 +801,6 @@ struct udf_inode_info {
    unsigned int i_new_inode : 1 ;
    unsigned int reserved : 26 ;
 };
-# 17 "/home/weimer/linux/include/linux/ncp_fs_i.h"
 struct ncp_inode_info {
    __u32 dirEntNum  __attribute__((__packed__)) ;
    __u32 DosDirNum  __attribute__((__packed__)) ;
@@ -968,31 +813,26 @@ struct ncp_inode_info {
    __u8 open_create_action  __attribute__((__packed__)) ;
    __u8 file_handle[6]  __attribute__((__packed__)) ;
 };
-# 1 "/home/weimer/linux/include/linux/proc_fs_i.h"
 union __anonunion_op_20 {
    int (*proc_get_link)(struct inode * , struct dentry ** ,
                         struct vfsmount ** ) ;
    int (*proc_read)(struct task_struct *task , char *page ) ;
 };
-# 1
 struct proc_inode_info {
    struct task_struct *task ;
    int type ;
    union __anonunion_op_20 op ;
    struct file *file ;
 };
-# 4 "/home/weimer/linux/include/linux/usbdev_fs_i.h"
 union __anonunion_p_21 {
    struct usb_device *dev ;
    struct usb_bus *bus ;
 };
-# 4
 struct usbdev_inode_info {
    struct list_head dlist ;
    struct list_head slist ;
    union __anonunion_p_21 p ;
 };
-# 331 "/home/weimer/linux/include/linux/fs.h"
 struct iattr {
    unsigned int ia_valid ;
    umode_t ia_mode ;
@@ -1004,7 +844,6 @@ struct iattr {
    time_t ia_ctime ;
    unsigned int ia_attr_flags ;
 };
-# 116 "/home/weimer/linux/include/linux/quota.h"
 struct dqblk {
    __u32 dqb_bhardlimit ;
    __u32 dqb_bsoftlimit ;
@@ -1015,7 +854,6 @@ struct dqblk {
    time_t dqb_btime ;
    time_t dqb_itime ;
 };
-# 167
 struct dquot {
    struct dquot *dq_next ;
    struct dquot **dq_pprev ;
@@ -1032,7 +870,6 @@ struct dquot {
    unsigned long dq_referenced ;
    struct dqblk dq_dqb ;
 };
-# 364 "/home/weimer/linux/include/linux/fs.h"
 struct address_space_operations {
    int (*writepage)(struct page * ) ;
    int (*readpage)(struct file * , struct page * ) ;
@@ -1043,7 +880,6 @@ struct address_space_operations {
                        unsigned int  ) ;
    int (*bmap)(struct address_space * , long  ) ;
 };
-# 374
 struct address_space {
    struct list_head clean_pages ;
    struct list_head dirty_pages ;
@@ -1056,7 +892,6 @@ struct address_space {
    spinlock_t i_shared_lock ;
    int gfp_mask ;
 };
-# 387
 struct char_device {
    struct list_head hash ;
    atomic_t count ;
@@ -1064,7 +899,6 @@ struct char_device {
    atomic_t openers ;
    struct semaphore sem ;
 };
-# 395
 struct block_device {
    struct list_head bd_hash ;
    atomic_t bd_count ;
@@ -1073,7 +907,6 @@ struct block_device {
    struct block_device_operations  const  *bd_op ;
    struct semaphore bd_sem ;
 };
-# 405
 union __anonunion_u_22 {
    struct minix_inode_info minix_i ;
    struct ext2_inode_info ext2_i ;
@@ -1103,7 +936,6 @@ union __anonunion_u_22 {
    struct usbdev_inode_info usbdev_i ;
    void *generic_ip ;
 };
-# 405
 struct inode {
    struct list_head i_hash ;
    struct list_head i_list ;
@@ -1147,14 +979,12 @@ struct inode {
    __u32 i_generation ;
    union __anonunion_u_22 u ;
 };
-# 484
 struct fown_struct {
    int pid ;
    uid_t uid ;
    uid_t euid ;
    int signum ;
 };
-# 490
 struct file {
    struct list_head f_list ;
    struct dentry *f_dentry ;
@@ -1176,13 +1006,10 @@ struct file {
    unsigned long f_version ;
    void *private_data ;
 };
-# 534
 typedef struct files_struct *fl_owner_t;
-# 536
 union __anonunion_fl_u_23 {
    struct nfs_lock_info nfs_fl ;
 };
-# 536
 struct file_lock {
    struct file_lock *fl_next ;
    struct list_head fl_link ;
@@ -1201,14 +1028,12 @@ struct file_lock {
    struct fasync_struct *fl_fasync ;
    union __anonunion_fl_u_23 fl_u ;
 };
-# 591
 struct fasync_struct {
    int magic ;
    int fa_fd ;
    struct fasync_struct *fa_next ;
    struct file *fa_file ;
 };
-# 607
 struct nameidata {
    struct dentry *dentry ;
    struct vfsmount *mnt ;
@@ -1216,7 +1041,6 @@ struct nameidata {
    unsigned int flags ;
    int last_type ;
 };
-# 618
 struct quota_mount_options {
    unsigned int flags ;
    struct semaphore dqio_sem ;
@@ -1226,7 +1050,6 @@ struct quota_mount_options {
    time_t block_expire[2] ;
    char rsquash[2] ;
 };
-# 7 "/home/weimer/linux/include/linux/minix_fs_sb.h"
 struct minix_sb_info {
    unsigned long s_ninodes ;
    unsigned long s_nzones ;
@@ -1245,7 +1068,6 @@ struct minix_sb_info {
    unsigned short s_mount_state ;
    unsigned short s_version ;
 };
-# 30 "/home/weimer/linux/include/linux/ext2_fs_sb.h"
 struct ext2_sb_info {
    unsigned long s_frag_size ;
    unsigned long s_frags_per_block ;
@@ -1276,7 +1098,6 @@ struct ext2_sb_info {
    int s_inode_size ;
    int s_first_ino ;
 };
-# 4 "/home/weimer/linux/include/linux/hpfs_fs_sb.h"
 struct hpfs_sb_info {
    ino_t sb_root ;
    unsigned int sb_fs_size ;
@@ -1306,7 +1127,6 @@ struct hpfs_sb_info {
    unsigned int sb_creation_de_lock : 1 ;
    int sb_timeshift ;
 };
-# 4 "/home/weimer/linux/include/linux/ntfs_fs_sb.h"
 struct ntfs_sb_info {
    ntfs_uid_t uid ;
    ntfs_gid_t gid ;
@@ -1343,7 +1163,6 @@ struct ntfs_sb_info {
    struct ntfs_inode_info *bitmap ;
    struct super_block *sb ;
 };
-# 6 "/home/weimer/linux/include/linux/fat_cvf.h"
 struct cvf_format {
    int cvf_version ;
    char *cvf_version_text ;
@@ -1374,7 +1193,6 @@ struct cvf_format {
                         unsigned int cmd , unsigned long arg ) ;
    void (*zero_out_cluster)(struct inode * , int clusternr ) ;
 };
-# 9 "/home/weimer/linux/include/linux/msdos_fs_sb.h"
 struct fat_mount_options {
    uid_t fs_uid ;
    gid_t fs_gid ;
@@ -1396,7 +1214,6 @@ struct fat_mount_options {
    unsigned int fat32 : 1 ;
    unsigned int nocase : 1 ;
 };
-# 36
 struct msdos_sb_info {
    unsigned short cluster_size ;
    unsigned short cluster_bits ;
@@ -1423,7 +1240,6 @@ struct msdos_sb_info {
    int dir_per_block ;
    int dir_per_block_bits ;
 };
-# 7 "/home/weimer/linux/include/linux/iso_fs_sb.h"
 struct isofs_sb_info {
    unsigned long s_ninodes ;
    unsigned long s_nzones ;
@@ -1444,7 +1260,6 @@ struct isofs_sb_info {
    uid_t s_uid ;
    struct nls_table *s_nls_iocharset ;
 };
-# 7 "/home/weimer/linux/include/linux/nfs_fs_sb.h"
 struct nfs_server {
    struct rpc_clnt *client ;
    struct nfs_rpc_ops *rpc_ops ;
@@ -1463,11 +1278,9 @@ struct nfs_server {
    char *hostname ;
    struct nfs_reqlist *rw_requests ;
 };
-# 29
 struct nfs_sb_info {
    struct nfs_server s_server ;
 };
-# 13 "/home/weimer/linux/include/linux/sysv_fs_sb.h"
 struct sysv_sb_info {
    int s_type ;
    unsigned int s_block_size ;
@@ -1518,12 +1331,10 @@ struct sysv_sb_info {
    u32 s_ndatazones ;
    u32 s_nzones ;
 };
-# 11 "/home/weimer/linux/include/linux/affs_fs_sb.h"
 struct affs_bm_info {
    u32 bm_key ;
    u32 bm_free ;
 };
-# 16
 struct affs_sb_info {
    int s_partition_size ;
    int s_reserved ;
@@ -1545,26 +1356,22 @@ struct affs_sb_info {
    int s_prefix_len ;
    char s_volume[32] ;
 };
-# 266 "/home/weimer/linux/include/linux/ufs_fs.h"
 struct ufs_csum {
    __u32 cs_ndir ;
    __u32 cs_nbfree ;
    __u32 cs_nifree ;
    __u32 cs_nffree ;
 };
-# 425
 struct __anonstruct_cg_44_34 {
    __u32 cg_clustersumoff ;
    __u32 cg_clusteroff ;
    __u32 cg_nclusterblks ;
    __u32 cg_sparecon[13] ;
 };
-# 425
 union __anonunion_cg_u_33 {
    struct __anonstruct_cg_44_34 cg_44 ;
    __u32 cg_sparecon[16] ;
 };
-# 425
 struct ufs_cylinder_group {
    __u32 cg_link ;
    __u32 cg_magic ;
@@ -1586,13 +1393,11 @@ struct ufs_cylinder_group {
    union __anonunion_cg_u_33 cg_u ;
    __u8 cg_space[1] ;
 };
-# 23 "/home/weimer/linux/include/linux/ufs_fs_sb.h"
 struct ufs_buffer_head {
    unsigned int fragment ;
    unsigned int count ;
    struct buffer_head *bh[8] ;
 };
-# 29
 struct ufs_cg_private_info {
    struct ufs_cylinder_group ucg ;
    __u32 c_cgx ;
@@ -1611,7 +1416,6 @@ struct ufs_cg_private_info {
    __u32 c_clusteroff ;
    __u32 c_nclusterblks ;
 };
-# 48
 struct ufs_sb_private_info {
    struct ufs_buffer_head s_ubh ;
    __u32 s_sblkno ;
@@ -1675,7 +1479,6 @@ struct ufs_sb_private_info {
    __u32 s_bpfmask ;
    __u32 s_maxsymlinklen ;
 };
-# 118
 struct ufs_sb_info {
    struct ufs_sb_private_info *s_uspi ;
    struct ufs_csum *s_csp[31] ;
@@ -1687,7 +1490,6 @@ struct ufs_sb_info {
    unsigned short s_cg_loaded ;
    unsigned int s_mount_opt ;
 };
-# 49 "/home/weimer/linux/include/linux/efs_fs_sb.h"
 struct efs_sb_info {
    int32_t fs_magic ;
    int32_t fs_start ;
@@ -1699,11 +1501,9 @@ struct efs_sb_info {
    short inode_blocks ;
    short total_groups ;
 };
-# 6 "/home/weimer/linux/include/linux/romfs_fs_sb.h"
 struct romfs_sb_info {
    unsigned long s_maxsize ;
 };
-# 14 "/home/weimer/linux/include/linux/smb.h"
 enum smb_protocol {
     SMB_PROTOCOL_NONE = 0, 
     SMB_PROTOCOL_CORE = 1, 
@@ -1711,12 +1511,10 @@ enum smb_protocol {
     SMB_PROTOCOL_LANMAN1 = 3, 
     SMB_PROTOCOL_LANMAN2 = 4, 
     SMB_PROTOCOL_NT1 = 5,  };
-# 23
 enum smb_case_hndl {
     SMB_CASE_DEFAULT = 0, 
     SMB_CASE_LOWER = 1, 
     SMB_CASE_UPPER = 2,  };
-# 36
 struct smb_conn_opt {
    unsigned int fd ;
    enum smb_protocol protocol ;
@@ -1733,13 +1531,11 @@ struct smb_conn_opt {
    __u32 capabilities ;
    __s16 serverzone ;
 };
-# 96
 enum smb_conn_state {
     CONN_VALID = 0, 
     CONN_INVALID = 1, 
     CONN_RETRIED = 2, 
     CONN_RETRYING = 3,  };
-# 23 "/home/weimer/linux/include/linux/smb_fs_sb.h"
 struct smb_sb_info {
    enum smb_conn_state state ;
    struct file *sock_file ;
@@ -1761,7 +1557,6 @@ struct smb_sb_info {
    int (*convert)(char * , int  , char const   * , int  , struct nls_table * ,
                   struct nls_table * ) ;
 };
-# 26 "/home/weimer/linux/include/linux/hfs_fs_sb.h"
 struct hfs_sb_info {
    int magic ;
    struct hfs_mdb *s_mdb ;
@@ -1781,7 +1576,6 @@ struct hfs_sb_info {
    gid_t s_gid ;
    char s_conv ;
 };
-# 19 "/home/weimer/linux/include/linux/adfs_fs_sb.h"
 struct adfs_sb_info {
    struct adfs_discmap *s_map ;
    struct adfs_dir_ops *s_dir ;
@@ -1798,7 +1592,6 @@ struct adfs_sb_info {
    unsigned int s_version ;
    unsigned int s_namelen ;
 };
-# 45 "/home/weimer/linux/include/linux/qnx4_fs.h"
 struct qnx4_inode_entry {
    char di_fname[16] ;
    qnx4_off_t di_size ;
@@ -1817,28 +1610,24 @@ struct qnx4_inode_entry {
    qnx4_ftype_t di_type ;
    __u8 di_status ;
 };
-# 83
 struct qnx4_super_block {
    struct qnx4_inode_entry RootDir ;
    struct qnx4_inode_entry Inode ;
    struct qnx4_inode_entry Boot ;
    struct qnx4_inode_entry AltBoot ;
 };
-# 20 "/home/weimer/linux/include/linux/qnx4_fs_sb.h"
 struct qnx4_sb_info {
    struct buffer_head *sb_buf ;
    struct qnx4_super_block *sb ;
    unsigned int Version ;
    struct qnx4_inode_entry *BitMap ;
 };
-# 38 "/home/weimer/linux/include/linux/tqueue.h"
 struct tq_struct {
    struct list_head list ;
    unsigned long sync ;
    void (*routine)(void * ) ;
    void *data ;
 };
-# 26 "/home/weimer/linux/include/linux/reiserfs_fs_sb.h"
 struct reiserfs_super_block {
    __u32 s_block_count ;
    __u32 s_free_blocks ;
@@ -1863,7 +1652,6 @@ struct reiserfs_super_block {
    __u16 s_reserved ;
    char s_unused[128] ;
 } __attribute__((__packed__)) ;
-# 148
 struct reiserfs_journal_cnode {
    struct buffer_head *bh ;
    kdev_t dev ;
@@ -1875,18 +1663,15 @@ struct reiserfs_journal_cnode {
    struct reiserfs_journal_cnode *hprev ;
    struct reiserfs_journal_cnode *hnext ;
 };
-# 160
 struct reiserfs_bitmap_node {
    int id ;
    char *data ;
    struct list_head list ;
 };
-# 166
 struct reiserfs_list_bitmap {
    struct reiserfs_journal_list *journal_list ;
    struct reiserfs_bitmap_node **bitmaps ;
 };
-# 191
 struct reiserfs_journal_list {
    unsigned long j_start ;
    unsigned long j_len ;
@@ -1904,7 +1689,6 @@ struct reiserfs_journal_list {
    wait_queue_head_t j_commit_wait ;
    wait_queue_head_t j_flush_wait ;
 };
-# 211
 struct reiserfs_journal {
    struct buffer_head **j_ap_blocks ;
    struct reiserfs_journal_cnode *j_last ;
@@ -1944,7 +1728,6 @@ struct reiserfs_journal {
    struct reiserfs_journal_cnode *j_list_hash_table[8192] ;
    struct list_head j_prealloc_list ;
 };
-# 266
 struct reiserfs_sb_info {
    struct buffer_head *s_sbh ;
    struct reiserfs_super_block *s_rs ;
@@ -1968,7 +1751,6 @@ struct reiserfs_sb_info {
    int s_direct2indirect ;
    int s_indirect2direct ;
 };
-# 12 "/home/weimer/linux/include/linux/bfs_fs_sb.h"
 struct bfs_sb_info {
    unsigned long si_blocks ;
    unsigned long si_freeb ;
@@ -1981,15 +1763,12 @@ struct bfs_sb_info {
    struct buffer_head *si_sbh ;
    struct bfs_super_block *si_bfs_sb ;
 };
-# 21 "/home/weimer/linux/include/linux/udf_fs_sb.h"
 #pragma pack(1)
-# 30
 union __anonunion_s_spar_remap_50 {
    __u8 *s_spar_remap8 ;
    __u16 *s_spar_remap16 ;
    __u32 *s_spar_remap32 ;
 };
-# 30
 struct udf_sparing_data {
    __u32 s_spar_loc[4] ;
    __u8 s_spar_pshift ;
@@ -1997,27 +1776,22 @@ struct udf_sparing_data {
    __u32 *s_spar_map ;
    union __anonunion_s_spar_remap_50 s_spar_remap ;
 };
-# 44
 struct udf_virtual_data {
    __u32 s_num_entries ;
    __u16 s_start_offset ;
 };
-# 50
 union __anonunion_s_uspace_51 {
    __u32 bitmap ;
    struct inode *table ;
 };
-# 50
 union __anonunion_s_fspace_52 {
    __u32 bitmap ;
    struct inode *table ;
 };
-# 50
 union __anonunion_s_type_specific_53 {
    struct udf_sparing_data s_sparing ;
    struct udf_virtual_data s_virtual ;
 };
-# 50
 struct udf_part_map {
    union __anonunion_s_uspace_51 s_uspace ;
    union __anonunion_s_fspace_52 s_fspace ;
@@ -2030,9 +1804,7 @@ struct udf_part_map {
    __u16 s_volumeseqnum ;
    __u16 s_partition_flags ;
 };
-# 76
 #pragma pack()
-# 78
 struct udf_sb_info {
    struct udf_part_map *s_partmaps ;
    __u8 s_volident[32] ;
@@ -2054,7 +1826,6 @@ struct udf_sb_info {
    __u32 s_flags ;
    struct inode *s_vat ;
 };
-# 70 "/home/weimer/linux/include/linux/ncp_mount.h"
 struct ncp_mount_data_kernel {
    unsigned long flags ;
    unsigned int int_flags ;
@@ -2069,19 +1840,16 @@ struct ncp_mount_data_kernel {
    __kernel_mode_t file_mode ;
    __kernel_mode_t dir_mode ;
 };
-# 18 "/home/weimer/linux/include/linux/ncp_fs_sb.h"
 struct __anonstruct_auth_54 {
    int auth_type ;
    size_t object_name_len ;
    void *object_name ;
    int object_type ;
 };
-# 18
 struct __anonstruct_priv_55 {
    size_t len ;
    void *data ;
 };
-# 18
 struct ncp_server {
    struct ncp_mount_data_kernel m ;
    __u8 name_space[66] ;
@@ -2112,7 +1880,6 @@ struct ncp_server {
    int dentry_ttl ;
    unsigned int flags ;
 };
-# 1 "/home/weimer/linux/include/linux/usbdev_fs_sb.h"
 struct usbdev_sb_info {
    struct list_head slist ;
    struct list_head ilist ;
@@ -2126,7 +1893,6 @@ struct usbdev_sb_info {
    gid_t listgid ;
    umode_t listmode ;
 };
-# 660 "/home/weimer/linux/include/linux/fs.h"
 union __anonunion_u_56 {
    struct minix_sb_info minix_sb ;
    struct ext2_sb_info ext2_sb ;
@@ -2152,7 +1918,6 @@ union __anonunion_u_56 {
    struct usbdev_sb_info usbdevfs_sb ;
    void *generic_sbp ;
 };
-# 660
 struct super_block {
    struct list_head s_list ;
    kdev_t s_dev ;
@@ -2178,7 +1943,6 @@ struct super_block {
    struct semaphore s_vfs_rename_sem ;
    struct semaphore s_nfsd_free_path_sem ;
 };
-# 758
 struct block_device_operations {
    int (*open)(struct inode * , struct file * ) ;
    int (*release)(struct inode * , struct file * ) ;
@@ -2187,7 +1951,6 @@ struct block_device_operations {
    int (*check_media_change)(kdev_t  ) ;
    int (*revalidate)(kdev_t  ) ;
 };
-# 771
 struct file_operations {
    struct module *owner ;
    loff_t (*llseek)(struct file * , loff_t  , int  ) ;
@@ -2216,7 +1979,6 @@ struct file_operations {
                                       unsigned long  , unsigned long  ,
                                       unsigned long  ) ;
 };
-# 792
 struct inode_operations {
    int (*create)(struct inode * , struct dentry * , int  ) ;
    struct dentry *(*lookup)(struct inode * , struct dentry * ) ;
@@ -2236,7 +1998,6 @@ struct inode_operations {
    int (*setattr)(struct dentry * , struct iattr * ) ;
    int (*getattr)(struct dentry * , struct iattr * ) ;
 };
-# 816
 struct super_operations {
    void (*read_inode)(struct inode * ) ;
    void (*read_inode2)(struct inode * , void * ) ;
@@ -2253,7 +2014,6 @@ struct super_operations {
    void (*clear_inode)(struct inode * ) ;
    void (*umount_begin)(struct super_block * ) ;
 };
-# 866
 struct dquot_operations {
    void (*initialize)(struct inode * , short  ) ;
    void (*drop)(struct inode * ) ;
@@ -2263,7 +2023,6 @@ struct dquot_operations {
    void (*free_inode)(struct inode  const  * , unsigned long  ) ;
    int (*transfer)(struct dentry * , struct iattr * ) ;
 };
-# 876
 struct file_system_type {
    char const   *name ;
    int fs_flags ;
@@ -2272,9 +2031,7 @@ struct file_system_type {
    struct vfsmount *kern_mnt ;
    struct file_system_type *next ;
 };
-# 55 "/home/weimer/linux/include/linux/capability.h"
 typedef __u32 kernel_cap_t;
-# 22 "/home/weimer/linux/include/linux/binfmts.h"
 struct linux_binprm {
    char buf[128] ;
    struct page *page[32] ;
@@ -2292,7 +2049,6 @@ struct linux_binprm {
    unsigned long loader ;
    unsigned long exec ;
 };
-# 39
 struct linux_binfmt {
    struct linux_binfmt *next ;
    struct module *module ;
@@ -2301,7 +2057,6 @@ struct linux_binfmt {
    int (*core_dump)(long signr , struct pt_regs *regs , struct file *file ) ;
    unsigned long min_coredump ;
 };
-# 43 "/home/weimer/linux/include/linux/personality.h"
 struct exec_domain {
    char const   *name ;
    void (*handler)(int  , struct pt_regs * ) ;
@@ -2312,24 +2067,18 @@ struct exec_domain {
    struct module *module ;
    struct exec_domain *next ;
 };
-# 4 "/home/weimer/linux/include/linux/times.h"
 struct tms {
    clock_t tms_utime ;
    clock_t tms_stime ;
    clock_t tms_cutime ;
    clock_t tms_cstime ;
 };
-# 8 "/home/weimer/linux/include/asm/mmu.h"
 struct __anonstruct_mm_context_t_60 {
    void *segments ;
 };
-# 8
 typedef struct __anonstruct_mm_context_t_60 mm_context_t;
-# 6 "/home/weimer/linux/include/asm/termbits.h"
 typedef unsigned char cc_t;
-# 8
 typedef unsigned int tcflag_t;
-# 11
 struct termios {
    tcflag_t c_iflag ;
    tcflag_t c_oflag ;
@@ -2338,14 +2087,12 @@ struct termios {
    cc_t c_line ;
    cc_t c_cc[19] ;
 };
-# 7 "/home/weimer/linux/include/asm/termios.h"
 struct winsize {
    unsigned short ws_row ;
    unsigned short ws_col ;
    unsigned short ws_xpixel ;
    unsigned short ws_ypixel ;
 };
-# 120 "/home/weimer/linux/include/linux/tty_driver.h"
 struct tty_driver {
    int magic ;
    char const   *driver_name ;
@@ -2393,7 +2140,6 @@ struct tty_driver {
    struct tty_driver *next ;
    struct tty_driver *prev ;
 };
-# 103 "/home/weimer/linux/include/linux/tty_ldisc.h"
 struct tty_ldisc {
    int magic ;
    char *name ;
@@ -2417,7 +2163,6 @@ struct tty_ldisc {
    int (*receive_room)(struct tty_struct * ) ;
    void (*write_wakeup)(struct tty_struct * ) ;
 };
-# 139 "/home/weimer/linux/include/linux/tty.h"
 struct tty_flip_buffer {
    struct tq_struct tqueue ;
    struct semaphore pty_sem ;
@@ -2429,7 +2174,6 @@ struct tty_flip_buffer {
    char flag_buf[1024] ;
    unsigned char slop[4] ;
 };
-# 259
 struct tty_struct {
    int magic ;
    struct tty_driver driver ;
@@ -2484,7 +2228,6 @@ struct tty_struct {
    spinlock_t read_lock ;
    struct tq_struct SAK_tq ;
 };
-# 57 "/home/weimer/linux/include/linux/ipc.h"
 struct kern_ipc_perm {
    key_t key ;
    uid_t uid ;
@@ -2494,18 +2237,15 @@ struct kern_ipc_perm {
    mode_t mode ;
    unsigned long seq ;
 };
-# 38 "/home/weimer/linux/include/linux/sem.h"
 struct sembuf {
    unsigned short sem_num ;
    short sem_op ;
    short sem_flg ;
 };
-# 82
 struct sem {
    int semval ;
    int sempid ;
 };
-# 88
 struct sem_array {
    struct kern_ipc_perm sem_perm ;
    time_t sem_otime ;
@@ -2516,7 +2256,6 @@ struct sem_array {
    struct sem_undo *undo ;
    unsigned long sem_nsems ;
 };
-# 100
 struct sem_queue {
    struct sem_queue *next ;
    struct sem_queue **prev ;
@@ -2530,54 +2269,43 @@ struct sem_queue {
    int nsops ;
    int alter ;
 };
-# 117
 struct sem_undo {
    struct sem_undo *proc_next ;
    struct sem_undo *id_next ;
    int semid ;
    short *semadj ;
 };
-# 19 "/home/weimer/linux/include/asm/signal.h"
 struct __anonstruct_sigset_t_110 {
    unsigned long sig[2] ;
 };
-# 19
 typedef struct __anonstruct_sigset_t_110 sigset_t;
-# 143
 struct sigaction {
    void (*sa_handler)(int  ) ;
    unsigned long sa_flags ;
    void (*sa_restorer)(void) ;
    sigset_t sa_mask ;
 };
-# 150
 struct k_sigaction {
    struct sigaction sa ;
 };
-# 8 "/home/weimer/linux/include/asm/siginfo.h"
 union sigval {
    int sival_int ;
    void *sival_ptr ;
 };
-# 8
 typedef union sigval sigval_t;
-# 16
 struct __anonstruct__kill_112 {
    pid_t _pid ;
    uid_t _uid ;
 };
-# 16
 struct __anonstruct__timer_113 {
    unsigned int _timer1 ;
    unsigned int _timer2 ;
 };
-# 16
 struct __anonstruct__rt_114 {
    pid_t _pid ;
    uid_t _uid ;
    sigval_t _sigval ;
 };
-# 16
 struct __anonstruct__sigchld_115 {
    pid_t _pid ;
    uid_t _uid ;
@@ -2585,16 +2313,13 @@ struct __anonstruct__sigchld_115 {
    clock_t _utime ;
    clock_t _stime ;
 };
-# 16
 struct __anonstruct__sigfault_116 {
    void *_addr ;
 };
-# 16
 struct __anonstruct__sigpoll_117 {
    int _band ;
    int _fd ;
 };
-# 16
 union __anonunion__sifields_111 {
    int _pad[(int )(128U / sizeof(int ) - 3U)] ;
    struct __anonstruct__kill_112 _kill ;
@@ -2604,27 +2329,22 @@ union __anonunion__sifields_111 {
    struct __anonstruct__sigfault_116 _sigfault ;
    struct __anonstruct__sigpoll_117 _sigpoll ;
 };
-# 16
 struct siginfo {
    int si_signo ;
    int si_errno ;
    int si_code ;
    union __anonunion__sifields_111 _sifields ;
 };
-# 16
 typedef struct siginfo siginfo_t;
-# 12 "/home/weimer/linux/include/linux/signal.h"
 struct sigqueue {
    struct sigqueue *next ;
    siginfo_t info ;
 };
-# 17
 struct sigpending {
    struct sigqueue *head ;
    struct sigqueue **tail ;
    sigset_t signal ;
 };
-# 5 "/home/weimer/linux/include/linux/fs_struct.h"
 struct fs_struct {
    atomic_t count ;
    rwlock_t lock ;
@@ -2636,19 +2356,16 @@ struct fs_struct {
    struct vfsmount *pwdmnt ;
    struct vfsmount *altrootmnt ;
 };
-# 40 "/home/weimer/linux/include/linux/resource.h"
 struct rlimit {
    unsigned long rlim_cur ;
    unsigned long rlim_max ;
 };
-# 16 "/home/weimer/linux/include/linux/timer.h"
 struct timer_list {
    struct list_head list ;
    unsigned long expires ;
    unsigned long data ;
    void (*function)(unsigned long  ) ;
 };
-# 168 "/home/weimer/linux/include/linux/sched.h"
 struct files_struct {
    atomic_t count ;
    rwlock_t file_lock ;
@@ -2662,7 +2379,6 @@ struct files_struct {
    fd_set open_fds_init ;
    struct file *fd_array[32] ;
 };
-# 203
 struct mm_struct {
    struct vm_area_struct *mmap ;
    struct vm_area_struct *mmap_avl ;
@@ -2693,13 +2409,11 @@ struct mm_struct {
    unsigned long swap_address ;
    mm_context_t context ;
 };
-# 247
 struct signal_struct {
    atomic_t count ;
    struct k_sigaction action[64] ;
    spinlock_t siglock ;
 };
-# 263
 struct user_struct {
    atomic_t __count ;
    atomic_t processes ;
@@ -2708,7 +2422,6 @@ struct user_struct {
    struct user_struct **pprev ;
    uid_t uid ;
 };
-# 281
 struct task_struct {
    long volatile   state ;
    unsigned long flags ;
@@ -2811,14 +2524,11 @@ struct task_struct {
    u32 self_exec_id ;
    spinlock_t alloc_lock ;
 };
-# 17 "/home/weimer/linux/include/linux/mmzone.h"
 struct free_area_struct {
    struct list_head free_list ;
    unsigned long *map ;
 };
-# 17
 typedef struct free_area_struct free_area_t;
-# 32
 struct zone_struct {
    spinlock_t lock ;
    unsigned long free_pages ;
@@ -2836,16 +2546,12 @@ struct zone_struct {
    char *name ;
    unsigned long size ;
 };
-# 32
 typedef struct zone_struct zone_t;
-# 79
 struct zonelist_struct {
    zone_t *zones[4] ;
    int gfp_mask ;
 };
-# 79
 typedef struct zonelist_struct zonelist_t;
-# 98
 struct pglist_data {
    zone_t node_zones[3] ;
    zonelist_t node_zonelists[32] ;
@@ -2858,7 +2564,6 @@ struct pglist_data {
    int node_id ;
    struct pglist_data *node_next ;
 };
-# 41 "/home/weimer/linux/include/linux/mm.h"
 struct vm_area_struct {
    struct mm_struct *vm_mm ;
    unsigned long vm_start ;
@@ -2877,14 +2582,12 @@ struct vm_area_struct {
    unsigned long vm_raend ;
    void *vm_private_data ;
 };
-# 120
 struct vm_operations_struct {
    void (*open)(struct vm_area_struct *area ) ;
    void (*close)(struct vm_area_struct *area ) ;
    struct page *(*nopage)(struct vm_area_struct *area ,
                           unsigned long address , int write_access ) ;
 };
-# 134
 struct page {
    struct list_head list ;
    struct address_space *mapping ;
@@ -2900,7 +2603,6 @@ struct page {
    void *virtual ;
    struct zone_struct *zone ;
 };
-# 117 "/home/weimer/linux/include/linux/interrupt.h"
 struct tasklet_struct {
    struct tasklet_struct *next ;
    unsigned long state ;
@@ -2908,7 +2610,6 @@ struct tasklet_struct {
    void (*func)(unsigned long  ) ;
    unsigned long data ;
 };
-# 58 "/home/weimer/linux/include/linux/if.h"
 struct ifmap {
    unsigned long mem_start ;
    unsigned long mem_end ;
@@ -2917,11 +2618,9 @@ struct ifmap {
    unsigned char dma ;
    unsigned char port ;
 };
-# 76
 union __anonunion_ifr_ifrn_126 {
    char ifrn_name[16] ;
 };
-# 76
 union __anonunion_ifr_ifru_127 {
    struct sockaddr ifru_addr ;
    struct sockaddr ifru_dstaddr ;
@@ -2936,18 +2635,15 @@ union __anonunion_ifr_ifru_127 {
    char ifru_newname[16] ;
    char *ifru_data ;
 };
-# 76
 struct ifreq {
    union __anonunion_ifr_ifrn_126 ifr_ifrn ;
    union __anonunion_ifr_ifru_127 ifr_ifru ;
 };
-# 92 "/home/weimer/linux/include/linux/if_ether.h"
 struct ethhdr {
    unsigned char h_dest[6] ;
    unsigned char h_source[6] ;
    unsigned short h_proto ;
 };
-# 96 "/home/weimer/linux/include/linux/netdevice.h"
 struct net_device_stats {
    unsigned long rx_packets ;
    unsigned long tx_packets ;
@@ -2973,14 +2669,12 @@ struct net_device_stats {
    unsigned long rx_compressed ;
    unsigned long tx_compressed ;
 };
-# 95 "/home/weimer/linux/include/linux/skbuff.h"
 struct sk_buff_head {
    struct sk_buff *next ;
    struct sk_buff *prev ;
    __u32 qlen ;
    spinlock_t lock ;
 };
-# 127
 union __anonunion_h_130 {
    struct tcphdr *th ;
    struct udphdr *uh ;
@@ -2990,7 +2684,6 @@ union __anonunion_h_130 {
    struct spxhdr *spxh ;
    unsigned char *raw ;
 };
-# 127
 union __anonunion_nh_131 {
    struct iphdr *iph ;
    struct ipv6hdr *ipv6h ;
@@ -2998,12 +2691,10 @@ union __anonunion_nh_131 {
    struct ipxhdr *ipxh ;
    unsigned char *raw ;
 };
-# 127
 union __anonunion_mac_132 {
    struct ethhdr *ethernet ;
    unsigned char *raw ;
 };
-# 127
 struct sk_buff {
    struct sk_buff *next ;
    struct sk_buff *prev ;
@@ -3034,9 +2725,7 @@ struct sk_buff {
    unsigned char *end ;
    void (*destructor)(struct sk_buff * ) ;
 };
-# 12 "/home/weimer/linux/include/linux/slab.h"
 typedef struct kmem_cache_s kmem_cache_t;
-# 173 "/home/weimer/linux/include/linux/netdevice.h"
 struct dev_mc_list {
    struct dev_mc_list *next ;
    __u8 dmi_addr[7] ;
@@ -3044,7 +2733,6 @@ struct dev_mc_list {
    int dmi_users ;
    int dmi_gusers ;
 };
-# 182
 struct hh_cache {
    struct hh_cache *hh_next ;
    atomic_t hh_refcnt ;
@@ -3054,7 +2742,6 @@ struct hh_cache {
    rwlock_t hh_lock ;
    unsigned long hh_data[(int )(16U / sizeof(unsigned long ))] ;
 };
-# 230
 struct net_device {
    char name[16] ;
    unsigned long rmem_end ;
@@ -3132,12 +2819,10 @@ struct net_device {
    struct module *owner ;
    struct net_bridge_port *br_port ;
 };
-# 57 "/home/weimer/linux/include/linux/rtnetlink.h"
 struct rtattr {
    unsigned short rta_len ;
    unsigned short rta_type ;
 };
-# 486
 struct tcmsg {
    unsigned char tcm_family ;
    unsigned char tcm__pad1 ;
@@ -3147,34 +2832,28 @@ struct tcmsg {
    __u32 tcm_parent ;
    __u32 tcm_info ;
 };
-# 66 "/home/weimer/linux/include/linux/icmp.h"
 struct __anonstruct_echo_140 {
    __u16 id ;
    __u16 sequence ;
 };
-# 66
 struct __anonstruct_frag_141 {
    __u16 __unused ;
    __u16 mtu ;
 };
-# 66
 union __anonunion_un_139 {
    struct __anonstruct_echo_140 echo ;
    __u32 gateway ;
    struct __anonstruct_frag_141 frag ;
 };
-# 66
 struct icmphdr {
    __u8 type ;
    __u8 code ;
    __u16 checksum ;
    union __anonunion_un_139 un ;
 };
-# 89
 struct icmp_filter {
    __u32 data ;
 };
-# 23 "/home/weimer/linux/include/linux/tcp.h"
 struct tcphdr {
    __u16 source ;
    __u16 dest ;
@@ -3194,7 +2873,6 @@ struct tcphdr {
    __u16 check ;
    __u16 urg_ptr ;
 };
-# 53 "/home/weimer/linux/include/net/neighbour.h"
 struct neigh_parms {
    struct neigh_parms *next ;
    int (*neigh_setup)(struct neighbour * ) ;
@@ -3216,14 +2894,12 @@ struct neigh_parms {
    int proxy_qlen ;
    int locktime ;
 };
-# 79
 struct neigh_statistics {
    unsigned long allocs ;
    unsigned long res_failed ;
    unsigned long rcv_probes_mcast ;
    unsigned long rcv_probes_ucast ;
 };
-# 87
 struct neighbour {
    struct neighbour *next ;
    struct neigh_table *tbl ;
@@ -3248,7 +2924,6 @@ struct neighbour {
    struct neigh_ops *ops ;
    u8 primary_key[0] ;
 };
-# 112
 struct neigh_ops {
    int family ;
    void (*destructor)(struct neighbour * ) ;
@@ -3259,13 +2934,11 @@ struct neigh_ops {
    int (*hh_output)(struct sk_buff * ) ;
    int (*queue_xmit)(struct sk_buff * ) ;
 };
-# 124
 struct pneigh_entry {
    struct pneigh_entry *next ;
    struct net_device *dev ;
    u8 key[0] ;
 };
-# 139
 struct neigh_table {
    struct neigh_table *next ;
    int family ;
@@ -3296,7 +2969,6 @@ struct neigh_table {
    struct neighbour *hash_buckets[32] ;
    struct pneigh_entry *phash_buckets[16] ;
 };
-# 27 "/home/weimer/linux/include/net/dst.h"
 struct dst_entry {
    struct dst_entry *next ;
    atomic_t __refcnt ;
@@ -3325,7 +2997,6 @@ struct dst_entry {
    struct dst_ops *ops ;
    char info[0] ;
 };
-# 70
 struct dst_ops {
    unsigned short family ;
    unsigned short protocol ;
@@ -3340,7 +3011,6 @@ struct dst_ops {
    atomic_t entries ;
    kmem_cache_t *kmem_cachep ;
 };
-# 111 "/home/weimer/linux/include/net/sock.h"
 struct unix_opt {
    struct unix_address *addr ;
    struct dentry *dentry ;
@@ -3353,11 +3023,9 @@ struct unix_opt {
    rwlock_t lock ;
    wait_queue_head_t peer_wait ;
 };
-# 194
 struct raw_opt {
    struct icmp_filter filter ;
 };
-# 200
 struct inet_opt {
    int ttl ;
    int tos ;
@@ -3374,12 +3042,10 @@ struct inet_opt {
    __u32 mc_addr ;
    struct ip_mc_socklist *mc_list ;
 };
-# 243
 struct tcp_sack_block {
    __u32 start_seq ;
    __u32 end_seq ;
 };
-# 248
 struct __anonstruct_ack_146 {
    __u8 pending ;
    __u8 quick ;
@@ -3391,7 +3057,6 @@ struct __anonstruct_ack_146 {
    __u16 last_seg_size ;
    __u16 rcv_mss ;
 };
-# 248
 struct __anonstruct_ucopy_147 {
    struct sk_buff_head prequeue ;
    int memory ;
@@ -3399,7 +3064,6 @@ struct __anonstruct_ucopy_147 {
    struct iovec *iov ;
    int len ;
 };
-# 248
 struct tcp_opt {
    int tcp_header_len ;
    __u32 pred_flags ;
@@ -3498,32 +3162,26 @@ struct tcp_opt {
    unsigned int keepalive_intvl ;
    int linger2 ;
 };
-# 475
 struct __anonstruct_socket_lock_t_148 {
    spinlock_t slock ;
    unsigned int users ;
    wait_queue_head_t wq ;
 };
-# 475
 typedef struct __anonstruct_socket_lock_t_148 socket_lock_t;
-# 487
 struct __anonstruct_backlog_149 {
    struct sk_buff *head ;
    struct sk_buff *tail ;
 };
-# 487
 union __anonunion_tp_pinfo_150 {
    struct tcp_opt af_tcp ;
    struct raw_opt tp_raw4 ;
 };
-# 487
 union __anonunion_protinfo_151 {
    void *destruct_hook ;
    struct unix_opt af_unix ;
    struct inet_opt af_inet ;
    struct packet_opt *af_packet ;
 };
-# 487
 struct sock {
    __u32 daddr ;
    __u32 rcv_saddr ;
@@ -3604,12 +3262,10 @@ struct sock {
    int (*backlog_rcv)(struct sock *sk , struct sk_buff *skb ) ;
    void (*destruct)(struct sock *sk ) ;
 };
-# 699
 struct __anonstruct_stats_152 {
    int inuse ;
    u8 __pad[(int )(32U - sizeof(int ))] ;
 };
-# 699
 struct proto {
    void (*close)(struct sock *sk , long timeout ) ;
    int (*connect)(struct sock *sk , struct sockaddr *uaddr , int addr_len ) ;
@@ -3634,7 +3290,6 @@ struct proto {
    char name[32] ;
    struct __anonstruct_stats_152 stats[32] ;
 };
-# 30 "/home/weimer/linux/include/linux/pkt_sched.h"
 struct tc_stats {
    __u64 bytes ;
    __u32 packets ;
@@ -3646,12 +3301,10 @@ struct tc_stats {
    __u32 backlog ;
    spinlock_t *lock ;
 };
-# 12 "/home/weimer/linux/include/net/pkt_cls.h"
 struct tcf_result {
    unsigned long class ;
    u32 classid ;
 };
-# 18
 struct tcf_proto {
    struct tcf_proto *next ;
    void *root ;
@@ -3664,14 +3317,12 @@ struct tcf_proto {
    void *data ;
    struct tcf_proto_ops *ops ;
 };
-# 34
 struct tcf_walker {
    int stop ;
    int skip ;
    int count ;
    int (*fn)(struct tcf_proto * , unsigned long node , struct tcf_walker * ) ;
 };
-# 42
 struct tcf_proto_ops {
    struct tcf_proto_ops *next ;
    char kind[16] ;
@@ -3688,14 +3339,12 @@ struct tcf_proto_ops {
    int (*dump)(struct tcf_proto * , unsigned long  , struct sk_buff *skb ,
                struct tcmsg * ) ;
 };
-# 21 "/home/weimer/linux/include/net/pkt_sched.h"
 struct qdisc_walker {
    int stop ;
    int skip ;
    int count ;
    int (*fn)(struct Qdisc * , unsigned long cl , struct qdisc_walker * ) ;
 };
-# 29
 struct Qdisc_class_ops {
    int (*graft)(struct Qdisc * , unsigned long cl , struct Qdisc * ,
                 struct Qdisc ** ) ;
@@ -3712,7 +3361,6 @@ struct Qdisc_class_ops {
    int (*dump)(struct Qdisc * , unsigned long  , struct sk_buff *skb ,
                struct tcmsg * ) ;
 };
-# 51
 struct Qdisc_ops {
    struct Qdisc_ops *next ;
    struct Qdisc_class_ops *cl_ops ;
@@ -3728,7 +3376,6 @@ struct Qdisc_ops {
    int (*change)(struct Qdisc * , struct rtattr *arg ) ;
    int (*dump)(struct Qdisc * , struct sk_buff * ) ;
 };
-# 73
 struct Qdisc {
    int (*enqueue)(struct sk_buff *skb , struct Qdisc *dev ) ;
    struct sk_buff *(*dequeue)(struct Qdisc *dev ) ;
@@ -3744,166 +3391,102 @@ struct Qdisc {
    struct Qdisc *__parent ;
    char data[0] ;
 };
-# 2 "sch_generic.c"
 /* #pragma cilnoremove("noop_qdisc") */
-# 48 "/home/weimer/linux/include/linux/kernel.h"
 struct semaphore;
-# 72
 extern int ( /* format attribute */ __attribute__((__regparm__(0))) printk)(char const   *fmt 
                                                                             , ...) ;
-# 137 "/home/weimer/linux/include/asm/atomic.h"
 __inline static int atomic_dec_and_test(atomic_t *v ) 
 { unsigned char c ;
 
   {
-# 141
   __asm__  volatile   ("lock ; "
                        "decl %0; sete %1": "=m" (v->counter),
                        "=qm" (c): "m" (v->counter): "memory");
-# 145
   return ((int )c != 0);
 }
 }
-# 420 "/home/weimer/linux/include/asm/processor.h"
 struct task_struct;
-# 421
 struct mm_struct;
-# 25 "/home/weimer/linux/include/linux/net.h"
 struct poll_table_struct;
-# 83
 struct scm_cookie;
-# 84
 struct vm_area_struct;
-# 85
 struct page;
-# 143
 extern int net_ratelimit(void) ;
-# 172 "/home/weimer/linux/include/linux/dcache.h"
 struct zone_struct;
-# 28 "/home/weimer/linux/include/linux/fs.h"
 struct poll_table_struct;
-# 11 "/home/weimer/linux/include/asm/system.h"
 struct task_struct;
-# 22 "/home/weimer/linux/include/linux/rwsem.h"
 struct rw_semaphore;
-# 5 "/home/weimer/linux/include/linux/ntfs_fs_i.h"
 struct ntfs_attribute;
-# 6
 struct ntfs_sb_info;
-# 9 "/home/weimer/linux/include/linux/reiserfs_fs_i.h"
 struct reiserfs_page_list;
-# 1 "/home/weimer/linux/include/linux/usbdev_fs_i.h"
 struct usb_device;
-# 2
 struct usb_bus;
-# 361 "/home/weimer/linux/include/linux/fs.h"
 struct page;
-# 362
 struct address_space;
-# 15 "/home/weimer/linux/include/linux/hfs_fs_sb.h"
 struct hfs_name;
-# 13 "/home/weimer/linux/include/linux/adfs_fs_sb.h"
 struct adfs_discmap;
-# 14
 struct adfs_dir_ops;
-# 209 "/home/weimer/linux/include/linux/reiserfs_fs_sb.h"
 struct reiserfs_page_list;
-# 4 "/home/weimer/linux/include/asm/current.h"
 struct task_struct;
-# 7 "/home/weimer/linux/include/asm/signal.h"
 struct siginfo;
-# 22 "/home/weimer/linux/include/linux/mmzone.h"
 struct pglist_data;
-# 97
 struct bootmem_data;
-# 121
 struct page;
-# 104 "/home/weimer/linux/include/linux/skbuff.h"
 struct sk_buff;
-# 229
 extern void __kfree_skb(struct sk_buff *skb ) ;
-# 287
 __inline static void kfree_skb(struct sk_buff *skb ) 
 { int tmp ;
 
   {
-# 289
   if (skb->users.counter == 1) {
-# 289
     __kfree_skb(skb);
   } else {
-# 289
     tmp = atomic_dec_and_test(& skb->users);
-# 289
     if (tmp) {
-# 289
       __kfree_skb(skb);
     }
   }
-# 289
   return;
 }
 }
-# 148 "/home/weimer/linux/include/linux/netdevice.h"
 struct neighbour;
-# 149
 struct neigh_parms;
-# 150
 struct sk_buff;
-# 25 "/home/weimer/linux/include/net/dst.h"
 struct sk_buff;
-# 7 "/home/weimer/linux/include/net/pkt_cls.h"
 struct rtattr;
-# 8
 struct tcmsg;
-# 18 "/home/weimer/linux/include/net/pkt_sched.h"
 struct rtattr;
-# 19
 struct Qdisc;
-# 410
 struct Qdisc noop_qdisc ;
-# 411
 struct Qdisc_ops noop_qdisc_ops ;
-# 203 "sch_generic.c"
 static int noop_enqueue(struct sk_buff *skb , struct Qdisc *qdisc ) 
 { 
 
   {
-# 206
   kfree_skb(skb);
-# 207
   return (2);
 }
 }
-# 210
 static struct sk_buff *noop_dequeue(struct Qdisc *qdisc ) 
 { 
 
   {
-# 213
   return ((struct sk_buff *)((void *)0));
 }
 }
-# 216
 static int noop_requeue(struct sk_buff *skb , struct Qdisc *qdisc ) 
 { int tmp ;
 
   {
-# 219
   tmp = net_ratelimit();
-# 219
   if (tmp) {
-# 219
     printk((char const   *)"<7>%s deferred output. It is buggy.\n",
            (skb->dev)->name);
   }
-# 221
   kfree_skb(skb);
-# 222
   return (2);
 }
 }
-# 225
 struct Qdisc_ops noop_qdisc_ops   = {(struct Qdisc_ops *)((void *)0),
                                      (struct Qdisc_class_ops *)((void *)0),
                                      {'n', 'o', 'o', 'p', '\0', 0, 0, 0, 0, 0,
@@ -3918,7 +3501,6 @@ struct Qdisc_ops noop_qdisc_ops   = {(struct Qdisc_ops *)((void *)0),
                                               struct rtattr *arg ))0,
                                      (int (*)(struct Qdisc * ,
                                               struct sk_buff * ))0};
-# 237
 struct Qdisc noop_qdisc   = {& noop_enqueue, & noop_dequeue, (unsigned int )1,
                              & noop_qdisc_ops, (struct Qdisc *)0, 0U,
                              {.counter = 0}, {(struct sk_buff *)0,

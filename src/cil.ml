@@ -4103,7 +4103,7 @@ let lenOfArray (eo: exp option) : int =
     None -> raise LenOfArray
   | Some e -> begin
       match constFold true e with
-      | Const(CInt64(ni, _, _)) when ni > Int64.zero -> 
+      | Const(CInt64(ni, _, _)) when ni >= Int64.zero -> 
           Int64.to_int ni
       | e -> raise LenOfArray
   end
