@@ -19,6 +19,7 @@ open Cabs
 module E = Errormsg
 module H = Hashtbl
 
+
 (* Hash tables for combiner *)
 
 (* Tables that used to keep track of re-definitions 
@@ -41,6 +42,8 @@ let structTag = H.create 107
 let unionTag = H.create 107
 let enumTag = H.create 107
 
+
+let noloc = { lineno = 0; filename = "" }
 
 let rec combineAttr (s, el) = 
   (s, List.map combine_expression el)
@@ -305,33 +308,38 @@ and tag_defined (s: spec_elem) =
     end
   | _ -> false
 
-(* returns true check if def is not declared
-   Could make another function to clean this code up *)
+(* returns true check if def is not declared. Could make another function to 
+ * clean this code up. Strip the location from definitions before hashing 
+ * them. *)
 and already_declared def =
   match def with
     FUNDEF ((s, name), body, loc) ->
+      let def' = FUNDEF ((s, name), body, noloc) in
       if isStatic s then
-        H.mem fDefTable def || (H.add fDefTable def 1; false)
+        H.mem fDefTable def' || (H.add fDefTable def' 1; false)
       else
-        H.mem gDefTable def || (H.add gDefTable def 1; false)
+        H.mem gDefTable def' || (H.add gDefTable def' 1; false)
 
   | DECDEF ((s, names), loc) ->
+      let def' = DECDEF ((s, names), noloc) in
       if isStatic s then
-          H.mem fDefTable def || (H.add fDefTable def 1; false)
+          H.mem fDefTable def' || (H.add fDefTable def' 1; false)
       else
-        H.mem gDefTable def || (H.add gDefTable def 1; false)
+        H.mem gDefTable def' || (H.add gDefTable def' 1; false)
 
   | TYPEDEF ((s, names), loc) ->
+      let def' = TYPEDEF ((s, names), noloc) in
       if List.exists tag_defined s then
         true
       else
-        H.mem gDefTable def || (H.add gDefTable def 1; false)
+        H.mem gDefTable def' || (H.add gDefTable def' 1; false)
 
   | ONLYTYPEDEF (s, loc) ->
+      let def' = ONLYTYPEDEF (s, noloc) in
       if List.exists tag_defined s then
         true
       else
-        H.mem gDefTable def || (H.add gDefTable def 1; false)
+        H.mem gDefTable def' || (H.add gDefTable def' 1; false)
 
   | _ -> false (* ASM and others are always considered to be false *)
 

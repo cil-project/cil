@@ -998,7 +998,9 @@ IJPEGEXTRA=$(CILDIR)/$(SAFEMAINLIB)
 else
 IJPEGEXTRA=
 endif
-
+ifeq ($(ARCHOS), x86_WIN32)
+IJPEGSAFECC += -DWIN32
+endif
 ijpegclean: 	
 	cd $(IJPEGDIR)/src; make clean
 	cd $(IJPEGDIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
