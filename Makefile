@@ -529,17 +529,19 @@ APACHECFLAGS=/nologo /MDd /W3 /GX /Zi /Od \
          $(DEF)"_DEBUG" $(DEF)"WIN32" $(DEF)"_WINDOWS" \
          $(DEF)"NO_DBM_REWRITEMAP" $(DEF)"SHARED_MODULE" \
          $(DEF)"WIN32_LEAN_AND_MEAN"
+APATCH=
 else
 APACHECFLAGS=-Wall -D_GNUCC -g \
-         $(INC)"$(APACHEBASE)\include" $(INC)"$(APACHEBASE)\os\unix" \
+         $(INC)"$(APACHEBASE)/include" $(INC)"$(APACHEBASE)/os/unix" \
          $(DEF)"_DEBUG" \
          $(DEF)"NO_DBM_REWRITEMAP" $(DEF)"SHARED_MODULE"
+APATCH=--patch=apache_gcc.patch
 endif
 
 apache/gzip : $(EXECUTABLE)$(EXE)
 	rm -f $(APACHETEST)/mod_gzip.obj
 	cd $(APACHETEST); $(SAFECC) \
-                       --keep=. \
+                       --keep=. $(APATCH) \
                         $(APACHECFLAGS) \
                         $(OBJOUT)./mod_gzip.obj \
                         mod_gzip.c
@@ -547,7 +549,7 @@ apache/gzip : $(EXECUTABLE)$(EXE)
 apache/rewrite: $(EXECUTABLE)$(EXE)
 	rm -f $(APACHETEST)/mod_gzip.obj
 	cd $(APACHETEST); $(SAFECC) \
-                       --keep=. \
+                       --keep=. $(APATCH) \
                         $(APACHECFLAGS) \
                         $(OBJOUT)./mod_rewrite.obj \
                         $(APACHEBASE)/modules/standard/mod_rewrite.c

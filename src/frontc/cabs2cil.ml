@@ -183,7 +183,7 @@ let newTempVar typ =
 let strncpyFun = 
   let fdec = emptyFunction "strncpy" in
   let argd  = makeLocalVar fdec "dst" charPtrType in
-  let args  = makeLocalVar fdec "src" charPtrType in
+  let args  = makeLocalVar fdec "src" charConstPtrType in
   let arglen  = makeLocalVar fdec "len" uintType in
   fdec.svar.vtype <- TFun(charPtrType, [ argd; args; arglen ], false, []);
   fdec
@@ -1714,6 +1714,11 @@ and doAssign (lv: lval) : exp -> stmt list = function
       let lvt = typeOfLval lv in
       match unrollType lvt with 
         TArray(_, Some _, _) ->
+          (* See if strncpy was already declared *)
+          if not (H.mem env "strncpy") then begin
+            theFile := GDecl strncpyFun.svar :: !theFile;
+            H.add env "strncpy" strncpyFun.svar
+          end;
           [Instr(Call(None, Lval (var strncpyFun.svar),
                       [ StartOf lv; e; SizeOf (lvt, l) ], l))]
       | TArray(_, None, _) -> E.s (E.unimp "initialization with a string")
@@ -1912,7 +1917,7 @@ let makeGlobalVarinfo (vi: varinfo) =
 let convFile fname dl = 
   ignore (E.log "Cabs2cil conversion\n");
   (* Clean up the global types *)
-  theFile := [GDecl strncpyFun.svar];
+  theFile := [];
   H.clear typedefs;
   H.clear compInfoNameEnv;
   H.clear enumFields;
