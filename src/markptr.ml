@@ -712,6 +712,8 @@ let rec doStmt (s: stmt) =
             ignore (E.warn "Call of subroutine is assigned")
         | None, _ -> () (* "Call of function is not assigned" *)
         | Some (destvi, iscast), _ -> begin
+            (* Do the lvalue, just so that the type is done *)
+            let _ = doLvalue (Var destvi, NoOffset) true in
             (* Short-circuit the cast *)
 	    let rtn = nodeOfType rt in
 	    let vin = nodeOfType destvi.vtype in
@@ -722,8 +724,8 @@ let rec doStmt (s: stmt) =
                      (Const(CStr("a call return"))) (* this does not matter *)
                      rtn vin  !callId)
 	    | true, true -> ()
-	    | _ -> ignore (E.warn "Node mismatch on return of %s(%d) = %a(%d).VIT=%a\n" 
-			     destvi.vname vin.N.id d_exp func' rtn.N.id d_plaintype destvi.vtype)
+	    | _ -> ignore (E.warn "Node mismatch on return of %s(%d) = %a(%d)\n" 
+			     destvi.vname vin.N.id d_exp func' rtn.N.id)
 	end 
       end;
       Instr (Call(reso, func', loopArgs formals args), l)
