@@ -1081,7 +1081,7 @@ val charType: typ
 (** char * *)
 val charPtrType: typ
 
-(** wchar_t *)
+(** wchar_t (depends on architecture) *)
 val wcharType: unit -> typ
 
 (** wchar_t * *)
