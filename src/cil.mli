@@ -1104,6 +1104,12 @@ type existsAction =
 val existsType: (typ -> existsAction) -> typ -> bool
 
 
+(** Given a varinfo for a function split the function type into return type, 
+ * arguments, is_vararg and attributes. An error is raised if the type is not 
+ * a function type *)
+val splitFunctionType: varinfo -> typ * varinfo list option * bool * attributes
+
+
 (** {b Type signatures} ****)
 
 (** Type signatures. Two types are identical iff they have identical 

@@ -172,6 +172,14 @@ let uAlpha : (string, int ref) H.t = H.create 57 (* Unions *)
 let eAlpha : (string, int ref) H.t = H.create 57 (* Enumerations *)
 let tAlpha : (string, int ref) H.t = H.create 57 (* Type names *)
 
+
+(** Keep track for all global function definitions the names of the formal 
+ * arguments. They might change during merging of function types if the 
+ * prototype occurs after the function definition and uses different names. 
+ * We'll restore the names at the end *)
+let formalNames: (string, string list) H.t = H.create 111
+
+
   (* Accumulate here the globals in the merged file *)
 let theFileTypes = ref [] 
 let theFile      = ref []
@@ -205,6 +213,8 @@ let init () =
 
   theFile := [];
   theFileTypes := [];
+
+  H.clear formalNames;
 
   currentFidx := 0
 
@@ -420,9 +430,6 @@ let rec combineTypes (what: combineWhat)
           * adjusted types *)
           List.iter2 
             (fun oldarg arg -> 
-              (* Update the names. Always prefer the new name. This is very 
-               * important if the prototype uses different names than the 
-               * function definition. *)
               if arg.vname <> "" then oldarg.vname <- arg.vname;
               oldarg.vattr <- addAttributes oldarg.vattr arg.vattr;
               oldarg.vtype <- 
@@ -607,7 +614,7 @@ let rec oneFilePass1 (f:file) : unit =
         end
       in
       oldvi.vstorage <- newstorage;
-      let _ = union oldvinode vinode in ()
+      let _ = union (find true oldvinode) (find true vinode) in ()
     with Not_found -> (* Not present in the previous files. Remember it for 
                        * later  *)
       H.add vEnv vi.vname vinode
@@ -624,8 +631,15 @@ let rec oneFilePass1 (f:file) : unit =
           (* Force inline functions to be static *) 
           if fdec.sinline && fdec.svar.vstorage = NoStorage then 
             fdec.svar.vstorage <- Static;
-          if fdec.svar.vstorage <> Static then 
+          if fdec.svar.vstorage <> Static then begin
+            (* Save the names of the formals *)
+            begin 
+              let _, args, _, _ = splitFunctionType fdec.svar in
+              H.add formalNames fdec.svar.vname 
+                (List.map (fun f -> f.vname) (argsToList args))
+            end;
             matchVarinfo fdec.svar l
+          end
               (* Make nodes for the defiend type and structure tags *)
       | GType (n, t, l) ->
           if n <> "" then (* The empty names are just for introducing 
@@ -683,7 +697,27 @@ let oneFilePass2 (f: file) =
           currentLoc := l;
           let vi' = processVarinfo fdec.svar l in
           (* We keep it anyway. Like a definition. *)
-          pushGlobals (visitCilGlobal renameVisitor g)
+          let fdec' = 
+            match visitCilGlobal renameVisitor g with 
+              [GFun(fdec', _)] -> fdec' 
+            | _ -> E.s (unimp "renameVisitor for GFun returned something else")
+          in
+          (* Now restore the parameter names *)
+          if fdec.svar.vstorage <> Static then begin
+            let _, args, _, _ = splitFunctionType fdec'.svar in
+            let oldnames = 
+              try H.find formalNames fdec.svar.vname 
+              with Not_found -> E.s (bug "Cannot find %s in formalNames"
+                                       fdec.svar.vname)
+            in
+            let argl = argsToList args in
+            if List.length oldnames <> List.length argl then 
+              E.s (unimp "After merging the function has more arguments");
+            List.iter2
+              (fun oldn a -> if oldn <> "" then a.vname <- oldn)
+              oldnames argl
+          end;
+          pushGlobal (GFun(fdec', l))
             
       | GCompTag (ci, l) as g -> begin
           currentLoc := l;

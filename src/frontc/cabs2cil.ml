@@ -2910,10 +2910,10 @@ and doExp (isconst: bool)    (* In a constant *)
                 | [a] -> a
                 | _ :: rest -> getLast rest 
               in
-              let last = getLast 
-                  (match !currentFunctionVI.vtype with
-                    TFun(_, Some args, _, _) -> args
-                  | _ -> E.s (bug "cabs2cil: ADDROF")) 
+              let last = 
+                getLast 
+                  (let _, args, _, _ = splitFunctionType !currentFunctionVI 
+                  in argsToList args)
               in
               let res = mkAddrOfAndMark (var last) in
               let tres = typeOf res in
@@ -4470,10 +4470,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
              * type only now. *)
             (* Extract the information from the type *)
             let (returnType, formals, isvararg, funta) =
-              match unrollType thisFunctionVI.vtype with
-                TFun(rType, formals, isvararg, a) ->
-                  (rType, formals, isvararg, a)
-              | x -> E.s (error "non-function type: %a." d_type x)
+              splitFunctionType thisFunctionVI 
             in
             (* Record the returnType for doStatement *)
             currentReturnType   := returnType;

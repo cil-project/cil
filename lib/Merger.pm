@@ -317,7 +317,7 @@ sub link {
             $Merger::combbase . 
                 ($Merger::mtime_asm >= $Merger::mtime_byte 
                  ? ".asm.exe" : ".byte.exe");
-        $cmd = "$Merger::cilly --out $merged --merge ";
+        $cmd = "$Merger::cilly --out $merged ";
     } else {
         $cmd = "$Merger::cilly --merge --out $merged "
     }

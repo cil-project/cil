@@ -3361,6 +3361,12 @@ let isFunctionType t =
     TFun _ -> true
   | _ -> false
 
+let splitFunctionType (fvi: varinfo) 
+    : typ * varinfo list option * bool * attributes = 
+  match unrollType fvi.vtype with 
+    TFun (rt, args, isva, a) -> rt, args, isva, a
+  | _ -> E.s (bug "Function %s does not have a function type" fvi.vname)
+
 let isArrayType t = 
   match unrollType t with
     TArray _ -> true
