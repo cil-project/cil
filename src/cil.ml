@@ -2200,7 +2200,16 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           ++ chr ' '
           ++ (match io with
             None -> nil
-          | Some i -> text " = " ++ (self#pInit () i))
+          | Some i -> text " = " ++ 
+                (let islong = 
+                  match i with
+                    CompoundInit (_, il) when List.length il >= 8 -> true
+                  | _ -> false 
+                in
+                if islong then 
+                  line ++ self#pLineDirective l ++ text "  " 
+                else nil) ++
+                (self#pInit () i))
           ++ chr ';'
       
     (* print global variable 'extern' declarations, and function prototypes *)    
@@ -2294,12 +2303,13 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                () (t:typ) =       (* use of some type *)
     let name = match nameOpt with None -> nil | Some d -> d in
     let printAttributes (a: attributes) = 
-      match nameOpt, a with 
-        None, [] -> nil
-      | None, _ :: _ -> (* Cannot print the attributes in this case because 
-                         * gcc does not like them here *)
-          text "/*" ++ self#pAttrs () a ++ text "*/"
-      | _, _ -> self#pAttrs () a
+      let pa = self#pAttrs () a in
+      match nameOpt with 
+      | None -> (* Cannot print the attributes in this case because gcc does 
+                 * not like them here  *)
+          if pa = nil then nil else 
+          text "/*" ++ pa ++ text "*/"
+      | _ -> pa
     in
     match t with 
     TVoid a ->

@@ -37,6 +37,8 @@ if(! -d $tmpdir) {
 my $incode = 0;
 my $opt;
 
+binmode STDOUT;
+
 my $lineno = 0;
 while(<>) {
     $lineno ++;

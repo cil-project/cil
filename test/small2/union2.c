@@ -28,6 +28,7 @@ union {
   struct { int c; int *d; } s2; 
 } same, *sptr; 
 
+
 int main() {
   if(HAS_KIND(x, "WILD")) E(1); //ERROR(1):Error 1
   if(HAS_KIND(y, "WILD")) E(2); //ERROR(2):Error 2
