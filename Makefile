@@ -112,12 +112,22 @@ testhash: $(PCCTEST)/main.c $(EXECUTABLE)$(EXE)
                  $(PCCTEST)/hashtest.c \
                  /Fe$(PCCTEST)/hashtest.exe
 
+ifdef RELEASE
+PCCTYPE=RELEASE
+SPJARG=
+else
+PCCTYPE=_DEBUG
+SPJARG=-DC --save-temps=pccout
+endif
 testallpcc: $(EXECUTABLE)$(EXE)
-	-rm ../../Source/Touchstone/PCC/x86_WIN32_MSVC/_DEBUG/*.o
+	-rm ../../Source/Touchstone/PCC/x86_WIN32_MSVC/$(PCCTYPE)/*.o
 	make -C ../../Source/Touchstone/PCC \
              CC="$(SAFECC) --keep=D:/Necula/SafeC/cil/test/PCC /c" \
-             USE_JAVA=1 USE_JUMPTABLE=1 TYPE=_DEBUG \
+             USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
 	     defaulttarget
+
+runpcc:
+	cd ../../Source/Touchstone/test; pwd; spj $(SPJARG) arith/Fact.java
 
 ############ Small tests
 SMALL1=test/small1

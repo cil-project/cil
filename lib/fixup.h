@@ -7,19 +7,17 @@
 /* Turn others into GCC syntax */
 #define __inline inline
 #define _inline inline
-
-
-/* Define some types */
 #define __int64 long long
 
 
 #define random rand
 
+/*
 #include <time.h>
 #define TIMESTART(clk) {clk=(double)clock();}
 #define TIMESTOP(clk)  {clk=1000000.0 * \
                            ((double)clock()-(clk))/CLOCKS_PER_SEC;}
-
+*/
 #endif
 
 

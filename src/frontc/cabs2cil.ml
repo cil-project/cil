@@ -12,151 +12,164 @@ open Cil
                                         (* We collect here the program *)
 let theFile : global list ref = ref []
 
-(*** As we translate expressions we need an environment ***)
-type enventry = 
-  | EBlock                              (* start of a block *)
-  | EVar of string * varinfo            (* a variable name and its associated 
-                                         * varinfo *)
+(********* ENVIRONMENTS ***************)
 
-(*** In order to process GNU_BODY expressions we must record that a given 
- *** COMPUTATION is interesting *)
-let gnu_body_result : (A.statement * ((exp * typ) option ref)) ref 
-    = ref (A.NOP, ref None)
+(* The environment is kept in two distinct data structures. A hash table maps 
+ * each original variable name into a varinfo. (Note that the varinfo might 
+ * contain an alpha-converted name.) The Ocaml hash tables can keep multiple 
+ * mappings for a single key. Each time the last mapping is returned and upon 
+ * deletion the old mapping is restored. To keep track of local scopes we 
+ * also maintain a list of scopes (represented as lists). *)
 
-(*** When we do statements we need to know the current return type *)
-let currentReturnType : typ ref = ref (TVoid([]))
+let env : (string, varinfo) H.t = H.create 307
 
-let env : enventry list ref = ref []    (* This is the environment *)
-
-(* Lookup a variable name. Might raise Not_found *)
-let lookup n = 
-  let rec loop = function
-      [] -> raise Not_found
-    | EVar (n', vi) :: _ when n = n' -> vi
-    | _ :: rest -> loop rest
-  in
-  loop (!env)
+ (* In the scope we keep the original name, so we can remove them from the 
+  * hash table easily *)
+let scopes :  string list ref list ref = ref []
 
 
-
-(* Add a local declaration. Alpha convert in the process *)
-let localId = ref (-1)
+ (* We also keep a hash table of the new variable names so that we can verify 
+  * that the new names we are creating are indeed new. We add all globals 
+  * in scope there and all locals, whether in scope or not. This is necessary 
+  * because we will coalesce all locals at the start of the function. We 
+  * could reuse locals with the same type but that might complicate some 
+  * analyses later. *)
+ (* Each name is split into a prefix and a maximal suffix consisting only of 
+  * digits. For each prefix we store a ref cell containing the maximal 
+  * integer value of the suffix for which the name is defined. A suffix of -1 
+  * means that only the version with no suffix is defined *)
+let alphaTable : (string, int ref) H.t = H.create 307
+let localId = ref (-1)   (* All locals get id's starting at 0 *)
 let locals : varinfo list ref = ref []
 
-let alphaId = ref (-1)                  (* Indices for alpha-conversion *)
+let resetLocals () = 
+  localId := (-1); locals := []
+
+let startFile () = 
+  H.clear env;
+  H.clear alphaTable;
+  resetLocals ()
+
+
+     (* Eliminate all locals from the alphaTable. Return the maxlocal id and 
+      * the list of locals *)
+let endFunction () : (int * varinfo list) = 
+  let rec loop revlocals = function
+      [] -> revlocals
+    | lvi :: t -> H.remove alphaTable lvi.vname; loop (lvi :: revlocals) t
+  in
+  let revlocals = loop [] !locals in
+  let maxid = !localId + 1 in
+  resetLocals ();
+  (maxid, revlocals)
+
+let startScope () = 
+  scopes := (ref []) :: !scopes
+
+     (* Exit a scope and clean the environment. We do not yet delete from 
+      * the name table *)
+let exitScope () = 
+  let this, rest = 
+    match !scopes with
+      car :: cdr -> car, cdr
+    | [] -> E.s (E.bug "Not in a scope")
+  in
+  scopes := rest;
+  let rec loop = function
+      [] -> ()
+    | n :: t -> H.remove env n; loop t
+  in
+  loop !this
+
+(* Lookup a variable name. Might raise Not_found *)
+let lookup n = H.find env n 
+
+let docEnv () = 
+  let acc : (string * varinfo) list ref = ref [] in
+  H.iter (fun k d -> acc := (k, d) :: !acc) env;
+  docList line (fun (k, d) -> dprintf "  %s -> %s" k d.vname) () !acc
+
+
+(* Create a new variable ID *)
 let newVarId name isglobal = 
-  if isglobal then 
-    H.hash name
+  if isglobal then H.hash name
   else begin
     incr localId;
     !localId
   end
 
-let resetLocals () = 
-  localId := -1; locals := []
-
-let getLocals () = 
-  (!localId + 1, List.rev !locals)
-
-    (* Replace a global variable in the environment with another one with the 
-     * same name *)
-let replaceGlobal vi = 
-  let isGlob = ref false in
-  let rec loop = function
-      [] -> E.s (E.bug "Cannot replace global variable %s\n" vi.vname)
-    | EVar(name, _) :: rest when name = vi.vname -> begin
-        EVar(name, vi) :: rest
-    end
-    | x :: rest -> x :: loop rest
-  in
-  env := loop !env
-
-   (* Add a new global variable *)
-let addNewVariableToEnv lookupname vi = 
-  if vi.vglob then 
-    let rec loop = function
-        [] -> [EVar(lookupname, vi)]
-      | x :: rest -> x :: loop rest
-    in
-    env := loop !env
-  else 
-    env := EVar(lookupname, vi) :: !env
-
-let addNewVar vi = 
-  let newname =                           (* A new name for the variable *)
-    (* Scan the locals and the environment and find the maximum integer n 
-     * such that lookupname ^ (string_of_int n) appears in the locals. Return 
-     * -2 is not such integer found. Return -1 if a variable with the exact 
-     * same name was found *)
-    let l = String.length vi.vname in
-    let max a b = if a > b then a else b in
-    let doOneVi acc lvi = 
-      let li = String.length lvi.vname in
-      if li >= l && String.sub lvi.vname 0 l = vi.vname then
-        if li = l then
-          max acc (-1)
-        else
-          max acc 
-            (try int_of_string (String.sub lvi.vname l (li - l))
-            with _ -> -2)
-      else
-        acc
-    in
-    let maxid =                         (* Find the max both in env and in 
-                                         * locals *)
-      List.fold_left 
-        (fun acc e -> 
-          match e with EVar(_, vi) -> doOneVi acc vi | _ -> acc)
-        (List.fold_left doOneVi (-2) !locals)
-        !env
-    in
-    if maxid = -2 then
-      vi.vname 
+(* Create a new variable name. Give the original source name *)
+let newVarName lookupname = 
+  (* Split the lookup name into a prefix and a suffix. *)
+  let l = String.length lookupname in
+  let rec split i = 
+    assert (i >= 0 && i < l);
+    let last = Char.code (String.get lookupname i) - Char.code '0' in
+    if last >= 0 && last <= 9 then
+      let (prefix, suffix) = split (i - 1) in
+      (prefix, if suffix >= 0 then suffix * 10 + last else last)
     else
-      vi.vname ^ (string_of_int (maxid + 1))
+      (String.sub lookupname 0 (i + 1), -1)
   in
-  let newvi = if vi.vname = newname then vi else {vi with vname = newname} in
-  if vi.vglob then
-    (* A global variable. If new then go ahead and return it *)
-    if vi.vname = newname then begin
-      addNewVariableToEnv vi.vname newvi;
-      newvi;
-    end else begin
-      (* Check what was the previous definition *)
-      try
-        let oldvi = lookup vi.vname in
-        if oldvi.vstorage = Extern  && vi.vstorage = NoStorage then begin
-          (* We'll add this version instead *)
-          replaceGlobal vi;
-          vi            
-        end else
-          if vi.vstorage = Extern && (oldvi.vstorage = NoStorage ||
-                                      oldvi.vstorage = Extern) then
-            oldvi               (* Don't add a new version *)
-          else
-            match vi.vtype, oldvi.vtype with
+  let (prefix, suffix) = split (l - 1) in
+  try
+    let rc = H.find alphaTable prefix in
+    let newsuffix = if suffix > !rc then suffix else !rc + 1 in
+    rc := newsuffix;
+    prefix ^ (string_of_int newsuffix)
+  with Not_found -> begin (* First variable with this prefix *)
+    H.add alphaTable prefix (ref suffix);
+    lookupname  (* Return the original name *)
+  end
+
+let docAlphaTable () = 
+  let acc : (string * int) list ref = ref [] in
+  H.iter (fun k d -> acc := (k, !d) :: !acc) alphaTable;
+  docList line (fun (k, d) -> dprintf "  %s -> %d" k d) () !acc
+
+
+(* Add a new variable. Do alpha-conversion if necessary *)
+let addNewVar vi = 
+  let alphaConvertAndAdd vi = 
+    let newname = newVarName vi.vname in
+    let newvi = if vi.vname = newname then vi else {vi with vname = newname} in
+    H.add env vi.vname newvi; 
+    if not vi.vglob then begin
+      locals := newvi :: !locals;
+      (match !scopes with
+        [] -> E.s (E.bug "Adding a local but not in a scope")
+      | s :: _ -> s := vi.vname :: !s)
+    end;
+    newvi
+  in
+  if vi.vglob then (* Some special cases apply to global variables *)
+    try (* See if already defined *)
+      let oldvi = H.find env vi.vname in
+      if oldvi.vstorage = Extern  && vi.vstorage = NoStorage then begin
+          (* We'll add the new version instead. *)
+        H.remove env vi.vname;
+        let newvi' = {vi with vname = oldvi.vname} in
+        H.add env vi.vname newvi';
+        newvi'
+      end else begin
+        if vi.vstorage = Extern && (oldvi.vstorage = NoStorage ||
+                                    oldvi.vstorage = Extern) then
+          oldvi               (* Don't add a new version *)
+        else
+          match vi.vtype, oldvi.vtype with
                                         (* function prototypes are not 
                                          * definitions *)
-              TFun _, TFun _ -> oldvi
-            | TPtr (TFun _, _), TPtr (TFun _, _) -> oldvi
-            | _ -> E.s (E.unimp "Global variable redefinition: %s\n" vi.vname)
-      with Not_found -> begin
-        (* Maybe it conflicted with some local *)
-        addNewVariableToEnv vi.vname newvi;
-        newvi
+            TFun _, TFun _ -> oldvi
+          | TPtr (TFun _, _), TPtr (TFun _, _) -> oldvi
+          | _ -> E.s (E.unimp "Global variable redefinition: %s\n" vi.vname)
       end
-    end
-  else begin
-    (* A local variable. Add to the environment and to locals *)
-    addNewVariableToEnv vi.vname newvi;
-    locals := newvi :: !locals;
-    newvi
-  end
-    
+    with Not_found -> alphaConvertAndAdd vi
+  else (* A local *) 
+    alphaConvertAndAdd vi
+  
 
 (* Create a new temporary variable *)
 let newTempVar typ = 
-  incr localId;
   (* Strip the "const" from the type. It is unfortunate that const variables 
     can only be set in initialization. Once we decided to move all 
     declarations to the top of the functions, we have no way of setting a 
@@ -178,7 +191,7 @@ let newTempVar typ =
   in
   addNewVar 
     { vname = "tmp";  (* addNewVar will make the name fresh *)
-      vid   = !localId;
+      vid   = newVarId "tmp" false;
       vglob = false;
       vtype = stripConst typ;
       vdecl = locUnknown;
@@ -187,19 +200,13 @@ let newTempVar typ =
       vstorage = NoStorage;
     } 
 
-(* Start a block *)
-let startBlock () = 
-  env := EBlock :: !env
+(*** In order to process GNU_BODY expressions we must record that a given 
+ *** COMPUTATION is interesting *)
+let gnu_body_result : (A.statement * ((exp * typ) option ref)) ref 
+    = ref (A.NOP, ref None)
 
-(* Exit a block *)
-let endBlock () = 
-  let rec loop = function
-      [] -> E.s (E.bug "cannot find block start")
-    | EBlock :: rest -> env := rest
-    | _ :: rest -> loop rest
-  in
-  loop (!env)
-
+(*** When we do statements we need to know the current return type *)
+let currentReturnType : typ ref = ref (TVoid([]))
 
 
 (******** GLOBAL TYPES **************)
@@ -1301,6 +1308,10 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
     let tres = arithmeticConversion t1 t2 in
     constFold (doCast e1 t1 tres) (doCast e2 t2 tres) tres
   in
+  let doArithmeticComp () = 
+    let tres = arithmeticConversion t1 t2 in
+    constFold (doCast e1 t1 tres) (doCast e2 t2 tres) intType
+  in
   let doIntegralArithmetic () = 
     let tres = unrollType (arithmeticConversion t1 t2) in
     match tres with
@@ -1310,8 +1321,10 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
   match bop with
     (Mult|Div) -> doArithmetic ()
   | (Mod|BAnd|BOr|BXor|Shiftlt|Shiftrt) -> doIntegralArithmetic ()
-  | (Plus|Minus|Eq|Ne|Lt|Le|Ge|Gt) 
+  | (Plus|Minus) 
       when isArithmeticType t1 && isArithmeticType t2 -> doArithmetic ()
+  | (Eq|Ne|Lt|Le|Ge|Gt) 
+      when isArithmeticType t1 && isArithmeticType t2 -> doArithmeticComp ()
   | Plus when isPointerType t1 && isIntegralType t2 -> 
       constFold e1 (doCast e2 t2 (integralPromotion t2)) t1
   | Plus when isIntegralType t1 && isPointerType t2 -> 
@@ -1320,40 +1333,13 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
       constFold e1 (doCast e2 t2 (integralPromotion t2)) t1
   | (Minus|Le|Lt|Ge|Gt|Eq|Ne) when isPointerType t1 && isPointerType t2 ->
       constFold e1 e2 intType
+  | (Eq|Ne) when isPointerType t1 && 
+                 (match e2 with Const(CInt(0,_),_) -> true | _ -> false) -> 
+      constFold e1 (doCast e2 t2 t1) intType
+  | (Eq|Ne) when isPointerType t2 && 
+                 (match e1 with Const(CInt(0,_),_) -> true | _ -> false) -> 
+      constFold (doCast e1 t1 t2) e2 intType
   | _ -> E.s (E.unimp "doBinOp: %a\n" d_plainexp (BinOp(bop,e1,e2,intType,lu)))
-(*
-
-  
-  let tresult, e1', e2' = 
-    match bop, unrollType t1, unrollType t2 with
-    | (Plus|Minus|Mult|Div|Mod|BAnd|BOr|BXor|Shiftlt|Shiftrt), 
-      (TInt _|TEnum _|TBitfield _), 
-      (TInt _|TEnum _|TBitfield _) -> intType, e1, e2
-    | (Eq|Ne|Ge|Gt|Le|Lt), 
-        (TInt _|TEnum _|TBitfield _), 
-        (TInt _|TEnum _|TBitfield _) -> intType, e1, e2
-    | (Plus|Minus|Mult|Div|Mod), TFloat _, TFloat _ -> t1, e1, e2
-    | (Eq|Ne|Ge|Gt|Le|Lt), TFloat _, TFloat _ -> intType, e1, e2
-    | Plus, TPtr _, TInt _ -> t1, e1, e2
-    | Plus, TInt _, TPtr _ -> t2, e1, e2
-    | Minus, TPtr _, TInt _ -> t1, e1, e2
-    | (Eq|Ne|Le|Ge|Lt|Gt|Minus), TPtr _, TPtr _ -> intType, e1, e2
-    | (Eq|Ne|Le|Ge|Lt|Gt), TPtr _, TInt _ when 
-        (match e2 with Const(CInt(0,_),_) -> true | _ -> false) 
-      -> intType, e1, CastE(t1, zero, lu)
-    | (Eq|Ne|Le|Ge|Lt|Gt), TInt _, TPtr _ when 
-        (match e1 with Const(CInt(0,_),_) -> true | _ -> false) 
-      -> intType, CastE(t1, zero, lu), e2
-    | _ -> 
-        ignore (E.log "Warning: untyped %a. t1=%a and t2=%a\n" 
-                  d_exp (BinOp(bop,e1,e2,intType, lu))
-                  d_type t1 d_type t2);
-        intType, e1, e2 
-  in
-  let result = 
-  in
-  tresult, result
-*)
 
 (* A special case for conditionals *)
 and doCondition (e: A.expression) 
@@ -1501,11 +1487,11 @@ and doAssign (lv: lval) : exp -> stmt list = function
 
   (* Now define the processors for body and statement *)
 and doBody (decls, s) : stmt list = 
-  startBlock ();
+  startScope ();
     (* Do the declarations and the initializers *)
   let init = List.concat (List.map doDecl decls) in
   let s' = doStatement s in
-  endBlock ();
+  exitScope ();
   init @ s'
       
 and doStatement (s : A.statement) : stmt list = 
@@ -1692,28 +1678,36 @@ let convFile dl =
     end
     | A.DECDEF ng -> 
         let createGlobal ((_,_,(n,nbt,a,e)) as sname : A.single_name) =
-          try
-            let vi = makeVarInfo true locUnknown sname in
-            let vi = addNewVar vi in    (* Overwrite vi *)
-            let init, vi' = 
-              if e = A.NOTHING then 
-                None, vi
-              else 
-                let (se, e', et) = doExp e (AExp (Some vi.vtype)) in
-                let (_, e'') = castTo et vi.vtype e' in
-                (match et with (* We have a length now *)
-                  TArray(_, Some _, _) -> vi.vtype <- et
-                | _ -> ());
-                if se <> [] then 
-                  E.s (E.unimp "global initializer");
-                Some e'', vi
-            in
-            theFile := GVar(vi', init) :: !theFile
-          with e -> begin
-            ignore (E.log "error in CollectGlobal (%s)\n" 
-                      (Printexc.to_string e));
-            theFile := GAsm("booo - error in global " ^ n) :: !theFile
+          begin
+            try
+              let vi = makeVarInfo true locUnknown sname in
+              let vi = addNewVar vi in    (* Overwrite vi *)
+              let init, vi' = 
+                if e = A.NOTHING then 
+                  None, vi
+                else 
+                  let (se, e', et) = doExp e (AExp (Some vi.vtype)) in
+                  let (_, e'') = castTo et vi.vtype e' in
+                  (match et with (* We have a length now *)
+                    TArray(_, Some _, _) -> vi.vtype <- et
+                  | _ -> ());
+                  if se <> [] then 
+                    E.s (E.unimp "global initializer");
+                  Some e'', vi
+              in
+              theFile := GVar(vi', init) :: !theFile
+            with e -> begin
+              ignore (E.log "error in CollectGlobal (%s)\n" 
+                        (Printexc.to_string e));
+              theFile := GAsm("booo - error in global " ^ n) :: !theFile
+            end
           end
+(*
+          ignore (E.log "Env after processing global %s is:@!%t@!" 
+                    n docEnv);
+          ignore (E.log "Alpha after processing global %s is:@!%t@!" 
+                    n docAlphaTable)
+*)
         in
         ignore (doNameGroup createGlobal ng)
           
@@ -1727,7 +1721,6 @@ let convFile dl =
            (* Reset the local identifier so that formals are created with the 
             * proper IDs  *)
             resetLocals ();
-            alphaId := -1;
                                         (* Do the type *)
             let (returnType, formals, isvararg, a) = 
               match unrollType (doType [] bt') with 
@@ -1739,7 +1732,7 @@ let convFile dl =
             currentReturnType := returnType;
             (* Setup the environment. Add the formals to the locals. Maybe 
              * they need alpha-conv *)
-            startBlock ();
+            startScope ();
             let formals' = List.map addNewVar formals in
             let ftype = TFun(returnType, formals', isvararg, a) in
             let fattr = List.map doAttr funattr in
@@ -1762,11 +1755,11 @@ let convFile dl =
             (* Now do the body *)
             let s = doBody body in
             (* Finish everything *)
-            endBlock ();
+            exitScope ();
             (* Now add the function to the environment again. This time it 
              * will go into the global environment  *)
             ignore (addNewVar thisFunctionVI);
-            let (nrlocals, locals) = getLocals () in
+            let (nrlocals, locals) = endFunction () in
             let fdec = { svar      = thisFunctionVI;
                          slocals  = locals;
                          smaxid   = nrlocals;
@@ -1793,4 +1786,5 @@ let convFile dl =
   List.iter doOneGlobal dl;
   (* We are done *)
   List.rev (! theFile)
+
 

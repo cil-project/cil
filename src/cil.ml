@@ -1,10 +1,3 @@
-(*
-
-
-									     
-		 Scott's C/C++ Parser 
- Construct a CFG from Scott's AST. 
-*)
 open Pretty
 module E = Errormsg
 module H = Hashtbl
@@ -16,9 +9,6 @@ let msvcOutput = ref false
  *
  * Version Tue Dec 12 15:21:52 PST 2000 
  * Scott McPeak, George Necula, Wes Weimer
- *
- * This version hacked up by Wes: this is what ocaml people see after Scott 
- * creates his C version.
  *
  * Note: you may *NOT* change the order of the fields or the order in
  * which disjoint union choices are presented. The C translation code
@@ -317,6 +307,31 @@ external parse : string -> file = "cil_main"
 let d_loc () l =
   dprintf "/*(%s:%d:%d)*/" l.file l.line l.col
 
+let escape_char c = 
+  let conv v = 
+    String.make 1 
+      (Char.chr (v + (if v < 10 then (Char.code '0') 
+      else (Char.code 'a' - 10)))) 
+  in
+  match c with
+    '\n' -> "\\n"
+  | '"' -> "\\\""  (* '"' *)
+  | '\'' -> "\\'"
+  | '\r' -> "\\r"
+  | '\t' -> "\\t"
+  | '\b' -> "\\b"
+  | '\000' -> "\\0"
+  | '\\' -> "\\\\"
+  | _ -> 
+      let esc = String.make 1 c in
+      if esc = Char.escaped c then esc
+      else 
+        let code = Char.code c in
+        "\\"
+        ^ (conv (code / 64))
+        ^ (conv ((code mod 64) / 8))
+        ^ (conv (code mod 8))
+
 let escape_string str =
   let lng = String.length str in
   let conv v = 
@@ -327,25 +342,11 @@ let escape_string str =
   let rec build idx =
     if idx >= lng then ""
     else
-      let sub = String.sub str idx 1 in
-      let res = match sub with
-	"\n" -> "\\n"
-      | "\"" -> "\\\""
-      | "'" -> "\\'"
-      | "\r" -> "\\r"
-      | "\t" -> "\\t"
-      | "\b" -> "\\b"
-      | "\000" -> "\\0"
-      | _ -> if sub = (Char.escaped (String.get sub 0))
-      then sub
-      else let code = Char.code (String.get sub 0) in
-      "\\"
-      ^ (conv (code / 64))
-      ^ (conv ((code mod 64) / 8))
-      ^ (conv (code mod 8)) in
-      res ^ (build (idx + 1)) in
+      (escape_char (String.get str idx)) ^ (build (idx + 1)) 
+  in
   build 0	
 
+  
 let d_ikind () = function
     IChar -> text "char"
   | ISChar -> text "signed char"
@@ -381,7 +382,7 @@ let d_const () c =
   | CInt(i, None) -> num i
   | CLInt(l,h, Some s) -> text s
   | CStr(s) -> dprintf "\"%s\"" (escape_string s)
-  | CChr(c) -> dprintf "'%s'" (Char.escaped c)
+  | CChr(c) -> dprintf "'%s'" (escape_char c)
   | CReal(_, Some s) -> text s
   | CReal(f, None) -> dprintf "%f" f
   | _ -> E.s (E.unimp "constant")

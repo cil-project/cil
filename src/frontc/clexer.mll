@@ -195,7 +195,11 @@ let scan_escape str =
   | "r" -> "\r"
   | "t" -> "\t"
   | "b" -> "\b"
+  | "f" -> "\012"  (* ASCII code 12 *)
+  | "v" -> "\011"  (* ASCII code 11 *)
+  | "a" -> "\007"  (* ASCII code 7 *)
   | _ -> str
+
 let get_value chr =
   match chr with
     '0'..'9' -> (Char.code chr) - (Char.code '0')
@@ -361,8 +365,8 @@ and str =
 |	_			 {let cur = Lexing.lexeme lexbuf in 
                                          cur ^  (str lexbuf)} 
 
-and chr =
-    parse	'\''	{""}
+and chr =  parse
+    '\''	        {""}
 |   hex_escape		{let cur = scan_hex_escape (String.sub
 			 (Lexing.lexeme lexbuf) 2 2) in cur ^ (chr lexbuf)}
 |   oct_escape		{let cur = scan_oct_escape (String.sub
