@@ -357,7 +357,7 @@ let valOf : 'a option -> 'a = function
  *)
 let fold_for ~(init: 'a) ~(lo: int) ~(hi: int) (f: int -> 'a -> 'a) =
   let rec forloop i acc =
-    if i >= hi then acc
+    if i > hi then acc
     else forloop (i+1) (f i acc)
   in
   forloop lo init
