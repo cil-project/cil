@@ -1,0 +1,40 @@
+Source: cil
+Section: devel
+Priority: optional
+Maintainer: Ben Liblit <liblit@cs.wisc.edu>
+Build-Depends: autotools-dev
+Build-Depends: debhelper (>= 4.0.0)
+Build-Depends: fakeroot
+Build-Depends: hevea
+Build-Depends: language-pack-en-base
+Build-Depends: libc6-i686
+Build-Depends: libncurses5-dev
+Build-Depends: locales
+Build-Depends: ocaml-base-nox (>= 3.08)
+Build-Depends: ocaml-interp (>= 3.08)
+Build-Depends: ocaml-nox (>= 3.08)
+Build-Depends: perl-base (>= 5.6.1)
+Standards-Version: 3.6.1
+
+Package: cil
+Architecture: any
+Depends: perl (>= 5.6.1)
+Description: OCaml library for C program analysis and transformation
+ CIL (C Intermediate Language) is a high-level representation along
+ with a set of tools that permit easy analysis and source-to-source
+ transformation of C programs.
+ .
+ This package provides Perl modules which are useful for building
+ compiler wrappers.  A wrapper can use CIL to transform C code before
+ passing it along to the native C compiler.
+
+Package: cil-dev
+Architecture: any
+Depends: ocaml (>= 3.08)
+Description: OCaml library for C program analysis and transformation
+ CIL (C Intermediate Language) is a high-level representation along
+ with a set of tools that permit easy analysis and source-to-source
+ transformation of C programs.
+ .
+ This package provides OCaml interfaces and an OCaml library which form
+ the CIL API.
