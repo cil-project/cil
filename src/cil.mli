@@ -2188,6 +2188,12 @@ val alignOf_int: typ -> int
 val bitsOffset: typ -> offset -> int * int
 
 
+(** Whether "char" is unsigned. Set after you call {!Cil.initCil} *)
+val char_is_unsigned: bool ref
+
+(** Whether the machine is little endian. Set after you call {!Cil.initCil} *)
+val little_endian: bool ref
+
 (** Represents a location that cannot be determined *)
 val locUnknown: location
 

@@ -67,6 +67,9 @@ let useLogicalOperators = ref false
 (* Cil.initCil will set this to the current machine description *)
 let theMachine : M.mach ref = ref M.gcc
 
+let little_endian = ref true
+let char_is_unsigned = ref false
+
 let printLn= ref true                 (* Whether to print line numbers *)
 let printLnComment= ref false
  
@@ -1889,7 +1892,7 @@ let gccBuiltins : (string, typ * typ list) H.t =
     TFun(rt, Some (List.map (fun t -> ("", t, [])) argTypes), false, [])
   in
   (* See if we have builtin_va_list *)
-  let hasbva = Machdep.gccHas__builtin_va_list in
+  let hasbva = M.gccHas__builtin_va_list in
   (* When we parse builtin_next_arg we drop the second argument *)
   H.add h "__builtin_next_arg" 
     ((if hasbva then TBuiltin_va_list [] else voidPtrType), []);
@@ -5456,6 +5459,8 @@ let initCIL () =
   kindOfSizeOf := findIkind true !theMachine.M.sizeof_sizeof;
   typeOfSizeOf := TInt(!kindOfSizeOf, []);
   wcharType := TInt(findIkind false !theMachine.M.sizeof_wchar, []);
+  char_is_unsigned := !theMachine.M.char_is_unsigned;
+  little_endian := !theMachine.M.little_endian;
   nextGlobalVID := 1;
   nextCompinfoKey := 1
     

@@ -118,6 +118,7 @@ $(OBJDIR)/machdep.ml : src/machdep.c configure.in Makefile.cil.in
 	echo "  alignof_double: int;    (* Alignment of \"double\" *)" >> $@
 	echo "  alignof_longdouble: int;  (* Alignment of \"long double\" *)" >> $@
 	echo "  char_is_unsigned: bool; (* Whether \"char\" is unsigned *)">> $@
+	echo "  little_endian: bool; (* whether the machine is little endian *)">>$@
 	echo "}" >> $@ 	
 	if ! gcc -D_GNUCC $< -o $(OBJDIR)/machdep.exe ;then \
             rm -f $@; exit 1 \

@@ -107,7 +107,14 @@ int main() {
   printf("\t char_is_unsigned = %s;\n", 
          ((char)0xff) > 0 ? "true" : "false");
 
- 
+
+  // endianity
+  {
+    int e = 0x11223344;
+    printf("\t little_endian = %s;\n",
+           (0x44 == *(char*)&e) ? "true" :
+           ((0x11 == *(char*)&e) ? "false" : (exit(1), "false")));
+  }
   exit(0);
 } 
 
