@@ -132,7 +132,14 @@ val seq: sep:doc -> doit:('a ->doc) -> elements:'a list -> doc
  * interface. *)
 val docList: doc -> ('a -> doc) -> unit -> 'a list -> doc
 
-(** Formats an array. A separator and a function that prints an array 
+(** sm: Yet another list printer.  This one accepts the same kind of
+  * printing function that {!Pretty.dprintf} does, and itself works 
+  * in the dprintf context.  The name is also chosen to be similar 
+  * to the other printing names in the {!Cil} module.  Also accepts
+  * a string as the separator since that's by far the most common.  *)
+val d_list: string -> (unit -> 'a -> doc) -> unit -> 'a list -> doc
+
+(** Formats an array. A separator and a function that prints an array
     element *)
 val docArray: doc -> (int -> 'a -> doc) -> unit -> 'a array -> doc
  

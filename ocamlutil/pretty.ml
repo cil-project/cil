@@ -120,6 +120,13 @@ let docList (sep:doc) (doit:'a -> doc) () (elements:'a list) =
 let insert () d = d
 
 
+let d_list (sep:string) (doit:unit -> 'a -> doc) () (elts:'a list) : doc =
+  (* thunk 'doit' to match docList's interface *)
+  let internalDoit (elt:'a) =
+    (doit () elt) in
+  (docList (text sep) internalDoit () elts)
+
+
 (******************************************************************************)	
 (* Some debugging stuff *)
 
