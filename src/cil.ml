@@ -910,10 +910,41 @@ let warnLoc (loc: location) (fmt : ('a,unit,doc) format) : 'a =
   in
   Pretty.gprintf f fmt
 
+(** A printer interface for CIL trees. Create instantiations of 
+ * this type by specializing the class {!Cil.defaultCilPrinter}. *)
+class type cilPrinter = object
+  method pvdec: varinfo -> doc
+    (** Invoked for each variable declaration. Note that variable 
+     * declarations are all the [GVar], [GDecl], [GFun], all the [varinfo] in 
+     * formals of function types, and the formals and locals for function 
+     * definitions. *)
 
-    (* A special location that we use to mark that a BinOp was created from 
-     * an index *)
-let luindex = { line = -1000; file = ""; }
+  method pvrbl: varinfo -> doc
+    (** Invoked on each variable use. *)
+
+  method plval: lval -> doc
+    (** Invoked on each lvalue occurence *)
+
+  method pinst: instr -> doc
+    (** Invoked on each instruction occurrence. *)
+
+  method pstmt: stmt -> doc
+    (** Control-flow statement. *)
+
+  method pglob: global -> doc                (** Global (vars, types, etc.) *)
+  method ptype: typ -> typ visitAction       (** Use of some type. Note that 
+                                              * for structure/union and 
+                                              * enumeration types the 
+                                              * definition of the composite 
+                                              * type is not visited. Use 
+                                              * [vglob] to visit it. *)
+  method pattr: attribute -> doc
+    (** Attribute.*)
+
+  method pattrlist: attributes -> doc
+    (** Attribute lists *)
+end
+
 
 
 let lastFileName = ref ""
