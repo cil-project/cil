@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <stdarg.h>
 int average( int first, ... );
+#pragma boxvararg("average", sizeof(union vararg_average))
+
 #include "testharness.h"
 
 int main( void )
@@ -24,7 +26,6 @@ union vararg_average {
   int ints;                   /* We only pass ints to this one */
 };
 
-#pragma boxvararg("average", sizeof(union vararg_average))
 
 /* Returns the average of a variable list of integers. */
 int average( int first, ... )

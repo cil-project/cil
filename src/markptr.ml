@@ -290,6 +290,89 @@ let rec signOf = function
   end
   | _ -> SAny
 
+(*********************** VARARG ********************************)
+
+(* Keep track for each function name whether it is a vararg, and the 
+ * alternatives, with a field name, a type and a type signature *)
+let varargs: (string, (string * typ * typsig) list) H.t = H.create 15
+
+(* Compute the signature of a type for comparing arguments *)
+let argumentTypeSig (t: typ) = 
+  let argumentPromotion (t : typ) : typ =
+    match unrollType t with
+      (* We assume that an IInt can hold even an IUShort *)
+      TInt ((IShort|IUShort|IChar|ISChar|IUChar), a) -> TInt(IInt, a)
+    | TInt _ -> t
+          (* Treat floats as compatible with integers *)
+    | TFloat (FFloat, a) -> TInt (IInt, a)
+    | TEnum (_, a) -> TInt(IInt, a)
+    | t -> t
+  in
+  (* Ignore all attributes *)
+  typeSigWithAttrs (fun x -> []) (argumentPromotion t)
+
+let prepareVararg (funname: string) (t: typ) : unit  = 
+  let kinds = 
+    match unrollType t with
+      TComp (ci, _) when not ci.cstruct -> 
+        List.map (fun fi -> fi.fname, fi.ftype, argumentTypeSig fi.ftype)
+          ci.cfields
+    | t' -> [("anon", t', argumentTypeSig t')]
+  in
+  (* Make sure that no two types are compatible *)
+  let _ = 
+    List.fold_left
+      (fun prev ((thisn, thist, thiss) as this) -> 
+        List.iter
+          (fun (pn, pt, ps) -> 
+            if thiss = ps then 
+              E.s (error "Vararg type %a has compatible fields %s and %s\n"
+                     d_type t pn thisn)) prev;
+        this :: prev)
+      []
+      kinds
+  in
+  ignore (E.log "Will treat %s as a vararg function\n" funname);
+  H.add varargs funname kinds
+
+
+(* Prepare the argument in a call to a vararg function *)
+let prepareVarargArguments
+    (func: exp) 
+    (args: exp list) : stmt list * exp list = 
+  match func with 
+    Lval(Var fvi, NoOffset) -> begin
+      try
+        let argkinds = H.find varargs fvi.vname in
+        let (_, indices, args') = 
+          List.fold_right
+            (fun a (arg_idx, indices, args) -> 
+              let t = typeOf a in
+              let ts = argumentTypeSig t in
+              (* Search for a compatible type in the kinds *)
+              let rec loop (idx: int) = function
+                  [] -> E.s (unimp "Argument %d does not match any expected type for vararg function %s" arg_idx fvi.vname)
+                | (kn, kt, ks) :: restk when ks = ts -> 
+                    (* We found a match *)
+                    idx, doCastT a t kt
+                | _ :: restk -> loop (idx + 1) restk
+              in
+              let k_idx, a' = loop 0 argkinds in
+              (arg_idx - 1, k_idx :: indices, a' :: args))
+            args
+            (List.length args, [], [])
+        in
+        ignore (E.log "Indices are: [%a]\n"
+                  (docList (chr ',') num) indices);
+        [], args'
+      with Not_found -> 
+        E.s (E.bug "Call to vararg function %s without a descriptor" 
+               fvi.vname)
+    end
+  | _ -> E.s (unimp "We do not handle pointers to varargs")
+        
+
+
 (* Do varinfo. We do the type and for all variables we also generate a node 
  * that will be used when we take the address of the variable (or if the 
  * variable contains an array) *)
@@ -874,12 +957,6 @@ and doInstr (i:instr) : instr =
             end else (* Not polymorphic *) orig_func, false
         | _ -> orig_func, false
       in
-      let isprintf = isPrintf reso func args in
-      let args' = 
-        match isprintf with
-          Some args'  -> args'
-        | None -> args
-      in
       (* Do the function as if we were to take its address *)
       let pfunc, pfunct, pfuncn = 
         match func with 
@@ -897,6 +974,15 @@ and doInstr (i:instr) : instr =
         match unrollType funct with
           TFun(rt, formals, isva, _) -> rt, formals, isva
         | _ -> E.s (bug "Call to a non-function")
+      in
+      let isprintf = isPrintf reso func args in
+      let args' = 
+        if isva then 
+          match isprintf with
+            Some args'  -> args'
+          | None -> let _, x = prepareVarargArguments func' args in x
+        else
+          args
       in
       (* If the function has more actual arguments than formals then mark the 
        * function node as used without prototype *)
@@ -1033,6 +1119,10 @@ let doGlobal (g: global) : global =
 
       | Attr("box", [AId("on")]) -> boxing := true
       | Attr("box", [AId("off")]) -> boxing := false
+
+      | Attr("boxvararg", [AStr s; ASizeOf t]) -> 
+          prepareVararg s t
+
       | _ -> ());
       g
     end
@@ -1125,6 +1215,7 @@ let markFile fl =
   H.clear allFunctions;
   H.clear boxModels;
   H.clear dontUnrollTypes;
+  H.clear varargs;
   instantiations := [];
   (* Some globals that are exported and must thus be considered part of the 
    * interface *)
@@ -1353,6 +1444,7 @@ let markFile fl =
   H.clear boxModels;
   H.clear allFunctions;
   H.clear dontUnrollTypes;
+  H.clear varargs;
   recursiveInstantiations := [];
   instantiations := [];
   newfile
