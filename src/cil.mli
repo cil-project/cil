@@ -1382,8 +1382,16 @@ val setCustomPrintAttribute:
 val setCustomPrintAttributeScope: 
     (attribute -> Pretty.doc option) -> ('a -> 'b) -> 'a -> 'b
 
-
+(** Use this to intercept all the pragmas when they are printed. Same 
+ * semantics as {!Cil.setCustomPrintAttribute} *)
+val setCustomPrintPragma: 
+    (attribute -> Pretty.doc option) -> unit
              
+(** Like {!Cil.setCustomPrintAttributeScope} but for pragmas *)
+val setCustomPrintPragmaScope: 
+    (attribute -> Pretty.doc option) -> ('a -> 'b) -> 'a -> 'b
+
+
 (******************
  ******************  VISITOR
  ******************)

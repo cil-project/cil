@@ -1595,6 +1595,26 @@ let setCustomPrintAttributeScope custom f =
     d_attrcustom := ocustom;
     res
 
+(* Print pragmas in a custom way *)
+let d_pragmacustom : (attribute -> Pretty.doc option) ref = 
+  ref (fun a -> None)
+
+let setCustomPrintPragma (pa: attribute -> doc option) : unit = 
+  d_pragmacustom := pa
+
+let setCustomPrintPragmaScope custom f = 
+  let ocustom = !d_pragmacustom in
+  let newPrint a = 
+    match custom a with
+      None -> ocustom a
+    | x -> x
+  in
+  d_pragmacustom := newPrint;
+  fun x -> 
+    let res = f x in
+    d_pragmacustom := ocustom;
+    res
+
 (* Make an statement that we'll use as an invalid statement during printing *)
 let invalidStmt = {dummyStmt with sid = -2}
 
@@ -3116,12 +3136,15 @@ let d_global () = function
 
   | GPragma (Attr(an, args), l) ->
       (* sm: suppress printing pragmas that gcc does not understand *)
+      (* Turn off suppressing because we use this printer to print merged 
+       * files which come before CCured *)
       (* assume anything starting with "box" is ours *)
       (* also don't print the 'combiner' pragma *)
       (* nor 'cilnoremove' *)
-      let suppress = (startsWith "box" an) ||
-                     (an = "combiner") ||
-                     (an = "cilnoremove") in
+      let suppress = false && 
+        ((startsWith "box" an) ||
+        (an = "merger") ||
+        (an = "cilnoremove")) in
       let d =
         if args = [] then
           text an

@@ -123,8 +123,8 @@ CCURED+= $(EXTRAARGS)
 ifdef NEWOPTIM
   CCURED += --optimize --newoptim
 endif
-ifdef CILMERGER
-  CCURED += --cilmerger
+ifdef CABSMERGER
+  CCURED += --cabsmerger
 endif
 ifneq ($(INFERBOX),none)
   MANUALBOX := 1

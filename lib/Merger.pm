@@ -51,11 +51,11 @@ BEGIN {
     } else {
         $Merger::combbase .= '/x86_LINUX';
     }
-    $Merger::combbase .= "/merger";
+    $Merger::combbase .= "/cilly";
     # Pick the most recent merger
     $Merger::mtime_asm = int((stat("$Merger::combbase.asm.exe"))[9]);
     $Merger::mtime_byte = int((stat("$Merger::combbase.byte.exe"))[9]);
-    $Merger::merger = 
+    $Merger::cilly = 
         $Merger::combbase . 
             ($Merger::mtime_asm >= $Merger::mtime_byte 
              ? ".asm.exe" : ".byte.exe");
@@ -81,8 +81,8 @@ sub collectOneArgument {
     if($arg =~ m|--trueobj|) {
         $self->{TRUEOBJ} = 1; return 1;
     }
-    if($arg eq "--cilmerger") {
-        $self->{CILMERGER} = 1;
+    if($arg eq "--cabsmerger") {
+        $self->{CABSMERGER} = 1;
         return 1;
     }
     if($arg eq "--bytecode") {
@@ -307,17 +307,19 @@ sub link {
     }
     # Now invoke the merger
     my $merged = $dest . $Merger::combext;
-    my $cmd = "$Merger::merger --out $merged ";
-    if($self->{CILMERGER}) {
-        $Merger::combbase =~ s|merger|cilly|g;
+    my $cmd;
+    if($self->{CABSMERGER}) {
+        $Merger::combbase =~ s|cilly|merger|g;
         # Pick the most recent merger
         $Merger::mtime_asm = int((stat("$Merger::combbase.asm.exe"))[9]);
         $Merger::mtime_byte = int((stat("$Merger::combbase.byte.exe"))[9]);
-        $Merger::merger = 
+        $Merger::cilly = 
             $Merger::combbase . 
                 ($Merger::mtime_asm >= $Merger::mtime_byte 
                  ? ".asm.exe" : ".byte.exe");
-        $cmd = "$Merger::merger --out $merged --merge ";
+        $cmd = "$Merger::cilly --out $merged --merge ";
+    } else {
+        $cmd = "$Merger::cilly --merge --out $merged "
     }
     if($self->{MODENAME} eq "MSVC") {
         $cmd .= " --MSVC ";

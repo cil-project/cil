@@ -96,7 +96,7 @@ let defineVariable vi =
 let checkVariable vi = 
   try
     if vi != H.find varIdsEnv vi.vid then
-      ignore (warn "varinfos for %s not shared\n" vi.vname);
+      ignore (warnContext "varinfos for %s not shared\n" vi.vname);
   with Not_found -> 
     ignore (warn "Unknown id (%d) for %s\n" vi.vid vi.vname)
 
@@ -150,17 +150,21 @@ let d_context () = function
   | CTSizeof -> text "CTSizeof"
   | CTDecl -> text "CTDecl"
 
-let compInfoNameEnv : (string, unit) H.t = H.create 17
-let compInfoIdEnv : (int, compinfo) H.t = H.create 117
 
-(* Keep track of all tags that we use. *)
-let compForwards : (int, compinfo) H.t = H.create 117
-let enumForwards : (string, enuminfo) H.t = H.create 117
-(* Keep track of all tags that we define *)
-let compDefined : (int, compinfo) H.t = H.create 117
-let enumDefined : (string, enuminfo) H.t = H.create 117
+(* Keep track of all tags that we use. For each tag remember also the info 
+ * structure and a flag whether it was actually defined or just used. A 
+ * forward declaration acts as a definition. *)
+type defuse = 
+    Defined (* We actually have seen a definition of this tag *)
+  | Forward (* We have seen a forward declaration for it. This is done using 
+             * a GType with an empty type name *)
+  | Used    (* Only uses *)
+let compUsed : (int, compinfo * defuse ref) H.t = H.create 117
+let enumUsed : (string, enuminfo * defuse ref) H.t = H.create 117
 
  
+(* For composite types we also check that the names are unique *)
+let compNames : (string, unit) H.t = H.create 17
     
 
   (* Check a type *)
@@ -196,16 +200,16 @@ let rec checkType (t: typ) (ctx: ctxType) =
         ignore (warn "Named type %s is undefined\n" n));
       checkAttributes a
 
-  | TComp (comp, a) -> (* A forward reference *)
+  | TComp (comp, a) ->
       checkAttributes a;
       (* Mark it as a forward. We'll check it later. If we try to check it 
        * now we might encounter undefined types *)
-      H.add compForwards comp.ckey comp
+      checkCompInfo Used comp
 
 
   | TEnum (enum, a) -> begin
       checkAttributes a;
-      H.add enumForwards enum.ename enum
+      checkEnumInfo Used enum
   end
 
   | TArray(bt, len, a) -> 
@@ -273,26 +277,34 @@ and typeMatch (t1: typ) (t2: typ) =
     | _, _ -> ignore (warn "Type mismatch:@!    %a@!and %a@!" 
                         d_type t1 d_type t2)
 
-and checkCompInfo comp = 
-  (* Check if we have seen it already *)
+and checkCompInfo (isadef: defuse) comp = 
   let fullname = compFullName comp in
   try
-    let oldci = H.find compInfoIdEnv comp.ckey in
-    if oldci != comp then
-      ignore (warn "Compinfo for %s is not shared" fullname)
-  with Not_found -> begin
+    let oldci, olddef = H.find compUsed comp.ckey in
+    (* Check that it is the same *)
+    if oldci != comp then 
+      ignore (warnContext "compinfo for %s not shared\n" fullname);
+    (match !olddef, isadef with 
+    | Defined, Defined -> 
+        ignore (warnContext "Multiple definition of %s\n" fullname)
+    | _, Defined -> olddef := Defined
+    | Defined, _ -> ()
+    | _, Forward -> olddef := Forward
+    | _, _ -> ())
+  with Not_found -> begin (* This is the first time we see it *)
     (* Check that the name is not empty *)
     if comp.cname = "" then 
       E.s (bug "Compinfo with empty name");
     (* Check that the name is unique *)
-    if H.mem compInfoNameEnv fullname then
+    if H.mem compNames fullname then
       ignore (warn "Duplicate name %s" fullname);
     (* Check that the ckey is correct *)
     if comp.ckey <> H.hash fullname then
       ignore (warn "Invalid ckey for compinfo %s" fullname);
     (* Add it to the map before we go on *)
-    H.add compInfoNameEnv fullname ();
-    H.add compInfoIdEnv comp.ckey comp;
+    H.add compUsed comp.ckey (comp, ref isadef);
+    H.add compNames fullname ();
+    checkAttributes comp.cattr;
     let fctx = if comp.cstruct then CTStruct else CTUnion in
     let rec checkField f =
       if not 
@@ -315,7 +327,29 @@ and checkCompInfo comp =
     in
     List.iter checkField comp.cfields
   end
-    
+
+
+and checkEnumInfo (isadef: defuse) enum = 
+  if enum.ename = "" then 
+    E.s (bug "Enuminfo with empty name");
+  try
+    let oldei, olddef = H.find enumUsed enum.ename in
+    (* Check that it is the same *)
+    if oldei != enum then 
+      ignore (warnContext "enuminfo for %s not shared\n" enum.ename);
+    (match !olddef, isadef with 
+      Defined, Defined -> 
+        ignore (warnContext "Multiple definition of enum %s\n" enum.ename)
+    | _, Defined -> olddef := Defined
+    | Defined, _ -> ()
+    | _, Forward -> olddef := Forward
+    | _, _ -> ())
+  with Not_found -> begin (* This is the first time we see it *)
+    (* Add it to the map before we go on *)
+    H.add enumUsed enum.ename (enum, ref isadef);
+    checkAttributes enum.eattr;
+    List.iter (fun (tn, _) -> defineName tn) enum.eitems;
+  end
 
 (* Check an lvalue. If isconst then the lvalue appears in a context where 
  * only a compile-time constant can appear. Return the type of the lvalue. 
@@ -349,11 +383,8 @@ and checkOffset basetyp : offset -> typ = function
       end
 
   | Field (fi, o) -> 
-      (* Make sure we have seen the type of the host *)
-      if not (H.mem compInfoIdEnv fi.fcomp.ckey) then
-        ignore (warn "The host of field %s is not defined" fi.fname);
       (* Now check that the host is shared propertly *)
-      checkCompInfo fi.fcomp;
+      checkCompInfo Used fi.fcomp;
       (* Check that this exact field is part of the host *)
       if not (List.exists (fun f -> f == fi) fi.fcomp.cfields) then
         ignore (warn "Field %s not part of %s" 
@@ -704,28 +735,21 @@ let rec checkGlobal = function
             defineName n;
             H.add typeDefs n t
           end else begin
+            (* We can have forward declarations for compinfo and enuminfo *)
             match unrollType t with
-              TComp _ -> ()
+              TComp (ci, _) -> checkCompInfo Forward ci
+            | TEnum (ei, _) -> checkEnumInfo Forward ei
             | _ -> E.s (bug "Empty type name for type %a" d_type t)
           end)
         ()
 
   | GCompTag (comp, l) -> 
       currentLoc := l;
-      checkCompInfo comp;
-      (* Mark it as a definition. We'll use this later to check the forwards *)
-      if H.mem compDefined comp.ckey then 
-        ignore (E.log "%s is multiply defined\n" (compFullName comp));
-      H.add compDefined comp.ckey comp;
+      checkCompInfo Defined comp;
 
   | GEnumTag (enum, l) -> 
       currentLoc := l;
-      if enum.ename = "" then
-        E.s (bug "Enum with empty tag");
-      if H.mem enumDefined enum.ename then 
-        ignore (E.log "enum %s is multiply defined\n" enum.ename);
-      (* Add it to the enumTags *)
-      List.iter (fun (tn, _) -> defineName tn) enum.eitems
+      checkEnumInfo Defined enum
 
   | GDecl (vi, l) -> 
       currentLoc := l;
@@ -779,7 +803,8 @@ let rec checkGlobal = function
               [], [] -> ()
             | ta :: targs, fo :: formals -> 
                 if ta != fo then 
-                  ignore (warn "Formal %s not shared (type + locals) in %s" 
+                  ignore (warnContext 
+                            "Formal %s not shared (type + locals) in %s" 
                          fo.vname fname);
                 loopArgs targs formals
 
@@ -804,7 +829,8 @@ let rec checkGlobal = function
               if not 
                   (v.vid >= 0 && v.vid <= fd.smaxid && not v.vglob &&
                    v.vstorage <> Extern) then
-                E.s (bug "Invalid local %s in %s" v.vname fname);
+                E.s (bug "Invalid local vid = %d for %s in %s" 
+                       vi.vid v.vname fname);
               checkType v.vtype tctx;
               checkAttributes v.vattr;
               defineVariable v
@@ -832,41 +858,25 @@ let checkFile flags fl =
     flags;
   iterGlobals fl (fun g -> try checkGlobal g with _ -> ());
   (* Check that for all struct/union tags there is a definition *)
-  (try
-    H.iter 
-      (fun k comp -> 
-        try
-          let cdef = H.find compDefined k in
-          if cdef != comp then 
-            ignore (warn "Compinfo for %s not shared (forwards)"
-                      (compFullName comp))
-        with Not_found -> 
-          ignore (warn "Compinfo %s is referenced but not defined" 
-                    (compFullName comp))) 
-      compForwards
-  with _ -> ());
+  H.iter 
+    (fun k (comp, isadef) -> 
+      if !isadef = Used then 
+        ignore (E.warn "Compinfo %s is referenced but not defined" 
+                  (compFullName comp))) 
+    compUsed;
   (* Check that for all enum tags there is a definition *)
-  (try
-    H.iter 
-      (fun k enum -> 
-        try
-          let edef = H.find enumDefined k in
-          if edef != enum then 
-            ignore (warn "Enuminfo for %s not shared (forwards)" k)
-        with Not_found -> 
-          ignore (warn "Enuminfo %s is referenced but not defined" k))
-      enumForwards
-  with _ -> ());
+  H.iter 
+    (fun k (enum, isadef) -> 
+      if !isadef = Used then 
+        ignore (E.warn "Enuminfo %s is referenced but not defined" enum.ename))
+    enumUsed;
   (* Clean the hashes to let the GC do its job *)
   H.clear typeDefs;
   H.clear varNamesEnv;
   H.clear varIdsEnv;
-  H.clear compInfoNameEnv;
-  H.clear compInfoIdEnv;
-  H.clear compForwards;
-  H.clear compDefined;
-  H.clear enumForwards;
-  H.clear enumDefined;
+  H.clear compNames;
+  H.clear compUsed;
+  H.clear enumUsed;
   varNamesList := [];
   if !E.verboseFlag then 
     ignore (E.log "Finished checking file %s\n" fl.fileName);

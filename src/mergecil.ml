@@ -528,6 +528,25 @@ class renameVisitorClass = object (self)
     end 
         
     | _ -> DoChildren
+
+  (* The Field offset might need to be changed to use new compinfo *)
+  method voffs = function
+      Field (f, o) -> begin
+        (* See if the compinfo was changed *)
+        let eqH = if f.fcomp.cstruct then sEq else uEq in
+        match findReplacement true eqH !currentFidx f.fcomp.cname with
+          None -> DoChildren (* We did not replace it *)
+        | Some ci' -> begin
+            try
+              let f' = 
+                List.find (fun fld -> fld.fname = f.fname) ci'.cfields in
+              ChangeDoChildrenPost (Field (f', o), fun x -> x)
+            with Not_found -> 
+              E.s (bug "Cannot find field %s in replacement for %s(%d)\n"
+                     f.fname (compFullName f.fcomp) !currentFidx)
+        end
+      end
+    | _ -> DoChildren
 end
 
 let renameVisitor = new renameVisitorClass
