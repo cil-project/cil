@@ -137,10 +137,15 @@ let rec doType (t: typ) (p: N.place)
         
     (* Strip the type names so that we have less sharing of nodes. However, 
      * we do not need to do it if the named type is a structure, and we get 
-     * nicer looking programs *)
+     * nicer looking programs. We also don't do it for base types *)
   | TNamed (n, bt, a) -> 
-      let iscomp = match bt with TComp (_, comp, _) -> true | _ -> false in
-      if iscomp then
+      let mustunroll = 
+        match bt with 
+        | TPtr _ -> true
+        | TArray _ -> true
+        | _ -> false
+      in
+      if not mustunroll then
         let t', _ = doType bt (N.PType n) 0 in
         TNamed (n, t', a), nextidx
       else
