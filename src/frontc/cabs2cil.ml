@@ -902,6 +902,14 @@ let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
         | TSFun(_, [], va1, _), TSFun(r2, _ :: _, va2, a2)
                when va1 = va2 -> oldvi.vtype <- vi.vtype
         | TSFun(r1, _ , va1, _), TSFun(_, [], va2, a2) when va1 = va2 -> ()
+         (* Otherwise maybe the attributes are different. Keep the union of 
+          * the attributes *)
+        | _, _ 
+              when setTypeSigAttrs [] oldts = 
+                   setTypeSigAttrs [] newts -> 
+           let olda = typeSigAttrs oldts in
+           let newa = typeSigAttrs newts in
+           oldvi.vtype <- setTypeAttrs oldvi.vtype (addAttributes olda newa)
         | _, _ -> 
             E.s (error "Declaration of %s does not match previous declaration from %a." vi.vname d_loc oldloc)
     in
@@ -1415,10 +1423,6 @@ and makeCompType (iss: bool)
   end else 
     comp.cfields <- flds;
 
-      (* Drop volatile from struct
-  let a = dropAttribute a (AId("volatile")) in
-  let a = dropAttribute a (AId("const")) in
-  let a = dropAttribute a (AId("restrict")) in  *)
   comp.cattr <- a;
   let toplevel_typedef = false in
   let res = TComp (comp, []) in
@@ -2227,16 +2231,38 @@ and doExp (isconst: bool)    (* In a constant *)
         finishExp (doCondition e1 se2 se3) (integer 0) intType
           
     | A.QUESTION (e1, e2, e3) -> begin (* what is not ADrop *)
-                    (* Do these only to collect the types  *)
+        (* Do these only to collect the types  *)
         let se2, e2', t2' = 
           match e2 with 
             A.NOTHING -> (* A GNU thing. Use e1 as e2 *) 
               doExp isconst e1 (AExp None)
           | _ -> doExp isconst e2 (AExp None) in 
+        (* Do e3 for real *)
         let se3, e3', t3' = doExp isconst e3 (AExp None) in
+        (* Compute the type of the result *)
         let tresult = conditionalConversion e2' t2' e3' t3' in
-        match e2 with 
-          A.NOTHING -> 
+        if     (isEmpty se2 || e2 = A.NOTHING) 
+            && isEmpty se3 && isconst then begin 
+          (* Use the Question. This allows Question in initializers without 
+          * having to do constant folding  *)
+          let se1, e1', t1 = doExp isconst e1 (AExp None) in
+          ignore (checkBool t1 e1');
+          let e2'' = 
+            if e2 = A.NOTHING then 
+              doCastT e1' t1 tresult 
+            else doCastT e2' t2' tresult (* We know se2 is empty *)
+          in
+          let e3'' = doCastT e3' t3' tresult in
+          let resexp = 
+            match e1' with
+              Const(CInt32(i, _, _)) when i <> Int32.zero -> e2''
+            | Const(CInt32(z, _, _)) when z = Int32.zero -> e3''
+            | _ -> Question(e1', e2'', e3'')
+          in
+          finishExp se1 resexp tresult
+        end else begin (* Now use a conditional *)
+          match e2 with 
+            A.NOTHING -> 
               let tmp = var (newTempVar tresult) in
               let (se1, _, _) = doExp isconst e1 (ASet(tmp, tresult)) in
               let (se3, _, _) = doExp isconst e3 (ASet(tmp, tresult)) in
@@ -2244,21 +2270,7 @@ and doExp (isconst: bool)    (* In a constant *)
                                   skipChunk se3)
                 (Lval(tmp))
                 tresult
-        | _ -> 
-            if isEmpty se2 && isEmpty se3 && isconst then begin 
-                                       (* Use the Question *)
-              let se1, e1', t1 = doExp isconst e1 (AExp None) in
-              ignore (checkBool t1 e1');
-              let e2'' = doCastT e2' t2' tresult in
-              let e3'' = doCastT e3' t3' tresult in
-              let resexp = 
-                match e1' with
-                  Const(CInt32(i, _, _)) when i <> Int32.zero -> e2''
-                | Const(CInt32(z, _, _)) when z = Int32.zero -> e3''
-                | _ -> Question(e1', e2'', e3'')
-              in
-              finishExp se1 resexp tresult
-            end else (* Use a conditional *)
+          | _ -> 
               let lv, lvt = 
                 match what with
                 | ASet (lv, lvt) -> lv, lvt
@@ -2270,6 +2282,7 @@ and doExp (isconst: bool)    (* In a constant *)
               let (se2, _, _) = doExp isconst e2 (ASet(lv, lvt)) in
               let (se3, _, _) = doExp isconst e3 (ASet(lv, lvt)) in
               finishExp (doCondition e1 se2 se3) (Lval(lv)) tresult
+        end
     end
 
     | A.GNU_BODY ((_, _, bstmts) as b) -> begin

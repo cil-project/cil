@@ -127,7 +127,8 @@ $TEST->add3Tests("test/huff1");
   $TEST->addBadComment("test/huff1-box", "pragma box misuse");
   $TEST->addBadComment("test/huff1-inferbox", "pragma box misuse");
 $TEST->add3Tests("testrun/init");
-$TEST->add3Tests("testrun/init");
+$TEST->add3Tests("testrun/init1");
+$TEST->add1Tests("testrun/init2", "_GNUCC=1");
 $TEST->add3Tests("test/initial", "_GNUCC=1");
 $TEST->add3Tests("test/jmp_buf");
 $TEST->add3Tests("test/linux_atomic", "_GNUCC=1");
@@ -165,6 +166,7 @@ $TEST->add3Tests("testrun/label3");
 $TEST->add3Tests("testrun/addrof", "MANUALBOX=1");
 $TEST->add3Tests("testrun/addrof2", "MANUALBOX=1");
 $TEST->add3Tests("testrun/lval1", "_GNUCC=1");
+$TEST->add1Tests("testrun/decl1", "_GNUCC=1");
 $TEST->add3Tests("wes-hashtest", "", @runpattern);
 $TEST->add3Tests("wes-rbtest", "", @runpattern);
 $TEST->add1Test("test/alloc-manualinferbox",

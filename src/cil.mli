@@ -905,7 +905,12 @@ type typsig =
 (* Compute a type signature *)
 val typeSig: typ -> typsig
 (* Like typeSig but customize the incorporation of attributes *)
-val typeSigAttrs: (attribute list -> attribute list) -> typ -> typsig
+val typeSigWithAttrs: (attribute list -> attribute list) -> typ -> typsig
+
+(* Replace the attributes of a signature (only at top level) *)
+val setTypeSigAttrs: attribute list -> typsig -> typsig 
+(* Get the top-level attributes of a signature *)
+val typeSigAttrs: typsig -> attribute list
 
 (* Construct a cast *)
 val doCastT: e:exp -> oldt:typ -> newt:typ -> exp

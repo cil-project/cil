@@ -3,7 +3,7 @@ extern void printf(char *, ...);
 
 // from linux sources
 int tickadj1 = 500/ 100  ? : 1;
-int tickadr2 = 0 / 100 ? : 1;
+int tickadj2 = 0 / 100 ? : 1;
 
 int main() {
   if(tickadj1 != 5) E(1);

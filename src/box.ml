@@ -994,7 +994,7 @@ let ignorePtrNode al =
         if rest' == rest then al else a :: rest'
   in
   loop al
-let typeSigBox t = typeSigAttrs ignorePtrNode t
+let typeSigBox t = typeSigWithAttrs ignorePtrNode t
 
 (***** Pointer arithemtic *******)
 let checkPositiveFun = 

@@ -1583,32 +1583,6 @@ and d_instr () i =
                 ++ unalign)
           ++ text "};"
       else
-(*
-        dprintf "\n%s@!__asm__ %s(@[%a%a%a%a@]);@!" (printLine l)
-          (if isvol then "__volatile__" else "")
-          (docList line
-             (fun x -> text ("\"" ^ escape_string x ^ "\""))) tmpls
-          insert
-          (if outs = [] && ins = [] && clobs = [] then
-            nil
-          else
-            dprintf ": %a" (docList (chr ',' ++ break)
-                              (fun (c, lv) -> dprintf "\"%s\" (%a)"
-                                  (escape_string c) d_lval lv)) outs)
-          insert
-          (if ins = [] && clobs = [] then
-            nil
-          else
-            dprintf ": %a" (docList (chr ',' ++ break)
-                              (fun (c, e) -> dprintf "\"%s\" (%a)"
-                                  (escape_string c) d_exp e)) ins)
-          insert
-          (if clobs = [] then nil
-          else
-            dprintf ": %a" (docList (chr ',' ++ break)
-                              (fun x -> dprintf "\"%s\"" (escape_string x)))
-              clobs)
-*)
         d_line l
           ++ text ("__asm__ " ^
                    (if isvol then "__volatile__(" else "("))
@@ -2753,8 +2727,8 @@ type typsig =
   | TSBase of typ
 
 (* Compute a type signature *)
-let rec typeSigAttrs doattr t = 
-  let typeSig = typeSigAttrs doattr in
+let rec typeSigWithAttrs doattr t = 
+  let typeSig = typeSigWithAttrs doattr in
   match t with 
   | (TInt _ | TFloat _ | TBitfield _ | TVoid _) -> TSBase t
   | TEnum (enum, a) -> TSEnum (enum.ename, doattr a)
@@ -2779,7 +2753,25 @@ and typeSigAddAttrs a0 t =
   | TSFun(ts, tsargs, isva, a) -> TSFun(ts, tsargs, isva, addAttributes a0 a)
 
 
-let typeSig t = typeSigAttrs (fun al -> al) t
+let typeSig t = typeSigWithAttrs (fun al -> al) t
+
+(* Remove the attribute from the top-level of the type signature *)
+let setTypeSigAttrs (a: attribute list) = function
+    TSBase t -> TSBase (setTypeAttrs t a)
+  | TSPtr (ts, _) -> TSPtr (ts, a)
+  | TSArray (ts, l, _) -> TSArray(ts, l, a)
+  | TSComp (iss, n, _) -> TSComp (iss, n, a)
+  | TSEnum (n, _) -> TSEnum (n, a)
+  | TSFun (ts, tsargs, isva, _) -> TSFun (ts, tsargs, isva, a)
+
+
+let typeSigAttrs = function
+    TSBase t -> typeAttrs t
+  | TSPtr (ts, a) -> a
+  | TSArray (ts, l, a) -> a
+  | TSComp (iss, n, a) -> a
+  | TSEnum (n, a) -> a
+  | TSFun (ts, tsargs, isva, a) -> a
 
 
 let rec doCastT (e: exp) (oldt: typ) (newt: typ) = 
