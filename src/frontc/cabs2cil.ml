@@ -45,7 +45,8 @@ open Trace
 
 let debugGlobal = false
 
-
+(* Leave a certain global alone. Use a negative number to disable. *)
+let nocil: int ref = ref (-1)
 
 (* ---------- source error message handling ------------- *)
 let lu = locUnknown
@@ -4882,10 +4883,44 @@ let convFile fname dl =
     fdec.svar.vtype <- TFun(intType, Some [ argp ], false, []);
     alphaConvertVarAndAddToEnv true fdec.svar
   in
+  let globalidx = ref 0 in
   let doOneGlobal (d: A.definition) = 
     let s = doDecl true d in
     if isNotEmpty s then 
-      E.s (bug "doDecl returns non-empty statement for global")
+      E.s (bug "doDecl returns non-empty statement for global");
+    (* See if this is one of the globals which we can leave alone. Increment 
+     * globalidx and see if we must leave this alone. *)
+    if 
+      (match d with 
+        A.DECDEF _ -> true
+      | A.FUNDEF _ -> true
+      | _ -> false) && (incr globalidx; !globalidx = !nocil) then begin
+          (* Create a file where we put the CABS output *)
+          let temp_cabs_name = "__temp_cabs" in
+          let temp_cabs = open_out temp_cabs_name in
+          (* Now print the CABS in there *)
+          Cprint.commit (); Cprint.flush ();
+          let old = !Cprint.out in (* Save the old output channel *)
+          Cprint.out := temp_cabs;
+          Cprint.print_def d;
+          Cprint.commit (); Cprint.flush ();
+          flush !Cprint.out;
+          Cprint.out := old;
+          close_out temp_cabs;
+          (* Now read everythign in *and create a GText from it *)
+          let temp_cabs = open_in temp_cabs_name in
+          let buff = Buffer.create 1024 in
+          Buffer.add_string buff "// Start of CABS form\n";
+          Buffer.add_channel buff temp_cabs (in_channel_length temp_cabs);
+          Buffer.add_string buff "// End of CABS form\n";
+          close_in temp_cabs;
+          (* Try to pop the last thing in the file *)
+          (match !theFile with 
+            _ :: rest -> theFile := rest
+          | _ -> ());
+          (* Insert in the file a GText *)
+          pushGlobal (GText(Buffer.contents buff))
+    end 
   in
   List.iter doOneGlobal dl;
   let globals = ref (popGlobals ()) in
@@ -4906,6 +4941,7 @@ let convFile fname dl =
   H.clear alreadyDefined;
   H.clear compInfoNameEnv;
   H.clear enumInfoNameEnv;
+  ignore (E.log "Cabs2cil converted %d globals\n" !globalidx);
   (* We are done *)
   { fileName = fname;
     globals  = !globals;

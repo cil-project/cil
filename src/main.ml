@@ -138,6 +138,8 @@ let rec theMain () =
                       "<xxx> turns off debugging flag xxx";
     "--testcil", Arg.String (fun s -> testcil := s), 
           "test CIL using the give compiler";
+    "--nocil", Arg.Int (fun n -> Cabs2cil.nocil := n),
+                      "Do not compile to CIL the global with the given index"; 
     "--log", Arg.String openLog, "the name of the log file";
     "--out", Arg.String outFile, "the name of the output CIL file";
 

@@ -1699,6 +1699,9 @@ endif
 ifdef USECABS
   CILLY+= --usecabs
 endif
+ifdef NOCIL
+  CILLY+= --nocil=$(NOCIL)
+endif
 
 linuxclean: 
 	cd $(LINUXSRC); make clean
