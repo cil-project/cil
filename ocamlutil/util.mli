@@ -24,6 +24,7 @@ val get_some_option_list : 'a option list -> 'a list
 
 (** Iterate over a list passing the index as you go *)
 val list_iteri: (int -> 'a -> unit) -> 'a list -> unit
+val list_mapi: (int -> 'a -> 'b) -> 'a list -> 'b list
 
 (** Like fold_left but pass the index into the list as well *)
 val list_fold_lefti: ('acc -> int -> 'a -> 'acc) -> 'acc -> 'a list -> 'acc

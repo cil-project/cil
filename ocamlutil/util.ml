@@ -113,6 +113,14 @@ let list_iteri (f: int -> 'a -> unit) (l: 'a list) : unit =
   in
   loop 0 l
 
+let list_mapi (f: int -> 'a -> 'b) (l: 'a list) : 'b list = 
+  let rec loop (i: int) (l: 'a list) : 'b list = 
+    match l with 
+      [] -> []
+    | h :: t -> f i h :: loop (i + 1) t
+  in
+  loop 0 l
+
 let list_fold_lefti (f: 'acc -> int -> 'a -> 'acc) (start: 'acc) 
                    (l: 'a list) : 'acc = 
   let rec loop (i, acc) l = 
