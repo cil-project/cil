@@ -264,6 +264,7 @@ odoc:
 	-rm -rf doc/html/cil/api
 	-mkdir doc/html/cil/api
 	-mkdir doc/html/cil/api-latex
+	-rm -f doc/ocamldoc.sty
 	ocamldoc -d doc/html/cil/api -v -stars \
              -html \
              -t "CIL API Documentation (version @CIL_VERSION@)" \

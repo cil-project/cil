@@ -256,7 +256,7 @@ part of our own regression suite you need to do the following:
 \begin{itemize}
 \item Download the CCured regression suite from the
 \ahref{distrib}{distribution} directory. The latest version is
-\ahrefurl{distrib/ccured-tests-\ccuredversion.tar.gz}.
+\ahrefurl{../ccured/distrib/ccured-tests-\ccuredversion.tar.gz}.
 \item Unpack that file in the \t{cil} (you must end up with \t{cil/test}).
 \item Run \t{./configure} to create the file \t{cil/test/Makefile}
 \item Re-run \t{make}
@@ -2718,9 +2718,14 @@ Necula}.
  
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf August 7, 2004}: {\bf Released version 1.3.1}
 \item {\bf August 4, 2004}: Fixed a bug in splitting of structs using 
   \t{--dosimplify}
-\item {\bf July 28, 2004}: Ocaml version 3.08 is required.
+\item {\bf July 29, 2004}: Minor changes to the type typeSig (type signatures)
+  to ensure that they do not contain types, so that you can do structural
+  comparison without danger of nontermination. 
+\item {\bf July 28, 2004}: Ocaml version 3.08 is required. Numerous small 
+  changes while porting to Ocaml 3.08. 
 \item {\bf July 7, 2004}: {\bf Released version 1.2.6}
 \item {\bf July 2, 2004}:  Character constants such as \t{'c'} should
   have type \t{int}, not \t{char}.  Added a utility function
