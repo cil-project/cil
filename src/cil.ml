@@ -3410,7 +3410,7 @@ and visitCilInstr (vis: cilVisitor) (i: instr) : instr list =
   let oldloc = !currentLoc in
   currentLoc := (get_instrLoc i);
   if vis#unqueueInstr () <> [] then 
-    ignore (warn "visitCilInstr: loosing some accumInstr\n");
+    ignore (warn "visitCilInstr: losing some accumInstr\n");
   let res = doVisitList vis vis#vinst childrenInstr i in
   currentLoc := oldloc;
   (* See if we have accumulated some instructions *)
