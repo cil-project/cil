@@ -296,7 +296,9 @@ and exp =
   | CastE      of typ * exp            (* Use doCast to make casts *)
 
   | AddrOf     of lval                 (* Always use mkAddrOf to construct
-                                         * one of these *)
+                                        * one of these. Apply to an lv of 
+                                        * type T yields an expression of type 
+                                        * Ptr(T) *)
 
   | StartOf    of lval                  (* There is no C correspondent for
                                          * this. C has implicit coercions
@@ -307,8 +309,11 @@ and exp =
                                          * CIL to simplify type checking and
                                          * is just an explicit form of the
                                          * above mentioned implicit
-                                         * convertions. You can use mkAddrOf
-                                         * to construct one of these *)
+                                         * convertions. Given an lval or type 
+                                         * Fun... produces an expression of 
+                                         * type TPtr(Fun ...), and given an 
+                                         * lval of type TArray(T) produces an 
+                                         * expression of type TPtr(T). *)
 
 (* Initializers for global variables *)
 and init = 
@@ -664,13 +669,17 @@ type existsAction =
 val existsType: (typ -> existsAction) -> typ -> bool
 
 val var: varinfo -> lval
-val mkAddrOf: lval -> exp               (* Works for both arrays (in which 
-                                         * case it construct a StartOf) and 
-                                         * for scalars. *)
+
+  (* Make an AddrOf (or a StartOf for a function). Given an lval of type T 
+   * will give back an expression of type ptr(T) *)
+val mkAddrOf: lval -> exp               
+
+
   (* Make a Mem, while optimizing AddrOf. The type of the addr must be 
    * TPtr(t) and the type of the resulting lval is t. Note that in CIL the 
-   * implicit conversion between a function and a pointer to a function does 
-   * not apply. You must do the conversion yourself using StartOf *)
+   * implicit conversion between a function and a pointer to a function (or 
+   * an array and the pointer to the first element) does not apply. You must 
+   * do the conversion yourself using StartOf  *)
 val mkMem: addr:exp -> off:offset -> lval
 
 

@@ -375,6 +375,13 @@ let mkAddrOfAndMark ((b, off) as lval) : exp =
   | _ -> ());
   mkAddrOf lval
   
+let mkStartOfAndMark ((b, off) as lval) : exp = 
+  (* Mark the vaddrof flag if b is a variable *)
+  (match b with 
+    Var vi -> vi.vaddrof <- true
+  | _ -> ());
+  StartOf lval
+  
 
 
    (* Keep a set of self compinfo for composite types *)
@@ -1548,7 +1555,7 @@ and doExp (isconst: bool)    (* In a constant *)
    * essentially doExp should never return things of type TFun or TArray *)
   let processStartOf e t = 
     match e, unrollType t with
-      Lval(lv), TArray(tbase, _, a) -> mkAddrOfAndMark lv, TPtr(tbase, a)
+      Lval(lv), TArray(tbase, _, a) -> mkStartOfAndMark lv, TPtr(tbase, a)
     | Lval(lv), TFun _  -> mkAddrOfAndMark lv, TPtr(t, [])
     | _, (TArray _ | TFun _) -> 
         E.s (error "Array or function expression is not lval: %a@!"
@@ -1963,7 +1970,7 @@ and doExp (isconst: bool)    (* In a constant *)
 *)
             | StartOf (lv) -> (* !!! is this correct ? *)
                 let tres = TPtr(typeOfLval lv, []) in
-                finishExp se (mkAddrOfAndMark lv) tres
+                finishExp se (mkStartOfAndMark lv) tres
                   
                   
             | _ -> E.s (error "Expected lval for ADDROF. Got %a@!"
