@@ -707,8 +707,8 @@ let rec oneFilePass1 (f:file) : unit =
             oldvinode.nfidx oldvi.vtype  
             !currentFidx vi.vtype;
         with (Failure reason) -> begin
-          ignore (warn "Incompatible declaration for %s. Previous was at %a %s" 
-                    vi.vname d_loc oldloc reason);
+          ignore (warn "Incompatible declaration for %s (%d). Previous was at %a (%d) %s " 
+                    vi.vname !currentFidx d_loc oldloc oldvinode.nfidx reason);
           raise Not_found
         end
       in
