@@ -66,7 +66,7 @@ let mergeInlinesWithAlphaConvert = mergeInlines && true
 (* when true, merge duplicate definitions of externally-visible functions;
  * this uses a mechanism which is faster than the one for inline functions,
  * but only probabilistically accurate *)
-let mergeGlobalFuncs = true
+let mergeGlobals = true
 
 
 (* Return true if 's' starts with the prefix 'p' *)
@@ -302,6 +302,8 @@ let emittedVarDecls: (string, bool) H.t = H.create 113
 (* also keep track of externally-visible function definitions;
  * name maps to declaration, location, and semantic checksum *)
 let emittedFunDefn: (string, fundec * location * int) H.t = H.create 113
+(* and same for variable definitions; name maps to GVar fields *)
+let emittedVarDefn: (string, varinfo * init option * location) H.t = H.create 113
 
 (* Initialize the module *)
 let init () = 
@@ -334,31 +336,34 @@ let init () =
   currentDeclIdx := 0;
 
   H.clear emittedVarDecls;
-  H.clear emittedCompDecls
+  H.clear emittedCompDecls;
+  
+  H.clear emittedFunDefn;
+  H.clear emittedVarDefn
 
 
-(* Some enumerations have to be turned into an integer. We implement this by 
- * introducing a special enumeration type which we'll recognize later to be 
+(* Some enumerations have to be turned into an integer. We implement this by
+ * introducing a special enumeration type which we'll recognize later to be
  * an integer *)
-let intEnumInfo = 
+let intEnumInfo =
   { ename = "!!!intEnumInfo!!!"; (* This is otherwise invalid *)
     eitems = [];
     eattr = [];
     ereferenced = false;
   }
 (* And add it to the equivalence graph *)
-let intEnumInfoNode = 
-  getNode eEq eSyn 0 intEnumInfo.ename intEnumInfo 
+let intEnumInfoNode =
+  getNode eEq eSyn 0 intEnumInfo.ename intEnumInfo
                      (Some (locUnknown, 0))
 
-    (* Combine the types. Raises the Failure exception with an error message. 
+    (* Combine the types. Raises the Failure exception with an error message.
      * isdef says whether the new type is for a definition *)
-type combineWhat = 
-    CombineFundef (* The new definition is for a function definition. The old 
+type combineWhat =
+    CombineFundef (* The new definition is for a function definition. The old
                    * is for a prototype *)
-  | CombineFunarg (* Comparing a function argument type with an old prototype 
+  | CombineFunarg (* Comparing a function argument type with an old prototype
                    * arg *)
-  | CombineFunret (* Comparing the return of a function with that from an old 
+  | CombineFunret (* Comparing the return of a function with that from an old
                    * prototype *)
   | CombineOther
 
@@ -1107,7 +1112,38 @@ let oneFilePass2 (f: file) =
           (* We must keep this definition even if we reuse this varinfo, 
           * because maybe the previous one was a declaration *)
           H.add emittedVarDecls vi.vname true; (* Remember that we emitted it*)
-          mergePushGlobals (visitCilGlobal renameVisitor (GVar(vi', init, l)))
+                   
+          let emitIt:bool =
+            try
+              let prevVar, prevInitOpt, prevLoc =
+                (H.find emittedVarDefn vi'.vname) in
+              (* previously defined; same initializer? *)
+              if (prevInitOpt = init) then (
+                (trace "mergeGlob"
+                  (P.dprintf "dropping global var %s at %a in favor of the one at %a\n"
+                             vi'.vname  d_loc l  d_loc prevLoc));
+                false  (* do not emit *)
+              )
+              else (
+                (trace "mergeGlob"
+                  (P.dprintf "global var %s at %a has different initializer than %a\n"
+                             vi'.vname  d_loc l  d_loc prevLoc));
+                (* emit it so we get a compiler error.. I think it would be
+                 * better to give an error message and *not* emit, since doing
+                 * this explicitly violates the CIL invariant of only one GVar
+                 * per name, but the rest of this file is very permissive so
+                 * I'll be similarly permissive.. *)
+                true
+              )
+            with Not_found -> (
+              (* no previous definition *)
+              (H.add emittedVarDefn vi'.vname (vi', init, l));
+              true     (* emit it *)
+            )
+          in
+
+          if emitIt then
+            mergePushGlobals (visitCilGlobal renameVisitor (GVar(vi', init, l)))
             
       | GFun (fdec, l) as g -> 
           currentLoc := l;
@@ -1229,29 +1265,29 @@ let oneFilePass2 (f: file) =
           else (
             (* either the function is not inline, or we're not attempting to
              * merge inlines *)
-            if (mergeGlobalFuncs &&
+            if (mergeGlobals &&
                 not fdec'.svar.vinline &&
                 fdec'.svar.vstorage <> Static) then (
               (* sm: this is a non-inline, non-static function.  I want to
                * consider dropping it if a same-named function has already
                * been put into the merged file *)
               let curSum = (functionChecksum fdec') in
-              (trace "mergeFunc" (P.dprintf "I see extern function %s, sum is %d\n"
+              (trace "mergeGlob" (P.dprintf "I see extern function %s, sum is %d\n"
                                             fdec'.svar.vname curSum));
               try
                 let prevFun, prevLoc, prevSum =
                   (H.find emittedFunDefn fdec'.svar.vname) in
                 (* previous was found *)
                 if (curSum = prevSum) then
-                  (trace "mergeFunc"
-                    (P.dprintf "dropping duplicate definition of %s at %a in favor of that at %a\n"
-                               fdec'.svar.vname  d_loc prevLoc  d_loc l))
+                  (trace "mergeGlob"
+                    (P.dprintf "dropping duplicate def'n of func %s at %a in favor of that at %a\n"
+                               fdec'.svar.vname  d_loc l  d_loc prevLoc))
                 else (
                   (* the checksums differ, so I'll keep both so as to get
                    * a link error later *)
-                  (trace "mergeFunc"
-                    (P.dprintf "definition of %s at %a conflicts with the one at %a; keeping both\n"
-                               fdec'.svar.vname  d_loc prevLoc  d_loc l));
+                  (trace "mergeGlob"
+                    (P.dprintf "def'n of func %s at %a conflicts with the one at %a; keeping both\n"
+                               fdec'.svar.vname  d_loc l  d_loc prevLoc));
                   (mergePushGlobal g')
                 )
               with Not_found -> (

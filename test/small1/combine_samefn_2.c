@@ -9,5 +9,5 @@ int foo(int x)
 }
 
 
-// gratuitous incompatibility for testing purposes
-//float myglobal;
+// same thing for globals
+int myglobal = 3;

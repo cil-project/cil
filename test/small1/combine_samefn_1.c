@@ -12,10 +12,10 @@ int foo(int xxx)
 }
 
 
-int myglobal;
+int myglobal = 3;
 
 
 int main()
 {
-  return foo(5) - 18;
+  return foo(5) - 18 + myglobal - 3;
 }
