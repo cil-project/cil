@@ -221,7 +221,7 @@ endif
 
 
 export EXTRAARGS
-export BOX
+export INFERBOX
 ifndef _GNUCC
 _MSVC = 1			# Use the MSVC compiler by default
 endif
@@ -340,22 +340,22 @@ endif
 
 # weimer: support for other solvers
 ifeq ($(INFERBOX), 1)
-    SAFECC+= --safec=-solver --safec=first
+    SAFECC+= --box --safec=-solver --safec=first
 endif
 ifeq ($(INFERBOX), 2)
-    SAFECC+= --safec=-solver --safec=second
+    SAFECC+= --box --safec=-solver --safec=second
 endif
 ifeq ($(INFERBOX), 3)
-    SAFECC+= --safec=-solver --safec=third
+    SAFECC+= --box --safec=-solver --safec=third
 endif
 ifeq ($(INFERBOX), 4)
-    SAFECC+= --safec=-solver --safec=fourth
+    SAFECC+= --box --safec=-solver --safec=fourth
 endif
 ifeq ($(INFERBOX), wild)
-    SAFECC+= --safec=-solver --safec=wild
+    SAFECC+= --box --safec=-solver --safec=wild
 endif
 ifeq ($(INFERBOX), wildsafe)
-    SAFECC+= --safec=-solver --safec=wildsafe
+    SAFECC+= --box --safec=-solver --safec=wildsafe
 endif
 ifeq ($(TABLE), A)
     SAFECC+= --safec=-tableAll
@@ -370,20 +370,12 @@ ifdef COMMLINES
     SAFECC+= --safec=-commPrintLn
 endif
 
-ifdef INFERBOX
-BOX=1
-endif
-
-
 ifdef SHOWCABS
 SAFECC+= --cabs
 endif
 ifdef SHOWCIL
 SAFECC+= --cil
 endif	
-ifdef BOX
-SAFECC+= --box
-endif
 ifdef INFERBOX
 SAFECC+= $(DEF)INFERBOX
 SAFECC+= --inferbox --box

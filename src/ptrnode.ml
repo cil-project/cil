@@ -599,6 +599,15 @@ let replacePtrNodeAttrList where al =
 (*  ignore (E.log "replacePtrNode: %a\n"
             (d_attrlist true) al); *)
   let foundNode : string ref = ref "" in
+  let foundInNode : bool ref = ref false in
+  let foundAnother (innode: bool) (s: string) = 
+    if innode then begin
+      foundInNode := true;
+      foundNode := s (* Discard all others *)
+    end else
+      (* Look at non-node ones only if we haven't found a node *)
+      if not !foundInNode then foundNode := s
+  in
   let rec loop = function
       [] -> []
     | a :: al -> begin
@@ -614,30 +623,30 @@ let replacePtrNodeAttrList where al =
                   match k2attr nd.kind with
                     Attr(s, _)  -> s
               in
-              foundNode := found;
+              foundAnother true found;
               a :: loop al
             with Not_found -> begin
               ignore (E.warn "Cannot find node %d\n" n);
               a :: loop al
             end
           end
-        | Attr("safe", []) -> foundNode := "safe"; loop al
-        | Attr("index", []) -> foundNode := "index"; loop al
-        | Attr("seq", []) -> foundNode := "seq"; loop al
-        | Attr("fseq", []) -> foundNode := "fseq"; loop al
-        | Attr("seqn", []) -> foundNode := "seqn"; loop al
-        | Attr("fseqn", []) -> foundNode := "fseqn"; loop al
-        | Attr("wild", []) -> foundNode := "wild"; loop al
-        | Attr("indext", []) -> foundNode := "indext"; loop al
-        | Attr("seqt", []) -> foundNode := "seqt"; loop al
-        | Attr("fseqt", []) -> foundNode := "fseqt"; loop al
-        | Attr("seqnt", []) -> foundNode := "seqnt"; loop al
-        | Attr("fseqnt", []) -> foundNode := "fseqnt"; loop al
-        | Attr("wildt", []) -> foundNode := "wildt"; loop al
-        | Attr("sized", []) -> foundNode := "sized"; loop al
-        | Attr("tagged", []) -> foundNode := "tagged"; loop al
-        | Attr("string", []) -> foundNode := "string"; loop al
-        | Attr("rostring", []) -> foundNode := "rostring"; loop al
+        | Attr("safe", []) -> foundAnother false "safe"; loop al
+        | Attr("index", []) -> foundAnother false "index"; loop al
+        | Attr("seq", []) -> foundAnother false "seq"; loop al
+        | Attr("fseq", []) -> foundAnother false "fseq"; loop al
+        | Attr("seqn", []) -> foundAnother false "seqn"; loop al
+        | Attr("fseqn", []) -> foundAnother false "fseqn"; loop al
+        | Attr("wild", []) -> foundAnother false "wild"; loop al
+        | Attr("indext", []) -> foundAnother false "indext"; loop al
+        | Attr("seqt", []) -> foundAnother false "seqt"; loop al
+        | Attr("fseqt", []) -> foundAnother false "fseqt"; loop al
+        | Attr("seqnt", []) -> foundAnother false "seqnt"; loop al
+        | Attr("fseqnt", []) -> foundAnother false "fseqnt"; loop al
+        | Attr("wildt", []) -> foundAnother false "wildt"; loop al
+        | Attr("sized", []) -> foundAnother false "sized"; loop al
+        | Attr("tagged", []) -> foundAnother false "tagged"; loop al
+        | Attr("string", []) -> foundAnother false "string"; loop al
+        | Attr("rostring", []) -> foundAnother false "rostring"; loop al
         | _ -> a :: loop al
     end
   in 
