@@ -2607,8 +2607,26 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
       end
     | _ -> mkEmptyStmt ()
   in
+  (* Now see if we must register the whole area *)
+  let register_area = 
+    match kno_t with
+    | N.Safe -> []
+    | N.Wild | N.Index -> 
+        let areaKind = 
+          if kno_t = N.Wild then 
+            registerAreaTaggedInt else registerAreaSizedInt
+        in
+        registerArea [ integer areaKind;
+                       castVoidStar (Lval (Var vi, ptroff));
+                       zero ] []
+    | N.Seq | N.SeqN | N.FSeq | N.FSeqN -> 
+        registerArea [ integer registerAreaSeqInt;
+                       castVoidStar (Lval (Var vi, ptroff));
+                       castVoidStar tmpvar ] []
+    | _ -> E.s (E.bug "pkAllocate: register_area: %a" N.d_opointerkind k)
+  in        
   alloc :: adjust_ptr :: assign_p :: 
-  assign_base :: setsz :: (init @ [assign_end])
+  assign_base :: setsz :: (init @ (assign_end :: register_area))
 
 (* Given a sized array type, return the size and the array field *)
 let getFieldsOfSized (t: typ) : fieldinfo * fieldinfo = 

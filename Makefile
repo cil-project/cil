@@ -555,12 +555,10 @@ hashtest: test/small2/hashtest.c defaulttarget
 rbtest: test/small2/rbtest.c defaulttarget
 	rm -f $(PCCTEST)/rbtest.exe
 	@true "compile with gcc for better error diagnostics (ha!)"
-	cd $(PCCTEST); $(DEBUGCCL) $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) $(CONLY) \
-				   $(INC)$(PCCDIR)/src ../small2/rbtest.c
 	cd $(PCCTEST); $(SAFECC) --combine \
                                  --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  `$(PATCHECHO) --patch=../../lib/$(PATCHFILE)` \
-                 `true $(DOOPT)` \
+                 $(DOOPT) \
                  $(INC)$(PCCDIR)/src \
                  $(PCCDIR)/src/redblack.c \
                  ../small2/rbtest.c \
