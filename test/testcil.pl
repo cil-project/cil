@@ -431,6 +431,25 @@ $TEST->addTests("scott/unionassign", "", ['inferbox', 'box']);
 # my $tst = $TEST->getTest("apache/gzip-inferbox");
 # print Dumper($tst);
 
+## if we have the c-torture tests add them
+## But only if the ctorture group was specfied
+my $ctorture = '/usr/local/src/gcc/gcc/testsuite/gcc.c-torture';
+if(-d $ctorture && 
+   defined $TEST->{option}->{group} &&
+   grep { $_ eq 'ctorture'} @{$TEST->{option}->{group}}) {
+    
+    # Read the compile tests 
+   my @tortures;
+   foreach my $tortdir ('compile', 'execute', 'compat') { 
+       @tortures = 
+           map { $_ =~ m|$ctorture/$tortdir/(.+)\.c|; $1 } 
+                 (glob "$ctorture/$tortdir/*.c");
+       foreach my $tst (@tortures) {
+           $TEST->addTests("tort/$tortdir/$tst", "_GNUCC=1", ['cil']); 
+           $TEST->addGroups("tort/$tortdir/$tst-cil", 'ctorture');
+       }
+   }
+}
 
 # print Dumper($TEST);
 

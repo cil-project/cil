@@ -42,6 +42,7 @@ let preprocess inname outname =
 let rec processOneFile fname =
   try begin
     (* PARSE and convert to CIL *)
+    if !Util.printStages then ignore (E.log "Parsing %s\n" fname);
     let cil_thunk =
       if !preproc = "" then
         F.parse fname
@@ -161,6 +162,8 @@ let rec theMain () =
     "--MSVC", Arg.Unit (fun _ -> C.msvcMode := true;
                                 F.setMSVCMode ()),
              "Produce MSVC output. Default is GNU";
+    "--stages", Arg.Unit (fun _ -> Util.printStages := true),
+               "print the stages of the algorithm as they happen";
     (* sm: the next two lines appeared twice?! *)
     "--keepunused", Arg.Unit (fun _ -> Rmtmps.keepUnused := true),
                 "do not remove the unused variables and types";

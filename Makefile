@@ -1891,3 +1891,24 @@ gtk-gcc: mustbegcc mustbemanju mustbelinux gtkclean
 
 gimpall: zlib tiff libpgn jpeg mpeg glib gtk
 
+
+
+
+
+
+#######
+#######  C-TORTURE
+#######
+CTORTDIR := /usr/local/src/gcc/gcc/testsuite/gcc.c-torture
+
+tort/compile/%: $(CTORTDIR)/compile/%.c mustbemanju mustbegcc
+	$(CILLY) $(CTORTDIR)/compile/$*.c -c
+
+tort/execute/%: $(CTORTDIR)/execute/%.c mustbemanju mustbegcc
+	$(CILLY) $(CTORTDIR)/execute/$*.c -o ./a.exe
+	./a.exe
+
+tort/compat/%: $(CTORTDIR)/compat/%.c mustbemanju mustbegcc
+	$(CILLY) $(CTORTDIR)/compat/$*.c -o ./a.exe
+	./a.exe
+
