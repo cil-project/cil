@@ -1966,7 +1966,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
         enterScope ();
         
         (* as each name,value pair is determined, this is called *)
-        let rec processName kname i rest = begin
+        let rec processName kname i loc rest = begin
           (* add the name to the environment, but with a faked 'typ' field; 
            * we don't know the full type yet (since that includes all of the 
            * tag values), but we won't need them in here  *)
@@ -1975,23 +1975,23 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
           (* add this tag to the list so that it ends up in the real 
           * environment when we're finished  *)
           let newname = newAlphaName true "" kname in
-          (kname, (newname, i)) :: loop (increm i 1) rest
+          (kname, (newname, i, loc)) :: loop (increm i 1) rest
         end
             
         and loop i = function
             [] -> []
-          | (kname, A.NOTHING) :: rest ->
+          | (kname, A.NOTHING, cloc) :: rest ->
               (* use the passed-in 'i' as the value, since none specified *)
-              processName kname i rest
+              processName kname i (convLoc cloc) rest
                 
-          | (kname, e) :: rest ->
+          | (kname, e, cloc) :: rest ->
               (* constant-eval 'e' to determine tag value *)
               let i =
                 match doExp true e (AExp None) with
                   c, e', _ when isEmpty c -> e'
                 | _ -> E.s (error "enum with non-const initializer")
               in
-              processName kname i rest
+              processName kname i (convLoc cloc) rest
         in
         
         (* sm: now throw away the environment we built for eval'ing the enum 
@@ -2348,16 +2348,16 @@ and makeCompType (isstruct: bool)
    * one exists already from a forward reference  *)
   let comp, _ = createCompInfo isstruct n' in
   let doFieldGroup ((s: A.spec_elem list), 
-                    (nl: (A.name * A.expression option ) list)) : 'a list =
+                    (nl: (A.name * A.expression option * A.cabsloc) list)) : 'a list =
     (* Do the specifiers exactly once *)
     let sugg = match nl with 
       [] -> ""
-    | ((n, _, _), _) :: _ -> n
+    | ((n, _, _), _, _) :: _ -> n
     in
     let bt, sto, inl, attrs = doSpecList sugg s in
     (* Do the fields *)
     let makeFieldInfo
-        (((n,ndt,a) : A.name), (widtho : A.expression option))
+        (((n,ndt,a) : A.name), (widtho : A.expression option), (cloc : A.cabsloc))
       : fieldinfo = 
       if sto <> NoStorage || inl then 
         E.s (error "Storage or inline not allowed for fields");
@@ -2395,6 +2395,7 @@ and makeCompType (isstruct: bool)
         ftype     =  ftype;
         fbitfield =  width;
         fattr     =  nattr;
+        floc      =  convLoc cloc
       } 
     in
     List.map makeFieldInfo nl

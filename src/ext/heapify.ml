@@ -40,8 +40,10 @@
 open Cil
 
 (* utilities that should be in Cil.ml *)
-let mkSimpleField ci fn ft =
-  { fcomp = ci ; fname = fn ; ftype = ft ; fbitfield = None ; fattr = []; }
+(* sfg: this function appears to never be called *)
+let mkSimpleField ci fn ft fl =
+  { fcomp = ci ; fname = fn ; ftype = ft ; fbitfield = None ; fattr = [];
+    floc = fl }
 
 (* actual Heapify begins *)
 class containsArray result = object (* does this type contain an array? *)
@@ -87,7 +89,7 @@ class heapifyAnalyzeVisitor f alloc free = object
         let name = (fundec.svar.vname ^ "_heapify") in
         let ci = mkCompInfo true name (* make a big structure *)
 	    (fun _ -> List.map (* each local var becomes a field *)
-		(fun (vi,i) -> vi.vname,vi.vtype,None,[]) !varlist) [] in
+		(fun (vi,i) -> vi.vname,vi.vtype,None,[],locUnknown) !varlist) [] in
         let vi = makeLocalVar fundec name (TPtr(TComp(ci,[]),[])) in
         let modify = new heapifyModifyVisitor (Var(vi)) 
 	    ci.cfields !varlist free in (* rewrite accesses to local vars *)

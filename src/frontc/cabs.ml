@@ -93,7 +93,7 @@ and decl_type =
 and name_group = specifier * name list
 
 (* The optional expression is the bitfield *)
-and field_group = specifier * (name * expression option) list
+and field_group = specifier * (name * expression option * cabsloc) list
 
 (* like name_group, except the declared variables are allowed to have initializers *)
 (* e.g.: int x=1, y=2; *)
@@ -114,7 +114,7 @@ and init_name = name * init_expression
 and single_name = specifier * name
 
 
-and enum_item = string * expression
+and enum_item = string * expression * cabsloc
 
 (*
 ** Declaration definition (at toplevel)

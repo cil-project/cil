@@ -557,12 +557,12 @@ begin
   )
 end
 
-and unifyNameExprOpt (pat : name * expression option)
-                     (tgt : name * expression option) : binding list =
+and unifyNameExprOpt (pat : name * expression option * cabsloc)
+                     (tgt : name * expression option * cabsloc) : binding list =
 begin
   match pat,tgt with
-  | (name1, None), (name2, None) -> (unifyName name1 name2)
-  | (name1, Some(exp1)), (name2, Some(exp2)) ->
+  | (name1, None, _), (name2, None, _) -> (unifyName name1 name2)
+  | (name1, Some(exp1), _), (name2, Some(exp2), _) ->
       (unifyName name1 name2) @
       (unifyExpr exp1 exp2)
   | _,_ -> []

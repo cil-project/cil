@@ -183,7 +183,7 @@ let mkCompType (iss: bool) =
                   (if w = 0 then "___missing_field_name" else fname), Some w
                 end
               in
-              (fname', ft, width, []) :: mkFields (i + 1) 
+              (fname', ft, width, [], lu) :: mkFields (i + 1) 
             end
           in
           mkFields 0)

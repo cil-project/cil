@@ -321,7 +321,7 @@ and print_enum id items =
     indent ();
     print_commas
       true
-      (fun (id, exp) -> print id;
+      (fun (id, exp, loc) -> print id;
 	if exp = NOTHING then ()
 	else begin
 	  space ();
@@ -360,7 +360,7 @@ and print_field_group (specs, fields) =
   print_commas false print_field fields
     
 
-and print_field (name, widtho) = 
+and print_field (name, widtho, loc) = 
   print_name name;
   (match widtho with 
     None -> ()

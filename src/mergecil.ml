@@ -681,7 +681,7 @@ and matchEnumInfo (oldfidx: int) (oldei: enuminfo)
       (* We check that they are defined in the same way. This is a fairly 
       * conservative check. *)
       List.iter2 
-        (fun (old_iname, old_iv) (iname, iv) -> 
+        (fun (old_iname, old_iv, _) (iname, iv, _) -> 
           if old_iname <> iname then 
             raise (Failure "(different names for enumeration items)");
           let samev = 
@@ -1568,7 +1568,7 @@ let oneFilePass2 (f: file) =
                  * as the variables *)
                 ei.eitems <- 
                    List.map
-                     (fun (n, i) -> newAlphaName vAlpha n, i)
+                     (fun (n, i, loc) -> newAlphaName vAlpha n, i, loc)
                      ei.eitems;
                 mergePushGlobals (visitCilGlobal renameVisitor g);
             | Some (ei', _) -> (* Drop this since we are reusing it from 

@@ -172,7 +172,7 @@ let rec visitCabsTypeSpecifier (vis: cabsVisitor) (ts: typeSpecifier) =
 and childrenTypeSpecifier vis ts = 
   let childrenFieldGroup ((s, nel) as input) = 
     let s' = visitCabsSpecifier vis s in
-    let doOneField ((n, eo) as input) = 
+    let doOneField ((n, eo, loc) as input) = 
       let n' = visitCabsName vis NField s' n in
       let eo' = 
         match eo with
@@ -180,7 +180,7 @@ and childrenTypeSpecifier vis ts =
         | Some e -> let e' = visitCabsExpression vis e in
           if e' != e then Some e' else eo
       in
-      if n' != n || eo' != eo then (n', eo') else input
+      if n' != n || eo' != eo then (n', eo', loc) else input
     in
     let nel' = mapNoCopy doOneField nel in
     if s' != s || nel' != nel then (s', nel) else input
@@ -194,9 +194,9 @@ and childrenTypeSpecifier vis ts =
       let fg' = mapNoCopy childrenFieldGroup fg in
       if fg' != fg then Tunion( n, Some fg') else ts
   | Tenum (n, Some ei) -> 
-      let doOneEnumItem ((s, e) as ei) = 
+      let doOneEnumItem ((s, e, loc) as ei) = 
         let e' = visitCabsExpression vis e in
-        if e' != e then (s, e') else ei
+        if e' != e then (s, e', loc) else ei
       in
       vis#vEnterScope ();
       let ei' = mapNoCopy doOneEnumItem ei in

@@ -300,6 +300,8 @@ and fieldinfo = {
                                             an integer type *)
     mutable fattr: attributes;          (** The attributes for this field 
                                           * (not for its type) *)
+    mutable floc: location;             (** The location where this field
+                                          * is defined *)
 }
 
 
@@ -308,10 +310,13 @@ and fieldinfo = {
     enumeration. Make sure you have a [GEnumTag] for each of of these.   *)
 and enuminfo = {
     mutable ename: string;              (** The name. Always non-empty *)
-    mutable eitems: (string * exp) list;(** Items with names and values. This
-                                            list should be non-empty. The item
-                                            values must be compile-time
-                                            constants. *)
+    mutable eitems: (string * exp * location) list; (** Items with names
+                                                      and values. This list
+                                                      should be
+                                                      non-empty. The item
+                                                      values must be
+                                                      compile-time
+                                                      constants. *) 
     mutable eattr: attributes;         (** Attributes *)
     mutable ereferenced: bool;         (** True if used. Initially set to false*)
 }
@@ -1316,16 +1321,17 @@ let missingFieldName = "___missing_field_name"
 (** Creates a a (potentially recursive) composite type. Make sure you add a 
   * GTag for it to the file! **)
 let mkCompInfo
-               (isstruct: bool) 
-               (n: string)  
-               (* fspec is a function that when given a forward 
-                * representation of the structure type constructs the type of 
-                * the fields. The function can ignore this argument if not 
-                * constructing a recursive type.  *)
-               (mkfspec: compinfo -> (string * typ * 
-                                      int option * attribute list) list) 
-               (a: attribute list) : compinfo =
-   (* make an new name for anonymous structs *)
+      (isstruct: bool) 
+      (n: string)  
+      (* fspec is a function that when given a forward 
+       * representation of the structure type constructs the type of 
+       * the fields. The function can ignore this argument if not 
+       * constructing a recursive type.  *)
+       (mkfspec: compinfo -> (string * typ * int option * attribute list *
+                             location) list)   
+       (a: attribute list) : compinfo =
+
+  (* make an new name for anonymous structs *)
    if n = "" then 
      E.s (E.bug "mkCompInfo: missing structure name\n");
    (* Make a new self cell and a forward reference *)
@@ -1340,12 +1346,13 @@ let mkCompInfo
    incr nextCompinfoKey;
    let self = ref voidType in
    let flds = 
-       List.map (fun (fn, ft, fb, fa) -> 
+       List.map (fun (fn, ft, fb, fa, fl) -> 
           { fcomp = comp;
             ftype = ft;
             fname = fn;
             fbitfield = fb;
-            fattr = fa }) (mkfspec comp) in
+            fattr = fa;
+            floc = fl}) (mkfspec comp) in
    comp.cfields <- flds;
    if flds <> [] then comp.cdefined <- true;
    comp
@@ -2454,7 +2461,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           text "enum" ++ align ++ text (" " ^ enum.ename) ++
           self#pAttrs () enum.eattr ++ text " {" ++ line
           ++ (docList line 
-                (fun (n,i) -> 
+                (fun (n,i, loc) -> 
                   text (n ^ " = ") 
                     ++ self#pExp () i
                     ++ text "," ++ break)

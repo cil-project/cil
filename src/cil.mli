@@ -378,6 +378,8 @@ and fieldinfo = {
      * the alignment of fields. *)
     mutable fattr: attributes;          
     (** The attributes for this field (not for its type) *)
+    mutable floc: location;
+    (** The location where this field is defined *)
 }
 
 
@@ -390,7 +392,7 @@ and fieldinfo = {
 and enuminfo = {
     mutable ename: string;              
     (** The name. Always non-empty. *)
-    mutable eitems: (string * exp) list;
+    mutable eitems: (string * exp * location) list;
     (** Items with names and values. This list should be non-empty. The item 
      * values must be compile-time constants. *)
     mutable eattr: attributes;         
@@ -1147,7 +1149,8 @@ val isSigned: ikind -> bool
  * the list of fields is non-empty. *)
 val mkCompInfo: bool ->      (* whether it is a struct or a union *)
                string ->     (* name of the composite type; cannot be empty *)
-               (compinfo -> (string * typ * int option * attributes) list) ->
+               (compinfo -> 
+                  (string * typ * int option * attributes * location) list) ->
                (* a function that when given a forward 
                   representation of the structure type constructs the type of 
                   the fields. The function can ignore this argument if not 

@@ -353,7 +353,7 @@ and checkEnumInfo (isadef: defuse) enum =
     (* Add it to the map before we go on *)
     H.add enumUsed enum.ename (enum, ref isadef);
     checkAttributes enum.eattr;
-    List.iter (fun (tn, _) -> defineName tn) enum.eitems;
+    List.iter (fun (tn, _, _) -> defineName tn) enum.eitems;
   end
 
 and checkTypeInfo (isadef: defuse) ti = 

@@ -234,8 +234,8 @@ end
 %type <Cabs.init_name> init_declarator
 %type <Cabs.init_name list> init_declarator_list
 %type <Cabs.name> declarator
-%type <Cabs.name * expression option> field_decl
-%type <(Cabs.name * expression option) list> field_decl_list
+%type <Cabs.name * expression option * Cabs.cabsloc> field_decl
+%type <(Cabs.name * expression option * Cabs.cabsloc) list> field_decl_list
 %type <string * Cabs.decl_type> direct_decl
 %type <Cabs.decl_type> abs_direct_decl abs_direct_decl_opt
 %type <Cabs.decl_type * Cabs.attribute list> abstract_decl
@@ -699,12 +699,12 @@ struct_decl_list: /* (* ISO 6.7.2. Except that we allow empty structs. We
                       * also allow missing field names. *)
                    */
    /* empty */                           { [] }
-|  decl_spec_list                 SEMICOLON struct_decl_list
-                                         { ($1, 
-                                            [(missingFieldDecl, None)]) :: $3 }
-|  decl_spec_list field_decl_list SEMICOLON struct_decl_list
-                                          { ($1, $2) 
-                                            :: $4 }
+|  location decl_spec_list        SEMICOLON struct_decl_list
+                                         { ($2, 
+                                            [(missingFieldDecl, None, $1)]) :: $4 }
+|  location decl_spec_list field_decl_list SEMICOLON struct_decl_list
+                                          { ($2, $3) 
+                                            :: $5 }
 |  error                          SEMICOLON struct_decl_list
                                           { $3 } 
 ;
@@ -713,9 +713,9 @@ field_decl_list: /* (* ISO 6.7.2 *) */
 |   field_decl COMMA field_decl_list     { $1 :: $3 }
 ;
 field_decl: /* (* ISO 6.7.2. Except that we allow unnamed fields. *) */
-|   declarator                           { ($1, None) }
-|   declarator COLON expression          { ($1, Some $3) }    
-|              COLON expression          { (missingFieldDecl, Some $2) }
+|   location declarator                      { ($2, None, $1) }
+|   location declarator COLON expression     { ($2, Some $4, $1) }    
+|   location            COLON expression     { (missingFieldDecl, Some $3, $1) }
 ;
 
 enum_list: /* (* ISO 6.7.2.2 *) */
@@ -724,8 +724,8 @@ enum_list: /* (* ISO 6.7.2.2 *) */
 |   enum_list COMMA error               { $1 } 
 ;
 enumerator:	
-    IDENT				{($1, NOTHING)}
-|   IDENT EQ expression			{($1, $3)}
+    location IDENT			{($2, NOTHING, $1)}
+|   location IDENT EQ expression	{($2, $4, $1)}
 ;
 
 
