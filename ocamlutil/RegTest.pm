@@ -471,6 +471,21 @@ sub getTest {
 }
 
 
+sub cloneTest {
+    my($self, $name, $newname) = @_;
+    my $t = $self->getTest($name);
+    if(! defined $t) {
+        die "Cannot clone test $name";
+    }
+    my %args = %{$t}; # Make a copy
+    if(defined $self->getTest($newname)) {
+        die "The name $newname for the cloned test alredy used";
+    }
+    $args{Name} = $newname;
+    $self->newTest(%args);
+}
+
+
 # Run the tests and collect the output in a specified logFile
 sub runTests {
     my ($self, $logfile) = @_;
