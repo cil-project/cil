@@ -57,6 +57,10 @@ val print : out_channel -> string -> unit
 
 
 
+(** Time a function and set lastTime to the time it took *)
+val lastTime: float ref
+val timethis: ('a -> 'b) -> 'a -> 'b
+
 
 
 

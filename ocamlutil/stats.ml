@@ -103,7 +103,13 @@ let repeattime limit str f arg =
 let time str f arg = repeattime 0.0 str f arg
     
 
-
+let lastTime = ref 0.0
+let timethis (f: 'a -> 'b) (arg: 'a) : 'b = 
+  let start = get_current_time () in
+  let res = f arg in 
+  lastTime := get_current_time () -. start; 
+  res
+  
 
 
 
