@@ -61,6 +61,17 @@ let lu = locUnknown
 let cabslu = {lineno = -10; filename = "cabs lu"; byteno = -10;}
 
 
+(** Interface to the Cprint printer *)
+let withCprint (f: 'a -> unit) (x: 'a) : unit = 
+  Cprint.commit (); Cprint.flush ();
+  let old = !Cprint.out in
+  Cprint.out := !E.logChannel;
+  f x;
+  Cprint.commit (); Cprint.flush ();
+  flush !Cprint.out;
+  Cprint.out := old
+
+
 (* Keep a list of functions that were called without a prototype. *)
 let noProtoFunctions : (int, bool) H.t = H.create 13
 
@@ -2207,13 +2218,20 @@ and doAttr (a: A.attribute) : attribute list =
         | A.UNARY(A.MINUS, aa) -> AUnOp (Neg, ae aa)
         | A.UNARY(A.BNOT, aa) -> AUnOp(BNot, ae aa)
         | A.UNARY(A.NOT, aa) -> AUnOp(LNot, ae aa)
-        | _ -> E.s (error "Invalid expression in attribute")
+        | A.MEMBEROF (e, s) -> ADot (ae e, s)
+        | _ -> 
+            ignore (E.log "Invalid expression in attribute: ");
+            withCprint Cprint.print_expression a;
+            E.s (error "cabs2cil: invalid expression")
+
       and ae (e: A.expression) = attrOfExp false e
       in
       (* Sometimes we need to convert attrarg into attr *)
       let arg2attr = function
         | ACons (s, args) -> Attr (s, args)
-        | _ -> E.s (error "Invalid form of attribute")
+        | a -> 
+            E.s (error "Invalid form of attribute: %a"
+                   d_attrparam a);
       in
       if s = "__attribute__" then (* Just a wrapper for many attributes*)
         List.map (fun e -> arg2attr (attrOfExp true e)) el
@@ -4026,13 +4044,8 @@ and doInit
     (match allinitl with 
       [] -> ignore (E.log "[]")
     | (what, ie) :: _ -> 
-        Cprint.commit (); Cprint.flush ();
-        let old = !Cprint.out in
-        Cprint.out := !E.logChannel;
-        Cprint.print_init_expression (A.COMPOUND_INIT [(what, ie)]);
-        Cprint.commit (); Cprint.flush ();
-        flush !Cprint.out;
-        Cprint.out := old);
+        withCprint 
+          Cprint.print_init_expression (A.COMPOUND_INIT [(what, ie)]));
     ignore (E.log "\n");
   end;
   match unrollType so.soTyp, allinitl with 

@@ -90,7 +90,7 @@ let extractPatternVar (s : string) : string =
 let printExpr (e : expression) =
 begin
   if (verbose && traceActive "patchDebug") then (
-    Cprint.print_expression e 1; Cprint.force_new_line ();
+    Cprint.print_expression e; Cprint.force_new_line ();
     Cprint.flush ()
   )
 end

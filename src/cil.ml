@@ -276,6 +276,7 @@ and attrparam =
   | AAlignOfE of attrparam
   | AUnOp of unop * attrparam
   | ABinOp of binop * attrparam * attrparam
+  | ADot of attrparam * string           (** a.foo **)
 
 
 (** Information about a composite type (a struct or a union). Use 
@@ -2976,6 +2977,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           ++ break 
           ++ text " (" ++ (self#pAttrParam () a2) ++ text ") "
           ++ unalign
+    | ADot (ap, s) -> (self#pAttrParam () ap) ++ text ("." ^ s)
           
   (* A general way of printing lists of attributes *)
   method private pAttrsGen (block: bool) (a: attributes) = 
@@ -3852,6 +3854,10 @@ and childrenAttribute (vis: cilVisitor) (a: attribute) : attribute =
         let e1' = doarg e1 in
         let e2' = doarg e2 in
         if e1' != e1 || e2' != e2 then ABinOp (bo, e1', e2') else aa
+    | ADot (ap, s) ->
+        let ap' = doarg ap in
+        if ap' != ap then ADot (ap', s) else aa
+        
   in
   match a with 
     Attr (n, args) -> 

@@ -465,6 +465,8 @@ $TEST->addTests("testrun/struct1", "", ['cil']);
 $TEST->addTests("testrun/voidarg", "", ['cil']);
 $TEST->addTests("testrun/union2", "", ['cil']);
 $TEST->addTests("testrun/union3", "", ['cil']);
+$TEST->addTests("testrun/union4", "", ['inferbox']);
+$TEST->addTests("testrun/union5", "", ['inferbox']);
 $TEST->addTests("testrun/inline1", "", ['cil']);
 $TEST->addTests("testrun/tcast2", "", ['inferbox']);
 $TEST->addTests("testrun/rtti1", "", ['inferbox']);
@@ -576,6 +578,9 @@ $TEST->addTests("test-bad/union4", "", [ 'inferbox' ]);
 $TEST->addTests("test-bad/union6", "", [ 'inferbox' ]);
   $TEST->addBadComment("test-bad/union6-inferbox", 
                        "Unsoundness in tagged unions");
+$TEST->addTests("test-bad/union7", "", [ 'inferbox' ]);
+  $TEST->addBadComment("test-bad/union7-inferbox", 
+                       "Discriminated unions not yet implemented");
 $TEST->addTests("test-bad/malloc1", "", [ 'inferbox' ]);
 $TEST->addTests("scott/union5", "", ['inferbox']);
 $TEST->addTests("scott/funptr1", "", ['inferbox']);
