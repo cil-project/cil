@@ -165,15 +165,10 @@ _CRTIMP extern FILE _iob[];
 #define stdout (&_iob[1])
 #define stderr (&_iob[2])
 #else /* GNUCC */
-#       ifdef BEFOREBOX
-        FILE * get_stdout(void); 
-        FILE * get_stderr(void);
-#       define stdout (get_stdout())
-#       define stderr (get_stderr())
-#       else
+#pragma box(off)
         extern FILE *stdout;
         extern FILE *stderr;
-#       endif
+#pragma box(on)
 #endif
 
 extern  int   debugMM;      

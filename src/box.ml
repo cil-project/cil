@@ -803,10 +803,11 @@ let checkFindHomeFun =
 
 let checkFindHomeEndFun =
   let fdec = emptyFunction "CHECK_FINDHOMEEND" in
+  let argk  = makeLocalVar fdec "kind" intType in
   let argp  = makeLocalVar fdec "p" voidPtrType in
   let argea  = makeLocalVar fdec "ea" (TPtr(voidPtrType,[])) in
   fdec.svar.vtype <- 
-     TFun(voidPtrType, [ argp; argea ], false, []);
+     TFun(voidPtrType, [ argk; argp; argea ], false, []);
   checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
   fdec.svar.vstorage <- Static;
   fdec
@@ -1448,12 +1449,12 @@ let fromTable (oldk: N.opointerkind)
               (p: exp) 
   (* Returns a base, and an end *) 
   : exp * exp * stmt list =
-  let fetchHomeEnd (p: exp) : varinfo * varinfo * stmt = 
+  let fetchHomeEnd (kind: int) (p: exp) : varinfo * varinfo * stmt = 
     let tmpb = makeTempVar !currentFunction voidPtrType in
     let tmpe = makeTempVar !currentFunction voidPtrType in
     tmpb, tmpe,
     call (Some (tmpb, false)) (Lval (var checkFindHomeEndFun.svar))
-      [ castVoidStar p; mkAddrOf (var tmpe) ]
+      [ integer kind ; castVoidStar p; mkAddrOf (var tmpe) ]
   in
   let fetchHome (kind: int) (p: exp) : varinfo * stmt = 
     let tmpb = makeTempVar !currentFunction voidPtrType in
@@ -1470,7 +1471,7 @@ let fromTable (oldk: N.opointerkind)
       (Lval(var b)), zero, [ s ]
 
   | N.SeqT | N.SeqNT | N.FSeqT | N.FSeqNT -> 
-      let b, e, s = fetchHomeEnd p in
+      let b, e, s = fetchHomeEnd registerAreaSeqInt p in
       (Lval(var b)), (Lval(var e)), [ s ]
   | _ -> E.s (E.bug "Called fromTable on a non-table")
 
@@ -2150,6 +2151,15 @@ let checkWrite e = checkMem (Some e)
 
 
 (********** Initialize variables ***************)
+let rec allScalarType t = 
+  match unrollType t with
+    TVoid _ -> false
+  | TInt _ | TBitfield _ | TFloat _ | TEnum _ -> true
+  | TPtr _ -> false
+  | TArray(t,_,_) -> allScalarType t
+  | TComp c -> List.for_all (fun fi -> allScalarType fi.ftype) c.cfields
+  | TFun _ -> false
+  | _ -> E.s (E.unimp "allScalarType %a" d_type t)
 
 let rec initializeType
     (t: typ)   (* The type of the lval to initialize *)
@@ -2182,6 +2192,10 @@ let rec initializeType
       else 
         fun lv acc -> acc
   end
+  | TComp comp when not comp.cstruct && allScalarType t -> begin 
+    (* A union ... but all the fields are scalar *)
+    (fun lv acc -> acc)  
+    end
   | TComp comp when comp.cstruct -> begin (* A struct *)
       match comp.cfields with
         [s; a] when s.fname = "_size" && a.fname = "_array" ->

@@ -180,6 +180,9 @@ and edgekind =
                               * int * 1 * 2 x; 
                               * int * 3 * 4 y;
                               * We will connect 1 and 3 with ECompat. *)
+let is_table_kind = function
+    IndexT | WildT | SeqT | SeqNT | FSeqT | FSeqNT -> true
+  | _ -> false
 
 
 (* The constants for pointer kind flags. *)

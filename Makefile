@@ -260,6 +260,10 @@ endif
 ifeq ($(INFERBOX), wildsafe)
     SAFECC+= --safec=-solver --safec=wildsafe
 endif
+ifeq ($(TABLE), 1)
+    #SAFECC+= --safec=-table
+    SAFECC+= --safec=-leaninterface
+endif
 
 ifdef INFERBOX
 BOX=1
@@ -362,14 +366,14 @@ endif
 # sm: if GC is enabled, we just add it to the runtime library
 # (or rather, we add safec.o to gc.a's contents)
 ifdef _GNUCC
-$(SAFECLIB) : lib/safec.c $(GCLIB)
+$(SAFECLIB) : lib/safec.c $(GCLIB) lib/splay.o
 	$(CC) $(OBJOUT)obj/safec.o $<
 	if echo $(GCLIB) | grep / >/dev/null; then \
 		cp -f $(GCLIB) $@; \
 	else \
 		rm -f $@; \
 	fi
-	ar -r $@ obj/safec.o
+	ar -r $@ obj/safec.o lib/splay.o
 
 $(SAFEMAINLIB) : lib/safecmain.c lib/safec.h lib/safeccheck.h
 	$(CC) $(OBJOUT)obj/safecmain.o $<
@@ -746,6 +750,14 @@ spec-compress : defaulttarget
               <$(COMPRESSDIR)/exe/base/input.data \
               >$(COMPRESSDIR)/exe/base/output.txt
 
+old-compress : defaulttarget $(COMPRESSDIR)/src/combine-compress.c
+	rm -f $(COMPRESSDIR)/combine-compress.exe
+	cd $(COMPRESSDIR)/src ; $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
+                 $(DOOPT) \
+                 combine-compress.c \
+                 $(EXEOUT)combine-compress.exe
+	sh -c "time $(COMPRESSDIR)/src/combine-compress.exe < $(COMPRESSDIR)/src/input.data > $(COMPRESSDIR)/src/combine-compress.out"
+
 compress-noclean: defaulttarget mustbegcc
 	cd $(COMPRESSDIR)/src; make CC="$(COMBINESAFECC)" build
 	echo "14000000 q 2231" >$(COMPRESSDIR)/exe/base/input.data 
@@ -780,6 +792,12 @@ li-noclean: defaulttarget mustbegcc
 liclean: 
 	cd $(LIDIR)/src; make clean
 	cd $(LIDIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi trial_li_all.c
+
+liinfer: li
+	cd $(LIDIR)/src ; $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
+                 $(DOOPT) \
+                 trial_li.c \
+                 $(EXEOUT)trial_li.exe
 
 
 ### SPEC95 GO
@@ -877,3 +895,5 @@ allcc1: defaulttarget mustbegcc
 	cd $(GCCDIR)/exe/base; $(SAFECC) $(DOOPT) cc1.v8_all.c
 
 
+combinetest: defaulttarget
+	cd test/small1; $(SAFECC) --combine /Fet.exe t.c t1.c

@@ -144,7 +144,9 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
   in 
   Hashtbl.iter (fun id n ->
     if n.kind = String || n.kind = ROString || 
-       n.kind = FSeqN || n.kind = SeqN then mark_string n
+       n.kind = FSeqN || n.kind = SeqN then begin
+          mark_string n
+       end
   ) node_ht ;
 
   (* Step 5
