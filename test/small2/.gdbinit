@@ -1,5 +1,5 @@
 # .gdbinit
 
-file arraytags
+file popen
 break main
 run

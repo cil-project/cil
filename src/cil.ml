@@ -2120,9 +2120,9 @@ and d_stmtkind (next: stmt) () = function
                     ++ d_exp () be
                     ++ text ") "
                     ++ d_block () t)
-              ++ text " el"
+              ++ text " "   (* sm: indent next code 2 spaces (was 4) *)
               ++ (align
-                    ++ text "se "
+                    ++ text "else "
                     ++ d_block () e)
               ++ unalign)
 

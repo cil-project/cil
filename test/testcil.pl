@@ -582,9 +582,9 @@ smAddTest("bad/nullfield $manualbox");
 smAddTest("scott/constfold");
           
 # test of strings (need more!)
-smFailTest("manual annotation of RWSTRING seems to be ignored", 
-           "bad/ovwrnull $box");
-smAddTest("test-bad/strloop2 INFERBOX=paper");     # =infer doesn't infer RWSTRING
+smAddTest("bad/ovwrnull $box");      # this still doesn't work; annotation ignored..
+smFailTest("not inferring RWSTRING, so semantics are different..",
+           "test-bad/strloop2 INFERBOX=paper");     # =infer doesn't infer RWSTRING
 
 # tests of function models
 smAddTest("scott/memcpy $box");
@@ -616,7 +616,8 @@ else {
 }
 
 smFailTest("execv bug", "scott/execv $box");
-smAddTest("scott/popen $box");
+$TEST->setField(smAddTest("scott/popen $box"),
+                "FailDiagnosis", "inferred glob_t probably has unanticipated type");
 smAddTest("scott/memset_int $box");
 smAddTest("scott/printfllong $box");
 smAddTest("test-bad/replydirname $box");
