@@ -708,7 +708,7 @@ COMBINESAFECC = $(SAFECC) --combine $(DOOPT)
 
 # Barnes-Hut
 BHDIR=test/bh
-bh : mustbegcc
+bh : defaulttarget mustbegcc
 	cd $(BHDIR); rm code.exe; make CC="$(COMBINESAFECC)"
 	echo  >$(BHDIR)/data.in
 	echo  >>$(BHDIR)/data.in

@@ -78,7 +78,7 @@
 
 // Add some prototypes for the built in fucntions
 #ifdef _MSVC
-void exit(int);
+void __cdecl exit(int);
 #endif
 
 #ifdef _GNUCC
