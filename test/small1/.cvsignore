@@ -35,4 +35,6 @@ a.out
 vararg.out
 array.a.files
 *.html
+*.gif
+*.css
 
