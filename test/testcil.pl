@@ -83,12 +83,12 @@ $TEST->newTest(
     
 # Now add tests
 $TEST->add3Tests("btreetest", "", @runpattern);
-   $TEST->addBadComment("btreetest-box", "crashes!!!");
+#   $TEST->addBadComment("btreetest-box", "crashes!!!");
 $TEST->add3Tests("hashtest", "", @runpattern);
 $TEST->add3Tests("rbtest", "", @runpattern);
 $TEST->add3Tests("hufftest", "", @runpattern);
-   $TEST->addBadComment("hufftest-inferbox", "missing wrapper for memmove");
-   $TEST->addBadComment("hufftest-box", "missing wrappers");
+#   $TEST->addBadComment("hufftest-inferbox", "missing wrapper for memmove");
+#   $TEST->addBadComment("hufftest-box", "missing wrappers");
 $TEST->add3Tests("test/alloc");
 $TEST->add3Tests("test/argcast", "", @runpattern);
 $TEST->add3Tests("test/array1");

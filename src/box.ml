@@ -1795,11 +1795,13 @@ let rec castTo (fe: fexp) (newt: typ)
           (doe, L(newt, newkind, castP p))
 
         (* SAFE -> WILD. Only allowed for function pointers because we do not 
-         * know how to tag functions, yet *)
+         * know how to tag functions, yet. But create a wild pointer with the 
+         * base = to the value of the pointer. This is unsafe since it still 
+         * allows pointer arthmetic and memory operations. *)
       | N.Safe, N.Wild 
             when (match unrollType oldt 
                      with TPtr(TFun _, _) -> true | _ -> false) -> 
-              (doe, mkFexp3 newt (castP p) zero zero)
+              (doe, mkFexp3 newt (castP p) (castP p) zero)
 
         (* SAFE -> FSEQ *)          
       | N.Safe, N.FSeq -> 
@@ -3116,8 +3118,8 @@ and boxexpf (e: exp) : stmt list * fexp =
             (doe1 @ doe2, 
              L(restyp', N.Scalar,
                BinOp(bop, 
-                     doCast (readPtrField e1' et1) intType, 
-                     doCast (readPtrField e2' et2) intType, restyp')))
+                     readPtrField e1' et1, 
+                     readPtrField e2' et2, restyp')))
               
         | _, N.Scalar, N.Scalar -> 
             (doe1 @ doe2, L(restyp', N.Scalar, BinOp(bop,e1',e2',restyp')))
