@@ -1585,6 +1585,7 @@ sub new {
             "-std" => { TYPE => 'CC' },
             "--start-group" => { RUN => sub { } },
             "--end-group" => { RUN => sub { }},
+	    '-pthread$' => { TYPE => 'ALLARGS' },
             ],
                                   
       };
