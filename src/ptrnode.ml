@@ -256,13 +256,18 @@ let addPointsTo n n' =
   n.pointsto <- n' :: n.pointsto
 
 let nodeOfAttrlist al = 
+  let findnode n =
+    try Some (H.find idNode n)
+    with Not_found -> E.s (E.bug "Cannot find node with id = %d\n" n)
+  in
   match filterAttributes "_ptrnode" al with
     [] -> None
-  | [ACons(_, [AInt n])] -> begin
-      try Some (H.find idNode n)
-      with Not_found -> E.s (E.bug "Cannot find node with id = %d\n" n)
-  end
+  | [ACons(_, [AInt n])] -> findnode n
+  | (ACons(_, [AInt n]) :: _) as filtered -> 
+      ignore (E.warn "nodeOfAttrlist(%a)" (d_attrlist true) filtered);
+      findnode n
   | _ -> E.s (E.bug "nodeOfAttrlist")
+
 
 
 let k2attr = function
