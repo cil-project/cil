@@ -291,7 +291,7 @@ endif
 
 # garbage collector options
 ifdef _GNUCC
-  ifndef NO_GC
+  ifdef USE_GC
     # enable the garbage collector by default for gcc
     SAFECC+= $(DEF)USE_GC
     DEBUGCCL+= $(DEF)USE_GC
