@@ -122,9 +122,23 @@ val getHPosition: unit -> int * string (** high-level position *)
 val setHLine: int -> unit
 val setHFile: string -> unit
 
+(** Type for source-file locations *)
+type location = 
+    { file: string; (** The file name *)
+      line: int;    (** The line number *)
+      hfile: string; (** The high-level file name, or "" if not present *)
+      hline: int;    (** The high-level line number, or 0 if not present *)
+    } 
+
+val d_loc: unit -> location -> Pretty.doc
+val d_hloc: unit -> location -> Pretty.doc
+    
+val getLocation: unit -> location
+
 val parse_error: string -> (* A message *) 
                  unit
 
+val locUnknown: location
 
 val startParsing: string -> Lexing.lexbuf (* Call this function to start 
                                            * parsing *)

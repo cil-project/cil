@@ -302,6 +302,29 @@ let getPosition () : int * string * int =
 let getHPosition () = 
   !current.hline, !current.hfile
 
+(** Type for source-file locations *)
+type location = 
+    { file: string; (** The file name *)
+      line: int;    (** The line number *)
+      hfile: string; (** The high-level file name, or "" if not present *)
+      hline: int;    (** The high-level line number, or 0 if not present *)
+    } 
+
+let d_loc () l = 
+  text (l.file ^ ":" ^ string_of_int l.line)
+    
+let d_hloc () (l: location) = 
+  dprintf "%s:%d%a" l.file l.line
+    insert (if l.hline > 0 then dprintf " (%s:%d)" l.hfile l.hline else nil)
+
+let locUnknown = { file = ""; hfile = ""; line = -1; hline = -1 }
+
+let getLocation () = 
+  let hl, hf = getHPosition () in
+  let l, f, c = getPosition () in
+  { hfile = hf; hline = hl;
+    file = f; line = l } 
+
 (* Keep here some pointers to lexer functions *)
 let push_context = 
     ref (fun _ -> raise (Failure "Errormsg.push_context not set"))
