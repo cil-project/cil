@@ -11,7 +11,10 @@ error This test works only for MSVC
 
 int throw() {
   // Simulate a segfault
-  *((int*)0) = 5;
+  { __NOCUREBLOCK
+      // We do not want CCured to notice this one
+      *((int*)0) = 5;
+  }
 }
 
 void incr(int *px) {
@@ -39,7 +42,7 @@ int main() {
   if(i == 5) E(2); // ERROR2:Error 2
 #endif
 
-#ifdef ERROR >= 3  
+#if ERROR >= 3  
   __try {
     __try {
       i ++;

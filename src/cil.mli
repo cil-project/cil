@@ -557,7 +557,7 @@ and exp =
 
   | AlignOf    of typ                   
     (** This corresponds to the GCC __alignof_. Has [unsigned int] type *)
-  | AlignOfE   of exp 
+  | AlignOfE   of exp  
 
                                         
   | UnOp       of unop * exp * typ     

@@ -1134,6 +1134,10 @@ begin
                             (* don't look at stmt list b/c is not part of tree *)
     | Loop(b,_,_,_) -> 49 + 53*(stmtListSum b.bstmts)
     | Block(b) -> 59 + 61*(stmtListSum b.bstmts)
+    | TryExcept (b, (il, e), h, _) -> 
+        67 + 83*(stmtListSum b.bstmts) + 97*(stmtListSum h.bstmts)
+    | TryFinally (b, h, _) -> 
+        103 + 113*(stmtListSum b.bstmts) + 119*(stmtListSum h.bstmts)
   in
   
   (* disabled 2nd and 3rd measure because they appear to get different
