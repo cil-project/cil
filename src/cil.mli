@@ -1861,6 +1861,9 @@ class type cilPrinter = object
   method pInstr: unit -> instr -> Pretty.doc
     (** Invoked on each instruction occurrence. *)
 
+  method pLabel: unit -> label -> Pretty.doc
+    (** Print a label. *)
+
   method pStmt: unit -> stmt -> Pretty.doc
     (** Control-flow statement. This is used by 
      * {!Cil.printGlobal} and by {!Cil.dumpGlobal}. *)
@@ -2001,6 +2004,9 @@ val d_attrlist: unit -> attributes -> Pretty.doc
 
 (** Pretty-print an instruction using {!Cil.defaultCilPrinter}   *)
 val d_instr: unit -> instr -> Pretty.doc
+
+(** Pretty-print a label using {!Cil.defaultCilPrinter} *)
+val d_label: unit -> label -> Pretty.doc
 
 (** Pretty-print a statement using {!Cil.defaultCilPrinter}. This can be 
  * extremely slow (or even overflow the stack) for huge statements. Use 

@@ -1943,6 +1943,9 @@ class type cilPrinter = object
   method pAttrs: unit -> attributes -> doc
     (** Attribute lists *)
 
+  method pLabel: unit -> label -> doc
+    (** Label *)
+
   method pLineDirective: ?forcefile:bool -> location -> Pretty.doc
     (** Print a line-number. This is assumed to come always on an empty line. 
      * If the forcefile argument is present and is true then the file name 
@@ -3017,6 +3020,7 @@ let d_global () g = printGlobal defaultCilPrinter () g
 let d_attrlist () a = printAttrs defaultCilPrinter () a 
 let d_attr () a = printAttr defaultCilPrinter () a
 let d_attrparam () e = defaultCilPrinter#pAttrParam () e
+let d_label () l = defaultCilPrinter#pLabel () l
 let d_stmt () s = printStmt defaultCilPrinter () s
 let d_instr () i = printInstr defaultCilPrinter () i
 
