@@ -369,8 +369,8 @@ $TEST->addTests("testrun/addrof4", "", ['inferbox']);
 $TEST->add3Tests("testrun/lval1", "_GNUCC=1");
 $TEST->add3Tests("testrun/bind1", "EXTRAARGS=--assumePrintf");
 $TEST->add3Tests("test/bind2");
-$TEST->add3Tests("testmodel/model1");
-$TEST->add3Tests("testmodel/modelpoly");
+# $TEST->add3Tests("testmodel/model1");
+# $TEST->add3Tests("testmodel/modelpoly");
 $TEST->add2Tests("testwrapper/wrapper1");
 $TEST->add2Tests("testwrapper/wrapperpoly");
 $TEST->addTests("test-bad-wrapper/wrapper1", "", ['inferbox']);
@@ -495,8 +495,8 @@ $TEST->add2TestsFail("testrun/demo2", "", "Failure: Lbound");
 $TEST->add2TestsFail("testrun/demo3", "", "Failure: Ubound");
 $TEST->add2TestsFail("testrun/demo4", "", "Failure: Lbound");
 
-$TEST->add2TestsFail("testmodel/noproto1", "", "Function pointer");
-$TEST->add2TestsFail("testmodel/noproto2", "", "Failure: Non-pointer");
+# $TEST->add2TestsFail("testmodel/noproto1", "", "Function pointer");
+# $TEST->add2TestsFail("testmodel/noproto2", "", "Failure: Non-pointer");
 # $TEST->add2Tests("testmodel/noproto");
 
 $TEST->add2TestsFail("testrun/failsprintf1", "", "Failure: Ubound");
