@@ -75,10 +75,10 @@ extern long double __builtin_fabsl(long double);
   #pragma boxalloc("alloca", nozero, sizein(1))
   #pragma boxalloc("calloc", zero, sizemul(1,2))
 
-  //for the models that need it:
+  /* for the models that need it:
   void * __SAFE  __endof(void *ptr);
   #pragma boxpoly("__endof")
-
+  */
   // sm: not sure best way to handle this.. gcc's headers map all
   // these things to __builtin_blah, so we see that after
   // preprocessing..  could attack with patcher, but what if someone
@@ -133,14 +133,6 @@ extern long double __builtin_fabsl(long double);
 
   #pragma boxexported("main")
      
-/*
-  // stuff for test/small2/ioctl.c
-  union ioctl_format {
-    int anInt;
-    int *anIntPtr;
-  };
-  #pragma boxvararg("ioctl", sizeof(union ioctl_format))
-*/
   // for ping; need a model so I get to write a wrapper, where
   // I can emulate optarg as optarg_f
   // put this in the include file where getopt occurs
@@ -162,12 +154,6 @@ extern long double __builtin_fabsl(long double);
   #pragma boxvararg("__suppress_optim_on_vars_in_try",
                     sizeof(union suppress_optim_format))
 
-#endif
-
-
-#ifndef CCURED
-  #define __startof(p) p
-  #define __endof(p) p
 #endif
 
 
