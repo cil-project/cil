@@ -1,5 +1,5 @@
-# Makefile for CCured. The gcc part
 # -*-makefile-*-
+# Makefile for CCured. The gcc part
 
 
 COMPILERNAME := GNUCC
@@ -9,7 +9,12 @@ ifdef RELEASELIB
   # sm: I will leave this here, but only use it for compiling our runtime lib
   CFLAGS := -D_GNUCC -Wall -O3
 else
-  CFLAGS := -D_GNUCC -Wall  -g -ggdb -D_DEBUG
+  CFLAGS := -D_GNUCC -Wall -g -ggdb -D_DEBUG
+endif
+
+# dsw: added optional -pg flag
+ifdef USE_PG
+  CFLAGS += -pg
 endif
 
 ifdef NO_OPTIMIZATION
