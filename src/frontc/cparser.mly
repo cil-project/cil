@@ -237,6 +237,7 @@ let apply_qual ((t1, q1) : base_type * modifier list)
 %token ATTRIBUTE INLINE ASM TYPEOF
 %token STDCALL CDECL
 %token <string> MSASM
+%token <string> PRAGMA
 
 /* operator precedence */
 %nonassoc 	IF
@@ -325,6 +326,7 @@ global:
 			TYPEDEF (set_name_group $2 $3)}
 | ASM LPAREN CST_STRING RPAREN
                         { GLOBASM $3 }
+| PRAGMA                { PRAGMA $1 }
 ;
 global_type:
     global_mod_list_opt gcc_attributes global_qual

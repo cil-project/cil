@@ -67,6 +67,7 @@ and definition =
  | TYPEDEF of name_group
  | ONLYTYPEDEF of name_group
  | GLOBASM of string
+ | PRAGMA of string
 
 and file = definition list				
 

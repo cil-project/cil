@@ -232,6 +232,7 @@ type global =
                                          * initializer. Includes function 
                                          * prototypes  *)
   | GAsm of string                      (* Global asm statement *)
+  | GPragma of string                   (* Pragmas at top level *)
     
 type file = global list
 	(* global function decls, global variable decls *)
@@ -651,8 +652,8 @@ and d_lval () lv =
     | NoOffset -> dobase ()
     | Field (fi, o) -> 
         d_offset (fun _ -> dprintf "%t.%s" dobase fi.fname) o
-    | Index (Const(CInt(0,_),_), NoOffset) -> dprintf "*%t" dobase
-    | First (NoOffset) -> dprintf "*%t" dobase
+    | Index (Const(CInt(0,_),_), NoOffset) -> dprintf "(*%t)" dobase
+    | First (NoOffset) -> dprintf "(*%t)" dobase
     | First (Index _ as o) -> d_offset dobase o
     | First o -> d_offset (fun _ -> dprintf "%t[0]" dobase) o
     | Index (e, o) -> 
@@ -663,7 +664,7 @@ and d_lval () lv =
   | Mem e, Field(fi, o) -> 
       d_offset (fun _ -> 
         dprintf "%a->%s" (d_expprec arrowLevel) e fi.fname) o
-  | Mem e, NoOffset -> dprintf "*%a" (d_expprec derefStarLevel) e
+  | Mem e, NoOffset -> dprintf "(*%a)" (d_expprec derefStarLevel) e
   | Mem e, o -> 
       d_offset (fun _ -> dprintf "%a" (d_expprec indexLevel) e) o
         
@@ -719,6 +720,14 @@ and d_instr () i =
               clobs)
        
 and d_stmt () s =
+  let doThen a = (* Want to print { } in the "then" branch to avoid 
+                  dangling elses. ASM gives some problems with MSVC so 
+                  bracket them as well  *) 
+    match a with
+      IfThenElse _ | Loop _ | Instruction(Asm _) | Switch _ -> 
+        Sequence [a]
+    | _ -> a
+  in
   match s with
     Skip -> dprintf ";"
   | Sequence(lst) -> dprintf "@[{ @[@!%a@]@!}@]" 
@@ -728,74 +737,21 @@ and d_stmt () s =
   | Loop(stmt) -> 
       dprintf "wh@[ile (1)@!%a@]" d_stmt stmt
   | IfThenElse(e,a,(Skip|Sequence([Skip]))) -> 
-      dprintf "if@[ (%a)@!%a@]" d_exp e d_stmt a
+      dprintf "if@[ (%a)@!%a@]" d_exp e d_stmt (doThen a)
   | IfThenElse(e,a,b) -> 
-      dprintf "@[if@[ (%a)@!%a@]@!els@[e@!%a@]@]" d_exp e d_stmt a d_stmt b
+      dprintf "@[if@[ (%a)@!%a@]@!el@[se@!%a@]@]" 
+        d_exp e d_stmt (doThen a) d_stmt b
   | Label(s) -> dprintf "%s:" s
   | Case(i) -> dprintf "case %d: " i
   | Goto(s) -> dprintf "goto %s;" s
   | Break  -> dprintf "break;"
-  | Continue -> dprintf "continue;";
+  | Continue -> dprintf "continue;"
   | Return(None) -> text "return;"
   | Return(Some e) -> dprintf "return (%a);" d_exp e
   | Switch(e,s) -> dprintf "@[switch (%a)@!%a@]" d_exp e d_stmt s
   | Default -> dprintf "default:"
   | Instruction(i) -> d_instr () i
 
-   (* Some plain pretty-printers. Unlike the above these expose all the 
-    * details of the internal representation *)
-and d_plainexp () = function
-    Const(c,_) -> dprintf "Const(%a)" d_const c
-  | Lval(lv) -> dprintf "Lval(@[%a@])" d_plainlval lv
-  | CastE(t,e,_) -> dprintf "CastE(@[%a,@?%a@])" d_plaintype t d_plainexp e
-  | StartOf lv -> dprintf "StartOf(%a)" d_plainlval lv
-  | e -> d_exp () e
-
-and d_plainlval () = function
-  | Var vi, o -> dprintf "Var(@[%s,@?%a@])" vi.vname d_plainoffset o
-  | Mem e, o -> dprintf "Mem(@[%a,@?%a@])" d_plainexp e d_plainoffset o
-
-and d_plainoffset () = function
-    NoOffset -> text "NoOffset"
-  | Field(fi,o) -> 
-      dprintf "Field(@[%s:%a,@?%a@])" 
-        fi.fname d_plaintype fi.ftype d_plainoffset o
-  | First o -> dprintf "First(%a)" d_plainoffset o
-  | Index(e, o) -> dprintf "Index(@[%a,@?%a@])" d_plainexp e d_plainoffset o
-
-and d_plaintype () = function
-    TVoid a -> dprintf "TVoid(@[%a@])" d_attrlist a
-  | TInt(ikind, a) -> dprintf "TInt(@[%a,@?%a@])" d_ikind ikind d_attrlist a
-  | TFloat(fkind, a) -> 
-      dprintf "TFloat(@[%a,@?%a@])" d_fkind fkind d_attrlist a
-  | TBitfield(ikind,i,a) -> 
-      dprintf "TBitfield(@[%a,@?%d,@?%a@])" d_ikind ikind i d_attrlist a
-  | TNamed (n, t) ->
-      dprintf "TNamed(@[%s,@?%a@])" n d_plaintype t
-  | TForward n -> dprintf "TForward(%s)" n
-  | TPtr(t, a) -> dprintf "TPtr(@[%a,@?%a@])" d_plaintype t d_attrlist a
-  | TArray(t,l,a) -> 
-      let dl = match l with 
-        None -> text "None" | Some l -> dprintf "Some(@[%a@])" d_plainexp l in
-      dprintf "TArray(@[%a,@?%a,@?%a@])" 
-        d_plaintype t insert dl d_attrlist a
-  | TEnum(n,_,a) -> dprintf "Enum(%s,@[%a@])" n d_attrlist a
-  | TFun(tr,args,isva,a) -> 
-      dprintf "TFun(@[%a,@?%a%s,@?%a@])"
-        d_plaintype tr 
-        (docList (chr ',' ++ break) 
-           (fun a -> dprintf "%s: %a" a.vname d_plaintype a.vtype)) args
-        (if isva then "..." else "") d_attrlist a
-  | TStruct(n,flds,a) -> 
-      dprintf "TStruct(@[%s,@?%a,@?%a@])" n
-        (docList (chr ',' ++ break) 
-           (fun f -> dprintf "%s : %a" f.fname d_plaintype f.ftype)) flds
-        d_attrlist a
-  | TUnion(n,flds,a) -> 
-      dprintf "TUnion(@[%s,@?%a,@?%a@])" n
-        (docList (chr ',' ++ break) 
-           (fun f -> dprintf "%s : %a" f.fname d_plaintype f.ftype)) flds
-        d_attrlist a
 
         
 and d_fun_decl () f = 
@@ -851,6 +807,7 @@ let printFile (out : out_channel) (globs : file) =
         insert (match eo with None -> nil | Some e -> 
                 dprintf " = %a" d_exp e)
   | GAsm s -> dprintf "__asm__(\"%s\")@!" (escape_string s)
+  | GPragma s -> dprintf "#pragma %s@!" s
   in
   List.iter (fun g -> print (d_global () g ++ line)) globs;
   noRedefinitions := false;
@@ -858,6 +815,60 @@ let printFile (out : out_channel) (globs : file) =
 
     
 
+   (* Some plain pretty-printers. Unlike the above these expose all the 
+    * details of the internal representation *)
+let rec d_plainexp () = function
+    Const(c,_) -> dprintf "Const(%a)" d_const c
+  | Lval(lv) -> dprintf "Lval(@[%a@])" d_plainlval lv
+  | CastE(t,e,_) -> dprintf "CastE(@[%a,@?%a@])" d_plaintype t d_plainexp e
+  | StartOf lv -> dprintf "StartOf(%a)" d_plainlval lv
+  | e -> d_exp () e
+
+and d_plainlval () = function
+  | Var vi, o -> dprintf "Var(@[%s,@?%a@])" vi.vname d_plainoffset o
+  | Mem e, o -> dprintf "Mem(@[%a,@?%a@])" d_plainexp e d_plainoffset o
+
+and d_plainoffset () = function
+    NoOffset -> text "NoOffset"
+  | Field(fi,o) -> 
+      dprintf "Field(@[%s:%a,@?%a@])" 
+        fi.fname d_plaintype fi.ftype d_plainoffset o
+  | First o -> dprintf "First(%a)" d_plainoffset o
+  | Index(e, o) -> dprintf "Index(@[%a,@?%a@])" d_plainexp e d_plainoffset o
+
+and d_plaintype () = function
+    TVoid a -> dprintf "TVoid(@[%a@])" d_attrlist a
+  | TInt(ikind, a) -> dprintf "TInt(@[%a,@?%a@])" d_ikind ikind d_attrlist a
+  | TFloat(fkind, a) -> 
+      dprintf "TFloat(@[%a,@?%a@])" d_fkind fkind d_attrlist a
+  | TBitfield(ikind,i,a) -> 
+      dprintf "TBitfield(@[%a,@?%d,@?%a@])" d_ikind ikind i d_attrlist a
+  | TNamed (n, t) ->
+      dprintf "TNamed(@[%s,@?%a@])" n d_plaintype t
+  | TForward n -> dprintf "TForward(%s)" n
+  | TPtr(t, a) -> dprintf "TPtr(@[%a,@?%a@])" d_plaintype t d_attrlist a
+  | TArray(t,l,a) -> 
+      let dl = match l with 
+        None -> text "None" | Some l -> dprintf "Some(@[%a@])" d_plainexp l in
+      dprintf "TArray(@[%a,@?%a,@?%a@])" 
+        d_plaintype t insert dl d_attrlist a
+  | TEnum(n,_,a) -> dprintf "Enum(%s,@[%a@])" n d_attrlist a
+  | TFun(tr,args,isva,a) -> 
+      dprintf "TFun(@[%a,@?%a%s,@?%a@])"
+        d_plaintype tr 
+        (docList (chr ',' ++ break) 
+           (fun a -> dprintf "%s: %a" a.vname d_plaintype a.vtype)) args
+        (if isva then "..." else "") d_attrlist a
+  | TStruct(n,flds,a) -> 
+      dprintf "TStruct(@[%s,@?%a,@?%a@])" n
+        (docList (chr ',' ++ break) 
+           (fun f -> dprintf "%s : %a" f.fname d_plaintype f.ftype)) flds
+        d_attrlist a
+  | TUnion(n,flds,a) -> 
+      dprintf "TUnion(@[%s,@?%a,@?%a@])" n
+        (docList (chr ',' ++ break) 
+           (fun f -> dprintf "%s : %a" f.fname d_plaintype f.ftype)) flds
+        d_attrlist a
 
 (******************
  ******************
@@ -1167,3 +1178,36 @@ let isPointerType t =
   match unrollType t with
     (TPtr _ | TArray _) -> true
   | _ -> false
+
+
+let typeAttrs = function
+    TVoid a -> a
+  | TInt (_, a) -> a
+  | TFloat (_, a) -> a
+  | TBitfield (_, _, a) -> a
+  | TNamed (n, _) -> []
+  | TPtr (_, a) -> a
+  | TArray (_, _, a) -> a
+  | TStruct (_, _, a) -> a
+  | TUnion (_, _, a) -> a
+  | TForward _ -> []
+  | TEnum (_, _, a) -> a
+  | TFun (_, _, _, a) -> a
+
+
+let setTypeAttrs t a =
+  match t with
+    TVoid _ -> TVoid a
+  | TInt (i, _) -> TInt (i, a)
+  | TFloat (f, _) -> TFloat (f, a)
+  | TBitfield (i, s, _) -> TBitfield (i, s, a)
+  | TNamed (n, _) -> t
+  | TPtr (t', _) -> TPtr(t', a)
+  | TArray (t', l, _) -> TArray(t', l, a)
+  | TStruct (n, f, _) -> TStruct(n,f,a)
+  | TUnion (n, f, _) -> TUnion(n, f, a)
+  | TForward _ -> t
+  | TEnum (n, f, _) -> TEnum (n, f, a)
+  | TFun (r, args, v, _) -> TFun(r,args,v,a)
+
+

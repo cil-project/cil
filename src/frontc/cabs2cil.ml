@@ -157,11 +157,30 @@ let addNewVar vi =
 (* Create a new temporary variable *)
 let newTempVar typ = 
   incr localId;
+  (* Strip the "const" from the type. It is unfortunate that const variables 
+    can only be set in initialization. Once we decided to move all 
+    declarations to the top of the functions, we have no way of setting a 
+    "const" variable *)
+  let stripConst t =
+    let a = typeAttrs t in
+    let rec loop = function
+        [] -> []
+      | AId("const") :: rest -> loop rest
+      | (x :: rest) as i -> 
+          let rest' = loop rest in
+          if rest' == rest then i else x :: rest'
+    in
+    let a' = loop a in
+    if a == a' then
+      t
+    else
+      setTypeAttrs t a'
+  in
   addNewVar 
     { vname = "tmp";  (* addNewVar will make the name fresh *)
       vid   = !localId;
       vglob = false;
-      vtype = typ;
+      vtype = stripConst typ;
       vdecl = locUnknown;
       vattr = [];
       vaddrof = false;
@@ -303,8 +322,8 @@ type expAction =
 (******** CASTS *********)
 let integralPromotion (t : typ) : typ = (* c.f. K&R A6.1 *)
   match unrollType t with
-    TInt ((IShort|IChar|ISChar), a) -> TInt(IInt, a)
-  | TInt ((IUShort|IUChar), a) -> TInt(IUInt, a)
+          (* We assume that an IInt can hold even an IUShort *)
+    TInt ((IShort|IUShort|IChar|ISChar|IUChar), a) -> TInt(IInt, a)
   | TInt _ -> t
   | TEnum (_, _, a) -> TInt(IInt, a)
   | TBitfield((IShort|IChar|ISChar), _, a) -> TInt(IInt, a)
@@ -753,7 +772,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
             end
           end
         | A.CONST_STRING s -> 
-            finishCt (CStr(s)) (TPtr(TInt(IChar,[]),[]))
+            finishCt (CStr(s)) charPtrType
               
         | A.CONST_CHAR s ->
             let chr = 
@@ -837,7 +856,13 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
            * drop the potential size-effects *)
         if se <> [] then 
           ignore (E.log "Warning: Dropping side-effect in EXPR_SIZEOF\n");
-        finishExp [] (SizeOf(t, lu)) intType
+        let t' = 
+          match e' with                 (* If we are taking the sizeof an 
+                                         * array we must drop the StartOf  *)
+            StartOf(lv) -> typeOfLval lv
+          | _ -> t
+        in
+        finishExp [] (SizeOf(t', lu)) intType
           
     | A.CAST (bt, e) -> 
         let se1, typ = 
@@ -1131,7 +1156,47 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         in
         finishExp (doCondition e1 se2 se3) (integer 0) intType
           
-          
+    | A.QUESTION (e1, A.NOTHING, e3) -> (* A GNU thing *)
+        E.s (E.unimp " e1 ? : e3 not yet implemented")
+
+    | A.QUESTION (e1, e2, e3) -> begin (* what is not ADrop *)
+        let _, e2', t2' = doExp e2 (AExp None) in (* Do these only to collect 
+                                                   * the types  *)
+        let _, e3', t3' = doExp e3 (AExp None) in
+        let tresult =  (* K&R A7.16 *)
+          match unrollType t2', unrollType t3' with
+            (TInt _ | TEnum _ | TBitfield _ | TFloat _), 
+            (TInt _ | TEnum _ | TBitfield _ | TFloat _) -> 
+              arithmeticConversion t2' t3' 
+          | TStruct(n2, _, _), TStruct(n3, _, _) when n2 = n3 -> t2'
+          | TUnion(n2, _, _), TUnion(n3, _, _) when n2 = n3 -> t2'
+          | TPtr(_, _), TPtr(TVoid _, _) -> t2'
+          | TPtr(TVoid _, _), TPtr(_, _) -> t3'
+          | TPtr(t2'', _), TPtr(t3'', _) 
+                when typeSig t2'' = typeSig t3'' -> t2'
+          | TPtr(_, _), TInt _ when 
+               (match e3' with Const(CInt(0,_),_) -> true | _ -> false) -> t2'
+          | TInt _, TPtr _ when 
+               (match e2' with Const(CInt(0,_),_) -> true | _ -> false) -> t3'
+          | _, _ -> E.s (E.unimp "A.QUESTION")
+        in
+        (* Now see if we need to create a temporary *)
+        let lv, lvt = 
+          match what with
+            AExp _ -> 
+              let tmp = newTempVar tresult in
+              var tmp, tresult
+          | ASet (lv, lvt) -> lv, lvt
+          | _ -> E.s (E.bug "A.QUESTION")
+        in
+        (* Now do e2 and e3 for real *)
+        let (se2, _, _) = doExp e2 (ASet(lv, lvt)) in
+        let (se3, _, _) = doExp e3 (ASet(lv, lvt)) in
+        finishExp (doCondition e1 se2 se3) (Lval(lv)) tresult
+    end
+(*              
+
+
     | A.QUESTION (e1, e2, e3) -> begin (* what is not ADrop *)
         let se3, lv, tlv = 
           let (se3,e3',t3') = doExp e3 what in (* e2 might be NOTHING *)
@@ -1162,6 +1227,8 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
             finishExp [] e' tlv
         | _, _ -> finishExp stats (Lval(lv)) tlv
     end
+*)
+
     | A.GNU_BODY ((_, s) as b) -> begin
         (* Find the last A.COMPUTATION *)
         let rec findLast = function
@@ -1475,16 +1542,20 @@ and doStatement (s : A.statement) : stmt list =
         exitLoop ();
         [Loop(mkSeq (s' @ s''))]
           
-    | A.FOR(e1,e2,e3,s) ->
+    | A.FOR(e1,e2,e3,s) -> begin
         let (se1, _, _) = doExp e1 ADrop in
         let (se3, _, _) = doExp e3 ADrop in
         startLoop false;
         let s' = doStatement s in
         let s'' = labContinue () :: se3 in
         exitLoop ();
-        se1 @ [Loop(mkSeq ((doCondition e2 [Skip] [Break])
-                           @ s' @ s''))]
-                
+        match e2 with
+          A.NOTHING -> (* This means true *)
+            se1 @ [Loop(mkSeq (s' @ s''))]
+        | _ -> 
+            se1 @ [Loop(mkSeq ((doCondition e2 [Skip] [Break])
+                               @ s' @ s''))]
+    end
     | A.BREAK -> [Break]
           
     | A.CONTINUE -> [doContinue ()]
@@ -1647,6 +1718,7 @@ let convFile dl =
         ignore (doNameGroup createGlobal ng)
           
     | A.GLOBASM s -> theFile := GAsm s :: !theFile
+    | A.PRAGMA s -> theFile := GPragma s :: !theFile
 
     | A.FUNDEF (((bt,st,(n,bt',funattr,_)) : A.single_name), 
                  (body : A.body)) -> 

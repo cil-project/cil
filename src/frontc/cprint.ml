@@ -747,6 +747,22 @@ and print_def def =
       print "__asm__ (";  print_string asm; print ");";
       new_line ();
       force_new_line ()
+(*
+  | PRAGMA (s, el) -> 
+      force_new_line ();
+      print "#pragma "; print_string s;
+      if el <> [] then begin
+        print "("; 
+        print_commas false (fun e -> print_expression e 1) el;
+        print ")"
+      end;
+      force_new_line ()
+*)
+  | PRAGMA s -> 
+      force_new_line ();
+      print "#pragma "; print s;
+      force_new_line ()
+      
 
 (*  print abstrac_syntax -> ()
 **		Pretty printing the given abstract syntax program.

@@ -250,15 +250,15 @@ rule initial =
 |		'#'			{line lexbuf}
 	
 |		'\''			{ CST_CHAR (chr lexbuf)}
-|		'"'			
-                                        { try CST_STRING (str lexbuf)
+|		'"'			{ (* '"' *)
+                                          try CST_STRING (str lexbuf)
                                           with e -> 
                                              raise (InternalError "str")}
 |		floatnum		{CST_FLOAT (Lexing.lexeme lexbuf)}
 |		hexnum			{CST_INT (Lexing.lexeme lexbuf)}
 |		octnum			{CST_INT (Lexing.lexeme lexbuf)}
 |		intnum			{CST_INT (Lexing.lexeme lexbuf)}
-|		"!quit!"			{EOF}
+|		"!quit!"		{EOF}
 |		"..."			{ELLIPSIS}
 |		"+="			{PLUS_EQ}
 |		"-="			{MINUS_EQ}
@@ -321,27 +321,32 @@ and comment =
 | 		_ 				{comment lexbuf}
 
 (* # <line number> <file name> ... *)
-and line =
-	parse	'\n'		{initial lexbuf}
-	|	blank		{line lexbuf}
-	|	intnum		{ set_line 
-                                      (int_of_string (Lexing.lexeme lexbuf));
-						file lexbuf }
-	|	_		{endline lexbuf}
+and line = parse
+  '\n'		{ initial lexbuf}
+| blank		{ line lexbuf}
+| intnum	{ set_line (int_of_string (Lexing.lexeme lexbuf));
+		  file lexbuf }
+| "pragma"      { PRAGMA (pragma lexbuf) }
+| _	        { endline lexbuf}
 
 and file =
 	parse '\n'		{initial lexbuf}
 |	blank			{file lexbuf}
-|	'"' [^ '"']* '"' 	        
-                                {set_name (rem_quotes (Lexing.lexeme lexbuf));
+|	'"' [^ '"']* '"' 	{ (* '"' *)
+                                 set_name (rem_quotes (Lexing.lexeme lexbuf));
 							endline lexbuf}
 |	_					{endline lexbuf}
 and endline =
 	parse '\n' 				{initial lexbuf}
 |	_					{endline lexbuf}
 
+and pragma = parse
+   '\n'        { "" }
+|   _                   { let cur = Lexing.lexeme lexbuf in 
+                          cur ^ (pragma lexbuf) }  
+
 and str =
-	parse	'"'             {""}			
+	parse	'"'             {""} (* '"' *)
 |	hex_escape		{let cur = scan_hex_escape (String.sub
 					 (Lexing.lexeme lexbuf) 2 2) in 
                                         cur ^ (str lexbuf)}
