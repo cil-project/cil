@@ -191,34 +191,43 @@ and simplifyOffset (setTemp: taExp -> bExp) = function
 class threeAddressVisitor (fi: fundec) = object (self)
   inherit nopCilVisitor
 
+  method private makeTemp (e1: exp) : exp = 
+    let t = makeTempVar fi (typeOf e1) in
+    (* Add this instruction before the current statement *)
+    self#queueInstr [Set(var t, e1, !currentLoc)];
+    Lval(var t)
+
       (* We'll ensure that this gets called only for top-level expressions 
        * inside functions. We must turn them into three address code. *)
   method vexpr (e: exp) = 
-    let e' = 
-      makeThreeAddress 
-        (fun e1 -> 
-          let t = makeTempVar fi (typeOf e1) in
-          (* Add this instruction before the current statement *)
-          self#queueInstr [Set(var t, e1, !currentLoc)];
-          Lval(var t)) 
-        e
-    in
+    let e' = makeThreeAddress self#makeTemp e in
     ChangeTo e'
+
+
+     (** We want the argument in calls to be simple variables *)
+  method vinst (i: instr) =
+    match i with 
+      Call (someo, f, args, loc) -> 
+        let someo' = 
+          match someo with 
+            Some lv -> Some (simplifyLval self#makeTemp lv)
+          | _ -> None
+        in
+        let f' = makeBasic self#makeTemp f in
+        let args' = List.map (makeBasic self#makeTemp) args in 
+        ChangeTo [ Call (someo', f', args', loc) ]
+  | _ -> DoChildren
 
       (* This method will be called only on top-level "lvals" (those on the 
        * left of assignments and function calls) *)
   method vlval (lv: lval) = 
-    ChangeTo 
-      (simplifyLval 
-         (fun e1 -> 
-           let t = makeTempVar fi (typeOf e1) in
-           (* Add this instruction before the current statement *)
-             self#queueInstr [Set(var t, e1, !currentLoc)];
-           Lval(var t)) 
-         lv)
+    ChangeTo (simplifyLval self#makeTemp lv)
 end
 
-(*
+(********************
+  Next is an old version of the code that was splitting structs into 
+ * variables. It was not working on variables that are arguments or returns 
+ * of function calls. 
 (** This is a visitor that splits structured variables into separate 
  * variables. *)
 let isStructType (t: typ): bool = 
