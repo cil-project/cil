@@ -1699,7 +1699,7 @@ linuxclean:
 	      	\) -exec rm -f {} \;
 
 linux: mustbegcc mustbelinux mustbemanju linuxclean
-	cd $(LINUXSRC) ; make -k CC="$(CILLY) --keepunused" HOSTCC="$(CILLY)"
+	cd $(LINUXSRC) ; make -k CC="$(CILLY)" HOSTCC="$(CILLY)"
 
 linux-noclean:  mustbegcc mustbelinux mustbemanju
 	cd $(LINUXSRC) ; make -k CC="$(CILLY)" HOSTCC="$(CILLY)"
