@@ -17,3 +17,4 @@ clean:
 	rm -f regbeforeassign simplewild tprintf voidfree
 	rm -f *.exe *.obj *.pdb *.ilk
 	rm -f __scalar2pointer.txt ocamlprof.dump "#"*
+	rm -f *cured.c *optim.c *_comb.c
