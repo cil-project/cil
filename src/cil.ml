@@ -1957,10 +1957,16 @@ let gccBuiltins : (string, typ * typ list * bool) H.t =
   (* When we parse builtin_next_arg we drop the second argument *)
   H.add h "__builtin_next_arg" 
     ((if hasbva then TBuiltin_va_list [] else voidPtrType), [], false);
+  H.add h "__builtin_alloca" (voidPtrType, [ uintType ], false);
   H.add h "__builtin_constant_p" (intType, [ intType ], false);
+  H.add h "__builtin_expect" (longType, [ longType; longType ], false);
   H.add h "__builtin_fabs" (doubleType, [ doubleType ], false);
   let longDouble = TFloat (FLongDouble, []) in
   H.add h "__builtin_fabsl" (longDouble, [ longDouble ], false);
+  H.add h "__builtin_memcpy" (voidPtrType, [ voidPtrType;
+					     TPtr(TVoid [Attr ("const", [])], []);
+					     uintType ],
+			      false);
   if hasbva then begin
     H.add h "__builtin_va_end" (voidType, [ TBuiltin_va_list [] ], false);
     H.add h "__builtin_varargs_start" 
