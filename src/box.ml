@@ -490,6 +490,7 @@ and fixit t =
     in
     H.add fixedTypes ts fixed;
     H.add fixedTypes (typeSig fixed) fixed;
+    ignore (E.log "Id of %a\n is %s\n" d_plaintype t (P.typeIdentifier t));
     fixed
   end
 

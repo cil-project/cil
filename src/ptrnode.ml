@@ -528,3 +528,112 @@ let simplify () =
     | _ -> ()
   end in
   H.iter examine_node idNode 
+
+
+(* Type names, computed in such a way that compatible types have the same id, 
+ * even if they are syntactically different. Right now we flatten structures 
+ * but we do not pull common subcomponents out of unions and we do not unroll 
+ * arrays. *)
+
+
+(* Some structs (those involved in recursive types) are named. This hash maps 
+ * their name to the ID *)
+let namedStructs : (string, string) H.t = H.create 110
+
+
+(* Keep track of the structs in which we are (to detect loops). When we 
+ * detect a loop we remember that *)
+let inStruct : (string, bool ref) H.t = H.create 110
+
+
+let rec typeIdentifier (t: typ) : string = 
+  let res = typeId t in
+  H.clear inStruct;  (* Start afresh next time *)
+  res
+
+and typeId = function
+    TInt(ik, a) -> ikId ik ^ attrsId a
+  | TVoid a -> "V" ^ attrsId a
+  | TBitfield (ik, w, a) ->  "B" ^ ikId ik ^ 
+                             string_of_int w ^ attrsId a
+  | TFloat (fk, a) -> fkId fk ^ attrsId a
+  | TEnum _ -> ikId IInt (* !!! *)
+  | TNamed (_, t, a) -> typeId (typeAddAttributes a t)
+  | TComp comp when comp.cstruct -> begin
+      let hasPrefix s p = 
+        let pl = String.length p in
+        (String.length s >= pl) && String.sub s 0 pl = p
+      in
+      (* See if we are in a loop *)
+      try
+        let inloop = H.find inStruct comp.cname in
+        inloop := true; (* Part of a recursive type *)
+        "t" ^ prependLength comp.cname (* ^ attrsId comp.cattr *)
+      with Not_found -> 
+        let inloop = ref false in
+        let isanon = hasPrefix comp.cname "__anon" in
+        if not isanon then H.add inStruct comp.cname inloop;
+        let fieldsids = 
+          List.fold_left (fun acc f -> acc ^ typeId f.ftype) "" comp.cfields in
+        (* If it is in a loop then keep its name *)
+        let res = fieldsids (* ^ attrsId comp.cattr *) in
+        if not isanon then H.remove inStruct comp.cname;
+        if !inloop && not (H.mem namedStructs comp.cname) then begin
+          H.add namedStructs comp.cname res;
+          "t" ^ prependLength comp.cname (* ^ attrsId comp.cattr *)
+        end else
+          res
+  end
+  | TComp comp when not comp.cstruct -> 
+      "N" ^ (string_of_int (List.length comp.cfields)) ^
+      (List.fold_left (fun acc f -> acc ^ typeId f.ftype ^ "n") 
+         "" comp.cfields) ^
+      attrsId comp.cattr 
+  | TForward (comp, a) -> typeId (typeAddAttributes a (TComp comp))
+  | TPtr (t, a) -> "P" ^ typeId t ^ "p" ^ attrsId a
+  | TArray (t, lo, a) -> 
+      let thelen = "len" in
+      "A" ^ typeId t ^ "a" ^ prependLength thelen ^ attrsId a
+  | TFun (tres, args, va, a) -> 
+      "F" ^ typeId tres ^ "f" ^ (string_of_int (List.length args)) ^ 
+      (List.fold_left (fun acc arg -> acc ^ typeId arg.vtype ^ "f") 
+         "" args) ^ (if va then "V" else "v") ^ attrsId a
+  | _ -> E.s (E.bug "typeId")
+      
+and ikId = function
+    IChar -> "C"
+  | ISChar -> "c"
+  | IUChar -> "b"
+  | IInt -> "I"
+  | IUInt -> "U"
+  | IShort -> "S"
+  | IUShort -> "s"
+  | ILong -> "L"
+  | IULong -> "l"
+  | ILongLong -> "W"
+  | IULongLong -> "w"
+
+and fkId = function
+    FFloat -> "O"
+  | FDouble -> "D"
+  | FLongDouble -> "T"
+
+and attrId a = 
+  let an = match a with
+    AId s -> s
+  | _ -> E.s (E.unimp "attrId: %a" d_attr a)
+  in
+  prependLength an
+
+and prependLength s = 
+  let l = String.length s in
+  if s = "" || (s >= "0" && s <= "9") then
+    E.s (E.unimp "String %s starts with a digit\n" s);
+  string_of_int l ^ s
+
+and attrsId al = 
+  match al with
+    [] -> "_"
+  | _ -> "r" ^ List.fold_left (fun acc a -> acc ^ attrId a) "" al ^ "r"
+
+
