@@ -873,7 +873,7 @@ sub new {
     return $self;
 }
 
-my $linker_script_debug = 1;
+my $linker_script_debug = 0;
 sub parseLinkerScript {
     my($self, $filename, $onemore, $pargs) = @_;
     

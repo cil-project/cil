@@ -168,17 +168,6 @@ let attribDepth = ref 0 (* Remembers the nesting level when parsing
 (* The current lexing buffer *)
 let currentLexBuf = ref (Lexing.from_string "")
 
-let init ~(filename: string) 
-         ~(inchannel: in_channel) : Lexing.lexbuf =
-  currentLine := 1;
-  startLine := 0;
-  currentFile := cleanFileName filename;
-  attribDepth := 0;
-  init_lexicon ();
-  let lexbuf = Lexing.from_channel inchannel in
-  currentLexBuf := lexbuf;
-  lexbuf
-
 let newline () = 
   incr currentLine;
   startLine := Lexing.lexeme_start !currentLexBuf
@@ -226,6 +215,19 @@ let display_error msg token_start token_end =
     output_string stderr "Too many errors. Aborting.\n" ;
     exit 1 
   end
+
+let init ~(filename: string) 
+         ~(inchannel: in_channel) : Lexing.lexbuf =
+  num_errors := 0;
+  currentLine := 1;
+  startLine := 0;
+  currentFile := cleanFileName filename;
+  attribDepth := 0;
+  init_lexicon ();
+  let lexbuf = Lexing.from_channel inchannel in
+  currentLexBuf := lexbuf;
+  lexbuf
+
 
 (*** Error handling ***)
 let error msg =

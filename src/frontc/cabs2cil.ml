@@ -1281,6 +1281,8 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
                 ) oldci.cfields ci.cfields
             with Failure _ as e -> begin 
               (* Our assumption was wrong. Forget the isomorphism *)
+              ignore (E.log "\tFailed in our assumption that %s and %s are isomorphic\n"
+                        oldci.cname ci.cname);
               H.remove isomorphicStructs (oldci.cname, ci.cname);
               H.remove isomorphicStructs (ci.cname, oldci.cname);
               raise e

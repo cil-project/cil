@@ -1000,8 +1000,10 @@ subprocess. In addition, the following options are supported:
 source file all of the sources that make your application, and then to apply
 \t{cilly.asm} on the resulting source. The sequence of actions in this case is
 described above and the merger itself is described in \secref{merger}.
-\item \t{--aggressive-merge}. We try to merge all isomorphic type names
-independent of their original names. 
+\item \t{--M<args>}. A comma-separated list of arguments to be passed to the
+merger. This is only relevant if the \t{--merge} argument is also passed.
+Multiple \t{--M} arguments can be passed. See the \secref{merger} for details
+on what arguments the merger accepts. 
 
 \item \t{--leavealone=xxx}. Do not merge and do not present to CIL the files
 whose basename is "xxx". These files are compiled as usual and linked in at

@@ -42,6 +42,8 @@ module H = Hashtbl
 (** Be aggressive when merging types *)
 let aggressive = ref false
 
+let renameAll = true
+
 let debugTypes  = false
 let debugFundef = false
 
@@ -458,7 +460,10 @@ let stripLocation (g: definition) : definition =
   | _ -> E.s (E.bug "stripLocationVisitor returns too many definitions")
   
 
-(* Equality constraints *)
+
+
+(* Equality constraints. The first string is always from the program already 
+ * merged and the new one if from the file being merged. *)
 type eqConstraint = envKind * string * string
 
 let d_eqc () ((ek, oldn, newn) : eqConstraint) : doc = 
@@ -468,6 +473,7 @@ let d_eqc_list () (el : eqConstraint list) : doc =
 
 let alreadyKnownToBeEqual (eqc : eqConstraint) (acc: eqConstraint list) = 
   List.exists (fun x -> x = eqc) acc
+
 
 (* Compare two specifiers and collect a number of constraints that must all 
  * be satisfied for the specifiers to be isomorphic *)
@@ -605,7 +611,9 @@ let dumpGraph (msg: string) =
               n.id on nn n.eq
               (docList (chr ',') (fun succ -> num succ.id)) n.succs))
     constraintGraph
-    
+  
+
+
 let constructConstraintGraph () = 
   H.clear constraintGraph; nodeId := 0;
   let doOne (defk, defn) (defspec, ((_, def_dt, def_a) as defname), defloc) = 
@@ -699,7 +707,7 @@ let constructConstraintGraph () =
    * name. For the local tags we can look in fileTypeTags. For the global 
    * ones we have a separate hashtable. *)
   H.iter (fun (k,on,nn) nd -> 
-    if (k = EStruct || k = EUnion) && (!aggressive || on = nn) then
+    if (k = EStruct || k = EUnion) &&on = nn then
       if not (H.mem fileTypeTags (k, nn)) ||
          not (H.mem globalDefinedTypeTags (k, on)) then
       nd.eq <- true) constraintGraph;
@@ -730,6 +738,8 @@ let findTypeTagNames (f: Cabs.file) =
         (* Find the first old name that matches *)
         let defkn' = if !aggressive then (defk, "") else defkn in
         let oldnames = H.find_all globalTypeTags defkn' in
+        (* Sometimes we want to rename everything *)
+        let oldnames = if renameAll then [] else oldnames in
         let matches = 
           List.filter 
             (fun (_, on, _, _, _) -> let n = getNode (defk, on, defn) in n.eq)
@@ -749,7 +759,8 @@ let findTypeTagNames (f: Cabs.file) =
         | (_, on, _, _, _) :: rest -> 
             if debugTypes then
               ignore (E.log "reusing name for %s -> %s\n" defn on);
-            if rest <> [] then 
+            if rest <> [] && not !aggressive then 
+              (* We have too many warnings if we are in the aggressive mode *)
               ignore (E.warn " more than one old name found for %s!\n" defn);
             (* Add to the environment the new name *)
             H.add env defkn on;
@@ -758,7 +769,7 @@ let findTypeTagNames (f: Cabs.file) =
     fileTypeTags;
   (* Clean the graph *)
   H.clear constraintGraph;
-  (* Add new new names to globalTypeTags. Must do it this late because we 
+  (* Add new names to globalTypeTags. Must do it this late because we 
    * must rename the typeTags and only now we have the whole renaming *)
   H.iter 
     (fun (defk, defn) (defspec, defname, defloc) -> 
