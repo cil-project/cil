@@ -961,7 +961,7 @@ apache/info : defaulttarget
                         $(DOOPT) \
                         $(APACHECFLAGS) \
                         $(CONLY) $(OBJOUT)./mod_info.$(OBJ) \
-                        mod_gzip.c
+                        mod_info.c
 
 apache/gzip : defaulttarget
 	rm -f $(APACHETEST)/mod_gzip.$(OBJ)
