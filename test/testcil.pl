@@ -533,6 +533,9 @@ $TEST->addTests("test_heapify", "", ['cil']);
 $TEST->addTests("testrun/scanf2", "", ['inferbox']);
 $TEST->addTests("testrun/scanf3", "", ['inferbox']);
     $TEST->addBadComment("testrun/scanf3-inferbox", "ccured_fscanf_string is too consrevative");
+$TEST->add2Tests("testrun/stringsize");
+    $TEST->addBadComment("testrun/stringsize-cil", "CIL doesn't handle sizeof( \"string literal\" ) correcly.");
+    $TEST->addBadComment("testrun/stringsize-inferbox", "CIL doesn't handle sizeof( \"string literal\" ) correcly.");
 
 #
 # OLDEN benchmarks
