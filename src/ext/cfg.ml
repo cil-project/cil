@@ -83,12 +83,13 @@ let nodeList : stmt list ref = ref [] (* All the nodes in a flat list *) (* ab: 
 
 (** Compute a control flow graph for fd.  Stmts in fd have preds and succs
   filled in *)
-let rec cfgFun (fd : fundec) : unit = 
+let rec cfgFun (fd : fundec) : int = 
   begin
     numNodes := 0;
     nodeList := [];
 
-    cfgBlock fd.sbody None None None
+    cfgBlock fd.sbody None None None;
+    !numNodes
   end
 
 
