@@ -39,7 +39,7 @@ open Cil
 open Pretty
 module E = Errormsg
 
-let debug = true
+let debug = false
 
 
 type blockkind =
@@ -93,9 +93,9 @@ let getFunctionPtrNode (t: typ) : node =
                 bkind = NoBlock; preds = []; succs = []; predstmts = []; })
 
 
-(** Dump the function call graph. Assume that there is a main *)
+(** Dump the function call graph. *)
 let dumpGraph = true
-let dumpFunctionCallGraph (start: string) = 
+let dumpFunctionCallGraph (start: node) = 
   H.iter (fun _ x -> x.scanned <- false) functionNodes;
   let rec dumpOneNode (ind: int) (n: node) : unit = 
     output_string !E.logChannel "\n";
@@ -117,13 +117,8 @@ let dumpFunctionCallGraph (start: string) =
       List.iter (dumpOneNode (ind + 1)) n.succs
     end
   in
-  try
-    let main = H.find functionNodes start in
-    dumpOneNode 0 main;
-    output_string !E.logChannel "\n\n"
-  with Not_found -> begin
-    ignore (E.log "Can't find start node %s for dumping graph" start);
-  end
+  dumpOneNode 0 start;
+  output_string !E.logChannel "\n\n"
   
 
 let addCall (callerNode: node) (calleeNode: node) (sopt: stmt option) =
@@ -154,13 +149,7 @@ class findCallsVisitor (host: node) : cilVisitor = object
   method vinst i =
     match i with
     | Call(_,Lval(Var(vi),NoOffset),args,l) -> 
-        let callee =
-          if vi.vname = "pthread_create" then
-            getFunctionPtrNode (typeOf (List.nth args 2))
-          else
-            getFunctionNode vi.vname
-        in
-        addCall host callee (Some !curStmt);
+        addCall host (getFunctionNode vi.vname) (Some !curStmt);
         SkipChildren
 
     | Call(_,e,_,l) -> (* Calling a function pointer *)
@@ -179,11 +168,12 @@ end
 let endPt = { id = 0; point = mkEmptyStmt (); callfun = "end"; infun = "end";
               leadsto = []; }
 
-let blockingPoints = ref [endPt]
+(* These values will be initialized for real in makeBlockingGraph. *)
+let curId : int ref = ref 1
+let blockingPoints = ref []
 let blockingPointsNew = ref []
 let blockingPointsHash = Hashtbl.create 117
 
-let curId : int ref = ref 1
 let getFreshNum () : int =
   let num = !curId in
   curId := !curId + 1;
@@ -214,13 +204,7 @@ let getStmtNode (s: stmt) : node option =
       if len > 0 then
         match List.nth instrs (len - 1) with
           Call (_, Lval (Var vi, NoOffset), args, _) -> 
-            let node =
-              if vi.vname = "pthread_create" then
-                getFunctionPtrNode (typeOf (List.nth args 2))
-              else
-                getFunctionNode vi.vname
-            in
-            Some node
+            Some (getFunctionNode vi.vname)
         | Call (_, e, _, _) -> (* Calling a function pointer *)
             Some (getFunctionPtrNode (typeOf e))
         | _ ->
@@ -297,13 +281,16 @@ let findBlockingPointEdges (bpt: blockpt) : unit =
                   curNode.preds
   done
 
-let findBlockingPoints (start: string) =
+let makeBlockingGraph (start: node) =
   let startStmt =
-    match (getFunctionNode start).fds with
+    match start.fds with
       Some fd -> List.hd fd.sbody.bstmts
     | None -> E.s (bug "expected fundec")
   in
-  let result = ref [] in
+  curId := 1;
+  blockingPoints := [endPt];
+  blockingPointsNew := [];
+  Hashtbl.clear blockingPointsHash;
   ignore (getBlockPt startStmt "start" "start");
   while !blockingPointsNew <> [] do
     let bpt = List.hd !blockingPointsNew in
@@ -311,7 +298,7 @@ let findBlockingPoints (start: string) =
     findBlockingPointEdges bpt;
   done
 
-let dumpBlockingPoints () =
+let dumpBlockingGraph () =
   List.iter
     (fun bpt ->
        if bpt.id < 2 then begin
@@ -323,6 +310,17 @@ let dumpBlockingPoints () =
        ignore (E.log "\n"))
     !blockingPoints;
   ignore (E.log "\n")
+
+
+let startNodes : node list ref = ref []
+
+let makeAndDumpBlockingGraphs () : unit =
+  List.iter
+    (fun n ->
+       makeBlockingGraph n;
+       dumpFunctionCallGraph n;
+       dumpBlockingGraph ())
+    !startNodes
 
 
 let blockingNodes : node list ref = ref []
@@ -360,6 +358,9 @@ let makeFunctionCallGraph (f: Cil.file) : unit =
             addCall (getFunctionPtrNode (TPtr (fdec.svar.vtype, [])))
                     curNode None;
           end;
+          if hasAttribute "start" fdec.svar.vattr then begin
+            startNodes := curNode :: !startNodes;
+          end;
           markVar fdec.svar;
           curNode.fds <- Some fdec;
           let vis = new findCallsVisitor curNode in
@@ -376,6 +377,4 @@ let makeFunctionCallGraph (f: Cil.file) : unit =
 let makeAndDumpFunctionCallGraph (f: file) = 
   makeFunctionCallGraph f;
   markBlockingFunctions ();
-  findBlockingPoints "main";
-  dumpFunctionCallGraph "main";
-  dumpBlockingPoints ()
+  makeAndDumpBlockingGraphs ();
