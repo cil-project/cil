@@ -281,8 +281,8 @@ let fundecToCFGInfo (fdec: fundec) : S.cfgInfo =
   ci
 
 (* Compute strongly-connected components *)
-let stronglyConnectedComponents (cfg: S.cfgInfo) : S.sccInfo = 
-  S.stronglyConnectedComponents cfg
+let stronglyConnectedComponents (cfg: S.cfgInfo) : bool -> S.sccInfo = 
+  S.stronglyConnectedComponents cfg 
 
 
 let globalsDumped = IH.create 13
@@ -623,10 +623,12 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
       let ind = ind + 2 in 
       (match s.skind with 
       | Instr il -> 
-          List.iter 
-            (fun i -> 
+          if (cfgi.S.blocks.(s.sid).S.reachable) then begin
+	    List.iter 
+              (fun i -> 
               pd ~ind:ind (self#pInstr () i ++ line))
-            il
+              il
+	  end
       | Block b -> List.iter (self#dStmt out ind) b.bstmts
       | Goto (s, _) -> ignore (p ~ind:ind "%sgoto %d%s\n" prologue !s.sid epilogue)
       | Return (what, _) -> begin
@@ -720,7 +722,7 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
 
           (* Compute strongly connected components *)
           let scc: S.sccInfo = 
-            stronglyConnectedComponents cfgi in 
+            stronglyConnectedComponents cfgi false in 
           sccInfo <- Some scc;
 
           (* Now do the SSA renaming. *)
@@ -1052,7 +1054,7 @@ let feature : featureDescr =
          S.regToVarinfo = Array.create 0 dummyFunDec.svar;
         }
       in
-      let ci = S.prune_cfg ci in
+      let ci = ci in
       nrNodes := 0;
       IH.iter (fun idx cn -> 
         let cnlistToNodeList (cnl: (string, CG.callnode) H.t) : int list = 
@@ -1070,7 +1072,7 @@ let feature : featureDescr =
         ) nodeIdToNode;
 
       let scc: S.sccInfo =
-        stronglyConnectedComponents ci in 
+        stronglyConnectedComponents ci false in 
       List.iter 
         (fun oneScc -> 
           ignore (p "%sSCC %sheaders %a%s %snodes %a%s%s\n"

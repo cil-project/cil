@@ -536,12 +536,12 @@ let preorder (nrNodes: int) (successors: (int list) array) (r: int): oneSccInfo 
 exception Finished
 
 
-let rec strong_components (f: cfgInfo) = 
+let strong_components (f: cfgInfo) (debug: bool) = 
   let size = f.size in
   let parent = Array.make size (-1) in
   let color = Array.make size (-1) in
   let finish = Array.make size (-1) in
- 
+  let root = Array.make size (-1) in
 
 (* returns a list of SCC. Each SCC is a tuple of SCC root and SCC nodes *) 
   let dfs (successors: (int list) array) (order: int array) = 
@@ -560,22 +560,28 @@ let rec strong_components (f: cfgInfo) =
     for u = 0 to size - 1 do
       color.(u) <- 0; (* white = 0, gray = 1, black = 2 *)
       parent.(u) <- -1; (* nil = -1 *)
+      root.(u) <- 0; (* Is u a root? *)
     done;
     time := 0;
     Array.iter (fun u -> 
-      if (color.(u) = 0) then dfs_visit u
+      if (color.(u) = 0) then begin 
+	root.(u) <- 1;
+	dfs_visit u;
+      end;
 	       ) order;
   in
+
   let simpleOrder = Array.init size (fun i -> i) in
   dfs f.successors simpleOrder;
   Array.sort (fun i j -> if (finish.(i) > finish.(j)) then -1 else 1) simpleOrder;
+  
   dfs f.predecessors simpleOrder;
 (* SCCs have been computed. (The trees represented by non-null parent edges 
  * represent the SCCS. We call the black nodes as the roots). Now put the 
  * result in the ouput format *)
   let allScc = ref([]) in
   for u = 0 to size - 1 do 
-    if color.(u) = 2 then begin
+    if root.(u) = 1 then begin
       let sccNodes = ref(IntSet.empty) in
       let workList = ref([u]) in
       while (!workList != []) do 
@@ -585,12 +591,15 @@ let rec strong_components (f: cfgInfo) =
 	List.iter (fun s -> if parent.(s)=h then workList := s::!workList;) f.predecessors.(h);
       done;
       allScc := (u,!sccNodes)::!allScc;
+      if (debug) then begin
+	ignore (E.log "Got an SCC with root %d and nodes %a" u (docList num) (set2list !sccNodes)); 
+      end;
     end;
   done;
   !allScc
       
  
-let stronglyConnectedComponents (f: cfgInfo): sccInfo = 
+let stronglyConnectedComponents (f: cfgInfo) (debug: bool): sccInfo = 
   let size = f.size in
   let lowlink = Array.make size (-1) in
   let dfn = Array.make size (-1) in  
@@ -599,12 +608,13 @@ let stronglyConnectedComponents (f: cfgInfo): sccInfo =
   let nextdfn = ref(-1) in
 
   if (debug) then begin
+    ignore (E.log "size = %d\n" size);
     for i = 0 to size - 1 do 
       ignore (E.log "Successors(%d): %a\n" i (docList (fun n -> num n)) f.successors.(i));
     done;
   end;
 
-  let allScc = strong_components f in
+  let allScc = strong_components f debug in
   let all_sccArray = Array.of_list allScc in
 
   if (debug) then begin 
@@ -677,7 +687,7 @@ let stronglyConnectedComponents (f: cfgInfo): sccInfo =
 	   ) sccorder in
   if (debug) then begin 
     ignore (E.log "Computed Preorder for Nodes of each SCC\n");
-    List.iter (fun scc -> ignore (E.log "BackEdges = %a\n" (docList (fun (src,dest) -> E.log "%d %d" src dest)) scc.backEdges);) scclist;
+    List.iter (fun scc -> ignore (E.log "BackEdges = %a \n" (docList (fun (src,dest) -> E.log "(%d,%d)" src dest)) scc.backEdges);) scclist;
   end;
   scclist
 

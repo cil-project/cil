@@ -41,5 +41,5 @@ and oneSccInfo = {
 and sccInfo = oneSccInfo list 
 
 val add_ssa_info: cfgInfo -> unit
-val stronglyConnectedComponents: cfgInfo -> sccInfo 
+val stronglyConnectedComponents: cfgInfo -> bool -> sccInfo 
 val prune_cfg: cfgInfo -> cfgInfo
