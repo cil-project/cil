@@ -44,17 +44,16 @@
 open Cabs
 let version = "Cparser V3.0b 10.9.99 Hugues Cassé"
 
-let parse_error msg =
+let parse_error msg : 'a =
   Clexer.display_error 
-    "Syntax error" (Parsing.symbol_start ()) (Parsing.symbol_end ())
+    ("Syntax error (" ^ msg ^")") 
+    (Parsing.symbol_start ()) (Parsing.symbol_end ());
+  raise Parsing.Parse_error
 
 exception BadType
-let badType tp where = 
-  Clexer.display_error 
-    ("Syntax error: unexpected type" ^ where)
-    (Parsing.symbol_start ()) (Parsing.symbol_end ());
-  raise BadType
+let badType tp where = parse_error ("unexpected type " ^ where)
 
+let print = print_string
 
 (*
 ** Type analysis
@@ -152,8 +151,8 @@ let set_type tst tin =
       NO_TYPE -> tst
     | PTR typ -> PTR (set typ)
     | ARRAY (typ, dim) -> ARRAY (set typ, dim)
-    | PROTO (typ, pars, ell) -> PROTO (set typ, pars, ell)
-    | OLD_PROTO (typ, pars, ell) -> OLD_PROTO (set typ, pars, ell)
+    | PROTO (typ, pars, ell, inl) -> PROTO (set typ, pars, ell, inl)
+    | OLD_PROTO (typ, pars, ell, inl) -> OLD_PROTO (set typ, pars, ell, inl)
 (*
     | CONST typ -> CONST (set typ)
     | VOLATILE typ -> VOLATILE (set typ)
@@ -198,6 +197,212 @@ let apply_qual ((t1, q1) : base_type * modifier list)
   ((if t1 = NO_TYPE then t2 else
     if t2 = NO_TYPE then t1 else  raise BadModifier),
    List.append q1 q2)
+
+
+let __functionString = (String.make 1 (Char.chr 0)) ^ "__FUNCTION__" 
+
+
+(* An attempt to clean up the declarations and types *)
+type typeSpecifier = (* Merge all specifiers into one type *)
+    Tvoid                             (* Type specifier ISO 6.7.2 *)
+  | Tchar
+  | Tshort
+  | Tint
+  | Tlong
+  | Tfloat
+  | Tdouble
+  | Tsigned
+  | Tunsigned
+  | Tnamed of string
+  | Tstruct of string * name_group list option  (* None if an old type *)
+  | Tunion of string * name_group list option   (* None if an old type *)
+  | Tenum of string * enum_item list option    (* None if an old type *)
+(* A declaration specifier *)
+
+type specifier = 
+    { styp: base_type;
+      ssto: storage;
+      stypedef: bool;
+      sinline: bool;
+      sattr: attribute list;            (* Will put qualifiers in here also *)
+    } 
+
+let emptySpec = 
+  { styp = NO_TYPE;
+    ssto = NO_STORAGE;
+    stypedef = false;
+    sinline = false;
+    sattr = [];
+  } 
+
+let emptyName = ("", NO_TYPE, [], NOTHING)
+let missingFieldDecl = ("___missing_field_name", NO_TYPE, [], NOTHING) 
+
+(* Keep attributes sorted *)
+let addAttribute ((n, args) as q) a = 
+  let insertBefore (n', _) = 
+    if n = n' then None else Some (n < n')
+  in
+  let rec insertSorted = function
+      [] -> [q]
+    | (q' :: rest) as current -> begin
+        match insertBefore q' with
+          None -> current
+        | Some true -> q :: current
+        | Some false -> q' :: insertSorted rest
+    end
+  in
+  insertSorted a
+
+let addAttributes a ats = 
+  List.fold_left (fun acc a -> addAttribute a acc) ats a
+
+(* Apply an attribute to a specifier. Keep them sorted *)
+let applyAttribute a spec =
+  {spec with sattr = addAttribute a spec.sattr}
+
+let applyAttributes a spec =
+  {spec with sattr = addAttributes a spec.sattr}
+
+let addAttributeName a ((n,bt,ats,i) : name) : name = 
+  (n, bt, addAttribute a ats, i)
+  
+let addAttributesName a ((n,bt,ats,i) : name) : name = 
+  (n, bt, addAttributes a ats, i)
+  
+(* Make it inline *)
+let applyInline spec = {spec with sinline = true}
+
+(* Apply a storage *)
+let applyStorage s spec = 
+  match spec.ssto with
+    NO_STORAGE -> {spec with ssto = s}
+  | _ -> parse_error "Multiple storage specifiers"
+  
+(* Apply typedef *)
+let applyTypedef spec = 
+  match spec.ssto, spec.stypedef with
+    NO_STORAGE, false -> {spec with stypedef = true}
+  | _, _ -> parse_error "Typedef along with storage specifier"
+
+let applyInitializer i' ((n,bt,a,i) as name) = 
+  match i with 
+    NOTHING -> (n, bt, a, i')
+  | _ -> parse_error "Multiple initializers"
+
+(* Apply a type specifier. We start with NO_TYPE ISO 6.7.2 *)
+let applyTypeSpec ts spec = 
+  let typ = 
+    match spec.styp, ts with
+      NO_TYPE, Tvoid -> VOID
+    | NO_TYPE, Tchar -> INT(CHAR, NO_SIGN)
+    | INT(NO_SIZE, sign), Tchar -> INT(CHAR, sign)
+    | NO_TYPE, Tint  -> INT(NO_SIZE, NO_SIGN)
+    | INT(size, sign), Tint -> spec.styp
+    | INT(size, NO_SIGN), Tsigned -> INT(size, SIGNED)
+    | INT(size, NO_SIGN), Tunsigned -> INT(size, UNSIGNED)
+    | NO_TYPE, Tsigned   -> INT(NO_SIZE, SIGNED)
+    | NO_TYPE, Tunsigned -> INT(NO_SIZE, UNSIGNED)
+    | NO_TYPE, Tshort -> INT(SHORT, NO_SIGN)
+    | INT(NO_SIZE, sign), Tshort -> INT(SHORT, sign)
+    | NO_TYPE, Tlong -> INT(LONG, NO_SIGN)
+    | INT(NO_SIZE, sign), Tlong -> INT(LONG, sign)
+    | INT(LONG, sign), Tlong -> INT(LONG_LONG, sign)
+    | DOUBLE false, Tlong -> DOUBLE true
+    | NO_TYPE, Tfloat -> FLOAT false
+    | NO_TYPE, Tdouble -> DOUBLE false
+    | NO_TYPE, Tenum (n, elo) -> begin
+        match elo with
+          None -> ENUM n
+        | Some el -> ENUMDEF (n, el)
+    end
+    | NO_TYPE, Tstruct (n, fso) -> begin
+        match fso with
+          None -> STRUCT n
+        | Some fs -> STRUCTDEF (n, fs)
+     end
+    | NO_TYPE, Tunion (n, fso) -> begin
+        match fso with
+          None -> UNION n
+        | Some fs -> UNIONDEF (n, fs)
+     end
+    | NO_TYPE, Tnamed n -> NAMED_TYPE n         
+    | _, _ -> parse_error "Bad combination of type specifiers"
+  in
+  {spec with styp = typ}
+
+let makeAttrType bt = function
+    [] -> bt
+  | a -> ATTRTYPE (bt, a)
+
+(* Replace the NO_TYPE in wrapt with the inner *)
+let rec injectType inner = function
+    NO_TYPE -> inner
+  | ATTRTYPE (bt, a) -> ATTRTYPE (injectType inner bt, a)
+  | ARRAY (bt, l) -> ARRAY (injectType inner bt, l)
+  | PTR bt -> PTR (injectType inner bt)
+  | PROTO (bt, args, va, inl) -> PROTO (injectType inner bt, args, va, inl)
+  | BITFIELD (bt, e) -> BITFIELD (injectType inner bt, e)
+  | _ -> parse_error "Unexpectted wrap type in injectType"
+  
+let injectTypeName (inner: base_type) ((n,bt,a,i) : name) : name = 
+  (n, injectType inner bt, a, i)
+
+let applyPointer (ptspecs: specifier list) ((n,bt,a,i) : name) : name = 
+  (* Inner specification first *)
+  let rec loop acc = function
+      [] -> acc
+    | s :: rest -> begin
+        if s.styp <> NO_TYPE || s.ssto <> NO_STORAGE ||
+           s.stypedef || s.sinline then 
+          parse_error "Only qualifiers allowed in pointer";
+        loop (makeAttrType (PTR acc) s.sattr) rest
+    end
+  in
+  (n, injectType (loop NO_TYPE ptspecs) bt, a, i)
+
+let typeOfSingleName (_, _, (_, bt, _, _)) = bt
+
+let makeNameGroup (spec: specifier) (nl : name list) : name_group = 
+  let innert = makeAttrType spec.styp spec.sattr in
+  if spec.stypedef || spec.sinline then
+    parse_error "Invalid Typedef or inline specifier";
+  let names = 
+    List.map (fun (n,bt,a,i) -> (n, injectType innert bt, a, i)) nl in
+  (spec.styp, spec.ssto, names)
+
+let makeSingleName (spec: specifier) (n : name) : single_name =
+  let (bt, sto, ns) = makeNameGroup spec [n] in
+  match ns with 
+    [n'] -> (bt, sto, n')
+  | _ -> parse_error "makeSingleName: impossible"
+
+
+let doDeclaration (spec: specifier) (nl: name list) : definition = 
+  (* Like a makeNameGroup but also treats the typedef and inline case *)
+  let innert = makeAttrType spec.styp spec.sattr in
+  let names = 
+    List.map (fun (n,bt,a,i) -> (n, injectType innert bt, a, i)) nl in
+  let ng = (spec.styp, spec.ssto, names) in
+  if spec.stypedef then begin
+    (* Tell the lexer about the new type names *)
+    List.iter (fun (n, _, _, _) -> Clexer.add_type n) names;
+    TYPEDEF ng
+  end else
+    if nl = [] then
+      ONLYTYPEDEF ng
+    else
+      DECDEF ng
+
+let doFunctionDef (spec: specifier) (n: name) 
+                  (b: body) : definition = 
+  (match n with 
+    (_, _, _, NOTHING) -> ()
+  | _ -> parse_error "Initializer in function definition");
+  let innert = makeAttrType spec.styp spec.sattr in
+  let fname = (spec.styp, spec.ssto, injectTypeName innert n) in
+  FUNDEF (fname, b)
+
 %}
 
 %token <string> IDENT
@@ -260,6 +465,9 @@ let apply_qual ((t1, q1) : base_type * modifier list)
 %right	EXCLAM TILDE PLUS_PLUS MINUS_MINUS CAST RPAREN ADDROF
 %left 	LBRACKET
 %left	DOT ARROW LPAREN LBRACE SIZEOF
+%right  NAMED_TYPE     /* We'll use this to handle redefinitions of 
+                        * NAMED_TYPE as variables */
+%left   IDENT
 
 /* Non-terminals informations */
 %start interpret file
@@ -283,7 +491,7 @@ let apply_qual ((t1, q1) : base_type * modifier list)
 %type <Cabs.name> local_def
 %type <string * Cabs.base_type> local_dec
 
-%type <Cabs.attributes> gcc_attributes
+%type <Cabs.attribute list> gcc_attributes
 %type <Cabs.definition list * Cabs.statement> body
 %type <Cabs.statement> statement opt_stats stats
 %type <Cabs.constant> constant
@@ -294,7 +502,21 @@ let apply_qual ((t1, q1) : base_type * modifier list)
 %type <string * Cabs.base_type> param_dec
 %type <string> string_list
 
+%type <specifier> decl_spec_list
+%type <typeSpecifier> type_spec
+%type <Cabs.name_group list> struct_decl_list 
+%type <Cabs.name list> field_decl_list init_declarator_list
+%type <Cabs.name> declarator init_declarator direct_decl 
+%type <Cabs.name> abs_direct_decl abstract_decl 
+%type <specifier list> pointer  /* Each element is a "* <type_quals_opt>" */
+%type <Cabs.single_name list> parameter_list
+%type <Cabs.single_name> parameter_decl
+%type <Cabs.enum_item> enumerator
+%type <Cabs.enum_item list> enum_list
+%type <Cabs.definition> declaration function_def
+%type <Cabs.base_type> type_name
 
+%type <Cabs.body> block block_item_list
 %%
 
 interpret:
@@ -312,7 +534,10 @@ globals:
 
 /*** Global Definition ***/
 global:
-  global_type global_defs SEMICOLON
+  declaration           { $1 }
+| function_def          { $1 }
+/*
+| global_type global_defs SEMICOLON
 			{DECDEF (set_name_group $1 (List.rev $2))}
 | global_type global_proto body
                         {FUNDEF (set_single $1 $2, $3)}
@@ -325,9 +550,11 @@ global:
                           List.iter (fun (id, _, _, _) -> Clexer.add_type id) 
                             $3 in
 			TYPEDEF (set_name_group $2 $3)}
-| ASM LPAREN CST_STRING RPAREN
+*/
+| ASM LPAREN CST_STRING RPAREN SEMICOLON
                         { GLOBASM $3 }
 | PRAGMA                { PRAGMA $1 }
+
 ;
 global_type:
     global_mod_list_opt gcc_attributes global_qual
@@ -395,15 +622,17 @@ global_dec:
 			{(fst $1, 
                           set_type (ARRAY (NO_TYPE, NOTHING)) (snd $1))}
 |   global_dec LPAREN parameters RPAREN			
-			{(fst $1, PROTO (snd $1, fst $3, snd $3))}
+			{(fst $1, PROTO (snd $1, fst $3, snd $3, false))}
 |   LPAREN global_dec RPAREN LPAREN parameters RPAREN
 			{(fst $2, 
-                          set_type (PROTO (NO_TYPE, fst $5, snd $5)) (snd $2))}
+                          set_type (PROTO (NO_TYPE, fst $5, snd $5, false)) 
+                                    (snd $2))}
 |   global_dec LPAREN old_parameters RPAREN
-			{(fst $1, OLD_PROTO (snd $1, fst $3, snd $3))}
+			{(fst $1, OLD_PROTO (snd $1, fst $3, snd $3, false))}
 |   LPAREN global_dec RPAREN LPAREN old_parameters RPAREN
 			{(fst $2, 
-                          set_type (OLD_PROTO (NO_TYPE, fst $5, snd $5)) 
+                          set_type (OLD_PROTO (NO_TYPE, fst $5, snd $5, 
+                                               false)) 
                             (snd $2))}
 /*
 |   CDECL global_dec  {(fst $2,
@@ -488,10 +717,12 @@ old_dec:
 |   old_dec LBRACKET RBRACKET	{(fst $1, set_type (ARRAY (NO_TYPE, NOTHING)) 
                                     (snd $1))}
 |  old_dec LPAREN parameters RPAREN				
-        			{(fst $1, PROTO (snd $1, fst $3, snd $3))}
+        			{(fst $1, PROTO (snd $1, fst $3, snd $3, 
+                                                 false))}
 |  LPAREN old_dec RPAREN LPAREN parameters RPAREN
                                 {(fst $2, set_type (PROTO (NO_TYPE, 
-                                                           fst $5, snd $5)) 
+                                                           fst $5, snd $5, 
+                                                           false)) 
                                     (snd $2))}
 |  LPAREN old_dec RPAREN	{$2}
 ;
@@ -559,10 +790,11 @@ local_dec:
 			{(fst $1, 
                           set_type (ARRAY (NO_TYPE, NOTHING)) (snd $1))}
 |   local_dec LPAREN parameters RPAREN
-			{(fst $1, PROTO (snd $1, fst $3, snd $3))}
+			{(fst $1, PROTO (snd $1, fst $3, snd $3, false))}
 |   LPAREN local_dec RPAREN LPAREN parameters RPAREN
 			{(fst $2, 
-                          set_type (PROTO (NO_TYPE, fst $5, snd $5)) (snd $2))}
+                          set_type (PROTO (NO_TYPE, fst $5, snd $5, false)) 
+                                   (snd $2))}
 |   LPAREN local_dec RPAREN
 			{$2}
 ;
@@ -618,10 +850,11 @@ typedef_dec:
 			{(fst $1, 
                           set_type (ARRAY (NO_TYPE, NOTHING)) (snd $1))}
 |   typedef_dec LPAREN parameters RPAREN
-			{(fst $1, PROTO (snd $1, fst $3, snd $3))}
+			{(fst $1, PROTO (snd $1, fst $3, snd $3, false))}
 |   LPAREN typedef_dec RPAREN LPAREN parameters RPAREN
 			{(fst $2, 
-                          set_type (PROTO (NO_TYPE, fst $5, snd $5)) (snd $2))}
+                          set_type (PROTO (NO_TYPE, fst $5, snd $5, false)) 
+                                   (snd $2))}
 |   LPAREN typedef_dec RPAREN	{$2}
 ;
 
@@ -694,12 +927,14 @@ field_dec:
                                   set_type (ARRAY (NO_TYPE, NOTHING)) 
                                     (snd $1))}
 |   field_dec LPAREN parameters RPAREN
-                                {(fst $1, PROTO (snd $1, fst $3, snd $3))}
+                                {(fst $1, PROTO (snd $1, fst $3, snd $3, 
+                                                 false))}
 |   LPAREN field_dec RPAREN LPAREN parameters RPAREN
 	      		        {(fst $2, 
-                                  set_type (PROTO (NO_TYPE, fst $5, snd $5)) 
+                                  set_type (PROTO (NO_TYPE, fst $5, snd $5, 
+                                                   false)) 
                                     (snd $2))}
-|   LPAREN field_dec RPAREN	{$2}
+|  LPAREN field_dec RPAREN	{$2}
 |  IDENT COLON expression	{($1, BITFIELD (NO_TYPE, $3))}
 |  COLON expression             {("___missing_field_name", 
                                   BITFIELD (NO_TYPE, $2))}
@@ -772,17 +1007,19 @@ param_dec:
 			{(fst $1, set_type (ARRAY (NO_TYPE, NOTHING)) 
                               (snd $1))}
 |   LPAREN param_dec RPAREN LPAREN parameters RPAREN
-			{(fst $2, set_type (PROTO (NO_TYPE, fst $5, snd $5)) 
+			{(fst $2, set_type (PROTO (NO_TYPE, fst $5, snd $5, 
+                                                   false)) 
                             (snd $2))}
 |   LPAREN param_dec RPAREN	{$2}
 ;
 		
 
-/*** Only-type Definition ***/
+/*** Only-type Definition ****/
 only_type:
     only_type_type only_dec		{set_type (fst $1) $2}
 |   TYPEOF expression                   {TYPEOF $2} 
 ;
+
 only_type_type:
    only_mod_list_opt only_qual
 		{apply_mods (snd $2) (apply_mods $1 ((fst $2), NO_STORAGE))}
@@ -820,7 +1057,7 @@ only_dec:
 |   only_dec LBRACKET RBRACKET
 			{set_type (ARRAY (NO_TYPE, NOTHING)) $1}
 |   LPAREN only_dec RPAREN LPAREN parameters RPAREN
-			{set_type (PROTO (NO_TYPE, fst $5, snd $5)) $2}
+			{set_type (PROTO (NO_TYPE, fst $5, snd $5, false)) $2}
 |   LPAREN only_dec RPAREN
 			{$2}
 ;
@@ -840,30 +1077,29 @@ qual_type:
 |   UNSIGNED				{(NO_TYPE, [BASE_SIGN UNSIGNED])}
 ;
 comp_type:
-    STRUCT type_name	{STRUCT $2}				
+    STRUCT typename	{STRUCT $2}				
 |   STRUCT LBRACE field_list RBRACE
 			{STRUCTDEF ("", List.rev $3)}
-|   STRUCT type_name LBRACE field_list RBRACE
+|   STRUCT typename LBRACE field_list RBRACE
 			{STRUCTDEF ($2, List.rev $4)}
-|   UNION type_name	{UNION $2} 
+|   UNION typename	{UNION $2} 
 |   UNION LBRACE field_list RBRACE			
 			{UNIONDEF ("", List.rev $3)}
-|   UNION type_name LBRACE field_list RBRACE
+|   UNION typename LBRACE field_list RBRACE
 			{UNIONDEF ($2, List.rev $4)}
-|   ENUM type_name
-			{ENUM ($2, [])}					
-|   ENUM LBRACE enum_list maybecomma RBRACE
-			{ENUM ("", List.rev $3)}		
-|   ENUM type_name LBRACE enum_list maybecomma RBRACE
-			{ENUM ($2, List.rev $4)}
+|   ENUM typename       {ENUM $2 }					
+|   ENUM LBRACE enumlist maybecomma RBRACE
+			{ENUMDEF ("", List.rev $3)}		
+|   ENUM typename LBRACE enumlist maybecomma RBRACE
+			{ENUMDEF ($2, List.rev $4)}
 ;
-type_name:
+typename:
     IDENT				{$1}
 |   NAMED_TYPE				{$1}
 ;
-enum_list:	
+enumlist:	
     enum_name				{[$1]}
-|   enum_list COMMA enum_name	        {$3::$1}
+|   enumlist COMMA enum_name	        {$3::$1}
 ;
 maybecomma:
    /* empty */                          { () }
@@ -888,7 +1124,7 @@ init_expression:
 			{VARIABLE $1}
 |   SIZEOF expression
 			{EXPR_SIZEOF $2}
-|   SIZEOF LPAREN only_type RPAREN
+|   SIZEOF LPAREN type_name RPAREN               /* !!! */
 			{TYPE_SIZEOF $3}
 |   PLUS init_expression
 			{UNARY (PLUS, $2)}
@@ -920,7 +1156,7 @@ init_expression:
 			{MEMBEROF ($1, $3)}
 |   LPAREN init_comma_expression RPAREN
 			{(smooth_expression $2)}
-|   LPAREN only_type RPAREN init_expression %prec CAST
+|   LPAREN type_name RPAREN init_expression %prec CAST   /* !!! */
 			{CAST ($2, $4)}
 |   init_expression LPAREN opt_expression RPAREN
 			{CALL ($1, list_expression $3)}
@@ -964,6 +1200,28 @@ init_expression:
 			{BINARY(SHL ,$1 , $3)}
 |   init_expression  SUP_SUP init_expression
 			{BINARY(SHR ,$1 , $3)}		
+|   init_expression EQ init_expression
+			{BINARY(ASSIGN ,$1 , $3)}			
+|   init_expression PLUS_EQ init_expression
+			{BINARY(ADD_ASSIGN ,$1 , $3)}		
+|   init_expression MINUS_EQ init_expression		
+			{BINARY(SUB_ASSIGN ,$1 , $3)}
+|   init_expression STAR_EQ init_expression		
+			{BINARY(MUL_ASSIGN ,$1 , $3)}
+|   init_expression SLASH_EQ init_expression		
+			{BINARY(DIV_ASSIGN ,$1 , $3)}
+|   init_expression PERCENT_EQ init_expression	
+			{BINARY(MOD_ASSIGN ,$1 , $3)}
+|   init_expression AND_EQ init_expression		
+			{BINARY(BAND_ASSIGN ,$1 , $3)}
+|   init_expression PIPE_EQ init_expression		
+			{BINARY(BOR_ASSIGN ,$1 , $3)}
+|   init_expression CIRC_EQ init_expression		
+			{BINARY(XOR_ASSIGN ,$1 , $3)}
+|   init_expression INF_INF_EQ init_expression	
+			{BINARY(SHL_ASSIGN ,$1 , $3)}
+|   init_expression SUP_SUP_EQ init_expression
+			{BINARY(SHR_ASSIGN ,$1 , $3)}
 ;
 opt_init_expression:
     /* empty */                                   { NOTHING }
@@ -994,7 +1252,7 @@ expression:
 			{VARIABLE $1}
 |		SIZEOF expression
 			{EXPR_SIZEOF $2}
-|	 	SIZEOF LPAREN only_type RPAREN
+|	 	SIZEOF LPAREN type_name RPAREN   /* !!! */
 			{TYPE_SIZEOF $3}
 |		PLUS expression
 			{UNARY (PLUS, $2)}
@@ -1024,11 +1282,11 @@ expression:
 			{MEMBEROF ($1, $3)}
 |		expression DOT NAMED_TYPE
 			{MEMBEROF ($1, $3)}
-|		LPAREN body RPAREN
+|		LPAREN block RPAREN
 			{GNU_BODY $2}
 |		LPAREN comma_expression RPAREN
 			{(smooth_expression $2)}
-|		LPAREN only_type RPAREN expression %prec CAST
+|		LPAREN type_name RPAREN expression %prec CAST   /* !!!! */
 			{CAST ($2, $4)}
 |		expression LPAREN opt_expression RPAREN
 			{CALL ($1, list_expression $3)}
@@ -1104,13 +1362,24 @@ constant:
 string_list:
     CST_STRING				{$1}
 |   string_list CST_STRING		{$1 ^ $2}
-|   string_list FUNCTION__              {$1 ^ 
-                                          (String.make 1 (Char.chr 0)) ^ 
-                                          "__FUNCTION__"}
+|   string_list FUNCTION__              {$1 ^ __functionString}
 ;
 
 
 /*** statements ***/
+block: /* ISO 6.8.2 */
+    block_begin block_item_list RBRACE   {Clexer.pop_context(); $2}
+;
+block_begin:
+    LBRACE 				 {Clexer.push_context ()}
+;
+block_item_list:
+    /* empty */                          { [] }
+|   declaration block_item_list          { BDEF $1 :: $2  }
+|   statement block_item_list            { BSTM $1 :: $2 }
+;
+
+
 body_begin:
     LBRACE 				{Clexer.push_context ()}
 ;
@@ -1140,7 +1409,7 @@ statement:
     SEMICOLON		{NOP}  
 |   comma_expression SEMICOLON
 			{COMPUTATION (smooth_expression $1)}			
-|   body		{BLOCK $1}					
+|   block		{BLOCK $1}					
 |   IF LPAREN comma_expression RPAREN statement %prec IF
 			{IF (smooth_expression $3, $5, NOP)}
 |   IF LPAREN comma_expression RPAREN statement ELSE statement
@@ -1240,6 +1509,223 @@ asmoperandsne:
 asmoperand:
      CST_STRING LPAREN expression RPAREN    { ($1, $3) }
 ; 
+
+/*******************************************************/
+/* This is an attempt to clean up the handling of types*/
+/*******************************************************/
+
+declaration:                                /* ISO 6.7 */
+    decl_spec_list init_declarator_list SEMICOLON { doDeclaration $1 $2 }
+|   decl_spec_list                      SEMICOLON { doDeclaration $1 [] }
+;
+init_declarator_list:                       /* ISO 6.7 */
+    init_declarator                              { [$1] }
+|   init_declarator COMMA init_declarator_list   { $1 :: $3 }
+ 
+;
+init_declarator:                             /* ISO 6.7 */
+    declarator gcc_attributes           { addAttributesName $2 $1 }
+|   declarator gcc_attributes EQ init_expression       
+                                        { applyInitializer $4 
+                                             (addAttributesName $2 $1) }
+;
+
+decl_spec_list:                         /* ISO 6.7 */
+                                        /* ISO 6.7.1 */
+|   TYPEDEF decl_spec_list_opt          { applyTypedef $2 }
+|   EXTERN decl_spec_list_opt           { applyStorage (EXTERN false) $2 }
+|   STATIC  decl_spec_list_opt          { applyStorage (STATIC false) $2 }
+|   AUTO   decl_spec_list_opt           { applyStorage AUTO $2 }
+|   REGISTER decl_spec_list_opt         { applyStorage REGISTER $2} 
+                                        /* ISO 6.7.2 */
+|   type_spec decl_spec_list_opt_no_named { applyTypeSpec $1 $2 }
+                                        /* ISO 6.7.3 */
+|   CONST decl_spec_list_opt            { applyAttribute ("const",[]) $2 }
+|   VOLATILE decl_spec_list_opt         { applyAttribute ("volatile",[]) $2 }
+                                        /* ISO 6.7.4 */
+|   INLINE decl_spec_list_opt           { applyInline $2 }
+|   attribute decl_spec_list_opt        { applyAttributes $1 $2 }
+;
+/* In most cases if we see a NAMED_TYPE we must shift it. Thus we declare 
+ * NAMED_TYPE to have right associativity */
+decl_spec_list_opt: 
+    /* empty */                         { emptySpec } %prec NAMED_TYPE
+|   decl_spec_list                      { $1 }
+;
+/* We add this separate rule to handle the special case when an appearance of 
+ * NAMED_TYPE should not be considered as past of the specifiers but as part 
+ * of the declarator. IDENT has higher precedence than NAMED_TYPE */
+decl_spec_list_opt_no_named: 
+    /* empty */                         { emptySpec } %prec IDENT
+|   decl_spec_list                      { $1 }
+;
+type_spec:   /* ISO 6.7.2 */
+    VOID            { Tvoid}
+|   CHAR            { Tchar }
+|   SHORT           { Tshort }
+|   INT             { Tint }
+|   LONG            { Tlong }
+|   FLOAT           { Tfloat }
+|   DOUBLE          { Tdouble }
+|   SIGNED          { Tsigned }
+|   UNSIGNED        { Tunsigned }
+|   STRUCT typename 
+                    { Tstruct ($2, None) }
+|   STRUCT typename LBRACE struct_decl_list RBRACE
+                    { Tstruct ($2, Some $4) }
+|   STRUCT           LBRACE struct_decl_list RBRACE
+                    { Tstruct ("", Some $3) }
+|   UNION typename 
+                    { Tunion ($2, None) }
+|   UNION typename LBRACE struct_decl_list RBRACE
+                    { Tunion ($2, Some $4) }
+|   UNION          LBRACE struct_decl_list RBRACE
+                    { Tunion ("", Some $3) }
+|   ENUM typename   { Tenum ($2, None) }
+|   ENUM typename LBRACE enum_list maybecomma RBRACE
+                    { Tenum ($2, Some $4) }
+|   ENUM          LBRACE enum_list maybecomma RBRACE
+                    { Tenum ("", Some $3) }
+|   NAMED_TYPE      { Tnamed $1 }
+;
+struct_decl_list: /* ISO 6.7.2. Except that we allow empty structs */
+   /* empty */                           { [] }
+|  decl_spec_list field_decl_list SEMICOLON struct_decl_list          
+                                          { (makeNameGroup $1 $2) :: $4 }
+;
+field_decl_list: /* ISO 6.7.2 */
+    field_decl                           { [$1] }
+|   field_decl COMMA field_decl_list     
+                                         { $1 :: $3 }
+;
+field_decl: /* ISO 6.7.2. Except that we allow unnamed fields. GCC attributes 
+             * are allowed only on non-empty field declarators */
+|   field_declarator_opt                   { $1 } 
+|   field_declarator_opt COLON expression  gcc_attributes
+                                           { addAttributesName $4
+                                              (match $1 with
+                                               (n, t, [], NOTHING) -> 
+                                                ( n, BITFIELD (t, $3), 
+                                                     [], NOTHING)
+                                               | _ -> parse_error "bitfield") 
+                                           } 
+;   
+field_declarator_opt: 
+  /* empty */                           { missingFieldDecl }
+| declarator gcc_attributes             { addAttributesName $2 $1 }
+;
+enum_list: /* ISO 6.7.2.2 */
+    enumerator				{[$1]}
+|   enum_list COMMA enumerator	        {$1 @ [$3]}
+;
+enumerator:	
+    IDENT				{($1, NOTHING)}
+|   IDENT EQ expression			{($1, $3)}
+;
+
+
+declarator:  /* ISO 6.7.5. Plus Microsoft declarators. The specification says 
+              * that they are specifiers but in practice they appear to be 
+              * part of the declarator */
+            direct_decl            { $1 }
+|   pointer direct_decl            { applyPointer $1 $2 }
+|   msqual  declarator             { addAttributeName $1 $2 }
+|   pointer msqual direct_decl     { applyPointer $1 (addAttributeName $2 $3) }
+;
+direct_decl: /* ISO 6.7.5 */
+    IDENT                          { $1, NO_TYPE, [], NOTHING }
+                                   /* We want to be able to redefine named 
+                                    * types as variable names */
+|   NAMED_TYPE                     {Clexer.add_identifier $1;
+                                     ($1, NO_TYPE, [], NOTHING)}
+|   LPAREN declarator RPAREN       { $2 }
+|   direct_decl LBRACKET comma_expression RBRACKET
+                                   { injectTypeName (ARRAY(NO_TYPE, 
+                                                       smooth_expression $3))
+                                                    $1 }
+|   direct_decl LBRACKET RBRACKET  { injectTypeName (ARRAY(NO_TYPE, 
+                                                       NOTHING)) $1}
+|   direct_decl LBRACKET STAR RBRACKET { injectTypeName (ARRAY(NO_TYPE, 
+                                                       NOTHING)) $1}
+|   direct_decl LPAREN RPAREN      { injectTypeName (PROTO(NO_TYPE, [], 
+                                                       false, false)) 
+                                                $1 }
+|   direct_decl LPAREN parameter_list RPAREN 
+                                   { injectTypeName (PROTO(NO_TYPE, $3, 
+                                                       false, false)) 
+                                                $1 }
+|   direct_decl LPAREN parameter_list COMMA ELLIPSIS RPAREN
+                                   { injectTypeName (PROTO(NO_TYPE, $3, true, 
+                                                       false)) 
+                                                $1 }
+;
+parameter_list: /* ISO 6.7.5 */
+|   parameter_decl                        { [$1] }
+|   parameter_list COMMA parameter_decl   { $1 @ [$3] }
+;
+parameter_decl: /* ISO 6.7.5 */
+   decl_spec_list declarator              { makeSingleName $1 $2 }
+|  decl_spec_list abstract_decl           { makeSingleName $1 $2 }
+|  decl_spec_list                         { makeSingleName $1 emptyName }
+;
+pointer: /* ISO 6.7.5 */ 
+   STAR decl_spec_list_opt_no_named          { [$2] }
+|  STAR decl_spec_list_opt_no_named pointer  { $2 :: $3 }
+;
+
+type_name: /* ISO 6.7.6 */
+  decl_spec_list abstract_decl { typeOfSingleName (makeSingleName $1 $2) }
+| decl_spec_list               { typeOfSingleName 
+                                           (makeSingleName $1 emptyName) }
+| TYPEOF expression            {TYPEOF $2} 
+;
+abstract_decl: /* ISO 6.7.6. Plus Microsoft attributes. See the discussion 
+                * for declarator. */
+  pointer abs_direct_decl_opt        { applyPointer $1 $2 }
+| pointer msqual abs_direct_decl_opt { applyPointer $1 
+                                                    (addAttributeName $2 $3)}
+|         abs_direct_decl            { $1 }
+| msqual  abstract_decl              { addAttributeName $1 $2 }
+;
+
+abs_direct_decl: /* ISO 6.7.6. We do not support optional declarator for 
+                  * functions  */
+|   LPAREN abstract_decl RPAREN    { $2 }
+|   abs_direct_decl_opt LBRACKET comma_expression RBRACKET
+                                   { injectTypeName (ARRAY(NO_TYPE, 
+                                                       smooth_expression $3))
+                                                    $1 }
+|   abs_direct_decl_opt LBRACKET RBRACKET  { injectTypeName (ARRAY(NO_TYPE, 
+                                                         NOTHING)) $1}
+|   abs_direct_decl_opt LBRACKET STAR RBRACKET { injectTypeName 
+                                                  (ARRAY(NO_TYPE, 
+                                                         NOTHING)) $1}
+|   abs_direct_decl LPAREN RPAREN  { injectTypeName (PROTO(NO_TYPE, [], 
+                                                       false, false)) 
+                                                $1 }
+|   abs_direct_decl LPAREN parameter_list RPAREN 
+                                   { injectTypeName (PROTO(NO_TYPE, $3, 
+                                                       false, false)) 
+                                                $1 }
+|   abs_direct_decl LPAREN parameter_list ELLIPSIS RPAREN
+                                   { injectTypeName (PROTO(NO_TYPE, $3, true, 
+                                                       false)) 
+                                                $1 }
+;
+abs_direct_decl_opt:
+    abs_direct_decl                 { $1 }
+|   /* empty */                     { emptyName }
+;
+function_def:  /* ISO 6.9.1 */
+  decl_spec_list declarator block { doFunctionDef $1 $2 $3 }
+;
+
+/* Microsoft specific qualifiers */
+msqual :
+    CDECL                           { "cdecl", [] }
+|   STDCALL                         { "stdcall", [] }
+;
+
 %%
 
 

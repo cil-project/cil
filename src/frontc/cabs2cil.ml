@@ -496,24 +496,8 @@ and doAttr : A.attribute -> attribute = function
             with Not_found -> 
               AId n
           end
-        | A.CONSTANT (A.CONST_STRING s) -> 
-            (* Maybe we burried __FUNCTION__ in there *)
-            let s' = 
-              try
-                let start = String.index s (Char.chr 0) in
-                let l = String.length s in
-                let tofind = (String.make 1 (Char.chr 0)) ^ "__FUNCTION__" in
-                let past = start + String.length tofind in
-                if past <= l &&
-                   String.sub s start (String.length tofind) = tofind then
-                  (if start > 0 then String.sub s 0 start else "") ^
-                  !currentFunctionName ^
-                  (if past < l then String.sub s past (l - past) else "")
-                else
-                  s
-              with Not_found -> s
-            in
-            AStr s'
+        | A.CONSTANT (A.CONST_STRING s) -> AStr s
+
         | A.CONSTANT (A.CONST_INT str) -> AInt (int_of_string str)
         | _ -> E.s (E.unimp "ACons")
       in
@@ -597,7 +581,7 @@ and doType (a : attribute list) = function
       tp
 
 
-  | A.PROTO (bt, snlist, isvararg) ->
+  | A.PROTO (bt, snlist, isvararg, _) ->
       (* Turn [] types into pointers in the arguments and the result type. 
        * This simplifies our life a lot  *)
       let arrayToPtr = function
@@ -622,7 +606,8 @@ and doType (a : attribute list) = function
       TFun (tres, targs, isvararg, a')
 
   | A.OLD_PROTO _ -> E.s (E.unimp "oldproto")
-  | A.ENUM (n, eil) -> 
+  | A.ENUM n -> TEnum (n, [], a)
+  | A.ENUMDEF (n, eil) -> 
       let n = if n = "" then newTypeName "enum" else n in
       let rec loop i = function
           [] -> []
@@ -649,9 +634,23 @@ and doType (a : attribute list) = function
   | A.VOLATILE bt -> doType (AId("volatile") :: a) bt
 *)
   | A.ATTRTYPE (bt, a') -> 
-      let doAttribute = function
+      let rec doAttribute = function
           (s, []) -> AId s
-        | (s, _) -> E.s (E.unimp "Constructed attributes")
+        | (s, args) -> 
+            let rec doArg = function
+                A.CONSTANT (A.CONST_INT str) ->
+                  AInt (try int_of_string str with _ -> 
+                    E.s (E.unimp "integer attribute"))
+              | A.CONSTANT (A.CONST_STRING str) -> AStr str
+              | A.VARIABLE n -> begin
+                  try 
+                    AVar (lookup n)
+                  with Not_found -> 
+                    AId n
+                end
+              | _ -> E.s (E.unimp "constructed attribute")
+            in
+            ACons (s, List.map doArg args)
       in
       doType ((List.map doAttribute a') @ a) bt
 
@@ -835,7 +834,23 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
             end
           end
         | A.CONST_STRING s -> 
-            finishCt (CStr(s)) charPtrType
+            (* Maybe we burried __FUNCTION__ in there *)
+            let s' = 
+              try
+                let start = String.index s (Char.chr 0) in
+                let l = String.length s in
+                let tofind = (String.make 1 (Char.chr 0)) ^ "__FUNCTION__" in
+                let past = start + String.length tofind in
+                if past <= l &&
+                   String.sub s start (String.length tofind) = tofind then
+                  (if start > 0 then String.sub s 0 start else "") ^
+                  !currentFunctionName ^
+                  (if past < l then String.sub s past (l - past) else "")
+                else
+                  s
+              with Not_found -> s
+            in
+            finishCt (CStr(s')) charPtrType
               
         | A.CONST_CHAR s ->
             let chr = 
@@ -1129,8 +1144,8 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
                 let ftype = TFun(intType, [], true, []) in
                 (* Add a prototype *)
                 let proto = makeGlobalVar n ftype in 
-                let proto = addNewVar proto in
-                theFile := GVar (proto, None) :: !theFile;
+                (* let proto = addNewVar proto in
+                   theFile := GVar (proto, None) :: !theFile; *)
                 ([], Lval(var proto), ftype)
               end
             end
@@ -1292,16 +1307,22 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
     end
 *)
 
-    | A.GNU_BODY ((_, s) as b) -> begin
+    | A.GNU_BODY b -> begin
         (* Find the last A.COMPUTATION *)
-        let rec findLast = function
-            A.SEQUENCE (_, s) -> findLast s
-          | (A.COMPUTATION _) as s -> s
-          | _ -> E.s (E.unimp "Cannot find COMPUTATION in GNU_BODY\n")
+        let rec findFirstStm = function
+            A.BSTM s :: _  -> 
+              let rec findLast = function
+                  A.SEQUENCE (_, s) -> findLast s
+                | (A.COMPUTATION _) as s -> s
+                | _ -> E.s (E.unimp "Cannot find COMPUTATION in GNU_BODY\n")
+              in
+              findLast s
+          | _ :: rest -> findFirstStm rest
+          | [] -> E.s (E.unimp "Cannot find COMPUTATION in GNU_BODY\n")
         in
         (* Save the previous data *)
         let old_gnu = ! gnu_body_result in
-        let lastComp = findLast s in
+        let lastComp = findFirstStm (List.rev b) in
         (* Prepare some data to be filled by doExp *)
         let data : (exp * typ) option ref = ref None in
         gnu_body_result := (lastComp, data);
@@ -1547,13 +1568,21 @@ and doAssign (lv: lval) : exp -> stmt list = function
   | e -> [Instr(Set(lv, e, lu))]
 
   (* Now define the processors for body and statement *)
-and doBody (decls, s) : stmt list = 
+and doBody (b : A.body) : stmt list = 
   startScope ();
-    (* Do the declarations and the initializers *)
-  let init = List.concat (List.map doDecl decls) in
-  let s' = doStatement s in
+    (* Do the declarations and the initializers and the statements. *)
+  let rec loop = function
+      [] -> []
+    | A.BDEF d :: rest -> 
+        let res = doDecl d in  (* !!! @ eveluates its arguments backwards *)
+        res @ loop rest
+    | A.BSTM s :: rest -> 
+        let res = doStatement s in
+        res @ loop rest
+  in
+  let res = loop b in
   exitScope ();
-  init @ s'
+  res
       
 and doStatement (s : A.statement) : stmt list = 
   try
@@ -1809,9 +1838,6 @@ let convFile dl =
             let s = doBody body in
             (* Finish everything *)
             exitScope ();
-            (* Now add the function to the environment again. This time it 
-             * will go into the global environment  *)
-            ignore (addNewVar thisFunctionVI);
             let (nrlocals, locals) = endFunction () in
             let fdec = { svar      = thisFunctionVI;
                          slocals  = locals;

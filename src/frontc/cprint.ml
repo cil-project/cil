@@ -187,7 +187,9 @@ let rec print_base_type  typ =
   | FLOAT size -> print ((if size then "long " else "") ^ "float")
   | DOUBLE size -> print ((if size then "long " else "") ^ "double")
   | NAMED_TYPE id -> print id
-  | ENUM (id, items) -> print_enum id items
+  | ENUM id -> print ("enum " ^ id)
+  | ENUMDEF (id, items) -> print_enum id items
+
   | STRUCT id -> print ("struct " ^ id)
   | STRUCTDEF (id, flds) -> 
       if flds = [] then print "struct { }" 
@@ -198,8 +200,8 @@ let rec print_base_type  typ =
       if flds = [] then print "union { }" 
       else print_fields ("union " ^ id) flds
 
-  | PROTO (typ, _, _) -> print_base_type typ
-  | OLD_PROTO (typ, _, _) -> print_base_type typ
+  | PROTO (typ, _, _, _) -> print_base_type typ
+  | OLD_PROTO (typ, _, _, _) -> print_base_type typ
   | PTR typ -> print_base_type  typ
   | ARRAY (typ, _) -> print_base_type  typ
 (*
@@ -304,7 +306,7 @@ and print_type (fct : unit -> unit) (typ : base_type ) =
   let base = get_base_type typ in
   match base with
     BITFIELD (_, exp) -> fct (); print " : "; print_expression exp 1
-  | PROTO (typ', pars, ell) ->
+  | PROTO (typ', pars, ell, _) ->
       print_type
 	(fun _ ->
 	  if base <> typ then print "(";
@@ -316,7 +318,7 @@ and print_type (fct : unit -> unit) (typ : base_type ) =
 	  print_params pars ell;
 	  print ")")
 	typ'
-  | OLD_PROTO (typ', pars, ell) ->
+  | OLD_PROTO (typ', pars, ell, _) ->
       print_type
 	(fun _ ->
 	  if base <> typ then print "(";
@@ -538,9 +540,9 @@ and print_expression (exp : expression) (lvl : int) =
   | MEMBEROFPTR (exp, fld) ->
       print_expression exp 16;
       print ("->" ^ fld)
-  | GNU_BODY (decs, stat) ->
+  | GNU_BODY blk ->
       print "(";
-      print_statement (BLOCK (decs, stat));
+      print_statement (BLOCK blk);
       print ")" in
   if lvl > lvl' then print ")" else ()
     
@@ -557,12 +559,15 @@ and print_statement stat =
       print_expression exp 0;
       print ";";
       new_line ()
-  | BLOCK (defs, stat) ->
+  | BLOCK blk ->
       new_line ();
       print "{";
       indent ();
-      print_defs defs;
-      if stat <> NOP then print_statement stat else ();
+      let printBlkElem = function
+          BDEF d -> print_def d
+        | BSTM s -> print_statement s
+      in
+      List.iter printBlkElem blk;
       unindent ();
       print "}";
       new_line ();
@@ -719,7 +724,7 @@ and print_def def =
   match def with
     FUNDEF (proto, body) ->
       print_single_name proto;
-      let (decs, stat) = body in print_statement (BLOCK (decs, stat));
+      print_statement (BLOCK body);
       force_new_line ();
       
   | OLDFUNDEF (proto, decs, body) ->
@@ -728,7 +733,7 @@ and print_def def =
       List.iter
 	(fun dec -> print_name_group dec; print ";"; new_line ())
 	decs;
-      let (decs, stat) = body in print_statement (BLOCK (decs, stat));
+      print_statement (BLOCK body);
       force_new_line ();
       
   | DECDEF names ->

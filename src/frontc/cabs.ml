@@ -31,24 +31,28 @@ and base_type =
  | DOUBLE of bool					(* is long ? *)
  | PTR of base_type					(* is const ? *)
  | ARRAY of base_type * expression
+
  | STRUCTDEF of string * name_group list
  | STRUCT of string                     (* A reference to a STRUCT but with 
                                          * no field definitions *)
  | UNIONDEF of string * name_group list
  | UNION of string
 
+ | ENUMDEF of string * enum_item list
+ | ENUM    of string
+
+
  | PROTO of proto
  | OLD_PROTO of old_proto	
  | NAMED_TYPE of string
- | ENUM of string * enum_item list
- | ATTRTYPE of base_type * attributes   (* Type with attributes *)
+ | ATTRTYPE of base_type * attribute list(* Type with attributes *)
 (*
  | CONST of base_type * attributes
  | VOLATILE of base_type
 *)
  | TYPEOF of expression                 (* GCC __typeof__ *)
 
-and name = string * base_type * attributes * expression
+and name = string * base_type * attribute list * expression
 
 and name_group = base_type * storage * name list
 
@@ -56,9 +60,11 @@ and single_name = base_type * storage * name
 
 and enum_item = string * expression
 
-and proto = base_type * single_name list * bool
+and proto = 
+    base_type * single_name list * bool (* isvar arg*) * bool (* inline *)
 
-and old_proto = base_type * string list * bool
+and old_proto = 
+    base_type * string list * bool (* isvar arg*) * bool (* inline *)
  
 
 (*
@@ -79,7 +85,13 @@ and file = definition list
 (*
 ** statements
 *)
-and body = definition list * statement
+and bodyelem =                          (* ISO 6.8.2 allows declarations to 
+                                           be intermixed with statements *)
+   BDEF of definition
+ | BSTM of statement
+
+and body = bodyelem list
+
 and statement =
    NOP
  | COMPUTATION of expression
@@ -143,8 +155,6 @@ and constant =
   | CONST_STRING of string
   | CONST_COMPOUND of expression list
 
-(*** Implementation Relatives ***)
-and attributes = attribute list
                                         (* Each attribute has a name and some 
                                          * optional arguments *)
 and attribute = string * expression list

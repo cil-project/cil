@@ -585,6 +585,17 @@ let canPrintName n =
     true
   end)
 
+
+(* Some attributes are printed before and others after *)
+let rec separateAttributes (pre, post) = function
+    [] -> pre,post
+  | ((AId "const" | AId "volatile" | AId "inline" |
+      AId "cdecl" | AId "stdcall") as a) :: rest -> 
+      separateAttributes (a :: pre, post) rest
+  | a :: rest ->
+      separateAttributes (pre, a :: post) rest
+let separateAttributes a = separateAttributes ([], []) a    
+
 let rec d_decl (docName: unit -> doc) () this = 
   let parenth outer_t doc = 
     let typ_strength = function         (* binding strength of type 
@@ -599,16 +610,17 @@ let rec d_decl (docName: unit -> doc) () this =
     else
       doc
   in match this with 
-    TVoid a -> dprintf "void%a %t" d_attrlist a docName
-  | TInt (ikind,a) -> dprintf "%a%a %t" d_ikind ikind d_attrlist a docName
+    TVoid a -> dprintf "void%a %t" d_attrlistpost a docName
+  | TInt (ikind,a) -> dprintf "%a%a %t" d_ikind ikind d_attrlistpost a docName
   | TBitfield(ikind,i,a) -> 
-      dprintf "%a %t : %d%a" d_ikind ikind docName i d_attrlist a
-  | TFloat(fkind, a) -> dprintf "%a%a %t" d_fkind fkind d_attrlist a docName
+      dprintf "%a %t : %d%a" d_ikind ikind docName i d_attrlistpost a
+  | TFloat(fkind, a) -> dprintf "%a%a %t" d_fkind fkind 
+        d_attrlistpost a docName
   | TStruct (n,fi,a) -> 
       let n' = 
         if String.length n >= 5 && String.sub n 0 5 = "@anon" then "" else n in
       if n' = "" || canPrintName ("struct " ^ n') then
-        dprintf "str@[uct %s%a {@!%a@]@!} %t" n' d_attrlist a
+        dprintf "str@[uct %s%a {@!%a@]@!} %t" n' d_attrlistpost a
           (docList line (d_fielddecl ())) fi docName
       else
         dprintf "struct %s %t" n' docName
@@ -616,7 +628,7 @@ let rec d_decl (docName: unit -> doc) () this =
       let n' = 
         if String.length n >= 5 && String.sub n 0 5 = "@anon" then "" else n in
       if n' = "" || canPrintName ("union " ^ n') then
-        dprintf "uni@[on %s%a {@!%a@]@!} %t" n' d_attrlist a
+        dprintf "uni@[on %s%a {@!%a@]@!} %t" n' d_attrlistpost a
           (docList line (d_fielddecl ())) fi docName
       else
         dprintf "union %s %t" n' docName
@@ -627,20 +639,27 @@ let rec d_decl (docName: unit -> doc) () this =
       let n' = 
         if String.length n >= 5 && String.sub n 0 5 = "@anon" then "" else n in
       if n' = "" || canPrintName ("enum " ^ n') then
-        dprintf "enum@[ %s%a {%a@]@?} %t" n' d_attrlist a
+        dprintf "enum@[ %s%a {%a@]@?} %t" n' d_attrlistpost a
           (docList line (fun (n,i) -> dprintf "%s = %d,@?" n i)) kinds
           docName
       else
         dprintf "enum %s %t" n' docName
 
   | TPtr (TFun(tres, args, isva, af) as t, ap) when !msvcOutput ->  (* !!! *)
-      d_decl (fun _ -> parenth t (dprintf "%a *%a %t" 
-                                    d_attrlist af
-                                    d_attrlist ap docName )) 
+      let rec stripCallAttr (call, notcall) = function
+          [] -> call, notcall
+        | ((AId("cdecl")|AId("stdcall")) as a) :: rest ->
+            stripCallAttr (a :: call, notcall) rest
+        | a :: rest -> stripCallAttr (call, a :: notcall) rest
+      in
+      let call, notcall = stripCallAttr ([], []) ap in
+      d_decl (fun _ -> parenth t (dprintf "%a* %a%t" 
+                                    d_attrlistpre call
+                                    d_attrlistpost notcall docName )) 
              () (TFun(tres, args, isva, []))
 
   | TPtr (t, a)  -> 
-      d_decl (fun _ -> parenth t (dprintf "*%a %t" d_attrlist a docName )) 
+      d_decl (fun _ -> parenth t (dprintf "* %a%t" d_attrlistpre a docName )) 
              () t
 
   | TArray (t, lo, a) -> 
@@ -649,7 +668,7 @@ let rec d_decl (docName: unit -> doc) () this =
              docName
              insert (match lo with None -> nil 
              | Some e -> d_exp () e)
-             d_attrlist a))
+             d_attrlistpost a))
         ()
         t
   | TFun (restyp, args, isvararg, a) -> 
@@ -668,14 +687,14 @@ let rec d_decl (docName: unit -> doc) () this =
       d_decl (fun _ -> 
         parenth restyp 
           (dprintf "%a %t(@[%a%a@])" 
-             d_attrlist a
+             d_attrlistpost a
              docName
              (docList (chr ',' ++ break) (d_videcl ())) args'
              insert (if isvararg then text ", ..." else nil)))
         ()
         restyp
 
-  | TNamed (n, _, a) -> dprintf "%a %s %t" d_attrlist a n docName
+  | TNamed (n, _, a) -> dprintf "%a %s %t" d_attrlistpost a n docName
 
 
 (* Only a type (such as for a cast) *)        
@@ -762,30 +781,35 @@ and d_attr () = function
   | ACons(s,al) -> dprintf "%s(%a)" s
         (docList (chr ',') (d_attr ())) al
           
-and d_attrlist () al =
+and d_attrlist pre al = (* Whether it comes before or after stuff *)
   (* Take out the special attributes *)
   let rec loop remaining = function
       [] -> begin
         match remaining with
           [] -> nil
         | _ -> 
-            dprintf " __attribute__((%a))"
+            dprintf "__attribute__((%a)) "
               (docList (chr ',' ++ break) 
                  (fun a -> dprintf "%a" d_attr a)) al
       end
     | (AId("const")) :: rest -> 
-        dprintf " const%a" insert (loop remaining rest)
+        dprintf "const %a" insert (loop remaining rest)
     | (AId("volatile")) :: rest -> 
-        dprintf " volatile%a" insert (loop remaining rest)
+        dprintf "volatile %a" insert (loop remaining rest)
     | (AId("cdecl")) :: rest when !msvcOutput -> 
-        dprintf " __cdecl%a" insert (loop remaining rest)
+        dprintf "__cdecl %a" insert (loop remaining rest)
     | (AId("stdcall")) :: rest when !msvcOutput -> 
-        dprintf " __stdcall%a" insert (loop remaining rest)
+        dprintf "__stdcall %a" insert (loop remaining rest)
     | x :: rest -> loop (x :: remaining) rest
   in
-  loop [] al
+  let res = loop [] al in
+  if res = nil then
+    res
+  else
+    if pre then res ++ text " " else text " " ++ res
     
-
+and d_attrlistpre () a = d_attrlist true a
+and d_attrlistpost () a = d_attrlist false a
 
 (* lvalue *)
 and d_lvalprec contextprec () lv = 
@@ -902,12 +926,13 @@ and d_stmt () s =
 
         
 and d_fun_decl () f = 
+  let pre, post = separateAttributes f.svar.vattr in
   dprintf "%a%a %a@!{ @[%a@!%a@]@!}" 
     d_storage f.svar.vstorage
     (* the prototype *)
-    (d_decl (fun _ -> text f.svar.vname)) f.svar.vtype
-    (* attributes *)
-    d_attrlist f.svar.vattr
+    (d_decl (fun _ -> dprintf "%a%s" d_attrlistpre pre f.svar.vname)) 
+    f.svar.vtype
+    d_attrlistpost post
     (* locals. But eliminate first the formal arguments *)
     (docList line (fun vi -> d_videcl () vi ++ text ";"))
        (let nrArgs = 
@@ -925,16 +950,35 @@ and d_fun_decl () f =
     d_stmt f.sbody
 
 and d_videcl () vi = 
-  dprintf "%a%a %a" d_storage vi.vstorage
-    (d_decl (fun _ -> text vi.vname)) vi.vtype
-    d_attrlist vi.vattr
+  let pre, post = separateAttributes vi.vattr in
+  match vi.vtype with
+    TPtr(TFun _ as tfun, ap) when !msvcOutput ->
+      dprintf "%a%a %a" d_storage vi.vstorage
+        (d_decl (fun _ -> dprintf "(%a *%a%s)" 
+            d_attrlistpre pre d_attrlistpre post vi.vname)) 
+        tfun
+        d_attrlistpost post
+  | _ ->
+      dprintf "%a%a %a" d_storage vi.vstorage
+        (d_decl (fun _ -> dprintf "%a%s" d_attrlistpre pre vi.vname)) vi.vtype
+        d_attrlistpost post
     
 and d_fielddecl () fi = 
-  dprintf "%a %a;"
-    (d_decl (fun _ -> 
-      text (if fi.fname = "___missing_field_name" then "" else fi.fname))) 
-    fi.ftype
-    d_attrlist fi.fattr
+  match fi.ftype with
+    TPtr(TFun _ as tfun, ap) when !msvcOutput ->
+      let pre, post = separateAttributes fi.fattr in
+     dprintf "%a;"
+        (d_decl (fun _ -> 
+          dprintf "(%a *%a%s)"
+            d_attrlistpre pre d_attrlistpre post
+            (if fi.fname = "___missing_field_name" then "" else fi.fname))) 
+        tfun
+  | _ -> 
+      dprintf "%a %a;"
+        (d_decl (fun _ -> 
+          text (if fi.fname = "___missing_field_name" then "" else fi.fname))) 
+        fi.ftype
+        d_attrlistpost fi.fattr
        
 let printFile (out : out_channel) (globs : file) = 
   let print x = fprint out 80 x in
@@ -984,38 +1028,38 @@ and d_plainoffset () = function
   | Index(e, o) -> dprintf "Index(@[%a,@?%a@])" d_plainexp e d_plainoffset o
 
 and d_plaintype () = function
-    TVoid a -> dprintf "TVoid(@[%a@])" d_attrlist a
-  | TInt(ikind, a) -> dprintf "TInt(@[%a,@?%a@])" d_ikind ikind d_attrlist a
+    TVoid a -> dprintf "TVoid(@[%a@])" d_attrlistpost a
+  | TInt(ikind, a) -> dprintf "TInt(@[%a,@?%a@])" d_ikind ikind d_attrlistpost a
   | TFloat(fkind, a) -> 
-      dprintf "TFloat(@[%a,@?%a@])" d_fkind fkind d_attrlist a
+      dprintf "TFloat(@[%a,@?%a@])" d_fkind fkind d_attrlistpost a
   | TBitfield(ikind,i,a) -> 
-      dprintf "TBitfield(@[%a,@?%d,@?%a@])" d_ikind ikind i d_attrlist a
+      dprintf "TBitfield(@[%a,@?%d,@?%a@])" d_ikind ikind i d_attrlistpost a
   | TNamed (n, t, a) ->
-      dprintf "TNamed(@[%s,@?%a,@?%a@@])" n d_plaintype t d_attrlist a
+      dprintf "TNamed(@[%s,@?%a,@?%a@@])" n d_plaintype t d_attrlistpost a
   | TForward n -> dprintf "TForward(%s)" n
-  | TPtr(t, a) -> dprintf "TPtr(@[%a,@?%a@])" d_plaintype t d_attrlist a
+  | TPtr(t, a) -> dprintf "TPtr(@[%a,@?%a@])" d_plaintype t d_attrlistpost a
   | TArray(t,l,a) -> 
       let dl = match l with 
         None -> text "None" | Some l -> dprintf "Some(@[%a@])" d_plainexp l in
       dprintf "TArray(@[%a,@?%a,@?%a@])" 
-        d_plaintype t insert dl d_attrlist a
-  | TEnum(n,_,a) -> dprintf "Enum(%s,@[%a@])" n d_attrlist a
+        d_plaintype t insert dl d_attrlistpost a
+  | TEnum(n,_,a) -> dprintf "Enum(%s,@[%a@])" n d_attrlistpost a
   | TFun(tr,args,isva,a) -> 
       dprintf "TFun(@[%a,@?%a%s,@?%a@])"
         d_plaintype tr 
         (docList (chr ',' ++ break) 
            (fun a -> dprintf "%s: %a" a.vname d_plaintype a.vtype)) args
-        (if isva then "..." else "") d_attrlist a
+        (if isva then "..." else "") d_attrlistpost a
   | TStruct(n,flds,a) -> 
       dprintf "TStruct(@[%s,@?%a,@?%a@])" n
         (docList (chr ',' ++ break) 
            (fun f -> dprintf "%s : %a" f.fname d_plaintype f.ftype)) flds
-        d_attrlist a
+        d_attrlistpost a
   | TUnion(n,flds,a) -> 
       dprintf "TUnion(@[%s,@?%a,@?%a@])" n
         (docList (chr ',' ++ break) 
            (fun f -> dprintf "%s : %a" f.fname d_plaintype f.ftype)) flds
-        d_attrlist a
+        d_attrlistpost a
 
 (******************
  ******************

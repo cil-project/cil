@@ -107,7 +107,7 @@ let pop_context _ =
 
 let add_identifier name =
 	match !context with
-	[] -> raise (InternalError "Empty context stack")
+	[] -> () (* Just ignore raise (InternalError "Empty context stack") *)
 	| con::sub ->
 		(context := (name::con)::sub;
 		StringHashtbl.add lexicon name (IDENT name))
