@@ -312,7 +312,8 @@ defaulttarget : $(EXECUTABLE)$(EXE) $(SAFECLIB) $(CILLIB)
 endif
 
 .PHONY: trval
-trval: $(TVDIR)/obj/transval.asm.exe
+trval: 
+	make -C $(TVDIR)
 	make -C $(TVDIR) RELEASE=1
 
 
