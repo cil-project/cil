@@ -48,3 +48,4 @@ memset_sizeof
 jpeg_compress_struct
 funcptr2
 argv
+ctype

@@ -1,5 +1,5 @@
-open Cil 
-open Pretty 
+open Cil
+open Pretty
 open Trace
 
 open Clist
@@ -2768,10 +2768,10 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
                (vi:  varinfo)   (* Where to put the result *)
                (f:  exp)        (* The allocation function *)
                (args: exp list) (* The arguments passed to the allocation *) 
-    : stmt clist = 
-(*  ignore (E.log "Allocation call of %a. type(vi) = %a@! vtype = %a@!" 
-            d_exp f d_plaintype vi.vtype
-            d_plaintype vtype);  *)
+    : stmt clist =
+  (*(trace "malloc" (dprintf "Al@[location call of %a.@?type(vi) = %a@!@] vtype = %a@!"*)
+  (*                         d_exp f d_plaintype vi.vtype*)
+  (*                         d_plaintype vtype));*)
   let k = kindOfType vi.vtype in
   let kno_t = N.stripT k in
   (* Get the size *)
