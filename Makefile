@@ -866,8 +866,8 @@ gccclean:
 
 gcc: defaulttarget mustbegcc
 	cd $(GCCDIR)/src; \
-            make build CC="$(GCCSAFECC) $(CONLY)" \
-                       LD="$(GCCSAFECC)" 
+            make clean build CC="$(GCCSAFECC) $(CONLY)" \
+                             LD="$(GCCSAFECC)" 
 	$(GCCDIR)/exe/base/vortex_ultra \
             <$(GCCDIR)/data/train/input/2stone9.in
 
@@ -875,6 +875,3 @@ allcc1: defaulttarget mustbegcc
 	cd $(GCCDIR)/exe/base; $(SAFECC) $(DOOPT) cc1.v8_all.c
 
 
-
-combinetest: defaulttarget
-	cd test/small1; $(SAFECC) --combine /Fet.exe t.c t1.c
