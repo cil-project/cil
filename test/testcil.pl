@@ -477,7 +477,7 @@ if($^O eq 'MSWin32') {
 # Tests that are expected to fail
 $TEST->add2TestsFail("testrun/failubound1", "", "Failure: Ubound");
 $TEST->add2TestsFail("testrun/failnull1", "", "Failure:");
-$TEST->add2TestsFail("testrun/failprintf1", "", "Failure: type mismatch");
+$TEST->add2TestsFail("testrun/failprintf1", "", "Failure: Non-pointer");
 $TEST->add2TestsFail("testrun/failprintf2", "", "Failure: Non-pointer");
 $TEST->add2TestsFail("testrun/failprintf3", "", "Failure: type mismatch");
 $TEST->add2TestsFail("testrun/failprintf4", "", "Failure: type mismatch");
