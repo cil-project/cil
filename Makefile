@@ -1209,9 +1209,7 @@ bisort : defaulttarget mustbegcc
 
 
 OLDENMSTDIR=test/olden/mst
-OLDENMSTSAFECC=$(COMBINESAFECC) \
-                  --nobox=trusted_mst \
-	          $(PATCHARG)
+OLDENMSTSAFECC=$(COMBINESAFECC) $(PATCHARG)
 ifdef _MSVC
 OLDENMSTSAFECC += $(DEF)WIN32 $(DEF)MSDOS
 MSTARGS= _MSVC=1
@@ -1221,11 +1219,13 @@ mst-clean:
 	cd $(OLDENMSTDIR); rm -f *cil.c *box.c *.i *_ppp.c *.origi *_all.c
 
 mst: defaulttarget
+	-cd $(OLDENMSTDIR); rm gmon.out
 	cd $(OLDENMSTDIR); \
             make clean mst.exe $(MSTARGS) \
                                CC="$(OLDENMSTSAFECC)" \
                                LD="$(OLDENMSTSAFECC)"
 	cd $(OLDENMSTDIR); sh -c "time ./mst.exe 2048 1"
+	cd $(OLDENMSTDIR); if test -f gmon.out; then gprof mst.exe gmon.out; fi
 
 
 

@@ -25,7 +25,7 @@ let isSome = function Some _ -> true | _ -> false
 (* Have a loop constructor that yields nothing if the body is empty *)
 let mkForIncrOptim ~iter:(iter:varinfo) ~first:(first: exp) 
                    ~past:(past: exp) ~incr:(incr: exp) 
-                   ~body:(body: stmt list) : stmt list = 
+                   ~body:(body: stmt list) : stmt list =  
   if body = [] then []
   else mkForIncr iter first past incr body
  
@@ -3197,6 +3197,7 @@ class unsafeVisitorClass = object
               fixLastOffset (addOffsetLval (Field(f2, NoOffset)) lv)
           | f1 :: _ when f1.fname = "_p" -> 
               fixLastOffset (addOffsetLval (Field(f1, NoOffset)) lv)
+          | _ -> lv
         end
       | _ -> lv
     in
@@ -3344,18 +3345,7 @@ and boxinstr (ins: instr) : stmt clist =
           let newb, newoff = H.find heapifiedLocals vi.vname in
           let stmt1 = boxinstr (Call (Some (newb, newoff), f, args, l)) in
           stmt1
-(*
-          (* Make a temporary variable with the same type *)
-          let tmp = makeTempVar !currentFunction vi.vtype in
-          (* Fix its type *)
-          tmp.vtype <- fixupType tmp.vtype;
-          (* Add a separate call to initialize the temporary *)
-          let stmt1 = boxinstr (Call (Some (tmp, iscast), f, args, l)) in
-          (* Now add an assignment *)
-          let stmt2 = boxinstr (Set ((newb, newoff),
-                                     Lval (var tmp), l)) in
-          append stmt1 stmt2
-*)
+
     | Call(vio, f, args, l) ->
         currentLoc := l;
         let (ft, dof, f', fkind) = 
@@ -3399,8 +3389,7 @@ and boxinstr (ins: instr) : stmt clist =
         let leavealone, isallocate = 
           match f' with
             Lval(Var vf, NoOffset) -> 
-              H.mem leaveAlone vf.vname,
-              getAllocInfo vf.vname
+              H.mem leaveAlone vf.vname, getAllocInfo vf.vname
 
           | _ -> false, None
         in
@@ -3531,7 +3520,7 @@ and boxinstr (ins: instr) : stmt clist =
                     ftret) in
               (* Now do the call itself *)
               let thecall = 
-                match isallocate with
+                match isallocate with 
                   None -> single (interceptCall (Some (var tmp)) f' args')
                 | Some ai -> pkAllocate ai (var tmp) f' args'
               in
@@ -4072,8 +4061,12 @@ let boxFile file =
         theFile := consGlobal g !theFile
       end
     | _ -> begin
-        if not !boxing then theFile := consGlobal g !theFile else
-        match g with
+        if not !boxing then begin
+          (* Scan the global and fix some things inside *)
+          let g' = visitCilGlobal unsafeVisitor g in
+          theFile := consGlobal g' !theFile 
+        end else
+          match g with
 
         | GDecl (vi, l) -> 
             boxglobal vi false None l;

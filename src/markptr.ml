@@ -591,6 +591,7 @@ let instantiatePolyFunc (vi: varinfo) : varinfo * bool =
       | None -> E.s (bug " there should be a template\n")
     with Not_found -> ()
   end;
+  if debugInstantiate then ignore (E.log "Done instantiatePoly\n");
   res, ispoly
 
 (* possible printf arguments *)
@@ -1035,8 +1036,8 @@ let doGlobal (g: global) : global =
                   H.add boxModels fname fdec
               | _ -> ()) (filterAttributes "boxmodel" fdec.svar.vattr);
           if ispoly then
-            fdec.svar <- newvi; (* Change the varinfo if the instantiation has 
-                                   * changed it *)
+            fdec.svar <- newvi; (* Change the varinfo if the instantiation 
+                                 * has changed it *)
           currentFunctionName := fdec.svar.vname;
           (* Go through the formals and copy their type and attributes from 
            * the type. Then restore the sharing  *)
@@ -1062,6 +1063,7 @@ let doGlobal (g: global) : global =
           (* Do the body *)
           fdec.sbody <- doBlock fdec.sbody;
           g
+
       | GPragma _ -> g (* Should never be reached *)
   end
       

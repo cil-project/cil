@@ -2155,7 +2155,7 @@ and d_plaintype () (t: typ) =
         dprintf "TComp(@[%s %s,@?%a,@?%a,@?%a@])" 
           (if comp.cstruct then "struct" else "union") comp.cname
           (docList (chr ',' ++ break) 
-             (fun f -> dprintf "%s : %a" f.fname d_plaintype f.ftype)) 
+             (fun f -> dprintf "%s : %a" f.fname scanType f.ftype)) 
           comp.cfields
           d_attrlistpost comp.cattr
           d_attrlistpost a

@@ -182,7 +182,7 @@ let rec subtype (t1 : typ) (q1 : opointerkind)
           
 (* a predicate to determine if a polymorphic function call is involved *)
 let rec is_p n other_n = match n.where with
-    PGlob(s),_ when String.contains s '*' -> true
+    (PGlob(s),_) | (PStatic(_, s), _) when String.contains s '*' -> true
   | (PAnon(_),0) |
     (PLocal(_,_,_),1) -> 
       if ((List.length n.succ) = 1) &&
