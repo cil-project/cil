@@ -438,13 +438,14 @@ end
 
 (* Find a id name that hasn't been used *)
 and find_newId id = begin
-  let tmp_id = ref "" and flag = ref true in 
+  let tmp_id = ref "" and flag = ref true and index = ref 0 in 
   begin
     tmp_id := id;
     while !flag do
       try
         Hashtbl.find gAlphaTable !tmp_id;
-        tmp_id := (!tmp_id ^ "_");
+        tmp_id := (id ^ "_" ^ string_of_int(!index));
+        index := !index + 1;
       with Not_found -> flag := false;
     done;
     !tmp_id
