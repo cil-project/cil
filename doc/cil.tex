@@ -2199,7 +2199,9 @@ Options:
   --clean       Remove all files in the destination directory
   --dumpversion Print the version name used for the current compiler
 
- All of the other arguments are passed to the preprocessor.
+ All of the other arguments are passed to the preprocessor. You should pass
+ enough arguments (e.g., include directories) so that the patcher can find the
+ right include files to be patched.
 \end{verbatim}
 
  Based on the given \t{mode} and the current version of the compiler (which

@@ -2643,7 +2643,7 @@ and doExp (isconst: bool)    (* In a constant *)
         [] -> NoOffset, voidType (* Did not find *)
       | fid :: rest when fid.fname = n -> Field(fid, NoOffset), fid.ftype
       | fid :: rest when prefix annonCompFieldName fid.fname -> begin
-          match fid.ftype with 
+          match unrollType fid.ftype with 
             TComp (ci, _) -> 
               let off, t = search ci.cfields in
               if off = NoOffset then 
@@ -2795,6 +2795,7 @@ and doExp (isconst: bool)    (* In a constant *)
               makeGlobalVar ("wide_string" ^ string_of_int !lastStructId)
                 ws_t
             in
+            ws.vstorage <- Static;
             incr lastStructId;
             (* Make the initializer. Idx is a wide_char index.  *)
             let rec loop (idx: int) (s: int64 list) = 

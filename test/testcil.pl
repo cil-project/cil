@@ -516,6 +516,7 @@ if($win32) {
     $TEST->addTests("testrun/msvc4", "_MSVC=1", ["cil"]);
 }
 $TEST->addTests("testrun/msvc1", "", ["cil"]);
+$TEST->addTests("testrun/msvc5", "", ["cil"]);
 
 $TEST->addTests("testrun/extern1", "", ['cil']);
 
