@@ -101,8 +101,10 @@ let oneret (f: Cil.fundec) : unit =
           (* This is the last statement in the function. If it has labels, 
            * add the labels to the replacement return statement. Then drop 
            * this statement. *)
-          (* if s.labels <> [] then 
-            !sgref.labels <- s.labels @ !sgref.labels; *)
+          if s.labels <> [] then begin
+            let sgref = getRetStmt () in 
+            sgref.labels <- s.labels @ sgref.labels
+          end ; 
           scanStmts mainbody rests
         end else begin
           let sgref = ref (getRetStmt ()) in
