@@ -1214,10 +1214,10 @@ vortex-combined-gcc: mustbegcc
 	cd $(VORDIR)/src; sh -c "./testit vortex.exe"
 
 vortex-combined-compare: mustbegcc
-	-make vortex-combined _GNUCC=1
-	cp $(VORDIR)/src/data/vortex.out $(VORDIR)/src/data/vortex.cil.out
 	-make vortex-combined-gcc _GNUCC=1
 	cp $(VORDIR)/src/data/vortex.out $(VORDIR)/src/data/vortex.gcc.out
+	-make vortex-combined _GNUCC=1
+	cp $(VORDIR)/src/data/vortex.out $(VORDIR)/src/data/vortex.cil.out
 	diff $(VORDIR)/src/data/vortex.cil.out $(VORDIR)/src/data/vortex.gcc.out
 
 vortex-makertl: mustbegcc

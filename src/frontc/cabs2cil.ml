@@ -2573,9 +2573,9 @@ and doInitializer
               
         (* Now do the regular case *)
         | (A.NEXT_INIT, ie) :: restinitl -> begin
-                  (* If the element type is Char and the initializer is a 
-                   * string literal, split the string into characters, 
-                   * including the terminal 0 *)
+            (* If the element type is Char and the initializer is a string 
+             * literal, split the string into characters, including the 
+             * terminal 0  *)
             let isStringLiteral : string option = 
               match ie with
                 A.SINGLE_INIT(A.CONSTANT (A.CONST_STRING s)) -> Some s
@@ -2597,6 +2597,7 @@ and doInitializer
                       (A.NEXT_INIT, 
                        A.SINGLE_INIT(A.CONSTANT 
                                        (A.CONST_CHAR cs)))) chars in
+                (* Now enclose the newly created initializers into braces *)
                 initArray nextidx sofar acc (inits' @ restinitl)
             | _ ->   
                 (* Recurse and consume some initializers for the purpose of 
@@ -2615,16 +2616,30 @@ and doInitializer
       (* Maybe the first initializer is a compound, then that is the 
        * initializer for the entire array *)
       let acc', inits, nextidx, restinitl = 
-        match initl with
+        (* If we are initializing an array of characters, and the initializer 
+         * is a string without braces around it, then put braces so that the 
+         * entire string initializes one array *)
+        let initl' = 
+          match initl with
+            (A.NEXT_INIT, 
+             A.SINGLE_INIT(A.CONSTANT (A.CONST_STRING s)) as sinit) 
+            :: restinitl 
+               when (match unrollType elt with 
+                      TInt((IChar|ISChar|IUChar), _) -> true | _ -> false) ->
+             (A.NEXT_INIT, A.COMPOUND_INIT ([sinit])) :: restinitl
+          | _ -> initl
+        in
+        match initl' with
           (A.NEXT_INIT, A.COMPOUND_INIT initl_e) :: restinitl -> 
             let acc', inits, nextidx, rest' = 
               initArray 0 [] acc initl_e in
             if rest' <> [] then
               E.s (warn "Unused initializers\n");
             acc', inits, nextidx, restinitl
-              (* Otherwise it is the initializer for some elements, starting 
-               * with the first one *)
-        | _ -> initArray 0 [] acc initl 
+              
+        | _ -> (* Otherwise it is the initializer for some elements, starting 
+                * with the first one. Consume as much as we need *)
+            initArray 0 [] acc initl' 
       in
       let newt = (* Maybe we have a length now *)
         match n with 
