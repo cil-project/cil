@@ -429,6 +429,7 @@ $TEST->addTests("testrun/rttioo2", "", ['inferbox']);
 $TEST->addTests("test/bind-formatstring", "EXTRAARGS=--assumePrintf", ['inferbox']);
 $TEST->addTests("test/bind-empty-chain", "", ['inferbox']);
 $TEST->addTests("test/bind-safe-wild", "EXTRAARGS=--assumePrintf", ['inferbox']);
+$TEST->addTests("test/bind-zero", "EXTRAARGS=--assumePrintf", ['inferbox']);
 $TEST->addTests("testrun/pointerdiff", "", ['cil', 'inferbox', 'box']);
    $TEST->addBadComment("testrun/pointerdiff-inferbox", 
                         "A pointer that is not read should not be bound-checked");
