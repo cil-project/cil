@@ -1485,16 +1485,16 @@ and doOnlyType (specs: A.spec_elem list) (dt: A.decl_type) : typ =
   tres
 
 
-and makeCompType (iss: bool)
+and makeCompType (isstruct: bool)
                  (n: string)
                  (nglist: A.field_group list) 
                  (a: attribute list) = 
   (* Make a new name for the structure *)
-  let kind = if iss then "struct" else "union" in
+  let kind = if isstruct then "struct" else "union" in
   let n' = newAlphaName true kind n in
   (* Create the self cell for use in fields and forward references. Or maybe 
    * one exists already from a forward reference  *)
-  let comp = createCompInfo iss n' in
+  let comp = createCompInfo isstruct n' in
   (* Do the fields *)
   let makeFieldInfo (s: A.spec_elem list) 
                     (((n,ndt,a) : A.name), (widtho : A.expression option))

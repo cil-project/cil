@@ -2062,7 +2062,9 @@ and d_fielddecl () fi =
      (fun _ -> 
        text (if fi.fname = "___missing_field_name" then "" else fi.fname))
      DNString () fi.ftype)
-    ++ text " " 
+    ++ text " "
+    ++ (match fi.fbitfield with None -> nil 
+                             | Some i -> text ": " ++ num i ++ text " ")
     ++ d_attrlistpost () fi.fattr
     ++ text ";"
 

@@ -90,6 +90,7 @@ and decl_type =
 (* e.g.: int x, y; *)
 and name_group = specifier * name list
 
+(* The optional expression is the bitfield *)
 and field_group = specifier * (name * expression option) list
 
 (* like name_group, except the declared variables are allowed to have initializers *)
