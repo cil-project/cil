@@ -252,7 +252,7 @@ $TEST->add2Tests("testrun/init13", "_GNUCC=1");
 $TEST->add2Tests("testrun/init14", "_GNUCC=1");
 $TEST->add2Tests("testrun/init15", "_GNUCC=1");
 $TEST->add2Tests("testrun/init16", "");
-   $TEST->add2BadComment("testrun/init16", "Arithmetic not supported in the initializers of global vars.");
+$TEST->add2Tests("testrun/logical", "");
 $TEST->addTests("testrun/cond1", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/cond2", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/initial", "_GNUCC=1", ['cil']);

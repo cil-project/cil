@@ -62,6 +62,7 @@ let msvcMode = ref false              (* Whether the pretty printer should
                                        * print output for the MS VC 
                                        * compiler. Default is GCC *)
 
+let useLogicalOperators = ref false
 
 (* Cil.initCil will set this to the current machine description *)
 let theMachine : M.mach ref = ref M.gcc

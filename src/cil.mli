@@ -637,8 +637,16 @@ and binop =
   | BXor                                (** exclusive-or *)
   | BOr                                 (** inclusive-or *)
 
-  | LAnd                                (** logical and *)
-  | LOr                                 (** logical or *)
+  | LAnd                                (** logical and. Unlike other 
+                                         * expressions this one does not 
+                                         * always evaluate both operands. If 
+                                         * you want to use these, you must 
+                                         * set {!Cil.useLogicalOperators}. *)
+  | LOr                                 (** logical or. Unlike other 
+                                         * expressions this one does not 
+                                         * always evaluate both operands.  If 
+                                         * you want to use these, you must 
+                                         * set {!Cil.useLogicalOperators}. *)
 
 (** {b Lvalues.} Lvalues are the sublanguage of expressions that can appear at the left of an assignment or as operand to the address-of operator. 
 In C the syntax for lvalues is not always a good indication of the meaning 
@@ -1728,6 +1736,11 @@ val visitCilAttributes: cilVisitor -> attribute list -> attribute list
    Default is GCC. After you set this function you should call {!Cil.initCIL}. *)
 val msvcMode: bool ref               
 
+
+(** Whether to use the logical operands LAnd and LOr. By default, do not use 
+ * them because they are unlike other expressions and do not evaluate both of 
+ * their operands *)
+val useLogicalOperators: bool ref
 
 (** Whether to print line numbers *)
 val printLn: bool ref

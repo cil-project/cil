@@ -4,10 +4,6 @@
 
 int x = ! (3 && ! 3);
 
-int y = ! &x;
-
-int z = &x && (&y || ! 4);
-
 int array[(3 && !3) ? 6 : 8];
 
 int main() {

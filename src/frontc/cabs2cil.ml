@@ -3732,7 +3732,8 @@ and doCondExp (isconst: bool)
               ce1 
             else 
               CEAnd (ce1, ce2)
-      | CEExp(se1, e1'), CEExp (se2, e2') when isEmpty se1 && isEmpty se2 -> 
+      | CEExp(se1, e1'), CEExp (se2, e2') when 
+              !useLogicalOperators && isEmpty se1 && isEmpty se2 -> 
           CEExp (empty, BinOp(LAnd, 
                               mkCast e1' intType, 
                               mkCast e2' intType, intType))
@@ -3753,7 +3754,8 @@ and doCondExp (isconst: bool)
             else 
               CEOr (ce1, ce2)
 
-      | CEExp (se1, e1'), CEExp (se2, e2') when isEmpty se1 && isEmpty se2 ->
+      | CEExp (se1, e1'), CEExp (se2, e2') when 
+              !useLogicalOperators && isEmpty se1 && isEmpty se2 ->
           CEExp (empty, BinOp(LOr, mkCast e1' intType, 
                               mkCast e2' intType, intType))
       | _ -> CEOr (ce1, ce2)
