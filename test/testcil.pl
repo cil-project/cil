@@ -157,7 +157,7 @@ $TEST->add1Test("test/alloc-manualinferbox",
 #
 $TEST->add3Tests("bh", "_GNUCC=1");
    $TEST->add3Group("bh", "slow", "olden");
-   $TEST->addBadComment("bh-box", "CRASHES");
+#   $TEST->addBadComment("bh-box", "CRASHES");
 
 $TEST->add3Tests("power", "_GNUCC=1");
    $TEST->add3Group("power", "olden");
@@ -165,9 +165,9 @@ $TEST->add3Tests("power", "_GNUCC=1");
 
 $TEST->add3Tests("health", "_GNUCC=1");
    $TEST->add3Group("health", "olden");
-   $TEST->addBadComment("health-inferbox", "Crashes");
+#   $TEST->addBadComment("health-inferbox", "Crashes");
 #   $TEST->addBadComment("health-cil", "don't know how to run");
-   $TEST->addBadComment("health-box", "Bug in BOX");
+#   $TEST->addBadComment("health-box", "Bug in BOX");
 
 $TEST->add3Tests("perimeter");
    $TEST->add3Group("perimeter", "olden");
@@ -188,13 +188,13 @@ $TEST->add3Tests("compress", "_GNUCC=1");
 
 $TEST->add3Tests("go", "_GNUCC=1");
    $TEST->add3Group("go", "slow");
-   $TEST->addBadComment("go-box", "CRASHES with LBound");
-   $TEST->addBadComment("go-inferbox", "CRASHES with LBound");
+   $TEST->addComment("go-box", "CRASHES with LBound (only on Win)");
+#   $TEST->addBadComment("go-inferbox", "CRASHES with LBound");
 
 $TEST->add2Tests("ijpeg", "_GNUCC=1");
   $TEST->add2Group("ijpeg", "slow");
-  $TEST->addBadComment("ijpeg-cil", "EOF / read error??");
-  $TEST->addBadComment("ijpeg-inferbox", "CRASHES");
+  $TEST->addBadComment("ijpeg-cil", "EOF / read error?? (only on Win)");
+  $TEST->addBadComment("ijpeg-inferbox", "missing wrappers");
 
 $TEST->add2Tests("vortex", "_GNUCC=1");
   $TEST->add2Group("vortex", "slow");
