@@ -103,11 +103,22 @@ let rec doType (t: typ) (p: N.place)
 let offsetNodes : (int * string, N.node) H.t = H.create 111
 
 (* Create a new offset node *)
-let newOffsetNode (n: N.node) (fname: string) 
+let newOffsetNode (n: N.node)  (fname: string) 
                   (btype: typ) (battr: attribute list) = 
   let next = N.newNode (N.POffset(n.N.id, fname)) 0 btype battr in
-  (* Add an edge *)
-  N.addEdge n next (-1);
+  (* Add edges between n and next *)
+  (match unrollType n.N.btype with
+    TComp c when not c.cstruct -> (* A union *)
+      N.addEdge n next N.ECast (-1);
+      N.addEdge n next N.ESafe (-1)
+
+  | TArray _ -> (* An index *)
+      N.addEdge n next N.EIndex (-1)
+
+  | TComp c when c.cstruct -> (* A struct *)
+      N.addEdge n next N.ESafe (-1)
+
+  | _ -> E.s (E.bug "Unexpected offset"));
   next
 
 (* Create a field successor *)
@@ -117,19 +128,18 @@ let fieldOfNode (n: N.node) (fi: fieldinfo) =
   with Not_found -> 
     newOffsetNode n fi.fname fi.ftype []
 
-(* Create a first successor (for arrays) *)
-let firstOfNode (n: N.node) = 
+let startOfNode (n: N.node) = 
   try
     H.find offsetNodes (n.N.id, "@first")
   with Not_found -> begin
-    let bt = 
-      match unrollType n.N.btype with
-        TArray(bt, _, _) -> bt
-      | _ -> E.s (E.bug "firstOfNode on a non-array")
-    in
-    newOffsetNode n "@first" bt []
+    match unrollType n.N.btype with
+      TArray (bt, _, _) ->
+        let next = N.newNode (N.POffset(n.N.id, "@first")) 0 bt [] in
+        N.addEdge n next N.EIndex (-1);
+        next
+    | _ -> n (* It is a function *)
   end
-
+    
 
 (* Compute the sign of an expression. Extend this to a real constant folding 
  * + the sign rule  *)
@@ -207,8 +217,9 @@ let rec doExp (e: exp) =
       AddrOf (lv', l), TPtr(lvn.N.btype, lvn.N.attr), lvn
 
   | StartOf lv -> 
-      let lv', lvn = doLvalue lv false in (* Not quite right !!! *)
-      StartOf lv', TPtr(lvn.N.btype, lvn.N.attr), lvn
+      let lv', lvn = doLvalue lv false in
+      let next = startOfNode lvn in
+      StartOf lv', TPtr(next.N.btype, next.N.attr), next
 
   | UnOp (uo, e, tres, l) -> (* tres is an arithmetic type *)
       UnOp(uo, doExpAndCast e tres, tres, l), tres, N.dummyNode
@@ -271,21 +282,10 @@ and doOffset (off: offset) (n: N.node) : offset * N.node =
       let nextn = fieldOfNode n fi in
       let newo, newn = doOffset resto nextn in
       Field(fi, newo), newn
-(*
-  | First resto -> 
-      let nextn = firstOfNode n in
+  | Index(e, resto) -> begin
+      let nextn = startOfNode n in
+      nextn.N.posarith <- true;
       let newo, newn = doOffset resto nextn in
-      First newo, newn
-  | Index(e, resto) -> begin
-      n.N.posarith <- true;
-      let newo, newn = doOffset resto n in
-      let e', et, _ = doExp e in
-      Index(e', newo), newn
-  end
-*)
-  | Index(e, resto) -> begin
-      n.N.posarith <- true;
-      let newo, newn = doOffset resto n in
       let e', et, _ = doExp e in
       Index(e', newo), newn
   end
@@ -308,7 +308,7 @@ and expToType (e,et,en) t (callid: int) =
       if isZero e then 
         tn.N.null <- true (* Do not add an edge *)
       else
-        N.addEdge etn tn callid; e
+        N.addEdge etn tn N.ECast callid; e
   | true, false -> 
       (* Cast of non-pointer to a pointer. Check for zero *)
       (if isZero e then
@@ -360,37 +360,40 @@ let rec doStmt (s: stmt) =
             a' :: loopArgs formals args
         | _, _ -> E.s (E.bug "Not enough arguments")
       in
-			(* weimer: to handle the return value we must intercept malloc and
-			 * friends *)
-			let multi_node_functions = [ "malloc" ; "calloc" ; "realloc" ] in
-			(match func with
-				Lval((Var(v)),(NoOffset)) when List.mem v.vname multi_node_functions ->
-						begin
-						(* Associate a node with the variable itself. Use index = 0 
-						 * For malloc() and friends, we need a new node for each
-						 * callsite. *)
-						let place = N.PGlob (v.vname ^ "_" ^ (string_of_int(!callId))) in
-						let n = N.getNode place 0 v.vtype [] in
-						(* Add this to the variable attributes *)
-						(match reso with
-							Some destvi -> 
-								N.addEdge n (nodeOfType destvi.vtype) !callId;
-						| _ -> ignore (E.warn "Call to %s is not assigned" v.vname)) ;
-						let attr = addAttribute (ACons("_ptrnode", [AInt n.N.id])) [] in
-						let cast_fun = CastE(TPtr(TVoid([]),attr) ,func',locUnknown) in
-				    Instr (Call(reso, cast_fun, loopArgs formals args, l))
-					end
-			| _ -> begin
+      (* weimer: to handle the return value we must intercept malloc and
+	 * friends *)
+      let multi_node_functions = [ "malloc" ; "calloc" ; "realloc" ] in
+      match func with
+	Lval((Var(v)),(NoOffset)) when List.mem v.vname multi_node_functions ->
+	  begin
+           (* Associate a node with the variable itself. Use index = 0 For 
+            * malloc() and friends, we need a new node for each callsite.  *)
+	    let place = N.PGlob (v.vname ^ "_" ^ (string_of_int(!callId))) in
+	    let n = N.getNode place 0 v.vtype [] in
+		(* Add this to the variable attributes *)
+	    (match reso with
+	      Some destvi -> 
+		N.addEdge n (nodeOfType destvi.vtype) N.ECast !callId;
+	    | _ -> ignore (E.warn "Call to %s is not assigned" v.vname)) ;
+	    let attr = addAttribute (ACons("_ptrnode", [AInt n.N.id])) [] in
+	    let cast_fun = CastE(TPtr(TVoid([]),attr) ,func',locUnknown) in
+	    Instr (Call(reso, cast_fun, loopArgs formals args, l))
+	  end
+      | _ -> begin
+          begin
           (* Now check the return value*)
-					match reso, unrollType rt with
-						None, TVoid _ -> ()
-					| Some _, TVoid _ -> ignore (E.warn "Call of subroutine is assigned")
-					| None, _ -> () (* "Call of function is not assigned" *)
-					| Some destvi, _ -> 
-							N.addEdge (nodeOfType rt) (nodeOfType destvi.vtype) !callId
-					end ;
-				  Instr (Call(reso, func', loopArgs formals args, l))
-			)
+	    match reso, unrollType rt with
+	      None, TVoid _ -> ()
+	    | Some _, TVoid _ -> 
+                ignore (E.warn "Call of subroutine is assigned")
+	    | None, _ -> () (* "Call of function is not assigned" *)
+	    | Some destvi, _ -> 
+	        N.addEdge (nodeOfType rt) (nodeOfType destvi.vtype) 
+                  N.ECast !callId
+          end;
+	  Instr (Call(reso, func', loopArgs formals args, l))
+      end
+	    
      
   
       

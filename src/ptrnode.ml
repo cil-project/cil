@@ -78,7 +78,7 @@ type node =
 
       (* The rest are the computed results of constraint resolution *)
       mutable kind: pointerkind;
-			mutable why_kind : whykind;
+      mutable why_kind : whykind;
       
       mutable mark: bool;               (* For mark-and-sweep GC of nodes. 
                                          * Most of the time is false *)
@@ -104,7 +104,7 @@ and whykind = (* why did we give it this kind? *)
 and edge = 
     { mutable efrom:    node;
       mutable eto:      node;
-
+      mutable ekind:    edgekind;
       mutable ecallid:   int;(* Normnally -1. Except if this edge is added 
                               * because of a call to a function (either 
                               * passing arguments or getting a result) then 
@@ -115,6 +115,12 @@ and edge =
        * explain later to the programmer.  *)
     } 
       
+
+and edgekind = 
+    ECast                    (* T_from ref q_from <= T_to ref q_to *)
+  | ESafe                    (* q_to = if q_from = wild then wild else safe *)
+  | EIndex                   (* q_to = if q_from = wild then wild else index *)
+
 
 (* Print the graph *)
 let d_place () = function
@@ -138,12 +144,17 @@ let d_pointerkind () = function
   | Wild -> text "wild" 
   | Unknown -> text "unknown" 
 
+let d_ekind () = function
+    ECast -> text "Cast"
+  | ESafe -> text "Safe"
+  | EIndex -> text "Index"
+
 let d_whykind () = function
-		BadCast(t1,t2) -> dprintf "cast(%a<= %a)" d_type t1 d_type t2
-	| BoolFlag -> text "from_flag"
-	| SpreadFromEdge(n) -> dprintf "spread_from_edge(%d)" n.id
-	| SpreadPointsTo(n) -> dprintf "spread_points_to(%d)" n.id
-	| Default -> text "by_default"
+    BadCast(t1,t2) -> dprintf "cast(%a<= %a)" d_type t1 d_type t2
+  | BoolFlag -> text "from_flag"
+  | SpreadFromEdge(n) -> dprintf "spread_from_edge(%d)" n.id
+  | SpreadPointsTo(n) -> dprintf "spread_points_to(%d)" n.id
+  | Default -> text "by_default"
 
 let d_node n = 
   dprintf "%d : %a (%s%s%s%s%s%s) (@[%a@])@! K=%a/%a T=%a@!  S=@[%a@]@!  P=@[%a@]@!" 
@@ -160,11 +171,13 @@ let d_node n =
 		d_whykind n.why_kind
     d_type n.btype
     (docList (chr ',' ++ break)
-       (fun e -> dprintf "%d%a" e.eto.id
+       (fun e -> dprintf "%d:%a%a" e.eto.id
+           d_ekind e.ekind
            insert (if e.ecallid >= 0 then dprintf "(%d)" e.ecallid else nil)))
     n.succ
     (docList (chr ',' ++ break)
-       (fun e -> dprintf "%d%a" e.efrom.id
+       (fun e -> dprintf "%d:%a%a" e.efrom.id
+           d_ekind e.ekind
            insert (if e.ecallid >= 0 then dprintf "(%d)" e.ecallid else nil)))
     n.pred
     
@@ -265,10 +278,10 @@ let nodeExists (p: place) (idx: int) =
   H.mem placeId (p, idx)
 
 
-let addEdge (start: node) (dest: node) (callid: int) = 
+let addEdge (start: node) (dest: node) (kind: edgekind) (callid: int) = 
   if start != dummyNode && dest != dummyNode then begin
     let nedge = 
-      { efrom = start; eto= dest; ecallid = callid; } in
+      { efrom = start; eto= dest; ekind = kind; ecallid = callid; } in
     start.succ <- nedge :: start.succ;
     dest.pred <- nedge :: dest.pred
   end
