@@ -4,15 +4,147 @@ module H = Hashtbl
 
            (* After processing an expression, we create its type, a list of 
             * instructions that should be executed before this exp is used, 
-            * a replacement exp and another exp denoting the base of a fat 
-            * pointer. *)
+            * and a replacement exp *)
 type expRes = 
-    typ * instr list * exp * exp
+    typ * instr list * exp
 
             (* Same for offsets *)
 type offsetRes = 
-    typ * instr list * offset * offset
+    typ * instr list * offset
 
+
+(*** Helpers *)            
+
+  (* We collect here the new file *)
+let theFile : global list ref = ref []
+(**** Make new types ****)
+
+
+
+   (* Keep some global counters for anonymous types *)
+let anonTypeId = ref 0
+let makeNewTypeName base = 
+  incr anonTypeId;
+  base ^ (string_of_int !anonTypeId)
+
+   (* Make a type name, for use in type defs *)
+let typeName = function
+    Typedef (n, _, _, _) -> n
+  | TVoid(_) -> "void"
+  | TInt(IInt,_) -> "int"
+  | TInt(IUInt,_) -> "uint"
+  | TInt(IShort,_) -> "short"
+  | TInt(IUShort,_) -> "ushort"
+  | TInt(IChar,_) -> "char"
+  | TInt(IUChar,_) -> "uchar"
+  | TInt(ISChar,_) -> "schar"
+  | TInt(ILong,_) -> "long"
+  | TInt(IULong,_) -> "ulong"
+  | TInt(ILongLong,_) -> "llong"
+  | TInt(IULongLong,_) -> "ullong"
+  | TFloat(FFloat,_) -> "float"
+  | TFloat(FDouble,_) -> "double"
+  | TFloat(FLongDouble,_) -> "ldouble"
+  | TEnum (n, _, _, _) -> 
+      if n = "" then makeNewTypeName "enum"
+      else "enum_" ^ n
+  | TStruct (n, _, _, _) -> 
+      if n = "" then makeNewTypeName "struct"
+      else "struct_" ^ n
+  | TUnion (n, _, _, _) -> 
+      if n = "" then makeNewTypeName "union"
+      else "union_" ^ n
+  | TFun _ -> makeNewTypeName "fun"
+  | _ -> makeNewTypeName "type"
+      
+
+ (* Define and return a fat pointer type to a given base type *)
+                                        (* Keep a mapping from types to their 
+                                         * fat pointer *)
+let fatPtrTypes : (typ, typ) H.t = H.create 17
+let fatPointerType base attrs = 
+  try
+    H.find fatPtrTypes base             (* Already done for this type *)
+  with Not_found -> begin
+    let tname = "fatp_" ^ (typeName base) in (* The name *)
+    let t = 
+      TStruct(tname, [ { fstruct = tname;
+                         fname   = "_p";
+                         ftype   = TPtr(base, attrs);
+                         fattr   = [];
+                       };
+                       { fstruct = tname;
+                         fname   = "_b";
+                         ftype   = voidPtr;
+                         fattr   = [];
+                       }; ], 0, []) 
+    in
+    let t' = Typedef(tname, 0, ref t, []) in
+    H.add fatPtrTypes base t';
+    theFile := GType(tname, t) :: !theFile;
+    t'
+  end
+    
+
+ (* Define and return a tagged type for a given base type *)
+                                        (* Keep a mapping from types to their 
+                                         * tagged versions *)
+let taggedTypes : (typ, typ) H.t = H.create 17
+let taggedType base attrs = 
+  try
+    H.find taggedTypes base
+  with Not_found -> begin
+    let tname = "tag_" ^ (typeName base) in (* The name *)
+    let sz = intSizeOf base in
+    let words = (sz + 3) lsr 2 in
+    let t = 
+      TStruct(tname, [ { fstruct = tname;
+                         fname   = "_t";
+                         ftype   = TArray(charType, 
+                                          Some (integer words), []);
+                         fattr   = [];
+                       };
+                       { fstruct = tname;
+                         fname   = "_l";
+                         ftype   = intType;
+                         fattr   = [];
+                       };
+                       { fstruct = tname;
+                         fname   = "_d";
+                         ftype   = base;
+                         fattr   = attrs;
+                       }; ], 0, []) 
+    in
+    let t' = Typedef(tname, 0, ref t, []) in
+    H.add taggedTypes base t';
+    theFile := GType(tname, t) :: !theFile;
+    t'
+  end
+
+
+
+(**** FIXUP TYPE ***)
+let rec fixupType = function
+    (TInt _|TEnum _|TFloat _|TVoid _|TBitfield _) as t -> t
+  | TPtr (t, a) -> fatPointerType t a
+                                        (* No change since we will change the 
+                                         * type underneath  *)
+  | Typedef _ as t -> t
+  | TStruct(n, flds, _, a) as t -> 
+      List.iter (fun fi -> fi.ftype <- fixupType fi.ftype) flds;
+      t
+
+  | TUnion (n, flds, _, a) as t -> 
+      List.iter (fun fi -> fi.ftype <- fixupType fi.ftype) flds;
+      t
+
+  | TArray(t, l, a) -> TArray(fixupType t, l, a)
+
+  | TFun(rt,args,isva,a) -> 
+      List.iter (fun argvi -> argvi.vtype <- fixupType argvi.vtype) args;
+      TFun(fixupType rt, args, isva, a)
+
+      
 
           (* Check whether a type is represented by fat pointers *)
 let hasBase = function
@@ -20,25 +152,30 @@ let hasBase = function
   | TArray _ -> true
   | _ -> false
 
+
+(*
           (* A fat pointer type to be used for returning pointers *)
 let fatPointerPtrField = 
-  { struct_name = "__fatptr";
-    field_name  = "ptr";
-    ftype       = TPtr TVoid; }      
+  { fstruct = "__fatptr";
+    fname   = "ptr";
+    ftype   = voidptr; 
+    fattr   = [];
+  }      
 let fatPointerBaseField = 
-  { struct_name = "__fatptr";
-    field_name  = "base";
-    ftype       = TPtr TVoid; }
+  { fstruct = "__fatptr";
+    fname   = "base";
+    ftype   = voidptr; 
+    fattr   = []
+  }
 let fatPointerType = 
-  TStruct ("__fatptr", 
-           [ fatPointerPtrField; fatPointerBaseField; ])
+  TStruct ("__fatptr",
+           [ fatPointerPtrField; fatPointerBaseField; ], 0, [])
 
-let zero = Const (Int (0, None))
                                         (* Apply a boxing transformation to 
                                          * an entire program *)
-let boxProg (prog : program) = 
+let boxFile (fl: file) = 
           (* Hash of bases for global variables *)
-  let globBaseHash : (int, varinfo) H.t = H.new 17 in
+  let globBaseHash : (int, varinfo) H.t = H.create 17 in
   List.iter (fun vi ->
     if hasBase vi.vtype then 
       let bvi = newGlobalVariable prog (vi.vname ^ "__base") (TPtr TVoid) in
@@ -46,9 +183,9 @@ let boxProg (prog : program) =
 
   (************ FUNCTIONS *******************)
   (* Apply the transformation to a function declaration *)
-  let rec boxfunc (fdec : fun_decl) = 
+  let rec boxFunc (fdec : fun_decl) : fundec = 
     (* Hash of bases for local variables *)
-    let localBaseHash : (int, varinfo) H.t = H.new 17 in 
+    let localBaseHash : (int, varinfo) H.t = H.create 17 in 
     let addBaseVar vi = 
       if hasBase vi.vtype then 
         let bvi = newLocalVariable fdec (vi.vname ^ "__base") (TPtr TVoid) in
@@ -135,7 +272,7 @@ let boxProg (prog : program) =
           (* The result is never a pointer *)
           (restyp, doe, UnOp(uop, e', l), zero)
 
-      | BinOp (bop, e1, e2, restyp, l) =
+      | BinOp (bop, e1, e2, restyp, l) ->
         let (et1, doe1, e1', e1'base) = boxexp e1 in
         let (et2, doe2, e2', e2'base) = boxexp e2 in
         (restyp, doe1 @ doe2, 
@@ -146,9 +283,8 @@ let boxProg (prog : program) =
            if hasBase et1 then e1'base else e2'base
          else
            zero)
-        end
           
-      | CastE (newt, e) = 
+      | CastE (newt, e) -> 
         let (et, doe, e', e'base) = boxexp e in
         begin
           match et, newt with 
@@ -191,8 +327,8 @@ let boxProg (prog : program) =
       | Index (e, resto) ->
           let rest =                    (* The result type *)
             match basety with
-              TPtr t -> t
-            | TArray (t, -) -> t
+              TPtr (t, _) -> t
+            | TArray (t, _, _) -> t
             | _ -> E.i (E.bug "Index")
           in
           let (_, doe, e', _) = boxexp e in
@@ -286,18 +422,32 @@ let boxProg (prog : program) =
           let (doargs, args') = doArgs args ftargs in
           makeStatement 
             (dolv @ dof @ doargs @ [Call (vi, f', args', l)])
+    in
+    let newfunc = { fdec with sbody = boxstmt fdec.sbody} 
+    in
+    newfunc
+
+  in
+    (* Now the processing of globals *)
+  let doGlobal = function
+    | GFun f -> GFun (boxFunc f)
+    | x -> x
+  in
+  List.map doGlobal fl
+*)
 
 
-          
-          
-          
-  
+let boxFile globals =
+  let doGlobal = function
+    | GVar (vi, init) as g -> 
+        let newType = fixupType vi.vtype in
+        vi.vtype <- newType;
+        theFile := g :: !theFile
+    | GType (n, t) as g -> 
+        theFile := GType (n, fixupType t) :: !theFile
 
-
-
-
-
-
-
-
-
+    | x -> theFile := x :: !theFile
+  in
+  List.iter doGlobal globals;
+  List.rev (!theFile)
+      

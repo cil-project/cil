@@ -42,6 +42,7 @@ type varinfo = {
     mutable vdecl: location;	(* where was this variable declared? *)
     mutable vattr: attribute list;
     mutable vstorage: storage;
+    mutable vaddrof: bool;              (* Has its address taken *)
 } 
 
                                         (* Storage-class information *)
@@ -52,7 +53,7 @@ and storage =
 and fieldinfo = { 
     fstruct: string;                    (* "CilLval *record"-> *)
     fname: string;                      (* "Variable *field"->name *)
-    ftype: typ;
+    mutable ftype: typ;
     mutable fattr: attribute list;
 }
 
@@ -623,3 +624,39 @@ let printFile (out : out_channel) (f: file) =
 let rec unrollType = function
     Typedef (_, _, r, _) -> unrollType !r
   | x -> x
+let lu = locUnknown
+let integer i = Const (CInt(i, None), lu)
+let zero = integer 0
+
+let voidPtr = TPtr(TVoid([]), [])
+let intType = TInt(IInt,[])
+let charType = TInt(IChar, [])
+let charPtr = TPtr(charType,[])
+
+  (* Compute some sizeOf to help with constant folding *)
+let rec intSizeOf = function
+    TInt((IUChar|IChar|ISChar), _) -> 1
+  | TInt((IShort|IUShort), _) -> 2
+  | TInt((ILong|IULong), _) -> 4
+  | TInt((ILongLong|IULongLong), _) ->  8
+  | TFloat(FFloat, _) ->  4
+  | TFloat(FDouble, _) ->  8
+  | TFloat(FLongDouble, _) ->  10
+  | TEnum _ ->  4
+  | TPtr _ ->  4
+  | TArray(t, Some (Const(CInt(l,_),_)),_) -> (intSizeOf t) * l
+  | Typedef(_, _, r,_) -> intSizeOf !r
+  | TStruct(_,flds,_,_) -> 
+      let rec loop = function
+          [] -> 0
+        | f :: flds -> align (intSizeOf f.ftype) + loop flds
+      in
+      loop flds
+  | _ -> raise Not_found
+
+and sizeOf t = 
+  try
+    integer (intSizeOf t) 
+  with Not_found -> SizeOf(t, lu)
+
+and align n = ((n + 3) lsr 2) lsl 2

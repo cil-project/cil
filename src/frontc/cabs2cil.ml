@@ -7,6 +7,27 @@ open Pretty
 open Cil
 
 
+(*** Helper ***)
+let var vi = Var(vi,NoOffset,locUnknown)
+let lu = locUnknown
+let integer n = Const(CInt(n, None), lu)
+let mkSet lv e = Instruction(Set(lv,e,lu))
+let intType = TInt(IInt,[])
+let assign vi e = mkSet (var vi) e
+
+let mkSeq sl = 
+  let rec removeSkip = function 
+      [] -> []
+    | Skip :: rest -> removeSkip rest
+    | Sequence (sl) :: rest -> removeSkip (sl @ rest)
+    | s :: rest -> s :: removeSkip rest
+  in
+  match removeSkip sl with 
+    [] -> Skip
+  | [s] -> s
+  | sl' -> Sequence(sl')
+
+
 (*** EXPRESSIONS *************)
 (*** As we translate expressions we need an environment ***)
 type enventry = 
@@ -32,6 +53,7 @@ let lookup n =
     | _ :: rest -> loop rest
   in
   loop (!env)
+
 
 
 (* Add a local declaration. Alpha convert in the process *)
@@ -102,6 +124,7 @@ let newTempVar typ =
       vtype = typ;
       vdecl = locUnknown;
       vattr = [];
+      vaddrof = false;
       vstorage = NoStorage;
     } 
 
@@ -226,26 +249,6 @@ type expAction =
                                          * constants *)
 
 
-(*** Helper ***)
-let var vi = Var(vi,NoOffset,locUnknown)
-let lu = locUnknown
-let integer n = Const(CInt(n, None), lu)
-let mkSet lv e = Instruction(Set(lv,e,lu))
-let intType = TInt(IInt,[])
-let assign vi e = mkSet (var vi) e
-
-let mkSeq sl = 
-  let rec removeSkip = function 
-      [] -> []
-    | Skip :: rest -> removeSkip rest
-    | Sequence (sl) :: rest -> removeSkip (sl @ rest)
-    | s :: rest -> s :: removeSkip rest
-  in
-  match removeSkip sl with 
-    [] -> Skip
-  | [s] -> s
-  | sl' -> Sequence(sl')
-
 
 (******** CASTS *********)
 let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) = 
@@ -323,6 +326,7 @@ and makeVarInfo (isglob: bool)
     vattr    = List.map doAttr a;
     vdecl    = ldecl;
     vtype    = doType [] nbt;
+    vaddrof  = false;
   } 
 
 
@@ -603,11 +607,11 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
           
     | A.TYPE_SIZEOF bt -> 
         let typ = doType [] bt in
-        finishExp [] (SizeOf(typ, lu)) intType
+        finishExp [] (sizeOf typ) intType
           
     | A.EXPR_SIZEOF e -> 
         let (se, e', t) = doExp e (AExp None) in
-        finishExp se (SizeOf(t, lu)) intType
+        finishExp se (sizeOf t) intType
           
     | A.CAST (bt, e) -> 
         let se1, typ = 
@@ -826,11 +830,17 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
                 (sf @ sargs @ [Instruction(Call(Some vi,f'',args',lu))],
                  integer 0,
                  intType)
-          | _ -> 
-          (* Must create a temporary *)
-              let tmp = newTempVar resType in
-              let i = Instruction(Call(Some tmp,f'',args',lu)) in
-              finishExp (sf @ sargs @ [i]) (Lval(var tmp)) resType
+          | _ -> begin
+              (* Must create a temporary *)
+              match f'', args' with     (* Some constant folding *)
+                Lval(Var(fv,NoOffset,_)), [Const _] 
+                  when fv.vname = "__builtin_constant_p" ->
+                    finishExp (sf @ sargs) (integer 1) intType
+              | _ -> 
+                  let tmp = newTempVar resType in
+                  let i = Instruction(Call(Some tmp,f'',args',lu)) in
+                  finishExp (sf @ sargs @ [i]) (Lval(var tmp)) resType
+          end
         end
           
     | A.COMMA el -> 
@@ -855,7 +865,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         (doCondition e1 se2 se3, integer 0, intType)
 
             
-    | A.QUESTION (e1, e2, e3) -> (* what is not ADrop*)
+    | A.QUESTION (e1, e2, e3) -> begin (* what is not ADrop*)
         let se3, lv, tlv = 
           let (se3,e3',t3') = doExp e3 what in (* e2 might be NOTHING *)
           match what with 
@@ -879,8 +889,12 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
             let (se2,_,_) = doExp e2 (ASet(lv,tlv)) in
             doCondition e1 se2 se3
         in
-        (stats, (Lval(lv)), tlv)
-
+        (* Do some constant folding *)
+        match stats, what with
+          [Instruction(Set(lv', e', _))], AExp _ when lv' == lv -> 
+            finishExp [] e' tlv
+        | _, _ -> (stats, (Lval(lv)), tlv)
+    end
     | A.GNU_BODY ((_, s) as b) -> begin
         (* Find the last A.COMPUTATION *)
         let rec findLast = function
@@ -1204,7 +1218,39 @@ and doBody (decls, s) : stmt list =
       [Label "booo_statement"]
     end
 
-    
+
+(*** Take a statement and fix the vaddrof fields or variables *)
+let fixAddrOf body = 
+  let rec fExp = function
+      (Const _|SizeOf _) -> ()
+    | Lval lv -> fLval lv
+    | UnOp(_,e,_,_) -> fExp e
+    | BinOp(_,e1,e2,_,_) -> fExp e1; fExp e2
+    | CastE(_, e,_) -> fExp e
+    | Compound (_, el) -> List.iter fExp el
+    | AddrOf (Var(vi,off,_),_) -> fOff off; vi.vaddrof <- true
+    | AddrOf (Mem(e,off,_),_) -> fExp e; fOff off
+  and fLval = function
+      Var(_,off,_) -> fOff off
+    | Mem(e,off,_) -> fExp e; fOff off
+  and fOff = function
+      Field (_, o) -> fOff o
+    | Index (e, o) -> fExp e; fOff o
+    | CastO (_, o) -> fOff o
+    | NoOffset -> ()
+  and fStmt = function
+      (Skip|Break|Continue|Label _|Goto _|Case _|Default|Return None) -> ()
+    | Sequence s -> List.iter fStmt s
+    | Loop s -> fStmt s
+    | IfThenElse (e, s1, s2) -> fExp e; fStmt s1; fStmt s2
+    | Return(Some e) -> fExp e
+    | Switch (e, s) -> fExp e; fStmt s
+    | Instruction(Set(lv,e,_)) -> fLval lv; fExp e
+    | Instruction(Call(_,f,args,_)) -> fExp f; List.iter fExp args
+    | Instruction(Asm(_,_,_,ins,_)) -> 
+        List.iter (fun (_, e) -> fExp e) ins
+  in
+  fStmt body
     
 (* Translate a file *)
 let convFile dl = 
@@ -1225,10 +1271,12 @@ let convFile dl =
                                       vid      = 0;(* The first local*)
                                         vdecl    = lu;
                                       vstorage = NoStorage;
+                                      vaddrof = false;
                                       vattr = [];
                                     } ], false, []);
                       vstorage = NoStorage;
                       vattr = [];
+                      vaddrof = false;
                       vdecl  = lu;
                     });
   (* Now do the globals *)
@@ -1307,8 +1355,8 @@ let convFile dl =
             in
             (* Record the returnType for doStatement *)
             currentReturnType := returnType;
-            (* Setup the environment. Add the formals. Maybe they need 
-             * alpha-conv  *)
+            (* Setup the environment. Add the formals to the locals. Maybe 
+             * they need alpha-conv *)
             startBlock ();
             let formals' = List.map addNewVar formals in
             let ftype = TFun(returnType, formals', isvararg, a) in
@@ -1324,6 +1372,7 @@ let convFile dl =
                 vid   = newVarId n true;
                 vdecl = lu;
                 vattr = fattr;
+                vaddrof = false;
                 vstorage = fstorage;
               } 
             in
@@ -1340,12 +1389,13 @@ let convFile dl =
                          slocals  = locals;
                          smaxid   = nrlocals;
                          sbody    = (match mkSeq s with (Sequence _) as x -> x 
-                         | x -> Sequence [x]);
+                                     | x -> Sequence [x]);
                          sstorage = fstorage;
                          sattr    = fattr;
                          stype    = ftype;
                        } 
             in
+            fixAddrOf fdec.sbody;
             theFile := GFun fdec :: !theFile
           with e -> begin
             ignore (E.log "error in collectFunction %s: %s\n" 

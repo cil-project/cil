@@ -12,7 +12,7 @@ OBJDIR      = obj
 MLLS        = 
 MLYS        = 
 # ast clex cparse
-MODULES     = pretty errormsg stats cil
+MODULES     = pretty errormsg stats cil box
 EXECUTABLE  = $(OBJDIR)/spec
 CAMLUSEUNIX = 1
 ifdef RELEASE
@@ -57,12 +57,12 @@ testpcc/% : ../../Source/Touchstone/PCC/src/%.c $(EXECUTABLE)$(EXE)
 
 
 ############ Small tests
-testlist : $(EXECUTABLE)$(EXE)
+test/% : ../test/small1/$* $(EXECUTABLE)$(EXE)
 	$(EXECUTABLE)$(EXE) -verbose \
            -p "gcc -E %i -o %o" -cabsindent 2 \
-           -cabsout ../test/small1/list.cabs \
-	   -o ../test/small1/list.cil \
-           ../test/small1/list.c
+           -cabsout ../test/small1/$(notdir $*).cabs \
+	   -o ../test/small1/$(notdir $*).cil \
+           ../test/small1/$*.c
 
 testfile/% : $(EXECUTABLE)$(EXE) $*
 	$(EXECUTABLE)$(EXE) -v -V $*
