@@ -289,7 +289,7 @@ let floatnum = floatraw floatsuffix?
 
 let ident = (letter|'_')(letter|decdigit|'_')* 
 let attribident = (letter|'_')(letter|decdigit|'_'|':')
-let blank = [' ' '\t' '\012']
+let blank = [' ' '\t' '\012' '\r']
 let escape = '\\' _
 let hex_escape = '\\' ['x' 'X'] hexdigit hexdigit
 let oct_escape = '\\' octdigit  octdigit octdigit
