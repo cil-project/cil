@@ -1,5 +1,5 @@
 # .gdbinit
 
-file sized.exe
+file alloc3.exe
 break main
 run
