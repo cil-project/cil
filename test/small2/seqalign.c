@@ -1,6 +1,6 @@
 #include "../small1/testharness.h"
 
-// NUMERRORS 8
+// NUMERRORS 9
 
 char carray[127];
 long larray[128];
@@ -41,6 +41,9 @@ int main() {
     fl = (long*)v2; /* Should be Ok */ E(6);//ERROR(6):Error 6
     fl = (long*)v1;//ERROR(7):unaligned
   }
+
+  // Now test the __align_seq
+  fl = (long*)__align_seq(sc, sizeof(*fl)); E(9);//ERROR(9):Error 9
   
   SUCCESS;
 }

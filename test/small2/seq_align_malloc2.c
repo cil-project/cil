@@ -33,7 +33,7 @@ int main() {
 
 #ifdef CCURED
     // Whack down the home area.
-    __align_seq(&temp, sizeof *p);
+    temp = __align_seq(temp, sizeof *p);
 #endif
     p = CCURED_TRUSTED_CAST(struct a_struct*, temp);
     // access it
