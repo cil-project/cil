@@ -373,16 +373,16 @@ let readBaseField (e: exp) (t: typ) : exp =
 let pkNrFields = function
     N.Safe -> 1
   | N.String -> 1
-  | N.Wild | N.FSeq | N.Index -> 2
-  | N.Seq -> 3
+  | N.Wild | N.FSeq | N.FSeqN | N.Index -> 2
+  | N.Seq | N.SeqN -> 3
   | _ -> E.s (E.bug "pkNrFields")
 
 let pkFields (pk: N.pointerkind) : (string * (typ -> typ)) list = 
   match pk with
-    N.Safe -> [ ("", fun x -> x) ]
-  | N.Wild | N.FSeq | N.Index -> 
+    N.Safe | N.String -> [ ("", fun x -> x) ]
+  | N.Wild | N.FSeq | N.FSeqN | N.Index -> 
       [ ("_p", fun x -> x); ("_b", fun _ -> voidPtrType) ]
-  | N.Seq -> 
+  | N.Seq | N.SeqN -> 
       [ ("_p", fun x -> x); 
         ("_b", fun _ -> voidPtrType);
         ("_e", fun _ -> voidPtrType) ]
@@ -390,8 +390,8 @@ let pkFields (pk: N.pointerkind) : (string * (typ -> typ)) list =
   
 let pkTypePrefix (pk: N.pointerkind) = 
   match pk with
-    N.Wild | N.FSeq | N.Index -> "fatp_"
-  | N.Seq -> "seq_"
+    N.Wild | N.FSeq | N.FSeqN | N.Index -> "fatp_"
+  | N.Seq | N.SeqN -> "seq_"
   | _ -> E.s (E.bug "pkTypeName")
   
 
@@ -400,13 +400,13 @@ let pkQualName (pk: N.pointerkind)
                (dobasetype: string list -> string list) : string list = 
   match pk with
     N.Safe -> dobasetype ("s" :: acc)
-  | N.String -> 
-    (* Wes: E.warn "Using 's' for String qualifier name" ; *)
-    dobasetype ("s" :: acc) (* Wes: is this OK? *)
+  | N.String -> dobasetype ("s" :: acc)
   | N.Wild -> "w" :: acc (* Don't care about what it points to *)
   | N.Index -> dobasetype ("i" :: acc)
   | N.Seq -> dobasetype ("q" :: acc)
+  | N.SeqN -> dobasetype ("q" :: acc)
   | N.FSeq -> dobasetype ("f" :: acc)
+  | N.FSeqN -> dobasetype ("f" :: acc)
   | N.Scalar -> acc
   | _ -> E.s (E.bug "pkQualName")
   
@@ -1350,13 +1350,13 @@ let castTo (fe: fexp) (newt: typ)
       | N.FSeq, N.Seq ->
           doe, FM(newt, newkind, castP p, b, b)
 
-      | N.Seq, N.String ->
+      | N.SeqN, N.String ->
         ignore (E.warn "Warning: unsafe cast from SEQ -> STRING") ;
-          (doe, L(newt, N.Scalar, castP p))
+          (doe, L(newt, N.String, castP p))
 
       | N.Wild, N.String -> 
         ignore (E.warn "Warning: wishful thinking cast from WILD -> STRING") ;
-          (doe, L(newt, N.Scalar, castP p))
+          (doe, L(newt, N.String, castP p))
 
        (******* UNIMPLEMENTED ********)
       | _, _ -> 

@@ -107,8 +107,12 @@ and pointerkind =
   | Seq    (* A three word pointer, like Index but with the length in the 
             * pointer itself *)
   | FSeq
-  | BSeq
+
+  | SeqN   (* A sequence in a null-terminated char array *)
+  | FSeqN  (* A FSeq in a null-terminated char array *)
+
   | String (* fseq <= string <= fseq *)
+
   | Index
   | Wild
   | Unknown
@@ -161,10 +165,11 @@ let d_pointerkind () = function
     Safe -> text "SAFE"
   | Scalar -> text "SCALAR"
   | FSeq -> text "FSEQ" 
-  | BSeq -> text "BSEQ"
+  | FSeqN -> text "FSEQN" 
   | String -> text "STRING" 
   | Index -> text "INDEX"
   | Seq -> text "SEQ"
+  | SeqN -> text "SEQN"
   | Wild -> text "WILD" 
   | Unknown -> text "UNKNOWN" 
 
@@ -266,6 +271,8 @@ let k2attr = function
   | Wild -> AId("wild")
   | Seq -> AId("seq")
   | FSeq -> AId("fseq")
+  | SeqN -> AId("seqn")
+  | FSeqN -> AId("fseqn")
   | String -> AId("string")
   | _ -> E.s (E.unimp "k2attr")
 
@@ -275,6 +282,8 @@ let attr2k = function
   | AId("index") -> Index
   | AId("fseq") -> FSeq
   | AId("seq") -> Seq
+  | AId("fseqn") -> FSeqN
+  | AId("seqn") -> SeqN
   | AId("string") -> String
   | _ -> Unknown
     
@@ -288,6 +297,8 @@ let kindOfAttrlist al =
         | AId "index" -> Index, UserSpec
         | AId "seq" -> Seq, UserSpec
         | AId "fseq" -> FSeq, UserSpec
+        | AId "seqn" -> SeqN, UserSpec
+        | AId "fseqn" -> FSeqN, UserSpec
         | AId "wild" -> Wild, UserSpec
         | AId "sized" -> Index, UserSpec
         | AId "tagged" -> Wild, UserSpec
@@ -336,6 +347,8 @@ let replacePtrNodeAttrList where al =
         | AId "index" -> foundNode := "index"; loop al
         | AId "seq" -> foundNode := "seq"; loop al
         | AId "fseq" -> foundNode := "fseq"; loop al
+        | AId "seqn" -> foundNode := "seqn"; loop al
+        | AId "fseqn" -> foundNode := "fseqn"; loop al
         | AId "wild" -> foundNode := "wild"; loop al
         | AId "sized" -> foundNode := "sized"; loop al
         | AId "tagged" -> foundNode := "tagged"; loop al
@@ -351,7 +364,8 @@ let replacePtrNodeAttrList where al =
         else if !defaultIsWild then "wild" else "safe" 
     | AtArray -> 
         if !foundNode = "index" then "sized" 
-        else if !foundNode = "string" then "nullterm" 
+        else if !foundNode = "seqn" then "nullterm" 
+        else if !foundNode = "fseqn" then "nullterm" 
         else !foundNode
     | AtVar ->
         if !foundNode = "wild" then "tagged" 
@@ -454,6 +468,8 @@ let ptrAttrCustom printnode = function
     | AId("safe") -> Some (text "SAFE")
     | AId("seq") -> Some (text "SEQ")
     | AId("fseq") -> Some (text "FSEQ")
+    | AId("seqn") -> Some (text "SEQN")
+    | AId("fseqn") -> Some (text "FSEQN")
     | AId("index") -> Some (text "INDEX")
     | AId("stack") -> Some (text "STACK")
     | AId("opt") -> Some (text "OPT")

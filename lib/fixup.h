@@ -33,6 +33,8 @@
 #define SIZED
 #define SEQ
 #define FSEQ
+#define SEQN
+#define FSEQN
 #define NULLTERM
 #define STRING
 #else
@@ -43,6 +45,8 @@
 #define SIZED  __attribute__((sized))
 #define SEQ    __attribute__((seq))
 #define FSEQ   __attribute__((fseq))
+#define SEQN   __attribute__((seqn))
+#define FSEQN  __attribute__((fseqn))
 #define NULLTERM   __attribute__((nullterm))
 #define STRING  __attribute__((string))
 #endif
