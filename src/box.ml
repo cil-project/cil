@@ -1213,6 +1213,137 @@ let checkBounds (mktmplen: unit -> exp)
 (****************************************************)
 
 
+
+
+(* A run-time function to coerce scalars into pointers. Scans the heap and 
+ * (in the future the stack) *)
+let interceptId = ref 0
+let interceptCastFunction = 
+  let fdec = emptyFunction "__scalar2pointer" in
+  let argl = makeLocalVar fdec "l" ulongType in
+  let argf = makeLocalVar fdec "fid" intType in
+  let argid = makeLocalVar fdec "lid" intType in
+  fdec.svar.vtype <- TFun(voidPtrType, [ argl; argf; argid ], false, []);
+  theFile := GDecl (fdec.svar, lu) :: !theFile;
+  fdec
+
+    (* Cast an fexp to another one. Accumulate necessary statements to doe *)
+let castTo (fe: fexp) (newt: typ)
+           (doe: stmt list) : stmt list * fexp =
+  let newkind = kindOfType newt in
+  match fe, newkind with
+  (***** Catch the simple casts **********)
+  | FS(oldt, oldk, e), _ when oldk = newkind -> 
+      doe, FC(newt, newkind, oldt, oldk, e)
+  | FC(oldt, oldk, prevt, prevk, e), _ when oldk = newkind -> 
+      doe, FC(newt, newkind, prevt, prevk, e)
+  (***** Now convert the source to an FM *****)
+  | _, _ -> begin
+      (* Get the pointer type of the new pointer type. Get inside fat 
+       * pointers  *)
+      let newPointerType =
+        match newkind with
+          P.Safe | P.Scalar -> newt
+        | _ -> 
+            let pfield, _, _ = getFieldsOfFat newt in
+            pfield.ftype 
+      in
+      (* Cast the pointer expression to the new pointer type *)
+      let castP (p: exp) = doCast p (typeOf p) newPointerType in
+      (* Converts a reversed accumulator to doe *)
+      let finishDoe (acc: stmt list) = doe @ (List.rev acc) in
+      let oldt, oldk, p, b, bend = 
+        match fe with
+          L(oldt, oldk, e) -> oldt, oldk, e, zero, zero
+        | FS(oldt, oldk, e) -> 
+            let (_, p, b, bend) = readFieldsOfFat e oldt in
+            oldt, oldk, p, b, bend
+        | FM(oldt, oldk, p, b, e) -> oldt, oldk, p, b, e
+        | FC(oldt, oldk, prevt, prevk, e) -> 
+            let (_, p, b, bend) = readFieldsOfFat e prevt in
+            oldt, oldk, p, b, bend (* Drop the cast *)
+      in
+      match oldk, newkind with
+        (* SCALAR, SAFE -> SCALAR, SAFE *)
+        (P.Scalar|P.Safe), (P.Scalar|P.Safe) -> 
+          (doe, L(newt, P.Scalar, castP p))
+
+        (* SAFE -> WILD. Only allowed for function pointers because we do not 
+         * know how to tag functions, yet *)
+      | P.Safe, P.Wild 
+            when (match unrollType oldt 
+                     with TPtr(TFun _, _) -> true | _ -> false) -> 
+              (doe, mkFexp2 newt (castP p) zero)
+          
+        (* SCALAR -> INDEX, WILD, SEQ, FSEQ *)
+      | P.Scalar, (P.Index|P.Wild|P.Seq|P.FSeq) ->
+          if not (isZero p) then
+            ignore (E.warn "Casting scalar (%a) to pointer in %s!"
+                      d_exp p !currentFunction.svar.vname);
+          let newbase, doe' = 
+            if !interceptCasts && not (isInteger p) then begin
+              incr interceptId;
+              let tmp = makeTempVar !currentFunction voidPtrType in
+              Lval(var tmp),
+              doe @
+              [call (Some tmp) (Lval(var interceptCastFunction.svar)) 
+                  [ p ;integer !currentFileId; integer !interceptId ]
+              ]
+            end else 
+              CastE(voidPtrType, zero), doe
+          in
+          (doe', FM (newt, newkind, castP p, newbase, zero))
+
+
+       (* WILD, INDEX, SEQ, FSEQ -> SCALAR *)
+      | (P.Index|P.Wild|P.FSeq|P.Seq), P.Scalar ->
+          (doe, L(newt, newkind, castP p))
+
+       (* WILD, INDEX, SEQ, FSEQ -> same_kind *)  
+      | (P.Index|P.Wild|P.FSeq|P.Seq), _ when newkind =oldk -> 
+          (doe, FM (newt, newkind, castP p, b, bend))
+
+       (* INDEX -> SAFE. Must do bounds checking *)
+      | P.Index, P.Safe ->
+          let p', _, _, acc' = indexToSafe p newPointerType b bend [] in
+          finishDoe acc', L(newt, newkind, castP p')      
+       (* INDEX -> SEQ *)
+      | P.Index, P.Seq ->
+          let p', b', bend', acc' = indexToSeq p b bend [] in
+          finishDoe acc', FM(newt, newkind, castP p', b', bend')      
+       (* INDEX -> FSEQ *)
+      | P.Index, P.FSeq ->
+          let p', b', bend', acc' = indexToFSeq p b bend [] in
+          finishDoe acc', FM(newt, newkind, castP p', b', bend')      
+
+       (* SEQ -> SAFE. Must do bounds checking *)
+      | P.Seq, P.Safe ->
+          let p', _, _, acc' = seqToSafe p newPointerType b bend [] in
+          finishDoe acc', L(newt, newkind, castP p')      
+       (* SEQ -> FSEQ *)
+      | P.Seq, P.FSeq ->
+          let p', b', bend', acc' = seqToFSeq p b bend [] in
+          finishDoe acc', FM(newt, newkind, castP p', b', bend')      
+
+       (* FSEQ -> SAFE. Must do bounds checking *)
+      | P.FSeq, P.Safe ->
+          let p', _, _, acc' = fseqToSafe p newPointerType b bend [] in
+          finishDoe acc', L(newt, newkind, castP p')      
+
+       (* FSEQ -> SEQ. *)
+      | P.FSeq, P.Seq ->
+          doe, FM(newt, newkind, castP p, b, b)
+
+       (******* UNIMPLEMENTED ********)
+      | _, _ -> 
+          E.s (E.unimp "castTo(%a -> %a.@!%a@!%a)" 
+                 P.d_pointerkind oldk P.d_pointerkind newkind 
+                 d_fexp fe
+                 d_plaintype oldt)      
+  end
+
+
+
 (* Compute the offset of first scalar field in a thing to be written. Raises 
  * Not_found if there is no scalar *)
 let offsetOfFirstScalar (t: typ) : exp = 
@@ -1408,9 +1539,6 @@ let checkMem (towrite: exp option)
             Some x -> checkLeanStackPointer x :: acc
           | None -> acc
         end
-(*            
-    | TFun _ when towrite = None -> acc
-*)
     | _ -> E.s (E.unimp "unexpected type in doCheckTags: %a\n" d_type t)
   in
   (* See first what we need in order to check tags *)
@@ -1440,12 +1568,9 @@ let checkMem (towrite: exp option)
 let checkRead = checkMem None
 let checkWrite e = checkMem (Some e)
 
+
 let mangledNames : (string, unit) H.t = H.create 123
 let fixupGlobName vi =
-  (* sm: don't touch some globals *)
-   if (stringListContains vi.vname leaveAloneGlobVars) then
-   () else    (* return *)
-
   (* Scan a type and compute a list of qualifiers that distinguish the
    * various possible combinations of qualifiers *)
    let rec qualNames acc = function
@@ -1500,19 +1625,6 @@ let fixupGlobName vi =
       H.add mangledNames newname ();
       vi.vname <- newname
     end
-
-
-(* A run-time function to coerce scalars into pointers. Scans the heap and 
- * (in the future the stack) *)
-let interceptId = ref 0
-let interceptCastFunction = 
-  let fdec = emptyFunction "__scalar2pointer" in
-  let argl = makeLocalVar fdec "l" ulongType in
-  let argf = makeLocalVar fdec "fid" intType in
-  let argid = makeLocalVar fdec "lid" intType in
-  fdec.svar.vtype <- TFun(voidPtrType, [ argl; argf; argid ], false, []);
-  theFile := GDecl (fdec.svar, lu) :: !theFile;
-  fdec
 
     (************* STATEMENTS **************)
 let rec boxstmt (s : stmt) : stmt = 
@@ -1968,123 +2080,6 @@ and boxfunctionexp (f : exp) =
 
 
     
-    (* Cast an fexp to another one. Accumulate necessary statements to doe *)
-and castTo (fe: fexp) (newt: typ)
-           (doe: stmt list) : stmt list * fexp =
-  let newkind = kindOfType newt in
-  match fe, newkind with
-  (***** Catch the simple casts **********)
-  | FS(oldt, oldk, e), _ when oldk = newkind -> 
-      doe, FC(newt, newkind, oldt, oldk, e)
-  | FC(oldt, oldk, prevt, prevk, e), _ when oldk = newkind -> 
-      doe, FC(newt, newkind, prevt, prevk, e)
-  (***** Now convert the source to an FM *****)
-  | _, _ -> begin
-      (* Get the pointer type of the new pointer type. Get inside fat 
-       * pointers  *)
-      let newPointerType =
-        match newkind with
-          P.Safe | P.Scalar -> newt
-        | _ -> 
-            let pfield, _, _ = getFieldsOfFat newt in
-            pfield.ftype 
-      in
-      (* Cast the pointer expression to the new pointer type *)
-      let castP (p: exp) = doCast p (typeOf p) newPointerType in
-      (* Converts a reversed accumulator to doe *)
-      let finishDoe (acc: stmt list) = doe @ (List.rev acc) in
-      let oldt, oldk, p, b, bend = 
-        match fe with
-          L(oldt, oldk, e) -> oldt, oldk, e, zero, zero
-        | FS(oldt, oldk, e) -> 
-            let (_, p, b, bend) = readFieldsOfFat e oldt in
-            oldt, oldk, p, b, bend
-        | FM(oldt, oldk, p, b, e) -> oldt, oldk, p, b, e
-        | FC(oldt, oldk, prevt, prevk, e) -> 
-            let (_, p, b, bend) = readFieldsOfFat e prevt in
-            oldt, oldk, p, b, bend (* Drop the cast *)
-      in
-      match oldk, newkind with
-        (* SCALAR, SAFE -> SCALAR, SAFE *)
-        (P.Scalar|P.Safe), (P.Scalar|P.Safe) -> 
-          (doe, L(newt, P.Scalar, castP p))
-
-        (* SAFE -> WILD. Only allowed for function pointers because we do not 
-         * know how to tag functions, yet *)
-      | P.Safe, P.Wild 
-            when (match unrollType oldt 
-                     with TPtr(TFun _, _) -> true | _ -> false) -> 
-              (doe, mkFexp2 newt (castP p) zero)
-          
-        (* SCALAR -> INDEX, WILD, SEQ *)
-      | P.Scalar, (P.Index|P.Wild|P.Seq) ->
-          if not (isZero p) then
-            ignore (E.warn "Casting scalar (%a) to pointer in %s!"
-                      d_exp p !currentFunction.svar.vname);
-          let newbase, doe' = 
-            if !interceptCasts && not (isInteger p) then begin
-              incr interceptId;
-              let tmp = makeTempVar !currentFunction voidPtrType in
-              Lval(var tmp),
-              doe @
-              [call (Some tmp) (Lval(var interceptCastFunction.svar)) 
-                  [ p ;integer !currentFileId; integer !interceptId ]
-              ]
-            end else 
-              CastE(voidPtrType, zero), doe
-          in
-          (doe', FM (newt, newkind, castP p, newbase, zero))
-
-       (* SCALAR -> FSEQ *)
-      | P.Scalar, P.FSeq when isZero p ->
-          (doe, FM(newt, newkind, castP p, zero, zero))
-
-       (* WILD, INDEX, SEQ, FSEQ -> SCALAR *)
-      | (P.Index|P.Wild|P.FSeq|P.Seq), P.Scalar ->
-          (doe, L(newt, newkind, castP p))
-
-       (* WILD, INDEX, SEQ, FSEQ -> same_kind *)  
-      | (P.Index|P.Wild|P.FSeq|P.Seq), _ when newkind =oldk -> 
-          (doe, FM (newt, newkind, castP p, b, bend))
-
-       (* INDEX -> SAFE. Must do bounds checking *)
-      | P.Index, P.Safe ->
-          let p', _, _, acc' = indexToSafe p newPointerType b bend [] in
-          finishDoe acc', L(newt, newkind, castP p')      
-       (* INDEX -> SEQ *)
-      | P.Index, P.Seq ->
-          let p', b', bend', acc' = indexToSeq p b bend [] in
-          finishDoe acc', FM(newt, newkind, castP p', b', bend')      
-       (* INDEX -> FSEQ *)
-      | P.Index, P.FSeq ->
-          let p', b', bend', acc' = indexToFSeq p b bend [] in
-          finishDoe acc', FM(newt, newkind, castP p', b', bend')      
-
-       (* SEQ -> SAFE. Must do bounds checking *)
-      | P.Seq, P.Safe ->
-          let p', _, _, acc' = seqToSafe p newPointerType b bend [] in
-          finishDoe acc', L(newt, newkind, castP p')      
-       (* SEQ -> FSEQ *)
-      | P.Seq, P.FSeq ->
-          let p', b', bend', acc' = seqToFSeq p b bend [] in
-          finishDoe acc', FM(newt, newkind, castP p', b', bend')      
-
-       (* FSEQ -> SAFE. Must do bounds checking *)
-      | P.FSeq, P.Safe ->
-          let p', _, _, acc' = fseqToSafe p newPointerType b bend [] in
-          finishDoe acc', L(newt, newkind, castP p')      
-
-       (* FSEQ -> SEQ. *)
-      | P.FSeq, P.Seq ->
-          doe, FM(newt, newkind, castP p, b, b)
-
-       (******* UNIMPLEMENTED ********)
-      | _, _ -> 
-          E.s (E.unimp "castTo(%a -> %a.@!%a@!%a)" 
-                 P.d_pointerkind oldk P.d_pointerkind newkind 
-                 d_fexp fe
-                 d_plaintype oldt)      
-  end
       
 
 
