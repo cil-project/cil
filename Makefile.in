@@ -196,8 +196,11 @@ OCAML_CIL_LIB_CMODULES := perfcount
 OCAML_CIL_C_LIB_MODULES := $(CILLY_MODULES:maincil=) libmaincil
 
 # Build an OCAML library (CMA / CMXA) that exports our Cil stuff
-$(OBJDIR)/cil.$(CMXA): $(OCAML_CIL_LIB_CMODULES:%=$(OBJDIR)/%.$(OBJ)) $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO)) 
-	$(CAMLLINK) -a -o $@ $^
+$(OBJDIR)/cil.$(CMXA): $(OCAML_CIL_LIB_CMODULES:%=$(OBJDIR)/lib%.a) $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO)) 
+	$(CAMLLINK) -a -o $@ -ccopt -L$(pkglibdir) $(OCAML_CIL_LIB_CMODULES:%=-cclib -l%) $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
+
+$(OBJDIR)/libperfcount.a: %: %($(OBJDIR)/perfcount.o)
+	ranlib $@
 
 # sm: for Simon: build a library of CIL functions which can
 # be called from C code; this is like the target above, except
@@ -441,11 +444,13 @@ all_mli := $(filter %.mli, $(DISTRIB_OCAMLUTIL) $(DISTRIB_SRC) $(DISTRIB_SRC_FRO
 install_mli := $(filter $(OCAML_CIL_LIB_MODULES:=.mli), $(all_mli))
 install_cmi := $(install_mli:%.mli=$(OBJDIR)/%.cmi)
 install_cma := $(addprefix $(OBJDIR)/cil., cma cmxa a)
+install_lib := $(OCAML_CIL_LIB_CMODULES:%=$(OBJDIR)/lib%.a)
 
-install: $(install_cmi) $(install_cma)
+install: $(install_cmi) $(install_cma) $(install_lib)
 	$(INSTALL) -d $(DESTDIR)$(pkglibdir)
 	$(INSTALL_DATA) $(install_cma) $(DESTDIR)$(pkglibdir)
 	$(INSTALL_DATA) $(install_cmi) $(DESTDIR)$(pkglibdir)
+	$(INSTALL_DATA) $(install_lib) $(DESTDIR)$(pkglibdir)
 	$(INSTALL) -d $(DESTDIR)$(pkgdatadir)
 	$(INSTALL_DATA) $(addprefix lib/, $(filter %.pm, $(DISTRIB_LIB))) $(DESTDIR)$(pkgdatadir)
 
