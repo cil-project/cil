@@ -34,9 +34,11 @@ module E = Errormsg
 module H = Hashtbl
 
 let sensitive_attributes = ["EQ_tainted" ; "LE_tainted" ; 
-			    "GE_untainted" ; "EQ_untainted"]  
+			    "GE_untainted" ; "EQ_untainted";
+                            "Poly_tainted"]  
 let const_attribute      = "const"
 let tainted_attribute    = "EQ_tainted"
+let poly_taint_attribute = "Poly_tainted"
 
 (* Checks whether the given type has a the "tainted" attribute.
  *)
@@ -119,23 +121,31 @@ let unimplementedT t =
 
 let rec encodeType (t:typ):string = 
   let unimplemented () = unimplementedT t in
-  let tt = match unrollType t with
-      TInt _ as t' when bitsSizeOf t' = 32 -> "int" (*int, uint, long, ulong*)
-    | TInt _ as t' when bitsSizeOf t' = 8 -> "char"
-    | TPtr(bt, a) -> begin
+  let taint =
+    let a = typeAttrs t in
+    if hasAttribute tainted_attribute a then
+      "T" 
+    else begin
+      match filterAttributes poly_taint_attribute a with
+          [] -> "U"
+        | [Attr(s, [AStr varname])] -> "P("^varname^")"
+        | _ -> E.s (error "bad attributesin %a." d_plaintype t)
+    end
+  in
+  match unrollType t with
+      TInt _ as t' when bitsSizeOf t' = 32 -> (*int, uint, long, ulong*)
+         taint^"int"
+    | TInt _ as t' when bitsSizeOf t' = 8 -> taint^"char"
+    | TPtr(bt, _) -> begin
         let bt' = encodeType bt in
-        "*" ^ bt'
+        taint^"*" ^ bt'
       end
     | TComp(ci, _) ->
         "_" ^ ci.cname
-    | TVoid [] -> "void"
+    | TVoid _ -> taint^"void"
     | _ -> 
         unimplemented ()
-  in
-  if hasAttribute tainted_attribute (typeAttrs t) then
-    "T"^tt
-  else
-    "U"^tt
+
 
 (* For arrays inside structs, unroll them into "len" different fields *)
 (* FIXME: this doesn't work well for variable access *)
