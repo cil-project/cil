@@ -105,6 +105,17 @@
   #define __BOXFORMAT(x)
 #endif
 
+// sm: I don't understand why the above macros are all conditioned
+// on MANUALBOX; many of the annotations have nothing to do with
+// what MANUALBOX does (as I see it); so I'll start a fledgling group
+// based on just CCURED, and if someone sees this differently we can
+// deal with it then
+#ifdef CCURED
+  #define __CANPOINTTOSTACK __attribute__((canPointToStack))
+#else
+  #define __CANPOINTTOSTACK
+#endif
+
 //#if ! defined(MANUALBOX) && ! defined(INFERBOX)
 //#define calloc_fseq calloc
 //#endif

@@ -616,7 +616,7 @@ smAddTest("scott/sockaddr $gcc");
 smAddTest("scott/heapify $box");
 smAddTest("scott/heapify $wildbox");
 
-# current problematic test cases
+# misc...
 smAddTest("scott/constdecl");
 smAddTest("scott/oldstyle");
 smAddTest("scott/typeof $gcc");
@@ -633,10 +633,14 @@ smAddTest("scott-nolink/brlock $gcc");
 smAddTest("scott/qsort_wild $box");
 smAddTest("scott/regparm0 $gcc");         # this works, unfortunately..
 smAddTest("scott/unscomp");    # kernel/fs/buffer.c
+
+# current problematic test cases
+smAddTest("scott/complex_float $box");
+smAddTest("mergeinline");
+
+# tests of things implemented for EDG compatibility
 smAddTest("mergestruct");
-smFailTest("Can't handle returing structures containing arrays.", "scott/complex_float $box");
-smFailTest("problem merging inlines used after declared but before defined",
-           "mergeinline");
+smAddTest("test-bad/globstackptr $box");
 
 # test of strings (need more!)
 smFailTest("unsound user annotation RWSTRING", "badd/ovwrnull $box");

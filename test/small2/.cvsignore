@@ -128,4 +128,6 @@ unscomp
 *optimcured.c
 mergestruct
 trace
-
+globstackptr
+complex_float
+mergeinline
