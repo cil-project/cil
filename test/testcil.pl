@@ -336,6 +336,7 @@ $TEST->add3Tests("testrun/addrof", "MANUALBOX=1");
 $TEST->add3Tests("testrun/addrof2", "MANUALBOX=1");
 $TEST->addTests("testrun/addrof3", "_GNUCC=1", ['cil']);
 $TEST->add3Tests("testrun/lval1", "_GNUCC=1");
+$TEST->add3Tests("testrun/bind1", "EXTRAARGS=-assumePrintf");
 $TEST->add3Tests("testmodel/model1");
 $TEST->add3Tests("testmodel/modelpoly");
 $TEST->add2Tests("testwrapper/wrapper1");
