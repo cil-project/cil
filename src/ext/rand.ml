@@ -226,6 +226,42 @@ let rec eval2m (i: int) (t: tree)  =
                 varTimesPoly 5 (eval2m 2 t2) ]
   | _ -> E.s (bug "eval2m")
 
+let rec eval2t (i: int) (t: tree)  = 
+  match i, t with 
+    _, Leaf l -> [(l, [])]
+  | 1, Node (t1, t2) -> 
+      addPoly [ varTimesPoly 0 (eval2t 1 t1);
+                varTimesPoly 1 (eval2t 1 t2);
+                varTimesPoly 2 (eval2t 2 t1);
+                varTimesPoly 3 (eval2t 2 t2) ]
+  | 2, Node(t1, t2) -> 
+      addPoly [ varTimesPoly 4 (eval2t 1 t1); 
+                varTimesPoly 5 (eval2t 1 t2);
+                varTimesPoly 6 (eval2t 2 t1); 
+                varTimesPoly 7 (eval2t 2 t2) ]
+  | _ -> E.s (bug "eval2m")
+
+let rec eval3t (i: int) (t: tree)  = 
+  match i, t with 
+    _, Leaf l -> [(l, [])]
+  | 1, Node (t1, t2) -> 
+      addPoly [ varTimesPoly 0 (eval3t 1 t1);
+                varTimesPoly 1 (eval3t 1 t2);
+                varTimesPoly 2 (eval3t 2 t1);
+                varTimesPoly 3 (eval3t 2 t2) ]
+  | 2, Node(t1, t2) -> 
+      addPoly [ varTimesPoly 4 (eval3t 2 t1); 
+                varTimesPoly 5 (eval3t 2 t2);
+                varTimesPoly 6 (eval3t 3 t1); 
+                varTimesPoly 7 (eval3t 3 t2) ]
+  | 3, Node(t1, t2) -> 
+      addPoly [ varTimesPoly 8 (eval3t 3 t1); 
+                varTimesPoly 9 (eval3t 3 t2);
+                varTimesPoly 10 (eval3t 1 t1); 
+                varTimesPoly 11 (eval3t 1 t2) ]
+  | _ -> E.s (bug "eval2m")
+
+let treeDepth = ref 8
 
 let test_poly () = 
   ignore (E.log "Here I am playing with polynomials\n");
@@ -236,8 +272,8 @@ let test_poly () =
       Node (mkBalanced (path ^ "L") (depth - 1),
             mkBalanced (path ^ "R") (depth - 1))
   in
-  let t = mkBalanced "" 4 in
-  let p = eval2m 1 t in
+  let t = mkBalanced "" !treeDepth in
+  let p = eval3t 1 t in
   printPolyByMonomial p;
   solve p;
   ()
@@ -308,7 +344,9 @@ let feature : featureDescr =
     fd_description = "randomized global value numbering";
     fd_extraopt = [
       ("--rand-test-poly", Arg.Unit test_poly, 
-        "do some testing with polynomials")
+        "do some testing with polynomials");
+      ("--rand-test-depth", Arg.Int (fun n -> treeDepth := n), 
+        "the depth of the tree")
     ];
     fd_doit = doit;
     fd_post_check = false; (* No changes to the file *)
