@@ -312,9 +312,10 @@ let doVarinfo vi =
             d_plaintype vi.vtype); *)
   (* Associate a node with the variable itself. Use index = 0 *)
   let n = N.getNode place 0 vi.vtype vi.vattr in
-  (* Add this to the variable attributes *)
-  vi.vattr <- addAttributes vi.vattr n.N.attr; (* Make sure we get the 
-                                                * _ptrnode *) 
+  (* Add this to the variable attributes. Note that this node might have been 
+   * created earlier. Merge the attributes and make sure we get the _ptrnode 
+   * attribute  *)
+  vi.vattr <- addAttributes vi.vattr n.N.attr;
 (*  ignore (E.log "varinfo: T=%a. A=%a\n" 
             d_plaintype vi.vtype (d_attrlist true) vi.vattr) *)
   ()
@@ -1241,10 +1242,25 @@ let markFile fl =
                    locUnknown)) in
         let return = mkStmt (Return (reso, locUnknown)) in
         modelledFun.sbody <- mkBlock [call; return];
+        (* Mark it as modelled *)
+        modelled.vattr <- 
+           addAttribute (Attr("modelledbody",[])) modelled.vattr;
         (* If it is polymorphic we postpone it *)
-        if H.mem polyFunc modelled.vname then
-          H.add polyBodies modelled.vname modelledFun
-        else begin
+        if H.mem polyFunc modelled.vname then begin
+          H.add polyBodies modelled.vname modelledFun;
+          (* We also go through all of the instantiations and mark them as 
+           * modelledbody so their bodies can be dropped. The instantiations 
+           * that are created later during the copying of the polymorphic 
+           * functions will get their modelledbody attribute from the one we 
+           * set above *)
+          List.iter 
+            (fun (n, vi) -> 
+              if matchPolyName modelled.vname n then begin
+                vi.vattr <- 
+                   addAttribute (Attr("modelledbody",[])) vi.vattr
+              end)
+            !instantiations;
+        end else begin
           (* Just mark the body *)
           theFile := GText ("// Modeling body of " 
                             ^ modelled.vname ^ " based on model " ^

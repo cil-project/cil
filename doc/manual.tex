@@ -1,0 +1,117 @@
+\documentclass{book}
+\def\t#1{{\tt #1}}
+\def\DYNAMIC{\t{DYNAMIC}}
+\title{CCured: User Manual}
+
+\begin{document}
+\maketitle
+\chapter{Installing CCured}
+
+
+\chapter{Using CCured}
+
+\chapter{Customizing CCured}
+
+  \section{Polymorphic functions}
+
+ C programmers use \t{void *} to implement parametric polymorphism. Take for
+example the simple \t{identity} function defined below:
+
+\begin{verbatim}
+void* identity(void *x) { return x; }
+\end{verbatim}
+
+ If we use this function multiple times with incompatible types then CCured
+will be forced to infer the \t{DYNAMIC} type for the type of the argument
+\t{x}. Alternatively the following pragma can be used {\bf before the first
+use of \t{identity}}. 
+
+\begin{verbatim}
+#pragma boxpoly("identity")
+\end{verbatim}
+ 
+ Upon seeing this pragma CCured will pretend that each call site of
+\t{identity} calls a distinct function. In fact, if \t{identity} is also
+defined in the project, CCured will create a copy of its body for each
+invocation. This will allow the type inferencer to infer appropriate types for
+each call site. After inference, CCured coalesces those copies that have the
+same adjusted type.
+
+ Notice that if the body of the function refers to globals, then all copies
+will refer to the same global. This includes functions. An exception is made
+when the body of the polymorphic function calls another polymorphic function
+(or itself). In this case the call site is changed to use a new instance of
+the called function, for which recursively we will make a copy of the body as
+well. For a recursive function, the call site is changed to use the copy of
+the function that is being created, thus preserving the recursion and ensuring
+the termination of the process. Note that you can construct a program whose
+size will grow exponentially if you have a chain of polymorphic functions that
+call each other several times. 
+
+  \section{Models for external functions}
+
+ When CCured handles an external function it does not assume anything about
+its behavior. A good example is the \t{fgets} function from the C library:
+\begin{verbatim}
+char* fgets(char* buff, int size, FILE *f);
+\end{verbatim}
+
+ This function returns the exact character buffer that was passed in. However,
+will not see any connection between the return value and the \t{buff} argument
+and might legitimately infer incompatible types for them, such as \t{SAFE} and
+\t{DYNAMIC}. To prevent this, the programmer can declare a model for the
+function as follows:
+
+\begin{verbatim}
+static inline
+char *fgets_model(char *buff, int size, FILE *f) __BOXMODEL("fgets");
+static inline
+char *fgets_model(char *buff, int size, FILE *f) {
+     return buff;
+}
+\end{verbatim}
+
+ (The specifiers \t{static} and \t{inline} are recommended if the above code
+ is placed in an include file. The function has a separate prototype because
+ \t{gcc} does not allow function attributes to be associated with function
+ definitions.)
+
+ Functions that are defined cannot have models. One model can have several
+ \t{\_\_BOXMODEL} attributes. 
+
+ For each function with a model CCured creates a dummy body that just invokes
+ the model, as follows: 
+
+\begin{verbatim}
+char *fgets(char *buff, int size, FILE *f) {
+    return fgets_model(buff, size, f);
+}
+\end{verbatim}
+
+ This will eventually ensure the proper connection between the \t{buff}
+argument and the return value. 
+
+ In the model you can use the function \t{\_\_endof} applied to a pointer to
+specify that the pointer's representation must be one that allows the
+computation of the end of the home area of the pointer. Similarly, use
+\t{\_\_startof} to say that you want to be able to computer the start of the
+home area. 
+
+ The dummy bodies are removed after type inference. 
+
+ The model can contain any code. In fact, the best model would the the code of
+ the function itself, but typically one much smalled suffices.
+
+     \subsection{Polymorphic models}
+
+ For a polymorphic function you should have polymorphic models (use the
+\t{\#pragma boxpoly} described above. A separate dummy body is created {\bf for
+each invocation of the modeled function}. When these dummy bodies are
+processed the calls to the polymorphic model lead to new instances of the
+model function. 
+ 
+  \section{Using the patcher}
+
+  \section{Using the combiner}
+
+\end{document}

@@ -58,8 +58,6 @@ OCAML_CIL_LIB_MODULES = $(MODULES:main=)
 EXTRACLEAN += $(OBJDIR)/*.obj $(OBJDIR)/*.a $(OBJDIR)/*.o
 
 
-setup: defaulttarget includes
-
     # Include now the common set of rules for OCAML
     # This file will add the rules to make $(EXECUTABLE).$(EXE)
 include Makefile.ocaml
@@ -166,7 +164,7 @@ endif
 #  _GNUCC=1
 #  endif
 
-PCCDIR=$(CCUREDHOME)/cil/test/PCC
+PCCDIR=$(CCUREDHOME)/test/PCC
 
 # sm: I keep getting bit by this
 ifndef CCUREDHOME
@@ -278,16 +276,11 @@ endif
 ifdef NOREMAKE
 defaulttarget : 
 else
-ifdef RELEASE
-defaulttarget_debug : 
-	echo Making first CCured in DEBUG mode
-	make RELEASE=
-else
-defaulttarget_debug :
-endif
-defaulttarget : defaulttarget_debug $(EXECUTABLE)$(EXE) $(SAFECLIB) $(CILLIB)
+defaulttarget : $(EXECUTABLE)$(EXE) $(SAFECLIB) $(CILLIB)
 endif
 
+
+setup: defaulttarget includes
 
 
 

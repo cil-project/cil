@@ -120,13 +120,16 @@
 // gn: disabled this since everythign in BOX mode fails due to redefin.
 #ifdef BEFOREBOX
   typedef void (*_box_sig_fn)(int);
-  _box_sig_fn signal_model(int signum, _box_sig_fn fn) __BOXMODEL("signal");
-  inline _box_sig_fn signal_model(int signum, _box_sig_fn fn)
+  static inline
+  _box_sig_fn signal_model(int signum, _box_sig_fn fn)
+         __BOXMODEL("signal");
+  static inline
+  _box_sig_fn signal_model(int signum, _box_sig_fn fn)
   {
     // flow argument to result
     return fn;
   }
-#endif // BEFOREBOX
+#endif // BEFOREBOXc
 
 #ifdef BEFOREBOX
 #pragma boxpoly("__endof")

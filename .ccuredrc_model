@@ -3,6 +3,7 @@
 # Make sure that CCUREDHOME is defined and points to the directory in which
 # this file lives and the root of the CCured project. 
 # If you are on a Windows machine use / as path separator
+# Never check the .ccuredrc file in the repository !
 
 # If you want to use the new patcher, uncomment the next few lines
 # ifndef OLDPATCH

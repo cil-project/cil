@@ -21,24 +21,32 @@ module H = Hashtbl
 
 (* We get from the parser a list of files. We concatenate them together being 
  * carefully to rename file-scope symbols (static, typedef, 
- * structure/union/enum tags appearing at file scope) and then we make one 
- * pass over the entiere AST to apply the new names. We also eliminate 
- * certain duplicate file-scope definitions.  *)
+ * structure/union/enum tags appearing at file scope) and in the same pass we 
+ * apply the new names to their occurences. We also eliminate certain 
+ * duplicate definitions.  *)
 
 (* 1. Non-static declarations are never renamed. But we try to remove 
- * duplicate ones. We check duplication by using Ocaml structural equality by 
- * we ignore the location of the declaration. *)
+ * duplicate ones. We check duplication by using Ocaml structural equality, 
+ * after we alpha-convert the body. *)
 
-(* 2. Static declarations and function defintions are renamed (but only once 
- * per file) without effort to try to eliminate duplicate definitions  *)
+(* 2. Static declarations and function definitions are renamed (but only once 
+ * per file). *)
 
-(* 3. Struct/Union/Enum tags are considered to have file scope also, but 
+(* 3. We try to eliminate duplicate declarations and _inline_ function 
+ * definitions. Duplication is checked using structural equality _after_ the 
+ * body has been alpha-converted. This means that recursive static inline 
+ * functions might not get eliminated. *)
+
+(* 4. The combiner gets confused if it sees both a static and a non-static 
+ * declaration for the same global *)
+
+(* 5. Struct/Union/Enum tags are considered to have file scope also, but 
  * before they are renamed we check to see if this is a duplicate definition 
  * or maybe a conflicting definition. We keep track of all the definitions 
  * for a given tag so when we check for duplicates we check against all 
  * previous definitions for a tag.  *)
 
-(* 4. Typedefs are also considered to have file scope but we try to reuse 
+(* 6. Typedefs are also considered to have file scope but we try to reuse 
  * them. We use a similar mechanism as for the struct/union/enum tags *)
 
 
@@ -298,17 +306,6 @@ and equal_enum_item_lists (fields1 : enum_item list)
     (fun (tag1, e1) (tag2, e2) -> tag1 = tag2 && e1 = e2)
     fields1
     fields2
-(*
-begin
-  match fields1, fields2 with
-  | [], [] -> true
-  | (tag1, e1) :: rest1, (tag2, e2) :: rest2 ->
-       &&
-      (equal_enum_item_lists rest1 rest2)
-
-  | _, _ -> false
-end
-*)
 
 and equal_field_group_lists (fields1 : field_group list)
                             (fields2 : field_group list) : bool =
@@ -318,18 +315,7 @@ and equal_field_group_lists (fields1 : field_group list)
       equal_field_lists flds1 flds2)
     fields1
     fields2
-(*
-begin
-  match (fields1, fields2) with
-  | [], [] -> true
-  | (specs1, names1) :: rest1, (specs2, names2) :: rest2 -> (
-      (equal_spec_lists true specs1 specs2) &&
-      (equal_field_lists names1 names2) &&
-      (equal_field_group_lists rest1 rest2)
-    )          
-  | _, _ -> false
-end
-*)
+
 and equal_spec_lists (tagequal: bool)  (* Trust tag equality *) 
                      (specs1 : spec_elem list)
                      (specs2 : spec_elem list) : bool =
@@ -338,33 +324,12 @@ and equal_spec_lists (tagequal: bool)  (* Trust tag equality *)
     specs1
     specs2
 
-(*
-begin
-  match (specs1, specs2) with
-  | [], [] -> true
-  | s1 :: rest1, s2 :: rest2 -> (
-      (equal_specs tagequal s1 s2) &&
-      (equal_spec_lists tagequal rest1 rest2)
-    )
-  | _, _ -> false
-end
-*)
-
 and equal_name_lists (names1 : name list) 
                      (names2 : name list) : bool =
   equal_lists
     (fun n1 n2 -> equal_names n1 n2) 
     names1
     names2
-(*
-  match (names1, names2) with
-  | [], [] -> true
-  | n1 :: rest1, n2 :: rest2 -> (
-      (equal_names n1 n2) &&
-      (equal_name_lists rest1 rest2)
-    )
-  | _, _ -> false
-*)
 
 and equal_field_lists (flds1: (name * expression option) list)
                       (flds2: (name * expression option) list) =
@@ -550,12 +515,14 @@ let checkTypeDefinition
 
 
 (* Remember the declarations that we have seen so that we can drop identical 
- * ones *)
-let declarations: (init_name_group, bool) H.t = H.create 1111
+ * ones. The key is the alpha-converted body with the original names. The 
+ * data is a list of pairs maping original names to the newnames *)
+let declarations: (init_name_group, (string * string) list) H.t = H.create 1111
 
 (* Remeber the inline functions that we have seen so that we could eliminate 
- * duplicates *)
-let functions: (definition , bool) H.t = H.create 1111
+ * duplicates. The key is the alpha-converted body but using the original 
+ * name. The data is the name with which this appeared already in the file *)
+let functions: (definition , string) H.t = H.create 1111
 
 (*********************************
  *********************************
@@ -907,17 +874,24 @@ and doDefinition (isglobal: bool) (* Whether at global scope *)
         FUNDEF ((specs2, 
                  (n', decl', attrs')), body', loc) 
       in
+      let res_oldname = (* Just like res but use the old name. This way we 
+                         * check for duplicates *)
+        FUNDEF ((specs2, 
+                 (n, decl', attrs')), body', loc) 
+      in        
       if isInline specs2 then 
         (* For inline functions we might see the same definition multiple 
-         * times. Keep only one. Index everything, including the location. 
-         * There is no point in throwing the location away unless we rewrite 
-         * the body to throw all the locations it containts *)
-        if H.mem functions res then 
-          acc (* Duplicate *)
-        else begin
-          H.add functions res true;
+         * times. Keep only one. Index everything, including the location, 
+         * but index using the original name of the function. There is no 
+         * point in throwing the location away unless we rewrite the body to 
+         * throw all the locations it containts  *)
+        try
+          let oldname = H.find functions res_oldname in
+          H.add env n oldname; (* To use the old name from now on *)
+          acc
+        with Not_found -> 
+          H.add functions res_oldname n';
           res :: acc
-        end
       else
         res :: acc
     end
@@ -926,25 +900,37 @@ and doDefinition (isglobal: bool) (* Whether at global scope *)
       currentLoc := loc;
       let specs1 = doSpecs isglobal specs in
       let static = isStatic specs1 in
-      let ng = (specs1,
-                List.map 
-                  (fun ((n, decl, attrs), ie) ->
-                    (* Do the declaration first *)
-                    let n' = processDeclName isglobal static n in
-                    ((n', 
-                      alpha_decl_type decl, 
-                      alpha_attrs attrs),
-                     alpha_init_expression ie)) inl)
+      let newnames, nglist, nglist_oldnames = 
+        List.fold_right 
+          (fun  ((n, decl, attrs), ie)
+                (accnames, accng, accngoldnames) ->
+                  (* Do the declaration first *)
+                  let n' = processDeclName isglobal static n in
+                  let decl' = alpha_decl_type decl in
+                  let attrs' = alpha_attrs attrs in
+                  let ie' = alpha_init_expression ie in
+                  ((n, n') :: accnames, 
+                   ((n', decl', attrs'), ie') :: accng,
+                   ((n, decl', attrs'), ie') :: accngoldnames))
+          inl
+          ([], [], [])
       in
+      let ng = (specs1, nglist) in
+      let ng_oldnames = (specs1, nglist_oldnames) in
       (* Keep a hash of DEFDEF's and drop identical ones. Use OCAML's 
        * structural equality to test for identical declarations. If we don't 
        * do this then cabs2cil slows to a crawl. *)
-      if isglobal && H.mem declarations ng then 
-        acc
-      else begin
-        if isglobal then H.add declarations ng true;
+      if isglobal then 
+        try
+          let oldnames = H.find declarations ng_oldnames in
+          List.iter (fun (orig, old) -> H.add env orig old) oldnames;
+          acc
+        with Not_found ->  begin
+          H.add declarations ng newnames;
+          DECDEF (ng, loc) :: acc
+        end
+      else
         DECDEF (ng, loc) :: acc
-      end
     end
       
 
