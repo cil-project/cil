@@ -1014,7 +1014,7 @@ let rec get_stmtLoc (statement : stmtkind) =
     | If(_, _, _, loc) -> loc
     | Switch (_, _, _, loc) -> loc
     | Loop (_, loc, _, _) -> loc
-    | Block b -> if b.bstmts = [] then lu 
+    | Block b -> if b.bstmts == [] then lu 
                  else get_stmtLoc ((List.hd b.bstmts).skind)
     | TryFinally (_, _, l) -> l
     | TryExcept (_, _, _, l) -> l
@@ -2398,7 +2398,8 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                     defined yet. *)
                 match unrollType (typeOf e) with
                   TFun (rt, _, _, _) 
-                      when typeSigNoAttrs rt <> typeSigNoAttrs destt ->
+                      when not (Util.equals (typeSigNoAttrs rt)
+                                            (typeSigNoAttrs destt)) ->
                     text "(" ++ self#pType None () destt ++ text ")"
                 | _ -> nil))
           (* Now the function name *)
@@ -4163,7 +4164,7 @@ let visitCilFileSameGlobals (vis : cilVisitor) (f : file) : unit =
   let fGlob g = visitCilGlobal vis g in
   iterGlobals f (fun g -> 
     match fGlob g with 
-      [g'] when g' == g || g' = g -> () (* Try to do the pointer check first *)
+      [g'] when g' == g || Util.equals g' g -> () (* Try to do the pointer check first *)
     | gl -> 
         ignore (E.log "You used visitCilFilSameGlobals but the global got changed:\n %a\nchanged to %a\n" d_global g (docList ~sep:line (d_global ())) gl);
         ())
@@ -4524,7 +4525,7 @@ let getCompField (cinfo:compinfo) (fieldName:string) : fieldinfo =
 
 let rec mkCastT ~(e: exp) ~(oldt: typ) ~(newt: typ) = 
   (* Do not remove old casts because they are conversions !!! *)
-  if typeSig oldt = typeSig newt then begin
+  if Util.equals (typeSig oldt) (typeSig newt) then begin
     e
   end else begin
     (* Watch out for constants *)
@@ -4828,7 +4829,7 @@ and bitsSizeOf t =
   | TInt _ | TFloat _ | TEnum _ | TPtr _ | TBuiltin_va_list _ 
     -> 8 * alignOf_int t
   | TNamed (t, _) -> bitsSizeOf t.ttype
-  | TComp (comp, _) when comp.cfields = [] -> begin
+  | TComp (comp, _) when comp.cfields == [] -> begin
       (* Empty structs are allowed in msvc mode *)
       if not comp.cdefined && not !msvcMode then
         raise (SizeOfError ("abstract type", t)) (*abstract type*)

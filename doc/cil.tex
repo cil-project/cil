@@ -2083,7 +2083,9 @@ __s8 unsigned uchartest; // This is unsigned char for gcc
 
 \item The statement \t{x = 3 + x ++} will perform the increment of \t{x}
   before the assignment, while \t{gcc} delays the increment after the
-  assignment. 
+  assignment. It turned out that this behavior is much easier to implement
+  than gcc's one, and either way is correct (since the behavior is unspecified
+  in this case). 
 \end{itemize}
 
   \section{Using the merger}\label{sec-merger}\cutname{merger.html}
@@ -2718,6 +2720,10 @@ Necula}.
  
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf January 10, 2005}: Fixed dropping of cast in initialization of
+  local variable with the result of a function call.
+\item {\bf January 10, 2005}: Fixed some structural comparisons that were
+  broken in the Ocaml 3.08.
 \item {\bf January 10, 2005}: Fixed the \t{unrollType} function to not forget
   attributes. 
 \item {\bf January 10, 2005}: Better keeping track of locations of function

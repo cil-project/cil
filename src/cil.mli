@@ -1375,7 +1375,9 @@ val splitFunctionTypeVI:
  * signatures. These contain the same information as types but canonicalized. 
  * For example, two function types that are identical except for the name of 
  * the formal arguments are given the same signature. Also, [TNamed] 
- * constructors are unrolled. *)
+ * constructors are unrolled. You shoud use [Util.equals] to compare type 
+ * signatures because they might still contain circular structures (through 
+ * attributes, and sizeof) *)
 
 (** Print a type signature *)
 val d_typsig: unit -> typsig -> Pretty.doc

@@ -392,6 +392,7 @@ distrib-nocheck: doc $(DISTRIB_ROOT)
               $(TOP_DIR)/obj/.depend \
               $(TOP_DIR)/obj/x86_WIN32 \
               $(TOP_DIR)/obj/x86_LINUX \
+              $(TOP_DIR)/obj/ppc_DARWIN \
               $(TOP_DIR)/test \
               $(TOP_DIR)/test/small1 \
               $(TOP_DIR)/ocamlutil

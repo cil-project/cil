@@ -667,7 +667,7 @@ let findCompType (kind: string) (n: string) (a: attributes) =
   try
     let old, _ = lookupTypeNoError kind n in (* already defined  *)
     let olda = typeAttrs old in
-    if olda = a then old else makeForward ()
+    if Util.equals olda a then old else makeForward ()
   with Not_found -> makeForward ()
   
 
@@ -706,6 +706,11 @@ module BlockChunk =
         cases: (label * stmt) list
       } 
 
+    let d_chunk () (c: chunk) = 
+      dprintf "@[{ @[%a@] };@?%a@]"
+           (docList ~sep:(chr ';') (d_stmt ())) c.stmts
+           (docList ~sep:(chr ';') (d_instr ())) (List.rev c.postins)
+ 
     let empty = 
       { stmts = []; postins = []; cases = []; }
 
@@ -1163,7 +1168,7 @@ let cabsAddAttributes al0 (al: attributes) : attributes =
       match filterAttributes an acc with
         [] -> addAttribute a acc (* Nothing with that name *)
       | a' :: _ -> 
-          if a = a' then 
+          if Util.equals a a' then 
             acc (* Already in *)
           else begin
             ignore (warnOpt 
@@ -1362,7 +1367,7 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
   | TArray (oldbt, oldsz, olda), TArray (bt, sz, a) -> 
       let newbt = combineTypes CombineOther oldbt bt in
       let newsz = 
-        if oldsz = sz then sz else
+        if Util.equals oldsz sz then sz else
         match oldsz, sz with
           None, Some _ -> sz
         | Some _, None -> oldsz
@@ -1502,7 +1507,7 @@ let conditionalConversion (t2: typ) (t3: typ) : typ =
           when comp2.ckey = comp3.ckey -> t2 
     | TPtr(_, _), TPtr(TVoid _, _) -> t2
     | TPtr(TVoid _, _), TPtr(_, _) -> t3
-    | TPtr _, TPtr _ when typeSig t2 = typeSig t3 -> t2
+    | TPtr _, TPtr _ when Util.equals (typeSig t2) (typeSig t3) -> t2
     | TPtr _, TInt _  -> t2 (* most likely comparison with 0 *)
     | TInt _, TPtr _ -> t3 (* most likely comparison with 0 *)
 
@@ -1738,7 +1743,7 @@ and normalSubobj (so: subobj) : unit =
 
         (* The fields are over *)
   | InComp (parOff, comp, nextflds) :: rest -> 
-      if nextflds = [] then begin (* No more fields here *)
+      if nextflds == [] then begin (* No more fields here *)
         if debugInit then ignore (E.log "Past the end of structure\n");
         so.stack <- rest; 
         advanceSubobj so
@@ -1859,6 +1864,9 @@ let afterConversion (c: chunk) : chunk =
       Set(destlv, CastE (newt, Lval(Var vi', NoOffset)), _) 
       when (not vi.vglob && 
             String.length vi.vname >= 3 &&
+            (* Watch out for the possibility that we have an implied cast in 
+             * the call *)
+            Util.equals (typeSig vi.vtype) (typeSig (typeOfLval destlv)) &&
             String.sub vi.vname 0 3 = "tmp" &&
             vi' == vi) 
       -> Some [Call(Some destlv, f, args, l)]
@@ -2172,7 +2180,9 @@ and makeVarInfoCabs
   vi.vstorage <- sto;
   vi.vattr <- nattr;
   vi.vdecl <- ldecl;
+(*
   ignore (E.log "Created varinfo %s : %a\n" vi.vname d_type vi.vtype); 
+*)
   vi
 
 (* Process a local variable declaration and allow variable-sized arrays *)
@@ -2685,6 +2695,10 @@ and doExp (isconst: bool)    (* In a constant *)
                     * construct *)
     | AExp _ -> 
         let (e', t') = processArrayFun e t in
+(*
+        ignore (E.log "finishExp: e'=%a, t'=%a\n" 
+           d_exp e' d_type t');
+*)
         (se, e', t')
 
     | ASet (lv, lvt) -> begin
@@ -3036,7 +3050,7 @@ and doExp (isconst: bool)    (* In a constant *)
           | ASet (lv, lvt) -> 
               (* If the cast from typ to lvt would be dropped, then we 
                * continue with a Set *)
-              if false && typeSig typ = typeSig lvt then 
+              if false && Util.equals (typeSig typ) (typeSig lvt) then 
                 what
               else
                 AExp None (* We'll create a temporary *)
@@ -4069,13 +4083,13 @@ and doInitializer
   (* sm: we used to do array-size fixups here, but they only worked
    * for toplevel array types; now, collectInitializer does the job,
    * including for nested array types *)
-  let typ' = unrollType vi.vtype
-  in
+  let typ' = unrollType vi.vtype in
   if debugInit then 
     ignore (E.log "Collecting the initializer for %s\n" vi.vname);
   let (init, typ'') = collectInitializer !topPreInit typ' in
   if debugInit then
-    ignore (E.log "Finished the initializer for %s\n" vi.vname);
+    ignore (E.log "Finished the initializer for %s\n  init=%a\n  typ=%a\n  acc=%a\n" 
+           vi.vname d_init init d_type typ' d_chunk acc);
   acc, init, typ''
 
 
@@ -4283,6 +4297,10 @@ and doInit
      (* A scalar with a single initializer *)
   | _, (A.NEXT_INIT, A.SINGLE_INIT oneinit) :: restil ->  
       let se, oneinit', t' = doExp isconst oneinit (AExp(Some so.soTyp)) in
+(*
+      ignore (E.log "oneinit'=%a, t'=%a, so.soTyp=%a\n" 
+           d_exp oneinit' d_type t' d_type so.soTyp);
+*)
       setone so.soOff (mkCastT oneinit' t' so.soTyp);
       (* Move on *)
       advanceSubobj so; 
@@ -4319,7 +4337,9 @@ and doInit
       let tsig = typeSigWithAttrs (fun _ -> []) t' in
       let rec findField = function
           [] -> E.s (error "Cannot find matching union field in cast")
-        | fi :: rest when typeSigWithAttrs (fun _ -> []) fi.ftype = tsig -> fi
+        | fi :: rest 
+           when Util.equals (typeSigWithAttrs (fun _ -> []) fi.ftype) tsig 
+           -> fi
         | _ :: rest -> findField rest
       in
       let fi = findField ci.cfields in
@@ -4564,7 +4584,7 @@ and createGlobal (specs : (typ * storage * bool * A.attribute list))
 (* Must catch the Static local variables. Make them global *)
 and createLocal ((_, sto, _, _) as specs)
                 ((((n, ndt, a, cloc) : A.name), 
-                  (e: A.init_expression)) as init_name) 
+                  (inite: A.init_expression)) as init_name) 
   : chunk =
   let loc = convLoc cloc in
   (* Check if we are declaring a function *)
@@ -4605,10 +4625,10 @@ and createLocal ((_, sto, _, _) as specs)
        * scope properly *)
       addLocalToEnv n (EnvVar vi);
       let init : init option = 
-        if e = A.NO_INIT then 
+        if inite = A.NO_INIT then 
           None
         else begin 
-          let se, ie', et = doInitializer vi e in
+          let se, ie', et = doInitializer vi inite in
           (* Maybe we now have a better type *)
           vi.vtype <- et;
           if isNotEmpty se then 
@@ -4660,7 +4680,7 @@ and createLocal ((_, sto, _, _) as specs)
           (* Register the length *)
           H.add varSizeArrays vi.vid sizeof;
           (* There can be no initializer for this *)
-          if e != A.NO_INIT then 
+          if inite != A.NO_INIT then 
             E.s (error "Variable-sized array cannot have initializer");
           se0 +++ (Set(var savelen, len, !currentLoc)) 
             (* Initialize the variable *)
@@ -4668,10 +4688,10 @@ and createLocal ((_, sto, _, _) as specs)
                       [ sizeof  ], !currentLoc))
         end else empty
       in
-      if e = A.NO_INIT then
+      if inite = A.NO_INIT then
         se1 (* skipChunk *)
       else begin
-        let se4, ie', et = doInitializer vi e in
+        let se4, ie', et = doInitializer vi inite in
         (* Fix the length *)
         (match vi.vtype, ie', et with 
             (* We have a length now *)
@@ -4683,6 +4703,7 @@ and createLocal ((_, sto, _, _) as specs)
                                   Some (integer (String.length s + 1)),
                                   a)
         | _, _, _ -> ());
+
         (* Now create assignments instead of the initialization *)
         se1 @@ se4 @@ (assignInit (Var vi, NoOffset) ie' et empty)
       end
@@ -4708,7 +4729,14 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
         end else 
           acc @@ createLocal spec_res n
       in
-      List.fold_left doOneDeclarator empty nl
+      let res = List.fold_left doOneDeclarator empty nl in
+(*
+      ignore (E.log "after doDecl %a: res=%a\n" 
+           d_loc !currentLoc d_chunk res);
+*)
+      res
+
+
 
   | A.TYPEDEF (ng, loc) -> 
      currentLoc := convLoc(loc);
@@ -4965,7 +4993,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                   let newswitchkind =
                     match newswitch.stmts with
                       [ s]
-                        when newswitch.postins = [] && newswitch.cases = []->
+                        when newswitch.postins == [] && newswitch.cases == []->
                           s.skind
                     | _ -> E.s (bug "Unexpected result from switchChunk")
                   in
@@ -5289,12 +5317,15 @@ and doBody (blk: A.block) : chunk =
   let bodychunk = 
     afterConversion
       (List.fold_left   (* !!! @ evaluates its arguments backwards *)
-         (fun prev s -> let res = doStatement s in prev @@ res)
+         (fun prev s -> let res = doStatement s in 
+                        prev @@ res)
          empty
          blk.A.bstmts)
   in
   exitScope ();
-  if battrs = [] then
+
+
+  if battrs == [] then
     bodychunk
   else begin
     let b = c2block bodychunk in
@@ -5504,7 +5535,13 @@ and doStatement (s : A.statement) : chunk =
       end
 
     | A.DEFINITION d ->
-        doDecl false d        
+        let s = doDecl false d  in 
+(*
+        ignore (E.log "Def at %a: %a\n" d_loc !currentLoc d_chunk s);
+*)
+        s
+
+
 
     | A.ASM (asmattr, tmpls, outs, ins, clobs, loc) -> 
         (* Make sure all the outs are variables *)
