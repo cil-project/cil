@@ -11,9 +11,10 @@ use CompilerStub;
 
 my $stub = MyCompiler->new(@ARGV);
 
-$stub->compile();
+# print Dumper($stub);
 
-print Dumper($stub);
+$stub->doit();
+
 
 # Define here your favorite compiler by overriding CompilerStub methods
 package MyCompiler;
@@ -22,9 +23,9 @@ BEGIN {
     @MyCompiler::ISA = qw(CompilerStub);
 }
 
-
+# Customize the compilation
 sub compile {
     my($self, @args) = @_;
     print "MyCompiler is compiling\n";
-    SUPER->compile($self, @args);
+    $self->SUPER::compile(@args);
 }

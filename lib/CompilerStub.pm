@@ -14,20 +14,26 @@ if($^O eq 'MSWin32') {
 
 # Pass to new a list of command arguments
 sub new {
-    my($package, @args) = @_;
+    my ($proto, @args) = @_;
+    my $class = ref($proto) || $proto;
 
     my $ref = 
     { CFILES => [], # C input files
       OFILES => [], # Other input files
+      IFILES => [], # Already preprocessed files
       PPARGS => [], # Preprocessor args
       CCARGS => [], # Compiler args
       LINKARGS => [], # Linker args
+      OPERATION => "UNKNOWN",
     };
-    my $self = bless $ref, $package;
+    my $self = bless $ref, $class;
 
     # Scan and process the arguments
     while($#args >= 0) {
         $self->collectOneArgument(\@args);
+    }
+    if(!defined($self->{MODENAME})) { # No compiler was defined. Use gcc
+        $self->setCompilerMode("gcc", ""); 
     }
     return $self;
 }
@@ -40,13 +46,13 @@ sub setCompilerMode {
     }
     my $compiler;
     if($mode eq "mscl") {
-        push @CompilerStub::ISA, qw(MSCL);
+        unshift @CompilerStub::ISA, qw(MSCL);
         $compiler = MSCL->new($self);
     } elsif($mode eq "gcc") {
-        push @CompilerStub::ISA, qw(GCC);
+        unshift @CompilerStub::ISA, qw(GCC);
         $compiler = GCC->new($self);
     } elsif($mode eq "mslink") {
-        push @CompilerStub::ISA, qw(MSLINK);
+        unshift @CompilerStub::ISA, qw(MSLINK);
         $compiler = MSLINK->new($self);
     } else {
         die "Don't know about compiler $mode\n";
@@ -94,11 +100,13 @@ sub collectOneArgument {
     if($arg =~ m|^/[^/]+$|) {
         $self->setCompilerMode("mscl", $arg);
     }
-    if(! defined $self->{COMPILER}) { # Must be a source file, since we have
+    if(! defined $self->{MODENAME}) { # Must be a source file, since we have
         # not seen an option yet
         my ($base, $dir, $ext) = 
             fileparse($arg, "(\\.c)|(\\.cc)|(\\.cpp)|(\\.i)");
-        if($ext ne "") {
+        if($ext eq ".i") {
+            push @{$self->{IFILES}}, $arg;
+        } elsif($ext ne "") {
             push @{$self->{CFILES}}, $arg;
         } else {
             push @{$self->{OFILES}}, $arg;
@@ -106,16 +114,141 @@ sub collectOneArgument {
         next;
     }
     # Now try to classify the argument and collect it appropriately
-    $self->classifyArgument($self->{COMPILER}->{OPTIONS}, $arg, $pargs);
+    $self->classifyArgument($self->{OPTIONS}, $arg, $pargs);
     return;
 }
 
+
+
+# PREPROCESSING
+sub cpp {
+    my ($self, $src, $dest, @args) = @_;
+    my $res;
+    if($self->{MODENAME} eq "mscl") {
+        my ($sbase, $sdir, $sext) = 
+            fileparse($src, 
+                      "(\\.c)|(\\.cc)|(\\.cpp)|(\\.i)");
+        my $cmd = "cl /nologo /P /D_MSVC " . join(' ', @args);
+        $res = $self->runShell("$cmd $src");
+        # MSVC cannot be told where to put the output. But we know that it
+        # puts it in the current directory
+        my $msvcout = "./$sbase.i";
+        my @st1 = stat $msvcout;
+        my @st2 = stat $dest;
+        while($#st1 >= 0) {
+            if(shift @st1 != shift @st2) {
+#                print "$msvcout is NOT the same as $afterpp\n";
+                if($self->{VERBOSE}) {
+                    print "Copying $msvcout to $dest\n";
+                }
+                unlink $dest;
+                &File::Copy::copy($msvcout, $dest);
+                unlink $msvcout;
+                return;
+            }
+        }
+    } else {
+        my $cmd = $self->{CPP} . " " . 
+            join(' ', @args) .  " " .
+                "$src " . $self->{CPPOUT} . $dest;
+        $res = $self->runShell($cmd);
+        
+    }
+    return $res;
+}
+
+# COMPILATION (with PREPROCESSING)
+sub compile {
+    my ($self, $src, $dest, @args) = @_;
+    $dest = $dest eq "" ? "" : $self->{OUTOBJ} . $dest;
+    my $forcec = $self->{FORCECSOURCE};
+    my $cmd = $self->{CC} . " " . join(' ', @args) .  " $dest $forcec$src";
+    return $self->runShell($cmd);
+}
+
+# LINKING (with COMPILATION and PREPROCESSING)
+sub link {
+    my ($self, $psrcs, $dest, @args) = @_;
+    my @sources = ref($psrcs) ? @{$psrcs} : ($psrcs);
+    $dest = $dest eq "" ? "" : $self->{EXEOUT} . $dest;
+    my $cmd = $self->{CC} . " " . 
+        join(' ', @args) .  " " . join(' ', @sources). " $dest";
+    return $self->runShell($cmd);
+}
+
+
+# EVERYTHING
+sub doit {
+    my ($self) = @_;
+    my $file;
+    my $out;
+
+    if($self->{OPERATION} eq "UNKNOWN") {
+        print "Warning: CompilerStub does not understand the operation\n";
+        my @allfiles = (@{$self->{CFILES}}, @{$self->{OFILES}});
+        $self->link(\@allfiles, "", 
+                    @{$self->{PPARGS}}, 
+                    @{$self->{CCARGS}}, 
+                    @{$self->{LINKARGS}});
+        return;
+    }
+    # We'll first preprocess the C files
+    my @ppfiles = (@{$self->{IFILES}});
+    foreach $file (@{$self->{CFILES}}) {
+        my ($base, $dir, $ext) = fileparse($file, "\\.[^.]+");
+        # print "base=$base, dir=$dir, idir=$idir, ext=$ext\n";
+        my $idir = $dir;
+        if(defined $::keepDir) {
+            $idir = $::keepDir;
+        }
+        $out    = "$idir$base.i";
+
+        # Now call preprocessor
+        $self->cpp($file, $out, @{$self->{PPARGS}});
+
+        push @ppfiles, $out;
+    }
+    # See if we must stop here
+    if($self->{OPERATION} eq 'PREPROC') {
+        # Copy the preprocessed file to the desired output
+        my $isstdout = 1;
+        foreach $file (@ppfiles) {
+            open(FILE, "<$file");
+            print <FILE>;
+            close(FILE);
+        }
+        return;
+    }
+
+    my @ofiles = @{$self->{OFILES}};
+    if($#ofiles > 1 && defined($self->{OUTARG})) {
+        die "Cannot specify an output file with multiple compilations\n";
+    }
+    # Now we compile the files one by one
+    foreach $file (@ppfiles) {
+        # Find out what output file to use
+        $out = $self->compileOutputFile($file);
+        # Now call the compiler
+        $self->compile($file, $out, @{$self->{PPARGS}}, @{$self->{CCARGS}});
+        push @ofiles, $out;
+    }
+
+    # See if we must stop after compilation
+    if($self->{OPERATION} eq "TOOBJ") {
+        return;
+    }
+
+    # Now link all of the files
+    $out = $self->linkOutputFile();
+    $self->link(\@ofiles,  $out, 
+                @{$self->{PPARGS}}, @{$self->{CCARGS}}, @{$self->{LINKARGS}});
+}
 
 sub classDebug {
     if(0) { print @_; }
 }
 
-sub classifyArguments {
+sub classifyArgument {
     my($self, $options, $arg, $pargs) = @_;
     
     &classDebug("Classifying arg: $arg\n");
@@ -159,6 +292,9 @@ sub classifyArguments {
                 }
                 if($action->{TYPE} eq "OSOURCE") {
                     push @{$self->{OFILES}}, $fullarg; return;
+                }
+                if($action->{TYPE} eq "ISOURCE") {
+                    push @{$self->{IFILES}}, $fullarg; return;
                 }
                 if($action->{TYPE} eq 'OUT') {
                     if(defined($self->{OUTARG})) {
@@ -309,6 +445,9 @@ sub new {
     my $self = 
     { NAME => 'Microsoft cl compiler',
       MODENAME => 'mscl',
+      CC => 'cl /nologo /D_MSVC /c',
+      CPP => 'cl /nologo /D_MSVC /P',
+      LD => 'cl /nologo /D_MSVC',
       DEFARG  => "/D",
       INCARG  => "/I",
       DEBUGARG => "/Zi /MLd /DEBUG",
@@ -318,6 +457,7 @@ sub new {
       EXEEXT => ".exe",  # Executable extension (with the .)
       OUTOBJ => "/Fo",
       OUTEXE => "/Fe",
+      FORCECSOURCE => "/Tc",
       LINEPATTERN => "^#line\\s+(\\d+)\\s+\"(.+)\"",
 
       OPTIONS => 
@@ -330,14 +470,15 @@ sub new {
 #
 # If the action contains TYPE => "..." then the argument is put into one of
 # several lists, as follows: "PREPROC" in ppargs, "CC" in ccargs, "LINK" in
-# linkargs, "LINKCC" both in ccargs and linkargs, "CSOURCE" in csources,
-# "OSOURCE" in osources, "OUT" in outarg. 
+# linkargs, "LINKCC" both in ccargs and linkargs, "CSOURCE" in cfiles,
+# "OSOURCE" in ofiles, "ISOURCE" in ifiles, "OUT" in outarg. 
 #
 # If the TYPE is not defined but the RUN => sub { ... } is defined then the
 # given subroutine is invoked with the argument and the (possibly empty)
 # additional word.
 #
           ["[^/].*\\.(c|i|cpp|cc)" => { TYPE => 'CSOURCE' },
+           "[^/].*\\.i" => { TYPE => 'ISOURCE' },
            "[^/]" => { TYPE => "OSOURCE" },
            "/O" => { TYPE => "CC" },
            "/G" => { TYPE => "CC" },
@@ -373,31 +514,6 @@ sub forceIncludeArg {
     return "/FI$what";
 }
 
-sub cpp {
-    my ($self, $src, $afterpp) = @_;
-    my ($sbase, $sdir, $sext) = fileparse($src, 
-                                       "(\\.c)|(\\.cc)|(\\.cpp)|(\\.i)");
-    my $cmd = "cl /nologo /P /D_MSVC " . join(' ', @{$self->{PPARGS}});
-    &runShell("$cmd $src");
-    # MSVC cannot be told where to put the output. But we know that it
-    # puts it in the current directory
-    my $msvcout = "./$sbase.i";
-    my @st1 = stat $msvcout;
-    my @st2 = stat $afterpp;
-    while($#st1 >= 0) {
-        if(shift @st1 != shift @st2) {
-#                print "$msvcout is NOT the same as $afterpp\n";
-            if($::verbose) {
-                print "Copying $msvcout to $afterpp\n";
-            }
-            unlink $afterpp;
-            &File::Copy::copy($msvcout, $afterpp);
-            unlink $msvcout;
-            return;
-        }
-    }
-#        print "$msvcout is the same as $afterpp\n";
-}
 
     # MSCL does not understand the extension .i, so we tell it it is a C file
 sub fixupCsources {
@@ -413,30 +529,6 @@ sub fixupCsources {
         push @mod_csources, $src;
     }
     return @mod_csources;
-}
-
-# Now run the real compilation
-sub compile {
-    my($self, @args) = @_;
-    my @mod_csources = &fixupCsources(@{$self->{CFILES}});
-    my $cmd = "cl /nologo /D_MSVC /c " .
-        join(' ', @args) . " " .
-            join(' ', @{$self->{CCARGS}}) . " " . 
-                join(' ', @mod_csources) . " " . 
-                    $self->{OUTARG};
-    $self->runShell($cmd);
-}
-
-sub link {
-    my($self, @args) = @_;
-    my $cmd = "cl /nologo /D_MSVC " .
-        join(' ', @args) .  " " .
-            join(' ', @{$self->{CCARGS}}) . " " . 
-            join(' ', @{$self->{LINKARGS}}) . " " .
-                join(' ', @{$self->{CFILES}}) . " " .
-                    join(' ', @{$self->{OFILES}}) . 
-                        " " . $self->{OUTARG};
-    $self->runShell($cmd);
 }
 
 
@@ -502,6 +594,9 @@ sub new {
     my $self = 
     { NAME => 'Microsoft linker',
       MODENAME => 'mslink',
+      CC => 'no_compiler_in_mslink_mode',
+      CPP => 'no_compiler_in_mslink_mode',
+      LD => 'cl /nologo',
       DEFARG  => " ??DEFARG",
       INCARG  => " ??INCARG",
       DEBUGARG => "/DEBUG",
@@ -530,18 +625,6 @@ sub forceIncludeArg {  # Same as for CL
 }
 
 
-# Compile and link
-sub link {
-    my($self, @args) = @_;
-    my $cmd = "cl /nologo /D_MSVC " . join(' ', @args) . " " .
-        join(' ', @{$self->{PPARGS}}) . " " .
-            join(' ', @{$self->{CFILES}}) . " " . 
-                join(' ', @{$self->{OFILES}}) . 
-                    " /link " . $self->{OUTARG} . " " .
-                        join(' ', @{$self->{LINKARGS}}) ;
-    $self->runShell($cmd);
-}
-
 
 sub linkOutputFile {
     my($self, $src) = @_;
@@ -569,6 +652,9 @@ sub new {
     my $self = 
     { NAME => 'GNU CC',
       MODENAME => 'gcc',  # do not change this since it is used in code
+      CC => "gcc -D_GNUCC -c ",
+      LD => "gcc -D_GNUCC",
+      CPP => "gcc -D_GNUCC -P",
       DEFARG  => "-D",
       INCARG => "-I",
       DEBUGARG => "-g",
@@ -580,10 +666,12 @@ sub new {
       EXEEXT => "",
       OUTOBJ => "-o ",
       OUTEXT => "-o ",
+      OUTCPP => "-o ",
       LINEPATTERN => "^#\\s+(\\d+)\\s+\"(.+)\"",
       
       OPTIONS => 
-          [ "[^-].*\\.(c|i|cpp|cc)" => { TYPE => 'CSOURCE' },
+          [ "[^-].*\\.(c|cpp|cc)" => { TYPE => 'CSOURCE' },
+            "[^-].*\\.i" => { TYPE => 'ISOURCE' },
             "[^-]" => { TYPE => 'OSOURCE' },
             "-[DI]" => { ONEMORE => 1, TYPE => "PREPROC" },
             "-include" => { ONEMORE => 1, TYPE => "PREPROC" },  # sm
@@ -616,30 +704,6 @@ sub forceIncludeArg {
     return "-include $what";
 }
 
-sub cpp {
-    my ($self, $src, $afterpp) = @_;
-    my $cmd = "gcc -E -D_GNUCC " .
-        join(' ', @{$self->{PPARGS}}) . " -o $afterpp";
-    $self->runShell("$cmd $src");
-}
-
-sub compile {
-    my ($self, @args) = @_;
-    my $cmd = "gcc -D_GNUCC -c " . join(' ', @args) .  " " .
-        join(' ', @{$self->{CCARGS}}) . " " . 
-            join(' ', @{$self->{CFILES}}) . " " . $self->{OUTARG};
-    $self->runShell($cmd);
-}
-
-sub link {
-    my ($self, @args) = @_;
-    my $cmd = "gcc -D_GNUCC " . join(' ', @args) .  " " .
-        join(' ', @{$self->{CCARGS}}) . " " . 
-            join(' ', @{$self->{CFILES}}) .  " " . 
-                join(' ', @{$self->{OFILES}}) .  " " .  
-                    join(' ', @{$self->{LINKARGS}}) . " " . $self->{OUTARG};;
-    $self->runShell($cmd);
-}
 
 # Emit a line # directive
 sub lineDirective {
@@ -688,6 +752,7 @@ sub version {
 1;
 
 
+__END__
 
 
 
