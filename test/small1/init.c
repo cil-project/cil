@@ -6,6 +6,7 @@ char usages[] = "Usage string";
 
 char *null = (void*)0;
 
+
 typedef struct s {
   char *name;
   int   data;
@@ -35,6 +36,9 @@ typedef struct {
 } NESTED;
 
 NESTED glob1;
+
+int glob3;
+int * glob2 = & glob3;
 
 int afunc(void) {
   NESTED loc1;

@@ -37,7 +37,8 @@ let doFile (fl: file) : file =
         (* Leave alone all other globals *)
     | g -> g
   in
-  let newfile = {fl with globals = List.map doGlobal fl.globals} in
+  let newglobals = List.map doGlobal fl.globals in (* Do this first *)
+  let newfile = {fl with globals = newglobals} in
   if !Util.doCheck then begin
     ignore (E.log "Checking after globinit\n");
     Check.checkFile [] newfile

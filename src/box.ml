@@ -101,7 +101,8 @@ let rec isInteger = function
   (* We collect here the new file *)
 let theFile : global list ref = ref []
 
-let checkFunctionDecls : global list ref = ref []
+let checkFunctionDecls : global list ref 
+    = ref [GText("#define WILD\n#define FSEQ\n#define SAFE")]
 
 (**** Make new types ****)
 
@@ -2285,7 +2286,7 @@ let initializeVar (mkivar: unit -> varinfo)
  * we must consider the effect of "defaultIsWild" *)
 let preamble () = 
   (* Define WILD away *)
-  theFile := GText("#define WILD\n#define FSEQ") :: !checkFunctionDecls;
+  theFile := !checkFunctionDecls;
   (** Create some more fat types *)
   ignore (fixupType (TPtr(TInt(IChar, []), [AId("wild")])));
 (*  ignore (fixupType (TPtr(TInt(IChar, [AId("const")]), [AId("wild")]))); *)
@@ -2474,16 +2475,13 @@ let boxFile file =
     | Some g -> begin
         match !theFile with
           GFun(gi, _) :: rest -> 
-            theFile := rest; (* Take out the global initializer *)
+            theFile := rest; (* Take out the global initializer (last thing 
+                                added) *)
             Some gi
         | _ -> E.s (E.bug "box: Cannot find global initializer\n")
     end
   in
   let res = List.rev (!theFile) in
-   (* Now do the global initializer *)
-  (match file.globinit with
-    None -> ()
-  | Some g -> doGlobal (GFun(g, locUnknown)));
   (* Clean up global hashes to avoid retaining garbage *)
   H.clear hostsOfBitfields;
   H.clear typeNames;
