@@ -299,7 +299,7 @@ $TEST->addTests("testrun/voidarg", "", ['cil']);
 $TEST->addTests("testrun/union2", "", ['cil']);
 $TEST->addTests("testrun/union3", "", ['cil']);
 $TEST->addTests("test/cpp-2", "", ['cil']);
-   $TEST->addBadComment("test/cpp-2", 
+   $TEST->addBadComment("test/cpp-2-cil", 
                         "Bug in parser (empty pragmas)");
 
 if($^O eq 'MsWin32') {
