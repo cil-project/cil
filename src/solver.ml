@@ -261,10 +261,10 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       List.iter (fun e ->
         if e.ekind = ECompat then begin
           let old_flags = e.efrom.flags in 
-          setFlag e.efrom (e.eto.flags ) ;
+          setFlag e.efrom e.eto.flags ;
           finished := !finished && (old_flags = e.efrom.flags) ;
           let old_flags = e.eto.flags in 
-          setFlag e.eto (e.efrom.flags ) ;
+          setFlag e.eto e.efrom.flags ;
           finished := !finished && (old_flags = e.eto.flags)
         end
       ) (cur.pred @ cur.succ) ;
@@ -273,8 +273,8 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       List.iter (fun e -> 
         if e.ekind = ECast (* || e.ekind = ECompat *) then begin
           let old_flags = e.efrom.flags in 
-            setFlag e.efrom (cur.flags land pkCastPredFlags) ;
-            finished := !finished && (old_flags = e.efrom.flags)
+          setFlag e.efrom (cur.flags land pkCastPredFlags) ;
+          finished := !finished && (old_flags = e.efrom.flags)
         end
       ) cur.pred ;
 
@@ -282,8 +282,13 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       List.iter (fun e -> 
         if e.ekind = ECast (* || e.ekind = ECompat *) then begin
           let old_flags = e.eto.flags in 
-            setFlag e.eto (cur.flags land pkCastSuccFlags) ;
-            finished := !finished && (old_flags = e.eto.flags)
+          setFlag e.eto (cur.flags land pkCastSuccFlags) ;
+          (* If we see a cast to a TPtr(TVoid) node we propagate the pkArith 
+           * and pkPosArith flags *)
+          (match unrollType e.eto.btype with
+            TVoid _ -> setFlag e.eto (cur.flags land (pkArith lor pkPosArith))
+          | _ -> ());
+          finished := !finished && (old_flags = e.eto.flags)
         end
       ) cur.succ ;
 

@@ -99,6 +99,8 @@
 #ifdef CCURED
   #pragma boxpoly("__endof")
   void *__endof(void *);
+  #pragma boxpoly("ccured_kind_of")
+  char *  ccured_kind_of(void *);
   #pragma boxalloc("malloc", nozero, sizein(1))
   #pragma boxalloc("alloca", nozero, sizein(1))
   #pragma boxalloc("calloc", zero, sizemul(1,2))

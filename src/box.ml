@@ -45,8 +45,6 @@ let matchPolyName (lookingfor: string) (lookin: string) =
     loop 1
   else lookin = lookingfor
 
-let theMemcpyFun : varinfo option ref = ref None
-
 (**** Stuff that we use while converting to new CIL *)
 let mkSet (lv:lval) (e: exp) : stmt 
     = mkStmtOneInstr (Set(lv, e, !currentLoc))
@@ -639,21 +637,6 @@ let pkQualName (pk: N.opointerkind)
 (****** the CHECKERS ****)
 
 
-let memcpyWWWFun =   
-  let fdec = emptyFunction "memcpy_www" in
-  let argd  = makeVarinfo "dest" !wildpVoidType in
-  let args  = makeVarinfo "src" !wildpVoidType in
-  let argl  = makeVarinfo "len" uintType in
-  fdec.svar.vtype <- TFun(!wildpVoidType, [ argd; args; argl ], false, []);
-  (* Do not add this to the declarations because the type of the arguments 
-   * does not make sense  *)
-  (* sm: I think they make sense.. and the decl is needed if this fn is called.. *)
-  (* sm: I see.. at this point wildpVoidType is still 'void' so it doesn't work *)
-  (*
-  checkFunctionDecls :=
-     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
-  *)
-  fdec
 
 let mallocFun = 
   let fdec = emptyFunction "malloc" in
@@ -1368,13 +1351,8 @@ let preamble () =
   theFile :=
      (consGlobal (GText ("#include \"safec.h\"\n"))
        (consGlobal (GText ("// Include the definition of the checkers\n"))
-         (consGlobal (GText (
-             (* sm: my god but this is an ugly hack, isn't it?  I couldn't find another way.. *)
-             "/* wildp_void memcpy_www(wildp_void dest,\n" ^
-             "                      wildp_void src,\n" ^
-             "                      unsigned int size); */ // hack\n"))
-           startFile
-       )))
+         startFile
+       ))
 
 
 (**** Make a pointer type of a certain kind *)
@@ -3276,14 +3254,6 @@ end
 
 let unsafeVisitor = new unsafeVisitorClass
 
-(*** Intercept some function calls *****)
-let interceptCall 
-    (reso: lval option)
-    (func: exp)
-    (args: exp list) : stmt = 
-  call reso func args
-                 
-
 
     (************* STATEMENTS **************)
 let rec boxblock (b: block) : block = 
@@ -3498,7 +3468,7 @@ and boxinstr (ins: instr) : stmt clist =
         in
         let finishcall = 
           match vio with 
-            None -> single (call None f' args')
+            None -> interceptCall None f' args'
 
           | Some destlv -> begin
               (* Always put the result of the call in a temporary variable so 
@@ -3520,7 +3490,7 @@ and boxinstr (ins: instr) : stmt clist =
               (* Now do the call itself *)
               let thecall = 
                 match isallocate with
-                  None -> single (interceptCall (Some (var tmp)) f' args')
+                  None -> interceptCall (Some (var tmp)) f' args'
                 | Some ai -> pkAllocate ai (var tmp) f' args'
               in
               (* Now use boxinstr to do the code after Call properly *)
@@ -3570,6 +3540,44 @@ and boxinstr (ins: instr) : stmt clist =
     single (mkStmtOneInstr (dInstr (dprintf "booo_instruction(%a) at %t" 
                                       d_instr ins d_thisloc) !currentLoc))
   end
+
+
+(*** Intercept some function calls *****)
+and interceptCall 
+    (reso: lval option)
+    (func: exp)
+    (args: exp list) : stmt clist = 
+(*  try
+    match func with
+      Lval(Var fv, NoOffset) -> 
+        ignore (E.log "intercepted call to %s\n" fv.vname);
+        if matchPolyName "ccured_kind_of" fv.vname then begin
+          match reso with
+            None -> empty
+          | Some dest -> begin
+              let kndstr = 
+                match args with 
+                  [ a ] -> 
+                    sprint 80 (N.d_opointerkind () (kindOfType (typeOf a)))
+                | _ -> begin
+                    ignore (warn "Invalid call to %s\n" fv.vname);
+                    "scalar"
+                end
+              in
+              let (_, dostr, knd) = boxexp (CastE(typeOfLval dest, 
+                                                  Const(CStr(kndstr)))) in
+              CConsR (dostr, 
+                      mkStmtOneInstr
+                        (Set(dest, knd, !currentLoc)))
+          end 
+        end else
+          raise Not_found
+
+    | _ -> raise Not_found
+  with Not_found -> *)
+    single (call reso func args)
+                 
+
 
 (* Given an lvalue, generate all the stuff needed to construct a pointer to 
  * it *)
