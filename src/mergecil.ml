@@ -561,6 +561,9 @@ let rec combineTypes (what: combineWhat)
       in
       TFun (newrt, newargs, oldva, addAttributes olda a)
         
+  | TBuiltin_va_list olda, TBuiltin_va_list a -> 
+      TBuiltin_va_list (addAttributes olda a)
+
   | TNamed (oldt, olda), TNamed (t, a) -> 
       matchTypeInfo oldfidx oldt fidx t;
       (* If we get here we were able to match *)
