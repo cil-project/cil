@@ -411,14 +411,13 @@ and typeinfo = {
  Each local or global variable is represented by a unique {!Cil.varinfo}
 structure. A global {!Cil.varinfo} can be introduced with the [GVarDecl] or
 [GVar] or [GFun] globals. A local varinfo can be introduced as part of a
-function definition. 
+function definition {!Cil.fundec}. 
 
  All references to a given global or local variable must refer to the same
-copy of the [varinfo]. Each [varinfo] has a unique identifier that can be used
-to index maps and hashtables (the name can also be used for this purpose). 
-The identifier for globals is constructed by using a global counter and is 
-always negative. The identifier for locals is an integer between 0 and the
-number of locals in the function. 
+copy of the [varinfo]. Each [varinfo] has a globally unique identifier that 
+can be used to index maps and hashtables (the name can also be used for this 
+purpose, except for locals from different functions). This identifier is 
+constructer using a global counter.
 
  It is very important that you construct [varinfo] structures using only one
  of the following functions:
@@ -429,7 +428,8 @@ will be generated so that to avoid conflict with other locals.
 exact name to be used. 
 - {!Cil.makeFormalVar} : make a new formal argument. This is added
 both to the formal arguments and to the locals of the host function. 
-
+- {!Cil.copyVarinfo}: make a shallow copy of a varinfo assigning a new name 
+and a new unique identifier
 
  A [varinfo] is also used in a function type to denote the list of formals. 
 
@@ -461,11 +461,10 @@ and varinfo = {
     (** Location of variable declaration. Not yet implemented. *)
 
     mutable vid: int;  
-    (** A unique integer identifier. For globals this is negative and is 
-     * assigned based on a global counter in the Cil module. Locals are 
-     * numbered from 0 starting with the formal arguments. This field will be 
+    (** A unique integer identifier. This field will be 
      * set for you if you use one of the {!Cil.makeFormalVar}, 
-     * {!Cil.makeLocalVar}, {!Cil.makeTempVar} or {!Cil.makeGlobalVar}. *)
+     * {!Cil.makeLocalVar}, {!Cil.makeTempVar}, {!Cil.makeGlobalVar}, or 
+     * {!Cil.copyVarinfo}. *)
 
     mutable vaddrof: bool;              
     (** True if the address of this variable is taken. CIL will set these 
@@ -1255,10 +1254,12 @@ val typeSigAttrs: typsig -> attributes
 (*********************************************************)
 (**  LVALUES *)
 
-(** Make a varinfo. Use this to make a raw varinfo. Use other functions to 
- * make locals ({!Cil.makeLocalVar} or {!Cil.makeFormalVar} or 
- * {!Cil.makeTempVar}) and globals ({!Cil.makeGlobalVar}) *)
-val makeVarinfo: string -> typ -> varinfo
+(** Make a varinfo. Use this (rarely) to make a raw varinfo. Use other 
+ * functions to make locals ({!Cil.makeLocalVar} or {!Cil.makeFormalVar} or 
+ * {!Cil.makeTempVar}) and globals ({!Cil.makeGlobalVar}). Note that this 
+ * function will assign a new identifier. The first argument specifies 
+ * whether the varinfo is for a global. *)
+val makeVarinfo: bool -> string -> typ -> varinfo
 
 (** Make a formal variable for a function. Insert it in both the sformals 
     and the type of the function. You can optionally specify where to insert 
@@ -1282,6 +1283,8 @@ val makeTempVar: fundec -> ?name: string -> typ -> varinfo
     is unique *) 
 val makeGlobalVar: string -> typ -> varinfo
 
+(** Make a shallow copy of a [varinfo] and assign a new identifier *)
+val copyVarinfo: varinfo -> string -> varinfo
 
 (** Add an offset at the end of an lvalue. Make sure the type of the lvalue 
  * and the offset are compatible. *)

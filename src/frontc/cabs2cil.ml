@@ -454,8 +454,7 @@ let alphaConvertVarAndAddToEnv (addtoenv: bool) (vi: varinfo) : varinfo =
     if vi.vglob || vi.vname = newname then 
       vi 
     else 
-      {vi with vname = newname; 
-               vid = if vi.vglob then H.hash newname else vi.vid} 
+      copyVarinfo vi newname
   in
   if not vi.vglob then
     locals := newvi :: !locals;

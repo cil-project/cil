@@ -80,7 +80,12 @@ let varNamesEnv : (string, unit) H.t = H.create 117
 
   (* We also keep a map of variables indexed by id, to ensure that only one 
    * varinfo has a given id *)
-let varIdsEnv : (int, varinfo) H.t = H.create 117
+let varIdsEnv: (int, varinfo) H.t = H.create 117
+
+  (* And keep track of all varinfo's to check the uniqueness of the 
+   * identifiers *)
+let allVarIds: (int, varinfo) H.t = H.create 117
+
  (* Also keep a list of environments. We place an empty string in the list to 
   * mark the start of a local environment (i.e. a function) *)
 let varNamesList : (string * int) list ref = ref []
@@ -95,17 +100,16 @@ let defineVariable vi =
   defineName vi.vname;
   varNamesList := (vi.vname, vi.vid) :: !varNamesList;
   (* Check the id *)
-  if vi.vglob then 
-    if vi.vid >= 0 then 
-      ignore (warn "Id of global %s should be negative. It is %d\n"
-                vi.vname vi.vid);
-  if H.mem varIdsEnv vi.vid then
+  if H.mem allVarIds vi.vid then
     ignore (warn "Id %d is already defined (%s)\n" vi.vid vi.vname);
+  H.add allVarIds vi.vid vi;
+  (* And register it in the current scope also *)
   H.add varIdsEnv vi.vid vi
 
 (* Check that a varinfo has already been registered *)
 let checkVariable vi = 
   try
+    (* Check in the current scope only *)
     if vi != H.find varIdsEnv vi.vid then
       ignore (warnContext "varinfos for %s not shared\n" vi.vname);
   with Not_found -> 
@@ -900,6 +904,7 @@ let checkFile flags fl =
   H.clear typeDefs;
   H.clear varNamesEnv;
   H.clear varIdsEnv;
+  H.clear allVarIds;
   H.clear compNames;
   H.clear compUsed;
   H.clear enumUsed;

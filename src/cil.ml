@@ -334,13 +334,7 @@ and varinfo = {
 
     mutable vdecl: location;            (** Location of variable declaration *)
 
-    mutable vid: int;  (** A unique integer identifier. For globals this is a 
-                           hash of the name. Locals are numbered from 0 
-                           starting with the formal arguments. This field 
-                           will be set for you if you use one of the 
-                           {!Cil.makeFormalVar}, {!Cil.makeLocalVar}, 
-                           {!Cil.makeTempVar} or 
-                           {!Cil.makeGlobalVar}.  *)
+    mutable vid: int;  (** A unique integer identifier.  *)
     mutable vaddrof: bool;              (** True if the address of this
                                             variable is taken. CIL will set 
                                          * these flags when it parses C, but 
@@ -864,8 +858,8 @@ let rec get_stmtLoc (statement : stmtkind) =
                  else get_stmtLoc ((List.hd b.bstmts).skind)
 
 
-(* The next variable identifier to use. Counts down *)
-let nextGlobalVID = ref (-1)
+(* The next variable identifier to use. Counts up *)
+let nextGlobalVID = ref 1
 
 (* The next compindo identifier to use. Counts up. *)
 let nextCompinfoKey = ref 1
@@ -3131,24 +3125,31 @@ let _ =
 
 
    (* Make a varinfo. Used mostly as a helper function below  *)
-let makeVarinfo name typ =
-  (* Strip const from type *)
-  { vname = name;
-    vid   = 0;
-    vglob = false;
-    vtype = typeRemoveAttributes ["const"] typ;
-    vdecl = lu;
-    vinline = false;
-    vattr = [];
-    vstorage = NoStorage;
-    vaddrof = false;
-    vreferenced = false;    (* sm *)
-  } 
+let makeVarinfo global name typ =
+  (* Strip const from type for locals *)
+  let vi = 
+    { vname = name;
+      vid   = !nextGlobalVID;
+      vglob = global;
+      vtype = if global then typ else typeRemoveAttributes ["const"] typ;
+      vdecl = lu;
+      vinline = false;
+      vattr = [];
+      vstorage = NoStorage;
+      vaddrof = false;
+      vreferenced = false;    (* sm *)
+    } in
+  incr nextGlobalVID;
+  vi
+      
+let copyVarinfo (vi: varinfo) (newname: string) : varinfo = 
+  let vi' = {vi with vname = newname; vid = !nextGlobalVID } in
+  incr nextGlobalVID;
+  vi'
 
 let makeLocal fdec name typ = (* a helper function *)
   fdec.smaxid <- 1 + fdec.smaxid;
-  let vi = makeVarinfo name typ in
-  vi.vid <- fdec.smaxid;
+  let vi = makeVarinfo false name typ in
   vi
   
    (* Make a local variable and add it to a function *)
@@ -3225,18 +3226,7 @@ let makeFormalVar fdec ?(where = "$") name typ : varinfo =
    (* Make a global variable. Your responsibility to make sure that the name
     * is unique *)
 let makeGlobalVar name typ =
-  let vi = { vname = name;
-             vid   = !nextGlobalVID;
-             vglob = true;
-             vtype = typ;
-             vinline = false;
-             vdecl = lu;
-             vattr = [];
-             vstorage = NoStorage;
-             vaddrof = false;
-             vreferenced = false;    (* sm *)
-           }  in
-  decr nextGlobalVID; (* Keep the VID negative for globals *)
+  let vi = makeVarinfo false name typ in
   vi
 
 
@@ -5189,7 +5179,7 @@ let initCIL () =
   upointType := TInt(findIkind true !theMachine.M.sizeof_ptr, []);
   typeOfSizeOf := TInt(findIkind true !theMachine.M.sizeof_sizeof, []);
   wcharType := TInt(findIkind false !theMachine.M.sizeof_wchar, []);
-  nextGlobalVID := (-1);
+  nextGlobalVID := 1;
   nextCompinfoKey := 1
     
 
