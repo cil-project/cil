@@ -232,7 +232,8 @@ doc/cilpp.tex: doc/cilcode.pl doc/cil.tex
 	-rm -rf doc/html/cil
 	-mkdir doc/html/cil
 	-mkdir doc/html/cil/examples
-	cd doc; perl cilcode.pl cil.tex >cilpp.tex
+	cd doc; perl cilcode.pl cil.tex >cilpp.tex.tmp
+	mv doc/cilpp.tex.tmp $@
 
 # Documentation generated from latex files using "hevea"
 texdoc: doc/cilpp.tex
