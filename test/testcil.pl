@@ -89,6 +89,7 @@ $TEST->add3Tests("test/init");
 $TEST->add3Tests("test/initial", "_GNUCC=1");
 $TEST->add3Tests("test/jmp_buf");
 $TEST->add3Tests("test/linux_atomic");
+$TEST->add3Tests("test/li");
 $TEST->add3Tests("test/list");
 $TEST->add3Tests("test/pointers");
 $TEST->add3Tests("test/printf", "", @runpattern);
