@@ -30,12 +30,6 @@ BEGIN {
         $CilCompiler::base . 
             ($CilCompiler::mtime_asm >= $CilCompiler::mtime_byte 
              ? ".asm.exe" : ".byte.exe");
-    # For some strange reason on Windows the bytecode versions must be passed
-    # as an argument to themselves
-    if($^O eq 'MSWin32' && 
-       ($CilCompiler::mtime_asm < $CilCompiler::mtime_byte)) {
-        $CilCompiler::compiler .= " " . $CilCompiler::compiler;
-    }
 }
 
 

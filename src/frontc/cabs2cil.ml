@@ -463,11 +463,17 @@ let newVarId name isglobal =
 
 (* Add a new variable. Do alpha-conversion if necessary *)
 let alphaConvertVarAndAddToEnv (addtoenv: bool) (vi: varinfo) : varinfo = 
+  (* Announce the name to the alpha conversion table *)
   let newname = newAlphaName (addtoenv && vi.vglob) "" vi.vname in
+  (* Make a copy of the vi if the name has changed. Never change the name for 
+   * global variables *)
   let newvi = 
-    if vi.vname = newname then vi else 
-    {vi with vname = newname; 
-             vid = if vi.vglob then H.hash newname else vi.vid} in
+    if vi.vglob || vi.vname = newname then 
+      vi 
+    else 
+      {vi with vname = newname; 
+               vid = if vi.vglob then H.hash newname else vi.vid} 
+  in
   if not vi.vglob then
     locals := newvi :: !locals;
 
@@ -1210,9 +1216,10 @@ let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
       
     oldvi, true
       
-  with Not_found -> begin (* A new one. It is a definition unless it is 
-                           * Extern  *)
-
+  with Not_found -> begin (* A new one.  *)
+    (* Announce the name to the alpha conversion table. This will not 
+     * actually change the name of the vi. See the definition of 
+     * alphaConvertVarAndAddToEnv *)
     alphaConvertVarAndAddToEnv true vi, false
   end 
 

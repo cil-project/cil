@@ -46,7 +46,7 @@
   #              must be linked
   # EXECUTABLE - the name of the executable to create
   # CAMLLIBS   - a list of CAML libraries to use. 
-  #              For each, will add %.$(CMXZ) -cclibs -l%
+  #              For each, will add %.$(CMXA) -cclib -l%
   # EXTRACLEAN - additional things to pass to "rm" for the "clean" target
 CAMLLEX = ocamllex
 CAMLYACC= ocamlyacc -v
