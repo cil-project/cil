@@ -1,6 +1,9 @@
 *.cil
 *.cabs
 *.box
+*cured.c
+*_comb.c
+*optim.c
 *.o
 *.obj
 *.exe

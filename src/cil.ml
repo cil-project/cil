@@ -2149,6 +2149,7 @@ let _ =
         Some (text "__asm__(" 
                 ++ docList (chr ',') (d_attrarg ()) () args
                 ++ text ")")
+    | Attr("mode", [AId "__SI__"]) -> Some (text "/* mode(__SI__) */")
     | _ -> None
   in
   setCustomPrintAttribute d_attrcustombase
