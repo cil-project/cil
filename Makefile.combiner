@@ -1,0 +1,34 @@
+# Makefile for the combiner
+# author: George Necula
+
+# Debugging. Set ECHO= to debug this Makefile 
+ECHO = @
+
+
+# First stuff that makes the executable 
+# Define the ARCHOS in your environemt : [x86_LINUX, x86_WIN32, SUNOS]
+
+SOURCEDIRS  = src src/frontc
+OBJDIR      = obj
+MLLS        = clexer.mll
+MLYS        = cparser.mly
+MODULES     = pretty errormsg stats util \
+              cabs cprint combine clexer cparser \
+              maincombiner
+
+EXECUTABLE  = $(OBJDIR)/combiner
+CAMLUSEUNIX = 1
+ifdef RELEASE
+UNSAFE      = 1
+endif
+CAMLLIBS    = 
+
+
+# Additional things to clean
+EXTRACLEAN += $(OBJDIR)/*.obj $(OBJDIR)/*.a $(OBJDIR)/*.o
+
+
+    # Include now the common set of rules for OCAML
+    # This file will add the rules to make $(EXECUTABLE).$(EXE)
+include Makefile.ocaml
+

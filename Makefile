@@ -77,92 +77,6 @@ _GNUCC = 1
 endif
 
 
-#  ##### Settings that depend on the computer we are on
-#  ##### Make sure the COMPUTERNAME environment variable is set
-#  ifeq ($(COMPUTERNAME), tenshi) # Wes's laptop
-#  BASEDIR=/home/weimer/cvs/
-#  OLDPATCH=1
-#  PATCHINCLUDES=1
-#  _GNUCC=1
-#  endif
-#  ifeq ($(COMPUTERNAME), galvatron) # jlee's 
-#  BASEDIR=/home/jlee/summer
-#  _GNUCC=1
-#  USE_GC=1
-#  endif
-#  ifeq ($(COMPUTERNAME), madroneprime) # jlee on madrone
-#  BASEDIR=/home/jlee/research
-#  _GNUCC=1
-#  USE_GC=1
-#  USER_SCOTT=1
-#  endif
-#  ifeq ($(COMPUTERNAME), madrone) # scott's desktop
-#  BASEDIR=/home/scott/wrk/safec
-#  _GNUCC=1
-#  USE_GC=1
-#  USER_SCOTT=1
-#  endif
-#  ifeq ($(COMPUTERNAME), leetch) # scott's laptop
-#  BASEDIR=/home/scott/wrk/safec
-#  _GNUCC=1
-#  USE_GC=1
-#  USER_SCOTT=1
-#  endif
-#  ifeq ($(COMPUTERNAME), seamonkey) # another for scott
-#  BASEDIR=/home/scott/wrk/safec
-#  _GNUCC=1
-#  USE_GC=1
-#  USER_SCOTT=1
-#  endif
-#  ifeq ($(COMPUTERNAME), brooksie_scott) # scott on brooksie
-#  BASEDIR=/home/smcpeak
-#  _GNUCC=1
-#  USE_GC=1
-#  USER_SCOTT=1
-#  endif
-#  
-#  ifeq ($(COMPUTERNAME), fuji) # Rahul's laptop
-#  BASEDIR=/home/sprahul/research
-#  _GNUCC=1
-#  endif
-#  
-#  ifeq ($(COMPUTERNAME), brooksie) # Rahul's desktop
-#  BASEDIR=/home/sprahul/research
-#  _GNUCC=1
-#  endif
-#  ifeq ($(COMPUTERNAME), brooksie_george) # Rahul's desktop, for George
-#  BASEDIR=/home/necula/Source
-#  _GNUCC=1
-#  endif
-#  
-#  ifeq ($(COMPUTERNAME), madrone_danny) # dannys desktop
-#  BASEDIR=/home/dannyant
-#  _GNUCC=1
-#  endif
-#  
-#  ifeq ($(COMPUTERNAME), danny_desk) # dannys desktop
-#  BASEDIR=/home/danny/project
-#  _GNUCC=1
-#  endif
-#  
-#  ifeq ($(COMPUTERNAME), brooksie_raygto) # Rahul's desktop, for Raymond
-#  BASEDIR=/home/raygto/
-#  _GNUCC=1
-#  endif
-#  ifeq ($(COMPUTERNAME), madrone_amanb) # Aman's *top
-#  ifndef BASEDIR
-#  BASEDIR=/home/amanb/safec
-#  endif
-#  _GNUCC=1
-#  USE_GC=1
-#  endif
-#  
-#  ifeq ($(COMPUTERNAME), peecy_amanb_win2k) # Aman's win2k box
-#  ifndef BASEDIR
-#  BASEDIR=e:/aman/cal/research/
-#  endif
-#  _GNUCC=1
-#  endif
 
 PCCDIR=$(CCUREDHOME)/test/PCC
 
@@ -279,8 +193,10 @@ else
 defaulttarget : $(EXECUTABLE)$(EXE) $(SAFECLIB) $(CILLIB)
 endif
 
+combiner:
+	make -f Makefile.combiner RELEASE=$(RELEASE)
 
-setup: defaulttarget includes
+setup: combiner defaulttarget includes
 
 
 
