@@ -585,8 +585,10 @@ let maxCol = ref 0
 let breakAllMode = ref false
 
 (* We are taking a newline and moving left *)
-let newline (abscol: int) =
+let newline () =
   let topalign = List.hd !aligns in (* aligns is never empty *)
+  if debug then
+    fprintf "Taking a newline: reseting gain of %d\n" topalign.gainBreak;
   topalign.gainBreak <- 0;        (* Erase the current break info *)
   if !breakAllMode && !topAlignAbsCol < !maxCol then 
     breakAllMode := false;
@@ -599,20 +601,17 @@ let newline (abscol: int) =
  * align is the top align) *)
 let chooseBestGain () : align option =        
   let bestGain = ref 0 in
-  let breakingAlign: align option ref = ref None in
-  let rec loop = function
-      [] -> ()
+  let rec loop (breakingAlign: align option) = function
+      [] -> breakingAlign
     | a :: resta -> 
-        if debug then
-          fprintf "Looking at align with gain %d\n" a.gainBreak;
+        if debug then fprintf "Looking at align with gain %d\n" a.gainBreak;
         if a.gainBreak > !bestGain then begin
           bestGain := a.gainBreak;
-          breakingAlign := Some a;
-        end;
-        loop resta
+          loop (Some a) resta
+        end else
+          loop breakingAlign resta
   in
-  loop !aligns;
-  !breakingAlign
+  loop None !aligns
 
 
 (* Another one that chooses the break associated with the current align only *)
@@ -625,7 +624,7 @@ let movingRight (abscol: int) : int =
   (* Keep taking the best break until we get back to the left of maxCol or no 
    * more are left *)
   let rec tryAgain abscol = 
-    if abscol < !maxCol then abscol else 
+    if abscol <= !maxCol then abscol else 
     begin
       if debug then
         fprintf "Looking for a break to take in column %d\n" abscol;
@@ -642,9 +641,7 @@ let movingRight (abscol: int) : int =
           let topalign = List.hd !aligns in
           let theGain = breakingAlign.gainBreak in
           assert (theGain > 0);
-          if debug then 
-            fprintf "Taking break at %d. gain=%d\n" 
-              abscol breakingAlign.gainBreak;
+          if debug then fprintf "Taking break at %d. gain=%d\n" abscol theGain;
           breakingAlign.isTaken := true;
           breakingAlign.gainBreak <- 0;
           if breakingAlign != topalign then begin
@@ -678,8 +675,8 @@ let rec scan (abscol: int) (d: doc) : int =
 
   | Align -> pushAlign abscol; abscol
   | Unalign -> popAlign (); abscol 
-  | Line -> (* A forced line break *) newline abscol
-
+  | Line -> (* A forced line break *) newline ()
+ 
 
   | Break -> (* An optional line break. Always a space followed by an 
               * optional line break  *)
@@ -688,12 +685,15 @@ let rec scan (abscol: int) (d: doc) : int =
       let topalign = List.hd !aligns in (* aligns is never empty *)
       if !breakAllMode then begin
         takenref := true;
-        newline abscol 
+        newline ()
       end else begin
         (* If there was a previous break there it stays not taken, forever. 
          * So we overwrite it. *)
         topalign.isTaken <- takenref;
         topalign.gainBreak <- 1 + abscol - !topAlignAbsCol;
+        if debug then
+          fprintf "Registering a break at %d with gain %d\n" 
+            (1 + abscol) topalign.gainBreak;
         movingRight (1 + abscol)
       end
     

@@ -1242,13 +1242,18 @@ gccclean:
 
 gcc: defaulttarget mustbegcc
 	cd $(GCCDIR)/src; \
-            make clean build CC="$(GCCSAFECC) $(CONLY)" \
+            make clean build CC="$(GCCSAFECC) -DCCURED $(CONLY)" \
                              LD="$(GCCSAFECC)" 
 
 gcc-noclean: defaulttarget mustbegcc
 	cd $(GCCDIR)/src; \
-            make       build CC="$(GCCSAFECC) $(CONLY)" \
+            make       build CC="$(GCCSAFECC) -DCCURED  $(CONLY)" \
                              LD="$(GCCSAFECC)" 
+
+gcc-combined: defaulttarget mustbegcc
+	cd $(GCCDIR)/exe/base; \
+            $(SAFECC) cc1.v8_all.c $(GCCEXTRA) \
+                $(EXEOUT)cc1.v8.exe
 
 allcc1: defaulttarget mustbegcc
 	cd $(GCCDIR)/exe/base; $(SAFECC) $(DOOPT) cc1.v8_all.c
