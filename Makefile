@@ -534,6 +534,13 @@ testexe/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
                --patch=../../lib/$(PATCHFILE) \
 	       $(DOOPT) $(EXEOUT)$*.exe $*.c 
 
+
+testrun/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
+	cd $(SMALL1); $(SAFECC)   \
+               --patch=../../lib/$(PATCHFILE) \
+	       $(DOOPT) $(EXEOUT)$*.exe $*.c
+	cd $(SMALL1); $*.exe
+
 # weimer: test, compile and run
 testc/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
 	cd $(SMALL1); $(SAFECC)   \

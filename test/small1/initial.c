@@ -1,5 +1,4 @@
 
-char strange[] = { "several" };
 
 typedef struct {
   int a, b;

@@ -374,7 +374,7 @@ let rec doExp (e: exp) =
       let t', _ = doType t (N.anonPlace ()) 0 in
         (* Construct a new initializer list *)
       let doOneInit (off: offset) (ei: exp) (tei: typ) acc = 
-        (None, doExpAndCast ei tei) :: acc
+        doExpAndCast ei tei :: acc
       in
       let newinitl = List.rev (foldLeftCompound doOneInit t' initl []) in
       Compound (t', newinitl), t', nodeOfType t'

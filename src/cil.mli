@@ -259,10 +259,17 @@ and exp =
                                         * into IfThenElse  *)
   | CastE      of typ * exp            (* Use doCast to make casts *)
 
-                                        (* Used only for initializers of
-                                         * structures and arrays.  *)
-  | Compound   of typ * (offset option * exp) list
-  | AddrOf     of lval                 (* Alpways use mkAddrOf to construct
+                                        (* Used only for initializers of 
+                                         * structures and arrays. For a 
+                                         * structure we have a list of 
+                                         * initializers for a prefix of all 
+                                         * fields, for a union we have 
+                                         * one initializer for the first 
+                                         * field, and for an array we have 
+                                         * some prefix of the initializers  *)
+  | Compound   of typ * exp list
+
+  | AddrOf     of lval                 (* Always use mkAddrOf to construct
                                          * one of these *)
 
   | StartOf    of lval                  (* There is no C correspondent for
@@ -504,6 +511,13 @@ val zero: exp
 val one: exp
 val mone: exp
 
+(* Do constant folding *)
+val constFold: exp -> exp
+
+(* And a special case for binary operations *)
+val constFoldBinOp: binop -> exp -> exp -> typ -> exp
+
+(* Increment an expression. Can be arithmetic or pointer type *) 
 val increm: exp -> int -> exp
 
 val voidType: typ
@@ -798,8 +812,8 @@ val doCastT: e:exp -> oldt:typ -> newt:typ -> exp
 val doCast: e:exp -> newt:typ -> exp (* Like doCastT but use typeOf to get 
                                       * oldt *)  
 
-(*** Make a compound initializer for zeroe-ing a data type ***)
-val makeZeroCompoundInit: typ -> exp
+(*** Make a initializer for zeroe-ing a data type ***)
+val makeZeroInit: typ -> exp
 
 
 (* Fold over the list of initializers in a Compound. doexp is called on every 
@@ -807,7 +821,7 @@ val makeZeroCompoundInit: typ -> exp
 val foldLeftCompound: 
     (doexp: offset -> exp -> typ -> 'a -> 'a) ->
      ct: typ ->
-    initl: (offset option * exp) list ->
+    initl: exp list ->
     acc: 'a -> 'a
 
 

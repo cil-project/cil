@@ -1328,143 +1328,17 @@ and doExp (isconst: bool)    (* In a constant *)
           (* This is not intended to be a constant. It can have expressions 
            * with side-effects inside *)
         | A.CONST_COMPOUND initl -> begin
-            let slist : chunk ref = ref empty in
-            let doPureExp t e = 
-              let (se, e', t') = doExp true e (AExp(Some t)) in
-              slist := !slist @@ se;
-              doCastT e' t' t
-            in
-            (* Now recurse to find the complete offset and the type  *)
-            let rec initToOffset (bt: typ) = function
-                A.NO_INIT -> NoOffset, bt
-              | A.INDEX_INIT (ei, i) -> 
-                  let elt = 
-                    match unrollType bt with 
-                      TArray(bt, _, _) -> bt
-                    | _ -> E.s (E.unimp "Index designator for a non-array")
-                  in
-                  let off, t = initToOffset elt i in
-                  Index (doPureExp intType ei, off), t
-
-              | A.FIELD_INIT (fn, i) ->
-                  let fld = 
-                    match unrollType bt with 
-                      TComp comp when comp.cstruct -> begin
-                        try
-                          List.find (fun f -> f.fname = fn) comp.cfields
-                        with Not_found ->
-                          E.s (E.unimp "Invalid field designator %s" fn)
-                      end
-                    | _ -> E.s (E.unimp "Field designator %s on a non-struct"
-                                  fn)
-                  in 
-                  let off, t = initToOffset fld.ftype i in
-                  Field (fld, off), t
-            in
-            let rec initFields (allflds: fieldinfo list) 
-                               (nextflds: fieldinfo list) 
-                               (initl: (A.init * A.expression) list) 
-                  : (offset option * exp) list = 
-              match initl with 
-                [] -> [] (* Leave remaining fields uninitialized *)
-              | (i, ie) :: restinitl ->
-                  let nextfields, thisoffset, thisexpt = 
-                    match i with
-                      A.NO_INIT -> begin
-                        match nextflds with
-                          [] -> E.s (E.unimp "Too many initializers")
-                        | x :: xs -> xs, None, x.ftype
-                      end
-                    | A.INDEX_INIT _ -> 
-                        E.s (E.unimp "INDEX designator for struct")
-                    | A.FIELD_INIT (fn, i') -> 
-                        let rec findField = function
-                            [] -> E.s 
-                                (E.unimp "Cannot find designated field %s"
-                                   fn)
-                          | f :: restf when f.fname = fn -> 
-                              let off, t = initToOffset f.ftype i' in
-                              restf, Some (Field(f, off)), t
-
-                          | _ :: restf -> findField restf
-                        in
-                        findField allflds
-                  in
-                  (* Now do the expression *)
-                  let ie' = doPureExp thisexpt ie in
-                  (thisoffset, ie') :: 
-                  initFields allflds nextfields restinitl
-            in
-            let rec initArray (elt: typ)   (* The element type *)
-                              (nextidx: exp) 
-                              (initl: (A.init * A.expression) list)
-                     (* Return also the nextidx *)
-                : (offset option * exp) list * exp = 
-              let incrementIdx = function
-                  Const(CInt(n, ik, _)) -> Const(CInt(n + 1, ik, None))
-                | e -> BinOp(PlusA, e, one, intType)
-              in
-              match initl with
-                [] -> [], nextidx
-              | (i, ie) :: restinitl -> begin
-                  (* If the element type is Char and the initializer is a 
-                   * string literal, split the string into characters, 
-                   * including the terminal 0 *)
-                  match unrollType elt, ie with 
-                    TInt((IChar|ISChar|IUChar), _), 
-                    A.CONSTANT (A.CONST_STRING s) when i = A.NO_INIT ->
-                      let chars = explodeString true s in
-                      let inits' = 
-                        List.map 
-                          (fun c -> 
-                            let cs = String.make 1 c in
-                            let cs = Cprint.escape_string cs in 
-                            (A.NO_INIT, A.CONSTANT (A.CONST_CHAR cs))) chars in
-                      initArray elt nextidx (inits' @ restinitl)
-                  | _ ->   
-                      let nextidx', thisoffset, thisexpt = 
-                        match i with
-                          A.NO_INIT -> 
-                            incrementIdx nextidx, None, elt
-                        | A.FIELD_INIT _ -> 
-                            E.s (E.unimp "FIELD designator for array")
-                        | A.INDEX_INIT (idxe, i') -> 
-                            let idxe' = doPureExp intType idxe in
-                            let off, t = initToOffset elt i' in
-                            incrementIdx idxe', Some (Index(idxe', off)), t
-                      in
-                      (* Now do the initializer *)
-                      let ie'= doPureExp thisexpt ie in
-                      let restoffinits, nextidx''  = 
-                        initArray elt nextidx' restinitl in
-                      (thisoffset, ie') :: restoffinits, nextidx''
-              end
-            in
             match what with (* Peek at the expected return type *)
-              AExp (Some typ) -> begin
-                match unrollType typ with 
-                  TComp comp when comp.cstruct ->  
-                    let offinits = 
-                      initFields comp.cfields comp.cfields initl in
-                    finishExp !slist
-                              (Compound(typ, offinits)) 
-                              typ
-                | TArray(elt,n,a) as oldt -> 
-                    let offinits, nextidx = initArray elt zero initl in
-                    let newt = (* Maybe we have a length now *)
-                      match n with 
-                        None -> TArray(elt, Some(nextidx), a)
-                      | Some _ -> oldt 
-                    in
-                    finishExp !slist 
-                      (Compound(newt, offinits))
-                      newt
-                | _ -> E.s (E.unimp "bad initializer type")
-              end
+              AExp (Some typ) -> 
+                let s, e, t, restinitl = 
+                  doInitializer typ empty [A.NO_INIT, e] in
+                if restinitl <> [] then
+                  E.s (E.warn "Unused initializers\n");
+                finishExp s e t
+
             | _ -> E.s (E.unimp "CONST_COMPUND. Not AExp")
         end
-    end
-          
+    end          
     | A.TYPE_SIZEOF bt -> 
         let typ = doType [] bt in
         finishExp empty (SizeOf(typ)) uintType
@@ -1906,67 +1780,23 @@ and doExp (isconst: bool)    (* In a constant *)
 (* bop is always the arithmetic version. Change it to the appropriate pointer 
  * version if necessary *)
 and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
-  let constFold bop' e1' e2' tres = 
-    if isIntegralType tres then
-      let newe = 
-        let rec mkInt = function
-            Const(CChr c) -> Const(CInt(Char.code c, IInt, None))
-          | CastE(TInt _, e) -> mkInt e
-          | e -> e
-        in
-        match bop', mkInt e1', mkInt e2' with
-          PlusA, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
-            integer (i1 + i2)
-        | MinusA, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
-            integer (i1 - i2)
-        | Mult, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
-            integer (i1 * i2)
-        | Div, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
-            integer (i1 / i2)
-        | Mod, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
-            integer (i1 mod i2)
-        | BAnd, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
-            integer (i1 land i2)
-        | BOr, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
-            integer (i1 lor i2)
-        | BXor, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
-            integer (i1 lxor i2)
-        | Shiftlt, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
-            integer (i1 lsl i2)
-        | Shiftrt, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
-            integer (i1 lsr i2)
-        | Eq, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
-            integer (if i1 = i2 then 1 else 0)
-        | Ne, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
-            integer (if i1 <> i2 then 1 else 0)
-        | Le, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
-            integer (if i1 <= i2 then 1 else 0)
-        | Ge, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
-            integer (if i1 >= i2 then 1 else 0)
-        | Lt, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
-            integer (if i1 < i2 then 1 else 0)
-        | Gt, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
-            integer (if i1 > i2 then 1 else 0)
-        | _ -> BinOp(bop', e1', e2', tres)
-      in
-      tres, newe
-    else
-      tres, BinOp(bop', e1', e2', tres)
-  in
   let doArithmetic () = 
     let tres = arithmeticConversion t1 t2 in
     (* Keep the operator since it is arithmetic *)
-    constFold bop (doCastT e1 t1 tres) (doCastT e2 t2 tres) tres
+    tres, constFoldBinOp bop (doCastT e1 t1 tres) (doCastT e2 t2 tres) tres
   in
   let doArithmeticComp () = 
     let tres = arithmeticConversion t1 t2 in
     (* Keep the operator since it is arithemtic *)
-    constFold bop (doCastT e1 t1 tres) (doCastT e2 t2 tres) intType
+    intType, 
+    constFoldBinOp bop (doCastT e1 t1 tres) (doCastT e2 t2 tres) intType
   in
   let doIntegralArithmetic () = 
     let tres = unrollType (arithmeticConversion t1 t2) in
     match tres with
-      TInt _ -> constFold bop (doCastT e1 t1 tres) (doCastT e2 t2 tres) tres
+      TInt _ -> 
+        tres,
+        constFoldBinOp bop (doCastT e1 t1 tres) (doCastT e2 t2 tres) tres
     | _ -> E.s (E.unimp "%a operator on a non-integer type" d_binop bop)
   in
   let bop2point = function
@@ -1983,8 +1813,9 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
       | _, TPtr(TVoid _, _) -> t1
       | _, _ -> t1
     in
-    constFold (bop2point bop) (doCastT e1 t1 commontype) 
-                              (doCastT e2 t2 commontype) intType
+    intType,
+    constFoldBinOp (bop2point bop) (doCastT e1 t1 commontype) 
+      (doCastT e2 t2 commontype) intType
   in
 
   match bop with
@@ -1998,7 +1829,8 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
       else
         let t1' = integralPromotion t1 in
         let t2' = integralPromotion t2 in
-        constFold bop (doCastT e1 t1 t1') (doCastT e2 t2 t2') t1'
+        t1', 
+        constFoldBinOp bop (doCastT e1 t1 t1') (doCastT e2 t2 t2') t1'
 
   | (PlusA|MinusA) 
       when isArithmeticType t1 && isArithmeticType t2 -> doArithmetic ()
@@ -2006,11 +1838,11 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
       when isArithmeticType t1 && isArithmeticType t2 -> 
         doArithmeticComp ()
   | PlusA when isPointerType t1 && isIntegralType t2 -> 
-      constFold PlusPI e1 (doCastT e2 t2 (integralPromotion t2)) t1
+      t1, constFoldBinOp PlusPI e1 (doCastT e2 t2 (integralPromotion t2)) t1
   | PlusA when isIntegralType t1 && isPointerType t2 -> 
-      constFold PlusPI e2 (doCastT e1 t1 (integralPromotion t1)) t2
+      t2, constFoldBinOp PlusPI e2 (doCastT e1 t1 (integralPromotion t1)) t2
   | MinusA when isPointerType t1 && isIntegralType t2 -> 
-      constFold MinusPI e1 (doCastT e2 t2 (integralPromotion t2)) t1
+      t1, constFoldBinOp MinusPI e1 (doCastT e2 t2 (integralPromotion t2)) t1
   | (MinusA|Le|Lt|Ge|Gt|Eq|Ne) when isPointerType t1 && isPointerType t2 ->
       pointerComparison e1 e2
   | (Eq|Ne) when isPointerType t1 && 
@@ -2083,6 +1915,213 @@ and doPureExp (e : A.expression) : exp =
    E.s (E.unimp "doPureExp: not pure");
   e'
 
+(* Process an initializer. *)
+and doInitializer 
+  (typ: typ) (* expected type *)
+  (acc: chunk) (* Accumulate here the chunk so far *)
+  (initl: (A.init * A.expression) list) (* Some initializers, might consume 
+                                         * one or more *)
+
+    (* Return some statements, the initializer expression with the new type 
+     * (might be different for arrays), and the residual initializers *)
+  : chunk * exp * typ * (A.init * A.expression) list = 
+
+  (* Look at the type to be initialized *)
+   (* ARRAYS *)
+  match unrollType typ with 
+  | TArray(elt,n,a) as oldt -> 
+      (* Grab the length if there is one *)
+      let leno = 
+        match n with
+          None -> None
+        | Some n' -> begin
+            match constFold n' with
+            | Const(CInt(ni, _, _)) -> Some ni
+            | _ -> E.s (E.unimp "Cannot understand the length of the array being initialized\n")
+        end
+      in
+      let rec initArray 
+         (nextidx: int) (* The index of the element to be initialized next *)
+         (sofar: exp list) (* Array elements already initialized, in reverse 
+                            * order  *)
+         (acc: chunk) 
+         (initl: (A.init * A.expression) list)
+                     (* Return the array elements, the nextidx and the 
+                      * remaining initializers *)
+         : chunk * exp list * int * (A.init * A.expression) list = 
+        let isValidIndex (i: int) = 
+          match leno with Some len -> i < len | _ -> true
+        in
+        match initl with
+           (* Check if we are done *)
+        | _ when initl = [] || not (isValidIndex nextidx) ->
+            acc, List.rev sofar, nextidx, initl
+              
+           (* Check if we have a field designator *)         
+        | (A.INDEX_INIT (idxe, A.NO_INIT), ie) :: restinitl ->
+            let nextidx', doidx = 
+              let (doidx, idxe', _) = doExp true idxe (AExp(Some intType)) in
+              match constFold idxe' with
+                Const(CInt(x, _, _)) -> x, doidx
+              | _ -> E.s (E.unimp 
+                       "INDEX initialization designator is not a constant")
+            in
+            if nextidx' < nextidx || not (isValidIndex nextidx') then begin
+              E.s (E.unimp "INDEX init designator is too large (%d >= %d)\n"
+                     nextidx' nextidx);
+            end;
+            (* Initialize with zero the skipped elements *)
+            let rec loop i acc = 
+              if i = nextidx' then acc
+              else loop (i + 1) (makeZeroInit elt :: acc)
+            in
+            (* now recurse *)
+            initArray nextidx' (loop nextidx sofar) 
+              (acc @@ doidx) 
+              ((A.NO_INIT, ie) :: restinitl)
+              
+        (* Now do the regular case *)
+        | (A.NO_INIT, ie) :: restinitl -> begin
+                  (* If the element type is Char and the initializer is a 
+                   * string literal, split the string into characters, 
+                   * including the terminal 0 *)
+            let isStringLiteral : string option = 
+              match ie with
+                A.CONSTANT (A.CONST_STRING s) -> Some s
+                 (* The string literal may be enclosed in braces *)
+              | A.CONSTANT (A.CONST_COMPOUND 
+                              [(A.NO_INIT, 
+                                A.CONSTANT (A.CONST_STRING s))]) 
+                -> Some s
+              | _ -> None
+            in
+            match unrollType elt, isStringLiteral with 
+              TInt((IChar|ISChar|IUChar), _), Some s -> 
+                let chars = explodeString true s in
+                let inits' = 
+                  List.map 
+                    (fun c -> 
+                      let cs = String.make 1 c in
+                      let cs = Cprint.escape_string cs in 
+                      (A.NO_INIT, A.CONSTANT (A.CONST_CHAR cs))) chars in
+                initArray nextidx sofar acc (inits' @ restinitl)
+            | _ ->   
+                (* Recurse and consume some initializers for the purpose of 
+                 * initializing one element *)
+                ignore (E.log "Do the array init for %d\n" nextidx);
+                let acc', ie', _, initl' = doInitializer elt acc initl in
+                (* And continue with the array *)
+                initArray (nextidx + 1) 
+                  (ie' :: sofar) 
+                  acc'
+                  initl'
+        end
+        | _ -> E.s (E.unimp "Invalid designator in initialization of array")
+      in
+      (* Maybe the first initializer is a compound, then that is the 
+       * initializer for the entire array *)
+      let acc', inits, nextidx, restinitl = 
+        match initl with
+          (A.NO_INIT, A.CONSTANT (A.CONST_COMPOUND initl_e)) :: restinitl -> 
+            let acc', inits, nextidx, rest' = 
+              initArray 0 [] acc initl_e in
+            if rest' <> [] then
+              E.s (E.warn "Unused initializers\n");
+            acc', inits, nextidx, restinitl
+        | _ -> initArray 0 [] acc initl 
+      in
+      let newt = (* Maybe we have a length now *)
+        match n with 
+          None -> TArray(elt, Some(integer nextidx), a)
+        | Some _ -> oldt 
+      in
+      acc', Compound(newt, inits), newt, restinitl
+  (* STRUCT or UNION *)
+  | TComp comp ->  
+      let rec initStructUnion
+         (nextflds: fieldinfo list) (* Remaining fields *)
+         (sofar: exp list) (* The initializer expressions so far, in reverse 
+                          * order *)
+         (acc: chunk)
+         (initl: (A.init * A.expression) list) 
+       
+          (* Return the list of initializer expressions and the remaining 
+           * initializers  *)
+         : chunk * exp list * (A.init * A.expression) list = 
+        match initl with
+          (* Check if we are done *)
+        | _ when 
+          (initl = [] || nextflds = [] ||
+                 (* For unions only the first field is initialized *)
+            (not comp.cstruct && List.length sofar = 1)) -> 
+              acc, List.rev sofar, initl
+
+          (* Check if we have a field designator *)
+        | (A.FIELD_INIT (fn, A.NO_INIT), ie) :: restinitl when comp.cstruct ->
+            let nextflds', sofar' = 
+              let rec findField (sofar: exp list) = function
+                  [] -> E.s 
+                      (E.unimp "Cannot find designated field %s"  fn)
+                | f :: restf when f.fname = fn -> 
+                    f :: restf, sofar
+                      
+                | f :: restf -> 
+                    findField (makeZeroInit f.ftype :: sofar) restf
+              in
+              findField sofar nextflds 
+            in
+            (* Now recurse *)
+            initStructUnion nextflds' sofar' 
+              acc
+              ((A.NO_INIT, ie) :: restinitl)
+
+           (* Now the regular case *)
+         
+        | (A.NO_INIT, _) :: _  ->
+            let nextflds', thisexpt = 
+              match nextflds with
+                [] -> E.s (E.unimp "Too many initializers")
+              | x :: xs -> 
+                  ignore (E.log "Do the comp init for %s\n" x.fname);
+                  xs, x.ftype
+            in
+             (* Now do the expression. Give it a chance to consume some 
+              * initializers  *)
+            let acc', ie', _, initl' = doInitializer thisexpt acc initl in
+             (* And continue with the remaining fields *)
+            initStructUnion nextflds' (ie' :: sofar) acc' initl'
+
+           (* And the error case *)
+        | (A.INDEX_INIT _, _) :: _ -> 
+            E.s (E.unimp "INDEX designator in struct\n");
+        | _ -> E.s (E.unimp "Invalid designator for struct")
+      in
+      (* Maybe the first initializer is a compound, then that is the 
+       * initializer for the entire array *)
+      let acc', inits, restinitl = 
+        match initl with
+          (A.NO_INIT, A.CONSTANT (A.CONST_COMPOUND initl_e)) :: restinitl -> 
+            let acc', inits, rest' = 
+              initStructUnion comp.cfields [] acc initl_e in
+            if rest' <> [] then
+              E.s (E.warn "Unused initializers\n");
+            acc', inits, restinitl
+        | _ -> initStructUnion comp.cfields [] acc initl 
+      in
+      acc', Compound(typ, inits), typ, restinitl
+
+   (* REGULAR TYPE *)
+  | typ' -> begin
+      match initl with 
+        (A.NO_INIT, oneinit) :: restinitl -> 
+          let se, init', t' = doExp true oneinit (AExp(Some typ')) in
+          (se @@ acc), doCastT init' t' typ', typ', restinitl
+      | _ -> E.s (E.unimp "Cannot find the initializer\n")
+  end
+
+
+
+
 
 and createGlobal ((_,_,(n,nbt,a,e)) as sname : A.single_name) =
   try
@@ -2093,37 +2132,16 @@ and createGlobal ((_,_,(n,nbt,a,e)) as sname : A.single_name) =
       if e = A.NOTHING then 
         None
       else 
-        let (se, e', et) = doExp true e (AExp (Some vi.vtype)) in
+        let se, e', et, restinitl = 
+          doInitializer vi.vtype empty [ (A.NO_INIT, e) ] in
+        if restinitl <> [] then
+          E.s (E.bug "Unused initializer in createGlobal\n");
+        (* Maybe we now have a better type *)
+        vi.vtype <- et;
         if isNotEmpty se then 
           E.s (E.unimp "global initializer");
-        let (_, e'') = castTo et vi.vtype e' in
-        match vi.vtype, e', et with
-          TArray(TInt((IChar|IUChar|ISChar), _) as bt, oldl, a),
-          Const(CStr s), _ -> 
-                    (* Change arrays initialized with strings into array 
-                     * initializers  *)
-            (match oldl with 
-              None ->  (* See if we have a length now *)
-                vi.vtype <- TArray(bt, 
-                                   Some (integer 
-                                           (String.length s + 1)),
-                                   a)
-            | _ -> ());
-            let chars = explodeString true s in
-            let inits = 
-              List.map (fun c -> 
-                (None, 
-                 Const(CInt(Char.code c, IChar, 
-                            Some ("'" ^ Char.escaped c ^ "'"))))) chars
-            in
-            Some (Compound(vi.vtype, inits))
-              
-        | TArray(bt, None, a), _, TArray(_, Some _, _) -> 
-            vi.vtype <- et;
-            Some e''
-              
-        | _ ->  Some e''
-    in                   
+        Some e'
+    in
 
     (* sm: if it's a function prototype, and the storage class *)
     (* isn't specified, make it 'extern'; this fixes a problem *)
@@ -2260,7 +2278,7 @@ and doAssign (lv: lval) : exp -> chunk = function
         TArray(t, _, _) -> 
           let rec loop = function
               _, [] -> empty
-            | i, (None, e) :: el -> 
+            | i, e :: el -> 
                 let res = loop ((i + 1), el) in
                 let newlv = mkMem (mkAddrOfAndMark lv) 
                                   (Index(integer i, NoOffset)) in
@@ -2269,14 +2287,13 @@ and doAssign (lv: lval) : exp -> chunk = function
                     Lval x -> x | _ -> E.s (E.bug "doAssign: mem")
                 in
                 (doAssign newlv e) @@ res
-            | _ -> E.s (E.unimp "doAssign. Compound")
           in
           loop (0, initl)
 
       | TComp comp when comp.cstruct ->
           let rec loop = function
               [], [] -> empty
-            | f :: fil, (None, e) :: el -> 
+            | f :: fil, e :: el -> 
                 let res = loop (fil, el) in
                 (doAssign (addOffsetLval (Field(f, NoOffset)) lv) e) @@ res
             | _, _ -> E.s (E.unimp "fields in doAssign")

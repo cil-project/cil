@@ -423,9 +423,9 @@ let rec readFieldsOfFat (e: exp) (et: typ)
           (Question(e1,e2',e3'), 
            Question(e1,e2'',e3''), 
            Question(e1, e2e,e3e))
-      | Compound (t, [_, p; _, b]) when isFatType t -> 
+      | Compound (t, [p; b]) when isFatType t -> 
           p, b, zero
-      | Compound (t, [_, p; _, b; _, e]) when isFatType t -> 
+      | Compound (t, [p; b; e]) when isFatType t -> 
           p, b, e
       | _ -> E.s (E.unimp "split _p field offset: %a" d_plainexp e)
     in
@@ -1258,10 +1258,10 @@ let makeTagCompoundInit tagged datainit =
   let dfld, lfld, tfld, words, _ = splitTagType tagged in
   Compound (tagged, 
                   (* Now the length *)
-            (None, words) ::
+            words ::
             (match datainit with 
               None -> []
-            | Some e -> [(None, e)]))
+            | Some e -> [e]))
             (* Leave the rest alone since it will be initialized with 0 *)
     ,
   dfld
@@ -3092,7 +3092,7 @@ and boxexpf (e: exp) : stmt list * fexp =
         let t' = fixupType t in
         (* Construct a new initializer list *)
         let doOneInit (off: offset) (ei: exp) (tei: typ) acc = 
-          (None, boxGlobalInit ei tei) :: acc
+          boxGlobalInit ei tei :: acc
         in
         let newinitl = List.rev (foldLeftCompound doOneInit t initl []) in
         ([], L(t', N.Scalar, Compound(t', newinitl)))
@@ -3122,8 +3122,7 @@ and boxGlobalInit e et =
   match comptype with
     None -> e'
   | Some ct -> 
-      Compound(ct, [ (None, e'); (None, 
-                                  castVoidStar e'base)])
+      Compound(ct, [ e'; castVoidStar e'base])
 
 and fexp2exp (fe: fexp) (doe: stmt list) : expRes = 
   match fe with

@@ -260,8 +260,15 @@ and exp =
   | CastE      of typ * exp            (* Use doCast to make casts *)
 
                                         (* Used only for initializers of 
-                                         * structures and arrays.  *) 
-  | Compound   of typ * (offset option * exp) list
+                                         * structures and arrays. For a 
+                                         * structure we have a list of 
+                                         * initializers for a prefix of all 
+                                         * fields, for a union we have 
+                                         * one initializer for the first 
+                                         * field, and for an array we have 
+                                         * some prefix of the initializers  *)
+  | Compound   of typ * exp list
+
   | AddrOf     of lval
 
   | StartOf    of lval                  (* There is no C correspondent for 
@@ -1117,18 +1124,7 @@ and d_exp () e =
   | SizeOfE (e) -> dprintf "sizeof(%a)" d_exp e
   | Compound (t, initl) -> 
       (* We do not print the type of the Compound *)
-      let dinit = function
-          None, e -> d_exp () e
-        | Some o, e -> 
-            if !msvcMode then
-              ignore (E.log "Warning: Printing designators in initializers. MS VC does not support them\n");
-            let rec d_offset () = function
-              | NoOffset -> dprintf "=%a" d_exp e
-              | Field (fi, o) -> dprintf ".%s%a" fi.fname d_offset o
-              | Index (e, o) -> dprintf "[%a]%a" d_exp e d_offset o
-            in
-            d_offset () o
-      in
+      let dinit e = d_exp () e in
       dprintf "{@[%a@]}"
         (docList (chr ',' ++ break) dinit) initl
   | AddrOf(lv) -> 
@@ -1506,12 +1502,8 @@ begin
   | CastE(t, e) -> fTyp t; fExp e
   | Compound (t, initl) ->
       fTyp t;
-      List.iter
-        (function
-            (None, e) -> fExp e
-          | (Some ofs, e) -> (visitCilOffset vis ofs); fExp e
-        )
-        initl
+      List.iter fExp initl
+
   | AddrOf (lv) -> (visitCilLval vis lv)
   | StartOf (lv) -> (visitCilLval vis lv)
 end
@@ -2233,59 +2225,110 @@ let existsType (f: typ -> existsAction) (t: typ) : bool =
   in
   loop t
           
-(* Try to do an increment *)
-let increm (e: exp) (i: int) =
-  if i = 0 then e
-  else 
-    let rec tryIncrem e sign = 
-      match e with
-        Const(CInt(ei, eik, _)) -> 
-          Some (Const(CInt(ei + i * sign, eik, None)))
-      | BinOp(((PlusA|MinusA|PlusPI|IndexPI|MinusPI) as bop), 
-              e1, e2, t) -> begin
-          let newe2sign = 
-            if bop = MinusA || bop = MinusPI then - sign else sign
-          in
-          match tryIncrem e2 newe2sign with
-            None -> begin
-              match tryIncrem e1 sign with
-                None -> None
-              | Some e1' -> Some (BinOp(bop, e1', e2, t))
-            end
-          | Some e2' -> Some (BinOp(bop, e1, e2', t))
-      end
-      | UnOp(Neg, e', t) -> begin
-          match tryIncrem e' (- sign) with
-            None -> None
-          | Some e'' -> Some (UnOp(Neg, e'', t))
-      end
-      | _ -> None
+  
+
+(*** Constant folding ***)
+let rec constFold (e: exp) : exp = 
+  match e with
+    BinOp(bop, e1, e2, tres) -> constFoldBinOp bop e1 e2 tres
+  | UnOp(Neg, e1, tres) -> begin
+      match constFold e1 with
+        Const(CInt(i,_,_)) -> integer (- i)
+      | _ -> e
+  end
+  | _ -> e
+
+and constFoldBinOp bop e1 e2 tres = 
+  let e1' = constFold e1 in
+  let e2' = constFold e2 in
+  if isIntegralType tres then
+    let newe = 
+      let rec mkInt = function
+          Const(CChr c) -> Const(CInt(Char.code c, IInt, None))
+        | CastE(TInt _, e) -> mkInt e
+        | e -> e
+      in
+      match bop, mkInt e1', mkInt e2' with
+        PlusA, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
+          integer (i1 + i2)
+      | PlusA, Const(CInt(0,_,_)), e2'' -> e2''
+      | PlusA, e1'', Const(CInt(0,_,_)) -> e1''
+      | PlusPI, e1'', Const(CInt(0,_,_)) -> e1''
+      | IndexPI, e1'', Const(CInt(0,_,_)) -> e1''
+      | MinusPI, e1'', Const(CInt(0,_,_)) -> e1''
+      | MinusA, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
+          integer (i1 - i2)
+      | Mult, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
+          integer (i1 * i2)
+      | Div, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
+          integer (i1 / i2)
+      | Mod, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
+          integer (i1 mod i2)
+      | BAnd, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
+          integer (i1 land i2)
+      | BOr, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
+          integer (i1 lor i2)
+      | BXor, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
+          integer (i1 lxor i2)
+      | Shiftlt, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
+          integer (i1 lsl i2)
+      | Shiftrt, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
+          integer (i1 lsr i2)
+      | Eq, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
+          integer (if i1 = i2 then 1 else 0)
+      | Ne, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
+          integer (if i1 <> i2 then 1 else 0)
+      | Le, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
+          integer (if i1 <= i2 then 1 else 0)
+      | Ge, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
+          integer (if i1 >= i2 then 1 else 0)
+      | Lt, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
+          integer (if i1 < i2 then 1 else 0)
+      | Gt, Const(CInt(i1,_,_)),Const(CInt(i2,_,_)) -> 
+          integer (if i1 > i2 then 1 else 0)
+      | _ -> BinOp(bop, e1', e2', tres)
     in
-    match tryIncrem e 1 with
-      None -> 
-        let et = typeOf e in
-        let bop = if isPointerType et then PlusPI else PlusA in
-        BinOp(bop, e, integer i, et)
-    | Some e' -> e'
+    newe
+  else
+    BinOp(bop, e1', e2', tres)
+
+
+(* Try to do an increment, with constant folding *)
+let increm (e: exp) (i: int) =
+  let et = typeOf e in
+  let bop = if isPointerType et then PlusPI else PlusA in
+  constFold (BinOp(bop, e, integer i, et))
+      
   
 
-  
-
-(*** Make a compound initializer for zeroe-ing a data type ***)
-let rec makeZeroCompoundInit t = 
+(*** Make a initializer for zeroe-ing a data type ***)
+let rec makeZeroInit t = 
   match unrollType t with
     TInt (ik, _) -> Const(CInt(0, ik, None))
   | TFloat(fk, _) -> Const(CReal(0.0, fk, None))
   | (TEnum _ | TBitfield _) -> zero
   | TComp comp as t' when comp.cstruct -> 
       Compound (t', 
-                List.map (fun f -> None, makeZeroCompoundInit f.ftype) 
+                List.map (fun f -> makeZeroInit f.ftype) 
                   comp.cfields)
-  | TArray(bt, Some (Const(CInt(n, _, _))), _) as t' -> 
-      let initbt = makeZeroCompoundInit bt in
+  | TComp comp as t' when not comp.cstruct -> 
+      let fstfield = 
+        match comp.cfields with
+          f :: _ -> f
+        | [] -> E.s (E.unimp "Cannot create init for empty union")
+      in
+      Compound(t, [makeZeroInit fstfield.ftype])
+
+  | TArray(bt, Some len, _) as t' -> 
+      let n = 
+        match constFold len with
+          Const(CInt(n, _, _)) -> n
+        | _ -> E.s (E.unimp "Cannot understand length of array")
+      in
+      let initbt = makeZeroInit bt in
       let rec loopElems acc i = 
         if i >= n then acc
-        else loopElems ((None, initbt) :: acc) (i + 1) 
+        else loopElems (initbt :: acc) (i + 1) 
       in
       Compound(t', loopElems [] 0)
   | TPtr _ as t -> CastE(t, zero)
@@ -2295,13 +2338,13 @@ let rec makeZeroCompoundInit t =
 (**** Fold over the list of initializers in a Compound ****)
 let foldLeftCompound (doexp: offset -> exp -> typ -> 'a -> 'a)
     (ct: typ) 
-    (initl: (offset option * exp) list)
+    (initl: exp list)
     (acc: 'a) : 'a = 
   match unrollType ct with
     TArray(bt, _, _) -> 
       let rec foldArray  
           (nextidx: exp) 
-          (initl: (offset option * exp) list)
+          (initl: exp list)
           (acc: 'a) : 'a  =
         let incrementIdx = function
             Const(CInt(n, ik, _)) -> Const(CInt(n + 1, ik, None))
@@ -2309,19 +2352,10 @@ let foldLeftCompound (doexp: offset -> exp -> typ -> 'a -> 'a)
         in
         match initl with
           [] -> acc
-        | (io, ie) :: restinitl ->
-            let nextidx', thisoff, thisexpt = 
-              match io with
-                None -> 
-                  incrementIdx nextidx, Index(nextidx, NoOffset), bt
-              | Some (Index(idxe, restof) as off) -> 
-                  let t = typeOffset bt restof in
-                  incrementIdx idxe, off, t
-              | _ -> E.s (E.unimp "Unexpected offset in array initializer")
-            in
+        | ie :: restinitl ->
             (* Now do the initializer expression *)
-            let acc' = doexp thisoff ie thisexpt acc in
-            foldArray nextidx' restinitl acc'
+            let acc' = doexp (Index(nextidx, NoOffset)) ie bt acc in
+            foldArray (incrementIdx nextidx) restinitl acc'
       in
       foldArray zero initl acc
 
@@ -2329,29 +2363,17 @@ let foldLeftCompound (doexp: offset -> exp -> typ -> 'a -> 'a)
       let rec foldFields 
           (allflds: fieldinfo list) 
           (nextflds: fieldinfo list) 
-          (initl: (offset option * exp) list)
+          (initl: exp list)
           (acc: 'a) : 'a = 
         match initl with 
           [] -> acc   (* We are done *)
-        | (io, ie) :: restinitl ->
+        | ie :: restinitl ->
             let nextfields, thisoff, thisexpt = 
-              match io with
-                None -> begin
-                  match nextflds with
-                    [] -> E.s (E.unimp "Too many initializers")
-                  | x :: xs -> xs, Field(x, NoOffset), x.ftype
-                end
-              | Some (Field(fld, restof) as off) -> 
-                  let rec findField = function
-                      [] -> E.s 
-                          (E.unimp "Cannot find designated field %s" fld.fname)
-                    | f :: restf when f.fname = fld.fname -> 
-                        let t = typeOffset fld.ftype restof in
-                        restf, off, t
-                    | _ :: restf -> findField restf
-                  in
-                  findField allflds
-              | _ -> E.s (E.unimp "Unexpected offset in structure initializer")
+              begin
+                match nextflds with
+                  [] -> E.s (E.unimp "Too many initializers")
+                | x :: xs -> xs, Field(x, NoOffset), x.ftype
+              end
             in
             (* Now do the initializer expression *)
             let acc' = doexp thisoff ie thisexpt acc in
