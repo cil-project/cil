@@ -69,7 +69,7 @@ my $inferbox = 4;
 
 # Now add tests
 $TEST->add3Tests("btreetest", "", @runpattern);
-   $TEST->addComment("btreetest-inferbox", "bug in solver");
+   $TEST->addBadComment("btreetest-box", "crashes!!!");
 $TEST->add3Tests("hashtest", "", @runpattern);
 $TEST->add3Tests("rbtest", "", @runpattern);
 $TEST->add3Tests("hufftest", "", @runpattern);
@@ -79,12 +79,18 @@ $TEST->add3Tests("test/alloc");
 $TEST->add3Tests("test/argcast", "", @runpattern);
 $TEST->add3Tests("test/array1");
 $TEST->add3Tests("test/array2");
+$TEST->add3Tests("test/matrix");
+$TEST->add3Tests("testrun/switch");
 $TEST->add3Tests("test/attr");
 $TEST->add3Tests("test/attr2", "_GNUCC=1");
 $TEST->add3Tests("test/attr3", "_GNUCC=1");
+   $TEST->addBadComment("test/attr3-cil", "BUG");
+   $TEST->addBadComment("test/attr3-box", "error printing attributes");
+   $TEST->addBadComment("test/attr3-inferbox", "error printing attributes");
 $TEST->add3Tests("testrun/attr4", "_GNUCC=1");
 $TEST->add3Tests("test/bh1", "", @runpattern);
 $TEST->add3Tests("test/bitfield");
+  $TEST->addBadComment("test/bitfield-box", "BUG");
 $TEST->add3Tests("test/box1");
 $TEST->add3Tests("test/cast1");
 $TEST->add3Tests("test/cast2");
@@ -97,16 +103,18 @@ $TEST->add3Tests("test/huff1");
   $TEST->addBadComment("test/huff1-box", "pragma box misuse");
   $TEST->addBadComment("test/huff1-inferbox", "pragma box misuse");
 $TEST->add3Tests("testrun/init");
-$TEST->add3Tests("testrun/init_gcc", "_GNUCC=1");
 $TEST->add3Tests("test/initial", "_GNUCC=1");
 $TEST->add3Tests("test/jmp_buf");
-$TEST->add3Tests("test/linux_atomic");
-  $TEST->addBadComment("test/linux_atomic-box", "strange code");
-  $TEST->addBadComment("test/linux_atomic-inferbox", "strange code");
+$TEST->add3Tests("test/linux_atomic", "_GNUCC=1");
+  $TEST->addBadComment("test/linux_atomic-box", "strange C code");
+  $TEST->addBadComment("test/linux_atomic-inferbox", "strange C code");
 $TEST->add3Tests("test/li");
 $TEST->add3Tests("test/li1", "_GNUCC=1");
+  $TEST->addBadComment("test/li1-box", "BUG");
 $TEST->add3Tests("test/list");
 $TEST->add3Tests("test/pointers");
+  $TEST->addBadComment("test/pointers-inferbox", "bug in solver/annotations");
+  $TEST->addBadComment("test/pointers-box", "BUG");
 $TEST->add3Tests("test/printf", "", @runpattern);
 $TEST->add3Tests("test/retval");
 $TEST->add3Tests("test/seq");
@@ -123,6 +131,8 @@ $TEST->add3Tests("test/tags");
 $TEST->add3Tests("test/task", "_GNUCC=1");
 $TEST->add3Tests("testrun/scope1");
 $TEST->add3Tests("test/scope2");
+$TEST->add3Tests("test/scope3");
+  $TEST->add3BadComment("test/scope3", "missing prototype");
 $TEST->add3Tests("test/voidstar");
 $TEST->add3Tests("wes-hashtest", "", @runpattern);
 $TEST->add3Tests("wes-rbtest", "", @runpattern);
@@ -137,17 +147,27 @@ $TEST->add3Tests("li", "_GNUCC=1");
 $TEST->add3Tests("compress", "_GNUCC=1");
    $TEST->addBadComment("compress-box", "missing wrappers");
 $TEST->add3Tests("go", "_GNUCC=1");
+   $TEST->addBadComment("go-box", "missing wrappers");
+   $TEST->addBadComment("go-inferbox", "missing wrappers");
 $TEST->add3Tests("apache/gzip");
    $TEST->add3Group("apache/gzip", "apache");
+   $TEST->addBadComment("apache/gzip-inferbox", "BUG");
+   $TEST->addBadComment("apache/gzip-box", "BUG");
 $TEST->add3Tests("apache/rewrite");
    $TEST->addBadComment("apache/rewrite-cil", "missing main");
    $TEST->add3Group("apache/rewrite", "apache");
+   $TEST->addBadComment("apache/rewrite-inferbox", "BUG");
+   $TEST->addBadComment("apache/rewrite-box", "BUG");
+   $TEST->addBadComment("apache/rewrite-cil", "BUG");
 $TEST->add3Tests("apache/urlcount");
    $TEST->add3Group("apache/urlcount", "apache");
+   $TEST->add3BadComment("apache/urlcount", "missing include file");
 $TEST->add3Tests("apache/layout");
    $TEST->add3Group("apache/layout", "apache");
+   $TEST->addBadComment("apache/layout-box", "BUG");
 $TEST->add3Tests("apache/random");
    $TEST->add3Group("apache/random", "apache");
+   $TEST->addBadComment("apache/random-box", "BUG");
 
 # scott's tiny testcases
 $TEST->add3Tests("scott/multiplestatics");
@@ -157,6 +177,8 @@ $TEST->add3Tests("scott/enuminit");
 $TEST->add3Tests("scott/staticafternostorage");
 $TEST->add3Tests("scott/voidfree");
 $TEST->add3Tests("scott/recursetype");
+   $TEST->addBadComment("scott/recursetype-box", "BUG");
+   $TEST->addBadComment("scott/recursetype-inferbox", "BUG");
 $TEST->add3Tests("scott/rmunused");
 $TEST->add3Tests("scott/simplewild");
 
@@ -302,7 +324,7 @@ sub add1Test {
 sub addBadComment {
     my($self, $name, $comm) = @_;
     $self->addComment($name, $comm);
-    $self->addGroup($name, "bad");
+    $self->addGroups($name, "bad");
 }
 
 sub add3Comment {

@@ -80,7 +80,7 @@ let init_lexicon _ =
 		(*** Implementation specific keywords ***)
 		("__signed__", SIGNED);
                 ("__inline__", INLINE); ("inline", INLINE); 
-                ("__inline", INLINE);
+                ("__inline", INLINE); ("_inline", INLINE);
 		("__attribute__", ATTRIBUTE);
                 ("__asm__", ASM); ("asm", ASM);
                 ("__typeof__", TYPEOF);

@@ -148,7 +148,8 @@ let kindPlusName (kind: string)
   if kind = "" then origname else
   kind ^ " " ^ origname
                    
-let newAlphaName (kind: string) 
+let newAlphaName (globalscope: bool) (* The name should have global scope *)
+                 (kind: string) 
                  (origname: string) : string = 
   let lookupname = kindPlusName kind origname in
   (* If we are in a scope then it means that we are alpha-converting a local 
@@ -166,7 +167,8 @@ let newAlphaName (kind: string)
     end
     | _ :: rest -> findEnclosingFun rest
   in
-  findEnclosingFun !scopes;
+  if not globalscope then 
+    findEnclosingFun !scopes;
 
   let newname = Cil.newAlphaName alphaTable lookupname in
 
@@ -276,7 +278,7 @@ let newVarId name isglobal =
 
 (* Add a new variable. Do alpha-conversion if necessary *)
 let alphaConvertVarAndAddToEnv (addtoenv: bool) (vi: varinfo) : varinfo = 
-  let newname = newAlphaName "" vi.vname in
+  let newname = newAlphaName (addtoenv && vi.vglob) "" vi.vname in
   let newvi = 
     if vi.vname = newname then vi else 
     {vi with vname = newname; 
@@ -1006,7 +1008,7 @@ let rec doSpecList (specs: A.spec_elem list)
     | [A.Tenum (n, Some eil)] -> (* A definition of an enum *)
         let n' = if n <> "" then n else anonStructName "enum" in
         (* make a new name for this enumeration *)
-        let n'' = newAlphaName "enum" n' in
+        let n'' = newAlphaName true "enum" n' in
         
         (* sm: start a scope for the enum tag values, since they *
         * can refer to earlier tags *)
@@ -1021,7 +1023,7 @@ let rec doSpecList (specs: A.spec_elem list)
           
           (* add this tag to the list so that it ends up in the real 
           * environment when we're finished  *)
-          let newname = newAlphaName "" kname in
+          let newname = newAlphaName true "" kname in
           (kname, (newname, i)) :: loop (increm i 1) rest
         end
             
@@ -1278,7 +1280,7 @@ and makeCompType (iss: bool)
                  (a: attribute list) = 
   (* Make a new name for the structure *)
   let kind = if iss then "struct" else "union" in
-  let n' = newAlphaName kind n in
+  let n' = newAlphaName true kind n in
   (* Create the self cell for use in fields and forward references. Or maybe 
    * one exists already from a forward reference  *)
   let comp = createCompInfo iss n' in
@@ -2441,7 +2443,7 @@ and createLocal (specs: A.spec_elem list)
     _ when A.isStatic specs -> 
       (* Now alpha convert it to make sure that it does not conflict with 
        * existing globals or locals from this function. *)
-      let newname = newAlphaName "" n in
+      let newname = newAlphaName true "" n in
       (* Make it global  *)
       let vi = makeVarInfo true locUnknown (specs, (newname, ndt, a)) in
       (* Add it to the environment as a local so that the name goes out of 
@@ -2522,7 +2524,7 @@ and doTypedef ((specs, nl): A.name_group) =
         (* Create a new name for the type. Use the same name space as that of 
         * variables to avoid confusion between variable names and types. This 
         * is actually necessary in some cases.  *)
-        let n' = newAlphaName "" n in
+        let n' = newAlphaName true "" n in
         let namedTyp = TNamed(n', newTyp, tattr) in
         (* Register the type. register it as local because we might be in a 
         * local context  *)
