@@ -1584,10 +1584,16 @@ class type cilVisitor = object
     (** Invoked on each lvalue occurence *)
 
   method voffs: offset -> offset visitAction    
-    (** Invoked on each offset occurrence *)
+    (** Invoked on each offset occurrence that is *not* as part
+      * of an initializer list specification, i.e. in an lval or
+      * recursively inside an offset. *)
 
-  method vinst: instr -> instr list visitAction 
-    (** Invoked on each instruction occurrence. The [ChangeTo] action can 
+  method vinitoffs: offset -> offset visitAction
+    (** Invoked on each offset appearing in the list of a 
+      * CompoundInit initializer.  *)
+
+  method vinst: instr -> instr list visitAction
+    (** Invoked on each instruction occurrence. The [ChangeTo] action can
      * replace this instruction with a list of instructions *)
 
   method vstmt: stmt -> stmt visitAction        
@@ -1651,8 +1657,11 @@ val visitCilExpr: cilVisitor -> exp -> exp
 (** Visit an lvalue *)
 val visitCilLval: cilVisitor -> lval -> lval
 
-(** Visit an lvalue offset *)
+(** Visit an lvalue or recursive offset *)
 val visitCilOffset: cilVisitor -> offset -> offset
+
+(** Visit an initializer offset *)
+val visitCilInitOffset: cilVisitor -> offset -> offset
 
 (** Visit an instruction *)
 val visitCilInstr: cilVisitor -> instr -> instr list

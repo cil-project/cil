@@ -1048,6 +1048,9 @@ class renameVisitorClass = object (self)
       end
     | _ -> DoChildren
 
+  method vinitoffs o =
+    (self#voffs o)      (* treat initializer offsets same as lvalue offsets *)
+
 end
 
 let renameVisitor = new renameVisitorClass

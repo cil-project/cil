@@ -764,7 +764,13 @@ class type cilVisitor = object
     (** Invoked on each lvalue occurence *)
 
   method voffs: offset -> offset visitAction    
-    (** Invoked on each offset occurrence *)
+    (** Invoked on each offset occurrence that is *not* as part
+      * of an initializer list specification, i.e. in an lval or
+      * recursively inside an offset. *)
+
+  method vinitoffs: offset -> offset visitAction
+    (** Invoked on each offset appearing in the list of a 
+      * CompoundInit initializer.  *)
 
   method vinst: instr -> instr list visitAction 
     (** Invoked on each instruction occurrence. The [ChangeTo] action can 
@@ -808,7 +814,8 @@ class nopCilVisitor : cilVisitor = object
   method vexpr (e:exp) = DoChildren   (* expression *) 
   method vlval (l:lval) = DoChildren  (* lval (base is 1st 
                                                          * field)  *)
-  method voffs (o:offset) = DoChildren      (* lval offset *)
+  method voffs (o:offset) = DoChildren      (* lval or recursive offset *)
+  method vinitoffs (o:offset) = DoChildren  (* initializer offset *)
   method vinst (i:instr) = DoChildren       (* imperative instruction *)
   method vstmt (s:stmt) = DoChildren        (* constrol-flow statement *)
   method vblock (b: block) = DoChildren
@@ -3429,7 +3436,7 @@ and childrenInit (vis: cilVisitor) (i: init) : init =
       (* Keep track whether the list has changed *)
       let hasChanged = ref false in
       let doOneInit ((o, i) as oi) = 
-        let o' = visitCilOffset vis o in
+        let o' = visitCilInitOffset vis o in    (* use initializer version *)
         let i' = fInit i in
         let newio = 
           if o' != o || i' != i then 
@@ -3485,9 +3492,18 @@ and childrenOffset (vis: cilVisitor) (off: offset) : offset =
       if o' != o then Field (f, o') else off
   | Index (e, o) -> 
       let e' = visitCilExpr vis e in
-      let o' = visitCilOffset vis o in
+      let o' = vOff o in
       if e' != e || o' != o then Index (e', o') else off
   | NoOffset -> off
+
+(* sm: for offsets in initializers, the 'startvisit' will be the
+ * vinitoffs method, but we can re-use the childrenOffset from
+ * above since recursive offsets are visited by voffs.  (this point
+ * is moot according to cil.mli which claims the offsets in 
+ * initializers will never recursively contain offsets)
+ *)
+and visitCilInitOffset (vis: cilVisitor) (off: offset) : offset =
+  doVisit vis vis#vinitoffs childrenOffset off
 
 and visitCilInstr (vis: cilVisitor) (i: instr) : instr list =
   let oldloc = !currentLoc in

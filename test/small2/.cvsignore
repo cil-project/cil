@@ -167,3 +167,8 @@ seq_align_malloc
 bsearch
 readv
 getaddrinfo
+sockunion
+fseq1
+closefunc
+addr
+polystruct-tmp

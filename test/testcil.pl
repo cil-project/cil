@@ -859,6 +859,7 @@ smAddTest("scott/strerror1 $box");
 smAddTest("scott/bsearch $box");
 smAddTest("scott/signal $box");
 smAddTest("scott/getaddrinfo $box");
+smAddTest("test-bad/sin_zero $box");
 
 # current problematic test cases
 smAddTest("scott/complex_float $box");
@@ -897,8 +898,7 @@ smAddTest("scott/byteprintf INFERBOX=infer");
 smAddTest("scott/bufferlinegetter INFERBOX=infer");
 smAddTest("scott/null_pointer_field INFERBOX=infer");
 smAddTest("scott/closefunc INFERBOX=infer");
-smFailTest("problem with incompatible types",
-           "scott/sockunion INFERBOX=infer");
+smAddTest("scott/sockunion INFERBOX=infer");
 
 # tests of things implemented for EDG compatibility
 smAddTest("mergestruct");
