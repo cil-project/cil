@@ -116,6 +116,7 @@ c. Add your public key in the "authorized_keys" file on the CVS server:
 d. Create a "session profile" in putty for the CVS server:
    - Start putty to see the configuration screen with a category tree on the left
    - Session category: fill in the hostname (brooksie) and protocol (SSH) 
+   - Connection category: Fill in the auto-login-username field
    - Connection/SSH category: Check "allow agent forwarding"
    - Session category: Save this session under a name (say, "brooksie")
 
@@ -128,6 +129,10 @@ e. Test your session:
 
      The command should execute without asking for a password and return to the 
      windows prompt after executing "ls -a"
+
+   - Also, the command-line
+	   putty @brooksie
+     should log you in directly now.
 
 f. Set the environment variables
 
