@@ -1725,8 +1725,8 @@ and doCondition (e: A.expression)
       | Loop stmt -> 100
       | IfThenElse (_, _, _, _) -> 100
       | Label _ -> 10000
-      | Switch _ -> 100
-      | (Goto _|Return _|Case _|Default|Break|Continue|Instr _) -> 1
+      | Switchs _ -> 100
+      | (Goto _|Returns _|Case _|Default|Break|Continue|Instr _) -> 1
     and costMany sl = List.fold_left (fun acc s -> acc + costOne s) 0 sl
     in
     costMany sl <= 3
@@ -1734,7 +1734,7 @@ and doCondition (e: A.expression)
   let canDrop sl = (* We can drop a statement only if it does not contain 
                     * label definitions *)
     let rec dropOne = function
-        (Skip | Goto _ | Return _| Case _ | Default | 
+        (Skip | Goto _ | Returns _| Case _ | Default | 
         Break | Continue | Instr _) -> true
       | Sequence sl -> List.for_all dropOne sl
       | _ -> false
@@ -2038,17 +2038,17 @@ and doStatement (s : A.statement) : stmt list =
           
     | A.CONTINUE -> [doContinue ()]
           
-    | A.RETURN A.NOTHING -> [Return (None, lu)]
+    | A.RETURN A.NOTHING -> [Returns (None, lu)]
     | A.RETURN e -> 
         let (se, e', et) = doExp false e (AExp (Some !currentReturnType)) in
         let (et'', e'') = castTo et (!currentReturnType) e' in
-        se @ [Return (Some e'', lu)]
+        se @ [Returns (Some e'', lu)]
                
     | A.SWITCH (e, s) -> 
         let (se, e', et) = doExp false e (AExp (Some intType)) in
         let (et'', e'') = castTo et intType e' in
         let s' = doStatement s in
-        se @ [Switch (e'', mkSeq s', lu)]
+        se @ [Switchs (e'', mkSeq s', lu)]
                
     | A.CASE (e, s) -> 
         let (se, e', et) = doExp false e (AExp None) in

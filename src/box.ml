@@ -2353,7 +2353,7 @@ let rec boxstmt (s : stmt) : stmt =
       Sequence sl -> mkSeq (List.map boxstmt sl)
           
     | (Label _ | Goto _ | Case _ | Default | Skip |
-      Return (None, _) | Break | Continue) -> s
+      Returns (None, _) | Break | Continue) -> s
           
     | Loop s -> Loop (boxstmt s)
           
@@ -2363,11 +2363,11 @@ let rec boxstmt (s : stmt) : stmt =
           (* We allow casts from pointers to integers here *)
         mkSeq (doe @ [IfThenElse (e', boxstmt st, boxstmt sf, l)])
           
-    | Switch (e, s, l) -> 
+    | Switchs (e, s, l) -> 
         let (_, doe, e') = boxexp (CastE(intType, e)) in
-        mkSeq (doe @ [Switch (e', boxstmt s, l)])
+        mkSeq (doe @ [Switchs (e', boxstmt s, l)])
 
-    | Return (Some e, l) -> 
+    | Returns (Some e, l) -> 
         let retType = (* Already fixed *)
           match !currentFunction.svar.vtype with 
             TFun(tRes, _, _, _) -> tRes
@@ -2382,7 +2382,7 @@ let rec boxstmt (s : stmt) : stmt =
           else
             doe2
         in
-        mkSeq (doe2 @ [Return (Some e2, l)])
+        mkSeq (doe2 @ [Returns (Some e2, l)])
     | Instr (i, l) -> boxinstr i l
   with e -> begin
     ignore (E.log "boxstmt (%s) in %s\n" 

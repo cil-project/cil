@@ -60,7 +60,7 @@ my %commonerrors =
     "^(Bug: .+)\$" => sub { $_[1]->{ErrorMsg} = $_[2]; },
     "^(Unimplemented: .+)\$" => sub { $_[1]->{ErrorMsg} = $_[2]; },
     "^(.+ : error .+)\$" => sub { $_[1]->{ErrorMsg} = $_[2]; },
-    "^(.+:\\d+: .+)\$" => sub { $_[1]->{ErrorMsg} = $_[2]; },
+    "^(.+:\\d+: [^w].+)\$" => sub { $_[1]->{ErrorMsg} = $_[2]; },
     "^(.+: fatal error.+)\$" => sub { $_[1]->{ErrorMsg} = $_[2]; },
 
          );
@@ -70,9 +70,13 @@ my $inferbox = 2;
 # Now add tests
 $TEST->add3Tests("apache/gzip");
 $TEST->add3Tests("apache/rewrite");
+$TEST->add3Tests("apache/urlcount");
+$TEST->add3Tests("apache/layout");
+$TEST->add3Tests("apache/random");
 $TEST->add3Tests("btreetest", "", @runpattern);
 $TEST->add3Tests("hashtest", "", @runpattern);
 $TEST->add3Tests("rbtest", "", @runpattern);
+$TEST->add3Tests("hufftest", "", @runpattern);
 $TEST->add3Tests("test/alloc");
 $TEST->add3Tests("test/argcast", "", @runpattern);
 $TEST->add3Tests("test/array1");
@@ -111,6 +115,9 @@ $TEST->add3Tests("wes-rbtest", "", @runpattern);
 $TEST->add1Test("test/alloc-manualinferbox",
                 "test/alloc INFERBOX=$inferbox MANUALBOX=1",
                 %commonerrors);
+$TEST->add3Tests("bh", "_GNUCC=1");
+$TEST->add3Tests("li", "_GNUCC=1");
+$TEST->add3Tests("compress", "_GNUCC=1");
 
 # $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug
 # my $tst = $TEST->getTest("apache/gzip-inferbox");

@@ -370,13 +370,31 @@ and stmt =
   | IfThenElse of exp * stmt * stmt * location    (* if *)
   | Label of string 
   | Goto of string
-  | Return of exp option * location
-  | Switch of exp * stmt * location     (* no work done to break this appart *)
+  | Returns of exp option * location
+  | Switchs of exp * stmt * location    (* no work done to break this appart *)
   | Case of int * location              (* The case expressions are resolved *)
   | Default 
   | Break
   | Continue
   | Instr of instr * location
+
+
+and node = {
+    mutable nid: int;
+    mutable label: string option;
+    mutable ins: (instr * location) list;
+    mutable skind: succkind;
+    mutable succs: node list;
+    mutable preds: node list;
+  } 
+
+and succkind = 
+    Jump
+  | If of exp * location
+  | Switch of exp list list * location
+  | Return of exp option * location
+
+
         
 type fundec = 
     { mutable svar:     varinfo;        (* Holds the name and type as a 
@@ -1188,7 +1206,7 @@ and d_stmt () s =
                   dangling elses. ASM gives some problems with MSVC so 
                   bracket them as well  *) 
     match a with
-      IfThenElse _ | Loop _ | Instr(Asm _, _) | Switch _ -> 
+      IfThenElse _ | Loop _ | Instr(Asm _, _) | Switchs _ -> 
         Sequence [a]
     | _ -> a
   in
@@ -1210,9 +1228,9 @@ and d_stmt () s =
   | Goto(s) -> dprintf "goto %s;" s
   | Break  -> dprintf "break;"
   | Continue -> dprintf "continue;"
-  | Return(None,_) -> text "return;"
-  | Return(Some e,_) -> dprintf "return (%a);" d_exp e
-  | Switch(e,s,_) -> dprintf "@[switch (%a)@!%a@]" d_exp e d_stmt s
+  | Returns(None,_) -> text "return;"
+  | Returns(Some e,_) -> dprintf "return (%a);" d_exp e
+  | Switchs(e,s,_) -> dprintf "@[switch (%a)@!%a@]" d_exp e d_stmt s
   | Default -> dprintf "default:"
   | Instr(i,_) -> d_instr () i
 
@@ -1587,12 +1605,12 @@ begin
 
   and fStmt s = if (vis#vstmt s) then fStmt' s
   and fStmt' = begin function
-      (Skip|Break|Continue|Label _|Goto _|Case _|Default|Return (None,_)) -> ()
+      (Skip|Break|Continue|Label _|Goto _|Case _|Default|Returns (None,_)) -> ()
     | Sequence s -> List.iter fStmt s
     | Loop s -> fStmt s
     | IfThenElse (e, s1, s2, _) -> fExp e; fStmt s1; fStmt s2
-    | Return(Some e, _) -> fExp e
-    | Switch (e, s, _) -> fExp e; fStmt s
+    | Returns(Some e, _) -> fExp e
+    | Switchs (e, s, _) -> fExp e; fStmt s
     | Instr(i, _) -> fInst i
   end
 

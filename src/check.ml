@@ -520,7 +520,7 @@ and checkStmt (s: stmt) =
     (fun _ -> 
       (* Print context only for certain small statements *)
       match s with 
-        Sequence _ | Loop _ | IfThenElse _ | Switch _  -> nil
+        Sequence _ | Loop _ | IfThenElse _ | Switchs _  -> nil
       | _ -> dprintf "checkStmt: %a" d_stmt s)
     (fun _ -> 
       match s with
@@ -538,14 +538,14 @@ and checkStmt (s: stmt) =
           checkBooleanType te;
           checkStmt st;
           checkStmt sf
-      | Return (re,_) -> begin
+      | Returns (re,_) -> begin
           match re, !currentReturnType with
             None, TVoid _  -> ()
           | _, TVoid _ -> ignore (E.warn "Invalid return value")
           | None, _ -> ignore (E.warn "Invalid return value")
           | Some re', rt' -> checkExpType false re' rt'
       end
-      | Switch (e, s, _) -> 
+      | Switchs (e, s, _) -> 
           checkExpType false e intType;
           checkStmt s
             

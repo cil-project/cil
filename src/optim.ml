@@ -38,8 +38,8 @@ let rec nullChecksOptimStmt (s:Cil.stmt) (nnl:Cil.lval list) =
       let (s2',nnl2) = nullChecksOptimStmt s2 nnl in
       (IfThenElse(e,s1',s2',l),
        List.filter (function x -> List.mem x nnl2) nnl1)
-  | Label(_) | Goto(_) | Return(_) -> (s,nnl)
-  | Switch(_,_,_) | Case(_) | Default -> 
+  | Label(_) | Goto(_) | Returns(_) -> (s,nnl)
+  | Switchs(_,_,_) | Case(_) | Default -> 
       (s,nnl)
 (*      E.s (E.unimp "OPTIM cannot handle switch, case, default yet")*)
   | Break | Continue -> (s,nnl)

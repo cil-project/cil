@@ -374,13 +374,48 @@ and stmt =
   | IfThenElse of exp * stmt * stmt * location    (* if *)
   | Label of string 
   | Goto of string
-  | Return of exp option * location
-  | Switch of exp * stmt * location     (* no work done to break this appart *)
+  | Returns of exp option * location
+  | Switchs of exp * stmt * location    (* no work done to break this appart *)
   | Case of int * location              (* The case expressions are resolved *)
   | Default
   | Break
   | Continue
   | Instr of instr * location
+
+and block = {
+    mutable nid: int;                   (* A >= 0 identifier that is unique 
+                                         * in a function. *)
+    mutable label: string option;       (* Whether the block starts with a 
+                                         * label *)
+    mutable ins: (instr * location) list;(* The instructions, except maybe 
+                                          * the final one in the block *)
+    mutable skind: succkind;            (* The kind of successsor, and 
+                                         * implicitly the form of the last 
+                                         * statementin the block *)
+    mutable succs: block list;          (* The successor blocks. Their number 
+                                         * and meaning depends on skind.  *)
+    mutable preds: block list;
+  } 
+
+and succkind = 
+    Jump                                (* One successor, the target of a 
+                                         * goto or a fall-through. *)
+  | If of exp * location                (* Two successors, the "then" and the 
+                                         * "else" branches *)
+  | Switch of exp list list * location  (* The beginning of a switch 
+                                         * statement. "Switch cases" is a 
+                                         * switch statement with a number of 
+                                         * cases equal to "List.length cases" 
+                                         * (including the default case). The 
+                                         * number of successors is the same 
+                                         * as the number of cases. Each case 
+                                         * contains a list of values for 
+                                         * which it is taken. The list of 
+                                         * values is empty for the default 
+                                         * case. *)
+
+  | Return of exp option * location     (* The optional return *)
+
 
 type fundec =
     { mutable svar:     varinfo;        (* Holds the name and type as a

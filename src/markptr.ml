@@ -196,38 +196,6 @@ let startOfNode (n: N.node) : N.node =
 let theFile : global list ref = ref []
     
 
-let addCastEdge (e: exp) (etn: N.node) (desttn : N.node) 
-                (callid: int) : exp = 
-      (* See if it is a cast to or from void * *)
-  let isvoidstar, tovoid = 
-    match etn.N.btype, desttn.N.btype with
-      TVoid _, TVoid _ -> false, false
-    | TVoid _, _ -> true, false
-    | _, TVoid _ -> true, true
-    | _ -> false, false
-  in
-  if isvoidstar && !useGenerics then begin
-(*    ignore (E.log "Found a generic: %a\n" d_exp e); *)
-        (* Now create a new function *)
-    let genericFun =   
-      let fdec = emptyFunction 
-          ("generic" ^ (if tovoid then "put" else "get") ^ 
-           (string_of_int !genericId)) in
-      incr genericId;
-      let argx  = makeLocalVar fdec "x" (TPtr(etn.N.btype, 
-                                              etn.N.attr)) in
-      fdec.svar.vtype <- TFun(TPtr(desttn.N.btype, desttn.N.attr), 
-                              [ argx ], false, []);
-      fdec.svar.vstorage <- Extern;
-      theFile := GDecl (fdec.svar,lu) :: !theFile;
-      fdec
-    in
-    (* Now use the function instead of adding an edge *)
-    e
-  end else begin
-    N.addEdge etn desttn N.ECast callid; 
-    e
-  end
 
 (* Compute the sign of an expression. Extend this to a real constant folding 
  * + the sign rule  *)
@@ -428,10 +396,6 @@ and expToType (e,et,en) t (callid: int) : exp =
     | CastE(_, e) -> isZero e
     | _ -> false
   in
-  let isString = function
-      Const(CStr(_)) -> true
-    | _ -> false
-  in
   let etn = nodeOfType et in
   let tn  = nodeOfType t in
   (* ignore (E.log "expToType e=%a (NS=%d) -> TD=%a (ND=%d)\n"
@@ -445,15 +409,51 @@ and expToType (e,et,en) t (callid: int) : exp =
         N.addEdge etn tn N.ENull callid;
         e
       end else 
+        let addCastEdge (e: exp) (etn: N.node) (desttn : N.node) 
+                        (callid: int) : exp = 
+           (* See if it is a cast to or from void * *)
+          let isvoidstar, tovoid = 
+            match etn.N.btype, desttn.N.btype with
+              TVoid _, TVoid _ -> false, false
+            | TVoid _, _ -> true, false
+            | _, TVoid _ -> true, true
+            | _ -> false, false
+          in
+          if isvoidstar && !useGenerics then begin
+(*            ignore (E.log "Found a generic: %a\n" d_exp e); *)
+            (* Now create a new function *)
+            let genericFun =   
+              let fdec = emptyFunction 
+                  ("generic" ^ (if tovoid then "put" else "get") ^ 
+                   (string_of_int !genericId)) in
+              incr genericId;
+              let argx  = makeLocalVar fdec "x" (TPtr(etn.N.btype, 
+                                                      etn.N.attr)) in
+              fdec.svar.vtype <- TFun(TPtr(desttn.N.btype, desttn.N.attr), 
+                                      [ argx ], false, []);
+              fdec.svar.vstorage <- Extern;
+              theFile := GDecl (fdec.svar,lu) :: !theFile;
+              fdec
+            in
+            (* Now use the function instead of adding an edge *)
+            e
+          end else begin
+            N.addEdge etn desttn N.ECast callid; 
+            e
+          end
+        in
         addCastEdge e etn tn callid
 
   | true, false -> (* scalar -> pointer *)
       (* Check for zero *)
       (if isZero e then
         tn.N.null <- true
-      else if not (isString e) then 
-        tn.N.intcast <- true
-        );
+      else begin
+        match e with
+          Const(CStr(_)) -> () 
+        | _ -> 
+            tn.N.intcast <- true
+      end);
       e
     
 and doExpAndCast e t = 
@@ -655,10 +655,10 @@ let rec doStmt (s: stmt) =
   | Loop s -> Loop (doStmt s)
   | IfThenElse (e, s1, s2, l) -> 
       IfThenElse (doExpAndCast e intType, doStmt s1, doStmt s2, l)
-  | Switch (e, s, l) -> Switch (doExpAndCast e intType, doStmt s, l)
-  | Return (None, _) -> s
-  | Return (Some e, l) -> 
-      Return (Some (doExpAndCast e !currentResultType), l)
+  | Switchs (e, s, l) -> Switchs (doExpAndCast e intType, doStmt s, l)
+  | Returns (None, _) -> s
+  | Returns (Some e, l) -> 
+      Returns (Some (doExpAndCast e !currentResultType), l)
   | Instr (Asm _, _) -> s
   | Instr (Set (lv, e), l) -> 
       let lv', lvn = doLvalue lv true in
@@ -714,18 +714,10 @@ let rec doStmt (s: stmt) =
         | Some (destvi, iscast), _ -> begin
             (* Do the lvalue, just so that the type is done *)
             let _ = doLvalue (Var destvi, NoOffset) true in
-            (* Short-circuit the cast *)
-	    let rtn = nodeOfType rt in
-	    let vin = nodeOfType destvi.vtype in
-	    match rtn == N.dummyNode, vin == N.dummyNode with
-	    |   false, false -> 
-		ignore 
-		  (addCastEdge 
-                     (Const(CStr("a call return"))) (* this does not matter *)
-                     rtn vin  !callId)
-	    | true, true -> ()
-	    | _ -> ignore (E.warn "Node mismatch on return of %s(%d) = %a(%d)\n" 
-			     destvi.vname vin.N.id d_exp func' rtn.N.id)
+            (* Add the cast. Make up a phony expression and a node so that we 
+             * can call expToType. *)
+            ignore (expToType (Const(CStr("a call return")),
+                               rt, N.dummyNode) destvi.vtype !callId)
 	end 
       end;
       Instr (Call(reso, func', loopArgs formals args), l)

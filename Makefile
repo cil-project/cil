@@ -456,15 +456,12 @@ testc/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
 	       $(DOOPT) $(EXEOUT)$*.exe $*.c ; ./$*.exe
 
 
-HASHTESTCC = $(SAFECC) --keep=.  --patch=../../lib/$(PATCHFILE) \
-              $(DOOPT) $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
-              $(INC)$(PCCDIR)/src 
-
 
 hashtest: test/small2/hashtest.c $(EXECUTABLE)$(EXE) \
                                  $(SAFECLIB) $(SAFEMAINLIB)  $(TVEXE)
 	rm -f $(PCCTEST)/hashtest.exe
-	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
+	cd $(PCCTEST); $(SAFECC) --combine \
+                                 --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  $(DOOPT) \
                  `$(PATCHECHO) --patch=../../lib/$(PATCHFILE)` \
                  $(INC)$(PCCDIR)/src \
@@ -473,20 +470,11 @@ hashtest: test/small2/hashtest.c $(EXECUTABLE)$(EXE) \
                  $(EXEOUT)hashtest.exe
 	$(PCCTEST)/hashtest.exe
 
-combinehashtest: defaulttarget
-	rm -f $(PCCTEST)/hashtest.exe
-	cd $(PCCTEST); \
-          $(HASHTESTCC) $(CONLY) --combine $(PCCDIR)/src/hash.c \
-                                           $(OBJOUT)hash.obj; \
-          $(HASHTESTCC) $(CONLY) --combine ../small2/hashtest.c \
-                                           $(OBJOUT)hashtest.obj;\
-          $(HASHTESTCC) --combine ./hash.obj ./hashtest.obj \
-                                           $(EXEOUT)hashtest.exe
-
 rbtest: test/small2/rbtest.c $(EXECUTABLE)$(EXE) \
                                  $(SAFECLIB) $(SAFEMAINLIB)  $(TVEXE)
 	rm -f $(PCCTEST)/rbtest.exe
-	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
+	cd $(PCCTEST); $(SAFECC) --combine \
+                                 --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  `$(PATCHECHO) --patch=../../lib/$(PATCHFILE)` \
                  $(DOOPT) \
                  $(INC)$(PCCDIR)/src \
@@ -500,7 +488,7 @@ btreetest: test/small2/testbtree.c \
                                  $(EXECUTABLE)$(EXE) \
                                  $(SAFECLIB) $(SAFEMAINLIB)  $(TVEXE)
 	rm -f test/small2/btreetest.exe
-	cd test/small2; $(SAFECC) --keep=. \
+	cd test/small2; $(SAFECC) --combine --keep=. \
                  $(DOOPT) \
                  --patch=../../lib/$(PATCHFILE) \
                  btree.c testbtree.c \
@@ -520,7 +508,7 @@ hola: test/small2/hola.c $(EXECUTABLE)$(EXE) \
 	test/small2/hola
 
 
-HUFFCOMPILE=$(SAFECC) --keep=. 
+HUFFCOMPILE=$(SAFECC) --combine --keep=. 
 # HUFFCOMPILE=cl /MLd
 ifdef BOX
 HUFFOTHERS=$(CILDIR)/$(SAFEMAINLIB) 
@@ -543,6 +531,7 @@ hufftest: test/small2/hufftest.c $(EXECUTABLE)$(EXE) \
                  $(EXEOUT)hufftest.exe
 	cd $(PCCTEST); ./hufftest.exe \
                              $(CILDIR)/src/frontc/cparser.output
+
 
 wes-rbtest: test/small2/wes-rbtest.c $(EXECUTABLE)$(EXE) $(TVEXE)\
             $(SAFECLIB)
@@ -664,20 +653,25 @@ apache/rewrite: $(EXECUTABLE)$(EXE)
 
 
 
+COMBINESAFECC = $(SAFECC) --combine $(DOOPT)
+
 # Barnes-Hut
 BHDIR=test/bh
-bh : defaulttarget
-	cd $(BHDIR); make
+bh : defaulttarget mustbegcc
+	cd $(BHDIR); rm code.exe; make CC="$(COMBINESAFECC)"
+	echo  >$(BHDIR)/data.in
+	echo  >>$(BHDIR)/data.in
+	echo  >>$(BHDIR)/data.in
+	echo  >>$(BHDIR)/data.in
+	echo  >>$(BHDIR)/data.in
+	echo  >>$(BHDIR)/data.in
+	echo  >>$(BHDIR)/data.in
+	echo  >>$(BHDIR)/data.in
+	echo  >>$(BHDIR)/data.in
+	echo  >>$(BHDIR)/data.in
+	echo  >>$(BHDIR)/data.in
+	cd $(BHDIR);sh -c "time code < data.in > data.out"
 
-COMBINESAFECC = $(SAFECC) --combine
-combinebh : defaulttarget mustbegcc
-	cd $(BHDIR); rm -f *.i *.exe *.o; make CC="$(COMBINESAFECC)"
-
-allbh : defaulttarget mustbegcc
-	cd $(BHDIR); $(SAFECC) --keep=. \
-                 $(DOOPT) \
-                 code_all.c \
-                 $(EXEOUT)allbh.exe
 
 # SPEC95
 SPECDIR=test/spec95
