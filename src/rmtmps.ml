@@ -199,10 +199,8 @@ let categorizePragmas file =
 	  begin
 	    match t with
 	    | TComp(c,_) when c.cstruct ->
-   		ignore (E.log "ccuredvararg on struct %s\n" c.cname);
 		H.add keepers.structs c.cname ();
 	    | TComp(c,_) -> (* union *)
-   		ignore (E.log "ccuredvararg on union %s\n" c.cname);
 		H.add keepers.unions c.cname ();
 	    | _ ->
 		badPragma location directive
