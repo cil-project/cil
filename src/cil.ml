@@ -1864,10 +1864,11 @@ let gccBuiltins : (string, typ * typ list) H.t =
     TFun(rt, Some (List.map (fun t -> ("", t, [])) argTypes), false, [])
   in
   (* When we parse builtin_next_arg we drop the second argument *)
-  H.add h "__builtin_next_arg" (voidPtrType, [ ]);
+  H.add h "__builtin_next_arg" (TBuiltin_va_list [], [ ]);
   H.add h "__builtin_constant_p" (intType, [ intType ]);
   H.add h "__builtin_fabs" (doubleType, [ doubleType ]);
   H.add h "__builtin_va_end" (voidType, [ TBuiltin_va_list [] ]);
+  H.add h "__builtin_varargs_start" (voidType, [ TBuiltin_va_list [] ]);
   (* When we parse builtin_stdarg_start, we drop the second argument *)
   H.add h "__builtin_stdarg_start" (voidType, [ TBuiltin_va_list []; ]);
   (* When we parse builtin_va_arg we change its interface *)
@@ -1964,6 +1965,14 @@ end
 
 
 class defaultCilPrinterClass : cilPrinter = object (self)
+  val mutable currentFormals : varinfo list = []
+  method private getLastNamedArgument (s: string) : exp =
+    match List.rev currentFormals with 
+      f :: _ -> Lval (var f)
+    | [] -> 
+        E.s (warn "Cannot find the last named argument when priting call to %s\n" s);
+        zero
+
   (*** VARIABLES ***)
   (* variable use *)
   method pVar (v:varinfo) = text v.vname
@@ -2226,18 +2235,20 @@ class defaultCilPrinterClass : cilPrinter = object (self)
             ++ text ");"
 
       (* In cabs2cil we have dropped the last argument in the call to 
-       * __builtin_stdarg_start. We add 0 (it seems that gcc does not care 
-       * what you actually use, as long as you use something) *)
+       * __builtin_stdarg_start. *)
     | Call(None, Lval(Var vi, NoOffset), [marker], l) 
-        when vi.vname = "__builtin_stdarg_start" && not !printCilAsIs -> 
-          self#pInstr () (Call(None,Lval(Var vi,NoOffset),[marker; zero],l))
+        when vi.vname = "__builtin_stdarg_start" && not !printCilAsIs -> begin
+          let last = self#getLastNamedArgument vi.vname in
+          self#pInstr () (Call(None,Lval(Var vi,NoOffset),[marker; last],l))
+        end
 
       (* In cabs2cil we have dropped the last argument in the call to 
-       * __builtin_next_arg. We add 0 (it seems that gcc does not care 
-       * what you actually use, as long as you use something) *)
+       * __builtin_next_arg. *)
     | Call(res, Lval(Var vi, NoOffset), [ ], l) 
-        when vi.vname = "__builtin_next_arg" && not !printCilAsIs -> 
-          self#pInstr () (Call(res,Lval(Var vi,NoOffset),[zero],l))
+        when vi.vname = "__builtin_next_arg" && not !printCilAsIs -> begin
+          let last = self#getLastNamedArgument vi.vname in
+          self#pInstr () (Call(res,Lval(Var vi,NoOffset),[last],l))
+        end
 
     | Call(dest,e,args,l) ->
         self#pLineDirective l
@@ -2698,7 +2709,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
        
   method private pFunDecl () f =
       self#pVDecl () f.svar
-      ++ line
+      ++  line
       ++ text "{ "
       ++ (align
             (* locals. *)
@@ -2706,7 +2717,10 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                   () f.slocals)
             ++ line ++ line
             (* the body *)
-            ++ self#pBlock () f.sbody)
+            ++ ((* remember the declaration *) currentFormals <- f.sformals; 
+                let body = self#pBlock () f.sbody in
+                currentFormals <- [];
+                body))
       ++ line
       ++ text "}"
 

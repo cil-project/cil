@@ -1091,6 +1091,9 @@ let rec castTo ?(fromsource=false)
     | TEnum _, TEnum _ -> result
 
     | TEnum _, TPtr _ -> result
+    | TBuiltin_va_list _, TInt _ -> result
+    | TInt _, TBuiltin_va_list _ -> result
+
     | TPtr _, TEnum _ -> 
         ignore (warnOpt "Casting a pointer into an enumeration type");
         result
@@ -3300,7 +3303,7 @@ and doExp (isconst: bool)    (* In a constant *)
                 loop args
         in
         let (sargs, args') = loopArgs (argTypesList, args) in
-        let what'', args'', is__builtin_va_arg = 
+        let f3, what3, args3, is__builtin_va_arg = 
           let rec dropCasts = function CastE (_, e) -> dropCasts e | e -> e in
           (* Get the name of the last formal *)
           let getNameLastFormal () : string = 
@@ -3323,13 +3326,14 @@ and doExp (isconst: bool)    (* In a constant *)
                         ASet (lv, lvt) -> lv, lvt
                       | _ -> var (newTempVar resTyp), resTyp
                     in
+                    f'',
                     ASet (destlv, destlvtyp), 
                     [marker; SizeOf resTyp; AddrOf destlv],
                     true
                   end
                 | _ -> 
                     ignore (warn "Invalid call to %s\n" fv.vname);
-                    what, args', false
+                    f'',what, args', false
               end else if fv.vname = "__builtin_stdarg_start" then begin
                 match args' with 
                   marker :: last :: [] -> begin
@@ -3344,12 +3348,27 @@ and doExp (isconst: bool)    (* In a constant *)
                     
                     (* Check that "lastv" is indeed the last variable in the 
                      * prototype and then drop it *)
-                    what, [marker], false
+                    f'', what, [marker], false
                   end
                 | _ -> 
                     ignore (warn "Invalid call to %s\n" fv.vname);
-                    what, args', false
-                
+                    f'',what, args', false
+
+              (* We have to turn uses of __builtin_varargs_starts into uses 
+               * of __builtin_stdarg_start (because we have dropped the 
+               * __builtin_va_alist argument from this function *)
+
+              end else if fv.vname = "__builtin_varargs_start" then begin
+                (* Lookup the prototype for the replacement *)
+                let v, _  = 
+                  try lookupGlobalVar "__builtin_stdarg_start" 
+                  with Not_found -> E.s (bug "Cannot find __builtin_stdarg_start to replace %s\n" fv.vname)
+                in
+                Lval (var v),
+                what,
+                args',
+                false
+
               end else if fv.vname = "__builtin_next_arg" then begin
                 match args' with 
                   last :: [] -> begin
@@ -3362,21 +3381,21 @@ and doExp (isconst: bool)    (* In a constant *)
                     if not isOk then 
                       ignore (warn "The argument in call to %s should be the last formal argument\n" fv.vname);
                     
-                    what, [ ], false
+                    f'', what, [ ], false
                   end
                 | _ -> 
                     ignore (warn "Invalid call to %s\n" fv.vname);
-                    what, args', false
+                    f'',what, args', false
               end else
-                what, args', false
+                f'', what, args', false
             end
-          | _ -> what, args', false
+          | _ -> f'',what, args', false
         in
         begin
-          match what'' with 
+          match what3 with 
             ADrop -> 
               finishExp 
-                (sf @@ sargs +++ (Call(None,f'',args'', !currentLoc)))
+                (sf @@ sargs +++ (Call(None,f3,args3, !currentLoc)))
                 (integer 0) intType
               (* Set to a variable of corresponding type *)
           | ASet(lv, vtype) -> 
@@ -3384,29 +3403,29 @@ and doExp (isconst: bool)    (* In a constant *)
               if is__builtin_va_arg then 
                 finishExp 
                   (sf @@ sargs                                         
-                           +++ (Call(None,f'',args'', !currentLoc)))
+                           +++ (Call(None,f3,args3, !currentLoc)))
                   (Lval(lv))
                   vtype
               else
                 finishExp 
                   (sf @@ sargs                                         
-                           +++ (Call(Some lv,f'',args'', !currentLoc)))
+                           +++ (Call(Some lv,f3,args3, !currentLoc)))
                   (Lval(lv))
                   vtype
 
           | _ -> begin
               (* Must create a temporary *)
-              match f'', args'' with     (* Some constant folding *)
+              match f3, args3 with     (* Some constant folding *)
                 Lval(Var fv, NoOffset), [Const _] 
                   when fv.vname = "__builtin_constant_p" ->
                     finishExp (sf @@ sargs) (integer 1) intType
               | _ -> 
                   let tmp, restyp' = 
-                    match what'' with
+                    match what3 with
                       AExp (Some t) -> newTempVar t, t
                     | _ -> newTempVar resType', resType'
                   in
-                  let i = Call(Some (var tmp),f'',args'', !currentLoc) in
+                  let i = Call(Some (var tmp),f3,args3, !currentLoc) in
                   finishExp (sf @@ sargs +++ i) (Lval(var tmp)) restyp'
           end
         end
