@@ -8,6 +8,9 @@ use strict;
 # uniqueness.  Has optional support for smooshing out the underscores
 # in identifiers.  Has optional support for ignoring reserved words.
 
+# BUG: If you use -smoosh and an identifier starts with __<number>
+# then it will use that number as the identifier, which is not legal.
+
 # Feature: Might need to add support for ignoring whole regular
 # expressions, not just words.
 
