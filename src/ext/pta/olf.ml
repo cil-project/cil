@@ -47,6 +47,8 @@ exception ReachedTop   (* raised if top (from an undefined function)
 			  flows to a c_absloc during the flow step *)
 exception UnknownLocation
 
+open Cil
+
 module U = Uref 
 module S = Setp
 module H = Hashtbl
@@ -1194,8 +1196,11 @@ let epoints_to (t : tau) : Cil.varinfo list =
   in
     get_vinfos (points_to_aux t)
 
-let points_to_names (lv : lvalue) : string list =
+(* let points_to_names (lv : lvalue) : string list =
   List.map (fun (_,str,_) -> str) (points_to_aux lv.contents)
+*)
+let points_to_names (lv : lvalue) : string list =
+  List.map (fun v -> v.vname) (points_to lv)
 
 let absloc_points_to (lv : lvalue) : absloc list = 
   points_to_aux (lv.contents)
