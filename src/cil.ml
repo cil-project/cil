@@ -1895,6 +1895,8 @@ let gccBuiltins : (string, typ * typ list) H.t =
     ((if hasbva then TBuiltin_va_list [] else voidPtrType), []);
   H.add h "__builtin_constant_p" (intType, [ intType ]);
   H.add h "__builtin_fabs" (doubleType, [ doubleType ]);
+  let longDouble = TFloat (FLongDouble, []) in
+  H.add h "__builtin_fabsl" (longDouble, [ longDouble ]));
   if hasbva then begin
     H.add h "__builtin_va_end" (voidType, [ TBuiltin_va_list [] ]);
     H.add h "__builtin_varargs_start" (voidType, [ TBuiltin_va_list [] ]);
