@@ -52,6 +52,18 @@ let popContext () =
     _ :: t -> errorContext := t
   | [] -> s (eprintf "Bug: cannot pop error context")
 
+
+let withContext ctx f x = 
+  pushContext ctx;
+  try
+    let res = f x in
+    popContext ();
+    res
+  with e -> begin
+    popContext ();
+    raise e
+  end
+  
                                         (* Make sure that showContext calls 
                                          * each f with its appropriate 
                                          * errorContext as it was when it was 

@@ -109,18 +109,16 @@ let newVarId name isglobal =
 
 (* Create a new variable name. Give the original source name *)
 let newVarName lookupname = 
-  (* Split the lookup name into a prefix and a suffix. *)
+  (* Split the lookup name into a prefix and a suffix. The suffix is 
+   * numberic and is separated by _ from the prefix *)
   let l = String.length lookupname in
-  let rec split i = 
-    assert (i >= 0 && i < l);
-    let last = Char.code (String.get lookupname i) - Char.code '0' in
-    if last >= 0 && last <= 9 then
-      let (prefix, suffix) = split (i - 1) in
-      (prefix, if suffix >= 0 then suffix * 10 + last else last)
-    else
-      (String.sub lookupname 0 (i + 1), -1)
+  let (prefix, suffix) = 
+    try
+      let under = String.rindex lookupname '_' in
+      (String.sub lookupname 0 under, 
+       int_of_string (String.sub lookupname under (l - under)))
+    with _ -> (lookupname, -1)
   in
-  let (prefix, suffix) = split (l - 1) in
   try
     let rc = H.find alphaTable prefix in
     let newsuffix = if suffix > !rc then suffix else !rc + 1 in
@@ -140,7 +138,10 @@ let docAlphaTable () =
 (* Add a new variable. Do alpha-conversion if necessary *)
 let alphaConvertAndAddToEnv vi = 
   let newname = newVarName vi.vname in
-  let newvi = if vi.vname = newname then vi else {vi with vname = newname} in
+  let newvi = 
+    if vi.vname = newname then vi else 
+    {vi with vname = newname; 
+             vid = if vi.vglob then H.hash newname else vi.vid} in
   H.add env vi.vname newvi; 
   if not vi.vglob then begin
     locals := newvi :: !locals;
@@ -1866,7 +1867,7 @@ let convFile dl =
                   else 
                     match oldts, newts with
                                         (* If the new type is complete, I'll 
-                                           * trust it *)
+                                         * trust it  *)
                     | TSArray(_, Some _, _), TSArray(_, None, _) -> ()
                     | TSArray(_, _, _), TSArray(_, Some _, _) 
                       -> oldvi.vtype <- vi.vtype

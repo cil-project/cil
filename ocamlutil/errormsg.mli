@@ -45,5 +45,7 @@ val pushContext  : (unit -> Pretty.doc) -> unit
 val popContext   : unit -> unit
 
 
-
+  (* To ensure that the context is pushed and pop-ed properly, use the 
+   * function below *)
+val withContext  : (unit -> Pretty.doc) -> ('a -> 'b) -> 'a -> 'b
 
