@@ -608,7 +608,7 @@ sub link {
         $self->applyCilAndCompile([$combFile], $mergedobj, $ppargs, $ccargs); 
     } else {
       DoMerge:
-        $self->applyCilAndCompile($tomerge, $mergedobj, $ppargs, $ccargs); 
+        $self->applyCilAndCompile($tomerge, $mergedobj, $ppargs, $ccargs);
     }
 
     push @{$trueobjs}, $mergedobj;
@@ -666,8 +666,10 @@ sub applyCilAndCompile {
     my $aftercilpp = $self->preprocessOutputFile($aftercil);
     $self->preprocess_after_cil($aftercil, $aftercilpp, $ppargs);
 
-    # Now compile
-    return $self->compile_cil($aftercilpp, $dest, $ppargs, $ccargs);
+    if (!defined($ENV{CILLY_DONT_COMPILE_AFTER_MERGE})) {
+      # Now compile
+      return $self->compile_cil($aftercilpp, $dest, $ppargs, $ccargs);
+    }
 }
 
 # Linking after CIL
