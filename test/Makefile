@@ -2076,25 +2076,61 @@ perl-noclean: mustbegcc mustbelinux mustbemanju
 perl-gcc: mustbelinux mustbemanju perlclean
 	cd $(PERLSRC) ; make CC=gcc
 
-#### ------------- BIND ----------------------------
+ifndef BIG_EXAMPLES
+ BIG_EXAMPLES := ../../big-examples/
+endif
+
+###########################################################################
+#                                  BIND
+###########################################################################
 # http://www.isc.org/products/BIND/
+BINDSRC := $(BIG_EXAMPLES)/bind
 
-#BINDSRC := /usr/local/src/bind-9.2.0
+bindclean:
+	cd $(BINDSRC); if test -f Makefile ; then $(MAKE) clean ; else ./configure ; fi
+	-cd $(BINDSRC); find . \( \
+		-name '*cil.c' -o \
+		-name '*.exe' -o \
+		-name '*.i' -o \
+		-name '*.o' -o \
+		-name '*.obj' -o \
+		-name '*cabs.c' -o \
+		-name '*_comb*.c' \
+	      	\) -exec rm -f {} \;
 
-BIG_EXAMPLES := ../../big-examples/
+#              CC="$(CCURED) --assumePrintf $(STANDARDPATCH)" 
+# lib/isc/include/isc/event.h has commented out __RTTI annotations
+bind: mustbegcc mustbelinux bindclean
+	cd $(BINDSRC) ; make -e \
+              CC="$(CCURED) --noWILD --assumePrintf " \
+              MAKE="make -e" \
+                LD="$(CILLY) --merge --verbose --commPrintLn " \
+                AR="$(CILLY) --mode=AR --merge --verbose " \
+                RANLIB="echo" | tee bind.log
 
-bindclean: mustbegcc mustbelinux mustbemanju
-	cd $(BIG_EXAMPLES); $(MAKE) bindclean
+bind-noclean: mustbegcc mustbelinux 
+	cd $(BINDSRC) ; make -e \
+              CC="$(CCURED) --noWILD --assumePrintf " \
+              MAKE="make -e" \
+                LD="$(CILLY) --merge --verbose --commPrintLn " \
+                AR="$(CILLY) --mode=AR --merge --verbose " \
+                RANLIB="echo" | tee bind-noclean.log
 
-bind: mustbegcc mustbelinux mustbemanju 
-	cd $(BIG_EXAMPLES) ; $(MAKE) bind
+bind-gcc: mustbegcc mustbelinux bindclean
+	cd $(BINDSRC) ; make -e CC=gcc | tee bind-gcc.log
 
-bind-noclean: mustbegcc mustbelinux mustbemanju
-	cd $(BIG_EXAMPLES) ; $(MAKE) bind-noclean
-
-bind-gcc: mustbegcc mustbelinux mustbemanju 
-	cd $(BIG_EXAMPLES)/bind ; $(MAKE)
-
+#bindclean: mustbegcc mustbelinux mustbemanju
+#	 cd $(BIG_EXAMPLES); $(MAKE) bindclean
+#
+#bind: mustbegcc mustbelinux mustbemanju 
+#	 cd $(BIG_EXAMPLES) ; $(MAKE) bind
+#
+#bind-noclean: mustbegcc mustbelinux mustbemanju
+#	 cd $(BIG_EXAMPLES) ; $(MAKE) bind-noclean
+#
+#bind-gcc: mustbegcc mustbelinux mustbemanju 
+#	 cd $(BIG_EXAMPLES)/bind ; $(MAKE)
+#
 #### ------------- WU-FTPD -------------------------
 
 # source available at www.wu-ftpd.org
