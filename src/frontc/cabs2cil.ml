@@ -4221,7 +4221,7 @@ and createLocal ((_, sto, _, _) as specs)
       (* Make a variable of potentially variable size. If se0 <> empty then 
        * it is a variable size variable *)
       let vi,se0,len,isvarsize = 
-        makeVarSizeVarInfo !currentLoc specs (n, ndt, a) in
+        makeVarSizeVarInfo loc specs (n, ndt, a) in
 
       let vi = alphaConvertVarAndAddToEnv true vi in        (* Replace vi *)
       let se1 = 

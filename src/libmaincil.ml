@@ -60,7 +60,7 @@ class unrollVisitorClass = object (self)
   method vvdec (vi : varinfo) : varinfo visitAction = 
     begin
       vi.vtype <- unrollTypeDeep vi.vtype;
-      ignore (E.log "varinfo for %s in file '%s' line %d byte %d\n" vi.vname vi.vdecl.file vi.vdecl.line vi.vdecl.byte);
+      (*ignore (E.log "varinfo for %s in file '%s' line %d byte %d\n" vi.vname vi.vdecl.file vi.vdecl.line vi.vdecl.byte);*)
       SkipChildren
     end
     
