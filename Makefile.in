@@ -41,7 +41,7 @@ CILLY_MODULES = pretty errormsg trace stats util clist \
               cabs cabsvisit cprint clexer cparser \
               cilversion machdep cil formatlex formatparse formatcil cabs2cil \
               patch frontc check mergecil logcalls logwrites rmtmps \
-	      callgraph epicenter heapify testcil maincil
+	      callgraph epicenter heapify canonicalize testcil maincil
 CILLY_CMODULES =
 CILLY_LIBS     = unix str
 
@@ -235,7 +235,7 @@ DISTRIB_SRC_FRONTC = cabs.ml cprint.ml clexer.mli clexer.mll \
 DISTRIB_SRC_EXT = logcalls.ml logcalls.mli \
                   astslicer.ml simplemem.ml heap.ml partial.ml \
                   logwrites.ml heapify.ml callgraph.ml callgraph.mli \
-                  epicenter.ml epicenter.mli
+                  epicenter.ml epicenter.mli canonicalize.ml canonicalize.mli
 
 DISTRIB_LIB = Cilly.pm
 

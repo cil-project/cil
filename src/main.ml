@@ -111,6 +111,10 @@ let rec processOneFile (cil: C.file) =
       Heapify.default_stackguard cil 
     end ;
       
+    if (!Canonicalize.cpp_canon) then begin
+      Canonicalize.canonicalize cil
+    end ;
+      
     (* sm: enabling this by default, since I think usually we
      * want 'cilly' transformations to preserve annotations; I
      * can easily add a command-line flag if someone sometimes
@@ -210,7 +214,9 @@ let rec theMain () =
     "--heapify", Arg.Unit (fun _ -> heapify := true),
 					"apply the `heapify' transformation";
     "--stackguard", Arg.Unit (fun _ -> stackguard := true),
-					"apply the `stackguard' transformation";
+					"apply the `stackguard' transformation";    "--cppcanon", Arg.Unit (fun _ -> Canonicalize.cpp_canon := true),
+		       "Fix some C-isms so that the result is C++ compliant.";
+
     "--nodebug", Arg.String (setDebugFlag false),
                       "<xxx> turns off debugging flag xxx";
     "--testcil", Arg.String (fun s -> testcil := s),
