@@ -5489,12 +5489,12 @@ let convFile ((fname : string), (dl : Cabs.definition list)) : Cil.file =
   if !E.verboseFlag || !Util.printStages then 
     ignore (E.log "Converting CABS->CIL\n");
   (* Setup the built-ins, but do not add their prototypes to the file *)
-  let setupBuiltin name (resTyp, argTypes) = 
+  let setupBuiltin name (resTyp, argTypes, isva) = 
     let v = 
       makeGlobalVar name (TFun(resTyp, 
                                Some (List.map (fun at -> ("", at, [])) 
                                        argTypes),
-                               false, [])) in
+                               isva, [])) in
     ignore (alphaConvertVarAndAddToEnv true v)
   in
   H.iter setupBuiltin (if !msvcMode then msvcBuiltins else gccBuiltins);

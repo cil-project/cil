@@ -1893,36 +1893,42 @@ and d_binop () b =
 let invalidStmt = mkStmt (Instr [])
 
 (** Construct a hash with the builtins *)
-let gccBuiltins : (string, typ * typ list) H.t = 
+let gccBuiltins : (string, typ * typ list * bool) H.t = 
   let h = H.create 17 in
   (* See if we have builtin_va_list *)
   let hasbva = M.gccHas__builtin_va_list in
   (* When we parse builtin_next_arg we drop the second argument *)
   H.add h "__builtin_next_arg" 
-    ((if hasbva then TBuiltin_va_list [] else voidPtrType), []);
-  H.add h "__builtin_constant_p" (intType, [ intType ]);
-  H.add h "__builtin_fabs" (doubleType, [ doubleType ]);
+    ((if hasbva then TBuiltin_va_list [] else voidPtrType), [], false);
+  H.add h "__builtin_constant_p" (intType, [ intType ], false);
+  H.add h "__builtin_fabs" (doubleType, [ doubleType ], false);
   let longDouble = TFloat (FLongDouble, []) in
-  H.add h "__builtin_fabsl" (longDouble, [ longDouble ]);
+  H.add h "__builtin_fabsl" (longDouble, [ longDouble ], false);
   if hasbva then begin
-    H.add h "__builtin_va_end" (voidType, [ TBuiltin_va_list [] ]);
-    H.add h "__builtin_varargs_start" (voidType, [ TBuiltin_va_list [] ]);
-    H.add h "__builtin_va_start" (voidType, [ TBuiltin_va_list [] ]);
+    H.add h "__builtin_va_end" (voidType, [ TBuiltin_va_list [] ], false);
+    H.add h "__builtin_varargs_start" 
+      (voidType, [ TBuiltin_va_list [] ], false);
+    H.add h "__builtin_va_start" (voidType, [ TBuiltin_va_list [] ], false);
     (* When we parse builtin_stdarg_start, we drop the second argument *)
-    H.add h "__builtin_stdarg_start" (voidType, [ TBuiltin_va_list []; ]);
+    H.add h "__builtin_stdarg_start" (voidType, [ TBuiltin_va_list []; ],
+                                      false);
     (* When we parse builtin_va_arg we change its interface *)
     H.add h "__builtin_va_arg" (voidType, [ TBuiltin_va_list [];
                                             uintType; (* Sizeof the type *)
-                                            voidPtrType; (* Ptr to res *) ]);
+                                            voidPtrType; (* Ptr to res *) ],
+                               false);
     H.add h "__builtin_va_copy" (voidType, [ TBuiltin_va_list [];
-					     TBuiltin_va_list [] ]);
+					     TBuiltin_va_list [] ],
+                                false);
   end;
   h
 
 (** Construct a hash with the builtins *)
-let msvcBuiltins : (string, typ * typ list) H.t = 
+let msvcBuiltins : (string, typ * typ list * bool) H.t = 
   (* These are empty for now but can be added to depending on the application*)
   let h = H.create 17 in
+  (** Take a number of wide string literals *)
+  H.add h "__annotation" (voidType, [ ], true);
   h
 
 
@@ -5663,7 +5669,8 @@ let initCIL () =
   upointType := TInt(findIkind true !theMachine.M.sizeof_ptr, []);
   kindOfSizeOf := findIkind true !theMachine.M.sizeof_sizeof;
   typeOfSizeOf := TInt(!kindOfSizeOf, []);
-  H.add gccBuiltins "__builtin_memset" (voidPtrType, [ voidPtrType; intType; intType ]);
+  H.add gccBuiltins "__builtin_memset" 
+    (voidPtrType, [ voidPtrType; intType; intType ], false);
   wcharKind := findIkind false !theMachine.M.sizeof_wchar;
   wcharType := TInt(!wcharKind, []);
   char_is_unsigned := !theMachine.M.char_is_unsigned;

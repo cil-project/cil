@@ -1142,14 +1142,14 @@ val pushGlobal: global -> types: global list ref
                        -> variables: global list ref -> unit
 
 (** A list of the GCC built-in functions. Maps the name to the result and 
-  * argument types *)
-val gccBuiltins: (string, typ * typ list) Hashtbl.t
+  * argument types, and whether it is vararg *)
+val gccBuiltins: (string, typ * typ list * bool) Hashtbl.t
 
 
 (** A list of the MSVC built-in functions. Maps the name to the result and 
- * argument types *)
-val msvcBuiltins: (string, typ * typ list) Hashtbl.t
-
+ * argument types, and whether it is vararg *)
+val msvcBuiltins: (string, typ * typ list * bool) Hashtbl.t
+ 
 (** {b Values for manipulating initializers} *)
 
 

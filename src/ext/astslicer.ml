@@ -35,7 +35,7 @@
  *
  *)
 open Cil
-
+module E = Errormsg
 (*
  * Weimer: an AST Slicer for use in Daniel's Delta Debugging Algorithm.
  *)
@@ -106,6 +106,8 @@ let enumerate out (f : Cil.file) =
           doBlock b base' i' ;
           Printf.fprintf out ")\n" ; 
           incr i 
+    | TryExcept _ | TryFinally _ -> 
+        E.s (E.unimp "astslicer:enumerate")
     ) sl 
   and doIL il base i = 
     List.iter (fun ins -> match ins with
@@ -376,6 +378,8 @@ let mark_file (f : Cil.file) (names : (string, mark) Hashtbl.t) =
         let base',i' = descend base i in
         doBlock b base' i' inside ;
         incr i 
+    | TryExcept _ | TryFinally _ -> 
+        E.s (E.unimp "astslicer: mark")
     ) sl 
   and doIL il base i default = 
     List.iter (fun ins -> mark wi ins (check base i default) ; incr i) il 

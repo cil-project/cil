@@ -34,20 +34,6 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  *)
-(* cabs -- abstract syntax for FrontC                                 
-**
-** Project:	frontc
-** File:	cabs.ml
-** Version:	2.1
-** Date:	4.7.99
-** Author:	Hugues Cassé
-**
-** 1.0	2.19.99	Hugues Cassé	First version.
-** 2.0	3.22.99	Hugues Cassé	Generalization of typed names.
-** 2.1	4.7.99	Hugues Cassé	GNU Statement embedded in expressions managed.
-*)
-
-let version = "Cabs 2.1 4.7.99 Hugues Cassé"
 
 (*
 ** Types
