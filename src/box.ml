@@ -272,9 +272,9 @@ and fixit t =
           let fixed' = fixupType t' in
           (* Extract the boxing style attribute *)
           let pkind, newa = extractPointerTypeAttribute a in
-          let tname, fixed = 
+          let fixed = 
             match pkind with
-              (P.Safe|P.Unknown) -> "", TPtr(fixed', a)
+              (P.Safe|P.Unknown) -> TPtr(fixed', a)
             | (P.Wild|P.Index) -> 
                 let tname  = newTypeName "fatp_" fixed' in (* The name *)
                 let fixed = 
@@ -286,7 +286,9 @@ and fixit t =
                 in
                 let pattr = 
                   match pkind with P.Wild -> AId("wild") | _ -> AId("index") in
-                tname, TNamed(tname, fixed, [pattr])
+                theFile := GType(tname, fixed) :: !theFile;
+                TNamed(tname, fixed, [pattr])
+
             | P.FSeq -> 
                 let tname  = newTypeName "seq_" fixed' in (* The name *)
                 let fixed = 
@@ -296,15 +298,15 @@ and fixit t =
                                    ("_b", uintType, [])]) 
                        [])
                 in
-                tname, TNamed(tname, fixed, [AId("fseq")])
+                theFile := GType(tname, fixed) :: !theFile;
+                TNamed(tname, fixed, [AId("fseq")])
+
             | _ -> E.s (E.unimp "Don't know how to fix a %a" 
                           P.d_pointerkind pkind)
           in
           (* We add fixed ourselves. The TNamed will be added after doit  *)
           H.add fixedTypes (typeSig fixed) fixed; 
           H.add fixedTypes (typeSig (TPtr(fixed', a))) fixed;
-          if tname <> "" then
-            theFile := GType(tname, fixed) :: !theFile;
           fixed
       end
             
@@ -630,7 +632,7 @@ let makeTagAssignInit (iter: varinfo) vi : stmt list =
   []
 
 (****** the CHECKERS ****)
-let fatVoidPtr = fixupType voidPtrType
+let fatVoidPtr     = fixupType voidPtrType
 let castVoidStar e = doCast e (typeOf e) voidPtrType
 
 let checkSafeRetFatFun = 
@@ -731,7 +733,13 @@ let getHostIfBitfield lv t =
   | _ -> lv, t
 
 (* Pass a thunk for computing the length expression *)
-let checkBounds : (unit -> exp) -> exp -> lval -> typ -> stmt = 
+type checkWhat = 
+    CheckNull of exp
+  | CheckBounds
+  | CheckNothing
+
+let checkBounds : (unit -> exp) -> exp -> lval -> typ 
+                  -> P.pointerkind -> stmt = 
   let fdec = emptyFunction "CHECK_CHECKBOUNDS" in
   let argb  = makeLocalVar fdec "b" voidPtrType in
   let argl  = makeLocalVar fdec "l" uintType in
@@ -740,30 +748,40 @@ let checkBounds : (unit -> exp) -> exp -> lval -> typ -> stmt =
   fdec.svar.vtype <- TFun(voidType, [ argb; argl; argp; argpl ], false, []);
   fdec.svar.vstorage <- Static;
   theFile := GDecl fdec.svar :: !theFile;
-  fun mktmplen base lv t ->
-    let lv', lv't = getHostIfBitfield lv t in
+  let checkBoundsFun = fdec in
+
+  let fdec = emptyFunction "CHECK_NULL" in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  fdec.svar.vtype <- TFun(voidType, [ argp ], false, []);
+  fdec.svar.vstorage <- Static;
+  theFile := GDecl fdec.svar :: !theFile;
+  let checkNullFun = fdec in
+
+  (* And now the null check *)
+  fun mktmplen base lv lvt pkind ->
+    let lv', lv't = getHostIfBitfield lv lvt in
     (* Do not check the bounds when we access variables without array 
      * indexing  *)
-    let mustCheck = 
-      match lv' with
-        Var vi, off -> 
-          let rec hasIndex = function
-            | Index _ -> true
-            | NoOffset -> false
-(*            | First o -> true in an array. Might be of length 0 *)
-            | Field (_, o) -> hasIndex o
-          in
-          hasIndex off
-      | Mem _, _ -> true
+    let mustCheck =
+      match pkind with
+        (P.Wild|P.Index) -> CheckBounds
+      | P.Safe -> begin
+          match lv' with
+            Mem addr, _ -> CheckNull addr
+          | _, _ -> CheckNothing
+      end
+      | _ -> E.s (E.bug "Unexpected pointer kind in checkBounds")
     in
-    if mustCheck then
-      call None (Lval (var fdec.svar))
-        [ castVoidStar base; 
-          mktmplen (); 
-          castVoidStar (AddrOf(lv', lu));
-          SizeOf(lv't, lu) ]
-    else
-      Skip
+    match mustCheck with
+      CheckNothing -> Skip
+    | CheckNull addr ->
+        call None (Lval (var checkNullFun.svar)) [ castVoidStar addr ]
+    | CheckBounds -> 
+        call None (Lval (var checkBoundsFun.svar))
+          [ castVoidStar base; 
+            mktmplen (); 
+            castVoidStar (AddrOf(lv', lu));
+            SizeOf(lv't, lu) ]
 
 (* Compute the offset of first scalar field in a thing to be written. Raises 
  * Not_found if there is no scalar *)
@@ -861,11 +879,12 @@ let checkFatPointerWrite =
   
   
 let checkMem (towrite: exp option) 
-             (lv: lval) (base: exp) (t: typ) (pk: P.pointerkind) : stmt list = 
+             (lv: lval) (base: exp) 
+             (lvt: typ) (pkind: P.pointerkind) : stmt list = 
   (* Fetch the length field in a temp variable. But do not create the 
    * variable until certain that it is needed *)
+  let lenExp : exp option ref = ref None in
   let getLenExp = 
-    let lenExp : exp option ref = ref None in
     fun () -> begin
       match !lenExp with
         Some x -> x
@@ -924,23 +943,24 @@ let checkMem (towrite: exp option)
   in
   (* See first what we need in order to check tags *)
   let zeroAndCheckTags = 
-    let zeroTags = 
-      match towrite with 
-        None -> Skip
-      | Some _ -> checkZeroTags base (getLenExp ()) lv t
-    in
-    zeroTags :: 
-    (doCheckTags towrite lv t [])
+    if pkind = P.Wild then
+      let zeroTags = 
+        match towrite with 
+          None -> Skip
+        | Some _ -> checkZeroTags base (getLenExp ()) lv lvt
+      in
+      zeroTags :: 
+      (doCheckTags towrite lv lvt [])
+    else
+      []
   in
   (* Now see if we need to do bounds checking *)
-  let check_0 = 
-    match checkBounds getLenExp base lv t, zeroAndCheckTags with
-      Skip, ([]|[Skip]) -> []  (* Don't even fetch the length *)
-    | cb, zct -> 
-        (checkFetchLength (getVarOfExp (getLenExp ())) base) 
-        :: cb :: zct
-  in
-  check_0
+  let checkb = (checkBounds getLenExp base lv lvt pkind) :: zeroAndCheckTags in
+  (* See if we need to generate the length *)
+  (match !lenExp with
+    None -> checkb
+  | Some _ -> 
+      (checkFetchLength (getVarOfExp (getLenExp ())) base) :: checkb)
   
   
           
