@@ -1124,6 +1124,14 @@ let rec doSpecList (specs: A.spec_elem list)
   in
   (* Now scan the list and collect the type specifiers. Preserve the order *)
   let tspecs = List.fold_right doSpecElem specs [] in
+  
+  (* sm: inline and extern (to me) are nonsensical; and if a function *)
+  (* is both inline and extern, then gcc will neither inline it nor *)
+  (* output its definition to the .o file, resulting in a link error, *)
+  (* if optimization is turned off.  so, remove 'extern' from inlines *)
+  (if !isinline && !storage = Extern then
+     storage := NoStorage);
+
   let tspecs' = 
     (* GCC allows a named type that appears first to be followed by things 
      * like "short", "signed", "unsigned" or "long". *)

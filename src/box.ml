@@ -1065,13 +1065,13 @@ and fixit t =
       let fixed = 
         match t with 
           (TInt _|TEnum _|TFloat _|TVoid _) -> t
-              
+
         | TPtr (t', a) -> begin
             (* Extract the boxing style attribute *)
-            let pkind = kindOfType t in 
+            let pkind = kindOfType t in
             (* Now do the base type *)
             let fixed' = fixupType t' in
-            (* Maybe it is a function with a WILD type. We must chage all 
+            (* Maybe it is a function with a WILD type. We must chage all
              * arguments to be WILD pointers *)
             let fixed' = fixupFunctionType (-1) pkind fixed' in
             let newType = TPtr(fixed', a) in
@@ -1114,7 +1114,7 @@ and fixit t =
         | TArray(t', l, a) -> 
             let sized = extractArrayTypeAttribute a in
             let newarray = TArray(fixupType t', l, a) in
-            let res = 
+            let res =
               if sized then begin
                 addArraySize newarray
               end else begin
@@ -1124,7 +1124,7 @@ and fixit t =
                 newarray
               end
             in
-            (* Save the fixed comp so we don't redo it later. Important since 
+            (* Save the fixed comp so we don't redo it later. Important since
              * redoing it means that we change the fields in place. *)
             H.add fixedTypes (typeSigBox res) res;
             res
@@ -1346,32 +1346,49 @@ let pkAddrOf (lv: curelval)
           mkFexp3 ptrtype (mkAddrOf lv.lv) lv.lvb lv.lve, lv.lvstmts
       | _ -> E.s (bug "pkAddrOf(%a)" N.d_opointerkind lv.plvk)
   end
-         
+
+(* sm: return whether given type is {unsigned,signed,} char *)
+let isCharType (t : typ) : bool =
+  match unrollType t with
+  | TInt((IChar|ISChar|IUChar), _) -> true
+  | _ -> false
+
+
+(* sm: localize the -1 that goes on in calculating array ends, to *)
+(* facilitate experimenting with policy *)
+let charArrayEndpOffset (arrayLen: exp) : exp =
+  if false then
+    (* old policy: let the end be length-1, cutting off access to last element *)
+    (BinOp(MinusA, arrayLen, one, intType))
+  else
+    (* new policy: allow access to complete array; we add one more byte *)
+    (* during a post-process after boxing proper *)
+    arrayLen
+
 (* Given an array lval obtain an lval corresponding to the first element *)
-let arrayPointerToIndex (lv: curelval) 
-                        (* (t: typ) 
-                        (k: N.opointerkind) 
-                        (lv: lval) 
-                        (base: exp) *) : curelval = 
+let arrayPointerToIndex (lv: curelval)
+                        (* (t: typ)
+                        (k: N.opointerkind)
+                        (lv: lval)
+                        (base: exp) *) : curelval =
   match unrollType lv.lvt with
     TArray(elemt, leno, a) ->
       let lv' = addOffsetLval (Index(zero, NoOffset)) lv.lv in
       if  lv.plvk = N.Wild || lv.plvk = N.WildT then
-        { lv = lv'; lvt = elemt; plvk = N.Wild; 
+        { lv = lv'; lvt = elemt; plvk = N.Wild;
           lvb = lv.lvb; lve = zero; lvstmts = lv.lvstmts }
       else if (filterAttributes "sized" a <> []) then
         { lv = lv'; lvt = elemt; plvk = N.Index;
           lvb = StartOf lv.lv; lve = zero; lvstmts = lv.lvstmts }
       else begin
-        match leno with 
+        match leno with
           Some alen -> (* If it is not sized then better have a length *)
             let knd, alen' =
               if filterAttributes "nullterm" a <> [] then begin
-                (match unrollType elemt with
-                  TInt((IChar|IUChar|ISChar), _) -> ()
-                | _ -> E.s (E.warn "NULLTERM array of %a\n" d_type elemt));
+                if not (isCharType elemt) then
+                  E.s (E.warn "NULLTERM array of %a\n" d_type elemt);
                 (* Leave null for the null character *)
-                N.SeqN, BinOp(MinusA, alen, one, intType)
+                N.SeqN, (charArrayEndpOffset alen)
               end else N.Seq, alen 
             in
             { lv = lv'; lvt = elemt; plvk = knd; 
@@ -2657,16 +2674,15 @@ let rec initializeType
             (fun lv acc -> acc)
             comp.cfields
   end
-  | TArray(bt, Some l, a) -> 
+  | TArray(bt, Some l, a) ->
       if filterAttributes "nullterm" a <> [] && mustZero then begin
             (* Write a zero at the very end *)
-        (match unrollType bt with
-          TInt((IChar|ISChar|IUChar), _) -> ()
-        | _ -> E.s (unimp "NULLTERM array of base type %a" d_type bt));
-        fun lv acc -> 
+        if not (isCharType bt) then
+          E.s (unimp "NULLTERM array of base type %a" d_type bt);
+        fun lv acc ->
           CConsL
-            (mkSet (addOffsetLval 
-                      (Index(BinOp(MinusA, l, one, intType), NoOffset)) lv)
+            (mkSet (addOffsetLval
+                      (Index((charArrayEndpOffset l), NoOffset)) lv)
                zero,
              acc)
       end else begin
@@ -2793,39 +2809,50 @@ let rec stringLiteral (s: string) (strt: typ) : stmt clist * fexp =
       (empty, FM (fixChrPtrType, N.Wild,
                result, 
                castVoidStar result, zero))
-  | N.Seq | N.Safe | N.FSeq | N.String | N.ROString | N.SeqN | N.FSeqN -> 
-      let l = (if isNullTerm k then 0 else 1) + String.length s in
-      (* Make a global variable that points to this string. This way we can 
+  | N.Seq | N.Safe | N.FSeq | N.String | N.ROString | N.SeqN | N.FSeqN ->
+      (* sm: to allow FSeq and ROStrings to coexist, always add another *)
+      (* null byte, and let the user access everything up to, but *not* *)
+      (* including, that last byte *)
+      (* old: let l = (if isNullTerm k then 0 else 1) + String.length s in *)
+      let (fatString, l) = 
+        if true then
+          (s ^ "\000"), ((String.length s)+1)
+        else
+          s, (String.length s)
+      in
+      (*(trace "sm" (dprintf "boxing string[%d]: %s\n" l (String.escaped fatString)));*)
+
+      (* Make a global variable that points to this string. This way we can
        * register the area just once in the global initializer. *)
       let gvar = makeGlobalVar (newStringName ()) charPtrType in
       gvar.vstorage <- Static;
-      theFile := 
-         consGlobal (GVar (gvar, Some (SingleInit(Const(CStr s))), 
+      theFile :=
+         consGlobal (GVar (gvar, Some (SingleInit(Const(CStr fatString))),
                            !currentLoc)) !theFile;
       (* Get the end so that we can make a SEQ *)
       let theend = BinOp(IndexPI, Lval (var gvar), integer l, charPtrType) in
       (* Register the area *)
-      let regarea = 
+      let regarea =
         registerArea
           [ integer registerAreaSeqInt;
-            castVoidStar (Lval (var gvar)); 
+            castVoidStar (Lval (var gvar));
             castVoidStar theend ] !extraGlobInit
       in
       (* Add the registration to the global initializer *)
       if regarea != !extraGlobInit then extraGlobInit := regarea;
-      let res = 
-        match k with 
-          N.Safe | N.String | N.ROString -> 
+      let res =
+        match k with
+          N.Safe | N.String | N.ROString ->
             mkFexp1 fixChrPtrType (Lval (var gvar))
-        | N.Seq | N.SeqN | N.FSeq | N.FSeqN -> 
-            mkFexp3  fixChrPtrType 
+        | N.Seq | N.SeqN | N.FSeq | N.FSeqN ->
+            mkFexp3  fixChrPtrType
               (Lval (var gvar))
               (Lval (var gvar))
-              theend 
+              theend
 
         | _ -> E.s (bug "stringLiteral")
       in
-      (empty (* single (mkSet (var tmp) (Const (CStr s)))*), res)
+      (empty (* single (mkSet (var tmp) (Const (CStr fatString)))*), res)
         
   | N.WildT | N.SeqT | N.FSeqT | N.SeqNT | N.FSeqNT -> 
       let kno_t = N.stripT k in
@@ -3017,7 +3044,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
                   d_lval dest);
         single (mkSet (Mem(BinOp(PlusPI,
                                    doCast tmpvar charPtrType,
-                                   BinOp(MinusA, nrdatabytes, one, intType), 
+                                   (charArrayEndpOffset nrdatabytes),
                                    charPtrType)), NoOffset)
                   (doCast zero charType))
 
@@ -3896,6 +3923,42 @@ and boxexpSplit (e: exp) =
       (pfield.ftype, doe, p, b, e)
 
 
+(* sm: make a pass over the file and change declared types of arrays *)
+(* of chars to be 1 byte longer *)
+class expandCharArrays = object
+  inherit nopCilVisitor
+  method vvdec (v:varinfo) = (
+    match v.vtype with
+    | TArray(baseType, Some length, attrs) -> (
+        if (isCharType(baseType)) then
+          (*(trace "sm" (dprintf "expanding array %s\n" v.vname));*)
+          v.vtype <-
+            TArray(baseType, Some(BinOp(PlusA, length, one, intType)), attrs);
+          DoChildren                           
+      )
+    | _ -> DoChildren
+  )
+  method vexpr (e:exp) = (
+    match e with
+    | Const(CStr s) when false ->
+        (* tack one more null byte onto the end *)
+        ChangeTo(Const(CStr (s ^ "\000")))
+    | SizeOfE(innerExp) -> (
+        match (typeOf innerExp) with
+        | TArray(baseType, len, attrs) when (isCharType baseType) ->
+            (* all arrays of chars get expanded by 1 char, but I want *)
+            (* the program to still see the unexpanded size, so make this *)
+            (* yield a value one less *)
+            (*(trace "sm" (dprintf "adding 1 to %a\n" d_exp e));*)
+            ChangeTo(BinOp(MinusA, e, one, intType))
+        | _ ->
+            (* leave other sizeofs alone *)
+            DoChildren
+      )
+    | _ -> DoChildren
+  )
+end
+
 
 (* a hashtable of functions that we have already made wrappers for *)
 let wrappedFunctions = H.create 15
@@ -4309,7 +4372,7 @@ let boxFile file =
   (* Create the preamble *)
   preamble ();
   interceptCasts := false;
-  (* Now the orgininal file, including the global initializer *)
+  (* Now the original file, including the global initializer *)
   iterGlobals file doGlobal;
   (* Now finish the globinit *)
   let newglobinit = 
@@ -4386,10 +4449,12 @@ let boxFile file =
   Globinit.insertGlobInit res ;
   if showGlobals then ignore (E.log "Finished boxing file\n");
   let res' = Stats.time "split" Boxsplit.splitLocals res in
+  (* sm: after everything else runs, make char arrays 1 byte longer *)
+  (ignore (visitCilFile (new expandCharArrays) res'));
   res'
 
-  
-      
-let customAttrPrint a = 
+
+
+let customAttrPrint a =
   Ptrnode.ptrAttrCustom false a
 

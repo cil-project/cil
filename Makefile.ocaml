@@ -95,6 +95,7 @@ ifdef PROFILE
  CMXA           = cmxa
  EXEEXT         = .asm
  MOVEAFTERCAMLC = cmi cmx $(OBJ)
+ MOVEAFTERCAMLCF= cmi $(OBJ)
 else
 ifdef NATIVECAML
  #foo := $(shell echo "I am in NATIVECAML mode" >&2; echo whatever)
@@ -104,6 +105,7 @@ ifdef NATIVECAML
  CMXA           = cmxa
  EXEEXT         = .asm
  MOVEAFTERCAMLC = cmi cmx $(OBJ)
+ MOVEAFTERCAMLCF= cmi $(OBJ)
  COMPILETOWHAT  = native code
  # sm: by adding -native in native mode, we prevent spurious
  # dependencies on .cmo files which were causing lots of
@@ -116,6 +118,7 @@ else
  CMXA           = cma
  EXEEXT         = .byte
  MOVEAFTERCAMLC = cmi cmo
+ MOVEAFTERCAMLCF= cmi        # sm: 'F' for failed -- cmo isn't created
  COMPILETOWHAT  = bytecode
 endif
 endif
@@ -199,8 +202,8 @@ $(OBJDIR)/%.$(CMO): %.ml
            ;fi ; exit 0 \
         ;else \
 	   if test $(OBJDIR) != $(<D) ;then \
-                $(COMMAND) mv -f $(foreach ext,$(MOVEAFTERCAMLC), $(basename $<).$(ext)) $(OBJDIR); \
-                mv -f $(foreach ext,$(MOVEAFTERCAMLC), $(basename $<).$(ext)) \
+                $(COMMAND) mv -f $(foreach ext,$(MOVEAFTERCAMLCF), $(basename $<).$(ext)) $(OBJDIR); \
+                mv -f $(foreach ext,$(MOVEAFTERCAMLCF), $(basename $<).$(ext)) \
                       $(OBJDIR) \
            ;fi ; exit 1 \
         ;fi

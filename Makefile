@@ -67,6 +67,8 @@ ifdef RELEASE
   export OPTIM := 1
   # use runtime library with minimal debugging checks
   export RELEASELIB := 1
+  # turn on gcc's optimizer for the resulting executables
+  export EXTRAARGS += -O2
 endif
 
 # By default we are on Linux
@@ -178,7 +180,6 @@ endif
 ifdef TRACE
   CCURED+= --tr="$(TRACE)"
 endif
-
 
 # This is a way to enable the stats, allowing the command line to override it
 # Do STATS= to disable the stats.
@@ -512,7 +513,7 @@ btreetest-optimvariant.%: mustbegcc
 hola: scott/hola
 
 # sm: attempt at a single rule for my testing purposes
-scott/%: test/small2/%.c 
+scott/%: quickbuild test/small2/%.c 
 	rm -f test/small2/$*
 	cd test/small2; $(CC) $(CONLY) $(WARNALL) $(DEF)$(ARCHOS) $*.c
 	cd test/small2; $(CCURED) --keep=. $(DEF)$(ARCHOS) \
@@ -590,7 +591,7 @@ bads/%: test/small2/%.c
 
 # sm: yet another failure-test target, this time utilizing a separate
 # script capable of testing multiple failures per file
-test-bad/%: test/small2/%.c
+test-bad/%: quickbuild test/small2/%.c
 	CCUREDHOME="$(CCUREDHOME)" CCURED="$(CCURED) --noPrintLn" \
 	  CFLAGS="$(DEF)$(ARCHOS) "`$(PATCHECHO) $(STANDARDPATCH)`" $(CFLAGS) $(WARNALL)" \
 	  bash lib/test-bad $*.c
@@ -1058,7 +1059,7 @@ compress-noclean:  mustbegcc
 
 compress:  mustbegcc
 	cd $(COMPRESSDIR)/src; \
-               make CC="$(COMBINECCURED) $(PATCHARG)" clean build
+               make CFLAGS= CC="$(COMBINECCURED) $(PATCHARG)" clean build
 	cd $(COMPRESSDIR)/src; sh -c "for i in $(ITERATION_ELEMS) ; \
               do time ./compress.exe <input.data >combine-compress.out ;done"
 

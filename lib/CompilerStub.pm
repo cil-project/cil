@@ -694,7 +694,9 @@ sub new {
     my $self = 
     { NAME => 'GNU CC',
       MODENAME => 'GNUCC',  # do not change this since it is used in code
-      CC => "gcc -D_GNUCC -c -O ",  # sm: added -O since it's needed for inlines to be merged instead of causing link errors
+      # sm: added -O since it's needed for inlines to be merged instead of causing link errors
+      # sm: removed -O to ease debugging; will address "inline extern" elsewhere
+      CC => "gcc -D_GNUCC -c",
       LD => "gcc -D_GNUCC ",
       CPP => "gcc -D_GNUCC -E ",
       DEFARG  => "-D",

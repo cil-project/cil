@@ -2021,7 +2021,7 @@ and d_goto (s: stmt) =
       text "goto __invalid_label;"
 
 and d_fun_decl () f = begin
-  let stom, rest = separateStorageModifiers f.svar.vattr in
+  (*let stom, rest = separateStorageModifiers f.svar.vattr in*)
   text (if f.sinline then "__inline " else "")
     ++ d_videcl () f.svar
     ++ line
@@ -2833,7 +2833,6 @@ let d_global () = function
       (* sm: also don't print declarations for gcc builtins *)
       (* this doesn't do what I want, I don't know why *)
       else if (startsWith "__builtin_" vi.vname) then (
-        (trace "sm" (dprintf "got here\n"));
         (text ("// omitted gcc builtin " ^ vi.vname ^ "\n"))
       )
       else (

@@ -100,4 +100,7 @@ popen
 execv
 sockets
 printfllong
+stat
+replydirname
+boundaries
 

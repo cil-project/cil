@@ -412,18 +412,14 @@ let initialize () =
 let printGraph (c: out_channel) =
 begin
   (* Get the nodes ordered by ID *)
-  (tracei "sm" (dprintf "beginning of printGraph\n"));
   let allsorted =
     Stats.time "sortgraph"
       (fun () ->
         let all : node list ref = ref [] in
-        (trace "sm" (dprintf "gathering nodes into a list\n"));
         H.iter (fun id n -> all := n :: !all) idNode;
-        (trace "sm" (dprintf "sorting that list\n"));
         List.sort (fun n1 n2 -> compare n1.id n2.id) !all) ()
   in
   printShortTypes := true;
-  (trace "sm" (dprintf "printing the list\n"));
   let count : int ref = ref 0 in
   try
     Stats.time "printnodes"
@@ -437,7 +433,6 @@ begin
     raise e
   );
   printShortTypes := false;
-  (traceu "sm" (dprintf "end of printGraph\n"));
 end
 
 let nodeOfAttrlist al = 
