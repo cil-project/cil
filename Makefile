@@ -137,6 +137,16 @@ TVDIR=$(BASEDIR)/TransVal
 CILDIR=$(BASEDIR)/cil
 _GNUCC=1
 endif
+
+ifeq ($(COMPUTERNAME), madrone_danny) # dannys desktop
+BASEDIR=/home/dannyant
+SAFECCDIR=$(BASEDIR)
+PCCDIR=$(SAFECCDIR)/cil/test/PCC
+TVDIR=$(BASEDIR)/TransVal
+CILDIR=$(BASEDIR)/cil
+_GNUCC=1
+endif
+
 ifeq ($(COMPUTERNAME), danny_desk) # dannys desktop
 BASEDIR=/home/danny/project
 SAFECCDIR=$(BASEDIR)

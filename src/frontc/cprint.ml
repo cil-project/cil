@@ -28,6 +28,8 @@ let version = "Cprint 2.1e 9.1.99 Hugues Cassé"
 let lu = {line = -1; file = "loc unknown";}
 let cabslu = {lineno = -10; filename = "cabs loc unknown";}
 
+let curLoc = ref cabslu
+
 let msvcMode = ref false
 
 (*
@@ -75,10 +77,17 @@ let commit _ =
 		current_len := 0
 	end
 
+
+let addline () =
+	curLoc := {lineno = !curLoc.lineno+1;
+                   filename = !curLoc.filename}
+
+
 let new_line _ =
 	commit ();
 	if !line <> "" then begin
 		flush ();
+		addline();
 		output_char !out '\n'
 	end;
 	follow := 0
@@ -86,6 +95,7 @@ let new_line _ =
 let force_new_line _ =
 	commit ();
 	flush ();
+	addline();
 	output_char !out '\n';
 	follow := 0
 
@@ -112,11 +122,24 @@ let print str =
 	current_len := !current_len + (String.length str);
 	if (!spaces + !follow + !line_len + 1 + !current_len) > !width
 	then begin
-		if !line_len = 0 then commit ();
+		if !line_len = 0 then commit (); 
 		flush ();
+		addline();
 		output_char !out '\n';
 		if !follow = 0 then follow := !tab
 	end 
+
+let setLoc (l : cabsloc) =
+	unindent();
+	if (l.lineno <> !curLoc.lineno) then begin
+		print "# ";
+		if !msvcMode then print "line ";
+                print (string_of_int l.lineno);
+                print " ";
+                print l.filename;
+                print "\n";
+		curLoc := l
+	end
 
 
 (*
@@ -505,6 +528,7 @@ and print_expression (exp : expression) (lvl : int) =
 ** Statement printing
 *)
 and print_statement stat =
+  setLoc(Cabs.get_statementloc stat);
   match stat with
     NOP (loc) ->
       print ";";
@@ -514,7 +538,6 @@ and print_statement stat =
       print ";";
       new_line ()
   | BLOCK (blk, loc) ->
-      new_line ();
       print "{";
       indent ();
       let printBlkElem = function
@@ -678,33 +701,39 @@ and print_defs defs =
 and print_def def =
   match def with
     FUNDEF (proto, body, loc) ->
+      setLoc(loc);
       print_single_name proto;
       print_statement (BLOCK (body, loc));
       force_new_line ();
 
   | DECDEF (names, loc) ->
+      setLoc(loc);
       print_init_name_group names;
       print ";";
       new_line ()
 
   | TYPEDEF (names, loc) ->
+      setLoc(loc);
       print_name_group names;
       print ";";
       new_line ();
       force_new_line ()
 
   | ONLYTYPEDEF (specs, loc) ->
+      setLoc(loc);
       print_specifiers specs;
       print ";";
       new_line ();
       force_new_line ()
 
   | GLOBASM (asm, loc) ->
+      setLoc(loc);
       print "__asm__ (";  print_string asm; print ");";
       new_line ();
       force_new_line ()
 
   | PRAGMA (a,loc) ->
+      setLoc(loc);
       force_new_line ();
       print "#pragma ";
       let oldwidth = !width in
