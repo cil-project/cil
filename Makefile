@@ -1692,6 +1692,43 @@ linux-noclean:  mustbegcc mustbelinux mustbemanju
 linux-gcc: mustbelinux mustbemanju linuxclean
 	cd $(LINUXSRC); make -k CC=gcc HOSTCC=gcc
 
+######################## SENDMAIL
+SENDMAILSRC := /usr/local/src/sendmail-8.12.1/obj.Linux.2.4.5.i686/sendmail
+
+CILLY := perl $(CCUREDHOME)/lib/cilly.pl --verbose
+ifdef NOLINES
+  CILLY+= --noPrintln
+endif
+ifdef COMMLINES
+  CILLY+= --commPrintLn
+endif
+ifdef VERBOSE
+  CILLY+= --verbose
+endif
+ifdef PRINTSTAGES
+  CILLY+= --stages
+endif
+
+sendmailclean:
+	cd $(SENDMAILSRC); make clean
+	-cd $(SENDMAILSRC); find . \( \
+		-name '*cil.c' -o \
+		-name '*.exe' -o \
+		-name '*.i' -o \
+		-name '*.o' -o \
+		-name '*.obj' -o \
+		-name '*cabs.c' -o \
+		-name '*_comb*.c' \
+	      	\) -exec rm -f {} \;
+
+sendmail: mustbegcc mustbelinux mustbemanju sendmailclean
+	cd $(SENDMAILSRC) ; make -k CC="$(CILLY)"
+
+sendmail-noclean: mustbegcc mustbelinux mustbemanju
+	cd $(SENDMAILSRC) ; make -k CC="$(CILLY)"
+
+sendmail-gcc: mustbelinux mustbemanju linuxclean
+	cd $(SENDMAILSRC) ; make -k CC=gcc
 
 #### GIMP AND FRIENDS
 JPEGSRC :=/usr/local/src/jpeg-6b
