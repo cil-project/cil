@@ -736,6 +736,24 @@ on Windows/MSVC.
 
 \item We do not support tri-graph sequences (ISO 5.2.1.1).
 
+\item GCC has a strange feature called ``extern inline''. Such a function can
+be defined twice. First with the ``extern inline'' specifier and the second
+time without it. If optimizations are turned off then the ``extern inline''
+definition is considered a prototype (its body is ignored). If optimizations
+are turned on then the extern inline function is inlined at all of its
+occurences from the point of its definition all the way to the point where the
+(optional) second definition appears. No body is generated for an extern
+inline function. A body is generated for the real definition and that one is
+used in the rest of the file. 
+
+ CIL will rename your extern inline function (and its uses) with the suffix
+ \t{\_\_extinline}. This means that if you have two such definition, that do
+ different things and the optimizations are not on, then the CIL version might
+ compute a different answer !
+
+ Also, if you have multiple extern inline declarations then CIL will ignore
+but the first one. This is not so bad because GCC itself would not like it. 
+
 \item There are still a number of bugs in handling some obscure features of
 GCC. For example, when you use variable-length arrays, CIL turnes them into
 calls to \t{alloca}. This means that they are deallocated when the function
@@ -1276,6 +1294,28 @@ int main(void){
  return ({goto L; 0;}) && ({L: 5;});
 \end{cilcode}
 
+\item \t{extern inline} is a strange feature of C. Can you guess what the
+following code computes? 
+
+\begin{cilcode}[global]
+extern inline foo(void) { return 1; }
+int firstuse(void) { return foo(); }
+
+// A second, incompatible definition of foo
+int foo(void) { return 2; }
+
+int main() {
+    return foo() + firstuse();
+}
+\end{cilcode}
+
+ The answer depends on whether the optimizations are turned on. If they are
+then the answer is 3 (the first definition is inlined at all occurrences until
+the second definition). If the optimizations are off, then the first
+definition is ignore (treated like a prototype) and the answer is 4. 
+
+ CIL will misbehave on this example, if the optimizations are turned off (it
+ always returns 3).
 
 \end{enumerate}
 

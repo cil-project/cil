@@ -276,6 +276,7 @@ let isAtTopLevel () =
 
 (* When you add to env, you also add it to the current scope *)
 let addLocalToEnv (n: string) (d: envdata) = 
+(*  ignore (E.log "%a: adding local %s to env\n" d_loc !currentLoc n); *)
   H.add env n (d, !currentLoc);
     (* If we are in a scope, then it means we are not at top level. Add the 
      * name to the scope *)
@@ -291,6 +292,7 @@ let addLocalToEnv (n: string) (d: envdata) =
 
 
 let addGlobalToEnv (k: string) (d: envdata) : unit = 
+(*  ignore (E.log "%a: adding global %s to env\n" d_loc !currentLoc k); *)
   H.add env k (d, !currentLoc);
   (* Also add it to the global environment *)
   H.add genv k (d, !currentLoc)
@@ -4002,9 +4004,21 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
       E.s (E.bug "EXPRTRANSFORMER in cabs2cil input")
         
   | A.FUNDEF (((specs,(n,dt,a)) : A.single_name),
+              (body : A.block), loc) 
+      when isglobal && isExtern specs && isInline specs 
+           && (H.mem genv (n ^ "__extinline")) -> 
+       currentLoc := convLoc(loc);
+       ignore (warn "Duplicate extern inline definition for %s ignored"
+                 n);
+       (* Treat it as a prototype *)
+       doDecl isglobal (A.DECDEF ((specs, [((n,dt,a), A.NO_INIT)]), loc))
+
+  | A.FUNDEF (((specs,(n,dt,a)) : A.single_name),
               (body : A.block), loc) when isglobal ->
     begin
-      currentLoc := convLoc(loc);
+      let funloc = convLoc(loc) in
+(*      ignore (E.log "Definition of %s at %a\n" n d_loc funloc); *)
+      currentLoc := funloc;
       E.withContext
         (fun _ -> dprintf "2cil: %s" n)
         (fun _ ->
@@ -4035,6 +4049,31 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
             (* Record the returnType for doStatement *)
             currentReturnType   := returnType;
             
+            (* If this is the definition of an extern inline then we change 
+             * its name, by adding the suffix __extinline. We also make it 
+             * static *)
+            let n', sto' =
+              let n' = n ^ "__extinline" in
+              if inl && sto = Extern then 
+                n', Static
+              else begin 
+               (* Maybe this is the body of a previous extern inline. Then we 
+                * must take that one out of the environment because it is not 
+                * used from here on. This will also ensure that then we make 
+                * this functions' varinfo we will not think it is a duplicate 
+                * definition  *)
+                (try
+                  ignore (lookupVar n'); (* n' is defined *)
+                  let oldvi, _ = lookupVar n in
+                  if oldvi.vname <> n' then E.s (bug "extern inline redefinition: %s (expected %s)"
+                                                   oldvi.vname n');
+                  H.remove env n; H.remove genv n
+                with Not_found -> ());
+                n, sto 
+              end
+            in
+
+              
             (* Add the function itself to the environment. Add it before 
             * you do the body because the function might be recursive. Add 
             * it also before you add the formals to the environment 
@@ -4043,18 +4082,24 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
             (* Make a variable out of it and put it in the environment *)
             let thisFunctionVI, _ =
               makeGlobalVarinfo true
-                { vname = n;
+                { vname = n';
                   vtype = ftyp;
                   vglob = true;
                   vid   = newVarId n true;
                   vdecl = lu;
                   vattr = funattr;
                   vaddrof = false;
-                  vstorage = sto;
+                  vstorage = sto';
                   vreferenced = false;   (* sm *)
                 }
             in
-            
+
+            (* If it is extern inline then we add it to the global 
+             * environment for the original name as well. This will ensure 
+             * that all uses of this function will refer to the renamed 
+             * function *)
+            addGlobalToEnv n (EnvVar thisFunctionVI);
+
             (* Add the formals to the environment *)
             let formals' =
               match formals with
@@ -4232,7 +4277,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
             
             (*              ignore (E.log "The env after finishing the body of %s:\n%t\n"
                         n docEnv); *)
-            pushGlobal (GFun (fdec, !currentLoc));
+            pushGlobal (GFun (fdec, funloc));
             empty
           with e -> begin
             ignore (E.log "error in collectFunction %s: %s\n"
