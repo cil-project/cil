@@ -798,6 +798,7 @@ let ptrAttrCustom printnode = function
     | Attr("tagged", []) -> Some (text "__TAGGED")
     | Attr("nullterm", []) -> Some (text "__NULLTERM")
     | Attr("safeunion", []) -> Some (text "__SAFEUNION")
+    | Attr("heapify", []) -> Some (text "__HEAPIFY")
     | a -> None
 
 

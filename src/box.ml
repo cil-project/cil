@@ -57,6 +57,14 @@ let currentFileId     = ref 0
 
 let extraGlobInit : stmt clist ref = ref empty
 
+
+(* For each local that is moved to the heap we keep the field of the heap 
+ * structure where it lives *)
+let heapifiedLocals: (string, lval) H.t = H.create 7
+
+(* Expresssions denoting the things to free at the end of the function *)
+let heapifiedFree: stmt list ref = ref []
+
            (* After processing an expression, we create its type, a list of 
             * instructions that should be executed before this exp is used, 
             * and a replacement exp *)
@@ -219,12 +227,11 @@ let checkFunctionDecls : global list ref
      * to varying attributes *)
 let typeNames : (string, int ref) H.t = H.create 17
 
-let rec newTypeName prefix t = 
+let newTypeName (prefix: string) = newAlphaName typeNames prefix
+
+let rec newTypeNameFromType prefix t = 
   let n = prefix ^ (baseTypeName t) in
-(*  ignore (E.log "newTypeName: prefix = %s, n=%s\n" prefix n); *)
-  let n' = newAlphaName typeNames n in
-(*  ignore (E.log " = %s@!" n'); *)
-  n'
+  newTypeName n
 
  (* Make a type name, for use in type defs *)
 and baseTypeName = function
@@ -611,6 +618,18 @@ let memcpyWWWFun =
    * does not make sense 
   checkFunctionDecls := 
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls; *)
+  fdec
+
+let mallocFun = 
+  let fdec = emptyFunction "malloc" in
+  let argl  = makeLocalVar fdec "len" uintType in
+  fdec.svar.vtype <- TFun(voidPtrType, [ argl ], false, []);
+  fdec
+
+let freeFun = 
+  let fdec = emptyFunction "free" in
+  let argp  = makeLocalVar fdec "area" voidPtrType in
+  fdec.svar.vtype <- TFun(voidType, [ argp ], false, []);
   fdec
 
 let mainWrapper =   
@@ -1059,7 +1078,7 @@ and fixit t =
             let fixed = 
               if pkNrFields pkind = 1 then newType 
               else
-                let tname  = newTypeName (pkTypePrefix pkind) fixed' in
+                let tname  = newTypeNameFromType (pkTypePrefix pkind) fixed' in
                 let tcomp = 
                     mkCompInfo true tname 
                     (fun _ -> 
@@ -1162,7 +1181,7 @@ and addArraySize t =
       end
     in
     let packAttr = if !msvcMode then [] else [Attr("packed", [])] in
-    let tname = newTypeName "_sized_" t in
+    let tname = newTypeNameFromType "_sized_" t in
     let newtypecomp = 
          mkCompInfo true tname
            (fun _ -> 
@@ -1195,7 +1214,7 @@ and tagType (t: typ) : typ =
   try
     H.find taggedTypes tsig
   with Not_found -> begin
-    let tname = newTypeName "_tagged_" t in
+    let tname = newTypeNameFromType "_tagged_" t in
     let newtype = 
       if isCompleteType t then begin
         (* ignore (E.log "Type %a -> bytes=%d, words=%d, tagwords=%d\n"
@@ -1403,10 +1422,6 @@ let mustBeTagged v =
     (!N.defaultIsWild || (filterAttributes "tagged" v.vattr) <> [])
 
 
-(*** Check to see if a variable must be registered as the scope is entered *)
-let mustBeRegistered (vi: varinfo) : bool = 
-  (* For now *)
-  mustBeTagged vi || containsArray vi.vtype
 
 (* A few constants *)
 let registerAreaTaggedInt = 0
@@ -3086,7 +3101,7 @@ and boxstmt (s: Cil.stmt) : stmt clist =
     | Break _ | Continue _ | Goto _ -> single s
     | Return (None, l) -> 
         currentLoc := l; 
-        CConsL(unregisterStmt (), single s)
+        CConsL(unregisterStmt (), CSeq(CList !heapifiedFree, single s))
 
     | Return (Some e, l) -> 
         currentLoc := l;
@@ -3176,7 +3191,7 @@ and boxinstr (ins: instr) : stmt clist =
               let (ft, dof, f') = boxexp f in
               let fkind = 
                 match N.nodeOfAttrlist vi.vattr with
-                  None -> E.s (bug "Function %s without node" vi.vname)
+                  None -> N.Safe
                 | Some n -> n.N.kind
               in
               (ft, dof, f', fkind)
@@ -3399,7 +3414,18 @@ and boxinstr (ins: instr) : stmt clist =
  * component (for pointer kinds other than Safe) and the third component (for 
  * pointer kinds Seq). We also compute a list of statements that must be 
  * executed to check the bounds.  *)
-and boxlval (b, off) : (typ * N.opointerkind * lval * exp * exp * stmt clist) = 
+and boxlval (b, off) : (typ * N.opointerkind * lval * exp * exp * stmt clist)= 
+  (* Maybe we have heapified this one *)
+  match b with
+    Var vi -> begin
+      try
+        let newb, newoff = H.find heapifiedLocals vi.vname in
+        boxlval (newb, addOffset off newoff)
+      with Not_found -> boxlval1 (b, off)
+    end
+  | _ -> boxlval1 (b, off)
+
+and boxlval1 (b, off) : (typ * N.opointerkind * lval * exp * exp * stmt clist)=
   let debuglval = false in
   (* As we go along the offset we keep track of the basetype and the pointer 
    * kind, along with the current base expression and a function that can be 
@@ -3854,6 +3880,73 @@ let boxFile file =
             List.iter (fun l -> 
               l.vattr <- N.replacePtrNodeAttrList N.AtVar l.vattr;
               l.vtype <- fixupType l.vtype) f.sformals;
+
+            (* Now go and collect a list of fieldinfo for all variables with 
+             * the heapify attribute set *)
+            let heapifiedFields_safe, heapifiedFields_tagged = 
+              List.fold_right
+                (fun v (acc_s, acc_t) -> 
+                  if hasAttribute "heapify" v.vattr then begin
+                    ignore (warn "Moving local %s to the heap." v.vname);
+                    let newfield = (v.vname, v.vtype, v.vattr) in
+                    let istagged = 
+                      match N.nodeOfAttrlist v.vattr with 
+                        Some n -> n.N.kind = N.Wild
+                      | _ -> false
+                    in
+                    if istagged then 
+                      (acc_s,  newfield :: acc_t)
+                    else
+                      (newfield :: acc_s, acc_t)
+                  end else 
+                    (acc_s, acc_t))
+                f.slocals
+                ([], [])
+            in
+            let newbody = 
+              let doHeapify (istagged: bool) 
+                            (hFields: (string * typ * attribute list) list) 
+                            (body: stmt clist) : stmt clist = 
+                if hFields = [] then body 
+                else begin
+                  let kind = if istagged then "tagged" else "" in
+                  (* Make a type for all of them *)
+                  let tname  = newTypeName ("heapified" ^ kind) in
+                  let hCompInfo = 
+                    mkCompInfo true tname (fun _ -> hFields) [] in
+                  (* Add it to the file *)
+                  theFile := 
+                     consGlobal (GCompTag (hCompInfo, !currentLoc)) !theFile;
+                  (* Create a new local variable *)
+                  let heapVar = 
+                    makeLocalVar f 
+                      ("__heapified" ^ kind) 
+                      (TPtr(TComp (hCompInfo, []), 
+                            if istagged then [N.k2attr N.Wild] else [])) in
+                  (* Now insert the call to malloc *)
+                  let callmalloc = 
+                    call (Some (heapVar, true)) 
+                      (Lval(var mallocFun.svar)) 
+                      [ SizeOfE (Lval (Mem (Lval (var heapVar)), NoOffset)) ] 
+                  in
+                  (* Now go over all the fields and register their names in a 
+                  * hash table *)
+                  List.iter (fun fi -> 
+                    H.add heapifiedLocals 
+                      fi.fname (Mem (Lval (var heapVar)), 
+                                Field(fi, NoOffset))) 
+                    hCompInfo.cfields;
+                  (* Initialize the things to free *)
+                  heapifiedFree := 
+                     call None (Lval (var freeFun.svar))
+                       [Lval (var heapVar)] 
+                     :: !heapifiedFree;
+                  CConsL (callmalloc, body)
+                end
+              in
+              doHeapify true heapifiedFields_tagged 
+                (doHeapify false heapifiedFields_safe newbody)
+            in
             (* Fixup the types of the locals  *)
             List.iter 
               (fun l -> 
@@ -3869,9 +3962,10 @@ let boxFile file =
                    (d_attrlist true) l.vattr); *)
                 )
               f.slocals;
-            currentFunction := f;           (* so that maxid and locals can be
-                                               * updated in place *)
+            currentFunction := f;           (* so that maxid and locals can 
+                                             * be updated in place *)
             f.sbody <- toList newbody;
+
             (* Initialize and register the locals. Since we do this before 
              * boxing we will not initialize the temporaries created during 
              * boxing. But then we know that those are always defiend before 
@@ -3894,6 +3988,8 @@ let boxFile file =
             (* Do the body now *)
             let boxbody : stmt list = boxblock f.sbody in
             f.sbody <- toList (append inilocals (fromList boxbody));
+            H.clear heapifiedLocals;
+            heapifiedFree := [];
             theFile := consGlobal (GFun (f, l)) !theFile
                                         
         | (GAsm _ | GText _ | GPragma _ | GEnumTag _ ) as g -> 
