@@ -6,8 +6,12 @@
 #define __FSEQN
 #endif
 
+// an empty string; can't just use a string literal, because writing
+// into C literals is undefined (and produces segfault on gcc/linux)
+char empty[1] = { 0 };
+
 int main() {
-  char * __RWSTRING p = "";  // A pointer to an empty string
+  char * __RWSTRING p = empty;  // A pointer to an empty string
   char * __FSEQN pp;
   
   // Overwrite the zero
