@@ -129,9 +129,14 @@ DEPENDDIR  = $(OBJDIR)/.depend
 
              # Run the lexer generator
              # Move the result to the OBJDIR directory
+             # If there is a .mli file in the same directory with .mll then
+             # copy it to OBJDIR (where the .ml) file will live.
 $(OBJDIR)/%.ml: %.mll
 	$(CAMLLEX) $<
 	$(ECHO)mv -f $(basename $<).ml $(OBJDIR)
+	$(ECHO)if test -f $(basename $<).mli ;then \
+	  cp -f $(basename $<).mli $(OBJDIR) \
+        ;fi
 
              # Run the parser generator
              # Move the result to the $(OBJDIR) directory.
@@ -219,13 +224,11 @@ FIXDEPEND:=perl -e \
 DEPINCLUDES= -I $(OBJDIR) $(SOURCEDIRS:%=-I %)
 $(DEPENDDIR)/%.d: %.ml
 	@echo Generating dependency information for $<
-	@$(CAMLDEP) $(DEPINCLUDES) $< | \
-	$(FIXDEPEND) > $@
+	$(ECHO)$(CAMLDEP) $(DEPINCLUDES) $< | $(FIXDEPEND) > $@
 
 $(DEPENDDIR)/%.di: %.mli
 	@echo Generating dependency information for $<
-	@$(CAMLDEP) $(DEPINCLUDES) $< | \
-	$(FIXDEPEND) > $@
+	$(ECHO)$(CAMLDEP) $(DEPINCLUDES) $< | $(FIXDEPEND) > $@
 
 -include $(MODULES:%=$(DEPENDDIR)/%.d)
 -include $(MODULES:%=$(DEPENDDIR)/%.di)
