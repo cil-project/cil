@@ -75,6 +75,11 @@ module H = Hashtbl
 type taExp = exp (* Three address expression *)
 type bExp = exp  (* Basic expression *)
 
+let debug = true
+
+(* Whether to split structs *)
+let splitStructs = ref true
+
 (* Turn an expression into a three address expression (and queue some 
  * instructions in the process) *)
 let rec makeThreeAddress 
@@ -166,7 +171,8 @@ and simplifyLval
       in
       Mem (mkCast a' tres), NoOffset
 
-  | Var v, off -> (Var v, simplifyOffset setTemp off)
+  | Var v, off -> 
+      (Var v, simplifyOffset setTemp off)
 
 
 (* Simplify an offset and make sure it has only three address expressions in 
@@ -212,17 +218,125 @@ class threeAddressVisitor (fi: fundec) = object (self)
          lv)
 end
 
+
+(** This is a visitor that splits structured variables into separate 
+ * variables. *)
+let isScalarType (t: typ): bool = 
+  match unrollType t with
+    TArray _ | TComp _ -> false
+  | _ -> true
+
+(* Keep track of how we change the variables. For each variable id we keep a 
+ * hash table that maps an offset (a sequence of fieldinfo) into a 
+ * replacement variable *)
+let splittableVars: (int, unit) H.t = H.create 13
+let replacementVars: (int * offset, varinfo) H.t = H.create 13
+
+let findReplacement (fi: fundec) (v: varinfo) (off: offset) : varinfo = 
+  try
+    H.find replacementVars (v.vid, off)
+  with Not_found -> begin
+    let t = typeOfLval (Var v, off) in
+    let v' = makeTempVar fi t in
+    H.add replacementVars (v.vid, off) v';
+    if debug then
+      ignore (E.log "Simplify: %s (%a) replace %a with %s\n"
+                fi.svar.vname
+                d_loc !currentLoc
+                d_lval (Var v, off)
+                v'.vname);
+    v'
+  end
+
+      (* Now separate the offset into a sequence of field accesses and the 
+      * rest of the offset *)
+let rec separateOffset (off: offset): offset * offset = 
+  match off with
+    NoOffset -> NoOffset, NoOffset
+  | Field(fi, off') when fi.fcomp.cstruct -> 
+      let off1, off2 = separateOffset off' in
+      Field(fi, off1), off2
+  | _ -> NoOffset, off
+
+
+class splitStructVisitor (fi: fundec) = object (self) 
+  inherit nopCilVisitor
+
+  method vlval (lv: lval) = 
+    match lv with 
+      Var v, off when H.mem splittableVars v.vid ->
+        (* The type of this lval better be a scalar *)
+        if not (isScalarType (typeOfLval lv)) then 
+          E.s (unimp "Simplify: found lval of non-scalar type %a : %a\n"
+                 d_lval lv d_type (typeOfLval lv));
+        let off1, restoff = separateOffset off in
+        let lv' = 
+          if off1 <> NoOffset then begin
+            (* This is a splittable variable and we have an offset that makes 
+            * it a scalar. Find the replacement variable for this *)
+            let v' = findReplacement fi v off1 in
+            if restoff = NoOffset then 
+              Var v', NoOffset
+            else (* We have some more stuff. Use Mem *)
+              Mem (mkAddrOrStartOf (Var v', NoOffset)), restoff
+          end else begin (* off1 = NoOffset *)
+            if restoff = NoOffset then 
+              E.s (bug "Simplify: splitStructVisitor:lval")
+            else
+              simplifyLval 
+                (fun e1 -> 
+                  let t = makeTempVar fi (typeOf e1) in
+                  (* Add this instruction before the current statement *)
+                  self#queueInstr [Set(var t, e1, !currentLoc)];
+                  Lval(var t)) 
+                (Mem (mkAddrOrStartOf (Var v, NoOffset)), restoff)
+          end
+        in
+        ChangeTo lv'
+
+    | _ -> DoChildren
+
+(*
+  method vinstr (i: instr) = 
+    match instr with 
+      Set(((Var v, off) as lv), what, _) when H.mem splittableVars v.vid ->
+        let off1, restoff = separateOffset off in
+*)        
+        
+end
+
+
 let rec doOneFunction (fi: fundec) = 
   (* Visit the body and change all expressions into three address code *)
   let v = new threeAddressVisitor fi in
   fi.sbody <- visitCilBlock v fi.sbody;
+  if !splitStructs then begin
+    H.clear replacementVars;
+    (* Now scan the locals and first those that we must split *)
+    List.iter 
+      (fun v -> 
+        (* Split only structured types whose address is not taken *)
+        match v.vaddrof, unrollType v.vtype with 
+          false, TComp (ci, _) when ci.cstruct -> 
+            H.add splittableVars v.vid ()
+        | _, _ -> ())
+      fi.slocals;
+    (* Remove those that we split. Do this before we add other locals. *)
+    fi.slocals <- 
+       List.filter (fun v -> not (H.mem splittableVars v.vid)) fi.slocals;
+    let sv = new splitStructVisitor fi in
+    fi.sbody <- visitCilBlock sv fi.sbody;
+  end;
   ()
 
 let feature : featureDescr = 
   { fd_name = "simplify";
     fd_enabled = ref false;
     fd_description = "compiles CIL to 3-address code";
-    fd_extraopt = [];
+    fd_extraopt = [
+      ("--no-split-structs", Arg.Unit (fun _ -> splitStructs := false),
+                    "do not split structured variables"); 
+    ];
     fd_doit = 
     (function f -> iterGlobals f 
         (function GFun(fi, _) -> doOneFunction fi | _ -> ()));
