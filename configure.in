@@ -15,27 +15,17 @@
 # just as good (since this becomes an 'sh' script)
 
 
-# We will need to create substitution variables whose definition contains
-# newlines. The problem is that when config.status runs, it wants to break the
-# series of substitution commands for sed into fragments based on line count.
-# We could be unlucky and have config.status break the series of substitution
-# in the middle of a variable that contains newlines. So, we first create a
-# single variable called NEWLINE whose definition is a carriage return. This
-# means that there will be exactly one opportunity for this error to happen
-# (in the definition of NEWLINE). Furthermore, we make sure this NEWLINE
-# appears as soon as possible to make sure that it is not around the place
-# when the file bets broken. To do this we place this AC_SUBST first. It turns
-# out that we need to define the NEWLINE itself only after AC_INIT!
-
+# We must put these AC_SUBST very early, and in this order. See below where we
+# define NEWLINE
+AC_SUBST(CIL_FEATURES_DEFINES) 
 AC_SUBST(NEWLINE)
+
 
 # -------------- usual initial stuff -------------
 # this simply names a file somewhere in the source tree to verify
 # we're in the right directory
 AC_INIT(src/cil.mli)
 
-NEWLINE="\\
-"
 
 # sm: require a late-enough autoconf; this is the version number
 # that's on manju, so I assume it's ok
@@ -354,6 +344,22 @@ case "$target" in
 esac
 CILHOME=$CCUREDHOME
 
+
+# We will use substitution variables whose definition contains newlines. The
+# problem is that when config.status runs, it wants to break the series of
+# substitution commands for sed into fragments based on line count. We could
+# be unlucky and have config.status break the series of substitution in the
+# middle of a variable that contains newlines. So, we first create a single
+# variable called NEWLINE whose definition is a carriage return. This means
+# that there will be exactly one opportunity for this error to happen (in the
+# definition of NEWLINE). The occurrence of AC_SUBST for NEWLINE must occur
+# after those of the variables that use it! And we want to put all of these
+# very early on, to make sure that they are not around the place when the file
+# bets broken.
+
+NEWLINE="\\
+"
+
 #
 # CIL/CCured features
 #
@@ -388,6 +394,7 @@ do
    CIL_FEATURES_DEFINES="${CIL_FEATURES_DEFINES}@NEWLINE@export USE_$f=yes"
 done
 
+
 # ----------------- finish up -------------------
 # names of the variables that get substituted in files; for example,
 # write @ARCHOS@ somewhere in a written file to get it substituted
@@ -401,7 +408,6 @@ AC_SUBST(CIL_VERSION_MINOR)
 AC_SUBST(CIL_VERSION_REV)
 AC_SUBST(CIL_VERSION)
 AC_SUBST(HAVE_BUILTIN_VA_LIST)
-AC_SUBST(CIL_FEATURES_DEFINES)
 
 # finish the configure script and generate various files; ./configure
 # will apply variable substitutions to <filename>.in to generate <filename>;
