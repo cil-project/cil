@@ -62,19 +62,7 @@ let usePathCompression = false
 (* Try to merge definitions of inline functions. They can appear in multiple 
  * files and we would like them all to be the same. This can slow down the 
  * merger an order of magnitude !!! *)
-let mergeInlines = (
-  (* sm: right now this still causes problems, so I want it to default
-   * to off until we've got the problem resolved *)
-  (*   try*)
-  (*     (ignore (Sys.getenv "MERGEINLINES"));*)
-  (*     (Printf.printf "Cil.mergeInlines is enabled\n");*)
-  (*     true*)
-  (*   with Not_found ->*)
-  (*     false*)
-  
-  (* sm: ok, seems to be working in general, re-enabling *)
-  true
-)
+let mergeInlines = true
 
 let mergeInlinesRepeat = mergeInlines && true
 
@@ -850,10 +838,14 @@ let rec oneFilePass1 (f:file) : unit =
           let _, args, _, _ = splitFunctionTypeVI fdec.svar in
           H.add formalNames (!currentFidx, fdec.svar.vname) 
             (List.map (fun (fn, _, _) -> fn) (argsToList args));
-          (* Force inline functions to be static *) 
           fdec.svar.vreferenced <- false;
+          (* Force inline functions to be static. *) 
+          (* GN: This turns out to be wrong. inline functions are external, 
+           * unless specified to be static. *)
+          (*
           if fdec.svar.vinline && fdec.svar.vstorage = NoStorage then 
             fdec.svar.vstorage <- Static;
+          *)
           if fdec.svar.vstorage <> Static then begin
             matchVarinfo fdec.svar (l, !currentDeclIdx)
           end else begin

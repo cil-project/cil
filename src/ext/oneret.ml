@@ -96,24 +96,7 @@ let oneret (f: Cil.fundec) : unit =
         [rs]
 
     | [] -> []
-(* GN: Colapsed this case with the next one!
-    | ({skind=Return (None, l)} as s) :: rests -> 
-        if mainbody && rests == [] then begin 
-          (* This is the last statement in the function. If it has labels, 
-           * add the labels to the replacement return statement. Then drop 
-           * this statement. *)
-          if s.labels <> [] then begin
-            let sgref = getRetStmt () in 
-            sgref.labels <- s.labels @ sgref.labels
-          end ; 
-          scanStmts mainbody rests
-        end else begin
-          let sgref = ref (getRetStmt ()) in
-          s.skind <- Goto (sgref, l);
-          haveGoto := true;
-          s :: (scanStmts mainbody rests)
-        end
-*)
+
     | ({skind=Return (retval, l)} as s) :: rests -> 
         if hasRet && retval = None then 
           E.s (E.unimp "Found return without value in function %s\n" fname);

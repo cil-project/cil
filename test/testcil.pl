@@ -406,6 +406,7 @@ $TEST->addTests("combine16", "", ['cil']);
 $TEST->addTests("combine17", "", ['cil']);
 $TEST->addTests("combine18", "", ['cil']);
 $TEST->addTests("combine20", "", ['cil']);
+$TEST->addTests("combine21", "", ['cil']);
 $TEST->addTests("combineenum1", "", ['cil']);
 $TEST->addTests("combineenum2", "", ['cil']);
 $TEST->addTests("combineenum3", "", ['cil']);
@@ -506,7 +507,7 @@ $TEST->add2TestsFail("testrun/failprintf5", "",
                      "Failure UBOUND");
 $TEST->add2TestsFail("testrun/failprintf6", "", "Failure VARARGBAD");
 $TEST->add2TestsFail("testrun/demo1", "", "Failure UBOUND");
-$TEST->add2TestsFail("testrun/demo2", "", "Failure LBOUND");
+$TEST->add2TestsFail("testrun/demo2", "", "Failure UBOUND");
 $TEST->add2TestsFail("testrun/demo3", "", "Failure UBOUND");
 $TEST->add2TestsFail("testrun/demo4", "", "Failure LBOUND");
 
