@@ -225,7 +225,7 @@ let print_commas nl fct lst =
 let print_string (s:string) =
   print ("\"" ^ escape_string s ^ "\"")
 
-let print_wstring (s: int64 list) =
+let print_wstring (s: int64 list ) =
   print ("L\"" ^ escape_wstring s ^ "\"")
 
 (*

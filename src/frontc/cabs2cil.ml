@@ -2802,6 +2802,7 @@ and doExp (isconst: bool)    (* In a constant *)
             finishExp empty res (typeOf res)
           end
 
+(*
         | A.CONST_WSTRING wstr ->
             let len = List.length wstr in 
             let wchar_t = !wcharType in
@@ -2831,6 +2832,31 @@ and doExp (isconst: bool)    (* In a constant *)
                                  !currentLoc));
             finishExp empty (StartOf(Var ws, NoOffset))
               (TPtr(wchar_t, []))
+              *)
+
+        | A.CONST_WSTRING ws -> 
+            (* takes a not-nul-terminated list, and converts it to a WIDE
+             * string. *)
+            let intlist_to_wstring (str: int64 list):string =
+              (* L"\xabcd" "e" must to go
+                 L"\xabcd\x65" and NOT L"\xabcde" *) 
+              let rec loop lst must_escape = match lst with
+                [] -> "\000" (* nul-termination *) 
+              | hd :: tl -> 
+                let must_escape_now = must_escape || 
+                   (compare hd (Int64.of_int 255) > 0) || 
+                   (compare hd Int64.zero < 0) in
+                let this_piece = 
+                  if must_escape_now then 
+                    Printf.sprintf "\\x%Lx" hd
+                  else 
+                    String.make 1 (Char.chr (Int64.to_int hd))
+                in
+                this_piece ^ (loop tl must_escape_now)
+              in loop str false
+            in 
+            let res = Const(CWStr (intlist_to_wstring ws)) in
+            finishExp empty res (typeOf res)
 
         | A.CONST_STRING s -> 
             (* Maybe we burried __FUNCTION__ in there *)
@@ -4111,7 +4137,7 @@ and doInit
    * important. *)
   | TArray(bt, leno, _), 
       (A.NEXT_INIT, 
-       (A.SINGLE_INIT(A.CONSTANT (A.CONST_WSTRING s))|
+       (A.SINGLE_INIT(A.CONSTANT (A.CONST_WSTRING s)) |
        A.COMPOUND_INIT 
          [(A.NEXT_INIT, 
            A.SINGLE_INIT(A.CONSTANT 
@@ -4127,17 +4153,18 @@ and doInit
         )             (* it with the other arrays below.*)
     -> 
       let maxWChar =  (*  (2**(bitsSizeOf !wcharType)) - 1  *)
-	Int64.sub (Int64.shift_left Int64.one (bitsSizeOf !wcharType))
-	          Int64.one in
+        Int64.sub (Int64.shift_left Int64.one (bitsSizeOf !wcharType)) 
+          Int64.one in
       let charinits = 
         List.map 
           (fun c -> 
 	    if (compare c maxWChar > 0) then (* if c > maxWChar *)
-	      E.s (error "character 0x%Lx too big." c)
+	      E.s (error "cab2cil:doInit:character 0x%Lx too big." c)
 	    else
               (A.NEXT_INIT, 
                A.SINGLE_INIT(A.CONSTANT (A.CONST_INT (Int64.to_string c)))))
-	  s in
+      s
+    in
       (* Create a separate object for the array *)
       let so' = makeSubobj so.host so.soTyp so.soOff in 
       (* Go inside the array *)

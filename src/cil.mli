@@ -597,6 +597,15 @@ and constant =
      * only case when you would like a string literal to have an array type 
      * is when it is an argument to sizeof. In that case you should use 
      * SizeOfStr. *)
+  | CWStr of string 
+    (* Wide character string constant. Note that the local interpretation
+     * of such a literal depends on {!Cil.wcharType} and {!Cil.wcharKind}.
+     * Such a constant has type pointer to {!Cil.wcharType}. The
+     * escape characters in the string have not been "interpreted" in 
+     * the sense that L"A\xabcd" remains "A\xabcd" rather than being
+     * represented as the wide character list with two elements: 65 and
+     * 43981. That "interpretation" depends on the underlying wide
+     * character type. *)
   | CChr of char   
     (** Character constant *)
   | CReal of float * fkind * string option 

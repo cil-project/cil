@@ -298,7 +298,7 @@ let make_char (i:int64):char =
   let max_val = Int64.of_int 255 in
   (* if i < 0 || i > 255 then error*)
   if compare i min_val < 0 || compare i max_val > 0 then begin
-    let msg = Printf.sprintf "character 0x%Lx too big" i in
+    let msg = Printf.sprintf "clexer:make_char: character 0x%Lx too big" i in
     error msg
   end;
   Char.chr (Int64.to_int i)

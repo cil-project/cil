@@ -167,7 +167,7 @@ let rec intlist_to_string (str: int64 list):string =
 	if (compare value (Int64.of_int 255) > 0) 
            || (compare value Int64.zero < 0)
 	then begin
-	  let msg = Printf.sprintf "character 0x%Lx too big" value in
+	  let msg = Printf.sprintf "cparser:intlist_to_string: character 0x%Lx too big" value in
 	  parse_error msg;
 	  raise Parsing.Parse_error
 	end 
@@ -548,9 +548,7 @@ constant:
 |   CST_FLOAT				{CONST_FLOAT (fst $1), snd $1}
 |   CST_CHAR				{CONST_CHAR (fst $1), snd $1}
 |   CST_WCHAR				{CONST_WCHAR (fst $1), snd $1}
-|   string_constant			{CONST_STRING (fst $1), snd $1}
-/*add a nul to strings.  We do this here (rather than in the lexer) to make
-  concatenation easy below.*/
+|   string_constant		{CONST_STRING (fst $1), snd $1}
 |   wstring_list			{CONST_WSTRING (fst $1 @ [Int64.zero]), snd $1}
 ;
 

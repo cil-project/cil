@@ -284,10 +284,12 @@ and constant =
   | CONST_CHAR of int64 list
   | CONST_WCHAR of int64 list
   | CONST_STRING of string
-  | CONST_WSTRING of int64 list (* List of wide characters.  Since characters
-      * may have 16- or 32-bit values, we can't use a string to represent
-      * this constant.  The last element in the list is the terminating nul for
-      * this literal. *)
+  | CONST_WSTRING of int64 list 
+    (* ww: wstrings are stored as an int64 list at this point because
+     * we might need to feed the wide characters piece-wise into an 
+     * array initializer (e.g., wchar_t foo[] = L"E\xabcd";). If that
+     * doesn't happen we will convert it to an (escaped) string before
+     * passing it to Cil. *) 
 
 and init_expression =
   | NO_INIT

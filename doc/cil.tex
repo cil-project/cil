@@ -2623,6 +2623,10 @@ Necula}.
  
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf December 4, 2003}: Wide string literals are now handled
+directly by Cil (rather than being exploded into arrays). This is
+apparently handy for Microsoft Device Driver APIs that use intrinsic
+functions that require literal constant wide-string arguments. 
 \item {\bf December 1, 2003}: Fixed a Makefile bug in the generation of the 
 Cil library (e.g., \t{cil.cma}) that was causing it to be unusable. Thanks
 to KEvin Millikin for pointing out this bug. 

@@ -451,6 +451,7 @@ and checkExp (isconst: bool) (e: exp) : typ =
       | Const(CInt64 (_, ik, _)) -> TInt(ik, [])
       | Const(CChr _) -> charType
       | Const(CStr s) -> charPtrType
+      | Const(CWStr s) -> TPtr(!wcharType,[])
       | Const(CReal (_, fk, _)) -> TFloat(fk, [])
       | Lval(lv) -> 
           if isconst then

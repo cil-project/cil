@@ -454,6 +454,7 @@ and constant =
                   * out for integers that cannot be represented on 64 bits. 
                   * OCAML does not give Overflow exceptions. *)
   | CStr of string (** String constant (of pointer type) *)
+  | CWStr of string (** Wide string constant (of type "wchar_t *") *)
   | CChr of char   (** Character constant *)
   | CReal of float * fkind * string option (** Floating point constant. Give
                                                the fkind (see ISO 6.4.4.2) and
@@ -1616,6 +1617,7 @@ let d_const () c =
       )
 
   | CStr(s) -> text ("\"" ^ escape_string s ^ "\"")
+  | CWStr(s) -> text ("L\"" ^ s ^ "\"") 
   | CChr(c) -> text ("'" ^ escape_char c ^ "'")
   | CReal(_, _, Some s) -> text s
   | CReal(f, _, None) -> text (string_of_float f)
@@ -1827,6 +1829,8 @@ let rec typeOf (e: exp) : typ =
      * you would want it to be an array is as an argument to sizeof, but we 
      * have SizeOfStr for that *)
   | Const(CStr s) -> !stringLiteralType
+
+  | Const(CWStr s) -> TPtr(!wcharType,[])
 
   | Const(CReal (_, fk, _)) -> TFloat(fk, [])
   | Lval(lv) -> typeOfLval lv
