@@ -1172,6 +1172,7 @@ val charPtrType: typ
 
 (** wchar_t (depends on architecture) and is set when you call 
  * {!Cil.initCIL}. *)
+val wcharKind: ikind ref
 val wcharType: typ ref 
 
 (** char const * *)

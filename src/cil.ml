@@ -1228,6 +1228,7 @@ let parseInt (str: string) : exp =
 let upointType = ref voidType 
 
 (* An integer type that fits wchar_t. Initialized by initCIL *)
+let wcharKind = ref IChar
 let wcharType = ref voidType 
 
 
@@ -5444,7 +5445,8 @@ let initCIL () =
   upointType := TInt(findIkind true !theMachine.M.sizeof_ptr, []);
   kindOfSizeOf := findIkind true !theMachine.M.sizeof_sizeof;
   typeOfSizeOf := TInt(!kindOfSizeOf, []);
-  wcharType := TInt(findIkind false !theMachine.M.sizeof_wchar, []);
+  wcharKind := findIkind false !theMachine.M.sizeof_wchar;
+  wcharType := TInt(!wcharKind, []);
   char_is_unsigned := !theMachine.M.char_is_unsigned;
   little_endian := !theMachine.M.little_endian;
   nextGlobalVID := 1;
