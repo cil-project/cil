@@ -454,6 +454,17 @@ let makeAndDumpBlockingGraphs () : unit =
     !startNodes
 
 
+let pragmas : (string, int) Hashtbl.t = Hashtbl.create 13
+
+let gatherPragmas (f: file) : unit =
+  List.iter
+    (function
+       GPragma (Attr ("stacksize", [AStr s; AInt n]), _) ->
+         Hashtbl.add pragmas s n
+     | _ -> ())
+    f.globals
+
+
 let blockingNodes : node list ref = ref []
 
 let markBlockingFunctions () : unit =
@@ -480,10 +491,14 @@ let markVar (vi: varinfo) : unit =
     end
   end;
   begin
-    match filterAttributes "stacksize" vi.vattr with
-      (Attr (_, [AInt n])) :: _ when n > node.stacksize ->
-        node.stacksize <- n
-    | _ -> ()
+    try
+      node.stacksize <- Hashtbl.find pragmas node.name
+    with Not_found -> begin
+      match filterAttributes "stacksize" vi.vattr with
+        (Attr (_, [AInt n])) :: _ when n > node.stacksize ->
+          node.stacksize <- n
+      | _ -> ()
+    end
   end
 
 let makeFunctionCallGraph (f: Cil.file) : unit = 
@@ -621,6 +636,7 @@ let feature : featureDescr =
     fd_extraopt = [];
     fd_doit = 
     (function (f : file) ->
+      gatherPragmas f;
       makeFunctionCallGraph f;
       markBlockingFunctions ();
       makeAndDumpBlockingGraphs ();
