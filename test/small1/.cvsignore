@@ -9,5 +9,7 @@
 *.cpp
 *.i
 *.s
+*.asm
 *cil.c
 *box.c
+t.c

@@ -4,60 +4,11 @@
 
 #pragma  pack(push,8)
 
-typedef unsigned short wchar_t;
-
-typedef long time_t;
-
-typedef long clock_t;
-
 typedef unsigned int size_t;
 
-struct tm {
-   int tm_sec ;
-   int tm_min ;
-   int tm_hour ;
-   int tm_mday ;
-   int tm_mon ;
-   int tm_year ;
-   int tm_wday ;
-   int tm_yday ;
-   int tm_isdst ;
-} ;
+typedef unsigned short wchar_t;
 
-extern int _daylight  ;
-extern long _dstbias  ;
-extern long _timezone  ;
-extern char * _tzname[2]  ;
-char *  __cdecl asctime(struct tm *  )  ;
-char *  __cdecl ctime(time_t *  )  ;
-clock_t  __cdecl clock(void  )  ;
-double  __cdecl difftime(time_t  , time_t  )  ;
-struct tm *  __cdecl gmtime(time_t *  )  ;
-struct tm *  __cdecl localtime(time_t *  )  ;
-time_t  __cdecl mktime(struct tm *  )  ;
-size_t  __cdecl strftime(char *  , size_t  , char const *  , struct tm *  )  ;
-char *  __cdecl _strdate(char *  )  ;
-char *  __cdecl _strtime(char *  )  ;
-time_t  __cdecl time(time_t *  )  ;
-void  __cdecl _tzset(void  )  ;
-unsigned int  __cdecl _getsystime(struct tm *  )  ;
-unsigned int  __cdecl _setsystime(struct tm *  , unsigned int  )  ;
-wchar_t *  __cdecl _wasctime(struct tm *  )  ;
-wchar_t *  __cdecl _wctime(time_t *  )  ;
-size_t  __cdecl wcsftime(wchar_t *  , size_t  , wchar_t *  , struct tm *  )  ;
-wchar_t *  __cdecl _wstrdate(wchar_t *  )  ;
-wchar_t *  __cdecl _wstrtime(wchar_t *  )  ;
-extern int daylight  ;
-extern long timezone  ;
-extern char * tzname[2]  ;
-void  __cdecl tzset(void  )  ;
-#pragma  pack(pop)
-
-#pragma  once
-
-#pragma  pack(push,8)
-
-typedef int  ( __cdecl * _onexit_t)(void  );
+typedef int  (__cdecl  * _onexit_t)(void  );
 
 typedef struct _div_t {
            int quot ;
@@ -76,117 +27,120 @@ extern char * _sys_errlist[]  ;
 extern int _sys_nerr  ;
 extern int __argc  ;
 extern char * * __argv  ;
-extern wchar_t * * __wargv  ;
+extern  wchar_t * * __wargv  ;
 extern char * * _environ  ;
-extern wchar_t * * _wenviron  ;
+extern  wchar_t * * _wenviron  ;
 extern char * _pgmptr  ;
-extern wchar_t * _wpgmptr  ;
+extern  wchar_t * _wpgmptr  ;
 extern int _fmode  ;
 extern int _fileinfo  ;
 extern unsigned int _osver  ;
 extern unsigned int _winver  ;
 extern unsigned int _winmajor  ;
 extern unsigned int _winminor  ;
-void  __cdecl abort(void  )  ;
-void  __cdecl exit(int  )  ;
-int  __cdecl abs(int  )  ;
-int  __cdecl atexit(void  ( __cdecl * )(void  ) )  ;
-double  __cdecl atof(char const *  )  ;
-int  __cdecl atoi(char const *  )  ;
-long  __cdecl atol(char const *  )  ;
-void *  __cdecl bsearch(void const *  , void const *  , size_t  , size_t  ,
-                        int  ( __cdecl * )(void const *  , void const *  ) )  ;
-void *  __cdecl calloc(size_t  , size_t  )  ;
-div_t  __cdecl div(int  , int  )  ;
-void  __cdecl free(void *  )  ;
-char *  __cdecl getenv(char const *  )  ;
-char *  __cdecl _itoa(int  , char *  , int  )  ;
-char *  __cdecl _i64toa(__int64  , char *  , int  )  ;
-char *  __cdecl _ui64toa(unsigned __int64  , char *  , int  )  ;
-__int64  __cdecl _atoi64(char const *  )  ;
-long  __cdecl labs(long  )  ;
-ldiv_t  __cdecl ldiv(long  , long  )  ;
-char *  __cdecl _ltoa(long  , char *  , int  )  ;
-void *  __cdecl malloc(size_t  )  ;
-int  __cdecl mblen(char const *  , size_t  )  ;
-size_t  __cdecl _mbstrlen(char const * s )  ;
-int  __cdecl mbtowc(wchar_t *  , char const *  , size_t  )  ;
-size_t  __cdecl mbstowcs(wchar_t *  , char const *  , size_t  )  ;
-void  __cdecl qsort(void *  , size_t  , size_t  ,
-                    int  ( __cdecl * )(void const *  , void const *  ) )  ;
-int  __cdecl rand(void  )  ;
-void *  __cdecl realloc(void *  , size_t  )  ;
-int  __cdecl _set_error_mode(int  )  ;
-void  __cdecl srand(unsigned int  )  ;
-double  __cdecl strtod(char const *  , char * *  )  ;
-long  __cdecl strtol(char const *  , char * *  , int  )  ;
-unsigned long  __cdecl strtoul(char const *  , char * *  , int  )  ;
-int  __cdecl system(char const *  )  ;
-char *  __cdecl _ultoa(unsigned long  , char *  , int  )  ;
-int  __cdecl wctomb(char *  , wchar_t  )  ;
-size_t  __cdecl wcstombs(char *  , wchar_t *  , size_t  )  ;
-wchar_t *  __cdecl _itow(int  , wchar_t *  , int  )  ;
-wchar_t *  __cdecl _ltow(long  , wchar_t *  , int  )  ;
-wchar_t *  __cdecl _ultow(unsigned long  , wchar_t *  , int  )  ;
-double  __cdecl wcstod(wchar_t *  , wchar_t * *  )  ;
-long  __cdecl wcstol(wchar_t *  , wchar_t * *  , int  )  ;
-unsigned long  __cdecl wcstoul(wchar_t *  , wchar_t * *  , int  )  ;
-wchar_t *  __cdecl _wgetenv(wchar_t *  )  ;
-int  __cdecl _wsystem(wchar_t *  )  ;
-int  __cdecl _wtoi(wchar_t *  )  ;
-long  __cdecl _wtol(wchar_t *  )  ;
-wchar_t *  __cdecl _i64tow(__int64  , wchar_t *  , int  )  ;
-wchar_t *  __cdecl _ui64tow(unsigned __int64  , wchar_t *  , int  )  ;
-__int64  __cdecl _wtoi64(wchar_t *  )  ;
-char *  __cdecl _ecvt(double  , int  , int *  , int *  )  ;
-void  __cdecl _exit(int  )  ;
-char *  __cdecl _fcvt(double  , int  , int *  , int *  )  ;
-char *  __cdecl _fullpath(char *  , char const *  , size_t  )  ;
-char *  __cdecl _gcvt(double  , int  , char *  )  ;
-unsigned long  __cdecl _lrotl(unsigned long  , int  )  ;
-unsigned long  __cdecl _lrotr(unsigned long  , int  )  ;
-void  __cdecl _makepath(char *  , char const *  , char const *  ,
-                        char const *  , char const *  )  ;
-_onexit_t  __cdecl _onexit(_onexit_t  )  ;
-void  __cdecl perror(char const *  )  ;
-int  __cdecl _putenv(char const *  )  ;
-unsigned int  __cdecl _rotl(unsigned int  , int  )  ;
-unsigned int  __cdecl _rotr(unsigned int  , int  )  ;
-void  __cdecl _searchenv(char const *  , char const *  , char *  )  ;
-void  __cdecl _splitpath(char const *  , char *  , char *  , char *  ,
-                         char *  )  ;
-void  __cdecl _swab(char *  , char *  , int  )  ;
-wchar_t *  __cdecl _wfullpath(wchar_t *  , wchar_t *  , size_t  )  ;
-void  __cdecl _wmakepath(wchar_t *  , wchar_t *  , wchar_t *  , wchar_t *  ,
-                         wchar_t *  )  ;
-void  __cdecl _wperror(wchar_t *  )  ;
-int  __cdecl _wputenv(wchar_t *  )  ;
-void  __cdecl _wsearchenv(wchar_t *  , wchar_t *  , wchar_t *  )  ;
-void  __cdecl _wsplitpath(wchar_t *  , wchar_t *  , wchar_t *  , wchar_t *  ,
-                          wchar_t *  )  ;
-void  __cdecl _seterrormode(int  )  ;
-void  __cdecl _beep(unsigned int  , unsigned int  )  ;
-void  __cdecl _sleep(unsigned long  )  ;
-int  __cdecl tolower(int  )  ;
-int  __cdecl toupper(int  )  ;
-char *  __cdecl ecvt(double  , int  , int *  , int *  )  ;
-char *  __cdecl fcvt(double  , int  , int *  , int *  )  ;
-char *  __cdecl gcvt(double  , int  , char *  )  ;
-char *  __cdecl itoa(int  , char *  , int  )  ;
-char *  __cdecl ltoa(long  , char *  , int  )  ;
-_onexit_t  __cdecl onexit(_onexit_t  )  ;
-int  __cdecl putenv(char const *  )  ;
-void  __cdecl swab(char *  , char *  , int  )  ;
-char *  __cdecl ultoa(unsigned long  , char *  , int  )  ;
+void  __cdecl  abort(void  )  ;
+void  __cdecl  exit(int  )  ;
+int  __cdecl  abs(int  )  ;
+int  __cdecl  atexit(void  (__cdecl  * )(void  ) )  ;
+double  __cdecl  atof(char const  *  )  ;
+int  __cdecl  atoi(char const  *  )  ;
+long  __cdecl  atol(char const  *  )  ;
+void *  __cdecl  bsearch(void const  *  , void const  *  ,  size_t  ,  size_t  ,
+                         int  (__cdecl  * )(void const  *  ,
+                                            void const  *  ) )  ;
+void *  __cdecl  calloc( size_t  ,  size_t  )  ;
+ div_t  __cdecl  div(int  , int  )  ;
+void  __cdecl  free(void *  )  ;
+char *  __cdecl  getenv(char const  *  )  ;
+char *  __cdecl  _itoa(int  , char *  , int  )  ;
+char *  __cdecl  _i64toa(__int64  , char *  , int  )  ;
+char *  __cdecl  _ui64toa(unsigned __int64  , char *  , int  )  ;
+__int64  __cdecl  _atoi64(char const  *  )  ;
+long  __cdecl  labs(long  )  ;
+ ldiv_t  __cdecl  ldiv(long  , long  )  ;
+char *  __cdecl  _ltoa(long  , char *  , int  )  ;
+void *  __cdecl  malloc( size_t  )  ;
+int  __cdecl  mblen(char const  *  ,  size_t  )  ;
+ size_t  __cdecl  _mbstrlen(char const  * s )  ;
+int  __cdecl  mbtowc( wchar_t *  , char const  *  ,  size_t  )  ;
+ size_t  __cdecl  mbstowcs( wchar_t *  , char const  *  ,  size_t  )  ;
+void  __cdecl  qsort(void *  ,  size_t  ,  size_t  ,
+                     int  (__cdecl  * )(void const  *  , void const  *  ) )  ;
+int  __cdecl  rand(void  )  ;
+void *  __cdecl  realloc(void *  ,  size_t  )  ;
+int  __cdecl  _set_error_mode(int  )  ;
+void  __cdecl  srand(unsigned int  )  ;
+double  __cdecl  strtod(char const  *  , char * *  )  ;
+long  __cdecl  strtol(char const  *  , char * *  , int  )  ;
+unsigned long  __cdecl  strtoul(char const  *  , char * *  , int  )  ;
+int  __cdecl  system(char const  *  )  ;
+char *  __cdecl  _ultoa(unsigned long  , char *  , int  )  ;
+int  __cdecl  wctomb(char *  ,  wchar_t  )  ;
+ size_t  __cdecl  wcstombs(char *  ,  const  wchar_t *  ,  size_t  )  ;
+ wchar_t *  __cdecl  _itow(int  ,  wchar_t *  , int  )  ;
+ wchar_t *  __cdecl  _ltow(long  ,  wchar_t *  , int  )  ;
+ wchar_t *  __cdecl  _ultow(unsigned long  ,  wchar_t *  , int  )  ;
+double  __cdecl  wcstod( const  wchar_t *  ,  wchar_t * *  )  ;
+long  __cdecl  wcstol( const  wchar_t *  ,  wchar_t * *  , int  )  ;
+unsigned long  __cdecl  wcstoul( const  wchar_t *  ,  wchar_t * *  , int  )  ;
+ wchar_t *  __cdecl  _wgetenv( const  wchar_t *  )  ;
+int  __cdecl  _wsystem( const  wchar_t *  )  ;
+int  __cdecl  _wtoi( const  wchar_t *  )  ;
+long  __cdecl  _wtol( const  wchar_t *  )  ;
+ wchar_t *  __cdecl  _i64tow(__int64  ,  wchar_t *  , int  )  ;
+ wchar_t *  __cdecl  _ui64tow(unsigned __int64  ,  wchar_t *  , int  )  ;
+__int64  __cdecl  _wtoi64( const  wchar_t *  )  ;
+char *  __cdecl  _ecvt(double  , int  , int *  , int *  )  ;
+void  __cdecl  _exit(int  )  ;
+char *  __cdecl  _fcvt(double  , int  , int *  , int *  )  ;
+char *  __cdecl  _fullpath(char *  , char const  *  ,  size_t  )  ;
+char *  __cdecl  _gcvt(double  , int  , char *  )  ;
+unsigned long  __cdecl  _lrotl(unsigned long  , int  )  ;
+unsigned long  __cdecl  _lrotr(unsigned long  , int  )  ;
+void  __cdecl  _makepath(char *  , char const  *  , char const  *  ,
+                         char const  *  , char const  *  )  ;
+ _onexit_t  __cdecl  _onexit( _onexit_t  )  ;
+void  __cdecl  perror(char const  *  )  ;
+int  __cdecl  _putenv(char const  *  )  ;
+unsigned int  __cdecl  _rotl(unsigned int  , int  )  ;
+unsigned int  __cdecl  _rotr(unsigned int  , int  )  ;
+void  __cdecl  _searchenv(char const  *  , char const  *  , char *  )  ;
+void  __cdecl  _splitpath(char const  *  , char *  , char *  , char *  ,
+                          char *  )  ;
+void  __cdecl  _swab(char *  , char *  , int  )  ;
+ wchar_t *  __cdecl  _wfullpath( wchar_t *  ,  const  wchar_t *  ,  size_t  )  ;
+void  __cdecl  _wmakepath( wchar_t *  ,  const  wchar_t *  ,
+                           const  wchar_t *  ,  const  wchar_t *  ,
+                           const  wchar_t *  )  ;
+void  __cdecl  _wperror( const  wchar_t *  )  ;
+int  __cdecl  _wputenv( const  wchar_t *  )  ;
+void  __cdecl  _wsearchenv( const  wchar_t *  ,  const  wchar_t *  ,
+                            wchar_t *  )  ;
+void  __cdecl  _wsplitpath( const  wchar_t *  ,  wchar_t *  ,  wchar_t *  ,
+                            wchar_t *  ,  wchar_t *  )  ;
+void  __cdecl  _seterrormode(int  )  ;
+void  __cdecl  _beep(unsigned int  , unsigned int  )  ;
+void  __cdecl  _sleep(unsigned long  )  ;
+int  __cdecl  tolower(int  )  ;
+int  __cdecl  toupper(int  )  ;
+char *  __cdecl  ecvt(double  , int  , int *  , int *  )  ;
+char *  __cdecl  fcvt(double  , int  , int *  , int *  )  ;
+char *  __cdecl  gcvt(double  , int  , char *  )  ;
+char *  __cdecl  itoa(int  , char *  , int  )  ;
+char *  __cdecl  ltoa(long  , char *  , int  )  ;
+ _onexit_t  __cdecl  onexit( _onexit_t  )  ;
+int  __cdecl  putenv(char const  *  )  ;
+void  __cdecl  swab(char *  , char *  , int  )  ;
+char *  __cdecl  ultoa(unsigned long  , char *  , int  )  ;
 #pragma  pack(pop)
 
 #pragma  once
 
 #pragma  pack(push,8)
 
-typedef wchar_t wint_t;
+typedef  wchar_t wint_t;
 
-typedef wchar_t wctype_t;
+typedef  wchar_t wctype_t;
 
 typedef char * va_list;
 
@@ -203,114 +157,116 @@ struct _iobuf {
 
 typedef struct _iobuf FILE;
 
-extern FILE _iob[]  ;
+extern  FILE _iob[]  ;
 typedef __int64 fpos_t;
 
-int  __cdecl _filbuf(FILE *  )  ;
-int  __cdecl _flsbuf(int  , FILE *  )  ;
-FILE *  __cdecl _fsopen(char const *  , char const *  , int  )  ;
-void  __cdecl clearerr(FILE *  )  ;
-int  __cdecl fclose(FILE *  )  ;
-int  __cdecl _fcloseall(void  )  ;
-FILE *  __cdecl _fdopen(int  , char const *  )  ;
-int  __cdecl feof(FILE *  )  ;
-int  __cdecl ferror(FILE *  )  ;
-int  __cdecl fflush(FILE *  )  ;
-int  __cdecl fgetc(FILE *  )  ;
-int  __cdecl _fgetchar(void  )  ;
-int  __cdecl fgetpos(FILE *  , fpos_t *  )  ;
-char *  __cdecl fgets(char *  , int  , FILE *  )  ;
-int  __cdecl _fileno(FILE *  )  ;
-int  __cdecl _flushall(void  )  ;
-FILE *  __cdecl fopen(char const *  , char const *  )  ;
-int  __cdecl fprintf(FILE *  , char const *  , ...)  ;
-int  __cdecl fputc(int  , FILE *  )  ;
-int  __cdecl _fputchar(int  )  ;
-int  __cdecl fputs(char const *  , FILE *  )  ;
-size_t  __cdecl fread(void *  , size_t  , size_t  , FILE *  )  ;
-FILE *  __cdecl freopen(char const *  , char const *  , FILE *  )  ;
-int  __cdecl fscanf(FILE *  , char const *  , ...)  ;
-int  __cdecl fsetpos(FILE *  , fpos_t *  )  ;
-int  __cdecl fseek(FILE *  , long  , int  )  ;
-long  __cdecl ftell(FILE *  )  ;
-size_t  __cdecl fwrite(void const *  , size_t  , size_t  , FILE *  )  ;
-int  __cdecl getc(FILE *  )  ;
-int  __cdecl getchar(void  )  ;
-int  __cdecl _getmaxstdio(void  )  ;
-char *  __cdecl gets(char *  )  ;
-int  __cdecl _getw(FILE *  )  ;
-void  __cdecl perror(char const *  )  ;
-int  __cdecl _pclose(FILE *  )  ;
-FILE *  __cdecl _popen(char const *  , char const *  )  ;
-int  __cdecl printf(char const *  , ...)  ;
-int  __cdecl putc(int  , FILE *  )  ;
-int  __cdecl putchar(int  )  ;
-int  __cdecl puts(char const *  )  ;
-int  __cdecl _putw(int  , FILE *  )  ;
-int  __cdecl remove(char const *  )  ;
-int  __cdecl rename(char const *  , char const *  )  ;
-void  __cdecl rewind(FILE *  )  ;
-int  __cdecl _rmtmp(void  )  ;
-int  __cdecl scanf(char const *  , ...)  ;
-void  __cdecl setbuf(FILE *  , char *  )  ;
-int  __cdecl _setmaxstdio(int  )  ;
-int  __cdecl setvbuf(FILE *  , char *  , int  , size_t  )  ;
-int  __cdecl _snprintf(char *  , size_t  , char const *  , ...)  ;
-int  __cdecl sprintf(char *  , char const *  , ...)  ;
-int  __cdecl sscanf(char const *  , char const *  , ...)  ;
-char *  __cdecl _tempnam(char const *  , char const *  )  ;
-FILE *  __cdecl tmpfile(void  )  ;
-char *  __cdecl tmpnam(char *  )  ;
-int  __cdecl ungetc(int  , FILE *  )  ;
-int  __cdecl _unlink(char const *  )  ;
-int  __cdecl vfprintf(FILE *  , char const *  , va_list  )  ;
-int  __cdecl vprintf(char const *  , va_list  )  ;
-int  __cdecl _vsnprintf(char *  , size_t  , char const *  , va_list  )  ;
-int  __cdecl vsprintf(char *  , char const *  , va_list  )  ;
-FILE *  __cdecl _wfsopen(wchar_t *  , wchar_t *  , int  )  ;
-wchar_t  __cdecl fgetwc(FILE *  )  ;
-wchar_t  __cdecl _fgetwchar(void  )  ;
-wchar_t  __cdecl fputwc(wchar_t  , FILE *  )  ;
-wchar_t  __cdecl _fputwchar(wchar_t  )  ;
-wchar_t  __cdecl getwc(FILE *  )  ;
-wchar_t  __cdecl getwchar(void  )  ;
-wchar_t  __cdecl putwc(wchar_t  , FILE *  )  ;
-wchar_t  __cdecl putwchar(wchar_t  )  ;
-wchar_t  __cdecl ungetwc(wchar_t  , FILE *  )  ;
-wchar_t *  __cdecl fgetws(wchar_t *  , int  , FILE *  )  ;
-int  __cdecl fputws(wchar_t *  , FILE *  )  ;
-wchar_t *  __cdecl _getws(wchar_t *  )  ;
-int  __cdecl _putws(wchar_t *  )  ;
-int  __cdecl fwprintf(FILE *  , wchar_t *  , ...)  ;
-int  __cdecl wprintf(wchar_t *  , ...)  ;
-int  __cdecl _snwprintf(wchar_t *  , size_t  , wchar_t *  , ...)  ;
-int  __cdecl swprintf(wchar_t *  , wchar_t *  , ...)  ;
-int  __cdecl vfwprintf(FILE *  , wchar_t *  , va_list  )  ;
-int  __cdecl vwprintf(wchar_t *  , va_list  )  ;
-int  __cdecl _vsnwprintf(wchar_t *  , size_t  , wchar_t *  , va_list  )  ;
-int  __cdecl vswprintf(wchar_t *  , wchar_t *  , va_list  )  ;
-int  __cdecl fwscanf(FILE *  , wchar_t *  , ...)  ;
-int  __cdecl swscanf(wchar_t *  , wchar_t *  , ...)  ;
-int  __cdecl wscanf(wchar_t *  , ...)  ;
-FILE *  __cdecl _wfdopen(int  , wchar_t *  )  ;
-FILE *  __cdecl _wfopen(wchar_t *  , wchar_t *  )  ;
-FILE *  __cdecl _wfreopen(wchar_t *  , wchar_t *  , FILE *  )  ;
-void  __cdecl _wperror(wchar_t *  )  ;
-FILE *  __cdecl _wpopen(wchar_t *  , wchar_t *  )  ;
-int  __cdecl _wremove(wchar_t *  )  ;
-wchar_t *  __cdecl _wtempnam(wchar_t *  , wchar_t *  )  ;
-wchar_t *  __cdecl _wtmpnam(wchar_t *  )  ;
-int  __cdecl fcloseall(void  )  ;
-FILE *  __cdecl fdopen(int  , char const *  )  ;
-int  __cdecl fgetchar(void  )  ;
-int  __cdecl fileno(FILE *  )  ;
-int  __cdecl flushall(void  )  ;
-int  __cdecl fputchar(int  )  ;
-int  __cdecl getw(FILE *  )  ;
-int  __cdecl putw(int  , FILE *  )  ;
-int  __cdecl rmtmp(void  )  ;
-char *  __cdecl tempnam(char const *  , char const *  )  ;
-int  __cdecl unlink(char const *  )  ;
+int  __cdecl  _filbuf( FILE *  )  ;
+int  __cdecl  _flsbuf(int  ,  FILE *  )  ;
+ FILE *  __cdecl  _fsopen(char const  *  , char const  *  , int  )  ;
+void  __cdecl  clearerr( FILE *  )  ;
+int  __cdecl  fclose( FILE *  )  ;
+int  __cdecl  _fcloseall(void  )  ;
+ FILE *  __cdecl  _fdopen(int  , char const  *  )  ;
+int  __cdecl  feof( FILE *  )  ;
+int  __cdecl  ferror( FILE *  )  ;
+int  __cdecl  fflush( FILE *  )  ;
+int  __cdecl  fgetc( FILE *  )  ;
+int  __cdecl  _fgetchar(void  )  ;
+int  __cdecl  fgetpos( FILE *  ,  fpos_t *  )  ;
+char *  __cdecl  fgets(char *  , int  ,  FILE *  )  ;
+int  __cdecl  _fileno( FILE *  )  ;
+int  __cdecl  _flushall(void  )  ;
+ FILE *  __cdecl  fopen(char const  *  , char const  *  )  ;
+int  __cdecl  fprintf( FILE *  , char const  *  , ...)  ;
+int  __cdecl  fputc(int  ,  FILE *  )  ;
+int  __cdecl  _fputchar(int  )  ;
+int  __cdecl  fputs(char const  *  ,  FILE *  )  ;
+ size_t  __cdecl  fread(void *  ,  size_t  ,  size_t  ,  FILE *  )  ;
+ FILE *  __cdecl  freopen(char const  *  , char const  *  ,  FILE *  )  ;
+int  __cdecl  fscanf( FILE *  , char const  *  , ...)  ;
+int  __cdecl  fsetpos( FILE *  ,  const  fpos_t *  )  ;
+int  __cdecl  fseek( FILE *  , long  , int  )  ;
+long  __cdecl  ftell( FILE *  )  ;
+ size_t  __cdecl  fwrite(void const  *  ,  size_t  ,  size_t  ,  FILE *  )  ;
+int  __cdecl  getc( FILE *  )  ;
+int  __cdecl  getchar(void  )  ;
+int  __cdecl  _getmaxstdio(void  )  ;
+char *  __cdecl  gets(char *  )  ;
+int  __cdecl  _getw( FILE *  )  ;
+void  __cdecl  perror(char const  *  )  ;
+int  __cdecl  _pclose( FILE *  )  ;
+ FILE *  __cdecl  _popen(char const  *  , char const  *  )  ;
+int  __cdecl  printf(char const  *  , ...)  ;
+int  __cdecl  putc(int  ,  FILE *  )  ;
+int  __cdecl  putchar(int  )  ;
+int  __cdecl  puts(char const  *  )  ;
+int  __cdecl  _putw(int  ,  FILE *  )  ;
+int  __cdecl  remove(char const  *  )  ;
+int  __cdecl  rename(char const  *  , char const  *  )  ;
+void  __cdecl  rewind( FILE *  )  ;
+int  __cdecl  _rmtmp(void  )  ;
+int  __cdecl  scanf(char const  *  , ...)  ;
+void  __cdecl  setbuf( FILE *  , char *  )  ;
+int  __cdecl  _setmaxstdio(int  )  ;
+int  __cdecl  setvbuf( FILE *  , char *  , int  ,  size_t  )  ;
+int  __cdecl  _snprintf(char *  ,  size_t  , char const  *  , ...)  ;
+int  __cdecl  sprintf(char *  , char const  *  , ...)  ;
+int  __cdecl  sscanf(char const  *  , char const  *  , ...)  ;
+char *  __cdecl  _tempnam(char const  *  , char const  *  )  ;
+ FILE *  __cdecl  tmpfile(void  )  ;
+char *  __cdecl  tmpnam(char *  )  ;
+int  __cdecl  ungetc(int  ,  FILE *  )  ;
+int  __cdecl  _unlink(char const  *  )  ;
+int  __cdecl  vfprintf( FILE *  , char const  *  ,  va_list  )  ;
+int  __cdecl  vprintf(char const  *  ,  va_list  )  ;
+int  __cdecl  _vsnprintf(char *  ,  size_t  , char const  *  ,  va_list  )  ;
+int  __cdecl  vsprintf(char *  , char const  *  ,  va_list  )  ;
+ FILE *  __cdecl  _wfsopen( const  wchar_t *  ,  const  wchar_t *  , int  )  ;
+ wchar_t  __cdecl  fgetwc( FILE *  )  ;
+ wchar_t  __cdecl  _fgetwchar(void  )  ;
+ wchar_t  __cdecl  fputwc( wchar_t  ,  FILE *  )  ;
+ wchar_t  __cdecl  _fputwchar( wchar_t  )  ;
+ wchar_t  __cdecl  getwc( FILE *  )  ;
+ wchar_t  __cdecl  getwchar(void  )  ;
+ wchar_t  __cdecl  putwc( wchar_t  ,  FILE *  )  ;
+ wchar_t  __cdecl  putwchar( wchar_t  )  ;
+ wchar_t  __cdecl  ungetwc( wchar_t  ,  FILE *  )  ;
+ wchar_t *  __cdecl  fgetws( wchar_t *  , int  ,  FILE *  )  ;
+int  __cdecl  fputws( const  wchar_t *  ,  FILE *  )  ;
+ wchar_t *  __cdecl  _getws( wchar_t *  )  ;
+int  __cdecl  _putws( const  wchar_t *  )  ;
+int  __cdecl  fwprintf( FILE *  ,  const  wchar_t *  , ...)  ;
+int  __cdecl  wprintf( const  wchar_t *  , ...)  ;
+int  __cdecl  _snwprintf( wchar_t *  ,  size_t  ,  const  wchar_t *  , ...)  ;
+int  __cdecl  swprintf( wchar_t *  ,  const  wchar_t *  , ...)  ;
+int  __cdecl  vfwprintf( FILE *  ,  const  wchar_t *  ,  va_list  )  ;
+int  __cdecl  vwprintf( const  wchar_t *  ,  va_list  )  ;
+int  __cdecl  _vsnwprintf( wchar_t *  ,  size_t  ,  const  wchar_t *  ,
+                           va_list  )  ;
+int  __cdecl  vswprintf( wchar_t *  ,  const  wchar_t *  ,  va_list  )  ;
+int  __cdecl  fwscanf( FILE *  ,  const  wchar_t *  , ...)  ;
+int  __cdecl  swscanf( const  wchar_t *  ,  const  wchar_t *  , ...)  ;
+int  __cdecl  wscanf( const  wchar_t *  , ...)  ;
+ FILE *  __cdecl  _wfdopen(int  ,  const  wchar_t *  )  ;
+ FILE *  __cdecl  _wfopen( const  wchar_t *  ,  const  wchar_t *  )  ;
+ FILE *  __cdecl  _wfreopen( const  wchar_t *  ,  const  wchar_t *  ,
+                             FILE *  )  ;
+void  __cdecl  _wperror( const  wchar_t *  )  ;
+ FILE *  __cdecl  _wpopen( const  wchar_t *  ,  const  wchar_t *  )  ;
+int  __cdecl  _wremove( const  wchar_t *  )  ;
+ wchar_t *  __cdecl  _wtempnam( const  wchar_t *  ,  const  wchar_t *  )  ;
+ wchar_t *  __cdecl  _wtmpnam( wchar_t *  )  ;
+int  __cdecl  fcloseall(void  )  ;
+ FILE *  __cdecl  fdopen(int  , char const  *  )  ;
+int  __cdecl  fgetchar(void  )  ;
+int  __cdecl  fileno( FILE *  )  ;
+int  __cdecl  flushall(void  )  ;
+int  __cdecl  fputchar(int  )  ;
+int  __cdecl  getw( FILE *  )  ;
+int  __cdecl  putw(int  ,  FILE *  )  ;
+int  __cdecl  rmtmp(void  )  ;
+char *  __cdecl  tempnam(char const  *  , char const  *  )  ;
+int  __cdecl  unlink(char const  *  )  ;
 #pragma  pack(pop)
 
 typedef struct list {
@@ -318,32 +274,32 @@ typedef struct list {
            struct list * cdr ;
 } LIST;
 
-LIST *  prepend(LIST * l , void * el ) 
-{ LIST * n ;
+ LIST *  prepend( LIST * l , void * el ) 
+{  LIST * n ;
   void * tmp ;
   { 
-    tmp = malloc((unsigned int )sizeof(LIST ));
-    n = (LIST * )tmp;
+    tmp = malloc(sizeof( LIST ));
+    n = ( LIST * )tmp;
     n->car = el;
     n->cdr = l;
     return (n);
   }
 }
 
-LIST *  append(LIST * l , void * el ) 
-{ LIST * parent ;
-  LIST * n ;
+ LIST *  append( LIST * l , void * el ) 
+{  LIST * parent ;
+   LIST * n ;
   void * tmp ;
   { 
-    parent = (LIST * )0;
+    parent = ( LIST * )0;
     n = l;
     while (n)
       { 
         parent = n;
         n = n->cdr;
       }
-    tmp = malloc((unsigned int )sizeof(LIST ));
-    n = (LIST * )tmp;
+    tmp = malloc(sizeof( LIST ));
+    n = ( LIST * )tmp;
     n->car = el;
     n->cdr = (struct list * )0;
     if (parent)
@@ -356,9 +312,9 @@ LIST *  append(LIST * l , void * el )
   }
 }
 
-LIST *  insert(LIST * l , void * el , int pos ) 
-{ LIST * n ;
-  LIST * t ;
+ LIST *  insert( LIST * l , void * el , int pos ) 
+{  LIST * n ;
+   LIST * t ;
   void * tmp ;
   { 
     n = l;
@@ -378,8 +334,8 @@ LIST *  insert(LIST * l , void * el , int pos )
             n = n->cdr;
           }
       }
-    tmp = malloc((unsigned int )sizeof(LIST ));
-    t = (LIST * )tmp;
+    tmp = malloc(sizeof( LIST ));
+    t = ( LIST * )tmp;
     if (l)
       { 
         t->cdr = n->cdr;
@@ -394,7 +350,7 @@ LIST *  insert(LIST * l , void * el , int pos )
   }
 }
 
-int  exists(LIST * l , void * el ) 
+int  exists( LIST * l , void * el ) 
 { 
   { 
     while (1)
@@ -410,11 +366,11 @@ int  exists(LIST * l , void * el )
           break;
         l = l->cdr;
       }
-    return (l != (LIST * )0);
+    return (l != ( LIST * )0);
   }
 }
 
-int  length(LIST * l ) 
+int  length( LIST * l ) 
 { int len ;
   { 
     len = 0;
@@ -429,44 +385,40 @@ int  length(LIST * l )
 
 void  main(void  ) 
 { int i ;
-  LIST * l ;
+   LIST * l ;
   double clk ;
   int sum ;
   int k ;
   int tmp ;
-  clock_t tmp0 ;
+  int tmp0 ;
   int tmp1 ;
   int tmp2 ;
-  int tmp3 ;
-  clock_t tmp4 ;
   { 
-    l = (LIST * )((void * )0);
+    l = ( LIST * )((void * )0);
     sum = 0;
-    tmp4 = clock();
-    clk = (double )tmp4;
+    TIMESTART(clk);
     i = 1;
     while (i < 1000)
       { 
-        tmp3 = rand();
-        k = tmp3 % 1000;
+        tmp = rand();
+        k = tmp % 1000;
         l = insert(l, (void * )k, k % i);
         i ++;
       }
     i = 0;
     while (i < 10000)
       { 
-        tmp2 = rand();
-        k = tmp2 % 1000;
+        tmp0 = rand();
+        k = tmp0 % 1000;
         tmp1 = exists(l, (void * )k);
         if (tmp1)
           sum ++;
         i ++;
       }
-    tmp0 = clock();
-    clk = ((double )1000000.0 * ((double )tmp0 - clk)) / (double )1000;
-    tmp = length(l);
-    printf((char const * )"Ran the test %d times in %8.3lfms. Length is %d. Success %d times.\n",
-           i, clk / (double )1000.0, tmp, sizeof(char * ), sum);
+    TIMESTOP(clk);
+    tmp2 = length(l);
+    printf((char const  * )"Ran the test %d times in %8.3lfms. Length is %d. Success %d times.\n",
+           i, clk / 1000.0, tmp2, sizeof(char * ), sum);
   }
 }
 

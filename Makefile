@@ -73,6 +73,7 @@ endif
 
 ifdef _GNUCC
 CCL=gcc -x c -O3 -Wall
+DOOPT=-O3
 CC=$(CC) -c
 CONLY=-c
 OUT=-o
@@ -88,6 +89,7 @@ endif
 
 ifdef _MSVC
 CCL=cl /TC /O2 /Zi /MLd /I./lib /DEBUG
+DOOPT=/O2
 CC=$(CCL) /c
 CONLY=/c
 OUT=/Fo
@@ -163,7 +165,7 @@ runpcc:
 ############ Small tests
 SMALL1=test/small1
 test/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE)
-	$(SAFECC) $(SMALL1)/$*.c $(EXEOUT)$(SMALL1)/$*.exe
+	$(SAFECC) $(SMALL1)/$*.c $(CONLY) $(DOOPT) $(ASMOUT)$(SMALL1)/$*.s
 
 
 ### Generic test
