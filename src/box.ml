@@ -1980,6 +1980,7 @@ let pkAllocate (ai:  allocinfo) (* Information about the allocation function *)
       TPtr(bt, _) -> bt
     | _ -> E.s (E.bug "Result of allocation is not a pointer type\n")
   in
+
   (* Compute the size argument to be passed to the allocator *)
   let allocsz = 
     match k with 
@@ -2005,6 +2006,7 @@ let pkAllocate (ai:  allocinfo) (* Information about the allocation function *)
                             ptrtype)
     | _ -> Skip
   in
+
   (* Save the pointer value *)
   let assign_p = mkSet (Var vi, ptroff) tmpvar in
   (* And the base, if necessary *)
@@ -2016,6 +2018,7 @@ let pkAllocate (ai:  allocinfo) (* Information about the allocation function *)
            (doCast tmpvar voidPtrType))
     | _ -> Skip
   in
+
   (* Set the size if necessary *)
   let setsz = 
     match k with
@@ -2027,8 +2030,18 @@ let pkAllocate (ai:  allocinfo) (* Information about the allocation function *)
           nrdatawords
     | _ -> Skip
   in
-  (* Now the remainded of the initialization *)
+
+  (* Now the remainder of the initialization *)
   let init = 
+    (* Put nullterm *)
+    let putnullterm = 
+      mkSet (Mem(BinOp(PlusPI,
+                       doCast tmpvar charPtrType,
+                       BinOp(MinusA, nrdatabytes, one, intType), 
+                       charPtrType)),
+             NoOffset)
+        (doCast zero charType)
+    in
     match k with
       N.Wild -> 
         (* Zero the tags *)
@@ -2087,7 +2100,13 @@ let pkAllocate (ai:  allocinfo) (* Information about the allocation function *)
                    (fun off what acc -> mkSet (Mem tmpvar, off) what :: acc)
                    (fun off -> mkAddrOf (Mem tmpvar, off))
                    []) ::
-        []
+        (if k = N.FSeqN || k = N.SeqN then [putnullterm] else [])
+
+    | N.String -> (* Allocate this as SeqN, with a null term *)
+        ignore (E.warn "Allocation of string. Use FSEQN instead. (%a)\n"
+                  d_lval (var vi));
+        [putnullterm]
+
     | _ -> E.s (E.bug "pkAllocate: init")
   in
   (* Now assign the end if necessary. We do it this late because in the case 
