@@ -34,4 +34,9 @@ int main() {
 
     x = * * cpw;
   }
+
+  {
+    int * intcast = (int *)6;
+    *px = *intcast;
+  }
 }
