@@ -1,0 +1,12 @@
+
+ - casting of function pointers is problematic. For each cast a wrapper should
+   be written instead! 
+
+ - functions with pointer return type but missing returns are a safety
+   problem.
+
+ - uninintialized local variables are a problem.
+
+ - vararg functions are a problem. By definition, they involve taking the
+   address of a formal argument. BOX sees this and and makes a copy of that
+   argument. But also there is no easy way to do bounds checking for vararg.
