@@ -269,9 +269,6 @@ endif
 # sm: use this instead of "sh ./testit" for those self-tests which can't
 # be made to work on windows; it does nothing, and has no output
 UNIXTESTIT := sh ./testit
-ifeq ($(ARCHOS), x86_WIN32)
-  UNIXTESTIT := @true
-endif
 
 
 # ----------- below here are rules for building benchmarks --------
@@ -500,7 +497,7 @@ optim/% : $(OPTIMTESTDIR)/%.c
 hashtest: test/small2/hashtest.c 
 	rm -f $(PCCTEST)/hashtest.exe
 	cd $(PCCTEST); $(CCURED) --merge \
-                                 --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
+                                 --keep=. $(DEF)x86_LINUX $(DEF)$(PCCTYPE) \
                  $(CFLAGS) \
                  `$(PATCHECHO) $(STANDARDPATCH)` \
                  $(INC)$(PCCDIR)/src \

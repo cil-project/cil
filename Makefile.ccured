@@ -243,14 +243,53 @@ testgc:
 #################
 DISTRIB_DIR:= TEMP_ccured_distrib
 
-distrib: doc
+D_ROOT := Makefile Makefile.ccured Makefile.gcc Makefile.msvc .ccuredrc_model
+
+D_LIB := ccured.pl ccured_GNUCC.patch ccured_MSVC.patch \
+        fixup.h ccuredlib.c ccured.h ccuredcheck.h ccuredmain.c \
+	scaninfer scaninfer.bat \
+        splay.c gc
+
+D_SMALL1 := array1.c array2.c alloc.c bitfield.c cast1.c fseq1.c
+
+distrib: 
 	rm -f ccured.tar.gz
 # Make a CIL distribution
-	make -f Makefile.cil distrib
+#	make -f Makefile.cil distrib
 # Unpack the distribution in our temporary directory
 	rm -rf $(DISTRIB_DIR)
 	mkdir $(DISTRIB_DIR)
-	cd $(DISTRIB_DIR); tar xvfz cil.tar.gz
+	cd $(DISTRIB_DIR); tar xvfz ../cil.tar.gz
 # Remember to rename the Makefile.cil
-	mv $(DISTRIB_DIR)/cil/Makefile $(DISTRIB_DIR)/cil/Makefile.cil
-# Now add the CCured-specific stuff 	
+	mv $(DISTRIB_DIR)/cil $(DISTRIB_DIR)/ccured
+	mv $(DISTRIB_DIR)/ccured/Makefile $(DISTRIB_DIR)/ccured/Makefile.cil
+# Delete all the documentation
+	rm -rf $(DISTRIB_DIR)/ccured/doc/*
+# And copy it again
+	cp -r doc/html/cil $(DISTRIB_DIR)/ccured/doc	  	
+	cp -r doc/html/ccured $(DISTRIB_DIR)/ccured/doc
+# Now add the CCured-specific stuff
+	cp $(D_ROOT) $(DISTRIB_DIR)/ccured
+	cp -r src/ccured $(DISTRIB_DIR)/ccured/src
+	make -C lib/gc clean
+	cp -r $(patsubst %,lib/%,$(D_LIB)) $(DISTRIB_DIR)/ccured/lib
+# Now the tests
+	-find test \( \
+		-name '*cil.c' -o \
+		-name '*cured.c' -o \
+                -name '*cured.*optim.c' -o \
+		-name '*.exe' -o \
+		-name '*.i' -o \
+		-name '*_ppp.c' -o \
+		-name '*.origi' -o \
+		-name '*.o' -o \
+		-name '*.obj' -o \
+		-name '*cabs.c' -o \
+		-name '*infer.c' -o \
+		-name '*_all*.c' -o \
+		-name '*_comb*.c' \
+	\) -exec rm {} \;
+	mkdir $(DISTRIB_DIR)/ccured/test/small1
+	cp -r $(patsubst %,test/small1/%,$(D_SMALL1)) \
+              $(DISTRIB_DIR)/ccured/test/small1
+	cp -r test/olden $(DISTRIB_DIR)/ccured/test
