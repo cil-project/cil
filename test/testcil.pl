@@ -169,6 +169,7 @@ $TEST->addTests("test/asm3", "_GNUCC=1", ['cil']);
 $TEST->addTests("test/asm4", "_GNUCC=1", ['cil']);
 
 $TEST->add3Tests("testrun/offsetof");
+$TEST->add3Tests("testrun/offsetof1");
 $TEST->addTests("testrun/question", "", ['cil']);
 $TEST->add3Tests("test/argcast");
 $TEST->add3Tests("test/array1");

@@ -162,7 +162,7 @@ foreach my $patch (@patches) {
     if(defined $patch->{FLAGS}->{group}) {
         if(! defined $groups{$patch->{FLAGS}->{group}}) {
             $hadError = 1;
-            print "None of the following patch from group $patch->{FLAGS}->{group} were used:\n";
+            print "None of the following patches from group $patch->{FLAGS}->{group} was used:\n";
             foreach my $gp (@patches) {
                 if($gp->{FLAGS}->{group} eq $patch->{FLAGS}->{group}) {
                     print "\tfrom $gp->{PATCHFILE} at $gp->{PATCHLINENO}\n";
