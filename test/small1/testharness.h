@@ -1,4 +1,6 @@
-extern int printf(const char * __ROSTRING format, ...);
+extern int printf(const char * format, ...);
+#pragma ccuredvararg("printf", printf(1))
+
 extern void exit(int);
 
 /* Always call E with a non-zero number */
