@@ -910,14 +910,14 @@ test-tagfile:
 	  tagfile1.c tagfile2.c && ./tagfile.exe
 
 # cfrac: a memory benchmark which factorizes into products of primes
-CFRACDIR := $(CCUREDHOME)/../bench/cfrac
-cfrac: 
-	-rm $(CFRACDIR)/*.o
-	-rm $(CFRACDIR)/cfrac.exe
-	make -C $(CFRACDIR) \
-	  CC="$(CCURED) --nomerge --save-temps=$(CFRACDIR)" \
-	  LD="$(CCURED) --nomerge --save-temps=$(CFRACDIR)"
-	csh -c "time $(CFRACDIR)/cfrac.exe 327905606740421458831903"
+#CFRACDIR := $(CCUREDHOME)/cfrac
+#cfrac: 
+#	 -rm $(CFRACDIR)/*.o
+#	 -rm $(CFRACDIR)/cfrac.exe
+#	 make -C $(CFRACDIR) \
+#	   CC="$(CCURED) --nomerge --save-temps=$(CFRACDIR)" \
+#	   LD="$(CCURED) --nomerge --save-temps=$(CFRACDIR)"
+#	 csh -c "time $(CFRACDIR)/cfrac.exe 327905606740421458831903"
 
 comcfrac: 
 	-rm $(CFRACDIR)/*.o
@@ -2882,6 +2882,21 @@ tile:
 	cd $(TILEDIR); rm -f tile.exe *.o; \
                make CC="$(COMBINECCURED) --allowInlineAssembly"
 	cd $(TILEDIR); make run
+
+
+CFRACDIR:=$(TESTDIR)/cfrac
+.PHONY: cfrac
+cfrac: 
+	cd $(CFRACDIR); rm -f cfrac.exe *.o; \
+               make -f Makefile.orig CC="$(COMBINECCURED) --allowInlineAssembly --noUnrefPointerChecks"
+	cd $(CFRACDIR); bash -c "time ./cfrac.exe 4175764634412486014593803028771"
+
+MATXMULTDIR:=$(TESTDIR)/matxmult
+.PHONY: matxmult
+matxmult: 
+	cd $(MATXMULTDIR); rm -f matxmult.exe *.o; \
+               make -f Makefile.orig CC="$(COMBINECCURED)"
+	cd $(MATXMULTDIR); bash -c "time ./matxmult.exe 2468"
 
 #----------------------------------------------------------------------
 # Generate a distribution of the CIL/CCured regression tests

@@ -725,7 +725,9 @@ $TEST->addTests("testrun/builtin", "", ['cil']);
 $TEST->addTests("blockattr", "", ['cil']);
 $TEST->add2Tests("testrun/comparisons");
     
-# HERE
+
+$TEST->add2Tests("cfrac");
+$TEST->add2Tests("matxmult");
 
 #---------------- some performance tests 
 $TEST->add2Tests("perf/perfglobarray");
