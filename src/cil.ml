@@ -440,14 +440,14 @@ and binop =
   | Ge                                  (** >  (arithmetic comparison) *)
   | Eq                                  (** == (arithmetic comparison) *)
   | Ne                                  (** != (arithmetic comparison) *)            
-
+(*
   | LtP                                 (** <  (pointer comparison) *)
   | GtP                                 (** >  (pointer comparison) *)
   | LeP                                 (** <= (pointer comparison) *)
   | GeP                                 (** >= (pointer comparison) *)
   | EqP                                 (** == (pointer comparison) *)
   | NeP                                 (** != (pointer comparison) *)
-
+*)
   | BAnd                                (** bitwise and *)
   | BXor                                (** exclusive-or *)
   | BOr                                 (** inclusive-or *)
@@ -1009,11 +1009,25 @@ let charConstPtrType = TPtr(charType,[Attr("const", [])])
 let voidPtrType = TPtr(voidType, [])
 let intPtrType = TPtr(intType, [])
 let uintPtrType = TPtr(uintType, [])
+
 let doubleType = TFloat(FDouble, [])
 
 
-(* An integer type that fits pointers. We hardwire to unsigned long for now *)
-let upointType = TInt(IULong, []) 
+(* An integer type that fits pointers. *)
+let upointType () = 
+  let szptr, szlong, szint = 
+    if !msvcMode then 
+      M.MSVC.sizeof_ptr,M.MSVC.sizeof_long,M.MSVC.sizeof_int
+    else
+      M.GCC.sizeof_ptr,M.GCC.sizeof_long,M.GCC.sizeof_int 
+  in
+  if szlong = szptr then 
+    TInt(IULong, []) 
+  else if szint = szptr then 
+    TInt(IUInt, [])
+  else
+    E.s (E.unimp "Cannot find the size of the integer as wide as a pointer")
+
 
 
 let mkStmt (sk: stmtkind) : stmt = 
@@ -1229,7 +1243,7 @@ let mkForIncr ~(iter : varinfo) ~(first: exp) ~stopat:(past: exp) ~(incr: exp)
       (* See what kind of operator we need *)
   let compop, nextop = 
     match unrollType iter.vtype with
-      TPtr _ -> LtP, PlusPI
+      TPtr _ -> Lt, PlusPI
     | _ -> Lt, PlusA
   in
   mkFor 
@@ -1381,7 +1395,7 @@ let getParenthLevel = function
   | BinOp((BOr|BXor|BAnd),_,_,_) -> bitwiseLevel (* 75 *)
 
                                         (* Comparisons *)
-  | BinOp((Eq|Ne|Gt|Lt|Ge|Le|EqP|NeP|GtP|LtP|GeP|LeP),_,_,_) -> 70
+  | BinOp((Eq|Ne|Gt|Lt|Ge|Le(*|EqP|NeP|GtP|LtP|GeP|LeP*)),_,_,_) -> 70
                                         (* Additive. Shifts can have higher 
                                          * level but I want parentheses 
                                          * around them *)
@@ -1613,12 +1627,12 @@ and d_binop () b =
   | Mod -> text "%"
   | Shiftlt -> text "<<"
   | Shiftrt -> text ">>"
-  | Lt | LtP -> text "<"
-  | Gt | GtP -> text ">"
-  | Le | LeP -> text "<="
-  | Ge | GeP -> text ">="
-  | Eq | EqP -> text "=="
-  | Ne | NeP -> text "!="
+  | Lt (* | LtP *) -> text "<"
+  | Gt (*| GtP *) -> text ">"
+  | Le (*| LeP  *)-> text "<="
+  | Ge (*| GeP  *)-> text ">="
+  | Eq (*| EqP  *)-> text "=="
+  | Ne (*| NeP  *)-> text "!="
   | BAnd -> text "&"
   | BXor -> text "^"
   | BOr -> text "|"

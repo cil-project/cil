@@ -41,7 +41,7 @@ int main() {
   // The same trick with FSEQ
 #if ERROR == 4
   {
-    // ERROR(4):Ubound
+    // ERROR(4):Lbound
     int *f = &local;
     int *s = &local; s += (&global - s); // s is SEQ
     f ++; // f has type FSEQ

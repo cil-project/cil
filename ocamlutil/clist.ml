@@ -65,8 +65,8 @@ let append l1 l2 =
   if l1 = CList [] then l2 else
   if l2 = CList [] then l1 else
   begin
-    if l1 == l2 then
-      raise (Failure "You should not use append to duplicate a list");
+    if l1 == l2 then 
+      raise (Failure "You should not use Clist.append to double a list");
     CSeq (l1, l2)
   end
 

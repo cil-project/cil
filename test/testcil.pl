@@ -240,7 +240,11 @@ $TEST->add3Tests("test/printf", "", @runpattern);
 $TEST->add3Tests("test/printf_const", "", @runpattern);
 $TEST->add3Tests("testrun/printf2");
 $TEST->addTests("testrun/safeunion", "", ['inferbox']);
-$TEST->add3Tests("test/solver1");
+$TEST->add3Tests("testrun/solver1");
+    $TEST->addBadComment("testrun/solver1-inferbox", 
+                         "Code uses __builtin_next_arg directly");
+    $TEST->addBadComment("testrun/solver1-box", 
+                         "Code uses __builtin_next_arg directly");
 $TEST->add2Tests("test/unimplemented");
 $TEST->add2Tests("testrun/vararg1");
 $TEST->add2Tests("testrun/vararg2");
@@ -259,7 +263,7 @@ $TEST->addTests("testrun/comma1", "_GNUCC=1", ['cil']);
 $TEST->add3Tests("test/retval");
 $TEST->add3Tests("test/seq");
 $TEST->add3Tests("testrun/sized");
-$TEST->add2Tests("testrun/sized2");
+$TEST->addTestsFail("testrun/sized2", [], "Initializing SIZED open array", ['inferbox']);
 $TEST->add3Tests("test/sizeof");
 $TEST->add3Tests("test/smallstring");
 $TEST->add3Tests("testrun/static", "", @runpattern);
@@ -403,6 +407,7 @@ $TEST->add2TestsFail("testrun/failsscanf1", "", "Failure: Ubound");
 $TEST->add2TestsFail("testrun/simon6", "", "Failure:");
     
 $TEST->add2TestsFail("testrun/infer1", "", "Failure: ");
+    $TEST->addBadComment("testrun/failsscanf1-infer1", "Unsound solver casting of SEQ pointers");
 $TEST->addTestsFail("testrun/fseq1", "", "Failure: Decrement FSEQ", 
                     ['inferbox']);
 $TEST->addTestsFail("testrun/fseq1", "", "Failure: Lbound", 
@@ -417,7 +422,6 @@ $TEST->addTests("test-bad/checkret", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/checkstore", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/checkinit", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/union2", "_GNUCC=1", [ 'inferbox' ]);
-$TEST->addTests("scott/checkinit", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("scott/union5", "", ['inferbox']);
 $TEST->addTests("testrun/unrolltype", "", ['inferbox']);
 

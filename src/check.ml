@@ -8,7 +8,7 @@
  * All rights reserved.  Permission to use, copy, modify and distribute
  * this software for research purposes only is hereby granted, 
  * provided that the following conditions are met: 
- * 1. XSRedistributions of source code must retain the above copyright notice, 
+ * 1. Redistributions of source code must retain the above copyright notice, 
  * this list of conditions and the following disclaimer. 
  * 2. Redistributions in binary form must reproduce the above copyright notice, 
  * this list of conditions and the following disclaimer in the documentation 
@@ -498,7 +498,7 @@ and checkExp (isconst: bool) (e: exp) : typ =
               typeMatch t1 tres;
               checkIntegralType t2;
               tres
-          | (MinusPP | EqP | NeP | LtP | LeP | GeP | GtP)  -> 
+          | (MinusPP(* | EqP | NeP | LtP | LeP | GeP | GtP*))  -> 
               checkPointerType t1; checkPointerType t2;
               typeMatch t1 t2;
               typeMatch tres intType;

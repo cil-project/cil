@@ -650,6 +650,7 @@ let currentReturnType : typ ref = ref (TVoid([]))
 let currentFunctionVI : varinfo ref = ref dummyFunDec.svar
 
 
+let upointType = ref intType
 
 (* A simple visitor that searchs a statement for labels *)
 class canDropStmtClass pRes = object
@@ -3161,7 +3162,7 @@ and doExp (isconst: bool)    (* In a constant *)
             let e' = 
               let te = typeOf e in
               let _, zte = castTo intType te zero in
-              BinOp((if isPointerType te then NeP else Ne),
+              BinOp(((*if isPointerType te then NeP else *)Ne),
                     e, zte, te)
             in
             finishExp se e' intType
@@ -3533,22 +3534,18 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
         constFoldBinOp false bop (mkCastT e1 t1 tres) (mkCastT e2 t2 tres) tres
     | _ -> E.s (error "%a operator on a non-integer type" d_binop bop)
   in
+(*
   let bop2point = function
       MinusA -> MinusPP
     | Eq -> EqP | Ge -> GeP | Ne -> NeP | Gt -> GtP | Le -> LeP | Lt -> LtP
     | _ -> E.s (error "bop2point")
   in
+*)
   let pointerComparison e1 t1 e2 t2 = 
-    (* Cast both sides to the same kind of pointer, that is preferably not 
-     * void* *)
-    let commontype = 
-      match unrollType t1, unrollType t2 with
-        TPtr(TVoid _, _), _ -> t2
-      | _, TPtr(TVoid _, _) -> t1
-      | _, _ -> t1
-    in
+    (* Cast both sides to an integer *)
+    let commontype = !upointType in
     intType,
-    constFoldBinOp false (bop2point bop) (mkCastT e1 t1 commontype) 
+    constFoldBinOp false bop (mkCastT e1 t1 commontype) 
       (mkCastT e2 t2 commontype) intType
   in
 
@@ -3591,13 +3588,13 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
   | (Eq|Ne|Le|Lt|Ge|Gt|Eq|Ne) when isPointerType t1 && isArithmeticType t2 ->
       ignore (warnOpt "Comparison of pointer and non-pointer");
       (* Cast both values to upointType *)
-      doBinOp bop (mkCastT e1 t1 upointType) upointType 
-                  (mkCastT e2 t2 upointType) upointType
+      doBinOp bop (mkCastT e1 t1 !upointType) !upointType 
+                  (mkCastT e2 t2 !upointType) !upointType
   | (Eq|Ne|Le|Lt|Ge|Gt|Eq|Ne) when isArithmeticType t1 && isPointerType t2 ->
       ignore (warnOpt "Comparison of pointer and non-pointer");
       (* Cast both values to upointType *)
-      doBinOp bop (mkCastT e1 t1 upointType) upointType 
-                  (mkCastT e2 t2 upointType) upointType
+      doBinOp bop (mkCastT e1 t1 !upointType) !upointType 
+                  (mkCastT e2 t2 !upointType) !upointType
 
   | _ -> E.s (error "doBinOp: %a\n" d_plainexp (BinOp(bop,e1,e2,intType)))
 
@@ -5046,6 +5043,7 @@ let convFile ((fname : string), (dl : Cabs.definition list)) : Cil.file =
   E.hadErrors := false;
   initGlobals();
   startFile ();
+  upointType := Cil.upointType ();
   H.clear compInfoNameEnv;
   H.clear enumInfoNameEnv;
   H.clear mustTurnIntoDef;

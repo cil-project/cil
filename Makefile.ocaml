@@ -154,8 +154,8 @@ endif
 
 ifdef PROFILE
 # NATIVECAML	= 1
- CAMLC          = ocamlopt -p $(COMPILEFLAGS)
- CAMLLINK       = ocamlopt -p $(LINKFLAGS)
+ CAMLC          = ocamlopt.opt -p $(COMPILEFLAGS)
+ CAMLLINK       = ocamlopt.opt -p $(LINKFLAGS)
  CMO            = cmx
  CMXA           = cmxa
  EXEEXT         = .asm
@@ -164,8 +164,8 @@ ifdef PROFILE
 else
 ifdef NATIVECAML
  #foo := $(shell echo "I am in NATIVECAML mode" >&2; echo whatever)
- CAMLC          = ocamlopt $(COMPILEFLAGS)
- CAMLLINK       = ocamlopt $(LINKFLAGS)
+ CAMLC          = ocamlopt.opt $(COMPILEFLAGS)
+ CAMLLINK       = ocamlopt.opt $(LINKFLAGS)
  CMO            = cmx
  CMXA           = cmxa
  EXEEXT         = .asm
@@ -177,8 +177,8 @@ ifdef NATIVECAML
  # extra recompilation
  CAMLDEP        = ocamldep -native
 else 
- CAMLC          = ocamlc -g $(COMPILEFLAGS)
- CAMLLINK       = ocamlc -custom -g $(LINKFLAGS)
+ CAMLC          = ocamlc.opt -g $(COMPILEFLAGS)
+ CAMLLINK       = ocamlc.opt -custom -g $(LINKFLAGS)
  CMO            = cmo
  CMXA           = cma
  EXEEXT         = .byte

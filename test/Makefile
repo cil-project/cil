@@ -1400,6 +1400,7 @@ ijpegclean:
 	cd $(IJPEGDIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
 
 ijpeg:  mustbegcc
+	cd $(IJPEGDIR)/src; rm -f ijpeg.exe
 	cd $(IJPEGDIR)/src; \
             make clean build CC="$(IJPEGSAFECC) $(CONLY)" \
                              LD="$(IJPEGSAFECC)"

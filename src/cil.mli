@@ -8,7 +8,7 @@
  * All rights reserved.  Permission to use, copy, modify and distribute
  * this software for research purposes only is hereby granted, 
  * provided that the following conditions are met: 
- * 1. XSRedistributions of source code must retain the above copyright notice, 
+ * 1. Redistributions of source code must retain the above copyright notice, 
  * this list of conditions and the following disclaimer. 
  * 2. Redistributions in binary form must reproduce the above copyright notice, 
  * this list of conditions and the following disclaimer in the documentation 
@@ -587,14 +587,14 @@ and binop =
   | Ge                                  (** >  (arithmetic comparison) *)
   | Eq                                  (** == (arithmetic comparison) *)
   | Ne                                  (** != (arithmetic comparison) *)            
-
+(*
   | LtP                                 (** <  (pointer comparison) *)
   | GtP                                 (** >  (pointer comparison) *)
   | LeP                                 (** <= (pointer comparison) *)
   | GeP                                 (** >= (pointer comparison) *)
   | EqP                                 (** == (pointer comparison) *)
   | NeP                                 (** != (pointer comparison) *)
-
+*)
   | BAnd                                (** bitwise and *)
   | BXor                                (** exclusive-or *)
   | BOr                                 (** inclusive-or *)
@@ -1043,8 +1043,8 @@ val uintPtrType: typ
 (** double *)
 val doubleType: typ
 
-(** An integer type that fits pointers. We hardwire to unsigned long for now *)
-val upointType: typ
+(** An integer type that fits pointers. Depends on {!Cil.msvcMode} *)
+val upointType: unit -> typ
 
 
 (** Creates a a (potentially recursive) composite type. The arguments are: 
