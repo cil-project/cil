@@ -3447,15 +3447,17 @@ and constFold (machdep: bool) (e: exp) : exp =
   match e with
     BinOp(bop, e1, e2, tres) -> constFoldBinOp machdep bop e1 e2 tres
   | UnOp(Neg, e1, tres) -> begin
-      let tk = 
-        match unrollType tres with
-          TInt(ik, _) -> ik
-        | TEnum _ -> IInt
-        | _ -> E.s (bug "constFold:UnOp")
-      in
-      match constFold machdep e1 with
-        Const(CInt64(i,ik,_)) -> kinteger64 tk (Int64.neg i)
-      | _ -> e
+      try
+        let tk = 
+          match unrollType tres with
+            TInt(ik, _) -> ik
+          | TEnum _ -> IInt
+          | _ -> raise Not_found (* probably a float *)
+        in
+        match constFold machdep e1 with
+          Const(CInt64(i,ik,_)) -> kinteger64 tk (Int64.neg i)
+        | _ -> e
+      with Not_found -> e
   end
         (* Characters are integers *)
   | Const(CChr c) -> Const(CInt64(Int64.of_int (Char.code c), 
