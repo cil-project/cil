@@ -177,6 +177,9 @@ $TEST->add3Tests("test/array2");
 $TEST->add3Tests("test/matrix");
 $TEST->add3Tests("testrun/switch");
 $TEST->add3Tests("testrun/strloop");
+$TEST->add2Tests("testrun/strloop3");
+    $TEST->addBadComment("testrun/strloop3-inferbox",
+			 "Problem with reading final NUL in a string.");
 $TEST->add3Tests("testrun/caserange", "_GNUCC=1");
 if (!$egcs) {
   $TEST->add3Tests("test/attr");
