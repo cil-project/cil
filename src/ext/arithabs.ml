@@ -80,23 +80,27 @@ let currentGlobalsRead: (varinfo IH.t) ref = ref (IH.create 13)
 let globalsReadTransitive: (varinfo IH.t) IH.t = IH.create 13
 
 
-let getGlobalsWrittenTransitive (f: varinfo) = 
-  let glob_written_trans = 
-    (try IH.find globalsWrittenTransitive f.vid
-    with Not_found -> assert false) in 
-  IH.fold
-    (fun _ g acc -> g :: acc)
-    glob_written_trans
-    []
+let getGlobalsWrittenTransitive (f: varinfo): varinfo list = 
+  try
+    let glob_written_trans = 
+      IH.find globalsWrittenTransitive f.vid 
+    in
+    IH.fold
+      (fun _ g acc -> g :: acc)
+      glob_written_trans
+      []
+  with Not_found -> [] (* not a defined function *)
 
 let getGlobalsReadTransitive (f: varinfo) = 
-  let glob_read_trans = 
-    (try IH.find globalsReadTransitive f.vid
-    with Not_found -> assert false) in 
-  IH.fold
-    (fun _ g acc -> g :: acc)
-    glob_read_trans
-    []
+  try
+    let glob_read_trans = 
+      IH.find globalsReadTransitive f.vid 
+    in
+    IH.fold
+      (fun _ g acc -> g :: acc)
+      glob_read_trans
+      []
+  with Not_found -> []
   
 let considerVariable (v: varinfo) : bool = 
   not v.vaddrof && isIntegralType v.vtype
