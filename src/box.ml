@@ -28,20 +28,6 @@ let mkAsm tmpls isvol outputs inputs clobs =
 let mkInstr i l : stmt = mkStmt (Instr [(i, l)])
 
 
-(**** Stuff that we use with the old CIL
-type stmt = ostmt  
-let mkSet  lv e = Instrs(Set(lv, e), lu)
-let call lvo f args = Instrs(Call(lvo,f,args), lu) 
-let skip = Skip
-let mkAsm tmpls isvol outputs inputs clobs = 
-      Instrs(Asm(tmpls, isvol, outputs, inputs, clobs), lu)
-let mkInstr i l = Instrs(i, l)
-let mkForIncr = mkForIncrO
-let mkFor = mkForO
-let body2block (x: ostmt) = [x]
-let block2body (x: ostmt list) : ostmt = mkSeq x
- *)
-
 (*** End stuff for old CIL *)
 
 (**** We know in what function we are ****)
@@ -87,8 +73,7 @@ let d_fexp () = function
 let leaveAlone : (string, bool) H.t =
   let h = H.create 17 in
   List.iter (fun s -> H.add h s true)
-    ["printf"; "fprintf"; "sprintf"; "snprintf"; "sscanf"; "_snprintf";
-      "_CrtDbgReport" ];
+    [ "sscanf"; "fscanf"; "_CrtDbgReport"; "fprintf"; "printf"; "sprintf" ];
   h
 
 
@@ -3070,8 +3055,12 @@ let boxFile file =
         | ACons("boxalloc",  AStr(s) :: rest) -> 
             ignore (E.log "Will treat %s as an allocation function\n" s);
             boxallocPragma s rest
+        | ACons("boxprintf",  AStr(s) :: rest) -> 
+            H.add leaveAlone s true
         | ACons("box", [AId("on")]) -> boxing := true
         | ACons("box", [AId("off")]) -> boxing := false
+        | ACons("boxtext", [AStr s]) ->
+            theFile := GText s :: !theFile
         | _ -> ());
         theFile := g :: !theFile
       end

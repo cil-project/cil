@@ -135,7 +135,26 @@ let rec doType (t: typ) (p: N.place)
             let t', i' = doType arg.vtype p nidx in
             arg.vtype <- t'; (* Can change in place because we shall copy the 
                               * varinfo for polymorphic functions *)
-            i') i0 args in
+            i') i0 args 
+      in
+      (* See if it is a printf function *)
+      (try
+        if isva then 
+          match p with 
+            N.PGlob s -> begin
+              let formatidx = H.find printfFunc s in
+              let formatarg = List.nth args formatidx in
+              ignore (E.log "doing %s arg %d\n" s formatidx);
+              let nd = nodeOfType formatarg.vtype in
+              if nd == N.dummyNode then
+                ignore (E.log "no node found\n")
+              else begin
+                nd.N.kind <- N.ROString; 
+                nd.N.why_kind <- N.PrintfArg
+              end
+            end
+          | _ -> ()
+      with _ -> ());
       let newtp = TFun(restyp', args, isva, a) in
       newtp, i'
 
@@ -746,9 +765,15 @@ let doGlobal (g: global) : global =
         ACons("boxpoly", [ AStr(s) ]) -> 
           ignore (E.log "Will treat %s as polymorphic\n" s); 
           H.add polyFunc s (ref None)
+
       | ACons("boxalloc", AStr(s) :: _) -> 
           ignore (E.log "Will treat %s as polymorphic\n" s); 
           H.add polyFunc s (ref None)
+
+      | ACons("boxprintf", AStr(s) :: AInt(id) :: []) -> 
+          ignore (E.log "Will treat %s as a printf function\n" s);
+          H.add printfFunc s id
+
       | ACons("box", [AId("on")]) -> boxing := true
       | ACons("box", [AId("off")]) -> boxing := false
       | _ -> ());
@@ -766,7 +791,7 @@ let doGlobal (g: global) : global =
           GType (n, t', l)
             
       | GDecl (vi, _) -> 
-      (* ignore (E.log "Found GDecl of %s. T=%a\n" vi.vname
+         (* ignore (E.log "Found GDecl of %s. T=%a\n" vi.vname
                 d_plaintype vi.vtype); *)
           if not (H.mem polyFunc vi.vname) then doVarinfo vi; 
           g

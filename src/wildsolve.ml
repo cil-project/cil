@@ -7,15 +7,18 @@ open Ptrnode
 
 let wild_solve (node_ht : (int,node) Hashtbl.t) = begin
   Hashtbl.iter (fun id n -> 
-    n.kind <- Wild ; 
-    n.why_kind <- Default ;
+    if n.kind <> ROString || n.why_kind <> PrintfArg then begin
+      n.kind <- Wild ; 
+      n.why_kind <- Default 
+    end
   ) node_ht 
 end
 
 let wild_safe_solve (node_ht : (int,node) Hashtbl.t) = begin
   Thirdsolve.solve node_ht ; 
   Hashtbl.iter (fun id n -> 
-    if n.kind <> Safe then begin
+    if n.kind <> Safe && 
+      (n.kind <> ROString || n.why_kind <> PrintfArg) then begin
       n.kind <- Wild 
     end
   ) node_ht 
