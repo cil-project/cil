@@ -110,11 +110,12 @@ let rec sublist l n = begin
 end
 
 (* do we have t1,q1 <= t2,q2 (as in infer.tex)? *)
+(* t1 = from, t2 = to *)
 let rec subtype (t1 : typ) (q1 : pointerkind) 
             (t2 : typ) (q2 : pointerkind) =
   let t1 = unrollType t1 in
   let t2 = unrollType t2 in 
-  if (type_congruent t1 q1 t2 q2) then
+  if t1 == t2 || (type_congruent t1 q1 t2 q2) then
     true
   else match (t1,t2) with 
     (* t1 x t2 x t3 ... <= t1 x t2, general case  *)
@@ -148,7 +149,7 @@ let rec subtype (t1 : typ) (q1 : pointerkind)
    end
     (* a+b <= x    iff a <= x || b <= x *)
    | TComp(c1),_ when not c1.cstruct -> begin
-      List.for_all (fun elt -> subtype elt.ftype q1 t2 q2) c1.cfields 
+      List.exists (fun elt -> subtype elt.ftype q1 t2 q2) c1.cfields 
    end
 
   | _,_ -> false
