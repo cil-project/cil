@@ -67,7 +67,7 @@ type varinfo = {
                          * will be set for you if you use one of the 
                          * makeLocalVar, makeTempVar or makeGlobalVar *)
     mutable vname: string;				
-    vglob: bool;	(* Is this a global variable? *)
+    mutable vglob: bool;	(* Is this a global variable? *)
 
     mutable vtype: typ;                 (* The declared type *)
     mutable vdecl: location;            (* where was this variable declared? *)

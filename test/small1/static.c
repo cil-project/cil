@@ -1,13 +1,21 @@
 #include <stdio.h>
 
 int counter() {
-    static int counter = 0;
+    static int counter = 18;
     counter = counter + 1;
     return counter;
 }
 
+
+int s1;
+
+int sets1() {
+  static int s1 = 5; // Our own private copy
+  return s1;
+}
+
 int main() {
-    if (counter() != 1) {
+    if (counter() != s1) {
         printf("Error in first count.\n");
         abort();
     }

@@ -464,6 +464,58 @@ let doNameGroup (sng: A.single_name -> 'a)
 
 
 
+(* Create and cache varinfo's for globals. Returns the varinfo and whether 
+ * there exists already a definition *)
+let makeGlobalVarinfo (vi: varinfo) =
+  try (* See if already defined *)
+    let oldvi = H.find env vi.vname in
+    (* It was already defined. We must reuse the varinfo. But clean up the 
+     * storage.  *)
+    let _ = 
+      if vi.vstorage = oldvi.vstorage then ()
+      else if vi.vstorage = Extern then ()
+      else if oldvi.vstorage = Extern then 
+        oldvi.vstorage <- vi.vstorage 
+      else E.s (E.unimp "Unexpected redefinition")
+    in
+    (* Union the attributes *)
+    oldvi.vattr <- addAttributes oldvi.vattr vi.vattr;
+    (* Maybe we had an incomplete type before and it is complete now  *)
+    let _ = 
+      let oldts = typeSig oldvi.vtype in
+      let newts = typeSig vi.vtype in
+      if oldts = newts then ()
+      else 
+        match oldts, newts with
+                                        (* If the new type is complete, I'll 
+                                         * trust it  *)
+        | TSArray(_, Some _, _), TSArray(_, None, _) -> ()
+        | TSArray(_, _, _), TSArray(_, Some _, _) 
+          -> oldvi.vtype <- vi.vtype
+        | _, _ -> E.s (E.unimp "Redefinition of %s with different types" 
+                         vi.vname)
+    in
+    let rec alreadyDef = ref false in
+    let rec loop = function
+        [] -> []
+      | (GVar (vi', i', l) as g) :: rest when vi'.vid = vi.vid -> 
+          if i' = None then
+            GDecl (vi', l) :: loop rest
+          else begin
+            alreadyDef := true;
+            g :: rest (* No more defs *)
+          end
+      | g :: rest -> g :: loop rest
+    in
+    theFile := loop !theFile;
+    oldvi, !alreadyDef
+      
+  with Not_found -> begin (* A new one. It is a definition unless it is 
+                           * Extern  *)
+
+    alphaConvertAndAddToEnv true vi, false
+  end
+
 
 
 (**** PEEP-HOLE optimizations ***)
@@ -1694,42 +1746,133 @@ and doPureExp (e : A.expression) : exp =
    E.s (E.unimp "doPureExp: not pure");
   e'
 
-and doDecl : A.definition -> stmt list = function
-  | A.DECDEF ng ->
-      let createLocal
-          ((bt,st,(n,nbt,a,e)) as sname : A.single_name) 
-          : stmt list = 
-        let vi = makeVarInfo false locUnknown sname in
-        let vi = alphaConvertAndAddToEnv true vi in        (* Replace vi *)
-        if e = A.NOTHING then
-          [Skip]
-        else begin
-          let (se, e', et) = doExp false e (AExp (Some vi.vtype)) in
-          (* Weimer: we must catch static initializers *)
-          if (vi.vstorage = Static) then begin
-            match se with
-              [] -> vi.vstorage <- StaticInitializer(e') ; [] 
-            | _ -> E.s (E.bug "Local static with complex initializer:\n`%a' = {%a} %a\n" 
-                        d_videcl vi (docList line (d_stmt ())) se d_exp e')
-          end else begin
-          (match vi.vtype, e', et with 
-            (* We have a length now *)
-            TArray(_,None, _), _, TArray(_, Some _, _) -> vi.vtype <- et
-            (* Initializing a local array *)
-          | TArray(TInt((IChar|IUChar|ISChar), _) as bt, None, a),
-               Const(CStr s), _ -> 
-                 vi.vtype <- TArray(bt, 
-                                    Some (integer (String.length s + 1)),
-                                    a)
-          | _, _, _ -> ());
+
+and createGlobal ((_,_,(n,nbt,a,e)) as sname : A.single_name) =
+  try
+            (* Make a first version of the varinfo *)
+    let vi = makeVarInfo true locUnknown sname in
+            (* Do the initializer and complete the array type if necessary *)
+    let init = 
+      if e = A.NOTHING then 
+        None
+      else 
+        let (se, e', et) = doExp true e (AExp (Some vi.vtype)) in
+        if se <> [] then 
+          E.s (E.unimp "global initializer");
+        let (_, e'') = castTo et vi.vtype e' in
+        match vi.vtype, e', et with
+          TArray(TInt((IChar|IUChar|ISChar), _) as bt, oldl, a),
+          Const(CStr s), _ -> 
+                    (* Change arrays initialized with strings into array 
+                       * initializers *)
+            (match oldl with 
+              None ->  (* See if we have a length now *)
+                vi.vtype <- TArray(bt, 
+                                   Some (integer 
+                                           (String.length s + 1)),
+                                   a)
+            | _ -> ());
+            let addOne c acc = 
+              (None, 
+               Const(CInt(c, IChar, 
+                          Some ("'" ^ Char.escaped (Char.chr c) 
+                                ^ "'")))) :: acc
+            in
+            let rec allChars i acc = 
+              if i < 0 then acc
+              else allChars (i - 1) 
+                  (addOne (Char.code (String.get s i)) acc)
+            in
+            Some (Compound(vi.vtype, 
+                           allChars (String.length s - 1) 
+                             (addOne 0 [])))
+              
+        | TArray(bt, None, a), _, TArray(_, Some _, _) -> 
+            vi.vtype <- et;
+            Some e''
+              
+        | _ ->  Some e''
+    in
+    let vi, alreadyDef = makeGlobalVarinfo vi in
+    if not alreadyDef then begin(* Do not add declarations after def *)
+      if vi.vstorage = Extern then 
+        if init = None then 
+          theFile := GDecl (vi, lu) :: !theFile
+        else
+          E.s (E.unimp "%s is extern and with initializer" vi.vname)
+      else
+                (* If it has fucntion type it is a declaration *)
+        if isFunctionType vi.vtype then begin
+          if init <> None then
+            E.s (E.bug "Function declaration with initializer (%s)\n"
+                   vi.vname);
+          theFile := GDecl(vi, lu) :: !theFile
+        end else
+          theFile := GVar(vi, init, lu) :: !theFile
+    end
+  with e -> begin
+    ignore (E.log "error in CollectGlobal (%s)\n" 
+              (Printexc.to_string e));
+    theFile := GAsm("booo - error in global " ^ n,lu) :: !theFile
+  end
+(*
+          ignore (E.log "Env after processing global %s is:@!%t@!" 
+                    n docEnv);
+          ignore (E.log "Alpha after processing global %s is:@!%t@!" 
+                    n docAlphaTable)
+*)
+
+(* Must catch the Static local variables.Make them global *)
+and createLocal = function
+    ((bt,A.STATIC _,(n,nbt,a,e)) as sname : A.single_name) -> 
+      let vi = makeVarInfo true locUnknown sname in (* Make it global *)
+      (* Now alpha convert it to make sure that it does not conflict with 
+       * existing globals or locals from this function. Make it local 
+       * temporarily so that it will be added to the scope cleanup tables *)
+      vi.vglob <- false;
+      let vi = alphaConvertAndAddToEnv true vi in
+      vi.vglob <- true;
+      let init = 
+        if e = A.NOTHING then 
+          None
+        else begin 
+          let (se, e', et) = doExp true e (AExp (Some vi.vtype)) in
+          if se <> [] then 
+            E.s (E.unimp "global static initializer");
           let (_, e'') = castTo et vi.vtype e' in
-          se @ (doAssign (Var vi, NoOffset) e'')
-          end
+          Some e''
         end
       in
+      theFile := GVar(vi, init, lu) :: !theFile;
+      []
+
+  | ((bt,st,(n,nbt,a,e)) as sname : A.single_name) -> 
+      let vi = makeVarInfo false locUnknown sname in
+      let vi = alphaConvertAndAddToEnv true vi in        (* Replace vi *)
+      if e = A.NOTHING then
+        [Skip]
+      else begin
+        let (se, e', et) = doExp false e (AExp (Some vi.vtype)) in
+        (match vi.vtype, e', et with 
+            (* We have a length now *)
+          TArray(_,None, _), _, TArray(_, Some _, _) -> vi.vtype <- et
+            (* Initializing a local array *)
+        | TArray(TInt((IChar|IUChar|ISChar), _) as bt, None, a),
+             Const(CStr s), _ -> 
+               vi.vtype <- TArray(bt, 
+                                  Some (integer (String.length s + 1)),
+                                  a)
+        | _, _, _ -> ());
+        let (_, e'') = castTo et vi.vtype e' in
+        se @ (doAssign (Var vi, NoOffset) e'')
+      end
+          
+          
+and doDecl : A.definition -> stmt list = function
+  | A.DECDEF ng ->
       let stmts = doNameGroup createLocal ng in
       List.concat stmts
-
+        
   | _ -> E.s (E.unimp "doDecl")
     
 
@@ -1922,58 +2065,6 @@ and doStatement (s : A.statement) : stmt list =
   end
 
 
-(* Create and cache varinfo's for globals. Returns the varinfo and whether 
- * there exists already a definition *)
-let makeGlobalVarinfo (vi: varinfo) =
-  try (* See if already defined *)
-    let oldvi = H.find env vi.vname in
-    (* It was already defined. We must reuse the varinfo. But clean up the 
-     * storage.  *)
-    let _ = 
-      if vi.vstorage = oldvi.vstorage then ()
-      else if vi.vstorage = Extern then ()
-      else if oldvi.vstorage = Extern then 
-        oldvi.vstorage <- vi.vstorage 
-      else E.s (E.unimp "Unexpected redefinition")
-    in
-    (* Union the attributes *)
-    oldvi.vattr <- addAttributes oldvi.vattr vi.vattr;
-    (* Maybe we had an incomplete type before and it is complete now  *)
-    let _ = 
-      let oldts = typeSig oldvi.vtype in
-      let newts = typeSig vi.vtype in
-      if oldts = newts then ()
-      else 
-        match oldts, newts with
-                                        (* If the new type is complete, I'll 
-                                         * trust it  *)
-        | TSArray(_, Some _, _), TSArray(_, None, _) -> ()
-        | TSArray(_, _, _), TSArray(_, Some _, _) 
-          -> oldvi.vtype <- vi.vtype
-        | _, _ -> E.s (E.unimp "Redefinition of %s with different types" 
-                         vi.vname)
-    in
-    let rec alreadyDef = ref false in
-    let rec loop = function
-        [] -> []
-      | (GVar (vi', i', l) as g) :: rest when vi'.vid = vi.vid -> 
-          if i' = None then
-            GDecl (vi', l) :: loop rest
-          else begin
-            alreadyDef := true;
-            g :: rest (* No more defs *)
-          end
-      | g :: rest -> g :: loop rest
-    in
-    theFile := loop !theFile;
-    oldvi, !alreadyDef
-      
-  with Not_found -> begin (* A new one. It is a definition unless it is 
-                           * Extern  *)
-
-    alphaConvertAndAddToEnv true vi, false
-  end
-
     
 (* Translate a file *)
 let convFile fname dl = 
@@ -2022,81 +2113,6 @@ let convFile fname dl =
         end
     end
     | A.DECDEF ng -> 
-        let createGlobal ((_,_,(n,nbt,a,e)) as sname : A.single_name) =
-          try
-            (* Make a first version of the varinfo *)
-            let vi = makeVarInfo true locUnknown sname in
-            (* Do the initializer and complete the array type if necessary *)
-            let init = 
-              if e = A.NOTHING then 
-                None
-              else 
-                let (se, e', et) = doExp true e (AExp (Some vi.vtype)) in
-                if se <> [] then 
-                  E.s (E.unimp "global initializer");
-                let (_, e'') = castTo et vi.vtype e' in
-                match vi.vtype, e', et with
-                  TArray(TInt((IChar|IUChar|ISChar), _) as bt, oldl, a),
-                  Const(CStr s), _ -> 
-                    (* Change arrays initialized with strings into array 
-                     * initializers *)
-                    (match oldl with 
-                      None ->  (* See if we have a length now *)
-                        vi.vtype <- TArray(bt, 
-                                           Some (integer 
-                                                   (String.length s + 1)),
-                                           a)
-                    | _ -> ());
-                    let addOne c acc = 
-                      (None, 
-                       Const(CInt(c, IChar, 
-                                  Some ("'" ^ Char.escaped (Char.chr c) 
-                                        ^ "'")))) :: acc
-                    in
-                    let rec allChars i acc = 
-                      if i < 0 then acc
-                      else allChars (i - 1) 
-                          (addOne (Char.code (String.get s i)) acc)
-                    in
-                    Some (Compound(vi.vtype, 
-                                   allChars (String.length s - 1) 
-                                     (addOne 0 [])))
-                    
-                | TArray(bt, None, a), _, TArray(_, Some _, _) -> 
-                    vi.vtype <- et;
-                    Some e''
-
-                | _ ->  Some e''
-            in
-            let vi, alreadyDef = makeGlobalVarinfo vi in
-            if not alreadyDef then begin(* Do not add declarations after def *)
-              if vi.vstorage = Extern then 
-                if init = None then 
-                  theFile := GDecl (vi, lu) :: !theFile
-                else
-                  E.s (E.unimp "%s is extern and with initializer" vi.vname)
-              else
-                (* If it has fucntion type it is a declaration *)
-                if isFunctionType vi.vtype then begin
-                  if init <> None then
-                    E.s (E.bug "Function declaration with initializer (%s)\n"
-                           vi.vname);
-                  theFile := GDecl(vi, lu) :: !theFile
-                end else
-                  theFile := GVar(vi, init, lu) :: !theFile
-            end
-          with e -> begin
-            ignore (E.log "error in CollectGlobal (%s)\n" 
-                      (Printexc.to_string e));
-            theFile := GAsm("booo - error in global " ^ n,lu) :: !theFile
-          end
-(*
-          ignore (E.log "Env after processing global %s is:@!%t@!" 
-                    n docEnv);
-          ignore (E.log "Alpha after processing global %s is:@!%t@!" 
-                    n docAlphaTable)
-*)
-        in
         ignore (doNameGroup createGlobal ng)
           
     | A.GLOBASM s -> theFile := GAsm (s, lu) :: !theFile
