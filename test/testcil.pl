@@ -406,7 +406,7 @@ $TEST->add3Tests("scott/transpunion", "_GNUCC=1");
 $TEST->add3Tests("scott/oldstyle");
 $TEST->add3Tests("scott/typeof", "_GNUCC=1");
 $TEST->add3Tests("scott/funcname", "_GNUCC=1");
-$TEST->add3Tests("scott/asmfndecl", "_GNUCC=1");
+$TEST->add3Tests("scott-nolink/asmfndecl", "_GNUCC=1");
 $TEST->add3Tests("scott/litstruct", "_GNUCC=1");
 $TEST->add3Tests("scott/xlsubr");
 $TEST->add3Tests("scott/heapify");

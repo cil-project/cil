@@ -554,7 +554,8 @@ btreetest-optimvariant.%: mustbegcc
 hola: scott/hola
 
 # sm: attempt at a single rule for my testing purposes
-scott-link/%: quickbuild test/small2/%.c 
+# gn: removed quickbuild
+scott/%: test/small2/%.c 
 	rm -f test/small2/$*
 	cd test/small2; $(CC) $(CONLY) $(WARNALL) $(DEF)$(ARCHOS) $*.c
 	cd test/small2; $(CCURED) --keep=. $(DEF)$(ARCHOS) \
@@ -564,7 +565,7 @@ scott-link/%: quickbuild test/small2/%.c
                  $(EXEOUT)$*
 	sh -c "time test/small2/$*"
 
-scott/%: test/small2/%.c 
+scott-nolink/%: test/small2/%.c 
 	rm -f test/small2/$*
 	cd test/small2; $(CC) $(CONLY) $(WARNALL) $(DEF)$(ARCHOS) $*.c
 	cd test/small2; $(CCURED) $(CONLY) --keep=. $(DEF)$(ARCHOS) \
@@ -1859,4 +1860,5 @@ glib-gcc: mustbegcc mustbemanju mustbelinux glibclean
 	cd $(GLIBSRC); make CC=gcc; 
 
 
+gimpall: zlib tiff libpgn jpeg mpeg glib
 
