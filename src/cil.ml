@@ -4086,12 +4086,16 @@ let rec isCompleteType t =
 
 let debugAlpha = false
 (*** Alpha conversion ***)
+let alphaSeparator = "___"
+let alphaSeparatorLen = String.length alphaSeparator
+
 (* Create a new name based on a given name. The new name is formed from a 
- * prefix (obtained from the given name by stripping a suffix consisting of _ 
- * followed by only digits), followed by a '_' and then by a positive integer 
- * suffix. The first argument is a table mapping name prefixes with the 
-b * largest suffix used so far for that prefix. The largest suffix is one when 
- * only the version without suffix has been used. *)
+ * prefix (obtained from the given name by stripping a suffix consisting of 
+ * the alphaSeparator followed by only digits), followed by a special 
+ * separator and then by a positive integer suffix. The first argument is a 
+ * table mapping name prefixes with the b * largest suffix used so far for 
+ * that prefix. The largest suffix is one when only the version without 
+ * suffix has been used. *)
 let rec newAlphaName ~(alphaTable: (string, int ref) H.t)
                      ~(lookupname: string) : string = 
   let prefix, sep, suffix = splitNameForAlpha ~lookupname in
@@ -4105,7 +4109,7 @@ let rec newAlphaName ~(alphaTable: (string, int ref) H.t)
       if debugAlpha then
         ignore (E.log " Old suffix %d. " !rc);
       let newsuffix, sep = 
-        if suffix > !rc then suffix, sep else !rc + 1, "_" in
+        if suffix > !rc then suffix, sep else !rc + 1, alphaSeparator in
       rc := newsuffix;
       prefix ^ sep ^ (string_of_int newsuffix)
     with Not_found -> begin (* First variable with this prefix *)
@@ -4136,33 +4140,39 @@ and registerAlphaName ~(alphaTable: (string, int ref) H.t)
   end
 
 (* Strip the suffix. Return the prefix, the separator (empty or _) and a 
- * numeric suffix (-1 if the separator is empty or if _ is the last thing in 
- * the name) *)
+ * numeric suffix (-1 if the separator is empty or if _the separator is not 
+ * followed y digits) *)
 and splitNameForAlpha ~(lookupname: string) : (string * string * int) = 
-  (* Split the lookup name into a prefix, a separator (empty or _) and a 
-   * suffix. The suffix is numberic and is separated by _ from the prefix  *)
-  try
-    let under_idx = String.rindex lookupname '_' in
-    let l = String.length lookupname in
-    (* Check that we have only digits following the underscore *)
-    if under_idx = l - 1 then raise Not_found;
-    (* If we have a 0 right after the _ and more characters after that then 
-     * we consider that we do not have a suffix *)
-    if String.get lookupname (under_idx + 1) = '0' &&
-       under_idx < l - 2 then raise Not_found;
-    let rec collectSuffix (acc: int) (i: int) = 
-      if i = l then 
-        (String.sub lookupname 0 under_idx, "_", acc)
-      else
-        let c = Char.code (String.get lookupname i) - Char.code '0' in
-        if c >= 0 && c <= 9 then 
-          collectSuffix (10 * acc + c) (i + 1)
-        else
-          raise Not_found
-    in
-    collectSuffix 0 (under_idx + 1)
-  with Not_found -> (* No suffix in the name *)
-    (lookupname, "", -1)
+  (* Split the lookup name into a prefix, a separator (empty or 
+   * alphaSeparator) and a suffix. The suffix is numeric and is separated by 
+   * sep from the prefix *)
+  let len = String.length lookupname in
+  (* Search backward for the numeric suffix. Return the first digit of the 
+   * suffix. Returns len if no numeric suffix *)
+  let rec skipSuffix (i: int) = 
+    if i = -1 then -1 else 
+    let c = Char.code (String.get lookupname i) - Char.code '0' in
+    if c >= 0 && c <= 9 then 
+      skipSuffix (i - 1)
+    else (i + 1)
+  in
+  let startSuffix = skipSuffix (len - 1) in
+
+  if startSuffix >= len (* No digits at all at the end *) ||
+     startSuffix <= alphaSeparatorLen     (* Not enough room for a prefix and 
+                                           * the separator before suffix *) ||
+     (* Suffix starts with a 0 and has more characters after that *) 
+     (startSuffix < len - 1 && String.get lookupname startSuffix = '0')  ||
+     alphaSeparator <> String.sub lookupname 
+                                 (startSuffix - alphaSeparatorLen)  
+                                 alphaSeparatorLen 
+  then
+    (lookupname, "", -1)  (* No valid suffix in the name *)
+  else
+    (String.sub lookupname 0 (startSuffix - alphaSeparatorLen), 
+     alphaSeparator,
+     int_of_string (String.sub lookupname startSuffix (len - startSuffix)))
+    
 
 
 let docAlphaTable () (alphaTable: (string, int ref) H.t) = 
