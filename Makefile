@@ -537,6 +537,14 @@ APACHECFLAGS=-Wall -D_GNUCC -g \
 APATCH += --patch=apache_gcc.patch
 endif
 
+apache/gzip2 : $(EXECUTABLE)$(EXE)
+	rm -f $(APACHETEST)/gzip2$(OBJ)
+	cd $(APACHETEST); $(SAFECC) \
+                       --keep=. --patch=apache_gcc.patch \
+                        $(APACHECFLAGS) \
+                        $(CONLY) $(OBJOUT)./gzip2$(OBJ) \
+                        gzip2.c
+
 apache/gzip : $(EXECUTABLE)$(EXE)
 	rm -f $(APACHETEST)/mod_gzip$(OBJ)
 	cd $(APACHETEST); $(SAFECC) \

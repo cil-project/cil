@@ -228,7 +228,7 @@ let bitfieldCompinfo comp =
         bundle.cfields;
       bfinfo :: prev
     in
-    comp.cfields <- List.rev (loopFields [] [] comp.cfields)
+    comp.cfields <- (loopFields [] [] comp.cfields)
   end
 
 (* Change the field accesses to take into accound the extra structs *)
