@@ -1119,8 +1119,12 @@ and equalLvals (x: lval) (y: lval) : bool =
 begin
   match x,y with
   | (Var(xv),xo), (Var(yv),yo) ->
-      xv.vname == yv.vname &&     (* INC: same varinfo names.. *)
+      (* I tried, I really did.. the problem is I see these names
+       * before merging collapses them, so __T123 != __T456,
+       * so whatever *)
+      (*(xv.vname = vy.vname) &&      (* INC: same varinfo names.. *)*)
       (equalOffsets xo yo)
+
   | (Mem(xe),xo), (Mem(ye),yo) ->
       (equalExps xe ye) &&
       (equalOffsets xo yo)
@@ -1213,7 +1217,7 @@ let oneFilePass2 (f: file) =
               )
               else (
                 (trace "mergeGlob"
-                  (P.dprintf "global var %s at %a has different initializer than %a\n"
+                  (P.dprintf "WARNING: global var %s at %a has different initializer than %a\n"
                              vi'.vname  d_loc l  d_loc prevLoc));
                 (* emit it so we get a compiler error.. I think it would be
                  * better to give an error message and *not* emit, since doing
@@ -1359,8 +1363,8 @@ let oneFilePass2 (f: file) =
                * consider dropping it if a same-named function has already
                * been put into the merged file *)
               let curSum = (functionChecksum fdec') in
-              (trace "mergeGlob" (P.dprintf "I see extern function %s, sum is %d\n"
-                                            fdec'.svar.vname curSum));
+              (*(trace "mergeGlob" (P.dprintf "I see extern function %s, sum is %d\n"*)
+              (*                              fdec'.svar.vname curSum));*)
               try
                 let prevFun, prevLoc, prevSum =
                   (H.find emittedFunDefn fdec'.svar.vname) in
@@ -1373,7 +1377,7 @@ let oneFilePass2 (f: file) =
                   (* the checksums differ, so I'll keep both so as to get
                    * a link error later *)
                   (trace "mergeGlob"
-                    (P.dprintf "def'n of func %s at %a conflicts with the one at %a; keeping both\n"
+                    (P.dprintf "WARNING: def'n of func %s at %a conflicts with the one at %a; keeping both\n"
                                fdec'.svar.vname  d_loc l  d_loc prevLoc));
                   (mergePushGlobal g')
                 )

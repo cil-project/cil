@@ -28,6 +28,7 @@ int threshold = 0;
 
 /* start condition for strings */
 %x STRING
+%x CHARLIT
 
 
 %%
@@ -51,7 +52,7 @@ int threshold = 0;
                 emit();
                 possibleNewline();
               }
-                     
+
   /* a hash, then some non-newlines.  then, possibly, an escaped
    * newline followed by more non-newlines (repeat as needed).
    * finally, a newline */
@@ -69,6 +70,14 @@ int threshold = 0;
 <STRING>{
   "\\"(.|\n)  { emit(); }                                   /* escaped character */
   "\""        { emit(); diag("</STR>"); BEGIN(INITIAL); }   /* close quote */
+  (.|\n)      { emit(); }                                   /* ordinary char */
+}
+
+"\'"          { diag("<CHAR>"); emit(); BEGIN(CHARLIT); }   /* start tick */
+
+<CHARLIT>{
+  "\\"(.|\n)  { emit(); }                                   /* escaped character */
+  "\'"        { emit(); diag("</CHAR>"); BEGIN(INITIAL); }  /* close tick */
   (.|\n)      { emit(); }                                   /* ordinary char */
 }
 
