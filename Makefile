@@ -6,6 +6,23 @@
 setup:
 	make -f Makefile.ccured setup $(MAKEOVERRIDES)
 
+# sm: find and remove all the intermediate files from translation
+clean:
+	make -f Makefile.ccured clean CLEANING=1 $(MAKEOVERRIDES)
+	find test \( \
+		-name '*cil.c' -o \
+		-name '*box.c' -o \
+		-name '*cured.c' -o \
+		-name '*.i' -o \
+		-name '*_ppp.c' -o \
+		-name '*.origi' -o \
+		-name '*.o' -o \
+		-name '*cabs.c' -o \
+		-name '*infer.c' -o \
+		-name '*_all*.c' \
+		-name '*_comb*.c' \
+	\) -exec rm {} \;
+
 # sm: I keep getting bit by this
 ifndef CCUREDHOME
 You have not defined the CCUREDHOME variable
@@ -175,21 +192,6 @@ ifndef _GNUCC
 	@echo This test case works only with _GNUCC=1; exit 3
 endif
 
-# sm: find and remove all the intermediate files from translation
-clean-byproducts:
-	find test \( \
-		-name '*cil.c' -o \
-		-name '*box.c' -o \
-		-name '*cured.c' -o \
-		-name '*.i' -o \
-		-name '*_ppp.c' -o \
-		-name '*.origi' -o \
-		-name '*.o' -o \
-		-name '*cabs.c' -o \
-		-name '*infer.c' -o \
-		-name '*_all*.c' \
-		-name '*_comb*.c' \
-	\) -exec rm {} \;
 
 ####### Test with PCC sources
 PCCDIR=$(CCUREDHOME)/test/PCC

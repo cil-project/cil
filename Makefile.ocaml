@@ -240,8 +240,9 @@ $(DEPENDDIR)/%.di: %.mli
 	@echo Generating dependency information for $<
 	$(ECHO)$(CAMLDEP) $(DEPINCLUDES) $< | $(FIXDEPEND) > $@
 
+ifndef CLEANING
 -include $(MODULES:%=$(DEPENDDIR)/%.d)
 -include $(MODULES:%=$(DEPENDDIR)/%.di)
-
+endif
 
 

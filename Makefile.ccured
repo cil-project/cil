@@ -190,3 +190,5 @@ includes: cleanincludes
 	$(PATCHER) --patch=$(CCUREDHOME)/lib/ccured_$(COMPILERNAME).patch\
                    --dest=$(CCUREDHOME)/include \
 	           $(foreach file,$(PATCH_SYSINCLUDES), --sfile=$(file))
+
+clean: cleanincludes cleanocaml rmlibrary

@@ -9,4 +9,7 @@ cd html
 %HEVEADIR%\hevea -exec xxdate.exe ../manual
 %HEVEADIR%\hacha -o toc.html manual.html
 
+%HEVEADIR%\hevea -exec xxdate.exe ../setup
+%HEVEADIR%\hevea -exec xxdate.exe ../setup
+
 cd ..
