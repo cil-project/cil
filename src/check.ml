@@ -3,6 +3,9 @@ open Cil
 open Pretty
 
 
+(* A few parameters to customize the checking *)
+let checkGlobalIds = ref true
+
   (* Attributes must be sorted *)
 type ctxAttr = 
     CALocal                             (* Attribute of a local variable *)
@@ -54,7 +57,7 @@ let defineVariable vi =
   varNamesList := (vi.vname, vi.vid) :: !varNamesList;
   (* Check the id *)
   if vi.vglob then 
-    if vi.vid <> H.hash vi.vname then
+    if !checkGlobalIds && vi.vid <> H.hash vi.vname then
       E.s (E.bug "Id of global %s is not valid\n" vi.vname);
   if H.mem varIdsEnv vi.vid then
     E.s (E.bug "Id %d is already defined (%s)\n" vi.vid vi.vname);
@@ -147,8 +150,12 @@ let rec checkType (t: typ) (ctx: ctxType) =
   | TNamed (n, t, a) -> 
         (* The name must be already defined. The t must be identical to the 
          * one used in the definition. We assume that the type is checked *)
-      ignore ((try t == H.find typeDefs n with Not_found -> false) ||
-              E.s (E.bug "Named type %s invalid" n));
+      (try
+        let oldt = H.find typeDefs n in
+        if oldt != t &&
+          typeSig oldt <> typeSig t then
+          E.s (E.bug "Named type %s is inconsistent" n)
+      with Not_found -> ());
       checkAttributes a
 
   | TForward (comp, a) -> 
@@ -229,7 +236,12 @@ and checkPointerType (t: typ) =
 
 and typeMatch (t1: typ) (t2: typ) = 
   if typeSig t1 <> typeSig t2 then
-    E.s (E.bug "Type mismatch:@!    %a@!and %a@!" d_type t1 d_type t2)
+    (* Allow interchange of TInt and TEnum *)
+    match unrollType t1, unrollType t2 with
+      TInt _, TEnum _ -> ()
+    | TEnum _, TInt _ -> ()
+    | _, _ -> E.s (E.bug "Type mismatch:@!    %a@!and %a@!" 
+                     d_type t1 d_type t2)
 
 and checkCompInfo comp = 
   (* Check if we have seen it already *)
@@ -303,7 +315,16 @@ and checkOffset basetyp = function
         
 and checkExpType (isconst: bool) (e: exp) (t: typ) =
   let t' = checkExp isconst e in (* compute the type *)
-  typeMatch t' t
+  if isconst then begin (* For initializers allow a string to initialize an 
+                         * array of characters  *)
+    if typeSig t' <> typeSig t then 
+      match e, t with
+        Const(CStr s, _), 
+        TArray(TInt(IChar, _), Some (Const(CInt(l, _, _), _)), _) when
+        String.length s = l - 1 -> ()
+      | _ -> typeMatch t' t
+  end else
+    typeMatch t' t
 
 and checkExp (isconst: bool) (e: exp) : typ = 
   E.withContext 
@@ -364,7 +385,10 @@ and checkExp (isconst: bool) (e: exp) : typ =
               tres
           | (MinusPP | EqP | NeP | LtP | LeP | GeP | GtP)  -> 
               checkPointerType t1; checkPointerType t2;
-              typeMatch tres intType; 
+              E.withContext (fun _ -> dprintf "check same operand types")
+                (fun _ -> typeMatch t1 t2) ();
+              E.withContext (fun _ -> dprintf "check result type")
+                (fun _ -> typeMatch tres intType) ();
               tres
       end
       | Question (eb, et, ef, _) -> 
@@ -613,10 +637,12 @@ let rec checkGlobal = function
 let checkFile fl = 
   List.iter (fun g -> try checkGlobal g with _ -> ()) fl;
   (* Check that for all TForward there is a definition *)
-  H.iter 
-    (fun k comp -> if not (H.mem compDefined k) then 
-      E.s (E.bug "Compinfo %s is not defined" (compFullName comp))) 
-    compForwards;
+  (try
+    H.iter 
+      (fun k comp -> if not (H.mem compDefined k) then 
+        E.s (E.bug "Compinfo %s is not defined" (compFullName comp))) 
+      compForwards
+  with _ -> ());
   (* Clean the hashes to let the GC do its job *)
   H.clear typeDefs;
   H.clear structTags;

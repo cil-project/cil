@@ -69,7 +69,7 @@ let locUnknown = { line = -1; col = -1; file = ""; }
  * re shared by all references to the variable. So, you can change the name
  * easily, for example *)
 type varinfo = { 
-    vid: int;		(* Unique integer indentifier. For globals this is a 
+    mutable vid: int;	(* Unique integer indentifier. For globals this is a 
                          * hash of the name. Locals are numbered from 0 
                          * starting with the formal arguments. This field 
                          * will be set for you if you use one of the 
@@ -146,7 +146,7 @@ and typ =
                 * self cell.*)
   | TComp of compinfo
                (* The field list can be empty *)
-               (* The name is never empty. mkCompType will create a unique 
+               (* The name is never empty. mkCompInfo will create a unique 
                 * name for anonymous types *)
 
 
@@ -524,11 +524,11 @@ let compSetName comp n =
 let mkCompInfo
                (isstruct: bool) 
                (n: string)   (* empty for anonymous structures *)
-               (* fspec is a function that when given the name of the 
-                * struture and a forward representation of the structure type 
-                * constructs the type of the fields. The function can ignore 
-                * this argument if not constructing a recursive type  *)
-               (mkfspec: string -> typ -> (string * typ) list) 
+               (* fspec is a function that when given a forward 
+                * representation of the structure type constructs the type of 
+                * the fields. The function can ignore this argument if not 
+                * constructing a recursive type.  *)
+               (mkfspec: typ -> (string * typ * attribute list) list) 
                (a: attribute list) : compinfo =
    (* make an new name for anonymous structs *)
    let n = if n = "" then 
@@ -541,10 +541,11 @@ let mkCompInfo
    let self = ref voidType in
    let tforward = TForward (comp, []) in
    let flds = 
-       List.map (fun (fn, ft) -> { fcomp = comp;
-                                   ftype = ft;
-                                   fname = fn;
-                                   fattr = [] }) (mkfspec n tforward) in
+       List.map (fun (fn, ft, fa) -> { fcomp = comp;
+                                       ftype = ft;
+                                       fname = fn;
+                                       fattr = fa }) (mkfspec tforward) in
+   comp.cfields <- flds;
    comp
 
                                    

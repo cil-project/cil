@@ -12,8 +12,9 @@ void myexit(int n) {
 }
 #ifdef _MSVC
 #define random rand
-#endif
+#else
 extern int random(void);
+#endif
 int __mmId;
 int debugMM;
 int debug;

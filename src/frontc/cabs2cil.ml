@@ -190,8 +190,9 @@ let typedefs : (string, typ) H.t = H.create 113
     * for the purpose of resolving forward references. In this latter case 
     * the key is "struct n" or "union n" or "enum n" *)
 
-   (* Keep a set of self cells for incomplete composite types *)
-let selfCells : (string, typ ref) H.t = H.create 113
+
+   (* Keep a set of self compinfo for composite types *)
+let compInfoNameEnv : (string, compinfo) H.t = H.create 113
 
 let recordTypeName n t = H.add typedefs n t
 
@@ -203,16 +204,16 @@ let findTypeName n =
   end
 
 (* Create the self ref cell and add it to the map *)
-let createCompSelfCell (iss: bool) (n: string) = 
+let createCompInfo (iss: bool) (n: string) : compinfo = 
   (* Add to the self cell set *)
   let key = (if iss then "struct " else "union ") ^ n in
   try
-    H.find selfCells key (* Only if not already in *)
+    H.find compInfoNameEnv key (* Only if not already in *)
   with Not_found -> begin
-    (* Create a self ref cell *)
-    let self = ref voidType in
-    H.add selfCells key self;
-    self
+    (* Create a compinfo *)
+    let res = mkCompInfo iss n (fun _ -> []) [] in
+    H.add compInfoNameEnv key res;
+    res
   end
 
    (* kind is either "struct" or "union" or "enum" and n is a name *)
@@ -226,8 +227,8 @@ let findCompType kind n a =
       if kind = "enum" then E.s (E.unimp "Forward reference for enum %s" n)
       else if kind = "struct" then true else false
     in
-    let self = createCompSelfCell iss n in
-    TForward (iss, n, self, a)
+    let self = createCompInfo iss n in
+    TForward (self, a)
   in
   try
     let old = H.find typedefs key in (* already defined  *)
@@ -364,8 +365,7 @@ let conditionalConversion (e2: exp) (t2: typ) (e3: exp) (t3: typ) : typ =
       (TInt _ | TEnum _ | TBitfield _ | TFloat _), 
       (TInt _ | TEnum _ | TBitfield _ | TFloat _) -> 
         arithmeticConversion t2 t3 
-    | TComp(iss2, n2, _, _, _), TComp(iss3, n3, _, _, _) 
-          when iss2 = iss3 && n2 = n3 -> t2
+    | TComp comp2, TComp comp3 when comp2.ckey = comp3.ckey -> t2 
     | TPtr(_, _), TPtr(TVoid _, _) -> t2
     | TPtr(TVoid _, _), TPtr(_, _) -> t3
     | TPtr(t2'', _), TPtr(t3'', _) 
@@ -384,8 +384,8 @@ let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) =
   match ot, nt with
     TNamed(_,r, _), _ -> castTo r nt e
   | _, TNamed(_,r, _) -> castTo ot r e
-  | TForward(_, _, self, _), _ -> castTo !self nt e
-  | _, TForward(_, _, self, _) -> castTo ot !self e
+  | TForward(comp, _), _ -> castTo (TComp comp) nt e
+  | _, TForward(comp, _) -> castTo ot (TComp comp) e
   | TInt(ikindo,_), TInt(ikindn,_) -> 
       (nt, if ikindo == ikindn then e else CastE(nt, e, lu))
 
@@ -640,26 +640,26 @@ and makeCompType (iss: bool)
     newTypeName (if iss then "struct" else "union") else n in
       (* Create the self cell for use in fields and forward references. Or 
        * maybe one exists already from a forward reference *)
-  let self = createCompSelfCell iss n in
+  let comp = createCompInfo iss n in
       (* Do the fields *)
   let makeFieldInfo ((bt,st,(n,nbt,a,e)) : A.single_name) : fieldinfo = 
-    { fcomp    =  self;
+    { fcomp    =  comp;
       fname    =  n;
       ftype    =  doType [] nbt;
       fattr    =  doAttrList a;
     } 
   in
   let flds = List.concat (List.map (doNameGroup makeFieldInfo) nglist) in
+  comp.cfields <- flds;
       (* Drop volatile from struct *)
   let a = dropAttribute a (AId("volatile")) in
   let a = dropAttribute a (AId("const")) in
+  comp.cattr <- a;
+  let res = TComp comp in
       (* There must be a self cell create for this already *)
   let key = (if iss then "struct " else "union ") ^ n in
-  let res = fixRecursiveType (TComp(iss, n, flds, a, self)) in
       (* Now add it to the typedefs *)
   recordTypeName key res;
-      (* And take it out from selfCells 
-  H.remove selfCells key; *)
   res
 
   
@@ -767,7 +767,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         in
         let fid = 
           match unrollType t' with
-            TComp (_, _, fil, _, _) -> findField str fil
+            TComp comp -> findField str comp.cfields
           | _ -> E.s (E.unimp "expecting a struct with field %s" str)
         in
         let lv' = Lval(addOffset (Field(fid, NoOffset)) lv) in
@@ -784,7 +784,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         in
         let fid = 
           match unrollType pointedt with 
-            TComp(_, _, fil, _, _) -> findField str fil
+            TComp comp -> findField str comp.cfields
           | x -> 
               E.s (E.unimp 
                      "expecting a struct with field %s. Found %a. t1 is %a" 
@@ -913,9 +913,9 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
               | A.FIELD_INIT (fn, i) ->
                   let fld = 
                     match unrollType bt with 
-                      TComp(true, _, flds, _, _) -> begin
+                      TComp comp when comp.cstruct -> begin
                         try
-                          List.find (fun f -> f.fname = fn) flds
+                          List.find (fun f -> f.fname = fn) comp.cfields
                         with Not_found ->
                           E.s (E.unimp "Invalid field designator %s" fn)
                       end
@@ -991,8 +991,9 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
             match what with (* Peek at the expected return type *)
               AExp (Some typ) -> begin
                 match unrollType typ with 
-                  TComp(true, n,flds,_,_) -> 
-                    let offinits = initFields flds flds initl in
+                  TComp comp when comp.cstruct ->  
+                    let offinits = 
+                      initFields comp.cfields comp.cfields initl in
                     finishExp !slist
                               (Compound(typ, offinits)) 
                               typ
@@ -1441,7 +1442,7 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
             integer (if i1 < i2 then 1 else 0)
         | Gt, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
             integer (if i1 > i2 then 1 else 0)
-        | _ -> BinOp(bop, e1', e2', tres, lu)
+        | _ -> BinOp(bop', e1', e2', tres, lu)
       in
       tres, newe
     else
@@ -1468,6 +1469,19 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
     | Eq -> EqP | Ge -> GeP | Ne -> NeP | Gt -> GtP | Le -> LtP | Lt -> LtP
     | _ -> E.s (E.bug "bop2point")
   in
+  let pointerComparison e1 e2 = 
+    (* Cast both sides to the same kind of pointer, that is preferably not 
+     * void* *)
+    let commontype = 
+      match unrollType t1, unrollType t2 with
+        TPtr(TVoid _, _), _ -> t2
+      | _, TPtr(TVoid _, _) -> t1
+      | _, _ -> t1
+    in
+    constFold (bop2point bop) (doCast e1 t1 commontype) 
+                              (doCast e2 t2 commontype) intType
+  in
+
   match bop with
     (Mult|Div) -> doArithmetic ()
   | (Mod|BAnd|BOr|BXor) -> doIntegralArithmetic ()
@@ -1484,7 +1498,8 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
   | (PlusA|MinusA) 
       when isArithmeticType t1 && isArithmeticType t2 -> doArithmetic ()
   | (Eq|Ne|Lt|Le|Ge|Gt) 
-      when isArithmeticType t1 && isArithmeticType t2 -> doArithmeticComp ()
+      when isArithmeticType t1 && isArithmeticType t2 -> 
+        doArithmeticComp ()
   | PlusA when isPointerType t1 && isIntegralType t2 -> 
       constFold PlusPI e1 (doCast e2 t2 (integralPromotion t2)) t1
   | PlusA when isIntegralType t1 && isPointerType t2 -> 
@@ -1492,13 +1507,13 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
   | MinusA when isPointerType t1 && isIntegralType t2 -> 
       constFold MinusPI e1 (doCast e2 t2 (integralPromotion t2)) t1
   | (MinusA|Le|Lt|Ge|Gt|Eq|Ne) when isPointerType t1 && isPointerType t2 ->
-      constFold (bop2point bop) e1 e2 intType
+      pointerComparison e1 e2
   | (Eq|Ne) when isPointerType t1 && 
                  (match e2 with Const(CInt(0,_,_),_) -> true | _ -> false) -> 
-      constFold (bop2point bop) e1 (doCast e2 t2 t1) intType
+      pointerComparison e1 (doCast e2 t2 t1)
   | (Eq|Ne) when isPointerType t2 && 
                  (match e1 with Const(CInt(0,_,_),_) -> true | _ -> false) -> 
-      constFold (bop2point bop) (doCast e1 t1 t2) e2 intType
+      pointerComparison (doCast e1 t1 t2) e2
   | _ -> E.s (E.unimp "doBinOp: %a\n" d_plainexp (BinOp(bop,e1,e2,intType,lu)))
 
 (* A special case for conditionals *)
@@ -1620,7 +1635,7 @@ and doAssign (lv: lval) : exp -> stmt list = function
           in
           loop (0, initl)
 
-      | TComp(true, _, fil, _, _) ->  
+      | TComp comp when comp.cstruct ->
           let rec loop = function
               [], [] -> []
             | f :: fil, (None, e) :: el -> 
@@ -1628,7 +1643,7 @@ and doAssign (lv: lval) : exp -> stmt list = function
                 (doAssign (addOffset (Field(f, NoOffset)) lv) e) @ res
             | _, _ -> E.s (E.unimp "fields in doAssign")
           in
-          loop (fil, initl)
+          loop (comp.cfields, initl)
       | _ -> E.s (E.bug "Unexpected type of Compound")
   end
 
@@ -1767,6 +1782,57 @@ and doStatement (s : A.statement) : stmt list =
   end
 
 
+
+(* Create and cache varinfo's for globals. Returns the varinfo and whether 
+ * there exists already a definition *)
+let makeGlobalVarinfo (vi: varinfo) =
+  try (* See if already defined *)
+    let oldvi = H.find env vi.vname in
+    (* It was already defined. We must reuse the varinfo. But clean up the 
+     * storage.  *)
+    let _ = 
+      if vi.vstorage = oldvi.vstorage then ()
+      else if vi.vstorage = Extern then ()
+      else if oldvi.vstorage = Extern then 
+        oldvi.vstorage <- vi.vstorage 
+      else E.s (E.unimp "Unexpected redefinition")
+    in
+    (* Maybe we had an incomplete type before and it is complete now  *)
+    let _ = 
+      let oldts = typeSig oldvi.vtype in
+      let newts = typeSig vi.vtype in
+      if oldts = newts then ()
+      else 
+        match oldts, newts with
+                                        (* If the new type is complete, I'll 
+                                         * trust it  *)
+        | TSArray(_, Some _, _), TSArray(_, None, _) -> ()
+        | TSArray(_, _, _), TSArray(_, Some _, _) 
+          -> oldvi.vtype <- vi.vtype
+        | _, _ -> E.s (E.unimp "Redefinition of %s with different types" 
+                         vi.vname)
+    in
+    let rec alreadyDef = ref false in
+    let rec loop = function
+        [] -> []
+      | (GVar (vi', i') as g) :: rest when vi'.vid = vi.vid -> 
+          if i' = None then
+            GDecl vi' :: loop rest
+          else begin
+            alreadyDef := true;
+            g :: rest (* No more defs *)
+          end
+      | g :: rest -> g :: loop rest
+    in
+    theFile := loop !theFile;
+    oldvi, !alreadyDef
+      
+  with Not_found -> begin (* A new one. It is a definition unless it is 
+                           * Extern  *)
+
+    alphaConvertAndAddToEnv vi, false
+  end
+
     
 (* Translate a file *)
 let convFile dl = 
@@ -1774,7 +1840,7 @@ let convFile dl =
   (* Clean up the global types *)
   theFile := [];
   H.clear typedefs;
-  H.clear selfCells;
+  H.clear compInfoNameEnv;
   H.clear enumFields;
   (* Setup the built-ins *)
   let _ = 
@@ -1832,63 +1898,16 @@ let convFile dl =
                   E.s (E.unimp "global initializer");
                 Some e''
             in
-            (* See if it is a declaration or a definition *)
-            let vi, mustbedecl = 
-              try (* See if already defined *)
-                let oldvi = H.find env vi.vname in
-                (* It was already defined. We must reuse the varinfo. But 
-                 * clean up the storage.  *)
-                let _ = 
-                  if vi.vstorage = oldvi.vstorage then ()
-                  else if vi.vstorage = Extern then ()
-                  else if oldvi.vstorage = Extern then 
-                    oldvi.vstorage <- vi.vstorage 
-                  else E.s (E.unimp "Unexpected redefinition")
-                in
-                (* Maybe we had an incomplete type before and it is complete 
-                 * now *)
-                let _ = 
-                  let oldts = typeSig oldvi.vtype in
-                  let newts = typeSig vi.vtype in
-                  if oldts = newts then ()
-                  else 
-                    match oldts, newts with
-                                        (* If the new type is complete, I'll 
-                                         * trust it  *)
-                    | TSArray(_, Some _, _), TSArray(_, None, _) -> ()
-                    | TSArray(_, _, _), TSArray(_, Some _, _) 
-                      -> oldvi.vtype <- vi.vtype
-                    | _, _ -> E.s (E.unimp "Redefinition of %s" vi.vname)
-                in
-                let rec mustBeDecl = ref false in
-                let rec loop = function
-                    [] -> []
-                  | (GVar (vi', i') as g) :: rest when vi'.vid = vi.vid -> 
-                      if i' = None then
-                        GDecl vi' :: loop rest
-                      else begin
-                        mustBeDecl := true;
-                        g :: rest (* No more defs *)
-                      end
-                  | g :: rest -> g :: loop rest
-                in
-                theFile := loop !theFile;
-                oldvi, !mustBeDecl
-              
-              with Not_found -> begin (* A new one. It is a definition unless 
-                                       * it is Extern  *)
-
-                alphaConvertAndAddToEnv vi, false
-              end
-            in
-            if vi.vstorage = Extern || mustbedecl then 
-              if init = None then 
-                theFile := GDecl vi :: !theFile
+            let vi, alreadyDef = makeGlobalVarinfo vi in
+            if not alreadyDef then begin(* Do not add declarations after def *)
+              if vi.vstorage = Extern then 
+                if init = None then 
+                  theFile := GDecl vi :: !theFile
+                else
+                  E.s (E.unimp "%s is extern and with initializer" vi.vname)
               else
-                E.s (E.unimp "%s is extern and with initializer" vi.vname)
-            else
-              theFile := GVar(vi, init) :: !theFile
-
+                theFile := GVar(vi, init) :: !theFile
+            end
           with e -> begin
             ignore (E.log "error in CollectGlobal (%s)\n" 
                       (Printexc.to_string e));
@@ -1931,24 +1950,26 @@ let convFile dl =
             (* Add the function itself to the environment. Just in case we 
              * have recursion and no prototype.  *)
             (* Make a variable out of it and put it in the environment *)
-            let thisFunctionVI = 
-              { vname = n;
-                vtype = ftype;
-                vglob = true;
-                vid   = newVarId n true;
-                vdecl = lu;
-                vattr = doAttrList funattr;
-                vaddrof = false;
-                vstorage = doStorage st;
-              } 
+            let thisFunctionVI, alreadyDef = 
+              makeGlobalVarinfo 
+                { vname = n;
+                  vtype = ftype;
+                  vglob = true;
+                  vid   = newVarId n true;
+                  vdecl = lu;
+                  vattr = doAttrList funattr;
+                  vaddrof = false;
+                  vstorage = doStorage st;
+                } 
             in
-            ignore (alphaConvertAndAddToEnv thisFunctionVI);
+            if alreadyDef then
+              E.s (E.unimp "There is a definition already for %s" n);
             (* Now do the body *)
             let s = doBody body in
             (* Finish everything *)
             exitScope ();
             let (maxid, locals) = endFunction formals' in
-            let fdec = { svar      = thisFunctionVI;
+            let fdec = { svar     = thisFunctionVI;
                          slocals  = locals;
                          sformals = formals';
                          smaxid   = maxid;

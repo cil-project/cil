@@ -1,5 +1,5 @@
 open Cil
-open Pretty
+open Pretty 
 
 module H = Hashtbl
 
@@ -113,12 +113,7 @@ let rec fixupType t =
   match t with
     TForward _ -> t
   | TNamed (n, t, a) -> TNamed(n, fixupType t, a) (* Keep the Named types *)
-                                        (* We leave alone vararg functions 
-                                         * mainly because it is hard to write 
-                                         * a wrapper for them. We'll check 
-                                         * that we only pass lean pointers to 
-                                         * them 
-  | TFun (_, _, true, _) -> t            *)
+
     (* Sometimes we find a function type without arguments or with arguments 
      * with different names (a prototype that we have done before). Do the 
      * regular fixit and then put the argument names back.  *)
@@ -140,9 +135,6 @@ and fixit t =
     let doit t =
       match t with 
         (TInt _|TEnum _|TFloat _|TVoid _|TBitfield _) -> t
-(*
-      | TPtr ((TFun _) as t', a) -> 
-          TPtr (fixupType t', a)         Pointers to functions are lean *)
 
       | TPtr (t', a) -> begin
         (* Now do the base type *)
@@ -151,7 +143,8 @@ and fixit t =
           let fixed = 
             TComp 
               (mkCompInfo true tname 
-                 (fun _ _ -> [ ("_p", TPtr(fixed', a)); ("_b", voidPtrType)]) 
+                 (fun _ -> [ ("_p", TPtr(fixed', a), []); 
+                             ("_b", voidPtrType, [])]) 
                  [])
           in
           let tres = TNamed(tname, fixed, []) in
@@ -169,7 +162,7 @@ and fixit t =
       | TNamed (n, t', a) -> TNamed (n, fixupType t', a)
           
       | TComp comp -> 
-          (* Change the fields in place *)
+          (* Change the fields in place, so that everybody sees the change *)
           List.iter (fun fi -> fi.ftype <- fixupType fi.ftype) comp.cfields;
           t
             
@@ -280,8 +273,7 @@ let fromPtrToBase e : exp =
   let rec replacePtrBase = function
       Field(fip, NoOffset) when fip.fname = "_p" ->
         (* Find the fat type that this belongs to *)
-        let fat = ! (fip.fcomp) in
-        let bfield = getBaseFieldOfFat fat in
+        let bfield = getBaseFieldOfFat (TComp(fip.fcomp)) in
         Field(bfield, NoOffset)
 
     | Field(f', o) -> Field(f',replacePtrBase o)
@@ -304,9 +296,11 @@ let mustCheckReturn tret =
    (* Test if we have changed the type *)
 let rec typeHasChanged t =
   match unrollType t with
-    TComp(true, _, [p;b], _, _) when p.fname = "_p" && b.fname = "_b" -> true
-  | TComp(_, _, flds, _, _) -> 
-                         List.exists (fun f -> typeHasChanged f.ftype) flds
+    TComp comp -> begin
+      match comp.cfields with
+        [p;b] when comp.cstruct && p.fname = "_p" && b.fname = "_b" -> true
+      | _ -> List.exists (fun f -> typeHasChanged f.ftype) comp.cfields
+    end
   | TArray(t, _, _) -> typeHasChanged t
   | TFun(rt, args, _, _) -> begin
       typeHasChanged rt ||
@@ -323,8 +317,8 @@ let mustBeTagged v =
   let rec containsArray t = 
     match unrollType t with 
       TArray _ -> true
-    | TComp(true, _, flds, _, _) -> 
-        List.exists (fun f -> containsArray f.ftype) flds
+    | TComp comp -> 
+        List.exists (fun f -> containsArray f.ftype) comp.cfields
     | TPtr _ -> false
     | (TInt _ | TEnum _ | TFloat _ | TBitfield _ ) -> false
     | _ -> E.s (E.unimp "containsArray: %a" d_plaintype t)
@@ -353,16 +347,21 @@ let tagType (t: typ) : typ =
                                              * incomplete types  *)
         let words = (bytes + 3) lsr 2 in
         let tagwords = (words + 15) lsr 4 in
-        mkCompType true ""
-          [ ("_len", uintType);
-            ("_data", t);
-            ("_tags", TArray(intType, 
-                             Some (integer tagwords), []))
-          ] []
+        TComp 
+          (mkCompInfo true ""
+             (fun _ -> 
+               [ ("_len", uintType, []);
+                 ("_data", t, []);
+                 ("_tags", TArray(intType, 
+                                  Some (integer tagwords), []), []);
+               ])
+             [])
       with Not_found -> begin (* An incomplete type *)
-        mkCompType true ""
-          [ ("_len", uintType);
-            ("_data", t); ] []
+        TComp 
+          (mkCompInfo true ""
+             (fun _ -> 
+               [ ("_len", uintType, []);
+                 ("_data", t, []); ]) [])
       end
     in
     let tname = newTypeName "_tagged_" t in
@@ -378,7 +377,11 @@ let splitTagType tagged =
   (* Get the data field, the length field, and a tag field *)
   let dfld, lfld, tfld = 
     match unrollType tagged with
-      TComp (true, _, [lfld; dfld; tfld], _, _) -> dfld, lfld, tfld
+      TComp comp -> begin
+        match comp.cfields with 
+          [lfld; dfld; tfld] -> dfld, lfld, tfld
+        | _ -> E.s (E.bug "splitTagType. No tags: %a\n" d_plaintype tagged)
+      end
     | _ -> E.s (E.bug "splitTagType. No tags: %a\n" d_plaintype tagged)
   in
   let bytes = 
@@ -420,6 +423,8 @@ let makeTagAssignInit tagged vi =
 
 (****** the CHECKERS ****)
 let fatVoidPtr = fixupType voidPtrType
+let castVoidStar e = doCast e (typeOf e) voidPtrType
+
 let checkSafeRetFatFun = 
   let fdec = emptyFunction "CHECK_SAFERETFAT" in
   let arg  = makeLocalVar fdec "x" fatVoidPtr in
@@ -439,7 +444,8 @@ let checkFunctionPointer =
   let argb  = makeLocalVar fdec "b" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
   fun whatp whatb -> 
-    call None (Lval(var fdec.svar)) [whatp; whatb]
+    call None (Lval(var fdec.svar)) [ castVoidStar whatp; 
+                                      castVoidStar whatb]
   
 let checkFetchLength = 
   let fdec = emptyFunction "CHECK_FETCHLENGTH" in
@@ -447,7 +453,7 @@ let checkFetchLength =
   fdec.svar.vtype <- TFun(uintType, [ argb ], false, []);
   fun tmplen base -> 
     call (Some tmplen) (Lval (var fdec.svar))
-      [ base ]
+      [ castVoidStar base ]
 
 let checkFetchTagStart = 
   let fdec = emptyFunction "CHECK_FETCHTAGSTART" in
@@ -456,9 +462,10 @@ let checkFetchTagStart =
   fdec.svar.vtype <- TFun(voidPtrType, [ argb; argl ], false, []);
   fun tmplen base len -> 
     call (Some tmplen) (Lval (var fdec.svar))
-      [ base; len ]
+      [ castVoidStar base; 
+        len ]
 
-(* Since we cannot take the address of a bitfield we treat accesses toa 
+(* Since we cannot take the address of a bitfield we treat accesses to a 
  * bitfield like an access to the entire host that contains it (for the 
  * purpose of checking). This is only Ok if the host does not contain pointer 
  * fields *)
@@ -476,9 +483,10 @@ let getHostIfBitfield lv t =
       let lv' = lvbase, getHost lvoff in
       let lv't = typeOfLval lv' in
       (match unrollType lv't with 
-        TComp(true, n, flds, _, _) -> 
-          if List.exists (fun f -> typeHasChanged f.ftype) flds then
-            E.s (E.unimp "Struct %s contains both bitfields and pointers" n)
+        TComp comp when comp.cstruct -> 
+          if List.exists (fun f -> typeHasChanged f.ftype) comp.cfields then
+            E.s (E.unimp "%s contains both bitfields and pointers" 
+                   (compFullName comp))
       | _ -> E.s (E.bug "getHost: bitfield not in a struct"));
       lv', lv't
     end
@@ -494,7 +502,10 @@ let checkBounds =
   fun tmplen base lv t ->
     let lv', lv't = getHostIfBitfield lv t in
     call None (Lval (var fdec.svar))
-      [ base; tmplen; AddrOf(lv', lu); SizeOf(lv't, lu) ]
+      [ castVoidStar base; 
+        tmplen; 
+        castVoidStar (AddrOf(lv', lu));
+        SizeOf(lv't, lu) ]
 
   
 let checkZeroTags = 
@@ -507,16 +518,19 @@ let checkZeroTags =
   fun base tagStart lv t ->
     let lv', lv't = getHostIfBitfield lv t in
     call None (Lval (var fdec.svar))
-      [ base; AddrOf(lv', lu); SizeOf(lv't, lu); tagStart ]
+      [ castVoidStar base; 
+        castVoidStar (AddrOf(lv', lu)); 
+        SizeOf(lv't, lu); 
+        castVoidStar tagStart ]
   
 let doCheckFat which arg argt = 
   (* Take the argument and break it apart *)
   let (_, ptr, base) = readPtrBaseField arg argt in 
-  call None (Lval(var which.svar)) [ CastE(voidPtrType, ptr, lu); 
-                                     CastE(voidPtrType, base, lu) ]
+  call None (Lval(var which.svar)) [ castVoidStar ptr; 
+                                     castVoidStar base; ]
 
 let doCheckLean which arg  = 
-  call None (Lval(var which.svar)) [ CastE(voidPtrType, arg, lu)]
+  call None (Lval(var which.svar)) [ castVoidStar arg; ]
 
 
 (* Check a read *)
@@ -524,24 +538,28 @@ let checkFatPointerRead =
   let fdec = emptyFunction "CHECK_FATPOINTERREAD" in
   let argb  = makeLocalVar fdec "b" voidPtrType in
   let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argt  = makeLocalVar fdec "tags" intType in
+  let argt  = makeLocalVar fdec "tags" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argb; argp; argt ], false, []);
   
   fun base where tagstart -> 
     call None (Lval(var fdec.svar))
-      [ base; where; tagstart]
+      [ castVoidStar base; castVoidStar where; castVoidStar tagstart]
 
 let checkFatPointerWrite = 
   let fdec = emptyFunction "CHECK_FATPOINTERWRITE" in
   let argb  = makeLocalVar fdec "b" voidPtrType in
   let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argw  = makeLocalVar fdec "w" voidPtrType in
-  let argt  = makeLocalVar fdec "tags" intType in
-  fdec.svar.vtype <- TFun(voidType, [ argb; argp; argw; argt ], false, []);
+  let argwb  = makeLocalVar fdec "wb" voidPtrType in
+  let argwp  = makeLocalVar fdec "wp" voidPtrType in
+  let argt  = makeLocalVar fdec "tags" voidPtrType in
+  fdec.svar.vtype <- 
+     TFun(voidType, [ argb; argp; argwb; argwp; argt ], false, []);
   
   fun base where whatbase whatp tagstart -> 
     call None (Lval(var fdec.svar))
-      [ base; where; whatbase; whatp; tagstart]
+      [ castVoidStar base; 
+        castVoidStar where; 
+        castVoidStar whatbase; castVoidStar whatp; castVoidStar tagstart]
   
   
 let checkMem (towrite: exp option) 
@@ -557,17 +575,21 @@ let checkMem (towrite: exp option)
   let rec doCheckTags (towrite: exp option) (where: lval) t acc = 
     match unrollType t with 
     | (TInt _ | TFloat _ | TEnum _ | TBitfield _ ) -> acc
-    | TComp(true, _, [p;b], _, _) (* A fat pointer *)
-        when p.fname = "_p" && b.fname = "_b" -> begin
-          match towrite with
-            None -> (* a read *)
-              (checkFatPointerRead base (AddrOf(where, lu)) tagStartExp) :: acc
-          | Some towrite -> (* a write *)
-              let _, whatp, whatb = readPtrBaseField towrite t in
-              (checkFatPointerWrite base (AddrOf(where, lu)) 
-                 whatb whatp tagStartExp) :: acc
+    | TComp comp 
+        when (comp.cstruct && 
+              (match comp.cfields with 
+                [p;b] when p.fname = "_p" && b.fname = "_b" -> true
+        | _ -> false)) -> begin (* A fat pointer *)
+            match towrite with
+              None -> (* a read *)
+                (checkFatPointerRead base 
+                   (AddrOf(where, lu)) tagStartExp) :: acc
+            | Some towrite -> (* a write *)
+                let _, whatp, whatb = readPtrBaseField towrite t in
+                (checkFatPointerWrite base (AddrOf(where, lu)) 
+                   whatb whatp tagStartExp) :: acc
         end 
-    | TComp(true, _, flds, _, _) -> 
+    | TComp comp when comp.cstruct -> 
         let doOneField acc fi = 
           let newwhere = addOffset (Field(fi, NoOffset)) where in
           let newtowrite = 
@@ -579,7 +601,7 @@ let checkMem (towrite: exp option)
           in
           doCheckTags newtowrite newwhere fi.ftype acc
         in
-        List.fold_left doOneField acc flds
+        List.fold_left doOneField acc comp.cfields
     | TArray(bt, _, a) 
         when (match unrollType bt with
           (TInt _ | TFloat _ | TEnum _ | TBitfield _ ) -> true | _ -> false) 
@@ -804,8 +826,11 @@ and boxlval (b, off) : (typ * stmt list * lval * exp) =
           if mustBeTagged vi then
             let dataf = 
               match unrollType vi.vtype with
-                TComp(true, _, _ :: df :: _, _, _) 
-                  when df.fname = "_data" -> df
+                TComp comp when comp.cstruct -> begin
+                  match comp.cfields with 
+                    _ :: df :: _ when df.fname = "_data" -> df
+                  | _ -> E.s (E.bug "addrOf but no tagged type")
+                end 
               | _ -> E.s (E.bug "addrOf but no tagged type")
             in
             Field(dataf, NoOffset), dataf.ftype, Field(dataf, off)
@@ -843,9 +868,9 @@ and boxoffset (off: offset) (basety: typ) : offsetRes =
       (rest', doe @ doresto, Index(e', off'))
 
   | Field (fi, resto) ->
-      let fi' = {fi with ftype = fixupType fi.ftype} in
-      let (rest, doresto, off') = boxoffset resto fi'.ftype in
-      (rest, doresto, Field(fi', off'))
+      (* The type of fi has been changed already *)
+      let (rest, doresto, off') = boxoffset resto fi.ftype in
+      (rest, doresto, Field(fi, off'))
   | First o -> 
       let etype = 
         match unrollType basety with
@@ -1114,8 +1139,7 @@ and fromPtrToBase e =
   let rec replacePtrBase = function
       Field(fip, NoOffset) when fip.fname = "_p" ->
         (* Find the fat type that this belongs to *)
-        let fat = ! (fip.fcomp) in
-        let bfield = getBaseFieldOfFat fat in
+        let bfield = getBaseFieldOfFat (TComp(fip.fcomp)) in
         Field(bfield, NoOffset)
 
     | Field(f', o) -> Field(f',replacePtrBase o)
@@ -1125,6 +1149,14 @@ and fromPtrToBase e =
   match e with
     Lval (b, off) -> Lval(b, replacePtrBase off)
   | _ -> E.s (E.unimp "replacing _p with _b in a non-lval")
+
+
+let fixupGlobName vi = 
+  if vi.vglob && vi.vstorage <> Static && typeHasChanged vi.vtype &&
+    not (List.exists (fun la -> la = vi.vname) leaveAlone) then
+    let nlen = String.length vi.vname in
+    if nlen <= 4 || String.sub vi.vname (nlen - 4) 4 <> "_fp_" then
+      vi.vname <- vi.vname ^ "_fp_"
 
 let boxFile globals =
   ignore (E.log "Boxing file\n");
@@ -1149,9 +1181,7 @@ let boxFile globals =
         f.svar.vtype <- fixupType f.svar.vtype;
           (* If the type has changed and this is a global function then we
            * also change its name *)
-        if f.svar.vglob && f.svar.vstorage <> Static 
-            && typeHasChanged f.svar.vtype then
-          f.svar.vname <- f.svar.vname ^ "_fp_";
+        fixupGlobName f.svar;
         (* Fixup the types of the locals  *)
         List.iter (fun l -> l.vtype <- fixupType l.vtype) f.slocals;
         (* We fix the formals only if the function is not vararg *)
@@ -1205,12 +1235,7 @@ let boxFile globals =
       vi.vtype <- fixupType vi.vtype;
           (* If the type has changed and this is a global variable then we
            * also change its name *)
-    if vi.vglob && vi.vstorage <> Static && typeHasChanged vi.vtype then
-      begin
-        let nlen = String.length vi.vname in
-        if nlen <= 4 || String.sub vi.vname (nlen - 4) 4 <> "_fp_" then
-          vi.vname <- vi.vname ^ "_fp_"
-      end;
+    fixupGlobName vi;
       (* Tag all globals, except function prototypes *)
     if not (mustBeTagged vi) then
       if isdef then

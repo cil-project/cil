@@ -51,7 +51,7 @@ PCCDIR=$(BASEDIR)/Source/Touchstone/PCC
 TVDIR=$(BASEDIR)/Source/TransVal
 endif
 ifeq ($(COMPUTERNAME), FETA) # George's home machine
-BASEDIR=D:/Necula
+BASEDIR=C:/Necula
 SAFECCDIR=$(BASEDIR)/SafeC
 PCCDIR=$(BASEDIR)/Source/Touchstone/PCC
 TVDIR=$(BASEDIR)/Source/TransVal
