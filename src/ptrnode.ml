@@ -674,13 +674,13 @@ let replacePtrNodeAttrList where al =
 
   
 (* Make a new node *)
-let newNode (p: place) (idx: int) (bt: typ) (a: attribute list) : node =
+let newNode (p: place) (idx: int) (bt: typ) (al: attribute list) : node =
   let where = p, idx in
   incr nextId;
-  let kind,why_kind = kindOfAttrlist a in
+  let kind,why_kind = kindOfAttrlist al in
   let n = { id = !nextId;
             btype   = bt;
-            attr    = addAttribute (Attr("_ptrnode", [AInt !nextId])) a;
+            attr    = addAttribute (Attr("_ptrnode", [AInt !nextId])) al;
             where   = where;
             flags   = 0 ;
             onStack = false;
@@ -733,12 +733,12 @@ let dummyNode = newNode (PGlob "@dummy") 0 voidType []
 
 (* Get a node for a place and an index. Give also the base type and the 
  * attributes *)
-let getNode (p: place) (idx: int) (bt: typ) (a: attribute list) : node = 
+let getNode (p: place) (idx: int) (bt: typ) (al: attribute list) : node = 
   (* See if exists already *)
   let where = (p, idx) in
   try
     H.find placeId where
-  with Not_found -> newNode p idx bt a
+  with Not_found -> newNode p idx bt al
 
 
 let nodeExists (p: place) (idx: int) = 

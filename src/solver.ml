@@ -9,6 +9,7 @@ open Cil
 open Ptrnode
 open Solveutil
 module H = Hashtbl
+module E = Errormsg
 
 let show_steps = true
 
