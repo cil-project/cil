@@ -20,14 +20,12 @@ print "Test infrastructure for SafeC\n";
 my $TEST = SafecRegTest->new();
 
 # Now add tests
-$TEST->newTest("hashtest-cil",
-               Dir => "..",
-               Args => ["make", "hashtest"],
-               Group => ["cil"]);
-$TEST->newTest("hashtest-box",
-               Dir => "..",
-               Args => ["make", "hashtest BOX=1"],
-               Group -> ["box"]);
+$TEST->addTest("hashtest");
+$TEST->addTest("wes-hashtest");
+$TEST->addTest("rbtest");
+$TEST->addTest("wes-rbtest");
+$TEST->addTest("btreetest");
+
 
 # print Dumper($TEST);
 
@@ -77,5 +75,26 @@ sub extraHelpMessage {
 SafeC test harness
 EOF
 }
+
+
+sub addTest {
+    my($self, $name, @args) = @_;
+    
+    my $theargs = " " . join(' ', @args);
+
+    OneTest->new($self, $name . "-cil",
+                 Dir => "..",
+                 Cmd => "make " . $name . $theargs,
+                 Group => ["cil"]);
+    OneTest->new($self, $name . "-box",
+                 Dir => "..",
+                 Cmd => "make " . $name . " BOX=1 " . $theargs,
+                 Group => ["box"]);
+    OneTest->new($self, $name . "-inferbox",
+                 Dir => "..",
+                 Cmd => "make " . $name . " BOX=1 INFERBOX=1 " . $theargs,
+                 Group => ["box", "infer"]);
+}
+
 
 1;

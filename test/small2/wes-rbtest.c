@@ -1,7 +1,6 @@
 
 /* A special purpose main */
 //#include "main.h"
-
 /****** Data sizes *******
 * U8  must be an unsigned of 8 bits
 * U16 must be an unsigned of 16 bits *

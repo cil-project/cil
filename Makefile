@@ -163,7 +163,7 @@ CPP=$(CPPSTART) $(CPPOUT)
 INC=-I
 PATCHFILE=safec_gcc.patch
 # sm: disable patching for now ('true' has no output)
-PATCHECHO=true
+PATCHECHO=
 endif
 
 
@@ -396,7 +396,7 @@ hashtest: test/small2/hashtest.c $(EXECUTABLE)$(EXE) \
 	rm -f $(PCCTEST)/hashtest.exe
 	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  $(DOOPT) \
-                 `$(PATCHECHO) --patch=../../lib/$(PATCHFILE)` \
+                 --patch=../../lib/$(PATCHFILE)\
                  $(INC)$(PCCDIR)/src \
                  $(PCCDIR)/src/hash.c \
                  ../small2/hashtest.c \
