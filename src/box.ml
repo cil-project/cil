@@ -701,14 +701,15 @@ let mainWrapper_fw =
   fdec
 
 
-let checkNullFun =   
+let checkNull = 
   let fdec = emptyFunction "CHECK_NULL" in
   let argp  = makeVarinfo "p" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argp ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
-  fdec
+  fun (what: exp) -> 
+    call None (Lval(var fdec.svar)) [ castVoidStar what ]
 
 let checkSafeRetFatFun = 
   let fdec = emptyFunction "CHECK_SAFERETFAT" in
@@ -733,7 +734,7 @@ let checkFunctionPointer =
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fun whatp whatb whatkind nrargs -> 
     if whatkind = N.Safe then
-      call None (Lval(var checkNullFun.svar)) [ castVoidStar whatp ]
+      checkNull whatp
     else
       call None (Lval(var fdec.svar)) [ castVoidStar whatp; 
                                         castVoidStar whatb; integer nrargs ]
@@ -2085,7 +2086,7 @@ let rec checkBounds
           else
             base
         in
-        let _, _, _, docheck = 
+        let p, _, _, docheck = 
           fseqToSafe (mkAddrOf(lv')) (TPtr(lv't, [])) base' bend empty in
         rev docheck
           
@@ -2098,24 +2099,22 @@ let rec checkBounds
           else
             bend
         in
-        let _, _, _, docheck = 
+        let p, _, _, docheck = 
           seqToSafe (mkAddrOf(lv')) (TPtr(lv't, [])) base bend' empty in
         rev docheck
           
-    | N.Safe | N.String | N.ROString -> empty (* begin
-        match lv' with
-          Mem addr, _ -> 
-           single (call None (Lval (var checkNullFun.svar)) 
-                     [ castVoidStar addr ])
-        | _, _ -> empty
-    end *)
+    | N.Safe | N.String | N.ROString -> empty
 
     | _ -> E.s (bug "Unexpected pointer kind in checkBounds(%a)"
                   N.d_opointerkind pkind)
   end
 
 
-
+(* Whether we must do a null check (after we have done bounds checking) *)
+let nullCheckAfterBoundsCheck (k: N.opointerkind) = 
+  match k with 
+    N.Wild | N.WildT | N.Index | N.IndexT -> false
+  | _ -> true
   
 
 (****************************************************)
@@ -3578,12 +3577,12 @@ and boxlval1 (b, off) : (typ * N.opointerkind * lval * exp * exp * stmt clist)=
           | _ -> E.s (unimp "Mem but no pointer type: %a@!addr= %a@!"
                         d_plaintype addrt d_plainexp addr)
         in
-        (* If the kind of the address is safe we must do a null check *)
+        (* If the kind of the address is not WILD or INDEX we must do a null 
+         * check. For WILD and INDEX the bounds check will also take care of 
+         * the null *)
         let doaddr2 = 
-          if addrkind = N.Safe then 
-            CConsR (doaddr1,
-                    call None (Lval (var checkNullFun.svar)) 
-                      [ castVoidStar addr' ])
+          if nullCheckAfterBoundsCheck addrkind then 
+            CConsR (doaddr1, checkNull addr')
           else doaddr1
         in
         (addrt1, addrkind, (fun o -> (mkMem addr' o)), 
