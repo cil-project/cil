@@ -569,6 +569,8 @@ $TEST->add2Tests("testrun/stringsize");
 #fixed:    $TEST->addBadComment("testrun/stringsize-cil", "CIL doesn't handle sizeof( \"string literal\" ) correcly.");
 #fixed:    $TEST->addBadComment("testrun/stringsize-inferbox", "CIL doesn't handle sizeof( \"string literal\" ) correcly.");
 
+$TEST->addTests("testrun/typeof1", "", ['cil']);
+
 $TEST->add2Tests("merge-ar", "");
 #
 # OLDEN benchmarks
