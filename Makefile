@@ -1175,7 +1175,7 @@ vortex:  mustbegcc
 	cd $(VORDIR)/src; \
             make clean build CC="$(VORSAFECC) $(CONLY)" \
                              LD="$(VORSAFECC)"
-	cd $(VORTEXDIR)/src; sh -c "for i in $(ITERATION_ELEMS) ; \
+	cd $(VORDIR)/src; sh -c "for i in $(ITERATION_ELEMS) ; \
                                       do time ./testit vortex.exe; done"
 
 vortex-gcc:  mustbegcc
