@@ -33,7 +33,7 @@
 
 # This module implements a compiler stub that parses the command line
 # arguments of gcc and Microsoft Visual C (along with some arguments for the
-# script itself) and gives hooks into preprocessing, compil;ation and linking.
+# script itself) and gives hooks into preprocessing, compilation and linking.
 
 package Cilly;
 @ISA = ();
@@ -438,7 +438,10 @@ sub compile {
         $mtime = $mtime_1;
         $outfile = $dest . $Cilly::savedSourceExt;
     }
-    if($self->{VERBOSE}) { print "Saving source $src into $outfile\n"; }
+    # sm: made the following output unconditional following the principle
+    # that by default you should be able to see every file getting written
+    # during a build (otherwise you don't know who to ask to be --verbose)
+    if(1 || $self->{VERBOSE}) { print "Saving source $src into $outfile\n"; }
     open(OUT, ">$outfile") || die "Cannot create $outfile";
     my $toprintsrc = $src; $toprintsrc =~ s|\\|/|g;
     print OUT "#pragma merger($mtime, \"$toprintsrc\", \"" . 
@@ -572,7 +575,10 @@ sub link {
     push @othersources, $mergedobj;
 
     # And finally link
-    $self->link_after_cil(\@othersources, $dest, $ppargs, $ccargs, $ldargs);
+    # sm: hack: made this conditional for dsw
+    if (!defined($ENV{CILLY_DONT_LINK_AFTER_MERGE})) {
+      $self->link_after_cil(\@othersources, $dest, $ppargs, $ccargs, $ldargs);
+    }
 
 }
 
