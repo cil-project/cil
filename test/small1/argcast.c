@@ -5,7 +5,7 @@ int main() {
     return 0;
 }
 
-iiiiiint walk(char * a, int l) {
+int walk(char * a, int l) {
     int i;
 
     for (i=0; i<l; i++) {
