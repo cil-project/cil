@@ -120,3 +120,6 @@ mode_sizes
 *tmp
 *.tmp.exe
 test-bad.err
+brlock
+
+test-bad.out
