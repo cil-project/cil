@@ -3370,9 +3370,7 @@ and boxinstr (ins: instr) : stmt clist =
               (* Sometimes it is possible that we have not seen this varinfo. 
                * Maybe it was introduced by the type inferencer to mark an 
                * independent copy of the function  *)
-              if not (H.mem leaveAlone vi.vname) &&
-                not (isAllocFunction vi.vname)
-              then begin
+              if not (H.mem leaveAlone vi.vname) && not (isAllocFunction vi.vname) then begin
                 vi.vtype <- fixupType vi.vtype;
                 fixupGlobName vi
               end;
@@ -3405,8 +3403,7 @@ and boxinstr (ins: instr) : stmt clist =
         let leavealone, isallocate = 
           match f' with
             Lval(Var vf, NoOffset) -> 
-              H.mem leaveAlone vf.vname,
-              getAllocInfo vf.vname
+              H.mem leaveAlone vf.vname,   getAllocInfo vf.vname
 
           | _ -> false, None
         in
@@ -3444,14 +3441,14 @@ and boxinstr (ins: instr) : stmt clist =
                 (append doa'' doresta,  a2 :: resta')
               | a :: resta, [] -> 
                   (* This is a case when we call with more args than the 
-                   * prototype has. We better be calling a WILD function *)
+                   * prototype has. We better be calling a vararg or a WILD function *)
                   if fkind <> N.Wild && not isva then 
                     E.s (bug "Calling non-wild %a with too many args"
                            d_exp f);
                   let (doa, fa') = boxexpf a in
                   let (doa', fa'') = 
                     if isva then 
-                      castTo fa' intType doa
+                      (doa, fa') 
                     else (* A WILD function *)
                       (* Do not cast if already a WILD thing *)
                       if kindOfFexp fa' = N.Wild then (doa, fa') 
@@ -3467,60 +3464,8 @@ and boxinstr (ins: instr) : stmt clist =
         in
         let finishcall = 
           match vio with 
-            None -> begin
-              (* See if it is a memcpy. We handle only the case when we do 
-               * not use the return value *)
-              match f' with
-                Lval(Var fv, NoOffset) when 
-                (false && matchPolyName "memcpy" fv.vname) 
-                -> begin
-                  let memcpyFun = 
-                    match !theMemcpyFun with
-                      None -> 
-                        E.s (unimp "Cannot find the prototype for memcpy")
-                    | Some x -> x
-                  in
-                  (* Now cast the first two arguments to voidptr, so that the 
-                   * C compiler is happy *)
-                  let da, sa, la = 
-                    match args' with
-                      [da; sa; la] -> da, sa, la
-                    | _ -> E.s (unimp "Too many argument to memcpy")
-                  in 
-                  match kindOfType (typeOf sa), kindOfType (typeOf da) with
-                    N.Wild, N.Wild ->
-                      (* sm: insert the casts; sometimes we need it *)
-                      let funnyCast (structType : typ) (structValue : exp) : exp =
-                      begin
-                        match structValue with
-                        | Lval(lv) ->
-                            Lval (mkMem (CastE(TPtr(structType,[]), 
-                                               mkAddrOf(lv))) NoOffset)
-                        | _ -> E.s (unimp "Call to memcpy with wild non-lval")
-                      end in
-                      let args'' =
-                        [ funnyCast !wildpVoidType da ;
-                          funnyCast !wildpVoidType sa ;
-                          la ] in
-                      single (call None (Lval(Var memcpyWWWFun.svar, NoOffset)) args'')
+            None -> single (call None f' args')
 
-                  | ks, kd -> (* Here we ought to check lengths *)
-                      if ks = N.Wild then
-                        ignore (warn "Drop tags in memcpy Wild -> Non-wild")
-                      else if kd = N.Wild then
-                        ignore (warn "Drop tags in memcpy Non-wild -> Wild")
-                      else
-                        ignore (warn "Call to memcpy ought to check the length");
-                      let args'' =
-                        [ CastE(voidPtrType,
-                                readPtrField da (typeOf da));
-                          CastE(voidPtrType,
-                                readPtrField sa (typeOf sa)); la] in
-                      single (call None (Lval(Var memcpyFun, NoOffset)) args'')
-                end
-              | _ -> single (call None f' args')
-                
-            end
           | Some destlv -> begin
               (* Always put the result of the call in a temporary variable so 
                * that the actual store into the destination occurs with a Set 
@@ -3548,105 +3493,7 @@ and boxinstr (ins: instr) : stmt clist =
               let aftercall = boxinstr (Set(destlv, Lval (var tmp), l)) in
               (* Now put them together *)
               append thecall aftercall
-(*
-              (* Always go through a temporary to ensure the we do the right 
-               * checks when we write the destination. The temporary must 
-               * have the destination type so that the cast is propagated to 
-               * the function. *)
-              (* Do the destination to get its type. Cannot use typeOfLval 
-               * because destlv might not be a well-formed lval *)
-              let (destlvt, _, _, _, _, _) = boxlval destlv in
-              let tmp = makeTempVar !currentFunction destlvt in
-              (* Now do the call itself *)
-              let thecall = 
-                match isallocate with
-                  None -> single (interceptCall (Some (var tmp)) f' args')
-                | Some ai -> pkAllocate ai (var tmp) f' args'
-              in
-              (* Now use boxinstr to do the code after Call properly *)
-              let aftercall = boxinstr (Set(destlv, Lval (var tmp), l)) in
-              (* Now put them together *)
-              append thecall aftercall
-*)
           end
-(*              
-              let (lvt, lvkind, lv', lvbase, lvend, dolv) = boxlval destlv in
-              let iscast = typeSigBox(ftret) <> typeSigBox lvt in
-              (* See if at least one of the types is a composite type. In 
-              * that case we cannot use casts.  *)
-              let somecomp = 
-                match unrollType lvt, unrollType ftret with
-                  TComp _, _ -> true
-                | _, TComp _ -> true
-                | _ -> false
-              in
-              match isallocate with
-                None -> 
-                  if somecomp && iscast then 
-                    CConsL(interceptCall (Some(var tmp)) f' args',
-                           (* Use boxinstr to do the proper cast and the 
-                            * proper checks  *)
-                           append 
-                             dolv
-                             (boxinstr (Set(lv', Lval (var tmp), l)))) 
-                  else
-                    CConsR(dolv, interceptCall (Some lv') f' args')
-                                                          
-              | Some ai -> 
-                  append dolv (pkAllocate ai lv' f' args')
-          end
-*)              
-(*
-             (* If the destination variable gets tags then we must put the 
-              * result of the call into a temporary first  *)
-             (* Compute the destination of the call and some code to use 
-              * after the call. Use boxinstr to get the code after the call 
-              * to ensure that we use all the proper checks.  *)
-              let (vi1: varinfo), (setvi1: stmt clist) = 
-                match boxlval (Var vi, NoOffset) with
-                  (_, _, (Var _, NoOffset), _, _, _) -> 
-                    vi, empty
-                      
-                | (_, _, 
-                   ((Var vi', Field(dfld, NoOffset)) as newlv), _, _,empty) -> 
-                     let tmp = makeTempVar !currentFunction dfld.ftype in
-                     tmp, 
-                     boxinstr (Set ((Var vi, NoOffset), Lval (var tmp), l))
-(*                     [ mkSet newlv (Lval (var tmp)) ] *)
-                | _ ->  E.s (bug "Result of call is not a variable")
-              in
-              (* If the function is not an allocation function then we must 
-               * watch for the case when the return type or the variable type 
-               * is a struct. In that case we cannot use direct casts. For 
-               * allocation functions pkAllocate knows how to handle casts  *)
-              match isallocate with
-                None -> 
-                  (* See if at least one of the types is a composite type. In 
-                   * that case we cannot use casts.  *)
-                  let somecomp = 
-                    match unrollType vi1.vtype, unrollType ftret with
-                      TComp _, _ -> true
-                    | _, TComp _ -> true
-                    | _ -> false
-                  in
-                  let iscast = typeSigBox(ftret) <> typeSigBox vi1.vtype in
-                  if somecomp && iscast then 
-                    let tmp = makeTempVar !currentFunction ftret in
-                    CConsL(interceptCall (Some(tmp,false)) f' args',
-                           (* Use boxinstr to do the proper cast and the 
-                            * proper checks  *)
-                           append 
-                             (boxinstr (Set((Var vi1, NoOffset), 
-                                            Lval (var tmp), l))) 
-                             setvi1)
-                  else
-                    CConsL(interceptCall (Some(vi1,iscast)) f' args',
-                           setvi1)
-                                                          
-              | Some ai -> 
-                  append (pkAllocate ai vi1 f' args') setvi1
-          end
-*)
         in
         append dof (append doargs finishcall)
 
@@ -4197,7 +4044,7 @@ let boxFile file =
 
             let newformals, (newbody : stmt clist) =
               let islastva = ref isva in (* To detect last argument in va 
-                                        * functions *)
+                                          * functions *)
               let rec loopFormals = function
                   [] -> [], fromList f.sbody.bstmts
                 | form :: restf ->

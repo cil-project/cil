@@ -757,7 +757,7 @@ PATCHARG := `$(PATCHECHO) $(STANDARDPATCH)`
 BHDIR := test/olden/bh
 bh:  mustbegcc
 	cd $(BHDIR); rm -f code.exe *.o; \
-               make CC="$(COMBINESAFECC) --nocure=bhbox $(PATCHARG)"
+               make CC="$(COMBINESAFECC) --nocure=trusted_bh $(PATCHARG)"
 	echo  >$(BHDIR)/data.in
 	echo  >>$(BHDIR)/data.in
 	echo  >>$(BHDIR)/data.in
@@ -776,7 +776,7 @@ bh:  mustbegcc
 
 bh-combined:  mustbegcc
 	cd $(BHDIR); \
-	    $(CCURED) code_all.c bhbox.c $(EXEOUT)code.exe
+	    $(CCURED) code_all.c trusted_bh.c $(EXEOUT)code.exe
 	echo  >$(BHDIR)/data.in
 	echo  >>$(BHDIR)/data.in
 	echo  >>$(BHDIR)/data.in
@@ -851,7 +851,7 @@ voronoi :
 	cd $(VORONDIR); sh -c "time ./voronoi.exe 60000 1"
 
 # Traveling salesman
-TSPDIR := test/olden/tsp
+TSPDIR := test/olden/tspx
 ifdef _MSVC
   TSPARGS := _MSVC=1
 endif
@@ -860,7 +860,7 @@ ifdef _GNUCC
 endif
 tsp: 
 	cd $(TSPDIR); \
-               make PLAIN=1 clean  \
+               make PLAIN=1 clean defaulttarget \
                     $(TSPARGS) \
                     CC="$(COMBINESAFECC) \
 			$(PATCHARG)"

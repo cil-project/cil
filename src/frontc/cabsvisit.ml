@@ -27,7 +27,9 @@ type 'a visitAction =
                                           * function on the node *)
 
 type nameKind = 
-    NVar                                (* Variable or function name *)
+    NVar                                (* Variable or function prototype 
+                                           name *)
+  | NFun                                (* A function definition name *)
   | NField                              (* The name of a field *)
   | NType                               (* The name of a type *)
 
@@ -172,7 +174,7 @@ and childrenTypeSpecifier vis ts =
       if e' != e then TtypeofE e' else ts
   | TtypeofT (s, dt) -> 
       let s' = visitCabsSpecifier vis s in
-      let dt' = visitCabsDeclType vis dt in
+      let dt' = visitCabsDeclType vis false dt in
       if s != s' || dt != dt' then TtypeofT (s', dt') else ts
   | ts -> ts
         
@@ -195,30 +197,32 @@ and visitCabsSpecifier (vis: cabsVisitor) (s: specifier) : specifier =
 and childrenSpec vis s = mapNoCopy (childrenSpecElem vis) s 
     
 
-and visitCabsDeclType vis (dt: decl_type) : decl_type = 
-  doVisit vis vis#vdecltype childrenDeclType dt
-and childrenDeclType vis dt = 
+and visitCabsDeclType vis (isfundef: bool) (dt: decl_type) : decl_type = 
+  doVisit vis vis#vdecltype (childrenDeclType isfundef) dt
+and childrenDeclType isfundef vis dt = 
   match dt with
     JUSTBASE -> dt
   | PARENTYPE (prea, dt1, posta) -> 
       let prea' = mapNoCopyList (visitCabsAttribute vis)  prea in
-      let dt1' = visitCabsDeclType vis dt1 in
+      let dt1' = visitCabsDeclType vis isfundef dt1 in
       let posta'= mapNoCopyList (visitCabsAttribute vis)  posta in
       if prea' != prea || dt1' != dt1 || posta' != posta then 
         PARENTYPE (prea', dt1', posta') else dt
   | ARRAY (dt1, e) -> 
-      let dt1' = visitCabsDeclType vis dt1 in
+      let dt1' = visitCabsDeclType vis isfundef dt1 in
       let e'= visitCabsExpression vis e in
       if dt1' != dt1 || e' != e then ARRAY(dt1', e') else dt
   | PTR (al, dt1) -> 
       let al' = mapNoCopy (childrenAttribute vis) al in
-      let dt1' = visitCabsDeclType vis dt1 in
+      let dt1' = visitCabsDeclType vis isfundef dt1 in
       if al' != al || dt1' != dt1 then PTR(al', dt1') else dt
   | PROTO (dt1, snl, b) -> 
-      let dt1' = visitCabsDeclType vis dt1 in
+      (* Do not propagate isfundef further *)
+      let dt1' = visitCabsDeclType vis false dt1 in
       let _ = vis#vEnterScope () in
-      let snl' = mapNoCopy (childrenSingleName vis) snl in
-      let _ = vis#vExitScope () in
+      let snl' = mapNoCopy (childrenSingleName vis NVar) snl in
+      (* Exit the scope only if not in a function definition *)
+      let _ = if not isfundef then vis#vExitScope () in
       if dt1' != dt1 || snl' != snl then PROTO(dt1', snl', b) else dt
          
 
@@ -233,11 +237,12 @@ and childrenInitNameGroup vis ((s, inl) as input) =
   let inl' = mapNoCopy (childrenInitName vis s') inl in
   if s' != s || inl' != inl then (s', inl') else input
     
-and visitCabsName vis (k: nameKind) (s: specifier) (n: name) : name = 
-  doVisit vis (vis#vname k s) (childrenName s) n
-and childrenName (s: specifier) vis (n: name) : name = 
+and visitCabsName vis (k: nameKind) (s: specifier) 
+                      (n: name) : name = 
+  doVisit vis (vis#vname k s) (childrenName s k) n
+and childrenName (s: specifier) (k: nameKind) vis (n: name) : name = 
   let (sn, dt, al) = n in
-  let dt' = visitCabsDeclType vis dt in
+  let dt' = visitCabsDeclType vis (k = NFun) dt in
   let al' = mapNoCopy (childrenAttribute vis) al in
   if dt' != dt || al' != al then (sn, dt', al') else n
     
@@ -247,21 +252,23 @@ and childrenInitName vis (s: specifier) (inn: init_name) : init_name =
   let ie' = visitCabsInitExpression vis ie in
   if n' != n || ie' != ie then (n', ie') else inn
     
-and childrenSingleName vis (sn: single_name) : single_name =
+and childrenSingleName vis (k: nameKind) (sn: single_name) : single_name =
   let s, n = sn in
   let s' = visitCabsSpecifier vis s in
-  let n' = visitCabsName vis NVar s' n in
+  let n' = visitCabsName vis k s' n in
   if s' != s || n' != n then (s', n') else sn
-    
     
 and visitCabsDefinition vis (d: definition) : definition list = 
   doVisitList vis vis#vdef childrenDefinition d
 and childrenDefinition vis d = 
   match d with 
     FUNDEF (sn, b, l) -> 
-      let sn' = childrenSingleName vis sn in
+      let sn' = childrenSingleName vis NFun sn in
       let b' = visitCabsBlock vis b in
+      (* End the scope that was started by childrenFunctionName *)
+      vis#vExitScope ();
       if sn' != sn || b' != b then FUNDEF (sn', b', l) else d
+        
   | DECDEF ((s, inl), l) -> 
       let s' = visitCabsSpecifier vis s in
       let inl' = mapNoCopy (childrenInitName vis s') inl in
@@ -392,7 +399,7 @@ and childrenExpression vis e =
         QUESTION (e1', e2', e3') else e
   | CAST ((s, dt), ie) -> 
       let s' = visitCabsSpecifier vis s in
-      let dt' = visitCabsDeclType vis dt in
+      let dt' = visitCabsDeclType vis false dt in
       let ie' = visitCabsInitExpression vis ie in
       if s' != s || dt' != dt || ie' != ie then CAST ((s', dt'), ie') else e
   | CALL (f, el) -> 
@@ -411,14 +418,14 @@ and childrenExpression vis e =
       if e1' != e1 then EXPR_SIZEOF (e1') else e
   | TYPE_SIZEOF (s, dt) -> 
       let s' = visitCabsSpecifier vis s in
-      let dt' = visitCabsDeclType vis dt in
+      let dt' = visitCabsDeclType vis false dt in
       if s' != s || dt' != dt then TYPE_SIZEOF (s' ,dt') else e
   | EXPR_ALIGNOF (e1) -> 
       let e1' = ve e1 in
       if e1' != e1 then EXPR_ALIGNOF (e1') else e
   | TYPE_ALIGNOF (s, dt) -> 
       let s' = visitCabsSpecifier vis s in
-      let dt' = visitCabsDeclType vis dt in
+      let dt' = visitCabsDeclType vis false dt in
       if s' != s || dt' != dt then TYPE_ALIGNOF (s' ,dt') else e
   | INDEX (e1, e2) -> 
       let e1' = ve e1 in

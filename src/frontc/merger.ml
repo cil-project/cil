@@ -118,8 +118,8 @@ class renameClass : cabsVisitor = object (self)
     match k with 
       NType -> changeName true EType n (fun n' -> (n', dt, a))
     | NField -> DoChildren
-    | NVar -> changeName true EVar n (fun n' -> (n', dt, a))
-              
+    | NVar | NFun -> changeName true EVar n (fun n' -> (n', dt, a))
+
 
         (* And declared structure, union and enumeration tags *)
   method vtypespec ts = 

@@ -20,9 +20,11 @@ type 'a visitAction =
                                           * function on the node *)
 
 type nameKind = 
-    NVar                                (* Variable or function name *)
-  | NField                              (* The name of a field *)
-  | NType                               (* The name of a type *)
+    NVar                                (** Variable or function prototype 
+                                           name *)
+  | NFun                                (** Function definition name *)
+  | NField                              (** The name of a field *)
+  | NType                               (** The name of a type *)
 
 
 (* All visit methods are called in preorder! (but you can use 
@@ -55,7 +57,11 @@ class nopCabsVisitor: cabsVisitor
 val visitCabsTypeSpecifier: cabsVisitor -> 
                             Cabs.typeSpecifier -> Cabs.typeSpecifier
 val visitCabsSpecifier: cabsVisitor -> Cabs.specifier -> Cabs.specifier
-val visitCabsDeclType: cabsVisitor -> Cabs.decl_type -> Cabs.decl_type
+
+(** Visits a decl_type. The bool argument is saying whether we are ina 
+  * function definition and thus the scope in a PROTO should extend until the 
+  * end of the function *)
+val visitCabsDeclType: cabsVisitor -> bool -> Cabs.decl_type -> Cabs.decl_type
 val visitCabsDefinition: cabsVisitor -> Cabs.definition -> Cabs.definition list
 val visitCabsBlock: cabsVisitor -> Cabs.block -> Cabs.block
 val visitCabsStatement: cabsVisitor -> Cabs.statement -> Cabs.statement list

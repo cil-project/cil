@@ -1354,8 +1354,7 @@ and doFunctionCall
         let a' = doExpAndCastCall a fo.vtype !callId in
         a' :: loopArgs formals args
                 
-    | _, _ -> E.s (E.unimp "Markptr: not enough arguments in call to %a"
-                     d_exp orig_func)
+    | _, _ -> E.s (E.unimp "Markptr: not enough arguments in call to %a" d_exp orig_func)
   in  
   let polyRet = 
     match ispoly, unrollType rt with 
@@ -1658,9 +1657,11 @@ let markFile fl =
               E.s (E.bug "Function %s is both defined and has models!\n" fname)
           | Declared x -> x
         in
-        if !E.verboseFlag then
-          ignore (E.log "Creating a body for %s based on model %s\n"
-                    modelled.vname model.svar.vname);
+        if [] != 
+           filterAttributes "missingproto" (getFunctionTypeAttributes (Lval (var modelled)))
+        then 
+          E.s (unimp "Cannot model functions without prototype: %s\n" modelled.vname);
+
         (* Make the sformals *)
         let rt, sformals, va, l = 
           match modelled.vtype with

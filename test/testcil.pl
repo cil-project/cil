@@ -25,11 +25,36 @@ my $TEST = SafecRegTest->new(AvailParams => {"run" => 1,
                              LogFile => "safec.log",
                              CommandName => "testsafec");
 
+# We watch the log and we remember in what stage we are (so that we can
+# interpret the error 
+
+# Stages:
+#  1001 - Parsing
+#  1002 - cabs2cil
+#  1003 - collecting constraints
+#  1004 - solving constraints
+#  1005 - Boxing file
+#  1006 - Compilation
+#  1007 - Running 
+
 my @runpattern = 
     ("^Run.+ ([.\\d]+)ms" => sub { $_[1]->{"run"} = $_[2]; });
 
 my %commonerrors = 
-    ("^make: \\*\\*\\*" => 
+    ("^Parsing " => sub { $_[1]->{instage} = 1001; },
+
+     "^Collecting constraints" => sub { $_[1]->{instage} = 1003; },
+
+     "^Solving constraints" => sub { $_[1]->{instage} = 1004; },
+
+     "^Boxing file" => sub { $_[1]->{instage} = 1005; },
+
+     "^Cure complete" => sub { $_[1]->{instage} = 1006; },
+
+     "^Error: Boxing" => sub { $_[1]->{ErrorCode} = 1005; },
+
+
+     "^make: \\*\\*\\*" => 
      sub { 
          if($_[1]->{ErrorCode} == 0) {
              if($_[1]->{instage} == 0) {
@@ -42,20 +67,11 @@ my %commonerrors =
     
     "Syntax error" => sub { $_[1]->{ErrorCode} = 1000; },
     
-    "^Error: Cabs2cil" => sub { $_[1]->{ErrorCode} = 1001; },
+    "^Error: Cabs2cil" => sub { $_[1]->{ErrorCode} = 1002; },
     
-    "^FrontC finished conversion" => sub { $_[1]->{instage} = 1002; },
     
-    "^Solving constraints" => sub { $_[1]->{instage} = 1003; },
-    
-    "^Error: Boxing" => sub { $_[1]->{ErrorCode} = 1004; },
 
          # Collect some more parameters
-    "^parse\\s+([\\.\\d]+) s" => sub { $_[1]->{instage} = 1005; # If here we
-                                                     # terminated successfully
-                                     $_[1]->{parse} = $_[2];},
-    "^print.+\\s+([\\.\\d]+) s" => sub { $_[1]->{print} += $_[2];},
-    "^box\\s+([\\.\\d]+) s" => sub { $_[1]->{box} += $_[2];},
          # Now error messages
     "^(Bug: .+)\$" => sub { $_[1]->{ErrorMsg} = $_[2]; },
     "^(Unimplemented: .+)\$" => sub { $_[1]->{ErrorMsg} = $_[2]; },
@@ -63,7 +79,7 @@ my %commonerrors =
     "^(.+:\\d+: [^w].+)\$" => sub { $_[1]->{ErrorMsg} = $_[2]; },
     "^(.+: fatal error.+)\$" => sub { $_[1]->{ErrorMsg} = $_[2]; },
 
-         );
+    );
 
                                          
 my $inferbox = "infer";
@@ -138,6 +154,7 @@ $TEST->add3Tests("test/list");
 $TEST->add3Tests("test/pointers");
 $TEST->add3Tests("test/printf", "", @runpattern);
 $TEST->add3Tests("test/printf_const", "", @runpattern);
+$TEST->add3Tests("testrun/printf2");
 $TEST->add2Tests("testrun/vararg1");
 $TEST->add2Tests("testrun/vararg2");
 $TEST->add2Tests("testrun/vararg3");
@@ -391,12 +408,12 @@ sub errorHeading {
     return "Not executed" if $err == -1;
     return "Success" if $err == 0;
     return "Parse error" if $err == 1000;
-    return "Cabs2cil error" if $err == 1001;
-    return "Collecting constraints error" if $err == 1002;
-    return "Constraint solving error" if $err == 1003;
-    return "Boxing error" if $err == 1004;
-    return "Compilation error" if $err == 1005;
-    return "Execution error" if $err == 1006;
+    return "Cabs2cil error" if $err == 1002;
+    return "Collecting constraints error" if $err == 1003;
+    return "Constraint solving error" if $err == 1004;
+    return "Boxing error" if $err == 1005;
+    return "Compilation error" if $err == 1006;
+    return "Execution error" if $err == 1007;
     return $self->SUPER::errorHeading();
 }
 
@@ -420,13 +437,14 @@ sub availableParameters {
 sub addTests {
     my($self, $name, $extraargs, $pkinds, %extrafields) = @_;
 
-    my $theargs = defined($self->{option}->{safecdebug}) ? " " : " RELEASE=1 ";
+    my $theargs = defined($self->{option}->{safecdebug}) 
+        ? " " : " RELEASE=1 OPTIM=1 ";
     $theargs .= " $extraargs ";
     if(defined $self->{option}->{noremake}) {
         $theargs .= " NOREMAKE=1";
     }
     # Turn on the verbose flag
-    $theargs .= " VERBOSE=1 PRINTSTAGES=1 ";
+    $theargs .= " STATS=1 PRINTSTAGES=1 ";
 
     my %patterns = %commonerrors;
     my $kind;
