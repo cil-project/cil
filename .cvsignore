@@ -31,3 +31,4 @@ TEMP_ccured_distrib
 autom4te*.cache
 config.h
 cil.spec
+cvss.txt
