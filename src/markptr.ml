@@ -394,7 +394,7 @@ let rec doStmt (s: stmt) =
             let new_vtype = new_type v.vtype in
             (* this is the bit where we actually make this call unique *)
             let new_varinfo = makeGlobalVar 
-              (v.vname ^ "/*" ^ (string_of_int (!callId + 1)) ^ "*/") new_vtype in
+              ("/*" ^ (string_of_int (!callId + 1)) ^ "*/" ^ v.vname) new_vtype in
               doVarinfo new_varinfo ;  
               (Lval(Var(new_varinfo),x)) 
         | _ -> orig_func

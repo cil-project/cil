@@ -195,23 +195,25 @@ let can_cast (n1 : node) (n2 : node) = begin
   end
 end
 
+(* this is the heart of the Simple Solver
+ * currently it is very un-optimized! *)
 let solve (node_ht : (int,node) Hashtbl.t) = begin
-  let all : node list ref = ref [] in
-  Hashtbl.iter (fun id n -> all := n :: !all) node_ht ;
 
-  (* this is our worklist of nodes to visit *)
-  let worklist = all in
+  (* returns true if k2 is "farther from safe" than k1 *)
+  let moving_up k1 k2 =
+    if k1 = k2 || k2 = Unknown then false
+    else match k1 with
+      Unknown -> true
+    | Safe -> true
+    | FSeq -> k2 = Seq || k2 = Index || k2 = Wild
+    | BSeq -> k2 = Seq || k2 = Index || k2 = Wild
+    | Seq -> k2 = Index || k2 = Wild
+    | Index -> k2 = Seq || k2 = Wild
+    | Wild -> false
+    | String | Scalar -> E.s (E.bug "cannot handle strings/scalars in simplesolve")
+  in
 
-  (* add a node to the worklist unless it is already there *)
-  let add_node n = begin
-    if not (List.mem n !worklist) then 
-      worklist := n :: !worklist
-  end in
-
-  (* add all of the successors of the given node *)
-  let add_succ n = List.iter (fun e -> add_node e.eto) n.succ in
-  let add_pred n = List.iter (fun e -> add_node e.efrom) n.pred in
-
+  (* filters an edgelist so that it contains only ECast edges *)
   let ecast_edges_only l = List.filter (fun e -> e.ekind = ECast) l in
 
   (* Setup:
@@ -222,10 +224,11 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
    * Gives:
    *        [x] <- [y] <- [z]
    *)
-  while (!worklist <> []) do 
-    (* pick out our current node *)
-    let cur = List.hd !worklist in
+  let finished = ref false in (* we repeat until things settle down *)
 
+  while not !finished do 
+    finished := true ; 
+    Hashtbl.iter (fun id cur ->
     (* In the above example, if we write through y we have also written
      * through z. Imagine that y is the formal parameter to a function that
      * has been declared "readonly". We cannot "get around the readonly" by
@@ -236,7 +239,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
         if e.ekind = ECast then 
         if not e.efrom.updated then begin
           e.efrom.updated <- true ;
-          add_node e.efrom
+          finished := false ; 
         end) cur.pred
     end ;
 
@@ -248,7 +251,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
         if e.ekind = ECast then 
         if not e.eto.onStack then begin
           e.eto.onStack <- true ;
-          add_node e.eto
+          finished := false ; 
         end) cur.succ
     end ;
 
@@ -260,7 +263,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
         if e.ekind = ECast then 
         if not e.eto.null then begin
           e.eto.null <- true ;
-          add_node e.eto
+          finished := false ; 
         end) cur.succ
     end ;
 
@@ -272,7 +275,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
         if e.ekind = ECast then 
         if not e.eto.intcast then begin
           e.eto.intcast <- true ;
-          add_node e.eto
+          finished := false ;
         end) cur.succ
     end ;
 
@@ -287,7 +290,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
         if e.ekind = ECast then 
         if not e.efrom.posarith then begin
           e.efrom.posarith <- true ;
-          add_node e.efrom
+          finished := false ;
         end) cur.pred
     end ;
 
@@ -298,25 +301,11 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
         if e.ekind = ECast then 
         if not e.efrom.arith then begin
           e.efrom.arith <- true ;
-          add_node e.efrom
+          finished := false 
         end) cur.pred
-    end ;
-
-    worklist := List.tl !worklist 
+    end 
+    ) node_ht
   done ;
-
-  let moving_up k1 k2 =
-    if k1 = k2 || k2 = Unknown then false
-    else match k1 with
-      Unknown -> true
-    | Safe -> true
-    | FSeq -> k2 = Seq || k2 = Index || k2 = Wild
-    | BSeq -> k2 = Seq || k2 = Index || k2 = Wild
-    | Seq -> k2 = Index || k2 = Wild
-    | Index -> k2 = Seq || k2 = Wild
-    | Wild -> false
-    | String | Scalar -> E.s (E.bug "cannot handle strings/scalars in simplesolve")
-  in
 
   (* OK, now we have all of those attributes propagated. Now it's time to
    * assign qualifiers to the pointers. *)
@@ -334,9 +323,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     end else false
   in
 
-  Hashtbl.iter (fun id n -> all := n :: !all) node_ht ;
-  while (!worklist <> []) do
-    let cur = List.hd !worklist in
+  Hashtbl.iter (fun id cur ->
     (* pick out all successors of our current node *)
     List.iter (fun e -> 
       let (k1,k2,f) = can_cast e.efrom e.eto in
@@ -348,80 +335,61 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       ignore (update_kind e.eto k1 why) ;
       ignore (update_kind e.efrom k2 why) ;
     ) (ecast_edges_only cur.succ) ;
-    worklist := List.tl !worklist 
-  done ;
+    ) node_ht ;
 
   (* now take all of our wild nodes and make sure that all of their
    * successors, predecessors and points-to nodes are wild. *)
-  Hashtbl.iter (fun id n -> all := n :: !all) node_ht ;
-  while (!worklist <> []) do
-    (* pick out our current node *)
-    let cur = List.hd !worklist in
+  finished := false ; 
+  while not !finished do 
+    finished := true ; 
+    Hashtbl.iter (fun id cur ->
     if (cur.kind = Wild) then begin
       (* mark all of the succ/pred/pointsto of y with "wild" *)
       let why = SpreadFromEdge(cur) in
-      let f = (fun n -> if (update_kind n Wild why) then add_node n) in
+      let f = (fun n -> if (update_kind n Wild why) then finished := false) in
       let contaminated_list = 
         (List.map (fun e -> e.eto) cur.succ  ) @
         (List.map (fun e -> e.efrom) cur.pred ) in
       List.iter f contaminated_list ;
       let why = SpreadPointsTo(cur) in
-      let f = (fun n -> if (update_kind n Wild why) then add_node n) in
+      let f = (fun n -> if (update_kind n Wild why) then finished := false) in
       let contaminated_list = cur.pointsto in
       List.iter f contaminated_list
-    end ;
-    worklist := List.tl !worklist 
+    end 
+    ) node_ht
   done ;
 
-  
   (* now take all of the posarith/intcast pointers and make them fseq *)
-  Hashtbl.iter (fun id n -> all := n :: !all) node_ht ;
-  while (!worklist <> []) do
-    (* pick out our current node *)
-    let cur = List.hd !worklist in
+  Hashtbl.iter (fun id cur ->
     (* arithmetic can make something an index *)
     if (cur.posarith) then begin
       ignore (update_kind cur FSeq BoolFlag)
     end ;
-    (* being the target of an EIndex edge can as well *)
-    List.iter (fun e -> 
-      if e.ekind = EIndex then 
-        ignore (update_kind cur FSeq (SpreadFromEdge(e.efrom)))
-      ) cur.pred ;
-    worklist := List.tl !worklist 
-  done ;
-
-  (* now take all of the arith pointers and make them seq *)
-  Hashtbl.iter (fun id n -> all := n :: !all) node_ht ;
-  while (!worklist <> []) do
-    (* pick out our current node *)
-    let cur = List.hd !worklist in
-    (* arithmetic can make something an index *)
     if (cur.arith || cur.intcast) then begin
       ignore (update_kind cur Seq BoolFlag)
     end ;
     (* being the target of an EIndex edge can as well *)
     List.iter (fun e -> 
-      if e.ekind = EIndex then 
-        ignore (update_kind cur Seq (SpreadFromEdge(e.efrom)))
+      if e.ekind = EIndex then ignore
+        (update_kind cur Seq (SpreadFromEdge(e.efrom)))
       ) cur.pred ;
-    worklist := List.tl !worklist 
-  done ;
+    ) node_ht ;
 
-  (* now spread all of the index pointers back along ECast edges *)
-  Hashtbl.iter (fun id n -> all := n :: !all) node_ht ;
-  while (!worklist <> []) do
-    (* pick out our current node *)
-    let cur = List.hd !worklist in
-    if (cur.kind = Seq || cur.kind = Index) then begin
+  (* now spread all of the seq/index pointers back along ECast edges *)
+  finished := false ; 
+  while not !finished do 
+    finished := true ; 
+    Hashtbl.iter (fun id cur ->
+    if (cur.kind = Seq || cur.kind = FSeq || 
+        cur.kind = BSeq || cur.kind = Index) then begin
       (* mark all of the predecessors of y along ECast with "index" *)
       let why = SpreadFromEdge(cur) in
-      let f = (fun n -> if (update_kind n cur.kind why) then add_node n) in
+      let f = (fun n -> if (update_kind n cur.kind why) then 
+                          finished := false) in
       let contaminated_list = 
         (List.map (fun e -> e.efrom) (ecast_edges_only cur.pred)) in
       List.iter f contaminated_list ;
-    end ;
-    worklist := List.tl !worklist 
+    end) node_ht
   done ;
 
   (* all otherwise unconstrained nodes become safe *)
@@ -430,7 +398,6 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       n.kind <- Safe ;
       n.why_kind <- Unconstrained 
     end) node_ht ;
-
 
 end
 
