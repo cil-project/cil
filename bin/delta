@@ -6,11 +6,6 @@ use strict;
 
 # Features:
 
-# Should probably start by throwing away things at the end rather than
-# at the start, since I think they are least likely to be relevant.
-# This would be easy to do by inserting a reverse in the complement
-# foreach loop.
-
 # Note that 1-minimality does not imply idempotency, so we could
 # re-run once it is stuck, perhaps with some randomization.
 
@@ -378,7 +373,11 @@ big_loop: {
     # Test the complements to single markers.
   complement_loop: {
         my %excluded = ();
-        foreach my $excluded_marker (@markers) {
+        # Try them in reverse.  In both the above "positive" loop and
+        # this "negative" loop, the things you are throwing away start
+        # at the end of the data, thus the two strategies are
+        # consistent.
+        foreach my $excluded_marker (reverse @markers) {
             start_marking();
             foreach my $marker (@markers) {
                 next if $marker eq $excluded_marker;
