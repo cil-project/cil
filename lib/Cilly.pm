@@ -567,7 +567,7 @@ sub straight_preprocess {
     } else {
 #        print Dumper($self);
         my @cmd = (@{$self->{CPP}}, @{$ppargs},
-		   $src, $self->{OUTCPP}, $dest);
+		   $src, "$self->{OUTCPP}$dest->{filename}");
         $self->runShell(@cmd);
         
     }
@@ -1585,9 +1585,9 @@ sub new {
       OBJEXT => "o",
       LIBEXT => "a",
       EXEEXT => "",
-      OUTOBJ => '-o ',
-      OUTEXE => '-o ',
-      OUTCPP => '-o ',
+      OUTOBJ => '-o',
+      OUTEXE => '-o',
+      OUTCPP => '-o',
       FORCECSOURCE => [],
       LINEPATTERN => "^#\\s+(\\d+)\\s+\"(.+)\"",
       
