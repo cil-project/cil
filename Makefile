@@ -199,7 +199,9 @@ INC=-I
 PATCHFILE=safec_gcc.patch
 # sm: disable patching for now ('true' has no output)
 # (set it to 'echo' to re-enable)
-PATCHECHO=echo
+ifndef PATCHECHO
+  PATCHECHO=echo
+endif
 endif
 
 
