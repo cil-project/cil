@@ -24,11 +24,20 @@ int main() {
   union u x;
   union u *px = &x;
 #if ERROR == 0  
+  //x is uninitialized:
+  if (CCURED_HASUNIONTAG(x.f1)) E(11);
+  if (CCURED_HASUNIONTAG(x.f2)) E(12);
+  if (CCURED_HASUNIONTAG(x.f3)) E(13);
+  if (CCURED_HASUNIONTAG(x.f4)) E(14);
+  
   x.f1 = 5;
   if(x.f1 != 5) E(1);
+  if (!CCURED_HASUNIONTAG(x.f1)) E(15);
 
   x.f2 = &i;
   if(px->f2 != &i) E(2);
+  if (CCURED_HASUNIONTAG(x.f1)) E(16);
+  if (!CCURED_HASUNIONTAG(x.f2)) E(17); 
 
   x.f3.f3_1 = &i1;
   x.f3.f3_2 = &i;
