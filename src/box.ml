@@ -3401,7 +3401,7 @@ and boxinstr (ins: instr) : stmt clist =
           | _ -> E.s (unimp "Unexpected function expression")
         in
         let (ftret, ftargs, isva) =
-          match ft with 
+          match unrollType ft with 
             TFun(fret, fargs, isva, _) -> (fret, fargs, isva) 
           | _ -> E.s (unimp "call of a non-function: %a @!: %a" 
                         d_plainexp f' d_plaintype ft) 
