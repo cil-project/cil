@@ -84,6 +84,7 @@ my $action = 'COLLECT';
 
 my $count;
 
+my $hadErrors = 0;
 
 my $debug = 1;
 
@@ -105,6 +106,13 @@ if(defined $ENV{'RUNONLY'}) {
 }
 if(not defined $ENV{'KEEP'}) { 
     unlink $outfile;
+}
+if($hadErrors) { 
+    print "There were errors!\n";
+    exit 1;
+} else {
+    print "All tests were successful!\n";
+    exit 0;
 }
 1;
 
@@ -301,10 +309,11 @@ sub runOneTest {
             warn "Test case $t succeeds and it is supposed to fail";
         } else {
             warn "Test case $t fails and it is supposed to succeed";
-        }            
+        } 
+        $hadErrors = 1;
         if(! defined($ENV{KEEPGOING})) {
             die "";
-        }
+        } 
     } else {
         # Now we check the output for the message
         if($ti->{MSG} ne "" &&
