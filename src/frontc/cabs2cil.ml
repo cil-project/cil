@@ -2594,21 +2594,22 @@ and doExp (isconst: bool)    (* In a constant *)
         | A.VARIABLE s when 
                s = oldStyleVarArgName () 
             && (match !currentFunctionVI.vtype with 
-                   TFun(_, Some args, true, _) -> true | _ -> false) ->
+                   TFun(_, _, true, _) -> true | _ -> false) ->
             (* We are in an old-style variable argument function and we are 
              * taking the address of the argument that was removed while 
              * processing the function type. We compute the address based on 
              * the address of the last real argument *)
-            let rec getLast = function
-                [] -> E.s (unimp "old-style variable argument function without real arguments")
-              | [a] -> a
-              | _ :: rest -> getLast rest 
-            in
-            let last = getLast 
-                (match !currentFunctionVI.vtype with
-                  TFun(_, Some args, _, _) -> args
-                | _ -> E.s (bug "cabs2cil: ADDROF")) in
             if !msvcMode then begin
+              let rec getLast = function
+                  [] -> E.s (unimp "old-style variable argument function without real arguments")
+                | [a] -> a
+                | _ :: rest -> getLast rest 
+              in
+              let last = getLast 
+                  (match !currentFunctionVI.vtype with
+                    TFun(_, Some args, _, _) -> args
+                  | _ -> E.s (bug "cabs2cil: ADDROF")) 
+              in
               let res = mkAddrOf (var last) in
               let tres = typeOf res in
               let tres', res' = castTo tres charPtrType res in

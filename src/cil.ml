@@ -1527,11 +1527,14 @@ let rec d_decl (docName: unit -> doc) (dnwhat: docNameWhat) () this =
             parenthname () a
             ++ text "("
             ++ (align 
-                  ++ (if args = None then nil 
-                      else if args = Some [] then text "void"
-                      else (docList (chr ',' ++ break) (d_videcl ()) () 
-                              (argsToList args)))
-                  ++ (if isvararg then break ++ text ", ..." else nil)
+                  ++ (if args = Some [] && isvararg then 
+                         text "..."
+                      else
+                         (if args = None then nil 
+                          else if args = Some [] then text "void"
+                          else (docList (chr ',' ++ break) (d_videcl ()) () 
+                                 (argsToList args)))
+                      ++ (if isvararg then break ++ text ", ..." else nil))
                   ++ unalign)
             ++ text ")")
         DNStuff
