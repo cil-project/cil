@@ -1,12 +1,12 @@
-#
 # Makefile for CCured. The gcc part
+# -*-makefile-*-
 
 
 COMPILERNAME := GNUCC
 
 CC := gcc
 ifdef RELEASELIB
-  # sm: I'll leave this here, but only use it for compiling our runtime lib
+  # sm: I will leave this here, but only use it for compiling our runtime lib
   CFLAGS := -D_GNUCC -Wall -O3
 else
   CFLAGS := -D_GNUCC -Wall  -g -ggdb -D_DEBUG
@@ -47,6 +47,9 @@ PATCH_SYSINCLUDES := ctype.h fcntl.h malloc.h netdb.h pwd.h signal.h \
                      time.h unistd.h varargs.h arpa/inet.h \
 		     sys/fcntl.h sys/ioctl.h sys/socket.h sys/stat.h sys/uio.h \
                      glob.h
+
+# dsw & sm: DON'T DO THIS.  See comment in ccured_GNUCC.patch, search for 'sys/io.h'.
+# PATCH_SYSINCLUDES += sys/io.h
 
 # matth: this file is only in Cygwin
 ifeq ($(ARCHOS), x86_WIN32)
