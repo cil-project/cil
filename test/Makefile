@@ -1017,7 +1017,7 @@ apache-cil-test: apache-cil
 APATCHES := --patch=apache.patch --patch=apache_$(COMPILERNAME).patch
 APACHE_INCLUDES := httpd.h alloc.h http_config.h http_log.h http_protocol.h
 
-apachesetup:
+apache-setup:
 	cd $(APACHESRC)/ccured-modules ; \
           $(PATCHER)  $(APACHECFLAGS) \
           $(INC)"../../$(APACHESRC)/src/include" $(INC)"../../$(APACHESRC)/src/os/unix" \
@@ -1029,7 +1029,7 @@ apachesetup:
 # and then loads it into a normal apache and serves up a webpage. The
 # result is compared against a gold standard. Then we shut down teh web
 # server. 
-a-m-c/%: apachesetup
+a-m-c/%: apache-setup
 	cd $(APACHESRC)/ccured-modules ; ( $(CCURED) --includedir=include --assumePrintf --curetype=infer -DINFERBOX mod_$*.c -I ../target/include/ --curedout=mod_$*cured.c || echo "Undefined references to non-mangled apache functions are OK at this stage" ) ; ../target/bin/apxs -c mod_$*cured.i /home/weimer/cil/obj/x86_LINUX/ccured_GNUCC_debug.a ; ../target/bin/apxs -i mod_$*cured.so 
 	cd $(APACHESRC)/test-files ; cp httpd.conf.local ../target/conf/httpd.conf ; echo "LoadModule $*_module libexec/mod_$*cured.so" >> ../target/conf/httpd.conf
 	cd $(APACHESRC)/target/bin ; echo "Failing to load because of undefined references here is not good." ; ./apachectl start
@@ -1040,7 +1040,7 @@ a-m-c/%: apachesetup
 
 apache-modules-ccured: a-m-c/asis a-m-c/expires a-m-c/gzip a-m-c/headers a-m-c/info a-m-c/layout a-m-c/random a-m-c/urlcount a-m-c/usertrack
 
-apace-gcc: mustbegcc mustbelinux bindclean
+apache-gcc: mustbegcc mustbelinux bindclean
 	cd $(APACHESRC) ; ./configure --disable-module=asis --prefix=`pwd`/target ; make -e CC=gcc | tee bind-gcc.log
 
 
@@ -1049,40 +1049,40 @@ apache-cil: apacheclean apache-cil-test
 
 
 ################## Apache test cases
-#APACHETEST := $(TESTDIR)/apache
-#APACHEBASE := apache_1.3.19/src
-#APATCHES := --patch=apache.patch --patch=apache_$(COMPILERNAME).patch
-#ifdef _MSVC
-#  APACHECFLAGS := /nologo /MDd /W3 /GX /Zi /Od \
-#         $(INC)"$(APACHEBASE)\include" $(INC)"$(APACHEBASE)\os\win32" \
-#         $(DEF)"_DEBUG" $(DEF)"WIN32" $(DEF)"_WINDOWS" \
-#         $(DEF)"NO_DBM_REWRITEMAP" $(DEF)"SHARED_MODULE" \
-#         $(DEF)"WIN32_LEAN_AND_MEAN"
-#else
-#  APACHECFLAGS := -Wall -D_GNUCC -g \
-#         $(INC)"$(APACHEBASE)/include" $(INC)"$(APACHEBASE)/os/unix" \
-#         $(DEF)"_DEBUG" \
-#         $(DEF)"NO_DBM_REWRITEMAP" $(DEF)"SHARED_MODULE"
-#endif
-#
-#APACHE_INCLUDES := httpd.h ap_alloc.h http_config.h http_log.h http_protocol.h
-#apachesetup:
-#	cd $(APACHETEST); \
-#            $(PATCHER)  $(APACHECFLAGS) \
-#                        $(APATCHES) \
-#                        --dest=$(APACHEBASE)/include \
-#	                $(foreach file,$(APACHE_INCLUDES), --ufile=$(file))
-#
-#APATCH := --includedir=$(APACHEBASE)/include
-#
-#apache/% : $(APACHETEST)/mod_%.c
-#	rm -f $(APACHETEST)/mod_$*.$(OBJEXT)
-#	cd $(APACHETEST) ; $(CCURED) \
-#                       --keep=. $(APATCH) \
-#                        $(CFLAGS) \
-#                        $(APACHECFLAGS) \
-#                        $(CONLY) $(OBJOUT)./mod_$*.$(OBJEXT) \
-#                        mod_$*.c
+APACHETEST := $(TESTDIR)/apache
+APACHEBASE := apache_1.3.19/src
+APATCHES := --patch=apache.patch --patch=apache_$(COMPILERNAME).patch
+ifdef _MSVC
+  APACHECFLAGS := /nologo /MDd /W3 /GX /Zi /Od \
+         $(INC)"$(APACHEBASE)\include" $(INC)"$(APACHEBASE)\os\win32" \
+         $(DEF)"_DEBUG" $(DEF)"WIN32" $(DEF)"_WINDOWS" \
+         $(DEF)"NO_DBM_REWRITEMAP" $(DEF)"SHARED_MODULE" \
+         $(DEF)"WIN32_LEAN_AND_MEAN"
+else
+  APACHECFLAGS := -Wall -D_GNUCC -g \
+         $(INC)"$(APACHEBASE)/include" $(INC)"$(APACHEBASE)/os/unix" \
+         $(DEF)"_DEBUG" \
+         $(DEF)"NO_DBM_REWRITEMAP" $(DEF)"SHARED_MODULE"
+endif
+
+APACHE_INCLUDES := httpd.h ap_alloc.h http_config.h http_log.h http_protocol.h
+apachesetup:
+	cd $(APACHETEST); \
+            $(PATCHER)  $(APACHECFLAGS) \
+                        $(APATCHES) \
+                        --dest=$(APACHEBASE)/include \
+	                $(foreach file,$(APACHE_INCLUDES), --ufile=$(file))
+
+APATCH := --includedir=$(APACHEBASE)/include
+
+apache/% : $(APACHETEST)/mod_%.c
+	rm -f $(APACHETEST)/mod_$*.$(OBJEXT)
+	cd $(APACHETEST) ; $(CCURED) \
+                       --keep=. $(APATCH) \
+                        $(CFLAGS) \
+                        $(APACHECFLAGS) \
+                        $(CONLY) $(OBJOUT)./mod_$*.$(OBJEXT) \
+                        mod_$*.c
 
 # sm: removed CFLAGS since I want to specify optimization in the
 # benchmark's Makefile (helps to ensure consistency between the
