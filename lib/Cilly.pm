@@ -68,7 +68,7 @@ sub new {
       IDASHI => 1,     # if true, pass "-I-" to gcc's preprocessor
       IDASHDOT => 1,   # if true, pass "-I." to gcc's preprocessor
       VERBOSE => 0,    # when true, print extra detail
-      SEPARATE => ! $::default_is_merge,
+      SEPARATE => 1,
       OPERATION => 'TOEXE', # This is the default for all compilers
     };
     my $self = bless $ref, $class;
