@@ -111,7 +111,7 @@ $TEST->add3Tests("test/seq");
 $TEST->add3Tests("test/sized");
 $TEST->add3Tests("test/sizeof");
 $TEST->add3Tests("test/smallstring");
-$TEST->add3Tests("test/static", "", @runpattern);
+$TEST->add3Tests("testrun/static", "", @runpattern);
 $TEST->add3Tests("test/static1");
 $TEST->add3Tests("test/strcpy");
 $TEST->add3Tests("test/string");

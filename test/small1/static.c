@@ -17,13 +17,13 @@ int sets1() {
 }
 
 int main() {
-    if (counter() != s1) {
+    if (counter() != 19) {
         printf("Error in first count.\n");
-        abort();
+        exit(1);
     }
-    if (counter() != 2) {
+    if (counter() != 20) {
         printf("Error in second count (static variable failure?).  Aborting!\n");
-        abort();
+        exit(1);
     }
     printf("Passed.\n");
     return 0;

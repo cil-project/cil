@@ -2184,14 +2184,15 @@ and createGlobal ((_,_,(n,nbt,a,e)) as sname : A.single_name) =
 (* Must catch the Static local variables.Make them global *)
 and createLocal = function
     ((bt,A.STATIC,(n,nbt,a,e)) as sname : A.single_name) -> 
-      let vi = makeVarInfo true locUnknown sname in (* Make it global *)
       (* Now alpha convert it to make sure that it does not conflict with 
-       * existing globals or locals from this function. Make it local 
-       * temporarily so that it will be added to the scope cleanup tables *)
-      vi.vglob <- false;
-      let vi = alphaConvertVarAndAddToEnv true vi in
+       * existing globals or locals from this function. *)
+      let newname = newAlphaName "" n in
+      let vi = makeVarInfo true locUnknown 
+          (bt,A.STATIC,(newname,nbt,a,e)) in (* Make it global *)
+      (* Add it to the environment as a local so that the name goes out of 
+       * scope properly *)
+      addLocalToEnv n (EnvVar vi);
       ignore (E.log "static local: %s\n" vi.vname);
-      vi.vglob <- true;
       let init = 
         if e = A.NOTHING then 
           None
