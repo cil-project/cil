@@ -72,22 +72,12 @@ my $inferbox = "infer";
 $TEST->newTest(
     Name => "!inittests0",
     Dir => "..",
-    Cmd => "make setup RELEASE=");
-if($TEST->{option}->{safecdebug}) {
-    $TEST->newTest(
-                   Name => "!inittests2",
-                   Dir => "..",
-                   Cmd => "make setup _GNUCC=1");
-} else {
-    $TEST->newTest(
-                   Name => "!inittests1",
-                   Dir => "..",
-                   Cmd => "make defaulttarget RELEASE=1");
-    $TEST->newTest(
-                   Name => "!inittests2",
-                   Dir => "..",
-                   Cmd => "make setup RELEASE=1 _GNUCC=1");
-}
+    Cmd => "make setup");
+$TEST->newTest(
+    Name => "!inittests2",
+    Dir => "..",
+    Cmd => "make setup _GNUCC=1");
+
 $TEST->newTest(
     Name => "apache!1",
     Dir => "..",

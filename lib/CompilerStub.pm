@@ -36,18 +36,18 @@ sub new {
         my $mode;
         if($args[0] =~ m|--mode=(.+)$|) {
             shift @args; $mode = $1;
-        } else { $mode = 'gcc'; }
+        } else { $mode = 'GNUCC'; }
         if(defined $self->{MODENAME} && $self->{MODENAME} ne $mode) {
             die "Cannot re-specify the compiler";
         }
         my $compiler;
-        if($mode eq "mscl") {
-            unshift @CompilerStub::ISA, qw(MSCL);
-            $compiler = MSCL->new($self);
-        } elsif($mode eq "gcc") {
-            unshift @CompilerStub::ISA, qw(GCC);
-            $compiler = GCC->new($self);
-        } elsif($mode eq "mslink") {
+        if($mode eq "MSVC") {
+            unshift @CompilerStub::ISA, qw(MSVC);
+            $compiler = MSVC->new($self);
+        } elsif($mode eq "GNUCC") {
+            unshift @CompilerStub::ISA, qw(GNUCC);
+            $compiler = GNUCC->new($self);
+        } elsif($mode eq "MSLINK") {
             unshift @CompilerStub::ISA, qw(MSLINK);
             $compiler = MSLINK->new($self);
         } else {
@@ -108,11 +108,11 @@ sub printHelp {
     print <<EOF;
 Options:
   --mode=xxx   What tool to emulate: 
-                gcc     - GNU CC
-                mscl    - MS VC cl compiler
-                mslink  - MS VC link linker
+                GNUCC   - GNU CC
+                MSVC    - MS VC cl compiler
+                MSLINK  - MS VC link linker
                This option must be the first one! If it is not found there
-               then gcc mode is assumed.
+               then GNUCC mode is assumed.
   --help       Prints this help message
   --debug      Set a debug flag
   --verbose    Prints a lot of information about what is being done
@@ -141,8 +141,8 @@ sub preprocess {
     my ($self, $src, $dest, $ppargs) = @_;
     my $res;
     if($self->{VERBOSE}) { print "Preprocessing $src\n"; }
-    if($self->{MODENAME} eq "mscl") {
-        $self->MSCL::mscl_preprocess($src, $dest, $ppargs);
+    if($self->{MODENAME} eq "MSVC") {
+        $self->MSVC::msvc_preprocess($src, $dest, $ppargs);
     } else {
         my $cmd = $self->{CPP} . " " . 
             join(' ', @{$ppargs}) .  " " .
@@ -429,7 +429,7 @@ sub path {
 ####
 #### MS CL specific code
 ####
-package MSCL;
+package MSVC;
 
 use strict;
 use File::Basename;
@@ -441,7 +441,7 @@ sub new {
 
     my $self = 
     { NAME => 'Microsoft cl compiler',
-      MODENAME => 'mscl',
+      MODENAME => 'MSVC',
       CC => 'cl /nologo /D_MSVC /c',
       CPP => 'cl /nologo /D_MSVC /P',
       LD => 'cl /nologo /D_MSVC',
@@ -507,7 +507,7 @@ sub new {
 }
 
 
-sub mscl_preprocess {
+sub msvc_preprocess {
     my($self, $src, $dest, $ppargs) = @_;
     my $res;
     my ($sbase, $sdir, $sext) = 
@@ -541,7 +541,7 @@ sub forceIncludeArg {
 }
 
 
-    # MSCL does not understand the extension .i, so we tell it it is a C file
+    # MSVC does not understand the extension .i, so we tell it it is a C file
 sub fixupCsources {
     my (@csources) = @_;
     my @mod_csources = ();
@@ -662,9 +662,9 @@ sub linkOutputFile {
 
 #########################################################################
 ##
-## GCC specific code
+## GNUCC specific code
 ##
-package GCC;
+package GNUCC;
 
 use strict;
 
@@ -677,7 +677,7 @@ sub new {
 
     my $self = 
     { NAME => 'GNU CC',
-      MODENAME => 'gcc',  # do not change this since it is used in code
+      MODENAME => 'GNUCC',  # do not change this since it is used in code
       CC => "gcc -D_GNUCC -c ",
       LD => "gcc -D_GNUCC ",
       CPP => "gcc -D_GNUCC -E ",
@@ -761,16 +761,16 @@ sub setVersion {
     my($self) = @_;
     my $cversion = "";
     open(VER, "gcc -dumpversion " . join(' ', @{$self->{PPARGS}}) ." |") 
-        || die "Cannot start GCC";
+        || die "Cannot start GNUCC";
     while(<VER>) {
         if($_ =~ m|^(\d+\S+)| || $_ =~ m|^(egcs-\d+\S+)|) {
             $cversion = "gcc_$1";
-            close(VER) || die "Cannot start GCC\n";
+            close(VER) || die "Cannot start GNUCC\n";
             $self->{VERSION} = $cversion;
             return;
         }
     }
-    die "Cannot find GCC version\n";
+    die "Cannot find GNUCC version\n";
 }
 
 1;

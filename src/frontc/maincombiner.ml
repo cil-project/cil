@@ -77,7 +77,7 @@ let rec theMain () =
     "--log", Arg.String openLog, "the name of the log file";
     "--o", Arg.String (fun s -> outputFile := s),
                      "output file for the combiner";
-    "--msvc", Arg.Unit (fun _ -> Cprint.msvcMode := true),
+    "--MSVC", Arg.Unit (fun _ -> Cprint.msvcMode := true),
              "Produce MSVC output. Default is GNU";
     "--noPrintLn", Arg.Unit (fun _ -> Cprint.printLn := false),
                "don't output #line directives";

@@ -23,8 +23,8 @@ options:
   --help       Prints this help message
   --verbose    Prints a lot of information about what is being done
   --mode=xxx   What tool to emulate: 
-                gcc     - GNU CC
-                mscl    - MS VC cl compiler
+                GNUCC   - GNU CC
+                MSVC    - MS VC cl compiler
 
   --dest=xxx   The destination directory. Will make one if it does not exist
   --patch=xxx  Patch file (can be specified multiple times)
@@ -50,7 +50,7 @@ my %option;
     (\%option,
      "--help",            # Display help information
      "--verbose|v",       # Display information about programs invoked
-     "--mode=s",          # The mode (gcc, mscl)
+     "--mode=s",          # The mode (GNUCC, MSVC)
      "--dest=s",          # The destination directory
      "--patch=s@",         # Patch files
      "--ufile=s@",         # User include files
@@ -119,7 +119,7 @@ foreach $file (@{$option{sfile}}) {
 sub findCompilerVersion {
     $cname = "";
     $cversion = 0;
-    if($option{mode} eq "gcc") {
+    if($option{mode} eq "GNUCC") {
         $cname = "GNU CC";
         open(VER, "gcc -dumpversion $ppargs|") || die "Cannot start $cname";
         while(<VER>) {
@@ -133,7 +133,7 @@ sub findCompilerVersion {
             }
         }
     }
-    if($option{mode} eq "mscl") {
+    if($option{mode} eq "MSVC") {
         $cname = "Microsoft cl";
         $ppargs =~ s|/nologo||g;
         open(VER, "cl $ppargs 2>&1|") || die "Cannot start $cname: cl $ppargs\n";
@@ -146,7 +146,7 @@ sub findCompilerVersion {
         }
         die "Cannot find the version for Microsoft CL\n";
     }
-    die "You must specify a --mode (either gcc or mscl)";
+    die "You must specify a --mode (either GNUCC or MSVC)";
 }
 
 sub lineDirective {
@@ -154,10 +154,10 @@ sub lineDirective {
     if($^O eq 'MSWin32') {
         $fileName =~ s|\\|/|g;
     }
-    if($option{mode} eq "mscl") {
+    if($option{mode} eq "MSVC") {
         return "#line $lineno \"$fileName\"\n";
     }
-    if($option{mode} eq "gcc") {
+    if($option{mode} eq "GNUCC") {
         return "# $lineno \"$fileName\"\n";
     }
 }
@@ -172,10 +172,10 @@ sub patchOneFile {
     open(TOPREPROC, ">$preprocfile.c") || die "Cannot open preprocessor file";
     print TOPREPROC "#include $fname1\n";
     close(TOPREPROC);
-    if($option{mode} eq "gcc") {
+    if($option{mode} eq "GNUCC") {
         (!system("gcc -E $ppargs $preprocfile.c >$preprocfile.i")) 
             || die "Cannot run the GCC preprocessor";
-    } elsif($option{mode} eq "mscl") {
+    } elsif($option{mode} eq "MSVC") {
         (!system("cl /nologo /P $ppargs $preprocfile.c"))
             || die "Cannot run the CL preprocessor";
     } else { die "Invalid --mode"; }
@@ -196,7 +196,7 @@ sub patchOneFile {
         die "Cannot find the absolute name of $fname1\n";
     }
     # If we fail then maybe we are using cygwin paths in a Win32 system
-    if($option{mode} eq "gcc" && $^O eq 'MSWin32') {
+    if($option{mode} eq "GNUCC" && $^O eq 'MSWin32') {
         open(WINNAME, "cygpath -w $absname|")
             || die "Cannot run cygpath to convert $absname to a Windows name";
         $absname = <WINNAME>;

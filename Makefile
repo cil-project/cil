@@ -1,67 +1,20 @@
-# toplevel Makefile for cil project
+# Makefile building and using the CCured compiler
 # author: George Necula
 #
-# 3/06/01 sm: made the rules depend on environment variable ARCHOS,
-#             so I can say x86_LINUX
-# 3/17/01 sm: replaced a few more instances of x86_WIN32 with $(ARCHOS)
-
 # Debugging. Set ECHO= to debug this Makefile 
-ECHO = @
 
-USEFRONTC = 1
+setup:
+	make -f Makefile.ccured setup $(MAKEOVERRIDES)
 
-# First stuff that makes the executable 
-# Define the ARCHOS in your environemt : [x86_LINUX, x86_WIN32, SUNOS]
-
-SOURCEDIRS  = src
-OBJDIR      = obj
-MLLS        = 
-MLYS        = 
-# ast clex cparse
-# sm: trace: utility for debug-time printfs
-MODULES     = pretty trace errormsg stats util clist \
-              cil cfg logcalls check ptrnode \
-              solveutil solver globinit \
-              oneret boxsplit boxstats box markptr \
-              rmtmps optim
-EXECUTABLE  = $(OBJDIR)/ccured
-CAMLUSEUNIX = 1
-ifdef RELEASE
-UNSAFE      = 1
+# sm: I keep getting bit by this
+ifndef CCUREDHOME
+You have not defined the CCUREDHOME variable
 endif
-CAMLLIBS    = 
 
-# Front end stuff
-SOURCEDIRS += src/frontc
-MLLS       += clexer.mll
-MLYS       += cparser.mly
-MODULES    += cabs cprint clexer cparser cabs2cil cabsvisit \
-              frontc
-
-# Add main late
-MODULES    += main
-
-# What should we put into the OCAML CIL library? 
-# everything by main.cl, basically
-OCAML_CIL_LIB_MODULES = $(MODULES:main=)
-
-# Additional things to clean
-EXTRACLEAN += $(OBJDIR)/*.obj $(OBJDIR)/*.a $(OBJDIR)/*.o
-
-
-    # Include now the common set of rules for OCAML
-    # This file will add the rules to make $(EXECUTABLE).$(EXE)
-include Makefile.ocaml
-
-# ww: build an OCAML library (CMA / CMXA) that exports our Cil stuff
-# kudos to George for this lovely patsubst code ...
-cillib: $(OBJDIR)/cil.$(CMXA)
-
-$(OBJDIR)/cil.$(CMXA): $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
-	$(CAMLLINK) -a -o $@ $^
-
-
-# Now do the machine-specific customization
+CCURED=perl $(CCUREDHOME)/lib/ccured.pl 
+PATCHER=perl $(CCUREDHOME)/lib/patcher.pl
+# Now do the user-specific customization
+# It is Ok if this file does not exist
 -include $(CCUREDHOME)/.ccuredrc
 
 # By default use the old patcher
@@ -70,131 +23,26 @@ OLDPATCH = 1
 PATCHINCLUDES=1
 endif
 
-# By default use GCC, unless you set NO_GC
+# By default use GCC, unless you set _MSVC on the command line on in .ccuredrc
 ifndef _MSVC
 _GNUCC = 1
 endif
 
-# Set the COMPILER variable
+# Now include the compiler specific stuff
 ifdef _MSVC
-  ifdef RELEASE
-    COMPILER=mscl_release
-  else
-    COMPILER=mscl_debug
-  endif
+   include Makefile.msvc
 else
  ifdef _GNUCC
-   ifdef RELEASE
-     COMPILER=gcc_release
-   else
-     COMPILER=gcc_debug
-   endif
+   include Makefile.gcc
  endif
 endif
 
 
-# By default use the GC if we use GCC
-ifdef _GNUCC
- ifndef NO_GC
-  USE_GC=1
- endif
-endif
-
-
-# sm: I keep getting bit by this
-ifndef CCUREDHOME
-# sm: why doesn't this do what the manual says?
-#HMM=$(error "wtf")
-HMM="you_have_to_set_the_CCUREDHOME_environment_variable"
-BASEDIR=$(HMM)
-CCUREDHOME=$(HMM)
-PCCDIR=$(HMM)
-TVDIR=$(HMM)
-_GNUCC=$(HMM)
-endif
-
-PCCDIR=$(CCUREDHOME)/test/PCC
-CCURED=perl $(CCUREDHOME)/lib/ccured.pl 
-COMBINECC=perl $(CCUREDHOME)/lib/combiner.pl
+CCURED  += --mode=$(COMPILERNAME)
+PATCHER += --mode=$(COMPILERNAME)
 
 export EXTRAARGS
 export INFERBOX
-
-###
-### GCC options
-###
-ifdef _GNUCC
-DEBUGCCL=gcc -Wall -x c -g -ggdb -D_GNUCC 
-RELEASECCL=gcc -x c -O3 -fomit-frame-pointer -D_RELEASE -D_GNUCC -Wall 
-#LIB=lib
-#LIBOUT=-o
-ifdef RELEASE
-# sm: I'll leave this here, but only use it for compiling our runtime lib
-DOOPT=-O3
-else
-DOOPT=-g
-endif
-OPT_O2=-O2
-CONLY=-c
-OBJOUT=-o
-OBJ=o
-LIBEXT=a
-EXEOUT=-o
-LDEXT=
-DEF=-D
-ASMONLY=-S -o 
-WARNALL=-Wall
-# sm: shuffled around a couple things so I could use CPPSTART for patch2
-CPPSTART=gcc -E -x c -Dx86_LINUX -D_GNUCC  -I/usr/include/sys
-CPPOUT=-o %o
-CPP=$(CPPSTART) -include fixup.h %i $(CPPOUT)
-INC=-I
-PATCHFILE=safec_gcc.patch
-# sm: disable patching for now ('true' has no output)
-# (set it to 'echo' to re-enable)
-ifndef PATCHECHO
-  PATCHECHO=echo
-endif
-endif
-
-
-###
-### MS VC options
-###
-ifdef _MSVC
-DEBUGCCL=cl /TC /Zi /MLd /I./lib /DEBUG
-RELEASECCL=cl /TC /ML /I./lib
-ifdef RELEASE
-DOOPT=/Ox /Ob2 /G6
-else
-DOOPT=/Zi /MLd
-endif
-CONLY=/c
-OBJOUT=/Fo
-OBJ=obj
-LIBEXT=lib
-EXEOUT=/Fe
-# sm: the extension added by the linker automatically
-LDEXT=.exe
-DEF=/D
-ASMONLY=/Fa
-INC=/I
-CPPSTART=cl /Dx86_WIN32 /D_MSVC /E /TC /I./lib /DCCURED
-CPPOUT=  >%o
-CPP=$(CPPSTART) /FI fixup.h %i $(CPPOUT)
-CCURED += --mode=mscl
-PATCHFILE=safec_msvc.patch
-PATCHECHO=echo
-endif
-
-ifdef RELEASE
-CCL=$(RELEASECCL)
-else
-CCL=$(DEBUGCCL)
-endif
-CC=$(CCL) $(CONLY)
-
-CCUREDLIB=obj/ccured_$(COMPILER).$(LIBEXT)
 
 ifdef PATCHINCLUDES
 STANDARDPATCH= --includedir=$(CCUREDHOME)/include
@@ -202,124 +50,8 @@ else
 STANDARDPATCH= --patch=$(CCUREDHOME)/cil/lib/$(PATCHFILE)
 endif
 
-# By default take manual box definitions into consideration
-ifdef INFERBOX
-MANUALBOX=1
-endif
-
-# garbage collector options
-ifdef _GNUCC
-  ifdef USE_GC
-    # enable the garbage collector by default for gcc
-    CCURED+= $(DEF)USE_GC
-    DEBUGCCL+= $(DEF)USE_GC
-    RELEASECCL+= $(DEF)USE_GC
-    GCLIB = $(CCUREDHOME)/lib/gc/gc.a
-
-$(GCLIB):
-	cd lib/gc; make
-
-gctest: 
-	cd lib/gc; ./gctest
-
-  else
-    GCLIB =
-gctest: 
-
-  endif
-else
-  # on msvc, what needs to be done to get gc working:
-  #  - make sure we can compile gc.a, and that gctests works
-  #  - modify the commands which build $(CCUREDLIB) so they
-  #    include gc.a
-  GCLIB =
-gctest:
-
-endif
-
+# CCURED contains arguments that are passed to ccured.pl
 CCURED+= $(EXTRAARGS)
-
-###
-###
-###    # Now the rules to make the library
-###
-###
-ifndef RELEASE
-CCUREDLIBARG=$(DEF)_DEBUG
-endif
-
-SAFECPATCHER=perl $(CCUREDHOME)/lib/patcher.pl
-ifdef _MSVC
-$(CCUREDLIB) : lib/safec.c lib/safec.h lib/safeccheck.h lib/splay.c 
-	cl $(DOOPT) $(INC)./lib $(CONLY) $(DEF)_MSVC $(CCUREDLIBARG) \
-                                           $(OBJOUT)obj/safec.o lib/safec.c
-	cl $(DOOPT) $(INC)./lib $(CONLY) $(DEF)_MSVC $(CCUREDLIBARG) \
-                                           $(OBJOUT)obj/splay.o lib/splay.c
-	lib /OUT:$@ obj/safec.o obj/splay.o 
-
-SAFECPATCHER += --mode=mscl 
-PATCH_SYSINCLUDES=stdio.h ctype.h string.h io.h stdarg.h crtdbg.h
-includes: cleanincludes
-	$(SAFECPATCHER) --patch=$(CCUREDHOME)/lib/safec_msvc.patch \
-                        --dest=$(CCUREDHOME)/include \
-	                $(foreach file,$(PATCH_SYSINCLUDES), --sfile=$(file))
-cleanincludes: 
-	$(SAFECPATCHER) --dest=$(CCUREDHOME)/include --clean
-endif
-
-# Libraries on GCC
-# sm: if GC is enabled, we just add it to the runtime library
-# (or rather, we add safec.o to gc.a's contents)
-ifdef _GNUCC
-$(CCUREDLIB) : lib/safec.c $(GCLIB) lib/splay.o
-	$(CC) $(CCUREDLIBARG) $(OBJOUT)obj/safec.o $<
-	if echo $(GCLIB) | grep / >/dev/null; then \
-		cp -f $(GCLIB) $@; echo "using GC"; \
-	else \
-		rm -f $@; echo "not using GC"; \
-	fi
-	ar -r $@ obj/safec.o lib/splay.o
-	ranlib $@
-
-
-SAFECPATCHER += --mode gcc
-PATCH_SYSINCLUDES=stdio.h ctype.h sys/fcntl.h fcntl.h string.h stdarg.h
-includes: cleanincludes
-	$(SAFECPATCHER) --patch=$(CCUREDHOME)/lib/safec_gcc.patch \
-                        --dest=$(CCUREDHOME)/include \
-	                $(foreach file,$(PATCH_SYSINCLUDES), --sfile=$(file))
-cleanincludes: 
-	$(SAFECPATCHER) --dest=$(CCUREDHOME)/include --clean
-endif
-# new patching specification wants to be run through preprocessor before use
-ifdef NEWPATCH
-$(PATCHFILE2): lib/$(PATCHFILE)2
-	$(CPPSTART) $(PATCHDEFS) lib/$(PATCHFILE)2 > $(PATCHFILE2)
-endif
-
-######################
-.PHONY : defaulttarget
-ifdef NOREMAKE
-defaulttarget : 
-else
-defaulttarget : $(EXECUTABLE)$(EXE)
-endif
-
-combiner:
-	$(MAKE) -f Makefile.combiner $(MAKEOVERRIDES)
-
-cilly: 
-	$(MAKE) -f Makefile.cil $(MAKEOVERRIDES)
-
-presetup: 
-	rm -rf $(CCUREDLIB)
-
-all: presetup  $(CCUREDLIB) gctest combiner cillib \
-       cilly defaulttarget includes
-
-setup: 
-	$(MAKE) all $(MAKEOVERRIDES) RELEASE= 
-	$(MAKE) all $(MAKEOVERRIDES) RELEASE=1
 
 
 # sm: my options
@@ -335,12 +67,12 @@ ifdef USER_SCOTT
 endif
 
 
-# weimer: support for other solvers
 ifdef INFERBOX
+  MANUALBOX=1
   CCURED+= --curetype=$(INFERBOX) $(DEF)INFERBOX
-  PATCHDEFS= $(DEF)CCURED
   CCURED+= --emitinfer 
 else
+  CCURED+= --curetype=none
   ifndef MANUALBOX
     CCURED+= --boxdefaultwild
   endif
@@ -402,7 +134,7 @@ endif
 # up other things (e.g. -DMANUALBOX)
 # update: reason was we were modifying EXTRAARGS in here -- we
 # should only set EXTRAARGS when invoking the Makefile, and
-# in here just use SAFECC+= ...
+# in here just use CCURED+= ...
 ifdef LOGCALLS
 CCURED+= --logcalls
 endif
@@ -435,14 +167,6 @@ ifdef NEWPATCH
   PATCHECHO=true
 endif
 
-# sm: user-specific configuration; the leading '-' means it's ok
-# if this file doesn't exist; this file is *not* checked in to
-# the CVS repository (please be careful to avoid putting things
-# in here which will cause things to break when it's missing)
-# -include site-config.mk
-
-
-# ----------- above here is configuration -------------------
 
 # ----------- below here are rules for building benchmarks --------
 
@@ -468,6 +192,7 @@ clean-byproducts:
 	\) -exec rm {} \;
 
 ####### Test with PCC sources
+PCCDIR=$(CCUREDHOME)/test/PCC
 PCCTEST=test/PCCout
 ifdef RELEASE
 PCCTYPE=RELEASE
@@ -482,7 +207,7 @@ else
 PCCCOMP=_MSVC
 endif
 
-testpcc/% : $(PCCDIR)/src/%.c defaulttarget
+testpcc/% : $(PCCDIR)/src/%.c 
 	cd $(CCUREDHOME)/test/PCCout; $(CCURED) --keep=. $(DEF)$(ARCHOS) \
                   $(DEF)$(PCCTYPE) $(CONLY) \
                   $(PCCDIR)/src/$*.c \
@@ -497,7 +222,7 @@ PCCSAFECC=$(CCURED) $(DEF)CCURED \
                     $(STANDARDPATCH) --combine \
                     --keep=$(CCUREDHOME)/test/PCCout \
                     --nocure=pccbox --nocure=alloc
-pcc : defaulttarget
+pcc : 
 #	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.o
 	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.exe
 	-rm $(PCCDIR)/bin/*.exe
@@ -506,9 +231,9 @@ pcc : defaulttarget
              LD="$(CCURED) $(MSLINK) --combine --keep=$(CCUREDHOME)/test/PCCout" \
              USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
              COMPILER=$(PCCCOMP) \
-	     clean defaulttarget 
+	     clean  
 
-pcc-noclean : defaulttarget
+pcc-noclean : 
 #	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.o
 	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.exe
 	-rm $(PCCDIR)/bin/*.exe
@@ -517,9 +242,8 @@ pcc-noclean : defaulttarget
              LD="$(CCURED) $(MSLINK) --combine --keep=$(CCUREDHOME)/test/PCCout" \
              USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
              COMPILER=$(PCCCOMP) \
-	     defaulttarget 
 
-pcc-combined: defaulttarget
+pcc-combined: 
 	cd $(PCCDIR)/bin; \
           $(CCURED) engine.$(ARCHOS)$(PCCCOMP).$(PCCTYPE).exe_all.c \
               $(EXEOUT)engine.$(ARCHOS)$(PCCCOMP).$(PCCTYPE).exe
@@ -581,41 +305,41 @@ endif
 
 ############ Small tests
 SMALL1=test/small1
-test/% : $(SMALL1)/%.c defaulttarget
+test/% : $(SMALL1)/%.c 
 	cd $(SMALL1); $(CCURED)   \
                $(STANDARDPATCH) \
-	       $(CONLY) $(DOOPT) $(ASMONLY)$*.s $*.c 
+	       $(CONLY) $(CFLAGS) $(ASMONLY)$*.s $*.c 
 
-testnopatch/% : $(SMALL1)/%.c defaulttarget
+testnopatch/% : $(SMALL1)/%.c 
 	cd $(SMALL1); $(CCURED)   \
-               $(CONLY) $(DOOPT) $(ASMONLY)$*.s $*.c 
+               $(CONLY) $(CFLAGS) $(ASMONLY)$*.s $*.c 
 
-testexe/% : $(SMALL1)/%.c  defaulttarget
-	cd $(SMALL1); $(CCURED)   \
-               $(STANDARDPATCH) \
-	       $(DOOPT) $(EXEOUT)$*.exe $*.c 
-
-
-testrun/% : $(SMALL1)/%.c  defaulttarget
+testexe/% : $(SMALL1)/%.c  
 	cd $(SMALL1); $(CCURED)   \
                $(STANDARDPATCH) \
-	       $(DOOPT) $(EXEOUT)$*.exe $*.c
+	       $(CFLAGS) $(EXEOUT)$*.exe $*.c 
+
+
+testrun/% : $(SMALL1)/%.c  
+	cd $(SMALL1); $(CCURED)   \
+               $(STANDARDPATCH) \
+	       $(CFLAGS) $(EXEOUT)$*.exe $*.c
 	cd $(SMALL1); ./$*.exe
 
 
 
-testmodel/%: $(SMALL1)/%.c $(SMALL1)/modelextern.c defaulttarget
+testmodel/%: $(SMALL1)/%.c $(SMALL1)/modelextern.c 
 	cd $(SMALL1); \
-            $(DEBUGCCL) $(CONLY) $(OBJOUT)modelextern.$(OBJ) modelextern.c
+            $(CC) $(CONLY) $(OBJOUT)modelextern.$(OBJEXT) modelextern.c
 	cd $(SMALL1); $(CCURED) \
                          $(STANDARDPATCH) \
                          --nocure=modelextern --combine \
-                         $(DOOPT) $(EXEOUT)$*.exe $*.c modelextern.$(OBJ)
+                         $(CFLAGS) $(EXEOUT)$*.exe $*.c modelextern.$(OBJEXT)
 	cd $(SMALL1); ./$*.exe
 
-combine%_3: defaulttarget
+combine%_3: 
 	cd $(SMALL1); \
-          $(CCURED) $(DOOPT) \
+          $(CCURED) $(CFLAGS) \
                     combine$*_1.c combine$*_2.c combine$*_3.c \
                     --combine  \
                     $(STANDARDPATCH) \
@@ -623,26 +347,26 @@ combine%_3: defaulttarget
 	cd $(SMALL1); ./combine$*.exe
 
 # weimer: test, compile and run
-testc/% : $(SMALL1)/%.c  defaulttarget
+testc/% : $(SMALL1)/%.c  
 	cd $(SMALL1); $(CCURED)   \
                $(STANDARDPATCH) \
-	       $(DOOPT) $(EXEOUT)$*.exe $*.c ; ./$*.exe
+	       $(CFLAGS) $(EXEOUT)$*.exe $*.c ; ./$*.exe
 
 # Aman's optim tests
 OPTIMTESTDIR=test/optim
-optim/% : $(OPTIMTESTDIR)/%.c defaulttarget
+optim/% : $(OPTIMTESTDIR)/%.c 
 	cd $(OPTIMTESTDIR); $(CCURED)   \
                $(STANDARDPATCH) \
-	       $(DOOPT) $*.c $(EXEOUT)$*.exe
+	       $(CFLAGS) $*.c $(EXEOUT)$*.exe
 	$(OPTIMTESTDIR)/$*.exe
 
 
 
-hashtest: test/small2/hashtest.c defaulttarget
+hashtest: test/small2/hashtest.c 
 	rm -f $(PCCTEST)/hashtest.exe
 	cd $(PCCTEST); $(CCURED) --combine \
                                  --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
-                 $(DOOPT) \
+                 $(CFLAGS) \
                  `$(PATCHECHO) $(STANDARDPATCH)` \
                  $(INC)$(PCCDIR)/src \
                  $(PCCDIR)/src/hash.c \
@@ -651,13 +375,13 @@ hashtest: test/small2/hashtest.c defaulttarget
 	$(PCCTEST)/hashtest.exe
 
 
-rbtest: test/small2/rbtest.c defaulttarget
+rbtest: test/small2/rbtest.c 
 	rm -f $(PCCTEST)/rbtest.exe
 	@true "compile with gcc for better error diagnostics (ha!)"
 	cd $(PCCTEST); $(CCURED) --combine \
                                  --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  `$(PATCHECHO) $(STANDARDPATCH)` \
-                 $(DOOPT) \
+                 $(CFLAGS) \
                  $(INC)$(PCCDIR)/src \
                  $(PCCDIR)/src/redblack.c \
                  ../small2/rbtest.c \
@@ -665,10 +389,10 @@ rbtest: test/small2/rbtest.c defaulttarget
 	$(PCCTEST)/rbtest.exe letGcFree
 
 btreetest: test/small2/testbtree.c \
-           test/small2/btree.c defaulttarget
+           test/small2/btree.c 
 	rm -f test/small2/btreetest.exe
 	cd test/small2; $(CCURED) --combine --keep=. \
-                 $(DOOPT) \
+                 $(CFLAGS) \
                  $(STANDARDPATCH) \
                  btree.c testbtree.c \
                  $(EXEOUT)btreetest.exe
@@ -679,35 +403,35 @@ btreetest: test/small2/testbtree.c \
 hola: scott/hola
 
 # sm: attempt at a single rule for my testing purposes
-scott/%: test/small2/%.c defaulttarget
+scott/%: test/small2/%.c 
 	rm -f test/small2/$*
 	cd test/small2; $(CC) $(CONLY) $(WARNALL) $(DEF)$(ARCHOS) $*.c
 	cd test/small2; $(CCURED) --verbose --keep=. $(DEF)$(ARCHOS) \
                  `$(PATCHECHO) $(STANDARDPATCH)` \
-                 $(DOOPT) `true $(WARNALL)` $(NOPRINTLN) \
+                 $(CFLAGS) `true $(WARNALL)` $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*
 	sh -c "time test/small2/$*"
 
-scott-nolink/%: test/small2/%.c defaulttarget
+scott-nolink/%: test/small2/%.c 
 	rm -f test/small2/$*
 	cd test/small2; $(CC) $(CONLY) $(WARNALL) $(DEF)$(ARCHOS) $*.c
 	cd test/small2; $(CCURED) $(CONLY) --verbose --keep=. $(DEF)$(ARCHOS) \
                  `$(PATCHECHO) $(STANDARDPATCH)` \
-                 $(DOOPT) $(WARNALL) $(NOPRINTLN) \
+                 $(CFLAGS) $(WARNALL) $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*
 
 # a target for programs which are *supposed* to fail, because
 # they intentionally violate the type system; but this is only
 # when FAIL is #defined, otherwise they should exit ok
-bad/%: test/bad/%.c defaulttarget
+bad/%: test/bad/%.c 
 	rm -f test/bad/$*
 	cd test/bad; $(CC) $(CONLY) $(WARNALL) $(DEF)$(ARCHOS) $*.c
 	@true "first try the succeed case"
 	cd test/bad; $(CCURED) --verbose --keep=. $(DEF)$(ARCHOS) \
                  `$(PATCHECHO) $(STANDARDPATCH)` \
-                 $(DOOPT) $(WARNALL) $(NOPRINTLN) \
+                 $(CFLAGS) $(WARNALL) $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*
 	if test/bad/$*; then \
@@ -718,7 +442,7 @@ bad/%: test/bad/%.c defaulttarget
 	@true "now try the failure case"
 	cd test/bad; $(CCURED) --verbose --keep=. $(DEF)$(ARCHOS) \
                  `$(PATCHECHO) $(STANDARDPATCH)` \
-                 $(DOOPT) $(WARNALL) $(NOPRINTLN) -DFAIL \
+                 $(CFLAGS) $(WARNALL) $(NOPRINTLN) -DFAIL \
                  $*.c \
                  $(EXEOUT)$*
 	if test/bad/$*; then \
@@ -729,13 +453,13 @@ bad/%: test/bad/%.c defaulttarget
 
 # same rules, this time in 'scott' directory, since it's a pain to
 # move the file just to add a failure case
-bads/%: test/small2/%.c defaulttarget
+bads/%: test/small2/%.c 
 	rm -f test/small2/$*
 	cd test/small2; $(CC) $(CONLY) $(WARNALL) $(DEF)$(ARCHOS) $*.c
 	@true "first try the succeed case"
 	cd test/small2; $(CCURED) --verbose --keep=. $(DEF)$(ARCHOS) \
                  `$(PATCHECHO) $(STANDARDPATCH)` \
-                 $(DOOPT) $(WARNALL) $(NOPRINTLN) \
+                 $(CFLAGS) $(WARNALL) $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*
 	if test/small2/$*; then \
@@ -746,7 +470,7 @@ bads/%: test/small2/%.c defaulttarget
 	@true "now try the failure case"
 	cd test/small2; $(CCURED) --verbose --keep=. $(DEF)$(ARCHOS) \
                  `$(PATCHECHO) $(STANDARDPATCH)` \
-                 $(DOOPT) $(WARNALL) $(NOPRINTLN) -DFAIL \
+                 $(CFLAGS) $(WARNALL) $(NOPRINTLN) -DFAIL \
                  $*.c \
                  $(EXEOUT)$*
 	if test/small2/$*; then \
@@ -759,7 +483,7 @@ bads/%: test/small2/%.c defaulttarget
 
 # sm: trivial test of combiner
 MYSAFECC = $(CCURED) --keep=. $(DEF)$(ARCHOS) $(STANDARDPATCH)
-comb: test/small2/comb1.c test/small2/comb2.c defaulttarget
+comb: test/small2/comb1.c test/small2/comb2.c 
 	rm -f test/small2/comb
 	cd test/small2; \
 	  $(MYSAFECC) --combine comb1.c $(CONLY) $(OBJOUT) comb1.o; \
@@ -768,7 +492,7 @@ comb: test/small2/comb1.c test/small2/comb2.c defaulttarget
 	test/small2/comb
 
 # sm: test of combiner's ability to report inconsistencies
-baddef: test/small2/baddef1.c test/small2/baddef2.c defaulttarget
+baddef: test/small2/baddef1.c test/small2/baddef2.c 
 	cd test/small2; $(CCL) baddef1.c baddef2.c -o baddef && ./baddef
 	rm -f test/small2/baddef
 	cd test/small2; \
@@ -786,7 +510,7 @@ baddef: test/small2/baddef1.c test/small2/baddef2.c defaulttarget
 
 # cfrac: a memory benchmark which factorizes into products of primes
 CFRACDIR = $(CCUREDHOME)/../bench/cfrac
-cfrac: defaulttarget
+cfrac: 
 	-rm $(CFRACDIR)/*.o
 	-rm $(CFRACDIR)/cfrac
 	make -C $(CFRACDIR) \
@@ -794,7 +518,7 @@ cfrac: defaulttarget
 	  LD="$(CCURED) --keep=$(CFRACDIR)"
 	csh -c "time $(CFRACDIR)/cfrac 327905606740421458831903"
 
-comcfrac: defaulttarget
+comcfrac: 
 	-rm $(CFRACDIR)/*.o
 	-rm $(CFRACDIR)/cfrac
 	make -C $(CFRACDIR) \
@@ -804,7 +528,7 @@ comcfrac: defaulttarget
 
 # espresso: memory benchmark that does logic minimization
 ESPRESSODIR = $(CCUREDHOME)/../bench/espresso
-espresso: defaulttarget
+espresso: 
 	@true -rm $(ESPRESSODIR)/*.o
 	@true -rm $(ESPRESSODIR)/espresso
 	make -C $(ESPRESSODIR) \
@@ -823,14 +547,14 @@ endif
 ifndef HUFFINPUT
   HUFFINPUT=$(CCUREDHOME)/src/frontc/cparser.output
 endif
-hufftest: test/small2/hufftest.c defaulttarget
+hufftest: test/small2/hufftest.c 
 	rm -f $(PCCTEST)/hufftest.exe \
               $(PCCTEST)/huffman.compressed \
               $(PCCTEST)/huffman.code \
               $(PCCTEST)/huffman.freq
 	cd $(PCCTEST); $(HUFFCOMPILE) \
                  $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) $(DEF)$(PCCCOMP) \
-                 $(DOOPT) \
+                 $(CFLAGS) \
                  $(STANDARDPATCH) \
                  $(INC)$(PCCDIR)/src \
                  $(PCCDIR)/src/io.c \
@@ -842,20 +566,20 @@ hufftest: test/small2/hufftest.c defaulttarget
 	cd $(PCCTEST); ./hufftest.exe $(HUFFINPUT)
 
 
-wes-rbtest: test/small2/wes-rbtest.c defaulttarget
+wes-rbtest: test/small2/wes-rbtest.c 
 	rm -f $(PCCTEST)/wes-rbtest.exe
 	cd $(PCCTEST); $(CCURED) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
-                 $(DOOPT) \
+                 $(CFLAGS) \
                  $(STANDARDPATCH) \
                  $(INC)$(PCCDIR)/src \
                  ../small2/wes-rbtest.c \
                  $(EXEOUT)wes-rbtest.exe
 	$(PCCTEST)/wes-rbtest.exe
 
-wes-hashtest: test/small2/wes-hashtest.c defaulttarget
+wes-hashtest: test/small2/wes-hashtest.c 
 	rm -f $(PCCTEST)/wes-hashtest.exe
 	cd $(PCCTEST); $(CCURED) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
-                 $(DOOPT) \
+                 $(CFLAGS) \
                  $(STANDARDPATCH) \
                  $(INC)$(PCCDIR)/src \
                  ../small2/wes-hashtest.c \
@@ -864,15 +588,15 @@ wes-hashtest: test/small2/wes-hashtest.c defaulttarget
 
 
 ### Generic test
-testfile/% : defaulttarget
+testfile/% : 
 	$(CCURED) /TC $*
 
-testdir/% : defaulttarget
+testdir/% : 
 	make -C CC="perl safecc.pl" $*
 
 
 ################## Linux device drivers
-testlinux/% : test/linux/%.cpp defaulttarget
+testlinux/% : test/linux/%.cpp 
 	cd test/linux; $(CCURED) -o $*.o $*.cpp 
 
 testqp : testlinux/qpmouse
@@ -880,33 +604,31 @@ testserial: testlinux/generic_serial
 
 ################## Rahul's test cases
 SPR-TESTDIR = test/spr
-spr/% : defaulttarget
-	cd $(SPR-TESTDIR); $(CCURED) $*.c $(CONLY) $(DOOPT) $(ASMONLY)$*.s
+spr/% : 
+	cd $(SPR-TESTDIR); $(CCURED) $*.c $(CONLY) $(CFLAGS) $(ASMONLY)$*.s
 
 
 ################# Apache test cases
 APACHETEST=test/apache
 APACHEBASE=apache_1.3.19/src
-APATCHES=--patch=apache.patch 
+APATCHES=--patch=apache.patch --patch=apache_$(COMPILERNAME).patch
 ifdef _MSVC
 APACHECFLAGS=/nologo /MDd /W3 /GX /Zi /Od \
          $(INC)"$(APACHEBASE)\include" $(INC)"$(APACHEBASE)\os\win32" \
          $(DEF)"_DEBUG" $(DEF)"WIN32" $(DEF)"_WINDOWS" \
          $(DEF)"NO_DBM_REWRITEMAP" $(DEF)"SHARED_MODULE" \
          $(DEF)"WIN32_LEAN_AND_MEAN"
-APATCHES += --patch=apache_msvc.patch
 else
 APACHECFLAGS=-Wall -D_GNUCC -g \
          $(INC)"$(APACHEBASE)/include" $(INC)"$(APACHEBASE)/os/unix" \
          $(DEF)"_DEBUG" \
          $(DEF)"NO_DBM_REWRITEMAP" $(DEF)"SHARED_MODULE"
-APATCHES += --patch=apache_gcc.patch
 endif
 
 APACHE_INCLUDES=httpd.h ap_alloc.h http_config.h http_log.h http_protocol.h
 apachesetup:
 	cd $(APACHETEST); \
-            $(SAFECPATCHER) \
+            $(PATCHER) \
                         $(APACHECFLAGS) \
                         $(APATCHES) --patch=$(CCUREDHOME)/lib/$(PATCHFILE) \
                         --dest=$(APACHEBASE)/include \
@@ -915,64 +637,64 @@ apachesetup:
 ifdef PATCHINCLUDES
 APATCH = $(STANDARDPATCH) --includedir=$(APACHEBASE)/include
 else
-APATCH = $(STANDARDPATCH) $(APATHCES)
+APATCH = $(STANDARDPATCH) $(APATCHES)
 endif
 
-apache/urlcount : defaulttarget
-	rm -f $(APACHETEST)/mod_urlcount.$(OBJ)
+apache/urlcount : 
+	rm -f $(APACHETEST)/mod_urlcount.$(OBJEXT)
 	cd $(APACHETEST); $(CCURED) \
                        --keep=. $(APATCH) \
-                        $(DOOPT) \
+                        $(CFLAGS) \
                         $(APACHECFLAGS) \
-                        $(CONLY) $(OBJOUT)./mod_urlcount.$(OBJ) \
+                        $(CONLY) $(OBJOUT)./mod_urlcount.$(OBJEXT) \
                         mod_urlcount.c
 
-apache/layout : defaulttarget
-	rm -f $(APACHETEST)/mod_layout.$(OBJ)
+apache/layout : 
+	rm -f $(APACHETEST)/mod_layout.$(OBJEXT)
 	cd $(APACHETEST); $(CCURED) \
                        --keep=. $(APATCH) \
-                        $(DOOPT) \
+                        $(CFLAGS) \
                         $(APACHECFLAGS) \
-                        $(CONLY) $(OBJOUT)./mod_layout.$(OBJ) \
+                        $(CONLY) $(OBJOUT)./mod_layout.$(OBJEXT) \
                         mod_layout.c
 
-apache/random : defaulttarget
-	rm -f $(APACHETEST)/mod_random.$(OBJ)
+apache/random : 
+	rm -f $(APACHETEST)/mod_random.$(OBJEXT)
 	cd $(APACHETEST); $(CCURED) \
                        --keep=. $(APATCH) \
-                        $(DOOPT) \
+                        $(CFLAGS) \
                         $(APACHECFLAGS) \
-                        $(CONLY) $(OBJOUT)./mod_random.$(OBJ) \
+                        $(CONLY) $(OBJOUT)./mod_random.$(OBJEXT) \
                         mod_random.c
 
-apache/info : defaulttarget
-	rm -f $(APACHETEST)/mod_info.$(OBJ)
+apache/info : 
+	rm -f $(APACHETEST)/mod_info.$(OBJEXT)
 	cd $(APACHETEST); $(CCURED) \
                        --keep=. $(APATCH) \
-                        $(DOOPT) \
+                        $(CFLAGS) \
                         $(APACHECFLAGS) \
-                        $(CONLY) $(OBJOUT)./mod_info.$(OBJ) \
+                        $(CONLY) $(OBJOUT)./mod_info.$(OBJEXT) \
                         mod_info.c
 
-apache/gzip : defaulttarget
-	rm -f $(APACHETEST)/mod_gzip.$(OBJ)
+apache/gzip : 
+	rm -f $(APACHETEST)/mod_gzip.$(OBJEXT)
 	cd $(APACHETEST); $(CCURED) \
                        --keep=. $(APATCH) \
-                        $(DOOPT) \
+                        $(CFLAGS) \
                         $(APACHECFLAGS) \
-                        $(CONLY) $(OBJOUT)./mod_gzip.$(OBJ) \
+                        $(CONLY) $(OBJOUT)./mod_gzip.$(OBJEXT) \
                         mod_gzip.c
 
-apache/gzipsmall : defaulttarget
-	rm -f $(APACHETEST)/mod_gzipsmall.$(OBJ)
+apache/gzipsmall : 
+	rm -f $(APACHETEST)/mod_gzipsmall.$(OBJEXT)
 	cd $(APACHETEST); $(CCURED) \
                        --keep=. $(APATCH) \
-                        $(DOOPT) \
+                        $(CFLAGS) \
                         $(APACHECFLAGS) \
-                        $(CONLY) $(OBJOUT)./mod_gzipsmall.$(OBJ) \
+                        $(CONLY) $(OBJOUT)./mod_gzipsmall.$(OBJEXT) \
                         mod_gzipsmall.c
 
-apache/t : defaulttarget
+apache/t : 
 	rm -f $(APACHETEST)/t.obj
 	cd $(APACHETEST); $(CCURED) \
                        --keep=. $(APATCH) \
@@ -980,20 +702,20 @@ apache/t : defaulttarget
                         $(OBJOUT)./t.obj \
                         t.c
 
-apache/rewrite: defaulttarget
-	rm -f $(APACHETEST)/mod_gzip.$(OBJ)
+apache/rewrite: 
+	rm -f $(APACHETEST)/mod_gzip.$(OBJEXT)
 	cd $(APACHETEST); $(CCURED) \
                        --keep=. $(APATCH) \
-                        $(DOOPT) \
+                        $(CFLAGS) \
                         $(APACHECFLAGS) \
-                        $(OBJOUT)./mod_rewrite.$(OBJ) \
+                        $(OBJOUT)./mod_rewrite.$(OBJEXT) \
                         $(APACHEBASE)/modules/standard/mod_rewrite.c
 
 
 
 
 
-# sm: removed DOOPT since I want to specify optimization in the
+# sm: removed CFLAGS since I want to specify optimization in the
 # benchmark's Makefile (helps to ensure consistency between the
 # non-ccured build and the ccured build, and also some programs
 # take too long on -O3)
@@ -1007,7 +729,7 @@ PATCHARG=`$(PATCHECHO) $(STANDARDPATCH)`
 #
 # Barnes-Hut
 BHDIR=test/olden/bh
-bh: defaulttarget mustbegcc
+bh:  mustbegcc
 	cd $(BHDIR); rm -f code.exe *.o; \
                make CC="$(COMBINESAFECC) --nocure=bhbox $(PATCHARG)"
 	echo  >$(BHDIR)/data.in
@@ -1026,7 +748,7 @@ bh: defaulttarget mustbegcc
 	@true "sm: added next line to compare output to expected output"
 #	cd $(BHDIR); sh -c "perl normalize.pl < data.out | diff data.cil.out - | head"
 
-bh-combined: defaulttarget mustbegcc
+bh-combined:  mustbegcc
 	cd $(BHDIR); \
 	    $(CCURED) code_all.c bhbox.c $(EXEOUT)code.exe
 	echo  >$(BHDIR)/data.in
@@ -1048,13 +770,13 @@ PWDIR=test/olden/power
 ifdef _GNUCC
 PWEXTRA += -lm
 endif
-power: defaulttarget mustbegcc
+power:  mustbegcc
 	cd $(PWDIR); \
-               make PLAIN=1 clean defaulttarget \
+               make PLAIN=1 clean  \
                     CC="$(COMBINESAFECC) $(PATCHARG)"
 	cd $(PWDIR); sh -c "time ./power.exe"
 
-power-combined : defaulttarget mustbegcc
+power-combined :  mustbegcc
 	cd $(PWDIR); \
              $(CCURED) power.exe_all.c $(EXEOUT)power.exe
 
@@ -1063,9 +785,9 @@ HEALTHDIR=test/olden/health
 ifdef _MSVC
 HEALTHARGS = _MSVC=1
 endif
-health: defaulttarget
+health: 
 	cd $(HEALTHDIR); \
-               make PLAIN=1 clean defaulttarget \
+               make PLAIN=1 clean  \
                     $(HEALTHARGS) \
                     CC="$(COMBINESAFECC) \
                         --nocure=trusted_health \
@@ -1079,9 +801,9 @@ PERIMDIR=test/olden/perimeter
 ifdef _MSVC
 PERIMARGS = _MSVC=1
 endif
-perimeter: defaulttarget
+perimeter: 
 	cd $(PERIMDIR); \
-               make PLAIN=1 clean defaulttarget \
+               make PLAIN=1 clean  \
                     $(PERIMARGS) \
                     CC="$(COMBINESAFECC) \
 			$(PATCHARG)"
@@ -1093,7 +815,7 @@ VORONDIR=test/olden/voronoi
 ifdef _MSVC
 VORONARGS = _MSVC=1
 endif
-voronoi : defaulttarget
+voronoi : 
 	cd $(VORONDIR); \
                make PLAIN=1 clean voronoi.exe \
                     $(VORONARGS) \
@@ -1110,9 +832,9 @@ endif
 ifdef _GNUCC
 TSPEXTRA += -lm
 endif
-tsp: defaulttarget
+tsp: 
 	cd $(TSPDIR); \
-               make PLAIN=1 clean defaulttarget \
+               make PLAIN=1 clean  \
                     $(TSPARGS) \
                     CC="$(COMBINESAFECC) \
 			$(PATCHARG)"
@@ -1124,9 +846,9 @@ BISORTDIR=test/olden/bisort
 ifdef _MSVC
 BISORTARGS = _MSVC=1
 endif
-bisort : defaulttarget mustbegcc
+bisort :  mustbegcc
 	cd $(BISORTDIR); \
-               make PLAIN=1 clean defaulttarget \
+               make PLAIN=1 clean  \
                     $(BISORTARGS) \
                     CC="$(COMBINESAFECC) \
                         --nocure=trusted_bisort \
@@ -1146,7 +868,7 @@ mst-clean:
 	cd $(OLDENMSTDIR); make clean
 	cd $(OLDENMSTDIR); rm -f *cil.c *box.c *.i *_ppp.c *.origi *_all.c
 
-mst: defaulttarget
+mst: 
 	-cd $(OLDENMSTDIR); rm gmon.out
 	cd $(OLDENMSTDIR); \
             make clean mst.exe $(MSTARGS) \
@@ -1169,7 +891,7 @@ treeadd-clean:
 	cd $(TREEADDIR); make clean
 	cd $(TREEADDIR); rm -f *cil.c *box.c *.i *_ppp.c *.origi *_all.c
 
-treeadd: defaulttarget mustbegcc
+treeadd:  mustbegcc
 	cd $(TREEADDIR); \
             make clean treeadd CC="$(TREEADDSAFECC)" \
                        LD="$(TREEADDSAFECC)"
@@ -1187,7 +909,7 @@ newbisort-clean:
 	cd $(NEWBISORTDIR); make clean
 	cd $(NEWBISORTDIR); rm -f *cil.c *box.c *.i *_ppp.c *.origi *_all.c
 
-newbisort: defaulttarget mustbegcc
+newbisort:  mustbegcc
 	cd $(NEWBISORTDIR); \
             make clean; make bisort CC="$(NEWBISORTSAFECC)" \
                        LD="$(NEWBISORTSAFECC)"
@@ -1209,7 +931,7 @@ em3d-clean:
 	cd $(EM3DDIR); make clean
 	cd $(EM3DDIR); rm -f *cil.c *box.c *.i *_ppp.c *.origi *_all.c
 
-em3d: defaulttarget mustbegcc
+em3d:  mustbegcc
 	cd $(EM3DDIR); \
             make clean em3d CC="$(EM3DDSAFECC)" \
                             LD="$(EM3DDSAFECC)"
@@ -1221,30 +943,30 @@ em3d: defaulttarget mustbegcc
 SPECDIR=test/spec95
 
 COMPRESSDIR=$(SPECDIR)/129.compress
-spec-compress : defaulttarget
+spec-compress : 
 	cd $(COMPRESSDIR)/src; make build
 	cd $(COMPRESSDIR)/src; ./compress < input.data > output.txt
 
-old-compress : defaulttarget $(COMPRESSDIR)/src/combine-compress.c
+old-compress :  $(COMPRESSDIR)/src/combine-compress.c
 	rm -f $(COMPRESSDIR)/combine-compress.exe
 	cd $(COMPRESSDIR)/src ; $(CCURED) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
-                 $(DOOPT) \
+                 $(CFLAGS) \
                  combine-compress.c \
                  $(EXEOUT)combine-compress.exe
 	cd $(COMPRESSDIR)/src; sh -c "time ./combine-compress.exe < input.data > combine-compress.out"
 
-compress-noclean: defaulttarget mustbegcc
+compress-noclean:  mustbegcc
 	cd $(COMPRESSDIR)/src; make CC="$(COMBINESAFECC)" build
 	cd $(COMPRESSDIR)/src; sh -c "time ./compress < input.data > combine-compress.out"
 
-compress: defaulttarget mustbegcc
+compress:  mustbegcc
 	cd $(COMPRESSDIR)/src; \
                make CC="$(COMBINESAFECC) $(PATCHARG)" clean build
 	cd $(COMPRESSDIR)/src; sh -c "time ./compress < input.data > combine-compress.out"
 
 LIDIR=$(SPECDIR)/130.li
 LISAFECC=$(CCURED) --combine $(PATCHARG)
-li: defaulttarget mustbegcc
+li:  mustbegcc
 	cd $(LIDIR)/src; \
             make clean build CC="$(LISAFECC) $(CONLY)" \
                              LD="$(LISAFECC)"
@@ -1252,11 +974,11 @@ li: defaulttarget mustbegcc
             <$(LIDIR)/data/train/input/train.lsp \
             >$(LIDIR)/data/train/input/train.out"
 
-li-combined: defaulttarget mustbegcc
+li-combined:  mustbegcc
 	cd $(LIDIR)/src; \
             $(CCURED) trial_li_all.c $(LIEXTRA) $(EXEOUT)trial_li_all.exe
 
-li-noclean: defaulttarget mustbegcc
+li-noclean:  mustbegcc
 	cd $(LIDIR)/src; \
             make build CC="$(LISAFECC) $(CONLY)" \
                        LD="$(LISAFECC)" \
@@ -1271,7 +993,7 @@ liclean:
 
 liinfer: li
 	cd $(LIDIR)/src ; $(CCURED) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
-                 $(DOOPT) \
+                 $(CFLAGS) \
                  trial_li.c \
                  $(EXEOUT)trial_li.exe
 
@@ -1285,18 +1007,18 @@ goclean:
 	cd $(GODIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
 
 
-go: defaulttarget mustbegcc
+go:  mustbegcc
 	cd $(GODIR)/src; \
             make clean build CC="$(GOSAFECC) $(CONLY)" \
                              LD="$(GOSAFECC)"
 	sh -c "time $(GODIR)/src/go 50 9"
 
-go-combined: defaulttarget mustbegcc
+go-combined:  mustbegcc
 	cd $(GODIR)/src; \
 	   $(CCURED) $(CONLY) go_all.c
 
 
-go-noclean: defaulttarget mustbegcc
+go-noclean:  mustbegcc
 	cd $(GODIR)/src; \
             make build CC="$(GOSAFECC) $(CONLY)" \
                        LD="$(GOSAFECC)" \
@@ -1317,25 +1039,25 @@ vortexclean:
 	cd $(VORDIR)/src; make clean
 	cd $(VODIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
 
-vortex: defaulttarget mustbegcc
+vortex:  mustbegcc
 	cd $(VORDIR)/src; \
             make clean build CC="$(VORSAFECC) $(CONLY)" \
                              LD="$(VORSAFECC)"
 	cd $(VORDIR)/src; sh -c "./testit vortex$(LDEXT)"
 
-vortex-gcc: defaulttarget mustbegcc
+vortex-gcc:  mustbegcc
 	cd $(VORDIR)/src; \
             make clean build CC="gcc $(CONLY)" \
                              LD="gcc"
 	cd $(VORDIR)/src; sh -c "./testit vortex.exe"
 
-vortex-cabs:  defaulttarget mustbegcc
+vortex-cabs:   mustbegcc
 	cd $(VORDIR)/src; \
             make clean build CC="$(CCURED) --mode=gcc --cabs $(CONLY)" \
                              LD="gcc"
 	cd $(VORDIR)/src; sh -c "./testit vortex.exe"
 
-vortex-cil:  defaulttarget mustbegcc
+vortex-cil:   mustbegcc
 	cd $(VORDIR)/src; \
             make clean build CC="$(CCURED) --cil $(CONLY)" \
                              LD="gcc"
@@ -1343,13 +1065,13 @@ vortex-cil:  defaulttarget mustbegcc
 vortex-run:
 	cd $(VORDIR)/src; sh -c "./testit vortex.exe"
 
-vortex-noclean: defaulttarget mustbegcc
+vortex-noclean:  mustbegcc
 	cd $(VORDIR)/src; \
             make build CC="$(VORSAFECC) $(CONLY)" \
                        LD="$(VORSAFECC)"
 	cd $(VORDIR)/src; sh -c "./testit vortex.exe"
 
-vortex-combined: defaulttarget mustbegcc
+vortex-combined:  mustbegcc
 	cd $(VORDIR)/src; \
             $(CCURED) vortex_all.c -g $(VOREXTRA) $(EXEOUT)vortex.exe
 	cd $(VORDIR)/src; sh -c "./testit vortex.exe"
@@ -1388,14 +1110,14 @@ m88kclean:
 	cd $(M88DIR)/src; make clean
 	cd $(M88DIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
 
-m88k: defaulttarget mustbegcc m88kclean
+m88k:  mustbegcc m88kclean
 	cd $(M88DIR)/src; \
             make    build CC="$(M88SAFECC) $(CONLY)" \
                           LD="$(M88SAFECC)" 
 	cd $(M88DIR)/src; sh -c "time ./m88k -c < ctl.in > out"
 	cd $(M88DIR)/src; diff correct.output out >/dev/null
 
-m88k-noclean: defaulttarget mustbegcc
+m88k-noclean:  mustbegcc
 	cd $(M88DIR)/src; \
             make       build CC="$(M88SAFECC) $(CONLY)" \
                              LD="$(M88SAFECC)" \
@@ -1406,7 +1128,7 @@ m88k-noclean: defaulttarget mustbegcc
 # sm: changed the target below to correspond with not putting the
 # executable in exe/base, but didn't test it (don't know what
 # it is for)
-m88k-combined: defaulttarget mustbegcc
+m88k-combined:  mustbegcc
 	cd $(M88DIR)src; \
             $(CCURED) m88k_all.c $(CONLY)
 
@@ -1420,7 +1142,7 @@ ijpegclean:
 	cd $(IJPEGDIR)/src; make clean
 	cd $(IJPEGDIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
 
-ijpeg: defaulttarget mustbegcc
+ijpeg:  mustbegcc
 	cd $(IJPEGDIR)/src; \
             make clean build CC="$(IJPEGSAFECC) $(CONLY)" \
                              LD="$(IJPEGSAFECC)"
@@ -1428,7 +1150,7 @@ ijpeg: defaulttarget mustbegcc
             -image_file $(IJPEGDIR)/data/ref/input/vigo.ppm \
             -GO"
 
-ijpeg-combined: defaulttarget mustbegcc
+ijpeg-combined:  mustbegcc
 	cd $(IJPEGDIR)/src; \
             $(CCURED) ijpeg_all.c $(IJPEGEXTRA) \
                 $(EXEOUT)ijpeg
@@ -1436,7 +1158,7 @@ ijpeg-combined: defaulttarget mustbegcc
             -image_file $(IJPEGDIR)/data/ref/input/penguin.ppm \
             -GO"
 
-ijpeg-noclean: defaulttarget mustbegcc
+ijpeg-noclean:  mustbegcc
 	cd $(IJPEGDIR)/src; \
             make       build CC="$(IJPEGSAFECC) $(CONLY)" \
                              LD="$(IJPEGSAFECC)"
@@ -1454,22 +1176,22 @@ gccclean:
 	cd $(GCCDIR)/src; make clean
 	cd $(GCCDIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
 
-gcc: defaulttarget mustbegcc
+gcc:  mustbegcc
 	cd $(GCCDIR)/src; \
             make clean build CC="$(GCCSAFECC) $(CONLY)" \
                              LD="$(GCCSAFECC)" 
 
-gcc-gcc: defaulttarget mustbegcc
+gcc-gcc:  mustbegcc
 	cd $(GCCDIR)/src; \
             make clean build CC="gcc -c" \
                              LD="gcc" 
 
-gcc-gcc-noclean: defaulttarget mustbegcc
+gcc-gcc-noclean:  mustbegcc
 	cd $(GCCDIR)/src; \
             make       build CC="gcc -c" \
                              LD="gcc" 
 
-gcc-noclean: defaulttarget mustbegcc
+gcc-noclean:  mustbegcc
 	cd $(GCCDIR)/src; \
             make       build CC="$(GCCSAFECC) $(CONLY)" \
                              LD="$(GCCSAFECC)" 
@@ -1493,18 +1215,18 @@ endif
 ifdef COMMLINES
 LINUXCC+= --commPrintLn
 endif
-linux-cabs: defaulttarget mustbegcc
+linux-cabs:  mustbegcc
 	$(MAKE) -C $(LINUXDIR) vmlinux \
               MY-CC="$(LINUXCC) --cabs"
 
-linux-cil: defaulttarget mustbegcc
+linux-cil:  mustbegcc
 	$(MAKE) -C $(LINUXDIR) vmlinux \
               MY-CC="$(LINUXCC) --cil"
 
 linux-clean:
 	$(MAKE) -C $(LINUXDIR) clean
 
-combinetest: defaulttarget
+combinetest: 
 	cd test/small1; $(CCURED) --combine /Fet.exe t.c t1.c
 
 obj/prettytest.exe: src/pretty.mli src/pretty.ml src/prettytest.ml
@@ -1528,7 +1250,7 @@ ftpd-clean:
 	cd $(FTPDDIR); make clean
 	cd $(FTPDDIR); rm -f *cil.c *box.c *.i *_ppp.c *.origi *_all.c
 
-ftpd: defaulttarget mustbegcc
+ftpd:  mustbegcc
 	cd $(FTPDDIR); \
             make CC="$(FTPDSAFECC)" \
                  LD="$(FTPDSAFECC)"
@@ -1537,12 +1259,12 @@ ftpd: defaulttarget mustbegcc
 ######################################################################
 # Rahul's test cases
 
-spr/%:  test/spr/%.c defaulttarget
+spr/%:  test/spr/%.c 
 	rm -f test/spr/$*
 	cd test/spr; $(CC) $(CONLY) $(WARNALL) $(DEF)$(ARCHOS) $*.c
 	cd test/spr; $(SAFECC) --verbose --keep=. $(DEF)$(ARCHOS) \
                  `$(PATCHECHO) $(STANDARDPATCH)` \
-                 $(DOOPT) `true $(WARNALL)` $(NOPRINTLN) \
+                 $(CFLAGS) `true $(WARNALL)` $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*
 

@@ -10,6 +10,8 @@ hola
 *_all.c
 *.pdb
 *.ilk
+*cured.c
+*_comb.c
 comb
 ocamlprof*
 voidfree

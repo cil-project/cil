@@ -1,0 +1,192 @@
+# toplevel Makefile for CCured project
+# author: George Necula
+#
+# 3/06/01 sm: made the rules depend on environment variable ARCHOS,
+#             so I can say x86_LINUX
+# 3/17/01 sm: replaced a few more instances of x86_WIN32 with $(ARCHOS)
+
+# Debugging. Set ECHO= to debug this Makefile 
+ECHO = @
+
+USEFRONTC = 1
+
+# First stuff that makes the executable 
+# Define the ARCHOS in your environemt : [x86_LINUX, x86_WIN32, SUNOS]
+
+SOURCEDIRS  = src
+OBJDIR      = obj
+MLLS        = 
+MLYS        = 
+# ast clex cparse
+# sm: trace: utility for debug-time printfs
+MODULES     = pretty trace errormsg stats util clist \
+              cil cfg logcalls check ptrnode \
+              solveutil solver globinit \
+              oneret boxsplit boxstats box markptr \
+              rmtmps optim
+EXECUTABLE  = $(OBJDIR)/ccured
+CAMLUSEUNIX = 1
+ifdef RELEASE
+UNSAFE      = 1
+endif
+CAMLLIBS    = 
+
+# Front end stuff
+SOURCEDIRS += src/frontc
+MLLS       += clexer.mll
+MLYS       += cparser.mly
+MODULES    += cabs cprint clexer cparser cabs2cil cabsvisit \
+              frontc
+
+# Add main late
+MODULES    += main
+
+# What should we put into the OCAML CIL library? 
+# everything by main.cl, basically
+OCAML_CIL_LIB_MODULES = $(MODULES:main=)
+
+# Additional things to clean
+EXTRACLEAN += $(OBJDIR)/*.obj $(OBJDIR)/*.a $(OBJDIR)/*.o
+
+
+    # Include now the common set of rules for OCAML
+    # This file will add the rules to make $(EXECUTABLE).$(EXE)
+include Makefile.ocaml
+
+# ww: build an OCAML library (CMA / CMXA) that exports our Cil stuff
+# kudos to George for this lovely patsubst code ...
+cillib: $(OBJDIR)/cil.$(CMXA)
+
+$(OBJDIR)/cil.$(CMXA): $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
+	$(CAMLLINK) -a -o $@ $^
+
+
+# sm: I keep getting bit by this
+ifndef CCUREDHOME
+You have not defined the CCUREDHOME variable
+endif
+
+CCURED=perl $(CCUREDHOME)/lib/ccured.pl 
+PATCHER=perl $(CCUREDHOME)/lib/patcher.pl
+
+# Now do the user-specific customization
+# It is Ok if this file does not exist
+-include $(CCUREDHOME)/.ccuredrc
+
+# By default use GCC, unless you set NO_GC
+ifndef _MSVC
+_GNUCC = 1
+endif
+
+# Now include the compiler specific stuff
+ifdef _MSVC
+ include Makefile.msvc
+else
+  ifdef _GNUCC
+    include Makefile.gcc
+  endif
+endif
+
+ifdef RELEASE
+  COMPILEREXT=$(COMPILERNAME)_release
+  else
+  COMPILEREXT=$(COMPILERNAME)_debug
+endif
+
+
+# By default use the GC if we use GCC
+ifdef _GNUCC
+ ifndef NO_GC
+   USE_GC=1
+ endif
+endif
+
+PATCHER +=--mode=$(COMPILERNAME)
+
+
+CCUREDLIB=obj/ccured_$(COMPILEREXT).$(LIBEXT)
+
+# garbage collector options
+ifdef _GNUCC
+  ifdef USE_GC
+    # enable the garbage collector by default for gcc
+    GCLIB = $(CCUREDHOME)/lib/gc/gc.a
+
+$(GCLIB):
+	cd lib/gc; make
+
+gctest: 
+	cd lib/gc; ./gctest
+
+  else
+    GCLIB =
+gctest: 
+
+  endif
+else
+  # on msvc, what needs to be done to get gc working:
+  #  - make sure we can compile gc.a, and that gctests works
+  #  - modify the commands which build $(CCUREDLIB) so they
+  #    include gc.a
+  GCLIB =
+gctest:
+
+endif
+
+###
+###
+###    # Now the rules to make the library
+###
+###
+ifndef RELEASE
+CCUREDLIBARG=$(DEF)_DEBUG
+endif
+
+$(CCUREDLIB) : lib/safec.c lib/safec.h lib/safeccheck.h lib/splay.c $(GCLIB) 
+	$(CC) $(CFLAGS) $(INC)./lib $(CONLY) $(CCUREDLIBARG) \
+                    $(OBJOUT)obj/safec.$(OBJEXT) lib/safec.c
+	$(CC) $(CFLAGS) $(INC)./lib $(CONLY) $(CCUREDLIBARG) \
+                    $(OBJOUT)obj/splay.$(OBJEXT) lib/splay.c
+	if echo $(GCLIB) | grep / >/dev/null; then \
+		cp -f $(GCLIB) $@; echo "using GC"; \
+	else \
+		rm -f $@; echo "not using GC"; \
+	fi
+	$(LIB) $(LIBOUT)$@ obj/safec.$(OBJEXT) obj/splay.$(OBJEXT)
+ifdef _GNUCC
+	ranlib $@
+endif
+
+######################
+.PHONY : combiner cilly presetup all setup includes cleanincludes
+
+combiner:
+	$(MAKE) -f Makefile.combiner $(MAKEOVERRIDES)
+
+cilly: 
+	$(MAKE) -f Makefile.cil $(MAKEOVERRIDES)
+
+rmlibrary: 
+	rm -rf $(CCUREDLIB)
+
+libraries: rmlibrary $(CCUREDLIB) gctest
+
+all: combiner cillib cilly $(EXECUTABLE)$(EXE) libraries
+
+setup: includes
+	$(MAKE) -f Makefile.ccured all $(MAKEOVERRIDES) RELEASE= 
+	$(MAKE) -f Makefile.ccured all $(MAKEOVERRIDES) RELEASE=1
+ifdef _MSVC
+	$(MAKE) -f Makefile.ccured libraries _GNUCC=1 RELEASE= \
+                                             $(MAKEOVERRIDES) 
+	$(MAKE) -f Makefile.ccured libraries _GNUCC=1 RELEASE=1 \
+                                             $(MAKEOVERRIDES) 
+endif
+
+cleanincludes: 
+	$(PATCHER) --dest=$(CCUREDHOME)/include --clean
+
+includes: cleanincludes
+	$(PATCHER) --patch=$(CCUREDHOME)/lib/ccured_$(COMPILERNAME).patch\
+                   --dest=$(CCUREDHOME)/include \
+	           $(foreach file,$(PATCH_SYSINCLUDES), --sfile=$(file))

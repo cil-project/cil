@@ -97,8 +97,8 @@ sub link {
     # Now invoke the combiner
     my $combined = $dest . $Combiner::combext;
     my $cmd = "$Combiner::combiner --o $combined ";
-    if($self->{MODENAME} eq "mscl") {
-        $cmd .= " --msvc ";
+    if($self->{MODENAME} eq "MSVC") {
+        $cmd .= " --MSVC ";
     }
     if($self->{VERBOSE}) {
         $cmd .= " --verbose ";

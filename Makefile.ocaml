@@ -95,18 +95,18 @@ ifeq ($(ARCHOS), x86_WIN32)
   EXE		= $(EXEEXT).exe
   OBJ   	= obj
   ifdef CAMLUSEUNIX
-    UNIXLIBS	+= unix.$(CMXA) $(CAMLLIB)/libunix.lib wsock32.lib
+    UNIXLIBS	+= unix.$(CMXA) wsock32.lib
   endif
 endif
 ifeq ($(ARCHOS), x86_LINUX)
-  EXE           = $(EXEEXT).exe # weimer: your other scripts need this
+  EXE           = $(EXEEXT).exe
   OBJ           = o
   ifdef CAMLUSEUNIX
     UNIXLIBS	+= unix.$(CMXA) -cclib -lunix
   endif
 endif
 ifeq ($(ARCHOS), SUNOS)
-  EXE           = $(EXEEXT)
+  EXE           = $(EXEEXT).exe
   OBJ           = o
   ifdef CAMLUSEUNIX
     UNIXLIBS	+= unix.$(CMXA) -cclib -lunix
