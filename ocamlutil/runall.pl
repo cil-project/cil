@@ -52,9 +52,22 @@ use File::Basename;
 #  If the environment variable KEEPGOING is set, then we continue after
 #  errors.
 #
+#  If the environment variable COMMENT is set, then this string is used to
+#  comment out a line. Otherwise, the lines that must be dropped are not
+#  printed.
+#
+#  If the environment variable KEEP is set, then we do not delete the 
+#  files that are generated.
+#
 #  The COMMAND variable must contain the command to run for each test. The 
-#  word __FILE__ is substituted with the actual file name if present,
-#  otherwise the filename is appended to the command. 
+#  following substitutions are done: 
+#   __FILE__ with the name of the transformed file
+#  __BASENAME__ with the basename (no directory, no extension)
+#  __EXT__ with the extension
+#  __DIR__ with the directory
+#
+#  If none of the above substitutions can be performed, then the 
+#  name of the file is appended to the command.
 #
 #
 
@@ -62,6 +75,9 @@ my %testnames;
 
 my ($base, $dir, $ext) = fileparse($ARGV[0], qr{\.[^.]+});
 
+my $outbasename = "$base-tmp";
+my $outext = $ext;
+my $outdir = $dir;
 my $outfile = "$dir$base-tmp$ext";
 
 my $action = 'COLLECT';
@@ -87,42 +103,57 @@ if(defined $ENV{'RUNONLY'}) {
         &runOneTest($t);
     }
 }
-unlink $outfile;
+if(not defined $ENV{'KEEP'}) { 
+    unlink $outfile;
+}
 1;
 
 
-#
+##############################
+
 sub parseTestDef {
     my ($text, $line) = @_;
     my ($name, $success, $msg);
 
-    if($text =~ m|^\s*(\S+)?\s*(:\s*(error\|success)\s*(\S.*)?)?$|) {
-        $name = $1;
-        my $istestdef = defined $2;
-        $success = $3 eq "success";
-        my $rest = $4;
-        if(!defined $name) {
+    # All the way to : is the name of the test
+    if($text !~ m|^([^:]+):(.*)$|) {
+        # There is no :. All of it is the name of the test. Trim spaces
+        ($name) = ($text =~ m|^\s*(\S.*)$|);
+        ($name) = ($name =~ m|^(.*\S)\s*$|);
+        if($name eq "") {
+            die "Test definition with no name and no : error or : success";
+        }
+        if(! defined $testnames{$name}) {
+            die "Unknown test";
+        } 
+        return $name;
+    } else {
+        # We have a :  This is a test definition
+        my $rest = $2;
+        ($name) = ($1 =~ m|^\s*(\S.*)$|);
+        ($name) = ($name =~ m|^(.*\S)\s*$|);
+        if($name eq "") {
             $name = $count ++;
         }
-        if(! $istestdef) {
-            if(! defined $testnames{$name}) {
-                die "Test definition must have : error or : success";
-            } 
-            return $name;
+        # See if this is success
+        if($rest !~ m|^\s*(error\|success)(.*)$|) {
+            die "After success or error there must be =\n";
         }
-        if(defined $rest) {
-            if($rest =~ m|^=\s*(\S.*\S)\s*$|) {
-                $msg = $1;
-            } else {
-                die "After success or error there must be =";
-            }
+        $success = $1 eq "success";
+        $rest = $2;
+
+        # See if there is a message. Must be at least two chars long
+        if($rest =~ m|^\s*=\s*(\S.*\S)\s*$|) {
+            $msg = $1;
         } else {
             $msg = "";
         }
+            
+
         # We have found a test
         if($action eq 'COLLECT') {
             if(defined $testnames{$name} &&
-               $testnames{$name}->SUCCESS != $success) {
+               $testnames{$name}->{SUCCESS} != $success) {
                 die "Test $name is defined both success and error";
             }
             if(defined $testnames{$name} &&
@@ -137,8 +168,6 @@ sub parseTestDef {
             }
         }
         return $name;
-    } else {
-        print "Invalid test specification: $text";
     }
 }
 
@@ -158,20 +187,20 @@ sub scanTestFile {
         $line ++;
         my $name; 
 
+        my $comment = 0;
+
         if($_ =~ m|^\s*TESTDEF(.*)$|) {
             $name = &parseTestDef($1, $line);
-            if($action eq 'PROCESS') { print OUT "## "; }
+            if($action eq 'PROCESS') { $comment = 1; }
         } elsif($_ =~ m|DROP(.*)$|) {
             $name = &parseTestDef($1, $line);
             if($action eq 'PROCESS' &&
-               ($name eq $current || !$keep)) 
-            { print OUT "## "; }
+               ($name eq $current || !$keep)) { $comment = 1; }
 
         } elsif($_ =~ m|KEEP(.*)$|) {
             $name = &parseTestDef($1, $line);
             if($action eq 'PROCESS' &&
-                ($name ne $current || !$keep)) 
-            { print OUT "## "; }
+                ($name ne $current || !$keep))  { $comment = 1; }
 
         } elsif($_ =~ m|^\s*IFTEST(.*)$|) {
             $name = &parseTestDef($1, $line);
@@ -182,7 +211,7 @@ sub scanTestFile {
                     print "IFTEST($name): Current=$current, Keep=$keep on line $line: env=", 
                     join(',', @ifenv), "\n"; 
                 }
-                print OUT "## ";
+                $comment = 1;
             }
         } elsif($_ =~ m|^\s*IFNTEST(.*)$|) {
             $name = &parseTestDef($1, $line);
@@ -193,14 +222,14 @@ sub scanTestFile {
                     print "IFNTEST($name): Current=$current, Keep=$keep on line $line: env=", 
                     join(',', @ifenv), "\n"; 
                 }
-                print OUT "## ";
+                $comment = 1;
             }
         } elsif($_ =~ m|^\s*ELSE\s*$|) {
             if($action eq 'PROCESS') {
                 if($#ifenv < 1) { die "Found ELSE without IF"; }
                 $keep = (! $ifenv[0] && $ifenv[1]) ? 1 : 0;
                 if($debug) { print "ELSE: Keep=$keep on line $line\n"; }
-                print OUT "## ";
+                $comment = 1;
             }
         } elsif($_ =~ m|^\s*ENDIF\s*$|) {
             if($action eq 'PROCESS') {
@@ -208,14 +237,23 @@ sub scanTestFile {
                 shift @ifenv; 
                 $keep = shift @ifenv;
                 if($debug) { print "ENDIF: Keep=$keep on line $line\n"; }
-                print OUT "## ";
+                $comment = 1;
             }
         }
 
         # Just print the line if we do not recognize this line
         if($action eq 'PROCESS') {
-            if(! $keep) { print OUT "## "; }
-            print OUT $_;
+            if(! $keep || $comment) { 
+                if(defined $ENV{'COMMENT'}) {
+                    print OUT $ENV{'COMMENT'};
+                    print OUT " ";
+                    print OUT $_;
+                } else {
+                    print OUT "\n";
+                }
+            } else {
+                print OUT $_;
+            }
         }
     }
 }
@@ -226,7 +264,7 @@ sub runOneTest {
 
     print "\n********* Running test $t from line $ti->{LINE}\n";
     open(OUT, ">$outfile\n") 
-        || die "Cannot run cpp";
+        || die "Cannot produce $outfile";
     &scanTestFile($t);
     close(OUT) || die "Cannot close file $outfile";
     # Now we run the command
@@ -237,7 +275,17 @@ sub runOneTest {
     # Substitute __FILE__ with the current file
     if($command =~ m|__FILE__|) {
         $command =~ s|__FILE__|$outfile|g;
-    } else {
+    }
+    if($command =~ m|__DIR__|) { 
+        $command =~ s|__DIR__|$outdir|g;
+    } 
+    if($command =~ m|__BASENAME__|) { 
+        $command =~ s|__BASENAME__|$outbasename|g;
+    }
+    if($command =~ m|__EXT__|) { 
+        $command =~ s|__EXT__|$outext|g;
+    }
+    if($command eq $ENV{COMMAND}) {
         $command .= " $outfile";
     }
     print "$command\n";
