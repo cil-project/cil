@@ -32,6 +32,7 @@
 #define __SEQNT
 #define __INDEXT
 #define __NODE
+#define __HEAPIFY
 #else
 #define __WILD   __attribute__((wild))
 #define __SAFE   __attribute__((safe))
@@ -52,6 +53,7 @@
 #define __FSEQT   __attribute__((fseqt))
 #define __FSEQNT   __attribute__((fseqnt))
 #define __NODE
+#define __HEAPIFY __attribute__((heapify))
 #endif
 #endif
 
