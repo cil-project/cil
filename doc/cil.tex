@@ -2045,6 +2045,13 @@ Necula}.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf December 17, 2002}: {\bf Released version 1.0.5}
+\item {\bf December 17, 2002}: Fixed a few bugs in CIL related to the
+  representation of string literals. Now they have type array of characters
+  and we {\bf have added the StartOfString expression constructor} to denote
+  the start of a string (of pointer type). This allowed us to fix bugs with
+  computing \t{sizeof("foo")} and \t{sizeof((char*)"foo")} (the latter is 4). 
+
 \item {\bf December 8, 2002}: Fixed a few bugs in the lexer and parser
   relating to hex and octal escapes in string literals.  Also fixed
   the dependencies between the lexer and parser.
