@@ -680,8 +680,7 @@ smAddTest("wes-hashtest $iters");
 smAddTest("wes-hashtest $box $iters");
 
 # some piece of PCC
-smFailTest("parse error, cause unknown", 
-           "testpcc/parseobject EXTRAARGS=--no-idashi");
+smAddTest("testpcc/parseobject EXTRAARGS=--no-idashi");
 
 # apache modules; set is needed for next one
 $TEST->setField(smAddTest("apache!1setup"), 'Cmd', "make apachesetup");
