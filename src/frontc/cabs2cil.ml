@@ -689,16 +689,16 @@ module BlockChunk =
             | _ -> incr pCount);
             if !pCount > 5 then raise (Failure ("cannot duplicate: too many instr"));
             (* We can just copy it because there is nothing to share here. 
-             * Except mybe for the ref cell in Goto but it is Ok to share 
+             * Except maybe for the ref cell in Goto but it is Ok to share 
              * that, I think *)
-            s) c.stmts;
+            { s with sid = s.sid}) c.stmts;
         postins = c.postins; (* There is no shared stuff in instructions *)
         cases = []
       } 
-
+(*
     let duplicateChunk (c: chunk) = 
       if isEmpty c then c else raise (Failure ("cannot duplicate: isNotEmpty"))
-
+*)
     (* We can drop a chunk if it does not have labels inside *)
     let canDrop (c: chunk) =
       List.for_all canDropStatement c.stmts
