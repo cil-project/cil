@@ -3121,7 +3121,14 @@ let fixupGlobName vi =
       TInt _ | TFloat _ | TVoid _ | TEnum _ -> acc
     | TPtr(t', _) as t -> 
         let pk = kindOfType t in
-        pkQualName pk acc (fun acc' -> qualNames acc' t')
+        (* See if this is a modified va_list *)
+        let acc' = 
+          match unrollType t' with 
+            TComp(ci, _) when ci.cstruct && ci.cname = "__ccured_va_list" -> 
+              "v" :: acc
+          | _ -> acc
+        in
+        pkQualName pk acc' (fun acc'' -> qualNames acc'' t')
     | TArray(t', _, a) ->
         let acc' =
           (* Choose the attributes so that "s" is always the C represent *)

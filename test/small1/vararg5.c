@@ -1,4 +1,5 @@
-#include "vararg5.h"
+#pragma boxvararg_printf("talking", 1)
+void talking(char *s, ...);
 
 /* 
 This file is a test for variable argument functions, where the call to 
@@ -20,7 +21,7 @@ int main(int argc, char** argv) {
   y = 1;
   s = "hello";
   talking("This should be 5: %d\n", x);
-  return 0;
+  return !(x == 5);
 }
 
 void talking(char* s, ...) {
