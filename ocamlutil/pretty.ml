@@ -32,7 +32,7 @@
 (* Pretty printer *)
 
 let debug = false
-let aman           = true
+let aman           = false
 let aman_no_layout = aman && false
 let aman_no_output = aman && false
 let aman_no_fit    = aman && true
@@ -413,10 +413,14 @@ let gprintf (finish : doc -> doc)
   (* Record the starting align depth *)
   let startAlignDepth = !alignDepth in
   (* Special concatenation functions *)
-  let dconcat acc thunk = 
+  let dconcat (acc: doc) (thunk: unit -> doc) = 
     if !alignDepth > !printDepth then acc else Concat(acc, thunk()) in
-  let dctext acc thunk = 
+  let dconcat1 (acc: doc) (another: doc) = 
+    if !alignDepth > !printDepth then acc else Concat(acc, another) in
+  let dctext (acc: doc) (thunk: unit -> string) = 
     if !alignDepth > !printDepth then acc else CText(acc, thunk()) in
+  let dctext1 (acc: doc) (str: string) = 
+    if !alignDepth > !printDepth then acc else CText(acc, str) in
   (* Special finish function *)
   let dfinish dc = 
     if !alignDepth <> startAlignDepth then
@@ -429,7 +433,7 @@ let gprintf (finish : doc -> doc)
                                         (* Output a literal sequence of 
                                          * characters, starting at i. The 
                                          * character at i does not need to be 
-                                         * checked.  *)
+                                         * checked.  *) 
   let rec literal acc i = 
     let rec skipChars j = 
       if j >= flen || 
@@ -437,7 +441,7 @@ let gprintf (finish : doc -> doc)
         '%' -> true 
       | '@' -> true 
       | _ -> false) then
-        collect (dconcat acc (fun () -> Text (String.sub format i (j-i)))) j
+        collect (dconcat1 acc (Text (String.sub format i (j-i)))) j
       else
         skipChars (succ j)
     in
@@ -452,47 +456,47 @@ let gprintf (finish : doc -> doc)
           '%' -> literal acc j 
         | 's' ->
             Obj.magic(fun s ->
-              let thunk () = 
+              let str = 
                 if j <= i+1 then
                   s
                 else
+                  let sl = String.length s in
                   let p =
                     try
                       int_of_string (String.sub format (i+1) (j-i-1))
                     with _ ->
                       invalid_arg "fprintf: bad %s format" in
-                  if p > 0 && String.length s < p then
-                    (String.make (p - String.length s) ' ') ^ s
-                  else if p < 0 && String.length s < -p then
-                    s ^ (String.make (-p - String.length s) ' ')
+                  if p > 0 && sl < p then
+                    (String.make (p - sl) ' ') ^ s
+                  else if p < 0 && sl < -p then
+                    s ^ (String.make (-p - sl) ' ')
                   else
                     s
               in
-              collect (dctext acc thunk) (succ j))
+              collect (dctext1 acc str) (succ j))
         | 'c' ->
             Obj.magic(fun c ->
-              collect (dctext acc (fun () -> String.make 1 c)) (succ j))
+              collect (dctext1 acc (String.make 1 c)) (succ j))
         | 'd' | 'i' | 'o' | 'x' | 'X' | 'u' ->
             Obj.magic(fun n ->
-              collect (dctext acc
-                         (fun () -> format_int (String.sub format i 
+              collect (dctext1 acc
+                         (format_int (String.sub format i 
                                                   (j-i+1)) n))
                 (succ j))
         | 'f' | 'e' | 'E' | 'g' | 'G' ->
             Obj.magic(fun f ->
-              collect (dctext acc
-                         (fun () -> 
-                           format_float (String.sub format i (j-i+1)) f))
+              collect (dctext1 acc
+                         (format_float (String.sub format i (j-i+1)) f))
                 (succ j))
         | 'b' ->
             Obj.magic(fun b ->
-              collect (dctext acc (fun () -> string_of_bool b)) (succ j))
+              collect (dctext1 acc (string_of_bool b)) (succ j))
         | 'a' ->
             Obj.magic(fun pprinter arg ->
-              collect (dconcat acc (fun () -> pprinter () arg)) (succ j))
+              collect (dconcat1 acc (pprinter () arg)) (succ j))
         | 't' ->
             Obj.magic(fun pprinter ->
-              collect (dconcat acc pprinter) (succ j))
+              collect (dconcat1 acc (pprinter ())) (succ j))
         | c ->
             invalid_arg ("dprintf: unknown format %s" ^ String.make 1 c)
 
@@ -523,11 +527,11 @@ let gprintf (finish : doc -> doc)
               in
               collect newacc (i + 2)
           | '!' ->                        (* hard-line break *)
-              collect (dconcat acc (fun () -> line)) (i + 2)
+              collect (dconcat1 acc line) (i + 2)
           | '?' ->                        (* soft line break *)
-              collect (dconcat acc (fun () -> break)) (i + 2)
+              collect (dconcat1 acc break) (i + 2)
           | '@' -> 
-              collect (dctext acc (fun () -> "@")) (i + 2)
+              collect (dctext1 acc "@") (i + 2)
           | c ->
               invalid_arg ("dprintf: unknown format @" ^ String.make 1 c)
         end else
@@ -536,7 +540,7 @@ let gprintf (finish : doc -> doc)
         if i + 1 < flen then begin
           match fget (succ i) with
             'n' ->                      
-              collect (dconcat acc (fun () -> line)) (i + 2)
+              collect (dconcat1 acc line) (i + 2)
           | _ -> literal acc i
         end else
           invalid_arg "dprintf: incomplete escape \\"
