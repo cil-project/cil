@@ -133,17 +133,19 @@ and compinfo = {
     mutable cattr:   attribute list;    (* The attributes that are defined at 
                                          * the same time as the composite 
                                          * type *)
-  } 
-    
-(* Information about an enumeration. This is shared by all references to an 
+    mutable creferenced: bool;          (* true if used *)
+  }
+
+(* Information about an enumeration. This is shared by all references to an
  * enumeration. Make sure you have a GEnumTag for each of of these.   *)
-and enuminfo = { 
+and enuminfo = {
     mutable ename: string;             (* the name. Always non-empty *)
-    mutable eitems: (string * exp) list;(* items with names and values. This 
-                                         * list should be non-empty. The item 
-                                         * values must be compile-time 
+    mutable eitems: (string * exp) list;(* items with names and values. This
+                                         * list should be non-empty. The item
+                                         * values must be compile-time
                                          * constants. *)
-    mutable eattr: attribute list      (* attributes *)
+    mutable eattr: attribute list;     (* attributes *)
+    mutable ereferenced: bool;         (* true if used *)
 }
 
 (* what is the type of an expression? Keep all attributes sorted. Use 
@@ -567,7 +569,9 @@ class type cilVisitor = object
   method vglob : global -> bool      (* global (vars, types, etc.) *)
   method vinit : init -> bool        (* initializers for globals *)
   method vtype : typ -> bool         (* use of some type *)
-  method vtdec : string -> typ -> bool    (* typedef *)
+  method vtdec : string -> typ -> bool    (* typedef declaration *)
+  method venum : enuminfo -> bool    (* enum declaration *)
+  method vcomp : compinfo -> bool    (* composite (struct/enum) declaration *)
 end
 
 (* the default visitor does nothing at each node, but does *)
@@ -586,6 +590,8 @@ class nopCilVisitor = object
   method vinit (i:init) = true        (* global initializers *)
   method vtype (t:typ) = true         (* use of some type *)
   method vtdec (s:string) (t:typ) = true    (* typedef *)
+  method venum (e:enuminfo) = true
+  method vcomp (c:compinfo) = true
 end
 
 (* as an example, here is a visitor that visits expressions *)
@@ -841,7 +847,7 @@ let mkCompInfo
    (* Make a new self cell and a forward reference *)
    let comp = 
      { cstruct = isstruct; cname = ""; ckey = 0; cfields = [];
-       cattr = a; } in
+       cattr = a; creferenced = false; } in
    compSetName comp n;  (* fix the name and the key *)
    let self = ref voidType in
    let tforward = TComp (comp, []) in
@@ -2103,6 +2109,17 @@ and visitCilBlock (vis: cilVisitor) (b: block) : unit =
   let fStmt s = (visitCilStmt vis s) in
   List.iter fStmt b
 
+(* this is pulled out because all circularity will go through *)
+(* a compinfo, so I won't recurse by default, but I want the *)
+(* user to easily be able to recurse when desired *)
+and visitCompFields (vis : cilVisitor) (cinfo : compinfo) : unit =
+begin
+  (* iterate over fields *)
+  (List.iter
+    (fun (finfo : fieldinfo) ->
+      (visitCilType vis finfo.ftype))
+    cinfo.cfields)
+end
 
 and visitCilType (vis : cilVisitor) (t : typ) : unit =
 begin
@@ -2119,15 +2136,9 @@ begin
       (visitCilType vis t);
       (visitCilExpr vis e)
     )
-(* Find a way to iterate over types
-  | TComp(false, cinfo, _) -> (
-      (* iterate over fields *)
-      (List.iter
-        (fun (finfo : fieldinfo) ->
-          (visitCilType vis finfo.ftype))
-        cinfo.cfields)
+  | TComp(cinfo, _) -> (
+      (* DON'T recurse automatically; user can call visitCompFields *)
     )
-*)
   | TFun(rettype, args, _, _) -> (
       (visitCilType vis rettype);
 
@@ -2142,9 +2153,7 @@ begin
   | TNamed(s, t, _) -> (
       (visitCilType vis t)
     )
-  (* I choose not to recurse into TForward since my present *)
-  (* purpose doesn't need it, and it could lead to inf loop *)
-  | _ -> ()
+  | _ -> ()       (* other types don't contain types *)
 end
 
 (* for declarations, we visit the types inside; but for uses, *)
@@ -2173,6 +2182,8 @@ end
 
 let visitCilGlobal (vis: cilVisitor) (g: global) : unit =
 begin
+  (trace "visit" (dprintf "visitCilGlobal\n"));
+
   if (vis#vglob g) then
 
   match g with
@@ -2182,15 +2193,12 @@ begin
       if (vis#vtdec s t) then (visitCilType vis t)
     )
   | GEnumTag (enum, _) ->
-      (* For now behave like the old GType *)
-      let t = TEnum (enum, []) in
-      if (vis#vtdec "" t) then (visitCilType vis t)
+      (ignore (vis#venum enum))
+  | GCompTag (comp, _) -> (
+      (ignore (vis#vcomp comp))
 
-  | GCompTag (comp, _) -> 
-      (* For now behave like the old GType *)
-      let t = TComp (comp, []) in
-      if (vis#vtdec "" t) then (visitCilType vis t)
-      
+      (* DON'T recurse automatically; user can call visitCompFields *)
+    )
   | GDecl(v, _) -> (visitCilVarDecl vis v)
   | GVar (v, None, _) -> (visitCilVarDecl vis v)
   | GVar (v, Some i, _) -> (visitCilVarDecl vis v); (visitCilInit vis i)
@@ -2209,7 +2217,9 @@ begin
   (* the global initializer *)
   (match f.globinit with
     None -> ()
-  | Some g -> (fGlob (GFun(g, locUnknown))))
+  | Some g -> (fGlob (GFun(g, locUnknown))));
+
+  (trace "visitCilFile" (dprintf "finished %s\n" f.fileName))
 end
 
 (* sm: I didn't end up using this (because I needed more control *)

@@ -24,6 +24,8 @@ class nopCilVisitor = object
   method vinit (i:init) = true        (* global initializer *)
   method vtype (t:typ) = true         (* use of some type *)
   method vtdec (s:string) (t:typ) = true    (* typedef *)
+  method venum (e:enuminfo) = true
+  method vcomp (c:compinfo) = true
 end
 
 
@@ -50,7 +52,8 @@ let isInlineFunc (f: fundec) : bool = (
 (* This visitor recursively marks all reachable types and variables as used. *)
 (* You construct it with a hash table, which is already partially *)
 (* marked; this visitor destructively updates the hash table. *)
-class removeTempsVis (usedTypes : (typ,bool) H.t)
+(* The hash table is used to track which typedef names are used. *)
+class removeTempsVis (*(usedTypes : (typ,bool) H.t)*)
                      (usedTypedefs : (string,bool) H.t) = object (self)
   inherit nopCilVisitor
 
@@ -67,11 +70,40 @@ class removeTempsVis (usedTypes : (typ,bool) H.t)
 
   method vtype (t : typ) = begin
     match t with
+    | TEnum(e, _) -> (
+        (* mark this enum as used, and recurse, only if it *)
+        (* hasn't already been marked *)
+        if (not e.ereferenced) then (
+          e.ereferenced <- true;
+          true    (* recurse (though actually recursing into an enum does nothing) *)
+        )
+        else (
+          false   (* don't recurse *)
+        )
+      )
+
+    | TComp(c, _) -> (
+        (* same logic as with TEnum *)
+        if (not c.creferenced) then (
+          c.creferenced <- true;
+          
+          (* to recurse, we must ask explicitly *)
+          (visitCompFields (self :> cilVisitor) c);
+
+          true   (* this actually does nothing *)
+        )
+        else (
+          false 
+        )
+      )
+
     | TNamed(s, t, _) -> (
+        (* again same logic as above, though this time the 'then' *)
+        (* and 'else' branches reverse roles.. :) *)
         (* see if this typedef name has already been marked *)
         if (H.mem usedTypedefs s) then (
           (* already marked, don't recurse further *)
-          true
+          false
         )
         else (
           (trace "usedType" (dprintf "marking used typedef: %s\n" s));
@@ -79,54 +111,17 @@ class removeTempsVis (usedTypes : (typ,bool) H.t)
           (* not already marked; first mark the typedef name *)
           (H.add usedTypedefs s true);
 
-          (* also recursively mark the type it refers to; *)
-          (* even if we return true, the visitor does not *)
-          (* automatically recurse since named types are the *)
-          (* cut-points for circularity *)
-          (* WRONG: TForward are the cut-points *)
-          (*(visitCilType (self :> cilVisitor) t);*)
-
-          (* like I say, this has no effect *)
+          (* recurse deeper into the type referred-to by the typedef *)
           true
         )
       )
 
     | _ -> (
-        (* for anything but a typedef, look only at its structure *)
-        if (H.mem usedTypes t) then (
-          (* this type has already been marked reachable, so *)
-          (* stop recursing into it *)
-          true
-        )
-        else (
-          (trace "usedType" (dprintf "marking used type: %a\n"
-                                     d_type t));
-
-          (* it is reachable; mark it as such *)
-          (H.add usedTypes t true);
-          
-          (* we have to handle TForward specially -- if a TForward *)
-          (* is used, we need the associated TComp to be marked used also *)
-(*
-          (match t with
-          | TComp (true, cinfo, a) -> (
-              (trace "usedType" (dprintf "also recursing into associated TComp: %a\n" d_type t));
-
-              (* not only do I need to mark it, I need to recurse *)
-              (* into its interior; apparently, this TComp will be *)
-              (* considered equal (by the hash table) to the TComp *)
-              (* presumably already in the Cil tree *)
-              (visitCilType (self :> cilVisitor) (TComp(false, cinfo, a)))
-            )
-          | _ -> ())
-*)
-
-          (* then recurse into types reachable from here *)
-          true
-        )
+        (* for anything else, just look inside it *)
+        true
       )
   end
-  
+
   method vfuncPost (f : fundec) = begin
     (* check the 'referenced' bits on the locals *)
     f.slocals <- (List.filter
@@ -168,7 +163,7 @@ begin
 
   (* associate with every 'typ' whether it is referred-to *)
   (* by a global variable or function *)
-  let usedTypes : (typ, bool) H.t = H.create 17 in
+  (*let usedTypes : (typ, bool) H.t = H.create 17 in*)
 
   (* and similarly for every typedef name *)
   let usedTypedefs : (string, bool) H.t = H.create 17 in
@@ -181,7 +176,7 @@ begin
   (visitCilFile (new clearRefBitsVis) file);
 
   (* create the visitor object *)
-  let vis = (new removeTempsVis usedTypes usedTypedefs) in
+  let vis = (new removeTempsVis (*usedTypes*) usedTypedefs) in
 
   (* this was here before, and it might still be useful later *)
   (*
@@ -225,10 +220,36 @@ begin
               )
             )
 
+          | GEnumTag(e, _) -> (
+              if (e.ereferenced) then (
+                (trace "usedType" (dprintf "keeping enum %s\n" e.ename));
+                true
+              )
+              else (
+                (trace "usedType" (dprintf "removing enum %s\n" e.ename));
+                false
+              )
+            )
+
+          | GCompTag(c, _) -> (
+              let kind = if (c.cstruct) then "struct" else "union" in
+              if (c.creferenced) then (
+                (trace "usedType" (dprintf "keeping %s %s\n" kind c.cname));
+                true
+              )
+              else (
+                (trace "usedType" (dprintf "removing %s %s\n" kind c.cname));
+                false
+              )
+            )
+
           | GType(s, t, _) -> (
               if (s = "") then (
+                (* comments in cil.mli say this can't happen.. *)
+                (* can I ignore it if it does? *)
+
                 (* it's a normal type declaration *)
-                if (H.mem usedTypes t) then (
+                if (false (*H.mem usedTypes t*)) then (
                   (trace "usedType" (dprintf "keeping type %a\n"
                                              d_type t));
 
@@ -240,29 +261,24 @@ begin
                 )
                 else (
                   (* not used, remove it *)
-                  (trace "usedType" (dprintf "removing type %a\n"
-                                             d_type t));
-                  (* false *) true (* george: disabled removal of types for 
-                                    * now. We must fix the visitors for types 
-                                    * first *)
+                  (trace "usedType" 
+                    (dprintf "removing/ignoring bad GType %a\n" d_type t));
+                  false
                 )
               )
               else (
                 (* this is a typedef *)
                 if (H.mem usedTypedefs s) then (
                   (trace "usedType" (dprintf "keeping typedef %s\n" s));
-                  (visitCilType vis t);           (* root; trace it *)
-                  true                            (* used; keep it *)
-                )
-                else if (H.mem usedTypes t) then (
-                  (trace "usedType" (dprintf "keeping typedef %s because un-typedef'd type is used\n" s));
-                  (visitCilType vis t);           (* root; trace it *)
+                  (* I think we don't need to trace again during sweep, because *)
+                  (* all tracing of types should have finished during mark phase *)
+                  (*(visitCilType vis t);*)           (* root; trace it *)
                   true                            (* used; keep it *)
                 )
                 else (
                   (* not used, remove it *)
                   (trace "usedType" (dprintf "removing typedef %s\n" s));
-                  (* false *) true (* george: disabled removal of types *)
+                  false
                 )
               )
             )
@@ -301,3 +317,9 @@ begin
 
   file.globals <- (revLoop file.globals)
 end
+
+
+(*
+let hack_Cil_d_global () (g : Cil.global) =
+  Cil.d_global g
+*)

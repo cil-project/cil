@@ -23,6 +23,7 @@ let rec type_congruent (t1 : typ) (q1 : opointerkind)
           ckey = -1;
           cfields = [] ;
           cattr = [] ;
+          creferenced = false ;
         } in
         our_compinfo.cfields <- 
           [ { fcomp = our_compinfo ; fname = "" ;

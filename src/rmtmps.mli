@@ -9,3 +9,6 @@ val removeUnusedTemps: Cil.file -> unit
 
 
 val keepUnused: bool ref (* Set this to true to turn off this module *)
+
+(* AAARRGGGHHH!!!! *)
+(*val hack_Cil_d_global: unit -> Cil.global -> Pretty.doc*)

@@ -1019,7 +1019,7 @@ let rec doSpecList (specs: A.spec_elem list)
         (* make a new name for this enumeration *)
         let n'' = newAlphaName true "enum" n' in
         (* Create the enuminfo *)
-        let enum = { ename = n''; eitems = []; eattr = [] } in
+        let enum = { ename = n''; eitems = []; eattr = []; ereferenced = false; } in
         let res = TEnum (enum, []) in
 
         (* sm: start a scope for the enum tag values, since they *

@@ -125,33 +125,35 @@ and fieldinfo = {
  * to create non-recursive or (potentially) recursive versions of this. Make 
  * sure you have a GCompTag for each one of these.  *)
 and compinfo = {
-    mutable cstruct: bool;              (* true if struct *)
+    mutable cstruct: bool;              (* true if struct, false if union *)
     mutable cname: string;              (* the name. Always non-empty. Use 
                                          * compSetName to set the name and 
                                          * the key. Use compFullName to get 
                                          * the full name of a comp  *)
     mutable ckey: int;                  (* A unique integer. Use Hashtbl.hash 
-                                         * on the string returned by 
-                                         * compFullName. All compinfo for a 
+                                         * on the string returned by
+                                         * compFullName. All compinfo for a
                                          * given key are shared.  *)
     mutable cfields: fieldinfo list;
-    mutable cattr:   attribute list;    (* The attributes that are defined at 
-                                         * the same time as the composite 
+    mutable cattr:   attribute list;    (* The attributes that are defined at
+                                         * the same time as the composite
                                          * type *)
-  } 
-    
-(* Information about an enumeration. This is shared by all references to an 
+    mutable creferenced: bool;          (* true if used; init to false *)
+  }
+
+(* Information about an enumeration. This is shared by all references to an
  * enumeration. Make sure you have a GEnumTag for each of of these.   *)
-and enuminfo = { 
+and enuminfo = {
     mutable ename: string;             (* the name. Always non-empty *)
-    mutable eitems: (string * exp) list;(* items with names and values. This 
-                                         * list should be non-empty. The item 
-                                         * values must be compile-time 
+    mutable eitems: (string * exp) list;(* items with names and values. This
+                                         * list should be non-empty. The item
+                                         * values must be compile-time
                                          * constants. *)
-    mutable eattr: attribute list      (* attributes *)
+    mutable eattr: attribute list;     (* attributes *)
+    mutable ereferenced: bool;         (* true if used; init to false *)
 }
 
-(* what is the type of an expression? Keep all attributes sorted. Use 
+(* what is the type of an expression? Keep all attributes sorted. Use
  * addAttribute and addAttributes to construct list of attributes *)
 and typ =
     TVoid of attribute list
@@ -159,9 +161,9 @@ and typ =
   | TBitfield of ikind * int * attribute list
   | TFloat of fkind * attribute list
 
-           (* A reference to an enumeration type. All such references must 
-            * share the enuminfo. Make sure you have a GEnumTag for each one 
-            * of these. The attributes refer to this use of the enumeration. 
+           (* A reference to an enumeration type. All such references must
+            * share the enuminfo. Make sure you have a GEnumTag for each one
+            * of these. The attributes refer to this use of the enumeration.
             * The attributes of the enumeration itself are stored inside the 
             * enumeration  *)
   | TEnum of enuminfo * attribute list
@@ -759,7 +761,9 @@ class type cilVisitor = object
   method vglob : global -> bool      (* global (vars, types, etc.) *)
   method vinit : init -> bool        (* initializers for globals *)
   method vtype : typ -> bool         (* use of some type *)
-  method vtdec : string -> typ -> bool    (* typedef *)
+  method vtdec : string -> typ -> bool    (* typedef declaration *)
+  method venum : enuminfo -> bool    (* enum declaration *)
+  method vcomp : compinfo -> bool    (* composite (struct/enum) declaration *)
 end
 
 class nopCilVisitor : cilVisitor
@@ -778,6 +782,7 @@ val visitCilFunction: cilVisitor -> fundec -> unit
 val visitCilGlobal: cilVisitor -> global -> unit
 val visitCilInit: cilVisitor -> init -> unit
 val visitCilStmt: cilVisitor -> stmt -> unit
+val visitCompFields : cilVisitor -> compinfo -> unit
 
    (* Make a local variable and add it to a function *)
 val makeLocalVar: fundec -> string -> typ -> varinfo
