@@ -46,7 +46,9 @@ srcfile="$1"
 # Construct the name of the temporary file to use
 srcfilenoext=`echo $srcfile | sed s/.c\$//`
 tmpname="$srcfilenoext-tmp"
-cd "$CCUREDHOME/test/small2" || exit
+
+# Start it in the right directory
+# cd "$CCUREDHOME/test/small2" || exit
 
 # read how many failure cases are in the file; expect line of form
 # "// NUMERRORS n"

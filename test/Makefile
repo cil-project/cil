@@ -671,10 +671,18 @@ bads/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 # sm: yet another failure-test target, this time utilizing a separate
 # script capable of testing multiple failures per file
 test-bad/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
-	CCUREDHOME="$(CCUREDHOME)" CCURED="$(CCURED) --separate --commPrintLn" \
+	cd $(TESTDIR)/small2; CCUREDHOME="$(CCUREDHOME)" \
+               CCURED="$(CCURED) --separate --commPrintLn" \
 	  CFLAGS=""`$(PATCHECHO) $(STANDARDPATCH)`" $(CFLAGS) $(WARNALL)" \
           TESTBADONCE="$(TESTBADONCE)" \
-	  bash ../bin/test-bad $*.c
+	  bash ../../bin/test-bad $*.c
+
+test-bad1/%: $(TESTDIR)/small1/%.c $(TARGET_DEP)
+	cd $(TESTDIR)/small1; CCUREDHOME="$(CCUREDHOME)" \
+               CCURED="$(CCURED) --separate --commPrintLn" \
+	  CFLAGS=""`$(PATCHECHO) $(STANDARDPATCH)`" $(CFLAGS) $(WARNALL)" \
+          TESTBADONCE="$(TESTBADONCE)" \
+	  bash ../../bin/test-bad $*.c
 
 # sm: trivial test of combiner
 MYSAFECC := $(CCURED) --keep=. $(STANDARDPATCH)
