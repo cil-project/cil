@@ -17,7 +17,8 @@ To use this, just add
 
 to the file in question, and then run
 
-  cilly.asm.exe --sliceGlobal --out file.cil.c file.i
+  $cil/obj/x86_LINUX/cilly.asm.exe \
+    --sliceGlobal --out file.cil.c file.i
 
 (where file.i is preprocessed file.c).  This will slice file.i so it only
 contains things which are needed for 'my_symbol' to compile successfully,
