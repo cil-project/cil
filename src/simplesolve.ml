@@ -444,7 +444,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
             else update_kind n (if is_array n then SeqN else cur.kind) why) then
               finished := false) in
       let contaminated_list = 
-        (List.map (fun e -> e.efrom) ((* non_safe_edges_only *) cur.pred)) 
+        (List.map (fun e -> e.efrom) (non_safe_edges_only  cur.pred)) 
         (* @ 
         (List.map (fun e -> e.eto) (ecast_edges_only cur.succ))   *)
         in
