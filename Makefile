@@ -213,8 +213,8 @@ SAFECCDIR=$(BASEDIR)
 PCCDIR=$(SAFECCDIR)/cil/test/PCC
 TVDIR=$(BASEDIR)/TransVal
 CILDIR=$(BASEDIR)/cil
-# _GNUCC=1
-# USE_GC=1
+_GNUCC=1
+ USE_GC=1
 endif
 
 # sm: I keep getting bit by this
