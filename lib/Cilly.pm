@@ -1375,19 +1375,30 @@ sub arArguments {
     }
     # We got here for the first non -- argument. 
     # Will handle all arguments at once
-#    print "AR called with $arg ", join(' ', @{$pargs}), "\n";
+    if($self->{VERBOSE}) {
+        print "AR called with $arg ", join(' ', @{$pargs}), "\n";
+    }
     if($arg !~ m|c| || $arg !~ m|r| || $#{$pargs} < 0) {
         if($arg !~ m|r|) {
             die "AR implements only the r or cr operations";
         }
-        # if the command is "r" alone, we should add to the current library, not replace it.
+
+        # if the command is "r" alone, we should add to the current library, 
+        # not replace it, unless the library does not exist
         
         # Get the name of the library
         $self->{OUTARG} = shift @{$pargs};
         
 #        if(-f $self->{OFILES}) {
             #The library is both an input and an output:
+        if(-f $self->{OUTARG}) {
+            if($self->{VERBOSE}) {
+                print "The library $self->{OUTARG} exists. Will add to it\n";
+            }
             push @{$self->{OFILES}}, $self->{OUTARG};
+        } else {
+            warn "Library $self->{OUTARG} not found; creating.";
+        }
 #        }
 #        else
 #        {  #library doesn't exist yet.  Warn the user and behave like "ar cr"

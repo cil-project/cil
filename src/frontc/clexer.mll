@@ -297,7 +297,6 @@ let octdigit = ['0'-'7']
 let hexdigit = ['0'-'9' 'a'-'f' 'A'-'F']
 let letter = ['a'- 'z' 'A'-'Z']
 
-let floatsuffix = ['f' 'F' 'l' 'L']
 
 let usuffix = ['u' 'U']
 let lsuffix = "l"|"L"|"ll"|"LL"
@@ -310,10 +309,12 @@ let hexnum = '0' ['x' 'X'] hexdigit+ intsuffix?
 let exponent = ['e' 'E']['+' '-']? decdigit+
 let fraction  = '.' decdigit+
 let floatraw = (intnum? fraction)
-			|(intnum exponent)
-			|(intnum? fraction exponent)
-			|(intnum '.') 
-                        |(intnum '.' exponent) 
+	      |(intnum exponent)
+	      |(intnum? fraction exponent)
+	      | (intnum '.') 
+              | (intnum '.' exponent) 
+
+let floatsuffix = ['f' 'F' 'l' 'L']
 let floatnum = floatraw floatsuffix?
 
 let ident = (letter|'_')(letter|decdigit|'_')* 

@@ -198,8 +198,8 @@ let cabsPushGlobal (g: global) =
  * initializer *)
 let mustTurnIntoDef: (int, bool) H.t = H.create 117
 
-(* Globals that have already been defined *)
-let alreadyDefined: (int, location) H.t = H.create 117
+(* Globals that have already been defined. Indexed by the variable name. *)
+let alreadyDefined: (string, location) H.t = H.create 117
 
 let popGlobals () = 
   let rec revonto (tail: global list) = function
@@ -4027,10 +4027,11 @@ and createGlobal (specs : (typ * storage * bool * A.attribute list))
     in
 
     try
-      let oldloc = H.find alreadyDefined vi.vid in
-      if init != None then 
+      let oldloc = H.find alreadyDefined vi.vname in
+      if init != None then begin
         E.s (error "Global %s was already defined at %a\n" 
                vi.vname d_loc oldloc);
+      end;
       if debugGlobal then 
         ignore (E.log " global %s was already defined\n" vi.vname);
       (* Do not declare it again *)
@@ -4051,7 +4052,7 @@ and createGlobal (specs : (typ * storage * bool * A.attribute list))
             not(hasAttribute "aconst" (typeAttrs vi.vtype)) &&
             not !msvcMode then 
           E.s (error "%s is extern and with initializer" vi.vname);
-        H.add alreadyDefined vi.vid !currentLoc;
+        H.add alreadyDefined vi.vname !currentLoc;
         H.remove mustTurnIntoDef vi.vid;
         cabsPushGlobal (GVar(vi, init, !currentLoc));
         vi
@@ -4384,7 +4385,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
             * as well *)
             thisFunctionVI.vtype <- ftype;
 
-            if H.mem alreadyDefined thisFunctionVI.vid then
+            if H.mem alreadyDefined thisFunctionVI.vname then
               E.s (error "There is a definition already for %s" n);
             currentFunctionVI := thisFunctionVI;
             currentFunctionFormals := formals;

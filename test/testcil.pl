@@ -202,6 +202,7 @@ $TEST->addTests("testrun/const3", "", ['cil']);
 $TEST->addTests("testrun/const4", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/const5", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/const6", "", ['cil']);
+$TEST->addTests("test/const7", "", ['cil']);
 $TEST->add2Tests("test/deref", "_GNUCC=1");
 $TEST->add3Tests("test/enum");
 $TEST->add3Tests("testrun/enum2");
@@ -553,6 +554,8 @@ $TEST->add2Tests("apache/gzip");
 
 $TEST->add2Tests("testrun/sizeof1");
 $TEST->add2Tests("testrun/seq1");
+
+# HERE
 
 #---------------- some performance tests 
 $TEST->add2Tests("perf/perfglobarray");
