@@ -110,8 +110,77 @@ each invocation of the modeled function}. When these dummy bodies are
 processed the calls to the polymorphic model lead to new instances of the
 model function. 
  
-  \section{Using the patcher}
 
-  \section{Using the combiner}
+    \chapter{Using the patcher}
+
+ Occasionally for the purposes of CCured we have needed to modify slightly the
+standard include files. So, we developed a simple mechanism that allows us to
+create modified copies of the include files and use them instead of the
+standard ones. For this purpose we specify a patch file and we run a program
+caller that Patcher which makes modified copies of include files and applies
+the patch. 
+
+ The patcher is invoked as follows: 
+\begin{verbatim}
+perl lib/patcher.pl [options]
+
+Options:
+  --help       Prints this help message
+  --verbose    Prints a lot of information about what is being done
+  --mode=xxx   What tool to emulate: 
+                gcc     - GNU CC
+                mscl    - MS VC cl compiler
+
+  --dest=xxx   The destination directory. Will make one if it does not exist
+  --patch=xxx  Patch file (can be specified multiple times)
+  --ppargs=xxx An argument to be passed to the preprocessor (can be specified
+               multiple times)
+
+  --ufile=xxx  A user-include file to be patched (treated as \#include "xxx")
+  --sfile=xxx  A system-include file to be patched (treated as \#include <xxx>)
+ 
+  --clean       Remove all files in the destination directory
+  --dumpversion Print the version name used for the current compiler
+
+ All of the other arguments are passed to the preprocessor.
+\end{verbatim}
+
+ Based on the given \t{mode} and the current version of the compiler (which
+the patcher can print when given the \t{dumpversion} argument) the patcher
+will create a subdirectory of the \t{dest} directory (say \t{/usr/home/necula/cil/include}), such as:
+\begin{verbatim}
+/usr/home/necula/cil/include/gcc_2.95.3-5
+\end{verbatim}
+
+ In that file the patcher will copy the modified versions of the include files
+specified with the \t{ufile} and \t{sfile} options. Each of these options can
+be specified multiple times. 
+
+ The patch file (specified with the \t{patch} option) has a format inspired by
+the Unix \t{patch} tool. The file has the following grammar:
+
+\begin{verbatim}
+<<<
+patterns
+===
+replacement
+>>>
+\end{verbatim}
+
+ The patterns can consist of several groups of lines separated by the \t{|||}
+marker. Each of these group of lines is a multi-line pattern that if found in
+the file will be replaced with the text given at the end of the block. 
+
+ The matching is space-insenstive.
+
+ All of the markers \t{<<<}, \t{|||}, \t{===} and \t{>>>} must appear at the
+beginning of a line but they can be followed by arbitrary text (which is
+ignored).
+
+ The replacement text can contain the special keyword \t{@\_\_pattern\_\_@},
+which is substituted with the pattern that matched. 
+
+  \chapter{Using the combiner}
+
 
 \end{document}

@@ -490,7 +490,7 @@ ifndef RELEASE
 SAFECLIBARG=$(DEF)_DEBUG
 endif
 
-SAFECPATCHER=perl $(CCUREDHOME)/lib/safecpatch.pl
+SAFECPATCHER=perl $(CCUREDHOME)/lib/patcher.pl
 ifdef _MSVC
 $(SAFECLIB) : lib/safec.c lib/safec.h lib/safeccheck.h lib/splay.c 
 	cl $(DOOPT) /I./lib /c $(DEF)_MSVC $(SAFECLIBARG) \
