@@ -76,7 +76,7 @@ int main() {
 
   int i;
   PLIST l = NULL;
-  double clk;
+  double clk = 0.0;
   int sum = 0;
   int k;
 //  TIMESTART(clk);

@@ -100,6 +100,7 @@ CCUREDLIB := obj/ccured_$(COMPILEREXT).$(LIBEXT)
 # garbage collector options
 ifdef USE_GC
   GCLIB := $(CCUREDHOME)/lib/gc/gc.a
+  CFLAGS += -DUSE_GC=1
 
 # pretend it's only dependent on one file; that's not true of course,
 # but we rarely (ever?) modify the gc's sources, and one dependency

@@ -115,6 +115,9 @@ ifdef MANUALBOX
   CCURED+= $(DEF)MANUALBOX
 endif
 
+ifdef USE_GC
+  CCURED+= $(DEF)USE_GC
+endif
 
 ifeq ($(TABLE), A)
   CCURED+= --tableAll
