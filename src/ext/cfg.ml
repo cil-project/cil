@@ -1,9 +1,11 @@
 (*
  *
- * Copyright (c) 2001-2002, 
+ * Copyright (c) 2001-2003, 
  *  George C. Necula    <necula@cs.berkeley.edu>
  *  Scott McPeak        <smcpeak@cs.berkeley.edu>
  *  Wes Weimer          <weimer@cs.berkeley.edu>
+ *  Simon Goldsmith     <sfg@cs.berkeley.edu>
+ *  S.P Rahul, Aman Bhargava
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -149,8 +151,20 @@ and cfgStmt (s: stmt) (next:stmt option) (break:stmt option) (cont:stmt option) 
       | (hd::tl) -> s.succs <- hd::s.succs; hd.preds <- s::hd.preds);
       cfgBlock b next break cont
 
-  | Switch(_,blk,l,_) ->
+  | Switch(_,blk,l,_) -> 
       s.succs <- l; (* in order *)
+
+      (* sfg: if there's no default, need to connect s->next *)
+      if (List.exists 
+            (fun stmt -> List.exists 
+               (function Default _ -> false | _ -> true)
+               stmt.labels) 
+            l) 
+      then 
+        (match next with  
+           | None -> ()
+           | Some n -> s.succs <- n::s.succs; n.preds <- s::n.preds);
+
       List.iter (function br -> br.preds <- s::br.preds) l;
       cfgBlock blk next next cont
   | Loop(blk,_,_,_) ->
