@@ -178,6 +178,9 @@ extern long double __builtin_fabsl(long double);
     void *__builtin_memcpy(void *dest, const void *src, unsigned int n);
   #endif
 
+  void * __SAFE  __endof(void *ptr);
+  #pragma boxpoly("__endof")
+
   static inline
   void qsort_seq_model(void *base, unsigned int nmemb, unsigned int size,
           int (*compar)(const void *, const void *))
