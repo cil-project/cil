@@ -8,17 +8,17 @@ enum tags {
 
 struct host {
   int tag; // 0 for integer, 1 for pointer to int, 2 for structure 
-  union __SELECTOR("tag") bar {
-    int anint __SELECTEDWHEN(TAG_ZERO);
+  union bar {
+    int anint __SELECTEDWHEN("tag" == TAG_ZERO);
     int * ptrint; // Missing SELECTEDWHEN is obtained by increment
     struct str {
       int * * ptrptr;
     } ptrptr
         // We should not reuse selector values
-        __SELECTEDWHEN(1) // ERROR(1):same selector as field ptrint
-        __SELECTEDWHEN(foo) // ERROR(2):invalid SELECTEDWHEN
-        __SELECTEDWHEN(8 >> 3) // ERROR(3):same selector as field ptrint
-        __SELECTEDWHEN(((8 + 2 * 2) + sizeof(int) - 8) >> 3) // ERROR(4):same selector as field ptrint
+        __SELECTEDWHEN("tag" == 1) // ERROR(1):same selector as field ptrint
+        __SELECTEDWHEN("tag" == foo) // ERROR(2):invalid SELECTEDWHEN
+        __SELECTEDWHEN("tag" == 8 >> 3) // ERROR(3):same selector as field ptrint
+        __SELECTEDWHEN("tag" == ((8 + 2 * 2) + sizeof(int) - 8) >> 3) // ERROR(4):same selector as field ptrint
         ;
   } data;
   int * somethingelse;      

@@ -97,18 +97,25 @@ let logChannel : out_channel ref = ref stderr
 
 
 let bug (fmt : ('a,unit,doc) format) : 'a = 
-  let f d =  hadErrors := true; contextMessage "Bug" d; 
-    flush !logChannel; raise Error in
+  let f d =  
+    hadErrors := true; contextMessage "Bug" d; 
+    flush !logChannel; 
+    nil 
+  in
   Pretty.gprintf f fmt
 
 let error (fmt : ('a,unit,doc) format) : 'a = 
   let f d = hadErrors := true; contextMessage "Error" d; 
-    flush !logChannel; raise Error in
+    flush !logChannel; 
+    nil 
+  in
   Pretty.gprintf f fmt
 
 let unimp (fmt : ('a,unit,doc) format) : 'a = 
   let f d = hadErrors := true; contextMessage "Unimplemented" d; 
-    flush !logChannel; raise Error in
+    flush !logChannel; 
+    nil 
+  in
   Pretty.gprintf f fmt
 
 let warn (fmt : ('a,unit,doc) format) : 'a = 

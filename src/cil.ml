@@ -1002,7 +1002,7 @@ let error (fmt : ('a,unit,doc) format) : 'a =
     E.hadErrors := true; 
     ignore (eprintf "@!%t: Error: %a@!" 
               d_thisloc insert d);
-    raise E.Error
+    nil
   in
   Pretty.gprintf f fmt
 
@@ -1011,7 +1011,7 @@ let unimp (fmt : ('a,unit,doc) format) : 'a =
     E.hadErrors := true; 
     ignore (eprintf "@!%t: Unimplemented: %a@!" 
               d_thisloc insert d);
-    raise E.Error
+    nil
   in
   Pretty.gprintf f fmt
 
@@ -1021,7 +1021,7 @@ let bug (fmt : ('a,unit,doc) format) : 'a =
     ignore (eprintf "@!%t: Bug: %a@!" 
               d_thisloc insert d);
     E.showContext ();
-    raise E.Error
+    nil
   in
   Pretty.gprintf f fmt
 
@@ -1031,7 +1031,7 @@ let errorLoc (loc: location) (fmt : ('a,unit,doc) format) : 'a =
     ignore (eprintf "@!%a: Error: %a@!" 
               d_loc loc insert d);
     E.showContext ();
-    raise E.Error
+    nil
   in
   Pretty.gprintf f fmt
 

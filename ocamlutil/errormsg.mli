@@ -59,23 +59,22 @@ exception Error
     * use as follows:  E.s (E.bug "different lengths (%d != %d)" l1 l2)
      *)
 
-(** Prints an error message of the form [Error: ...] and then raises the 
-    exception [Error]. Use in conjunction with s, for example: [E.s (E.error 
-    ... )]. *)
-val error         : ('a,unit,Pretty.doc) format -> 'a
+(** Prints an error message of the form [Error: ...]. 
+    Use in conjunction with s, for example: [E.s (E.error ... )]. *)
+val error:         ('a,unit,Pretty.doc) format -> 'a
 
 (** Similar to [error] except that its output has the form [Bug: ...] *)
-val bug           : ('a,unit,Pretty.doc) format -> 'a
+val bug:           ('a,unit,Pretty.doc) format -> 'a
 
 (** Similar to [error] except that its output has the form [Unimplemented: ...] *)
-val unimp         : ('a,unit,Pretty.doc) format -> 'a
+val unimp:         ('a,unit,Pretty.doc) format -> 'a
 
-val s             : Pretty.doc -> 'a
-
+(** Stop the execution by raising an Error. Use "s (error "Foo")"  *)
+val s:             Pretty.doc -> 'a
 
 (** This is set whenever one of the above error functions are called. It must
     be cleared manually *)
-val hadErrors : bool ref  
+val hadErrors: bool ref  
 
 (** Like {!Errormsg.error} but does not raise the {!Errormsg.Error} 
  * exception. Use: [ignore (E.warn ...)] *)
@@ -86,7 +85,7 @@ val warn:    ('a,unit,Pretty.doc) format -> 'a
 val warnOpt: ('a,unit,Pretty.doc) format -> 'a
 
 (** Print something to [logChannel] *)
-val log           : ('a,unit,Pretty.doc) format -> 'a
+val log:           ('a,unit,Pretty.doc) format -> 'a
 
    (* All of the error and warning reporting functions can also print a 
     * context. To register a context printing function use "pushContext". To 

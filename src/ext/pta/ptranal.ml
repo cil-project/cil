@@ -321,8 +321,7 @@ let analyze_instr (i : instr ) : unit =
         else if (is_effect_free_fun fexpr)
         then 
           begin 
-            List.map analyze_expr actuals; 
-            () 
+            List.iter (fun e -> ignore (analyze_expr e)) actuals; 
           end
 	else (* todo : check to see if the thing is an undefined function *)
 	  begin
