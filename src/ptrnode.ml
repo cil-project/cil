@@ -366,9 +366,15 @@ let replacePtrNodeAttrList where al =
         if !foundNode = "index" then "sized" 
         else if !foundNode = "seqn" then "nullterm" 
         else if !foundNode = "fseqn" then "nullterm" 
+        else if !foundNode = "string" then "nullterm" 
         else !foundNode
     | AtVar ->
         if !foundNode = "wild" then "tagged" 
+          (* wes: for some reason, these don't work in the AtArray slot
+           * above *) 
+        else if !foundNode = "seqn" then "nullterm" 
+        else if !foundNode = "fseqn" then "nullterm" 
+        else if !foundNode = "string" then "nullterm" 
         else !foundNode
     | AtOther -> !foundNode
   in

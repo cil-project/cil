@@ -201,17 +201,18 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
 
   ignore (E.log "Solving constraints\n");
 
-  (* returns true if k2 is "farther from safe" than k1 *)
+  (* returns true if k2 is "farther from safe" than k1: in particular, this
+   * tells us if we should do an update of the kind of some node from k1 to
+   * k2 *)
   let moving_up k1 k2 =
     if k1 = k2 || k2 = Unknown then false
     else match k1 with
-      Unknown -> true
-    | Safe -> true
-    | FSeq -> k2 = Seq || k2 = Index || k2 = Wild || k2 = String
-    | Seq -> k2 = Index || k2 = Wild || k2 = String
-    | Index -> k2 = Seq || k2 = Wild
-    | String -> k2 = Wild || k2 = Seq || k2 = Index
-    | Wild -> false
+      Wild -> false
+    | Safe | Unknown -> true
+    | String -> not (k2 = Safe)
+    | FSeq | FSeqN -> not (k2 = Safe)
+    | Seq | SeqN -> not (k2 = Safe || k2 = FSeq || k2 = FSeqN) 
+    | Index -> k2 = Wild
     | Scalar -> E.s (E.bug "cannot handle scalars in simplesolve")
   in
 
@@ -317,7 +318,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
   let update_kind n k why =
     if (moving_up n.kind k)  then begin
         if (n.why_kind = UserSpec) then begin
-          ignore (E.warn "Pointer Kind Inference would upgrade user-specified kind for\n%a" d_node n) ;
+          ignore (E.warn "Pointer Kind Inference would upgrade to %a for\n%a" d_pointerkind k d_node n) ;
           false
         end else begin
           n.kind <- k ;
@@ -400,11 +401,18 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     end) node_ht
   done ;
 
+  (* helper function: does a node represent a pointer to a character? *)
   let is_char_pointer n =
     match n.btype with
       TInt(IChar,_) -> true
     | TInt(ISChar,_) -> true
     | TInt(IUChar,_) -> true
+    | _ -> false
+  in
+
+  let is_array n =
+    match n.btype with
+      TArray(_) -> true
     | _ -> false
   in
 
@@ -420,14 +428,20 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
   while not !finished do 
     finished := true ; 
     Hashtbl.iter (fun id cur ->
-    if (cur.kind = String) then begin
+    if (cur.kind = String || cur.kind = FSeqN || cur.kind = SeqN) then begin
       (* mark all of the predecessors of y along ECast with "String" *)
       let why = SpreadFromEdge(cur) in
-      let f = (fun n -> if (update_kind n cur.kind why) then 
-                          finished := false) in
+      let f = (fun n -> 
+        if (if n.kind = FSeq then
+              update_kind n FSeqN why 
+            else if n.kind = Seq then
+              update_kind n SeqN why
+            else update_kind n (if is_array n then SeqN else cur.kind) why) then
+              finished := false) in
       let contaminated_list = 
-        (List.map (fun e -> e.efrom) (ecast_edges_only cur.pred))  @ 
-        (List.map (fun e -> e.eto) (ecast_edges_only cur.succ))  
+        (List.map (fun e -> e.efrom) ((* ecast_edges_only *) cur.pred)) 
+        (* @ 
+        (List.map (fun e -> e.eto) (ecast_edges_only cur.succ))   *)
         in
       List.iter f contaminated_list ;
       (* mark all cast edges at least equal to this! *)
@@ -447,3 +461,14 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
 
 end
 
+      (* 
+      Unknown -> true
+    | Safe -> true
+    | FSeq -> k2 = Seq || k2 = Index || k2 = Wild || k2 = String
+    | Seq -> k2 = Index || k2 = Wild || k2 = String || k2 = 
+    | FSeqN | SeqN -> k2 = Index || k2 = Wild || k2 = String
+    | Index -> k2 = Seq || k2 = Wild
+    | String -> k2 = Wild || k2 = Seq || k2 = Index
+    | Wild -> false
+    | Scalar -> E.s (E.bug "cannot handle scalars in simplesolve")
+    *)
