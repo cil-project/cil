@@ -22,8 +22,21 @@ void ( * pexit)(int err)  __attribute__((noreturn)) ;
 
 extern int * functional(void) __attribute__((__const__));
 
+int  (*ptr_printk) (const char * fmt, ...)
+     __attribute__ ((format (printf, 1, 2)));
+
+struct s{
+  int  (*printfun) (const char * fmt, ...)
+         __attribute__ ((format (printf, 1, 2)));
+};
+
 int main() {
+  struct s printstruct = {&printk};
   printk("fooo %s", "bau");
+  ptr_printk = &printk;
+  ptr_printk("fooo %s", "bau");
+  printstruct.printfun("fooo %s", "bau");
+
   { int k = __module_parm_vidmem[3]; }
   functional();
   do_exit(5);
