@@ -29,22 +29,22 @@ transformation of C programs.
 constructs and removing redundant ones, and also higher-level than typical
 intermediate languages designed for compilation, by maintaining types and a
 close relationship with the source program. The main advantage of CIL is that
-it compiles all C programs into a few core constructs with a very clean
-semantics and has a syntax-directed type system that makes it easy to analyze
-and manipulate C programs. Furtheremore, the CIL front-end is able to process
-not only ANSI-C programs but also those using Microsoft C or GNU C extensions.
-If you do not use CIL or similar frameworks and want instead to use just a C
-parser and analyze programs expressed as abstract-syntax trees then your
-analysis will have to handle a lot of ugly corners of the language (let alone
-the fact that parsing C itself is not a trivial task). See \secref{simplec}
-for some examples of such extreme programs that CIL simplifies for you.
+it compiles all valid C programs into a few core constructs with a very clean
+semantics. Also CIL has a syntax-directed type system that makes it easy to
+analyze and manipulate C programs. Furtheremore, the CIL front-end is able to
+process not only ANSI-C programs but also those using Microsoft C or GNU C
+extensions. If you do not use CIL and want instead to use just a C parser and
+analyze programs expressed as abstract-syntax trees then your analysis will
+have to handle a lot of ugly corners of the language (let alone the fact that
+parsing C itself is not a trivial task). See \secref{simplec} for some
+examples of such extreme programs that CIL simplifies for you.
 
  In essence, CIL is a highly-structured, ``clean'' subset of C. CIL features a
 reduced number of syntactic and conceptual forms. For example, all looping
 constructs are reduced to a single form, all function bodies are given
 explicit {\tt return} statements, syntactic sugar like {\tt "->"} is
-eliminated and function arguments with array types become pointers. (For a
-more extensive list of how CIL simplifies C programs, see \sefrec{cabs2cil}.)
+eliminated and function arguments with array types become pointers. (For an
+extensive list of how CIL simplifies C programs, see \sefrec{cabs2cil}.)
 This reduces the number of cases that must be considered when manipulating a C
 program. CIL also separates type declarations from code and flattens scopes
 within function bodies. This structures the program in a manner more amenable
@@ -62,8 +62,8 @@ analyses).
  CIL comes accompanied by a number of Perl scripts that perform generally
 useful operations on code:
 \begin{itemize}
-\item A \ahrefloc{sec-driver}{driver} which behaves as either the
-\t{gcc} or Microsoft VC compiler and can invoke the preprocessor and the CIL
+\item A \ahrefloc{sec-driver}{driver} which behaves as either the \t{gcc} or
+Microsoft VC compiler and can invoke the preprocessor followed by the CIL
 application. The advantage of this script is that you can easily use CIL and
 the analyses written for CIL with existing make files.
 \item A \ahrefloc {sec-merger}{whole-program merger} that you can use as a
@@ -377,12 +377,61 @@ int main() {
 
 \end{enumerate}
 
-\section{CIL API Documentation}\label{sec-cil} 
+\section{Using CIL}\label{sec-cil}
+ 
+ In order to use CIL you must write an Ocaml module containing your analysis
+and transformation, which you then link into our boilerplate application
+called cilly. An example of such module is \t{logwrites.ml} (a module that is
+distributed with CIL and whose purpose is to instrument code to print the
+addresses of memory locations being written). (We plan to release a C-language
+interface to CIL so that you can write your analyses in C instead of Ocaml.)
+Assuming that you have written \t{logwrites.ml} here is how you use it: 
+
+ \begin{enumerate}
+ \item Put \t{logwrites.ml} in the \t{src} directory. This will make sure that
+ \t{make} can find it. If you want to put it in some other directory modify
+ the \t{Makefile} and add to \t{SOURCEDIRS} your directory. 
+
+ \item Modify the \t{Makefile} and add your module to the \t{MODULES}
+ variable. The order of the modules matters. Add your modules somewhere after
+ \t{cil} and before \t{maincil}.
+
+ \item Modify \t{maincil.ml} and add descriptions of the new command line
+ options that you want to add to \t{cilly}. This is done by modifying the
+ definition of \t{argDescr} variable using the convention of the Ocaml
+ standard library module \t{Arg}. For \t{logWrites} we added the option
+ \t{--logwrites} that sets a global variable that enables the \t{logWrites}
+ transformatio.
+
+ \item Modify \t{maincil.ml} add add a call to the top level function of your
+ module to the body of the function \t{processOneFile}. Alternatively, you can
+ call the \t{Frontc.parse: string -> unit -> Cil.file} function with the name
+ of a file containing the output of the preprocessor and then invoke your
+ analysis function on the resulting \t{Cil.file} data structure. Then you can
+ call the function \t{Cil.printFile: out_channel -> Cil.file -> unit} to print
+ the file to a given output channel.
+
+ \item In the \t{cil} directory run \t{make} to make the bytecode version of
+ the \t{cilly} application (in \t{obj/cilly.byte.exe}) and then run \t{make
+ RELEASE=1} to also make the optimized version of the applciation (in
+ \t{obj/cilly.asm.exe}). 
+
+ \item Now you can invoke the \t{cilly} application on a preprocessed file, or
+ instead use the \t{cilly.pl} driver which provides a convenient compiler-like
+ interface to \t{cilly}. See \secref{driver} for details using \t{cilly.pl}.
+ \end{enumerate}
+
+ In the next section we give an overview of the API that you can use
+to write your analysis and transformation. 
+ 
+\section{CIL API Documentation}\label{sec-api} 
 
  The CIL API is documented in the file \t{src/cil.mli}. We also have an
 \ahref{api/index.html}{online documentation}.  
 
-\section{The CIL Driver}
+  
+
+\section{The CIL Driver}\label{sec-driver}
 
  We have packaged CIL as an application \t{cilly} that contains certain
 example modules, such as \t{logwrites.ml} (a module

@@ -19,7 +19,7 @@ MLYS        = cparser.mly
 MODULES     = pretty errormsg trace stats util clist \
               cabs cprint clexer cparser cabsvisit \
               cil cabs2cil frontc check logcalls logwrites rmtmps \
-	            cfg heapify simplemem oneret testcil unionfind type maincil
+	      cfg heapify simplemem oneret testcil unionfind type maincil
 
 EXECUTABLE  = $(OBJDIR)/cilly
 ifdef NATIVECAML

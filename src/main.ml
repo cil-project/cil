@@ -12,65 +12,15 @@ let heapify = ref false
 let stackguard = ref false
 let testcil = ref ""
 
-let preproc = ref ""                    (* The preprocess command *)
 exception Done_Processing
 
-let preprocess inname outname = 
-  (* PREPROCESSING *)
-  (trace "sm" (dprintf "beginning preprocessing\n"));
-  let rec replace str =
-    try
-      let idx = String.index str '%' in
-      (if idx > 0 then String.sub str 0 idx else "")
-      ^ (match String.get str (idx + 1) with
-        'i' -> inname
-      | 'o' -> outname
-      | '%' -> "%"
-      | _ -> "")
-      ^ (if (idx + 2) >= (String.length str)
-      then ""
-      else replace
-	  (String.sub str (idx + 2) ((String.length str) - idx - 2)))
-    with Not_found -> str 
-  in
-  let com = replace !preproc in
-  if !E.verboseFlag then
-    ignore (E.log "Executing \"%s\"\n" com);
-  if (Sys.command com) <> 0 then
-    E.s (E.error "Cannot preprocess: %s" com)
       
 let rec processOneFile fname =
   try begin
     (* PARSE and convert to CIL *)
     if !Util.printStages then ignore (E.log "Parsing %s\n" fname);
-    let cil_thunk =
-      if !preproc = "" then
-        F.parse fname
-      else begin
-        let tmp =
-          if !keepFiles then
-            try (Filename.chop_extension fname) ^ ".cpp"
-            with _ -> fname ^ ".cpp"
-          else
-            Filename.temp_file "rewrite" ".i" in
-        Stats.time "preprocess" (preprocess fname) tmp;
+    let cil = F.parse fname () in
 
-        let res = F.parse tmp in
-        if not !keepFiles then begin
-          ignore (E.log "Removing %s\n" tmp);
-          Sys.remove tmp
-        end else
-          ignore (E.log "Keeping intermediate file %s\n" tmp);
-
-        res
-      end
-    in
-    let cil =
-      if !outChannel <> None then
-        cil_thunk ()
-      else
-        raise Done_Processing
-    in
     if !Util.doCheck then begin
       ignore (E.log "First CIL check\n");
       CK.checkFile [] cil;
@@ -100,6 +50,7 @@ let rec processOneFile fname =
     (match !outChannel with
       None -> ()
     | Some c -> Stats.time "printCIL" (C.printFile c) cil);
+
     if !E.hadErrors then
       E.s (E.error "Cabs2cil has some errors");
 
