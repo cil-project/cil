@@ -6,11 +6,15 @@
  *)
 open Cil
 open Ptrnode
+module E = Errormsg
 
 (* are the given two types congurent? see infer.tex 
  * also remember that two wild pointers are always considered congruent *)
 let rec type_congruent (t1 : typ) (q1 : opointerkind) 
                        (t2 : typ) (q2 : opointerkind) = begin
+                         
+(*  ignore (E.log "Checking t1: %a, t2: %a\n" d_plaintype t1 d_plaintype t2);*)
+
   (* t[n] and struct { t ; t[n-1] ; } are congruent *)
   let t1 = unrollType t1 in
   let t2 = unrollType t2 in 
@@ -41,7 +45,19 @@ let rec type_congruent (t1 : typ) (q1 : opointerkind)
   if (q1 = Wild && q2 = Wild) then 
     true
   else match (t1,t2) with
+
+    (* bugfix for arrays *)
+  | (TArray(typ1, expr1, attrlist1), TArray(typ2, expr2, attrlist2)) when
+      (type_congruent typ1 q1 typ2 q2) ->
+        begin
+          match (expr1, expr2) with
+            Some(Const(CInt32(val1, _, _))), Some(Const(CInt32(val2, _, _))) ->
+              val1 = val2
+          | _ -> false
+        end
+        
     (* unions can be reordered without loss *)
+
   | TComp(c1,_),TComp(c2,_) 
       when (not c1.cstruct) && (not c2.cstruct) -> begin
       let fields_match l1 l2 = 
@@ -68,11 +84,12 @@ let rec type_congruent (t1 : typ) (q1 : opointerkind)
     let f2 = List.hd c2.cfields in type_congruent t1 q1 f2.ftype q2
 
     (* t and t[1] are the same *)
-  | (x,TArray(t,eo,al)) when (type_congruent x q1 t q2) -> begin
-    match eo with
-      Some(Const(CInt32(one,_,_))) when one = Int32.one -> true
-    | _ -> false
-  end
+  | (x,TArray(t,eo,al)) when (type_congruent x q1 t q2) ->
+      begin
+        match eo with
+          Some(Const(CInt32(one,_,_))) when one = Int32.one -> true
+        | _ -> false
+      end
   | (TArray(t,eo,al),x) when (type_congruent x q2 t q1) -> begin
     match eo with
       Some(Const(CInt32(one,_,_))) when one = Int32.one -> true
