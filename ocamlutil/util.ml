@@ -242,6 +242,29 @@ let copyGrowArray (ga: 'a growArray) : 'a growArray =
 let deepCopyGrowArray (ga: 'a growArray) (copy: 'a -> 'a): 'a growArray = 
   { ga with gaData = Array.map copy ga.gaData } 
 
+
+
+(** Iterate over the initialized elements of the array *)
+let growArray_iteri  (f: int -> 'a -> unit) (ga: 'a growArray) = 
+  for i = 0 to ga.gaMaxInitIndex do 
+    f i ga.gaData.(i)
+  done
+
+
+(** Fold left over the initialized elements of the array *)
+let growArray_foldl (f: 'acc -> 'a -> 'acc) 
+                    (acc: 'acc) (ga: 'a growArray) : 'acc = 
+  let rec loop (acc: 'acc) (idx: int) : 'acc = 
+    if idx > ga.gaMaxInitIndex then 
+      acc
+    else
+      loop (f acc ga.gaData.(idx)) (idx + 1)
+  in
+  loop acc 0
+
+
+
+
 let hasPrefix (prefix: string) (what: string) : bool = 
   let pl = String.length prefix in
   try String.sub what 0 pl = prefix 

@@ -69,6 +69,12 @@ val copyGrowArray: 'a growArray -> 'a growArray
 val deepCopyGrowArray: 'a growArray -> ('a -> 'a) -> 'a growArray
 
 
+val growArray_iteri:  (int -> 'a -> unit) -> 'a growArray -> unit
+(** Iterate over the initialized elements of the array *)
+
+val growArray_foldl: ('acc -> 'a -> 'acc) -> 'acc ->'a growArray -> 'acc
+(** Fold left over the initialized elements of the array *)
+
 (** hasPrefix prefix str returns true with str starts with prefix *)
 val hasPrefix: string -> string -> bool
 
