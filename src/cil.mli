@@ -575,7 +575,8 @@ val d_instr: unit -> instr -> Pretty.doc
 val d_stmt: unit -> stmt -> Pretty.doc
 val d_fun_decl: unit -> fundec -> Pretty.doc
 val printFile: out_channel -> file -> unit
-    
+val removeUnusedTemps: file -> unit        (* sm *)
+
 
    (* Some plain pretty-printers. Unlike the above these expose all the 
     * details of the internal representation *)

@@ -18,7 +18,9 @@ OBJDIR      = obj
 MLLS        = 
 MLYS        = 
 # ast clex cparse
-MODULES     = pretty errormsg stats cil check ptrnode simplesolve markptr box
+# sm: trace: utility for debug-time printfs
+MODULES     = pretty trace errormsg stats cil check ptrnode \
+              simplesolve markptr box
 EXECUTABLE  = $(OBJDIR)/safec
 CAMLUSEUNIX = 1
 ifdef RELEASE
@@ -75,7 +77,15 @@ _GNUCC=1
 endif
 ifeq ($(COMPUTERNAME), madrone) # scott's desktop
 BASEDIR=/home/scott/wrk/safec
-SAFECCDIR=$(BASEDIR)/safec
+SAFECCDIR=$(BASEDIR)
+PCCDIR=$(SAFECCDIR)/cil/test/PCC
+TVDIR=$(BASEDIR)/TransVal
+CILDIR=$(BASEDIR)/cil
+_GNUCC=1
+endif
+ifeq ($(COMPUTERNAME), leetch) # scott's laptop
+BASEDIR=/home/scott/wrk/safec
+SAFECCDIR=$(BASEDIR)
 PCCDIR=$(SAFECCDIR)/cil/test/PCC
 TVDIR=$(BASEDIR)/TransVal
 CILDIR=$(BASEDIR)/cil
@@ -210,8 +220,9 @@ ifdef _GNUCC
 SAFECLIB=$(OBJDIR)/safeclib.a
 $(SAFECLIB) : $(SAFECCDIR)/cil/lib/safec.c
 	$(CC) $(OBJOUT)$(OBJDIR)/safec.o $<
-	echo "bad: "$(LIB) $(LIBOUT)$(SAFECLIB) $(OBJOUT)$(OBJDIR)/safec.o 
-	ar -t $(SAFECLIB) $(OBJDIR)/safec.o
+	@echo "dnw: "$(LIB) $(LIBOUT)$(SAFECLIB) $(OBJOUT)$(OBJDIR)/safec.o 
+	@echo "sm: below was -t .. changed to -r.." > /dev/null
+	ar -r $(SAFECLIB) $(OBJDIR)/safec.o
 endif
 
 
@@ -343,6 +354,32 @@ rbtest: test/small2/rbtest.c $(EXECUTABLE)$(EXE) \
                  ../small2/rbtest.c \
                  $(EXEOUT)rbtest.exe
 	$(PCCTEST)/rbtest.exe
+
+# sm: this is my little test program
+hola: test/small2/hola.c $(EXECUTABLE)$(EXE) \
+                                 $(SAFECLIB) $(SAFEMAINLIB)  $(TVEXE)
+	@true "sm: just trying to figure this thing out"
+	@true "EXECUTABLE = "$(EXECUTABLE)
+	@true "EXE = "$(EXE)
+	@true "SAFECLIB = "$(SAFECLIB)
+	@true "SAFEMAINLIB = "$(SAFEMAINLIB)
+	@true "TVEXE = "$(TVEXE)
+	@true "PCCTEST = "$(PCCTEST)
+	@true "SAFECC = "$(SAFECC)
+	@true "DEF = "$(DEF)
+	@true "ARCHOS = "$(ARCHOS)
+	@true "PCCTYPE = "$(PCCTYPE)
+	@true "DOOPT = "$(DOOPT)
+	@true "INC = "$(INC)
+	@true "PCCDIR = "$(PCCDIR)
+	@true "EXEOUT = "$(EXEOUT)
+	rm -f $(PCCTEST)/hola.exe
+	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
+                 $(DOOPT) \
+                 $(INC)$(PCCDIR)/src \
+                 ../small2/hola.c \
+                 $(EXEOUT)hola.exe
+	$(PCCTEST)/hola.exe
 
 HUFFCOMPILE=$(SAFECC) --keep=. 
 # HUFFCOMPILE=cl /MLd

@@ -1,4 +1,5 @@
 open Pretty
+open Trace      (* sm: 'trace' function *)
 module E = Errormsg
 module H = Hashtbl
 
@@ -1703,6 +1704,26 @@ let rec isCompleteType t =
   | TComp comp -> (* Struct or union *)
       List.for_all (fun fi -> isCompleteType fi.ftype) comp.cfields
   | _ -> true
+
+  
+  
+(* sm: taking a stab at removing extra temporaries *)
+let removeUnusedTemps (f : file) =
+begin
+  (trace "sm" (dprintf "printing file %s\n" f.fileName));
+  (List.iter (
+    fun (g : global) ->
+    begin
+      match g with
+        GFun f -> begin
+          (trace "sm" (dprintf "function: %s\n" f.svar.vname))
+        end
+      | _ -> ()
+    end)
+    f.globals);  
+  ()
+end;;
+
 
 (**
  **
