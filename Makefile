@@ -61,129 +61,126 @@ EXTRACLEAN += $(OBJDIR)/*.obj $(OBJDIR)/*.a $(OBJDIR)/*.o
     # This file will add the rules to make $(EXECUTABLE).$(EXE)
 include Makefile.ocaml
 
+# Now do the machine-specific customization
+-include $(CCUREDHOME)/.ccuredrc
 
-
-##### Settings that depend on the computer we are on
-##### Make sure the COMPUTERNAME environment variable is set
-ifeq ($(COMPUTERNAME), RAW)   # George's workstation
-BASEDIR=C:/Necula/SafeC
-OLDPATCH=1
+# By default use the old patcher
+ifndef NEWPATCH
+OLDPATCH = 1
 PATCHINCLUDES=1
 endif
-ifeq ($(COMPUTERNAME), FETA) # George's home machine
-BASEDIR=C:/Necula/SafeC
-OLDPATCH=1
-PATCHINCLUDES=1
-endif
-ifeq ($(COMPUTERNAME), tenshi) # Wes's laptop
-BASEDIR=/home/weimer/cvs/
-OLDPATCH=1
-PATCHINCLUDES=1
-_GNUCC=1
-endif
-ifeq ($(COMPUTERNAME), galvatron) # jlee's 
-BASEDIR=/home/jlee/summer
-_GNUCC=1
-USE_GC=1
-endif
-ifeq ($(COMPUTERNAME), madroneprime) # jlee on madrone
-BASEDIR=/home/jlee/research
-_GNUCC=1
-USE_GC=1
-USER_SCOTT=1
-endif
-ifeq ($(COMPUTERNAME), madrone) # scott's desktop
-BASEDIR=/home/scott/wrk/safec
-_GNUCC=1
-USE_GC=1
-USER_SCOTT=1
-endif
-ifeq ($(COMPUTERNAME), leetch) # scott's laptop
-BASEDIR=/home/scott/wrk/safec
-_GNUCC=1
-USE_GC=1
-USER_SCOTT=1
-endif
-ifeq ($(COMPUTERNAME), seamonkey) # another for scott
-BASEDIR=/home/scott/wrk/safec
-_GNUCC=1
-USE_GC=1
-USER_SCOTT=1
-endif
-ifeq ($(COMPUTERNAME), brooksie_scott) # scott on brooksie
-BASEDIR=/home/smcpeak
-_GNUCC=1
-USE_GC=1
-USER_SCOTT=1
+
+# By default use GCC
+ifndef _MSVC
+_GNUCC = 1
 endif
 
-ifeq ($(COMPUTERNAME), fuji) # Rahul's laptop
-BASEDIR=/home/sprahul/research
-_GNUCC=1
-endif
 
-ifeq ($(COMPUTERNAME), brooksie) # Rahul's desktop
-BASEDIR=/home/sprahul/research
-_GNUCC=1
-endif
-ifeq ($(COMPUTERNAME), brooksie_george) # Rahul's desktop, for George
-BASEDIR=/home/necula/Source
-_GNUCC=1
-endif
+#  ##### Settings that depend on the computer we are on
+#  ##### Make sure the COMPUTERNAME environment variable is set
+#  ifeq ($(COMPUTERNAME), tenshi) # Wes's laptop
+#  BASEDIR=/home/weimer/cvs/
+#  OLDPATCH=1
+#  PATCHINCLUDES=1
+#  _GNUCC=1
+#  endif
+#  ifeq ($(COMPUTERNAME), galvatron) # jlee's 
+#  BASEDIR=/home/jlee/summer
+#  _GNUCC=1
+#  USE_GC=1
+#  endif
+#  ifeq ($(COMPUTERNAME), madroneprime) # jlee on madrone
+#  BASEDIR=/home/jlee/research
+#  _GNUCC=1
+#  USE_GC=1
+#  USER_SCOTT=1
+#  endif
+#  ifeq ($(COMPUTERNAME), madrone) # scott's desktop
+#  BASEDIR=/home/scott/wrk/safec
+#  _GNUCC=1
+#  USE_GC=1
+#  USER_SCOTT=1
+#  endif
+#  ifeq ($(COMPUTERNAME), leetch) # scott's laptop
+#  BASEDIR=/home/scott/wrk/safec
+#  _GNUCC=1
+#  USE_GC=1
+#  USER_SCOTT=1
+#  endif
+#  ifeq ($(COMPUTERNAME), seamonkey) # another for scott
+#  BASEDIR=/home/scott/wrk/safec
+#  _GNUCC=1
+#  USE_GC=1
+#  USER_SCOTT=1
+#  endif
+#  ifeq ($(COMPUTERNAME), brooksie_scott) # scott on brooksie
+#  BASEDIR=/home/smcpeak
+#  _GNUCC=1
+#  USE_GC=1
+#  USER_SCOTT=1
+#  endif
+#  
+#  ifeq ($(COMPUTERNAME), fuji) # Rahul's laptop
+#  BASEDIR=/home/sprahul/research
+#  _GNUCC=1
+#  endif
+#  
+#  ifeq ($(COMPUTERNAME), brooksie) # Rahul's desktop
+#  BASEDIR=/home/sprahul/research
+#  _GNUCC=1
+#  endif
+#  ifeq ($(COMPUTERNAME), brooksie_george) # Rahul's desktop, for George
+#  BASEDIR=/home/necula/Source
+#  _GNUCC=1
+#  endif
+#  
+#  ifeq ($(COMPUTERNAME), madrone_danny) # dannys desktop
+#  BASEDIR=/home/dannyant
+#  _GNUCC=1
+#  endif
+#  
+#  ifeq ($(COMPUTERNAME), danny_desk) # dannys desktop
+#  BASEDIR=/home/danny/project
+#  _GNUCC=1
+#  endif
+#  
+#  ifeq ($(COMPUTERNAME), brooksie_raygto) # Rahul's desktop, for Raymond
+#  BASEDIR=/home/raygto/
+#  _GNUCC=1
+#  endif
+#  ifeq ($(COMPUTERNAME), madrone_amanb) # Aman's *top
+#  ifndef BASEDIR
+#  BASEDIR=/home/amanb/safec
+#  endif
+#  _GNUCC=1
+#  USE_GC=1
+#  endif
+#  
+#  ifeq ($(COMPUTERNAME), peecy_amanb_win2k) # Aman's win2k box
+#  ifndef BASEDIR
+#  BASEDIR=e:/aman/cal/research/
+#  endif
+#  _GNUCC=1
+#  endif
 
-ifeq ($(COMPUTERNAME), madrone_danny) # dannys desktop
-BASEDIR=/home/dannyant
-_GNUCC=1
-endif
-
-ifeq ($(COMPUTERNAME), danny_desk) # dannys desktop
-BASEDIR=/home/danny/project
-_GNUCC=1
-endif
-
-ifeq ($(COMPUTERNAME), brooksie_raygto) # Rahul's desktop, for Raymond
-BASEDIR=/home/raygto/
-_GNUCC=1
-endif
-ifeq ($(COMPUTERNAME), madrone_amanb) # Aman's *top
-ifndef BASEDIR
-BASEDIR=/home/amanb/safec
-endif
-_GNUCC=1
-USE_GC=1
-endif
-
-ifeq ($(COMPUTERNAME), peecy_amanb_win2k) # Aman's win2k box
-ifndef BASEDIR
-BASEDIR=e:/aman/cal/research/
-endif
-_GNUCC=1
-endif
-
-SAFECCDIR=$(BASEDIR)
-PCCDIR=$(SAFECCDIR)/cil/test/PCC
-TVDIR=$(BASEDIR)/TransVal
-CILDIR=$(BASEDIR)/cil
+PCCDIR=$(CCUREDHOME)/cil/test/PCC
 
 # sm: I keep getting bit by this
-ifndef BASEDIR
+ifndef CCUREDHOME
 # sm: why doesn't this do what the manual says?
 #HMM=$(error "wtf")
-HMM="you_have_to_set_the_COMPUTERNAME_environment_variable"
+HMM="you_have_to_set_the_CCUREDHOME_environment_variable"
 BASEDIR=$(HMM)
-SAFECCDIR=$(HMM)
+CCUREDHOME=$(HMM)
 PCCDIR=$(HMM)
 TVDIR=$(HMM)
-CILDIR=$(HMM)
+CCUREDHOME=$(HMM)
 _GNUCC=$(HMM)
 endif
 
 
 export EXTRAARGS
 export INFERBOX
-ifndef _GNUCC
-_MSVC = 1			# Use the MSVC compiler by default
-endif
 
 ifdef _GNUCC
 DEBUGCCL=gcc -Wall -x c -g -ggdb -D_GNUCC 
@@ -263,9 +260,9 @@ CILLIB=obj/cillibdebug.$(LIBEXT)
 endif
 
 ifdef PATCHINCLUDES
-STANDARDPATCH= --patchinclude=$(CILDIR)/include
+STANDARDPATCH= --patchinclude=$(CCUREDHOME)/include
 else
-STANDARDPATCH= --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)
+STANDARDPATCH= --patch=$(CCUREDHOME)/cil/lib/$(PATCHFILE)
 endif
 
 # By default take manual box definitions into consideration
@@ -285,7 +282,7 @@ endif
 setup: defaulttarget includes
 
 
-SAFECC=perl $(CILDIR)/lib/safecc.pl
+SAFECC=perl $(CCUREDHOME)/lib/safecc.pl
 
 
 # sm: my options
@@ -383,7 +380,7 @@ SAFECC += --optim
 endif
 
 # Timing code
-TIME = perl $(CILDIR)/lib/time.pl -T 5
+TIME = perl $(CCUREDHOME)/lib/time.pl -T 5
 
 # sm: can't figure out why passing this via EXTRAARGS screws
 # up other things (e.g. -DMANUALBOX)
@@ -410,9 +407,9 @@ ifdef NEWPATCH
   # for with and without BEFOREBOX; otherwise it would appear to be
   # up-to-date but for the wrong way
   ifdef PATCHDEFS
-    PATCHFILE2=$(CILDIR)/lib/$(PATCHFILE)2.id
+    PATCHFILE2=$(CCUREDHOME)/lib/$(PATCHFILE)2.id
   else
-    PATCHFILE2=$(CILDIR)/lib/$(PATCHFILE)2.i
+    PATCHFILE2=$(CCUREDHOME)/lib/$(PATCHFILE)2.i
   endif
 
   # tell safec.byte.exe (via safecc.pl) where to find the patch file
@@ -462,7 +459,7 @@ ifdef _GNUCC
     SAFECC+= $(DEF)USE_GC
     DEBUGCCL+= $(DEF)USE_GC
     RELEASECCL+= $(DEF)USE_GC
-    GCLIB = $(CILDIR)/lib/gc/gc.a
+    GCLIB = $(CCUREDHOME)/lib/gc/gc.a
 
 $(GCLIB):
 	cd lib/gc; make && ./gctest
@@ -491,7 +488,7 @@ ifndef RELEASE
 SAFECLIBARG=$(DEF)_DEBUG
 endif
 
-SAFECPATCHER=perl $(CILDIR)/lib/safecpatch.pl
+SAFECPATCHER=perl $(CCUREDHOME)/lib/safecpatch.pl
 ifdef _MSVC
 $(SAFECLIB) : lib/safec.c lib/safec.h lib/safeccheck.h lib/splay.c 
 	cl $(DOOPT) /I./lib /c $(DEF)_MSVC $(SAFECLIBARG) \
@@ -507,11 +504,11 @@ $(CILLIB) : lib/cillib.c
 SAFECPATCHER += --mode mscl 
 PATCH_SYSINCLUDES=stdio.h ctype.h string.h io.h stdarg.h
 includes: cleanincludes
-	$(SAFECPATCHER) --patch=$(CILDIR)/lib/safec_msvc.patch \
-                        --dest=$(CILDIR)/include \
+	$(SAFECPATCHER) --patch=$(CCUREDHOME)/lib/safec_msvc.patch \
+                        --dest=$(CCUREDHOME)/include \
 	                $(foreach file,$(PATCH_SYSINCLUDES), --sfile=$(file))
 cleanincludes: 
-	$(SAFECPATCHER) --dest=$(CILDIR)/include --clean
+	$(SAFECPATCHER) --dest=$(CCUREDHOME)/include --clean
 endif
 
 # Libraries on GCC
@@ -536,11 +533,11 @@ $(CILLIB) : lib/cillib.c
 SAFECPATCHER += --mode gcc
 PATCH_SYSINCLUDES=stdio.h ctype.h sys/fcntl.h string.h stdarg.h
 includes: cleanincludes
-	$(SAFECPATCHER) --patch=$(CILDIR)/lib/safec_gcc.patch \
-                        --dest=$(CILDIR)/include \
+	$(SAFECPATCHER) --patch=$(CCUREDHOME)/lib/safec_gcc.patch \
+                        --dest=$(CCUREDHOME)/include \
 	                $(foreach file,$(PATCH_SYSINCLUDES), --sfile=$(file))
 cleanincludes: 
-	$(SAFECPATCHER) --dest=$(CILDIR)/include --clean
+	$(SAFECPATCHER) --dest=$(CCUREDHOME)/include --clean
 endif
 # new patching specification wants to be run through preprocessor before use
 ifdef NEWPATCH
@@ -586,7 +583,7 @@ PCCCOMP=_MSVC
 endif
 
 testpcc/% : $(PCCDIR)/src/%.c defaulttarget
-	cd $(CILDIR)/test/PCCout; $(SAFECC) --keep=. $(DEF)$(ARCHOS) \
+	cd $(CCUREDHOME)/test/PCCout; $(SAFECC) --keep=. $(DEF)$(ARCHOS) \
                   $(DEF)$(PCCTYPE) $(CONLY) \
                   $(PCCDIR)/src/$*.c \
                   $(OBJOUT)$(notdir $*).o
@@ -598,7 +595,7 @@ MSLINK=--mode=mscl
 endif
 PCCSAFECC=$(SAFECC) $(DEF)CCURED \
                     $(STANDARDPATCH) --combine \
-                    --keep=$(CILDIR)/test/PCCout \
+                    --keep=$(CCUREDHOME)/test/PCCout \
                     --nobox=pccbox --nobox=alloc
 pcc : defaulttarget
 #	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.o
@@ -606,7 +603,7 @@ pcc : defaulttarget
 	-rm $(PCCDIR)/bin/*.exe
 	make -C $(PCCDIR) \
              CC="$(PCCSAFECC) $(CONLY)" \
-             LD="$(SAFECC) $(MSLINK) --combine --keep=$(CILDIR)/test/PCCout" \
+             LD="$(SAFECC) $(MSLINK) --combine --keep=$(CCUREDHOME)/test/PCCout" \
              USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
              COMPILER=$(PCCCOMP) \
 	     clean defaulttarget 
@@ -617,7 +614,7 @@ pcc-noclean : defaulttarget
 	-rm $(PCCDIR)/bin/*.exe
 	make -C $(PCCDIR) \
              CC="$(PCCSAFECC) $(CONLY)" \
-             LD="$(SAFECC) $(MSLINK) --combine --keep=$(CILDIR)/test/PCCout" \
+             LD="$(SAFECC) $(MSLINK) --combine --keep=$(CCUREDHOME)/test/PCCout" \
              USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
              COMPILER=$(PCCCOMP) \
 	     defaulttarget 
@@ -886,7 +883,7 @@ baddef: test/small2/baddef1.c test/small2/baddef2.c defaulttarget
 	fi
 
 # cfrac: a memory benchmark which factorizes into products of primes
-CFRACDIR = $(CILDIR)/../bench/cfrac
+CFRACDIR = $(CCUREDHOME)/../bench/cfrac
 cfrac: defaulttarget
 	-rm $(CFRACDIR)/*.o
 	-rm $(CFRACDIR)/cfrac
@@ -904,7 +901,7 @@ comcfrac: defaulttarget
 	csh -c "time $(CFRACDIR)/cfrac 327905606740421458831903"
 
 # espresso: memory benchmark that does logic minimization
-ESPRESSODIR = $(CILDIR)/../bench/espresso
+ESPRESSODIR = $(CCUREDHOME)/../bench/espresso
 espresso: defaulttarget
 	@true -rm $(ESPRESSODIR)/*.o
 	@true -rm $(ESPRESSODIR)/espresso
@@ -922,7 +919,7 @@ ifdef _GNUCC
 HUFFOTHERS += -lm
 endif
 ifndef HUFFINPUT
-  HUFFINPUT=$(CILDIR)/src/frontc/cparser.output
+  HUFFINPUT=$(CCUREDHOME)/src/frontc/cparser.output
 endif
 hufftest: test/small2/hufftest.c defaulttarget
 	rm -f $(PCCTEST)/hufftest.exe \
@@ -1009,7 +1006,7 @@ apachesetup:
 	cd $(APACHETEST); \
             $(SAFECPATCHER) \
                         $(APACHECFLAGS) \
-                        $(APATCHES) --patch=$(CILDIR)/lib/$(PATCHFILE) \
+                        $(APATCHES) --patch=$(CCUREDHOME)/lib/$(PATCHFILE) \
                         --dest=$(APACHEBASE)/include \
 	                $(foreach file,$(APACHE_INCLUDES), --ufile=$(file))
 
@@ -1442,7 +1439,7 @@ vortex-combined: defaulttarget mustbegcc
 vortex-combined-gcc: mustbegcc
 	cd $(VORDIR)/src; \
             gcc vortex_all.c -g \
-               $(SAFECCDIR)/cil/obj/cillibdebug.a $(VOREXTRA) $(EXEOUT)vortex.exe
+               $(CCUREDHOME)/cil/obj/cillibdebug.a $(VOREXTRA) $(EXEOUT)vortex.exe
 	cd $(VORDIR)/src; sh -c "./testit vortex.exe"
 
 vortex-combined-compare: mustbegcc
@@ -1571,7 +1568,7 @@ linuxstandard:
 	$(MAKE) -C $(LINUXDIR) clean vmlinux \
               MY-CC="gcc"
 
-LINUXCC=perl $(CILDIR)/lib/safecc.pl --mode=gcc
+LINUXCC=perl $(CCUREDHOME)/lib/safecc.pl --mode=gcc
 ifdef NOLINES
 LINUXCC+= --safec=-noPrintLn
 endif

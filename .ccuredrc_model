@@ -1,0 +1,15 @@
+# This has the syntax of a Makefile
+# Define here variables to configure CCured
+# Make sure that CCUREDHOME is defined and points to the directory in which
+# this file lives and the root of the CCured project. 
+# If you are on a Windows machine use / as path separator
+
+# If you want to use the new patcher, uncomment the next few lines
+# ifndef OLDPATCH
+# NEWPATCH = 1
+# endif
+
+# If you want to use Microsoft Visual C uncomment the next line
+# ifndef _GNUCC
+# _MSVC = 1
+# endif
