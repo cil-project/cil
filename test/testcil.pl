@@ -468,7 +468,7 @@ sub addTests {
     my($self, $name, $extraargs, $pkinds, %extrafields) = @_;
 
     my $theargs = defined($self->{option}->{safecdebug}) 
-        ? " " : " OPTIM=1 RELEASE=1 ";
+        ? " " : " OPTIM=1 RELEASE=1 RELEASELIB=1 ";
     $theargs .= " $extraargs ";
     if(defined $self->{option}->{noremake}) {
         $theargs .= " NOREMAKE=1";

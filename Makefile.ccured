@@ -15,7 +15,7 @@ MODULES     := pretty trace errormsg stats util clist \
                cil cfg logcalls logwrites check ptrnode \
                solveutil solver globinit \
                oneret boxsplit boxstats box markptr \
-               rmtmps optim
+               rmtmps optim seoptim
 EXECUTABLE  := $(OBJDIR)/ccured
 CAMLUSEUNIX := 1
 ifdef RELEASE

@@ -38,7 +38,7 @@ if (`sh -c "time echo" 2>&1` !~ m/$matchtime/) {
 }
 # print "Regexp for user time is: $matchtime\n\n";
 
-my $commoncmd = " RELEASE=1 _GNUCC=1 OPTIM=1";
+my $commoncmd = " RELEASE=1 RELEASELIB=1 _GNUCC=1 OPTIM=1";
 
 # The cases to run. Make sure all --optimvariant test cases come right after 
 # the base case in an uninterrupted sequence. All tests cases can have a
