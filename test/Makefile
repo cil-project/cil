@@ -1471,7 +1471,10 @@ compress-optimvariant: mustbegcc
 # struct; I need it to *not* be enabled for the run through gcc, since
 # gcc-2.x doesn't know about transparent unions
 LIDIR := $(SPECDIR)/130.li
-LISAFECC := $(CCURED) -DCCURED_MODIFICATIONS --allowInlineAssembly 
+LISAFECC := $(CCURED)
+ifndef USECILLY
+LISAFECC += -DCCURED_MODIFICATIONS --allowInlineAssembly 
+endif
 li:  mustbegcc
 	cd $(LIDIR)/src; \
             make clean build CC="$(LISAFECC) $(CONLY)" \
@@ -1558,53 +1561,14 @@ go-optimvariant: mustbegcc
                                    do time ./go.exe 50 9; done"
 
 
-# sm: commented-out this section as per 21-aug-02 email discussion
-# with George; it's a near duplicate of the section below
-# ### SPEC95 GCC
-# GCCDIR := $(SPECDIR)/126.gcc
-# GCCSAFECC := $(CCURED)  --commPrintLn $(CFLAGS) $(OPT_O2)
-
-# gccclean: 	
-# 	cd $(GCCDIR)/src; make clean
-# 	cd $(GCCDIR)/src; rm -f *.cil.c *box.c *.i *_ppp.c *.origi
-
-
-# gcc:  mustbegcc
-# 	cd $(GCCDIR)/src; \
-#             make clean build CC="$(GCCSAFECC) $(CONLY)" \
-#                              LD="$(GCCSAFECC)"
-# 	cd $(GCCDIR)/src; sh ./testit ./cc1.exe
-# 	cd $(GCCDIR)/src; sh -c "for i in $(ITERATION_ELEMS) ; \
-#                                    do time ./cc1.exe ; done"
-
-# gcc-combined:  mustbegcc
-# 	cd $(GCCDIR)/src; \
-# 	   $(CCURED) $(CONLY) gcc_all.c
-
-
-# gcc-noclean:  mustbegcc
-# 	cd $(GCCDIR)/src; \
-#             make build CC="$(GCCSAFECC) $(CONLY)" \
-#                        LD="$(GCCSAFECC)" \
-#                              EXTRA_LIBS=$(GCCEXTRA) 
-# 	sh -c "time $(GCCDIR)/src/cc1.exe "
-
-# gcc-optimvariant: mustbegcc
-# 	cd $(GCCDIR)/src; rm -f cc1.exe
-# 	cd $(GCCDIR)/src; \
-#            $(CC_OPTIMVARIANT) \
-#                 cc1.exe_comboptimcured.$(OPTIMVARIANT).c \
-#                 $(CCUREDLIB) \
-#                 $(EXEOUT)cc1.exe
-# 	cd $(GCCDIR)/src; sh -c "for i in $(ITERATION_ELEMS) ; \
-#                                    do time ./cc1.exe ; done"
-
 
 
 ### SPEC95 vortex
 VORDIR := $(SPECDIR)/147.vortex
-VORSAFECC := $(CCURED)  --verbose --noRTTI 
-#VORSAFECC := $(CCURED)  
+VORSAFECC := $(CCURED)  
+ifndef USECILLY
+VORSAFECC += --noRTTI 
+endif
 ifdef _GNUCC
   VOREXTRA := -lm
 endif
@@ -1682,8 +1646,10 @@ M88DIR := $(SPECDIR)/124.m88ksim
 
 # sm: 12/23/01: found that -I. and -I- don't work with m88k.. as usual I
 # have absolutely no idea why it hasn't been a problem until now ..
-M88SAFECC := $(CCURED)   \
-               --leavealone=m88k_trusted --no-idashi --no-idashdot
+M88SAFECC := $(CCURED) 
+ifndef USECILLY
+M88SAFECC +=--leavealone=m88k_trusted --no-idashi --no-idashdot
+endif
 m88kclean: 	
 	cd $(M88DIR)/src; make clean
 	cd $(M88DIR)/src; rm -f *.cil.c *box.c *.i *_ppp.c *.origi
