@@ -37,6 +37,8 @@
 
 $::docxx = 0; # Whether to do C++. Default is not
 
+$::cilbin = 'bin';
+
 package Cilly;
 @ISA = ();
 
@@ -422,6 +424,7 @@ sub linktolib {
 # THIS IS THE ENTRY POINT FOR COMPILING SOURCE FILES
 sub preprocess_compile {
     my ($self, $src, $dest, $ppargs, $ccargs) = @_;
+    &mydebug("preprocess_compile(src=$src, dest=$dest)\n");
     my ($base, $dir, $ext) = fileparse($src, "\\.[^.]+");
     if($ext eq ".c" || $ext eq ".cpp" || $ext eq ".cc") {
         if($self->leaveAlone($src)) {
@@ -434,6 +437,9 @@ sub preprocess_compile {
         return $self->compile($out, $dest, $ppargs, $ccargs);
     }
     if($ext eq ".i") {
+        return $self->compile($src, $dest, $ppargs, $ccargs);
+    }
+    if($ext eq ".$::cilbin") {
         return $self->compile($src, $dest, $ppargs, $ccargs);
     }
 }
@@ -529,6 +535,7 @@ sub straight_preprocess {
 
 sub compile {
     my($self, $src, $dest, $ppargs, $ccargs) = @_;
+    &mydebug("Cilly.compile(src=$src, dest=$dest)\n");
     if($self->{SEPARATE}) {
         # Now invoke CIL and compile afterwards
         return $self->applyCilAndCompile([$src], $dest, $ppargs, $ccargs); 
@@ -955,6 +962,10 @@ sub classDebug {
     if(0) { print @_; }
 }
 
+sub mydebug {
+    if(1) { print @_; }
+}
+
 sub compilerArgument {
     my($self, $options, $arg, $pargs) = @_;
     &classDebug("Classifying arg: $arg\n");
@@ -1118,7 +1129,7 @@ sub new {
 # given subroutine is invoked with the self, the argument and the (possibly
 # empty) additional word and a pointer to the list of remaining arguments
 #
-          ["[^/].*\\.(c|cpp|cc)\$" => { TYPE => 'CSOURCE' },
+          ["[^/].*\\.($::cilbin|c|cpp|cc)\$" => { TYPE => 'CSOURCE' },
            "[^/].*\\.(asm)\$" => { TYPE => 'ASMSOURCE' },
            "[^/].*\\.i\$" => { TYPE => 'ISOURCE' },
            "[^/-]" => { TYPE => "OSOURCE" },
@@ -1222,7 +1233,7 @@ sub compileOutputFile {
     }
     my ($base, $dir, $ext) = 
         fileparse($src, 
-                  "(\\.c)|(\\.cc)|(\\.cpp)|(\\.i)|(\\.asm)");
+                  "(\\.$::cilbin)|(\\.c)|(\\.cc)|(\\.cpp)|(\\.i)|(\\.asm)");
     if(! defined($ext) || $ext eq "") { # Not a C source
         die "objectOutputFile: not a C source file\n";
     }
@@ -1436,7 +1447,7 @@ sub new {
       LINEPATTERN => "^#\\s+(\\d+)\\s+\"(.+)\"",
       
       OPTIONS => 
-          [ "[^-].*\\.(c|cpp|cc)\$" => { TYPE => 'CSOURCE' },
+          [ "[^-].*\\.($::cilbin|c|cpp|cc)\$" => { TYPE => 'CSOURCE' },
             "[^-].*\\.(s|S)\$" => { TYPE => 'ASMSOURCE' },
             "[^-].*\\.i\$" => { TYPE => 'ISOURCE' },
             # .o files can be linker scripts
@@ -1580,7 +1591,7 @@ sub compileOutputFile {
     }
     my ($base, $dir, $ext) = 
         fileparse($src, 
-                  "(\\.c)|(\\.cc)|(\\.cpp)|(\\.i)|(\\.[s|S])");
+                  "(\\.$::cilbin)|(\\.c)|(\\.cc)|(\\.cpp)|(\\.i)|(\\.[s|S])");
     if(! defined($ext) || $ext eq "") { # Not a C source
         die "objectOutputFile: not a C source file: $src\n";
     }
