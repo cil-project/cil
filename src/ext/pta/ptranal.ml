@@ -87,7 +87,9 @@ let current_ret : A.tau option ref = ref None
 
 let lvalue_hash : (varinfo,A.lvalue) H.t = H.create 64
 
-let expressions : (exp,exp) H.t = H.create 64
+let expressions : (exp,A.tau) H.t = H.create 64
+
+let lvalues : (lval,A.lvalue) H.t = H.create 64
 
 let count : int ref = ref 0
 
@@ -181,88 +183,98 @@ let isFunPtrType (t : typ) : bool =
     | _ -> false
   
 let rec analyze_lval (lv : lval ) : A.lvalue =
-  match lv with
-    | Var v,_ -> (* instantiate every syntactic occurrence of a function *)
-	begin
-	  let alv = 
-	    if (isFunctionType (typeOfLval lv)) 
-	    then A.instantiate (analyze_var_decl v) (fresh_index())
-	    else analyze_var_decl v
-	  in
-	    match (!current_fundec) with
-	      | None -> alv
-	      | Some f ->
-		  let accesses = H.find fun_access_map f in
-		    if (H.mem accesses lv) then alv
-		    else
-		      begin
-			H.add accesses lv (alv,true);
-			alv
-		      end
-	end
-    | Mem e,_ -> 
-	begin 
-	  (* assert (not (isFunctionType(typeOf(e))) ); *)
-	  let alv = 
-	    if (!fun_ptrs_as_funs && isFunPtrType (typeOf e))
-	    then
-	      analyze_expr_as_lval e
-	    else
-	      A.deref (analyze_expr e)
-	  in
-	    match (!current_fundec) with
-	      | None -> alv
-	      | Some f ->
-		  let accesses = H.find fun_access_map f in
-		    if (H.mem accesses lv) 
-		    then alv
-		    else
-		      begin
-			H.add accesses lv (alv,false);
-			alv
-		      end
-	end
-	
+  let result = 
+    match lv with
+      | Var v,_ -> (* instantiate every syntactic occurrence of a function *)
+	  begin
+	    let alv = 
+	      if (isFunctionType (typeOfLval lv)) 
+	      then A.instantiate (analyze_var_decl v) (fresh_index())
+	      else analyze_var_decl v
+	    in
+	      match (!current_fundec) with
+		| None -> alv
+		| Some f ->
+		    let accesses = H.find fun_access_map f in
+		      if (H.mem accesses lv) then alv
+		      else
+			begin
+			  H.add accesses lv (alv,true);
+			  alv
+			end
+	  end
+      | Mem e,_ -> 
+	  begin 
+	    (* assert (not (isFunctionType(typeOf(e))) ); *)
+	    let alv = 
+	      if (!fun_ptrs_as_funs && isFunPtrType (typeOf e))
+	      then
+		analyze_expr_as_lval e
+	      else
+		A.deref (analyze_expr e)
+	    in
+	      match (!current_fundec) with
+		| None -> alv
+		| Some f ->
+		    let accesses = H.find fun_access_map f in
+		      if (H.mem accesses lv) 
+		      then alv
+		      else
+			begin
+			  H.add accesses lv (alv,false);
+			  alv
+			end
+	  end
+  in
+    H.add lvalues lv result;
+    result
+
+
 and analyze_expr_as_lval (e : exp) : A.lvalue = 
   match e with
     | Lval l ->  analyze_lval l 
     | _ -> assert(false) (* todo -- other kinds of expressions? *)
 
 and analyze_expr (e : exp ) : A.tau = 
-  if (!debug_may_aliases & (not (H.mem expressions e) )) then
-    H.add expressions e e;
-  match e with
-    | Const c -> A.bottom()
-    | Lval l ->	A.rvalue (analyze_lval l)
-    | SizeOf _ -> A.bottom()
-    | SizeOfStr _ -> A.bottom()
-    | AlignOf _ -> A.bottom()
-    | UnOp (op,e,t) -> 
-	begin
-	  if (pointer_destroying_unop op)
-	  then 
-	    A.bottom ()
+(**  if (!debug_may_aliases & (not (H.mem expressions e) )) then
+    H.add expressions e e;*)
+  let result = 
+    match e with
+      | Const c -> A.bottom()
+      | Lval l -> A.rvalue (analyze_lval l)
+      | SizeOf _ -> A.bottom()
+      | SizeOfStr _ -> A.bottom()
+      | AlignOf _ -> A.bottom()
+      | UnOp (op,e,t) -> 
+	  begin
+	    if (pointer_destroying_unop op)
+	    then 
+	      A.bottom ()
+	    else
+	      analyze_expr e
+	  end
+      | BinOp (op,e,e',t) ->
+	  begin
+	    if (pointer_destroying_binop op)
+	    then
+	      A.bottom ()
+	    else
+	      A.join (analyze_expr e) (analyze_expr e')
+	  end
+      | CastE (t,e) ->
+	  analyze_expr(e)
+      | AddrOf l ->  
+	  if (!fun_ptrs_as_funs && isFunctionType (typeOfLval(l)) ) then
+	    A.rvalue (analyze_lval l)
 	  else
-	    analyze_expr e
-	end
-    | BinOp (op,e,e',t) ->
-	begin
-	  if (pointer_destroying_binop op)
-	  then
-	    A.bottom ()
-	  else
-	    A.join (analyze_expr e) (analyze_expr e')
-	end
-    | CastE (t,e) ->
-	analyze_expr(e)
-    | AddrOf l ->  
-	if (!fun_ptrs_as_funs && isFunctionType (typeOfLval(l)) ) then
-	  A.rvalue (analyze_lval l)
-	else
-	  A.address (analyze_lval l)
-    | StartOf l -> A.address (analyze_lval l)
-    | AlignOfE _ -> A.bottom()
-    | SizeOfE _ -> A.bottom() 
+	    A.address (analyze_lval l)
+      | StartOf l -> A.address (analyze_lval l)
+      | AlignOfE _ -> A.bottom()
+      | SizeOfE _ -> A.bottom() 
+  in
+    H.add expressions e result;
+    result
+     
 
 (* check *)
 let rec analyze_init (i : init ) : A.tau = 
@@ -402,6 +414,8 @@ let analyze_file (f : file) : unit =
 
 (* Same as analyze_expr, but no constraints. *)
 let rec traverse_expr (e : exp) : A.tau = 
+  H.find expressions e
+(*
   match e with
     | Const c -> A.bottom()
     | Lval l ->	A.rvalue (traverse_lval l)
@@ -434,13 +448,16 @@ let rec traverse_expr (e : exp) : A.tau =
     | StartOf l -> A.address (traverse_lval l)
     | AlignOfE _ -> A.bottom()
     | SizeOfE _ -> A.bottom() 
+*)
 
 and traverse_expr_as_lval (e : exp) : A.lvalue = 
   match e with
     | Lval l -> traverse_lval l 
     | _ -> assert(false) (* todo -- other kinds of expressions? *)
 
-and traverse_lval (lv : lval ) : A.lvalue =
+and traverse_lval (lv : lval ) : A.lvalue = 
+  H.find lvalues lv
+(*
   match lv with
     | Var v,_ -> analyze_var_decl v
     | Mem e,_ -> 
@@ -449,6 +466,7 @@ and traverse_lval (lv : lval ) : A.lvalue =
 	  traverse_expr_as_lval e
 	else
 	  A.deref (traverse_expr e)
+					    *)
 
 let may_alias (e1 : exp) (e2 : exp) : bool = 
   let tau1,tau2 = traverse_expr e1, traverse_expr e2 in
@@ -567,7 +585,7 @@ let compute_may_aliases (b : bool) : unit =
       | [] -> ()
   in
   let exprs : exp list ref = ref [] in
-    H.iter (fun _ -> fun e -> exprs := e :: (!exprs)) expressions;
+    H.iter (fun e -> fun _ -> exprs := e :: (!exprs)) expressions;
     compute_may_aliases_aux (!exprs)
   
 
@@ -661,14 +679,18 @@ type absloc = A.absloc
 let rec lvalue_of_varinfo (vi : varinfo) : A.lvalue =
   H.find lvalue_hash vi
 
-let rec lvalue_of_lval (lv : lval) : A.lvalue =
+let lvalue_of_lval = traverse_lval
+  
+(*
   match lv with
     | (Var vi, _) -> lvalue_of_varinfo vi
     | (Mem e, _) -> A.deref (A.rvalue (lvalue_of_exp e))
+*)
 
 (* do not export - AddrOf only ok if it's dereferenced later *)
+(*
 and lvalue_of_exp (e : exp) : A.lvalue =  
-  match e with 
+ match e with 
     | Lval lv -> lvalue_of_lval lv
     | CastE (_,e) -> lvalue_of_exp e
     | BinOp((PlusPI|IndexPI|MinusPI),e,_,_) -> lvalue_of_exp e
@@ -683,6 +705,7 @@ and lvalue_of_exp (e : exp) : A.lvalue =
     | (Const _ | SizeOf _ | SizeOfE _ | SizeOfStr _ | AlignOf _ | AlignOfE
            _ | UnOp _ | BinOp _ )-> 
         failwith "lvalue_of_exp: fishy exp in lval"
+*)
 
 (** return an abstract location for a varinfo, resp. lval *)
 let absloc_of_varinfo vi = A.absloc_of_lvalue (lvalue_of_varinfo vi)
