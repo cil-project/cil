@@ -3274,7 +3274,7 @@ and doStatement (s : A.statement) : chunk =
         let (se, e', et) = doExp false e (AExp None) in
         if isNotEmpty se then
           E.s (error "Case statement with a non-constant");
-        caseRangeChunk [constFold true e'] loc' (doStatement s)
+        caseRangeChunk [constFold false e'] loc' (doStatement s)
             
     | A.CASERANGE (el, eh, s, loc) -> 
         let loc' = convLoc loc in
