@@ -424,7 +424,8 @@ endif
 
 
 # ----------- above here is configuration -------------------
-# ----------- below here are rules to build targets ---------
+# ----------- below here are rules to build the translator ---------
+# (actually, mostly they're in the MODULES line above and in Makefile.ocaml)
 
 
 # garbage collector options
@@ -501,10 +502,27 @@ $(CILLIB) : lib/cillib.c
 endif
 
 
+# ----------- above here are rules for building the translator ----------
+# ----------- below here are rules for building benchmarks --------
+
 mustbegcc :
 ifndef _GNUCC
 	@echo This test case works only with _GNUCC=1; exit 3
 endif
+
+# sm: find and remove all the intermediate files from translation
+clean-byproducts:
+	find test \( \
+		-name '*cil.c' -o \
+		-name '*box.c' -o \
+		-name '*.i' -o \
+		-name '*_ppp.c' -o \
+		-name '*.origi' -o \
+		-name '*.o' -o \
+		-name '*.cabs' -o \
+		-name '*infer.c' -o \
+		-name '*_all*.c' \
+	\) -exec rm {} \;
 
 ####### Test with PCC sources
 PCCTEST=test/PCCout

@@ -51,7 +51,7 @@ To test your ocaml distribution, try:
 
 You'll need CVS (Concurrent Version System) installed; version 1.10 or
 greater is recommended.  If you don't have it (try "which cvs"), you can
-get it from               
+get it from
 
   http://www.cvshome.org/
 
@@ -399,4 +399,18 @@ lib/: (C code for use at runtime)
 
 5. Useful links
 
-ML tutorial: http://www.dcs.napier.ac.uk/course-notes/sml/manual.html
+  http://www.dcs.napier.ac.uk/course-notes/sml/manual.html
+
+    Tutorial on ML
+
+  http://caml.inria.fr/ocaml/
+  
+    Documentation and sources for Ocaml
+
+  http://www.cvshome.org/
+
+    Documentation and sources for CVS
+
+  http://www.gnu.org/manual/make/html_chapter/make_toc.html
+
+    Manual for GNU make
