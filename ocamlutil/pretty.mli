@@ -56,7 +56,7 @@ val chr          : char   -> doc
 val line         : doc
 
 (* keep left flushed .. should be preceded by a line *)
-val leftflushline : doc
+val leftflush    : doc
 
 
 (* a soft line break. Such a break will be taken only if necessary to fit the 
@@ -91,6 +91,8 @@ val sprint       :                int -> doc -> string
  *          align/unaligns. See printDepth below. 
  *     @] : inserts an unalign
  *     @! : inserts a line (hard line break)
+ *     @< : inserts a leftflushline (keep cursor at column 0 and do not indent)
+ *          @< should be used immediately after @!
  *     @? : inserts a break (soft line break)
  *     @@ : inserts a @
  *
@@ -115,13 +117,9 @@ val gprintf      : (doc -> doc) -> ('a, unit, doc) format -> 'a
  * !printDepth then we print ... and we skip until the matching unalign *)
 val printDepth   : int ref
 
-val noBreaks  : bool ref  (* If true then replaces all optional breaks with 
-                           * space *)
-val noAligns  : bool ref  (* If true then does not indent *)
 
 val fastMode  : bool ref  (* If true the it takes breaks only when has 
-                           * surpassed the given width. Used only for the 
-                           * "george" algorithm. *)
+                           * surpassed the given width. *)
 
 val flushOften   : bool ref  (* If true the it flushes after every print *)
 
