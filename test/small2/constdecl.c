@@ -6,8 +6,8 @@
 static int foo(char const *a, char const *b);
 
 // now define it using old-style args
-int foo(a, b)
-  #if 1
+static int foo(a, b)
+  #if 0
     char const *a, *b;   // looks like we're not associating 'const' with 'b'?
   #else
     char const *a;       // actually, this fails too..

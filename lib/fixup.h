@@ -123,7 +123,7 @@ extern long double __builtin_fabsl(long double);
 
 
 
-#pragma boxpoly("__startof")
+  #pragma boxpoly("__startof")
   void *__startof(void *ptr); // Get the start of a pointer
   #pragma boxpoly("__endof")
   void *__endof(void *);
@@ -266,7 +266,7 @@ extern long double __builtin_fabsl(long double);
 // sm: I think it's a bad idea to try to match signal's declaration since it's
 // such an unusual type; and it doesn't use any types that aren't built-in
 
-// gn: disabled this since everythign in BOX mode fails due to redefin.
+// gn: disabled this since everything in BOX mode fails due to redefin.
 #ifdef CCURED
   typedef void (*_box_sig_fn)(int);
   static inline

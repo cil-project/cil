@@ -553,9 +553,15 @@ btreetest-optimvariant.%: mustbegcc
 # sm: this is my little test program
 hola: scott/hola
 
+# sm: some project members don't want the testing targets to depend
+# on quickbuild (which rebuilds translator components whose dependencies
+# have changed), and others do..
+ifdef TARGETS_DEP_QUICKBUILD
+  TARGET_DEP := quickbuild
+endif
+
 # sm: attempt at a single rule for my testing purposes
-# gn: removed quickbuild
-scott/%: test/small2/%.c 
+scott/%: test/small2/%.c $(TARGET_DEP)
 	rm -f test/small2/$*
 	cd test/small2; $(CC) $(CONLY) $(WARNALL) $(DEF)$(ARCHOS) $*.c
 	cd test/small2; $(CCURED) --keep=. $(DEF)$(ARCHOS) \
@@ -565,7 +571,7 @@ scott/%: test/small2/%.c
                  $(EXEOUT)$*
 	sh -c "time test/small2/$*"
 
-scott-nolink/%: test/small2/%.c 
+scott-nolink/%: test/small2/%.c $(TARGET_DEP)
 	rm -f test/small2/$*
 	cd test/small2; $(CC) $(CONLY) $(WARNALL) $(DEF)$(ARCHOS) $*.c
 	cd test/small2; $(CCURED) $(CONLY) --keep=. $(DEF)$(ARCHOS) \
@@ -577,7 +583,7 @@ scott-nolink/%: test/small2/%.c
 # sm: a target for programs which are *supposed* to fail, because
 # they intentionally violate the type system; but this is only
 # when FAIL is #defined, otherwise they should exit ok
-bad/%: test/bad/%.c 
+bad/%: test/bad/%.c $(TARGET_DEP)
 	rm -f test/bad/$*
 	cd test/bad; $(CC) $(CONLY) $(WARNALL) $(DEF)$(ARCHOS) $*.c
 	@true "first try the succeed case"
@@ -605,7 +611,7 @@ bad/%: test/bad/%.c
 
 # same rules, this time in 'scott' directory, since it's a pain to
 # move the file just to add a failure case
-bads/%: test/small2/%.c 
+bads/%: test/small2/%.c $(TARGET_DEP)
 	rm -f test/small2/$*
 	cd test/small2; $(CC) $(CONLY) $(WARNALL) $(DEF)$(ARCHOS) $*.c
 	@true "first try the succeed case"
@@ -633,7 +639,7 @@ bads/%: test/small2/%.c
 
 # sm: yet another failure-test target, this time utilizing a separate
 # script capable of testing multiple failures per file
-test-bad/%: quickbuild test/small2/%.c
+test-bad/%: quickbuild test/small2/%.c $(TARGET_DEP)
 	CCUREDHOME="$(CCUREDHOME)" CCURED="$(CCURED) --noPrintLn" \
 	  CFLAGS="$(DEF)$(ARCHOS) "`$(PATCHECHO) $(STANDARDPATCH)`" $(CFLAGS) $(WARNALL)" \
           TESTBADONCE="$(TESTBADONCE)" \
