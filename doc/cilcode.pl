@@ -73,16 +73,16 @@ while(<>) {
             print "See the \\ahref{$htmloutdir/ex$testnr.txt}{CIL output} for this
 code fragment\n";
             # Now run cilly
-            my $cmd = "$cilly $cil_options -c $tmpdir/ex$testnr.c -o $tmpdir/ex$testnr.o";
+            my $cmd = "$cilly $cil_options -c $tmpdir/ex$testnr.c -o $tmpdir/ex$testnr.o --keep=$tmpdir";
             # print "$cmd\n";
             if(system($cmd)) {
                 die "Error running CIL for $tmpdir/ex$testnr.c";
             }
             # Now repackage the CIL file
-            my $cilfile = "$tmpdir/ex$testnr" . "cil.c";
-            open(CIL, "<$cilfile") || die "Cannot find CIL file for $testnr";
+            my $cilfile = "$tmpdir/ex$testnr.cil.c";
+            open(CIL, "<$cilfile") || die "Cannot find CIL file \"$cilfile\" for $testnr";
             my $exfile = "$outdir/ex$testnr.txt";
-            open(OUT, ">$exfile") || die "Cannot write OUT file for $testnr ($exfile)";
+            open(OUT, ">$exfile") || die "Cannot write OUT file \"$exfile\" for $testnr";
             while(<CIL>) {
                 print OUT $_;
             }

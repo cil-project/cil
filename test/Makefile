@@ -36,17 +36,18 @@ Makefile: Makefile.in
 clean:
 	-find . \( \
 		-name '*~' -o \
-		-name '*cil.c' -o \
-		-name '*cured.c' -o \
-                -name '*cured.*optim.c' -o \
+		-name '*.cil.c' -o \
+		-name '*.cured.c' -o \
+		-name '*.optimcured.c' -o \
+                -name '*.cured.*.optim.c' -o \
 		-name '*.exe' -o \
 		-name '*.i' -o \
 		-name '*_ppp.c' -o \
 		-name '*.origi' -o \
 		-name '*.o' -o \
 		-name '*.obj' -o \
-		-name '*cabs.c' -o \
-		-name '*infer.c' -o \
+		-name '*.cabs.c' -o \
+		-name '*.infer.c' -o \
 		-name '*_all*.c' -o \
 	        -name "*-tmp.c" -o \
 		-name '*_comb*.c' -o \
@@ -692,7 +693,7 @@ perf/%: $(TESTDIR)/small1/%.c
 	cd $(TESTDIR)/small1; sh -c "for i in $(ITERATION_ELEMS) ; \
                                    do time ./$*.exe ; done"
 
-perf/%-optimvariant: $(TESTDIR)/small1/%optimcured.c
+perf/%-optimvariant: $(TESTDIR)/small1/%.optimcured.c
 	cd $(TESTDIR)/small1; rm -f $*.exe
 	cd $(TESTDIR)/small1; \
            $(CC_OPTIMVARIANT) \
@@ -842,9 +843,9 @@ baddef: $(TESTDIR)/small2/baddef1.c $(TESTDIR)/small2/baddef2.c
 # The final grep will succeed only once the inference correctly says
 # the argument to __throw_setup is WILD.
 doThrowFv:
-	cd $(TESTDIR)/small2; $(CCURED) --nomerge -c doThrowFv.c
-	cd $(TESTDIR)/small2; grep throw_setup doThrowFvcured.c
-	cd $(TESTDIR)/small2; grep throw_setup_ww doThrowFvcured.c
+	cd $(TESTDIR)/small2; $(CCURED) --nomerge -c --keep=. doThrowFv.c
+	cd $(TESTDIR)/small2; grep throw_setup doThrowFv.cured.c
+	cd $(TESTDIR)/small2; grep throw_setup_ww doThrowFv.cured.c
 
 # sm: compile two files separately, then link them using a tagfile
 # (the tagfile is called tagfile.txt)
@@ -985,12 +986,12 @@ APACHESRC := $(BIG_EXAMPLES)/apache_1.3.9
 apacheclean:
 	cd $(APACHESRC); if test -f Makefile ; then $(MAKE) clean ; else ./configure ; fi
 	-cd $(APACHESRC); find . \( \
-		-name '*cil.c' -o \
+		-name '*.cil.c' -o \
 		-name '*.exe' -o \
 		-name '*.i' -o \
 		-name '*.o' -o \
 		-name '*.obj' -o \
-		-name '*cabs.c' -o \
+		-name '*.cabs.c' -o \
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
 	(cd $(APACHESRC)/target/bin ; ./apachectl stop) || echo "Not running."
@@ -1030,7 +1031,7 @@ apache-setup:
 # result is compared against a gold standard. Then we shut down teh web
 # server. 
 a-m-c/%: apache-setup
-	cd $(APACHESRC)/ccured-modules ; ( $(CCURED) --includedir=include --assumePrintf --curetype=infer -DINFERBOX mod_$*.c -I ../target/include/ --curedout=mod_$*cured.c || echo "Undefined references to non-mangled apache functions are OK at this stage" ) ; ../target/bin/apxs -c mod_$*cured.i /home/weimer/cil/obj/x86_LINUX/ccured_GNUCC_debug.a ; ../target/bin/apxs -i mod_$*cured.so 
+	cd $(APACHESRC)/ccured-modules ; ( $(CCURED) --includedir=include --assumePrintf --curetype=infer -DINFERBOX mod_$*.c -I ../target/include/ --curedout=mod_$*.cured.c || echo "Undefined references to non-mangled apache functions are OK at this stage" ) ; ../target/bin/apxs -c mod_$*cured.i /home/weimer/cil/obj/x86_LINUX/ccured_GNUCC_debug.a ; ../target/bin/apxs -i mod_$*cured.so 
 	cd $(APACHESRC)/test-files ; cp httpd.conf.local ../target/conf/httpd.conf ; echo "LoadModule $*_module libexec/mod_$*cured.so" >> ../target/conf/httpd.conf
 	cd $(APACHESRC)/target/bin ; echo "Failing to load because of undefined references here is not good." ; ./apachectl start
 	cd $(APACHESRC)/test-files ; sleep 3s ; rm -f index.html ; wget http://localhost:9999/index.html ; 
@@ -1283,7 +1284,7 @@ ifdef _MSVC
 endif
 mst-clean: 	
 	cd $(OLDENMSTDIR); make clean
-	cd $(OLDENMSTDIR); rm -f *cil.c *box.c *.i *_ppp.c *.origi *_all.c
+	cd $(OLDENMSTDIR); rm -f *.cil.c *box.c *.i *_ppp.c *.origi *_all.c
 
 mst: 
 	-cd $(OLDENMSTDIR); rm gmon.out
@@ -1317,7 +1318,7 @@ ifeq ($(ARCHOS), x86_WIN32)
 endif
 treeadd-clean: 	
 	cd $(TREEADDIR); make clean
-	cd $(TREEADDIR); rm -f *cil.c *box.c *.i *_ppp.c *.origi *_all.c
+	cd $(TREEADDIR); rm -f *.cil.c *box.c *.i *_ppp.c *.origi *_all.c
 
 treeadd:  mustbegcc
 	cd $(TREEADDIR); \
@@ -1346,7 +1347,7 @@ ifeq ($(ARCHOS), x86_WIN32)
 endif
 em3d-clean: 	
 	cd $(EM3DDIR); make clean
-	cd $(EM3DDIR); rm -f *cil.c *box.c *.i *_ppp.c *.origi *_all.c
+	cd $(EM3DDIR); rm -f *.cil.c *box.c *.i *_ppp.c *.origi *_all.c
 
 # sm: em3d's output doesn't have much to check, so again I have no
 # explicit self-test...
@@ -1450,7 +1451,7 @@ li-noclean:  mustbegcc
 
 liclean: 
 	cd $(LIDIR)/src; make clean
-	cd $(LIDIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi trial_li_all.c
+	cd $(LIDIR)/src; rm -f *.cil.c *box.c *.i *_ppp.c *.origi trial_li_all.c
 
 liinfer: li
 	cd $(LIDIR)/src ; $(CCURED) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
@@ -1465,7 +1466,7 @@ GOSAFECC := $(CCURED)  --commPrintLn $(CFLAGS) $(OPT_O2)
 
 goclean: 	
 	cd $(GODIR)/src; make clean
-	cd $(GODIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
+	cd $(GODIR)/src; rm -f *.cil.c *box.c *.i *_ppp.c *.origi
 
 
 go:  mustbegcc
@@ -1507,7 +1508,7 @@ go-optimvariant: mustbegcc
 
 # gccclean: 	
 # 	cd $(GCCDIR)/src; make clean
-# 	cd $(GCCDIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
+# 	cd $(GCCDIR)/src; rm -f *.cil.c *box.c *.i *_ppp.c *.origi
 
 
 # gcc:  mustbegcc
@@ -1552,7 +1553,7 @@ endif
 
 vortexclean: 	
 	cd $(VORDIR)/src; make clean
-	cd $(VODIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
+	cd $(VODIR)/src; rm -f *.cil.c *box.c *.i *_ppp.c *.origi
 
 vortex:  mustbegcc
 	cd $(VORDIR)/src; \
@@ -1616,7 +1617,7 @@ else
 endif
 
 vortex-tv:
-	$(TVCOMMAND) -L $(VORDIR)/tv.log $(VORDIR)/src/vortex_all.i.rtl $(VORDIR)/src/vortex_allcil.c.rtl 
+	$(TVCOMMAND) -L $(VORDIR)/tv.log $(VORDIR)/src/vortex_all.i.rtl $(VORDIR)/src/vortex_all.cil.c.rtl 
 
 ### SPEC95 m88ksim
 M88DIR := $(SPECDIR)/124.m88ksim
@@ -1627,7 +1628,7 @@ M88SAFECC := $(CCURED)   \
                --leavealone=m88k_trusted --no-idashi --no-idashdot
 m88kclean: 	
 	cd $(M88DIR)/src; make clean
-	cd $(M88DIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
+	cd $(M88DIR)/src; rm -f *.cil.c *box.c *.i *_ppp.c *.origi
 
 m88k:  mustbegcc m88kclean
 	cd $(M88DIR)/src; \
@@ -1659,7 +1660,7 @@ ifeq ($(ARCHOS), x86_WIN32)
 endif
 ijpegclean: 	
 	cd $(IJPEGDIR)/src; make clean
-	cd $(IJPEGDIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
+	cd $(IJPEGDIR)/src; rm -f *.cil.c *box.c *.i *_ppp.c *.origi
 
 ijpeg:  mustbegcc
 	cd $(IJPEGDIR)/src; rm -f ijpeg.exe
@@ -1710,7 +1711,7 @@ GCCSAFECC := $(CCURED)
 
 gccclean: 	
 	cd $(GCCDIR)/src; make clean
-	cd $(GCCDIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
+	cd $(GCCDIR)/src; rm -f *.cil.c *box.c *.i *_ppp.c *.origi
 
 gcc:  mustbegcc
 	cd $(GCCDIR)/src; \
@@ -1805,7 +1806,7 @@ ifeq ($(ARCHOS), x86_WIN32)
 endif
 ftpd-clean: 	
 	cd $(FTPDDIR); make clean
-	cd $(FTPDDIR); rm -f *cil.c *box.c *.i *_ppp.c *.origi *_all.c
+	cd $(FTPDDIR); rm -f *.cil.c *box.c *.i *_ppp.c *.origi *_all.c
 
 ftpd: ftpd-clean mustbegcc
 	cd $(FTPDDIR); \
@@ -1822,7 +1823,7 @@ ftpd: ftpd-clean mustbegcc
 # endif
 # wuftpd-clean: 	
 # 	cd $(WUFTPDDIR); make clean; ./configure
-# 	cd $(WUFTPDDIR); rm -f *cil.c *box.c *.i *_ppp.c *.origi *_all.c
+# 	cd $(WUFTPDDIR); rm -f *.cil.c *box.c *.i *_ppp.c *.origi *_all.c
 
 # wuftpd: mustbegcc
 # 	cd $(WUFTPDDIR); \
@@ -2015,12 +2016,12 @@ endif
 linuxclean: 
 	cd $(LINUXSRC); make clean
 	-cd $(LINUXSRC); find . \( \
-		-name '*cil.c' -o \
+		-name '*.cil.c' -o \
 		-name '*.exe' -o \
 		-name '*.i' -o \
 		-name '*.o' -o \
 		-name '*.obj' -o \
-		-name '*cabs.c' -o \
+		-name '*.cabs.c' -o \
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
 
@@ -2039,7 +2040,7 @@ linux-gcc: mustbelinux mustbemanju linuxclean
 	cd $(LINUXSRC); make CC=gcc HOSTCC=gcc
 
 # ww: merge all of the key files in the linux kernel
-# "linux-merge" tries to merge the *cil.c versions of the files 
+# "linux-merge" tries to merge the *.cil.c versions of the files 
 # "linux-merge2" tries to merge the *.i versions of the files
 # in the end, both should work 
 LINUX_MERGE_SRC = /home/weimer/linux
@@ -2113,12 +2114,12 @@ AR_SSL="$(CCURED) $(STANDARDPATCH) --stages --verbose --merge --mode=AR rv"
 openssl-clean:
 	cd $(OPENSSLSRC); if test -f Makefile ; then $(MAKE) clean ; else $(OPENSSL_CONFIG); fi
 	-cd $(OPENSSLSRC); find . \( \
-		-name '*cil.c' -o \
+		-name '*.cil.c' -o \
 		-name '*.exe' -o \
 		-name '*.i' -o \
 		-name '*.o' -o \
 		-name '*.obj' -o \
-		-name '*cabs.c' -o \
+		-name '*.cabs.c' -o \
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
 
@@ -2167,12 +2168,12 @@ EMACSSRC := /usr/local/src/emacs-21.1
 emacsclean:
 	cd $(EMACSSRC); make clean
 	-cd $(EMACSSRC); find . \( \
-		-name '*cil.c' -o \
+		-name '*.cil.c' -o \
 		-name '*.exe' -o \
 		-name '*.i' -o \
 		-name '*.o' -o \
 		-name '*.obj' -o \
-		-name '*cabs.c' -o \
+		-name '*.cabs.c' -o \
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
 
@@ -2196,12 +2197,12 @@ PERLSRC := /usr/local/src/perl-5.6.1
 perlclean:
 	cd $(PERLSRC); make clean
 	-cd $(PERLSRC); find . \( \
-		-name '*cil.c' -o \
+		-name '*.cil.c' -o \
 		-name '*.exe' -o \
 		-name '*.i' -o \
 		-name '*.o' -o \
 		-name '*.obj' -o \
-		-name '*cabs.c' -o \
+		-name '*.cabs.c' -o \
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
 
@@ -2224,12 +2225,12 @@ BINDSRC := $(BIG_EXAMPLES)/bind
 bindclean:
 	cd $(BINDSRC); if test -f Makefile ; then $(MAKE) clean ; else ./configure ; fi
 	-cd $(BINDSRC); find . \( \
-		-name '*cil.c' -o \
+		-name '*.cil.c' -o \
 		-name '*.exe' -o \
 		-name '*.i' -o \
 		-name '*.o' -o \
 		-name '*.obj' -o \
-		-name '*cabs.c' -o \
+		-name '*.cabs.c' -o \
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
 
@@ -2278,12 +2279,12 @@ WUFTPDSRC := /usr/local/src/wu-ftpd-2.6.2
 wuftpdclean:
 	cd $(WUFTPDSRC); ./build clean
 	-cd $(WUFTPDSRC); find . \( \
-		-name '*cil.c' -o \
+		-name '*.cil.c' -o \
 		-name '*.exe' -o \
 		-name '*.i' -o \
 		-name '*.o' -o \
 		-name '*.obj' -o \
-		-name '*cabs.c' -o \
+		-name '*.cabs.c' -o \
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
 
@@ -2308,12 +2309,12 @@ OPENSSHSRC := /usr/local/src/openssh-3.0.2p1
 opensshclean:
 	cd $(OPENSSHSRC); make clean
 	-cd $(OPENSSHSRC); find . \( \
-		-name '*cil.c' -o \
+		-name '*.cil.c' -o \
 		-name '*.exe' -o \
 		-name '*.i' -o \
 		-name '*.o' -o \
 		-name '*.obj' -o \
-		-name '*cabs.c' -o \
+		-name '*.cabs.c' -o \
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
 
@@ -2399,12 +2400,12 @@ zlibclean:
 ifndef GIMPNOCLEAN
 	cd $(ZLIBSRC); make clean
 	-cd $(ZLIBSRC); find . \( \
-		-name '*cil.c' -o \
+		-name '*.cil.c' -o \
 		-name '*.exe' -o \
 		-name '*.i' -o \
 		-name '*.o' -o \
 		-name '*.obj' -o \
-		-name '*cabs.c' -o \
+		-name '*.cabs.c' -o \
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
 endif
@@ -2444,12 +2445,12 @@ tiffclean:
 ifndef GIMPNOCLEAN
 	cd $(TIFFSRC);  make clean
 	-cd $(TIFFSRC); find . \( \
-		-name '*cil.c' -o \
+		-name '*.cil.c' -o \
 		-name '*.exe' -o \
 		-name '*.i' -o \
 		-name '*.o' -o \
 		-name '*.obj' -o \
-		-name '*cabs.c' -o \
+		-name '*.cabs.c' -o \
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
 endif
@@ -2495,12 +2496,12 @@ jpegclean:
 ifndef GIMPNOCLEAN
 	cd $(JPEGSRC); make clean
 	-cd $(JPEGSRC); find . \( \
-		-name '*cil.c' -o \
+		-name '*.cil.c' -o \
 		-name '*.exe' -o \
 		-name '*.i' -o \
 		-name '*.o' -o \
 		-name '*.obj' -o \
-		-name '*cabs.c' -o \
+		-name '*.cabs.c' -o \
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
 endif
@@ -2548,12 +2549,12 @@ libpngclean:
 ifndef GIMPNOCLEAN
 	cd $(LIBPNGSRC); make clean
 	-cd $(LIBPNGSRC); find . \( \
-		-name '*cil.c' -o \
+		-name '*.cil.c' -o \
 		-name '*.exe' -o \
 		-name '*.i' -o \
 		-name '*.o' -o \
 		-name '*.obj' -o \
-		-name '*cabs.c' -o \
+		-name '*.cabs.c' -o \
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
 endif
@@ -2583,12 +2584,12 @@ mpegclean:
 ifndef GIMPNOCLEAN
 	cd $(MPEGSRC); make clean
 	-cd $(MPEGSRC); find . \( \
-		-name '*cil.c' -o \
+		-name '*.cil.c' -o \
 		-name '*.exe' -o \
 		-name '*.i' -o \
 		-name '*.o' -o \
 		-name '*.obj' -o \
-		-name '*cabs.c' -o \
+		-name '*.cabs.c' -o \
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
 endif
@@ -2617,12 +2618,12 @@ glibclean:
 ifndef GIMPNOCLEAN
 	cd $(GLIBSRC); make clean
 	-cd $(GLIBSRC); find . \( \
-		-name '*cil.c' -o \
+		-name '*.cil.c' -o \
 		-name '*.exe' -o \
 		-name '*.i' -o \
 		-name '*.o' -o \
 		-name '*.obj' -o \
-		-name '*cabs.c' -o \
+		-name '*.cabs.c' -o \
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
 endif
@@ -2661,12 +2662,12 @@ gtkclean:
 ifndef GIMPNOCLEAN
 	cd $(GTKSRC); make clean
 	-cd $(GTKSRC); find . \( \
-		-name '*cil.c' -o \
+		-name '*.cil.c' -o \
 		-name '*.exe' -o \
 		-name '*.i' -o \
 		-name '*.o' -o \
 		-name '*.obj' -o \
-		-name '*cabs.c' -o \
+		-name '*.cabs.c' -o \
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
 endif
@@ -2698,12 +2699,12 @@ gimpclean:
 ifndef GIMPNOCLEAN
 	cd $(GIMPSRC); make clean
 	-cd $(GIMPSRC); find . \( \
-		\( -name '*cil.c' -a \! -name 'pencil.c' \) -o \
+		-name '*.cil.c' -o \
 		-name '*.exe' -o \
 		-name '*.i' -o \
 		-name '*.o' -o \
 		-name '*.obj' -o \
-		-name '*cabs.c' -o \
+		-name '*.cabs.c' -o \
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
 endif
@@ -2833,13 +2834,13 @@ js-orig: mustbegcc mustbelinux
 js-clean: 
 	-cd $(JSDIR)/src; find . \( \
 	        -name '*.OBJ' -o \
-		-name '*cil.c' -o \
-		-name '*cured.c' -o \
+		-name '*.cil.c' -o \
+		-name '*.cured.c' -o \
 		-name '*.exe' -o \
 		-name '*.i' -o \
 		-name '*.o' -o \
 		-name '*.obj' -o \
-		-name '*infer.c' -o \
+		-name '*.infer.c' -o \
 		-name '*_all*.c' -o \
 		-name '*_comb*.c' \
 	\) -exec rm -rf {} \;

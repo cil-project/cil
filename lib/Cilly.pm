@@ -51,6 +51,11 @@ use File::Basename;
 use File::Copy;
 use File::Spec;
 use Data::Dumper;
+use Carp;
+
+use KeptFile;
+use OutputFile;
+use TempFile;
 
 $Cilly::savedSourceExt = "_saved.c";
 
@@ -418,6 +423,8 @@ sub linktolib {
 sub preprocess_compile {
     my ($self, $src, $dest, $ppargs, $ccargs) = @_;
     &mydebug("preprocess_compile(src=$src, dest=$dest)\n");
+    confess "bad dest: $dest" unless $dest->isa('OutputFile');
+
     my ($base, $dir, $ext) = fileparse($src, "\\.[^.]+");
     if($ext eq ".c" || $ext eq ".cpp" || $ext eq ".cc") {
         if($self->leaveAlone($src)) {
@@ -440,16 +447,20 @@ sub preprocess_compile {
 # THIS IS THE ENTRY POINT FOR JUST PREPROCESSING A FILE
 sub preprocess {
     my($self, $src, $dest, $ppargs) = @_;
+    confess "bad dest: $dest" unless $dest->isa('OutputFile');
     return $self->preprocess_before_cil($src, $dest, $ppargs);
 }
 
-# Find the name of the preprocessed file
+# Find the name of the preprocessed file before CIL processing
 sub preprocessOutputFile {
     my($self, $src) = @_;
-    my ($base, $dir, $ext) = fileparse($src, "\\.[^.]+");
-    my $idir = $dir;
-    if(defined $self->{KEEPDIR}) { $idir = $self->{KEEPDIR} . "/"; }
-    return "$idir$base.i";
+    return $self->outputFile($src, 'i');
+}
+
+# Find the name of the preprocessed file after CIL processing
+sub preprocessAfterOutputFile {
+    my($self, $src) = @_;
+    return $self->outputFile($src, 'cil.i');
 }
 
 # When we use CIL we have two separate preprocessing stages. First is the
@@ -458,6 +469,7 @@ sub preprocessOutputFile {
  
 sub preprocess_before_cil {
     my ($self, $src, $dest, $ppargs) = @_;
+    confess "bad dest: $dest" unless $dest->isa('OutputFile');
     my @args = @{$ppargs};
 
     # See if we must force some includes
@@ -497,6 +509,7 @@ sub preprocess_before_cil {
 # Preprocessing after CIL
 sub preprocess_after_cil {
     my ($self, $src, $dest, $ppargs) = @_;
+    confess "bad dest: $dest" unless $dest->isa('OutputFile');
     return $self->straight_preprocess($src, $dest, $ppargs);
 }
 
@@ -505,6 +518,7 @@ sub preprocess_after_cil {
 # You should not override this method
 sub straight_preprocess {
     my ($self, $src, $dest, $ppargs) = @_;
+    confess "bad dest: $dest" unless $dest->isa('OutputFile');
     if($self->{VERBOSE}) { print STDERR "Preprocessing $src\n"; }
     if($self->{MODENAME} eq "MSVC") {
         $self->MSVC::msvc_preprocess($src, $dest, $ppargs);
@@ -529,6 +543,8 @@ sub straight_preprocess {
 sub compile {
     my($self, $src, $dest, $ppargs, $ccargs) = @_;
     &mydebug("Cilly.compile(src=$src, dest=$dest)\n");
+    confess "bad dest: $dest" unless $dest->isa('OutputFile');
+
     if($self->{SEPARATE}) {
         # Now invoke CIL and compile afterwards
         return $self->applyCilAndCompile([$src], $dest, $ppargs, $ccargs); 
@@ -537,7 +553,7 @@ sub compile {
     # If we are merging then we just save the preprocessed source
     my ($mtime, $res, $outfile);
     if(! $self->{TRUEOBJ}) {
-        $outfile = $dest; $mtime = 0; $res   = $dest;
+        $outfile = $dest->filename; $mtime = 0; $res   = $dest;
     } else {
         # Do the real compilation
         $res = $self->straight_compile($src, $dest, $ppargs, $ccargs);
@@ -559,7 +575,7 @@ sub compile {
     my $toprintsrc = $src; $toprintsrc =~ s|\\|/|g;
     print OUT "#pragma merger($mtime, \"$toprintsrc\", \"" . 
         join(' ', @{$ccargs}), "\")\n";
-    open(IN, "<$src") || die "Cannot read $src";
+    open(IN, '<', $src->filename) || die "Cannot read $src";
     while(<IN>) {
         print OUT $_;
     }
@@ -572,11 +588,11 @@ sub compile {
 # override this 
 sub straight_compile {
     my ($self, $src, $dest, $ppargs, $ccargs) = @_;
-    if($self->{VERBOSE}) { print STDERR "Compiling $src into $dest\n"; }
+    if($self->{VERBOSE}) { print STDERR 'Compiling ', $src->filename, ' into ', $dest->filename, "\n"; }
     my @dest = $dest eq "" ? () : ($self->{OUTOBJ}, $dest);
-    my $forcec = $self->{FORCECSOURCE};
+    my @forcec = @{$self->{FORCECSOURCE}};
     my @cmd = (@{$self->{CC}}, @{$ppargs}, @{$ccargs},
-	       @dest, "$forcec$src");
+	       @dest, @forcec, $src);
     return $self->runShell(@cmd);
 }
 
@@ -657,14 +673,15 @@ sub separateTrueObjects {
     my @othersources = ();
     foreach my $src (@sources) {
         my ($combsrc, $mtime);
+	my $srcname = ref $src ? $src->filename : $src;
         if(! $self->{TRUEOBJ}) {
-            $combsrc = $src;
+            $combsrc = $srcname;
             $mtime = 0;
         } else {
-            $combsrc = $src . $Cilly::savedSourceExt;
+            $combsrc = $srcname . $Cilly::savedSourceExt;
             if(-f $combsrc) { 
                 my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
-                    $atime,$mtime_1,$ctime,$blksize,$blocks) = stat($src);
+                    $atime,$mtime_1,$ctime,$blksize,$blocks) = stat($srcname);
                 $mtime = $mtime_1;
             } else {
                 $mtime = 0;
@@ -676,7 +693,7 @@ sub separateTrueObjects {
         if($fstline =~ m|\#pragma merger\((\d+)| || $fstline =~ m|CIL|) {
             if($1 == $mtime) { # It is ours
                 # See if we have this already
-                if(! grep { $_ eq $src } @tomerge) { # It is ours
+                if(! grep { $_ eq $srcname } @tomerge) { # It is ours
                     push @tomerge, $combsrc; 
                     # See if there is a a trueobjs file also
                     my $trueobjs = $combsrc . "_trueobjs";
@@ -693,7 +710,7 @@ sub separateTrueObjects {
                 next;
             }
         }
-        push @othersources, $src;
+        push @othersources, $srcname;
     }
     return (\@tomerge, \@othersources);
 }
@@ -702,9 +719,10 @@ sub separateTrueObjects {
 # Customize the linking
 sub link {
     my($self, $psrcs, $dest, $ppargs, $ccargs, $ldargs) = @_;
+    my $destname = ref $dest ? $dest->filename : $dest;
     if($self->{SEPARATE}) {
         if (!defined($ENV{CILLY_DONT_LINK_AFTER_MERGE})) {
-          if($self->{VERBOSE}) { print STDERR "Linking into $dest\n"; }
+          if($self->{VERBOSE}) { print STDERR "Linking into $destname\n"; }
           # Not merging. Regular linking.
           return $self->link_after_cil($psrcs, $dest, 
                                        $ppargs, $ccargs, $ldargs);
@@ -714,19 +732,19 @@ sub link {
         }
     }
     # We must merging
-    if($self->{VERBOSE}) { print STDERR "Merging saved sources into $dest\n"; }
+    if($self->{VERBOSE}) { print STDERR "Merging saved sources into $destname\n"; }
     
     # Now collect the files to be merged
 
     my ($tomerge, $trueobjs) = $self->separateTrueObjects($psrcs);
 
-    my $mergedobj = $dest . "_comb.$self->{OBJEXT}";
+    my $mergedobj = new OutputFile($destname, "${destname}_comb.$self->{OBJEXT}");
     
     # Check the modification times and see if we can just use the combined
     # file instead of merging all over again
     if(@{$tomerge} > 1 && $self->{KEEPMERGED}) {
         my $canReuse = 1;
-        my $combFile = $dest . "_comb.c";
+        my $combFile = $destname . "_comb.c";
         my @tmp = stat($combFile); my $combFileMtime = $tmp[9] || 0;
         foreach my $mrg (@{$tomerge}) {
             my @tmp = stat($mrg); my $mtime = $tmp[9];
@@ -759,11 +777,9 @@ sub applyCil {
     # The input files
     my @srcs = @{$ppsrc};
 
-    # Prepare the name of the CIL output file based on dest
-    my ($base, $dir, $ext) = fileparse($dest, "(\\.[^.]+)");
-    
     # Now prepare the command line for invoking cilly
-    my ($aftercil, @cmd) = $self->CillyCommand ($ppsrc, $dir, $base);
+    my ($aftercil, @cmd) = $self->CillyCommand ($ppsrc, $dest);
+    confess "$self produced bad output file: $aftercil" unless $aftercil->isa('OutputFile');
 
     if($self->{MODENAME} eq "MSVC") {
         push @cmd, '--MSVC';
@@ -788,6 +804,7 @@ sub applyCil {
         push @cmd, @srcs;
     }
     if(@srcs > 1 && $self->{KEEPMERGED}) {
+	my ($base, $dir, undef) = fileparse($dest->filename, qr{\.[^.]+});
         push @cmd, '--mergedout', "$dir$base" . '.c';
     }
     # Now run cilly
@@ -800,6 +817,8 @@ sub applyCil {
 
 sub applyCilAndCompile {
     my ($self, $ppsrc, $dest, $ppargs, $ccargs) = @_;
+    confess "$self produced bad destination file: $dest"
+	unless $dest->isa('OutputFile');
 
     # The input files
     my @srcs = @{$ppsrc};
@@ -807,9 +826,10 @@ sub applyCilAndCompile {
 
     # Now run cilly
     my $aftercil = $self->applyCil($ppsrc, $dest);
+    confess "$self produced bad output file: $aftercil" unless $aftercil->isa('OutputFile');
 
     # Now preprocess
-    my $aftercilpp = $self->preprocessOutputFile($aftercil);
+    my $aftercilpp = $self->preprocessAfterOutputFile($aftercil);
     $self->preprocess_after_cil($aftercil, $aftercilpp, $ppargs);
 
     if (!defined($ENV{CILLY_DONT_COMPILE_AFTER_MERGE})) {
@@ -986,15 +1006,19 @@ sub compilerArgument {
                   push @{$self->{LINKARGS}}, @fullarg; return 1;
               }
               if($action->{TYPE} eq "CSOURCE") {
+		  OutputFile->protect(@fullarg);
                   push @{$self->{CFILES}}, @fullarg; return 1;
               }
               if($action->{TYPE} eq "ASMSOURCE") {
+		  OutputFile->protect(@fullarg);
                   push @{$self->{SFILES}}, @fullarg; return 1;
               }
               if($action->{TYPE} eq "OSOURCE") {
+		  OutputFile->protect(@fullarg);
                   push @{$self->{OFILES}}, @fullarg; return 1;
               }
               if($action->{TYPE} eq "ISOURCE") {
+		  OutputFile->protect(@fullarg);
                   push @{$self->{IFILES}}, @fullarg; return 1;
               }
               if($action->{TYPE} eq 'OUT') {
@@ -1016,6 +1040,10 @@ sub compilerArgument {
 
 sub runShell {
     my ($self, @cmd) = @_;
+
+    foreach (@cmd) {
+	$_ = $_->filename if ref;
+    }
 
     # sm: I want this printed to stderr instead of stdout
     # because the rest of 'make' output goes there and this
@@ -1049,6 +1077,29 @@ sub quoteIfNecessary {
 }
 
 
+sub cilOutputFile {
+    croak 'bad argument count' unless @_ == 3;
+    my ($self, $basis, $suffix) = @_;
+
+    if ($self->{KEEPDIR}) {
+	return new KeptFile($basis, $suffix, $self->{KEEPDIR});
+    } else {
+	return $self->outputFile($basis, $suffix);
+    }
+}
+
+
+sub outputFile {
+    confess 'bad argument count' unless @_ == 3;
+    my ($self, $basis, $suffix) = @_;
+
+    if ($self->{SAVE_TEMPS}) {
+	return new KeptFile($basis, $suffix, '.');
+    } else {
+	return new TempFile($basis, $suffix);
+    }
+}
+
 
 ###########################################################################
 ####
@@ -1079,7 +1130,7 @@ sub new {
       EXEEXT => ".exe",  # Executable extension (with the .)
       OUTOBJ => "/Fo",
       OUTEXE => "/Fe",
-      FORCECSOURCE => "/Tc",
+      FORCECSOURCE => ['/Tc'],
       LINEPATTERN => "^#line\\s+(\\d+)\\s+\"(.+)\"",
 
       OPTIONS => 
@@ -1159,7 +1210,7 @@ sub msvc_preprocess {
                     print STDERR "Copying $msvcout to $dest\n";
                 }
                 unlink $dest;
-                &File::Copy::copy($msvcout, $dest);
+                copy($msvcout, $dest);
                 unlink $msvcout;
                 return $res;
             }
@@ -1200,16 +1251,19 @@ sub lineDirective {
 # The name of the output file
 sub compileOutputFile {
     my($self, $src) = @_;
-    if("@{$self->{OUTARG}}" =~ m|/Fo(.+)|) {
-        return $1;
+
+    die "objectOutputFile: not a C source file: $src\n"
+	unless $src =~ /\.($::cilbin|c|cc|cpp|i|asm)$/;
+
+    if ($self->{OPERATION} eq 'TOOBJ') {
+	if(defined $self->{OUTARG} && "@{$self->{OUTARG}}" =~ m|/Fo(.+)|) {
+	    return new OutputFile($src, $1);
+	} else {
+	    return new KeptFile($src, $self->{OBJEXT}, '.');
+	}
+    } else {
+	return $self->outputFile($src, $self->{OBJEXT});
     }
-    my ($base, $dir, $ext) = 
-        fileparse($src, 
-                  "(\\.$::cilbin)|(\\.c)|(\\.cc)|(\\.cpp)|(\\.i)|(\\.asm)");
-    if(! defined($ext) || $ext eq "") { # Not a C source
-        die "objectOutputFile: not a C source file\n";
-    }
-    return "$base.obj"; # In the current directory
 }
 
 sub assembleOutputFile {
@@ -1219,7 +1273,7 @@ sub assembleOutputFile {
 
 sub linkOutputFile {
     my($self, $src) = @_;
-    if("@{$self->{OUTARG}}" =~ m|/Fe(.+)|) {
+    if(defined $self->{OUTARG} && "@{$self->{OUTARG}}" =~ m|/Fe(.+)|) {
         return $1;
     }
     return "a.exe";
@@ -1465,7 +1519,7 @@ sub new {
       OUTOBJ => '-o',
       OUTEXE => '-o',
       OUTCPP => '-o',
-      FORCECSOURCE => "",
+      FORCECSOURCE => [],
       LINEPATTERN => "^#\\s+(\\d+)\\s+\"(.+)\"",
       
       OPTIONS => 
@@ -1498,7 +1552,8 @@ sub new {
             "-W" => { TYPE => 'CC' },
             "-g" => { RUN => sub { push @{$stub->{CCARGS}}, $_[1];
                                    push @{$stub->{LINKARGS}}, $_[1]; }},
-	    "-save-temps" => { TYPE => 'ALLARGS' },
+	    "-save-temps" => { TYPE => 'ALLARGS',
+			       RUN => sub { $stub->{SAVE_TEMPS} = 1; } },
             "-l" => { TYPE => 'LINK' },
             "-L" => { TYPE => 'LINK' },
             "-f" => { TYPE => 'LINKCC' },
@@ -1620,16 +1675,19 @@ sub lineDirective {
 # The name of the output file
 sub compileOutputFile {
     my($self, $src) = @_;
-    if(defined $self->{OUTARG} && "@{$self->{OUTARG}}" =~ m|^-o\s*(\S.+)$| && $self->{OPERATION} eq 'TOOBJ') {
-        return $1;
+
+    die "objectOutputFile: not a C source file: $src\n"
+	unless $src =~ /\.($::cilbin|c|cc|cpp|i|s|S)$/;
+    
+    if ($self->{OPERATION} eq 'TOOBJ') {
+	if (defined $self->{OUTARG} && "@{$self->{OUTARG}}" =~ m|^-o\s*(\S.+)$|) {
+	    return new OutputFile($src, $1);
+	} else {
+	    return new KeptFile($src, $self->{OBJEXT}, '.');
+	}
+    } else {
+	return $self->outputFile($src, $self->{OBJEXT});
     }
-    my ($base, $dir, $ext) = 
-        fileparse($src, 
-                  "(\\.$::cilbin)|(\\.c)|(\\.cc)|(\\.cpp)|(\\.i)|(\\.[s|S])");
-    if(! defined($ext) || $ext eq "") { # Not a C source
-        die "objectOutputFile: not a C source file: $src\n";
-    }
-    return "$base.o"; # In the current directory
 }
 
 sub assembleOutputFile {

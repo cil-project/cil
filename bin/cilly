@@ -106,10 +106,11 @@ EOF
 
 
 sub CillyCommand {
-    my ($self, $ppsrc, $dir, $base) = @_;
+    my ($self, $ppsrc, $dest) = @_;
 
-    my $aftercil = "$dir$base" . "cil.c";
+    my $aftercil;
     my @cmd = ($CilCompiler::compiler);
+
     if(defined $ENV{OCAMLDEBUG}) {
         my @idirs = ("src", "src/frontc", "src/ccured", "src/ext", 
                      "obj/$::archos");
@@ -120,8 +121,10 @@ sub CillyCommand {
         push @cmd, '--cxx';
     }
     if($self->{CABSONLY}) {
-        $aftercil = "$dir$base" . "cabs.c";
+        $aftercil = $self->cilOutputFile($dest, 'cabs.c');
         push @cmd, '--cabsonly', $aftercil;
+    } else {
+	$aftercil = $self->cilOutputFile($dest, 'cil.c');
     }
     return ($aftercil, @cmd, '--out', $aftercil);
 }

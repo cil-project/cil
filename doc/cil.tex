@@ -2431,6 +2431,21 @@ Necula}.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf April 16, 2003}: Reworked management of
+  temporary/intermediate output files in Perl driver scripts.  Default
+  behavior is now to remove all such files.  To keep intermediate
+  files, use one of the following existing flags:
+  \begin{itemize}
+  \item \texttt{--keepmerged} for the single-file merge of all sources
+  \item \texttt{--keep=<\textit{dir}>} for various other CIL and
+    CCured output files
+  \item \texttt{-save-temps} for various gcc intermediate files; MSVC
+    has no equivalent option
+  \end{itemize}
+  As part of this change, some intermediate files have changed their
+  names slightly so that new suffixes are always preceded by a
+  period.  For example, CCured output that used to appear in
+  ``\texttt{foocured.c}'' now appears in ``\texttt{foo.cured.c}''.
 \item {\bf April 7, 2003}: Changed the representation of the \cilvalref{GVar}
 global constructor. Now it is possible to update the initializer without
 reconstructing the global (which in turn it would require reconstructing the

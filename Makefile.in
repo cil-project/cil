@@ -298,7 +298,7 @@ DISTRIB_SRC_EXT_PTA = setp.ml setp.mli dummy.ml golf.ml golf.mli \
                       termhash.ml termhash.mli \
                       uref.ml uref.mli
 
-DISTRIB_LIB = Cilly.pm
+DISTRIB_LIB = Cilly.pm KeptFile.pm OutputFile.pm TempFile.pm
 
 DISTRIB_BIN = CilConfig.pm.in cilly cilly.bat.in \
               patcher patcher.bat.in
