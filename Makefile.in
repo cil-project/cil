@@ -240,6 +240,10 @@ distrib: doc
                 cp -f cil.tar.gz $(CILHTMLDEST); fi
 #	rm -rf $(TEMP_DIR)
 
+## Check a distribution
+checkdistrib:
+	cd $(TOP_DIR) && ./configure && make && make quicktest
+
 clean: cleancaml
 	rm -f $(OBJDIR)/machdep.ml
 

@@ -2026,6 +2026,19 @@ and d_instr () i =
             ++ text ";"
 
   end
+  | Call(Some lv, Lval(Var vi, NoOffset), [dest; SizeOf t], l) 
+       when vi.vname = "__builtin_va_arg" -> 
+       d_line l
+         ++ (d_lval () lv ++ text " = ")
+                   
+        (* Now the function name *)
+        ++ text "__builtin_va_arg"
+        ++ text "(" ++ (align
+                          (* Now the arguments *)
+                          ++ d_exp () dest ++ chr ',' ++ break 
+                          ++ d_type () t
+                          ++ unalign)
+        ++ text ");"
   | Call(dest,e,args,l) ->
        d_line l
          ++ (match dest with
