@@ -5266,10 +5266,7 @@ and doBody (blk: A.block) : chunk =
     afterConversion
       (List.fold_left   (* !!! @ evaluates its arguments backwards *)
          (fun prev s -> let res = doStatement s in prev @@ res)
-         (List.fold_left 
-            (fun prev d -> let res = doDecl false d in prev @@ res) 
-            empty 
-            blk.bdefs)
+         empty
          blk.A.bstmts)
   in
   exitScope ();
@@ -5480,7 +5477,10 @@ and doStatement (s : A.statement) : chunk =
             se @@ i2c (Set(var switchv, mkCast e' uintType, loc')) @@
             s2c switch
         end
-    end
+      end
+
+    | A.DEFINITION d ->
+        doDecl false d        
 
     | A.ASM (asmattr, tmpls, outs, ins, clobs, loc) -> 
         (* Make sure all the outs are variables *)

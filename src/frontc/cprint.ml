@@ -755,6 +755,8 @@ and print_statement stat =
   | COMPGOTO (exp, loc) -> 
       setLoc(loc);
       print ("goto *"); print_expression exp; print ";"; new_line ()
+  | DEFINITION d ->
+      print_def d
   | ASM (attrs, tlist, outs, ins, clobs, loc) ->
       setLoc(loc);
       let print_asm_operand (cnstr, e) =
@@ -812,7 +814,6 @@ and print_block blk =
     List.iter print_attribute blk.battrs;
     new_line ();
   end;
-  List.iter print_def blk.bdefs;
   List.iter print_statement blk.bstmts;
   unindent ();
   print "}";

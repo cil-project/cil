@@ -336,11 +336,10 @@ and visitCabsBlock vis (b: block) : block =
 and childrenBlock vis (b: block) : block = 
   let _ = vis#vEnterScope () in
   let battrs' = mapNoCopyList (visitCabsAttribute vis) b.battrs in
-  let bdefs' = mapNoCopyList (visitCabsDefinition vis) b.bdefs in
   let bstmts' = mapNoCopyList (visitCabsStatement vis) b.bstmts in
   let _ = vis#vExitScope () in
-  if battrs' != b.battrs || bdefs' != b.bdefs || bstmts' != b.bstmts then 
-    { blabels = b.blabels; battrs = battrs'; bdefs = bdefs'; bstmts = bstmts' }
+  if battrs' != b.battrs || bstmts' != b.bstmts then 
+    { blabels = b.blabels; battrs = battrs'; bstmts = bstmts' }
   else
     b
     
@@ -351,7 +350,7 @@ and childrenStatement vis s =
   let vs l s = 
     match visitCabsStatement vis s with
       [s'] -> s'
-    | sl -> BLOCK ({blabels = []; battrs = []; bdefs = []; bstmts = sl }, l)
+    | sl -> BLOCK ({blabels = []; battrs = []; bstmts = sl }, l)
   in
   match s with
     NOP _ -> s
@@ -426,6 +425,13 @@ and childrenStatement vis s =
   | COMPGOTO (e, l) -> 
       let e' = ve e in
       if e' != e then COMPGOTO (e', l) else s
+  | DEFINITION d -> begin
+      match visitCabsDefinition vis d with
+          [d'] when d' == d -> s
+        | dl -> let l = get_definitionloc d in
+          let dl' = List.map (fun d' -> DEFINITION d') dl in
+          BLOCK ({blabels = []; battrs = []; bstmts = dl' }, l)
+    end
   | ASM (sl, b, inl, outl, clobs, l) -> 
       let childrenStringExp ((s, e) as input) = 
         let e' = ve e in

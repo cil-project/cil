@@ -181,25 +181,6 @@ let fst3 (result, _, _) = result
 let snd3 (_, result, _) = result
 let trd3 (_, _, result) = result
 
-(* for collecting declarations and statements uniformly *)
-type blockElement =
-  BE_Decl of definition
-| BE_Stmt of statement
-
-(* extract the declarations *)
-let rec filterBEDecls (elts : blockElement list) : definition list =
-  match elts with
-  | [] -> []
-  | BE_Decl(d) :: rest -> d :: (filterBEDecls rest)
-  | BE_Stmt(_) :: rest -> (filterBEDecls rest)
-
-(* extract the statments *)
-let rec filterBEStmts (elts : blockElement list) : statement list =
-  match elts with
-  | [] -> []
-  | BE_Decl(_) :: rest -> (filterBEStmts rest)
-  | BE_Stmt(s) :: rest -> s :: (filterBEStmts rest)
-
 %}
 
 %token <string * Cabs.cabsloc> IDENT
@@ -330,7 +311,7 @@ let rec filterBEStmts (elts : blockElement list) : statement list =
 %type <cabsloc * spec_elem list * name> function_def_start
 %type <Cabs.spec_elem list * Cabs.decl_type> type_name
 %type <Cabs.block * cabsloc * cabsloc> block
-%type <blockElement list> block_element_list
+%type <Cabs.statement list> block_element_list
 %type <string list> local_labels local_label_names
 %type <string list> old_parameter_list_ne
 
@@ -661,13 +642,11 @@ block: /* ISO 6.8.2 */
                                          {!Lexerhack.pop_context();
                                           { blabels = $2;
                                             battrs = $3;
-                                            bdefs = filterBEDecls($4);
-                                            bstmts = filterBEStmts($4); },
+                                            bstmts = $4 },
 					    $1, $5
                                          } 
 |   error location RBRACE                { { blabels = [];
                                              battrs  = [];
-                                             bdefs   = [];
                                              bstmts  = [] },
 					     $2, $3
                                          }
@@ -685,10 +664,11 @@ block_attrs:
 /* statements and declarations in a block, in any order (for C99 support) */
 block_element_list:
     /* empty */                          { [] }
-|   declaration block_element_list       { BE_Decl($1) :: $2 }
-|   statement block_element_list         { BE_Stmt($1) :: $2 }
+|   declaration block_element_list       { DEFINITION($1) :: $2 }
+|   statement block_element_list         { $1 :: $2 }
 /*(* GCC accepts a label at the end of a block *)*/
-|   IDENT COLON	                         { [ BE_Stmt(LABEL (fst $1, NOP (snd $1), snd $1))] }
+|   IDENT COLON	                         { [ LABEL (fst $1, NOP (snd $1), 
+                                                    snd $1)] }
 ;
 
 local_labels:

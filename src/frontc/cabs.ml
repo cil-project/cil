@@ -188,8 +188,7 @@ and file = string * definition list
 and block = 
     { blabels: string list;
       battrs: attribute list;
-      bdefs: definition list;
-      bstmts: statement list 
+      bstmts: statement list
     } 
 
 and statement =
@@ -211,6 +210,7 @@ and statement =
  | LABEL of string * statement * cabsloc
  | GOTO of string * cabsloc
  | COMPGOTO of expression * cabsloc (* GCC's "goto *exp" *)
+ | DEFINITION of definition (*definition or declaration of a variable or type*)
 
  | ASM of attribute list * (* typically only volatile and const *)
          string list * (* template *)
@@ -326,6 +326,18 @@ let rec isTypedef = function
   | _ :: rest -> isTypedef rest
 
 
+let get_definitionloc (d : definition) : cabsloc =
+  match d with
+  | FUNDEF(_, _, l, _) -> l
+  | DECDEF(_, l) -> l
+  | TYPEDEF(_, l) -> l
+  | ONLYTYPEDEF(_, l) -> l
+  | GLOBASM(_, l) -> l
+  | PRAGMA(_, l) -> l
+  | TRANSFORMER(_, _, l) -> l
+  | EXPRTRANSFORMER(_, _, l) -> l
+  | LINKAGE (_, l, _) -> l
+
 let get_statementloc (s : statement) : cabsloc =
 begin
   match s with
@@ -347,23 +359,12 @@ begin
   | LABEL(_,_,loc) -> loc
   | GOTO(_,loc) -> loc
   | COMPGOTO (_, loc) -> loc
+  | DEFINITION d -> get_definitionloc d
   | ASM(_,_,_,_,_,loc) -> loc
   | TRY_EXCEPT(_, _, _, loc) -> loc
   | TRY_FINALLY(_, _, loc) -> loc
 end
 
-
-let get_definitionloc (d : definition) : cabsloc =
-  match d with
-  | FUNDEF(_, _, l, _) -> l
-  | DECDEF(_, l) -> l
-  | TYPEDEF(_, l) -> l
-  | ONLYTYPEDEF(_, l) -> l
-  | GLOBASM(_, l) -> l
-  | PRAGMA(_, l) -> l
-  | TRANSFORMER(_, _, l) -> l
-  | EXPRTRANSFORMER(_, _, l) -> l
-  | LINKAGE (_, l, _) -> l
 
 let explodeStringToInts (s: string) : int64 list =  
   let rec allChars i acc = 
