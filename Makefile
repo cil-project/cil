@@ -101,7 +101,7 @@ TVDIR=$(BASEDIR)/TransVal
 CILDIR=$(BASEDIR)/cil
 _GNUCC=1
 endif
-ifeq ($(COMPUTERNAME), brooksie) # Rahul's laptop
+ifeq ($(COMPUTERNAME), brooksie) # Rahul's desktop
 BASEDIR=/home/sprahul/research
 SAFECCDIR=$(BASEDIR)/safec
 PCCDIR=$(BASEDIR)/PCC
@@ -128,7 +128,7 @@ endif
 .PHONY : spec
 spec : $(EXECUTABLE)$(EXE)
 
-.PHONE: trval
+.PHONY: trval
 trval: $(TVDIR)/obj/transval.asm.exe
 	make -C $(TVDIR) RELEASE=1
 
@@ -471,3 +471,8 @@ testlinux/% : $(EXECUTABLE)$(EXE) test/linux/%.cpp
 
 testqp : testlinux/qpmouse
 testserial: testlinux/generic_serial
+
+################## Rahul's test cases
+SPR-TESTDIR = test/spr
+spr/% : $(EXECUTABLE)$(EXE)
+	cd $(SPR-TESTDIR); $(SAFECC) $*.c $(CONLY) $(DOOPT) $(ASMONLY)$*.s
