@@ -23,7 +23,8 @@ let checkAttributes (attrs: attribute list) : unit =
       [] -> ()
     | a :: resta -> 
         let an = aName a in
-        ignore (an >= lastname || (E.s (E.bug "Attributes not sorted")));
+        if an < lastname then
+          ignore (E.warn "Attributes not sorted");
         loop an resta
   in
   loop "" attrs
@@ -51,7 +52,7 @@ let defineName s =
   if s = "" then
     E.s (E.bug "Empty name\n"); 
   if H.mem varNamesEnv s then
-    E.s (E.bug "Multiple definitions for %s\n" s);
+    ignore (E.warn "Multiple definitions for %s\n" s);
   H.add varNamesEnv s ()
 
 let defineVariable vi = 
@@ -60,18 +61,18 @@ let defineVariable vi =
   (* Check the id *)
   if vi.vglob then 
     if !checkGlobalIds && vi.vid <> H.hash vi.vname then
-      E.s (E.bug "Id of global %s is not valid\n" vi.vname);
+      ignore (E.warn "Id of global %s is not valid\n" vi.vname);
   if H.mem varIdsEnv vi.vid then
-    E.s (E.bug "Id %d is already defined (%s)\n" vi.vid vi.vname);
+    ignore (E.warn "Id %d is already defined (%s)\n" vi.vid vi.vname);
   H.add varIdsEnv vi.vid vi
 
 (* Check that a varinfo has already been registered *)
 let checkVariable vi = 
   try
     if vi != H.find varIdsEnv vi.vid then
-      E.s (E.bug "varinfos for %s not shared\n" vi.vname);
+      ignore (E.warn "varinfos for %s not shared\n" vi.vname);
   with Not_found -> 
-    E.s (E.bug "Unknown id (%d) for %s\n" vi.vid vi.vname)
+    ignore (E.warn "Unknown id (%d) for %s\n" vi.vid vi.vname)
 
 
 let startEnv () = 
@@ -225,7 +226,7 @@ and checkBooleanType (t: typ) =
   checkType t CTExp;
   match unrollType t with
     TInt _ | TFloat _ | TPtr _ -> ()
-  | _ -> E.s (E.bug "Non-boolean type")
+  | _ -> ignore (E.warn "Non-boolean type")
 
 
 (* Check that a type is a pointer type *)
@@ -233,7 +234,7 @@ and checkPointerType (t: typ) =
   checkType t CTExp;
   match unrollType t with
     TPtr _ -> ()
-  | _ -> E.s (E.bug "Non-pointer type")
+  | _ -> ignore (E.warn "Non-pointer type")
 
 
 and typeMatch (t1: typ) (t2: typ) = 
@@ -242,8 +243,8 @@ and typeMatch (t1: typ) (t2: typ) =
     match unrollType t1, unrollType t2 with
       TInt _, TEnum _ -> ()
     | TEnum _, TInt _ -> ()
-    | _, _ -> E.s (E.bug "Type mismatch:@!    %a@!and %a@!" 
-                     d_type t1 d_type t2)
+    | _, _ -> ignore (E.warn "Type mismatch:@!    %a@!and %a@!" 
+                        d_type t1 d_type t2)
 
 and checkCompInfo comp = 
   (* Check if we have seen it already *)
@@ -251,17 +252,17 @@ and checkCompInfo comp =
   try
     let oldci = H.find compInfoIdEnv comp.ckey in
     if oldci != comp then
-      E.s (E.bug "Compinfo for %s is not shared" fullname)
+      ignore (E.warn "Compinfo for %s is not shared" fullname)
   with Not_found -> begin
     (* Check that the name is not empty *)
     if comp.cname = "" then 
       E.s (E.bug "Compinfo with empty name");
     (* Check that the name is unique *)
     if H.mem compInfoNameEnv fullname then
-      E.s (E.bug "Duplicate name %s" fullname);
+      ignore (E.warn "Duplicate name %s" fullname);
     (* Check that the ckey is correct *)
     if comp.ckey <> H.hash fullname then
-      E.s (E.bug "Invalid ckey for compinfo %s" fullname);
+      ignore (E.warn "Invalid ckey for compinfo %s" fullname);
     (* Add it to the map before we go on *)
     H.add compInfoNameEnv fullname ();
     H.add compInfoIdEnv comp.ckey comp;
@@ -271,7 +272,8 @@ and checkCompInfo comp =
           (f.fcomp == comp &&  (* Each field must share the self cell of 
                                 * the host *)
            f.fname <> "") then
-        E.s (E.bug "Self pointer not set in field %s of %s" f.fname fullname);
+        ignore (E.warn "Self pointer not set in field %s of %s" 
+                  f.fname fullname);
       checkType f.ftype fctx;
       checkAttributes f.fattr
     in
@@ -287,26 +289,27 @@ and checkLval (isconst: bool) (lv: lval) : typ =
 
   | Mem addr, off -> begin
       if isconst then
-        E.s (E.bug "Memory operation in constant");
+        ignore (E.warn "Memory operation in constant");
       let ta = checkExp false addr in
       match unrollType ta with
         TPtr (t, _) -> checkOffset t off
       | _ -> E.s (E.bug "Mem on a non-pointer")
   end
 
-and checkOffset basetyp = function
+and checkOffset basetyp : offset -> typ = function
     NoOffset -> basetyp
   | Index (ei, o) -> 
       checkExpType false ei intType; checkOffset basetyp o
   | Field (fi, o) -> 
       (* Make sure we have seen the type of the host *)
       if not (H.mem compInfoIdEnv fi.fcomp.ckey) then
-        E.s (E.bug "The host of field %s is not defined" fi.fname);
+        ignore (E.warn "The host of field %s is not defined" fi.fname);
       (* Now check that the host is shared propertly *)
       checkCompInfo fi.fcomp;
       (* Check that this exact field is part of the host *)
       if not (List.exists (fun f -> f == fi) fi.fcomp.cfields) then
-        E.s (E.bug "Field %s not part of %s" fi.fname (compFullName fi.fcomp));
+        ignore (E.warn "Field %s not part of %s" 
+                  fi.fname (compFullName fi.fcomp));
       checkOffset fi.ftype o
 
   | First o -> begin
@@ -340,16 +343,17 @@ and checkExp (isconst: bool) (e: exp) : typ =
       | Const(CReal (_, fk, _), _) -> TFloat(fk, [])
       | Lval(lv) -> 
           if isconst then
-            E.s (E.bug "Lval in constant");
+            ignore (E.warn "Lval in constant");
           checkLval isconst lv
 
       | SizeOf(t, _) -> begin
           (* Sizeof cannot be applied to certain types *)
           checkType t CTSizeof;
-          match unrollType t with
+          (match unrollType t with
             (TFun _ | TVoid _ | TBitfield _) -> 
-              E.s (E.bug "Invalid operand for sizeof")
-          | _ -> uintType
+              ignore (E.warn "Invalid operand for sizeof")
+          | _ ->());
+          uintType
       end
       | UnOp (Neg, e, tres, _) -> 
           checkArithmeticType tres; checkExpType isconst e tres; tres
@@ -387,10 +391,8 @@ and checkExp (isconst: bool) (e: exp) : typ =
               tres
           | (MinusPP | EqP | NeP | LtP | LeP | GeP | GtP)  -> 
               checkPointerType t1; checkPointerType t2;
-              E.withContext (fun _ -> dprintf "check same operand types")
-                (fun _ -> typeMatch t1 t2) ();
-              E.withContext (fun _ -> dprintf "check result type")
-                (fun _ -> typeMatch tres intType) ();
+              typeMatch t1 t2;
+              typeMatch tres intType;
               tres
       end
       | Question (eb, et, ef, _) -> 
@@ -405,11 +407,12 @@ and checkExp (isconst: bool) (e: exp) : typ =
           let tlv = checkLval isconst lv in
           (* Only certain types can be in AddrOf *)
           match unrollType tlv with
-          | TArray _ -> E.s (E.bug "AddrOf on an array")
-          | TBitfield _ -> E.s (E.bug "AddrOf on a bitfield")
-          | TVoid _ -> E.s (E.bug "AddrOf on void")
+          | TArray _ | TBitfield _ | TVoid _ -> 
+              E.s (E.bug "AddrOf on improper type");
+              
           | (TInt _ | TFloat _ | TPtr _ | TComp _ | TFun _ ) -> 
               TPtr(tlv, [])
+
           | TEnum _ -> intPtrType
           | _ -> E.s (E.bug "AddrOf on unknown type")
       end
@@ -463,7 +466,7 @@ and checkStmt (s: stmt) =
       | Loop s -> checkStmt s
       | Label l -> begin
           if H.mem labels l then
-            E.s (E.bug "Multiply defined label %s" l);
+            ignore (E.warn "Multiply defined label %s" l);
           H.add labels l ()
       end
       | Goto l -> H.add gotos l ()
@@ -475,8 +478,8 @@ and checkStmt (s: stmt) =
       | Return re -> begin
           match re, !currentReturnType with
             None, TVoid _  -> ()
-          | _, TVoid _ -> E.s (E.bug "Invalid return value")
-          | None, _ -> E.s (E.bug "Invalid return value")
+          | _, TVoid _ -> ignore (E.warn "Invalid return value")
+          | None, _ -> ignore (E.warn "Invalid return value")
           | Some re', rt' -> checkExpType false re' rt'
       end
       | Switch (e, s) -> 
@@ -487,36 +490,35 @@ and checkStmt (s: stmt) =
           let t = checkLval false dest in
           (* Not all types can be assigned to *)
           (match unrollType t with
-            TFun _ -> E.s (E.bug "Assignment to a function type")
-          | TArray _ -> E.s (E.bug "Assignment to an array type")
-          | TVoid _ -> E.s (E.bug "Assignment to a void type")
+            TFun _ -> ignore (E.warn "Assignment to a function type")
+          | TArray _ -> ignore (E.warn "Assignment to an array type")
+          | TVoid _ -> ignore (E.warn "Assignment to a void type")
           | _ -> ());
           checkExpType false e t
             
       | Instr (Call(dest, what, args, _)) -> 
           let (rt, formals, isva) = 
-            match unrollType (typeOf what) with
+            match checkExp false what with
               TFun(rt, formals, isva, _) -> rt, formals, isva
             | _ -> E.s (E.bug "Call to a non-function")
           in
-      (* Now check the return value*)
+          (* Now check the return value*)
           (match dest, unrollType rt with
             None, TVoid _ -> ()
-          | Some _, TVoid _ -> E.s (E.bug "Call of subroutine is assigned")
+          | Some _, TVoid _ -> ignore (E.warn "Call of subroutine is assigned")
           | None, _ -> () (* "Call of function is not assigned" *)
           | Some destvi, _ -> 
               checkVariable destvi;
               if typeSig destvi.vtype <> typeSig rt then
-                E.s (E.bug "Mismatch at return type in call"));
-      (* Now check the arguments *)
+                ignore (E.warn "Mismatch at return type in call"));
+          (* Now check the arguments *)
           let rec loopArgs formals args = 
             match formals, args with
               [], _ when (isva || args = []) -> ()
             | fo :: formals, a :: args -> 
                 checkExpType false a fo.vtype;
                 loopArgs formals args
-                  
-            | _, _ -> E.s (E.bug "Not enough arguments")
+            | _, _ -> ignore (E.warn "Not enough arguments")
           in
           loopArgs formals args
             
@@ -657,5 +659,5 @@ let checkFile fl =
   H.clear compForwards;
   H.clear compDefined;
   varNamesList := [];
-  true
+  ()
   

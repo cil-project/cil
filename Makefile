@@ -121,6 +121,9 @@ endif
 ifdef BOX
 SAFECC+= --box
 endif
+ifdef CHECK
+EXTRAARGS += -check
+endif
 ifdef RELEASE
 SAFECC+= --release
 endif
@@ -128,6 +131,7 @@ ifdef TV
 SAFECC+= --tv="$(TV)"
 TVEXE=trval
 endif
+SAFECC+= --safec="$(EXTRAARGS)"
 
 
 
