@@ -28,8 +28,6 @@ typedef struct andnode {
 
 
 static ORNODE root;           /* The root of the tree */
-static ANDNODE aroot;
-
-void main() {
-  ORNODE b = aroot.u.args[1];
+void main(ANDNODE *a) {
+  ORNODE b = a->u.args[1];
 }

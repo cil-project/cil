@@ -455,12 +455,13 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     end) node_ht
   done ;
 
-  (* push back SeqN, FSeqN, Index back to array types *)
+  (* push back SeqN, FSeqN, Index back to array types. *)
+  (* Spread also Wild so that we know to not make the array SIZED (GN) *)
   finished := false ; 
   while not !finished do 
     finished := true ; 
     Hashtbl.iter (fun id cur ->
-    if (cur.kind = Index || cur.kind = FSeqN || cur.kind = SeqN) then begin
+    if (cur.kind = Index || cur.kind = FSeqN || cur.kind = SeqN || cur.kind = Wild) then begin
       (* mark all array types *) 
       let why = SpreadToArrayFrom(cur) in
       let f = (fun n -> 
