@@ -5603,6 +5603,10 @@ let getVarsInGlobal (g : global) : varinfo list =
   ignore (visitCilGlobal v g);
   !pacc
 
+let hasPrefix p s = 
+  let pl = String.length p in
+  (String.length s >= pl) && String.sub s 0 pl = p
+
 let pushGlobal (g: global) 
                ~(types:global list ref)
                ~(variables: global list ref) = 
@@ -5618,6 +5622,9 @@ let pushGlobal (g: global)
           GType (_, l) | GCompTag (_, l) -> Some (getVarsInGlobal g, l)
         | GEnumTag (_, l) | GPragma (Attr("pack", _), l) 
         | GCompTagDecl (_, l) | GEnumTagDecl (_, l) -> Some ([], l)
+          (** Move the warning pragmas early 
+        | GPragma(Attr(s, _), l) when hasPrefix "warning" s -> Some ([], l)
+          *)
         | _ -> None (* Does not go with the types *)
       in
       match varsintype with 

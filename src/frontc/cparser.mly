@@ -258,6 +258,7 @@ let rec filterBEStmts (elts : blockElement list) : statement list =
 %token<Cabs.cabsloc> DECLSPEC
 %token<string * Cabs.cabsloc> MSASM MSATTR
 %token<Cabs.cabsloc> PRAGMA
+%token<string * Cabs.cabsloc> PRAGMA_LINE
 %token PRAGMA_EOL
 
 /* sm: cabs tree transformation specification keywords */
@@ -375,6 +376,8 @@ global:
                                         { GLOBASM (fst $3, $1) }
 | PRAGMA attr PRAGMA_EOL		{ PRAGMA ($2, $1) }
 | PRAGMA attr SEMICOLON PRAGMA_EOL	{ PRAGMA ($2, $1) }
+| PRAGMA_LINE                           { PRAGMA (VARIABLE (fst $1), 
+                                                  snd $1) }
 /* (* Old-style function prototype. This should be somewhere else, like in
     * "declaration". For now we keep it at global scope only because in local
     * scope it looks too much like a function call  *) */

@@ -42,6 +42,7 @@
 *)
 {
 open Cparser
+open Pretty
 exception Eof
 exception InternalError of string
 module E = Errormsg
@@ -52,6 +53,22 @@ let currentLoc () =
   { Cabs.lineno   = l;
     Cabs.filename = f;
     Cabs.byteno   = c; }
+
+(* Some debugging support for line numbers *)
+let dbgToken (t: token) = 
+  if false then begin
+    ignore (E.log "%a" insert
+              (match t with 
+                IDENT (n, l) -> dprintf "IDENT(%s,%d)\n" n l.Cabs.lineno
+              | LBRACE l -> dprintf "LBRACE(%d)\n" l.Cabs.lineno
+              | RBRACE l -> dprintf "RBRACE(%d)\n" l.Cabs.lineno
+              | IF l -> dprintf "IF(%d)\n" l.Cabs.lineno
+              | SWITCH l -> dprintf "SWITCH(%d)\n" l.Cabs.lineno
+              | RETURN l -> dprintf "RETURN(%d)\n" l.Cabs.lineno
+              | _ -> nil));
+    t
+  end else
+    t
 
 (*
 ** Keyword hashtable
@@ -89,14 +106,14 @@ let init_lexicon _ =
       ("break", fun loc -> BREAK loc);
       ("continue", fun loc -> CONTINUE loc);
       ("goto", fun loc -> GOTO loc); 
-      ("return", fun loc -> RETURN loc);
-      ("switch", fun loc -> SWITCH loc);
+      ("return", fun loc -> dbgToken (RETURN loc));
+      ("switch", fun loc -> dbgToken (SWITCH loc));
       ("case", fun loc -> CASE loc); 
       ("default", fun loc -> DEFAULT loc);
       ("while", fun loc -> WHILE loc);  
       ("do", fun loc -> DO loc);  
       ("for", fun loc -> FOR loc);
-      ("if", fun loc -> IF loc);
+      ("if", fun loc -> dbgToken (IF loc));
       ("else", fun _ -> ELSE);
       (*** Implementation specific keywords ***)
       ("__signed__", fun loc -> SIGNED loc);
@@ -174,7 +191,8 @@ let add_identifier name =
   | con::sub ->
       (context := (name::con)::sub;
        (*                print_string ("adding IDENT for " ^ name ^ "\n"); *)
-       H.add lexicon name (fun loc -> IDENT (name, loc)))
+       H.add lexicon name (fun loc -> 
+         dbgToken (IDENT (name, loc))))
 
 
 (*
@@ -184,7 +202,7 @@ let scan_ident id =
   let here = currentLoc () in
   try (H.find lexicon id) here
   (* default to variable name, as opposed to type *)
-  with Not_found -> IDENT (id, here)
+  with Not_found -> dbgToken (IDENT (id, here))
 
 
 (*
@@ -420,7 +438,7 @@ rule initial =
 |		'*'				{STAR (currentLoc ())}
 |		'/'				{SLASH}
 |		'%'				{PERCENT}
-|		'!'				{EXCLAM (currentLoc ())}
+|		'!'			{EXCLAM (currentLoc ())}
 |		"&&"			{AND_AND (currentLoc ())}
 |		"||"			{PIPE_PIPE}
 |		'&'				{AND (currentLoc ())}
@@ -428,15 +446,15 @@ rule initial =
 |		'^'				{CIRC}
 |		'?'				{QUEST}
 |		':'				{COLON}
-|		'~'				{TILDE (currentLoc ())}
+|		'~'		       {TILDE (currentLoc ())}
 	
-|		'{'				{LBRACE (currentLoc ())}
-|		'}'				{RBRACE (currentLoc ())}
+|		'{'		       {dbgToken (LBRACE (currentLoc ()))}
+|		'}'		       {dbgToken (RBRACE (currentLoc ()))}
 |		'['				{LBRACKET}
 |		']'				{RBRACKET}
-|		'('				{LPAREN (currentLoc ())}
+|		'('		       {dbgToken (LPAREN (currentLoc ())) }
 |		')'				{RPAREN}
-|		';'				{SEMICOLON (currentLoc ())}
+|		';'		       {dbgToken (SEMICOLON (currentLoc ())) }
 |		','				{COMMA}
 |		'.'				{DOT}
 |		"sizeof"		{SIZEOF (currentLoc ())}
@@ -477,6 +495,11 @@ and hash = parse
                   (* A file name must follow *)
 		  file lexbuf }
 | "line"        { hash lexbuf } (* MSVC line number info *)
+                (* MSVC warning pragmas have very irregular syntax. We parse 
+                 * them as a whole line. *)
+| "pragma" blank "warning" { let here = currentLoc () in
+                             PRAGMA_LINE ("warning" ^ pragma lexbuf, here)
+                           }
 | "pragma"      { pragmaLine := true; PRAGMA (currentLoc ()) }
 | _	        { endline lexbuf}
 

@@ -118,6 +118,9 @@ sub new {
         } elsif($mode eq "MSLINK") {
             unshift @Cilly::ISA, qw(MSLINK);
             $compiler = MSLINK->new($self);
+        } elsif($mode eq "MSLIB") {
+            unshift @Cilly::ISA, qw(MSLIB);
+            $compiler = MSLIB->new($self);
         } elsif($mode eq "AR") {
             unshift @Cilly::ISA, qw(AR);
             $compiler = AR->new($self);
@@ -251,7 +254,8 @@ sub collectOneArgument {
     # sm: response file
     if($arg =~ m|-@(.+)$| ||
         (($self->{MODENAME} eq "MSVC" ||
-          $self->{MODENAME} eq "MSLINK") && $arg =~ m|@(.+)$|)) {
+          $self->{MODENAME} eq "MSLINK" ||
+          $self->{MODENAME} eq "MSLIB") && $arg =~ m|@(.+)$|)) {
         my $fname = $1;         # name of response file
         &classifyArgDebug("processing response file: $fname\n");
 
@@ -320,9 +324,10 @@ sub printHelp {
 Options:
   --mode=xxx   What tool to emulate:
                 GNUCC   - GNU gcc
+                AR      - GNU ar
                 MSVC    - MS VC cl compiler
                 MSLINK  - MS VC link linker
-                AR      - GNU ar
+                MSLIB   - MS VC lib linker
                This option must be the first one! If it is not found there
                then GNUCC mode is assumed.
   --help (or -help) Prints this help message.
@@ -473,7 +478,9 @@ sub preprocess_compile {
             return $self->straight_compile($src, $dest, $early_ppargs, $ppargs, $ccargs);
         }
         my $out    = $self->preprocessOutputFile($src);
-        $out = $self->preprocess($src, $out, [@{$early_ppargs}, @{$ppargs}]);
+        $out = $self->preprocess($src, $out, 
+                                 [@{$early_ppargs}, @{$ppargs},
+                                  "$self->{DEFARG}CIL=1"]);
         return $self->compile($out, $dest, $ppargs, $ccargs);
     }
     if($ext eq ".i") {
@@ -564,7 +571,8 @@ sub straight_preprocess {
 	print STDERR "Preprocessing $srcname\n";
     }
     if($self->{MODENAME} eq "MSVC" ||
-       $self->{MODENAME} eq "MSLINK") {
+       $self->{MODENAME} eq "MSLINK" ||
+       $self->{MODENAME} eq "MSLIB") {
         $self->MSVC::msvc_preprocess($src, $dest, $ppargs);
     } else {
 #        print Dumper($self);
@@ -633,7 +641,9 @@ sub compile {
 sub makeOutArguments { 
     my ($self, $which, $dest) = @_;
     $dest = $dest->{filename} if ref $dest;
-    if($self->{MODENAME} eq "MSVC" || $self->{MODENAME} eq "MSLINK") { 
+    if($self->{MODENAME} eq "MSVC" || 
+       $self->{MODENAME} eq "MSLINK" ||
+       $self->{MODENAME} eq "MSLIB") { 
         # A single argument
         return ("$which$dest");
     } else {
@@ -857,7 +867,9 @@ sub applyCil {
     Carp::confess "$self produced bad output file: $aftercil" 
         unless $aftercil->isa('OutputFile');
 
-    if($self->{MODENAME} eq "MSVC" || $self->{MODENAME} eq "MSLINK") {
+    if($self->{MODENAME} eq "MSVC" || 
+       $self->{MODENAME} eq "MSLINK" ||
+       $self->{MODENAME} eq "MSLIB") {
         push @cmd, '--MSVC';
     }
     if($self->{VERBOSE}) {
@@ -1440,6 +1452,7 @@ sub new {
       INCARG  => $msvc->{INCARG},
       DEBUGARG => ['/DEBUG'],
       OPTIMARG => [],
+      LDLIB => ['lib'],
       OBJEXT => "obj",
       LIBEXT => "lib",   # Library extension (without the .)
       EXEEXT => ".exe",  # Executable extension (with the .)
@@ -1487,6 +1500,50 @@ sub setVersion {
     while(<VER>) {
         if($_ =~ m|Linker Version (\S+)|) {
             $cversion = "link_$1";
+            close(VER);
+            $self->{VERSION} = $cversion;
+            return;
+        }
+    }
+    die "Cannot find Microsoft LINK version\n";
+}
+
+########################################################################
+##
+##  MS LIB specific code
+##
+###
+package MSLIB;
+
+our @ISA = qw(MSLINK);
+
+use strict;
+
+use File::Basename;
+use Data::Dumper;
+
+sub new {
+    my ($proto, $stub) = @_;
+    my $class = ref($proto) || $proto;
+
+    # Create a MSVC linker object
+    my $self = MSLINK->new($stub);
+
+    $self->{NAME} = 'Microsoft librarian';
+    $self->{MODENAME} = 'MSLIB';
+    $self->{OPERATION} = "TOLIB";
+    $self->{LDLIB} = ['lib'];
+    bless $self, $class;
+    return $self;
+}
+
+sub setVersion {
+    my($self) = @_;
+    my $cversion = "";
+    open(VER, "lib 2>&1|") || die "Cannot start Microsoft LIB\n";
+    while(<VER>) {
+        if($_ =~ m|Library Manager Version (\S+)|) {
+            $cversion = "lib_$1";
             close(VER);
             $self->{VERSION} = $cversion;
             return;
