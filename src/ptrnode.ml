@@ -61,6 +61,9 @@ type node =
       mutable attr: attribute list;     (* The attributes of this pointer 
                                          * type *)
 
+      mutable inInterface: bool;        (* Whether this node appears in the 
+                                         * interface of our module *)
+
       mutable onStack: bool;            (* Whether might contain stack 
                                          * addresses *)
       mutable updated: bool;            (* Whether it is used in a write 
@@ -204,6 +207,7 @@ let d_node () n =
     (if n.intcast  then "int," else "")
     (if n.interface  then "interface," else "")
     (if n.sized  then "sized," else "")
+    (if n.inInterface then "interf," else "")
     (docList (chr ',' ++ break)
        (fun n -> num n.id)) n.pointsto
     d_pointerkind n.kind
@@ -268,6 +272,7 @@ let k2attr = function
   | Wild -> AId("wild")
   | Seq -> AId("seq")
   | FSeq -> AId("fseq")
+  | String -> AId("string")
   | _ -> E.s (E.unimp "k2attr")
 
 let attr2k = function
@@ -276,6 +281,7 @@ let attr2k = function
   | AId("index") -> Index
   | AId("fseq") -> FSeq
   | AId("seq") -> Seq
+  | AId("string") -> String
   | _ -> Unknown
     
 
@@ -291,6 +297,8 @@ let kindOfAttrlist al =
         | AId "wild" -> Wild, UserSpec
         | AId "sized" -> Index, UserSpec
         | AId "tagged" -> Wild, UserSpec
+        | AId "string" -> String, UserSpec
+        | AId "nullterm" -> String, UserSpec
         | _ -> loop al
     end    
   in
@@ -337,6 +345,7 @@ let replacePtrNodeAttrList where al =
         | AId "wild" -> foundNode := "wild"; loop al
         | AId "sized" -> foundNode := "sized"; loop al
         | AId "tagged" -> foundNode := "tagged"; loop al
+        | AId "string" -> foundNode := "string"; loop al
         | _ -> a :: loop al
     end
   in 
@@ -348,6 +357,7 @@ let replacePtrNodeAttrList where al =
         else if !defaultIsWild then "wild" else "safe" 
     | AtArray -> 
         if !foundNode = "index" then "sized" 
+        else if !foundNode = "string" then "nullterm" 
         else !foundNode
     | AtVar ->
         if !foundNode = "wild" then "tagged" 
@@ -369,6 +379,7 @@ let newNode (p: place) (idx: int) (bt: typ) (a: attribute list) : node =
             btype   = bt;
             attr    = addAttribute (ACons("_ptrnode", [AInt !nextId])) a;
             where   = where;
+            inInterface = false;
             onStack = false;
             updated = false;
             arith   = false;
@@ -454,8 +465,10 @@ let ptrAttrCustom printnode = function
     | AId("stack") -> Some (text "STACK")
     | AId("opt") -> Some (text "OPT")
     | AId("wild") -> Some (text "WILD")
+    | AId("string") -> Some (text "STRING")
     | AId("sized") -> Some (text "SIZED")
     | AId("tagged") -> Some (text "TAGGED")
+    | AId("nullterm") -> Some (text "NULLTERM")
     | a -> None
 
 
