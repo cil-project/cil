@@ -296,8 +296,14 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
         (fun (rid, defblk) -> 
           let v = cfgi.S.regToVarinfo.(rid) in
           if defblk = b.S.bstmt.sid then
-            (* For the start block, use ID=0 for all variables *)
-            if defblk = cfgi.S.start then 
+            (* For the start block, use ID=0 for all variables, except the 
+             * locals that are not function formals. Those are fresh 
+             * variables. *)
+            let isUninitializedLocal = 
+              not v.vglob &&
+              (not (List.exists (fun v' -> v'.vid = v.vid) 
+                   currentFundec.sformals)) in
+            if defblk = cfgi.S.start && not isUninitializedLocal then 
               IH.add varRenameState v.vid 0
             else begin
               IH.add varRenameState v.vid (freshVarId ());
