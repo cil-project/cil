@@ -63,6 +63,20 @@ dnl    )
 dnl  fi
 
 
+dnl  this specifies the root of the source tree; it's just the
+dnl  directory where ./configure runs, except on cygwin, which
+dnl  overrides this below
+CCUREDHOME=`pwd`
+
+dnl  is the microsoft compiler available?
+dnl  (on cygwin, 'which' always returns success..)
+if type cl >/dev/null 2>&1; then
+  HAS_MSVC=yes
+else
+  HAS_MSVC=no
+fi
+
+
 dnl  ----------- platform-specific code -------------
 dnl  $target is typically processor-vendor-os
 case "$target" in
@@ -78,6 +92,12 @@ case "$target" in
     AC_MSG_RESULT(configuring for Cygwin on win32)
 
     ARCHOS=x86_WIN32
+
+    # override CCUREDHOME; even on cygwin we want forward slashes
+    # sm: I moved folded this into what I hope will be the only
+    # case-analysis of machine type
+    CCUREDHOME_cygwin=`pwd`
+    CCUREDHOME=`cygpath -wa $CCUREDHOME_cygwin  | sed -e "s/\\\\\/\\//g"`
     ;;
 
   *)
@@ -85,27 +105,6 @@ case "$target" in
     ;;
 
 esac
-AC_MSG_RESULT(ARCHOS has been set to $ARCHOS)
-
-
-dnl set CCUREDHOME. For now this is the current directory, except
-dnl on cygwin where we convert it to a Windows path so we can pass it
-dnl to Microsoft tools as well
-case "$target" in
-   # cygwin
-   *cygwin*)
-     CCUREDHOME_cygwin=`pwd`
-   # even on cygwin we want forward slashes
-     CCUREDHOME=`cygpath -wa $CCUREDHOME_cygwin  | sed -e "s/\\\\\/\\//g"`
-     ;;
-   # all other systems 
-   *)
-     CCUREDHOME=`pwd`
-     ;;
-esac
-
-AC_MSG_RESULT(setting CCUREDHOME to $CCUREDHOME)
-
 
 
 dnl  ----------- some stuff 'autoscan' put here --------------
@@ -130,6 +129,7 @@ dnl  names of the variables that get substituted in files; for example,
 dnl  write @ARCHOS@ somewhere in a written file to get it substituted
 AC_SUBST(ARCHOS)
 AC_SUBST(CCUREDHOME)
+AC_SUBST(HAS_MSVC)
 
 dnl  finish the configure script and generate various files; ./configure
 dnl  will apply variable substitutions to <filename>.in to generate <filename>;
@@ -139,3 +139,12 @@ dnl  runs again); I had originally done the chmod after AC_OUTPUT, but
 dnl  the problem is then the chmod doesn't run inside ./config.status
 AC_CONFIG_FILES(Makefile test/Makefile, chmod a-w Makefile test/Makefile)
 AC_OUTPUT()
+
+dnl  show the user what the variables have been set to
+cat <<EOF
+
+CCured configuration:
+  architecture/OS:            ARCHOS       $ARCHOS
+  source tree root:           CCUREDHOME   $CCUREDHOME
+  (optional) cl.exe found:    HAS_MSVC     $HAS_MSVC
+EOF

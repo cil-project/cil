@@ -9,6 +9,7 @@
 # pull in definitions from ./configure
 export ARCHOS := @ARCHOS@
 export CCUREDHOME := @CCUREDHOME@
+export HAS_MSVC := @HAS_MSVC@
 
 TESTDIR := .
 
