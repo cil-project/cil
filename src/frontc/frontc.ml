@@ -180,16 +180,19 @@ and parse_to_cabs_inner (fname : string) =
     (fname, cabs)
   with (Sys_error msg) -> begin
     ignore (E.log "Cannot open %s : %s\n" fname msg);
+    Clexer.finish ();
     close_output ();
     raise (ParseError("Cannot open " ^ fname ^ ": " ^ msg ^ "\n"))
   end
   | Parsing.Parse_error -> begin
       ignore (E.log "Parsing error\n");
+      Clexer.finish ();
       close_output ();
       raise (ParseError("Parse error"))
   end
   | e -> begin
       ignore (E.log "Caught %s while parsing\n" (Printexc.to_string e));
+      Clexer.finish ();
       raise e
   end
 
