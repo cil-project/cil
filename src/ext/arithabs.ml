@@ -895,12 +895,13 @@ let feature : featureDescr =
             )
             (U.hash_to_list cnl)
         in
-        ci.S.successors.(idx) <- cnlistToNodeList cn.CG.cnCallees;
-        ci.S.predecessors.(idx) <- cnlistToNodeList cn.CG.cnCallers; 
+        (* we want to construct the callee graph not the caller graph *)
+        ci.S.successors.(idx) <- cnlistToNodeList cn.CG.cnCallers;
+        ci.S.predecessors.(idx) <- cnlistToNodeList cn.CG.cnCallees; 
            
         ) nodeIdToNode;
 
-      let scc: (int list * int list) list = 
+      let scc: (int list * int list) list =
         stronglyConnectedComponents ci in 
       List.iter 
         (fun (headers, nodes) -> 
