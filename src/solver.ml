@@ -11,6 +11,7 @@ open Solveutil
 module H = Hashtbl
 module E = Errormsg
 
+let safe_downcasts = true
 let show_steps = true
 
 (* Set this to true and initialize the watch_which_nodes with a list of nodes 
@@ -318,7 +319,9 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     List.iter (fun e -> 
       let n_from, n_to = e.efrom, e.eto in
       let t_from, t_to = e.efrom.btype, e.eto.btype in 
-      if subtype t_from Safe t_to Safe then begin
+      if ((subtype t_from Safe t_to Safe) ||
+          (if safe_downcasts then (subtype t_to Safe t_from Safe) else false))
+      then begin
         () (* safe cast *)
       end else if sequence_condition t_from t_to then begin
         () (* sequence cast *)
