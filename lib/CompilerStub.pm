@@ -63,8 +63,9 @@ sub new {
     }
     # Scan and process the arguments
     while($#args >= 0) {
-        my $arg = shift @args; # Grab the next one
-        if($arg =~ m|^\s*$|) { next; }
+        my $arg = $self->fetchEscapedArg(\@args);
+#
+#        my $arg = shift @args; # Grab the next one
         if(! $self->collectOneArgument($arg, \@args)) {
             print "Warning: Unknown argument $arg\n";
             push @{$self->{CCARGS}}, $arg;
@@ -74,7 +75,17 @@ sub new {
     return $self;
 }
 
-
+# Grab the next argument and escape it if necessary
+sub fetchEscapedArg {
+    my ($self, $pargs) = @_;
+    my $arg = shift @{$pargs};
+        # Drop the empty arguments
+    if($arg =~ m|^\s*$|) { return $self->fetchEscapedArgs($pargs); }
+        # See if it contains spaces
+    $arg =~ s|(\s)|\\$1|g;
+    $arg =~ s|(\")|\\\"|g;
+    return $arg;
+}
 
 # Collecting arguments. Take a look at one argument. If we understand it then
 # we return 1. Otherwise we return 0. Might pop soem more arguments from pargs.
@@ -258,7 +269,7 @@ sub compilerArgument {
               ($realarg, $onemore) = ($arg =~ m|^($key)(.+)$|);
               if(! defined $onemore) {
                   # Grab the next argument
-                  $onemore = shift @{$pargs};
+                  $onemore = $self->fetchEscapedArg($pargs);
                   $onemore = &quoteIfNecessary($onemore);
                   $fullarg .= " $onemore";
               } else {
