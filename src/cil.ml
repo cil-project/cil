@@ -106,6 +106,15 @@ and fieldinfo = {
     mutable fattr: attribute list;
 }
 
+
+(* Information about a composite type *)
+and compinfo = {
+    cstruct: bool;
+    mutable cname:   string;
+    mutable cfields: fieldinfo list;
+    mutable cattr:   attribute list;
+  } 
+    
 (* what is the type of an expression? Keep all attributes sorted. Use 
  * addAttribute and addAttributes to construct list of attributes *)
 and typ =

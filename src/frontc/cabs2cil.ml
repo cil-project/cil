@@ -658,8 +658,8 @@ and makeCompType (iss: bool)
   let res = fixRecursiveType (TComp(iss, n, flds, a, self)) in
       (* Now add it to the typedefs *)
   recordTypeName key res;
-      (* And take it out from selfCells *)
-  H.remove selfCells key;
+      (* And take it out from selfCells 
+  H.remove selfCells key; *)
   res
 
   
@@ -1806,7 +1806,6 @@ let convFile dl =
         try
           let newTyp = doType [] bt in
           (* doType will register the type. Put a special GType in the file *)
-          ignore (E.log "ONLYTYPEDEF %a\n" d_plaintype newTyp);
           theFile := GType ("", newTyp) :: !theFile
         with e -> begin
           ignore (E.log "Error on A.ONLYTYPEDEF (%s)\n"
