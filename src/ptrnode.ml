@@ -4,6 +4,7 @@
  * program *)
 open Cil
 open Pretty
+open Int32
 
 module H = Hashtbl
 module E = Errormsg
@@ -89,7 +90,7 @@ type node =
       mutable interface: bool;          (* Is part of the interface *)
       
       (* The rest are the computed results of constraint resolution *)
-      mutable kind: pointerkind;
+      mutable kind: opointerkind;
       mutable why_kind : whykind;
       mutable sized : bool ;            (* An array may be SIZED at which
                                          * point it has a length field
@@ -105,7 +106,7 @@ type node =
     }       
    
 
-and pointerkind = 
+and opointerkind = 
     Safe
   | Scalar (* not actually a pointer *)
   | Seq    (* A three word pointer, like Index but with the length in the 
@@ -129,6 +130,14 @@ and pointerkind =
   | IndexT
 
   | Unknown
+
+and pkind = 
+  | KUnknown
+  | KScalar
+  | KSafe   of int32
+  | KString of int32
+  | KSeq    of int32
+  | KWild   of int32
 
 and whykind = (* why did we give it this kind? *)
     BadCast of edge
@@ -170,6 +179,48 @@ and edgekind =
                               * int * 3 * 4 y;
                               * We will connect 1 and 3 with ECompat. *)
 
+
+(* The constants for pointer kind flags. *)
+let pkNull       = of_int 1  (* Can be null *)
+let pkOnStack    = of_int 2  (* Can contain a stack address *)
+let pkROnly      = of_int 4  (* Never write through this pointer *)
+
+let pkNullTerm   = of_int 8  (* Points to a null-terminated buffer *)
+let pkRegistered = of_int 16 (* The pointer always points to a memory 
+                              * area that is registered  *)
+
+(* Some representation flags *)
+let pkLean       = of_int 32  (* The pointer is 1 word. It's capabilities, if 
+                               * any, are registered. In that case it must 
+                               * have the pkRegistered flag as well *)
+let pkIndex      = of_int 64  (* The pointer is into a sized array. *)
+let pkForward    = of_int 128 (* The pointer is into an array, and is moving 
+                               * only forward *)
+
+
+let pkEmpty      = zero 
+
+(* Flags that propagate forward with the control flow (during inference) *)
+let pkForwardProp = logor pkNull pkOnStack
+
+(* Flags that propagate against the control flow (during inference) *)
+let pkBackwardProp = 
+  logor pkNullTerm 
+    (logor pkROnly pkRegistered)
+
+
+(* Some simple accessor functions *)
+let pkHas (f: int32) (pk: int32) = zero <> (logand pk f)
+ 
+let pkIsWild = function
+    KWild _ -> true | _ -> false
+
+let pkIsSafe = function
+    KSafe _ -> true | _ -> false
+
+let pkWithout (pk: int32) (f: int32) = 
+  logand pk (lognot f)
+
 (* Print the graph *)
 let d_place () = function
     PGlob s -> dprintf "Glob(%s)" s
@@ -183,7 +234,7 @@ let d_place () = function
 let d_placeidx () (p, idx) = 
   dprintf "%a.%d" d_place p idx
 
-let d_pointerkind () = function
+let d_opointerkind () = function
     Safe -> text "SAFE"
   | Scalar -> text "SCALAR"
   | FSeq -> text "FSEQ" 
@@ -201,6 +252,14 @@ let d_pointerkind () = function
   | FSeqNT -> text "FSEQNT" 
   | IndexT -> text "INDEX"
   | Unknown -> text "UNKNOWN" 
+
+let d_pkind () = function
+    | KUnknown -> text "UNKNOWN"
+    | KScalar -> text "SCALAR"
+    | KSafe f -> text "SAFE"
+    | KSeq f -> text "SEQ"
+    | KWild f -> text "WILD"
+    | KString f -> text "STRING"
 
 let d_ekind () = function
     ECast -> text "Cast"
@@ -244,7 +303,7 @@ let d_node () n =
     (if n.can_reach_index   then "reach_i," else "")
     (docList (chr ',' ++ break)
        (fun n -> num n.id)) n.pointsto
-    d_pointerkind n.kind
+    d_opointerkind n.kind
     d_whykind n.why_kind
     d_type n.btype
     (docList (chr ',' ++ break)
@@ -258,6 +317,51 @@ let d_node () n =
            insert (if e.ecallid >= 0 then dprintf "(%d)" e.ecallid else nil)))
     n.pred
     
+
+
+(* Convert the old kind into the new kind *)    
+let okind2kind = function
+    Safe -> KSafe zero
+  | Index -> KSeq pkIndex
+  | Seq -> KSeq zero
+  | SeqN -> KSeq pkNullTerm
+  | SeqT -> KSeq pkLean
+  | SeqNT -> KSeq (logor pkNullTerm pkLean)
+
+  | FSeq -> KSeq pkForward
+  | FSeqN -> KSeq (logor pkNullTerm pkForward)
+  | FSeqT -> KSeq (logor pkLean pkForward)
+  | FSeqNT -> KSeq (logor pkNullTerm (logor pkLean pkForward))
+
+  | Wild -> KWild zero
+  | WildT -> KWild pkLean
+
+  | String -> KString zero
+  | ROString -> KString pkROnly
+
+  | k -> E.s (E.unimp "okind2kind: %a\n" d_opointerkind k)
+
+(* Convert the new kind into the old kind *)    
+let pk2okind = function
+    KSafe _ -> Safe
+  | KSeq f -> 
+      if pkHas f pkIndex then 
+        if pkHas f pkLean then IndexT else Index
+      else if pkHas f pkForward then 
+        if pkHas f pkNullTerm then 
+          if pkHas f pkLean then FSeqNT else FSeqN
+        else
+          if pkHas f pkLean then FSeqT else FSeq
+      else
+        if pkHas f pkNullTerm then 
+          if pkHas f pkLean then SeqNT else SeqN
+        else
+          if pkHas f pkLean then SeqT else Seq
+  | KString f -> 
+      if pkHas f pkROnly then ROString else String
+  | KWild f -> if pkHas f pkLean then WildT else Wild
+  | KScalar -> Scalar
+  | KUnknown -> Unknown
 
 (* A mapping from place , index to ids. This will help us avoid creating 
  * duplicate nodes *)
@@ -335,24 +439,8 @@ let k2attr = function
   | ROString -> AId("rostring") 
   | _ -> E.s (E.unimp "k2attr")
 
-let attr2k = function
-    AId("safe") -> Safe
-  | AId("wild") -> Wild
-  | AId("index") -> Index
-  | AId("fseq") -> FSeq
-  | AId("seq") -> Seq
-  | AId("fseqn") -> FSeqN
-  | AId("seqn") -> SeqN
-  | AId("wildt") -> WildT
-  | AId("indext") -> IndexT
-  | AId("fseqt") -> FSeqT
-  | AId("seqt") -> SeqT
-  | AId("fseqnt") -> FSeqNT
-  | AId("seqnt") -> SeqNT
-  | AId("string") -> String
-  | AId("rostring") -> ROString
-  | _ -> Unknown
-    
+let pk2attr (pk: pkind) : attribute = 
+  k2attr (pk2okind pk)
 
 let kindOfAttrlist al = 
   let rec loop = function
@@ -380,7 +468,11 @@ let kindOfAttrlist al =
     end    
   in
   loop al
-    
+
+
+let pkindOfAttrlist al = 
+  let k, why = kindOfAttrlist al in
+  okind2kind k, why
 
 (* Replace the ptrnode attribute with the actual qualifier attribute *)
 type whichAttr = 
@@ -571,7 +663,7 @@ let ptrAttrCustom printnode = function
             if nd.kind = Unknown && nd.why_kind = Default then
               Some nil (* Do not print these nodes *)
             else
-              Some (d_pointerkind () nd.kind)
+              Some (d_opointerkind () nd.kind)
           with Not_found -> Some nil (* Do not print these nodes *)
         end
     | AId("ronly") -> Some (text "__RONLY")
@@ -822,7 +914,7 @@ let showFirst (showone: 'a -> int -> unit)
 
 let printGraphStats () =     
   (* Keep a histograph per kind *)
-  let totKind : (pointerkind, int ref) H.t = H.create 17 in 
+  let totKind : (opointerkind, int ref) H.t = H.create 17 in 
   let totalNodes = ref 0 in
   (* The number of bad casts *)
   let badCasts = ref 0 in
@@ -850,7 +942,7 @@ let printGraphStats () =
   ignore (E.log "Graph contains %d nodes\n" !totalNodes);
   H.iter
     (fun k r -> ignore (E.log "  %a - %d (%3.0f%%)\n"
-                          d_pointerkind k !r
+                          d_opointerkind k !r
                           (float_of_int(!r) 
                              /. float_of_int(!totalNodes) *. 100.0)))
     totKind;

@@ -49,26 +49,27 @@ type expRes =
            * fat pointer and then back to lean pointer, or initialization of 
            * a fat constant) we want to have as few statements as possible *)
 and fexp = 
-    L  of typ * N.pointerkind * exp     (* A one-word expression of a given 
+    L  of typ * N.opointerkind * exp     (* A one-word expression of a given 
                                          * kind (N.Scalar or PSafe) and type *)
-  | FS of typ * N.pointerkind * exp     (* A multi-word expression that is 
+  | FS of typ * N.opointerkind * exp     (* A multi-word expression that is 
                                          * named by a single expresion *)
-  | FM of typ * N.pointerkind * exp * exp * exp 
+  | FM of typ * N.opointerkind * exp * exp * exp 
                                          (* A multi-word expression that is 
                                           * made out of multiple single-word 
                                           * expressions: ptr, base and bend. 
                                           * bend might be "zero" if not 
                                           * needeed *)
-  | FC of typ * N.pointerkind * typ * N.pointerkind * exp               
+  | FC of typ * N.opointerkind * typ * N.opointerkind * exp               
                                         (* A multi-word expression that is a 
                                          * cast of a FS to another fat type *)
 
 let d_fexp () = function
-    L(t, k, e) -> dprintf "L1(%a, %a:%a)" N.d_pointerkind k d_exp e d_type t
-  | FS(_, k, e) -> dprintf "FS(%a, %a)" N.d_pointerkind k d_exp e
+    L(t, k, e) -> dprintf "L1(%a, %a:%a)" N.d_opointerkind k d_exp e d_type t
+  | FS(_, k, e) -> dprintf "FS(%a, %a)" N.d_opointerkind k d_exp e
   | FM(_, k, ep, eb, ee) ->  
-      dprintf "FM(%a, %a, %a, %a)" N.d_pointerkind k d_exp ep d_exp eb d_exp ee
-  | FC(_, k, _, _, e) ->  dprintf "FC(%a, %a)" N.d_pointerkind k d_exp e
+      dprintf "FM(%a, %a, %a, %a)" 
+        N.d_opointerkind k d_exp ep d_exp eb d_exp ee
+  | FC(_, k, _, _, e) ->  dprintf "FC(%a, %a)" N.d_opointerkind k d_exp e
   
 let leaveAlone : (string, bool) H.t =
   let h = H.create 17 in
@@ -162,7 +163,7 @@ let isAllocFunction name =
 
             (* Same for offsets *)
 type offsetRes = 
-    typ * stmt list * offset * exp * N.pointerkind
+    typ * stmt list * offset * exp * N.opointerkind
       
 
 (*** Helpers *)            
@@ -450,7 +451,7 @@ let kindOfType t =
   | res -> res
 
 
-let breakFexp (fe: fexp) : typ * N.pointerkind * exp * exp * exp = 
+let breakFexp (fe: fexp) : typ * N.opointerkind * exp * exp * exp = 
   match fe with
     L(oldt, oldk, e) -> oldt, oldk, e, zero, zero
   | FS(oldt, oldk, e) -> 
@@ -464,57 +465,70 @@ let breakFexp (fe: fexp) : typ * N.pointerkind * exp * exp * exp =
 
 (**** Pointer representation ****)
 let pkNrFields = function
-    N.Safe | N.WildT | N.SeqT | N.FSeqT | N.SeqNT | N.FSeqNT | N.IndexT -> 1
+    N.Safe | N.Scalar | 
+    N.WildT | N.SeqT | N.FSeqT | N.SeqNT | N.FSeqNT | N.IndexT -> 1
   | N.String | N.ROString -> 1
   | N.Wild | N.FSeq | N.FSeqN | N.Index -> 2
   | N.Seq | N.SeqN -> 3
-  | _ -> E.s (E.bug "pkNrFields")
+  | k -> E.s (E.bug "pkNrFields: %a" N.d_opointerkind k)
 
-let pkFields (pk: N.pointerkind) : (string * (typ -> typ)) list = 
-  match pk with
-    N.Safe | N.String | N.ROString -> [ ("", fun x -> x) ]
-  | N.Wild | N.FSeq | N.FSeqN | N.Index -> 
-      [ ("_p", fun x -> x); ("_b", fun _ -> voidPtrType) ]
-  | N.Seq | N.SeqN -> 
-      [ ("_p", fun x -> x); 
-        ("_b", fun _ -> voidPtrType);
-        ("_e", fun _ -> voidPtrType) ]
+let pkFields (pk: N.opointerkind) : (string * (typ -> typ)) list = 
+  match pkNrFields pk with
+    1 -> [ ("", fun x -> x) ]
+  | 2 -> [ ("_p", fun x -> x); ("_b", fun _ -> voidPtrType) ]
+  | 3 -> [ ("_p", fun x -> x); 
+           ("_b", fun _ -> voidPtrType);
+           ("_e", fun _ -> voidPtrType) ]
   | _ -> E.s (E.bug "pkFields")
   
+(* Make an fexp out of a single expression. Either the type is fat and a 
+ * composite value is denoted by a single expression *)
 let mkFexp1 (t: typ) (e: exp) : fexp  = 
   let k = kindOfType t in
-  match k with
+(*  match k with
     (N.Safe|N.Scalar|N.String|N.ROString|
     N.WildT|N.FSeqT|N.SeqT|N.FSeqNT|N.SeqNT|N.IndexT) -> L  (t, k, e)
   | (N.Index|N.Wild|N.FSeq|N.FSeqN|N.Seq|N.SeqN) -> FS (t, k, e)
-  | _ -> E.s (E.bug "mkFexp1(%a)" N.d_pointerkind k)
+  | _ -> E.s (E.bug "mkFexp1(%a)" N.d_opointerkind k)
+*)
+  match pkNrFields k with 
+    1 -> L (t, k, e)
+  | _ -> FS (t, k, e)
 
+(* Make an fexp out of three expressions representing a pointer, the base and 
+ * the end. The end, or the base and the end might be disregarded, depending 
+ * on the type of the pointer beng created *)
+let mkFexp3 (t: typ) (ep: exp) (eb: exp) (ee: exp) : fexp  = 
+  let k = kindOfType t in
+  match pkNrFields k with
+    1 -> L (t, k, ep)
+  | _ -> FM (t, k, ep, eb, ee)
+
+(*
+  | (N.Safe|N.Scalar|N.String|N.ROString|
+    N.WildT|N.FSeqT|N.SeqT|N.FSeqNT|N.SeqNT|N.IndexT) -> L (t, k, ep)
+  | (N.Index|N.Wild|N.FSeq|N.FSeqN) -> FM (t, k, ep, eb, zero)
+  | (N.Seq|N.SeqN) -> FM (t, k, ep, eb, ee)
+  | _ -> E.s (E.bug "mkFexp3(%a): ep=%a\nt=%a" 
+                N.d_opointerkind k d_plainexp ep d_plaintype t)
+*)
 let mkFexp2 (t: typ) (ep: exp) (eb: exp) : fexp = 
   let k = kindOfType t in
   match k with
     (N.Safe|N.Scalar|N.String|N.ROString|
     N.WildT|N.FSeqT|N.SeqT|N.FSeqNT|N.SeqNT|N.IndexT) -> L  (t, k, ep)
   | (N.Index|N.Wild|N.FSeq|N.FSeqN) -> FM (t, k, ep, eb, zero)
-  | _ -> E.s (E.bug "mkFexp2(%a)" N.d_pointerkind k)
+  | _ -> E.s (E.bug "mkFexp2(%a)" N.d_opointerkind k)
 
-let mkFexp3 (t: typ) (ep: exp) (eb: exp) (ee: exp) : fexp  = 
-  let k = kindOfType t in
-  match k with
-  | (N.Safe|N.Scalar|N.String|N.ROString|
-    N.WildT|N.FSeqT|N.SeqT|N.FSeqNT|N.SeqNT|N.IndexT) -> L (t, k, ep)
-  | (N.Index|N.Wild|N.FSeq|N.FSeqN) -> FM (t, k, ep, eb, zero)
-  | (N.Seq|N.SeqN) -> FM (t, k, ep, eb, ee)
-  | _ -> E.s (E.bug "mkFexp3(%a): ep=%a\nt=%a" 
-                N.d_pointerkind k d_plainexp ep d_plaintype t)
 
-let pkTypePrefix (pk: N.pointerkind) = 
+let pkTypePrefix (pk: N.opointerkind) = 
   match pk with
     N.Wild | N.FSeq | N.FSeqN | N.Index -> "fatp_"
   | N.Seq | N.SeqN -> "seq_"
   | _ -> E.s (E.bug "pkTypeName")
   
 
-let pkQualName (pk: N.pointerkind) 
+let pkQualName (pk: N.opointerkind) 
                (acc: string list) 
                (dobasetype: string list -> string list) : string list = 
   match pk with
@@ -1044,7 +1058,7 @@ and tagLength (sz: exp) : (exp * exp) =
 
 
 (**** Make a pointer type of a certain kind *)
-let mkPointerTypeKind (bt: typ) (k: N.pointerkind) = 
+let mkPointerTypeKind (bt: typ) (k: N.opointerkind) = 
    fixupType (TPtr(bt, [N.k2attr k]))
 
 (***** Conversion functions *******)
@@ -1053,20 +1067,20 @@ let mkPointerTypeKind (bt: typ) (k: N.pointerkind) =
 (***** Address of ******)
 let pkAddrOf (lv: lval)
              (lvt: typ)
-             (lvk: N.pointerkind)  (* The kind of the AddrOf pointer *)
-             (f2: exp)
-             (f3: exp) : (fexp * stmt list) = 
+             (lvk: N.opointerkind)  (* The kind of the AddrOf pointer *)
+             (fb: exp)
+             (fe: exp) : (fexp * stmt list) = 
   let ptrtype = mkPointerTypeKind lvt lvk in
   match lvk with
     N.Safe -> mkFexp1 ptrtype (AddrOf(lv)), []
   | (N.Index | N.Wild | N.FSeq | N.FSeqN ) -> 
-      mkFexp2 ptrtype (AddrOf(lv)) f2, []
-  | (N.Seq | N.SeqN)  ->  mkFexp3 ptrtype (AddrOf(lv)) f2 f3, []
-  | _ -> E.s (E.bug "pkAddrOf(%a)" N.d_pointerkind lvk)
+      mkFexp3 ptrtype (AddrOf(lv)) fb fe, []
+  | (N.Seq | N.SeqN)  ->  mkFexp3 ptrtype (AddrOf(lv)) fb fe, []
+  | _ -> E.s (E.bug "pkAddrOf(%a)" N.d_opointerkind lvk)
          
          
 (* Given an array type return the element type, pointer kind, base and bend *)
-let arrayPointerToIndex (t: typ) (k: N.pointerkind) 
+let arrayPointerToIndex (t: typ) (k: N.opointerkind) 
                         (lv: lval) (base: exp) = 
   match unrollType t with
     TArray(elemt, _, a) when k = N.Wild -> 
@@ -1494,7 +1508,7 @@ let beforeField ((btype, pkind, mklval, base, bend, stmts) as input) =
        stmts @ docheck)
         
   | _ -> E.s (E.unimp "beforeField on unexpected pointer kind %a"
-                N.d_pointerkind pkind)
+                N.d_opointerkind pkind)
         
     
 let rec beforeIndex ((btype, pkind, mklval, base, bend, stmts) as input) = 
@@ -1513,12 +1527,12 @@ let rec beforeIndex ((btype, pkind, mklval, base, bend, stmts) as input) =
       beforeIndex res1
 
   | _ -> E.s (E.unimp "beforeIndex on unexpected pointer kind %a"
-                N.d_pointerkind pkind)
+                N.d_opointerkind pkind)
 
 (******* Start of *******)
 let rec pkStartOf (lv: lval)
               (lvt: typ)
-              (lvk: N.pointerkind)  (* The kind of the StartOf pointer *)
+              (lvk: N.opointerkind)  (* The kind of the StartOf pointer *)
               (f2: exp)
               (f3: exp) : (fexp * stmt list) = 
   match unrollType lvt with
@@ -1545,7 +1559,7 @@ let rec pkStartOf (lv: lval)
           let (res, stmts'') = pkStartOf lv lvt lvk' base' bend' in
           (res, stmts' @ stmts'')
           
-      | _ -> E.s (E.unimp "pkStartOf: %a" N.d_pointerkind lvk)
+      | _ -> E.s (E.unimp "pkStartOf: %a" N.d_opointerkind lvk)
     end
   | TFun _ -> begin
               (* Taking the address of a function is a special case. Since 
@@ -1608,12 +1622,12 @@ let stringLiteral (s: string) (strt: typ) =
       in
       ([mkSet (var tmp) (Const (CStr s))], res)
         
-  | _ -> E.s (E.unimp "String literal to %a" N.d_pointerkind k)
+  | _ -> E.s (E.unimp "String literal to %a" N.d_opointerkind k)
 
 
 let pkArithmetic (ep: exp)
                  (et: typ)
-                 (ek: N.pointerkind) (* kindOfType et *)
+                 (ek: N.opointerkind) (* kindOfType et *)
                  (bop: binop)  (* Either PlusPI or MinusPI or IndexPI *)
                  (e2: exp) : (fexp * stmt list) = 
   let ptype, ptr, f2, f3 = readFieldsOfFat ep et in
@@ -1648,7 +1662,7 @@ let pkArithmetic (ep: exp)
       let p'' = BinOp(bop, p', e2, ptype') in
       mkFexp3 et' p'' b' bend', List.rev acc'
       
-  | _ -> E.s (E.bug "pkArithmetic(%a)" N.d_pointerkind ek)
+  | _ -> E.s (E.bug "pkArithmetic(%a)" N.d_opointerkind ek)
         
 
 
@@ -1658,7 +1672,7 @@ let checkBounds (iswrite: bool)
                 (bend: exp)
                 (lv: lval)
                 (lvt: typ) 
-                (pkind: N.pointerkind) : stmt list = 
+                (pkind: N.opointerkind) : stmt list = 
   let lv', lv't = getHostIfBitfield lv lvt in
     (* Do not check the bounds when we access variables without array 
      * indexing  *)
@@ -1708,7 +1722,7 @@ let checkBounds (iswrite: bool)
   end
 
   | _ -> E.s (E.bug "Unexpected pointer kind in checkBounds(%a)"
-                N.d_pointerkind pkind)
+                N.d_opointerkind pkind)
 
 
 
@@ -1912,7 +1926,7 @@ let rec castTo (fe: fexp) (newt: typ)
       | N.ROString, (N.FSeq|N.FSeqN) -> 
         ignore (E.warn "Warning: wes-is-lazy cast from ROSTRING -> FSEQ[N]") ;
         ignore (E.warn "castTo(%a -> %a.@!%a@!%a)" 
-                 N.d_pointerkind oldk N.d_pointerkind newkind 
+                 N.d_opointerkind oldk N.d_opointerkind newkind 
                  d_fexp fe
                  d_plaintype oldt)       ;
           let p', b', bend', acc' = stringToFseq p b bend [] in
@@ -1935,7 +1949,7 @@ let rec castTo (fe: fexp) (newt: typ)
 
       | _, _ -> 
           E.s (E.unimp "castTo(%a -> %a.@!%a@!%a)" 
-                 N.d_pointerkind oldk N.d_pointerkind newkind 
+                 N.d_opointerkind oldk N.d_opointerkind newkind 
                  d_fexp fe
                  d_plaintype oldt)      
   end
@@ -1964,7 +1978,7 @@ let withIterVar (f: fundec) (doit: varinfo -> 'a) : 'a =
   
 let checkMem (towrite: exp option) 
              (lv: lval) (base: exp) (bend: exp)
-             (lvt: typ) (pkind: N.pointerkind) : stmt list = 
+             (lvt: typ) (pkind: N.opointerkind) : stmt list = 
   (* Fetch the length field in a temp variable. But do not create the 
    * variable until certain that it is needed *)
   (* ignore (E.log "checkMem: lvt: %a\n" d_plaintype lvt); *)
@@ -1989,7 +2003,7 @@ let checkMem (towrite: exp option)
   (* Now the tag checking. We only care about pointers. We keep track of what 
    * we write in each field and we check pointers in a special way. *)
   let rec doCheckTags (towrite: exp option) (where: lval) 
-                      (t: typ) (pkind: N.pointerkind) acc = 
+                      (t: typ) (pkind: N.opointerkind) acc = 
     match unrollType t with 
     | (TInt _ | TFloat _ | TEnum _ | TBitfield _ ) -> acc
 (*    | TFun _ -> acc *)
@@ -2310,7 +2324,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
         let fptr, fbase, fendo = getFieldsOfFat vi.vtype in 
         fptr.ftype, Field(fptr, NoOffset)
     | N.Safe | N.String -> vi.vtype, NoOffset
-    | _ -> E.s (E.unimp "pkAllocate: ptrtype (%a)" N.d_pointerkind k)
+    | _ -> E.s (E.unimp "pkAllocate: ptrtype (%a)" N.d_opointerkind k)
   in
   (* Get the base type *)
   let basetype = 
@@ -2780,7 +2794,7 @@ and boxinstr (ins: instr) (l: location): stmt list =
  * component (for pointer kinds other than Safe) and the third component (for 
  * pointer kinds Seq). We also compute a list of statements that must be 
  * executed to check the bounds.  *)
-and boxlval (b, off) : (typ * N.pointerkind * lval * exp * exp * stmt list) = 
+and boxlval (b, off) : (typ * N.opointerkind * lval * exp * exp * stmt list) = 
   let debuglval = false in
   (* As we go along the offset we keep track of the basetype and the pointer 
    * kind, along with the current base expression and a function that can be 
@@ -2800,7 +2814,7 @@ and boxlval (b, off) : (typ * N.pointerkind * lval * exp * exp * stmt list) =
   in
   if debuglval then
     ignore (E.log "Lval=%a@!startinput=%a\n" 
-              d_lval (b, off) N.d_pointerkind pkind); 
+              d_lval (b, off) N.d_opointerkind pkind); 
   (* As we go along we need to go into tagged and sized types. *)
   let goIntoTypes ((btype, pkind, mklval, base, bend, stmts) as input) = 
     if debuglval then
@@ -2860,7 +2874,7 @@ and boxlval (b, off) : (typ * N.pointerkind * lval * exp * exp * stmt list) =
   let lvalres = mklval NoOffset in
   if debuglval then
     ignore (E.log "Done lval: pkind=%a@! lvalres=%a@!" 
-              N.d_pointerkind pkind d_plainlval lvalres);
+              N.d_opointerkind pkind d_plainlval lvalres);
   (btype, pkind, lvalres, base, bend, stmts)
       
     (* Box an expression and return the fexp version of the result. If you do 

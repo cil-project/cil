@@ -20,8 +20,8 @@ open Ptrnode
 
 (* are the given two types congurent? see infer.tex 
  * also remember that two wild pointers are always considered congruent *)
-let rec type_congruent (t1 : typ) (q1 : pointerkind) 
-                       (t2 : typ) (q2 : pointerkind) = begin
+let rec type_congruent (t1 : typ) (q1 : opointerkind) 
+                       (t2 : typ) (q2 : opointerkind) = begin
   (* t[n] and struct { t ; t[n-1] ; } are congruent *)
   let t1 = unrollType t1 in
   let t2 = unrollType t2 in 
@@ -111,8 +111,8 @@ end
 
 (* do we have t1,q1 <= t2,q2 (as in infer.tex)? *)
 (* t1 = from, t2 = to *)
-let rec subtype (t1 : typ) (q1 : pointerkind) 
-            (t2 : typ) (q2 : pointerkind) =
+let rec subtype (t1 : typ) (q1 : opointerkind) 
+            (t2 : typ) (q2 : opointerkind) =
   let t1 = unrollType t1 in
   let t2 = unrollType t2 in 
   if t1 == t2 || (type_congruent t1 q1 t2 q2) then
@@ -176,7 +176,7 @@ let rec is_p n other_n = match n.where with
       end else false
   | _ -> false
 
-(* returns a pair of pointerkinds p1,p2 such that if we assign the
+(* returns a pair of opointerkinds p1,p2 such that if we assign the
  * qualifiers t1=p1 and t2=p2, the cast is legal *)
 let can_cast (n1 : node) (n2 : node) = begin
   let t1 = n1.btype in
@@ -332,7 +332,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
   let update_kind n k why =
     if (moving_up n.kind k)  then begin
         if (n.why_kind = UserSpec) then begin
-          ignore (E.warn "Pointer Kind Inference would upgrade to %a for\n%a" d_pointerkind k d_node n) ;
+          ignore (E.warn "Pointer Kind Inference would upgrade to %a for\n%a" d_opointerkind k d_node n) ;
           false
         end else begin
           n.kind <- k ;

@@ -97,7 +97,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       if (set_outside n) then begin
         match n.kind with
           String | ROString -> ()
-        | _ -> ignore (E.warn "Solver: %a annotation on interface (char *)@!%a" d_pointerkind n.kind d_node n)
+        | _ -> ignore (E.warn "Solver: %a annotation on interface (char *)@!%a" d_opointerkind n.kind d_node n)
       end else begin
         assert(not(set_outside n)) ;
         if (n.updated || (List.length n.succ) <> 0) then
