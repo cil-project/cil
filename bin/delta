@@ -4,6 +4,11 @@ use strict;
 # Implementation by Daniel Wilkerson of the delta debugging algorithm:
 # http://www.st.cs.uni-sb.de/dd/
 
+# Bugs:
+
+# The test script should not be called test and should not depend on
+# the current directory to work.
+
 # Features:
 
 # Note that 1-minimality does not imply idempotency, so we could
