@@ -44,7 +44,7 @@ class verboseLogVisitor printfFun funstr prefix = object
       let str1 = prefix ^
         (Pretty.sprint 800 ( Pretty.dprintf "Calling %a(%a)\n"
           d_exp e
-          (docList (chr ',' ++ break ) (fun arg ->
+          (docList ~sep:(chr ',' ++ break ) (fun arg ->
             try
               match unrollType (typeOf arg) with
                   TInt _ | TEnum _ -> dprintf "%a = %%d" d_exp arg
@@ -146,7 +146,7 @@ let logCalls (f: file) : unit =
         (* sm: expanded width to 200 because I want one per line *)
         let formatstr = prefix ^ (Pretty.sprint 200
           (dprintf "entering %s(%a)\n" fdec.svar.vname
-            (docList (chr ',' ++ break)
+            (docList ~sep:(chr ',' ++ break)
               (fun vi -> match unrollType vi.vtype with
               | TInt _ | TEnum _ -> dprintf "%s = %%d" vi.vname
               | TFloat _ -> dprintf "%s = %%g" vi.vname

@@ -142,8 +142,8 @@ val seq: sep:doc -> doit:('a ->doc) -> elements:'a list -> doc
 
 (** An alternative function for printing a list. The [unit] argument is there 
  * to make this function more easily usable with the {!Pretty.dprintf} 
- * interface. *)
-val docList: doc -> ('a -> doc) -> unit -> 'a list -> doc
+ * interface. The first argument is a separator, by default a comma. *)
+val docList: ?sep:doc -> ('a -> doc) -> unit -> 'a list -> doc
 
 (** sm: Yet another list printer.  This one accepts the same kind of
   * printing function that {!Pretty.dprintf} does, and itself works 
@@ -152,8 +152,8 @@ val docList: doc -> ('a -> doc) -> unit -> 'a list -> doc
 val d_list: string -> (unit -> 'a -> doc) -> unit -> 'a list -> doc
 
 (** Formats an array. A separator and a function that prints an array
-    element *)
-val docArray: doc -> (int -> 'a -> doc) -> unit -> 'a array -> doc
+    element. The default separator is a comma. *)
+val docArray: ?sep:doc -> (int -> 'a -> doc) -> unit -> 'a array -> doc
  
 (** Prints an ['a option] with [None] or [Some] *)
 val docOpt: (unit -> 'a -> doc) -> unit -> 'a option -> doc

@@ -162,7 +162,7 @@ begin
 
   let flattened = (toList clist1) in
   (trace "sm" (dprintf "flattened: %a\n"
-                       (docList (chr ',' ++ break) (d_boxedInt ()))
+                       (docList ~sep:(chr ',' ++ break) (d_boxedInt ()))
                        flattened));
 
 

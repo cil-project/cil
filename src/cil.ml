@@ -2175,7 +2175,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 (*
       let dinit e = d_init () e in
       dprintf "{@[%a@]}"
-        (docList (chr ',' ++ break) dinit) initl
+        (docList ~sep:(chr ',' ++ break) dinit) initl
 *)
         let printDesignator = 
           if not !msvcMode then begin
@@ -2203,7 +2203,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           | _ -> E.s (unimp "Trying to print malformed initializer")
         in
         chr '{' ++ (align 
-                      ++ ((docList (chr ',' ++ break) d_oneInit) () initl) 
+                      ++ ((docList ~sep:(chr ',' ++ break) d_oneInit) () initl) 
                       ++ unalign)
           ++ chr '}'
 (*
@@ -2367,7 +2367,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           ++ text "(" ++ 
           (align
              (* Now the arguments *)
-             ++ (docList (chr ',' ++ break) 
+             ++ (docList ~sep:(chr ',' ++ break) 
                    (self#pExp ()) () args)
              ++ unalign)
         ++ text (")" ^ printInstrTerminator)
@@ -2377,7 +2377,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           self#pLineDirective l
             ++ text "__asm {"
             ++ (align
-                  ++ (docList line text () tmpls)
+                  ++ (docList ~sep:line text () tmpls)
                   ++ unalign)
             ++ text ("}" ^ printInstrTerminator)
         else
@@ -2386,7 +2386,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
             ++ self#pAttrs () attrs 
             ++ text " ("
             ++ (align
-                  ++ (docList line
+                  ++ (docList ~sep:line
                         (fun x -> text ("\"" ^ escape_string x ^ "\""))
                         () tmpls)
                   ++
@@ -2394,7 +2394,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                     nil
                 else
                   (text ": "
-                     ++ (docList (chr ',' ++ break)
+                     ++ (docList ~sep:(chr ',' ++ break)
                            (fun (c, lv) ->
                              text ("\"" ^ escape_string c ^ "\" (")
                                ++ self#pLval () lv
@@ -2404,7 +2404,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                     nil
                   else
                     (text ": "
-                       ++ (docList (chr ',' ++ break)
+                       ++ (docList ~sep:(chr ',' ++ break)
                              (fun (c, e) ->
                                text ("\"" ^ escape_string c ^ "\" (")
                                  ++ self#pExp () e
@@ -2413,7 +2413,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                   (if clobs = [] then nil
                   else
                     (text ": "
-                       ++ (docList (chr ',' ++ break)
+                       ++ (docList ~sep:(chr ',' ++ break)
                              (fun c -> text ("\"" ^ escape_string c ^ "\""))
                              ()
                              clobs)))
@@ -2433,7 +2433,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
   method private pStmtNext (next: stmt) () (s: stmt) =
     (* print the labels *)
-    ((docList line (fun l -> self#pLabel () l)) () s.labels)
+    ((docList ~sep:line (fun l -> self#pLabel () l)) () s.labels)
       (* print the statement itself. If the labels are non-empty and the
       * statement is empty, print a semicolon  *)
       ++ 
@@ -2536,7 +2536,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
     | Instr il ->
         align
-          ++ (docList line (fun i -> self#pInstr () i) () il)
+          ++ (docList ~sep:line (fun i -> self#pInstr () i) () il)
           ++ unalign
 
     | If(be,t,{bstmts=[];battrs=[]},l) when not !printCilAsIs ->
@@ -2658,7 +2658,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
            * semicolon *)
           ++ (printInstrTerminator <- ","; 
               let res = 
-                (docList line (self#pInstr ())
+                (docList ~sep:line (self#pInstr ())
                    () il) 
               in
               printInstrTerminator <- ";";
@@ -2698,7 +2698,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         self#pLineDirective l ++
           text "enum" ++ align ++ text (" " ^ enum.ename) ++
           self#pAttrs () enum.eattr ++ text " {" ++ line
-          ++ (docList (chr ',' ++ line)
+          ++ (docList ~sep:(chr ',' ++ line)
                 (fun (n,i, loc) -> 
                   text (n ^ " = ") 
                     ++ self#pExp () i)
@@ -2720,7 +2720,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           text su1 ++ (align ++ text su2 ++ chr ' ' ++ (self#pAttrs () sto_mod)
                          ++ text n
                          ++ text " {" ++ line
-                         ++ ((docList line (self#pFieldDecl ())) () 
+                         ++ ((docList ~sep:line (self#pFieldDecl ())) () 
                                comp.cfields)
                          ++ unalign)
           ++ line ++ text "}" ++
@@ -2778,7 +2778,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 	      text "weak " ++ text symbol
 	  | _ ->
             text (an ^ "(")
-              ++ docList (chr ',') (self#pAttrParam ()) () args
+              ++ docList ~sep:(chr ',') (self#pAttrParam ()) () args
               ++ text ")"
         in
         self#pLineDirective l 
@@ -2850,7 +2850,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
       ++ text "{ "
       ++ (align
             (* locals. *)
-            ++ (docList line (fun vi -> self#pVDecl () vi ++ text ";") 
+            ++ (docList ~sep:line (fun vi -> self#pVDecl () vi ++ text ";") 
                   () f.slocals)
             ++ line ++ line
             (* the body *)
@@ -2975,7 +2975,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                               ++ text " "
                               ++ self#pAttrs () rest
                           in
-                          (docList (chr ',' ++ break) pArg) () 
+                          (docList ~sep:(chr ',' ++ break) pArg) () 
                             (argsToList args))
                           ++ (if isvararg then break ++ text ", ..." else nil))
                       ++ unalign)
@@ -3018,12 +3018,12 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     | "fastcall", [] when !msvcMode -> text "__fastcall", false
     | "declspec", args when !msvcMode -> 
         text "__declspec(" 
-          ++ docList (chr ',') (self#pAttrParam ()) () args
+          ++ docList (self#pAttrParam ()) () args
           ++ text ")", false
     | "w64", [] when !msvcMode -> text "__w64", false
     | "asm", args -> 
         text "__asm__(" 
-          ++ docList (chr ',') (self#pAttrParam ()) () args
+          ++ docList (self#pAttrParam ()) () args
           ++ text ")", false
     (* we suppress printing mode(__si__) because it triggers an *)
     (* internal compiler error in all current gcc versions *)
@@ -3050,7 +3050,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           text an', true
         else
           text (an' ^ "(") 
-            ++ (docList (chr ',') (self#pAttrParam ()) () args)
+            ++ (docList (self#pAttrParam ()) () args)
             ++ text ")", 
           true
 
@@ -3060,7 +3060,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     | ACons(s, []) -> text s
     | ACons(s,al) ->
         text (s ^ "(")
-          ++ (docList (chr ',') (self#pAttrParam ()) () al)
+          ++ (docList (self#pAttrParam ()) () al)
           ++ text ")"
     | ASizeOfE a -> text "sizeof(" ++ self#pAttrParam () a ++ text ")"
     | ASizeOf t -> text "sizeof(" ++ self#pType None () t ++ text ")"
@@ -3105,7 +3105,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                else
                  text "__attribute__((")
 
-                ++ (docList (chr ',' ++ break)
+                ++ (docList ~sep:(chr ',' ++ break)
                       (fun a -> a)) () in__attr__
                 ++ text ")"
                 ++ (if block then text (forgcc "*/") else text ")")
@@ -3268,7 +3268,7 @@ class plainCilPrinterClass =
          self#pOnlyType tr 
          insert 
          (if args = None then text "None"
-         else (docList (chr ',' ++ break) 
+         else (docList ~sep:(chr ',' ++ break) 
                  (fun (an,at,aa) -> 
                    dprintf "%s: %a" an self#pOnlyType at)) 
              () 
@@ -3283,7 +3283,7 @@ class plainCilPrinterClass =
          H.add donecomps comp.ckey (); (* Add it before we do the fields *)
          dprintf "TComp(@[%s %s,@?%a,@?%a,@?%a@])" 
            (if comp.cstruct then "struct" else "union") comp.cname
-           (docList (chr ',' ++ break) 
+           (docList ~sep:(chr ',' ++ break) 
               (fun f -> dprintf "%s : %a" f.fname self#pOnlyType f.ftype)) 
            comp.cfields
            self#pAttrs comp.cattr
@@ -3352,7 +3352,7 @@ class plainCilPrinterClass =
           self#d_plainoffset () o ++ text " = " ++ self#pInit () i
         in
         dprintf "CI(@[%a,@?%a@])" self#pOnlyType t
-          (docList (chr ',' ++ break) d_plainoneinit) initl
+          (docList ~sep:(chr ',' ++ break) d_plainoneinit) initl
 (*
     | ArrayInit (t, len, initl) -> 
         let idx = ref (- 1) in
@@ -3361,7 +3361,7 @@ class plainCilPrinterClass =
           text "[" ++ num !idx ++ text "] = " ++ self#pInit () i
         in
         dprintf "AI(@[%a,%d,@?%a@])" self#pOnlyType t len
-          (docList (chr ',' ++ break) d_plainoneinit) initl
+          (docList ~sep:(chr ',' ++ break) d_plainoneinit) initl
 *)           
   method pLval () (lv: lval) =  
     match lv with 
@@ -3394,7 +3394,7 @@ let rec d_typsig () = function
   | TSFun (rt, args, isva, al) -> 
       dprintf "TSFun(@[%a,@?%a,%b,@?%a@])"
         d_typsig rt
-        (docList (chr ',' ++ break) (d_typsig ())) args isva
+        (docList ~sep:(chr ',' ++ break) (d_typsig ())) args isva
         d_attrlist al
   | TSEnum (n, al) -> 
       dprintf "TSEnum(@[%s,@?%a@])"
@@ -4108,7 +4108,7 @@ let visitCilFileSameGlobals (vis : cilVisitor) (f : file) : unit =
     match fGlob g with 
       [g'] when g' == g || g' = g -> () (* Try to do the pointer check first *)
     | gl -> 
-        ignore (E.log "You used visitCilFilSameGlobals but the global got changed:\n %a\nchanged to %a\n" d_global g (docList line (d_global ())) gl);
+        ignore (E.log "You used visitCilFilSameGlobals but the global got changed:\n %a\nchanged to %a\n" d_global g (docList ~sep:line (d_global ())) gl);
         ())
 
 (* Be careful with visiting the whole file because it might be huge. *)
@@ -5218,7 +5218,7 @@ and alphaWorker      ~(alphaTable: (string, alphaTableData ref) H.t)
       (* We have seen this prefix *)
       if debugAlpha prefix then
         ignore (E.log " Old max %d. Old suffixes: @[%a@]" max
-                  (docList (chr ',') 
+                  (docList 
                      (fun (s, l) -> dprintf "%a:%s" d_loc l s)) suffixes);
       (* Save the undo info *)
       (match undolist with 
@@ -5312,7 +5312,7 @@ let undoAlphaChanges ~(alphaTable: (string, alphaTableData ref) H.t)
 let docAlphaTable () (alphaTable: (string, alphaTableData ref) H.t) = 
   let acc : (string * (int * (string * location) list)) list ref = ref [] in
   H.iter (fun k d -> acc := (k, !d) :: !acc) alphaTable;
-  docList line (fun (k, (d, _)) -> dprintf "  %s -> %d" k d) () !acc
+  docList ~sep:line (fun (k, (d, _)) -> dprintf "  %s -> %d" k d) () !acc
 
 
 (** Uniquefy the variable names *)
@@ -5731,42 +5731,44 @@ let computeCFGInfo (f : fundec) (global_numbering : bool) : unit =
   ()
 
 let initCIL () = 
-  (* Set the machine *)
-  theMachine := if !msvcMode then M.msvc else M.gcc;
-  (* Pick type for string literals *)
-  stringLiteralType := if !theMachine.M.const_string_literals then
-    charConstPtrType
-  else
-    charPtrType;
-  (* Find the right ikind given the size *)
-  let findIkind (unsigned: bool) (sz: int) : ikind = 
-    (* Test the most common sizes first *)
-    if sz = !theMachine.M.sizeof_int then 
-      if unsigned then IUInt else IInt 
-    else if sz = !theMachine.M.sizeof_long then 
-      if unsigned then IULong else ILong
-    else if sz = 1 then 
-      if unsigned then IUChar else IChar 
-    else if sz = !theMachine.M.sizeof_short then
-      if unsigned then IUShort else IShort
-    else if sz = !theMachine.M.sizeof_longlong then
-      if unsigned then IULongLong else ILongLong
-    else 
-      E.s(E.unimp "initCIL: cannot find the right ikind for size %d\n" sz)
-  in      
-  upointType := TInt(findIkind true !theMachine.M.sizeof_ptr, []);
-  kindOfSizeOf := findIkind true !theMachine.M.sizeof_sizeof;
-  typeOfSizeOf := TInt(!kindOfSizeOf, []);
-  H.add gccBuiltins "__builtin_memset" 
-    (voidPtrType, [ voidPtrType; intType; intType ], false);
-  wcharKind := findIkind false !theMachine.M.sizeof_wchar;
-  wcharType := TInt(!wcharKind, []);
-  char_is_unsigned := !theMachine.M.char_is_unsigned;
-  little_endian := !theMachine.M.little_endian;
-  underscore_name := !theMachine.M.underscore_name;
-  nextGlobalVID := 1;
-  nextCompinfoKey := 1;
-  initCIL_called := true
+  if not !initCIL_called then begin 
+    (* Set the machine *)
+    theMachine := if !msvcMode then M.msvc else M.gcc;
+    (* Pick type for string literals *)
+    stringLiteralType := if !theMachine.M.const_string_literals then
+      charConstPtrType
+    else
+      charPtrType;
+    (* Find the right ikind given the size *)
+    let findIkind (unsigned: bool) (sz: int) : ikind = 
+      (* Test the most common sizes first *)
+      if sz = !theMachine.M.sizeof_int then 
+        if unsigned then IUInt else IInt 
+      else if sz = !theMachine.M.sizeof_long then 
+        if unsigned then IULong else ILong
+      else if sz = 1 then 
+        if unsigned then IUChar else IChar 
+      else if sz = !theMachine.M.sizeof_short then
+        if unsigned then IUShort else IShort
+      else if sz = !theMachine.M.sizeof_longlong then
+        if unsigned then IULongLong else ILongLong
+      else 
+        E.s(E.unimp "initCIL: cannot find the right ikind for size %d\n" sz)
+    in      
+    upointType := TInt(findIkind true !theMachine.M.sizeof_ptr, []);
+    kindOfSizeOf := findIkind true !theMachine.M.sizeof_sizeof;
+    typeOfSizeOf := TInt(!kindOfSizeOf, []);
+    H.add gccBuiltins "__builtin_memset" 
+      (voidPtrType, [ voidPtrType; intType; intType ], false);
+    wcharKind := findIkind false !theMachine.M.sizeof_wchar;
+    wcharType := TInt(!wcharKind, []);
+    char_is_unsigned := !theMachine.M.char_is_unsigned;
+    little_endian := !theMachine.M.little_endian;
+    underscore_name := !theMachine.M.underscore_name;
+    nextGlobalVID := 1;
+    nextCompinfoKey := 1;
+    initCIL_called := true
+  end
     
 
 (* We want to bring all type declarations before the data declarations. This 

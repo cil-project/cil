@@ -10,7 +10,7 @@ val withTimeout : float -> (* Seconds for timeout *)
                 'a -> (* And its argument *)
    'b
 
-val docHash : ('a -> 'b -> Pretty.doc) -> unit -> 
+val docHash : ?sep:string -> ('a -> 'b -> Pretty.doc) -> unit -> 
   (('a, 'b) Hashtbl.t) -> Pretty.doc 
 
 

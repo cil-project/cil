@@ -47,10 +47,6 @@ module DF = Dataflow
 
 let debug = false
 
-open Pretty
-
-let debug = true
-
 (* For each statement we maintain a set of statements that dominate it *)
 module BS = Set.Make(struct 
                         type t = Cil.stmt
@@ -76,7 +72,7 @@ module DT = struct
 
   let pretty () (d: t) = 
     dprintf "{%a}" 
-      (docList (chr ',') (fun s -> dprintf "%d" s.sid))
+      (docList (fun s -> dprintf "%d" s.sid))
       (BS.elements d)
 
   let computeFirstPredecessor (s: stmt) (d: BS.t) : BS.t = 
@@ -231,11 +227,11 @@ let findNaturalLoops (f: fundec)
   
   if debug then 
     ignore (E.log "Natural loops:\n%a\n"
-              (docList line
+              (docList ~sep:line
                  (fun (s, backs) -> 
                    dprintf "    Start: %d, backs:%a"
                      s.sid
-                     (docList (chr ',') (fun b -> num b.sid))
+                     (docList (fun b -> num b.sid))
                      backs))
               loops);
   

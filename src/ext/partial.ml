@@ -611,7 +611,7 @@ module MakePartial =
           if debug && List.length stmt.succs > 1 then begin
             ignore (Pretty.printf "(%a) has successors [%a]@!"
               d_stmt stmt 
-              (docList (chr '@') (d_stmt ()))
+              (docList ~sep:(chr '@') (d_stmt ()))
               stmt.succs)
           end ;
           state
@@ -673,7 +673,7 @@ module MakePartial =
           if debug then begin 
             ignore (Pretty.printf "Working on stmt %d (%a) %a@!" 
               s.sid 
-              (docList (chr ',' ++ break) (fun s -> dprintf "%d" s.sid))
+              (docList ~sep:(chr ',' ++ break) (fun s -> dprintf "%d" s.sid))
               s.succs
               d_stmt s) ; 
             flush stdout ;

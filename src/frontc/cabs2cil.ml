@@ -428,7 +428,7 @@ let docEnv () =
     | EnvLabel l, _ -> text ("label " ^ l)
   in
   H.iter (fun k d -> acc := (k, d) :: !acc) env;
-  docList line (fun (k, d) -> dprintf "  %s -> %a" k doone d) () !acc
+  docList ~sep:line (fun (k, d) -> dprintf "  %s -> %a" k doone d) () !acc
 
 
 
@@ -4962,9 +4962,9 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
 (*
               ignore (E.log "endFunction %s at %t:@! sformals=%a@!  slocals=%a@!"
               !currentFunctionFDEC.svar.vname d_thisloc
-              (docList (chr ',') (fun v -> text v.vname)) 
+              (docList ~sep:(chr ',') (fun v -> text v.vname)) 
               !currentFunctionFDEC.sformals
-              (docList (chr ',') (fun v -> text v.vname)) 
+              (docList ~sep:(chr ',') (fun v -> text v.vname)) 
               !currentFunctionFDEC.slocals);
 *)
 
@@ -5556,6 +5556,7 @@ and doStatement (s : A.statement) : chunk =
 
 (* Translate a file *)
 let convFile ((fname : string), (dl : Cabs.definition list)) : Cil.file =
+  Cil.initCIL (); (* make sure we have initialized CIL *)
   (* Clean up the global types *)
   E.hadErrors := false;
   initGlobals();

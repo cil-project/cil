@@ -192,7 +192,7 @@ module ForwardsDataFlow =
         if !T.debug && not (Queue.is_empty worklist) then 
           ignore (E.log "FF(%s): worklist= %a\n" 
                     T.name
-                    (docList (chr ',') (fun s -> num s.sid)) 
+                    (docList (fun s -> num s.sid)) 
                     (List.rev
                        (Queue.fold (fun acc s -> s :: acc) [] worklist)));
         try 
@@ -348,7 +348,7 @@ module BackwardsDataFlow =
         if !T.debug &&  not (Queue.is_empty worklist) then 
           ignore (E.log "BF(%s): worklist= %a\n" 
                     T.name
-                    (docList (chr ',') (fun s -> num s.sid)) 
+                    (docList (fun s -> num s.sid)) 
                     (List.rev
                        (Queue.fold (fun acc s -> s :: acc) [] worklist)));
         try 

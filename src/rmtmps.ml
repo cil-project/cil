@@ -728,5 +728,5 @@ let rec removeUnusedTemps ?(isRoot : rootsFilter = isDefaultRoot) file =
 	  ignore (E.warn "%d unused local variables removed" count)
 	else
 	  ignore (E.warn "%d unused local variables removed:@!%a"
-		    count (docList (chr ',' ++ break) text) removedLocals)
+		    count (docList ~sep:(chr ',' ++ break) text) removedLocals)
     end
