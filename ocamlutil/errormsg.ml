@@ -37,43 +37,7 @@
 
 open Pretty
 
-type info =
-    { mutable  linenum: int      ;
-      mutable  linepos: int list ;
-      fileName        : string   ;
-      mutable   errors: bool     }
-      
-let current : info ref = 
-  ref 
-    { linenum  = 1 ;
-      linepos  = [1] ;
-      fileName = "" ;
-      errors   = false }
 
-let fileName i = i.fileName
-
-let startFile fname =
-  current := { linenum  = 1 ;
-               linepos  = [0] ;
-               fileName = fname ; 
-               errors   = false ; }
-
-
-let startNewline n =
-  let i = !current in
-  begin
-    i.linenum <- i.linenum + 1 ;
-    i.linepos <- n :: i.linepos
-  end
-
-let getLineCol (i : info) pos = 
-  let rec look n = function
-      a::_ when (a<=pos) -> (n, pos - a)
-    | _::rest -> look (n - 1) rest
-    | _ -> (0, 0)
-  in
-  let (lin,col) = look i.linenum i.linepos in
-  Printf.sprintf "%d.%d" lin col
 
 let debugFlag  = ref false              (* If set then print debugging info *)
 let verboseFlag = ref false
@@ -129,50 +93,72 @@ let contextMessage name d =
 
 let warnFlag = ref false
 
+let logChannel : out_channel ref = ref stderr
+
+
 let bug (fmt : ('a,unit,doc) format) : 'a = 
-  let f d =  hadErrors := true; contextMessage "Bug" d; raise Error in
+  let f d =  hadErrors := true; contextMessage "Bug" d; 
+    flush !logChannel; raise Error in
   Pretty.gprintf f fmt
 
 let error (fmt : ('a,unit,doc) format) : 'a = 
-  let f d = hadErrors := true; contextMessage "Error" d; raise Error in
+  let f d = hadErrors := true; contextMessage "Error" d; 
+    flush !logChannel; raise Error in
   Pretty.gprintf f fmt
 
 let unimp (fmt : ('a,unit,doc) format) : 'a = 
-  let f d = hadErrors := true; contextMessage "Unimplemented" d; raise Error in
+  let f d = hadErrors := true; contextMessage "Unimplemented" d; 
+    flush !logChannel; raise Error in
   Pretty.gprintf f fmt
 
 let warn (fmt : ('a,unit,doc) format) : 'a = 
-  let f d = contextMessage "Warning" d; nil in
+  let f d = contextMessage "Warning" d; flush !logChannel; nil in
   Pretty.gprintf f fmt
 
 let warnOpt (fmt : ('a,unit,doc) format) : 'a = 
-  let f d = 
-    if !warnFlag then contextMessage "Warning" d; 
-    nil in
-  Pretty.gprintf f fmt
+    let f d = 
+      if !warnFlag then contextMessage "Warning" d; flush !logChannel;
+      nil in
+    Pretty.gprintf f fmt
 
-
-let logChannel : out_channel ref = ref stderr
 
 let log (fmt : ('a,unit,doc) format) : 'a = 
   let f d = fprint !logChannel 80 d; flush !logChannel; d in
   Pretty.gprintf f fmt
 
+let null (fmt : ('a,unit,doc) format) : 'a =
+  let f d = Pretty.nil in
+  Pretty.gprintf f fmt
 
+let check (what: bool) (fmt : ('a,unit,doc) format) : 'a = 
+  if what then 
+     what
+  else begin
+    let f d = 
+      if not what then begin
+         hadErrors := true; contextMessage "Assert" d; 
+         flush !logChannel; raise Error 
+    end else nil in
+    Pretty.gprintf f fmt
+  end
 
 let theLexbuf = ref (Lexing.from_string "")
 
 let fail format = Pretty.gprintf (fun x -> Pretty.fprint stderr 80 x; 
                                            raise (Failure "")) format
 
+
+
 (***** Handling parsing errors ********)
 type parseinfo =
     { mutable  linenum: int      ; (* Current line *)
       mutable  linestart: int    ; (* The position in the buffer where the 
                                     * current line starts *)
-      mutable fileName  : string   ; (* Current file *)
+      mutable fileName : string   ; (* Current file *)
+      mutable hfile   : string   ; (* High-level file *)
+      mutable hline   : int;       (* High-level line *)
       lexbuf          : Lexing.lexbuf;
-      inchan          : in_channel option;
+      inchan          : in_channel option; (* None, if from a string *)
       mutable   num_errors : int;  (* Errors so far *)
     }
       
@@ -182,31 +168,36 @@ let dummyinfo =
       fileName  = "" ;
       lexbuf    = Lexing.from_string "";
       inchan    = None;
-      num_errors    = 0;
+      hfile     = "";
+      hline     = 0;
+      num_errors = 0;
     }
-
-type parseWhat = 
-    ParseString of string
-  | ParseFile of string
 
 let current = ref dummyinfo
 
-
+let setHLine (l: int) : unit =
+    !current.hline <- l
+let setHFile (f: string) : unit =
+    !current.hfile <- f
+    
+let rem_quotes str = String.sub str 1 ((String.length str) - 2)
 
 (* Change \ into / in file names. To avoid complications with escapes *)
 let cleanFileName str = 
-  (* ignore (log "cleanFilename(%s)\n" str);  *)
-  let l = String.length str in
+  let str1 = 
+    if str <> "" && String.get str 0 = '"' (* '"' ( *) 
+    then rem_quotes str else str in
+  let l = String.length str1 in
   let rec loop (copyto: int) (i: int) = 
-     if i >= l then 
-         String.sub str 0 copyto
+    if i >= l then 
+      String.sub str1 0 copyto
      else 
-       let c = String.get str i in
+       let c = String.get str1 i in
        if c <> '\\' then begin
-          String.set str copyto c; loop (copyto + 1) (i + 1)
+          String.set str1 copyto c; loop (copyto + 1) (i + 1)
        end else begin
-          String.set str copyto '/';
-          if i < l - 2 && String.get str (i + 1) = '\\' then
+          String.set str1 copyto '/';
+          if i < l - 2 && String.get str1 (i + 1) = '\\' then
               loop (copyto + 1) (i + 2)
           else 
               loop (copyto + 1) (i + 1)
@@ -214,30 +205,36 @@ let cleanFileName str =
   in
   loop 0 0
 
-let startParsing (fname: parseWhat) = 
-  let inchan, fileName, lexbuf = 
-    match fname with 
-      ParseString s ->
-        None, "<string>", Lexing.from_string s
-    | ParseFile fname ->  
-        let inchan = 
-          try open_in fname with 
-            _ -> s (error "Cannot find input file %s" fname) in
-        let lexbuf = Lexing.from_channel inchan in
-        Some inchan, cleanFileName fname, lexbuf
-  in
+let startParsing (fname: string) = 
+  let inchan = 
+    try open_in fname with 
+      _ -> s (error "Cannot find input file %s" fname) in
+  let lexbuf = Lexing.from_channel inchan in
   let i = 
     { linenum = 1; linestart = 0; 
-      fileName = fileName;
-      lexbuf = lexbuf; inchan = inchan;
+      fileName = cleanFileName (Filename.basename fname);
+      lexbuf = lexbuf; inchan = Some inchan;
+      hfile = ""; hline = 0;
       num_errors = 0 } in
+  current := i;
+  lexbuf
+
+let startParsingFromString ?(file="<string>") ?(line=1) (str: string) = 
+  let lexbuf = Lexing.from_string str in
+  let i = 
+    { linenum = line; linestart = line - 1;
+      fileName = file;
+      hfile = ""; hline = 0;
+      lexbuf = lexbuf; 
+      inchan = None;
+      num_errors = 0 }
+  in
   current := i;
   lexbuf
 
 let finishParsing () = 
   let i = !current in
-  (match i.inchan with 
-    Some inch -> close_in inch | _ -> ());
+  (match i.inchan with Some c -> close_in c | _ -> ());
   current := dummyinfo
 
 
@@ -247,6 +244,9 @@ let newline () =
   i.linenum <- 1 + i.linenum;
   i.linestart <- Lexing.lexeme_start i.lexbuf
 
+let newHline () = 
+  let i = !current in
+  i.hline <- 1 + i.hline
 
 let setCurrentLine (i: int) = 
   !current.linenum <- i
@@ -262,7 +262,7 @@ let parse_error (msg: string) : 'a =
   let token_start, token_end = 
     try Parsing.symbol_start (), Parsing.symbol_end ()
     with e -> begin 
-      (* ignore (warn "Parsing raised %s\n" (Printexc.to_string e)); *)
+      ignore (warn "Parsing raised %s\n" (Printexc.to_string e));
       0, 0
     end
   in
@@ -298,6 +298,9 @@ let getPosition () : int * string * int =
   let i = !current in 
   i.linenum, i.fileName, Lexing.lexeme_start i.lexbuf
 
+
+let getHPosition () = 
+  !current.hline, !current.hfile
 
 (* Keep here some pointers to lexer functions *)
 let push_context = 
