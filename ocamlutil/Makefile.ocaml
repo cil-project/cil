@@ -270,9 +270,11 @@ $(OBJDIR)/%.$(CMO): %.ml
            ;fi ; exit 0 \
         ;else \
 	   if test $(OBJDIR) != $(<D) ;then \
+              if test -f $(basename $<).cmi ;then \
                 $(COMMAND) mv -f $(foreach ext,$(MOVEAFTERCAMLCF), $(basename $<).$(ext)) $(OBJDIR); \
                 mv -f $(foreach ext,$(MOVEAFTERCAMLCF), $(basename $<).$(ext)) \
                       $(OBJDIR) \
+              ;fi \
            ;fi ; exit 1 \
         ;fi
 
