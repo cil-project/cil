@@ -17,8 +17,8 @@ MODULES     = pretty errormsg trace stats util clist \
 
 EXECUTABLE  = $(OBJDIR)/cilly
 CAMLUSEUNIX = 1
-ifdef RELEASE
-UNSAFE      = 1
+ifdef NATIVECAML
+  UNSAFE      = 1
 endif
 CAMLLIBS    = 
 

@@ -57,13 +57,17 @@ my @defaultcases =
 my @alltests =  
     ( "perimeter",
       "bh",
-      "compress",
-      "go",
       "health",
       "mst",
       "li",
       "power",
       "tsp",
+      "treeadd",
+      "em3d",
+
+      "compress",
+      "go",
+
       "bc",
       "yacr",
       "anagram",

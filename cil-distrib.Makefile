@@ -18,7 +18,8 @@ OCAML_CIL_LIB_MODULES = $(MODULES:main=)
 EXECUTABLE  = $(OBJDIR)/cilly
 CAMLUSEUNIX = 1
 ifdef RELEASE
-UNSAFE      = 1
+  UNSAFE      = 1
+  NATIVECAML  = 1
 endif
 CAMLLIBS    = 
 

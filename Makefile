@@ -1000,32 +1000,18 @@ treeadd:  mustbegcc
 	cd $(TREEADDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                    do time ./treeadd.exe 21 1; done"
 
-NEWBISORTDIR := test/olden/newbisort
-NEWBISORTSAFECC := $(CCURED) --combine \
-                     --nocure=ta_trusted \
-                     $(PATCHARG) \
-                     $(NOPRINTLN)
-ifeq ($(ARCHOS), x86_WIN32)
-  NEWBISORTSAFECC += $(DEF)WIN32 $(DEF)MSDOS
-endif
-newbisort-clean: 	
-	cd $(NEWBISORTDIR); make clean
-	cd $(NEWBISORTDIR); rm -f *cil.c *box.c *.i *_ppp.c *.origi *_all.c
-
-newbisort:  mustbegcc
-	cd $(NEWBISORTDIR); \
-            make clean; make bisort CC="$(NEWBISORTSAFECC)" \
-                       LD="$(NEWBISORTSAFECC)"
-	cd $(NEWBISORTDIR); ./bisort 21 1
-
-
+treeadd-optimvariant.%: mustbegcc
+	cd $(TRERADDIR); \
+           $(OPTIMVARIANT) -lm \
+                 treeadd.exe_combcured.$*.optim.c \
+                 $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_releaselib.$(LIBEXT) \
+                 $(EXEOUT)treeadd.exe
+	cd $(TREEADDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                    do time ./treeadd.exe 21 1; done"
 
 
 EM3DDIR := test/olden/em3d
-EM3DDSAFECC := $(CCURED) --combine \
-                 $(PATCHARG) \
-                 --nocure=trusted_em3d \
-                 $(NOPRINTLN)
+EM3DSAFECC := $(CCURED) --combine $(PATCHARG)
 ifeq ($(ARCHOS), x86_WIN32)
   EM3DSAFECC += $(DEF)WIN32 $(DEF)MSDOS
   SS_RAND := TRUE
@@ -1040,6 +1026,16 @@ em3d:  mustbegcc
                                 LD="$(EM3DDSAFECC)"
 	cd $(EM3DDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                    do time ./em3d.exe 2000 100 6; done"
+
+em3d-optimvariant.%: mustbegcc
+	cd $(EM3DDIR); \
+           $(OPTIMVARIANT) -lm \
+                 em3d.exe_combcured.$*.optim.c \
+                 $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_releaselib.$(LIBEXT) \
+                 $(EXEOUT)em3d.exe
+	cd $(EM3DDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
+                                    do time ./em3d.exe 2000 100 6; done"
+
 
 
 # SPEC95

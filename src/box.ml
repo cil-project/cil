@@ -937,11 +937,11 @@ let checkStoreFatPtr =
   (declareGlobalChecker fdec);
 
   fun whatp nullIfInt ->
-		if !stackChecks then 
-			call None (Lval(var fdec.svar))
-				[ castVoidStar whatp; castVoidStar nullIfInt;]
-		else nop
-
+    if !stackChecks then 
+      call None (Lval(var fdec.svar))
+	[ castVoidStar whatp; castVoidStar nullIfInt;]
+    else nop
+        
 let checkStorePtr =
   let fdec = emptyFunction "CHECK_STOREPTR" in
   let argp  = makeVarinfo "p" voidPtrType in
@@ -951,9 +951,9 @@ let checkStorePtr =
   (declareGlobalChecker fdec);
 
   fun whatp -> 
-		if !stackChecks then 
-			call None (Lval(var fdec.svar)) [ castVoidStar whatp;]
-		else nop
+    if !stackChecks then 
+      call None (Lval(var fdec.svar)) [ castVoidStar whatp;]
+    else nop
 
 let checkReturnPtr =
   let fdec = emptyFunction "CHECK_RETURNPTR" in
@@ -964,10 +964,10 @@ let checkReturnPtr =
   (declareGlobalChecker fdec);
 
   fun whatp ->
-		if !stackChecks then 
-			call None (Lval(var fdec.svar)) [ castVoidStar whatp;]
-		else nop
-
+    if !stackChecks then 
+      call None (Lval(var fdec.svar)) [ castVoidStar whatp;]
+    else nop
+        
 let checkReturnFatPtr =
   let fdec = emptyFunction "CHECK_RETURNFATPTR" in
   let argp  = makeVarinfo "p" voidPtrType in
@@ -978,10 +978,10 @@ let checkReturnFatPtr =
   (declareGlobalChecker fdec);
 
   fun whatp nullIfInt ->
-		if !stackChecks then 
-			call None (Lval(var fdec.svar))
-				[ castVoidStar whatp; castVoidStar nullIfInt;]
-		else nop
+    if !stackChecks then 
+      call None (Lval(var fdec.svar))
+	[ castVoidStar whatp; castVoidStar nullIfInt;]
+    else nop
 
 let checkZeroTagsFun =
   let fdec = emptyFunction "CHECK_ZEROTAGS" in
@@ -1872,8 +1872,7 @@ let checkWild (p: exp) (basetyp: typ) (b: exp) (blen: exp) : stmt =
       
   (* Check index when we switch from a sequence type to Safe, in preparation 
    * for accessing a field.  *)
-let beforeField (inlv: curelval) : curelval 
-  (* (btype, pkind, mklval, base, bend, stmts) as input) *) = 
+let beforeField (inlv: curelval) : curelval =
   match inlv.plvk with
     (* The kind is never a table type *)
     N.Wild -> inlv (* No change if we are in a tagged area *)
@@ -3594,7 +3593,7 @@ and boxlval (b, off) : curelval =
         boxlval (newb, addOffset off newoff)
       with Not_found -> boxlval1 (b, off)
     end
-        (* Itercept the case (T* ))->f *)
+        (* Itercept the case (T* )0->f *)
   | Mem z, Field(f, NoOffset) when isZero z -> 
       { lv = (b, off); lvt = typeOfLval (b, off);
         lvb = zero; lve = zero; plvk = N.Wild; 
@@ -3642,7 +3641,6 @@ and boxlval1 (b, off) : curelval =
   in
   (* As we go along we need to go into tagged and sized types. *)
   let goIntoTypes (inlv: curelval) : curelval =
-          (* (btype, pkind, mklval, base, bend, stmts) as input) *)
     match unrollType inlv.lvt with
       TComp (comp, _) when comp.cstruct -> begin
         match comp.cfields with
