@@ -229,6 +229,8 @@ AC_MSG_CHECKING([for Perl])
         ;;
     freebsd)
         ;;
+    openbsd)
+        ;;
     darwin) # Mac OS X
         ;;
     *)
@@ -382,7 +384,7 @@ AC_CHECK_FUNCS(mkdir select socket __sysv_signal)
 # $target is typically processor-vendor-os
 case "$target" in
   # linux
-  *86*linux*|*86*freebsd*)
+  *86*linux*|*86*freebsd*|*86*openbsd*)
     AC_MSG_RESULT(configuring for linux/x86)
 
     ARCHOS=x86_LINUX
