@@ -201,6 +201,7 @@ setup: combiner defaulttarget includes
 
 
 SAFECC=perl $(CCUREDHOME)/lib/safecc.pl
+COMBINECC=perl $(CCUREDHOME)/lib/combiner.pl
 
 
 # sm: my options
@@ -857,6 +858,19 @@ hufftest: test/small2/hufftest.c defaulttarget
                  $(EXEOUT)hufftest.exe
 	cd $(PCCTEST); ./hufftest.exe $(HUFFINPUT)
 
+NEWHUFFCOMPILE=$(COMBINECC) 
+newhufftest:  test/small2/hufftest.c defaulttarget
+	cd $(PCCTEST); $(NEWHUFFCOMPILE) \
+                 $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) $(DEF)$(PCCCOMP) \
+                 $(DOOPT) \
+                 $(INC)$(PCCDIR)/src \
+                 $(PCCDIR)/src/io.c \
+                 $(PCCDIR)/src/huffman.c \
+                 $(PCCDIR)/src/hash.c \
+                 ../small2/hufftest.c \
+                 $(HUFFOTHERS) \
+                 $(EXEOUT)hufftest.exe
+	cd $(PCCTEST); ./hufftest.exe $(HUFFINPUT)
 
 wes-rbtest: test/small2/wes-rbtest.c defaulttarget
 	rm -f $(PCCTEST)/wes-rbtest.exe

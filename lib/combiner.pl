@@ -23,10 +23,10 @@ package Combiner;
 use strict;
 BEGIN {
     @Combiner::ISA = qw(CompilerStub);
+    $Combiner::combext = "_comb.c";
+    $Combiner::combiner = $FindBin::Bin . "/../obj/combiner.asm.exe";
 }
 
-my $combiner = $FindBin::Bin . "/../obj/combiner.asm.exe";
-my $combext = "_comb.c";
 
 # Customize the compilation
 sub compile {
@@ -40,7 +40,7 @@ sub compile {
     if(! defined($mtime)) {
         die "Cannot stat the result of compilation $dest";
     }
-    my $outfile = $dest . $combext;
+    my $outfile = $dest . $Combiner::combext;
     open(OUT, ">$outfile") || die "Cannot create $outfile";
     my $toprintsrc = $src; $toprintsrc =~ s|\\|/|g;
     print OUT "#pragma combiner($mtime, \"$toprintsrc\", \"" . 
@@ -64,22 +64,24 @@ sub link {
     my @tocombine = ();
     my @othersources = ();
     foreach $src (@sources) {
-        if(-f $src . $combext) { 
+        my $combsrc = $src . $Combiner::combext;
+        if(-f $combsrc) { 
             my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
                 $atime,$mtime,$ctime,$blksize,$blocks) = stat($src);
             # Look inside and see if it is one of the files created by us
-            open(IN, "<$src" . $combext) || die "Cannot read $src" . $combext;
+            open(IN, "<$combsrc") || die "Cannot read $combsrc";
             my $fstline = <IN>;
             if($fstline =~ m|\#pragma combiner\((\d+)|) {
                 if($1 == $mtime) { # It is ours
-                    push @tocombine, $src . $combext; next;
+                    push @tocombine, $combsrc; next;
                 }
             }
         }
         push @othersources, $src;
     }
     # Now invoke the combiner
-    my $cmd = "$combiner -o $dest" . "_all.c " . join(' ', @tocombine);
+    my $cmd = "$Combiner::combiner -o $dest" . "_all.c " . 
+        join(' ', @tocombine);
     $self->runShell($cmd);
 }
 

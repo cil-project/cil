@@ -125,7 +125,7 @@ sub cpp {
     my ($self, $src, $dest, @args) = @_;
     my $res;
     if($self->{MODENAME} eq "mscl") {
-        $self->MSCL::cpp($src, $dest, @args);
+        $self->MSCL::mscl_cpp($src, $dest, @args);
     } else {
         my $cmd = $self->{CPP} . " " . 
             join(' ', @args) .  " " .
@@ -149,8 +149,8 @@ sub compile {
 sub link {
     my ($self, $psrcs, $dest, @args) = @_;
     my @sources = ref($psrcs) ? @{$psrcs} : ($psrcs);
-    $dest = $dest eq "" ? "" : $self->{EXEOUT} . $dest;
-    my $cmd = $self->{CC} . " " . 
+    $dest = $dest eq "" ? "" : $self->{OUTEXE} . $dest;
+    my $cmd = $self->{LD} . " " . 
         join(' ', @args) .  " " . join(' ', @sources). " $dest";
     return $self->runShell($cmd);
 }
@@ -251,6 +251,9 @@ sub classifyArgument {
             &classDebug(" onemore=$onemore\n");
             my $fullarg = defined($onemore) ? "$arg $onemore" : $arg;
             # Now see what action we must perform
+            if(defined $action->{'RUN'}) {
+                &{$action->{'RUN'}}($fullarg, $onemore);
+            }
             if(defined $action->{'TYPE'}) {
                 &classDebug("  type=$action->{TYPE}\n");
                 if($action->{TYPE} eq "PREPROC") {
@@ -282,9 +285,6 @@ sub classifyArgument {
                     $self->{OUTARG} = $fullarg; return;
                 }
                 print "  Do not understand TYPE\n"; return;
-            }
-            if(defined $action->{'RUN'}) {
-                &{$action->{'RUN'}}($fullarg, $onemore); return;
             }
             print "Don't know what to do with $arg\n"; return;
         }
@@ -466,7 +466,8 @@ sub new {
            "/G"  => { TYPE => "CC" },
            "/F[aA]"  => { TYPE => 'CC' },
            "/Fo"     => { TYPE => 'OUT' },
-           "/F[e]"   => { TYPE => 'OUT' },
+           "/Fe"   => { TYPE => 'OUT',
+                        RUN => sub { $stub->{OPERATION} = "TOEXE" }},
            "/F[dprR]" => { TYPE => "CC" },
            "/[CXu]" => { TYPE => "PREPROC" },
            "/U" => { ONEMORE => 1, TYPE => "PREPROC" },
@@ -488,7 +489,7 @@ sub new {
 }
 
 
-sub cpp {
+sub mscl_cpp {
     my($self, $src, $dest, @args) = @_;
     my $res;
     my ($sbase, $sdir, $sext) = 
