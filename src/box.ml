@@ -143,7 +143,10 @@ let extractPointerTypeAttribute al =
 
 let kindOfType t = 
   let pkind, _ = extractPointerTypeAttribute (typeAttrs t) in
-  pkind
+  if pkind = P.Unknown then
+    P.Scalar
+  else
+    pkind
 
 
 let extractArrayTypeAttribute al = 
@@ -374,8 +377,8 @@ and addArraySize t =
       TComp 
         (mkCompInfo true ""
            (fun _ -> 
-             [ ("_len", uintType, []);
-               ("_data", complt, []); ]) [])
+             [ ("_size", uintType, []);
+               ("_array", complt, []); ]) [])
     in
     let tname = newTypeName "_sized_" t in
     let named = TNamed (tname, newtype, [AId("sized")]) in
@@ -858,7 +861,7 @@ let checkFatPointerWrite =
   
   
 let checkMem (towrite: exp option) 
-             (lv: lval) (base: exp) (t: typ) : stmt list = 
+             (lv: lval) (base: exp) (t: typ) (pk: P.pointerkind) : stmt list = 
   (* Fetch the length field in a temp variable. But do not create the 
    * variable until certain that it is needed *)
   let getLenExp = 
@@ -1020,12 +1023,14 @@ and boxinstr (ins: instr) : stmt =
   try
     match ins with
     | Set (lv, e, l) -> 
-        let (lvt, dolv, lv', lvbase, _) = boxlval lv in
+        let (lvt, lvkind, lv', lvbase, dolv) = boxlval lv in
         let (et, doe, e') = boxexp e in (* Assume et is the same as lvt *)
         let check = 
           match lv' with
-            Mem _, _ -> checkWrite e' lv' lvbase lvt
-          | Var vi, off when mustBeTagged vi -> checkWrite e' lv' lvbase lvt
+            Mem _, _ -> 
+              checkWrite e' lv' lvbase lvt lvkind
+          | Var vi, off when mustBeTagged vi -> 
+              checkWrite e' lv' lvbase lvt lvkind
           | _ -> []
         in
         mkSeq (dolv @ doe @ check @ [Instr(Set(lv', e', l))])
@@ -1090,7 +1095,7 @@ and boxinstr (ins: instr) : stmt =
           | Some vi -> begin
               match boxlval (Var vi, NoOffset) with
                 (_, _, (Var _, NoOffset), _, _) -> Some vi, []
-              | (tv, [], ((Var _, Field(dfld, NoOffset)) as newlv), _, _) -> 
+              | (tv, _, ((Var _, Field(dfld, NoOffset)) as newlv), _, []) -> 
                   let tmp = makeTempVar !currentFunction dfld.ftype in
                   Some tmp, [boxinstr (Set((Var vi, NoOffset), 
                                            Lval (var tmp), lu))]
@@ -1103,10 +1108,10 @@ and boxinstr (ins: instr) : stmt =
         let rec doOutputs = function
             [] -> [], []
           | (c, lv) :: rest -> 
-              let (lvt, dolv, lv', lvbase, _) = boxlval lv in
+              let (lvt, lvkind, lv', lvbase, dolv) = boxlval lv in
               let check = 
                 match lv' with
-                  Mem _, _ -> checkWrite (integer 0) lv' lvbase lvt
+                  Mem _, _ -> checkWrite (integer 0) lv' lvbase lvt lvkind
                 | _ -> []
               in
               if isFatType lvt then
@@ -1135,43 +1140,20 @@ and boxinstr (ins: instr) : stmt =
     dStmt (dprintf "booo_instruction(%a)" d_instr ins)
   end
 
+(* Given an lvalue, generate all the stuff needed to construct a pointer to 
+ * it: a base type and a pointer type kind, an lvalue whose address makes the 
+ * first component of the pointer and an exp to be used as the second 
+ * component (for pointer kinds other than Safe). We also compute a list of 
+ * statements that must be executed to check the bounds. *)
+and boxlval (b, off) : (typ * P.pointerkind * lval * exp * stmt list) = 
 
- (* Given an lvalue, generate the type of denoted element, a list of 
-  * statements to prepare to replacement lval, the replacement lval, and an 
-  * expression. The expression denotes the second element of a pointer to 
-  * lval and it comes with a flag describing the pointer kind. If the pointer 
-  * kind is PSafe then the expression will not be used. *)
-and boxlval (b, off) : (typ * stmt list * lval * exp * P.pointerkind) = 
-  let (b', dob, tbase, baseaddr, basek, off') = 
+  (* As we go along the offset we keep track of the basetype and the pointer 
+   * kind, along with the current base expression and a function that can be 
+   * used to recreate the lval. *)
+  let (btype, pkind, mklval, base, stmts) as startinput = 
     match b with
       Var vi -> 
-        let offbase, tbase, basek, off' = 
-          if mustBeTagged vi then
-            let dataf = 
-              match unrollType vi.vtype with
-                TComp comp when comp.cstruct -> begin
-                  match comp.cfields with 
-                    _ :: df :: _ when df.fname = "_data" -> df
-                  | _ -> 
-                      E.s (E.bug "Expecting tags in %s (no data field)" 
-                             vi.vname)
-                end 
-              | _ -> E.s (E.bug "Expecting tags in %s (no comp)" vi.vname)
-            in
-            (* A tagged variable has Wild pointers *)
-            Field(dataf, NoOffset), dataf.ftype, P.Wild, Field(dataf, off)
-          else
-            (* A variable that is not tagged. We use Safe pointers *)
-            NoOffset, vi.vtype, P.Safe, off
-        in
-        let baseaddr = 
-          if basek = P.Safe then zero
-          else
-            match tbase with
-              TArray _ -> StartOf(Var vi, offbase)
-            | _ -> AddrOf((Var vi, offbase), lu)
-        in
-        (b, [], tbase, baseaddr, basek, off')
+          vi.vtype, P.Safe, (fun o -> (Var vi, o)), zero, []
     | Mem addr -> 
         let (addrt, doaddr, addr', addr'base) = boxexpSplit addr in
         let addrt', pkind = 
@@ -1180,57 +1162,80 @@ and boxlval (b, off) : (typ * stmt list * lval * exp * P.pointerkind) =
           | _ -> E.s (E.unimp "Mem but no pointer type: %a@!addr= %a@!"
                         d_plaintype addrt d_plainexp addr)
         in
-        (Mem addr', doaddr, addrt', addr'base, pkind, off)
+        (addrt', pkind, (fun o -> (Mem addr', o)), addr'base, doaddr)
   in
-  let (t, dooff, off'', baseaddr', basek') = 
-            boxoffset (fun resto -> (b', resto)) off' tbase baseaddr basek in
-  (t, dob @ dooff, (b', off''), baseaddr', basek')
-
-
-and boxoffset (mklval: offset -> lval) 
-              (off: offset) 
-              (basety: typ) (baseaddr: exp) (pkind: P.pointerkind): offsetRes= 
-  let checkIndex () = 
-    call None (Lval (var checkIndexFun.svar))
-      [ castVoidStar (mkAddrOf (mklval NoOffset));
-        castVoidStar baseaddr;
-        SizeOf (basety, lu)]
+  (* Check index when we switch from Index to Safe *)
+  let toSafe ((btype, pkind, mklval, base, stmts) as input) = 
+    match pkind with
+      P.Wild -> input (* No change if we are in a tagged area *)
+    | P.Safe -> input (* No change if already safe *)
+    | P.Index -> 
+        (btype, P.Safe, mklval, zero, 
+         stmts @ [call None (Lval (var checkIndexFun.svar))
+                     [ castVoidStar (mkAddrOf (mklval NoOffset));
+                       castVoidStar base;
+                       SizeOf (btype, lu)]])
+    | _ -> E.s (E.unimp "toSafe on unexpected pointer kind")
   in
-  match off with 
-  | NoOffset ->
-      (basety, [], NoOffset, baseaddr, pkind)
+  (* As we go along we need to go into tagged and sized types. Never call 
+   * this on an Index pointer *)
+  let goIntoTypes ((btype, pkind, mklval, base, stmts) as input) = 
+    if pkind = P.Index then
+      E.s (E.bug "goIntoTypes is called on an Index pointer");
+    match 
+      (match unrollType btype with
+        TComp comp when comp.cstruct -> comp.cfields
+      | _ -> []) with
+      f1 :: f2 :: [] when (f1.fname = "_size" && f2.fname = "_array") -> begin
+        (* A sized array *)
+        if pkind = P.Wild then
+          E.s (E.bug "Sized array in tagged area");
+        (f2.ftype, P.Index, (fun o -> mklval (Field(f2, o))), 
+         mkAddrOf (mklval(Field(f2,NoOffset))), stmts)
+      end
+    | f1 :: f2 :: _ when (f1.fname = "_len" && f2.fname = "_data") -> begin
+        (* A tagged data. Only wild pointers inside *)
+        if pkind = P.Wild then
+          E.s (E.bug "Tagged data inside a tagged area");
+        (f2.ftype, P.Wild, (fun o -> mklval (Field(f2, o))),
+          mkAddrOf (mklval(Field(f2,NoOffset))), stmts)
+    end 
+    | _ -> input
+  in
+  (* Now do the offsets *)
+  let rec doOffset ((btype, pkind, mklval, base, stmts) as input) = function
+      NoOffset -> input
 
-  | Field (fi, resto) ->
-      let newbase, newpkind, checkbase = 
-        match pkind with
-          P.Index -> zero, P.Safe, [checkIndex ()]
-        | P.Wild -> baseaddr, P.Wild, [] (* No check here *)
-        | _ -> E.s (E.unimp "boxoffset: field")
-      in
-      (* The type of fi has been boxed already *)
-      let (rest, doresto, off', baseaddr', pkind') = 
-        boxoffset (fun resto -> mklval (Field(fi, resto))) 
-                  resto fi.ftype newbase newpkind 
-      in
-      (rest, checkbase @ doresto, doField fi off', baseaddr', pkind')
+    | Field (f, resto) -> 
+        let (_, pkind, mklval, base, stmts) = toSafe input in
+        (* Prepare for the rest of the offset *)
+        let next = 
+          (f.ftype, pkind, (fun o -> mklval (Field(f, o))), base, stmts) in
+        let next' = goIntoTypes next in
+        doOffset next' resto
 
-  | Index (e, resto) -> 
-      let newbase, newpkind, checkbase = 
-        match pkind with
-          P.Index -> zero, P.Index, [checkIndex ()]
-        | P.Wild -> baseaddr, P.Wild, [] (* No check here *)
-        | _ -> E.s (E.unimp "boxoffset: index")
-      in
-      let etype = 
-        match unrollType basety with
-          TArray (x, _, _) -> x
-        | _ -> E.s (E.bug "Index on a non-array.@!T=%a\n" d_plaintype basety)
-      in
-      let (_, doe, e') = boxexp e in
-      let (rest', doresto, off', baseaddr', pkind') = 
-        boxoffset (fun resto -> mklval (Index(e', resto))) 
-          resto etype newbase newpkind in
-      (rest', checkbase @ doe @ doresto, Index (e', off'), baseaddr', pkind')
+    | Index (e, resto) -> 
+        if pkind != P.Index then
+          E.s (E.bug "Expecting P.Index for Index");
+        (* Do the index *)
+        let (_, doe, e') = boxexp e in
+        (* Grab the result type *)
+        let elemtype = 
+          match unrollType btype with
+            TArray(x, _, _) -> x
+          | _ -> E.s (E.bug "Expecting array in doOffset:Index")
+        in
+        (* Prepare for the rest of the offset *)
+        let next = 
+          (elemtype, pkind, (fun o -> mklval (Index(e', o))), base, stmts) in
+        (* Now switch to Safe and check the index *)
+        let next' = toSafe next in
+        (* Now go into the tagged types if necessary *)
+        goIntoTypes next'
+  in
+  let start' = goIntoTypes startinput in
+  let (btype, pkind, mklval, base, stmts) = doOffset start' off in
+  (btype, pkind, mklval NoOffset, base, stmts)
       
     (* Box an expression and return the fexp version of the result. If you do 
      * not care about an fexp, you can call the wrapper boxexp *)
@@ -1238,18 +1243,20 @@ and boxexpf (e: exp) : stmt list * fexp =
   try
     match e with
     | Lval (lv) -> 
-        let rest, dolv, lv', baseaddr, lvkind = boxlval lv in
+        let lvt, lvkind, lv', baseaddr, dolv = boxlval lv in
         let check = (* Check a read if it is in memory of if it comes from a 
                      * tagged variable *)
           match lv' with
-            Mem _, _ -> checkRead lv' baseaddr rest
-          | Var vi, off when mustBeTagged vi -> checkRead lv' baseaddr rest
+            Mem _, _ -> 
+              checkRead lv' baseaddr lvt lvkind
+          | Var vi, off when mustBeTagged vi -> 
+              checkRead lv' baseaddr lvt lvkind
           | _, _ -> []
         in
-        if isFatType rest then
-          (dolv @ check, F1(rest, P.Wild, Lval(lv')))
+        if isFatType lvt then
+          (dolv @ check, F1(lvt, kindOfType lvt, Lval(lv')))
         else
-          (dolv @ check, L(rest, P.Wild, Lval(lv')))
+          (dolv @ check, L(lvt, kindOfType lvt, Lval(lv')))
             
     | Const (CInt (_, ik, _), _) -> ([], L(TInt(ik, []), P.Scalar, e))
     | Const ((CChr _), _) -> ([], L(charType, P.Scalar, e))
@@ -1327,7 +1334,7 @@ and boxexpf (e: exp) : stmt list * fexp =
         (seq, F1(tres, P.Wild, Lval(var tmp2)))
           
     | AddrOf (lv, l) ->
-        let (lvt, dolv, lv', baseaddr, lvkind) = boxlval lv in
+        let (lvt, lvkind, lv', baseaddr, dolv) = boxlval lv in
       (* Check that variables whose address is taken are flagged as such, or 
        * are globals *)
         (match lv' with
@@ -1344,8 +1351,8 @@ and boxexpf (e: exp) : stmt list * fexp =
           
     (* StartOf is like an AddrOf except for typing issues. *)
     | StartOf lv -> 
-        let (lvt, dolv, lv', baseaddr, lvkind) = boxlval lv in
-      (* Check that variables whose address is taken are flagged *)
+        let (lvt, lvkind, lv', baseaddr, dolv) = boxlval lv in
+        (* Check that variables whose address is taken are flagged *)
         (match lv' with
           (Var vi, _) when not vi.vaddrof && not vi.vglob -> 
             E.s (E.bug "addrof not set for %s (startof)" vi.vname)
@@ -1455,7 +1462,7 @@ and boxfunctionexp (f : exp) =
   match f with
     Lval(Var vi, NoOffset) -> boxexp f
   | Lval(Mem base, NoOffset) -> 
-      let rest, dolv, lv', lvbase, lvkind = boxlval (Mem base, NoOffset) in
+      let rest, lvkind, lv', lvbase, dolv = boxlval (Mem base, NoOffset) in
       (rest, dolv @ [checkFunctionPointer (AddrOf(lv', lu)) lvbase], 
        Lval(lv'))
       
@@ -1587,7 +1594,7 @@ let addGlobalInitializer (glob:varinfo)
                (checkMem (Some what)
                   (Var glob, (addOffset off baseoff))
                   globbase
-                  t)) @ acc
+                  t P.Wild)) @ acc
           else acc 
         in
         foldLeftCompound (initone (addOffset off baseoff)) t initl acc'
@@ -1807,7 +1814,8 @@ let boxFile file =
 
   
       
-
+let customAttrPrint a = 
+  Ptrnode.ptrAttrCustom false a
 
 
 

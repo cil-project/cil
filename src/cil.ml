@@ -1258,6 +1258,19 @@ let printFile (out : out_channel) file =
   H.clear definedTypes
 
     
+let printFileWithCustom (out: out_channel) 
+                        (custom: attribute -> doc option) 
+                        (f: file) = 
+  let oldCustom = !d_attrcustom in
+  let newCustom a = 
+    match custom a with
+      None -> oldCustom a
+    | x -> x
+  in
+  d_attrcustom := newCustom;
+  printFile out f;
+  d_attrcustom := oldCustom
+
 
    (* Some plain pretty-printers. Unlike the above these expose all the 
     * details of the internal representation *)

@@ -362,17 +362,20 @@ let rec doStmt (s: stmt) =
       in begin
           begin
           (* Now check the return value*)
-      match reso, unrollType rt with
-        None, TVoid _ -> ()
-      | Some _, TVoid _ -> 
+            match reso, unrollType rt with
+              None, TVoid _ -> ()
+            | Some _, TVoid _ -> 
                 ignore (E.warn "Call of subroutine is assigned")
-      | None, _ -> () (* "Call of function is not assigned" *)
-      | Some destvi, _ -> 
-          N.addEdge (nodeOfType rt) (nodeOfType destvi.vtype) 
+            | None, _ -> () (* "Call of function is not assigned" *)
+            | Some destvi, _ -> 
+                N.addEdge (nodeOfType rt) (nodeOfType destvi.vtype) 
                   N.ECast !callId
           end;
           Instr (Call(reso, func', loopArgs formals args, l))
       end
+            
+     
+  
       
 (* Now do the globals *)
 let doGlobal (g: global) : global = 
