@@ -317,6 +317,11 @@ $(SAFEMAINLIB) : lib/safecmain.c lib/safec.h lib/safeccheck.h
 endif
 
 
+mustbegcc :
+ifndef _GNUCC
+	@echo This test case only works with _GNUCC=1; exit 3
+endif
+
 ####### Test with PCC sources
 PCCTEST=test/PCCout
 ifdef RELEASE
@@ -659,22 +664,14 @@ bh : defaulttarget
 	cd $(BHDIR); make
 
 COMBINESAFECC = $(SAFECC) --combine
-combinebh : defaulttarget
-ifndef _GNUCC
-	@echo BH can only be done with _GNUCC=1
-else
+combinebh : defaulttarget mustbegcc
 	cd $(BHDIR); rm -f *.i *.exe *.o; make CC="$(COMBINESAFECC)"
-endif
 
-allbh : defaulttarget
-ifndef _GNUCC
-	@echo BH can only be done with _GNUCC=1
-else
+allbh : defaulttarget mustbegcc
 	cd $(BHDIR); $(SAFECC) --keep=. \
                  $(DOOPT) \
                  code_all.c \
                  $(EXEOUT)allbh.exe
-endif
 
 # SPEC95
 SPECDIR=test/spec95
@@ -695,13 +692,8 @@ compress : defaulttarget $(COMPRESSDIR)/src/combine-compress.c
                  $(EXEOUT)combine-compress.exe
 	sh -c "time $(COMPRESSDIR)/src/combine-compress.exe < $(COMPRESSDIR)/src/input.data > $(COMPRESSDIR)/src/combine-compress.out"
 
-newcompress: defaulttarget
-ifndef _GNUCC
-	@echo Compress can only be done with _GNUCC=1
-else
-	cd $(COMPRESSDIR)/src; \
-             make CC="$(COMBINESAFECC)" build
-endif
+newcompress: defaulttarget mustbegcc
+	cd $(COMPRESSDIR)/src; make CC="$(COMBINESAFECC)" build
 
 LIDIR=$(SPECDIR)/130.li
 li: defaulttarget
