@@ -7,5 +7,5 @@ void bar(int protoname2);
 void foo(int myname) {
   protoname1 = myname;
 
-  bar(0); // Should set protoname2
+  bar(0); /* Should set protoname2 */
 }

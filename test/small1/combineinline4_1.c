@@ -2,7 +2,7 @@
 
 /* Test that we rename properly includes even if they have prototypes and
    if they are used before they are defined */
-int foo(int x); // Declare it here. 
+int foo(int x); /* Declare it here.  */
 
 inline int foo(int x) { return x; } 
 

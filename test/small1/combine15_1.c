@@ -9,7 +9,7 @@ extern struct d1 {
   double x;
 } y1;
 
-// Use s1 and d1 in some way
+/* Use s1 and d1 in some way */
 struct use {
   struct s1 f1;
   struct d1 f2;
@@ -22,7 +22,7 @@ extern struct d11 {
   double x;
 } y2;
 
-// Use s11 also 
+/* Use s11 also  */
 struct use2 {
   struct s11 f2;
   struct d11 f3;

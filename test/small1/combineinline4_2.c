@@ -1,8 +1,8 @@
 
-int bar(int x); // Declare it here. Name does not matter.
+int bar(int x); /* Declare it here. Name does not matter. */
 
 
-int getfoo2() { // Use bar before definition
+int getfoo2() { /* Use bar before definition */
   return (int)bar;
 }
 

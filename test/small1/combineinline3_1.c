@@ -1,7 +1,7 @@
 #include "testharness.h"
 
 /* Test that we rename properly includes even if they have prototypes */
-int foo(int x); // Declare it here. 
+int foo(int x); /* Declare it here.  */
 
 inline int foo(int x) { return x; } 
 

@@ -1,4 +1,4 @@
-typedef short INT; // This was declared int before
+typedef short INT; /* This was declared int before */
 
 struct {
   INT i;

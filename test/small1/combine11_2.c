@@ -14,6 +14,6 @@ void* f2() {
 
 
 int main() {
-  void *v1 = f1(); // Without prototype
+  void *v1 = f1(); /* Without prototype */
   void *v2 = f2();
 }

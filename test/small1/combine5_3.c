@@ -1,9 +1,9 @@
-// Just so that we make sure that the line numbers do not matter
+/* Just so that we make sure that the line numbers do not matter */
 typedef long int __time_t;
 
 typedef __time_t time_t;
 
-/* extern  */ struct // This is a definition
+/* extern  */ struct /* This is a definition */
 {
 			 
 	time_t	to_initial;	 

@@ -8,6 +8,6 @@ struct str1 {
 int c3(void) {
   int var;
 
-  var = 9; // Hopefully we do not overwrite the global one
+  var = 9; /*  Hopefully we do not overwrite the global one */
   return sizeof(array2);
 }

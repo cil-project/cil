@@ -1,5 +1,5 @@
-// We have two incompatible definitions of g
-// The struct looks the same if you do not unroll the typedef
+/* We have two incompatible definitions of g
+ * The struct looks the same if you do not unroll the typedef */
 #include "testharness.h"
 
 typedef int INT;
@@ -11,5 +11,5 @@ struct {
 
 
 int main() {
-  E(1); // Should not compile
+  E(1); /* Should not compile */
 }

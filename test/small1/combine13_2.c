@@ -8,6 +8,6 @@ extern struct foo {
 #include "testharness.h"
 
 int main() {
-  printf("Address is %x\n", &g); // Make sure we use g
+  printf("Address is %x\n", &g); /* Make sure we use g */
   SUCCESS;
 }

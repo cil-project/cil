@@ -1,5 +1,5 @@
 
-int bar(int x); // Declare it here. Name does not matter.
+int bar(int x); /* Declare it here. Name does not matter. */
 
 inline int bar(int x) { return x; } 
 

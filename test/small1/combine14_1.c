@@ -13,7 +13,7 @@ void bar(int myname) {
 }
 
 int main() {
-  foo(0); // Should set protoname1 and protoname2 to 0
+  foo(0); /* Should set protoname1 and protoname2 to 0 */
   if(protoname1 != 0) E(1);
   if(protoname2 != 0) E(2);
 
