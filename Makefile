@@ -1529,7 +1529,7 @@ LINUX_TOPATCH := asm/uaccess.h asm/atomic.h asm/bitops.h \
                  linux/config.h linux/list.h linux/skbuff.h \
 		 linux/etherdevice.h linux/irq_cpustat.h \
 		 linux/netdevice.h linux/ide.h linux/cdrom.h \
-		 linux/blkdev.h
+		 linux/blkdev.h linux/fs.h
 
 linuxsetup: mustbelinux
 	$(PATCHER)  -D MODULE -D __KERNEL__ -I /usr/src/linux/include \
