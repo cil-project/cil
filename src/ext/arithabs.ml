@@ -104,8 +104,14 @@ let getGlobalsReadTransitive (f: varinfo) =
       []
   with Not_found -> []
   
+let considerType (t: typ) : bool = 
+  (* Only consider those types for this we can do arithmetic *)
+  (match unrollType t with 
+    TInt _ | TEnum _ | TPtr _ | TFloat _ -> true
+  | _ -> false)
+
 let considerVariable (v: varinfo) : bool = 
-  not v.vaddrof && isIntegralType v.vtype
+  not v.vaddrof && considerType v.vtype
 
 class gwVisitorClass : cilVisitor = object (self) 
   inherit nopCilVisitor
@@ -114,6 +120,14 @@ class gwVisitorClass : cilVisitor = object (self)
       Lval (Var v, _) when v.vglob && considerVariable v -> 
         IH.replace !currentGlobalsRead v.vid v;
         DoChildren
+
+      (* We pretend that when we see the address of a global, we are reading 
+       * from the variable. Note that these variables will not be among those 
+       * that we "considerVariable"
+    | StartOf (Var v, NoOffset) 
+    | AddrOf (Var v, NoOffset) when v.vglob -> 
+        IH.replace !currentGlobalsRead v.vid v;
+        DoChildren  *)
 
     | _ -> DoChildren
 
@@ -207,8 +221,10 @@ let fundecToCFGInfo (fdec: fundec) : S.cfgInfo =
 
       | _ -> VS.empty, VS.empty);
 
+  (* Filter out the variables we do not care about *)
   let vsToRegList (vs: VS.t) : int list = 
-    VS.fold (fun v acc -> varToReg v :: acc) vs [] 
+    VS.fold (fun v acc -> 
+      if considerVariable v then (varToReg v) :: acc else acc) vs [] 
   in
   List.iter 
     (fun s -> 
@@ -336,7 +352,9 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
         b.S.livevars;
       
       ()
-        
+    
+    (** This is called for reading from a variable we consider (meaning that 
+     * its address is not taken and has the right type) *)
     method private variableUse (state: int IH.t) (v: varinfo) : string = 
       let freshId = 
         try IH.find state v.vid
@@ -344,10 +362,14 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
           E.s (E.bug "%a: varUse: varRenameState does not know anything about %s" 
                  d_loc !currentLoc v.vname )
       in
-      if freshId = 0 then 
+      (*
+      (if v.vaddrof && v.vglob then 
+        "addrof_"
+      else "") ^ *)
+      (if freshId = 0 then 
         v.vname
       else
-        v.vname ^ "___" ^ string_of_int freshId
+        v.vname ^ "___" ^ string_of_int freshId)
         
     method private variableDef (state: int IH.t) (v: varinfo) : string = 
       IH.replace state v.vid (freshVarId ());
@@ -371,8 +393,17 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
           text (self#variableUse varRenameState v)
             
             (* We ignore all other Lval *)
-      | Lval _ -> text "(@rand)"
-            
+      | Lval _ -> text "(@rand)" 
+
+
+      | AddrOf (Var v, NoOffset) 
+      | StartOf (Var v, NoOffset) when v.vglob -> 
+          text "(@rand)"
+(*
+          text (self#variableUse varRenameState v)
+*)
+
+
       | e -> super#pExp () e
             
     method pInstr () = function
@@ -513,7 +544,10 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
             match what with 
               None -> gwt
             | Some (Lval (Var v, NoOffset)) when v.vname = "__retres" -> 
-                gwt @ [ v ]
+                if considerType v.vtype then 
+                  gwt @ [ v ]
+                else
+                  gwt
             | Some e -> 
                 E.s (E.bug "Return with no __retres: %a" d_exp e)
           in
