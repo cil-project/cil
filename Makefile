@@ -15,13 +15,14 @@ endif
 
 # sm: moved this before setup and am now arranging things so this
 # can be the primary target; must rethink what 'setup' means
+# CIL must be made before CCURED
 quickbuild:
-	make -r -f Makefile.ccured   quickbuild $(MAKEOVERRIDES)
 	make -r -f Makefile.cil      quickbuild $(MAKEOVERRIDES)
+	make -r -f Makefile.ccured   quickbuild $(MAKEOVERRIDES)
 
 setup:
-	make -r -f Makefile.ccured   setup $(MAKEOVERRIDES)
 	make -r -f Makefile.cil      setup $(MAKEOVERRIDES)
+	make -r -f Makefile.ccured   setup $(MAKEOVERRIDES)
 	make -r -f Makefile.merger   setup $(MAKEOVERRIDES)
 
 
