@@ -323,6 +323,7 @@ $TEST->add3Tests("test/sizeof");
 $TEST->add3Tests("test/smallstring");
 $TEST->add3Tests("testrun/static", "", @runpattern);
 $TEST->add3Tests("test/static1");
+$TEST->addTests("testrun/static2", "", ['cil']);
 $TEST->add3Tests("test/strcpy");
 $TEST->add3Tests("test/string");
 $TEST->add3Tests("test/struct_init");
