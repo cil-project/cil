@@ -619,93 +619,6 @@ and matchTypeInfo (oldfidx: int) (oldti: typeinfo)
     ()
   end
 
-(** A visitor the renames uses of variables and types *)      
-class renameVisitorClass = object (self)
-  inherit nopCilVisitor 
-      
-      (* This is either a global variable which we took care of, or a local 
-       * variable. Must do its type and attributes. *)
-  method vvdec (vi: varinfo) = DoChildren
-
-      (* This is a variable use. See if we must change it *)
-  method vvrbl (vi: varinfo) : varinfo visitAction = 
-    if not vi.vglob || vi.vreferenced then DoChildren else
-    begin
-      match findReplacement true vEq !currentFidx vi.vname with
-        None -> DoChildren
-      | Some (vi', _) -> 
-          vi'.vreferenced <- true; 
-          ChangeTo vi'
-    end
-
-          
-        (* The use of a type. Change only those types whose underlying info 
-         * is not a root. *)
-  method vtype (t: typ) = 
-    match t with 
-      TComp (ci, a) when not ci.creferenced -> begin
-        match findReplacement true sEq !currentFidx ci.cname with
-          None -> DoChildren
-        | Some (ci', oldfidx) -> 
-            if false && debugMerge then 
-              ignore (E.log "Renaming %s(%d) to %s(%d)\n"
-                        ci.cname !currentFidx ci'.cname oldfidx);
-            ChangeTo (TComp (ci', visitCilAttributes (self :> cilVisitor) a))
-      end
-    | TEnum (ei, a) when not ei.ereferenced -> begin
-        match findReplacement true eEq !currentFidx ei.ename with
-          None -> DoChildren
-        | Some (ei', _) -> 
-            if ei' == intEnumInfo then 
-              (* This is actually our friend intEnumInfo *)
-              ChangeTo (TInt(IInt, visitCilAttributes (self :> cilVisitor) a))
-            else
-              ChangeTo (TEnum (ei', visitCilAttributes (self :> cilVisitor) a))
-      end
-
-    | TNamed (ti, a) when not ti.treferenced -> begin
-        match findReplacement true tEq !currentFidx ti.tname with
-          None -> DoChildren
-        | Some (ti', _) -> 
-            ChangeTo (TNamed (ti', visitCilAttributes (self :> cilVisitor) a))
-    end
-        
-    | _ -> DoChildren
-
-  (* The Field offset might need to be changed to use new compinfo *)
-  method voffs = function
-      Field (f, o) -> begin
-        (* See if the compinfo was changed *)
-        if f.fcomp.creferenced then 
-          DoChildren
-        else begin
-          match findReplacement true sEq !currentFidx f.fcomp.cname with
-            None -> DoChildren (* We did not replace it *)
-          | Some (ci', oldfidx) -> begin
-              (* First, find out the index of the original field *)
-              let rec indexOf (i: int) = function
-                  [] -> 
-                    E.s (bug "Cannot find field %s in %s(%d)\n"
-                           f.fname (compFullName f.fcomp) !currentFidx)
-                | f' :: rest when f' == f -> i
-                | _ :: rest -> indexOf (i + 1) rest
-              in
-              let index = indexOf 0 f.fcomp.cfields in
-              if List.length ci'.cfields <= index then 
-                E.s (bug "Too few fields in replacement %s(%d) for %s(%d)\n"
-                       (compFullName ci') oldfidx
-                       (compFullName f.fcomp) !currentFidx);
-              let f' = List.nth ci'.cfields index in 
-              ChangeDoChildrenPost (Field (f', o), fun x -> x)
-          end
-        end
-      end
-    | _ -> DoChildren
-
-end
-
-let renameVisitor = new renameVisitorClass
-
 (* Scan all files and do two things *)
 (* 1. Initialize the alpha renaming tables with the names of the globals so 
  * that when we come in the second pass to generate new names, we do not run 
@@ -919,6 +832,104 @@ let matchInlines (oldfidx: int) (oldi: varinfo)
  *
  ************************************************************)  
 
+(** Keep track of the functions we have used already in the file. We need 
+  * this to avoid removing an inline function that has been used already. 
+  * This can only occur if the inline function is defined after it is used 
+  * already; a bad style anyway *)
+let varUsedAlready: (string, unit) H.t = H.create 111
+
+(** A visitor the renames uses of variables and types *)      
+class renameVisitorClass = object (self)
+  inherit nopCilVisitor 
+      
+      (* This is either a global variable which we took care of, or a local 
+       * variable. Must do its type and attributes. *)
+  method vvdec (vi: varinfo) = DoChildren
+
+      (* This is a variable use. See if we must change it *)
+  method vvrbl (vi: varinfo) : varinfo visitAction = 
+    if not vi.vglob then DoChildren else
+    if vi.vreferenced then begin 
+      H.add varUsedAlready vi.vname ();
+      DoChildren 
+    end else begin
+      match findReplacement true vEq !currentFidx vi.vname with
+        None -> DoChildren
+      | Some (vi', _) -> 
+          vi'.vreferenced <- true; 
+          H.add varUsedAlready vi'.vname ();
+          ChangeTo vi'
+    end
+
+          
+        (* The use of a type. Change only those types whose underlying info 
+         * is not a root. *)
+  method vtype (t: typ) = 
+    match t with 
+      TComp (ci, a) when not ci.creferenced -> begin
+        match findReplacement true sEq !currentFidx ci.cname with
+          None -> DoChildren
+        | Some (ci', oldfidx) -> 
+            if false && debugMerge then 
+              ignore (E.log "Renaming %s(%d) to %s(%d)\n"
+                        ci.cname !currentFidx ci'.cname oldfidx);
+            ChangeTo (TComp (ci', visitCilAttributes (self :> cilVisitor) a))
+      end
+    | TEnum (ei, a) when not ei.ereferenced -> begin
+        match findReplacement true eEq !currentFidx ei.ename with
+          None -> DoChildren
+        | Some (ei', _) -> 
+            if ei' == intEnumInfo then 
+              (* This is actually our friend intEnumInfo *)
+              ChangeTo (TInt(IInt, visitCilAttributes (self :> cilVisitor) a))
+            else
+              ChangeTo (TEnum (ei', visitCilAttributes (self :> cilVisitor) a))
+      end
+
+    | TNamed (ti, a) when not ti.treferenced -> begin
+        match findReplacement true tEq !currentFidx ti.tname with
+          None -> DoChildren
+        | Some (ti', _) -> 
+            ChangeTo (TNamed (ti', visitCilAttributes (self :> cilVisitor) a))
+    end
+        
+    | _ -> DoChildren
+
+  (* The Field offset might need to be changed to use new compinfo *)
+  method voffs = function
+      Field (f, o) -> begin
+        (* See if the compinfo was changed *)
+        if f.fcomp.creferenced then 
+          DoChildren
+        else begin
+          match findReplacement true sEq !currentFidx f.fcomp.cname with
+            None -> DoChildren (* We did not replace it *)
+          | Some (ci', oldfidx) -> begin
+              (* First, find out the index of the original field *)
+              let rec indexOf (i: int) = function
+                  [] -> 
+                    E.s (bug "Cannot find field %s in %s(%d)\n"
+                           f.fname (compFullName f.fcomp) !currentFidx)
+                | f' :: rest when f' == f -> i
+                | _ :: rest -> indexOf (i + 1) rest
+              in
+              let index = indexOf 0 f.fcomp.cfields in
+              if List.length ci'.cfields <= index then 
+                E.s (bug "Too few fields in replacement %s(%d) for %s(%d)\n"
+                       (compFullName ci') oldfidx
+                       (compFullName f.fcomp) !currentFidx);
+              let f' = List.nth ci'.cfields index in 
+              ChangeDoChildrenPost (Field (f', o), fun x -> x)
+          end
+        end
+      end
+    | _ -> DoChildren
+
+end
+
+let renameVisitor = new renameVisitorClass
+
+
   (* Now we go once more through the file and we rename the globals that we 
    * keep. We also scan the entire body and we replace references to the 
    * representative types or variables. We set the referenced flags once we 
@@ -928,6 +939,7 @@ let oneFilePass2 (f: file) =
     ignore (E.log "Final merging phase (%d): %s\n" 
               !currentFidx f.fileName);
   currentDeclIdx := 0; (* Even though we don't need it anymore *)
+  H.clear varUsedAlready;
   let processOneGlobal (g: global) : unit = 
       (* Process a varinfo. Reuse an old one, or rename it if necessary *)
     let processVarinfo (vi: varinfo) (vloc: location) : varinfo =  
@@ -970,7 +982,7 @@ let oneFilePass2 (f: file) =
           let vi' = processVarinfo vi l in
           (* We must keep this definition even if we reuse this varinfo, 
           * because maybe the previous one was a declaration *)
-          H.add emittedVarDecls vi.vname true; (* Remember that we emitted it *)
+          H.add emittedVarDecls vi.vname true; (* Remember that we emitted it*)
           pushGlobals (visitCilGlobal renameVisitor (GVar(vi', init, l)))
             
       | GFun (fdec, l) as g -> 
@@ -1001,7 +1013,7 @@ let oneFilePass2 (f: file) =
               (fun oldn a -> if oldn <> "" then a.vname <- oldn)
               oldnames argl;
           end;
-          
+          (** See if we can remove this inline function *)
           if fdec'.sinline && mergeInlines then begin
             let printout = 
               (* Temporarily turn of printing of lines *)
@@ -1032,6 +1044,10 @@ let oneFilePass2 (f: file) =
                 ignore (E.log "  Matches %s(%d)\n" 
                           oldinode.nname oldinode.nfidx);
               (* There is some other inline function with the same printout *)
+              if H.mem varUsedAlready fdec'.svar.vname then begin
+                ignore (warn "Won't remove inline function %s because it is used before it is defined" fdec'.svar.vname);
+                raise Not_found
+              end;
               let _ = union oldinode inode in
               (* Clean up the vreferenced bit in the new inline, so that we 
                * can rename it *)
