@@ -1,5 +1,26 @@
 \documentclass{article}
+
 \usepackage{hevea}
+
+% ww: this gibberish is ignored by hevea but makes the PDF look better
+\begin{latexonly}
+\oddsidemargin 4.5pc
+\evensidemargin 4.5pc
+\advance\oddsidemargin by -1.2in
+\advance\evensidemargin by -1.2in
+\marginparwidth 0pt
+\marginparsep 11pt
+\topmargin 4.5pc
+\advance\topmargin by -1in
+\headheight 0pt
+\headsep 0pt
+\advance\topmargin by -37pt
+\headheight 12pt
+\headsep 25pt
+\textheight 666pt
+\textwidth 44pc
+\end{latexonly}
+
 % cilversion.tex is generated automatically to define \cilversion
 \include{cil.version}
 
@@ -46,6 +67,9 @@
 %HEVEA \AtBeginDocument{\@print{<base target="main">}}
 
 \begin{document}
+\begin{latexonly}
+\title{CIL: Infrastructure for C Program Analysis and Transformation}
+\end{latexonly}
 \maketitle
 
 \section{Introduction}
@@ -135,6 +159,11 @@ Linux kernel) into standard C code.
  CIL also comes accompanies by a growing library of extensions (see
 \secref{Extension}). You can use these for your projects or as examples of
 using CIL. 
+
+\t{PDF} versions of \ahref{CIL.pdf}{this manual} and the
+\ahref{CIL-API.pdf}{CIL API} are available. However, we recommend the
+\t{HTML} versions because the postprocessed code examples are easier to
+view. 
 
 \section{Installation}
 
@@ -905,7 +934,7 @@ corresponding placeholder to the entire list of attributes, including
 \item All instruction-patterns must be terminated by semicolon
 
 \item The autoincrement and autodecrement instructions are not supported. Also
-not supported are complex expressions, the \t{&&} and \t{||} shortcut
+not supported are complex expressions, the \t{\&\&} and \t{||} shortcut
 operators, and a number of other more complex instructions or statements. In
 general, the patterns support only constructs that can be represented directly
 in CIL.
@@ -1354,7 +1383,7 @@ make CC="bin/cilly --includedir=myinclude"
 \end{verbatim}
 
  This will force the preprocessor to use the file \t{myinclude/xxx/stdio.h}
-(if it exists) whenever it encounters \t{#include <stdio.h>}. The \t{xxx} is
+(if it exists) whenever it encounters \t{\#include <stdio.h>}. The \t{xxx} is
 a string that identifies the compiler version you are using. This modified
 include files should be produced with the patcher script (see
 \secref{patcher}).
@@ -1438,7 +1467,7 @@ whitespace-separated named of additional files to process.
 \end{itemize}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Library of CIL Modules}
+\section{Library of CIL Modules} \label{sec-Extension}
 
  We are developing a suite of modules that use CIL for program analyses and
 transformations that we have found useful. You can use these modules directly
@@ -1467,10 +1496,10 @@ despite most kinds of C casts)
 The analysis itself is factored into two components: \t{ptranal.ml},
 which walks over the CIL file and generates constraints, and
 \t{golf.ml}, which solves the constraints. The analysis is invoked
-with the function \t{Ptranal.analyze_file: Cil.file -> unit}. This
+with the function \t{Ptranal.analyze\_file: Cil.file -> unit}. This
 function builds the points-to graph for the CIL file and stores it
 internally. There is currently no facility for clearing internal
-state, so \t{Ptranal.analyze_file} should only be called once.
+state, so \t{Ptranal.analyze\_file} should only be called once.
 
 % Interface for querying the points-to graph...
 The constructed points-to graph supports several kinds of queries,
@@ -1484,33 +1513,33 @@ The precision of the analysis can be customized by changing the values
 of several flags:
 
 \begin{enumerate}
-\item \t{Ptranal.no_sub : bool ref}. If \t{true}, subtyping is
+\item \t{Ptranal.no\_sub : bool ref}. If \t{true}, subtyping is
 disabled.
-\item \t{Ptranal.analyze_mono : bool ref}. If \t{true}, context
+\item \t{Ptranal.analyze\_mono : bool ref}. If \t{true}, context
 sensitivity is disabled and the analysis is effectively monomorphic.
-\item \t{Ptranal.smart_aliases : bool ref}. If \t{true}, ``smart''
+\item \t{Ptranal.smart\_aliases : bool ref}. If \t{true}, ``smart''
 disambiguation of aliases is enabled. Otherwise, aliases are computed
 by intersecting points-to sets (this is an experimental feature).
 \end{enumerate}
 
 In practice, the best precision/efficiency tradeoff is achieved by
-setting \t{Ptranal.no_sub} to \t{false}, \t{Ptranal.analyze_mono} to
-\t{true}, and \t{Ptranal.smart_aliases} to \t{false}. These are the
+setting \t{Ptranal.no\_sub} to \t{false}, \t{Ptranal.analyze\_mono} to
+\t{true}, and \t{Ptranal.smart\_aliases} to \t{false}. These are the
 default values of the flags.
 
 There are also a few flags that can be used to inspect or serialize
 the results of the analysis:
 
 \begin{enumerate}
-\item \t{Ptranal.print_constraints : bool ref}. If \t{true}, the
+\item \t{Ptranal.print\_constraints : bool ref}. If \t{true}, the
 analysis will print each constraint as it is generated.
-\item \t{Ptranal.print_types : bool ref}. If \t{true}, the analysis
+\item \t{Ptranal.print\_types : bool ref}. If \t{true}, the analysis
 will print the inferred type of each variable in the program. If
-\t{Ptranal.analyze_mono} and \t{Ptranal.no_sub} are both \t{true},
+\t{Ptranal.analyze\_mono} and \t{Ptranal.no\_sub} are both \t{true},
 this output is sufficient to reconstruct the points-to graph. One nice
 feature is that there is a pretty printer for recursive types, so the
 print routine doesn't loop.
-\item \t{Ptranal.compute_results : bool ref}. If \t{true}, the
+\item \t{Ptranal.compute\_results : bool ref}. If \t{true}, the
 analysis will print out the points-to set of each variable in the
 program. This will essentially serialize the points-to graph.
 \end{enumerate}
@@ -1613,8 +1642,8 @@ as such in CIL.
 \item CIL operates after preprocessing. If you need to see comments, for
 example, you cannot use CIL. But you can use attributes and pragmas instead.
 And there is some support to help you patch the include files before they are
-seen by the preprocessor. This is how we turn some #define that we don't like
-into function calls for example. 
+seen by the preprocessor. For example, this is how we turn some
+\t{\#define}s that we don't like into function calls. 
 
 \item CIL does transform the code in a non-trivial way. This is done in order
 to make most analyses easier. But if you want to see the code \t{e1, e2++}
@@ -1677,7 +1706,7 @@ GCC. For example, when you use variable-length arrays, CIL turns them into
 calls to \t{alloca}. This means that they are deallocated when the function
 returns and not when the local scope ends. 
 
-\item CIL cannot parse a line containing an empty #pragma.
+\item CIL cannot parse a line containing an empty \t{\#pragma}.
 
 \item CIL cannot parse the following code (fixing this problem would require
 extensive hacking of the LALR grammar):
@@ -1687,7 +1716,7 @@ int bar(int x()); // If you add a name to the function, it works
 int bar(int (*)()); // This also works (and it is more appropriate)
 \end{verbatim}\end{code}
 
-\item CIL also cannot parse certain K&R old-style prototypes with missing
+\item CIL also cannot parse certain K\&R old-style prototypes with missing
 return type:
 \begin{code}
 g(); // This cannot be parsed
@@ -2257,6 +2286,10 @@ Necula}.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf February 15, 2003}: {\bf Released version 1.0.8}
+\item {\bf February 15, 2003}: PDF versions of the manual and API are
+available for those who would like to print them out. 
+\item {\bf February 14, 2003}: CIL now comes bundled with alias analyses. 
 \item {\bf February 11, 2003}: Added support for adding/removing options from
   \t{./configure}. 
 \item {\bf February 3, 2003}: {\bf Released version 1.0.7}
@@ -2319,7 +2352,7 @@ local structures or elements of arrays.
 \item {\bf September 7, 2002}: {\bf Released version 1.0.1}
 \item {\bf September 6, 2002}: Extended the patcher with the \t{ateof} flag.
 \item {\bf September 4, 2002}: Fixed bug in the elaboration to CIL. In some
-cases constant folding of \t{||} and \t{&&} was computed wrong.
+cases constant folding of \t{||} and \t{\&\&} was computed wrong.
 \item {\bf September 3, 2002}: Fixed the merger documentation. 
 \item {\bf August 29, 2002}: {\bf Released version 1.0.0.}
 \item {\bf August 29, 2002}: Started numbering versions with a major nubmer,
