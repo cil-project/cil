@@ -40,13 +40,15 @@ let aman_no_fit    = aman && true
 
 
 
-let printIndent = ref true
+let noBreaks = ref true  (* Replace all soft breaks with space *)
+let noAligns = ref true (* Whether to obey align/unalign *)
 
 let fprintf x = Printf.fprintf stderr x
 
 type doc = 
     Nil
   | Text     of string
+  | Spaces   of int        (* A number of spaces *)
   | Concat   of doc * doc
   | CText    of doc * string
   | Line     
@@ -58,15 +60,15 @@ type doc =
 let nil  = Nil
 let (++) d1 d2 = Concat (d1, d2)
 let text s     = Text s
-let num  i     = Text (string_of_int i)
-let chr  c     = Text (String.make 1 c)
+let num  i     = text (string_of_int i)
+let chr  c     = text (String.make 1 c) 
 let align      = Align
 let unalign    = Unalign
 let line       = Line
 let break      = Break (* Break *) (* Aman's benchmarking goo *)
 
 
-let nest n d   = text (String.make n ' ') ++ align ++ d ++ unalign
+let nest n d   = Spaces n ++ align ++ d ++ unalign
 
 let  seq sep f dl = 
   let rec loop = function
@@ -142,7 +144,8 @@ let printData breaks =
 
 
 let fit (start: 'a) 
-        (accString: 'a -> string -> 'a)
+        (accString: 'a -> string -> int -> 'a) (* accumulate a number of 
+                                                * copies of a string *)
         (width: int) = 
   let width = if width = 0 then 99999 else width in
                                         (* A flag to say that we shouldn't try 
@@ -274,15 +277,28 @@ let fit (start: 'a)
       Nil -> cont aligns breaks col
     | Concat(d1,d2) -> 
         scan aligns breaks col (fun a b c -> scan a b c cont d2) d1
+    | Spaces n -> cont aligns breaks (col + n)
     | Text s -> 
-        let len = String.length s in
-        cont aligns breaks (col + len)
-    | CText (d,s) -> 
+        let tl = String.length s in
+        cont aligns breaks (col + tl)
+    | CText (d, s) -> 
+        let tl = String.length s in
         scan aligns breaks col 
-          (fun a b c -> cont a b (c + String.length s)) d
-    | Break when not !printIndent -> 
+          (fun a b c -> cont a b (c + tl)) d
+    | Break when !noBreaks -> 
         (* Pretend we have seen a space *)
         cont aligns breaks (col + 1)
+
+    | Line when !noBreaks ->
+        let ar =                        (* Find the matching align. There 
+                                         * must always be one because we 
+                                         * start with an align in the column 
+                                         * 0  *)
+          match aligns with
+            ar :: _ -> ar
+          | _ -> failwith "Bug. Missing align"
+        in
+        cont aligns breaks !ar
 
     | (Break | Line) as doc ->            
         let ar =                        (* Find the matching align. There 
@@ -296,7 +312,7 @@ let fit (start: 'a)
                                         (* See if it's time to switch 
                                          * breakAllMode off *)
         let _ = 
-          if !breakAllMode && col < width then
+          if !breakAllMode && col < width - 20 then
             breakAllMode := false else () in
           
                                         (* See if we need to perform some 
@@ -324,33 +340,49 @@ let fit (start: 'a)
         cont aligns (Brk bdata :: breaks) bdata.col
 
     | Align -> 
-        let adata = ref col in
-        cont (adata :: aligns) (Algn adata :: breaks) col
+        if !noAligns then 
+          cont aligns breaks col
+        else
+          let adata = ref col in
+          cont (adata :: aligns) (Algn adata :: breaks) col
+
 
     | Unalign -> 
-        match aligns with
-          _ :: t when t != [] -> cont t breaks col
-        | _ -> failwith "Unmatched unalign\n"
+        if !noAligns then 
+          cont aligns breaks col
+        else
+          match aligns with
+            _ :: t when t != [] -> cont t breaks col
+          | _ -> failwith "Unmatched unalign\n"
 
   (* scan *)
   in
   let indentLen = ref 0 in
-  let doString (acc: 'a) (s: string) : 'a = 
+  let doString (acc: 'a) (s: string) (nrcopies: int) : 'a = 
     let ind = !indentLen in
-    let acc' = if ind > 0 then begin
-      indentLen := 0; accString acc (String.make ind ' ') end else acc in
-    accString acc' s
+    let acc' = 
+      if ind > 0 then begin
+        indentLen := 0; 
+        accString acc " " ind
+    end else 
+        acc 
+    in
+    accString acc' s nrcopies
   in
   let rec layout acc = function
       Nil -> acc
     | Align -> acc
     | Unalign -> acc
-    | Text s -> doString acc s
+    | Spaces n -> doString acc " " n
+    | Text s -> doString acc s 1
     | Concat (d1, d2) -> layout (layout acc d1) d2
-    | CText (d, s) -> doString (layout acc d) s
-    | Break when not !printIndent -> 
+    | CText (d, s) -> doString (layout acc d) s 1
+    | Break when !noBreaks -> 
         (* Pretend we have a space *)
-        doString acc " "
+        doString acc " " 1
+    | Line when !noBreaks -> 
+        accString acc "\n" 1
+        
     | Break | Line -> 
         let b = 
           match !allBreaks with
@@ -361,37 +393,45 @@ let fit (start: 'a)
           let _ = if debug then 
             fprintf "taking branch %d to %d\n" b.id (!(b.align)) else () in
           indentLen := !(b.align);
-          accString acc "\n"
+          accString acc "\n" 1
         end else
-          doString acc " "
+          doString acc " " 1
   in
   function doc -> 
     let scanCont _ _ _ =  
       allBreaks := List.rev (!allBreaks); 
       layout start doc
     in
-    if aman_no_layout then (* Aman's benchmarking goo *)
-      scan [ref 0] [] 0 (fun _ _ _ -> start) doc
+    if !noBreaks && !noAligns then
+      layout start doc
     else
-      scan [ref 0] [] 0 scanCont doc
+      if aman_no_layout then (* Aman's benchmarking goo *)
+        scan [ref 0] [] 0 (fun _ _ _ -> start) doc
+      else
+        scan [ref 0] [] 0 scanCont doc
     
 
 
-let flushOften = ref true
+let flushOften = ref false
 
 (* Aman's benchmarking goo *)
 let fprint = 
   if aman_no_output then 
-    fun chn width doc -> fit () (fun _ _ -> ()) width doc
+    fun chn width doc -> fit () (fun _ _ _ -> ()) width doc
   else if aman_no_fit then
     fun chn width doc -> ()
   else
     fun chn width doc ->
-      fit () (fun _ s -> output_string chn s;
-        if !flushOften then flush chn) width doc
+      fit () 
+        (fun _ s nrcopies -> 
+          for i = 1 to nrcopies do
+            output_string chn s
+          done;
+          if !flushOften then flush chn) 
+        width doc
 
 let sprint width doc =
-  fit "" (fun acc s -> acc ^ s) width doc
+  fit "" (fun acc s nrcopies -> acc (* ^ String.make s nrcopies *)) width doc
 
 let gprint = fit
 
@@ -413,14 +453,11 @@ let gprintf (finish : doc -> doc)
   (* Record the starting align depth *)
   let startAlignDepth = !alignDepth in
   (* Special concatenation functions *)
-  let dconcat (acc: doc) (thunk: unit -> doc) = 
-    if !alignDepth > !printDepth then acc else Concat(acc, thunk()) in
-  let dconcat1 (acc: doc) (another: doc) = 
+  let dconcat (acc: doc) (another: doc) = 
     if !alignDepth > !printDepth then acc else Concat(acc, another) in
-  let dctext (acc: doc) (thunk: unit -> string) = 
-    if !alignDepth > !printDepth then acc else CText(acc, thunk()) in
   let dctext1 (acc: doc) (str: string) = 
-    if !alignDepth > !printDepth then acc else CText(acc, str) in
+    if !alignDepth > !printDepth then acc else 
+    CText(acc, str) in
   (* Special finish function *)
   let dfinish dc = 
     if !alignDepth <> startAlignDepth then
@@ -441,7 +478,7 @@ let gprintf (finish : doc -> doc)
         '%' -> true 
       | '@' -> true 
       | _ -> false) then
-        collect (dconcat1 acc (Text (String.sub format i (j-i)))) j
+        collect (dctext1 acc (String.sub format i (j-i))) j
       else
         skipChars (succ j)
     in
@@ -493,10 +530,10 @@ let gprintf (finish : doc -> doc)
               collect (dctext1 acc (string_of_bool b)) (succ j))
         | 'a' ->
             Obj.magic(fun pprinter arg ->
-              collect (dconcat1 acc (pprinter () arg)) (succ j))
+              collect (dconcat acc (pprinter () arg)) (succ j))
         | 't' ->
             Obj.magic(fun pprinter ->
-              collect (dconcat1 acc (pprinter ())) (succ j))
+              collect (dconcat acc (pprinter ())) (succ j))
         | c ->
             invalid_arg ("dprintf: unknown format %s" ^ String.make 1 c)
 
@@ -527,9 +564,9 @@ let gprintf (finish : doc -> doc)
               in
               collect newacc (i + 2)
           | '!' ->                        (* hard-line break *)
-              collect (dconcat1 acc line) (i + 2)
+              collect (dconcat acc line) (i + 2)
           | '?' ->                        (* soft line break *)
-              collect (dconcat1 acc break) (i + 2)
+              collect (dconcat acc break) (i + 2)
           | '@' -> 
               collect (dctext1 acc "@") (i + 2)
           | c ->
@@ -540,7 +577,7 @@ let gprintf (finish : doc -> doc)
         if i + 1 < flen then begin
           match fget (succ i) with
             'n' ->                      
-              collect (dconcat1 acc line) (i + 2)
+              collect (dconcat acc line) (i + 2)
           | _ -> literal acc i
         end else
           invalid_arg "dprintf: incomplete escape \\"

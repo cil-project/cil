@@ -66,11 +66,6 @@ val align        : doc
 val unalign      : doc
 
 
-(* A general output function. Takes in a string accumulation function and a 
- * start value. If the width is 0 then the width is ignored and no 
- * breaks will be taken. This also makes for very fast formatting *)
-val gprint       : 'a -> ('a -> string -> 'a) -> int -> doc -> 'a
-
 
 (************** Now some syntactic sugar *****************)
 
@@ -117,7 +112,9 @@ val gprintf      : (doc -> doc) -> ('a, unit, doc) format -> 'a
  * !printDepth then we print ... and we skip until the matching unalign *)
 val printDepth   : int ref
 
-val printIndent  : bool ref  (* If false then does not indent *)
+val noBreaks  : bool ref  (* If true then replaces all optional breaks with 
+                           * space *)
+val noAligns  : bool ref  (* If true then does not indent *)
 
 val flushOften   : bool ref  (* If true the it flushes after every print *)
 
