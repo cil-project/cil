@@ -1389,8 +1389,10 @@ let rec doSpecList (specs: A.spec_elem list)
   (* is both inline and extern, then gcc will neither inline it nor *)
   (* output its definition to the .o file, resulting in a link error, *)
   (* if optimization is turned off.  so, remove 'extern' from inlines *)
-  (if !isinline && !storage = Extern then
-     storage := NoStorage);
+
+  (* gn: I comented this because otherwise I endup with multiple definitions *)
+ (* (if !isinline && !storage = Extern then
+     storage := NoStorage); *)
 
   let tspecs' = 
     (* GCC allows a named type that appears first to be followed by things 

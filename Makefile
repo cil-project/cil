@@ -1684,4 +1684,4 @@ linuxclean:
 	      	\) -exec rm -f {} \;
 
 linux: mustbegcc mustbelinux mustbemanju linuxclean
-	cd $(LINUXSRC) ; make -k CC="$(CILLY)" 
+	cd $(LINUXSRC) ; make -k CC="$(CILLY)" HOSTCC="$(CILLY) -std=c9x"

@@ -64,8 +64,10 @@ sub applyCil {
     my ($self, $src, $ppargs) = @_;
 
     my ($base, $dir, $ext) = fileparse($src, "(\\.[^.]+)");
-    my $dest = "$dir/$base" . "cil.c";
-    if($self->{VERBOSE}) { print "Cilly compiling $src to $dest\n"; }
+    # Make a name for the CIL file
+    my $cilfile = "$dir$base" . "cil.c";
+
+    if($self->{VERBOSE}) { print "Cilly compiling $src to $cilfile\n"; }
     
     my $cmd = $CilCompiler::compiler;
     
@@ -78,8 +80,6 @@ sub applyCil {
     if(defined $self->{CILARGS}) {
         $cmd .= join(' ', @{$self->{CILARGS}});
     }
-    # Make a name for the CIL file
-    my $cilfile = "$dir$base" . "cil.c";
     $self->runShell("$cmd $src --out $cilfile");
 
     return $cilfile;
