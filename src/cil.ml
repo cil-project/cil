@@ -718,7 +718,8 @@ let getParenthLevel = function
   | Const _ -> 0                        (* Constants *)
 
 
-(* types. Call with a function that when invoked will fill-in the declared name *)
+(* types. Call with a function that when invoked will fill-in the declared 
+ * name  *)
 
   (* When we print types for consumption by another compiler we must be 
    * careful to avoid printing multiple type definitions *)
@@ -1015,8 +1016,12 @@ and d_instr () i =
       | _ -> dprintf "%a = %a;" d_lval lv d_exp e
   end
   | Call(vio,e,args,loc) ->
+      (* Maybe we need to print a cast *)
       dprintf "%s%a(@[%a@]);" 
-        (match vio with None -> "" | Some vi -> vi.vname ^ " = ") 
+        (match vio with 
+          None -> "" | 
+          Some vi -> 
+            vi.vname ^ " = ")
         insert (match e with Lval(Var _, _) -> d_exp () e 
                              | _ -> dprintf "(%a)" d_exp e)
 	(docList (chr ',' ++ break) (d_exp ())) args
