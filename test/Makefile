@@ -1048,41 +1048,41 @@ apace-gcc: mustbegcc mustbelinux bindclean
 apache-cil: apacheclean apache-cil-test
 
 
-################# Apache test cases
-APACHETEST := $(TESTDIR)/apache
-APACHEBASE := apache_1.3.19/src
-APATCHES := --patch=apache.patch --patch=apache_$(COMPILERNAME).patch
-ifdef _MSVC
-  APACHECFLAGS := /nologo /MDd /W3 /GX /Zi /Od \
-         $(INC)"$(APACHEBASE)\include" $(INC)"$(APACHEBASE)\os\win32" \
-         $(DEF)"_DEBUG" $(DEF)"WIN32" $(DEF)"_WINDOWS" \
-         $(DEF)"NO_DBM_REWRITEMAP" $(DEF)"SHARED_MODULE" \
-         $(DEF)"WIN32_LEAN_AND_MEAN"
-else
-  APACHECFLAGS := -Wall -D_GNUCC -g \
-         $(INC)"$(APACHEBASE)/include" $(INC)"$(APACHEBASE)/os/unix" \
-         $(DEF)"_DEBUG" \
-         $(DEF)"NO_DBM_REWRITEMAP" $(DEF)"SHARED_MODULE"
-endif
-
-APACHE_INCLUDES := httpd.h ap_alloc.h http_config.h http_log.h http_protocol.h
-apachesetup:
-	cd $(APACHETEST); \
-            $(PATCHER)  $(APACHECFLAGS) \
-                        $(APATCHES) \
-                        --dest=$(APACHEBASE)/include \
-	                $(foreach file,$(APACHE_INCLUDES), --ufile=$(file))
-
-APATCH := --includedir=$(APACHEBASE)/include
-
-apache/% : $(APACHETEST)/mod_%.c
-	rm -f $(APACHETEST)/mod_$*.$(OBJEXT)
-	cd $(APACHETEST) ; $(CCURED) \
-                       --keep=. $(APATCH) \
-                        $(CFLAGS) \
-                        $(APACHECFLAGS) \
-                        $(CONLY) $(OBJOUT)./mod_$*.$(OBJEXT) \
-                        mod_$*.c
+################## Apache test cases
+#APACHETEST := $(TESTDIR)/apache
+#APACHEBASE := apache_1.3.19/src
+#APATCHES := --patch=apache.patch --patch=apache_$(COMPILERNAME).patch
+#ifdef _MSVC
+#  APACHECFLAGS := /nologo /MDd /W3 /GX /Zi /Od \
+#         $(INC)"$(APACHEBASE)\include" $(INC)"$(APACHEBASE)\os\win32" \
+#         $(DEF)"_DEBUG" $(DEF)"WIN32" $(DEF)"_WINDOWS" \
+#         $(DEF)"NO_DBM_REWRITEMAP" $(DEF)"SHARED_MODULE" \
+#         $(DEF)"WIN32_LEAN_AND_MEAN"
+#else
+#  APACHECFLAGS := -Wall -D_GNUCC -g \
+#         $(INC)"$(APACHEBASE)/include" $(INC)"$(APACHEBASE)/os/unix" \
+#         $(DEF)"_DEBUG" \
+#         $(DEF)"NO_DBM_REWRITEMAP" $(DEF)"SHARED_MODULE"
+#endif
+#
+#APACHE_INCLUDES := httpd.h ap_alloc.h http_config.h http_log.h http_protocol.h
+#apachesetup:
+#	cd $(APACHETEST); \
+#            $(PATCHER)  $(APACHECFLAGS) \
+#                        $(APATCHES) \
+#                        --dest=$(APACHEBASE)/include \
+#	                $(foreach file,$(APACHE_INCLUDES), --ufile=$(file))
+#
+#APATCH := --includedir=$(APACHEBASE)/include
+#
+#apache/% : $(APACHETEST)/mod_%.c
+#	rm -f $(APACHETEST)/mod_$*.$(OBJEXT)
+#	cd $(APACHETEST) ; $(CCURED) \
+#                       --keep=. $(APATCH) \
+#                        $(CFLAGS) \
+#                        $(APACHECFLAGS) \
+#                        $(CONLY) $(OBJOUT)./mod_$*.$(OBJEXT) \
+#                        mod_$*.c
 
 # sm: removed CFLAGS since I want to specify optimization in the
 # benchmark's Makefile (helps to ensure consistency between the
@@ -2326,36 +2326,6 @@ openssh-noclean: mustbegcc mustbelinux mustbemanju
 openssh-gcc: mustbelinux mustbemanju opensshclean
 	cd $(OPENSSHSRC) ; make CC=gcc
 
-#### ------------- APACHE HTTP SERVER --------------
-
-#website: www.apache.org
-
-## It is configured to install binaries under 
-## /usr/local/src/apache_1.3.22/bin/bin
-## To change, run ./configure --prefix=DIRECTORY_YOU_WANT_TO_PUT_BINARIES
-
-APACHESRC := /usr/local/src/apache_1.3.22
-
-apacheclean:
-	cd $(APACHESRC); make clean
-	-cd $(APACHESRC); find . \( \
-		-name '*cil.c' -o \
-		-name '*.exe' -o \
-		-name '*.i' -o \
-		-name '*.o' -o \
-		-name '*.obj' -o \
-		-name '*cabs.c' -o \
-		-name '*_comb*.c' \
-	      	\) -exec rm -f {} \;
-
-apache: mustbegcc mustbelinux mustbemanju apacheclean
-	cd $(APACHESRC) ; make CC="$(CCURED)" ; make install
-
-apache-noclean: mustbegcc mustbelinux mustbemanju
-	cd $(APACHESRC) ; make CC="$(CCURED)" ; make install
-
-apache-gcc: mustbelinux mustbemanju apacheclean
-	cd $(APACHESRC) ; make CC=gcc ; make install
 
 #### ------------- GIMP AND FRIENDS ----------------
 

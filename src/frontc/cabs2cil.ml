@@ -3305,6 +3305,7 @@ and doExp (isconst: bool)    (* In a constant *)
         in
         let (sargs, args') = loopArgs (argTypesList, args) in
         let what'', args'', is__builtin_va_arg = 
+          let rec dropCasts = function CastE (_, e) -> dropCasts e | e -> e in
           match f'' with 
             Lval(Var fv, NoOffset) -> begin
               if fv.vname = "__builtin_va_arg" then begin
@@ -3323,6 +3324,34 @@ and doExp (isconst: bool)    (* In a constant *)
                 | _ -> 
                     ignore (warn "Invalid call to %s\n" fv.vname);
                     what, args', false
+              end else if fv.vname = "__builtin_stdarg_start" then begin
+                match args' with 
+                  marker :: last :: [] -> begin
+                    let isOk = 
+                      match dropCasts last with 
+                        Lval (Var lastv, NoOffset) -> begin
+                          match !currentFunctionFDEC.svar.vtype with
+                            TFun(_, Some args, true, _) -> begin
+                              match List.rev args with
+                                (last_par_name, _, _) :: _ ->
+                                              last_par_name = lastv.vname
+                              | _ -> false
+                            end
+                          | _ -> false
+                        end
+                      | _ -> false
+                    in
+                    if not isOk then 
+                      ignore (warn "The second argument in call to %s should be the last formal argument\n" fv.vname);
+                    
+                    (* Check that "lastv" is indeed the last variable in the 
+                     * prototype and then drop it *)
+                    what, [marker], false
+                  end
+                | _ -> 
+                    ignore (warn "Invalid call to %s\n" fv.vname);
+                    what, args', false
+                
               end else
                 what, args', false
             end

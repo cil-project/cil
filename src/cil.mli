@@ -1736,6 +1736,14 @@ val printLnComment: bool ref
  * parser. In that case we are a bit more liberal in what we print *)
 val print_CIL_Input: bool ref
 
+(** Whether to print the CIL as they are, without trying to be smart and 
+  * print nicer code. Normally this is false, in which case the pretty 
+  * printer will turn the while(1) loops of CIL into nicer loops, will not 
+  * print empty "else" blocks, etc. These is one case howewer in which if you 
+  * turn this on you will get code that does not compile: if you use varargs 
+  * the __builtin_va_arg function will be printed in its internal form. *)
+val printCilAsIs: bool ref
+
 (** {b Debugging support} *)
 
 (** A reference to the current location. If you are careful to set this to 

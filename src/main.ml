@@ -248,7 +248,9 @@ let rec theMain () =
                "don't output #line directives";
     "--commPrintLn", Arg.Unit (fun _ -> Cil.printLnComment := true;
                                        Cprint.printLnComment := true),
-               "output #line directives in comments";
+               "output #line directives as comments";
+    "--printCilAsIs", Arg.Unit (fun _ -> Cil.printCilAsIs := true),
+               "do not try to simplify the CIL when printing";
     "--sliceGlobal", Arg.Unit (fun _ -> Util.sliceGlobal := true),
                "output is the slice of #pragma cilnoremove(sym) symbols";
     "--doCallGraph", Arg.Unit (fun _ -> doCallGraph := true),

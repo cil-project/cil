@@ -1426,6 +1426,9 @@ application. By default \t{stderr} is used.
        types from CIL. 
 \item \t{--noPrintLn}. Do not print line numbers.
 \item \t{--commPrintLn}. Print line numbers but in comments.
+\item \t{--printCilAsIs}. Do not attempt to simplify the program while
+  printing. If this is turned on, then all loops will be printed as
+  ``while(1)'', as they are in the internal language.
 \item \t{--extrafiles <xxx>}. Give the name of a text file that contains
 whitespace-separated named of additional files to process.
 \end{itemize}

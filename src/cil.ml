@@ -70,7 +70,9 @@ let printLn= ref true                 (* Whether to print line numbers *)
 let printLnComment= ref false
  
 let print_CIL_Input = ref false
-                                 
+           
+let printCilAsIs = ref false
+                      
 (* sm: return the string 's' if we're printing output for gcc, suppres
  * it if we're printing for CIL to parse back in.  the purpose is to
  * hide things from gcc that it complains about, but still be able
@@ -2152,19 +2154,20 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         (* Be nice to some special cases *)
         match e with
           BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt64(one,_,_)),_)
-            when lv == lv' && one = Int64.one ->
+            when lv == lv' && one = Int64.one && not !printCilAsIs ->
               self#pLineDirective l
                 ++ self#pLval () lv
                 ++ text " ++;"
 
         | BinOp((MinusA|MinusPI),Lval(lv'),
-                Const(CInt64(one,_,_)), _) when lv == lv' && one = Int64.one ->
+                Const(CInt64(one,_,_)), _) 
+            when lv == lv' && one = Int64.one && not !printCilAsIs ->
                   self#pLineDirective l
                     ++ self#pLval () lv
                     ++ text " --;"
 
         | BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt64(mone,_,_)),_)
-            when lv == lv' && mone = Int64.minus_one ->
+            when lv == lv' && mone = Int64.minus_one && not !printCilAsIs ->
               self#pLineDirective l
                 ++ self#pLval () lv
                 ++ text " --;"
@@ -2191,7 +2194,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
        * three-argument call: the last argument is the address of the 
        * destination *)
     | Call(None, Lval(Var vi, NoOffset), [dest; SizeOf t; adest], l) 
-        when vi.vname = "__builtin_va_arg" -> 
+        when vi.vname = "__builtin_va_arg" && not !printCilAsIs -> 
           let rec stripCast = function 
               CastE (_, e) -> stripCast e
             | e -> e in
@@ -2211,6 +2214,13 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                               ++ self#pType None () t
                               ++ unalign)
             ++ text ");"
+
+      (* In cabs2cil we have dropped the last argument in the call to 
+       * __builtin_stdarg_start. We add 0 (it seems that gcc does not care 
+       * what you actually use, as long as you use something) *)
+    | Call(None, Lval(Var vi, NoOffset), [marker], l) 
+        when vi.vname = "__builtin_stdarg_start" && not !printCilAsIs -> 
+          self#pInstr () (Call(None,Lval(Var vi,NoOffset),[marker; zero],l))
 
     | Call(dest,e,args,l) ->
         self#pLineDirective l
@@ -2396,7 +2406,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           ++ (docList line (fun i -> self#pInstr () i) () il)
           ++ unalign
 
-    | If(be,t,{bstmts=[];battrs=[]},l) ->
+    | If(be,t,{bstmts=[];battrs=[]},l) when not !printCilAsIs ->
         self#pLineDirective l
           ++ text "if"
           ++ (align
@@ -2407,7 +2417,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           
     | If(be,t,{bstmts=[{skind=Goto(gref,_);labels=[]} as s];
                 battrs=[]},l)
-     when !gref == next ->
+     when !gref == next && not !printCilAsIs ->
        self#pLineDirective l
          ++ text "if"
          ++ (align
@@ -2416,7 +2426,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                ++ text ") "
                ++ self#pBlock () t)
 
-    | If(be,{bstmts=[];battrs=[]},e,l) ->
+    | If(be,{bstmts=[];battrs=[]},e,l) when not !printCilAsIs ->
         self#pLineDirective l
           ++ text "if"
           ++ (align
@@ -2427,7 +2437,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
     | If(be,{bstmts=[{skind=Goto(gref,_);labels=[]} as s];
            battrs=[]},e,l)
-      when !gref == next ->
+      when !gref == next && not !printCilAsIs ->
         self#pLineDirective l
           ++ text "if"
           ++ (align
@@ -2469,7 +2479,8 @@ class defaultCilPrinterClass : cilPrinter = object (self)
             in
             (* Bill McCloskey: Do not remove the If if it has labels *)
             match skipEmpty b.bstmts with
-              {skind=If(e,tb,fb,_); labels=[]} :: rest -> begin
+              {skind=If(e,tb,fb,_); labels=[]} :: rest 
+                                              when not !printCilAsIs -> begin
                 match skipEmpty tb.bstmts, skipEmpty fb.bstmts with
                   [], {skind=Break _; labels=[]} :: _  -> e, rest
                 | {skind=Break _; labels=[]} :: _, [] 
@@ -2597,8 +2608,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           ((startsWith "box" an) ||
            (startsWith "ccured" an) ||
            (an = "merger") ||
-           (an = "cilnoremove") ||
-           (an = "inherits")) in
+           (an = "cilnoremove")) in
         let d =
           if args = [] then
             text an
