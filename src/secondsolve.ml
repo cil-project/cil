@@ -167,14 +167,14 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
   ) node_ht ;
 
   (* our wild-rule helper function: for n1 and n3 to be compatible *)
-  let rec wild_rule n1 n3 = 
-    if (height n1.kind) < (height n3.kind) then 
-      wild_rule n3 n1
-    else begin
+  let wild_rule n1 n3 = 
+    let internal_wild_rule n1 n3 = 
       if (n1.kind = Wild) || (n1.kind = Index) || (n1.kind = FSeq) ||
           (n1.kind = Seq) || (n1.kind = SeqN) || (n1.kind = FSeqN) then
           update n3 n1.kind (SpreadFromEdge n1)
-    end
+    in
+    internal_wild_rule n1 n3 ;
+    internal_wild_rule n3 n1 
   in
 
   (* _(4)_
@@ -208,6 +208,11 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
             cur.kind = FSeqN && (List.length cur.succ) = 1 then update cur ROString (SpreadFromEdge e.eto)) ;
       ) cur.succ ;
 
+      List.iter (fun e -> 
+        if e.ekind = ECast || e.ekind = ENull then
+           wild_rule cur e.eto 
+      ) cur.succ;
+
       (* handle predecessor edges *)
       List.iter (fun e -> 
         (if cur.kind = Wild then update e.efrom Wild (SpreadFromEdge cur)) ;
@@ -217,7 +222,10 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
             update cur e.efrom.kind (SpreadFromEdge e.efrom)) ;
         (if (e.ekind <> ESafe) && 
             (e.efrom.kind = String || e.efrom.kind = FSeqN || e.efrom.kind = SeqN) then
-            update cur (if is_array e.efrom then SeqN else e.efrom.kind) (SpreadFromEdge e.efrom));
+            update cur (if is_array e.efrom || cur.arith then SeqN 
+                        else if cur.posarith then FSeqN else
+                        e.efrom.kind) 
+              (SpreadFromEdge e.efrom));
       ) cur.pred ;
 
       (* handle points-to information *)
@@ -248,5 +256,17 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       ignore (update_kind n Safe Unconstrained)
     end
   ) node_ht ;
+
+  (* Check! *)
+  Hashtbl.iter (fun id n ->
+    List.iter (fun e -> 
+      (if n.kind = Safe && e.eto.kind = FSeqN && e.ekind <> EIndex then
+        ignore (E.s (E.bug "I can see SAFE->FSEQN! : %a" d_ekind e.ekind )));
+      (*
+      (if n.kind = String && e.eto.kind = FSeqN then
+        ignore (E.s (E.bug "I can see STRING->FSEQN! : %a" d_ekind e.ekind )));
+      *)
+    ) (n.succ) ;
+  ) node_ht;
 
 end
