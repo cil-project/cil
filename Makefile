@@ -816,7 +816,7 @@ spr/% : defaulttarget
 ################# Apache test cases
 APACHETEST=test/apache
 APACHEBASE=apache_1.3.19/src
-APATCH=--patch=apache.patch
+APATCH=--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) --patch=apache.patch 
 ifdef _MSVC
 APACHECFLAGS=/nologo /MDd /W3 /GX /Zi /Od \
          $(INC)"$(APACHEBASE)\include" $(INC)"$(APACHEBASE)\os\win32" \
