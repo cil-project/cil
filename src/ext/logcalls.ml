@@ -32,6 +32,7 @@
 
 open Pretty
 open Cil
+open Trace
 module E = Errormsg
 module H = Hashtbl
 
@@ -47,7 +48,7 @@ let noCFuncs = ref false       (* when true, don't print calls to *)
                                (* functions whose name begins with "C" *)
                                (* (only relevant when allInsts = true) *)
 
-let styleHelp:string = "sets logcalls style, as sum of:\n" ^
+let styleHelp:string = "<n>: sets logcalls style, as sum of:\n" ^
   "      1=linux, 2=allInsts, 4=printPtrs, 8=printStrings, 16=noCFuncs"
 
 (* sm: decided to pass cryptic integer instead of making lots of separate *)
@@ -143,7 +144,7 @@ let logCalls (f: file) : unit =
   let isCharType (k:ikind) =
     k=IChar || k=ISChar || k=IUChar in
 
-  (* debugging anagram, it's really nice to be able to see the strings *)
+  (* debugging 'anagram', it's really nice to be able to see the strings *)
   (* inside fat pointers, even if it's a bit of a hassle and a hack here *)
   let isFatCharPtr (cinfo:compinfo) =
     cinfo.cname="wildp_char" ||
@@ -152,6 +153,8 @@ let logCalls (f: file) : unit =
 
   let doGlobal = function
       GFun (fdec, loc) ->
+        (trace "logcalls" (dprintf "looking at %s\n" fdec.svar.vname));
+
         (* Collect expressions that denote the actual arguments *)
         let actargs =
           (* make lvals out of args which pass test below *)
