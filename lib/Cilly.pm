@@ -1573,6 +1573,7 @@ sub new {
             "-s\$" => { TYPE => 'LINKCC' },
             "-Xlinker" => { ONEMORE => 1, TYPE => 'LINK' },
             "-nostdlib" => { TYPE => 'LINK' },
+	    '-rdynamic$' => { TYPE => 'LINK' },
 	    "-static" => { TYPE => 'LINK' },
 	    "-shared" => { TYPE => 'LINK' },
 	    "-static-libgcc" => { TYPE => 'LINK' },
