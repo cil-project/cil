@@ -1599,8 +1599,13 @@ let castTo (fe: fexp) (newt: typ)
             oldt, oldk, p, b, bend (* Drop the cast *)
       in
       let is_zero fexp = 
+        let rec is_zero_exp e = match e with
+          Const(CInt(0,_,_)) -> true
+        | CastE(_,e) -> is_zero_exp e
+        | _ -> false
+        in 
         match fexp with
-          L(t,k,CastE(_,Const(CInt(0,_,_)))) -> true
+          L(t,k,e) -> is_zero_exp e
         | _ -> false
       in
       match oldk, newkind with
