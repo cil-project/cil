@@ -126,18 +126,14 @@ ifdef NEWOPTIM
   CCURED += --optimize --newoptim
 endif
 ifneq ($(INFERBOX),none)
-  MANUALBOX := 1
   CCURED+= --curetype=$(INFERBOX) $(DEF)INFERBOX
   CCURED+= --emitinfer 
 else
   CCURED+= --curetype=none
-  ifndef MANUALBOX
-    CCURED+= --boxdefaultwild
-  endif
 endif
 
-ifdef MANUALBOX
-  CCURED+= $(DEF)MANUALBOX
+ifdef NOMANUALBOX
+  CCURED+= $(DEF)NOMANUALBOX
 endif
 
 

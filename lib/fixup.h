@@ -31,92 +31,7 @@
 
 /*** Macros to fixup some things that the parser does not understand ***/
 
-
-/* Use this in the source to cast an integer what to a pointer in the same 
- * home area as host. Use this guarded by CCURED  */
-#ifdef CCURED
-#define CASTTOPOINTER(btyp, host, what) \
-      (((btyp *)(host)) + (((S32)(what) - (S32)(host)) / ((S32)sizeof(btyp)))) 
-#else
-#define CASTTOPOINTER(btyp, host, what) ((btyp *)(what))
-#endif
-
-#if 0 && !defined(__NODE) && !defined(MANUALBOX)
-  #define __SAFE
-  #define __INDEX
-  #define __TAGGED
-  #define __FSEQ
-  #define __SEQ
-  #define __WILD
-  #define __SIZED
-  #define __RWSTRING
-  #define __ROSTRING
-  #define __NULLTERM
-  #define __SEQN
-  #define __FSEQN
-  #define __SAFEUNION
-  #define __WILDT
-  #define __FSEQT
-  #define __SEQT
-  #define __FSEQNT
-  #define __SEQNT
-  #define __INDEXT
-  #define __NODE
-  #define __HEAPIFY
-  #define __DUMMYDEFN
-  #define __BOXMODEL
-  #define __NOBOXBLOCK
-  #define __NOBOX
-  #define __MODELEDBODY
-  #define __BOXVARARG(x)
-  #define __BOXFORMAT(x)
-#else
-#if !defined(__NODE)
-  #define __WILD   __attribute__((wild))
-  #define __SAFE   __attribute__((safe))
-  #define __TAGGED __attribute__((tagged))
-  #define __INDEX  __attribute__((index))
-  #define __SIZED  __attribute__((sized))
-  #define __SEQ    __attribute__((seq))
-  #define __FSEQ   __attribute__((fseq))
-  #define __SEQN   __attribute__((seqn))
-  #define __FSEQN  __attribute__((fseqn))
-  #define __NULLTERM   __attribute__((nullterm))
-  #define __ROSTRING  __attribute__((rostring))
-  #define __RWSTRING  __attribute__((string))
-  #define __SAFEUNION __attribute__((safeunion))
-  #define __INDEXT   __attribute__((indext))
-  #define __WILDT   __attribute__((wildt))
-  #define __SEQT   __attribute__((seqt))
-  #define __SEQNT   __attribute__((seqnt))
-  #define __FSEQT   __attribute__((fseqt))
-  #define __FSEQNT   __attribute__((fseqnt))
-  #define __NODE
-  #ifndef DISABLE_HEAPIFY
-    #define __HEAPIFY __attribute__((heapify))
-  #else
-    #define __HEAPIFY
-  #endif
-  #define __DUMMYDEFN __attribute__((dummydefn))
-  #define __BOXMODEL __attribute__((boxmodel))
-  #define __NOBOXBLOCK  __blockattribute__(nobox)
-  #define __NOBOX __attribute__((nobox))
-  #define __MODELEDBODY
-  #define __BOXVARARG(x)
-  #define __BOXFORMAT(x)
-#endif
-#endif
-
-// sm: I don't understand why the above macros are all conditioned
-// on MANUALBOX; many of the annotations have nothing to do with
-// what MANUALBOX does (as I see it); so I'll start a fledgling group
-// based on just CCURED, and if someone sees this differently we can
-// deal with it then
-#ifdef CCURED
-  #define __CANPOINTTOSTACK __attribute__((canPointToStack))
-#else
-  #define __CANPOINTTOSTACK
-#endif
+#include "ccuredannot.h"
 
 
 #if !defined(CCURED)
@@ -202,17 +117,17 @@ extern long double __builtin_fabsl(long double);
 // #pragma cilnoremove("foosort_seq_model")
 // #pragma boxmodelof("foosort_seq_model", foosort)
 //
-  #define MAKE_QSORT(name,namestr,elt_type) \
-  static inline\
-  void name (elt_type *base, unsigned int nmemb, unsigned int size,\
-          int (*compar)(const elt_type *, const elt_type *));\
-  static inline\
-  void name ## _seq_model(elt_type *base, unsigned int nmemb, unsigned int size,\
-          int (*compar)(const elt_type *, const elt_type *)) \
-  {\
-      elt_type *end = __endof(base);\
-      return;\
-  }
+//  #define MAKE_QSORT(name,namestr,elt_type) \
+//  static inline\
+//  void name (elt_type *base, unsigned int nmemb, unsigned int size,\
+//          int (*compar)(const elt_type *, const elt_type *));\
+//  static inline\
+//  void name ## _seq_model(elt_type *base, unsigned int nmemb, unsigned int size,\
+//          int (*compar)(const elt_type *, const elt_type *)) \
+//  {\
+//      elt_type *end = __endof(base);\
+//      return;\
+//  }
 
 
   #pragma boxexported("main")
@@ -227,13 +142,14 @@ extern long double __builtin_fabsl(long double);
 */
   // for ping; need a model so I get to write a wrapper, where
   // I can emulate optarg as optarg_f
-  static inline int getopt_model(int argc, char **argv, char const *optstring)
-  {
-    // need length of argv
-    __endof(argv);
-    return 0;
-  }
-  #pragma boxmodelof("getopt_model", "getopt")
+  // put this in the include file where getopt occurs
+//  static inline int getopt_model(int argc, char **argv, char const *optstring)
+//  {
+//    // need length of argv
+//    __endof(argv);
+//    return 0;
+//  }
+//  #pragma boxmodelof("getopt_model", "getopt")
 
   // for EDG-generated code, which uses this function purely to fool gcc's
   // optimizer: the address of certain variables is passed to this thing,
@@ -242,7 +158,8 @@ extern long double __builtin_fabsl(long double);
   union suppress_optim_format {
     void *anyPtr;
   };
-  #pragma boxvararg("__suppress_optim_on_vars_in_try", sizeof(union suppress_optim_format))
+  #pragma boxvararg("__suppress_optim_on_vars_in_try",
+                    sizeof(union suppress_optim_format))
 
 #endif
 
