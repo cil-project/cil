@@ -1685,7 +1685,7 @@ let foldLeftCompound (doexp: offset -> exp -> typ -> 'a -> 'a)
 let rec isCompleteType t = 
   match unrollType t with 
   | TArray(t, None, _) -> false
-  | TComp comp when comp.cfields = [] -> false
+(*  | TComp comp when comp.cfields = [] -> false *)
   | TComp comp -> (* Struct or union *)
       List.for_all (fun fi -> isCompleteType fi.ftype) comp.cfields
   | _ -> true

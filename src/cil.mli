@@ -421,7 +421,8 @@ type global =
   | GPragma of attribute                (* Pragmas at top level. Use the same 
                                          * syntax as attributes *)
   | GText of string                     (* Some text (printed verbatim) at 
-                                         * top level *)
+                                         * top level. E.g., this way you can 
+                                         * put comments in the output.  *)
     
 
 type file = 

@@ -458,7 +458,7 @@ let tagType (t: typ) : typ =
 	    TArray(bt, None, a) -> TArray(bt, Some zero, a)
 	  | TComp ci when ci.cfields = [] -> TArray(charType, Some zero, [])
 	  | _ -> E.s (E.unimp "Don't know how to tag incomplete type %a" 
-                        d_type t)
+                        d_plaintype t)
 	in
         TComp 
           (mkCompInfo true ""
