@@ -37,15 +37,15 @@ DEPENDDIR   := obj/.depend
     # Now rules to make cilly
 CILLY_MODULES = pretty errormsg trace stats util clist \
               cabs cprint clexer cparser cxxlexer cxxparser \
-              machdep cil cabs2cil \
+              machdep cil formatlex formatparse formatcil cabs2cil \
               frontc check mergecil logcalls logwrites rmtmps \
 	      heapify testcil maincil
 CILLY_CMODULES =
 CILLY_LIBS     = unix
 
 SOURCEDIRS  += src src/frontc src/ext
-MLLS        += clexer.mll cxxlexer.mll
-MLYS        += cparser.mly cxxparser.mly
+MLLS        += clexer.mll cxxlexer.mll formatlex.mll
+MLYS        += cparser.mly cxxparser.mly formatparse.mly
 MODULES     += $(CILLY_MODULES)
 
 
@@ -164,7 +164,7 @@ DISTRIB_SRC = pretty.ml pretty.mli errormsg.ml errormsg.mli \
               trace.ml trace.mli stats.ml stats.mli \
               util.ml clist.ml clist.mli \
 	      cil.ml cil.mli check.ml check.mli \
-	      rmtmps.ml rmtmps.mli \
+	      rmtmps.ml rmtmps.mli formatlex.mll formatparse.mly \
 	      testcil.ml mergecil.ml mergecil.mli maincil.ml machdep.c
 
 DISTRIB_SRC_FRONTC = cabs.ml cprint.ml clexer.mli clexer.mll \

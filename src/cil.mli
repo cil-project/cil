@@ -284,7 +284,7 @@ and attribute = Attr of string * attrparam list
  * {!Cil.addAttribute} and {!Cil.addAttributes} to insert attributes in an 
  * attribute list and maintain the sortedness. *)
 and attributes = attribute list
-
+ 
 (** The type of parameters of attributes *)
 and attrparam = 
   | AInt of int                          (** An integer constant *)
@@ -1356,6 +1356,11 @@ val mkCast: e:exp -> newt:typ -> exp
 (** Compute the type of an expression *)
 val typeOf: exp -> typ
 
+(** Convert a string representing a C integer literal to an expression. 
+ * Handles the prefixes 0x and 0 and the suffixes L, U, UL, LL, ULL *)
+val parseInt: string -> exp
+
+
 (**********************************************)
 (** {b Values for manipulating statments} *)
 
@@ -1978,3 +1983,46 @@ val mapNoCopyList: ('a -> 'a list) -> 'a list -> 'a list
 val startsWith: string -> string -> bool
 
 
+(** {b An Interpreter for constructing CIL constructs} *)
+
+(** The type of argument for the interpreter *)
+type formatArg = 
+    Fe of exp
+  | Feo of exp option  (** For array lengths *)
+  | Fu of unop
+  | Fb of binop
+  | Fk of ikind
+  | FE of exp list (** For arguments in a function call *)
+  | Ff of (string * typ * attributes) (** For a formal argument *)
+  | FF of (string * typ * attributes) list (* For formal argument lists *)
+  | Fva of bool (** For the ellipsis in a function type *)
+  | Fv of varinfo
+  | Fl of lval
+  | Flo of lval option (** For the result of a function call *)
+  | Fo of offset
+  | Fc of compinfo
+  | Fi of instr
+  | FI of instr list
+  | Ft of typ
+  | Fd of int
+  | Fg of string
+  | Fs of stmt
+  | FS of stmt list
+  | FA of attributes
+
+  | Fp of attrparam
+  | FP of attrparam list
+
+  | FX of string
+
+
+(** Constructs an expression based on the program and the list of arguments. 
+ * You can apply this function partially to "compile" the program. *)
+(* val fExp: string -> formatArg list -> exp *)
+
+(** Constructs a type based on the program and the list of arguments. 
+ * You can apply this function partially to "compile" the program. *)
+(* val fTyp: string -> formatArg list -> typ *)
+
+
+val d_formatarg: unit -> formatArg -> Pretty.doc

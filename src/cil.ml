@@ -1021,6 +1021,106 @@ let uintPtrType = TPtr(uintType, [])
 
 let doubleType = TFloat(FDouble, [])
 
+let parseInt (str: string) : exp = 
+  let hasSuffix str = 
+    let l = String.length str in
+    fun s -> 
+      let ls = String.length s in
+      l >= ls && s = String.uppercase (String.sub str (l - ls) ls)
+  in
+  let l = String.length str in
+  (* See if it is octal or hex *)
+  let octalhex = (l >= 1 && String.get str 0 = '0') in 
+  (* The length of the suffix and a list of possible kinds. See ISO 
+  * 6.4.4.1 *)
+  let hasSuffix = hasSuffix str in
+  let suffixlen, kinds = 
+    if hasSuffix "ULL" || hasSuffix "LLU" then
+      3, [IULongLong]
+    else if hasSuffix "LL" then
+      2, if octalhex then [ILongLong; IULongLong] else [ILongLong]
+    else if hasSuffix "UL" || hasSuffix "LU" then
+      2, [IULong; IULongLong]
+    else if hasSuffix "L" then
+      1, if octalhex then [ILong; IULong; ILongLong; IULongLong] 
+      else [ILong; ILongLong]
+    else if hasSuffix "U" then
+      1, [IUInt; IULong; IULongLong]
+    else
+      0, if octalhex || true (* !!! This is against the ISO but it 
+        * is what GCC and MSVC do !!! *)
+      then [IInt; IUInt; ILong; IULong; ILongLong; IULongLong]
+      else [IInt; ILong; IUInt; ILongLong]
+  in
+  (* Convert to integer. To prevent overflow we do the arithmetic 
+  * on Int64 and we take care of overflow. We work only with 
+  * positive integers since the lexer takes care of the sign *)
+  let rec toInt (base: int64) (acc: int64) (idx: int) : int64 = 
+    let doAcc (what: int) = 
+      let acc' = 
+        Int64.add (Int64.mul base acc)  (Int64.of_int what) in
+      if acc < Int64.zero || (* We clearly overflow since base >= 2 
+      * *)
+      (acc' > Int64.zero && acc' < acc) then 
+        E.s (unimp "Cannot represent on 64 bits the integer %s\n"
+               str)
+      else
+        toInt base acc' (idx + 1)
+    in 
+    if idx >= l - suffixlen then begin
+      acc
+    end else 
+      let ch = String.get str idx in
+      if ch >= '0' && ch <= '9' then
+        doAcc (Char.code ch - Char.code '0')
+      else if  ch >= 'a' && ch <= 'f'  then
+        doAcc (10 + Char.code ch - Char.code 'a')
+      else if  ch >= 'A' && ch <= 'F'  then
+        doAcc (10 + Char.code ch - Char.code 'A')
+      else
+        E.s (bug "Invalid integer constant: %s" str)
+  in
+  try
+    let i = 
+      if octalhex then
+        if l >= 2 && 
+          (let c = String.get str 1 in c = 'x' || c = 'X') then
+          toInt (Int64.of_int 16) Int64.zero 2
+        else
+          toInt (Int64.of_int 8) Int64.zero 1
+      else
+        toInt (Int64.of_int 10) Int64.zero 0
+    in
+    (* Construct an integer of the first kinds that fits. i must be 
+    * POSITIVE  *)
+    let res = 
+      let rec loop = function
+        | ((IInt | ILong) as k) :: _ 
+                  when i < Int64.shift_left (Int64.of_int 1) 31 ->
+                    kinteger64 k i
+        | ((IUInt | IULong) as k) :: _ 
+                  when i < Int64.shift_left (Int64.of_int 1) 32
+          ->  kinteger64 k i
+        | (ILongLong as k) :: _ 
+                 when i <= Int64.sub (Int64.shift_left 
+                                              (Int64.of_int 1) 63) 
+                                          (Int64.of_int 1) 
+          -> 
+            kinteger64 k i
+        | (IULongLong as k) :: _ -> kinteger64 k i
+        | _ :: rest -> loop rest
+        | [] -> E.s (E.unimp "Cannot represent the integer %s\n" 
+                       (Int64.to_string i))
+      in
+      loop kinds 
+    in
+    res
+  with e -> begin
+    ignore (E.log "int_of_string %s (%s)\n" str 
+              (Printexc.to_string e));
+    zero
+  end
+
 
 (* An integer type that fits pointers. Initialized by initCIL *)
 let upointType = ref voidType 
@@ -4995,3 +5095,65 @@ let pushGlobal (g: global)
            g :: (List.fold_left (fun acc v -> GVarDecl(v, loc) :: acc) 
                                 !types vl) 
   end
+
+
+type formatArg = 
+    Fe of exp
+  | Feo of exp option  (** For array lengths *)
+  | Fu of unop
+  | Fb of binop
+  | Fk of ikind
+  | FE of exp list (** For arguments in a function call *)
+  | Ff of (string * typ * attributes) (** For a formal argument *)
+  | FF of (string * typ * attributes) list (* For formal argument lists *)
+  | Fva of bool (** For the ellipsis in a function type *)
+  | Fv of varinfo
+  | Fl of lval
+  | Flo of lval option (** For the result of a function call *)
+  | Fo of offset
+  | Fc of compinfo
+  | Fi of instr
+  | FI of instr list
+  | Ft of typ
+  | Fd of int
+  | Fg of string
+  | Fs of stmt
+  | FS of stmt list
+  | FA of attributes
+
+  | Fp of attrparam
+  | FP of attrparam list
+
+  | FX of string
+
+let d_formatarg () = function
+    Fe e -> dprintf "Fe(%a)" d_exp e
+  | Feo None -> dprintf "Feo(None)"
+  | Feo (Some e) -> dprintf "Feo(%a)" d_exp e
+  | FE _ -> dprintf "FE()"
+  | Fk ik -> dprintf "Fk()"
+  | Fva b -> dprintf "Fva(%b)" b
+  | Ff (an, _, _) -> dprintf "Ff(%s)" an
+  | FF _ -> dprintf "FF(...)"
+  | FA _ -> dprintf "FA(...)"
+  | Fu uo -> dprintf "Fu()"
+  | Fb bo -> dprintf "Fb()"
+  | Fv v -> dprintf "Fv(%s)" v.vname
+  | Fl l -> dprintf "Fl(%a)" d_lval l
+  | Flo None -> dprintf "Flo(None)"
+  | Flo (Some l) -> dprintf "Flo(%a)" d_lval l
+  | Fo o -> dprintf "Fo"
+  | Fc ci -> dprintf "Fc(%s)" ci.cname
+  | Fi i -> dprintf "Fi(...)"
+  | FI i -> dprintf "FI(...)"
+  | Ft t -> dprintf "Ft(%a)" d_type t
+  | Fd n -> dprintf "Fd(%d)" n
+  | Fg s -> dprintf "Fg(%s)" s
+  | Fp _ -> dprintf "Fp(...)" 
+  | FP n -> dprintf "FP(...)" 
+  | Fs _ -> dprintf "FS"
+  | FS _ -> dprintf "FS"
+
+  | FX _ -> dprintf "FX()"
+
+

@@ -52,6 +52,8 @@ let usePathCompression = false
  * merger an order of magnitude !!! *)
 let mergeInlines = true
 
+let mergeInlinesRepeat = mergeInlines && true
+
 (* Check that s starts with the prefix p *)
 let prefix p s = 
   let lp = String.length p in
@@ -943,6 +945,33 @@ end
 let renameVisitor = new renameVisitorClass
 
 
+(** A visitor the renames uses of inline functions that were discovered in 
+ * pass 2 to be used before they are defined *)
+
+   (* Which inline functions must be replaced and how *)
+let inlinesToRemove: (string, varinfo) H.t = H.create 17
+class renameInlineVisitorClass = object (self)
+  inherit nopCilVisitor 
+      
+      (* This is a variable use. See if we must change it *)
+  method vvrbl (vi: varinfo) : varinfo visitAction = 
+    if not vi.vglob then DoChildren else
+    try
+      let vi' = H.find inlinesToRemove vi.vname in
+      ChangeTo vi'
+    with Not_found -> 
+      DoChildren
+
+  method vglob = function
+      GVarDecl(vi, _) when H.mem inlinesToRemove vi.vname -> 
+        if debugMerge || !E.verboseFlag then 
+          ignore (E.log "   reusing inline %s\n" vi.vname);
+        ChangeTo []
+    | _ -> DoChildren
+
+end
+let renameInlinesVisitor = new renameInlineVisitorClass
+
   (* Now we go once more through the file and we rename the globals that we 
    * keep. We also scan the entire body and we replace references to the 
    * representative types or variables. We set the referenced flags once we 
@@ -953,6 +982,15 @@ let oneFilePass2 (f: file) =
               !currentFidx f.fileName);
   currentDeclIdx := 0; (* Even though we don't need it anymore *)
   H.clear varUsedAlready;
+  (* If we find inline functions that are used before being defined, and thus 
+   * before knowing that we can throw them away, then we mark this flag so 
+   * that we can make another pass over the file *)
+  let repeatPass2 = ref false in
+  (* Keep a pointer to the contents of the file so far *)
+  let savedTheFile = !theFile in
+  let savedTheFileTypes = !theFileTypes in
+  H.clear inlinesToRemove;
+
   let processOneGlobal (g: global) : unit = 
       (* Process a varinfo. Reuse an old one, or rename it if necessary *)
     let processVarinfo (vi: varinfo) (vloc: location) : varinfo =  
@@ -1060,8 +1098,12 @@ let oneFilePass2 (f: file) =
                           oldinode.nname oldinode.nfidx);
               (* There is some other inline function with the same printout *)
               if H.mem varUsedAlready fdec'.svar.vname then begin
-                ignore (warn "Won't remove inline function %s because it is used before it is defined" fdec'.svar.vname);
-                raise Not_found
+                ignore (warn "Inline function %s because it is used before it is defined" fdec'.svar.vname);
+                if mergeInlinesRepeat then begin
+                  H.add inlinesToRemove fdec'.svar.vname oldinode.ndata;
+                  repeatPass2 := true
+                end else
+                  raise Not_found 
               end;
               let _ = union oldinode inode in
               (* Clean up the vreferenced bit in the new inline, so that we 
@@ -1173,7 +1215,33 @@ let oneFilePass2 (f: file) =
     raise e    
   end
   in
-  List.iter processOneGlobal f.globals
+  List.iter processOneGlobal f.globals;
+  if mergeInlinesRepeat && !repeatPass2 then begin
+    if debugMerge || !E.verboseFlag then 
+      ignore (E.log "Repeat final merging phase (%d): %s\n" 
+                !currentFidx f.fileName);
+    (* We are going to rescan the globals we have added while processing this 
+     * file. *)
+    let theseGlobals : global list ref = ref [] in
+    (* Scan a list of globals until we hit a given tail *)
+    let rec scanUntil (tail: 'a list) (l: 'a list) = 
+      if tail == l then ()
+      else
+        match l with 
+        | [] -> E.s (bug "mergecil: scanUntil could not find the marker\n")
+        | g :: rest -> 
+            theseGlobals := g :: !theseGlobals;
+            scanUntil tail rest
+    in
+    (* Collect in theseGlobals all the globals from this file *)
+    theseGlobals := [];
+    scanUntil savedTheFile !theFile;
+    (* Now reprocess them *)
+    theFile := savedTheFile;
+    List.iter (fun g -> 
+                 theFile := (visitCilGlobal renameInlinesVisitor g) @ !theFile)
+      !theseGlobals;
+  end
 
 
 let merge (files: file list) (newname: string) : file = 
