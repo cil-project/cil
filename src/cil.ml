@@ -1367,8 +1367,7 @@ let rec addAttribute (Attr(an, _) as a: attribute) (al: attributes) =
       [] -> [a]
     | ((Attr(an0, _) as a0) :: rest) as l -> 
         if an < an0 then a :: l
-        else if an > an0 then a0 :: insertSorted rest
-        else if a = a0 then l (* Do not add if already in there *)
+        else if Util.equals a a0 then l (* Do not add if already in there *)
         else a0 :: insertSorted rest (* Make sure we see all attributes with 
                                       * this name *)
   in
