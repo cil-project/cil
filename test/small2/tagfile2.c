@@ -2,8 +2,8 @@
 // second half of a tagfile tester
 
 // external decl of function in tagfile1.c
-void foo(int x);
-  
+int foo(int x);
+
 typedef void (*voidFn)();
 
 int main()

@@ -690,6 +690,7 @@ smAddTest("scott/decl_inl $box");         # produces a gcc warning I'd like to s
 smFailTest("infers a safe ptr argument to __throw_setup",
            "doThrowFv $wildbox UNTAGGEDFNS=1");
 smAddTest("scott/uninit_tmp");
+smAddTest("test-tagfile $wildbox");
 
 # tests of things implemented for EDG compatibility
 smAddTest("mergestruct");
