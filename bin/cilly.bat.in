@@ -1,1 +1,1 @@
-perl @CCUREDHOME@/bin/cilly.pl %*
+perl @CCUREDHOME@/bin/cilly %*

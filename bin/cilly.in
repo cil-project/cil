@@ -1,3 +1,183 @@
-#!/bin/sh
-eval 'exec perl @CCUREDHOME@/bin/cilly.pl ${1+"$@"}'
-    if 0;
+#!perl
+# A simple use of the CompilerStub.
+# @do_not_edit@ bin/cilly.pl.in
+#
+#
+#
+# Copyright (c) 2001 by
+#  George C. Necula	necula@cs.berkeley.edu
+#  Scott McPeak        smcpeak@cs.berkeley.edu
+#  Wes Weimer          weimer@cs.berkeley.edu
+#   
+# All rights reserved.  Permission to use, copy, modify and distribute
+# this software for research purposes only is hereby granted, 
+# provided that the following conditions are met: 
+# 1. Redistributions of source code must retain the above copyright notice, 
+# this list of conditions and the following disclaimer. 
+# 2. Redistributions in binary form must reproduce the above copyright notice, 
+# this list of conditions and the following disclaimer in the documentation 
+# and/or other materials provided with the distribution. 
+# 3. The name of the authors may not be used to endorse or promote products 
+# derived from  this software without specific prior written permission. 
+#
+# DISCLAIMER:
+# THIS SOFTWARE IS PROVIDED BY THE AUTHORS ``AS IS'' AND ANY EXPRESS OR 
+# IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES 
+# OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+# IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY DIRECT, INDIRECT, 
+# INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, 
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS 
+# OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON 
+# ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF 
+# THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+use strict;
+use Data::Dumper;
+
+use lib "@CILHOME@/lib"; # The libraries are in the lib directory
+
+use Merger;
+
+my $stub = CilCompiler->new(@ARGV);
+
+# print Dumper($stub);
+
+$stub->doit();
+
+
+# Define here your favorite compiler by overriding Merger methods
+package CilCompiler;
+use File::Basename;
+use strict;
+BEGIN {
+    @CilCompiler::ISA = qw(Merger);
+    $CilCompiler::base = "@CILHOME@/obj/@ARCHOS@/cilly";
+
+    $CilCompiler::mtime_asm = int((stat("$CilCompiler::base.asm.exe"))[9]);
+    $CilCompiler::mtime_byte = int((stat("$CilCompiler::base.byte.exe"))[9]);
+    $CilCompiler::compiler = 
+        $CilCompiler::base . 
+            ($CilCompiler::mtime_asm >= $CilCompiler::mtime_byte 
+             ? ".asm.exe" : ".byte.exe");
+}
+
+# We need to customize the collection of arguments
+sub collectOneArgument {
+    my($self, $arg, $pargs) = @_;
+    if($arg =~ m|--transval=(.+)$|)  {
+        $self->{TRANSVAL} = $1; return 1;
+    }
+    # See if the super class understands this
+    return $self->SUPER::collectOneArgument($arg, $pargs);
+}
+
+sub usage {
+    print "cilly [options] [gcc_or_mscl arguments]\n";
+}
+
+sub helpMessage {
+    my($self) = @_;
+    # Print first the original
+    $self->SUPER::helpMessage();
+    print <<EOF;
+
+  All other arguments starting with -- are passed to the Cilly process.
+
+The following are the arguments of the Cilly process
+EOF
+   my $cmd = $CilCompiler::compiler . " -help";
+   $self->runShell($cmd); 
+}
+
+
+# SRC is preprocessed already but may be already cilly-fied
+sub applyCil {
+    my ($self, $src, $ppargs) = @_;
+
+    my ($base, $dir, $ext) = fileparse($src, "(\\.[^.]+)");
+    # Make a name for the CIL file
+    my $outfile;
+    my $extraarg;
+    if($self->{USECABS}) {
+        $outfile = "$dir$base" . "cabs.c";
+        $extraarg = "--cabsout $outfile";
+    } else {
+        $outfile = "$dir$base" . "cil.c";
+        $extraarg = "--out $outfile";
+    }
+
+    # for help with module isolation, I need a fully-qualified name
+    my $fqsrc = $src;
+    if ($fqsrc !~ "^/") {            # if not already fully-qualified..
+      my $wd = `pwd`;
+      chomp($wd);
+      $fqsrc = $wd . "/" . $src;     # prepend cwd to fully-qualify
+      $fqsrc =~ s,/\./,/,;           # remove "/./" arising from src beginning with "./"
+    }
+
+    # sm: this is to help isolate the problem with linux; when
+    # defined, CILIFY_MODULES is the name of a file containing the
+    # names of all the files process with cilly.asm.exe; the rest just
+    # get the .i filed copied to the cil.c file
+    if (defined($ENV{CILIFY_MODULES})) {
+      # the ^ and $ are anchors for the regexp; they're needed because
+      # the filename contains dots, which grep interprets as matching
+      # anything; the anchors make sure that ".i" only matches ".i" as
+      # an extension
+      if (0!=system("grep '^$fqsrc\$' $ENV{CILIFY_MODULES} >/dev/null")) {
+        print("skipping cilly for $fqsrc...\n");
+        $self->runShell("cp $src $outfile");
+        return $outfile;
+      }
+      else {
+        print("NOT skipping cilly for $fqsrc\n");
+      }
+    }
+
+    if($self->{VERBOSE}) { print "Cilly compiling $src to $outfile\n"; }
+
+    my $cmd = "$CilCompiler::compiler ";
+    
+    if($self->{MODENAME} eq "MSVC") {
+        $cmd .= " --MSVC ";
+    }
+    if($self->{VERBOSE}) {
+        $cmd .= " --verbose ";
+    }
+    if(defined $self->{CILARGS}) {
+        $cmd .= join(' ', @{$self->{CILARGS}});
+    }
+    $self->runShell("$cmd $src $extraarg");
+
+    return $outfile;
+}
+
+sub compile_cil {
+    my ($self, $src, $dest, $ppargs, $ccargs) = @_;
+
+    if(defined $self->{TRANSVAL}) {
+        # prepare new ccargs
+        my @tv_ccargs = (@{$ccargs}, "-S", "-dr");
+        # now produce the RTL for the original file
+        my ($orig) = ($src =~ m|^(.+)cil\.i$|);
+        if(! defined($orig)) {
+            die "Cannot find the name of the original C file\n";
+        }
+        $self->runShell("$self->{CC} -S -dr " . 
+                        join(' ', @{$ppargs}) . " " . 
+                        join(' ', @{$ccargs}) . " " .
+                        "$orig.i");
+        # now produce the RTL for the CIL file
+        $self->runShell("$self->{CC} -S -dr " . 
+                        join(' ', @{$ppargs}) . " " . 
+                        join(' ', @{$ccargs}) . " " .
+                        "$src");
+        # now run the translation validator
+        $self->runShell("$self->{TRANSVAL} -L tv.log $orig.i.rtl $orig" .
+                        "cil.i.rtl");
+    }
+    # now do the real thing
+    return $self->SUPER::compile_cil($src, $dest, $ppargs, $ccargs);
+}
+
