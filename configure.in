@@ -281,23 +281,15 @@ fi
 #
 # -------------------- GCC --------------
 #
-#AC_ARG_VAR(gccdir, [The directory containing the gcc executable])
-#AC_MSG_CHECKING([for gcc directory])
-#if test "x${gccdir}" = "x" ;then
-#  # sm: is there a reason the next line used to use 'type' explicitly,
-#  # instead of calling binaryExists?  if so it should be commented...
-#  if binaryExists "gcc" ;then
-#    # Grab the directory they are in
-#    gccdir=`dirname \`which gcc\``
-#  else
-#    AC_MSG_ERROR([Cannot find gcc in your PATH])
-#  fi
-#fi
-#if ! binaryExists "${gccdir}/gcc" ;then
-# AC_MSG_ERROR([Cannot find gcc in ${gccdir}])
-#fi
-#AC_MSG_RESULT(found in $gccdir)
-#GCCDIR="$gccdir"
+
+AC_MSG_CHECKING([for gcc version])
+gccver=`gcc -dumpversion`
+AC_MSG_RESULT([$gccver])
+if test "${gccver}" == "2.96" ;then
+    AC_MSG_ERROR([
+      CIL and CCured do not work with gcc 2.96. Use 2.95.3 or 3.x
+    ])
+fi
 
 # ----------- some stuff 'autoscan' put here --------------
 # (autoscan is part of the autoconf distribution)
