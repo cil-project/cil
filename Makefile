@@ -21,7 +21,7 @@ MLYS        =
 # ast clex cparse
 # sm: trace: utility for debug-time printfs
 MODULES     = pretty trace errormsg stats cil check ptrnode \
-              simplesolve markptr box
+              simplesolve markptr box 
 EXECUTABLE  = $(OBJDIR)/safec
 CAMLUSEUNIX = 1
 ifdef RELEASE
@@ -45,10 +45,11 @@ MODULES    += cabs clexer cparser cprint cabs2cil frontc
 endif
 
 # Add main late
-MODULES    += main
+MODULES    += combine main
     # Include now the common set of rules for OCAML
     # This file will add the rules to make $(EXECUTABLE).$(EXE)
 include Makefile.ocaml
+
 
 
 

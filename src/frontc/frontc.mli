@@ -5,3 +5,5 @@ exception ParseError of string
 val args  : (string * Arg.spec * string) list
     (* the main command to parse a file *)
 val parse : string -> Cil.file
+
+val parse_to_cabs : string -> Cabs.file
