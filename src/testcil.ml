@@ -128,7 +128,7 @@ let checkSizeOfFun: fundec =
 
 let doPrintf format args = 
   mkStmtOneInstr (Call(None, Lval(var printfFun.svar),
-                       Const(CStr(format)) :: args, lu))
+                       (StartOfString format) :: args, lu))
 
 
 (* Select among the choices, each with a given weight *)
@@ -287,8 +287,8 @@ let testSizeOf () =
                                       SizeOfE (Lval(var g));
                                       integer start; 
                                       integer width;
-                                      Const(CStr(sprint 80 
-                                                   (d_lval () lv)))],lu);
+                                      (StartOfString(sprint 80 
+                                                      (d_lval () lv)))],lu);
                                setLv zero])) in
             addStatement s
       in
@@ -298,7 +298,7 @@ let testSizeOf () =
       let s = mkStmtOneInstr (Call(None, Lval(var checkSizeOfFun.svar),
                                    [ SizeOfE (Lval (var g));
                                      integer (bitsSizeOf t);
-                                     Const(CStr(g.vname)) ], lu)) in
+                                     StartOfString(g.vname) ], lu)) in
       addStatement s;
 (*      ignore (E.log "10\n"); *)
     with _ -> ()

@@ -588,7 +588,8 @@ and constant =
      * represented on 64 bits. OCAML does not give Overflow exceptions. *)
   | CStr of string 
     (** String constant. The escape characters inside the string have been 
-     * already interpreted. This constant has array type! *)
+     * already interpreted. This constant has array type! Use [StartOfString 
+     * s] if you want a pointer! *)
   | CChr of char   
     (** Character constant *)
   | CReal of float * fkind * string option 
@@ -1423,10 +1424,12 @@ val mkAddrOrStartOf: lval -> exp
     StartOf *)
 val mkMem: addr:exp -> off:offset -> lval
 
-(** Make an expression that is a string constant *)
+(** Make an expression that is a string constant (of pointer type) *)
 val mkString: string -> exp
 
-(** Construct a cast when having the old type of the expression. *)
+(** Construct a cast when having the old type of the expression. If the new 
+  * type is the same as the old type, then no cast is added, except for 
+  * expressions of the form [StartOf] and [StartOfString]. *)
 val mkCastT: e:exp -> oldt:typ -> newt:typ -> exp
 
 (** Like {!Cil.mkCastT} but uses typeOf to get [oldt] *)  

@@ -437,7 +437,7 @@ and constant =
                   * {!Cil.integer} or {!Cil.kinteger} to create these. Watch 
                   * out for integers that cannot be represented on 64 bits. 
                   * OCAML does not give Overflow exceptions. *)
-  | CStr of string (** String constant *)
+  | CStr of string (** String constant (of array type) *)
   | CChr of char   (** Character constant *)
   | CReal of float * fkind * string option (** Floating point constant. Give
                                                the fkind (see ISO 6.4.4.2) and
@@ -1411,7 +1411,7 @@ let isVoidPtrType t =
 let var vi : lval = (Var vi, NoOffset)
 (* let assign vi e = Instrs(Set (var vi, e), lu) *)
 
-let mkString s = Const(CStr s)
+let mkString s = StartOfString s
 
 
 let mkWhile ~(guard:exp) ~(body: stmt list) : stmt list = 
@@ -4038,7 +4038,7 @@ let rec peepHole2  (* Process two statements and possibly replace them both *)
 
 
 let dExp: doc -> exp = 
-  fun d -> Const(CStr(sprint 80 d))
+  fun d -> StartOfString(sprint 80 d)
 
 let dInstr: doc -> location -> instr = 
   fun d l -> Asm([], [sprint 80 d], [], [], [], l)
@@ -4622,13 +4622,7 @@ and constFold (machdep: bool) (e: exp) : exp =
         kinteger IUInt (bs / 8)
       with SizeOfError _ -> e
   end
-  | SizeOfE e when machdep -> begin
-      (* Must intercept the case when e is a string. typeOf in that case 
-       * returns char_ptr and we want the length of the string instead *)
-      match e with 
-        Const(CStr s) -> kinteger IUInt (1 + String.length s)
-      | _ -> constFold machdep (SizeOf (typeOf e))
-  end
+  | SizeOfE e when machdep -> constFold machdep (SizeOf (typeOf e))
 
   | AlignOf t when machdep -> kinteger IUInt (alignOf_int t)
   | AlignOfE e when machdep -> constFold machdep (AlignOf (typeOf e))
