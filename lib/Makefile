@@ -3,7 +3,7 @@
 
 # tweak
 
-CFLAGS = -g -Wall -Igc/include -I../include
+CFLAGS = -g -Wall -Igc/include
 CC = gcc $(CFLAGS)
 
 splay: splay.c
