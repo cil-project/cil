@@ -196,6 +196,8 @@ class threeAddressVisitor (fi: fundec) = object (self)
     in
     ChangeTo e'
 
+      (* This method will be called only on top-level "lvals" (those on the 
+       * left of assignments and function calls) *)
   method vlval (lv: lval) = 
     ChangeTo 
       (simplifyLval 
