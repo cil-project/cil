@@ -95,32 +95,30 @@ let initSolver constraints =
 
 (* Try to prove a less-than relation *)
 let rec rsolveLT (ca : limit) (cb : limit) : bool =
-  let lt = (LT (ca,cb)) in
-  if fringe_contains lt then match fringe_find lt with
-  | {fsolution = None} as fr -> fr.fsolution <- Some false; false
-  | {fsolution = Some sol}   -> sol
-  else 
-    let fr = fringe_add lt in
-    let sol =
-      match ca, cb with
-      | NegInfinity, _ -> cb != NegInfinity
-      |	_, NegInfinity -> false
-      |	_, Infinity -> ca != Infinity
-      |	Infinity, _ -> false
-      |	Int ia, Int ib -> ia < ib
-      |	_,_ ->
+  match ca, cb with
+  | NegInfinity, _ -> cb != NegInfinity
+  | _, NegInfinity -> false
+  | _, Infinity -> ca != Infinity
+  | Infinity, _ -> false
+  | Int ia, Int ib -> ia < ib
+  | _,_ ->
+      let lt = (LT (ca,cb)) in
+      if fringe_contains lt then match fringe_find lt with
+      | {fsolution = None} as fr -> fr.fsolution <- Some false; false
+      | {fsolution = Some sol}   -> sol
+      else 
+	let fr = fringe_add lt in
+	let sol =
 	  set_contains lt !sconstraints ||
-	  List.fold_left
-	    (fun acc lim -> 
-	      acc ||
+	  List.exists
+	    (fun lim -> 
 	      ((rsolveLT ca lim) && (rsolveLTE lim cb)) ||
 	      ((rsolveLTE ca lim) && (rsolveLT lim cb)))
-	    false
 	    !slimits
-    in
-    fr.fsolution <- Some sol;
-    if debug then Printf.printf "Solve %s = %b\n"  (tostring lt) sol;
-    sol
+	in
+	fr.fsolution <- Some sol;
+	if debug then Printf.printf "Solve %s = %b\n"  (tostring lt) sol;
+	sol
     
 
 (* Try to prove an equal-to relation *)
@@ -130,35 +128,33 @@ and rsolveEQ (ca : limit) (cb : limit) : bool =
 
 (* Try to prove a less-than-or-equal relation *)
 and rsolveLTE (ca : limit) (cb : limit) : bool =
-  let lt = (LTE (ca,cb)) in
-  if fringe_contains lt then match fringe_find lt with
-  | {fsolution = None} as fr -> fr.fsolution <- Some false; false
-  | {fsolution = Some sol}   -> sol
-  else 
-    let fr = fringe_add lt in
-    let sol =
-      match ca, cb with
-      | NegInfinity, _ -> cb != NegInfinity
-      |	_, NegInfinity -> false
-      |	_, Infinity -> ca != Infinity
-      |	Infinity, _ -> false
-      |	Int ia, Int ib -> ia <= ib
-      |	_,_ ->
+  match ca, cb with
+  | NegInfinity, _ -> cb != NegInfinity
+  | _, NegInfinity -> false
+  | _, Infinity -> ca != Infinity
+  | Infinity, _ -> false
+  | Int ia, Int ib -> ia <= ib
+  | _,_ ->
+      let lt = (LTE (ca,cb)) in
+      if fringe_contains lt then match fringe_find lt with
+      | {fsolution = None} as fr -> fr.fsolution <- Some false; false
+      | {fsolution = Some sol}   -> sol
+      else 
+	let fr = fringe_add lt in
+	let sol =
 	  set_contains lt !sconstraints ||
 	  rsolveLT ca cb ||
 	  ca = cb ||
-	  List.fold_left
-	    (fun acc lim -> 
-	      acc ||
+	  List.exists
+	    (fun lim -> 
 	      ((rsolveEQ ca lim) && (rsolveLTE lim cb)) ||
 	      ((rsolveEQ cb lim) && (rsolveLTE ca lim)))
-	    false
 	    !slimits
-    in
-    fr.fsolution <- Some sol;
-    if debug then Printf.printf "Solve %s = %b\n"  (tostring lt) sol;
-    sol
-  
+	in
+	fr.fsolution <- Some sol;
+	if debug then Printf.printf "Solve %s = %b\n"  (tostring lt) sol;
+	sol
+	  
 
 
 (* Invoke the solver. Try to prove a theorem with the given constraints *)
@@ -223,7 +219,13 @@ let test () =
   ignore (solveEQ constraints (Sym "y") (Sym "y"));
   pr "Limits known: ";
   List.iter (fun a -> pr "%s " (lim_tostring a)) !slimits;
-  pr "\n";
+  pr "\nMemoization buffer: size = %d\n" (List.length !fringe);
+(*
+  List.iter (fun a -> pr "(memo) %s \t= %s\n" 
+      (tostring a.fval)
+      (match a.fsolution with None -> "?" | Some true -> "true" | _ -> "false"))
+    !fringe;
+*)
   ()
     
 
