@@ -5427,10 +5427,7 @@ let initCIL () =
   theMachine := if !msvcMode then M.msvc else M.gcc;
   (* Pick type for string literals *)
   stringLiteralType := if !theMachine.M.const_string_literals then
-    begin
-      prerr_endline "string literals are const char *";
-      charConstPtrType
-    end
+    charConstPtrType
   else
     charPtrType;
   (* Find the right ikind given the size *)
