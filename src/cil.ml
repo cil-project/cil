@@ -4925,7 +4925,10 @@ and bitsSizeOf t =
   | TFun _ when not !msvcMode -> (* On GCC the size of a function is defined *)
       8 * !theMachine.M.sizeof_fun
 
-  | TArray (_, None, _) as t -> raise (SizeOfError ("array no lenght", t))
+  | TArray (_, None, _) as t -> (* it seems that on GCC the size of such an 
+                                 * array is 0 *) 
+      0
+
   | TFun _ -> raise (SizeOfError ("function", t))
 
 
