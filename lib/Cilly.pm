@@ -697,9 +697,14 @@ sub separateTrueObjects {
 sub link {
     my($self, $psrcs, $dest, $ppargs, $ccargs, $ldargs) = @_;
     if($self->{SEPARATE}) {
-        if($self->{VERBOSE}) { print STDERR "Linking into $dest\n"; }
-        # Not merging. Regular linking.
-        return $self->link_after_cil($psrcs, $dest, $ppargs, $ccargs, $ldargs);
+        if (!defined($ENV{CILLY_DONT_LINK_AFTER_MERGE})) {
+          if($self->{VERBOSE}) { print STDERR "Linking into $dest\n"; }
+          # Not merging. Regular linking.
+          return $self->link_after_cil($psrcs, $dest, $ppargs, $ccargs, $ldargs);
+        }
+        else {
+          return 0;   # sm: is this value used??
+        }
     }
     # We must merging
     if($self->{VERBOSE}) { print STDERR "Merging saved sources into $dest\n"; }
