@@ -801,8 +801,9 @@ let checkUBoundOrNullFun =
   (declareGlobalChecker fdec);
   fdec
 
-let checkBoundsFun =
-  let fdec = emptyFunction "CHECK_BOUNDS" in
+(* sm: check bounds, or allow NULL pointer *)
+let checkBoundsNullFun =
+  let fdec = emptyFunction "CHECK_BOUNDSNULL" in
   let argb  = makeVarinfo "b" voidPtrType in
   let argbend  = makeVarinfo "bend" voidPtrType in
   let argp  = makeVarinfo "p" voidPtrType in
@@ -1730,7 +1731,7 @@ let seqToSafe (p: exp) (desttyp: typ) (b: exp) (bend: exp) (acc: stmt clist)
   in
   p, zero, zero,
   CConsL
-    (call None (Lval (var checkBoundsFun.svar))
+    (call None (Lval (var checkBoundsNullFun.svar))
        [ castVoidStar b;  castVoidStar bend;
          castVoidStar p; SizeOf (baset)],
      acc)
