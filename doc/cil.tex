@@ -2522,9 +2522,16 @@ Necula}.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
-\item {\bf May 23, 2003}: {\bf Released version 1.1.2}
+\item {\bf May 28, 2003}: {\bf Released version 1.1.2}
+\item {\bf May 26, 2003}: Add the \t{simplify} module that compiles CIL
+expressions into simpler expressions, similar to those that appear in a
+3-address intermediate language.
+\item {\bf May 26, 2003}: Various fixes and improvements to the pointer
+analysis modules. 
+\item {\bf May 26, 2003}: Added optional consistency checking for
+transformations.
 \item {\bf May 25, 2003}: Added configuration support for big endian machines.
-Now \cilvalref{little_endian} can be used to test whether the machine is
+Now \cilvalref{little\_endian} can be used to test whether the machine is
 little endian or not. 
 \item {\bf May 22, 2003}: Fixed a bug in the handling of inline functions. The
 CIL merger used to turn these functions into ``static'', which is incorrect. 

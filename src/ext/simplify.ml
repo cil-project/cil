@@ -157,9 +157,12 @@ and simplifyLval
 
   | Var v, off when v.vaddrof -> (* We are taking this variable's address *)
       let off' = offsetToInt v.vtype off in
-      let a' = makeBasic setTemp 
+      (* We cannot call makeBasic recursively here, so we must do it 
+       * ourselves *)
+      let off'' = makeBasic setTemp off' in
+      let a' = setTemp 
           (add (mkCast (mkAddrOrStartOf (Var v, NoOffset))
-                  !upointType) off') 
+                  !upointType) off'') 
       in
       Mem (mkCast a' tres), NoOffset
 
