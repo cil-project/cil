@@ -20,7 +20,7 @@ int Version_132101     ;
 
 struct new_utsname system_utsname = {
 	"Linux" , "(none)" , "2.4.5" , "#24 Fri Nov 16 21:05:13 PST 2001" ,
-	1  , "(none)" 
+	"i386"  , "(none)" 
 };
 
 const char *linux_banner = 
