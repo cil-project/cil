@@ -2061,67 +2061,10 @@ let preamble () =
      GText ("// Include the definition of the checkers\n") ::
      startFile
 
-(* In some cases we might need to create a function to initialize some 
- * globals *)
-let fileInit : (fundec * varinfo) option ref = ref None
-let addGlobalInitializer (glob:varinfo) 
-                         (startoff: offset) (startt: typ) (init: exp) = 
-  (* See if we have created an initializer already *)
-  let finit, itervar = 
-    match !fileInit with 
-      Some (f, v) -> f, v
-    | None -> begin
-        let f = emptyFunction ("__boxinit_" ^ 
-                               (Filename.chop_extension
-                                  (Filename.basename !currentFile.fileName))) 
-        in
-        (* Now make an iterator variable *)
-        let iter = makeTempVar f ~name:"iter" intType in
-        fileInit := Some (f, iter);
-        f, iter
-    end
-  in
-  (* Set the current function to be the initialization function. We know that 
-   * we must be outside any functions now *)
-  currentFunction := finit;
-  (* Compute the base for this global *)
-  let globbase = 
-    match startt with
-      TArray _ -> StartOf(Var glob, startoff)
-    | _ -> AddrOf((Var glob, startoff))
-  in
-  (* If we are here the initializer better be a Compound since it contains 
-   * fat initializers inside (which are Compounds themselves) *)
-  let rec initone (baseoff: offset) off what t acc = 
-    match what with
-      Compound (t, initl) -> 
-        (* If this is a fat thing then we must call FATPOINTERWRITE, except 
-         * if this global does not have tags *)
-        let acc' = 
-          if isFatType t && startoff <> NoOffset then
-            (List.rev 
-               (checkMem (Some what)
-                  (Var glob, (addOffset off baseoff))
-                  globbase zero
-                  t P.Wild)) @ acc
-          else acc 
-        in
-        foldLeftCompound (initone (addOffset off baseoff)) t initl acc'
-    | _ -> mkSet (Var glob, addOffset off baseoff) what :: acc
-  in
-  let inits = 
-    initone NoOffset startoff init startt [finit.sbody] 
-  in 
-(*    match init with 
-    Compound(t, initl) -> 
-      foldLeftCompound (initone startoff) t initl [finit.sbody]
-    | _ -> E.s (E.bug "global initializer not a Compound")
-  in *)
-  finit.sbody <- mkSeq (List.rev inits)
              
 let boxFile file =
   ignore (E.log "Boxing file\n");
-  fileInit := None;
+  E.hadErrors := false;
   currentFile := file;
   (* Compute a small file ID *)
   let _ = 
@@ -2256,42 +2199,17 @@ let boxFile file =
            * also change its name *)
     fixupGlobName vi;
     (* Prepare the data initializer. Catch the case when we are initialing an 
-     * array of char with a string. If the initializer contains fats then we 
-     * set fats to Some _ and init' to None  *)
-    let init', fats = 
+     * array of char with a string.  *)
+    let init' = 
       match init with
-        None -> None, None
+        None -> None
       | Some e -> 
-          (* See if e contains pointers. Then we move it to an initializer 
-           * function *)
-          let hasPointers = 
-            existsType 
-              (fun t ->
-                match t with 
-                  TPtr _ -> ExistsTrue
-                | _ -> ExistsMaybe) origType in
           let e' = boxGlobalInit e origType in
-              (* See if init' contains fat pointers *)
-          let rec expContainsFats = function
-              Compound(t, [_, p; _, b]) when isFatType t ->
-                not (isZero b)
-            | Compound(t, ilist) -> 
-                List.exists (fun (_, e) -> expContainsFats e) ilist
-            | _ -> false
-          in
-          if expContainsFats e' then
-                (* But we do not consider NULL a fat, since it is Ok for it 
-                   * to have tags = 0 *)
-            None, Some e'
-          else
-            Some e', None
+          Some e'
     in
     (* Tag some globals *)
     if not (mustBeTagged vi) then
       if isdef then begin
-        (* See if we have fats *)
-        (match fats with None -> () 
-        | Some fats -> addGlobalInitializer vi NoOffset vi.vtype fats);
         theFile := GVar(vi, init',l) :: !theFile
       end else
         theFile := GDecl (vi, l) :: !theFile
@@ -2306,12 +2224,6 @@ let boxFile file =
           if vi.vstorage = Extern 
           then None 
           else begin
-            (match fats with
-              Some fats' ->  
-                let dfld, lfld, _, _, _ = splitTagType vi.vtype in
-                addGlobalInitializer 
-                  vi (Field(dfld, NoOffset)) dfld.ftype fats'
-            | _ -> ()); 
             let (x, _) = makeTagCompoundInit vi.vtype init' in
             Some x
           end
@@ -2334,18 +2246,14 @@ let boxFile file =
   interceptCasts := false;
   (* Now the orgininal file *)
   List.iter doGlobal file.globals;
-  (* See if we must append the initializer *)
-  (match !fileInit with 
-    None -> ()
-  | Some (f, _) -> 
-      ignore (E.warn "Added global initializer %s" f.svar.vname);
-      theFile := GFun (f, lu) :: !theFile);
   let res = List.rev (!theFile) in
   (* Clean up global hashes to avoid retaining garbage *)
   H.clear hostsOfBitfields;
   H.clear typeNames;
   H.clear fixedTypes;
   H.clear taggedTypes;
+  if !E.hadErrors then
+    E.s (E.error "Boxing");
   {file with globals = res}
 
   

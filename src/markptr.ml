@@ -497,7 +497,11 @@ let doGlobal (g: global) : global =
 (* Now do the file *)      
 let markFile fl = 
   currentFileName := fl.fileName;
-  {fl with globals = List.map doGlobal fl.globals}
+  E.hadErrors := false;
+  let newGlobals = List.map doGlobal fl.globals in
+  ignore (E.log "Markptr: %s\n"
+            (if !E.hadErrors then "Error" else "Success"));
+  {fl with globals = newGlobals}
 
         
 

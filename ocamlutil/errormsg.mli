@@ -30,6 +30,9 @@ val bug           : ('a,unit,Pretty.doc) format -> 'a
 val unimp         : ('a,unit,Pretty.doc) format -> 'a
 val s             : Pretty.doc -> 'a
 
+val hadErrors : bool ref  (* This is set whenever one of the above error 
+                           * functions are called. Must be cleared manually *)
+
    (* Like error but does not raise an Error. Use: ignore (E.warn ...) *)
 val warn         : ('a,unit,Pretty.doc) format -> 'a
 

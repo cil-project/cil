@@ -1917,6 +1917,7 @@ let makeGlobalVarinfo (vi: varinfo) =
 let convFile fname dl = 
   ignore (E.log "Cabs2cil conversion\n");
   (* Clean up the global types *)
+  E.hadErrors := false;
   theFile := [];
   H.clear typedefs;
   H.clear compInfoNameEnv;
@@ -2096,6 +2097,8 @@ let convFile fname dl =
   in
   List.iter doOneGlobal dl;
   (* We are done *)
+  if !E.hadErrors then 
+    E.s (E.error "Cabs2cil");
   { fileName = fname;
     globals  = List.rev (! theFile);
   } 

@@ -20,7 +20,7 @@ print "Test infrastructure for SafeC\n";
 my $TEST = SafecRegTest->new();
 
 my @runpattern = 
-    ("^Run.+ ([.\\d]+)ms" => sub { $_[0]->{run} = $_[1]; });
+    ("^Run.+ ([.\\d]+)ms" => sub { $_[1]->{run} = $_[2]; });
 
 # Now add tests
 $TEST->addTest("hashtest", @runpattern);
@@ -28,7 +28,10 @@ $TEST->addTest("wes-hashtest", @runpattern);
 $TEST->addTest("rbtest", @runpattern);
 $TEST->addTest("wes-rbtest", @runpattern);
 $TEST->addTest("btreetest", @runpattern);
+$TEST->addTest("apache/gzip");
+# $TEST->addTest("test/t");
 
+# print Dumper($TEST);
 
 # Now invoke it
 $TEST->doit();
@@ -55,6 +58,9 @@ sub new {
     my $class = ref($proto) || $proto;
     my $self = $class->SUPER::new(@_);
 
+    if(! defined($self->{option}->{log})) {
+        $self->{logFile} = "safec.log";
+    }
     return $self;
 }
 
@@ -81,6 +87,21 @@ SafeC test harness
 EOF
 }
 
+sub errorHeading {
+    my($self, $err) = @_;
+    return "Success" if $err == 0;
+    return "Parse error" if $err == 1000;
+    return "Cabs2cil error" if $err == 1001;
+    return "Collecting constraints error" if $err == 1002;
+    return "Constraint solving error" if $err == 1003;
+    return "Boxing error" if $err == 1004;
+    return "Error $err";
+}
+
+sub startParsingLog {
+    my($self, $tst) = @_;
+    $tst->{ErrorCode} = 0;
+}
 
 
 sub addTest {
@@ -89,31 +110,51 @@ sub addTest {
     my $theargs = " ";
 
     my %commonerrors = 
-        ("^make: \\*\\*\\*" => sub { $_[0]->{ErrorCode} = 2; }
+        ("^make: \\*\\*\\*" => 
+         sub { 
+             if($_[1]->{ErrorCode} == 0) {
+                 if($_[1]->{instage} == 0) {
+                     $_[1]->{ErrorCode} = 2;
+                 } else {
+                     $_[1]->{ErrorCode} = $_[1]->{instage};
+                 }
+             }},
+
+         "Syntax error" => sub { $_[0]->{ErrorCode} = 1000; },
+
+         "^Error: Cabs2cil" => sub { $_[1]->{ErrorCode} = 1001; },
+
+         "^FrontC finished conversion" => sub { $_[1]->{instage} = 1002; },
+
+         "^Solving constraints" => sub { $_[1]->{instage} = 1003; },
+
+         "^Error: Boxing" => sub { $_[1]->{ErrorCode} = 1004; },
+
          );
     my $k;
     foreach $k (keys %commonerrors) {
         $patterns{$k} = $commonerrors{$k};
     }
 
-    OneTest->new($self, $name . "-cil",
-                 Dir => "..",
-                 Cmd => "make " . $name . $theargs,
-                 Group => ["cil"],
-                 Patterns => \%patterns);
+    $self->newTest(Name => $name . "-cil",
+                   Dir => "..",
+                   Cmd => "make " . $name . $theargs,
+                   Group => ["cil"],
+                   Patterns => \%patterns);
 
-    OneTest->new($self, $name . "-box",
-                 Dir => "..",
-                 Cmd => "make " . $name . " BOX=1 " . $theargs,
-                 Group => ["box"],
-                 Patterns => \%patterns);
+    $self->newTest(Name => $name . "-box",
+                   Dir => "..",
+                   Cmd => "make " . $name . " BOX=1 " . $theargs,
+                   Group => ["box"],
+                   Patterns => \%patterns);
 
-    OneTest->new($self, $name . "-inferbox",
-                 Dir => "..",
-                 Cmd => "make " . $name . " BOX=1 INFERBOX=1 " . $theargs,
-                 Group => ["box", "infer"], 
-                 Patterns => \%patterns);
+    $self->newTest(Name => $name . "-inferbox",
+                   Dir => "..",
+                   Cmd => "make " . $name . " BOX=1 INFERBOX=1 " . $theargs,
+                   Group => ["box", "infer"], 
+                   Patterns => \%patterns);
 }
+
 
 
 1;

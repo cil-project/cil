@@ -199,6 +199,8 @@ end
  * currently it is very un-optimized! *)
 let solve (node_ht : (int,node) Hashtbl.t) = begin
 
+  ignore (E.log "Solving constraints\n");
+
   (* returns true if k2 is "farther from safe" than k1 *)
   let moving_up k1 k2 =
     if k1 = k2 || k2 = Unknown then false

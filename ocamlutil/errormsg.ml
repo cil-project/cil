@@ -45,6 +45,8 @@ let verboseFlag = ref false
 exception Error
 let s (d : doc) = raise Error
 
+let hadErrors = ref false
+
 let errorContext = ref []
 let pushContext f = errorContext := f :: (!errorContext)
 let popContext () = 
@@ -90,15 +92,15 @@ let contextMessage name d =
 
 
 let bug (fmt : ('a,unit,doc) format) : 'a = 
-  let f d = contextMessage "Bug" d; raise Error in
+  let f d =  hadErrors := true; contextMessage "Bug" d; raise Error in
   Pretty.gprintf f fmt
 
 let error (fmt : ('a,unit,doc) format) : 'a = 
-  let f d = contextMessage "Error" d; raise Error in
+  let f d = hadErrors := true; contextMessage "Error" d; raise Error in
   Pretty.gprintf f fmt
 
 let unimp (fmt : ('a,unit,doc) format) : 'a = 
-  let f d = contextMessage "Unimplemented" d; raise Error in
+  let f d = hadErrors := true; contextMessage "Unimplemented" d; raise Error in
   Pretty.gprintf f fmt
 
 let warn (fmt : ('a,unit,doc) format) : 'a = 
