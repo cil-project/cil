@@ -219,6 +219,7 @@ if (!$egcs) {
 }
 $TEST->addTests("test/attr6", "_GNUCC=1", ['cil']);
 $TEST->addTests("test/attr7", "_GNUCC=1", ['cil']);
+$TEST->addTests("test/attr8", "_GNUCC=1", ['cil']);
 $TEST->add3Tests("test/bh1");
 $TEST->add3Tests("test/bitfield");
 $TEST->add3Tests("testrun/bitfield3");
@@ -241,6 +242,7 @@ $TEST->addTests("testrun/const4", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/const5", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/const6", "", ['cil']);
 $TEST->addTests("test/const7", "", ['cil']);
+$TEST->addTests("testrun/const8", "", ['cil']);
 $TEST->add2Tests("test/deref", "_GNUCC=1");
 $TEST->add3Tests("test/enum");
 $TEST->add3Tests("testrun/enum2");
@@ -328,6 +330,7 @@ $TEST->add2Tests("testrun/va-arg-2", "_GNUCC=1");
 if (!$egcs) {
   $TEST->add2Tests("testrun/va-arg-7", "_GNUCC=1");
 }
+$TEST->addTests("test-bad/arrsize", "", ['cil']);
 $TEST->addTests("testrun/comma1", "_GNUCC=1", ['cil']);
 $TEST->add3Tests("test/retval");
 $TEST->add3Tests("test/seq");
@@ -731,6 +734,7 @@ $TEST->add2Tests("apache/gzip");
 #   $TEST->addBadComment("apache/random-box", "BUG");
 
 $TEST->add2Tests("testrun/sizeof1");
+$TEST->add2Tests("testrun/sizeof2");
 $TEST->addTests("testrun/seq1", "", ['inferbox']);
 $TEST->addTests("testrun/seq2", "", ['inferbox']);
 $TEST->addTests("testrun/builtin", "", ['cil']);

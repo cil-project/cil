@@ -2085,7 +2085,9 @@ __s8 unsigned uchartest; // This is unsigned char for gcc
   before the assignment, while \t{gcc} delays the increment after the
   assignment. It turned out that this behavior is much easier to implement
   than gcc's one, and either way is correct (since the behavior is unspecified
-  in this case). 
+  in this case). Similarly, if you write \t{x = x ++;} then CIL will perform
+  the increment before the assignment, whereas GCC and MSVC will perform it
+  after the assignment. 
 \end{itemize}
 
   \section{Using the merger}\label{sec-merger}\cutname{merger.html}
@@ -2720,6 +2722,12 @@ Necula}.
  
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf January 11, 2005}: Fixed printing of integer constants whose
+  integer kind is shorter than an int. 
+\item {\bf January 11, 2005}: Added checks for negative size arrays and arrays
+  too big. 
+\item {\bf January 10, 2005}: Added support for GCC attribute ``volatile'' for
+  tunctions (as a synonim for noreturn). 
 \item {\bf January 10, 2005}: Improved the comparison of array sizes when
   comparing array types. 
 \item {\bf January 10, 2005}: Fixed handling of shell metacharacters in the

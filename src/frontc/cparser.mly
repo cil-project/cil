@@ -1238,6 +1238,11 @@ primary_attr:
 
 |   CST_INT COLON CST_INT                { VARIABLE (fst $1 ^ ":" ^ fst $3) } 
 |   DEFAULT COLON CST_INT                { VARIABLE ("default:" ^ fst $3) }
+                          
+                                            /*(** GCC allows this as an 
+                                             * attribute for functions, 
+                                             * synonim for noreturn **)*/
+|   VOLATILE                             { VARIABLE ("__noreturn__") }
 ;
 
 postfix_attr:

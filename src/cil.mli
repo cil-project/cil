@@ -92,9 +92,10 @@ type file =
        * to create/get one. *)
       mutable globinitcalled: bool;     
       (** Whether the global initialization function is called in main. This 
-          should always be false if there is no global initializer. When 
-          you create a global initialization CIL will try to insert code in 
-          main to call it. *)
+       * should always be false if there is no global initializer. When you 
+       * create a global initialization CIL will try to insert code in main 
+       * to call it. This will not happen if your file does not contain a 
+       * function called "main" *)
     } 
 (** Top-level representation of a C source file *)
 

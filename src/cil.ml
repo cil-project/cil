@@ -1700,18 +1700,25 @@ let mostNeg64BitInt : int64 = (Int64.of_string "-0x8000000000000000")
 
 (* constant *)
 let d_const () c = 
-  let suffix ik = 
-    match ik with
-      IUInt -> "U"
-    | ILong -> "L"
-    | IULong -> "UL"
-    | ILongLong -> if !msvcMode then "L" else "LL"
-    | IULongLong -> if !msvcMode then "UL" else "ULL"
-    | _ -> ""
-  in
   match c with
     CInt64(_, _, Some s) -> text s (* Always print the text if there is one *)
   | CInt64(i, ik, None) -> 
+      (** We must make sure to capture the type of the constant. For some 
+       * constants this is done with a suffix, for others with a cast prefix.*)
+      let suffix : string = 
+        match ik with
+          IUInt -> "U"
+        | ILong -> "L"
+        | IULong -> "UL"
+        | ILongLong -> if !msvcMode then "L" else "LL"
+        | IULongLong -> if !msvcMode then "UL" else "ULL"
+        | _ -> ""
+      in
+      let prefix : string = 
+        if suffix <> "" then "" 
+        else if ik = IInt then ""
+        else "(" ^ (sprint 80 (d_ikind () ik)) ^ ")"
+      in
       (* Watch out here for negative integers that we should be printing as 
        * large positive ones *)
       if i < Int64.zero 
@@ -1720,11 +1727,12 @@ let d_const () c =
         let high = Int64.shift_right i 32 in
         if ik <> IULongLong && ik <> ILongLong && high = Int64.of_int (-1) then
           (* Print only the low order 32 bits *)
-          text ("0x" ^ 
-                Int64.format "%x" (Int64.logand i (Int64.shift_right_logical high 32))
-                ^ suffix ik)
+          text (prefix ^ "0x" ^ 
+                (Int64.format "%x" 
+                  (Int64.logand i (Int64.shift_right_logical high 32))
+                ^ suffix))
         else
-          text ("0x" ^ Int64.format "%x" i ^ suffix ik)
+          text (prefix ^ "0x" ^ Int64.format "%x" i ^ suffix)
       else (
         if (i = mostNeg32BitInt) then
           (* sm: quirk here: if you print -2147483648 then this is two tokens *)
@@ -1732,12 +1740,12 @@ let d_const () c =
           (* int.. so we do what's done in limits.h, and print (-2147483467-1); *)
           (* in gcc this avoids a warning, but it might avoid a real problem *)
           (* on another compiler or a 64-bit architecture *)
-          text "(-0x7FFFFFFF-1)"
+          text (prefix ^ "(-0x7FFFFFFF-1)")
         else if (i = mostNeg64BitInt) then
           (* The same is true of the largest 64-bit negative. *)
-          text "(-0x7FFFFFFFFFFFFFFF-1)"
+          text (prefix ^ "(-0x7FFFFFFFFFFFFFFF-1)")
         else
-          text (Int64.to_string i ^ suffix ik)
+          text (prefix ^ (Int64.to_string i ^ suffix))
       )
 
   | CStr(s) -> text ("\"" ^ escape_string s ^ "\"")
@@ -1758,6 +1766,8 @@ let d_const () c =
   | CChr(c) -> text ("'" ^ escape_char c ^ "'")
   | CReal(_, _, Some s) -> text s
   | CReal(f, _, None) -> text (string_of_float f)
+
+
 
 (* Parentheses level. An expression "a op b" is printed parenthesized if its 
  * parentheses level is >= that that of its context. Identifiers have the 
@@ -2176,7 +2186,8 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
     | SizeOf (t) -> 
         text "sizeof(" ++ self#pType None () t ++ chr ')'
-    | SizeOfE (e) ->  text "sizeof(" ++ self#pExp () e ++ chr ')'
+    | SizeOfE (e) ->  
+        text "sizeof(" ++ self#pExp () e ++ chr ')'
 
     | SizeOfStr s -> 
         text "sizeof(" ++ d_const () (CStr s) ++ chr ')'
@@ -3342,7 +3353,37 @@ class plainCilPrinterClass =
    * details of the internal representation *)
   method pExp () = function
     Const(c) -> 
-      text "Const(" ++ d_const () c ++ text ")"
+      let d_plainconst () c = 
+        let suffix ik = 
+          match ik with
+            IUInt -> "U"
+          | ILong -> "L"
+          | IULong -> "UL"
+          | ILongLong -> if !msvcMode then "L" else "LL"
+          | IULongLong -> if !msvcMode then "UL" else "ULL"
+          | _ -> ""
+        in
+        match c with
+          CInt64(i, ik, so) -> 
+            dprintf "Int64(%s,%a,%s)" 
+              (Int64.format "%d" i)
+              d_ikind ik
+              (match so with Some s -> s | _ -> "None")
+        | CStr(s) -> 
+            text ("CStr(\"" ^ escape_string s ^ "\")")
+        | CWStr(s) -> 
+            dprintf "CWStr(%a)" d_const c
+              
+        | CChr(c) -> text ("CChr('" ^ escape_char c ^ "')")
+        | CReal(f, fk, so) -> 
+            dprintf "CReal(%f, %a, %s)" 
+              f
+              d_fkind fk 
+              (match so with Some s -> s | _ -> "None")
+      in
+      text "Const(" ++ d_plainconst () c ++ text ")"
+
+
   | Lval(lv) -> 
       text "Lval(" 
         ++ (align
@@ -5045,12 +5086,13 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
           kinteger64 tk (Int64.add i1 i2)
       | MinusA, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
           kinteger64 tk (Int64.sub i1 i2)
-      | Mult, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
+      | Mult, Const(CInt64(i1,ik1,_)), Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
           kinteger64 tk (Int64.mul i1 i2)
       | Div, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> begin
           try kinteger64 tk (Int64.div i1 i2)
           with Division_by_zero -> BinOp(bop, e1', e2', tres)
       end
+
       | Mod, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> begin
           try kinteger64 tk (Int64.rem i1 i2)
           with Division_by_zero -> BinOp(bop, e1', e2', tres) 
@@ -5061,9 +5103,11 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
           kinteger64 tk (Int64.logor i1 i2)
       | BXor, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
           kinteger64 tk (Int64.logxor i1 i2)
-      | Shiftlt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,IInt,_)) -> 
+
+      | Shiftlt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,_,_)) -> 
           kinteger64 tk (Int64.shift_left i1 (Int64.to_int i2))
-      | Shiftrt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,IInt,_)) -> 
+
+      | Shiftrt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,_,_)) -> 
           if isunsigned ik1 then 
             kinteger64 tk (Int64.shift_right_logical i1 (Int64.to_int i2))
           else

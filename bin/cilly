@@ -72,7 +72,7 @@ BEGIN {
         $CilCompiler::base . 
             ($CilCompiler::use_debug ? ".byte" : ".asm") . ".exe";
     if($CilCompiler::use_debug) { 
-        $ENV{"OCAMLRUNPARAM"} = "b";
+        $ENV{"OCAMLRUNPARAM"} = "b" . $ENV{"OCAMLRUNPARAM"};
     } 
 }
 

@@ -1875,6 +1875,10 @@ let convBinOp (bop: A.binary_operator) : binop =
 (**** PEEP-HOLE optimizations ***)
 let afterConversion (c: chunk) : chunk = 
   (* Now scan the statements and find Instr blocks *)
+
+  (** We want to collapse sequences of the form "tmp = f(); v = tmp". This 
+   * will help significantly with the handling of calls to malloc, where it 
+   * is important to have the cast at the same place as the call *)
   let collapseCallCast = function
       Call(Some(Var vi, NoOffset), f, args, l),
       Set(destlv, CastE (newt, Lval(Var vi', NoOffset)), _) 
@@ -2411,6 +2415,19 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
           | _ -> 
               let len' = doPureExp len in
               let _, len'' = castTo (typeOf len') intType len' in
+              let elsz = try (bitsSizeOf bt + 7) / 8
+                         with _ -> E.s (error "Cannot compute array length") 
+              in 
+              (match constFold true len' with 
+                Const(CInt64(i, _, _)) ->
+                  if i < 0L then 
+                    E.s (error "Length of array is negative\n");
+                  if Int64.mul i (Int64.of_int elsz) >= 0x80000000L then 
+                    E.s (error "Length of array is too large\n")
+           
+
+                | l -> E.s (error "Length of array is not a constant: %a\n"
+                             d_exp l));
               Some len''
         in
 	let al' = doAttributes al in
@@ -3014,8 +3031,12 @@ and doExp (isconst: bool)    (* In a constant *)
 
     | A.EXPR_SIZEOF e ->
         (* Allow non-constants in sizeof *)
-        (* Do not convert arrays and functions into pointers *)
+        (* Do not convert arrays and functions into pointers. *)
         let (se, e', t) = doExp false e AExpLeaveArrayFun in
+(*
+        ignore (E.log "sizeof: %a e'=%a, t=%a\n"
+                  d_loc !currentLoc d_plainexp e' d_type t);
+*)
         (* !!!! The book says that the expression is not evaluated, so we
            * drop the potential side-effects 
         if isNotEmpty se then
