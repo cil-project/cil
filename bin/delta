@@ -45,6 +45,7 @@ my $tmpdir_index = 0;           # Cache the last index used to make a tmp direct
 my $tmpdir;                     # Temporary directory for external programs.
 my $granularity = "line";       # What is the size of an input chunk?
 my $dump_input = 0;             # Dump out the input after reading it in.
+my $verbose = 0;                # Be more verbose.
 
 my $help_message = <<END
     Delta Debugging
@@ -52,6 +53,8 @@ my $help_message = <<END
     Implemented by Daniel Wilkerson.
     You can get help by specifying the help flag.
       -help
+    For verbose output:
+      -verbose
     It can read input in line or C top-level form granularity.
       -granularity=line or -granularity=top_form
     To dump the input after reading.
@@ -67,10 +70,9 @@ sub test (\$) {
     my $cached_result = $test_cache{$$test_data_ref}; # This has to be slow for big strings.
     if (defined $cached_result) {return $cached_result;}
 #    print "\nRunning test on data ****************\n", $$test_data_ref, "****************\n";
-    warn $tmp_index;
     my $filename = unused_tempfile();
     put_into_file($$test_data_ref, "${tmpdir}/$filename");
-    my $command_lines = "";
+    my @command_lines = ();
     my @tmp_files = ();
 
     # Test case.
@@ -78,11 +80,11 @@ sub test (\$) {
     my $input = "${tmpdir}/$filename"; push @tmp_files, $input;
     my $cmp_output = "${tmpdir}/${filename}.cmp"; push @tmp_files, $cmp_output;
     my $command = "gcc $input &> $cmp_output";
-    $command_lines .= $command;
+    push @command_lines, $command;
     if (run($command)) {        # Only interesting if it compiles
         my $run_output = "${tmpdir}/${filename}.run"; push @tmp_files, $run_output;
         $command = "./a.out &> $run_output";
-        $command_lines .= $command;
+        push @command_lines, $command;
         if (! run($command)) {  # But does not run.
             $result = 1;
         }
@@ -95,16 +97,17 @@ sub test (\$) {
 #      ;
 #      my $result = run ($command);
 
-    print "\tresult: $result\n";
     # Keep around info on successful runs.
     if ($result) {
+        print "\tSUCCESS\n";
         open LOG, ">>${tmpdir}/log" or die $!;
-        print LOG "$filename\n";
-        print LOG "$command_lines\n\n";
+        print LOG "\n$filename\n";
+        print LOG join("\n", @command_lines), "\n";
         close LOG or die $!;
     } else {
         foreach my $file (@tmp_files) {unlink $file;}
     }
+    print "\n";
     $test_cache{$$test_data_ref} = $result;
     return $result;
 }
@@ -121,6 +124,8 @@ sub parse_command_line {
                 exit 0;
             } elsif ($flag eq "dump_input") {
                 $dump_input++;
+            } elsif ($flag eq "verbose") {
+                $verbose++;
             } elsif ($flag eq "granularity") {
                 if ($argument eq "line" || $argument eq "top_form") {
                     $granularity = $argument;
@@ -133,6 +138,7 @@ sub parse_command_line {
 
 sub dump_settings {
   print "Settings:\n";
+  print "\ttemporary directory: $tmpdir\n";
   print "\tgranularity: $granularity\n";
   print "\tinput: ", join (" ", @ARGV), "\n";
   print "\n";
@@ -196,7 +202,6 @@ sub dump_markers {
 }
 
 sub unused_tempfile {
-    warn "$tmp_index";
     die unless defined $tmpdir;
     my $filename;
     do {
@@ -244,6 +249,7 @@ sub increase_granularity {
   @markers = @newmarkers;
   print "After ";
   dump_markers();
+  print "\n";
   return $split_one;
 }
 
@@ -260,14 +266,17 @@ sub append_marker ($\$) {
 # Main ****************
 
 parse_command_line();
-dump_settings();
 
 # Perhaps I'll let the user pick the tmpdir name, but it had better
 # not already exist.
 $tmpdir = unused_tempdir() unless defined $tmpdir;
 die if -e $tmpdir;
 mkdir $tmpdir, 0777;
-warn "Using as temporary directory : $tmpdir\n";
+
+if ($verbose) {
+    print "Delta debugging algorithm, implemented by Daniel Wilkerson.\n";
+    dump_settings();
+}
 
 read_input_chunks();
 die "The input must consist of at least one chunk." unless @chunks;
