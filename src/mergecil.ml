@@ -317,7 +317,9 @@ let mergePushGlobals gl = List.iter mergePushGlobal gl
 (* The index of the current file being scanned *)
 let currentFidx = ref 0
 
-let currentDeclIdx = ref 0 (* The index of the definition in a file *)
+let currentDeclIdx = ref 0 (* The index of the definition in a file. This is 
+                            * maintained both in pass 1 and in pass 2. Make 
+                            * sure you count the same things in both passes. *)
 
 
 
@@ -1514,7 +1516,8 @@ let oneFilePass2 (f: file) =
           currentLoc := l; (* This is here just to introduce an undefined 
                             * structure. But maybe the structure was defined 
                             * already.  *)
-          incr currentDeclIdx;
+          (* Do not increment currentDeclIdx because it is not incremented in 
+           * pass 1*)
           if H.mem emittedCompDecls ci.cname then 
             () (* It was already declared *)
           else begin
@@ -1526,7 +1529,8 @@ let oneFilePass2 (f: file) =
 
       | GEnumTagDecl (ei, l) -> 
           currentLoc := l;
-          incr currentDeclIdx;
+          (* Do not increment currentDeclIdx because it is not incremented in 
+           * pass 1*)
           (* Keep it as a declaration *)
           mergePushGlobal g
           
