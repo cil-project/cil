@@ -1509,11 +1509,12 @@ let oneFilePass2 (f: file) =
                        (P.dprintf "dropping duplicate def'n of func %s at %a in favor of that at %a\n"
                           fdec'.svar.vname  d_loc l  d_loc prevLoc))
                   else begin
-                    (* the checksums differ, so I'll keep both so as to get
-                    * a link error later *)
-                    (ignore (warn "def'n of func %s at %a (sum %d) conflicts with the one at %a (sum %d); keeping both\n"
-                               fdec'.svar.vname  d_loc l  curSum  d_loc prevLoc  prevSum));
-                    (mergePushGlobal g')
+                    (* the checksums differ, so print a warning but keep the
+                     * older one to avoid a link error later.  I think this is 
+		     * a reasonable approximation of what ld does. *)
+                    (ignore (warn "def'n of func %s at %a (sum %d) conflicts with the one at %a (sum %d); keeping the one at %a.\n"
+                               fdec'.svar.vname  d_loc l  curSum  d_loc prevLoc
+			       prevSum d_loc prevLoc))
                   end
                 with Not_found -> begin
                   (* there was no previous definition *)
