@@ -4451,21 +4451,14 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
               
               
               (* Create the formals and add them to the environment. *)
-	      (* sfg: extract locations for the formals from dt *)
-	      let fmlocs = 
-		begin match dt with 
-		     PROTO(_, fml, _) -> fml 
-		   | _ -> raise (Failure "Apparently functions needn't use PROTO.") end in
-	      let formals = 
-                List.map2 
+              let formals = 
+                List.map 
                   (fun (fn, ft, fa) -> 
-		     fun (_, (_, _, _, l)) ->
-                       let f = makeVarinfo false fn ft in
-			 f.vdecl <- (convLoc l);
-			 f.vattr <- fa;
-			 (* ignore(E.log "byte pos of loc for %s is %d\n" fn (l.byteno)); *)
-			 alphaConvertVarAndAddToEnv true f)
-                  (argsToList formals_t) fmlocs
+                    let f = makeVarinfo false fn ft in
+                    f.vdecl <- !currentLoc; (*sfg - locs buried in dt*)
+                    f.vattr <- fa;
+                    alphaConvertVarAndAddToEnv true f)
+                  (argsToList formals_t)
               in
               (* Recreate the type based on the formals. *)
               let ftype = TFun(returnType, 
