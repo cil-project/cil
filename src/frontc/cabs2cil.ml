@@ -954,6 +954,9 @@ type expAction =
                                          * expression has that type.You must 
                                          * use a doCast afterwards to make 
                                          * sure. *)
+  | AExpLeaveArrayFun                   (* Do it like an expression, but do 
+                                         * not convert arrays of functions 
+                                         * into pointers *)
 
 
 (*** Result of compiling conditional expressions *)
@@ -2000,10 +2003,15 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
         
           
     | [A.TtypeofE e] -> 
-        let (c, _, t) = doExp false e (AExp None) in
+        (* We process e as AExpLeaveArrayfun to avoid conversion of arrays 
+         * and functions into pointers *)
+        let (c, e', t) = doExp false e AExpLeaveArrayFun in
 (*
         if not (isEmpty c) then
           ignore (warn "typeof for a non-pure expression\n");
+*)
+(*
+        ignore (E.log "typeof(%a) = %a\n" d_exp e' d_plaintype t);
 *)
         t
 
@@ -2478,6 +2486,10 @@ and doExp (isconst: bool)    (* In a constant *)
                 (se: chunk) (e: exp) (t: typ) : chunk * exp * typ = 
     match newWhat with 
       ADrop -> (se, e, t)
+    | AExpLeaveArrayFun -> 
+        (se, e, t) (* It is important that we do not do "processArrayFun" in 
+                    * this case. We exploit this when we process the typeOf 
+                    * construct *)
     | AExp _ -> 
         let (e', t') = processArrayFun e t in
         (se, e', t')
@@ -2739,7 +2751,8 @@ and doExp (isconst: bool)    (* In a constant *)
 
     | A.EXPR_SIZEOF e ->
         (* Allow non-constants in sizeof *)
-        let (se, e', t) = doExp false e (AExp None) in
+        (* Do not convert arrays and functions into pointers *)
+        let (se, e', t) = doExp false e AExpLeaveArrayFun in
         (* !!!! The book says that the expression is not evaluated, so we
            * drop the potential side-effects 
         if isNotEmpty se then
@@ -2769,7 +2782,7 @@ and doExp (isconst: bool)    (* In a constant *)
         finishExp empty (AlignOf(typ)) !typeOfSizeOf
 
     | A.EXPR_ALIGNOF e ->
-        let (se, e', t) = doExp false e (AExp None) in
+        let (se, e', t) = doExp false e AExpLeaveArrayFun in
         (* !!!! The book says that the expression is not evaluated, so we
            * drop the potential side-effects 
         if isNotEmpty se then
@@ -2791,7 +2804,7 @@ and doExp (isconst: bool)    (* In a constant *)
           match what with
             AExp (Some _) -> AExp (Some typ)
           | AExp None -> what
-          | ADrop -> what
+          | ADrop | AExpLeaveArrayFun -> what
           | ASet (lv, lvt) -> 
               (* If the cast from typ to lvt would be dropped, then we 
                * continue with a Set *)
@@ -4224,6 +4237,10 @@ and createGlobal (specs : (typ * storage * bool * A.attribute list))
         );
     end;
     let vi, alreadyInEnv = makeGlobalVarinfo (inite != A.NO_INIT) vi in
+(*
+    ignore (E.log "createGlobal %a: %s type=%a\n" 
+       d_loc (convLoc cloc) vi.vname d_plaintype vi.vtype);
+*)
             (* Do the initializer and complete the array type if necessary *)
     let init : init option = 
       if inite = A.NO_INIT then 
