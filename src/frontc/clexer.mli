@@ -18,7 +18,7 @@ val get_buffer: handle ref -> string -> int -> int
 *)
 
 (* Display an error given two positions int he parsing buffer *)
-val display_error: msg:string -> start:int -> finish:int -> unit
+val display_error: string -> int -> int -> unit
 
 (*
 val lineno: handle -> int

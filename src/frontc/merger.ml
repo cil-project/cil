@@ -244,7 +244,8 @@ and splitNameForAlpha (lookupname: string) : (string * string * int) =
  * tag kind then the name ie empty and the specifier has one element which is 
  * the definition of the tag *)
 type typeTagDef = envKind * string * specifier * name * cabsloc
-let fileTypeTags : typeTagDef list ref = ref []
+let fileTypeTags: (envKind * string, specifier * name * cabsloc) H.t 
+    = H.create 53
   
 class collectTypeTagDefsClass  : cabsVisitor = object (self)
   inherit nopCabsVisitor
@@ -261,8 +262,7 @@ class collectTypeTagDefsClass  : cabsVisitor = object (self)
       match d with 
       | TYPEDEF ((s, nl), l) -> 
           List.iter (fun ((n, _, _) as nm) -> 
-            fileTypeTags := (EType, n, s, nm, !visitorLocation) 
-               :: !fileTypeTags) nl;
+            H.add fileTypeTags (EType, n) (s, nm, !visitorLocation)) nl;
           DoChildren
             
       | _ -> DoChildren
@@ -276,19 +276,16 @@ class collectTypeTagDefsClass  : cabsVisitor = object (self)
     (match ts with 
       Tstruct (n, Some flds) -> 
         if n <> "" then 
-          fileTypeTags := 
-             (EStruct, n, [SpecType ts], 
-              emptyName, !visitorLocation) :: !fileTypeTags
+          H.add fileTypeTags (EStruct, n) 
+            ([SpecType ts], emptyName, !visitorLocation)
     | Tunion (n, Some flds) -> 
         if n <> "" then
-          fileTypeTags := 
-             (EUnion, n, [SpecType ts], 
-              emptyName, !visitorLocation) :: !fileTypeTags
+          H.add fileTypeTags (EUnion, n) 
+            ([SpecType ts], emptyName, !visitorLocation)
     | Tenum (n, Some eil) ->
         if n <> "" then   
-          fileTypeTags := 
-             (EEnum, n, [SpecType ts], 
-              emptyName, !visitorLocation) :: !fileTypeTags
+          H.add fileTypeTags (EEnum, n) 
+            ([SpecType ts], emptyName, !visitorLocation)
     | _ -> ());
     DoChildren
 
@@ -357,6 +354,7 @@ and compareFieldGroupLists acc fgl1 fgl2 =
 let globalTypeTags : (envKind * string, typeTagDef) H.t = H.create 111
 
 let dumpGlobalTypeTags (msg: string) = 
+  let old = !Cprint.out in
   Cprint.out := stderr;
   Cprint.print msg;
   H.iter (fun (k, n) (_, n', specs, nm, _) -> 
@@ -365,7 +363,10 @@ let dumpGlobalTypeTags (msg: string) =
     Cprint.print ",";
     Cprint.print_name nm;
     Cprint.print ")\n")
-    globalTypeTags
+    globalTypeTags;
+  flush !Cprint.out;
+  Cprint.out := old
+  
 
 (* We keep a graph of equality constraints *)
 type eqNode = { 
@@ -395,9 +396,9 @@ let dumpGraph (msg: string) =
               (docList (chr ',') (fun succ -> num succ.id)) n.succs))
     constraintGraph
     
-let constructConstraintGraph (tt: typeTagDef list) = 
+let constructConstraintGraph () = 
   H.clear constraintGraph; nodeId := 0;
-  let doOne (defk, defn, defspec, ((_, def_dt, def_a) as defname), defloc) = 
+  let doOne (defk, defn) (defspec, ((_, def_dt, def_a) as defname), defloc) = 
     (* All previous typeTagDefs for the same original name *)
     let old = H.find_all globalTypeTags (defk, defn)  in
     List.iter
@@ -447,7 +448,14 @@ let constructConstraintGraph (tt: typeTagDef list) =
           node.eq <- false)
       old
   in
-  List.iter doOne tt;
+  H.iter doOne fileTypeTags;
+  (* Now we can have constraint pairs for undefined "struct foo". If they both 
+   * have the same name then mark them as equal *)
+  H.iter (fun (k,on,nn) nd -> 
+    if on = nn && not nd.eq && not (H.mem fileTypeTags (k, nn)) 
+               && not (H.mem globalTypeTags (k, on)) then
+      nd.eq <- true) constraintGraph;
+ 
   if debugTypes then dumpGraph " before pushing";
   (* Push eq = false to successors *)
   let rec push (n: eqNode) = 
@@ -460,15 +468,14 @@ let constructConstraintGraph (tt: typeTagDef list) =
 (* Extend the environment with mappings for the type names and tags defined 
  * in this file *)
 let findTypeTagNames (f: Cabs.file) = 
-  fileTypeTags := [];
-  (* Collect the type and tags in this file *)
+  H.clear fileTypeTags;
+  (* Collect the type and tags defined in this file *)
   ignore (visitCabsFile collectTypeTagDefs f);
-  let tt_list = List.rev !fileTypeTags in
   (* Now collect and solve the constraint graph *)
-  constructConstraintGraph tt_list;
+  constructConstraintGraph ();
   (* Now assign names to types and tags *)
-  List.iter 
-    (fun (defk, defn, defspec, defname, defloc) -> 
+  H.iter 
+    (fun (defk, defn) (defspec, defname, defloc) -> 
       begin
         let defkn = (defk, defn) in
         (* Find the first old name that matches *)
@@ -496,13 +503,13 @@ let findTypeTagNames (f: Cabs.file) =
               ignore (E.warn " more than one old name found!\n");
             H.add reused defkn on
       end)
-    tt_list;
+    fileTypeTags;
   (* Clean the graph *)
   H.clear constraintGraph;
   (* Add new new names to globalTypeTags. Must do it this late because we 
    * must rename the typeTags and only now we have the whole renaming *)
-  List.iter 
-    (fun (defk, defn, defspec, defname, defloc) -> 
+  H.iter 
+    (fun (defk, defn) (defspec, defname, defloc) -> 
       let defkn = (defk, defn) in
       if not (H.mem reused defkn) then begin
         let defn' = lookup defk defn in
@@ -511,7 +518,7 @@ let findTypeTagNames (f: Cabs.file) =
         let defname' = visitCabsName renameVisitor nk defspec' defname in
         H.add globalTypeTags defkn (defk, defn', defspec', defname', defloc)
       end)
-    tt_list;
+    fileTypeTags;
   if debugTypes then dumpGlobalTypeTags "globalTypeTags"
   
 

@@ -163,14 +163,14 @@ let attribDepth = ref 0 (* Remembers the nesting level when parsing
 (* The current lexing buffer *)
 let currentLexBuf = ref (Lexing.from_string "")
 
-let init (infile: string) 
-         (inc: in_channel) : Lexing.lexbuf =
+let init ~(filename: string) 
+         ~(inchannel: in_channel) : Lexing.lexbuf =
   currentLine := 1;
   startLine := 0;
-  currentFile := cleanFileName infile;
+  currentFile := cleanFileName filename;
   attribDepth := 0;
   init_lexicon ();
-  let lexbuf = Lexing.from_channel inc in
+  let lexbuf = Lexing.from_channel inchannel in
   currentLexBuf := lexbuf;
   lexbuf
 

@@ -787,7 +787,7 @@ ifdef _GNUCC
 endif
 power:  mustbegcc
 	cd $(PWDIR); \
-               make PLAIN=1 clean  \
+               make PLAIN=1 clean defaulttarget \
                     CC="$(COMBINESAFECC) $(PATCHARG)"
 	cd $(PWDIR); sh -c "time ./power.exe"
 
@@ -802,7 +802,7 @@ ifdef _MSVC
 endif
 health: 
 	cd $(HEALTHDIR); \
-               make PLAIN=1 clean  \
+               make PLAIN=1 clean defaulttarget \
                     $(HEALTHARGS) \
                     CC="$(COMBINESAFECC) \
                         --nocure=trusted_health \
@@ -863,7 +863,7 @@ ifdef _MSVC
 endif
 bisort :  mustbegcc
 	cd $(BISORTDIR); \
-               make PLAIN=1 clean  \
+               make PLAIN=1 clean defaulttarget \
                     $(BISORTARGS) \
                     CC="$(COMBINESAFECC) \
                         --nocure=trusted_bisort \

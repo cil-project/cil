@@ -53,12 +53,13 @@
 (* I have no idea why ocamldoc misreads my comments on cygwin. I seem to be 
  * able to solve the problem by putting some [a] in some places *)
 
-(** [a] The type of unformated documents. Elements of this type can be 
+
+(** The type of unformated documents. Elements of this type can be 
     constructed in two ways. Either with a number of constructor shown below, 
     or using the [dprintf] function with a [printf]-like interface. The 
     [dprintf] method is slightly slower so we do not use it for large jobs 
     such as the output routines for a compiler. But we use it for small jobs 
-    such as logging and error messages. *)
+    such as logging and error messages. **)
 type doc
 
 
@@ -68,7 +69,7 @@ type doc
 
 
 
-(** [a]Constructs an empty document *)
+(** [a]Constructs an empty document **)
 val nil          : doc
 
 
@@ -138,7 +139,7 @@ val seq: sep:doc -> doit:('a ->doc) -> elements:'a list -> doc
    @param doit A function that converts an element to a document 
    @param elements The list to be converted to a document
 *)
-val docList: sep:doc -> doit:('a -> doc) -> unit -> elements:'a list -> doc
+val docList: doc -> ('a -> doc) -> unit -> 'a list -> doc
 
 (** Formats an array. 
 
@@ -146,8 +147,7 @@ val docList: sep:doc -> doit:('a -> doc) -> unit -> elements:'a list -> doc
    @param doit A function that converts an element to a document 
    @param elements The array to be converted to a document
 *)
-val docArray: sep:doc -> doit:(int -> 'a -> doc) -> unit -> 
-              elements:'a array -> doc
+val docArray: doc -> (int -> 'a -> doc) -> unit -> 'a array -> doc
  
 (** Prints an ['a option] with [None] or [Some] *)
 val docOpt: (unit -> 'a -> doc) -> unit -> 'a option -> doc

@@ -2957,7 +2957,7 @@ let mkAddrOf ((b, off) as lval) : exp =
    * TPtr(t) and the type of the resulting lval is t. Note that in CIL the 
    * implicit conversion between a function and a pointer to a function does 
    * not apply. You must do the conversion yourself using AddrOf *)
-let mkMem (addr: exp) (off: offset) : lval =  
+let mkMem ~(addr: exp) ~(off: offset) : lval =  
   let res = 
     match addr, off with
       AddrOf lv, _ -> addOffsetLval off lv
@@ -2999,14 +2999,14 @@ let isArrayType t =
 
 
 
-let rec doCastT (e: exp) (oldt: typ) (newt: typ) = 
+let rec doCastT ~(e: exp) ~(oldt: typ) ~(newt: typ) = 
   (* Do not remove old casts because they are conversions !!! *)
   if typeSig oldt = typeSig newt then
     e
   else
     CastE(newt,e)
 
-let doCast (e: exp) (newt: typ) = 
+let doCast ~(e: exp) ~(newt: typ) = 
   doCastT e (typeOf e) newt
 
 type existsAction = 
@@ -3175,10 +3175,11 @@ let rec makeZeroInit (t: typ) : init =
 
 
 (**** Fold over the list of initializers in a Compound ****)
-let foldLeftCompound (doinit: offset -> init -> typ -> 'a -> 'a)
-    (ct: typ) 
-    (initl: init list)
-    (acc: 'a) : 'a = 
+let foldLeftCompound 
+    ~(doinit: offset -> init -> typ -> 'a -> 'a)
+    ~(ct: typ) 
+    ~(initl: init list)
+    ~(acc: 'a) : 'a = 
   match unrollType ct with
     TArray(bt, _, _) -> 
       let rec foldArray  

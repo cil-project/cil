@@ -91,7 +91,7 @@ let seq ~(sep:doc)  ~(doit:'a -> doc) ~(elements: 'a list) =
       let fh = doit h in loop fh t)
 
 
-let docArray ~(sep:doc) ~(doit:int -> 'a -> doc) () ~(elements:'a array) = 
+let docArray (sep:doc) (doit:int -> 'a -> doc) () (elements:'a array) = 
   let len = Array.length elements in
   if len = 0 then 
     nil
@@ -110,7 +110,7 @@ let docOpt delem () = function
 
 
 
-let docList ~(sep:doc) ~(doit:'a -> doc) () ~(elements:'a list) = 
+let docList (sep:doc) (doit:'a -> doc) () (elements:'a list) = 
   seq sep doit elements
 
 let insert () d = d

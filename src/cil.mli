@@ -747,18 +747,18 @@ val dummyStmt: stmt
 val makeZeroInit: typ -> init
 
 
-(* Fold over the list of initializers in a Compound. doinit is called on 
+(* Fol
+ over the list of initializers in a Compound. doinit is called on 
  * every present initializer, even if it is of compound type. This is much 
  * like a a List.fold_left except we also pass the type of the initializer *)
 val foldLeftCompound: 
     (doinit: offset -> init -> typ -> 'a -> 'a) ->
-     ct: typ ->
+    ct: typ ->
     initl: init list ->
     acc: 'a -> 'a
 
 
 (**** GLOBALS ****)
-
 
 
    (* Make an empty function *)
