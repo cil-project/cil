@@ -66,7 +66,7 @@ CILLY_MODULES = pretty errormsg trace stats util clist \
 CILLY_CMODULES =
 CILLY_LIBS     = unix str
 
-SOURCEDIRS  += src src/frontc src/ext src/ext/pta
+SOURCEDIRS  += src src/frontc src/ext src/ext/pta Ocamlutil
 MLLS        += clexer.mll formatlex.mll
 MLYS        += cparser.mly formatparse.mly
 MODULES     += $(CILLY_MODULES) libmaincil
@@ -290,15 +290,16 @@ DISTRIB_ROOT = README LICENSE INSTALL Makefile.cil.in  \
 	       configure configure.in install-sh config.guess config.sub \
 	       cil.spec cil.spec.in
 
-DISTRIB_SRC = pretty.ml pretty.mli errormsg.ml errormsg.mli \
-              trace.ml trace.mli stats.ml stats.mli \
-              util.ml clist.ml clist.mli \
+DISTRIB_SRC = util.ml clist.ml clist.mli \
 	      cil.ml cil.mli check.ml check.mli \
 	      rmtmps.ml rmtmps.mli formatlex.mll formatparse.mly \
 	      formatcil.mli formatcil.ml testcil.ml \
 	      mergecil.ml mergecil.mli maincil.ml machdep.c \
 	      libmaincil.ml \
 	      escape.ml escape.mli
+
+DISTRIB_OCAMLUTIL = pretty.ml pretty.mli errormsg.ml errormsg.mli \
+                    trace.ml trace.mli stats.ml stats.mli 
 
 DISTRIB_SRC_FRONTC = cabs.ml cprint.ml clexer.mli clexer.mll \
 		     cparser.mly \
@@ -348,7 +349,8 @@ distrib-nocheck: doc $(DISTRIB_ROOT)
               $(TOP_DIR)/obj/x86_WIN32 \
               $(TOP_DIR)/obj/x86_LINUX \
               $(TOP_DIR)/test \
-              $(TOP_DIR)/test/small1
+              $(TOP_DIR)/test/small1 \
+              $(TOP_DIR)/Ocamlutil
 
 	cp $(patsubst %,%,$(DISTRIB_ROOT)) $(TOP_DIR)
         # Add a new Makefile which invokes Makefile.cil
@@ -360,6 +362,7 @@ distrib-nocheck: doc $(DISTRIB_ROOT)
 	echo '	$$(MAKE) -f Makefile.cil $$*' >>$(TOP_DIR)/Makefile
 
 	cp $(patsubst %,src/%,$(DISTRIB_SRC)) $(TOP_DIR)/src
+	cp $(patsubst %,ocamlutil/%,$(DISTRIB_OCAMLUTIL)) $(TOP_DIR)/ocamlutil
 	cp $(patsubst %,src/ext/%,$(DISTRIB_SRC_EXT)) $(TOP_DIR)/src/ext
 	cp $(patsubst %,src/ext/pta/%,$(DISTRIB_SRC_EXT_PTA)) \
                                       $(TOP_DIR)/src/ext/pta
