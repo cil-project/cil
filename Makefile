@@ -242,6 +242,7 @@ OBJOUT=-o
 OBJ=o
 LIBEXT=a
 EXEOUT=-o
+LDEXT=
 DEF=-D
 ASMONLY=-S -o 
 WARNALL=-Wall
@@ -271,6 +272,8 @@ OBJOUT=/Fo
 OBJ=obj
 LIBEXT=lib
 EXEOUT=/Fe
+# sm: the extension added by the linker automatically
+LDEXT=.exe
 DEF=/D
 ASMONLY=/Fa
 INC=/I
@@ -1287,7 +1290,7 @@ vortex: defaulttarget mustbegcc
 	cd $(VORDIR)/src; \
             make clean build CC="$(VORSAFECC) $(CONLY)" \
                              LD="$(VORSAFECC)"
-	cd $(VORDIR)/src; sh -c "./testit vortex.exe"
+	cd $(VORDIR)/src; sh -c "./testit vortex$(LDEXT)"
 
 vortex-gcc: defaulttarget mustbegcc
 	cd $(VORDIR)/src; \

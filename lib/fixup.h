@@ -53,7 +53,11 @@
 #define __FSEQT   __attribute__((fseqt))
 #define __FSEQNT   __attribute__((fseqnt))
 #define __NODE
-#define __HEAPIFY __attribute__((heapify))
+#ifndef DISABLE_HEAPIFY
+  #define __HEAPIFY __attribute__((heapify))
+#else
+  #define __HEAPIFY
+#endif
 #endif
 #endif
 
