@@ -163,6 +163,7 @@ let growTheArray (ga: 'a growArray) (toidx: int) : unit =
   if toidx >= len then begin
     let data' = begin match ga.gaFill with
       Elem x ->
+
 	let data'' = Array.create (toidx + 1) x in
 	Array.blit ga.gaData 0 data'' 0 len;
 	data''
