@@ -81,7 +81,7 @@ let initSolver constraints =
   sconstraints := constraints;
   slimits := [Infinity;NegInfinity];
   let add_to_slimits lim =
-    if not (List.memq lim !slimits) then
+    if not (List.mem lim !slimits) then
       match lim with
       | (Sym _) as lim -> slimits := lim :: !slimits
       | (Int _) as lim -> slimits := lim :: !slimits
@@ -221,6 +221,9 @@ let test () =
   ignore (solve constraints (mk (Sym "y") ">" (Sym "b")));
   ignore (solve constraints (mk (Sym "y") ">=" (Sym "b")));
   ignore (solveEQ constraints (Sym "y") (Sym "y"));
+  pr "Limits known: ";
+  List.iter (fun a -> pr "%s " (lim_tostring a)) !slimits;
+  pr "\n";
   ()
     
 
