@@ -787,13 +787,20 @@ end
 
 let lu = locUnknown
 
+(* sm: utility *)
+let startsWith (prefix: string) (s: string) : bool =
+(
+  let prefixLen = (String.length prefix) in
+  (String.length s) >= prefixLen &&
+  (String.sub s 0 prefixLen) = prefix
+)
+
 
 let get_instrLoc (inst : instr) =
   match inst with
       Set(_, _, loc) -> loc
     | Call(_, _, _, loc) -> loc
     | Asm(_, _, _, _, _, loc) -> loc
-
 let get_globalLoc (g : global) =
   match g with
   | GFun(_,l) -> (l)
@@ -909,41 +916,6 @@ let warnLoc (loc: location) (fmt : ('a,unit,doc) format) : 'a =
     nil
   in
   Pretty.gprintf f fmt
-
-(** A printer interface for CIL trees. Create instantiations of 
- * this type by specializing the class {!Cil.defaultCilPrinter}. *)
-class type cilPrinter = object
-  method pvdec: varinfo -> doc
-    (** Invoked for each variable declaration. Note that variable 
-     * declarations are all the [GVar], [GDecl], [GFun], all the [varinfo] in 
-     * formals of function types, and the formals and locals for function 
-     * definitions. *)
-
-  method pvrbl: varinfo -> doc
-    (** Invoked on each variable use. *)
-
-  method plval: lval -> doc
-    (** Invoked on each lvalue occurence *)
-
-  method pinst: instr -> doc
-    (** Invoked on each instruction occurrence. *)
-
-  method pstmt: stmt -> doc
-    (** Control-flow statement. *)
-
-  method pglob: global -> doc                (** Global (vars, types, etc.) *)
-  method ptype: typ -> typ visitAction       (** Use of some type. Note that 
-                                              * for structure/union and 
-                                              * enumeration types the 
-                                              * definition of the composite 
-                                              * type is not visited. Use 
-                                              * [vglob] to visit it. *)
-  method pattr: attribute -> doc
-    (** Attribute.*)
-
-  method pattrlist: attributes -> doc
-    (** Attribute lists *)
-end
 
 
 
@@ -1729,7 +1701,7 @@ let rec d_decl (docName: unit -> doc) (dnwhat: docNameWhat) () this =
 
   | TComp (comp, a) -> (* A reference to a struct *)
       let su = if comp.cstruct then "struct" else "union" in
-    text (su ^ " " ^ comp.cname ^ " ") 
+      text (su ^ " " ^ comp.cname ^ " ") 
         ++ d_attrlist_pre () a 
         ++ docName()
 
@@ -2370,6 +2342,603 @@ and d_fielddecl () fi =
                              | Some i -> text ": " ++ num i ++ text " ")
     ++ d_attrlist () fi.fattr
     ++ text ";"
+
+
+(** A printer interface for CIL trees. Create instantiations of 
+ * this type by specializing the class {!Cil.defaultCilPrinter}. *)
+class type cilPrinter = object
+  method pvdec: unit -> varinfo -> doc
+    (** Invoked for each variable declaration. Note that variable 
+     * declarations are all the [GVar], [GDecl], [GFun], all the [varinfo] in 
+     * formals of function types, and the formals and locals for function 
+     * definitions. *)
+
+  method pvrbl: unit -> varinfo -> doc
+    (** Invoked on each variable use. *)
+
+  method plval: unit -> lval -> doc
+    (** Invoked on each lvalue occurence *)
+
+  method pinst: unit -> instr -> doc
+    (** Invoked on each instruction occurrence. *)
+
+  method pstmt: unit -> stmt -> doc
+    (** Control-flow statement. *)
+
+  method pglob: unit -> global -> doc       (** Global (vars, types, etc.) *)
+
+  method ptype: doc -> docNameWhat -> unit -> typ -> doc  
+  (* Use of some type in some declaration. The first argument is used to print 
+   * the declared element. Note that for structure/union and enumeration types 
+   * the definition of the composite type is not visited. Use [vglob] to 
+   * visit it.  *)
+
+  method pattr: unit -> attribute -> doc
+    (** Attribute.*)
+   
+  method pattrParam: unit -> attrparam -> doc
+    (** An attribute parameter *)
+
+  method pattrs: unit -> attributes -> doc
+    (** Attribute lists *)
+
+  method pline: unit -> location -> doc
+    (** Print a line-number. This is assumed to come always on an empty line*)
+
+  method pexp: unit -> exp -> doc
+    (** Print expressions *) 
+
+  method pinit: unit -> init -> doc
+end
+
+(* Top-level printing functions *)
+let printType (pp: cilPrinter) () (t: typ) : doc = 
+  pp#ptype nil DNNothing () t
+  
+let printExp (pp: cilPrinter) () (e: exp) : doc = 
+  pp#pexp () e
+
+let printLval (pp: cilPrinter) () (lv: lval) : doc = 
+  pp#plval () lv
+
+let printGlobal (pp: cilPrinter) () (g: global) : doc = 
+  pp#pglob () g
+
+class defaultCilPrinter : cilPrinter = object (self)
+     (* variable use *)
+  method pvrbl () (v:varinfo) = text v.vname
+
+  method pvdec () (v:varinfo) = (* variable declaration *)
+    let stom, rest = separateStorageModifiers v.vattr in
+    (* First the storage modifiers *)
+    (self#pattrs () stom)
+      ++ d_storage () v.vstorage
+      ++ (d_decl (fun _ -> text v.vname) DNString () v.vtype)
+      ++ text " "
+      ++ self#pattrs () rest
+
+  (*** L-VALUES ***)
+  method plval () (lv:lval) =  (* lval (base is 1st field)  *)
+    let rec d_offset dobase = function
+      | NoOffset -> dobase ()
+      | Field (fi, o) -> 
+          d_offset (fun _ -> dobase () ++ text "." ++ text fi.fname) o
+      | Index (e, o) ->
+          d_offset (fun _ -> dobase () ++ text "[" ++ d_exp () e ++ text "]") o
+    in
+    match lv with
+      Var vi, o -> d_offset (fun _ -> text vi.vname) o
+    | Mem e, Field(fi, o) ->
+        d_offset (fun _ ->
+          (d_expprec arrowLevel () e) ++ text ("->" ^ fi.fname)) o
+    | Mem e, o ->
+        d_offset (fun _ -> 
+          text "(*" ++ d_expprec derefStarLevel () e ++ text ")") o
+
+  method private pLvalPrec (contextprec: int) () lv = 
+    if getParenthLevel (Lval(lv)) >= contextprec then
+      text "(" ++ self#plval () lv ++ text ")"
+    else
+      self#plval () lv
+
+  (*** EXPRESSIONS ***)
+  method pexp () (e: exp) : doc = 
+    let level = getParenthLevel e in
+    match e with
+      Const(c) -> d_const () c
+    | Lval(l) -> self#plval () l
+    | UnOp(u,e1,_) -> 
+        let d_unop () u =
+          match u with
+            Neg -> text "-"
+          | BNot -> text "~"
+          | LNot -> text "!"
+        in
+        (d_unop () u) ++ chr ' ' ++ (self#pExpPrec level () e1)
+          
+    | BinOp(b,e1,e2,_) -> 
+        align 
+          ++ (self#pExpPrec level () e1)
+          ++ chr ' ' 
+          ++ (d_binop () b)
+          ++ break 
+          ++ (self#pExpPrec level () e2)
+          ++ unalign
+
+    | CastE(t,e) -> 
+        text "(" 
+          ++ self#pOnlyType () t
+          ++ text ")"
+          ++ self#pExpPrec level () e
+
+    | SizeOf (t) -> 
+        text "sizeof(" ++ self#pOnlyType () t ++ chr ')'
+    | SizeOfE (e) -> 
+        text "sizeof(" ++ self#pexp () e ++ chr ')'
+    | AlignOf (t) -> 
+        text "__alignof__(" ++ self#pOnlyType () t ++ chr ')'
+    | AlignOfE (e) -> 
+        text "__alignof__(" ++ self#pexp () e ++ chr ')'
+    | AddrOf(lv) -> 
+        text "& " ++ (self#pLvalPrec addrOfLevel () lv)
+          
+    | StartOf(lv) -> self#plval () lv
+
+  method private pExpPrec (contextprec: int) () (e: exp) = 
+    let thisLevel = getParenthLevel e in
+                                 (* This is to quite down GCC warnings *)
+    if thisLevel >= contextprec || (thisLevel = additiveLevel &&
+                                    contextprec = bitwiseLevel) then
+      text "(" ++ self#pexp () e ++ text ")"
+    else
+      self#pexp () e
+
+  method pinit () = function 
+      SingleInit e -> self#pexp () e
+    | CompoundInit (t, initl) -> 
+      (* We do not print the type of the Compound *)
+(*
+      let dinit e = d_init () e in
+      dprintf "{@[%a@]}"
+        (docList (chr ',' ++ break) dinit) initl
+*)
+        let printDesignator = 
+          if not !msvcMode then begin
+            (* Print only for union when we do not initialize the first field *)
+            match unrollType t, initl with
+              TComp(ci, _), [(Field(f, NoOffset), _)] -> 
+                if ci.cfields != [] && 
+                  (List.hd ci.cfields).fname = f.fname then
+                  true
+                else
+                  false
+            | _ -> false
+          end else 
+            false 
+        in
+        let d_oneInit = function
+            Field(f, NoOffset), i -> 
+              (if printDesignator then 
+                text ("." ^ f.fname ^ " = ") 
+              else nil) ++ self#pinit () i
+          | Index(e, NoOffset), i -> 
+              (if printDesignator then 
+                text "[" ++ self#pexp () e ++ text "] = " else nil) ++ 
+                self#pinit () i
+          | _ -> E.s (unimp "Trying to print malformed initializer")
+        in
+        chr '{' ++ (align 
+                      ++ ((docList (chr ',' ++ break) d_oneInit) () initl) 
+                      ++ unalign)
+          ++ chr '}'
+          
+  (*** INSTRUCTIONS ****)
+  method pinst () (i:instr) =       (* imperative instruction *)
+    match i with
+    | Set(lv,e,l) -> begin
+        (* Be nice to some special cases *)
+        match e with
+          BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt64(one,_,_)),_)
+            when lv == lv' && one = Int64.one ->
+              d_line l
+                ++ printLval (self :> defaultCilPrinter) () lv
+                ++ text " ++;"
+
+        | BinOp((MinusA|MinusPI),Lval(lv'),
+                Const(CInt64(one,_,_)), _) when lv == lv' && one = Int64.one ->
+                  d_line l
+                    ++ printLval (self :>defaultCilPrinter) () lv
+                    ++ text " --;"
+
+        | BinOp((PlusA|PlusPI|IndexPI|MinusA|MinusPP|MinusPI|BAnd|BOr|BXor|
+          Mult|Div|Mod|Shiftlt|Shiftrt) as bop,
+                Lval(lv'),e,_) when lv == lv' ->
+                  d_line l
+                    ++ printLval (self :> defaultCilPrinter) () lv
+                    ++ text " " ++ d_binop () bop
+                    ++ text "= "
+                    ++ printExp (self :> defaultCilPrinter) () e
+                    ++ text ";"
+                    
+        | _ ->
+            d_line l
+              ++ printLval (self :> defaultCilPrinter)  () lv
+              ++ text " = "
+              ++ printExp (self :> defaultCilPrinter)  () e
+              ++ text ";"
+              
+    end
+    | Call(Some lv, Lval(Var vi, NoOffset), [dest; SizeOf t], l) 
+        when vi.vname = "__builtin_va_arg" -> 
+          d_line l
+            ++ (printLval (self :> defaultCilPrinter)  () lv ++ text " = ")
+                   
+            (* Now the function name *)
+            ++ text "__builtin_va_arg"
+            ++ text "(" ++ (align
+                              (* Now the arguments *)
+                              ++ printExp (self :> defaultCilPrinter)  () dest 
+                              ++ chr ',' ++ break 
+                              ++ printType (self :> defaultCilPrinter)  () t
+                              ++ unalign)
+            ++ text ");"
+
+    | Call(dest,e,args,l) ->
+        d_line l
+          ++ (match dest with
+            None -> nil
+          | Some lv -> 
+              printLval (self :> defaultCilPrinter) () lv ++ text " = " ++
+                (* Maybe we need to print a cast *)
+                (let destt = typeOfLval lv in
+                match unrollType (typeOf e) with
+                  TFun (rt, _, _, _) when typeSig rt <> typeSig destt ->
+                    text "(" ++ d_type () destt ++ text ")"
+                | _ -> nil))
+          (* Now the function name *)
+          ++ (let ed = printExp (self :> defaultCilPrinter) () e in
+              match e with 
+                Lval(Var _, _) -> ed
+              | _ -> text "(" ++ ed ++ text ")")
+          ++ text "(" ++ 
+          (align
+             (* Now the arguments *)
+             ++ (docList (chr ',' ++ break) 
+                   (printExp (self :> defaultCilPrinter) ()) () args)
+             ++ unalign)
+        ++ text ");"
+
+    | Asm(attrs, tmpls, outs, ins, clobs, l) ->
+        if !msvcMode then
+          d_line l
+            ++ text "__asm {"
+            ++ (align
+                  ++ (docList line text () tmpls)
+                  ++ unalign)
+            ++ text "};"
+        else
+          d_line l
+            ++ text ("__asm__ ") 
+            ++ self#pattrs () attrs 
+            ++ text " ("
+            ++ (align
+                  ++ (docList line
+                        (fun x -> text ("\"" ^ escape_string x ^ "\""))
+                        () tmpls)
+                  ++
+                  (if outs = [] && ins = [] && clobs = [] then
+                    nil
+                else
+                  (text ": "
+                     ++ (docList (chr ',' ++ break)
+                           (fun (c, lv) ->
+                             text ("\"" ^ escape_string c ^ "\" (")
+                               ++ printLval (self :> defaultCilPrinter) () lv
+                               ++ text ")") () outs)))
+                ++
+                  (if ins = [] && clobs = [] then
+                    nil
+                  else
+                    (text ": "
+                       ++ (docList (chr ',' ++ break)
+                             (fun (c, e) ->
+                               text ("\"" ^ escape_string c ^ "\" (")
+                                 ++ d_exp () e
+                                 ++ text ")") () ins)))
+                  ++
+                  (if clobs = [] then nil
+                  else
+                    (text ": "
+                       ++ (docList (chr ',' ++ break)
+                             (fun c -> text ("\"" ^ escape_string c ^ "\""))
+                             ()
+                             clobs)))
+                  ++ unalign)
+            ++ text ");"
+            
+
+  method pexp () (e: exp) = 
+    d_exp () e
+
+  method pstmt () (s:stmt) = nil        (* constrol-flow statement *)
+
+  (*** GLOBALS ***)
+  method pglob () (g:global) : doc =       (* global (vars, types, etc.) *)
+    match g with 
+    | GFun (fundec, l) ->
+        (* If the function has attributes then print a prototype because GCC 
+         * cannot accept function attributes in a definition  *)
+        let oldattr = fundec.svar.vattr in
+        let proto = 
+          if oldattr <> [] then 
+            (d_line l) ++ (d_videcl () fundec.svar) ++ chr ';' ++ line 
+          else nil in
+        (* Temporarily remove the function attributes *)
+        fundec.svar.vattr <- [];
+        let body = (d_line l) ++ (self#pFunDecl () fundec) in
+        fundec.svar.vattr <- oldattr;
+        proto ++ body
+          
+    | GType (typ, l) ->
+        d_line l ++
+        if typ.tname = "" then
+          printType (self :> defaultCilPrinter) () typ.ttype ++ chr ';'
+        else
+          text "typedef "
+            ++ (self#ptype (text typ.tname) DNString () typ.ttype)
+            ++ chr ';'
+
+    | GEnumTag (enum, l) ->
+        d_line l ++
+          text "enum" ++ align ++ text (" " ^ enum.ename) ++
+          self#pattrs () enum.eattr ++ text " {" ++ line
+          ++ (docList line 
+                (fun (n,i) -> 
+                  text (n ^ " = ") 
+                    ++ printExp (self :> defaultCilPrinter)  () i
+                    ++ text "," ++ break)
+                () enum.eitems)
+          ++ unalign ++ break ++ text "};"
+
+    | GCompTag (comp, l) -> (* This is a definition of a tag *)
+        let n = comp.cname in
+        let su, su1, su2 =
+          if comp.cstruct then "struct", "str", "uct"
+          else "union",  "uni", "on"
+        in
+        d_line l ++
+          text su1 ++ (align ++ text su2 ++ chr ' ' ++ text n
+                         ++ text " {" ++ line
+                         ++ ((docList line (self#pfieldDecl ())) () 
+                               comp.cfields)
+                         ++ unalign)
+          ++ line ++ text "}" ++
+          (self#pattrs () comp.cattr) ++ text ";"
+
+    | GVar (vi, io, l) ->
+        d_line l ++
+          self#pvdec () vi
+          ++ chr ' '
+          ++ (match io with
+            None -> nil
+          | Some i -> text " = " ++ (d_init () i))
+          ++ chr ';'
+          
+    | GDecl (vi, l) -> (
+        (* sm: don't print boxmodels; avoids gcc warnings *)
+        if (hasAttribute "boxmodel" vi.vattr) then
+          (text ("// omitted boxmodel GDecl " ^ vi.vname ^ "\n"))
+            (* sm: also don't print declarations for gcc builtins *)
+            (* this doesn't do what I want, I don't know why *)
+        else if startsWith "__builtin_" vi.vname && not !print_CIL_Input then (
+          (text ("// omitted gcc builtin " ^ vi.vname ^ "\n"))
+            )
+        else (
+          d_line l ++
+            (self#pvdec () vi)
+            ++ chr ';'
+            )
+            )
+    | GAsm (s, l) ->
+        d_line l ++
+          text ("__asm__(\"" ^ escape_string s ^ "\");")
+
+    | GPragma (Attr(an, args), l) ->
+        (* sm: suppress printing pragmas that gcc does not understand *)
+        (* assume anything starting with "box" is ours *)
+        (* also don't print the 'combiner' pragma *)
+        (* nor 'cilnoremove' *)
+        let suppress = 
+          not !print_CIL_Input && 
+          ((startsWith "box" an) ||
+          (an = "merger") ||
+          (an = "cilnoremove")) in
+        let d =
+          if args = [] then
+            text an
+          else
+            text (an ^ "(")
+              ++ docList (chr ',') (self#pattrParam ()) () args
+              ++ text ")"
+        in
+        d_line l 
+          ++ (if suppress then text "/* " else text "")
+          ++ (text "#pragma ")
+          ++ d
+          ++ (if suppress then text " */" else text "")
+
+    | GText s  -> text s
+
+
+   method private pfieldDecl () fi = 
+     (self#ptype
+     (text (if fi.fname = missingFieldName then "" else fi.fname))
+     DNString 
+       () 
+       fi.ftype)
+       ++ text " "
+       ++ (match fi.fbitfield with None -> nil 
+             | Some i -> text ": " ++ num i ++ text " ")
+       ++ self#pattrs () fi.fattr
+       ++ text ";"
+
+  method private pFunDecl () f =
+    text (if f.sinline then "__inline " else "")
+      ++ self#pvdec () f.svar
+      ++ line
+      ++ text "{ "
+      ++ (align
+            (* locals. *)
+            ++ (docList line (fun vi -> self#pvdec () vi ++ text ";") 
+                  () f.slocals)
+            ++ line ++ line
+            (* the body *)
+            ++ d_block () f.sbody)
+      ++ line
+      ++ text "}"
+
+  (***** PRINTING DECLARATIONS and TYPES ****)
+  method private pOnlyType () (t:typ) = 
+    self#ptype nil DNNothing () t
+    
+  method ptype (name: doc) (* The actual declared name  *) 
+               (dnwhat: docNameWhat) (* What kind of name *)
+               () (t:typ) =         (* use of some type *)
+    (* Print the docName with some attributes, maybe with parentheses *)
+    let parenthname () (a: attribute list) = 
+      if a = [] && dnwhat <> DNStuff then
+        name
+      else if dnwhat = DNNothing then
+        (* Cannot print the attributes in this case *)
+        text "/*(" 
+          ++ self#pattrs () a
+          ++ text ")*/"
+      else begin
+        text "(" 
+          ++ self#pattrs () a
+          ++ name
+          ++ text ")"
+      end
+    in
+    match t with 
+    TVoid a ->
+      text "void"
+        ++ self#pattrs () a 
+        ++ text " " 
+        ++ name
+
+    | TInt (ikind,a) -> 
+        d_ikind () ikind 
+          ++ self#pattrs () a 
+          ++ text " "
+          ++ name
+
+    | TFloat(fkind, a) -> 
+        d_fkind () fkind 
+          ++ self#pattrs () a 
+          ++ text " " 
+          ++ name
+
+    | TComp (comp, a) -> (* A reference to a struct *)
+        let su = if comp.cstruct then "struct" else "union" in
+        text (su ^ " " ^ comp.cname ^ " ") 
+          ++ self#pattrs () a 
+          ++ name
+          
+    | TEnum (enum, a) -> 
+        text ("enum " ^ enum.ename ^ " ")
+          ++ self#pattrs () a 
+          ++ name
+    | TPtr (bt, a)  -> 
+        self#ptype 
+          (text "* " ++ self#pattrs () a ++ name)
+          DNStuff
+          () 
+          bt
+
+  | TArray (elemt, lo, a) -> 
+      self#ptype 
+        (parenthname () a
+           ++ text "[" 
+           ++ (match lo with None -> nil | Some e -> d_exp () e)
+           ++ text "]")
+        DNStuff
+        ()
+        elemt
+
+  | TFun (restyp, args, isvararg, a) -> 
+      self#ptype 
+        (parenthname () a
+           ++ text "("
+           ++ (align 
+                 ++ (if args = Some [] && isvararg then 
+                   text "..."
+                 else
+                   (if args = None then nil 
+                   else if args = Some [] then text "void"
+                   else (docList (chr ',' ++ break) (self#pvdec ()) () 
+                           (argsToList args)))
+                     ++ (if isvararg then break ++ text ", ..." else nil))
+                 ++ unalign)
+           ++ text ")")
+        DNStuff
+        ()
+        restyp
+
+  | TNamed (t, a) ->
+      text t.tname ++ self#pattrs () a ++ text " " ++ name
+
+  | TBuiltin_va_list a -> 
+      text "__builtin_va_list"
+       ++ self#pattrs () a 
+        ++ text " " 
+        ++ name
+
+
+  (**** PRINTING ATTRIBUTES *********)
+  method pattr () (Attr(an, args): attribute) =
+    (* Add underscores to the name *)
+    let an' = if !msvcMode then "__" ^ an else "__" ^ an ^ "__" in
+    if args = [] then 
+      text an'
+    else
+      text (an' ^ "(") 
+        ++ (docList (chr ',') (self#pattrParam ()) () args)
+        ++ text ")"
+
+  method pattrParam () = function 
+    | AInt n -> num n
+    | AStr s -> text ("\"" ^ escape_string s ^ "\"")
+    | ACons(s, []) -> text s
+    | ACons(s,al) ->
+        text (s ^ "(")
+          ++ (docList (chr ',') (self#pattrParam ()) () al)
+          ++ text ")"
+    | ASizeOfE a -> text "sizeof(" ++ self#pattrParam () a ++ text ")"
+    | ASizeOf t -> text "sizeof(" ++ self#ptype nil DNNothing () t ++ text ")"
+    | AUnOp(u,a1) -> 
+        let d_unop () u =
+          match u with
+            Neg -> text "-"
+          | BNot -> text "~"
+          | LNot -> text "!"
+        in
+        (d_unop () u) ++ text " (" ++ (self#pattrParam () a1) ++ text ")"
+
+    | ABinOp(b,a1,a2) -> 
+        align 
+          ++ text "(" 
+          ++ (self#pattrParam () a1)
+          ++ text ") "
+          ++ (d_binop () b)
+          ++ break 
+          ++ text " (" ++ (self#pattrParam () a2) ++ text ") "
+          ++ unalign
+          
+  method pattrs () (a: attributes) = nil
+  method pline () (l: location) = nil
+end
+
 
    (* Some plain pretty-printers. Unlike the above these expose all the 
     * details of the internal representation *)
@@ -3111,13 +3680,6 @@ let mapGlobals (fl: file)
       | _ -> E.s (E.bug "mapGlobals: globinit is not a function")
   end)
 
-(* sm: utility *)
-let startsWith (prefix: string) (s: string) : bool =
-(
-  let prefixLen = (String.length prefix) in
-  (String.length s) >= prefixLen &&
-  (String.sub s 0 prefixLen) = prefix
-)
 
 (* wes: I want to see this at the top level *)
 let d_global () = function
