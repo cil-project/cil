@@ -576,19 +576,17 @@ let luindex = { line = -1000; file = ""; }
 let printLn = ref true
 
 
-let str = ref ""
-
 let printLine (l : location) : string =
-  str := "";
-  if !printLn then begin
-    str := "#";
-    if !msvcMode then str := !str ^ "line";
-    str := !str ^ " " ^ string_of_int(l.line);
-    if l.file <> !currentLoc.file then
-      str := !str ^ " \"" ^ l.file ^ "\"";
-  end;
-  currentLoc := l;
-  !str
+  let str = ref "" in
+    if !printLn && l.line > 0 then begin
+      str := "#";
+      if !msvcMode then str := !str ^ "line";
+      if l.line > 0 then str := !str ^ " " ^ string_of_int(l.line);
+      if l.file <> !currentLoc.file then
+        str := !str ^ " \"" ^ l.file ^ "\"";
+    end;
+    currentLoc := l;
+   !str
 
 (* Construct an integer of a given kind. *)
 let kinteger (k: ikind) (i: int) = Const (CInt32(Int32.of_int i, k,  None))
@@ -1428,7 +1426,7 @@ and d_instr () i =
        
 
 and d_stmt_next (next: stmt) () (s: stmt) = 
-  dprintf "%a%t"
+  dprintf "%s@!%a%t" (printLine (get_stmtLoc s.skind))
     (* print the labels *)
     (docList line (fun l -> d_label () l)) s.labels
     (* print the statement itself. If the labels are non-empty and the 
