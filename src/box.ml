@@ -96,13 +96,13 @@ let allocFunctions : (string, allocInfo) H.t = H.create 13
 let boxallocPragma (name: string) (args: attrarg list) : unit =
   let getArg n args = 
     try List.nth args n 
-    with _ -> E.s (E.bug "no size arguments in call to allocator %s\n" name) 
+    with _ -> E.s (bug "no size arguments in call to allocator %s\n" name) 
   in
   let replaceArg n what args = 
     let rec loop n = function
         _ :: rest when n = 0 -> what :: rest
       | a :: rest when n > 0 -> a :: loop (n - 1) rest
-      | _ -> E.s (E.bug "cannot replace size argument for allocator %s\n" name)
+      | _ -> E.s (bug "cannot replace size argument for allocator %s\n" name)
     in
     loop n args
   in
@@ -379,9 +379,9 @@ let getFieldsOfFat (t: typ)
       | p :: b :: [] -> 
           (* b could either be the base field or the end field *)
           if b.fname = "_b" then p, Some b, None else p, None, Some b
-      | _ -> E.s (E.bug "getFieldsOfFat")
+      | _ -> E.s (bug "getFieldsOfFat")
     end
-  | _ -> E.s (E.bug "getFieldsOfFat %a\n" d_type t)
+  | _ -> E.s (bug "getFieldsOfFat %a\n" d_type t)
         
 (* Given an expression of a fat type, return three expressions, encoding the 
  * pointer, the base and the end. Also return the type of the first 
@@ -490,7 +490,7 @@ let pkNrFields = function
   | N.String | N.ROString -> 1
   | N.Wild | N.FSeq | N.FSeqN | N.Index -> 2
   | N.Seq | N.SeqN -> 3
-  | k -> E.s (E.bug "pkNrFields: %a" N.d_opointerkind k)
+  | k -> E.s (bug "pkNrFields: %a" N.d_opointerkind k)
 
 let pkFields (pk: N.opointerkind) : (string * (typ -> typ)) list = 
   match pkNrFields pk with
@@ -505,7 +505,7 @@ let pkFields (pk: N.opointerkind) : (string * (typ -> typ)) list =
   | 3 -> [ ("_p", fun x -> x); 
            ("_b", fun _ -> voidPtrType);
            ("_e", fun _ -> voidPtrType) ]
-  | _ -> E.s (E.bug "pkFields")
+  | _ -> E.s (bug "pkFields")
   
 (* Make an fexp out of a single expression. Either the type is fat and a 
  * composite value is denoted by a single expression *)
@@ -529,7 +529,7 @@ let pkTypePrefix (pk: N.opointerkind) =
   match pk with
     N.Wild | N.FSeq | N.FSeqN | N.Index -> "fatp_"
   | N.Seq | N.SeqN -> "seq_"
-  | _ -> E.s (E.bug "pkTypeName")
+  | _ -> E.s (bug "pkTypeName")
   
 
 let pkQualName (pk: N.opointerkind) 
@@ -544,7 +544,7 @@ let pkQualName (pk: N.opointerkind)
   | N.FSeq -> dobasetype ("f" :: acc)
   | N.FSeqN -> dobasetype ("f" :: acc)
   | N.Scalar -> acc
-  | _ -> E.s (E.bug "pkQualName")
+  | _ -> E.s (bug "pkQualName")
   
 (****** the CHECKERS ****)
 
@@ -831,7 +831,7 @@ let rec fixupType t =
   | TNamed _ -> begin
      match getNodeAttributes t with
        TNamed(n, t', a) -> TNamed(n, fixupType t', a)
-      | _ -> E.s (E.bug "fixupType")
+      | _ -> E.s (bug "fixupType")
    end  *)
 
   (* Do not hash function types because they contain arguments whose types 
@@ -846,7 +846,7 @@ let rec fixupType t =
           TFun(rt,
                List.map2 (fun a a' -> {a' with vname = a.vname;}) args args',
                isva, dropAttribute a (Attr("__format__",[]))) 
-      | _ -> E.s (E.bug "fixupType")
+      | _ -> E.s (bug "fixupType")
 *)
   end 
   | _ -> fixit t
@@ -1095,7 +1095,7 @@ let pkAddrOf (lv: lval)
     N.Safe -> mkFexp1 ptrtype (mkAddrOf lv), []
   | (N.Index | N.Wild | N.FSeq | N.FSeqN | N.Seq | N.SeqN ) -> 
       mkFexp3 ptrtype (AddrOf(lv)) fb fe, []
-  | _ -> E.s (E.bug "pkAddrOf(%a)" N.d_opointerkind lvk)
+  | _ -> E.s (bug "pkAddrOf(%a)" N.d_opointerkind lvk)
          
          
 (* Given an array type return the element type, pointer kind, base and bend *)
@@ -1126,10 +1126,10 @@ let arrayPointerToIndex (t: typ)
 
   | TArray(elemt, None, a) -> 
       (* Not WILD and not SIZED *)
-      E.s (E.bug "arrayPointIndex on a unsized array: %a\n"
+      E.s (bug "arrayPointIndex on a unsized array: %a\n"
              d_lval lv)
 
-  | _ -> E.s (E.bug "arrayPointerToIndex on a non-array (%a)" 
+  | _ -> E.s (bug "arrayPointerToIndex on a non-array (%a)" 
                 d_plaintype t)
 
 
@@ -1257,9 +1257,9 @@ let splitTagType (tagged: typ)
       TComp (_, comp, _) -> begin
         match comp.cfields with 
           [lfld; dfld; tfld] -> dfld, lfld, tfld
-        | _ -> E.s (E.bug "splitTagType. No tags: %a\n" d_plaintype tagged)
+        | _ -> E.s (bug "splitTagType. No tags: %a\n" d_plaintype tagged)
       end
-    | _ -> E.s (E.bug "splitTagType. No tags: %a\n" d_plaintype tagged)
+    | _ -> E.s (bug "splitTagType. No tags: %a\n" d_plaintype tagged)
   in
   let words, tagwords = tagLength (SizeOf(dfld.ftype)) in
             (* Now create the tag initializer *)
@@ -1292,7 +1292,7 @@ let getHostIfBitfield (lv: lval) (t: typ) : lval * typ =
           Field(fi, NoOffset) -> NoOffset
         | Field(fi, off) -> Field(fi, getHost off)
         | Index(e, off) -> Index(e, getHost off)
-        | NoOffset -> E.s (E.bug "a TBitfield that is not a field")
+        | NoOffset -> E.s (bug "a TBitfield that is not a field")
       in
       let lv' = lvbase, getHost lvoff in
       let lv't = typeOfLval lv' in
@@ -1301,7 +1301,7 @@ let getHostIfBitfield (lv: lval) (t: typ) : lval * typ =
           if List.exists (fun f -> typeContainsFats f.ftype) comp.cfields then
             E.s (E.unimp "%s contains both bitfields and pointers.@!LV=%a@!T=%a@!" 
                    (compFullName comp) d_plainlval lv d_plaintype t)
-      | _ -> E.s (E.bug "getHost: bitfield not in a struct"));
+      | _ -> E.s (bug "getHost: bitfield not in a struct"));
       lv', lv't
     end
   | _ -> lv, t
@@ -1391,7 +1391,7 @@ let fseqToSafe (p: exp) (desttyp: typ) (b: exp) (bend: exp) (acc: stmt list)
   let baset =
       match unrollType desttyp with
         TPtr(x, _) -> x
-      | _ -> E.s (E.bug "fseqToSafe: expected pointer type")
+      | _ -> E.s (bug "fseqToSafe: expected pointer type")
   in
   p, zero, zero, 
   call None (Lval (var checkUBoundFun.svar))
@@ -1408,7 +1408,7 @@ let seqToSafe (p: exp) (desttyp: typ) (b: exp) (bend: exp) (acc: stmt list)
   let baset =
       match unrollType desttyp with
         TPtr(x, _) -> x
-      | _ -> E.s (E.bug "seqToSafe: expected pointer type")
+      | _ -> E.s (bug "seqToSafe: expected pointer type")
   in
   p, zero, zero,
   call None (Lval (var checkBoundsFun.svar))
@@ -1468,7 +1468,7 @@ let fromTable (oldk: N.opointerkind)
   : exp * exp * stmt list =
   let checkAreas () = 
     if not !N.useLeanFats then 
-      E.s (E.bug "I thought that we weren't using lean fats\n")
+      E.s (bug "I thought that we weren't using lean fats\n")
   in
   let fetchHomeEnd (kind: int) (p: exp) : varinfo * varinfo * stmt = 
     let tmpb = makeTempVar !currentFunction voidPtrType in
@@ -1494,7 +1494,7 @@ let fromTable (oldk: N.opointerkind)
   | N.SeqT | N.SeqNT | N.FSeqT | N.FSeqNT -> 
       let b, e, s = fetchHomeEnd registerAreaSeqInt p in
       (Lval(var b)), (Lval(var e)), [ s ]
-  | _ -> E.s (E.bug "Called fromTable on a non-table")
+  | _ -> E.s (bug "Called fromTable on a non-table")
 
            
 
@@ -1567,7 +1567,7 @@ let rec beforeIndex ((btype, pkind, mklval, base, bend, stmts) as input) =
       (* Convert to safe first *)
       let (_, pkind1, _, _, _, _) as res1 = beforeField input in
       if pkind1 != N.Safe then
-        E.s (E.bug "beforeIndex: should be Safe\n");
+        E.s (bug "beforeIndex: should be Safe\n");
       (* Now try again *)
       beforeIndex res1
 
@@ -1599,7 +1599,7 @@ let rec pkStartOf (lv: lval)
           let (lvt', lvk', mklval', base', bend', stmts') = 
             beforeField (lvt,lvk, (fun o -> addOffsetLval o lv), fb, fe, []) in
           if lvk' <> N.Safe then
-            E.s (E.bug "pkStartOf: I expected a safe here\n");
+            E.s (bug "pkStartOf: I expected a safe here\n");
           let (res, stmts'') = pkStartOf lv lvt lvk' base' bend' in
           (res, stmts' @ stmts'')
           
@@ -1642,7 +1642,7 @@ let pkArithmetic (ep: exp)
       [call None (Lval (var checkPositiveFun.svar)) [ e2 ]]
       
   | N.Safe ->
-      E.s (E.bug "pkArithmetic: pointer arithmetic on safe pointer: %a@!"
+      E.s (bug "pkArithmetic: pointer arithmetic on safe pointer: %a@!"
              d_exp ep)
   | N.String|N.ROString -> 
       (* Arithmetic on strings is tricky. We must first convert to a FSeq and 
@@ -1656,7 +1656,7 @@ let pkArithmetic (ep: exp)
             TPtr(bt, 
                  addAttribute (N.k2attr N.SeqN)
                    (dropAttribute ptra (N.k2attr N.String)))
-        | _ -> E.s (E.bug "String pointer kind but base type is not char")
+        | _ -> E.s (bug "String pointer kind but base type is not char")
       in
       (* And recompute the right type for the result *)
       let et' = fixupType ptype' in
@@ -1664,7 +1664,7 @@ let pkArithmetic (ep: exp)
       let p'' = BinOp(bop, p', e2, ptype') in
       mkFexp3 et' p'' b' bend', List.rev acc'
       
-  | _ -> E.s (E.bug "pkArithmetic(%a)" N.d_opointerkind ek)
+  | _ -> E.s (bug "pkArithmetic(%a)" N.d_opointerkind ek)
         
 
 
@@ -1725,7 +1725,7 @@ let rec checkBounds
         | _, _ -> []
     end
 
-    | _ -> E.s (E.bug "Unexpected pointer kind in checkBounds(%a)"
+    | _ -> E.s (bug "Unexpected pointer kind in checkBounds(%a)"
                   N.d_opointerkind pkind)
   end
 
@@ -1783,7 +1783,7 @@ let rec castTo (fe: fexp) (newt: typ)
           let newt' = 
             match unrollType newt with
               TPtr(bt, _) -> mkPointerTypeKind bt newk'
-            | _ -> E.s (E.bug "castTo: strip table")
+            | _ -> E.s (bug "castTo: strip table")
           in
           let doe', fe' = castTo fe newt' doe in
           let _, _, p', _, _ = breakFexp fe in
@@ -1838,7 +1838,7 @@ let rec castTo (fe: fexp) (newt: typ)
         (* SCALAR -> INDEX, WILD, SEQ, FSEQ *)
       | N.Scalar, (N.Index|N.Wild|N.Seq|N.FSeq|N.FSeqN|N.SeqN) ->
           if not (isZero p) then
-            ignore (E.warn "Casting scalar (%a) to pointer in %s!"
+            ignore (warn "Casting scalar (%a) to pointer in %s!"
                       d_exp p !currentFunction.svar.vname);
           let newbase, doe' = 
             if !interceptCasts && (isInteger p = None) then begin
@@ -2020,7 +2020,7 @@ let rec checkMem (why: checkLvWhy)
     let getVarOfExp e = 
       match e with
         Lval(Var vi, NoOffset) -> vi
-      | _ -> E.s (E.bug "getLen");
+      | _ -> E.s (bug "getLen");
     in
     (* Now the tag checking. We only care about pointers. We keep track of 
      * what we write in each field and we check pointers in a special way.  *)
@@ -2225,7 +2225,7 @@ let rec initializeType
           let bt, sizeo = 
             match unrollType a.ftype with
               TArray(bt, lo,_) -> bt,lo
-              | _ -> E.s (E.bug "SIZED array is not an array\n")
+              | _ -> E.s (bug "SIZED array is not an array\n")
           in
           (* Construct the array initializer *)
           (* Prepare the initializer for one element *)
@@ -2432,7 +2432,7 @@ let rec stringLiteral (s: string) (strt: typ) : stmt list * fexp =
               (Lval (var tmp))
               theend 
 
-        | _ -> E.s (E.bug "stringLiteral")
+        | _ -> E.s (bug "stringLiteral")
       in
       (mkSet (var tmp) (Const (CStr s)) :: [], res)
         
@@ -2441,13 +2441,13 @@ let rec stringLiteral (s: string) (strt: typ) : stmt list * fexp =
       let strtno_t = 
         match strt with
           TPtr(chrt, a) -> TPtr(chrt, [N.k2attr kno_t])
-        | _ -> E.s (E.bug "Making a string of a non char type\n")
+        | _ -> E.s (bug "Making a string of a non char type\n")
       in
       let s1, fe = stringLiteral s strtno_t in
       (* Now cast it to the desired string type *)
       castTo fe fixChrPtrType s1
 
-  | _ -> E.s (E.unimp "String literal to %a" N.d_opointerkind k)
+  | _ -> E.s (unimp "String literal to %a" N.d_opointerkind k)
 
 
 (*************** Handle Allocation ***********)
@@ -2481,13 +2481,13 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
     | N.Safe | N.String 
     | N.WildT | N.SeqT | N.FSeqT | N.SeqNT | N.FSeqNT | N.IndexT 
       -> vi.vtype, NoOffset
-    | _ -> E.s (E.unimp "pkAllocate: ptrtype (%a)" N.d_opointerkind k)
+    | _ -> E.s (unimp "pkAllocate: ptrtype (%a)" N.d_opointerkind k)
   in
   (* Get the base type *)
   let basetype = 
     match unrollType ptrtype with
       TPtr(bt, _) -> bt
-    | _ -> E.s (E.bug "Result of allocation is not a pointer type\n")
+    | _ -> E.s (bug "Result of allocation is not a pointer type")
   in
 
   (* Compute the size argument to be passed to the allocator *)
@@ -2620,11 +2620,11 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
         (if k = N.FSeqN || k = N.SeqN then [putnullterm] else [])
 
     | N.String -> (* Allocate this as SeqN, with a null term *)
-        ignore (E.warn "Allocation of string. Use FSEQN instead. (%a)\n"
+        ignore (warn "Allocation of string. Use FSEQN instead. (%a)"
                   d_lval (var vi));
         [putnullterm]
 
-    | _ -> E.s (E.bug "pkAllocate: init")
+    | _ -> E.s (bug "pkAllocate: init")
   in
   (* Now assign the end if necessary. We do it this late because in the case 
    * of sequences we now know the precise end of the allocated sequence  *)
@@ -2654,7 +2654,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
         registerArea [ integer registerAreaSeqInt;
                        castVoidStar (Lval (Var vi, ptroff));
                        castVoidStar tmpvar ] []
-    | _ -> E.s (E.bug "pkAllocate: register_area: %a" N.d_opointerkind k)
+    | _ -> E.s (bug "pkAllocate: register_area: %a" N.d_opointerkind k)
   in        
   alloc :: adjust_ptr :: assign_p :: 
   assign_base :: setsz :: (init @ (assign_end :: register_area))
@@ -2665,9 +2665,9 @@ let getFieldsOfSized (t: typ) : fieldinfo * fieldinfo =
    TComp (_, comp, _) when comp.cstruct -> begin
       match comp.cfields with 
         s :: a :: [] when s.fname = "_size" && a.fname = "_array" -> s, a
-      | _ -> E.s (E.bug "getFieldsOfSized")
+      | _ -> E.s (bug "getFieldsOfSized")
     end
-   | _ -> E.s (E.bug "getFieldsOfSized %a\n" d_type t)
+   | _ -> E.s (bug "getFieldsOfSized %a\n" d_type t)
   
 
 
@@ -2762,7 +2762,7 @@ and boxstmt (s: Cil.stmt) : block =
         let retType =
           match !currentFunction.svar.vtype with 
             TFun(tRes, _, _, _) -> tRes
-          | _ -> E.s (E.bug "Current function's type is not TFun")
+          | _ -> E.s (bug "Current function's type is not TFun")
         in 
         let (doe', e') = boxexpf e in
         let (doe'', e'') = castTo e' retType doe' in
@@ -2898,7 +2898,7 @@ and boxinstr (ins: instr) : stmt list =
                      tmp, 
                      boxinstr (Set ((Var vi, NoOffset), Lval (var tmp), l))
 (*                     [ mkSet newlv (Lval (var tmp)) ] *)
-                | _ ->  E.s (E.bug "Result of call is not a variable")
+                | _ ->  E.s (bug "Result of call is not a variable")
               in
               (* If the function is not an allocation function then we must 
                * watch for the case when the return type or the variable type 
@@ -3017,14 +3017,14 @@ and boxlval (b, off) : (typ * N.opointerkind * lval * exp * exp * stmt list) =
             begin
             (* A sized array *)
               if pkind != N.Safe then
-                E.s (E.bug "Sized array in a non-safe area");
+                E.s (bug "Sized array in a non-safe area");
               (f2.ftype, N.Safe, (fun o -> mklval (Field(f2, o))), 
                zero, zero, stmts)
             end
         | f1 :: f2 :: _ when (f1.fname = "_len" && f2.fname = "_data") ->
             (* A tagged data. Only wild pointers inside *)
             if pkind = N.Wild then
-              E.s (E.bug "Tagged data inside a tagged area");
+              E.s (bug "Tagged data inside a tagged area");
             (f2.ftype, N.Wild, (fun o -> mklval (Field(f2, o))),
              mkAddrOf (mklval(Field(f2,NoOffset))), zero, stmts)
 
@@ -3152,7 +3152,7 @@ and boxexpf (e: exp) : stmt list * fexp =
               | _ -> ExistsMaybe) t 
         in
         if containsExposedPointers t then 
-          ignore (E.warn "Boxing sizeof(%a) when type contains pointers. Use sizeof expression\n" d_type t);
+          ignore (warn "Boxing sizeof(%a) when type contains pointers. Use sizeof expression." d_type t);
         let t' = fixupType t in
         ([], L(uintType, N.Scalar, SizeOf(t')))
 
@@ -3177,7 +3177,7 @@ and boxexpf (e: exp) : stmt list * fexp =
          * or are globals  *)
         (match lv' with
           (Var vi, _) when not vi.vaddrof && not vi.vglob -> 
-            E.s (E.bug "addrof not set for %s (addrof)" vi.vname)
+            E.s (bug "addrof not set for %s (addrof)" vi.vname)
         | _ -> ());
         let res, doaddrof = pkAddrOf lv' lvt lvkind baseaddr bend in
         (dolv @ doaddrof, res)
@@ -3188,7 +3188,7 @@ and boxexpf (e: exp) : stmt list * fexp =
         (* Check that variables whose address is taken are flagged *)
         (match lv' with
           (Var vi, _) when not vi.vaddrof && not vi.vglob -> 
-            E.s (E.bug "addrof not set for %s (startof)" vi.vname)
+            E.s (bug "addrof not set for %s (startof)" vi.vname)
         | _ -> ());
         let res, dostartof = pkStartOf lv' lvt lvkind baseaddr bend in
 (*        ignore (E.log "result of StartOf: %a@!" d_fexp res); *)
@@ -3540,7 +3540,7 @@ let boxFile file =
                                 added) *)
             gi.sbody <- compactBlock (!extraGlobInit @ gi.sbody);
             Some gi
-        | _ -> E.s (E.bug "box: Cannot find global initializer\n")
+        | _ -> E.s (bug "box: Cannot find global initializer")
     end
   in
   let res = List.rev (!theFile) in

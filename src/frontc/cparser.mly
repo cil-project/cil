@@ -8,7 +8,7 @@ let version = "Cparser V3.0b 10.9.99 Hugues Cassé"
 let parse_error msg : 'a =
   Errormsg.hadErrors := true;
   Clexer.display_error
-    ("Syntax error (" ^ msg ^")")
+    msg
     (Parsing.symbol_start ()) (Parsing.symbol_end ())
 
 let print = print_string

@@ -189,11 +189,11 @@ let set_name name =
   current_handle := (inter, cha, lin, buf, pos, num, out, name) 
 *)
 
-(*** syntax error building ***)
+(*** syntax error building
 let underline_error (buffer : string) (start : int) (stop : int) =
   let len = String.length buffer in
-  let start' = max 0 start in
-  let stop' = max 1 stop in
+  let start' = min (max 0 start) (len - 1) in
+  let stop' = min (max start' stop) (len - 1) in
   (
   (if start' > 0 then (String.sub buffer 0 start') else "")
   ^ "\027[4m"
@@ -204,16 +204,17 @@ let underline_error (buffer : string) (start : int) (stop : int) =
   ^ "\027[0m"
   ^ (if stop' < len then (String.sub buffer stop' (len - stop') ) else "")
       )
+*)
     
 let display_error msg token_start token_end =
   output_string 
     stderr
-    ((!currentFile ^ "[" ^ (string_of_int !currentLine) ^ "] ")
-     ^ msg ^ ": "
-     ^ (underline_error
-          (string_of_int !currentLine)
-          (token_start - !startLine)
-          (token_end - !startLine)));
+    (!currentFile ^ "[" ^ (string_of_int !currentLine) ^ ":" 
+                        ^ (string_of_int (token_start - !startLine)) ^ "-" 
+                        ^ (string_of_int (token_end - !startLine)) 
+                  ^ "]"
+     ^ " : " ^ msg);
+  output_string stderr "\n";
   flush stderr
 
 (*** Error handling ***)
@@ -381,7 +382,7 @@ and file =
 |	'"' [^ '"']* '"' 	{ (* '"' *)
                                  currentFile := 
                                     (rem_quotes (Lexing.lexeme lexbuf));
-							endline lexbuf}
+				 endline lexbuf}
 |	_			{endline lexbuf}
 
 and endline = parse 

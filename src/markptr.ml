@@ -221,7 +221,7 @@ let newOffsetNode (n: N.node)  (fname: string)
         N.addEdge n next N.ESafe (-1);
         next
           
-    | _ -> E.s (E.bug "Unexpected offset")
+    | _ -> E.s (bug "Unexpected offset")
   in
   next
 
@@ -384,13 +384,13 @@ and doInit (i: init) : init * typ =
   | SingleInit e -> 
       let e', t, n = doExp e in
       if n != N.dummyNode then 
-        E.s (E.bug "Found pointer initializer: %a\n" d_init i);
+        E.s (bug "Found pointer initializer: %a\n" d_init i);
       SingleInit e', t
           
   | CompoundInit (t, initl) -> 
       let t', _ = doType t (N.anonPlace ()) 0 in
       if nodeOfType t' != N.dummyNode then
-        E.s (E.bug "found pointer initializer: %a\n" d_init i);
+        E.s (bug "found pointer initializer: %a\n" d_init i);
         (* Construct a new initializer list *)
       let doOneInit (off: offset) (ei: init) (tei: typ) acc = 
         let ei', _ = doInit ei in
@@ -531,7 +531,7 @@ let instantiatePolyFunc (vi: varinfo) : varinfo * bool =
         TFun (rt, 
               List.map (fun a -> {a with vname = a.vname}) args,
               isva, fa)
-    | _ -> E.s (E.bug "instantiating a non-function (%s)\n" vi.vname)
+    | _ -> E.s (bug "instantiating a non-function (%s)\n" vi.vname)
   in
   let old_name = vi.vname in
   if debugInstantiate then
@@ -583,7 +583,7 @@ let instantiatePolyFunc (vi: varinfo) : varinfo * bool =
         Some t -> 
           ignore (E.log "  and the template is now: %a\n"
                     d_plaintype t)
-      | None -> E.s (E.bug " there should be a template\n")
+      | None -> E.s (bug " there should be a template\n")
     with Not_found -> ()
   end;
   res, ispoly
@@ -615,10 +615,10 @@ let rec parseConversionSpec f start = begin
       let a,b = parseConversionSpec f (start+1) in
       FormatInt :: a, b 
     | 's' -> [FormatPointer], (start+1) (* char pointer *)
-    | 'n' -> E.s (E.bug "Cannot handle 'n' character in format string [%s]" f)
+    | 'n' -> E.s (bug "Cannot handle 'n' character in format string [%s]" f)
     | _ -> parseConversionSpec f (start+1)
   with _ ->
-    ignore (E.warn "Malformed format string [%s], assuming int arg at end" f) ;
+    ignore (warn "Malformed format string [%s], assuming int arg at end" f) ;
     [FormatInt], (start+1)
 end
 
@@ -672,7 +672,7 @@ let isPrintf reso orig_func args = begin
             let temp_type = TPtr((TInt(IChar,[])),[]) in
             let cast_arg,t,n = doExp (CastE(temp_type,this_arg)) in
             n.N.kind <- N.Safe ;
-            ignore (E.warn "Call to sprintf. Ought to use snprintf\n");
+            ignore (warn "Call to sprintf. Ought to use snprintf\n");
             n.N.why_kind <- N.PrintfArg ;
             new_args := cast_arg :: !new_args;
           end else if i < o then begin 
@@ -699,8 +699,8 @@ let isPrintf reso orig_func args = begin
         done ;
         Some(List.rev !new_args)
     | _ -> 
-      ignore (E.warn "%s called with non-const format string %a" 
-        v.vname d_exp format_arg) ; 
+      ignore (warn "%s called with non-const format string %a" 
+                v.vname d_exp format_arg) ; 
       None (* cannot handle non-constant format strings *)
     end
     with _ ->
@@ -717,14 +717,18 @@ and doStmt (s: stmt) : stmt =
     Goto _ | Break _ | Continue _ -> ()
   | Return (None, _) -> ()
   | Return (Some e, l) -> 
+      currentLoc := l;
       s.skind <- Return (Some (doExpAndCast e !currentResultType), l)
   | Instr il -> 
       s.skind <- Instr (List.map doInstr il)
   | Loop (b, l) -> 
+      currentLoc := l;
       s.skind <- Loop (doBlock b, l)
   | If(e, b1, b2, l) -> 
+      currentLoc := l;
       s.skind <- If (doExpAndCast e intType, doBlock b1, doBlock b2, l)
   | Switch (e, b, cases, l) -> 
+      currentLoc := l;
       s.skind <- Switch(doExpAndCast e intType, doBlock b, cases, l));
   s
 
@@ -732,6 +736,7 @@ and doInstr (i:instr) : instr =
   match i with
   | Asm _ -> i
   | Set (lv, e,l) -> 
+      currentLoc := l;
       let lv', lvn = doLvalue lv true in
       (* Now process the copy *)
 (*      ignore (E.log "Setting lv=%a\n lvt=%a (ND=%d)" 
@@ -740,6 +745,7 @@ and doInstr (i:instr) : instr =
       Set (lv', e', l)
 
   | Call (reso, orig_func, args, l) -> 
+      currentLoc := l;
       let args = 
         match isPrintf reso orig_func args with
           Some(o) -> o
@@ -751,7 +757,7 @@ and doInstr (i:instr) : instr =
             let newvi, ispoly = instantiatePolyFunc v in
             (* And add a declaration for it *)
             if ispoly then
-              theFile := GDecl (newvi, lu) :: !theFile;
+              theFile := GDecl (newvi, l) :: !theFile;
             (Lval(Var(newvi), NoOffset)) 
         | _ -> orig_func
       in
@@ -759,7 +765,7 @@ and doInstr (i:instr) : instr =
       let (rt, formals, isva) = 
         match unrollType funct with
           TFun(rt, formals, isva, _) -> rt, formals, isva
-        | _ -> E.s (E.bug "Call to a non-function")
+        | _ -> E.s (bug "Call to a non-function")
       in
       incr callId; (* A new call id *)
       (* Now check the arguments *)
@@ -781,7 +787,7 @@ and doInstr (i:instr) : instr =
         match reso, unrollType rt with
           None, TVoid _ -> ()
         | Some _, TVoid _ -> 
-            ignore (E.warn "Call of subroutine is assigned")
+            ignore (warn "Call of subroutine is assigned")
         | None, _ -> () (* "Call of function is not assigned" *)
         | Some (destvi, iscast), _ -> begin
             (* Do the lvalue, just so that the type is done *)
@@ -797,7 +803,8 @@ and doInstr (i:instr) : instr =
 (* Now do the globals *)
 let doGlobal (g: global) : global = 
   match g with
-  | GPragma (a, _) as g -> begin
+  | GPragma (a, l) as g -> begin
+      currentLoc := l;
       (match a with
         Attr("boxpoly", [ AStr(s) ]) -> 
           if not (H.mem polyFunc s) then begin
@@ -830,15 +837,18 @@ let doGlobal (g: global) : global =
        (* Keep the typedefs only because they are convenient to define son 
         * struct tags. We won't use the TNamed  *)
       | GType (n, t, l) -> 
+          currentLoc := l;
           let t', _ = doType t (N.PType n) 0 in
           GType (n, t', l)
             
-      | GDecl (vi, _) -> 
+      | GDecl (vi, l) -> 
+          currentLoc := l;
          (* ignore (E.log "Found GDecl of %s. T=%a\n" vi.vname
                 d_plaintype vi.vtype); *)
           if not (H.mem polyFunc vi.vname) then doVarinfo vi; 
           g
       | GVar (vi, init, l) -> 
+          currentLoc := l;
           let init' = 
             match init with
               None -> None
@@ -848,6 +858,7 @@ let doGlobal (g: global) : global =
           in
           GVar (vi, init', l)
       | GFun (fdec, l) -> 
+          currentLoc := l;
           let newvi, ispoly = instantiatePolyFunc fdec.svar in
           if ispoly then
             fdec.svar <- newvi; (* Change the varinfo if the instantiation has 
@@ -864,14 +875,14 @@ let doGlobal (g: global) : global =
                     sf.vtype <- ta.vtype;
                     sf.vattr <- ta.vattr;
                     scanFormals targs sformals
-                | _ -> E.s (E.bug "scanFormals(%s) non-matching formal lists"
+                | _ -> E.s (bug "scanFormals(%s) non-matching formal lists"
                               fdec.svar.vname)
               in
               scanFormals targs fdec.sformals;
           (* Restore the sharing by writing the type *)
               setFormals fdec fdec.sformals;
               currentResultType := rt
-          | _ -> E.s (E.bug "Not a function")); 
+          | _ -> E.s (bug "Not a function")); 
           (* Do the other locals *)
           List.iter doVarinfo fdec.slocals;
           (* Do the body *)
@@ -893,7 +904,8 @@ let markFile fl =
    * the interface. *)
   let interfglobs : (int, varinfo) H.t = H.create 111 in
   let processDecls = function
-      GDecl (vi, _) ->
+      GDecl (vi, l) ->
+        currentLoc := l;
         if not (H.mem interfglobs vi.vid) then 
           (* Do not add multiple times since then deleting does not remove 
            * all copies *)
@@ -958,7 +970,7 @@ let markFile fl =
     | Some g -> begin
         match doGlobal (GFun(g, locUnknown)) with
           GFun (g', _) -> Some g'
-        | _ -> E.s (E.bug "markptr: globinit")
+        | _ -> E.s (bug "markptr: globinit")
     end
   in
   let newglobals = List.rev !theFile in
