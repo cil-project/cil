@@ -2625,3 +2625,9 @@ merge-twice:
 	$(CCUREDHOME)/bin/merger.pl --ccured --out small2/merged-twice.c \
 	  --in small2/merged-once.c small2/merge-twice-3.c
 	gcc -c -w small2/merged-twice.c
+
+blockattr: small1/blockattr.c
+	cd small1; $(CCUREDHOME)/obj/$(ARCHOS)/ccured.byte.exe \
+                             --onlyMerge --mergeKeepAnnotations \
+                             --commPrintLn --verbose \
+                             --mergedout - blockattr.c | grep  -v '/\\* __blockattribute' | grep '__blockattribute'
