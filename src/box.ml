@@ -937,9 +937,10 @@ let checkStoreFatPtr =
   (declareGlobalChecker fdec);
 
   fun whatp nullIfInt ->
-    call None (Lval(var fdec.svar))
-      [ castVoidStar whatp; castVoidStar nullIfInt;]
-
+		if !stackChecks then 
+			call None (Lval(var fdec.svar))
+				[ castVoidStar whatp; castVoidStar nullIfInt;]
+		else nop
 
 let checkStorePtr =
   let fdec = emptyFunction "CHECK_STOREPTR" in
@@ -949,9 +950,10 @@ let checkStorePtr =
   fdec.svar.vstorage <- Static;
   (declareGlobalChecker fdec);
 
-  fun whatp ->
-    call None (Lval(var fdec.svar))
-      [ castVoidStar whatp;]
+  fun whatp -> 
+		if !stackChecks then 
+			call None (Lval(var fdec.svar)) [ castVoidStar whatp;]
+		else nop
 
 let checkReturnPtr =
   let fdec = emptyFunction "CHECK_RETURNPTR" in
@@ -962,8 +964,9 @@ let checkReturnPtr =
   (declareGlobalChecker fdec);
 
   fun whatp ->
-    call None (Lval(var fdec.svar))
-      [ castVoidStar whatp;]
+		if !stackChecks then 
+			call None (Lval(var fdec.svar)) [ castVoidStar whatp;]
+		else nop
 
 let checkReturnFatPtr =
   let fdec = emptyFunction "CHECK_RETURNFATPTR" in
@@ -975,8 +978,10 @@ let checkReturnFatPtr =
   (declareGlobalChecker fdec);
 
   fun whatp nullIfInt ->
-    call None (Lval(var fdec.svar))
-      [ castVoidStar whatp; castVoidStar nullIfInt;]
+		if !stackChecks then 
+			call None (Lval(var fdec.svar))
+				[ castVoidStar whatp; castVoidStar nullIfInt;]
+		else nop
 
 let checkZeroTagsFun =
   let fdec = emptyFunction "CHECK_ZEROTAGS" in

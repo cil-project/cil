@@ -1530,7 +1530,7 @@ linuxsetup: mustbelinux
 	            $(foreach file,$(LINUX_TOPATCH), --sfile=$(file))
 
 LINUXPATCH := $(STANDARDPATCH) --includedir=$(LINUX_INCLUDES) \
-	-D FP_FAIL_IS_VERBOSE=1
+	-D FP_FAIL_IS_VERBOSE=1 --noStackChecks
 
 # CCured support library for linux modules. Holds wrappers and definitions
 # for things like fp_fail(). 
