@@ -255,15 +255,6 @@ extern long double __builtin_fabsl(long double);
   #pragma boxpoly("__write_at_least")
   #pragma boxpoly("__copytags")
 
-  //Helper routine:
-  static inline
-  void __assert_noninteger(void *ptr) {
-    if (!__noninteger(ptr)){
-      FP_FAIL(15/*FAIL_NONPOINTER*/);
-    }
-  }
-
-
   // there's more of these in ccured_GNUCC.patch..
   #pragma boxvararg_printf("printf", 1)
   #pragma boxvararg_printf("vprintf", 1)      // sm: this fixes a problem with rbtest when rmtmps is disabled ...
