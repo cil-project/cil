@@ -201,6 +201,7 @@ let trd3 (_, _, result) = result
 %token<Cabs.cabsloc> ENUM STRUCT TYPEDEF UNION
 %token<Cabs.cabsloc> SIGNED UNSIGNED LONG SHORT
 %token<Cabs.cabsloc> VOLATILE EXTERN STATIC CONST RESTRICT AUTO REGISTER
+%token<Cabs.cabsloc> THREAD
 
 %token<Cabs.cabsloc> SIZEOF ALIGNOF
 
@@ -1072,6 +1073,7 @@ attribute:
 |   CONST                               { ("const", []), $1 }
 |   RESTRICT                            { ("restrict",[]), $1 }
 |   VOLATILE                            { ("volatile",[]), $1 }
+|   THREAD                              { ("__thread",[]), $1 }
 ;
 
 /* sm: I need something that just includes __attribute__ and nothing more,

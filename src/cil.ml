@@ -1,6 +1,6 @@
 (*
  *
- * Copyright (c) 2001-2002, 
+ * Copyright (c) 2001-2003,
  *  George C. Necula    <necula@cs.berkeley.edu>
  *  Scott McPeak        <smcpeak@cs.berkeley.edu>
  *  Wes Weimer          <weimer@cs.berkeley.edu>
@@ -1634,7 +1634,7 @@ let getParenthLevel = function
 
 
 
-(* Separate out the MSVC storage-modifier name attributes *)
+(* Separate out the storage-modifier name attributes *)
 let separateStorageModifiers (al: attribute list) = 
   let isstoragemod (Attr(an, _): attribute) : bool =
     try 
@@ -1643,16 +1643,16 @@ let separateStorageModifiers (al: attribute list) =
       | _ -> E.s (E.bug "separateStorageModifier: not a name attribute")
     with Not_found -> false
   in
-  if not !msvcMode then
-    [], al
-  else
     let stom, rest = List.partition isstoragemod al in
-    (* Put back the declspec. Put it without the leading __ since these will 
-     * be added later *)
-    let stom' = 
-      List.map (fun (Attr(an, args)) -> 
-        Attr("declspec", [ACons(an, args)])) stom in
-    stom', rest
+    if not !msvcMode then
+      stom, rest
+    else
+      (* Put back the declspec. Put it without the leading __ since these will 
+       * be added later *)
+      let stom' = 
+	List.map (fun (Attr(an, args)) -> 
+          Attr("declspec", [ACons(an, args)])) stom in
+      stom', rest
 
 
 let rec typeAttrs = function
@@ -1986,8 +1986,8 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     let stom, rest = separateStorageModifiers v.vattr in
     (* First the storage modifiers *)
     text (if v.vinline then "__inline " else "")
-      ++ (self#pAttrs () stom)
       ++ d_storage () v.vstorage
+      ++ (self#pAttrs () stom)
       ++ (self#pType (Some (text v.vname)) () v.vtype)
       ++ text " "
       ++ self#pAttrs () rest
@@ -2856,6 +2856,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
       "const", [] -> text "const", false
           (* Put the aconst inside the attribute list *)
     | "aconst", [] when not !msvcMode -> text "__const__", true
+    | "thread", [] when not !msvcMode -> text "__thread", false
     | "volatile", [] -> text "volatile", false
     | "restrict", [] -> text "__restrict", false
     | "missingproto", [] -> text "/* missing proto */", false

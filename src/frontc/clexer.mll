@@ -141,6 +141,7 @@ let init_lexicon _ =
       ("__builtin_va_list", 
        fun _ -> NAMED_TYPE ("__builtin_va_list", currentLoc ()));
       ("__builtin_va_arg", fun loc -> BUILTIN_VA_ARG loc);
+      ("__thread", fun loc -> THREAD loc);
     ]
 
 (* Mark an identifier as a type name. The old mapping is preserved and will 
