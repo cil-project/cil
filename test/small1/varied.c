@@ -60,5 +60,17 @@ int main() {
   }
 
 
+  {
+    int   *p;
+    int  **q;
+    void **b5;
+    void **b6 = b5;
+    p = *b5;
+    *b6 = q;
+  }
 }
+
+
+
+
 
