@@ -2,6 +2,16 @@
 // tiny program for scott's testing purposes
 
 
+typedef struct foo FOO;
+
+struct foo {
+  int a;
+  int b;
+};
+
+FOO x;
+
+
 // inline func that isn't used
 inline int not_used() { return 4; }
 

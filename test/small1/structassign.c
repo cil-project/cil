@@ -7,9 +7,11 @@ typedef struct {
 STR glob;
 
 
-void main(STR *s) {
+int main(STR *s) {
   STR loc = glob;
 
   *s = glob;
-}
   
+  return 0;
+}
+

@@ -588,7 +588,7 @@ val printFile: out_channel -> file -> unit
 val setCustomPrint: (attribute -> Pretty.doc option) -> ('a -> 'b) -> 'a -> 'b
 
 
-val removeUnusedTemps: file -> unit        (* sm *)
+(* removeUnusedTemps moved to rmtmps.mli *)
 
 
    (* Some plain pretty-printers. Unlike the above these expose all the 

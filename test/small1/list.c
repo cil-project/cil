@@ -71,7 +71,7 @@ int length(PLIST l) {
   return len;
 }
 
-void main() {
+int main() {
 
   int i;
   PLIST l = NULL;
@@ -95,7 +95,6 @@ void main() {
 //  TIMESTOP(clk);
   printf("Ran the test %d times in %8.3lfms. Length is %d. Success %d times.\n",
          i, clk / 1000.0, length(l), sizeof(char*), sum);
+         
+  return 0;
 }
-
-
-
