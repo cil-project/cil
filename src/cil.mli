@@ -1534,10 +1534,14 @@ class type cilVisitor = object
      * replace this instruction with a list of instructions *)
 
   method vstmt: stmt -> stmt visitAction        
-    (** Control-flow statement. *)
+    (** Control-flow statement. The default [DoChildren] action does not 
+     * create a new statement when the components change. Instead it updates 
+     * the contents of the original statement. This is done to preserve the 
+     * sharing with [Goto] and [Case] statements that point to the original 
+     * statement. If you use the [ChangeTo] action then you should take care 
+     * of preserving that sharing yourself.  *)
 
-  method vblock: block -> block visitAction     (** Block. Replaced in 
-                                                    place. *)
+  method vblock: block -> block visitAction     (** Block. *)
   method vfunc: fundec -> fundec visitAction    (** Function definition. 
                                                     Replaced in place. *)
   method vglob: global -> global list visitAction (** Global (vars, types,
