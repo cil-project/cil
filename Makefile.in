@@ -122,7 +122,7 @@ odoc:
              -t "CIL API Documentation" \
 	     -I $(OBJDIR) \
                     src/pretty.mli src/errormsg.mli src/clist.mli \
-	  	    src/stats.mli src/cil.mli 
+	  	    src/stats.mli src/cil.mli src/formatcil.mli
 	if test -d $(CILHTMLDEST)/api; then \
            cp -rf doc/html/cil/api/* $(CILHTMLDEST)/api; fi
 
@@ -165,14 +165,15 @@ DISTRIB_SRC = pretty.ml pretty.mli errormsg.ml errormsg.mli \
               util.ml clist.ml clist.mli \
 	      cil.ml cil.mli check.ml check.mli \
 	      rmtmps.ml rmtmps.mli formatlex.mll formatparse.mly \
-	      testcil.ml mergecil.ml mergecil.mli maincil.ml machdep.c
+	      formatcil.mli formatcil.ml testcil.ml \
+	      mergecil.ml mergecil.mli maincil.ml machdep.c
 
 DISTRIB_SRC_FRONTC = cabs.ml cprint.ml clexer.mli clexer.mll \
 		     cparser.mly cxxlexer.mll cxxparser.mly \
 		     cabs2cil.ml cabs2cil.mli frontc.ml frontc.mli
 
 DISTRIB_SRC_EXT = logcalls.ml logcalls.mli \
-                  logwrites.ml heapify.ml 
+                  logwrites.ml heapify.ml
 
 DISTRIB_LIB = Cilly.pm
 

@@ -35,39 +35,50 @@ open Trace      (* sm: 'trace' function *)
 module E = Errormsg
 module H = Hashtbl
 
+let noMemoize = ref false
+
+let expMemoTable :
+    (string, ((formatArg list -> exp) * 
+               (exp -> formatArg list option))) H.t = H.create 23
+
+let typeMemoTable :
+    (string, ((formatArg list -> typ) * 
+               (typ -> formatArg list option))) H.t = H.create 23
+
+let lvalMemoTable :
+    (string, ((formatArg list -> lval) * 
+               (lval -> formatArg list option))) H.t = H.create 23
+
+let instrMemoTable :
+    (string, ((location -> formatArg list -> instr) * 
+               (instr -> formatArg list option))) H.t = H.create 23
+
+let stmtMemoTable :
+    (string, (location -> formatArg list -> stmt)) H.t = H.create 23
 
 
 let doParse (prog: string) 
             (theParser: (Lexing.lexbuf -> Formatparse.token) 
-                                          -> Lexing.lexbuf -> 'a) = 
-  let lexbuf = Formatlex.init prog in
+                                          -> Lexing.lexbuf -> 'a)
+            (memoTable: (string, 'a) H.t) : 'a = 
   try
-    Formatparse.initialize Formatlex.initial lexbuf;
-    theParser Formatlex.initial lexbuf
-  with Parsing.Parse_error -> begin
-    E.s (E.error "Parsing error: %s" prog)
+    if !noMemoize then raise Not_found else
+    H.find memoTable prog
+  with Not_found -> begin
+    let lexbuf = Formatlex.init prog in
+    try
+      Formatparse.initialize Formatlex.initial lexbuf;
+      let res = theParser Formatlex.initial lexbuf in
+      H.add memoTable prog res;
+      res
+    with Parsing.Parse_error -> begin
+      E.s (E.error "Parsing error: %s" prog)
+    end
+    | e -> begin
+        ignore (E.log "Caught %s while parsing\n" (Printexc.to_string e));
+        raise e
+    end
   end
-  | e -> begin
-      ignore (E.log "Caught %s while parsing\n" (Printexc.to_string e));
-      raise e
-  end
-
-let fExp (prog: string) : formatArg list -> exp = 
-  let cf = doParse prog Formatparse.expression in
-  (fst cf)
-
-let fLval (prog: string) : formatArg list -> lval = 
-  let cf = doParse prog Formatparse.lval in
-  (fst cf)
-
-let fType (prog: string) : formatArg list -> typ = 
-  let cf = doParse prog Formatparse.typename in
-  (fst cf)
-
-let fInstr (prog: string) : location -> formatArg list -> instr = 
-  let cf = doParse prog Formatparse.instr in
-  (fst cf)
-
   
 let makeProg (fl: formatArg list) : string * formatArg list = 
   (* Construct the program *)
@@ -87,33 +98,119 @@ let makeProg (fl: formatArg list) : string * formatArg list =
     fl
     ("", [])
 
-let fExp' (fl: formatArg list) : exp = 
-  let prog, args = makeProg fl in
-  fExp prog args
 
+let cExp (prog: string) : formatArg list -> exp = 
+  let cf = doParse prog Formatparse.expression expMemoTable in
+  (fst cf)
+
+let cExp' (fl: formatArg list) : exp = 
+  let prog, args = makeProg fl in
+  cExp prog args
+
+let cLval (prog: string) : formatArg list -> lval = 
+  let cf = doParse prog Formatparse.lval lvalMemoTable in
+  (fst cf)
+
+let cType (prog: string) : formatArg list -> typ = 
+  let cf = doParse prog Formatparse.typename typeMemoTable in
+  (fst cf)
+
+let cInstr (prog: string) : location -> formatArg list -> instr = 
+  let cf = doParse prog Formatparse.instr instrMemoTable in
+  (fst cf)
+
+let cStmt (prog: string) : location -> formatArg list -> stmt = 
+  let cf = doParse prog Formatparse.stmt stmtMemoTable in
+  cf
 
 
 
 (* Match an expression *)
-let mExp (prog: string) : exp -> formatArg list option = 
-  let df = doParse prog Formatparse.expression in
+let dExp (prog: string) : exp -> formatArg list option = 
+  let df = doParse prog Formatparse.expression expMemoTable in
   (snd df)
 
 (* Match an lvalue *)
-let mLval (prog: string) : lval -> formatArg list option = 
-  let df = doParse prog Formatparse.lval in
+let dLval (prog: string) : lval -> formatArg list option = 
+  let df = doParse prog Formatparse.lval lvalMemoTable in
   (snd df)
 
 
 (* Match a type *)
-let mType (prog: string) : typ -> formatArg list option = 
-  let df = doParse prog Formatparse.typename in
+let dType (prog: string) : typ -> formatArg list option = 
+  let df = doParse prog Formatparse.typename typeMemoTable in
   (snd df)
 
 
 
 (* Match an instruction *)
-let mInstr (prog: string) : instr -> formatArg list option = 
-  let df = doParse prog Formatparse.instr in
+let dInstr (prog: string) : instr -> formatArg list option = 
+  let df = doParse prog Formatparse.instr instrMemoTable in
   (snd df)
 
+
+let test () = 
+  (* Construct a dummy function *)
+  let func = emptyFunction "test_formatcil" in
+  (* Construct a few varinfo *)
+  let res = makeLocalVar func "res" (TPtr(intType, [])) in
+  let arr = makeLocalVar func "arr" (TArray(TPtr(intType, []),
+                                            Some (integer 8), [])) in
+  let fptr = makeLocalVar func "fptr" 
+      (TPtr(TFun(intType, None, false, []), [])) in
+  (* Construct an instruction *)
+  let makeInstr () = 
+    Call(Some (var res), 
+         Lval (Mem (CastE(TPtr(TFun(TPtr(intType, []),
+                                    Some [ ("", intType, []);
+                                           ("a2", TPtr(intType, []), []);
+                                           ("a3", TPtr(TPtr(intType, []),
+                                                       []), []) ], 
+                                    false, []), []),
+                          Lval (var fptr))), 
+               NoOffset),
+         [  ], locUnknown) 
+  in
+  let times = 100000 in
+  (* Make the instruction the regular way *)
+  Stats.time "make instruction regular" 
+    (fun _ -> for i = 0 to times do ignore (makeInstr ()) done)
+    ();
+  (* Now make the instruction interpreted *)
+  noMemoize := true;
+  Stats.time "make instruction interpreted"
+    (fun _ -> for i = 0 to times do 
+      let ins = 
+        cInstr "%v = (* ((int * (*)(int, int * a2, int * * a3))%v))();"
+          locUnknown [ Fv res; Fv fptr ] 
+      in
+      ()
+    done)
+    ();
+  (* Now make the instruction interpreted with memoization *)
+  noMemoize := false;
+  Stats.time "make instruction interpreted memoized"
+    (fun _ -> for i = 0 to times do 
+      let ins = 
+        cInstr "%v = (* ((int * (*)(int, int * a2, int * * a3))%v))();"
+          locUnknown [ Fv res; Fv fptr ] 
+      in
+      ()
+    done)
+    ();
+  (* Now make the instruction interpreted with partial application *)
+  let partInstr = 
+    cInstr "%v = (* ((int * (*)(int, int * a2, int * * a3))%v))();" in
+  Stats.time "make instruction interpreted partial"
+    (fun _ -> for i = 0 to times do 
+      let ins = 
+        partInstr
+          locUnknown [ Fv res; Fv fptr ] 
+      in
+      ()
+    done)
+    ();
+    
+  ()
+  
+  

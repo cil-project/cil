@@ -307,7 +307,6 @@ type falist = formatArg list
 
 %type <(Cil.formatArg list -> Cil.typ) * (Cil.typ -> Cil.formatArg list option)> typename
 %type <(Cil.attributes -> Cil.formatArg list -> Cil.typ) * (Cil.typ -> Cil.formatArg list option)> type_spec
-%type <(Cil.typ -> Cil.formatArg list -> Cil.typ) * (Cil.typ -> (Cil.typ * Cil.formatArg list) option)> abs_decl abs_direct_decl
 %type <(Cil.formatArg list -> (string * Cil.typ * Cil.attributes) list option * bool) * ((string * Cil.typ * Cil.attributes) list option * bool -> Cil.formatArg list option)> parameters
 
 
@@ -696,24 +695,44 @@ offset:
 
 
 /*(************ TYPES **************)*/
-typename:
-  type_spec attributes abs_decl 
-               { ((fun args -> 
-                     let al = (fst $2) args in
-                     let t = (fst $1) al args in
-                     (fst $3) t args),
+typename: one_formal  { ((fun args -> 
+                            let (_, ft, _) = (fst $1) args in
+                            ft),
 
-                  (fun t -> 
-                     (* Match the declarator first *)
-                    match (snd $3) t with 
-                      Some (rest, m3) -> begin
-                        (* Now match the spec as well *)
-                        match (snd $1) rest, (snd $2) (typeAttrs rest) with 
-                          Some m1, Some m2 -> Some (m1 @ m2 @ m3)
-                        | _, _ -> None
-                      end
-                    | _ -> None)) 
-                }
+                         (fun t -> (snd $1) ("", t, [])))
+                      } 
+;
+
+one_formal: 
+/*(* Do not allow attributes for the name *)*/
+| type_spec attributes decl
+                   { ((fun args -> 
+                        let tal = (fst $2) args in
+                        let ts = (fst $1) tal args in
+                        let (fn, ft, _) = (fst $3) ts args in
+                        (fn, ft, [])),
+
+                      (fun (fn, ft, fa) -> 
+                         match (snd $3) (fn, ft) with 
+                           Some (restt, m3) -> begin
+                             match (snd $1) restt, 
+                                   (snd $2) (typeAttrs restt)with
+                               Some m1, Some m2 -> 
+                                 Some (m1 @ m2 @ m3)
+                             | _, _ -> None
+                           end
+                         | _ -> None))
+                   } 
+
+| ARG_f 
+                   { let currentArg = nextArg () in
+                     ((fun args -> 
+                         match getArg currentArg args with
+                          Ff (fn, ft, fa) -> (fn, ft, fa)
+                         | a  -> wrongArgType currentArg "formal" a),
+
+                      (fun (fn, ft, fa) -> Some [ Ff (fn, ft, fa) ]))
+                   } 
 ;
 
 type_spec:  
@@ -807,83 +826,91 @@ type_spec:
                    } 
 ;
 
-/* (* Abstract declarator *)*/
-abs_decl: 
-|  STAR attributes abs_decl 
-                   { ((fun ts args -> 
-                          let al = (fst $2) args in
-                          (fst $3) (TPtr(ts, al)) args),
+decl: 
+|  STAR attributes decl  
+                    { ((fun ts args -> 
+                         let al = (fst $2) args in
+                         (fst $3) (TPtr(ts, al)) args),
 
-                      (fun t -> 
-                          (* Match depth first *) 
-                          match (snd $3) t with 
-                            Some (TPtr(bt, al), m) -> begin
-                              match (snd $2) al with 
-                                Some m0 -> 
-                                  Some (unrollType bt, m0 @ m)
-                              | _ -> None
-                            end
-                          | _ -> None))
-                   } 
+                       (fun (fn, ft) -> 
+                         match (snd $3) (fn, ft) with 
+                           Some (TPtr(bt, al), m2) -> begin
+                             match (snd $2) al with 
+                               Some m1 -> Some (bt, m1 @ m2)
+                             | _ -> None
+                           end
+                         | _ -> None))
+                    } 
 
-|  abs_direct_decl     { $1 }
+|  direct_decl  { $1 }
 ;
 
-abs_direct_decl: 
-|  /* empty */     { ((fun ts args -> ts),
-                    
-                      (fun t -> Some (unrollType t, []))) 
+direct_decl: 
+|  /* empty */     { ((fun ts args -> ("", ts, [])),
+
+                      (* Match any name in this case *)
+                      (fun (fn, ft) -> 
+                         Some (unrollType ft, [])))
                    }
 
-|  LPAREN attributes abs_decl RPAREN 
-                  { ((fun ts args -> 
-                        let al = (fst $2) args in
-                        (fst $3) (typeAddAttributes al ts) args),
+|  IDENT           { ((fun ts args -> ($1, ts, [])),
 
-                     (fun t -> 
-                       match (snd $3) t with 
-                         Some (restt, m) -> begin
-                           match (snd $2) (typeAttrs restt) with
-                             Some m0 -> Some (restt, m0 @ m)
-                           | _ -> None
-                         end
-                       | _ -> None))
-                  } 
+                      (fun (fn, ft) -> 
+                        if fn = "" || fn = $1 then 
+                          Some (unrollType ft, []) 
+                        else 
+                          None))
+                   }
 
-|  abs_direct_decl LBRACKET length_opt RBRACKET
+|  LPAREN attributes decl RPAREN 
+                   { ((fun ts args -> 
+                          let al = (fst $2) args in
+                          (fst $3) (typeAddAttributes al ts) args),
+
+                      (fun (fn, ft) -> begin
+                        match (snd $3) (fn, ft) with
+                          Some (restt, m2) -> begin
+                            match (snd $2) (typeAttrs restt) with 
+                              Some m1 -> Some (restt, m1 @ m2)
+                            | _ -> None
+                          end
+                        | _ -> None
+                      end))
+                   } 
+
+|  direct_decl LBRACKET exp_opt RBRACKET
                    { ((fun ts args -> 
                         (fst $1) (TArray(ts, (fst $3) args, [])) args),
 
-                      (fun t -> 
-                        match (snd $1) t with 
-                          Some (TArray(bt, lo, _), m) -> begin
-                            match (snd $3) lo with 
-                              Some m' -> Some (unrollType bt, m @ m')
-                            | _ -> None
-                          end
-                        | _ -> None))
-                    }
+                     (fun (fn, ft) -> 
+                       match (snd $1) (fn, ft) with 
+                         Some (TArray(bt, lo, _), m1) -> begin
+                           match (snd $3) lo with 
+                             Some m2 -> Some (unrollType bt, m1 @ m2)
+                           | _ -> None
+                         end 
+                       | _ -> None))
+                   }
+
+
 /*(* We use parentheses around the function to avoid conflicts *)*/
-|  LPAREN attributes abs_decl RPAREN LPAREN parameters RPAREN 
-                  { ((fun ts args -> 
-                        let (pars, isva) = (fst $6) args in
+|  LPAREN attributes decl RPAREN LPAREN parameters RPAREN 
+                   { ((fun ts args -> 
                         let al = (fst $2) args in
-                        (fst $3) (TFun(typeAddAttributes al ts, 
-                                       pars, isva, [])) args),
+                        let pars, isva = (fst $6) args in
+                        (fst $3) (TFun(ts, pars, isva, al)) args),
 
-                      (fun t -> 
-                        match (snd $3) t with 
-                          Some (TFun(rt, args, isva, al), m3) -> begin
-                            match (snd $2) al, (snd $6) (args, isva) with
-                              Some m2, Some m6 -> 
-                                Some (unrollType rt, m2 @ m3 @ m6)
-                            | _ -> None
-                          end
-                        | _ -> None))
-                   } 
-
+                      (fun (fn, ft) -> 
+                         match (snd $3) (fn, ft) with 
+                           Some (TFun(rt, args, isva, al), m1) -> begin
+                             match (snd $2) al, (snd $6) (args, isva) with 
+                               Some m2, Some m6 
+                               -> Some (unrollType rt, m1 @ m2 @ m6)
+                             | _ -> None
+                           end
+                         | _ -> None))
+                   }
 ;
-
 
 parameters: 
 | /* empty */      { ((fun args -> (None, false)),
@@ -960,113 +987,11 @@ parameters_ne:
                    } 
 ;
 
-one_formal: 
-| type_spec attributes form_decl attributes
-                   { ((fun args -> 
-                        let tal = (fst $2) args in
-                        let ts = (fst $1) tal args in
-                        let (fn, ft, _) = (fst $3) ts args in
-                        (fn, ft, (fst $4) args)),
-
-                      (fun (fn, ft, fa) -> 
-                         match (snd $3) (fn, ft) with 
-                           Some (restt, m3) -> begin
-                             match (snd $1) restt, (snd $2) (typeAttrs restt), 
-                                   (snd $4) fa with
-                               Some m1, Some m2, Some m4 -> 
-                                 Some (m1 @ m2 @ m3 @ m4)
-                             | _, _, _ -> None
-                           end
-                         | _ -> None))
-                   } 
-
-| ARG_f 
-                   { let currentArg = nextArg () in
-                     ((fun args -> 
-                         match getArg currentArg args with
-                          Ff (fn, ft, fa) -> (fn, ft, fa)
-                         | a  -> wrongArgType currentArg "formal" a),
-
-                      (fun (fn, ft, fa) -> Some [ Ff (fn, ft, fa) ]))
-                   } 
-;
-
-form_decl: 
-|  STAR attributes form_decl  
-                    { ((fun ts args -> 
-                         let al = (fst $2) args in
-                         (fst $3) (TPtr(ts, al)) args),
-
-                       (fun (fn, ft) -> 
-                         match (snd $3) (fn, ft) with 
-                           Some (TPtr(bt, al), m2) -> begin
-                             match (snd $2) al with 
-                               Some m1 -> Some (bt, m1 @ m2)
-                             | _ -> None
-                           end
-                         | _ -> None))
-                    } 
-
-|  direct_form_decl  { $1 }
-;
-
-direct_form_decl: 
-/*(* Formals must have names to avoid conflicts *)*/
-|  IDENT           { ((fun ts args -> ($1, ts, [])),
-
-                      (fun (fn, ft) -> 
-                        if fn = $1 then Some (unrollType ft, []) else None))
-                   }
-
-|  LPAREN attributes form_decl RPAREN 
-                   { ((fun ts args -> 
-                          let al = (fst $2) args in
-                          (fst $3) (typeAddAttributes al ts) args),
-
-                      (fun (fn, ft) -> begin
-                        match (snd $3) (fn, ft) with
-                          Some (restt, m2) -> begin
-                            match (snd $2) (typeAttrs restt) with 
-                              Some m1 -> Some (restt, m1 @ m2)
-                            | _ -> None
-                          end
-                        | _ -> None
-                      end))
-                   } 
-
-|  direct_form_decl LBRACKET length_opt RBRACKET
-                   { ((fun ts args -> 
-                        (fst $1) (TArray(ts, (fst $3) args, [])) args),
-
-                     (fun (fn, ft) -> 
-                       match (snd $1) (fn, ft) with 
-                         Some (TArray(bt, lo, _), m1) -> begin
-                           match (snd $3) lo with 
-                             Some m2 -> Some (unrollType bt, m1 @ m2)
-                           | _ -> None
-                         end 
-                       | _ -> None))
-                   }
 
 
-|  direct_form_decl LPAREN parameters RPAREN
-                   { ((fun ts args -> 
-                        let pars, isva = (fst $3) args in
-                        (fst $1) (TFun(ts, pars, isva, [])) args),
-
-                      (fun (fn, ft) -> 
-                         match (snd $1) (fn, ft) with 
-                           Some (TFun(rt, args, isva, _), m1) -> begin
-                             match (snd $3) (args, isva) with 
-                               Some m2 -> Some (unrollType rt, m1 @ m2)
-                             | _ -> None
-                           end
-                         | _ -> None))
-                   }
-;
 
 
-length_opt: 
+exp_opt: 
    /* empty */     { ((fun args -> None),
                       (* Match anything if the pattern does not have a len *)
                       (fun _ -> Some [])) }
@@ -1081,7 +1006,7 @@ length_opt:
                      ((fun args ->
                        match getArg currentArg args with
                          Feo lo -> lo
-                       | a -> wrongArgType currentArg "length_opt" a),
+                       | a -> wrongArgType currentArg "exp_opt" a),
 
                       fun lo -> Some [ Feo lo ])
                    } 
@@ -1093,7 +1018,7 @@ attributes:
   /*(* Ignore other attributes *)*/
   /* empty */     { ((fun args -> []), 
                      (fun attrs -> Some [])) }
-                       
+          
 | ARG_A           { let currentArg = nextArg () in
                     ((fun args -> 
                         match getArg currentArg args with
@@ -1374,7 +1299,7 @@ stmt:
                                     mkBlock [ $6 loc args ],
                                     mkBlock [ $8 loc args], loc)))
                   }
-|   RETURN length_opt SEMICOLON  
+|   RETURN exp_opt SEMICOLON  
                   { (fun loc args -> 
                          mkStmt (Return((fst $2) args, loc))) 
                   }

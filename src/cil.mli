@@ -785,7 +785,7 @@ CIL also comes with support for control-flow graphs. The [sid] field in
 and [preds] fields can be used to maintain a list of successors and
 predeccors for every statement. The CFG information is not computed by
 default. Instead you must explicitly use the functions
-{!Cil.prepareCFGInfo} and {!Cil.computeCFGInfo} to do it.
+{!Cil.prepareCFG} and {!Cil.computeCFGInfo} to do it.
 
 *)
 (** Statements. *)
@@ -980,7 +980,7 @@ val prepareCFG: fundec -> unit
 (** Compute the CFG information for all statements in a fundec and return a 
   * list of the statements. The input fundec cannot have [Break], [Switch], 
   * [Default], or [Continue] {!Cil.stmtkind}s or {!Cil.label}s. Use
-  * !{Cil.prepareCFG} to transform them away.  The second argument should
+  * {!Cil.prepareCFG} to transform them away.  The second argument should
   * be [true] if you wish a global statement number, [false] if you wish a
   * local (per-function) statement numbering. *)
 val computeCFGInfo: fundec -> bool -> stmt list
@@ -1707,8 +1707,8 @@ class type cilPrinter = object
      * {!Cil.printGlobal} but not by {!Cil.dumpGlobal}. *)
 
   method dStmt: out_channel -> int -> stmt -> unit
-    (** Dump a control-flow statement to a file with a given indentation. This is used by 
-     * {!Cil.dumpGlobal}. *)
+    (** Dump a control-flow statement to a file with a given indentation. 
+     * This is used by {!Cil.dumpGlobal}. *)
 
   method pGlobal: unit -> global -> Pretty.doc
     (** Global (vars, types, etc.). This can be slow and is used only by 
@@ -1837,6 +1837,9 @@ val d_stmt: unit -> stmt -> Pretty.doc
 val d_global: unit -> global -> Pretty.doc
 
 
+(** Pretty-print a global. Here you give the channel where the printout
+ * should be sent. *)
+val dumpGlobal: cilPrinter -> out_channel -> global -> unit
 
 (** Pretty-print an entire file. Here you give the channel where the printout
  * should be sent. *)
@@ -1994,7 +1997,7 @@ type formatArg =
   | Fk of ikind
   | FE of exp list (** For arguments in a function call *)
   | Ff of (string * typ * attributes) (** For a formal argument *)
-  | FF of (string * typ * attributes) list (* For formal argument lists *)
+  | FF of (string * typ * attributes) list (** For formal argument lists *)
   | Fva of bool (** For the ellipsis in a function type *)
   | Fv of varinfo
   | Fl of lval
@@ -2016,13 +2019,5 @@ type formatArg =
   | FX of string
 
 
-(** Constructs an expression based on the program and the list of arguments. 
- * You can apply this function partially to "compile" the program. *)
-(* val fExp: string -> formatArg list -> exp *)
-
-(** Constructs a type based on the program and the list of arguments. 
- * You can apply this function partially to "compile" the program. *)
-(* val fTyp: string -> formatArg list -> typ *)
-
-
+(** Pretty-prints a format arg *)
 val d_formatarg: unit -> formatArg -> Pretty.doc

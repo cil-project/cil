@@ -35,39 +35,49 @@
 
 
 (** Constructs an expression based on the program and the list of arguments. 
- * You can apply this function partially to "compile" the program. *)
-val fExp: string -> Cil.formatArg list -> Cil.exp
+ * The parsing of the string is memoized. *)
+val cExp: string -> Cil.formatArg list -> Cil.exp
 
 (** Constructs an lval based on the program and the list of arguments. 
- * You can apply this function partially to "compile" the program. *)
-val fLval: string -> Cil.formatArg list -> Cil.lval
+ * The parsing of the string is memoized. *)
+val cLval: string -> Cil.formatArg list -> Cil.lval
 
 (** Constructs a type based on the program and the list of arguments. 
- * You can apply this function partially to "compile" the program. *)
-val fType: string -> Cil.formatArg list -> Cil.typ
+ * The parsing of the string is memoized. *)
+val cType: string -> Cil.formatArg list -> Cil.typ
 
 
 (** Constructs an instruction based on the program and the list of arguments. 
- * You can apply this function partially to "compile" the program. *)
-val fInstr: string -> Cil.location -> Cil.formatArg list -> Cil.instr
+ * The parsing of the string is memoized. *)
+val cInstr: string -> Cil.location -> Cil.formatArg list -> Cil.instr
+
+(** Constructs a statement based on the program and the list of arguments. 
+ * The parsing of the string is memoized. *)
+val cStmt: string -> Cil.location -> Cil.formatArg list -> Cil.stmt
 
 
 
 (** Deconstructs an expression based on the program. Produces an optional 
- * list of format arguments *)
-val mExp: string -> Cil.exp -> Cil.formatArg list option
+ * list of format arguments. The parsing of the string is memoized. *)
+val dExp: string -> Cil.exp -> Cil.formatArg list option
 
 (** Deconstructs an lval based on the program. Produces an optional 
- * list of format arguments *)
-val mLval: string -> Cil.lval -> Cil.formatArg list option
+ * list of format arguments. The parsing of the string is memoized. *)
+val dLval: string -> Cil.lval -> Cil.formatArg list option
 
 
 (** Deconstructs a type based on the program. Produces an optional list of 
- * format arguments *)
-val mType: string -> Cil.typ -> Cil.formatArg list option
+ * format arguments. The parsing of the string is memoized. *)
+val dType: string -> Cil.typ -> Cil.formatArg list option
 
 
 (** Deconstructs an instruction based on the program. Produces an optional 
- * list of format arguments *)
-val mInstr: string -> Cil.instr -> Cil.formatArg list option
+ * list of format arguments. The parsing of the string is memoized. *)
+val dInstr: string -> Cil.instr -> Cil.formatArg list option
 
+
+(** If set then will not memoize the parsed patterns *)
+val noMemoize: bool ref
+
+(** Just a testing function *)
+val test: unit -> unit

@@ -10,6 +10,7 @@
 % Use this to refer to a Cil type/val
 \def\ciltyperef#1{\apiref{Cil}{TYPE}{#1}}
 \def\cilvalref#1{\apiref{Cil}{VAL}{#1}}
+\def\formatcilvalref#1{\apiref{Formatcil}{VAL}{#1}}
 \def\cilvisit#1{\apiref{Cil.cilVisitor}{#1}}
 \def\cilprinter#1{\apiref{Cil.cilPrinter}{#1}}
 
@@ -640,6 +641,216 @@ object. The instructions will automatically be inserted before that
 instruction in the transformed code. The \cilvalref{unqueueInstr} method
 should not normally be called by the user. 
 
+ \subsection{Interpreted Constructors and Deconstructors}
+
+ Interpreted constructors and deconstructors are a facility for constructing
+CIL constructs using a pattern with holes that can be filled with a variety of
+kinds of elements. The pattern is a string that uses the C syntax to represent
+C language elements. For example, the following construct:
+\begin{verbatim}
+Formatcil.cType "void * const (*)(int x)"
+\end{verbatim}
+
+ will construct the internal representation of the type of pointer to function
+ with an integer argument and a {void * const} as result: 
+\begin{verbatim}
+TPtr(TFun(TVoid [Attr("const", [])],
+          [ ("x", TInt(IInt, []), []) ], false, []), [])
+\end{verbatim}
+
+ Similarly you can construct expressions and instructions. The pattern string
+can also contain a number of placeholders which are replaced during
+construction with CIL items passed as additional argument to the construction
+function. For example, the \t{\%e} placeholder means that the next argument
+(expected to be of form \t{Fe exp}) will supply the expression to replace the
+placeholder. See \ciltyperef{formatArg} for a definition of the placeholders
+that are understood. 
+
+ A dual feature is the intepreted deconstructors. This can be used to test
+whether a CIL construct has a certain form:
+\begin{verbatim}
+Formatcil.dType "void * const (*)(int x)" t
+\end{verbatim}
+
+ will test whether the actual argument \t{t} is indeed a function pointer of
+the required type. If it is then the result is \t{Some []} otherwise it is
+\t{None}. Furthermore, for the purpose of the interpreted deconstructors
+placeholders in patterns match anything of the right type. For example, 
+\begin{verbatim}
+Formatcil.dType "void * (*)(%F)" t
+\end{verbatim}
+
+ will match any function pointer type, independent of the type and number of
+the formals. If the match succeeds the result is \t{Some [ FF forms ]} where
+\t{forms} is a list of names and types of the formals. Note that each member
+in the resulting list corresponds positionally to a placeholdes in the
+pattern.
+
+ The interpreted constructors and deconstructors do not support the complete C
+syntax, but only a substantial fragment chosen to simplify the parsing. The
+following is the syntax that is supported:
+\begin{verbatim}
+Expressions:
+  E ::= %e | %d | %g | n | L | ( E ) | Unop E | E Binop E 
+        | sizeof E | sizeof ( T ) | alignof E  | alignof ( T ) 
+        | & L | ( T ) E 
+
+Unary operators:
+  Unop ::= + | - | ~ | %u
+
+Binary operators:
+  Binop ::= + | - | * | / | << | >> | & | ``|'' | ^ 
+          | == | != | < | > | <= | >= | %b
+
+Lvalues:
+  L ::= %l | %v Offset | * E | (* E) Offset | E -> ident Offset 
+
+Offsets:
+  Offset ::= empty | %o | . ident Offset | [ E ] Offset
+
+Types:
+  T ::= Type_spec Attrs Decl
+
+Type specifiers:
+  Type_spec ::= void | char | unsigned char | short | unsigned short
+            | int | unsigned int | long | unsigned long | %k | float 
+            | double | struct %c | union %c 
+
+
+Declarators:
+  Decl ::= * Attrs Decl | Direct_decl
+
+
+Direct declarators:
+  Direct_decl ::= empty | ident | ( Attrs Decl ) 
+                 | Direct_decl [ Exp_opt ]
+                 | ( Attrs Decl )( Parameters )
+
+Optional expressions
+  Exp_opt ::= empty | E | %eo
+
+Formal parameters
+  Parameters ::= empty | ... | %va | %f | T | T , Parameters
+
+List of attributes
+  Attrs ::= empty | %A | Attrib Attrs
+
+Attributes
+  Attrib ::= const | restrict | volatile | __attribute__ ( ( GAttr ) )
+
+GCC Attributes
+  GAttr ::= ident | ident ( AttrArg_List )
+
+Lists of GCC Attribute arguments:
+  AttrArg_List ::= AttrArg | %P | AttrArg , AttrArg_List
+
+GCC Attribute arguments  
+  AttrArg ::= %p | ident | ident ( AttrArg_List )
+
+Instructions
+  Instr ::= %i ; | L = E ; | L Binop= E | Callres L ( Args )
+
+Actual arguments
+   Args ::= empty | %E | E | E , Args
+
+Call destination
+   Callres ::= empty | L = | %lo
+
+Statements
+  Stmt ::= %s | if ( E ) then Stmt ; | if ( E ) then Stmt else Stmt ;
+       | return Exp_opt | break ; | continue ; | { Stmt_list } 
+       | while (E ) Stmt | Instr_list 
+
+Lists of statements
+   Stmt_list ::= empty | %S | Stmt Stmt_list  
+
+List of instructions
+   Instr_list ::= Instr | %I | Instr Instr_list
+\end{verbatim}
+
+Notes regarding the syntax of :
+\begin{itemize}
+\item In the grammar description above non-terminals are written with
+uppercase initial
+
+\item All of the patterns consist of the \t{\%} character followed by one or
+two letters. For each such patters there is a corresponding constructor of the
+\ciltyperef{formatArg} type, whose name if the letter 'F' followed by the same
+one or two letters as in the patters. That constructor is used by the user
+code to pass a \ciltyperef{formatArg} actual argument to the interpreted
+constructor and by the interpreted deconstructor to return what was matched
+for a pattern.
+
+\item If the pattern name is uppercase, it designates a list of the elements
+designated by the corresponding lowercase pattern. E.g. \%E designated lists
+of expressions (as in the actual arguments of a call).
+
+\item The two-letter patterns whose second letter is ``o'' designate an
+optional element. E.g. \%eo designates an optional expression (as in the
+length of an array). 
+
+\item Unlike in calls to \t{printf}, the pattern \%g is used for strings. 
+
+\item The usual precedence and associativity rules as in C apply 
+
+\item When matching a ``cast'' pattern of the form \t{( T ) E}, the
+deconstructor will match even expressions that do not have the actual cast but
+in that case the type is matched against the type of the expression. E.g. the
+patters \t{"(int)\%e"} will match any expression of type \t{int} whether it
+has an explicit cast or not. 
+
+\item The \%k pattern is used to construct and deconstruct an integer type of
+any kind. 
+
+\item Notice that the syntax of types and declaration are the same (in order
+to simplify the parser). This means that technically you can write a whole
+declaration instead of a type in the cast. In this case the name that you
+declare is ignored.
+
+\item In lists of formal parameters and lists of attributes, an empty list in
+the pattern matches any formal parameters or atttributes. 
+
+\item When matching types, uses of named types are unrolled to expose a real
+type before matching. 
+
+\item The order of the attributes is ignored during matching. The the pattern
+for a list of attributes contains \%A then the resulting \t{formatArg} will be
+bound to {\bf all} attributes in the list. For example, the pattern \t{"const
+\%A"} matches any list of attributes that contains \t{const} and binds the
+corresponding placeholder to the entire list of attributes, including
+\t{const}. 
+ 
+\end{itemize}
+
+ The following function are defined in the \t{Formatcil} module for
+constructing and deconstructing:
+\begin{itemize}
+\item \formatcilvalref{cExp} constructs \ciltyperef{exp}.
+\item \formatcilvalref{cType} constructs \ciltyperef{typ}.
+\item \formatcilvalref{cLval} constructs \ciltyperef{lval}.
+\item \formatcilvalref{cInstr} constructs \ciltyperef{instr}.
+\item \formatcilvalref{cStmt} constructs \ciltyperef{stmt}.
+\item \formatcilvalref{dExp} deconstructs \ciltyperef{exp}.
+\item \formatcilvalref{dType} deconstructs \ciltyperef{typ}.
+\item \formatcilvalref{dLval} deconstructs \ciltyperef{lval}.
+\item \formatcilvalref{dInstr} deconstructs \ciltyperef{lval}.
+\end{itemize}
+
+ 
+  \subsubsection{Performance considerations for interpreted constructors}
+ 
+ Parsing the parsers is done with a LALR parser and it takes time. To improve
+performance the constructors and decosntructors memoize the patters and will
+only compile a pattern once. Also all construction and deconstruction
+functions can be applied partially to the pattern string to produce a function
+that can be later used directly to construct or deconstruct. This function
+appears to be an order of magnitude slower than if the construction is done
+using the CIL constructors (without memoization the process would be two
+orders of magnitude slower.) However, the convenience of interpreted
+constructor might make them a viable choice in many situations when
+performance is not paramount (e.g. prototyping). 
+
+
  \subsection{Printing and Debugging support}
  
 The Modules \moduleref{Pretty} and \moduleref{Errormsg} contain respectively
@@ -650,15 +861,15 @@ utilities for pretty printing and reporting errors and provide a convenient
 you can use in conjunction with the \moduleref{Pretty} interface. The
 following are some of the pretty-printing functions:
 \begin{itemize}
-\item \cilvalref{d_exp} - print an expression
-\item \cilvalref{d_type} - print a type
-\item \cilvalref{d_lval} - print an lvalue
-\item \cilvalref{d_global} - print a global
-\item \cilvalref{d_stmt} - print a statment
-\item \cilvalref{d_instr} - print an instruction
-\item \cilvalref{d_init} - print an initializer
-\item \cilvalref{d_attr} - print an attribute
-\item \cilvalref{d_attrlist} - print a set of attributes
+\item \cilvalref{d\_exp} - print an expression
+\item \cilvalref{d\_type} - print a type
+\item \cilvalref{d\_lval} - print an lvalue
+\item \cilvalref{d\_global} - print a global
+\item \cilvalref{d\_stmt} - print a statment
+\item \cilvalref{d\_instr} - print an instruction
+\item \cilvalref{d\_init} - print an initializer
+\item \cilvalref{d\_attr} - print an attribute
+\item \cilvalref{d\_attrlist} - print a set of attributes
 \end{itemize}
 
  You can even customize the pretty-printer by creating instances of
@@ -1377,7 +1588,7 @@ message is generated for all groupsfor whom no member patch was used. We use
 this mechanism to receive notice when the patch triggers are out-dated with
 respect to the new include files. 
 \item \t{system=sysname} - will only consider this pattern on a given
-operating system. The ``sysname'' is are reported by the ``\$^O'' variable in
+operating system. The ``sysname'' is are reported by the ``\$\^O'' variable in
 Perl. For Windows use ``MSWin32'' and for Linux use ``linux'' (capitalization
 matters).
 \end{itemize}
@@ -1712,7 +1923,7 @@ Necula}.
 even in declarations which is what gcc does. 
 \item {\bf May 15, 2002}: Changed the visitor for initializers to make two
 tail-recursive passes (the second is a \t{List.rev} and only done if one of
-the initializers change). This prevents \t{Stack_Overflow} for large
+the initializers change). This prevents \t{Stack\_Overflow} for large
 initializers. Also improved the processing of initializers when converting to
 CIL. 
 \item {\bf May 15, 2002}: Changed the front-end to allow the use of \t{MSVC}
