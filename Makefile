@@ -934,20 +934,18 @@ bisort :  mustbegcc
                make PLAIN=1 clean defaulttarget \
                     $(BISORTARGS) \
                     CC="$(COMBINECCURED) \
-                        --nocure=trusted_bisort \
 			$(PATCHARG)"
 	cd $(BISORTDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
-                                   do time ./bisort.exe 100; done"
+                                   do time ./bisort.exe 100000; done"
 
 bisort-optimvariant.%: mustbegcc
 	cd $(BISORTDIR); \
-           $(OPTIMVARIANT) \
+           $(OPTIMVARIANT) -lm \
                  bisort.exe_combcured.$*.optim.c \
-                 trusted_bisort.c \
                  $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_releaselib.$(LIBEXT) \
                  $(EXEOUT)bisort.exe
 	cd $(BISORTDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
-                                   do time ./bisort.exe 100; done"
+                                   do time ./bisort.exe 100000; done"
 
 
 
@@ -1088,9 +1086,9 @@ li:  mustbegcc
 li-optimvariant.%: mustbegcc
 	cd $(LIDIR)/src; \
            $(OPTIMVARIANT) -lm \
-                 li.exe_combcured.$*.optim.c \
-                 $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_releaselib.$(LIBEXT) \
-                 $(EXEOUT)li.exe
+                li.exe_combcured.$*.optim.c \
+                $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_releaselib.$(LIBEXT) \
+                $(EXEOUT)li.exe
 	cd $(LIDIR)/src; sh -c "for i in $(ITERATION_ELEMS) ; \
               do time ./li.exe \
                       <../data/train/input/train.lsp \
@@ -1151,9 +1149,9 @@ go-noclean:  mustbegcc
 go-optimvariant.%: mustbegcc
 	cd $(GODIR)/src; \
            $(OPTIMVARIANT) \
-                 go.exe_combcured.$*.optim.c \
-                 $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_releaselib.$(LIBEXT) \
-                 $(EXEOUT)compress.exe
+                go.exe_combcured.$*.optim.c \
+                $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_releaselib.$(LIBEXT) \
+                $(EXEOUT)compress.exe
 	cd $(GODIR)/src; sh -c "for i in $(ITERATION_ELEMS) ; \
                                    do time ./go.exe 50 9; done"
 
@@ -1279,9 +1277,24 @@ ijpeg:  mustbegcc
 	cd $(IJPEGDIR)/src; \
             make clean build CC="$(IJPEGSAFECC) $(CONLY)" \
                              LD="$(IJPEGSAFECC)"
-	sh -c "time $(IJPEGDIR)/src/ijpeg \
-            -image_file $(IJPEGDIR)/data/ref/input/vigo.ppm \
-            -GO"
+	cd $(IJPEGDIR)/src; \
+              sh -c "for i in $(ITERATION_ELEMS) ; \
+                     do time ./ijpeg.exe \
+                          -image_file ../data/ref/input/vigo.ppm \
+                          -GO; done"
+
+ijpeg-optimvariant.%: mustbegcc
+	cd $(IJPEGDIR)/src; \
+           $(OPTIMVARIANT) \
+                ijpeg.exe_combcured.$*.optim.c \
+                $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_releaselib.$(LIBEXT) \
+                $(EXEOUT)ijpeg.exe
+	cd $(IJPEGDIR)/src; \
+              sh -c "for i in $(ITERATION_ELEMS) ; \
+                     do time ./ijpeg.exe \
+                          -image_file ../data/ref/input/vigo.ppm \
+                          -GO; done"
+
 
 ijpeg-combined:  mustbegcc
 	cd $(IJPEGDIR)/src; \

@@ -57,6 +57,7 @@ my @defaultcases =
 my @alltests =  
     ( "perimeter",
       "bh",
+      "bisort",
       "health",
       "mst",
       "li",
@@ -67,6 +68,8 @@ my @alltests =
 
       "compress",
       "go",
+      "ijpeg",
+      "li",
 
       "bc",
       "yacr",
