@@ -1282,9 +1282,11 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
           else begin
             (* Make sure that at least they have the same number of fields *)
             if  oldci_nrfields <> ci_nrfields then begin
+(*
               ignore (E.log "different number of fields: %s had %d and %s had %d\n"
                         oldci.cname oldci_nrfields
                         ci.cname ci_nrfields);
+*)
               raise (Failure "different structs(number of fields)");
             end;
             (* Assume they are the same *)

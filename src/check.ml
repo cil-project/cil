@@ -727,15 +727,22 @@ and checkInstr (i: instr) =
       | None, _ -> () (* "Call of function is not assigned" *)
       | Some destlv, rt' -> 
           let desttyp = checkLval false destlv in
-          if typeSig desttyp <> typeSig rt then
-                  (* Not all types can be cast *)
-              (match rt' with
-                TArray _ -> ignore (warn "Cast of an array type")
-              | TFun _ -> ignore (warn "Cast of a function type")
-              | TComp _ -> ignore (warn "Cast of a composite type")
-              | TVoid _ -> ignore (warn "Cast of a void type")
-
-              | _ -> ()));
+          if typeSig desttyp <> typeSig rt then begin
+            (* Not all types can be assigned to *)
+            (match unrollType desttyp with
+              TFun _ -> ignore (warn "Assignment to a function type")
+            | TArray _ -> ignore (warn "Assignment to an array type")
+            | TVoid _ -> ignore (warn "Assignment to a void type")
+            | _ -> ());
+            (* Not all types can be cast *)
+            (match rt' with
+              TArray _ -> ignore (warn "Cast of an array type")
+            | TFun _ -> ignore (warn "Cast of a function type")
+            | TComp _ -> ignore (warn "Cast of a composite type")
+            | TVoid _ -> ignore (warn "Cast of a void type")
+                  
+            | _ -> ())
+          end);
           (* Now check the arguments *)
       let rec loopArgs formals args = 
         match formals, args with

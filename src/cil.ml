@@ -3418,7 +3418,7 @@ let doVisit (vis: cilVisitor)
   match action with
     SkipChildren -> node
   | ChangeTo node' -> node'
-  | _ -> 
+  | _ -> (* DoChildren and ChangeDoChildrenPost *)
       let nodepre = match action with
         ChangeDoChildrenPost (node', _) -> node'
       | _ -> node
@@ -4156,7 +4156,8 @@ let splitFunctionType (ftype: typ)
     : typ * (string * typ * attributes) list option * bool * attributes = 
   match unrollType ftype with 
     TFun (rt, args, isva, a) -> rt, args, isva, a
-  | _ -> E.s (bug "splitFunctionType invoked on a non function type %a" d_type ftype)
+  | _ -> E.s (bug "splitFunctionType invoked on a non function type %a" 
+                d_type ftype)
 
 let splitFunctionTypeVI (fvi: varinfo) 
     : typ * (string * typ * attributes) list option * bool * attributes = 
