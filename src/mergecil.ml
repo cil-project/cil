@@ -37,7 +37,18 @@ module H = Hashtbl
 
 let debugMerge = false
 
-let lu = locUnknown
+(* Try to merge structure with the same name. However, do not complain if 
+ * they are not the same *)
+
+let mergeSynonyms = true
+
+(* Check that s starts with the prefix p *)
+let prefix p s = 
+  let lp = String.length p in
+  let ls = String.length s in
+  lp <= ls && String.sub s 0 lp = p
+
+
 
 (* A name is identified by the index of the file in which it occurs (starting 
  * at 0 with the first file) and by the actual name. We'll keep name spaces 
@@ -55,26 +66,31 @@ type 'a node =
                                        * need to talk in a given file about 
                                        * types that are not defined in that 
                                        * file. This happens with undefiend 
-                                       * structures but also about 
+                                       * structures but also due to 
                                        * cross-contamination of types in a 
                                        * few of the cases of combineType (see 
                                        * the definition of combineTypes) *)
-      mutable nrep: 'a node  (* A pointer to another node in its class (one 
+      mutable nrep: 'a node;  (* A pointer to another node in its class (one 
                                * closer to the representative). The nrep node 
                                * is always in an earlier file, except for the 
                                * case where a name is undefined in one file 
                                * and defined in a later file. If this pointer 
                                * points to the node itself then this is the 
                                * representative.  *)
+      mutable nmergedSyns: bool (* Whether we have merged the synonyms for 
+                                 * the node of this name *)
     } 
 
 (* Make a node with a self loop. This is quite tricky. *)
-let mkSelfNode (eq: (int * string, 'a node) H.t)
+let mkSelfNode (eq: (int * string, 'a node) H.t) (* The equivalence table *)
+               (syn: (string, 'a node) H.t) (* The synonyms table *)
                (fidx: int) (name: string) (data: 'a) (l: location option) = 
   let res = { nname = name; nfidx = fidx; ndata = data; nloc = l;
-              nrep  = Obj.magic 1 } in
+              nrep  = Obj.magic 1; nmergedSyns = false; } in
   res.nrep <- res; (* Make the self cycle *)
   H.add eq (fidx, name) res; (* Add it to the proper table *)
+  if mergeSynonyms && not (prefix "__anon" name) then 
+    H.add syn name res;
   res
 
 (* Find the representative with or without path compression *)
@@ -94,34 +110,53 @@ let rec find (pathcomp: bool) (nd: 'a node) =
  * Make sure that between the union and the undo you do not do path 
  * compression  *)
 let union (nd1: 'a node) (nd2: 'a node) : unit -> unit = 
-  if nd1 == nd2 && nd1.nrep != nd1 && nd2.nrep != nd2 then 
-    E.s (bug "unioning two identical nodes or non-representative nodes");
-  if nd1.nfidx < nd2.nfidx && (nd1.nloc != None || nd2.nloc = None) then begin
-    (* Make 1 the reprsentative *)
-    let old2rep = nd2.nrep in
-    nd2.nrep <- nd1; 
-    fun () -> nd2.nrep <- old2rep
-  end else begin
-    (* Make 2 the reprsentative *)
-    let old1rep = nd1.nrep in
-    nd1.nrep <- nd2; 
-    fun () -> nd1.nrep <- old1rep
-  end
+  if nd1 == nd2 then
+    E.s (bug "unioning two identical nodes for %s(%d)" 
+           nd1.nname nd1.nfidx);
+  (* Move to the representatives *)
+  let nd1 = find true nd1 in
+  let nd2 = find true nd2 in 
+  let rep, norep = (* Choose the representative *)
+    if (nd1.nloc != None) =  (nd2.nloc != None) then 
+      (* They have the same defined status. Choose the earliest *)
+      if nd1.nfidx < nd2.nfidx then nd1, nd2 else nd2, nd1
+    else (* One is defined, the other is not. Choose the defined one *)
+      if nd1.nloc != None then nd1, nd2 else nd2, nd1
+  in
+  let oldrep = norep.nrep in
+  norep.nrep <- rep; 
+  fun () -> norep.nrep <- oldrep
       
 (* Find the representative for a node and compress the paths in the process *)
 let findReplacement
     (pathcomp: bool)
     (eq: (int * string, 'a node) H.t)
     (fidx: int)
-    (name: string) : 'a option =
+    (name: string) : ('a * int) option =
   try
     let nd = H.find eq (fidx, name) in
     if nd.nrep == nd then 
       None (* No replacement if this is the representative of its class *)
     else 
-      Some (find pathcomp nd).ndata
+      let rep = find pathcomp nd in
+      Some (rep.ndata, rep.nfidx)
   with Not_found -> 
     None
+
+(* Make a node if one does not already exists. Otherwise return the 
+ * representative *)
+let getNode    (eq: (int * string, 'a node) H.t)
+               (syn: (string, 'a node) H.t)
+               (fidx: int) (name: string) (data: 'a) (l: location option) = 
+  try
+    let res = H.find eq (fidx, name) in
+    (* Maybe we have a better location now *)
+    if res.nloc = None && l != None then res.nloc <- l;
+    find false res (* No path compression *)
+  with Not_found -> 
+    mkSelfNode eq syn fidx name data l
+
+
 
 (* Dump a graph *)
 let dumpGraph (what: string) (eq: (int * string, 'a node) H.t) : unit = 
@@ -135,17 +170,6 @@ let dumpGraph (what: string) (eq: (int * string, 'a node) H.t) : unit =
       ignore (E.log " %s(%d)\n" nd.nrep.nname nd.nrep.nfidx ))
     eq
 
-(* Make a node if one does not already exists *)
-let getNode    (eq: (int * string, 'a node) H.t)
-               (fidx: int) (name: string) (data: 'a) (l: location option) = 
-  try
-    let res = H.find eq (fidx, name) in
-    (* Maybe we have a better location now *)
-    if res.nloc = None && l != None then res.nloc <- l;
-    find false res (* No path compression *)
-  with Not_found -> 
-    mkSelfNode eq fidx name data l
-
 
 
 
@@ -156,6 +180,13 @@ let uEq: (int * string, compinfo node) H.t = H.create 111 (* Unions *)
 let eEq: (int * string, enuminfo node) H.t = H.create 111 (* Enums *)
 let tEq: (int * string, (string * typ) node) H.t = H.create 111 (* Type names*)
         
+(* Sometimes we want to merge synonims. We keep some tables indexed by names. 
+ * Each name is mapped to multiple exntries *)
+let vSyn: (string, varinfo node) H.t = H.create 111 (* Not actually used *)
+let sSyn: (string, compinfo node) H.t = H.create 111
+let uSyn: (string, compinfo node) H.t = H.create 111
+let eSyn: (string, enuminfo node) H.t = H.create 111
+let tSyn: (string, (string * typ) node) H.t = H.create 111
 
 (** A global environment for variables. Put in here only the non-static 
   * variables, indexed by their name.  *)
@@ -210,6 +241,12 @@ let init () =
   H.clear uEq;
   H.clear eEq;
   H.clear tEq;
+
+  H.clear vSyn;
+  H.clear sSyn;
+  H.clear uSyn;
+  H.clear eSyn;
+  H.clear tSyn;
 
   theFile := [];
   theFileTypes := [];
@@ -267,119 +304,24 @@ let rec combineTypes (what: combineWhat)
       in
       TFloat (combineFK oldfk fk, addAttributes olda a)
 
-  | TEnum (oldei, olda), TEnum (ei, a) -> begin
-      let origoldei = oldei in (* Save the original for the end *)
-      (* Find the node for this enum, no path compression. *)
-      let oldeinode = getNode eEq oldfidx oldei.ename oldei None in
-      let einode    = getNode eEq fidx ei.ename ei None in
-      if oldeinode == einode then (* We already know they are the same *)
-        TEnum (origoldei, addAttributes olda a) 
-      else begin
-        (* Replace with the representative data *)
-        let oldei = oldeinode.ndata in
-        let oldfidx = oldeinode.nfidx in
-        let ei = einode.ndata in
-        let fidx = einode.nfidx in
-        (* We do not have a mapping. They better be defined in the same way *)
-        if List.length oldei.eitems <> List.length ei.eitems then 
-          raise (Failure "(different number of enumeration elements)");
-        (* We check that they are defined in the same way. This is a fairly 
-         * conservative check. *)
-        List.iter2 
-          (fun (old_iname, old_iv) (iname, iv) -> 
-            if old_iname <> iname then 
-              raise (Failure "(different names for enumeration items)");
-            let samev = 
-              match constFold true old_iv, constFold true iv with 
-                Const(CInt64(oldi, _, _)), Const(CInt64(i, _, _)) -> oldi = i
-              | _ -> false
-            in
-            if not samev then 
-              raise (Failure "(different values for enumeration items)"))
-          oldei.eitems ei.eitems;
-        (* We get here if the enumerations match *)
-        oldei.eattr <- addAttributes oldei.eattr ei.eattr;
-        (* Set the representative *)
-        let _ = union oldeinode einode in
-(*        if debugMerge then 
-          ignore (E.log "  Renaming enum %s to %s\n" ei.ename  oldei.ename);*)
-        TEnum (origoldei, addAttributes olda a)
-      end
-  end
+  | TEnum (oldei, olda), TEnum (ei, a) ->
+      matchEnumInfo oldfidx oldei fidx ei;
+      (* If we get here we were succesfull *)
+      TEnum (oldei, addAttributes olda a) 
+
+
         (* Strange one. But seems to be handled by GCC *)
   | TEnum (oldei, olda) , TInt(IInt, a) -> TEnum(oldei, 
                                                  addAttributes olda a)
 
         (* Strange one. But seems to be handled by GCC. Warning. Here we are 
-         * leaking types from new to old  
+         * leaking types from new to old  *)
   | TInt(IInt, olda), TEnum (ei, a) -> TEnum(ei, addAttributes olda a)
-        *)
         
-  | TComp (oldci, olda) , TComp (ci, a) -> begin
-      let origoldci = oldci in
-      if oldci.cstruct <> ci.cstruct then 
-        raise (Failure "(different struct/union types)");
-      (* See if we have a mapping already *)
-      let eqH = if ci.cstruct then sEq else uEq in
-      (* Make the nodes if not already made. Actually return the 
-       * representatives *)
-      let oldcinode = getNode eqH oldfidx oldci.cname oldci None in
-      let    cinode = getNode eqH    fidx    ci.cname    ci None in 
-      if oldcinode == cinode then (* We already know they are the same *)
-        TComp (origoldci, addAttributes olda a) 
-      else begin
-        (* Replace with the representative data *)
-        let oldci = oldcinode.ndata in
-        let oldfidx = oldcinode.nfidx in
-        let ci = cinode.ndata in
-        let fidx = cinode.nfidx in
-
-        let old_len = List.length oldci.cfields in
-        let len = List.length ci.cfields in
-        (* It is easy to catch here the case when the new structure is 
-         * undefined and the old one was defined. We just reuse the old *)
-        (* More complicated is the case when the old one is not defined but 
-         * the new one is. We still reuse the old one and we'll take care of 
-         * defining it later with the new fields. *)
-        if len <> 0 && old_len <> 0 && old_len <> len then 
-          raise (Failure "(different number of structure fields)");
-        (* We check that they are defined in the same way. While doing this 
-         * there might be recursion and we have to watch for going into an 
-         * infinite loop. So we add the assumption that they are equal *)
-        let undo = union oldcinode cinode in
-        (* We check the fields but watch for Failure. We only do the check 
-         * when the lengths are the same. Due to the code above this the 
-         * other possibility is that one of the length is 0, in which case we 
-         * reuse the old compinfo. *)
-        if old_len = len then
-          (try
-            List.iter2 (fun oldf f -> 
-              if oldf.fbitfield <> f.fbitfield then 
-                raise (Failure "(different bitfield info)");
-              if oldf.fattr <> f.fattr then 
-                raise (Failure "(different field attributes)");
-              (* Make sure the types are compatible *)
-              oldf.ftype <- 
-                 combineTypes CombineOther oldfidx oldf.ftype fidx f.ftype;
-            ) oldci.cfields ci.cfields
-          with Failure reason -> begin 
-            (* Our assumption was wrong. Forget the isomorphism *)
-            undo ();
-            let msg = 
-              P.sprint ~width:80
-                (P.dprintf
-                   "\n\tFailed assumption that %s and %s are isomorphic %s"
-                   (compFullName oldci) (compFullName ci) reason) in
-            raise (Failure msg)
-          end);
-        (* We get here when we succeeded checking that they are equal *)
-        oldci.cattr <- addAttributes oldci.cattr ci.cattr;
-(*        if debugMerge then 
-          ignore (E.log " Renaming %s to %s\n" (compFullName ci) oldci.cname);
-*)
-        TComp (origoldci, addAttributes olda a) 
-      end
-  end
+  | TComp (oldci, olda) , TComp (ci, a) ->
+      matchCompInfo oldfidx oldci fidx ci;
+      (* If we get here we were successful *)
+      TComp (oldci, addAttributes olda a) 
 
   | TArray (oldbt, oldsz, olda), TArray (bt, sz, a) -> 
       let combbt = combineTypes CombineOther oldfidx oldbt fidx bt in
@@ -443,36 +385,10 @@ let rec combineTypes (what: combineWhat)
       in
       TFun (newrt, newargs, oldva, addAttributes olda a)
         
-  | TNamed (oldn, oldt, olda), TNamed (n, t, a) -> begin
-      let origoldn = oldn in
-      (* Find the node for this enum, no path compression. *)
-      let oldtnode = getNode tEq oldfidx oldn (oldn, oldt) None in
-      let    tnode = getNode tEq    fidx    n (   n,    t) None in
-      if oldtnode == tnode then (* We already know they are the same *)
-        TNamed(origoldn, oldt, addAttributes olda a) 
-      else begin
-        (* Replace with the representative data *)
-        let (oldn, oldt) = oldtnode.ndata in
-        let oldfidx = oldtnode.nfidx in
-        let (n, t) = tnode.ndata in
-        let fidx = tnode.nfidx in
-        (* Check that they are the same *)
-        (try
-          ignore (combineTypes CombineOther oldfidx oldt fidx t);
-        with Failure reason -> begin
-          let msg = 
-            P.sprint ~width:80
-              (P.dprintf
-                 "\n\tFailed assumption that %s and %s are isomorphic %s"
-                 oldn n reason) in
-          raise (Failure msg)
-        end);
-        let _ = union oldtnode tnode in
-(*        if debugMerge then 
-          ignore (E.log " Renaming type name %s to %s\n" n oldn); *)
-        TNamed (origoldn, oldt, addAttributes olda a)
-      end
-  end
+  | TNamed (oldn, oldt, olda), TNamed (n, t, a) -> 
+      matchTypeInfo oldfidx (oldn, oldt) fidx (n, t);
+      (* If we get here we were able to match *)
+      TNamed(oldn, oldt, addAttributes olda a) 
         
         (* Unroll first the new type *)
   | _, TNamed (n, t, a) -> 
@@ -486,6 +402,144 @@ let rec combineTypes (what: combineWhat)
         
   | _ -> raise (Failure "(different type constructors)")
 
+(* Match two compinfos and throw a Failure if they do not match *)
+and matchCompInfo (oldfidx: int) (oldci: compinfo) 
+                     (fidx: int)    (ci: compinfo) : unit = 
+  if oldci.cstruct <> ci.cstruct then 
+    raise (Failure "(different struct/union types)");
+  (* See if we have a mapping already *)
+  let eqH, synH = if ci.cstruct then sEq, sSyn else uEq, uSyn in
+  (* Make the nodes if not already made. Actually return the 
+  * representatives *)
+  let oldcinode = getNode eqH synH oldfidx oldci.cname oldci None in
+  let    cinode = getNode eqH synH    fidx    ci.cname    ci None in 
+  if oldcinode == cinode then (* We already know they are the same *)
+        ()
+  else begin
+    (* Replace with the representative data *)
+    let oldci = oldcinode.ndata in
+    let oldfidx = oldcinode.nfidx in
+    let ci = cinode.ndata in
+    let fidx = cinode.nfidx in
+    
+    let old_len = List.length oldci.cfields in
+    let len = List.length ci.cfields in
+    (* It is easy to catch here the case when the new structure is undefined 
+     * and the old one was defined. We just reuse the old *)
+    (* More complicated is the case when the old one is not defined but the 
+     * new one is. We still reuse the old one and we'll take care of defining 
+     * it later with the new fields. *)
+    if len <> 0 && old_len <> 0 && old_len <> len then 
+      raise (Failure "(different number of structure fields)");
+    (* We check that they are defined in the same way. While doing this there 
+     * might be recursion and we have to watch for going into an infinite 
+     * loop. So we add the assumption that they are equal *)
+    let undo = union oldcinode cinode in
+    (* We check the fields but watch for Failure. We only do the check when 
+     * the lengths are the same. Due to the code above this the other 
+     * possibility is that one of the length is 0, in which case we reuse the 
+     * old compinfo. *)
+    if old_len = len then
+      (try
+        List.iter2 (fun oldf f -> 
+          if oldf.fbitfield <> f.fbitfield then 
+            raise (Failure "(different bitfield info)");
+          if oldf.fattr <> f.fattr then 
+            raise (Failure "(different field attributes)");
+          (* Make sure the types are compatible *)
+          oldf.ftype <- 
+             combineTypes CombineOther oldfidx oldf.ftype fidx f.ftype;
+          ) oldci.cfields ci.cfields
+      with Failure reason -> begin 
+        (* Our assumption was wrong. Forget the isomorphism *)
+        undo ();
+        let msg = 
+          P.sprint ~width:80
+            (P.dprintf
+               "\n\tFailed assumption that %s and %s are isomorphic %s"
+               (compFullName oldci) (compFullName ci) reason) in
+        raise (Failure msg)
+      end);
+    (* We get here when we succeeded checking that they are equal *)
+    oldci.cattr <- addAttributes oldci.cattr ci.cattr;
+(*        if debugMerge then 
+          ignore (E.log " Renaming %s to %s\n" (compFullName ci) oldci.cname);
+*)
+    ()
+  end
+
+(* Match two enuminfos and throw a Failure if they do not match *)
+and matchEnumInfo (oldfidx: int) (oldei: enuminfo) 
+                   (fidx: int)    (ei: enuminfo) : unit = 
+  (* Find the node for this enum, no path compression. *)
+  let oldeinode = getNode eEq eSyn oldfidx oldei.ename oldei None in
+  let einode    = getNode eEq eSyn fidx ei.ename ei None in
+  if oldeinode == einode then (* We already know they are the same *)
+    ()
+  else begin
+    (* Replace with the representative data *)
+    let oldei = oldeinode.ndata in
+    let oldfidx = oldeinode.nfidx in
+    let ei = einode.ndata in
+    let fidx = einode.nfidx in
+    (* We do not have a mapping. They better be defined in the same way *)
+    if List.length oldei.eitems <> List.length ei.eitems then 
+      raise (Failure "(different number of enumeration elements)");
+    (* We check that they are defined in the same way. This is a fairly 
+     * conservative check. *)
+    List.iter2 
+      (fun (old_iname, old_iv) (iname, iv) -> 
+        if old_iname <> iname then 
+          raise (Failure "(different names for enumeration items)");
+        let samev = 
+          match constFold true old_iv, constFold true iv with 
+            Const(CInt64(oldi, _, _)), Const(CInt64(i, _, _)) -> oldi = i
+          | _ -> false
+        in
+        if not samev then 
+          raise (Failure "(different values for enumeration items)"))
+      oldei.eitems ei.eitems;
+    (* We get here if the enumerations match *)
+    oldei.eattr <- addAttributes oldei.eattr ei.eattr;
+    (* Set the representative *)
+    let _ = union oldeinode einode in
+    (*        if debugMerge then 
+          ignore (E.log "  Renaming enum %s to %s\n" ei.ename  oldei.ename);*)
+    ()
+  end
+
+      
+(* Match two typeinfos and throw a Failure if they do not match *)
+and matchTypeInfo (oldfidx: int) (oldti: (string * typ)) 
+                   (fidx: int)      (ti: (string * typ)) : unit = 
+
+  (* Find the node for this enum, no path compression. *)
+  let oldtnode = getNode tEq tSyn oldfidx (fst oldti) oldti None in
+  let    tnode = getNode tEq tSyn    fidx (fst    ti)    ti None in
+  if oldtnode == tnode then (* We already know they are the same *)
+    ()
+  else begin
+    (* Replace with the representative data *)
+    let (oldn, oldt) = oldtnode.ndata in
+    let oldfidx = oldtnode.nfidx in
+    let (n, t) = tnode.ndata in
+    let fidx = tnode.nfidx in
+    (* Check that they are the same *)
+    (try
+      ignore (combineTypes CombineOther oldfidx oldt fidx t);
+    with Failure reason -> begin
+      let msg = 
+        P.sprint ~width:80
+          (P.dprintf
+             "\n\tFailed assumption that %s and %s are isomorphic %s"
+             oldn n reason) in
+      raise (Failure msg)
+    end);
+    let _ = union oldtnode tnode in
+(*        if debugMerge then 
+          ignore (E.log " Renaming type name %s to %s\n" n oldn); *)
+    ()
+  end
 
 (** A visitor the renames uses of variables and types *)      
 class renameVisitorClass = object (self)
@@ -500,7 +554,7 @@ class renameVisitorClass = object (self)
     if not vi.vglob then DoChildren else
     match findReplacement true vEq !currentFidx vi.vname with
       None -> DoChildren
-    | Some vi' -> ChangeTo vi'
+    | Some (vi', _) -> ChangeTo vi'
 
           
         (* The use of a type *)
@@ -510,13 +564,13 @@ class renameVisitorClass = object (self)
         let eqH = if ci.cstruct then sEq else uEq in
         match findReplacement true eqH !currentFidx ci.cname with
           None -> DoChildren
-        | Some ci' -> 
+        | Some (ci', _) -> 
             ChangeTo (TComp (ci', visitCilAttributes (self :> cilVisitor) a))
       end
     | TEnum (ei, a) -> begin
         match findReplacement true eEq !currentFidx ei.ename with
           None -> DoChildren
-        | Some ei' -> 
+        | Some (ei', _) -> 
             ChangeTo (TEnum (ei', visitCilAttributes (self :> cilVisitor) a))
       end
 
@@ -543,7 +597,7 @@ class renameVisitorClass = object (self)
         let eqH = if f.fcomp.cstruct then sEq else uEq in
         match findReplacement true eqH !currentFidx f.fcomp.cname with
           None -> DoChildren (* We did not replace it *)
-        | Some ci' -> begin
+        | Some (ci', _) -> begin
             try
               let f' = 
                 List.find (fun fld -> fld.fname = f.fname) ci'.cfields in
@@ -579,7 +633,7 @@ let rec oneFilePass1 (f:file) : unit =
   let matchVarinfo (vi: varinfo) (l: location) = 
     ignore (registerAlphaName vAlpha vi.vname);
     (* Make a node for it and put it in vEq *)
-    let vinode = mkSelfNode vEq !currentFidx vi.vname vi (Some l) in
+    let vinode = mkSelfNode vEq vSyn !currentFidx vi.vname vi (Some l) in
     try
       let oldvinode = H.find vEnv vi.vname in 
       let oldloc = 
@@ -644,17 +698,51 @@ let rec oneFilePass1 (f:file) : unit =
       | GType (n, t, l) ->
           if n <> "" then (* The empty names are just for introducing 
                            * undefind comp tags *)
-            ignore (getNode tEq !currentFidx n (n, t) (Some l))
+            ignore (getNode tEq tSyn !currentFidx n (n, t) (Some l))
       | GCompTag (ci, l) -> 
-          ignore (getNode (if ci.cstruct then sEq else uEq)
-                    !currentFidx ci.cname ci (Some l))
+          let eqH, synH = if ci.cstruct then sEq, sSyn else uEq, uSyn in
+          ignore (getNode eqH synH !currentFidx ci.cname ci (Some l))
       | GEnumTag (ei, l) -> 
-          ignore (getNode eEq !currentFidx ei.ename ei (Some l))
+          ignore (getNode eEq eSyn !currentFidx ei.ename ei (Some l))
 
       | _ -> ())
     f.globals
 
 
+(* Try to merge synonyms. Do not give an error if they fail to merge *)
+let doMergeSynonyms 
+    (syn : (string, 'a node) H.t)
+    (eq : (int * string, 'a node) H.t)
+    (compare : int -> 'a -> int -> 'a -> unit) (* A comparison function that 
+                                                * throws Failure if no match *)
+    : unit = 
+  H.iter (fun n node -> 
+    if not node.nmergedSyns then begin
+      (* find all the nodes for the same name *)
+      let all = H.find_all syn n in
+      let rec tryone (classes: 'a node list) (* A number of representatives 
+                                              * for this name *)
+                     (nd: 'a node) : 'a node list (* Returns an expanded set 
+                                                   * of classes *) = 
+        nd.nmergedSyns <- true;
+        (* Compare in turn with all the classes we have so far *)
+        let rec compareWithClasses = function
+            [] -> [nd](* No more classes. Add this as a new class *)
+          | c :: restc -> 
+              try
+                compare c.nfidx c.ndata  nd.nfidx nd.ndata;
+                (* Success. Stop here the comparison *)
+                c :: restc
+              with Failure _ -> (* Failed. Try next class *)
+                c :: (compareWithClasses restc)
+        in
+        compareWithClasses classes
+      in
+      (* Start with an empty set of classes for this name *)
+      let _ = List.fold_left tryone [] all in 
+      ()
+    end)
+    syn
   
   (* Now we go once more through the file and we rename the globals that we 
    * keep. We also scan the entire body and we replace references to the 
@@ -675,7 +763,7 @@ let oneFilePass2 (f: file) =
         (* Find the representative *)
         match findReplacement true vEq !currentFidx vi.vname with
           None -> vi
-        | Some vi' -> vi'
+        | Some (vi', _) -> vi'
       end
     in
     try
@@ -730,20 +818,14 @@ let oneFilePass2 (f: file) =
               ci.cname <- newAlphaName alphaH ci.cname;
               ci.ckey <- H.hash (compFullName ci);
               pushGlobals (visitCilGlobal renameVisitor g)
-          | Some oldci -> begin
-              (* This is not the representative *)
+          | Some (oldci, oldfidx) -> begin
+              (* We are not the representative *)
               (* See if the old one is empty and the new one is not *)
               if oldci.cfields = [] then begin
-                (* Define the old compinfo here (because it was not defined) 
-                * but put our fields in it first ! *)
-                if debugMerge then 
-                  ignore (E.log " Adding a definition for the empty %s\n"
-                            (compFullName oldci));
-                oldci.cfields <- 
-                   List.map (fun fi -> { fi with fcomp = oldci }) ci.cfields;
-                pushGlobals (visitCilGlobal renameVisitor (GCompTag(oldci, l)))
+                E.s (bug "The representative for %s(%d) is %s(%d) and is not defined" (compFullName ci) !currentFidx (compFullName oldci) 
+                       oldfidx)
               end else (* It is an old structure that is not empty. Drop this 
-                * declaration because we'll not be using it. *)
+                        * declaration because we'll not be using it. *)
                 ()
           end
       end  
@@ -769,7 +851,7 @@ let oneFilePass2 (f: file) =
                   let t'  = visitCilType renameVisitor t in
                   pushGlobal (GType(n', t', l));
                   n', t'
-              | Some (n', t') -> 
+              | Some ((n', t'), _) -> 
                   n', t' (* And we drop it *)
             in
             (* Add it to the local environment so we know how to rename types*)
@@ -794,6 +876,14 @@ let merge (files: file list) (newname: string) : file =
   (* Make the first pass over the files *)
   currentFidx := 0;
   List.iter (fun f -> oneFilePass1 f; incr currentFidx) files;
+
+  (* Now maybe try to force synonyms to be equal *)
+  if mergeSynonyms then begin
+    doMergeSynonyms sSyn sEq matchCompInfo;
+    doMergeSynonyms uSyn uEq matchCompInfo;
+    doMergeSynonyms eSyn eEq matchEnumInfo;
+    doMergeSynonyms tSyn tEq matchTypeInfo;
+  end;
 
   (* Now maybe dump the graph *)
   if debugMerge then begin
