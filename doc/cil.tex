@@ -1139,6 +1139,9 @@ and \t{N} is a name attribute (each of these uses the \t{\_\_attribute\_\_} synt
    /* A function (A1) from int (A2) to float (A3) */
    float A3 (A1 f)(int A2);
 
+   /* A pointer (A1) to a function (A2) that returns an int (A3) */
+   int A3 (A2 * A1 pfun)(void);
+
    /* An array (A1) of int (A2) */
    int A2 (A1 x0)[]
 
