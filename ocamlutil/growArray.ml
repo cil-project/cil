@@ -111,16 +111,18 @@ let iteri  (f: int -> 'a -> unit) (ga: 'a t) =
 let iter2  (f: int -> 'a -> 'b -> unit) (ga1: 'a t) (ga2: 'b t) = 
   let len1 = max_init_index ga1 in
   let len2 = max_init_index ga2 in
-  let max = if len1 > len2 then begin
-                ignore(getg ga2 len1); (*grow ga2 to match ga1*)
-                len1
-            end else begin
-                ignore(getg ga1 len2); (*grow ga1 to match ga2*)
-                len2
-            end in
-  for i = 0 to max do 
-    f i ga1.gaData.(i) ga2.gaData.(i)
-  done
+  if len1 > -1 || len2 > -1 then begin
+    let max = if len1 > len2 then begin
+                  ignore(getg ga2 len1); (*grow ga2 to match ga1*)
+                  len1
+              end else begin
+                  ignore(getg ga1 len2); (*grow ga1 to match ga2*)
+                  len2
+              end in
+    for i = 0 to max do 
+      f i ga1.gaData.(i) ga2.gaData.(i)
+    done
+  end
 
 (** Fold left over the initialized elements of the array *)
 let fold_left (f: 'acc -> 'a -> 'acc) (acc: 'acc) (ga: 'a t) : 'acc = 
