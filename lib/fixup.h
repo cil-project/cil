@@ -109,3 +109,7 @@ void exit(int);
 
 #pragma boxexported("main")
 #endif
+
+
+// ideally we could handle this better..
+#define __PRETTY_FUNCTION__ "__PRETTY_FUNCTION__ (disabled)"

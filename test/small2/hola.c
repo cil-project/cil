@@ -28,10 +28,57 @@ int main()
 }
 
 
+#if 1     // testcase for partially-bracketed initializer
+  struct S {
+    int x, y;
+  };
+
+  #if 0
+  struct S array[] = {
+    1,2,
+    3,4
+  };
+  #endif // 0     
+
+  struct S array_ok[] = {
+    {1,2},
+    {3,4}
+  };
+
+#endif // 0
 
 
-#if 0
-void pretendUsed(int y) {}
+
+#if 0    // testcase for multiple statics with same name
+  int foo()
+  {
+    static int x = 0;
+    return x;
+  }
+
+  int bar()
+  {
+    static int x = 5;
+    return x;
+  }
+#endif // 0
+
+
+#if 0    // testcase for static defn after no-storage prototype
+  void foo();
+
+  static void foo() {}
+#endif // 0
+
+
+#if 0    // testcase for (void)free()
+  void free(void*);
+
+  void foo()
+  {
+    (void)free(0);
+  }
+#endif // 0
 
 
 // ------ tests recursing into associated TComp ------------
@@ -50,6 +97,11 @@ int  mod_gzip_redir1_handler( request_rec *  r )
   pretendUsed((r->connection)->x);
 }
 
+void pretendUsed(int y) {}
+
+
+
+#if 0
 
 
 // --------- tests marking associated TComp -----------

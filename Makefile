@@ -569,6 +569,7 @@ btreetest: test/small2/testbtree.c \
 hola: test/small2/hola.c $(EXECUTABLE)$(EXE) \
                                  $(SAFECLIB) $(SAFEMAINLIB)
 	rm -f test/small2/hola
+	cd test/small2; $(CC) $(CONLY) $(DEF)$(ARCHOS) hola.c
 	cd test/small2; $(SAFECC) --keep=. $(DEF)$(ARCHOS) \
                  `$(PATCHECHO) --patch=../../lib/$(PATCHFILE)` \
                  $(DOOPT) $(WARNALL) \
@@ -588,7 +589,7 @@ com: test/small2/com1.c test/small2/com2.c $(EXECUTABLE)$(EXE) \
 	test/small2/com
 
 # cfrac: a memory benchmark which factorizes into products of primes
-CFRACDIR = $(CILDIR)/../bench/colorado/cfrac
+CFRACDIR = $(CILDIR)/../bench/cfrac
 cfrac: $(EXECUTABLE)$(EXE) $(SAFECLIB) $(SAFECMAINLIB)
 	-rm $(CFRACDIR)/*.o
 	-rm $(CFRACDIR)/cfrac
@@ -604,6 +605,18 @@ comcfrac: $(EXECUTABLE)$(EXE) $(SAFECLIB) $(SAFECMAINLIB)
 	  CC="$(SAFECC) --combine --keep=$(CFRACDIR)" \
 	  LD="$(SAFECC) --combine --keep=$(CFRACDIR)"
 	csh -c "time $(CFRACDIR)/cfrac 327905606740421458831903"
+
+# espresso: memory benchmark that does logic minimization
+ESPRESSODIR = $(CILDIR)/../bench/espresso
+espresso: $(EXECUTABLE)$(EXE) $(SAFECLIB) $(SAFECMAINLIB)
+	@true -rm $(ESPRESSODIR)/*.o
+	@true -rm $(ESPRESSODIR)/espresso
+	make -C $(ESPRESSODIR) \
+	  CC="$(SAFECC) --keep=$(ESPRESSODIR)" \
+	  LD="$(SAFECC) --keep=$(ESPRESSODIR)"
+	csh -c "time $(ESPRESSODIR)/espresso -t $(ESPRESSODIR)INPUT/Z5xp1.espresso >/dev/null"
+
+
 
 
 HUFFCOMPILE=$(SAFECC) $(DEF)NOVARARG --combine --keep=. 

@@ -2121,7 +2121,17 @@ and createGlobal ((_,_,(n,nbt,a,e)) as sname : A.single_name) =
             Some e''
               
         | _ ->  Some e''
-    in
+    in                   
+
+    (* sm: if it's a function prototype, and the storage class *)
+    (* isn't specified, make it 'extern'; this fixes a problem *)
+    (* with no-storage prototype and static definition *)
+    if (isFunctionType vi.vtype &&
+        vi.vstorage = NoStorage) then (
+      (*(trace "sm" (dprintf "adding extern to prototype of %s\n" n));*)
+      vi.vstorage <- Extern
+    );
+
     let vi, alreadyDef = makeGlobalVarinfo vi in
     if not alreadyDef then begin(* Do not add declarations after def *)
       if vi.vstorage = Extern then 
