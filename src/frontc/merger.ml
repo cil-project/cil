@@ -42,7 +42,7 @@ module H = Hashtbl
 (** Be aggressive when merging types *)
 let aggressive = ref false
 
-let renameAll = true
+let renameAll = false
 
 let debugTypes  = false
 let debugFundef = false
