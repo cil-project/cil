@@ -934,7 +934,7 @@ rm -f conftest.sh
 # Assign here the CIL version numbers
 CIL_VERSION_MAJOR=1
 CIL_VERSION_MINOR=0
-CIL_VERSION_REV=6
+CIL_VERSION_REV=7
 CIL_VERSION=$CIL_VERSION_MAJOR.$CIL_VERSION_MINOR.$CIL_VERSION_REV
 
 # make sure I haven't forgotten to run autoconf
