@@ -65,14 +65,9 @@ my %commonerrors =
 
          );
 
-my $inferbox = 2;
+my $inferbox = 3;
 
 # Now add tests
-$TEST->add3Tests("apache/gzip");
-$TEST->add3Tests("apache/rewrite");
-$TEST->add3Tests("apache/urlcount");
-$TEST->add3Tests("apache/layout");
-$TEST->add3Tests("apache/random");
 $TEST->add3Tests("btreetest", "", @runpattern);
 $TEST->add3Tests("hashtest", "", @runpattern);
 $TEST->add3Tests("rbtest", "", @runpattern);
@@ -81,7 +76,7 @@ $TEST->add3Tests("test/alloc");
 $TEST->add3Tests("test/argcast", "", @runpattern);
 $TEST->add3Tests("test/array1");
 $TEST->add3Tests("test/attr");
-$TEST->add3Tests("test/bh1", @runpattern);
+$TEST->add3Tests("test/bh1", "", @runpattern);
 $TEST->add3Tests("test/bitfield");
 $TEST->add3Tests("test/box1");
 $TEST->add3Tests("test/cast1");
@@ -90,6 +85,7 @@ $TEST->add3Tests("test/enum");
 $TEST->add3Tests("test/format1");
 $TEST->add3Tests("test/func");
 $TEST->add3Tests("test/globals");
+$TEST->add3Tests("test/huff1");
 $TEST->add3Tests("test/init");
 $TEST->add3Tests("test/initial", "_GNUCC=1");
 $TEST->add3Tests("test/jmp_buf");
@@ -119,6 +115,11 @@ $TEST->add1Test("test/alloc-manualinferbox",
 $TEST->add3Tests("bh", "_GNUCC=1");
 $TEST->add3Tests("li", "_GNUCC=1");
 $TEST->add3Tests("compress", "_GNUCC=1");
+$TEST->add3Tests("apache/gzip");
+$TEST->add3Tests("apache/rewrite");
+$TEST->add3Tests("apache/urlcount");
+$TEST->add3Tests("apache/layout");
+$TEST->add3Tests("apache/random");
 
 # $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug
 # my $tst = $TEST->getTest("apache/gzip-inferbox");
