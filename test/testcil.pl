@@ -1185,6 +1185,7 @@ altAddTest("scott/unionassign $wildbox");
 altAddTest("scott/readv $box");
 altFailTest("FSEQ incompleteness", "scott/bloop $box");
 altAddTest("scott/funcptr3 INFERBOX=infer");
+altAddTest("scott/structattr");
 
 
 # $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug

@@ -191,23 +191,23 @@ and childrenTypeSpecifier vis ts =
     if s' != s || nel' != nel then (s', nel) else input
   in
   match ts with
-    Tstruct (n, Some fg) -> 
+    Tstruct (n, Some fg, extraAttrs) ->
       (*(trace "sm" (dprintf "visiting struct %s\n" n));*)
       let fg' = mapNoCopy childrenFieldGroup fg in
-      if fg' != fg then Tstruct( n, Some fg') else ts
-  | Tunion (n, Some fg) -> 
+      if fg' != fg then Tstruct( n, Some fg', extraAttrs) else ts
+  | Tunion (n, Some fg, extraAttrs) ->
       let fg' = mapNoCopy childrenFieldGroup fg in
-      if fg' != fg then Tunion( n, Some fg') else ts
-  | Tenum (n, Some ei) -> 
-      let doOneEnumItem ((s, e, loc) as ei) = 
+      if fg' != fg then Tunion( n, Some fg', extraAttrs) else ts
+  | Tenum (n, Some ei, extraAttrs) ->
+      let doOneEnumItem ((s, e, loc) as ei) =
         let e' = visitCabsExpression vis e in
         if e' != e then (s, e', loc) else ei
       in
       vis#vEnterScope ();
       let ei' = mapNoCopy doOneEnumItem ei in
       vis#vExitScope();
-      if ei' != ei then Tenum( n, Some ei') else ts
-  | TtypeofE e -> 
+      if ei' != ei then Tenum( n, Some ei', extraAttrs) else ts
+  | TtypeofE e ->
       let e' = visitCabsExpression vis e in   
       if e' != e then TtypeofE e' else ts
   | TtypeofT (s, dt) -> 

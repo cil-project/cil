@@ -776,23 +776,36 @@ type_spec:   /* ISO 6.7.2 */
 |   DOUBLE          { Tdouble, $1 }
 |   SIGNED          { Tsigned, $1 }
 |   UNSIGNED        { Tunsigned, $1 }
-|   STRUCT id_or_typename 
-                    { Tstruct ($2, None), $1 }
-|   STRUCT id_or_typename LBRACE struct_decl_list RBRACE
-                    { Tstruct ($2, Some $4), $1 }
-|   STRUCT           LBRACE struct_decl_list RBRACE
-                    { Tstruct ("", Some $3), $1 }
-|   UNION id_or_typename 
-                    { Tunion ($2, None), $1 }
-|   UNION id_or_typename LBRACE struct_decl_list RBRACE
-                    { Tunion ($2, Some $4), $1 }
-|   UNION          LBRACE struct_decl_list RBRACE
-                    { Tunion ("", Some $3), $1 }
-|   ENUM id_or_typename   { Tenum ($2, None), $1 }
-|   ENUM id_or_typename LBRACE enum_list maybecomma RBRACE
-                    { Tenum ($2, Some $4), $1 }
-|   ENUM          LBRACE enum_list maybecomma RBRACE
-                    { Tenum ("", Some $3), $1 }
+|   STRUCT                 id_or_typename
+                                                   { Tstruct ($2, None,    []), $1 }
+|   STRUCT                 id_or_typename LBRACE struct_decl_list RBRACE
+                                                   { Tstruct ($2, Some $4, []), $1 }
+|   STRUCT                                LBRACE struct_decl_list RBRACE
+                                                   { Tstruct ("", Some $3, []), $1 }
+|   STRUCT just_attributes id_or_typename LBRACE struct_decl_list RBRACE
+                                                   { Tstruct ($3, Some $5, $2), $1 }
+|   STRUCT just_attributes                LBRACE struct_decl_list RBRACE
+                                                   { Tstruct ("", Some $4, $2), $1 }
+|   UNION                  id_or_typename
+                                                   { Tunion  ($2, None,    []), $1 }
+|   UNION                  id_or_typename LBRACE struct_decl_list RBRACE
+                                                   { Tunion  ($2, Some $4, []), $1 }
+|   UNION                                 LBRACE struct_decl_list RBRACE
+                                                   { Tunion  ("", Some $3, []), $1 }
+|   UNION  just_attributes id_or_typename LBRACE struct_decl_list RBRACE
+                                                   { Tunion  ($3, Some $5, $2), $1 }
+|   UNION  just_attributes                LBRACE struct_decl_list RBRACE
+                                                   { Tunion  ("", Some $4, $2), $1 }
+|   ENUM                   id_or_typename
+                                                   { Tenum   ($2, None,    []), $1 }
+|   ENUM                   id_or_typename LBRACE enum_list maybecomma RBRACE
+                                                   { Tenum   ($2, Some $4, []), $1 }
+|   ENUM                                  LBRACE enum_list maybecomma RBRACE
+                                                   { Tenum   ("", Some $3, []), $1 }
+|   ENUM   just_attributes id_or_typename LBRACE enum_list maybecomma RBRACE
+                                                   { Tenum   ($3, Some $5, $2), $1 }
+|   ENUM   just_attributes                LBRACE enum_list maybecomma RBRACE
+                                                   { Tenum   ("", Some $4, $2), $1 }
 |   NAMED_TYPE      { Tnamed (fst $1), snd $1 }
 |   TYPEOF LPAREN expression RPAREN     { TtypeofE (fst $3), $1 }
 |   TYPEOF LPAREN type_name RPAREN      { let s, d = $3 in
@@ -1057,6 +1070,20 @@ attribute:
 |   CONST                               { ("const", []), $1 }
 |   RESTRICT                            { ("restrict",[]), $1 }
 |   VOLATILE                            { ("volatile",[]), $1 }
+;
+
+/* sm: I need something that just includes __attribute__ and nothing more,
+ * to support them appearing between the 'struct' keyword and the type name */
+just_attribute:
+    ATTRIBUTE LPAREN paren_attr_list_ne RPAREN	
+                                        { ("__attribute__", $3) }
+;
+
+/* this can't be empty, b/c I folded that possibility into the calling
+ * productions to avoid some S/R conflicts */
+just_attributes:
+    just_attribute                      { [$1] }
+|   just_attribute just_attributes      { $1 :: $2 }
 ;
 
 /** (* PRAGMAS and ATTRIBUTES *) ***/

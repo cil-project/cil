@@ -74,9 +74,14 @@ type typeSpecifier = (* Merge all specifiers into one type *)
   | Tsigned
   | Tunsigned
   | Tnamed of string
-  | Tstruct of string * field_group list option  (* Some if a definition *)
-  | Tunion of string * field_group list option   (* Some if a definition *)
-  | Tenum of string * enum_item list option    (* Some if a definition *)
+  (* each of the following three kinds of specifiers contains a field 
+   * or item list iff it corresponds to a definition (as opposed to
+   * a forward declaration or simple reference to the type); they
+   * also have a list of __attribute__s that appeared between the
+   * keyword and the type name (definitions only) *)
+  | Tstruct of string * field_group list option * attribute list
+  | Tunion of string * field_group list option * attribute list
+  | Tenum of string * enum_item list option * attribute list
   | TtypeofE of expression                      (* GCC __typeof__ *)
   | TtypeofT of specifier * decl_type       (* GCC __typeof__ *)
 

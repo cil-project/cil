@@ -333,20 +333,34 @@ and print_type_spec = function
   | Tsigned -> print "signed "
   | Tunsigned -> print "unsigned "
   | Tnamed s -> comprint "tnamed"; print s; space ();
-  | Tstruct (n, None) -> print ("struct " ^ n ^ " ")
-  | Tstruct (n, Some flds) ->
-      (* sm: why wasn't the name being printed?  I think that's a bug.. *)
-      (* previously: if flds = [] then print "struct { } " *)
-      if flds = [] then print ("struct " ^ n ^ " { } ")
-      else print_fields ("struct " ^ n) flds
-  | Tunion (n, None) -> print ("union " ^ n ^ " ")
-  | Tunion (n, Some flds) -> 
-      if flds = [] then print "union { } " 
-      else print_fields ("union " ^ n) flds
-  | Tenum (n, None) -> print ("enum " ^ n ^ " ")
-  | Tenum (n, Some enum_items) -> print_enum n enum_items
+  | Tstruct (n, None, _) -> print ("struct " ^ n ^ " ")
+  | Tstruct (n, Some flds, extraAttrs) ->
+      (print_struct_name_attr "struct" n extraAttrs);
+      (print_fields flds)
+  | Tunion (n, None, _) -> print ("union " ^ n ^ " ")
+  | Tunion (n, Some flds, extraAttrs) ->
+      (print_struct_name_attr "union" n extraAttrs);
+      (print_fields flds)
+  | Tenum (n, None, _) -> print ("enum " ^ n ^ " ")
+  | Tenum (n, Some enum_items, extraAttrs) ->
+      (print_struct_name_attr "enum" n extraAttrs);
+      (print_enum_items enum_items)
   | TtypeofE e -> print "__typeof__("; print_expression e 1; print ") "
   | TtypeofT (s,d) -> print "__typeof__("; print_onlytype (s, d); print ") "
+
+
+(* print "struct foo", but with specified keyword and a list of
+ * attributes to put between keyword and name *)
+and print_struct_name_attr (keyword: string) (name: string) (extraAttrs: attribute list) =
+begin
+  if extraAttrs = [] then
+    print (keyword ^ " " ^ name)
+  else begin
+    (print (keyword ^ " "));
+    (print_attributes extraAttrs);    (* prints a final space *)
+    (print name);
+  end
+end
 
 
 (* This is the main printer for declarations. It is easy bacause the 
@@ -380,9 +394,8 @@ and print_decl (n: string) = function
       comprint ")"
 
 
-and print_fields  id (flds : field_group list) =
-  print id;
-  if flds = [] then ()
+and print_fields (flds : field_group list) =
+  if flds = [] then print " { } "
   else begin
     print " {";
     indent ();
@@ -393,10 +406,8 @@ and print_fields  id (flds : field_group list) =
     print "} "
   end
 
-and print_enum id items =
-  print ("enum " ^ id);
-  if items = []
-  then ()
+and print_enum_items items =
+  if items = [] then print " { } "
   else begin
     print " {";
     indent ();
@@ -885,7 +896,7 @@ and print_attribute (name,args) =
       "restrict" -> "__restrict" 
       (* weimer: Fri Dec  7 17:12:35  2001
        * must not print 'restrict' and the code below does allows some
-       * plan 'restrict's to slip though! *)
+       * plain 'restrict's to slip though! *)
     | x -> x)
   else begin
     print name;
@@ -898,7 +909,7 @@ and print_attribute (name,args) =
   end
 
 (* Print attributes. *)
-and print_attributes attrs = 
+and print_attributes attrs =
   List.iter (fun a -> print_attribute a; space ()) attrs
 
 (*

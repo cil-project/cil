@@ -1957,41 +1957,41 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
           t
     end
 
-    | [A.Tstruct (n, None)] -> (* A reference to a struct *)
+    | [A.Tstruct (n, None, _)] -> (* A reference to a struct *)
         if n = "" then E.s (error "Missing struct tag on incomplete struct");
         findCompType "struct" n []
-    | [A.Tstruct (n, Some nglist)] -> (* A definition of a struct *)
-      let n' = 
+    | [A.Tstruct (n, Some nglist, extraAttrs)] -> (* A definition of a struct *)
+      let n' =
         if n <> "" then n else anonStructName "struct" suggestedAnonName in
       (* Use the attributes now *)
-      let a = !attrs in 
+      let a = extraAttrs @ !attrs in
       attrs := [];
       makeCompType true n' nglist (doAttributes a)
-        
-    | [A.Tunion (n, None)] -> (* A reference to a union *)
+
+    | [A.Tunion (n, None, _)] -> (* A reference to a union *)
         if n = "" then E.s (error "Missing union tag on incomplete union");
         findCompType "union" n []
-    | [A.Tunion (n, Some nglist)] -> (* A definition of a union *)
-        let n' = 
+    | [A.Tunion (n, Some nglist, extraAttrs)] -> (* A definition of a union *)
+        let n' =
           if n <> "" then n else anonStructName "union" suggestedAnonName in
         (* Use the attributes now *)
-        let a = !attrs in 
+        let a = extraAttrs @ !attrs in
         attrs := [];
         makeCompType false n' nglist (doAttributes a)
-          
-    | [A.Tenum (n, None)] -> (* Just a reference to an enum *)
+
+    | [A.Tenum (n, None, _)] -> (* Just a reference to an enum *)
         if n = "" then E.s (error "Missing enum tag on incomplete enum");
         findCompType "enum" n []
 
-    | [A.Tenum (n, Some eil)] -> (* A definition of an enum *)
-        let n' = 
+    | [A.Tenum (n, Some eil, extraAttrs)] -> (* A definition of an enum *)
+        let n' =
           if n <> "" then n else anonStructName "enum" suggestedAnonName in
         (* make a new name for this enumeration *)
         let n'' = newAlphaName true "enum" n' in
-        (* Create the enuminfo, or use one that was created already for a 
+        (* Create the enuminfo, or use one that was created already for a
          * forward reference *)
         (* Use the attributes now *)
-        let a = !attrs in 
+        let a = extraAttrs @ !attrs in 
         attrs := [];
         let enum, _ = createEnumInfo n'' in 
         enum.eattr <- doAttributes a;
@@ -2490,10 +2490,10 @@ and preprocessCast (specs: A.specifier)
       TComp (ci, _) -> 
         List.map 
           (function 
-              A.SpecType (A.Tstruct ("", flds)) -> 
-                A.SpecType (A.Tstruct (ci.cname, None))
-            | A.SpecType (A.Tunion ("", flds)) -> 
-                A.SpecType (A.Tunion (ci.cname, None))
+              A.SpecType (A.Tstruct ("", flds, [])) -> 
+                A.SpecType (A.Tstruct (ci.cname, None, []))
+            | A.SpecType (A.Tunion ("", flds, [])) ->
+                A.SpecType (A.Tunion (ci.cname, None, []))
             | s -> s) specs
     | _ -> specs
   in
@@ -4937,9 +4937,9 @@ and doOnlyTypedef (specs: A.spec_elem list) : unit =
     let isadef = 
       List.exists 
         (function 
-            A.SpecType(A.Tstruct(_, Some _)) -> true
-          | A.SpecType(A.Tunion(_, Some _)) -> true
-          | A.SpecType(A.Tenum(_, Some _)) -> true
+            A.SpecType(A.Tstruct(_, Some _, _)) -> true
+          | A.SpecType(A.Tunion(_, Some _, _)) -> true
+          | A.SpecType(A.Tenum(_, Some _, _)) -> true
           | _ -> false) specs
     in
     match restyp with 

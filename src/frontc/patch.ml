@@ -237,13 +237,13 @@ class substitutor (bindings : binding list) = object(self)
     match tspec with
     | Tnamed(str) when (isPatternVar str) ->
         ChangeTo(Tnamed(self#vvar str))
-    | Tstruct(str, fields) when (isPatternVar str) -> (
+    | Tstruct(str, fields, extraAttrs) when (isPatternVar str) -> (
         (trace "patchDebug" (dprintf "substituting %s\n" str));
-        ChangeDoChildrenPost(Tstruct((self#vvar str), fields), identity)
+        ChangeDoChildrenPost(Tstruct((self#vvar str), fields, extraAttrs), identity)
       )
-    | Tunion(str, fields) when (isPatternVar str) ->
+    | Tunion(str, fields, extraAttrs) when (isPatternVar str) ->
         (trace "patchDebug" (dprintf "substituting %s\n" str));
-        ChangeDoChildrenPost(Tunion((self#vvar str), fields), identity)
+        ChangeDoChildrenPost(Tunion((self#vvar str), fields, extraAttrs), identity)
     | _ -> DoChildren
   end
 
@@ -528,19 +528,22 @@ begin
 
   match pat, tgt with
   | Tnamed(s1), Tnamed(s2) -> (unifyString s1 s2)
-  | Tstruct(name1, None), Tstruct(name2, None) ->
+  | Tstruct(name1, None, _), Tstruct(name2, None, _) ->
       (unifyString name1 name2)
-  | Tstruct(name1, Some(fields1)), Tstruct(name2, Some(fields2)) ->
+  | Tstruct(name1, Some(fields1), _), Tstruct(name2, Some(fields2), _) ->
+      (* ignoring extraAttrs b/c we're just trying to come up with a list
+       * of substitutions, and there's no unify_attributes function, and
+       * I don't care at this time about checking that they are equal .. *)
       (unifyString name1 name2) @
       (unifyList fields1 fields2 unifyField)
-  | Tunion(name1, None), Tstruct(name2, None) ->
+  | Tunion(name1, None, _), Tstruct(name2, None, _) ->
       (unifyString name1 name2)
-  | Tunion(name1, Some(fields1)), Tunion(name2, Some(fields2)) ->
+  | Tunion(name1, Some(fields1), _), Tunion(name2, Some(fields2), _) ->
       (unifyString name1 name2) @
       (unifyList fields1 fields2 unifyField)
-  | Tenum(name1, None), Tstruct(name2, None) ->
+  | Tenum(name1, None, _), Tenum(name2, None, _) ->
       (unifyString name1 name2)
-  | Tenum(name1, Some(items1)), Tenum(name2, Some(items2)) ->
+  | Tenum(name1, Some(items1), _), Tenum(name2, Some(items2), _) ->
       (mustEq items1 items2);    (* enum items *)
       (unifyString name1 name2)
   | TtypeofE(exp1), TtypeofE(exp2) ->
