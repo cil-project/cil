@@ -200,6 +200,7 @@ $TEST->add3Tests("test/func");
 $TEST->add3Tests("testrun/func2");
 $TEST->add3Tests("testrun/func3");
 $TEST->add3Tests("testrun/func4");
+$TEST->add3Tests("testrun/func5");
 $TEST->add3Tests("test/globals");
 $TEST->add3Tests("test/huff1");
   $TEST->addBadComment("test/huff1-box", "pragma box misuse");
