@@ -701,11 +701,11 @@ let makeGlobalVarinfo (vi: varinfo) =
           -> oldvi.vtype <- vi.vtype
          (* If one is a function with no arguments and the other has some 
           * arguments, believe the one with the arguments *)
-        | TSFun(r1, [], va1, _), TSFun(r2, _ :: _, va2, a2)
-               when va1 = va2 && r1 = r2 -> 
-            oldvi.vtype <- vi.vtype
-        | TSFun(r1, _ :: _ , va1, _), TSFun(r2, [], va2, a2)
-               when va1 = va2 && r1 = r2 -> ()
+        | TSFun(_, [], va1, _), TSFun(r2, _ :: _, va2, a2)
+               when va1 = va2 -> oldvi.vtype <- vi.vtype
+        | TSFun(r1, _ , va1, _), 
+          TSFun(_, [], va2, a2)
+               when va1 = va2 -> ()
         | _, _ -> E.s (E.unimp "Redefinition of %s with different types" 
                          vi.vname)
     in
@@ -2402,9 +2402,7 @@ let convFile fname dl =
                          slocals  = locals;
                          sformals = formals';
                          smaxid   = maxid;
-                         sbody    = mkFunctionBody s; (*
-                         s2c (match mkSeq s with (Sequence _) as x -> x 
-                         | x -> Sequence [x]); *)
+                         sbody    = mkFunctionBody s;
                        } 
             in
             setFormals fdec formals'; (* To make sure sharing is proper *)

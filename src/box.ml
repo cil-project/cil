@@ -155,6 +155,8 @@ let boxallocPragma (name: string) (args: attribute list) : unit =
 (* Add malloc and calloc *)
 let _ = boxallocPragma "malloc" [ AId("nozero"); 
                                   ACons("sizein", [AInt 0])] 
+let _ = boxallocPragma "alloca" [ AId("nozero"); 
+                                  ACons("sizein", [AInt 0])] 
 let _ = boxallocPragma "calloc" [ AId("zero"); 
                                   ACons("sizemul", [AInt 0; AInt 1])] 
   
