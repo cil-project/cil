@@ -24,7 +24,14 @@ use strict;
 BEGIN {
     @Combiner::ISA = qw(CompilerStub);
     $Combiner::combext = "_comb.c";
-    $Combiner::combiner = $FindBin::Bin . "/../obj/combiner.asm.exe";
+    $Combiner::combbase = $FindBin::Bin . "/../obj/combiner";
+    # Pick the most recent combiner
+    $Combiner::mtime_asm = (stat("$Combiner::combbase.asm.exe"))[9];
+    $Combiner::mtime_byte = (stat("$Combiner::combbase.byte.exe"))[9];
+    $Combiner::combiner = 
+        $Combiner::combbase . 
+            ($Combiner::mtime_asm > $Combiner::mtime_bype 
+             ? ".asm.exe" : ".byte.exe");
 }
 
 

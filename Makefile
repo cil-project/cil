@@ -196,7 +196,10 @@ endif
 combiner:
 	make -f Makefile.combiner RELEASE=$(RELEASE)
 
-setup: combiner defaulttarget includes
+cilly: 
+	make -f Makefile.cil RELEASE=$(RELEASE)
+
+setup: combiner cilly defaulttarget includes
 
 
 
