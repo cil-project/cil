@@ -29,7 +29,9 @@
 *)
 
 open Cil  
+open Pretty
 module E = Errormsg
+module H = Hashtbl
 
 let sensitive_attributes = ["EQ_tainted" ; "LE_tainted" ; 
 			    "GE_untainted" ; "EQ_untainted"]  
@@ -76,227 +78,323 @@ end
         
 
 
-(***  Step 1. Find those functions that shouldn't be modified.      ***)  
-class smallocMarkFunctions = object (self)
+let findOrCreateFunc f name t = 
+  let rec search glist = 
+    match glist with
+	GVarDecl(vi,_) :: rest when isFunctionType vi.vtype 
+	  && vi.vname = name -> vi
+      | _ :: rest -> search rest (* tail recursive *)
+      | [] -> (*not found, so create one *)
+	  let new_decl = makeGlobalVar name t in
+	  f.globals <- GVarDecl(new_decl, locUnknown) :: f.globals;
+	  new_decl
+  in
+    search f.globals
+
+let stringOf (i:int): string = Int32.to_string (Int32.of_int i)
+
+let arrayLen eo : int = 
+  try
+    lenOfArray eo
+  with LenOfArray -> E.s (unimp "array without a size")
+
+(* flatten nested arrays *)
+let rec getSize t: int * typ =
+  match unrollType t with 
+      TArray(bt, e, _) ->
+        let mylen = arrayLen e in
+        let len', bt' = getSize bt in
+        (mylen*len'), bt'
+    | _ -> 1, t
+              
+
+(* exception Unimp *)
+let uniqueUnimplLabel = ref 0
+let unimplementedT t =  
+  ignore (warn "Can't annotate unimplemented type: %a  (Attrs: %a)\n" 
+            d_type t d_attrlist (typeAttrs t));
+(*   raise Unimp *)
+  incr uniqueUnimplLabel;
+  "unimplemented"^(stringOf !uniqueUnimplLabel)
+
+let rec encodeType (t:typ):string = 
+  let unimplemented () = unimplementedT t in
+  let tt = match unrollType t with
+      TInt _ as t' when bitsSizeOf t' = 32 -> "int" (*int, uint, long, ulong*)
+    | TInt _ as t' when bitsSizeOf t' = 8 -> "char"
+    | TPtr(bt, a) -> begin
+        let bt' = encodeType bt in
+        "*" ^ bt'
+      end
+    | TComp(ci, _) ->
+        "_" ^ ci.cname
+    | TVoid [] -> "void"
+    | _ -> 
+        unimplemented ()
+  in
+  if hasAttribute tainted_attribute (typeAttrs t) then
+    "T"^tt
+  else
+    "U"^tt
+
+(* For arrays inside structs, unroll them into "len" different fields *)
+(* FIXME: this doesn't work well for variable access *)
+let encodeArrayType (fieldName:string) (t:typ) =
+  if not (isArrayType t) then 
+    E.s (bug " non-array passed to encodeArrayType");
+  let len, bt = getSize t in
+  let acc: doc list ref = ref [] in
+  let typestr = encodeType bt in
+  for i = len - 1 downto 0 do
+    let d = dprintf ", \"%s%d\", \"%s\"" fieldName i typestr in
+    acc := d::!acc
+  done;
+  Pretty.sprint 10000 (docList ~sep:nil (fun x -> x) () !acc)
+
+
+(*******  Annotation macros  *****************************************)
+
+let quoted s: string =
+  "\"" ^ s ^ "\""
+
+(* Like quoted, but prepends _ to identifiers if Cil.underscore_name is true.*)
+let quotedLabel s: string = 
+  if !Cil.underscore_name then
+    "\"_" ^ s ^ "\""
+  else 
+    "\"" ^ s ^ "\""
+    
+let globalAnn label args:  global =
+  let annstr = "#ANN(" ^ label ^", " ^ args ^")" in
+  GAsm(annstr, !currentLoc)
+  
+let localAnn label args: instr =
+  let annstr = "#ANN(" ^ label ^", " ^ args ^ ") " in
+  Asm([], [annstr], [], [], [], !currentLoc)
+
+let localVarAnn label func v typ: instr =
+  (*combine the function name and the var name *)
+  let vname = quotedLabel (func.svar.vname ^ ":" ^ v.vname) in
+  (* FIXME: are the input/outputs right? *)
+  let annstr = "#ANN(" ^ label ^", " ^ vname ^ ", \"%0\", " ^ typ ^ ") " in
+  let lv = if isArrayType v.vtype then
+    (Var v, Index(Cil.zero, NoOffset))
+  else
+    (Var v, NoOffset)
+  in
+  Asm([], [annstr], ["=m", lv], 
+      (* ["0", Lval(lv)] *)
+      [], [], !currentLoc)
+
+
+
+
+let structANN = "ANN_STRUCT"
+let funcANN = "ANN_FUNC"    (* A func that is declared or defined *)
+let rootANN = "ANN_ROOT"    (* A func that is defined *)
+let globalANN = "ANN_GLOBAL"
+let globalarrayANN = "ANN_GLOBALARRAY"
+
+let allocANN = "ANN_ALLOC"
+let localANN = "ANN_LOCAL"
+let localarrayANN = "ANN_LOCALARRAY"
+  
+
+(*******   Visitor   *******)
+
+
+let startsWith s prefix =
+  let n = String.length prefix in
+  (String.length s >= n) && ((Str.first_chars s n) = prefix)
+
+let annotatedFunctions: (varinfo, unit) H.t = H.create 19
+let annotateFundec fv = 
+  if H.mem annotatedFunctions fv then
+    None
+  else begin
+    H.add annotatedFunctions fv ();
+    let fname = fv.vname in
+    let rt, args, _, _ = splitFunctionType fv.vtype in
+    let rec doParams = function
+      | (_, t, _)::rest ->
+          let t' = encodeType t in
+          ", " ^ quoted t' ^ (doParams rest)
+      | [] -> ""
+    in
+    let typestr = quotedLabel fname ^ ", "
+                  ^ quoted (encodeType rt)
+                  ^ doParams (argsToList args) in
+    let ann = globalAnn funcANN typestr in
+    Some ann
+  end
+
+class annotationVisitor 
+= object(self)
   inherit nopCilVisitor
+    
+  val mutable currentFunction: fundec = Cil.dummyFunDec
 
-  method vglob g = match g with 
-(*     GFun(f,l) as g ->  *)
-(*       if f.svar.vname = "main" then begin *)
-(* 	if not (Hashtbl.mem dontFixFunctions f.svar) then begin *)
-(* 	  ignore (E.warn "Not fixing parameters to entry point %s."  *)
-(* 		    f.svar.vname); *)
-(* 	  Hashtbl.add dontFixFunctions f.svar (); *)
-(* 	end; *)
-(*       end; *)
-(*       let _, _, isva, _ = splitFunctionType f.svar.vtype in *)
-(*       if isva then begin *)
-(* 	if not (Hashtbl.mem dontFixFunctions f.svar) then begin *)
-(* 	  ignore (E.warn "Not fixing parameters to vararg func %s."  *)
-(* 		    f.svar.vname); *)
-(* 	  Hashtbl.add dontFixFunctions f.svar (); *)
-(* 	end; *)
-(*       end; *)
-(*       DoChildren *)
-  | _ -> DoChildren
-
-end
-
-
-
-
-(* (\* Class to rewrite globals with allocations into the secure heap. It creates *)
-(*  * a new struct with all globals and creates a constructor function to  *)
-(*  * allocate this struct on the secure heap. It then places any initializers *)
-(*  * for this global into the constructor function *)
-(*  *  *)
-(*  * Need to run the visitor and then the modify method. *)
-(*  *\) *)
-(* class smallocAnalyzeGlobalVisitor f make_malloc_call free norm secure = object *)
-(*   inherit nopCilVisitor *)
-(*   val mutable counter = ref 0  (\* pos of next global in the global struct *\) *)
-(*   val mutable varlist = ref [] (\* list of ordered pairs (var, init, count)  *)
-(*                                   of variables to be rewritten *\) *)
-(*   val atrvisitor = new smallocClearAttributes [const_attribute]  *)
-                     
-(*   method vglob gl =  *)
-(*     (\* Hunt for globals with the allocation tag. enque them and remove *\) *)
-(*     match gl with *)
-(*         GVar( vi, init, location) -> *)
-(* 	  incr total_globals; *)
-(*           if containsSmallocAttribute vi.vtype then begin *)
-(* 	    incr sensitive_globals; *)
-(*             vi.vtype <- visitCilType atrvisitor vi.vtype ; *)
-(*             varlist := (vi,init,!counter) :: !varlist ; *)
-(*             incr counter; *)
-(*             ChangeTo ( [])  (\* remove decl from file -- will be added below *\) *)
-(*           end else DoChildren *)
+(*   method vinst i = begin *)
+(*     match i with  *)
+(*         Call (Some dest, Lval(Var vf, NoOffset), _, _) (\* when isAlloc vf *\) -> *)
+(*          (\*  ignore (E.log "looking at %s\n" vf.vname); *\) *)
+(*           if not (isAlloc vf) then DoChildren else begin *)
+(*           (\* FIXME:  what about the other properties of the allocation *)
+(*            *  functions? *\) *)
+(*           let t = encodeType (typeOfLval dest) in *)
+(*           self#queueInstr [localAnn ccuredalloc (quoted t)]; *)
+(*           DoChildren *)
+(*           end *)
 (*       | _ -> DoChildren *)
-
-(* end *)
-
-
-(* let smalloc_xform (f: file) make_malloc_call make_calloc_call  *)
-(*     (realloc: lval)(free : lval) (norm: exp)  *)
-(*     (secure: exp) (stack_action: int) (pthreads:bool) = *)
-(*   (\* We run 4 visitors:  1. fix function parameters (actually 3 passes) *)
-(*                          2. move stack allocated structures to somewhere secure *)
-(*                          3. replaces malloc / free calls with smalloc calls *)
-(*                          4. clears the annotations *)
-(*    *\) *)
-(*   if stack_action <> stack_NONE then begin *)
-(*     ignore (E.log "Changing tainted function parameters.\n"); *)
-(*     ignore (visitCilFileSameGlobals (new smallocMarkFunctions :>cilVisitor) f); *)
-(*     ignore (visitCilFileSameGlobals (new smallocModifyFormals :>cilVisitor) f); *)
-(*     ignore (visitCilFileSameGlobals (new smallocModifyActuals :>cilVisitor) f) *)
-(*   end; *)
-(*   if stack_action = stack_HEAP then begin *)
-(*     ignore (visitCilFile (new smallocHeapifyVisitor f make_malloc_call  *)
-(* 			    free norm secure) f) *)
 (*   end *)
-(*   else if stack_action = stack_SHADOW then begin *)
-(*     let sp = if pthreads then begin *)
-(*  	       ignore (E.log "Using PThreads\n"); *)
-(* 	       let key = makeGlobalVar "__sp_tls_key" keyType in  *)
-(* 	       f.globals <-  *)
-(* 		    GText("#include <pthread.h>") *)
-(* 		 :: GVar(key, {init = Some(SingleInit Cil.zero)}, locUnknown)  *)
-(* 		 :: f.globals; *)
-(* 	       PThreads(key) *)
-(* 	     end else begin *)
-(* 	       let global_sp = makeGlobalVar "stackPointer" charPtrType in *)
-(* 	       f.globals <- GVar(global_sp, *)
-(* 				 {init = Some(SingleInit Cil.zero)}, *)
-(* 				 locUnknown) :: f.globals; *)
-(*                Global(global_sp) *)
-(* 	     end in *)
-(*     ignore (visitCilFile (new smallocShadowStackVisitor f make_malloc_call  *)
-(* 			    free norm secure sp) f); *)
-(*     if shadowStackDebug then  *)
-(*       f.globals <- GText("#include <assert.h>\n") :: f.globals;  *)
-(*   end; *)
 
-(*   let rlimit_func = findOrCreateFunc f "getrlimit"  *)
-(*                       (TFun (intType,  *)
-(*                              Some([("resource", intType, []); *)
-(*                                    ("rlim", TPtr(stackLimitType, []), [])]), *)
-(*                              false, [])) in *)
-(*   let isStructRlimit g =  *)
-(*     match g with *)
-(*       GCompTag(ci, _) when ci.cname = "rlimit" -> true *)
-(*     | _ -> false *)
-(*   in *)
-(*   if List.exists isStructRlimit f.globals then *)
-(*     (\* struct rlimit; *\) *)
-(*     f.globals <- [ GCompTagDecl(stackLimit_ci, locUnknown) ] @ f.globals *)
-(*   else *)
-(*     (\* struct rlimit {   ...  }; *\) *)
-(*     f.globals <- [ GCompTag(stackLimit_ci, locUnknown) ] @ f.globals; *)
 
-(*   ignore(visitCilFile (new smallocModifyMallocFree make_malloc_call  *)
-(*                           make_calloc_call realloc  *)
-(*                           free norm secure) f); *)
-(*   (\* handle globals in 2 phases: 1. analyze 2. modify *\) *)
-(*   let gv = new smallocAnalyzeGlobalVisitor f make_malloc_call free norm secure in *)
-(*     ignore (visitCilFile (gv :> cilVisitor) f); *)
-(*     gv#modify ; *)
+  method vvdec v = begin
+(* FIXME:    if maybeStack v.vattr then begin *)
+(*       assert (not v.vglob); *)
+(*       (\* For a local, this flag would only be set if we take the address of v,  *)
+(*          right? *\) *)
+(*       (\* ignore (E.log "  We take the address of %s.\n" v.vname); *\) *)
+(*       let t = encodeType v.vtype in *)
+(*       self#queueInstr  *)
+(*         [localVarAnn ccuredlocal currentFunction v (quoted t)]; *)
+(*       () *)
+(*     end *)
+(*     else *)
+      if not v.vglob then begin
+      match v.vtype with
+          TArray (bt, Some size, a) ->
+            let size' = isInteger (constFold true size) in
+            if size' = None then E.s (error "Non-constant array size");
+            let size'' = Int64.to_int (Util.valOf size') in
+            let t = encodeType bt in
+            self#queueInstr 
+              [localVarAnn localarrayANN currentFunction v 
+                 ((quoted t) ^ ", " ^ (stringOf size''))];
+            ()
+        | TArray _ -> E.s (unimp "array without a size")
+        | _ -> ()
+    end;
+    DoChildren
+  end
 
-(*   visitCilFile (new smallocClearAttributes sensitive_attributes ) f; *)
-(*   () *)
+  method vglob g = begin
+    try
+      match g with 
+          GFun (fdec, l) ->
+            currentFunction <- fdec;
+            (* Step 1: declare the function signature *)
+
+            let anno = annotateFundec fdec.svar in
+            let rootAnn = globalAnn rootANN
+                            (quotedLabel fdec.svar.vname) in
+            let newG = match anno with
+                Some ann -> [ann; rootAnn; g]
+              | None -> [rootAnn; g]
+            in
+            ChangeDoChildrenPost(
+              newG,
+              (fun g -> currentFunction <- Cil.dummyFunDec; g)
+            )
+        | GVarDecl (vi, l) 
+            when isFunctionType vi.vtype (* && vi.vname <> "__ccuredInit" *) ->
+            begin
+              let anno = annotateFundec vi in
+              match anno with
+                  Some ann -> ChangeDoChildrenPost( [ann; g],(fun g -> g))
+                | None -> DoChildren
+            end
+        | GCompTag (ci, l) ->
+            if ci.cname = "printf_arguments" then begin
+              ignore (warn "skipping \"%s\"" ci.cname );
+              DoChildren
+            end
+            else if ci.cstruct then begin
+              (* ignore (E.log "printing struct \"%s\"\n" ci.cname ); *)
+              let annstr = ref (quoted ci.cname) in
+              let isMetaStruct = Util.hasPrefix "meta_" ci.cname in
+              List.iter
+                (fun fi ->
+                   if fi.fname = Cil.missingFieldName then
+                     E.s (unimp "not a real field? in %a" d_global g);
+                   if isArrayType fi.ftype then 
+                     annstr := !annstr ^ encodeArrayType fi.fname fi.ftype
+                   else begin
+                     let typestr = encodeType fi.ftype in
+                     annstr := !annstr ^ ", " ^ quoted fi.fname 
+                                       ^ ", " ^ quoted typestr
+                   end)
+                ci.cfields;
+              let ann = globalAnn structANN !annstr in
+              ChangeDoChildrenPost(
+                [ann; g],
+                (fun g -> g)
+              )
+            end
+            else begin
+              ignore (unimplementedT (TComp(ci,[])));
+              SkipChildren
+            end
+        | GVar (vi, _, l) ->
+            (* ignore (E.log "annotating %s: %a\n" vi.vname d_type vi.vtype); *)
+            (match vi.vtype with
+                 TArray(bt, leno, a) when (bitsSizeOf bt) < 32 ->
+                   (* FIXME: hack for chars.  Expand this array so its 
+                      length is a multiple of 4. *)
+                   let len = arrayLen leno in
+                   let len' = ((len + 3) / 4) * 4 in
+                   assert (len'>=len && len'<len+4);
+                   vi.vtype <- TArray(bt, Some (integer len'), a);
+               | _ -> ());
+            let ann = 
+              match vi.vtype with
+                  TArray _ ->
+                    let size, bt = getSize vi.vtype in
+                    globalAnn globalarrayANN
+                      (quotedLabel vi.vname
+                       ^ ", " 
+                       ^ quoted (encodeType bt)
+                       ^ ", " 
+                       ^ (stringOf size))
+                | TFun _ -> E.s (bug "Use GVarDecl for function prototypes.")
+                | _ -> globalAnn globalANN (quotedLabel vi.vname
+                                            ^ ", " 
+                                            ^ quoted (encodeType vi.vtype))
+            in
+            ChangeDoChildrenPost( 
+              [ann; g],
+              (fun g -> g)
+            )
+      | _ -> 
+          DoChildren
+    with e -> 
+      (* DoChildren *)
+      raise e
+  end
+        
+end
 
 
 (****  Entry point to the transformation ****)
 
 let entry_point (f : file) =
+  ignore (E.log "Annotating function parameters.\n");
+  visitCilFile (new annotationVisitor :>cilVisitor) f;
+  visitCilFile (new smallocClearAttributes sensitive_attributes ) f;
   ()
-(*   let normal_heap = integer 0 in  *)
-(*   let secure_heap = integer 1 in  *)
-(*   let secureBitType = intType in *)
-(*   let (alloc_fun:varinfo), (free_name:string), (realloc_name:string),  *)
-(*     make_calloc_call (\* has type (ret*args*issecure*location -> instr) *\),  *)
-(*     make_malloc_call (\* has type (ret*args*issecure*location -> instr) *\)  =  *)
-(*     if not !flag_use_vmalloc then *)
-(*       let alloc_fun' = findOrCreateFunc f  "malloc" *)
-(*                       (TFun ( voidPtrType,  *)
-(*                               Some([("size", uintType, [])]),  *)
-(*                               false, [])) in *)
-(*       let make_malloc_call' (ret: lval option) (args: exp list)  *)
-(* 	                    (issecure: exp) (loc: location) = *)
-(* 	(\* Throw away the issecure flag *\) *)
-(* 	Call(ret, Lval(var alloc_fun'), args, loc) *)
-(*       in *)
-(*       let calloc_fun' = findOrCreateFunc f "calloc" *)
-(*                         (TFun (voidPtrType,  *)
-(*                                Some([("nmemb", uintType, []) ;  *)
-(*                                      ("size", uintType, []) ]),  *)
-(*                                false, [])) in *)
-(*       let make_calloc_call' (ret: lval option) (args: exp list) *)
-(*                             (issecure: exp) (loc:location) = *)
-(*          (\* Throw away the issecure flag *\) *)
-(*          Call (ret, Lval(var calloc_fun'), args, loc) in  *)
-(*       (\* bind these in the "let" above *\) *)
-(*       alloc_fun', "free", "realloc", make_calloc_call', make_malloc_call' *)
-(*     else *)
-(*       let alloc_fun' = findOrCreateFunc f "smalloc" *)
-(*                       (TFun ( voidPtrType,  *)
-(*                               Some([("size", uintType, []) ;  *)
-(* 				    ("issecure", secureBitType, [])]),  *)
-(*                               false, [])) in *)
-(*       let make_malloc_call' (ret: lval option) (args: exp list)  *)
-(* 	                    (issecure: exp) (loc: location) = *)
-(* 	Call(ret, Lval(var alloc_fun'), args @ [issecure], loc) *)
-(*       in *)
-(*       let calloc_fun' = findOrCreateFunc f "scalloc" *)
-(*                         (TFun (voidPtrType,  *)
-(*                                Some([("nmemb", uintType, []) ; *)
-(*                                      ("size", uintType, []) ;  *)
-(*                                      ("issecure", secureBitType, [])]),  *)
-(*                                false, [])) in *)
-(*       let make_calloc_call' (ret: lval option) (args: exp list) *)
-(*                             (issecure: exp) (loc:location) = *)
-(*            Call (ret, Lval(var calloc_fun'), args @ [issecure] , loc)  in *)
-(*       (\* bind these in the "let" above *\) *)
-(*       alloc_fun', "sfree", "srealloc", make_calloc_call', make_malloc_call' *)
-(*   in *)
-(*   let free_lval = var (findOrCreateFunc f  free_name  *)
-(*                        (TFun ( voidType , *)
-(* 			       Some([("ptr", voidPtrType, [])]),  *)
-(* 			       false, []))) in *)
-(*   let realloc_lval = var (findOrCreateFunc f realloc_name *)
-(*                           (TFun (voidPtrType, *)
-(* 				 Some([("ptr", voidPtrType, []) ; *)
-(* 				       ("size", uintType, [])]),  *)
-(* 				 false, []))) in *)
-(*   (\* run the transformations *\) *)
-(*   if !flag_setjmp then modifySetJmp f !flag_pthreads; *)
-(*   smalloc_xform f make_malloc_call make_calloc_call  *)
-(*     realloc_lval free_lval normal_heap secure_heap  *)
-(*     !flag_stack_action !flag_pthreads; *)
-(*   ignore(E.log "%d / %d of stack variables are tainted.\n"  *)
-(* 	    !sensitive_stackvars !total_stackvars); *)
-(*   ignore(E.log "%d / %d of heap variables (malloc calls) are tainted.\n" *)
-(* 	    !sensitive_mallocs !total_mallocs); *)
-(*   ignore(E.log "%d / %d of global variables are tainted.\n"  *)
-(* 	    !sensitive_globals !total_globals); *)
-(*   ignore(E.log "%d / %d of formal arguments are tainted.\n"  *)
-(* 	    !sensitive_formals !total_formals); *)
-(*   ignore(E.log "(not counting %d / %d formals that weren't fixed.)\n\n"  *)
-(* 	    !sensitive_skipped_formals !total_skipped_formals) *)
 
 
-(* This is on by default -- even if we don't do any memory transformations,
- * invoking the transformer will clean up EQ_tainted attributes that gcc might
- * otherwise complain about. *)
-let enableAnn = ref true  
+
+let enableAnn = ref false 
 
 (***********************
  * The Cil.featureDesc that tells the CIL front-end how to call this module.
  * This is the only value that needs to be exported from smalloc.ml. **)
 
 let feature : featureDescr = 
-  { fd_name = "cqualann";
+  { fd_name = "CqualAnn";
     fd_enabled = enableAnn;
-    fd_description = "Adds assembly annotation for Cqual qualifiers." ;
+    fd_description = "adding assembly annotations for Cqual qualifiers." ;
     fd_extraopt = [];
     fd_doit = entry_point;
     fd_post_check = true
