@@ -721,7 +721,7 @@ let rec oneFilePass1 (f:file) : unit =
           currentLoc := l;
           incr currentDeclIdx;
           (* Save the names of the formal arguments *)
-          let _, args, _, _ = splitFunctionType fdec.svar in
+          let _, args, _, _ = splitFunctionTypeVI fdec.svar in
           H.add formalNames (!currentFidx, fdec.svar.vname) 
             (List.map (fun f -> f.vname) (argsToList args));
           (* Force inline functions to be static *) 
@@ -1007,7 +1007,7 @@ let oneFilePass2 (f: file) =
           in
           let g' = GFun(fdec', l) in
           (* Now restore the parameter names *)
-          let _, args, _, _ = splitFunctionType fdec'.svar in
+          let _, args, _, _ = splitFunctionTypeVI fdec'.svar in
           let oldnames, foundthem = 
             try H.find formalNames (!currentFidx, origname), true
             with Not_found -> begin

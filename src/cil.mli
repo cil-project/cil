@@ -1154,10 +1154,13 @@ type existsAction =
 val existsType: (typ -> existsAction) -> typ -> bool
 
 
-(** Given a varinfo for a function split the function type into return type, 
+(** Given a function type split it into return type, 
  * arguments, is_vararg and attributes. An error is raised if the type is not 
  * a function type *)
-val splitFunctionType: varinfo -> typ * varinfo list option * bool * attributes
+val splitFunctionType: typ -> typ * varinfo list option * bool * attributes
+(** Same as {!Cil.splitFunctionType} but takes a varinfo. Prints a nicer 
+ * error message if the varinfo is not for a function *)
+val splitFunctionTypeVI: varinfo -> typ * varinfo list option * bool * attributes
 
 
 (** {b Type signatures} ****)

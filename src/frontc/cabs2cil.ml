@@ -2912,7 +2912,7 @@ and doExp (isconst: bool)    (* In a constant *)
               in
               let last = 
                 getLast 
-                  (let _, args, _, _ = splitFunctionType !currentFunctionVI 
+                  (let _, args, _, _ = splitFunctionTypeVI !currentFunctionVI 
                   in argsToList args)
               in
               let res = mkAddrOfAndMark (var last) in
@@ -4475,7 +4475,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
              * type only now. *)
             (* Extract the information from the type *)
             let (returnType, formals, isvararg, funta) =
-              splitFunctionType thisFunctionVI 
+              splitFunctionTypeVI thisFunctionVI 
             in
             (* Record the returnType for doStatement *)
             currentReturnType   := returnType;

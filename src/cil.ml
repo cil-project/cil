@@ -3527,11 +3527,17 @@ let isFunctionType t =
     TFun _ -> true
   | _ -> false
 
-let splitFunctionType (fvi: varinfo) 
+let splitFunctionType (ftype: typ) 
+    : typ * varinfo list option * bool * attributes = 
+  match unrollType ftype with 
+    TFun (rt, args, isva, a) -> rt, args, isva, a
+  | _ -> E.s (bug "splitFunctionType invoked on a non function type %a" d_type ftype)
+
+let splitFunctionTypeVI (fvi: varinfo) 
     : typ * varinfo list option * bool * attributes = 
   match unrollType fvi.vtype with 
     TFun (rt, args, isva, a) -> rt, args, isva, a
-  | _ -> E.s (bug "Function %s does not have a function type" fvi.vname)
+  | _ -> E.s (bug "Function %s invoked on a non function type" fvi.vname)
 
 let isArrayType t = 
   match unrollType t with
