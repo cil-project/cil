@@ -47,16 +47,14 @@ include Makefile.ocaml
 ##### Make sure the COMPUTERNAME environment variable is set
 ifeq ($(COMPUTERNAME), RAW)   # George's workstation
 BASEDIR=C:/Necula
-SAFECCDIR=$(BASEDIR)/SafeC
-PCCDIR=$(BASEDIR)/Source/Touchstone/PCC
 TVDIR=$(BASEDIR)/Source/TransVal
 endif
 ifeq ($(COMPUTERNAME), FETA) # George's home machine
 BASEDIR=C:/Necula
-SAFECCDIR=$(BASEDIR)/SafeC
-PCCDIR=$(BASEDIR)/Source/Touchstone/PCC
 TVDIR=$(BASEDIR)/Source/TransVal
 endif
+SAFECCDIR=$(BASEDIR)/SafeC
+PCCDIR=$(SAFECCDIR)/cil/test/PCC
 
 
 
@@ -157,7 +155,7 @@ endif
 
 
 ####### Test with PCC sources
-PCCTEST=test/PCC
+PCCTEST=test/PCCout
 ifdef RELEASE
 PCCTYPE=RELEASE
 SPJARG=
@@ -182,7 +180,7 @@ testallpcc: $(EXECUTABLE)$(EXE) $(TVEXE) $(SAFECLIB) $(SAFEMAINLIB)
 	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.o
 	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.exe
 	make -C $(PCCDIR) \
-             CC="$(SAFECC) --keep=$(SAFECCDIR)/cil/test/PCC $(CONLY)" \
+             CC="$(SAFECC) --keep=$(SAFECCDIR)/cil/test/PCCout $(CONLY)" \
              USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
              COMPILER=$(PCCCOMP) \
              ENGINE_OTHERS="C:$(SAFECLIB) C:$(SAFEMAINLIB)" \
@@ -193,7 +191,7 @@ runpcc:
 ifdef _GNUCC
 	rm $(PCCDIR)/bin/*_MSVC*
 endif
-	cd $(PCCDIR)/../test; pwd; spj --gory $(SPJARG) arith/Fact.java
+	cd $(PCCDIR)/test; test.cmd fact
 
 ############ Small tests
 SMALL1=test/small1
