@@ -8,7 +8,7 @@ static int  parse(int *  ) ;
 
 static int  parse(enum token *  tok )
 {
-  return x;
+  return 0;
 }
 
 int main () {

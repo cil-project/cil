@@ -293,6 +293,7 @@ $TEST->add1Test("scott/kernel2", "_GNUCC=1");
 $TEST->add1Test("scott/xcheckers", "_GNUCC=1");
 $TEST->add1Test("scott/memberofptr", "_GNUCC=1");
 $TEST->add1Test("scott/invalredef", "_GNUCC=1");
+$TEST->add1Test("scott/invalredef2", "_GNUCC=1");
 $TEST->add3Tests("scott/stralloc", "_GNUCC=1");
 $TEST->add1Test("scott/errorinfn");
 
