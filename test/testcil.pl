@@ -263,6 +263,7 @@ $TEST->addTests("test/restrict1", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/rmtmps1", "", ['cil']);
 $TEST->addTests("test/proto1", "", ['cil']);
 $TEST->addTests("testrun/struct1", "", ['cil']);
+$TEST->addTests("testrun/voidarg", "", ['cil']);
 $TEST->addTests("testrun/union2", "", ['cil']);
 $TEST->addTests("testrun/union3", "", ['cil']);
    
@@ -318,7 +319,7 @@ $TEST->add3Tests("em3d", "_GNUCC=1");
 $TEST->add3Tests("treeadd", "_GNUCC=1");
    $TEST->add3Group("treeadd", "olden");
 
-# PTR INTENSIVE BENCHMARKS
+# PTR INTENSIVE BENCHMARKS 
 $TEST->add2Tests("anagram", "_GNUCC=1");
    $TEST->add2Group("anagram", "ptrdist", "slow");
 $TEST->add2Tests("bc", "_GNUCC=1");
@@ -334,27 +335,27 @@ $TEST->add2Tests("yacr", "_GNUCC=1");
 # SPEC95
 #
 $TEST->add2Tests("li", "_GNUCC=1");
-  $TEST->add2Group("li", "slow");
+  $TEST->add2Group("li", "slow", "spec");
 
 $TEST->add3Tests("compress", "_GNUCC=1");
-  $TEST->add3Group("compress", "slow");
+  $TEST->add3Group("compress", "slow", "spec");
 
 $TEST->add3Tests("go", "_GNUCC=1");
-   $TEST->add3Group("go", "vslow");
+   $TEST->add3Group("go", "slow", "spec", "vslow");
 
 $TEST->add2Tests("ijpeg", "_GNUCC=1");
-  $TEST->add2Group("ijpeg", "slow");
+  $TEST->add2Group("ijpeg", "slow", "spec");
 #  $TEST->addBadComment("ijpeg-cil", "EOF / read error?? (only on Win)");
 #  $TEST->addBadComment("ijpeg-cil", "strange failure on MANJU.");
 
 $TEST->add2Tests("m88k", "_GNUCC=1");
-  $TEST->add2Group("m88k", "slow");
+  $TEST->add2Group("m88k", "slow", "spec");
   $TEST->addBadComment("m88k-cil", "Don't know how to build");
   $TEST->enable("m88k-inferbox", 0); # Infinite loop
   $TEST->addBadComment("m88k-inferbox", "missing wrappers");
 
 $TEST->add2Tests("vortex", "_GNUCC=1 OPTIM= ");
-  $TEST->add2Group("vortex", "vslow");
+  $TEST->add2Group("vortex", "vslow", "spec");
   $TEST->addBadComment("vortex-inferbox", "bug in resetSScanf");
 
 

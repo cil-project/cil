@@ -364,9 +364,63 @@ end
 let collectTypeTagDefs = new collectTypeTagDefsClass
 
 
+(* Define a visitor that strips location information from a definition. We do 
+ * this when we want to locate duplicates *)
+let noCabsLoc = { lineno = 0; filename = "" }
+class stripLocationClass  : cabsVisitor = object (self)
+  inherit nopCabsVisitor
 
+  method vdef d = 
+    let stripdef = function
+        FUNDEF (sn, b, _) -> FUNDEF (sn, b, noCabsLoc)
+      | DECDEF (ing, _) -> DECDEF (ing, noCabsLoc)
+      | TYPEDEF (ng, _) -> TYPEDEF (ng, noCabsLoc)
+      | ONLYTYPEDEF (s, _) -> ONLYTYPEDEF (s, noCabsLoc)
+      | d -> d
+    in
+    let stripdeflist = function
+        [d] -> [stripdef d]
+      | _ -> E.s (E.bug "stripLocation.vdef")
+    in
+    ChangeDoChildrenPost ([d], stripdeflist)
 
+  method vstmt s = 
+    let stripstmt = function
+        NOP _ -> NOP noCabsLoc
+      | COMPUTATION (e, _) -> COMPUTATION (e, noCabsLoc)
+      | BLOCK (b, _) -> BLOCK (b, noCabsLoc)
+      | SEQUENCE (s1, s2, _) -> SEQUENCE (s1, s2, noCabsLoc)
+      | IF(e, s1, s2, _) -> IF (e, s1, s2, noCabsLoc)
+      | WHILE(e, s, _) -> WHILE(e, s, noCabsLoc)
+      | DOWHILE(e, s, _) -> WHILE(e, s, noCabsLoc)
+      | FOR(e1,e2,e3,s,_) -> FOR(e1,e2,e3,s,noCabsLoc) 
+      | BREAK _ -> BREAK noCabsLoc
+      | CONTINUE _ ->CONTINUE noCabsLoc  
+      | RETURN (e, _) -> RETURN (e, noCabsLoc)
+      | SWITCH (e, s, _) -> SWITCH (e, s, noCabsLoc)
+      | CASE (e, s, _) -> CASE (e, s, noCabsLoc) 
+      | CASERANGE (e1, e2, s, _) -> CASERANGE (e1, e2, s, noCabsLoc)
+      | DEFAULT (s, _) -> DEFAULT (s, noCabsLoc)
+      | LABEL (l, s, _) -> LABEL (l, s, noCabsLoc) 
+      | GOTO (l, _) -> GOTO (l, noCabsLoc)
+      | COMPGOTO (e, _) -> COMPGOTO (e, noCabsLoc) 
+      | ASM (templ, vol, outs, ins, mods, _) ->
+          ASM (templ, vol, outs, ins, mods, noCabsLoc)
+    in
+    let stripstmtlist = function
+        [s] -> [stripstmt s]
+      | _ -> E.s (E.bug "stripLocation.vstmt")
+    in
+    ChangeDoChildrenPost ([s], stripstmtlist)
+end
 
+let stripLocationVisitor = new stripLocationClass
+
+let stripLocation (g: definition) : definition = 
+  match visitCabsDefinition stripLocationVisitor g with
+    [d] -> d
+  | _ -> E.s (E.bug "stripLocationVisitor returns too many definitions")
+  
 
 (* Equality constraints *)
 type eqConstraint = envKind * string * string
@@ -689,6 +743,7 @@ let merge (files : Cabs.file list) : Cabs.file =
           end else begin
             (* We apply the renaming to the declaration *)
             let d' = renameDefinition d in
+            let dcheck = stripLocation d' in
             (* We try to reuse function prototypes for non-static decls and 
              * extern declarations *)
             if isExtern s || 
@@ -705,10 +760,10 @@ let merge (files : Cabs.file list) : Cabs.file =
                     in
                     isFunctionType dt) inl) then 
               begin
-                if H.mem globalDefinitions d' then 
+                if H.mem globalDefinitions dcheck then 
                   () (* Drop it *)
                 else begin
-                  H.add globalDefinitions d' true;
+                  H.add globalDefinitions dcheck true;
                   theProgram := d' :: !theProgram
                 end
               end
@@ -750,7 +805,8 @@ let merge (files : Cabs.file list) : Cabs.file =
                 FUNDEF ((s', (n, dt', a')), b', l')
             | _ -> E.s (E.bug "rename FUNDEF")
             in
-            if H.mem globalDefinitions d'' then begin
+            let dcheck = stripLocation d'' in
+            if H.mem globalDefinitions dcheck then begin
               if debugFundef then
                 ignore (E.log "  already present in the file\n");
               H.add env (EVar, n) n (* Set the name back to original *)
@@ -760,7 +816,7 @@ let merge (files : Cabs.file list) : Cabs.file =
               if debugFundef then
                 ignore (E.log "  not already present in the file\n");
               if lookup EVar n = n then 
-                H.add globalDefinitions d' true;
+                H.add globalDefinitions dcheck true;
               theProgram := d' :: !theProgram
             end
           end else
