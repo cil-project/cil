@@ -2803,8 +2803,10 @@ let d_global () = function
   | GPragma (Attr(an, args), l) ->
       (* sm: suppress printing pragmas that gcc does not understand *)
       (* assume anything starting with "box" is ours *)
-      let suppress = ((String.length an) >= 3) &&
-                     ((String.sub an 0 3) = "box") in
+      (* also don't print the 'combiner' pragma *)
+      let suppress = (((String.length an) >= 3) &&
+                      ((String.sub an 0 3) = "box")) ||
+                     (an = "combiner") in
       let d =
         if args = [] then
           text an

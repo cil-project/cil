@@ -691,7 +691,8 @@ let expListEqual el1 el2 =
 
 (* Compare exp's for lt / gt / = *)
 
-let cechn = open_out_bin "ope.m"
+(* sm/ww: don't even create this file unless amandebug set *)
+let cechn = if amandebug then open_out_bin "ope.m" else stdout
 
 let rec compareExp e1 e2 : int option =
   if amandebug then Marshal.to_channel cechn e1 [];

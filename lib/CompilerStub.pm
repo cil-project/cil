@@ -145,7 +145,7 @@ sub preprocess {
         $self->MSVC::msvc_preprocess($src, $dest, $ppargs);
     } else {
         my $cmd = $self->{CPP} . " " . 
-            join(' ', @{$ppargs}) .  " " .
+            join(' ', @{$ppargs}) .  " -DUSE_GC " .
                 "$src " . $self->{OUTCPP} . $dest;
         $res = $self->runShell($cmd);
         
