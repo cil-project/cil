@@ -426,6 +426,9 @@ let amandebug = try (Sys.getenv "REDDBG") = "1" with _ -> false
 (* Dont actually remove the redundant CHECKs. Just keep them marked *)
 let amanDontRemove = try (Sys.getenv "REDDONTREMOVE") = "1" with _ -> false
 
+(* Be extremely non-conservative about assignments and func-calls *)
+let amanNonConservatic = try (Sys.getenv "REDNONCONSERVATIVE") = "1" with _ -> false
+
 
 (******************************************************************************)
 (* Lattice values *)
@@ -574,6 +577,7 @@ let rec eliminateRedundancy (f : fundec) : fundec =
 	if amandebug then begin
 	  pr "Lvals: ";
 	  List.iter (fun lv -> ignore (printf "%a " d_lval lv)) !checkLvals;
+	  if !checkHasAliasedVar then ignore (printf " (checkHasAliasedVar)");
 	  ignore (printf "\n");
 	end;    
 
@@ -736,6 +740,8 @@ and removeRedundancies (cin_start : lattice) instList node_number =
    This is a very subtle and important function
 *)
 and minLatticeValue (inst : instr) : lattice =
+  if amanNonConservatic then latCheckNotNeeded
+  else
   match inst with
     Set (lval,exp,_) -> 
       if
@@ -743,7 +749,7 @@ and minLatticeValue (inst : instr) : lattice =
 	(!checkHasAliasedVar &&         (* Possibly, indirectly modifying *)
 	 (match lval with 
 	   (Mem _,_) | (_,Index _) | (_,Field _) -> true
-         | _ -> false)))
+         | (Var _,NoOffset) -> false)))
       then latCheckNeeded
       else latCheckNotNeeded
   | Call (None,Lval(Var f,_),args,_) -> 	
@@ -752,13 +758,11 @@ and minLatticeValue (inst : instr) : lattice =
       else  latCheckNeeded    (* Other functions may clobber *)
   | Call (Some (var, _),Lval(Var f,_),args,_) -> 
       if (isCheckCall_str f.vname) 
-      (*then  latLive var*) (* ??? *)
       then  latCheckNotNeeded
       else  latCheckNeeded
-  | Call (None,func,args,_) ->  latCheckNeeded 
-  | Call (Some (var, _),func,args,_) ->  latCheckNeeded
-  | Asm _ -> latCheckNeeded
- 
+  | Call _ -> latCheckNeeded 
+  | Asm  _ -> latCheckNeeded
+
 
 (* evalCin:
    Evaluates the cin for a given CFG node.
@@ -915,17 +919,18 @@ and lvalHasAliasedVar (lv : lval) : bool =
   | (vm, Index (e, off)) -> (expHasAliasedVar e) || (lvalHasAliasedVar (vm, off))
   
 
-and expHasAliasedVar = function
+and expHasAliasedVar (e : exp) : bool = 
+  match e with
     Const _ 
   | SizeOf _
   | SizeOfE _
   | AlignOf _
   | AlignOfE _ -> false
-  | UnOp (_,e,_) -> expHasAliasedVar e
+  | UnOp (_,e1,_) -> expHasAliasedVar e1
   | BinOp (_,e1,e2,_) -> (expHasAliasedVar e1) || (expHasAliasedVar e2)
   | Question (e1,e2,e3) -> 
       ((expHasAliasedVar e1) || (expHasAliasedVar e2) || (expHasAliasedVar e3))
-  | CastE (_,e) -> expHasAliasedVar e
+  | CastE (_,e1) -> expHasAliasedVar e1
   | AddrOf lv -> lvalHasAliasedVar lv
   | StartOf lv -> lvalHasAliasedVar lv
   | Lval lv -> lvalHasAliasedVar lv
@@ -935,9 +940,10 @@ and expHasAliasedVar = function
 
 let rec eliminateAllChecks (f : fundec) (checkName : string) : fundec =
     Array.iter (function s ->
+      if amandebug then pr "Removing all %s checks\n" checkName;
       match s.skind with
-(* 	Instr l -> s.skind <- Instr (removeAllChecks l)*)
-	Instr l -> s.skind <- Instr (removeCheck checkName l)
+ 	Instr l when checkName="" -> s.skind <- Instr (removeAllChecks l)
+      |	Instr l -> s.skind <- Instr (removeCheck checkName l)
       | _ -> ())
       !nodes;
     f  
@@ -963,13 +969,16 @@ and removeCheck (checkName : string) (i : instr list) : instr list =
 
 
 let getStatistics () : string =
-  Printf.sprintf "CHECK Redundancy- %d kept, %d removed" !stats_kept !stats_removed
+  let k = !stats_kept in
+  let r = !stats_removed in
+  let (//) a b = (float_of_int a) /. (float_of_int b) in
+  Printf.sprintf "CHECK Redundancy- %d kept (%.2f%%), %d removed (%.2f%%), total %d" k (100 * k // (k+r)) r (100 * r // (k+r)) (k+r)
    
 
-(*  ,,---.     	       |	      	    | 			     	      *)
+(*  ,,---.     	       |                    |                          	      *)
 (*  ||    |            |	      	    | 			     	      *)
-(*  ||    | .---.  .---|  |   |	 .---. 	.---|  .---.  .---.  .---.  .   ,     *)
-(*  ||__./  |---'  |   |  |   |	 |   | 	|   |  |   |  |	  |  |	    |   |     *)
+(*  ||    | ,---.  ,---|  |   |	 ,---. 	,---|  ,---.  ,---.  ,---.  .   ,     *)
+(*  ||___,' |---'  |   |  |   |	 |   | 	|   |  |   |  |	  |  |	    |   |     *)
 (*  ||   \  '---'  `---'  '---'	 '   '  `---'  `---'- '	  '  '---'  `---|     *)
 (* 	       	       	       	       	 			    .---+-    *)
 (* 	    (Just a visual marker)     	 			    '---'     *)
@@ -983,7 +992,7 @@ let getStatistics () : string =
 (*------------------------------------------------------------*)
 (* Carry out a series of optimizations on a function definition *)
 
-let optimFun f =
+let optimFun (f : fundec) =
   if debug then begin
     ignore (printf "===================================\n");
     ignore (printf "Analyzing %s\n" f.svar.vname);
@@ -1005,7 +1014,12 @@ let optimFun f =
   optimizedF := eliminateRedundancy !optimizedF;
 
   (* Remove all checks ... useful to see which tests make a difference *)
-  (* optimizedF := eliminateAllChecks !optimizedF "CHECK_BOUNDS" *)
+  (try let rm = Sys.getenv "REDREMOVEALL" in
+  if rm = "1" then
+    optimizedF := eliminateAllChecks !optimizedF ""
+  else
+    optimizedF := eliminateAllChecks !optimizedF rm
+  with _ -> ());
 
   (* Return the final optimized version *)
   !optimizedF
@@ -1025,6 +1039,11 @@ let optimFile file =
         | _ as other -> other)
       file.globals;
 
+  (* ab: ... and the global initializer *)
+  (match file.globinit with
+    None -> ()
+  | Some f -> file.globinit <- Some (optimFun f));
+  
   if debug
   then begin
     ignore(printf "\n\nOPTIM MODULE ENDS\n");
