@@ -4446,12 +4446,12 @@ let convFile fname dl =
     (fun key ci -> 
       if ci.cfields = [] then begin
         ignore (E.warn "%s used but not defined" key);
-        (* MSVC does not like structures with no fields *)
+        (* MSVC does not like structures with no fields 
         if !msvcMode then 
           ci.cfields <- [{ fcomp = ci; fname = missingFieldName; 
                            ftype = intType; fbitfield = Some 0;
-                           fattr = []}];
-        globals := GCompTag(ci, locUnknown) :: !globals
+                           fattr = []}]; *)
+        globals := GType("", TComp(ci, []), locUnknown) :: !globals
       end) compInfoNameEnv;
 
   H.clear noProtoFunctions;

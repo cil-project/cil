@@ -537,8 +537,10 @@ type fundec =
 type global =
     GFun of fundec * location           (** A function definition. Cannot have 
                                             storage Extern *)
-  | GType of string * typ * location    (** A typedef. The string should not 
-                                            be empty. *)
+  | GType of string * typ * location    (** A typedef. If the string is empty 
+                                            then this is printed as a 
+                                            type-only declaration, useful for 
+                                            introducing structure tags *)
   | GEnumTag of enuminfo * location     (** Declares an enumeration tag with 
                                             some fields. There must be one of 
                                             these for each enumeration tag 

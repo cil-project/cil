@@ -8,7 +8,7 @@ module H = Hashtbl
 module E = Errormsg
 
 
-(* Keep a list of names that we don't want removes. These are either names of 
+(* Keep a list of names that we don't want removed. These are either names of 
  * variables or functions, or names of types (preceeded by "type ") or 
  * struct/union (preceeded by "struct " or "union ") *)
 let forceToKeep : (string, bool) H.t = H.create 111
