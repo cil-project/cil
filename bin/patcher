@@ -47,6 +47,10 @@ use lib "$FindBin::Bin";
 use CilConfig;
 
 $::iswin32 = $^O eq 'MSWin32' || $^O eq 'cygwin';
+# matth: On cygwin, ^O is either MSWin32 or cygwin, depending on how you build
+# perl.  We don't care about the distinction, so just treat all windows
+# platforms the same when looking at "system=cygwin" tags on patches.
+$::platform = $::iswin32 ? 'cygwin' : $^O;
 
 
 # Set filename parsing according to current operating system.
@@ -75,6 +79,8 @@ options:
   --dumpversion Print the version name used for the current compiler
 
  All of the other arguments are passed to the preprocessor.
+
+We will use \"$::platform\" as your system type.
 
 Send bugs to necula\@cs.berkeley.edu.
 EOL
@@ -162,7 +168,7 @@ foreach my $patch (@patches) {
     if(defined $patch->{FLAGS}->{optional}) { next; }
     # It was for another system
     if(defined $patch->{FLAGS}->{system} &&
-       $patch->{FLAGS}->{system} ne $^O) { next; }
+       $patch->{FLAGS}->{system} ne $::platform) { next; }
     # Its group was done
     if(defined $patch->{FLAGS}->{group}) {
         if(! defined $groups{$patch->{FLAGS}->{group}}) {
@@ -476,7 +482,7 @@ sub applyPatches {
         }
         # Disable the system specific patterns
         if(defined $patch->{FLAGS}->{system} &&
-           $patch->{FLAGS}->{system} ne $^O) {
+           $patch->{FLAGS}->{system} ne $::platform) {
             $patch->{USE} = 0;
             next;
         }
