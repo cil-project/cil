@@ -100,6 +100,12 @@ and whykind = (* why did we give it this kind? *)
   | SpreadPointsTo of node
   | BoolFlag
   | Default
+  | UserSpec
+    BadCast of typ * typ
+  | SpreadFromEdge of node 
+  | SpreadPointsTo of node
+  | BoolFlag
+  | Default
 
 and edge = 
     { mutable efrom:    node;
@@ -155,6 +161,7 @@ let d_whykind () = function
   | SpreadFromEdge(n) -> dprintf "spread_from_edge(%d)" n.id
   | SpreadPointsTo(n) -> dprintf "spread_points_to(%d)" n.id
   | Default -> text "by_default"
+  | UserSpec -> text "user_spec"
 
 let d_node n = 
   dprintf "%d : %a (%s%s%s%s%s%s) (@[%a@])@! K=%a/%a T=%a@!  S=@[%a@]@!  P=@[%a@]@!" 
@@ -223,6 +230,33 @@ let nodeOfAttrlist al =
   | _ -> E.s (E.bug "nodeOfAttrlist")
 
 
+let kindOfAttrlist al = 
+  let rec loop = function
+      [] -> Unknown, Default
+    | a :: al -> begin
+        match a with
+          AId "safe" -> Safe, UserSpec
+        | AId "index" -> Index, UserSpec
+        | AId "seq" -> FSeq, UserSpec
+        | AId "wild" -> Wild, UserSpec
+        | ACons("_ptrnode", [AInt n]) -> begin
+            (* See if there is a UserSpec *)
+            match loop al with
+              x, UserSpec -> x, UserSpec
+            | _ -> begin
+                let nd = 
+                  try H.find idNode n
+                  with Not_found -> 
+                    E.s (E.bug "Cannot find node with id = %d\n" n)
+                in
+                nd.kind, nd.why_kind
+            end
+        end
+        | _ -> loop al
+    end    
+  in
+  loop al
+    
 (* Make a new node *)
 let newNode (p: place) (idx: int) (bt: typ) (a: attribute list) : node =
   let where = p, idx in
@@ -292,6 +326,17 @@ let removeSucc n sid =
 
 let removePred n pid = 
   n.pred <- List.filter (fun e -> e.efrom.id <> pid) n.pred
+
+let ptrAttrCustom oldCustom = function
+      ACons("_ptrnode", [AInt n]) -> Some (dprintf "NODE(%d)" n)
+    | AId("_ronly") -> Some (text "RONLY")
+    | AId("_safe") -> Some (text "SAFE")
+    | AId("_seq") -> Some (text "SEQ")
+    | AId("_index") -> Some (text "INDEX")
+    | AId("_stack") -> Some (text "STACK")
+    | AId("_opt") -> Some (text "OPT")
+    | AId("_wild") -> Some (text "WILD")
+    | a -> oldCustom a
 
 
 (**** Garbage collection of nodes ****)

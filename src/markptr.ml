@@ -440,28 +440,17 @@ let markFile fl =
 (* A special file printer *)
 let printFile (c: out_channel) fl = 
   let ocustom = !d_attrcustom in
-  let myAttrCustom = function
-      ACons("_ptrnode", [AInt n]) -> Some (dprintf "NODE(%d)" n)
-    | AId("_ronly") -> Some (text "RONLY")
-    | AId("_safe") -> Some (text "SAFE")
-    | AId("_seq") -> Some (text "SEQ")
-    | AId("_index") -> Some (text "INDEX")
-    | AId("_stack") -> Some (text "STACK")
-    | AId("_opt") -> Some (text "OPT")
-    | AId("_wild") -> Some (text "WILD")
-    | a -> ocustom a
-  in
-  d_attrcustom := myAttrCustom;
+  d_attrcustom := N.ptrAttrCustom !d_attrcustom;
   Cil.printFile c fl;
-  output_string c "// Now the graph\n";
+  output_string c "/* Now the graph\n";
   N.gc ();  
   N.printGraph c;
-  output_string c "// End of graph\n";
+  output_string c " End of graph*/\n";
   N.simplify ();
   N.printGraph c;
-  output_string c "// Now the solved graph (simplesolve)\n";
+  output_string c "/* Now the solved graph (simplesolve)\n";
   Stats.time "simple solver" Simplesolve.solve N.idNode ; 
   N.printGraph c;
-  output_string c "// End of solved graph\n"; 
+  output_string c " End of solved graph*/\n"; 
   d_attrcustom := ocustom
     

@@ -186,7 +186,6 @@ let doField (fi: fieldinfo) (off: offset) =
   else
     Field (fi, off)
 
-
 (***** Convert all pointers in types for fat pointers ************)
 let rec fixupType t = 
   match t with
@@ -230,7 +229,7 @@ and fixit t =
           H.add fixedTypes (typeSig fixed) fixed; (* We add fixed ourselves. 
                                                    * The TNamed will be added 
                                                    * after doit  *)
-          H.add fixedTypes (typeSig (TPtr(fixed',a))) fixed;
+          H.add fixedTypes (typeSig (TPtr(fixed', a))) fixed;
           theFile := GType(tname, fixed) :: !theFile;
           tres
       end
