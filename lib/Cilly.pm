@@ -1575,6 +1575,7 @@ sub new {
 	    '-MD$' => { TYPE => 'EARLY_PREPROC' },
 	    '-MMD$' => { TYPE => 'EARLY_PREPROC' },
             "-include" => { ONEMORE => 1, TYPE => "PREPROC" },  # sm
+	    '-Wp,' => { TYPE => 'PREPROC' },
             "-ansi" => { TYPE => "PREPROC" },
             "-c" => { RUN => sub { $stub->{OPERATION} = "TOOBJ"; }},
             "-x" => { ONEMORE => 1, TYPE => "CC" },
@@ -1591,6 +1592,7 @@ sub new {
             '-p$' => { TYPE => 'LINKCC' },
             "-pg" => { TYPE => 'LINKCC' },
             "-a" => { TYPE => 'LINKCC' },
+            '-pedantic$' => { TYPE => 'ALLARGS' },
             "-Wall" => { TYPE => 'CC', 
 			 RUN => sub { push @{$stub->{CILARGS}},"--warnall";}},
             '-W[-a-z]*$' => { TYPE => 'CC' },
