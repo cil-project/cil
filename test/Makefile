@@ -526,7 +526,11 @@ testrun/% : $(SMALL1)/%.c
 CAMLC := ocamlc
 ARCHOS := @ARCHOS@
 OBJDIR := ../obj/$(ARCHOS)
-CMXA := cma
+ifdef NATIVECAML
+ CMXA := cmxa
+else
+ CMXA := cma
+endif
 
 testrun/% : $(SMALL1)/%.ml
 	$(CAMLC) -I $(OBJDIR) cil.$(CMXA) $(EXEOUT) $(basename $<).exe $<
