@@ -444,6 +444,7 @@ $TEST->addTests("scott/union5", "", ['inferbox']);
 $TEST->addTests("scott/funptr1", "", ['inferbox']);
 $TEST->addTests("testrun/unrolltype", "", ['inferbox']);
 $TEST->addTests("testrun/wrapper2", "", ['cil', 'inferbox', 'box']);
+$TEST->addTests("testrun/fseqn1", "", ['inferbox']);
 
 #
 # OLDEN benchmarks
