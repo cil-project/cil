@@ -637,13 +637,14 @@ let rec checkGlobal = function
       E.withContext (fun _ -> dprintf "GFun(%s)" fname)
         (fun _ -> 
           checkGlobal (GDecl (vi, l));
-          (* Check that the argument types in the type match the formals *)
+          (* Check that the argument types in the type are identical to the 
+           * formals *)
           let rec loopArgs targs formals = 
             match targs, formals with
               [], [] -> ()
             | ta :: targs, fo :: formals -> 
-                if typeSig ta.vtype <> typeSig fo.vtype then
-                  E.s (E.bug "Inconsistent type for formal %s in %s" 
+                if ta != fo then 
+                  E.s (E.bug "Formal %s not shared between the type and the locals in %s" 
                          fo.vname fname);
                 loopArgs targs formals
 

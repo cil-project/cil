@@ -375,12 +375,12 @@ type fundec =
     { mutable svar:     varinfo;        (* Holds the name and type as a 
                                          * variable, so we can refer to it 
                                          * easily from the program *)
-      mutable sformals: varinfo list;   (* These are the formals. There are 
-                                         * other formals in the type of the 
-                                         * svar, but these are referred from 
-                                         * the body. Do not make copies of 
+      mutable sformals: varinfo list;   (* These are the formals. These must 
+                                         * be shared with the formals that 
+                                         * appear in the type of the 
+                                         * function. Do not make copies of 
                                          * these because the body refers to 
-                                         * them.  *)
+                                         * them. *)
       mutable slocals: varinfo list;    (* locals, DOES NOT include the 
                                          * sformals. Do not make copies of 
                                          * these because the body refers to 

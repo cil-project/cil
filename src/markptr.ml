@@ -557,17 +557,17 @@ let doGlobal (g: global) : global =
       (* Do the formals *)
       (match fdec.svar.vtype with
         TFun(rt, _, isva, fa) -> 
-          (* Do the formals, because they might not be shared with the type. 
-           * (If they are nothing happens.) We want to ensure that the same 
-           * node is used for a formal as we used in a type. So we put the 
-           * formals inside a type and we do it like that *)
-          let typWithFormals = TFun(rt, fdec.sformals, isva, fa) in
+           (* Do the formals, because they might not be shared with the type. 
+            * (If they are nothing happens.) We want to ensure that the same 
+            * node is used for a formal as we used in a type. So we put the 
+            * formals inside a type and we do it like that  *)
+            let typWithFormals = TFun(rt, fdec.sformals, isva, fa) in
 (*          ignore (E.log "Before formals:%s :  %a\n"
                     fdec.svar.vname d_plaintype typWithFormals);  *)
-          let _ = doType typWithFormals (N.PGlob fdec.svar.vname) 1 in
+            let _ = doType typWithFormals (N.PGlob fdec.svar.vname) 1 in
 (*          ignore (E.log "After formals:%s :  %a\n"
                     fdec.svar.vname d_plaintype typWithFormals);  *)
-          currentResultType := rt
+            currentResultType := rt
       | _ -> E.s (E.bug "Not a function")); 
       (* Do the other locals *)
       List.iter doVarinfo fdec.slocals;
@@ -581,22 +581,6 @@ let markFile fl =
   currentFileName := fl.fileName;
   E.hadErrors := false;
   H.clear polyFunc;
-  (* Scan the file and if you find a function declaration, move the formals 
-   * to the type. This way we get the same node generated for an argument in 
-   * the type (to be used at call sites) and in the formals (to be used 
-   * within the function body) *)
-  List.iter 
-    (fun g -> 
-      match g with
-        GFun (fdec, _) -> begin
-          match fdec.svar.vtype with
-            TFun(rt, _, isva, fa) -> 
-              fdec.svar.vtype <- TFun(rt, fdec.sformals, isva, fa)
-          | _ -> E.s (E.bug "global %s without functiuon type\n"
-                        fdec.svar.vname)
-        end
-      | _ -> ())
-    fl.globals;
   if !N.allPoly || !N.externPoly then
     (* Go through the file once and find all declarations - definitions (for 
      * functions only) *)

@@ -2085,6 +2085,9 @@ let convFile fname dl =
                   vreferenced = false;   (* sm *)
                 }
             in
+            (* Maybe makeGlobalVarinfo has reused a previous varinfo. Make 
+             * sure that the type shares the formals *)
+            thisFunctionVI.vtype <- ftype;
             if alreadyDef then
               E.s (E.unimp "There is a definition already for %s" n);
             currentFunctionVI := thisFunctionVI;
