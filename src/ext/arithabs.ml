@@ -292,11 +292,12 @@ let variableName (v: varinfo) (freshId: int) =
      assert treatAddressOfAsRead;
      "addrof_"
    end else "") ^ 
-    (if freshId = 0 then 
-      v.vname
-    else
-      v.vname ^ "___" ^ string_of_int freshId)
-
+  (if v.vglob then "glob_" else "") ^
+  (if freshId = 0 then 
+    v.vname
+  else
+    v.vname ^ "___" ^ string_of_int freshId) 
+  
 (** Use a hash table indexed by varinfo *)
 module VH = Hashtbl.Make(struct 
                            type t = varinfo 
