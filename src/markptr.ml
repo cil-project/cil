@@ -324,10 +324,9 @@ and expToType (e,et,en) t (callid: int) =
     true, true -> e
   | false, true -> e (* Ignore casts of pointer to non-pointer *)
   | false, false -> 
-      if isZero e then
-        tn.N.null <- true  (* Do not add an edge *)
-      else
-        N.addEdge etn tn N.ECast callid; 
+      let edgetype = 
+        if isZero e then begin tn.N.null <- true; N.ENull end else N.ECast in
+      N.addEdge etn tn edgetype callid; 
       e
   | true, false -> 
       (* Cast of non-pointer to a pointer. Check for zero *)
@@ -369,6 +368,7 @@ let rec doStmt (s: stmt) =
         v.vname = "free" ||
         v.vname = "malloc" ||
         v.vname = "calloc" ||
+        v.vname = "calloc_fseq" ||
         v.vname = "realloc" in
       let func = begin (* check and see if it is malloc *)
         match orig_func with
@@ -395,9 +395,11 @@ let rec doStmt (s: stmt) =
             let new_vtype = new_type v.vtype in
             (* this is the bit where we actually make this call unique *)
             let new_varinfo = makeGlobalVar 
-              ("/*" ^ (string_of_int (!callId + 1)) ^ "*/" ^ v.vname) new_vtype in
-              doVarinfo new_varinfo ;  
-              (Lval(Var(new_varinfo),x)) 
+              ("/*" ^ (string_of_int (!callId + 1)) ^ "*/" ^ v.vname) 
+                new_vtype 
+            in
+            doVarinfo new_varinfo ;  
+            (Lval(Var(new_varinfo),x)) 
         | _ -> orig_func
       end in
       let func', funct, funcn = doExp func in

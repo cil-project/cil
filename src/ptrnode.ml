@@ -135,7 +135,7 @@ and edgekind =
     ECast                    (* T_from ref q_from <= T_to ref q_to *)
   | ESafe                    (* q_to = if q_from = wild then wild else safe *)
   | EIndex                   (* q_to = if q_from = wild then wild else index *)
-
+  | ENull                    (* a NULL flows in the direction of the edge *)
 
 (* Print the graph *)
 let d_place () = function
@@ -165,6 +165,7 @@ let d_ekind () = function
     ECast -> text "Cast"
   | ESafe -> text "Safe"
   | EIndex -> text "Index"
+  | ENull -> text "Null"
 
 let d_whykind () = function
     BadCast(t1,t2) -> dprintf "cast(%a<= %a)" d_type t1 d_type t2

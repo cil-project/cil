@@ -215,6 +215,8 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
 
   (* filters an edgelist so that it contains only ECast edges *)
   let ecast_edges_only l = List.filter (fun e -> e.ekind = ECast) l in
+  let ecastandenull_edges_only l = 
+    List.filter (fun e -> e.ekind = ECast || e.ekind = ENull) l in
 
   (* Setup:
    *        int *x,*y,*z;
@@ -362,9 +364,9 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
   (* now take all of the posarith/intcast pointers and make them fseq *)
   Hashtbl.iter (fun id cur ->
     (* arithmetic can make something an index *)
-    if (cur.posarith) then begin
+    if (cur.posarith || (cur.null && cur.intcast)) then begin
       ignore (update_kind cur FSeq BoolFlag)
-    end ;
+    end else 
     if (cur.arith || cur.intcast) then begin
       ignore (update_kind cur Seq BoolFlag)
     end ;
@@ -387,7 +389,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       let f = (fun n -> if (update_kind n cur.kind why) then 
                           finished := false) in
       let contaminated_list = 
-        (List.map (fun e -> e.efrom) (ecast_edges_only cur.pred)) in
+        (List.map (fun e -> e.efrom) (ecastandenull_edges_only cur.pred)) in
       List.iter f contaminated_list ;
     end) node_ht
   done ;

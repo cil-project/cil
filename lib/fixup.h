@@ -43,6 +43,6 @@
 #define FSEQ   __attribute__((fseq))
 #endif
 
-#if ! defined(MANUALBOX)
+#if ! defined(MANUALBOX) && ! defined(INFERBOX)
 #define calloc_fseq calloc
 #endif
