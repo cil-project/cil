@@ -1523,13 +1523,12 @@ let escape_char = function
   | unprintable -> Printf.sprintf "\\%03o" (Char.code unprintable)
 
 let escape_string str =
-  let lng = String.length str in
-  let rec build idx =
-    if idx >= lng then ""
-    else
-      (escape_char (String.get str idx)) ^ (build (idx + 1)) 
-  in
-  build 0	
+  let length = String.length str in
+  let buffer = Buffer.create length in
+  for index = 0 to length - 1 do
+    Buffer.add_string buffer (escape_char (String.get str index))
+  done;
+  Buffer.contents buffer
 
   
 let d_ikind () = function
