@@ -9,9 +9,6 @@ module E=Errormsg
 let debug = false
 
 (*-----------------------------------------------------------------*)
-let dummyStmt = {labels = []; sid = -1; skind = Break {line = -1; file = ""};
-                  succs= []; preds = []} (* a place holder so that we can create
-                                         an array of stmts *)
 let sCount = ref 0   (* to generate consecutive sid's *)
 let numNodes = ref 0 (* number of nodes in the CFG *)
 let nodeList : stmt list ref = ref [] (* All the nodes in a flat list *) (* ab: Added to change dfs from quadratic to linear *)
@@ -514,6 +511,17 @@ let printLatVal n = Printf.printf " %s" (getLatValDescription n)
 (* Produce debugging output with a REDDBG: prefix *)
 let pr s = flush stdout;Printf.printf  "REDDBG: "; Printf.printf s
 
+let doMarshal v : unit =
+  pr "************ MARSHALLING TO op.m *********************\n";
+  let chn = open_out_bin "op.m" in
+  Marshal.to_channel chn v [Marshal.No_sharing];
+  (*
+  Marshal.to_channel chn 
+    (match !checkInstrs.(i) with Call (_,_,ee,_) -> ee | _ -> [])
+    [];
+  *)
+  close_out chn
+
 (* Used in peephole *)
 exception PeepholeRemovable
 
@@ -531,7 +539,9 @@ let rec getOutermostOffset (off : offset) =
   | Index (_, NoOffset) -> off
   | Field (_, off) -> getOutermostOffset off
   | Index (_, off) -> getOutermostOffset off
-    
+
+let getOutermostOffsetLval (_,lvoff) = getOutermostOffset lvoff
+  
 
 (* Helper function that strips the outermost offset of an lval
    e.g. a[3].z[3] -> a[3].z -> a[3] -> a -> invalid_arg!
@@ -580,8 +590,31 @@ let rec compareWithoutCasts e1 e2 : bool =
 (* Simplify exps in some way *)
 let rec simplifyExp e : exp =
   match e with
-    CastE (_,e) -> e
-  | _ -> e
+    Const _ | SizeOf _ | AlignOf _ -> e
+  | SizeOfE e -> simplifyExp e
+  | AlignOfE e -> simplifyExp e
+  | BinOp (op,e1,e2,t) -> BinOp (op, simplifyExp e1, simplifyExp e2, t)
+  | UnOp (op,e,t) -> UnOp (op,simplifyExp e,t)
+  | Question (e1,e2,e3) -> Question (simplifyExp e1,simplifyExp e2,simplifyExp e3)
+  | CastE (_,e) -> simplifyExp e
+  | Lval lv -> simplifyLval lv
+  | StartOf lv -> simplifyLval lv
+  | AddrOf (Mem e, NoOffset) -> 
+      BinOp (IndexPI,simplifyExp e,zero,typeOf e)
+  | AddrOf ((_,off) as lv) -> 
+      (match getOutermostOffset off with 
+	Index (i,NoOffset) -> 
+	  let lvs = Lval (stripOffset lv) in
+	  simplifyExp (BinOp (IndexPI, lvs, i, typeOf lvs))
+      | _ -> e)
+
+and simplifyLval lv : exp =
+  match (getOutermostOffsetLval lv) with
+    Index (i,NoOffset) ->
+      let lv = Lval (stripOffset lv) in
+      BinOp (IndexPI,lv,i,typeOf lv)
+  | _ -> Lval lv
+
 
 (* Compare exp's for equality *)
 let rec expEqual e1 e2 : bool=
@@ -650,8 +683,7 @@ let compareExp e1 e2 : int option =
   in
   if amandebug then begin
     pr "";
-    ignore (Pretty.printf "compare %a , %a = %s\n" 
-	      d_exp e1 d_exp e2 (match b with None -> "(no-idea)" | Some n -> string_of_int n));
+    ignore (Pretty.printf "compare %a , %a = %s\n" d_exp e1 d_exp e2 (match b with None -> "None" | Some n -> string_of_int n));
   end;
   b
 
@@ -659,6 +691,7 @@ let compareExp e1 e2 : int option =
 
 (* See comments in eliminateRedundancy *)
 let checkInstrs : instr array ref = ref [||]
+let checkBeingProcessed : instr ref = ref dummyInstr
 let checkProcessed : bool array ref = ref [||]
 let checkFlags : bool array ref = ref [||]
 let checkLvals : lval list ref = ref []
@@ -708,24 +741,23 @@ let rec eliminateRedundancy (f : fundec) : fundec =
     (* stats_total := !stats_total + countCheckInstrs; *)
 
     (* Process each CHECK Call  *)
-    for i=0 to (countCheckInstrs - 1) do
+    for i=0 to (countCheckInstrs - 1) do      
       if not (!checkProcessed.(i)) then begin (* Skip the already-processed ones *)
 	!checkProcessed.(i) <- true;
 
+	(* Let other functions know the current CHECK *)
+	checkBeingProcessed := !checkInstrs.(i);
+	
 	if amandebug then begin 
 	  pr "";	  
 	  ignore (printf "Processing %d: %a\n" i d_instr !checkInstrs.(i));
 
 	  (* Some temporary stuff for inspection by a ocamlmktop manufactured toplvl *)
 	  
-          if i = 1 then begin
-            pr "************ MARSHALLING TO op.m *********************\n";
-            let chn = open_out_bin "op.m" in
-            (* Marshal.to_channel chn !checkInstrs.(i) [Marshal.No_sharing];*)
-            Marshal.to_channel chn 
-	      (match !checkInstrs.(i) with Call (_,_,ee,_) -> ee | _ -> [])
-	      [Marshal.No_sharing];
-            close_out chn
+          if i = 4 && false then begin
+	    match !checkInstrs.(i) with 
+	      Call (_,_,ee,_) -> doMarshal ee 
+	    | _ -> ()
           end
 	  
 	end;
@@ -888,23 +920,17 @@ and removeRedundancies (cin_start : lattice) instList node_number =
 	
 	  | Unknown | Needed -> (* This CHECK can't be removed.
 				   We have to recompute cin. *)
-		if amandebug then 
-		  pr "%s %d kept (lattice = %s)\n" (getCallName h2) 
-		    index (getLatValDescription cin_local.latType);
+	      if amandebug then 
+		pr "%s %d kept (lattice = %s)\n" (getCallName h2) 
+		  index (getLatValDescription cin_local.latType);
 
-		(match h2 with
-		  Call (Some (Var var,NoOffset),_,_,loc) ->
-		    if cin_local.latWeight = wtLIVE (* IMPORTANT: re-use the same live-variable *)
-		    then removeRedundanciesLoop cin_local t (h2 :: filteredList)
-		    else removeRedundanciesLoop (latLive var) t (h2 :: filteredList)
-		| Call (None,_,_,_) ->
-		    removeRedundanciesLoop latCheckNotNeeded t (h2 :: filteredList)
-		| _ -> raise (Failure "non-Call in checkInstrs array"))
+	      removeRedundanciesLoop (evalCoutInstr cin_local h2) t (h2 :: filteredList)
 	end
 	else (* This instr is not a candidate for elimination.
 		It could be a Set, Call or Asm... so recompute the new cin.
 		Re-use the current cin as far as possible *)
-	  removeRedundanciesLoop (lat_max cin_local (minLatticeValue h)) t (h :: filteredList) 
+	  removeRedundanciesLoop (evalCoutInstr cin_local h) t (h :: filteredList)
+	  (* removeRedundanciesLoop (lat_max cin_local (minLatticeValue h)) t (h :: filteredList) *)
   in
   removeRedundanciesLoop cin_start instList []
 
@@ -952,25 +978,29 @@ and peepholeReplace (chk : instr) : instr =
 
 (* intervalContainsExp:
    Returns whether mid is in the closed interval [lo,hi]
-   This may be adapted to using the result of an interval analysis
-   
-   TODO: Ah.. doesn't quite work 
 *)
 and intervalContainsExp (lo:exp) (hi:exp) (mid:exp) : bool =
   let lo = simplifyExp lo  in
   let hi = simplifyExp hi  in
   let mid= simplifyExp mid in
   match lo,hi,mid with
-    StartOf lv, 
+    Lval lv, (* For the new simplifyExp function *)
+    BinOp (IndexPI, lvv, c,_),
+    BinOp (IndexPI, lvi, c2, _)
+    when (expEqual lo lvv) && (expEqual lo lvi) ->      
+      ((compareExp c2 zero) >= Some 0) &&
+      ((compareExp c  c2)   > Some 0)
+  | StartOf lv, (* this case is probably unused *)
     BinOp (IndexPI, StartOf lvv, c,_),
     AddrOf ((_,lvioff) as lvi)
     when lv = lvv && lv = (stripOffset lvi) ->
       (match getOutermostOffset lvioff with
 	Index (c2, NoOffset) ->
 	  ((compareExp c2 zero) >= Some 0) &&
-	  ((compareExp c  c2)   = Some 1)
+	  ((compareExp c  c2)   > Some 0)
       |	_ -> false);      
-  | _ -> false
+  | _ -> 
+      false
 
 
 (* minLatticeValue:
@@ -980,31 +1010,31 @@ and intervalContainsExp (lo:exp) (hi:exp) (mid:exp) : bool =
    This is a very subtle and important function
 *)
 and minLatticeValue (inst : instr) : lattice =
+  let isLvalClobbering lval : bool =
+    ((List.mem lval !checkLvals) || (* Directly modifying the argument to the CHECK *)
+    (!checkHasAliasedVar &&         (* Possibly, indirectly modifying *)
+     (match lval with 
+       (Mem _,_) -> true
+     | (_, off) -> 
+	 match (getOutermostOffset off) with
+	   Index _ -> false (* ab: I changed it to false ... I think array set operations cant change values of other variables *)
+	 | _ -> false)))
+  in  
   if amanNonConservative then latCheckNotNeeded
   else
-  match inst with
-    Set (lval,exp,_) -> 
-      if
-	((List.mem lval !checkLvals) || (* Directly modifying the argument to the CHECK *)
-	(!checkHasAliasedVar &&         (* Possibly, indirectly modifying *)
-	 (match lval with 
-	   (Mem _,_) -> true
-         | (_, off) -> 
-	     match (getOutermostOffset off) with
-	       Index _ -> false (* ab: I changed it to false ... I think array set operations cant change values of other variables *)
-	     | _ -> false)))
-      then latCheckNeeded
-      else latCheckNotNeeded
-  | Call (None,Lval(Var f,_),args,_) -> 	
-      if (isCheckCall_str f.vname) 
-      then  latCheckNotNeeded (* CHECK's are non-clobbering *)
-      else  latCheckNeeded    (* Other functions may clobber *)
-  | Call (Some (var, _),Lval(Var f,_),args,_) -> 
-      if (isCheckCall_str f.vname) 
-      then  latCheckNotNeeded
-      else  latCheckNeeded
-  | Call _ -> latCheckNeeded 
-  | Asm  _ -> latCheckNeeded
+    match inst with
+      Set (lval,exp,_) -> 
+	if isLvalClobbering lval
+	then latCheckNeeded
+	else latCheckNotNeeded
+    | Call (Some lval,Lval(Var f,_),_,_) when isLvalClobbering lval ->
+	latCheckNeeded
+    | Call (_,Lval(Var f,_),args,_) ->
+	if (isCheckCall_str f.vname) 
+	then  latCheckNotNeeded (* CHECK's are non-clobbering *)
+	else  latCheckNeeded    (* Other functions may clobber *)
+    | Call _ -> latCheckNeeded 
+    | Asm  _ -> latCheckNeeded
 
 
 (* evalCin:
@@ -1024,30 +1054,44 @@ and evalCin (nd : stmt) cout at_least =
    have to iterate through all the instr's in the node.
    The cout is reset to NotNeeded, or Live right after a check that is being
    processed (flagged in checkFlags) *)
-and evalCout (nd : stmt) cin_start  = (* TODO: Look at the args of the check *)
+and evalCout (nd : stmt) cin_start : lattice = (* TODO: Look at the args of the check *)
+  (*
   let rec evalCoutLoop (cin_local : lattice) (instList : instr list)  = 
     match instList with
       [] -> cin_local
     | h :: t -> 
-	let index = find_in_array !checkInstrs h in
-	if index >= 0 && !checkFlags.(index)  (* Is this a flagged CHECK? *)
-	then 
-	  match !checkInstrs.(index) with
-	    Call (Some (Var var, NoOffset),_,_,_) -> 
-	      (* If some variable already holds a live value, use the same *)
-	      if cin_local.latWeight = wtLIVE 
-	      then evalCoutLoop cin_local t
-	      else evalCoutLoop (latLive var) t
-	  | Call (None,_,_,_) -> 
-	      evalCoutLoop latCheckNotNeeded t
-	  | _ -> raise (Failure "non-Call in checkInstrs array")
-	else 
-	  evalCoutLoop (lat_max cin_local (minLatticeValue h)) t
+	evalCoutLoop (evalCoutInstr cin_local h) t
   in
+  *)
   match nd.skind with
     Instr instList -> 
-      evalCoutLoop cin_start instList
+      List.fold_left evalCoutInstr cin_start instList
+      (* evalCoutLoop cin_start instList *)
   | _ -> cin_start	
+
+(* evalCoutInstr:
+   Evaluate the cout of an instr based on its cin. See evalCout for info
+*)
+and evalCoutInstr (cin : lattice) (inst : instr) : lattice =
+  let index = find_in_array !checkInstrs inst in
+  if index >= 0 && !checkFlags.(index) 
+  then match !checkInstrs.(index) with
+    Call (Some (Var var, NoOffset),_,_,_) ->
+      (* If some variable already holds a live value, use the same *)
+      if cin.latWeight =  wtLIVE then cin else (latLive var)
+  | Call (None,_,_,_) -> latCheckNotNeeded
+  | _ -> failwith "non-Call in checkInstrs array"
+  else lat_max cin (minLatticeValue inst)
+
+
+(* checkIncludes:
+   Is check b implied by check a?
+*)
+and checkImplies (a : instr) (b : instr) : bool =
+  match getCallName a, getCallName b with
+    "CHECK_UBOUND_OR_NULL", "CHECK_UBOUND_OR_NULL" ->
+      false
+  | _ -> false
 
 
 (* numberNodes:
