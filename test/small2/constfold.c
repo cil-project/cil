@@ -1,7 +1,10 @@
 // constfold.c
 // problem with ijpeg and power constant folding
 
-#include <math.h>    // sqrt
+double sqrt(double x)
+{
+  return x*x;    // close enough for parsing testing
+}
 
 int main()
 {

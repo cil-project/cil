@@ -225,6 +225,13 @@ ifdef NEWPATCH
   PATCHECHO := true
 endif
 
+# sm: use this instead of "sh ./testit" for those self-tests which can't
+# be made to work on windows; it does nothing, and has no output
+UNIXTESTIT := sh ./testit
+ifeq ($(ARCHOS), x86_WIN32)
+  UNIXTESTIT := @true
+endif
+
 
 # ----------- below here are rules for building benchmarks --------
 
@@ -594,6 +601,7 @@ bads/%: test/small2/%.c
 test-bad/%: quickbuild test/small2/%.c
 	CCUREDHOME="$(CCUREDHOME)" CCURED="$(CCURED) --noPrintLn" \
 	  CFLAGS="$(DEF)$(ARCHOS) "`$(PATCHECHO) $(STANDARDPATCH)`" $(CFLAGS) $(WARNALL)" \
+          TESTBADONCE="$(TESTBADONCE)" \
 	  bash lib/test-bad $*.c
 
 # sm: trivial test of combiner
@@ -781,6 +789,9 @@ PATCHARG := `$(PATCHECHO) $(STANDARDPATCH)`
 #
 # OLDEN benchmarks
 #
+all-olden: mustbegcc bh bisort em3d health mst perimeter power treeadd tsp
+	@echo "All the Olden benchmarks work"
+
 # Barnes-Hut
 BHDIR := test/olden/bh
 bh:  mustbegcc
@@ -805,10 +816,9 @@ bh-optimvariant.%: mustbegcc
 # sm: rather than make it every time, I've added data.in (with 12 CRs)
 # to the repository
 runbh:
+	cd $(BHDIR); sh ./testit ./code.exe
 	cd $(BHDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                              do time ./code.exe < data.in >data.out ; done"
-	@true "sm: added next line to compare output to expected output"
-#	cd $(BHDIR); sh -c "perl normalize.pl < data.out | diff data.cil.out - | head"
 
 
 # Power pricing
@@ -820,6 +830,7 @@ power:  mustbegcc
 	cd $(PWDIR); \
                make PLAIN=1 clean defaulttarget \
                     CC="$(COMBINECCURED) $(PATCHARG)"
+	cd $(PWDIR); sh ./testit ./power.exe
 	cd $(PWDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                     do time ./power.exe ; done"
 
@@ -847,6 +858,7 @@ health:
                make PLAIN=1 clean defaulttarget \
                     $(HEALTHARGS) \
                     CC="$(COMBINECCURED) $(PATCHARG)"
+	cd $(HEALTHDIR); sh ./testit ./health.exe
 	cd $(HEALTHDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                     do time ./health.exe 5 500 1 1; done"
 
@@ -871,6 +883,7 @@ perimeter:
                     $(PERIMARGS) \
                     CC="$(COMBINECCURED) \
 			$(PATCHARG)"
+	cd $(PERIMDIR); sh ./testit ./perimeter.exe
 	cd $(PERIMDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                    do time ./perimeter.exe ; done"
 
@@ -905,6 +918,8 @@ endif
 ifdef _GNUCC
   TSPEXTRA += -lm
 endif
+
+# sm: tsp's output isn't useful to check, so no explicit self-test
 tsp: 
 	cd $(TSPDIR); \
                make PLAIN=1 clean defaulttarget \
@@ -926,11 +941,13 @@ tsp-optimvariant.%: mustbegcc
 
 
 # Bitonic sort
+# sm: to the best of my knowledge, bisort tests itself, so there is no
+# explicit self-test
 BISORTDIR := test/olden/bisort
 ifdef _MSVC
   BISORTARGS = _MSVC=1
 endif
-bisort :  mustbegcc
+bisort:  mustbegcc
 	cd $(BISORTDIR); \
                make PLAIN=1 clean defaulttarget \
                     $(BISORTARGS) \
@@ -966,6 +983,7 @@ mst:
             make clean mst.exe $(MSTARGS) \
                                CC="$(OLDENMSTSAFECC)" \
                                LD="$(OLDENMSTSAFECC)"
+	cd $(OLDENMSTDIR); sh ./testit ./mst.exe
 	cd $(OLDENMSTDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                    do time ./mst.exe 2048 1; done"
 	cd $(OLDENMSTDIR); if test -f gmon.out; then gprof mst.exe gmon.out; fi
@@ -996,6 +1014,7 @@ treeadd:  mustbegcc
 	cd $(TREEADDIR); \
             make clean treeadd.exe CC="$(TREEADDSAFECC)" \
                                    LD="$(TREEADDSAFECC)"
+	cd $(TREEADDIR); sh ./testit ./treeadd.exe
 	cd $(TREEADDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                    do time ./treeadd.exe 21 1; done"
 
@@ -1019,6 +1038,8 @@ em3d-clean:
 	cd $(EM3DDIR); make clean
 	cd $(EM3DDIR); rm -f *cil.c *box.c *.i *_ppp.c *.origi *_all.c
 
+# sm: em3d's output doesn't have much to check, so again I have no
+# explicit self-test...
 em3d:  mustbegcc
 	cd $(EM3DDIR); \
             make clean em3d.exe CC="$(EM3DSAFECC)" \
@@ -1039,6 +1060,10 @@ em3d-optimvariant.%: mustbegcc
 
 # SPEC95
 SPECDIR := test/spec95
+
+# sm: target to build of them that I think work
+all-spec95: compress go ijpeg li
+	@echo "All the SPEC95 benchmarks seem to work"
 
 COMPRESSDIR := $(SPECDIR)/129.compress
 spec-compress : 
@@ -1062,6 +1087,7 @@ compress:  mustbegcc
                make CFLAGS= CC="$(COMBINECCURED) $(PATCHARG)" clean build
 	cd $(COMPRESSDIR)/src; sh -c "for i in $(ITERATION_ELEMS) ; \
               do time ./compress.exe <input.data >combine-compress.out ;done"
+	cd $(COMPRESSDIR)/src; diff combine-compress.out output.data >/dev/null
 
 compress-optimvariant.%: mustbegcc
 	cd $(COMPRESSDIR)/src; \
@@ -1079,6 +1105,7 @@ li:  mustbegcc
 	cd $(LIDIR)/src; \
             make clean build CC="$(LISAFECC) $(CONLY)" \
                              LD="$(LISAFECC)"
+	cd $(LIDIR)/src; sh ./testit ./li.exe
 	cd $(LIDIR)/src; sh -c "for i in $(ITERATION_ELEMS) ; \
               do time ./li.exe \
                       <../data/train/input/train.lsp \
@@ -1132,6 +1159,7 @@ go:  mustbegcc
 	cd $(GODIR)/src; \
             make clean build CC="$(GOSAFECC) $(CONLY)" \
                              LD="$(GOSAFECC)"
+	cd $(GODIR)/src; sh ./testit ./go.exe
 	cd $(GODIR)/src; sh -c "for i in $(ITERATION_ELEMS) ; \
                                    do time ./go.exe 50 9; done"
 
@@ -1278,6 +1306,7 @@ ijpeg:  mustbegcc
 	cd $(IJPEGDIR)/src; \
             make clean build CC="$(IJPEGSAFECC) $(CONLY)" \
                              LD="$(IJPEGSAFECC)"
+	cd $(IJPEGDIR)/src; sh ./testit ijpeg.exe
 	cd $(IJPEGDIR)/src; \
               sh -c "for i in $(ITERATION_ELEMS) ; \
                      do time ./ijpeg.exe \
@@ -1417,7 +1446,7 @@ ftpd-clean:
 	cd $(FTPDDIR); make clean
 	cd $(FTPDDIR); rm -f *cil.c *box.c *.i *_ppp.c *.origi *_all.c
 
-ftpd:  mustbegcc
+ftpd: ftpd-clean mustbegcc
 	cd $(FTPDDIR); \
             make CC="$(FTPDSAFECC)" \
                  LD="$(FTPDSAFECC)"

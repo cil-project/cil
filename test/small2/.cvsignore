@@ -103,4 +103,6 @@ printfllong
 stat
 replydirname
 boundaries
+constfold
+hufftable
 

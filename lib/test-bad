@@ -63,6 +63,12 @@ while [ $i -le $numcases ]; do
     fi
   fi
 
+  # possibly bail after 0th
+  if [ "$TESTBADONCE" != "" ]; then
+    echo "bailing after 0th iteration because TESTBADONCE is set"
+    exit 0
+  fi
+
   i=`expr $i + 1`
 done
 

@@ -516,16 +516,16 @@ type fundec =
 type global =
     GFun of fundec * location           (* A function definition. Cannot have 
                                          * storage Extern *)
-  | GType of string * typ * location    (* A typedef. The string should not 
+  | GType of string * typ * location    (* A typedef. The string should not
                                          * be empty. *)
-  | GEnumTag of enuminfo * location     (* Declares an enumeration tag with 
-                                         * some fields. There must be one of 
-                                         * these for each enumeration tag 
-                                         * that you use since this is the 
-                                         * only context in which the items 
+  | GEnumTag of enuminfo * location     (* Declares an enumeration tag with
+                                         * some fields. There must be one of
+                                         * these for each enumeration tag
+                                         * that you use since this is the
+                                         * only context in which the items
                                          * are printed. *)
 
-  | GCompTag of compinfo * location     (* Declares a struc/union tag with 
+  | GCompTag of compinfo * location     (* Declares a struct/union tag with
                                          * some fields. There must be one of 
                                          * these for each struct/union tag 
                                          * that you use since this is the 
@@ -2678,7 +2678,7 @@ and childrenFunction (vis : cilVisitor) (f : fundec) : fundec =
   f
 
 let rec visitCilGlobal (vis: cilVisitor) (g: global) : global list =
-  (trace "visit" (dprintf "visitCilGlobal\n"));
+  (*(trace "visit" (dprintf "visitCilGlobal\n"));*)
   doVisitList vis vis#vglob childrenGlobal g
 and childrenGlobal (vis: cilVisitor) (g: global) : global =
   match g with
@@ -2689,7 +2689,8 @@ and childrenGlobal (vis: cilVisitor) (g: global) : global =
       let t' = visitCilType vis t in
       if t' != t then GType (s, t', l) else g
   | GEnumTag (enum, _) -> g
-  | GCompTag (comp, _) -> 
+  | GCompTag (comp, _) ->
+      (trace "visit" (dprintf "visiting global comp %s\n" comp.cname));
       (* Do the types of the fields *)
       List.iter (fun fi -> fi.ftype <- visitCilType vis fi.ftype) comp.cfields;
       g

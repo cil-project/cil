@@ -1355,5 +1355,7 @@ val mapNoCopy: ('a -> 'a) -> 'a list -> 'a list
     list *)
 val mapNoCopyList: ('a -> 'a list) -> 'a list -> 'a list
 
+(** sm: return true if the first is a prefix of the second string *)
+val startsWith: string -> string -> bool
 
 

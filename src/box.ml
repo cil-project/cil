@@ -3926,18 +3926,23 @@ and boxexpSplit (e: exp) =
 
 (* sm: make a pass over the file and change declared types of arrays *)
 (* of chars to be 1 byte longer *)
-class expandCharArrays = object
+class expandCharArrays = object (self)
   inherit nopCilVisitor
-  method vvdec (v:varinfo) = (
-    match v.vtype with
-    | TArray(baseType, Some length, attrs) -> (
-        if (isCharType(baseType)) then
-          (*(trace "sm" (dprintf "expanding array %s\n" v.vname));*)
-          v.vtype <-
-            TArray(baseType, Some(BinOp(PlusA, length, one, intType)), attrs);
-          DoChildren                           
+
+  (* given a type, if it's a char array, return a similar array type *)
+  (* that is 1 byte bigger; 'fname/loc' is passed for debugging help *)
+  method replaceType (fname:string) (loc:location) (t:typ) : typ =
+    match t with
+    | TArray(baseType, Some length, attrs) when (isCharType(baseType)) -> (
+        (trace "expand" (dprintf "expanding array variable/field %s at %a\n" 
+                                 fname d_loc loc));
+        TArray(baseType, Some(BinOp(PlusA, length, one, intType)), attrs)
       )
-    | _ -> DoChildren
+    | _ -> t    (* leave unchanged *)
+
+  method vvdec (v:varinfo) = (
+    v.vtype <- (self#replaceType v.vname v.vdecl v.vtype);
+    DoChildren
   )
   method vexpr (e:exp) = (
     match e with
@@ -3950,7 +3955,7 @@ class expandCharArrays = object
             (* all arrays of chars get expanded by 1 char, but I want *)
             (* the program to still see the unexpanded size, so make this *)
             (* yield a value one less *)
-            (*(trace "sm" (dprintf "adding 1 to %a\n" d_exp e));*)
+            (trace "expand" (dprintf "subtracting 1 from %a\n" d_exp e));
             ChangeTo(BinOp(MinusA, e, one, intType))
         | _ ->
             (* leave other sizeofs alone *)
@@ -3958,8 +3963,24 @@ class expandCharArrays = object
       )
     | _ -> DoChildren
   )
+  method vglob (g:global) : global list visitAction = (
+    match g with
+    | GCompTag(cinfo, loc) -> (
+        let vfield (f:fieldinfo) : unit =
+          f.ftype <- (self#replaceType f.fname loc f.ftype)
+        in
+        (List.iter vfield cinfo.cfields);
+        DoChildren
+      )
+    | _ -> DoChildren
+  )
 end
 
+let doExpandCharArrays (f: file) : unit = (
+  (tracei "sm" (dprintf "array-expand post-process..\n"));
+  (ignore (visitCilFile (new expandCharArrays :> cilVisitor) f));
+  (traceu "sm" (dprintf "array-expand post-process finished\n"))
+)  
 
 (* a hashtable of functions that we have already made wrappers for *)
 let wrappedFunctions = H.create 15
@@ -4451,7 +4472,7 @@ let boxFile file =
   if showGlobals then ignore (E.log "Finished boxing file\n");
   let res' = Stats.time "split" Boxsplit.splitLocals res in
   (* sm: after everything else runs, make char arrays 1 byte longer *)
-  (ignore (visitCilFile (new expandCharArrays) res'));
+  (doExpandCharArrays res');
   res'
 
 
