@@ -4,15 +4,6 @@
 // NUMERRORS 4
 
 
-int check(char *p1, char *p2, int size, int code) {
-  int i;
-  for (i=0; i<size; i++ ){
-    if (p1[i] != p2[i]) {
-      E(code);
-    }
-  }
-} 
-
 
 int main(){
   unsigned char c1[] = "\7";
@@ -29,12 +20,12 @@ int main(){
   wchar_t w1[] = L"\xa";
   wchar_t w2[] = L"\xabcd";
   wchar_t w3[] = L"\xabcde";  //ERROR(2): too big
-  wchar_t w4[] = L"\xcdefg"; //OK, g is not a hex digit.
+  wchar_t w4[] = L"\xcdefg";  //OK, because g is not a hex digit.
 
 
   //type mismatches in array initialization:
-  char s1[] = L"Hi"; //ERROR(3)
-  wchar_t s2[] = "Hi"; //ERROR(4)
+  char s1[] = L"Hi";          //ERROR(3): a wide string literal
+  wchar_t s2[] = "Hi";        //ERROR(4): a string literal
 
   SUCCESS;
 }

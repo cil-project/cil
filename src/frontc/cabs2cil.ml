@@ -3788,13 +3788,14 @@ and doInit
          [(A.NEXT_INIT, 
            A.SINGLE_INIT(A.CONSTANT 
                            (A.CONST_STRING s)))])) :: restil
-    -> 
-      let isCharType = 
-        match unrollType bt with
-          TInt((IChar|IUChar|ISChar), _) -> true
-	| _ ->  false in
-      if not isCharType then 
-	E.s (error "Using a string literal to initialize something other than a character array.");
+    when (match unrollType bt with
+            TInt((IChar|IUChar|ISChar), _) -> true
+          | TInt _ ->
+              (*Base type is a scalar other than char. Maybe a wchar_t?*)
+	      E.s (error "Using a string literal to initialize something other than a character array.\n")
+          | _ ->  false (* OK, this is probably an array of strings. Handle *)
+         )              (* it with the other arrays below.*)
+    ->
       let chars = explodeString true s in
       let charinits = 
         List.map 
@@ -3832,14 +3833,16 @@ and doInit
          [(A.NEXT_INIT, 
            A.SINGLE_INIT(A.CONSTANT 
                            (A.CONST_WSTRING s)))])) :: restil
+    when(let bt' = unrollType bt in
+         match bt' with 
+           (* compare bt to wchar_t, ignoring signed vs. unsigned *)
+	   TInt _ when (bitsSizeOf bt') = (bitsSizeOf !wcharType) -> true
+	 | TInt _ ->
+              (*Base type is a scalar other than wchar_t.  Maybe a char?*)
+	      E.s (error "Using a wide string literal to initialize something other than a wchar_t array.\n")
+	 | _ -> false (* OK, this is probably an array of strings. Handle *)
+        )             (* it with the other arrays below.*)
     -> 
-      let isWcharType = 
-        (* compare bt to wchar_t, ignoring signed vs. unsigned *)
-	let bt' = unrollType bt in
-        match bt' with TInt _ -> (alignOf_int bt') = (alignOf_int !wcharType)
-	| _ -> false in
-      if not isWcharType then 
-	E.s (error "Using a wide string literal to initialize something other than a wchar_t array.");
       let maxWChar = (1 lsl (bitsSizeOf !wcharType)) - 1 in
       let charinits = 
         List.map 
