@@ -420,8 +420,11 @@ let latUnknown        = 0
 let latCheckNotNeeded = 1
 let latCheckNeeded    = 2
 
-let amandebug = false
-let amanDontRemove = false
+let amandebug = true
+let amanDontRemove = true
+
+let stats_removed = ref 0
+let stats_kept    = ref 0
 
 let pr s = Printf.printf "REDDBG: "; flush stdout; Printf.printf s
 
@@ -495,11 +498,13 @@ and removeRedundancies acc instList checkInstrs checkFlags =
 	    match h with 
 	      Call (p1,(Lval(Var f,p2)) ,p3,loc) when amandebug -> 
 	      (* THIS LINE MUST BE REMOVED. Its not standard ocaml and may not compile in the future *)
-		Call (p1,Lval (Var f, p2),p3, {loc with file = loc.file ^ "_$" ^ (string_of_int index)})
+		Call (p1,Lval (Var f, p2),p3, 
+		      {loc with file = loc.file ^ "_$" ^ (string_of_int index) ^  [| " ?" ; " XXXX" ; " @" |].(acc) })
 	    | _ -> h
 	  in
 	  if acc == latCheckNotNeeded then begin
 	    if amandebug then pr "CHECK %d removed!\n" index;	  
+	    stats_removed := !stats_removed + 1;
 	    if amanDontRemove then
 	      removeRedundanciesRec latCheckNotNeeded t (h2 :: filteredList) 
 	    else
@@ -507,6 +512,7 @@ and removeRedundancies acc instList checkInstrs checkFlags =
 	  end
 	  else begin
 	    if amandebug then pr "CHECK %d kept (lattice = %d)\n" index acc;
+	    stats_kept := !stats_kept + 1;
 	    removeRedundanciesRec latCheckNotNeeded t (h2 :: filteredList) ;
 	  end
 	end
@@ -561,10 +567,10 @@ and numberNodes () =
     | node :: rest -> 
 	node.sid <- i; 
 	!nodes.(i) <- node;
-	numberNodesRec (i + 1) rest
+	numberNodesRec (i - 1) rest
   in 
   nodes := Array.make !numNodes dummyStmt;
-  numberNodesRec 0 !nodeList 
+  numberNodesRec (!numNodes - 1) !nodeList 
 
 
 and filterChecks (stmts : stmt list) : instr array =
@@ -627,7 +633,11 @@ and removeCheck (checkName : string) (i : instr list) : instr list =
       | Call(_,Lval(Var x,_),args,l) when x.vname = checkName -> removeCheckLoop checkName acc rest	  
       |	_ -> removeCheckLoop checkName (hd :: acc) rest
   in List.rev (removeCheckLoop checkName [] i)
-  
+
+
+
+let getStatistics () : string =
+  Printf.sprintf "CHECK Redundancy- %d kept, %d removed" !stats_kept !stats_removed
    
 
 (*  ,,---.     	       |	      	    | 			     	      *)
