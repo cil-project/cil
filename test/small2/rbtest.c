@@ -19,23 +19,27 @@ int __mmId;
 int debugMM;
 int debug;
 
+// allow explicit call into gc
+int explicit_gc();
+
 
 #define DATASIZE 16   // This is the size of the data that is reserved in
                       // each node
 
-#define ITERS 500000                      
-//#define ITERS 1
+//#define ITERS 500000
+#define ITERS 10
 
-int main() {
-  /* Test hash tables */
+// had to make these global since spreading the functionality
+// across several functions
+int count = 0;
+int sz;
+
+void innerDoTreeStuff(int letGcFree)
+{
   RBNode *t = NULL;
   int i;
-  double clk;
-  int count = 0;
-  int sz;
 
   /* Add and delete random numbers from the hash table */
-  TIMESTART(clk);
   printf("inserting...\n");
   for(i=0;i<ITERS;i++) {
     int k = random() & 0x7FFFL;
@@ -52,9 +56,61 @@ int main() {
   sz = 0;
   printf("sz++...\n");
   FORALLRBNODES(t, { sz ++; });
-  printf("freeing...\n");
-  freeRB(t, NULL);
+
+  if (!letGcFree) {
+    // explicit freeing
+    printf("freeing...\n");
+    freeRB(t, NULL);
+  }
+  else {
+    // will free a little further down, once the
+    // stack is cleaner
+  }
+}
+
+// this intermediate function serves to separate the computation,
+// and its dirtying of the stack, from the gc which may follow
+void doTreeStuff(int letGcFree)
+{
+  // cleanse the stack
+  char buf[256];
+  int i;
+
+  for (i=0; i<256; i++) {
+    buf[i] = 0;
+  }
+
+  innerDoTreeStuff(letGcFree);
+
+  for (i=0; i<256; i++) {
+    buf[i] = 0;
+  }
+}
+
+
+
+int main(int argc, char *argv[])
+{
+  /* Test hash tables */
+  double clk;
+  int letGcFree = (argc != 1);   // gc if any args
+  RBNode *another = NULL;
+
+  TIMESTART(clk);
+  
+  doTreeStuff(letGcFree);
+  
+  // another singleton tree to make the page not homogeneous
+  insertRB(&another, 1, DATASIZE);
+
+  if (letGcFree) {
+    // use the gc
+    printf("garbage collecting...\n");
+    printf("# bytes freed: %d\n", explicit_gc());
+  }
+
   TIMESTOP(clk);
+
   fprintf(stderr, "Hash has %d elements. Found %d times\n",
           sz, count);
   printf("Run rbtest in %8.3lfms\n", clk / 1000.0);

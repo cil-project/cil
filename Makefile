@@ -316,8 +316,8 @@ endif
 ifneq ($(COMPUTERNAME), RAW)   # George's workstation
 ifneq ($(COMPUTERNAME), FETA)   # George's workstation
 ifdef _GNUCC
-  #ifndef NO_GC
-  ifdef USE_GC
+  ifndef NO_GC
+  #ifdef USE_GC
     # enable the garbage collector by default for gcc
     SAFECC+= $(DEF)USE_GC
     DEBUGCCL+= $(DEF)USE_GC
@@ -538,15 +538,18 @@ hashtest: test/small2/hashtest.c $(EXECUTABLE)$(EXE) \
 rbtest: test/small2/rbtest.c $(EXECUTABLE)$(EXE) \
                                  $(SAFECLIB) $(SAFEMAINLIB)  $(TVEXE)
 	rm -f $(PCCTEST)/rbtest.exe
+	@true "compile with gcc for better error diagnostics (ha!)"
+	cd $(PCCTEST); $(DEBUGCCL) $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) $(CONLY) \
+				   $(INC)$(PCCDIR)/src ../small2/rbtest.c
 	cd $(PCCTEST); $(SAFECC) --combine \
                                  --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  `$(PATCHECHO) --patch=../../lib/$(PATCHFILE)` \
-                 $(DOOPT) \
+                 `true $(DOOPT)` \
                  $(INC)$(PCCDIR)/src \
                  $(PCCDIR)/src/redblack.c \
                  ../small2/rbtest.c \
                  $(EXEOUT)rbtest.exe
-	$(PCCTEST)/rbtest.exe
+	$(PCCTEST)/rbtest.exe letGcFree
 
 btreetest: test/small2/testbtree.c \
            test/small2/btree.c \
@@ -571,6 +574,35 @@ hola: test/small2/hola.c $(EXECUTABLE)$(EXE) \
                  hola.c \
                  $(EXEOUT)hola
 	test/small2/hola
+
+# sm: trivial test of test combiner
+MYSAFECC = $(SAFECC) --keep=. $(DEF)$(ARCHOS)
+com: test/small2/com1.c test/small2/com2.c $(EXECUTABLE)$(EXE) \
+                                 $(SAFECLIB) $(SAFEMAINLIB)
+	rm -f test/small2/com
+	cd test/small2; \
+	  $(MYSAFECC) --combine com1.c $(CONLY) $(OBJOUT) com1.o; \
+	  $(MYSAFECC) --combine com2.c $(CONLY) $(OBJOUT) com2.o; \
+          $(MYSAFECC) --combine com1.o com2.o $(EXEOUT)com
+	test/small2/com
+
+# cfrac: a memory benchmark which factorizes into products of primes
+CFRACDIR = $(CILDIR)/../bench/colorado/cfrac
+cfrac: $(EXECUTABLE)$(EXE) $(SAFECLIB) $(SAFECMAINLIB)
+	-rm $(CFRACDIR)/*.o
+	-rm $(CFRACDIR)/cfrac
+	make -C $(CFRACDIR) \
+	  CC="$(SAFECC) --keep=$(CFRACDIR)" \
+	  LD="$(SAFECC) --keep=$(CFRACDIR)"
+	csh -c "time $(CFRACDIR)/cfrac 327905606740421458831903"
+
+comcfrac: $(EXECUTABLE)$(EXE) $(SAFECLIB) $(SAFECMAINLIB)
+	-rm $(CFRACDIR)/*.o
+	-rm $(CFRACDIR)/cfrac
+	make -C $(CFRACDIR) \
+	  CC="$(SAFECC) --combine --keep=$(CFRACDIR)" \
+	  LD="$(SAFECC) --combine --keep=$(CFRACDIR)"
+	csh -c "time $(CFRACDIR)/cfrac 327905606740421458831903"
 
 
 HUFFCOMPILE=$(SAFECC) $(DEF)NOVARARG --combine --keep=. 

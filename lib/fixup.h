@@ -75,6 +75,13 @@
 #define calloc_fseq calloc
 #endif
 
+#if !defined(BEFOREBOX)
+  // if some code calls explicit_gc, but we're not boxing, then
+  // we won't link safec{debug,}lib.a either; so let's provide
+  // a dummy definition of this fn
+  static inline int explicit_gc() { return 0; }
+#endif
+
 
 // Add some prototypes for the built in fucntions
 #ifdef _MSVC
