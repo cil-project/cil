@@ -35,7 +35,7 @@
 
 
 (** OCaml types used to represent wide characters and strings *)
-type wchar = Int64.t
+type wchar = Int64.int64
 type wstring = wchar list
 
 
