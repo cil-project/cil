@@ -125,29 +125,29 @@ let rec theMain () =
   in
   (*********** COMMAND LINE ARGUMENTS *****************)
   let argDescr = [
-    "-verbose", Arg.Unit (fun _ -> E.verboseFlag := true),
+    "--verbose", Arg.Unit (fun _ -> E.verboseFlag := true),
                 "turn of verbose mode";
-    "-debug", Arg.String (setDebugFlag true),
+    "--debug", Arg.String (setDebugFlag true),
                      "<xxx> turns on debugging flag xxx";
-    "-flush", Arg.Unit (fun _ -> Pretty.flushOften := true),
+    "--flush", Arg.Unit (fun _ -> Pretty.flushOften := true),
                      "Flush the output streams often (aids debugging)" ;
-    "-check", Arg.Unit (fun _ -> Util.doCheck := true),
+    "--check", Arg.Unit (fun _ -> Util.doCheck := true),
                      "turns on consistency checking of CIL";
-    "-nocheck", Arg.Unit (fun _ -> Util.doCheck := false),
+    "--nocheck", Arg.Unit (fun _ -> Util.doCheck := false),
                      "turns off consistency checking of CIL";
-    "-logcalls", Arg.Unit (fun _ -> Util.logCalls := true),
+    "--logcalls", Arg.Unit (fun _ -> Util.logCalls := true),
                      "turns on generation of code to log function calls in CIL";
-    "-logwrites", Arg.Unit (fun _ -> Util.logWrites := true),
+    "--logwrites", Arg.Unit (fun _ -> Util.logWrites := true),
                      "turns on generation of code to log memory writes in CIL";
 		"-heapify", Arg.Unit (fun _ -> heapify := true),
 					"apply the `heapify' transformation";
 		"-stackguard", Arg.Unit (fun _ -> stackguard := true),
 					"apply the `stackguard' transformation";
-    "-nodebug", Arg.String (setDebugFlag false), 
+    "--nodebug", Arg.String (setDebugFlag false), 
                       "<xxx> turns off debugging flag xxx";
-    "-testcil", Arg.String (fun s -> testcil := s), 
+    "--testcil", Arg.String (fun s -> testcil := s), 
           "test CIL using the give compiler";
-    "-log", Arg.String openLog, "the name of the log file";
+    "--log", Arg.String openLog, "the name of the log file";
     "-o", Arg.String outFile, "the name of the output CIL file";
 
     "-keep", Arg.Unit (fun _ -> keepFiles := true), "Keep intermediate files";
@@ -155,19 +155,19 @@ let rec theMain () =
                                 F.setMSVCMode ()),
              "Produce MSVC output. Default is GNU";
     (* sm: the next two lines appeared twice?! *)
-    "-keepunused", Arg.Unit (fun _ -> Rmtmps.keepUnused := true),
+    "--keepunused", Arg.Unit (fun _ -> Rmtmps.keepUnused := true),
                 "do not remove the unused variables and types";
 
-    "-noPrintLn", Arg.Unit (fun _ -> Cil.printLn := false;
+    "--noPrintLn", Arg.Unit (fun _ -> Cil.printLn := false;
                                      Cprint.printLn := false),
                "don't output #line directives";
-    "-commPrintLn", Arg.Unit (fun _ -> Cil.printLnComment := true;
+    "--commPrintLn", Arg.Unit (fun _ -> Cil.printLnComment := true;
                                        Cprint.printLnComment := true),
                "output #line directives in comments";
     (* sm: some more debugging options *)
-    "-tr",         Arg.String Trace.traceAddMulti,
+    "--tr",         Arg.String Trace.traceAddMulti,
                      "<sys>: subsystem to show debug printfs for";
-    "-pdepth",     Arg.Int setTraceDepth,
+    "--pdepth",     Arg.Int setTraceDepth,
                       "<n>: set max print depth (default: 5)";
   ] @ F.args in
   begin

@@ -66,3 +66,6 @@ CCURED
 
  - turning interface char* into ROSTRING is unsound. This is done even when
    the item is subject to writes. 
+
+ - printf is not quite safe. If we do not manage to verify statically the
+   arguments we should be calling a wrapper. Do we do that? 

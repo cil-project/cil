@@ -4,7 +4,9 @@
 # Debugging. Set ECHO= to debug this Makefile 
 ECHO = @
 
-
+ifdef RELEASE
+  NATIVECAML := 1
+endif
 
 SOURCEDIRS  = src src/frontc
 OBJDIR      = obj
