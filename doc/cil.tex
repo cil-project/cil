@@ -2619,6 +2619,10 @@ Necula}.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf June 23, 2003}: In Rmtmps module, simplified the API for
+  customizing the root set.  Clients may supply a predicate that
+  returns true for each root global.  Modifying various
+  ``\texttt{referenced}'' fields directly is no longer supported.
 \item {\bf May 30, 2003}: Released the regression tests. 
 \item {\bf May 28, 2003}: {\bf Released version 1.1.2}
 \item {\bf May 26, 2003}: Add the \t{simplify} module that compiles CIL

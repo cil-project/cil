@@ -12,43 +12,46 @@ module H = Hashtbl
 
 
 let sliceFile (f:file) (epicenter:string) (maxHops:int) : unit =
-  let markRoots f =
-    (* compute the static call graph *)
-    let graph:callgraph = (computeGraph f) in
+  (* compute the static call graph *)
+  let graph:callgraph = (computeGraph f) in
 
-    (* will accumulate here the set of names of functions already seen *)
-    let seen: (string, unit) H.t = (H.create 117) in
+  (* will accumulate here the set of names of functions already seen *)
+  let seen: (string, unit) H.t = (H.create 117) in
 
-    (* recursive depth-first search through the call graph, finding
-     * all nodes within 'hops' hops of 'node' and marking them to
-     * to be retained *)
-    let rec dfs (node:callnode) (hops:int) : unit =
-      (* only recurse if we haven't already marked this node *)
-      if not (H.mem seen node.cnInfo.vname) then
-	begin
-          (* add this node *)
-	  H.add seen node.cnInfo.vname ();
-	  node.cnInfo.vreferenced <- true;
-	  trace "epicenter" (dprintf "will keep %s\n" node.cnInfo.vname);
-	  
-          (* if we cannot do any more hops, stop *)
-	  if (hops > 0) then
-
-            (* recurse on all the node's callers and callees *)
-	    let recurse (adjName:string) (adjacent:callnode) : unit =
-	      (dfs adjacent (hops - 1)) in
-	    Hashtbl.iter recurse node.cnCallees;
-	    Hashtbl.iter recurse node.cnCallers
-	end
-    in
-    dfs (Hashtbl.find graph epicenter) maxHops;
+  (* when removing "unused" symbols, keep all seen functions *)
+  let isRoot : global -> bool = function
+    | GFun ({svar = {vname = vname}}, _) ->
+	H.mem seen vname
+    | _ ->
+	false
   in
 
-  (* finally, since the previous step retained all types but there could
-   * now be many types which are never used, make a rmtmps pass to
-   * throw away unused types *)
+  (* recursive depth-first search through the call graph, finding
+   * all nodes within 'hops' hops of 'node' and marking them to
+   * to be retained *)
+  let rec dfs (node:callnode) (hops:int) : unit =
+    (* only recurse if we haven't already marked this node *)
+    if not (H.mem seen node.cnInfo.vname) then
+      begin
+        (* add this node *)
+	H.add seen node.cnInfo.vname ();
+	trace "epicenter" (dprintf "will keep %s\n" node.cnInfo.vname);
+	
+        (* if we cannot do any more hops, stop *)
+	if (hops > 0) then
+
+          (* recurse on all the node's callers and callees *)
+	  let recurse (adjName:string) (adjacent:callnode) : unit =
+	    (dfs adjacent (hops - 1)) in
+	  Hashtbl.iter recurse node.cnCallees;
+	  Hashtbl.iter recurse node.cnCallers
+      end
+  in
+  dfs (Hashtbl.find graph epicenter) maxHops;
+
+  (* finally, throw away anything we haven't decided to keep *)
   Util.sliceGlobal := true;
-  Rmtmps.removeUnusedTemps ~markRoots:markRoots f
+  Rmtmps.removeUnusedTemps ~isRoot:isRoot f
 
 let doEpicenter = ref false
 let epicenterName = ref ""

@@ -40,11 +40,14 @@
 (* implementation for rmtmps.mli *)
 
 open Pretty
-open Trace
 open Cil
 module H = Hashtbl
 module E = Errormsg
 module U = Util
+
+
+
+let trace = Trace.trace "rmtmps"
 
 
 
@@ -56,31 +59,32 @@ module U = Util
 
 
 let clearReferencedBits file =
-  let considerGlobal = function
+  let considerGlobal global =
+    match global with
     | GType (info, _) ->
-	trace "usedType" (dprintf "clearing mark: typedef %s\n" info.tname);
+	trace (dprintf "clearing mark: %a\n" d_shortglobal global);
 	info.treferenced <- false
 
     | GEnumTag (info, _)
     | GEnumTagDecl (info, _) ->
-	trace "usedType" (dprintf "clearing mark: enum %s\n" info.ename);
+	trace (dprintf "clearing mark: %a\n" d_shortglobal global);
 	info.ereferenced <- false
 
     | GCompTag (info, _)
     | GCompTagDecl (info, _) ->
-	trace "usedType" (dprintf "clearing mark: compound %s\n" info.cname);
+	trace (dprintf "clearing mark: %a\n" d_shortglobal global);
 	info.creferenced <- false
 
     | GVar ({vname = name} as info, _, _)
     | GVarDecl ({vname = name} as info, _) ->
-	trace "usedGlobal" (dprintf "clearing mark: global %s\n" name);
+	trace (dprintf "clearing mark: %a\n" d_shortglobal global);
 	info.vreferenced <- false
 
     | GFun ({svar = info} as func, _) ->
-	trace "usedGlobal" (dprintf "clearing mark: global fun %s\n" info.vname);
+	trace (dprintf "clearing mark: %a\n" d_shortglobal global);
 	info.vreferenced <- false;
 	let clearMark local =
-	  trace "usedLocal" (dprintf "clearing mark: local %s\n" local.vname);
+	  trace (dprintf "clearing mark: local %s\n" local.vname);
 	  local.vreferenced <- false
 	in
 	List.iter clearMark func.slocals
@@ -228,7 +232,7 @@ let amputateFunctionBodies keptGlobals file =
   let considerGlobal = function
     | GFun ({svar = {vname = name} as info}, location)
       when not (H.mem keptGlobals name) ->
-	trace "usedGlobal" (dprintf "slicing: reducing to prototype: function %s\n" name);
+	trace (dprintf "slicing: reducing to prototype: function %s\n" name);
 	GVarDecl (info, location)
     | other ->
 	other
@@ -244,58 +248,40 @@ let amputateFunctionBodies keptGlobals file =
  *)
 
 
-let markPragmaRoots keepers file =
-
-  (* check each global against the appropriate "keep" list *)
-  let considerGlobal global =
-    match global with
-    | GType ({tname = name} as info, _) ->
-	if H.mem keepers.typedefs name then
-	  begin
-	    trace "usedType" (dprintf "marking root (pragma): typedef %s\n" name);
-	    info.treferenced <- true
-	  end
-    | GEnumTag ({ename = name} as info, _)
-    | GEnumTagDecl ({ename = name} as info, _) ->
-	if H.mem keepers.enums name then
-	  begin
-	    trace "usedType" (dprintf "marking root (pragma): enum %s\n" name);
-	    info.ereferenced <- true
-	  end
-    | GCompTag ({cname = name; cstruct = structure} as info, _)
-    | GCompTagDecl ({cname = name; cstruct = structure} as info, _) ->
-	let collection = if structure then keepers.structs else keepers.unions in
-	if H.mem collection name then
-	  begin
-	    trace "usedType" (dprintf "marking root (pragma): compound %s\n" name);
-	    info.creferenced <- true
-	  end
-    | GVar ({vname = name} as info, _, _)
-    | GVarDecl ({vname = name} as info, _)
-    | GFun ({svar = {vname = name} as info}, _) ->
-	if H.mem keepers.defines name then
-	  begin
-	    trace "usedGlobal" (dprintf "marking root (pragma): global %s\n" name);
-	    info.vreferenced <- true
-	  end
-    | _ ->
-	()
-  in
-  iterGlobals file considerGlobal
+let isPragmaRoot keepers = function
+  | GType ({tname = name} as info, _) ->
+      H.mem keepers.typedefs name
+  | GEnumTag ({ename = name} as info, _)
+  | GEnumTagDecl ({ename = name} as info, _) ->
+      H.mem keepers.enums name
+  | GCompTag ({cname = name; cstruct = structure} as info, _)
+  | GCompTagDecl ({cname = name; cstruct = structure} as info, _) ->
+      let collection = if structure then keepers.structs else keepers.unions in
+      H.mem collection name
+  | GVar ({vname = name} as info, _, _)
+  | GVarDecl ({vname = name} as info, _)
+  | GFun ({svar = {vname = name} as info}, _) ->
+      H.mem keepers.defines name
+  | _ ->
+      false
 
 
 
 (***********************************************************************
  *
- *  Common root marking utilities
+ *  Common root collecting utilities
  *
  *)
 
 
-let mark (why: string) info =
-  trace "usedGlobal" 
-    (dprintf "marking root (%s): global %s\n" why info.vname);
-  info.vreferenced <- true
+let traceRoot reason global =
+  trace (dprintf "root (%s): %a@!" reason d_shortglobal global);
+  true
+
+
+let traceNonRoot reason global =
+  trace (dprintf "non-root (%s): %a@!" reason d_shortglobal global);
+  false
 
 
 let hasExportingAttribute funvar =
@@ -305,6 +291,7 @@ let hasExportingAttribute funvar =
     | _ -> false
   in
   List.exists isExportingAttribute funvar.vattr
+
 
 
 (***********************************************************************
@@ -323,30 +310,28 @@ let hasExportingAttribute funvar =
  * - functions bearing a "constructor" or "destructor" attribute
  *)
 
-let markExportedRoots file =
-  let considerGlobal = function
-    | GVar ({vstorage = storage} as info, _, _)
-      when storage != Static ->
-	mark "non-static" info
-    | GFun ({svar = v} as fundec, _) ->
-        let keep = 
-          if hasExportingAttribute v then
-            true
-          else if v.vstorage = Extern then (* Keep all extern functions *)
-            true
-          else if v.vstorage = Static then (* Do not keep static functions *)
-            false
-          else if v.vinline then (* Do not keep inline functions, unless they 
-                                  * are Extern also *)
-            false
-          else
-            true (* Keep the others *)
-        in
-        if keep then mark "non-static" v
-    | _ ->
-	()
+let isExportedRoot global =
+  let result = match global with
+  | GVar ({vstorage = storage}, _, _) as global
+    when storage != Static ->
+      true
+  | GFun ({svar = v} as fundec, _) as global ->
+      if hasExportingAttribute v then
+        true
+      else if v.vstorage = Extern then (* Keep all extern functions *)
+        true
+      else if v.vstorage = Static then (* Do not keep static functions *)
+        false
+      else if v.vinline then (* Do not keep inline functions, unless they 
+                              * are Extern also *)
+        false
+      else
+        true
+  | global ->
+      false
   in
-  iterGlobals file considerGlobal
+  trace (dprintf "exported root -> %b for %a@!" result d_shortglobal global);
+  result
 
 
 
@@ -362,18 +347,18 @@ let markExportedRoots file =
  * retained in a complete program.
  *)
 
-let markCompleteProgramRoots file =
-  let considerGlobal = function
-    | GFun ({svar = {vname = "main"; vstorage = vstorage} as info}, _) ->
-	if vstorage <> Static then mark "non-static" info
-    | GFun (fundec, _)
-      when hasExportingAttribute fundec.svar ->
-	mark "non-static" fundec.svar
-    | _ ->
-	()
+let isCompleteProgramRoot global =
+  let result = match global with
+  | GFun ({svar = {vname = "main"; vstorage = vstorage} as info}, _) ->
+      vstorage <> Static
+  | GFun (fundec, _)
+    when hasExportingAttribute fundec.svar ->
+      true
+  | _ ->
+      false
   in
-  iterGlobals file considerGlobal
-
+  trace (dprintf "complete program root -> %b for %a@!" result d_shortglobal global);
+  result
 
 
 (***********************************************************************
@@ -387,30 +372,48 @@ let markCompleteProgramRoots file =
 class markReachableVisitor globalMap = object (self)
   inherit nopCilVisitor
 
+  method vglob = function
+    | GType (typeinfo, _) ->
+	typeinfo.treferenced <- true;
+	DoChildren
+    | GCompTag (compinfo, _)
+    | GCompTagDecl (compinfo, _) ->
+	compinfo.creferenced <- true;
+	DoChildren
+    | GEnumTag (enuminfo, _)
+    | GEnumTagDecl (enuminfo, _) ->
+	enuminfo.ereferenced <- true;
+	DoChildren
+    | GVar (varinfo, _, _)
+    | GVarDecl (varinfo, _)
+    | GFun ({svar = varinfo}, _) ->
+	varinfo.vreferenced <- true;
+	DoChildren
+    | _ ->
+	SkipChildren
+
   method vvrbl v =
     if not v.vreferenced then
       begin
-	v.vreferenced <- true;
-	
 	let name = v.vname in
 	if v.vglob then
-	  trace "usedGlobal" (dprintf "marking transitive use: global %s\n" name)
+	  trace (dprintf "marking transitive use: global %s\n" name)
 	else
-	  trace "usedLocal" (dprintf "marking transitive use: local %s\n" name);
+	  trace (dprintf "marking transitive use: local %s\n" name);
 	
         (* If this is a global, we need to keep everything used in its
 	 * definition and declarations. *)
 	if v.vglob then
 	  begin
-	    trace "usedGlobal" (dprintf "descending: global %s\n" name);
+	    trace (dprintf "descending: global %s\n" name);
 	    let descend global =
 	      ignore (visitCilGlobal (self :> cilVisitor) global)
 	    in
 	    let globals = Hashtbl.find_all globalMap name in
 	    List.iter descend globals
-	  end;
-	
-	v.vreferenced <- true
+	  end
+	else
+	  v.vreferenced <- true;
       end;
     SkipChildren
 
@@ -427,7 +430,7 @@ class markReachableVisitor globalMap = object (self)
 	  let old = e.ereferenced in
 	  if not old then
 	    begin
-	      trace "usedType" (dprintf "marking transitive use: enum %s\n" e.ename);
+	      trace (dprintf "marking transitive use: enum %s\n" e.ename);
 	      e.ereferenced <- true;
 	      visitAttrs attrs;
 	      visitAttrs e.eattr
@@ -438,7 +441,7 @@ class markReachableVisitor globalMap = object (self)
 	  let old = c.creferenced in
           if not old then
             begin
-	      trace "usedType" (dprintf "marking transitive use: compound %s\n" c.cname);
+	      trace (dprintf "marking transitive use: compound %s\n" c.cname);
 	      c.creferenced <- true;
 
               (* to recurse, we must ask explicitly *)
@@ -453,7 +456,7 @@ class markReachableVisitor globalMap = object (self)
 	  let old = ti.treferenced in
           if not old then
 	    begin
-	      trace "usedType" (dprintf "marking transitive use: typedef %s\n" ti.tname);
+	      trace (dprintf "marking transitive use: typedef %s\n" ti.tname);
 	      ti.treferenced <- true;
 	      
 	      (* recurse deeper into the type referred-to by the typedef *)
@@ -474,7 +477,7 @@ class markReachableVisitor globalMap = object (self)
 end
 
 
-let markReachable file =
+let markReachable file isRoot =
   (* build a mapping from global names back to their definitions & declarations *)
   let globalMap = Hashtbl.create 137 in
   let considerGlobal global =
@@ -490,19 +493,17 @@ let markReachable file =
 
   (* mark everything reachable from the global roots *)
   let visitor = new markReachableVisitor globalMap in
-  let considerGlobal global =
-    match global with
-    | GType ({treferenced = true}, _)
-    | GEnumTag ({ereferenced = true}, _)
-    | GCompTag ({creferenced = true}, _)
-    | GVar ({vreferenced = true}, _, _)
-    | GFun ({svar = {vreferenced = true}}, _)
-    | GPragma _ ->
+  let visitIfRoot global =
+    if isRoot global then
+      begin
+	trace (dprintf "traversing root global: %a\n" d_shortglobal global);
 	ignore (visitCilGlobal visitor global)
-    | _ ->
-	()
+      end
+    else
+      trace (dprintf "skipping non-root global: %a\n" d_shortglobal global)
   in
-  iterGlobals file considerGlobal
+  iterGlobals file visitIfRoot
+
 
 (**********************************************************************
  *
@@ -616,21 +617,18 @@ let uninteresting =
 let removeUnmarked file =
   let removedLocals = ref [] in
   
-  let filterGlobal = function
-    (* unused global types are simply removed *)
-    | GType ({treferenced = false; tname = name}, _)
-    | GCompTag ({creferenced = false; cname = name}, _)
-    | GCompTagDecl ({creferenced = false; cname = name}, _)
-    | GEnumTag ({ereferenced = false; ename = name}, _)
-    | GEnumTagDecl ({ereferenced = false; ename = name}, _) ->
-	trace "usedType" (dprintf "removing type: %s\n" name);
-	false
-
-    (* unused global variables and functions are simply removed *)
-    | GVar ({vreferenced = false; vname = name}, _, _)
-    | GVarDecl ({vreferenced = false; vname = name}, _)
-    | GFun ({svar = {vreferenced = false; vname = name}}, _) ->
-	trace "usedGlobal" (dprintf "removing global: %s\n" name);
+  let filterGlobal global =
+    match global with
+    (* unused global types, variables, and functions are simply removed *)
+    | GType ({treferenced = false}, _)
+    | GCompTag ({creferenced = false}, _)
+    | GCompTagDecl ({creferenced = false}, _)
+    | GEnumTag ({ereferenced = false}, _)
+    | GEnumTagDecl ({ereferenced = false}, _)
+    | GVar ({vreferenced = false}, _, _)
+    | GVarDecl ({vreferenced = false}, _)
+    | GFun ({svar = {vreferenced = false}}, _) ->
+	trace (dprintf "removing global: %a\n" d_shortglobal global);
 	false
 
     (* retained functions may wish to discard some unused locals *)
@@ -640,7 +638,7 @@ let removeUnmarked file =
 	    begin
 	      (* along the way, record the interesting locals that were removed *)
 	      let name = local.vname in
-	      trace "usedLocal" (dprintf "removing local: %s\n" name);
+	      trace (dprintf "removing local: %s\n" name);
 	      if not (Str.string_match uninteresting name 0) then
 		removedLocals := (func.svar.vname ^ "::" ^ name) :: !removedLocals;
 	    end;
@@ -657,6 +655,7 @@ let removeUnmarked file =
 
     (* all other globals are retained *)
     | _ ->
+	trace (dprintf "keeping global: %a\n" d_shortglobal global);
 	true
   in
   file.globals <- List.filter filterGlobal file.globals;
@@ -670,23 +669,20 @@ let removeUnmarked file =
  *)
 
 
-type rootsMarker = Cil.file -> unit
+type rootsFilter = global -> bool
 
-let defaultRootsMarker = markExportedRoots
+let isDefaultRoot = isExportedRoot
 
 
 let keepUnused = ref false
 
-let rec removeUnusedTemps ?(markRoots : rootsMarker = defaultRootsMarker) file =
-  if !keepUnused || traceActive "disableTmpRemoval" then
-    trace "disableTmpRemoval" (dprintf "temp removal disabled\n")
+let rec removeUnusedTemps ?(isRoot : rootsFilter = isDefaultRoot) file =
+  if !keepUnused || Trace.traceActive "disableTmpRemoval" then
+    Trace.trace "disableTmpRemoval" (dprintf "temp removal disabled\n")
   else
     begin
-      if traceActive "printCilTree" then
+      if Trace.traceActive "printCilTree" then
 	dumpFile defaultCilPrinter stdout file;
-
-      (* begin by clearing all the 'referenced' bits *)
-      clearReferencedBits file;
 
       (* digest any pragmas that would create additional roots *)
       let keepers = categorizePragmas file in
@@ -696,11 +692,14 @@ let rec removeUnusedTemps ?(markRoots : rootsMarker = defaultRootsMarker) file =
 	amputateFunctionBodies keepers.defines file;
 
       (* build up the root set *)
-      markPragmaRoots keepers file;
-      markRoots file;
+      let isRoot global =
+	isPragmaRoot keepers global ||
+	isRoot global
+      in
 
       (* mark everything reachable from the global roots *)
-      markReachable file;
+      clearReferencedBits file;
+      markReachable file isRoot;
 
       (* take out the trash *)
       let removedLocals = removeUnmarked file in

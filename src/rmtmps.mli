@@ -45,37 +45,37 @@
 
 
 (* Some clients may wish to augment or replace the standard strategy
- * for marking reachable roots.  The optional "markRoots" argument to
- * Rmtmps.removeUnusedTemps grants this flexibility.  If given, it
- * should name a function which will set the appropriate referenced
- * bits on any global symbols which should be treated as retained
- * roots.
+ * for finding the initially reachable roots.  The optional
+ * "isRoot" argument to Rmtmps.removeUnusedTemps grants this
+ * flexibility.  If given, it should name a function which will return
+ * true if a given global should be treated as a retained root.
  * 
- * Function Rmtmps.defaultRootsMarker encapsulates the default root
- * marking logic, which consists of marking those global variables and
- * functions which are visible to the linker and runtime loader.  A
- * client's root marker can call this directly if the goal is to
- * augment rather than replace the standard logic.
+ * Function Rmtmps.isDefaultRoot encapsulates the default root
+ * collection, which consists of those global variables and functions
+ * which are visible to the linker and runtime loader.  A client's
+ * root filter can use this if the goal is to augment rather than
+ * replace the standard logic.  Function Rmtmps.isExportedRoot is an
+ * alternate name for this same function.
  * 
- * Function Rmtmps.markRootsCompleteProgram is an example of an
- * alternate roots marker.  This function assumes that it is operating
- * on a complete program rather than just one object file.  It marks
+ * Function Rmtmps.isCompleteProgramRoot is an example of an alternate
+ * root collection.  This function assumes that it is operating on a
+ * complete program rather than just one object file.  It treats
  * "main()" as a root, as well as any function carrying the
  * "constructor" or "destructor" attribute.  All other globals are
  * candidates for removal, regardless of their linkage.
  * 
  * Note that certain CIL- and CCured-specific pragmas induce
  * additional global roots.  This functionality is always present, and
- * is not subject to replacement by "markRoots".
+ * is not subject to replacement by "filterRoots".
  *)
 
-type rootsMarker = Cil.file -> unit
-val defaultRootsMarker : rootsMarker
-val markCompleteProgramRoots : rootsMarker
+type rootsFilter = Cil.global -> bool
+val isDefaultRoot : rootsFilter
+val isExportedRoot : rootsFilter
+val isCompleteProgramRoot : rootsFilter
 
 (* process a complete Cil file *)
-val removeUnusedTemps: ?markRoots:rootsMarker -> Cil.file -> unit
+val removeUnusedTemps: ?isRoot:rootsFilter -> Cil.file -> unit
 
 
 val keepUnused: bool ref (* Set this to true to turn off this module *)
-
