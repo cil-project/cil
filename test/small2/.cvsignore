@@ -92,3 +92,7 @@ unionassign
 models
 test-bad-tmp*
 alloca2
+poly
+getpwnam
+reply
+

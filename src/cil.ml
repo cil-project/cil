@@ -2785,6 +2785,14 @@ let mapGlobals (fl: file)
       | _ -> E.s (E.bug "mapGlobals: globinit is not a function")
   end)
 
+(* sm: utility *)
+let startsWith (prefix: string) (s: string) : bool =
+(
+  let prefixLen = (String.length prefix) in
+  (String.length s) >= prefixLen &&
+  (String.sub s 0 prefixLen) = prefix
+)
+
 (* wes: I want to see this at the top level *)
 let d_global () = function
   | GFun (fundec, l) ->
@@ -2837,6 +2845,12 @@ let d_global () = function
       (* sm: don't print boxmodels; avoids gcc warnings *)
       if (hasAttribute "boxmodel" vi.vattr) then
         (text ("// omitted boxmodel GDecl " ^ vi.vname ^ "\n"))
+      (* sm: also don't print declarations for gcc builtins *)
+      (* this doesn't do what I want, I don't know why *)
+      else if (startsWith "__builtin_" vi.vname) then (
+        (trace "sm" (dprintf "got here\n"));
+        (text ("// omitted gcc builtin " ^ vi.vname ^ "\n"))
+      )
       else (
         d_line l ++
         (d_videcl () vi)
@@ -2852,8 +2866,7 @@ let d_global () = function
       (* assume anything starting with "box" is ours *)
       (* also don't print the 'combiner' pragma *)
       (* nor 'cilnoremove' *)
-      let suppress = (((String.length an) >= 3) &&
-                      ((String.sub an 0 3) = "box")) ||
+      let suppress = (startsWith "box" an) ||
                      (an = "combiner") ||
                      (an = "cilnoremove") in
       let d =

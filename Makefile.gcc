@@ -38,4 +38,4 @@ AR := ar
 LIBOUT := -rs 
 
 # The system include files to be patched
-PATCH_SYSINCLUDES := stdio.h ctype.h sys/fcntl.h fcntl.h string.h stdarg.h
+PATCH_SYSINCLUDES := stdio.h ctype.h sys/fcntl.h fcntl.h string.h stdarg.h pwd.h

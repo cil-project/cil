@@ -31,6 +31,10 @@ while [ $i -le $numcases ]; do
   # compile this with our tool
   echo $CCURED $CFLAGS test-bad-tmp.c -o test-bad-tmp
   $CCURED $CFLAGS test-bad-tmp.c -o test-bad-tmp
+  status=$?
+  if [ $status != 0 ]; then
+    exit $status
+  fi
 
   # run it
   echo ./test-bad-tmp
@@ -47,6 +51,7 @@ while [ $i -le $numcases ]; do
     if [ $i = 0 ]; then
       # unexpected failure on 0th iteration
       echo "The 0th iteration failed! It is supposed to succeed."
+      #cat test-bad-tmp.c
       exit 2
     else
       # expected failure on >0th iteration

@@ -130,6 +130,8 @@
   #pragma boxvararg_printf("syslog", 2)
   #pragma boxvararg_printf("sprintf", 2)
   #pragma boxvararg_printf("vsprintf", 2)
+  #pragma boxvararg_printf("vprintf", 1)     // sm: for ftpd
+  #pragma boxvararg_printf("vsyslog", 2)     // sm: for ftpd
 
   // We want to force sprintf to carry a length
   #pragma boxvararg("sprintf_model", sizeof(union printf_format))
@@ -164,13 +166,44 @@
   #pragma cilnoremove("strchr_model")
   #pragma boxmodelof("strchr_model", "strchr")
 
-  static inline char *strpbrk_model(char const *s, char const *accept)
+  #if 0
+    // sm: I didn't notice this was here before I wrote the one below..
+    static inline char *strpbrk_model(char const *s, char const *accept)
+    {
+      int someInt = (int)(*accept);   // make sure 'accept' can be read from
+      return s;                       // connect s to retval
+    }
+    #pragma cilnoremove("strpbrk_model")
+    #pragma boxmodelof("strpbrk_model", "strpbrk")
+  #endif // 0
+
+  static inline char *strdup_model(char const *s)
   {
-    int someInt = (int)(*accept);   // make sure 'accept' can be read from
-    return s;                       // connect s to retval
+    char *p;
+    __endof(s);                  // need a length
+    return p;                    // result is unconstrained new value
+  }
+  #pragma cilnoremove("strdup_model")
+  #pragma boxmodelof("strdup_model", "strdup")
+
+  // sm: I cannot force return value to be fseq if 's' is ...
+  static inline char *strpbrk_model(const char *s, const char *accept)
+  {
+    __endof(s);          // s must be searchable
+    __endof(accept);     // also accept
+    return s;            // return points into 's'
   }
   #pragma cilnoremove("strpbrk_model")
   #pragma boxmodelof("strpbrk_model", "strpbrk")
+
+  static inline char *strtok_model(char *s, char const *delim)
+  {
+    __endof(s);
+    __endof(delim);
+    return s;
+  }
+  #pragma cilnoremove("strtok_model")
+  #pragma boxmodelof("strtok_model", "strtok")
 
   #pragma boxpoly("memcpy")
   #pragma boxpoly("memset")
@@ -180,6 +213,8 @@
   #pragma boxpoly("read")
   #pragma boxpoly("fread")
   #pragma boxpoly("fwrite")
+  #pragma boxpoly("mmap")      // sm: for ftpd
+  #pragma boxpoly("munmap")    // sm: for ftpd
 
   #pragma boxpoly("memset_seq_model")
   static inline
@@ -201,7 +236,7 @@
     dest = src; // Make sure they are both have the same type
     return dest;
   }
-  #pragma boxmodelof("memcpy_seq_model", "memcpy", "memmove", "__builtin__memcpy")
+  #pragma boxmodelof("memcpy_seq_model", "memcpy", "memmove", "__builtin_memcpy")
   #pragma cilnoremove("memcpy_seq_model")
 
 
