@@ -719,7 +719,7 @@ let ptrAttrCustom printnode = function
     | AId("wildt") -> Some (text "__WILDT")
     | AId("stack") -> Some (text "__STACK")
     | AId("opt") -> Some (text "__OPT")
-    | AId("string") -> Some (text "__STRING")
+    | AId("string") -> Some (text "__RWSTRING")
     | AId("rostring") -> Some (text "__ROSTRING")
     | AId("sized") -> Some (text "__SIZED")
     | AId("tagged") -> Some (text "__TAGGED")

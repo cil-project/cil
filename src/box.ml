@@ -10,7 +10,6 @@ module N = Ptrnode
 let debugType = false
 let debug = false
 
-let checkReturn = true
 
 let interceptCasts = ref false  (* If true it will insert calls to 
                                  * __scalar2pointer when casting scalars to 
@@ -561,7 +560,7 @@ let checkNullFun =
 let checkSafeRetFatFun = 
   let fdec = emptyFunction "CHECK_SAFERETFAT" in
   let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
+  let argb  = makeLocalVar fdec "isptr" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
@@ -744,15 +743,15 @@ let checkFatPointerWrite =
 let checkFatStackPointer = 
   let fdec = emptyFunction "CHECK_FATSTACKPOINTER" in
   let argb  = makeLocalVar fdec "b" voidPtrType in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argp  = makeLocalVar fdec "isptr" voidPtrType in
   fdec.svar.vtype <- 
      TFun(voidType, [ argp; argb; ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
   
-  fun whatp whatbase -> 
+  fun whatp nullIfInt -> 
     call None (Lval(var fdec.svar))
-      [ castVoidStar whatbase; castVoidStar whatp;]
+      [ castVoidStar whatp; castVoidStar nullIfInt;]
   
 
 let checkLeanStackPointer = 
@@ -1125,14 +1124,6 @@ let arrayPointerToIndex (t: typ)
   
 
 
-   (* Test if we must check the return value *)
-let mustCheckReturn tret =
-   checkReturn &&
-   match unrollType tret with
-    TPtr _ -> true
-   | TArray _ -> true
-   | _ -> isFatType tret
-
 
    (* Test if we have changed the type *)
 let rec typeContainsFats t =
@@ -1337,15 +1328,15 @@ let checkZeroTags base lenExp lv t =
         SizeOf(lv't); offexp ] 
   with Not_found -> 
     mkEmptyStmt ()
-  
+
+(*  
 let doCheckFat which arg argt = 
-  (* Take the argument and break it apart *)
-  let (_, ptr, base, _) = readFieldsOfFat arg argt in 
+  let (_, ptr, base, end) = readFieldsOfFat arg argt in 
+  match kindOfType argt with
+    N.FSeq | N.FSeqN 
   call None (Lval(var which.svar)) [ castVoidStar ptr; 
                                      castVoidStar base; ]
-
-let doCheckLean which arg  = 
-  call None (Lval(var which.svar)) [ castVoidStar arg; ]
+*)
 
 
 
@@ -2109,17 +2100,50 @@ let checkRead = checkMem None
 let checkWrite e = checkMem (Some e)
 
 
-(********** Initialize variables ***************)
-let rec allScalarType t = 
-  match unrollType t with
-    TVoid _ -> false
-  | TInt _ | TBitfield _ | TFloat _ | TEnum _ -> true
-  | TPtr _ -> false
-  | TArray(t,_,_) -> allScalarType t
-  | TComp c -> List.for_all (fun fi -> allScalarType fi.ftype) c.cfields
-  | TFun _ -> false
-  | _ -> E.s (E.unimp "allScalarType %a" d_type t)
 
+(***** Check the return value *)
+let rec checkReturnValue 
+    (typ: typ) 
+    (e: exp)
+    (acc: stmt list) : 
+
+    (* Return the accumulated statements *)
+    stmt list = 
+  match unrollType typ with
+    TInt _ | TBitfield _ | TEnum _ | TFloat _ | TVoid _ -> acc
+  | TPtr (t, _) -> 
+      (* This is a lean pointer *) 
+      checkLeanStackPointer e :: acc
+
+  | TComp comp when isFatComp comp -> 
+      let ptype, ptr, fb, fe = readFieldsOfFat e typ in
+      (* Get the component that is null if an integer *)
+      let nullIfInt = 
+        match kindOfType ptype with
+          N.Wild|N.Index|N.Seq|N.SeqN -> fb
+        | N.FSeq|N.FSeqN -> fe
+        | _ -> E.s (E.unimp "checkReturn: unexpected kind of fat type")
+      in
+      checkFatStackPointer ptr nullIfInt :: acc
+
+    (* A regular struct *)                                          
+  | TComp comp when comp.cstruct ->
+      (* Better have an lvalue *)
+      let lv = match e with
+        Lval lv -> lv
+      | _ -> E.s (E.unimp "checkReturnValue: return comp not an lval")
+      in
+      List.fold_left 
+        (fun acc f -> 
+          checkReturnValue f.ftype 
+            (Lval (addOffsetLval (Field(f, NoOffset)) lv)) acc)
+        acc
+        comp.cfields
+        
+  | _ -> E.s (E.unimp "checkReturnValue: type\n")
+      
+
+(********** Initialize variables ***************)
 let rec initializeType
     (t: typ)   (* The type of the lval to initialize *)
     (withivar: (varinfo -> 'a) -> 'a) (* Allocate temporarily an iteration 
@@ -2276,7 +2300,6 @@ let rec initializeType
 
     
     
-
 
 (* Create and accumulate the initializer for a variable *)
 let initializeVar (withivar: (varinfo -> 'a) -> 'a) (* Allocate an iteration 
@@ -2450,7 +2473,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
   (* And the base, if necessary *)
   let assign_base = 
     match k with 
-      N.Wild | N.Seq | N.SeqN | N.FSeq | N.FSeqN | N.Index -> begin
+      N.Wild | N.Seq | N.SeqN | N.Index -> begin
         let fptr, fbaseo, fendo = getFieldsOfFat vi.vtype in
         match fbaseo with
           Some fbase -> (mkSet (Var vi, Field(fbase, NoOffset))
@@ -2532,7 +2555,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
         in
         let initializeAll = 
           if initone = [] then 
-            [ mkSet (var tmpp) theend ]
+            [ mkSet (var tmpp) (doCast theend ptrtype) ]
           else 
             mkFor 
               ~start:[mkEmptyStmt ()]
@@ -2675,14 +2698,9 @@ and boxstmt (s: Cil.stmt) : block =
         let (doe', e') = boxexpf e in
         let (doe'', e'') = castTo e' retType doe' in
         let (et, doe2, e2) = fexp2exp e'' doe'' in
-        let doe'' =
-          if mustCheckReturn retType then
-            doe2 @ [doCheckFat checkSafeRetFatFun e2 et]
-          else
-            doe2
-        in
+        let doe3 = checkReturnValue et e2 doe2 in
         s.skind <- Instr [];  
-        s :: doe'' @ [ unregisterStmt (); mkStmt (Return (Some e2, l)) ]
+        s :: doe3 @ [ unregisterStmt (); mkStmt (Return (Some e2, l)) ]
                       
     | Loop (b, l) -> 
         s.skind <- Loop (boxblock b, l);
@@ -2756,10 +2774,11 @@ and boxinstr (ins: instr) : stmt list =
                   let (at, doa, a') = boxexp a in
                   let (doresta, resta') = doArgs resta in
                   let (checka, a'') = 
-                    if isFatType at then 
-                      ([doCheckFat checkSafeFatLeanCastFun a' at],
+                    (* Disable this check for now. 
+                    if false && isFatType at then 
+                      ([doCheckFatIfPtr checkSafeFatLeanCastFun a' at],
                        readPtrField a' at)
-                    else ([], a')
+                    else *) ([], a')
                   in
                   (doa @ checka @ doresta, a'' :: resta')
             in
