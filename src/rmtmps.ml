@@ -438,6 +438,10 @@ let uninteresting =
   let names = [
     (* Cil.makeTempVar *)
     "tmp";
+    
+    (* sm: I don't know where it comes from but these show up all over. *)
+    (* this doesn't seem to do what I wanted.. *)
+    "iter";
 
     (* various macros in glibc's <bits/string2.h> *)		   
     "__result";
