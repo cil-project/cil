@@ -1453,12 +1453,13 @@ LINUX_TOPATCH := asm/uaccess.h asm/atomic.h asm/bitops.h \
 	         asm/current.h asm/string.h \
                  linux/config.h linux/list.h
 linuxsetup:
-	$(PATCHER)  -D MODULE -D _KERNEL_ -I /usr/src/linux/include \
+	$(PATCHER)  -D MODULE -D __KERNEL__ -I /usr/src/linux/include \
                     --patch=test/linux/linux.patch \
                     --dest=$(LINUX_INCLUDES) \
 	            $(foreach file,$(LINUX_TOPATCH), --sfile=$(file))
 
-LINUXPATCH := $(STANDARDPATCH) --includedir=$(LINUX_INCLUDES)
+LINUXPATCH := $(STANDARDPATCH) --includedir=$(LINUX_INCLUDES) \
+	-D FP_FAIL_IS_VERBOSE=1
 
 SBULLDIR := test/sbull
 sbull: mustbegcc mustbelinux
