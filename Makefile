@@ -241,7 +241,7 @@ hashtest: test/small2/hashtest.c $(EXECUTABLE)$(EXE) $(TVEXE)
 	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) \
                  $(DOOPT) \
                  $(INC)$(PCCDIR)/src \
-                 ../small2/hash.c \
+                 $(PCCDIR)/src/hash.c \
                  ../small2/hashtest.c \
                  $(EXEOUT)hashtest.exe
 	$(PCCTEST)/hashtest.exe
@@ -251,10 +251,32 @@ rbtest: test/small2/rbtest.c $(EXECUTABLE)$(EXE) $(TVEXE)
 	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) \
                  $(DOOPT) \
                  $(INC)$(PCCDIR)/src \
-                 ../small2/redblack.c \
+                 $(PCCDIR)/src/redblack.c \
                  ../small2/rbtest.c \
                  $(EXEOUT)rbtest.exe
 	$(PCCTEST)/rbtest.exe
+
+HUFFCOMPILE=$(SAFECC) --keep=. 
+# HUFFCOMPILE=cl /MLd
+ifdef BOX
+HUFFOTHERS="C:$(SAFEMAINLIB)" 
+else
+HUFFOTHERS=
+endif
+hufftest: test/small2/hufftest.c $(EXECUTABLE)$(EXE) $(TVEXE)
+	rm -f $(PCCTEST)/hufftest.exe
+	cd $(PCCTEST); $(HUFFCOMPILE) \
+                 $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) $(DEF)$(PCCCOMP) \
+                 $(DOOPT) \
+                 $(INC)$(PCCDIR)/src \
+                 $(PCCDIR)/src/io.c \
+                 $(PCCDIR)/src/huffman.c \
+                 $(PCCDIR)/src/hash.c \
+                 ../small2/hufftest.c \
+                 $(HUFFOTHERS) \
+                 $(EXEOUT)hufftest.exe
+	cd $(PCCTEST); ./hufftest.exe \
+                             $(SAFECCDIR)/cil/src/frontc/cparser.output
 
 wes-rbtest: test/small2/wes-rbtest.c $(EXECUTABLE)$(EXE) $(TVEXE)
 	rm -f $(PCCTEST)/wes-rbtest.exe
