@@ -1861,9 +1861,6 @@ let invalidStmt = mkStmt (Instr [])
 (** Construct a hash with the builtins *)
 let gccBuiltins : (string, typ * typ list) H.t = 
   let h = H.create 17 in
-  let funType rt argTypes = 
-    TFun(rt, Some (List.map (fun t -> ("", t, [])) argTypes), false, [])
-  in
   (* See if we have builtin_va_list *)
   let hasbva = M.gccHas__builtin_va_list in
   (* When we parse builtin_next_arg we drop the second argument *)
@@ -1873,7 +1870,6 @@ let gccBuiltins : (string, typ * typ list) H.t =
   H.add h "__builtin_fabs" (doubleType, [ doubleType ]);
   let longDouble = TFloat (FLongDouble, []) in
   H.add h "__builtin_fabsl" (longDouble, [ longDouble ]);
-  H.add h "__builtin_memset" (voidPtrType, [ voidPtrType; intType; !typeOfSizeOf ]);
   if hasbva then begin
     H.add h "__builtin_va_end" (voidType, [ TBuiltin_va_list [] ]);
     H.add h "__builtin_varargs_start" (voidType, [ TBuiltin_va_list [] ]);
@@ -5475,6 +5471,7 @@ let initCIL () =
   upointType := TInt(findIkind true !theMachine.M.sizeof_ptr, []);
   kindOfSizeOf := findIkind true !theMachine.M.sizeof_sizeof;
   typeOfSizeOf := TInt(!kindOfSizeOf, []);
+  H.add gccBuiltins "__builtin_memset" (voidPtrType, [ voidPtrType; intType; intType ]);
   wcharKind := findIkind false !theMachine.M.sizeof_wchar;
   wcharType := TInt(!wcharKind, []);
   char_is_unsigned := !theMachine.M.char_is_unsigned;
