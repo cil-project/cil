@@ -763,11 +763,11 @@ is.
  Use {!Cil.mkStmt} to make a statement and the fill-in the fields. 
 
 CIL also comes with support for control-flow graphs. The [sid] field in
-[stmt] can be
-used to give unique numbers to statements, and the [succs] and [preds]
-fields can be used to maintain a list of successors and predeccors for every
-statement. The CFG information is not computed by default. Instead you must 
-explicitly use the function {!Cil.computeCFGInfo} to do it.
+[stmt] can be used to give unique numbers to statements, and the [succs]
+and [preds] fields can be used to maintain a list of successors and
+predeccors for every statement. The CFG information is not computed by
+default. Instead you must explicitly use the functions
+{!Cil.prepareCFGInfo} and {!Cil.computeCFGInfo} to do it.
 
 *)
 (** Statements. *)
@@ -951,8 +951,17 @@ val foldGlobals: file -> ('a -> global -> 'a) -> 'a -> 'a
     in place *)
 val mapGlobals: file -> (global -> global) -> unit
 
+(** Prepare a function for CFG information computation by
+  * {!Cil.computeCFGInfo}. This function converts all [Break], [Switch],
+  * [Default] and [Continue] {!Cil.stmtkind}s and {!Cil.label}s into [If]s
+  * and [Goto]s, giving the function body a very CFG-like character. This
+  * function modifies its argument in place. *)
+val prepareCFG: fundec -> unit
+
 (** Compute the CFG information for all statements in a fundec and return a 
-  * list of the statements *)
+  * list of the statements. The input fundec cannot have [Brake], [Switch], 
+  * [Default], or [Continue] {!Cil.stmtkind}s or {!Cil.label}s. Use
+  * !{Cil.prepareCFG} to transform them away. *)
 val computeCFGInfo: fundec -> stmt list
 
 
