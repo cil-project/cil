@@ -14,6 +14,9 @@ let currentResultType = ref voidType
 
 let boxing = ref true
 
+let useGenerics = ref false
+let genericId   = ref 0
+
 let callId = ref (-1)  (* Each call site gets a new ID *)
 
 let polyId = ref (-1) 
@@ -181,7 +184,43 @@ let startOfNode (n: N.node) : N.node =
     TArray (bt, _, a) -> newOffsetNode n "@first" bt a
   | _ -> n (* It is a function *)
   
+
+(* We will accumulate the marked globals in here *)
+let theFile : global list ref = ref []
     
+
+let addCastEdge (e: exp) (etn: N.node) (desttn : N.node) 
+                (callid: int) : exp = 
+      (* See if it is a cast to or from void * *)
+  let isvoidstar, tovoid = 
+    match etn.N.btype, desttn.N.btype with
+      TVoid _, TVoid _ -> false, false
+    | TVoid _, _ -> true, false
+    | _, TVoid _ -> true, true
+    | _ -> false, false
+  in
+  if isvoidstar && !useGenerics then begin
+(*    ignore (E.log "Found a generic: %a\n" d_exp e); *)
+        (* Now create a new function *)
+    let genericFun =   
+      let fdec = emptyFunction 
+          ("generic" ^ (if tovoid then "put" else "get") ^ 
+           (string_of_int !genericId)) in
+      incr genericId;
+      let argx  = makeLocalVar fdec "x" (TPtr(etn.N.btype, 
+                                              etn.N.attr)) in
+      fdec.svar.vtype <- TFun(TPtr(desttn.N.btype, desttn.N.attr), 
+                              [ argx ], false, []);
+      fdec.svar.vstorage <- Extern;
+      theFile := GDecl (fdec.svar,lu) :: !theFile;
+      fdec
+    in
+    (* Now use the function instead of adding an edge *)
+    e
+  end else begin
+    N.addEdge etn desttn N.ECast callid; 
+    e
+  end
 
 (* Compute the sign of an expression. Extend this to a real constant folding 
  * + the sign rule  *)
@@ -374,7 +413,7 @@ and doOffset (off: offset) (n: N.node) : offset * N.node =
 
   
 (* Now model an assignment of a processed expression into a type *)
-and expToType (e,et,en) t (callid: int) = 
+and expToType (e,et,en) t (callid: int) : exp = 
   let rec isZero = function
       Const(CInt(0, _, _)) -> true
     | CastE(_, e) -> isZero e
@@ -389,15 +428,18 @@ and expToType (e,et,en) t (callid: int) =
   (* ignore (E.log "expToType e=%a (NS=%d) -> TD=%a (ND=%d)\n"
             d_plainexp e etn.N.id d_plaintype t tn.N.id); *)
   match etn == N.dummyNode, tn == N.dummyNode with
-    true, true -> e
+    true, true -> e (* scalar -> scalar *)
   | false, true -> e (* Ignore casts of pointer to non-pointer *)
-  | false, false -> 
-      let edgetype = 
-        if isZero e then begin tn.N.null <- true; N.ENull end else N.ECast in
-      N.addEdge etn tn edgetype callid; 
-      e
-  | true, false -> 
-      (* Cast of non-pointer to a pointer. Check for zero *)
+  | false, false -> (* pointer to pointer *)
+      if isZero e then begin
+        tn.N.null <- true; 
+        N.addEdge etn tn N.ENull callid;
+        e
+      end else 
+        addCastEdge e etn tn callid
+
+  | true, false -> (* scalar -> pointer *)
+      (* Check for zero *)
       (if isZero e then
         tn.N.null <- true
       else if not (isString e) then 
@@ -412,9 +454,6 @@ and doExpAndCastCall e t callid =
   expToType (doExp e) t callid
 
 
-
-(* We will accumulate the marked globals in here *)
-let theFile : global list ref = ref []
 
 let debugInstantiate = false
 
@@ -665,10 +704,10 @@ let rec doStmt (s: stmt) =
         | None, _ -> () (* "Call of function is not assigned" *)
         | Some (destvi, iscast), _ -> 
             (* Short-circuit the cast *)
-            N.addEdge 
-              (nodeOfType rt)
-              (nodeOfType destvi.vtype) 
-              N.ECast !callId  
+            ignore 
+              (addCastEdge 
+                 (Const(CStr("a call return"))) (* this does not matter *)
+                 (nodeOfType rt) (nodeOfType destvi.vtype) !callId)
       end;
       Instr (Call(reso, func', loopArgs formals args), l)
   

@@ -751,6 +751,7 @@ let printGraphStats () =
   let totalNodes = ref 0 in
   (* The number of bad casts *)
   let badCasts = ref 0 in
+  let badCastsVoid = ref 0 in
   (* Keep track of spread_from_edge. For each node how many other nodes have 
    * WILD/spread_from_edge(n).  *)
   let spreadTo : (int, int ref) H.t = H.create 117 in
@@ -760,7 +761,13 @@ let printGraphStats () =
     if n.kind = Wild then begin
       (match n.why_kind with
         SpreadFromEdge(fromn) -> addToHisto spreadTo 1 fromn.id
-      | BadCast _ -> incr badCasts
+      | BadCast e -> 
+          incr badCasts;
+          (match e.efrom.btype, e.eto.btype with
+            TVoid _, _ -> incr badCastsVoid
+          | _, TVoid _ -> incr badCastsVoid
+          | _ -> ())
+
       | _ -> ())
     end
   in
@@ -772,7 +779,8 @@ let printGraphStats () =
                           (float_of_int(!r) 
                              /. float_of_int(!totalNodes) *. 100.0)))
     totKind;
-
+  ignore (E.log "%d bad casts of which %d involved void*\n"
+            !badCasts !badCastsVoid);
   (* Now print the WILD bottlenecks. Places that have many successors in the 
    * spreadToEdge *)
   let spreadsToImmediate = sortHisto spreadTo in

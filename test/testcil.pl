@@ -87,6 +87,7 @@ $TEST->add3Tests("test/bitfield");
 $TEST->add3Tests("test/array1");
 $TEST->add3Tests("test/format1");
 $TEST->add3Tests("test/structassign");
+$TEST->add3Tests("test/voidstar");
 $TEST->add1Test("test/alloc-manualinferbox",
                 "test/alloc INFERBOX=1 MANUALBOX=1",
                 %commonerrors);
