@@ -933,11 +933,11 @@ val foldLeftCompound:
 
 (* ALPHA conversion *)
 (* Create a new name based on a given name. The new name is formed from a 
- * prefix (obtained from the given name as the longest prefix that ends with 
- * a non-digit), followed by a '_' and then by a positive integer suffix. The 
- * first argument is a table mapping name prefixes with the largest suffix 
- * used so far for that prefix. The largest suffix is one when only the 
- * version without suffix has been used. *)
+ * prefix (obtained from the given name by stripping a suffix consisting of _ 
+ * followed by only digits), followed by a '_' and then by a positive integer 
+ * suffix. The first argument is a table mapping name prefixes with the 
+ * largest suffix used so far for that prefix. The largest suffix is one when 
+ * only the version without suffix has been used.  *)
 val newAlphaName: alphaTable:(string, int ref) Hashtbl.t ->
                   lookupname:string -> string
 (* Split the name in preparation for newAlphaName. The prefix returned is 
