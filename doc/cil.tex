@@ -64,7 +64,14 @@
 %----------------------------------------------------------------------
 
 % Make sure that all documents show up in the main frame
-%HEVEA \AtBeginDocument{\@print{<base target="main">}}
+\makeatletter
+\let\oldmeta=\@meta
+\def\@meta{%
+\oldmeta
+\begin{rawhtml}
+<base target="main">
+\end{rawhtml}}
+\makeatother
 
 \begin{document}
 \begin{latexonly}
@@ -2722,6 +2729,7 @@ Necula}.
  
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf January 11, 2005}: {\bf Released version 1.3.2}
 \item {\bf January 11, 2005}: Fixed printing of integer constants whose
   integer kind is shorter than an int. 
 \item {\bf January 11, 2005}: Added checks for negative size arrays and arrays
