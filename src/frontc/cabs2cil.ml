@@ -2838,18 +2838,15 @@ and doExp (isconst: bool)    (* In a constant *)
           | ASet (lv, lvt) -> 
               (* If the cast from typ to lvt would be dropped, then we 
                * continue with a Set *)
-              if typeSig typ = typeSig lvt then 
+              if false && typeSig typ = typeSig lvt then 
                 what
               else
                 AExp None (* We'll create a temporary *)
         in
         (* Remember here if we have done the Set *)
-        let setWasDone = ref false in
         let (se, e', t') = 
           match ie' with
-            A.SINGLE_INIT e -> 
-              setWasDone := true;
-              doExp isconst e what'
+            A.SINGLE_INIT e -> doExp isconst e what'
 
           | A.NO_INIT -> E.s (error "missing expression in cast")
           | A.COMPOUND_INIT _ -> begin
@@ -2888,13 +2885,7 @@ and doExp (isconst: bool)    (* In a constant *)
               let newtyp, newexp = castTo ~fromsource:true t' typ e' in 
               newtyp, newexp
         in
-        let what'' = 
-          match what' with
-            ASet _ when !setWasDone -> AExp None (* We have done the set 
-                                                  * already *)
-          | _ -> what'
-        in
-        finishExp ~newWhat:what'' se e'' t''
+        finishExp se e'' t''
           
     | A.UNARY(A.MINUS, e) -> 
         let (se, e', t) = doExp isconst e (AExp None) in
