@@ -355,7 +355,7 @@ let rec boxstmt (s : stmt) : stmt =
             doe
         in
         mkSeq (doe' @ [Return (Some e')])
-    | Instruction i -> boxinstr i
+    | Instr i -> boxinstr i
   with e -> begin
     ignore (E.log "boxstmt (%s)\n" (Printexc.to_string e));
     dStmt (dprintf "booo_statement(%a)" d_stmt s)
@@ -371,7 +371,7 @@ and boxinstr (ins: instr) =
     | Set (lv, e, l) -> 
         let (rest, dolv, lv', _) = boxlval lv in
         let (_, doe, e') = boxexp e in
-        mkSeq (dolv @ doe @ [Instruction(Set(lv', e', l))])
+        mkSeq (dolv @ doe @ [Instr(Set(lv', e', l))])
 
     | Call(vi, f, args, l) ->
         let (ft, dof, f') = boxexp f in
@@ -427,7 +427,7 @@ and boxinstr (ins: instr) =
         in
         let (doins, inputs') = doInputs inputs in
         mkSeq (doins @ 
-               [Instruction(Asm(tmpls, isvol, outputs, inputs', clobs))])
+               [Instr(Asm(tmpls, isvol, outputs, inputs', clobs))])
             
   with e -> begin
     ignore (E.log "boxinstr (%s)\n" (Printexc.to_string e));
@@ -741,8 +741,8 @@ and castTo (fe: fexp) (newt: typ) (doe: stmt list) : stmt list * fexp =
         if List.length doe < 2 then
           raise Not_found;
         let rec loop = function
-            [ Instruction(Set((Var v, Field(pFld, NoOffset)), p, _));
-              Instruction(Set((Var v', Field(bFld, NoOffset)), _, _)) ] 
+            [ Instr(Set((Var v, Field(pFld, NoOffset)), p, _));
+              Instr(Set((Var v', Field(bFld, NoOffset)), _, _)) ] 
             when v == v' && pFld.fname = "_p" && bFld.fname = "_b" ->
               begin
                 ignore (E.log "castTo: e=%a.@!v=%s\n" d_plainexp e v.vname);

@@ -839,16 +839,16 @@ qual_type:
 |   UNSIGNED				{(NO_TYPE, [BASE_SIGN UNSIGNED])}
 ;
 comp_type:
-    STRUCT type_name	{STRUCT ($2, [])}				
+    STRUCT type_name	{STRUCT $2}				
 |   STRUCT LBRACE field_list RBRACE
-			{STRUCT ("", List.rev $3)}
+			{STRUCTDEF ("", List.rev $3)}
 |   STRUCT type_name LBRACE field_list RBRACE
-			{STRUCT ($2, List.rev $4)}
-|   UNION type_name	{UNION ($2, [])} 
+			{STRUCTDEF ($2, List.rev $4)}
+|   UNION type_name	{UNION $2} 
 |   UNION LBRACE field_list RBRACE			
-			{UNION ("", List.rev $3)}
+			{UNIONDEF ("", List.rev $3)}
 |   UNION type_name LBRACE field_list RBRACE
-			{UNION ($2, List.rev $4)}
+			{UNIONDEF ($2, List.rev $4)}
 |   ENUM type_name
 			{ENUM ($2, [])}					
 |   ENUM LBRACE enum_list maybecomma RBRACE

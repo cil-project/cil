@@ -327,7 +327,7 @@ type expAction =
 
 
 (******** CASTS *********)
-let integralPromotion (t : typ) : typ = (* c.f. K&R A6.1 *)
+let integralPromotion (t : typ) : typ = (* c.f. ISO 6.3.1.1 *)
   match unrollType t with
           (* We assume that an IInt can hold even an IUShort *)
     TInt ((IShort|IUShort|IChar|ISChar|IUChar), a) -> TInt(IInt, a)
@@ -339,7 +339,7 @@ let integralPromotion (t : typ) : typ = (* c.f. K&R A6.1 *)
   | _ -> E.s (E.unimp "integralPromotion")
   
 
-let arithmeticConversion    (* c.f. K&R A6.5 *)
+let arithmeticConversion    (* c.f. ISO 6.3.1.8 *)
     (t1: typ)
     (t2: typ) : typ = 
   let checkToInt _ = () in  (* dummies for now *)
@@ -377,7 +377,7 @@ let arithmeticConversion    (* c.f. K&R A6.5 *)
   end
 
 let conditionalConversion (e2: exp) (t2: typ) (e3: exp) (t3: typ) : typ =
-  let tresult =  (* K&R A7.16 *)
+  let tresult =  (* ISO 6.5.15 *)
     match unrollType t2, unrollType t3 with
       (TInt _ | TEnum _ | TBitfield _ | TFloat _), 
       (TInt _ | TEnum _ | TBitfield _ | TFloat _) -> 
@@ -389,9 +389,9 @@ let conditionalConversion (e2: exp) (t2: typ) (e3: exp) (t3: typ) : typ =
     | TPtr(t2'', _), TPtr(t3'', _) 
           when typeSig t2'' = typeSig t3'' -> t2
     | TPtr(_, _), TInt _ when 
-            (match e3 with Const(CInt(0,_),_) -> true | _ -> false) -> t2
+            (match e3 with Const(CInt(0,_,_),_) -> true | _ -> false) -> t2
     | TInt _, TPtr _ when 
-              (match e2 with Const(CInt(0,_),_) -> true | _ -> false) -> t3
+              (match e2 with Const(CInt(0,_,_),_) -> true | _ -> false) -> t3
     | _, _ -> E.s (E.unimp "A.QUESTION")
   in
   tresult
@@ -410,7 +410,7 @@ let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) =
   | TPtr (told, _), TPtr(tnew, _) -> (nt, CastE(nt, e, lu))
 
   | TInt _, TPtr _ when
-      (match e with Const(CInt(0,_),_) -> true | _ -> false) -> 
+      (match e with Const(CInt(0,_,_),_) -> true | _ -> false) -> 
         (nt, (CastE(nt, e, lu)))
 
   | TInt _, TPtr _ -> (nt, (CastE(nt,e,lu)))
@@ -537,7 +537,7 @@ and doType (a : attribute list) = function
         | _ -> E.s (E.unimp "Base type for bitfield is not an integer type")
       in
       let width = match doExp e (AExp None) with
-        ([], Const(CInt(i,_),_), _) -> i
+        ([], Const(CInt(i,_,_),_), _) -> i
       | _ -> E.s (E.unimp "bitfield width is not an integer")
       in
       TBitfield (ikind, width, a)
@@ -552,29 +552,30 @@ and doType (a : attribute list) = function
       in
       TArray (doType [] bt, lo, a)
 
-  | A.STRUCT (n, nglist) -> 
+  | A.STRUCT n -> 
+      if n = "" then E.s (E.unimp "Missing struct tag");
+      findCompType "struct" n
+
+  | A.STRUCTDEF (n, nglist) -> (* This introduces a new type always *)
       let n = if n = "" then newTypeName "struct" else n in
       let flds = 
         List.concat (List.map (doNameGroup (makeFieldInfo n)) nglist) in
-      if flds <> [] then begin
-                                        (* This introduces a new type *)
-        let tp = TStruct (n, flds, a) in
-        recordCompType tp; 
-        tp
-      end else begin
-          findCompType "struct"  n
-      end
-  | A.UNION (n, nglist) -> 
+      let tp = TStruct (n, flds, a) in
+      recordCompType tp; 
+      tp
+
+  | A.UNION n -> 
+      if n = "" then E.s (E.unimp "Missing union tag");
+      findCompType "union" n
+
+  | A.UNIONDEF (n, nglist) -> (* This introduces a new type always *)
       let n = if n = "" then newTypeName "union" else n in
       let flds = 
         List.concat (List.map (doNameGroup (makeFieldInfo n)) nglist) in
-      if flds <> [] then begin
-                                        (* This introduces a new type *)
-        let tp = TUnion(n, flds, a) in
-        recordCompType tp; 
-        tp
-      end else
-        findCompType "union"  n
+      let tp = TUnion (n, flds, a) in
+      recordCompType tp; 
+      tp
+
 
   | A.PROTO (bt, snlist, isvararg) ->
       (* Turn [] types into pointers in the arguments and the result type. 
@@ -612,8 +613,8 @@ and doType (a : attribute list) = function
         | (kname, e) :: rest ->
             let i = 
               match doExp e (AExp None) with
-                [], Const(CInt(i,_),_), _ -> i
-              | [], UnOp(Neg,Const(CInt(i,_), _),_,_), _ -> - i
+                [], Const(CInt(i,_,_),_), _ -> i
+              | [], UnOp(Neg,Const(CInt(i,_,_), _),_,_), _ -> - i
               | _ -> E.s (E.unimp "enum with initializer")
             in
             recordEnumField kname i intType;
@@ -771,27 +772,42 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
           
     | A.CONSTANT ct -> begin
         let finishCt c t = finishExp [] (Const(c, lu)) t in
+        let hasSuffix str = 
+          let l = String.length str in
+          fun s -> 
+            let ls = String.length s in
+            l >= ls && s = String.uppercase (String.sub str (l - ls) ls)
+        in
         match ct with 
           A.CONST_INT str -> begin
-            (* Maybe it ends in U or UL. Strip those *)
             let l = String.length str in
-            let baseint, kind = 
-              if      l >= 3 && String.sub str (l - 3) 3 = "ULL" then
-                String.sub str 0 (l - 3), IULongLong
-              else if l >= 2 && String.sub str (l - 2) 2 = "LL" then
-                String.sub str 0 (l - 2), ILongLong
-              else if l >= 2 && String.sub str (l - 2) 2 = "UL" then
-                String.sub str 0 (l - 2), IULong
-              else if l >= 1 && String.sub str (l - 1) 1 = "L" then
-                String.sub str 0 (l - 1), ILong
-              else if l >= 1 && String.sub str (l - 1) 1 = "U" then
-                String.sub str 0 (l - 1), IUInt
+            (* See if it is octal or hex *)
+            let octalhex = (l >= 1 && String.get str 0 = '0') in 
+            (* The length of the suffix and a list of possible kinds. See ISO 
+             * 6.4.4.1 *)
+            let hasSuffix = hasSuffix str in
+            let suffixlen, kinds = 
+              if hasSuffix "ULL" || hasSuffix "LLU" then
+                3, [IULongLong]
+              else if hasSuffix "LL" then
+                2, if octalhex then [ILongLong; IULongLong] else [ILongLong]
+              else if hasSuffix "UL" || hasSuffix "LU" then
+                2, [IULong; IULongLong]
+              else if hasSuffix "L" then
+                1, if octalhex then [ILong; IULong; ILongLong; IULongLong] 
+                               else [ILong; ILongLong]
+              else if hasSuffix "U" then
+                1, [IUInt; IULong; IULongLong]
               else
-                str, IInt
+                0, if octalhex 
+                   then [IInt; IUInt; ILong; IULong; ILongLong; IULongLong]
+                   else [IInt; ILong; ILongLong]
             in
+            let baseint = String.sub str 0 (l - suffixlen) in
             try
-              finishCt (CInt(int_of_string baseint, Some str)) 
-                (TInt(kind,[]))
+              let i = int_of_string baseint in
+              let res = integerKinds i kinds (Some str) in
+              finishCt res (typeOf (Const(res, lu)))
             with e -> begin
               ignore (E.log "int_of_string %s (%s)\n" str 
                         (Printexc.to_string e));
@@ -813,18 +829,19 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         | A.CONST_FLOAT str -> begin
             (* Maybe it ends in U or UL. Strip those *)
             let l = String.length str in
+            let hasSuffix = hasSuffix str in
             let baseint, kind = 
-              if      l >= 2 && String.sub str (l - 2) 2 = "LD" then
-                String.sub str 0 (l - 2), FLongDouble
-              else if l >= 1 && String.sub str (l - 1) 1 = "F" then
+              if  hasSuffix "L" then
+                String.sub str 0 (l - 1), FLongDouble
+              else if hasSuffix "F" then
                 String.sub str 0 (l - 1), FFloat
-              else if l >= 1 && String.sub str (l - 1) 1 = "D" then
+              else if hasSuffix "D" then
                 String.sub str 0 (l - 1), FDouble
               else
-                str, FFloat
+                str, FDouble
             in
             try
-              finishCt (CReal(float_of_string baseint, 
+              finishCt (CReal(float_of_string baseint, kind,
                               Some str)) (TFloat(kind,[]))
             with e -> begin
               ignore (E.log "float_of_string %s (%s)\n" str 
@@ -875,7 +892,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
           
     | A.TYPE_SIZEOF bt -> 
         let typ = doType [] bt in
-        finishExp [] (SizeOf(typ, lu)) intType
+        finishExp [] (SizeOf(typ, lu)) uintType
           
     | A.EXPR_SIZEOF e -> 
         let (se, e', t) = doExp e (AExp None) in
@@ -889,7 +906,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
             StartOf(lv) -> typeOfLval lv
           | _ -> t
         in
-        finishExp [] (SizeOf(t', lu)) intType
+        finishExp [] (SizeOf(t', lu)) uintType
           
     | A.CAST (bt, e) -> 
         let se1, typ = 
@@ -913,7 +930,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
           let tres = integralPromotion t in
           let e'' = 
             match e' with
-            | Const(CInt(i, _), _) -> integer (- i)
+            | Const(CInt(i, _, _), _) -> integer (- i)
             | _ -> UnOp(Neg, doCast e' t tres, tres, lu)
           in
           finishExp se e'' tres
@@ -1140,13 +1157,13 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
           match what with 
             ADrop -> 
               finishExp 
-                (sf @ sargs @ [Instruction(Call(None,f'',args',lu))])
+                (sf @ sargs @ [Instr(Call(None,f'',args',lu))])
                 (integer 0) intType
               (* Set to a variable of corresponding type *)
           | ASet((Var vi, NoOffset) as lv, vtype) 
               when (typeSig resType = typeSig vtype) -> 
                 finishExp 
-                  (sf @ sargs @ [Instruction(Call(Some vi,f'',args',lu))])
+                  (sf @ sargs @ [Instr(Call(Some vi,f'',args',lu))])
                   (Lval(lv))
                   vtype
           | _ -> begin
@@ -1157,7 +1174,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
                     finishExp (sf @ sargs) (integer 1) intType
               | _ -> 
                   let tmp = newTempVar resType in
-                  let i = Instruction(Call(Some tmp,f'',args',lu)) in
+                  let i = Instr(Call(Some tmp,f'',args',lu)) in
                   finishExp (sf @ sargs @ [i]) (Lval(var tmp)) resType
           end
         end
@@ -1211,8 +1228,8 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
               let e3'' = doCast e3' t3' tresult in
               let resexp = 
                 match e1' with
-                  Const(CInt(i, _), _) when i <> 0 -> e2''
-                | Const(CInt(0, _), _) -> e3''
+                  Const(CInt(i, _, _), _) when i <> 0 -> e2''
+                | Const(CInt(0, _, _), _) -> e3''
                 | _ -> Question(e1', e2'', e3'', lu)
               in
               finishExp se1 resexp tresult
@@ -1258,7 +1275,7 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         in
         (* Do some constant folding *)
         match stats, what with
-          [Instruction(Set(lv', e', _))], AExp _ when lv' == lv -> 
+          [Instr(Set(lv', e', _))], AExp _ when lv' == lv -> 
             finishExp [] e' tlv
         | _, _ -> finishExp stats (Lval(lv)) tlv
     end
@@ -1294,37 +1311,42 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
     if isIntegralType tres then
       let newe = 
         let rec mkInt = function
-            Const(CChr c, _) -> Const(CInt(Char.code c, None),lu)
+            Const(CChr c, _) -> Const(CInt(Char.code c, IInt, None),lu)
           | CastE(TInt _, e, _) -> mkInt e
           | e -> e
         in
         match bop, mkInt e1', mkInt e2' with
-          Plus, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> integer (i1 + i2)
-        | Minus, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> integer (i1 - i2)
-        | Mult, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> integer (i1 * i2)
-        | Div, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> integer (i1 / i2)
-        | Mod, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> integer (i1 mod i2)
-        | BAnd, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
+          Plus, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
+            integer (i1 + i2)
+        | Minus, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
+            integer (i1 - i2)
+        | Mult, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
+            integer (i1 * i2)
+        | Div, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
+            integer (i1 / i2)
+        | Mod, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
+            integer (i1 mod i2)
+        | BAnd, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
             integer (i1 land i2)
-        | BOr, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
+        | BOr, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
             integer (i1 lor i2)
-        | BXor, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
+        | BXor, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
             integer (i1 lxor i2)
-        | Shiftlt, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
+        | Shiftlt, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
             integer (i1 lsl i2)
-        | Shiftrt, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
+        | Shiftrt, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
             integer (i1 lsr i2)
-        | Eq, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
+        | Eq, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
             integer (if i1 = i2 then 1 else 0)
-        | Ne, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
+        | Ne, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
             integer (if i1 <> i2 then 1 else 0)
-        | Le, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
+        | Le, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
             integer (if i1 <= i2 then 1 else 0)
-        | Ge, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
+        | Ge, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
             integer (if i1 >= i2 then 1 else 0)
-        | Lt, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
+        | Lt, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
             integer (if i1 < i2 then 1 else 0)
-        | Gt, Const(CInt(i1,_),_),Const(CInt(i2,_),_) -> 
+        | Gt, Const(CInt(i1,_,_),_),Const(CInt(i2,_,_),_) -> 
             integer (if i1 > i2 then 1 else 0)
         | _ -> BinOp(bop, e1', e2', tres, lu)
       in
@@ -1362,10 +1384,10 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
   | (Minus|Le|Lt|Ge|Gt|Eq|Ne) when isPointerType t1 && isPointerType t2 ->
       constFold e1 e2 intType
   | (Eq|Ne) when isPointerType t1 && 
-                 (match e2 with Const(CInt(0,_),_) -> true | _ -> false) -> 
+                 (match e2 with Const(CInt(0,_,_),_) -> true | _ -> false) -> 
       constFold e1 (doCast e2 t2 t1) intType
   | (Eq|Ne) when isPointerType t2 && 
-                 (match e1 with Const(CInt(0,_),_) -> true | _ -> false) -> 
+                 (match e1 with Const(CInt(0,_,_),_) -> true | _ -> false) -> 
       constFold (doCast e1 t1 t2) e2 intType
   | _ -> E.s (E.unimp "doBinOp: %a\n" d_plainexp (BinOp(bop,e1,e2,intType,lu)))
 
@@ -1382,7 +1404,7 @@ and doCondition (e: A.expression)
       | IfThenElse (_, _, _) -> 100
       | Label _ -> 10000
       | Switch _ -> 100
-      | (Goto _|Return _|Case _|Default|Break|Continue|Instruction _) -> 1
+      | (Goto _|Return _|Case _|Default|Break|Continue|Instr _) -> 1
     and costMany sl = List.fold_left (fun acc s -> acc + costOne s) 0 sl
     in
     costMany sl <= 3
@@ -1391,7 +1413,7 @@ and doCondition (e: A.expression)
                     * label definitions *)
     let rec dropOne = function
         (Skip | Goto _ | Return _| Case _ | Default | 
-        Break | Continue | Instruction _) -> true
+        Break | Continue | Instr _) -> true
       | Sequence sl -> List.for_all dropOne sl
       | _ -> false
     in
@@ -1434,8 +1456,8 @@ and doCondition (e: A.expression)
       let (se, e, t) as rese = doExp e (AExp None) in
       ignore (checkBool t e);
       match e with 
-        Const(CInt(i,_),_) when i <> 0 && canDrop sf -> se @ st
-      | Const(CInt(0,_),_) when canDrop st -> se @ sf
+        Const(CInt(i,_,_),_) when i <> 0 && canDrop sf -> se @ st
+      | Const(CInt(0,_,_),_) when canDrop st -> se @ sf
       | _ -> se @ [IfThenElse(e, mkSeq st, mkSeq sf)]
   end
 
@@ -1511,7 +1533,7 @@ and doAssign (lv: lval) : exp -> stmt list = function
       | _ -> E.s (E.bug "Unexpected type of Compound")
   end
 
-  | e -> [Instruction(Set(lv, e, lu))]
+  | e -> [Instr(Set(lv, e, lu))]
 
   (* Now define the processors for body and statement *)
 and doBody (decls, s) : stmt list = 
@@ -1591,7 +1613,7 @@ and doStatement (s : A.statement) : stmt list =
           (* let (et'', e'') = castTo et (TInt(IInt,[])) e' in *)
         let i = 
           match se, e' with
-            [], Const (CInt (i, _), _) -> i
+            [], Const (CInt (i,_, _), _) -> i
           | [], Const (CChr c, _) -> Char.code c
           | _ -> E.s (E.unimp "non-int case")
         in
@@ -1638,9 +1660,9 @@ and doStatement (s : A.statement) : stmt list =
             ins
         in
         List.concat (List.rev !stmts) @ 
-        (Instruction(Asm(tmpls, isvol, outs', ins', clobs)) ::
+        (Instr(Asm(tmpls, isvol, outs', ins', clobs)) ::
          (List.map (fun (lv, vi) -> 
-           Instruction(Set(lv,Lval(var vi),lu))) !temps))
+           Instr(Set(lv,Lval(var vi),lu))) !temps))
   with e -> begin
     (ignore (E.log "Error in doStatement (%s)\n" (Printexc.to_string e)));
     [Label "booo_statement"]

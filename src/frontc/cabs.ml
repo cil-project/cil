@@ -31,8 +31,12 @@ and base_type =
  | DOUBLE of bool					(* is long ? *)
  | PTR of base_type					(* is const ? *)
  | ARRAY of base_type * expression
- | STRUCT of string * name_group list
- | UNION of string * name_group list
+ | STRUCTDEF of string * name_group list
+ | STRUCT of string                     (* A reference to a STRUCT but with 
+                                         * no field definitions *)
+ | UNIONDEF of string * name_group list
+ | UNION of string
+
  | PROTO of proto
  | OLD_PROTO of old_proto	
  | NAMED_TYPE of string

@@ -40,6 +40,22 @@ MODULES    += main
     # Include now the common set of rules for OCAML
 include Makefile.ocaml
 
+
+
+##### Settings that depend on the computer we are on
+##### Make sure the COMPUTERNAME environment variable is set
+ifeq ($(COMPUTERNAME), RAW)   # George's workstation
+SAFECCDIR=C:/Necula/SafeC
+PCCDIR=../../Source/Touchstone/PCC
+endif
+ifeq ($(COMPUTERNAME), FETA) # George's home machine
+SAFECCDIR=D:/Necula/SafeC
+PCCDIR=../../Source/Touchstone/PCC
+endif
+
+
+
+#####################3
 .PHONY : spec
 spec : $(EXECUTABLE)$(EXE)
 
@@ -90,7 +106,8 @@ CPPSTART += /FI safec.h
 CCL += /FI safec.h
 endif
 
-SAFECC=perl /Necula/SafeC/cil/lib/safecc.pl --cabs --cil
+
+SAFECC=perl $(SAFECCDIR)/cil/lib/safecc.pl --cabs --cil
 ifdef BOX
 SAFECC+= --box
 endif
@@ -101,17 +118,17 @@ endif
 PCCSOURCES = hash lf huffman x86/x86SE extensions/javaclasses
 PCCTEST=test/PCC
 testpcc: $(PCCSOURCES:%=testpcc/%)
-testpcc/% : ../../Source/Touchstone/PCC/src/%.c $(EXECUTABLE)$(EXE) 
+testpcc/% : $(PCCDIR)/src/%.c $(EXECUTABLE)$(EXE) 
 	$(SAFECC) --keep=$(PCCTEST) $(DEF)x86_WIN32 $(DEF)_DEBUG /c \
-                  ../../Source/Touchstone/PCC/src/$*.c \
+                  $(PCCDIR)/src/$*.c \
                   $(OUT)$(PCCTEST)/$(notdir $*).o
 
 testhash: $(PCCTEST)/main.c $(EXECUTABLE)$(EXE)
 	$(SAFECC) --keep=$(PCCTEST) $(DEF)x86_WIN32 \
-                 $(INC)../../Source/Touchstone/PCC/src \
-                 ../../Source/Touchstone/PCC/src/hash.c \
-                 ../../Source/Touchstone/PCC/src/redblack.c \
-                 $(PCCTEST)/hashtest.c \
+                 $(INC)$(PCCDIR) \
+                 $(PCCDIR)/src/hash.c \
+                 $(PCCDIR)/src/redblack.c \
+                 $(PCCTEST)/src/hashtest.c \
                  $(EXEOUT)$(PCCTEST)/hashtest.exe
 
 ifdef RELEASE
@@ -119,7 +136,7 @@ PCCTYPE=RELEASE
 SPJARG=
 else
 PCCTYPE=_DEBUG
-SPJARG=-DC --save-temps=pccout
+SPJARG=--gory --save-temps=pccout
 endif
 ifdef _GNUCC
 PCCCOMP=_GNUCC
@@ -127,15 +144,15 @@ else
 PCCCOMP=_MSVC
 endif
 testallpcc: $(EXECUTABLE)$(EXE)
-	-rm ../../Source/Touchstone/PCC/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.o
-	make -C ../../Source/Touchstone/PCC \
-             CC="$(SAFECC) --keep=D:/Necula/SafeC/cil/test/PCC $(CONLY)" \
+	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.o
+	make -C $(PCCDIR) \
+             CC="$(SAFECC) --keep=$(SAFECCDIR)/cil/test/PCC $(CONLY)" \
              USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
              COMPILER=$(PCCCOMP) \
 	     defaulttarget
 
 runpcc:
-	cd ../../Source/Touchstone/test; pwd; spj $(SPJARG) arith/Fact.java
+	cd $(PCCDIR)/../test; pwd; spj $(SPJARG) arith/Fact.java
 
 ############ Small tests
 SMALL1=test/small1

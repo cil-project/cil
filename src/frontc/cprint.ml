@@ -188,10 +188,16 @@ let rec print_base_type  typ =
   | DOUBLE size -> print ((if size then "long " else "") ^ "double")
   | NAMED_TYPE id -> print id
   | ENUM (id, items) -> print_enum id items
-  | STRUCT (id, flds) -> 
-      if id = "" && flds = [] then print "struct { }" 
+  | STRUCT id -> print ("struct " ^ id)
+  | STRUCTDEF (id, flds) -> 
+      if flds = [] then print "struct { }" 
       else print_fields ("struct " ^ id) flds
-  | UNION (id, flds) -> print_fields  ("union " ^ id) flds
+
+  | UNION id -> print ("union " ^ id)
+  | UNIONDEF (id, flds) -> 
+      if flds = [] then print "union { }" 
+      else print_fields ("union " ^ id) flds
+
   | PROTO (typ, _, _) -> print_base_type typ
   | OLD_PROTO (typ, _, _) -> print_base_type typ
   | PTR typ -> print_base_type  typ

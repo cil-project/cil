@@ -2,18 +2,40 @@ open Pretty
 module E = Errormsg
 module H = Hashtbl
 
-let msvcOutput = ref false
-
 (*
  * CIL: An intermediate language for analyzing C progams.
  *
  * Version Tue Dec 12 15:21:52 PST 2000 
  * Scott McPeak, George Necula, Wes Weimer
  *
+ *)
+(* CIL is intended to be an IL for source-to-source transformations of C 
+ * programs. In the process of converting preprocessed C source to CIL most 
+ * of the syntactic sugar is removed and type checking is performed. CIL has 
+ * the following properties:
+
+ - all local variables are pulled to the start of a function. Their names are 
+ * changed to be unique and to avoid conflicts with global variables
+
+ - all forms of source-level loops are changed into a single Loop construct 
+ * that loops forever except if a break, return or goto is encountered. In 
+ * many cases the continue statement is turned into a goto. 
+
+ - all implicit integer promotions, argument promotions and arithmetic 
+ * conversions are turned into explicit casts.
+*)
+(*
  * Note: you may *NOT* change the order of the fields or the order in
  * which disjoint union choices are presented. The C translation code
  * has those values hard-wired.
  *)
+
+(* TODO
+   - inner struct/union/enum/typedef tags
+   - clean up attributes
+   - type of sizeof is hardwired to UInt
+   - integerFits is hardwired to true
+*)
 
 (* where did some construct originally appear in the source code? *)
 type location = { 
@@ -24,14 +46,19 @@ type location = {
 
 let locUnknown = { line = -1; col = -1; file = ""; }
 
-(* information about a variable *)
+(* Information about a variable. Use one of the makeLocalVar, makeTempVar or 
+ * makeGlobalVar to create instances of this data structure.  *)
 type varinfo = { 
-    vid: int;		(* unique integer indentifier, one per decl *)
+    vid: int;		(* Unique integer indentifier. For globals this is a 
+                         * hash of the name. Locals are numbered from 0 
+                         * starting with the formal arguments. This field 
+                         * will be set for you if you use one of the 
+                         * makeLocalVar, makeTempVar or makeGlobalVar *)
     vname: string;				
-    vglob: bool;	(* is this a global variable? *)
+    vglob: bool;	(* Is this a global variable? *)
 
-    mutable vtype: typ; 			
-    mutable vdecl: location;	(* where was this variable declared? *)
+    mutable vtype: typ;                 (* The declared type *)
+    mutable vdecl: location;            (* where was this variable declared? *)
     mutable vattr: attribute list;
     mutable vstorage: storage;
     mutable vaddrof: bool;              (* Has its address taken *)
@@ -39,12 +66,17 @@ type varinfo = {
 
                                         (* Storage-class information *)
 and storage = 
-    NoStorage | Static | Register | Extern
+    NoStorage |                         (* The default storage *)
+    Static | 
+    Register | 
+    Extern
 
-(* information about a field access *)
+(* Information about a struct/union field *)
 and fieldinfo = { 
-    fstruct: string;                 
-    fname: string;                   
+    fstruct: string;                    (* The name of the host struct/union*)
+    fname: string;                      (* The name of the field. Might be 
+                                         * "___missing_field_name" in which 
+                                         * case it is not printed *)
     mutable ftype: typ;
     mutable fattr: attribute list;
 }
@@ -55,14 +87,13 @@ and typ =
   | TInt of ikind * attribute list
   | TBitfield of ikind * int * attribute list
   | TFloat of fkind * attribute list
-  | TNamed of string * typ              (* from a typedef *)
-  | TPtr of typ * attribute list
+  | TNamed of string * typ              (* From a typedef *)
+  | TPtr of typ * attribute list        (* Pointer type *)
 
               (* base type and length *)
   | TArray of typ * exp option * attribute list
 
-               (* name, fields, id, attributes *) 
-
+               (* name, fields, attributes *) 
   | TStruct of string * fieldinfo list * attribute list 
   | TUnion of string * fieldinfo list * attribute list
 
@@ -71,8 +102,9 @@ and typ =
             * "forwardTypeMap"  *)
   | TForward of string
 
-
+           (* name, tags with values, attributes *)
   | TEnum of string * (string * int) list * attribute list
+
                (* result, args, isVarArg, attributes *)
   | TFun of typ * varinfo list * bool * attribute list
 
@@ -96,12 +128,15 @@ and attribute =
 
 (* literal constants *)
 and constant =
-    CInt of int * string option          (* Also the textual representation *)
-  | CLInt of int * int * string option   (* LInt(l,h) = l +signed (h << 31) *)
+  | CInt of int * ikind * string option  (* Give the ikind (see ISO9899 
+                                          * 6.4.4.1) and the textual 
+                                          * representation, if available  *)
+  | CLInt of int64 * ikind * string option
   | CStr of string
   | CChr of char 
-  | CReal of float * string option       (* Also give the textual 
-                                        * representation *)
+  | CReal of float * fkind * string option(* Give the fkind (see ISO 6.4.4.2) 
+                                           * and also the textual 
+                                           * representation, if available *)
 
 (* unary operations *)
 and unop =
@@ -117,7 +152,7 @@ and binop =
   | Mod
 
   | Shiftlt                             (* shift left *)
-  | Shiftrt
+  | Shiftrt                             (* shift right *)
 
   | Lt
   | Gt
@@ -127,7 +162,7 @@ and binop =
   | Eq
   | Ne
 
-  | BAnd
+  | BAnd                                (* bitwise and *)
   | BXor                                (* exclusive-or *)
   | BOr                                 (* inclusive-or *)
 
@@ -137,76 +172,139 @@ and binop =
 and exp =
     Const      of constant * location
   | Lval       of lval                  (* l-values *)
-  | SizeOf     of typ * location
-  | UnOp       of unop * exp * typ * location
-  | BinOp      of binop * exp * exp * typ * location (* also have the type of 
-                                                      * the result *)
+  | SizeOf     of typ * location        (* Has UInt type ! (ISO 6.5.3.4). 
+                                         * Only sizeof for types is 
+                                         * available. This is not turned into 
+                                         * a constant because some 
+                                         * transformations might want to 
+                                         * change types *) 
+
+                                        (* Give the type of the result *)
+  | UnOp       of unop * exp * typ * location 
+
+                                        (* Give the type of the result. The 
+                                         * arithemtic conversions are made 
+                                         * explicit for the arguments *)
+  | BinOp      of binop * exp * exp * typ * location
+
   | Question   of exp * exp * exp * location (* e1 ? e2 : e3. Sometimes we 
                                               * cannot turn this into a 
                                               * conditional statement (e.g. 
                                               * in global initializers) *)
   | CastE      of typ * exp * location
-  | Compound   of typ * exp list        (* Used for initializers of *)
+  | Compound   of typ * exp list        (* Used only for initializers of 
+                                         * structures and arrays *)
   | AddrOf     of lval * location
-  | StartOf    of lval                  (* To be used for lval's that denote 
-                                         * arrays. The expression denotes the 
-                                         * address of the first element
-                                         * of the array *)
+
+  | StartOf    of lval                  (* There is no C correspondent for 
+                                         * this. To be used for lval's that 
+                                         * denote arrays. The expression 
+                                         * denotes the address of the first 
+                                         * element of the array. Used only to 
+                                         * simplify typechecking  *)
 
 (* L-Values denote contents of memory addresses. A memory address is 
- * expressed as a base plus an offset. The base points to the start of value 
- * of type "typ" *)
+ * expressed as a base plus an offset. The base address can be the start 
+ * address of storage for a local or global variable or, in general, any 
+ * expression. We distinguish the two cases to avoid gratuituous introduction 
+ * of the AddrOf operators on variables whose address would not be taken 
+ * otherwise. *)
+
 and lval =
     lbase * offset  
 
+(* The meaning of an lval is expressed as a function "[lval] = (a, T)" that 
+ * returns a memory address "a" and a type "T" of the object storred starting 
+ * at the address "a".  *)
+
+(* The meaning of an lbase is expressed as a similar function. *)
+
+(* The meaning of an offset is expressed as a function "[offset](a, T) = (a', 
+ * T')" whose result also depends on a base address "a" and a base type "T". 
+ * The result is another address and another base type  *)
+
+(* With this notation we define
+  
+      [(lbase, offset)] = [offset] [lbase]
+*)
 and lbase = 
   | Var        of varinfo               (* denotes the address & v, or if v 
                                          * is an array then just v *)
+    (* [Var v] = (&v, typeOf(v)) *)
+
+
   | Mem        of exp                   (* denotes an address expressed as an 
                                          * expression *)
+    (* [Mem e] = (e, T) if typeOf(e) = Ptr(T) *)
 
 and offset = 
   | NoOffset                            (* l *)
+    (* [NoOffset](a, T) = (a, T) *)
+
   | Field      of fieldinfo * offset    (* l.f + offset. l must be a struct 
                                          * or an union and l.f is the element 
                                          * type *)
+    (* [Field(f, off)](a, struct {f : T, ...}) = [off](a + offsetof(f), T) *)
+
   | First      of offset                (* An explicit cast from arrays to 
-                                         * the first element *)
+                                         * the first element. This has no 
+                                         * source-level equivalent *)
+    (* [First off](a, array (T)) = [off](a, T) *)
+
   | Index      of exp * offset          (* l + e + offset. *)
+    (* [Index(e, off)](a, T) = [off](a + e * sizeof(T), T) *)
+
+
+(* the following equivalences hold *)
+(* Index(0, off) = off                                                 *)
+(* Mem(StartOf(Mem a, aoff)), off = Mem(a, aoff + First + off)         *)
+(* Mem(StartOf(Var v, aoff)), off = Var(a, aoff + First + off)         *)
+(* Mem(AddrOf(Mem a, aoff)), off   = Mem(a, aoff + off)                *)
+(* Mem(AddrOf(Var v, aoff)), off   = Var(v, aoff + off)                *)
 
 (**** INSTRUCTIONS. May cause effects directly but may not have control flow.*)
 and instr =
-    Set        of lval * exp * location  (* An assignment. *)
+    Set        of lval * exp * location  (* An assignment. A cast is present 
+                                          * if the exp has different type 
+                                          * from lval *)
   | Call       of varinfo option * exp * exp list * location
 			 (* result temporary variable, 
-                            function, argument list, location *)
+                            function value, argument list, location. Casts 
+                          * are inserted for arguments *)
 
+                         (* See the GCC specification for the meaning of ASM. 
+                          * If the source is MS VC then only the templates 
+                          * are used *)
   | Asm        of string list *         (* templates (CR-separated) *)
                   bool *                (* if it is volatile *)
                   (string * varinfo) list * (* outputs must be variables with 
                                              * constraints  *)
                   (string * exp) list * (* inputs with constraints *)
-                  string list           (* clobbers *)
+                  string list           (* register clobbers *)
 
 (**** STATEMENTS. Mostly structural information ****)
 and stmt = 
   | Skip                                (* empty statement *)
-  | Sequence of stmt list 
-  | Loop of stmt                        (* A loop. Ends with break or a Goto 
-                                         * outside *)
+  | Sequence of stmt list               (* Use mkSeq to make a Sequence. This 
+                                         * will optimize the result and will 
+                                         * make sure that there are no 
+                                         * trailing Default of Label or Case *)
+  | Loop of stmt                        (* A loop. When stmt is done the 
+                                         * control starts back with stmt. 
+                                         * Ends with break or a Goto outside.*)
   | IfThenElse of exp * stmt * stmt     (* if *)
   | Label of string 
   | Goto of string
   | Return of exp option
-  | Switch of exp * stmt                (* no work done by scott, sigh*)
-  | Case of int 
+  | Switch of exp * stmt                (* no work done to break this appart *)
+  | Case of int                         (* The case expressions are resolved *)
   | Default 
   | Break
   | Continue
-  | Instruction of instr
+  | Instr of instr
         
 type fundec = 
-    { svar:     varinfo;                (* Hold the name and type as a 
+    { svar:     varinfo;                (* Holds the name and type as a 
                                          * variable, so we can refer to it 
                                          * easily from the program *)
       mutable slocals: varinfo list;    (* locals, includes the arguments 
@@ -221,27 +319,55 @@ type global =
   | GVar of varinfo * exp option        (* A global variable with 
                                          * initializer. Includes function 
                                          * prototypes  *)
-  | GAsm of string                      (* Global asm statement *)
-  | GPragma of string                   (* Pragmas at top level *)
+  | GAsm of string                      (* Global asm statement. These ones 
+                                         * can contain only a template *)
+  | GPragma of string                   (* Pragmas at top level. Unparsed *)
     
 type file = global list
 	(* global function decls, global variable decls *)
 
+
+
+
+
+
 let lu = locUnknown
-let integer i = Const (CInt(i, None), lu)
-let zero = integer 0
+let msvcOutput = ref false              (* Whether the pretty printer should 
+                                         * print output for the MS VC 
+                                         * compiler. Default is GCC *)
+
+let integerFits (i: int) (k: ikind) =  true (* We know that i is less than 31 
+                                             * bits so it fits even in an 
+                                             * IInt *)
+
+let integerKinds (i: int) (posskinds: ikind list) (s: string option) = 
+  let rec loop = function
+      [] -> E.s (E.bug "integerkinds exhausted kinds")
+    | k :: rest -> 
+        if integerFits i k then
+          CInt(i, k, s)
+        else loop rest
+  in
+  loop posskinds
+          
+
+let integer i = Const (integerKinds i [IInt] None, lu)(* For now only ints *)
+let zero      = integer 0
+let one       = integer 1
+let mone      = integer (-1)
 
 let voidType = TVoid([])
 let intType = TInt(IInt,[])
+let uintType = TInt(IUInt,[])
 let charType = TInt(IChar, [])
 let charPtrType = TPtr(charType,[])
 let voidPtrType = TPtr(voidType, [])
 let doubleType = TFloat(FDouble, [])
 
 let var vi : lval = (Var vi, NoOffset)
-let mkSet lv e = Instruction(Set(lv,e,lu))
+let mkSet lv e = Instr(Set(lv,e,lu))
 let assign vi e = mkSet (var vi) e
-let call res f args = Instruction(Call(res,f,args,lu))
+let call res f args = Instr(Call(res,f,args,lu))
 
 let mkString s = Const(CStr s, lu)
 
@@ -378,13 +504,13 @@ let d_storage () = function
 (* constant *)
 let d_const () c =
   match c with
-    CInt(_, Some s) -> text s
-  | CInt(i, None) -> num i
+    CInt(_, _, Some s) -> text s
+  | CInt(i, _, None) -> num i
   | CLInt(l,h, Some s) -> text s
   | CStr(s) -> dprintf "\"%s\"" (escape_string s)
   | CChr(c) -> dprintf "'%s'" (escape_char c)
-  | CReal(_, Some s) -> text s
-  | CReal(f, None) -> dprintf "%f" f
+  | CReal(_, _, Some s) -> text s
+  | CReal(f, _, None) -> dprintf "%f" f
   | _ -> E.s (E.unimp "constant")
 
 (* Parentheses level. An expression "a op b" is printed parenthesized if its 
@@ -658,7 +784,7 @@ and d_lval () lv =
     | NoOffset -> dobase ()
     | Field (fi, o) -> 
         d_offset (fun _ -> dprintf "%t.%s" dobase fi.fname) o
-    | Index (Const(CInt(0,_),_), NoOffset) -> dprintf "(*%t)" dobase
+    | Index (Const(CInt(0,_,_),_), NoOffset) -> dprintf "(*%t)" dobase
     | First (NoOffset) -> dprintf "(*%t)" dobase
     | First (Index _ as o) -> d_offset dobase o
     | First o -> d_offset (fun _ -> dprintf "%t[0]" dobase) o
@@ -679,10 +805,10 @@ and d_instr () i =
   | Set(lv,e,lo) -> begin
       (* Be nice to some special cases *)
       match e with
-        BinOp((Plus),Lval(lv'),Const(CInt(1,_),_),_,_) 
+        BinOp((Plus),Lval(lv'),Const(CInt(1,_,_),_),_,_) 
           when lv == lv' -> 
           dprintf "%a ++;" d_lval lv
-      | BinOp(Minus,Lval(lv'),Const(CInt(1,_),_),_,_) when lv == lv' -> 
+      | BinOp(Minus,Lval(lv'),Const(CInt(1,_,_),_),_,_) when lv == lv' -> 
           dprintf "%a --;" d_lval lv
       | BinOp((Plus|Minus|BAnd|BOr|BXor|
                Mult|Div|Mod|Shiftlt|Shiftrt) as bop,
@@ -730,7 +856,7 @@ and d_stmt () s =
                   dangling elses. ASM gives some problems with MSVC so 
                   bracket them as well  *) 
     match a with
-      IfThenElse _ | Loop _ | Instruction(Asm _) | Switch _ -> 
+      IfThenElse _ | Loop _ | Instr(Asm _) | Switch _ -> 
         Sequence [a]
     | _ -> a
   in
@@ -756,7 +882,7 @@ and d_stmt () s =
   | Return(Some e) -> dprintf "return (%a);" d_exp e
   | Switch(e,s) -> dprintf "@[switch (%a)@!%a@]" d_exp e d_stmt s
   | Default -> dprintf "default:"
-  | Instruction(i) -> d_instr () i
+  | Instr(i) -> d_instr () i
 
 
         
@@ -894,7 +1020,7 @@ let rec intSizeOf = function            (* Might raise Not_found *)
   | TFloat(FLongDouble, _) ->  10
   | TEnum _ ->  4
   | TPtr _ ->  4
-  | TArray(t, Some (Const(CInt(l,_),_)),_) -> (intSizeOf t) * l
+  | TArray(t, Some (Const(CInt(l,_,_),_)),_) -> (intSizeOf t) * l
   | TNamed(_, r) -> intSizeOf r
   | TForward r -> intSizeOf (resolveForwardType r)
   | TStruct(_,flds,_) -> 
@@ -948,9 +1074,9 @@ let iterExp (f: exp -> unit) (body: stmt) : unit =
     | IfThenElse (e, s1, s2) -> fExp e; fStmt s1; fStmt s2
     | Return(Some e) -> fExp e
     | Switch (e, s) -> fExp e; fStmt s
-    | Instruction(Set(lv,e,_)) -> fLval lv; fExp e
-    | Instruction(Call(_,f,args,_)) -> fExp f; List.iter fExp args
-    | Instruction(Asm(_,_,_,ins,_)) -> 
+    | Instr(Set(lv,e,_)) -> fLval lv; fExp e
+    | Instr(Call(_,f,args,_)) -> fExp f; List.iter fExp args
+    | Instr(Asm(_,_,_,ins,_)) -> 
         List.iter (fun (_, e) -> fExp e) ins
   in
   fStmt body
@@ -1088,7 +1214,7 @@ let dExp : doc -> exp =
   function d -> Const(CStr(sprint 80 d),lu)
 
 let dStmt : doc -> stmt = 
-  function d -> Instruction(Asm([sprint 80 d], false, [], [], []))
+  function d -> Instr(Asm([sprint 80 d], false, [], [], []))
 
 
  (* Add an offset at the end of an lv *)      
@@ -1121,11 +1247,11 @@ let mkMem (addr: exp) (off: offset) : exp =
 (**** Compute the type of an expression ****)
 let rec typeOf (e: exp) : typ = 
   match e with
-    Const(CInt _, _) -> intType
+    Const(CInt (_, ik, _), _) -> TInt(ik, [])
   | Const(CChr _, _) -> charType
   | Const(CStr _, _) -> charPtrType 
-  | Const(CLInt _, _) -> intType
-  | Const(CReal _, _) -> doubleType
+  | Const(CLInt (_, ik, _),_) -> TInt(ik, [])
+  | Const(CReal (_, fk, _), _) -> TFloat(fk, [])
   | Lval(lv) -> typeOfLval lv
   | SizeOf _ -> intType
   | UnOp (_, _, t, _) -> t
