@@ -478,7 +478,7 @@ let rec stripConstLocalType (t: typ) : typ =
       (* We must go and drop the consts from the typeinfo as well ! *)
       let t' = stripConstLocalType ti.ttype in
       if t != t' then begin
-        ignore (warn "Stripping \"const\" from typedef %s\n" ti.tname);
+        (* ignore (warn "Stripping \"const\" from typedef %s\n" ti.tname); *)
         ti.ttype <- t'
       end;
       let a' = dc a in if a != a' then TNamed(ti, a') else t
@@ -523,6 +523,7 @@ let newTempVar typ =
   in
   if !currentFunctionFDEC == dummyFunDec then 
     E.s (bug "newTempVar called outside a function");
+(*  ignore (E.log "stripConstLocalType(%a) for temporary\n" d_type typ); *)
   let t' = stripConstLocalType typ in
   (* Start with the name "tmp". THe alpha converter will fix it *)
   let vi = makeVarinfo false "tmp" t' in
@@ -2026,7 +2027,8 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
 
 
 and makeVarInfoCabs 
-                (isglob: bool) 
+                ~(isformal: bool)
+                ~(isglobal: bool) 
                 (ldecl: location)
                 (bt, sto, inline, attrs)
                 (n,ndt,a) 
@@ -2036,11 +2038,15 @@ and makeVarInfoCabs
   if inline && not (isFunctionType vtype) then
     ignore (error "inline for a non-function: %s" n);
   let t = 
-    if not isglob then 
+    if not isglobal && not isformal then begin
+      (* Sometimes we call this on the formal argument of a function with no 
+       * arguments. Don't call stripConstLocalType in that case *)
+(*      ignore (E.log "stripConstLocalType(%a) for %s\n" d_type vtype n); *)
       stripConstLocalType vtype
-    else vtype
+    end else 
+      vtype
   in
-  let vi = makeVarinfo isglob n t in
+  let vi = makeVarinfo isglobal n t in
   vi.vstorage <- sto;
   vi.vattr <- nattr;
   vi.vdecl <- ldecl;
@@ -2055,11 +2061,17 @@ and makeVarSizeVarInfo (ldecl: location)
   if not !msvcMode then 
     match isVariableSizedArray ndt with
       None -> 
-        makeVarInfoCabs false ldecl spec_res (n,ndt,a), empty, zero, false
+        makeVarInfoCabs ~isformal:false 
+                        ~isglobal:false 
+                        ldecl spec_res (n,ndt,a), empty, zero, false
     | Some (ndt', se, len) -> 
-        makeVarInfoCabs false ldecl spec_res (n,ndt',a), se, len, true
+        makeVarInfoCabs ~isformal:false 
+                        ~isglobal:false 
+                        ldecl spec_res (n,ndt',a), se, len, true
   else
-    makeVarInfoCabs false ldecl spec_res (n,ndt,a), empty, zero, false
+    makeVarInfoCabs ~isformal:false
+                    ~isglobal:false 
+                    ldecl spec_res (n,ndt,a), empty, zero, false
 
 and doAttr (a: A.attribute) : attribute list = 
   (* Strip the leading and trailing underscore *)
@@ -2241,7 +2253,7 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
         (* Make the argument as for a formal *)
         let doOneArg (s, ((n, _, _) as nm)) : varinfo = 
           let s' = doSpecList n s in
-          makeVarInfoCabs false locUnknown s' nm
+          makeVarInfoCabs ~isformal:true ~isglobal:false locUnknown s' nm
         in
         let targs : varinfo list option = 
           match List.map doOneArg args'  with
@@ -4046,7 +4058,8 @@ and createGlobal (specs : (typ * storage * bool * A.attribute list))
     if debugGlobal then 
       ignore (E.log "createGlobal: %s\n" n);
             (* Make a first version of the varinfo *)
-    let vi = makeVarInfoCabs true locUnknown specs (n, ndt, a) in
+    let vi = makeVarInfoCabs ~isformal:false 
+                             ~isglobal:true locUnknown specs (n, ndt, a) in
     (* Add the variable to the environment before doing the initializer 
      * because it might refer to the variable itself *)
     if isFunctionType vi.vtype then begin
@@ -4156,7 +4169,9 @@ and createLocal ((_, sto, _, _) as specs)
        * existing globals or locals from this function. *)
       let newname = newAlphaName true "" n in
       (* Make it global  *)
-      let vi = makeVarInfoCabs true locUnknown specs (newname, ndt, a) in
+      let vi = makeVarInfoCabs ~isformal:false
+                               ~isglobal:true 
+                               !currentLoc specs (newname, ndt, a) in
       (* Add it to the environment as a local so that the name goes out of 
        * scope properly *)
       addLocalToEnv n (EnvVar vi);
@@ -4208,7 +4223,8 @@ and createLocal ((_, sto, _, _) as specs)
           (* Make a local variable to keep the length *)
           let savelen = 
             makeVarInfoCabs 
-                        false 
+                        ~isformal:false
+                        ~isglobal:false 
                         !currentLoc 
                         (TInt(IUInt, []), NoStorage, false, [])
                         ("__lengthof" ^ vi.vname,JUSTBASE, []) 
