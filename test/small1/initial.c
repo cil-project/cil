@@ -21,7 +21,7 @@ TDATA x1 = { .x = 7,
              .d1 = { .b = 5 },
              .d2.a = 9 };
 
-TDATA x2[] = { [sizeof(int)].x = 8 };
+TDATA x2[] = { [sizeof(int)] = 8 };
 
 
     

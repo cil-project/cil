@@ -709,7 +709,7 @@ and doInstr (i:instr) (l: location) : instr =
       let rec loopArgs formals args = 
         match formals, args with
           [], [] -> []
-        | [], a :: args when isva -> 
+        | [], a :: args -> 
             (* Do the arguments because they might contain pointer types *)
             let a', _, _ = doExp a in
             a' :: loopArgs [] args
@@ -717,7 +717,8 @@ and doInstr (i:instr) (l: location) : instr =
         | fo :: formals, a :: args -> 
             let a' = doExpAndCastCall a fo.vtype !callId in
             a' :: loopArgs formals args
-        | _, _ -> E.s (E.bug "Not enough arguments")
+        | _, _ -> E.s (E.unimp "Markptr: not enough arguments in call to %a"
+                         d_exp orig_func)
       in  begin
           (* Now check the return value*)
         match reso, unrollType rt with

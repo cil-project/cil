@@ -499,7 +499,7 @@ module BlockChunk =
     let mkFunctionBody (c: chunk) : block = 
       resolveGotos (); initLabels ();
       if c.cases <> [] then
-        E.s (E.bug "Swtich cases not inside a switch statement\n");
+        E.s (E.bug "Switch cases not inside a switch statement\n");
       pushPostIns c
       
   end

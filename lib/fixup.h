@@ -61,3 +61,13 @@
 #if ! defined(MANUALBOX) && ! defined(INFERBOX)
 #define calloc_fseq calloc
 #endif
+
+
+// Add some prototypes for the built in fucntions
+#ifdef _MSVC
+void exit(int);
+#endif
+
+#ifdef _GNUCC
+void exit(int);
+#endif

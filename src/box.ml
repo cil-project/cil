@@ -2515,17 +2515,16 @@ and boxinstr (ins: instr) (l: location): stmt list =
                 [], [] -> [], []
               | a :: resta, t :: restt -> 
                   let (doa, fa') = boxexpf a in
-                  let (doa', fa'') = 
-                    castTo fa' t.vtype doa in
+                  let (doa', fa'') = castTo fa' t.vtype doa in
                   let (_, doa'', a2) = fexp2exp fa'' doa' in
                   let (doresta, resta') = doArgs resta restt in
                 (doa'' @ doresta,  a2 :: resta')
-              | a :: resta, [] when isva -> 
+              | a :: resta, [] (* when isva *) -> 
                   let (doa, fa') = boxexpf a in
                   let (_, doa'', a2) = fexp2exp fa' doa in
                   let (doresta, resta') = doArgs resta [] in
                   (doa'' @ doresta, a2 :: resta')
-              | _ -> E.s (E.unimp "vararg in call to %a" d_exp f)
+              | _ -> E.s (E.unimp "too few arguments in call to %a" d_exp f)
             in
             doArgs args ftargs  
         in

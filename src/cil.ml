@@ -1039,7 +1039,7 @@ let rec d_decl (docName: unit -> doc) () this =
         ()
         t
   | TFun (restyp, args, isvararg, a) -> 
-      let args' = 
+      let args' = (*
         match args with 
             [] -> [ { vname = "";
                       vtype = if isvararg then voidPtrType else voidType;
@@ -1048,9 +1048,9 @@ let rec d_decl (docName: unit -> doc) () this =
                       vattr = [];
                       vdecl = lu;
                       vaddrof = false; 
-                      vreferenced = false;   (* sm *)
+                      vreferenced = false; 
                       vstorage = NoStorage; } ] 
-        | _ -> args
+        | _ -> *) args
       in
       d_decl (fun _ -> 
         parenth restyp 
