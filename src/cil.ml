@@ -506,6 +506,10 @@ type fundec =
       mutable sbody: block;             (* the body *)
       mutable sinline: bool;            (* Whether the function is inline or 
                                          * not *)
+			mutable smaxstmtid : int option;  (* max id of a (reachable)
+																			   * statement in this function, if
+			                                   * we have computed it.
+																				 * range = 0 ... (smaxstmtid-1) *)
     }
 
 type global =
@@ -2270,6 +2274,7 @@ let emptyFunction name =
     sformals = [];
     sbody = mkBlock [];
     sinline = false;
+		smaxstmtid = None;
   } 
 
 

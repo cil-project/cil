@@ -322,7 +322,7 @@ sub runShell {
     # weimer: let's have a sanity check
     if (system($cmd)) {
 	die "Possible error with $cmd!\n";
-    }
+    } 
 }
 
 sub quoteIfNecessary {

@@ -16,7 +16,7 @@ OBJDIR      := obj
 MLLS        := 
 MLYS        := 
 MODULES     := pretty trace errormsg stats util clist \
-               cil cfg logcalls check ptrnode \
+               cil cfg logcalls logwrites check ptrnode \
                solveutil solver globinit \
                oneret boxsplit boxstats box markptr \
                rmtmps optim

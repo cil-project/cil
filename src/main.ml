@@ -79,6 +79,10 @@ let rec processOneFile fname =
 			Logcalls.logCalls cil 
 		end ; 
 
+		if (!Util.logWrites) then begin
+			Logwrites.logWrites cil 
+		end ; 
+
 		if (!heapify) then begin
 			Heapify.default_heapify cil 
 		end ;
@@ -132,6 +136,8 @@ let rec theMain () =
                      "turns off consistency checking of CIL";
     "-logcalls", Arg.Unit (fun _ -> Util.logCalls := true),
                      "turns on generation of code to log function calls in CIL";
+    "-logwrites", Arg.Unit (fun _ -> Util.logWrites := true),
+                     "turns on generation of code to log memory writes in CIL";
 		"-heapify", Arg.Unit (fun _ -> heapify := true),
 					"apply the `heapify' transformation";
 		"-stackguard", Arg.Unit (fun _ -> stackguard := true),

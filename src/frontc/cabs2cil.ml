@@ -3537,6 +3537,7 @@ let convFile fname dl =
                            smaxid   = maxid;
                            sbody    = mkFunctionBody stm;
                            sinline  = inl;
+													 smaxstmtid = None;
                          }
               in
               (* Now go over the types of the formals and pull out the

@@ -14,7 +14,7 @@ MLLS        = clexer.mll
 MLYS        = cparser.mly
 MODULES     = pretty errormsg trace stats util clist \
               cabs cprint clexer cparser cabsvisit \
-              cil cabs2cil frontc check logcalls rmtmps \
+              cil cabs2cil frontc check logcalls logwrites rmtmps \
 	      cfg heapify maincil
 
 EXECUTABLE  = $(OBJDIR)/cilly

@@ -1678,7 +1678,8 @@ let markFile fl =
                             slocals  = [];
                             smaxid   = !vid - 1;
                             sinline  = false;
-                            sbody    = mkBlock [] } in
+                            sbody    = mkBlock [] ;
+														smaxstmtid = None ;} in
         (* Now make the body *)
         let reslvo, reso = 
           match rt with 

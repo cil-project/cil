@@ -198,8 +198,12 @@ and succpred_stmt s fallthrough =
 
 let make_cfg (f : file) = begin
 	remove_switch_file f ; 
-	ignore (visitCilFile (new clear) f) ;
+	let clear_it = new clear in 
 	iterGlobals f (fun glob -> match glob with 
-		GFun(fd,_) -> succpred_block fd.sbody (None)
+		GFun(fd,_) -> 
+			sid_counter := 0 ; 
+			ignore (visitCilBlock clear_it fd.sbody) ;
+			fd.smaxstmtid <- Some(!sid_counter) ;
+			succpred_block fd.sbody (None) ;
 	| _ -> ())
 end

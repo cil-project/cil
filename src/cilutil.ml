@@ -3,6 +3,8 @@ let doCheck= ref false   (* Whether to check CIL *)
 
 let logCalls = ref false (* Whether to produce a log with all the function 
                           * calls made *)
+let logWrites = ref false (* Whether to produce a log with all the mem 
+                          * writes made *)
 
 let printStats = ref false
 
