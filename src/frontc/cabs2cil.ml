@@ -2341,11 +2341,24 @@ and doExp (isconst: bool)    (* In a constant *)
               (* Pretend that we are declaring and initializing a local *)
               let local = "__constr_expr_" ^ string_of_int (!constrExprId) in
               incr constrExprId;
-              let se1 = createLocal specs ((local, dt, []), ie) in
+              (* Maybe specs contains an unnamed composite. Replace with the 
+               * name *)
+              let specs1 = 
+                match typ with
+                  TComp (ci, _) -> 
+                    List.map 
+                      (function 
+                          A.SpecType (A.Tstruct ("", flds)) -> 
+                            A.SpecType (A.Tstruct (ci.cname, None))
+                        | A.SpecType (A.Tunion ("", flds)) -> 
+                            A.SpecType (A.Tunion (ci.cname, None))
+                        | s -> s) specs
+                | _ -> specs
+              in
+              let se1 = createLocal specs1 ((local, dt, []), ie) in
               (* Now pretend that e is just a reference to the newly created 
                * variable *)
-              let se, e', t' = 
-                doExp isconst (A.VARIABLE local) what' in
+              let se, e', t' = doExp isconst (A.VARIABLE local) what' in
               (* If typ is an array then the doExp above has already added a 
                * StartOf. We must undo that now so that it is done once by 
                * the finishExp at the end of this case *)
