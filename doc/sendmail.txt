@@ -86,7 +86,9 @@ available, you are going to have to modify the source code. Here's how to do it:
 
 In daemon.c, change all occurrences of 9999 to some other port above 1024 that
 is not in use.
-In config.cf change all occurrences of 9999 to that same port above.
+In config.cf change all occurrences of 9999 to that same port above. Lastly,
+change the TrustedUser to your manju login. (i.e. TrustedUser=winston, or
+whatever your login is.)
 
 III. Running the guy
 
