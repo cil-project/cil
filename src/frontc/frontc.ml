@@ -213,7 +213,7 @@ begin
     match d with
     | Cabs.FUNDEF(name, _, loc) -> (
         match name with
-        | (_, (funcname, Cabs.PROTO(_,_,_), _)) -> (
+        | (_, (funcname, Cabs.PROTO(_,_,_), _, _)) -> (
             incr counter;          
             ignore (fprintf chan "\n/* %s from %s:%d */\n"
                                  funcname loc.Cabs.filename loc.Cabs.lineno);

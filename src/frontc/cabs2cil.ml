@@ -447,7 +447,7 @@ let alphaConvertVarAndAddToEnv (addtoenv: bool) (vi: varinfo) : varinfo =
     else 
       copyVarinfo vi newname
   in
-  (* STore all locals in the slocals (in reversed order). We'll reverse them 
+  (* Store all locals in the slocals (in reversed order). We'll reverse them 
    * and take out the formals at the end of the function *)
   if not vi.vglob then
     !currentFunctionFDEC.slocals <- newvi :: !currentFunctionFDEC.slocals;
@@ -530,7 +530,7 @@ let newTempVar typ =
     E.s (bug "newTempVar called outside a function");
 (*  ignore (E.log "stripConstLocalType(%a) for temporary\n" d_type typ); *)
   let t' = stripConstLocalType typ in
-  (* Start with the name "tmp". THe alpha converter will fix it *)
+  (* Start with the name "tmp". The alpha converter will fix it *)
   let vi = makeVarinfo false "tmp" t' in
   alphaConvertVarAndAddToEnv false  vi (* Do not add to the environment *)
 (*
@@ -1777,7 +1777,7 @@ let afterConversion (c: chunk) : chunk =
 let suggestAnonName (nl: A.name list) = 
   match nl with 
     [] -> ""
-  | (n, _, _) :: _ -> n
+  | (n, _, _, _) :: _ -> n
 
 (****** TYPE SPECIFIERS *******)
 let rec doSpecList (suggestedAnonName: string) (* This string will be part of 
@@ -2034,7 +2034,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
 and makeVarInfoCabs 
                 ~(isformal: bool)
                 ~(isglobal: bool) 
-                (ldecl: location)
+		(ldecl : location)
                 (bt, sto, inline, attrs)
                 (n,ndt,a) 
       : varinfo = 
@@ -2059,7 +2059,7 @@ and makeVarInfoCabs
   vi
 
 (* Process a local variable declaration and allow variable-sized arrays *)
-and makeVarSizeVarInfo (ldecl: location) 
+and makeVarSizeVarInfo (ldecl : location)
                        spec_res
                        (n,ndt,a)
    : varinfo * chunk * exp * bool = 
@@ -2239,7 +2239,7 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
           if args != [] && !msvcMode = not isva then begin
             let newisva = ref isva in 
             let rec doLast = function
-                [([A.SpecType (A.Tnamed atn)], (an, A.JUSTBASE, []))] 
+                [([A.SpecType (A.Tnamed atn)], (an, A.JUSTBASE, [], _))] 
                   when isOldStyleVarArgTypeName atn && 
                        isOldStyleVarArgName an -> begin
                          (* Turn it into a vararg *)
@@ -2256,9 +2256,9 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
           end else (args, isva)
         in
         (* Make the argument as for a formal *)
-        let doOneArg (s, ((n, _, _) as nm)) : varinfo = 
+        let doOneArg (s, (n, ndt, a, cloc)) : varinfo = 
           let s' = doSpecList n s in
-          makeVarInfoCabs ~isformal:true ~isglobal:false locUnknown s' nm
+          makeVarInfoCabs ~isformal:true ~isglobal:false (convLoc cloc) s' (n,ndt,a)
         in
         let targs : varinfo list option = 
           match List.map doOneArg args'  with
@@ -2353,16 +2353,16 @@ and makeCompType (isstruct: bool)
    * one exists already from a forward reference  *)
   let comp, _ = createCompInfo isstruct n' in
   let doFieldGroup ((s: A.spec_elem list), 
-                    (nl: (A.name * A.expression option * A.cabsloc) list)) : 'a list =
+                    (nl: (A.name * A.expression option) list)) : 'a list =
     (* Do the specifiers exactly once *)
     let sugg = match nl with 
       [] -> ""
-    | ((n, _, _), _, _) :: _ -> n
+    | ((n, _, _, _), _) :: _ -> n
     in
     let bt, sto, inl, attrs = doSpecList sugg s in
     (* Do the fields *)
     let makeFieldInfo
-        (((n,ndt,a) : A.name), (widtho : A.expression option), (cloc : A.cabsloc))
+        (((n,ndt,a,cloc) : A.name), (widtho : A.expression option))
       : fieldinfo = 
       if sto <> NoStorage || inl then 
         E.s (error "Storage or inline not allowed for fields");
@@ -2803,10 +2803,10 @@ and doExp (isconst: bool)    (* In a constant *)
               let spec_res = doSpecList "" s' in
               let se1 = 
                 if !scopes == [] then begin
-                  ignore (createGlobal spec_res ((newvar, dt', []), ie'));
+                  ignore (createGlobal spec_res ((newvar, dt', [], cabslu), ie'));
                   empty
                 end else
-                  createLocal spec_res ((newvar, dt', []), ie') 
+                  createLocal spec_res ((newvar, dt', [], cabslu), ie') 
               in
               (* Now pretend that e is just a reference to the newly created 
                * variable *)
@@ -4059,13 +4059,13 @@ and doInit
 (* Create and add to the file (if not already added) a global. Return the 
  * varinfo *)
 and createGlobal (specs : (typ * storage * bool * A.attribute list)) 
-                 (((n,ndt,a),inite) : A.init_name) : varinfo = 
+                 (((n,ndt,a,cloc) as nm, inite) : A.init_name) : varinfo = 
   try
     if debugGlobal then 
       ignore (E.log "createGlobal: %s\n" n);
             (* Make a first version of the varinfo *)
     let vi = makeVarInfoCabs ~isformal:false 
-                             ~isglobal:true locUnknown specs (n, ndt, a) in
+                             ~isglobal:true (convLoc cloc) specs (n,ndt,a) in
     (* Add the variable to the environment before doing the initializer 
      * because it might refer to the variable itself *)
     if isFunctionType vi.vtype then begin
@@ -4157,7 +4157,7 @@ and createGlobal (specs : (typ * storage * bool * A.attribute list))
 
 (* Must catch the Static local variables. Make them global *)
 and createLocal ((_, sto, _, _) as specs)
-                (((n, ndt, a) as name, (e: A.init_expression)) as init_name) 
+                ((((n, ndt, a, cloc) : A.name), (e: A.init_expression)) as init_name) 
   : chunk =
   (* Check if we are declaring a function *)
   let rec isProto (dt: decl_type) : bool = 
@@ -4231,7 +4231,7 @@ and createLocal ((_, sto, _, _) as specs)
             makeVarInfoCabs 
                         ~isformal:false
                         ~isglobal:false 
-                        !currentLoc 
+	                !currentLoc
                         (TInt(IUInt, []), NoStorage, false, [])
                         ("__lengthof" ^ vi.vname,JUSTBASE, []) 
           in
@@ -4281,7 +4281,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
       let sugg = 
         match nl with 
           [] -> ""
-        | ((n, _, _), _) :: _ -> n
+        | ((n, _, _, _), _) :: _ -> n
       in
       let spec_res = doSpecList sugg s in
       (* Do all the variables and concatenate the resulting statements *)
@@ -4328,7 +4328,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
         
   (* If there are multiple definitions of extern inline, turn all but the 
    * first into a prototype *)
-  | A.FUNDEF (((specs,(n,dt,a)) : A.single_name),
+  | A.FUNDEF (((specs,(n,dt,a,loc')) : A.single_name),
               (body : A.block), loc) 
       when isglobal && isExtern specs && isInline specs 
            && (H.mem genv (n ^ "__extinline")) -> 
@@ -4336,9 +4336,9 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
        ignore (warn "Duplicate extern inline definition for %s ignored"
                  n);
        (* Treat it as a prototype *)
-       doDecl isglobal (A.DECDEF ((specs, [((n,dt,a), A.NO_INIT)]), loc))
+       doDecl isglobal (A.DECDEF ((specs, [((n,dt,a,loc'), A.NO_INIT)]), loc))
 
-  | A.FUNDEF (((specs,(n,dt,a)) : A.single_name),
+  | A.FUNDEF (((specs,(n,dt,a, _)) : A.single_name),
               (body : A.block), loc) when isglobal ->
     begin
       let funloc = convLoc(loc) in
@@ -4454,7 +4454,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                 List.map 
                   (fun (fn, ft, fa) -> 
                     let f = makeVarinfo false fn ft in
-                    f.vdecl <- !currentLoc;
+                    f.vdecl <- !currentLoc; (*sfg - locs buried in dt*)
                     f.vattr <- fa;
                     alphaConvertVarAndAddToEnv true f)
                   (argsToList formals_t)
@@ -4675,7 +4675,7 @@ and doTypedef ((specs, nl): A.name_group) =
     let bt, sto, inl, attrs = doSpecList (suggestAnonName nl) specs in
     if sto <> NoStorage || inl then
       E.s (error "Storage or inline specifier not allowed in typedef");
-    let createTypedef ((n,ndt,a) : A.name) =
+    let createTypedef ((n,ndt,a,loc) : A.name) =
       (*    E.s (error "doTypeDef") *)
       try
         let newTyp, tattr =
@@ -4704,7 +4704,7 @@ and doTypedef ((specs, nl): A.name_group) =
     let fstname = 
       match nl with
         [] -> "<missing name>"
-      | (n, _, _) :: _ -> n
+      | (n, _, _, _) :: _ -> n
     in
     cabsPushGlobal (GAsm ("booo_typedef: " ^ fstname, !currentLoc))
   end
@@ -4978,7 +4978,7 @@ and doStatement (s : A.statement) : chunk =
             (* Make a temporary variable *)
             let vchunk = createLocal 
                 (TInt(IUInt, []), NoStorage, false, [])
-                (("__compgoto", A.JUSTBASE, []), A.NO_INIT) 
+                (("__compgoto", A.JUSTBASE, [], loc), A.NO_INIT) 
             in
             if not (isEmpty vchunk) then 
               E.s (unimp "Non-empty chunk in creating temporary for goto *");

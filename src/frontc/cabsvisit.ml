@@ -177,7 +177,7 @@ let rec visitCabsTypeSpecifier (vis: cabsVisitor) (ts: typeSpecifier) =
 and childrenTypeSpecifier vis ts = 
   let childrenFieldGroup ((s, nel) as input) = 
     let s' = visitCabsSpecifier vis s in
-    let doOneField ((n, eo, loc) as input) = 
+    let doOneField ((n, eo) as input) = 
       let n' = visitCabsName vis NField s' n in
       let eo' = 
         match eo with
@@ -185,7 +185,7 @@ and childrenTypeSpecifier vis ts =
         | Some e -> let e' = visitCabsExpression vis e in
           if e' != e then Some e' else eo
       in
-      if n' != n || eo' != eo then (n', eo', loc) else input
+      if n' != n || eo' != eo then (n', eo') else input
     in
     let nel' = mapNoCopy doOneField nel in
     if s' != s || nel' != nel then (s', nel) else input
@@ -279,10 +279,10 @@ and visitCabsName vis (k: nameKind) (s: specifier)
                       (n: name) : name = 
   doVisit vis (vis#vname k s) (childrenName s k) n
 and childrenName (s: specifier) (k: nameKind) vis (n: name) : name = 
-  let (sn, dt, al) = n in
+  let (sn, dt, al, loc) = n in
   let dt' = visitCabsDeclType vis (k = NFun) dt in
   let al' = mapNoCopy (childrenAttribute vis) al in
-  if dt' != dt || al' != al then (sn, dt', al') else n
+  if dt' != dt || al' != al then (sn, dt', al', loc) else n
     
 and childrenInitName vis (s: specifier) (inn: init_name) : init_name = 
   let (n, ie) = inn in

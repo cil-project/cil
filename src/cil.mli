@@ -473,7 +473,7 @@ and varinfo = {
     (** Whether this varinfo is for an inline function. *)
 
     mutable vdecl: location;            
-    (** Location of variable declaration. Not yet implemented. *)
+    (** Location of variable declaration. *)
 
     mutable vid: int;  
     (** A unique integer identifier. This field will be 

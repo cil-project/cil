@@ -374,7 +374,7 @@ and print_onlytype (specs, dt) =
   print_specifiers specs;
   print_decl "" dt
     
-and print_name ((n, decl, attrs) : name) =
+and print_name ((n, decl, attrs, _) : name) =
   print_decl n decl;
   space ();
   print_attributes attrs
@@ -396,7 +396,7 @@ and print_field_group (specs, fields) =
   print_commas false print_field fields
     
 
-and print_field (name, widtho, loc) = 
+and print_field (name, widtho) = 
   print_name name;
   (match widtho with 
     None -> ()
@@ -880,10 +880,10 @@ and print_def def =
         try
           let fname =
             match proto with
-              (_, (n, _, _)) -> n
+              (_, (n, _, _, _)) -> n
           in
           print_def (DECDEF (([SpecType Tint],
-                              [(fname ^ "__counter", JUSTBASE, []),
+                              [(fname ^ "__counter", JUSTBASE, [], cabslu),
                                 NO_INIT]), loc));
         with Not_found -> print "/* can't print the counter */"
       end;

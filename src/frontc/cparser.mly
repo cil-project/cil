@@ -54,6 +54,7 @@ let currentLoc () = { lineno = !Clexer.currentLine;
                       filename = !Clexer.currentFile;
                       byteno = Clexer.getCurrentByte(); } 
 
+let cabslu = {lineno = -10; filename = "cabs loc unknown"; byteno = -10;}
 
 (*
 ** Expression building
@@ -67,7 +68,7 @@ let smooth_expression lst =
 
 let currentFunctionName = ref "<outside any function>"
     
-let announceFunctionName ((n, decl, _):name) =
+let announceFunctionName ((n, decl, _, _):name) =
   Clexer.add_identifier n;
   (* Start a context that includes the parameter names and the whole body. 
    * Will pop when we finish parsing the function body *)
@@ -75,7 +76,7 @@ let announceFunctionName ((n, decl, _):name) =
   (* Go through all the parameter names and mark them as identifiers *)
   let rec findProto = function
       PROTO (d, args, _) when isJUSTBASE d -> 
-        List.iter (fun (_, (an, _, _)) -> Clexer.add_identifier an) args
+        List.iter (fun (_, (an, _, _, _)) -> Clexer.add_identifier an) args
 
     | PROTO (d, _, _) -> findProto d
     | PARENTYPE (_, d, _) -> findProto d
@@ -106,14 +107,14 @@ let applyPointer (ptspecs: attribute list list) (dt: decl_type)
 let doDeclaration (loc: cabsloc) (specs: spec_elem list) (nl: init_name list) : definition = 
   if isTypedef specs then begin
     (* Tell the lexer about the new type names *)
-    List.iter (fun ((n, _, _), _) -> Clexer.add_type n) nl;
+    List.iter (fun ((n, _, _, _), _) -> Clexer.add_type n) nl;
     TYPEDEF ((specs, List.map (fun (n, _) -> n) nl), loc)
   end else
     if nl = [] then
       ONLYTYPEDEF (specs, loc)
     else begin
       (* Tell the lexer about the new variable names *)
-      List.iter (fun ((n, _, _), _) -> Clexer.add_identifier n) nl;
+      List.iter (fun ((n, _, _, _), _) -> Clexer.add_identifier n) nl;
       DECDEF ((specs, nl), loc)  
     end
 
@@ -132,11 +133,11 @@ let doOldParDecl (names: string list)
   let findOneName n =
     (* Search in pardefs for the definition for this parameter *)
     let rec loopGroups = function
-        [] -> ([SpecType Tint], (n, JUSTBASE, []))
+        [] -> ([SpecType Tint], (n, JUSTBASE, [], cabslu))
       | (specs, names) :: restgroups ->
           let rec loopNames = function
               [] -> loopGroups restgroups
-            | ((n',_, _) as sn) :: _ when n' = n -> (specs, sn)
+            | ((n',_, _, _) as sn) :: _ when n' = n -> (specs, sn)
             | _ :: restnames -> loopNames restnames
           in
           loopNames names
@@ -270,8 +271,8 @@ end
 %type <Cabs.init_name> init_declarator
 %type <Cabs.init_name list> init_declarator_list
 %type <Cabs.name> declarator
-%type <Cabs.name * expression option * Cabs.cabsloc> field_decl
-%type <(Cabs.name * expression option * Cabs.cabsloc) list> field_decl_list
+%type <Cabs.name * expression option> field_decl
+%type <(Cabs.name * expression option) list> field_decl_list
 %type <string * Cabs.decl_type> direct_decl
 %type <Cabs.decl_type> abs_direct_decl abs_direct_decl_opt
 %type <Cabs.decl_type * Cabs.attribute list> abstract_decl
@@ -309,14 +310,14 @@ global:
                              let pardecl, isva = doOldParDecl $4 $6 in
                              (* Make the function declarator *)
                              doDeclaration $1 []
-                               [(($2, PROTO(JUSTBASE, pardecl,isva), []),
+                               [(($2, PROTO(JUSTBASE, pardecl,isva), [], cabslu),
                                  NO_INIT)]
                             }
 /* (* Old style function prototype, but without any arguments *) */
 | location  IDENT LPAREN RPAREN  SEMICOLON
                            { (* Make the function declarator *)
                              doDeclaration $1 []
-                               [(($2, PROTO(JUSTBASE,[],false), []),
+                               [(($2, PROTO(JUSTBASE,[],false), [], cabslu),
                                  NO_INIT)]
                             }
 /* transformer for a toplevel construct */
@@ -735,12 +736,12 @@ struct_decl_list: /* (* ISO 6.7.2. Except that we allow empty structs. We
                       * also allow missing field names. *)
                    */
    /* empty */                           { [] }
-|  location decl_spec_list        SEMICOLON struct_decl_list
-                                         { ($2, 
-                                            [(missingFieldDecl, None, $1)]) :: $4 }
-|  location decl_spec_list field_decl_list SEMICOLON struct_decl_list
-                                          { ($2, $3) 
-                                            :: $5 }
+|  decl_spec_list                 SEMICOLON struct_decl_list
+                                         { ($1, 
+                                            [(missingFieldDecl, None)]) :: $3 }
+|  decl_spec_list field_decl_list SEMICOLON struct_decl_list
+                                          { ($1, $2) 
+                                            :: $4 }
 |  error                          SEMICOLON struct_decl_list
                                           { $3 } 
 ;
@@ -749,9 +750,9 @@ field_decl_list: /* (* ISO 6.7.2 *) */
 |   field_decl COMMA field_decl_list     { $1 :: $3 }
 ;
 field_decl: /* (* ISO 6.7.2. Except that we allow unnamed fields. *) */
-|   location declarator                      { ($2, None, $1) }
-|   location declarator COLON expression     { ($2, Some $4, $1) }    
-|   location            COLON expression     { (missingFieldDecl, Some $3, $1) }
+|   declarator                      { ($1, None) }
+|   declarator COLON expression     { ($1, Some $3) }    
+|              COLON expression     { (missingFieldDecl, Some $2) }
 ;
 
 enum_list: /* (* ISO 6.7.2.2 *) */
@@ -766,10 +767,11 @@ enumerator:
 
 
 declarator:  /* (* ISO 6.7.5. Plus Microsoft declarators.*) */
-   pointer_opt direct_decl attributes_with_asm
-                                         { let (n, decl) = $2 in
-                                           (n, applyPointer $1 decl, $3) }
+   location pointer_opt direct_decl attributes_with_asm
+                                         { let (n, decl) = $3 in
+                                           (n, applyPointer $2 decl, $4, $1) }
 ;
+
 
 direct_decl: /* (* ISO 6.7.5 *) */
                                    /* (* We want to be able to redefine named
@@ -777,7 +779,7 @@ direct_decl: /* (* ISO 6.7.5 *) */
 |   id_or_typename                 { ($1, JUSTBASE) }
 
 |   LPAREN attributes declarator RPAREN
-                                   { let (n,decl,al) = $3 in
+                                   { let (n,decl,al,loc) = $3 in
                                      (n, PARENTYPE($2,decl,al)) }
 
 |   direct_decl bracket_comma_expression
@@ -813,15 +815,15 @@ rest_par_list1:
 parameter_decl: /* (* ISO 6.7.5 *) */
    decl_spec_list declarator              { ($1, $2) }
 |  decl_spec_list abstract_decl           { let d, a = $2 in
-                                            ($1, ("", d, a)) }
-|  decl_spec_list                         { ($1, ("", JUSTBASE, [])) }
+                                            ($1, ("", d, a, cabslu)) }
+|  decl_spec_list                         { ($1, ("", JUSTBASE, [], cabslu)) }
 |  LPAREN parameter_decl RPAREN           { $2 } 
 ;
 
 /* (* Old style prototypes. Like a declarator *) */
 old_proto_decl:
-  pointer_opt direct_old_proto_decl       { let (n, decl, a) = $2 in
-                                            (n, applyPointer $1 decl, a) }
+  location pointer_opt direct_old_proto_decl   { let (n, decl, a) = $3 in
+						   (n, applyPointer $2 decl, a, $1) }
 ;
 direct_old_proto_decl:
   direct_decl LPAREN old_parameter_list_ne RPAREN old_pardef_list
@@ -877,8 +879,8 @@ type_name: /* (* ISO 6.7.6 *) */
 | decl_spec_list               { ($1, JUSTBASE) }
 ;
 abstract_decl: /* (* ISO 6.7.6. *) */
-  pointer_opt abs_direct_decl attributes  { applyPointer $1 $2, $3 }
-| pointer                                 { applyPointer $1 JUSTBASE, [] }
+  location pointer_opt abs_direct_decl attributes  { applyPointer $2 $3, $4 }
+| location pointer                                 { applyPointer $2 JUSTBASE, [] }
 ;
 
 abs_direct_decl: /* (* ISO 6.7.6. We do not support optional declarator for 
@@ -930,7 +932,7 @@ function_def_start:  /* (* ISO 6.9.1 *) */
 | location        IDENT parameter_list_startscope rest_par_list RPAREN 
                            { let (params, isva) = $4 in
                              let fdec = 
-                               ($2, PROTO(JUSTBASE, params, isva), []) in
+                               ($2, PROTO(JUSTBASE, params, isva), [], $1) in
                              announceFunctionName fdec;
                              (* Default is int type *)
                              let defSpec = [SpecType Tint] in
@@ -944,7 +946,7 @@ function_def_start:  /* (* ISO 6.9.1 *) */
                              (* Make the function declarator *)
                              let fdec = ($2, 
                                          PROTO(JUSTBASE, pardecl,isva), 
-                                         []) in
+                                         [], $1) in
                              announceFunctionName fdec;
                              (* Default is int type *)
                              let defSpec = [SpecType Tint] in
@@ -955,7 +957,7 @@ function_def_start:  /* (* ISO 6.9.1 *) */
                            { (* Make the function declarator *)
                              let fdec = ($2, 
                                          PROTO(JUSTBASE, [], false), 
-                                         []) in
+                                         [], $1) in
                              announceFunctionName fdec;
                              (* Default is int type *)
                              let defSpec = [SpecType Tint] in

@@ -60,6 +60,8 @@ type cabsloc = {
 
 }                                                                     
 
+let cabslu = {lineno = -10; filename = "cabs loc unknown"; byteno = -10;}
+
 type typeSpecifier = (* Merge all specifiers into one type *)
     Tvoid                             (* Type specifier ISO 6.7.2 *)
   | Tchar
@@ -129,7 +131,7 @@ and decl_type =
 and name_group = specifier * name list
 
 (* The optional expression is the bitfield *)
-and field_group = specifier * (name * expression option * cabsloc) list
+and field_group = specifier * (name * expression option) list
 
 (* like name_group, except the declared variables are allowed to have initializers *)
 (* e.g.: int x=1, y=2; *)
@@ -140,7 +142,7 @@ and init_name_group = specifier * init_name list
  * printed after the declarator *)
 (* e.g: in "int *x", "*x" is the declarator; "x" will be pulled out as *)
 (* the string, and decl_type will be PTR([], JUSTBASE) *)
-and name = string * decl_type * attribute list
+and name = string * decl_type * attribute list * cabsloc
 
 (* A variable declarator ("name") with an initializer *)
 and init_name = name * init_expression
@@ -287,7 +289,7 @@ and attribute = string * expression list
 
 (*********** HELPER FUNCTIONS **********)
 
-let missingFieldDecl = ("___missing_field_name", JUSTBASE, [])
+let missingFieldDecl = ("___missing_field_name", JUSTBASE, [], cabslu)
 
 let rec isStatic = function
     [] -> false

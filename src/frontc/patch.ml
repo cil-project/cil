@@ -182,10 +182,10 @@ class substitutor (bindings : binding list) = object(self)
   (* binding introduction of a name *)
   method vname (k: nameKind) (spec: specifier) (n: name) : name visitAction =
   begin
-    match n with (s (*variable name*), dtype, attrs) -> (
+    match n with (s (*variable name*), dtype, attrs, loc) -> (
       let replacement = (self#vvar s) in    (* use replacer from above *)
       if (s <> replacement) then
-        ChangeTo(replacement, dtype, attrs)
+        ChangeTo(replacement, dtype, attrs, loc)
       else
         DoChildren                          (* no replacement *)
     )
@@ -562,12 +562,12 @@ begin
   )
 end
 
-and unifyNameExprOpt (pat : name * expression option * cabsloc)
-                     (tgt : name * expression option * cabsloc) : binding list =
+and unifyNameExprOpt (pat : name * expression option)
+                     (tgt : name * expression option) : binding list =
 begin
   match pat,tgt with
-  | (name1, None, _), (name2, None, _) -> (unifyName name1 name2)
-  | (name1, Some(exp1), _), (name2, Some(exp2), _) ->
+  | (name1, None), (name2, None) -> (unifyName name1 name2)
+  | (name1, Some(exp1)), (name2, Some(exp2)) ->
       (unifyName name1 name2) @
       (unifyExpr exp1 exp2)
   | _,_ -> []
@@ -575,7 +575,7 @@ end
 
 and unifyName (pat : name) (tgt : name) : binding list =
 begin
-  match pat,tgt with (pstr, pdtype, pattrs), (tstr, tdtype, tattrs) ->
+  match pat,tgt with (pstr, pdtype, pattrs, ploc), (tstr, tdtype, tattrs, tloc) ->
     (mustEq pattrs tattrs);
     (unifyString pstr tstr) @
     (unifyDeclType pdtype tdtype)
@@ -613,8 +613,8 @@ begin
   (printDecl pat tgt);
 
   match pat, tgt with
-  | (pname, pdtype, pattr),
-    (tname, tdtype, tattr) ->
+  | (pname, pdtype, pattr, ploc),
+    (tname, tdtype, tattr, tloc) ->
       (mustEq pattr tattr);
       (unifyDeclType pdtype tdtype) @
       (unifyString pname tname)
