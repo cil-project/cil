@@ -2405,7 +2405,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           if forcefile || l.file <> lastFileName then
 	    begin
 	      lastFileName <- l.file;
-	      text " \"" ++ text l.file ++ chr '"'
+	      text " \"" ++ text l.file ++ chr '"' (* " *)
             end
 	  else
 	    nil
