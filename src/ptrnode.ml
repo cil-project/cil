@@ -210,6 +210,7 @@ let pkForward    = of_int 128 (* The pointer is into an array, and is moving
 let pkCastPredFlags = (pkUpdated lor pkPosArith lor pkArith lor pkEscape)
 let pkCastSuccFlags = (pkOnStack lor pkNull lor pkIntCast)
 let pkCNIPredFlags =  (pkReachString lor pkReachIndex lor pkReachSeq)
+let pkSafeSuccFlags = (pkOnStack lor pkEscape)
 
 let pkIsWild = function
     KWild _ -> true | _ -> false

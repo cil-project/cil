@@ -312,7 +312,16 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
             finished := !finished && (old_flags = e.efrom.flags)
         end
       ) cur.pred ;
-    ) node_ht ;
+	  
+	  (*sg: now all Successor Safe edges *)
+	  List.iter (fun e ->
+		if e.ekind = ESafe then begin
+		  let old_flags = e.eto.flags in
+			setFlag e.eto (cur.flags land pkSafeSuccFlags) ;
+			finished := !finished && (old_flags = e.eto.flags)
+		end
+	  ) cur.succ ;
+    ) node_ht ; 
   done ; 
 
   (* Step 4

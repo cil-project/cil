@@ -195,6 +195,7 @@ val pkNull: int
 val pkCastPredFlags: int
 val pkCastSuccFlags: int
 val pkCNIPredFlags: int
+val pkSafeSuccFlags : int
 
 val setFlag: node -> int -> unit
 val hasFlag: node -> int -> bool

@@ -1267,7 +1267,12 @@ and doStmt (s: stmt) : stmt =
   | Return (None, _) -> ()
   | Return (Some e, l) -> 
       currentLoc := l;
-      s.skind <- Return (Some (doExpAndCast e !currentResultType), l)
+	  let e' = doExpAndCast e !currentResultType 
+	  in
+	  (*sg:need to mark exp as escaped*)
+		expMarkEscape e';
+		s.skind <- Return (Some e', l)
+(*      s.skind <- Return (Some (doExpAndCast e !currentResultType), l)*)
   | Instr il -> 
       s.skind <- Instr (mapNoCopyList doInstr il)
   | Loop (b, l) -> 
@@ -1319,30 +1324,32 @@ and doInstr (i:instr) : instr list =
       | None -> doFunctionCall reso orig_func args l
   end
 
-(* todo: if marking a union, mark all fields *)
-and expMarkEscape (e : exp) : unit =
-  let addrLvMarkEscape (lv : lval) : unit = 
-	let _, lvnode = doLvalue lv false (* gets node for &lv *)
-	in setEscape lvnode
-  in
-  (* is this it? *)
-  let lvMarkEscape (lv : lval) : unit =
-    let _, lvn = doLvalue lv false 
-	in setEscape (nodeOfType lvn.N.btype)
-		 (* a global shouldn't be marked w/ escape flag *)
-  in
-	match e with
-		Lval lv    -> lvMarkEscape lv
-	  | StartOf lv -> lvMarkEscape lv
+and expMarkEscape (e : exp) : unit = 
+	(*ignore (printf "--%a--\n" d_plainexp e); *)
+	match e with 
 
-	  | AddrOf lv  -> addrLvMarkEscape lv
+		Lval lv -> 	
+		  let lvnode = nodeOfType (typeOfLval lv) (*get node for lv*)
+		  in setEscape lvnode 
+
+	  | StartOf lv -> 
+		  let lvnode = (* like typeOf, but keeps attrs of arrays *)
+			(match unrollType (typeOfLval lv) with
+				 TArray (t,_,al) -> nodeOfType (TPtr(t, al))
+			   | _ -> E.s (E.bug "expMarkEscape: StartOf on a non-array") )
+		  in
+	 		setEscape lvnode
+
+	  | AddrOf lv  -> 
+		  let _, alvnode = doLvalue lv false (* gets node for &lv *)
+		  in setEscape alvnode
 
 	  | CastE(_, e1)   -> expMarkEscape e1
-	  | UnOp(_, e1, _) -> expMarkEscape e1 
+	  | UnOp((Neg|BNot), e1, _) -> expMarkEscape e1 
 
 	  | BinOp( (Lt|Gt|Le|Ge|Eq|Ne|LtP|GtP|LeP|GeP|EqP|NeP), _, _, _) -> ()
 	  | BinOp(_, e1, e2, _) -> expMarkEscape e1; expMarkEscape e2 
-	  | Question(_, e1, e2) -> expMarkEscape e1; expMarkEscape e2
+	  | Question(_, e1, e2) -> expMarkEscape e1; (*expMarkEscape e2*)
 
 	  | _ -> ()
 
