@@ -85,12 +85,15 @@ let init_lexicon _ =
       ("_fastcall", MSATTR "_fastcall"); 
       ("__fastcall", MSATTR "__fastcall");
       ("__declspec", DECLSPEC);
+      (* weimer: some files produced by 'GCC -E' expect this type to be
+       * defined *)
+      ("__builtin_va_list", LONG); 
     ]
 
 (* Mark an identifier as a type name. The old mapping is preserved and will 
  * be reinstated when we exit this context *)
 let add_type name =
-(*   ignore (print_string ("adding type name " ^ name ^ "\n")); *)
+   (* ignore (print_string ("adding type name " ^ name ^ "\n"));  *)
    StringHashtbl.add lexicon name (NAMED_TYPE name)
 
 let context : string list list ref = ref []
