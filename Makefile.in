@@ -242,8 +242,7 @@ pdfdoc: doc/cilpp.tex
 	     -I $(OBJDIR) \
                     src/pretty.mli src/errormsg.mli src/clist.mli \
 	  	    src/stats.mli src/cil.mli src/formatcil.mli
-	cp /usr/local/lib/ocaml/ocamldoc/ocamldoc.sty doc
-	cd doc ; pdflatex cil-api.tex
+	cd doc ; TEXINPUTS="$$TEXINPUTS:/usr/local/lib/ocaml/ocamldoc:/usr/lib/ocaml/ocamldoc" pdflatex cil-api.tex
 	cd doc ; mv cil-api.pdf html/cil/CIL-API.pdf
 
 doc: texdoc pdfdoc odoc
