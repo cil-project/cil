@@ -64,7 +64,7 @@ sub compile {
     if($base =~ m|cil$|) { # Already the output of CIL
         return $self->SUPER::compile($src, $dest, $ppargs, $ccargs);
     } else { # Must pas through CIL first
-        if($self->{VERBOSE}) { print "CilCompiler compiling $src to $dest\n"; }
+        if($self->{VERBOSE}) { print "Cilly compiling $src to $dest\n"; }
 
         my $cmd = $CilCompiler::compiler;
         
@@ -74,7 +74,9 @@ sub compile {
         if($self->{VERBOSE}) {
             $cmd .= " --verbose ";
         }
-        $cmd .= join(' ', @{$self->{CILLYARGS}});
+        if(defined $self->{CILLYARGS}) {
+            $cmd .= join(' ', @{$self->{CILLYARGS}});
+        }
         # Make a name for the CIL file
         my $cilfile = "$dir$base" . "cil.c";
         $self->runShell("$cmd $src -o $cilfile");
