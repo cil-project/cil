@@ -1,4 +1,35 @@
-TODO list as of 3/6 (George leaves for Japan)
+TODO list
+
+
+CIL
+------
+
+Front-end
+ - trigraph sequences (??:, ...) ISO 5.2.1.1
+ - name spaces for struct/enum/union are the same ISO 6.2.3
+ - check integer conversion ISO 6.3.1.1
+ - character constants (type, value, escapes) ISO 6.4.4.4
+ - string literals (value, escapes) ISO 6.4.5
+ - punctuation tokens ISO 6.4.6
+ - default argument promotions in function calls ISO 6.5.2.2
+ - compound literals ISO 6.5.2.5. Missing fields initialized to 0!!
+ - check that long long is properly done in type specs ISO 6.7.2
+ - Initialization ISO 6.7.8
+
+
+
+CCURED
+==============
+
+ - if we use memcpy to copy some stuff from local variables to the heap we
+ might be moving stack pointers that way. The only way to prevent that is to
+ disallow storing stack pointers in local variables that are arrays or whose
+ address is taken.
+
+ - in box.ml offsetOfFirstScalar looks only at the first field of a union.
+
+ - in box.ml when we check tags we check all fields in a union. This is sound
+   but excessive. 
 
 (2) Make a file with global declarations of common functions like strcpy().
     These declarations should include pointer annotations and should be
@@ -14,17 +45,3 @@ TODO list as of 3/6 (George leaves for Japan)
  - Right now when we try to read a pointer and we don't find one in tags, we
    overwrite the base part of the pointer to be read with 0. But this might
    have undesired side-effects.
-
-
-Front-end
- - trigraph sequences (??:, ...) ISO 5.2.1.1
- - name spaces for struct/enum/union are the same ISO 6.2.3
- - check integer conversion ISO 6.3.1.1
- - character constants (type, value, escapes) ISO 6.4.4.4
- - string literals (value, escapes) ISO 6.4.5
- - punctuation tokens ISO 6.4.6
- - default argument promotions in function calls ISO 6.5.2.2
- - compound literals ISO 6.5.2.5. Missing fields initialized to 0!!
- - check that long long is properly done in type specs ISO 6.7.2
- - Initialization ISO 6.7.8
-
