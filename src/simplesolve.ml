@@ -298,11 +298,16 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
   let update_kind n k why =
     if (n.kind = Unknown) ||
        ((n.kind = Safe) && (k <> Safe)) ||
-       ((n.kind = FSeq) && (k <> FSeq) && (k <> Safe)) ||
+       ((n.kind = Seq) && (k <> Seq) && (k <> Safe)) ||
        ((n.kind = Index) && (k = Wild)) then begin
-        n.kind <- k ;
-        n.why_kind <- why ;
-        true
+        if (n.why_kind = UserSpec) then begin
+          ignore (E.warn "Pointer Kind Inference would override user-specified kind for\n%a" d_node n) ;
+          false
+        end else begin
+          n.kind <- k ;
+          n.why_kind <- why ;
+          true
+        end
     end else false
   in
 

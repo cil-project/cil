@@ -163,7 +163,7 @@ let d_whykind () = function
   | Default -> text "by_default"
   | UserSpec -> text "user_spec"
 
-let d_node n = 
+let d_node () n = 
   dprintf "%d : %a (%s%s%s%s%s%s) (@[%a@])@! K=%a/%a T=%a@!  S=@[%a@]@!  P=@[%a@]@!" 
     n.id d_placeidx n.where
     (if n.onStack then "stack," else "")
@@ -213,7 +213,7 @@ let printGraph (c: out_channel) =
   let allsorted = 
     List.sort (fun n1 n2 -> compare n1.id n2.id) !all in
   printShortTypes := true;
-  List.iter (fun n -> fprint c 80 (d_node n)) allsorted;
+  List.iter (fun n -> fprint c 80 (d_node () n)) allsorted;
   printShortTypes := false
        
 (* Add a new points-to to the node *)
@@ -262,6 +262,7 @@ let kindOfAttrlist al =
 let newNode (p: place) (idx: int) (bt: typ) (a: attribute list) : node =
   let where = p, idx in
   incr nextId;
+  let kind,why_kind = kindOfAttrlist a in
   let n = { id = !nextId;
             btype   = bt;
             attr    = addAttribute (ACons("_ptrnode", [AInt !nextId])) a;
@@ -273,8 +274,8 @@ let newNode (p: place) (idx: int) (bt: typ) (a: attribute list) : node =
             null    = false;
             intcast = false;
             succ = [];
-            kind = Safe;
-            why_kind = Default; 
+            kind = kind;
+            why_kind = why_kind; 
             pointsto = [];
             mark = false;
             pred = []; } in
