@@ -174,23 +174,66 @@ extern long double __builtin_fabsl(long double);
   NORETURN  void fp_fail(int msgId  FP_FAIL_EXTRA_PARAMS);
 
 
-  //
-  // Define primative wrapper functions:
-  //
-  void * __SAFE __startof(void *ptr); 
-  void * __SAFE __endof(void *ptr);
-  void * __SAFE __ptrof(void *ptr);
-  void *        __mkptr(void * __SAFE ptr, void *phome);
-  int __strlen(void *ptr);      //calls fp_fail if not nul-terminated
-  int __noninteger(void *ptr);  //returns 0 if ptr does not point to a real memory location.
-  void __copytags(void *dest, void*src, unsigned int len);  
+//////////////////////////////////////////////////////////////
+// Declare primitive wrapper functions:
+//
 
+//These functions do not do any error checking:
+
+  void * __SAFE  __ptrof(void *ptr);
+  // Type inference:  no constraints.
+  // In the wrapper:  returns ptr._p.
+
+  void * __SAFE  __startof(void *ptr); 
+  // Type inference:  ptr must allow backwards arithmetic.
+  // In the wrapper:  returns ptr._b.
+
+  void * __SAFE  __endof(void *ptr);
+  // Type inference:  ptr must allow forwards arithmetic.
+  // In the wrapper:  returns ptr._e (WILDs: returns 0 if ptr._b == 0).
+
+  void * __mkptr(void * __SAFE p, void *phome);
+  // Type inference:  phome must be castable to the return type.
+  // In the wrapper:  returns a (multiword) pointer to p with phome's
+  //                    memory region.
+
+  int __noninteger(void *ptr);
+  // Type inference:  no constraints.
+  // In the wrapper:  returns zero iff ptr is 0 or another non-pointer value
+  //                    (i.e. an int cast to a pointer); non-zero otherwise.
+
+
+//These functions may call fp_fail:
+
+  int __strlen(void *ptr);      
+  // Type inference:  ptr must allow forwards arithmetic; also sets the
+  //                    reachString flag.
+  // In the wrapper:  returns the length of the string, not couting the 
+  //                    terminating nul.
+  //                  Calls fp_fail if ptr is null or not nul-terminated.
+
+  void __write_at_least(void *ptr, unsigned int len);  
+  // Type inference:  ptr must allow forwards arithmetic.
+  // In the wrapper:  Verifies that we can write the next len bytes of ptr. In
+  //                    WILDs, also clears the tags for the next len bytes.
+  //                  Calls fp_fail if ptr is null or not long enough.
+
+  void __copytags(void *dest, void* src, unsigned int len);  
+  // Type inference:  ptr must allow forwards arithmetic.
+  // In the wrapper:  Verifies that we can read/write the next len bytes
+  //                    of both dest and src.  In WILDs, also copys the
+  //                    appropriate tags from src to dest.
+  //                  Calls fp_fail if either dest or src is null or not long
+  //                    enough.
+
+
+  #pragma boxpoly("__ptrof")
   #pragma boxpoly("__startof")
   #pragma boxpoly("__endof")
-  #pragma boxpoly("__ptrof")
   #pragma boxpoly("__mkptr")
   #pragma boxpoly("__strlen")
   #pragma boxpoly("__noninteger")
+  #pragma boxpoly("__write_at_least")
   #pragma boxpoly("__copytags")
 
   //Helper routine:
