@@ -34,11 +34,17 @@ val int_range_list : int -> int -> int list
 val list_init : int -> (int -> 'a) -> 'a list
 
 (** Growable arrays *)
+type 'a growArrayFill =
+    Elem of 'a
+  | Susp of (int -> 'a)
+
 type 'a growArray = {
-            gaFill: 'a; (** Stuff to use to fill in the array as it grows *)
+            gaFill: 'a growArrayFill;
+            (** Stuff to use to fill in the array as it grows *)
     mutable gaData: 'a array;
   } 
-val newGrowArray: int -> 'a -> 'a growArray
+
+val newGrowArray: int -> 'a growArrayFill -> 'a growArray
 val getReg: 'a growArray -> int -> 'a
 val setReg: 'a growArray -> int -> 'a -> unit
 val copyGrowArray: 'a growArray -> 'a growArray
