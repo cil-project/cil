@@ -27,6 +27,8 @@
 **  2.1e  9.1.99  Hugues Cassé  Fix, recognize and correctly display '\0'.
 *)
 
+module E = Errormsg
+
 open Cabs
 let version = "Cprint 2.1e 9.1.99 Hugues Cassé"
 
@@ -1066,9 +1068,7 @@ and print_def def global = begin
   
   (* clear function scope mapping table if this is a global def *)
   if global then 
-    begin
-      Hashtbl.clear lMap; 
-    end;
+    Hashtbl.clear lMap; 
   
   if global && (already_declared (remove_anon def)) then 
     begin
@@ -1131,12 +1131,12 @@ and print_def def global = begin
 *)
     | PRAGMA a -> 
         force_new_line ();
-         (* print "#pragma "; print s; *)
-         print_attribute a;
-         force_new_line ()
-    end
+        print "#pragma ";
+        print_attribute a;
+        force_new_line ()
 end
-  
+end
+
 (* look up id from Mapping tables *)
 and lookup_id id = begin
   try
@@ -1169,14 +1169,20 @@ end
 let set_tab t = tab := t
 let set_width w = width := w
 
-let combine (files : string list) = begin
-    Hashtbl.add gAlphaTable "" "";
-    Hashtbl.add gMap "" "";
-    Hashtbl.add fMap "" "";
-    Hashtbl.add lMap "" "";
-    
-    let list_of_parsed_files =
-      List.map (fun file_name -> Frontc.parse_to_cabs file_name) files in
-    (* your combining function goes somewhere around here *)
-        List.iter (fun file -> print stdout file) list_of_parsed_files
-end
+let combine (files: string list) 
+            (out: string) =
+  Hashtbl.add gAlphaTable "" "";
+  Hashtbl.add gMap "" "";
+  Hashtbl.add fMap "" "";
+  Hashtbl.add lMap "" "";
+  
+  let list_of_parsed_files =
+    List.map (fun file_name -> Frontc.parse_to_cabs file_name) files in
+  
+  let outchan = 
+    try open_out out with e -> E.s (E.error "Cannot open output file %s" out)
+  in
+  List.iter (fun file -> print outchan file) list_of_parsed_files;
+  close_out outchan
+
+      

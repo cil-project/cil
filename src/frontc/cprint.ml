@@ -787,7 +787,7 @@ and print_def def =
 *)
   | PRAGMA a -> 
       force_new_line ();
-      (* print "#pragma "; print s; *)
+      print "#pragma ";
       print_attribute a;
       force_new_line ()
       
