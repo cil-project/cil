@@ -48,6 +48,9 @@ let gTagUsedTable = Hashtbl.create 107 (* keep track tag names that have been us
 let fTag = Hashtbl.create 107 (* tags that have appeared in file *)
 let gTag = Hashtbl.create 107 (* tags that have appeared in ALL files *)
 
+let structTag = Hashtbl.create 107
+let unionTag = Hashtbl.create 107
+
 (*
 ** FrontC Pretty printer
 *)
@@ -872,7 +875,32 @@ and remove_anon def = begin
   | _ -> def
  
 end        
-  
+
+and tag_defined (typ, sto, names) = begin
+  match typ with
+    STRUCTDEF (id, _) ->
+      begin
+      if id = "" then false
+      else
+      (try
+         ignore(Hashtbl.find structTag id);
+         true
+       with Not_found ->
+         (Hashtbl.add structTag id id;
+          false))
+      end
+  | UNIONDEF (id, _) ->
+      if id = "" then false
+      else 
+      (try
+         ignore(Hashtbl.find unionTag id);
+         true
+       with Not_found ->
+         (Hashtbl.add unionTag id id;
+          false))
+  | _ -> false
+end
+
 (* returns true check if def is not declared
    Could make another function to clean this code up *)
 and already_declared def = begin
@@ -929,20 +957,26 @@ and already_declared def = begin
               false)))
               
   | TYPEDEF names ->
-      (try
-        ignore(Hashtbl.find gDefTable def);
+      if tag_defined names then
         true
-      with Not_found ->
-          (Hashtbl.add gDefTable def 1;
-          false))
+      else
+        (try
+          ignore(Hashtbl.find gDefTable def);
+          true
+        with Not_found ->
+            (Hashtbl.add gDefTable def 1;
+            false))
           
   | ONLYTYPEDEF names ->
-      (try
-        ignore(Hashtbl.find gDefTable def);
+      if tag_defined names then
         true
-      with Not_found ->
-          (Hashtbl.add gDefTable def 1;
-          false))
+      else 
+        (try
+          ignore(Hashtbl.find gDefTable def);
+          true
+        with Not_found ->
+            (Hashtbl.add gDefTable def 1;
+            false))
       
   | _ -> false (* ASM and others are always considered to be false *)
 end
