@@ -1159,7 +1159,7 @@ newbisort-clean:
 
 newbisort: defaulttarget mustbegcc
 	cd $(NEWBISORTDIR); \
-            make clean bisort CC="$(NEWBISORTSAFECC)" \
+            make clean; make bisort CC="$(NEWBISORTSAFECC)" \
                        LD="$(NEWBISORTSAFECC)"
 	cd $(NEWBISORTDIR); ./bisort 21 1
 
