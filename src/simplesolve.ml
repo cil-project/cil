@@ -369,7 +369,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     if (cur.posarith || (cur.null && cur.intcast)) then begin
       ignore (update_kind cur FSeq BoolFlag)
     end else 
-    if (cur.arith || cur.intcast) then begin
+    if (cur.arith || cur.intcast ) then begin
       ignore (update_kind cur Seq BoolFlag)
     end ;
     (* being the target of an EIndex edge can as well *)
