@@ -2011,8 +2011,12 @@ let pkArithmetic (ep: exp)
       single (call None (Lval (var checkPositiveFun.svar)) [ e2 ])
       
   | N.Safe ->
-      E.s (bug "pkArithmetic: pointer arithmetic on safe pointer: %a@!"
-             d_exp ep)
+      if isZero e2 then 
+        mkFexp3 et ptr fb fe, empty
+      else
+        E.s (bug "pkArithmetic: pointer arithmetic on safe pointer: %a@!"
+               d_exp ep)
+
   | N.String|N.ROString -> 
       (* Arithmetic on strings is tricky. We must first convert to a FSeq and 
        * then do arithmetic. We leave it a SeqN to be converted back to 
@@ -3412,10 +3416,11 @@ and boxinstr (ins: instr) : stmt clist =
             end
           | Some destlv -> begin
               (* Always go through a temporary to ensure the we do the right 
-               * checks when we write the destination. We fix the return type 
-               * again because maybe it is for a polymorphic function and it 
-               * didn't get fixed before. *)
-              let tmp = makeTempVar !currentFunction (fixupType ftret) in
+               * checks when we write the destination. The temporary must 
+               * have the destination type so that the cast is propagated to 
+               * the function. *)
+              let tmp = makeTempVar !currentFunction 
+                  (fixupType (typeOfLval destlv)) in
               (* Now do the call itself *)
               let thecall = 
                 match isallocate with
