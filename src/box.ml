@@ -2086,7 +2086,7 @@ and boxexpf (e: exp) : stmt list * fexp =
         ([], L(t', N.Scalar, Compound(t', newinitl)))
   with exc -> begin
     ignore (E.log "boxexpf (%s)\n" (Printexc.to_string exc));
-    ([], FS(charPtrType, N.Wild, dExp (dprintf "booo_exp: %a" d_exp e)))
+    ([], L(charPtrType, N.String, dExp (dprintf "booo_exp: %a" d_exp e)))
   end 
             
           
