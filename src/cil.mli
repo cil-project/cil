@@ -382,7 +382,10 @@ type fundec =
       mutable sformals: varinfo list;   (* These are the formals. These must 
                                          * be shared with the formals that 
                                          * appear in the type of the 
-                                         * function. Do not make copies of 
+                                         * function. Use setFormals to set 
+                                         * these formals and ensure that they 
+                                         * are reflected in the function 
+                                         * type. Do not make copies of 
                                          * these because the body refers to 
                                          * them. *)
       mutable slocals: varinfo list;    (* locals, DOES NOT include the
@@ -533,7 +536,7 @@ val mkWhile: guard:exp -> body:stmt list -> stmt
 
     (* Make a for loop for(i=start; i<past; i += incr) { ... }. The body 
      * should not contain Break or Continue !!!. Can be used with i a pointer 
-     * or an arithemtic type. start and done must have the same type but incr 
+     * or an integer. Start and done must have the same type but incr 
      * must be an integer *)
 val mkForIncr:  iter:varinfo -> first:exp -> past:exp -> incr:exp 
                 -> body:stmt list -> stmt
@@ -630,6 +633,10 @@ val makeGlobalVar: string -> typ -> varinfo
 
    (* Make an empty function *)
 val emptyFunction: string -> fundec
+
+   (* Update the formals of a fundec and make sure that the function type 
+    * shares them *)
+val setFormals: fundec -> varinfo list -> unit
 
     (* A dummy function declaration handy for initialization *)
 val dummyFunDec: fundec

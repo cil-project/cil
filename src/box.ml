@@ -23,6 +23,11 @@ let currentFunction : fundec ref  = ref dummyFunDec
 let currentFile     : file ref = ref dummyFile
 let currentFileId     = ref 0
 
+let doPrint () = 
+  if !currentFunction.svar.vname = "mod_gzip_strendswith" then 
+    true
+  else
+    false
 
            (* After processing an expression, we create its type, a list of 
             * instructions that should be executed before this exp is used, 
@@ -100,6 +105,9 @@ let rec isInteger = function
 
   (* We collect here the new file *)
 let theFile : global list ref = ref []
+
+let checkFunctionDecls : global list ref = ref []
+
 (**** Make new types ****)
 
 
@@ -414,9 +422,10 @@ let rec fixupType t =
       | _ -> E.s (E.bug "fixupType")
    end
 
-    (* Sometimes we find a function type without arguments or with arguments 
-     * with different names (a prototype that we have done before). Do the 
-     * regular fixit and then put the argument names back. *)
+    (* Sometimes when we do a function, we might find a similar done function 
+     * type but with different argument names (since such function types have 
+     * the same signature). In this case put the argument names back. But 
+     * copy the arg while doing so to avoid clobbering the hashed copy. *)
   | TFun (_, args, _, _) -> begin
       match fixit t with
         TFun (rt, args', isva, a) -> 
@@ -424,7 +433,7 @@ let rec fixupType t =
                List.map2 (fun a a' -> {a' with vname = a.vname;}) args args',
                isva, dropAttribute a (ACons("__format__",[]))) 
       | _ -> E.s (E.bug "fixupType")
-  end
+  end 
   | _ -> fixit t
 
 and fixit t = 
@@ -494,10 +503,14 @@ and fixit t =
             
             
       | TFun(rt,args,isva,a) ->
-          let args' = 
+(*          let args' = 
             List.map
-              (fun argvi -> {argvi with vtype = fixupType argvi.vtype}) args in
-          let res = TFun(fixupType rt, args', isva, a) in
+              (fun argvi -> {argvi with vtype = fixupType argvi.vtype}) args 
+ * in
+
+*)
+          List.iter (fun argvi -> argvi.vtype <- fixupType argvi.vtype) args;
+          let res = TFun(fixupType rt, args, isva, a) in
           res
     in
     H.add fixedTypes ts fixed;
@@ -653,11 +666,12 @@ let mkFexp3 (t: typ) (ep: exp) (eb: exp) (ee: exp) =
 
 (***** Pointer arithemtic *******)
 let checkPositiveFun = 
-   let fdec = emptyFunction "CHECK_POSITIVE" in
+  let fdec = emptyFunction "CHECK_POSITIVE" in
   let argx  = makeLocalVar fdec "x" intType in
   fdec.svar.vtype <- TFun(voidType, [ argx; ], false, []);
-   fdec.svar.vstorage <- Static;
-   fdec
+  fdec.svar.vstorage <- Static;
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
+  fdec
 
 let pkArithmetic (ep: exp)
                  (et: typ)
@@ -868,7 +882,7 @@ let makeTagAssignInit (iter: varinfo) vi : stmt list =
   (* Write the length *)
   mkSet (Var vi, Field(lfld, NoOffset)) words ::
   (* And the loop *)
-  mkForIncr iter zero tagwords one 
+  mkForIncr iter zero (doCast tagwords (typeOf tagwords) intType) one 
     [mkSet (Var vi, Field(tfld, Index (Lval(var iter), NoOffset))) 
         zero ]
   ::
@@ -939,7 +953,8 @@ let checkFetchLength =
   let argp  = makeLocalVar fdec "p" voidPtrType in
   let argb  = makeLocalVar fdec "b" voidPtrType in
   fdec.svar.vstorage <- Static;
-  theFile := GDecl (fdec.svar, lu) :: !theFile;
+  fdec.svar.vtype <- TFun(uintType, [ argp; argb ], false, []);
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
   fun tmplen base -> 
     let ptr = ptrOfBase base in
     call (Some tmplen) (Lval (var fdec.svar))
@@ -952,6 +967,7 @@ let checkFetchEnd =
   let argb  = makeLocalVar fdec "b" voidPtrType in
   fdec.svar.vtype <- TFun(voidPtrType, [ argp; argb ], false, []);
   fdec.svar.vstorage <- Static;
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
   fun tmplen base -> 
     let ptr = ptrOfBase base in
     call (Some tmplen) (Lval (var fdec.svar))
@@ -991,6 +1007,7 @@ let checkLBoundFun =
   let argp  = makeLocalVar fdec "p" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argb; argp; ], false, []);
   fdec.svar.vstorage <- Static;
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
   theFile := GDecl (fdec.svar, lu) :: !theFile;
   fdec
 
@@ -1001,7 +1018,7 @@ let checkUBoundFun =
   let argpl  = makeLocalVar fdec "pl" uintType in
   fdec.svar.vtype <- TFun(voidType, [ argbend; argp; argpl ], false, []);
   fdec.svar.vstorage <- Static;
-  theFile := GDecl (fdec.svar, lu) :: !theFile;
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
   fdec
 
 let checkBoundsFun = 
@@ -1012,7 +1029,7 @@ let checkBoundsFun =
   let argpl  = makeLocalVar fdec "pl" uintType in
   fdec.svar.vtype <- TFun(voidType, [ argb; argbend; argp; argpl ], false, []);
   fdec.svar.vstorage <- Static;
-  theFile := GDecl (fdec.svar, lu) :: !theFile;
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
   fdec
 
 let checkBoundsLenFun = 
@@ -1023,7 +1040,7 @@ let checkBoundsLenFun =
   let argpl  = makeLocalVar fdec "pl" uintType in
   fdec.svar.vtype <- TFun(voidType, [ argb; argbl; argp; argpl ], false, []);
   fdec.svar.vstorage <- Static;
-  theFile := GDecl (fdec.svar, lu) :: !theFile;
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
   fdec
 
 
@@ -1380,12 +1397,12 @@ let checkZeroTags =
   let fdec = emptyFunction "CHECK_ZEROTAGS" in
   let argb  = makeLocalVar fdec "b" voidPtrType in
   let argbl = makeLocalVar fdec "bl" uintType in
-  let argp  = makeLocalVar fdec "p" charPtrType in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
   let argsize  = makeLocalVar fdec "size" uintType in
   let offset  = makeLocalVar fdec "offset" uintType in
   fdec.svar.vtype <- 
      TFun(voidType, [ argb; argbl; argp; argsize; offset ], false, []);
-  theFile := GDecl (fdec.svar, lu) :: !theFile;
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
   fdec.svar.vstorage <- Static;
   fun base lenExp lv t ->
     let lv', lv't = getHostIfBitfield lv t in
@@ -1415,7 +1432,7 @@ let checkFatPointerRead =
   let arglen  = makeLocalVar fdec "nrWords" uintType in
   let argp  = makeLocalVar fdec "p" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argb; arglen; argp; ], false, []);
-  theFile := GDecl (fdec.svar,lu) :: !theFile;
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
   
   fun base where len -> 
     call None (Lval(var fdec.svar))
@@ -1430,7 +1447,7 @@ let checkFatPointerWrite =
   let argwp  = makeLocalVar fdec "wp" voidPtrType in
   fdec.svar.vtype <- 
      TFun(voidType, [ argb; arglen; argp; argwb; argwp; ], false, []);
-  theFile := GDecl (fdec.svar, lu) :: !theFile;
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
   
   fun base where whatbase whatp len -> 
     call None (Lval(var fdec.svar))
@@ -1444,8 +1461,8 @@ let checkFatStackPointer =
   let argp  = makeLocalVar fdec "p" voidPtrType in
   fdec.svar.vtype <- 
      TFun(voidType, [ argp; argb; ], false, []);
-  theFile := GDecl (fdec.svar, lu) :: !theFile;
   fdec.svar.vstorage <- Static;
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
   
   fun whatp whatbase -> 
     call None (Lval(var fdec.svar))
@@ -1457,8 +1474,8 @@ let checkLeanStackPointer =
   let argp  = makeLocalVar fdec "p" voidPtrType in
   fdec.svar.vtype <- 
      TFun(voidType, [ argp; ], false, []);
-  theFile := GDecl (fdec.svar, lu) :: !theFile;
   fdec.svar.vstorage <- Static;
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
   
   fun whatp -> 
     call None (Lval(var fdec.svar))
@@ -2086,10 +2103,9 @@ and boxfunctionexp (f : exp) =
 
 (* Create the preamble (in reverse order). Must create it every time because 
  * we must consider the effect of "defaultIsWild" *)
-let checkFunctionDecls = [] (* !theFile *)
 let preamble () = 
   (* Define WILD away *)
-  theFile := GText("#define WILD\n#define FSEQ") :: checkFunctionDecls;
+  theFile := GText("#define WILD\n#define FSEQ") :: !checkFunctionDecls;
   (** Create some more fat types *)
   ignore (fixupType (TPtr(TInt(IChar, []), [AId("wild")])));
 (*  ignore (fixupType (TPtr(TInt(IChar, [AId("const")]), [AId("wild")]))); *)
@@ -2138,6 +2154,11 @@ let boxFile file =
     | GFun (f, l) -> 
         if debug then
           ignore (E.log "Boxing GFun(%s)\n" f.svar.vname);
+        let ours = 
+          f.svar.vname = "mod_gzip_strendswith" ||
+          f.svar.vname = "mod_gzip_strendswith_ww" in
+        if ours then
+          ignore (E.log "Doing function %s\n" f.svar.vname); 
         (* Fixup the return type as well, except if it is a vararg *)
         f.svar.vtype <- fixupType f.svar.vtype;
           (* If the type has changed and this is a global function then we
@@ -2196,7 +2217,7 @@ let boxFile file =
           in
           loopFormals f.sformals
         in
-        f.sformals <- newformals;
+        setFormals f newformals;
         f.sbody <- mkSeq newbody;
         (* Now we must take all locals whose address is taken and turn their 
            types into structures with tags and length field *)

@@ -6,6 +6,10 @@ open Pretty
 
 
 (* A few parameters to customize the checking *)
+type checkFlags = 
+    NoCheckGlobalIds   (* Do not check that the global ids have the proper 
+                        * hash value *)
+
 let checkGlobalIds = ref true
 
   (* Attributes must be sorted *)
@@ -156,8 +160,9 @@ let rec checkType (t: typ) (ctx: ctxType) =
          * one used in the definition. We assume that the type is checked *)
       (try
         let oldt = H.find typeDefs n in
-        if oldt != t && typeSig oldt <> typeSig t then
-          ignore (E.warn "Named type %s is inconsistent" n)
+        if oldt != t then
+          if typeSig oldt <> typeSig (unrollType t) then
+            ignore (E.warn "Named type %s is inconsistent.@!In typedef: %a@!Now: %a" n d_plaintype oldt d_plaintype t)
       with Not_found -> 
         ignore (E.warn "Named type %s is undefined\n" n));
       checkAttributes a
@@ -173,27 +178,31 @@ let rec checkType (t: typ) (ctx: ctxType) =
       (* Mark it as a definition. We'll use this later to check the forwards *)
       H.add compDefined comp.ckey comp;
       (* Check for circularity *)
-      let memo : (int, unit) H.t = H.create 17 in
-      let rec checkCircularity = function
+      (* ignore (E.log "Start circularity check on %s(%d)\n" 
+                (compFullName comp) comp.ckey); *)
+      let rec checkCircularity seen = function
           TComp c ->
-            if H.mem memo c.ckey then
+(*            ignore (E.log "   visiting %s(%d)\n" (compFullName c) c.ckey);*)
+            if List.mem c.ckey seen then begin
+              ignore (E.log "T=%a\n" d_plaintype (TComp c));
               E.s (E.bug "Circular type structure through %s and %s" 
                      (compFullName comp) 
-                     (compFullName c));
-            H.add memo c.ckey ();
-            List.iter (fun f -> checkCircularity f.ftype) c.cfields
+                     (compFullName c))
+            end;
+            let seen' = c.ckey :: seen in
+            List.iter (fun f -> checkCircularity seen' f.ftype) c.cfields
 
         | TForward _ -> () (* Stop checking here since circularity is allowed 
                             * with a TForward *)
-        | TArray (bt, _, _) -> checkCircularity bt
-        | TPtr (bt, _) -> checkCircularity bt
-        | TNamed (_, bt, _) -> checkCircularity bt
+        | TArray (bt, _, _) -> checkCircularity seen bt
+        | TPtr (bt, _) -> checkCircularity seen bt
+        | TNamed (_, bt, _) -> checkCircularity seen bt
         | TFun (bt, args, _, _) -> 
-            checkCircularity bt;
-            List.iter (fun a -> checkCircularity a.vtype) args
+            checkCircularity seen bt;
+            List.iter (fun a -> checkCircularity seen a.vtype) args
         | (TInt _ | TFloat _ | TEnum _ | TBitfield _ | TVoid _) -> ()
       in
-      begin try checkCircularity t with _ -> () end
+      begin try checkCircularity [] t with _ -> () end
 
   | TEnum (n, tags, a) -> begin
       checkAttributes a;
@@ -644,7 +653,7 @@ let rec checkGlobal = function
               [], [] -> ()
             | ta :: targs, fo :: formals -> 
                 if ta != fo then 
-                  E.s (E.bug "Formal %s not shared between the type and the locals in %s" 
+                  E.s (E.warn "Formal %s not shared (type + locals) in %s" 
                          fo.vname fname);
                 loopArgs targs formals
 
@@ -694,7 +703,12 @@ let rec checkGlobal = function
   end
 
 
-let checkFile fl = 
+let checkFile flags fl = 
+  ignore (E.log "Checking file %s\n" fl.fileName);
+  List.iter 
+    (function
+        NoCheckGlobalIds -> checkGlobalIds := false)
+    flags;
   List.iter (fun g -> try checkGlobal g with _ -> ()) fl.globals;
   (* Check that for all TForward there is a definition *)
   (try
@@ -722,5 +736,6 @@ let checkFile fl =
   H.clear compForwards;
   H.clear compDefined;
   varNamesList := [];
+  ignore (E.log "Finished checking file %s\n" fl.fileName);
   ()
   

@@ -2085,9 +2085,6 @@ let convFile fname dl =
                   vreferenced = false;   (* sm *)
                 }
             in
-            (* Maybe makeGlobalVarinfo has reused a previous varinfo. Make 
-             * sure that the type shares the formals *)
-            thisFunctionVI.vtype <- ftype;
             if alreadyDef then
               E.s (E.unimp "There is a definition already for %s" n);
             currentFunctionVI := thisFunctionVI;
@@ -2104,6 +2101,7 @@ let convFile fname dl =
                                      | x -> Sequence [x]);
                        } 
             in
+            setFormals fdec formals'; (* To make sure sharing is proper *)
             theFile := GFun (fdec,lu) :: !theFile
           with e -> begin
             ignore (E.log "error in collectFunction %s: %s\n" 

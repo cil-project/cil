@@ -554,20 +554,24 @@ let doGlobal (g: global) : global =
         fdec.svar <- newvi; (* Change the varinfo if the instantiation has 
                              * changed it *)
       currentFunctionName := fdec.svar.vname;
-      (* Do the formals *)
+      (* Go through the formals and copy their type and attributes from the 
+       * type. Then restore the sharing  *)
       (match fdec.svar.vtype with
-        TFun(rt, _, isva, fa) -> 
-           (* Do the formals, because they might not be shared with the type. 
-            * (If they are nothing happens.) We want to ensure that the same 
-            * node is used for a formal as we used in a type. So we put the 
-            * formals inside a type and we do it like that  *)
-            let typWithFormals = TFun(rt, fdec.sformals, isva, fa) in
-(*          ignore (E.log "Before formals:%s :  %a\n"
-                    fdec.svar.vname d_plaintype typWithFormals);  *)
-            let _ = doType typWithFormals (N.PGlob fdec.svar.vname) 1 in
-(*          ignore (E.log "After formals:%s :  %a\n"
-                    fdec.svar.vname d_plaintype typWithFormals);  *)
-            currentResultType := rt
+        TFun(rt, targs, isva, fa) -> 
+          let rec scanFormals targs sformals = 
+            match targs, sformals with
+              [], [] -> ()
+            | ta :: targs, sf :: sformals -> 
+                sf.vtype <- ta.vtype;
+                sf.vattr <- ta.vattr;
+                scanFormals targs sformals
+            | _ -> E.s (E.bug "scanFormals(%s) non-matching formal lists"
+                          fdec.svar.vname)
+          in
+          scanFormals targs fdec.sformals;
+          (* Restore the sharing by writing the type *)
+          setFormals fdec fdec.sformals;
+          currentResultType := rt
       | _ -> E.s (E.bug "Not a function")); 
       (* Do the other locals *)
       List.iter doVarinfo fdec.slocals;
@@ -611,7 +615,10 @@ let markFile fl =
                       theFile := g' :: !theFile) fl.globals;
   ignore (E.log "Markptr: %s\n"
             (if !E.hadErrors then "Error" else "Success"));
-  {fl with globals = List.rev !theFile}
+  let newfile = {fl with globals = List.rev !theFile} in
+  if !Util.doCheck then
+    Check.checkFile [] newfile;
+  newfile
 
         
 

@@ -1510,6 +1510,16 @@ let emptyFunction name =
     sbody = Skip;
   } 
 
+
+  (* Set the formals and make sure the function type shares them *)
+let setFormals (f: fundec) (forms: varinfo list) = 
+  f.sformals <- forms;
+  match unrollType f.svar.vtype with
+    TFun(rt, _, isva, fa) -> 
+      f.svar.vtype <- TFun(rt, forms, isva, fa)
+  | _ -> E.s (E.bug "Set formals. %s does not have function type\n"
+                f.svar.vname)
+      
     (* A dummy function declaration handy for initialization *)
 let dummyFunDec = emptyFunction "@dummy"
 let dummyFile = 

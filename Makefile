@@ -20,7 +20,7 @@ MLLS        =
 MLYS        = 
 # ast clex cparse
 # sm: trace: utility for debug-time printfs
-MODULES     = pretty trace errormsg stats cil check ptrnode \
+MODULES     = pretty trace errormsg stats util cil check ptrnode \
               simplesolve globinit box markptr optim
 EXECUTABLE  = $(OBJDIR)/safec
 CAMLUSEUNIX = 1
@@ -534,6 +534,14 @@ apache/gzip : $(EXECUTABLE)$(EXE)
                         $(APACHECFLAGS) \
                         $(OBJOUT)./mod_gzip.obj \
                         mod_gzip.c
+
+apache/t : $(EXECUTABLE)$(EXE)
+	rm -f $(APACHETEST)/t.obj
+	cd $(APACHETEST); $(SAFECC) \
+                       --keep=. $(APATCH) \
+                        $(APACHECFLAGS) \
+                        $(OBJOUT)./t.obj \
+                        t.c
 
 apache/rewrite: $(EXECUTABLE)$(EXE)
 	rm -f $(APACHETEST)/mod_gzip.obj

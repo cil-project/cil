@@ -9,22 +9,20 @@ module H = Hashtbl
 module E = Errormsg
 
 
-(* Memoize a function and an iterator for it *)
-let fileInit : (fundec * varinfo) option ref = ref None
+(* Memoize a function  *)
+let fileInit : fundec  option ref = ref None
 
 (* See if we have created an initializer already *)
 let getFileInit fileName =    
   match !fileInit with 
-    Some (f, v) -> f, v
+    Some f -> f
   | None -> begin
       let f = emptyFunction ("__globinit_" ^ 
                              (Filename.chop_extension
                                 (Filename.basename fileName))) 
       in
-      (* Now make an iterator variable *)
-      let iter = makeTempVar f ~name:"iter" intType in
-      fileInit := Some (f, iter);
-      f, iter
+      fileInit := Some f;
+      f
   end
 
 
@@ -39,7 +37,7 @@ let doFile (fl: file) : file =
                 TPtr _ -> ExistsTrue
               | _ -> ExistsMaybe) vi.vtype in
         if hasPointers then 
-          let finit, _ = getFileInit fl.fileName in
+          let finit = getFileInit fl.fileName in
           (* Now generate the code. Baseoff is the offset to the current 
            * compound  *)
           let rec initone (baseoff: offset) off what t acc = 
@@ -60,7 +58,7 @@ let doFile (fl: file) : file =
   let rec doAllGlobals = function
       [] ->  begin  (* Now see if we must add the global initializer *)
         match !fileInit with
-          Some (f, _) -> 
+          Some f -> 
             ignore (E.warn "Added global initializer %s" f.svar.vname);
             [GFun (f, locUnknown)]
         | _ -> []
@@ -69,6 +67,11 @@ let doFile (fl: file) : file =
         let g' = doGlobal g in (* Make sure this is done first *)
         g' :: doAllGlobals grest
   in
-  {fl with globals = doAllGlobals fl.globals}
+  let newfile = {fl with globals = doAllGlobals fl.globals} in
+  if !Util.doCheck then begin
+    ignore (E.log "Checking after globinit\n");
+    Check.checkFile [] newfile
+  end;
+  newfile
   
 
