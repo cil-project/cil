@@ -608,7 +608,8 @@ and matchCompInfo (oldfidx: int) (oldci: compinfo)
      * and the old one was defined. We just reuse the old *)
     (* More complicated is the case when the old one is not defined but the 
      * new one is. We still reuse the old one and we'll take care of defining 
-     * it later with the new fields. *)
+     * it later with the new fields. 
+     * GN: 7/10/04, I could not find when is "later", so I added it below *)
     if len <> 0 && old_len <> 0 && old_len <> len then (
       let curLoc = !currentLoc in     (* d_global blows this away.. *)
       (trace "merge" (P.dprintf "different # of fields\n%d: %a\n%d: %a\n"
@@ -629,7 +630,8 @@ and matchCompInfo (oldfidx: int) (oldci: compinfo)
      * the lengths are the same. Due to the code above this the other 
      * possibility is that one of the length is 0, in which case we reuse the 
      * old compinfo. *)
-    if old_len = len then
+    (* But what if the old one is the empty one ? *)
+    if old_len = len then begin
       (try
         List.iter2 
           (fun oldf f ->
@@ -657,8 +659,16 @@ and matchCompInfo (oldfidx: int) (oldci: compinfo)
                dn_global (GCompTag(ci,locUnknown)))
                in
         raise (Failure msg)
-      end);
-    (* We get here when we succeeded checking that they are equal *)
+      end)
+    end else begin
+      (* We will reuse the old one. One of them is empty. If the old one is 
+       * empty, copy over the fields from the new one. Won't this result in 
+       * all sorts of undefined types??? *)
+      if old_len = 0 then 
+        oldci.cfields <- ci.cfields;
+    end;
+    (* We get here when we succeeded checking that they are equal, or one of 
+     * them was empty *)
     newrep.ndata.cattr <- addAttributes oldci.cattr ci.cattr;
     ()
   end

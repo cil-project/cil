@@ -132,7 +132,7 @@ and makeBasic (setTemp: taExp -> bExp) (e: exp) : bExp =
   | Const _ | AddrOf (Var _, NoOffset) | StartOf (Var _, NoOffset) ->
       if !onlyVariableBasics then setTemp e' else e'
   | SizeOf _ | SizeOfE _ | AlignOf _ |  AlignOfE _ | SizeOfStr _ -> 
-      E.s (bug "Simplify: makeBasic found SizeOf")
+      E.s (bug "Simplify: makeBasic found SizeOf: %a" d_exp e')
 
    (* We cannot make a function to be Basic, unless it actually is a variable 
     * already. If this is a function pointer the best we can do is to make 
