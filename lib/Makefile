@@ -6,10 +6,6 @@
 CFLAGS = -g -Wall -Igc/include
 CC = gcc $(CFLAGS)
 
-topformflat: topformflat.lex
-	flex -otopformflat.c topformflat.lex
-	gcc -g -Wall -o $@ topformflat.c
-
 splay: splay.c
 	$(CC) -o splay -DTEST_SPLAY splay.c
 
