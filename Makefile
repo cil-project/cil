@@ -1165,6 +1165,7 @@ EM3DDSAFECC=$(SAFECC) --combine --keep=safeccout  \
                   $(NOPRINTLN)
 ifeq ($(ARCHOS), x86_WIN32)
 EM3DSAFECC += $(DEF)WIN32 $(DEF)MSDOS
+SS_RAND=TRUE
 endif
 em3d-clean: 	
 	cd $(EM3DDIR); make clean
@@ -1174,7 +1175,7 @@ em3d: defaulttarget mustbegcc
 	cd $(EM3DDIR); \
             make clean em3d CC="$(EM3DDSAFECC)" \
                             LD="$(EM3DDSAFECC)"
-	cd $(EM3DDIR); ./em3d.exe 2000 100 1
+	cd $(EM3DDIR); ./em3d 2000 100 1
 
 
 
