@@ -70,8 +70,9 @@ let rec type_congruent (t1 : typ) (q1 : pointerkind)
     (* structures match if all of their fields match in order *)
   | TComp(c1),TComp(c2) when (c1.cstruct) && (c2.cstruct) -> 
     (c1.cname = c2.cname) || 
+    (((List.length c1.cfields) = (List.length c2.cfields)) && 
     List.for_all2 (fun f1 f2 -> type_congruent f1.ftype q1 f2.ftype q2) 
-      c1.cfields c2.cfields
+      c1.cfields c2.cfields)
 
     (* t and t[1] are the same *)
   | (x,TArray(t,eo,al)) when (type_congruent x q1 t q2) -> begin
