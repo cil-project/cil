@@ -784,7 +784,20 @@ and print_statement stat =
         print ");"
       end;
       new_line ()
+  | TRY_FINALLY (b, h, loc) -> 
+      setLoc loc;
+      print "__try ";
+      print_block b;
+      print "__finally ";
+      print_block h
 
+  | TRY_EXCEPT (b, e, h, loc) -> 
+      setLoc loc;
+      print "__try ";
+      print_block b;
+      print "__except("; print_expression e; print ")";
+      print_block h
+      
 and print_block blk = 
   new_line();
   print "{";

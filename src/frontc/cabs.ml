@@ -226,7 +226,11 @@ and statement =
        (string * expression) list * (* same for inputs *)
        string list * (* clobbered registers *)
        cabsloc
-       
+
+   (** MS SEH *)
+ | TRY_EXCEPT of block * expression * block * cabsloc
+ | TRY_FINALLY of block * block * cabsloc
+ 
 and for_clause = 
    FC_EXP of expression
  | FC_DECL of definition
@@ -349,6 +353,8 @@ begin
   | GOTO(_,loc) -> loc
   | COMPGOTO (_, loc) -> loc
   | ASM(_,_,_,_,_,loc) -> loc
+  | TRY_EXCEPT(_, _, _, loc) -> loc
+  | TRY_FINALLY(_, _, loc) -> loc
 end
 
 

@@ -699,7 +699,7 @@ endif
 # gn: I added .exe so that I can delete the executables
 scott/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 	rm -f $(TESTDIR)/small2/$*.exe
-	cd $(TESTDIR)/small2; $(CC) $(CONLY) $(WARNALL) $*.c
+	cd $(TESTDIR)/small2; $(CC) $(CONLY) $(CFLAGS) $(WARNALL) $*.c
 	cd $(TESTDIR)/small2; $(CCURED) --nomerge --save-temps=. \
                  $(CFLAGS) $(NOPRINTLN) \
                  $*.c \

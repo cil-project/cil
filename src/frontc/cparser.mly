@@ -247,8 +247,8 @@ let rec filterBEStmts (elts : blockElement list) : statement list =
 %token<Cabs.cabsloc> BREAK CONTINUE GOTO RETURN
 %token<Cabs.cabsloc> SWITCH CASE DEFAULT
 %token<Cabs.cabsloc> WHILE DO FOR
-%token<Cabs.cabsloc> IF
-%token ELSE
+%token<Cabs.cabsloc> IF TRY EXCEPT FINALLY
+%token ELSE 
 
 %token<Cabs.cabsloc> ATTRIBUTE INLINE ASM TYPEOF FUNCTION__ PRETTY_FUNCTION__
 %token LABEL__
@@ -742,6 +742,19 @@ statement:
                         { let (outs,ins,clobs) = $5 in
                           ASM ($2, $4, outs, ins, clobs, $1) }
 |   MSASM               { ASM ([], [fst $1], [], [], [], snd $1)}
+|   TRY block EXCEPT paren_comma_expression block
+                        { let b, _, _ = $2 in
+                          let h, _, _ = $5 in
+                          if not !Cprint.msvcMode then 
+                            parse_error "try/except in GCC code";
+                          TRY_EXCEPT (b, COMMA (fst $4), h, $1) }
+|   TRY block FINALLY block 
+                        { let b, _, _ = $2 in
+                          let h, _, _ = $4 in
+                          if not !Cprint.msvcMode then 
+                            parse_error "try/finally in GCC code";
+                          TRY_FINALLY (b, h, $1) }
+
 |   error location   SEMICOLON   { (NOP $2)}
 ;
 

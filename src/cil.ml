@@ -677,6 +677,28 @@ and stmtkind =
   | Block of block                      (** Just a block of statements. Use it 
                                             as a way to keep some attributes 
                                             local *)
+    (** On MSVC we support structured exception handling. This is what you 
+     * might expect. Control can get into the finally block either from the 
+     * end of the body block, or if an exception is thrown. The location 
+     * corresponds to the try keyword. *)
+  | TryFinally of block * block * location
+
+    (** On MSVC we support structured exception handling. The try/except 
+     * statement is a bit tricky: 
+         __try { blk } 
+         __except (e) {
+            handler
+         }
+
+         The argument to __except  must be an expression. However, we keep a 
+         list of instructions AND an expression in case you need to make 
+         function calls. We'll print those as a comma expression. The control 
+         can get to the __except expression only if an exception is thrown. 
+         After that, depending on the value of the expression the control 
+         goes to the handler, propagates the exception, or retries the 
+         exception !!! The location corresponds to the try keyword. 
+     *)      
+  | TryExcept of block * (instr list * exp) * block * location
     
 
 (** Instructions. They may cause effects directly but may not have control
@@ -958,6 +980,8 @@ let rec get_stmtLoc (statement : stmtkind) =
     | Loop (_, loc, _, _) -> loc
     | Block b -> if b.bstmts = [] then lu 
                  else get_stmtLoc ((List.hd b.bstmts).skind)
+    | TryFinally (_, _, l) -> l
+    | TryExcept (_, _, _, l) -> l
 
 
 (* The next variable identifier to use. Counts up *)
@@ -2373,6 +2397,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     | Case (e, _) -> text "case " ++ self#pExp () e ++ text ": "
     | Default _ -> text "default: "
 
+  (* The pBlock will put the unalign itself *)
   method pBlock () (blk: block) = 
     let rec dofirst () = function
         [] -> nil
@@ -2515,7 +2540,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                 ++ (align
                       ++ text "else "
                       ++ self#pBlock () e)
-                ++ unalign)
+          ++ unalign)
           
     | Switch(e,b,_,l) ->
         self#pLineDirective l
@@ -2562,6 +2587,27 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     end
     | Block b -> align ++ self#pBlock () b
       
+    | TryFinally (b, h, l) -> 
+        self#pLineDirective l 
+          ++ text "__try "
+          ++ align 
+          ++ self#pBlock () b
+          ++ text " __fin" ++ align ++ text "ally "
+          ++ self#pBlock () h
+
+    | TryExcept (b, (il, e), h, l) -> 
+        self#pLineDirective l 
+          ++ text "__try "
+          ++ align 
+          ++ self#pBlock () b
+          ++ text " __e" ++ align ++ text "xcept("
+          ++ align
+          ++ (docList (chr ',' ++ break) (self#pInstr ())
+                () il)
+          ++ (if il <> [] then chr ',' ++ break else nil)
+          ++ self#pExp () e
+          ++ text ") " ++ unalign
+          ++ self#pBlock () h
 
 
   (*** GLOBALS ***)
@@ -3710,7 +3756,7 @@ and childrenStmt (toPrepend: instr list ref) (vis:cilVisitor) (s:stmt): stmt =
     | If(e, s1, s2, l) -> 
         let e' = fExp e in 
         (*if e queued any instructions, pop them here and remember them so that
-          they are inserted them before the If stmt, not in the then block. *)
+          they are inserted before the If stmt, not in the then block. *)
         toPrepend := vis#unqueueInstr (); 
         let s1'= fBlock s1 in let s2'= fBlock s2 in
         (* the stmts in the blocks should have cleaned up after themselves.*)
@@ -3731,6 +3777,29 @@ and childrenStmt (toPrepend: instr list ref) (vis:cilVisitor) (s:stmt): stmt =
     | Block b -> 
         let b' = fBlock b in 
         if b' != b then Block b' else s.skind
+    | TryFinally (b, h, l) -> 
+        let b' = fBlock b in
+        let h' = fBlock h in
+        if b' != b || h' != h then TryFinally(b', h', l) else s.skind
+    | TryExcept (b, (il, e), h, l) -> 
+        let b' = fBlock b in
+        assertEmptyQueue vis;
+        (* visit the instructions *)
+        let il' = mapNoCopyList fInst il in
+        (* Visit the expression *)
+        let e' = fExp e in
+        let il'' = 
+          let more = vis#unqueueInstr () in
+          if more != [] then 
+            il' @ more
+          else
+            il'
+        in
+        let h' = fBlock h in
+        (* Now collect the instructions *)
+        if b' != b || il'' != il || e' != e || h' != h then 
+          TryExcept(b', (il'', e'), h', l) 
+        else s.skind
   in
   if skind' != s.skind then s.skind <- skind';
   (* Visit the labels *)
@@ -4103,52 +4172,67 @@ let rec peepHole1 (* Process one statement and possibly replace it *)
                   (doone: instr -> instr list option)
                   (* Scan a block and recurse inside nested blocks *)
                   (ss: stmt list) : unit = 
+  let rec doInstrList (il: instr list) : instr list = 
+    match il with 
+      [] -> []
+    | i :: rest -> begin
+        match doone i with
+          None -> i :: doInstrList rest
+        | Some sl -> doInstrList (sl @ rest)
+    end
+  in
+    
   List.iter 
     (fun s -> 
       match s.skind with
-        Instr il -> 
-          let rec loop = function
-              [] -> []
-            | i :: rest -> begin
-                match doone i with
-                  None -> i :: loop rest
-                | Some sl -> loop (sl @ rest)
-            end
-          in
-          s.skind <- Instr (loop il)
+        Instr il -> s.skind <- Instr (doInstrList il)
       | If (e, tb, eb, _) -> 
           peepHole1 doone tb.bstmts;
           peepHole1 doone eb.bstmts
       | Switch (e, b, _, _) -> peepHole1 doone b.bstmts
       | Loop (b, l, _, _) -> peepHole1 doone b.bstmts
       | Block b -> peepHole1 doone b.bstmts
+      | TryFinally (b, h, l) -> 
+          peepHole1 doone b.bstmts; 
+          peepHole1 doone h.bstmts
+      | TryExcept (b, (il, e), h, l) -> 
+          peepHole1 doone b.bstmts; 
+          peepHole1 doone h.bstmts;
+          s.skind <- TryExcept(b, (doInstrList il, e), h, l);
       | Return _ | Goto _ | Break _ | Continue _ -> ())
     ss
 
 let rec peepHole2  (* Process two statements and possibly replace them both *)
                    (dotwo: instr * instr -> instr list option)
                    (ss: stmt list) : unit = 
+  let rec doInstrList (il: instr list) : instr list = 
+    match il with 
+      [] -> []
+    | [i] -> [i]
+    | (i1 :: ((i2 :: rest) as rest2)) -> 
+        begin
+          match dotwo (i1,i2) with
+            None -> i1 :: doInstrList rest2
+          | Some sl -> doInstrList (sl @ rest)
+        end
+  in
   List.iter 
     (fun s -> 
       match s.skind with
-        Instr il -> 
-          let rec loop = function
-              [] -> []
-            | [i] -> [i]
-            | (i1 :: ((i2 :: rest) as rest2)) -> 
-                begin
-                  match dotwo (i1,i2) with
-                    None -> i1 :: loop rest2
-                  | Some sl -> loop (sl @ rest)
-                end
-          in
-          s.skind <- Instr (loop il)
+        Instr il -> s.skind <- Instr (doInstrList il)
       | If (e, tb, eb, _) -> 
           peepHole2 dotwo tb.bstmts;
           peepHole2 dotwo eb.bstmts
       | Switch (e, b, _, _) -> peepHole2 dotwo b.bstmts
       | Loop (b, l, _, _) -> peepHole2 dotwo b.bstmts
       | Block b -> peepHole2 dotwo b.bstmts
+      | TryFinally (b, h, l) -> peepHole2 dotwo b.bstmts; 
+                                peepHole2 dotwo h.bstmts
+      | TryExcept (b, (il, e), h, l) -> 
+          peepHole2 dotwo b.bstmts; 
+          peepHole2 dotwo h.bstmts;
+          s.skind <- TryExcept (b, (doInstrList il, e), h, l)
+
       | Return _ | Goto _ | Break _ | Continue _ -> ())
     ss
 
@@ -5355,6 +5439,9 @@ and succpred_stmt s fallthrough =
                 | hd :: tl -> link s hd ;
                     succpred_block b fallthrough
                 end
+  | TryExcept _ | TryFinally _ -> 
+      failwith "computeCFGInfo: structured exception handling not implemented"
+
 (* [weimer] Sun May  5 12:25:24 PDT 2002
  * This code was pulled from ext/switch.ml because it looks like we really
  * want it to be part of CIL. 
@@ -5496,6 +5583,10 @@ let rec xform_switch_stmt s break_dest cont_dest label_index = begin
           let new_block = mkBlock [ this_stmt ; break_stmt ] in
           s.skind <- Block new_block
   | Block(b) -> xform_switch_block b break_dest cont_dest label_index
+
+  | TryExcept _ | TryFinally _ -> 
+      failwith "xform_switch_statement: structured exception handling not implemented"
+
 end and xform_switch_block b break_dest cont_dest label_index = 
   try 
     let rec link_succs sl = match sl with

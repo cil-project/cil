@@ -698,8 +698,7 @@ module BlockChunk =
       } 
 
     let empty = 
-      { stmts = []; postins = []; cases = [];
-        (* fixbreak = (fun _ -> ()); fixcont = (fun _ -> ()) *) }
+      { stmts = []; postins = []; cases = []; }
 
     let isEmpty (c: chunk) = 
       c.postins == [] && c.stmts == []
@@ -4955,7 +4954,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
               Set _ | Call _ -> true
             | Asm _ -> false
             in 
-            let rec stmtFallsThrough (s: stmt) = 
+            let rec stmtFallsThrough (s: stmt) : bool = 
               match s.skind with
                 Instr(il) -> List.fold_left (fun acc elt -> 
                   instrFallsThrough elt) true il
@@ -4966,6 +4965,8 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
               | Switch (e, b, targets, _) -> true (* Conservative *)
               | Loop _ -> true (* Conservative *)
               | Block b -> blockFallsThrough b
+              | TryFinally (b, h, _) -> blockFallsThrough h
+              | TryExcept (b, _, h, _) -> true (* conservative *)
             and blockFallsThrough b = 
               let rec fall = function
                   [] -> true
@@ -5390,6 +5391,40 @@ and doStatement (s : A.statement) : chunk =
         in
         !stmts @@
         (i2c (Asm(attr', tmpls, outs', ins', clobs, loc')))
+
+    | TRY_FINALLY (b, h, loc) -> 
+        let loc' = convLoc loc in
+        currentLoc := loc';
+        let b': chunk = doBody b in
+        let h': chunk = doBody h in
+        if b'.cases <> [] || h'.cases <> [] then 
+          E.s (error "Try statements cannot contain switch cases");
+        
+        s2c (mkStmt (TryFinally (c2block b', c2block h', loc')))
+        
+    | TRY_EXCEPT (b, e, h, loc) -> 
+        let loc' = convLoc loc in
+        currentLoc := loc';
+        let b': chunk = doBody b in
+        (* Now do e *)
+        let ((se: chunk), e', t') = doExp false e (AExp None) in
+        let h': chunk = doBody h in
+        if b'.cases <> [] || h'.cases <> [] || se.cases <> [] then 
+          E.s (error "Try statements cannot contain switch cases");
+        (* Now take se and try to convert it to a list of instructions. This 
+         * might not be always possible *)
+        let il' = 
+          match compactStmts se.stmts with 
+            [] -> se.postins
+          | [ s ] -> begin
+              match s.skind with 
+                Instr il -> il @ se.postins
+              | _ -> E.s (error "Except expression contains unexpected statement")
+            end
+          | _ -> E.s (error "Except expression contains too many statements")
+        in
+        s2c (mkStmt (TryExcept (c2block b', (il', e'), c2block h', loc')))
+
   with e -> begin
     (ignore (E.log "Error in doStatement (%s)\n" (Printexc.to_string e)));
     consLabel "booo_statement" empty (convLoc (A.get_statementloc s)) false

@@ -733,7 +733,18 @@ and checkStmt (s: stmt) =
               in
               findCase !statements)
             cases;
-            
+      | TryFinally (b, h, l) -> 
+          currentLoc := l;
+          checkBlock b;
+          checkBlock h
+
+      | TryExcept (b, (il, e), h, l) -> 
+          currentLoc := l;
+          checkBlock b;
+          List.iter checkInstr il;
+          checkExpType false e intType;
+          checkBlock h
+
       | Instr il -> List.iter checkInstr il)
     () (* argument of withContext *)
 
