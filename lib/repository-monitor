@@ -8,8 +8,9 @@ $ph = "$home/public_html";
 $statusFilename = "$ph/status.txt";      # what I am doing now
 $logFilename = "$ph/log.txt";            # all output gets appended here
 
-# cause ctrl-c to bail
+# cause ctrl-c to bail (this doesn't work?)
 sub intHandler {
+  print("I saw ctrl-c\n");
   die("interrupted\n");
 }
 $SIG{'INT'} = \&intHandler;

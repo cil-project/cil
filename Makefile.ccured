@@ -94,6 +94,8 @@ GCLIB := $(CCUREDHOME)/lib/gc/$(COMPILERNAME)/gc.$(LIBEXT)
 ifdef _MSVC 
   GCMAKE := make -f Makefile.msvc srcdir=..
 else
+  # sm: I had to clear MAKEFLAGS before passing because the gc
+  # makefile wants to use the implicit rules
   GCMAKE := env MAKEFLAGS= make -f ../Makefile srcdir=..
 endif
 # pretend it's only dependent on one file; that's not true of course,
