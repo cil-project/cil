@@ -3737,7 +3737,12 @@ and childrenType (vis : cilVisitor) (t : typ) : typ =
       let a' = fAttr a in
       if a' != a  then TNamed (t1, a') else t
 
-  | _ -> t       (* other types don't contain types *)
+  | _ ->  (* other types (TVoid, TInt, TFloat, TEnum, and TBuiltin_va_list)
+             don't contain nested types, but they do have attributes. *)
+      let a = typeAttrs t in
+      let a' = fAttr a in
+      if a' != a  then setTypeAttrs t a' else t
+      
 
 (* for declarations, we visit the types inside; but for uses, *)
 (* we just visit the varinfo node *)
