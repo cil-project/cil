@@ -322,8 +322,8 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       let why = SpreadFromEdge(cur) in
       let f = (fun n -> if (update_kind n Wild why) then add_node n) in
       let contaminated_list = 
-        (List.map (fun e -> e.eto) (ecast_edges_only cur.succ) ) @
-        (List.map (fun e -> e.efrom) (ecast_edges_only cur.pred) ) in
+        (List.map (fun e -> e.eto) cur.succ  ) @
+        (List.map (fun e -> e.efrom) cur.pred ) in
       List.iter f contaminated_list ;
       let why = SpreadPointsTo(cur) in
       let f = (fun n -> if (update_kind n Wild why) then add_node n) in

@@ -90,16 +90,16 @@ and pointerkind =
   | FSeq
   | BSeq
   | String
-	| Index
+  | Index
   | Wild
   | Unknown
 
 and whykind = (* why did we give it this kind? *)
-	  BadCast of typ * typ
-	| SpreadFromEdge of node 
-	| SpreadPointsTo of node
-	| BoolFlag
-	| Default
+    BadCast of typ * typ
+  | SpreadFromEdge of node 
+  | SpreadPointsTo of node
+  | BoolFlag
+  | Default
 
 and edge = 
     { mutable efrom:    node;
@@ -140,7 +140,7 @@ let d_pointerkind () = function
   | FSeq -> text "fseq" 
   | BSeq -> text "bseq"
   | String -> text "string" 
-	| Index -> text "index"
+  | Index -> text "index"
   | Wild -> text "wild" 
   | Unknown -> text "unknown" 
 
@@ -167,8 +167,8 @@ let d_node n =
     (if n.intcast  then "int," else "")
     (docList (chr ',' ++ break)
        (fun n -> num n.id)) n.pointsto
-		d_pointerkind n.kind
-		d_whykind n.why_kind
+    d_pointerkind n.kind
+    d_whykind n.why_kind
     d_type n.btype
     (docList (chr ',' ++ break)
        (fun e -> dprintf "%d:%a%a" e.eto.id
@@ -239,7 +239,7 @@ let newNode (p: place) (idx: int) (bt: typ) (a: attribute list) : node =
             intcast = false;
             succ = [];
             kind = Unknown;
-						why_kind = Default; 
+            why_kind = Default; 
             pointsto = [];
             mark = false;
             pred = []; } in
@@ -351,3 +351,32 @@ let gc () =
   List.iter (fun n -> n.mark <- false) !all
         
       
+(** Graph Simplification **)
+(* Collapse nodes which:
+ *  (1) have only 1 predecessor edge
+ *  (2) have only 1 successor edge
+ *  (3) successor edge type = predecessor edge type
+ *  (4) are the 0th node of a Local
+ *)
+let simplify () = 
+  (* A list of all the nodes *)
+  let examine_node id n = begin
+    match n.where with
+      (PAnon(_),0) | 
+      (PLocal(_,_,_),1) -> if ((List.length n.succ) = 1) && 
+                          ((List.length n.pred) = 1) && 
+                          ((List.hd n.succ).ekind = (List.hd n.pred).ekind)
+                          then begin
+        (* we can remove this node *)
+        let s = (List.hd n.succ).eto in
+        let p = (List.hd n.pred).efrom in
+        let k = (List.hd n.succ).ekind in
+        removePred s id ;
+        removeSucc p id ;
+        addEdge p s k (-1) ;
+        H.remove idNode n.id;
+        H.remove placeId n.where;
+      end
+    | _ -> ()
+  end in
+  H.iter examine_node idNode 
