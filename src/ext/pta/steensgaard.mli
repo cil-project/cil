@@ -1,7 +1,7 @@
 (*
  *
  * Copyright (c) 2001-2002, 
- *  John Kodumal        <jdokumal@eecs.berkeley.edu>
+ *  John Kodumal        <jkodumal@eecs.berkeley.edu>
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without

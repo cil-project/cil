@@ -1,7 +1,7 @@
 (*
  *
  * Copyright (c) 2001-2002, 
- *  John Kodumal        <jdokumal@eecs.berkeley.edu>
+ *  John Kodumal        <jkodumal@eecs.berkeley.edu>
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -32,15 +32,6 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  *)
-(*
-
-A version of GOLF which greatly simplifies the implementation of
-polymorphism.  Instead of having a different instantiation relation,
-we just use indexed subtyping. Essentially, we are just eliminating the
-well-formedness condition on subtypes.
-
-*)
-
 
 (***********************************************************************)
 (*                                                                     *)
@@ -341,6 +332,9 @@ let appsite_index = ref 0
 
 (** A hashtable containing stamp pairs of labels that must be aliased. *)
 let cached_aliases : (int * int,unit) H.t = H.create 64
+
+(** A hashtable mapping pairs of tau's to their join node. *)
+let join_cache : (int * int, tau) H.t = H.create 64
 
 (***********************************************************************)
 (*                                                                     *)
@@ -1194,11 +1188,28 @@ let rec deref (t : tau) : lvalue =
     | _ -> raise WellFormed
 
 (** Form the union of [t] and [t']. *)
-let join (t : tau) (t' : tau) : tau = 
+(* let join (t : tau) (t' : tau) : tau = 
   let t''  = fresh_var false in
     add_toplev_constraint (Leq (t,(0,Sub),t''));
     add_toplev_constraint (Leq (t',(0,Sub),t''));
     t''
+*)
+
+(** Form the union of [t] and [t'], if it doesn't exist already. *)
+let join (t : tau) (t' : tau) : tau = 
+ let found = H.mem join_cache (get_stamp t, get_stamp t') in	
+  begin
+    if (found) then 
+        H.find join_cache (get_stamp t, get_stamp t')
+    else
+     begin
+        let t''  = fresh_var false in
+        add_toplev_constraint (Leq (t,(0,Sub),t''));
+        add_toplev_constraint (Leq (t',(0,Sub),t''));
+        H.add join_cache (get_stamp t, get_stamp t') t'';
+        t''
+     end
+  end
 
 (** Form the union of a list [tl], expected to be the initializers of some
   structure or array type. *)
@@ -1657,7 +1668,7 @@ let collect_ptsets (l : label) : constantset = (* todo -- cache aliases *)
     collect_aliases li.m_lpath;
     collect_aliases li.n_lpath;
     collect_aliases li.p_lpath;
-    !aliases
+    C.union (!aliases) li.aliases
 
 let extract_ptlabel (lv : lvalue) : label option =
   try
@@ -1782,7 +1793,29 @@ let smart_alias_query (l : label) (l' : label) : bool =
 		    ) discovered;
 	    true
 	  end
-	  
+
+(** todo : uses naive alias query for now *)
+let may_alias (t1 : tau) (t2 : tau) : bool = 
+  try 
+    let l1 =
+      begin
+	match (find (proj_ref t1)) with
+	  | Ref r -> r.rl
+	  | _ -> raise WellFormed
+      end
+    in
+    let l2 =
+      begin  
+	match (find (proj_ref t2)) with
+	  | Ref r -> r.rl
+	  | _ -> raise WellFormed
+      end
+    in
+(*      Printf.printf "checking whether %s and %s are aliased\n" (string_of_tau t1) (string_of_tau t2); *)
+      not (C.is_empty (C.inter (collect_ptsets l1) (collect_ptsets l2)))
+  with
+    | NoContents -> false
+
 let alias_query (b : bool) (lvl : lvalue list) : int * int = 
   let naive_count = ref 0 in
   let smart_count = ref 0 in
@@ -1794,6 +1827,12 @@ let alias_query (b : bool) (lvl : lvalue list) : int * int =
   let record_alias s lo s' lo' =
     match lo,lo' with
       | Some l,Some l' ->
+	  if (!debug_aliases) then 
+	    begin
+	      Printf.printf "Checking whether %s and %s are aliased...  " 
+		(string_of_label l) (string_of_label l');
+	      print_newline()
+	    end;
 	  if (C.is_empty (C.inter s s'))
 	  then ()
 	  else
@@ -1829,6 +1868,12 @@ let alias_frequency (lvl : (lvalue * bool) list) : int * int =
 			   else collect_ptsets lbl
 			) lbls in
   let record_alias s (l,b) s' (l',b') = 
+    if (!debug_aliases) then 
+	  begin
+	    Printf.printf "Checking whether %s and %s are aliased...  " 
+	      (string_of_label l) (string_of_label l');
+	    print_newline()
+	  end;
     if (C.is_empty (C.inter s s'))
     then ()
     else

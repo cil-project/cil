@@ -1,7 +1,7 @@
 (*
  *
  * Copyright (c) 2001-2002, 
- *  John Kodumal        <jdokumal@eecs.berkeley.edu>
+ *  John Kodumal        <jkodumal@eecs.berkeley.edu>
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -32,6 +32,13 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  *)
+
+(***********************************************************************)
+(*                                                                     *)
+(* Flags                                                               *)
+(*                                                                     *)
+(***********************************************************************)
+
 (** Print extra debugging info *)
 val debug : bool ref
 
@@ -40,6 +47,9 @@ val debug_constraints : bool ref
 
 (** Debug smart alias queries *)
 val debug_aliases : bool ref
+
+(** Debug may alias queries *)
+val debug_may_aliases : bool ref
 
 val smart_aliases : bool ref
 
@@ -58,21 +68,34 @@ val no_flow : bool ref
 (** Show the progress of the flow step *)
 val show_progress : bool ref 
 
+(***********************************************************************)
+(*                                                                     *)
+(* Building the Points-to Graph                                        *)
+(*                                                                     *)
+(***********************************************************************)
+
 (** Analyze a file *)
 val analyze_file : Cil.file -> unit
 
 (** Print the type of each lvalue in the program *)
 val print_types : unit -> unit
 
-(** Compute points to sets. If true is passed, print the sets. *)
-val compute_results : bool -> unit
+(***********************************************************************)
+(*                                                                     *)
+(* High-level Query Interface                                          *)
+(*                                                                     *)
+(***********************************************************************)
 
-(** Compute alias relationships. If true is passed, print all alias pairs. *)
-val compute_aliases : bool -> unit
+val may_alias : Cil.exp -> Cil.exp -> bool
 
-(** Compute alias frequncy *)
-val compute_alias_frequency : unit -> unit
+val resolve_funptr : Cil.exp -> (Cil.fundec list)
 
+
+(***********************************************************************)
+(*                                                                     *)
+(* Low-level Query Interface                                           *)
+(*                                                                     *)
+(***********************************************************************)
 
 (** type for abstract locations *)
 type absloc 
@@ -83,8 +106,23 @@ val abslocVarinfo : Cil.varinfo -> absloc
 (** Give an abstract location for an Cil lvalue *)
 val abslocLval : Cil.lval -> absloc
 
-(** are the two abstract locations may be aliased? *)
+(** may the two abstract locations be aliased? *)
 val abslocEq : absloc -> absloc -> bool
 
 (** Pretty print an abstract location *)
 val d_absloc : unit -> absloc -> Pretty.doc
+
+(***********************************************************************)
+(*                                                                     *)
+(* Printing results                                                    *)
+(*                                                                     *)
+(***********************************************************************)
+
+(** Compute points to sets. If true is passed, print the sets. *)
+val compute_results : bool -> unit
+
+(** Compute alias relationships. If true is passed, print all alias pairs. *)
+val compute_aliases : bool -> unit
+
+(** Compute alias frequncy *)
+val compute_alias_frequency : unit -> unit

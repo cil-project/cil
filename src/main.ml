@@ -127,7 +127,9 @@ let rec processOneFile (cil: C.file) =
       
     if (!ptrAnalysis) then begin
       Ptranal.analyze_file cil;
-      Ptranal.compute_results (!ptrResults);	
+      Ptranal.compute_results (!ptrResults);
+      if (!Ptranal.debug_may_aliases) then
+	Ptranal.compute_aliases true
     end;		
 
     if (!Canonicalize.cpp_canon) then begin
@@ -256,6 +258,8 @@ let rec theMain () =
                      "turns off consistency checking of CIL";
     "--ptr_analysis",Arg.Unit (fun _ -> ptrAnalysis := true),
                      "turns on alias analysis";
+    "--ptr_may_aliases", Arg.Unit (fun _ -> Ptranal.debug_may_aliases := true),
+                  "print out results of may alias queries";
     "--ptr_unify", Arg.Unit (fun _ -> Ptranal.no_sub := true),
                   "make the alias analysis unification-based";
     "--ptr_results", Arg.Unit (fun _ -> ptrResults := true),

@@ -1,7 +1,7 @@
 (*
  *
  * Copyright (c) 2001-2002, 
- *  John Kodumal        <jdokumal@eecs.berkeley.edu>
+ *  John Kodumal        <jkodumal@eecs.berkeley.edu>
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -65,6 +65,7 @@ val global_lvalue : lvalue -> bool
 val alias_query : bool -> lvalue list -> int * int
 val alias_frequency : (lvalue * bool) list -> int * int
 
+val may_alias : tau -> tau -> bool
 
 val abslocLvalue : lvalue -> absloc
 val abslocEq : absloc -> absloc -> bool

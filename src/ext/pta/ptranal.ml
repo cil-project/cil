@@ -1,7 +1,7 @@
 (*
  *
  * Copyright (c) 2001-2002, 
- *  John Kodumal        <jdokumal@eecs.berkeley.edu>
+ *  John Kodumal        <jkodumal@eecs.berkeley.edu>
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -32,12 +32,6 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  *)
-(*
-  todo
-  
-  -- varargs 
-  
-*)
 exception Bad_return
 exception Bad_function
 
@@ -49,9 +43,7 @@ module A = Golf
 
 (* module A = Steensgaard *)
 
-(*
-module A = Dummy
-*) 
+(* module A = Dummy *) 
 
 type access = A.lvalue * bool
 
@@ -73,6 +65,7 @@ let no_flow = A.no_flow
 let no_sub = A.no_sub
 let fun_ptrs_as_funs = ref false
 let show_progress = ref false
+let debug_may_aliases = ref false
 
 let current_fundec : fundec option ref = ref None
 
@@ -81,6 +74,8 @@ let fun_access_map : (fundec, access_map) H.t = H.create 64
 let current_ret : A.tau option ref = ref None
 
 let lvalue_hash : (varinfo,A.lvalue) H.t = H.create 64
+
+let expressions : (exp,exp) H.t = H.create 64
 
 let count : int ref = ref 0
 
@@ -209,6 +204,8 @@ and analyze_expr_as_lval (e : exp) : A.lvalue =
     | _ -> assert(false) (* todo -- other kinds of expressions? *)
 
 and analyze_expr (e : exp ) : A.tau = 
+  if (!debug_may_aliases & (not (H.mem expressions e) )) then
+    H.add expressions e e;
   match e with
     | Const c -> A.bottom()
     | Lval l ->	A.rvalue (analyze_lval l)
@@ -321,12 +318,7 @@ let analyze_function (f : fundec ) : unit =
     begin 
       if (!show_progress) 
       then
-	begin (*
-	  if (f.svar.vname = "jpeg_write_scanlines") then
-	    begin
-	      A.debug_constraints := true;
-	      A.print_constraints := true;
-	    end;*)
+	begin
 	  Printf.printf "Analyzing function %s" f.svar.vname;
 	  print_newline()
 	end;
@@ -359,6 +351,80 @@ let analyze_global (g : global ) : unit =
 let analyze_file (f : file) : unit = 
   iterGlobals f analyze_global 
 
+(***********************************************************************)
+(*                                                                     *)
+(* High-level Query Interface                                          *)
+(*                                                                     *)
+(***********************************************************************)
+
+(* Same as analyze_expr, but no constraints. *)
+let rec traverse_expr (e : exp) : A.tau = 
+  match e with
+    | Const c -> A.bottom()
+    | Lval l ->	A.rvalue (traverse_lval l)
+    | SizeOf _ -> A.bottom()
+    | SizeOfStr _ -> A.bottom()
+    | AlignOf _ -> A.bottom()
+    | UnOp (op,e,t) -> 
+	begin
+	  if (pointer_destroying_unop op)
+	  then 
+	    A.bottom ()
+	  else
+	    traverse_expr e
+	end
+    | BinOp (op,e,e',t) ->
+	begin
+	  if (pointer_destroying_binop op)
+	  then
+	    A.bottom ()
+	  else
+	    A.join (traverse_expr e) (traverse_expr e')
+	end
+    | CastE (t,e) ->
+	traverse_expr(e)
+    | AddrOf l ->  
+	if (!fun_ptrs_as_funs && isFunctionType (typeOfLval(l)) ) then
+	  A.rvalue (traverse_lval l)
+	else
+	  A.address (traverse_lval l)
+    | StartOf l -> A.address (traverse_lval l)
+    | AlignOfE _ -> A.bottom()
+    | SizeOfE _ -> A.bottom() 
+
+and traverse_expr_as_lval (e : exp) : A.lvalue = 
+  match e with
+    | Lval l -> analyze_lval l 
+    | _ -> assert(false) (* todo -- other kinds of expressions? *)
+
+and traverse_lval (lv : lval ) : A.lvalue =
+  match lv with
+    | Var v,_ -> analyze_var_decl v
+    | Mem e,_ -> 
+	if (!fun_ptrs_as_funs && isFunPtrType (typeOf e))
+	then
+	  traverse_expr_as_lval e
+	else
+	  A.deref (traverse_expr e)
+
+let may_alias (e1 : exp) (e2 : exp) : bool = 
+  let tau1,tau2 = traverse_expr e1, traverse_expr e2 in
+  let result = A.may_alias tau1 tau2 in
+    if ((!debug_may_aliases)) then
+      begin
+	let doc1 = d_exp () e1 in
+	let doc2 = d_exp () e2 in
+	let s1 = Pretty.sprint ~width:30 doc1 in
+	let s2 = Pretty.sprint ~width:30 doc2 in
+	  Printf.printf "%s and %s may alias? %s\n" s1 s2 (if result then "yes" else "no")
+      end;
+    result
+      
+      
+(** todo *)
+let resolve_funptr (e : exp) : fundec list = []
+
+
 
 let count_hash_elts h =
   let result = ref 0 in
@@ -379,8 +445,11 @@ let show_progress_fn (counted : int ref) (total : int) : unit =
   end
 
 let compute_results (show_sets : bool) : unit = 
-  print_string "Computing points-to sets...";
-  print_newline();
+  if (show_sets) then
+    begin
+      print_string "Computing points-to sets...";
+      print_newline();
+    end;
   let 
     total_pointed_to = ref 0
   in
@@ -423,7 +492,8 @@ let compute_results (show_sets : bool) : unit =
 		    end
 		 ) lvalue_hash;
     List.iter print_result (!lval_elts); 
-    Printf.printf "Total number of things pointed to: %d\n" !total_pointed_to
+    if (show_sets) then
+      Printf.printf "Total number of things pointed to: %d\n" !total_pointed_to
     (* 
        Printf.printf "Total number of inferred globals : %d\n" !global_lvalues
     *)
@@ -435,6 +505,17 @@ let print_types () : unit =
 		  Printf.printf "%s : %s\n" vi.vname (A.string_of_lvalue lv)
 	       ) lvalue_hash 
 
+
+let compute_may_aliases (b : bool) : unit = 
+  let rec compute_may_aliases_aux (exps : exp list) =
+    match (exps) with
+      | h :: t -> ignore (List.map (may_alias h) t); compute_may_aliases_aux t 
+      | [] -> ()
+  in
+  let exprs : exp list ref = ref [] in
+    H.iter (fun _ -> fun e -> exprs := e :: (!exprs)) expressions;
+    compute_may_aliases_aux (!exprs)
+  
 
 (** Alias queries. For each function, gather sets of locals, formals, and 
   globals. Do n^2 work for each of these functions, reporting whether or not
@@ -465,12 +546,15 @@ let compute_aliases (b : bool) : unit =
       Printf.printf "Scanning function %s" f.svar.vname;
       print_newline()
     end;
-     (* todo alias_query ((!all_globals) @ f.sformals @ f.slocals) *)
-    alias_query (!all_globals)
+    alias_query ((!all_globals) @ f.sformals @ f.slocals)
+    (* alias_query (!all_globals) *)
   in
-    List.iter a_analyze_fundec (!all_functions);
+    compute_may_aliases b;
+    List.iter a_analyze_fundec (!all_functions)
+    (* 
     Printf.printf "Naive queries : %d of %d possible\n" (!a_count) (!a_total);
     Printf.printf "Smart queries : %d of %d possible\n" (!s_count) (!a_total)
+    *)
 
 let compute_alias_frequency () : unit = 
   let f_counted = ref 0 in
@@ -506,7 +590,8 @@ let compute_alias_frequency () : unit =
     List.iter af_analyze_fundec (!all_functions);
     Printf.printf "Naive queries : %d of %d possible\n" (!a_count) (!a_total);
     Printf.printf "Smart queries : %d of %d possible\n" (!s_count) (!a_total)
-    
+
+
 
 
 (** abstract location interface *)
