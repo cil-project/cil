@@ -969,49 +969,57 @@ let arithmeticConversion    (* c.f. ISO 6.3.1.8 *)
   end
 
   
-let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) = 
-  if typeSig ot = typeSig nt then (ot, e) else
-  match ot, nt with
-    TNamed(r, _), _ -> castTo r.ttype nt e
-  | _, TNamed(r, _) -> castTo ot r.ttype e
-  | TInt(ikindo,_), TInt(ikindn,_) -> 
-      (nt, if ikindo == ikindn then e else mkCastT e ot nt)
+(* Specify whether the cast is from the source code *)
+let rec castTo ?(fromsource=false) 
+                (ot : typ) (nt : typ) (e : exp) : (typ * exp ) = 
+  if not fromsource && typeSig ot = typeSig nt then 
+    (* Do not put the cast if it is not necessary *)
+    (ot, e) 
+  else begin
+    let result = (nt, mkCastT e ot nt) in
+    (* Now see if we can have a cast here *)
+    match ot, nt with
+      TNamed(r, _), _ -> castTo r.ttype nt e
+    | _, TNamed(r, _) -> castTo ot r.ttype e
+    | TInt(ikindo,_), TInt(ikindn,_) -> 
+        if ikindo == ikindn then (nt, e) else result
 
-  | TPtr (told, _), TPtr(tnew, _) -> (nt, mkCastT e ot nt)
+    | TPtr (told, _), TPtr(tnew, _) -> result
+          
+    | TInt _, TPtr _ -> result
+          
+    | TPtr _, TInt _ -> result
+          
+    | TArray _, TPtr _ -> result
+          
+    | TArray(t1,_,_), TArray(t2,None,_) when typeSig t1 = typeSig t2 -> (nt, e)
+          
+    | TPtr _, TArray(_,_,_) -> (nt, e)
+          
+    | TEnum _, TInt _ -> result
+    | TFloat _, (TInt _|TEnum _) -> result
+    | (TInt _|TEnum _), TFloat _ -> result
+    | TFloat _, TFloat _ -> result
+    | TInt _, TEnum _ -> result
+    | TEnum _, TEnum _ -> result
 
-  | TInt _, TPtr _ when isZero e  -> 
-        (nt, mkCastT e ot nt)
+    | TEnum _, TPtr _ -> result
+    | TPtr _, TEnum _ -> 
+        ignore (warnOpt "Casting a pointer into an enumeration type");
+        result
 
-  | TInt _, TPtr _ -> (nt, mkCastT e ot nt)
+          (* The expression is evaluated for its side-effects *)
+    | (TInt _ | TEnum _ | TPtr _ ), TVoid _ -> 
+        (ot, e)
 
-  | TPtr _, TInt _ -> (nt, mkCastT e ot nt)
+          (* Even casts between structs are allowed when we are only 
+           * modifying some attributes *)
+    | TComp (comp1, a1), TComp (comp2, a2) when comp1.ckey = comp2.ckey -> 
+        (nt, e)
+          
+    | _ -> E.s (error "cabs2cil: castTo %a -> %a@!" d_type ot d_type nt)
+  end
 
-  | TArray _, TPtr _ -> (nt, mkCastT e ot nt)
-
-  | TArray(t1,_,_), TArray(t2,None,_) when typeSig t1 = typeSig t2 -> (nt, e)
-
-  | TPtr _, TArray(_,_,_) -> (nt, e)
-
-  | TEnum _, TInt _ -> (nt, mkCastT e ot nt)
-  | TFloat _, (TInt _|TEnum _) -> (nt, mkCastT e ot nt)
-  | (TInt _|TEnum _), TFloat _ -> (nt, mkCastT e ot nt)
-  | TFloat _, TFloat _ -> (nt, mkCastT e ot nt)
-  | TInt _, TEnum _ -> (nt, mkCastT e ot nt)
-  | TEnum _, TEnum _ -> (nt, mkCastT e ot nt)
-
-  | TEnum _, TPtr _ -> (nt, mkCastT e ot nt)
-  | TPtr _, TEnum _ -> 
-      ignore (warnOpt "Casting a pointer into an enumeration type");
-      (nt, mkCastT e ot nt)
-
-    (* The expression is evaluated for its side-effects *)
-  | (TInt _ | TEnum _ | TPtr _ ), TVoid _ -> (ot, e)
-
-  (* Even casts between structs are allowed when we are only modifying some 
-   * attributes *)
-  | TComp (comp1, a1), TComp (comp2, a2) when comp1.ckey = comp2.ckey -> (nt, e)
-
-  | _ -> E.s (error "cabs2cil: castTo %a -> %a@!" d_type ot d_type nt)
 
 (* A cast that is used for conditional expressions. Pointers are Ok *)
 let checkBool (ot : typ) (e : exp) : bool =
@@ -2764,15 +2772,8 @@ and doExp (isconst: bool)    (* In a constant *)
             TVoid _ when what = ADrop -> (t', e') (* strange GNU thing *)
           |  _ -> 
               (* Do this to check the cast *)
-              let newtyp, newexp = castTo t' typ e' in 
-              (* If castTo decided not to put the cast in, we'll put it, 
-               * except if it is to a union type. *)
-              let forceCast = 
-                match unrollType typ with 
-                  TComp(ci, _) when not ci.cstruct -> false
-                | _ -> newexp == e'
-              in
-              newtyp, (if forceCast then  CastE(typ, newexp) else newexp)
+              let newtyp, newexp = castTo ~fromsource:true t' typ e' in 
+              newtyp, newexp
         in
         finishExp se e'' t''
           
