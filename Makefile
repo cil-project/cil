@@ -642,3 +642,12 @@ apache/rewrite: $(EXECUTABLE)$(EXE)
                         $(OBJOUT)./mod_rewrite.$(OBJ) \
                         $(APACHEBASE)/modules/standard/mod_rewrite.c
 
+
+
+
+# SPEC95
+SPECDIR=test/spec95
+
+COMPRESSDIR=$(SPECDIR)/129.compress
+compress : defaulttarget
+	cd $(COMPRESSDIR)/src; make build
