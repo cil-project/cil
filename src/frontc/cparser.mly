@@ -1129,6 +1129,8 @@ attr:
 |   id_or_typename                       { VARIABLE $1 }
 |   IDENT IDENT                          { CALL(VARIABLE (fst $1), [VARIABLE (fst $2)]) }
 |   IDENT COLON CST_INT                  { VARIABLE (fst $1 ^ ":" ^ fst $3) }
+
+|   CST_INT COLON CST_INT                { VARIABLE (fst $1 ^ ":" ^ fst $3) } 
 |   DEFAULT COLON CST_INT                { VARIABLE ("default:" ^ fst $3) }
                                          /* (* use a VARIABLE "" so that the 
                                              * parentheses are printed *) */

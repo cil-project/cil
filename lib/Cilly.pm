@@ -159,9 +159,12 @@ sub collectArgumentList {
     # Scan and process the arguments
     while($#args >= 0) {
         my $arg = $self->fetchNextArg(\@args);
+        
         if(! defined($arg)) {
             last;
         }
+        if($arg eq "") { next; } 
+
         #print("arg: $arg\n");
 #
 #        my $arg = shift @args; # Grab the next one
@@ -246,21 +249,26 @@ sub collectOneArgument {
     }
 
     # sm: response file
-    if($arg =~ m|-@(.+)$|) {
+    if($arg =~ m|-@(.+)$| ||
+        ($self->{MODENAME} eq "MSVC" && $arg =~ m|@(.+)$|)) {
         my $fname = $1;         # name of response file
-        #print("processing response file: $fname\n");
+        &classifyArgDebug("processing response file: $fname\n");
 
         # read the lines into an array
         if (!open(RF, "<$fname")) {
             die("cannot open response file $fname: $!\n");
         }
-        my @respArgs = <RF>;
+        my @respArgs = ();
+        while(<RF>) {
+            # Drop spaces and empty lines
+            my ($middle) = ($_ =~ m|\s*(\S.*\S)\s*|);
+            if($middle ne "") {
+                push @respArgs, $middle;
+#                print "Arg:$middle\n";
+            }
+        }
         close(RF) or die;
 
-        # chomp the newlines
-        for (my $i=0; $i < @respArgs; $i++) {
-            chomp($respArgs[$i]);
-        }
 
         # Scan and process the arguments
         collectArgumentList($self, @respArgs);
@@ -268,7 +276,7 @@ sub collectOneArgument {
         #print("done with response file: $fname\n");
         return 1;      # argument undestood
     }
-    if($arg eq "-@") {
+    if($arg eq "-@" || ($self->{MODENAME} eq "MSVC" && $arg eq "@")) {
         # sm: I didn't implement the case where it takes the next argument
         # because I wasn't sure how to grab add'l args (none of the
         # cases above do..)
@@ -440,7 +448,7 @@ sub linktolib {
 sub preprocess_compile {
     my ($self, $src, $dest, $early_ppargs, $ppargs, $ccargs) = @_;
     &mydebug("preprocess_compile(src=$src, dest=$dest)\n");
-    confess "bad dest: $dest" unless $dest->isa('OutputFile');
+    Carp::confess "bad dest: $dest" unless $dest->isa('OutputFile');
 
     my ($base, $dir, $ext) = fileparse($src, "\\.[^.]+");
     if($ext eq ".c" || $ext eq ".cpp" || $ext eq ".cc") {
@@ -464,7 +472,7 @@ sub preprocess_compile {
 # THIS IS THE ENTRY POINT FOR JUST PREPROCESSING A FILE
 sub preprocess {
     my($self, $src, $dest, $ppargs) = @_;
-    confess "bad dest: $dest" unless $dest->isa('OutputFile');
+    Carp::confess "bad dest: $dest" unless $dest->isa('OutputFile');
     return $self->preprocess_before_cil($src, $dest, $ppargs);
 }
 
@@ -486,7 +494,7 @@ sub preprocessAfterOutputFile {
  
 sub preprocess_before_cil {
     my ($self, $src, $dest, $ppargs) = @_;
-    confess "bad dest: $dest" unless $dest->isa('OutputFile');
+    Carp::confess "bad dest: $dest" unless $dest->isa('OutputFile');
     my @args = @{$ppargs};
 
     # See if we must force some includes
@@ -526,7 +534,7 @@ sub preprocess_before_cil {
 # Preprocessing after CIL
 sub preprocess_after_cil {
     my ($self, $src, $dest, $ppargs) = @_;
-    confess "bad dest: $dest" unless $dest->isa('OutputFile');
+    Carp::confess "bad dest: $dest" unless $dest->isa('OutputFile');
     return $self->straight_preprocess($src, $dest, $ppargs);
 }
 
@@ -535,7 +543,7 @@ sub preprocess_after_cil {
 # You should not override this method
 sub straight_preprocess {
     my ($self, $src, $dest, $ppargs) = @_;
-    confess "bad dest: $dest" unless $dest->isa('OutputFile');
+    Carp::confess "bad dest: $dest" unless $dest->isa('OutputFile');
     if($self->{VERBOSE}) {
 	my $srcname = ref $src ? $src->filename : $src;
 	print STDERR "Preprocessing $srcname\n";
@@ -563,7 +571,7 @@ sub straight_preprocess {
 sub compile {
     my($self, $src, $dest, $ppargs, $ccargs) = @_;
     &mydebug("Cilly.compile(src=$src, dest=$dest)\n");
-    confess "bad dest: $dest" unless $dest->isa('OutputFile');
+    Carp::confess "bad dest: $dest" unless $dest->isa('OutputFile');
     
     if($self->{SEPARATE}) {
         # Now invoke CIL and compile afterwards
@@ -799,7 +807,8 @@ sub applyCil {
 
     # Now prepare the command line for invoking cilly
     my ($aftercil, @cmd) = $self->CillyCommand ($ppsrc, $dest);
-    confess "$self produced bad output file: $aftercil" unless $aftercil->isa('OutputFile');
+    Carp::confess "$self produced bad output file: $aftercil" 
+        unless $aftercil->isa('OutputFile');
 
     if($self->{MODENAME} eq "MSVC") {
         push @cmd, '--MSVC';
@@ -837,7 +846,7 @@ sub applyCil {
 
 sub applyCilAndCompile {
     my ($self, $ppsrc, $dest, $ppargs, $ccargs) = @_;
-    confess "$self produced bad destination file: $dest"
+    Carp::confess "$self produced bad destination file: $dest"
 	unless $dest->isa('OutputFile');
 
     # The input files
@@ -846,7 +855,8 @@ sub applyCilAndCompile {
 
     # Now run cilly
     my $aftercil = $self->applyCil($ppsrc, $dest);
-    confess "$self produced bad output file: $aftercil" unless $aftercil->isa('OutputFile');
+    Carp::confess "$self produced bad output file: $aftercil" 
+        unless $aftercil->isa('OutputFile');
 
     # Now preprocess
     my $aftercilpp = $self->preprocessAfterOutputFile($aftercil);
@@ -881,6 +891,8 @@ sub doit {
     my ($self) = @_;
     my $file;
     my $out;
+
+#    print Dumper($self);
 
     # Maybe we must preprocess only
     if($self->{OPERATION} eq "TOI" || $self->{OPERATION} eq 'SPECIAL') {
@@ -966,7 +978,7 @@ sub doit {
     die "I don't understand OPERATION:$self->{OPERATION}\n";
 }
 
-sub classDebug {
+sub classifyArgDebug {
     if(0) { print @_; }
 }
 
@@ -976,18 +988,18 @@ sub mydebug {
 
 sub compilerArgument {
     my($self, $options, $arg, $pargs) = @_;
-    &classDebug("Classifying arg: $arg\n");
+    &classifyArgDebug("Classifying arg: $arg\n");
     my $idx = 0;
     for($idx=0; $idx < $#$options; $idx += 2) {
         my $key = ${$options}[$idx];
         my $action = ${$options}[$idx + 1];
-        &classDebug("Try match with $key\n");
+        &classifyArgDebug("Try match with $key\n");
         if($arg =~ m|^$key|) {
-          &classDebug(" match with $key\n");
+          &classifyArgDebug(" match with $key\n");
           my @fullarg = ($arg);
           my $onemore;
           if(defined $action->{'ONEMORE'}) {
-              &classDebug("  expecting one more\n");
+              &classifyArgDebug("  expecting one more\n");
               # Maybe the next arg is attached
               my $realarg;
               ($realarg, $onemore) = ($arg =~ m|^($key)(.+)$|);
@@ -999,7 +1011,7 @@ sub compilerArgument {
               } else {
                   $onemore = &quoteIfNecessary($onemore);
               }
-              &classDebug(" onemore=$onemore\n");
+              &classifyArgDebug(" onemore=$onemore\n");
           }
           # Now see what action we must perform
           my $argument_done = 1;
@@ -1008,7 +1020,7 @@ sub compilerArgument {
               $argument_done = 1;
           }
           if(defined $action->{'TYPE'}) {
-              &classDebug("  type=$action->{TYPE}\n");
+              &classifyArgDebug("  type=$action->{TYPE}\n");
               if($action->{TYPE} eq 'EARLY_PREPROC') {
                   push @{$self->{EARLY_PPARGS}}, @fullarg; return 1;
               }
@@ -1108,7 +1120,7 @@ sub quoteIfNecessary {
 
 
 sub cilOutputFile {
-    croak 'bad argument count' unless @_ == 3;
+    Carp::croak 'bad argument count' unless @_ == 3;
     my ($self, $basis, $suffix) = @_;
 
     if (defined $self->{SAVE_TEMPS}) {
@@ -1120,7 +1132,7 @@ sub cilOutputFile {
 
 
 sub outputFile {
-    confess 'bad argument count' unless @_ == 3;
+    Carp::confess 'bad argument count' unless @_ == 3;
     my ($self, $basis, $suffix) = @_;
 
     if (defined $self->{SAVE_TEMPS}) {
@@ -1185,32 +1197,34 @@ sub new {
 # given subroutine is invoked with the self, the argument and the (possibly
 # empty) additional word and a pointer to the list of remaining arguments
 #
-          ["[^/].*\\.($::cilbin|c|cpp|cc)\$" => { TYPE => 'CSOURCE' },
+          ["^[^/\\-@].*\\.($::cilbin|c|cpp|cc)\$" => { TYPE => 'CSOURCE' },
            "[^/].*\\.(asm)\$" => { TYPE => 'ASMSOURCE' },
            "[^/].*\\.i\$" => { TYPE => 'ISOURCE' },
-           "[^/-]" => { TYPE => "OSOURCE" },
+           "[^/\\-@]" => { TYPE => "OSOURCE" },
            "/O" => { TYPE => "CC" },
            "/G" => { TYPE => "CC" },
-           "/[DI]" => { TYPE => "PREPROC"},
+           "[/\\-][DI]" => { TYPE => "PREPROC"},
            "/EH" => { TYPE => "CC" },
            "/G"  => { TYPE => "CC" },
            "/F[aA]"  => { TYPE => 'CC' },
-           "/Fo"     => { TYPE => 'OUT' },
+           "[/\\-]Fo"     => { TYPE => 'OUT' },
            "/Fe"   => { TYPE => 'OUT',
                         RUN => sub { $stub->{OPERATION} = "TOEXE" }},
-           "/F[dprR]" => { TYPE => "CC" },
+           "[/\\-]F[dprR]" => { TYPE => "CC" },
+           "[/\\-]FI" => { TYPE => "PREPROC" },
            "/[CXu]" => { TYPE => "PREPROC" },
            "/U" => { ONEMORE => 1, TYPE => "PREPROC" },
            "/(E|EP|P)" => { RUN => sub { push @{$stub->{PPARGS}}, $_[1]; 
                                          $stub->{OPERATION} = "PREPROC"; }},
            "/c" => { RUN => sub { $stub->{OPERATION} = "TOOBJ"; }},
-           "/(Q|Z|J|nologo|TC|TP|w|W|Yd|Zm)" => { TYPE => "CC" },
+           "[/\\-](Q|Z|J|nologo|TC|TP|w|W|Yd|Zm)" => { TYPE => "CC" },
            "/v(d|m)" => { TYPE => "CC" },
            "/F" => { TYPE => "CC" },
            "/M"   => { TYPE => 'LINKCC' },
            "/link" => { RUN => sub { push @{$stub->{LINKARGS}}, "/link", 
                                           @{$_[3]};
                                      @{$_[3]} = (); } },
+           "-cbstring" => { TYPE => "CC" },
            "/"  => { RUN => 
                          sub { print "Unimplemented MSVC argument $_[1]\n";}},
            ],
@@ -1243,7 +1257,7 @@ sub msvc_preprocess {
                     print STDERR "Copying $msvcout to $dest\n";
                 }
                 unlink $dest;
-                copy($msvcout, $dest);
+                File::Copy::copy($msvcout, $dest);
                 unlink $msvcout;
                 return $res;
             }
@@ -1288,7 +1302,7 @@ sub compileOutputFile {
     die "objectOutputFile: not a C source file: $src\n"
 	unless $src =~ /\.($::cilbin|c|cc|cpp|i|asm)$/;
 
-    confess ("compileOutputFile: $self->{OPERATION}, $self->{OUTARG}");
+    # Carp::confess ("compileOutputFile: $self->{OPERATION}, $src, $self->{OUTARG}");
     if ($self->{OPERATION} eq 'TOOBJ') {
 	if(defined $self->{OUTARG} && "@{$self->{OUTARG}}" =~ m|/Fo(.+)|) {
 	    return new OutputFile($src, $1);
