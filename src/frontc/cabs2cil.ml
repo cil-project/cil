@@ -3005,28 +3005,14 @@ and doInitializer
 
 
 and createGlobal (specs: A.spec_elem list) 
-                 (((n,ndt,a),e) : A.init_name) : unit = 
+                 (((n,ndt,a),inite) : A.init_name) : unit = 
   try
             (* Make a first version of the varinfo *)
     let vi = makeVarInfo true locUnknown (specs, (n, ndt, a)) in
-            (* Do the initializer and complete the array type if necessary *)
-    let init : init option = 
-      if e = A.NO_INIT then 
-        None
-      else 
-        let se, ie', et, restinitl = 
-          doInitializer true false vi.vtype empty [ (A.NEXT_INIT, e) ] in
-        if restinitl <> [] then
-          E.s (error "Unused initializer in createGlobal\n");
-        (* Maybe we now have a better type *)
-        vi.vtype <- et;
-        if isNotEmpty se then 
-          E.s (error "global initializer");
-        Some ie'
-    in
-
+    (* Add the variable to the environment before doing the initializer 
+     * because it might refer to the variable itself *)
     if isFunctionType vi.vtype then begin
-      if init <> None then
+      if inite != A.NO_INIT  then
         E.s (error "Function declaration with initializer (%s)\n"
                vi.vname);
       (* sm: if it's a function prototype, and the storage class *)
@@ -3037,7 +3023,24 @@ and createGlobal (specs: A.spec_elem list)
         vi.vstorage <- Extern;
         );
     end;
-    let vi, alreadyInEnv = makeGlobalVarinfo (init <> None) vi in
+    let vi, alreadyInEnv = makeGlobalVarinfo (inite != A.NO_INIT) vi in
+
+            (* Do the initializer and complete the array type if necessary *)
+    let init : init option = 
+      if inite = A.NO_INIT then 
+        None
+      else 
+        let se, ie', et, restinitl = 
+          doInitializer true false vi.vtype empty [ (A.NEXT_INIT, inite) ] in
+        if restinitl <> [] then
+          E.s (error "Unused initializer in createGlobal\n");
+        (* Maybe we now have a better type *)
+        vi.vtype <- et;
+        if isNotEmpty se then 
+          E.s (error "global initializer");
+        Some ie'
+    in
+
     try
       let oldloc = H.find alreadyDefined vi.vid in
       if init != None then 
