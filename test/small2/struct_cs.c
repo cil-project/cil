@@ -27,3 +27,7 @@ reverse_pairs_list (gdouble *list,
       orglist[size - 1 - i] = copyit;
     }
 }
+
+int main() {
+  return 0;
+}

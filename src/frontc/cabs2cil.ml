@@ -1052,13 +1052,6 @@ let checkBool (ot : typ) (e : exp) : bool =
 
 
 (* Do types *)
-(* Process a name group. Since this should work for both A.name and 
- * A.init_name we make it polymorphic *)
-let doNameGroup (doone: A.spec_elem list -> 'n -> 'a) 
-                ((s:A.spec_elem list), (nl:'n list)) : 'a list =
-  List.map (fun n -> doone s n) nl
-
-
     (* Combine the types. Raises the Failure exception with an error message.*)
 let rec combineTypes (oldt: typ) (t: typ) : typ = 
   match oldt, t with
@@ -1761,11 +1754,13 @@ let rec doSpecList (specs: A.spec_elem list)
   in
   bt,!storage,!isinline,List.rev !attrs
 
+
 and makeVarInfo 
                 (isglob: bool) 
                 (ldecl: location)
-                ((s,(n,ndt,a)) : A.single_name) : varinfo = 
-  let bt, sto, inline, attrs = doSpecList s in
+                (bt, sto, inline, attrs)
+                (n,ndt,a) 
+      : varinfo = 
   if inline then
     ignore (warn "inline for a non-function: %s" n);
   let vtype, nattr = 
@@ -1787,15 +1782,16 @@ and makeVarInfo
 
 (* Process a local variable declaration and allow variable-sized arrays *)
 and makeVarSizeVarInfo (ldecl: location) 
-                       ((s,(n,ndt,a)) : A.single_name) 
+                       spec_res
+                       (n,ndt,a)
    : varinfo * chunk * exp * bool = 
   if not !msvcMode then 
     match isVariableSizedArray ndt with
-      None -> makeVarInfo false ldecl (s,(n,ndt,a)), empty, zero, false
+      None -> makeVarInfo false ldecl spec_res (n,ndt,a), empty, zero, false
     | Some (ndt', se, len) -> 
-        makeVarInfo false ldecl (s,(n,ndt',a)), se, len, true
+        makeVarInfo false ldecl spec_res (n,ndt',a), se, len, true
   else
-    makeVarInfo false ldecl (s,(n,ndt,a)), empty, zero, false
+    makeVarInfo false ldecl spec_res (n,ndt,a), empty, zero, false
 
 and doAttr (a: A.attribute) : attribute list = 
   (* Strip the leading and trailing underscore *)
@@ -1978,8 +1974,12 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
             (args', !newisva)
           end else (args, isva)
         in
+        let doOneArg (s, n) = 
+          let s' = doSpecList s in
+          makeVarInfo false locUnknown s' n
+        in
         let targs = 
-          match List.map (makeVarInfo false locUnknown) args'  with
+          match List.map doOneArg args'  with
           | [] -> None (* No argument list *)
           | [t] when (match t.vtype with TVoid _ -> true | _ -> false) -> 
               Some []
@@ -2065,50 +2065,56 @@ and makeCompType (isstruct: bool)
   (* Create the self cell for use in fields and forward references. Or maybe 
    * one exists already from a forward reference  *)
   let comp = createCompInfo isstruct n' in
-  (* Do the fields *)
-  let makeFieldInfo (s: A.spec_elem list) 
-                    (((n,ndt,a) : A.name), (widtho : A.expression option))
-      : fieldinfo = 
+  let doFieldGroup ((s: A.spec_elem list), (nl: 'n list)) : 'a list =
+    (* Do the specifiers exactly once *)
     let bt, sto, inl, attrs = doSpecList s in
-    if sto <> NoStorage || inl then 
-      E.s (error "Storage or inline not allowed for fields");
-    let ftype, nattr = doType (AttrName false) 
-                              bt (A.PARENTYPE(attrs, ndt, a)) in 
-    let width = 
-      match widtho with 
-        None -> None
-      | Some w -> begin
-          (match unrollType ftype with
-            TInt (ikind, a) -> ()
-          | TEnum _ -> ()
-          | _ -> E.s (error "Base type for bitfield is not an integer type"));
-          match doExp true w (AExp None) with
-            (c, Const(CInt64(i,_,_)),_) when isEmpty c -> 
-              Some (Int64.to_int i)
-          | _ -> E.s (error "bitfield width is not an integer constant")
+    (* Do the fields *)
+    let makeFieldInfo
+        (((n,ndt,a) : A.name), (widtho : A.expression option))
+      : fieldinfo = 
+      if sto <> NoStorage || inl then 
+        E.s (error "Storage or inline not allowed for fields");
+      let ftype, nattr = 
+        doType (AttrName false) bt (A.PARENTYPE(attrs, ndt, a)) in 
+      let width = 
+        match widtho with 
+          None -> None
+        | Some w -> begin
+            (match unrollType ftype with
+              TInt (ikind, a) -> ()
+            | TEnum _ -> ()
+            | _ -> E.s (error "Base type for bitfield is not an integer type"));
+            match doExp true w (AExp None) with
+              (c, Const(CInt64(i,_,_)),_) when isEmpty c -> 
+                Some (Int64.to_int i)
+            | _ -> E.s (error "bitfield width is not an integer constant")
       end
+      in
+      (* If the field is unnamed and its type is a structure of union type 
+       * then give it a distinguished name  *)
+      let n' = 
+        if n = missingFieldName then begin
+          match unrollType ftype with 
+            TComp _ -> begin
+              incr annonCompFieldNameId;
+              annonCompFieldName ^ (string_of_int !annonCompFieldNameId)
+            end 
+          | _ -> n
+        end else
+          n
+      in
+      { fcomp     =  comp;
+        fname     =  n';
+        ftype     =  ftype;
+        fbitfield =  width;
+        fattr     =  nattr;
+      } 
     in
-    (* If the field is unnamed and its type is a structure of union type then 
-     * give it a distinguished name *)
-    let n' = 
-      if n = missingFieldName then begin
-        match unrollType ftype with 
-          TComp _ -> begin
-            incr annonCompFieldNameId;
-            annonCompFieldName ^ (string_of_int !annonCompFieldNameId)
-          end 
-        | _ -> n
-      end else
-        n
-    in
-    { fcomp     =  comp;
-      fname     =  n';
-      ftype     =  ftype;
-      fbitfield =  width;
-      fattr     =  nattr;
-    } 
+    List.map makeFieldInfo nl
   in
-  let flds = List.concat (List.map (doNameGroup makeFieldInfo) nglist) in
+
+
+  let flds = List.concat (List.map doFieldGroup nglist) in
   if comp.cfields <> [] then begin
     (* This appears to be a multiply defined structure. This can happen from 
     * a construct like "typedef struct foo { ... } A, B;". This is dangerous 
@@ -2534,12 +2540,13 @@ and doExp (isconst: bool)    (* In a constant *)
                         | s -> s) specs
                 | _ -> specs
               in
+              let spec_res = doSpecList specs1 in
               let se1 = 
                 if !scopes == [] then begin
-                  ignore (createGlobal specs1 ((newvar, dt, []), ie));
+                  ignore (createGlobal spec_res ((newvar, dt, []), ie));
                   empty
                 end else
-                  createLocal specs1 ((newvar, dt, []), ie) 
+                  createLocal spec_res ((newvar, dt, []), ie) 
               in
               (* Now pretend that e is just a reference to the newly created 
                * variable *)
@@ -3738,13 +3745,13 @@ and doInit
 
 (* Create and add to the file (if not already added) a global. Return the 
  * varinfo *)
-and createGlobal (specs: A.spec_elem list) 
+and createGlobal (specs : (typ * storage * bool * A.attribute list)) 
                  (((n,ndt,a),inite) : A.init_name) : varinfo = 
   try
     if debugGlobal then 
       ignore (E.log "createGlobal: %s\n" n);
             (* Make a first version of the varinfo *)
-    let vi = makeVarInfo true locUnknown (specs, (n, ndt, a)) in
+    let vi = makeVarInfo true locUnknown specs (n, ndt, a) in
     (* Add the variable to the environment before doing the initializer 
      * because it might refer to the variable itself *)
     if isFunctionType vi.vtype then begin
@@ -3833,7 +3840,7 @@ and createGlobal (specs: A.spec_elem list)
 *)
 
 (* Must catch the Static local variables.Make them global *)
-and createLocal (specs: A.spec_elem list) 
+and createLocal ((_, sto, _, _) as specs)
                 (((n, ndt, a) as name, (e: A.init_expression)) as init_name) 
   : chunk =
   (* Check if we are declaring a function *)
@@ -3847,12 +3854,12 @@ and createLocal (specs: A.spec_elem list)
     | _ -> false
   in
   match ndt with 
-    _ when A.isStatic specs -> 
+    _ when sto = Static -> 
       (* Now alpha convert it to make sure that it does not conflict with 
        * existing globals or locals from this function. *)
       let newname = newAlphaName true "" n in
       (* Make it global  *)
-      let vi = makeVarInfo true locUnknown (specs, (newname, ndt, a)) in
+      let vi = makeVarInfo true locUnknown specs (newname, ndt, a) in
       (* Add it to the environment as a local so that the name goes out of 
        * scope properly *)
       addLocalToEnv n (EnvVar vi);
@@ -3877,7 +3884,7 @@ and createLocal (specs: A.spec_elem list)
       empty
 
   (* Maybe we have an extern declaration. Make it a global *)
-  | _ when A.isExtern specs ->
+  | _ when sto = Extern ->
       let vi = createGlobal specs init_name in
       (* Add it to the local environment to ensure that it shadows previous 
        * local variables *)
@@ -3895,17 +3902,18 @@ and createLocal (specs: A.spec_elem list)
       (* Make a variable of potentially variable size. If se0 <> empty then 
        * it is a variable size variable *)
       let vi,se0,len,isvarsize = 
-        makeVarSizeVarInfo !currentLoc (specs, (n, ndt, a)) in
+        makeVarSizeVarInfo !currentLoc specs (n, ndt, a) in
       let vi = alphaConvertVarAndAddToEnv true vi in        (* Replace vi *)
       let se1 = 
         if isvarsize then begin (* Variable-sized array *) 
           ignore (warn "Variable-sized local variable %s" vi.vname);
           (* Make a local variable to keep the length *)
           let savelen = 
-            makeVarInfo false !currentLoc ([A.SpecType A.Tint; 
-                                            A.SpecType A.Tunsigned], 
-                                           ("__lengthof" ^ vi.vname,
-                                            JUSTBASE, [])) in
+            makeVarInfo false 
+                        !currentLoc 
+                        (TInt(IUInt, []), NoStorage, false, [])
+                        ("__lengthof" ^ vi.vname,JUSTBASE, []) 
+          in
           (* Register it *)
           let savelen = alphaConvertVarAndAddToEnv true savelen in
           (* Compute the sizeof *)
@@ -3944,11 +3952,22 @@ and createLocal (specs: A.spec_elem list)
       end
           
           
-and doDecl : A.definition -> chunk = function
+(* Do one declaration *)
+and doDecl (isglobal: bool) : A.definition -> chunk = function
   | A.DECDEF ((s, nl), loc) ->
       currentLoc := convLoc(loc);
-      let stmts = doNameGroup createLocal (s, nl) in
-      List.fold_left (fun acc c -> acc @@ c) empty stmts
+      (* Do the specifiers exactly once *)
+      let spec_res = doSpecList s in
+      (* Do all the variables and concatenate the resulting statements *)
+      let doOneDeclarator (acc: chunk) (n: init_name) = 
+        if isglobal then begin
+          (* For a global we ignore the varinfo that is created  *)
+          ignore (createGlobal spec_res n); 
+          acc
+        end else 
+          acc @@ createLocal spec_res n
+      in
+      List.fold_left doOneDeclarator empty nl
 
   | A.TYPEDEF (ng, loc) -> 
      currentLoc := convLoc(loc);
@@ -3958,10 +3977,276 @@ and doDecl : A.definition -> chunk = function
       currentLoc := convLoc(loc);
       doOnlyTypedef s; empty
 
+  | A.GLOBASM (s,loc) when isglobal ->
+      currentLoc := convLoc(loc);
+      pushGlobal (GAsm (s, !currentLoc));
+      empty
+        
+  | A.PRAGMA (a, loc) when isglobal -> begin
+      currentLoc := convLoc(loc);
+      match doAttr ("dummy", [a]) with
+        [Attr("dummy", [a'])] ->
+          let a'' =
+            match a' with
+              AId s -> Attr (s, [])
+            | ACons (s, args) -> Attr (s, args)
+            | _ -> E.s (error "Unexpected attribute in #pragma")
+          in
+          pushGlobal (GPragma (a'', !currentLoc));
+          empty
+
+      | _ -> E.s (error "Too many attributes in pragma")
+  end
+  | A.TRANSFORMER (_, _, _) -> E.s (E.bug "TRANSFORMER in cabs2cil input")
+  | A.EXPRTRANSFORMER (_, _, _) -> 
+      E.s (E.bug "EXPRTRANSFORMER in cabs2cil input")
+        
+  | A.FUNDEF (((specs,(n,dt,a)) : A.single_name),
+              (body : A.block), loc) when isglobal ->
+    begin
+      currentLoc := convLoc(loc);
+      E.withContext
+        (fun _ -> dprintf "2cil: %s" n)
+        (fun _ ->
+          try
+            (* Reset the local identifier so that formals are created with
+            * the proper IDs  *)
+            resetLocals ();
+            constrExprId := 0;
+            (* Setup the environment. Add the formals to the locals. Maybe
+            * they need alpha-conv  *)
+            enterScope ();  (* Start the scope *)
+            
+            H.clear varSizeArrays;
+            
+            let bt,sto,inl,attrs = doSpecList specs in
+            (* Do not process transparent unions in function definitions.
+            * We'll do it later *)
+            transparentUnionArgs := [];
+            let ftyp, funattr = doType (AttrName false) bt
+                (A.PARENTYPE(attrs, dt, a)) in
+            (* Extra the information from the type *)
+            let (returnType, formals, isvararg, funta) =
+              match unrollType ftyp with
+                TFun(rType, formals, isvararg, a) ->
+                  (rType, formals, isvararg, a)
+              | x -> E.s (error "non-function type: %a." d_type x)
+            in
+            (* Record the returnType for doStatement *)
+            currentReturnType   := returnType;
+            
+            (* Add the function itself to the environment. Add it before 
+            * you do the body because the function might be recursive. Add 
+            * it also before you add the formals to the environment 
+            * because there might be a formal with the same name as the 
+            * function and we want it to take precedence. *)
+            (* Make a variable out of it and put it in the environment *)
+            let thisFunctionVI, _ =
+              makeGlobalVarinfo true
+                { vname = n;
+                  vtype = ftyp;
+                  vglob = true;
+                  vid   = newVarId n true;
+                  vdecl = lu;
+                  vattr = funattr;
+                  vaddrof = false;
+                  vstorage = sto;
+                  vreferenced = false;   (* sm *)
+                }
+            in
+            
+            (* Add the formals to the environment *)
+            let formals' =
+              match formals with
+                None -> None
+              | Some fl -> 
+                  Some (List.map (alphaConvertVarAndAddToEnv true) fl) in
+            let formalsList' = argsToList formals' in
+            let ftype = TFun(returnType, formals', isvararg, funta) in
+            (* Now fix the names of the formals in the type of the function 
+            * as well *)
+            thisFunctionVI.vtype <- ftype;
+            (*              ignore (E.log "makefunvar:%s@! type=%a@! vattr=%a@!"
+                        n d_plaintype ftype (d_attrlist true) funattr); *)
+            if H.mem alreadyDefined thisFunctionVI.vid then
+              E.s (error "There is a definition already for %s" n);
+            currentFunctionVI := thisFunctionVI;
+            (* Now change the type of transparent union args back to what it 
+             * was so that the body type checks. We must do it this late 
+             * because makeGlobalVarinfo from above might choke if we give 
+             * the function a type containing transparent unions  *)
+            let _ =
+              let rec fixbackFormals (idx: int) (args: varinfo list) : unit=
+                match args with
+                  [] -> ()
+                | a :: args' ->
+                    (* Fix the type back to a transparent union type *)
+                    (try
+                      let origtype = List.assq idx !transparentUnionArgs in
+                      a.vtype <- origtype;
+                    with Not_found -> ());
+                    fixbackFormals (idx + 1) args'
+              in
+              fixbackFormals 0 formalsList';
+              transparentUnionArgs := [];
+            in
+            (* Now do the body *)
+            let stm = doBody body in
+            (* Finish everything *)
+            exitScope ();
+            
+            (* Now fill in the computed goto statement with cases. Do this
+            * before mkFunctionbody which resolves the gotos *)
+            (match !gotoTargetData with
+              Some (switchv, switch) ->
+                let switche, l =
+                  match switch.skind with
+                    Switch (switche, _, _, l) -> switche, l
+                  | _ -> E.s(bug "the computed goto statement not a switch")
+                in
+                (* Build a default chunk that segfaults *)
+                let default =
+                  defaultChunk
+                    l
+                    (i2c (Set ((Mem (doCast (integer 0) intPtrType),
+                                NoOffset),
+                               integer 0, l)))
+                in
+                let bodychunk = ref default in
+                H.iter (fun lname laddr ->
+                  bodychunk :=
+                     caseRangeChunk
+                       [integer laddr] l
+                       (gotoChunk lname l @@ !bodychunk))
+                  gotoTargetHash;
+                (* Now recreate the switch *)
+                let newswitch = switchChunk switche !bodychunk l in
+                (* We must still share the old switch statement since we
+                * have already inserted the goto's *)
+                let newswitchkind =
+                  match newswitch.stmts with
+                    [ s]
+                      when newswitch.postins = [] && newswitch.cases = []->
+                        s.skind
+                  | _ -> E.s (bug "Unexpected result from switchChunk")
+                in
+                switch.skind <- newswitchkind
+                     
+            | None -> ());
+            (* Reset the global parameters *)
+            gotoTargetData := None;
+            H.clear gotoTargetHash;
+            gotoTargetNextAddr := 0;
+
+
+            let (maxid, locals) = endFunction formalsList' in
+            let fdec = { svar     = thisFunctionVI;
+                         slocals  = locals;
+                         sformals = formalsList';
+                         smaxid   = maxid;
+                         sbody    = mkFunctionBody stm;
+                         sinline  = inl;
+			 smaxstmtid = None;
+                       }
+            in
+            (* Now go over the types of the formals and pull out the formals 
+             * with transparent union type. Replace them with some shadow 
+             * parameters and then add assignments  *)
+            let newformals, newbody =
+              List.fold_right (* So that the formals come out in order *)
+                (fun f (accform, accbody) ->
+                  match isTransparentUnion f.vtype with
+                    None -> (f :: accform, accbody)
+                  | Some fstfield ->
+                      (* A new shadow to be placed in the formals *)
+                      let shadow = makeTempVar fdec fstfield.ftype in
+                      (* Now take it out of the locals and replace it with 
+                       * the current formal. It is not worth optimizing this 
+                       * one  *)
+                      fdec.slocals <-
+                         f ::
+                         (List.filter (fun x -> x.vid <> shadow.vid)
+                            fdec.slocals);
+                      (shadow :: accform,
+                       mkStmt (Instr [Set ((Var f, Field(fstfield,
+                                                         NoOffset)),
+                                           Lval (var shadow),
+                                           !currentLoc)]) :: accbody))
+                formalsList'
+                ([], fdec.sbody.bstmts)
+            in
+            fdec.sbody.bstmts <- newbody;
+            setFormals fdec newformals; (* To make sure sharing with the
+                                           * type is proper *)
+
+            (* Now see whether we can fall through to the end of the function 
+             * *)
+            (* weimer: Sat Dec 8 17:30:47 2001 MSVC NT kernel headers include 
+             * functions like long convert(x) { __asm { mov eax, x \n cdq } } 
+             * That set a return value via an ASM statement. As a result, I 
+             * am changing this so a final ASM statement does not count as 
+             * "fall through" for the purposes of this warninge.  *)
+            let instrFallsThrough (i : instr) = match i with
+              Set _ | Call _ -> true
+            | Asm _ -> false
+            in 
+            let rec stmtFallsThrough (s: stmt) = 
+              match s.skind with
+                Instr(il) -> List.fold_left (fun acc elt -> 
+                  instrFallsThrough elt) true il
+              | Return _ | Break _ | Continue _ -> false
+              | Goto _ -> false
+              | If (_, b1, b2, _) -> 
+                  blockFallsThrough b1 || blockFallsThrough b2
+              | Switch (e, b, targets, _) -> true (* Conservative *)
+              | Loop _ -> true (* Conservative *)
+              | Block b -> blockFallsThrough b
+            and blockFallsThrough b = 
+              let rec fall = function
+                  [] -> true
+                | s :: rest -> 
+                    if stmtFallsThrough s then fall rest else labels rest
+                      (* If we are not falling thorough then maybe there 
+                      * are labels who are *)
+              and labels = function
+                  [] -> false
+                  | s :: rest when s.labels <> [] -> fall (s :: rest)
+                  | _ :: rest -> labels rest
+              in
+              fall b.bstmts
+            in
+            if blockFallsThrough fdec.sbody then begin
+              let retval = 
+                match unrollType returnType with
+                  TVoid _ -> None
+                | (TInt _ | TEnum _ | TFloat _ | TPtr _) as rt -> 
+                    Some (doCastT zero intType rt)
+                | _ ->
+                    ignore (warn "Body of function %s falls-through and cannot find an appropriate return value\n" fdec.svar.vname);
+                    None
+              in
+              fdec.sbody.bstmts <- 
+                 fdec.sbody.bstmts 
+                 @ [mkStmt (Return(retval, !currentLoc))]
+            end;
+            
+            (*              ignore (E.log "The env after finishing the body of %s:\n%t\n"
+                        n docEnv); *)
+            pushGlobal (GFun (fdec, !currentLoc));
+            empty
+          with e -> begin
+            ignore (E.log "error in collectFunction %s: %s\n"
+                      n (Printexc.to_string e));
+            pushGlobal (GAsm("error in function " ^ n, !currentLoc));
+            empty
+          end)
+        () (* argument of E.withContext *)
+    end (* FUNDEF *)
   | _ -> E.s (error "local declaration")
 
 and doTypedef ((specs, nl): A.name_group) = 
   try
+    (* Do the specifiers exactly once *)
     let bt, sto, inl, attrs = doSpecList specs in
     if sto <> NoStorage || inl then 
       E.s (error "Storage or inline specifier not allowed in typedef");
@@ -4062,7 +4347,7 @@ and doBody (blk: A.block) : chunk =
       (List.fold_left   (* !!! @ evaluates its arguments backwards *)
          (fun prev s -> let res = doStatement s in prev @@ res)
          (List.fold_left 
-            (fun prev d -> let res = doDecl d in prev @@ res) 
+            (fun prev d -> let res = doDecl false d in prev @@ res) 
             empty 
             blk.bdefs)
          blk.A.bstmts)
@@ -4134,7 +4419,7 @@ and doStatement (s : A.statement) : chunk =
         let (se1, _, _) = 
           match fc1 with 
             FC_EXP e1 -> doExp false e1 ADrop 
-          | FC_DECL d1 -> (doDecl d1, zero, voidType)
+          | FC_DECL d1 -> (doDecl false d1, zero, voidType)
         in
         let (se3, _, _) = doExp false e3 ADrop in
         startLoop false;
@@ -4251,8 +4536,7 @@ and doStatement (s : A.statement) : chunk =
         | None -> begin
             (* Make a temporary variable *)
             let vchunk = createLocal 
-                [ A.SpecType A.Tunsigned;
-                  A.SpecType A.Tint] 
+                (TInt(IUInt, []), NoStorage, false, [])
                 (("__compgoto", A.JUSTBASE, []), A.NO_INIT) 
             in
             if not (isEmpty vchunk) then 
@@ -4321,289 +4605,17 @@ let convFile fname dl =
   annonCompFieldNameId := 0;
   if !E.verboseFlag || !Util.printStages then 
     ignore (E.log "Converting CABS->CIL\n");
-  (* Setup the built-ins *)
+  (* Setup the built-ins, but do not add their prototypes to the file *)
   let _ =
     let fdec = emptyFunction "__builtin_constant_p" in
     let argp  = makeLocalVar fdec "x" intType in
     fdec.svar.vtype <- TFun(intType, Some [ argp ], false, []);
     alphaConvertVarAndAddToEnv true fdec.svar
   in
-  (* Now do the globals *)
-  let doOneGlobal = function
-      A.TYPEDEF (ng, loc) ->
-        currentLoc := convLoc(loc);
-        doTypedef ng
-
-    | A.ONLYTYPEDEF (s, loc) ->
-        currentLoc := convLoc(loc);
-        doOnlyTypedef s
-
-    | A.DECDEF ((s, nl), loc) ->
-        currentLoc := convLoc(loc);
-        List.iter (fun n -> ignore (createGlobal s n)) nl
-
-    | A.GLOBASM (s,loc) ->
-        currentLoc := convLoc(loc);
-        pushGlobal (GAsm (s, !currentLoc))
-
-    | A.PRAGMA (a, loc) -> begin
-        currentLoc := convLoc(loc);
-        match doAttr ("dummy", [a]) with
-          [Attr("dummy", [a'])] ->
-            let a'' =
-              match a' with
-                AId s -> Attr (s, [])
-              | ACons (s, args) -> Attr (s, args)
-              | _ -> E.s (error "Unexpected attribute in #pragma")
-            in
-            pushGlobal (GPragma (a'', !currentLoc))
-        | _ -> E.s (error "Too many attributes in pragma")
-    end
-
-    | A.FUNDEF (((specs,(n,dt,a)) : A.single_name),
-               (body : A.block), loc) ->
-        currentLoc := convLoc(loc);
-        E.withContext
-          (fun _ -> dprintf "2cil: %s" n)
-          (fun _ ->
-            try
-             (* Reset the local identifier so that formals are created with
-              * the proper IDs  *)
-              resetLocals ();
-              constrExprId := 0;
-              (* Setup the environment. Add the formals to the locals. Maybe
-               * they need alpha-conv  *)
-              enterScope ();  (* Start the scope *)
-
-              H.clear varSizeArrays;
-
-              let bt,sto,inl,attrs = doSpecList specs in
-              (* Do not process transparent unions in function definitions.
-               * We'll do it later *)
-              transparentUnionArgs := [];
-              let ftyp, funattr = doType (AttrName false) bt
-                                         (A.PARENTYPE(attrs, dt, a)) in
-              (* Extra the information from the type *)
-              let (returnType, formals, isvararg, funta) =
-                match unrollType ftyp with
-                  TFun(rType, formals, isvararg, a) ->
-                    (rType, formals, isvararg, a)
-                | x -> E.s (error "non-function type: %a." d_type x)
-              in
-              (* Record the returnType for doStatement *)
-              currentReturnType   := returnType;
-
-              (* Add the function itself to the environment. Add it before 
-               * you do the body because the function might be recursive. Add 
-               * it also before you add the formals to the environment 
-               * because there might be a formal with the same name as the 
-               * function and we want it to take precedence. *)
-              (* Make a variable out of it and put it in the environment *)
-              let thisFunctionVI, _ =
-                makeGlobalVarinfo true
-                  { vname = n;
-                    vtype = ftyp;
-                    vglob = true;
-                    vid   = newVarId n true;
-                    vdecl = lu;
-                    vattr = funattr;
-                    vaddrof = false;
-                    vstorage = sto;
-                    vreferenced = false;   (* sm *)
-                  }
-              in
-
-              (* Add the formals to the environment *)
-              let formals' =
-                match formals with
-                  None -> None
-                | Some fl -> 
-                    Some (List.map (alphaConvertVarAndAddToEnv true) fl) in
-              let formalsList' = argsToList formals' in
-              let ftype = TFun(returnType, formals', isvararg, funta) in
-              (* Now fix the names of the formals in the type of the function 
-               * as well *)
-              thisFunctionVI.vtype <- ftype;
-(*              ignore (E.log "makefunvar:%s@! type=%a@! vattr=%a@!"
-                        n d_plaintype ftype (d_attrlist true) funattr); *)
-              if H.mem alreadyDefined thisFunctionVI.vid then
-                E.s (error "There is a definition already for %s" n);
-              currentFunctionVI := thisFunctionVI;
-              (* Now change the type of transparent union args back to what
-               * it was so that the body type checks. We must do it this late
-               * because makeGlobalVarinfo from above might choke if we give
-               * the function a type containing transparent unions *)
-              let _ =
-                let rec fixbackFormals (idx: int) (args: varinfo list) : unit=
-                  match args with
-                    [] -> ()
-                  | a :: args' ->
-                      (* Fix the type back to a transparent union type *)
-                      (try
-                        let origtype = List.assq idx !transparentUnionArgs in
-                        a.vtype <- origtype;
-                      with Not_found -> ());
-                      fixbackFormals (idx + 1) args'
-                in
-                fixbackFormals 0 formalsList';
-                transparentUnionArgs := [];
-              in
-              (* Now do the body *)
-              let stm = doBody body in
-              (* Finish everything *)
-              exitScope ();
-
-              (* Now fill in the computed goto statement with cases. Do this
-               * before mkFunctionbody which resolves the gotos *)
-              (match !gotoTargetData with
-                Some (switchv, switch) ->
-                  let switche, l =
-                    match switch.skind with
-                      Switch (switche, _, _, l) -> switche, l
-                    | _ -> E.s(bug "the computed goto statement not a switch")
-                  in
-                  (* Build a default chunk that segfaults *)
-                  let default =
-                    defaultChunk
-                      l
-                      (i2c (Set ((Mem (doCast (integer 0) intPtrType),
-                                  NoOffset),
-                                 integer 0, l)))
-                  in
-                  let bodychunk = ref default in
-                  H.iter (fun lname laddr ->
-                    bodychunk :=
-                       caseRangeChunk
-                         [integer laddr] l
-                         (gotoChunk lname l @@ !bodychunk))
-                    gotoTargetHash;
-                  (* Now recreate the switch *)
-                  let newswitch = switchChunk switche !bodychunk l in
-                  (* We must still share the old switch statement since we
-                   * have already inserted the goto's *)
-                  let newswitchkind =
-                    match newswitch.stmts with
-                      [ s]
-                        when newswitch.postins = [] && newswitch.cases = []->
-                          s.skind
-                    | _ -> E.s (bug "Unexpected result from switchChunk")
-                  in
-                  switch.skind <- newswitchkind
-
-              | None -> ());
-              (* Reset the global parameters *)
-              gotoTargetData := None;
-              H.clear gotoTargetHash;
-              gotoTargetNextAddr := 0;
-
-
-              let (maxid, locals) = endFunction formalsList' in
-              let fdec = { svar     = thisFunctionVI;
-                           slocals  = locals;
-                           sformals = formalsList';
-                           smaxid   = maxid;
-                           sbody    = mkFunctionBody stm;
-                           sinline  = inl;
-													 smaxstmtid = None;
-                         }
-              in
-              (* Now go over the types of the formals and pull out the
-               * formals with transparent union type. Replace them with some
-               * shadow parameters and then add assignments *)
-              let newformals, newbody =
-                List.fold_right (* So that the formals come out in order *)
-                  (fun f (accform, accbody) ->
-                    match isTransparentUnion f.vtype with
-                      None -> (f :: accform, accbody)
-                    | Some fstfield ->
-                        (* A new shadow to be placed in the formals *)
-                        let shadow = makeTempVar fdec fstfield.ftype in
-                        (* Now take it out of the locals and replace it with
-                         * the current formal. It is not worth optimizing
-                         * this one  *)
-                        fdec.slocals <-
-                         f ::
-                           (List.filter (fun x -> x.vid <> shadow.vid)
-                              fdec.slocals);
-                        (shadow :: accform,
-                         mkStmt (Instr [Set ((Var f, Field(fstfield,
-                                                           NoOffset)),
-                                             Lval (var shadow),
-                                             !currentLoc)]) :: accbody))
-                  formalsList'
-                  ([], fdec.sbody.bstmts)
-              in
-              fdec.sbody.bstmts <- newbody;
-              setFormals fdec newformals; (* To make sure sharing with the
-                                           * type is proper *)
-
-              (* Now see whether we can fall through to the end of the 
-               * function *)
-              (* weimer: Sat Dec  8 17:30:47  2001
-               * MSVC NT kernel headers include functions like
-               * long convert(x) { __asm { mov eax, x \n cdq } }
-               * That set a return value via an ASM statement. As a 
-               * result, I am changing this so a final ASM statement
-               * does not count as "fall through" for the purposes of
-               * this warninge. *)
-              let instrFallsThrough (i : instr) = match i with
-                Set _ | Call _ -> true
-              | Asm _ -> false
-              in 
-              let rec stmtFallsThrough (s: stmt) = 
-                match s.skind with
-                  Instr(il) -> List.fold_left (fun acc elt -> 
-                    instrFallsThrough elt) true il
-                | Return _ | Break _ | Continue _ -> false
-                | Goto _ -> false
-                | If (_, b1, b2, _) -> 
-                    blockFallsThrough b1 || blockFallsThrough b2
-                | Switch (e, b, targets, _) -> true (* Conservative *)
-                | Loop _ -> true (* Conservative *)
-                | Block b -> blockFallsThrough b
-              and blockFallsThrough b = 
-                let rec fall = function
-                    [] -> true
-                  | s :: rest -> 
-                      if stmtFallsThrough s then fall rest else labels rest
-                        (* If we are not falling thorough then maybe there 
-                         * are labels who are *)
-                and labels = function
-                    [] -> false
-                  | s :: rest when s.labels <> [] -> fall (s :: rest)
-                  | _ :: rest -> labels rest
-                in
-                fall b.bstmts
-              in
-              if blockFallsThrough fdec.sbody then begin
-                let retval = 
-                  match unrollType returnType with
-                    TVoid _ -> None
-                  | (TInt _ | TEnum _ | TFloat _ | TPtr _) as rt -> 
-                      Some (doCastT zero intType rt)
-                  | _ ->
-                      ignore (warn "Body of function %s falls-through and cannot find an appropriate return value\n" fdec.svar.vname);
-                      None
-                in
-                fdec.sbody.bstmts <- 
-                   fdec.sbody.bstmts 
-                        @ [mkStmt (Return(retval, !currentLoc))]
-              end;
-                
-(*              ignore (E.log "The env after finishing the body of %s:\n%t\n"
-                        n docEnv); *)
-              pushGlobal (GFun (fdec, !currentLoc))
-            with e -> begin
-              ignore (E.log "error in collectFunction %s: %s\n"
-                        n (Printexc.to_string e));
-              pushGlobal (GAsm("error in function " ^ n, !currentLoc))
-            end)
-          () (* argument of E.withContext *)
-          
-    | A.TRANSFORMER (_, _, _) -> E.s (E.bug "TRANSFORMER in cabs2cil input")
-    | A.EXPRTRANSFORMER (_, _, _) -> 
-        E.s (E.bug "EXPRTRANSFORMER in cabs2cil input")
-
+  let doOneGlobal (d: A.definition) = 
+    let s = doDecl true d in
+    if isNotEmpty s then 
+      E.s (bug "doDecl returns non-empty statement for global")
   in
   List.iter doOneGlobal dl;
   let globals = ref (popGlobals ()) in
