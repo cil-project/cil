@@ -16,18 +16,26 @@ let theFile : global list ref = ref []
 (********* ENVIRONMENTS ***************)
 
 (* The environment is kept in two distinct data structures. A hash table maps 
- * each original variable name into a varinfo. (Note that the varinfo might 
- * contain an alpha-converted name different from that of the lookup name.) 
- * The Ocaml hash tables can keep multiple mappings for a single key. Each 
- * time the last mapping is returned and upon deletion the old mapping is 
- * restored. To keep track of local scopes we also maintain a list of scopes 
- * (represented as lists). *)
+ * each original variable name into a varinfo (for variables, or an 
+ * enumeration tag, or a type). (Note that the varinfo might contain an 
+ * alpha-converted name different from that of the lookup name.) The Ocaml 
+ * hash tables can keep multiple mappings for a single key. Each time the 
+ * last mapping is returned and upon deletion the old mapping is restored. To 
+ * keep track of local scopes we also maintain a list of scopes (represented 
+ * as lists).  *)
 type envdata = 
     EnvVar of varinfo                   (* The name refers to a variable 
                                          * (which could also be a function) *)
   | EnvEnum of exp * typ                (* The name refers to an enumeration 
                                          * tag for which we know the value 
                                          * and the host type *)
+  | EnvTyp of typ                       (* The name is of the form  "struct 
+                                         * foo", or "union foo" or "enum foo" 
+                                         * and refers to a type. Note that 
+                                         * the name of the actual type might 
+                                         * be different from foo due to alpha 
+                                         * conversion *)
+
 
 let env : (string, envdata) H.t = H.create 307
 
@@ -36,20 +44,83 @@ let env : (string, envdata) H.t = H.create 307
 let scopes :  string list ref list ref = ref []
 
 
+(* When you add to env, you also add it to the current scope *)
+let addLocalToEnv (n: string) (d: envdata) = 
+  H.add env n d;
+    (* If we are in a scope, then it means we are not at top level. Add the 
+     * name to the scope *)
+  (match !scopes with
+    [] -> ()
+  | s :: _ -> s := n :: !s)
 
+
+let addGlobalToEnv (k: string) (d: envdata) : unit = 
+  H.add env k d
+  
   
 
- (* We also keep a hash table of the new variable names so that we can verify 
-  * that the new names we are creating are indeed new. We add all globals 
-  * in scope there and all locals, whether in scope or not. This is necessary 
-  * because we will coalesce all locals at the start of the function. We 
-  * could reuse locals with the same type but that might complicate some 
-  * analyses later. *)
- (* Each name is split into a prefix and a maximal suffix consisting only of 
-  * digits. For each prefix we store a ref cell containing the maximal 
-  * integer value of the suffix for which the name is defined. A suffix of -1 
-  * means that only the version with no suffix is defined *)
-let alphaTable : (string, int ref) H.t = H.create 307
+(* Create a new name based on a given name. The new name is formed from a 
+ * prefix (obtained from the given name as the longest prefix that ends with 
+ * a non-digit), followed by a '_' and then by a positive integer suffix. The 
+ * first argument is a table mapping name prefixes with the largest suffix 
+ * used so far for that prefix. The largest suffix is one when only the 
+ * version without suffix has been used. *)
+let alphaTable : (string, int ref) H.t = H.create 307 (* vars and enum tags. 
+                                                       * For composite types 
+                                                       * we have names like 
+                                                       * "struct foo" or 
+                                                       * "type bar" *)
+
+(* To keep different name scopes different, we add prefixes to names 
+ * specifying the kind of name: the kind can be one of "" for variables or 
+ * enum tags, "struct" for structures, "enum" for enumerations, "union" for 
+ * union types, or "type" for types *)
+let kindPlusName (kind: string)
+                 (origname: string) : string =
+  if kind = "" then origname else
+  kind ^ " " ^ origname
+                   
+let newAlphaName (kind: string) 
+                 (origname: string) : string = 
+  let lookupname = kindPlusName kind origname in
+  (* Split the lookup name into a prefix and a suffix. The suffix is 
+   * numberic and is separated by _ from the prefix *)
+  let l = String.length lookupname in
+  let (prefix, suffix) = 
+    try
+      let under = String.rindex lookupname '_' in
+      (String.sub lookupname 0 under, 
+       int_of_string (String.sub lookupname under (l - under)))
+    with _ -> (lookupname, -1)
+  in
+  let newname = 
+    try
+      let rc = H.find alphaTable prefix in
+      let newsuffix = if suffix > !rc then suffix else !rc + 1 in
+      rc := newsuffix;
+      prefix ^ "_" ^ (string_of_int newsuffix)
+    with Not_found -> begin (* First variable with this prefix *)
+      H.add alphaTable prefix (ref suffix);
+      lookupname  (* Return the original name *)
+    end
+  in
+  (* Now strip the kind prefix *)
+  let n' = 
+    let l = 1 + String.length kind in
+    if l > 1 then 
+      String.sub newname l (String.length newname - l)
+    else
+      newname
+  in
+  n'
+  
+
+let docAlphaTable () = 
+  let acc : (string * int) list ref = ref [] in
+  H.iter (fun k d -> acc := (k, !d) :: !acc) alphaTable;
+  docList line (fun (k, d) -> dprintf "  %s -> %d" k d) () !acc
+
+
 let localId = ref (-1)   (* All locals get id's starting at 0 *)
 let locals : varinfo list ref = ref []
 
@@ -112,6 +183,7 @@ let docEnv () =
   let doone () = function
       EnvVar vi -> text vi.vname
     | EnvEnum (tag, typ) -> text ("enum tag")
+    | EnvTyp t -> text "typ"
   in
   H.iter (fun k d -> acc := (k, d) :: !acc) env;
   docList line (fun (k, d) -> dprintf "  %s -> %a" k doone d) () !acc
@@ -125,69 +197,27 @@ let newVarId name isglobal =
     !localId
   end
 
-(* Create a new variable name. Give the original source name *)
-let newVarName lookupname = 
-  (* Split the lookup name into a prefix and a suffix. The suffix is 
-   * numberic and is separated by _ from the prefix *)
-  let l = String.length lookupname in
-  let (prefix, suffix) = 
-    try
-      let under = String.rindex lookupname '_' in
-      (String.sub lookupname 0 under, 
-       int_of_string (String.sub lookupname under (l - under)))
-    with _ -> (lookupname, -1)
-  in
-  try
-    let rc = H.find alphaTable prefix in
-    let newsuffix = if suffix > !rc then suffix else !rc + 1 in
-    rc := newsuffix;
-    prefix ^ "_" ^ (string_of_int newsuffix)
-  with Not_found -> begin (* First variable with this prefix *)
-    H.add alphaTable prefix (ref suffix);
-    lookupname  (* Return the original name *)
-  end
-
-let docAlphaTable () = 
-  let acc : (string * int) list ref = ref [] in
-  H.iter (fun k d -> acc := (k, !d) :: !acc) alphaTable;
-  docList line (fun (k, d) -> dprintf "  %s -> %d" k d) () !acc
 
 
 (* Add a new variable. Do alpha-conversion if necessary *)
 let alphaConvertVarAndAddToEnv (addtoenv: bool) (vi: varinfo) : varinfo = 
-  let newname = newVarName vi.vname in
+  let newname = newAlphaName "" vi.vname in
   let newvi = 
     if vi.vname = newname then vi else 
     {vi with vname = newname; 
              vid = if vi.vglob then H.hash newname else vi.vid} in
-  if addtoenv then H.add env vi.vname (EnvVar newvi); 
-  if not vi.vglob then begin
+  if not vi.vglob then
     locals := newvi :: !locals;
-    if addtoenv then
-      (match !scopes with
-        [] -> E.s (E.bug "Adding a local %s but not in a scope" vi.vname)
-      | s :: _ -> s := vi.vname :: !s)
-  end;
+
+  (if addtoenv then 
+    if vi.vglob then
+      addGlobalToEnv vi.vname (EnvVar newvi)
+    else
+      addLocalToEnv vi.vname (EnvVar newvi));
   (* ignore (E.log "After adding %s alpha table is: %t\n"
             newvi.vname docAlphaTable); *)
   newvi
 
-(* Add a new environment tag. Do alpha-conversion if necessary *)
-let alphaConvertEnumTagAndAddToEnv (addtoenv: bool) 
-                                   (n: string)
-                                   (tag: exp) (host: typ) : string = 
-  let newname = newVarName n in
-  if addtoenv then begin
-    H.add env n (EnvEnum (tag, host));
-    (* If we are in a scope, then it means we are not at top level. Add the 
-     * name to the scope *)
-    (match !scopes with
-        [] -> ()
-    | s :: _ -> s := n :: !s)
-  end;
-  newname
-
-  
 
 (* Create a new temporary variable *)
 let newTempVar typ = 
@@ -222,34 +252,9 @@ let mkAddrOfAndMark ((b, off) as lval) : exp =
   mkAddrOf lval
   
 
-(**** To initialize some local arrays we need strncpy ****)
-let strncpyFun = 
-  let fdec = emptyFunction "strncpy" in
-  let argd  = makeLocalVar fdec "dst" charPtrType in
-  let args  = makeLocalVar fdec "src" charConstPtrType in
-  let arglen  = makeLocalVar fdec "len" uintType in
-  fdec.svar.vtype <- TFun(charPtrType, [ argd; args; arglen ], false, []);
-  fdec
-
-let explodeString (nullterm: bool) (s: string) : char list =  
-  let rec allChars i acc = 
-    if i < 0 then acc
-    else allChars (i - 1) ((String.get s i) :: acc)
-  in
-  allChars (-1 + String.length s) 
-    (if nullterm then [Char.chr 0] else [])
-    
-(*** In order to process GNU_BODY expressions we must record that a given 
- *** COMPUTATION is interesting *)
-let gnu_body_result : (A.statement * ((exp * typ) option ref)) ref 
-    = ref (A.NOP, ref None)
-
-(*** When we do statements we need to know the current return type *)
-let currentReturnType : typ ref = ref (TVoid([]))
-let currentFunctionVI : varinfo ref = ref dummyFunDec.svar
 
 (******** GLOBAL TYPES **************)
-let typedefs : (string, typ) H.t = H.create 113 
+let typedefs_old : (string, typ) H.t = H.create 113 
    (* We keep in typedefs both the real type definitions, in which case the 
     * result type is a TNamed and also all the encountered composite types 
     * for the purpose of resolving forward references. In this latter case 
@@ -258,15 +263,30 @@ let typedefs : (string, typ) H.t = H.create 113
 
    (* Keep a set of self compinfo for composite types *)
 let compInfoNameEnv : (string, compinfo) H.t = H.create 113
-
+(*
 let recordTypeName n t = H.add typedefs n t
 
-let findTypeName n = 
+let findTypeName_old n = 
   try
     H.find typedefs n
   with Not_found -> begin
     E.s (E.unimp "Cannot find type %s\n" n)
   end
+ *)
+
+let lookupTypeNoError (kind: string) 
+                      (n: string) : typ = 
+  let kn = kindPlusName kind n in
+  match H.find env kn with
+    EnvTyp t -> t
+  | _ -> raise Not_found
+
+let lookupType (kind: string) 
+               (n: string) : typ = 
+  try
+    lookupTypeNoError kind n
+  with Not_found -> 
+    E.s (E.unimp "Cannot find type %s (kind:%s)\n" n kind)
 
 (* Create the self ref cell and add it to the map *)
 let createCompInfo (iss: bool) (n: string) : compinfo = 
@@ -296,13 +316,38 @@ let findCompType kind n a =
     TForward (self, a)
   in
   try
-    let old = H.find typedefs key in (* already defined  *)
+    let old = lookupTypeNoError kind n in (* already defined  *)
     let olda = typeAttrs old in
     if olda = a then old else makeForward ()
   with Not_found -> makeForward ()
   
   
 
+(**** To initialize some local arrays we need strncpy ****)
+let strncpyFun = 
+  let fdec = emptyFunction "strncpy" in
+  let argd  = makeLocalVar fdec "dst" charPtrType in
+  let args  = makeLocalVar fdec "src" charConstPtrType in
+  let arglen  = makeLocalVar fdec "len" uintType in
+  fdec.svar.vtype <- TFun(charPtrType, [ argd; args; arglen ], false, []);
+  fdec
+
+let explodeString (nullterm: bool) (s: string) : char list =  
+  let rec allChars i acc = 
+    if i < 0 then acc
+    else allChars (i - 1) ((String.get s i) :: acc)
+  in
+  allChars (-1 + String.length s) 
+    (if nullterm then [Char.chr 0] else [])
+    
+(*** In order to process GNU_BODY expressions we must record that a given 
+ *** COMPUTATION is interesting *)
+let gnu_body_result : (A.statement * ((exp * typ) option ref)) ref 
+    = ref (A.NOP, ref None)
+
+(*** When we do statements we need to know the current return type *)
+let currentReturnType : typ ref = ref (TVoid([]))
+let currentFunctionVI : varinfo ref = ref dummyFunDec.svar
 
 (**** Occasionally we see structs with no name and no fields *)
 
@@ -914,15 +959,11 @@ and doType (a : attribute list) = function
 
   | A.ENUMDEF (n, eil) -> 
       if n = "" then E.s (E.bug "Missing enum tag");
-      let newTagName (kname: string) : string = 
-        (* Don't yet put the true tag and host type *)
-        alphaConvertEnumTagAndAddToEnv true kname zero voidType
-      in
       let rec loop i = function
           [] -> []
         | (kname, A.NOTHING) :: rest -> 
             (* Process this tag so that it ends up in the environment *)
-            let newname = newTagName kname in
+            let newname = newAlphaName "" kname in
             (kname, (newname, i)) :: loop (increm i 1) rest
 
         | (kname, e) :: rest ->
@@ -932,18 +973,20 @@ and doType (a : attribute list) = function
               | _ -> E.s (E.unimp "enum with non-const initializer")
             in
             (* Process this tag so that it ends up in the environment *)
-            let newname = newTagName kname in
+            let newname = newAlphaName "" kname in
             (kname, (newname, i)) :: loop (increm i 1) rest
       in
       let fields = loop zero eil in
-      let res = TEnum (n, List.map (fun (_, x) -> x) fields, a) in
+      (* make a new name for this enumeration *)
+      let n' = newAlphaName "enum" n in
+      let res = TEnum (n', List.map (fun (_, x) -> x) fields, a) in
       (* Now we have the real host type. Set the environment properly *)
       List.iter
         (fun (n, (newname, fieldidx)) -> 
-          H.remove env n;
-          H.add env n (EnvEnum (fieldidx, res)))
+          addLocalToEnv n (EnvEnum (fieldidx, res)))
         fields;
-      recordTypeName ("enum " ^ n) res; 
+      (* Record the enum name in the environment *)
+      addLocalToEnv (kindPlusName "enum" n) (EnvTyp res);
       res
 
   | A.ATTRTYPE (bt, a') -> 
@@ -968,7 +1011,7 @@ and doType (a : attribute list) = function
       doType ((List.map doAttribute a') @ a) bt
 
   | A.NAMED_TYPE n -> begin
-      match findTypeName n with
+      match lookupType "type" n with 
         (TNamed _) as x -> x
       | typ -> TNamed(n, typ, a)
   end
@@ -984,7 +1027,10 @@ and makeCompType (iss: bool)
                  (a: attribute list) = 
       (* Create the self cell for use in fields and forward references. Or 
        * maybe one exists already from a forward reference *)
-  let comp = createCompInfo iss n in
+  (* Make a new name for the structure *)
+  let kind = if iss then "struct" else "union" in
+  let n' = newAlphaName kind n in
+  let comp = createCompInfo iss n' in
       (* Do the fields *)
   let makeFieldInfo ((bt,st,(n,nbt,a,e)) : A.single_name) : fieldinfo = 
     { fcomp    =  comp;
@@ -1014,9 +1060,7 @@ and makeCompType (iss: bool)
   comp.cattr <- a;
   let res = TComp comp in
       (* There must be a self cell create for this already *)
-  let key = (if iss then "struct " else "union ") ^ n in
-      (* Now add it to the typedefs *)
-  recordTypeName key res;
+  addLocalToEnv (kindPlusName kind n) (EnvTyp res);
   res
 
   
@@ -1082,6 +1126,7 @@ and doExp (isconst: bool)    (* In a constant *)
               finishExp empty (Lval(var vi)) vi.vtype
           | EnvEnum (tag, typ) -> 
             finishExp empty tag typ  
+          | _ -> raise Not_found
         with Not_found -> 
           ignore (E.log "Cannot resolve variable %s.\n" n);
           raise Not_found
@@ -2344,7 +2389,6 @@ let convFile fname dl =
   (* Clean up the global types *)
   E.hadErrors := false;
   theFile := [];
-  H.clear typedefs;
   H.clear compInfoNameEnv;
   (* Setup the built-ins *)
   let _ = 
@@ -2359,9 +2403,12 @@ let convFile fname dl =
         let createTypedef ((_,_,(n,nbt,a,_)) : A.single_name) = 
           try
             let newTyp = doType (doAttrList a) nbt in
+            (* Create a new name for the type *)
+            let n' = newAlphaName "type" n in
+            let namedTyp = TNamed(n', newTyp, []) in
             (* Register the type *)
-            recordTypeName n newTyp;
-            theFile := GType (n, newTyp, lu) :: !theFile
+            addLocalToEnv (kindPlusName "type" n) (EnvTyp namedTyp);
+            theFile := GType (n', newTyp, lu) :: !theFile
           with e -> begin
             ignore (E.log "Error on A.TYPEDEF (%s)\n"
                       (Printexc.to_string e));

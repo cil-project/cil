@@ -118,6 +118,7 @@ $TEST->add3Tests("test/tags");
 $TEST->add3Tests("test/task");
     $TEST->add3Comment("test/task", "undefined structure");
 $TEST->add3Tests("test/scope1");
+$TEST->add3Tests("test/scope2");
 $TEST->add3Tests("test/voidstar");
 $TEST->add3Tests("wes-hashtest", "", @runpattern);
 $TEST->add3Tests("wes-rbtest", "", @runpattern);
