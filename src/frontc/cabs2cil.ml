@@ -82,6 +82,7 @@ let pushGlobal (g: global) =
   | GPragma (Attr("pack", _), _) -> theFileTypes := g :: !theFileTypes
   | _ -> theFile := g :: !theFile
     
+    
 (* Keep track of some variable ids that must be turned into definitions. We 
  * do this when we encounter what appears a definition of a global but 
  * without initializer. We leave it a declaration because maybe down the road 
@@ -3646,13 +3647,26 @@ let convFile fname dl =
 
   in
   List.iter doOneGlobal dl;
-  let globals = popGlobals () in
+  let globals = ref (popGlobals ()) in
+
+  (* Now go through the used composite types and find those that are not 
+   * defined. Add a forward declaration for them at the beginning of the 
+   * file. This will prevent certain errors when such types are used in local 
+   * scopes *)
+  H.iter 
+    (fun key ci -> 
+      if ci.cfields = [] then begin
+        ignore (E.warn "%s used but not defined\n" key);
+        globals := GCompTag(ci, locUnknown) :: !globals
+      end) compInfoNameEnv;
+
   H.clear noProtoFunctions;
   H.clear mustTurnIntoDef;  
   H.clear alreadyDefined;
+  H.clear compInfoNameEnv;
   (* We are done *)
   { fileName = fname;
-    globals  = globals;
+    globals  = !globals;
     globinit = None;
     globinitcalled = false;
   } 
