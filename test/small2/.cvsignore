@@ -25,7 +25,7 @@ staticafternostorage
 voidfree
 simplewild
 multiplestatics
-__scalar2pointer.txt
+*.log
 ptrtolocal
 tprintf
 ptrinint
