@@ -648,8 +648,10 @@ smAddTest("scott/suppress_optim $box");
 # current problematic test cases
 smAddTest("scott/complex_float $box");
 smAddTest("mergeinline");
-smFailTest("solver bug, and z2 is removed improperly", 
+smFailTest("z2 is removed improperly",
            "testexe/structs_comb $box");
+smFailTest("improper name capture between parameter and later local variable",
+           "scott/name-capture-bitand $box");
 
 # tests of things implemented for EDG compatibility
 smAddTest("mergestruct");
