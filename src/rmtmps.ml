@@ -416,17 +416,25 @@ class markReachableVisitor globalMap = object (self)
 
   method vtype typ =
     let old : bool =
+      let visitAttrs attrs =
+	ignore (visitCilAttributes (self :> cilVisitor) attrs)
+      in
+      let visitType typ =
+	ignore (visitCilType (self :> cilVisitor) typ)
+      in
       match typ with
-      | TEnum(e, _) ->
+      | TEnum(e, attrs) ->
 	  let old = e.ereferenced in
 	  if not old then
 	    begin
 	      trace "usedType" (dprintf "marking transitive use: enum %s\n" e.ename);
-	      e.ereferenced <- true
+	      e.ereferenced <- true;
+	      visitAttrs attrs;
+	      visitAttrs e.eattr
 	    end;
 	  old
 
-      | TComp(c, _) ->
+      | TComp(c, attrs) ->
 	  let old = c.creferenced in
           if not old then
             begin
@@ -434,12 +442,14 @@ class markReachableVisitor globalMap = object (self)
 	      c.creferenced <- true;
 
               (* to recurse, we must ask explicitly *)
-	      let recurse f = ignore (visitCilType (self :> cilVisitor) f.ftype) in
-	      List.iter recurse c.cfields
+	      let recurse f = visitType f.ftype in
+	      List.iter recurse c.cfields;
+	      visitAttrs attrs;
+	      visitAttrs c.cattr
 	    end;
 	  old
 
-      | TNamed(ti, _) ->
+      | TNamed(ti, attrs) ->
 	  let old = ti.treferenced in
           if not old then
 	    begin
@@ -448,7 +458,8 @@ class markReachableVisitor globalMap = object (self)
 	      
 	      (* recurse deeper into the type referred-to by the typedef *)
 	      (* to recurse, we must ask explicitly *)
-	      ignore (visitCilType (self :> cilVisitor) ti.ttype);
+	      visitType ti.ttype;
+	      visitAttrs attrs
 	    end;
 	  old
 
