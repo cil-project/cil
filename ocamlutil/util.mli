@@ -169,4 +169,50 @@ end
 
 module Stack : STACK
 
-(************************************************************************)
+(************************************************************************
+   Configuration 
+************************************************************************)
+(** The configuration data can be of several types **)
+type configData = 
+    ConfInt of int
+  | ConfBool of bool
+  | ConfFloat of float
+  | ConfString of string
+  | ConfList of configData list
+
+
+(** Load the configuration from a file *)
+val loadConfiguration: string -> unit
+
+(** Save the configuration in a file. Overwrites the previous values *)
+val saveConfiguration: string -> unit
+
+
+(** Clear all configuration data *)
+val clearConfiguration: unit -> unit
+
+(** Set a configuration element, with a key. Overwrites the previous values *)
+val setConfiguration: string -> configData -> unit
+
+(** Find a configuration elements, given a key. Raises Not_found if it canont 
+ * find it *)
+val findConfiguration: string -> configData
+
+(** Like findConfiguration but extracts the integer *)
+val findConfigurationInt: string -> int
+
+(** Looks for an integer configuration element, and if it is found, it uses 
+ * the given function. Otherwise, does nothing *)
+val useConfigurationInt: string -> (int -> unit) -> unit
+
+
+val findConfigurationBool: string -> bool
+val useConfigurationBool: string -> (bool -> unit) -> unit
+
+val findConfigurationString: string -> string
+val useConfigurationString: string -> (string -> unit) -> unit
+
+val findConfigurationList: string -> configData list
+val useConfigurationList: string -> (configData list -> unit) -> unit
+
+
