@@ -20,6 +20,7 @@ sub new {
 
     my $ref =
     { CFILES => [],    # C input files
+      SFILES => [],    # Assembly language files
       OFILES => [],    # Other input files
       IFILES => [],    # Already preprocessed files
       PPARGS => [],    # Preprocessor args
@@ -174,6 +175,16 @@ sub compile {
     return $self->runShell($cmd);
 }
 
+# Assemble the file
+sub assemble {
+    my ($self, $src, $dest, $ppargs, $ccargs) = @_;
+    if($self->{VERBOSE}) { print "Assembling $src\n"; }
+    $dest = $dest eq "" ? "" : $self->{OUTOBJ} . $dest;
+    my $cmd = $self->{CC} . " " . join(' ', @{$ppargs}, @{$ccargs}) .  
+        " $dest $src";
+    return $self->runShell($cmd);
+}
+
 # Find the name of the preprocessed file
 sub preprocessOutputFile {
     my($self, $src) = @_;
@@ -198,6 +209,7 @@ sub preprocess_compile {
     }
 }
 
+
 # LINKING (with COMPILATION and PREPROCESSING)
 sub link {
     my ($self, $psrcs, $dest, $ppargs, $ccargs, $ldargs) = @_;
@@ -220,7 +232,8 @@ sub doit {
 
     if($self->{OPERATION} eq "UNKNOWN") {
         print "Warning: CompilerStub does not understand the operation\n";
-        my @allfiles = (@{$self->{CFILES}}, @{$self->{OFILES}});
+        my @allfiles = (@{$self->{CFILES}}, @{$self->{SFILES}}, 
+                        @{$self->{OFILES}});
         $self->link(\@allfiles, "", $self->{PPARGS}, 
                     $self->{CCARGS}, 
                     $self->{LINKARGS});
@@ -232,6 +245,12 @@ sub doit {
         $out = $self->compileOutputFile($file);
         $self->preprocess_compile($file, $out, 
                                   $self->{PPARGS}, $self->{CCARGS});
+        push @tolink, $out;
+    }
+    # Now do the assembly language file
+    foreach $file (@{$self->{SFILES}}) {
+        $out = $self->assembleOutputFile($file);
+        $self->assemble($file, $out, $self->{PPARGS}, $self->{CCARGS});
         push @tolink, $out;
     }
 
@@ -300,6 +319,9 @@ sub compilerArgument {
               }
               if($action->{TYPE} eq "CSOURCE") {
                   push @{$self->{CFILES}}, $fullarg; return 1;
+              }
+              if($action->{TYPE} eq "ASMSOURCE") {
+                  push @{$self->{SFILES}}, $fullarg; return 1;
               }
               if($action->{TYPE} eq "OSOURCE") {
                   push @{$self->{OFILES}}, $fullarg; return 1;
@@ -490,7 +512,8 @@ sub new {
 #
 # If the action contains TYPE => "..." then the argument is put into one of
 # several lists, as follows: "PREPROC" in ppargs, "CC" in ccargs, "LINK" in
-# linkargs, "LINKCC" both in ccargs and linkargs, "CSOURCE" in cfiles,
+# linkargs, "LINKCC" both in ccargs and linkargs, "CSOURCE" in cfiles, 
+# "ASMSOURCE" in sfiles, 
 # "OSOURCE" in ofiles, "ISOURCE" in ifiles, "OUT" in outarg. 
 #
 # If the TYPE is not defined but the RUN => sub { ... } is defined then the
@@ -498,6 +521,7 @@ sub new {
 # additional word.
 #
           ["[^/].*\\.(c|cpp|cc)" => { TYPE => 'CSOURCE' },
+           "[^/].*\\.(asm)" => { TYPE => 'ASMSOURCE' },
            "[^/].*\\.i" => { TYPE => 'ISOURCE' },
            "[^/-]" => { TYPE => "OSOURCE" },
            "/O" => { TYPE => "CC" },
@@ -593,12 +617,18 @@ sub compileOutputFile {
     if($self->{OUTARG} =~ m|/Fo(.+)|) {
         return $1;
     }
-    my ($base, $dir, $ext) = fileparse($src, 
-                                       "(\\.c)|(\\.cc)|(\\.cpp)|(\\.i)");
+    my ($base, $dir, $ext) = 
+        fileparse($src, 
+                  "(\\.c)|(\\.cc)|(\\.cpp)|(\\.i)|(\\.asm)");
     if(! defined($ext) || $ext eq "") { # Not a C source
         die "objectOutputFile: not a C source file\n";
     }
     return "$base.obj"; # In the current directory
+}
+
+sub assembleOutputFile {
+    my($self, $src) = @_;
+    return $self->compileOutputFile($src);
 }
 
 sub linkOutputFile {
@@ -722,6 +752,7 @@ sub new {
       
       OPTIONS => 
           [ "[^-].*\\.(c|cpp|cc)" => { TYPE => 'CSOURCE' },
+            "[^-].*\\.(s|S)" => { TYPE => 'ASMSOURCE' },
             "[^-].*\\.i" => { TYPE => 'ISOURCE' },
             "[^-]" => { TYPE => 'OSOURCE' },
             "-[DI]" => { ONEMORE => 1, TYPE => "PREPROC" },
@@ -769,12 +800,18 @@ sub compileOutputFile {
     if($self->{OUTARG} =~ m|^-o\s*(\S.+)$| && $self->{OPERATION} eq 'TOOBJ') {
         return $1;
     }
-    my ($base, $dir, $ext) = fileparse($src, 
-                                       "(\\.c)|(\\.cc)|(\\.cpp)|(\\.i)");
+    my ($base, $dir, $ext) = 
+        fileparse($src, 
+                  "(\\.c)|(\\.cc)|(\\.cpp)|(\\.i)|(\\.[s|S])");
     if(! defined($ext) || $ext eq "") { # Not a C source
         die "objectOutputFile: not a C source file. Extension: $ext\n";
     }
     return "$base.o"; # In the current directory
+}
+
+sub assembleOutputFile {
+    my($self, $src) = @_;
+    return $self->compileOutputFile($src);
 }
 
 sub linkOutputFile {

@@ -1685,3 +1685,9 @@ linuxclean:
 
 linux: mustbegcc mustbelinux mustbemanju linuxclean
 	cd $(LINUXSRC) ; make -k CC="$(CILLY)" HOSTCC="$(CILLY)"
+
+linux-noclean:  mustbegcc mustbelinux mustbemanju
+	cd $(LINUXSRC) ; make -k CC="$(CILLY)" HOSTCC="$(CILLY)"
+
+linux-gcc: mustbelinux mustbemanju linuxclean
+	cd $(LINUXSRC); make -k CC=gcc HOSTCC=gcc
