@@ -1046,15 +1046,19 @@ begin
     | Loop(b,_,_,_) -> 49 + 53*(stmtListSum b.bstmts)
     | Block(b) -> 59 + 61*(stmtListSum b.bstmts)
   in
-
+  
+  (* disabled 2nd and 3rd measure because they appear to get different
+   * values, for the same code, depending on whether the code was just
+   * parsed into CIL or had previously been parsed into CIL, printed
+   * out, then re-parsed into CIL *)
   let a,b,c,d,e =
     (List.length dec.sformals),        (* # formals *)
-    (List.length dec.slocals),         (* # locals *)
-    dec.smaxid,                        (* estimate of internal statement count *)
+    0 (*(List.length dec.slocals)*),         (* # locals *)
+    0 (*dec.smaxid*),                        (* estimate of internal statement count *)
     (List.length dec.sbody.bstmts),    (* number of statements at outer level *)
     (stmtListSum dec.sbody.bstmts) in  (* checksum of statement structure *)
-  (*   (trace "sm" (P.dprintf "sum: %s is %d %d %d %d %d\n"*)
-  (*                          dec.svar.vname a b c d e));*)
+  (*(trace "sm" (P.dprintf "sum: %s is %d %d %d %d %d\n"*)
+  (*                       dec.svar.vname a b c d e));*)
   2*a + 3*b + 5*c + 7*d + 11*e
 end
 
@@ -1102,7 +1106,15 @@ end
 and equalExps (x: exp) (y: exp) : bool =
 begin
   match x,y with
-  | Const(xc), Const(yc) ->        xc = yc       (* safe to use '=' on literals *)
+  | Const(xc), Const(yc) ->        xc = yc   ||    (* safe to use '=' on literals *)
+    (
+      (* CIL changes (unsigned)0 into 0U during printing.. *)
+      match xc,yc with
+      | CInt64(xv,_,_),CInt64(yv,_,_) ->
+          (Int64.to_int xv) = 0   &&     (* ok if they're both 0 *)
+          (Int64.to_int yv) = 0
+      | _,_ -> false
+    )
   | Lval(xl), Lval(yl) ->          (equalLvals xl yl)
   | SizeOf(xt), SizeOf(yt) ->      true (*INC: xt == yt*)  (* identical types *)
   | SizeOfE(xe), SizeOfE(ye) ->    (equalExps xe ye)
@@ -1122,6 +1134,14 @@ begin
       (equalExps xe ye)
   | AddrOf(xl), AddrOf(yl) ->      (equalLvals xl yl)
   | StartOf(xl), StartOf(yl) ->    (equalLvals xl yl)
+  
+  (* initializers that go through CIL multiple times sometimes lose casts they
+   * had the first time; so allow a different of a cast *)
+  | CastE(xt,xe), ye ->
+      (equalExps xe ye)
+  | xe, CastE(yt,ye) ->
+      (equalExps xe ye)
+
   | _,_ -> false
 end
 
@@ -1226,9 +1246,8 @@ let oneFilePass2 (f: file) =
                 false  (* do not emit *)
               )
               else (
-                (trace "mergeGlob"
-                  (P.dprintf "WARNING: global var %s at %a has different initializer than %a\n"
-                             vi'.vname  d_loc l  d_loc prevLoc));
+                (ignore (warn "global var %s at %a has different initializer than %a\n"
+                              vi'.vname  d_loc l  d_loc prevLoc));
                 (* emit it so we get a compiler error.. I think it would be
                  * better to give an error message and *not* emit, since doing
                  * this explicitly violates the CIL invariant of only one GVar
@@ -1386,9 +1405,8 @@ let oneFilePass2 (f: file) =
                 else (
                   (* the checksums differ, so I'll keep both so as to get
                    * a link error later *)
-                  (trace "mergeGlob"
-                    (P.dprintf "WARNING: def'n of func %s at %a conflicts with the one at %a; keeping both\n"
-                               fdec'.svar.vname  d_loc l  d_loc prevLoc));
+                  (ignore (warn "def'n of func %s at %a (sum %d) conflicts with the one at %a (sum %d); keeping both\n"
+                                fdec'.svar.vname  d_loc l  curSum  d_loc prevLoc  prevSum));
                   (mergePushGlobal g')
                 )
               with Not_found -> (

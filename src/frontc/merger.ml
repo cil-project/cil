@@ -1,3 +1,25 @@
+
+
+
+
+
+
+
+
+
+                    THIS FILE IS OBSOLETE!
+
+               Its replacement is src/mergecil.ml
+
+
+
+
+
+
+
+
+
+
 (*
  *
  * Copyright (c) 2001 by
@@ -29,7 +51,6 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  *)
-
 
 (* Implementation of whole-program merging *)
 
