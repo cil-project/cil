@@ -2035,6 +2035,12 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                     ++ self#pLval () lv
                     ++ text " --;"
 
+        | BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt64(mone,_,_)),_)
+            when lv == lv' && mone = Int64.minus_one ->
+              self#pLineDirective l
+                ++ self#pLval () lv
+                ++ text " --;"
+
         | BinOp((PlusA|PlusPI|IndexPI|MinusA|MinusPP|MinusPI|BAnd|BOr|BXor|
           Mult|Div|Mod|Shiftlt|Shiftrt) as bop,
                 Lval(lv'),e,_) when lv == lv' ->
