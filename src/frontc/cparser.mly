@@ -185,7 +185,7 @@ let trd3 (_, _, result) = result
 %}
 
 %token <string * Cabs.cabsloc> IDENT
-%token <string * Cabs.cabsloc> CST_CHAR
+%token <int64 list * Cabs.cabsloc> CST_CHAR
 %token <string * Cabs.cabsloc> CST_INT
 %token <string * Cabs.cabsloc> CST_FLOAT
 %token <string * Cabs.cabsloc> NAMED_TYPE

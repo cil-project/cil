@@ -141,11 +141,11 @@ let isOldStyleVarArgTypeName n =
  * multiply and add to get the desired value. 
  *)
 
-(* Given a character constant (like 'a' or 'abc') both as a string
- * and as a list of characters, turn it into a CIL constant. *)
-let interpret_character_constant str char_list =
+(* Given a character constant (like 'a' or 'abc') as
+ * a list of characters, turn it into a CIL constant. *)
+let interpret_character_constant char_list =
   let value = List.fold_left 
-      (fun acc elt -> Int64.add (Int64.shift_left acc 8) (Int64.of_int (Char.code elt)))
+      (fun acc elt -> Int64.add (Int64.shift_left acc 8) elt)
       Int64.zero char_list in
   if value < (Int64.of_int 256) then
     (CChr(Char.chr (Int64.to_int value))),(TInt(IChar,[]))
@@ -2692,9 +2692,8 @@ and doExp (isconst: bool)    (* In a constant *)
             let res = Const(CStr s') in
             finishExp empty res (typeOf res)
               
-        | A.CONST_CHAR s ->
-            let char_list = explodeString false s in
-            let a, b = (interpret_character_constant s char_list) in 
+        | A.CONST_CHAR char_list ->
+            let a, b = (interpret_character_constant char_list) in 
             finishExp empty (Const a) b 
               
         | A.CONST_FLOAT str -> begin
@@ -3926,14 +3925,11 @@ and doInit
          )              (* it with the other arrays below.*)
     ->
       let charinits =
-	let init c =
-	  A.NEXT_INIT, 
-          A.SINGLE_INIT(A.CONSTANT 
-                          (A.CONST_CHAR (String.make 1 c)))
+	let init c = A.NEXT_INIT, A.SINGLE_INIT(A.CONSTANT (A.CONST_CHAR [c]))
 	in
-	let collector = ref [init '\000'] in
+	let collector = ref [init Int64.zero] in
 	for pos = String.length s - 1 downto 0 do
-	  collector := init s.[pos] :: !collector
+	  collector := init (Int64.of_int (Char.code (s.[pos]))) :: !collector
 	done;
 	!collector
       in

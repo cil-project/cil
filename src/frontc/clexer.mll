@@ -212,7 +212,8 @@ let error msg =
 
 
 (*** escape character management ***)
-let scan_escape = function
+let scan_escape char =
+  let result = match char with
     'n' -> '\n'
   | 'r' -> '\r'
   | 't' -> '\t'
@@ -226,6 +227,8 @@ let scan_escape = function
   | '?' -> '?'
   | '\\' -> '\\' 
   | other -> error ("Unrecognized escape sequence: \\" ^ (String.make 1 other))
+  in
+  Int64.of_int (Char.code result)
 
 let scan_hex_escape str =
   let radix = Int64.of_int 16 in
@@ -248,6 +251,23 @@ let scan_oct_escape str =
     the_value := Int64.add (Int64.mul !the_value radix) thisDigit
   done;
   !the_value
+
+let lex_hex_escape remainder lexbuf =
+  let prefix = scan_hex_escape (Lexing.lexeme lexbuf) in
+  prefix :: remainder lexbuf
+
+let lex_oct_escape remainder lexbuf =
+  let prefix = scan_oct_escape (Lexing.lexeme lexbuf) in
+  prefix :: remainder lexbuf
+
+let lex_simple_escape remainder lexbuf =
+  let lexchar = Lexing.lexeme_char lexbuf 1 in
+  let prefix = scan_escape lexchar in
+  prefix :: remainder lexbuf
+
+let lex_unescaped remainder lexbuf =
+  let prefix = Int64.of_int (Char.code (Lexing.lexeme_char lexbuf 0)) in
+  prefix :: remainder lexbuf
 
 let make_char (i:int64):char =
   let min_val = Int64.zero in
@@ -470,25 +490,17 @@ and pragma = parse
 
 and str = parse
         '"'             {[]} (* no nul terminiation in CST_STRING *)
-
-|	hex_escape	{let cur = scan_hex_escape(Lexing.lexeme lexbuf) in
-                                         cur :: (str lexbuf)}
-|	oct_escape	{let cur = scan_oct_escape (Lexing.lexeme lexbuf) in 
-                                         cur :: (str lexbuf)}
-|	escape		{let cur = scan_escape (Lexing.lexeme_char lexbuf 1) in 
-                         Int64.of_int (Char.code cur) :: (str lexbuf)}
-|	_		{let cur: int64 list = Cabs.explodeStringToInts
-                                                (Lexing.lexeme lexbuf) in 
-                           cur @ (str lexbuf)} 
+|	hex_escape	{lex_hex_escape str lexbuf}
+|	oct_escape	{lex_oct_escape str lexbuf}
+|	escape		{lex_simple_escape str lexbuf}
+|	_		{lex_unescaped str lexbuf}
 
 and chr =  parse
-    '\''	        {""}
-|	hex_escape	{let cur = String.make 1 (Char.chr (Int64.to_int (scan_hex_escape (Lexing.lexeme lexbuf)))) in cur ^ (chr lexbuf)}
-|	oct_escape	{let cur = String.make 1 (Char.chr (Int64.to_int (scan_oct_escape (Lexing.lexeme lexbuf)))) in cur ^ (chr lexbuf)}
-|	escape		{let cur = scan_escape (Lexing.lexeme_char lexbuf 1) in 
-                         let cur': string = String.make 1 cur in
-                                            cur' ^ (chr lexbuf)}
-|   _			{let cur = Lexing.lexeme lexbuf in cur ^ (chr lexbuf)} 
+	'\''	        {[]}
+|	hex_escape	{lex_hex_escape chr lexbuf}
+|	oct_escape	{lex_oct_escape chr lexbuf}
+|	escape		{lex_simple_escape chr lexbuf}
+|	_		{lex_unescaped chr lexbuf}
 	
 and msasm = parse
     blank               { msasm lexbuf }
