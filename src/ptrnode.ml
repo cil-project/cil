@@ -96,6 +96,7 @@ type node =
                                          * stored right before it. This
                                          * leads to INDEX pointers. *)
       
+      mutable can_reach_string : bool;  (* used by the solvers *)
       mutable mark: bool;               (* For mark-and-sweep GC of nodes. 
                                          * Most of the time is false *)
     }       
@@ -203,7 +204,7 @@ let d_whykind () = function
   | PrintfArg -> text "printf arg"
 
 let d_node () n = 
-  dprintf "%d : %a (%s%s%s%s%s%s%s%s) (@[%a@])@! K=%a/%a T=%a@!  S=@[%a@]@!  P=@[%a@]@!" 
+  dprintf "%d : %a (%s%s%s%s%s%s%s%s%s) (@[%a@])@! K=%a/%a T=%a@!  S=@[%a@]@!  P=@[%a@]@!" 
     n.id d_placeidx n.where
     (if n.onStack then "stack," else "")
     (if n.updated then "upd," else "")
@@ -213,6 +214,7 @@ let d_node () n =
     (if n.intcast  then "int," else "")
     (if n.interface  then "interf," else "")
     (if n.sized  then "sized," else "")
+    (if n.can_reach_string  then "reaches_string," else "")
     (docList (chr ',' ++ break)
        (fun n -> num n.id)) n.pointsto
     d_pointerkind n.kind
@@ -427,6 +429,7 @@ let newNode (p: place) (idx: int) (bt: typ) (a: attribute list) : node =
             sized = false ;
             pointsto = [];
             mark = false;
+            can_reach_string = false;
             pred = []; } in
 (*  ignore (E.log "Created new node(%d) at %a\n" n.id d_placeidx where); *)
   H.add placeId where n;

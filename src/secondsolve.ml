@@ -97,16 +97,9 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
 
   let finished = ref false in 
 
-  (* can we reach a string node from a? *)
-  let rec can_reach_string a = 
-    List.fold_left (fun acc e ->
-      acc || e.eto.kind = String || e.eto.kind = ROString ||
-      can_reach_string e.eto) false a.succ
-  in
-
   let update a b c = 
     let true_b = 
-      if (b = Seq || b = FSeq) && can_reach_string a then
+      if (b = Seq || b = FSeq) && a.can_reach_string then
         match b with
           Seq -> SeqN
         | FSeq -> FSeqN
@@ -117,6 +110,15 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       finished := false
   in 
 
+  let rec mark_string a = 
+    if not (a.can_reach_string) then begin
+        a.can_reach_string <- true ;
+        List.iter (fun e -> 
+          if (e.ekind = ECast || e.ekind = ENull || e.ekind = EIndex) then
+              mark_string e.efrom
+          ) a.pred
+    end
+  in 
 
   (* _(2)_ mark all interface char * nodes as [ro]strings and mark all of
    * the posarith/intcast pointers as seq/fseq *)
@@ -124,10 +126,14 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     if n.interface (* && not (n.arith || n.posarith) *) && 
        is_char_pointer n then begin
       if (n.updated) then
-        (update n String BoolFlag)
+        ignore (update_kind n String BoolFlag )
       else
-        (update n ROString BoolFlag)
+        ignore (update_kind n ROString BoolFlag )
     end
+  ) node_ht ;
+
+  Hashtbl.iter (fun id n ->
+    if n.kind = String || n.kind = ROString then mark_string n
   ) node_ht ;
 
   Hashtbl.iter (fun id n -> 
