@@ -509,9 +509,12 @@ let printLatVal n = Printf.printf " %s" (getLatValDescription n)
 
 
 (******************************************************************************)
+(* Misc. utility functions *)
+
 (* Produce debugging output with a REDDBG: prefix *)
 let pr s = flush stdout;Printf.printf  "REDDBG: "; Printf.printf s
 
+(* Used in peephole *)
 exception PeepholeRemovable
 
 (* Returns the name of a function in a Call *)
@@ -574,6 +577,60 @@ let rec compareWithoutCasts e1 e2 : bool =
   | _,_ -> e1 = e2
 
 
+(* Compare exp's *)
+let rec expEqual e1 e2 : bool=
+  e1 == e2 ||
+  match e1,e2 with
+    Const a, Const b -> a = b
+  | SizeOf a, SizeOf b -> a = b
+  | SizeOfE e1, SizeOfE e2 -> expEqual e1 e2
+  | AlignOf a, AlignOf b -> a = b
+  | AlignOfE e1, AlignOfE e2 -> expEqual e1 e2
+  | BinOp (op1,ea1,ea2,t1), BinOp (op2,eb1,eb2,t2) -> 
+      op1=op2 && (expEqual ea1 eb1) && (expEqual ea2 eb2) && t1=t2
+  | UnOp (op1,ea1,t1), UnOp (op2,eb1,t2) -> 
+      op1=op2 && (expEqual ea1 eb1) && t1=t2
+  | Question (ea1,ea2,ea3), Question (eb1,eb2,eb3) ->
+      (expEqual ea1 eb1) && (expEqual ea2 eb2) && (expEqual ea3 eb3)
+  | CastE (t1,e1), CastE (t2,e2) ->t1=t2 && (expEqual e1 e2)
+  | CastE (_, e1), _ -> expEqual e2 e1
+  | Lval a, Lval b -> lvalEqual a b
+  | StartOf _, Lval _ -> expEqual e2 e1
+  | AddrOf _, Lval _ -> expEqual e2 e1
+  | Lval _, StartOf lv -> expEqual e1 (Lval lv)
+  | Lval _, AddrOf (Mem e, NoOffset) -> 
+      expEqual e1 e
+  | Lval _, AddrOf ((bb,bo) as b) ->
+      (match getOutermostOffset bo with 
+	Index (zero,NoOffset) -> expEqual e1 (Lval (stripOffset b))
+      | _ -> false)
+  | AddrOf lv1, AddrOf lv2 -> lvalEqual lv1 lv2
+  | AddrOf lv1, StartOf lv2 ->expEqual e1 (Lval lv2)  (* ?? *)
+  | StartOf lv1, AddrOf lv2 ->expEqual e2 e1
+  | StartOf lv1, StartOf lv2 ->lvalEqual lv1 lv2 
+  | _,_ -> e1=e2
+
+(* Compare lvals *)
+and lvalEqual lv1 lv2 : bool=
+  (* ignore (Pretty.printf "off: %a ==? %a@!" d_lval lv1 d_lval lv2);*)
+  lv1 == lv2 ||
+  match lv1, lv2 with
+    (Var v1, off1), (Var v2, off2) -> v1 = v2 && (offsetEqual off1 off2)
+  | (Mem e1, off1), (Mem e2, off2) ->
+      (expEqual e1 e2) && (offsetEqual off1 off2)
+  | (Mem e1, NoOffset), (Var _, off2) -> 
+      (match getOutermostOffset off2 with
+	Index (zero, NoOffset) -> expEqual e1 (Lval (stripOffset lv2))
+      |	_ -> false)
+  | (Var _,_), (Mem _,_) -> lvalEqual lv2 lv1
+  | _,_ -> lv1=lv2
+
+and offsetEqual off1 off2 : bool =
+  match off1, off2 with
+    NoOffset, NoOffset -> true
+  | Index (i1,off1), Index (i2,off2) -> (expEqual i1 i2) && (offsetEqual off1 off2)
+  | Field (f1,off1), Field (f2,off2) -> f1.fname = f2.fname && (offsetEqual off1 off2)
+  | _ -> false
 (******************************************************************************)
 
 (* See comments in eliminateRedundancy *)
@@ -626,15 +683,18 @@ let rec eliminateRedundancy (f : fundec) : fundec =
 	!checkProcessed.(i) <- true;
 
 	if amandebug then begin 
-	  pr "";
+	  pr "";	  
 	  ignore (printf "Processing %d: %a\n" i d_instr !checkInstrs.(i));
 
 	  (* Some temporary stuff for inspection by a ocamlmktop manufactured toplvl *)
 	  
-          if i = 27 then begin
+          if i = 28 && false then begin
             pr "************ MARSHALLING TO op.m *********************\n";
             let chn = open_out_bin "op.m" in
-            Marshal.to_channel chn !checkInstrs.(i) [Marshal.No_sharing];
+            (* Marshal.to_channel chn !checkInstrs.(i) [Marshal.No_sharing];*)
+            Marshal.to_channel chn 
+	      (match !checkInstrs.(i) with Call (_,_,ee,_) -> ee | _ -> [])
+	      [Marshal.No_sharing];
             close_out chn
           end
 	  
@@ -725,6 +785,7 @@ let rec eliminateRedundancy (f : fundec) : fundec =
     done; (* for i ... *)
 
     (* Do peephole optimization *)
+    if amandebug then pr "Trying peephole ... \n";
     Array.iteri
       (fun i nd -> 
 	match nd.skind with
@@ -827,41 +888,12 @@ and removePeephole instList =
 	 (peepholeReplace inst) :: acc 
        with PeepholeRemovable ->
 	 stats_removed := !stats_removed + 1;
-	 if amandebug then pr "%s removed by peephole \n" (getCallName inst) ;
+	 if amandebug then begin 
+	   pr "";
+	   ignore (Pretty.printf "Removed by peephole: %a@!" d_instr inst);
+	 end;
 	 acc)
      instList [])
-
-and expEqual e1 e2 : bool=
-  e1 == e2 ||
-  match e1,e2 with
-    Const a, Const b -> a = b
-  | SizeOf a, SizeOf b -> a = b
-  | SizeOfE e1, SizeOfE e2 -> expEqual e1 e2
-  | AlignOf a, AlignOf b -> a = b
-  | AlignOfE e1, AlignOfE e2 -> expEqual e1 e2
-  | BinOp (op1,ea1,ea2,t1), BinOp (op2,eb1,eb2,t2) -> 
-      op1=op2 && (expEqual ea1 eb1) && (expEqual ea2 eb2) && t1=t2
-  | UnOp (op1,ea1,t1), UnOp (op2,eb1,t2) -> 
-      op1=op2 && (expEqual ea1 eb1) && t1=t2
-  | Question (ea1,ea2,ea3), Question (eb1,eb2,eb3) ->
-      (expEqual ea1 eb1) && (expEqual ea2 eb2) && (expEqual ea3 eb3)
-  | CastE (t1,e1), CastE (t2,e2) -> t1=t2 && (expEqual e1 e2)
-  | Lval a, Lval b -> lvalEqual a b
-  | Lval a, AddrOf ((bb,bo) as b) ->
-    (match getOutermostOffset bo with 
-      Index (zero,NoOffset) -> expEqual e1 (Lval (stripOffset b))
-    | _ -> false)
-  | AddrOf lv1, AddrOf lv2 -> lvalEqual lv1 lv2
-  | AddrOf lv1, StartOf lv2 -> lvalEqual lv1 lv2  (* ?? *)
-  | StartOf lv1, AddrOf lv2 -> expEqual e2 e1
-  | StartOf lv1, StartOf lv2 -> lvalEqual lv1 lv2 
-  | _,_ -> e1=e2
-
-and lvalEqual lv1 lv2 : bool=
-  lv1 == lv2 ||
-  match lv1, lv2 with
-    (Var v1, NoOffset), (Var v2, NoOffset) -> v1=v2
-  | _,_ -> lv1=lv2
 
 
 (* peepholeReplace:
