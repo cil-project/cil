@@ -80,7 +80,8 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
   (* Step 1
    * ~~~~~~
    * Set all of the little boolean flags correctly. Use whatever
-   * method simplesolve uses. This covers everything except reaches_string.
+   * method simplesolve uses. This covers everything except reaches_string,
+   * reaches_index and reaches_seq. 
    *)
   if !show_steps then ignore (Pretty.printf "Solver: Step 1\n") ;
   Simplesolve.set_flags node_ht ; 
@@ -474,7 +475,8 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
            (update cur Seq BoolFlag)
       end ;
       (* if it is a natural seq pointer ... *)
-      if (cur.arith || cur.intcast) && (not cur.can_reach_index) &&
+      if (cur.arith || (cur.intcast && not cur.null)) && 
+         (not cur.can_reach_index) &&
          not (set_outside cur) && cur.kind <> Wild then begin
          assert(cur.why_kind <> UserSpec) ; 
          if cur.can_reach_string then
