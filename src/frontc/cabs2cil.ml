@@ -123,8 +123,14 @@ let addLocalToEnv (n: string) (d: envdata) =
     (* If we are in a scope, then it means we are not at top level. Add the 
      * name to the scope *)
   (match !scopes with
-    [] -> ()
-  | s :: _ -> s := (UndoRemoveFromEnv n) :: !s)
+    [] -> begin
+      match d with
+        EnvVar _ -> 
+          E.s (E.bug "addLocalToEnv: not in a scope when adding %s!" n)
+      | _ -> () (* We might add types *)
+    end
+  | s :: _ -> 
+      s := (UndoRemoveFromEnv n) :: !s)
 
 
 let addGlobalToEnv (k: string) (d: envdata) : unit = 
@@ -229,7 +235,7 @@ let endFunction (formals: varinfo list) : (int * varinfo list) =
   in
   (maxid, drop formals revlocals)
 
-let startScope () = 
+let enterScope () = 
   scopes := (ref []) :: !scopes
 
      (* Exit a scope and clean the environment. We do not yet delete from 
@@ -243,14 +249,17 @@ let exitScope () =
   scopes := rest;
   let rec loop = function
       [] -> ()
-    | UndoRemoveFromEnv n :: t -> H.remove env n; loop t
+    | UndoRemoveFromEnv n :: t -> 
+        H.remove env n; loop t
     | UndoRemoveFromAlphaTable n :: t -> H.remove alphaTable n; loop t
-    | UndoResetAlphaCounter (n, oldv) :: t -> begin
-        try
-          let vref = H.find alphaTable n in
-          vref := oldv
-        with Not_found -> ()
-    end
+    | UndoResetAlphaCounter (n, oldv) :: t -> 
+        begin
+          try
+            let vref = H.find alphaTable n in
+            vref := oldv
+          with Not_found -> ()
+        end;
+        loop t
   in
   loop !this
 
@@ -264,9 +273,10 @@ let lookupVar (n: string) : varinfo * location =
 let docEnv () = 
   let acc : (string * (envdata * location)) list ref = ref [] in
   let doone () = function
-      EnvVar vi, _ -> text vi.vname
-    | EnvEnum (tag, typ), _ -> text ("enum tag")
-    | EnvTyp t, _ -> text "typ"
+      EnvVar vi, l -> 
+        dprintf "Var(%s,global=%b) (at %a)" vi.vname vi.vglob d_loc l
+    | EnvEnum (tag, typ), l -> dprintf "Enum (at %a)" d_loc l
+    | EnvTyp t, l -> text "typ"
   in
   H.iter (fun k d -> acc := (k, d) :: !acc) env;
   docList line (fun (k, d) -> dprintf "  %s -> %a" k doone d) () !acc
@@ -814,7 +824,8 @@ let makeGlobalVarinfo (vi: varinfo) : varinfo * bool =
       else if vi.vstorage = Extern then ()
       else if oldvi.vstorage = Extern then 
         oldvi.vstorage <- vi.vstorage 
-      else E.s (error "Unexpected redefinition of %s" vi.vname)
+      else E.s (error "Redefinition of %s. Previous definitionon: %a" 
+                  vi.vname d_loc oldloc)
     in
     (* Union the attributes *)
     oldvi.vattr <- addAttributes oldvi.vattr vi.vattr;
@@ -835,7 +846,7 @@ let makeGlobalVarinfo (vi: varinfo) : varinfo * bool =
         | TSFun(_, [], va1, _), TSFun(r2, _ :: _, va2, a2)
                when va1 = va2 -> oldvi.vtype <- vi.vtype
         | TSFun(r1, _ , va1, _), TSFun(_, [], va2, a2) when va1 = va2 -> ()
-        | _, _ -> E.s (error "Redefinition of %s with different types.@!Before=%a(%a)@!Now= %a (%t)@!" 
+        | _, _ -> E.s (error "Declaration of %s does not match previous declaration.@!Before=%a(%a)@!Now= %a (%t)@!" 
                          vi.vname d_plaintype oldvi.vtype 
                          d_loc oldloc
                          d_plaintype vi.vtype d_thisloc)
@@ -1018,7 +1029,7 @@ let rec doSpecList (specs: A.spec_elem list)
         
         (* sm: start a scope for the enum tag values, since they *
         * can refer to earlier tags *)
-        (startScope ());
+        (enterScope ());
         
         (* as each name,value pair is determined, this is called *)
         let rec processName kname i rest = begin
@@ -1257,11 +1268,14 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
             TArray(t,_,attr) -> TPtr(t, attr)
           | _ -> t
         in
+        (* Start a scope for the parameter names *)
+        enterScope ();
         let targs = 
           match List.map (makeVarInfo false locUnknown) args  with
             [t] when (match t.vtype with TVoid _ -> true | _ -> false) -> []
           | l -> l
         in
+        exitScope ();
         List.iter (fun a -> a.vtype <- arrayToPtr a.vtype) targs;
         let tres = arrayToPtr bt in
         doDecl (TFun (tres, targs, isva, [])) acc d
@@ -2596,7 +2610,7 @@ and assignInit (lv: lval)
 
   (* Now define the processors for body and statement *)
 and doBody (b : A.body) : chunk = 
-  startScope ();
+  enterScope ();
     (* Do the declarations and the initializers and the statements. *)
   let rec loop = function
       [] -> empty
@@ -2783,6 +2797,10 @@ let convFile fname dl =
              (* Reset the local identifier so that formals are created with 
               * the proper IDs  *)
               resetLocals ();
+              (* Setup the environment. Add the formals to the locals. Maybe 
+               * they need alpha-conv  *)
+              enterScope ();  (* Start the scope *)
+
               let bt,sto,inl,attrs = doSpecList specs in
               let ftyp, funattr = doType (AttrName false) bt 
                                          (A.PARENTYPE(attrs, dt, a)) in
@@ -2795,11 +2813,8 @@ let convFile fname dl =
               in
               (* Record the returnType for doStatement *)
               currentReturnType   := returnType;
-              (* Setup the environment. Add the formals to the locals. Maybe 
-               * they need alpha-conv  *)
-              startScope ();
-              let formals' = List.map (alphaConvertVarAndAddToEnv true) 
-                  formals in
+              let formals' = 
+                List.map (alphaConvertVarAndAddToEnv true) formals in
               let ftype = TFun(returnType, formals', isvararg, funta) in
               (* Add the function itself to the environment. Just in case we 
                * have recursion and no prototype.  *)
@@ -2836,6 +2851,8 @@ let convFile fname dl =
                          } 
               in
               setFormals fdec formals'; (* To make sure sharing is proper *)
+(*              ignore (E.log "The env after finishing the body of %s:\n%t\n"
+                        n docEnv); *)
               theFile := GFun (fdec, !currentLoc) :: !theFile
             with e -> begin
               ignore (E.log "error in collectFunction %s: %s\n" 

@@ -144,6 +144,7 @@ $TEST->add3Tests("testrun/scope1");
 $TEST->add3Tests("test/scope2");
 $TEST->add3Tests("test/scope3");
   $TEST->add3BadComment("test/scope3", "missing prototype");
+$TEST->add3Tests("test/scope4");
 $TEST->add3Tests("test/voidstar");
 $TEST->add3Tests("wes-hashtest", "", @runpattern);
 $TEST->add3Tests("wes-rbtest", "", @runpattern);
