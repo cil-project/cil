@@ -571,6 +571,40 @@ let gprintf (finish : doc -> doc)
                          (format_int (String.sub format i 
                                                   (j-i+1)) n))
                 (succ j))
+    (* L, l, and n are the Int64, Int32, and Nativeint modifiers to the integer
+       formats d,i,o,x,X,u.  For example, %Lo means print an Int64 in octal.*)
+	| 'L' ->
+	    if j != i + 1 then  (*Int64.format handles simple formats like %d.
+                     * Any special flags eaten by skip_args will confuse it. *)
+              invalid_arg ("dprintf: unimplemented format " 
+			   ^ (String.sub format i (j-i+1)));
+	    let j' = succ j in (* eat the d,i,x etc. *)
+	    let format_spec = "% " in
+	    String.set format_spec 1 (fget j'); (* format_spec = "%x", etc. *)
+            Obj.magic(fun n ->
+              collect (dctext1 acc
+                         (Int64.format format_spec n))
+                (succ j'))
+	| 'l' ->
+	    if j != i + 1 then invalid_arg ("dprintf: unimplemented format " 
+					    ^ (String.sub format i (j-i+1)));
+	    let j' = succ j in (* eat the d,i,x etc. *)
+	    let format_spec = "% " in
+	    String.set format_spec 1 (fget j'); (* format_spec = "%x", etc. *)
+            Obj.magic(fun n ->
+              collect (dctext1 acc
+                         (Int32.format format_spec n))
+                (succ j'))
+	| 'n' ->
+	    if j != i + 1 then invalid_arg ("dprintf: unimplemented format " 
+					    ^ (String.sub format i (j-i+1)));
+	    let j' = succ j in (* eat the d,i,x etc. *)
+	    let format_spec = "% " in
+	    String.set format_spec 1 (fget j'); (* format_spec = "%x", etc. *)
+            Obj.magic(fun n ->
+              collect (dctext1 acc
+                         (Nativeint.format format_spec n))
+                (succ j'))
         | 'f' | 'e' | 'E' | 'g' | 'G' ->
             Obj.magic(fun f ->
               collect (dctext1 acc

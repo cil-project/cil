@@ -2669,12 +2669,13 @@ and doExp (isconst: bool)    (* In a constant *)
             in
             incr lastStructId;
             (* Make the initializer. Idx is a wide_char index.  *)
-            let rec loop (idx: int) (s: int list) = 
+            let rec loop (idx: int) (s: int64 list) = 
 	      match s with
 		[] -> []
 	      | wc::rest ->
+		  let wc_cilexp = Const (CInt64(wc, IInt, None)) in
                   (Index(integer idx, NoOffset), 
-                   SingleInit (mkCast (integer wc) wchar_t))
+                   SingleInit (mkCast wc_cilexp wchar_t))
                   :: loop (idx + 1) rest
             in
             (* Add the definition for the array *)
@@ -3843,14 +3844,18 @@ and doInit
 	 | _ -> false (* OK, this is probably an array of strings. Handle *)
         )             (* it with the other arrays below.*)
     -> 
-      let maxWChar = (1 lsl (bitsSizeOf !wcharType)) - 1 in
+      let maxWChar =  (*  (2**(bitsSizeOf !wcharType)) - 1  *)
+	Int64.sub (Int64.shift_left Int64.one (bitsSizeOf !wcharType))
+	          Int64.one in
       let charinits = 
         List.map 
           (fun c -> 
-	    if (c > maxWChar) then 
-	      E.s (error "character 0x%x too big." c);
-            (A.NEXT_INIT, 
-             A.SINGLE_INIT(A.CONSTANT (A.CONST_INT (string_of_int c))))) s in
+	    if (Int64.compare c maxWChar > 0) then (* if c > maxWChar *)
+	      E.s (error "character 0x%Lx too big." c)
+	    else
+              (A.NEXT_INIT, 
+               A.SINGLE_INIT(A.CONSTANT (A.CONST_INT (Int64.to_string c)))))
+	  s in
       (* Create a separate object for the array *)
       let so' = makeSubobj so.host so.soTyp so.soOff in 
       (* Go inside the array *)

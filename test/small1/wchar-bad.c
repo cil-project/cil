@@ -1,7 +1,7 @@
 #include <wchar.h>
 #include "testharness.h"
 
-// NUMERRORS 4
+// NUMERRORS 4 
 
 
 
@@ -16,12 +16,19 @@ int main(){
   unsigned char c4[] = "\1111"; 
 
 
-
-  wchar_t w1[] = L"\xa";
-  wchar_t w2[] = L"\xabcd";
-  wchar_t w3[] = L"\xabcde";  //ERROR(2): too big
+#if defined _MSVC || defined __CYGWIN__
+  // Assumes sizeof(wchar_t) == 16
+  wchar_t w1[] = L"\x1";
+  wchar_t w2[] = L"\x1234";
+  wchar_t w3[] = L"\x12345";  //ERROR(2): too big
   wchar_t w4[] = L"\xcdefg";  //OK, because g is not a hex digit.
-
+#else
+  // Assumes sizeof(wchar_t) == 32
+  wchar_t w1[] = L"\x1";
+  wchar_t w2[] = L"\x12345678";
+  wchar_t w3[] = L"\x123456789";  //ERROR(2): too big
+  wchar_t w4[] = L"\x89abcdefg";  //OK, because g is not a hex digit.
+#endif
 
   //type mismatches in array initialization:
   char s1[] = L"Hi";          //ERROR(3): a wide string literal

@@ -268,9 +268,9 @@ and constant =
   | CONST_FLOAT of string (* the textual representaton *)
   | CONST_CHAR of string
   | CONST_STRING of string
-  | CONST_WSTRING of int list (* List of wide characters.  Since characters may
-      * have values larger than 256, we can't use a string to represent this
-      * constant.  The last element in the list is the terminating nul for
+  | CONST_WSTRING of int64 list (* List of wide characters.  Since characters
+      * may have 16- or 32-bit values, we can't use a string to represent
+      * this constant.  The last element in the list is the terminating nul for
       * this literal. *)
 
 and init_expression =
@@ -352,10 +352,10 @@ begin
   | EXPRTRANSFORMER(_, _, l) -> l
 end
 
-let explodeStringToInts (s: string) : int list =  
+let explodeStringToInts (s: string) : int64 list =  
   let rec allChars i acc = 
     if i < 0 then acc
-    else allChars (i - 1) (Char.code (String.get s i) :: acc)
+    else allChars (i - 1) (Int64.of_int (Char.code (String.get s i)) :: acc)
   in
   allChars (-1 + String.length s) []
     

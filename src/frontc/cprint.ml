@@ -253,21 +253,24 @@ let escape_string str =
 let print_string s =
   print ("\"" ^ escape_string s ^ "\"")
 
-let rec conv_to_hex (value:int):string =
-  if value < 16 then 
-    conv_digit value
-  else
-    (conv_to_hex (value / 16)) ^ (conv_digit (value mod 16))
+let rec conv_to_hex (value:int64):string =
+  let sixteen = Int64.of_int 16 in
+  if Int64.compare value sixteen < 0  then  (* if value < 16 *)
+    conv_digit (Int64.to_int value)
+  else    (* conv_to_hex(value / 16) ^ conv_digit(value mod 16) *)
+    (conv_to_hex (Int64.div value sixteen))
+    ^ (conv_digit (Int64.to_int (Int64.rem value sixteen)))
 
-let rec escape_wstring (str: int list):string =
+let rec escape_wstring (str: int64 list):string =
   match str with
     [] -> ""
   | value::rest ->
       let this_char = 
-	if (value > 255) then 
+	let twofiftyfive = Int64.of_int 255 in
+	if (Int64.compare value twofiftyfive > 0) then 
 	  "\\x"^(conv_to_hex value)
 	else
-	  Char.escaped (Char.chr value)
+	  Char.escaped (Char.chr (Int64.to_int value))
       in
       this_char ^ (escape_wstring rest)
 

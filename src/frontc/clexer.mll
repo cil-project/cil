@@ -205,46 +205,45 @@ let scan_escape str =
   | _ -> error ("Unrecognized escape sequence: \\" ^ str)
 
 let get_value chr =
-  match chr with
-    '0'..'9' -> (Char.code chr) - (Char.code '0')
-  | 'a'..'z' -> (Char.code chr) - (Char.code 'a') + 10
-  | 'A'..'Z' -> (Char.code chr) - (Char.code 'A') + 10
-  | _ -> 0
+  let int_value = 
+    match chr with
+      '0'..'9' -> (Char.code chr) - (Char.code '0')
+    | 'a'..'z' -> (Char.code chr) - (Char.code 'a') + 10
+    | 'A'..'Z' -> (Char.code chr) - (Char.code 'A') + 10
+    | _ -> 0 in
+  Int64.of_int int_value
+  
 let scan_hex_escape str =
-  let the_value = ref 0 in
+  let radix = Int64.of_int 16 in
+  let the_value = ref Int64.zero in
   (* start at character 2 to skip the \x *)
   for i = 2 to (String.length str) - 1 do
     let thisDigit = get_value (String.get str i) in
-    the_value := !the_value * 16 + thisDigit
+    (* the_value := !the_value * 16 + thisDigit *)
+    the_value := Int64.add (Int64.mul !the_value radix) thisDigit
   done;
   !the_value
 
 let scan_oct_escape str =
-  let the_value = ref 0 in
+  let radix = Int64.of_int 8 in
+  let the_value = ref Int64.zero in
   (* start at character 1 to skip the \x *)
   for i = 1 to (String.length str) - 1 do
     let thisDigit = get_value (String.get str i) in
-    the_value := !the_value * 8 + thisDigit
+    (* the_value := !the_value * 8 + thisDigit *)
+    the_value := Int64.add (Int64.mul !the_value radix) thisDigit
   done;
   !the_value
 
-(*let scan_oct_escape str =
-  (* weimer: wide-character constants like L'\400' may be bigger than
-   * 256 (in fact, may be up to 511), so Char.chr cannot be used directly *)
-  let the_value = (get_value (String.get str 0)) * 64
-		   + (get_value (String.get str 1)) * 8
-		   + (get_value (String.get str 2)) in
-  if the_value < 256 then String.make 1 (Char.chr the_value )
-  else (String.make 1 (Char.chr (the_value / 256))) ^
-       (String.make 1 (Char.chr (the_value mod 256)))
-*)
-
-let make_char (i:int):char =
-  if (i < 0) || (i > 255) then begin
-    let msg = Printf.sprintf "character 0x%x too big" i in
+let make_char (i:int64):char =
+  let min_val = Int64.zero in
+  let max_val = Int64.of_int 255 in
+  (* if i < 0 || i > 255 then error*)
+  if Int64.compare i min_val < 0 || Int64.compare i max_val > 0 then begin
+    let msg = Printf.sprintf "character 0x%Lx too big" i in
     error msg
   end;
-  Char.chr i
+  Char.chr (Int64.to_int i)
 
 
 (* ISO standard locale-specific function to convert a wide character
@@ -473,12 +472,12 @@ and wstr = parse
                                         cur :: (wstr lexbuf)}
 |	oct_escape	{let cur = scan_oct_escape (Lexing.lexeme lexbuf) in 
                                          cur :: (wstr lexbuf)}
-|	"\\0"		{0 :: (wstr lexbuf)}
+|	"\\0"		{Int64.zero :: (wstr lexbuf)}
 |	escape		{let cur:char = scan_escape (String.sub
 					  (Lexing.lexeme lexbuf) 1 1) in 
-                                            (Char.code cur) :: (wstr lexbuf)}
-|	_		{let cur: int list = Cabs.explodeStringToInts
-                                              (Lexing.lexeme lexbuf) in 
+                           Int64.of_int (Char.code cur) :: (wstr lexbuf)}
+|	_		{let cur: int64 list = Cabs.explodeStringToInts
+                                                (Lexing.lexeme lexbuf) in 
                            cur @ (wstr lexbuf)} 
 
 and chr =  parse
