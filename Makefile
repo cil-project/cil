@@ -954,8 +954,9 @@ ijpeg: defaulttarget mustbegcc
 	cd $(IJPEGDIR)/src; \
             make clean build CC="$(IJPEGSAFECC) $(CONLY)" \
                              LD="$(IJPEGSAFECC)" 
-	$(IJPEGDIR)/exe/base/vortex_ultra \
-            <$(IJPEGDIR)/data/train/input/2stone9.in
+	$(IJPEGDIR)/exe/base/ijpeg.ultra \
+            -image_file $(IJPEGDIR)/data/ref/input/penguin.ppm \
+            -GO
 
 #### SPEC95 gcc
 GCCDIR=$(SPECDIR)/126.gcc

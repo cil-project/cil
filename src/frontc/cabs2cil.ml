@@ -2218,6 +2218,16 @@ and createLocal = function
       theFile := GVar(vi, init, lu) :: !theFile;
       empty
 
+  (* Maybe we have an extern declaration. Make it a global *)
+  | ((bt,A.EXTERN,(n,nbt,a,e)) as sname : A.single_name) ->
+      createGlobal sname;
+      empty
+
+  (* Maybe we have a function prototype in local scope. Make it global *)
+  | ((bt,st,(n,A.PROTO _,a,e)) as sname : A.single_name) ->
+      createGlobal sname;
+      empty
+    
   | ((bt,st,(n,nbt,a,e)) as sname : A.single_name) -> 
       let vi = makeVarInfo false locUnknown sname in
       let vi = alphaConvertVarAndAddToEnv true vi in        (* Replace vi *)
