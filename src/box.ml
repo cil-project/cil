@@ -357,6 +357,7 @@ let tagType (t: typ) : typ =
     let named = TNamed (tname, newtype, []) in
     theFile := GType (tname, newtype) :: !theFile;
     H.add taggedTypes tsig named;
+    H.add taggedTypes (typeSig named) named;
     named
   end
 
@@ -567,6 +568,10 @@ let checkMem (towrite: exp option)
           doCheckTags newtowrite newwhere fi.ftype acc
         in
         List.fold_left doOneField acc flds
+    | TArray(bt, _, a) 
+        when (match unrollType bt with
+          (TInt _ | TFloat _ | TEnum _ | TBitfield _ ) -> true | _ -> false) 
+      -> acc
 
 (*            
     | TFun _ when towrite = None -> acc
@@ -945,9 +950,9 @@ and boxexpf (e: exp) : stmt list * fexp =
         | _ -> ());
       (* The result type. *)
         let ptrtype = 
-          match lvt with
+(*          match lvt with
             TArray(t, _, _) -> fixupType (TPtr(t, [])) 
-          | _ -> fixupType (TPtr(lvt, []))
+          | _ -> *) fixupType (TPtr(lvt, []))
         in
         (dolv, F2 (ptrtype, AddrOf(lv', l), baseaddr))
           
@@ -964,11 +969,12 @@ and boxexpf (e: exp) : stmt list * fexp =
           match unrollType lvt with
             TArray(t, _, _) -> 
               fixupType (TPtr(t, [])),
-              AddrOf(addOffset (Index(zero, NoOffset)) lv', lu) 
+              AddrOf(addOffset (First(Index(zero, NoOffset))) lv', lu) 
           | TFun _ -> 
               fixupType (TPtr(lvt, [])),
               StartOf lv'
-          | _ -> E.s (E.unimp "StartOf on a non-array")
+          | _ -> E.s (E.unimp "StartOf on a non-array and non-function: %a"
+                        d_plaintype lvt)
         in
         (dolv, F2 (ptrtype, res, baseaddr))
 
@@ -1116,49 +1122,14 @@ and fromPtrToBase e =
 
 let boxFile globals =
   ignore (E.log "Boxing file\n");
-  let doGlobal g = 
+  let rec doGlobal g = 
     match g with
                                         (* We ought to look at pragmas to see 
                                          * if they talk about alignment of 
                                          * structure fields *)
     | GPragma s -> theFile := g :: !theFile
-    | GVar (vi, init) as g -> begin 
-        if debug then
-          ignore (E.log "Boxing GVar(%s)\n" vi.vname); 
-        (* Leave alone some functions *)
-        if not (List.exists (fun s -> s = vi.vname) leaveAlone) then
-          vi.vtype <- fixupType vi.vtype;
-          (* If the type has changed and this is a global variable then we
-           * also change its name *)
-        if vi.vglob && vi.vstorage <> Static && typeHasChanged vi.vtype then
-          begin
-            let oldname = vi.vname in
-            vi.vname <- vi.vname ^ "_fp_"
-          end;
-        (* Tag all globals, except function prototypes *)
-        if not (mustBeTagged vi) then
-          theFile := GVar(vi, init) :: !theFile
-        else begin
-          (* Make the initializer *)
-          (* tag the type, but don't change it yet *)
-          let newtyp = tagType vi.vtype in
-          (* Add it to the tag initializer *)
-          let varinit = 
-            if vi.vstorage = Extern then None 
-            else
-              (* prepare the data initializer. *)
-              let init' = 
-                match init with
-                  None -> None
-                | Some e -> Some (boxGlobalInit e)
-              in
-              let (x, _) = makeTagCompoundInit newtyp init' in
-              Some x
-          in
-          vi.vtype <- newtyp;
-          theFile := GVar(vi, varinit) :: !theFile
-        end
-    end
+    | GDecl vi as g -> boxglobal vi false None
+    | GVar (vi, init) -> boxglobal vi true init
     | GType (n, t) as g -> 
         if debug then
           ignore (E.log "Boxing GType(%s)\n" n);
@@ -1219,6 +1190,49 @@ let boxFile globals =
         theFile := GFun f :: !theFile
 
     | (GAsm s) as g -> theFile := g :: !theFile
+
+  and boxglobal vi isdef init = 
+    if debug then
+      ignore (E.log "Boxing GVar(%s)\n" vi.vname); 
+        (* Leave alone some functions *)
+    if not (List.exists (fun s -> s = vi.vname) leaveAlone) then
+      vi.vtype <- fixupType vi.vtype;
+          (* If the type has changed and this is a global variable then we
+           * also change its name *)
+    if vi.vglob && vi.vstorage <> Static && typeHasChanged vi.vtype then
+      begin
+        let nlen = String.length vi.vname in
+        if nlen <= 4 || String.sub vi.vname (nlen - 4) 4 <> "_fp_" then
+          vi.vname <- vi.vname ^ "_fp_"
+      end;
+      (* Tag all globals, except function prototypes *)
+    if not (mustBeTagged vi) then
+      if isdef then
+        theFile := GVar(vi, init) :: !theFile
+      else
+        theFile := GDecl vi :: !theFile
+    else if not isdef && vi.vstorage <> Extern then
+      theFile := GDecl vi :: !theFile
+    else begin
+          (* Make the initializer *)
+          (* tag the type, but don't change it yet *)
+      let newtyp = tagType vi.vtype in
+          (* Add it to the tag initializer *)
+      let varinit = 
+        if vi.vstorage = Extern then None 
+        else
+              (* prepare the data initializer. *)
+          let init' = 
+            match init with
+              None -> None
+            | Some e -> Some (boxGlobalInit e)
+          in
+          let (x, _) = makeTagCompoundInit newtyp init' in
+          Some x
+      in
+      vi.vtype <- newtyp;
+      theFile := GVar(vi, varinit) :: !theFile
+    end
   in
   if debug then
     ignore (E.log "Boxing file\n");

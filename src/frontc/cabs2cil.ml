@@ -138,47 +138,18 @@ let docAlphaTable () =
 
 
 (* Add a new variable. Do alpha-conversion if necessary *)
-let addNewVar vi = 
-  let alphaConvertAndAdd vi = 
-    let newname = newVarName vi.vname in
-    let newvi = if vi.vname = newname then vi else {vi with vname = newname} in
-    H.add env vi.vname newvi; 
-    if not vi.vglob then begin
-      locals := newvi :: !locals;
-      (match !scopes with
-        [] -> E.s (E.bug "Adding a local %s but not in a scope" vi.vname)
-      | s :: _ -> s := vi.vname :: !s)
-    end;
-    newvi
-  in
-  if vi.vglob then (* Some special cases apply to global variables *)
-    try (* See if already defined *)
-      let oldvi = H.find env vi.vname in
-      if oldvi.vstorage = Extern  && vi.vstorage = NoStorage then begin
-          (* We'll add the new version instead. *)
-        H.remove env vi.vname;
-        let newvi' = {vi with vname = oldvi.vname} in (* Keep the previously 
-                                                       * alpha converted name 
-                                                       *)
-        H.add env vi.vname newvi';
-        newvi'
-      end else begin
-        if vi.vstorage = Extern && (oldvi.vstorage = NoStorage ||
-                                    oldvi.vstorage = Extern) then
-          {vi with vname = oldvi.vname} (* Keep the old one in the 
-                                         * environment, but allow this copy 
-                                         * (with the good name) *)
-        else
-          match vi.vtype, oldvi.vtype with
-                                        (* function prototypes are not 
-                                         * definitions *)
-            TFun _, TFun _ -> oldvi
-          | TPtr (TFun _, _), TPtr (TFun _, _) -> oldvi
-          | _ -> E.s (E.unimp "Global variable redefinition: %s\n" vi.vname)
-      end
-    with Not_found -> alphaConvertAndAdd vi
-  else (* A local *) 
-    alphaConvertAndAdd vi
+let alphaConvertAndAddToEnv vi = 
+  let newname = newVarName vi.vname in
+  let newvi = if vi.vname = newname then vi else {vi with vname = newname} in
+  H.add env vi.vname newvi; 
+  if not vi.vglob then begin
+    locals := newvi :: !locals;
+    (match !scopes with
+      [] -> E.s (E.bug "Adding a local %s but not in a scope" vi.vname)
+    | s :: _ -> s := vi.vname :: !s)
+  end;
+  newvi
+
   
 
 (* Create a new temporary variable *)
@@ -202,7 +173,7 @@ let newTempVar typ =
     else
       setTypeAttrs t a'
   in
-  addNewVar 
+  alphaConvertAndAddToEnv 
     { vname = "tmp";  (* addNewVar will make the name fresh *)
       vid   = newVarId "tmp" false;
       vglob = false;
@@ -1284,8 +1255,6 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
                 let ftype = TFun(intType, [], true, []) in
                 (* Add a prototype *)
                 let proto = makeGlobalVar n ftype in 
-                (* let proto = addNewVar proto in
-                   theFile := GVar (proto, None) :: !theFile; *)
                 ([], Lval(var proto), ftype)
               end
             end
@@ -1626,7 +1595,7 @@ and doDecl : A.definition -> stmt list = function
           ((bt,st,(n,nbt,a,e)) as sname : A.single_name) 
           : stmt list = 
         let vi = makeVarInfo false locUnknown sname in
-        let vi = addNewVar vi in        (* Replace vi *)
+        let vi = alphaConvertAndAddToEnv vi in        (* Replace vi *)
         if e = A.NOTHING then
           [Skip]
         else
@@ -1819,25 +1788,13 @@ let convFile dl =
   H.clear typedefs;
   H.clear selfCells;
   H.clear enumFields;
-  (* Setup the built-ints *)
-  ignore (addNewVar { vname = "__builtin_constant_p";
-                      vglob = true;
-                      vid   = newVarId "__builtin_constant_p" true;
-                      vtype = TFun(intType, 
-                                   [{ vname = "x";
-                                      vglob = false;
-                                      vtype = intType;
-                                      vid      = 0;(* The first local*)
-                                        vdecl    = lu;
-                                      vstorage = NoStorage;
-                                      vaddrof = false;
-                                      vattr = [];
-                                    } ], false, []);
-                      vstorage = NoStorage;
-                      vattr = [];
-                      vaddrof = false;
-                      vdecl  = lu;
-                    });
+  (* Setup the built-ins *)
+  let _ = 
+    let fdec = emptyFunction "__builtin_constant_p" in
+    let argp  = makeLocalVar fdec "x" intType in
+    fdec.svar.vtype <- TFun(intType, [ argp ], false, []);
+    alphaConvertAndAddToEnv fdec.svar
+  in
   (* Now do the globals *)
   let doOneGlobal = function
       A.TYPEDEF ng -> 
@@ -1870,29 +1827,84 @@ let convFile dl =
     end
     | A.DECDEF ng -> 
         let createGlobal ((_,_,(n,nbt,a,e)) as sname : A.single_name) =
-          begin
-            try
-              let vi = makeVarInfo true locUnknown sname in
-              let vi = addNewVar vi in    (* Overwrite vi *)
-              let init, vi' = 
-                if e = A.NOTHING then 
-                  None, vi
-                else 
-                  let (se, e', et) = doExp e (AExp (Some vi.vtype)) in
-                  let (_, e'') = castTo et vi.vtype e' in
-                  (match et with (* We have a length now *)
-                    TArray(_, Some _, _) -> vi.vtype <- et
-                  | _ -> ());
-                  if se <> [] then 
-                    E.s (E.unimp "global initializer");
-                  Some e'', vi
-              in
-              theFile := GVar(vi', init) :: !theFile
-            with e -> begin
-              ignore (E.log "error in CollectGlobal (%s)\n" 
-                        (Printexc.to_string e));
-              theFile := GAsm("booo - error in global " ^ n) :: !theFile
-            end
+          try
+            (* Make a first version of the varinfo *)
+            let vi = makeVarInfo true locUnknown sname in
+            (* Do the initializer and complete the array type if necessary *)
+            let init = 
+              if e = A.NOTHING then 
+                None
+              else 
+                let (se, e', et) = doExp e (AExp (Some vi.vtype)) in
+                let (_, e'') = castTo et vi.vtype e' in
+                (match et with (* We have a length now *)
+                  TArray(_, Some _, _) -> vi.vtype <- et
+                | _ -> ());
+                if se <> [] then 
+                  E.s (E.unimp "global initializer");
+                Some e''
+            in
+            (* See if it is a declaration or a definition *)
+            let vi, mustbedecl = 
+              try (* See if already defined *)
+                let oldvi = H.find env vi.vname in
+                (* It was already defined. We must reuse the varinfo. But 
+                 * clean up the storage.  *)
+                let _ = 
+                  if vi.vstorage = oldvi.vstorage then ()
+                  else if vi.vstorage = Extern then ()
+                  else if oldvi.vstorage = Extern then 
+                    oldvi.vstorage <- vi.vstorage 
+                  else E.s (E.unimp "Unexpected redefinition")
+                in
+                (* Maybe we had an incomplete type before and it is complete 
+                 * now *)
+                let _ = 
+                  let oldts = typeSig oldvi.vtype in
+                  let newts = typeSig vi.vtype in
+                  if oldts = newts then ()
+                  else 
+                    match oldts, newts with
+                                        (* If the new type is complete, I'll 
+                                           * trust it *)
+                    | TSArray(_, Some _, _), TSArray(_, None, _) -> ()
+                    | TSArray(_, _, _), TSArray(_, Some _, _) 
+                      -> oldvi.vtype <- vi.vtype
+                    | _, _ -> E.s (E.unimp "Redefinition of %s" vi.vname)
+                in
+                let rec mustBeDecl = ref false in
+                let rec loop = function
+                    [] -> []
+                  | (GVar (vi', i') as g) :: rest when vi'.vid = vi.vid -> 
+                      if i' = None then
+                        GDecl vi' :: loop rest
+                      else begin
+                        mustBeDecl := true;
+                        g :: rest (* No more defs *)
+                      end
+                  | g :: rest -> g :: loop rest
+                in
+                theFile := loop !theFile;
+                oldvi, !mustBeDecl
+              
+              with Not_found -> begin (* A new one. It is a definition unless 
+                                       * it is Extern  *)
+
+                alphaConvertAndAddToEnv vi, false
+              end
+            in
+            if vi.vstorage = Extern || mustbedecl then 
+              if init = None then 
+                theFile := GDecl vi :: !theFile
+              else
+                E.s (E.unimp "%s is extern and with initializer" vi.vname)
+            else
+              theFile := GVar(vi, init) :: !theFile
+
+          with e -> begin
+            ignore (E.log "error in CollectGlobal (%s)\n" 
+                      (Printexc.to_string e));
+            theFile := GAsm("booo - error in global " ^ n) :: !theFile
           end
 (*
           ignore (E.log "Env after processing global %s is:@!%t@!" 
@@ -1926,7 +1938,7 @@ let convFile dl =
             (* Setup the environment. Add the formals to the locals. Maybe 
              * they need alpha-conv *)
             startScope ();
-            let formals' = List.map addNewVar formals in
+            let formals' = List.map alphaConvertAndAddToEnv formals in
             let ftype = TFun(returnType, formals', isvararg, a) in
             (* Add the function itself to the environment. Just in case we 
              * have recursion and no prototype.  *)
@@ -1942,7 +1954,7 @@ let convFile dl =
                 vstorage = doStorage st;
               } 
             in
-            ignore (addNewVar thisFunctionVI);
+            ignore (alphaConvertAndAddToEnv thisFunctionVI);
             (* Now do the body *)
             let s = doBody body in
             (* Finish everything *)

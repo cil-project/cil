@@ -384,15 +384,30 @@ type fundec =
     } 
 
 type global = 
-    GFun of fundec
+    GFun of fundec                      (* A function definition. Cannot have 
+                                         * storage Extern *)
   | GType of string * typ               (* A typedef *)
-  | GVar of varinfo * exp option        (* A global variable with 
-                                         * initializer. Includes function 
-                                         * prototypes  *)
+
+  | GVar  of varinfo * exp option       (* A variable definition. Might have 
+                                         * an initializer. There must be at 
+                                         * most one definition for a variable 
+                                         * in an entire program. Cannot have 
+                                         * storage Extern *)
+  | GDecl of varinfo                    (* A variable declaration. Might be a 
+                                         * prototype. There might be many 
+                                         * declarations and at most one 
+                                         * definition. They must all _share_ 
+                                         * the same varinfo. A prototype 
+                                         * shares the varinfo with the fundec 
+                                         * of the definition. Either have 
+                                         * storage Extern or there must be a 
+                                         * definition (Gvar or GFun) in this 
+                                         * file *)
   | GAsm of string                      (* Global asm statement. These ones 
                                          * can contain only a template *)
   | GPragma of string                   (* Pragmas at top level. Unparsed *)
     
+
 type file = global list
 	(* global function decls, global variable decls *)
 
@@ -1111,6 +1126,7 @@ let printFile (out : out_channel) (globs : file) =
         d_videcl vi 
         insert (match eo with None -> nil | Some e -> 
                 dprintf " = %a" d_exp e)
+  | GDecl vi -> dprintf "%a;" d_videcl vi 
   | GAsm s -> dprintf "__asm__(\"%s\");@!" (escape_string s)
   | GPragma s -> dprintf "#pragma %s@!" s
   in
