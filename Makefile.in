@@ -343,7 +343,8 @@ DISTRIB_SRC_FRONTC = cabs.ml cprint.ml clexer.mli clexer.mll \
 DISTRIB_SRC_EXT = logcalls.ml logcalls.mli \
                   astslicer.ml simplemem.ml heap.ml partial.ml \
                   logwrites.ml heapify.ml callgraph.ml callgraph.mli \
-                  epicenter.ml \
+                  epicenter.ml usedef.ml \
+                  dataflow.ml dominators.ml bitmap.ml ssa.ml \
 	          stackoverflow.mli stackoverflow.ml \
 	          canonicalize.ml canonicalize.mli \
 	          oneret.ml oneret.mli \
