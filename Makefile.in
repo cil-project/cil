@@ -307,7 +307,9 @@ publish_distrib: doc
            cp -rf doc/html/cil/* $(CILHTMLDEST); \
            cp -f $(CIL_TAR_GZ) $(CILHTMLDEST)/distrib; \
            ln -sf $(CILHTMLDEST)/distrib/$(CIL_TAR_GZ) $(CILHTMLDEST)/distrib/cil-latest.tar.gz ; \
-	fi
+	else \
+	   error "Cannot publish because $(CILHTMLDIST) does not exist" ; \
+        fi
 
 clean: cleancaml
 	rm -f $(OBJDIR)/machdep.ml
