@@ -234,6 +234,7 @@ $TEST->addTests("testrun/inline1", "_GNUCC=1", ['cil']);
 $TEST->addTests("test/decl2", "_GNUCC=1", ['cil']);
 $TEST->add3Tests("test/jmp_buf");
 $TEST->add3Tests("test/linux_atomic", "_GNUCC=1");
+$TEST->add3Tests("testrun/linux_signal", "_GNUCC=1");
 $TEST->add3Tests("test/li");
 $TEST->add3Tests("test/li1", "_GNUCC=1");
 $TEST->add3Tests("test/list");
