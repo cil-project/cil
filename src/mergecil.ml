@@ -770,7 +770,7 @@ let rec oneFilePass1 (f:file) : unit =
    * with the same name have been encountered before and we merge those types 
    * *)
   let matchVarinfo (vi: varinfo) (l: location * int) = 
-    ignore (registerAlphaName vAlpha vi.vname);
+    ignore (registerAlphaName vAlpha None vi.vname);
     (* Make a node for it and put it in vEq *)
     let vinode = mkSelfNode vEq vSyn !currentFidx vi.vname vi (Some l) in
     try
@@ -1288,7 +1288,7 @@ let oneFilePass2 (f: file) =
       else begin
         (* Maybe it is static. Rename it then *)
         if vi.vstorage = Static then begin
-          let newName = newAlphaName vAlpha vi.vname in
+          let newName = newAlphaName vAlpha None vi.vname in
           (* Remember the original name *)
           H.add originalVarNames newName vi.vname;
           if debugMerge then ignore (E.log "renaming %s at %a to %s\n"
@@ -1372,6 +1372,7 @@ let oneFilePass2 (f: file) =
             try H.find originalVarNames fdec.svar.vname 
             with Not_found -> fdec.svar.vname
           in
+          (* Go in there and rename everything as needed *)
           let fdec' = 
             match visitCilGlobal renameVisitor g with 
               [GFun(fdec', _)] -> fdec' 
@@ -1548,7 +1549,7 @@ let oneFilePass2 (f: file) =
                   E.s (bug "Setting creferenced for struct %s(%d) which is not in the sEq!\n"
                          ci.cname !currentFidx);
                 end);
-                ci.cname <- newAlphaName sAlpha ci.cname;
+                ci.cname <- newAlphaName sAlpha None ci.cname;
                 ci.creferenced <- true; 
                 ci.ckey <- H.hash (compFullName ci);
                 (* Now we should visit the fields as well *)
@@ -1570,13 +1571,13 @@ let oneFilePass2 (f: file) =
           else begin
             match findReplacement true eEq !currentFidx ei.ename with 
               None -> (* We must rename it *)
-                ei.ename <- newAlphaName eAlpha ei.ename;
+                ei.ename <- newAlphaName eAlpha None ei.ename;
                 ei.ereferenced <- true;
                 (* And we must rename the items to using the same name space 
                  * as the variables *)
                 ei.eitems <- 
                    List.map
-                     (fun (n, i, loc) -> newAlphaName vAlpha n, i, loc)
+                     (fun (n, i, loc) -> newAlphaName vAlpha None n, i, loc)
                      ei.eitems;
                 mergePushGlobals (visitCilGlobal renameVisitor g);
             | Some (ei', _) -> (* Drop this since we are reusing it from 
@@ -1615,7 +1616,7 @@ let oneFilePass2 (f: file) =
           else begin
             match findReplacement true tEq !currentFidx ti.tname with 
               None -> (* We must rename it and keep it *)
-                ti.tname <- newAlphaName tAlpha ti.tname;
+                ti.tname <- newAlphaName tAlpha None ti.tname;
                 ti.treferenced <- true;
                 mergePushGlobals (visitCilGlobal renameVisitor g);
             | Some (ti', _) ->(* Drop this since we are reusing it from 
@@ -1720,6 +1721,9 @@ let merge (files: file list) (newname: string) : file =
       globinit = None;
       globinitcalled = false } in
   init (); (* Make the GC happy *)
+  (* We have made many renaming changes and sometimes we have just guessed a 
+   * name wrong. Make sure now that the local names are unique. *)
+  uniqueVarNames res;
   res
 
 

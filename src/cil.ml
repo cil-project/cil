@@ -4894,6 +4894,12 @@ let debugAlpha = false
 let alphaSeparator = "___"
 let alphaSeparatorLen = String.length alphaSeparator
 
+type undoAlphaElement = 
+    AlphaChangedSuffix of int ref * int (* The reference that was changed and 
+                                         * the old suffix *)
+  | AlphaAddedSuffix of string          (* We added this new entry to the 
+                                         * table *)
+
 (* Create a new name based on a given name. The new name is formed from a 
  * prefix (obtained from the given name by stripping a suffix consisting of 
  * the alphaSeparator followed by only digits), followed by a special 
@@ -4902,6 +4908,7 @@ let alphaSeparatorLen = String.length alphaSeparator
  * that prefix. The largest suffix is one when only the version without 
  * suffix has been used. *)
 let rec newAlphaName ~(alphaTable: (string, int ref) H.t)
+                     ~(undolist: undoAlphaElement list ref option)
                      ~(lookupname: string) : string = 
   let prefix, sep, suffix = splitNameForAlpha ~lookupname in
   (* ignore (E.log "newAlphaName(%s). P=%s, S=%d\n" lookupname prefix suffix);
@@ -4915,9 +4922,15 @@ let rec newAlphaName ~(alphaTable: (string, int ref) H.t)
         ignore (E.log " Old suffix %d. " !rc);
       let newsuffix, sep = 
         if suffix > !rc then suffix, sep else !rc + 1, alphaSeparator in
+      (match undolist with 
+        Some l -> l := AlphaChangedSuffix (rc, !rc) :: !l
+      | _ -> ());
       rc := newsuffix;
       prefix ^ sep ^ (string_of_int newsuffix)
     with Not_found -> begin (* First variable with this prefix *)
+      (match undolist with 
+        Some l -> l := AlphaAddedSuffix prefix :: !l
+      | _ -> ());
       H.add alphaTable prefix (ref suffix);
       if debugAlpha then ignore (E.log " First seen. ");
       lookupname  (* Return the original name *)
@@ -4929,6 +4942,7 @@ let rec newAlphaName ~(alphaTable: (string, int ref) H.t)
   
 
 and registerAlphaName ~(alphaTable: (string, int ref) H.t)
+                      ~(undolist: undoAlphaElement list ref option)
                       ~(lookupname: string) : unit = 
   let prefix, sep, suffix = splitNameForAlpha ~lookupname in
   if debugAlpha then
@@ -4938,8 +4952,14 @@ and registerAlphaName ~(alphaTable: (string, int ref) H.t)
     if debugAlpha then
       ignore (E.log " Old suffix %d. " !rc);
     let newsuffix = if suffix > !rc then suffix else !rc in
+    (match undolist with 
+      Some l -> l := AlphaChangedSuffix (rc, !rc) :: !l
+    | _ -> ());
     rc := newsuffix;
   with Not_found -> begin (* First variable with this prefix *)
+    (match undolist with 
+      Some l -> l := AlphaAddedSuffix prefix :: !l
+    | _ -> ());
     H.add alphaTable prefix (ref suffix);
     if debugAlpha then ignore (E.log " First seen. ");
   end
@@ -4979,6 +4999,14 @@ and splitNameForAlpha ~(lookupname: string) : (string * string * int) =
      int_of_string (String.sub lookupname startSuffix (len - startSuffix)))
     
 
+(* Undoes the changes as specified by the undolist *)
+let undoAlphaChanges ~(alphaTable: (string, int ref) H.t) 
+                     ~(undolist: undoAlphaElement list) = 
+  List.iter
+    (function 
+        AlphaChangedSuffix (where, old) -> where := old
+      | AlphaAddedSuffix name -> H.remove alphaTable name)
+    undolist
 
 let docAlphaTable () (alphaTable: (string, int ref) H.t) = 
   let acc : (string * int) list ref = ref [] in
@@ -4986,6 +5014,64 @@ let docAlphaTable () (alphaTable: (string, int ref) H.t) =
   docList line (fun (k, d) -> dprintf "  %s -> %d" k d) () !acc
 
 
+(** Uniquefy the variable names *)
+let uniqueVarNames (f: file) : unit = 
+  (* Setup the alpha conversion table for globals *)
+  let gAlphaTable: (string, int ref) H.t = H.create 113 in
+  (* Keep also track of the global names that we have used. Map them to the 
+   * variable ID. We do this only to check that we do not have two globals 
+   * with the same name. *)
+  let globalNames: (string, int) H.t = H.create 113 in
+  (* Scan the file and add the global names to the table *)
+  iterGlobals f
+    (function
+        GVarDecl(vi, l) 
+      | GVar(vi, _, l) 
+      | GFun({svar = vi}, l) -> 
+          (* See if we have used this name already for something else *)
+          (try
+            let oldid = H.find globalNames vi.vname in
+            if oldid <> vi.vid then 
+              E.s (E.bug "The name %s is used for two distinct globals. One of them is defined at %a" vi.vname d_loc l);
+            (* Here if we have used this name already. Go ahead *)
+            ()
+          with Not_found -> begin
+            (* Here if this is the first time we define a name *)
+            H.add globalNames vi.vname vi.vid;
+            (* And register it *)
+            registerAlphaName gAlphaTable None vi.vname;
+            ()
+          end)
+      | _ -> ());
+
+  (* Now we must scan the function bodies and rename the locals *)
+  iterGlobals f
+    (function 
+        GFun(fdec, l) -> begin
+          currentLoc := l;
+          (* Setup an undo list to be able to revert the changes to the 
+           * global alpha table *)
+          let undolist = ref [] in
+          (* Process one local variable *)
+          let processLocal (v: varinfo) = 
+            let newname = 
+              newAlphaName gAlphaTable (Some undolist) v.vname in
+            if false && newname <> v.vname then (* Disable this warning *)
+              ignore (warn "uniqueVarNames: Changing the name of local %s in %s to %s\n"
+                        v.vname fdec.svar.vname newname);
+            v.vname <- newname
+          in
+          (* Do the formals first *)
+          List.iter processLocal fdec.sformals;
+          (* And now the locals *)
+          List.iter processLocal fdec.slocals;
+          (* Undo the changes to the global table *)
+          undoAlphaChanges gAlphaTable !undolist;
+          ()
+        end
+      | _ -> ());
+  ()
+          
 
 (* A visitor that makes a deep copy of a function body *)
 class copyFunctionVisitor (newname: string) = object (self)

@@ -356,7 +356,7 @@ let newAlphaName (globalscope: bool) (* The name should have global scope *)
   in
   if not globalscope then 
     findEnclosingFun !scopes;
-  let newname = Cil.newAlphaName alphaTable lookupname in
+  let newname = Cil.newAlphaName alphaTable None lookupname in
   stripKind kind newname
 
 

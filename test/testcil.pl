@@ -50,7 +50,7 @@ my $manju = $unix && system("hostname | grep manju >/dev/null")==0;
 #  1002 - cabs2cil
 #  1003 - collecting constraints
 #  1004 - solving constraints
-#  1005 - Boxing file
+#  1005 - Curing file
 #  1006 - Optimization
 #  1007 - Compilation
 #  1008 - Running 
@@ -395,6 +395,7 @@ $TEST->addTests("combine15", "", ['cil']);
 $TEST->addTests("combine16", "", ['cil']);
 $TEST->addTests("combine17", "", ['cil']);
 $TEST->addTests("combine18", "", ['cil']);
+$TEST->addTests("combine20", "", ['cil']);
 $TEST->addTests("combineenum1", "", ['cil']);
 $TEST->addTests("combineenum2", "", ['cil']);
 $TEST->addTests("combineenum3", "", ['cil']);

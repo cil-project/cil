@@ -2038,20 +2038,34 @@ val d_plaintype: unit -> typ -> Pretty.doc
 
 
 (** {b ALPHA conversion} *)
+
+(** This is the type of the elements that are recorded by the alpha 
+ * conversion functions in order to be able to undo changes to the tables 
+ * they modify. Useful for implementing 
+ * scoping *)
+type undoAlphaElement
+
 (** Create a new name based on a given name. The new name is formed from a 
  * prefix (obtained from the given name by stripping a suffix consisting of _ 
  * followed by only digits), followed by a special separator and then by a 
  * positive integer suffix. The first argument is a table mapping name 
  * prefixes with the largest suffix used so far for that prefix. The largest 
- * suffix is one when only the version without suffix has been used. *)
+ * suffix is 1 when only the version without suffix has been used. This 
+ * function updates the table with the new largest suffix generated. The 
+ * "undolist" argument, when present, will be used by the function to record 
+ * information that can be used by {!Cil.undoAlphaTable} to undo those 
+ * changes. Note that the undo information will be in reverse order in which 
+ * the action occurred. *)
 val newAlphaName: alphaTable:(string, int ref) Hashtbl.t ->
+                  undolist: undoAlphaElement list ref option ->
                   lookupname:string -> string
 
 
 (** Register a name with an alpha conversion table to ensure that when later 
   * we call newAlphaName we do not end up generating this one *)
 val registerAlphaName: alphaTable:(string, int ref) Hashtbl.t -> 
-                  lookupname:string -> unit
+                       undolist: undoAlphaElement list ref option ->
+                       lookupname:string -> unit
 
 (** Split the name in preparation for newAlphaName. The prefix returned is 
     used to index into the hashtable. The next result value is a separator 
@@ -2059,6 +2073,20 @@ val registerAlphaName: alphaTable:(string, int ref) Hashtbl.t ->
      the index)  *)
 val splitNameForAlpha: lookupname:string -> string * string * int
 val docAlphaTable: unit -> (string, int ref) Hashtbl.t -> Pretty.doc
+
+(** Undo the changes to a table *)
+val undoAlphaChanges: alphaTable:(string, int ref) Hashtbl.t -> 
+                      undolist:undoAlphaElement list -> unit
+
+(** Assign unique names to local variables. This might be necessary after you 
+ * transformed the code and added or renamed some new variables. Names are 
+ * not used by CIL internally, but once you print the file out the compiler 
+ * downstream might be confused. You might 
+ * have added a new global that happens to have the same name as a local in 
+ * some function. Rename the local to ensure that there would never be 
+ * confusioin. Or, viceversa, you might have added a local with a name that 
+ * conflicts with a global *)
+val uniqueVarNames: file -> unit
 
 (** {b Optimization Passes} *)
 
