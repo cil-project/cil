@@ -178,7 +178,7 @@ val dprintf: ('a, unit, doc) format -> 'a
 -  @!  Inserts a {!Pretty.line}. Just like "\n"
 -  @?  Inserts a {!Pretty.break}.
 -  @<  Inserts a {!Pretty.mark}. 
--  @<  Inserts a {!Pretty.unmark}.
+-  @>  Inserts a {!Pretty.unmark}.
 -  @^  Inserts a {!Pretty.leftflush}
        Should be used immediately after @! or "\n".
 -  @@ : inserts a @ character

@@ -453,7 +453,7 @@ NEWLINE="\\
 
 
 # Give a space-separated list of features with the defaults
-features="blockinggraph=no rand=no"
+features="blockinggraph=no rand=no arithabs=no"
 
 AC_ARG_WITH(blockinggraph,
     AC_HELP_STRING([--with-blockinggraph],
@@ -461,6 +461,9 @@ AC_ARG_WITH(blockinggraph,
 AC_ARG_WITH(rand,
     AC_HELP_STRING([--with-rand],
                    [enable the randomized value numbering]))
+AC_ARG_WITH(arithabs,
+    AC_HELP_STRING([--with-arithabs],
+                   [enable the arithmetic abstraction]))
    
 for f_val in $features
 do

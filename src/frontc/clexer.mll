@@ -123,6 +123,9 @@ let init_lexicon _ =
       ("_inline", fun loc -> INLINE loc);
       ("__attribute__", fun loc -> ATTRIBUTE loc);
       ("__attribute", fun loc -> ATTRIBUTE loc);
+(*
+      ("__attribute_used__", fun loc -> ATTRIBUTE_USED loc);
+*)
       ("__blockattribute__", fun _ -> BLOCKATTRIBUTE);
       ("__blockattribute", fun _ -> BLOCKATTRIBUTE);
       ("__asm__", fun loc -> ASM loc);

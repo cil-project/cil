@@ -49,6 +49,9 @@ endif
 ifdef USE_RAND
   CILLY_FEATURES += rand
 endif
+ifdef USE_ARITHABS
+  CILLY_FEATURES += arithabs
+endif
 
     # Now rules to make cilly
 CILLY_LIBRARY_MODULES = pretty inthash errormsg trace stats util clist \
@@ -189,6 +192,9 @@ ifdef USE_BLOCKINGGRAPH
 endif
 ifdef USE_RAND
 	echo "   Rand.feature;" >> $@  
+endif
+ifdef USE_ARITHABS
+	echo "   Arithabs.feature;" >>$@
 endif
 	echo "]"   >>$@ 
 

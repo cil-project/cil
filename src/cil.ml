@@ -674,7 +674,17 @@ and stmtkind =
                                            statement *)
 
   | Loop of block * location * (stmt option) * (stmt option) 
-                                        (** A [while(1)] loop *)
+                                           (** A [while(1)] loop. The 
+                                            * termination test is implemented 
+                                            * in the body of a loop using a 
+                                            * [Break] statement. If 
+                                            * prepareCFG has been called, the 
+                                            * first stmt option will point to 
+                                            * the stmt containing the 
+                                            * continue label for this loop 
+                                            * and the second will point to 
+                                            * the stmt containing the break 
+                                            * label for this loop. *)
 
   | Block of block                      (** Just a block of statements. Use it 
                                             as a way to keep some attributes 
@@ -1380,7 +1390,7 @@ type attributeClass =
 let attributeHash: (string, attributeClass) H.t = 
   let table = H.create 13 in
   List.iter (fun a -> H.add table a (AttrName false))
-    [ "section"; "constructor"; "destructor"; "unused"; "weak"; 
+    [ "section"; "constructor"; "destructor"; "unused"; "used"; "weak"; 
       "no_instrument_function"; "alias"; "no_check_memory_usage";
       "exception"; "model"; (* "restrict"; *)
       "aconst"; "__asm__" (* Gcc uses this to specifiy the name to be used in 
@@ -1885,6 +1895,12 @@ and typeOffset basetyp = function
   | Field (fi, o) -> typeOffset fi.ftype o
 
 
+and d_unop () u =
+  match u with
+    Neg -> text "-"
+  | BNot -> text "~"
+  | LNot -> text "!"
+
 and d_binop () b =
   match b with
     PlusA | PlusPI | IndexPI -> text "+"
@@ -2098,12 +2114,6 @@ class defaultCilPrinterClass : cilPrinter = object (self)
       Const(c) -> d_const () c
     | Lval(l) -> self#pLval () l
     | UnOp(u,e1,_) -> 
-        let d_unop () u =
-          match u with
-            Neg -> text "-"
-          | BNot -> text "~"
-          | LNot -> text "!"
-        in
         (d_unop () u) ++ chr ' ' ++ (self#pExpPrec level () e1)
           
     | BinOp(b,e1,e2,_) -> 
@@ -2414,7 +2424,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     fprint out 80 (indent ind (self#pStmt () s))
 
   method dBlock (out: out_channel) (ind: int) (b:block) : unit = 
-    fprint out 80 (indent ind (self#pBlock () b))
+    fprint out 80 (indent ind (align ++ self#pBlock () b))
 
   method private pStmtNext (next: stmt) () (s: stmt) =
     (* print the labels *)
@@ -2992,6 +3002,9 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           (* Put the aconst inside the attribute list *)
     | "aconst", [] when not !msvcMode -> text "__const__", true
     | "thread", [] when not !msvcMode -> text "__thread", false
+(*
+    | "used", [] when not !msvcMode -> text "__attribute_used__", false 
+*)
     | "volatile", [] -> text "volatile", false
     | "restrict", [] -> text "__restrict", false
     | "missingproto", [] -> text "/* missing proto */", false

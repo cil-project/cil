@@ -174,10 +174,9 @@ in ``Proceedings of Conference on Compilier Construction'', 2002.
 
 \section{Installation}
 
-You will need OCaml release 3.04 or higher to build CIL (we have
-tested it with 3.05, 3.06, and 3.07 as well). CIL has been tested on
-Linux and on Windows (where it can behave at either Microsoft Visual C
-or gcc).
+You will need OCaml release 3.07 or higher to build CIL. CIL has been tested
+on Linux and on Windows (where it can behave at either Microsoft Visual C or
+gcc).
 
  If you want to use CIL on Windows then you must get a complete installation
 of \t{cygwin} and the source-code OCaml distribution and compile it yourself
@@ -729,7 +728,7 @@ The \t{Mergecil.merge: Cil.file list -> string -> Cil.file} function merges
 multiple files. You can then invoke your analysis function on the resulting
 \t{Cil.file} data structure.  You might want to call
 \t{Rmtmps.removeUnusedTemps} first to clean up the prototypes and variables
-that are not used. Then you can call the function \t{Cil.printFile:
+that are not used. Then you can call the function \t{Cil.dumpFile:
 cilPrinter -> out\_channel -> Cil.file -> unit} to print the file to a
 given output channel. A good \t{cilPrinter} to use is
 \t{defaultCilPrinter}. 
@@ -2708,6 +2707,7 @@ Necula}.
  
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf June 9, 2004}: Added support for GCC \t{\_\_attribute\_used\_\_}
 \item {\bf April 7, 2004}: {\bf Released version 1.2.5}
 \item {\bf April 7, 2004}: Allow now to run ./configure CC=cl and set the MSVC
 compiler to be the default. The MSVC driver will now select the default name

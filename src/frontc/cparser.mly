@@ -234,9 +234,9 @@ let trd3 (_, _, result) = result
 
 %token<Cabs.cabsloc> ATTRIBUTE INLINE ASM TYPEOF FUNCTION__ PRETTY_FUNCTION__
 %token LABEL__
-%token<Cabs.cabsloc> BUILTIN_VA_ARG
+%token<Cabs.cabsloc> BUILTIN_VA_ARG ATTRIBUTE_USED
 %token BUILTIN_VA_LIST
-%token BLOCKATTRIBUTE
+%token BLOCKATTRIBUTE 
 %token<Cabs.cabsloc> DECLSPEC
 %token<string * Cabs.cabsloc> MSASM MSATTR
 %token<Cabs.cabsloc> PRAGMA
@@ -1185,6 +1185,10 @@ attributes_with_asm:
 attribute_nocv:
     ATTRIBUTE LPAREN paren_attr_list_ne RPAREN	
                                         { ("__attribute__", $3), $1 }
+/*(*
+|   ATTRIBUTE_USED                      { ("__attribute__", 
+                                             [ VARIABLE "used" ]), $1 }
+*)*/
 |   DECLSPEC paren_attr_list_ne         { ("__declspec", $2), $1 }
 |   MSATTR                              { (fst $1, []), snd $1 }
                                         /* ISO 6.7.3 */

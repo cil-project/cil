@@ -2050,6 +2050,9 @@ val d_init: unit -> init -> Pretty.doc
 (** Pretty-print a binary operator *)
 val d_binop: unit -> binop -> Pretty.doc
 
+(** Pretty-print a unary operator *)
+val d_unop: unit -> unop -> Pretty.doc
+
 (** Pretty-print an attribute using {!Cil.defaultCilPrinter}  *)
 val d_attr: unit -> attribute -> Pretty.doc
 
