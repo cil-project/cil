@@ -13,65 +13,9 @@ open Trace
 let lu = locUnknown
 let cabslu = {lineno = -10; filename = "cabs lu";}
 
-(* these return 'a (alpha) because they throw exceptions, so can be used in any context *)
-(*
-let sourceErrorLoc (loc : Cil.location) (s : string) : 'a =
-begin
-  (E.s (error "%s[%d]:%s" loc.file loc.line s))
-end
 
-let sourceError (s : string) : 'a =
-begin
-  (sourceErrorLoc !currentLoc s)
-end
-
-
-let sourceWarLoc (loc : Cil.location) (s : string) : 'a =
-begin
-  (E.s (error "%s[%d]:%s" loc.file loc.line s))
-end
-
-
-let sourceWar (s : string) : 'a =
-begin
-  (sourceWarLoc !currentLoc s)
-end
-
-let logWarLoc (loc : Cil.location) (s : string) : 'a =
-begin
-  (ignore (E.log "%s[%d]:%s" loc.file loc.line s))
-end
-
-
-let logWarning (s : string) : 'a =
-begin
-  (logWarLoc !currentLoc s)
-end
-
-
-let warnLoc (loc : Cil.location) (s : string) : 'a =
-begin
-  (ignore (E.warn "%s[%d]:%s" loc.file loc.line s))
-end
-
-
-let giveWarn (s : string) : 'a =
-begin
-  (warnLoc !currentLoc s)
-end
-
-
-let sourceUnimpLoc (loc : Cil.location) (s : string) : 'a =
-begin
-  (E.s (error "%s:%d :%s" loc.file loc.line s))
-end
-
-
-let sourceUnimp (s : string) : 'a =
-begin
-  (sourceUnimpLoc !currentLoc s)
-end
-*)  
+(* Keep a list of functions that were called without a prototype. *)
+let noProtoFunctions : (int, bool) H.t = H.create 13
 
 let convLoc (l : cabsloc) =
    {line = l.lineno; file = l.filename;}
@@ -846,10 +790,8 @@ let makeGlobalVarinfo (vi: varinfo) : varinfo * bool =
         | TSFun(_, [], va1, _), TSFun(r2, _ :: _, va2, a2)
                when va1 = va2 -> oldvi.vtype <- vi.vtype
         | TSFun(r1, _ , va1, _), TSFun(_, [], va2, a2) when va1 = va2 -> ()
-        | _, _ -> E.s (error "Declaration of %s does not match previous declaration.@!Before=%a(%a)@!Now= %a (%t)@!" 
-                         vi.vname d_plaintype oldvi.vtype 
-                         d_loc oldloc
-                         d_plaintype vi.vtype d_thisloc)
+        | _, _ -> 
+            E.s (error "Declaration of %s does not match previous declaration from %a." vi.vname d_loc oldloc)
     in
     let rec alreadyDef = ref false in
     let rec loop = function
@@ -1823,12 +1765,13 @@ and doExp (isconst: bool)    (* In a constant *)
                                                  * finishExp. Simulate what = 
                                                  * AExp None  *)
               with Not_found -> begin
-                ignore (warn "Calling function %s without prototype\n" n);
+                ignore (warn "Calling function %s without prototype." n);
                 let ftype = TFun(intType, [], false, []) in
                 (* Add a prototype to the environment *)
                 let proto, _ = makeGlobalVarinfo (makeGlobalVar n ftype) in
                 (* Make it EXTERN *)
                 proto.vstorage <- Extern;
+                H.add noProtoFunctions proto.vid true;
                 (* Add it to the file as well *)
                 theFile := GDecl (proto, !currentLoc) :: !theFile;
                 (empty, Lval(var proto), ftype)
@@ -1850,12 +1793,11 @@ and doExp (isconst: bool)    (* In a constant *)
                     | _ -> Lval(Mem(f'), NoOffset)
                   in
                   (rt,at,isvar, f'')
-              | x -> E.s (error 
-                            "Unexpected type of the called function %a: %a" 
-                            d_exp f' d_type x)
+              | x -> 
+                  E.s (error "Unexpected type of the called function %a: %a" 
+                         d_exp f' d_type x)
           end
-          | x ->  E.s (error 
-                         "Unexpected type of the called function %a: %a" 
+          | x ->  E.s (error "Unexpected type of the called function %a: %a" 
                          d_exp f' d_type x)
         in
         (* Drop certain qualifiers from the result type *)
@@ -1877,7 +1819,12 @@ and doExp (isconst: bool)    (* In a constant *)
                 (ss @@ sa, a'' :: args')
                   
             | ([], args) -> (* No more types *)
-                if not isvar then 
+                if not isvar &&
+                  (* Do not give a warning for functions without a prototype*)
+                  (match f' with 
+                    Lval(Var f, _) when H.mem noProtoFunctions f.vid -> false
+                  | _ -> true) 
+                then
                   ignore (warn "Too many arguments in call to %a" d_exp f');
                 let rec loop = function
                     [] -> (empty, [])
@@ -2862,6 +2809,7 @@ let convFile fname dl =
           () (* argument of E.withContext *)
   in
   List.iter doOneGlobal dl;
+  H.clear noProtoFunctions;
   (* We are done *)
   { fileName = fname;
     globals  = List.rev (! theFile);
