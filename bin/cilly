@@ -99,4 +99,11 @@ sub CillyCommand {
     return ($CilCompiler::compiler . " --out $aftercil", $aftercil);
 }
 
+sub MergeCommand {
+    my ($self, $ppsrc, $dir, $base) = @_;
+
+    return ($CilCompiler::compiler, "");
+}
+
+
 1;

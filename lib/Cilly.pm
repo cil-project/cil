@@ -41,6 +41,7 @@ package Cilly;
 use strict;
 use File::Basename;
 use File::Copy;
+use File::Spec;
 use Data::Dumper;
 
 $Cilly::savedSourceExt = "_saved.c";
@@ -186,12 +187,16 @@ sub collectOneArgument {
         }
         return 1;
     }
-    if($arg =~ m|--separate|) {
+    if($arg eq '--separate') {
         $self->{SEPARATE} = 1;
         return 1;
     }
-    if($arg =~ m|--merge|) {
+    if($arg eq '--merge') {
         $self->{SEPARATE} = 0;
+        return 1;
+    }
+    if($arg eq '--trueobj') {
+        $self->{TRUEOBJ} = 1;
         return 1;
     }
     if($arg eq '--keepmerged') {
@@ -333,28 +338,72 @@ sub straight_linktolib {
 sub linktolib {
     my($self, $psrcs, $dest, $ppargs, $ccargs, $ldargs) = @_;
     if($self->{VERBOSE}) { print STDERR "Linking into library $dest\n"; }
-    if($self->{SEPARATE}) {
+
+    # Now collect the files to be merged
+    my ($tomerge, $trueobjs) = $self->separateTrueObjects($psrcs);
+
+    if($self->{SEPARATE} || @{$tomerge} == 0) {
         # Not merging. Regular linking.
+
         return $self->straight_linktolib($psrcs, $dest, 
                                          $ppargs, $ccargs, $ldargs);
     }
-    # We are merging
-
-    # Now collect the files to be merged
-    my @sources = ref($psrcs) ? @{$psrcs} : ($psrcs);
-
-    # Write the names of the files into a file with the extension files
-    open(FILES, ">$dest.files") || die("Cannot open $dest.files");
-    print FILES join("\n", @sources);
-    if($self->{VERBOSE}) {
-        print STDERR 
-            "Saved to $dest.files the list of names composing $dest\n";
+    # We are merging. Merge all the files into a single one
+    
+    if(@{$trueobjs} > 0) {
+        # We have some true objects. Save them into an additional file
+        my $trueobjs_file = "$dest" . "_trueobjs";
+        if($self->{VERBOSE}) {
+            print STDERR
+                "Saving additional true object files in $trueobjs_file\n";
+        }
+        open(TRUEOBJS, ">$trueobjs_file") || die "Cannot write $trueobjs_file";
+        foreach my $true (@{$trueobjs}) {
+            my $abs = File::Spec->rel2abs($true);
+            print TRUEOBJS "$abs\n";
+        }
+        close(TRUEOBJS);
     }
-    close(FILES);
+    if(@{$tomerge} == 1) { # Just copy the file over
+        (!system("cp -f ${$tomerge}[0] $dest"))
+            || die "Cannot copy ${$tomerge}[0] to $dest\n";
+        return ;
+    }
+    #
+    # We must do real merging
+    #
+    # Prepare the name of the CIL output file based on dest
+    my ($base, $dir, $ext) = fileparse($dest, "(\\.[^.]+)");
+    
+    # Now prepare the command line for invoking cilly
+    my ($cmd, $aftercil) = $self->MergeCommand ($psrcs, $dir, $base);
+    $cmd .= " ";
 
-    # Now link as usual, without calling CIL
-    return $self->straight_linktolib($psrcs, $dest, 
-                                     $ppargs, $ccargs, $ldargs);
+    if($self->{MODENAME} eq "MSVC") {
+        $cmd .= " --MSVC ";
+    }
+    if($self->{VERBOSE}) {
+        $cmd .= " --verbose ";
+    }
+    if(defined $self->{CILARGS}) {
+        $cmd .=  join(' ', @{$self->{CILARGS}}) . " ";
+    }
+
+    # Add the arguments
+    if(@{$tomerge} > 20) {
+        my $extraFile = "___extra_files";
+        open(TOMERGE, ">$extraFile") || die $!;
+        foreach my $fl (@{$tomerge}) {
+            print TOMERGE "$fl\n";
+        }
+        close(TOMERGE);
+        $cmd .= " --extrafiles $extraFile ";
+    } else {
+        $cmd .= join(' ', @{$tomerge}) . " ";
+    }
+    $cmd .= " --mergedout $dest";
+    # Now run cilly
+    return $self->runShell($cmd);
 }
 
 ############
@@ -612,9 +661,19 @@ sub separateTrueObjects {
         # Look inside and see if it is one of the files created by us
         open(IN, "<$combsrc") || die "Cannot read $combsrc";
         my $fstline = <IN>;
-        if($fstline =~ m|\#pragma merger\((\d+)|) {
+        if($fstline =~ m|\#pragma merger\((\d+)| || $fstline =~ m|CIL|) {
             if($1 == $mtime) { # It is ours
                 push @tomerge, $combsrc; 
+                # See if there is a a trueobjs file also
+                my $trueobjs = $combsrc . "_trueobjs";
+                if(-f "$trueobjs") {
+                    open(TRUEOBJS, "<$trueobjs") || die "Cannot read $trueobjs";
+                    while(<TRUEOBJS>) {
+                        chop;
+                        push @othersources, $_;
+                    }
+                    close(TRUEOBJS);
+                }
                 next;
             }
         }
@@ -670,9 +729,52 @@ sub link {
 
 }
 
-sub applyCilAndCompile {
+sub applyCil {
     my ($self, $ppsrc, $dest, $ppargs, $ccargs) = @_;
     
+    # The input files
+    my @srcs = @{$ppsrc};
+
+    # Prepare the name of the CIL output file based on dest
+    my ($base, $dir, $ext) = fileparse($dest, "(\\.[^.]+)");
+    
+    # Now prepare the command line for invoking cilly
+    my ($cmd, $aftercil) = $self->CillyCommand ($ppsrc, $dir, $base);
+    $cmd .= " ";
+
+    if($self->{MODENAME} eq "MSVC") {
+        $cmd .= " --MSVC ";
+    }
+    if($self->{VERBOSE}) {
+        $cmd .= " --verbose ";
+    }
+    if(defined $self->{CILARGS}) {
+        $cmd .=  join(' ', @{$self->{CILARGS}}) . " ";
+    }
+
+    # Add the arguments
+    if(@srcs > 20) {
+        my $extraFile = "___extra_files";
+        open(TOMERGE, ">$extraFile") || die $!;
+        foreach my $fl (@srcs) {
+            print TOMERGE "$fl\n";
+        }
+        close(TOMERGE);
+        $cmd .= " --extrafiles $extraFile ";
+    } else {
+        $cmd .= join(' ', @srcs) . " ";
+    }
+    if(@srcs > 1 && $self->{KEEPMERGED}) {
+        $cmd .= " --mergedout $dir$base" . ".c ";
+    }
+    # Now run cilly
+    $self->runShell($cmd);
+}
+
+
+sub applyCilAndCompile {
+    my ($self, $ppsrc, $dest, $ppargs, $ccargs) = @_;
+
     # The input files
     my @srcs = @{$ppsrc};
 
@@ -1198,6 +1300,7 @@ package AR;
 use strict;
 
 use File::Basename;
+use Data::Dumper;
 
 sub new {
     my ($proto, $stub) = @_;
@@ -1222,7 +1325,7 @@ sub new {
       LINEPATTERN => "", 
 
       OPTIONS => 
-          ["." => { RUN => \&arArguments } ]
+          ["^[^-]" => { RUN => \&arArguments } ]
 
       };
     bless $self, $class;
@@ -1249,6 +1352,7 @@ sub arArguments {
     push @{$self->{OFILES}}, @{$pargs};
     $self->{OPERATION} = 'TOLIB';
     @{$pargs} = ();
+#    print Dumper($self);
     return 1;
 }
 
@@ -1286,6 +1390,7 @@ sub new {
       # sm: removed -O to ease debugging; will address "inline extern" elsewhere
       CC => "$::cc -D_GNUCC -c",
       LD => "$::cc -D_GNUCC ",
+      LDLIB => "ld -r -o ",
       CPP => "$::cc -D_GNUCC -E ",
       DEFARG  => "-D",
       INCARG => "-I",
@@ -1305,7 +1410,6 @@ sub new {
           [ "[^-].*\\.(c|cpp|cc)\$" => { TYPE => 'CSOURCE' },
             "[^-].*\\.(s|S)\$" => { TYPE => 'ASMSOURCE' },
             "[^-].*\\.i\$" => { TYPE => 'ISOURCE' },
-            "[^-].*\\.a\$" => { TYPE => 'LIBSOURCE' },
             # .o files can be linker scripts
             "[^-]" => { RUN => sub { &GNUCC::parseLinkerScript(@_); }},
             "-E"   => { RUN => sub { $stub->{OPERATION} = "TOI"; }},
@@ -1314,6 +1418,8 @@ sub new {
             "-ansi" => { TYPE => "PREPROC" },
             "-c" => { RUN => sub { $stub->{OPERATION} = "TOOBJ"; }},
             "-x" => { ONEMORE => 1, TYPE => "CC" },
+            "^-e\$" => { ONEMORE => 1, TYPE => 'LINK' },
+            "^-T\$" => { ONEMORE => 1, TYPE => 'LINK' },
              # GCC defines some more macros if the optimization is On so pass
              # the -O2 to the preprocessor and the compiler
             "-O" => { TYPE => "PREPROC" },
@@ -1327,12 +1433,15 @@ sub new {
             "-l" => { TYPE => 'LINK' },
             "-L" => { TYPE => 'LINK' },
             "-f" => { TYPE => 'LINKCC' },
-            "-r" => { TYPE => 'LINK' },
-            "-m" => { TYPE => 'LINKCC' },
+            "-r\$" => { RUN => sub { $stub->{OPERATION} = "TOLIB"; }},
+            "-i\$" => { RUN => sub { $stub->{OPERATION} = "TOLIB"; }},
+            "-m" => { TYPE => 'LINKCC', ONEMORE => 1 },
             "-Xlinker" => { ONEMORE => 1, TYPE => 'LINK' },
             "-nostdlib" => { TYPE => 'LINK' },
             "-traditional" => { TYPE => 'PREPROC' },
             "-std" => { TYPE => 'CC' },
+            "--start-group" => { RUN => sub { } },
+            "--end-group" => { RUN => sub { }},
             ],
                                   
       };

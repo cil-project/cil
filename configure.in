@@ -31,6 +31,7 @@ fi
 # the ./configure script will expect $CC to be set right
 AC_PROG_CC
 
+
 # find system type (using this macro means we must include
 # the files install-sh, config.sub, and config.guess (all from
 # the autoconf distribution) in our source tree!)

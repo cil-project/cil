@@ -1777,6 +1777,16 @@ linux-merge2: mustbegcc mustbelinux mustbemanju
 	cd $(LINUX_MERGE_SRC)/merger ; \
         $(CCURED) --verbose --curetype=none `cat merge-file-list2`
 
+linux-merge3: mustbegcc mustbelinux mustbemanju 
+	cd $(LINUX_MERGE_SRC) ; \
+           make CC="$(CILLY) --merge --verbose  " \
+                HOSTCC="$(CILLY) --merge --verbose " \
+                LD="$(CILLY) --merge --verbose  " \
+                AR="$(CILLY) --mode=AR --merge --verbose "
+
+
+linux-clean3: 
+	cd $(LINUX_MERGE_SRC); make clean
 
 ######################## SENDMAIL
 # source available at www.sendmail.org
