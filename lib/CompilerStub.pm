@@ -27,6 +27,7 @@ sub new {
       LINKARGS => [],  # Linker args
       NATIVECAML => 1, # this causes the native code boxer to be used
       RELEASELIB => 0, # if true, use the release runtime library (if any)
+      IDASHI => 1,     # if true, pass "-I-" to gcc's preprocessor
       VERBOSE => 0,    # when true, print extra detail
       OPERATION => 'TOEXE', # This is the default for all compilers
     };

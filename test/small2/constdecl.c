@@ -1,5 +1,7 @@
 // tricky const decl
 
+#include <string.h>    // strlen
+
 // first declare the fn
 static int foo(char const *a, char const *b);
 

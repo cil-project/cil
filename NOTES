@@ -20,7 +20,7 @@ Front-end
 
 - MSVC has a bug in the handling of shift operators: arithemtic conversions
 are applies on both operands instead of just integral promotions. We duplicate
-this bug in doBinOp in bacs2cil.
+this bug in doBinOp in cabs2cil.
 
  - we should allow the user to specify a logging function that takes
    printf()-style arguments (rather than hardcoding syslog/printk/printf). 
@@ -69,3 +69,9 @@ CCURED
 
  - printf is not quite safe. If we do not manage to verify statically the
    arguments we should be calling a wrapper. Do we do that? 
+   
+ - sm: because wild area lengths have word-level granularity, we can't protect
+   the final 0 of a char array unless the alignment works out; solutions
+   include changing granularity to bytes (painful) or changing the array-
+   expander to ensure alignment (potentially wasteful of a few bytes here
+   and there)

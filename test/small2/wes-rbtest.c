@@ -1,6 +1,6 @@
 #ifndef _GNUCC
 #ifndef _MSVC
-#define WILD 
+#define WILD
 #define SAFE
 #define FSEQ
 #define SEQ
@@ -12,6 +12,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>     // dup, close
 
 /* A special purpose main */
 //#include "main.h"

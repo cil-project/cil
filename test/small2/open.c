@@ -3,6 +3,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <unistd.h>      // read, close
+#include <stdio.h>       // perror
+
 
 int main()
 {

@@ -1,5 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>     // dup, close
+
+
 //#include "main.h"
 /****** Data sizes *******
 * U8  must be an unsigned of 8 bits
