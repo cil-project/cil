@@ -586,7 +586,8 @@ let canPrintName n =
   end)
 
 
-(* Some attributes are printed before and others after *)
+(* Some attributes are printed before and others after. The before ones are 
+ * typically the qualifiers  *)
 let rec separateAttributes (pre, post) = function
     [] -> pre,post
   | ((AId "const" | AId "volatile" | AId "inline" |
@@ -794,6 +795,8 @@ and d_attrlist pre al = (* Whether it comes before or after stuff *)
       end
     | (AId("const")) :: rest -> 
         dprintf "const %a" insert (loop remaining rest)
+    | (AId("inline")) :: rest -> 
+        dprintf "inline %a" insert (loop remaining rest)
     | (AId("volatile")) :: rest -> 
         dprintf "volatile %a" insert (loop remaining rest)
     | (AId("cdecl")) :: rest when !msvcOutput -> 
@@ -927,10 +930,18 @@ and d_stmt () s =
         
 and d_fun_decl () f = 
   let pre, post = separateAttributes f.svar.vattr in
-  dprintf "%a%a %a@!{ @[%a@!%a@]@!}" 
+  (* Now take out the inline *)
+  let isinline, pre' = 
+    match List.partition (fun a -> a = AId("inline")) pre with
+      [], _ -> false, pre
+    | _, pre' -> true, pre'
+  in
+  dprintf "%s%a%a %a@!{ @[%a@!%a@]@!}" 
+    (if isinline then 
+      if !msvcOutput then "__inline " else "inline " else "")
     d_storage f.svar.vstorage
     (* the prototype *)
-    (d_decl (fun _ -> dprintf "%a%s" d_attrlistpre pre f.svar.vname)) 
+    (d_decl (fun _ -> dprintf "%a%s" d_attrlistpre pre' f.svar.vname)) 
     f.svar.vtype
     d_attrlistpost post
     (* locals. But eliminate first the formal arguments *)
@@ -950,35 +961,17 @@ and d_fun_decl () f =
     d_stmt f.sbody
 
 and d_videcl () vi = 
-  let pre, post = separateAttributes vi.vattr in
-  match vi.vtype with
-    TPtr(TFun _ as tfun, ap) when !msvcOutput ->
-      dprintf "%a%a %a" d_storage vi.vstorage
-        (d_decl (fun _ -> dprintf "(%a *%a%s)" 
-            d_attrlistpre pre d_attrlistpre post vi.vname)) 
-        tfun
-        d_attrlistpost post
-  | _ ->
-      dprintf "%a%a %a" d_storage vi.vstorage
-        (d_decl (fun _ -> dprintf "%a%s" d_attrlistpre pre vi.vname)) vi.vtype
-        d_attrlistpost post
+  let pre, post = separateAttributes vi.vattr in 
+  dprintf "%a%a %a" d_storage vi.vstorage
+    (d_decl (fun _ -> dprintf "%a%s" d_attrlistpre pre vi.vname)) vi.vtype
+    d_attrlistpost post
     
 and d_fielddecl () fi = 
-  match fi.ftype with
-    TPtr(TFun _ as tfun, ap) when !msvcOutput ->
-      let pre, post = separateAttributes fi.fattr in
-     dprintf "%a;"
-        (d_decl (fun _ -> 
-          dprintf "(%a *%a%s)"
-            d_attrlistpre pre d_attrlistpre post
-            (if fi.fname = "___missing_field_name" then "" else fi.fname))) 
-        tfun
-  | _ -> 
-      dprintf "%a %a;"
-        (d_decl (fun _ -> 
-          text (if fi.fname = "___missing_field_name" then "" else fi.fname))) 
-        fi.ftype
-        d_attrlistpost fi.fattr
+  dprintf "%a %a;"
+    (d_decl (fun _ -> 
+      text (if fi.fname = "___missing_field_name" then "" else fi.fname))) 
+    fi.ftype
+    d_attrlistpost fi.fattr
        
 let printFile (out : out_channel) (globs : file) = 
   let print x = fprint out 80 x in

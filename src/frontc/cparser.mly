@@ -142,6 +142,12 @@ let addAttributeName a ((n,bt,ats,i) : name) : name =
 let addAttributesName a ((n,bt,ats,i) : name) : name = 
   (n, bt, addAttributes a ats, i)
   
+let addAttributesTypeOfName a ((n,bt,ats,i) : name) : name = 
+  if a = [] then (n,bt,ats,i)
+  else match bt with 
+    ATTRTYPE (bt', a') -> (n, ATTRTYPE (bt', addAttributes a a'), ats, i)
+  | _ -> (n, ATTRTYPE (bt, a), ats, i)
+  
 (* Make it inline *)
 let applyInline spec = {spec with sinline = true}
 
@@ -235,12 +241,18 @@ let applyPointer (ptspecs: specifier list) ((n,bt,a,i) : name) : name =
 
 let typeOfSingleName (_, _, (_, bt, _, _)) = bt
 
+let isTypeAttr (n, _) = 
+  match n with 
+    "const" | "volatile" | "cdecl" | "stdcall" -> true
+  | _ -> false
+
 let makeNameGroup (spec: specifier) (nl : name list) : name_group = 
-  let innert = makeAttrType spec.styp spec.sattr in
-  if spec.stypedef || spec.sinline then
-    parse_error "Invalid Typedef or inline specifier";
+  (* Move some GCC attributes from the specifier to names *)
+  let typeattr, nameattr = List.partition isTypeAttr spec.sattr in
+  let innert = makeAttrType spec.styp typeattr in
   let names = 
-    List.map (fun (n,bt,a,i) -> (n, injectType innert bt, a, i)) nl in
+    List.map (fun (n,bt,a,i) -> (n, injectType innert bt, 
+                                    addAttributes nameattr a, i)) nl in
   (spec.styp, spec.ssto, names)
 
 let makeSingleName (spec: specifier) (n : name) : single_name =
@@ -252,10 +264,7 @@ let makeSingleName (spec: specifier) (n : name) : single_name =
 
 let doDeclaration (spec: specifier) (nl: name list) : definition = 
   (* Like a makeNameGroup but also treats the typedef and inline case *)
-  let innert = makeAttrType spec.styp spec.sattr in
-  let names = 
-    List.map (fun (n,bt,a,i) -> (n, injectType innert bt, a, i)) nl in
-  let ng = (spec.styp, spec.ssto, names) in
+  let (_, _, names) as ng = makeNameGroup spec nl in
   if spec.stypedef then begin
     (* Tell the lexer about the new type names *)
     List.iter (fun (n, _, _, _) -> Clexer.add_type n) names;
@@ -271,8 +280,13 @@ let doFunctionDef (spec: specifier) (n: name)
   (match n with 
     (_, _, _, NOTHING) -> ()
   | _ -> parse_error "Initializer in function definition");
+  let n' = (* Associate the inline attribute with the function itself *)
+    if spec.sinline then
+      addAttributeName ("inline", []) n
+    else n
+  in
   let innert = makeAttrType spec.styp spec.sattr in
-  let fname = (spec.styp, spec.ssto, injectTypeName innert n) in
+  let fname = (spec.styp, spec.ssto, injectTypeName innert n') in
   FUNDEF (fname, b)
 
 %}
@@ -713,8 +727,14 @@ statement:
 /* This is an attempt to clean up the handling of types*/
 /*******************************************************/
 
-declaration:                                /* ISO 6.7 */
-    decl_spec_list init_declarator_list SEMICOLON { doDeclaration $1 $2 }
+declaration:                                /* ISO 6.7. GCC attributes apply 
+                                             * to all declarands on a line. 
+                                             * We add them to specifiers and 
+                                             * we'll move them to names later 
+                                             */
+    decl_spec_list init_declarator_list gcc_attributes SEMICOLON 
+                                       { doDeclaration 
+                                           (applyAttributes $3 $1) $2 }
 |   decl_spec_list                      SEMICOLON { doDeclaration $1 [] }
 ;
 init_declarator_list:                       /* ISO 6.7 */
@@ -723,10 +743,8 @@ init_declarator_list:                       /* ISO 6.7 */
  
 ;
 init_declarator:                             /* ISO 6.7 */
-    declarator gcc_attributes           { addAttributesName $2 $1 }
-|   declarator gcc_attributes EQ init_expression       
-                                        { applyInitializer $4 
-                                             (addAttributesName $2 $1) }
+    declarator                          { $1 }
+|   declarator EQ init_expression       { applyInitializer $3 $1 }
 ;
 
 decl_spec_list:                         /* ISO 6.7 */
@@ -752,7 +770,7 @@ decl_spec_list_opt:
 |   decl_spec_list                      { $1 }
 ;
 /* We add this separate rule to handle the special case when an appearance of 
- * NAMED_TYPE should not be considered as past of the specifiers but as part 
+ * NAMED_TYPE should not be considered as part of the specifiers but as part 
  * of the declarator. IDENT has higher precedence than NAMED_TYPE */
 decl_spec_list_opt_no_named: 
     /* empty */                         { emptySpec } %prec IDENT
@@ -787,32 +805,39 @@ type_spec:   /* ISO 6.7.2 */
                     { Tenum ("", Some $3) }
 |   NAMED_TYPE      { Tnamed $1 }
 ;
-struct_decl_list: /* ISO 6.7.2. Except that we allow empty structs */
+struct_decl_list: /* ISO 6.7.2. Except that we allow empty structs. We also 
+                   * allow missing field names 
+                   * GCC attributes apply to all declarands. Put them in the 
+                   * specifier and makeNameGroup will move them to the names */
    /* empty */                           { [] }
-|  decl_spec_list field_decl_list SEMICOLON struct_decl_list          
-                                          { (makeNameGroup $1 $2) :: $4 }
+|  decl_spec_list                 SEMICOLON struct_decl_list
+                                         { (makeNameGroup $1 
+                                               [missingFieldDecl]) :: $3 }
+|  decl_spec_list field_decl_list gcc_attributes SEMICOLON struct_decl_list
+                                          { (makeNameGroup 
+                                               (applyAttributes $3 $1) $2) 
+                                            :: $5 }
 ;
 field_decl_list: /* ISO 6.7.2 */
     field_decl                           { [$1] }
-|   field_decl COMMA field_decl_list     
-                                         { $1 :: $3 }
+|   field_decl COMMA field_decl_list     { $1 :: $3 }
 ;
-field_decl: /* ISO 6.7.2. Except that we allow unnamed fields. GCC attributes 
-             * are allowed only on non-empty field declarators */
-|   field_declarator_opt                   { $1 } 
-|   field_declarator_opt COLON expression  gcc_attributes
-                                           { addAttributesName $4
-                                              (match $1 with
+field_decl: /* ISO 6.7.2. Except that we allow unnamed fields. */
+|   declarator                             { $1 } 
+|   declarator COLON expression            {  (match $1 with
                                                (n, t, [], NOTHING) -> 
                                                 ( n, BITFIELD (t, $3), 
                                                      [], NOTHING)
                                                | _ -> parse_error "bitfield") 
                                            } 
-;   
-field_declarator_opt: 
-  /* empty */                           { missingFieldDecl }
-| declarator gcc_attributes             { addAttributesName $2 $1 }
+|              COLON expression            {  (match missingFieldDecl with
+                                               (n, t, [], NOTHING) -> 
+                                                ( n, BITFIELD (t, $2), 
+                                                     [], NOTHING)
+                                               | _ -> parse_error "bitfield") 
+                                           }
 ;
+
 enum_list: /* ISO 6.7.2.2 */
     enumerator				{[$1]}
 |   enum_list COMMA enumerator	        {$1 @ [$3]}
@@ -825,19 +850,30 @@ enumerator:
 
 declarator:  /* ISO 6.7.5. Plus Microsoft declarators. The specification says 
               * that they are specifiers but in practice they appear to be 
-              * part of the declarator */
+              * part of the declarator. Right now we allow them only right 
+               before an indentifier (e.g. int __cdecl foo()) or in pointers 
+               to functions (e.g. int (__cdecl *foo)(). But they should 
+               always be part of the function type attributes not of the 
+               declared name's attributes */
             direct_decl            { $1 }
 |   pointer direct_decl            { applyPointer $1 $2 }
-|   msqual  declarator             { addAttributeName $1 $2 }
-|   pointer msqual direct_decl     { applyPointer $1 (addAttributeName $2 $3) }
 ;
 direct_decl: /* ISO 6.7.5 */
-    IDENT                          { $1, NO_TYPE, [], NOTHING }
+    msqual_list_opt IDENT          { ($2, 
+                                      (if $1 = [] then NO_TYPE
+                                       else ATTRTYPE (NO_TYPE, $1)), 
+                                      [], NOTHING) }
                                    /* We want to be able to redefine named 
                                     * types as variable names */
-|   NAMED_TYPE                     {Clexer.add_identifier $1;
-                                     ($1, NO_TYPE, [], NOTHING)}
+|   msqual_list_opt NAMED_TYPE     {Clexer.add_identifier $2;
+                                     ($2, 
+                                      (if $1 = [] then NO_TYPE
+                                       else ATTRTYPE (NO_TYPE, $1)), 
+                                      [], NOTHING) }
 |   LPAREN declarator RPAREN       { $2 }
+|   LPAREN msqual_list pointer direct_decl RPAREN       
+                                   { addAttributesTypeOfName $2
+                                            (applyPointer $3 $4) } 
 |   direct_decl LBRACKET comma_expression RBRACKET
                                    { injectTypeName (ARRAY(NO_TYPE, 
                                                        smooth_expression $3))
@@ -878,18 +914,19 @@ type_name: /* ISO 6.7.6 */
                                            (makeSingleName $1 emptyName) }
 | TYPEOF expression            {TYPEOF $2} 
 ;
-abstract_decl: /* ISO 6.7.6. Plus Microsoft attributes. See the discussion 
-                * for declarator. */
+abstract_decl: /* ISO 6.7.6. */
   pointer abs_direct_decl_opt        { applyPointer $1 $2 }
-| pointer msqual abs_direct_decl_opt { applyPointer $1 
-                                                    (addAttributeName $2 $3)}
 |         abs_direct_decl            { $1 }
-| msqual  abstract_decl              { addAttributeName $1 $2 }
 ;
 
 abs_direct_decl: /* ISO 6.7.6. We do not support optional declarator for 
-                  * functions  */
+                  * functions. Plus Microsoft attributes. See the discussion 
+                  * for declarator.  */
 |   LPAREN abstract_decl RPAREN    { $2 }
+|   LPAREN msqual_list pointer abs_direct_decl_opt RPAREN
+                                   { addAttributesTypeOfName $2
+                                        (applyPointer $3 $4) }
+            
 |   abs_direct_decl_opt LBRACKET comma_expression RBRACKET
                                    { injectTypeName (ARRAY(NO_TYPE, 
                                                        smooth_expression $3))
@@ -924,7 +961,14 @@ msqual:
     CDECL                           { "cdecl", [] }
 |   STDCALL                         { "stdcall", [] }
 ;
-
+msqual_list:
+   msqual                           { [$1] }
+|  msqual msqual_list               { $1 :: $2 }
+;
+msqual_list_opt:
+   /* empty */                      { [] }
+|  msqual_list                      { $1 }
+;
 /*** GCC attributes ***/
 gcc_attributes:
     /* empty */						{[]}	

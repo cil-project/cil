@@ -153,7 +153,7 @@ testallpcc: $(EXECUTABLE)$(EXE)
 	     defaulttarget
 
 runpcc:
-	cd $(PCCDIR)/../test; pwd; spj $(SPJARG) arith/Fact.java
+	cd $(PCCDIR)/../test; pwd; spj --gory $(SPJARG) arith/Fact.java
 
 ############ Small tests
 SMALL1=test/small1

@@ -1802,6 +1802,14 @@ let convFile dl =
            (* Reset the local identifier so that formals are created with the 
             * proper IDs  *)
             resetLocals ();
+           (* See if this is inline 
+            let isinline, funattr' = 
+              match List.partition 
+                     (function ("inline", []) -> true 
+                              | _ -> false) funattr with
+                [], _ -> false, funattr
+              | _, rest -> true, rest
+            in *)
                                         (* Do the type *)
             let (returnType, formals, isvararg, a) = 
               match unrollType (doType [] bt') with 

@@ -2,4 +2,21 @@
 
 typedef char * va_list;
 
-int  (__cdecl   *foo)(int  (__stdcall   *)(void  ) , int  )  ;
+int  (__cdecl  * foo)(int  (__stdcall  * )(void  ) , int  )  ;
+struct  {
+   int  (__cdecl  * foo)(void  ) ;
+   int x  __attribute__((packed)) ;
+   int y  __attribute__((packed)) ;
+   int z  __attribute__((packed)) ;
+   int u : 5  __attribute__((packed)) ;
+   int w : 4  __attribute__((packed)) ;
+} ;
+
+__inline int const  *  fooinline(int * x ) 
+{ int a  __attribute__((foo, bar)) ;
+  int b  __attribute__((foo, bar)) ;
+  { 
+    return ((int const  * )x);
+  }
+}
+
