@@ -637,6 +637,9 @@ let doGlobal (g: global) : global =
         ACons("boxpoly", [ AStr(s) ]) -> 
           ignore (E.log "Will treat %s as polymorphic\n" s); 
           H.add polyFunc s (ref None)
+      | ACons("boxalloc", [ AStr(s) ]) -> 
+          ignore (E.log "Will treat %s as polymorphic\n" s); 
+          H.add polyFunc s (ref None)
       | ACons("box", [AId("on")]) -> boxing := true
       | ACons("box", [AId("off")]) -> boxing := false
       | _ -> ());

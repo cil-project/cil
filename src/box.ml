@@ -79,6 +79,12 @@ let leaveAloneGlobVars = [
 ]
     
 
+let allocFunctions : (string, bool) H.t = 
+  let h = H.create 17 in
+  List.iter (fun s -> H.add h s true)
+    ["malloc"; "calloc"; "realloc"];
+  h
+
             (* Same for offsets *)
 type offsetRes = 
     typ * stmt list * offset * exp * N.pointerkind
@@ -2406,6 +2412,9 @@ let boxFile file =
         (match a with
           ACons("interceptCasts", [ AId("on") ]) -> interceptCasts := true
         | ACons("interceptCasts", [ AId("off") ]) -> interceptCasts := false
+        | ACons("boxalloc",  [ AStr(s) ]) -> 
+          ignore (E.log "Will treat %s as an allocation function\n" s); 
+          H.add allocFunctions s true
         | ACons("box", [AId("on")]) -> boxing := true
         | ACons("box", [AId("off")]) -> boxing := false
         | _ -> ());
