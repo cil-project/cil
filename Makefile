@@ -1469,6 +1469,11 @@ gcc: defaulttarget mustbegcc
             make clean build CC="$(GCCSAFECC) $(CONLY)" \
                              LD="$(GCCSAFECC)" 
 
+gcc-gcc: defaulttarget mustbegcc
+	cd $(GCCDIR)/src; \
+            make clean build CC="gcc -c" \
+                             LD="gcc" 
+
 gcc-noclean: defaulttarget mustbegcc
 	cd $(GCCDIR)/src; \
             make       build CC="$(GCCSAFECC) $(CONLY)" \

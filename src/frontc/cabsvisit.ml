@@ -26,6 +26,11 @@ type 'a visitAction =
                                           * has changed and then apply the 
                                           * function on the node *)
 
+type nameKind = 
+    NVar                                (* Variable or function name *)
+  | NField                              (* The name of a field *)
+  | NType                               (* The name of a type *)
+
 (* All visit methods are called in preorder! (but you can use 
  * ChangeDoChildrenPost to change the order) *)
 class type cabsVisitor = object
@@ -38,7 +43,9 @@ class type cabsVisitor = object
   method vdef: definition -> definition list visitAction
   method vtypespec: typeSpecifier -> typeSpecifier visitAction
   method vdecltype: decl_type -> decl_type visitAction
-  method vname: specifier -> name -> name visitAction
+
+      (* For each declaration we call vname *)
+  method vname: nameKind -> specifier -> name -> name visitAction
   method vspec: specifier -> specifier visitAction     (* specifier *)
   method vattr: attribute -> attribute list visitAction
 
@@ -56,7 +63,7 @@ class nopCabsVisitor : cabsVisitor = object
   method vdef (d: definition) = DoChildren
   method vtypespec (ts: typeSpecifier) = DoChildren
   method vdecltype (dt: decl_type) = DoChildren
-  method vname (s:specifier) (n: name) = DoChildren
+  method vname k (s:specifier) (n: name) = DoChildren
   method vspec (s:specifier) = DoChildren
   method vattr (a: attribute) = DoChildren
       
@@ -126,7 +133,7 @@ and childrenTypeSpecifier vis ts =
   let childrenFieldGroup ((s, nel) as input) = 
     let s' = visitCabsSpecifier vis s in
     let doOneField ((n, eo) as input) = 
-      let n' = visitCabsName vis s' n in
+      let n' = visitCabsName vis NField s' n in
       let eo' = 
         match eo with
           None -> None
@@ -150,7 +157,9 @@ and childrenTypeSpecifier vis ts =
         let e' = visitCabsExpression vis e in
         if e' != e then (s, e') else ei
       in
+      vis#vEnterScope ();
       let ei' = mapNoCopy doOneEnumItem ei in
+      vis#vExitScope();
       if ei' != ei then Tenum( n, Some ei') else ts
   | TtypeofE e -> 
       let e' = visitCabsExpression vis e in   
@@ -172,7 +181,7 @@ and childrenSpecElem (vis: cabsVisitor) (se: spec_elem) : spec_elem =
       | _ -> E.s (E.unimp "childrenSpecElem: visitCabsAttribute returned a list")
   end
   | SpecType ts -> 
-      let ts' = childrenTypeSpecifier vis ts in
+      let ts' = visitCabsTypeSpecifier vis ts in
       if ts' != ts then SpecType ts' else se
         
 and visitCabsSpecifier (vis: cabsVisitor) (s: specifier) : specifier = 
@@ -207,9 +216,9 @@ and childrenDeclType vis dt =
       if dt1' != dt1 || snl' != snl then PROTO(dt1', snl', b) else dt
          
 
-and childrenNameGroup vis ((s, nl) as input) = 
+and childrenNameGroup vis (kind: nameKind) ((s, nl) as input) = 
   let s' = visitCabsSpecifier vis s in
-  let nl' = mapNoCopy (visitCabsName vis s') nl in
+  let nl' = mapNoCopy (visitCabsName vis kind s') nl in
   if s' != s || nl' != nl then (s', nl') else input
 
     
@@ -218,8 +227,8 @@ and childrenInitNameGroup vis ((s, inl) as input) =
   let inl' = mapNoCopy (childrenInitName vis s') inl in
   if s' != s || inl' != inl then (s', inl') else input
     
-and visitCabsName vis (s: specifier) (n: name) : name = 
-  doVisit vis (vis#vname s) (childrenName s) n
+and visitCabsName vis (k: nameKind) (s: specifier) (n: name) : name = 
+  doVisit vis (vis#vname k s) (childrenName s) n
 and childrenName (s: specifier) vis (n: name) : name = 
   let (sn, dt, al) = n in
   let dt' = visitCabsDeclType vis dt in
@@ -228,14 +237,14 @@ and childrenName (s: specifier) vis (n: name) : name =
     
 and childrenInitName vis (s: specifier) (inn: init_name) : init_name = 
   let (n, ie) = inn in
-  let n' = visitCabsName vis s n in
+  let n' = visitCabsName vis NVar s n in
   let ie' = visitCabsInitExpression vis ie in
   if n' != n || ie' != ie then (n', ie') else inn
     
 and childrenSingleName vis (sn: single_name) : single_name =
   let s, n = sn in
   let s' = visitCabsSpecifier vis s in
-  let n' = visitCabsName vis s' n in
+  let n' = visitCabsName vis NVar s' n in
   if s' != s || n' != n then (s', n') else sn
     
     
@@ -252,7 +261,7 @@ and childrenDefinition vis d =
       let inl' = mapNoCopy (childrenInitName vis s') inl in
       if s' != s || inl' != inl then DECDEF ((s', inl'), l) else d
   | TYPEDEF (ng, l) -> 
-      let ng' = childrenNameGroup vis ng in
+      let ng' = childrenNameGroup vis NType ng in
       if ng' != ng then TYPEDEF (ng', l) else d
   | ONLYTYPEDEF (s, l) -> 
       let s' = visitCabsSpecifier vis s in
@@ -460,6 +469,10 @@ and childrenAttribute vis ((n, el) as input) =
   let el' = mapNoCopy (visitCabsExpression vis) el in
   if el' != el then (n, el') else input
     
-    
+
+
+let visitCabsFile (vis: cabsVisitor) (f: file) : file =  
+  mapNoCopyList (visitCabsDefinition vis) f
+
     (* end of file *)
     

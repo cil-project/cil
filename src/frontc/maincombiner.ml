@@ -39,6 +39,7 @@ let combine (files: string list) (out: string) =
     let list_of_parsed_files =
       List.map (fun file_name -> parse_to_cabs file_name) files in
     Combine.combine list_of_parsed_files
+    (* Merger.merge list_of_parsed_files *)
   in
   try
     let o = open_out out in

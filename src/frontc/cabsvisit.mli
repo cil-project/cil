@@ -19,6 +19,12 @@ type 'a visitAction =
                                           * has changed and then apply the 
                                           * function on the node *)
 
+type nameKind = 
+    NVar                                (* Variable or function name *)
+  | NField                              (* The name of a field *)
+  | NType                               (* The name of a type *)
+
+
 (* All visit methods are called in preorder! (but you can use 
  * ChangeDoChildrenPost to change the order) *)
 class type cabsVisitor = object
@@ -31,7 +37,9 @@ class type cabsVisitor = object
   method vdef: Cabs.definition -> Cabs.definition list visitAction
   method vtypespec: Cabs.typeSpecifier -> Cabs.typeSpecifier visitAction
   method vdecltype: Cabs.decl_type -> Cabs.decl_type visitAction
-  method vname: Cabs.specifier -> Cabs.name -> Cabs.name visitAction
+
+      (* For each declaration we call vname *)
+  method vname: nameKind -> Cabs.specifier -> Cabs.name -> Cabs.name visitAction
   method vspec: Cabs.specifier -> Cabs.specifier visitAction     (* specifier *)
   method vattr: Cabs.attribute -> Cabs.attribute list visitAction
 
@@ -42,3 +50,19 @@ end
 
 
 class nopCabsVisitor: cabsVisitor
+
+
+val visitCabsTypeSpecifier: cabsVisitor -> 
+                            Cabs.typeSpecifier -> Cabs.typeSpecifier
+val visitCabsSpecifier: cabsVisitor -> Cabs.specifier -> Cabs.specifier
+val visitCabsDeclType: cabsVisitor -> Cabs.decl_type -> Cabs.decl_type
+val visitCabsDefinition: cabsVisitor -> Cabs.definition -> Cabs.definition list
+val visitCabsBlock: cabsVisitor -> Cabs.block -> Cabs.block
+val visitCabsStatement: cabsVisitor -> Cabs.statement -> Cabs.statement list
+val visitCabsExpression: cabsVisitor -> Cabs.expression -> Cabs.expression
+val visitCabsAttribute: cabsVisitor -> Cabs.attribute -> Cabs.attribute list
+val visitCabsName: cabsVisitor -> nameKind 
+                   -> Cabs.specifier -> Cabs.name -> Cabs.name
+val visitCabsFile: cabsVisitor -> Cabs.file -> Cabs.file
+
+

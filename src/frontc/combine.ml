@@ -194,7 +194,6 @@ and splitNameForAlpha (lookupname: string) : (string * string * int) =
  * conflicts list to be fixed in a second pass over the files. Another reason 
  * is that we want to register them into the alphaTable so that new locals 
  * that we create don't inadvertedly reuse the name *)
-let conflicts: string list ref = ref []
 let registeredGlobals: (string, bool) H.t = H.create 511
 let registerGlobalName (n: string) = 
   if not (H.mem registeredGlobals n) then begin
@@ -203,7 +202,7 @@ let registerGlobalName (n: string) =
      * if there is already somebody else with this name *)
     let n' = newAlphaName "" n in
     if n <> n' then 
-      conflicts := n :: !conflicts;
+      E.s (E.bug "Conflict on collecting global %s" n)
   end
 
 let processDeclName 
@@ -905,6 +904,9 @@ and doDefinition (isglobal: bool) (* Whether at global scope *)
       currentLoc := loc;
       let specs1 = doSpecs isglobal specs in
       let static = isStatic specs1 in
+      (* We never reuse declarations of variables except if they have 
+       * function type *)
+      let canreuse = ref true in
       let newnames, nglist, nglist_orignames = 
         List.fold_right 
           (fun  ((n, decl, attrs), ie)
@@ -912,6 +914,16 @@ and doDefinition (isglobal: bool) (* Whether at global scope *)
                   (* Do the declaration first *)
                   let n' = processDeclName isglobal static n in
                   let decl' = alpha_decl_type decl in
+                  (* See if this is a function type *)
+                  let rec isFunctionType = function
+                      PROTO (JUSTBASE, _, _) -> true
+                    | PROTO (dt, _, _) -> isFunctionType dt
+                    | PARENTYPE (_, dt, _) -> isFunctionType dt
+                    | ARRAY (dt, _) -> isFunctionType dt
+                    | PTR (_, dt) -> isFunctionType dt
+                  in
+                  if not (isFunctionType decl') then 
+                    canreuse := false;
                   let attrs' = alpha_attrs attrs in
                   let ie' = alpha_init_expression ie in
                   ((n, n') :: accnames, 
@@ -925,13 +937,13 @@ and doDefinition (isglobal: bool) (* Whether at global scope *)
       (* Keep a hash of DEFDEF's and drop identical ones. Use OCAML's 
        * structural equality to test for identical declarations. If we don't 
        * do this then cabs2cil slows to a crawl. *)
-      if isglobal then 
+      if isglobal || !canreuse then 
         try
           let oldnames = H.find declarations ng_orignames in
           List.iter reuseOldName oldnames;
           acc
         with Not_found ->  begin
-          (* H.add declarations ng newnames; Never reuse *)
+          H.add declarations ng newnames;
           DECDEF (ng, loc) :: acc
         end
       else
@@ -1000,10 +1012,25 @@ let initialize () =
   H.clear declarations;
   H.clear functions
 
-  
+ 
+ 
 (* The MAIN COMBINER *)
 let combine (files : Cabs.file list) : Cabs.file = 
   initialize ();
+  (* Now collect and register all of the globals *)
+  let collectOneGlobal = function
+      FUNDEF ((specs, (n, decl, attrs)), _, _) -> 
+        let islocal = isStatic specs || isInline specs in
+        if not islocal then registerGlobalName n
+            
+    | DECDEF ((specs, inl), _) -> 
+        let islocal = isStatic specs in
+        if not islocal then 
+          List.iter (fun ((n, _, _), _) -> registerGlobalName n) inl
+            
+    | _ -> ()
+  in
+  List.iter (fun f -> List.iter collectOneGlobal f) files;
   let doOneFile (defs: definition list) = 
     enterScope ();
     let defs' = doDefinitions true defs in
@@ -1012,18 +1039,5 @@ let combine (files : Cabs.file list) : Cabs.file =
   in
   (* Do a first pass *)
   let files1 = List.map doOneFile files in
-  (* See if some globals are shadowed by some previously defined locals *)
-  let files2 = 
-    if !conflicts == [] then files1 else begin
-      initialize ();
-      ignore (E.warn "Combiner does a second pass because file-scope identifiers %a conflicted with locals\n"
-                (docList (chr ',' ++ break) text) !conflicts);
-      (* Add the conflicting names to the alphaTable to reserve those names *)
-      List.iter (fun n -> ignore (processDeclName true false n)) !conflicts;
-      List.map doOneFile files
-    end
-  in
   initialize (); (* To make the GC happy *)
-  List.flatten files2
-  
-
+  List.flatten files1;
