@@ -10,10 +10,10 @@ int main() {
   int count = 5;
   
  Loop:
-  if(x == 10) nextstate = && DoneOne;
+  if(x == 10) nextstate = && Done;
   acc += x; x ++;
   goto *nextstate;
- DoneOne:
+ Done:
 
   if(acc != 11 * 10 / 2) {
     printf("Bad result: %d\n", acc);

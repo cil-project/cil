@@ -160,6 +160,8 @@ $TEST->add3Tests("testrun/scope5", "_GNUCC=1");
 $TEST->add3Tests("test/voidstar");
 $TEST->add3Tests("testrun/memcpy1");
 $TEST->add3Tests("testrun/label1");
+$TEST->add3Tests("testrun/label2");
+$TEST->add3Tests("testrun/label3");
 $TEST->add3Tests("testrun/addrof");
 $TEST->add3Tests("testrun/addrof2");
 $TEST->add3Tests("wes-hashtest", "", @runpattern);
