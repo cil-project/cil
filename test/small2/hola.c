@@ -2,6 +2,28 @@
 // tiny program for scott's testing purposes
 
 
+void pretendUsed(int y) {}
+
+
+// ------ tests recursing into associated TComp ------------
+typedef struct conn_rec conn_rec;
+typedef struct request_rec request_rec;
+
+struct request_rec {
+    conn_rec *connection;
+};
+struct conn_rec {
+    int x;
+};
+
+int  mod_gzip_redir1_handler( request_rec *  r )
+{
+  pretendUsed((r->connection)->x);
+}
+
+
+
+// --------- tests marking associated TComp -----------
 typedef struct foo FOO;
 
 struct foo {
@@ -12,6 +34,7 @@ struct foo {
 FOO x;
 
 
+// ----------- tests removal of inline functions ---------
 // inline func that isn't used
 inline int not_used() { return 4; }
 

@@ -108,9 +108,13 @@ class removeTempsVis (usedTypes : (typ,bool) H.t)
           (* is used, we need the associated TComp to be marked used also *)
           (match t with
           | TForward(cinfo, _) -> (
-              (trace "usedType" (dprintf "also marking associated TComp: %a\n" d_type t));
-              (* apparently, this *does* work ... ! *)
-              (H.add usedTypes (TComp(cinfo)) true)
+              (trace "usedType" (dprintf "also recursing into associated TComp: %a\n" d_type t));
+
+              (* not only do I need to mark it, I need to recurse *)
+              (* into its interior; apparently, this TComp will be *)
+              (* considered equal (by the hash table) to the TComp *)
+              (* presumably already in the Cil tree *)
+              (visitCilType (self :> cilVisitor) (TComp(cinfo)))
             )
           | _ -> ());
 
