@@ -36,6 +36,7 @@
  *
  *)
 
+open Escape
 open Pretty
 open Trace      (* sm: 'trace' function *)
 module E = Errormsg
@@ -1510,10 +1511,6 @@ external parse : string -> file = "cil_main"
   Pretty Printing
  *)
 
-
-let escape_char = Cprint.escape_char
-let escape_string = Cprint.escape_string
-  
 let d_ikind () = function
     IChar -> text "char"
   | ISChar -> text "signed char"

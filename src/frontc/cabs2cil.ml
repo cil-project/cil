@@ -48,7 +48,7 @@ open Cil
 open Trace
 
 
-let debugGlobal = false
+let debugGlobal = true
 
 (* Leave a certain global alone. Use a negative number to disable. *)
 let nocil: int ref = ref (-1)
@@ -3974,7 +3974,7 @@ and doInit
         List.map 
           (fun c -> 
             let cs = String.make 1 c in
-            let cs = Cprint.escape_string cs in 
+            let cs = Escape.escape_string cs in 
             (A.NEXT_INIT, 
              A.SINGLE_INIT(A.CONSTANT 
                              (A.CONST_CHAR cs)))) chars in

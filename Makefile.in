@@ -52,6 +52,7 @@ endif
 
     # Now rules to make cilly
 CILLY_MODULES = pretty errormsg trace stats util clist \
+              escape \
               cabs cabsvisit cprint cparser clexer  \
               cilversion machdep cil formatparse formatlex formatcil cabs2cil \
               patch frontc check mergecil logcalls logwrites rmtmps \
