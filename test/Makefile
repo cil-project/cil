@@ -153,6 +153,9 @@ ifdef NOGC
   CCURED+= --nogc
 endif
 
+ifdef MAXCOMPAT
+  CCURED+= --maxCompat
+endif
 ifeq ($(TABLE), A)
   CCURED+= --tableAll
 endif
