@@ -361,7 +361,7 @@ and instr =
                   (string * exp) list * (* inputs with constraints *)
                   string list           (* register clobbers *)
 
-(**** STATEMENTS. Mostly structural information ****)
+(**** STATEMENTS. Mostly structural information. DEPRECATED !!! ****)
 and ostmt = 
   | Skip                                (* empty statement *)
   | Sequence of ostmt list               (* Use mkSeq to make a Sequence. This 
@@ -385,33 +385,38 @@ and ostmt =
   | Block of block                      (* Just a placeholder to allow us to 
                                          * mix blocks and statements *)
 
-(* The statement is the structural unit in the control flow graph *)
+(* STATEMENTS. 
+ * The statement is the structural unit in the control flow graph. Use mkStmt 
+ * to make a statement and then fill in the fields. *)
 and stmt = {
     mutable labels: label list;        (* Whether the statement starts with 
-                                        * some labels or with a case or with 
-                                        * default *)
-    mutable skind: stmtkind;            (* The kind of statement *)
+                                        * some labels, case statements or 
+                                        * default statement *)
+    mutable skind: stmtkind;           (* The kind of statement *)
 
-    (* Now some additional control flow information *)
+    (* Now some additional control flow information. Initially this is not 
+     * filled in. *)
     mutable sid: int;                   (* A >= 0 identifier that is unique 
                                          * in a function. *)
-    mutable succs: stmt list;         (* The successor blocks. They can 
-                                         * always be computed from the skind *)
-    mutable preds: stmt list;
+    mutable succs: stmt list;          (* The successor statements. They can 
+                                        * always be computed from the skind 
+                                        * and the context in which this 
+                                        * statement appears *)
+    mutable preds: stmt list;           (* The inverse of the succs function*)
   } 
 
-(* A block is a sequence of statements with the control falling through from 
- * one element to then next *)
-and block = stmt list
-
+(* A few kinds of statements *)
 and stmtkind = 
-  | Instr  of (instr * location) list   (* A bunck of instruction that do not 
-                                         * contain control flow stuff *)
-  | Return of exp option * location     (* The optional return *)
+  | Instr  of (instr * location) list   (* A bunch of instructions that do not 
+                                         * contain control flow stuff. 
+                                         * Control flows falls through. *)
+  | Return of exp option * location     (* The return statement. This is a 
+                                         * leaf in the CFG. *)
 
-  | Goto of stmt ref * location         (* One successor, the target of an 
-                                         * explicit goto or a break or a 
-                                         * continue statement. *)
+  | Goto of stmt ref * location         (* A goto statement. Appears from 
+                                         * actual goto's in the code or from 
+                                         * continue and break statements. *)
+
   | If of exp * block * block * location (* Two successors, the "then" and the 
                                           * "else" branches. Both branches 
                                           * fall-through to the successor of 
@@ -426,6 +431,11 @@ and stmtkind =
                                          * statement *)
 
   | Loop of block * location            (* A "while(1)" loop *)
+
+
+(* A block is a sequence of statements with the control falling through from 
+ * one element to the next *)
+and block = stmt list
 
 and label = 
     Label of string * location          (* A real label *)
