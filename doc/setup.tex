@@ -87,10 +87,12 @@ the project will not be pleased!
 
  \subsection{Debugging Support Ocaml}
 
- If you expet to need to run the debugger our projects are set up in such a
+ If you expect to need to run the debugger our projects are set up in such a
 way that they will invoke the debugger for you. How to do that is described in
 each project's documentation. But for that support to work you must add the
-following code to your .emacs file:
+following code to your .emacs file. Also, if you are using GNU-emacs then you
+must set the Coding style for your files to ``unix'' (CTRL-X RET F).
+
 \begin{verbatim}
 (defvar ocamldebug-history nil)
 (defun my-camldebug (command-line)

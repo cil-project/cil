@@ -871,9 +871,10 @@ are replaced during construction with CIL items passed as additional argument
 to the construction function. For example, the \t{\%e:id} placeholder means
 that the argument labeled ``id'' (expected to be of form \t{Fe exp}) will
 supply the expression to replace the placeholder. For example, the following
-code constructs an increment instruction:
+code constructs an increment instruction at location \t{loc}:
 \begin{code}
 Formatcil.cInstr "%v:x = %v:x + %e:something"
+        loc
         [ ("something", Fe some_exp);
           ("x", Fv some_varinfo) ]
 \end{verbatim}\end{code}
@@ -882,7 +883,8 @@ Formatcil.cInstr "%v:x = %v:x + %e:something"
 \begin{code}
 Set((Var some_varinfo, NoOffset),
     BinOp(PlusA, Lval (Var some_varinfo, NoOffset),
-          some_exp, intType))
+          some_exp, intType), 
+    loc)
 \end{verbatim}\end{code}
 
  See \ciltyperef{formatArg} for a definition of the placeholders that are
@@ -1086,6 +1088,7 @@ the CIL representation of code that scans an array backwards and initializes
 every even-index element with an expression:
 \begin{code}
 Formatcil.cStmts
+  loc
   "int idx = sizeof(array) / sizeof(array[0]) - 1;
    while(idx >= 0) {
      // Some statements to be run for all the elements of the array
