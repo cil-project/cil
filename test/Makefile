@@ -1698,6 +1698,9 @@ ijpeg:  mustbegcc
                           -image_file ../data/ref/input/vigo.ppm \
                           -GO; done"
 
+ijpeg-merge-bug:
+	$(MAKE) ijpeg USECILLY=1 EXTRAARGS="--merge --dosimplify"
+
 ijpeg-optimvariant: mustbegcc
 	cd $(IJPEGDIR)/src; rm -f ijpeg.exe
 	cd $(IJPEGDIR)/src; \

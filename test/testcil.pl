@@ -626,6 +626,8 @@ $TEST->add2Tests("testrun/stringsize");
 #fixed:    $TEST->addBadComment("testrun/stringsize-cil", "CIL doesn't handle sizeof( \"string literal\" ) correcly.");
 #fixed:    $TEST->addBadComment("testrun/stringsize-inferbox", "CIL doesn't handle sizeof( \"string literal\" ) correcly.");
 
+$TEST->addTests("ijpeg-merge-bug", "USECILLY=1 EXTRAARGS=\"--merge --dosimplify\"", ['cil']);
+
 $TEST->addTests("testrun/typeof1", "", ['cil']);
 $TEST->addTests("testrun/semicolon", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/oom", "", ['inferbox']);
@@ -682,7 +684,6 @@ $TEST->add2Tests("go", "_GNUCC=1");
 
 $TEST->add2Tests("ijpeg", "_GNUCC=1");
   $TEST->add2Group("ijpeg", "slow", "spec");
-
 $TEST->add2Tests("m88k", "_GNUCC=1");
   $TEST->add2Group("m88k", "slow", "spec");
   $TEST->addBadComment("m88k-cil", "Don't know how to build");
