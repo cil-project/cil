@@ -1,23 +1,14 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#if 1
-#define WILD
-#define SAFE
-#define TAGGED
-#else
-#define WILD __attribute__((wild))
-#define SAFE __attribute__((safe))
-#define TAGGED __attribute__((tagged))
-#endif
 
 typedef struct list {
-  void * WILD car;
-  struct list * SAFE cdr;
-} LIST, * PLIST SAFE;
+  void *  car;
+  struct list *  cdr;
+} LIST, * PLIST ;
 
 
-PLIST prepend(PLIST l, void * WILD el) {
+PLIST prepend(PLIST l, void *  el) {
   PLIST n = (PLIST)malloc(sizeof(LIST));
   n->car = el;
   n->cdr = l;
@@ -25,7 +16,7 @@ PLIST prepend(PLIST l, void * WILD el) {
 }
 
 
-PLIST append(PLIST l, void * WILD el) {
+PLIST append(PLIST l, void *  el) {
   PLIST parent = 0;
   PLIST n = l;
   while(n) {
@@ -44,7 +35,7 @@ PLIST append(PLIST l, void * WILD el) {
 }
 
 
-PLIST insert(PLIST l, void * WILD el, int pos) {
+PLIST insert(PLIST l, void *  el, int pos) {
   PLIST n = l;
   PLIST t;
   if(l) {
@@ -63,7 +54,7 @@ PLIST insert(PLIST l, void * WILD el, int pos) {
   }
 }
 
-int exists(PLIST l, void * WILD el) {
+int exists(PLIST l, void *  el) {
   while(l && l->car != el) {
     l= l->cdr;
     l ++;
@@ -91,14 +82,14 @@ void main() {
   for(i=1;i<1000;i++) {
     k = random() % 1000;
     if(length(l) & 1) {
-      l = insert(l, (void* WILD)k, k % i);
+      l = insert(l, (void* )k, k % i);
     } else {
-      l = append(l, (void* WILD)k);
+      l = append(l, (void* )k);
     }
   }
   for(i=0;i<10000;i++) {
     k = random() % 1000;
-    if(exists(l, (void* WILD)k))
+    if(exists(l, (void* )k))
       sum ++;
   }
   TIMESTOP(clk);

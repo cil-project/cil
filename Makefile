@@ -215,7 +215,9 @@ SAFEMAINLIB=obj/safecmain.$(LIBEXT)
 
 
 # By default take manual box definitions into consideration
+ifdef INFERBOX
 MANUALBOX=1
+endif
 
 ######################
 .PHONY : defaulttarget
