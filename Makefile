@@ -195,13 +195,22 @@ ifdef STATS
   CCURED+= --stats
 endif
 
-# sm: can't figure out why passing this via EXTRAARGS screws
-# up other things (e.g. -DMANUALBOX)
-# update: reason was we were modifying EXTRAARGS in here -- we
-# should only set EXTRAARGS when invoking the Makefile, and
-# in here just use CCURED+= ...
+# enable logging of all fn calls in the application
+# (see LOGSTYLE, below)
 ifdef LOGCALLS
   CCURED+= --logcalls
+endif
+
+# sm: specify style of function logging, as integer sum of:
+#   linux        1       use printk instead of printf
+#   allInsts     2       log every *instruction* (very verbose!)
+#   printPtrs    4       print raw pointer values
+#   printStrings 8       try to print char* as string
+#   noCFuncs     16      omit printing for functions whose name starts with "C"
+# this does not imply LOGCALLS, so one can set a preferred style
+# in (e.g.) .ccuredrc without always enabling logging
+ifdef LOGSTYLE
+  CCURED+= --logstyle=$(LOGSTYLE)
 endif
 
 # when this is turned on, it should disable any source changes we've

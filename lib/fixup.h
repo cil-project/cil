@@ -269,7 +269,11 @@
   void qsort_seq_model(void *base, unsigned int nmemb, unsigned int size,
           int (*compar)(const void *, const void *))
   {
-      void *end = __endof(base);
+      void *end = __endof(base);                    
+      // sm:flow 'base' type into compar's arguments, otherwise
+      // it might let 'base' be seq while compar takes wild (this
+      // happens for ptrdist-1.1/anagram)
+      compar(base, base);
       return;
   }
   #pragma boxpoly("qsort")
@@ -293,7 +297,7 @@
   } 
 
 
-#pragma boxexported("main")
+  #pragma boxexported("main")
 #endif
 
 

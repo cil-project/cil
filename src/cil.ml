@@ -1112,6 +1112,9 @@ let d_storage () = function
   | Extern -> text "extern "
   | Register -> text "register "
 
+(* sm: need this value below *)
+let mostNeg32BitInt : int64 = (Int64.of_string "-0x80000000")
+
 (* constant *)
 let d_const () c = 
   let suffix ik = 
@@ -1139,8 +1142,17 @@ let d_const () c =
                 ^ suffix ik)
         else
           text ("0x" ^ Int64.format "%x" i ^ suffix ik)
-      else
-        text (Int64.to_string i ^ suffix ik)
+      else (
+        if (i = mostNeg32BitInt) then
+          (* sm: quirk here: if you print -2147483648 then this is two tokens *)
+          (* in C, and the second one is too large to represent in a signed *)
+          (* int.. so we do what's done in limits.h, and print (-2147483467-1); *)
+          (* in gcc this avoids a warning, but it might avoid a real problem *)
+          (* on another compiler or a 64-bit architecture *)
+          text "(-0x7FFFFFFF-1)"
+        else
+          text (Int64.to_string i ^ suffix ik)
+      )
 
   | CStr(s) -> text ("\"" ^ escape_string s ^ "\"")
   | CChr(c) -> text ("'" ^ escape_char c ^ "'")
