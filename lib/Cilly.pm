@@ -1387,6 +1387,9 @@ sub linkOutputFile {
     die "I do not know what is the link output file\n";
 }
 
+sub setVersion {
+    # sm: bin/cilly wants this for all "compilers"
+}
 
 
 #########################################################################
