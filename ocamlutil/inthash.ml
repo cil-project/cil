@@ -116,7 +116,7 @@ let mem h key =
       k = key || mem_in_bucket rest in
   mem_in_bucket h.data.((hash key) mod (Array.length h.data))
 
-let iter f h =
+let iter (f: int -> 'a -> unit) (h: 'a t) : unit =
   let rec do_bucket = function
       Empty ->
         ()
