@@ -149,7 +149,7 @@ DISTRIB_SRC_FRONTC = cabs.ml cprint.ml clexer.mli clexer.mll \
 		     cparser.mly cabsvisit.ml cabsvisit.mli \
 		     cabs2cil.ml cabs2cil.mli frontc.ml frontc.mli
 
-DISTRIB_SRC_EXT = cfg.ml cfg.mli logcalls.ml logcalls.mli \
+DISTRIB_SRC_EXT = logcalls.ml logcalls.mli \
                   logwrites.ml heapify.ml 
 
 DISTRIB_LIB = CompilerStub.pm Merger.pm cilly.pl patcher.pl
@@ -182,7 +182,7 @@ distrib: doc
 	cp $(patsubst %,lib/%,$(DISTRIB_LIB)) $(TEMP_DIR)/cil/lib
 
 	cp -r doc/html/cil/* $(TEMP_DIR)/cil/doc
-	cd $(TEMP_DIR); tar cfz cil.tar.gz cil
+	cd $(TEMP_DIR); tar cfz cil.tar.gz cil; cp cil.tar.gz ..
 
 	if test -d $(CILHTMLDEST); then \
                 cp -f $(TEMP_DIR)/cil.tar.gz $(CILHTMLDEST); fi

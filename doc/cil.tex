@@ -1004,27 +1004,33 @@ Filename   & Description \\
                                   be used to merge source files into a single
                                   source file.\t{cilly.pl}
                                   uses it. \\
+\t{lib/patcher.pl}              & A Perl script that applies specified patches
+                                  to standard include files.\\
+\t{src/check.ml,mli}            & Checks the well-formedness of a CIL file \\
 \t{src/cil.ml,mli}              & Definition of CIL abstract syntax and
                                    utilities for manipulating it\\
 \t{src/clist.ml,mli}            & Utilities for efficiently managing lists
                                    that need to be concatenated often\\
 \t{src/errormsg.ml,mli}         & Utilities for error reporting \\
-\t{src/frontc/clexer.mll}       & The lexer \\
-\t{src/frontc/cparser.mly}      & The parser \\
-\t{src/frontc/cabs.ml}          & The abstract syntax \\
-\t{src/frontc/cprint.ml}        & The pretty printer for CABS \\
-\t{src/frontc/cabs2cil.ml}      & The elaborator to CIL \\
-\t{src/frontc/merger.ml}        & The merger \\
 \t{src/ext/heapify.ml}          & A CIL transformation that moves array local
                                    variables from the stack to the heap \\
 \t{src/ext/logcalls.ml,mli}     & A CIL transformation that logs every
                                    function call \\
 \t{src/ext/logwrites.ml}        & A CIL transformation that logs every memory
                                    write \\
-\t{src/main.ml}                 & A test application called \t{cilly} \\
+\t{src/frontc/clexer.mll}       & The lexer \\
+\t{src/frontc/cparser.mly}      & The parser \\
+\t{src/frontc/cabs.ml}          & The abstract syntax \\
+\t{src/frontc/cprint.ml}        & The pretty printer for CABS \\
+\t{src/frontc/cabs2cil.ml}      & The elaborator to CIL \\
+\t{src/maincil.ml}                 & A test application called \t{cilly} \\
 \t{src/pretty.ml,mli}           & Utilities for pretty printing \\
+\t{src/rmtmps.ml,mli}           & A CIL tranformation that removes unused
+types, variables and inlined functions \\
 \t{src/stats.ml,mli}            & Utilities for maintaining timing statistics
 \\
+\t{src/testcil.ml}              & A random test of CIL (against the resident C
+compiler)\\
 \t{src/trace.ml,mli}            & Utilities useful for printing debugging
                                    information\\
 \t{src/util.ml}                 & Miscellaneous functions and global variables
