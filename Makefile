@@ -40,6 +40,7 @@ clean:
 
 CCURED := perl $(CCUREDHOME)/lib/ccured.pl 
 PATCHER := perl $(CCUREDHOME)/lib/patcher.pl
+
 # Now do the user-specific customization
 # It is Ok if this file does not exist
 -include $(CCUREDHOME)/.ccuredrc
@@ -47,7 +48,6 @@ PATCHER := perl $(CCUREDHOME)/lib/patcher.pl
 # By default use the old patcher
 ifndef NEWPATCH
   OLDPATCH := 1
-  PATCHINCLUDES := 1
 endif
 
 # By default use GCC, unless you set _MSVC on the command line on in .ccuredrc
@@ -71,13 +71,10 @@ PATCHER += --mode=$(COMPILERNAME)
 export EXTRAARGS
 export INFERBOX
 
-ifdef PATCHINCLUDES
-  STANDARDPATCH := --includedir=$(CCUREDHOME)/include
-else
-  STANDARDPATCH := --patch=$(CCUREDHOME)/cil/lib/$(PATCHFILE)
-endif
+STANDARDPATCH := --includedir=$(CCUREDHOME)/include
 
 # CCURED contains arguments that are passed to ccured.pl
+# Pass such arguments in the command line as EXTRAARGS="..."
 CCURED+= $(EXTRAARGS)
 
 
@@ -150,7 +147,7 @@ ifdef OPTIM
   CCURED+= --optimize
 endif
 
-# This is a way to disable the stats, allowing the command line to override it
+# This is a way to enable the stats, allowing the command line to override it
 # Do STATS= to disable the stats.
 STATS := 1
 ifdef STATS
@@ -197,6 +194,7 @@ endif
 
 # ----------- below here are rules for building benchmarks --------
 
+# use this dependency for those targets that must be built with GCC
 mustbegcc :
 ifndef _GNUCC
 	@echo This test case works only with _GNUCC=1; exit 3
@@ -646,11 +644,7 @@ apachesetup:
                         --dest=$(APACHEBASE)/include \
 	                $(foreach file,$(APACHE_INCLUDES), --ufile=$(file))
 
-ifdef PATCHINCLUDES
-  APATCH := $(STANDARDPATCH) --includedir=$(APACHEBASE)/include
-else
-  APATCH := $(STANDARDPATCH) $(APATCHES)
-endif
+APATCH := $(STANDARDPATCH) --includedir=$(APACHEBASE)/include
 
 apache/urlcount : 
 	rm -f $(APACHETEST)/mod_urlcount.$(OBJEXT)
@@ -1213,7 +1207,23 @@ gcc-noclean:  mustbegcc
 gcc-run:
 	cd $(GCCDIR)/src; ./cc1.exe combine.i
 
+#
+# Spec2000 gzip
+#
+SPEC00DIR=test/spec00
+GZIPDIR=$(SPEC00DIR)/164.gzip
+GZIPSOURCES   = bits.c deflate.c gzip.c getopt.c inflate.c lzw.c \
+	        spec.c trees.c unlzh.c unlzw.c unpack.c unzip.c util.c zip.c
+gzip-clean: 
+	cd $(GZIPDIR)/src; rm -f *.$(OBJEXT) *.$(EXEEXT)
 
+gzip-build: gzip-clean
+	cd $(GZIPDIR)/src; $(CCURED) --combine $(GZIPSOURCES) $(EXEOUT)gzip.exe
+
+gzip-run:
+	cd $(GZIPDIR)/src; ./gzip.exe trees.c
+
+gzip: gzip-clean gzip-build gzip-run
 
 #
 # Linux

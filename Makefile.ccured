@@ -8,8 +8,6 @@
 # Debugging. Set ECHO= to debug this Makefile 
 ECHO := @
 
-USEFRONTC := 1
-
 # First stuff that makes the executable 
 # Define the ARCHOS in your environemt : [x86_LINUX, x86_WIN32, SUNOS]
 
@@ -17,8 +15,6 @@ SOURCEDIRS  := src
 OBJDIR      := obj
 MLLS        := 
 MLYS        := 
-# ast clex cparse
-# sm: trace: utility for debug-time printfs
 MODULES     := pretty trace errormsg stats util clist \
                cil cfg logcalls check ptrnode \
                solveutil solver globinit \
@@ -47,7 +43,8 @@ EXTRACLEAN += $(OBJDIR)/*.obj $(OBJDIR)/*.a $(OBJDIR)/*.o
 
 
     # Include now the common set of rules for OCAML
-    # This file will add the rules to make $(EXECUTABLE).$(EXE)
+    # This file will add the rules to make $(EXECUTABLE).$(EXE) along with 
+    # cleancaml and realcleancaml
 include Makefile.ocaml
 
 
