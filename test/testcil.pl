@@ -163,7 +163,6 @@ $TEST->addTests("testrun/init10", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/initial", "_GNUCC=1", ['cil']);
 $TEST->add3Tests("test/jmp_buf");
 $TEST->add3Tests("test/linux_atomic", "_GNUCC=1");
-  $TEST->addBadComment("test/linux_atomic-box", "strange C code");
 $TEST->add3Tests("test/li");
 $TEST->add3Tests("test/li1", "_GNUCC=1");
 $TEST->add3Tests("test/list");
@@ -289,7 +288,6 @@ $TEST->add3Tests("treeadd", "_GNUCC=1");
 
 # PTR INTENSIVE BENCHMARKS
 $TEST->add2Tests("anagram", "_GNUCC=1");
-  $TEST->addBadComment("anagram-inferbox", "missing wrapper for qsort");
 $TEST->add2Tests("bc", "_GNUCC=1");
 $TEST->add2Tests("ft", "_GNUCC=1");
 $TEST->add2Tests("ks", "_GNUCC=1");
