@@ -1037,8 +1037,7 @@ let checkAdvanceFun =
   let argx  = makeVarinfo "x" intType in
   fdec.svar.vtype <- TFun(voidType, [ argp; argx; ], false, []);
   fdec.svar.vstorage <- Static;
-  checkFunctionDecls := 
-     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
+  (declareGlobalChecker fdec);
   fdec
 
 

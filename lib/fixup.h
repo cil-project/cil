@@ -104,7 +104,17 @@
   #pragma boxalloc("malloc", nozero, sizein(1))
   #pragma boxalloc("alloca", nozero, sizein(1))
   #pragma boxalloc("calloc", zero, sizemul(1,2))
-  
+
+  // sm: not sure best way to handle this.. gcc's headers map all
+  // these things to __builtin_blah, so we see that after
+  // preprocessing..  could attack with patcher, but what if someone
+  // writes __buildin_blah in their code?  we'll see how this goes
+  #ifdef _GNUCC
+    void *__builtin_alloca(unsigned int size);
+    #pragma boxalloc("__builtin_alloca", nozero, sizein(1))
+    // waiting on rest until need them..
+  #endif
+
   union printf_format {
     int             f_int;
     double          f_double;
@@ -123,8 +133,8 @@
   int sprintf_model(char *buffer, const char *format, ...)
      __BOXMODEL("sprintf");
   #pragma boxvararg("sprintf_model", sizeof(union printf_format))
-  #pragma cilnoremove("sprintf_model")   
-  static inline 
+  #pragma cilnoremove("sprintf_model")
+  static inline
   int sprintf_model(char *buffer, const char *format, ...) {
     // Force buffer to carry a length
     void* e = __endof(buffer); // buffer ++ would do the same
@@ -147,6 +157,26 @@
   }
 
 
+  // sm: taking a stab at strchr's model
+  #pragma cilnoremove("strchr_model")
+  static inline
+  char* strchr_model(char* dest, int c)
+       __BOXMODEL("strchr");
+  static inline
+  char* strchr_model(char* dest, int c)
+  {
+    return dest;      // just establish the flow
+  }
+
+  #pragma cilnoremove("strpbrk_model")
+  static inline char *strpbrk_model(char const *s, char const *accept)
+    __BOXMODEL("strpbrk");
+  static inline char *strpbrk_model(char const *s, char const *accept)
+  {
+    int someInt = (int)(*accept);   // make sure 'accept' can be read from
+    return s;                       // connect s to retval
+  }
+
   #pragma boxpoly("memcpy")
   #pragma boxpoly("memset")
   #pragma boxpoly("memmove")
@@ -159,7 +189,7 @@
   #pragma boxpoly("memset_seq_model")
   static inline
   void* memset_seq_model(void* dest, int towrite, unsigned int size)
-     __BOXMODEL("memset");     
+     __BOXMODEL("memset");
   static inline
   void* memset_seq_model(void* dest, int towrite, unsigned int size)
   {
@@ -170,8 +200,8 @@
   #pragma boxpoly("memcpy_seq_model")
   static inline
   void* memcpy_seq_model(void* dest, void *src, unsigned int size)
-       __BOXMODEL("memcpy") __BOXMODEL("memmove");
-  static inline 
+       __BOXMODEL("memcpy") __BOXMODEL("memmove") __BOXMODEL("__builtin__memcpy");
+  static inline
   void* memcpy_seq_model(void* dest, void *src, unsigned int size)
   {
     void *end = __endof(dest);
@@ -181,6 +211,12 @@
   #pragma cilnoremove("memset_seq_model", "memcpy_seq_model")
 
 
+  // like for allocators, we have __builtin_blah for str*...
+  #ifdef _GNUCC
+    #pragma boxpoly("__builtin_memcpy")
+    void *__builtin_memcpy(void *dest, const void *src, unsigned int n);
+  #endif
+
   #pragma boxpoly("qsort")
   static inline
   void qsort_seq_model(void *base, unsigned int nmemb, unsigned int size,
@@ -188,7 +224,7 @@
         __BOXMODEL("qsort");
   static inline
   void qsort_seq_model(void *base, unsigned int nmemb, unsigned int size,
-          int (*compar)(const void *, const void *)) 
+          int (*compar)(const void *, const void *))
   {
       void *end = __endof(base);
       return;

@@ -1,0 +1,60 @@
+#!/bin/sh
+# run a regression test containing one or more intentional failures
+
+if [ "$1" = "" ]; then
+  # most parameters are passed by name, instead of as positional
+  # arguments, for better impedance match with Makefile; but it's
+  # good to have at least 1 positional arg so when it's missing I
+  # can easily tell, and print this message
+  echo "usage: CCUREDHOME=... CCURED=... CFLAGS=... $0 source-file.c"
+  exit 0
+fi
+srcfile="$1"
+
+cd "$CCUREDHOME/test/small2" || exit
+
+# read how many failure cases are in the file; expect line of form
+# "// NUMERRORS n"
+numcases=`grep NUMERRORS "$srcfile" | awk '{ print $3 }'`
+echo "there are $numcases failure cases in this file"
+
+# iterate through the cases; first case (0) is where no errors are present
+i=0
+while [ $i -le $numcases ]; do
+  # generate a temporary file; first hide the ERROR tags which identify
+  # the current test, then remove all remaining ERROR lines
+  # (syntax for errors has parentheses so if I have >=10 cases I don't
+  # run into problems where e.g. ERROR1 is a substring of ERROR10)
+  echo "generating test $i"
+  cat "$srcfile" | sed "s/ERROR($i)/(selected: $i)/" | grep -v ERROR > test-bad-tmp.c
+
+  # compile this with our tool
+  echo $CCURED $CFLAGS test-bad-tmp.c -o test-bad-tmp
+  $CCURED $CFLAGS test-bad-tmp.c -o test-bad-tmp
+
+  # run it
+  echo ./test-bad-tmp
+  if ./test-bad-tmp; then
+    if [ $i = 0 ]; then
+      # expected success on 0th iteration
+      echo "(succeeded as expected)"
+    else
+      # unexpected success on >0th iteration
+      echo "The ${i}th iteration did not fail!  It is supposed to fail."
+      exit 2
+    fi
+  else
+    if [ $i = 0 ]; then
+      # unexpected failure on 0th iteration
+      echo "The 0th iteration failed! It is supposed to succeed."
+      exit 2
+    else
+      # expected failure on >0th iteration
+      echo "(failed as expected)"
+    fi
+  fi
+
+  i=`expr $i + 1`
+done
+
+echo "all $numcases cases in $srcfile failed as expected"

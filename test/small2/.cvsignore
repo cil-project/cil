@@ -88,3 +88,6 @@ kernel?
 main
 memberofptr
 xcheckers
+unionassign
+models
+test-bad-tmp*

@@ -1,5 +1,5 @@
 # .gdbinit
 
-file realloc
+file test-bad-tmp
 break main
 run

@@ -519,7 +519,12 @@ bads/%: test/small2/%.c
 		echo "(failed as expected)"; exit 0; \
 	fi
 
-
+# sm: yet another failure-test target, this time utilizing a separate
+# script capable of testing multiple failures per file
+test-bad/%: test/small2/%.c
+	CCUREDHOME="$(CCUREDHOME)" CCURED="$(CCURED) --noPrintLn" \
+	  CFLAGS="$(DEF)$(ARCHOS) "`$(PATCHECHO) $(STANDARDPATCH)`" $(CFLAGS) $(WARNALL)" \
+	  bash lib/test-bad $*.c
 
 # sm: trivial test of combiner
 MYSAFECC := $(CCURED) --keep=. $(DEF)$(ARCHOS) $(STANDARDPATCH)

@@ -2161,7 +2161,9 @@ let _ =
                 ++ text ")")
     (* we suppress printing mode(__si__) because it triggers an *)
     (* internal compiler error in all current gcc versions *)
-    | Attr("mode", [AId "__SI__"]) -> Some (text "/* mode(__SI__) */")
+    (* sm: I've now encountered a problem with mode(__hi__)... *)
+    (* I don't know what's going on, but let's try disabling all "mode"..*)
+    | Attr("mode", [AId tag]) -> Some ((text "/* mode(") ++ (text tag) ++ (text ") */"))
     | _ -> None
   in
   setCustomPrintAttribute d_attrcustombase
@@ -2754,9 +2756,10 @@ let mapGlobals (fl: file)
 
 (* wes: I want to see this at the top level *)
 let d_global () = function
-    GFun (fundec, l) -> d_line l ++ d_fun_decl () fundec
+  | GFun (fundec, l) ->
+      (d_line l) ++ (d_fun_decl () fundec)
   | GType (str, typ, l) ->
-      d_line l ++ 
+      d_line l ++
       if str = "" then
         ((d_decl (fun _ -> nil) DNNothing) () typ) ++ chr ';'
       else
@@ -2799,12 +2802,17 @@ let d_global () = function
             | Some i -> text " = " ++ (d_init () i))
         ++ chr ';'
 
-  | GDecl (vi, l) ->
-      d_line l ++
-      (d_videcl () vi)
-        ++ chr ';'
-
-  | GAsm (s, l) -> 
+  | GDecl (vi, l) -> (
+      (* sm: don't print boxmodels; avoids gcc warnings *)
+      if (hasAttribute "boxmodel" vi.vattr) then
+        (text "/* omitted boxmodel GDecl ") ++ (text vi.vname) ++ (text " */")
+      else (
+        d_line l ++
+        (d_videcl () vi)
+          ++ chr ';'
+      )
+    )
+  | GAsm (s, l) ->
       d_line l ++
         text ("__asm__(\"" ^ escape_string s ^ "\");")
 
@@ -2812,9 +2820,11 @@ let d_global () = function
       (* sm: suppress printing pragmas that gcc does not understand *)
       (* assume anything starting with "box" is ours *)
       (* also don't print the 'combiner' pragma *)
+      (* nor 'cilnoremove' *)
       let suppress = (((String.length an) >= 3) &&
                       ((String.sub an 0 3) = "box")) ||
-                     (an = "combiner") in
+                     (an = "combiner") ||
+                     (an = "cilnoremove") in
       let d =
         if args = [] then
           text an
