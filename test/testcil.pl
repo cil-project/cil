@@ -268,8 +268,10 @@ $TEST->addTests("testrun/comma1", "_GNUCC=1", ['cil']);
 $TEST->add3Tests("test/retval");
 $TEST->add3Tests("test/seq");
 $TEST->addTestsFail("test/seq2", "Lbound", ['inferbox']);
+$TEST->addTestsFail("test/fseq4fail", "Decrement FSEQ", ['inferbox']);
 $TEST->add3Tests("testrun/sized");
-$TEST->addTestsFail("testrun/sized2", [], "Initializing SIZED open array", ['inferbox']);
+$TEST->addTestsFail("testrun/sized2", [], 
+    "Initializing SIZED open array", ['inferbox']);
 $TEST->add3Tests("test/sizeof");
 $TEST->add3Tests("test/smallstring");
 $TEST->add3Tests("testrun/static", "", @runpattern);
