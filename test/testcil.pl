@@ -579,6 +579,9 @@ smAddTest("scott/stralloc $box $gcc");
 smAddTest("scott/mknod $box");
 smAddTest("bad/nullfield $manualbox");
 smAddTest("scott/constfold");
+          
+# test of strings (need more!)
+smFailTest("obvious buffer overrun not detected", "bad/ovwrnull $box");
 
 # tests of function models
 smAddTest("scott/memcpy $box");
