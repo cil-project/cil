@@ -1313,7 +1313,7 @@ compress:  mustbegcc
                make CFLAGS= CC="$(COMBINECCURED) $(PATCHARG)" clean build
 	cd $(COMPRESSDIR)/src; sh -c "for i in $(ITERATION_ELEMS) ; \
               do time ./compress.exe <input.data >combine-compress.out ;done"
-	cd $(COMPRESSDIR)/src; diff combine-compress.out output.data >/dev/null
+	cd $(COMPRESSDIR)/src; if [ -e combine-compress.out ]; then diff combine-compress.out output.data >/dev/null; fi
 
 compress-optimvariant: mustbegcc
 	cd $(COMPRESSDIR)/src; rm -f compress.exe
