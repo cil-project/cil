@@ -1,4 +1,4 @@
 # .gdbinit
 
-file ptrinint
+file ptrmanip
 run

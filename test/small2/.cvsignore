@@ -23,3 +23,4 @@ __scalar2pointer.txt
 ptrtolocal
 tprintf
 ptrinint
+ptrmanip
