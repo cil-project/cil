@@ -220,11 +220,11 @@ let init ~(filename: string) : Lexing.lexbuf =
   attribDepth := 0;
   init_lexicon ();
   (* Inititialize the pointer in Errormsg *)
-  E.add_type := add_type;
-  E.push_context := push_context;
-  E.pop_context := pop_context;
-  E.add_identifier := add_identifier;
-  E.startParsing (E.ParseFile filename)
+  Lexerhack.add_type := add_type;
+  Lexerhack.push_context := push_context;
+  Lexerhack.pop_context := pop_context;
+  Lexerhack.add_identifier := add_identifier;
+  E.startParsing filename
 
 
 let finish () = 
@@ -236,7 +236,7 @@ let error msg =
 
 
 (*** escape character management ***)
-let scan_escape char =
+let scan_escape (char: char) : int64 =
   let result = match char with
     'n' -> '\n'
   | 'r' -> '\r'

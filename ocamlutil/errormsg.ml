@@ -289,9 +289,6 @@ let parse_error (msg: string) : 'a =
 
 
 
-(* Keep here the current pattern for formatparse *)
-let currentPattern = ref ""
-
 
 (* More parsing support functions: line, file, char count *)
 let getPosition () : int * string * int = 
@@ -325,12 +322,3 @@ let getLocation () =
   { hfile = hf; hline = hl;
     file = f; line = l } 
 
-(* Keep here some pointers to lexer functions *)
-let push_context = 
-    ref (fun _ -> raise (Failure "Errormsg.push_context not set"))
-let add_type = 
-    ref (fun _ -> raise (Failure "Errormsg.add_type not set"))
-let add_identifier = 
-    ref (fun _ -> raise (Failure "Errormsg.add_identifier not set"))
-let pop_context = 
-    ref (fun _ -> raise (Failure "Errormsg.pop_context not set"))

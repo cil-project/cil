@@ -60,7 +60,7 @@ let scan_ident id =
 
 let init ~(prog: string) : Lexing.lexbuf =
   H.clear keywords;
-  E.currentPattern := prog;
+  Lexerhack.currentPattern := prog;
   List.iter 
     (fun (key, token) -> H.add keywords key token)
     [ ("const", CONST); ("__const", CONST); ("__const__", CONST);
@@ -96,7 +96,7 @@ let init ~(prog: string) : Lexing.lexbuf =
       ("__int64", INT64);
       ("__builtin_va_arg", BUILTIN_VA_ARG);
     ];
-  E.startParsing (E.ParseString prog)
+  E.startParsing prog
 
 let finish () = 
   E.finishParsing ()

@@ -68,14 +68,14 @@ let smooth_expression lst =
 let currentFunctionName = ref "<outside any function>"
     
 let announceFunctionName ((n, decl, _, _):name) =
-  !E.add_identifier n;
+  !Lexerhack.add_identifier n;
   (* Start a context that includes the parameter names and the whole body. 
    * Will pop when we finish parsing the function body *)
-  !E.push_context ();
+  !Lexerhack.push_context ();
   (* Go through all the parameter names and mark them as identifiers *)
   let rec findProto = function
       PROTO (d, args, _) when isJUSTBASE d -> 
-        List.iter (fun (_, (an, _, _, _)) -> !E.add_identifier an) args
+        List.iter (fun (_, (an, _, _, _)) -> !Lexerhack.add_identifier an) args
 
     | PROTO (d, _, _) -> findProto d
     | PARENTYPE (_, d, _) -> findProto d
@@ -106,14 +106,14 @@ let applyPointer (ptspecs: attribute list list) (dt: decl_type)
 let doDeclaration (loc: cabsloc) (specs: spec_elem list) (nl: init_name list) : definition = 
   if isTypedef specs then begin
     (* Tell the lexer about the new type names *)
-    List.iter (fun ((n, _, _, _), _) -> !E.add_type n) nl;
+    List.iter (fun ((n, _, _, _), _) -> !Lexerhack.add_type n) nl;
     TYPEDEF ((specs, List.map (fun (n, _) -> n) nl), loc)
   end else
     if nl = [] then
       ONLYTYPEDEF (specs, loc)
     else begin
       (* Tell the lexer about the new variable names *)
-      List.iter (fun ((n, _, _, _), _) -> !E.add_identifier n) nl;
+      List.iter (fun ((n, _, _, _), _) -> !Lexerhack.add_identifier n) nl;
       DECDEF ((specs, nl), loc)  
     end
 
@@ -657,7 +657,7 @@ bracket_comma_expression:
 /*** statements ***/
 block: /* ISO 6.8.2 */
     block_begin local_labels block_attrs block_element_list RBRACE
-                                         {!E.pop_context();
+                                         {!Lexerhack.pop_context();
                                           { blabels = $2;
                                             battrs = $3;
                                             bdefs = filterBEDecls($4);
@@ -672,7 +672,7 @@ block: /* ISO 6.8.2 */
                                          }
 ;
 block_begin:
-    LBRACE      		         {!E.push_context (); $1}
+    LBRACE      		         {!Lexerhack.push_context (); $1}
 ;
 
 block_attrs:
@@ -913,12 +913,12 @@ direct_decl: /* (* ISO 6.7.5 *) */
 |   direct_decl parameter_list_startscope rest_par_list RPAREN
                                    { let (n, decl) = $1 in
                                      let (params, isva) = $3 in
-                                     !E.pop_context ();
+                                     !Lexerhack.pop_context ();
                                      (n, PROTO(decl, params, isva))
                                    }
 ;
 parameter_list_startscope: 
-    LPAREN                         { !E.push_context () }
+    LPAREN                         { !Lexerhack.push_context () }
 ;
 rest_par_list:
 |   /* empty */                    { ([], false) }
@@ -1022,7 +1022,7 @@ abs_direct_decl: /* (* ISO 6.7.6. We do not support optional declarator for
 /*(* The next shoudl be abs_direct_decl_opt but we get conflicts *)*/
 |   abs_direct_decl  parameter_list_startscope rest_par_list RPAREN
                                    { let (params, isva) = $3 in
-                                     !E.pop_context ();
+                                     !Lexerhack.pop_context ();
                                      PROTO ($1, params, isva)
                                    } 
 ;
@@ -1034,7 +1034,7 @@ function_def:  /* (* ISO 6.9.1 *) */
   function_def_start block   
           { let (loc, specs, decl) = $1 in
             currentFunctionName := "<__FUNCTION__ used outside any functions>";
-            !E.pop_context (); (* The context pushed by 
+            !Lexerhack.pop_context (); (* The context pushed by 
                                     * announceFunctionName *)
             doFunctionDef loc (trd3 $2) specs decl (fst3 $2)
           } 
