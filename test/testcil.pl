@@ -531,6 +531,8 @@ $TEST->addTests("testrun/recur2", "", ['inferbox']);
 # $TEST->addTests("testrun/seqn1", "", ['inferbox']);
 $TEST->addTests("test_heapify", "", ['cil']);
 $TEST->addTests("testrun/scanf2", "", ['inferbox']);
+$TEST->addTests("testrun/scanf3", "", ['inferbox']);
+    $TEST->addBadComment("testrun/scanf3-inferbox", "ccured_fscanf_string is too consrevative");
 
 #
 # OLDEN benchmarks
