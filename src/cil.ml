@@ -3798,7 +3798,7 @@ and bitsOffset (baset: typ) (off: offset) : int * int =
 and constFold (machdep: bool) (e: exp) : exp = 
   match e with
     BinOp(bop, e1, e2, tres) -> constFoldBinOp machdep bop e1 e2 tres
-  | UnOp(Neg, e1, tres) -> begin
+  | UnOp(unop, e1, tres) -> begin
       try
         let tk = 
           match unrollType tres with
@@ -3807,8 +3807,13 @@ and constFold (machdep: bool) (e: exp) : exp =
           | _ -> raise Not_found (* probably a float *)
         in
         match constFold machdep e1 with
-          Const(CInt64(i,ik,_)) -> kinteger64 tk (Int64.neg i)
-        | _ -> e
+          Const(CInt64(i,ik,_)) as e1c -> begin
+            match unop with 
+              Neg -> kinteger64 tk (Int64.neg i)
+            | BNot -> kinteger64 tk (Int64.lognot i)
+            | _ -> UnOp(unop, e1c, tres)
+            end
+        | e1c -> UnOp(unop, e1c, tres)
       with Not_found -> e
   end
         (* Characters are integers *)

@@ -1366,7 +1366,8 @@ let rec collectInitializer
               match constFold true n' with
               | Const(CInt64(ni, _, _)) when ni > Int64.zero -> 
                   Int64.to_int ni
-              | _ -> E.s (error "Initialing non-constant-length array")
+              | e -> E.s (error "Initializing non-constant-length array\n  length=%a\n"
+                            d_exp e)
           end
         in
         if !pMaxIdx >= len then 
@@ -1554,7 +1555,8 @@ let integerArrayLength (leno: exp option) : int option =
       match constFold true n' with
       | Const(CInt64(ni, _, _)) when ni > Int64.zero -> 
           Some (Int64.to_int ni)
-      | _ -> E.s (error "Initialing non-constant-length array")
+      | len -> E.s (error "Initializing non-constant-length array\n  length=%a\n"
+                    d_exp len)
   end
   
 let isValidIndex (leno: int option) (idx: int) = 
