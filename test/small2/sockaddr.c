@@ -1,16 +1,19 @@
 typedef unsigned short int sa_family_t;
-struct sockaddr
-  {
-    sa_family_t  sa_family ;
-    char sa_data[14];
-  };
-
 
 typedef signed short int __int16_t;
 
 typedef unsigned char		uint8_t;
 typedef unsigned short int	uint16_t;
 typedef unsigned int		uint32_t;
+
+typedef unsigned int socklen_t;
+
+struct sockaddr
+  {
+    sa_family_t  sa_family ;
+    char sa_data[14];
+  };
+
 
 struct in_addr
   {
@@ -60,21 +63,35 @@ union sockunion {
 
 union sockunion server_addr;
 
-typedef union { __const struct  sockaddr  *__sockaddr__;  __const struct  sockaddr_at  *__sockaddr_at__;  __const struct  sockaddr_ax25  *__sockaddr_ax25__;  __const struct  sockaddr_dl  *__sockaddr_dl__;  __const struct  sockaddr_eon  *__sockaddr_eon__;  __const struct  sockaddr_in  *__sockaddr_in__;  __const struct  sockaddr_in6  *__sockaddr_in6__;  __const struct  sockaddr_inarp  *__sockaddr_inarp__;  __const struct  sockaddr_ipx  *__sockaddr_ipx__;  __const struct  sockaddr_iso  *__sockaddr_iso__;  __const struct  sockaddr_ns  *__sockaddr_ns__;  __const struct  sockaddr_un  *__sockaddr_un__;  __const struct  sockaddr_x25  *__sockaddr_x25__;  
-	      } __CONST_SOCKADDR_ARG __attribute__ ((__transparent_union__));
-
-typedef unsigned int socklen_t;
+typedef union {
+  __const struct  sockaddr  *__sockaddr__;
+  //__const struct  sockaddr_at  *__sockaddr_at__;
+  //__const struct  sockaddr_ax25  *__sockaddr_ax25__;
+  //__const struct  sockaddr_dl  *__sockaddr_dl__;
+  //__const struct  sockaddr_eon  *__sockaddr_eon__;
+  __const struct  sockaddr_in  *__sockaddr_in__;
+  __const struct  sockaddr_in6  *__sockaddr_in6__;
+  //__const struct  sockaddr_inarp  *__sockaddr_inarp__;
+  //__const struct  sockaddr_ipx  *__sockaddr_ipx__;
+  //__const struct  sockaddr_iso  *__sockaddr_iso__;
+  //__const struct  sockaddr_ns  *__sockaddr_ns__;
+  //__const struct  sockaddr_un  *__sockaddr_un__;
+  //__const struct  sockaddr_x25  *__sockaddr_x25__;
+} __CONST_SOCKADDR_ARG __attribute__ ((__transparent_union__));
 
 extern int bind  (int __fd, __CONST_SOCKADDR_ARG __addr, socklen_t __len)    ;
 
-extern int __libc_sa_len  (sa_family_t __af)    ;
+//extern int __libc_sa_len  (sa_family_t __af)    ;
 
 int main()
 {
-  int ctl_sock;
+  int ctl_sock=0;
+  struct sockaddr *addrptr;
+                           
+  addrptr = (struct sockaddr *)&server_addr;
+  bind(ctl_sock, addrptr, 3);
+           //__libc_sa_len(( (struct sockaddr *)&server_addr )->sa_family) );
 
-  bind(ctl_sock, (struct sockaddr *)&server_addr,
-           __libc_sa_len(( (struct sockaddr *)&server_addr )->sa_family) );
-  return 0;
+  return ctl_sock;
 }
 
