@@ -137,7 +137,11 @@ for ($j=0; $j<$#tests; $j++) {
 print "\n";
 
 for ($i=0; $i<$#checks; $i++) {
-    print_pad_rowhead ("$checks[$i]");
+    if ($checks[$i] eq "1"){
+	print_pad_rowhead ("all");
+    } else {
+	print_pad_rowhead ("$checks[$i]");
+    }
     for ($j=0; $j<$#tests; $j++) {
 	$diff_frac_sum = 0;	
 	$abort_time = time + $maxtime;
