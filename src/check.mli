@@ -29,7 +29,7 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  *)
-
+ 
     (* Checks the well-formedness of the file. Prints warnings if errors are 
      * found  *)
 type checkFlags = 
