@@ -1,5 +1,6 @@
 (** Utility functions for Coolaid *)
 module E = Errormsg
+open Pretty
 
 exception GotSignal of int
 
@@ -38,3 +39,12 @@ let withTimeout (secs: float) (* Seconds for timeout *)
         handler i
     | _ -> raise exc
   end
+
+(** Print a hash table *)
+let docHash (one: 'a -> 'b -> doc) () (h: ('a, 'b) Hashtbl.t) = 
+  let theDoc = ref nil in
+  (Hashtbl.fold 
+     (fun key data acc -> acc ++ one key data)
+     h
+     align) ++ unalign
+    
