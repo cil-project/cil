@@ -52,6 +52,7 @@ use File::Copy;
 use File::Spec;
 use Data::Dumper;
 use Carp;
+use Text::ParseWords;
 
 use KeptFile;
 use OutputFile;
@@ -1532,15 +1533,17 @@ sub new {
     my $class = ref($proto) || $proto;
     # Create $self
 
+    my @native_cc = Text::ParseWords::shellwords($ENV{CILLY_NATIVE_CC} || $::cc);
+
     my $self = 
     { NAME => 'GNU CC',
       MODENAME => 'GNUCC',  # do not change this since it is used in code
       # sm: added -O since it's needed for inlines to be merged instead of causing link errors
       # sm: removed -O to ease debugging; will address "inline extern" elsewhere
-      CC => [$::cc, '-D_GNUCC', '-c'],
-      LD => [$::cc, '-D_GNUCC'],
+      CC => [@native_cc, '-D_GNUCC', '-c'],
+      LD => [@native_cc, '-D_GNUCC'],
       LDLIB => ['ld', '-r', '-o'],
-      CPP =>  [$::cc, '-D_GNUCC', '-E'],
+      CPP =>  [@native_cc, '-D_GNUCC', '-E'],
       DEFARG  => "-D",
       INCARG => "-I",
       DEBUGARG => ['-g', '-ggdb'],
@@ -1760,7 +1763,7 @@ sub linkOutputFile {
 sub setVersion {
     my($self) = @_;
     my $cversion = "";
-    open(VER, "$::cc -dumpversion " 
+    open(VER, "@{$self->{CC}} -dumpversion " 
          . join(' ', @{$self->{PPARGS}}) ." |") 
         || die "Cannot start GNUCC";
     while(<VER>) {
