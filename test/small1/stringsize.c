@@ -10,8 +10,10 @@ int main()
 {
   char tmp[sizeof(A_STRING)] = A_STRING;
 
-  //This fails because cabs2CIL thinks sizeof(A_STRING) == 4
+  //This fails because cabs2CIL thinks sizeof(A_STRING) == 4,
+  //so the array is not completely initialized.
   if( sizeof(tmp) != 30 )  E(1);
+  if( tmp[10] != (A_STRING)[10] )  E(1);
 
   //This fails on CCured only because markptr inserts a cast to char*
   if( sizeof("Hello, world.") != 14 )  E(2);
