@@ -9,17 +9,20 @@ enum tags {
 struct host {
   int tag; // 0 for integer, 1 for pointer to int, 2 for structure 
   union bar {
-    int anint __SELECTEDWHEN("tag" == TAG_ZERO);
-    int * ptrint; // Missing SELECTEDWHEN is obtained by increment
+    int anint     __SELECTEDWHEN("tag" == TAG_ZERO);
+    int * ptrint  __SELECTEDWHEN("tag" == 1);
     struct str {
       int * * ptrptr;
-    } ptrptr
-        // We should not reuse selector values
-        __SELECTEDWHEN("tag" == 1) // ERROR(1):same selector as field ptrint
-        __SELECTEDWHEN("tag" == foo) // ERROR(2):invalid SELECTEDWHEN
-        __SELECTEDWHEN("tag" == 8 >> 3) // ERROR(3):same selector as field ptrint
-        __SELECTEDWHEN("tag" == ((8 + 2 * 2) + sizeof(int) - 8) >> 3) // ERROR(4):same selector as field ptrint
-        ;
+    } ptrptr    
+        __SELECTEDWHEN("tag" == 5) // ERROR(0)
+         /* missing selected when */ // ERROR(1):Error 1
+        __SELECTEDWHEN("tag" == foo) // ERROR(2):Cannot compile the discriminator
+        __SELECTEDWHEN("tag_bad" == 5) // ERROR(3):Cannot compile the discriminator
+         __SELECTEDWHEN("tag" == 5) __SELECTEDWHEN("tag" == 6) // ERROR(4):more than one SELECTEDWHEN clause
+#if ERROR >= 5
+        __SELECTEDWHEN("tag" == 5)
+#endif         
+         ;
   } data;
   int * somethingelse;      
 } g;
@@ -33,7 +36,8 @@ int main() {
   g.tag = 0;
 
   // This is good behavior
-#if ERROR==0  
+  
+#if ERROR == 0 
   g.data.anint = 5;
   x = g.data.anint;
 
@@ -42,9 +46,7 @@ int main() {
   g.data.ptrint = px;
   px = g.data.ptrint;
 
-  if(KIND_OF(g.data.ptrint) != SAFE_KIND) E(1);
-
-  g.tag = 2;
+  g.tag = 5;
   g.data.ptrptr.ptrptr = &px;
   x = * * g.data.ptrptr.ptrptr;
 
@@ -53,6 +55,9 @@ int main() {
 
 #endif
 
+  if(KIND_OF(g.data.ptrint) != SAFE_KIND) E(1);// ERROR(1)
+
+  
   // We cannot access pointers when the tag is wrong
   g.tag = 0; x = g.data.ptrint; // ERROR(5):Failure WRONGFIELD
   g.tag = 0; * g.data.ptrptr.ptrptr = x; // ERROR(6):Failure WRONGFIELD
@@ -60,8 +65,8 @@ int main() {
   
 #if ERROR == 8
   {
-    union __SELECTOR("tag") {
-      int * ptr;
+    union {
+      int * ptr  __SELECTEDWHEN("tag");
     } a;
      // We should not be able to acces this one
     // ERROR(8):outside a host structure
