@@ -46,6 +46,12 @@ exception InternalError of string
 module E = Errormsg
 module H = Hashtbl
 
+let currentLoc () = 
+  let l, f, c = E.getPosition () in
+  { Cabs.lineno   = l;
+    Cabs.filename = f;
+    Cabs.byteno   = c; }
+
 (*
 ** Keyword hashtable
 *)
@@ -53,80 +59,92 @@ let lexicon = H.create 211
 let init_lexicon _ =
   H.clear lexicon;
   List.iter 
-    (fun (key, token) -> H.add lexicon key token)
-    [ ("auto", AUTO);
-      ("const", CONST); ("__const", CONST); ("__const__", CONST);
-      ("static", STATIC);
-      ("extern", EXTERN);
-      ("long", LONG);
-      ("short", SHORT);
-      ("register", REGISTER);
-      ("signed", SIGNED); ("__signed", SIGNED);
-      ("unsigned", UNSIGNED);
-      ("volatile", VOLATILE); ("__volatile", VOLATILE);
+    (fun (key, builder) -> H.add lexicon key builder)
+    [ ("auto", fun loc -> AUTO loc);
+      ("const", fun loc -> CONST loc);
+      ("__const", fun loc -> CONST loc);
+      ("__const__", fun loc -> CONST loc);
+      ("static", fun loc -> STATIC loc);
+      ("extern", fun loc -> EXTERN loc);
+      ("long", fun loc -> LONG loc);
+      ("short", fun loc -> SHORT loc);
+      ("register", fun loc -> REGISTER loc);
+      ("signed", fun loc -> SIGNED loc);
+      ("__signed", fun loc -> SIGNED loc);
+      ("unsigned", fun loc -> UNSIGNED loc);
+      ("volatile", fun loc -> VOLATILE loc);
+      ("__volatile", fun loc -> VOLATILE loc);
       (* WW: see /usr/include/sys/cdefs.h for why __signed and __volatile
        * are accepted GCC-isms *)
-      ("char", CHAR);
-      ("int", INT);
-      ("float", FLOAT);
-      ("double", DOUBLE);
-      ("void", VOID);
-      ("enum", ENUM);
-      ("struct", STRUCT);
-      ("typedef", TYPEDEF);
-      ("union", UNION);
-      ("break", BREAK);
-      ("continue", CONTINUE);
-      ("goto", GOTO); 
-      ("return", RETURN);
-      ("switch", SWITCH);
-      ("case", CASE); 
-      ("default", DEFAULT);
-      ("while", WHILE);  
-      ("do", DO);  
-      ("for", FOR);
-      ("if", IF);
-      ("else", ELSE);
+      ("char", fun loc -> CHAR loc);
+      ("int", fun loc -> INT loc);
+      ("float", fun loc -> FLOAT loc);
+      ("double", fun loc -> DOUBLE loc);
+      ("void", fun loc -> VOID loc);
+      ("enum", fun loc -> ENUM loc);
+      ("struct", fun loc -> STRUCT loc);
+      ("typedef", fun loc -> TYPEDEF loc);
+      ("union", fun loc -> UNION loc);
+      ("break", fun loc -> BREAK loc);
+      ("continue", fun loc -> CONTINUE loc);
+      ("goto", fun loc -> GOTO loc); 
+      ("return", fun loc -> RETURN loc);
+      ("switch", fun loc -> SWITCH loc);
+      ("case", fun loc -> CASE loc); 
+      ("default", fun loc -> DEFAULT loc);
+      ("while", fun loc -> WHILE loc);  
+      ("do", fun loc -> DO loc);  
+      ("for", fun loc -> FOR loc);
+      ("if", fun loc -> IF loc);
+      ("else", fun _ -> ELSE);
       (*** Implementation specific keywords ***)
-      ("__signed__", SIGNED);
-      ("__inline__", INLINE); ("inline", INLINE); 
-      ("__inline", INLINE); ("_inline", INLINE);
-      ("__attribute__", ATTRIBUTE); ("__attribute", ATTRIBUTE);
-      ("__blockattribute__", BLOCKATTRIBUTE);
-      ("__blockattribute", BLOCKATTRIBUTE);
-      ("__asm__", ASM); ("asm", ASM);
-      ("__typeof__", TYPEOF); ("__typeof", TYPEOF); ("typeof", TYPEOF); 
-      ("__alignof__", ALIGNOF);
-      ("__volatile__", VOLATILE); ("__volatile", VOLATILE);
+      ("__signed__", fun loc -> SIGNED loc);
+      ("__inline__", fun loc -> INLINE loc);
+      ("inline", fun loc -> INLINE loc); 
+      ("__inline", fun loc -> INLINE loc);
+      ("_inline", fun loc -> INLINE loc);
+      ("__attribute__", fun loc -> ATTRIBUTE loc);
+      ("__attribute", fun loc -> ATTRIBUTE loc);
+      ("__blockattribute__", fun _ -> BLOCKATTRIBUTE);
+      ("__blockattribute", fun _ -> BLOCKATTRIBUTE);
+      ("__asm__", fun loc -> ASM loc);
+      ("asm", fun loc -> ASM loc);
+      ("__typeof__", fun loc -> TYPEOF loc);
+      ("__typeof", fun loc -> TYPEOF loc);
+      ("typeof", fun loc -> TYPEOF loc); 
+      ("__alignof__", fun loc -> ALIGNOF loc);
+      ("__volatile__", fun loc -> VOLATILE loc);
+      ("__volatile", fun loc -> VOLATILE loc);
 
-      ("__FUNCTION__", FUNCTION__); 
-      ("__func__", FUNCTION__); (* ISO 6.4.2.2 *)
-      ("__PRETTY_FUNCTION__", PRETTY_FUNCTION__);
-      ("__label__", LABEL__);
+      ("__FUNCTION__", fun loc -> FUNCTION__ loc);
+      ("__func__", fun loc -> FUNCTION__ loc); (* ISO 6.4.2.2 *)
+      ("__PRETTY_FUNCTION__", fun loc -> PRETTY_FUNCTION__ loc);
+      ("__label__", fun _ -> LABEL__);
       (*** weimer: GCC arcana ***)
-      ("__restrict", RESTRICT); ("restrict", RESTRICT);
+      ("__restrict", fun loc -> RESTRICT loc);
+      ("restrict", fun loc -> RESTRICT loc);
 (*      ("__extension__", EXTENSION); *)
       (**** MS VC ***)
-      ("__int64", INT64);
-      ("__int32", INT);
-      ("_cdecl",  MSATTR ("_cdecl")); 
-      ("__cdecl", MSATTR ("__cdecl"));
-      ("_stdcall", MSATTR "_stdcall"); 
-      ("__stdcall", MSATTR "__stdcall");
-      ("_fastcall", MSATTR "_fastcall"); 
-      ("__fastcall", MSATTR "__fastcall");
-      ("__declspec", DECLSPEC);
+      ("__int64", fun _ -> INT64 (currentLoc ()));
+      ("__int32", fun loc -> INT loc);
+      ("_cdecl",  fun _ -> MSATTR ("_cdecl", currentLoc ())); 
+      ("__cdecl", fun _ -> MSATTR ("__cdecl", currentLoc ()));
+      ("_stdcall", fun _ -> MSATTR ("_stdcall", currentLoc ())); 
+      ("__stdcall", fun _ -> MSATTR ("__stdcall", currentLoc ()));
+      ("_fastcall", fun _ -> MSATTR ("_fastcall", currentLoc ())); 
+      ("__fastcall", fun _ -> MSATTR ("__fastcall", currentLoc ()));
+      ("__declspec", fun loc -> DECLSPEC loc);
       (* weimer: some files produced by 'GCC -E' expect this type to be
        * defined *)
-      ("__builtin_va_list", (NAMED_TYPE "__builtin_va_list"));
-      ("__builtin_va_arg", BUILTIN_VA_ARG);
+      ("__builtin_va_list", fun _ -> NAMED_TYPE ("__builtin_va_list", currentLoc ()));
+      ("__builtin_va_arg", fun loc -> BUILTIN_VA_ARG loc);
     ]
 
 (* Mark an identifier as a type name. The old mapping is preserved and will 
  * be reinstated when we exit this context *)
 let add_type name =
    (* ignore (print_string ("adding type name " ^ name ^ "\n"));  *)
-   H.add lexicon name (NAMED_TYPE name)
+   H.add lexicon name (fun loc -> NAMED_TYPE (name, loc))
 
 let context : string list list ref = ref []
 
@@ -149,14 +167,17 @@ let add_identifier name =
   | con::sub ->
       (context := (name::con)::sub;
        (*                print_string ("adding IDENT for " ^ name ^ "\n"); *)
-       H.add lexicon name (IDENT name))
+       H.add lexicon name (fun loc -> IDENT (name, loc)))
 
 
 (*
 ** Useful primitives
 *)
-let scan_ident id = try H.find lexicon id
-	with Not_found -> IDENT id  (* default to variable name, as opposed to type *)
+let scan_ident id =
+  let here = currentLoc () in
+  try (H.find lexicon id) here
+  (* default to variable name, as opposed to type *)
+  with Not_found -> IDENT (id, here)
 
 
 (*
@@ -290,7 +311,7 @@ let floatnum = floatraw floatsuffix?
 
 let ident = (letter|'_')(letter|decdigit|'_')* 
 let attribident = (letter|'_')(letter|decdigit|'_'|':')
-let blank = [' ' '\t' '\012' '\r']
+let blank = [' ' '\t' '\012' '\r']+
 let escape = '\\' _
 let hex_escape = '\\' ['x' 'X'] hexdigit+
 let oct_escape = '\\' octdigit octdigit? octdigit? 
@@ -302,32 +323,32 @@ rule initial =
 |		blank			{initial lexbuf}
 |               '\n'                    { E.newline (); initial lexbuf }
 |		'#'			{ hash lexbuf}
-|               "_Pragma" 	        { PRAGMA }
-|		'\''			{ CST_CHAR (chr lexbuf)}
+|               "_Pragma" 	        { PRAGMA (currentLoc ()) }
+|		'\''			{ CST_CHAR (chr lexbuf, currentLoc ())}
 |		"L'"			{ (* weimer: wide character constant *)
                                           let wcc = chr lexbuf in 
-                                          CST_CHAR wcc }
+                                          CST_CHAR (wcc, currentLoc ()) }
 |		'"'			{ (* '"' *)
 (* matth: BUG:  this could be either a regular string or a wide string.
  *  e.g. if it's the "world" in 
  *     L"Hello, " "world"
  *  then it should be treated as wide even though there's no L immediately
  *  preceding it.  See test/small1/wchar5.c for a failure case. *)
-                                          try CST_STRING (str lexbuf)
+                                          try CST_STRING (str lexbuf, currentLoc ())
                                           with e -> 
                                              raise (InternalError 
                                                      ("str: " ^ 
                                                       Printexc.to_string e))}
 |		"L\""			{ (* weimer: wchar_t string literal *)
-                                          try CST_WSTRING(wstr lexbuf)
+                                          try CST_WSTRING(wstr lexbuf, currentLoc ())
                                           with e -> 
                                              raise (InternalError 
                                                      ("wide string: " ^ 
                                                       Printexc.to_string e))}
-|		floatnum		{CST_FLOAT (Lexing.lexeme lexbuf)}
-|		hexnum			{CST_INT (Lexing.lexeme lexbuf)}
-|		octnum			{CST_INT (Lexing.lexeme lexbuf)}
-|		intnum			{CST_INT (Lexing.lexeme lexbuf)}
+|		floatnum		{CST_FLOAT (Lexing.lexeme lexbuf, currentLoc ())}
+|		hexnum			{CST_INT (Lexing.lexeme lexbuf, currentLoc ())}
+|		octnum			{CST_INT (Lexing.lexeme lexbuf, currentLoc ())}
+|		intnum			{CST_INT (Lexing.lexeme lexbuf, currentLoc ())}
 |		"!quit!"		{EOF}
 |		"..."			{ELLIPSIS}
 |		"+="			{PLUS_EQ}
@@ -349,43 +370,43 @@ rule initial =
 |		"="				{EQ}
 |		"<"				{INF}
 |		">"				{SUP}
-|		"++"			{PLUS_PLUS}
-|		"--"			{MINUS_MINUS}
+|		"++"			{PLUS_PLUS (currentLoc ())}
+|		"--"			{MINUS_MINUS (currentLoc ())}
 |		"->"			{ARROW}
-|		'+'				{PLUS}
-|		'-'				{MINUS}
-|		'*'				{STAR}
+|		'+'				{PLUS (currentLoc ())}
+|		'-'				{MINUS (currentLoc ())}
+|		'*'				{STAR (currentLoc ())}
 |		'/'				{SLASH}
 |		'%'				{PERCENT}
-|		'!'				{EXCLAM}
-|		"&&"			{AND_AND}
+|		'!'				{EXCLAM (currentLoc ())}
+|		"&&"			{AND_AND (currentLoc ())}
 |		"||"			{PIPE_PIPE}
-|		'&'				{AND}
+|		'&'				{AND (currentLoc ())}
 |		'|'				{PIPE}
 |		'^'				{CIRC}
 |		'?'				{QUEST}
 |		':'				{COLON}
-|		'~'				{TILDE}
+|		'~'				{TILDE (currentLoc ())}
 	
-|		'{'				{LBRACE}
+|		'{'				{LBRACE (currentLoc ())}
 |		'}'				{RBRACE}
 |		'['				{LBRACKET}
 |		']'				{RBRACKET}
-|		'('				{LPAREN}
+|		'('				{LPAREN (currentLoc ())}
 |		')'				{RPAREN}
-|		';'				{SEMICOLON}
+|		';'				{SEMICOLON (currentLoc ())}
 |		','				{COMMA}
 |		'.'				{DOT}
-|		"sizeof"		{SIZEOF}
+|		"sizeof"		{SIZEOF (currentLoc ())}
 |               "__asm"                 { if !Cprint.msvcMode then 
-                                             MSASM (msasm lexbuf) 
-                                          else (ASM) }
+                                             MSASM (msasm lexbuf, currentLoc ()) 
+                                          else (ASM (currentLoc ())) }
       
 (* sm: tree transformation keywords *)
-|               "@transform"            {AT_TRANSFORM}
-|               "@transformExpr"        {AT_TRANSFORMEXPR}
-|               "@specifier"            {AT_SPECIFIER}
-|               "@expr"                 {AT_EXPR}
+|               "@transform"            {AT_TRANSFORM (currentLoc ())}
+|               "@transformExpr"        {AT_TRANSFORMEXPR (currentLoc ())}
+|               "@specifier"            {AT_SPECIFIER (currentLoc ())}
+|               "@expr"                 {AT_EXPR (currentLoc ())}
 |               "@name"                 {AT_NAME}
 
 (* __extension__ is a black. The parser runs into some conflicts if we let it
@@ -414,7 +435,7 @@ and hash = parse
                   (* A file name must follow *)
 		  file lexbuf }
 | "line"        { hash lexbuf } (* MSVC line number info *)
-| "pragma"      { PRAGMA }
+| "pragma"      { PRAGMA (currentLoc ()) }
 | _	        { endline lexbuf}
 
 and file =  parse 
@@ -504,23 +525,23 @@ and msasmnobrace = parse
 and attribute = parse
    '\n'                 { E.newline (); attribute lexbuf }
 |  blank                { attribute lexbuf }
-|  '('                  { incr attribDepth; LPAREN }
+|  '('                  { incr attribDepth; LPAREN (currentLoc ()) }
 |  ')'                  { decr attribDepth;
                           if !attribDepth = 0 then
                             initial lexbuf (* Skip the last closed paren *)
                           else
                             RPAREN }
-|  attribident          { IDENT (Lexing.lexeme lexbuf) }
+|  attribident          { IDENT (Lexing.lexeme lexbuf, currentLoc ()) }
 
-|  '\''			{ CST_CHAR (chr lexbuf)}
+|  '\''			{ CST_CHAR (chr lexbuf, currentLoc ())}
 |  '"'			{ (* '"' *)
-                                          try CST_STRING (str lexbuf)
+                                          try CST_STRING (str lexbuf, currentLoc ())
                                           with e -> 
                                              raise (InternalError "str")}
-|  floatnum		{CST_FLOAT (Lexing.lexeme lexbuf)}
-|  hexnum		{CST_INT (Lexing.lexeme lexbuf)}
-|  octnum		{CST_INT (Lexing.lexeme lexbuf)}
-|  intnum		{CST_INT (Lexing.lexeme lexbuf)}
+|  floatnum		{CST_FLOAT (Lexing.lexeme lexbuf, currentLoc ())}
+|  hexnum		{CST_INT (Lexing.lexeme lexbuf, currentLoc ())}
+|  octnum		{CST_INT (Lexing.lexeme lexbuf, currentLoc ())}
+|  intnum		{CST_INT (Lexing.lexeme lexbuf, currentLoc ())}
 
 
 {
