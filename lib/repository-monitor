@@ -88,7 +88,6 @@ sub logrun {
 
 # main loop
 while (1) {
- if (0) {
   # see whether anything new got committed
   diagnostic ("updating...");
   @changes = `cvs -q update`;
@@ -117,7 +116,7 @@ while (1) {
     sleep(300);
     next;
   }
-}
+
   # run the quick regression test
   logrun("./regrtest -contin && ./regrtest -release -contin", "$ph/regrtest.txt");
 
