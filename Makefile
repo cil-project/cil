@@ -684,12 +684,21 @@ apache/random :
 
 apache/info : 
 	rm -f $(APACHETEST)/mod_info.$(OBJEXT)
-	cd $(APACHETEST); $(CCURED) --logcalls --usecil --cilout=mod_infocil.c \
+	cd $(APACHETEST); $(CCURED) --logcalls --logwrites --usecil --cilout=mod_infocil.c \
                        --keep=. $(APATCH) \
                         $(CFLAGS) \
                         $(APACHECFLAGS) \
                         $(CONLY) $(OBJOUT)./mod_info.$(OBJEXT) \
                         mod_info.c
+
+apache/info_company : 
+	rm -f $(APACHETEST)/mod_info_company.$(OBJEXT)
+	cd $(APACHETEST); $(CCURED) --logwrites --logcalls --usecil --cilout=mod_info_companycil.c \
+                       --keep=. \
+                        $(CFLAGS) \
+                        $(APACHECFLAGS) \
+                        $(CONLY) $(OBJOUT)./mod_info_company.$(OBJEXT) \
+                        mod_info_company.c
 
 apache/gzip : 
 	rm -f $(APACHETEST)/mod_gzip.$(OBJEXT)

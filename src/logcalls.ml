@@ -7,8 +7,9 @@ let i = ref 0
 let name = ref ""
 
 (* instrument every instruction! aie! *)
-class verboseLogVisitor printfFun = object
+class verboseLogVisitor printfFun funstr = object
   inherit nopCilVisitor 
+  (*
   method vinst (inst  : instr) = begin
     let str = Printf.sprintf "%s::%d\n" !name !i in
     incr i ; 
@@ -17,6 +18,30 @@ class verboseLogVisitor printfFun = object
                                 locUnknown)) : instr )in
     let ilist = ([ inst ; newinst ] : instr list) in
     (ChangeTo(ilist))
+  end *)
+  method vinst i = begin
+    match i with
+      Call(lo,e,al,l) -> 
+      let str1 = Pretty.sprint 800 ( Pretty.dprintf "Calling %a\n" d_exp e) in
+      let str2 = Pretty.sprint 800 ( Pretty.dprintf "Returned from %a\n" d_exp e) in
+      let newinst str = ((Call (None, Lval(var printfFun.svar),
+                                ( [ one ; Const(CStr(str)) ]),
+                                locUnknown)) : instr )in
+      let ilist = ([ (newinst str1) ; i ; (newinst str2) ] : instr list) in
+    (ChangeTo(ilist))
+    | _ -> DoChildren 
+  end
+  method vstmt (s : stmt) = begin
+    match s.skind with
+      Return(eo,l) ->
+      let str = "returning from " ^ funstr ^ "\n"  in
+      let newinst = ((Call (None, Lval(var printfFun.svar),
+                                ( [ one ; Const(CStr(str)) ]),
+                                locUnknown)) : instr )in
+      let new_stmt = mkStmtOneInstr newinst in 
+      let slist = [ new_stmt ; s ] in 
+      (ChangeTo(mkStmt(Block(mkBlock slist))))
+    | _ -> DoChildren
   end
 end
 
@@ -30,7 +55,6 @@ let logCalls (f: file) : unit =
     fdec.svar.vtype <- TFun(intType, [ argi ; argf ], true, []);
     fdec
   in
-  let thisVisitor = new verboseLogVisitor printfFun in 
   
   let doGlobal = function
       GFun (fdec, loc) -> 
@@ -51,7 +75,8 @@ let logCalls (f: file) : unit =
         in
         i := 0 ;
         name := fdec.svar.vname ; 
-        ignore (visitCilBlock thisVisitor fdec.sbody); 
+        let thisVisitor = new verboseLogVisitor printfFun !name in 
+        fdec.sbody <- visitCilBlock thisVisitor fdec.sbody; 
         fdec.sbody.bstmts <- 
               mkStmt (Instr [Call (None, Lval(var printfFun.svar),
                                 ( one :: Const(CStr("call to " ^

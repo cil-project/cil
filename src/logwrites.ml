@@ -29,6 +29,19 @@ class logWriteVisitor = object
                      l.file); integer l.line], locUnknown);
               i]
       end 
+    | Call(Some lv, f, args, l) -> begin
+        (* Check if we need to log *)
+        match lv with 
+          (Var(v), off) when not v.vglob -> SkipChildren
+        | _ -> let str = Pretty.sprint 80 
+                (Pretty.dprintf "Write retval to 0x%%08x at %%s:%%d (%a)\n" d_lval lv)
+              in 
+              ChangeTo 
+              [ Call((None), (Lval(Var(printfFun.svar),NoOffset)), 
+                     [ one ; Const(CStr str) ; AddrOf lv; Const(CStr
+                     l.file); integer l.line], locUnknown);
+              i]
+      end 
     | _ -> SkipChildren
 
 end
