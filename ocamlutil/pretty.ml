@@ -660,14 +660,8 @@ let gprintf (finish : doc -> doc)
               invalid_arg ("dprintf: unknown format @" ^ String.make 1 c)
         end else
           invalid_arg "dprintf: incomplete format @"
-      end else if c = '\\' then begin
-        if i + 1 < flen then begin
-          match fget (succ i) with
-            'n' ->                      
-              collect (dconcat acc (line)) (i + 2)
-          | _ -> literal acc i
-        end else
-          invalid_arg "dprintf: incomplete escape \\"
+      end else if c = '\n' then begin
+        collect (dconcat acc (line)) (i + 1)
       end else
         literal acc i
     end
@@ -734,4 +728,5 @@ let getAlgoName = function
 
 let getAboutString () : string =
   "(Pretty: ALGO=" ^ (getAlgoName algo) ^ ")"
+
 
