@@ -2002,10 +2002,9 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
                 
           | (kname, e, cloc) :: rest ->
               (* constant-eval 'e' to determine tag value *)
-              let i =
-                match doExp true e (AExp None) with
-                  c, e', _ when isEmpty c -> e'
-                | _ -> E.s (error "enum with non-const initializer")
+              let i = match isIntConstExp e with
+                  Some e' -> e'
+                | _ -> E.s (error "enum without const integer initializer")
               in
               processName kname i (convLoc cloc) rest
         in
@@ -2401,11 +2400,10 @@ and makeCompType (isstruct: bool)
               TInt (ikind, a) -> ()
             | TEnum _ -> ()
             | _ -> E.s (error "Base type for bitfield is not an integer type"));
-            match doExp true w (AExp None) with
-              (c, Const(CInt64(i,_,_)),_) when isEmpty c -> 
-                Some (Int64.to_int i)
-            | _ -> E.s (error "bitfield width is not an integer constant")
-      end
+            match isIntegerConstant w with
+                Some n -> Some n
+              | None -> E.s (error "bitfield width is not an integer constant")
+	  end
       in
       (* If the field is unnamed and its type is a structure of union type 
        * then give it a distinguished name  *)
@@ -2491,8 +2489,24 @@ and preprocessCast (specs: A.specifier)
     | _ -> specs
   in
   specs1, dt, ie' 
-  
-     (* Process an expression and in the process do some type checking, 
+
+and isIntConstExp (aexp) : exp option =
+  match doExp true aexp (AExp None) with
+      (c, (Const (CInt64 (i,_,_)) as p),_) when isEmpty c ->
+	Some p
+    | (c, (Const (CChr i) as p),_) when isEmpty c ->
+	Some p
+    | _ -> None
+
+and isIntegerConstant (aexp) : int option =
+  match doExp true aexp (AExp None) with
+      (c, (Const (CInt64 (i,_,_)) as p),_) when isEmpty c ->
+	Some (Int64.to_int i)
+    | (c, (Const (CChr i) as p),_) when isEmpty c ->
+	Some (Char.code i)
+    | _ -> None
+
+     (* Process an expression and in the process do some type checking,
       * extract the effects as separate statements  *)
 and doExp (isconst: bool)    (* In a constant *)
           (e : A.expression) 

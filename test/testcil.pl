@@ -1191,6 +1191,7 @@ altAddTest("scott/funcptr3 INFERBOX=infer");
 altAddTest("scott/structattr");
 altAddTest("scott/neg64");
 altAddTest("testc/arrayinitsize");
+altAddTest("test-bad/enuminit2");
 
 
 # $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug
