@@ -226,6 +226,9 @@ endif
 ifdef KEEPMERGED
   CCURED+= --keepmerged
 endif
+ifdef MERGEONLY
+  CCURED+= --keepmerged  --onlyMerge --mergeKeepAnnotations 
+endif
 ifdef PRINTSTAGES
   CCURED+= --stages
 endif

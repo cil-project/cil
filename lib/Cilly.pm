@@ -359,6 +359,7 @@ Options:
   --includedir=xxx   Adds a new include directory to replace existing ones
   --stages           Show the processing stages
   --bytecode         Invoke the bytecode (as opposed to native code) system
+  --no-idashi        Do not use '-I-' with the gcc preprocessor.
 
 EOF
     $self->helpMessage();
