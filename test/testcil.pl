@@ -21,6 +21,8 @@ print "Test infrastructure for CCured and CIL\n";
 my $TEST = SafecRegTest->new(AvailParams => { 'SAFE' => 1,
                                               'WILD' => 1,
                                               'FSEQ' => 1,
+                                              'CHK_RET' => 1,
+                                              'CHK_STR' => 1,
                                               'RUN' => 1,
                                               'CURE' => 1,
                                               'NODES' => 1,
@@ -113,6 +115,12 @@ my %commonerrors =
               => sub { $_[1]->{FSEQ} = $_[2]; },
 
     "contains (\\d+) nodes" => sub { $_[1]->{NODES} = $_[2]; },
+
+#     "^\\s*CHECK_NULL\\s+(\\d+)" => sub { $_[1]->{CHK_NULL} = $_[2]; },
+
+    "^\\s*CHECK_RETURNPTR\\s+(\\d+)" => sub { $_[1]->{CHK_RET} = $_[2]; },
+
+    "^\\s*CHECK_STOREPTR\\s+(\\d+)" => sub { $_[1]->{CHK_STR} = $_[2]; },
 
     "^user\\s+(\\d+)m([\\d.]+)s"
               => sub { $_[1]->{RUN} = 60 * $_[2] + $_[3]; },
