@@ -521,6 +521,51 @@ list. Note that you will get a run-time error if you try to use the
 \t{va\_arg} macro in the implemetation of such a function. You should invoke
 functions like \t{vprintf} and \t{vsprintf} instead. 
 
+    \subsection{Scanf-like functions}
+
+ Since it proved too much trouble to handle \t{scanf} like functions in a safe
+yet transparent way we currently require the programmer to rewrite the
+invocations to \t{scanf} using a number of functions that we provide. For
+example instead of 
+\begin{verbatim}
+ ... fscanf(file, "Entry:\%d   Then:\%lf", &entry, &then) ...
+\end{verbatim}
+
+ you should write
+\begin{verbatim}
+ ... (resetScanfCounter(), 
+      entry = ccured_fscanf_int(file, "Entry:\%d");
+      then  = ccured_fscanf_double(file, "   Then:\%lf");
+      getScanfCounter ()) ...
+\end{verbatim}
+
+ The functions \t{resetScanCounter} and \t{getScanfCounter} are necessary only
+if you use the result of the call to \t{fscanf} in the original code. Note
+that our replacement \t{scanf} functions can be used to return only one result
+at a time, consequently the format string that is passed must contain only one
+format specifier, possibly along with characters to be matched. 
+
+ The following are the \t{scanf}-like functions that we currently support:
+\begin{verbatim}
+  extern int    ccured_fscanf_int(FILE *, char *format);
+  #pragma boxpoly("ccured_fscanf_int")
+  extern double ccured_fscanf_double(FILE *, char *format);
+  #pragma boxpoly("ccured_fscanf_double")
+  extern void   ccured_fscanf_nothing(FILE *, char *format);
+  #pragma boxpoly("ccured_fscand_nothing")
+\end{verbatim}
+
+ If the original program uses \t{scanf}, just consider that you are using
+\t{fscanf} from \t{stdin}. If instead your program contains \t{sscanf} then
+you can use the function 
+\begin{verbatim}
+FILE* stringToFILE(char *string);
+\end{verbatim}
+
+ to dump the string to a file and then use the replacement for \t{fscanf} from
+above. 
+
+
     \chapter{Using the patcher}
 
  Occasionally for the purposes of CCured we have needed to modify slightly the

@@ -1580,8 +1580,9 @@ let markFile fl =
               E.s (E.bug "Function %s is both defined and has models!\n" fname)
           | Declared x -> x
         in
-        ignore (E.log "Creating a body for %s based on model %s\n"
-                  modelled.vname model.svar.vname);
+        if !E.verboseFlag then
+          ignore (E.log "Creating a body for %s based on model %s\n"
+                    modelled.vname model.svar.vname);
         (* Make the sformals *)
         let rt, sformals, va, l = 
           match modelled.vtype with

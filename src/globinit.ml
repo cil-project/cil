@@ -28,7 +28,8 @@ let insertGlobInit ?(mainname="main") (file: file) : unit =
                                                      [], locUnknown)]) 
                                  :: m.sbody.bstmts);
                 inserted := true;
-                ignore (E.log "Inserted the globinit\n");
+                if !E.verboseFlag then
+                  ignore (E.log "Inserted the globinit\n");
                 file.globinitcalled <- true;
             | _ -> ());
             theFile := g :: !theFile (* Now put the global back *)
