@@ -19,3 +19,13 @@ norettype_old(x)
   return x;
 }
 
+norettype_old2()
+{
+  return ;
+}
+
+static norettype_old3(a)
+     int **a;
+{
+  return **a;
+}

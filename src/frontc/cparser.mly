@@ -253,6 +253,11 @@ let isTypeAttr (n, _) =
     "const" | "volatile" | "cdecl" | "stdcall" | "restrict" -> true
   | _ -> false
 
+let nameOfIdent (n: string) (al: attribute list) : name = 
+  (n, 
+   (if al = [] then NO_TYPE else ATTRTYPE (NO_TYPE, al)), 
+   [], NOTHING)
+  
 let makeNameGroup (spec: specifier) (nl : name list) : name_group = 
   (* Move some GCC attributes from the specifier to names *)
   let typeattr, nameattr = List.partition isTypeAttr spec.sattr in
@@ -281,6 +286,9 @@ let doDeclaration (spec: specifier) (nl: name list) : definition =
       ONLYTYPEDEF ng
     else
       DECDEF ng
+
+let doFunctionDecl (n: name) (pardecl: single_name list) (va: bool) : name = 
+  injectTypeName (PROTO(NO_TYPE, pardecl, va, false)) n
 
 let doFunctionDef (spec: specifier) (n: name) 
                   (b: body) : definition = 
@@ -924,10 +932,7 @@ declarator:  /* (* ISO 6.7.5. Plus Microsoft declarators. The specification
 ;
 
 direct_decl: /* (* ISO 6.7.5 *) */
-    msqual_list_opt IDENT          { ($2, 
-                                      (if $1 = [] then NO_TYPE
-                                       else ATTRTYPE (NO_TYPE, $1)), 
-                                      [], NOTHING) }
+    msqual_list_opt IDENT          { nameOfIdent $2 $1 } 
                                    /* (* We want to be able to redefine named 
                                     * types as variable names *) */
 |   msqual_list_opt NAMED_TYPE     {Clexer.add_identifier $2;
@@ -947,21 +952,18 @@ direct_decl: /* (* ISO 6.7.5 *) */
                                                        NOTHING)) $1}
 |   direct_decl LBRACKET STAR RBRACKET { injectTypeName (ARRAY(NO_TYPE, 
                                                        NOTHING)) $1}
-|   direct_decl LPAREN RPAREN      { injectTypeName (PROTO(NO_TYPE, [], 
-                                                       false, false)) 
-                                                $1 }
 |   direct_decl LPAREN parameter_list RPAREN 
-                                   { injectTypeName (PROTO(NO_TYPE, $3, 
-                                                       false, false)) 
-                                                $1 }
-|   direct_decl LPAREN parameter_list COMMA ELLIPSIS RPAREN
-                                   { injectTypeName (PROTO(NO_TYPE, $3, true, 
-                                                       false)) 
-                                                $1 }
+                                   { doFunctionDecl $1 $3 false } 
+|   direct_decl LPAREN parameter_list_ne COMMA ELLIPSIS RPAREN
+                                   { doFunctionDecl $1 $3 true } 
 ;
-parameter_list: /* (* ISO 6.7.5 *) */
+parameter_list_ne: /* (* ISO 6.7.5 *) */
 |   parameter_decl                        { [$1] }
-|   parameter_list COMMA parameter_decl   { $1 @ [$3] }
+|   parameter_list_ne COMMA parameter_decl   { $1 @ [$3] }
+;
+parameter_list: 
+|   /* empty */                           { [] }
+|  parameter_list_ne                      { $1 }
 ;
 parameter_decl: /* (* ISO 6.7.5 *) */
    decl_spec_list declarator              { makeSingleName $1 $2 }
@@ -977,9 +979,8 @@ old_proto_decl:
 direct_old_proto_decl:
   direct_decl LPAREN old_parameter_list RPAREN old_pardef_list_ne
                                    { let par_decl = doOldParDecl $3 $5 in
-                                     injectTypeName (PROTO(NO_TYPE, par_decl, 
-                                                           false, false))
-                                       $1 }
+                                     doFunctionDecl $1 par_decl false  
+                                   }
 ;
 
 old_parameter_list: 
@@ -1036,17 +1037,10 @@ abs_direct_decl: /* ISO 6.7.6. We do not support optional declarator for
 |   abs_direct_decl_opt LBRACKET STAR RBRACKET { injectTypeName 
                                                   (ARRAY(NO_TYPE, 
                                                          NOTHING)) $1}
-|   abs_direct_decl LPAREN RPAREN  { injectTypeName (PROTO(NO_TYPE, [], 
-                                                       false, false)) 
-                                                $1 }
 |   abs_direct_decl LPAREN parameter_list RPAREN 
-                                   { injectTypeName (PROTO(NO_TYPE, $3, 
-                                                       false, false)) 
-                                                $1 }
+                                   { doFunctionDecl $1 $3 false } 
 |   abs_direct_decl LPAREN parameter_list ELLIPSIS RPAREN
-                                   { injectTypeName (PROTO(NO_TYPE, $3, true, 
-                                                       false)) 
-                                                $1 }
+                                   { doFunctionDecl $1 $3 true }
 ;
 abs_direct_decl_opt:
     abs_direct_decl                 { $1 }
@@ -1056,14 +1050,23 @@ function_def:  /* (* ISO 6.9.1 *) */
   decl_spec_list declarator block { doFunctionDef $1 $2 $3 }
 /* (* Old-style function prototype *) */
 | decl_spec_list old_proto_decl block  { doFunctionDef $1 $2 $3 } 
-/* (* Old-style function that does not have a return type *) 
-|               IDENT LPAREN parameter_list RPAREN block
-                                   { FUNDEF ((INT(NO_SIZE, NO_SIGN),
-                                              NO_STORAGE,
-                                              ($1, INT(NO_SIZE, NO_SIGN),
-                                               [], NOTHING)),
-                                             $5) }
-*/
+/* (* Old-style function that does not have a return type *) */
+|          IDENT LPAREN parameter_list RPAREN block
+                           { let name = nameOfIdent $1 [] in
+                             let fdec = doFunctionDecl name $3 false in
+                             (* Default is int type *)
+                             let defSpec = applyTypeSpec Tint emptySpec in
+                             doFunctionDef defSpec fdec $5 }
+/* (* No return type and old-style parameter list *) */
+|          IDENT LPAREN old_parameter_list RPAREN old_pardef_list_ne block
+                           { let name = nameOfIdent $1 [] in
+                             (* Convert pardecl to new style *)
+                             let pardecl = doOldParDecl $3 $5 in
+                             (* Make the function declarator *)
+                             let fdec = doFunctionDecl name pardecl false in
+                             (* Default is int type *)
+                             let defSpec = applyTypeSpec Tint emptySpec in
+                             doFunctionDef defSpec fdec $6 }
 ;
 
 

@@ -62,11 +62,11 @@ my %commonerrors =
 # Now add tests
 $TEST->add3Tests("apache/gzip");
 $TEST->add3Tests("apache/rewrite");
-$TEST->add3Tests("btreetest", @runpattern);
-$TEST->add3Tests("hashtest", @runpattern);
-$TEST->add3Tests("rbtest", @runpattern);
+$TEST->add3Tests("btreetest", "", @runpattern);
+$TEST->add3Tests("hashtest", "", @runpattern);
+$TEST->add3Tests("rbtest", "", @runpattern);
 $TEST->add3Tests("test/alloc");
-$TEST->add3Tests("test/argcast", @runpattern);
+$TEST->add3Tests("test/argcast", "", @runpattern);
 $TEST->add3Tests("test/array1");
 $TEST->add3Tests("test/attr");
 $TEST->add3Tests("test/bitfield");
@@ -78,18 +78,18 @@ $TEST->add3Tests("test/format1");
 $TEST->add3Tests("test/func");
 $TEST->add3Tests("test/globals");
 $TEST->add3Tests("test/init");
-$TEST->add3Tests("test/initial");
+$TEST->add3Tests("test/initial", "_GNUCC=1");
 $TEST->add3Tests("test/jmp_buf");
 $TEST->add3Tests("test/linux_atomic");
 $TEST->add3Tests("test/list");
 $TEST->add3Tests("test/pointers");
-$TEST->add3Tests("test/printf", @runpattern);
+$TEST->add3Tests("test/printf", "", @runpattern);
 $TEST->add3Tests("test/retval");
 $TEST->add3Tests("test/seq");
 $TEST->add3Tests("test/sized");
 $TEST->add3Tests("test/sizeof");
 $TEST->add3Tests("test/smallstring");
-$TEST->add3Tests("test/static", @runpattern);
+$TEST->add3Tests("test/static", "", @runpattern);
 $TEST->add3Tests("test/strcpy");
 $TEST->add3Tests("test/string");
 $TEST->add3Tests("test/struct_init");
@@ -97,8 +97,8 @@ $TEST->add3Tests("test/structassign");
 $TEST->add3Tests("test/tags");
 $TEST->add3Tests("test/task");
 $TEST->add3Tests("test/voidstar");
-$TEST->add3Tests("wes-hashtest", @runpattern);
-$TEST->add3Tests("wes-rbtest", @runpattern);
+$TEST->add3Tests("wes-hashtest", "", @runpattern);
+$TEST->add3Tests("wes-rbtest", "", @runpattern);
 $TEST->add1Test("test/alloc-manualinferbox",
                 "test/alloc INFERBOX=2 MANUALBOX=1",
                 %commonerrors);
@@ -192,9 +192,10 @@ sub availableParameters {
 }
 
 sub add3Tests {
-    my($self, $name, %patterns) = @_;
+    my($self, $name, $extraargs, %patterns) = @_;
     
     my $theargs = defined($self->{option}->{safecdebug}) ? " " : " RELEASE=1 ";
+    $theargs .= " $extraargs ";
 
     my $k;
     my %patterns = %commonerrors;
