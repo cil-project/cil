@@ -292,7 +292,8 @@ DISTRIB_SRC = pretty.ml pretty.mli errormsg.ml errormsg.mli \
 	      rmtmps.ml rmtmps.mli formatlex.mll formatparse.mly \
 	      formatcil.mli formatcil.ml testcil.ml \
 	      mergecil.ml mergecil.mli maincil.ml machdep.c \
-	      libmaincil.ml
+	      libmaincil.ml \
+	      escape.ml escape.mli
 
 DISTRIB_SRC_FRONTC = cabs.ml cprint.ml clexer.mli clexer.mll \
 		     cparser.mly \
