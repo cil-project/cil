@@ -863,7 +863,7 @@ sub doit {
     my $out;
 
     # Maybe we must preprocess only
-    if($self->{OPERATION} eq "TOI") {
+    if($self->{OPERATION} eq "TOI" || $self->{OPERATION} eq 'SPECIAL') {
         # Then we do not do anything
 	my @cmd = (@{$self->{CPP}},
 		   @{$self->{PPARGS}}, @{$self->{CCARGS}}, 
@@ -989,6 +989,11 @@ sub compilerArgument {
               &classDebug("  type=$action->{TYPE}\n");
               if($action->{TYPE} eq "PREPROC") {
                   push @{$self->{PPARGS}}, @fullarg; return 1;
+              }
+              if($action->{TYPE} eq 'SPECIAL') {
+                  push @{$self->{PPARGS}}, @fullarg;
+		  $self->{OPERATION} = 'SPECIAL';
+		  return 1;
               }
               if($action->{TYPE} eq "CC") {
                   push @{$self->{CCARGS}}, @fullarg; return 1;
@@ -1146,7 +1151,10 @@ sub new {
 # ccargs; "LINK" in linkargs; "LINKCC" both in ccargs and linkargs;
 # "ALLARGS" in ppargs, ccargs, and linkargs; "CSOURCE" in cfiles;
 # "ASMSOURCE" in sfiles; "OSOURCE" in ofiles; "ISOURCE" in ifiles;
-# "OUT" in outarg.
+# "OUT" in outarg.  "SPECIAL" flags indicate that the compiler should
+# be run directly so that it can perform some special action other
+# than generating code (e.g. printing out version or configuration
+# information).
 #
 # If the TYPE is not defined but the RUN => sub { ... } is defined then the
 # given subroutine is invoked with the self, the argument and the (possibly
@@ -1544,7 +1552,7 @@ sub new {
             "-S" => { RUN => sub { $stub->{OPERATION} = "TOOBJ";
                                    push @{$stub->{CCARGS}}, $_[1]; }},
             "-o" => { ONEMORE => 1, TYPE => 'OUT' },
-            "-p" => { TYPE => 'LINKCC' },
+            '-p$' => { TYPE => 'LINKCC' },
             "-pg" => { TYPE => 'LINKCC' },
             "-a" => { TYPE => 'LINKCC' },
             "-Wall" => { TYPE => 'CC', 
@@ -1554,6 +1562,8 @@ sub new {
                                    push @{$stub->{LINKARGS}}, $_[1]; }},
 	    "-save-temps" => { TYPE => 'ALLARGS',
 			       RUN => sub { $stub->{SAVE_TEMPS} = 1; } },
+	    '-print-' => { TYPE => 'SPECIAL' },
+	    '-dump' => { TYPE => 'SPECIAL' },
             "-l" => { TYPE => 'LINK' },
             "-L" => { TYPE => 'LINK' },
             "-f" => { TYPE => 'LINKCC' },
