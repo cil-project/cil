@@ -5,33 +5,19 @@ use strict;
 # http://www.st.cs.uni-sb.de/dd/
 
 
-# FIX: 1) Want to hash the marker boundary points, not the string
-# itself. 2) Want to build up the string by writing it out to disk,
-# not by building in memory first.
-
 # FIX: This ought to be a Perl module where you can plug in your own
 # test function, but for now, just take this script and hack the test
 # function yourself.
 
-# FIX: There might be more opportunites to prevent extra string
-# copying that I don't see, or the places where I think I'm preventing
-# it I might not be.  I'm not sure I understand Perl references
-# completely.
+# FIX: What is the deal with this pass where we try every marker
+# individually?  Does this ever find anything?  It seems very
+# unlikely.  Take stats on this.  I think we can just remove it.
 
-# FIX: I don't understand why in test I say
-#  sub test (\$) {
-#      my $test_data_ref = shift;
-#      print $$test_data_ref;
-#  and in run I need to say
-#  sub run (\$) {
-#      my $line_ref = shift;
-#      print $line_ref, "\n";
-#  Note that when used one must have a $$ prefix whereas the other
-#  only one $.  Why?
+# FIX: It should probably start by throwing away things at the end
+# rather than at the start, since I think they are least likely to be
+# relevant.
 
-# NOTE: There might be times when you can be sure you won't find
-# anything in the cache ever again and you can just dump it.  Come to
-# think of it, I don't see any opportunity for this.
+# FIX: Could have running at various increasing base granularities.
 
 
 # Global State ****************
@@ -39,15 +25,29 @@ use strict;
 my @chunks = ();                # Once input, is read only.
 my @markers = ();               # Delimits a dynamic subsequence of @chunks being considered.
 my %test_cache = ();            # Cached test results.
+
+# Mark boundaries that uniquely determine the marked contents.  This
+# is used as a shorter key to hash on than the contents themselves.
+# Since Perl hashes retain their keys if you don't do this you get a
+# horrible memory leak in the test_cache.
+my $mark_signature;
+my $tmpinput;                   # Temporary file to render marked subsequence to.
+my $last_successful_tmpinput;   # Last one to past the test.
+
+# End of the last marker rendered to the tmp file.  Used to figure out
+# if the next one abuts it or not.
+my $last_mark_stop;
+
 my $tmp_index = 0;              # Cache the last index used to make a tmp file.
 my $tmpdir_index = 0;           # Cache the last index used to make a tmp directory.
-
 my $tmpdir;                     # Temporary directory for external programs.
 my $logfile = "Log";            # File in $tmpdir where log of successful runs is written.
+
 my $granularity = "line";       # What is the size of an input chunk?
 my $dump_input = 0;             # Dump out the input after reading it in.
 my $cp_minimal;                 # Copy the minimal successful test to the current dir.
 my $verbose = 0;                # Be more verbose.
+my $input_suffix = ".c";        # For now, our input files are .c files.
 
 my $help_message = <<END
     Delta Debugging
@@ -69,29 +69,24 @@ END
 # Functions ****************
 
 # Return true iff this input produces an error (which we want).
-sub test (\$) {
-    my $test_data_ref = shift;  # NOTE: I'm careful to not copy the input.
-    my $cached_result = $test_cache{$$test_data_ref}; # This has to be slow for big strings.
-    if (defined $cached_result) {return $cached_result;}
+sub test {
+    my $cached_result = $test_cache{$mark_signature};
+    if (defined $cached_result) {print "cached\n"; return $cached_result;} else {print "\n"}
     my @command_lines = ();
     my @tmp_files = ();
-#    print "\nRunning test on data ****************\n", $$test_data_ref, "****************\n";
+    my $input = "${tmpdir}/${tmpinput}";
+    die unless -f $input; push @tmp_files, $input;
 
-    # Test case.
-    my $filename = unused_tempfile();
-    my $input = "${tmpdir}/${filename}.c"; push @tmp_files, $input;
-    put_into_file($$test_data_ref, $input);
-    my $cmp_output = "${tmpdir}/${filename}.cmp"; push @tmp_files, $cmp_output;
-    my $command = "gcc $input &> $cmp_output";
-    push @command_lines, $command;
+    # Test case specific.
+    my $cmp_output = "${tmpdir}/${tmpinput}.cmp";
+    die if -e $cmp_output; push @tmp_files, $cmp_output; 
+    my $command = "gcc $input &> $cmp_output"; push @command_lines, $command;
     my $result = 0;
     if (run($command)) {        # Only interesting if it compiles
-        my $run_output = "${tmpdir}/${filename}.run"; push @tmp_files, $run_output;
-        $command = "./a.out &> $run_output";
-        push @command_lines, $command;
-        if (! run($command)) {  # But does not run.
-            $result = 1;
-        }
+        my $run_output = "${tmpdir}/${tmpinput}.run";
+        die if -e $run_output; push @tmp_files, $run_output;
+        $command = "./a.out &> $run_output"; push @command_lines, $command;
+        $result = ! run($command); # But does not run.
     }
 
     # Actual ccured run.
@@ -105,25 +100,49 @@ sub test (\$) {
     if ($result) {
         print "\tSUCCESS ****************\n";
         open LOG, ">>${tmpdir}/${logfile}" or die $!;
-        print LOG "\n$filename\n";
+        print LOG "\n$tmpinput\n";
         print LOG join("\n", @command_lines), "\n";
         close LOG or die $!;
+        $last_successful_tmpinput = $tmpinput;
     } else {
         foreach my $file (@tmp_files) {unlink $file;}
     }
     print "\n";
-    $test_cache{$$test_data_ref} = $result;
-    return $result;
+    return $test_cache{$mark_signature} = $result;
 }
 
-# Append the marker-delimited data to the data string.  This modifies
-# it second argument.
-sub append_marker ($\$) {
-  my $marker = shift;
-  my $data_ref = shift;
-  for (my $i=$marker->{start}; $i<$marker->{stop}; ++$i) {
-    $$data_ref .= $chunks[$i];
-  }
+sub start_marking {
+    $tmpinput = unused_tempfile();
+    $mark_signature = "";
+    undef $last_mark_stop;
+    open TMPINPUT, ">${tmpdir}/$tmpinput" or die $!;
+}
+
+sub mark {
+    my ($marker) = @_;
+    # Maintain the $mark_signature and $last_mark_stop;
+    if (defined $last_mark_stop) {
+        if ($last_mark_stop < $marker->{start}) {
+            $mark_signature .= $last_mark_stop . "]";
+            $mark_signature .= "[" . $marker->{start} . ",";
+        } elsif ($last_mark_stop == $marker->{start}) {
+            # This marker abuts the previous one.
+        } else {die}
+    } else {
+        $mark_signature .= "[" . $marker->{start} . ",";
+    }
+    $last_mark_stop = $marker->{stop};
+    # Render to the tmp file.
+    for (my $i=$marker->{start}; $i<$marker->{stop}; ++$i) {
+        print TMPINPUT $chunks[$i];
+    }
+}
+
+sub stop_marking {
+    $mark_signature .= $last_mark_stop . "]" if defined $last_mark_stop;
+    print $mark_signature, " ";
+    close TMPINPUT or die $!;
+    # NOTE: Leave $tmpinput defined.
 }
 
 sub run (\$) {
@@ -133,25 +152,13 @@ sub run (\$) {
     return $unix_ret_val ? 0 : 1;
 }
 
-sub put_into_file {
-  my ($data, $filename) = @_;
-#  die if -f $filename;
-  open F, ">$filename" or die $!;
-  print F $data;
-  close F or die $!;
-}
-
 sub unused_tempfile {
     die unless defined $tmpdir;
     my $filename;
     do {
-        $filename = sprintf("%03d", $tmp_index);
+        $filename = sprintf("%03d", $tmp_index) . $input_suffix;
         $tmp_index++;
     } while -e "${tmpdir}/$filename";
-    # FIX: This should be generalized.
-    die if -f "${tmpdir}/${filename}";
-    die if -f "${tmpdir}/${filename}.cmp";
-    die if -f "${tmpdir}/${filename}.run";
     return $filename;
 }
 
@@ -159,6 +166,12 @@ sub unused_tempdir {
   my $dirname;
   for (; $dirname = "deltatmp.${tmpdir_index}", -e $dirname; ++$tmpdir_index) {}
   return $dirname;
+}
+
+sub select_tmpdir {
+    $tmpdir = unused_tempdir() unless defined $tmpdir;
+    die if -e $tmpdir;
+    mkdir $tmpdir, 0777;
 }
 
 sub parse_command_line {
@@ -229,12 +242,13 @@ sub dump_input {
   print "****************\n";
 }
 
-sub save_minimal_test {
-  my ($marked) = @_;
-  if (defined $cp_minimal) {
-      print "Copying minimal run to $cp_minimal\n";
-      put_into_file($marked, $cp_minimal);
-  }
+sub check_initial_input {
+    die "The input must consist of at least one chunk." unless @chunks;
+    start_marking();
+    mark($markers[0]);
+    stop_marking();
+    die "\n\t**************** FAIL: The initial input does not pass the test.\n\n"
+        unless test();
 }
 
 sub dump_markers {
@@ -254,7 +268,6 @@ sub increase_granularity {
   foreach my $marker (@markers) {
     my $half = int (($marker->{start} + $marker->{stop}) / 2);
     if ($half == $marker->{start} or $half == $marker->{stop}) {
-#      warn "Can't split\n";
       push @newmarkers, $marker;
     } else {
       ++$split_one;
@@ -269,74 +282,61 @@ sub increase_granularity {
   return $split_one;
 }
 
+sub done {
+    print "Could not increase granularity; we are done.\n";
+    print "A log of successful runs is in ${tmpdir}/${logfile}\n";
+    if (defined $cp_minimal) {
+        print "Copying minimal run to $cp_minimal\n";
+        my $cp_result = ! system "cp ${tmpdir}/${last_successful_tmpinput} $cp_minimal";
+        die "cp failed" unless $cp_result;
+    }
+    exit 0;
+}
+
 # Main ****************
 
 parse_command_line();
-
-# Perhaps I'll let the user pick the tmpdir name, but it had better
-# not already exist.
-$tmpdir = unused_tempdir() unless defined $tmpdir;
-die if -e $tmpdir;
-mkdir $tmpdir, 0777;
-
+select_tmpdir();
 if ($verbose) {
-    print "Delta debugging algorithm, implemented by Daniel Wilkerson.\n";
+    print "\nDelta debugging algorithm, implemented by Daniel Wilkerson.\n";
     dump_settings();
 }
 
 read_input_chunks();
-die "The input must consist of at least one chunk." unless @chunks;
 dump_input() if $dump_input;
-
 $markers[0] = {start=>0, stop=>(scalar @chunks)}; # Initialize one marker.
-my $marked = "";
-append_marker($markers[0], $marked);
-die "\n\t**************** FAIL: The initial input does not pass the test.\n\n"
-  unless test($marked);
+check_initial_input();          # This is a vital step!  Don't omit it!
 
 big_loop: {
-  # Test the single markers.
-  foreach my $test_marker (@markers) {
-    # Test this marker.
-    my $marked = "";
-    append_marker($test_marker, $marked);
-    if (test($marked)) {
-      @markers = ($test_marker); # Get rid of all markers but this one.
-      if (increase_granularity()) {redo big_loop;}
-      else {
-        print "Could not increase granularity; we are done.\n";
-        print "A log of successful runs is in ${tmpdir}/${logfile}\n";
-        save_minimal_test($marked);
-        exit 0;
-      }
+    # Test the single markers.
+    foreach my $test_marker (@markers) {
+        start_marking();
+        mark($test_marker);
+        stop_marking();
+        if (test()) {
+            @markers = ($test_marker); # Get rid of all markers but this one.
+            if (increase_granularity()) {redo big_loop;}
+            else {done()}
+        }
     }
-  }
 
-  # Test the complements to single markers.
-  foreach my $anti_test_marker (@markers) {
-    # Test the complement to this marker.
-    my $marked = "";
-    my @newmarkers = ();        # Will become markers if we find something.
-    foreach my $marker (@markers) {
-      next if $marker eq $anti_test_marker;
-      push @newmarkers, $marker;
-      append_marker($marker, $marked);
+    # Test the complements to single markers.
+    foreach my $anti_test_marker (@markers) {
+        start_marking();
+        my @newmarkers = ();    # Will become markers if we find something.
+        foreach my $marker (@markers) {
+            next if $marker eq $anti_test_marker;
+            mark($marker);
+            push @newmarkers, $marker;
+        }
+        stop_marking();
+        if (test()) {
+            @markers = @newmarkers; # Get rid of this marker.
+            redo big_loop;
+        }
     }
-    if (test($marked)) {
-      @markers = @newmarkers;   # Get rid of this marker.
-      redo big_loop;
-    }
-  }
 
-  # None of them worked, increase the granularity.
-  if (increase_granularity()) {
-    redo big_loop;
-  } else {
-    print "Could not increase granularity; we are done.\n";
-    print "A log of successful runs is in ${tmpdir}/${logfile}\n";
-    my $marked = "";
-    foreach my $marker (@markers) {append_marker($marker, $marked);}
-    save_minimal_test($marked);
-    exit 0;
-  }
+    # None of them worked, increase the granularity.
+    if (increase_granularity()) {redo big_loop;}
+    else {done()}
 }
