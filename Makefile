@@ -1176,6 +1176,9 @@ go-noclean: defaulttarget mustbegcc
 VORDIR=$(SPECDIR)/147.vortex
 VORSAFECC=$(SAFECC) --combine   --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)
 #VORSAFECC=$(SAFECC)  --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)
+ifdef _GNUCC
+VOREXTRA=-lm
+endif
 
 vortexclean: 	
 	cd $(VORDIR)/src; make clean
@@ -1210,12 +1213,13 @@ vortex-combined: defaulttarget mustbegcc
 vortex-combined-gcc: mustbegcc
 	cd $(VORDIR)/src; \
             gcc vortex_all.c -g \
-               $(SAFECCDIR)/cil/obj/cillibdebug.a $(EXEOUT)vortex.exe
+               $(SAFECCDIR)/cil/obj/cillibdebug.a $(VOREXTRA) $(EXEOUT)vortex.exe
 	cd $(VORDIR)/src; sh -c "./testit vortex.exe"
 
 vortex-combined-compare: mustbegcc
 	-make vortex-combined-gcc _GNUCC=1
 	cp $(VORDIR)/src/data/vortex.out $(VORDIR)/src/data/vortex.gcc.out
+	cp $(VORDIR)/src/vortex.exe $(VORDIR)/src/vortex.gcc.exe
 	-make vortex-combined _GNUCC=1
 	cp $(VORDIR)/src/data/vortex.out $(VORDIR)/src/data/vortex.cil.out
 	diff $(VORDIR)/src/data/vortex.cil.out $(VORDIR)/src/data/vortex.gcc.out
@@ -1223,8 +1227,14 @@ vortex-combined-compare: mustbegcc
 vortex-makertl: mustbegcc
 	-make vortex-combined _GNUCC=1 TV=1
 
+ifdef _GNUCC
+TVCOMMAND=$(TVDIR)/obj/transval.asm
+else
+TVCOMMAND=$(TVDIR)/obj/transval.asm.exe
+endif
+
 vortex-tv:
-	$(TVDIR)/obj/transval.asm.exe -L $(VORDIR)/tv.log $(VORDIR)/src/vortex_all.i.rtl $(VORDIR)/src/vortex_allcil.i.rtl 
+	$(TVCOMMAND) -L $(VORDIR)/tv.log $(VORDIR)/src/vortex_all.i.rtl $(VORDIR)/src/vortex_allcil.c.rtl 
 
 ### SPEC95 m88ksim
 M88DIR=$(SPECDIR)/124.m88ksim
@@ -1333,11 +1343,11 @@ endif
 ifdef COMMLINES
 LINUXCC+= --safec=-commPrintLn
 endif
-linuxcabs: defaulttarget mustbegcc
+linux-cabs: defaulttarget mustbegcc
 	$(MAKE) -C $(LINUXDIR) vmlinux \
               MY-CC="$(LINUXCC) --cabs"
 
-linuxcil: defaulttarget mustbegcc
+linux-cil: defaulttarget mustbegcc
 	$(MAKE) -C $(LINUXDIR) vmlinux \
               MY-CC="$(LINUXCC) --cil"
 
