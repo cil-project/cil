@@ -3,10 +3,10 @@
 typedef struct core {
 } core ;
 
-void closure(short *  coreb , int n )
+void closure(short *  core , int n )
 {
   short *  csend ;
-  csend = coreb + n;
+  csend = core + n;
 }
 
 int main () {
