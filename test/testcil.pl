@@ -344,6 +344,8 @@ $TEST->addTests("test-bad/fseq1fail", "", ['inferbox']);
 $TEST->addTests("test-bad/seqalign", "", ['inferbox']);
 $TEST->addTests("test-bad/globinit", "", ['inferbox']);
 $TEST->addTests("test-bad/index1", "", ['inferbox']);
+$TEST->addTests("test-bad/stackptr", "", ['inferbox']);
+
 $TEST->addTests("test-bad/nonptr1", 
                 "EXTRAARGS=--logNonPointers", ['inferbox']);
 $TEST->addTests("test-bad/asm1", 
