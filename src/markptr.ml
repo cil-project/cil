@@ -640,7 +640,12 @@ let rec doStmt (s: stmt) =
       (* Now check the arguments *)
       let rec loopArgs formals args = 
         match formals, args with
-          [], _ when (isva || args = []) -> args
+          [], [] -> []
+        | [], a :: args when isva -> 
+            (* Do the arguments because they might contain pointer types *)
+            let a', _, _ = doExp a in
+            a' :: loopArgs [] args
+
         | fo :: formals, a :: args -> 
             let a' = doExpAndCastCall a fo.vtype !callId in
             a' :: loopArgs formals args
