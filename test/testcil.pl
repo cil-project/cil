@@ -229,6 +229,7 @@ $TEST->add3Tests("test/li1", "_GNUCC=1");
 $TEST->add3Tests("test/list");
 $TEST->add2Tests("testrun/perror");
 $TEST->add2Tests("testrun/perror1");
+$TEST->add2Tests("test/pure");
 $TEST->add3Tests("test/pointers");
 $TEST->add3Tests("test/printf", "", @runpattern);
 $TEST->add3Tests("test/printf_const", "", @runpattern);
