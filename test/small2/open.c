@@ -9,7 +9,7 @@ int main()
   int fd = open("/dev/zero", O_RDONLY);
   char buf;
 
-  if (read(fd, &buf, 1) != 0) {
+  if (read(fd, &buf, 1) != 1) {
     perror("read");
     return 2;
   }
