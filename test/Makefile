@@ -779,6 +779,15 @@ test-bad1/%: $(TESTDIR)/small1/%.c $(TARGET_DEP)
 	  _MSVC="$(_MSVC)" \
 	  bash ../../bin/test-bad $*.c
 
+test-bad-ln/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
+	cd $(TESTDIR)/small2; \
+	  CCUREDHOME="$(CCUREDHOME)" \
+	  CCURED="$(CCURED) --nomerge " \
+	  CFLAGS="$(CFLAGS) $(WARNALL)" \
+          TESTBADONCE="$(TESTBADONCE)" \
+	  _MSVC="$(_MSVC)" \
+	  bash ../../bin/test-bad $*.c
+
 test-bad-wrapper/%: $(TESTDIR)/small2/%.c $(TESTDIR)/small2/wrapperextern.c 
 	cd $(TESTDIR)/small2; \
 	  CCUREDHOME="$(CCUREDHOME)" \
