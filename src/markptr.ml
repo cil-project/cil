@@ -343,14 +343,7 @@ let rec doStmt (s: stmt) =
         | _ -> E.s (E.bug "Call to a non-function")
       in
       incr callId; (* A new call id *)
-          (* Now check the return value*)
-      (match reso, unrollType rt with
-        None, TVoid _ -> ()
-      | Some _, TVoid _ -> ignore (E.warn "Call of subroutine is assigned")
-      | None, _ -> () (* "Call of function is not assigned" *)
-      | Some destvi, _ -> 
-          N.addEdge (nodeOfType rt) (nodeOfType destvi.vtype) !callId);
-          (* Now check the arguments *)
+			(* Now check the arguments *)
       let rec loopArgs formals args = 
         match formals, args with
           [], _ when (isva || args = []) -> args
@@ -359,10 +352,37 @@ let rec doStmt (s: stmt) =
             a' :: loopArgs formals args
         | _, _ -> E.s (E.bug "Not enough arguments")
       in
-      Instr (Call(reso, func', loopArgs formals args, l))
-
-
-  
+			(* weimer: to handle the return value we must intercept malloc and
+			 * friends *)
+			let multi_node_functions = [ "malloc" ; "calloc" ; "realloc" ] in
+			(match func with
+				Lval((Var(v)),(NoOffset)) when List.mem v.vname multi_node_functions ->
+						begin
+						(* Associate a node with the variable itself. Use index = 0 
+						 * For malloc() and friends, we need a new node for each
+						 * callsite. *)
+						let place = N.PGlob (v.vname ^ "_" ^ (string_of_int(!callId))) in
+						let n = N.getNode place 0 v.vtype [] in
+						(* Add this to the variable attributes *)
+						(match reso with
+							Some destvi -> 
+								N.addEdge n (nodeOfType destvi.vtype) !callId;
+						| _ -> ignore (E.warn "Call to %s is not assigned" v.vname)) ;
+						let attr = addAttribute (ACons("_ptrnode", [AInt n.N.id])) [] in
+						let cast_fun = CastE(TPtr(TVoid([]),attr) ,func',locUnknown) in
+				    Instr (Call(reso, cast_fun, loopArgs formals args, l))
+					end
+			| _ -> begin
+          (* Now check the return value*)
+					match reso, unrollType rt with
+						None, TVoid _ -> ()
+					| Some _, TVoid _ -> ignore (E.warn "Call of subroutine is assigned")
+					| None, _ -> () (* "Call of function is not assigned" *)
+					| Some destvi, _ -> 
+							N.addEdge (nodeOfType rt) (nodeOfType destvi.vtype) !callId
+					end ;
+				  Instr (Call(reso, func', loopArgs formals args, l))
+			)
      
   
       
@@ -423,7 +443,8 @@ let printFile (c: out_channel) fl =
   d_attrcustom := myAttrCustom;
   Cil.printFile c fl;
   output_string c "// Now the graph\n";
-  N.gc (); 
+  (* N.gc ();  *)
   N.printGraph c;
+  output_string c "// End of graph\n";
   d_attrcustom := ocustom
     
