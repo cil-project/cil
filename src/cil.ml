@@ -5273,6 +5273,8 @@ let get_switch_count () =
   switch_count := 1 + !switch_count ;
   !switch_count
 
+let switch_label = ref (-1)
+
 let rec xform_switch_stmt s break_dest cont_dest label_index = begin
   s.labels <- List.map (fun lab -> match lab with
     Label _ -> lab
@@ -5285,7 +5287,8 @@ let rec xform_switch_stmt s break_dest cont_dest label_index = begin
 	    else
 	      Int64.to_string value
 	| None ->
-	    E.s (bug "case label has not been folded down to an integer")
+	    incr switch_label;
+	    "exp_" ^ string_of_int !switch_label
       in
       let str = Pretty.sprint 80 
 	  (Pretty.dprintf "switch_%d_%s" label_index suffix) in 
