@@ -175,7 +175,12 @@ module NeculaFolding = functor (A : AliasInfo) ->
     (* Register file. Maps identifiers of local variables to expressions.
      * We also remember if the expression depends on memory or depends on
      * variables that depend on memory *)
-    type t = ((exp * bool)) IntMap.t 
+    type reg = {
+      rvi : varinfo ;
+      rval : exp ;
+      rmem : bool
+    } 
+    type t = reg IntMap.t 
     let empty = IntMap.empty 
     let equal t1 t2 = (compare t1 t2 = 0) (* use OCAML here *)
     let dependsOnMem = ref false
@@ -186,8 +191,8 @@ module NeculaFolding = functor (A : AliasInfo) ->
         | Lval (Var v, NoOffset) -> begin
             try
               let defined = (IntMap.find v.vid regFile) in
-              if (snd defined) then dependsOnMem := true;
-              ChangeTo (fst defined)
+              if (defined.rmem) then dependsOnMem := true;
+              ChangeTo (defined.rval)
             with Not_found -> DoChildren
           end
         | Lval (Mem _, _) -> dependsOnMem := true; DoChildren
@@ -206,27 +211,52 @@ module NeculaFolding = functor (A : AliasInfo) ->
     let setMemory regFile = 
       (* Get a list of all mappings that depend on memory *)
       let depids = ref [] in
-      IntMap.iter (fun id v -> if snd v then depids := id :: !depids) regFile;
+      IntMap.iter (fun id v -> if v.rmem then depids := id :: !depids) regFile;
       (* And remove them from the register file *)
       List.fold_left (fun acc id -> IntMap.remove id acc) regFile !depids
 
-    let setRegister regFile (id: int) (v: exp * bool) = 
-      IntMap.add id v regFile 
+    let setRegister regFile (v: varinfo) ((e,b): exp * bool) = 
+      IntMap.add v.vid { rvi = v ; rval = e ; rmem = b; } regFile 
 
     let resetRegister regFile (id: int) =
       IntMap.remove id regFile 
 
+    class findLval lv contains = object
+      inherit nopCilVisitor 
+      method vlval l = 
+        if l = lv then 
+          (contains := true ; SkipChildren)
+        else
+          DoChildren
+    end 
+
+    let removeMappingsThatDependOn regFile l =
+      (* Get a list of all mappings that depend on l *)
+      let depids = ref [] in
+      IntMap.iter (fun id reg -> 
+        let found = ref false in 
+        ignore (visitCilExpr (new findLval l found) reg.rval) ;
+        if !found then 
+          depids := id :: !depids
+      )  regFile ; 
+      (* And remove them from the register file *)
+      List.fold_left (fun acc id -> IntMap.remove id acc) regFile !depids
+
     let assign r l e = 
       let (newe,b) = rewriteExp r e in
       let r' = match l with
-        (Var v, NoOffset) -> setRegister r v.vid (newe,b)
+        (Var v, NoOffset) -> 
+            let r'' = setRegister r v (newe,b) in 
+            removeMappingsThatDependOn r'' l 
       | (Mem _, _) -> setMemory r
       | _ -> r 
       in newe, r' 
 
     let unassign r l = 
       let r' = match l with
-        (Var v, NoOffset) -> resetRegister r v.vid 
+        (Var v, NoOffset) -> 
+            let r'' = resetRegister r v.vid in
+            removeMappingsThatDependOn r'' l 
       | (Mem _, _) -> setMemory r
       | _ -> r 
       in r' 
@@ -241,11 +271,11 @@ module NeculaFolding = functor (A : AliasInfo) ->
     (* Join two symex states *)  
     let join2 (r1 : t) (r2 : t) = 
       let keep = ref [] in 
-      IntMap.iter (fun id (e,b) -> 
+      IntMap.iter (fun id reg -> 
         try 
-          let (e',b') = IntMap.find id r2 in
-          if e' = e && b' = b then 
-            keep := (id,(e,b)) :: !keep 
+          let reg' = IntMap.find id r2 in
+          if reg'.rval = reg.rval && reg'.rmem = reg.rmem then 
+            keep := (id,reg) :: !keep 
         with _ -> ()
       ) r1 ;
       List.fold_left (fun acc (id,v) ->
@@ -266,14 +296,24 @@ module NeculaFolding = functor (A : AliasInfo) ->
       (List.rev !new_arg_list), final_r
 
     let return r fd =
-      List.fold_left (fun r vi -> IntMap.remove vi.vid r) r fd.sformals
+      let regFile = 
+        List.fold_left (fun r vi -> IntMap.remove vi.vid r) r fd.sformals
+      in 
+      (* Get a list of all globals *)
+      let depids = ref [] in
+      IntMap.iter (fun vid reg -> 
+        if reg.rvi.vglob || reg.rvi.vaddrof then depids := vid :: !depids 
+      )  regFile ; 
+      (* And remove them from the register file *)
+      List.fold_left (fun acc id -> IntMap.remove id acc) regFile !depids
+
 
     let call_to_unknown_function r =
       setMemory r 
 
     let debug r = 
-      IntMap.iter (fun key (exp,b) -> 
-        ignore (Pretty.printf "%d <- %a (%b)@!" key d_exp exp b)
+      IntMap.iter (fun key reg -> 
+        ignore (Pretty.printf "%s <- %a (%b)@!" reg.rvi.vname d_exp reg.rval reg.rmem)
       ) r 
   end (* END OF: NeculaFolding *)
 
