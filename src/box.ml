@@ -549,7 +549,25 @@ let getIOBFunction =
   let argn = makeLocalVar fdec "n" intType in
   fdec.svar.vtype <- TFun(fatVoidPtr, [ argn ], false, []);
   fdec
-  
+
+(* Check whether the type contains an embedded array *)
+let rec containsArray t = 
+  match unrollType t with 
+    TArray _ -> true
+  | TStruct(_, flds, _) -> 
+      List.exists (fun f -> containsArray f.ftype) flds
+  | TPtr _ -> false
+  | (TInt _ | TEnum _ | TFloat _ | TBitfield _ ) -> false
+  | _ -> E.s (E.unimp "containsArray")
+
+(* Check if an offset contains a non-zero index *)
+let rec containsIndex = function
+    NoOffset -> false
+  | First o -> containsIndex o
+  | Field (_, o) -> containsIndex o
+  | Index (Const(CInt(0, _, _), _), o) -> containsIndex o
+  | Index _ -> true
+
     (************* STATEMENTS **************)
 let rec boxstmt (s : stmt) : stmt = 
   try
@@ -608,6 +626,7 @@ and boxinstr (ins: instr) : stmt =
         let check = 
           match lv' with
             Mem _, _ -> checkWrite e' lv' lvbase rest
+          | Var _, off when containsIndex off -> checkWrite e' lv' lvbase rest
           | _ -> []
         in
         mkSeq (dolv @ doe @ check @ [Instr(Set(lv', e', l))])
@@ -696,16 +715,30 @@ and boxinstr (ins: instr) : stmt =
   * statements to prepare to replacement lval, the replacement lval, and an 
   * expression that denotes the base of the memory area containing the lval *)
 and boxlval (b, off) : (typ * stmt list * lval * exp) = 
-  let (b', dob, tbase, baseaddr) = 
+  let (b', dob, tbase, baseaddr, off') = 
     match b with
       Var vi -> 
-        let tbase = vi.vtype in
+        (* If the address of this variable is taken or if the variable 
+         * contains an array, then we must have changed the type into a 
+         * structure type, with tags  *)
+        let offbase, tbase, off' = 
+          if not vi.vglob && 
+            (vi.vaddrof || containsArray vi.vtype) then
+            let dataf = 
+              match vi.vtype with
+                TStruct(_, [_; _; df], _) -> df
+              | _ -> E.s (E.bug "addrOf but no tagged type")
+            in
+            Field(dataf, NoOffset), dataf.ftype, Field(dataf, off)
+          else
+            NoOffset, vi.vtype, off
+        in
         let baseaddr = 
           match vi.vtype with
-            TArray _ -> StartOf(Var vi, NoOffset)
-          | _ -> AddrOf((Var vi, NoOffset), lu)
+            TArray _ -> StartOf(Var vi, offbase)
+          | _ -> AddrOf((Var vi, offbase), lu)
         in
-        (b, [], tbase, baseaddr)
+        (b, [], tbase, baseaddr, off')
     | Mem addr -> 
         let (addrt, doaddr, addr', addr'base) = boxexpSplit addr in
         let addrt' = 
@@ -714,10 +747,10 @@ and boxlval (b, off) : (typ * stmt list * lval * exp) =
           | _ -> E.s (E.unimp "Reading from a non-pointer type: %a\n"
                         d_plaintype addrt)
         in
-        (Mem addr', doaddr, addrt', addr'base)
+        (Mem addr', doaddr, addrt', addr'base, off)
   in
-  let (t, dooff, off') = boxoffset off tbase in
-  (t, dob @ dooff, (b', off'), baseaddr)
+  let (t, dooff, off'') = boxoffset off' tbase in
+  (t, dob @ dooff, (b', off''), baseaddr)
 
 
 and boxoffset (off: offset) (basety: typ) : offsetRes = 
@@ -749,10 +782,12 @@ and boxexpf (e: exp) : stmt list * fexp =
   match e with
   | Lval (lv) -> 
       let rest, dolv, lv', lvbase = boxlval lv in
-      let check = 
+      let check = (* Check a read if it is in memory of if the offset contains 
+                     an Index *)
         match lv' with
           Mem _, _ -> checkRead lv' lvbase rest
-        | _ -> []
+        | Var _, off when containsIndex off -> checkRead lv' lvbase rest
+        | _, _ -> []
       in
       if isFatType rest then
         (dolv @ check, F1(rest, Lval(lv')))
@@ -1070,7 +1105,38 @@ let boxFile globals =
         List.iter (fun l -> l.vtype <- fixupType l.vtype) f.slocals;
         currentFunction := f;           (* so that maxid and locals can be 
                                          * updated in place *)
-        f.sbody <- boxstmt f.sbody;
+        (* Now we must take all locals whose address is taken and turn their 
+           types into structures with tags and length field *)
+        let tagLocal stmacc l = 
+          if not l.vaddrof && not (containsArray l.vtype) then stmacc
+          else
+            let bytes = intSizeOf l.vtype in
+            let words = (bytes + 3) lsr 2 in
+            let tagwords = (words + 15) lsr 4 in
+            let tagType = 
+              mkCompType true ""
+                         [ ("_tags", TArray(intType, 
+                                            Some (integer tagwords), []));
+                           ("_len", intType);
+                           ("_data", l.vtype) ] [] in
+            let tfld, lfld = 
+              match tagType with
+                TStruct (_, [tfld; lfld; _], _) -> tfld, lfld
+              | _ -> E.s (E.bug "tagLocal")
+            in
+            l.vtype <- tagType;
+            (* Now create the initializer *)
+            let rec loopTag idx = 
+              if idx >= tagwords then stmacc else
+              (mkSet (Var l, Field(tfld, First (Index (integer idx, 
+                                                       NoOffset))))
+                     zero) :: (loopTag (idx + 1))
+            in
+            (mkSet (Var l, Field(lfld, NoOffset)) (integer words))
+            :: loopTag 0 
+        in
+        let inilocals = List.fold_left tagLocal [] f.slocals in
+        f.sbody <- mkSeq (inilocals @ [boxstmt f.sbody]);
         theFile := GFun f :: !theFile
 
     | (GAsm s) as g -> theFile := g :: !theFile

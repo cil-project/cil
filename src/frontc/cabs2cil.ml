@@ -250,15 +250,6 @@ let findCompType kind n =
 
 
 
-let typeId : int ref = ref 0
-let newTypeId () = 
-  incr typeId;
-  !typeId
-
-let newTypeName n = 
-  incr typeId;
-  "@anon" ^ n ^ (string_of_int (!typeId))
-
 (**** Occasionally we see structs with no name and no fields *)
 (* Sometimes we need to lookup enum fields *)
 let enumFields : (string, (int * typ)) H.t = H.create 17

@@ -105,7 +105,8 @@ and typ =
               (* base type and length *)
   | TArray of typ * exp option * attribute list
 
-               (* name, fields, attributes *) 
+               (* name, fields, attributes. Use mkStruct or mkUnion to 
+                * construct these easily  *) 
   | TStruct of string * fieldinfo list * attribute list 
   | TUnion of string * fieldinfo list * attribute list
 
@@ -386,6 +387,24 @@ let charPtrType = TPtr(charType,[])
 let voidPtrType = TPtr(voidType, [])
 let doubleType = TFloat(FDouble, [])
 
+let structId = ref 0 (* Find a better way to generate new names *)
+let newTypeName n = 
+  incr structId;
+  "@anon" ^ n ^ (string_of_int (!structId))
+
+let mkCompType (isstruct: bool) 
+               (n: string) (fspec: (string * typ) list) 
+               (a: attribute list) = 
+   let n = if n = "" then 
+     newTypeName (if isstruct then "struct" else "union") else n in
+   let flds = 
+       List.map (fun (fn, ft) -> { fname = fn; 
+                                   ftype = ft;
+                                   fstruct = n;
+                                   fattr = [] }) fspec in
+   if isstruct then TStruct (n, flds, a) else TUnion (n, flds, a)
+
+                                   
 let var vi : lval = (Var vi, NoOffset)
 let mkSet lv e = Instr(Set(lv,e,lu))
 let assign vi e = mkSet (var vi) e
