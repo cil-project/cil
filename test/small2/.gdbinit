@@ -1,5 +1,5 @@
 # .gdbinit
 
-file rmunused2
+file popen
 break main
 run
