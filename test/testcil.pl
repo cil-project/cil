@@ -203,6 +203,11 @@ $TEST->add2TestFail("testrun/failprintf2", "Failure: Non-pointer");
 $TEST->add2TestFail("testrun/failprintf3", "Failure: type mismatch");
 $TEST->add2TestFail("testrun/failprintf4", "Failure: type mismatch");
 $TEST->add2TestFail("testrun/failprintf5", "Failure: non-terminated string");
+$TEST->add2TestFail("testrun/failprintf6", "Failure: type mismatch");
+
+$TEST->add2TestFail("testrun/failsprintf1", "Failure: Ubound");
+$TEST->add2TestFail("testrun/failsprintf2", "Failure: Ubound");
+$TEST->add2TestFail("testrun/failsprintf3", "Failure: Non-pointer");
     
 #
 # OLDEN benchmarks
