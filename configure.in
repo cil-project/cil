@@ -185,14 +185,11 @@ AC_MSG_CHECKING([for Perl])
   if ! binaryExists perl; then
     AC_MSG_ERROR([
       perl not found.
-      You need perl version 5.6.0 or later for CCured.
+      You need perl version 5.6.1 or later for CCured.
       You can get perl at http://www.cpan.org/src/index.html .
     ])
   fi
 
-  # sm: we need 5.6.0 or later because CCured.pm uses
-  # the 'our' scoping operator
-  #
   # sm: oh how nice it would be to just say "use English;
   # print($PERL_VERSION)", but that appears broken on 5.6.1.. so I'm
   # trying to say "caret right-bracket", but then that would run afoul
@@ -201,7 +198,7 @@ AC_MSG_CHECKING([for Perl])
   perlver=`perl -e 'print($@:>@);'`
   if perl -e "exit( $perlver >= 5.006 );"; then
     AC_MSG_ERROR([
-      Found perl version $perlver, but at least 5.6.0 (aka 5.006) is required.
+      Found perl version $perlver, but at least 5.6.1 (aka 5.008) is required.
       You can get a newer perl at http://www.cpan.org/src/index.html .
     ])
   fi
