@@ -304,8 +304,7 @@ ifdef _GNUCC
     RELEASECCL+= $(DEF)USE_GC
     GCLIB = $(CILDIR)/lib/gc/gc.a
 
-# base_lib is created when gc.a is created, as a marker
-$(GCLIB): lib/gc/base_lib
+$(GCLIB):
 	cd lib/gc; make && ./gctest
 
   else
