@@ -606,6 +606,7 @@ smAddTest("scott/mode_sizes");       # mode(__QI__) stuff
 smAddTest("scott-nolink/brlock");
 smAddTest("scott/qsort_wild $box");
 smAddTest("scott/regparm0");         # this works, unfortunately..
+smFailTest("0 vs 0UL problem", "scott/unscomp");    # kernel/fs/buffer.c
 
 # test of strings (need more!)
 smFailTest("unsound user annotation RWSTRING", "badd/ovwrnull $box");

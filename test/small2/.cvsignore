@@ -123,3 +123,6 @@ test-bad.err
 brlock
 test-bad.out
 qsort_wild
+regparm0
+unscomp
+
