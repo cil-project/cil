@@ -23,9 +23,8 @@ end
 
 (* encapsulate this since rumor has it Raymond has changed *)
 (* how we represent 'inline' *)
-let isInlineFunc (f: fundec) : bool = (
-  (hasAttribute "inline" f.svar.vattr)
-)
+let isInlineFunc (f: fundec) : bool = f.sinline
+
 
 
 (* This visitor recursively marks all reachable types and variables as used. *)
