@@ -524,7 +524,7 @@ baddef: test/small2/baddef1.c test/small2/baddef2.c
 	  > baddef.rept 2>&1
 	cat test/small2/baddef.rept
 	test/small2/baddef
-	if grep conflicting test/small2/baddef.rept >/dev/null; then \
+	if grep -i conflicting test/small2/baddef.rept >/dev/null; then \
 	  echo "OK: conflict detected"; \
 	else \
 	  echo "FAIL: missed the conflict!"; exit 1; \

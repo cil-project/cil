@@ -52,9 +52,10 @@
 
 (* I have no idea why ocamldoc misreads my comments on cygwin. I seem to be 
  * able to solve the problem by putting some [a] in some places *)
+(* sm: I removed some of the [a]'s and it still works.. *)
 
 
-(** The type of unformated documents. Elements of this type can be 
+(** The type of unformated documents. Elements of this type can be
     constructed in two ways. Either with a number of constructor shown below, 
     or using the [dprintf] function with a [printf]-like interface. The 
     [dprintf] method is slightly slower so we do not use it for large jobs 
@@ -69,7 +70,7 @@ type doc
 
 
 
-(** [a]Constructs an empty document **)
+(** Constructs an empty document *)
 val nil          : doc
 
 
@@ -87,29 +88,29 @@ val num          : int    -> doc
 
 
 (** A document that prints a character. This is just like [text] 
-  * with a one-character string. *)
+    with a one-character string. *)
 val chr          : char   -> doc
 
 
-(** A document that consists of a mandatory newline. This is just like [text 
-  * "\n"]. The new line will be indented to the current indentation level, 
-  * unless you use [leftflush] right after this. *)
+(** A document that consists of a mandatory newline. This is just like [(text
+    "\n")]. The new line will be indented to the current indentation level,
+    unless you use [leftflush] right after this. *)
 val line         : doc
 
-(** Use after a [line] to prevent the indentation. Whatever follows next will 
-  * be flushed left. Indentation resumes on the next line. *)
+(** Use after a [line] to prevent the indentation. Whatever follows next will
+    be flushed left. Indentation resumes on the next line. *)
 val leftflush    : doc
 
 
-(** A document that consists of either a space or a line break. Also called 
-  * an optional line break. Such a break will be 
-   taken only if necessary to fit the document in a given width. If the break 
-   is not taken a space is printed instead. *)
+(** A document that consists of either a space or a line break. Also called
+    an optional line break. Such a break will be
+    taken only if necessary to fit the document in a given width. If the break
+    is not taken a space is printed instead. *)
 val break: doc
 
-(** Mark the current column as the current indentation level. Does not print 
-  * anything. All taken line breaks will align to this column. The previous 
-  * alignment level is saved on a stack. *)
+(** Mark the current column as the current indentation level. Does not print
+    anything. All taken line breaks will align to this column. The previous
+    alignment level is saved on a stack. *)
 val align: doc
 
 (** Reverts to the last saved indentation level. *)
@@ -117,14 +118,14 @@ val unalign: doc
 
 
 
-(************** Now some syntactic sugar *****************)
+(************* Now some syntactic sugar *****************)
+(** Syntactic sugar *)
 
-(** Indents the document. Same as [text "  " ++ align ++ doc ++ unalign], 
-  * with the specified number of spaces. *)
+(** Indents the document. Same as [((text "  ") ++ align ++ doc ++ unalign)],
+    with the specified number of spaces. *)
 val indent: int -> doc -> doc
 
 (** Formats a sequence
-
    @param sep A separator
    @param doit A function that converts an element to a document 
    @param elements The list to be converted to a document
