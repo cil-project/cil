@@ -44,7 +44,7 @@ ifdef USEFRONTC
 SOURCEDIRS += src/frontc
 MLLS       += clexer.mll
 MLYS       += cparser.mly
-MODULES    += cabs cprint combine newcombine clexer cparser cabs2cil frontc
+MODULES    += cabs cprint combine clexer cparser cabs2cil frontc
 endif
 
 # Add main late
@@ -564,6 +564,17 @@ pcc : defaulttarget
              USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
              COMPILER=$(PCCCOMP) \
 	     clean defaulttarget 
+
+pcc-noclean : defaulttarget
+#	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.o
+	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.exe
+	-rm $(PCCDIR)/bin/*.exe
+	make -C $(PCCDIR) \
+             CC="$(PCCSAFECC) $(CONLY)" \
+             LD="$(SAFECC) $(MSLINK) --combine --keep=$(CILDIR)/test/PCCout" \
+             USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
+             COMPILER=$(PCCCOMP) \
+	     defaulttarget 
 
 pcc-combined: defaulttarget
 	cd $(PCCDIR)/bin; \

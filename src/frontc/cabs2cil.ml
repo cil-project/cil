@@ -60,9 +60,11 @@ let isTransparentUnion (t: typ) : fieldinfo option =
  * process function definitions *)
 let transparentUnionArgs : (int * typ) list ref = ref []
 
-
+let debugLoc = false
 let convLoc (l : cabsloc) =
-   {line = l.lineno; file = l.filename;}
+  if debugLoc then 
+    ignore (E.log "convLoc at %s:%d\n" l.filename l.lineno);
+  {line = l.lineno; file = l.filename;}
 
 
 (*** EXPRESSIONS *************)
@@ -86,6 +88,8 @@ let popGlobals () =
   revonto (revonto [] !theFile) !theFileTypes
 
 
+(* This is very SLOW!!!. The only reason it does not matter much is because 
+ * the combiner removes duplicate declarations *)
 let replacePreviousDefsWithDecls (vi: varinfo ) : bool = 
   let rec alreadyDef = ref false in
   let rec loop = function

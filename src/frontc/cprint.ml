@@ -259,7 +259,7 @@ and print_type_spec = function
 (* This is the main printer for declarations. It is easy bacause the 
  * declarations are laid out as they need to be printed. *)
 and print_decl (n: string) = function
-    JUSTBASE -> print n
+    JUSTBASE -> if n <> "___missing_field_name" then print n
   | PARENTYPE (al1, d, al2) -> 
       print "("; 
       print_attributes al1; space ();

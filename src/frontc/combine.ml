@@ -1,9 +1,3 @@
-(* Things may need to be changed
-   ATTRIBUTE --- Raymond ADDED them back
-   Struct tag --- Since it is diffcult to rename struct tag without
-                  scanning ahead, I am not renaming struct tag at all
-   *)
-(* :: is tricky.  For (a :: b), eval b and then a *)
 (* combine --- combine C source files into one.
 **
 ** Project: FrontC
@@ -13,6 +7,9 @@
 ** Author:  Raymond To
 **
 **  1.0   4.10.01 Raymond To First version.
+**  2.0   7.1.01 George Necula. Reimplemented with proper handling of scope 
+**        and alpha-conversion.
+
 *)
 
 open Cabs
@@ -22,513 +19,202 @@ module E = Errormsg
 module H = Hashtbl
 
 
-(* Hash tables for combiner *)
+(* We get from the parser a list of files. We concatenate them together being 
+ * carefully to rename file-scope symbols (static, typedef, 
+ * structure/union/enum tags appearing at file scope) and then we make one 
+ * pass over the entiere AST to apply the new names. We also eliminate 
+ * certain duplicate file-scope definitions.  *)
 
-(* Tables that used to keep track of re-definitions 
- - store definitions in tables *)
-let gDefTable = H.create 307 (* global definition *)
-let fDefTable = H.create 107 (* static global definition (file scope) *)
+(* 1. Non-static declarations are never renamed. But we try to remove 
+ * duplicate ones. We check duplication by using Ocaml structural equality by 
+ * we ignore the location of the declaration. *)
 
-let gAlphaTable : (string, string) H.t = 
-  H.create 307 (* id names that have been used *)
+(* 2. Static declarations and function defintions are renamed (but only once 
+ * per file) without effort to try to eliminate duplicate definitions  *)
 
-(* Table that maps id to renamed id *)
-let gMap = H.create 107 (* global id *)
-let fMap = H.create 107 (* file scope id *)
-let lMap = H.create 107 (* function scope id *)
+(* 3. Struct/Union/Enum tags are considered to have file scope also, but 
+ * before they are renamed we check to see if this is a duplicate definition 
+ * or maybe a conflicting definition. We keep track of all the definitions 
+ * for a given tag so when we check for duplicates we check against all 
+ * previous definitions for a tag.  *)
 
-let fTag = H.create 107 (* tags that have appeared in file *)
-let gTag = H.create 107 (* tags that have appeared in ALL files *)
-
-let structTag = H.create 107
-let unionTag = H.create 107
-let enumTag = H.create 107
-
-
-let noloc = { lineno = 0; filename = "" }
-
-let rec combineAttr (s, el) = 
-  (s, List.map combine_expression el)
-
-and combineAttrs al = 
-  List.map combineAttr al
-
-and combine_specs (specs: spec_elem list) = 
-  let combine_fields flds =
-      (* Compile a list of field ids *)
-    let ids = 
-      List.flatten 
-        (List.map (fun (_, names)  -> 
-          (List.map (fun (id, _, _) -> id) names)) flds) in
-    begin
-      List.iter (fun id -> H.add lMap id id) ids;
-      let flds' = List.map (fun fld -> combine_name_group "" fld) flds in 
-      List.iter (fun id -> H.remove lMap id) ids;
-      flds'
-    end
-  in
-  let combine_enums (es: enum_item list) = 
-    List.map (fun (s, e) -> (s, combine_expression e)) es
-  in
-  let combine_spec_elem (elem: spec_elem) = 
-    match elem with
-      SpecTypedef | SpecInline | SpecStorage _ -> elem
-    | SpecType t ->
-        SpecType
-          (match t with
-            Tnamed n -> Tnamed (lookup_id "type" n)
-          | Tstruct (n, None) -> Tstruct (lookup_tag n, None)
-          | Tstruct (n, Some flds) -> 
-              Tstruct (lookup_tag n, Some (combine_fields flds))
-          | Tunion (n, None) -> Tunion (lookup_tag n, None)
-          | Tunion (n, Some flds) -> 
-              Tunion (lookup_tag n, Some (combine_fields flds))
-          | Tenum (n, None) -> Tenum(lookup_tag n, None)
-          | Tenum (n, Some es) -> Tenum(lookup_tag n, Some (combine_enums es))
-          | TtypeofE e -> TtypeofE (combine_expression e)
-          | TtypeofT (s,d) -> 
-              let s', d' = combine_only_type (s, d) in
-              TtypeofT (s', d')
-          | ts -> ts)
-    | SpecAttr attr -> SpecAttr (combineAttr attr) 
-  in
-  List.map combine_spec_elem specs
-
-
-and combine_decl_type = function
-  | JUSTBASE -> JUSTBASE
-  | BITFIELD exp -> BITFIELD (combine_expression exp)
-  | PROTO (typ, pars, ell) -> 
-      PROTO(combine_decl_type typ, combine_params pars, ell)
-  | PTR (attrs, typ) -> PTR(combineAttrs attrs, combine_decl_type typ)
-  | ARRAY (typ, dim) -> ARRAY(combine_decl_type typ, combine_expression dim)
-  | PARENTYPE (al1, typ, al2) -> 
-      PARENTYPE (combineAttrs al1, combine_decl_type typ,
-                 combineAttrs al2)
+(* 4. Typedefs are also considered to have file scope but we try to reuse 
+ * them. We use a similar mechanism as for the struct/union/enum tags *)
 
 
 
-(* Look for a number to append to the name to make it unique *)
-and findNewName (usedNames: (string, 'a) H.t) (tag: string) =
-  let rec loop n = 
-    let newtag = tag ^ "__" ^ string_of_int n in
-    if H.mem usedNames newtag then
-      loop (n + 1)
-    else
-      newtag
-  in
-  if H.mem usedNames tag then
-    loop 0
+
+
+
+(* Global names are split into a prefix, a ___ (3 underscores) separator and 
+ * an integer suffix. For each prefix we keep the maximum integer suffix with 
+ * which the prefix was encountered. This suffix is -1 when only the version 
+ * without the suffix was encountered.  *)
+let alphaTable: (string, int ref) H.t = H.create 511
+
+
+(* To keep different name scopes different, we add prefixes to names 
+ * specifying the kind of name: the kind can be one of "" for variables or 
+ * enum tags, "struct" for structures, "enum" for enumerations, "union" for 
+ * union types, or "type" for types *)
+let kindPlusName (kind: string)
+                 (origname: string) : string =
+  if kind = "" then origname else
+  kind ^ " " ^ origname
+                
+
+let stripKind (kind: string) (kindplusname: string) : string = 
+  let l = 1 + String.length kind in
+  if l > 1 then 
+    String.sub kindplusname l (String.length kindplusname - l)
   else
-    tag
+    kindplusname
 
-(* return empty string if tag begins with __anon
-   lookup from hashtable otherwise  *)
-and lookup_tag tag = begin
-  if ((String.length tag) >= 6 && (String.sub tag 0 6) = "__anon") then 
-    ((*prerr_endline "Found __anon tag";*) "")
-  else
+(* Keep track of the current location *)
+let currentLoc: cabsloc ref = ref { lineno = -1; filename = "<no file>" }
+
+(* Keep an environment that maps a name to the current alpha-converted name 
+ * in the current scope. This gets flushed at the end of each file. If an 
+ * string is not present in the environment then it is an external 
+ * and we leave it alone. *)
+let env: (string, string) H.t = H.create 511
+
+
+(* A list of things to do when you exit a scope *)
+type undoElement = 
+    UndoScope (* To mark the begining of a scope *)
+  | UndoThis of (unit -> unit)
+
+let undo: undoElement list ref = ref []
+
+let enterScope () = 
+  undo := UndoScope :: !undo
+
+let exitScope () = 
+  let rec loop = function
+      [] -> E.s (E.bug "Empty scope")
+    | UndoScope :: rest -> undo := rest
+    | UndoThis f :: rest -> f(); loop rest
+  in
+  loop !undo
+
+
+(* Add a local to the environment and push an undo entry *)
+let addLocalToEnv (orig: string) (newname: string) = 
+  H.add env orig newname;
+  undo := UndoThis (fun _ -> H.remove env orig) :: !undo
+
+
+let lookup (kind: string) (origname: string) : string = 
+  let lookupname = kindPlusName kind origname in
+  try
+    let alphaname = H.find env lookupname in
+    alphaname
+  with Not_found -> origname
+
+
+
+
+(* The main alpha conversion routine *)
+let rec newAlphaName (kind: string) 
+                     (origname: string) : string = 
+  let lookupname = kindPlusName kind origname in
+  (* Copied from CIL *)
+  let prefix, _, suffix = splitNameForAlpha lookupname in
+  (* ignore (E.log "newAlphaName(%s). P=%s, S=%d\n" lookupname prefix suffix);
+     *)
+  let newname = 
     try
-      H.find fTag tag
-    with Not_found ->
-      (try
-         H.find gTag tag
-       with Not_found -> (* tag has not been used at all *)
-         (H.add gTag tag tag;
-          H.add fTag tag tag;
-          tag))
-  
-end
-        
-and combine_only_type (specs, dt) =
-  (combine_specs specs, combine_decl_type dt)
-
-(* ATTRIBUTES ARE ADDED BACK *)    
-and combine_name (kind: string) ((id, typ, al) : name) = begin
- if id = "___missing_field_name" then
-   (id, combine_decl_type typ, combineAttrs al)
- else
-   (lookup_id kind id, combine_decl_type typ, combineAttrs al)
-end
-        
-and combine_name_group (kind: string) (specs, names) =
-  (combine_specs specs, List.map (combine_name kind) names)
-    
-and combine_single_name (kind: string) (specs, name) =
-  (combine_specs specs, combine_name kind name) 
-
-(* Raymond added declare_id lookup_id *)
-and combine_params (pars : single_name list) = begin
-  List.iter (fun name -> declare_id "" name false) pars;
-  List.map (fun single_name -> combine_single_name "" single_name) pars
-end
-
-        
-and combine_exps exps =
-  List.map combine_expression exps
-
-and combine_init_expression (iexp: init_expression) : init_expression = 
-  match iexp with
-    NO_INIT -> NO_INIT
-  | SINGLE_INIT e -> SINGLE_INIT (combine_expression e)
-  | COMPOUND_INIT initexps ->
-      let doinitexp = function
-          NEXT_INIT, e -> (NEXT_INIT, combine_init_expression e)
-        | i, e -> 
-            let rec doinit = function
-                NEXT_INIT -> NEXT_INIT
-              | INFIELD_INIT (fn, i) -> INFIELD_INIT(fn, doinit i)
-              | ATINDEX_INIT (e, i) -> 
-                  ATINDEX_INIT(combine_expression e, doinit i)
-              | ATINDEXRANGE_INIT (s, e) ->
-                  ATINDEXRANGE_INIT(combine_expression s, 
-                                    combine_expression e)
-            in
-            (doinit i, combine_init_expression e)
-      in
-      COMPOUND_INIT (List.map doinitexp initexps)
-        
-(* No need to rename fields *)    
-and combine_expression (exp : expression) : expression =
-  match exp with
-    NOTHING | LABELADDR _ -> exp
-
-  | UNARY (op, exp') ->
-      UNARY(op, combine_expression exp')  
-  | BINARY (op, exp1, exp2) ->
-      BINARY(op, combine_expression exp1, combine_expression exp2)      
-  | QUESTION (exp1, exp2, exp3) ->
-      QUESTION(combine_expression exp1, 
-               combine_expression exp2, combine_expression exp3)    
-  | CAST (typ, iexp) ->
-      CAST(combine_only_type typ, combine_init_expression iexp)     
-  | CALL (exp, args) ->
-      CALL(combine_expression exp, combine_exps args)   
-  | COMMA exps ->
-      COMMA(combine_exps exps)
-  | CONSTANT cst ->
-      CONSTANT(
-        (match cst with
-        CONST_INT i -> CONST_INT i
-      | CONST_FLOAT r -> CONST_FLOAT r
-      | CONST_CHAR c -> CONST_CHAR c
-      | CONST_STRING s -> CONST_STRING s))
-
-  | VARIABLE name -> 
-      VARIABLE(lookup_id "" name)
-  | EXPR_SIZEOF exp ->
-      EXPR_SIZEOF (combine_expression exp)
-  | TYPE_SIZEOF (specs, dt) ->
-      TYPE_SIZEOF(combine_specs specs, combine_decl_type dt)
-  | EXPR_ALIGNOF exp ->
-      EXPR_ALIGNOF (combine_expression exp)
-  | TYPE_ALIGNOF (specs, dt) ->
-      TYPE_ALIGNOF(combine_specs specs, combine_decl_type dt)
-  | INDEX (exp, idx) ->
-      INDEX(combine_expression exp, combine_expression idx)
-  | MEMBEROF (exp, fld) ->
-      MEMBEROF(combine_expression exp, fld)
-  | MEMBEROFPTR (exp, fld) ->
-      MEMBEROFPTR(combine_expression exp, fld)
-  | GNU_BODY (blk) ->
-      GNU_BODY (combineBody blk)
-
-and combineBody (labs, defs, stmts) = 
-  (labs, 
-   List.map (fun d -> combine_def d false) defs,
-   List.map combine_statement stmts)
-
-(*
-** Statement combining
-*)
-and combine_statement stat =
-  match stat with
-    NOP loc->
-      NOP loc
-  | COMPUTATION (exp, loc) ->
-      COMPUTATION(combine_expression exp, loc)
-  | BLOCK (blk, loc) ->
-      BLOCK(combineBody blk, loc)
-  | SEQUENCE (s1, s2, loc) ->
-      SEQUENCE(combine_statement s1, combine_statement s2, loc)
-  | IF (exp, s1, s2, loc) ->
-      IF(combine_expression exp, combine_substatement s1, combine_substatement s2, loc)
-  | WHILE (exp, stat, loc) ->
-      WHILE(combine_expression exp, combine_substatement stat, loc)
-  | DOWHILE (exp, stat, loc) ->
-      DOWHILE(combine_expression exp, combine_substatement stat, loc)
-  | FOR (exp1, exp2, exp3, stat, loc) ->
-      FOR(combine_expression exp1, combine_expression exp2, combine_expression exp3, combine_substatement stat, loc)
-  | BREAK(loc) ->
-      BREAK(loc) 
-  | CONTINUE (loc)->
-      CONTINUE (loc)
-  | RETURN (exp, loc) ->
-      RETURN (combine_expression exp, loc)
-  | SWITCH (exp, stat, loc) ->
-      SWITCH(combine_expression exp, combine_substatement stat, loc)
-  | CASE (exp, stat, loc) ->
-      CASE(combine_expression exp, combine_substatement stat, loc)
-  | CASERANGE (expl, exph, stat, loc) ->
-      CASERANGE(combine_expression expl, combine_expression exph, 
-                combine_substatement stat, loc)
-  | DEFAULT (stat, loc) ->
-      DEFAULT(combine_substatement stat, loc)
-  | LABEL (name, stat, loc) ->
-      LABEL(name, combine_substatement stat, loc)
-  | GOTO (name, loc) ->
-      GOTO(name, loc)
-  | COMPGOTO (exp, loc) -> COMPGOTO (combine_expression exp, loc)
-  | ASM (tlist, isvol, outs, ins, clobs, loc) ->
-      ASM(tlist, isvol, outs, ins, clobs, loc)   
-           
-and combine_substatement stat =
-  combine_statement stat
-  
-
-(*
-** Combine and rename declarations
-*)
-and combine_defs (defs : definition list) global = begin
-  (* clear file scope tables *)
-  H.clear fDefTable;
-  H.clear fMap;
-  H.clear fTag;
-
-  let rec reform_defs = function
-      [] -> []
-    | def :: rest ->
-      begin
-        if global && already_declared def then (
-          reform_defs rest (*skip this def *)
-        )
-        else
-          let combined_def = combine_def def global in
-          combined_def :: reform_defs rest
-      end
+      let rc = H.find alphaTable prefix in
+      let newsuffix = if suffix > !rc then suffix else !rc + 1 in
+      rc := newsuffix;
+      prefix ^ "___" ^ (string_of_int newsuffix)
+    with Not_found -> begin (* First variable with this prefix *)
+      H.add alphaTable prefix (ref suffix);
+      lookupname  (* Return the original name *)
+    end
   in
-  reform_defs defs
-end
+  let n' = stripKind kind newname in
+  n'
 
-and tag_defined (s: spec_elem) = 
-  match s with
-    SpecType t -> begin
-      match t with
-        Tstruct (id, Some _) ->
-          id <> "" &&
-          (tag_defined_same id s structTag) || 
-            (H.add structTag id s; false)
-      | Tunion (id, Some _) ->
-          id <> "" &&
-          (tag_defined_same id s unionTag) ||
-            (H.add unionTag id s; false)
-      | Tenum (id, Some _) ->
-          id <> "" &&
-          (tag_defined_same id s enumTag) ||
-            (H.add enumTag id s; false)
-      | _ -> false
-    end
-  | _ -> false
-                     
-(* sm: given the name of a struct/enum/union 'id', and its specifier
- * 'newspec', if it's already in 'table', and return a bool
- * accordingly; and if it's in the table, also verify that it
- * has the same definition there as 'newspec' *)
-and tag_defined_same (id : string) (newspec : spec_elem)
-                     (table : (string, spec_elem) H.t) : bool =
-begin
-  (* is it in the table?  if not then bail *)
-  if (not (H.mem table id)) then false else
 
-  (* get the original definition *)
-  let orig : spec_elem = (H.find table id) in
 
-  (* compare them *)
-  if (not (equal_specs newspec orig)) then (
-    (Printf.printf "WARNING: conflicting redefinitions; orig:\n");
-    (Cprint.print_specifiers [orig]);
-    (Cprint.new_line ());
-    (Printf.printf "new specifier:\n");
-    (Cprint.print_specifiers [newspec]);
-    (Cprint.new_line ())
-  );
 
-  (* regardless, the original code said true here *)
-  true
-end
-
-(* returns true if def is already declared. Could make another function to
- * clean this code up. Strip the location from definitions before hashing
- * them. *)
-and already_declared def =
-  match def with
-    FUNDEF ((s, name), body, loc) ->
-      let def' = FUNDEF ((s, name), body, noloc) in
-      if isStatic s then
-        H.mem fDefTable def' || (H.add fDefTable def' 1; false)
+(* Strip the suffix. Return the prefix, the separator (empty or ___) and a 
+ * numeric suffix (-1 if the separator is empty or if ____ is the last thing 
+ * in the name)  *)
+and splitNameForAlpha (lookupname: string) : (string * string * int) = 
+  (* Split the lookup name into a prefix, a separator (empty or ___) and a 
+   * suffix. The suffix is numberic and is separated by ___ from the prefix  *)
+  try
+    let under_idx = String.rindex lookupname '_' in
+    let l = String.length lookupname in
+    (* Check that we have two more underscores preceeding it *)
+    if under_idx < 3 then raise Not_found;
+    if String.get lookupname (under_idx - 1) != '_' ||
+       String.get lookupname (under_idx - 2) != '_' then 
+      raise Not_found;
+    (* Check that we have only digits following the underscore *)
+    if under_idx = l - 1 then raise Not_found;
+    (* If we have a 0 right after the _ and more characters after that then 
+     * we consider that we do not have a suffix *)
+    if String.get lookupname (under_idx + 1) = '0' &&
+       under_idx < l - 2 then raise Not_found;
+    let rec collectSuffix (acc: int) (i: int) = 
+      if i = l then 
+        (String.sub lookupname 0 (under_idx - 2), "___", acc)
       else
-        check_exists_same def' || (H.add gDefTable def' def'; false)
+        let c = Char.code (String.get lookupname i) - Char.code '0' in
+        if c >= 0 && c < 9 then 
+          collectSuffix (10 * acc + c) (i + 1)
+        else
+          raise Not_found
+    in
+    collectSuffix 0 (under_idx + 1)
+  with Not_found -> (* No suffix in the name *)
+    (lookupname, "", -1)
 
-  | DECDEF ((s, names), loc) ->
-      let def' = DECDEF ((s, names), noloc) in
-      if isStatic s then
-          H.mem fDefTable def' || (H.add fDefTable def' 1; false)
-      else
-        check_exists_same def' || (H.add gDefTable def' def'; false)
-
-  | TYPEDEF ((s, names), loc) ->
-      let def' = TYPEDEF ((s, names), noloc) in
-      if List.exists tag_defined s then
-        true
-      else
-        check_exists_same def' || (H.add gDefTable def' def'; false)
-
-  | ONLYTYPEDEF (s, loc) ->
-      let def' = ONLYTYPEDEF (s, noloc) in
-      if List.exists tag_defined s then
-        true
-      else
-        check_exists_same def' || (H.add gDefTable def' def'; false)
-
-  | _ -> false (* ASM and others are always considered to be false *)
-
-
-(* sm: given a definition without location information (so it can be
- * hashed), if it already exists in the hash table return true and
- * if not return false; but if return true, also check to make sure
- * the existing definition matches the new one *)
-and check_exists_same (def : definition) : bool =
-begin
-  (* does it exist in the hash table?  if not, bail *)
-  if (not (H.mem gDefTable def)) then false 
-  else (
-    if (traceActive "sm") then (
-      (* it's in there; go get the existing defn *)
-      let existing : definition = (H.find gDefTable def) in
-
-      (* print both *)
-      (Cprint.print_def def);
-      (Cprint.print_def existing)
-    );
-
-    true
-  )
-end
-
-
-(* Find a id name that hasn't been used *)
-and find_newId id = findNewName gAlphaTable id
-
-(* declare an id and add that to the mapping table *)
-and declare_id (kind: string) (s, (id, dtyp, al)) global 
-    : unit =
-  let id = if kind = "" then id else kind ^ " " ^ id in
-  (*prerr_endline ("declare id: " ^ id);*)
-  if global then begin
-    if isStatic s then begin
-      if not (H.mem fMap id) then (* new declaration *)
-        if H.mem gAlphaTable id then begin
-            (* needs to be renamed *)
-            let newId = find_newId id in 
-            H.add gAlphaTable newId id;
-            H.add fMap id newId;
-        end else begin
-          H.add gAlphaTable id id;
-           H.add fMap id id
-        end
-    end else begin
-      if not (H.mem gMap id) then (* new declaration *)
-        if H.mem gAlphaTable id then begin
-          let newId = find_newId id in
-          H.add gAlphaTable newId id;
-          H.add gMap id newId
-        end else begin 
-          H.add gAlphaTable id id;
-          H.add gMap id id
-        end
-    end
-  end else begin
-    if not (H.mem lMap id) && not (H.mem fMap id) && not (H.mem gMap id) then 
-      if H.mem gAlphaTable id then
-        (* needs to be renamed *)
-        H.add lMap id (find_newId id)
-      else
-        H.add lMap id id
+(* Sometimes we have names that we do not want to change. We need to register 
+ * them however for two reasons. First, they might be in conflict with some 
+ * local names already registered. In that case we must add them to the 
+ * conflicts list to be fixed in a second pass over the files. Another reason 
+ * is that we want to register them into the alphaTable so that new locals 
+ * that we create don't inadvertedly reuse the name *)
+let conflicts: string list ref = ref []
+let registeredGlobals: (string, bool) H.t = H.create 511
+let registerGlobalName (n: string) = 
+  if not (H.mem registeredGlobals n) then begin
+    H.add registeredGlobals n true;
+    (* Put it through the alpha converter to register its prefix and to see 
+     * if there is already somebody else with this name *)
+    let n' = newAlphaName "" n in
+    if n <> n' then 
+      conflicts := n :: !conflicts;
   end
 
-(* declare_ids are used for a name_group. 
-   For simplicity, it is calling declare_id *)  
-and declare_ids (kind: string) (s, names) global =
-  List.iter (fun name -> declare_id kind (s, name) global) names
-
-
-(* if global, we do a check on duplicate definition.
-   Also, declare id (variable, function, and type) *)
-and combine_def def global = begin
-  
-  (* clear function scope mapping table if this is a global def *)
-  if global then H.clear lMap; 
-
-  match def with
-    FUNDEF ((s, name), body, loc) ->
-      (* One MSVC force inline functions to be static. Otherwise the compiler
-       * might complain that the function is declared with multiple bodies *)
-      let s' =
-        if !Cprint.msvcMode && isInline s then
-          SpecStorage STATIC :: s else s
-      in
-      (declare_id "" (s', name) global;
-      let n = combine_single_name "" (s', name)  (* force evaluation *)
-      in
-      FUNDEF(n, combineBody body, loc))
-
-  | DECDEF ((s, names), loc) ->
-      List.iter (fun (name, _) -> declare_id "" (s, name) global) names;
-      DECDEF((combine_specs s,
-             List.map (fun (name, init) -> combine_name "" name,
-                                           combine_init_expression init) names), loc)
-
-  | TYPEDEF ((s, names), loc) ->
-      (declare_ids "type" (SpecStorage STATIC :: s, names) global;
-      TYPEDEF((combine_name_group "type" (s, names)),loc))
-
-  | ONLYTYPEDEF (s, loc) ->
-      ONLYTYPEDEF(combine_specs s, loc)
-
-  | GLOBASM (asm,loc) ->
-      GLOBASM (asm, loc)
-
-  | PRAGMA (a,loc) ->
-      PRAGMA (a, loc)    
-end
-
-  
-(* look up id from Mapping tables *)
-and lookup_id (kind: string) id = begin
-  let id' = if kind = "" then id else kind ^ " " ^ id in
-  let newid' = 
-    try
-      H.find lMap id'
-    with Not_found ->
+let processDeclName 
+    (isglobal: bool)
+    (isstatic: bool)
+    (orig: string) : string = 
+  if isglobal then 
+    if isstatic then begin (* Can change name. But do it only once in a 
+                            * scope. *)
       try
-        H.find fMap id'
-      with Not_found ->
-        try
-          H.find gMap id'
-        with Not_found ->
-          (*prerr_endline ("Undeclared id: " ^ id);*)
-          id'
-  in
-  if kind = "" then
-    newid'
-  else
-    let lk = String.length kind in
-    let lnew = String.length newid' in
-    if lnew <= lk + 1 then
-      E.s (E.bug "lookup_id: %s" id');
-    String.sub newid' (lk + 1) (lnew - lk - 1)
-end
-
+        H.find env orig 
+      with Not_found -> begin
+        let n' = newAlphaName "" orig in
+        (* Add it to the env *)
+        addLocalToEnv orig n';
+        n'
+      end
+    end else (* Not static. Register the name *) begin
+      registerGlobalName orig;
+      orig
+    end
+  else begin (* local name. Add it to the env *)
+    addLocalToEnv orig orig;
+    orig
+  end
 
 (* --------------------- equality functions -------------------- *)
 (* sm: fairly detailed (though still not complete) comparison of
@@ -536,18 +222,22 @@ end
  * different source files; I'm sure this kind of comparison must
  * have already been written by someone somewhere, but I can't
  * find it *)
-and equal_specs (s1 : spec_elem) (s2 : spec_elem) : bool =
+let rec equal_specs (tagequal: bool) (* Trust tag equality *)
+                    (s1 : spec_elem) (s2 : spec_elem) : bool =
 begin
   match (s1,s2) with
   | SpecTypedef, SpecTypedef -> true
   | SpecInline, SpecInline -> true
   | SpecAttr _, SpecAttr _ -> true               (* good enough for now *)
   | SpecStorage _, SpecStorage _ -> true         (* don't care right now *)
-  | SpecType(t1), SpecType(t2) -> (equal_typespecs t1 t2)   (* the point of this exercise *)
+  | SpecType(t1), SpecType(t2) -> 
+      (equal_typespecs tagequal t1 t2) (* the point of this exercise  *)
   | _, _ -> false                                (* mismatching kinds *)
 end
 
-and equal_typespecs (t1 : typeSpecifier) (t2 : typeSpecifier) : bool =
+and equal_typespecs 
+         (tagequal: bool) (* If true then trust tag equality *)
+         (t1 : typeSpecifier) (t2 : typeSpecifier) : bool =
 begin
   match (t1,t2) with
   | Tvoid, Tvoid -> true
@@ -562,25 +252,30 @@ begin
   | Tunsigned, Tunsigned -> true
   | Tnamed(n1), Tnamed(n2) -> (n1 = n2)
   | Tstruct(n1, None), Tstruct(n2, None) -> (n1 = n2)
-  | Tstruct(n1, Some fields1), Tstruct(n2, Some fields2) -> (
+  | Tstruct(n1, Some fields1), Tstruct(n2, Some fields2) ->
       n1 = n2 &&
-      (equal_name_group_lists fields1 fields2)
-    )
+      (tagequal || (equal_name_group_lists fields1 fields2))
+  | Tstruct (n1, _), Tstruct(n2, _) -> tagequal && n1 = n2
+
   | Tunion(n1, None), Tunion(n2, None) -> (n1 = n2)
-  | Tunion(n1, Some fields1), Tunion(n2, Some fields2) -> (
+  | Tunion(n1, Some fields1), Tunion(n2, Some fields2) ->
       n1 = n2 &&
-      (equal_name_group_lists fields1 fields2)
-    )
+      (tagequal || (equal_name_group_lists fields1 fields2))
+  | Tunion (n1, _), Tunion(n2, _) -> tagequal && n1 = n2
+
   | Tenum(n1, None), Tenum(n2, None) -> (n1 = n2)
-  | Tenum(n1, Some fields1), Tenum(n2, Some fields2) -> (
+  | Tenum(n1, Some fields1), Tenum(n2, Some fields2) ->
       n1 = n2 &&
-      (equal_enum_item_lists fields1 fields2)
-    )
+      (tagequal || (equal_enum_item_lists fields1 fields2))
+  | Tenum (n1, _), Tenum(n2, _) -> tagequal && n1 = n2
+
+
   (* yikes because we need to compare a bunch more details, and
    * yikes because one type might be written explicitly and
    * another as the type itself, so resolving names is needed.. *)
-  | TtypeofE(_), TtypeofE(_) -> true       (* yikes *)
-  | TtypeofT(_,_), TtypeofT(_,_) -> true   (* more yikes *)
+  | TtypeofE(e1), TtypeofE(e2) -> e1 = e2
+  | TtypeofT(s1,t1), TtypeofT(s2,t2) -> 
+      equal_spec_lists true s1 s2 && equal_decltypes t1 t2
 
   | _,_ -> false
 end
@@ -590,9 +285,8 @@ and equal_enum_item_lists (fields1 : enum_item list)
 begin
   match fields1, fields2 with
   | [], [] -> true
-  | (tag1, _) :: rest1, (tag2, _) :: rest2 ->
-      (* continuing to avoid comparing expressions *)
-      (tag1 = tag2) &&
+  | (tag1, e1) :: rest1, (tag2, e2) :: rest2 ->
+      (tag1 = tag2) && e1 = e2 &&
       (equal_enum_item_lists rest1 rest2)
 
   | _, _ -> false
@@ -604,21 +298,22 @@ begin
   match (fields1, fields2) with
   | [], [] -> true
   | (specs1, names1) :: rest1, (specs2, names2) :: rest2 -> (
-      (equal_spec_lists specs1 specs2) &&
+      (equal_spec_lists true specs1 specs2) &&
       (equal_name_lists names1 names2) &&
       (equal_name_group_lists rest1 rest2)
     )          
   | _, _ -> false
 end
 
-and equal_spec_lists (specs1 : spec_elem list)
+and equal_spec_lists (tagequal: bool)  (* Trust tag equality *) 
+                     (specs1 : spec_elem list)
                      (specs2 : spec_elem list) : bool =
 begin
   match (specs1, specs2) with
   | [], [] -> true
   | s1 :: rest1, s2 :: rest2 -> (
-      (equal_specs s1 s2) &&
-      (equal_spec_lists rest1 rest2)
+      (equal_specs tagequal s1 s2) &&
+      (equal_spec_lists tagequal rest1 rest2)
     )
   | _, _ -> false
 end
@@ -653,48 +348,618 @@ begin
   | PARENTYPE(_, p1, _), PARENTYPE(_, p2, _) ->
       (* continuing to ignore attributes.. *)
       (equal_decltypes p1 p2)
-  | BITFIELD _, BITFIELD _ -> true     (* hmm... *)
-  | ARRAY(elt1, _), ARRAY(elt2, _) ->
-      (* ignoring sizes........ ! *)
+  | BITFIELD e1, BITFIELD e2 -> e1 = e2
+  | ARRAY(elt1, sz1), ARRAY(elt2, sz2) ->
+      sz1 = sz2 &&
       (equal_decltypes elt1 elt2)
   | PTR(_, base1), PTR(_, base2) ->
       (equal_decltypes base1 base2)
-  | PROTO(_,_,_), PROTO(_,_,_) ->
-      (* too lazy to check for function ptr type equality *)
-      true
+  | PROTO(rt1,args1,va1), PROTO(rt2,args2,va2) ->
+      equal_decltypes rt1 rt2 &&
+      va1 = va2 &&
+      List.length args1 = List.length args2 &&
+      (* Check the arguments but ignore the names *)
+      List.fold_left2 
+        (fun acc (s1, (_, da1, _)) (s2, (_, da2, _)) -> 
+          acc && equal_spec_lists true s1 s2 && equal_decltypes da1 da2) 
+        true args1 args2
 
   | _, _ -> false
 end
+
+and equal_single_names (specs1, n1) (specs2, n2) = 
+  equal_spec_lists true specs1 specs2 && equal_names n1 n2
+
 (* ----- end of equality stuff ------ *)
 
-let combine (files : Cabs.file list) : Cabs.file =
-begin
-   List.flatten (List.map
-                  (fun defs' -> combine_defs defs' true) 
-                  files)
+(* We want to eliminate duplicate definitions of struct/union/enum tags, 
+ * function, typedef and decdefs. We keep a few hash tables. *)
+
+(* Indexed by "struct foo", etc. We keep multiple mappings for each original 
+ * name tag. The mapping contains the new name, the type specifier of the old 
+ * one and the location *)
+let definedTags: (string, string * typeSpecifier * cabsloc) H.t = H.create 113
+
+type conflict = 
+    FirstDef of string (* The first definition. But the name must be 
+                        * alpha-converted still because of some other 
+                        * conflicts  *)
+  | Duplicate of string (* Not the first definition but another one just like 
+                         * that is present. Give the name of that one *)
+  | Conflict of string  (* There is a conflict with another declaration. 
+                         * Return a name that can be used for the new one *)
+let checkTagDefinition
+    (kind: string) 
+    (t: string) 
+    (ts: typeSpecifier) 
+    (l: cabsloc) : conflict = 
+  let lookupname = kindPlusName kind t in
+  let tforalpha = if t = "" then "anon" ^ kind else t in
+  let olds = H.find_all definedTags lookupname in
+  if olds = [] then begin
+    (* Put it through the alpha converter *)
+    let t' = newAlphaName kind tforalpha in
+(*    if t <> t' then 
+      E.s (E.bug "First tag definition, yet the alpha converter changed the name. Orig=%s %s. New=%s" kind t 
+ * t'); *)
+    H.add definedTags lookupname (t', ts, l);
+    addLocalToEnv lookupname t';
+    FirstDef t'
+  end else 
+    (* Go through the list and find one that matches *)
+    let rec loop = function
+        [] -> (* None matches. We have a conflict. Except if we are dealing 
+               * with an anonymoust tag *)
+          if t = "" then begin (* A new definition *)
+            let t' = newAlphaName kind tforalpha in
+            H.add definedTags lookupname (t', ts, l);
+            addLocalToEnv lookupname t';
+            FirstDef t'
+          end else begin
+            (Printf.printf 
+               "WARNING: conflicting redefinitions of tag %s %s;\n" 
+               kind t);
+            List.iter 
+              (fun (_, oldts, oldloc) -> 
+                (Printf.printf "previous at %s:%d: \n\t" 
+                   oldloc.filename oldloc.lineno);
+                (Cprint.print_specifiers [SpecType oldts]);
+                (Cprint.new_line ())) olds;
+            (Printf.printf "new specifier (at %s:%d): \n\t" 
+               l.filename l.lineno);
+            (Cprint.print_specifiers [SpecType ts]);
+            (Cprint.new_line ());
+            (* Pick a new name *)
+            let t' = newAlphaName kind tforalpha in
+            (* Remember the new mapping *)
+            H.add definedTags lookupname (t', ts, l);
+            (* Add it to the environment, but only for this file *)
+            addLocalToEnv lookupname t';
+            Conflict t'
+          end
+            
+      | (t', oldts, oldl) :: rest  when equal_typespecs false ts oldts -> 
+          (* We found a matching one *)
+          (* Add it to the environment *)
+          addLocalToEnv lookupname t';
+          Duplicate t'
+            
+      | _ :: rest -> loop rest
+    in
+    loop olds
+
+  
+
+(* Keep a map of already declared typenames. Keep, the alpha-converted name, 
+ * the definition (a single_name with the original name as the actual name) 
+ * and the location  *)
+let definedTypes: (string, (string * single_name * cabsloc)) H.t 
+    = H.create 111
+
+
+let checkTypeDefinition
+    (n: string) 
+    (sn: single_name) 
+    (l: cabsloc) : conflict = 
+  let olds = H.find_all definedTypes n in
+  if olds = [] then begin
+    (* Put it through the alpha converter *)
+    let n' = newAlphaName "" n in
+(*
+    if n <> n' then 
+      E.s(E.bug "First type definition, yet the alpha converter changed the name. Orig=%s, New=%s\n" n 
+ * n'); *)
+    H.add definedTypes n (n', sn, l);
+    addLocalToEnv n n';
+    FirstDef n'
+  end else 
+    (* Go through the list and find one that matches *)
+    let rec loop = function
+        [] -> (* None matches. We have a conflict. *)
+          (Printf.printf "WARNING: conflicting type redefinitions for %s\n"
+             n);
+          List.iter 
+            (fun (_, oldsn, oldloc) -> 
+              (Printf.printf "previous at %s:%d: \n\t" 
+                 oldloc.filename oldloc.lineno);
+              (Cprint.print_single_name oldsn);
+              (Cprint.new_line ())) olds;
+            (Printf.printf "new definition (at %s:%d): \n\t" 
+               l.filename l.lineno);
+          (Cprint.print_single_name sn);
+          (Cprint.new_line ());
+          (* Pick a new name *)
+          let n' = newAlphaName "" n in
+          (* Remember the new mapping *)
+          H.add definedTypes n (n', sn, l);
+          (* Add it to the environment, but only for this file *)
+          addLocalToEnv n n';
+          Conflict n'
+            
+      | (n', oldsn, oldl) :: rest  when equal_single_names sn oldsn -> 
+          (* We found a matching one *)
+          (* Add it to the environment *)
+          addLocalToEnv n n';
+          Duplicate n'
+            
+      | _ :: rest -> loop rest
+    in
+    loop olds
+
+
+(* Remember the declarations that we have seen so that we can drop identical 
+ * ones *)
+let declarations: (init_name_group, bool) H.t = H.create 1111
+
+(*********************************
+ *********************************
+ *********************************
+ *)
+
+(* ALPHA-CONVERSION *)
+
+(* Scan various AST elements and apply the new names *)
+
+
+let rec alpha_attr (s, el) = 
+  (s, List.map alpha_expression el)
+
+and alpha_attrs al = 
+  List.map alpha_attr al
+
+
+(* Process the specifiers. Be careful about the definitions of the 
+ * struct/union/enum tags and about the enum items *)
+and doSpecs (isglobal: bool) (* Whether we are at global scope *)
+            (se: spec_elem list) : spec_elem list =
+  let doFields (ngl: name_group list) = 
+    let doOneField ((id, typ, al): name) =
+      (id, alpha_decl_type typ, alpha_attrs al)
+    in
+    let doNameGroup (specs, ng) = 
+      (doSpecs false specs, List.map doOneField ng)
+    in
+    List.map doNameGroup ngl
+  in
+  match se with
+  | [] -> []
+  | SpecTypedef :: rest -> SpecTypedef :: doSpecs isglobal rest
+  | SpecInline :: rest -> SpecInline :: doSpecs isglobal rest
+  | SpecStorage s :: rest -> SpecStorage s :: doSpecs isglobal rest
+  | SpecAttr a :: rest -> SpecAttr (alpha_attr a) :: doSpecs isglobal rest
+  | SpecType t :: rest -> begin
+      let t' = 
+        match t with 
+          Tnamed n -> Tnamed (lookup "" n)
+        | Tstruct (s, None) -> (* Just a reference *)
+            Tstruct(lookup "struct" s, None)
+        | Tstruct (s, Some flds) -> begin (* A def *)
+            let flds' = doFields flds in
+            if not isglobal then begin (* Just add to the env *)
+              addLocalToEnv "struct" s; (* Do not change the name *)
+              Tstruct (s, Some flds')
+            end else begin
+              (* Prepare the result *)
+              match checkTagDefinition "struct" s 
+                    (Tstruct ("", Some flds')) !currentLoc with 
+                FirstDef s2 -> Tstruct (s2, Some flds')
+              | Duplicate s2 -> Tstruct (s2, None) (* Turn it into a 
+                                                    * reference to some 
+                                                    * already defined struct 
+                                                    *) 
+              | Conflict s2 -> Tstruct (s2, Some flds') 
+            end
+        end
+        | Tunion (s, None) -> (* Just a reference *)
+            Tunion(lookup "union" s, None)
+        | Tunion (s, Some flds) -> begin (* A def *)
+            let flds' = doFields flds in
+            if not isglobal then begin (* Just add to the env *)
+              addLocalToEnv "union" s; (* Do not change the name *)
+              Tunion (s, Some flds')
+            end else begin
+              (* Prepare the result *)
+              match checkTagDefinition "union" s 
+                    (Tunion ("", Some flds')) !currentLoc with 
+                FirstDef s2 -> Tunion (s2, Some flds')
+              | Duplicate s2 -> Tunion (s2, None) (* Turn it into a 
+                                                    * reference to some 
+                                                    * already defined union 
+                                                    *) 
+              | Conflict s2 -> Tunion (s2, Some flds') 
+            end
+        end
+        | Tenum (s, None) -> (* Just a reference *)
+            Tenum (lookup "enum" s, None)
+        | Tenum (s, Some flds) -> begin (* A def *)
+            if not isglobal then begin
+              addLocalToEnv "enum" s; (* Do not change the name *)
+              let flds' = 
+                List.map 
+                  (fun (n, e) -> (processDeclName isglobal true n, 
+                                  alpha_expression e)) flds in
+              Tenum (s, Some flds')
+            end else begin
+              (* First process the fields as if for a local environment *)
+              enterScope ();
+              let flds' = 
+                List.map (fun (n, e) -> (processDeclName false false n, 
+                                         alpha_expression e)) flds in
+              exitScope (); (* Undo the things we added to the environment 
+                             * for the processing of the fields *)
+              (* We use this set of fields to check for previous definitions 
+               * of this enum *)
+              match checkTagDefinition "enum" s
+                  (Tenum ("", Some flds')) !currentLoc with
+                FirstDef s2 -> Tenum (s2, 
+                                   (* Now process the items for real *)
+                                   Some 
+                                     (List.map 
+                                        (fun (n, e) -> 
+                                          (processDeclName isglobal true n,
+                                           alpha_expression e))
+                                        flds))
+              | Duplicate s2 -> Tenum (s2, None) (* Just a reference *)
+              | Conflict s2 -> 
+                  Tenum (s2, 
+                         (* Now process the items for real *)
+                         Some 
+                           (List.map 
+                              (fun (n, e) -> 
+                                (processDeclName isglobal true n,
+                                 alpha_expression e))
+                              flds))
+            end
+        end                           
+
+        | TtypeofE e -> TtypeofE (alpha_expression e)
+
+        | TtypeofT (specs, decl) -> (* Does never define tags *)
+            TtypeofT(doSpecs false specs, alpha_decl_type decl)
+        | t -> t
+      in
+      SpecType t' :: doSpecs isglobal rest
+  end
+
+
+and alpha_decl_type = function
+  | JUSTBASE -> JUSTBASE
+  | BITFIELD exp -> BITFIELD (alpha_expression exp)
+  | PROTO (typ, pars, ell) -> 
+      PROTO(alpha_decl_type typ, alpha_params pars, ell)
+  | PTR (attrs, typ) -> PTR(alpha_attrs attrs, alpha_decl_type typ)
+  | ARRAY (typ, dim) -> ARRAY(alpha_decl_type typ, alpha_expression dim)
+  | PARENTYPE (al1, typ, al2) -> 
+      PARENTYPE (alpha_attrs al1, alpha_decl_type typ,
+                 alpha_attrs al2)
+
+and alpha_only_type (specs, dt) =
+  (doSpecs true specs, alpha_decl_type dt)
+
+(* ATTRIBUTES ARE ADDED BACK *)    
+and alpha_name (kind: string) ((id, typ, al) : name) = begin
+ if id = "___missing_field_name" then
+   (id, alpha_decl_type typ, alpha_attrs al)
+ else
+   (lookup kind id, alpha_decl_type typ, alpha_attrs al)
+end
+        
+and alpha_name_group (kind: string) (specs, names) =
+  (doSpecs false specs, List.map (alpha_name kind) names)
+    
+and alpha_single_name (kind: string) (specs, name) =
+  (doSpecs false specs, alpha_name kind name) 
+
+(* Raymond added declare_id lookup_id *)
+and alpha_params (pars : single_name list) = begin
+  List.map (fun single_name -> alpha_single_name "" single_name) pars
 end
 
+        
+and alpha_exps exps =
+  List.map alpha_expression exps
 
+and alpha_init_expression (iexp: init_expression) : init_expression = 
+  match iexp with
+    NO_INIT -> NO_INIT
+  | SINGLE_INIT e -> SINGLE_INIT (alpha_expression e)
+  | COMPOUND_INIT initexps ->
+      let doinitexp = function
+          NEXT_INIT, e -> (NEXT_INIT, alpha_init_expression e)
+        | i, e -> 
+            let rec doinit = function
+                NEXT_INIT -> NEXT_INIT
+              | INFIELD_INIT (fn, i) -> INFIELD_INIT(fn, doinit i)
+              | ATINDEX_INIT (e, i) -> 
+                  ATINDEX_INIT(alpha_expression e, doinit i)
+              | ATINDEXRANGE_INIT (s, e) ->
+                  ATINDEXRANGE_INIT(alpha_expression s, 
+                                    alpha_expression e)
+            in
+            (doinit i, alpha_init_expression e)
+      in
+      COMPOUND_INIT (List.map doinitexp initexps)
+        
+(* No need to rename fields *)    
+and alpha_expression (exp : expression) : expression =
+  match exp with
+    NOTHING | LABELADDR _ -> exp
 
+  | UNARY (op, exp') ->
+      UNARY(op, alpha_expression exp')  
+  | BINARY (op, exp1, exp2) ->
+      BINARY(op, alpha_expression exp1, alpha_expression exp2)      
+  | QUESTION (exp1, exp2, exp3) ->
+      QUESTION(alpha_expression exp1, 
+               alpha_expression exp2, alpha_expression exp3)    
+  | CAST (typ, iexp) ->
+      CAST(alpha_only_type typ, alpha_init_expression iexp)     
+  | CALL (exp, args) ->
+      CALL(alpha_expression exp, alpha_exps args)   
+  | COMMA exps ->
+      COMMA(alpha_exps exps)
+  | CONSTANT cst ->
+      CONSTANT(
+        (match cst with
+        CONST_INT i -> CONST_INT i
+      | CONST_FLOAT r -> CONST_FLOAT r
+      | CONST_CHAR c -> CONST_CHAR c
+      | CONST_STRING s -> CONST_STRING s))
 
+  | VARIABLE name -> 
+      VARIABLE(lookup "" name)
+  | EXPR_SIZEOF exp ->
+      EXPR_SIZEOF (alpha_expression exp)
+  | TYPE_SIZEOF (specs, dt) ->
+      TYPE_SIZEOF(doSpecs false specs, alpha_decl_type dt)
+  | EXPR_ALIGNOF exp ->
+      EXPR_ALIGNOF (alpha_expression exp)
+  | TYPE_ALIGNOF (specs, dt) ->
+      TYPE_ALIGNOF(doSpecs false specs, alpha_decl_type dt)
+  | INDEX (exp, idx) ->
+      INDEX(alpha_expression exp, alpha_expression idx)
+  | MEMBEROF (exp, fld) ->
+      MEMBEROF(alpha_expression exp, fld)
+  | MEMBEROFPTR (exp, fld) ->
+      MEMBEROFPTR(alpha_expression exp, fld)
+  | GNU_BODY (blk) ->
+      GNU_BODY (alpha_block blk)
 
+and alpha_block (labs, defs, stmts) = 
+  enterScope ();
+  let res = 
+    (* make sure we do the definitions first *)
+    let defs' = doDefinitions false defs in
+    (labs, defs',
+     List.map alpha_statement stmts) in
+  exitScope ();
+  res
 
+(*
+** Statement combining
+*)
+and alpha_statement stat =
+  match stat with
+    NOP loc ->
+      currentLoc := loc;
+      NOP loc
 
+  | COMPUTATION (exp, loc) ->
+      currentLoc := loc;
+      COMPUTATION(alpha_expression exp, loc)
+  | BLOCK (blk, loc) ->
+      currentLoc := loc;
+      BLOCK(alpha_block blk, loc)
+  | SEQUENCE (s1, s2, loc) ->
+      currentLoc := loc;
+      SEQUENCE(alpha_statement s1, alpha_statement s2, loc)
+  | IF (exp, s1, s2, loc) ->
+      currentLoc := loc;
+      IF(alpha_expression exp, alpha_substatement s1, 
+         alpha_substatement s2, loc)
+  | WHILE (exp, stat, loc) ->
+      currentLoc := loc;
+      WHILE(alpha_expression exp, alpha_substatement stat, loc)
+  | DOWHILE (exp, stat, loc) ->
+      currentLoc := loc;
+      DOWHILE(alpha_expression exp, alpha_substatement stat, loc)
+  | FOR (exp1, exp2, exp3, stat, loc) ->
+      currentLoc := loc;
+      FOR(alpha_expression exp1, 
+          alpha_expression exp2, alpha_expression exp3, 
+          alpha_substatement stat, loc)
+  | BREAK(loc) ->
+      currentLoc := loc;
+      BREAK(loc) 
+  | CONTINUE (loc)->
+      currentLoc := loc;
+      CONTINUE (loc)
+  | RETURN (exp, loc) ->
+      currentLoc := loc;
+      RETURN (alpha_expression exp, loc)
+  | SWITCH (exp, stat, loc) ->
+      currentLoc := loc;
+      SWITCH(alpha_expression exp, alpha_substatement stat, loc)
+  | CASE (exp, stat, loc) ->
+      currentLoc := loc;
+      CASE(alpha_expression exp, alpha_substatement stat, loc)
+  | CASERANGE (expl, exph, stat, loc) ->
+      currentLoc := loc;
+      CASERANGE(alpha_expression expl, alpha_expression exph, 
+                alpha_substatement stat, loc)
+  | DEFAULT (stat, loc) ->
+      currentLoc := loc;
+      DEFAULT(alpha_substatement stat, loc)
+  | LABEL (name, stat, loc) ->
+      currentLoc := loc;
+      LABEL(name, alpha_substatement stat, loc)
+  | GOTO (name, loc) ->
+      currentLoc := loc;
+      GOTO(name, loc)
+  | COMPGOTO (exp, loc) -> 
+      currentLoc := loc;
+      COMPGOTO (alpha_expression exp, loc)
+  | ASM (tlist, isvol, outs, ins, clobs, loc) ->
+      currentLoc := loc;
+      ASM(tlist, isvol, outs, ins, clobs, loc)   
+           
+and alpha_substatement stat =
+  alpha_statement stat
 
+and doDefinitions (isglobal: bool) (* Whether at global scope *)
+                  (defs: definition list) =
+  let res = List.fold_left (doDefinition isglobal) [] defs in
+  List.rev res
 
+  
+and doDefinition (isglobal: bool) (* Whether at global scope *)
+                 (acc: definition list) (* Accumulate the definitions in 
+                                         * reverse order *) = function
+    FUNDEF ((specs, (n, decl, attrs)), body, loc) -> begin
+      currentLoc := loc;
+(*      ignore (E.log "Doing body of function %s\n" n); *)
+      (* On MSVC force inline functions to be static. Otherwise the compiler
+       * might complain that the function is declared with multiple bodies *)
+      let specs1 = 
+        if !Cprint.msvcMode && isInline specs && not (isStatic specs) then
+          SpecStorage STATIC :: specs else specs
+      in
+      let specs2 = doSpecs isglobal specs1 in
+      let n' = processDeclName isglobal (isStatic specs2) n in
+      let res = 
+        FUNDEF ((specs2, 
+                 (n', alpha_decl_type decl, alpha_attrs attrs)),
+                alpha_block body, loc) 
+      in
+      res :: acc
+    end
+               
+  | DECDEF ((specs, inl), loc) -> begin
+      currentLoc := loc;
+      let specs1 = doSpecs isglobal specs in
+      let static = isStatic specs1 in
+      let ng = (specs1,
+                List.map 
+                  (fun ((n, decl, attrs), ie) ->
+                    (* Do the declaration first *)
+                    let n' = processDeclName isglobal static n in
+                    ((n', 
+                      alpha_decl_type decl, 
+                      alpha_attrs attrs),
+                     alpha_init_expression ie)) inl)
+      in
+      (* Keep a hash of DEFDEF's and drop identical ones. Use OCAML's 
+       * structural equality to test for identical declarations. If we don't 
+       * do this then cabs2cil slows to a crawl. *)
+      if isglobal && H.mem declarations ng then 
+        acc
+      else begin
+        if isglobal then H.add declarations ng true;
+        DECDEF (ng, loc) :: acc
+      end
+    end
+      
 
+  | TYPEDEF ((specs, ng), loc) -> begin
+      currentLoc := loc;
+      let specs1 = doSpecs isglobal specs in
+      let static = true in (* Treat TYPEDEF as a static one *)
+      (* Go through the names and find if it is a duplicate definition *)
+      let ng' = 
+        List.fold_left 
+          (fun acc (n, decl, attrs) -> 
+            (* Process the decl and the attrs *)
+            let decl' = alpha_decl_type decl in
+            let attrs' = alpha_attrs attrs in
+            match checkTypeDefinition n (specs1, (n, decl', attrs')) loc with
+              FirstDef n' -> (n', decl', attrs') :: acc
+            | Duplicate n' -> (* Drop it *) acc
+            | Conflict n' -> (n', decl', attrs') :: acc)
+          []
+          ng
+      in
+      let ng' = List.rev ng' in
+      if ng' = [] then 
+        (* See if there is anything interesting in the specs1. If not then 
+        * drop this completely *)
+        if List.exists 
+            (function
+                SpecType (Tstruct(_, Some _)) -> true
+              | SpecType (Tunion(_, Some _)) -> true
+              | SpecType (Tenum(_, Some _)) -> true
+              | _ -> false) specs1 then
+          ONLYTYPEDEF (specs1, loc) :: acc
+        else
+          acc
+      else 
+        TYPEDEF ((specs1, ng'), loc) :: acc
+  end
+      
+  | ONLYTYPEDEF (specs, loc) -> begin
+      currentLoc := loc;
+      let specs1 = doSpecs isglobal specs in
+      let res = ONLYTYPEDEF (specs1, loc) in
+      res :: acc
+  end
+      
+  | GLOBASM (s, l) -> GLOBASM (s, l) :: acc
 
+  | PRAGMA (e, l) -> PRAGMA (alpha_expression e, l) :: acc
+      
+    
+let initialize () = 
+      (* Clean up the alpha table *)
+  H.clear alphaTable;
+  H.clear env;
+  H.clear registeredGlobals;
+  H.clear definedTags;
+  H.clear definedTypes;
+  H.clear declarations
 
-
-
-
-
-
-
-
-
-
-
-
-
+  
+(* The MAIN COMBINER *)
+let combine (files : Cabs.file list) : Cabs.file = 
+  initialize ();
+  let doOneFile (defs: definition list) = 
+    enterScope ();
+    let defs' = doDefinitions true defs in
+    exitScope ();
+    defs'
+  in
+  (* Do a first pass *)
+  let files1 = List.map doOneFile files in
+  (* See if some globals are shadowed by some previously defined locals *)
+  let files2 = 
+    if !conflicts == [] then files1 else begin
+      initialize ();
+      ignore (E.warn "Combiner does a second pass because file-scope identifiers %a conflicted with locals\n"
+                (docList (chr ',' ++ break) text) !conflicts);
+      (* Add the conflicting names to the alphaTable to reserve those names *)
+      List.iter (fun n -> ignore (processDeclName true false n)) !conflicts;
+      List.map doOneFile files
+    end
+  in
+  initialize (); (* To make the GC happy *)
+  List.flatten files2
+  
 

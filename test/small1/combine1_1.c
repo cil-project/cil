@@ -1,8 +1,11 @@
+typedef int INT;
 
 struct str1 {
-  int x1;
+  INT x1;
   int x2;
 } array;
+
+int var = 7;
 
 extern void printf(char *, ...);
 #define E(n) { printf("Error %d\n", n); return (n); }
@@ -17,6 +20,8 @@ int main() {
 
   if(c2res != sizeof(int [10]) + sizeof(int)) E(2);
 
+  if(var != 7) E(3);
+                 
   printf("Success\n");
   return 0;
 }
