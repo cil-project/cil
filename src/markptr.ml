@@ -711,12 +711,20 @@ let rec doStmt (s: stmt) =
         | Some _, TVoid _ -> 
             ignore (E.warn "Call of subroutine is assigned")
         | None, _ -> () (* "Call of function is not assigned" *)
-        | Some (destvi, iscast), _ -> 
+        | Some (destvi, iscast), _ -> begin
             (* Short-circuit the cast *)
-            ignore 
-              (addCastEdge 
-                 (Const(CStr("a call return"))) (* this does not matter *)
-                 (nodeOfType rt) (nodeOfType destvi.vtype) !callId)
+	    let rtn = nodeOfType rt in
+	    let vin = nodeOfType destvi.vtype in
+	    match rtn == N.dummyNode, vin == N.dummyNode with
+	    |   false, false -> 
+		ignore 
+		  (addCastEdge 
+                     (Const(CStr("a call return"))) (* this does not matter *)
+                     rtn vin  !callId)
+	    | true, true -> ()
+	    | _ -> ignore (E.warn "Node mismatch on return of %s(%d) = %a(%d).VIT=%a\n" 
+			     destvi.vname vin.N.id d_exp func' rtn.N.id d_plaintype destvi.vtype)
+	end 
       end;
       Instr (Call(reso, func', loopArgs formals args), l)
   

@@ -494,8 +494,10 @@ let nodeExists (p: place) (idx: int) =
   H.mem placeId (p, idx)
 
 
-let addEdge (start: node) (dest: node) (kind: edgekind) (callid: int) = 
-  if start != dummyNode && dest != dummyNode then begin
+let addEdge (start: node) (dest: node) (kind: edgekind) (callid: int) =
+  if start == dummyNode || dest == dummyNode then
+    ignore (E.warn "Adding edge between nodes %d and %d\n" start.id dest.id)
+  else begin
     let nedge = 
       { efrom = start; eto= dest; ekind = kind; ecallid = callid; } in
     start.succ <- nedge :: start.succ;
