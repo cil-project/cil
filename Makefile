@@ -161,7 +161,11 @@ endif
 ifdef _MSVC
 DEBUGCCL=cl /TC /O0 /Zi /MLd /I./lib /DEBUG
 RELEASECCL=cl /TC /ML /I./lib
+ifdef RELEASE
 DOOPT=/Ox /Ob2
+else
+DOOPT=
+endif
 CONLY=/c
 OBJOUT=/Fo
 EXEOUT=/Fe
@@ -377,10 +381,12 @@ hashtest: test/small2/hashtest.c $(EXECUTABLE)$(EXE) \
                  $(EXEOUT)hashtest.exe
 	$(PCCTEST)/hashtest.exe
 
+DOPATCH=--patch=../../lib/safec.patch
 rbtest: test/small2/rbtest.c $(EXECUTABLE)$(EXE) \
                                  $(SAFECLIB) $(SAFEMAINLIB)  $(TVEXE)
 	rm -f $(PCCTEST)/rbtest.exe
 	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
+                 $(DOPATCH) \
                  $(DOOPT) \
                  $(INC)$(PCCDIR)/src \
                  $(PCCDIR)/src/redblack.c \

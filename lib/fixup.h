@@ -22,5 +22,5 @@
 
 /* Use this in the source to cast an integer what to a pointer in the same 
  * home area as host. Use this guarded by BEFOREBOX  */
-#define CASTTOPOINTER(host, what) \
-                     (((char*)(host)) + ((S32)(what) - (S32)(host)))
+//#define CASTTOPOINTER(host, what) \
+//                     (((char*)(host)) + ((S32)(what) - (S32)(host)))

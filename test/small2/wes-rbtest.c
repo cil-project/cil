@@ -161,12 +161,13 @@ void  __cdecl exit(int);
 int   __cdecl fflush(FILE * SAFE);
 #define NULL (void*)0
 
+#ifdef BEFOREBOX
 #ifdef _MSVC
 extern FILE _myiob[];
 #define stdout &_myiob[1]
 #define stderr &_myiob[2]
 #endif
-
+#endif
 
 extern  int   debugMM;      
 
