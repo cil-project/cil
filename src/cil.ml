@@ -93,13 +93,11 @@ and storage =
 
 (* Information about a struct/union field *)
 and fieldinfo = { 
-    fcomp: typ ref;                     (* A pointer to the host composite 
-                                         * type. This ref cell is shared 
-                                         * between everybody refering 
-                                         * indirectly to the same composite 
-                                         * type. See the discussion for TComp 
-                                         * and TForward *)
-    fname: string;                      (* The name of the field. Might be 
+    mutable fcomp: compinfo;            (* The compinfo of the host. Note 
+                                         * that this must be shared with the 
+                                         * host since there can be only one 
+                                         * compinfo for a given id *)
+    mutable fname: string;              (* The name of the field. Might be 
                                          * "___missing_field_name" in which 
                                          * case it is not printed *)
     mutable ftype: typ;
@@ -107,12 +105,23 @@ and fieldinfo = {
 }
 
 
-(* Information about a composite type *)
+(* Information about a composite type (a struct or a union). Use mkCompInfo 
+ * and mkRecCompInfo to create non-recursive or (potentially) recursive 
+ * versions of this  *)
 and compinfo = {
-    cstruct: bool;
-    mutable cname:   string;
+    cstruct: bool;                      (* true if struct *)
+    mutable cname: string;              (* the name. Always non-empty. If it 
+                                         * starts with @ then it is not 
+                                         * printed. Use compSetName to set 
+                                         * the name and the key *)
+    mutable ckey: int;                  (* A unique integer. Use Hashtbl.hash 
+                                         * on the string "struct name" or 
+                                         * "union name". All compinfo for a 
+                                         * given key are shared. *)
     mutable cfields: fieldinfo list;
-    mutable cattr:   attribute list;
+    mutable cattr:   attribute list;    (* The attributes that are defined at 
+                                         * the same time as the composite 
+                                         * type *)
   } 
     
 (* what is the type of an expression? Keep all attributes sorted. Use 
@@ -133,22 +142,19 @@ and typ =
   | TArray of typ * exp option * attribute list
 
                (* Structs and Unions: isstruct, name, fields, attributes, 
-                * self cell. use mkCompType and mkRecCompType to create 
-                * non-recursive or (potentially) recursive versions of this *)
-  | TComp of bool * string * fieldinfo list * attribute list * typ ref
+                * self cell.*)
+  | TComp of compinfo
                (* The field list can be empty *)
                (* The name is never empty. mkCompType will create a unique 
                 * name for anonymous types *)
+
+
                (* Composite types can be part of circular type structure. 
                 * Thus a struct and a union can be referred in a TForward. 
-                * The trailing ref cell is shared between ALL forward 
-                * references to this type and it always points to the 
-                * composite type. This is like a self parameter. Use 
-                * fixRecursiveType when you create copies of a TComp that 
-                * might be recursive *)
-  | TForward of bool * string * typ ref * attribute list
-                (* TForward (isstruct, name, self cell) The attributes are in 
-                 * addition to those of the composite type *)
+                * But all compinfo for a given ckey are shared!. The 
+                * attributes are in addition to the attributes contained in 
+                * the compinfo *)
+  | TForward of compinfo * attribute list
 
                (* result, args, isVarArg, attributes *)
   | TFun of typ * varinfo list * bool * attribute list
@@ -503,9 +509,13 @@ and dropAttribute al a =
   List.filter (fun a' -> not (amatch a a')) al
 
 
-
+(* Set the name of a composite type. Also changes the key *)
+let compSetName commp n = 
+  commp.cname <- n;
+  commp.ckey <- H.hash ((if commp.cstruct then "struct " else "union ") ^ n)
+ 
 (** Creates a a (potentially recursive) composite type **)
-let rec mkRecCompType 
+let rec mkRecCompInfo
                (isstruct: bool) 
                (n: string)   (* empty for anonymous structures *)
                (* fspec is a function that when given the name of the 
@@ -513,32 +523,28 @@ let rec mkRecCompType
                 * constructs the type of the fields. The function can ignore 
                 * this argument if not constructing a recursive type  *)
                (mkfspec: string -> typ -> (string * typ) list) 
-               (a: attribute list) =
+               (a: attribute list) : compinfo =
    (* make an new name for anonymous structs *)
    let n = if n = "" then 
      newTypeName (if isstruct then "struct" else "union") else n in
    (* Make a new self cell and a forward reference *)
+   let comp = 
+     { cstruct = isstruct; cname = ""; ckey = 0; cfields = [];
+       cattr = a; } in
+   compSetName comp n;  (* fix the name and the key *)
    let self = ref voidType in
-   let tforward = TForward (isstruct, n, self, []) in
+   let tforward = TForward (comp, []) in
    let flds = 
-       List.map (fun (fn, ft) -> { fname = fn;
+       List.map (fun (fn, ft) -> { fcomp = comp;
                                    ftype = ft;
-                                   fcomp = self;
+                                   fname = fn;
                                    fattr = [] }) (mkfspec n tforward) in
-   let res = TComp (isstruct, n, flds, a, self) in
-   self := res;
-   res
+   comp
 
 (* A simpler version for the non-recursive case *)
-and mkCompType isstruct n fspec attr = 
-   mkRecCompType isstruct n (fun _ _ -> fspec) attr
+and mkCompInfo isstruct n fspec attr = 
+   mkRecCompInfo isstruct n (fun _ _ -> fspec) attr
 
-(* Fixes the self reference. Important to call after creating a copy of a 
- * struct that might be recursive *)
-and fixRecursiveType t = 
-    match t with 
-      TComp (_, _, _, _, self) -> self := t; t
-    | _ -> E.s (E.bug "fixRecursiveType called on a non-struct")
  
                                    
 let var vi : lval = (Var vi, NoOffset)
@@ -571,7 +577,7 @@ let mkSeq sl =
 (**** Utility functions ******)
 let rec unrollType = function   (* Might drop some attributes !! *)
     TNamed (_, r, _) -> unrollType r
-  | TForward (_, n, self, _)  -> unrollType !self
+  | TForward (comp, _) -> TComp comp
   | x -> x
 
 
@@ -757,21 +763,23 @@ let rec d_decl (docName: unit -> doc) () this =
       dprintf "%a %t : %d%a" d_ikind ikind docName i d_attrlistpost a
   | TFloat(fkind, a) -> dprintf "%a%a %t" d_fkind fkind 
         d_attrlistpost a docName
-  | TComp (iss, n,fi,a,self) -> 
+  | TComp comp -> 
+      let n = comp.cname in
       let n' = 
         if String.length n >= 5 && String.sub n 0 5 = "@anon" then "" else n in
       let su, su1, su2 = 
-        if iss then "struct", "str", "uct"
-        else        "union",  "uni", "on"
+        if comp.cstruct then "struct", "str", "uct"
+                        else "union",  "uni", "on"
       in
       if n' = "" || canPrintName (su, n') then
-        dprintf "%s@[%s %s%a {@!%a@]@!} %t" su1 su2 n' d_attrlistpost a
-          (docList line (d_fielddecl ())) fi docName
+        dprintf "%s@[%s %s%a {@!%a@]@!} %t" su1 su2 n' 
+          d_attrlistpost comp.cattr
+          (docList line (d_fielddecl ())) comp.cfields docName
       else
         dprintf "%s%s %s %t" su1 su2 n' docName
-  | TForward (iss, n, _, a) -> 
-      let su = if iss then "struct" else "union" in
-      dprintf "%s %s %a%t" su n d_attrlistpre a docName
+  | TForward (comp, a) -> 
+      let su = if comp.cstruct then "struct" else "union" in
+      dprintf "%s %s %a%t" su comp.cname d_attrlistpre a docName
 
   | TEnum (n, kinds, a) -> 
       let n' = 
@@ -1172,9 +1180,10 @@ and d_plaintype () = function
       dprintf "TBitfield(@[%a,@?%d,@?%a@])" d_ikind ikind i d_attrlistpost a
   | TNamed (n, t, a) ->
       dprintf "TNamed(@[%s,@?%a,@?%a@])" n d_plaintype t d_attrlistpost a
-  | TForward(iss, n, _, a) -> 
+  | TForward(comp, a) -> 
       dprintf "TForward(%s %s, _, %a)" 
-        (if iss then "struct" else "union") n d_attrlistpost a
+        (if comp.cstruct then "struct" else "union") comp.cname 
+        d_attrlistpost comp.cattr
   | TPtr(t, a) -> dprintf "TPtr(@[%a,@?%a@])" d_plaintype t d_attrlistpost a
   | TArray(t,l,a) -> 
       let dl = match l with 
@@ -1188,12 +1197,13 @@ and d_plaintype () = function
         (docList (chr ',' ++ break) 
            (fun a -> dprintf "%s: %a" a.vname d_plaintype a.vtype)) args
         (if isva then "..." else "") d_attrlistpost a
-  | TComp(iss,n,flds,a,self) -> 
+  | TComp comp -> 
       dprintf "TComp(@[%s %s,@?%a,@?%a@])" 
-        (if iss then "struct" else "union") n
+        (if comp.cstruct then "struct" else "union") comp.cname
         (docList (chr ',' ++ break) 
-           (fun f -> dprintf "%s : %a" f.fname d_plaintype f.ftype)) flds
-        d_attrlistpost a
+           (fun f -> dprintf "%s : %a" f.fname d_plaintype f.ftype)) 
+        comp.cfields
+        d_attrlistpost comp.cattr
 
 (******************
  ******************
@@ -1394,8 +1404,8 @@ let rec typeAttrs = function
   | TNamed (n, t, a) -> addAttributes a (typeAttrs t)
   | TPtr (_, a) -> a
   | TArray (_, _, a) -> a
-  | TComp (_, _, _, a, _) -> a
-  | TForward (_, _, rt, a) -> addAttributes a (typeAttrs !rt)
+  | TComp comp -> comp.cattr
+  | TForward (comp, a) -> addAttributes a (typeAttrs (TComp comp))
   | TEnum (_, _, a) -> a
   | TFun (_, _, _, a) -> a
 
@@ -1409,9 +1419,8 @@ let setTypeAttrs t a =
   | TNamed (n, t, _) -> TNamed(n, t, a)
   | TPtr (t', _) -> TPtr(t', a)
   | TArray (t', l, _) -> TArray(t', l, a)
-  | TComp (iss, n, f, _, self) -> 
-      fixRecursiveType (TComp(iss, n,f,a,self))
-  | TForward (iss, n, self, _) -> TForward (iss, n, self, a)
+  | TComp comp -> comp.cattr <- a; t
+  | TForward (comp, _) -> TForward (comp, a)
   | TEnum (n, f, _) -> TEnum (n, f, a)
   | TFun (r, args, v, _) -> TFun(r,args,v,a)
 
@@ -1428,9 +1437,8 @@ let typeAddAttributes a0 t =
   | TPtr (t, a) -> TPtr (t, add a)
   | TArray (t, l, a) -> TArray (t, l, add a)
   | TFun (t, args, isva, a) -> TFun(t, args, isva, add a)
-  | TComp (iss, n, f, a, self) -> 
-      fixRecursiveType (TComp(iss, n, f, add a, self))
-  | TForward (iss, n, self, a) -> TForward (iss, n, self, add a)
+  | TComp comp -> comp.cattr <- add comp.cattr ; t
+  | TForward (comp, a) -> TForward (comp, add a)
   | TNamed (n, t, a) -> TNamed (n, t, add a)
 
      (* Type signatures. Two types are identical iff they have identical 
@@ -1448,7 +1456,7 @@ let rec typeSig t =
   | (TInt _ | TFloat _ | TEnum _ | TBitfield _ | TVoid _) -> TSBase t
   | TPtr (t, a) -> TSPtr (typeSig t, a)
   | TArray (t,l,a) -> TSArray(typeSig t, l, a)
-  | TComp (iss, n, _, a, _) -> TSComp (iss, n, a)
+  | TComp comp -> TSComp (comp.cstruct, comp.cname, comp.cattr)
   | TFun(rt,args,isva,a) -> TSFun(typeSig rt, 
                                   List.map (fun vi -> (typeSig vi.vtype, 
                                                        vi.vattr)) args,
@@ -1456,7 +1464,7 @@ let rec typeSig t =
   | TNamed(_, t, a) -> typeSigAddAttrs a (typeSig t)
 
   (* Follow the self pointer to get the real name and attributes *)
-  | TForward (iss, n, rt, a) -> typeSigAddAttrs a (typeSig !rt)
+  | TForward (comp, a) -> typeSigAddAttrs a (typeSig (TComp comp))
       
 and typeSigAddAttrs a0 t = 
   if a0 == [] then t else
@@ -1487,9 +1495,10 @@ let rec makeZeroCompoundInit t =
     TInt (ik, _) -> Const(CInt(0, ik, None), lu)
   | TFloat(fk, _) -> Const(CReal(0.0, fk, None), lu)
   | (TEnum _ | TBitfield _) -> zero
-  | TComp(true, _, flds, _, _) as t' -> 
+  | TComp comp as t' when comp.cstruct -> 
       Compound (t', 
-                List.map (fun f -> None, makeZeroCompoundInit f.ftype) flds)
+                List.map (fun f -> None, makeZeroCompoundInit f.ftype) 
+                  comp.cfields)
   | TArray(bt, Some (Const(CInt(n, _, _), _)), _) as t' -> 
       let initbt = makeZeroCompoundInit bt in
       let rec loopElems acc i = 
@@ -1533,7 +1542,7 @@ let foldLeftCompound (doexp: offset option -> exp -> typ -> 'a -> 'a)
       in
       foldArray zero initl acc
 
-  | TComp(true, _, flds, _, _) ->
+  | TComp comp when comp.cstruct ->
       let rec foldFields 
           (allflds: fieldinfo list) 
           (nextflds: fieldinfo list) 
@@ -1565,7 +1574,7 @@ let foldLeftCompound (doexp: offset option -> exp -> typ -> 'a -> 'a)
             let acc' = doexp io ie thisexpt acc in
             foldFields allflds nextfields restinitl acc'
       in
-      foldFields flds flds initl acc
+      foldFields comp.cfields comp.cfields initl acc
   | _ -> E.s (E.unimp "Type of Compound is not array or struct")
       
 
@@ -1628,7 +1637,7 @@ let rec offsetOfFieldAcc (fi: fieldinfo)
     | TFloat(FFloat, _) -> 4
     | TFloat((FDouble|FLongDouble), _) -> 8
     | TNamed (_, t, _) -> internalPaddingAlign t
-    | TForward (_, _, tr, _) -> internalPaddingAlign !tr
+    | TForward (comp, _) -> internalPaddingAlign (TComp comp)
     | TComp _ -> 4 (* Is this correct ? *)
     | TArray _ -> 4 (* Is this correct ? *)
     | TPtr _ -> 4
@@ -1672,9 +1681,9 @@ and bitsSizeOf = function
   | TFloat(FFloat, _) -> 32
   | TFloat((FDouble|FLongDouble), _) -> 64
   | TNamed (_, t, _) -> bitsSizeOf t
-  | TForward (_, _, tr, _) -> bitsSizeOf !tr
+  | TForward (comp, _) -> bitsSizeOf (TComp comp)
   | TPtr _ -> 32
-  | TComp (true, _, flds, _, _) -> (* Struct *)
+  | TComp comp when comp.cstruct -> (* Struct *)
         (* Go and get the last offset *)
       let startAcc = 
         { oaFirstFree = 0;
@@ -1684,11 +1693,11 @@ and bitsSizeOf = function
         } in
       let lastoff = 
         List.fold_left (fun acc fi -> offsetOfFieldAcc fi acc) 
-          startAcc flds 
+          startAcc comp.cfields 
       in
       addTrailing lastoff.oaFirstFree
         
-  | TComp (false, _, flds, _, _) -> 
+  | TComp comp -> (* when not comp.cstruct *)
         (* Get the maximum of all fields *)
       let startAcc = 
         { oaFirstFree = 0;
@@ -1700,7 +1709,7 @@ and bitsSizeOf = function
         List.fold_left (fun acc fi -> 
           let lastoff = offsetOfFieldAcc fi startAcc in
           if lastoff.oaFirstFree > acc then
-            lastoff.oaFirstFree else acc) 0 flds in
+            lastoff.oaFirstFree else acc) 0 comp.cfields in
         (* Add trailing by simulating adding an extra field *)
       addTrailing max
 
@@ -1732,15 +1741,12 @@ and sizeOf t =
 let offsetOf (fi: fieldinfo) (startcomp: int) : int * int = 
   (* Construct a list of fields preceeding and including this one *)
   let prevflds = 
-    match unrollType !(fi.fcomp) with
-      TComp(true, _, flds, _, _) -> 
-        let rec loop = function
-            [] -> E.s (E.bug "Cannot find field %s\n" fi.fname)
-          | fi' :: _ when fi' == fi -> [fi']
-          | fi' :: rest -> fi' :: loop rest
-        in
-        loop flds
-    | _ -> E.s (E.unimp "offsetOf")
+    let rec loop = function
+        [] -> E.s (E.bug "Cannot find field %s\n" fi.fname)
+      | fi' :: _ when fi' == fi -> [fi']
+      | fi' :: rest -> fi' :: loop rest
+    in
+    loop fi.fcomp.cfields
   in
   let lastoff = 
     List.fold_left (fun acc fi' -> offsetOfFieldAcc fi' acc)

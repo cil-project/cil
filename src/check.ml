@@ -138,7 +138,7 @@ let rec checkType (t: typ) (ctx: ctxType) =
               E.s (E.bug "Named type %s invalid" n));
       checkAttributes a
 
-  | TForward (iss, n, tr, a) -> 
+  | TForward (comp, a) -> 
       checkAttributes a;
       (match !tr with 
         TComp (iss', n', _, _, tr') as t' ->
