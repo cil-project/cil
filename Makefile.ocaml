@@ -52,6 +52,8 @@
   #              must exist.  (default obj/.depend)
   # NATIVECAML - if set then will use the native compiler
   # UNSAFE     - if set then will turn off safety checks (only with NATIVECAML)
+  # PROFILE    - if set then it will compile and link with "gprof" profiling
+  #              support (NATIVECAML mode only)
 
   # MODULES    - a list of all modules for all projects defined in the 
   #              Makefile. Give only the basenames (no directory, 
@@ -65,6 +67,9 @@
   # ECHO       - if specifically set to nothing then it will print 
   #              all of the commands issued. Set this in the command line
   #              if you want to see what is going on.
+  #
+  # COMPILEFLAGS      - if defined, then it is passed as argument to ocamlc
+  #
   #
   # After you set all of the above you must do the following for EACH separate 
   # executable that you want to build.
@@ -120,7 +125,7 @@ CAMLLEX = ocamllex
 CAMLYACC= ocamlyacc -v
 CAMLDEP = ocamldep
 
-CAMLFLAGS    =-I $(OBJDIR)
+CAMLFLAGS    =$(OPT_FLAGS) -I $(OBJDIR)
 
 # sm: two styles for echoing compilation progress:
 #   style 1, by George:
@@ -155,29 +160,17 @@ else
 endif
 
 
-# sm: people might not have done the "make opt.opt" necessary
-# to make the optimized versions of some of the tools, so detect
-# now whether they're installed, and if so, set OPT to ".opt"
-# (otherwise set it to "")
-#OPT := $(shell which ocamlopt.opt ocamlc.opt >/dev/null 2>&1 && echo .opt)
 
-ifdef PROFILE
-# NATIVECAML	= 1
- CAMLC          = ocamlopt$(OPT) -p $(COMPILEFLAGS)
- CAMLLINK       = ocamlopt$(OPT) -p $(LINKFLAGS)
- CMO            = cmx
- CMXA           = cmxa
- EXEEXT         = .asm
- MOVEAFTERCAMLC = cmi cmx $(OBJ)
- MOVEAFTERCAMLCF= cmi $(OBJ)
- COMPILETOWHAT  = native code with profiling
- CAMLDEP        = ocamldep -native
-else
 ifdef NATIVECAML
+ ifdef PROFILE
+   COMPILEFLAGS   += -p
+   LINKFLAGS      += -p
+ endif
  #foo := $(shell echo "I am in NATIVECAML mode" >&2; echo whatever)
- CAMLC          = ocamlopt$(OPT) $(COMPILEFLAGS)
- CAMLLINK       = ocamlopt$(OPT) $(LINKFLAGS)
+ CAMLC          = ocamlopt $(COMPILEFLAGS)
+ CAMLLINK       = ocamlopt $(LINKFLAGS)
  CMO            = cmx
+ CMC            = opt.o  # compiled (and optimized) C
  CMXA           = cmxa
  EXEEXT         = .asm
  MOVEAFTERCAMLC = cmi cmx $(OBJ)
@@ -187,25 +180,27 @@ ifdef NATIVECAML
  # dependencies on .cmo files which were causing lots of
  # extra recompilation
  CAMLDEP        = ocamldep -native
+ CAMLFLAGS      += -ccopt -O3
 else 
- CAMLC          = ocamlc$(OPT) -g $(COMPILEFLAGS)
- CAMLLINK       = ocamlc$(OPT) -custom -g $(LINKFLAGS)
+ CAMLC          = ocamlc -g $(COMPILEFLAGS)
+ CAMLLINK       = ocamlc -custom -g $(LINKFLAGS)
  CMO            = cmo
  CMXA           = cma
+ CMC            = o
  EXEEXT         = .byte
  MOVEAFTERCAMLC = cmi cmo
  MOVEAFTERCAMLCF= cmi        # sm: 'F' for failed -- cmo isn't created
  COMPILETOWHAT  = bytecode
 endif
-endif
+
 
 ifdef UNSAFE 
  CAMLC          := $(CAMLC) -unsafe -noassert
 endif
 
-
+OBJ             = o
 EXE		= $(EXEEXT).exe
-OBJ   	= o
+
 
 export EXE
 
@@ -256,7 +251,7 @@ $(OBJDIR)/%.cmi: %.mli
          # directory the .cmi file (if one exists). After compilation we 
          # copy to $(OBJDIR) the .cmi and the result of compilation.
 $(OBJDIR)/%.$(CMO): %.ml
-	@$(NARRATIVE) "Compiling $< to $(COMPILETOWHAT)"
+	@$(NARRATIVE) "Compiling           $< to $(COMPILETOWHAT)"
 	$(ECHO)if test $(OBJDIR) != $(<D) ;then \
                  if test -f $(OBJDIR)/$(*F).cmi ;then \
                       $(COMMAND) mv -f $(OBJDIR)/$(*F).cmi $(<D); \
@@ -281,18 +276,15 @@ $(OBJDIR)/%.$(CMO): %.ml
         ;fi
 
              # Compile C files
-             # They appear to be left in the current directory
-$(OBJDIR)/%.$(OBJ): %.c
+             # They appear to be left in the current directory as .o files
+$(OBJDIR)/%.$(CMC): %.c
 	@$(NARRATIVE) Compiling C file $<
 	$(AT)$(CAMLC) $(CAMLFLAGS) -c $< -o $@
-	$(AT)mv -f $(basename $(notdir $<)).$(OBJ) $(OBJDIR)
+	$(AT)mv -f $(basename $(notdir $<)).$(OBJ) $@
 
 
 
-# ("PHONY" targets are "remade" even if someone mistakenly creates them)
-# sm: the 'find' command in obj/ should leave it with just two directories,
-# each of which is empty, i.e. the state just after a checkout; that's why
-# I added '*.ml' and '*.mli', to delete outputs from ocamllex and ocamlyacc
+#	Phonies should be "remade" even if someone mistakenly creates them
 .PHONY: cleancaml
 cleancaml:
 	-find obj \( \
@@ -349,5 +341,4 @@ ifndef CLEANING
 -include $(MODULES:%=$(DEPENDDIR)/%.d)
 -include $(MODULES:%=$(DEPENDDIR)/%.di)
 endif
-
 

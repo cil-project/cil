@@ -37,9 +37,10 @@
   # Written by necula@cs.berkeley.edu
   # 
 $(PROJECT_EXECUTABLE) : $(PROJECT_MODULES:%=$(OBJDIR)/%.$(CMO)) \
-                        $(PROJECT_CMODULES:%=$(OBJDIR)/%.$(OBJ))
+                        $(PROJECT_CMODULES:%=$(OBJDIR)/%.$(CMC))
 	@$(NARRATIVE) Linking $(COMPILETOWHAT) $@
-	$(AT)$(CAMLLINK) -o $@ \
+	$(AT)$(CAMLLINK) -verbose -o $@ \
+	            $(LINK_FLAGS) \
                     $(PROJECT_LIBS:%=%.$(CMXA)) \
                     $(PROJECT_LIBS:%=-cclib -l%) \
                     $^
