@@ -110,6 +110,7 @@ $TEST->add3Tests("test/sized");
 $TEST->add3Tests("test/sizeof");
 $TEST->add3Tests("test/smallstring");
 $TEST->add3Tests("test/static", "", @runpattern);
+$TEST->add3Tests("test/static1");
 $TEST->add3Tests("test/strcpy");
 $TEST->add3Tests("test/string");
 $TEST->add3Tests("test/struct_init");

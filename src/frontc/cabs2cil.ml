@@ -139,7 +139,8 @@ let startFile () =
 let endFunction (formals: varinfo list) : (int * varinfo list) = 
   let rec loop revlocals = function
       [] -> revlocals
-    | lvi :: t -> H.remove alphaTable lvi.vname; loop (lvi :: revlocals) t
+    | lvi :: t -> (* H.remove alphaTable lvi.vname; *) 
+        loop (lvi :: revlocals) t
   in
   let revlocals = loop [] !locals in
   let maxid = !localId + 1 in
@@ -2170,6 +2171,7 @@ and createLocal = function
        * temporarily so that it will be added to the scope cleanup tables *)
       vi.vglob <- false;
       let vi = alphaConvertVarAndAddToEnv true vi in
+      ignore (E.log "static local: %s\n" vi.vname);
       vi.vglob <- true;
       let init = 
         if e = A.NOTHING then 
