@@ -86,14 +86,19 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter = object (self)
         dprintf "(%a @[%a@])" 
           self#pExp f
           (docList break (self#pExp ())) args
+    | Call (Some v, f, args, _) -> 
+        dprintf "%a = (%a @[%a@])" 
+          self#pExp (Lval v)
+          self#pExp f
+          (docList break (self#pExp ())) args
 
     | i -> super#pInstr () i
 
 
   method dBlock (out: out_channel) (ind: int) (b: block) : unit = 
     ignore (p ~ind:ind "<block\n");
-    List.iter (self#dStmt out ind) b.bstmts;
-    ignore (p ~ind:ind ">")
+    List.iter (self#dStmt out (ind+ 2)) b.bstmts;
+    ignore (p ~ind:ind ">\n")
 
   method dStmt (out: out_channel) (ind: int) (s: stmt) : unit = 
     pd (self#pLineDirective (get_stmtLoc s.skind));
@@ -108,28 +113,29 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter = object (self)
     | Instr il -> 
         List.iter 
           (fun i -> 
-            pd ~ind:ind (self#pInstr () i))
+            pd ~ind:ind (self#pInstr () i ++ line))
           il
-    | Block b -> self#dBlock out ind b
-    | Goto (s, _) -> ignore (p ~ind:ind "goto %d" !s.sid)
-    | Return (None, _) -> ignore (p ~ind:ind "return ()")
-    | Return (Some e, _) -> ignore (p ~ind:ind "return (%a)" self#pExp e);
+    | Block b -> List.iter (self#dStmt out ind) b.bstmts
+    | Goto (s, _) -> ignore (p ~ind:ind "goto %d\n" !s.sid)
+    | Return (None, _) -> ignore (p ~ind:ind "return ()\n")
+    | Return (Some e, _) -> ignore (p ~ind:ind "return (%a)\n" self#pExp e);
     | If(e, b1, b2, _) -> 
         ignore (p ~ind:ind "<if %a\n" self#pExp e);
         self#dBlock out (ind + 2) b1;
         self#dBlock out (ind + 2) b2;
-        ignore (p ~ind:ind "\n>\n")
+        ignore (p ~ind:ind ">\n")
 
     | Loop (b, _, Some co, Some br) -> 
         ignore (p ~ind:ind "<loop <cont %d> <break %d>\n" co.sid br.sid);
-        self#dBlock out (ind + 2) b;
-        ignore (p ~ind:ind "\n>\n")
+        List.iter (self#dStmt out (ind+ 2)) b.bstmts;
+        ignore (p ~ind:ind ">\n")
 
      (* The other cases should have been removed already *)
     | _ -> E.s (E.unimp "try except"));
 
     (* The termination *)
-    ignore (p ~ind:ind "\n>\n")
+    let ind = ind - 2 in
+    ignore (p ~ind:ind ">\n")
     
               
   method dGlobal (out: out_channel) (g: global) : unit = 
