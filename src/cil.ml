@@ -1648,8 +1648,8 @@ let invalidStmt = mkStmt (Instr [])
 class type cilPrinter = object
   method pVDecl: unit -> varinfo -> doc
     (** Invoked for each variable declaration. Note that variable 
-     * declarations are all the [GVar], [GVarDecl], [GFun], all the [varinfo] in 
-     * formals of function types, and the formals and locals for function 
+     * declarations are all the [GVar], [GVarDecl], [GFun], all the [varinfo] 
+     * in formals of function types, and the formals and locals for function 
      * definitions. *)
 
   method pVar: varinfo -> doc
@@ -1662,10 +1662,20 @@ class type cilPrinter = object
     (** Invoked on each instruction occurrence. *)
 
   method pStmt: unit -> stmt -> doc
-    (** Control-flow statement. *)
+    (** Control-flow statement. This can be slow and is used by 
+     * {!Cil.printGlobal} but not by {!Cil.dumpGlobal}. *)
 
-  method pGlobal: unit -> global -> doc       (** Global (vars, types, etc.) *)
+  method dStmt: out_channel -> int -> stmt -> unit
+    (** Dump a control-flow statement to a file with a given indentation. This is used by 
+     * {!Cil.dumpGlobal}. *)
 
+  method pGlobal: unit -> global -> doc
+    (** Global (vars, types, etc.). This can be slow and is used only by 
+     * {!Cil.printGlobal} but by {!Cil.dumpGlobal} for everything else except 
+     * [GVar] and [GFun]. *)
+
+  method dGlobal: out_channel -> global -> unit
+    (** Dump a global to a file. This is used by {!Cil.dumpGlobal}. *)
 
   method pFieldDecl: unit -> fieldinfo -> doc
     (** A field declaration *)
@@ -1680,9 +1690,9 @@ class type cilPrinter = object
   method pAttr: attribute -> doc * bool
     (** Attribute. Also return an indication whether this attribute must be 
       * printed inside the __attribute__ list or not. *)
-
-  method pAttrParam: unit -> attrparam -> doc
-    (** Attribute parameter. *)
+   
+  method pAttrParam: unit -> attrparam -> doc 
+    (** Attribute paramter *)
    
   method pAttrs: unit -> attributes -> doc
     (** Attribute lists *)
@@ -1694,6 +1704,12 @@ class type cilPrinter = object
     (** Print expressions *) 
 
   method pInit: unit -> init -> doc
+    (** Print initializers. This can be slow and is used by 
+     * {!Cil.printGlobal} but not by {!Cil.dumpGlobal}. *)
+
+  method dInit: out_channel -> int -> init -> unit
+    (** Dump a global to a file with a given indentation. This is used by 
+     * {!Cil.dumpGlobal}. *)
 end
 
 
@@ -1802,7 +1818,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
             (* Print only for union when we do not initialize the first field *)
             match unrollType t, initl with
               TComp(ci, _), [(Field(f, NoOffset), _)] -> 
-                if ci.cfields != [] && 
+                if not (ci.cstruct) && ci.cfields != [] && 
                   (List.hd ci.cfields).fname = f.fname then
                   true
                 else
@@ -1831,6 +1847,50 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                       ++ ((docList (chr ',' ++ break) (self#pInit ())) () il) 
                       ++ unalign)
           ++ chr '}'
+
+  (* dump initializers *)
+  method dInit (out: out_channel) (ind: int) (i: init) = 
+    let dumpArray (bt: typ) (il: 'a list) (getelem: 'a -> init) = 
+      let onALine = (* How many elements on a line *)
+        match unrollType bt with TComp _ | TArray _ -> 1 | _ -> 4
+      in
+      let rec outputElements (isfirst: bool) (room_on_line: int) = function
+          [] -> output_string out "}"
+        | (i: 'a) :: rest -> 
+            if not isfirst then output_string out ", ";
+            let new_room_on_line = 
+              if room_on_line == 0 then begin 
+                output_string out "\n"; output_string out (String.make ind ' ');
+                onALine - 1
+              end else 
+                room_on_line - 1
+            in
+            self#dInit out (ind + 2) (getelem i);
+            outputElements false new_room_on_line rest
+      in
+      output_string out "{ ";
+      outputElements true onALine il
+    in
+    match i with 
+      SingleInit e -> 
+        fprint out 80 (indent ind (self#pExp () e))
+    | CompoundInit (t, initl) -> begin 
+        match unrollType t with 
+          TArray(bt, _, _) -> 
+            dumpArray bt initl (fun (_, i) -> i)
+        | _ -> 
+            (* Now a structure or a union *)
+            fprint out 80 (indent ind (self#pInit () i))
+    end
+
+    | ArrayInit (bt, len, initl) -> begin
+        (* If the base type does not contain structs then use the pInit 
+        match unrollType bt with 
+          TComp _ | TArray _ -> 
+            dumpArray bt initl (fun x -> x)
+        | _ -> *)
+            fprint out 80 (indent ind (self#pInit () i))
+    end
         
   (*** INSTRUCTIONS ****)
   method pInstr () (i:instr) =       (* imperative instruction *)
@@ -1960,6 +2020,9 @@ class defaultCilPrinterClass : cilPrinter = object (self)
   (**** STATEMENTS ****)
   method pStmt () (s:stmt) =        (* control-flow statement *)
     self#pStmtNext invalidStmt () s
+
+  method dStmt (out: out_channel) (ind: int) (s:stmt) : unit = 
+    fprint out 80 (indent ind (self#pStmt () s))
 
   method private pStmtNext (next: stmt) () (s: stmt) =
     (* print the labels *)
@@ -2179,12 +2242,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         fundec.svar.vattr <- [];
         let body = (self#pLineDirective l) ++ (self#pFunDecl () fundec) in
         fundec.svar.vattr <- oldattr;
-        (* If we have the clinkage attribute then print the linkage *)
-        if !cxxMode && hasAttribute "clinkage" fundec.svar.vattr then
-          text "ext" ++ align ++ text "ern \"C\" {" ++ line 
-            ++ proto ++ body ++ unalign ++ line ++ text "}"
-        else 
-          proto ++ body
+        proto ++ body
           
     | GType (typ, l) ->
         self#pLineDirective l ++
@@ -2302,6 +2360,43 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
     | GText s  -> text s
 
+
+   method dGlobal (out: out_channel) (g: global) : unit = 
+     (* For all except functions and variable with initializers, use the 
+      * pGlobal *)
+     match g with 
+       GFun (fdec, l) -> 
+         (* If the function has attributes then print a prototype because 
+          * GCC cannot accept function attributes in a definition *)
+         let oldattr = fdec.svar.vattr in
+         let proto = 
+           if oldattr <> [] then 
+             (self#pLineDirective l) ++ (self#pVDecl () fdec.svar) 
+               ++ chr ';' ++ line
+           else nil in
+         fprint out 80 (proto ++ (self#pLineDirective l));
+         (* Temporarily remove the function attributes *)
+         fdec.svar.vattr <- [];
+         fprint out 80 (self#pFunDecl () fdec);               
+         fdec.svar.vattr <- oldattr
+
+     | GVar (vi, Some i, l) -> 
+         fprint out 80 
+           (self#pLineDirective l ++
+              self#pVDecl () vi
+              ++ text " = " 
+              ++ (let islong = 
+                   match i with
+                     CompoundInit (_, il) when List.length il >= 8 -> true
+                   | _ -> false 
+                 in
+                 if islong then 
+                   line ++ self#pLineDirective l ++ text "  " 
+                 else nil)); 
+         self#dInit out 3 i;
+         output_string out ";"
+
+     | g -> fprint out 80 (self#pGlobal () g)
 
    method pFieldDecl () fi = 
      (self#pType
@@ -2571,6 +2666,9 @@ let printLval (pp: cilPrinter) () (lv: lval) : doc =
 let printGlobal (pp: cilPrinter) () (g: global) : doc = 
   pp#pGlobal () g
 
+let dumpGlobal (pp: cilPrinter) (out: out_channel) (g: global) : unit = 
+  pp#dGlobal out g
+
 let printAttr (pp: cilPrinter) () (a: attribute) : doc = 
   let ad, _ = pp#pAttr a in ad
 
@@ -2583,8 +2681,14 @@ let printInstr (pp: cilPrinter) () (i: instr) : doc =
 let printStmt (pp: cilPrinter) () (s: stmt) : doc = 
   pp#pStmt () s
 
+let dumpStmt (pp: cilPrinter) (out: out_channel) (ind: int) (s: stmt) : unit = 
+  pp#dStmt out ind s
+
 let printInit (pp: cilPrinter) () (i: init) : doc = 
   pp#pInit () i
+
+let dumpInit (pp: cilPrinter) (out: out_channel) (ind: int) (i: init) : unit = 
+  pp#dInit out ind i
 
 (* Now define some short cuts *)
 let d_exp () e = printExp defaultCilPrinter () e
@@ -3464,7 +3568,7 @@ let mapGlobals (fl: file)
 
 
 
-let printFile (pp: cilPrinter) (out : out_channel) file =
+let dumpFile (pp: cilPrinter) (out : out_channel) file =
   printDepth := 99999;  (* We don't want ... in the output *)
   (* If we are in RELEASE mode then we do not print indentation *)
   (* AB: These flags are no longer used by Pretty *)
@@ -3473,15 +3577,14 @@ let printFile (pp: cilPrinter) (out : out_channel) file =
   assert (noBreaks := false; noAligns := false; true);
 *)    
   Pretty.fastMode := true;
-  assert (Pretty.fastMode := false; true);
+  (* In debug mode the asserts are executed 
+  assert (Pretty.fastMode := false; true); *)
   if !E.verboseFlag then 
     ignore (E.log "printing file %s\n" file.fileName);
   let print x = fprint out 78 x in
   print (text ("/* Generated by CIL v. 1.0 */\n\n"));
   iterGlobals file 
-    (fun g -> 
-      let dg = printGlobal pp () g in
-      if dg != nil then print (dg ++ line));
+    (fun g -> dumpGlobal pp out g; output_string out "\n");
     
   (* sm: we have to flush the output channel; if we don't then under *)
   (* some circumstances (I haven't figure out exactly when, but it happens *)
@@ -3678,8 +3781,12 @@ let rec mkCastT ~(e: exp) ~(oldt: typ) ~(newt: typ) =
   (* Do not remove old casts because they are conversions !!! *)
   if typeSig oldt = typeSig newt then
     e
-  else
-    CastE(newt,e)
+  else begin
+    (* Watch out for constants *)
+    match newt, e with 
+      TInt(newik, []), Const(CInt64(i, _, _)) -> kinteger64 newik i
+    | _ -> CastE(newt,e)
+  end
 
 let mkCast ~(e: exp) ~(newt: typ) = 
   mkCastT e (typeOf e) newt

@@ -713,7 +713,10 @@ and init =
   | ArrayInit of typ * int * init list
     (** The new form of initializer for arrays. Give the base type and the 
      *  length of the array, followed by a list of initializers in order. The 
-     * list might be shorter than the array.  *)
+     * list might be shorter than the array. We want to use something cheaper 
+     * for array initializers because they can be huge. They also do not have 
+     * the corner cases of struct/union initializers where once certain 
+     * fields can have initializers. *)
    
 (** {b Function definitions.} 
 A function definition is always introduced with a [GFun] constructor at the
@@ -1691,10 +1694,20 @@ class type cilPrinter = object
     (** Invoked on each instruction occurrence. *)
 
   method pStmt: unit -> stmt -> Pretty.doc
-    (** Control-flow statement. *)
+    (** Control-flow statement. This can be slow and is used by 
+     * {!Cil.printGlobal} but not by {!Cil.dumpGlobal}. *)
+
+  method dStmt: out_channel -> int -> stmt -> unit
+    (** Dump a control-flow statement to a file with a given indentation. This is used by 
+     * {!Cil.dumpGlobal}. *)
 
   method pGlobal: unit -> global -> Pretty.doc
-    (** Global (vars, types, etc.) *)
+    (** Global (vars, types, etc.). This can be slow and is used only by 
+     * {!Cil.printGlobal} but not by {!Cil.dumpGlobal}. *)
+
+  method dGlobal: out_channel -> global -> unit
+    (** Dump a global to a file with a given indentation. This is used by 
+     * {!Cil.dumpGlobal} *)
 
   method pFieldDecl: unit -> fieldinfo -> Pretty.doc
     (** A field declaration *)
@@ -1723,6 +1736,12 @@ class type cilPrinter = object
     (** Print expressions *) 
 
   method pInit: unit -> init -> Pretty.doc
+    (** Print initializers. This can be slow and is used by 
+     * {!Cil.printGlobal} but not by {!Cil.dumpGlobal}. *)
+
+  method dInit: out_channel -> int -> init -> unit
+    (** Dump a global to a file with a given indentation. This is used by 
+     * {!Cil.dumpGlobal} *)
 end
 
 class defaultCilPrinterClass: cilPrinter
@@ -1750,12 +1769,23 @@ val printAttrs: cilPrinter -> unit -> attributes -> Pretty.doc
 (** Print an instruction given a pretty printer *)
 val printInstr: cilPrinter -> unit -> instr -> Pretty.doc 
 
-(** Print a statement given a pretty printer *)
-val printStmt: cilPrinter -> unit -> stmt -> Pretty.doc 
+(** Print a statement given a pretty printer. This can take very long 
+ * (or even overflow the stack) for huge statements. Use {!Cil.dumpStmt} 
+ * instead. *)
+val printStmt: cilPrinter -> unit -> stmt -> Pretty.doc
 
-(** Print an initializer give a pretty printer *)
+(** Dump a statement to a file using a given indentation. Use this instead of 
+ * {!Cil.printStmt} whenever possible. *)
+val dumpStmt: cilPrinter -> out_channel -> int -> stmt -> unit
+
+(** Print an initializer given a pretty printer. This can take very long 
+ * (or even overflow the stack) for huge initializers. Use {!Cil.dumpInit} 
+ * instead. *)
 val printInit: cilPrinter -> unit -> init -> Pretty.doc 
 
+(** Dump an initializer to a file using a given indentation. Use this instead of 
+ * {!Cil.printInit} whenever possible. *)
+val dumpInit: cilPrinter -> out_channel -> int -> init -> unit
 
 (** Pretty-print a type using {!Cil.defaultCilPrinter} *)
 val d_type: unit -> typ -> Pretty.doc
@@ -1766,7 +1796,9 @@ val d_exp: unit -> exp -> Pretty.doc
 (** Pretty-print an lvalue using {!Cil.defaultCilPrinter}   *)
 val d_lval: unit -> lval -> Pretty.doc
 
-(** Pretty-print an initializer using {!Cil.defaultCilPrinter}  *)
+(** Pretty-print an initializer using {!Cil.defaultCilPrinter}.  This can be 
+ * extremely slow (or even overflow the stack) for huge initializers. Use 
+ * {!Cil.dumpInit} instead. *)
 val d_init: unit -> init -> Pretty.doc
 
 (** Pretty-print a binary operator *)
@@ -1784,19 +1816,22 @@ val d_attrlist: unit -> attributes -> Pretty.doc
 (** Pretty-print an instruction using {!Cil.defaultCilPrinter}   *)
 val d_instr: unit -> instr -> Pretty.doc
 
-(** Pretty-print a statement using {!Cil.defaultCilPrinter}   *)
+(** Pretty-print a statement using {!Cil.defaultCilPrinter}. This can be 
+ * extremely slow (or even overflow the stack) for huge statements. Use 
+ * {!Cil.dumpStmt} instead. *)
 val d_stmt: unit -> stmt -> Pretty.doc
 
 (** Pretty-print the internal representation of a global using 
- * {!Cil.defaultCilPrinter} *)
+ * {!Cil.defaultCilPrinter}. This can be extremely slow (or even overflow the 
+ * stack) for huge globals (such as arrays with lots of initializers). Use 
+ * {!Cil.dumpGlobal} instead. *)
 val d_global: unit -> global -> Pretty.doc
-
 
 
 
 (** Pretty-print an entire file. Here you give the channel where the printout
  * should be sent. *)
-val printFile: cilPrinter -> out_channel -> file -> unit
+val dumpFile: cilPrinter -> out_channel -> file -> unit
 
 
 (* the following error message producing functions also print a location in 

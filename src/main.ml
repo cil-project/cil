@@ -91,7 +91,7 @@ let rec processOneFile (cil: C.file) =
     
     (match !outChannel with
       None -> ()
-    | Some c -> Stats.time "printCIL" (C.printFile C.defaultCilPrinter c) cil);
+    | Some c -> Stats.time "printCIL" (C.dumpFile C.defaultCilPrinter c) cil);
 
     if !E.hadErrors then
       E.s (E.error "Cabs2cil has some errors");
@@ -198,13 +198,11 @@ let rec theMain () =
     "--warnall", Arg.Unit (fun _ -> E.warnFlag := true),
                  "Show all warnings";
     "--keep", Arg.Unit (fun _ -> keepFiles := true), "Keep intermediate files";
-    "--MSVC", Arg.Unit (fun _ -> if Machdep.hasMSVC then begin
-                                   C.msvcMode := true;
-                                   F.setMSVCMode ()
-                                  end else
-                                     E.s (E.error "MSVC mode is not supported on this build\n")
-        ),
-             "Produce MSVC output. Default is GNU";
+    "--MSVC", Arg.Unit (fun _ ->   C.msvcMode := true;
+                                   F.setMSVCMode ();
+                                   if not Machdep.hasMSVC then
+                                     E.s (E.warn "Will work in MSVC mode but will be using machine-dependent parameters for GCC since you do not have the MSVC compiler installed\n")
+                       ), "Produce MSVC output. Default is GNU";
     "--stages", Arg.Unit (fun _ -> Util.printStages := true),
                "print the stages of the algorithm as they happen";
     "--keepunused", Arg.Unit (fun _ -> Rmtmps.keepUnused := true),
@@ -266,7 +264,7 @@ let rec theMain () =
                 let oldpci = !C.print_CIL_Input in
                 C.print_CIL_Input := true;
                 Stats.time "printMerged"
-                  (C.printFile C.defaultCilPrinter mc) merged;
+                  (C.dumpFile C.defaultCilPrinter mc) merged;
                 C.print_CIL_Input := oldpci
             end);
             merged
