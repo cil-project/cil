@@ -137,3 +137,4 @@ suppress_optim
 name-capture-bitand
 dblarg.int
 wildfun2
+gdb.log
