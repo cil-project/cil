@@ -89,7 +89,7 @@ sub test {
     if ($result) {
         my $size = (split " ", `wc -l $input`)[0];
         print "\tSUCCESS, lines: $size ****************\n";
-        log_msg("$tmpinput, lines: $size");
+        log_msg_time("$tmpinput, lines: $size");
         $last_successful_tmpinput = $tmpinput;
     } else {
         print "\n";
@@ -186,12 +186,18 @@ sub parse_command_line {
     push @ARGV, @non_flags;
 }
 
-sub dump_settings {
-  print "Settings:\n";
-  print "\ttemporary directory: $tmpdir\n";
-  print "\tgranularity: $granularity\n";
-  print "\tinput: ", join (" ", @ARGV), "\n";
-  print "\n";
+sub render_settings {
+    my $out = "Settings:\n";
+    $out .= "\ttemporary directory: $tmpdir\n";
+    $out .= "\tgranularity: $granularity\n";
+    my $input_str;
+    if (scalar @ARGV > 0) {
+        $input_str = join " ", @ARGV;
+    } else {
+        $input_str = "<stdin>";
+    }
+    $out .= "\tinput: $input_str\n";
+    return $out;
 }
 
 sub read_input_chunks {
@@ -269,17 +275,6 @@ sub increase_granularity {
   return $split_one;
 }
 
-sub done {
-    print "Could not increase granularity; we are done.\n";
-    print "A log of successful runs is in ${tmpdir}/${logfile}\n";
-    if (defined $cp_minimal) {
-        print "Copying minimal run to $cp_minimal\n";
-        die "cp failed" if system "cp ${tmpdir}/${last_successful_tmpinput} $cp_minimal";
-    }
-    log_msg("Done.");
-    exit 0;
-}
-
 sub dhms_from_seconds {
     my ($total_seconds) = @_;
     my $sec = $total_seconds % 60;
@@ -298,8 +293,7 @@ sub dhms_from_seconds {
     return ($days, $hours, $min, $sec);
 }
 
-sub log_msg {
-    my ($message) = @_;
+sub timestamp {
     my $now = time;             # Get a timestamp in seconds.
     my $elapsed = $now - $starttime; # Make relative to start time.
     my ($d,$h,$m,$s) = dhms_from_seconds($elapsed); # Convert to more familiar format.
@@ -311,21 +305,43 @@ sub log_msg {
         $elapsed_dhms = $day_str . $elapsed_dhms;
     }
     my $timestr = scalar localtime($now); # Format as abolute.
+    return sprintf("%d, %s\t%s", $elapsed, $elapsed_dhms, $timestr);
+}
+
+sub log_msg {
+    my ($message) = @_;
     open LOG, ">>${tmpdir}/${logfile}" or die $!;
-    print LOG sprintf ("%-39s %d, %s\t%s\n", $message, $elapsed, $elapsed_dhms, $timestr);
+    print LOG $message, "\n";
     close LOG or die $!;
+}
+
+sub log_msg_time {
+    my ($message) = @_;
+    log_msg(sprintf("%-39s %s", $message, timestamp()));
+}
+
+sub done {
+    print "Could not increase granularity; we are done.\n";
+    print "A log of successful runs is in ${tmpdir}/${logfile}\n";
+    if (defined $cp_minimal) {
+        print "Copying minimal run to $cp_minimal\n";
+        die "cp failed" if system "cp ${tmpdir}/${last_successful_tmpinput} $cp_minimal";
+    }
+    log_msg_time("Done.");
+    exit 0;
 }
 
 # Main ****************
 
 parse_command_line();
 select_tmpdir();
+my $settings = render_settings();
+log_msg($settings);
 if ($verbose) {
     print "\nDelta debugging algorithm, implemented by Daniel Wilkerson.\n";
-    dump_settings();
+    print $settings, "\n";
 }
-
-log_msg("Start.");
+log_msg_time("Start.");
 
 read_input_chunks();
 dump_input() if $dump_input;
