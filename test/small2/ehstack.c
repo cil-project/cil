@@ -3,11 +3,11 @@
 // build a small exception-handling stack, verify field annotation works
 
 #ifndef CCURED
-  #define __CANPOINTTOSTACK
+  #define __MAYPOINTTOSTACK
 #endif
 
 struct Entry {
-  struct Entry *next __CANPOINTTOSTACK;
+  struct Entry *next __MAYPOINTTOSTACK;
   int *otherPointer;     // not allowed to point at stack
   int x;
 };
