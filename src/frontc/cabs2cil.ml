@@ -1160,9 +1160,6 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
         let a1n, a1f, a1t = partitionAttributes AttrType a1' in
         let a2' = doAttributes a2 in
         let a2n, a2f, a2t = partitionAttributes nameortype a2' in
-        if a2t <> [] then 
-          E.s (E.unimp "Type attributes in post position: %a"
-                 (d_attrlist true) a2t);
         let bt' = typeAddAttributes a1t bt in
         let bt'', a1fadded = 
           match unrollType bt with 
@@ -1171,6 +1168,8 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
         in
         (* Now recurse *)
         let restyp, nattr = doDecl bt'' acc d in
+        (* Add some more type attributes *)
+        let restyp = typeAddAttributes a2t restyp in
         (* See if we can add some more type attributes *)
         let restyp' = 
           match unrollType restyp with 

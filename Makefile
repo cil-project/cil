@@ -529,6 +529,10 @@ test/% : $(SMALL1)/%.c defaulttarget
                --patch=../../lib/$(PATCHFILE) \
 	       $(CONLY) $(DOOPT) $(ASMONLY)$*.s $*.c 
 
+testnopatch/% : $(SMALL1)/%.c defaulttarget
+	cd $(SMALL1); $(SAFECC)   \
+               $(CONLY) $(DOOPT) $(ASMONLY)$*.s $*.c 
+
 testexe/% : $(SMALL1)/%.c  defaulttarget
 	cd $(SMALL1); $(SAFECC)   \
                --patch=../../lib/$(PATCHFILE) \
@@ -598,6 +602,7 @@ scott/%: test/small2/%.c defaulttarget
                  $*.c \
                  $(EXEOUT)$*
 	test/small2/$*
+
 
 # sm: trivial test of combiner
 MYSAFECC = $(SAFECC) --keep=. $(DEF)$(ARCHOS)
