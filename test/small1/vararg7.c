@@ -10,7 +10,7 @@ struct mystruct {
   char *s;
 };
 
-#define CCURED_PRINTF(fmt) __attribute__((__boxvararg__(sizeof(struct mystruct))))
+#define CCURED_PRINTF(fmt) __attribute__((__ccuredvararg__(sizeof(struct mystruct))))
 typedef struct dns_rdatacallbacks {
         /*
          * dns_load_master calls this when it has rdatasets to commit.

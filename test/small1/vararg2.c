@@ -6,7 +6,7 @@ struct vararg_sum {
   int ints;                   /* We only pass ints to this one */
   int *pints;
 };
-#pragma boxvararg("sum", sizeof(struct vararg_sum))
+#pragma ccuredvararg("sum", sizeof(struct vararg_sum))
 
 int sum( int descriptor, ... );
 

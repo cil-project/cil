@@ -183,8 +183,7 @@ let categorizePragmas file =
       (* these pragmas indirectly require that we keep the function named in
 	  -- the first arguments of boxmodelof and ccuredwrapperof, and
 	  -- the third argument of ccureddeepcopy*. *)
-      | GPragma (Attr("boxmodelof" as directive, attribute :: _), location)
-      | GPragma (Attr("ccuredwrapperof" as directive, attribute :: _), location) ->
+      | GPragma (Attr("ccuredwrapper" as directive, attribute :: _), location) ->
 	  begin
 	    match attribute with
 	    | AStr name ->

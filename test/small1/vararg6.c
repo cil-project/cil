@@ -5,7 +5,7 @@
 
 typedef double TYPE;
 
-#pragma boxvararg("vafunction", sizeof(union { TYPE d; }))
+#pragma ccuredvararg("vafunction", sizeof(union { TYPE d; }))
 
 void vafunction (dummy1, dummy2, va_alist)
   TYPE dummy1, dummy2;

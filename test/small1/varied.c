@@ -7,7 +7,7 @@ typedef struct list {
   char *data;
 } LIST;
 
-#pragma boxpoly("copy")
+#pragma ccuredpoly("copy")
 void *copy(void *x) {
   return x;
 }

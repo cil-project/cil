@@ -8,11 +8,11 @@ union vararg_sum {
 };
 
 
-#pragma boxvararg("sum", sizeof(union vararg_sum))
+#pragma ccuredvararg("sum", sizeof(union vararg_sum))
 int sum( int descriptor, ... );
 
 // Argument 0 is a valist. 
-#pragma boxvararg("sum_valist", sizeof(union vararg_sum))
+#pragma ccuredvararg("sum_valist", sizeof(union vararg_sum))
 int sum_valist(va_list args, int descriptor);
 
 #include "testharness.h"

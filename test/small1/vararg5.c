@@ -14,7 +14,7 @@ separate function.
 #include <fcntl.h>
 #include <string.h>
 
-#pragma boxvararg_printf("talking", 2)
+#pragma ccuredvararg("talking", printf(2))
 void talking(FILE *out, char *s, ...);
 
 int main(int argc, char** argv) {

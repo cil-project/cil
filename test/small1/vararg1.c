@@ -44,4 +44,4 @@ int average( int first, ... )
 }
 
 // Put this intentionally at the end
-#pragma boxvararg("average", sizeof(union vararg_average))
+#pragma ccuredvararg("average", sizeof(union vararg_average))

@@ -4,7 +4,7 @@
 // alpha renaming of locals/params)
                                
 // testing --mergeKeepAnnotations
-#pragma boxpoly("some_poly_fn")
+#pragma ccuredpoly("some_poly_fn")
 
 // repeated function
 int foo(int xxx)

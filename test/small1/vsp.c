@@ -15,7 +15,7 @@ ns_client_logv(void *client, void *category,
 
 // You must add this pragma to prevent CCured from infering a bad
 // descriptor
-#pragma boxvararg_printf("ns_client_log", 5)
+#pragma ccuredvararg("ns_client_log", printf(5))
 void
 ns_client_log(void *client, void *category, void *module, int level,
     const char *fmt, ...)

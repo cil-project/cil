@@ -31,6 +31,7 @@ Makefile: Makefile.in
 # sm: removed *box.c from those removed since $(TESTDIR)/PCC/src/pccbox.c should be kept
 clean:
 	-find . \( \
+		-name '*~' -o \
 		-name '*cil.c' -o \
 		-name '*cured.c' -o \
                 -name '*cured.*optim.c' -o \
@@ -43,8 +44,10 @@ clean:
 		-name '*cabs.c' -o \
 		-name '*infer.c' -o \
 		-name '*_all*.c' -o \
+	        -name "*-tmp.c" -o \
 		-name '*_comb*.c' \
-	\) -exec rm {} \;
+	\) -exec rm -f {} \;
+	-find . -name '*.browser' -exec rm -rf {} \;
 
 
 # sm: infer CCUREDHOME when not set, to ease having multiple trees
@@ -221,10 +224,10 @@ ifdef CABSONLY
   CCURED+= --cabsonly
   CILLY+= --cabsonly
 endif
-ifdef FP_FAIL_IS_VERBOSE
+ifdef CCUREd_FAIL_IS_VERBOSE
   # note that we also add this to CCUREDLIBARG in Makefile.ccured; this
   # affects the instrumented code *and* the support library
-  CCURED+= $(DEF)FP_FAIL_IS_VERBOSE
+  CCURED+= $(DEF)CCURED_FAIL_IS_VERBOSE
 endif
 
 # sm: pass tracing directives on 'make' command line like TRACE=usedVars
@@ -1874,10 +1877,10 @@ linuxsetup: mustbelinux
 	            $(foreach file,$(LINUX_TOPATCH), --sfile=$(file))
 
 LINUXPATCH := $(STANDARDPATCH) --includedir=$(LINUX_INCLUDES) \
-	-D FP_FAIL_IS_VERBOSE=1 --noStackChecks
+	-D CCURED_FAIL_IS_VERBOSE=1 --noStackChecks
 
 # CCured support library for linux modules. Holds wrappers and definitions
-# for things like fp_fail(). 
+# for things like ccured_fail(). 
 LINUXMODULELIBDIR := $(CCUREDHOME)/test/linux/
 LINUXMODULELIB := $(LINUXMODULELIBDIR)/ccured_LinuxModule_release.o
 $(LINUXMODULELIB) : 

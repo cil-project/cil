@@ -62,16 +62,16 @@ void exit(int);
 
  
 
-#pragma boxalloc("malloc", nozero, sizein(1))
-#pragma boxalloc("alloca", nozero, sizein(1))
-#pragma boxalloc("calloc", zero, sizemul(1,2))
+#pragma ccuredalloc("malloc", nozero, sizein(1))
+#pragma ccuredalloc("alloca", nozero, sizein(1))
+#pragma ccuredalloc("calloc", zero, sizemul(1,2))
 
-#pragma boxprintf("printf", 0)
-#pragma boxprintf("fprintf", 1)
-#pragma boxprintf("sprintf", 1)
-#pragma boxprintf("snprintf", 2)
+#pragma ccuredvararg("printf", printf(1))
+#pragma ccuredvararg("fprintf", printf(2))
+#pragma ccuredvararg("sprintf", printf(2))
+#pragma ccuredvararg("snprintf", printf(3))
 
-#pragma boxexported("main")
+#pragma ccuredexported("main")
 
 
 
