@@ -16,7 +16,7 @@ Makefile.cil: Makefile.cil.in config.status
 	./config.status
 
 config.status: configure.in
-	configure
+	./configure
 
 @DEFAULT_COMPILER@=1
 
