@@ -163,34 +163,6 @@ let newline () =
   incr currentLine;
   startLine := Lexing.lexeme_start !currentLexBuf
 
-(*
-type handle =
-	bool * in_channel * string * string * int * int * out_channel * string
-let current_handle = ref (false, stdin, "", "", 0, 0, stdout, "")
-
-let interactive (h : handle) = let (i, _, _, _, _, _, _, _) = h in i
-let in_channel (h : handle) = let (_, c, _, _, _, _, _, _) = h in c
-let line (h : handle) = let (_, _, l, _, _, _, _, _) = h in l
-let buffer (h : handle) = let (_, _, _, b, _, _, _, _) = h in b
-let pos (h : handle) = let (_, _, _, _, p, _, _, _) = h in p
-let real_pos (i : int) (h : handle) = let (_, _, _, _, p, _, _, _) = h in i - p
-let lineno (h : handle) = let (_, _, _, _, _, n, _, _) = h in n
-let out_channel (h : handle) = let (_, _, _, _, _, _, out, _) = h in out
-let file_name (h : handle) = let (_, _, _, _, _, _, _, name) = h in name
-*)
-(*  
-let set_line num =
-  let (inter, cha, lin, buf, pos, _, out, name) = !current_handle in
-  currentLine := num - 1
-  current_handle := (inter, cha, lin, buf, pos, num - 1, out, name)
-*)
-
-(*
-let set_name name =
-  let (inter, cha, lin, buf, pos, num, out, _) = !current_handle in
-  currentFile := name
-  current_handle := (inter, cha, lin, buf, pos, num, out, name) 
-*)
 
 (*** syntax error building
 let underline_error (buffer : string) (start : int) (stop : int) =
@@ -210,11 +182,15 @@ let underline_error (buffer : string) (start : int) (stop : int) =
 *)
     
 let display_error msg token_start token_end =
+  let adjStart = 
+    if token_start < !startLine then 0 else token_start - !startLine in
+  let adjEnd = 
+    if token_end < !startLine then 0 else token_end - !startLine in
   output_string 
     stderr
     (!currentFile ^ "[" ^ (string_of_int !currentLine) ^ ":" 
-                        ^ (string_of_int (token_start - !startLine)) ^ "-" 
-                        ^ (string_of_int (token_end - !startLine)) 
+                        ^ (string_of_int adjStart) ^ "-" 
+                        ^ (string_of_int adjEnd) 
                   ^ "]"
      ^ " : " ^ msg);
   output_string stderr "\n";

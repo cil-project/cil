@@ -992,7 +992,9 @@ m88k-noclean: defaulttarget mustbegcc
 
 ### SPEC95 ijpeg
 IJPEGDIR=$(SPECDIR)/132.ijpeg
-IJPEGSAFECC=$(SAFECC) --combine --keep=safeccout
+IJPEGSAFECC=$(SAFECC) --combine --keep=safeccout  \
+                  --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) \
+                  --nobox=ijpegbox
 ifdef BOX
 IJPEGEXTRA=$(CILDIR)/$(SAFEMAINLIB)
 else

@@ -151,20 +151,29 @@ $TEST->add3Tests("wes-rbtest", "", @runpattern);
 $TEST->add1Test("test/alloc-manualinferbox",
                 "test/alloc INFERBOX=$inferbox MANUALBOX=1",
                 %commonerrors);
+
 $TEST->add3Tests("bh", "_GNUCC=1");
    $TEST->add3Group("bh", "slow");
    $TEST->addBadComment("bh-box", "CRASHES");
+
 $TEST->add3Tests("li", "_GNUCC=1");
   $TEST->add3Group("li", "slow");
   $TEST->addBadComment("li-box", "bug in box.ml");
   $TEST->addBadComment("li-inferbox", "bug in box.ml");
+
 $TEST->add3Tests("compress", "_GNUCC=1");
   $TEST->add3Group("compress", "slow");
 #   $TEST->addBadComment("compress-box", "missing wrappers");
+
 $TEST->add3Tests("go", "_GNUCC=1");
    $TEST->add3Group("go", "slow");
    $TEST->addBadComment("go-box", "CRASHES with LBound");
    $TEST->addBadComment("go-inferbox", "CRASHES with LBound");
+
+$TEST->add2Tests("ijpeg", "_GNUCC=1");
+  $TEST->add2Group("ijpeg", "slow");
+  $TEST->addBadComment("ijpeg-inferbox", "CRASHES");
+
 $TEST->add3Tests("apache/gzip");
    $TEST->add3Group("apache/gzip", "apache");
 #   $TEST->addBadComment("apache/gzip-inferbox", "BUG");
@@ -321,6 +330,32 @@ sub add3Tests {
                    Patterns => \%patterns);
 }
 
+sub add2Tests {
+    my($self, $name, $extraargs, %patterns) = @_;
+    
+    my $theargs = defined($self->{option}->{safecdebug}) ? " " : " RELEASE=1 ";
+    $theargs .= " $extraargs ";
+    
+    if(defined $self->{option}->{noremake}) {
+        $theargs .= " NOREMAKE=1";
+    }
+    my $k;
+    my %patterns = %commonerrors;
+
+    $self->newTest(Name => $name . "-cil",
+                   Dir => "..",
+                   Cmd => "make " . $name . $theargs,
+                   Group => ["cil"],
+                   Patterns => \%patterns);
+
+
+    $self->newTest(Name => $name . "-inferbox",
+                   Dir => "..",
+                   Cmd => "make " . $name . " INFERBOX=$inferbox " . $theargs,
+                   Group => ["infer"], 
+                   Patterns => \%patterns);
+}
+
 
 sub add1Test {
     my($self, $name, $args, %patterns) = @_;
@@ -351,6 +386,12 @@ sub add3Comment {
     $self->addComment($name . "-inferbox", $comm);
 }
 
+sub add2Comment {
+    my ($self, $name, $comm) = @_;
+    $self->addComment($name . "-cil", $comm);
+    $self->addComment($name . "-inferbox", $comm);
+}
+
 
 sub add3BadComment {
     my ($self, $name, $comm) = @_;
@@ -358,10 +399,22 @@ sub add3BadComment {
     $self->add3Group($name, "bad");
 }
 
+sub add2BadComment {
+    my ($self, $name, $comm) = @_;
+    $self->add2Comment($name, $comm);
+    $self->add2Group($name, "bad");
+}
+
 sub add3Group {
     my ($self, $name, @groups) = @_;
     $self->addGroups($name . "-cil", @groups);
     $self->addGroups($name . "-box", @groups);
+    $self->addGroups($name . "-inferbox", @groups);
+}
+
+sub add2Group {
+    my ($self, $name, @groups) = @_;
+    $self->addGroups($name . "-cil", @groups);
     $self->addGroups($name . "-inferbox", @groups);
 }
 
