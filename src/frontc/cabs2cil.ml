@@ -777,9 +777,10 @@ let doNameGroup (doone: A.spec_elem list -> 'n -> 'a)
 
 
 
-(* Create and cache varinfo's for globals. Returns the varinfo and whether 
- * there exists already a definition *)
-let makeGlobalVarinfo (vi: varinfo) : varinfo * bool =
+(* Create and cache varinfo's for globals. Starts with a varinfo but if the 
+ * global has been declared already it might come back with another varinfo. 
+ * Returns the varinfo and whether there exists already a definition  *)
+let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
   try (* See if already defined *)
     let oldvi, oldloc = lookupVar vi.vname in
     (* It was already defined. We must reuse the varinfo. But clean up the 
@@ -789,8 +790,11 @@ let makeGlobalVarinfo (vi: varinfo) : varinfo * bool =
       else if vi.vstorage = Extern then ()
       else if oldvi.vstorage = Extern then 
         oldvi.vstorage <- vi.vstorage 
-      else E.s (error "Redefinition of %s. Previous definitionon: %a" 
-                  vi.vname d_loc oldloc)
+      else begin
+        ignore (warn "Inconsistent storage specification for %s. Previous declaration: %a" 
+               vi.vname d_loc oldloc);
+        oldvi.vstorage <- vi.vstorage
+      end
     in
     (* Union the attributes *)
     oldvi.vattr <- addAttributes oldvi.vattr vi.vattr;
@@ -1846,7 +1850,8 @@ and doExp (isconst: bool)    (* In a constant *)
                 ignore (warn "Calling function %s without prototype." n);
                 let ftype = TFun(intType, [], false, []) in
                 (* Add a prototype to the environment *)
-                let proto, _ = makeGlobalVarinfo (makeGlobalVar n ftype) in
+                let proto, _ = 
+                  makeGlobalVarinfo false (makeGlobalVar n ftype) in
                 (* Make it EXTERN *)
                 proto.vstorage <- Extern;
                 H.add noProtoFunctions proto.vid true;
@@ -2449,8 +2454,9 @@ and createGlobal (specs: A.spec_elem list)
       (*(trace "sm" (dprintf "adding extern to prototype of %s\n" n));*)
       vi.vstorage <- Extern
     );
-
-    let vi, alreadyDef = makeGlobalVarinfo vi in
+    let vi, alreadyDef = 
+      makeGlobalVarinfo (init != None &&
+                         not (isFunctionType vi.vtype)) vi in
     if not alreadyDef then begin(* Do not add declarations after def *)
       if vi.vstorage = Extern then 
         if init = None then 
@@ -2865,7 +2871,7 @@ let convFile fname dl =
                * have recursion and no prototype.  *)
               (* Make a variable out of it and put it in the environment *)
               let thisFunctionVI, alreadyDef = 
-                makeGlobalVarinfo 
+                makeGlobalVarinfo true
                   { vname = n;
                     vtype = ftype;
                     vglob = true;
