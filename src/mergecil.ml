@@ -46,7 +46,6 @@ let mergeSynonyms = true
  * files and we would like them all to be the same *)
 let mergeInlines = true
 
-
 (* Check that s starts with the prefix p *)
 let prefix p s = 
   let lp = String.length p in
@@ -564,9 +563,11 @@ class renameVisitorClass = object (self)
       (* This is a variable use. See if we must change it *)
   method vvrbl (vi: varinfo) : varinfo visitAction = 
     if not vi.vglob then DoChildren else
-    match findReplacement true vEq !currentFidx vi.vname with
-      None -> DoChildren
-    | Some (vi', _) -> ChangeTo vi'
+    begin
+      match findReplacement true vEq !currentFidx vi.vname with
+        None -> DoChildren
+      | Some (vi', _) -> ChangeTo vi'
+    end
 
           
         (* The use of a type *)
@@ -704,7 +705,7 @@ let rec oneFilePass1 (f:file) : unit =
           if fdec.svar.vstorage <> Static then begin
             matchVarinfo fdec.svar l
           end else begin
-            if fdec.sinline then 
+            if fdec.sinline && mergeInlines then 
               (* Just create the nodes for inline functions *)
               ignore (getNode iEq iSyn !currentFidx 
                         fdec.svar.vname fdec.svar None)
@@ -780,7 +781,8 @@ let matchInlines (oldfidx: int) (oldi: varinfo)
     (* We get here if we have success *)
     (* Combine the attributes as well *)
     oldi.vattr <- addAttributes oldi.vattr i.vattr;
-    let _ = union oldinode inode in 
+    (* Do not union them yet because we do not know that they are the same. 
+     * We have checked only the types so far *)
     ()
   end
   
@@ -824,9 +826,6 @@ let oneFilePass2 (f: file) =
       | GFun (fdec, l) as g -> 
           currentLoc := l;
           let origname = fdec.svar.vname in
-          (* Find the node for this one *)
-          let inode = getNode iEq iSyn !currentFidx origname fdec.svar None in
-
             (* We apply the renaming *)
           fdec.svar <- processVarinfo fdec.svar l;
           let fdec' = 
@@ -849,19 +848,39 @@ let oneFilePass2 (f: file) =
             (fun oldn a -> if oldn <> "" then a.vname <- oldn)
             oldnames argl;
           
-          if fdec'.sinline then begin
-            (* Temporarily restore the name *)
-            let newname = fdec'.svar.vname in
-            fdec'.svar.vname <- origname;
-            let printout = d_global () g' in
-            fdec'.svar.vname <- newname;
+          if fdec'.sinline && mergeInlines then begin
+            let printout = 
+              (* Temporarily turn of printing of lines *)
+              let oldprintln = !printLn in
+              printLn := false;
+              (* Temporarily restore the name *)
+              let newname = fdec'.svar.vname in
+              fdec'.svar.vname <- origname;
+              let res = d_global () g' in
+              printLn := oldprintln;
+              fdec'.svar.vname <- newname;
+              res
+            in
+            (* Make a node for this inline function using the new name. use 
+             * the new name because that one will be used to lookup the 
+             * replacement during renaming. *)
+            let inode = 
+              getNode vEq vSyn !currentFidx fdec.svar.vname fdec.svar None 
+            in
+            if debugMerge then 
+              ignore (E.log 
+                        "Looking for previous definition of inline %s(%d)\n"
+                        origname !currentFidx); 
             try
               let oldinode = H.find inlineBodies printout in
-              (* We found an inline. Outght to merge their nodes *)
-              if oldinode != inode then 
-                let _ = union oldinode inode in ();
+              if debugMerge then
+                ignore (E.log "  Matches %s(%d)\n" 
+                          oldinode.nname oldinode.nfidx);
+              (* There is some other inline function with the same printout *)
+              let _ = union oldinode inode in
               () (* Drop this definition *)
             with Not_found -> begin
+              if debugMerge then ignore (E.log " Not found\n");
               H.add inlineBodies printout inode;
               pushGlobal g'
             end
@@ -958,7 +977,8 @@ let merge (files: file list) (newname: string) : file =
     dumpGraph "struct" sEq;
     dumpGraph "union" uEq;
     dumpGraph "enum" eEq;
-    dumpGraph "inline" iEq;
+    dumpGraph "variable" vEq;
+    if mergeInlines then dumpGraph "inline" iEq;
   end;
   (* Make the second pass over the files. This is when we start rewriting the 
    * file *)

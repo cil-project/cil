@@ -1541,6 +1541,10 @@ val printLn: bool ref
 (** Whether to print line numbers in comments*)
 val printLnComment: bool ref
 
+(** Whether we print something that will only be used as input to our own 
+ * parser. In that case we are a bit more liberal in what we print *)
+val print_CIL_Input: bool ref
+
 (** {b Debugging support} *)
 
 (** A reference to the current location. If you are careful to set this to 

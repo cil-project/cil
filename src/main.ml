@@ -235,7 +235,10 @@ let rec theMain () =
         in
         if !E.hadErrors then 
           E.s (E.error "There were errors during merging\n");
-        processOneFile one
+        let oldpci = !C.print_CIL_Input in
+        C.print_CIL_Input := true;
+        processOneFile one;
+        C.print_CIL_Input := oldpci
       end else
         List.iter (fun fname -> 
                        let cil = parseOneFile fname in

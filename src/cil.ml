@@ -53,6 +53,8 @@ let msvcMode = ref false              (* Whether the pretty printer should
 let printLn= ref true                 (* Whether to print line numbers *)
 let printLnComment= ref false
  
+let print_CIL_Input = ref false
+
 let debugConstFold = false
 
 (** The Abstract Syntax of CIL *)
@@ -3140,7 +3142,7 @@ let d_global () = function
         (text ("// omitted boxmodel GDecl " ^ vi.vname ^ "\n"))
       (* sm: also don't print declarations for gcc builtins *)
       (* this doesn't do what I want, I don't know why *)
-      else if (startsWith "__builtin_" vi.vname) then (
+      else if startsWith "__builtin_" vi.vname && not !print_CIL_Input then (
         (text ("// omitted gcc builtin " ^ vi.vname ^ "\n"))
       )
       else (
@@ -3155,15 +3157,14 @@ let d_global () = function
 
   | GPragma (Attr(an, args), l) ->
       (* sm: suppress printing pragmas that gcc does not understand *)
-      (* Turn off suppressing because we use this printer to print merged 
-       * files which come before CCured *)
       (* assume anything starting with "box" is ours *)
       (* also don't print the 'combiner' pragma *)
       (* nor 'cilnoremove' *)
-      let suppress = false && 
+      let suppress = 
+        not !print_CIL_Input && 
         ((startsWith "box" an) ||
-        (an = "merger") ||
-        (an = "cilnoremove")) in
+         (an = "merger") ||
+         (an = "cilnoremove")) in
       let d =
         if args = [] then
           text an
