@@ -55,11 +55,13 @@ val assign : lvalue -> tau -> unit
 val assign_ret : int -> lvalue -> tau -> unit
 val apply : tau -> tau list -> (tau * int)
 val make_function :  string -> lvalue list -> tau -> tau
-val make_lvalue : bool -> string -> lvalue
+val make_lvalue : bool -> string -> (Cil.varinfo option) -> lvalue
 val bottom : unit -> tau
 val return : tau -> tau -> unit
 val make_fresh : string -> tau
-val points_to : lvalue -> string list    
+val points_to_names : lvalue -> string list
+val points_to : lvalue -> Cil.varinfo list
+val epoints_to : tau -> Cil.varinfo list   
 val string_of_lvalue : lvalue -> string
 val global_lvalue : lvalue -> bool
 val alias_query : bool -> lvalue list -> int * int

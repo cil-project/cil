@@ -132,13 +132,15 @@ type 'a boundset = 'a B.t
 type 'a pathset = 'a P.t
 
 (** Constants, which identify elements in points-to sets *)
-type constant = int * string
+(** jk : I'd prefer to make this an 'a constant and specialize it to varinfo
+    for use with the Cil frontend, but for now, this will do *)
+type constant = int * string * Cil.varinfo
 
 module Constant =
 struct
   type t = constant
 
-  let compare ((xid,_) : t) ((yid,_) : t) =
+  let compare ((xid,_,_) : t) ((yid,_,_) : t) =
     Pervasives.compare xid yid
 end
 module C = Set.Make(Constant)
@@ -341,6 +343,10 @@ let join_cache : (int * int, tau) H.t = H.create 64
 (* Utility Functions                                                   *)
 (*                                                                     *)
 (***********************************************************************)
+
+let fst3 (a,b,c) = a
+let snd3 (a,b,c) = b
+let thd3 (a,b,c) = c
 
 let find = U.deref
 
@@ -652,20 +658,19 @@ let print_constraint (c : tconstraint) =
 let make_lval (lbl,t : label * tau) : lvalue = 
   {l = lbl; contents = t}
   
-let make_label_int (is_global : bool) (name :string) (as_emp : bool) : label =
-  let loc_const = (fresh_index(),name) in   
-  U.uref {
+let make_label_int (is_global : bool) (name :string) (vio : Cil.varinfo option)
+  : label =
+  let locc = 
+    (match vio with
+      | Some vi -> C.add (fresh_index(),name,vi) C.empty
+      | None -> C.empty)
+  in
+    U.uref {
     l_name = name;
     l_global = is_global;
     l_stamp = fresh_stamp();
-    loc = 
-	    if (not as_emp)
-	    then (C.add loc_const C.empty)
-	    else C.empty;
-    aliases = 
-	    if (not as_emp) 
-	    then (C.add loc_const C.empty)
-	    else C.empty;
+    loc = locc;
+    aliases = locc;
     p_ubounds = B.empty;   
     p_lbounds = B.empty; 
     n_ubounds = B.empty;
@@ -685,13 +690,13 @@ let make_label_int (is_global : bool) (name :string) (as_emp : bool) : label =
 
 (** Create a new label with name [name]. Also adds a fresh constant
  with name [name] to this label's aliases set. *)  
-let make_label (is_global : bool) (name : string) : label =
-  make_label_int is_global name false
-    
+let make_label (is_global : bool) (name : string) (vio : Cil.varinfo option) : label =
+  make_label_int is_global name (vio)
+   
 (** Create a new label with an unspecified name and an empty alias set. *) 
 let fresh_label (is_global : bool) : label =
   let index = fresh_index() in
-    make_label_int is_global ("l_" ^ (string_of_int index)) true
+    make_label_int is_global ("l_" ^ (string_of_int index)) None
       
 (** Create a fresh bound (edge in the constraint graph). *)
 let make_bound (i,a : int * label) : lblinfo bound = 
@@ -1295,19 +1300,20 @@ let apply (t : tau) (al : tau list) : (tau * int) =
   [formals], and return value [ret]. Adds no constraints. *)
 let make_function (name : string) (formals : lvalue list) (ret : tau) : tau = 
   let 
-    f = make_fun (make_label false name, List.map (fun x -> rvalue x
-						  ) formals,ret) 
+    f = make_fun (make_label false name None, List.map (fun x -> rvalue x
+						     ) formals,ret) 
   in
     make_pair(fresh_var false,f)
 
 (** Create an lvalue. If [is_global] is true, the lvalue will be treated 
     monomorphically. *)
-let make_lvalue (is_global : bool) (name : string) : lvalue = 
+let make_lvalue (is_global : bool) (name : string) (vio : Cil.varinfo option) :
+  lvalue = 
   if (!debug && is_global) 
   then 
     Printf.printf "Making global lvalue : %s\n" name
   else ();
-  make_lval(make_label is_global name, make_var is_global name) 
+  make_lval(make_label is_global name vio, make_var is_global name) 
  
 (** Create a fresh non-global named variable. *)
 let make_fresh (name : string) : tau =
@@ -1665,6 +1671,7 @@ let collect_ptsets (l : label) : constantset = (* todo -- cache aliases *)
   let collect_aliases = 
     P.iter (fun p -> aliases := C.union (!aliases) (find p.head).aliases)
   in
+    backwards_tabulate l;
     collect_aliases li.m_lpath;
     collect_aliases li.n_lpath;
     collect_aliases li.p_lpath;
@@ -1678,20 +1685,36 @@ let extract_ptlabel (lv : lvalue) : label option =
        | _ -> raise WellFormed)
   with 
     | NoContents -> None
-	  
-let points_to ( lv : lvalue) : string list = 
+
+let points_to_aux ( t : tau) : constant list = 
   try
-    (match (find (proj_ref lv.contents)) with
+    (match (find (proj_ref t)) with
       | Var v -> []
       | Ref r -> 
 	  begin
-	    backwards_tabulate r.rl;
-	    List.map snd (C.elements (collect_ptsets r.rl))
+	    (C.elements (collect_ptsets r.rl))
 	  end
       | _ -> raise WellFormed)
   with 
     | NoContents -> []
-	  
+
+let points_to_names (lv : lvalue) : string list =
+  List.map (fun (_,str,_) -> str) (points_to_aux lv.contents)
+
+let points_to (lv : lvalue) : Cil.varinfo list = 
+  let rec get_vinfos l : Cil.varinfo list = match l with
+    | (_,_,h) :: t -> h :: (get_vinfos t) 
+    | [] -> []
+  in
+    get_vinfos (points_to_aux lv.contents)
+
+let epoints_to (t : tau) : Cil.varinfo list =
+  let rec get_vinfos l : Cil.varinfo list = match l with
+    | (_,_,h) :: t -> h :: (get_vinfos t) 
+    | [] -> []
+  in
+    get_vinfos (points_to_aux t)
+
 let smart_alias_query (l : label) (l' : label) : bool = 
   (* Set of dead configurations *) 
   let dead_configs : config_map = CH.create 16 in

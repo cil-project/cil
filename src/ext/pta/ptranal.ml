@@ -49,6 +49,16 @@ type access = A.lvalue * bool
 
 type access_map = (lval, access) H.t
 
+
+(** a mapping from varinfo's back to fundecs *)
+module VarInfoKey =
+struct
+  type t = varinfo
+  let compare v1 v2 = Pervasives.compare (v1.vid) (v2.vid)
+end
+
+module F = Map.Make(VarInfoKey)
+
 (***********************************************************************)
 (*                                                                     *)
 (* Global Variables                                                    *)
@@ -70,6 +80,9 @@ let debug_may_aliases = ref false
 let current_fundec : fundec option ref = ref None
 
 let fun_access_map : (fundec, access_map) H.t = H.create 64
+
+(* A mapping from varinfos to fundecs *)
+let fun_varinfo_map = ref (F.empty)
 
 let current_ret : A.tau option ref = ref None
 
@@ -123,7 +136,7 @@ let is_alloc_fun = function
 
 let next_alloc () = 
   let name = "alloc_" ^ string_of_int (fresh_index())
-  in A.address (A.make_lvalue false name) (* check *)
+  in A.address (A.make_lvalue false name None) (* check *)
 
 (***********************************************************************)
 (*                                                                     *)
@@ -143,7 +156,7 @@ let analyze_var_decl (v : varinfo ) : A.lvalue =
 	  let is_global = 
 	    if (isFunctionType(v.vtype)) then false else v.vglob  
 	  in
-	  let lv = A.make_lvalue is_global v.vname 
+	  let lv = A.make_lvalue is_global v.vname (Some v)
 	  in
 	    H.add lvalue_hash v lv;
 	    lv
@@ -322,6 +335,7 @@ let analyze_function (f : fundec ) : unit =
 	  Printf.printf "Analyzing function %s" f.svar.vname;
 	  print_newline()
 	end;
+      fun_varinfo_map := F.add f.svar f (!fun_varinfo_map);
       current_fundec := Some f;
       H.add fun_access_map f (H.create 8);
       A.assign oldlv newf;
@@ -394,7 +408,7 @@ let rec traverse_expr (e : exp) : A.tau =
 
 and traverse_expr_as_lval (e : exp) : A.lvalue = 
   match e with
-    | Lval l -> analyze_lval l 
+    | Lval l -> traverse_lval l 
     | _ -> assert(false) (* todo -- other kinds of expressions? *)
 
 and traverse_lval (lv : lval ) : A.lvalue =
@@ -419,12 +433,16 @@ let may_alias (e1 : exp) (e2 : exp) : bool =
 	  Printf.printf "%s and %s may alias? %s\n" s1 s2 (if result then "yes" else "no")
       end;
     result
-      
-      
-(** todo *)
-let resolve_funptr (e : exp) : fundec list = []
+            
+let resolve_lval (lv : lval) : varinfo list = A.points_to (traverse_lval lv)
 
-
+let resolve_funptr (e : exp) : fundec list =
+  let varinfos = A.epoints_to (traverse_expr e) in
+    List.fold_left (fun fdecs -> fun vinf ->
+		      try 
+			(F.find vinf (!fun_varinfo_map)) :: fdecs
+		      with
+			| Not_found -> fdecs ) [] varinfos
 
 let count_hash_elts h =
   let result = ref 0 in
@@ -488,7 +506,7 @@ let compute_results (show_sets : bool) : unit =
 		    begin
 		      if (A.global_lvalue lv) then incr global_lvalues;
 		      (show_progress_fn counted_lvalues total_lvalues);
-		      lval_elts := (vinf.vname, A.points_to lv) :: (!lval_elts)
+		      lval_elts := (vinf.vname, A.points_to_names lv) :: (!lval_elts)
 		    end
 		 ) lvalue_hash;
     List.iter print_result (!lval_elts); 

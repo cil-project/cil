@@ -88,8 +88,9 @@ val print_types : unit -> unit
 
 val may_alias : Cil.exp -> Cil.exp -> bool
 
-val resolve_funptr : Cil.exp -> (Cil.fundec list)
+val resolve_lval : Cil.lval -> (Cil.varinfo list)
 
+val resolve_funptr : Cil.exp -> (Cil.fundec list)
 
 (***********************************************************************)
 (*                                                                     *)
