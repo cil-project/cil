@@ -10,56 +10,56 @@
 #define CASTTOPOINTER(btyp, host, what) ((btyp *)(what))
 #endif
 
-#ifndef __NODE
-#ifndef MANUALBOX
-#define __SAFE
-#define __INDEX
-#define __TAGGED
-#define __FSEQ
-#define __SEQ
-#define __WILD
-#define __SIZED
-#define __RWSTRING
-#define __ROSTRING
-#define __NULLTERM
-#define __SEQN
-#define __FSEQN
-#define __SAFEUNION
-#define __WILDT
-#define __FSEQT
-#define __SEQT
-#define __FSEQNT
-#define __SEQNT
-#define __INDEXT
-#define __NODE
-#define __HEAPIFY
-#else
-#define __WILD   __attribute__((wild))
-#define __SAFE   __attribute__((safe))
-#define __TAGGED __attribute__((tagged))
-#define __INDEX  __attribute__((index))
-#define __SIZED  __attribute__((sized))
-#define __SEQ    __attribute__((seq))
-#define __FSEQ   __attribute__((fseq))
-#define __SEQN   __attribute__((seqn))
-#define __FSEQN  __attribute__((fseqn))
-#define __NULLTERM   __attribute__((nullterm))
-#define __ROSTRING  __attribute__((rostring))
-#define __RWSTRING  __attribute__((string))
-#define __SAFEUNION __attribute__((safeunion))
-#define __INDEXT   __attribute__((indext))
-#define __WILDT   __attribute__((wildt))
-#define __SEQT   __attribute__((seqt))
-#define __SEQNT   __attribute__((seqnt))
-#define __FSEQT   __attribute__((fseqt))
-#define __FSEQNT   __attribute__((fseqnt))
-#define __NODE
-#ifndef DISABLE_HEAPIFY
-  #define __HEAPIFY __attribute__((heapify))
-#else
+#if !defined(__NODE) && !defined(MANUALBOX)
+  #define __SAFE
+  #define __INDEX
+  #define __TAGGED
+  #define __FSEQ
+  #define __SEQ
+  #define __WILD
+  #define __SIZED
+  #define __RWSTRING
+  #define __ROSTRING
+  #define __NULLTERM
+  #define __SEQN
+  #define __FSEQN
+  #define __SAFEUNION
+  #define __WILDT
+  #define __FSEQT
+  #define __SEQT
+  #define __FSEQNT
+  #define __SEQNT
+  #define __INDEXT
+  #define __NODE
   #define __HEAPIFY
-#endif
-#endif
+  #define __DUMMYDEFN
+#else
+  #define __WILD   __attribute__((wild))
+  #define __SAFE   __attribute__((safe))
+  #define __TAGGED __attribute__((tagged))
+  #define __INDEX  __attribute__((index))
+  #define __SIZED  __attribute__((sized))
+  #define __SEQ    __attribute__((seq))
+  #define __FSEQ   __attribute__((fseq))
+  #define __SEQN   __attribute__((seqn))
+  #define __FSEQN  __attribute__((fseqn))
+  #define __NULLTERM   __attribute__((nullterm))
+  #define __ROSTRING  __attribute__((rostring))
+  #define __RWSTRING  __attribute__((string))
+  #define __SAFEUNION __attribute__((safeunion))
+  #define __INDEXT   __attribute__((indext))
+  #define __WILDT   __attribute__((wildt))
+  #define __SEQT   __attribute__((seqt))
+  #define __SEQNT   __attribute__((seqnt))
+  #define __FSEQT   __attribute__((fseqt))
+  #define __FSEQNT   __attribute__((fseqnt))
+  #define __NODE
+  #ifndef DISABLE_HEAPIFY
+    #define __HEAPIFY __attribute__((heapify))
+  #else
+    #define __HEAPIFY
+  #endif
+  #define __DUMMYDEFN __attribute__((dummydefn))
 #endif
 
 #if ! defined(MANUALBOX) && ! defined(INFERBOX)
@@ -104,3 +104,18 @@
 #define restrict
 
 // Now define some models
+#ifdef BEFOREBOX
+
+// deliberately not defined, to make sure our trick works and the dummy
+// definitions never hit the linker
+extern int someInt;
+
+// this decl is const-wrong!  but that's how it appears in string.h!
+char *strpbrk(char const *s, char const *accept) __DUMMYDEFN
+{
+  someInt = (int)(*accept);   // make sure 'accept' can be read from
+  return s;                   // connect s to retval
+}
+
+#endif // end of dummy definitions
+

@@ -42,7 +42,7 @@ val traceOutdent : string -> unit
  * returns).
  *
  * so a sample usage might be
- *   (trace "mysubsys" (dprintf "something neat happened %d times" counter))
+ *   (trace "mysubsys" (dprintf "something neat happened %d times\n" counter))
  *)
 val trace : string -> Pretty.doc -> unit
 

@@ -296,8 +296,8 @@ in the base 'cil' directory (the one with 'regrtest'):
 
 2.2 The Makefile
 
-The Makefile has lots of targets.  About half are used to build the
-translator itself, and half are used to build instrumented versions of
+The Makefile has lots of targets.  About 1/4 are used to build the
+translator itself, and 3/4 are used to build instrumented versions of
 various benchmarks.  Typical usage is to explicitly specify the name
 of a benchmark to build.  For example
 

@@ -232,6 +232,7 @@ RELEASECCL=gcc -x c -O3 -fomit-frame-pointer -D_RELEASE -D_GNUCC -Wall
 #LIB=lib
 #LIBOUT=-o
 ifdef RELEASE
+# sm: I'll leave this here, but only use it for compiling our runtime lib
 DOOPT=-O3
 else
 DOOPT=-g
@@ -498,9 +499,9 @@ ifdef _GNUCC
 $(SAFECLIB) : lib/safec.c $(GCLIB) lib/splay.o
 	$(CC) $(OBJOUT)obj/safec.o $<
 	if echo $(GCLIB) | grep / >/dev/null; then \
-		cp -f $(GCLIB) $@; \
+		cp -f $(GCLIB) $@; echo "using GC"; \
 	else \
-		rm -f $@; \
+		rm -f $@; echo "not using GC"; \
 	fi
 	ar -r $@ obj/safec.o lib/splay.o
 	ranlib $@
@@ -988,7 +989,11 @@ apache/rewrite: defaulttarget
 
 
 
-COMBINESAFECC = $(SAFECC) --combine $(DOOPT)
+# sm: removed DOOPT since I want to specify optimization in the
+# benchmark's Makefile (helps to ensure consistency between the
+# non-ccured build and the ccured build, and also some programs
+# take too long on -O3)
+COMBINESAFECC = $(SAFECC) --combine
 
 #
 # OLDEN benchmarks
@@ -996,7 +1001,7 @@ COMBINESAFECC = $(SAFECC) --combine $(DOOPT)
 # Barnes-Hut
 BHDIR=test/olden/bh
 bh: defaulttarget mustbegcc
-	cd $(BHDIR); rm code.exe *.o; \
+	cd $(BHDIR); rm -f code.exe *.o; \
                make CC="$(COMBINESAFECC) --nobox=bhbox \
 			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
 	echo  >$(BHDIR)/data.in

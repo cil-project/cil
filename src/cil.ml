@@ -1451,11 +1451,16 @@ and d_attrlist pre () al = (* Whether it comes before or after stuff *)
       [] -> begin
         match remaining with
           [] -> nil
-        | _ -> 
-            text "__attribute__((" 
-              ++ (docList (chr ',' ++ break) 
-                    (fun a -> d_attr () a) () remaining)
-              ++ text "))"
+        | Attr(str,args) :: _->
+            if (str = "dummydefn") then (
+              text "/*dummydefn*/"    (* don't print this because gcc complains *)
+            )
+            else (
+              text "__attribute__(("
+                ++ (docList (chr ',' ++ break) 
+                      (fun a -> d_attr () a) () remaining)
+                ++ text "))"
+            )
       end
     | x :: rest -> begin
         match !d_attrcustom x with
@@ -1835,21 +1840,28 @@ and d_goto (s: stmt) =
       ignore (E.warn "Cannot find label for target of goto\n");
       text "goto __invalid_label;"
 
-and d_fun_decl () f = 
+and d_fun_decl () f = begin
   let stom, rest = separateStorageModifiers f.svar.vattr in
   text (if f.sinline then "__inline " else "")
     ++ d_videcl () f.svar
     ++ line
-    ++ text "{ "
-    ++ (align
-          (* locals. *)
-          ++ (docList line (fun vi -> d_videcl () vi ++ text ";") () f.slocals)
-          ++ line ++ line
-          (* the body *)
-          ++ d_block () f.sbody)
-    ++ line
-    ++ text "}"
-    
+    ++if (hasAttribute "dummydefn" f.svar.vattr) then (
+        (trace "dummydefn" (dprintf "omitting %s because it is a dummy definition\n" f.svar.vname));
+        text "; /* omitted because is dummydefn */" ++ line
+      )
+      else (
+        text "{ "
+        ++ (align
+              (* locals. *)
+              ++ (docList line (fun vi -> d_videcl () vi ++ text ";") () f.slocals)
+              ++ line ++ line
+              (* the body *)
+              ++ d_block () f.sbody)
+        ++ line
+        ++ text "}"
+      )
+end
+
 and d_videcl () vi = 
   let stom, rest = separateStorageModifiers vi.vattr in
 (*
