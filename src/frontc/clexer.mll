@@ -374,7 +374,8 @@ and comment =
 and hash = parse
   '\n'		{ newline (); initial lexbuf}
 | blank		{ hash lexbuf}
-| intnum	{ (* We are seeing a GCC line number *)
+| intnum	{ (* We are seeing a line number. This is the number for the 
+                   * next line *)
                   currentLine := int_of_string (Lexing.lexeme lexbuf) - 1;
                   (* A file name must follow *)
 		  file lexbuf }

@@ -118,7 +118,7 @@ class removeTempsVis (*(usedTypes : (typ,bool) H.t)*)
                   (* sm: if I'd had this to begin with, it would have been
                   * a little easier to track down the bug where I didn't
                   * check the function return-value destination *)
-                  (ignore (E.warn "Removing unused source variable %s\n"
+                  (ignore (E.warn "Removing unused source variable %s"
                              v.vname));
                 false   (* remove it *)
               end

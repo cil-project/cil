@@ -932,7 +932,7 @@ and doDefinition (isglobal: bool) (* Whether at global scope *)
           List.iter reuseOldName oldnames;
           acc
         with Not_found ->  begin
-          H.add declarations ng newnames;
+          (* H.add declarations ng newnames; Never reuse *)
           DECDEF (ng, loc) :: acc
         end
       else

@@ -51,7 +51,7 @@ let logCalls (f: file) : unit =
         in
         i := 0 ;
         name := fdec.svar.vname ; 
-        visitCilBlock thisVisitor fdec.sbody ; 
+        ignore (visitCilBlock thisVisitor fdec.sbody); 
         fdec.sbody.bstmts <- 
               mkStmt (Instr [Call (None, Lval(var printfFun.svar),
                                 ( one :: Const(CStr("call to " ^

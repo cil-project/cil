@@ -255,10 +255,10 @@ ifdef COMMLINES
     CCURED+= --commPrintLn
 endif
 
-ifdef SHOWCABS
+ifdef USECABS
 CCURED+= --usecabs
 endif
-ifdef SHOWCIL
+ifdef USECIL
 CCURED+= --usecil
 endif	
 ifdef NO_TAGS
@@ -1472,14 +1472,9 @@ gcc-noclean: defaulttarget mustbegcc
 	cd $(GCCDIR)/src; \
             make       build CC="$(GCCSAFECC) $(CONLY)" \
                              LD="$(GCCSAFECC)" 
+gcc-run:
+	cd $(GCCDIR)/src; ./cc1.exe combine.i
 
-gcc-combined: defaulttarget mustbegcc
-	cd $(GCCDIR)/exe/base; \
-            $(CCURED) cc1.v8_all.c $(GCCEXTRA) \
-                $(EXEOUT)cc1.v8.exe
-
-allcc1: defaulttarget mustbegcc
-	cd $(GCCDIR)/exe/base; $(CCURED) $(DOOPT) cc1.v8_all.c
 
 
 #

@@ -14,13 +14,6 @@ let parse_error msg : 'a =           (* sm: c++-mode highlight hack: -> ' <- *)
 let print = print_string
 
 
-(*
-let getCurLn () : int = !Clexer.currentLine
-         curLine                            
-
-let getCurFn () : string =
-        (Clexer.file_name !Clexer.current_handle)
-*)
 let currentLoc () = { lineno = !Clexer.currentLine; 
                       filename = !Clexer.currentFile;}
 
@@ -32,7 +25,7 @@ let smooth_expression lst =
   match lst with
     [] -> NOTHING
   | [expr] -> expr
-  | _ -> COMMA (List.rev lst)
+  | _ -> COMMA (lst)
 
 let list_expression expr =
   match expr with
@@ -216,7 +209,8 @@ end
 %type <Cabs.constant> constant
 %type <Cabs.expression> expression opt_expression
 %type <Cabs.init_expression> init_expression
-%type <Cabs.expression list> comma_expression
+%type <Cabs.expression list> comma_expression paren_comma_expression
+%type <Cabs.expression list> bracket_comma_expression
 %type <string> string_list
 
 %type <Cabs.initwhat * Cabs.init_expression> initializer
@@ -274,7 +268,7 @@ global:
 | location ASM LPAREN string_list RPAREN SEMICOLON
                                         { GLOBASM ($4, $1) }
 | location PRAGMA attr                  { PRAGMA ($3, $1) }
-| location error SEMICOLON { PRAGMA (CONSTANT(CONST_STRING "error"), $1) }
+| location error SEMICOLON { PRAGMA (VARIABLE "parse_error", $1) }
 /* (* Old-style function prototype. This should be somewhere else, like in
     * "declaration". For now we keep it at global scope only because in local
     * scope it looks too much like a function call  *) */
@@ -351,12 +345,12 @@ expression:
 		        {MEMBEROF ($1, $3)}
 |		LPAREN block RPAREN
 		        { GNU_BODY $2 }
-|		LPAREN comma_expression RPAREN
-		        {(smooth_expression $2)}
+|		paren_comma_expression
+		        {(smooth_expression $1)}
 |		expression LPAREN opt_expression RPAREN
 			{CALL ($1, list_expression $3)}
-|		expression LBRACKET comma_expression RBRACKET
-			{INDEX ($1, smooth_expression $3)}
+|		expression bracket_comma_expression
+			{INDEX ($1, smooth_expression $2)}
 |		expression QUEST opt_expression COLON expression
 			{QUESTION ($1, $3, $5)}
 |		expression PLUS expression
@@ -484,10 +478,19 @@ opt_expression:
 	        	{smooth_expression $1}
 ;
 comma_expression:
-	        expression
-	        	{[$1]}
-|	        comma_expression COMMA expression
-	        	{$3::$1}
+	        expression                        {[$1]}
+|               expression COMMA comma_expression { $1 :: $3 }
+|               error COMMA comma_expression      { $3 }
+;
+
+paren_comma_expression:
+  LPAREN comma_expression RPAREN                   { $2 }
+| LPAREN error RPAREN                              { [] }
+;
+
+bracket_comma_expression:
+  LBRACKET comma_expression RBRACKET                   { $2 }
+| LBRACKET error RBRACKET                              { [] }
 ;
 
 
@@ -500,6 +503,11 @@ block: /* ISO 6.8.2 */
                                             bdefs = $4;
                                             bstmts = $5; }
                                          } 
+|   error RBRACE                         { { blabels = [];
+                                             battrs  = [];
+                                             bdefs   = [];
+                                             bstmts  = [] }
+                                         } 
 ;
 block_begin:
     LBRACE      		         {Clexer.push_context ()}
@@ -507,8 +515,8 @@ block_begin:
 
 block_attrs:
    /* empty */                                              { [] }
-|  BLOCKATTRIBUTE LPAREN attr_list_ne RPAREN 
-                                        { [("__blockattribute__", $3)] }
+|  BLOCKATTRIBUTE paren_attr_list_ne
+                                        { [("__blockattribute__", $2)] }
 ;
 
 declaration_list: 
@@ -539,16 +547,16 @@ statement:
 |   location comma_expression SEMICOLON
 	        	{COMPUTATION (smooth_expression $2, $1)}
 |   location block               {BLOCK ($2, $1)}
-|   location IF LPAREN comma_expression RPAREN statement %prec IF
-                	{IF (smooth_expression $4, $6, NOP $1, $1)}
-|   location IF LPAREN comma_expression RPAREN statement ELSE statement
-	                {IF (smooth_expression $4, $6, $8, $1)}
-|   location SWITCH LPAREN comma_expression RPAREN statement
-                        {SWITCH (smooth_expression $4, $6, $1)}
-|   location WHILE LPAREN comma_expression RPAREN statement
-	        	{WHILE (smooth_expression $4, $6, $1)}
-|   location DO statement WHILE LPAREN comma_expression RPAREN SEMICOLON
-	        	         {DOWHILE (smooth_expression $6, $3, $1)}
+|   location IF paren_comma_expression statement %prec IF
+                	{IF (smooth_expression $3, $4, NOP $1, $1)}
+|   location IF paren_comma_expression statement ELSE statement
+	                {IF (smooth_expression $3, $4, $6, $1)}
+|   location SWITCH paren_comma_expression statement
+                        {SWITCH (smooth_expression $3, $4, $1)}
+|   location WHILE paren_comma_expression statement
+	        	{WHILE (smooth_expression $3, $4, $1)}
+|   location DO statement WHILE paren_comma_expression SEMICOLON
+	        	         {DOWHILE (smooth_expression $5, $3, $1)}
 |   location FOR LPAREN opt_expression SEMICOLON opt_expression
 	        SEMICOLON opt_expression RPAREN statement
 	                         {FOR ($4, $6, $8, $10, $1)}
@@ -704,9 +712,9 @@ direct_decl: /* (* ISO 6.7.5 *) */
                                    { let (n,decl,al) = $3 in
                                      (n, PARENTYPE($2,decl,al)) }
 
-|   direct_decl LBRACKET comma_expression RBRACKET
+|   direct_decl bracket_comma_expression
                                    { let (n, decl) = $1 in
-                                     (n, ARRAY(decl, smooth_expression $3)) }
+                                     (n, ARRAY(decl, smooth_expression $2)) }
 |   direct_decl LBRACKET RBRACKET  { let (n, decl) = $1 in
                                      (n, ARRAY(decl, NOTHING)) }
 |   direct_decl parameter_list_startscope rest_par_list RPAREN
@@ -746,6 +754,7 @@ parameter_decl: /* (* ISO 6.7.5 *) */
 |  decl_spec_list abstract_decl           { let d, a = $2 in
                                             ($1, ("", d, a)) }
 |  decl_spec_list                         { ($1, ("", JUSTBASE, [])) }
+|  LPAREN parameter_decl RPAREN           { $2 } 
 ;
 
 /* (* Old style prototypes. Like a declarator *) */
@@ -763,8 +772,6 @@ direct_old_proto_decl:
 
 old_parameter_list: 
 |  IDENT                                       { [$1] }
-/* |  NAMED_TYPE                                  { [ $1 ] } */
-|  error                                       { [] }
 |  old_parameter_list COMMA IDENT              { $1 @ [$3]} 
 ;
 
@@ -816,8 +823,11 @@ abs_direct_decl: /* (* ISO 6.7.6. We do not support optional declarator for
                                      PARENTYPE ($2, d, a)
                                    }
             
-|   abs_direct_decl_opt LBRACKET comma_expression RBRACKET
-                                   { ARRAY($1, smooth_expression $3) }
+|   LPAREN error RPAREN
+                                   { JUSTBASE } 
+            
+|   abs_direct_decl_opt bracket_comma_expression
+                                   { ARRAY($1, smooth_expression $2) }
 |   abs_direct_decl_opt LBRACKET RBRACKET  { ARRAY($1, NOTHING) }
 |   abs_direct_decl parameter_list_startscope rest_par_list RPAREN
                                    { let (params, isva) = $3 in
@@ -889,9 +899,9 @@ attributes_with_asm:
 ;
  
 attribute:
-    ATTRIBUTE LPAREN LPAREN attr_list_ne RPAREN RPAREN	
-                                        { ("__attribute__", $4) }
-|   DECLSPEC LPAREN attr_list_ne RPAREN    { ("__declspec", $3) }
+    ATTRIBUTE LPAREN paren_attr_list_ne RPAREN	
+                                        { ("__attribute__", $3) }
+|   DECLSPEC paren_attr_list_ne         { ("__declspec", $2) }
 |   MSATTR                              { ($1, []) }
                                         /* ISO 6.7.3 */
 |   CONST                               { ("const", []) }
@@ -909,7 +919,7 @@ attr:
                                          /* (* use a VARIABLE "" so that the 
                                              * parentheses are printed *) */
 |   IDENT LPAREN  RPAREN                 { CALL(VARIABLE $1, [VARIABLE ""]) }
-|   IDENT LPAREN attr_list_ne RPAREN     { CALL(VARIABLE $1, $3) }
+|   IDENT paren_attr_list_ne             { CALL(VARIABLE $1, $2) }
 |   CST_INT                              { CONSTANT(CONST_INT $1) }
 |   string_list                          { CONSTANT(CONST_STRING $1) }
                                            /*(* Const when it appears in 
@@ -946,17 +956,19 @@ attr:
 |   attr SUP_EQ attr			{BINARY(GE ,$1 , $3)}
 |   attr INF_INF attr			{BINARY(SHL ,$1 , $3)}
 |   attr SUP_SUP attr			{BINARY(SHR ,$1 , $3)}
-;
-attr_exp:
-|   expression ARROW id_or_typename     {MEMBEROFPTR ($1, $3)} 
-|   expression DOT id_or_typename       {MEMBEROF ($1, $3)}  
+|   attr ARROW id_or_typename           {MEMBEROFPTR ($1, $3)} 
+|   attr DOT id_or_typename             {MEMBEROF ($1, $3)}  
 ;
 
 attr_list_ne:
 |  attr                                  { [$1] }
 |  attr COMMA attr_list_ne               { $1 :: $3 }
+|  error COMMA attr_list_ne              { $3 }
 ;
-
+paren_attr_list_ne: 
+   LPAREN attr_list_ne RPAREN            { $2 }
+|  LPAREN error RPAREN                   { [] }
+;
 /*** GCC ASM instructions ***/
 maybevol:
      /* empty */                        { false }
@@ -982,6 +994,7 @@ asmoperandsne:
 ;
 asmoperand:
      string_list LPAREN expression RPAREN    { ($1, $3) }
+|    string_list LPAREN error RPAREN         { ($1, NOTHING ) } 
 ; 
 asminputs: 
   /* empty */                { ([], []) }

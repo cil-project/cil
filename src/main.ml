@@ -79,7 +79,7 @@ let rec processOneFile fname =
 		end ; 
 
 		if (!heapify) then begin
-			Heapify.default_heapify cil
+			(* Heapify.default_heapify cil *) ()
 		end ;
 
     (match !outChannel with
