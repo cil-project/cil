@@ -3071,7 +3071,8 @@ let isArrayType t =
     TArray _ -> true
   | _ -> false
 
-
+let getCompField (cinfo:compinfo) (fieldName:string) : fieldinfo =
+  (List.find (fun fi -> fi.fname = fieldName) cinfo.cfields)
 
 
 let rec doCastT ~(e: exp) ~(oldt: typ) ~(newt: typ) = 

@@ -175,7 +175,7 @@ ifdef OPTIM
   CCURED+= --optimize
 endif
 ifdef RELEASELIB
-  CCURED+= --releaselib
+  CCURED+= --releaselib -DRELEASELIB
 endif
 ifdef VERBOSE
   CCURED+= --verbose
@@ -206,7 +206,8 @@ endif
 #   allInsts     2       log every *instruction* (very verbose!)
 #   printPtrs    4       print raw pointer values
 #   printStrings 8       try to print char* as string
-#   noCFuncs     16      omit printing for functions whose name starts with "C"
+#   noCFuncs     16      omit printing calls to functions whose name 
+#                        starts with "C" (only relevant when allInsts)
 # this does not imply LOGCALLS, so one can set a preferred style
 # in (e.g.) .ccuredrc without always enabling logging
 ifdef LOGSTYLE

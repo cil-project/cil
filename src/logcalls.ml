@@ -13,6 +13,7 @@ let printPtrs = ref false      (* when true, print pointer values *)
 let printStrings = ref false   (* when true, print char* as strings *)
 let noCFuncs = ref false       (* when true, don't print calls to *)
                                (* functions whose name begins with "C" *)
+                               (* (only relevant when allInsts = true) *)
 
 let styleHelp:string = "sets logcalls style, as sum of:\n" ^
   "      1=linux, 2=allInsts, 4=printPtrs, 8=printStrings, 16=noCFuncs"
@@ -110,16 +111,39 @@ let logCalls (f: file) : unit =
   let isCharType (k:ikind) =
     k=IChar || k=ISChar || k=IUChar in
 
+  (* debugging anagram, it's really nice to be able to see the strings *)
+  (* inside fat pointers, even if it's a bit of a hassle and a hack here *)
+  let isFatCharPtr (cinfo:compinfo) =
+    cinfo.cname="wildp_char" ||
+    cinfo.cname="fseqp_char" ||
+    cinfo.cname="seqp_char" in
+
   let doGlobal = function
       GFun (fdec, loc) ->
         (* Collect expressions that denote the actual arguments *)
-        let actargs = List.map (fun vi -> Lval(var vi))
-          (List.filter (fun vi -> match unrollType vi.vtype with
-            | TVoid _ | TComp _ -> false
-            | TPtr(TInt(k, _), _) when isCharType(k) ->
-                !printPtrs || !printStrings
-            | TPtr _ | TArray _ | TFun _ -> !printPtrs
-            | _ -> true) fdec.sformals) in
+        let actargs =
+          (* make lvals out of args which pass test below *)
+          (List.map
+            (fun vi -> match unrollType vi.vtype with
+              | TComp(cinfo, _) when isFatCharPtr(cinfo) ->
+                  (* access the _p field for these *)
+                  (* luckily it's called "_p" in all three fat pointer variants *)
+                  Lval(Var(vi), Field(getCompField cinfo "_p", NoOffset))
+              | _ ->
+                  Lval(var vi))
+
+            (* decide which args to pass *)
+            (List.filter
+              (fun vi -> match unrollType vi.vtype with
+                | TPtr(TInt(k, _), _) when isCharType(k) ->
+                    !printPtrs || !printStrings
+                | TComp(cinfo, _) when isFatCharPtr(cinfo) ->
+                    !printStrings
+                | TVoid _ | TComp _ -> false
+                | TPtr _ | TArray _ | TFun _ -> !printPtrs
+                | _ -> true)
+              fdec.sformals)
+          ) in
 
         (* make a format string for printing them *)
         (* sm: expanded width to 200 because I want one per line *)
@@ -130,7 +154,12 @@ let logCalls (f: file) : unit =
               | TInt _ | TEnum _ -> dprintf "%s = %%d" vi.vname
               | TFloat _ -> dprintf "%s = %%g" vi.vname
               | TVoid _ -> dprintf "%s = (void)" vi.vname
-              | TComp _ -> dprintf "%s = (comp)" vi.vname
+              | TComp(cinfo, _) -> (
+                  if !printStrings && isFatCharPtr(cinfo) then
+                    dprintf "%s = \"%%s\"" vi.vname
+                  else
+                    dprintf "%s = (comp)" vi.vname
+                )
               | TPtr(TInt(k, _), _) when isCharType(k) -> (
                   if (!printStrings) then
                     dprintf "%s = \"%%s\"" vi.vname

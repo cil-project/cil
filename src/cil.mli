@@ -686,6 +686,9 @@ val isFunctionType: typ -> bool
 (** True if the argument is an array type *)
 val isArrayType: typ -> bool
 
+(** return a named fieldinfo in compinfo, or raise Not_found *)
+val getCompField: compinfo -> string -> fieldinfo
+
 
 (***** Type signatures ****)
 
