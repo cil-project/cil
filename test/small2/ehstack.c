@@ -14,9 +14,13 @@ struct Entry {
 
 int *somePtr;
 
+//matth: making e1 global so ERROR(1) below fails.
+struct Entry e1;
+
 int main(int argc, char **argv)
 {
-  struct Entry e1, e2;
+  //matth: if e1 is local, there's nothing wrong with storing &e2.x in it.
+  struct Entry /*e1,*/ e2; 
   int *wildGuy;
 
   // make everybody wild
