@@ -56,6 +56,13 @@
  * client's root marker can call this directly if the goal is to
  * augment rather than replace the standard logic.
  * 
+ * Function Rmtmps.markRootsCompleteProgram is an example of an
+ * alternate roots marker.  This function assumes that it is operating
+ * on a complete program rather than just one object file.  It marks
+ * "main()" as a root, as well as any function carrying the
+ * "constructor" or "destructor" attribute.  All other globals are
+ * candidates for removal, regardless of their linkage.
+ * 
  * Note that certain CIL- and CCured-specific pragmas induce
  * additional global roots.  This functionality is always present, and
  * is not subject to replacement by "markRoots".
@@ -63,6 +70,7 @@
 
 type rootsMarker = Cil.file -> unit
 val defaultRootsMarker : rootsMarker
+val markCompleteProgramRoots : rootsMarker
 
 (* process a complete Cil file *)
 val removeUnusedTemps: ?markRoots:rootsMarker -> Cil.file -> unit

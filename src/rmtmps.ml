@@ -285,6 +285,27 @@ let markPragmaRoots keepers file =
 
 (***********************************************************************
  *
+ *  Common root marking utilities
+ *
+ *)
+
+
+let mark info =
+  trace "usedGlobal" (dprintf "marking root (external linkage): global %s\n" info.vname);
+  info.vreferenced <- true
+
+
+let hasExportingAttribute fundec =
+  let rec isExportingAttribute = function
+    | Attr ("constructor", []) -> true
+    | Attr ("destructor", []) -> true
+    | _ -> false
+  in
+  List.exists isExportingAttribute fundec.svar.vattr
+
+
+(***********************************************************************
+ *
  *  Root collection from external linkage
  *
  *)
@@ -300,30 +321,44 @@ let markPragmaRoots keepers file =
  *)
 
 let markExportedRoots file =
-  let considerGlobal =
-    let mark info =
-      trace "usedGlobal" (dprintf "marking root (external linkage): global %s\n" info.vname);
-      info.vreferenced <- true
-    in
-    function
-      | GVar ({vstorage = storage} as info, _, _)
-	when storage != Static ->
-	  mark info
-      | GFun ({svar = {vinline = true; vstorage = Extern} as info}, _)
-      | GFun ({svar = {vinline = false; vstorage = NoStorage} as info}, _) ->
-	  mark info
-      |	GFun ({svar = {vattr = attributes} as info}, _)
-	when
-	  let rec isExportingAttribute = function
-	    | Attr ("constructor", []) -> true
-	    | Attr ("destructor", []) -> true
-	    | _ -> false
-	  in
-	  List.exists isExportingAttribute attributes
-	  ->
-	    mark info
-      | _ ->
-	  ()
+  let considerGlobal = function
+    | GVar ({vstorage = storage} as info, _, _)
+      when storage != Static ->
+	mark info
+    | GFun ({svar = {vinline = true; vstorage = Extern} as info}, _)
+    | GFun ({svar = {vinline = false; vstorage = NoStorage} as info}, _) ->
+	mark info
+    | GFun (fundec, _)
+      when hasExportingAttribute fundec ->
+	mark fundec.svar
+    | _ ->
+	()
+  in
+  iterGlobals file considerGlobal
+
+
+
+(***********************************************************************
+ *
+ *  Root collection for complete programs
+ *
+ *)
+
+
+(* Exported roots are "main()" and functions bearing a "constructor"
+ * or "destructor" attribute.  These are the only things which must be
+ * retained in a complete program.
+ *)
+
+let markCompleteProgramRoots file =
+  let considerGlobal = function
+    | GFun ({svar = {vname = "main"; vstorage = NoStorage} as info}, _) ->
+	mark info
+    | GFun (fundec, _)
+      when hasExportingAttribute fundec ->
+	mark fundec.svar
+    | _ ->
+	()
   in
   iterGlobals file considerGlobal
 
