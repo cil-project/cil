@@ -96,7 +96,7 @@ endif
 ifeq ($(COMPUTERNAME), fuji) # Rahul's laptop
 BASEDIR=/home/sprahul/research
 SAFECCDIR=$(BASEDIR)
-PCCDIR=$(BASEDIR)/PCC
+PCCDIR=$(BASEDIR)/cil/test/PCC
 TVDIR=$(BASEDIR)/TransVal
 CILDIR=$(BASEDIR)/cil
 _GNUCC=1
@@ -104,7 +104,7 @@ endif
 ifeq ($(COMPUTERNAME), brooksie) # Rahul's desktop
 BASEDIR=/home/sprahul/research
 SAFECCDIR=$(BASEDIR)
-PCCDIR=$(BASEDIR)/PCC
+PCCDIR=$(BASEDIR)/cil/test/PCC
 TVDIR=$(BASEDIR)/TransVal
 CILDIR=$(BASEDIR)/cil
 _GNUCC=1

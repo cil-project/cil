@@ -354,7 +354,7 @@ and stmt =
   | Sequence of stmt list               (* Use mkSeq to make a Sequence. This 
                                          * will optimize the result and will 
                                          * make sure that there are no 
-                                         * trailing Default of Label or Case *)
+                                         * trailing Default or Label or Case *)
   | Loop of stmt                        (* A loop. When stmt is done the 
                                          * control starts back with stmt. 
                                          * Ends with break or a Goto outside.*)
