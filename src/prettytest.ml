@@ -44,17 +44,25 @@ let countLeaves = treeMap (function _ -> 1) (+)
 
 let tree2doc = (treeMap 
 		   (fun s -> dprintf "%s" s)
-		   (fun d1 d2 -> dprintf "(@[%a@?%a@])" insert d1 insert d2))
+		   (fun d1 d2 -> dprintf "(@[%a@?+@?%a@])" insert d1 insert d2))
 
-let treeTest n =
+let treeTest n colWidth =
   
-     Pretty.noBreaks := false;
-     Pretty.noAligns := false;
+  Pretty.noBreaks := false;
+  Pretty.noAligns := false;
+  Random.init 10;
   
   let t = makeStringTree n in 
-  ignore (Printf.fprintf stderr "Tree size : %d\n" (countLeaves t));
-  Pretty.fprint stdout 80 (tree2doc t)
-		   
-    
-;;treeTest 9 ;;
+  ignore (Printf.fprintf stderr "Mode = %s Tree size = %d \t ColWidth = %d\n" (Sys.getenv "Mode") (countLeaves t) colWidth);
+  ignore (flush stderr);
+
+  let mode = Sys.getenv "Mode" in
+  if mode <> "SkipPrint" then 
+    Pretty.fprint stdout colWidth (tree2doc t)
+	    
+;;
+
+(treeTest 
+   (int_of_string (Sys.getenv "Depth"))
+   (int_of_string (Sys.getenv "Width")));;
 
