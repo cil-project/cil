@@ -290,10 +290,15 @@ sub preprocess_compile {
     my ($self, $src, $dest, $ppargs, $ccargs) = @_;
     my ($base, $dir, $ext) = fileparse($src, "\\.[^.]+");
     if($ext eq ".c" || $ext eq ".cpp") {
+        if($self->leaveAlone($src)) {
+            # We leave this alone. So just compile as usual
+            return $self->straight_compile($src, $dest, $ppargs, $ccargs);
+        }
         my $out    = $self->preprocessOutputFile($src);
         $out = $self->preprocess($src, $out, $ppargs);
         $src = $out;
         $ext = ".i";
+        # fall-through to compilation
     }
     if($ext eq ".i") {
         $self->compile($src, $dest, $ppargs, $ccargs);
@@ -382,10 +387,6 @@ sub straight_preprocess {
 
 sub compile {
     my($self, $src, $dest, $ppargs, $ccargs) = @_;
-    if($self->leaveAlone($src)) {
-        # We leave this alone. So just compile as usual
-        return $self->straight_compile($src, $dest, $ppargs, $ccargs);
-    }
     if($self->{SEPARATE}) {
         # Now invoke CIL and compile after wards
         return $self->applyCilAndCompile([$src], $dest, $ppargs, $ccargs); 
