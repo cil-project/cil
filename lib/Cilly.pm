@@ -147,7 +147,7 @@ sub new {
       if($self->{VERBOSE}) { print STDERR "Merging disabled by CILLY_NOMERGE\n"; }
     }
 
-    print Dumper($self);
+#    print Dumper($self);
 
     return $self;
 }
