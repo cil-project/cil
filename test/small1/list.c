@@ -78,7 +78,7 @@ void main() {
   double clk;
   int sum = 0;
   int k;
-  TIMESTART(clk);
+//  TIMESTART(clk);
   for(i=1;i<1000;i++) {
     k = random() % 1000;
     if(length(l) & 1) {
@@ -92,7 +92,7 @@ void main() {
     if(exists(l, (void* )k))
       sum ++;
   }
-  TIMESTOP(clk);
+//  TIMESTOP(clk);
   printf("Ran the test %d times in %8.3lfms. Length is %d. Success %d times.\n",
          i, clk / 1000.0, length(l), sizeof(char*), sum);
 }

@@ -97,6 +97,8 @@ type node =
                                          * leads to INDEX pointers. *)
       
       mutable can_reach_string : bool;  (* used by the solvers *)
+      mutable can_reach_seq : bool;     (* used by the solvers *)
+      mutable can_reach_index : bool;   (* used by the solvers *)
       mutable locked : bool;            (* do not change this kind later *)
       mutable mark: bool;               (* For mark-and-sweep GC of nodes. 
                                          * Most of the time is false *)
@@ -152,6 +154,13 @@ and edgekind =
   | ESafe                    (* q_to = if q_from = wild then wild else safe *)
   | EIndex                   (* q_to = if q_from = wild then wild else index *)
   | ENull                    (* a NULL flows in the direction of the edge *)
+  | ECompat                  (* the kinds of these two nodes must be
+                              * compatible: either both wild, index or
+                              * safe. This edge type is added by the solver
+                              * for its convenience. In cases like
+                              * int * 1 * 2 x; 
+                              * int * 3 * 4 y;
+                              * We will connect 1 and 3 with ECompat. *)
 
 (* Print the graph *)
 let d_place () = function
@@ -184,6 +193,7 @@ let d_ekind () = function
   | ESafe -> text "Safe"
   | EIndex -> text "Index"
   | ENull -> text "Null"
+  | ECompat -> text "Compat" 
 
 let d_whykind () = function
 (*    BadCast(t1,t2) -> dprintf "cast(%a<= %a)" d_type t1 d_type t2
@@ -202,10 +212,10 @@ let d_whykind () = function
   | Default -> text "by_default"
   | UserSpec -> text "user_spec"
   | Unconstrained -> text "unconstrained"
-  | PrintfArg -> text "printf arg"
+  | PrintfArg -> text "printf_arg"
 
 let d_node () n = 
-  dprintf "%d : %a (%s%s%s%s%s%s%s%s%s) (@[%a@])@! K=%a/%a T=%a@!  S=@[%a@]@!  P=@[%a@]@!" 
+  dprintf "%d : %a (%s%s%s%s%s%s%s%s%s%s%s) (@[%a@])@! K=%a/%a T=%a@!  S=@[%a@]@!  P=@[%a@]@!" 
     n.id d_placeidx n.where
     (if n.onStack then "stack," else "")
     (if n.updated then "upd," else "")
@@ -215,7 +225,9 @@ let d_node () n =
     (if n.intcast  then "int," else "")
     (if n.interface  then "interf," else "")
     (if n.sized  then "sized," else "")
-    (if n.can_reach_string  then "reaches_string," else "")
+    (if n.can_reach_string  then "reach_s," else "")
+    (if n.can_reach_seq     then "reach_q," else "")
+    (if n.can_reach_index   then "reach_i," else "")
     (docList (chr ',' ++ break)
        (fun n -> num n.id)) n.pointsto
     d_pointerkind n.kind
@@ -432,6 +444,8 @@ let newNode (p: place) (idx: int) (bt: typ) (a: attribute list) : node =
             pointsto = [];
             mark = false;
             can_reach_string = false;
+            can_reach_seq = false;
+            can_reach_index = false;
             pred = []; } in
 (*  ignore (E.log "Created new node(%d) at %a\n" n.id d_placeidx where); *)
   H.add placeId where n;
