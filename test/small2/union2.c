@@ -76,17 +76,19 @@ int main() {
   }
   {
     // These two unions should be fine
-    union { 
+    union ulong { 
       struct { int a; int b; int c; } one;
       struct { int p; int q; int r; int s; } two; 
     } adata, *aa = &adata;
-    union { 
+    union ushort { 
       struct { int a; int b; } one;
       struct { int p; int q; int s; } two; 
     } bdata, *bb = &bdata;
 #if ERROR == 10
+    // Since aa is longer, the bb will have to be FSEQ to be able to check the
+    // length
     aa = bb; 
-    if(! HAS_KIND(aa, SAFE_KIND)) E(10); //ERROR(10):Error 10
+    if(HAS_KIND(bb, FSEQ_KIND)) E(10); //ERROR(10):Error 10
 #endif
 #if ERROR == 11
     bb = aa; 

@@ -204,6 +204,8 @@ $TEST->addTests("testrun/call1", "", ['inferbox']);
 $TEST->add3Tests("test/cast1");
 $TEST->add3Tests("test/cast2");
 $TEST->add2Tests("test/cast4", "_GNUCC=1");
+$TEST->addTestsFail("test/cast5", "Failure UBOUND", ['inferbox', 'box']);
+$TEST->addTestsFail("test/cast6", "Failure UBOUND", ['inferbox', 'box']);
 $TEST->add3Tests("test/constprop");
 $TEST->addTests("testrun/const1", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/const2", "", ['cil']);
@@ -477,7 +479,7 @@ $TEST->addTests("testrun/openssl-bounds", "", ['inferbox']);
                         "FSEQ2SAFE prevents code that should be legal.");
 
 
-$TEST->addTestsFail("testrun/struct3", "", "Failure NONPTR", ['inferbox']);
+$TEST->addTestsFail("testrun/struct3", "", "Failure NULL", ['inferbox']);
 
 if($win32) {
     $TEST->addTests("testrun/extern_init", "_MSVC=1", ['cil']);   
@@ -509,7 +511,7 @@ $TEST->add2TestsFail("testrun/failsprintf3", "", "Failure LBOUND");
 
 $TEST->add2TestsFail("testrun/failsscanf1", "", "Failure UBOUND");
     $TEST->addBadComment("testrun/failsscanf1-box", "Missing wrappers");
-$TEST->add2TestsFail("testrun/simon6", "", "Failure NONPTR");
+$TEST->add2Tests("testrun/simon6");
     
 $TEST->add2TestsFail("testrun/infer1", "", "Failure ");
 $TEST->addTestsFail("testrun/fseq1", "", "Failure DECFSEQ", 
