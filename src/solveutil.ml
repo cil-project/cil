@@ -152,7 +152,8 @@ let rec subtype (t1 : typ) (q1 : opointerkind)
            (TComp, AnyType) -> subtype Struct.hd AnyType || ... 
            For now this is just a hack until I modify the solver to
            add compatibility edges correctly. *)
-        type_congruent (extract_typ (List.hd c1.cfields)) q1 t2 q2 ||
+        ((c1.cfields <> []) &&
+         type_congruent (extract_typ (List.hd c1.cfields)) q1 t2 q2) ||
         product_subtype (List.map extract_typ c1.cfields) q1
                         (List.map extract_typ c2.cfields) q2
     (* t1 x t2 <= t1 *)
