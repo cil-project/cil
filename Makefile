@@ -948,6 +948,15 @@ apache/random : defaulttarget
                         $(CONLY) $(OBJOUT)./mod_random.$(OBJ) \
                         mod_random.c
 
+apache/info : defaulttarget
+	rm -f $(APACHETEST)/mod_info.$(OBJ)
+	cd $(APACHETEST); $(CCURED) \
+                       --keep=. $(APATCH) \
+                        $(DOOPT) \
+                        $(APACHECFLAGS) \
+                        $(CONLY) $(OBJOUT)./mod_info.$(OBJ) \
+                        mod_gzip.c
+
 apache/gzip : defaulttarget
 	rm -f $(APACHETEST)/mod_gzip.$(OBJ)
 	cd $(APACHETEST); $(CCURED) \
