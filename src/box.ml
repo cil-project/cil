@@ -1182,10 +1182,22 @@ and boxGlobalInit e et =
   let (e't, doe, e', e'base) = boxexpSplit e in
   if doe <> [] then
     E.s (E.unimp "Non-pure initializer %a\n"  d_exp e);
-  if isFatType et' then
-    Compound(et', [ (None, e'); (None, e'base)])
-  else
-    e'
+  let comptype = 
+  match unrollType et' with
+    TComp comp when comp.cstruct -> begin
+      match comp.cfields with 
+        [p;b] when p.fname = "_p" && b.fname = "_b" -> Some et'
+      | l :: d :: _ when l.fname = "_len" && d.fname = "_data" ->
+          if isFatType d.ftype then Some d.ftype else None
+      | _ -> None
+    end
+  | _ -> None
+  in
+  match comptype with
+    None -> e'
+  | Some ct -> 
+      Compound(ct, [ (None, e'); (None, 
+                                  doCast e'base (typeOf e'base) voidPtrType)])
 
 and fexp2exp (fe: fexp) (doe: stmt list) : expRes = 
   match fe with

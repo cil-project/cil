@@ -687,11 +687,11 @@ and doExp (isconst: bool)    (* In a constant *)
    * Similarly an expression of function type is turned into StartOf *)
   let processStartOf e t = 
     match e, unrollType t with
-      Lval(lv), TArray(t, _, a) -> StartOf lv, TPtr(t, a)
+      Lval(lv), TArray(t, _, a) -> mkAddrOf lv, TPtr(t, a)
     | Lval(lv), TFun _  -> begin
         match lv with 
           Mem(addr), NoOffset -> addr, TPtr(t, [])
-        | _, _ -> StartOf(lv), TPtr(t, [])
+        | _, _ -> mkAddrOf lv, TPtr(t, [])
     end
     | Compound _, TArray(t', _, a) -> e, t
     | _, (TArray _ | TFun _) -> 
@@ -1107,13 +1107,13 @@ and doExp (isconst: bool)    (* In a constant *)
     | A.UNARY(A.ADDROF, e) -> begin
         let (se, e', t) = doExp isconst e (AExp None) in
         match e' with 
-          Lval x -> finishExp se (AddrOf(x, lu)) (TPtr(t, []))
+          Lval x -> finishExp se (mkAddrOf x) (TPtr(t, []))
         | CastE (t', Lval x, _) -> 
             finishExp se (CastE(TPtr(t', []),
-                                AddrOf(x, lu), lu)) (TPtr(t', []))
+                                (mkAddrOf x), lu)) (TPtr(t', []))
         | StartOf (lv) -> (* !!! is this correct ? *)
             let tres = TPtr(typeOfLval lv, []) in
-            finishExp se (AddrOf(lv, lu)) tres
+            finishExp se (mkAddrOf lv) tres
 
             
         | _ -> E.s (E.unimp "Expected lval for ADDROF. Got %a@!"
@@ -1664,7 +1664,8 @@ and doAssign (lv: lval) : exp -> stmt list = function
               _, [] -> []
             | i, (None, e) :: el -> 
                 let res = loop ((i + 1), el) in
-                let newlv = mkMem (StartOf(lv)) (Index(integer i, NoOffset)) in
+                let newlv = mkMem (mkAddrOf lv) 
+                                  (Index(integer i, NoOffset)) in
                 let newlv = 
                   match newlv with 
                     Lval x -> x | _ -> E.s (E.bug "doAssign: mem")
@@ -2024,13 +2025,6 @@ let convFile fname dl =
                                      | x -> Sequence [x]);
                        } 
             in
-            (* Fix the vaddrof flag *)
-            let fixAddrExp = function
-                AddrOf ((Var vi, _), _) -> vi.vaddrof <- true
-              | StartOf (Var vi, _) -> vi.vaddrof <- true
-              | _ -> ()
-            in
-            iterExp fixAddrExp fdec.sbody;
             theFile := GFun fdec :: !theFile
           with e -> begin
             ignore (E.log "error in collectFunction %s: %s\n" 

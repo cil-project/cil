@@ -73,7 +73,10 @@ type varinfo = {
     mutable vdecl: location;            (* where was this variable declared? *)
     mutable vattr: attribute list;
     mutable vstorage: storage;
-    mutable vaddrof: bool;              (* Has its address taken *)
+    mutable vaddrof: bool;              (* Has its address taken. To insure 
+                                         * that this is always set, always 
+                                         * use mkAddrOf to construct an AddrOf
+                                           *)
 } 
 
                                         (* Storage-class information *)
@@ -249,7 +252,8 @@ and exp =
                                         (* Used only for initializers of 
                                          * structures and arrays.  *) 
   | Compound   of typ * (offset option * exp) list
-  | AddrOf     of lval * location
+  | AddrOf     of lval * location       (* Alpways use mkAddrOf to construct 
+                                         * one of these *)
 
   | StartOf    of lval                  (* There is no C correspondent for 
                                          * this. C has implicit coercions 
@@ -260,7 +264,8 @@ and exp =
                                          * CIL to simplify type checking and 
                                          * is just an explicit form of the 
                                          * above mentioned implicit 
-                                         * convertions *)
+                                         * convertions. You can use mkAddrOf 
+                                         * to construct one of these *)
 
 
 (* L-Values denote contents of memory addresses. A memory address is 
@@ -493,6 +498,9 @@ val existsType: (typ -> existsAction) -> typ -> bool
 
 val var: varinfo -> lval
 val mkSet: lval -> exp -> stmt
+val mkAddrOf: lval -> exp               (* Works for both arrays (in which 
+                                         * case it construct a StartOf) and 
+                                         * for scalars. *)
 val assign: varinfo -> exp -> stmt
 val call: varinfo option -> exp -> exp list -> stmt
 

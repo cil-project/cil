@@ -216,7 +216,12 @@ let rec checkType (t: typ) (ctx: ctxType) =
       checkType bt CTArray;
       (match len with
         None -> ()
-      | Some l -> checkExpType true l intType)
+      | Some l -> begin
+          let t = checkExp true l in
+          match t with 
+            TInt((IInt|IUInt), _) -> ()
+          | _ -> E.s (E.bug "Type of array length is not integer")
+      end)
 
   | TFun (rt, targs, isva, a) -> 
       checkAttributes a;
@@ -472,7 +477,7 @@ and checkExp (isconst: bool) (e: exp) : typ =
           let checkOneExp (oo: offset) (ei: exp) (et: typ) _ : unit = 
             let ot = checkOffset t oo in
             typeMatch et ot;
-            checkExpType isconst ei et
+            checkExpType true ei et
           in
           (* foldLeftCompound will check that t is a TComp or a TArray *)
           foldLeftCompound checkOneExp t initl ();

@@ -1433,6 +1433,16 @@ let mkMem (addr: exp) (off: offset) : exp =
   res
           
 
+let mkAddrOf ((b, off) as lval) : exp = 
+  (* Mark the vaddrof flag if b is a variable *)
+  (match b with 
+    Var vi -> vi.vaddrof <- true
+  | _ -> ());
+  match unrollType (typeOfLval lval) with
+    TArray _ -> StartOf lval
+  | TFun _ -> StartOf lval
+  | _ -> AddrOf(lval, lu)
+
 let isIntegralType t = 
   match unrollType t with
     (TInt _ | TEnum _ | TBitfield _) -> true
