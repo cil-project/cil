@@ -12,10 +12,12 @@ use strict;
 # expressions, not just words.
 
 # Globals ****************
-my $id_regex = "[a-zA-Z_][a-zA-Z_0-9]*"; # Definition of an identifier.
+my $quote_regex = qr/".*?(?<!\\)"/; # Definition of a quoted string.
+my $id_regex = qr/[a-zA-Z_][a-zA-Z_0-9]*/; # Definition of an identifier.
+
 my $input;                      # The initial input.
 my @lumps;                      # Input separated into identifiers and stuff in-between.
-my %identifers = ();            # Hash where the keys are the identifers.
+my %identifiers = ();            # Hash where the keys are the identifiers.
 my %abbrev = ();                # Maps identifiers to their abbreviations.
 my %taken = ();                 # Tells if an abbreviation is taken.
 
@@ -41,18 +43,25 @@ sub read_input {
 }
 
 sub lump_into_identifiers {
-    @lumps = split /($id_regex)/o, $input;
-    if ($verbose) {
-        warn "\nPrinting identifiers [] and inter-identifier text. ****************\n";
-        foreach (@lumps) {
-            if (/^$id_regex$/o) {
-                print STDERR "[$_]";
+    warn "\nPrinting identifiers [] and inter-identifier text. ****************\n" if $verbose;
+    foreach my $quotelump (split /($quote_regex)/o, $input) { # Split at quoted strings.
+        if ($quotelump=~/^$quote_regex$/o) {
+            push @lumps, $quotelump;
+            print STDERR $quotelump if $verbose;
+            next;
+        }
+        # If not a quoted string, split at identifiers.
+        foreach my $idlump (split /($id_regex)/o, $quotelump) {
+            if ($idlump=~/^$id_regex$/o) {
+                push @lumps, $idlump;
+                $identifiers{$idlump}++;
+                if ($verbose) {print STDERR "[", $idlump, "]";}
             } else {
-                print STDERR $_;
+                push @lumps, $idlump;
+                print STDERR $idlump if $verbose;
             }
         }
     }
-    $identifers{$_}++ foreach (grep /^$id_regex$/o, @lumps);
 }
 
 sub smoosh_underscores {
@@ -74,7 +83,15 @@ sub compute_identifier_abbreviations {
         $abbrev{$ident} = $ident;
         $taken{$ident}++;
     }
-    foreach my $ident (sort keys %identifers) {
+    # Make sure non-underscore ids come first.
+    my @underscore_ids = ();
+    my @non_underscore_ids = ();
+    foreach (keys %identifiers) {
+        if (/^_/) {push @underscore_ids, $_}
+        else {push @non_underscore_ids, $_}
+    }
+    # Compute minimal prefix that preserves uniqueness.
+    foreach my $ident (sort(@non_underscore_ids), sort(@underscore_ids)) {
         die "Can't happen:$ident" if $abbrev{$ident} && !$ignore_idents{$ident};
         print STDERR "**** $ident" if $verbose;
         if ($ignore_idents{$ident}) {
@@ -108,6 +125,7 @@ sub compute_identifier_abbreviations {
       found_one:
         die "Can't happen:$ident" unless $abbrev{$ident}; # Make sure we picked something.
     }
+    # Check preserves uniqueness.
     check_abbrev_one_to_one();
 }
 
