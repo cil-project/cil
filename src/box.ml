@@ -9,7 +9,7 @@ let debug = false
 
 let checkReturn = true
 
-let coerceScalars = ref false   (* If true it will insert calls to 
+let coerceScalars = ref true   (* If true it will insert calls to 
                                  * __scalar2pointer when casting scalars to 
                                  * pointers.  *)
 
@@ -557,12 +557,14 @@ let checkFunctionPointer =
   
 let checkFetchLength = 
   let fdec = emptyFunction "CHECK_FETCHLENGTH" in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
   let argb  = makeLocalVar fdec "b" voidPtrType in
-  fdec.svar.vtype <- TFun(uintType, [ argb ], false, []);
+  fdec.svar.vtype <- TFun(uintType, [ argp; argb ], false, []);
   theFile := GDecl fdec.svar :: !theFile;
-  fun tmplen base -> 
+  fun tmplen lv base -> 
     call (Some tmplen) (Lval (var fdec.svar))
-      [ castVoidStar base ]
+      [ castVoidStar (AddrOf(lv, lu)); 
+        castVoidStar base ]
 
 let checkFetchTagStart = 
   let fdec = emptyFunction "CHECK_FETCHTAGSTART" in
@@ -602,7 +604,8 @@ let getHostIfBitfield lv t =
     end
   | _ -> lv, t
 
-let checkBounds = 
+(* Pass a thunk for computing the length expression *)
+let checkBounds : (unit -> exp) -> exp -> lval -> typ -> stmt = 
   let fdec = emptyFunction "CHECK_CHECKBOUNDS" in
   let argb  = makeLocalVar fdec "b" voidPtrType in
   let argl  = makeLocalVar fdec "l" uintType in
@@ -610,7 +613,7 @@ let checkBounds =
   let argpl  = makeLocalVar fdec "pl" uintType in
   fdec.svar.vtype <- TFun(voidType, [ argb; argl; argp; argpl ], false, []);
   theFile := GDecl fdec.svar :: !theFile;
-  fun tmplen base lv t ->
+  fun mktmplen base lv t ->
     let lv', lv't = getHostIfBitfield lv t in
     (* Do not check the bounds when we access variables without array 
      * indexing  *)
@@ -629,7 +632,7 @@ let checkBounds =
     if mustCheck then
       call None (Lval (var fdec.svar))
         [ castVoidStar base; 
-          tmplen; 
+          mktmplen (); 
           castVoidStar (AddrOf(lv', lu));
           SizeOf(lv't, lu) ]
     else
@@ -708,14 +711,23 @@ let checkMem (towrite: exp option)
         x
     end
   in
-  let getLen () = 
-    match getLenExp () with
-      LVal(Var vi, NoOffset) -> vi
+  let getVarOfExp e = 
+    match e with
+      Lval(Var vi, NoOffset) -> vi
     | _ -> E.s (E.bug "getLen");
   in
   (* And the start of tags in another temp variable *)
-  let tagStart = makeTempVar !currentFunction ~name:"_ttags" voidPtrType in
-  let tagStartExp = Lval(var tagStart) in
+  let tagStartExp : exp option ref = ref None in
+  let getTagStartExp () = 
+    match !tagStartExp with
+      Some x -> x
+    | None -> begin
+        let x = makeTempVar !currentFunction ~name:"_ttags" voidPtrType in
+        let res = Lval(var x) in
+        tagStartExp := Some res; 
+        res
+    end
+  in
   (* Now the tag checking. We only care about pointers. We keep track of what 
    * we write in each field and we check pointers in a special way. *)
   let rec doCheckTags (towrite: exp option) (where: lval) t acc = 
@@ -729,11 +741,11 @@ let checkMem (towrite: exp option)
             match towrite with
               None -> (* a read *)
                 (checkFatPointerRead base 
-                   (AddrOf(where, lu)) tagStartExp) :: acc
+                   (AddrOf(where, lu)) (getTagStartExp ())) :: acc
             | Some towrite -> (* a write *)
                 let _, whatp, whatb = readPtrBaseField towrite t in
                 (checkFatPointerWrite base (AddrOf(where, lu)) 
-                   whatb whatp tagStartExp) :: acc
+                   whatb whatp (getTagStartExp ())) :: acc
         end 
     | TComp comp when comp.cstruct -> 
         let doOneField acc fi = 
@@ -773,13 +785,17 @@ let checkMem (towrite: exp option)
     match zeroAndCheckTags with
       [] | [Skip] -> []
     | _ -> 
-        (checkFetchTagStart tagStart base (getLenExp ())) :: zeroAndCheckTags
+        (checkFetchTagStart 
+           (getVarOfExp (getTagStartExp ()))
+           base (getLenExp ())) :: zeroAndCheckTags
   in
   (* Now see if we need to do bounds checking *)
   let check_0 = 
-    match checkBounds lenExp base lv t, check_1 with
+    match checkBounds getLenExp base lv t, check_1 with
       Skip, [] -> []  (* Don't even fetch the length *)
-    | cb, _ -> (checkFetchLength (getLen ()) base) :: cb :: check_1
+    | cb, _ -> 
+        (checkFetchLength (getVarOfExp (getLenExp ())) lv base) 
+        :: cb :: check_1
   in
   check_0
   
@@ -799,10 +815,13 @@ let getIOBFunction =
 
 (* A run-time function to coerce scalars into pointers. Scans the heap and 
  * (in the future the stack) *)
+let coerceId = ref 0
 let coerceScalarFunction = 
   let fdec = emptyFunction "__scalar2pointer" in
   let argl = makeLocalVar fdec "l" ulongType in
-  fdec.svar.vtype <- TFun(voidPtrType, [ argl ], false, []);
+  let argf = makeLocalVar fdec "fname" charPtrType in
+  let argid = makeLocalVar fdec "id" intType in
+  fdec.svar.vtype <- TFun(voidPtrType, [ argl; argf; argid ], false, []);
   theFile := GDecl fdec.svar :: !theFile;
   fdec
 
@@ -1293,12 +1312,18 @@ and castTo (fe: fexp) (newt: typ) (doe: stmt list) : stmt list * fexp =
       let newp = 
         if typeSig lt = typeSig ptype then e else CastE (ptype, e, lu) in
       let newbase, doe' = 
-        if !coerceScalars && not (isInteger e) then
+        if !coerceScalars && not (isInteger e) then begin
+          incr coerceId;
           let tmp = makeTempVar !currentFunction voidPtrType in
            Lval(var tmp),
           doe @
-          [call (Some tmp) (Lval(var coerceScalarFunction.svar)) [ e ]]
-        else CastE(voidPtrType, zero, lu), doe
+          [call (Some tmp) (Lval(var coerceScalarFunction.svar)) 
+              [ e ;
+                Const (CStr !currentFile.fileName, lu);
+                integer !coerceId
+              ]
+          ]
+        end else CastE(voidPtrType, zero, lu), doe
       in
       (doe', F2 (newt, newp, newbase))
   
