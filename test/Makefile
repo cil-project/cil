@@ -173,8 +173,14 @@ endif
 ifndef NATIVECAML
   CCURED+= --bytecode
 endif
+ifdef ANNOT
+  CCURED+= --annotate
+endif
 ifdef OPTIM
   CCURED+= --optimize
+endif
+ifdef ANN
+  CCURED+= --annotate
 endif
 ifdef RELEASELIB
   CCURED+= --releaselib -DRELEASELIB
@@ -799,10 +805,28 @@ testserial: testlinux/generic_serial
 
 ################## Rahul's test cases
 SPR-TESTDIR := $(TESTDIR)/spr
-spr/% : 
-	cd $(SPR-TESTDIR); $(CCURED) $*.c $(CONLY) $(CFLAGS) $(ASMONLY)$*.s
 
+# Compile .c to .exe and run it
+sprrun/% : $(SPR-TESTDIR)/%.c  
+	cd $(SPR-TESTDIR); $(CCURED)   \
+               $(STANDARDPATCH) \
+	       $(CFLAGS) $(EXEOUT)$*.exe $*.c
+	cd $(SMALL1); ./$*.exe
+	echo SUCCESS
 
+# Compile .c to .s
+sprs/% : $(SPR-TESTDIR)/%.c  
+	cd $(SPR-TESTDIR); $(CCURED) --separate  \
+               $(STANDARDPATCH) \
+	       $(ASMONLY)$*.s $*.c
+	echo SUCCESS
+
+# Compile .c to .o
+spro/% : $(SPR-TESTDIR)/%.c 
+	cd $(SPR-TESTDIR); $(CCURED) --separate  \
+               $(STANDARDPATCH) \
+	       $(CONLY) $*.c 
+	echo SUCCESS
 ################# Apache test cases
 APACHETEST := $(TESTDIR)/apache
 APACHEBASE := apache_1.3.19/src
@@ -1528,20 +1552,6 @@ ftpd: ftpd-clean mustbegcc
 # 	cd $(WUFTPDDIR); \
 #             make CC="$(WUFTPDSAFECC)" \
 #                  LD="$(WUFTPDSAFECC)"
-
-######################################################################
-# Rahul's test cases
-
-spr/%:  $(TESTDIR)/spr/%.c 
-	rm -f $(TESTDIR)/spr/$*
-	cd $(TESTDIR)/spr; $(CC) $(CONLY) $(WARNALL) $*.c
-	cd $(TESTDIR)/spr; $(SAFECC) --keep=. \
-                 `$(PATCHECHO) $(STANDARDPATCH)` \
-                 $(CFLAGS) `true $(WARNALL)` $(NOPRINTLN) \
-                 $*.c \
-                 $(EXEOUT)$*
-
-
 
 ######################### PTRDIST Benchmarks
 ANAGRAMDIR := $(TESTDIR)/ptrdist-1.1/anagram
