@@ -140,6 +140,10 @@ ifdef FP_FAIL_IS_VERBOSE
   CCUREDLIBARG+= $(DEF)FP_FAIL_IS_VERBOSE
 endif
 
+ifdef NO_TAGS
+  CCUREDLIBARG+= $(DEF)NO_TAGS
+endif
+
 # we build the library from source each time, so that we don't end up
 # with .o files built with Makefile arguments that have changed
 $(CCUREDLIB): lib/safec.c lib/safec.h lib/safeccheck.h lib/splay.c $(GCLIB) 

@@ -1,5 +1,5 @@
 # .gdbinit
 
-file qsort
+file arraytags
 break main
 run

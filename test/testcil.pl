@@ -630,6 +630,10 @@ smAddTest("bad/stackaddr $box");
 smAddTest("test-bad/trivial-tb");
 smAddTest("test-bad/retptr $box");
 
+# verify we have tags and that they work
+smAddTest("bad/nonptr $box");          # very simple test
+smAddTest("scott/arraytags $box");     # this one is pretty hairy
+
 # simple test of combiner
 smAddTest("comb");
 smAddTest("comb $box");
