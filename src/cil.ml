@@ -84,7 +84,7 @@ type file =
     of these form a CIL file. The order of globals in the file is generally 
     important. *)
 and global =
-  | GType of string * typ * location    
+  | GType of typeinfo * location    
     (** A typedef. All uses of type names (through the [TNamed] constructor) 
         must be preceeded in the file by a definition of the name. The string 
         is the defined name. If the string is empty then this global is 
@@ -157,8 +157,9 @@ and typ =
            * arguments. The boolean indicates if it is a variable-argument 
            * function. *)
 
-  | TNamed of string * typ * attributes 
-          (* The use of a named type. Each such type name must be preceeded 
+  | TNamed of typeinfo * attributes 
+          (* The use of a named type. All uses of the same type name must 
+           * share the typeinfo. Each such type name must be preceeded 
            * in the file by a [GType] global. This is printed as just the 
            * type name. The actual referred type is not printed here and is 
            * carried only to simplify processing. To see through a sequence 
@@ -286,6 +287,16 @@ and enuminfo = {
     mutable ereferenced: bool;         (** True if used. Initially set to false*)
 }
 
+(** Information about a defined type *)
+and typeinfo = {
+    mutable tname: string;              
+    (** The name. Can be empty only in a [GType] when introducing a composite 
+     * or enumeration tag. If empty cannot be refered to from the file *)
+    mutable ttype: typ;
+    (** The actual type. *)
+    mutable treferenced: bool;         
+    (** True if used. Initially set to false*)
+}
 
 
 (** Information about a variable. These structures are shared by all 
@@ -786,7 +797,7 @@ let get_instrLoc (inst : instr) =
 let get_globalLoc (g : global) =
   match g with
   | GFun(_,l) -> (l)
-  | GType(_,_,l) -> (l)
+  | GType(_,l) -> (l)
   | GEnumTag(_,l) -> (l) 
   | GCompTag(_,l) -> (l) 
   | GDecl(_,l) -> (l) 
@@ -1169,7 +1180,7 @@ let mkCompInfo
 
 (**** Utility functions ******)
 let rec unrollType = function   (* Might drop some attributes !! *)
-    TNamed (_, r, _) -> unrollType r
+    TNamed (r, _) -> unrollType r.ttype
   | x -> x
 
 let isVoidType t = 
@@ -1426,7 +1437,7 @@ let rec typeAttrs = function
     TVoid a -> a
   | TInt (_, a) -> a
   | TFloat (_, a) -> a
-  | TNamed (n, t, a) -> addAttributes a (typeAttrs t)
+  | TNamed (t, a) -> addAttributes a (typeAttrs t.ttype)
   | TPtr (_, a) -> a
   | TArray (_, _, a) -> a
   | TComp (comp, a) -> addAttributes comp.cattr a
@@ -1440,7 +1451,7 @@ let setTypeAttrs t a =
     TVoid _ -> TVoid a
   | TInt (i, _) -> TInt (i, a)
   | TFloat (f, _) -> TFloat (f, a)
-  | TNamed (n, t, _) -> TNamed(n, t, a)
+  | TNamed (t, _) -> TNamed(t, a)
   | TPtr (t', _) -> TPtr(t', a)
   | TArray (t', l, _) -> TArray(t', l, a)
   | TComp (comp, _) -> TComp (comp, a)
@@ -1467,7 +1478,7 @@ begin
       | TArray (t, l, a) -> TArray (t, l, add a)
       | TFun (t, args, isva, a) -> TFun(t, args, isva, add a)
       | TComp (comp, a) -> TComp (comp, add a)
-      | TNamed (n, t, a) -> TNamed (n, t, add a)
+      | TNamed (t, a) -> TNamed (t, add a)
       | TBuiltin_va_list a -> TBuiltin_va_list (add a)
 end
 
@@ -1482,7 +1493,7 @@ let typeRemoveAttributes (anl: string list) t =
   | TArray (t, l, a) -> TArray (t, l, drop a)
   | TFun (t, args, isva, a) -> TFun(t, args, isva, drop a)
   | TComp (comp, a) -> TComp (comp, drop a)
-  | TNamed (n, t, a) -> TNamed (n, t, drop a)
+  | TNamed (t, a) -> TNamed (t, drop a)
   | TBuiltin_va_list a -> TBuiltin_va_list (drop a)
 
 
@@ -1512,7 +1523,7 @@ let rec typeSigWithAttrs doattr t =
                                   List.map (fun vi -> (typeSig vi.vtype)) 
                                     (argsToList args),
                                   isva, doattr a)
-  | TNamed(_, t, a) -> typeSigAddAttrs (doattr a) (typeSig t)
+  | TNamed(t, a) -> typeSigAddAttrs (doattr a) (typeSig t.ttype)
   | TBuiltin_va_list al -> TSBase (TBuiltin_va_list (doattr al))      
 and typeSigAddAttrs a0 t = 
   if a0 == [] then t else
@@ -1735,8 +1746,8 @@ let rec d_decl (docName: unit -> doc) (dnwhat: docNameWhat) () this =
         ()
         restyp
 
-  | TNamed (n, _, a) ->
-        text n ++ d_attrlist () a ++ text " " ++ docName ()
+  | TNamed (t, a) ->
+        text t.tname ++ d_attrlist () a ++ text " " ++ docName ()
 
   | TBuiltin_va_list a -> 
       text "__builtin_va_list"
@@ -1762,7 +1773,7 @@ and d_type () t =
     | TInt (ik, a) -> TInt (ik, fixthem a)
     | TFloat (fk, a) -> TFloat (fk, fixthem a)
 
-    | TNamed (n, t, a) -> TNamed (n, t, fixthem a)
+    | TNamed (t, a) -> TNamed (t, fixthem a)
     | TPtr (bt, a) -> TPtr (bt, fixthem a)
     | TArray (bt, lo, a) -> TArray (bt, lo, fixthem a)
     | TComp (comp, a) -> TComp (comp, fixthem a)
@@ -2377,8 +2388,8 @@ and d_plaintype () (t: typ) =
         d_ikind ikind d_attrlist a
   | TFloat(fkind, a) -> 
       dprintf "TFloat(@[%a,@?%a@])" d_fkind fkind d_attrlist a
-  | TNamed (n, t, a) ->
-      dprintf "TNamed(@[%s,@?%a,@?%a@])" n scanType t d_attrlist a
+  | TNamed (t, a) ->
+      dprintf "TNamed(@[%s,@?%a,@?%a@])" t.tname scanType t.ttype d_attrlist a
   | TPtr(t, a) -> dprintf "TPtr(@[%a,@?%a@])" scanType t d_attrlist a
   | TArray(t,l,a) -> 
       let dl = match l with 
@@ -2901,10 +2912,10 @@ and childrenType (vis : cilVisitor) (t : typ) : typ =
         let args' = if argslist' = argslist then args else Some argslist' in
         TFun(rettype', args', isva, a') else t
 
-  | TNamed(s, t1, a) -> 
-      let t1' = fTyp t1 in 
+  | TNamed(t1, a) -> (* Do not go into the type. Will do it at the time of 
+                      * GType *)
       let a' = fAttr a in
-      if t1' != t1 || a' != a  then TNamed (s, t1', a') else t
+      if a' != a  then TNamed (t1, a') else t
 
   | _ -> t       (* other types don't contain types *)
 
@@ -2982,9 +2993,10 @@ and childrenGlobal (vis: cilVisitor) (g: global) : global =
   | GFun (f, l) -> 
       let f' = visitCilFunction vis f in
       if f' != f then GFun (f', l) else g
-  | GType(s, t, l) ->
-      let t' = visitCilType vis t in
-      if t' != t then GType (s, t', l) else g
+  | GType(t, l) ->
+      t.ttype <- visitCilType vis t.ttype;
+      g
+
   | GEnumTag (enum, _) -> g
   | GCompTag (comp, _) ->
       (trace "visit" (dprintf "visiting global comp %s\n" comp.cname));
@@ -3092,13 +3104,13 @@ let d_global () = function
       fundec.svar.vattr <- oldattr;
       proto ++ body
 
-  | GType (str, typ, l) ->
+  | GType (typ, l) ->
       d_line l ++
-      if str = "" then
-        ((d_decl (fun _ -> nil) DNNothing) () typ) ++ chr ';'
+      if typ.tname = "" then
+        ((d_decl (fun _ -> nil) DNNothing) () typ.ttype) ++ chr ';'
       else
         text "typedef "
-          ++ ((d_decl (fun _ -> text str) DNString) () typ)
+          ++ ((d_decl (fun _ -> text typ.tname) DNString) () typ.ttype)
           ++ chr ';'
 
   | GEnumTag (enum, l) ->
@@ -3422,7 +3434,7 @@ let existsType (f: typ -> existsAction) (t: typ) : bool =
     | ExistsFalse -> false
     | ExistsMaybe -> 
         (match t with 
-          TNamed (_, t', _) -> loop t'
+          TNamed (t', _) -> loop t'.ttype
         | TComp (c, _) -> loopComp c
         | TArray (t', _, _) -> loop t'
         | TPtr (t', _) -> loop t'
@@ -3466,7 +3478,7 @@ let rec alignOf_int = function
       if !msvcMode then M.MSVC.alignof_double else M.GCC.alignof_double
   | TFloat(FLongDouble, _) -> 
       if !msvcMode then M.MSVC.alignof_longdouble else M.GCC.alignof_longdouble
-  | TNamed (_, t, _) -> alignOf_int t
+  | TNamed (t, _) -> alignOf_int t.ttype
   | TArray (t, _, _) -> alignOf_int t
   | TPtr _ | TBuiltin_va_list _ ->
       if !msvcMode then M.MSVC.sizeof_ptr else M.GCC.sizeof_ptr
@@ -3703,7 +3715,7 @@ and bitsSizeOf t =
                         else M.GCC.sizeof_longdouble)
   | TInt _ | TFloat _ | TEnum _ | TPtr _ | TBuiltin_va_list _ 
     -> 8 * alignOf_int t
-  | TNamed (_, t, _) -> bitsSizeOf t
+  | TNamed (t, _) -> bitsSizeOf t.ttype
   | TComp (comp, _) when comp.cfields = [] -> 
       raise Not_found (*abstract type*)
   | TComp (comp, _) when comp.cstruct -> (* Struct *)

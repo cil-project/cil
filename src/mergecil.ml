@@ -35,7 +35,8 @@ open Cil
 module E = Errormsg
 module H = Hashtbl
 
-let debugMerge = false
+let debugMerge = true
+let debugInlines = false && debugMerge
 
 (* Try to merge structure with the same name. However, do not complain if 
  * they are not the same *)
@@ -182,7 +183,7 @@ let vEq: (int * string, varinfo node) H.t = H.create 111 (* Vars *)
 let sEq: (int * string, compinfo node) H.t = H.create 111 (* Structs *)
 let uEq: (int * string, compinfo node) H.t = H.create 111 (* Unions *)
 let eEq: (int * string, enuminfo node) H.t = H.create 111 (* Enums *)
-let tEq: (int * string, (string * typ) node) H.t = H.create 111 (* Type names*)
+let tEq: (int * string, typeinfo node) H.t = H.create 111 (* Type names*)
 let iEq: (int * string, varinfo node) H.t = H.create 111 (* Inlines *)
         
 (* Sometimes we want to merge synonims. We keep some tables indexed by names. 
@@ -192,14 +193,12 @@ let iSyn: (string, varinfo node) H.t = H.create 111 (* Inlines *)
 let sSyn: (string, compinfo node) H.t = H.create 111
 let uSyn: (string, compinfo node) H.t = H.create 111
 let eSyn: (string, enuminfo node) H.t = H.create 111
-let tSyn: (string, (string * typ) node) H.t = H.create 111
+let tSyn: (string, typeinfo node) H.t = H.create 111
 
 (** A global environment for variables. Put in here only the non-static 
   * variables, indexed by their name.  *)
 let vEnv : (string, varinfo node) H.t = H.create 111
 
-(* A file-local environment for type names *)
-let tEnv : (string, string * typ)  H.t = H.create 111
 
 (* A set of inline functions indexed by their printout ! *)
 let inlineBodies : (P.doc, varinfo node) H.t = H.create 111
@@ -223,6 +222,10 @@ let formalNames: (int * string, string list) H.t = H.create 111
 let theFileTypes = ref [] 
 let theFile      = ref []
 
+(* Keep track of the type infos that we have already defined.This is 
+ * necessary because C does not allow forward declaration for type names *)
+let alreadyDefinedTypeNames = (String, unit) H.t = H.create 111
+
 (* The idnex of the current file being scanned *)
 let currentFidx = ref 0 
 
@@ -242,7 +245,6 @@ let init () =
   H.clear vAlpha;
 
   H.clear vEnv;
-  H.clear tEnv;
 
   H.clear vEq;
   H.clear sEq;
@@ -260,6 +262,7 @@ let init () =
 
   theFile := [];
   theFileTypes := [];
+  H.clear alreadyDefinedTypeNames;
 
   H.clear formalNames;
   H.clear inlineBodies;
@@ -396,19 +399,19 @@ let rec combineTypes (what: combineWhat)
       in
       TFun (newrt, newargs, oldva, addAttributes olda a)
         
-  | TNamed (oldn, oldt, olda), TNamed (n, t, a) -> 
-      matchTypeInfo oldfidx (oldn, oldt) fidx (n, t);
+  | TNamed (oldt, olda), TNamed (t, a) -> 
+      matchTypeInfo oldfidx oldt fidx t;
       (* If we get here we were able to match *)
-      TNamed(oldn, oldt, addAttributes olda a) 
+      TNamed(oldt, addAttributes olda a) 
         
         (* Unroll first the new type *)
-  | _, TNamed (n, t, a) -> 
-      let res = combineTypes what oldfidx oldt fidx t in
+  | _, TNamed (t, a) -> 
+      let res = combineTypes what oldfidx oldt fidx t.ttype in
       typeAddAttributes a res
         
         (* And unroll the old type as well if necessary *)
-  | TNamed (oldn, oldt, a), _ -> 
-      let res = combineTypes what oldfidx oldt fidx t in
+  | TNamed (oldt, a), _ -> 
+      let res = combineTypes what oldfidx oldt.ttype fidx t in
       typeAddAttributes a res
         
   | _ -> raise (Failure "(different type constructors)")
@@ -458,8 +461,21 @@ and matchCompInfo (oldfidx: int) (oldci: compinfo)
           if oldf.fattr <> f.fattr then 
             raise (Failure "(different field attributes)");
           (* Make sure the types are compatible *)
-          oldf.ftype <- 
-             combineTypes CombineOther oldfidx oldf.ftype fidx f.ftype;
+          let newtype = 
+            combineTypes CombineOther oldfidx oldf.ftype fidx f.ftype
+          in
+          if debugMerge then
+            let mustwarn = 
+              match oldf.ftype, newtype with 
+                TNamed (t, _), TNamed (t', _) -> t.tname <> t'.tname
+              | TNamed _, _ -> true
+              | _, TNamed _ -> true
+            | _, _ -> false
+            in
+            ignore (E.log "changing type %a(%d) into %a(%d)\n"
+                      d_type oldf.ftype oldfidx
+                      d_type newtype fidx);
+            oldf.ftype <- newtype;
           ) oldci.cfields ci.cfields
       with Failure reason -> begin 
         (* Our assumption was wrong. Forget the isomorphism *)
@@ -521,29 +537,30 @@ and matchEnumInfo (oldfidx: int) (oldei: enuminfo)
 
       
 (* Match two typeinfos and throw a Failure if they do not match *)
-and matchTypeInfo (oldfidx: int) (oldti: (string * typ)) 
-                   (fidx: int)      (ti: (string * typ)) : unit = 
-
+and matchTypeInfo (oldfidx: int) (oldti: typeinfo) 
+                   (fidx: int)      (ti: typeinfo) : unit = 
+  if oldti.tname = "" || ti.tname = "" then 
+    E.s (bug "matchTypeInfo for anonymous type\n");
   (* Find the node for this enum, no path compression. *)
-  let oldtnode = getNode tEq tSyn oldfidx (fst oldti) oldti None in
-  let    tnode = getNode tEq tSyn    fidx (fst    ti)    ti None in
+  let oldtnode = getNode tEq tSyn oldfidx oldti.tname oldti None in
+  let    tnode = getNode tEq tSyn    fidx ti.tname    ti None in
   if oldtnode == tnode then (* We already know they are the same *)
     ()
   else begin
     (* Replace with the representative data *)
-    let (oldn, oldt) = oldtnode.ndata in
+    let oldti = oldtnode.ndata in
     let oldfidx = oldtnode.nfidx in
-    let (n, t) = tnode.ndata in
+    let ti = tnode.ndata in
     let fidx = tnode.nfidx in
     (* Check that they are the same *)
     (try
-      ignore (combineTypes CombineOther oldfidx oldt fidx t);
+      ignore (combineTypes CombineOther oldfidx oldti.ttype fidx ti.ttype);
     with Failure reason -> begin
       let msg = 
         P.sprint ~width:80
           (P.dprintf
              "\n\tFailed assumption that %s and %s are isomorphic %s"
-             oldn n reason) in
+             oldti.tname ti.tname reason) in
       raise (Failure msg)
     end);
     let _ = union oldtnode tnode in
@@ -587,19 +604,12 @@ class renameVisitorClass = object (self)
             ChangeTo (TEnum (ei', visitCilAttributes (self :> cilVisitor) a))
       end
 
-    | TNamed (tn, typ, a) -> begin
-        try
-          let tn', typ' = H.find tEnv tn in
-          let a' = visitCilAttributes (self :> cilVisitor) a in
-          if tn = tn' && typ == typ' && a = a' then SkipChildren else
-          (* No need to visit the types because they are actually done 
-             already *)
-          ChangeTo (TNamed(tn', typ', a'))
-        with Not_found -> 
-          (* This must be a type name that was already changed to point to an 
-           * old type. Otherwise we would see it in the map *)
-          SkipChildren
-    end 
+    | TNamed (ti, a) -> begin
+        match findReplacement true tEq !currentFidx ti.tname with
+          None -> DoChildren
+        | Some (ti', _) -> 
+            ChangeTo (TNamed (ti', visitCilAttributes (self :> cilVisitor) a))
+    end
         
     | _ -> DoChildren
 
@@ -711,10 +721,11 @@ let rec oneFilePass1 (f:file) : unit =
                         fdec.svar.vname fdec.svar None)
           end
               (* Make nodes for the defiend type and structure tags *)
-      | GType (n, t, l) ->
-          if n <> "" then (* The empty names are just for introducing 
-                           * undefind comp tags *)
-            ignore (getNode tEq tSyn !currentFidx n (n, t) (Some l))
+      | GType (t, l) ->
+          if t.tname <> "" then (* The empty names are just for introducing 
+                                 * undefind comp tags *)
+            ignore (getNode tEq tSyn !currentFidx t.tname t (Some l))
+
       | GCompTag (ci, l) -> 
           let eqH, synH = if ci.cstruct then sEq, sSyn else uEq, uSyn in
           ignore (getNode eqH synH !currentFidx ci.cname ci (Some l))
@@ -871,20 +882,20 @@ let oneFilePass2 (f: file) =
             let inode = 
               getNode vEq vSyn !currentFidx fdec.svar.vname fdec.svar None 
             in
-            if debugMerge then 
+            if debugInlines then 
               ignore (E.log 
                         "Looking for previous definition of inline %s(%d)\n"
                         origname !currentFidx); 
             try
               let oldinode = H.find inlineBodies printout in
-              if debugMerge then
+              if debugInlines then
                 ignore (E.log "  Matches %s(%d)\n" 
                           oldinode.nname oldinode.nfidx);
               (* There is some other inline function with the same printout *)
               let _ = union oldinode inode in
               () (* Drop this definition *)
             with Not_found -> begin
-              if debugMerge then ignore (E.log " Not found\n");
+              if debugInlines then ignore (E.log " Not found\n");
               H.add inlineBodies printout inode;
               pushGlobal g'
             end
@@ -921,25 +932,17 @@ let oneFilePass2 (f: file) =
               pushGlobals (visitCilGlobal renameVisitor g);
           | Some _ -> () (* Drop this since we are reusing it from before *)
       end
-      | GType (n, t, l) as g -> begin
+      | GType (ti, l) as g -> begin
           currentLoc := l;
-          if n = "" then begin (* This is here just to introduce an undefined 
-                                * structure  *)
-            let t'  = visitCilType renameVisitor t in
-            pushGlobal (GType(n, t', l))
+          if ti.tname = "" then begin (* This is here just to introduce an 
+                                       * undefined structure *)
+            pushGlobals (visitCilGlobal renameVisitor g);
           end else begin
-            let nt' = 
-              match findReplacement true tEq !currentFidx n with
-                None -> (* We must rename it *)
-                  let n' = newAlphaName tAlpha n in
-                  let t'  = visitCilType renameVisitor t in
-                  pushGlobal (GType(n', t', l));
-                  n', t'
-              | Some ((n', t'), _) -> 
-                  n', t' (* And we drop it *)
-            in
-            (* Add it to the local environment so we know how to rename types*)
-            H.add tEnv n nt';
+            match findReplacement true tEq !currentFidx ti.tname with 
+              None -> (* We must rename it and keep it *)
+                ti.tname <- newAlphaName tAlpha ti.tname;
+                pushGlobals (visitCilGlobal renameVisitor g);
+            | Some _ -> () (* Drop this since we are reusing it from before *)
           end
       end
       | g -> pushGlobals (visitCilGlobal renameVisitor g)

@@ -161,7 +161,7 @@ type defuse =
   | Used    (* Only uses *)
 let compUsed : (int, compinfo * defuse ref) H.t = H.create 117
 let enumUsed : (string, enuminfo * defuse ref) H.t = H.create 117
-
+let typUsed  : (string, typeinfo * defuse ref) H.t = H.create 117
  
 (* For composite types we also check that the names are unique *)
 let compNames : (string, unit) H.t = H.create 17
@@ -172,7 +172,7 @@ let rec checkType (t: typ) (ctx: ctxType) =
   (* Check that it appears in the right context *)
   let rec checkContext = function
       TVoid _ -> ctx = CTPtr || ctx = CTFRes
-    | TNamed (_, t, a) -> checkContext t
+    | TNamed (ti, a) -> checkContext ti.ttype
     | TArray _ -> 
         (ctx = CTStruct || ctx = CTUnion 
          || ctx = CTSizeof || ctx = CTDecl || ctx = CTArray || ctx = CTPtr)
@@ -188,17 +188,11 @@ let rec checkType (t: typ) (ctx: ctxType) =
   | TFloat (_, a) -> checkAttributes a
   | TPtr (t, a) -> checkAttributes a;  checkType t CTPtr
 
-  | TNamed (n, t, a) -> 
-        (* The name must be already defined. The t must be identical to the 
-         * one used in the definition. We assume that the type is checked *)
-      (try
-        let oldt = H.find typeDefs n in
-        if oldt != t then
-          if typeSig oldt <> typeSig (unrollType t) then
-            ignore (warn "Named type %s is inconsistent.@!In typedef: %a@!Now: %a" n d_plaintype oldt d_plaintype t)
-      with Not_found -> 
-        ignore (warn "Named type %s is undefined\n" n));
-      checkAttributes a
+  | TNamed (ti, a) ->
+      checkAttributes a;
+      if ti.tname = "" then 
+        ignore (warnContext "Using a typeinfo for an empty-named type\n");
+      checkTypeInfo Used ti
 
   | TComp (comp, a) ->
       checkAttributes a;
@@ -349,6 +343,31 @@ and checkEnumInfo (isadef: defuse) enum =
     H.add enumUsed enum.ename (enum, ref isadef);
     checkAttributes enum.eattr;
     List.iter (fun (tn, _) -> defineName tn) enum.eitems;
+  end
+
+and checkTypeInfo (isadef: defuse) ti = 
+  try
+    let oldti, olddef = H.find typUsed ti.tname in
+    (* Check that it is the same *)
+    if oldti != ti then 
+      ignore (warnContext "typeinfo for %s not shared\n" ti.tname);
+    (match !olddef, isadef with 
+      Defined, Defined -> 
+        ignore (warnContext "Multiple definition of type %s\n" ti.tname)
+    | Defined, _ -> ()
+    | _, _ -> 
+        ignore (warnContext "Use of type %s before its definition\n" ti.tname))
+  with Not_found -> begin (* This is the first time we see it *)
+    checkType ti.ttype CTDecl;
+    if ti.tname = "" then begin 
+      (* We can have forward declarations for compinfo and enuminfo *)
+      match unrollType ti.ttype with
+        TComp (ci, _) -> checkCompInfo Forward ci
+      | TEnum (ei, _) -> checkEnumInfo Forward ei
+      | _ -> E.s (warnContext "Empty type name for type %a" d_type ti.ttype)
+    end;
+    (* Add it to the map before we go on *)
+    H.add typUsed ti.tname (ti, ref isadef);
   end
 
 (* Check an lvalue. If isconst then the lvalue appears in a context where 
@@ -724,23 +743,12 @@ let rec checkGlobal = function
     GAsm _ -> ()
   | GPragma _ -> ()
   | GText _ -> ()
-  | GType (n, t, l) -> 
+  | GType (ti, l) -> 
       currentLoc := l;
-      E.withContext (fun _ -> dprintf "GType(%s)" n)
+      E.withContext (fun _ -> dprintf "GType(%s)" ti.tname)
         (fun _ ->
-          checkType t CTDecl;
-          if n <> "" then begin
-            if H.mem typeDefs n then
-              E.s (bug "Type %s is multiply defined" n);
-            defineName n;
-            H.add typeDefs n t
-          end else begin
-            (* We can have forward declarations for compinfo and enuminfo *)
-            match unrollType t with
-              TComp (ci, _) -> checkCompInfo Forward ci
-            | TEnum (ei, _) -> checkEnumInfo Forward ei
-            | _ -> E.s (bug "Empty type name for type %a" d_type t)
-          end)
+          checkTypeInfo Defined ti;
+          if ti.tname <> "" then defineName ti.tname)
         ()
 
   | GCompTag (comp, l) -> 

@@ -87,7 +87,7 @@ type file =
 
 (** A global declaration or definition *)
 and global =
-  | GType of string * typ * location    
+  | GType of typeinfo * location    
     (** A typedef. All uses of type names (through the [TNamed] constructor) 
         must be preceeded in the file by a definition of the name. The string 
         is the defined name. If the string is empty then this global is 
@@ -179,7 +179,7 @@ and typ =
            * arguments. The boolean indicates if it is a variable-argument 
            * function. *)
 
-  | TNamed of string * typ * attributes 
+  | TNamed of typeinfo * attributes 
           (* The use of a named type. Each such type name must be preceeded 
            * in the file by a [GType] global. This is printed as just the 
            * type name. The actual referred type is not printed here and is 
@@ -367,6 +367,22 @@ and enuminfo = {
      * type. These attributes can be supplemented individually at each 
      * reference to this [enuminfo] using the [TEnum] type constructor. *)
     mutable ereferenced: bool;         
+    (** True if used. Initially set to false*)
+}
+
+(** {b Enumerations.} Information about an enumeration. This is shared by all 
+ * references to an enumeration. Make sure you have a [GEnumTag] for each of 
+ * of these. *)
+
+(** Information about a defined type *)
+and typeinfo = {
+    mutable tname: string;              
+    (** The name. Can be empty only in a [GType] when introducing a composite 
+     * or enumeration tag. If empty cannot be refered to from the file *)
+    mutable ttype: typ;
+    (** The actual type. This includes the attributes that were present in 
+     * the typedef *)
+    mutable treferenced: bool;         
     (** True if used. Initially set to false*)
 }
 

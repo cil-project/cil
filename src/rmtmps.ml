@@ -132,21 +132,24 @@ class removeTempsVis (usedTypedefs : (string,bool) H.t) = object (self)
         )
       )
 
-    | TNamed(s, t, _) -> (
+    | TNamed(ti, _) -> (
         (* again same logic as above, though this time the 'then' *)
         (* and 'else' branches reverse roles.. :) *)
         (* see if this typedef name has already been marked *)
-        if (H.mem usedTypedefs s) then (
+        if ti.treferenced then (
           (* already marked, don't recurse further *)
           SkipChildren
         )
         else (
-          (trace "usedType" (dprintf "marking used typedef: %s\n" s));
+          (trace "usedType" (dprintf "marking used typedef: %s\n" ti.tname));
 
           (* not already marked; first mark the typedef name *)
-          (H.add usedTypedefs s true);
+          ti.treferenced <- true;
 
           (* recurse deeper into the type referred-to by the typedef *)
+          (* to recurse, we must ask explicitly *)
+          ignore (visitCilType (self :> cilVisitor) ti.ttype);
+
           DoChildren
         )
       )
@@ -310,10 +313,10 @@ begin
               )
             )
 
-          | GType(s, t, _) -> (
-              if (s = "") then (
+          | GType(t, _) -> (
+              if (t.tname = "") then (
                 (* it should be forward structure declaration *)
-                match t with
+                match t.ttype with
                 | TComp(c, _) -> (
                     if (c.creferenced) then (
                       (trace "usedType" (dprintf "keeping fwd decl of %s\n"
@@ -334,16 +337,15 @@ begin
                 | _ -> (
                   (* don't know what this is.. *)
                   (trace "usedType"
-                    (dprintf "removing/ignoring bad GType %a\n" d_type t));
+                    (dprintf "removing/ignoring bad GType %a\n" d_type t.ttype));
                   false
                 )
               )
               else (
                 (* this is a typedef *)
-                if H.mem usedTypedefs s ||
-                   H.mem forceToKeep ("type " ^ s) 
+                if t.treferenced  || H.mem forceToKeep ("type " ^ t.tname) 
                 then (
-                  (trace "usedType" (dprintf "keeping typedef %s\n" s));
+                  (trace "usedType" (dprintf "keeping typedef %s\n" t.tname));
                   (* I think we don't need to trace again during sweep, because *)
                   (* all tracing of types should have finished during mark phase *)
                   (*(visitCilType vis t);*)           (* root; trace it *)
@@ -351,7 +353,7 @@ begin
                 )
                 else (
                   (* not used, remove it *)
-                  (trace "usedType" (dprintf "removing typedef %s\n" s));
+                  (trace "usedType" (dprintf "removing typedef %s\n" t.tname));
                   false
                 )
               )

@@ -226,7 +226,7 @@ let pushGlobal (g: global) =
     (* Collect a list of variables that are refered from the type *)
     let varsintype : (varinfo list * location) option = 
       match g with 
-        GType (_, _, l) | GCompTag (_, l) -> Some (getVarsInGlobal g, l)
+        GType (_, l) | GCompTag (_, l) -> Some (getVarsInGlobal g, l)
       | GEnumTag (_, l) | GPragma (Attr("pack", _), l) -> Some ([], l)
       | _ -> None (* Does not go with the types *)
     in
@@ -1044,8 +1044,8 @@ let arithmeticConversion    (* c.f. ISO 6.3.1.8 *)
 let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) = 
   if typeSig ot = typeSig nt then (ot, e) else
   match ot, nt with
-    TNamed(_,r, _), _ -> castTo r nt e
-  | _, TNamed(_,r, _) -> castTo ot r e
+    TNamed(r, _), _ -> castTo r.ttype nt e
+  | _, TNamed(r, _) -> castTo ot r.ttype e
   | TInt(ikindo,_), TInt(ikindn,_) -> 
       (nt, if ikindo == ikindn then e else mkCastT e ot nt)
 
@@ -1182,7 +1182,7 @@ let cabsTypeAddAttributes a0 t =
           | TArray (t, l, a) -> TArray (t, l, add a)
           | TFun (t, args, isva, a) -> TFun(t, args, isva, add a)
           | TComp (comp, a) -> TComp (comp, add a)
-          | TNamed (n, t, a) -> TNamed (n, t, add a)
+          | TNamed (t, a) -> TNamed (t, add a)
           | TBuiltin_va_list a -> TBuiltin_va_list (add a)
   end
 
@@ -1349,17 +1349,17 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
       in
       TFun (newrt, newargs, oldva, cabsAddAttributes olda a)
         
-  | TNamed (oldn, oldt, olda), TNamed (n, _, a) when oldn = n ->
-      TNamed (oldn, oldt, cabsAddAttributes olda a)
+  | TNamed (oldt, olda), TNamed (t, a) when oldt.tname = t.tname ->
+      TNamed (oldt, cabsAddAttributes olda a)
         
         (* Unroll first the new type *)
-  | _, TNamed (n, t, a) -> 
-      let res = combineTypes what oldt t in
+  | _, TNamed (t, a) -> 
+      let res = combineTypes what oldt t.ttype in
       cabsTypeAddAttributes a res
         
         (* And unroll the old type as well if necessary *)
-  | TNamed (oldn, oldt, a), _ -> 
-      let res = combineTypes what oldt t in
+  | TNamed (oldt, a), _ -> 
+      let res = combineTypes what oldt.ttype t in
       cabsTypeAddAttributes a res
         
   | _ -> raise (Failure "different type constructors")
@@ -4682,11 +4682,12 @@ and doTypedef ((specs, nl): A.name_group) =
         * variables to avoid confusion between variable names and types. This 
         * is actually necessary in some cases.  *)
         let n' = newAlphaName true "" n in
-        let namedTyp = TNamed(n', newTyp', []) in
+        let ti = { tname = n'; ttype = newTyp'; treferenced = false } in
+        let namedTyp = TNamed(ti, []) in
         (* Register the type. register it as local because we might be in a
         * local context  *)
-        addLocalToEnv (kindPlusName "type" n) (EnvTyp namedTyp);
-        pushGlobal (GType (n', newTyp', !currentLoc))
+        addLocalToEnv (kindPlusName "type" n) (EnvTyp (TNamed(ti, [])));
+        pushGlobal (GType (ti, !currentLoc))
       with e -> begin
         ignore (E.log "Error on A.TYPEDEF (%s)\n"
                   (Printexc.to_string e));
@@ -4733,7 +4734,8 @@ and doOnlyTypedef (specs: A.spec_elem list) : unit =
             restyp
       | _ -> restyp
     in
-    pushGlobal (GType ("", restyp, !currentLoc))
+    pushGlobal (GType ({tname = ""; ttype = restyp; treferenced = false },
+                       !currentLoc))
   with e -> begin
     ignore (E.log "Error on A.ONLYTYPEDEF (%s)\n"
               (Printexc.to_string e));
@@ -5086,7 +5088,8 @@ let convFile ((fname : string), (dl : Cabs.definition list)) : Cil.file =
     (fun key ci -> 
       if ci.cfields = [] then begin
         ignore (E.warnOpt "%s empty or not defined" key);
-        globals := GType("", TComp(ci, []), locUnknown) :: !globals
+        globals := GType({ tname = ""; ttype =TComp(ci, []);
+                           treferenced = false}, locUnknown) :: !globals
       end) compInfoNameEnv;
 
   H.clear noProtoFunctions;
