@@ -1800,6 +1800,31 @@ perl-noclean: mustbegcc mustbelinux mustbemanju
 perl-gcc: mustbelinux mustbemanju perlclean
 	cd $(PERLSRC) ; make CC=gcc
 
+#### ------------- BIND ----------------------------
+
+BINDSRC := /usr/local/src/bind-9.2.0
+
+bindclean:
+	cd $(BINDSRC); make clean
+	-cd $(BINDSRC); find . \( \
+		-name '*cil.c' -o \
+		-name '*.exe' -o \
+		-name '*.i' -o \
+		-name '*.o' -o \
+		-name '*.obj' -o \
+		-name '*cabs.c' -o \
+		-name '*_comb*.c' \
+	      	\) -exec rm -f {} \;
+
+bind: mustbegcc mustbelinux mustbemanju bindclean
+	cd $(BINDSRC) ; make CC="$(CILLY)"
+
+bind-noclean: mustbegcc mustbelinux mustbemanju
+	cd $(BINDSRC) ; make CC="$(CILLY)"
+
+bind-gcc: mustbelinux mustbemanju bindclean
+	cd $(BINDSRC) ; make CC=gcc
+
 #### ------------- GIMP AND FRIENDS ----------------
 
 # downloads:
