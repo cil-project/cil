@@ -1774,11 +1774,14 @@ val msvcMode: bool ref
  * their operands *)
 val useLogicalOperators: bool ref
 
-(** Whether to print line numbers *)
-val printLn: bool ref
+(** Styles of printing line directives *)
+type lineDirectiveStyle =
+  | LineComment
+  | LinePreprocessorInput
+  | LinePreprocessorOutput
 
-(** Whether to print line numbers in comments*)
-val printLnComment: bool ref
+(** How to print line directives *)
+val lineDirectiveStyle: lineDirectiveStyle option ref
 
 (** Whether we print something that will only be used as input to our own 
  * parser. In that case we are a bit more liberal in what we print *)

@@ -1399,8 +1399,8 @@ let oneFilePass2 (f: file) =
           if fdec'.svar.vinline && mergeInlines then begin
             let printout = 
               (* Temporarily turn of printing of lines *)
-              let oldprintln = !printLn in
-              printLn := false;
+              let oldprintln = !lineDirectiveStyle in
+              lineDirectiveStyle := None;
               (* Temporarily set the name to all functions in the same way *)
               let newname = fdec'.svar.vname in
               fdec'.svar.vname <- "@@alphaname@@";
@@ -1433,7 +1433,7 @@ let oneFilePass2 (f: file) =
               end;
               (* Now print it *)
               let res = d_global () g' in
-              printLn := oldprintln;
+              lineDirectiveStyle := oldprintln;
               fdec'.svar.vname <- newname;
               if mergeInlinesWithAlphaConvert then begin
                 (* Do the locals in reverse order *)

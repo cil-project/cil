@@ -72,8 +72,12 @@ let theMachine : M.mach ref = ref M.gcc
 let little_endian = ref true
 let char_is_unsigned = ref false
 
-let printLn= ref true                 (* Whether to print line numbers *)
-let printLnComment= ref false
+type lineDirectiveStyle =
+  | LineComment
+  | LinePreprocessorInput
+  | LinePreprocessorOutput
+
+let lineDirectiveStyle = ref (Some LinePreprocessorInput)
  
 let print_CIL_Input = ref false
            
@@ -2388,22 +2392,28 @@ class defaultCilPrinterClass : cilPrinter = object (self)
   val mutable lastFileName = ""
   (* Make sure that you only call self#pLineDirective on an empty line *)
   method pLineDirective ?(forcefile=false) l = 
-    let printLine (forcefile: bool) (l : location) : string =
-      let str = ref "" in
-      if !printLn && l.line > 0 then begin
-        if !printLnComment then str := "//";
-        str := !str ^ "#line " ^ string_of_int(l.line);
-        if forcefile || l.file <> lastFileName then begin
-          lastFileName <- l.file;
-          str := !str ^ " \"" ^ l.file ^ "\""
-        end
-      end;
-      currentLoc := l;
-      !str
-    in
-    let ls = printLine forcefile l in
-    if ls <> "" then leftflush ++ text ls ++ line else nil
-   
+    currentLoc := l;
+    match !lineDirectiveStyle with
+    | Some style when l.line > 0 ->
+	let directive =
+	  match style with
+	  | LineComment -> text "//#line "
+	  | LinePreprocessorOutput when not !msvcMode -> chr '#'
+	  | _ -> text "#line"
+	in
+	let filename =
+          if forcefile || l.file <> lastFileName then
+	    begin
+	      lastFileName <- l.file;
+	      text " \"" ++ text l.file ++ chr '"'
+            end
+	  else
+	    nil
+	in
+	leftflush ++ directive ++ chr ' ' ++ num l.line ++ filename ++ line
+    | _ ->
+	nil
+
 
   method private pStmtKind (next: stmt) () = function
       Return(None, l) ->
@@ -3045,10 +3055,10 @@ begin
   (* construct the closure to return *)
   let theFunc () (obj:'a) : doc =
   begin
-    let prevPrintLn:bool = !printLn in
-    printLn := false;
+    let prevStyle = !lineDirectiveStyle in
+    lineDirectiveStyle := None;
     let ret = (func () obj) in    (* call underlying printer *)
-    printLn := prevPrintLn;
+    lineDirectiveStyle := prevStyle;
     ret
   end in
   theFunc

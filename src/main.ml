@@ -269,10 +269,10 @@ let rec theMain () =
     "--mergedout", Arg.String (openFile "merged output"
                                    (fun oc -> mergedChannel := Some oc)),
                 "specify the name of the merged file";
-    "--noPrintLn", Arg.Unit (fun _ -> Cil.printLn := false;
+    "--noPrintLn", Arg.Unit (fun _ -> Cil.lineDirectiveStyle := None;
                                      Cprint.printLn := false),
                "don't output #line directives";
-    "--commPrintLn", Arg.Unit (fun _ -> Cil.printLnComment := true;
+    "--commPrintLn", Arg.Unit (fun _ -> Cil.lineDirectiveStyle := Some Cil.LineComment;
                                        Cprint.printLnComment := true),
                "output #line directives as comments";
     "--printCilAsIs", Arg.Unit (fun _ -> Cil.printCilAsIs := true),
