@@ -2,40 +2,40 @@
 # Makefile for CCured. The gcc part
 
 
-COMPILERNAME=GNUCC
+COMPILERNAME := GNUCC
 
-CC=gcc
+CC := gcc
 ifdef RELEASE
-# sm: I'll leave this here, but only use it for compiling our runtime lib
-CFLAGS=-D_GNUCC -Wall -O3 -fomit-frame-pointer -DRELEASE
+  # sm: I'll leave this here, but only use it for compiling our runtime lib
+  CFLAGS := -D_GNUCC -Wall -O3 -fomit-frame-pointer -DRELEASE
 else
-CFLAGS=-D_GNUCC -Wall  -g -ggdb -D_DEBUG
+  CFLAGS := -D_GNUCC -Wall  -g -ggdb -D_DEBUG
 endif
 
-OPT_O2=-O2
-CONLY=-c
-OBJOUT=-o
-OBJEXT=o
-LIBEXT=a
-EXEOUT=-o
-LDEXT=
-DEF=-D
-ASMONLY=-S -o 
-WARNALL=-Wall
+OPT_O2 := -O2
+CONLY := -c
+OBJOUT := -o
+OBJEXT := o
+LIBEXT := a
+EXEOUT := -o
+LDEXT := 
+DEF := -D
+ASMONLY := -S -o 
+WARNALL := -Wall
 # sm: shuffled around a couple things so I could use CPPSTART for patch2
-CPPSTART=gcc -E -x c -Dx86_LINUX -D_GNUCC  -I/usr/include/sys
-CPPOUT=-o %o
-CPP=$(CPPSTART) -include fixup.h %i $(CPPOUT)
-INC=-I
+CPPSTART := gcc -E -x c -Dx86_LINUX -D_GNUCC  -I/usr/include/sys
+CPPOUT := -o %o
+CPP := $(CPPSTART) -include fixup.h %i $(CPPOUT)
+INC := -I
 
 # sm: disable patching for now ('true' has no output)
 # (set it to 'echo' to re-enable)
 ifndef PATCHECHO
-  PATCHECHO=echo
+  PATCHECHO := echo
 endif
 
-AR=ar 
-LIBOUT=-r 
+AR := ar 
+LIBOUT := -r 
 
 # The system include files to be patched
-PATCH_SYSINCLUDES=stdio.h ctype.h sys/fcntl.h fcntl.h string.h stdarg.h
+PATCH_SYSINCLUDES := stdio.h ctype.h sys/fcntl.h fcntl.h string.h stdarg.h

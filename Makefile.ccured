@@ -6,30 +6,30 @@
 # 3/17/01 sm: replaced a few more instances of x86_WIN32 with $(ARCHOS)
 
 # Debugging. Set ECHO= to debug this Makefile 
-ECHO = @
+ECHO := @
 
-USEFRONTC = 1
+USEFRONTC := 1
 
 # First stuff that makes the executable 
 # Define the ARCHOS in your environemt : [x86_LINUX, x86_WIN32, SUNOS]
 
-SOURCEDIRS  = src
-OBJDIR      = obj
-MLLS        = 
-MLYS        = 
+SOURCEDIRS  := src
+OBJDIR      := obj
+MLLS        := 
+MLYS        := 
 # ast clex cparse
 # sm: trace: utility for debug-time printfs
-MODULES     = pretty trace errormsg stats util clist \
-              cil cfg logcalls check ptrnode \
-              solveutil solver globinit \
-              oneret boxsplit boxstats box markptr \
-              rmtmps optim
-EXECUTABLE  = $(OBJDIR)/ccured
-CAMLUSEUNIX = 1
+MODULES     := pretty trace errormsg stats util clist \
+               cil cfg logcalls check ptrnode \
+               solveutil solver globinit \
+               oneret boxsplit boxstats box markptr \
+               rmtmps optim
+EXECUTABLE  := $(OBJDIR)/ccured
+CAMLUSEUNIX := 1
 ifdef RELEASE
-UNSAFE      = 1
+  UNSAFE    := 1
 endif
-CAMLLIBS    = 
+CAMLLIBS    := 
 
 # Front end stuff
 SOURCEDIRS += src/frontc
@@ -51,13 +51,13 @@ EXTRACLEAN += $(OBJDIR)/*.obj $(OBJDIR)/*.a $(OBJDIR)/*.o
 include Makefile.ocaml
 
 
-# sm: I keep getting bit by this
+# sm: this is checked in the outer Makefile, but it won't hurt here
 ifndef CCUREDHOME
-You have not defined the CCUREDHOME variable
+  $(error You have not defined the CCUREDHOME variable)
 endif
 
-CCURED=perl $(CCUREDHOME)/lib/ccured.pl 
-PATCHER=perl $(CCUREDHOME)/lib/patcher.pl
+CCURED := perl $(CCUREDHOME)/lib/ccured.pl 
+PATCHER := perl $(CCUREDHOME)/lib/patcher.pl
 
 # Now do the user-specific customization
 # It is Ok if this file does not exist
@@ -65,7 +65,7 @@ PATCHER=perl $(CCUREDHOME)/lib/patcher.pl
 
 # By default use GCC, unless you set NO_GC
 ifndef _MSVC
-_GNUCC = 1
+  _GNUCC := 1
 endif
 
 # Now include the compiler specific stuff
@@ -78,50 +78,40 @@ else
 endif
 
 ifdef RELEASE
-  COMPILEREXT=$(COMPILERNAME)_release
-  else
-  COMPILEREXT=$(COMPILERNAME)_debug
+  COMPILEREXT := $(COMPILERNAME)_release
+else
+  COMPILEREXT := $(COMPILERNAME)_debug
 endif
 
 
-# By default use the GC if we use GCC
+# By default use the GC if we use GCC, unless NO_GC set;
+# on msvc, what needs to be done to get gc working:
+#  - make sure we can compile gc.a, and that gctests works
+#  - modify the commands which build $(CCUREDLIB) so they
+#    include gc.a
 ifdef _GNUCC
  ifndef NO_GC
-   USE_GC=1
+   USE_GC := 1
  endif
 endif
 
 PATCHER +=--mode=$(COMPILERNAME)
 
 
-CCUREDLIB=obj/ccured_$(COMPILEREXT).$(LIBEXT)
+CCUREDLIB := obj/ccured_$(COMPILEREXT).$(LIBEXT)
 
 # garbage collector options
-ifdef _GNUCC
-  ifdef USE_GC
-    # enable the garbage collector by default for gcc
-    GCLIB = $(CCUREDHOME)/lib/gc/gc.a
+ifdef USE_GC
+  GCLIB := $(CCUREDHOME)/lib/gc/gc.a
 
-$(GCLIB):
-	cd lib/gc; make
-
-gctest: 
-	cd lib/gc; ./gctest
-
-  else
-    GCLIB =
-gctest: 
-
-  endif
-else
-  # on msvc, what needs to be done to get gc working:
-  #  - make sure we can compile gc.a, and that gctests works
-  #  - modify the commands which build $(CCUREDLIB) so they
-  #    include gc.a
-  GCLIB =
-gctest:
+# pretend it's only dependent on one file; that's not true of course,
+# but we rarely (ever?) modify the gc's sources, and one dependency
+# is better than none (which causes recompile every time!)
+$(GCLIB): $(CCUREDHOME)/lib/gc/mark.c
+	cd $(CCUREDHOME)/lib/gc && make && ./gctest
 
 endif
+
 
 ###
 ###
@@ -129,7 +119,7 @@ endif
 ###
 ###
 ifndef RELEASE
-CCUREDLIBARG=$(DEF)_DEBUG
+  CCUREDLIBARG := $(DEF)_DEBUG
 endif
 
 $(CCUREDLIB) : lib/safec.c lib/safec.h lib/safeccheck.h lib/splay.c $(GCLIB) 
@@ -156,14 +146,20 @@ combiner:
 cilly: 
 	$(MAKE) -f Makefile.cil $(MAKEOVERRIDES)
 
-rmlibrary: 
-	rm -rf $(CCUREDLIB)
+libraries: $(CCUREDLIB) $(GCLIB)
 
-libraries: rmlibrary $(CCUREDLIB) gctest
+all: combiner cilly $(EXECUTABLE)$(EXE) libraries
 
-all: combiner cillib cilly $(EXECUTABLE)$(EXE) libraries
+# we need to know what the patcher will think the compiler's version is
+COMPILERVERSION := $(shell $(PATCHER) --dumpversion)
 
-setup: includes
+# names one all of the patched include files, so we can have a proper dependency
+PATCHEDHEADERS := $(foreach file, $(PATCH_SYSINCLUDES), \
+                    $(CCUREDHOME)/include/$(COMPILERVERSION)/$(file))
+
+#foo := $(shell echo "PATCHEDHEADERS = $(PATCHEDHEADERS)" 1>&2; echo hi)
+
+setup: $(PATCHEDHEADERS)
 	$(MAKE) -f Makefile.ccured all $(MAKEOVERRIDES) RELEASE= 
 	$(MAKE) -f Makefile.ccured all $(MAKEOVERRIDES) RELEASE=1
 ifdef _MSVC
@@ -175,12 +171,17 @@ endif
 
 quickbuild:  combiner $(EXECUTABLE)$(EXE)
 
-cleanincludes: 
-	$(PATCHER) --dest=$(CCUREDHOME)/include --clean
+# the patch template file
+PATCHTEMPLATE := $(CCUREDHOME)/lib/ccured_$(COMPILERNAME).patch
 
-includes: cleanincludes
-	$(PATCHER) --patch=$(CCUREDHOME)/lib/ccured_$(COMPILERNAME).patch\
+$(PATCHEDHEADERS): $(CCUREDHOME)/lib/patcher.pl $(PATCHTEMPLATE)
+#       throw away all the existing patched includes
+	$(PATCHER) --dest=$(CCUREDHOME)/include --clean
+#       now re-regenerate them
+	$(PATCHER) --patch=$(PATCHTEMPLATE) \
                    --dest=$(CCUREDHOME)/include \
 	           $(foreach file,$(PATCH_SYSINCLUDES), --sfile=$(file))
 
-clean: cleanincludes cleancaml rmlibrary
+clean: cleancaml
+	$(PATCHER) --dest=$(CCUREDHOME)/include --clean
+	rm -f $(CCUREDLIB)

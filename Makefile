@@ -3,6 +3,17 @@
 #
 # Debugging. Set ECHO= to debug this Makefile 
 
+# this Makefile makes use of several GNU Make extensions; see
+#   http://www.gnu.org/manual/make/html_chapter/make_toc.html
+
+
+# sm: infer CCUREDHOME when not set, to ease having multiple trees
+ifndef CCUREDHOME
+  export CCUREDHOME := $(shell pwd)
+  #$(error You have not defined the CCUREDHOME variable)
+endif
+
+
 setup:
 	make -f Makefile.ccured setup $(MAKEOVERRIDES)
 
@@ -23,30 +34,25 @@ clean:
 		-name '*.o' -o \
 		-name '*cabs.c' -o \
 		-name '*infer.c' -o \
-		-name '*_all*.c' \
+		-name '*_all*.c' -o \
 		-name '*_comb*.c' \
 	\) -exec rm {} \;
 
-# sm: I keep getting bit by this
-ifndef CCUREDHOME
-You have not defined the CCUREDHOME variable
-endif
-
-CCURED=perl $(CCUREDHOME)/lib/ccured.pl 
-PATCHER=perl $(CCUREDHOME)/lib/patcher.pl
+CCURED := perl $(CCUREDHOME)/lib/ccured.pl 
+PATCHER := perl $(CCUREDHOME)/lib/patcher.pl
 # Now do the user-specific customization
 # It is Ok if this file does not exist
 -include $(CCUREDHOME)/.ccuredrc
 
 # By default use the old patcher
 ifndef NEWPATCH
-OLDPATCH = 1
-PATCHINCLUDES=1
+  OLDPATCH := 1
+  PATCHINCLUDES := 1
 endif
 
 # By default use GCC, unless you set _MSVC on the command line on in .ccuredrc
 ifndef _MSVC
-_GNUCC = 1
+  _GNUCC := 1
 endif
 
 # Now include the compiler specific stuff
@@ -66,9 +72,9 @@ export EXTRAARGS
 export INFERBOX
 
 ifdef PATCHINCLUDES
-STANDARDPATCH= --includedir=$(CCUREDHOME)/include
+  STANDARDPATCH := --includedir=$(CCUREDHOME)/include
 else
-STANDARDPATCH= --patch=$(CCUREDHOME)/cil/lib/$(PATCHFILE)
+  STANDARDPATCH := --patch=$(CCUREDHOME)/cil/lib/$(PATCHFILE)
 endif
 
 # CCURED contains arguments that are passed to ccured.pl
@@ -89,7 +95,7 @@ endif
 
 
 ifdef INFERBOX
-  MANUALBOX=1
+  MANUALBOX := 1
   CCURED+= --curetype=$(INFERBOX) $(DEF)INFERBOX
   CCURED+= --emitinfer 
 else
@@ -105,50 +111,50 @@ endif
 
 
 ifeq ($(TABLE), A)
-    CCURED+= --tableAll
+  CCURED+= --tableAll
 endif
 ifeq ($(TABLE), I)
-    CCURED+= --tableInterface
+  CCURED+= --tableInterface
 endif
 ifdef NOLINES
-    CCURED+= --noPrintLn
+  CCURED+= --noPrintLn
 endif
 ifdef COMMLINES
-    CCURED+= --commPrintLn
+  CCURED+= --commPrintLn
 endif
 
 ifdef USECABS
-CCURED+= --usecabs
+  CCURED+= --usecabs
 endif
 ifdef USECIL
-CCURED+= --usecil
+  CCURED+= --usecil
 endif	
 ifdef NO_TAGS
-CCURED+= $(DEF)NO_TAGS
+  CCURED+= $(DEF)NO_TAGS
 endif
 ifdef CHECK
-CCURED += --check
+  CCURED += --check
 endif
 ifndef RELEASE
-CCURED+= --debug
+  CCURED+= --debug
 endif
 ifdef VERBOSE
-CCURED+= --verbose
+  CCURED+= --verbose
 endif
 # sm: pass tracing directives on 'make' command line like TRACE=usedVars
 ifdef TRACE
-CCURED+= --tr="$(TRACE)"
+  CCURED+= --tr="$(TRACE)"
 endif
 
 ifdef OPTIM
-CCURED+= --optimize
+  CCURED+= --optimize
 endif
 
 # This is a way to disable the stats, allowing the command line to override it
 # Do STATS= to disable the stats.
-STATS=1
+STATS := 1
 ifdef STATS
-CCURED+= --stats
+  CCURED+= --stats
 endif
 
 # sm: can't figure out why passing this via EXTRAARGS screws
@@ -157,13 +163,13 @@ endif
 # should only set EXTRAARGS when invoking the Makefile, and
 # in here just use CCURED+= ...
 ifdef LOGCALLS
-CCURED+= --logcalls
+  CCURED+= --logcalls
 endif
 
 # when this is turned on, it should disable any source changes we've
 # made that are purely in the interest of performance
 ifdef NO_PERF_CHANGES
-CCURED+= $(DEF)NO_PERF_CHANGES
+  CCURED+= $(DEF)NO_PERF_CHANGES
 endif
 
 # enable the new tree-based patcher
@@ -172,7 +178,7 @@ ifdef NEWPATCH
   # perhaps safecc.pl is the right place to deal with telling safec.exe
   # about this file
 
-  # hack: include PATCHDEFS in the name, so we get different versions
+  # hack: possible append 'd' to the name, so we get different versions
   # for with and without CCURED; otherwise it would appear to be
   # up-to-date but for the wrong way
   ifdef PATCHDEFS
@@ -185,7 +191,7 @@ ifdef NEWPATCH
   CCURED+= --patchFile=$(PATCHFILE2)
 
   # and turn off the other patcher
-  PATCHECHO=true
+  PATCHECHO := true
 endif
 
 
@@ -198,19 +204,19 @@ endif
 
 
 ####### Test with PCC sources
-PCCDIR=$(CCUREDHOME)/test/PCC
-PCCTEST=test/PCCout
+PCCDIR := $(CCUREDHOME)/test/PCC
+PCCTEST := test/PCCout
 ifdef RELEASE
-PCCTYPE=RELEASE
-SPJARG=
+  PCCTYPE := RELEASE
+  SPJARG :=
 else
-PCCTYPE=_DEBUG
-SPJARG=--gory --save-temps=pccout
+  PCCTYPE := _DEBUG
+  SPJARG := --gory --save-temps=pccout
 endif
 ifdef _GNUCC
-PCCCOMP=_GNUCC
+  PCCCOMP := _GNUCC
 else
-PCCCOMP=_MSVC
+  PCCCOMP := _MSVC
 endif
 
 testpcc/% : $(PCCDIR)/src/%.c 
@@ -222,7 +228,7 @@ testpcc/% : $(PCCDIR)/src/%.c
 
 
 ifdef _MSVC
-MSLINK=--mode=mscl
+  MSLINK := --mode=mscl
 endif
 PCCSAFECC=$(CCURED) $(DEF)CCURED \
                     $(STANDARDPATCH) --combine \
@@ -259,13 +265,13 @@ pccclean :
 	make -C $(PCCDIR) clean
 
 
-SPJDIR=C:/Necula/Source/Touchstone/test
+SPJDIR := C:/Necula/Source/Touchstone/test
 SPJARG +=  -WV,"-H,4000000,-noindent" -WC,"-H,4000000,-noindent"
 ifndef RELEASE
-SPJARG += --pccdebug
+  SPJARG += --pccdebug
 endif
 ifdef SPJTIME
-SPJARG += -WC,"-T,1000" 
+  SPJARG += -WC,"-T,1000" 
 endif
 
 runspj.fact :
@@ -310,7 +316,7 @@ endif
                       $(SPJARG) --pcchome=$(PCCDIR)
 
 ############ Small tests
-SMALL1=test/small1
+SMALL1 := test/small1
 test/% : $(SMALL1)/%.c 
 	cd $(SMALL1); $(CCURED)   \
                $(STANDARDPATCH) \
@@ -359,7 +365,7 @@ testc/% : $(SMALL1)/%.c
 	       $(CFLAGS) $(EXEOUT)$*.exe $*.c ; ./$*.exe
 
 # Aman's optim tests
-OPTIMTESTDIR=test/optim
+OPTIMTESTDIR := test/optim
 optim/% : $(OPTIMTESTDIR)/%.c 
 	cd $(OPTIMTESTDIR); $(CCURED)   \
                $(STANDARDPATCH) \
@@ -428,7 +434,7 @@ scott-nolink/%: test/small2/%.c
                  $*.c \
                  $(EXEOUT)$*
 
-# a target for programs which are *supposed* to fail, because
+# sm: a target for programs which are *supposed* to fail, because
 # they intentionally violate the type system; but this is only
 # when FAIL is #defined, otherwise they should exit ok
 bad/%: test/bad/%.c 
@@ -488,7 +494,7 @@ bads/%: test/small2/%.c
 
 
 # sm: trivial test of combiner
-MYSAFECC = $(CCURED) --keep=. $(DEF)$(ARCHOS) $(STANDARDPATCH)
+MYSAFECC := $(CCURED) --keep=. $(DEF)$(ARCHOS) $(STANDARDPATCH)
 comb: test/small2/comb1.c test/small2/comb2.c 
 	rm -f test/small2/comb
 	cd test/small2; \
@@ -515,7 +521,7 @@ baddef: test/small2/baddef1.c test/small2/baddef2.c
 	fi
 
 # cfrac: a memory benchmark which factorizes into products of primes
-CFRACDIR = $(CCUREDHOME)/../bench/cfrac
+CFRACDIR := $(CCUREDHOME)/../bench/cfrac
 cfrac: 
 	-rm $(CFRACDIR)/*.o
 	-rm $(CFRACDIR)/cfrac
@@ -533,7 +539,7 @@ comcfrac:
 	csh -c "time $(CFRACDIR)/cfrac 327905606740421458831903"
 
 # espresso: memory benchmark that does logic minimization
-ESPRESSODIR = $(CCUREDHOME)/../bench/espresso
+ESPRESSODIR := $(CCUREDHOME)/../bench/espresso
 espresso: 
 	@true -rm $(ESPRESSODIR)/*.o
 	@true -rm $(ESPRESSODIR)/espresso
@@ -545,10 +551,10 @@ espresso:
 
 
 
-HUFFCOMPILE=$(CCURED) $(DEF)NOVARARG --combine --keep=. 
-# HUFFCOMPILE=cl /MLd
+HUFFCOMPILE := $(CCURED) $(DEF)NOVARARG --combine --keep=. 
+# HUFFCOMPILE := cl /MLd
 ifdef _GNUCC
-HUFFOTHERS += -lm
+  HUFFOTHERS += -lm
 endif
 ifndef HUFFINPUT
   HUFFINPUT=$(CCUREDHOME)/src/frontc/cparser.output
@@ -609,29 +615,29 @@ testqp : testlinux/qpmouse
 testserial: testlinux/generic_serial
 
 ################## Rahul's test cases
-SPR-TESTDIR = test/spr
+SPR-TESTDIR := test/spr
 spr/% : 
 	cd $(SPR-TESTDIR); $(CCURED) $*.c $(CONLY) $(CFLAGS) $(ASMONLY)$*.s
 
 
 ################# Apache test cases
-APACHETEST=test/apache
-APACHEBASE=apache_1.3.19/src
-APATCHES=--patch=apache.patch --patch=apache_$(COMPILERNAME).patch
+APACHETEST := test/apache
+APACHEBASE := apache_1.3.19/src
+APATCHES := --patch=apache.patch --patch=apache_$(COMPILERNAME).patch
 ifdef _MSVC
-APACHECFLAGS=/nologo /MDd /W3 /GX /Zi /Od \
+  APACHECFLAGS := /nologo /MDd /W3 /GX /Zi /Od \
          $(INC)"$(APACHEBASE)\include" $(INC)"$(APACHEBASE)\os\win32" \
          $(DEF)"_DEBUG" $(DEF)"WIN32" $(DEF)"_WINDOWS" \
          $(DEF)"NO_DBM_REWRITEMAP" $(DEF)"SHARED_MODULE" \
          $(DEF)"WIN32_LEAN_AND_MEAN"
 else
-APACHECFLAGS=-Wall -D_GNUCC -g \
+  APACHECFLAGS := -Wall -D_GNUCC -g \
          $(INC)"$(APACHEBASE)/include" $(INC)"$(APACHEBASE)/os/unix" \
          $(DEF)"_DEBUG" \
          $(DEF)"NO_DBM_REWRITEMAP" $(DEF)"SHARED_MODULE"
 endif
 
-APACHE_INCLUDES=httpd.h ap_alloc.h http_config.h http_log.h http_protocol.h
+APACHE_INCLUDES := httpd.h ap_alloc.h http_config.h http_log.h http_protocol.h
 apachesetup:
 	cd $(APACHETEST); \
             $(PATCHER) \
@@ -641,9 +647,9 @@ apachesetup:
 	                $(foreach file,$(APACHE_INCLUDES), --ufile=$(file))
 
 ifdef PATCHINCLUDES
-APATCH = $(STANDARDPATCH) --includedir=$(APACHEBASE)/include
+  APATCH := $(STANDARDPATCH) --includedir=$(APACHEBASE)/include
 else
-APATCH = $(STANDARDPATCH) $(APATCHES)
+  APATCH := $(STANDARDPATCH) $(APATCHES)
 endif
 
 apache/urlcount : 
@@ -725,16 +731,16 @@ apache/rewrite:
 # benchmark's Makefile (helps to ensure consistency between the
 # non-ccured build and the ccured build, and also some programs
 # take too long on -O3)
-COMBINESAFECC = $(CCURED) --combine
+COMBINESAFECC := $(CCURED) --combine
 
 # sm: trying to collapse where are specifications are
-PATCHARG=`$(PATCHECHO) $(STANDARDPATCH)`
+PATCHARG := `$(PATCHECHO) $(STANDARDPATCH)`
 
 #
 # OLDEN benchmarks
 #
 # Barnes-Hut
-BHDIR=test/olden/bh
+BHDIR := test/olden/bh
 bh:  mustbegcc
 	cd $(BHDIR); rm -f code.exe *.o; \
                make CC="$(COMBINESAFECC) --nocure=bhbox $(PATCHARG)"
@@ -772,9 +778,9 @@ bh-combined:  mustbegcc
 	cd $(BHDIR); sh -c "time code < data.in >dat.out"
 
 # Power pricing
-PWDIR=test/olden/power
+PWDIR := test/olden/power
 ifdef _GNUCC
-PWEXTRA += -lm
+  PWEXTRA += -lm
 endif
 power:  mustbegcc
 	cd $(PWDIR); \
@@ -789,7 +795,7 @@ power-combined :  mustbegcc
 # Health care simulation
 HEALTHDIR=test/olden/health
 ifdef _MSVC
-HEALTHARGS = _MSVC=1
+  HEALTHARGS := _MSVC=1
 endif
 health: 
 	cd $(HEALTHDIR); \
@@ -803,9 +809,9 @@ health:
 
 
 # Perimeter of regions in images
-PERIMDIR=test/olden/perimeter
+PERIMDIR := test/olden/perimeter
 ifdef _MSVC
-PERIMARGS = _MSVC=1
+  PERIMARGS := _MSVC=1
 endif
 perimeter: 
 	cd $(PERIMDIR); \
@@ -817,9 +823,9 @@ perimeter:
 
 
 # Voronoi diagrams
-VORONDIR=test/olden/voronoi
+VORONDIR := test/olden/voronoi
 ifdef _MSVC
-VORONARGS = _MSVC=1
+  VORONARGS := _MSVC=1
 endif
 voronoi : 
 	cd $(VORONDIR); \
@@ -831,12 +837,12 @@ voronoi :
 	cd $(VORONDIR); sh -c "time ./voronoi.exe 60000 1"
 
 # Traveling salesman
-TSPDIR=test/olden/tsp
+TSPDIR := test/olden/tsp
 ifdef _MSVC
-TSPARGS = _MSVC=1
+  TSPARGS := _MSVC=1
 endif
 ifdef _GNUCC
-TSPEXTRA += -lm
+  TSPEXTRA += -lm
 endif
 tsp: 
 	cd $(TSPDIR); \
@@ -848,9 +854,9 @@ tsp:
 
 
 # Bitonic sort
-BISORTDIR=test/olden/bisort
+BISORTDIR := test/olden/bisort
 ifdef _MSVC
-BISORTARGS = _MSVC=1
+  BISORTARGS = _MSVC=1
 endif
 bisort :  mustbegcc
 	cd $(BISORTDIR); \
@@ -864,11 +870,11 @@ bisort :  mustbegcc
 
 
 
-OLDENMSTDIR=test/olden/mst
-OLDENMSTSAFECC=$(COMBINESAFECC) $(PATCHARG)
+OLDENMSTDIR := test/olden/mst
+OLDENMSTSAFECC := $(COMBINESAFECC) $(PATCHARG)
 ifdef _MSVC
-OLDENMSTSAFECC += $(DEF)WIN32 $(DEF)MSDOS
-MSTARGS= _MSVC=1
+  OLDENMSTSAFECC += $(DEF)WIN32 $(DEF)MSDOS
+  MSTARGS := _MSVC=1
 endif
 mst-clean: 	
 	cd $(OLDENMSTDIR); make clean
@@ -886,12 +892,10 @@ mst:
 
 
 
-TREEADDIR=test/olden/treeadd
-TREEADDSAFECC=$(CCURED) --combine \
-                  $(PATCHARG) \
-                  $(NOPRINTLN)
+TREEADDIR := test/olden/treeadd
+TREEADDSAFECC := $(CCURED) --combine $(PATCHARG) $(NOPRINTLN)
 ifeq ($(ARCHOS), x86_WIN32)
-TREEADDSAFECC += $(DEF)WIN32 $(DEF)MSDOS
+  TREEADDSAFECC += $(DEF)WIN32 $(DEF)MSDOS
 endif
 treeadd-clean: 	
 	cd $(TREEADDIR); make clean
@@ -903,13 +907,13 @@ treeadd:  mustbegcc
                        LD="$(TREEADDSAFECC)"
 	cd $(TREEADDIR); sh -c "time ./treeadd$(LDEXT) 21 1"
 
-NEWBISORTDIR=test/olden/newbisort
-NEWBISORTSAFECC=$(CCURED) --combine \
-                   --nocure=ta_trusted \
-                  $(PATCHARG) \
-                  $(NOPRINTLN)
+NEWBISORTDIR := test/olden/newbisort
+NEWBISORTSAFECC := $(CCURED) --combine \
+                     --nocure=ta_trusted \
+                     $(PATCHARG) \
+                     $(NOPRINTLN)
 ifeq ($(ARCHOS), x86_WIN32)
-NEWBISORTSAFECC += $(DEF)WIN32 $(DEF)MSDOS
+  NEWBISORTSAFECC += $(DEF)WIN32 $(DEF)MSDOS
 endif
 newbisort-clean: 	
 	cd $(NEWBISORTDIR); make clean
@@ -924,14 +928,14 @@ newbisort:  mustbegcc
 
 
 
-EM3DDIR=test/olden/em3d
-EM3DDSAFECC=$(CCURED) --combine \
-                  $(PATCHARG) \
-                  --nocure=trusted_em3d \
-                  $(NOPRINTLN)
+EM3DDIR := test/olden/em3d
+EM3DDSAFECC := $(CCURED) --combine \
+                 $(PATCHARG) \
+                 --nocure=trusted_em3d \
+                 $(NOPRINTLN)
 ifeq ($(ARCHOS), x86_WIN32)
-EM3DSAFECC += $(DEF)WIN32 $(DEF)MSDOS
-SS_RAND=TRUE
+  EM3DSAFECC += $(DEF)WIN32 $(DEF)MSDOS
+  SS_RAND := TRUE
 endif
 em3d-clean: 	
 	cd $(EM3DDIR); make clean
@@ -946,9 +950,9 @@ em3d:  mustbegcc
 
 
 # SPEC95
-SPECDIR=test/spec95
+SPECDIR := test/spec95
 
-COMPRESSDIR=$(SPECDIR)/129.compress
+COMPRESSDIR := $(SPECDIR)/129.compress
 spec-compress : 
 	cd $(COMPRESSDIR)/src; make build
 	cd $(COMPRESSDIR)/src; ./compress < input.data > output.txt
@@ -970,8 +974,8 @@ compress:  mustbegcc
                make CC="$(COMBINESAFECC) $(PATCHARG)" clean build
 	cd $(COMPRESSDIR)/src; sh -c "time ./compress < input.data > combine-compress.out"
 
-LIDIR=$(SPECDIR)/130.li
-LISAFECC=$(CCURED) --combine $(PATCHARG)
+LIDIR := $(SPECDIR)/130.li
+LISAFECC := $(CCURED) --combine $(PATCHARG)
 li:  mustbegcc
 	cd $(LIDIR)/src; \
             make clean build CC="$(LISAFECC) $(CONLY)" \
@@ -1005,8 +1009,8 @@ liinfer: li
 
 
 ### SPEC95 GO
-GODIR=$(SPECDIR)/099.go
-GOSAFECC=$(CCURED) --combine  $(PATCHARG) $(NOPRINTLN) $(OPT_O2)
+GODIR := $(SPECDIR)/099.go
+GOSAFECC := $(CCURED) --combine  $(PATCHARG) $(NOPRINTLN) $(OPT_O2)
 
 goclean: 	
 	cd $(GODIR)/src; make clean
@@ -1034,11 +1038,11 @@ go-noclean:  mustbegcc
 
 
 ### SPEC95 vortex
-VORDIR=$(SPECDIR)/147.vortex
-VORSAFECC=$(CCURED) --combine   $(PATCHARG)
-#VORSAFECC=$(CCURED)  $(PATCHARG)
+VORDIR := $(SPECDIR)/147.vortex
+VORSAFECC := $(CCURED) --combine   $(PATCHARG)
+#VORSAFECC := $(CCURED)  $(PATCHARG)
 ifdef _GNUCC
-VOREXTRA=-lm
+  VOREXTRA := -lm
 endif
 
 vortexclean: 	
@@ -1100,18 +1104,18 @@ vortex-makertl: mustbegcc
 	-make vortex-combined _GNUCC=1 TV=1
 
 ifdef _GNUCC
-TVCOMMAND=$(TVDIR)/obj/transval.asm
+  TVCOMMAND := $(TVDIR)/obj/transval.asm
 else
-TVCOMMAND=$(TVDIR)/obj/transval.asm.exe
+  TVCOMMAND := $(TVDIR)/obj/transval.asm.exe
 endif
 
 vortex-tv:
 	$(TVCOMMAND) -L $(VORDIR)/tv.log $(VORDIR)/src/vortex_all.i.rtl $(VORDIR)/src/vortex_allcil.c.rtl 
 
 ### SPEC95 m88ksim
-M88DIR=$(SPECDIR)/124.m88ksim
-M88SAFECC=$(CCURED) --combine $(PATCHARG) \
-                    --nocure=m88k_trusted --noPrintInferbox
+M88DIR := $(SPECDIR)/124.m88ksim
+M88SAFECC := $(CCURED) --combine $(PATCHARG) \
+               --nocure=m88k_trusted --noPrintInferbox
 m88kclean: 	
 	cd $(M88DIR)/src; make clean
 	cd $(M88DIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
@@ -1139,10 +1143,10 @@ m88k-combined:  mustbegcc
             $(CCURED) m88k_all.c $(CONLY)
 
 ### SPEC95 ijpeg
-IJPEGDIR=$(SPECDIR)/132.ijpeg
-IJPEGSAFECC=$(CCURED) --combine $(PATCHARG)
+IJPEGDIR := $(SPECDIR)/132.ijpeg
+IJPEGSAFECC := $(CCURED) --combine $(PATCHARG)
 ifeq ($(ARCHOS), x86_WIN32)
-IJPEGSAFECC += -DWIN32 -DMSDOS
+  IJPEGSAFECC += -DWIN32 -DMSDOS
 endif
 ijpegclean: 	
 	cd $(IJPEGDIR)/src; make clean
@@ -1173,9 +1177,9 @@ ijpeg-noclean:  mustbegcc
             -GO"
 
 #### SPEC95 gcc
-GCCDIR=$(SPECDIR)/126.gcc
+GCCDIR := $(SPECDIR)/126.gcc
 # sm: --noPrintInferbox works around an infinite loop in our data structure
-GCCSAFECC=$(CCURED) --combine $(PATCHARG)
+GCCSAFECC := $(CCURED) --combine $(PATCHARG)
 
 
 gccclean: 	
@@ -1213,18 +1217,18 @@ gcc-run:
 
 #
 # Linux
-LINUXDIR=/home/project/linux-2.2.9
+LINUXDIR := /home/project/linux-2.2.9
 
 linuxstandard: 
 	$(MAKE) -C $(LINUXDIR) clean vmlinux \
               MY-CC="gcc"
 
-LINUXCC=perl $(CCUREDHOME)/lib/safecc.pl --mode=gcc
+LINUXCC := perl $(CCUREDHOME)/lib/safecc.pl --mode=gcc
 ifdef NOLINES
-LINUXCC+= --noPrintLn
+  LINUXCC+= --noPrintLn
 endif
 ifdef COMMLINES
-LINUXCC+= --commPrintLn
+  LINUXCC+= --commPrintLn
 endif
 linux-cabs:  mustbegcc
 	$(MAKE) -C $(LINUXDIR) vmlinux \
@@ -1251,11 +1255,11 @@ constrainttest:
 	obj/constraint.exe
 
 ### ftpd-BSD-0.3.2-5
-FTPDDIR=test/ftpd/ftpd
-FTPDSAFECC=$(CCURED) --combine $(PATCHARG) \
-                  $(NOPRINTLN)
+FTPDDIR := test/ftpd/ftpd
+FTPDSAFECC := $(CCURED) --combine $(PATCHARG) \
+                $(NOPRINTLN)
 ifeq ($(ARCHOS), x86_WIN32)
-FTPDSAFECC += $(DEF)WIN32 $(DEF)MSDOS
+  FTPDSAFECC += $(DEF)WIN32 $(DEF)MSDOS
 endif
 ftpd-clean: 	
 	cd $(FTPDDIR); make clean

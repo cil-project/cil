@@ -132,6 +132,7 @@ sub findCompilerVersion {
                 return;
             }
         }
+        die "Cannot find the version for GCC\n";
     }
     if($option{mode} eq "MSVC") {
         $cname = "Microsoft cl";
