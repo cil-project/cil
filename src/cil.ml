@@ -3106,20 +3106,8 @@ class defaultCilPrinterClass : cilPrinter = object (self)
       | DNNothing, [] -> nil
       | DNNothing, _ :: _ -> (* Cannot print the attributes in this case 
                               * because gcc does not like them here *)
-          text "/*(" ++ self#pAttrs () a ++ text ")*/"
+          text "/*" ++ self#pAttrs () a ++ text "*/"
       | DNString s, a -> self#pAttrs () a ++ text s
-
-(*
-      if a = [] && (match dnwhat with DNStuff _ -> false | _ -> true) then
-        name
-      else if dnwhat = DNNothing then
-        (* Cannot print the attributes in this case because gcc does not like 
-         * them here *)
-        text "/*(" ++ self#pAttrs () a ++ text ")*/"
-      else begin
-        text "(" ++ self#pAttrs () a ++ name  ++ text ")"
-      end
-*)
     in
     match t with 
     TVoid a ->
