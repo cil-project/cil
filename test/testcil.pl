@@ -619,7 +619,7 @@ $TEST->newTest(
 $TEST->newTest(
     Name => "apache-cil", # A CIL only test
     Dir => ".",
-    Enabled => 0,
+    Enabled => 1,
     Cmd => "make apache-cil",
     Group => ['vslow'],
     Patterns => \%commonerrors);
@@ -628,7 +628,7 @@ $TEST->newTest(
     Name => "apache-modules-cured", 
     Dir => ".",
     Enabled => 0,
-    Cmd => "make apache-modules-cured",
+    Cmd => "make apache-modules-ccured",
     Group => ['vslow'],
     Patterns => \%commonerrors);
 
@@ -657,7 +657,7 @@ $TEST->newTest(
     Name => "ftpd-cil",
     Dir => ".",
     Cmd => "make ftpd " . $TEST->testCommandExtras(""),
-    Enabled => 0,
+    Enabled => 1,
     Group => ['vslow'],
     Patterns => \%commonerrors);
 $TEST->newTest(
@@ -675,7 +675,7 @@ $TEST->newTest(
 $TEST->newTest(
     Name => "ace",
     Dir => "/home/necula/ex/ace.edg",
-    Cmd => "make regtest",
+    Cmd => "make regtest-clean regtest",
     Enabled => 1,
     Group => ['vslow'],
     Patterns => \%commonerrors);
