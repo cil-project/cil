@@ -546,7 +546,13 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
           else
            (update cur Seq (SpreadFromEdge e.efrom))
         end ;
-        if e.ekind = EIndex && not cur.can_reach_index && not (set_outside cur) && cur.kind <> Wild then begin
+
+        if e.ekind = EIndex && 
+           not cur.can_reach_index && 
+           not (set_outside cur) && 
+           cur.kind <> Wild && 
+           cur.kind <> FSeq &&
+           cur.kind <> FSeqN then begin
           assert(cur.why_kind <> UserSpec) ; 
           if cur.can_reach_string then
            (update cur SeqN (SpreadFromEdge e.efrom))
