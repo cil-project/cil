@@ -1878,6 +1878,8 @@ let gccBuiltins : (string, typ * typ list) H.t =
     H.add h "__builtin_va_arg" (voidType, [ TBuiltin_va_list [];
                                             uintType; (* Sizeof the type *)
                                             voidPtrType; (* Ptr to res *) ]);
+    H.add h "__builtin_va_copy" (voidType, [ TBuiltin_va_list [];
+					     TBuiltin_va_list [] ]);
   end;
   h
 
