@@ -9,7 +9,7 @@ let debug = false
 
 let checkReturn = true
 
-let coerceScalars = ref true   (* If true it will insert calls to 
+let interceptCasts = ref false  (* If true it will insert calls to 
                                  * __scalar2pointer when casting scalars to 
                                  * pointers.  *)
 
@@ -815,8 +815,8 @@ let getIOBFunction =
 
 (* A run-time function to coerce scalars into pointers. Scans the heap and 
  * (in the future the stack) *)
-let coerceId = ref 0
-let coerceScalarFunction = 
+let interceptId = ref 0
+let interceptCastFunction = 
   let fdec = emptyFunction "__scalar2pointer" in
   let argl = makeLocalVar fdec "l" ulongType in
   let argf = makeLocalVar fdec "fname" charPtrType in
@@ -1312,15 +1312,15 @@ and castTo (fe: fexp) (newt: typ) (doe: stmt list) : stmt list * fexp =
       let newp = 
         if typeSig lt = typeSig ptype then e else CastE (ptype, e, lu) in
       let newbase, doe' = 
-        if !coerceScalars && not (isInteger e) then begin
-          incr coerceId;
+        if !interceptCasts && not (isInteger e) then begin
+          incr interceptId;
           let tmp = makeTempVar !currentFunction voidPtrType in
            Lval(var tmp),
           doe @
-          [call (Some tmp) (Lval(var coerceScalarFunction.svar)) 
+          [call (Some tmp) (Lval(var interceptCastFunction.svar)) 
               [ e ;
                 Const (CStr !currentFile.fileName, lu);
-                integer !coerceId
+                integer !interceptId
               ]
           ]
         end else CastE(voidPtrType, zero, lu), doe
@@ -1465,8 +1465,8 @@ let boxFile file =
                                          * structure fields *)
     | GPragma a -> begin
         (match a with
-          ACons("coerceScalars", [ AId("on") ]) -> coerceScalars := true
-        | ACons("coerceScalars", [ AId("off") ]) -> coerceScalars := false
+          ACons("interceptCasts", [ AId("on") ]) -> interceptCasts := true
+        | ACons("interceptCasts", [ AId("off") ]) -> interceptCasts := false
         | _ -> ());
         theFile := g :: !theFile
     end

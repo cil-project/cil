@@ -20,7 +20,7 @@ int debugMM;
 int debug;
 
 
-
+#pragma interceptCasts(on)
 
 int main() {
   /* Test hash tables */
@@ -29,13 +29,19 @@ int main() {
   double clk;
   int count = 0;
   int sz;
+  int *foo;
   
   /* Add and delete random numbers from the hash table */
   TIMESTART(clk);
   for(i=0;i<500000;i++) {
     int k = random() & 0x7FFFL;
+    if(i == 30000) {
+      foo = (int*) ((int) &main);  // Test interceptCasts
+    }
     AddToHash(h, k, (void*)k);
   }
+  // Now try to read from foo
+  i = *foo;
   for(i=0;i<500000;i++) {
     int k = random() & 0x7FFFL;
     void *data = NULL;
