@@ -497,8 +497,14 @@ and print_expression (exp : expression) (lvl : int) =
   | CAST (typ, iexp) ->
       print "(";
       print_onlytype typ;
-      print ")";
-      print_init_expression iexp (* 15 *)
+      print ")"; 
+     (* Always print parentheses. In a small number of cases when we print 
+      * constants we don't need them  *)
+      (match iexp with
+        SINGLE_INIT e -> print_expression e 15
+      | COMPOUND_INIT _ -> print "("; print_init_expression iexp; print ")"
+      | NO_INIT -> print "<NO_INIT in cast. Should never arise>")
+
   | CALL (exp, args) ->
       print_expression exp 16;
       print "(";

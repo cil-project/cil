@@ -302,10 +302,6 @@ expression:
 		        { let labels, body = $2 in GNU_BODY (labels, body) }
 |		LPAREN comma_expression RPAREN
 		        {(smooth_expression $2)}
-/*
-|		LPAREN type_name RPAREN expression %prec CAST
-		        {CAST ($2, $4)}
-*/
 |		expression LPAREN opt_expression RPAREN
 			{CALL ($1, list_expression $3)}
 |		expression LBRACKET comma_expression RBRACKET
@@ -371,8 +367,9 @@ expression:
 |		expression SUP_SUP_EQ expression
 			{BINARY(SHR_ASSIGN ,$1 , $3)}
 |               EXTENSION expression  { $2 } 
-|		LPAREN type_name RPAREN expression 
+|		LPAREN type_name RPAREN expression
 		         { CAST($2, SINGLE_INIT $4) }
+/* (* We handle GCC constructor expressions *) */
 |		LPAREN type_name RPAREN LBRACE initializer_list RBRACE
 		         { CAST($2, COMPOUND_INIT $5) }
 ;
