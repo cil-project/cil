@@ -146,16 +146,29 @@ let list_init (len : int) (init_fun : int -> 'a) : 'a list =
 
 
 (** Some handling of registers *)
+type 'a growArrayFill =
+    Elem of 'a
+  | Susp of (int -> 'a)
+
 type 'a growArray = {
-            gaFill: 'a; (** Stuff to use to fill in the array as it grows *)
+            gaFill: 'a growArrayFill;
+            (** Stuff to use to fill in the array as it grows *)
     mutable gaData: 'a array;
   } 
 
 let growTheArray (ga: 'a growArray) (toidx: int) : unit = 
-  if toidx >= Array.length ga.gaData then begin
-    let data' = Array.create (toidx + 1) ga.gaFill in
-    Array.blit ga.gaData 0 data' 0 (Array.length ga.gaData);
-    ga.gaData <- data';
+  let len = Array.length ga.gaData in
+  if toidx >= len then begin
+    let data' = begin match ga.gaFill with
+      Elem x ->
+	let data'' = Array.create (toidx + 1) x in
+	Array.blit ga.gaData 0 data'' 0 len;
+	data''
+    | Susp f -> Array.init (toidx + 1)
+	  (fun i -> if i < len then ga.gaData.(i) else f i)
+    end
+    in
+    ga.gaData <- data'
   end
 
 let getReg (ga: 'a growArray) (r: int) : 'a = 
@@ -166,9 +179,12 @@ let setReg (ga: 'a growArray) (r: int) (what: 'a) : unit =
   growTheArray ga r;
   ga.gaData.(r) <- what
 
-let newGrowArray (initsz: int) (fill: 'a) : 'a growArray = 
+let newGrowArray (initsz: int) (fill: 'a growArrayFill) : 'a growArray = 
   { gaFill = fill;
-    gaData = Array.create initsz fill }
+    gaData = begin match fill with
+      Elem x -> Array.create initsz x
+    | Susp f -> Array.init initsz f
+    end; }
 
 let copyGrowArray (ga: 'a growArray) : 'a growArray = 
   { ga with gaData = Array.copy ga.gaData } 
