@@ -208,8 +208,7 @@ let finish () =
 
 (*** Error handling ***)
 let error msg =
-  E.parse_error msg (Parsing.symbol_start ()) (Parsing.symbol_end ());
-  raise Parsing.Parse_error
+  E.parse_error msg
 
 
 (*** escape character management ***)

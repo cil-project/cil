@@ -43,10 +43,8 @@ open Cabs
 module E = Errormsg
 
 let parse_error msg : unit =       (* sm: c++-mode highlight hack: -> ' <- *)
-  E.hadErrors := true;
   E.parse_error
     msg
-    (Parsing.symbol_start ()) (Parsing.symbol_end ())
 
 let print = print_string
 

@@ -44,9 +44,7 @@ val newline: unit -> unit  (* Call this function to announce a new line *)
 
 
 val parse_error: string -> (* A message *) 
-                 int -> (* token_start *)
-                 int -> (* token_end *)
-                 unit
+                 'a
 
 type parseWhat = 
     ParseString of string

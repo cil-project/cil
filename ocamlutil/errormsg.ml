@@ -257,9 +257,15 @@ let setCurrentFile (n: string) =
 
 let max_errors = 20  (* Stop after 20 errors *)
 
-let parse_error (msg: string) 
-                (token_start: int) 
-                (token_end: int) : unit =
+let parse_error (msg: string) : 'a =
+  (* Sometimes the Ocaml parser raises errors in symbol_start and symbol_end *)
+  let token_start, token_end = 
+    try Parsing.symbol_start (), Parsing.symbol_end ()
+    with e -> begin 
+      (* ignore (warn "Parsing raised %s\n" (Printexc.to_string e)); *)
+      0, 0
+    end
+  in
   let i = !current in
   let adjStart = 
     if token_start < i.linestart then 0 else token_start - i.linestart in
@@ -278,7 +284,9 @@ let parse_error (msg: string)
   if i.num_errors > max_errors then begin
     output_string stderr "Too many errors. Aborting.\n" ;
     exit 1 
-  end
+  end;
+  raise Parsing.Parse_error
+
 
 
 (* Keep here the current pattern for formatparse *)

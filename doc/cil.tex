@@ -2616,11 +2616,25 @@ Necula}.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+=======
 \item {\bf October 15, 2003}: Fixed a problem in version 1.2.1 that
   was preventing compilation on OCaml 3.04.
+\item {\bf September 17, 2003: Released version 1.2.1.}
 \item {\bf September 7, 2003}: Redesigned the interface for choosing
   \texttt{\#line} directive printing styles.  Cil.printLn and
   Cil.printLnComment have been merged into Cil.lineDirectiveStyle.
+\item {\bf August 8, 2003}: Do not silently pad out functions calls with
+arguments to match the prototype. 
+\item {\bf August 1, 2003}: A variety of fixes suggested by Steve Chamberlain:
+initializers for externs, prohibit float literals in enum, initializers for
+unsized arrays were not workign always, an overflow problem in Ocaml, changed
+the processing of attributes before struct specifiers
+
+\item {\bf July 14, 2003}: Add basic support for GCC's "\_\_thread" storage
+qualifier. If given, it will appear as a "thread" attribute at the top of the
+type of the declared object. Treatment is very similar to "\_\_declspec(...)"
+in MSVC
+
 \item {\bf July 8, 2003}: Fixed some of the \_\_alignof computations. Fixed
   bug in the designated initializers for arrays (Array.get error).
 \item {\bf July 8, 2003}: Fixed infinite loop bug (Stack Overflow) in the
@@ -2632,12 +2646,31 @@ Necula}.
 \item {\bf July 7, 2003}: New Escape module provides utility functions
   for escaping characters and strings in accordance with C lexical
   rules.
+
+\item {\bf July 2, 2003}: Relax CIL's rules for when two enumeration types are
+considered compatible. Previously CIL considered two enums to be compatible if
+they were the same enum. Now we follow the C99 standard.
+
+
 \item {\bf June 28, 2003}: In the Formatparse module, Eric Haugh found and
   fixed a bug in the handling of lvalues of the form ``lv->field.more''.
+
+\item {\bf June 28, 2003}: Extended the handling of gcc command lines
+arguments in the Perl scripts. 
+
 \item {\bf June 23, 2003}: In Rmtmps module, simplified the API for
   customizing the root set.  Clients may supply a predicate that
   returns true for each root global.  Modifying various
   ``\texttt{referenced}'' fields directly is no longer supported.
+
+\item {\bf June 17, 2003}: Reimplement internal utility routine
+           \t{Cil.escape\_char}. Faster and better. 
+
+\item {\bf June 14, 2003}: Implemented support for \t{\_\_attribute\_\_s}
+appearing between "struct" and the struct tag name (also for unions and
+enums), since gcc supports this as documented in section 4.30 of the gcc
+(2.95.3) manual
+
 \item {\bf May 30, 2003}: Released the regression tests. 
 \item {\bf May 28, 2003}: {\bf Released version 1.1.2}
 \item {\bf May 26, 2003}: Add the \t{simplify} module that compiles CIL
