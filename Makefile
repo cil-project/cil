@@ -484,17 +484,23 @@ testpcc/% : $(PCCDIR)/src/%.c defaulttarget
 ifdef _MSVC
 MSLINK=--mode=mscl
 endif
+ifdef BOX
+ifndef INFERBOX
+ENGINE_OTHERS="$(CILDIR)/$(SAFEMAINLIB)"
+TRANSLF_OTHERS="$(CILDIR)/$(SAFEMAINLIB)"
+endif
+endif
 pcc : defaulttarget
 	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.o
 	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.exe
 	-rm $(PCCDIR)/bin/*.exe
 	make -C $(PCCDIR) \
-             CC="$(SAFECC) --combine --keep=$(CILDIR)/test/PCCout $(CONLY)" \
+             CC="$(SAFECC) --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) --combine --keep=$(CILDIR)/test/PCCout $(CONLY)" \
              LD="$(SAFECC) $(MSLINK) --combine --keep=$(CILDIR)/test/PCCout" \
              USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
              COMPILER=$(PCCCOMP) \
-             ENGINE_OTHERS="$(CILDIR)/$(SAFECLIB) $(CILDIR)/$(SAFEMAINLIB)" \
-             TRANSLF_OTHERS="$(CILDIR)/$(SAFECLIB) $(CILDIR)/$(SAFEMAINLIB)" \
+             ENGINE_OTHERS=$(ENGINE_OTHERS) \
+             TRANSLF_OTHERS=$(TRANSLF_OTHERS) \
 	     clean defaulttarget 
 
 pcc-combined: defaulttarget
