@@ -87,10 +87,17 @@ let rec doType (t: typ) (p: N.place)
         t, nextidx
       end
         
-          (* Strip the type names so that we have less sharing of nodes *)
+    (* Strip the type names so that we have less sharing of nodes. However, 
+     * we do not need to do it if the named type is a structure, and we get 
+     * nicer looking programs *)
   | TNamed (n, bt, a) -> 
-      let t', nextidx' = doType bt p nextidx in
-      t', nextidx'
+      let iscomp = match bt with TComp comp -> true | _ -> false in
+      if iscomp then
+        let t', _ = doType bt (N.PType n) 0 in
+        t', nextidx
+      else
+        let t', nextidx' = doType bt p nextidx in
+        t', nextidx'
         
   | TForward (comp, a) -> 
       if H.mem doneComposites comp.ckey then

@@ -86,8 +86,8 @@ type node =
                                          * This is needed because we cannot 
                                          * have wild pointers to memory 
                                          * containing safe pointers. *)
-
-
+      mutable interface: bool;          (* Is part of the interface *)
+      
       (* The rest are the computed results of constraint resolution *)
       mutable kind: pointerkind;
       mutable why_kind : whykind;
@@ -192,7 +192,7 @@ let d_whykind () = function
   | Unconstrained -> text "unconstrained"
 
 let d_node () n = 
-  dprintf "%d : %a (%s%s%s%s%s%s%s%s) (@[%a@])@! K=%a/%a T=%a@!  S=@[%a@]@!  P=@[%a@]@!" 
+  dprintf "%d : %a (%s%s%s%s%s%s%s%s%s) (@[%a@])@! K=%a/%a T=%a@!  S=@[%a@]@!  P=@[%a@]@!" 
     n.id d_placeidx n.where
     (if n.onStack then "stack," else "")
     (if n.updated then "upd," else "")
@@ -202,6 +202,7 @@ let d_node () n =
     (if n.intcast  then "int," else "")
     (if n.interface  then "interf," else "")
     (if n.sized  then "sized," else "")
+    (if n.interface  then "interf," else "")
     (docList (chr ',' ++ break)
        (fun n -> num n.id)) n.pointsto
     d_pointerkind n.kind
@@ -379,6 +380,7 @@ let newNode (p: place) (idx: int) (bt: typ) (a: attribute list) : node =
             posarith= false;
             null    = false;
             intcast = false;
+            interface = false;
             succ = [];
             kind = kind;
             why_kind = why_kind; 
