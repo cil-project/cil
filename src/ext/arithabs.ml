@@ -102,7 +102,7 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter = object (self)
           d_binop bop
           self#pExp e1 self#pExp e2
     | UnOp (uop, e1, _) -> 
-        dprintf "(%a @[%a2])"
+        dprintf "(%a @[%a@])"
           d_unop uop self#pExp e1
     | CastE (t, e) -> self#pExp () e
     | Lval (Mem _, _) -> text "(rand)"
@@ -150,8 +150,8 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter = object (self)
           il
     | Block b -> List.iter (self#dStmt out ind) b.bstmts
     | Goto (s, _) -> ignore (p ~ind:ind "goto %d\n" !s.sid)
-    | Return (None, _) -> ignore (p ~ind:ind "return ()\n")
-    | Return (Some e, _) -> ignore (p ~ind:ind "return (%a)\n" self#pExp e);
+    | Return (None, _) -> ignore (p ~ind:ind "return;\n")
+    | Return (Some e, _) -> ignore (p ~ind:ind "return %a;\n" self#pExp e);
     | If(e, b1, b2, _) -> 
         ignore (p ~ind:ind "<if %a\n" self#pExp e);
         self#dBlock out (ind + 2) b1;

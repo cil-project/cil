@@ -218,7 +218,7 @@ class threeAddressVisitor (fi: fundec) = object (self)
          lv)
 end
 
-
+(*
 (** This is a visitor that splits structured variables into separate 
  * variables. *)
 let isStructType (t: typ): bool = 
@@ -228,7 +228,9 @@ let isStructType (t: typ): bool =
 
 (* Keep track of how we change the variables. For each variable id we keep a 
  * hash table that maps an offset (a sequence of fieldinfo) into a 
- * replacement variable *)
+ * replacement variable. We also keep track of the splittable vars: those 
+ * with structure type but whose address is not take and which do not appear 
+ * as the argument to a Return *)
 let splittableVars: (int, unit) H.t = H.create 13
 let replacementVars: (int * offset, varinfo) H.t = H.create 13
 
@@ -366,30 +368,371 @@ class splitStructVisitor (fi: fundec) = object (self)
     | _ -> DoChildren
         
 end
+*)
+
+let dontSplit = ref false
+
+(* Whether to split the arguments of functions *)
+let splitArguments = true
+
+(* Whether we try to do the splitting all in one pass. The advantage is that 
+ * it is faster and it generates nicer names *)
+let lu = locUnknown
+
+(* Go over the code and split some temporary variables of stucture type into 
+ * several separate variables. The hope is that the compiler will have an 
+ * easier time to do standard optimizations with the resulting scalars *)
+(* Unfortunately, implementing this turns out to be more complicated than I 
+ * thought *)
+
+(** Iterate over the fields of a structured type. Returns the empty list if 
+ * no splits. The offsets are in order in which they appear in the structure 
+ * type. Along with the offset we pass a string that identifies the 
+ * meta-component, and the type of that component. *)
+let rec foldRightStructFields
+    (doit: offset -> string -> typ -> 'a) (* Invoked on non-struct fields *)
+    (off: offset)
+    (post: 'a list) (** A suffix to what you compute *)
+    (fields: fieldinfo list) : 'a list = 
+  List.fold_right
+    (fun f post -> 
+      let off' = addOffset (Field(f, NoOffset)) off in 
+      match unrollType f.ftype with 
+        TComp (comp, _) when comp.cstruct -> (* struct type: recurse *)
+          foldRightStructFields doit off' post comp.cfields
+      | _ -> 
+          (doit off' f.fname f.ftype) :: post)
+    fields
+    post
+  
+
+let rec foldStructFields
+    (t: typ) 
+    (doit: offset -> string -> typ -> 'a) 
+    : 'a list = 
+  match unrollType t with 
+    TComp (comp, _) when comp.cstruct -> 
+      foldRightStructFields doit NoOffset [] comp.cfields
+  | _ -> []
+      
+      
+(* Map a variable name to a list of component variables, along with the 
+ * accessor offset. The fields are in the order in which they appear in the 
+ * structure. *)
+let newvars : (string, (offset * varinfo) list) H.t = H.create 13
+
+(* Split a variable and return the replacements, in the proper order. If this 
+ * variable is not split, then return just the variable. *)
+let splitOneVar (v: varinfo) 
+                (mknewvar: string -> typ -> varinfo) : varinfo list = 
+  try 
+    (* See if we have already split it *)
+    List.map snd (H.find newvars v.vname)
+  with Not_found -> begin
+    let vars: (offset * varinfo) list = 
+      foldStructFields v.vtype 
+        (fun off n t -> (* make a new one *)
+          let newname = v.vname ^ "_" ^ n in 
+          let v'= mknewvar newname t in
+          (off, v'))
+    in
+    if vars = [] then
+      [ v ]
+    else begin
+      (* Now remember the newly created vars *)
+      H.add newvars v.vname vars;
+      List.map snd vars (* Return just the vars *)
+    end
+  end
 
 
-let rec doOneFunction (fi: fundec) = 
-  (* Visit the body and change all expressions into three address code *)
-  let v = new threeAddressVisitor fi in
-  fi.sbody <- visitCilBlock v fi.sbody;
-  if !splitStructs then begin
-    H.clear replacementVars;
-    (* Now scan the locals and first those that we must split *)
+(* A visitor that finds all locals that appear in a call or have their 
+ * address taken *)
+let dontSplitLocals : (string, bool) H.t = H.create 111
+class findVarsCantSplitClass : cilVisitor = object (self) 
+  inherit nopCilVisitor
+        
+        (* expressions, to see the address being taken *)
+  method vexpr (e: exp) : exp visitAction =
+    match e with 
+      AddrOf (Var v, NoOffset) -> 
+        H.add dontSplitLocals v.vname true; SkipChildren
+      (* See if we take the address of the "_ms" field in a variable *)
+    | _ -> DoChildren
+
+
+          (* variables involved in call instructions *)
+  method vinst (i: instr) : instr list visitAction = 
+    match i with 
+      Call (res, f, args, _) -> 
+        (match res with 
+          Some (Var v, NoOffset) -> H.add dontSplitLocals v.vname true
+        | _ -> ());
+        if not splitArguments then 
+          List.iter (fun a -> 
+            match a with
+              Lval (Var v, NoOffset) -> H.add dontSplitLocals v.vname true
+            | _ -> ()) args; 
+        (* Now continue the visit *)
+        DoChildren
+
+    | _ -> DoChildren
+
+          (* Variables used in return should not be split *)
+  method vstmt (s: stmt) : stmt visitAction = 
+    match s.skind with 
+      Return (Some (Lval (Var v, NoOffset)), _) -> 
+        H.add dontSplitLocals v.vname true; DoChildren
+    | Return (Some e, _) -> 
+        DoChildren
+    | _ -> DoChildren
+
+  method vtype t = SkipChildren
+
+end
+let findVarsCantSplit = new findVarsCantSplitClass
+
+
+
+
+class splitVarVisitorClass : cilVisitor = object (self)
+  inherit nopCilVisitor
+
+
+  (* We must process the function types *)
+  method vtype t = 
+    (* We invoke the visitor first and then we fix it *)
+    let postProcessFunType (t: typ) : typ = 
+      match t with 
+        TFun(rt, Some params, isva, a) -> 
+          let rec loopParams = function
+              [] -> []
+            | ((pn, pt, pa) :: rest) as params -> 
+                let rest' = loopParams rest in
+                let res: (string * typ * attributes) list = 
+                  foldStructFields pt
+                    (fun off n t -> 
+                      (* Careful with no-name parameters, or we end up with 
+                       * many parameters named _p ! *)
+                      ((if pn <> "" then pn ^ n else ""), t, pa)) 
+                in
+                if res = [] then (* Not a fat *)
+                  if rest' == rest then 
+                    params (* No change at all. Try not to reallocate so that 
+                            * the visitor does not allocate. *)
+                  else
+                    (pn, pt, pa) :: rest'
+                else (* Some change *)
+                  res @ rest'
+          in
+          let params' = loopParams params in
+          if params == params' then 
+            t
+          else
+            TFun(rt, Some params', isva, a)
+          
+      | t -> t
+    in
+    if splitArguments then 
+      ChangeDoChildrenPost(t, postProcessFunType)
+    else
+      SkipChildren
+
+      (* Whenever we see a variable with a field access we try to replace it 
+       * by its components *)
+  method vlval ((b, off) : lval) : lval visitAction = 
+    try
+      match b, off with
+        Var v, (Field _ as off) ->
+          (* See if this variable has some splits.Might throw Not_found *)
+          let splits = H.find newvars v.vname in
+          (* Now find among the splits one that matches this offset. And 
+           * return the remaining offset *)
+          let rec find = function
+              [] -> 
+                E.s (E.bug "Cannot find component %a of %s\n" 
+                       (d_offset nil) off v.vname)
+            | (splitoff, splitvar) :: restsplits -> 
+                let rec matches = function 
+                    Field(f1, rest1), Field(f2, rest2) 
+                      when f1.fname = f2.fname -> 
+                        matches (rest1, rest2)
+                  | off, NoOffset -> 
+                      (* We found a match *)
+                      (Var splitvar, off)
+                  | NoOffset, restoff -> 
+                      ignore (warn "Found aggregate lval %a\n" 
+                                d_lval (b, off));
+                      find restsplits
+
+                  | _, _ -> (* We did not match this one; go on *)
+                      find restsplits
+                in
+                matches (off, splitoff)
+          in
+          ChangeTo (find splits)
+      | _ -> DoChildren
+    with Not_found -> DoChildren
+
+        (* Sometimes we pass the variable as a whole to a function or we 
+         * assign it to something *)
+  method vinst (i: instr) : instr list visitAction = 
+    match i with
+      (* Split into two instructions and then do children. Howver, v._p might 
+       * appear in the lv and if we duplicate the instruction we might get 
+       * bad results. To fix this problem we make sure that the update to _p 
+       * happens last. Other fields of v should not appear in lv. *)
+      Set ((Var v, NoOffset), Lval lv, l) when H.mem newvars v.vname -> begin
+        match H.find newvars v.vname with
+          fst :: rest -> 
+            ChangeTo 
+              (List.map 
+                 (fun (off, newv) ->  
+                   let lv' = 
+                     visitCilLval (self :> cilVisitor)
+                       (addOffsetLval off lv) in
+                   Set((Var newv, NoOffset), Lval lv', l))
+                 (rest @ [fst]))
+        | _ -> E.s (errorLoc l "No first field (in splitFats)")
+      end 
+ 
+      | Set (lv, Lval (Var v, NoOffset), l) when H.mem newvars v.vname ->
+          begin
+            match H.find newvars v.vname with
+              fst :: rest -> 
+                ChangeTo  
+                  (List.map 
+                     (fun (off, newv) -> 
+                       let lv' = 
+                         visitCilLval (self :> cilVisitor)
+                           (addOffsetLval off lv) in
+                       Set(lv', Lval (Var newv, NoOffset), l))
+                     (rest @ [fst]))
+            | _ -> E.s (errorLoc l "No first field (in splitFats)")
+          end 
+
+        (* Split all function arguments in calls *)
+      | Call (ret, f, args, l) when splitArguments ->
+          (* Visit the children first and then see if we must change the 
+           * arguments *)
+          let finishArgs = function
+              [Call (ret', f', args', l')] as i' -> 
+                let mustChange = ref false in
+                let newargs = 
+                  (* Look for opportunities to split arguments. If we can
+                   * split, we must split the original argument (in args).
+                   * Otherwise, we use the result of processing children
+                   * (in args'). *)
+                  List.fold_right2
+                    (fun a a' acc -> 
+                      match a with
+                        Lval (Var v, NoOffset) when H.mem newvars v.vname -> 
+                          begin
+                            mustChange := true;
+                            (List.map 
+                               (fun (_, newv) -> 
+                                 Lval (Var newv, NoOffset)) 
+                               (H.find newvars v.vname))
+                            @ acc
+                          end
+                      | _ -> a' :: acc)
+                    args args'
+                    []
+                in
+                if !mustChange then 
+                  [Call (ret', f', newargs, l')]
+                else
+                  i'
+            | _ -> E.s (E.bug "splitVarVisitorClass: expecting call")
+          in
+          ChangeDoChildrenPost ([i], finishArgs)
+
+      | _ -> DoChildren
+
+        
+  method vfunc (func: fundec) : fundec visitAction = 
+    H.clear newvars;
+    H.clear dontSplitLocals;
+    (* Visit the type of the function itself *)
+    if splitArguments then 
+      func.svar.vtype <- visitCilType (self :> cilVisitor) func.svar.vtype;
+
+    (* Go over the block and find the candidates *)
+    ignore (visitCilBlock findVarsCantSplit func.sbody);
+
+    (* Now go over the formals and create the splits *)
+    if splitArguments then begin
+      (* Split all formals because we will split all arguments in function 
+       * types *)
+      let newformals = 
+        List.fold_right 
+          (fun form acc -> 
+            (* Process the type first *)
+            form.vtype <- 
+               visitCilType (self : #cilVisitor :> cilVisitor) form.vtype;
+            let form' = 
+              splitOneVar form 
+                          (fun s t -> makeLocalVar func ~insert:false s t)
+            in
+            (* Now it is a good time to check if we actually can split this 
+             * one *)
+            if List.length form' > 1 &&
+               H.mem dontSplitLocals form.vname then
+              ignore (warn "boxsplit: can't split formal \"%s\" in %s. Make sure you never take the address of a formal.\n"
+                     form.vname func.svar.vname);
+            form' @ acc)
+          func.sformals [] 
+      in
+      (* Now make sure we fix the type.  *)
+      setFormals func newformals
+    end;
+    (* Now go over the locals and create the splits *)
     List.iter 
-      (fun v -> 
-        (* Split only structured types whose address is not taken *)
-        match v.vaddrof, unrollType v.vtype with 
-          false, TComp (ci, _) when ci.cstruct -> 
-            H.add splittableVars v.vid ()
-        | _, _ -> ())
-      fi.slocals;
-    (* Remove those that we split. Do this before we add other locals. *)
-    fi.slocals <- 
-       List.filter (fun v -> not (H.mem splittableVars v.vid)) fi.slocals;
-    let sv = new splitStructVisitor fi in
-    fi.sbody <- visitCilBlock sv fi.sbody;
-  end;
-  ()
+      (fun l ->
+        (* Process the type of the local *)
+        l.vtype <- visitCilType (self :> cilVisitor) l.vtype;
+        (* Now see if we must split it *)
+        if not (H.mem dontSplitLocals l.vname) then begin
+          ignore (splitOneVar l (fun s t -> makeTempVar func ~name:s t))
+        end) 
+      func.slocals;
+    (* Now visit the body and change references to these variables *)
+    ignore (visitCilBlock (self :> cilVisitor) func.sbody);
+    H.clear newvars;
+    H.clear dontSplitLocals;
+    SkipChildren  (* We are done with this function *)
+
+  (* Try to catch the occurrences of the variable in a sizeof expression *)
+  method vexpr (e: exp) = 
+    match e with 
+    | SizeOfE (Lval(Var v, NoOffset)) -> begin
+        try
+          let splits =  H.find newvars v.vname in
+          (* We cound here on no padding between the elements ! *)
+          ChangeTo
+            (List.fold_left
+               (fun acc (_, thisv) -> 
+                 BinOp(PlusA, SizeOfE(Lval(Var thisv, NoOffset)), 
+                       acc, uintType))
+               zero
+               splits)
+        with Not_found -> DoChildren
+    end
+    | _ -> DoChildren
+end
+
+let splitVarVisitor = new splitVarVisitorClass
+    
+let rec doOneFunction (f: fundec) = 
+  (* Visit the body and change all expressions into three address code *)
+  let v = new threeAddressVisitor f in
+  f.sbody <- visitCilBlock v f.sbody;
+  if !splitStructs then begin
+    H.clear dontSplitLocals;
+    if not !dontSplit then begin
+      ignore (visitCilFunction splitVarVisitor f);
+    end;
+  end
 
 let feature : featureDescr = 
   { fd_name = "simplify";
