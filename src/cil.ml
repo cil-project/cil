@@ -4288,7 +4288,7 @@ let rec alignOf_int = function
           if not !msvcMode && f.fbitfield = Some 0 then sofar else
           max sofar (alignOf_int f.ftype)) 1 fields
         (* These are some error cases *)
-  (* | TFun _ when not !msvcMode -> !theMachine.M.alignof_fun *)
+  | TFun _ when not !msvcMode -> !theMachine.M.alignof_fun
       
   | (TFun _ | TVoid _) as t -> raise (SizeOfError t)
       
